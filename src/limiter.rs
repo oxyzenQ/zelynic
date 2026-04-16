@@ -61,12 +61,12 @@ fn detect_cgroup_version() -> (bool, bool) {
 fn ensure_kernel_modules() -> Result<()> {
     // List of modules typically required for tc bandwidth limiting and cgroups
     let modules = [
-        "sch_htb",      // HTB qdisc
-        "cls_u32",      // u32 classifier
-        "cls_cgroup",   // cgroup classifier
-        "sch_ingress",  // ingress qdisc
-        "act_mirred",   // mirred action (for IFB)
-        "cls_fw",       // fw classifier
+        "sch_htb",     // HTB qdisc
+        "cls_u32",     // u32 classifier
+        "cls_cgroup",  // cgroup classifier
+        "sch_ingress", // ingress qdisc
+        "act_mirred",  // mirred action (for IFB)
+        "cls_fw",      // fw classifier
     ];
 
     for module in modules {
@@ -97,10 +97,14 @@ fn ensure_cgroup_filter(device: &str, parent: &str) -> Result<()> {
         // Add cgroup filter (no handle needed, no specific match criteria)
         let output = Command::new("tc")
             .args([
-                "filter", "add", "dev", device, "parent", parent, "protocol", "ip", "prio", "1", "cgroup",
+                "filter", "add", "dev", device, "parent", parent, "protocol", "ip", "prio", "1",
+                "cgroup",
             ])
             .output()
-            .context(format!("failed to setup cgroup filter on {} for parent {}", device, parent))?;
+            .context(format!(
+                "failed to setup cgroup filter on {} for parent {}",
+                device, parent
+            ))?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
@@ -774,7 +778,11 @@ pub fn apply_limit(
 
     // Ensure necessary kernel modules are loaded
     if let Err(e) = ensure_kernel_modules() {
-        eprintln!("{}: Failed to ensure kernel modules: {}", "WARNING".yellow(), e);
+        eprintln!(
+            "{}: Failed to ensure kernel modules: {}",
+            "WARNING".yellow(),
+            e
+        );
     }
 
     // Set up HTB qdisc
@@ -940,7 +948,12 @@ pub fn apply_limit(
 
     // Print summary
     if applied_count == 0 {
-        println!("{}", "oxy strict: no bandwidth limits were applied".yellow().bold());
+        println!(
+            "{}",
+            "oxy strict: no bandwidth limits were applied"
+                .yellow()
+                .bold()
+        );
         return Ok(());
     }
 
