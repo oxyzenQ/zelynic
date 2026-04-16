@@ -68,6 +68,9 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-test-
 
+      - name: Build binary
+        run: cargo build --locked
+
       - name: Run tests
         run: cargo test --locked
 
