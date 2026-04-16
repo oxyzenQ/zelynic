@@ -95,22 +95,45 @@ fn ensure_cgroup_filter(device: &str, parent: &str) -> Result<()> {
 
     if !has_cgroup {
         // Add cgroup filter (no handle needed, no specific match criteria)
-        let output = Command::new("tc")
-            .args([
-                "filter", "add", "dev", device, "parent", parent, "protocol", "ip", "prio", "1",
-                "cgroup",
-            ])
-            .output()
-            .context(format!(
-                "failed to setup cgroup filter on {} for parent {}",
-                device, parent
-            ))?;
+        // Use 'protocol all' for broad compatibility across different interface types and address families.
+        let mut retry_count = 0;
+        let max_retries = 2;
 
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            if !stderr.contains("File exists") {
-                bail!("failed to setup cgroup filter on {}: {}", device, stderr);
+        loop {
+            let output = Command::new("tc")
+                .args([
+                    "filter", "add", "dev", device, "parent", parent, "protocol", "all", "prio",
+                    "1", "cgroup",
+                ])
+                .output()
+                .context(format!(
+                    "failed to setup cgroup filter on {} for parent {}",
+                    device, parent
+                ))?;
+
+            if output.status.success() {
+                break;
             }
+
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            if stderr.contains("File exists") {
+                break;
+            }
+
+            if retry_count >= max_retries {
+                bail!(
+                    "failed to setup cgroup filter on {}: {} (after {} retries)\n\
+                     Tip: This often happens on pure cgroup v2 systems without 'net_cls' support. \
+                     Check 'dmesg' for specific kernel errors.",
+                    device,
+                    stderr,
+                    max_retries
+                );
+            }
+
+            // Small delay for virtual devices (like IFB) which may have a race condition when newly created
+            std::thread::sleep(std::time::Duration::from_millis(200));
+            retry_count += 1;
         }
     }
 
