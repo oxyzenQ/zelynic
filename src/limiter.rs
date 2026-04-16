@@ -1273,10 +1273,7 @@ pub fn clean_orphans() -> Result<()> {
     state.save()?;
 
     println!();
-    println!(
-        "{}",
-        "oxy clean: orphaned limits removed".green().bold()
-    );
+    println!("{}", "oxy clean: orphaned limits removed".green().bold());
     println!();
     println!("  Removed:   {} orphaned limit(s)", removed_count);
     println!("  Remaining: {} active limit(s)", kept_count);
@@ -1388,10 +1385,7 @@ pub fn check_respawns() -> Result<()> {
     state.save()?;
 
     println!();
-    println!(
-        "{}",
-        "oxy: respawn handling complete".green().bold()
-    );
+    println!("{}", "oxy: respawn handling complete".green().bold());
 
     Ok(())
 }
