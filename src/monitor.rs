@@ -800,3 +800,108 @@ fn format_rate(bytes_per_sec: f64) -> String {
         format!("{:.2} GB/s", bytes_per_sec / (1024.0 * 1024.0 * 1024.0))
     }
 }
+
+/// Display verbose bandwidth usage with per-connection breakdown.
+///
+/// Shows individual socket connections for each process including
+/// remote IP, port, protocol (TCP/UDP), and bytes transferred.
+pub fn display_usage_verbose() -> Result<()> {
+    use colored::Colorize;
+
+    let entries = collect_bandwidth_stats()?;
+    let processes = aggregate_by_process(&entries);
+
+    if processes.is_empty() {
+        println!("{}", "No active network connections found.".dimmed());
+        return Ok(());
+    }
+
+    println!("{}", "Network Bandwidth Usage (Verbose)".green().bold());
+    println!(
+        "  {} {}",
+        "Generated:".dimmed(),
+        chrono::Local::now()
+            .format("%Y-%m-%d %H:%M:%S")
+            .to_string()
+            .dimmed()
+    );
+    println!();
+
+    for proc in &processes {
+        // Print process header
+        let rx_str = format_bytes(proc.total_received);
+        let tx_str = format_bytes(proc.total_sent);
+        let total_str = format_bytes(proc.total_received + proc.total_sent);
+
+        println!(
+            "{} {} (PID: {}) ─ RX: {} │ TX: {} │ Total: {}",
+            "▶".cyan().bold(),
+            proc.name.cyan().bold(),
+            proc.pid,
+            rx_str.green(),
+            tx_str.yellow(),
+            total_str.white().bold()
+        );
+
+        // Print individual connections
+        if proc.sockets.is_empty() {
+            println!("  {} No socket details available", "•".dimmed());
+        } else {
+            for socket in &proc.sockets {
+                // Parse local and remote addresses
+                let (local_ip, local_port) = parse_addr_port(&socket.local_addr);
+                let (remote_ip, remote_port) = parse_addr_port(&socket.remote_addr);
+
+                // Determine protocol from protocol field
+                let protocol = if socket.protocol.contains("UDP") {
+                    "UDP"
+                } else {
+                    "TCP"
+                };
+
+                let proto_color = match protocol {
+                    "TCP" => "cyan",
+                    "UDP" => "yellow",
+                    _ => "white",
+                };
+
+                // Determine connection state
+                let state_str = match socket.state.as_str() {
+                    "ESTAB" | "ESTABLISHED" => "",
+                    "LISTEN" => " [LISTEN]",
+                    "TIME-WAIT" => " [TIME-WAIT]",
+                    "CLOSE-WAIT" => " [CLOSE]",
+                    s if s.contains("UDP") => "",
+                    _ => &format!(" [{}]", socket.state),
+                };
+
+                println!(
+                    "  {} {:<5} {}:{:<6} → {}:{:<6} │ RX: {} │ TX: {}{}",
+                    "•".dimmed(),
+                    protocol.color(proto_color),
+                    local_ip.dimmed(),
+                    local_port.dimmed(),
+                    remote_ip,
+                    remote_port,
+                    format_bytes(socket.bytes_received).green(),
+                    format_bytes(socket.bytes_sent).yellow(),
+                    state_str.dimmed()
+                );
+            }
+        }
+
+        println!(); // Empty line between processes
+    }
+
+    Ok(())
+}
+
+/// Parse IP:port string into separate components.
+fn parse_addr_port(addr: &str) -> (String, String) {
+    if let Some(pos) = addr.rfind(':') {
+        let (ip, port) = addr.split_at(pos);
+        (ip.to_string(), port[1..].to_string())
+    } else {
+        (addr.to_string(), "?".to_string())
+    }
+}

@@ -4,20 +4,17 @@
 /// and send notifications when bandwidth exceeds specified thresholds.
 use anyhow::{bail, Context, Result};
 use colored::Colorize;
-use std::collections::HashMap;
 use std::process::{Command, Stdio};
 use std::thread;
 use std::time::{Duration, Instant};
 
 use crate::limiter::check_root;
-use crate::monitor::{aggregate_by_process, collect_bandwidth_stats, ProcessBandwidth};
+use crate::monitor::{aggregate_by_process, collect_bandwidth_stats};
 use crate::units::BandwidthRate;
 
 /// Bandwidth watch state for a single process.
 #[derive(Debug)]
 struct WatchState {
-    /// Alert threshold in bytes/sec
-    threshold: u64,
     /// Last known bandwidth rate
     last_rate: u64,
     /// Whether currently in alert state (to avoid spam)
@@ -64,7 +61,6 @@ pub fn watch_process(
 
     let interval = Duration::from_secs(interval_secs);
     let mut state = WatchState {
-        threshold: threshold_bps,
         last_rate: 0,
         in_alert: false,
         last_snapshot: None,
@@ -173,7 +169,7 @@ fn send_notification(process: &str, message: &str, custom_cmd: Option<&str>) -> 
     // Try custom command first
     if let Some(cmd) = custom_cmd {
         let _ = Command::new(cmd)
-            .args(&[process, message])
+            .args([process, message])
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .status();
@@ -182,7 +178,7 @@ fn send_notification(process: &str, message: &str, custom_cmd: Option<&str>) -> 
 
     // Try notify-send
     let result = Command::new("notify-send")
-        .args(&["--urgency=normal", &summary, message])
+        .args(["--urgency=normal", &summary, message])
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .status();

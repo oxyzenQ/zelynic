@@ -52,12 +52,15 @@ fn main() -> Result<()> {
             json,
             live,
             interval,
+            verbose,
         }) => {
             if live {
                 let interval_secs = interval.unwrap_or(1);
                 monitor::display_usage_live(interval_secs)?;
             } else if json {
                 monitor::display_usage_json()?;
+            } else if verbose {
+                monitor::display_usage_verbose()?;
             } else if !usage_all && !high_to_low {
                 // Default: show usage-all if no flag specified
                 monitor::display_usage_all()?;
