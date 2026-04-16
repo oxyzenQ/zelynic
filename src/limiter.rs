@@ -56,6 +56,62 @@ fn detect_cgroup_version() -> (bool, bool) {
         (false, false)
     }
 }
+
+/// Ensure required kernel modules for traffic control and cgroups are loaded.
+fn ensure_kernel_modules() -> Result<()> {
+    // List of modules typically required for tc bandwidth limiting and cgroups
+    let modules = [
+        "sch_htb",      // HTB qdisc
+        "cls_u32",      // u32 classifier
+        "cls_cgroup",   // cgroup classifier
+        "sch_ingress",  // ingress qdisc
+        "act_mirred",   // mirred action (for IFB)
+        "cls_fw",       // fw classifier
+    ];
+
+    for module in modules {
+        // Use modprobe to load modules. It's okay if they are already loaded or built-in.
+        let _ = Command::new("modprobe").arg(module).output();
+    }
+
+    Ok(())
+}
+
+/// Ensure a cgroup filter exists on a qdisc parent.
+///
+/// Only one cgroup filter is needed per qdisc to classify all traffic
+/// based on the net_cls.classid set in the socket.
+fn ensure_cgroup_filter(device: &str, parent: &str) -> Result<()> {
+    // Check if cgroup filter already exists
+    let check = Command::new("tc")
+        .args(["filter", "show", "dev", device, "parent", parent])
+        .output()
+        .ok();
+
+    let has_cgroup = check
+        .as_ref()
+        .map(|o| String::from_utf8_lossy(&o.stdout).contains("cgroup"))
+        .unwrap_or(false);
+
+    if !has_cgroup {
+        // Add cgroup filter (no handle needed, no specific match criteria)
+        let output = Command::new("tc")
+            .args([
+                "filter", "add", "dev", device, "parent", parent, "protocol", "ip", "prio", "1", "cgroup",
+            ])
+            .output()
+            .context(format!("failed to setup cgroup filter on {} for parent {}", device, parent))?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            if !stderr.contains("File exists") {
+                bail!("failed to setup cgroup filter on {}: {}", device, stderr);
+            }
+        }
+    }
+
+    Ok(())
+}
 /// The next available class ID counter file.
 const CLASS_ID_FILE: &str = "/run/oxy/.next_class_id";
 
@@ -716,8 +772,26 @@ pub fn apply_limit(
     let pids = resolve_pids(target)?;
     let interface = get_default_interface()?;
 
+    // Ensure necessary kernel modules are loaded
+    if let Err(e) = ensure_kernel_modules() {
+        eprintln!("{}: Failed to ensure kernel modules: {}", "WARNING".yellow(), e);
+    }
+
     // Set up HTB qdisc
     ensure_htb_qdisc(&interface)?;
+
+    // Ensure global egress cgroup filter exists on main interface
+    ensure_cgroup_filter(&interface, "1:0")?;
+
+    // Check for cgroup v2 and warn if necessary
+    let (is_v2, is_hybrid) = detect_cgroup_version();
+    if is_v2 && !is_hybrid {
+        eprintln!(
+            "{} System is in pure cgroup v2 mode. The 'tc/cgroup' backend may require 'net_cls' \
+             which is often deprecated in v2. If this fails, consider waiting for the eBPF backend.",
+            "WARNING:".yellow().bold()
+        );
+    }
 
     // Load existing state
     let mut state = OxyState::load()?;
@@ -782,41 +856,6 @@ pub fn apply_limit(
             ],
         );
 
-        // Add egress filter with rollback
-        tx.add(
-            &format!("egress filter for PID {}", pid),
-            vec![
-                "filter".to_string(),
-                "add".to_string(),
-                "dev".to_string(),
-                interface.clone(),
-                "protocol".to_string(),
-                "ip".to_string(),
-                "parent".to_string(),
-                "1:0".to_string(),
-                "prio".to_string(),
-                "1".to_string(),
-                "handle".to_string(),
-                format!("1{:04x}::1", class_id),
-                "cgroup".to_string(),
-            ],
-            vec![
-                "filter".to_string(),
-                "del".to_string(),
-                "dev".to_string(),
-                interface.clone(),
-                "protocol".to_string(),
-                "ip".to_string(),
-                "parent".to_string(),
-                "1:0".to_string(),
-                "prio".to_string(),
-                "1".to_string(),
-                "handle".to_string(),
-                format!("1{:04x}::1", class_id),
-                "cgroup".to_string(),
-            ],
-        );
-
         // For download (ingress) limiting, use IFB (Intermediate Functional Block)
         // to mirror traffic and apply per-process HTB shaping
         if let Some(dl_bps) = dl_bps {
@@ -862,40 +901,8 @@ pub fn apply_limit(
                 ],
             );
 
-            // Add IFB filter with rollback
-            tx.add(
-                &format!("IFB filter for PID {}", pid),
-                vec![
-                    "filter".to_string(),
-                    "add".to_string(),
-                    "dev".to_string(),
-                    IFB_DEVICE.to_string(),
-                    "protocol".to_string(),
-                    "ip".to_string(),
-                    "parent".to_string(),
-                    "1:".to_string(),
-                    "prio".to_string(),
-                    "2".to_string(),
-                    "handle".to_string(),
-                    format!("1{:04x}", class_id),
-                    "cgroup".to_string(),
-                ],
-                vec![
-                    "filter".to_string(),
-                    "del".to_string(),
-                    "dev".to_string(),
-                    IFB_DEVICE.to_string(),
-                    "protocol".to_string(),
-                    "ip".to_string(),
-                    "parent".to_string(),
-                    "1:".to_string(),
-                    "prio".to_string(),
-                    "2".to_string(),
-                    "handle".to_string(),
-                    format!("1{:04x}", class_id),
-                    "cgroup".to_string(),
-                ],
-            );
+            // Ensure cgroup filter exists on IFB device
+            ensure_cgroup_filter(IFB_DEVICE, "1:0")?;
         }
 
         // Execute all tc commands atomically with rollback on failure
@@ -932,6 +939,11 @@ pub fn apply_limit(
     state.save()?;
 
     // Print summary
+    if applied_count == 0 {
+        println!("{}", "oxy strict: no bandwidth limits were applied".yellow().bold());
+        return Ok(());
+    }
+
     println!("{}", "oxy strict: bandwidth limit applied".green().bold());
     println!();
     println!("  Target:    {}", target);
@@ -1021,48 +1033,11 @@ pub fn remove_limit(target: &str) -> Result<()> {
             .output()
             .ok();
 
-        // Remove tc filter
-        Command::new("tc")
-            .args([
-                "filter",
-                "del",
-                "dev",
-                &record.interface,
-                "protocol",
-                "ip",
-                "parent",
-                "1:0",
-                "prio",
-                "1",
-                "handle",
-                &format!("1{:04x}::1", record.class_id),
-                "cgroup",
-            ])
-            .output()
-            .ok();
+        // Remove tc filter - no longer needed per class since filters are now global
 
-        // Remove IFB class and filter for download limiting (if exists)
+        // Remove IFB class
         Command::new("tc")
             .args(["class", "del", "dev", IFB_DEVICE, "classid", &class_id_str])
-            .output()
-            .ok();
-
-        Command::new("tc")
-            .args([
-                "filter",
-                "del",
-                "dev",
-                IFB_DEVICE,
-                "protocol",
-                "ip",
-                "parent",
-                "1:0",
-                "prio",
-                "2",
-                "handle",
-                &format!("1{:04x}", record.class_id),
-                "cgroup",
-            ])
             .output()
             .ok();
 
@@ -1200,64 +1175,16 @@ pub fn clean_orphans() -> Result<()> {
             ])
             .output();
 
-        // Remove tc filter
-        let _ = Command::new("tc")
-            .args([
-                "filter",
-                "del",
-                "dev",
-                &record.interface,
-                "protocol",
-                "ip",
-                "parent",
-                "1:0",
-                "prio",
-                "1",
-                "handle",
-                &format!("1{:04x}::1", record.class_id),
-                "cgroup",
-            ])
-            .output();
+        // Remove tc filter - no longer needed per class since filters are now global
 
-        // Remove tc ingress filter if exists (legacy police-based)
-        let _ = Command::new("tc")
-            .args([
-                "filter",
-                "del",
-                "dev",
-                &record.interface,
-                "parent",
-                "ffff:",
-                "protocol",
-                "ip",
-                "prio",
-                &format!("{}", 100 + (record.class_id % 900)),
-            ])
-            .output();
+        // Remove legacy ingress filter if it exists
 
         // Remove IFB class for download limiting (if exists)
         let _ = Command::new("tc")
             .args(["class", "del", "dev", IFB_DEVICE, "classid", &class_id_str])
             .output();
 
-        // Remove IFB filter for download limiting
-        let _ = Command::new("tc")
-            .args([
-                "filter",
-                "del",
-                "dev",
-                IFB_DEVICE,
-                "protocol",
-                "ip",
-                "parent",
-                "1:0",
-                "prio",
-                "2",
-                "handle",
-                &format!("1{:04x}", record.class_id),
-                "cgroup",
-            ])
-            .output();
+        // Remove IFB filter - no longer needed per class since filters are now global
 
         // Remove cgroup
         let _ = remove_cgroup(record.pid);
