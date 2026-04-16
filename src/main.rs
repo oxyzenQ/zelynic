@@ -6,6 +6,7 @@
 /// and the `ss` utility for bandwidth monitoring.
 mod auto;
 mod cli;
+mod ebpf;
 mod info;
 mod limiter;
 mod log;
@@ -243,6 +244,12 @@ fn main() -> Result<()> {
 
         Some(Commands::Man) => {
             generate_man_page()?;
+        }
+
+        Some(Commands::Backend) => {
+            ebpf::print_backend_info();
+            println!();
+            ebpf::check_ebpf_support().print_status();
         }
 
         None => {

@@ -296,6 +296,14 @@ pub enum Commands {
         #[arg(short, long, default_value = "5")]
         interval: u64,
     },
+
+    /// Show backend information and eBPF support status
+    ///
+    /// Displays which backend (eBPF or tc/cgroup) is being used
+    /// and checks system capabilities for eBPF support.
+    ///
+    /// Use this to verify if your system can use the eBPF backend.
+    Backend,
 }
 
 /// Profile management subcommands.
