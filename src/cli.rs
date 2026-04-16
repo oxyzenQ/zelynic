@@ -231,6 +231,32 @@ pub enum Commands {
         command: QosCommands,
     },
 
+    /// Watch bandwidth and alert when thresholds are exceeded
+    ///
+    /// Monitor a process and send desktop notification (or stderr fallback)
+    /// when bandwidth exceeds specified threshold. Useful for background
+    /// download monitoring without keeping --live open.
+    ///
+    /// Examples:
+    ///   oxy watch --alert 500mb wget     # Alert when wget > 500MB/s
+    ///   oxy watch --alert 1gb firefox   # Alert when firefox > 1GB/s
+    ///   oxy watch --alert 100mb -i 30    # Check every 30 seconds
+    #[command(verbatim_doc_comment)]
+    Watch {
+        /// Alert threshold (e.g., 500mb, 1gb, 10mb)
+        #[arg(short = 'a', long, value_name = "RATE", required = true)]
+        alert: String,
+        /// Process to watch (name or PID)
+        #[arg(value_name = "PROCESS")]
+        target: String,
+        /// Check interval in seconds
+        #[arg(short, long, default_value = "10")]
+        interval: u64,
+        /// Desktop notification command (default: notify-send)
+        #[arg(long, value_name = "CMD")]
+        notify_cmd: Option<String>,
+    },
+
     /// Auto-throttle: background daemon mode
     ///
     /// Runs continuously in the background, monitoring total bandwidth usage
