@@ -117,7 +117,7 @@ pub enum Commands {
         /// - gaming:     50mb down / 50mb up  (low latency priority)
         /// - streaming:  10mb down / 5mb up   (balanced for video)
         /// - background: 500kb down / 100kb up (minimal, deprioritized)
-        #[arg(long = "preset", value_name = "PROFILE", group = "preset")]
+        #[arg(long = "preset", value_name = "PROFILE", group = "preset_group")]
         preset: Option<String>,
 
         /// Target process name or PID (e.g., brave, firefox, 1234)

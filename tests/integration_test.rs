@@ -11,13 +11,7 @@ use std::time::Duration;
 ///
 /// Uses the release binary if available, otherwise falls back to debug.
 fn oxy_cmd() -> Command {
-    let release_path = "./target/release/oxy";
-    let debug_path = "./target/debug/oxy";
-    let binary = if std::path::Path::new(release_path).exists() {
-        release_path
-    } else {
-        debug_path
-    };
+    let binary = env!("CARGO_BIN_EXE_oxy");
     let mut cmd = Command::new(binary);
     cmd.env("NO_COLOR", "1");
     cmd
