@@ -117,3 +117,6 @@ vgcore.*
 
 # guide
 ROADMAP.md
+
+# any error log
+*.log

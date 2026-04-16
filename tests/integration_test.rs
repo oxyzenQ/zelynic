@@ -58,7 +58,7 @@ fn test_list_json() {
 fn test_rate_parse() {
     // Test that invalid rate produces error
     let output = oxy_cmd()
-        .args(&["strict", "-d", "invalid", "12345"])
+        .args(["strict", "-d", "invalid", "12345"])
         .output()
         .expect("Failed to execute oxy strict");
 
@@ -68,6 +68,7 @@ fn test_rate_parse() {
 /// Test strict -> unstrict cycle
 #[test]
 #[ignore = "requires root and sleep process"]
+#[allow(clippy::zombie_processes)]
 fn test_strict_unstrict_cycle() {
     // Start a sleep process
     let mut sleep_cmd = Command::new("sleep")
@@ -82,7 +83,7 @@ fn test_strict_unstrict_cycle() {
 
     // Apply limit
     let output = oxy_cmd()
-        .args(&["strict", "-d", "1mb", &pid.to_string()])
+        .args(["strict", "-d", "1mb", &pid.to_string()])
         .output()
         .expect("Failed to apply limit");
 
@@ -107,7 +108,7 @@ fn test_strict_unstrict_cycle() {
 
     // Remove limit
     let output = oxy_cmd()
-        .args(&["unstrict", &pid.to_string()])
+        .args(["unstrict", &pid.to_string()])
         .output()
         .expect("Failed to remove limit");
 
@@ -127,7 +128,7 @@ fn test_strict_unstrict_cycle() {
 fn test_profile_save_apply() {
     // Save a test profile
     let output = oxy_cmd()
-        .args(&["profile", "save", "test-profile", "-d", "5mb", "-u", "2mb"])
+        .args(["profile", "save", "test-profile", "-d", "5mb", "-u", "2mb"])
         .output()
         .expect("Failed to save profile");
 
@@ -139,7 +140,7 @@ fn test_profile_save_apply() {
 
     // List profiles
     let output = oxy_cmd()
-        .args(&["profile", "list"])
+        .args(["profile", "list"])
         .output()
         .expect("Failed to list profiles");
 
@@ -152,7 +153,7 @@ fn test_profile_save_apply() {
 
     // Cleanup: delete test profile
     let _ = oxy_cmd()
-        .args(&["profile", "delete", "test-profile"])
+        .args(["profile", "delete", "test-profile"])
         .output();
 }
 
@@ -163,9 +164,9 @@ fn test_completions_generation() {
 
     for shell in shells {
         let output = oxy_cmd()
-            .args(&["completions", shell])
+            .args(["completions", shell])
             .output()
-            .expect(&format!("Failed to generate {} completions", shell));
+            .unwrap_or_else(|_| panic!("Failed to generate {} completions", shell));
 
         assert!(
             output.status.success(),
