@@ -1,0 +1,119 @@
+# =============================================================================
+# Oxy - Rust Project .gitignore
+# =============================================================================
+
+# ----- Build artifacts -----
+target/
+**/target/
+debug/
+release/
+
+# ----- Cargo -----
+Cargo.lock
+
+# ----- Backup files -----
+**/*.rs.bk
+**/*.orig
+*.swp
+*.swo
+*~
+
+# ----- IDE & Editor -----
+# VSCode
+.vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+
+# JetBrains / IntelliJ-Rust
+.idea/
+*.iml
+
+# Vim / Neovim
+[._]*.s[a-v][a-z]
+[._]*.sw[a-p]
+[._]s[a-rt-v][a-z]
+[._]ss[a-gi-z]
+Session.vim
+.netrwhist
+*~
+compile_commands.json
+
+# Helix
+.helix/
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+auto-save-list
+tramp
+.\#*
+
+# ----- OS generated files -----
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+Icon?
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# ----- Environment & Config -----
+.env
+.env.local
+.env.*.local
+
+# ----- Testing & Coverage -----
+# tarpaulin coverage
+tarpaulin-report.html
+tarpaulin-report.json
+cobertura.xml
+
+# llvm-cov
+*.profraw
+*.profdata
+coverage/
+
+# ----- Misc -----
+# GDB
+.gdb_history
+
+# perf
+perf.data
+perf.data.old
+
+# coredumps
+core
+core.*
+vgcore.*
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+
+# guide
+ROADMAP.md
