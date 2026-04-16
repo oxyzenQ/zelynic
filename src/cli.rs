@@ -49,6 +49,7 @@ pub enum Commands {
     /// their bandwidth consumption statistics.
     ///
     /// Use --live for real-time rate monitoring (like htop for bandwidth).
+    /// Use --verbose to see individual socket connections per process.
     List {
         /// Show all programs/ports with bandwidth usage
         #[arg(long = "usage-all")]
@@ -73,6 +74,13 @@ pub enum Commands {
         /// Refresh interval in seconds for live mode [default: 1]
         #[arg(long = "interval", value_name = "SECONDS")]
         interval: Option<u64>,
+
+        /// Verbose mode: show individual socket connections
+        ///
+        /// Displays per-connection breakdown including remote IP, port,
+        /// protocol (TCP/UDP), and bytes transferred for each socket.
+        #[arg(short = 'v', long = "verbose")]
+        verbose: bool,
     },
 
     /// Set bandwidth limits (strict) for a specific process
