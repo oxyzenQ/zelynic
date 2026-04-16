@@ -25,6 +25,15 @@ ratatui = "0.26"
 chrono = { version = "0.4", features = ["serde"] }
 libc = "0.2"
 
+# eBPF support (optional)
+[dependencies.aya]
+version = "0.13"
+optional = true
+
+[features]
+default = []
+ebpf = ["aya"]
+
 [profile.release]
 opt-level = 3
 lto = true
