@@ -19,12 +19,18 @@ jobs:
       matrix:
         target:
           - x86_64-unknown-linux-gnu
+          - x86_64-unknown-linux-musl
           - aarch64-unknown-linux-gnu
         include:
           - target: x86_64-unknown-linux-gnu
             suffix: x86_64
+            pkg_suffix: x86_64-linux
+          - target: x86_64-unknown-linux-musl
+            suffix: x86_64-musl
+            pkg_suffix: x86_64-linux-musl
           - target: aarch64-unknown-linux-gnu
             suffix: aarch64
+            pkg_suffix: aarch64-linux
 
     steps:
       - name: Checkout repository
@@ -40,6 +46,12 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y gcc-aarch64-linux-gnu
+
+      - name: Install musl tools
+        if: contains(matrix.target, 'musl')
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y musl-tools
 
       - name: Cache cargo registry & build
         uses: actions/cache@v4
@@ -61,10 +73,32 @@ jobs:
 
       - name: Prepare release artifacts
         run: |
+          VERSION=${GITHUB_REF_NAME#v}
           mkdir -p dist
-          cp target/${{ matrix.target }}/release/oxy dist/oxy-linux-${{ matrix.suffix }}
+
+          # Create package directory structure
+          PKG_NAME="oxy-v${VERSION}-${{ matrix.pkg_suffix }}"
+          mkdir -p "dist/${PKG_NAME}/man"
+
+          # Copy binary
+          cp target/${{ matrix.target }}/release/oxy "dist/${PKG_NAME}/oxy"
+
+          # Copy documentation
+          cp README.md LICENSE "dist/${PKG_NAME}/"
+
+          # Generate man page
+          ./target/${{ matrix.target }}/release/oxy man > "dist/${PKG_NAME}/man/oxy.1" 2>/dev/null || true
+          if [ -f "dist/${PKG_NAME}/man/oxy.1" ]; then
+            gzip -f "dist/${PKG_NAME}/man/oxy.1"
+          fi
+
+          # Create tar.gz archive
           cd dist
-          sha256sum oxy-linux-${{ matrix.suffix }} > oxy-linux-${{ matrix.suffix }}.sha256
+          tar -czf "${PKG_NAME}.tar.gz" "${PKG_NAME}"
+          sha256sum "${PKG_NAME}.tar.gz" > "${PKG_NAME}.tar.gz.sha256"
+
+          # Cleanup
+          rm -rf "${PKG_NAME}"
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
