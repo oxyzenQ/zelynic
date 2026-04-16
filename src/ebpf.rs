@@ -11,7 +11,7 @@
 ///
 /// Falls back to tc/cgroup backend if eBPF is unavailable.
 #[cfg(feature = "ebpf")]
-use anyhow::{bail, Context, Result};
+use anyhow::{bail, Result};
 use colored::Colorize;
 use std::fs;
 use std::path::Path;
@@ -323,11 +323,13 @@ pub fn print_backend_info() {
 
 /// eBPF limiter - only available when ebpf feature is enabled.
 #[cfg(feature = "ebpf")]
+#[allow(dead_code)]
 pub struct EbpfLimiter {
     // TODO: Add aya::Bpf and program handles
 }
 
 #[cfg(feature = "ebpf")]
+#[allow(dead_code)]
 impl EbpfLimiter {
     /// Create new eBPF limiter (if supported).
     pub fn new() -> Result<Option<Self>> {
