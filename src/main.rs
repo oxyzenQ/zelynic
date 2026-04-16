@@ -14,6 +14,7 @@ mod profile;
 mod qos;
 mod tui;
 mod units;
+mod watch;
 
 use anyhow::Result;
 use clap::{CommandFactory, Parser};
@@ -189,6 +190,15 @@ fn main() -> Result<()> {
                 qos::reset_qos()?;
             }
         },
+
+        Some(Commands::Watch {
+            alert,
+            target,
+            interval,
+            notify_cmd,
+        }) => {
+            watch::watch_process(&target, &alert, interval, notify_cmd.as_deref())?;
+        }
 
         Some(Commands::Auto {
             download,
