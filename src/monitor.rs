@@ -540,7 +540,10 @@ fn print_process_table(processes: &[ProcessBandwidth]) {
         "\n{}",
         "Note: Bandwidth values show cumulative bytes since socket creation.".dimmed()
     );
-    println!("{}", "For real-time rate monitoring, use oxy list --live.".dimmed());
+    println!(
+        "{}",
+        "For real-time rate monitoring, use oxy list --live.".dimmed()
+    );
 }
 
 /// Truncate a string to fit within a maximum width, appending "..." if truncated.

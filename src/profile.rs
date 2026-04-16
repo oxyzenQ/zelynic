@@ -236,7 +236,11 @@ pub fn list_profiles() -> Result<()> {
         "  {} Use 'oxy profile apply <name> <target>' to apply a profile",
         "Tip:".cyan()
     );
-    println!("  {} Profiles are stored in {}", "Tip:".cyan(), "/home/rezky/.oxy/profiles.json".cyan());
+    println!(
+        "  {} Profiles are stored in {}",
+        "Tip:".cyan(),
+        "/home/rezky/.oxy/profiles.json".cyan()
+    );
 
     Ok(())
 }
