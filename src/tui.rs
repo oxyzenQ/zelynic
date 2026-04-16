@@ -189,7 +189,7 @@ impl TuiApp {
                 Constraint::Min(10),   // Table
                 Constraint::Length(1), // Footer
             ])
-            .split(frame.size());
+            .split(frame.area());
 
         // Draw header
         self.draw_header(frame, main_layout[0]);
