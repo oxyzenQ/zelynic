@@ -110,7 +110,7 @@ pub fn load_snapshots(hours: Option<u64>) -> Result<Vec<BandwidthSnapshot>> {
         .collect();
 
     // Sort by timestamp (oldest first)
-    snapshots.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
+    snapshots.sort_by_key(|a| a.timestamp);
 
     Ok(snapshots)
 }
@@ -188,7 +188,7 @@ pub fn show_history(hours: Option<u64>, json_output: bool) -> Result<()> {
 
         // Sort by total traffic (sent + received)
         let mut sorted: Vec<_> = process_totals.iter().collect();
-        sorted.sort_by(|a, b| (b.1 .1 + b.1 .2).cmp(&(a.1 .1 + a.1 .2)));
+        sorted.sort_by_key(|b| std::cmp::Reverse(b.1 .1 + b.1 .2));
 
         for (pid, (name, sent, recv, count)) in sorted.iter().take(10) {
             let _avg_sent = *sent / *count as u64;

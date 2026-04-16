@@ -399,7 +399,7 @@ pub fn aggregate_by_process(entries: &[SocketEntry]) -> Vec<ProcessBandwidth> {
     let mut result: Vec<ProcessBandwidth> = process_map.into_values().collect();
 
     // Sort by total bytes descending
-    result.sort_by(|a, b| b.total_bytes.cmp(&a.total_bytes));
+    result.sort_by_key(|b| std::cmp::Reverse(b.total_bytes));
 
     result
 }
@@ -430,7 +430,7 @@ pub fn display_usage_high_to_low() -> Result<()> {
     }
 
     let mut processes = aggregate_by_process(&entries);
-    processes.sort_by(|a, b| b.total_bytes.cmp(&a.total_bytes));
+    processes.sort_by_key(|b| std::cmp::Reverse(b.total_bytes));
 
     print_process_table(&processes);
 
@@ -718,7 +718,7 @@ pub fn display_usage_live_legacy(interval_secs: u64) -> Result<()> {
             } else {
                 // First sample - show cumulative only
                 let mut sorted: Vec<_> = current.iter().collect();
-                sorted.sort_by(|a, b| (b.1 .2 + b.1 .1).cmp(&(a.1 .2 + a.1 .1)));
+                sorted.sort_by_key(|b| std::cmp::Reverse(b.1 .2 + b.1 .1));
 
                 for (pid, (name, sent, recv)) in sorted.iter().take(20) {
                     if line >= 24 {
