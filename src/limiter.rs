@@ -879,8 +879,6 @@ pub fn apply_limit(
                     "handle".to_string(),
                     format!("1{:04x}", class_id),
                     "cgroup".to_string(),
-                    "classid".to_string(),
-                    class_id_str.clone(),
                 ],
                 vec![
                     "filter".to_string(),
