@@ -9,7 +9,7 @@ debug/
 release/
 
 # ----- Cargo -----
-Cargo.lock
+# Cargo.lock is committed for binary applications to ensure reproducible builds
 
 # ----- Backup files -----
 **/*.rs.bk
