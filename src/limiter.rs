@@ -1111,11 +1111,11 @@ pub fn apply_limit(
                 ],
             );
 
-            // Add IFB ct filter: classifies download packets by conntrack mark directly
-            // This bypasses the need to restore marks to packets since IFB packets
-            // are mirrored before prerouting can restore conntrack marks
+            // Add IFB fw filter: classifies download packets by fw mark
+            // The connmark restore happens via nftables prerouting, which sets
+            // packet mark before packets reach IFB (for most connection patterns)
             tx.add(
-                &format!("IFB ct filter for PID {}", pid),
+                &format!("IFB fw filter for PID {}", pid),
                 vec![
                     "filter".to_string(),
                     "add".to_string(),
@@ -1127,16 +1127,9 @@ pub fn apply_limit(
                     "ip".to_string(),
                     "prio".to_string(),
                     "100".to_string(),
-                    "u32".to_string(),
-                    "match".to_string(),
-                    "u32".to_string(),
-                    "0".to_string(),
-                    "0".to_string(),
-                    "action".to_string(),
-                    "ct".to_string(),
-                    "mark".to_string(),
+                    "handle".to_string(),
                     class_id.to_string(),
-                    "classify".to_string(),
+                    "fw".to_string(),
                     "classid".to_string(),
                     class_id_str.clone(),
                 ],
@@ -1151,13 +1144,9 @@ pub fn apply_limit(
                     "ip".to_string(),
                     "prio".to_string(),
                     "100".to_string(),
-                    "u32".to_string(),
-                    "match".to_string(),
-                    "u32".to_string(),
-                    "0".to_string(),
-                    "0".to_string(),
-                    "action".to_string(),
-                    "ct".to_string(),
+                    "handle".to_string(),
+                    class_id.to_string(),
+                    "fw".to_string(),
                 ],
             );
         }
@@ -1365,7 +1354,7 @@ pub fn remove_limit(target: &str) -> Result<()> {
             .output()
             .ok();
 
-        // Remove IFB ct filter for download
+        // Remove IFB fw filter for download
         Command::new("tc")
             .args([
                 "filter",
@@ -1378,13 +1367,9 @@ pub fn remove_limit(target: &str) -> Result<()> {
                 "ip",
                 "prio",
                 "100",
-                "u32",
-                "match",
-                "u32",
-                "0",
-                "0",
-                "action",
-                "ct",
+                "handle",
+                &record.class_id.to_string(),
+                "fw",
             ])
             .output()
             .ok();
