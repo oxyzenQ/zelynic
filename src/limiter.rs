@@ -12,6 +12,7 @@ use anyhow::{bail, Context, Result};
 use colored::Colorize;
 use serde::{Deserialize, Serialize};
 use std::fs;
+use std::os::linux::fs::MetadataExt;
 use std::path::Path;
 use std::process::Command;
 
@@ -76,9 +77,22 @@ fn ensure_kernel_modules() -> Result<()> {
     Ok(())
 }
 
+/// Get the cgroup ID (inode number) for a process's cgroup.
+///
+/// In cgroup v2, the cgroup ID is the inode number of the cgroup directory.
+/// This is used with nftables `meta cgroup` to match packets.
+fn get_cgroup_id(pid: u32) -> Option<u64> {
+    let cgroup_path = format!("{}/pid_{}", CGROUP_BASE, pid);
+    let path = Path::new(&cgroup_path);
+    if !path.exists() {
+        return None;
+    }
+    fs::metadata(path).ok().map(|meta| meta.st_ino())
+}
+
 /// Build the complete nftables ruleset for all active limits.
 ///
-/// Uses `socket cgroupv2 level 2` to mark outgoing packets per-process with a unique
+/// Uses `meta cgroup` to mark outgoing packets per-process with a unique
 /// fwmark equal to the class_id. Conntrack propagates this mark so that
 /// returning (download) packets on IFB also carry the mark, allowing `tc fw`
 /// to classify them into the correct HTB class.
@@ -86,7 +100,7 @@ fn build_nft_ruleset(limits: &[LimitRecord]) -> String {
     let mut rules = String::new();
     rules.push_str("table ip oxy {\n");
 
-    // Egress: mark packets from each process's cgroup v2 path
+    // Egress: mark packets from each process's cgroup by inode number
     rules.push_str("  chain output {\n");
     rules.push_str("    type filter hook output priority mangle; policy accept;\n");
 
@@ -96,13 +110,14 @@ fn build_nft_ruleset(limits: &[LimitRecord]) -> String {
         seen_pids.insert(record.pid, record.class_id);
     }
     for (pid, mark) in &seen_pids {
-        // Use socket cgroupv2 level 2 to match by cgroup path
-        // Level 2 = depth from root: / (0) -> oxy (1) -> pid_XXX (2)
-        let cgroup_rel = format!("oxy/pid_{}", pid);
-        rules.push_str(&format!(
-            "    socket cgroupv2 level 2 \"{}\" meta mark set {};\n",
-            cgroup_rel, mark
-        ));
+        // Use meta cgroup with the cgroup inode number to match all packets
+        // from processes in this cgroup (not just established TCP sockets)
+        if let Some(cgroup_id) = get_cgroup_id(*pid) {
+            rules.push_str(&format!(
+                "    meta cgroup {} meta mark set {};\n",
+                cgroup_id, mark
+            ));
+        }
     }
     rules.push_str("  }\n");
 
