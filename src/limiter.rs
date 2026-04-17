@@ -114,7 +114,7 @@ fn build_nft_ruleset(limits: &[LimitRecord]) -> String {
         // from processes in this cgroup (not just established TCP sockets)
         if let Some(cgroup_id) = get_cgroup_id(*pid) {
             rules.push_str(&format!(
-                "    meta cgroup {} meta mark set {};\n",
+                "    meta cgroup {} counter meta mark set {};\n",
                 cgroup_id, mark
             ));
         }
@@ -1031,12 +1031,10 @@ pub fn apply_limit(
             ],
         );
 
-        // Add egress cgroup filter to classify packets from this process's cgroup
-        // Uses tc's cgroup classifier which directly matches cgroup v2 membership
-        // The cgroup filter matches by cgroup inode, then we use classid to direct to HTB class
-        let cgroup_id = get_cgroup_id(*pid).unwrap_or(class_id as u64);
+        // Add egress fw filter to classify marked packets into this process's HTB class
+        // nftables marks packets by cgroup in output chain, fw filter classifies by mark
         tx.add(
-            &format!("egress cgroup filter for PID {}", pid),
+            &format!("egress fw filter for PID {}", pid),
             vec![
                 "filter".to_string(),
                 "add".to_string(),
@@ -1049,8 +1047,8 @@ pub fn apply_limit(
                 "prio".to_string(),
                 "100".to_string(),
                 "handle".to_string(),
-                cgroup_id.to_string(),
-                "cgroup".to_string(),
+                class_id.to_string(),
+                "fw".to_string(),
                 "classid".to_string(),
                 class_id_str.clone(),
             ],
@@ -1066,8 +1064,8 @@ pub fn apply_limit(
                 "prio".to_string(),
                 "100".to_string(),
                 "handle".to_string(),
-                cgroup_id.to_string(),
-                "cgroup".to_string(),
+                class_id.to_string(),
+                "fw".to_string(),
             ],
         );
 
@@ -1116,10 +1114,9 @@ pub fn apply_limit(
                 ],
             );
 
-            // Add IFB cgroup filter: classifies download packets by cgroup membership
-            // The IFB device sees mirrored ingress traffic as egress, so we can use cgroup filter
+            // Add IFB fw filter: classifies download packets by their restored conntrack mark
             tx.add(
-                &format!("IFB cgroup filter for PID {}", pid),
+                &format!("IFB fw filter for PID {}", pid),
                 vec![
                     "filter".to_string(),
                     "add".to_string(),
@@ -1132,8 +1129,8 @@ pub fn apply_limit(
                     "prio".to_string(),
                     "100".to_string(),
                     "handle".to_string(),
-                    cgroup_id.to_string(),
-                    "cgroup".to_string(),
+                    class_id.to_string(),
+                    "fw".to_string(),
                     "classid".to_string(),
                     class_id_str.clone(),
                 ],
@@ -1149,8 +1146,8 @@ pub fn apply_limit(
                     "prio".to_string(),
                     "100".to_string(),
                     "handle".to_string(),
-                    cgroup_id.to_string(),
-                    "cgroup".to_string(),
+                    class_id.to_string(),
+                    "fw".to_string(),
                 ],
             );
         }
