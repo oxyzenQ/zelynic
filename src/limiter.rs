@@ -76,7 +76,6 @@ fn ensure_kernel_modules() -> Result<()> {
     Ok(())
 }
 
-
 /// Build the complete nftables ruleset for all active limits.
 ///
 /// Uses `socket cgroupv2` to mark outgoing packets per-process with a unique
