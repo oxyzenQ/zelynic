@@ -1033,7 +1033,7 @@ pub fn apply_limit(
 
         // Add egress cgroup filter to classify packets from this process's cgroup
         // Uses tc's cgroup classifier which directly matches cgroup v2 membership
-        // The cgroup classifier requires action to direct packets to a class
+        // The cgroup filter matches by cgroup inode, then we use classid to direct to HTB class
         let cgroup_id = get_cgroup_id(*pid).unwrap_or(class_id as u64);
         tx.add(
             &format!("egress cgroup filter for PID {}", pid),
@@ -1051,10 +1051,8 @@ pub fn apply_limit(
                 "handle".to_string(),
                 cgroup_id.to_string(),
                 "cgroup".to_string(),
-                "action".to_string(),
-                "skbedit".to_string(),
-                "priority".to_string(),
-                format!("{}", class_id),
+                "classid".to_string(),
+                class_id_str.clone(),
             ],
             vec![
                 "filter".to_string(),
@@ -1136,10 +1134,8 @@ pub fn apply_limit(
                     "handle".to_string(),
                     cgroup_id.to_string(),
                     "cgroup".to_string(),
-                    "action".to_string(),
-                    "skbedit".to_string(),
-                    "priority".to_string(),
-                    format!("{}", class_id),
+                    "classid".to_string(),
+                    class_id_str.clone(),
                 ],
                 vec![
                     "filter".to_string(),
