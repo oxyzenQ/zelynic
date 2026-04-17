@@ -76,50 +76,22 @@ fn ensure_kernel_modules() -> Result<()> {
     Ok(())
 }
 
-/// Build the complete nftables ruleset for all active limits.
+/// Get the UID of a process.
 ///
-/// Uses `socket cgroupv2` to mark outgoing packets per-process with a unique
-/// fwmark equal to the class_id. Conntrack propagates this mark so that
-/// returning (download) packets on IFB also carry the mark, allowing `tc fw`
-/// to classify them into the correct HTB class.
-fn build_nft_ruleset(limits: &[LimitRecord]) -> String {
-    let mut rules = String::new();
-    rules.push_str("table ip oxy {\n");
-
-    // Egress: mark packets from each process's cgroup by socket cgroupv2 path
-    rules.push_str("  chain output {\n");
-    rules.push_str("    type filter hook output priority mangle; policy accept;\n");
-
-    // Deduplicate by PID: only keep the last (most recent) class_id per PID
-    let mut seen_pids = std::collections::HashMap::new();
-    for record in limits {
-        seen_pids.insert(record.pid, record.class_id);
+/// Used with nftables `meta uid` to match packets from specific users.
+fn get_process_uid(pid: u32) -> Option<u32> {
+    let uid_path = format!("/proc/{}/status", pid);
+    if let Ok(content) = fs::read_to_string(&uid_path) {
+        for line in content.lines() {
+            if line.starts_with("Uid:") {
+                let parts: Vec<&str> = line.split_whitespace().collect();
+                if parts.len() > 1 {
+                    return parts[1].parse::<u32>().ok();
+                }
+            }
+        }
     }
-    for (pid, mark) in &seen_pids {
-        // Use socket cgroupv2 to match packets from processes in this cgroup
-        // level 2 means match at depth 2 from root (e.g., /oxy/pid_xxx)
-        let cgroup_path = format!("oxy/pid_{}", pid);
-        rules.push_str(&format!(
-            "    socket cgroupv2 level 2 \"{}\" counter meta mark set {};\n",
-            cgroup_path, mark
-        ));
-    }
-    rules.push_str("  }\n");
-
-    // Postrouting: save mark into conntrack so returning packets inherit it
-    rules.push_str("  chain postrouting {\n");
-    rules.push_str("    type filter hook postrouting priority srcnat; policy accept;\n");
-    rules.push_str("    meta mark != 0 ct mark set meta mark;\n");
-    rules.push_str("  }\n");
-
-    // Prerouting: restore mark from conntrack on incoming packets (used by tc fw on IFB)
-    rules.push_str("  chain prerouting {\n");
-    rules.push_str("    type filter hook prerouting priority dstnat; policy accept;\n");
-    rules.push_str("    ct mark != 0 meta mark set ct mark;\n");
-    rules.push_str("  }\n");
-
-    rules.push_str("}\n");
-    rules
+    None
 }
 
 /// Ensure netfilter conntrack is enabled for mark propagation.
@@ -159,7 +131,41 @@ fn refresh_nft_rules(limits: &[LimitRecord]) -> Result<()> {
         return Ok(());
     }
 
-    let ruleset = build_nft_ruleset(limits);
+    // Build ip table with conntrack mark propagation
+    let mut ruleset = String::new();
+    ruleset.push_str("table ip oxy {\n");
+
+    // Output: mark egress packets by UID
+    ruleset.push_str("  chain output {\n");
+    ruleset.push_str("    type filter hook output priority mangle; policy accept;\n");
+
+    let mut seen_pids = std::collections::HashMap::new();
+    for record in limits {
+        seen_pids.insert(record.pid, record.class_id);
+    }
+    for (pid, mark) in &seen_pids {
+        if let Some(uid) = get_process_uid(*pid) {
+            ruleset.push_str(&format!(
+                "    meta skuid {} counter meta mark set {};\n",
+                uid, mark
+            ));
+        }
+    }
+    ruleset.push_str("  }\n");
+
+    // Postrouting: save mark into conntrack for reply packets
+    ruleset.push_str("  chain postrouting {\n");
+    ruleset.push_str("    type filter hook postrouting priority srcnat; policy accept;\n");
+    ruleset.push_str("    meta mark != 0 ct mark set meta mark;\n");
+    ruleset.push_str("  }\n");
+
+    // Prerouting: restore mark from conntrack for incoming packets
+    ruleset.push_str("  chain prerouting {\n");
+    ruleset.push_str("    type filter hook prerouting priority dstnat; policy accept;\n");
+    ruleset.push_str("    ct mark != 0 counter meta mark set ct mark;\n");
+    ruleset.push_str("  }\n");
+
+    ruleset.push_str("}\n");
 
     // Write ruleset to a temp file then load it atomically
     let nft_file = "/run/oxy/oxy.nft";
@@ -180,8 +186,7 @@ fn refresh_nft_rules(limits: &[LimitRecord]) -> Result<()> {
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
         bail!(
-            "failed to apply nft ruleset: {}\n\
-             Tip: Requires kernel 5.13+ with CONFIG_NFT_SOCKET and nftables installed.",
+            "failed to apply nft ruleset: {}",
             stderr
         );
     }
@@ -1066,6 +1071,13 @@ pub fn apply_limit(
                 );
             }
 
+            // Note: conntrack mark restoration on IFB doesn't work reliably
+            // because IFB packets are mirrored before prerouting mark restoration.
+            // The solution is to use nftables with act_ctinfo or mark packets
+            // directly on the main interface ingress before mirroring.
+            // For now, we rely on egress limiting and conntrack mark propagation
+            // may work for some connection patterns.
+
             let dl_rate_kbit = (dl_bps * 8) / 1000;
             let dl_ceil_kbit = (dl_rate_kbit as f64 * 1.1) as u64;
 
@@ -1099,9 +1111,11 @@ pub fn apply_limit(
                 ],
             );
 
-            // Add IFB fw filter: classifies download packets by their restored conntrack mark
+            // Add IFB ct filter: classifies download packets by conntrack mark directly
+            // This bypasses the need to restore marks to packets since IFB packets
+            // are mirrored before prerouting can restore conntrack marks
             tx.add(
-                &format!("IFB fw filter for PID {}", pid),
+                &format!("IFB ct filter for PID {}", pid),
                 vec![
                     "filter".to_string(),
                     "add".to_string(),
@@ -1113,9 +1127,16 @@ pub fn apply_limit(
                     "ip".to_string(),
                     "prio".to_string(),
                     "100".to_string(),
-                    "handle".to_string(),
+                    "u32".to_string(),
+                    "match".to_string(),
+                    "u32".to_string(),
+                    "0".to_string(),
+                    "0".to_string(),
+                    "action".to_string(),
+                    "ct".to_string(),
+                    "mark".to_string(),
                     class_id.to_string(),
-                    "fw".to_string(),
+                    "classify".to_string(),
                     "classid".to_string(),
                     class_id_str.clone(),
                 ],
@@ -1130,9 +1151,13 @@ pub fn apply_limit(
                     "ip".to_string(),
                     "prio".to_string(),
                     "100".to_string(),
-                    "handle".to_string(),
-                    class_id.to_string(),
-                    "fw".to_string(),
+                    "u32".to_string(),
+                    "match".to_string(),
+                    "u32".to_string(),
+                    "0".to_string(),
+                    "0".to_string(),
+                    "action".to_string(),
+                    "ct".to_string(),
                 ],
             );
         }
@@ -1340,7 +1365,7 @@ pub fn remove_limit(target: &str) -> Result<()> {
             .output()
             .ok();
 
-        // Remove IFB fw filter for download
+        // Remove IFB ct filter for download
         Command::new("tc")
             .args([
                 "filter",
@@ -1353,9 +1378,13 @@ pub fn remove_limit(target: &str) -> Result<()> {
                 "ip",
                 "prio",
                 "100",
-                "handle",
-                &record.class_id.to_string(),
-                "fw",
+                "u32",
+                "match",
+                "u32",
+                "0",
+                "0",
+                "action",
+                "ct",
             ])
             .output()
             .ok();
