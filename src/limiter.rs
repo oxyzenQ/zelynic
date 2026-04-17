@@ -93,7 +93,7 @@ fn build_nft_ruleset(limits: &[LimitRecord]) -> String {
         let cgroup_rel = format!("oxy/pid_{}", record.pid);
         let mark = record.class_id;
         rules.push_str(&format!(
-            "    socket cgroupv2 level 2 \"{}\" meta mark set {};\n",
+            "    socket cgroupv2 path \"{}\" meta mark set {};\n",
             cgroup_rel, mark
         ));
     }
@@ -113,6 +113,30 @@ fn build_nft_ruleset(limits: &[LimitRecord]) -> String {
 
     rules.push_str("}\n");
     rules
+}
+
+/// Ensure netfilter conntrack is enabled for mark propagation.
+///
+/// Required for download (ingress) limiting via conntrack mark restore.
+/// Conntrack saves the packet mark on outgoing packets and restores it
+/// on reply packets, allowing us to classify download traffic on IFB.
+fn ensure_conntrack() -> Result<()> {
+    // Ensure nf_conntrack module is loaded
+    let _ = Command::new("modprobe").args(["nf_conntrack"]).output();
+
+    // Enable conntrack accounting and mark preservation
+    let params = [
+        ("net.netfilter.nf_conntrack_acct", "1"),
+        ("net.netfilter.nf_conntrack_mark", "1"),
+    ];
+
+    for (key, val) in params {
+        let _ = Command::new("sysctl")
+            .args(["-w", &format!("{}={}", key, val)])
+            .output();
+    }
+
+    Ok(())
 }
 
 /// Apply (or refresh) the nftables oxy table.
@@ -829,6 +853,66 @@ pub fn apply_limit(
     // Set up HTB qdisc
     ensure_htb_qdisc(&interface)?;
 
+    // Detect cgroup version for backend selection
+    let (cg_is_v2, cg_is_hybrid) = detect_cgroup_version();
+    let use_cgroup_v1_backend = !cg_is_v2 || cg_is_hybrid;
+
+    // Ensure conntrack for download (ingress) limiting via mark propagation
+    if dl_bps.is_some() {
+        if let Err(e) = ensure_conntrack() {
+            eprintln!(
+                "{}: conntrack setup failed: {}. Download limiting may not work.",
+                "WARNING".yellow(),
+                e
+            );
+        }
+    }
+
+    // For cgroup v1/hybrid, add tc cgroup filter for reliable egress classification.
+    // This catches existing connections that nftables socket cgroupv2 would miss,
+    // because tc cgroup reads the current task's net_cls.classid at send time
+    // rather than the socket's cgroup at creation time.
+    if use_cgroup_v1_backend {
+        let check = Command::new("tc")
+            .args(["filter", "show", "dev", &interface, "parent", "1:0"])
+            .output()
+            .ok();
+
+        let has_cgroup_filter = check
+            .as_ref()
+            .map(|o| String::from_utf8_lossy(&o.stdout).contains("cgroup"))
+            .unwrap_or(false);
+
+        if !has_cgroup_filter {
+            let output = Command::new("tc")
+                .args([
+                    "filter",
+                    "add",
+                    "dev",
+                    &interface,
+                    "parent",
+                    "1:0",
+                    "protocol",
+                    "ip",
+                    "prio",
+                    "1",
+                    "cgroup",
+                ])
+                .output();
+
+            if let Ok(o) = output {
+                if !o.status.success() {
+                    let stderr = String::from_utf8_lossy(&o.stderr);
+                    eprintln!(
+                        "{}: Failed to add tc cgroup filter (v1 fallback): {}",
+                        "WARNING".yellow(),
+                        stderr
+                    );
+                }
+            }
+        }
+    }
+
     // Load existing state
     let mut state = OxyState::load()?;
 
@@ -1046,13 +1130,25 @@ pub fn apply_limit(
     // Save state
     state.save()?;
 
-    // Refresh nftables marking rules for all active limits
+    // Refresh nftables marking rules for all active limits.
+    // This is critical: without nftables rules, no packets get marked,
+    // and all traffic falls through to the default unlimited class.
     if let Err(e) = refresh_nft_rules(&state.limits) {
         eprintln!(
             "{}: Failed to apply nft packet marking rules: {}",
-            "WARNING".yellow(),
+            "ERROR".red().bold(),
             e
         );
+        if !use_cgroup_v1_backend {
+            eprintln!(
+                "  {} On pure cgroup v2, nftables is required for bandwidth limiting.",
+                "NOTE:".yellow()
+            );
+            eprintln!(
+                "  {} Verify: nft list table ip oxy",
+                "NOTE:".yellow()
+            );
+        }
     }
 
     // Print summary
@@ -1087,6 +1183,17 @@ pub fn apply_limit(
         println!("  Upload:    {}", "unlimited".dimmed());
     }
     println!("  Interface: {}", interface);
+    println!(
+        "  Backend:   {}",
+        if use_cgroup_v1_backend {
+            format!(
+                "tc cgroup + nftables ({})",
+                if cg_is_hybrid { "cgroup hybrid" } else { "cgroup v1" }
+            )
+        } else {
+            "nftables + tc fw (cgroup v2)".to_string()
+        }
+    );
     println!("  Applied:   {} process(es)", applied_count);
     println!();
     println!(
@@ -1136,6 +1243,12 @@ pub fn remove_limit(target: &str) -> Result<()> {
         );
         return Ok(());
     }
+
+    // Collect interfaces from records we're about to remove (for tc cgroup cleanup)
+    let removed_ifaces: Vec<String> = to_remove
+        .iter()
+        .map(|&idx| state.limits[idx].interface.clone())
+        .collect();
 
     // Process removals in reverse order to maintain indices
     for &idx in to_remove.iter().rev() {
@@ -1217,6 +1330,24 @@ pub fn remove_limit(target: &str) -> Result<()> {
     // Refresh nft rules (removes marking for the removed process)
     if let Err(e) = refresh_nft_rules(&state.limits) {
         eprintln!("{}: Failed to refresh nft rules: {}", "WARNING".yellow(), e);
+    }
+
+    // Clean up tc cgroup filter if no limits remain
+    if state.limits.is_empty() {
+        let removed_interfaces: std::collections::HashSet<String> = to_remove
+            .iter()
+            .filter_map(|&idx| removed_ifaces.get(idx).cloned())
+            .collect();
+
+        for iface in removed_interfaces {
+            let _ = Command::new("tc")
+                .args([
+                    "filter", "del", "dev", &iface,
+                    "parent", "1:0", "protocol", "ip",
+                    "prio", "1", "cgroup",
+                ])
+                .output();
+        }
     }
 
     println!(
