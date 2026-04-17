@@ -1031,10 +1031,10 @@ pub fn apply_limit(
             ],
         );
 
-        // Add egress fw filter to classify marked packets into this process's HTB class
-        let class_id_handle = class_id.to_string();
+        // Add egress cgroup filter to classify packets from this process's cgroup
+        // Uses tc's cgroup classifier which directly matches cgroup v2 membership
         tx.add(
-            &format!("egress fw filter for PID {}", pid),
+            &format!("egress cgroup filter for PID {}", pid),
             vec![
                 "filter".to_string(),
                 "add".to_string(),
@@ -1047,8 +1047,8 @@ pub fn apply_limit(
                 "prio".to_string(),
                 "100".to_string(),
                 "handle".to_string(),
-                class_id_handle.clone(),
-                "fw".to_string(),
+                class_id.to_string(),
+                "cgroup".to_string(),
                 "classid".to_string(),
                 class_id_str.clone(),
             ],
@@ -1064,8 +1064,8 @@ pub fn apply_limit(
                 "prio".to_string(),
                 "100".to_string(),
                 "handle".to_string(),
-                class_id_handle.clone(),
-                "fw".to_string(),
+                class_id.to_string(),
+                "cgroup".to_string(),
             ],
         );
 
@@ -1114,9 +1114,10 @@ pub fn apply_limit(
                 ],
             );
 
-            // Add IFB fw filter: classifies download packets by their restored conntrack mark
+            // Add IFB cgroup filter: classifies download packets by cgroup membership
+            // The IFB device sees mirrored ingress traffic as egress, so we can use cgroup filter
             tx.add(
-                &format!("IFB fw filter for PID {}", pid),
+                &format!("IFB cgroup filter for PID {}", pid),
                 vec![
                     "filter".to_string(),
                     "add".to_string(),
@@ -1129,8 +1130,8 @@ pub fn apply_limit(
                     "prio".to_string(),
                     "100".to_string(),
                     "handle".to_string(),
-                    class_id_handle.clone(),
-                    "fw".to_string(),
+                    class_id.to_string(),
+                    "cgroup".to_string(),
                     "classid".to_string(),
                     class_id_str.clone(),
                 ],
@@ -1146,8 +1147,8 @@ pub fn apply_limit(
                     "prio".to_string(),
                     "100".to_string(),
                     "handle".to_string(),
-                    class_id_handle,
-                    "fw".to_string(),
+                    class_id.to_string(),
+                    "cgroup".to_string(),
                 ],
             );
         }
