@@ -57,84 +57,102 @@ fn detect_cgroup_version() -> (bool, bool) {
     }
 }
 
-/// Ensure required kernel modules for traffic control and cgroups are loaded.
+/// Ensure required kernel modules for traffic control are loaded.
 fn ensure_kernel_modules() -> Result<()> {
-    // List of modules typically required for tc bandwidth limiting and cgroups
+    // List of modules required for tc bandwidth limiting
     let modules = [
-        "sch_htb",     // HTB qdisc
-        "cls_u32",     // u32 classifier
-        "cls_cgroup",  // cgroup classifier
-        "sch_ingress", // ingress qdisc
-        "act_mirred",  // mirred action (for IFB)
-        "cls_fw",      // fw classifier
+        "sch_htb",      // HTB qdisc
+        "cls_fw",       // fw classifier (fwmark-based routing)
+        "sch_ingress",  // ingress qdisc
+        "act_mirred",   // mirred action (for IFB redirect)
+        "nf_conntrack", // conntrack (for mark propagation to download traffic)
     ];
 
     for module in modules {
-        // Use modprobe to load modules. It's okay if they are already loaded or built-in.
+        // Use modprobe to load modules. Ignore errors; they may be built-in.
         let _ = Command::new("modprobe").arg(module).output();
     }
 
     Ok(())
 }
 
-/// Ensure a cgroup filter exists on a qdisc parent.
+/// Build the complete nftables ruleset for all active limits.
 ///
-/// Only one cgroup filter is needed per qdisc to classify all traffic
-/// based on the net_cls.classid set in the socket.
-fn ensure_cgroup_filter(device: &str, parent: &str) -> Result<()> {
-    // Check if cgroup filter already exists
-    let check = Command::new("tc")
-        .args(["filter", "show", "dev", device, "parent", parent])
+/// Uses `socket cgroupv2` to mark outgoing packets per-process with a unique
+/// fwmark equal to the class_id. Conntrack propagates this mark so that
+/// returning (download) packets on IFB also carry the mark, allowing `tc fw`
+/// to classify them into the correct HTB class.
+fn build_nft_ruleset(limits: &[LimitRecord]) -> String {
+    let mut rules = String::new();
+    rules.push_str("table ip oxy {\n");
+
+    // Egress: mark packets from each process's cgroup v2 path
+    rules.push_str("  chain output {\n");
+    rules.push_str("    type filter hook output priority mangle; policy accept;\n");
+    for record in limits {
+        let cgroup_rel = format!("oxy/pid_{}", record.pid);
+        let mark = record.class_id;
+        rules.push_str(&format!(
+            "    socket cgroupv2 level 2 \"{}\" meta mark set {};\n",
+            cgroup_rel, mark
+        ));
+    }
+    rules.push_str("  }\n");
+
+    // Postrouting: save mark into conntrack so returning packets inherit it
+    rules.push_str("  chain postrouting {\n");
+    rules.push_str("    type filter hook postrouting priority srcnat; policy accept;\n");
+    rules.push_str("    meta mark != 0 ct mark set meta mark;\n");
+    rules.push_str("  }\n");
+
+    // Prerouting: restore mark from conntrack on incoming packets (used by tc fw on IFB)
+    rules.push_str("  chain prerouting {\n");
+    rules.push_str("    type filter hook prerouting priority dstnat; policy accept;\n");
+    rules.push_str("    ct mark != 0 meta mark set ct mark;\n");
+    rules.push_str("  }\n");
+
+    rules.push_str("}\n");
+    rules
+}
+
+/// Apply (or refresh) the nftables oxy table.
+///
+/// Completely replaces the table so no stale per-process rules remain.
+/// If no limits are active, the table is deleted entirely.
+fn refresh_nft_rules(limits: &[LimitRecord]) -> Result<()> {
+    if limits.is_empty() {
+        // Nothing to mark; remove the table if it exists
+        let _ = Command::new("nft")
+            .args(["delete", "table", "ip", "oxy"])
+            .output();
+        return Ok(());
+    }
+
+    let ruleset = build_nft_ruleset(limits);
+
+    // Write ruleset to a temp file then load it atomically
+    let nft_file = "/run/oxy/oxy.nft";
+    fs::create_dir_all(STATE_DIR).ok();
+    fs::write(nft_file, &ruleset).context("failed to write nft ruleset file")?;
+
+    // Delete existing table first (ignore error if it doesn't exist yet)
+    let _ = Command::new("nft")
+        .args(["delete", "table", "ip", "oxy"])
+        .output();
+
+    // Load the new ruleset
+    let output = Command::new("nft")
+        .args(["-f", nft_file])
         .output()
-        .ok();
+        .context("failed to run nft. Is nftables installed?")?;
 
-    let has_cgroup = check
-        .as_ref()
-        .map(|o| String::from_utf8_lossy(&o.stdout).contains("cgroup"))
-        .unwrap_or(false);
-
-    if !has_cgroup {
-        // Add cgroup filter (no handle needed, no specific match criteria)
-        // Use 'protocol all' for broad compatibility across different interface types and address families.
-        let mut retry_count = 0;
-        let max_retries = 2;
-
-        loop {
-            let output = Command::new("tc")
-                .args([
-                    "filter", "add", "dev", device, "parent", parent, "protocol", "all", "prio",
-                    "1", "cgroup",
-                ])
-                .output()
-                .context(format!(
-                    "failed to setup cgroup filter on {} for parent {}",
-                    device, parent
-                ))?;
-
-            if output.status.success() {
-                break;
-            }
-
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            if stderr.contains("File exists") {
-                break;
-            }
-
-            if retry_count >= max_retries {
-                bail!(
-                    "failed to setup cgroup filter on {}: {} (after {} retries)\n\
-                     Tip: This often happens on pure cgroup v2 systems without 'net_cls' support. \
-                     Check 'dmesg' for specific kernel errors.",
-                    device,
-                    stderr,
-                    max_retries
-                );
-            }
-
-            // Small delay for virtual devices (like IFB) which may have a race condition when newly created
-            std::thread::sleep(std::time::Duration::from_millis(200));
-            retry_count += 1;
-        }
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        bail!(
+            "failed to apply nft ruleset: {}\n\
+             Tip: Requires kernel 5.13+ with CONFIG_NFT_SOCKET and nftables installed.",
+            stderr
+        );
     }
 
     Ok(())
@@ -811,19 +829,6 @@ pub fn apply_limit(
     // Set up HTB qdisc
     ensure_htb_qdisc(&interface)?;
 
-    // Ensure global egress cgroup filter exists on main interface
-    ensure_cgroup_filter(&interface, "1:0")?;
-
-    // Check for cgroup v2 and warn if necessary
-    let (is_v2, is_hybrid) = detect_cgroup_version();
-    if is_v2 && !is_hybrid {
-        eprintln!(
-            "{} System is in pure cgroup v2 mode. The 'tc/cgroup' backend may require 'net_cls' \
-             which is often deprecated in v2. If this fails, consider waiting for the eBPF backend.",
-            "WARNING:".yellow().bold()
-        );
-    }
-
     // Load existing state
     let mut state = OxyState::load()?;
 
@@ -887,6 +892,44 @@ pub fn apply_limit(
             ],
         );
 
+        // Add egress fw filter to classify marked packets into this process's HTB class
+        let class_id_handle = class_id.to_string();
+        tx.add(
+            &format!("egress fw filter for PID {}", pid),
+            vec![
+                "filter".to_string(),
+                "add".to_string(),
+                "dev".to_string(),
+                interface.clone(),
+                "parent".to_string(),
+                "1:0".to_string(),
+                "protocol".to_string(),
+                "ip".to_string(),
+                "prio".to_string(),
+                "100".to_string(),
+                "handle".to_string(),
+                class_id_handle.clone(),
+                "fw".to_string(),
+                "classid".to_string(),
+                class_id_str.clone(),
+            ],
+            vec![
+                "filter".to_string(),
+                "del".to_string(),
+                "dev".to_string(),
+                interface.clone(),
+                "parent".to_string(),
+                "1:0".to_string(),
+                "protocol".to_string(),
+                "ip".to_string(),
+                "prio".to_string(),
+                "100".to_string(),
+                "handle".to_string(),
+                class_id_handle.clone(),
+                "fw".to_string(),
+            ],
+        );
+
         // For download (ingress) limiting, use IFB (Intermediate Functional Block)
         // to mirror traffic and apply per-process HTB shaping
         if let Some(dl_bps) = dl_bps {
@@ -932,8 +975,42 @@ pub fn apply_limit(
                 ],
             );
 
-            // Ensure cgroup filter exists on IFB device
-            ensure_cgroup_filter(IFB_DEVICE, "1:0")?;
+            // Add IFB fw filter: classifies download packets by their restored conntrack mark
+            tx.add(
+                &format!("IFB fw filter for PID {}", pid),
+                vec![
+                    "filter".to_string(),
+                    "add".to_string(),
+                    "dev".to_string(),
+                    IFB_DEVICE.to_string(),
+                    "parent".to_string(),
+                    "1:0".to_string(),
+                    "protocol".to_string(),
+                    "ip".to_string(),
+                    "prio".to_string(),
+                    "100".to_string(),
+                    "handle".to_string(),
+                    class_id_handle.clone(),
+                    "fw".to_string(),
+                    "classid".to_string(),
+                    class_id_str.clone(),
+                ],
+                vec![
+                    "filter".to_string(),
+                    "del".to_string(),
+                    "dev".to_string(),
+                    IFB_DEVICE.to_string(),
+                    "parent".to_string(),
+                    "1:0".to_string(),
+                    "protocol".to_string(),
+                    "ip".to_string(),
+                    "prio".to_string(),
+                    "100".to_string(),
+                    "handle".to_string(),
+                    class_id_handle,
+                    "fw".to_string(),
+                ],
+            );
         }
 
         // Execute all tc commands atomically with rollback on failure
@@ -968,6 +1045,15 @@ pub fn apply_limit(
 
     // Save state
     state.save()?;
+
+    // Refresh nftables marking rules for all active limits
+    if let Err(e) = refresh_nft_rules(&state.limits) {
+        eprintln!(
+            "{}: Failed to apply nft packet marking rules: {}",
+            "WARNING".yellow(),
+            e
+        );
+    }
 
     // Print summary
     if applied_count == 0 {
@@ -1069,11 +1155,51 @@ pub fn remove_limit(target: &str) -> Result<()> {
             .output()
             .ok();
 
+        // Remove tc fw filter for egress
+        Command::new("tc")
+            .args([
+                "filter",
+                "del",
+                "dev",
+                &record.interface,
+                "parent",
+                "1:0",
+                "protocol",
+                "ip",
+                "prio",
+                "100",
+                "handle",
+                &record.class_id.to_string(),
+                "fw",
+            ])
+            .output()
+            .ok();
+
         // Remove tc filter - no longer needed per class since filters are now global
 
         // Remove IFB class
         Command::new("tc")
             .args(["class", "del", "dev", IFB_DEVICE, "classid", &class_id_str])
+            .output()
+            .ok();
+
+        // Remove IFB fw filter for download
+        Command::new("tc")
+            .args([
+                "filter",
+                "del",
+                "dev",
+                IFB_DEVICE,
+                "parent",
+                "1:0",
+                "protocol",
+                "ip",
+                "prio",
+                "100",
+                "handle",
+                &record.class_id.to_string(),
+                "fw",
+            ])
             .output()
             .ok();
 
@@ -1087,6 +1213,11 @@ pub fn remove_limit(target: &str) -> Result<()> {
 
     // Save updated state
     state.save()?;
+
+    // Refresh nft rules (removes marking for the removed process)
+    if let Err(e) = refresh_nft_rules(&state.limits) {
+        eprintln!("{}: Failed to refresh nft rules: {}", "WARNING".yellow(), e);
+    }
 
     println!(
         "{}",
