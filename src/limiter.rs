@@ -12,7 +12,6 @@ use anyhow::{bail, Context, Result};
 use colored::Colorize;
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::os::linux::fs::MetadataExt;
 use std::path::Path;
 use std::process::Command;
 
@@ -77,25 +76,9 @@ fn ensure_kernel_modules() -> Result<()> {
     Ok(())
 }
 
-/// Get the cgroup ID (inode number) for a process's cgroup.
-///
-/// In cgroup v2, the cgroup ID is the inode number of the cgroup directory.
-/// This is used with nftables `meta cgroup` to match packets.
-fn get_cgroup_id(pid: u32) -> Option<u64> {
-    let cgroup_path = format!("{}/pid_{}", CGROUP_BASE, pid);
-    let path = Path::new(&cgroup_path);
-
-    if !path.exists() {
-        return None;
-    }
-
-    // Get the inode number which is the cgroup ID
-    fs::metadata(path).ok().map(|meta| meta.st_ino())
-}
-
 /// Build the complete nftables ruleset for all active limits.
 ///
-/// Uses `meta cgroup` to mark outgoing packets per-process with a unique
+/// Uses `socket cgroupv2 level 2` to mark outgoing packets per-process with a unique
 /// fwmark equal to the class_id. Conntrack propagates this mark so that
 /// returning (download) packets on IFB also carry the mark, allowing `tc fw`
 /// to classify them into the correct HTB class.
@@ -106,16 +89,20 @@ fn build_nft_ruleset(limits: &[LimitRecord]) -> String {
     // Egress: mark packets from each process's cgroup v2 path
     rules.push_str("  chain output {\n");
     rules.push_str("    type filter hook output priority mangle; policy accept;\n");
+
+    // Deduplicate by PID: only keep the last (most recent) class_id per PID
+    let mut seen_pids = std::collections::HashMap::new();
     for record in limits {
-        let mark = record.class_id;
-        // Use meta cgroup to match by cgroup ID (inode number)
-        // The cgroup ID is obtained from the cgroup directory's inode
-        if let Some(cgroup_id) = get_cgroup_id(record.pid) {
-            rules.push_str(&format!(
-                "    meta cgroup {} meta mark set {};\n",
-                cgroup_id, mark
-            ));
-        }
+        seen_pids.insert(record.pid, record.class_id);
+    }
+    for (pid, mark) in &seen_pids {
+        // Use socket cgroupv2 level 2 to match by cgroup path
+        // Level 2 = depth from root: / (0) -> oxy (1) -> pid_XXX (2)
+        let cgroup_rel = format!("oxy/pid_{}", pid);
+        rules.push_str(&format!(
+            "    socket cgroupv2 level 2 \"{}\" meta mark set {};\n",
+            cgroup_rel, mark
+        ));
     }
     rules.push_str("  }\n");
 
@@ -814,7 +801,41 @@ pub fn remove_cgroup(pid: u32) -> Result<()> {
     }
 
     // Remove the cgroup directory
-    fs::remove_dir_all(&cgroup_path).context("failed to remove cgroup directory")?;
+    // cgroup v2 directories must be removed with rmdir (remove_dir), not remove_dir_all
+    // Retry a few times in case processes are still draining
+    let mut removed = false;
+    for _ in 0..5 {
+        match fs::remove_dir(&cgroup_path) {
+            Ok(()) => {
+                removed = true;
+                break;
+            }
+            Err(_) => {
+                // Re-read and move any remaining processes
+                if Path::new(&procs_path).exists() {
+                    if let Ok(content) = fs::read_to_string(&procs_path) {
+                        for pid_str in content.lines() {
+                            if let Ok(proc_pid) = pid_str.trim().parse::<u32>() {
+                                let root_procs = if is_v2 && !is_hybrid {
+                                    "/sys/fs/cgroup/cgroup.procs".to_string()
+                                } else {
+                                    format!("{}/cgroup.procs", CGROUP_BASE)
+                                };
+                                if Path::new(&root_procs).exists() {
+                                    let _ = fs::write(&root_procs, proc_pid.to_string());
+                                }
+                            }
+                        }
+                    }
+                }
+                std::thread::sleep(std::time::Duration::from_millis(100));
+            }
+        }
+    }
+    if !removed {
+        // Final attempt - report error if still failing
+        fs::remove_dir(&cgroup_path).context("failed to remove cgroup directory")?;
+    }
 
     Ok(())
 }
@@ -1128,6 +1149,9 @@ pub fn apply_limit(
             let _ = remove_cgroup(*pid);
             continue;
         }
+
+        // Remove any existing record for this PID to avoid duplicates
+        state.limits.retain(|r| r.pid != *pid);
 
         // Create the limit record
         let record = LimitRecord {
