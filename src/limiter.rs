@@ -12,6 +12,7 @@ use anyhow::{bail, Context, Result};
 use colored::Colorize;
 use serde::{Deserialize, Serialize};
 use std::fs;
+use std::os::linux::fs::MetadataExt;
 use std::path::Path;
 use std::process::Command;
 
@@ -76,9 +77,25 @@ fn ensure_kernel_modules() -> Result<()> {
     Ok(())
 }
 
+/// Get the cgroup ID (inode number) for a process's cgroup.
+///
+/// In cgroup v2, the cgroup ID is the inode number of the cgroup directory.
+/// This is used with nftables `meta cgroup` to match packets.
+fn get_cgroup_id(pid: u32) -> Option<u64> {
+    let cgroup_path = format!("{}/pid_{}", CGROUP_BASE, pid);
+    let path = Path::new(&cgroup_path);
+
+    if !path.exists() {
+        return None;
+    }
+
+    // Get the inode number which is the cgroup ID
+    fs::metadata(path).ok().map(|meta| meta.st_ino())
+}
+
 /// Build the complete nftables ruleset for all active limits.
 ///
-/// Uses `socket cgroupv2` to mark outgoing packets per-process with a unique
+/// Uses `meta cgroup` to mark outgoing packets per-process with a unique
 /// fwmark equal to the class_id. Conntrack propagates this mark so that
 /// returning (download) packets on IFB also carry the mark, allowing `tc fw`
 /// to classify them into the correct HTB class.
@@ -90,12 +107,15 @@ fn build_nft_ruleset(limits: &[LimitRecord]) -> String {
     rules.push_str("  chain output {\n");
     rules.push_str("    type filter hook output priority mangle; policy accept;\n");
     for record in limits {
-        let cgroup_rel = format!("oxy/pid_{}", record.pid);
         let mark = record.class_id;
-        rules.push_str(&format!(
-            "    socket cgroupv2 path \"{}\" meta mark set {};\n",
-            cgroup_rel, mark
-        ));
+        // Use meta cgroup to match by cgroup ID (inode number)
+        // The cgroup ID is obtained from the cgroup directory's inode
+        if let Some(cgroup_id) = get_cgroup_id(record.pid) {
+            rules.push_str(&format!(
+                "    meta cgroup {} meta mark set {};\n",
+                cgroup_id, mark
+            ));
+        }
     }
     rules.push_str("  }\n");
 
@@ -769,6 +789,9 @@ pub fn remove_cgroup(pid: u32) -> Result<()> {
         return Ok(());
     }
 
+    // Detect cgroup version to determine correct root cgroup path
+    let (is_v2, is_hybrid) = detect_cgroup_version();
+
     // Read PIDs in the cgroup and move them to root
     let procs_path = format!("{}/cgroup.procs", cgroup_path);
     if Path::new(&procs_path).exists() {
@@ -776,7 +799,12 @@ pub fn remove_cgroup(pid: u32) -> Result<()> {
             for pid_str in content.lines() {
                 if let Ok(proc_pid) = pid_str.trim().parse::<u32>() {
                     // Move back to root cgroup
-                    let root_procs = format!("{}/cgroup.procs", CGROUP_BASE);
+                    // On pure cgroup v2, root is /sys/fs/cgroup; on v1/hybrid, use CGROUP_BASE
+                    let root_procs = if is_v2 && !is_hybrid {
+                        "/sys/fs/cgroup/cgroup.procs".to_string()
+                    } else {
+                        format!("{}/cgroup.procs", CGROUP_BASE)
+                    };
                     if Path::new(&root_procs).exists() {
                         fs::write(&root_procs, proc_pid.to_string()).ok();
                     }
@@ -886,17 +914,8 @@ pub fn apply_limit(
         if !has_cgroup_filter {
             let output = Command::new("tc")
                 .args([
-                    "filter",
-                    "add",
-                    "dev",
-                    &interface,
-                    "parent",
-                    "1:0",
-                    "protocol",
-                    "ip",
-                    "prio",
-                    "1",
-                    "cgroup",
+                    "filter", "add", "dev", &interface, "parent", "1:0", "protocol", "ip", "prio",
+                    "1", "cgroup",
                 ])
                 .output();
 
@@ -1144,10 +1163,7 @@ pub fn apply_limit(
                 "  {} On pure cgroup v2, nftables is required for bandwidth limiting.",
                 "NOTE:".yellow()
             );
-            eprintln!(
-                "  {} Verify: nft list table ip oxy",
-                "NOTE:".yellow()
-            );
+            eprintln!("  {} Verify: nft list table ip oxy", "NOTE:".yellow());
         }
     }
 
@@ -1188,7 +1204,11 @@ pub fn apply_limit(
         if use_cgroup_v1_backend {
             format!(
                 "tc cgroup + nftables ({})",
-                if cg_is_hybrid { "cgroup hybrid" } else { "cgroup v1" }
+                if cg_is_hybrid {
+                    "cgroup hybrid"
+                } else {
+                    "cgroup v1"
+                }
             )
         } else {
             "nftables + tc fw (cgroup v2)".to_string()
@@ -1342,9 +1362,8 @@ pub fn remove_limit(target: &str) -> Result<()> {
         for iface in removed_interfaces {
             let _ = Command::new("tc")
                 .args([
-                    "filter", "del", "dev", &iface,
-                    "parent", "1:0", "protocol", "ip",
-                    "prio", "1", "cgroup",
+                    "filter", "del", "dev", &iface, "parent", "1:0", "protocol", "ip", "prio", "1",
+                    "cgroup",
                 ])
                 .output();
         }
