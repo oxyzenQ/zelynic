@@ -98,10 +98,10 @@ fn build_nft_ruleset(limits: &[LimitRecord]) -> String {
     }
     for (pid, mark) in &seen_pids {
         // Use socket cgroupv2 to match packets from processes in this cgroup
-        // This matches by cgroup path which is more reliable than inode numbers
+        // level 2 means match at depth 2 from root (e.g., /oxy/pid_xxx)
         let cgroup_path = format!("oxy/pid_{}", pid);
         rules.push_str(&format!(
-            "    socket cgroupv2 \"{}\" counter meta mark set {};\n",
+            "    socket cgroupv2 level 2 \"{}\" counter meta mark set {};\n",
             cgroup_path, mark
         ));
     }
