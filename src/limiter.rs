@@ -206,28 +206,18 @@ fn detect_cgroupv2_level() -> u32 {
     2
 }
 
-/// Check whether the installed nftables + kernel supports `socket cgroupv2 path "..."`.
+/// Probe nftables support for a given `socket cgroupv2` expression variant.
 ///
-/// The `path` keyword requires both userspace nftables support AND kernel support.
-/// Some systems have a newer nftables binary but an older kernel that rejects `path`.
-/// This function actually tries to create and immediately delete a table to detect
-/// kernel support (not just userspace syntax checking with `-c`).
-fn supports_nft_cgroupv2_path() -> bool {
-    let test = r#"table netdev _oxy_probe { chain _probe { type filter hook ingress device "lo" priority filter; policy accept; socket cgroupv2 path "_probe"; } }"#;
+/// Writes a tiny netdev table to a temp file, attempts to apply it, and
+/// immediately cleans up.  Returns true if the kernel accepted it.
+fn probe_nft_socket_cgroupv2(expr: &str) -> bool {
+    let test = format!(
+        r#"table netdev _oxy_probe {{ chain _probe {{ type filter hook ingress device "lo" priority filter; policy accept; {}; } }}"#,
+        expr
+    );
     let tmp = "/run/oxy/.nft_probe";
     let _ = fs::create_dir_all(STATE_DIR);
-    let _ = fs::write(tmp, test);
-    // First do a syntax check (catches old nftables binaries)
-    let syntax_check = Command::new("nft").args(["-c", "-f", tmp]).output();
-    match syntax_check {
-        Ok(o) if !o.status.success() => {
-            let _ = fs::remove_file(tmp);
-            return false;
-        }
-        _ => {}
-    }
-    // Syntax is OK, but the kernel might still reject it.
-    // Actually try to apply it (and clean up immediately).
+    let _ = fs::write(tmp, &test);
     let apply = Command::new("nft").args(["-f", tmp]).output();
     let _ = Command::new("nft")
         .args(["delete", "table", "netdev", "_oxy_probe"])
@@ -237,6 +227,21 @@ fn supports_nft_cgroupv2_path() -> bool {
         Ok(o) => o.status.success(),
         Err(_) => false,
     }
+}
+
+/// Check whether the kernel supports `socket cgroupv2 level <N> "path"`.
+///
+/// This is the most compatible syntax — works on both old and new kernels.
+fn supports_nft_cgroupv2_level() -> bool {
+    probe_nft_socket_cgroupv2(r#"socket cgroupv2 level 2 "_oxy_probe""#)
+}
+
+/// Check whether the kernel supports the newer `socket cgroupv2 path "..."`.
+///
+/// The `path` keyword (without explicit `level`) was added later and is
+/// rejected by some older kernels even when the nftables binary supports it.
+fn supports_nft_cgroupv2_path() -> bool {
+    probe_nft_socket_cgroupv2(r#"socket cgroupv2 path "_oxy_probe""#)
 }
 
 /// Build the nftables `netdev oxy_ingress` table for ingress marking.
@@ -362,16 +367,19 @@ fn refresh_nft_netdev_rules(limits: &[LimitRecord], interface: &str) -> Result<(
         return Ok(());
     }
 
-    // Try precise cgroupv2 path matching first (nftables >= 1.0.1)
-    let ruleset_path = build_nft_netdev_ruleset(limits, interface, false);
-    if !ruleset_path.is_empty() && supports_nft_cgroupv2_path() {
-        match apply_nft_netdev_ruleset(&ruleset_path) {
+    // --- Strategy: try cgroupv2 matching (best effort), then UID fallback ---
+    //
+    // The ruleset builder (use_skuid=false) generates `socket cgroupv2 level N "path"`
+    // which is the most compatible syntax.  We probe for kernel support before trying.
+
+    // 1) Try cgroupv2 level syntax (most compatible — works on old + new kernels)
+    let ruleset = build_nft_netdev_ruleset(limits, interface, false);
+    if !ruleset.is_empty() && supports_nft_cgroupv2_level() {
+        match apply_nft_netdev_ruleset(&ruleset) {
             Ok(_) => return Ok(()),
             Err(e) => {
-                // Syntax probe passed but apply failed for another reason
-                // (e.g. kernel missing CONFIG_NFT_SOCKET). Fall through to skuid.
                 eprintln!(
-                    "{}: cgroupv2 path mode failed: {}. Falling back to UID mode.",
+                    "{}: cgroupv2 level mode failed: {}. Falling back to UID mode.",
                     "WARNING".yellow(),
                     e
                 );
@@ -379,10 +387,10 @@ fn refresh_nft_netdev_rules(limits: &[LimitRecord], interface: &str) -> Result<(
         }
     }
 
-    // Fallback: UID-based marking (works on all nftables versions)
-    if !supports_nft_cgroupv2_path() {
+    // 2) Fallback: UID-based marking (works on all nftables versions)
+    if !supports_nft_cgroupv2_level() {
         eprintln!(
-            "{}: nftables 'socket cgroupv2 path' not supported (nftables < 1.0.1?).",
+            "{}: kernel does not support 'socket cgroupv2' (missing CONFIG_NFT_SOCKET?).",
             "WARNING".yellow()
         );
     }
@@ -393,10 +401,6 @@ fn refresh_nft_netdev_rules(limits: &[LimitRecord], interface: &str) -> Result<(
     eprintln!(
         "  {} ALL traffic from the same UID, not just the target process.",
         "NOTE:".yellow()
-    );
-    eprintln!(
-        "  {} Tip: Upgrade nftables to >= 1.0.1 for precise per-process matching.",
-        "Tip:".cyan()
     );
 
     let ruleset_skuid = build_nft_netdev_ruleset(limits, interface, true);
@@ -1034,9 +1038,9 @@ pub fn apply_limit(
     // Load existing state
     let mut state = OxyState::load()?;
 
-    // Detect whether nftables supports socket cgroupv2 path for ingress marking.
+    // Detect whether nftables + kernel supports socket cgroupv2 for ingress marking.
     // If not, we fall back to UID-based marking (mark = handle = UID).
-    let skuid_fallback = !supports_nft_cgroupv2_path();
+    let skuid_fallback = !supports_nft_cgroupv2_level();
 
     // Track which UIDs have already had an ingress filter created (for skuid mode).
     // In skuid mode, all PIDs sharing a UID share one ingress police filter.
