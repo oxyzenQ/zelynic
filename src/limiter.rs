@@ -1232,7 +1232,7 @@ pub fn remove_limit(target: &str) -> Result<()> {
     // Refresh nft rules (removes marking for removed processes)
     if let Err(e) = refresh_all_nft_rules(
         &state.limits,
-        &removed_ifaces.first().unwrap_or(&"".to_string()),
+        removed_ifaces.first().unwrap_or(&"".to_string()),
     ) {
         eprintln!("{}: Failed to refresh nft rules: {}", "WARNING".yellow(), e);
     }
