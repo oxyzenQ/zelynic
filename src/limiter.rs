@@ -235,14 +235,6 @@ fn supports_nft_cgroupv2_level() -> bool {
     probe_nft_socket_cgroupv2(r#"socket cgroupv2 level 2 "_oxy_probe""#)
 }
 
-/// Check whether the kernel supports the newer `socket cgroupv2 path "..."`.
-///
-/// The `path` keyword (without explicit `level`) was added later and is
-/// rejected by some older kernels even when the nftables binary supports it.
-fn supports_nft_cgroupv2_path() -> bool {
-    probe_nft_socket_cgroupv2(r#"socket cgroupv2 path "_oxy_probe""#)
-}
-
 /// Build the nftables `netdev oxy_ingress` table for ingress marking.
 ///
 /// Two modes are supported depending on nftables version:
@@ -289,7 +281,7 @@ fn build_nft_netdev_ruleset(limits: &[LimitRecord], interface: &str, use_skuid: 
                 seen_uids.entry(uid).or_insert(record.class_id);
             }
         }
-        for (uid, _first_class_id) in &seen_uids {
+        for uid in seen_uids.keys() {
             // Mark = UID so the tc fw filter handle (also UID) matches
             ruleset.push_str(&format!(
                 "    meta skuid {} meta mark set {};\n",
