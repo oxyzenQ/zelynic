@@ -1071,6 +1071,29 @@ pub fn apply_limit(
                 );
             }
 
+            // Add single global connmark restore filter on IFB (prio 90, before fw at 100)
+            // This restores conntrack marks to packets so fw filter can classify by mark
+            // Only add once - check if already exists
+            let connmark_check = Command::new("tc")
+                .args(["filter", "show", "dev", IFB_DEVICE, "parent", "1:0"])
+                .output()
+                .ok();
+            let has_connmark = connmark_check
+                .as_ref()
+                .map(|o| String::from_utf8_lossy(&o.stdout).contains("connmark"))
+                .unwrap_or(false);
+
+            if !has_connmark {
+                let _ = Command::new("tc")
+                    .args([
+                        "filter", "add", "dev", IFB_DEVICE, "parent", "1:0",
+                        "protocol", "ip", "prio", "90",
+                        "u32", "match", "u32", "0", "0",
+                        "action", "connmark", "pipe",
+                    ])
+                    .output();
+            }
+
             let dl_rate_kbit = (dl_bps * 8) / 1000;
             let dl_ceil_kbit = (dl_rate_kbit as f64 * 1.1) as u64;
 
@@ -1104,8 +1127,9 @@ pub fn apply_limit(
                 ],
             );
 
+
             // Add IFB fw filter: classifies download packets by fw mark
-            // The connmark restore happens via nftables prerouting
+            // The connmark restore happens via nftables prerouting OR act_connmark
             tx.add(
                 &format!("IFB fw filter for PID {}", pid),
                 vec![
@@ -1337,6 +1361,14 @@ pub fn remove_limit(target: &str) -> Result<()> {
             ])
             .output()
             .ok();
+
+        // Remove global connmark restore filter at prio 90
+        let _ = Command::new("tc")
+            .args([
+                "filter", "del", "dev", IFB_DEVICE, "parent", "1:0",
+                "protocol", "ip", "prio", "90", "u32",
+            ])
+            .output();
 
         // Remove IFB fw filter for download
         Command::new("tc")
