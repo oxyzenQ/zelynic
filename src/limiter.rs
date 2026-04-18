@@ -211,10 +211,9 @@ fn detect_cgroupv2_level() -> u32 {
 /// Writes a tiny netdev table to a temp file, attempts to apply it, and
 /// immediately cleans up.  Returns true if the kernel accepted it.
 fn probe_nft_socket_cgroupv2(expr: &str) -> bool {
-    let test = format!(
-        r#"table netdev _oxy_probe {{ chain _probe {{ type filter hook ingress device "lo" priority filter; policy accept; {}; } }}"#,
-        expr
-    );
+    // Use .replace() to avoid format! brace-escaping nightmares in raw strings.
+    let template = r#"table netdev _oxy_probe { chain _probe { type filter hook ingress device "lo" priority filter; policy accept; __OXY_EXPR__; } }"#;
+    let test = template.replace("__OXY_EXPR__", expr);
     let tmp = "/run/oxy/.nft_probe";
     let _ = fs::create_dir_all(STATE_DIR);
     let _ = fs::write(tmp, &test);
