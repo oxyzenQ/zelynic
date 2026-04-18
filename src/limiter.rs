@@ -1262,4 +1262,153 @@ pub fn clean_orphans() -> Result<()> {
         }
     }
 
-    if to_
+    if to_remove.is_empty() {
+        println!(
+            "{} All {} limit(s) are for running processes. No cleanup needed.",
+            "Info:".yellow(),
+            kept_count
+        );
+        return Ok(());
+    }
+
+    println!(
+        "{} Found {} orphaned limit(s) to clean up...",
+        "Cleaning:".cyan(),
+        to_remove.len()
+    );
+
+    // Process removals in reverse order to maintain indices
+    for &idx in to_remove.iter().rev() {
+        let record = &state.limits[idx];
+
+        println!(
+            "  Removing stale rules for {} (PID: {}, class: 1:{:04x})...",
+            record.target, record.pid, record.class_id
+        );
+
+        // Remove tc class
+        let class_id_str = format!("1:{:04x}", record.class_id);
+        let _ = Command::new("tc")
+            .args([
+                "class", "del", "dev", &record.interface, "classid", &class_id_str,
+            ])
+            .output();
+
+        // Remove cgroup
+        let _ = remove_cgroup(record.pid);
+
+        // Remove from state
+        state.limits.remove(idx);
+        removed_count += 1;
+    }
+
+    // Save updated state
+    state.save()?;
+
+    println!();
+    println!("{}", "oxy clean: orphaned limits removed".green().bold());
+    println!();
+    println!("  Removed:   {} orphaned limit(s)", removed_count);
+    println!("  Remaining: {} active limit(s)", kept_count);
+    println!();
+    println!(
+        "  {} Run 'oxy status' to see current active limits.",
+        "Info:".yellow()
+    );
+
+    Ok(())
+}
+
+/// Generate a human-readable timestamp string for the applied_at field.
+fn chrono_now() -> String {
+    use std::time::SystemTime;
+    let now = SystemTime::now();
+    let datetime = time::OffsetDateTime::from(now);
+    format!(
+        "{:04}-{:02}-{:02} {:02}:{:02}:{:02}",
+        datetime.year(),
+        datetime.month() as u8,
+        datetime.day(),
+        datetime.hour(),
+        datetime.minute(),
+        datetime.second()
+    )
+}
+
+/// Check for process respawns and re-apply limits to new PIDs.
+pub fn check_respawns() -> Result<()> {
+    check_root()?;
+
+    let mut state = OxyState::load()?;
+
+    if state.limits.is_empty() {
+        return Ok(());
+    }
+
+    let mut respawned: Vec<(usize, Vec<u32>)> = Vec::new();
+
+    // Check each limit for process death and potential respawn
+    for (idx, record) in state.limits.iter().enumerate() {
+        let proc_path = format!("/proc/{}", record.pid);
+        let is_alive = std::path::Path::new(&proc_path).exists();
+
+        if !is_alive {
+            // Process died - look for respawned instances with same name
+            let current_pids = resolve_pids(&record.target)?;
+
+            if !current_pids.is_empty() {
+                respawned.push((idx, current_pids));
+            }
+        }
+    }
+
+    if respawned.is_empty() {
+        return Ok(());
+    }
+
+    println!(
+        "{}",
+        "oxy: detected process respawn(s), re-applying limits..."
+            .yellow()
+            .bold()
+    );
+    println!();
+
+    // Re-apply limits to respawned processes
+    for (idx, new_pids) in respawned {
+        let record = &state.limits[idx];
+
+        println!(
+            "  Target '{}' (PID: {} -> new PID(s): {:?})",
+            record.target, record.pid, new_pids
+        );
+
+        // Get first PID and update record
+        let first_pid = new_pids[0];
+
+        // Re-apply for each new PID
+        for &new_pid in &new_pids {
+            let (cgroup_path, _) = setup_cgroup(new_pid, record.class_id)?;
+
+            // Move process to cgroup
+            let procs_path = format!("{}/cgroup.procs", cgroup_path);
+            if std::path::Path::new(&procs_path).exists() {
+                let _ = std::fs::write(&procs_path, new_pid.to_string());
+            }
+        }
+
+        // Update record with first new PID as primary
+        state.limits[idx].pid = first_pid;
+        state.limits[idx].applied_at = chrono_now();
+
+        println!("  {} Re-applied limits to PID {}", "✓".green(), first_pid);
+    }
+
+    // Save updated state
+    state.save()?;
+
+    println!();
+    println!("{}", "oxy: respawn handling complete".green().bold());
+
+    Ok(())
+}
