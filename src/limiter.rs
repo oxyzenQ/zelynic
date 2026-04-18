@@ -6,14 +6,15 @@
 ///   Process → nftables output (meta skuid → mark) → tc fw filter → HTB class (rate-limited)
 ///   On cgroup v1/hybrid: also uses tc cgroup filter as fallback for existing connections.
 ///
-/// **Download (ingress) limiting:**
-///   NIC → IP stack → conntrack lookup → nftables inet PREROUTING (ct mark → meta mark →
-///        limit rate over X burst Y drop)
+/// **Download (ingress) limiting (IFB + HTB):**
+///   NIC → nftables netdev ingress (ct mark → meta mark) → tc clsact ingress →
+///        mirred redirect to ifb0 → HTB on ifb0 (fw filter → rate-limited class) →
+///        IP stack
 ///
-/// IMPORTANT: nftables `limit rate` uses per-CPU token buckets. The effective
-/// aggregate rate is `configured_rate × active_cpus`. We compensate by reading
-/// the actual number of active network CPUs from `/proc/net/softnet_stat` (which
-/// accounts for RPS even on single-queue NICs) and dividing the rate accordingly.
+/// The netdev ingress hook fires before the tc ingress qdisc, so the fw mark is
+/// available when tc processes the packet. IFB (Intermediate Functional Block) is
+/// a virtual device that allows HTB shaping on ingress traffic — something normally
+/// impossible because ingress qdiscs cannot attach classes directly.
 ///
 /// Without `socket cgroupv2` kernel support, per-process distinction is not possible
 /// at the nftables level. Both egress marking and download rate limiting operate
@@ -37,6 +38,8 @@ const STATE_DIR: &str = "/run/oxy";
 const STATE_FILE: &str = "/run/oxy/state.json";
 /// Base path for oxy's cgroup management.
 const CGROUP_BASE: &str = "/sys/fs/cgroup/oxy";
+/// IFB device used for ingress (download) traffic shaping.
+const IFB_DEVICE: &str = "ifb0";
 
 /// Detect cgroup version (v1, v2, or hybrid).
 ///
@@ -128,63 +131,18 @@ fn get_process_uid(pid: u32) -> Option<u32> {
     None
 }
 
-/// Estimate the number of CPUs that handle network receive traffic.
-///
-/// nftables `limit rate` uses per-CPU token buckets, so the effective
-/// aggregate rate is `configured_rate × active_cpus`. Reading the number
-/// of hardware rx queues from sysfs is insufficient because RPS (Receive
-/// Packet Steering) can distribute softirq processing across more CPUs
-/// than the number of rx queues (e.g., a Wi-Fi adapter with 1 rx queue
-/// may have packets processed by 2+ CPUs).
-///
-/// Instead, we read `/proc/net/softnet_stat` which shows per-CPU network
-/// processing counters. Any CPU with a non-zero packet counter is considered
-/// active for network processing.
-fn get_active_net_cpus() -> usize {
-    if let Ok(content) = fs::read_to_string("/proc/net/softnet_stat") {
-        let count = content
-            .lines()
-            .filter(|line| {
-                // Each line has space-separated hex values.
-                // The first field is the total received packet count;
-                // a non-zero value indicates this CPU has processed packets.
-                line.split_whitespace()
-                    .next()
-                    .and_then(|v| u64::from_str_radix(v, 16).ok())
-                    .map(|v| v > 0)
-                    .unwrap_or(false)
-            })
-            .count();
-        if count > 0 {
-            return count.max(1);
-        }
-    }
-    // Fallback: use available parallelism with a minimum of 2
-    // (even single-queue NICs often have RPS distributing to 2+ CPUs)
-    std::thread::available_parallelism()
-        .map(|n| n.get())
-        .unwrap_or(4)
-        .max(2)
-}
-
 // ---------------------------------------------------------------------------
 // nftables rules management
 // ---------------------------------------------------------------------------
 
-/// Build the nftables `inet oxy` table for egress marking + download rate limiting.
+/// Build the nftables `inet oxy` table for egress marking and conntrack propagation.
 ///
 /// Uses `inet` (IPv4 + IPv6) so both protocol families are handled.
 ///
 /// Output chain: marks egress packets by UID (deduplicated — one rule per UID).
 /// Postrouting: saves mark to conntrack for reply (download) packets.
-/// Prerouting: restores mark from conntrack for incoming packets, then applies
-///             per-UID download rate limits via `limit rate over X burst Y drop`.
-///
-/// Note: nftables `limit rate` uses per-CPU token buckets. The effective rate
-/// is approximately `configured_rate × active_cpus`. We compensate by dividing
-/// the configured rate by the number of active network CPUs, read from
-/// `/proc/net/softnet_stat`. We also set an explicit `burst 1 kbytes` to
-/// minimize initial burst overage.
+/// Prerouting: restores mark from conntrack for incoming packets (fallback when
+///             netdev ingress hook is unavailable).
 fn build_nft_ip_ruleset(limits: &[LimitRecord]) -> String {
     let mut ruleset = String::new();
     ruleset.push_str("table inet oxy {\n");
@@ -216,42 +174,11 @@ fn build_nft_ip_ruleset(limits: &[LimitRecord]) -> String {
     ruleset.push_str("    meta mark != 0 ct mark set meta mark;\n");
     ruleset.push_str("  }\n");
 
-    // Prerouting: restore mark from conntrack, then apply download rate limits.
-    // Rate limit is per-UID using the minimum rate among all PIDs with that
-    // UID (conservative: ensures no process exceeds its requested limit).
+    // Prerouting: restore mark from conntrack (fallback for mark restoration).
+    // Actual download rate limiting is handled by IFB + HTB, not nftables.
     ruleset.push_str("  chain prerouting {\n");
     ruleset.push_str("    type filter hook prerouting priority dstnat; policy accept;\n");
     ruleset.push_str("    ct mark != 0 meta mark set ct mark;\n");
-
-    // Compute minimum download rate per UID (in kbytes/second for nftables).
-    // nftables 'limit rate over' expects bytes, kbytes, or mbytes — not kbit.
-    //
-    // IMPORTANT: nftables `limit rate` maintains per-CPU token buckets, so the
-    // effective aggregate rate is `rate × active_cpus`. We compensate by
-    // dividing the rate by the number of active network CPUs (estimated from
-    // /proc/net/softnet_stat, which reflects actual softirq distribution
-    // including RPS).
-    let num_cpus = get_active_net_cpus();
-
-    let mut uid_min_dl: std::collections::HashMap<u32, u64> = std::collections::HashMap::new();
-    for record in limits.iter().filter(|l| l.download_bytes_per_sec.is_some()) {
-        if let Some(uid) = get_process_uid(record.pid) {
-            let dl_kbytes = (record.download_bytes_per_sec.unwrap() / 1024).max(1);
-            let compensated = (dl_kbytes / num_cpus as u64).max(1);
-            uid_min_dl
-                .entry(uid)
-                .and_modify(|min| *min = (*min).min(compensated))
-                .or_insert(compensated);
-        }
-    }
-
-    for (uid, rate_kbytes) in &uid_min_dl {
-        ruleset.push_str(&format!(
-            "    meta mark 0x{:08x} limit rate over {} kbytes/second burst 1 kbytes drop;\n",
-            uid, rate_kbytes
-        ));
-    }
-
     ruleset.push_str("  }\n");
 
     ruleset.push_str("}\n");
@@ -290,9 +217,68 @@ fn refresh_nft_ip_rules(limits: &[LimitRecord]) -> Result<()> {
     Ok(())
 }
 
-/// Refresh all nftables rules (inet table: IPv4 + IPv6).
-fn refresh_all_nft_rules(limits: &[LimitRecord], _interface: &str) -> Result<()> {
-    refresh_nft_ip_rules(limits)
+/// Build the nftables `netdev oxy_mark` table for ingress mark restoration.
+///
+/// This netdev ingress hook fires before tc ingress, ensuring the fw mark
+/// (from conntrack) is available when tc clsact processes the packet on
+/// its way to the IFB device.
+fn build_nft_netdev_ruleset(interface: &str) -> String {
+    format!(
+        r#"table netdev oxy_mark {{
+    chain {iface}_ingress {{
+        type filter hook ingress device {iface} priority filter; policy accept;
+        ct mark != 0 meta mark set ct mark
+    }}
+}}
+"#,
+        iface = interface
+    )
+}
+
+/// Apply (or refresh) the nftables netdev oxy_mark table for ingress mark restoration.
+///
+/// Only creates the netdev table when there are download limits; deletes it otherwise.
+fn refresh_nft_netdev_rules(limits: &[LimitRecord], interface: &str) -> Result<()> {
+    let has_download = limits.iter().any(|l| l.download_bytes_per_sec.is_some());
+
+    if !has_download {
+        let _ = Command::new("nft")
+            .args(["delete", "table", "netdev", "oxy_mark"])
+            .output();
+        return Ok(());
+    }
+
+    let ruleset = build_nft_netdev_ruleset(interface);
+
+    let nft_file = "/run/oxy/oxy_mark.nft";
+    fs::create_dir_all(STATE_DIR).ok();
+    fs::write(nft_file, &ruleset).context("failed to write nft netdev ruleset file")?;
+
+    let _ = Command::new("nft")
+        .args(["delete", "table", "netdev", "oxy_mark"])
+        .output();
+
+    let output = Command::new("nft")
+        .args(["-f", nft_file])
+        .output()
+        .context("failed to run nft. Is nftables installed?")?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        eprintln!(
+            "{}: Failed to apply netdev mark restoration rules: {}",
+            "WARNING".yellow(),
+            stderr
+        );
+    }
+
+    Ok(())
+}
+
+/// Refresh all nftables rules (inet + netdev tables).
+fn refresh_all_nft_rules(limits: &[LimitRecord], interface: &str) -> Result<()> {
+    refresh_nft_ip_rules(limits)?;
+    refresh_nft_netdev_rules(limits, interface)
 }
 
 // ---------------------------------------------------------------------------
@@ -607,43 +593,141 @@ fn ensure_htb_qdisc(interface: &str) -> Result<()> {
     Ok(())
 }
 
-/// Ensure the ingress qdisc (ffff:) exists on the interface.
+/// Ensure the clsact qdisc exists on the interface.
 ///
-/// The ingress qdisc is where we attach fw filters with police actions
-/// for download (ingress) bandwidth limiting.
-#[allow(dead_code)]
-fn ensure_ingress_qdisc(interface: &str) -> Result<()> {
+/// clsact is a classless qdisc that allows attaching filters on both ingress
+/// and egress. We use it to redirect all ingress traffic to the IFB device
+/// via a mirred action.
+fn ensure_clsact(interface: &str) -> Result<()> {
     let check = Command::new("tc")
-        .args(["qdisc", "show", "dev", interface, "ingress"])
+        .args(["qdisc", "show", "dev", interface])
+        .output()
+        .context("failed to check tc qdisc")?;
+    let stdout = String::from_utf8_lossy(&check.stdout);
+    if stdout.contains("clsact") {
+        return Ok(());
+    }
+    let output = Command::new("tc")
+        .args(["qdisc", "add", "dev", interface, "clsact"])
+        .output()
+        .context("failed to create clsact qdisc")?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        bail!("failed to create clsact qdisc on {}: {}", interface, stderr);
+    }
+    Ok(())
+}
+
+/// Ensure the IFB (Intermediate Functional Block) virtual device exists and is up.
+///
+/// IFB allows HTB shaping on ingress traffic by redirecting ingress packets
+/// to the IFB device where they can be classified and rate-limited.
+fn ensure_ifb() -> Result<()> {
+    let _ = Command::new("modprobe").arg("ifb").output();
+    // also load act_mirred for the redirect action
+    let _ = Command::new("modprobe").arg("act_mirred").output();
+
+    let check = Command::new("ip")
+        .args(["link", "show", IFB_DEVICE])
         .output()
         .ok();
+    let ifb_exists = check.as_ref().map(|o| o.status.success()).unwrap_or(false);
 
-    let ingress_exists = check
+    if !ifb_exists {
+        let output = Command::new("ip")
+            .args(["link", "add", IFB_DEVICE, "type", "ifb"])
+            .output()
+            .context("failed to create IFB device. Is the 'ifb' kernel module available?")?;
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            bail!("failed to create IFB device: {}", stderr);
+        }
+    }
+
+    let output = Command::new("ip")
+        .args(["link", "set", IFB_DEVICE, "up"])
+        .output()
+        .context("failed to bring IFB device up")?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        bail!("failed to bring IFB device up: {}", stderr);
+    }
+    Ok(())
+}
+
+/// Ensure the HTB root qdisc exists on the IFB device.
+///
+/// This creates the HTB hierarchy on ifb0 where per-UID download classes
+/// are attached. A default class (2:2999) with a very high rate ensures
+/// unmarked packets pass through unrestricted.
+fn ensure_ifb_htb_root() -> Result<()> {
+    let check = Command::new("tc")
+        .args(["qdisc", "show", "dev", IFB_DEVICE])
+        .output()
+        .context("failed to check IFB qdisc")?;
+    let stdout = String::from_utf8_lossy(&check.stdout);
+    if stdout.contains("qdisc htb 2:") {
+        return Ok(());
+    }
+
+    let output = Command::new("tc")
+        .args([
+            "qdisc", "add", "dev", IFB_DEVICE, "root", "handle", "2:", "htb", "default", "2999",
+        ])
+        .output()
+        .context("failed to create IFB HTB qdisc")?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        bail!("failed to create IFB HTB qdisc: {}", stderr);
+    }
+
+    let output = Command::new("tc")
+        .args([
+            "class", "add", "dev", IFB_DEVICE, "parent", "2:", "classid", "2:2999", "htb", "rate",
+            "100gbit", "ceil", "100gbit",
+        ])
+        .output()
+        .context("failed to create IFB default HTB class")?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        bail!("failed to create IFB default HTB class: {}", stderr);
+    }
+
+    Ok(())
+}
+
+/// Set up a tc matchall + mirred redirect to send all ingress traffic to the IFB device.
+///
+/// This filter on the physical NIC's clsact ingress redirects every packet to
+/// ifb0, where the HTB hierarchy will classify and rate-limit based on fw marks.
+fn setup_ifb_redirect(interface: &str) -> Result<()> {
+    // Check if redirect already exists
+    let check = Command::new("tc")
+        .args(["filter", "show", "dev", interface, "ingress"])
+        .output()
+        .ok();
+    let redirect_exists = check
         .as_ref()
         .map(|o| {
             let stdout = String::from_utf8_lossy(&o.stdout);
-            stdout.contains("ingress") || stdout.contains("clsact")
+            stdout.contains("mirred") && stdout.contains("redirect")
         })
         .unwrap_or(false);
 
-    if !ingress_exists {
-        let output = Command::new("tc")
-            .args(["qdisc", "add", "dev", interface, "ingress"])
-            .output();
+    if redirect_exists {
+        return Ok(());
+    }
 
-        if let Ok(o) = output {
-            if !o.status.success() {
-                let stderr = String::from_utf8_lossy(&o.stderr);
-                // clsact might already exist, which is fine
-                if !stderr.contains("File exists") {
-                    bail!(
-                        "failed to create ingress qdisc on {}: {}",
-                        interface,
-                        stderr
-                    );
-                }
-            }
-        }
+    let output = Command::new("tc")
+        .args([
+            "filter", "add", "dev", interface, "ingress", "pref", "10", "matchall", "action",
+            "mirred", "egress", "redirect", "dev", IFB_DEVICE,
+        ])
+        .output()
+        .context("failed to create IFB redirect filter")?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        bail!("failed to create IFB redirect on {}: {}", interface, stderr);
     }
 
     Ok(())
@@ -1007,6 +1091,163 @@ pub fn apply_limit(
         return Err(e);
     }
 
+    // Phase 3: Set up IFB + HTB for download (ingress) limiting
+    let has_download = state
+        .limits
+        .iter()
+        .any(|l| l.download_bytes_per_sec.is_some());
+    if has_download {
+        if let Err(e) = ensure_ifb() {
+            eprintln!(
+                "{}: IFB setup failed: {}. Download limiting may not work.",
+                "WARNING".yellow(),
+                e
+            );
+        }
+        if let Err(e) = ensure_clsact(&interface) {
+            eprintln!("{}: clsact setup failed: {}", "WARNING".yellow(), e);
+        }
+        if let Err(e) = ensure_ifb_htb_root() {
+            eprintln!("{}: IFB HTB root failed: {}", "WARNING".yellow(), e);
+        }
+        if let Err(e) = setup_ifb_redirect(&interface) {
+            eprintln!("{}: IFB redirect failed: {}", "WARNING".yellow(), e);
+        }
+    }
+
+    // Compute minimum download rate per UID
+    let mut uid_min_dl: std::collections::HashMap<u32, u64> = std::collections::HashMap::new();
+    for record in state
+        .limits
+        .iter()
+        .filter(|l| l.download_bytes_per_sec.is_some())
+    {
+        if let Some(uid) = get_process_uid(record.pid) {
+            let dl_bps = record.download_bytes_per_sec.unwrap();
+            uid_min_dl
+                .entry(uid)
+                .and_modify(|min| *min = (*min).min(dl_bps))
+                .or_insert(dl_bps);
+        }
+    }
+
+    let mut dl_tx = TcTransaction::new();
+    for (uid, dl_bps) in &uid_min_dl {
+        let dl_kbit = (dl_bps * 8) / 1000;
+        let ceil_kbit = (dl_kbit as f64 * 1.1) as u64;
+        let class_id_str = format!("2:{:04x}", uid);
+
+        // Download (ingress): HTB class on IFB for this UID
+        dl_tx.add(
+            &format!("ingress HTB class for UID {}", uid),
+            vec![
+                "class".into(),
+                "add".into(),
+                "dev".into(),
+                IFB_DEVICE.into(),
+                "parent".into(),
+                "2:".into(),
+                "classid".into(),
+                class_id_str.clone(),
+                "htb".into(),
+                "rate".into(),
+                format!("{}kbit", dl_kbit),
+                "ceil".into(),
+                format!("{}kbit", ceil_kbit),
+                "burst".into(),
+                "15k".into(),
+                "cburst".into(),
+                "15k".into(),
+            ],
+            vec![
+                "class".into(),
+                "del".into(),
+                "dev".into(),
+                IFB_DEVICE.into(),
+                "classid".into(),
+                class_id_str.clone(),
+            ],
+        );
+
+        // fw filter on IFB egress (IPv4)
+        dl_tx.add(
+            &format!("ingress fw filter (ip) for UID {}", uid),
+            vec![
+                "filter".into(),
+                "add".into(),
+                "dev".into(),
+                IFB_DEVICE.into(),
+                "egress".into(),
+                "protocol".into(),
+                "ip".into(),
+                "prio".into(),
+                "100".into(),
+                "handle".into(),
+                uid.to_string(),
+                "fw".into(),
+                "flowid".into(),
+                class_id_str.clone(),
+            ],
+            vec![
+                "filter".into(),
+                "del".into(),
+                "dev".into(),
+                IFB_DEVICE.into(),
+                "egress".into(),
+                "protocol".into(),
+                "ip".into(),
+                "prio".into(),
+                "100".into(),
+                "handle".into(),
+                uid.to_string(),
+                "fw".into(),
+            ],
+        );
+
+        // fw filter on IFB egress (IPv6)
+        dl_tx.add(
+            &format!("ingress fw filter (ipv6) for UID {}", uid),
+            vec![
+                "filter".into(),
+                "add".into(),
+                "dev".into(),
+                IFB_DEVICE.into(),
+                "egress".into(),
+                "protocol".into(),
+                "ipv6".into(),
+                "prio".into(),
+                "100".into(),
+                "handle".into(),
+                uid.to_string(),
+                "fw".into(),
+                "flowid".into(),
+                class_id_str.clone(),
+            ],
+            vec![
+                "filter".into(),
+                "del".into(),
+                "dev".into(),
+                IFB_DEVICE.into(),
+                "egress".into(),
+                "protocol".into(),
+                "ipv6".into(),
+                "prio".into(),
+                "100".into(),
+                "handle".into(),
+                uid.to_string(),
+                "fw".into(),
+            ],
+        );
+    }
+
+    if let Err(e) = dl_tx.execute() {
+        eprintln!(
+            "{}: Failed to apply IFB download rules: {}",
+            "ERROR".red().bold(),
+            e
+        );
+    }
+
     // Refresh all nftables rules
     if let Err(e) = refresh_all_nft_rules(&state.limits, &interface) {
         eprintln!(
@@ -1042,7 +1283,7 @@ pub fn apply_limit(
             .join(", ")
     );
     if let Some(ref dl) = dl_display {
-        println!("  Download:  {} (limited, nft limit rate)", dl.cyan());
+        println!("  Download:  {} (limited, IFB + HTB)", dl.cyan());
     } else {
         println!("  Download:  {}", "unlimited".dimmed());
     }
@@ -1053,7 +1294,7 @@ pub fn apply_limit(
     }
     println!("  Interface: {}", interface);
     println!(
-        "  Backend:   nftables inet (PREROUTING limit rate) + tc HTB (cgroup v{})",
+        "  Backend:   nftables + IFB + HTB | cgroup v{}",
         if use_cgroup_v1_backend {
             "1/hybrid"
         } else {
@@ -1185,6 +1426,52 @@ pub fn remove_limit(target: &str) -> Result<()> {
                     ])
                     .output();
             }
+
+            // Remove IFB HTB class for this UID
+            let _ = Command::new("tc")
+                .args([
+                    "class",
+                    "del",
+                    "dev",
+                    IFB_DEVICE,
+                    "classid",
+                    &format!("2:{:04x}", uid),
+                ])
+                .output();
+            // Remove IFB fw filter (ip)
+            let _ = Command::new("tc")
+                .args([
+                    "filter",
+                    "del",
+                    "dev",
+                    IFB_DEVICE,
+                    "egress",
+                    "protocol",
+                    "ip",
+                    "prio",
+                    "100",
+                    "handle",
+                    &uid.to_string(),
+                    "fw",
+                ])
+                .output();
+            // Remove IFB fw filter (ipv6)
+            let _ = Command::new("tc")
+                .args([
+                    "filter",
+                    "del",
+                    "dev",
+                    IFB_DEVICE,
+                    "egress",
+                    "protocol",
+                    "ipv6",
+                    "prio",
+                    "100",
+                    "handle",
+                    &uid.to_string(),
+                    "fw",
+                ])
+                .output();
         }
     }
 
@@ -1207,12 +1494,22 @@ pub fn remove_limit(target: &str) -> Result<()> {
                 .output();
         }
 
-        // Clean up ingress qdisc
+        // Remove IFB HTB qdisc
+        let _ = Command::new("tc")
+            .args(["qdisc", "del", "dev", IFB_DEVICE, "root"])
+            .output();
+
+        // Remove clsact from interface (which also removes ingress redirect)
         for iface in &removed_ifaces {
             let _ = Command::new("tc")
-                .args(["qdisc", "del", "dev", iface, "ingress"])
+                .args(["qdisc", "del", "dev", iface, "clsact"])
                 .output();
         }
+
+        // Remove netdev table
+        let _ = Command::new("nft")
+            .args(["delete", "table", "netdev", "oxy_mark"])
+            .output();
 
         // Clean up all nftables tables
         let _ = Command::new("nft")
