@@ -170,19 +170,44 @@ fn build_nft_ip_ruleset(limits: &[LimitRecord]) -> String {
     ruleset
 }
 
+/// Check whether the installed nftables supports `socket cgroupv2 path "..."`.
+///
+/// The `path` keyword was added in nftables 1.0.1. Older versions only
+/// support `socket cgroupv2 level <N>`, which is too broad for per-process
+/// matching. This function probes the local nftables by attempting to parse
+/// a tiny ruleset containing the `path` keyword.
+fn supports_nft_cgroupv2_path() -> bool {
+    let test = r#"table netdev _oxy_probe { chain _probe { type filter hook ingress device "lo" priority filter; policy accept; socket cgroupv2 path "_probe"; } }"#;
+    let tmp = "/run/oxy/.nft_probe";
+    let _ = fs::create_dir_all(STATE_DIR);
+    let _ = fs::write(tmp, test);
+    let out = Command::new("nft").args(["-c", "-f", tmp]).output();
+    let _ = fs::remove_file(tmp);
+    match out {
+        Ok(o) => o.status.success(),
+        Err(_) => false,
+    }
+}
+
 /// Build the nftables `netdev oxy_ingress` table for ingress marking.
 ///
-/// This is the KEY to making download limiting work:
+/// Two modes are supported depending on nftables version:
+///
+/// 1. **cgroupv2 path mode** (nftables >= 1.0.1):
+///    Uses `socket cgroupv2 path "..."` for precise per-process matching.
+///    Each process gets a unique fwmark (class_id).
+///
+/// 2. **UID fallback mode** (older nftables):
+///    Uses `meta skuid <UID>` to mark packets by the owning socket's UID.
+///    Less precise — limits ALL traffic from the same UID, not just the target process.
+///    The mark value is the UID itself so the tc fw filter handle matches.
 ///
 /// Hook order on packet receive:
 ///   1. NIC driver → ip_early_demux()  [sets skb->sk for TCP/UDP]
-///   2. nftables netdev ingress hook   [WE ARE HERE - mark by socket cgroup]
+///   2. nftables netdev ingress hook   [WE ARE HERE - mark by socket cgroup/uid]
 ///   3. tc ingress hook               [fw filter matches mark → police action]
 ///   4. ip_rcv() → NF_INET_PRE_ROUTING → ...
-///
-/// Because netdev ingress fires BEFORE tc ingress, the skb->mark is already
-/// set when the tc fw filter processes the packet on the ingress qdisc.
-fn build_nft_netdev_ruleset(limits: &[LimitRecord], interface: &str) -> String {
+fn build_nft_netdev_ruleset(limits: &[LimitRecord], interface: &str, use_skuid: bool) -> String {
     // Only include limits that have download (ingress) limits
     let dl_limits: Vec<_> = limits
         .iter()
@@ -201,14 +226,32 @@ fn build_nft_netdev_ruleset(limits: &[LimitRecord], interface: &str) -> String {
         interface
     ));
 
-    for record in &dl_limits {
-        let cgroup_rel = format!("oxy/pid_{}", record.pid);
-        let mark = record.class_id;
-        // Match packets whose socket belongs to this process's cgroup
-        ruleset.push_str(&format!(
-            "    socket cgroupv2 path \"{}\" meta mark set {};\n",
-            cgroup_rel, mark
-        ));
+    if use_skuid {
+        // UID-based fallback: group by UID, use UID as the mark value.
+        // Only one rule per UID is needed (nftables first-match semantics).
+        let mut seen_uids = std::collections::HashMap::new();
+        for record in &dl_limits {
+            if let Some(uid) = get_process_uid(record.pid) {
+                seen_uids.entry(uid).or_insert(record.class_id);
+            }
+        }
+        for (uid, _first_class_id) in &seen_uids {
+            // Mark = UID so the tc fw filter handle (also UID) matches
+            ruleset.push_str(&format!(
+                "    meta skuid {} meta mark set {};\n",
+                uid, uid
+            ));
+        }
+    } else {
+        // Precise per-process matching via cgroupv2 path
+        for record in &dl_limits {
+            let cgroup_rel = format!("oxy/pid_{}", record.pid);
+            let mark = record.class_id;
+            ruleset.push_str(&format!(
+                "    socket cgroupv2 path \"{}\" meta mark set {};\n",
+                cgroup_rel, mark
+            ));
+        }
     }
 
     ruleset.push_str("  }\n");
@@ -249,10 +292,15 @@ fn refresh_nft_ip_rules(limits: &[LimitRecord]) -> Result<()> {
 }
 
 /// Apply (or refresh) the nftables netdev oxy_ingress table.
+///
+/// Tries `socket cgroupv2 path` first (precise per-process matching).
+/// If nftables is too old (< 1.0.1), falls back to `meta skuid` (UID-based
+/// matching).  The UID fallback limits ALL traffic from the same UID, not
+/// just the target process — a warning is printed in that case.
 fn refresh_nft_netdev_rules(limits: &[LimitRecord], interface: &str) -> Result<()> {
-    let ruleset = build_nft_netdev_ruleset(limits, interface);
+    let dl_count = limits.iter().filter(|l| l.download_bytes_per_sec.is_some()).count();
 
-    if ruleset.is_empty() {
+    if dl_count == 0 {
         // No download limits; remove the table if it exists
         let _ = Command::new("nft")
             .args(["delete", "table", "netdev", "oxy_ingress"])
@@ -260,9 +308,56 @@ fn refresh_nft_netdev_rules(limits: &[LimitRecord], interface: &str) -> Result<(
         return Ok(());
     }
 
+    // Try precise cgroupv2 path matching first (nftables >= 1.0.1)
+    let ruleset_path = build_nft_netdev_ruleset(limits, interface, false);
+    if !ruleset_path.is_empty() && supports_nft_cgroupv2_path() {
+        match apply_nft_netdev_ruleset(&ruleset_path) {
+            Ok(_) => return Ok(()),
+            Err(e) => {
+                // Syntax probe passed but apply failed for another reason
+                // (e.g. kernel missing CONFIG_NFT_SOCKET). Fall through to skuid.
+                eprintln!(
+                    "{}: cgroupv2 path mode failed: {}. Falling back to UID mode.",
+                    "WARNING".yellow(),
+                    e
+                );
+            }
+        }
+    }
+
+    // Fallback: UID-based marking (works on all nftables versions)
+    if !supports_nft_cgroupv2_path() {
+        eprintln!(
+            "{}: nftables 'socket cgroupv2 path' not supported (nftables < 1.0.1?).",
+            "WARNING".yellow()
+        );
+    }
+    eprintln!(
+        "  {} Falling back to UID-based marking. Download limiting will apply to",
+        "NOTE:".yellow()
+    );
+    eprintln!(
+        "  {} ALL traffic from the same UID, not just the target process.",
+        "NOTE:".yellow()
+    );
+    eprintln!(
+        "  {} Tip: Upgrade nftables to >= 1.0.1 for precise per-process matching.",
+        "Tip:".cyan()
+    );
+
+    let ruleset_skuid = build_nft_netdev_ruleset(limits, interface, true);
+    apply_nft_netdev_ruleset(&ruleset_skuid)
+}
+
+/// Write an nftables netdev ruleset to a temp file and atomically apply it.
+fn apply_nft_netdev_ruleset(ruleset: &str) -> Result<()> {
+    if ruleset.is_empty() {
+        return Ok(());
+    }
+
     let nft_file = "/run/oxy/oxy_netdev.nft";
     fs::create_dir_all(STATE_DIR).ok();
-    fs::write(nft_file, &ruleset).context("failed to write nft netdev ruleset file")?;
+    fs::write(nft_file, ruleset).context("failed to write nft netdev ruleset file")?;
 
     // Delete existing table first (ignore error if it doesn't exist yet)
     let _ = Command::new("nft")
@@ -405,6 +500,11 @@ pub struct LimitRecord {
     pub interface: String,
     pub class_id: u32,
     pub applied_at: String,
+    /// Handle used for the ingress (download) tc fw filter.
+    /// On newer nftables (>= 1.0.1): equals class_id (per-process cgroupv2 path matching).
+    /// On older nftables: equals the process UID (UID-based fallback matching).
+    #[serde(default)]
+    pub ingress_handle: Option<u32>,
 }
 
 /// Full state file structure containing all active limits.
@@ -880,10 +980,19 @@ pub fn apply_limit(
     // Load existing state
     let mut state = OxyState::load()?;
 
+    // Detect whether nftables supports socket cgroupv2 path for ingress marking.
+    // If not, we fall back to UID-based marking (mark = handle = UID).
+    let skuid_fallback = !supports_nft_cgroupv2_path();
+
+    // Track which UIDs have already had an ingress filter created (for skuid mode).
+    // In skuid mode, all PIDs sharing a UID share one ingress police filter.
+    let mut seen_ingress_uids = std::collections::HashSet::new();
+
     let mut applied_count = 0;
     for pid in &pids {
         let class_id = next_class_id()?;
         let _process_name = get_process_name(*pid);
+        let process_uid = get_process_uid(*pid);
 
         let (_cgroup_path, _is_cgroup_v2) = setup_cgroup(*pid, class_id)?;
 
@@ -970,54 +1079,119 @@ pub fn apply_limit(
 
         // --- Download (ingress): fw filter + police on ingress qdisc ---
         //
-        // This relies on nftables netdev ingress hook setting skb->mark BEFORE
-        // tc ingress processes the packet. The flow is:
-        //   NIC → TCP early demux → nftables netdev (sets mark) → tc ingress (fw matches → police)
+        // Two modes depending on nftables version:
         //
-        // Note: `police` drops excess packets (not queue them like HTB), but this
-        // is the correct approach for ingress where HTB cannot be used.
+        // 1. cgroupv2 path mode (nftables >= 1.0.1):
+        //    nftables sets mark = class_id per process.
+        //    Each PID gets its own ingress police filter with handle = class_id.
+        //
+        // 2. UID fallback mode (older nftables):
+        //    nftables sets mark = UID for all processes of that user.
+        //    One shared ingress police filter per UID with handle = UID.
+        //    Only the first PID of each UID creates the filter; others skip.
         if let Some(dl_bps) = dl_bps {
             let dl_rate_kbit = (dl_bps * 8) / 1000;
 
-            tx.add(
-                &format!("ingress police filter for PID {}", pid),
-                vec![
-                    "filter".into(),
-                    "add".into(),
-                    "dev".into(),
-                    interface.clone(),
-                    "parent".into(),
-                    "ffff:".into(),
-                    "protocol".into(),
-                    "ip".into(),
-                    "prio".into(),
-                    "100".into(),
-                    "handle".into(),
-                    class_id.to_string(),
-                    "fw".into(),
-                    "police".into(),
-                    "rate".into(),
-                    format!("{}kbit", dl_rate_kbit),
-                    "burst".into(),
-                    "15k".into(),
-                    "drop".into(),
-                ],
-                vec![
-                    "filter".into(),
-                    "del".into(),
-                    "dev".into(),
-                    interface.clone(),
-                    "parent".into(),
-                    "ffff:".into(),
-                    "protocol".into(),
-                    "ip".into(),
-                    "prio".into(),
-                    "100".into(),
-                    "handle".into(),
-                    class_id.to_string(),
-                    "fw".into(),
-                ],
-            );
+            // Determine the ingress handle and whether to skip this PID
+            let (ingress_handle, skip_ingress) = if skuid_fallback {
+                // UID-based: handle = UID, skip if we already created a filter for this UID
+                match process_uid {
+                    Some(uid) => {
+                        let skip = seen_ingress_uids.contains(&uid);
+                        seen_ingress_uids.insert(uid);
+                        (uid, skip)
+                    }
+                    None => {
+                        // Can't determine UID, fall back to class_id
+                        (class_id, false)
+                    }
+                }
+            } else {
+                // cgroupv2 path mode: handle = class_id (per-PID)
+                (class_id, false)
+            };
+
+            if !skip_ingress {
+                let ingress_desc = if skuid_fallback {
+                    format!("ingress police filter for UID {}", ingress_handle)
+                } else {
+                    format!("ingress police filter for PID {}", pid)
+                };
+
+                tx.add(
+                    &ingress_desc,
+                    vec![
+                        "filter".into(),
+                        "add".into(),
+                        "dev".into(),
+                        interface.clone(),
+                        "parent".into(),
+                        "ffff:".into(),
+                        "protocol".into(),
+                        "ip".into(),
+                        "prio".into(),
+                        "100".into(),
+                        "handle".into(),
+                        ingress_handle.to_string(),
+                        "fw".into(),
+                        "police".into(),
+                        "rate".into(),
+                        format!("{}kbit", dl_rate_kbit),
+                        "burst".into(),
+                        "15k".into(),
+                        "drop".into(),
+                    ],
+                    vec![
+                        "filter".into(),
+                        "del".into(),
+                        "dev".into(),
+                        interface.clone(),
+                        "parent".into(),
+                        "ffff:".into(),
+                        "protocol".into(),
+                        "ip".into(),
+                        "prio".into(),
+                        "100".into(),
+                        "handle".into(),
+                        ingress_handle.to_string(),
+                        "fw".into(),
+                    ],
+                );
+            }
+
+            // Store the ingress handle for state tracking (needed for cleanup)
+            let record = LimitRecord {
+                target: target.to_string(),
+                pid: *pid,
+                download_bytes_per_sec: dl_bps,
+                upload_bytes_per_sec: ul_bps,
+                download_display: dl_display.clone(),
+                upload_display: ul_display.clone(),
+                interface: interface.clone(),
+                class_id,
+                applied_at: chrono_now(),
+                ingress_handle: Some(ingress_handle),
+            };
+
+            state.limits.push(record);
+            applied_count += 1;
+        } else {
+            // No download limit — still save the record for upload
+            let record = LimitRecord {
+                target: target.to_string(),
+                pid: *pid,
+                download_bytes_per_sec: dl_bps,
+                upload_bytes_per_sec: ul_bps,
+                download_display: dl_display.clone(),
+                upload_display: ul_display.clone(),
+                interface: interface.clone(),
+                class_id,
+                applied_at: chrono_now(),
+                ingress_handle: None,
+            };
+
+            state.limits.push(record);
+            applied_count += 1;
         }
 
         if let Err(e) = tx.execute() {
@@ -1030,21 +1204,6 @@ pub fn apply_limit(
             let _ = remove_cgroup(*pid);
             continue;
         }
-
-        let record = LimitRecord {
-            target: target.to_string(),
-            pid: *pid,
-            download_bytes_per_sec: dl_bps,
-            upload_bytes_per_sec: ul_bps,
-            download_display: dl_display.clone(),
-            upload_display: ul_display.clone(),
-            interface: interface.clone(),
-            class_id,
-            applied_at: chrono_now(),
-        };
-
-        state.limits.push(record);
-        applied_count += 1;
     }
 
     // Save state
@@ -1095,6 +1254,12 @@ pub fn apply_limit(
         println!("  Upload:    {}", "unlimited".dimmed());
     }
     println!("  Interface: {}", interface);
+    let dl_mode = if skuid_fallback {
+        "UID-based (all traffic from same UID)".yellow().to_string()
+    } else {
+        "cgroupv2 path (per-process)".green().to_string()
+    };
+    println!("  Ingress:   {}", dl_mode);
     println!(
         "  Backend:   nftables netdev+ip + tc fw (cgroup v{})",
         if use_cgroup_v1_backend {
@@ -1198,6 +1363,11 @@ pub fn remove_limit(target: &str) -> Result<()> {
             .ok();
 
         // Remove ingress police filter
+        // Use ingress_handle (UID in skuid mode) or fall back to class_id
+        let ingress_handle_str = record
+            .ingress_handle
+            .map(|h| h.to_string())
+            .unwrap_or_else(|| class_id_num.clone());
         Command::new("tc")
             .args([
                 "filter",
@@ -1211,7 +1381,7 @@ pub fn remove_limit(target: &str) -> Result<()> {
                 "prio",
                 "100",
                 "handle",
-                &class_id_num,
+                &ingress_handle_str,
                 "fw",
             ])
             .output()
@@ -1373,6 +1543,7 @@ pub fn clean_orphans() -> Result<()> {
 
         // Remove tc class
         let class_id_str = format!("1:{:04x}", record.class_id);
+        let class_id_num = record.class_id.to_string();
         let _ = Command::new("tc")
             .args([
                 "class",
@@ -1381,6 +1552,48 @@ pub fn clean_orphans() -> Result<()> {
                 &record.interface,
                 "classid",
                 &class_id_str,
+            ])
+            .output();
+
+        // Remove egress fw filter
+        let _ = Command::new("tc")
+            .args([
+                "filter",
+                "del",
+                "dev",
+                &record.interface,
+                "parent",
+                "1:0",
+                "protocol",
+                "ip",
+                "prio",
+                "100",
+                "handle",
+                &class_id_num,
+                "fw",
+            ])
+            .output();
+
+        // Remove ingress police filter (use ingress_handle if available)
+        let ingress_handle_str = record
+            .ingress_handle
+            .map(|h| h.to_string())
+            .unwrap_or_else(|| class_id_num.clone());
+        let _ = Command::new("tc")
+            .args([
+                "filter",
+                "del",
+                "dev",
+                &record.interface,
+                "parent",
+                "ffff:",
+                "protocol",
+                "ip",
+                "prio",
+                "100",
+                "handle",
+                &ingress_handle_str,
+                "fw",
             ])
             .output();
 
