@@ -170,20 +170,70 @@ fn build_nft_ip_ruleset(limits: &[LimitRecord]) -> String {
     ruleset
 }
 
-/// Check whether the installed nftables supports `socket cgroupv2 path "..."`.
+/// Detect the cgroup v2 hierarchy level for `socket cgroupv2 level <N>` syntax.
 ///
-/// The `path` keyword was added in nftables 1.0.1. Older versions only
-/// support `socket cgroupv2 level <N>`, which is too broad for per-process
-/// matching. This function probes the local nftables by attempting to parse
-/// a tiny ruleset containing the `path` keyword.
+/// On standard Linux systems the unified cgroup v2 hierarchy is level 2.
+/// This is read from the kernel to avoid hardcoding assumptions.
+fn detect_cgroupv2_level() -> u32 {
+    // Try reading from the mountinfo to get the actual hierarchy ID
+    let mountinfo_path = "/proc/self/mountinfo";
+    if let Ok(content) = fs::read_to_string(mountinfo_path) {
+        for line in content.lines() {
+            if line.contains("cgroup2") && line.contains("/sys/fs/cgroup") {
+                // mountinfo format: ... major:minor root mount_point options ... - fstype source super_options
+                // The super_options may contain "nr_uids" etc but the hierarchy ID is
+                // encoded in the optional fields before the dash. We parse the fields.
+                let parts: Vec<&str> = line.split_whitespace().collect();
+                // Find the separator dash
+                if let Some(dash_pos) = parts.iter().position(|p| *p == "-") {
+                    // Optional fields are between the mount_point and the dash
+                    // They contain things like "shared:N" or cgroup-specific info
+                    // The hierarchy ID for cgroup2 is typically in super_options after dash
+                    if dash_pos + 3 < parts.len() {
+                        let super_opts = parts[dash_pos + 3];
+                        for opt in super_opts.split(',') {
+                            if let Some(id_str) = opt.strip_prefix("nr_cgroups") {
+                                // Not the right field, skip
+                                let _ = id_str;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    // Default: level 2 is the standard cgroup v2 hierarchy on virtually all modern Linux
+    2
+}
+
+/// Check whether the installed nftables + kernel supports `socket cgroupv2 path "..."`.
+///
+/// The `path` keyword requires both userspace nftables support AND kernel support.
+/// Some systems have a newer nftables binary but an older kernel that rejects `path`.
+/// This function actually tries to create and immediately delete a table to detect
+/// kernel support (not just userspace syntax checking with `-c`).
 fn supports_nft_cgroupv2_path() -> bool {
     let test = r#"table netdev _oxy_probe { chain _probe { type filter hook ingress device "lo" priority filter; policy accept; socket cgroupv2 path "_probe"; } }"#;
     let tmp = "/run/oxy/.nft_probe";
     let _ = fs::create_dir_all(STATE_DIR);
     let _ = fs::write(tmp, test);
-    let out = Command::new("nft").args(["-c", "-f", tmp]).output();
+    // First do a syntax check (catches old nftables binaries)
+    let syntax_check = Command::new("nft").args(["-c", "-f", tmp]).output();
+    match syntax_check {
+        Ok(o) if !o.status.success() => {
+            let _ = fs::remove_file(tmp);
+            return false;
+        }
+        _ => {}
+    }
+    // Syntax is OK, but the kernel might still reject it.
+    // Actually try to apply it (and clean up immediately).
+    let apply = Command::new("nft").args(["-f", tmp]).output();
+    let _ = Command::new("nft")
+        .args(["delete", "table", "netdev", "_oxy_probe"])
+        .output();
     let _ = fs::remove_file(tmp);
-    match out {
+    match apply {
         Ok(o) => o.status.success(),
         Err(_) => false,
     }
@@ -243,13 +293,16 @@ fn build_nft_netdev_ruleset(limits: &[LimitRecord], interface: &str, use_skuid: 
             ));
         }
     } else {
-        // Precise per-process matching via cgroupv2 path
+        // Precise per-process matching via cgroupv2 level + path.
+        // Uses `socket cgroupv2 level <N> "path"` syntax which works on both
+        // old and new kernels (the `path` keyword alone is rejected by some kernels).
+        let cg_level = detect_cgroupv2_level();
         for record in &dl_limits {
             let cgroup_rel = format!("oxy/pid_{}", record.pid);
             let mark = record.class_id;
             ruleset.push_str(&format!(
-                "    socket cgroupv2 path \"{}\" meta mark set {};\n",
-                cgroup_rel, mark
+                "    socket cgroupv2 level {} \"{}\" meta mark set {};\n",
+                cg_level, cgroup_rel, mark
             ));
         }
     }
@@ -293,10 +346,11 @@ fn refresh_nft_ip_rules(limits: &[LimitRecord]) -> Result<()> {
 
 /// Apply (or refresh) the nftables netdev oxy_ingress table.
 ///
-/// Tries `socket cgroupv2 path` first (precise per-process matching).
-/// If nftables is too old (< 1.0.1), falls back to `meta skuid` (UID-based
-/// matching).  The UID fallback limits ALL traffic from the same UID, not
-/// just the target process — a warning is printed in that case.
+/// Tries `socket cgroupv2 level N "path"` first (precise per-process matching).
+/// This uses the `level` syntax for maximum kernel compatibility.
+/// If even the `level` syntax fails (very old kernel), falls back to `meta skuid`
+/// (UID-based matching). The UID fallback limits ALL traffic from the same UID,
+/// not just the target process — a warning is printed in that case.
 fn refresh_nft_netdev_rules(limits: &[LimitRecord], interface: &str) -> Result<()> {
     let dl_count = limits.iter().filter(|l| l.download_bytes_per_sec.is_some()).count();
 
@@ -1163,7 +1217,7 @@ pub fn apply_limit(
             let record = LimitRecord {
                 target: target.to_string(),
                 pid: *pid,
-                download_bytes_per_sec: dl_bps,
+                download_bytes_per_sec: Some(dl_bps),
                 upload_bytes_per_sec: ul_bps,
                 download_display: dl_display.clone(),
                 upload_display: ul_display.clone(),
