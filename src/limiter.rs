@@ -995,8 +995,6 @@ pub fn apply_limit(
                     "handle".into(),
                     class_id.to_string(),
                     "fw".into(),
-                    "mask".into(),
-                    "0xffff".into(),
                     "police".into(),
                     "rate".into(),
                     format!("{}kbit", dl_rate_kbit),
