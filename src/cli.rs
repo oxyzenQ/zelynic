@@ -28,6 +28,14 @@ pub struct Cli {
     #[arg(long, global = true, help = "Disable colored output")]
     pub no_color: bool,
 
+    /// Show comprehensive help with all commands, options, and examples
+    #[arg(
+        long = "help-all",
+        global = false,
+        help = "Show comprehensive help with all commands and examples"
+    )]
+    pub help_all: bool,
+
     /// Network interface to use
     ///
     /// Defaults to the first non-loopback interface. Use this to explicitly

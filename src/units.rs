@@ -1,4 +1,5 @@
 use anyhow::{bail, Context, Result};
+use colored::Colorize;
 use std::fmt;
 use std::str::FromStr;
 
@@ -106,12 +107,45 @@ impl BandwidthRate {
     /// BandwidthRate::parse("100byte") // 100 B/s
     /// BandwidthRate::parse("2gb")    // 2 GB/s
     /// ```
+    /// Minimum bandwidth rate: 1 byte per second.
+    pub const MIN_BYTES_PER_SEC: u64 = 1;
+
     pub fn parse(input: &str) -> Result<Self> {
         let trimmed = input.trim();
+
+        // Reject empty input
+        if trimmed.is_empty() {
+            bail!("bandwidth rate cannot be empty. Examples: 500kb, 1mb, 2gb, 100byte");
+        }
 
         // Special keyword: "only" means no limit for this direction
         if trimmed.eq_ignore_ascii_case("only") {
             bail!("'only' is not a rate value; it is a flag meaning 'limit only this direction'");
+        }
+
+        // Reject leading signs (+/-)
+        let first = trimmed.chars().next().unwrap();
+        if first == '+' || first == '-' {
+            bail!(
+                "invalid bandwidth rate '{}': leading '{}' is not allowed. \n  {} Use positive values only (e.g., 100kb, 1mb, 500kb)",
+                input, first, "Hint:".yellow()
+            );
+        }
+
+        // Reject values that start with a non-digit (but not caught above)
+        if !first.is_ascii_digit() {
+            bail!(
+                "invalid bandwidth rate '{}': must start with a numeric value. \n  {} Examples: 100kb, 1mb, 500kb, 10byte",
+                input, "Hint:".yellow()
+            );
+        }
+
+        // Reject values containing spaces in the middle (e.g., "10 kb x")
+        if trimmed.contains(' ') && trimmed.split_whitespace().count() > 2 {
+            bail!(
+                "invalid bandwidth rate '{}': unexpected extra characters. \n  {} Use a single value + unit (e.g., 100kb, 1mb)",
+                input, "Hint:".yellow()
+            );
         }
 
         // Find the boundary between numeric and alphabetic characters
@@ -131,23 +165,43 @@ impl BandwidthRate {
 
         let value: u64 = u64::from_str(value_str).with_context(|| {
             format!(
-                "invalid numeric value '{}' in bandwidth rate '{}'",
-                value_str, input
+                "invalid numeric value '{}' in bandwidth rate '{}'. \n  {} Use a positive integer (e.g., 100kb, 1mb)",
+                value_str, input, "Hint:".yellow()
             )
         })?;
 
         if value == 0 {
-            bail!("bandwidth rate must be greater than zero, got '{}'", input);
+            bail!(
+                "bandwidth rate must be greater than zero, got '{}'. \n  {} Minimum: 1byte (1 B/s)",
+                input,
+                "Hint:".yellow()
+            );
+        }
+
+        if unit_str.is_empty() {
+            bail!(
+                "missing unit in bandwidth rate '{}'. \n  {} Supported units: byte/bs, kb, mb, gb, kbit, mbit, gbit",
+                input, "Hint:".yellow()
+            );
         }
 
         let unit = BandwidthUnit::from_str_unit(unit_str).with_context(|| {
             format!(
-                "unknown bandwidth unit '{}' in '{}'. Supported: byte/bs, kb, mb, gb, kbit, mbit, gbit",
-                unit_str, input
+                "unknown bandwidth unit '{}' in '{}'. \n  {} Supported: byte/bs, kb/kbs, mb/mbs, gb/gbs, kbit, mbit, gbit",
+                unit_str, input, "Hint:".yellow()
             )
         })?;
 
         let bytes_per_sec = value * unit.bytes_multiplier();
+
+        // Enforce minimum rate
+        if bytes_per_sec < Self::MIN_BYTES_PER_SEC {
+            bail!(
+                "bandwidth rate {} {} is below the minimum allowed (1 byte/s)",
+                value,
+                unit.short_label()
+            );
+        }
 
         Ok(Self {
             bytes_per_sec,
@@ -257,6 +311,41 @@ mod tests {
     fn test_parse_with_space() {
         let rate = BandwidthRate::parse("500 kb").unwrap();
         assert_eq!(rate.bytes_per_sec, 500 * 1024);
+    }
+
+    #[test]
+    fn test_reject_negative() {
+        assert!(BandwidthRate::parse("-100kb").is_err());
+    }
+
+    #[test]
+    fn test_reject_plus_sign() {
+        assert!(BandwidthRate::parse("+100kb").is_err());
+    }
+
+    #[test]
+    fn test_reject_non_digit_start() {
+        assert!(BandwidthRate::parse("x10kxb").is_err());
+    }
+
+    #[test]
+    fn test_reject_empty() {
+        assert!(BandwidthRate::parse("").is_err());
+    }
+
+    #[test]
+    fn test_reject_zero() {
+        assert!(BandwidthRate::parse("0kb").is_err());
+    }
+
+    #[test]
+    fn test_reject_no_unit() {
+        assert!(BandwidthRate::parse("100").is_err());
+    }
+
+    #[test]
+    fn test_reject_unknown_unit() {
+        assert!(BandwidthRate::parse("100xkb").is_err());
     }
 
     #[test]
