@@ -10,10 +10,10 @@
 ///   NIC → IP stack → conntrack lookup → nftables ip PREROUTING (ct mark → meta mark →
 ///        limit rate over X drop)
 ///
-/// Socket/cgroup info is NOT available at netdev ingress (skb->sk not set yet).
-/// Instead, we use conntrack marks: egress packets are marked by UID and saved to
-/// conntrack. Reply packets get the mark restored at PREROUTING, where nftables
-/// `limit rate over X` drops packets exceeding the configured bandwidth.
+/// Without `socket cgroupv2` kernel support, per-process distinction is not possible
+/// at the nftables level. Both egress marking and download rate limiting operate
+/// per-UID: all PIDs sharing a UID get the same packet mark and share a single
+/// rate limit (the minimum among all configured rates for that UID).
 ///
 /// State is persisted to disk so that limits survive across invocations
 /// and can be cleaned up properly with `oxy unstrict`.
@@ -129,25 +129,35 @@ fn get_process_uid(pid: u32) -> Option<u32> {
 
 /// Build the nftables `ip oxy` table for egress marking + download rate limiting.
 ///
-/// Output chain: marks egress packets by UID.
+/// Output chain: marks egress packets by UID (deduplicated — one rule per UID).
 /// Postrouting: saves mark to conntrack for reply (download) packets.
 /// Prerouting: restores mark from conntrack for incoming packets, then applies
-///             per-process download rate limits via `limit rate over X drop`.
+///             per-UID download rate limits via `limit rate over X drop`.
+///
+/// Note: Without `socket cgroupv2` kernel support, nftables cannot distinguish
+/// individual processes that share the same UID. Download limiting therefore
+/// applies per-UID (using the minimum rate among all PIDs for that UID).
 fn build_nft_ip_ruleset(limits: &[LimitRecord]) -> String {
     let mut ruleset = String::new();
     ruleset.push_str("table ip oxy {\n");
 
-    // Output: mark egress packets by UID
+    // Output: mark egress packets by UID (deduplicated).
+    // When multiple PIDs share the same UID, nftables cannot distinguish them
+    // via `meta skuid` alone — all matching rules fire and the last mark wins.
+    // We deduplicate by UID and use the UID itself as the mark value so that
+    // every packet from the same UID gets a consistent mark for conntrack.
     ruleset.push_str("  chain output {\n");
     ruleset.push_str("    type filter hook output priority mangle; policy accept;\n");
 
-    let mut seen_pids = std::collections::HashMap::new();
+    let mut seen_uids = std::collections::HashSet::new();
     for record in limits {
-        seen_pids.insert(record.pid, record.class_id);
-    }
-    for (pid, mark) in &seen_pids {
-        if let Some(uid) = get_process_uid(*pid) {
-            ruleset.push_str(&format!("    meta skuid {} meta mark set {};\n", uid, mark));
+        if let Some(uid) = get_process_uid(record.pid) {
+            if seen_uids.insert(uid) {
+                ruleset.push_str(&format!(
+                    "    meta skuid {} meta mark set 0x{:08x};\n",
+                    uid, uid
+                ));
+            }
         }
     }
     ruleset.push_str("  }\n");
@@ -159,17 +169,28 @@ fn build_nft_ip_ruleset(limits: &[LimitRecord]) -> String {
     ruleset.push_str("  }\n");
 
     // Prerouting: restore mark from conntrack, then apply download rate limits.
-    // Packets exceeding the configured rate for their class are dropped.
+    // Rate limit is per-UID using the minimum rate among all PIDs with that
+    // UID (conservative: ensures no process exceeds its requested limit).
     ruleset.push_str("  chain prerouting {\n");
     ruleset.push_str("    type filter hook prerouting priority dstnat; policy accept;\n");
     ruleset.push_str("    ct mark != 0 meta mark set ct mark;\n");
 
-    // Download (ingress) rate limiting per process
+    // Compute minimum download rate per UID
+    let mut uid_min_dl: std::collections::HashMap<u32, u64> = std::collections::HashMap::new();
     for record in limits.iter().filter(|l| l.download_bytes_per_sec.is_some()) {
-        let dl_rate_kbit = (record.download_bytes_per_sec.unwrap() * 8) / 1000;
+        if let Some(uid) = get_process_uid(record.pid) {
+            let dl_kbit = (record.download_bytes_per_sec.unwrap() * 8) / 1000;
+            uid_min_dl
+                .entry(uid)
+                .and_modify(|min| *min = (*min).min(dl_kbit))
+                .or_insert(dl_kbit);
+        }
+    }
+
+    for (uid, rate_kbit) in &uid_min_dl {
         ruleset.push_str(&format!(
-            "    meta mark {} limit rate over {} kbit / second burst 15 kbyte drop;\n",
-            record.class_id, dl_rate_kbit
+            "    meta mark 0x{:08x} limit rate over {} kbit/second burst 15 kbytes drop;\n",
+            uid, rate_kbit
         ));
     }
 
@@ -743,8 +764,8 @@ pub fn apply_limit(
     }
 
     // Detect cgroup version
-    let (_cg_is_v2, _cg_is_hybrid) = detect_cgroup_version();
-    let use_cgroup_v1_backend = !_cg_is_v2 || _cg_is_hybrid;
+    let (cg_is_v2, cg_is_hybrid) = detect_cgroup_version();
+    let use_cgroup_v1_backend = !cg_is_v2 || cg_is_hybrid;
 
     // Set up HTB qdisc for upload (egress) shaping
     ensure_htb_qdisc(&interface)?;
@@ -797,28 +818,61 @@ pub fn apply_limit(
     // Load existing state
     let mut state = OxyState::load()?;
 
+    // Phase 1: Create per-PID cgroups and records
     let mut applied_count = 0;
     for pid in &pids {
         let class_id = next_class_id()?;
         let _process_name = get_process_name(*pid);
-
         let (_cgroup_path, _is_cgroup_v2) = setup_cgroup(*pid, class_id)?;
 
-        // Upload (egress) HTB class rate
-        let rate_kbit = if let Some(bps) = ul_bps {
-            (bps * 8) / 1000
-        } else {
-            100_000_000 // unlimited if upload not specified
+        let record = LimitRecord {
+            target: target.to_string(),
+            pid: *pid,
+            download_bytes_per_sec: dl_bps,
+            upload_bytes_per_sec: ul_bps,
+            download_display: dl_display.clone(),
+            upload_display: ul_display.clone(),
+            interface: interface.clone(),
+            class_id,
+            applied_at: chrono_now(),
+            ingress_handle: None,
         };
-        let ceil_kbit = (rate_kbit as f64 * 1.1) as u64;
 
-        let class_id_str = format!("1:{:04x}", class_id);
+        state.limits.push(record);
+        applied_count += 1;
+    }
 
-        let mut tx = TcTransaction::new();
+    // Save state (needed before computing per-UID tc objects)
+    state.save()?;
 
-        // --- Upload (egress): HTB class ---
+    // Phase 2: Create per-UID egress tc objects (HTB class + fw filter).
+    // Since the nftables mark is the UID value, the fw filter handle must also
+    // be the UID. All PIDs sharing a UID share one HTB class (upload) rate.
+    let mut uid_min_ul: std::collections::HashMap<u32, u64> = std::collections::HashMap::new();
+    let mut seen_uids = std::collections::HashSet::new();
+    for record in &state.limits {
+        if let Some(uid) = get_process_uid(record.pid) {
+            let ul_kbit = record
+                .upload_bytes_per_sec
+                .map(|bps| (bps * 8) / 1000)
+                .unwrap_or(100_000_000);
+            uid_min_ul
+                .entry(uid)
+                .and_modify(|min| *min = (*min).min(ul_kbit))
+                .or_insert(ul_kbit);
+            seen_uids.insert(uid);
+        }
+    }
+
+    let mut tx = TcTransaction::new();
+    for uid in &seen_uids {
+        let class_id_str = format!("1:{:04x}", uid);
+        let ul_kbit = uid_min_ul[uid];
+        let ceil_kbit = (ul_kbit as f64 * 1.1) as u64;
+
+        // --- Upload (egress): HTB class for this UID ---
         tx.add(
-            &format!("egress class for PID {}", pid),
+            &format!("egress class for UID {}", uid),
             vec![
                 "class".into(),
                 "add".into(),
@@ -830,7 +884,7 @@ pub fn apply_limit(
                 class_id_str.clone(),
                 "htb".into(),
                 "rate".into(),
-                format!("{}kbit", rate_kbit),
+                format!("{}kbit", ul_kbit),
                 "ceil".into(),
                 format!("{}kbit", ceil_kbit),
                 "burst".into(),
@@ -848,9 +902,9 @@ pub fn apply_limit(
             ],
         );
 
-        // --- Upload (egress): fw filter (matches nftables mark) ---
+        // --- Upload (egress): fw filter matching UID mark → UID HTB class ---
         tx.add(
-            &format!("egress fw filter for PID {}", pid),
+            &format!("egress fw filter for UID {}", uid),
             vec![
                 "filter".into(),
                 "add".into(),
@@ -863,7 +917,7 @@ pub fn apply_limit(
                 "prio".into(),
                 "100".into(),
                 "handle".into(),
-                class_id.to_string(),
+                uid.to_string(),
                 "fw".into(),
                 "classid".into(),
                 class_id_str.clone(),
@@ -880,63 +934,24 @@ pub fn apply_limit(
                 "prio".into(),
                 "100".into(),
                 "handle".into(),
-                class_id.to_string(),
+                uid.to_string(),
                 "fw".into(),
             ],
         );
-
-        // --- Download (ingress): handled by nftables PREROUTING (limit rate over X drop) ---
-        if let Some(dl_bps) = dl_bps {
-            // Download limiting is done entirely in nftables via conntrack mark restore
-            // + "limit rate over X kbit/s drop" in the prerouting chain.
-            let record = LimitRecord {
-                target: target.to_string(),
-                pid: *pid,
-                download_bytes_per_sec: Some(dl_bps),
-                upload_bytes_per_sec: ul_bps,
-                download_display: dl_display.clone(),
-                upload_display: ul_display.clone(),
-                interface: interface.clone(),
-                class_id,
-                applied_at: chrono_now(),
-                ingress_handle: None,
-            };
-
-            state.limits.push(record);
-            applied_count += 1;
-        } else {
-            // No download limit — still save the record for upload
-            let record = LimitRecord {
-                target: target.to_string(),
-                pid: *pid,
-                download_bytes_per_sec: dl_bps,
-                upload_bytes_per_sec: ul_bps,
-                download_display: dl_display.clone(),
-                upload_display: ul_display.clone(),
-                interface: interface.clone(),
-                class_id,
-                applied_at: chrono_now(),
-                ingress_handle: None,
-            };
-
-            state.limits.push(record);
-            applied_count += 1;
-        }
-
-        if let Err(e) = tx.execute() {
-            eprintln!(
-                "{}: Failed to apply tc rules for PID {}: {}",
-                "ERROR".red().bold(),
-                pid,
-                e
-            );
-            let _ = remove_cgroup(*pid);
-            continue;
-        }
     }
 
-    // Save state
-    state.save()?;
+    if let Err(e) = tx.execute() {
+        eprintln!(
+            "{}: Failed to apply tc rules: {}",
+            "ERROR".red().bold(),
+            e
+        );
+        // Rollback cgroups
+        for pid in &pids {
+            let _ = remove_cgroup(*pid);
+        }
+        return Err(e);
+    }
 
     // Refresh all nftables rules
     if let Err(e) = refresh_all_nft_rules(&state.limits, &interface) {
@@ -973,7 +988,7 @@ pub fn apply_limit(
             .join(", ")
     );
     if let Some(ref dl) = dl_display {
-        println!("  Download:  {} (limited, police)", dl.cyan());
+        println!("  Download:  {} (limited, nft limit rate)", dl.cyan());
     } else {
         println!("  Download:  {}", "unlimited".dimmed());
     }
@@ -992,6 +1007,19 @@ pub fn apply_limit(
         }
     );
     println!("  Applied:   {} process(es)", applied_count);
+
+    // Warn about per-UID mode when multiple PIDs share a UID
+    let unique_pids_uids: std::collections::HashSet<u32> =
+        pids.iter().filter_map(|pid| get_process_uid(*pid)).collect();
+    if unique_pids_uids.len() < pids.len() {
+        println!(
+            "  {} Rate limiting is per-UID ({} PIDs share {} UID).",
+            "NOTE:".yellow(),
+            pids.len(),
+            unique_pids_uids.len()
+        );
+    }
+
     println!();
     println!(
         "  {} Use 'oxy unstrict {}' to remove limits.",
@@ -1020,10 +1048,11 @@ pub fn remove_limit(target: &str) -> Result<()> {
     let mut to_remove = Vec::new();
 
     for (idx, record) in state.limits.iter().enumerate() {
+        let rec_lower = record.target.to_lowercase();
         let matches = pids.contains(&record.pid)
-            || record.target.to_lowercase() == target_lower
-            || record.target.to_lowercase().contains(&target_lower)
-            || target_lower.contains(&record.target.to_lowercase());
+            || rec_lower == target_lower
+            || rec_lower.contains(&target_lower)
+            || target_lower.contains(&rec_lower);
 
         if matches {
             to_remove.push(idx);
@@ -1039,78 +1068,23 @@ pub fn remove_limit(target: &str) -> Result<()> {
         return Ok(());
     }
 
-    // Collect interfaces for cleanup
+    // Collect interfaces and UIDs for cleanup
     let removed_ifaces: Vec<String> = to_remove
         .iter()
         .map(|&idx| state.limits[idx].interface.clone())
+        .collect();
+
+    // Collect UIDs of records being removed
+    let removed_uids: std::collections::HashSet<u32> = to_remove
+        .iter()
+        .filter_map(|&idx| get_process_uid(state.limits[idx].pid))
         .collect();
 
     // Process removals in reverse order to maintain indices
     for &idx in to_remove.iter().rev() {
         let record = &state.limits[idx];
 
-        let class_id_str = format!("1:{:04x}", record.class_id);
-        let class_id_num = record.class_id.to_string();
-
-        // Remove egress HTB class
-        Command::new("tc")
-            .args([
-                "class",
-                "del",
-                "dev",
-                &record.interface,
-                "classid",
-                &class_id_str,
-            ])
-            .output()
-            .ok();
-
-        // Remove egress fw filter
-        Command::new("tc")
-            .args([
-                "filter",
-                "del",
-                "dev",
-                &record.interface,
-                "parent",
-                "1:0",
-                "protocol",
-                "ip",
-                "prio",
-                "100",
-                "handle",
-                &class_id_num,
-                "fw",
-            ])
-            .output()
-            .ok();
-
-        // Remove ingress police filter
-        // Use ingress_handle (UID in skuid mode) or fall back to class_id
-        let ingress_handle_str = record
-            .ingress_handle
-            .map(|h| h.to_string())
-            .unwrap_or_else(|| class_id_num.clone());
-        Command::new("tc")
-            .args([
-                "filter",
-                "del",
-                "dev",
-                &record.interface,
-                "parent",
-                "ffff:",
-                "protocol",
-                "ip",
-                "prio",
-                "100",
-                "handle",
-                &ingress_handle_str,
-                "fw",
-            ])
-            .output()
-            .ok();
-
-        // Remove cgroup
+        // Remove cgroup for this PID
         remove_cgroup(record.pid)?;
 
         state.limits.remove(idx);
@@ -1119,6 +1093,35 @@ pub fn remove_limit(target: &str) -> Result<()> {
 
     // Save updated state
     state.save()?;
+
+    // Clean up per-UID tc objects for UIDs that no longer have any limits.
+    // Compute remaining UIDs after removal.
+    let remaining_uids: std::collections::HashSet<u32> = state
+        .limits
+        .iter()
+        .filter_map(|r| get_process_uid(r.pid))
+        .collect();
+
+    for uid in &removed_uids {
+        if !remaining_uids.contains(uid) {
+            let uid_class_id_str = format!("1:{:04x}", uid);
+            for iface in &removed_ifaces {
+                // Remove per-UID HTB class
+                let _ = Command::new("tc")
+                    .args([
+                        "class", "del", "dev", iface, "classid", &uid_class_id_str,
+                    ])
+                    .output();
+                // Remove per-UID fw filter (handle = UID)
+                let _ = Command::new("tc")
+                    .args([
+                        "filter", "del", "dev", iface, "parent", "1:0", "protocol", "ip",
+                        "prio", "100", "handle", &uid.to_string(), "fw",
+                    ])
+                    .output();
+            }
+        }
+    }
 
     // Refresh nft rules (removes marking for removed processes)
     if let Err(e) = refresh_all_nft_rules(
@@ -1255,6 +1258,18 @@ pub fn clean_orphans() -> Result<()> {
         to_remove.len()
     );
 
+    // Collect UIDs of records being removed
+    let removed_uids: std::collections::HashSet<u32> = to_remove
+        .iter()
+        .filter_map(|&idx| get_process_uid(state.limits[idx].pid))
+        .collect();
+
+    // Collect interfaces for cleanup
+    let removed_ifaces: std::collections::HashSet<String> = to_remove
+        .iter()
+        .map(|&idx| state.limits[idx].interface.clone())
+        .collect();
+
     // Process removals in reverse order to maintain indices
     for &idx in to_remove.iter().rev() {
         let record = &state.limits[idx];
@@ -1263,62 +1278,6 @@ pub fn clean_orphans() -> Result<()> {
             "  Removing stale rules for {} (PID: {}, class: 1:{:04x})...",
             record.target, record.pid, record.class_id
         );
-
-        // Remove tc class
-        let class_id_str = format!("1:{:04x}", record.class_id);
-        let class_id_num = record.class_id.to_string();
-        let _ = Command::new("tc")
-            .args([
-                "class",
-                "del",
-                "dev",
-                &record.interface,
-                "classid",
-                &class_id_str,
-            ])
-            .output();
-
-        // Remove egress fw filter
-        let _ = Command::new("tc")
-            .args([
-                "filter",
-                "del",
-                "dev",
-                &record.interface,
-                "parent",
-                "1:0",
-                "protocol",
-                "ip",
-                "prio",
-                "100",
-                "handle",
-                &class_id_num,
-                "fw",
-            ])
-            .output();
-
-        // Remove ingress police filter (use ingress_handle if available)
-        let ingress_handle_str = record
-            .ingress_handle
-            .map(|h| h.to_string())
-            .unwrap_or_else(|| class_id_num.clone());
-        let _ = Command::new("tc")
-            .args([
-                "filter",
-                "del",
-                "dev",
-                &record.interface,
-                "parent",
-                "ffff:",
-                "protocol",
-                "ip",
-                "prio",
-                "100",
-                "handle",
-                &ingress_handle_str,
-                "fw",
-            ])
-            .output();
 
         // Remove cgroup
         let _ = remove_cgroup(record.pid);
@@ -1330,6 +1289,32 @@ pub fn clean_orphans() -> Result<()> {
 
     // Save updated state
     state.save()?;
+
+    // Clean up per-UID tc objects for UIDs that no longer have any limits.
+    let remaining_uids: std::collections::HashSet<u32> = state
+        .limits
+        .iter()
+        .filter_map(|r| get_process_uid(r.pid))
+        .collect();
+
+    for uid in &removed_uids {
+        if !remaining_uids.contains(uid) {
+            let uid_class_id_str = format!("1:{:04x}", uid);
+            for iface in &removed_ifaces {
+                let _ = Command::new("tc")
+                    .args([
+                        "class", "del", "dev", iface, "classid", &uid_class_id_str,
+                    ])
+                    .output();
+                let _ = Command::new("tc")
+                    .args([
+                        "filter", "del", "dev", iface, "parent", "1:0", "protocol", "ip",
+                        "prio", "100", "handle", &uid.to_string(), "fw",
+                    ])
+                    .output();
+            }
+        }
+    }
 
     println!();
     println!("{}", "oxy clean: orphaned limits removed".green().bold());
