@@ -8,7 +8,12 @@
 ///
 /// **Download (ingress) limiting:**
 ///   NIC → IP stack → conntrack lookup → nftables inet PREROUTING (ct mark → meta mark →
-///        limit rate over X drop)
+///        limit rate over X burst Y drop)
+///
+/// IMPORTANT: nftables `limit rate` uses per-CPU token buckets. The effective
+/// aggregate rate is `configured_rate × active_cpus`. We compensate by reading
+/// the actual number of active network CPUs from `/proc/net/softnet_stat` (which
+/// accounts for RPS even on single-queue NICs) and dividing the rate accordingly.
 ///
 /// Without `socket cgroupv2` kernel support, per-process distinction is not possible
 /// at the nftables level. Both egress marking and download rate limiting operate
@@ -126,30 +131,40 @@ fn get_process_uid(pid: u32) -> Option<u32> {
 /// Estimate the number of CPUs that handle network receive traffic.
 ///
 /// nftables `limit rate` uses per-CPU token buckets, so the effective
-/// aggregate rate is `configured_rate × active_cpus`. We read the number
-/// of receive queue directories from sysfs (which reflects RSS/RPS
-/// configuration) as the best estimate of how many CPUs will handle
-/// ingress traffic.
-fn get_num_rx_queues() -> usize {
-    // Try to read from sysfs for the default interface
-    if let Ok(iface) = get_default_interface() {
-        let queues_dir = format!("/sys/class/net/{}/queues", iface);
-        if let Ok(entries) = fs::read_dir(&queues_dir) {
-            let count = entries
-                .filter_map(|e| e.ok())
-                .map(|e| e.file_name().to_string_lossy().to_string())
-                .filter(|name| name.starts_with("rx-"))
-                .count();
-            if count > 0 {
-                return count.max(1);
-            }
+/// aggregate rate is `configured_rate × active_cpus`. Reading the number
+/// of hardware rx queues from sysfs is insufficient because RPS (Receive
+/// Packet Steering) can distribute softirq processing across more CPUs
+/// than the number of rx queues (e.g., a Wi-Fi adapter with 1 rx queue
+/// may have packets processed by 2+ CPUs).
+///
+/// Instead, we read `/proc/net/softnet_stat` which shows per-CPU network
+/// processing counters. Any CPU with a non-zero packet counter is considered
+/// active for network processing.
+fn get_active_net_cpus() -> usize {
+    if let Ok(content) = fs::read_to_string("/proc/net/softnet_stat") {
+        let count = content
+            .lines()
+            .filter(|line| {
+                // Each line has space-separated hex values.
+                // The first field is the total received packet count;
+                // a non-zero value indicates this CPU has processed packets.
+                line.split_whitespace()
+                    .next()
+                    .and_then(|v| u64::from_str_radix(v, 16).ok())
+                    .map(|v| v > 0)
+                    .unwrap_or(false)
+            })
+            .count();
+        if count > 0 {
+            return count.max(1);
         }
     }
-    // Fallback: use available parallelism
+    // Fallback: use available parallelism with a minimum of 2
+    // (even single-queue NICs often have RPS distributing to 2+ CPUs)
     std::thread::available_parallelism()
         .map(|n| n.get())
         .unwrap_or(4)
-        .max(1)
+        .max(2)
 }
 
 // ---------------------------------------------------------------------------
@@ -163,12 +178,13 @@ fn get_num_rx_queues() -> usize {
 /// Output chain: marks egress packets by UID (deduplicated — one rule per UID).
 /// Postrouting: saves mark to conntrack for reply (download) packets.
 /// Prerouting: restores mark from conntrack for incoming packets, then applies
-///             per-UID download rate limits via `limit rate over X drop`.
+///             per-UID download rate limits via `limit rate over X burst Y drop`.
 ///
 /// Note: nftables `limit rate` uses per-CPU token buckets. The effective rate
 /// is approximately `configured_rate × active_cpus`. We compensate by dividing
-/// the configured rate by the number of CPUs, read from the number of
-/// receive queue directories in sysfs (or available_parallelism as fallback).
+/// the configured rate by the number of active network CPUs, read from
+/// `/proc/net/softnet_stat`. We also set an explicit `burst 1 kbytes` to
+/// minimize initial burst overage.
 fn build_nft_ip_ruleset(limits: &[LimitRecord]) -> String {
     let mut ruleset = String::new();
     ruleset.push_str("table inet oxy {\n");
@@ -212,9 +228,10 @@ fn build_nft_ip_ruleset(limits: &[LimitRecord]) -> String {
     //
     // IMPORTANT: nftables `limit rate` maintains per-CPU token buckets, so the
     // effective aggregate rate is `rate × active_cpus`. We compensate by
-    // dividing the rate by the number of CPUs (estimated from sysfs rx queues
-    // or std::thread::available_parallelism as fallback).
-    let num_cpus = get_num_rx_queues();
+    // dividing the rate by the number of active network CPUs (estimated from
+    // /proc/net/softnet_stat, which reflects actual softirq distribution
+    // including RPS).
+    let num_cpus = get_active_net_cpus();
 
     let mut uid_min_dl: std::collections::HashMap<u32, u64> = std::collections::HashMap::new();
     for record in limits.iter().filter(|l| l.download_bytes_per_sec.is_some()) {
@@ -230,7 +247,7 @@ fn build_nft_ip_ruleset(limits: &[LimitRecord]) -> String {
 
     for (uid, rate_kbytes) in &uid_min_dl {
         ruleset.push_str(&format!(
-            "    meta mark 0x{:08x} limit rate over {} kbytes/second drop;\n",
+            "    meta mark 0x{:08x} limit rate over {} kbytes/second burst 1 kbytes drop;\n",
             uid, rate_kbytes
         ));
     }
