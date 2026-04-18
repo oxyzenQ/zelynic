@@ -1059,66 +1059,86 @@ pub fn apply_limit(
             ],
         );
 
-        // For download (ingress) limiting, use direct cgroup classification
-        // on the main interface's ingress qdisc with fq_codel or HTB
+        // For download (ingress) limiting, use IFB (Intermediate Functional Block)
+        // to mirror traffic and apply per-process HTB shaping
         if let Some(dl_bps) = dl_bps {
-            // Ensure ingress qdisc exists on main interface
-            let ingress_check = Command::new("tc")
-                .args(["qdisc", "show", "dev", &interface, "ingress"])
-                .output()
-                .ok();
-
-            let ingress_exists = ingress_check
-                .as_ref()
-                .map(|o| {
-                    let stdout = String::from_utf8_lossy(&o.stdout);
-                    stdout.contains("ingress")
-                })
-                .unwrap_or(false);
-
-            if !ingress_exists {
-                let _ = Command::new("tc")
-                    .args(["qdisc", "add", "dev", &interface, "ingress"])
-                    .output();
+            // Setup IFB redirect from main interface (non-transactional, setup only)
+            if let Err(e) = setup_ifb_redirect(&interface) {
+                eprintln!(
+                    "{}: IFB setup failed: {}. Download limiting may not work properly.",
+                    "WARNING".yellow(),
+                    e
+                );
             }
 
             let dl_rate_kbit = (dl_bps * 8) / 1000;
+            let dl_ceil_kbit = (dl_rate_kbit as f64 * 1.1) as u64;
 
-            // Add ingress cgroup filter: classifies download packets by cgroup
-            // This works because the socket is in our cgroup, and tc can match that
+            // Add IFB class for download with rollback
             tx.add(
-                &format!("Ingress cgroup filter for PID {}", pid),
+                &format!("IFB class for PID {}", pid),
+                vec![
+                    "class".to_string(),
+                    "add".to_string(),
+                    "dev".to_string(),
+                    IFB_DEVICE.to_string(),
+                    "parent".to_string(),
+                    "1:".to_string(),
+                    "classid".to_string(),
+                    class_id_str.clone(),
+                    "htb".to_string(),
+                    "rate".to_string(),
+                    format!("{}kbit", dl_rate_kbit),
+                    "ceil".to_string(),
+                    format!("{}kbit", dl_ceil_kbit),
+                    "prio".to_string(),
+                    "2".to_string(),
+                ],
+                vec![
+                    "class".to_string(),
+                    "del".to_string(),
+                    "dev".to_string(),
+                    IFB_DEVICE.to_string(),
+                    "classid".to_string(),
+                    class_id_str.clone(),
+                ],
+            );
+
+            // Add IFB fw filter: classifies download packets by fw mark
+            // The connmark restore happens via nftables prerouting
+            tx.add(
+                &format!("IFB fw filter for PID {}", pid),
                 vec![
                     "filter".to_string(),
                     "add".to_string(),
                     "dev".to_string(),
-                    interface.clone(),
-                    "ingress".to_string(),
+                    IFB_DEVICE.to_string(),
+                    "parent".to_string(),
+                    "1:0".to_string(),
                     "protocol".to_string(),
                     "ip".to_string(),
                     "prio".to_string(),
                     "100".to_string(),
                     "handle".to_string(),
                     class_id.to_string(),
-                    "cgroup".to_string(),
+                    "fw".to_string(),
                     "classid".to_string(),
                     class_id_str.clone(),
-                    "rate".to_string(),
-                    format!("{}kbit", dl_rate_kbit),
                 ],
                 vec![
                     "filter".to_string(),
                     "del".to_string(),
                     "dev".to_string(),
-                    interface.clone(),
-                    "ingress".to_string(),
+                    IFB_DEVICE.to_string(),
+                    "parent".to_string(),
+                    "1:0".to_string(),
                     "protocol".to_string(),
                     "ip".to_string(),
                     "prio".to_string(),
                     "100".to_string(),
                     "handle".to_string(),
                     class_id.to_string(),
-                    "cgroup".to_string(),
+                    "fw".to_string(),
                 ],
             );
         }
@@ -1221,7 +1241,7 @@ pub fn apply_limit(
                 }
             )
         } else {
-            "nftables + tc cgroup/fw (cgroup v2)".to_string()
+            "nftables + tc fw + IFB (cgroup v2)".to_string()
         }
     );
     println!("  Applied:   {} process(es)", applied_count);
@@ -1318,22 +1338,29 @@ pub fn remove_limit(target: &str) -> Result<()> {
             .output()
             .ok();
 
-        // Remove ingress cgroup filter for download
+        // Remove IFB fw filter for download
         Command::new("tc")
             .args([
                 "filter",
                 "del",
                 "dev",
-                &record.interface,
-                "ingress",
+                IFB_DEVICE,
+                "parent",
+                "1:0",
                 "protocol",
                 "ip",
                 "prio",
                 "100",
                 "handle",
                 &record.class_id.to_string(),
-                "cgroup",
+                "fw",
             ])
+            .output()
+            .ok();
+
+        // Remove IFB class
+        Command::new("tc")
+            .args(["class", "del", "dev", IFB_DEVICE, "classid", &class_id_str])
             .output()
             .ok();
 
@@ -1353,7 +1380,7 @@ pub fn remove_limit(target: &str) -> Result<()> {
         eprintln!("{}: Failed to refresh nft rules: {}", "WARNING".yellow(), e);
     }
 
-    // Clean up tc qdiscs if no limits remain
+    // Clean up IFB device and tc qdiscs if no limits remain
     if state.limits.is_empty() {
         let removed_interfaces: std::collections::HashSet<String> = to_remove
             .iter()
@@ -1361,15 +1388,23 @@ pub fn remove_limit(target: &str) -> Result<()> {
             .collect();
 
         for iface in removed_interfaces {
-            // Remove ingress qdisc (removes all ingress filters)
+            // Remove ingress qdisc from main interface
             let _ = Command::new("tc")
                 .args(["qdisc", "del", "dev", &iface, "ingress"])
                 .output();
-            // Remove root qdisc (removes egress filters and classes)
+            // Remove root qdisc from main interface
             let _ = Command::new("tc")
                 .args(["qdisc", "del", "dev", &iface, "root"])
                 .output();
         }
+
+        // Bring down and delete IFB device
+        let _ = Command::new("ip")
+            .args(["link", "set", "dev", IFB_DEVICE, "down"])
+            .output();
+        let _ = Command::new("ip")
+            .args(["link", "delete", "dev", IFB_DEVICE, "type", "ifb"])
+            .output();
     }
 
     println!(
