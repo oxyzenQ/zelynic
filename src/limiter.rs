@@ -175,22 +175,23 @@ fn build_nft_ip_ruleset(limits: &[LimitRecord]) -> String {
     ruleset.push_str("    type filter hook prerouting priority dstnat; policy accept;\n");
     ruleset.push_str("    ct mark != 0 meta mark set ct mark;\n");
 
-    // Compute minimum download rate per UID
+    // Compute minimum download rate per UID (in kbytes/second for nftables).
+    // nftables 'limit rate over' expects bytes, kbytes, or mbytes — not kbit.
     let mut uid_min_dl: std::collections::HashMap<u32, u64> = std::collections::HashMap::new();
     for record in limits.iter().filter(|l| l.download_bytes_per_sec.is_some()) {
         if let Some(uid) = get_process_uid(record.pid) {
-            let dl_kbit = (record.download_bytes_per_sec.unwrap() * 8) / 1000;
+            let dl_kbytes = (record.download_bytes_per_sec.unwrap() / 1024).max(1);
             uid_min_dl
                 .entry(uid)
-                .and_modify(|min| *min = (*min).min(dl_kbit))
-                .or_insert(dl_kbit);
+                .and_modify(|min| *min = (*min).min(dl_kbytes))
+                .or_insert(dl_kbytes);
         }
     }
 
-    for (uid, rate_kbit) in &uid_min_dl {
+    for (uid, rate_kbytes) in &uid_min_dl {
         ruleset.push_str(&format!(
-            "    meta mark 0x{:08x} limit rate over {} kbit/second burst 15 kbytes drop;\n",
-            uid, rate_kbit
+            "    meta mark 0x{:08x} limit rate over {} kbytes/second drop;\n",
+            uid, rate_kbytes
         ));
     }
 
