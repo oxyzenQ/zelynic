@@ -941,11 +941,7 @@ pub fn apply_limit(
     }
 
     if let Err(e) = tx.execute() {
-        eprintln!(
-            "{}: Failed to apply tc rules: {}",
-            "ERROR".red().bold(),
-            e
-        );
+        eprintln!("{}: Failed to apply tc rules: {}", "ERROR".red().bold(), e);
         // Rollback cgroups
         for pid in &pids {
             let _ = remove_cgroup(*pid);
@@ -1009,8 +1005,10 @@ pub fn apply_limit(
     println!("  Applied:   {} process(es)", applied_count);
 
     // Warn about per-UID mode when multiple PIDs share a UID
-    let unique_pids_uids: std::collections::HashSet<u32> =
-        pids.iter().filter_map(|pid| get_process_uid(*pid)).collect();
+    let unique_pids_uids: std::collections::HashSet<u32> = pids
+        .iter()
+        .filter_map(|pid| get_process_uid(*pid))
+        .collect();
     if unique_pids_uids.len() < pids.len() {
         println!(
             "  {} Rate limiting is per-UID ({} PIDs share {} UID).",
@@ -1108,15 +1106,24 @@ pub fn remove_limit(target: &str) -> Result<()> {
             for iface in &removed_ifaces {
                 // Remove per-UID HTB class
                 let _ = Command::new("tc")
-                    .args([
-                        "class", "del", "dev", iface, "classid", &uid_class_id_str,
-                    ])
+                    .args(["class", "del", "dev", iface, "classid", &uid_class_id_str])
                     .output();
                 // Remove per-UID fw filter (handle = UID)
                 let _ = Command::new("tc")
                     .args([
-                        "filter", "del", "dev", iface, "parent", "1:0", "protocol", "ip",
-                        "prio", "100", "handle", &uid.to_string(), "fw",
+                        "filter",
+                        "del",
+                        "dev",
+                        iface,
+                        "parent",
+                        "1:0",
+                        "protocol",
+                        "ip",
+                        "prio",
+                        "100",
+                        "handle",
+                        &uid.to_string(),
+                        "fw",
                     ])
                     .output();
             }
@@ -1302,14 +1309,23 @@ pub fn clean_orphans() -> Result<()> {
             let uid_class_id_str = format!("1:{:04x}", uid);
             for iface in &removed_ifaces {
                 let _ = Command::new("tc")
-                    .args([
-                        "class", "del", "dev", iface, "classid", &uid_class_id_str,
-                    ])
+                    .args(["class", "del", "dev", iface, "classid", &uid_class_id_str])
                     .output();
                 let _ = Command::new("tc")
                     .args([
-                        "filter", "del", "dev", iface, "parent", "1:0", "protocol", "ip",
-                        "prio", "100", "handle", &uid.to_string(), "fw",
+                        "filter",
+                        "del",
+                        "dev",
+                        iface,
+                        "parent",
+                        "1:0",
+                        "protocol",
+                        "ip",
+                        "prio",
+                        "100",
+                        "handle",
+                        &uid.to_string(),
+                        "fw",
                     ])
                     .output();
             }
