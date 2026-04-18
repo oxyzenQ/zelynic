@@ -146,10 +146,7 @@ fn build_nft_ip_ruleset(limits: &[LimitRecord]) -> String {
     }
     for (pid, mark) in &seen_pids {
         if let Some(uid) = get_process_uid(*pid) {
-            ruleset.push_str(&format!(
-                "    meta skuid {} meta mark set {};\n",
-                uid, mark
-            ));
+            ruleset.push_str(&format!("    meta skuid {} meta mark set {};\n", uid, mark));
         }
     }
     ruleset.push_str("  }\n");
@@ -297,7 +294,7 @@ fn refresh_all_nft_rules(limits: &[LimitRecord], interface: &str) -> Result<()> 
 }
 
 /// Clean up all nftables tables.
-fn cleanup_all_nft_rules(interface: &str) {
+fn cleanup_all_nft_rules(_interface: &str) {
     let _ = Command::new("nft")
         .args(["delete", "table", "ip", "oxy"])
         .output();
@@ -641,7 +638,11 @@ fn ensure_ingress_qdisc(interface: &str) -> Result<()> {
                 let stderr = String::from_utf8_lossy(&o.stderr);
                 // clsact might already exist, which is fine
                 if !stderr.contains("File exists") {
-                    bail!("failed to create ingress qdisc on {}: {}", interface, stderr);
+                    bail!(
+                        "failed to create ingress qdisc on {}: {}",
+                        interface,
+                        stderr
+                    );
                 }
             }
         }
@@ -902,16 +903,31 @@ pub fn apply_limit(
         tx.add(
             &format!("egress class for PID {}", pid),
             vec![
-                "class".into(), "add".into(), "dev".into(),
-                interface.clone(), "parent".into(), "1:".into(),
-                "classid".into(), class_id_str.clone(),
-                "htb".into(), "rate".into(), format!("{}kbit", rate_kbit),
-                "ceil".into(), format!("{}kbit", ceil_kbit),
-                "burst".into(), "15k".into(), "cburst".into(), "15k".into(),
+                "class".into(),
+                "add".into(),
+                "dev".into(),
+                interface.clone(),
+                "parent".into(),
+                "1:".into(),
+                "classid".into(),
+                class_id_str.clone(),
+                "htb".into(),
+                "rate".into(),
+                format!("{}kbit", rate_kbit),
+                "ceil".into(),
+                format!("{}kbit", ceil_kbit),
+                "burst".into(),
+                "15k".into(),
+                "cburst".into(),
+                "15k".into(),
             ],
             vec![
-                "class".into(), "del".into(), "dev".into(),
-                interface.clone(), "classid".into(), class_id_str.clone(),
+                "class".into(),
+                "del".into(),
+                "dev".into(),
+                interface.clone(),
+                "classid".into(),
+                class_id_str.clone(),
             ],
         );
 
@@ -919,17 +935,36 @@ pub fn apply_limit(
         tx.add(
             &format!("egress fw filter for PID {}", pid),
             vec![
-                "filter".into(), "add".into(), "dev".into(),
-                interface.clone(), "parent".into(), "1:0".into(),
-                "protocol".into(), "ip".into(), "prio".into(), "100".into(),
-                "handle".into(), class_id.to_string(), "fw".into(),
-                "classid".into(), class_id_str.clone(),
+                "filter".into(),
+                "add".into(),
+                "dev".into(),
+                interface.clone(),
+                "parent".into(),
+                "1:0".into(),
+                "protocol".into(),
+                "ip".into(),
+                "prio".into(),
+                "100".into(),
+                "handle".into(),
+                class_id.to_string(),
+                "fw".into(),
+                "classid".into(),
+                class_id_str.clone(),
             ],
             vec![
-                "filter".into(), "del".into(), "dev".into(),
-                interface.clone(), "parent".into(), "1:0".into(),
-                "protocol".into(), "ip".into(), "prio".into(), "100".into(),
-                "handle".into(), class_id.to_string(), "fw".into(),
+                "filter".into(),
+                "del".into(),
+                "dev".into(),
+                interface.clone(),
+                "parent".into(),
+                "1:0".into(),
+                "protocol".into(),
+                "ip".into(),
+                "prio".into(),
+                "100".into(),
+                "handle".into(),
+                class_id.to_string(),
+                "fw".into(),
             ],
         );
 
@@ -947,19 +982,42 @@ pub fn apply_limit(
             tx.add(
                 &format!("ingress police filter for PID {}", pid),
                 vec![
-                    "filter".into(), "add".into(), "dev".into(),
-                    interface.clone(), "parent".into(), "ffff:".into(),
-                    "protocol".into(), "ip".into(), "prio".into(), "100".into(),
-                    "handle".into(), class_id.to_string(),
-                    "fw".into(), "mask".into(), "0xffff".into(),
-                    "police".into(), "rate".into(), format!("{}kbit", dl_rate_kbit),
-                    "burst".into(), "15k".into(), "drop".into(),
+                    "filter".into(),
+                    "add".into(),
+                    "dev".into(),
+                    interface.clone(),
+                    "parent".into(),
+                    "ffff:".into(),
+                    "protocol".into(),
+                    "ip".into(),
+                    "prio".into(),
+                    "100".into(),
+                    "handle".into(),
+                    class_id.to_string(),
+                    "fw".into(),
+                    "mask".into(),
+                    "0xffff".into(),
+                    "police".into(),
+                    "rate".into(),
+                    format!("{}kbit", dl_rate_kbit),
+                    "burst".into(),
+                    "15k".into(),
+                    "drop".into(),
                 ],
                 vec![
-                    "filter".into(), "del".into(), "dev".into(),
-                    interface.clone(), "parent".into(), "ffff:".into(),
-                    "protocol".into(), "ip".into(), "prio".into(), "100".into(),
-                    "handle".into(), class_id.to_string(), "fw".into(),
+                    "filter".into(),
+                    "del".into(),
+                    "dev".into(),
+                    interface.clone(),
+                    "parent".into(),
+                    "ffff:".into(),
+                    "protocol".into(),
+                    "ip".into(),
+                    "prio".into(),
+                    "100".into(),
+                    "handle".into(),
+                    class_id.to_string(),
+                    "fw".into(),
                 ],
             );
         }
@@ -1111,7 +1169,12 @@ pub fn remove_limit(target: &str) -> Result<()> {
         // Remove egress HTB class
         Command::new("tc")
             .args([
-                "class", "del", "dev", &record.interface, "classid", &class_id_str,
+                "class",
+                "del",
+                "dev",
+                &record.interface,
+                "classid",
+                &class_id_str,
             ])
             .output()
             .ok();
@@ -1119,8 +1182,19 @@ pub fn remove_limit(target: &str) -> Result<()> {
         // Remove egress fw filter
         Command::new("tc")
             .args([
-                "filter", "del", "dev", &record.interface, "parent", "1:0",
-                "protocol", "ip", "prio", "100", "handle", &class_id_num, "fw",
+                "filter",
+                "del",
+                "dev",
+                &record.interface,
+                "parent",
+                "1:0",
+                "protocol",
+                "ip",
+                "prio",
+                "100",
+                "handle",
+                &class_id_num,
+                "fw",
             ])
             .output()
             .ok();
@@ -1128,8 +1202,19 @@ pub fn remove_limit(target: &str) -> Result<()> {
         // Remove ingress police filter
         Command::new("tc")
             .args([
-                "filter", "del", "dev", &record.interface, "parent", "ffff:",
-                "protocol", "ip", "prio", "100", "handle", &class_id_num, "fw",
+                "filter",
+                "del",
+                "dev",
+                &record.interface,
+                "parent",
+                "ffff:",
+                "protocol",
+                "ip",
+                "prio",
+                "100",
+                "handle",
+                &class_id_num,
+                "fw",
             ])
             .output()
             .ok();
@@ -1145,26 +1230,28 @@ pub fn remove_limit(target: &str) -> Result<()> {
     state.save()?;
 
     // Refresh nft rules (removes marking for removed processes)
-    if let Err(e) = refresh_all_nft_rules(&state.limits, &removed_ifaces.first().unwrap_or(&"".to_string())) {
+    if let Err(e) = refresh_all_nft_rules(
+        &state.limits,
+        &removed_ifaces.first().unwrap_or(&"".to_string()),
+    ) {
         eprintln!("{}: Failed to refresh nft rules: {}", "WARNING".yellow(), e);
     }
 
     // Clean up tc cgroup filter if no limits remain
     if state.limits.is_empty() {
-        for iface in removed_ifaces {
+        for iface in &removed_ifaces {
             let _ = Command::new("tc")
                 .args([
-                    "filter", "del", "dev", &iface,
-                    "parent", "1:0", "protocol", "ip",
-                    "prio", "1", "cgroup",
+                    "filter", "del", "dev", iface, "parent", "1:0", "protocol", "ip", "prio", "1",
+                    "cgroup",
                 ])
                 .output();
         }
 
         // Clean up ingress qdisc
-        for iface in removed_ifaces {
+        for iface in &removed_ifaces {
             let _ = Command::new("tc")
-                .args(["qdisc", "del", "dev", &iface, "ingress"])
+                .args(["qdisc", "del", "dev", iface, "ingress"])
                 .output();
         }
 
@@ -1290,7 +1377,12 @@ pub fn clean_orphans() -> Result<()> {
         let class_id_str = format!("1:{:04x}", record.class_id);
         let _ = Command::new("tc")
             .args([
-                "class", "del", "dev", &record.interface, "classid", &class_id_str,
+                "class",
+                "del",
+                "dev",
+                &record.interface,
+                "classid",
+                &class_id_str,
             ])
             .output();
 
