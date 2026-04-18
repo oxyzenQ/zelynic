@@ -7,7 +7,7 @@
 ///   On cgroup v1/hybrid: also uses tc cgroup filter as fallback for existing connections.
 ///
 /// **Download (ingress) limiting:**
-///   NIC → IP stack → conntrack lookup → nftables ip PREROUTING (ct mark → meta mark →
+///   NIC → IP stack → conntrack lookup → nftables inet PREROUTING (ct mark → meta mark →
 ///        limit rate over X drop)
 ///
 /// Without `socket cgroupv2` kernel support, per-process distinction is not possible
@@ -123,23 +123,55 @@ fn get_process_uid(pid: u32) -> Option<u32> {
     None
 }
 
+/// Estimate the number of CPUs that handle network receive traffic.
+///
+/// nftables `limit rate` uses per-CPU token buckets, so the effective
+/// aggregate rate is `configured_rate × active_cpus`. We read the number
+/// of receive queue directories from sysfs (which reflects RSS/RPS
+/// configuration) as the best estimate of how many CPUs will handle
+/// ingress traffic.
+fn get_num_rx_queues() -> usize {
+    // Try to read from sysfs for the default interface
+    if let Ok(iface) = get_default_interface() {
+        let queues_dir = format!("/sys/class/net/{}/queues", iface);
+        if let Ok(entries) = fs::read_dir(&queues_dir) {
+            let count = entries
+                .filter_map(|e| e.ok())
+                .map(|e| e.file_name().to_string_lossy().to_string())
+                .filter(|name| name.starts_with("rx-"))
+                .count();
+            if count > 0 {
+                return count.max(1);
+            }
+        }
+    }
+    // Fallback: use available parallelism
+    std::thread::available_parallelism()
+        .map(|n| n.get())
+        .unwrap_or(4)
+        .max(1)
+}
+
 // ---------------------------------------------------------------------------
 // nftables rules management
 // ---------------------------------------------------------------------------
 
-/// Build the nftables `ip oxy` table for egress marking + download rate limiting.
+/// Build the nftables `inet oxy` table for egress marking + download rate limiting.
+///
+/// Uses `inet` (IPv4 + IPv6) so both protocol families are handled.
 ///
 /// Output chain: marks egress packets by UID (deduplicated — one rule per UID).
 /// Postrouting: saves mark to conntrack for reply (download) packets.
 /// Prerouting: restores mark from conntrack for incoming packets, then applies
 ///             per-UID download rate limits via `limit rate over X drop`.
 ///
-/// Note: Without `socket cgroupv2` kernel support, nftables cannot distinguish
-/// individual processes that share the same UID. Download limiting therefore
-/// applies per-UID (using the minimum rate among all PIDs for that UID).
+/// Note: nftables `limit rate` uses per-CPU token buckets. The effective rate
+/// is approximately `configured_rate × active_cpus`. We compensate by dividing
+/// the configured rate by the number of CPUs, read from the number of
+/// receive queue directories in sysfs (or available_parallelism as fallback).
 fn build_nft_ip_ruleset(limits: &[LimitRecord]) -> String {
     let mut ruleset = String::new();
-    ruleset.push_str("table ip oxy {\n");
+    ruleset.push_str("table inet oxy {\n");
 
     // Output: mark egress packets by UID (deduplicated).
     // When multiple PIDs share the same UID, nftables cannot distinguish them
@@ -177,14 +209,22 @@ fn build_nft_ip_ruleset(limits: &[LimitRecord]) -> String {
 
     // Compute minimum download rate per UID (in kbytes/second for nftables).
     // nftables 'limit rate over' expects bytes, kbytes, or mbytes — not kbit.
+    //
+    // IMPORTANT: nftables `limit rate` maintains per-CPU token buckets, so the
+    // effective aggregate rate is `rate × active_cpus`. We compensate by
+    // dividing the rate by the number of CPUs (estimated from sysfs rx queues
+    // or std::thread::available_parallelism as fallback).
+    let num_cpus = get_num_rx_queues();
+
     let mut uid_min_dl: std::collections::HashMap<u32, u64> = std::collections::HashMap::new();
     for record in limits.iter().filter(|l| l.download_bytes_per_sec.is_some()) {
         if let Some(uid) = get_process_uid(record.pid) {
             let dl_kbytes = (record.download_bytes_per_sec.unwrap() / 1024).max(1);
+            let compensated = (dl_kbytes / num_cpus as u64).max(1);
             uid_min_dl
                 .entry(uid)
-                .and_modify(|min| *min = (*min).min(dl_kbytes))
-                .or_insert(dl_kbytes);
+                .and_modify(|min| *min = (*min).min(compensated))
+                .or_insert(compensated);
         }
     }
 
@@ -201,11 +241,11 @@ fn build_nft_ip_ruleset(limits: &[LimitRecord]) -> String {
     ruleset
 }
 
-/// Apply (or refresh) the nftables ip oxy table.
+/// Apply (or refresh) the nftables inet oxy table.
 fn refresh_nft_ip_rules(limits: &[LimitRecord]) -> Result<()> {
     if limits.is_empty() {
         let _ = Command::new("nft")
-            .args(["delete", "table", "ip", "oxy"])
+            .args(["delete", "table", "inet", "oxy"])
             .output();
         return Ok(());
     }
@@ -217,7 +257,7 @@ fn refresh_nft_ip_rules(limits: &[LimitRecord]) -> Result<()> {
     fs::write(nft_file, &ruleset).context("failed to write nft ruleset file")?;
 
     let _ = Command::new("nft")
-        .args(["delete", "table", "ip", "oxy"])
+        .args(["delete", "table", "inet", "oxy"])
         .output();
 
     let output = Command::new("nft")
@@ -227,13 +267,13 @@ fn refresh_nft_ip_rules(limits: &[LimitRecord]) -> Result<()> {
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        bail!("failed to apply nft ip table: {}", stderr);
+        bail!("failed to apply nft inet table: {}", stderr);
     }
 
     Ok(())
 }
 
-/// Refresh all nftables rules (ip table only; download limiting uses nftables PREROUTING).
+/// Refresh all nftables rules (inet table: IPv4 + IPv6).
 fn refresh_all_nft_rules(limits: &[LimitRecord], _interface: &str) -> Result<()> {
     refresh_nft_ip_rules(limits)
 }
@@ -996,7 +1036,7 @@ pub fn apply_limit(
     }
     println!("  Interface: {}", interface);
     println!(
-        "  Backend:   nftables ip (PREROUTING limit rate) + tc HTB (cgroup v{})",
+        "  Backend:   nftables inet (PREROUTING limit rate) + tc HTB (cgroup v{})",
         if use_cgroup_v1_backend {
             "1/hybrid"
         } else {
@@ -1159,7 +1199,7 @@ pub fn remove_limit(target: &str) -> Result<()> {
 
         // Clean up all nftables tables
         let _ = Command::new("nft")
-            .args(["delete", "table", "ip", "oxy"])
+            .args(["delete", "table", "inet", "oxy"])
             .output();
     }
 
