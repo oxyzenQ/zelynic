@@ -253,8 +253,7 @@ fn build_nft_netdev_ruleset(limits: &[LimitRecord], interface: &str) -> String {
     // Multiple PIDs sharing a UID produce multiple rules that all set the
     // same mark (UID value).  We cannot deduplicate by UID because each
     // cgroup directory has a different inode number.
-    let mut cg_id_to_mark: std::collections::HashMap<u64, u32> =
-        std::collections::HashMap::new();
+    let mut cg_id_to_mark: std::collections::HashMap<u64, u32> = std::collections::HashMap::new();
     for record in &dl_limits {
         if let Some(uid) = get_process_uid(record.pid) {
             if let Some(cg_id) = get_cgroup_id(record.pid) {
@@ -1360,7 +1359,9 @@ pub fn apply_limit(
     if had_errors {
         println!(
             "{}",
-            "oxy strict: bandwidth limit applied WITH ERRORS".red().bold()
+            "oxy strict: bandwidth limit applied WITH ERRORS"
+                .red()
+                .bold()
         );
         println!(
             "  {} Some components failed to set up. Download limiting may not work correctly.",
