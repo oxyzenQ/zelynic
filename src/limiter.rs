@@ -113,6 +113,16 @@ fn ensure_conntrack() -> Result<()> {
     Ok(())
 }
 
+/// Get the cgroup v2 ID (inode number) for a process's oxy cgroup.
+///
+/// Used with nftables `socket cgroupv2 == <id>` in the netdev family to match
+/// packets whose socket belongs to a specific cgroup.
+fn get_cgroup_id(pid: u32) -> Option<u64> {
+    let id_path = format!("/sys/fs/cgroup/oxy/pid_{}/cgroup.id", pid);
+    let content = fs::read_to_string(&id_path).ok()?;
+    content.trim().parse::<u64>().ok()
+}
+
 /// Get the UID of a process.
 ///
 /// Used with nftables `meta skuid` to match egress packets from specific users.
@@ -220,8 +230,12 @@ fn refresh_nft_ip_rules(limits: &[LimitRecord]) -> Result<()> {
 /// Build the nftables `netdev oxy_mark` table for ingress mark restoration.
 ///
 /// This netdev ingress hook fires before tc ingress, ensuring the fw mark
-/// (from conntrack) is available when tc clsact processes the packet on
-/// its way to the IFB device.
+/// is available when tc clsact processes the packet on its way to the IFB device.
+///
+/// Uses `socket cgroupv2 == <cgroup_id>` to match packets whose socket belongs
+/// to a specific cgroup. TCP early demux sets skb->sk before netdev ingress, so
+/// this works for reply (download) packets of established connections.
+/// Rules are deduplicated by UID — all PIDs sharing a UID generate one rule.
 fn build_nft_netdev_ruleset(limits: &[LimitRecord], interface: &str) -> String {
     let dl_limits: Vec<_> = limits
         .iter()
@@ -232,23 +246,32 @@ fn build_nft_netdev_ruleset(limits: &[LimitRecord], interface: &str) -> String {
         return String::new();
     }
 
+    // Collect unique (uid, cgroup_id) pairs, deduplicating by UID.
+    // All PIDs sharing a UID get the same mark, so we only need one rule per UID.
+    let mut uid_cgroup_map: std::collections::HashMap<u32, u64> = std::collections::HashMap::new();
+    for record in &dl_limits {
+        if let Some(uid) = get_process_uid(record.pid) {
+            if let Some(cg_id) = get_cgroup_id(record.pid) {
+                uid_cgroup_map.insert(uid, cg_id);
+            }
+        }
+    }
+
+    if uid_cgroup_map.is_empty() {
+        return String::new();
+    }
+
     let mut ruleset = String::new();
     ruleset.push_str(&format!(
         "table netdev oxy_mark {{\n  chain {iface}_ingress {{\n    type filter hook ingress device \"{iface}\" priority filter; policy accept;\n",
         iface = interface
     ));
 
-    for record in &dl_limits {
-        let cgroup_rel = format!("oxy/pid_{}", record.pid);
-        // Use socket cgroupv2 to match packets whose socket belongs to this
-        // process's cgroup. TCP early demux sets skb->sk before netdev ingress,
-        // so this works for reply (download) packets too.
-        if let Some(uid) = get_process_uid(record.pid) {
-            ruleset.push_str(&format!(
-                "    socket cgroupv2 path \"{}\" meta mark set {};\n",
-                cgroup_rel, uid
-            ));
-        }
+    for (uid, cg_id) in &uid_cgroup_map {
+        ruleset.push_str(&format!(
+            "    socket cgroupv2 == {} meta mark set {};\n",
+            cg_id, uid
+        ));
     }
 
     ruleset.push_str("  }\n}\n");
@@ -1216,7 +1239,7 @@ pub fn apply_limit(
             ],
         );
 
-        // fw filter on IFB egress (IPv4)
+        // fw filter on IFB root (IPv4) — parent 2: references the HTB root qdisc
         dl_tx.add(
             &format!("ingress fw filter (ip) for UID {}", uid),
             vec![
@@ -1224,7 +1247,8 @@ pub fn apply_limit(
                 "add".into(),
                 "dev".into(),
                 IFB_DEVICE.into(),
-                "egress".into(),
+                "parent".into(),
+                "2:".into(),
                 "protocol".into(),
                 "ip".into(),
                 "prio".into(),
@@ -1240,7 +1264,8 @@ pub fn apply_limit(
                 "del".into(),
                 "dev".into(),
                 IFB_DEVICE.into(),
-                "egress".into(),
+                "parent".into(),
+                "2:".into(),
                 "protocol".into(),
                 "ip".into(),
                 "prio".into(),
@@ -1251,7 +1276,7 @@ pub fn apply_limit(
             ],
         );
 
-        // fw filter on IFB egress (IPv6)
+        // fw filter on IFB root (IPv6) — parent 2: references the HTB root qdisc
         dl_tx.add(
             &format!("ingress fw filter (ipv6) for UID {}", uid),
             vec![
@@ -1259,7 +1284,8 @@ pub fn apply_limit(
                 "add".into(),
                 "dev".into(),
                 IFB_DEVICE.into(),
-                "egress".into(),
+                "parent".into(),
+                "2:".into(),
                 "protocol".into(),
                 "ipv6".into(),
                 "prio".into(),
@@ -1275,7 +1301,8 @@ pub fn apply_limit(
                 "del".into(),
                 "dev".into(),
                 IFB_DEVICE.into(),
-                "egress".into(),
+                "parent".into(),
+                "2:".into(),
                 "protocol".into(),
                 "ipv6".into(),
                 "prio".into(),
