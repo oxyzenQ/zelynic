@@ -1276,7 +1276,7 @@ pub fn apply_limit(
             ],
         );
 
-        // fw filter on IFB root (IPv6) — parent 2: references the HTB root qdisc
+        // fw filter on IFB root (IPv6) — prio 200 to avoid conflict with IPv4 prio 100
         dl_tx.add(
             &format!("ingress fw filter (ipv6) for UID {}", uid),
             vec![
@@ -1289,7 +1289,7 @@ pub fn apply_limit(
                 "protocol".into(),
                 "ipv6".into(),
                 "prio".into(),
-                "100".into(),
+                "200".into(),
                 "handle".into(),
                 uid.to_string(),
                 "fw".into(),
@@ -1306,7 +1306,7 @@ pub fn apply_limit(
                 "protocol".into(),
                 "ipv6".into(),
                 "prio".into(),
-                "100".into(),
+                "200".into(),
                 "handle".into(),
                 uid.to_string(),
                 "fw".into(),
