@@ -96,8 +96,9 @@ impl TuiApp {
             crate::limiter::get_default_interface().unwrap_or_else(|_| "unknown".to_string());
 
         // Load active limits (non-fatal if state file is unreadable)
-        let limited_pids: std::collections::HashSet<u32> =
-            OxyState::load().map(|s| s.limits.iter().map(|r| r.pid).collect()).unwrap_or_default();
+        let limited_pids: std::collections::HashSet<u32> = OxyState::load()
+            .map(|s| s.limits.iter().map(|r| r.pid).collect())
+            .unwrap_or_default();
 
         Ok(Self {
             interval: Duration::from_secs(interval_secs),
