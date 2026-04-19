@@ -188,9 +188,7 @@ fn build_nft_ip_ruleset(limits: &[LimitRecord]) -> String {
     for record in limits.iter().filter(|l| l.download_bytes_per_sec.is_some()) {
         if let Some(uid) = get_process_uid(record.pid) {
             let dl_bps = record.download_bytes_per_sec.unwrap();
-            let entry = uid_dl_info
-                .entry(uid)
-                .or_insert((dl_bps, None));
+            let entry = uid_dl_info.entry(uid).or_insert((dl_bps, None));
             entry.0 = entry.0.min(dl_bps);
             // Prefer any available cgroup_id
             if entry.1.is_none() {
@@ -208,10 +206,7 @@ fn build_nft_ip_ruleset(limits: &[LimitRecord]) -> String {
                 "    socket cgroupv2 {} limit rate {} bytes/second burst {} bytes accept;\n",
                 cgid, dl_bps, burst
             ));
-            ruleset.push_str(&format!(
-                "    socket cgroupv2 {} drop;\n",
-                cgid
-            ));
+            ruleset.push_str(&format!("    socket cgroupv2 {} drop;\n", cgid));
         }
 
         // Tier 2: meta skuid (fallback for local sockets)
@@ -219,20 +214,14 @@ fn build_nft_ip_ruleset(limits: &[LimitRecord]) -> String {
             "    meta skuid {} limit rate {} bytes/second burst {} bytes accept;\n",
             uid, dl_bps, burst
         ));
-        ruleset.push_str(&format!(
-            "    meta skuid {} drop;\n",
-            uid
-        ));
+        ruleset.push_str(&format!("    meta skuid {} drop;\n", uid));
 
         // Tier 3: ct mark (UDP fallback — conntrack mark from egress output chain)
         ruleset.push_str(&format!(
             "    ct mark 0x{:08x} limit rate {} bytes/second burst {} bytes accept;\n",
             uid, dl_bps, burst
         ));
-        ruleset.push_str(&format!(
-            "    ct mark 0x{:08x} drop;\n",
-            uid
-        ));
+        ruleset.push_str(&format!("    ct mark 0x{:08x} drop;\n", uid));
     }
 
     ruleset.push_str("  }\n");
@@ -1113,7 +1102,10 @@ pub fn apply_limit(
             .join(", ")
     );
     if let Some(ref dl) = dl_display {
-        println!("  Download:  {} (limited, socket cgroupv2 + nftables policer)", dl.cyan());
+        println!(
+            "  Download:  {} (limited, socket cgroupv2 + nftables policer)",
+            dl.cyan()
+        );
     } else {
         println!("  Download:  {}", "unlimited".dimmed());
     }
@@ -1583,7 +1575,11 @@ pub fn check_respawns() -> Result<()> {
 
     // Refresh nft rules to pick up new cgroup memberships
     if let Err(e) = refresh_nft_ip_rules(&state.limits) {
-        eprintln!("{}: Failed to refresh nft rules after respawn: {}", "WARNING".yellow(), e);
+        eprintln!(
+            "{}: Failed to refresh nft rules after respawn: {}",
+            "WARNING".yellow(),
+            e
+        );
     }
 
     println!();
