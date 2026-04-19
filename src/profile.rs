@@ -239,7 +239,7 @@ pub fn list_profiles() -> Result<()> {
     println!(
         "  {} Profiles are stored in {}",
         "Tip:".cyan(),
-        "/home/rezky/.oxy/profiles.json".cyan()
+        PROFILE_DB.cyan()
     );
 
     Ok(())

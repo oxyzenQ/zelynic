@@ -95,10 +95,9 @@ impl TuiApp {
         let interface =
             crate::limiter::get_default_interface().unwrap_or_else(|_| "unknown".to_string());
 
-        // Load active limits
-        let state = OxyState::load()?;
+        // Load active limits (non-fatal if state file is unreadable)
         let limited_pids: std::collections::HashSet<u32> =
-            state.limits.iter().map(|r| r.pid).collect();
+            OxyState::load().map(|s| s.limits.iter().map(|r| r.pid).collect()).unwrap_or_default();
 
         Ok(Self {
             interval: Duration::from_secs(interval_secs),
@@ -159,9 +158,10 @@ impl TuiApp {
 
         self.prev_snapshot = Some((now, current));
 
-        // Refresh limited pids
-        let state = OxyState::load()?;
-        self.limited_pids = state.limits.iter().map(|r| r.pid).collect();
+        // Refresh limited pids (non-fatal if state file is unreadable)
+        if let Ok(state) = OxyState::load() {
+            self.limited_pids = state.limits.iter().map(|r| r.pid).collect();
+        }
 
         Ok(())
     }
@@ -277,16 +277,17 @@ impl TuiApp {
                 let history_str = if sparkline_data.is_empty() {
                     "—".to_string()
                 } else {
-                    // Simple sparkline representation
+                    // Simple sparkline representation with dynamic scaling
                     let chars = ["⣀", "⣄", "⣆", "⣇", "⣏", "⣟", "⣿"];
+                    let max_val = sparkline_data.iter().copied().max().unwrap_or(1).max(1);
                     sparkline_data
                         .iter()
                         .map(|&v| {
                             if v == 0 {
                                 "⣀"
                             } else {
-                                let idx = ((v as f64 / 1_000_000.0).min(6.0) as usize).min(6);
-                                chars[idx]
+                                let idx = ((v as f64 / max_val as f64) * 6.0) as usize;
+                                chars[idx.min(6)]
                             }
                         })
                         .collect::<String>()

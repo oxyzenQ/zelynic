@@ -15,7 +15,7 @@ use std::fs;
 use std::path::Path;
 use std::process::Command;
 
-use crate::limiter::{check_root, get_default_interface, next_class_id, setup_cgroup};
+use crate::limiter::{check_root, get_default_interface, next_class_id, resolve_pids, setup_cgroup};
 
 /// QoS state file.
 const QOS_STATE_FILE: &str = "/run/oxy/qos_state.json";
@@ -304,38 +304,6 @@ pub fn reset_qos() -> Result<()> {
     println!("{}", "oxy qos: all rules reset".green().bold());
 
     Ok(())
-}
-
-/// Resolve target to PIDs (similar to limiter::resolve_pids).
-fn resolve_pids(target: &str) -> Result<Vec<u32>> {
-    // If it's a number, treat as PID
-    if let Ok(pid) = target.parse::<u32>() {
-        return Ok(vec![pid]);
-    }
-
-    // Otherwise, search by name in /proc
-    let mut pids = Vec::new();
-    let proc_dir = Path::new("/proc");
-
-    for entry in fs::read_dir(proc_dir)? {
-        let entry = entry?;
-        let name = entry.file_name();
-        let name_str = name.to_string_lossy();
-
-        // Check if it's a PID directory (numeric)
-        if name_str.parse::<u32>().is_ok() {
-            // Read comm file to get process name
-            let comm_path = entry.path().join("comm");
-            if let Ok(comm) = fs::read_to_string(&comm_path) {
-                let proc_name = comm.trim();
-                if proc_name.eq_ignore_ascii_case(target) {
-                    pids.push(name_str.parse::<u32>().unwrap());
-                }
-            }
-        }
-    }
-
-    Ok(pids)
 }
 
 /// Generate a human-readable timestamp string.

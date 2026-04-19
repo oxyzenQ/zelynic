@@ -8,7 +8,7 @@ use std::process::{Command, Stdio};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use crate::limiter::check_root;
+use crate::limiter::{check_root, get_process_name, resolve_pids};
 use crate::monitor::{aggregate_by_process, collect_bandwidth_stats};
 use crate::units::BandwidthRate;
 
@@ -38,13 +38,13 @@ pub fn watch_process(
     let threshold_bps = threshold_rate.bytes_per_sec;
 
     // Resolve target to PID(s)
-    let pids = resolve_target_pids(target)?;
+    let pids = resolve_pids(target)?;
     if pids.is_empty() {
         bail!("no process found matching '{}'", target);
     }
 
     let pid = pids[0]; // Watch first matching process
-    let process_name = get_process_name(pid).unwrap_or_else(|| target.to_string());
+    let process_name = get_process_name(pid);
 
     println!(
         "{} Watching {} (PID: {}) for bandwidth > {}/s",
@@ -196,55 +196,9 @@ fn send_notification(process: &str, message: &str, custom_cmd: Option<&str>) -> 
     Ok(())
 }
 
-/// Resolve target string to PIDs.
-fn resolve_target_pids(target: &str) -> Result<Vec<u32>> {
-    // If numeric, treat as PID
-    if let Ok(pid) = target.parse::<u32>() {
-        return Ok(vec![pid]);
-    }
-
-    // Otherwise search by name
-    let mut pids = Vec::new();
-    let proc_dir = std::path::Path::new("/proc");
-
-    for entry in std::fs::read_dir(proc_dir)? {
-        let entry = entry?;
-        let name = entry.file_name();
-        let name_str = name.to_string_lossy();
-
-        if name_str.parse::<u32>().is_ok() {
-            let comm_path = entry.path().join("comm");
-            if let Ok(comm) = std::fs::read_to_string(&comm_path) {
-                let proc_name = comm.trim();
-                if proc_name.eq_ignore_ascii_case(target) {
-                    pids.push(name_str.parse::<u32>().unwrap());
-                }
-            }
-        }
-    }
-
-    Ok(pids)
-}
-
-/// Get process name from PID.
-fn get_process_name(pid: u32) -> Option<String> {
-    let comm_path = format!("/proc/{}/comm", pid);
-    std::fs::read_to_string(&comm_path)
-        .ok()
-        .map(|s| s.trim().to_string())
-}
-
 /// Format bytes for display.
 fn format_bytes(bytes: u64) -> String {
-    if bytes >= 1_000_000_000 {
-        format!("{:.2} GB", bytes as f64 / 1_000_000_000.0)
-    } else if bytes >= 1_000_000 {
-        format!("{:.2} MB", bytes as f64 / 1_000_000.0)
-    } else if bytes >= 1_000 {
-        format!("{:.1} KB", bytes as f64 / 1_000.0)
-    } else {
-        format!("{} B", bytes)
-    }
+    crate::units::format_bytes(bytes)
 }
 
 /// Generate timestamp string.

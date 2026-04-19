@@ -11,9 +11,9 @@ use std::process::{Command, Stdio};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime};
 
-use crate::limiter::{apply_limit, check_root};
+use crate::limiter::{apply_limit, check_root, resolve_pids};
 use crate::monitor::{aggregate_by_process, collect_bandwidth_stats};
-use crate::units::BandwidthRate;
+use crate::units::{BandwidthRate, format_bytes};
 
 /// PID file for daemon.
 const DAEMON_PID_FILE: &str = "/run/oxy/auto_daemon.pid";
@@ -163,10 +163,17 @@ impl AutoThrottle {
         target: &str,
         processes: &[crate::monitor::ProcessBandwidth],
     ) -> Result<()> {
-        // Find matching processes
+        // Use shared resolve_pids for consistent substring matching
+        let target_pids = match resolve_pids(target) {
+            Ok(pids) => pids,
+            Err(_) => return Ok(()),
+        };
+        let target_pid_set: std::collections::HashSet<u32> =
+            target_pids.into_iter().collect();
+
         let targets: Vec<_> = processes
             .iter()
-            .filter(|p| p.name.eq_ignore_ascii_case(target))
+            .filter(|p| target_pid_set.contains(&p.pid))
             .collect();
 
         if targets.is_empty() {
@@ -290,19 +297,6 @@ pub fn auto_status() -> Result<()> {
         println!("{} Auto-throttle daemon not running", "○".red());
     }
     Ok(())
-}
-
-/// Format bytes for human-readable display.
-fn format_bytes(bytes: u64) -> String {
-    if bytes >= 1_000_000_000 {
-        format!("{:.2} GB", bytes as f64 / 1_000_000_000.0)
-    } else if bytes >= 1_000_000 {
-        format!("{:.2} MB", bytes as f64 / 1_000_000.0)
-    } else if bytes >= 1_000 {
-        format!("{:.1} KB", bytes as f64 / 1_000.0)
-    } else {
-        format!("{} B", bytes)
-    }
 }
 
 /// Generate timestamp string.

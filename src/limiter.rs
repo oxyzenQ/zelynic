@@ -39,14 +39,6 @@ const CGROUP_BASE: &str = "/sys/fs/cgroup/oxy";
 ///
 /// Returns (is_v2, is_hybrid) tuple.
 fn detect_cgroup_version() -> (bool, bool) {
-    // Check if cgroup2 filesystem is mounted at /sys/fs/cgroup
-    let cgroup_mount = Command::new("mount").args(["-t", "cgroup2"]).output().ok();
-
-    let _has_cgroup2 = cgroup_mount
-        .as_ref()
-        .map(|o| o.status.success())
-        .unwrap_or(false);
-
     // Check if cgroup v1 controllers are present
     let v1_controllers = Path::new("/sys/fs/cgroup/net_cls").exists()
         || Path::new("/sys/fs/cgroup/memory").exists()
@@ -931,7 +923,6 @@ pub fn apply_limit(
     let mut applied_count = 0;
     for pid in &pids {
         let class_id = next_class_id()?;
-        let _process_name = get_process_name(*pid);
 
         let uid = pid_to_uid.get(pid).copied();
         let cgroup_id = if is_pure_v2 {
@@ -989,6 +980,13 @@ pub fn apply_limit(
         let ceil_kbit = (ul_kbit as f64 * 1.1) as u64;
 
         // --- Upload (egress): HTB class for this UID ---
+        // Pre-delete existing class to make the operation idempotent.
+        let _ = Command::new("tc")
+            .args([
+                "class", "del", "dev", &interface, "classid", &class_id_str,
+            ])
+            .output();
+
         tx.add(
             &format!("egress class for UID {}", uid),
             vec![
@@ -1021,6 +1019,15 @@ pub fn apply_limit(
         );
 
         // --- Upload (egress): fw filter matching UID mark → UID HTB class ---
+        // Pre-delete existing filter to make the operation idempotent (allows
+        // re-running `oxy strict` without `oxy unstrict` first).
+        let _ = Command::new("tc")
+            .args([
+                "filter", "del", "dev", &interface, "parent", "1:0", "protocol", "ip",
+                "prio", "100", "handle", &uid.to_string(), "fw",
+            ])
+            .output();
+
         tx.add(
             &format!("egress fw filter for UID {}", uid),
             vec![
