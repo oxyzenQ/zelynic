@@ -6,20 +6,16 @@
 ///   Process → nftables output (meta skuid → mark) → tc fw filter → HTB class (rate-limited)
 ///   On cgroup v1/hybrid: also uses tc cgroup filter as fallback for existing connections.
 ///
-/// **Download (ingress) limiting (IFB + HTB):**
-///   NIC → nftables netdev ingress (ct mark → meta mark) → tc clsact ingress →
-///        mirred redirect to ifb0 → HTB on ifb0 (fw filter → rate-limited class) →
-///        IP stack
+/// **Download (ingress) limiting (nftables socket cgroupv2 + limit rate):**
+///   NIC → nftables inet input (socket cgroupv2 <cg_id> limit rate → accept/drop)
+///   Primary match: `socket cgroupv2 <cg_id>` — matches packets whose socket belongs
+///   to a specific cgroup.  Fallback: `meta skuid <uid>` for UID-based matching.
+///   UDP fallback: `ct mark 0x<uid_hex>` — conntrack mark propagated from egress.
 ///
-/// The netdev ingress hook fires before the tc ingress qdisc, so the fw mark is
-/// available when tc processes the packet. IFB (Intermediate Functional Block) is
-/// a virtual device that allows HTB shaping on ingress traffic — something normally
-/// impossible because ingress qdiscs cannot attach classes directly.
-///
-/// Without `socket cgroupv2` kernel support, per-process distinction is not possible
-/// at the nftables level. Both egress marking and download rate limiting operate
-/// per-UID: all PIDs sharing a UID get the same packet mark and share a single
-/// rate limit (the minimum among all configured rates for that UID).
+/// **Per-UID cgroups:**
+///   All target PIDs sharing a UID are moved to `/sys/fs/cgroup/oxy/uid_<UID>/`
+///   so that nftables `socket cgroupv2` can match download traffic per UID.
+///   On cgroup v1/hybrid, per-PID cgroups with net_cls.classid are used instead.
 ///
 /// State is persisted to disk so that limits survive across invocations
 /// and can be cleaned up properly with `oxy unstrict`.
@@ -38,8 +34,6 @@ const STATE_DIR: &str = "/run/oxy";
 const STATE_FILE: &str = "/run/oxy/state.json";
 /// Base path for oxy's cgroup management.
 const CGROUP_BASE: &str = "/sys/fs/cgroup/oxy";
-/// IFB device used for ingress (download) traffic shaping.
-const IFB_DEVICE: &str = "ifb0";
 
 /// Detect cgroup version (v1, v2, or hybrid).
 ///
@@ -95,7 +89,9 @@ fn ensure_kernel_modules() -> Result<()> {
 /// Ensure netfilter conntrack is enabled for mark propagation.
 ///
 /// Required for download limiting: egress marks are saved to conntrack and
-/// restored for reply packets at PREROUTING, where nftables applies rate limits.
+/// restored for reply packets. On pure cgroup v2, `socket cgroupv2` is the
+/// primary match; `ct mark` serves as a UDP fallback where sockets are not
+/// early-demuxed.
 fn ensure_conntrack() -> Result<()> {
     let _ = Command::new("modprobe").args(["nf_conntrack"]).output();
 
@@ -111,16 +107,6 @@ fn ensure_conntrack() -> Result<()> {
     }
 
     Ok(())
-}
-
-/// Get the cgroup v2 ID (inode number) for a process's oxy cgroup.
-///
-/// Used with nftables `socket cgroupv2 == <id>` in the netdev family to match
-/// packets whose socket belongs to a specific cgroup.
-fn get_cgroup_id(pid: u32) -> Option<u64> {
-    let id_path = format!("/sys/fs/cgroup/oxy/pid_{}/cgroup.id", pid);
-    let content = fs::read_to_string(&id_path).ok()?;
-    content.trim().parse::<u64>().ok()
 }
 
 /// Get the UID of a process.
@@ -145,14 +131,15 @@ fn get_process_uid(pid: u32) -> Option<u32> {
 // nftables rules management
 // ---------------------------------------------------------------------------
 
-/// Build the nftables `inet oxy` table for egress marking and conntrack propagation.
+/// Build the nftables `inet oxy` table for egress marking, conntrack propagation,
+/// and download rate limiting via `socket cgroupv2` + `limit rate`.
 ///
 /// Uses `inet` (IPv4 + IPv6) so both protocol families are handled.
 ///
 /// Output chain: marks egress packets by UID (deduplicated — one rule per UID).
 /// Postrouting: saves mark to conntrack for reply (download) packets.
-/// Prerouting: restores mark from conntrack for incoming packets (fallback when
-///             netdev ingress hook is unavailable).
+/// Download chain: applies per-UID `limit rate` policer at the input hook using
+///   `socket cgroupv2` (primary), `meta skuid` (fallback), and `ct mark` (UDP fallback).
 fn build_nft_ip_ruleset(limits: &[LimitRecord]) -> String {
     let mut ruleset = String::new();
     ruleset.push_str("table inet oxy {\n");
@@ -184,11 +171,70 @@ fn build_nft_ip_ruleset(limits: &[LimitRecord]) -> String {
     ruleset.push_str("    meta mark != 0 ct mark set meta mark;\n");
     ruleset.push_str("  }\n");
 
-    // Prerouting: restore mark from conntrack (fallback for mark restoration).
-    // Actual download rate limiting is handled by IFB + HTB, not nftables.
-    ruleset.push_str("  chain prerouting {\n");
-    ruleset.push_str("    type filter hook prerouting priority dstnat; policy accept;\n");
-    ruleset.push_str("    ct mark != 0 meta mark set ct mark;\n");
+    // Download chain: rate-limit inbound traffic per UID at the input hook.
+    // Three match tiers provide coverage for different kernel/socket states:
+    //   1. socket cgroupv2 <cg_id> — primary (TCP early demux)
+    //   2. meta skuid <uid>         — fallback (local sockets)
+    //   3. ct mark 0x<uid_hex>      — UDP fallback (conntrack mark from egress)
+    // Each tier has a `limit rate ... accept` followed by unconditional `drop`
+    // for packets exceeding the rate.
+    ruleset.push_str("  chain download {\n");
+    ruleset.push_str("    type filter hook input priority mangle; policy accept;\n");
+
+    // Collect per-UID download limits with associated cgroup IDs.
+    // A UID may appear in multiple records; we take the minimum download rate.
+    let mut uid_dl_info: std::collections::HashMap<u32, (u64, Option<u64>)> =
+        std::collections::HashMap::new();
+    for record in limits.iter().filter(|l| l.download_bytes_per_sec.is_some()) {
+        if let Some(uid) = get_process_uid(record.pid) {
+            let dl_bps = record.download_bytes_per_sec.unwrap();
+            let entry = uid_dl_info
+                .entry(uid)
+                .or_insert((dl_bps, None));
+            entry.0 = entry.0.min(dl_bps);
+            // Prefer any available cgroup_id
+            if entry.1.is_none() {
+                entry.1 = record.cgroup_id;
+            }
+        }
+    }
+
+    for (uid, (dl_bps, cg_id)) in &uid_dl_info {
+        let burst = (*dl_bps / 2).max(65536);
+
+        // Tier 1: socket cgroupv2 (primary — requires cgroup v2 + per-UID cgroup)
+        if let Some(cgid) = cg_id {
+            ruleset.push_str(&format!(
+                "    socket cgroupv2 {} limit rate {} bytes/second burst {} bytes accept;\n",
+                cgid, dl_bps, burst
+            ));
+            ruleset.push_str(&format!(
+                "    socket cgroupv2 {} drop;\n",
+                cgid
+            ));
+        }
+
+        // Tier 2: meta skuid (fallback for local sockets)
+        ruleset.push_str(&format!(
+            "    meta skuid {} limit rate {} bytes/second burst {} bytes accept;\n",
+            uid, dl_bps, burst
+        ));
+        ruleset.push_str(&format!(
+            "    meta skuid {} drop;\n",
+            uid
+        ));
+
+        // Tier 3: ct mark (UDP fallback — conntrack mark from egress output chain)
+        ruleset.push_str(&format!(
+            "    ct mark 0x{:08x} limit rate {} bytes/second burst {} bytes accept;\n",
+            uid, dl_bps, burst
+        ));
+        ruleset.push_str(&format!(
+            "    ct mark 0x{:08x} drop;\n",
+            uid
+        ));
+    }
+
     ruleset.push_str("  }\n");
 
     ruleset.push_str("}\n");
@@ -225,106 +271,6 @@ fn refresh_nft_ip_rules(limits: &[LimitRecord]) -> Result<()> {
     }
 
     Ok(())
-}
-
-/// Build the nftables `netdev oxy_mark` table for ingress mark restoration.
-///
-/// This netdev ingress hook fires before tc ingress, ensuring the fw mark
-/// is available when tc clsact processes the packet on its way to the IFB device.
-///
-/// Uses `socket cgroupv2 == <cgroup_id>` to match packets whose socket belongs
-/// to a specific cgroup. TCP early demux sets skb->sk before netdev ingress, so
-/// this works for reply (download) packets of established connections.
-///
-/// Each PID gets its own cgroup directory, so multiple PIDs sharing a UID produce
-/// multiple rules — one per unique cgroup ID, all setting the same fw mark.
-fn build_nft_netdev_ruleset(limits: &[LimitRecord], interface: &str) -> String {
-    let dl_limits: Vec<_> = limits
-        .iter()
-        .filter(|l| l.download_bytes_per_sec.is_some())
-        .collect();
-
-    if dl_limits.is_empty() {
-        return String::new();
-    }
-
-    // Collect unique (cgroup_id → mark) pairs.
-    // Each PID has its own cgroup directory with a unique cgroup.id.
-    // Multiple PIDs sharing a UID produce multiple rules that all set the
-    // same mark (UID value).  We cannot deduplicate by UID because each
-    // cgroup directory has a different inode number.
-    let mut cg_id_to_mark: std::collections::HashMap<u64, u32> = std::collections::HashMap::new();
-    for record in &dl_limits {
-        if let Some(uid) = get_process_uid(record.pid) {
-            if let Some(cg_id) = get_cgroup_id(record.pid) {
-                cg_id_to_mark.insert(cg_id, uid);
-            }
-        }
-    }
-
-    if cg_id_to_mark.is_empty() {
-        return String::new();
-    }
-
-    let mut ruleset = String::new();
-    ruleset.push_str(&format!(
-        "table netdev oxy_mark {{\n  chain {iface}_ingress {{\n    type filter hook ingress device \"{iface}\" priority filter; policy accept;\n",
-        iface = interface
-    ));
-
-    for (cg_id, mark) in &cg_id_to_mark {
-        ruleset.push_str(&format!(
-            "    socket cgroupv2 == {} meta mark set {};\n",
-            cg_id, mark
-        ));
-    }
-
-    ruleset.push_str("  }\n}\n");
-    ruleset
-}
-
-/// Apply (or refresh) the nftables netdev oxy_mark table for ingress mark restoration.
-///
-/// Only creates the netdev table when there are download limits; deletes it otherwise.
-fn refresh_nft_netdev_rules(limits: &[LimitRecord], interface: &str) -> Result<()> {
-    let ruleset = build_nft_netdev_ruleset(limits, interface);
-
-    if ruleset.is_empty() {
-        let _ = Command::new("nft")
-            .args(["delete", "table", "netdev", "oxy_mark"])
-            .output();
-        return Ok(());
-    }
-
-    let nft_file = "/run/oxy/oxy_mark.nft";
-    fs::create_dir_all(STATE_DIR).ok();
-    fs::write(nft_file, &ruleset).context("failed to write nft netdev ruleset file")?;
-
-    let _ = Command::new("nft")
-        .args(["delete", "table", "netdev", "oxy_mark"])
-        .output();
-
-    let output = Command::new("nft")
-        .args(["-f", nft_file])
-        .output()
-        .context("failed to run nft. Is nftables installed?")?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        eprintln!(
-            "{}: Failed to apply netdev mark restoration rules: {}",
-            "WARNING".yellow(),
-            stderr
-        );
-    }
-
-    Ok(())
-}
-
-/// Refresh all nftables rules (inet + netdev tables).
-fn refresh_all_nft_rules(limits: &[LimitRecord], interface: &str) -> Result<()> {
-    refresh_nft_ip_rules(limits)?;
-    refresh_nft_netdev_rules(limits, interface)
 }
 
 // ---------------------------------------------------------------------------
@@ -430,10 +376,15 @@ pub struct LimitRecord {
     pub class_id: u32,
     pub applied_at: String,
     /// Handle for the ingress (download) tc fw filter.
-    /// No longer used (download limiting is handled by nftables PREROUTING).
+    /// No longer used (download limiting is handled by nftables input hook).
     /// Kept for state file backward compatibility; always None for new limits.
     #[serde(default)]
     pub ingress_handle: Option<u32>,
+    /// Cgroup v2 ID (inode number) for the per-UID cgroup associated with
+    /// this record.  Used by nftables `socket cgroupv2` to match download
+    /// traffic in the inet input hook.
+    #[serde(default)]
+    pub cgroup_id: Option<u64>,
 }
 
 /// Full state file structure containing all active limits.
@@ -639,169 +590,6 @@ fn ensure_htb_qdisc(interface: &str) -> Result<()> {
     Ok(())
 }
 
-/// Ensure the clsact qdisc exists on the interface.
-///
-/// clsact is a classless qdisc that allows attaching filters on both ingress
-/// and egress. We use it to redirect all ingress traffic to the IFB device
-/// via a mirred action.
-fn ensure_clsact(interface: &str) -> Result<()> {
-    let check = Command::new("tc")
-        .args(["qdisc", "show", "dev", interface])
-        .output()
-        .context("failed to check tc qdisc")?;
-    let stdout = String::from_utf8_lossy(&check.stdout);
-    if stdout.contains("clsact") {
-        return Ok(());
-    }
-    // Delete any stale ingress qdisc (from police-based approach) before
-    // creating clsact, since only one ingress-type qdisc can exist per device.
-    if stdout.contains("ingress") {
-        let _ = Command::new("tc")
-            .args(["qdisc", "del", "dev", interface, "ingress"])
-            .output();
-    }
-    let output = Command::new("tc")
-        .args(["qdisc", "add", "dev", interface, "clsact"])
-        .output()
-        .context("failed to create clsact qdisc")?;
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        bail!("failed to create clsact qdisc on {}: {}", interface, stderr);
-    }
-    Ok(())
-}
-
-/// Ensure the IFB (Intermediate Functional Block) virtual device exists and is up.
-///
-/// IFB allows HTB shaping on ingress traffic by redirecting ingress packets
-/// to the IFB device where they can be classified and rate-limited.
-fn ensure_ifb() -> Result<()> {
-    let _ = Command::new("modprobe").arg("ifb").output();
-    // also load act_mirred for the redirect action
-    let _ = Command::new("modprobe").arg("act_mirred").output();
-
-    let check = Command::new("ip")
-        .args(["link", "show", IFB_DEVICE])
-        .output()
-        .ok();
-    let ifb_exists = check.as_ref().map(|o| o.status.success()).unwrap_or(false);
-
-    if !ifb_exists {
-        let output = Command::new("ip")
-            .args(["link", "add", IFB_DEVICE, "type", "ifb"])
-            .output()
-            .context("failed to create IFB device. Is the 'ifb' kernel module available?")?;
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            bail!("failed to create IFB device: {}", stderr);
-        }
-    }
-
-    let output = Command::new("ip")
-        .args(["link", "set", IFB_DEVICE, "up"])
-        .output()
-        .context("failed to bring IFB device up")?;
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        bail!("failed to bring IFB device up: {}", stderr);
-    }
-    Ok(())
-}
-
-/// Ensure the HTB root qdisc exists on the IFB device.
-///
-/// This creates the HTB hierarchy on ifb0 where per-UID download classes
-/// are attached. A default class (2:2999) with a very high rate ensures
-/// unmarked packets pass through unrestricted.
-fn ensure_ifb_htb_root() -> Result<()> {
-    let check = Command::new("tc")
-        .args(["qdisc", "show", "dev", IFB_DEVICE])
-        .output()
-        .context("failed to check IFB qdisc")?;
-    let stdout = String::from_utf8_lossy(&check.stdout);
-    // Accept any existing HTB root (handle may vary from stale runs)
-    if stdout.contains("htb") {
-        // Verify the default class exists; if not, the root is stale — recreate it
-        let class_check = Command::new("tc")
-            .args(["class", "show", "dev", IFB_DEVICE, "classid", "2:2999"])
-            .output()
-            .ok();
-        let has_default = class_check
-            .as_ref()
-            .map(|o| o.status.success() && !String::from_utf8_lossy(&o.stdout).is_empty())
-            .unwrap_or(false);
-        if has_default {
-            return Ok(());
-        }
-        // Stale HTB root without proper default class — delete and recreate
-        let _ = Command::new("tc")
-            .args(["qdisc", "del", "dev", IFB_DEVICE, "root"])
-            .output();
-    }
-
-    let output = Command::new("tc")
-        .args([
-            "qdisc", "add", "dev", IFB_DEVICE, "root", "handle", "2:", "htb", "default", "2999",
-        ])
-        .output()
-        .context("failed to create IFB HTB qdisc")?;
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        bail!("failed to create IFB HTB qdisc: {}", stderr);
-    }
-
-    let output = Command::new("tc")
-        .args([
-            "class", "add", "dev", IFB_DEVICE, "parent", "2:", "classid", "2:2999", "htb", "rate",
-            "100gbit", "ceil", "100gbit",
-        ])
-        .output()
-        .context("failed to create IFB default HTB class")?;
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        bail!("failed to create IFB default HTB class: {}", stderr);
-    }
-
-    Ok(())
-}
-
-/// Set up a tc matchall + mirred redirect to send all ingress traffic to the IFB device.
-///
-/// This filter on the physical NIC's clsact ingress redirects every packet to
-/// ifb0, where the HTB hierarchy will classify and rate-limit based on fw marks.
-fn setup_ifb_redirect(interface: &str) -> Result<()> {
-    // Check if redirect already exists
-    let check = Command::new("tc")
-        .args(["filter", "show", "dev", interface, "ingress"])
-        .output()
-        .ok();
-    let redirect_exists = check
-        .as_ref()
-        .map(|o| {
-            let stdout = String::from_utf8_lossy(&o.stdout);
-            stdout.contains("mirred") && stdout.contains("redirect")
-        })
-        .unwrap_or(false);
-
-    if redirect_exists {
-        return Ok(());
-    }
-
-    let output = Command::new("tc")
-        .args([
-            "filter", "add", "dev", interface, "ingress", "pref", "10", "matchall", "action",
-            "mirred", "egress", "redirect", "dev", IFB_DEVICE,
-        ])
-        .output()
-        .context("failed to create IFB redirect filter")?;
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        bail!("failed to create IFB redirect on {}: {}", interface, stderr);
-    }
-
-    Ok(())
-}
-
 // ---------------------------------------------------------------------------
 // Cgroup management
 // ---------------------------------------------------------------------------
@@ -921,6 +709,75 @@ pub fn remove_cgroup(pid: u32) -> Result<()> {
     Ok(())
 }
 
+/// Remove a per-UID cgroup directory and move its processes back to root.
+///
+/// On cgroup v2, per-UID cgroups live at `/sys/fs/cgroup/oxy/uid_<UID>/`.
+/// This function evicts all member PIDs and deletes the directory.
+fn remove_uid_cgroup(uid: u32) -> Result<()> {
+    let cgroup_path = format!("{}/uid_{}", CGROUP_BASE, uid);
+
+    if !Path::new(&cgroup_path).exists() {
+        return Ok(());
+    }
+
+    let (is_v2, is_hybrid) = detect_cgroup_version();
+    let procs_path = format!("{}/cgroup.procs", cgroup_path);
+
+    // Move all processes back to root
+    if Path::new(&procs_path).exists() {
+        if let Ok(content) = fs::read_to_string(&procs_path) {
+            for pid_str in content.lines() {
+                if let Ok(proc_pid) = pid_str.trim().parse::<u32>() {
+                    let root_procs = if is_v2 && !is_hybrid {
+                        "/sys/fs/cgroup/cgroup.procs".to_string()
+                    } else {
+                        format!("{}/cgroup.procs", CGROUP_BASE)
+                    };
+                    if Path::new(&root_procs).exists() {
+                        fs::write(&root_procs, proc_pid.to_string()).ok();
+                    }
+                }
+            }
+        }
+    }
+
+    // Retry removal up to 5 times (processes may linger briefly)
+    let mut removed = false;
+    for _ in 0..5 {
+        match fs::remove_dir(&cgroup_path) {
+            Ok(()) => {
+                removed = true;
+                break;
+            }
+            Err(_) => {
+                // Re-evict any remaining processes
+                if Path::new(&procs_path).exists() {
+                    if let Ok(content) = fs::read_to_string(&procs_path) {
+                        for pid_str in content.lines() {
+                            if let Ok(proc_pid) = pid_str.trim().parse::<u32>() {
+                                let root_procs = if is_v2 && !is_hybrid {
+                                    "/sys/fs/cgroup/cgroup.procs".to_string()
+                                } else {
+                                    format!("{}/cgroup.procs", CGROUP_BASE)
+                                };
+                                if Path::new(&root_procs).exists() {
+                                    let _ = fs::write(&root_procs, proc_pid.to_string());
+                                }
+                            }
+                        }
+                    }
+                }
+                std::thread::sleep(std::time::Duration::from_millis(100));
+            }
+        }
+    }
+    if !removed {
+        fs::remove_dir(&cgroup_path).context("failed to remove UID cgroup directory")?;
+    }
+
+    Ok(())
+}
+
 // ---------------------------------------------------------------------------
 // Main: apply_limit
 // ---------------------------------------------------------------------------
@@ -977,6 +834,7 @@ pub fn apply_limit(
     // Detect cgroup version
     let (cg_is_v2, cg_is_hybrid) = detect_cgroup_version();
     let use_cgroup_v1_backend = !cg_is_v2 || cg_is_hybrid;
+    let is_pure_v2 = cg_is_v2 && !cg_is_hybrid;
 
     // Set up HTB qdisc for upload (egress) shaping
     ensure_htb_qdisc(&interface)?;
@@ -1029,12 +887,71 @@ pub fn apply_limit(
     // Load existing state
     let mut state = OxyState::load()?;
 
-    // Phase 1: Create per-PID cgroups and records
+    // Phase 1: Group PIDs by UID, create per-UID cgroups (v2) or per-PID cgroups (v1).
+    // Build a map: UID → (cgroup_id, [pid, ...])
+    let mut uid_cgroups: std::collections::HashMap<u32, Option<u64>> =
+        std::collections::HashMap::new();
+    let mut pid_to_uid: std::collections::HashMap<u32, u32> = std::collections::HashMap::new();
+
+    // First pass: resolve UIDs for all PIDs
+    for pid in &pids {
+        if let Some(uid) = get_process_uid(*pid) {
+            pid_to_uid.insert(*pid, uid);
+        }
+    }
+
+    // On pure cgroup v2: create per-UID cgroups and move all PIDs there.
+    // On cgroup v1/hybrid: create per-PID cgroups with net_cls.classid.
+    if is_pure_v2 {
+        // Create per-UID cgroups under /sys/fs/cgroup/oxy/uid_<UID>/
+        for &uid in pid_to_uid.values() {
+            if uid_cgroups.contains_key(&uid) {
+                continue;
+            }
+            let uid_cg_path = format!("{}/uid_{}", CGROUP_BASE, uid);
+            fs::create_dir_all(&uid_cg_path).context(format!(
+                "failed to create cgroup v2 directory for UID {}. Is cgroup2 mounted?",
+                uid
+            ))?;
+
+            // Move all PIDs of this UID into the cgroup
+            for (&pid, &p_uid) in &pid_to_uid {
+                if p_uid == uid {
+                    let procs_path = format!("{}/cgroup.procs", uid_cg_path);
+                    if Path::new(&procs_path).exists() {
+                        let _ = fs::write(&procs_path, pid.to_string());
+                    }
+                }
+            }
+
+            // Read the cgroup.id for nftables socket cgroupv2 matching
+            let cg_id_path = format!("{}/cgroup.id", uid_cg_path);
+            let cg_id = if Path::new(&cg_id_path).exists() {
+                fs::read_to_string(&cg_id_path)
+                    .ok()
+                    .and_then(|s| s.trim().parse::<u64>().ok())
+            } else {
+                None
+            };
+
+            uid_cgroups.insert(uid, cg_id);
+        }
+    }
+
+    // Phase 2: Create records for each PID
     let mut applied_count = 0;
     for pid in &pids {
         let class_id = next_class_id()?;
         let _process_name = get_process_name(*pid);
-        let (_cgroup_path, _is_cgroup_v2) = setup_cgroup(*pid, class_id)?;
+
+        let uid = pid_to_uid.get(pid).copied();
+        let cgroup_id = if is_pure_v2 {
+            uid.and_then(|u| uid_cgroups.get(&u).copied().flatten())
+        } else {
+            // For v1/hybrid: create per-PID cgroup and ignore cgroup_id
+            let _ = setup_cgroup(*pid, class_id);
+            None
+        };
 
         let record = LimitRecord {
             target: target.to_string(),
@@ -1047,6 +964,7 @@ pub fn apply_limit(
             class_id,
             applied_at: chrono_now(),
             ingress_handle: None,
+            cgroup_id,
         };
 
         state.limits.push(record);
@@ -1056,7 +974,7 @@ pub fn apply_limit(
     // Save state (needed before computing per-UID tc objects)
     state.save()?;
 
-    // Phase 2: Create per-UID egress tc objects (HTB class + fw filter).
+    // Phase 3: Create per-UID egress tc objects (HTB class + fw filter).
     // Since the nftables mark is the UID value, the fw filter handle must also
     // be the UID. All PIDs sharing a UID share one HTB class (upload) rate.
     let mut uid_min_ul: std::collections::HashMap<u32, u64> = std::collections::HashMap::new();
@@ -1160,176 +1078,8 @@ pub fn apply_limit(
         return Err(e);
     }
 
-    // Phase 3: Set up IFB + HTB for download (ingress) limiting
-    let has_download = state
-        .limits
-        .iter()
-        .any(|l| l.download_bytes_per_sec.is_some());
-    let mut had_errors = false;
-
-    if has_download {
-        if let Err(e) = ensure_ifb() {
-            eprintln!(
-                "{}: IFB setup failed: {}. Download limiting will not work.",
-                "ERROR".red().bold(),
-                e
-            );
-            had_errors = true;
-        }
-        if let Err(e) = ensure_clsact(&interface) {
-            eprintln!("{}: clsact setup failed: {}", "ERROR".red().bold(), e);
-            had_errors = true;
-        }
-        if let Err(e) = ensure_ifb_htb_root() {
-            eprintln!("{}: IFB HTB root failed: {}", "ERROR".red().bold(), e);
-            had_errors = true;
-        }
-        if let Err(e) = setup_ifb_redirect(&interface) {
-            eprintln!("{}: IFB redirect failed: {}", "ERROR".red().bold(), e);
-            had_errors = true;
-        }
-    }
-
-    // Compute minimum download rate per UID
-    let mut uid_min_dl: std::collections::HashMap<u32, u64> = std::collections::HashMap::new();
-    for record in state
-        .limits
-        .iter()
-        .filter(|l| l.download_bytes_per_sec.is_some())
-    {
-        if let Some(uid) = get_process_uid(record.pid) {
-            let dl_bps = record.download_bytes_per_sec.unwrap();
-            uid_min_dl
-                .entry(uid)
-                .and_modify(|min| *min = (*min).min(dl_bps))
-                .or_insert(dl_bps);
-        }
-    }
-
-    let mut dl_tx = TcTransaction::new();
-    for (uid, dl_bps) in &uid_min_dl {
-        let dl_kbit = (dl_bps * 8) / 1000;
-        let ceil_kbit = (dl_kbit as f64 * 1.1) as u64;
-        let class_id_str = format!("2:{:04x}", uid);
-
-        // Download (ingress): HTB class on IFB for this UID
-        dl_tx.add(
-            &format!("ingress HTB class for UID {}", uid),
-            vec![
-                "class".into(),
-                "add".into(),
-                "dev".into(),
-                IFB_DEVICE.into(),
-                "parent".into(),
-                "2:".into(),
-                "classid".into(),
-                class_id_str.clone(),
-                "htb".into(),
-                "rate".into(),
-                format!("{}kbit", dl_kbit),
-                "ceil".into(),
-                format!("{}kbit", ceil_kbit),
-                "burst".into(),
-                "15k".into(),
-                "cburst".into(),
-                "15k".into(),
-            ],
-            vec![
-                "class".into(),
-                "del".into(),
-                "dev".into(),
-                IFB_DEVICE.into(),
-                "classid".into(),
-                class_id_str.clone(),
-            ],
-        );
-
-        // fw filter on IFB root (IPv4) — parent 2: references the HTB root qdisc
-        dl_tx.add(
-            &format!("ingress fw filter (ip) for UID {}", uid),
-            vec![
-                "filter".into(),
-                "add".into(),
-                "dev".into(),
-                IFB_DEVICE.into(),
-                "parent".into(),
-                "2:".into(),
-                "protocol".into(),
-                "ip".into(),
-                "prio".into(),
-                "100".into(),
-                "handle".into(),
-                uid.to_string(),
-                "fw".into(),
-                "flowid".into(),
-                class_id_str.clone(),
-            ],
-            vec![
-                "filter".into(),
-                "del".into(),
-                "dev".into(),
-                IFB_DEVICE.into(),
-                "parent".into(),
-                "2:".into(),
-                "protocol".into(),
-                "ip".into(),
-                "prio".into(),
-                "100".into(),
-                "handle".into(),
-                uid.to_string(),
-                "fw".into(),
-            ],
-        );
-
-        // fw filter on IFB root (IPv6) — prio 200 to avoid conflict with IPv4 prio 100
-        dl_tx.add(
-            &format!("ingress fw filter (ipv6) for UID {}", uid),
-            vec![
-                "filter".into(),
-                "add".into(),
-                "dev".into(),
-                IFB_DEVICE.into(),
-                "parent".into(),
-                "2:".into(),
-                "protocol".into(),
-                "ipv6".into(),
-                "prio".into(),
-                "200".into(),
-                "handle".into(),
-                uid.to_string(),
-                "fw".into(),
-                "flowid".into(),
-                class_id_str.clone(),
-            ],
-            vec![
-                "filter".into(),
-                "del".into(),
-                "dev".into(),
-                IFB_DEVICE.into(),
-                "parent".into(),
-                "2:".into(),
-                "protocol".into(),
-                "ipv6".into(),
-                "prio".into(),
-                "200".into(),
-                "handle".into(),
-                uid.to_string(),
-                "fw".into(),
-            ],
-        );
-    }
-
-    if let Err(e) = dl_tx.execute() {
-        eprintln!(
-            "{}: Failed to apply IFB download rules: {}",
-            "ERROR".red().bold(),
-            e
-        );
-        had_errors = true;
-    }
-
-    // Refresh all nftables rules
-    if let Err(e) = refresh_all_nft_rules(&state.limits, &interface) {
+    // Refresh nftables rules (inet table with output + postrouting + download chains)
+    if let Err(e) = refresh_nft_ip_rules(&state.limits) {
         eprintln!(
             "{}: Failed to apply nft packet marking rules: {}",
             "ERROR".red().bold(),
@@ -1339,7 +1089,6 @@ pub fn apply_limit(
             "  {} Without nftables rules, packets will not be classified.",
             "NOTE:".yellow()
         );
-        had_errors = true;
     }
 
     // Print summary
@@ -1350,26 +1099,10 @@ pub fn apply_limit(
                 .yellow()
                 .bold()
         );
-        if had_errors {
-            bail!("one or more setup steps failed — check errors above");
-        }
         return Ok(());
     }
 
-    if had_errors {
-        println!(
-            "{}",
-            "oxy strict: bandwidth limit applied WITH ERRORS"
-                .red()
-                .bold()
-        );
-        println!(
-            "  {} Some components failed to set up. Download limiting may not work correctly.",
-            "WARNING:".yellow()
-        );
-    } else {
-        println!("{}", "oxy strict: bandwidth limit applied".green().bold());
-    }
+    println!("{}", "oxy strict: bandwidth limit applied".green().bold());
     println!();
     println!("  Target:    {}", target);
     println!(
@@ -1380,7 +1113,7 @@ pub fn apply_limit(
             .join(", ")
     );
     if let Some(ref dl) = dl_display {
-        println!("  Download:  {} (limited, IFB + HTB)", dl.cyan());
+        println!("  Download:  {} (limited, socket cgroupv2 + nftables policer)", dl.cyan());
     } else {
         println!("  Download:  {}", "unlimited".dimmed());
     }
@@ -1391,7 +1124,7 @@ pub fn apply_limit(
     }
     println!("  Interface: {}", interface);
     println!(
-        "  Backend:   nftables + IFB + HTB | cgroup v{}",
+        "  Backend:   nftables + HTB | cgroup v{}",
         if use_cgroup_v1_backend {
             "1/hybrid"
         } else {
@@ -1478,7 +1211,7 @@ pub fn remove_limit(target: &str) -> Result<()> {
     for &idx in to_remove.iter().rev() {
         let record = &state.limits[idx];
 
-        // Remove cgroup for this PID
+        // Remove per-PID cgroup for this PID (v1/hybrid)
         remove_cgroup(record.pid)?;
 
         state.limits.remove(idx);
@@ -1524,59 +1257,13 @@ pub fn remove_limit(target: &str) -> Result<()> {
                     .output();
             }
 
-            // Remove IFB HTB class for this UID
-            let _ = Command::new("tc")
-                .args([
-                    "class",
-                    "del",
-                    "dev",
-                    IFB_DEVICE,
-                    "classid",
-                    &format!("2:{:04x}", uid),
-                ])
-                .output();
-            // Remove IFB fw filter (ip)
-            let _ = Command::new("tc")
-                .args([
-                    "filter",
-                    "del",
-                    "dev",
-                    IFB_DEVICE,
-                    "egress",
-                    "protocol",
-                    "ip",
-                    "prio",
-                    "100",
-                    "handle",
-                    &uid.to_string(),
-                    "fw",
-                ])
-                .output();
-            // Remove IFB fw filter (ipv6)
-            let _ = Command::new("tc")
-                .args([
-                    "filter",
-                    "del",
-                    "dev",
-                    IFB_DEVICE,
-                    "egress",
-                    "protocol",
-                    "ipv6",
-                    "prio",
-                    "100",
-                    "handle",
-                    &uid.to_string(),
-                    "fw",
-                ])
-                .output();
+            // Remove per-UID cgroup
+            let _ = remove_uid_cgroup(*uid);
         }
     }
 
     // Refresh nft rules (removes marking for removed processes)
-    if let Err(e) = refresh_all_nft_rules(
-        &state.limits,
-        removed_ifaces.first().unwrap_or(&"".to_string()),
-    ) {
+    if let Err(e) = refresh_nft_ip_rules(&state.limits) {
         eprintln!("{}: Failed to refresh nft rules: {}", "WARNING".yellow(), e);
     }
 
@@ -1591,22 +1278,10 @@ pub fn remove_limit(target: &str) -> Result<()> {
                 .output();
         }
 
-        // Remove IFB HTB qdisc
-        let _ = Command::new("tc")
-            .args(["qdisc", "del", "dev", IFB_DEVICE, "root"])
-            .output();
-
-        // Remove clsact from interface (which also removes ingress redirect)
-        for iface in &removed_ifaces {
-            let _ = Command::new("tc")
-                .args(["qdisc", "del", "dev", iface, "clsact"])
-                .output();
+        // Clean up all per-UID cgroups
+        for uid in &removed_uids {
+            let _ = remove_uid_cgroup(*uid);
         }
-
-        // Remove netdev table
-        let _ = Command::new("nft")
-            .args(["delete", "table", "netdev", "oxy_mark"])
-            .output();
 
         // Clean up all nftables tables
         let _ = Command::new("nft")
@@ -1653,7 +1328,7 @@ pub fn list_active_limits() -> Result<()> {
         println!("  Target:    {} (PID: {})", record.target, record.pid);
         println!("  Process:   {}", process_name);
         if let Some(ref dl) = record.download_display {
-            println!("  Download:  {} (IFB + HTB)", dl);
+            println!("  Download:  {} (socket cgroupv2 + nftables policer)", dl);
         } else {
             println!("  Download:  {}", "unlimited".dimmed());
         }
@@ -1781,7 +1456,15 @@ pub fn clean_orphans() -> Result<()> {
                     ])
                     .output();
             }
+
+            // Remove per-UID cgroup
+            let _ = remove_uid_cgroup(*uid);
         }
+    }
+
+    // Refresh nft rules
+    if let Err(e) = refresh_nft_ip_rules(&state.limits) {
+        eprintln!("{}: Failed to refresh nft rules: {}", "WARNING".yellow(), e);
     }
 
     println!();
@@ -1824,6 +1507,9 @@ pub fn check_respawns() -> Result<()> {
         return Ok(());
     }
 
+    let (cg_is_v2, cg_is_hybrid) = detect_cgroup_version();
+    let is_pure_v2 = cg_is_v2 && !cg_is_hybrid;
+
     let mut respawned: Vec<(usize, Vec<u32>)> = Vec::new();
 
     // Check each limit for process death and potential respawn
@@ -1865,14 +1551,23 @@ pub fn check_respawns() -> Result<()> {
         // Get first PID and update record
         let first_pid = new_pids[0];
 
-        // Re-apply for each new PID
         for &new_pid in &new_pids {
-            let (cgroup_path, _) = setup_cgroup(new_pid, record.class_id)?;
-
-            // Move process to cgroup
-            let procs_path = format!("{}/cgroup.procs", cgroup_path);
-            if std::path::Path::new(&procs_path).exists() {
-                let _ = std::fs::write(&procs_path, new_pid.to_string());
+            if is_pure_v2 {
+                // On pure cgroup v2: move respawned PID to per-UID cgroup
+                if let Some(uid) = get_process_uid(new_pid) {
+                    let uid_cg_path = format!("{}/uid_{}", CGROUP_BASE, uid);
+                    let procs_path = format!("{}/cgroup.procs", uid_cg_path);
+                    if Path::new(&procs_path).exists() {
+                        let _ = fs::write(&procs_path, new_pid.to_string());
+                    }
+                }
+            } else {
+                // On cgroup v1/hybrid: create per-PID cgroup as before
+                let (cgroup_path, _) = setup_cgroup(new_pid, record.class_id)?;
+                let procs_path = format!("{}/cgroup.procs", cgroup_path);
+                if Path::new(&procs_path).exists() {
+                    let _ = fs::write(&procs_path, new_pid.to_string());
+                }
             }
         }
 
@@ -1885,6 +1580,11 @@ pub fn check_respawns() -> Result<()> {
 
     // Save updated state
     state.save()?;
+
+    // Refresh nft rules to pick up new cgroup memberships
+    if let Err(e) = refresh_nft_ip_rules(&state.limits) {
+        eprintln!("{}: Failed to refresh nft rules after respawn: {}", "WARNING".yellow(), e);
+    }
 
     println!();
     println!("{}", "oxy: respawn handling complete".green().bold());
