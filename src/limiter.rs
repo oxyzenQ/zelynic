@@ -235,7 +235,9 @@ fn refresh_nft_ip_rules(limits: &[LimitRecord]) -> Result<()> {
 /// Uses `socket cgroupv2 == <cgroup_id>` to match packets whose socket belongs
 /// to a specific cgroup. TCP early demux sets skb->sk before netdev ingress, so
 /// this works for reply (download) packets of established connections.
-/// Rules are deduplicated by UID — all PIDs sharing a UID generate one rule.
+///
+/// Each PID gets its own cgroup directory, so multiple PIDs sharing a UID produce
+/// multiple rules — one per unique cgroup ID, all setting the same fw mark.
 fn build_nft_netdev_ruleset(limits: &[LimitRecord], interface: &str) -> String {
     let dl_limits: Vec<_> = limits
         .iter()
@@ -246,18 +248,22 @@ fn build_nft_netdev_ruleset(limits: &[LimitRecord], interface: &str) -> String {
         return String::new();
     }
 
-    // Collect unique (uid, cgroup_id) pairs, deduplicating by UID.
-    // All PIDs sharing a UID get the same mark, so we only need one rule per UID.
-    let mut uid_cgroup_map: std::collections::HashMap<u32, u64> = std::collections::HashMap::new();
+    // Collect unique (cgroup_id → mark) pairs.
+    // Each PID has its own cgroup directory with a unique cgroup.id.
+    // Multiple PIDs sharing a UID produce multiple rules that all set the
+    // same mark (UID value).  We cannot deduplicate by UID because each
+    // cgroup directory has a different inode number.
+    let mut cg_id_to_mark: std::collections::HashMap<u64, u32> =
+        std::collections::HashMap::new();
     for record in &dl_limits {
         if let Some(uid) = get_process_uid(record.pid) {
             if let Some(cg_id) = get_cgroup_id(record.pid) {
-                uid_cgroup_map.insert(uid, cg_id);
+                cg_id_to_mark.insert(cg_id, uid);
             }
         }
     }
 
-    if uid_cgroup_map.is_empty() {
+    if cg_id_to_mark.is_empty() {
         return String::new();
     }
 
@@ -267,10 +273,10 @@ fn build_nft_netdev_ruleset(limits: &[LimitRecord], interface: &str) -> String {
         iface = interface
     ));
 
-    for (uid, cg_id) in &uid_cgroup_map {
+    for (cg_id, mark) in &cg_id_to_mark {
         ruleset.push_str(&format!(
             "    socket cgroupv2 == {} meta mark set {};\n",
-            cg_id, uid
+            cg_id, mark
         ));
     }
 
