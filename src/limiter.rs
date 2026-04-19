@@ -222,33 +222,51 @@ fn refresh_nft_ip_rules(limits: &[LimitRecord]) -> Result<()> {
 /// This netdev ingress hook fires before tc ingress, ensuring the fw mark
 /// (from conntrack) is available when tc clsact processes the packet on
 /// its way to the IFB device.
-fn build_nft_netdev_ruleset(interface: &str) -> String {
-    format!(
-        r#"table netdev oxy_mark {{
-    chain {iface}_ingress {{
-        type filter hook ingress device {iface} priority filter; policy accept;
-        ct mark != 0 meta mark set ct mark
-    }}
-}}
-"#,
+fn build_nft_netdev_ruleset(limits: &[LimitRecord], interface: &str) -> String {
+    let dl_limits: Vec<_> = limits
+        .iter()
+        .filter(|l| l.download_bytes_per_sec.is_some())
+        .collect();
+
+    if dl_limits.is_empty() {
+        return String::new();
+    }
+
+    let mut ruleset = String::new();
+    ruleset.push_str(&format!(
+        "table netdev oxy_mark {{\n  chain {iface}_ingress {{\n    type filter hook ingress device \"{iface}\" priority filter; policy accept;\n",
         iface = interface
-    )
+    ));
+
+    for record in &dl_limits {
+        let cgroup_rel = format!("oxy/pid_{}", record.pid);
+        // Use socket cgroupv2 to match packets whose socket belongs to this
+        // process's cgroup. TCP early demux sets skb->sk before netdev ingress,
+        // so this works for reply (download) packets too.
+        if let Some(uid) = get_process_uid(record.pid) {
+            ruleset.push_str(&format!(
+                "    socket cgroupv2 path \"{}\" meta mark set {};\n",
+                cgroup_rel, uid
+            ));
+        }
+    }
+
+    ruleset.push_str("  }\n}\n");
+    ruleset
 }
 
 /// Apply (or refresh) the nftables netdev oxy_mark table for ingress mark restoration.
 ///
 /// Only creates the netdev table when there are download limits; deletes it otherwise.
 fn refresh_nft_netdev_rules(limits: &[LimitRecord], interface: &str) -> Result<()> {
-    let has_download = limits.iter().any(|l| l.download_bytes_per_sec.is_some());
+    let ruleset = build_nft_netdev_ruleset(limits, interface);
 
-    if !has_download {
+    if ruleset.is_empty() {
         let _ = Command::new("nft")
             .args(["delete", "table", "netdev", "oxy_mark"])
             .output();
         return Ok(());
     }
-
-    let ruleset = build_nft_netdev_ruleset(interface);
 
     let nft_file = "/run/oxy/oxy_mark.nft";
     fs::create_dir_all(STATE_DIR).ok();
@@ -607,6 +625,13 @@ fn ensure_clsact(interface: &str) -> Result<()> {
     if stdout.contains("clsact") {
         return Ok(());
     }
+    // Delete any stale ingress qdisc (from police-based approach) before
+    // creating clsact, since only one ingress-type qdisc can exist per device.
+    if stdout.contains("ingress") {
+        let _ = Command::new("tc")
+            .args(["qdisc", "del", "dev", interface, "ingress"])
+            .output();
+    }
     let output = Command::new("tc")
         .args(["qdisc", "add", "dev", interface, "clsact"])
         .output()
@@ -666,8 +691,24 @@ fn ensure_ifb_htb_root() -> Result<()> {
         .output()
         .context("failed to check IFB qdisc")?;
     let stdout = String::from_utf8_lossy(&check.stdout);
-    if stdout.contains("qdisc htb 2:") {
-        return Ok(());
+    // Accept any existing HTB root (handle may vary from stale runs)
+    if stdout.contains("htb") {
+        // Verify the default class exists; if not, the root is stale — recreate it
+        let class_check = Command::new("tc")
+            .args(["class", "show", "dev", IFB_DEVICE, "classid", "2:2999"])
+            .output()
+            .ok();
+        let has_default = class_check
+            .as_ref()
+            .map(|o| o.status.success() && !String::from_utf8_lossy(&o.stdout).is_empty())
+            .unwrap_or(false);
+        if has_default {
+            return Ok(());
+        }
+        // Stale HTB root without proper default class — delete and recreate
+        let _ = Command::new("tc")
+            .args(["qdisc", "del", "dev", IFB_DEVICE, "root"])
+            .output();
     }
 
     let output = Command::new("tc")
@@ -1096,22 +1137,28 @@ pub fn apply_limit(
         .limits
         .iter()
         .any(|l| l.download_bytes_per_sec.is_some());
+    let mut had_errors = false;
+
     if has_download {
         if let Err(e) = ensure_ifb() {
             eprintln!(
-                "{}: IFB setup failed: {}. Download limiting may not work.",
-                "WARNING".yellow(),
+                "{}: IFB setup failed: {}. Download limiting will not work.",
+                "ERROR".red().bold(),
                 e
             );
+            had_errors = true;
         }
         if let Err(e) = ensure_clsact(&interface) {
-            eprintln!("{}: clsact setup failed: {}", "WARNING".yellow(), e);
+            eprintln!("{}: clsact setup failed: {}", "ERROR".red().bold(), e);
+            had_errors = true;
         }
         if let Err(e) = ensure_ifb_htb_root() {
-            eprintln!("{}: IFB HTB root failed: {}", "WARNING".yellow(), e);
+            eprintln!("{}: IFB HTB root failed: {}", "ERROR".red().bold(), e);
+            had_errors = true;
         }
         if let Err(e) = setup_ifb_redirect(&interface) {
-            eprintln!("{}: IFB redirect failed: {}", "WARNING".yellow(), e);
+            eprintln!("{}: IFB redirect failed: {}", "ERROR".red().bold(), e);
+            had_errors = true;
         }
     }
 
@@ -1246,6 +1293,7 @@ pub fn apply_limit(
             "ERROR".red().bold(),
             e
         );
+        had_errors = true;
     }
 
     // Refresh all nftables rules
@@ -1259,6 +1307,7 @@ pub fn apply_limit(
             "  {} Without nftables rules, packets will not be classified.",
             "NOTE:".yellow()
         );
+        had_errors = true;
     }
 
     // Print summary
@@ -1269,10 +1318,24 @@ pub fn apply_limit(
                 .yellow()
                 .bold()
         );
+        if had_errors {
+            bail!("one or more setup steps failed — check errors above");
+        }
         return Ok(());
     }
 
-    println!("{}", "oxy strict: bandwidth limit applied".green().bold());
+    if had_errors {
+        println!(
+            "{}",
+            "oxy strict: bandwidth limit applied WITH ERRORS".red().bold()
+        );
+        println!(
+            "  {} Some components failed to set up. Download limiting may not work correctly.",
+            "WARNING:".yellow()
+        );
+    } else {
+        println!("{}", "oxy strict: bandwidth limit applied".green().bold());
+    }
     println!();
     println!("  Target:    {}", target);
     println!(
@@ -1556,7 +1619,7 @@ pub fn list_active_limits() -> Result<()> {
         println!("  Target:    {} (PID: {})", record.target, record.pid);
         println!("  Process:   {}", process_name);
         if let Some(ref dl) = record.download_display {
-            println!("  Download:  {} (police)", dl);
+            println!("  Download:  {} (IFB + HTB)", dl);
         } else {
             println!("  Download:  {}", "unlimited".dimmed());
         }
