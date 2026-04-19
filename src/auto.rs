@@ -13,7 +13,7 @@ use std::time::{Duration, Instant, SystemTime};
 
 use crate::limiter::{apply_limit, check_root, resolve_pids};
 use crate::monitor::{aggregate_by_process, collect_bandwidth_stats};
-use crate::units::{BandwidthRate, format_bytes};
+use crate::units::{format_bytes, BandwidthRate};
 
 /// PID file for daemon.
 const DAEMON_PID_FILE: &str = "/run/oxy/auto_daemon.pid";
@@ -168,8 +168,7 @@ impl AutoThrottle {
             Ok(pids) => pids,
             Err(_) => return Ok(()),
         };
-        let target_pid_set: std::collections::HashSet<u32> =
-            target_pids.into_iter().collect();
+        let target_pid_set: std::collections::HashSet<u32> = target_pids.into_iter().collect();
 
         let targets: Vec<_> = processes
             .iter()

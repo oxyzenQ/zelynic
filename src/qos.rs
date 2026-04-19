@@ -15,7 +15,9 @@ use std::fs;
 use std::path::Path;
 use std::process::Command;
 
-use crate::limiter::{check_root, get_default_interface, next_class_id, resolve_pids, setup_cgroup};
+use crate::limiter::{
+    check_root, get_default_interface, next_class_id, resolve_pids, setup_cgroup,
+};
 
 /// QoS state file.
 const QOS_STATE_FILE: &str = "/run/oxy/qos_state.json";

@@ -982,9 +982,7 @@ pub fn apply_limit(
         // --- Upload (egress): HTB class for this UID ---
         // Pre-delete existing class to make the operation idempotent.
         let _ = Command::new("tc")
-            .args([
-                "class", "del", "dev", &interface, "classid", &class_id_str,
-            ])
+            .args(["class", "del", "dev", &interface, "classid", &class_id_str])
             .output();
 
         tx.add(
@@ -1023,8 +1021,19 @@ pub fn apply_limit(
         // re-running `oxy strict` without `oxy unstrict` first).
         let _ = Command::new("tc")
             .args([
-                "filter", "del", "dev", &interface, "parent", "1:0", "protocol", "ip",
-                "prio", "100", "handle", &uid.to_string(), "fw",
+                "filter",
+                "del",
+                "dev",
+                &interface,
+                "parent",
+                "1:0",
+                "protocol",
+                "ip",
+                "prio",
+                "100",
+                "handle",
+                &uid.to_string(),
+                "fw",
             ])
             .output();
 
