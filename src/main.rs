@@ -279,9 +279,9 @@ fn main() -> Result<()> {
 /// Print the oxy ASCII banner on startup (when no arguments given).
 fn print_banner() {
     let banner = r#"
-     ╔═╗╔═╗╦ ╦
-     ║ ║╠═╝╚╦╝
-     ╚═╝╩   ╩
+     ╔═╗╔╦╗╦ ╦
+     ║ ║╠╣ ╚╦╝
+     ╚═╝╚╩╝ ╩
     "#;
     println!("{}", banner.cyan());
     println!();
@@ -299,9 +299,9 @@ fn print_banner() {
 /// practical usage examples that aren't visible in the default `-h` output.
 fn print_help_all() {
     let banner = r#"
-     ╔═╗╔═╗╦ ╦
-     ║ ║╠═╝╚╦╝
-     ╚═╝╩   ╩
+     ╔═╗╔╦╗╦ ╦
+     ║ ║╠╣ ╚╦╝
+     ╚═╝╚╩╝ ╩
     "#;
     println!("{}", banner.cyan());
     println!(
@@ -638,6 +638,8 @@ fn print_help_all() {
     // --- globals ---
     println!("{}", "GLOBAL OPTIONS".bold());
     println!("  --iface <INTERFACE>      Specify network interface (default: auto-detect)");
+    println!("                            Validates against available interfaces.");
+    println!("                            Invalid names show available list.");
     println!("  --no-color               Disable colored output");
     println!();
 
@@ -648,8 +650,17 @@ fn print_help_all() {
     println!("  # Limit browser bandwidth");
     println!("  sudo oxy strict -d 1mb -u 500kb brave");
     println!();
+    println!("  # Re-limit without unstrict (auto-cleans old rules)");
+    println!("  sudo oxy strict -d 500kb brave      # apply limit");
+    println!("  sudo oxy strict -d 10mb brave       # auto-overrides to 10mb");
+    println!();
     println!("  # Quick preset");
     println!("  sudo oxy strict --preset gaming discord");
+    println!();
+    println!("  # Specify interface explicitly");
+    println!("  sudo oxy --iface wlan0 strict -d 1mb brave");
+    println!("  sudo oxy --iface eth0 qos high firefox");
+    println!("  oxy --iface enp3s0 list --live");
     println!();
     println!("  # Remove limits");
     println!("  sudo oxy unstrict brave");

@@ -443,6 +443,41 @@ pub fn get_default_interface() -> Result<String> {
     bail!("could not determine default network interface from route table");
 }
 
+/// List all available network interfaces on the system.
+fn list_interfaces() -> Vec<String> {
+    let mut ifaces = Vec::new();
+    if let Ok(entries) = fs::read_dir("/sys/class/net") {
+        for entry in entries.flatten() {
+            if let Some(name) = entry.file_name().to_str() {
+                // Skip loopback
+                if name != "lo" {
+                    ifaces.push(name.to_string());
+                }
+            }
+        }
+    }
+    ifaces.sort();
+    ifaces
+}
+
+/// Validate that a given interface name exists on the system.
+/// Returns an error with available interfaces listed if invalid.
+pub fn validate_interface(name: &str) -> Result<()> {
+    let available = list_interfaces();
+    if available.iter().any(|i| i == name) {
+        return Ok(());
+    }
+    bail!(
+        "unknown interface '{}'.\n  Available interfaces: {}",
+        name,
+        if available.is_empty() {
+            "(none found)".to_string()
+        } else {
+            available.join(", ")
+        }
+    );
+}
+
 /// Resolve a target string (process name or PID) to actual running PIDs.
 pub fn resolve_pids(target: &str) -> Result<Vec<u32>> {
     if let Ok(pid) = target.parse::<u32>() {
@@ -783,6 +818,15 @@ pub fn apply_limit(
         );
     }
 
+    // Resolve and validate interface early (before doing anything else)
+    let interface = match iface_override {
+        Some(i) => {
+            validate_interface(i)?;
+            i.to_string()
+        }
+        None => get_default_interface()?,
+    };
+
     let download_rate = download.map(BandwidthRate::parse).transpose()?;
     let upload_rate = upload.map(BandwidthRate::parse).transpose()?;
 
@@ -802,12 +846,93 @@ pub fn apply_limit(
     };
 
     let pids = resolve_pids(target)?;
-    let interface = match iface_override {
-        Some(i) => i.to_string(),
-        None => get_default_interface()?,
-    };
 
     println!("{} Using interface: {}", "→".cyan(), interface.cyan());
+
+    // Auto-clean: remove any existing limits for this target to allow
+    // seamless re-running `oxy strict` without manual unstrict first.
+    if let Ok(mut state) = OxyState::load() {
+        let target_lower = target.to_lowercase();
+        let existing: Vec<usize> = state
+            .limits
+            .iter()
+            .enumerate()
+            .filter(|(_, r)| {
+                let rec_lower = r.target.to_lowercase();
+                pids.contains(&r.pid)
+                    || rec_lower == target_lower
+                    || rec_lower.contains(&target_lower)
+                    || target_lower.contains(&rec_lower)
+            })
+            .map(|(i, _)| i)
+            .collect();
+
+        if !existing.is_empty() {
+            // Collect info for cleanup before removing
+            let removed_ifaces: std::collections::HashSet<String> = existing
+                .iter()
+                .map(|&i| state.limits[i].interface.clone())
+                .collect();
+            let removed_uids: std::collections::HashSet<u32> = existing
+                .iter()
+                .filter_map(|&i| get_process_uid(state.limits[i].pid))
+                .collect();
+
+            // Remove per-PID cgroups and state records
+            for &idx in existing.iter().rev() {
+                let _ = remove_cgroup(state.limits[idx].pid);
+                state.limits.remove(idx);
+            }
+            state.save()?;
+
+            // Clean up per-UID tc objects if no limits remain for those UIDs
+            let remaining_uids: std::collections::HashSet<u32> = state
+                .limits
+                .iter()
+                .filter_map(|r| get_process_uid(r.pid))
+                .collect();
+            for uid in &removed_uids {
+                if !remaining_uids.contains(uid) {
+                    let uid_class_id_str = format!("1:{:04x}", uid);
+                    for iface in &removed_ifaces {
+                        let _ = Command::new("tc")
+                            .args(["class", "del", "dev", iface, "classid", &uid_class_id_str])
+                            .output();
+                        let _ = Command::new("tc")
+                            .args([
+                                "filter",
+                                "del",
+                                "dev",
+                                iface,
+                                "parent",
+                                "1:0",
+                                "protocol",
+                                "ip",
+                                "prio",
+                                "100",
+                                "handle",
+                                &uid.to_string(),
+                                "fw",
+                            ])
+                            .output();
+                    }
+                    let _ = remove_uid_cgroup(*uid);
+                }
+            }
+
+            // Refresh nft rules
+            if let Err(e) = refresh_nft_ip_rules(&state.limits) {
+                eprintln!("{}: Failed to refresh nft rules: {}", "WARNING".yellow(), e);
+            }
+
+            println!(
+                "  {} Auto-cleaned {} previous limit(s) for '{}'",
+                "Info:".dimmed(),
+                existing.len(),
+                target
+            );
+        }
+    }
 
     // Ensure kernel modules
     if let Err(e) = ensure_kernel_modules() {
