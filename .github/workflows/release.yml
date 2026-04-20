@@ -125,42 +125,49 @@ jobs:
           CHORES=$(echo "${COMMITS}" | grep -iE "^- (chore|ci|docs|refactor|perf|cleanup)" || true)
           OTHER=$(echo "${COMMITS}" | grep -viE "^- (feat|add|fix|bug|chore|ci|docs|refactor|perf|cleanup)" || true)
 
-          # Build changelog body
-          BODY=""
-          BODY+="## What's Changed\n\n"
+          # Build changelog body using a file directly (avoids newline/escape issues)
+          CHANGELOG_FILE="/tmp/changelog.md"
+          echo "## What's Changed" > "${CHANGELOG_FILE}"
+          echo "" >> "${CHANGELOG_FILE}"
 
           if [ -n "${FEATURES}" ]; then
-            BODY+="### Features\n${FEATURES}\n\n"
+            echo "### Features" >> "${CHANGELOG_FILE}"
+            echo "${FEATURES}" >> "${CHANGELOG_FILE}"
+            echo "" >> "${CHANGELOG_FILE}"
           fi
 
           if [ -n "${FIXES}" ]; then
-            BODY+="### Bug Fixes\n${FIXES}\n\n"
+            echo "### Bug Fixes" >> "${CHANGELOG_FILE}"
+            echo "${FIXES}" >> "${CHANGELOG_FILE}"
+            echo "" >> "${CHANGELOG_FILE}"
           fi
 
           if [ -n "${CHORES}" ]; then
-            BODY+="### Maintenance\n${CHORES}\n\n"
+            echo "### Maintenance" >> "${CHANGELOG_FILE}"
+            echo "${CHORES}" >> "${CHANGELOG_FILE}"
+            echo "" >> "${CHANGELOG_FILE}"
           fi
 
           if [ -n "${OTHER}" ]; then
-            BODY+="### Other Changes\n${OTHER}\n\n"
+            echo "### Other Changes" >> "${CHANGELOG_FILE}"
+            echo "${OTHER}" >> "${CHANGELOG_FILE}"
+            echo "" >> "${CHANGELOG_FILE}"
           fi
 
-          BODY+="---\n"
-          BODY+="**Full Changelog**: https://github.com/oxyzenq/oxy/compare/${PREV_TAG:-$(git rev-list --max-parents=0 HEAD | cut -c1-7)}...${CURRENT_TAG}\n"
+          echo "---" >> "${CHANGELOG_FILE}"
+          FIRST_COMMIT=$(git rev-list --max-parents=0 HEAD | cut -c1-7)
+          echo "**Full Changelog**: https://github.com/oxyzenq/oxy/compare/${PREV_TAG:-${FIRST_COMMIT}}...${CURRENT_TAG}" >> "${CHANGELOG_FILE}"
 
-          # Write to file for multiline handling
-          printf '%s' "${BODY}" > /tmp/changelog.md
-
-          # Also output for GitHub Actions
+          # Use delimiter-based multiline output for GITHUB_OUTPUT
           {
             echo "changelog<<CHANGELOG_EOF"
-            cat /tmp/changelog.md
+            cat "${CHANGELOG_FILE}"
             echo "CHANGELOG_EOF"
           } >> "$GITHUB_OUTPUT"
 
           echo ""
           echo "=== Generated Changelog ==="
-          cat /tmp/changelog.md
+          cat "${CHANGELOG_FILE}"
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
