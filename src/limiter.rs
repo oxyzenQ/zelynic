@@ -866,8 +866,8 @@ pub fn apply_limit(
     let (dl_bps, ul_bps, dl_display, ul_display) = (
         download_rate.as_ref().map(|r| r.bytes_per_sec),
         upload_rate.as_ref().map(|r| r.bytes_per_sec),
-        download_rate.as_ref().map(|r| r.raw.clone()),
-        upload_rate.as_ref().map(|r| r.raw.clone()),
+        download_rate.as_ref().map(|r| r.to_string()),
+        upload_rate.as_ref().map(|r| r.to_string()),
     );
 
     let pids = resolve_pids(target)?;
