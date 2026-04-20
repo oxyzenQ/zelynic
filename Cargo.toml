@@ -42,7 +42,7 @@ codegen-units = 1
 panic = "abort"
 
 [dev-dependencies]
-criterion = { version = "0.5.1", features = ["html_reports"] }
+criterion = { version = "0.8.2", features = ["html_reports"] }
 serde = { version = "1", features = ["derive"] }
 
 [[bench]]
