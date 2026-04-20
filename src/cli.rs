@@ -320,12 +320,10 @@ pub enum Commands {
         status: bool,
     },
 
-    /// Show backend information and eBPF support status
+    /// Show backend information and eBPF capability check
     ///
-    /// Displays which backend (eBPF or tc/cgroup) is being used
-    /// and checks system capabilities for eBPF support.
-    ///
-    /// Use this to verify if your system can use the eBPF backend.
+    /// Displays the active backend (tc/cgroup) and whether the system
+    /// supports eBPF for future use.
     Backend,
 }
 

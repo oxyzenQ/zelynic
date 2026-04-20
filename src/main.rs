@@ -581,10 +581,10 @@ fn print_help_all() {
     println!(
         "  {} {}",
         "backend".green().bold(),
-        "— Show backend and eBPF support status".dimmed()
+        "— Show backend info and eBPF capability check".dimmed()
     );
     println!(
-        "    {} Check which backend (eBPF or tc/cgroup) is active.\n",
+        "    {} Shows active backend (tc/cgroup) and eBPF support status.\n",
         "  ".dimmed()
     );
     println!("    {} Usage: oxy backend", "  ".dimmed());
