@@ -17,6 +17,7 @@ use std::process::Command;
 
 use crate::limiter::{
     check_root, get_default_interface, next_class_id, resolve_pids, setup_cgroup,
+    validate_interface,
 };
 
 /// QoS state file.
@@ -114,7 +115,10 @@ pub fn set_priority(
     check_root()?;
 
     let interface = match iface_override {
-        Some(i) => i.to_string(),
+        Some(i) => {
+            validate_interface(i)?;
+            i.to_string()
+        }
         None => get_default_interface()?,
     };
 
@@ -271,7 +275,10 @@ pub fn reset_qos(iface_override: Option<&str>) -> Result<()> {
     check_root()?;
 
     let interface = match iface_override {
-        Some(i) => i.to_string(),
+        Some(i) => {
+            validate_interface(i)?;
+            i.to_string()
+        }
         None => get_default_interface()?,
     };
     let state = QosState::load()?;

@@ -93,7 +93,10 @@ pub struct TuiApp {
 impl TuiApp {
     fn new(interval_secs: u64, iface_override: Option<&str>) -> Result<Self> {
         let interface = match iface_override {
-            Some(i) => i.to_string(),
+            Some(i) => {
+                crate::limiter::validate_interface(i)?;
+                i.to_string()
+            }
             None => {
                 crate::limiter::get_default_interface().unwrap_or_else(|_| "unknown".to_string())
             }
