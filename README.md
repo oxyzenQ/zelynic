@@ -54,7 +54,7 @@ Download the latest release from [GitHub Releases](https://github.com/oxyzenq/ox
 curl -sL https://github.com/oxyzenq/oxy/releases/latest/download/oxy-v2.0.0-x86_64-linux.tar.gz | tar xz
 
 # Install system-wide
-sudo cp oxy-v2.0.0-x86_64-linux/oxy /usr/local/bin/
+sudo install -Dm755 oxy-v2.0.0-x86_64-linux/oxy /usr/local/bin/oxy
 ```
 
 Verify the download with SHA256 checksums published alongside each release.
@@ -67,14 +67,14 @@ cd oxy
 cargo build --release
 
 # Install system-wide
-sudo cp target/release/oxy /usr/local/bin/
+sudo install -Dm755 target/release/oxy /usr/local/bin/oxy
 ```
 
 ### Quick Build
 
 ```bash
 cargo build --release
-sudo cp target/release/oxy /usr/local/bin/
+sudo install -Dm755 target/release/oxy /usr/local/bin/oxy
 ```
 
 ### Shell Completions

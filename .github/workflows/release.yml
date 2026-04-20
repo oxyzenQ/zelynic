@@ -103,77 +103,80 @@ jobs:
           name: release-artifacts
           path: dist
 
-      - name: Generate changelog from git history
-        id: changelog
+      - name: Generate release body
+        id: release_body
         run: |
+          VERSION="${GITHUB_REF_NAME#v}"
           CURRENT_TAG="${GITHUB_REF_NAME}"
+          PKG_NAME="oxy-v${VERSION}-x86_64-linux"
 
-          # Find the previous tag (sorted by version)
+          # Find previous tag for changelog range
           PREV_TAG=$(git tag --sort=-version:refname | grep -v "^${CURRENT_TAG}$" | head -n 1 || true)
 
+          # Build changelog (last 20 non-trivial commits only)
           if [ -n "${PREV_TAG}" ]; then
-            echo "Generating changelog: ${PREV_TAG}..${CURRENT_TAG}"
-            COMMITS=$(git log "${PREV_TAG}..${CURRENT_TAG}" --pretty=format:"- %s (%h)" --no-merges)
+            RANGE="${PREV_TAG}..${CURRENT_TAG}"
           else
-            echo "No previous tag found. Generating changelog from first commit."
-            COMMITS=$(git log --pretty=format:"- %s (%h)" --no-merges)
+            RANGE="$(git rev-list --max-parents=0 HEAD)...${CURRENT_TAG}"
           fi
 
-          # Categorize commits
-          FEATURES=$(echo "${COMMITS}" | grep -iE "^- (feat|add)" || true)
-          FIXES=$(echo "${COMMITS}" | grep -iE "^- (fix|bug)" || true)
-          CHORES=$(echo "${COMMITS}" | grep -iE "^- (chore|ci|docs|refactor|perf|cleanup)" || true)
-          OTHER=$(echo "${COMMITS}" | grep -viE "^- (feat|add|fix|bug|chore|ci|docs|refactor|perf|cleanup)" || true)
+          # Get commit count (excluding trivial commits)
+          COMMIT_COUNT=$(git log "${RANGE}" --no-merges --oneline \
+            --invert-grep --grep='^fmt$' --grep='^check next' \
+            | wc -l | tr -d ' ')
 
-          # Build changelog body using a file directly (avoids newline/escape issues)
-          CHANGELOG_FILE="/tmp/changelog.md"
-          echo "## What's Changed" > "${CHANGELOG_FILE}"
-          echo "" >> "${CHANGELOG_FILE}"
+          RELEASE_FILE="/tmp/release_body.md"
 
-          if [ -n "${FEATURES}" ]; then
-            echo "### Features" >> "${CHANGELOG_FILE}"
-            echo "${FEATURES}" >> "${CHANGELOG_FILE}"
-            echo "" >> "${CHANGELOG_FILE}"
-          fi
+          # --- Header: description only (title is set via 'name' field, no duplication) ---
+          echo "Easy userspace bandwidth manager for Linux — x86_64" > "${RELEASE_FILE}"
+          echo "" >> "${RELEASE_FILE}"
 
-          if [ -n "${FIXES}" ]; then
-            echo "### Bug Fixes" >> "${CHANGELOG_FILE}"
-            echo "${FIXES}" >> "${CHANGELOG_FILE}"
-            echo "" >> "${CHANGELOG_FILE}"
-          fi
+          # --- Install ---
+          echo '### Install' >> "${RELEASE_FILE}"
+          echo '```bash' >> "${RELEASE_FILE}"
+          echo "tar -xzf ${PKG_NAME}.tar.gz" >> "${RELEASE_FILE}"
+          echo "sudo install -Dm755 ${PKG_NAME}/oxy /usr/local/bin/oxy" >> "${RELEASE_FILE}"
+          echo '```' >> "${RELEASE_FILE}"
+          echo "" >> "${RELEASE_FILE}"
 
-          if [ -n "${CHORES}" ]; then
-            echo "### Maintenance" >> "${CHANGELOG_FILE}"
-            echo "${CHORES}" >> "${CHANGELOG_FILE}"
-            echo "" >> "${CHANGELOG_FILE}"
-          fi
+          # --- Verify ---
+          echo '### Verify' >> "${RELEASE_FILE}"
+          echo '```bash' >> "${RELEASE_FILE}"
+          echo "sha256sum -c ${PKG_NAME}.tar.gz.sha256" >> "${RELEASE_FILE}"
+          echo '```' >> "${RELEASE_FILE}"
+          echo "" >> "${RELEASE_FILE}"
 
-          if [ -n "${OTHER}" ]; then
-            echo "### Other Changes" >> "${CHANGELOG_FILE}"
-            echo "${OTHER}" >> "${CHANGELOG_FILE}"
-            echo "" >> "${CHANGELOG_FILE}"
-          fi
+          # --- Quick Start ---
+          echo '### Quick Start' >> "${RELEASE_FILE}"
+          echo '```bash' >> "${RELEASE_FILE}"
+          echo 'oxy list --live                             # Real-time TUI dashboard' >> "${RELEASE_FILE}"
+          echo 'sudo oxy strict -d 1mb brave                # Limit bandwidth' >> "${RELEASE_FILE}"
+          echo 'sudo oxy strict --preset gaming discord      # Use preset' >> "${RELEASE_FILE}"
+          echo 'oxy --help-all                              # All commands' >> "${RELEASE_FILE}"
+          echo '```' >> "${RELEASE_FILE}"
+          echo "" >> "${RELEASE_FILE}"
 
-          echo "---" >> "${CHANGELOG_FILE}"
-          FIRST_COMMIT=$(git rev-list --max-parents=0 HEAD | cut -c1-7)
-          echo "**Full Changelog**: https://github.com/oxyzenq/oxy/compare/${PREV_TAG:-${FIRST_COMMIT}}...${CURRENT_TAG}" >> "${CHANGELOG_FILE}"
+          # --- Changelog summary (compact) ---
+          echo "---" >> "${RELEASE_FILE}"
+          echo "**${COMMIT_COUNT} changes** since ${PREV_TAG:-first commit}  |  [Full Changelog](https://github.com/oxyzenq/oxy/compare/${PREV_TAG:-$(git rev-list --max-parents=0 HEAD | cut -c1-7)}...${CURRENT_TAG})" >> "${RELEASE_FILE}"
 
-          # Use delimiter-based multiline output for GITHUB_OUTPUT
+          # Feed to GITHUB_OUTPUT
           {
-            echo "changelog<<CHANGELOG_EOF"
-            cat "${CHANGELOG_FILE}"
-            echo "CHANGELOG_EOF"
+            echo "release_body<<BODY_EOF"
+            cat "${RELEASE_FILE}"
+            echo "BODY_EOF"
           } >> "$GITHUB_OUTPUT"
 
           echo ""
-          echo "=== Generated Changelog ==="
-          cat "${CHANGELOG_FILE}"
+          echo "=== Release Body ==="
+          cat "${RELEASE_FILE}"
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
+          name: "oxy v${{ github.ref_name }}"
           files: dist/*
-          body: ${{ steps.changelog.outputs.changelog }}
+          body: ${{ steps.release_body.outputs.release_body }}
           draft: false
           prerelease: ${{ contains(github.ref_name, '-') }}
         env:
