@@ -5,125 +5,169 @@ on:
     tags:
       - 'v*'
 
-permissions:
-  contents: write
-
 env:
   CARGO_TERM_COLOR: always
-  BINARY: "oxy"
-  TARGET: "x86_64-unknown-linux-gnu"
 
 jobs:
+  # ===========================================================================
+  # Build Release Binary (x86_64 Linux only)
+  # ===========================================================================
   build:
-    name: Build & Release
+    name: Build Release Binary
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-gnu
 
-      - name: Cache cargo
+      - name: Cache cargo registry & build
         uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: ${{ runner.os }}-cargo-release-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-x86_64-unknown-linux-gnu-cargo-release-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-release-
+            ${{ runner.os }}-x86_64-unknown-linux-gnu-cargo-release-
 
       - name: Build release binary
-        run: cargo build --release --locked
+        run: cargo build --release --target x86_64-unknown-linux-gnu --locked
 
-      - name: Prepare artifacts
+      - name: Prepare release artifacts
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          PKG="oxy-v${VERSION}-x86_64-linux"
-          mkdir -p "dist/${PKG}"
+          VERSION=${GITHUB_REF_NAME#v}
+          PKG_NAME="oxy-v${VERSION}-x86_64-linux"
+          mkdir -p "dist/${PKG_NAME}/man"
 
-          cp target/release/${BINARY} "dist/${PKG}/${BINARY}"
-          cp README.md LICENSE "dist/${PKG}/"
+          # Copy binary
+          cp target/x86_64-unknown-linux-gnu/release/oxy "dist/${PKG_NAME}/oxy"
+
+          # Copy documentation
+          cp README.md LICENSE "dist/${PKG_NAME}/"
 
           # Generate man page
-          ./target/release/${BINARY} man > "dist/${PKG}/oxy.1" 2>/dev/null || true
-          if [ -s "dist/${PKG}/oxy.1" ]; then
-            gzip -f "dist/${PKG}/oxy.1"
+          chmod +x "dist/${PKG_NAME}/oxy"
+          ./dist/${PKG_NAME}/oxy man > "dist/${PKG_NAME}/man/oxy.1" 2>/dev/null || true
+          if [ -f "dist/${PKG_NAME}/man/oxy.1" ]; then
+            gzip -f "dist/${PKG_NAME}/man/oxy.1"
           fi
 
-          # Create tar.gz
+          # Create tar.gz archive
           cd dist
-          tar -czf "${PKG}.tar.gz" "${PKG}"
+          tar -czf "${PKG_NAME}.tar.gz" "${PKG_NAME}"
 
-          # SHA256 checksum
-          sha256sum "${PKG}.tar.gz" > "${PKG}.tar.gz.sha256"
+          # Generate SHA256 checksum
+          sha256sum "${PKG_NAME}.tar.gz" > "${PKG_NAME}.tar.gz.sha256"
 
-          echo "=== Artifacts ==="
-          ls -lh "${PKG}.tar.gz" "${PKG}.tar.gz.sha256"
+          echo "PKG_NAME=${PKG_NAME}" >> "$GITHUB_ENV"
+
+          # Cleanup
+          rm -rf "${PKG_NAME}"
+
           echo ""
-          echo "=== SHA256 ==="
-          cat "${PKG}.tar.gz.sha256"
+          echo "=== Release artifacts ==="
+          ls -lh dist/
 
-      - name: Extract version and changelog
-        id: meta
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-artifacts
+          path: dist/*
+
+  # ===========================================================================
+  # Create GitHub Release with Changelog
+  # ===========================================================================
+  release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: build
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: release-artifacts
+          path: dist
+
+      - name: Generate changelog from git history
+        id: changelog
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          CURRENT_TAG="${GITHUB_REF_NAME}"
 
-          # Extract changelog for this version
-          if [ -f CHANGELOG.md ]; then
-            # Get content between ## [X.Y.Z] and next ## or EOF
-            BODY=$(sed -n "/^## \[${VERSION}\]/,/^## /p" CHANGELOG.md | sed '1d;$d')
-            echo "changelog<<EOF" >> "$GITHUB_OUTPUT"
-            echo "$BODY" >> "$GITHUB_OUTPUT"
-            echo "EOF" >> "$GITHUB_OUTPUT"
+          # Find the previous tag (sorted by version)
+          PREV_TAG=$(git tag --sort=-version:refname | grep -v "^${CURRENT_TAG}$" | head -n 1 || true)
+
+          if [ -n "${PREV_TAG}" ]; then
+            echo "Generating changelog: ${PREV_TAG}..${CURRENT_TAG}"
+            COMMITS=$(git log "${PREV_TAG}..${CURRENT_TAG}" --pretty=format:"- %s (%h)" --no-merges)
+          else
+            echo "No previous tag found. Generating changelog from first commit."
+            COMMITS=$(git log --pretty=format:"- %s (%h)" --no-merges)
           fi
 
-      - name: Create GitHub Release
+          # Categorize commits
+          FEATURES=$(echo "${COMMITS}" | grep -iE "^- (feat|add)" || true)
+          FIXES=$(echo "${COMMITS}" | grep -iE "^- (fix|bug)" || true)
+          CHORES=$(echo "${COMMITS}" | grep -iE "^- (chore|ci|docs|refactor|perf|cleanup)" || true)
+          OTHER=$(echo "${COMMITS}" | grep -viE "^- (feat|add|fix|bug|chore|ci|docs|refactor|perf|cleanup)" || true)
+
+          # Build changelog body
+          BODY=""
+          BODY+="## What's Changed\n\n"
+
+          if [ -n "${FEATURES}" ]; then
+            BODY+="### Features\n${FEATURES}\n\n"
+          fi
+
+          if [ -n "${FIXES}" ]; then
+            BODY+="### Bug Fixes\n${FIXES}\n\n"
+          fi
+
+          if [ -n "${CHORES}" ]; then
+            BODY+="### Maintenance\n${CHORES}\n\n"
+          fi
+
+          if [ -n "${OTHER}" ]; then
+            BODY+="### Other Changes\n${OTHER}\n\n"
+          fi
+
+          BODY+="---\n"
+          BODY+="**Full Changelog**: https://github.com/oxyzenq/oxy/compare/${PREV_TAG:-$(git rev-list --max-parents=0 HEAD | cut -c1-7)}...${CURRENT_TAG}\n"
+
+          # Write to file for multiline handling
+          printf '%s' "${BODY}" > /tmp/changelog.md
+
+          # Also output for GitHub Actions
+          {
+            echo "changelog<<CHANGELOG_EOF"
+            cat /tmp/changelog.md
+            echo "CHANGELOG_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+          echo ""
+          echo "=== Generated Changelog ==="
+          cat /tmp/changelog.md
+
+      - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          name: "oxy v${{ steps.meta.outputs.version }}"
-          body: |
-            ## oxy v${{ steps.meta.outputs.version }}
-
-            **Easy userspace bandwidth manager for Linux** — x86_64
-
-            ### Downloads
-
-            | File | Description |
-            |------|-------------|
-            | `oxy-v${{ steps.meta.outputs.version }}-x86_64-linux.tar.gz` | Binary + docs |
-            | `oxy-v${{ steps.meta.outputs.version }}-x86_64-linux.tar.gz.sha256` | Checksum |
-
-            ### Install
-
-            ```bash
-            tar -xzf oxy-v${{ steps.meta.outputs.version }}-x86_64-linux.tar.gz
-            sudo install -Dm755 oxy-v${{ steps.meta.outputs.version }}-x86_64-linux/oxy /usr/local/bin/oxy
-            ```
-
-            ### Verify
-
-            ```bash
-            sha256sum -c oxy-v${{ steps.meta.outputs.version }}-x86_64-linux.tar.gz.sha256
-            ```
-
-            ### Quick Start
-
-            ```bash
-            oxy list --live                   # Real-time TUI dashboard
-            sudo oxy strict -d 1mb brave       # Limit bandwidth
-            sudo oxy strict --preset gaming discord  # Use preset
-            oxy --help-all                    # All commands
-            ```
-
-            ---
-
-            ${{ steps.meta.outputs.changelog }}
-          files: |
-            dist/oxy-v${{ steps.meta.outputs.version }}-x86_64-linux.tar.gz
-            dist/oxy-v${{ steps.meta.outputs.version }}-x86_64-linux.tar.gz.sha256
+          files: dist/*
+          body: ${{ steps.changelog.outputs.changelog }}
           draft: false
           prerelease: ${{ contains(github.ref_name, '-') }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

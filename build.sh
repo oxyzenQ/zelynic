@@ -4,7 +4,7 @@
 # =============================================================================
 # Optimized build script with intelligent core detection and advanced caching
 # Author: rezky_nightky
-# Version: 1.0.0
+# Version: 2.0.0
 
 set -euo pipefail
 
@@ -406,7 +406,7 @@ run_benchmark() {
 show_help() {
         cat <<'EOF'
 ╔════════════════════════════════════════════════════════════════╗
-║              Oxy Build Script - v1.0.0                       ║
+║              Oxy Build Script - v2.0.0                       ║
 ║        Easy userspace bandwidth manager for Linux            ║
 ╚════════════════════════════════════════════════════════════════╝
 
