@@ -91,16 +91,8 @@ pub struct TuiApp {
 }
 
 impl TuiApp {
-    fn new(interval_secs: u64, iface_override: Option<&str>) -> Result<Self> {
-        let interface = match iface_override {
-            Some(i) => {
-                crate::limiter::validate_interface(i)?;
-                i.to_string()
-            }
-            None => {
-                crate::limiter::get_default_interface().unwrap_or_else(|_| "unknown".to_string())
-            }
-        };
+    fn new_with_interface(interval_secs: u64, interface: &str) -> Result<Self> {
+        let interface = interface.to_string();
 
         // Load active limits (non-fatal if state file is unreadable)
         let limited_pids: std::collections::HashSet<u32> = OxyState::load()
@@ -355,12 +347,30 @@ impl TuiApp {
 
 /// Run the ratatui TUI live mode.
 pub fn run_live_tui(interval_secs: u64, iface_override: Option<&str>) -> Result<()> {
+    // Validate interface BEFORE entering alternate screen / raw mode,
+    // so that errors can print cleanly without corrupting the terminal.
+    let interface = match iface_override {
+        Some(i) => {
+            crate::limiter::validate_interface(i)?;
+            i.to_string()
+        }
+        None => crate::limiter::get_default_interface().unwrap_or_else(|_| "unknown".to_string()),
+    };
+
     // Setup terminal
     stdout().execute(EnterAlternateScreen)?;
     enable_raw_mode()?;
 
+    // Install panic hook to restore terminal on panic
+    let original_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |panic_info| {
+        let _ = disable_raw_mode();
+        let _ = stdout().execute(LeaveAlternateScreen);
+        original_hook(panic_info);
+    }));
+
     let mut terminal = Terminal::new(CrosstermBackend::new(stdout()))?;
-    let mut app = TuiApp::new(interval_secs, iface_override)?;
+    let mut app = TuiApp::new_with_interface(interval_secs, &interface)?;
 
     // Initial update
     app.update()?;
@@ -391,9 +401,9 @@ pub fn run_live_tui(interval_secs: u64, iface_override: Option<&str>) -> Result<
         Ok(())
     })();
 
-    // Cleanup
-    disable_raw_mode()?;
-    stdout().execute(LeaveAlternateScreen)?;
+    // Cleanup — always restore terminal, even on error
+    let _ = disable_raw_mode();
+    let _ = stdout().execute(LeaveAlternateScreen);
 
     result
 }

@@ -276,15 +276,8 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-/// Print the oxy ASCII banner on startup (when no arguments given).
+/// Print the oxy startup info (when no arguments given).
 fn print_banner() {
-    let banner = r#"
-     ╔═╗╔╦╗╦ ╦
-     ║ ║╠╣ ╚╦╝
-     ╚═╝╚╩╝ ╩
-    "#;
-    println!("{}", banner.cyan());
-    println!();
     println!(
         "  {} | {}",
         "Easy userspace bandwidth manager for Linux".dimmed(),
@@ -298,12 +291,6 @@ fn print_banner() {
 /// This is shown via `oxy --help-all` and covers every subcommand with
 /// practical usage examples that aren't visible in the default `-h` output.
 fn print_help_all() {
-    let banner = r#"
-     ╔═╗╔╦╗╦ ╦
-     ║ ║╠╣ ╚╦╝
-     ╚═╝╚╩╝ ╩
-    "#;
-    println!("{}", banner.cyan());
     println!(
         "  {} | {}\n",
         "Easy userspace bandwidth manager for Linux".dimmed(),
