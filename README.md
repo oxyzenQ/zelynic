@@ -321,6 +321,8 @@ Built-in presets for common use cases:
 | `mbit`, `mbits` | Megabits per second | `10mbit`, `100mbits` |
 | `gbit`, `gbits` | Gigabits per second | `1gbit` |
 
+> **Note:** Minimum rate is **1 KB/s** (1024 B/s). Values below this are rejected because the Linux kernel's HTB scheduler cannot accurately enforce sub-KB/s rates due to clock tick granularity.
+
 ## Architecture
 
 oxy works by combining several Linux kernel features:

@@ -403,7 +403,7 @@ fn print_help_all() {
         "  ".dimmed()
     );
     println!(
-        "    {} Minimum rate: 1byte (1 B/s) | Maximum: no limit",
+        "    {} Minimum rate: 1kb (1 KB/s) | Maximum: no limit",
         "  ".dimmed()
     );
     println!();
