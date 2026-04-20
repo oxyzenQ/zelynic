@@ -91,9 +91,13 @@ pub struct TuiApp {
 }
 
 impl TuiApp {
-    fn new(interval_secs: u64) -> Result<Self> {
-        let interface =
-            crate::limiter::get_default_interface().unwrap_or_else(|_| "unknown".to_string());
+    fn new(interval_secs: u64, iface_override: Option<&str>) -> Result<Self> {
+        let interface = match iface_override {
+            Some(i) => i.to_string(),
+            None => {
+                crate::limiter::get_default_interface().unwrap_or_else(|_| "unknown".to_string())
+            }
+        };
 
         // Load active limits (non-fatal if state file is unreadable)
         let limited_pids: std::collections::HashSet<u32> = OxyState::load()
@@ -347,13 +351,13 @@ impl TuiApp {
 }
 
 /// Run the ratatui TUI live mode.
-pub fn run_live_tui(interval_secs: u64) -> Result<()> {
+pub fn run_live_tui(interval_secs: u64, iface_override: Option<&str>) -> Result<()> {
     // Setup terminal
     stdout().execute(EnterAlternateScreen)?;
     enable_raw_mode()?;
 
     let mut terminal = Terminal::new(CrosstermBackend::new(stdout()))?;
-    let mut app = TuiApp::new(interval_secs)?;
+    let mut app = TuiApp::new(interval_secs, iface_override)?;
 
     // Initial update
     app.update()?;

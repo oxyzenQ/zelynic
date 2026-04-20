@@ -575,9 +575,9 @@ pub fn display_usage_json() -> Result<()> {
 /// Enters alternate screen and continuously refreshes showing
 /// per-process bandwidth rates (bytes/sec) calculated from delta
 /// between samples.
-pub fn display_usage_live(interval_secs: u64) -> Result<()> {
+pub fn display_usage_live(interval_secs: u64, iface_override: Option<&str>) -> Result<()> {
     // Use the new ratatui-based TUI
-    crate::tui::run_live_tui(interval_secs)
+    crate::tui::run_live_tui(interval_secs, iface_override)
 }
 
 /// Legacy crossterm-based live display (kept for reference).

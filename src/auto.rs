@@ -35,6 +35,8 @@ pub struct AutoThrottle {
     limited_pids: HashMap<u32, bool>,
     /// Last snapshot for rate calculation
     last_snapshot: Option<(Instant, u64, u64)>,
+    /// Interface override from --iface flag
+    iface_override: Option<String>,
 }
 
 impl AutoThrottle {
@@ -44,6 +46,7 @@ impl AutoThrottle {
         target: Option<String>,
         kill: bool,
         interval_secs: u64,
+        iface_override: Option<String>,
     ) -> Self {
         Self {
             download_threshold: download,
@@ -53,6 +56,7 @@ impl AutoThrottle {
             interval: Duration::from_secs(interval_secs),
             limited_pids: HashMap::new(),
             last_snapshot: None,
+            iface_override,
         }
     }
 
@@ -207,6 +211,7 @@ impl AutoThrottle {
                     Some("1mbit"),
                     false,
                     false,
+                    self.iface_override.as_deref(),
                 ) {
                     eprintln!("    Failed to limit: {}", e);
                 }
@@ -242,6 +247,7 @@ pub fn run_auto(
     kill: bool,
     daemon: bool,
     interval: u64,
+    iface_override: Option<&str>,
 ) -> Result<()> {
     check_root()?;
 
@@ -278,7 +284,14 @@ pub fn run_auto(
         println!();
     }
 
-    let mut auto = AutoThrottle::new(dl_threshold, ul_threshold, target_owned, kill, interval);
+    let mut auto = AutoThrottle::new(
+        dl_threshold,
+        ul_threshold,
+        target_owned,
+        kill,
+        interval,
+        iface_override.map(|s| s.to_string()),
+    );
     auto.run()
 }
 

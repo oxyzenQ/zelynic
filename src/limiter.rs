@@ -772,6 +772,7 @@ pub fn apply_limit(
     upload: Option<&str>,
     download_only: bool,
     upload_only: bool,
+    iface_override: Option<&str>,
 ) -> Result<()> {
     check_root()?;
 
@@ -801,7 +802,12 @@ pub fn apply_limit(
     };
 
     let pids = resolve_pids(target)?;
-    let interface = get_default_interface()?;
+    let interface = match iface_override {
+        Some(i) => i.to_string(),
+        None => get_default_interface()?,
+    };
+
+    println!("{} Using interface: {}", "→".cyan(), interface.cyan());
 
     // Ensure kernel modules
     if let Err(e) = ensure_kernel_modules() {

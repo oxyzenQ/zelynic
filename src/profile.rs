@@ -172,7 +172,7 @@ pub fn save_profile(name: &str, download: Option<&str>, upload: Option<&str>) ->
 }
 
 /// Apply a saved profile to a process.
-pub fn apply_profile(name: &str, target: &str) -> Result<()> {
+pub fn apply_profile(name: &str, target: &str, iface_override: Option<&str>) -> Result<()> {
     // Load profile database
     let db = ProfileDb::load()?;
 
@@ -193,7 +193,7 @@ pub fn apply_profile(name: &str, target: &str) -> Result<()> {
     );
 
     // Apply using existing limiter
-    apply_limit(target, dl_ref, ul_ref, false, false)
+    apply_limit(target, dl_ref, ul_ref, false, false, iface_override)
 }
 
 /// List all saved profiles.
