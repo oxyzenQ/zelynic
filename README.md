@@ -168,6 +168,8 @@ sudo oxy strict --preset background steam
 sudo oxy strict --preset streaming zoom
 ```
 
+> **Note:** PID 0 (kernel idle thread) and user names (e.g., `root`) cannot be limited. oxy targets processes by PID or binary name. PID 0 is not a userspace process and has no network sockets or cgroup association.
+
 Re-limiting without `unstrict` first is supported — old rules are auto-cleaned:
 
 ```bash
