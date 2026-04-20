@@ -405,6 +405,9 @@ pub fn aggregate_by_process(entries: &[SocketEntry]) -> Vec<ProcessBandwidth> {
 }
 
 /// Display bandwidth usage for all processes in a formatted table.
+///
+/// Sorts by total bytes descending (same as `--high-to-low-usage-net` since
+/// `aggregate_by_process()` already sorts this way).
 pub fn display_usage_all() -> Result<()> {
     let entries = collect_bandwidth_stats()?;
 
@@ -414,27 +417,17 @@ pub fn display_usage_all() -> Result<()> {
     }
 
     let processes = aggregate_by_process(&entries);
-
     print_process_table(&processes);
 
     Ok(())
 }
 
 /// Display bandwidth usage sorted from highest to lowest usage.
+///
+/// Delegates to `display_usage_all()` since `aggregate_by_process()` already
+/// returns processes sorted by total bytes descending.
 pub fn display_usage_high_to_low() -> Result<()> {
-    let entries = collect_bandwidth_stats()?;
-
-    if entries.is_empty() {
-        println!("{}", "No active network connections found.".yellow());
-        return Ok(());
-    }
-
-    let mut processes = aggregate_by_process(&entries);
-    processes.sort_by_key(|b| std::cmp::Reverse(b.total_bytes));
-
-    print_process_table(&processes);
-
-    Ok(())
+    display_usage_all()
 }
 
 /// Print a formatted table of process bandwidth statistics.
@@ -547,13 +540,16 @@ fn print_process_table(processes: &[ProcessBandwidth]) {
 }
 
 /// Truncate a string to fit within a maximum width, appending "..." if truncated.
+///
+/// Always pads the result to exactly `max_len` characters for column alignment.
 fn truncate_str(s: &str, max_len: usize) -> String {
     if s.len() <= max_len {
         format!("{:<width$}", s, width = max_len)
     } else if max_len > 3 {
-        format!("{}...{:width$}", &s[..max_len - 3], "", width = 0)
+        let truncated = &s[..max_len - 3];
+        format!("{:<width$}", format!("{}...", truncated), width = max_len)
     } else {
-        s.to_string()
+        format!("{:<width$}", s, width = max_len)
     }
 }
 
@@ -578,227 +574,6 @@ pub fn display_usage_json() -> Result<()> {
 pub fn display_usage_live(interval_secs: u64, iface_override: Option<&str>) -> Result<()> {
     // Use the new ratatui-based TUI
     crate::tui::run_live_tui(interval_secs, iface_override)
-}
-
-/// Legacy crossterm-based live display (kept for reference).
-#[allow(dead_code)]
-pub fn display_usage_live_legacy(interval_secs: u64) -> Result<()> {
-    use std::io::{stdout, Write};
-    use std::time::{Duration, Instant};
-
-    use crossterm::{
-        cursor::{self, MoveTo},
-        event::{self, Event, KeyCode, KeyEventKind},
-        execute, queue,
-        style::Print,
-        terminal::{self, Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen},
-    };
-
-    let interval = Duration::from_secs(interval_secs);
-    let mut stdout = stdout();
-
-    // Enter alternate screen and setup terminal
-    terminal::enable_raw_mode()?;
-    execute!(stdout, EnterAlternateScreen, cursor::Hide)?;
-
-    // Ensure cleanup on panic or error
-    let cleanup = || {
-        let _ = execute!(std::io::stdout(), LeaveAlternateScreen, cursor::Show);
-        let _ = terminal::disable_raw_mode();
-    };
-
-    // Type alias for process bandwidth snapshot data
-    type ProcessSnapshot = HashMap<u32, (String, u64, u64)>;
-
-    // Store previous snapshot for rate calculation
-    let mut prev_snapshot: Option<(Instant, ProcessSnapshot)> = None;
-
-    let result = (|| -> Result<()> {
-        loop {
-            let now = Instant::now();
-
-            // Collect current stats
-            let entries = collect_bandwidth_stats()?;
-            let processes = aggregate_by_process(&entries);
-
-            // Build current snapshot (pid -> (name, sent, received))
-            let current: HashMap<u32, (String, u64, u64)> = processes
-                .iter()
-                .map(|p| (p.pid, (p.name.clone(), p.total_sent, p.total_received)))
-                .collect();
-
-            // Clear screen and draw header
-            queue!(
-                stdout,
-                Clear(ClearType::All),
-                MoveTo(0, 0),
-                Print(format!(
-                    "{} {} ({}s refresh) - Press 'q' to quit",
-                    "oxy live".green().bold(),
-                    "Real-time bandwidth monitor".dimmed(),
-                    interval_secs
-                )),
-                MoveTo(0, 1),
-                Print("─".repeat(80).dimmed()),
-                MoveTo(0, 2),
-                Print(
-                    format!(
-                        "{:<8} {:<20} {:>12} {:>12} {:>12} {:>12}",
-                        "PID", "Process", "RX/s", "TX/s", "RX Total", "TX Total"
-                    )
-                    .bold()
-                ),
-                MoveTo(0, 3),
-                Print("─".repeat(80).dimmed()),
-            )?;
-
-            // Calculate and display rates
-            let mut line = 4;
-            if let Some((prev_time, prev_data)) = prev_snapshot.take() {
-                let elapsed = now.duration_since(prev_time).as_secs_f64();
-                let elapsed = elapsed.max(0.001); // Avoid div by zero
-
-                // Sort by total rate (RX + TX) descending
-                let mut sorted: Vec<_> = current.iter().collect();
-                sorted.sort_by(|a, b| {
-                    let a_prev = prev_data.get(a.0);
-                    let b_prev = prev_data.get(b.0);
-                    let a_rate = a_prev
-                        .map(|p| {
-                            let rx = (a.1 .2.saturating_sub(p.2)) as f64 / elapsed;
-                            let tx = (a.1 .1.saturating_sub(p.1)) as f64 / elapsed;
-                            rx + tx
-                        })
-                        .unwrap_or(0.0);
-                    let b_rate = b_prev
-                        .map(|p| {
-                            let rx = (b.1 .2.saturating_sub(p.2)) as f64 / elapsed;
-                            let tx = (b.1 .1.saturating_sub(p.1)) as f64 / elapsed;
-                            rx + tx
-                        })
-                        .unwrap_or(0.0);
-                    b_rate.partial_cmp(&a_rate).unwrap()
-                });
-
-                for (pid, (name, sent, recv)) in sorted.iter().take(20) {
-                    if line >= 24 {
-                        break;
-                    }
-
-                    let (rx_rate, tx_rate) =
-                        if let Some((_, prev_sent, prev_recv)) = prev_data.get(pid) {
-                            let rx = recv.saturating_sub(*prev_recv) as f64 / elapsed;
-                            let tx = sent.saturating_sub(*prev_sent) as f64 / elapsed;
-                            (rx, tx)
-                        } else {
-                            (0.0, 0.0)
-                        };
-
-                    let name_trunc = if name.len() > 18 {
-                        format!("{}..", &name[..16])
-                    } else {
-                        name.clone()
-                    };
-
-                    queue!(
-                        stdout,
-                        MoveTo(0, line),
-                        Print(format!(
-                            "{:<8} {:<20} {:>12} {:>12} {:>12} {:>12}",
-                            pid,
-                            name_trunc,
-                            format_rate(rx_rate),
-                            format_rate(tx_rate),
-                            format_bytes(*recv),
-                            format_bytes(*sent)
-                        ))
-                    )?;
-                    line += 1;
-                }
-            } else {
-                // First sample - show cumulative only
-                let mut sorted: Vec<_> = current.iter().collect();
-                sorted.sort_by_key(|b| std::cmp::Reverse(b.1 .2 + b.1 .1));
-
-                for (pid, (name, sent, recv)) in sorted.iter().take(20) {
-                    if line >= 24 {
-                        break;
-                    }
-                    let name_trunc = if name.len() > 18 {
-                        format!("{}..", &name[..16])
-                    } else {
-                        name.clone()
-                    };
-
-                    queue!(
-                        stdout,
-                        MoveTo(0, line),
-                        Print(format!(
-                            "{:<8} {:<20} {:>12} {:>12} {:>12} {:>12}",
-                            pid,
-                            name_trunc,
-                            "-",
-                            "-",
-                            format_bytes(*recv),
-                            format_bytes(*sent)
-                        ))
-                    )?;
-                    line += 1;
-                }
-            }
-
-            // Update previous snapshot
-            prev_snapshot = Some((now, current));
-
-            // Footer
-            queue!(
-                stdout,
-                MoveTo(0, 25),
-                Print("─".repeat(80).dimmed()),
-                MoveTo(0, 26),
-                Print(
-                    "Note: Rates are calculated between samples. First sample shows no rates."
-                        .dimmed()
-                ),
-            )?;
-
-            stdout.flush()?;
-
-            // Wait for interval or keypress
-            let wait_start = Instant::now();
-            while wait_start.elapsed() < interval {
-                if event::poll(Duration::from_millis(50))? {
-                    if let Event::Key(key) = event::read()? {
-                        if key.kind == KeyEventKind::Press && key.code == KeyCode::Char('q') {
-                            return Ok(());
-                        }
-                        if key.kind == KeyEventKind::Press && key.code == KeyCode::Char('c') {
-                            // Check for Ctrl+C would need modifier check
-                            // Just exit on 'q' for simplicity
-                        }
-                    }
-                }
-            }
-        }
-    })();
-
-    // Cleanup terminal
-    cleanup();
-
-    result
-}
-
-/// Format a rate in bytes/sec to human-readable string.
-fn format_rate(bytes_per_sec: f64) -> String {
-    if bytes_per_sec < 1024.0 {
-        format!("{:.0} B/s", bytes_per_sec)
-    } else if bytes_per_sec < 1024.0 * 1024.0 {
-        format!("{:.1} KB/s", bytes_per_sec / 1024.0)
-    } else if bytes_per_sec < 1024.0 * 1024.0 * 1024.0 {
-        format!("{:.1} MB/s", bytes_per_sec / (1024.0 * 1024.0))
-    } else {
-        format!("{:.2} GB/s", bytes_per_sec / (1024.0 * 1024.0 * 1024.0))
-    }
 }
 
 /// Display verbose bandwidth usage with per-connection breakdown.
@@ -897,11 +672,31 @@ pub fn display_usage_verbose() -> Result<()> {
 }
 
 /// Parse IP:port string into separate components.
+///
+/// Handles both IPv4 (`1.2.3.4:80`) and IPv6 bracket notation (`[::1]:443`).
+/// Bare IPv6 addresses without a port are returned as-is with port "?".
 fn parse_addr_port(addr: &str) -> (String, String) {
-    if let Some(pos) = addr.rfind(':') {
-        let (ip, port) = addr.split_at(pos);
-        (ip.to_string(), port[1..].to_string())
-    } else {
-        (addr.to_string(), "?".to_string())
+    // IPv6 bracket notation: [ip]:port
+    if let Some(bracket_end) = addr.find(']') {
+        if bracket_end + 1 < addr.len() && addr.as_bytes()[bracket_end + 1] == b':' {
+            let ip = addr[1..bracket_end].to_string();
+            let port = addr[bracket_end + 2..].to_string();
+            return (ip, port);
+        }
+        // Bracket but no port: [::1]
+        return (addr[1..bracket_end].to_string(), "?".to_string());
     }
+
+    // IPv4: 1.2.3.4:80 — split on last colon
+    if let Some(pos) = addr.rfind(':') {
+        // Guard against bare IPv6 (contains multiple colons, no brackets)
+        let colon_count = addr.chars().filter(|&c| c == ':').count();
+        if colon_count == 1 {
+            let (ip, port) = addr.split_at(pos);
+            return (ip.to_string(), port[1..].to_string());
+        }
+    }
+
+    // Fallback: no parseable port
+    (addr.to_string(), "?".to_string())
 }
