@@ -69,12 +69,12 @@ jobs:
 
           echo "PKG_NAME=${PKG_NAME}" >> "$GITHUB_ENV"
 
-          # Cleanup
+          # Cleanup extracted directory
           rm -rf "${PKG_NAME}"
 
           echo ""
           echo "=== Release artifacts ==="
-          ls -lh dist/
+          ls -lh
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
