@@ -81,7 +81,7 @@ impl BandwidthUnit {
     }
 }
 
-/// Parsed bandwidth rate value with its unit and raw string representation.
+/// Parsed bandwidth rate value with its unit.
 #[derive(Debug, Clone)]
 pub struct BandwidthRate {
     /// Value in bytes per second (canonical form)
@@ -90,8 +90,6 @@ pub struct BandwidthRate {
     pub value: u64,
     /// The unit that was parsed
     pub unit: BandwidthUnit,
-    /// The original string that was parsed
-    pub raw: String,
 }
 
 impl BandwidthRate {
@@ -202,7 +200,6 @@ impl BandwidthRate {
             bytes_per_sec,
             value,
             unit,
-            raw: input.to_string(),
         })
     }
 }
