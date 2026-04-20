@@ -296,7 +296,6 @@ pub fn run_auto(
 }
 
 /// Show auto-throttle status.
-#[allow(dead_code)]
 pub fn auto_status() -> Result<()> {
     if Path::new(DAEMON_PID_FILE).exists() {
         let pid = fs::read_to_string(DAEMON_PID_FILE)?;

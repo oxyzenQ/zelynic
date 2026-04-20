@@ -78,8 +78,12 @@ pub enum Commands {
         /// Enters TUI mode with auto-refresh. Shows per-process
         /// bandwidth rates (bytes/sec) instead of cumulative totals.
         /// Press 'q' or Ctrl+C to exit.
-        #[arg(long = "live")]
-        live: bool,
+        ///
+        /// Accepts optional interval value:
+        ///   --live          # 1 second default
+        ///   --live 2        # 2 second interval
+        #[arg(long = "live", num_args = 0..=1, value_name = "SECONDS")]
+        live: Option<Option<u64>>,
 
         /// Refresh interval in seconds for live mode [default: 1]
         #[arg(long = "interval", value_name = "SECONDS")]
@@ -305,6 +309,9 @@ pub enum Commands {
         /// Check interval in seconds
         #[arg(short, long, default_value = "5")]
         interval: u64,
+        /// Show auto-throttle daemon status
+        #[arg(short, long)]
+        status: bool,
     },
 
     /// Show backend information and eBPF support status

@@ -3,8 +3,9 @@
 /// Provides a premium visual experience with:
 /// - Unicode box drawing (╭─┬─╮╰─┴─╯)
 /// - Braille sparklines (⣷⣶⣶⣿⣿⣶) for bandwidth history
-/// - Gradient progress bars
-/// - Status dots (●/○)
+/// - Dual RX/TX sparklines with separator
+/// - Table scrolling with j/k and arrow keys
+/// - Status dots (●/○) for limited/free processes
 /// - Persistent header/footer
 use anyhow::Result;
 use crossterm::{
@@ -17,8 +18,8 @@ use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     symbols,
-    text::Span,
-    widgets::{Block, Borders, Cell, Paragraph, Row, Table, TableState},
+    text::{Line, Span},
+    widgets::{Block, Borders, Cell, Paragraph, Row, Table, TableState, Wrap},
     Frame, Terminal,
 };
 use std::{
@@ -30,6 +31,9 @@ use std::{
 use crate::limiter::OxyState;
 use crate::monitor::{aggregate_by_process, collect_bandwidth_stats, ProcessBandwidth};
 use crate::units::format_bytes;
+
+/// Number of history samples kept per process for sparklines.
+const SPARKLINE_HISTORY_LEN: usize = 6;
 
 /// Bandwidth history for sparklines (keeps last N seconds of data).
 #[derive(Debug, Clone)]
@@ -43,7 +47,7 @@ pub struct BandwidthHistory {
 }
 
 impl BandwidthHistory {
-    fn new(_pid: u32, _name: String, max_len: usize) -> Self {
+    fn new(max_len: usize) -> Self {
         Self {
             rx_history: Vec::with_capacity(max_len),
             tx_history: Vec::with_capacity(max_len),
@@ -88,6 +92,8 @@ pub struct TuiApp {
     should_quit: bool,
     /// Active limits (for status dots)
     limited_pids: std::collections::HashSet<u32>,
+    /// Table scroll state
+    table_state: TableState,
 }
 
 impl TuiApp {
@@ -110,6 +116,7 @@ impl TuiApp {
             interface,
             should_quit: false,
             limited_pids,
+            table_state: TableState::default(),
         })
     }
 
@@ -151,7 +158,7 @@ impl TuiApp {
                 // Update history
                 self.history
                     .entry(proc.pid)
-                    .or_insert_with(|| BandwidthHistory::new(proc.pid, proc.name.clone(), 6))
+                    .or_insert_with(|| BandwidthHistory::new(SPARKLINE_HISTORY_LEN))
                     .update(rx_rate, tx_rate);
             }
         }
@@ -172,6 +179,8 @@ impl TuiApp {
                 if key.kind == KeyEventKind::Press {
                     match key.code {
                         KeyCode::Char('q') | KeyCode::Esc => self.should_quit = true,
+                        KeyCode::Char('j') | KeyCode::Down => self.scroll_down(),
+                        KeyCode::Char('k') | KeyCode::Up => self.scroll_up(),
                         _ => {}
                     }
                 }
@@ -180,13 +189,34 @@ impl TuiApp {
         Ok(())
     }
 
+    /// Move scroll position down by one row.
+    fn scroll_down(&mut self) {
+        if let Some(selected) = self.table_state.selected() {
+            let last = self.processes.len().saturating_sub(1);
+            let next = (selected.min(last) + 1).min(last);
+            self.table_state.select(Some(next));
+        } else if !self.processes.is_empty() {
+            self.table_state.select(Some(0));
+        }
+    }
+
+    /// Move scroll position up by one row.
+    fn scroll_up(&mut self) {
+        if let Some(selected) = self.table_state.selected() {
+            self.table_state.select(Some(selected.saturating_sub(1)));
+        } else if !self.processes.is_empty() {
+            self.table_state
+                .select(Some(self.processes.len().saturating_sub(1)));
+        }
+    }
+
     fn draw(&mut self, frame: &mut Frame) {
         // Main layout
         let main_layout = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
                 Constraint::Length(3), // Header
-                Constraint::Min(10),   // Table
+                Constraint::Min(10),   // Table / empty state
                 Constraint::Length(1), // Footer
             ])
             .split(frame.area());
@@ -194,7 +224,7 @@ impl TuiApp {
         // Draw header
         self.draw_header(frame, main_layout[0]);
 
-        // Draw table
+        // Draw table or empty state
         self.draw_table(frame, main_layout[1]);
 
         // Draw footer
@@ -207,12 +237,15 @@ impl TuiApp {
             .border_style(Style::default().fg(Color::Cyan))
             .border_set(symbols::border::ROUNDED);
 
+        let process_count = self.processes.len();
         let header_text = format!(
-            " {} {} │ {}s refresh │ Interface: {} │ RX: {} │ TX: {} │ Press 'q' to quit ",
+            " {} {} │ {}s │ {} │ {} proc{} │ RX: {} │ TX: {} ",
             "oxy",
             "live",
             self.interval_secs,
             self.interface,
+            process_count,
+            if process_count == 1 { "" } else { "s" },
             format_bytes(self.total_rx),
             format_bytes(self.total_tx)
         );
@@ -226,9 +259,22 @@ impl TuiApp {
     }
 
     fn draw_table(&mut self, frame: &mut Frame, area: Rect) {
+        // Show empty state when no processes have network connections
+        if self.processes.is_empty() {
+            self.draw_empty_state(frame, area);
+            return;
+        }
+
         // Define columns
         let header_cells = [
-            "Status", "PID", "Process", "RX/s", "TX/s", "History", "RX Total", "TX Total",
+            "Status",
+            "PID",
+            "Process",
+            "RX/s",
+            "TX/s",
+            "History (RX|TX)",
+            "RX Total",
+            "TX Total",
         ]
         .iter()
         .map(|h| {
@@ -244,7 +290,7 @@ impl TuiApp {
             .style(Style::default().bg(Color::DarkGray))
             .height(1);
 
-        // Sort processes by total bandwidth rate
+        // Sort processes by total bandwidth rate descending
         let mut sorted_processes: Vec<_> = self.processes.iter().collect();
         sorted_processes.sort_by(|a, b| {
             let a_hist = self.history.get(&a.pid);
@@ -263,38 +309,28 @@ impl TuiApp {
             .iter()
             .map(|proc| {
                 let is_limited = self.limited_pids.contains(&proc.pid);
-                let status = if is_limited { "●" } else { "○" };
+                let status = if is_limited { "\u{25CF}" } else { "\u{25CB}" }; // ● / ○
                 let status_color = if is_limited { Color::Red } else { Color::Green };
 
                 let hist = self.history.get(&proc.pid);
                 let rx_rate = hist.and_then(|h| h.rx_history.last()).copied().unwrap_or(0);
                 let tx_rate = hist.and_then(|h| h.tx_history.last()).copied().unwrap_or(0);
 
-                let sparkline_data: Vec<u64> =
-                    hist.map(|h| h.rx_history.clone()).unwrap_or_default();
-
-                // Create sparkline widget as text
-                let history_str = if sparkline_data.is_empty() {
-                    "—".to_string()
-                } else {
-                    // Simple sparkline representation with dynamic scaling
-                    let chars = ["⣀", "⣄", "⣆", "⣇", "⣏", "⣟", "⣿"];
-                    let max_val = sparkline_data.iter().copied().max().unwrap_or(1).max(1);
-                    sparkline_data
-                        .iter()
-                        .map(|&v| {
-                            if v == 0 {
-                                "⣀"
-                            } else {
-                                let idx = ((v as f64 / max_val as f64) * 6.0) as usize;
-                                chars[idx.min(6)]
-                            }
-                        })
-                        .collect::<String>()
+                // Dual sparkline: RX↓ and TX↑ separated by │
+                let history_str = match hist {
+                    Some(h) if !h.rx_history.is_empty() || !h.tx_history.is_empty() => {
+                        let rx_spark = build_sparkline(&h.rx_history, Color::Green);
+                        let tx_spark = build_sparkline(&h.tx_history, Color::Yellow);
+                        format!("{}\u{2502}{}", rx_spark, tx_spark) // │ separator
+                    }
+                    _ => "\u{2014}".to_string(), // —
                 };
 
                 let cells = vec![
-                    Cell::from(Span::styled(status, Style::default().fg(status_color))),
+                    Cell::from(Span::styled(
+                        status.to_string(),
+                        Style::default().fg(status_color),
+                    )),
                     Cell::from(proc.pid.to_string()),
                     Cell::from(proc.name.clone()),
                     Cell::from(format_bytes(rx_rate) + "/s"),
@@ -313,10 +349,10 @@ impl TuiApp {
             [
                 Constraint::Length(6),  // Status
                 Constraint::Length(8),  // PID
-                Constraint::Length(15), // Process
+                Constraint::Min(12),    // Process (flexible)
                 Constraint::Length(10), // RX/s
                 Constraint::Length(10), // TX/s
-                Constraint::Length(8),  // History
+                Constraint::Length(15), // History (dual sparklines)
                 Constraint::Length(12), // RX Total
                 Constraint::Length(12), // TX Total
             ],
@@ -328,14 +364,50 @@ impl TuiApp {
                 .border_style(Style::default().fg(Color::Cyan))
                 .border_set(symbols::border::ROUNDED)
                 .title("Bandwidth by Process"),
-        );
+        )
+        .row_highlight_style(Style::default().bg(Color::DarkGray).fg(Color::White));
 
-        let mut table_state = TableState::default();
-        frame.render_stateful_widget(table, area, &mut table_state);
+        frame.render_stateful_widget(table, area, &mut self.table_state);
+    }
+
+    /// Draw centered empty state when no network connections are found.
+    fn draw_empty_state(&self, frame: &mut Frame, area: Rect) {
+        let block = Block::default()
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(Color::Cyan))
+            .border_set(symbols::border::ROUNDED)
+            .title("Bandwidth by Process");
+
+        let empty_text = Paragraph::new(vec![
+            Line::from(""),
+            Line::from(Span::styled(
+                "No active network connections",
+                Style::default()
+                    .fg(Color::Gray)
+                    .add_modifier(Modifier::BOLD),
+            )),
+            Line::from(""),
+            Line::from(Span::styled(
+                "Waiting for network activity...",
+                Style::default().fg(Color::DarkGray),
+            )),
+            Line::from(""),
+            Line::from(Span::styled(
+                "This interface may have no traffic or monitoring requires permissions.",
+                Style::default().fg(Color::DarkGray),
+            )),
+            Line::from(""),
+        ])
+        .block(block)
+        .alignment(Alignment::Center)
+        .wrap(Wrap { trim: true });
+
+        frame.render_widget(empty_text, area);
     }
 
     fn draw_footer(&self, frame: &mut Frame, area: Rect) {
-        let footer_text = " [q] Quit │ ● Limited │ ○ Free │ Braille: ⣷ High ⣀ Low ";
+        let footer_text =
+            " [q] Quit │ [\u{2191}\u{2193}/j/k] Scroll │ \u{25CF} Limited │ \u{25CB} Free │ RX\u{2193}\u{2502}TX\u{2191} ";
 
         let footer = Paragraph::new(footer_text)
             .style(Style::default().fg(Color::Gray))
@@ -343,6 +415,33 @@ impl TuiApp {
 
         frame.render_widget(footer, area);
     }
+}
+
+/// Build a braille sparkline string from a slice of bandwidth rate values.
+///
+/// Uses 7 braille levels from ⣀ (lowest) to ⣿ (highest) with dynamic
+/// scaling relative to the maximum value in the data.
+fn build_sparkline(data: &[u64], _color: Color) -> String {
+    if data.is_empty() {
+        return "\u{2014}".to_string(); // —
+    }
+
+    let chars = [
+        "\u{2840}", "\u{2844}", "\u{2846}", "\u{2847}", "\u{284F}", "\u{285F}", "\u{28FF}",
+    ];
+    //          ⣀          ⣄          ⣆          ⣇          ⣏          ⣟          ⣿
+    let max_val = data.iter().copied().max().unwrap_or(1).max(1);
+
+    data.iter()
+        .map(|&v| {
+            if v == 0 {
+                "\u{2840}" // ⣀
+            } else {
+                let idx = ((v as f64 / max_val as f64) * 6.0) as usize;
+                chars[idx.min(6)]
+            }
+        })
+        .collect::<String>()
 }
 
 /// Run the ratatui TUI live mode.
