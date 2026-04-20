@@ -118,11 +118,11 @@ pub enum Commands {
     #[command(verbatim_doc_comment)]
     Strict {
         /// Download speed limit (e.g., 500kb, 1mb, 2gb, 100byte)
-        #[arg(short = 'd', long = "download")]
+        #[arg(short = 'd', long = "download", allow_hyphen_values = true)]
         download: Option<String>,
 
         /// Upload speed limit (e.g., 500kb, 1mb, 2gb, 100byte)
-        #[arg(short = 'u', long = "upload")]
+        #[arg(short = 'u', long = "upload", allow_hyphen_values = true)]
         upload: Option<String>,
 
         /// Preset bandwidth profile (conflicts with -d/-u)
@@ -266,7 +266,13 @@ pub enum Commands {
     #[command(verbatim_doc_comment)]
     Watch {
         /// Alert threshold as bandwidth rate (e.g., 500kb, 5mb, 100mb)
-        #[arg(short = 'a', long, value_name = "RATE", required = true)]
+        #[arg(
+            short = 'a',
+            long,
+            value_name = "RATE",
+            required = true,
+            allow_hyphen_values = true
+        )]
         alert: String,
         /// Process to watch (name or PID)
         #[arg(value_name = "PROCESS")]
@@ -292,10 +298,10 @@ pub enum Commands {
     #[command(verbatim_doc_comment)]
     Auto {
         /// Download threshold (e.g., 100mb, 1gb)
-        #[arg(short = 'd', long, value_name = "RATE")]
+        #[arg(short = 'd', long, value_name = "RATE", allow_hyphen_values = true)]
         download: Option<String>,
         /// Upload threshold (e.g., 50mb, 100mb)
-        #[arg(short = 'u', long, value_name = "RATE")]
+        #[arg(short = 'u', long, value_name = "RATE", allow_hyphen_values = true)]
         upload: Option<String>,
         /// Process to auto-limit when threshold exceeded
         #[arg(short, long, value_name = "PROCESS")]
@@ -331,10 +337,10 @@ pub enum ProfileCommands {
         /// Profile name (e.g., background, streaming, gaming)
         name: String,
         /// Download limit (e.g., 100kb, 5mb, 1gb)
-        #[arg(long = "dl", value_name = "RATE")]
+        #[arg(long = "dl", value_name = "RATE", allow_hyphen_values = true)]
         download: Option<String>,
         /// Upload limit (e.g., 100kb, 5mb, 1gb)
-        #[arg(long = "ul", value_name = "RATE")]
+        #[arg(long = "ul", value_name = "RATE", allow_hyphen_values = true)]
         upload: Option<String>,
     },
     /// Apply a saved profile to a process
