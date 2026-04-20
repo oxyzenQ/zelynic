@@ -195,14 +195,22 @@ impl EbpfSupport {
         );
         println!();
 
-        // Overall status with context
+        // Overall status with context — note that eBPF is not yet implemented
         if self.supported {
             println!("  Overall: {}", "SUPPORTED".green().bold());
+            println!(
+                "  {} eBPF limiter is not yet implemented — oxy uses tc/cgroup",
+                "  ".dimmed()
+            );
         } else if !is_root && self.kernel_ok && self.bpf_fs_ok && self.config_ok {
             println!("  Overall: {}", "LIKELY SUPPORTED".yellow().bold());
             println!("  {} Run with sudo to verify", "  ".dimmed());
         } else {
             println!("  Overall: {}", "NOT SUPPORTED".red().bold());
+            println!(
+                "  {} oxy will continue using tc/cgroup backend (no impact)",
+                "  ".dimmed()
+            );
         }
     }
 }
@@ -277,7 +285,9 @@ fn config_contains_ebpf(config: &str) -> bool {
     true
 }
 
-/// Backend selection — auto-detect best available backend.
+/// Backend selection — reserved for future eBPF implementation.
+/// Currently unused; oxy always uses tc/cgroup.
+#[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Backend {
     /// eBPF backend (lowest overhead, true per-process ingress)
@@ -286,6 +296,7 @@ pub enum Backend {
     TcCgroup,
 }
 
+#[allow(dead_code)]
 impl Backend {
     /// Auto-select backend based on system capabilities.
     pub fn auto_select() -> Self {
@@ -309,27 +320,29 @@ impl Backend {
 
 /// Print current backend info.
 pub fn print_backend_info() {
-    let backend = Backend::auto_select();
+    let ebpf_support = check_ebpf_support();
 
+    // eBPF limiter is not yet implemented — always report tc/cgroup as active
+    println!("{} Using {} backend", "→".cyan(), "tc/cgroup".cyan().bold());
     println!(
-        "{} Using {} backend",
-        "→".cyan(),
-        backend.name().cyan().bold()
+        "  {} Active backend: nftables + HTB | cgroup v2",
+        "ℹ".dimmed()
     );
 
-    match backend {
-        Backend::TcCgroup => {
-            println!(
-                "  {} Active backend: nftables + HTB | cgroup v2",
-                "ℹ".dimmed()
-            );
-        }
-        Backend::Ebpf => {
-            println!(
-                "  {} Active backend: eBPF (low overhead, per-process ingress)",
-                "ℹ".dimmed()
-            );
-        }
+    if ebpf_support.supported {
+        println!(
+            "  {} eBPF: supported on this system (not yet implemented)",
+            "✓".green()
+        );
+    } else if !nix::unistd::geteuid().is_root()
+        && ebpf_support.kernel_ok
+        && ebpf_support.bpf_fs_ok
+        && ebpf_support.config_ok
+    {
+        println!(
+            "  {} eBPF: likely supported (run with sudo to verify)",
+            "?".yellow()
+        );
     }
 }
 
