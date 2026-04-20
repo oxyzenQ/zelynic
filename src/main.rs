@@ -90,8 +90,9 @@ fn main() -> Result<()> {
             interval,
             verbose,
         }) => {
-            if live {
-                let interval_secs = interval.unwrap_or(1);
+            if live.is_some() {
+                // --live N (shorthand) takes priority, then --interval, then default 1
+                let interval_secs = live.and_then(|v| v).or(interval).unwrap_or(1);
                 monitor::display_usage_live(interval_secs, iface_value)?;
             } else if json {
                 monitor::display_usage_json()?;
@@ -131,15 +132,6 @@ fn main() -> Result<()> {
                         std::process::exit(1);
                     }
                 };
-
-                // Check for conflicts with explicit -d/-u
-                if dl_value.is_some() || ul_value.is_some() {
-                    eprintln!(
-                        "Error: --preset conflicts with -d/--download and -u/--upload options.\n\
-                         Use either --preset OR -d/-u, not both."
-                    );
-                    std::process::exit(1);
-                }
 
                 dl_value = Some(preset_dl.to_string());
                 ul_value = Some(preset_ul.to_string());
@@ -253,16 +245,21 @@ fn main() -> Result<()> {
             kill,
             daemon,
             interval,
+            status,
         }) => {
-            auto::run_auto(
-                download.as_deref(),
-                upload.as_deref(),
-                target.as_deref(),
-                kill,
-                daemon,
-                interval,
-                iface_value,
-            )?;
+            if status {
+                auto::auto_status()?;
+            } else {
+                auto::run_auto(
+                    download.as_deref(),
+                    upload.as_deref(),
+                    target.as_deref(),
+                    kill,
+                    daemon,
+                    interval,
+                    iface_value,
+                )?;
+            }
         }
 
         Some(Commands::Completions { shell }) => {
@@ -349,7 +346,11 @@ fn print_help_all() {
         "RECOMMENDED".cyan()
     );
     println!(
-        "    {} oxy list --live --interval 2  # Custom refresh interval",
+        "    {} oxy list --live 2          # Shorthand: 2s refresh interval",
+        "  ".dimmed()
+    );
+    println!(
+        "    {} oxy list --live --interval 2  # Explicit interval (same as above)",
         "  ".dimmed()
     );
     println!(
@@ -366,6 +367,11 @@ fn print_help_all() {
     );
     println!(
         "    {} oxy list --json             # JSON output for scripting",
+        "  ".dimmed()
+    );
+    println!();
+    println!(
+        "    {} TUI keys: [q] Quit  [\u{2191}\u{2193}/j/k] Scroll  [Esc] Quit",
         "  ".dimmed()
     );
     println!();
@@ -557,6 +563,10 @@ fn print_help_all() {
         "  ".dimmed()
     );
     println!("    {} oxy auto --daemon", "  ".dimmed());
+    println!(
+        "    {} oxy auto --status           # Check if daemon is running",
+        "  ".dimmed()
+    );
     println!();
 
     // --- log ---
