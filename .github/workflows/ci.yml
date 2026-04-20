@@ -109,7 +109,7 @@ jobs:
           file target/release/oxy
 
       - name: Upload release artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: oxy-linux-x86_64
           path: target/release/oxy
