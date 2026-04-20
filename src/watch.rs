@@ -8,7 +8,7 @@ use std::process::{Command, Stdio};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use crate::limiter::{check_root, get_process_name, resolve_pids};
+use crate::limiter::{get_process_name, resolve_pids};
 use crate::monitor::{aggregate_by_process, collect_bandwidth_stats};
 use crate::units::BandwidthRate;
 
@@ -30,8 +30,6 @@ pub fn watch_process(
     interval_secs: u64,
     notify_cmd: Option<&str>,
 ) -> Result<()> {
-    check_root()?;
-
     // Parse threshold
     let threshold_rate = BandwidthRate::parse(alert_threshold)
         .with_context(|| format!("invalid threshold: {}", alert_threshold))?;
@@ -183,8 +181,10 @@ fn send_notification(process: &str, message: &str, custom_cmd: Option<&str>) -> 
         .stderr(Stdio::null())
         .status();
 
-    if result.is_ok() && result.unwrap().success() {
-        return Ok(());
+    if let Ok(status) = result {
+        if status.success() {
+            return Ok(());
+        }
     }
 
     // Fallback: just print to stderr (already done by caller)

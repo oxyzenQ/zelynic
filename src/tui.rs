@@ -179,6 +179,11 @@ impl TuiApp {
                 if key.kind == KeyEventKind::Press {
                     match key.code {
                         KeyCode::Char('q') | KeyCode::Esc => self.should_quit = true,
+                        KeyCode::Char('c')
+                            if key.modifiers.contains(event::KeyModifiers::CONTROL) =>
+                        {
+                            self.should_quit = true;
+                        }
                         KeyCode::Char('j') | KeyCode::Down => self.scroll_down(),
                         KeyCode::Char('k') | KeyCode::Up => self.scroll_up(),
                         _ => {}
@@ -460,12 +465,15 @@ pub fn run_live_tui(interval_secs: u64, iface_override: Option<&str>) -> Result<
     stdout().execute(EnterAlternateScreen)?;
     enable_raw_mode()?;
 
-    // Install panic hook to restore terminal on panic
-    let original_hook = std::panic::take_hook();
+    // Install panic hook to restore terminal on panic.
+    // We wrap the original hook in Arc so we can restore it after TUI exits.
+    use std::sync::Arc;
+    let original_hook = Arc::new(std::panic::take_hook());
+    let panic_hook_ref = original_hook.clone();
     std::panic::set_hook(Box::new(move |panic_info| {
         let _ = disable_raw_mode();
         let _ = stdout().execute(LeaveAlternateScreen);
-        original_hook(panic_info);
+        panic_hook_ref(panic_info);
     }));
 
     let mut terminal = Terminal::new(CrosstermBackend::new(stdout()))?;
@@ -503,6 +511,14 @@ pub fn run_live_tui(interval_secs: u64, iface_override: Option<&str>) -> Result<
     // Cleanup — always restore terminal, even on error
     let _ = disable_raw_mode();
     let _ = stdout().execute(LeaveAlternateScreen);
+
+    // Restore original panic hook so subsequent panics (after TUI exit) don't
+    // try to leave alternate screen again.
+    let _ = std::panic::take_hook();
+    std::panic::set_hook(Arc::try_unwrap(original_hook).unwrap_or_else(|arc| {
+        // If Arc has extra references (shouldn't happen), create a no-op clone
+        Box::new(move |info| arc(info))
+    }));
 
     result
 }

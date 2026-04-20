@@ -548,16 +548,51 @@ pub fn get_process_name(pid: u32) -> String {
 }
 
 /// Get the next available TC class ID and increment the counter.
+///
+/// Uses file locking (`flock`) to prevent race conditions when multiple
+/// `oxy strict` invocations run concurrently.
 pub fn next_class_id() -> Result<u32> {
-    let id = if Path::new(CLASS_ID_FILE).exists() {
-        let content = fs::read_to_string(CLASS_ID_FILE).unwrap_or_default();
+    fs::create_dir_all(STATE_DIR).context("failed to create oxy state directory")?;
+
+    // Open (or create) the counter file with exclusive lock to prevent
+    // concurrent oxy processes from reading the same ID.
+    use std::os::unix::io::AsRawFd;
+    let file = std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .open(CLASS_ID_FILE)
+        .context("failed to open class ID counter file")?;
+
+    // flock(2) — exclusive lock, blocks until available
+    let fd = file.as_raw_fd();
+    unsafe {
+        let ret = libc::flock(fd, libc::LOCK_EX);
+        if ret != 0 {
+            anyhow::bail!("failed to lock class ID file (flock)");
+        }
+    }
+
+    let id = {
+        let mut content = String::new();
+        use std::io::Read;
+        let _ = std::io::BufReader::new(&file).read_to_string(&mut content);
         content.trim().parse::<u32>().unwrap_or(100)
-    } else {
-        100
     };
 
-    fs::create_dir_all(STATE_DIR).ok();
-    fs::write(CLASS_ID_FILE, (id + 1).to_string()).ok();
+    // Write back incremented counter
+    use std::io::{Seek, SeekFrom, Write};
+    let mut file = file;
+    let _ = file.seek(SeekFrom::Start(0));
+    let _ = file.set_len(0);
+    let _ = file.write_all((id + 1).to_string().as_bytes());
+    let _ = file.sync_all();
+
+    // Release lock (happens automatically on file close/drop, but be explicit)
+    unsafe {
+        libc::flock(fd, libc::LOCK_UN);
+    }
 
     Ok(id)
 }
