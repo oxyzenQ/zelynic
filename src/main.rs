@@ -74,6 +74,12 @@ fn main() -> Result<()> {
     // Extract iface value: Some(Some("eth0")) → Some("eth0"), else None
     let iface_value = cli.iface.as_ref().and_then(|v| v.as_deref());
 
+    // If --iface was given a value, validate it early (before subcommand match)
+    // so invalid interfaces always error, regardless of what else was typed.
+    if let Some(iface_name) = iface_value {
+        limiter::validate_interface(iface_name)?;
+    }
+
     // Handle subcommands
     match cli.command {
         Some(Commands::List {
@@ -290,23 +296,12 @@ fn main() -> Result<()> {
         }
 
         None => {
-            // No subcommand and no -i flag: print help
-            print_banner();
+            // No subcommand: print help
             Cli::parse_from(["oxy", "--help"]);
         }
     }
 
     Ok(())
-}
-
-/// Print the oxy startup info (when no arguments given).
-fn print_banner() {
-    println!(
-        "  {} | {}",
-        "Easy userspace bandwidth manager for Linux".dimmed(),
-        format!("v{}", info::VERSION).dimmed()
-    );
-    println!();
 }
 
 /// Print comprehensive help with all commands, options, and examples.
