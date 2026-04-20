@@ -63,7 +63,7 @@ fn main() -> Result<()> {
         }) => {
             if live {
                 let interval_secs = interval.unwrap_or(1);
-                monitor::display_usage_live(interval_secs)?;
+                monitor::display_usage_live(interval_secs, cli.iface.as_deref())?;
             } else if json {
                 monitor::display_usage_json()?;
             } else if verbose {
@@ -140,7 +140,14 @@ fn main() -> Result<()> {
                 ul_value.as_deref()
             };
 
-            limiter::apply_limit(&target, dl_ref, ul_ref, download_only, upload_only)?;
+            limiter::apply_limit(
+                &target,
+                dl_ref,
+                ul_ref,
+                download_only,
+                upload_only,
+                cli.iface.as_deref(),
+            )?;
         }
 
         Some(Commands::Unstrict { target }) => {
@@ -176,7 +183,7 @@ fn main() -> Result<()> {
                 profile::save_profile(&name, download.as_deref(), upload.as_deref())?;
             }
             ProfileCommands::Apply { name, target } => {
-                profile::apply_profile(&name, &target)?;
+                profile::apply_profile(&name, &target, cli.iface.as_deref())?;
             }
             ProfileCommands::List => {
                 profile::list_profiles()?;
@@ -188,16 +195,16 @@ fn main() -> Result<()> {
 
         Some(Commands::Qos { command }) => match command {
             QosCommands::High { target } => {
-                qos::set_priority(&target, qos::PriorityTier::High)?;
+                qos::set_priority(&target, qos::PriorityTier::High, cli.iface.as_deref())?;
             }
             QosCommands::Low { target } => {
-                qos::set_priority(&target, qos::PriorityTier::Low)?;
+                qos::set_priority(&target, qos::PriorityTier::Low, cli.iface.as_deref())?;
             }
             QosCommands::Status => {
                 qos::show_qos_status()?;
             }
             QosCommands::Reset => {
-                qos::reset_qos()?;
+                qos::reset_qos(cli.iface.as_deref())?;
             }
         },
 
@@ -225,6 +232,7 @@ fn main() -> Result<()> {
                 kill,
                 daemon,
                 interval,
+                cli.iface.as_deref(),
             )?;
         }
 

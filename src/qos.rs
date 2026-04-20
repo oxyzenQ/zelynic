@@ -106,10 +106,17 @@ impl QosState {
 }
 
 /// Set QoS priority for a process.
-pub fn set_priority(target: &str, priority: PriorityTier) -> Result<()> {
+pub fn set_priority(
+    target: &str,
+    priority: PriorityTier,
+    iface_override: Option<&str>,
+) -> Result<()> {
     check_root()?;
 
-    let interface = get_default_interface()?;
+    let interface = match iface_override {
+        Some(i) => i.to_string(),
+        None => get_default_interface()?,
+    };
 
     // Resolve target to PID(s)
     let pids = resolve_pids(target)?;
@@ -260,10 +267,13 @@ pub fn show_qos_status() -> Result<()> {
 }
 
 /// Reset all QoS rules.
-pub fn reset_qos() -> Result<()> {
+pub fn reset_qos(iface_override: Option<&str>) -> Result<()> {
     check_root()?;
 
-    let interface = get_default_interface()?;
+    let interface = match iface_override {
+        Some(i) => i.to_string(),
+        None => get_default_interface()?,
+    };
     let state = QosState::load()?;
 
     if state.assignments.is_empty() {
