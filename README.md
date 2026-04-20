@@ -1,235 +1,404 @@
-<p align="center">
-  <strong>oxy</strong>
-</p>
+# oxy
 
 <p align="center">
-  <em>Easy userspace bandwidth manager for Linux</em>
+  <strong>Easy userspace bandwidth manager for Linux</strong>
 </p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/version-v2.0.0-blue" alt="Version">
   <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
-  <img src="https://img.shields.io/badge/platform-linux__x86__64-orange" alt="Platform">
+  <img src="https://img.shields.io/badge/platform-linux%20x86__64-orange" alt="Platform">
   <img src="https://img.shields.io/badge/rust-1.88%2B-DEA584" alt="Rust">
 </p>
 
-<p align="center">
-  <a href="#installation">Install</a> &middot;
-  <a href="#quick-start">Quick Start</a> &middot;
-  <a href="#commands">Commands</a> &middot;
-  <a href="#changelog">Changelog</a>
-</p>
+oxy is a CLI tool written in Rust that provides an easy-to-use interface for monitoring, limiting, and shaping per-process network bandwidth on Linux. It leverages Linux traffic control (`tc`) with HTB qdisc, `nftables` for marking, and `cgroup v2` for rate limiting. The `ss` utility is used for real-time bandwidth monitoring, and a built-in TUI dashboard provides a live, htop-like experience for network traffic.
 
 ---
 
-oxy is a CLI tool for monitoring and limiting per-process network bandwidth on Linux.
-It uses `tc` (HTB qdisc) + `nftables` + `cgroups` for rate limiting, and `ss` for real-time bandwidth monitoring.
-
 ## Features
 
-- **Live TUI** — Real-time bandwidth dashboard with sparklines and scrolling (`oxy list --live`)
-- **Per-process limiting** — Download/upload speed limits via `oxy strict`
-- **Preset profiles** — One-command limits: `oxy strict --preset gaming discord`
-- **QoS priority** — Priority tiers instead of hard limits (`oxy qos high/low`)
-- **Auto-throttle** — Background daemon for automatic bandwidth management
-- **Named profiles** — Save and apply custom profiles (`oxy profile`)
-- **Bandwidth alerts** — Desktop notifications on threshold (`oxy watch`)
-- **Verbose mode** — Per-connection IP/port/protocol breakdown
-- **JSON output** — Scripting integration via `--json`
-- **Interface selection** — `--iface` flag with validation and auto-detection
-- **Shell completions** — Bash, Zsh, Fish, PowerShell
-- **Man page** — Generated via `oxy man`
+- **Monitor** bandwidth usage per process/program with cumulative and real-time rates
+- **Limit** download and/or upload speeds per process with tc + nftables + cgroup v2
+- **QoS priority shaping** — assign high/low priority tiers instead of hard limits
+- **TUI dashboard** — live bandwidth monitor with sparklines, scrolling, and dual RX/TX graphs
+- **Auto-throttle daemon** — background mode that auto-limits when thresholds are exceeded
+- **Watch & alert** — background monitor with desktop notifications on bandwidth thresholds
+- **Bandwidth profiles** — save, load, and apply named bandwidth limit presets
+- **Bandwidth logging** — snapshot and review historical bandwidth usage
+- **Shell completions** — bash, zsh, fish, elvish, powershell
+- **Man page generation** — roff format for system manual installation
+- **Interface management** — auto-detect or explicitly specify network interfaces
+- **Strict CLI validation** — invalid commands, interfaces, and values are rejected with clear errors
+- Supports multiple bandwidth units: `byte/bs`, `kb`, `mb`, `gb`, `kbit`, `mbit`, `gbit`
+- Built-in presets: `gaming`, `streaming`, `background`
+- Clean, colored terminal output (respects `NO_COLOR`)
+- JSON output mode for scripting integration
+- Persistent state across invocations (survives restarts)
 
 ## Requirements
 
-- Linux (kernel 4.6+ for per-socket byte tracking)
-- Root privileges for `strict`/`unstrict`/`qos`/`clean` operations
-- `iproute2` package (provides `tc`, `nft`, `ss`)
-- Rust 1.88+ (for building from source)
+- **Linux** (kernel 5.4+ recommended for full cgroup v2 support)
+- **Root privileges** (for bandwidth limiting, QoS, and auto-throttle operations)
+- **iproute2** package (provides `tc` and `ip` commands)
+- **nftables** (for packet marking on download limiting)
+- **Rust 1.88+** (for building from source)
 
 ## Installation
 
-### Download (Recommended)
+### Download Release
+
+Download the latest release from [GitHub Releases](https://github.com/oxyzenq/oxy/releases):
 
 ```bash
-# Install via install script
-curl -fsSL https://raw.githubusercontent.com/oxyzenq/oxy/main/install.sh | sh
+# Download and extract
+curl -sL https://github.com/oxyzenq/oxy/releases/latest/download/oxy-v2.0.0-x86_64-linux.tar.gz | tar xz
 
-# Or download from GitHub Releases
-# https://github.com/oxyzenq/oxy/releases
+# Install system-wide
+sudo cp oxy-v2.0.0-x86_64-linux/oxy /usr/local/bin/
 ```
 
-### Build from Source
+Verify the download with SHA256 checksums published alongside each release.
+
+### From Source
 
 ```bash
 git clone https://github.com/oxyzenq/oxy.git
 cd oxy
 cargo build --release
-sudo install -Dm755 target/release/oxy /usr/local/bin/oxy
+
+# Install system-wide
+sudo cp target/release/oxy /usr/local/bin/
 ```
 
-### Package Manager (Coming Soon)
-
-## Quick Start
+### Quick Build
 
 ```bash
-# Monitor all network usage
+cargo build --release
+sudo cp target/release/oxy /usr/local/bin/
+```
+
+### Shell Completions
+
+```bash
+# Bash
+oxy completions bash | sudo tee /usr/share/bash-completion/completions/oxy > /dev/null
+
+# Zsh
+oxy completions zsh > ~/.zsh/completions/_oxy
+
+# Fish
+oxy completions fish > ~/.config/fish/completions/oxy.fish
+```
+
+## Usage
+
+### Quick Reference
+
+```
+oxy [FLAGS] [COMMAND] [ARGS]
+
+FLAGS:
+    -i, --info              Print detailed package information
+    -v, --ver               Print version (short)
+    -V, --version           Print version (long)
+    --help-all              Show comprehensive help with all commands and examples
+    --iface [INTERFACE]     Specify network interface (no value = list available)
+    --no-color              Disable colored output
+
+COMMANDS:
+    list                    List network bandwidth usage per process
+    strict                  Set bandwidth limits for a process
+    unstrict                Remove all bandwidth limits
+    status                  Show active bandwidth limits
+    clean                   Clean up orphaned bandwidth limits
+    profile                 Manage named bandwidth profiles
+    qos                     QoS priority-based bandwidth shaping
+    watch                   Monitor and alert on bandwidth threshold
+    auto                    Auto-throttle daemon mode
+    log                     Bandwidth usage history
+    backend                 Show backend and eBPF support status
+    completions             Generate shell completions
+    man                     Generate man page
+```
+
+### List Network Usage
+
+Show all programs/ports with active bandwidth usage:
+
+```bash
+# List all processes with bandwidth usage (default)
 oxy list
 
-# Real-time TUI dashboard
+# Real-time TUI dashboard (like htop for network)
 oxy list --live
 
-# Limit a process
-sudo oxy strict -d 1mb -u 500kb brave
+# Live mode with custom refresh interval (2 seconds)
+oxy list --live --interval 2
 
-# Use preset
+# Sort by highest to lowest bandwidth usage
+oxy list --high-to-low-usage-net
+
+# Show individual socket connections per process
+oxy list --verbose
+
+# Output as JSON for scripting
+oxy list --json
+```
+
+### Limit Bandwidth (strict)
+
+Apply download and/or upload speed limits to a specific process:
+
+```bash
+# Limit both download and upload
+sudo oxy strict -d 500kb -u 500kb brave
+
+# Limit only download
+sudo oxy strict -d 1mb firefox
+
+# Limit only upload (keyword "only" for the other direction)
+sudo oxy strict -u 250kb -d only 1234
+
+# Limit by PID
+sudo oxy strict -d 1mb -u 1mb 8100
+
+# Use a preset profile
 sudo oxy strict --preset gaming discord
+sudo oxy strict --preset background steam
+sudo oxy strict --preset streaming zoom
+```
 
-# Remove limits
+Re-limiting without `unstrict` first is supported — old rules are auto-cleaned:
+
+```bash
+sudo oxy strict -d 500kb brave       # apply limit
+sudo oxy strict -d 10mb brave        # auto-overrides to 10mb
+```
+
+### Remove Bandwidth Limits (unstrict)
+
+Remove all bandwidth restrictions from a process:
+
+```bash
+# By process name
 sudo oxy unstrict brave
 
-# Comprehensive help
-oxy --help-all
+# By PID
+sudo oxy unstrict 8100
 ```
 
-## Commands
-
-### `oxy list` — Monitor Bandwidth
-
-```bash
-oxy list                          # Table view (default)
-oxy list --live                   # Real-time TUI dashboard
-oxy list --live 2                 # 2-second refresh interval
-oxy list --live --interval 3      # Explicit interval
-oxy list --verbose                # Per-connection breakdown
-oxy list --json                   # JSON output
-```
-
-**TUI controls:** `q`/`Esc` quit, `j`/`k` or `↑`/`↓` scroll, `Ctrl+C` quit
-
-### `oxy strict` — Limit Bandwidth
-
-```bash
-sudo oxy strict -d 500kb -u 500kb brave     # Both directions
-sudo oxy strict -d 1mb firefox               # Download only
-sudo oxy strict -u 250kb -d only 1234       # Upload only (keyword 'only')
-sudo oxy strict --preset gaming discord     # Use preset profile
-sudo oxy strict --preset background steam
-```
-
-**Presets:**
-
-| Name | Download | Upload | Use case |
-|------|----------|--------|----------|
-| `gaming` | 50 MB/s | 50 MB/s | Low latency priority |
-| `streaming` | 10 MB/s | 5 MB/s | Video calls |
-| `background` | 500 KB/s | 100 KB/s | Downloads, updates |
-
-Re-limiting the same process auto-cleans old rules — no need to `unstrict` first.
-
-### `oxy unstrict` — Remove Limits
-
-```bash
-sudo oxy unstrict brave            # By process name
-sudo oxy unstrict 1234             # By PID
-```
-
-### `oxy status` — Show Active Limits
+### Show Active Limits
 
 ```bash
 oxy status
 ```
 
-### `oxy clean` — Remove Orphaned Limits
+### Clean Up Orphans
+
+Remove tc/cgroup rules for processes that have already exited:
 
 ```bash
-sudo oxy clean                     # Clean up exited process rules
+sudo oxy clean
 ```
 
-### `oxy qos` — Priority-Based Shaping
+### Network Interface
+
+Auto-detect is used by default. Explicitly specify an interface with `--iface`:
 
 ```bash
-sudo oxy qos high brave            # High priority (gets bandwidth first)
-sudo oxy qos low wget              # Low priority (gets leftovers)
-sudo oxy qos status                # Show QoS assignments
-sudo oxy qos reset                 # Clear all QoS rules
+# List available interfaces
+oxy --iface
+
+# Use a specific interface for any command
+oxy --iface wlan0 list --live
+sudo oxy --iface eth0 strict -d 1mb brave
+sudo oxy --iface enp3s0 qos high firefox
 ```
 
-### `oxy profile` — Named Profiles
+### QoS Priority Shaping
+
+Assign priority tiers instead of hard limits. High priority processes get bandwidth first; idle bandwidth from low-priority processes redistributes automatically:
 
 ```bash
+# High priority for browser
+sudo oxy qos high brave
+
+# Low priority for download manager
+sudo oxy qos low wget
+
+# Show current QoS assignments
+oxy qos status
+
+# Clear all QoS rules
+sudo oxy qos reset
+```
+
+### Profile Management
+
+Save and load custom bandwidth profiles:
+
+```bash
+# Save a profile
 oxy profile save slow --dl 50kb --ul 50kb
+oxy profile save streaming --dl 5mb --ul 2mb
+
+# Apply a profile
 sudo oxy profile apply slow steam
+
+# List all profiles
 oxy profile list
+
+# Delete a profile
 oxy profile delete slow
 ```
 
-### `oxy watch` — Bandwidth Alerts
+### Watch & Alert
+
+Monitor a process and send a desktop notification when bandwidth exceeds a threshold:
 
 ```bash
-oxy watch -a 500mb wget            # Alert when > 500MB total
-oxy watch -a 1gb firefox -i 30     # Check every 30 seconds
+# Alert when wget exceeds 500MB total transfer
+oxy watch -a 500mb wget
+
+# Check every 30 seconds
+oxy watch -a 1gb firefox -i 30
 ```
 
-### `oxy auto` — Auto-Throttle Daemon
+### Auto-Throttle Daemon
+
+Continuously monitor and automatically apply limits when thresholds are exceeded:
 
 ```bash
-sudo oxy auto --download 100mb --upload 50mb    # Auto-limit when exceeded
-sudo oxy auto --download 80mb --kill firefox   # Kill heavy users
-sudo oxy auto --status                           # Check daemon status
+# Auto-limit when download exceeds 100MB/s and upload exceeds 50MB/s
+sudo oxy auto --download 100mb --upload 50mb
+
+# Kill heavy processes instead of limiting
+sudo oxy auto --download 80mb --kill firefox
+
+# Run as a background daemon
+sudo oxy auto --daemon
 ```
 
-### `oxy log` — Bandwidth History
+### Bandwidth Logging
+
+Record and review historical bandwidth usage:
 
 ```bash
-oxy log                            # Show recent history
-oxy log --snapshot                 # Record current state
-oxy log --last 1h                  # Show last hour
-oxy log --json                     # JSON output
+# Show recent history
+oxy log
+
+# Record a snapshot of current state
+oxy log --snapshot
+
+# Show last hour
+oxy log --last 1h
+
+# JSON output for analysis
+oxy log --json
 ```
 
-### `oxy backend` — Backend Info
+### Presets
 
-```bash
-oxy backend                        # Check eBPF/tc support
-```
+Built-in presets for common use cases:
 
-### Global Options
-
-```bash
---iface                            # List available interfaces
---iface wlp1s0                     # Use specific interface
---iface eth0 list --live           # Interface + command
---no-color                         # Disable colored output
-```
+| Preset | Download | Upload | Use Case |
+|--------|----------|--------|----------|
+| `gaming` | 50 mb/s | 50 mb/s | Low latency, prioritizes responsive gameplay |
+| `streaming` | 10 mb/s | 5 mb/s | Balanced for video calls and streaming |
+| `background` | 500 kb/s | 100 kb/s | Minimal bandwidth for background downloads |
 
 ## Supported Units
 
 | Unit | Description | Example |
 |------|-------------|---------|
-| `byte`, `bs` | Bytes per second | `500bs` |
-| `kb` | Kilobytes per second | `500kb` |
-| `mb` | Megabytes per second | `1mb` |
-| `gb` | Gigabytes per second | `1gb` |
-| `kbit` | Kilobits per second | `100kbit` |
-| `mbit` | Megabits per second | `10mbit` |
-| `gbit` | Gigabits per second | `1gbit` |
+| `b`, `byte`, `bs` | Bytes per second | `100bs`, `500byte` |
+| `kb`, `kbs` | Kilobytes per second (1 KB = 1024 B) | `500kb`, `2kbs` |
+| `mb`, `mbs` | Megabytes per second (1 MB = 1024 KB) | `1mb`, `50mbs` |
+| `gb`, `gbs` | Gigabytes per second (1 GB = 1024 MB) | `1gb`, `2gbs` |
+| `kbit`, `kbits` | Kilobits per second | `100kbit`, `500kbits` |
+| `mbit`, `mbits` | Megabits per second | `10mbit`, `100mbits` |
+| `gbit`, `gbits` | Gigabits per second | `1gbit` |
 
 ## Architecture
 
+oxy works by combining several Linux kernel features:
+
+### Bandwidth Monitoring
+
+Uses the `ss` (socket statistics) command to discover all active TCP/UDP sockets on the system, maps them to their owning processes via `/proc` filesystem, and extracts per-socket byte counters (available on kernels 4.6+).
+
+### Bandwidth Limiting
+
+Uses a layered approach:
+
+1. **HTB qdisc** — Hierarchical Token Bucket queueing discipline provides the rate-limiting mechanism
+2. **Traffic classes** — Each limited process gets its own tc class with configurable rate/ceil
+3. **Cgroup v2** — Tags traffic originating from specific processes using socket cgroupv2 classification
+4. **nftables** — Marks packets in prerouting for download (ingress) direction
+5. **tc filters** — Routes tagged traffic to the appropriate class for enforcement
+
+### How It Works
+
 ```
-Monitoring:
-  ss -tuneiH → parse_ss_output() → build_inode_cache(/proc/*/fd/)
-  → aggregate_by_process() → display (table/JSON/TUI)
+                    Upload (egress)
+┌─────────────┐     ┌──────────────┐     ┌────────────────┐
+│   Process   │────>│  Cgroup v2   │────>│  socket        │
+│   (PID)     │     │  (oxy/pid)   │     │  cgroupv2 tag  │
+└─────────────┘     └──────────────┘     └───────┬────────┘
+                                                  │
+                                                  v
+┌─────────────┐     ┌──────────────┐     ┌────────────────┐
+│  Network    │<────│  tc filter   │<────│  tc HTB qdisc  │
+│  Interface  │     │  (cgroup     │     │  (rate limit)  │
+│  (eth0)     │     │   match)     │     │                │
+└─────────────┘     └──────────────┘     └────────────────┘
 
-Limiting (tc + nftables + cgroups):
-  Upload:    Process → nftables (mark by UID) → tc fw filter → HTB class
-  Download:  NIC → nftables (socket cgroupv2 / meta skuid / ct mark) → limit rate
+                    Download (ingress)
+┌─────────────┐     ┌──────────────┐     ┌────────────────┐
+│   Network   │────>│  nftables    │────>│  tc HTB qdisc  │
+│  Interface  │     │  (prerouting │     │  (rate limit)  │
+│  (eth0)     │     │   mark)      │     │                │
+└─────────────┘     └──────────────┘     └────────────────┘
+```
 
-State:  /run/oxy/state.json (per-PID limit records)
-Cgroups: /sys/fs/cgroup/oxy/ (per-UID on v2, per-PID on v1/hybrid)
+## Package Information
+
+```bash
+# Print version
+oxy -v
+
+# Print detailed info
+oxy -i
+```
+
+**Example output of `oxy -i`:**
+```
+Version: v2.0.0
+Build: linux-x86_64 (ad36a81)
+Copyright: (c) 2026 rezky_nightky
+License: MIT
+Source: https://github.com/oxyzenq/oxy
+```
+
+## Building
+
+```bash
+# Quick quality checks
+./build.sh check-all
+
+# Build release binary
+./build.sh release
+
+# Full CI pipeline (checks + release build)
+./build.sh ci
 ```
 
 ## License
 
 MIT License — Copyright (c) 2026 rezky_nightky
+
+See [LICENSE](LICENSE) for details.
+
+## Author
+
+**rezky_nightky** — [GitHub](https://github.com/oxyzenq)
