@@ -40,13 +40,15 @@ pub struct Cli {
     ///
     /// Defaults to the first non-loopback interface. Use this to explicitly
     /// specify which interface to monitor and shape (e.g., eth0, wlan0).
+    /// Use without a value (--iface) to list available interfaces.
     #[arg(
         long,
         global = true,
         value_name = "INTERFACE",
-        help = "Network interface to use"
+        num_args = 0..=1,
+        help = "Network interface to use (no value = list available)"
     )]
-    pub iface: Option<String>,
+    pub iface: Option<Option<String>>,
 }
 
 #[derive(Subcommand, Debug)]

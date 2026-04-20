@@ -51,6 +51,29 @@ fn main() -> Result<()> {
         return Ok(());
     }
 
+    // Handle --iface with no value → list available interfaces and exit
+    if matches!(&cli.iface, Some(None)) {
+        let ifaces = limiter::list_interfaces();
+        if ifaces.is_empty() {
+            println!("No network interfaces found.");
+        } else {
+            // Show default interface if detectable
+            let default = limiter::get_default_interface().ok();
+            println!("{}", "Available network interfaces:".bold());
+            for iface in &ifaces {
+                let marker =
+                    default
+                        .as_ref()
+                        .map_or("", |d| if *d == *iface { " (default)" } else { "" });
+                println!("  {}{}", iface.cyan(), marker.dimmed());
+            }
+        }
+        return Ok(());
+    }
+
+    // Extract iface value: Some(Some("eth0")) → Some("eth0"), else None
+    let iface_value = cli.iface.as_ref().and_then(|v| v.as_deref());
+
     // Handle subcommands
     match cli.command {
         Some(Commands::List {
@@ -63,7 +86,7 @@ fn main() -> Result<()> {
         }) => {
             if live {
                 let interval_secs = interval.unwrap_or(1);
-                monitor::display_usage_live(interval_secs, cli.iface.as_deref())?;
+                monitor::display_usage_live(interval_secs, iface_value)?;
             } else if json {
                 monitor::display_usage_json()?;
             } else if verbose {
@@ -146,7 +169,7 @@ fn main() -> Result<()> {
                 ul_ref,
                 download_only,
                 upload_only,
-                cli.iface.as_deref(),
+                iface_value,
             )?;
         }
 
@@ -183,7 +206,7 @@ fn main() -> Result<()> {
                 profile::save_profile(&name, download.as_deref(), upload.as_deref())?;
             }
             ProfileCommands::Apply { name, target } => {
-                profile::apply_profile(&name, &target, cli.iface.as_deref())?;
+                profile::apply_profile(&name, &target, iface_value)?;
             }
             ProfileCommands::List => {
                 profile::list_profiles()?;
@@ -195,16 +218,16 @@ fn main() -> Result<()> {
 
         Some(Commands::Qos { command }) => match command {
             QosCommands::High { target } => {
-                qos::set_priority(&target, qos::PriorityTier::High, cli.iface.as_deref())?;
+                qos::set_priority(&target, qos::PriorityTier::High, iface_value)?;
             }
             QosCommands::Low { target } => {
-                qos::set_priority(&target, qos::PriorityTier::Low, cli.iface.as_deref())?;
+                qos::set_priority(&target, qos::PriorityTier::Low, iface_value)?;
             }
             QosCommands::Status => {
                 qos::show_qos_status()?;
             }
             QosCommands::Reset => {
-                qos::reset_qos(cli.iface.as_deref())?;
+                qos::reset_qos(iface_value)?;
             }
         },
 
@@ -232,7 +255,7 @@ fn main() -> Result<()> {
                 kill,
                 daemon,
                 interval,
-                cli.iface.as_deref(),
+                iface_value,
             )?;
         }
 
@@ -627,10 +650,14 @@ fn print_help_all() {
     println!("  --iface <INTERFACE>      Specify network interface (default: auto-detect)");
     println!("                            Validates against available interfaces.");
     println!("                            Invalid names show available list.");
+    println!("  --iface                  List available interfaces (no value)");
     println!("  --no-color               Disable colored output");
     println!();
 
     println!("{}", "EXAMPLES".bold());
+    println!("  # List available interfaces");
+    println!("  oxy --iface");
+    println!();
     println!("  # Real-time monitoring");
     println!("  oxy list --live");
     println!();

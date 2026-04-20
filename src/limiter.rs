@@ -444,7 +444,7 @@ pub fn get_default_interface() -> Result<String> {
 }
 
 /// List all available network interfaces on the system.
-fn list_interfaces() -> Vec<String> {
+pub fn list_interfaces() -> Vec<String> {
     let mut ifaces = Vec::new();
     if let Ok(entries) = fs::read_dir("/sys/class/net") {
         for entry in entries.flatten() {
