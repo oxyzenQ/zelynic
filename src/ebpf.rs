@@ -155,6 +155,8 @@ pub struct EbpfSupport {
 impl EbpfSupport {
     /// Print support status to console.
     pub fn print_status(&self) {
+        let is_root = nix::unistd::geteuid().is_root();
+
         println!("{}", "eBPF Support Check".green().bold());
         println!("  Kernel version: {}", self.kernel_version.dimmed());
         println!(
@@ -165,14 +167,16 @@ impl EbpfSupport {
                 "✗".red()
             }
         );
-        println!(
-            "  CAP_BPF/root: {}",
-            if self.caps_ok {
-                "✓".green()
-            } else {
-                "✗".red()
-            }
-        );
+
+        // Show CAP_BPF with context about why it failed
+        if self.caps_ok {
+            println!("  CAP_BPF/root: {}", "✓".green());
+        } else if !is_root && self.kernel_ok && self.config_ok {
+            println!("  CAP_BPF/root: {} (run with sudo to check)", "?".yellow());
+        } else {
+            println!("  CAP_BPF/root: {}", "✗".red());
+        }
+
         println!(
             "  BPF fs mounted: {}",
             if self.bpf_fs_ok {
@@ -190,14 +194,16 @@ impl EbpfSupport {
             }
         );
         println!();
-        println!(
-            "  Overall: {}",
-            if self.supported {
-                "SUPPORTED".green().bold()
-            } else {
-                "NOT SUPPORTED".red().bold()
-            }
-        );
+
+        // Overall status with context
+        if self.supported {
+            println!("  Overall: {}", "SUPPORTED".green().bold());
+        } else if !is_root && self.kernel_ok && self.bpf_fs_ok && self.config_ok {
+            println!("  Overall: {}", "LIKELY SUPPORTED".yellow().bold());
+            println!("  {} Run with sudo to verify", "  ".dimmed());
+        } else {
+            println!("  Overall: {}", "NOT SUPPORTED".red().bold());
+        }
     }
 }
 
@@ -304,7 +310,6 @@ impl Backend {
 /// Print current backend info.
 pub fn print_backend_info() {
     let backend = Backend::auto_select();
-    let support = check_ebpf_support();
 
     println!(
         "{} Using {} backend",
@@ -312,12 +317,19 @@ pub fn print_backend_info() {
         backend.name().cyan().bold()
     );
 
-    if backend == Backend::TcCgroup && !support.supported {
-        println!(
-            "  {} eBPF not available (kernel: {})",
-            "ℹ".yellow(),
-            support.kernel_version.dimmed()
-        );
+    match backend {
+        Backend::TcCgroup => {
+            println!(
+                "  {} Active backend: nftables + HTB | cgroup v2",
+                "ℹ".dimmed()
+            );
+        }
+        Backend::Ebpf => {
+            println!(
+                "  {} Active backend: eBPF (low overhead, per-process ingress)",
+                "ℹ".dimmed()
+            );
+        }
     }
 }
 
