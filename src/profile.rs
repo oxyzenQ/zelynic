@@ -193,7 +193,7 @@ pub fn apply_profile(name: &str, target: &str, iface_override: Option<&str>) -> 
     );
 
     // Apply using existing limiter
-    apply_limit(target, dl_ref, ul_ref, false, false, iface_override)
+    apply_limit(target, dl_ref, ul_ref, iface_override)
 }
 
 /// List all saved profiles.

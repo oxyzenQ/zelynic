@@ -45,7 +45,7 @@ pub fn watch_process(
     let process_name = get_process_name(pid);
 
     println!(
-        "{} Watching {} (PID: {}) for bandwidth > {}/s",
+        "{} Watching {} (PID: {}) — alert when rate exceeds {}",
         "→".cyan(),
         process_name.yellow(),
         pid,
@@ -76,7 +76,7 @@ pub fn watch_process(
             Ok(Some(rate)) if rate > threshold_bps && !state.in_alert => {
                 state.in_alert = true;
                 let msg = format!(
-                    "{} bandwidth exceeded: {}/s (threshold: {}/s)",
+                    "{} rate exceeded: {}/s (threshold: {}/s)",
                     process_name,
                     format_bytes(rate),
                     alert_threshold
@@ -98,7 +98,7 @@ pub fn watch_process(
                 // Bandwidth back below threshold
                 state.in_alert = false;
                 println!(
-                    "[{}] {} Bandwidth back to normal: {}/s",
+                    "[{}] {} Rate back to normal: {}/s",
                     chrono_now().dimmed(),
                     "✓".green(),
                     format_bytes(rate)

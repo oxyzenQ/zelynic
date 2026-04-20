@@ -840,13 +840,11 @@ pub fn apply_limit(
     target: &str,
     download: Option<&str>,
     upload: Option<&str>,
-    download_only: bool,
-    upload_only: bool,
     iface_override: Option<&str>,
 ) -> Result<()> {
     check_root()?;
 
-    if download.is_none() && upload.is_none() && !download_only && !upload_only {
+    if download.is_none() && upload.is_none() {
         bail!(
             "no bandwidth limit specified.\n  {} Usage: oxy strict -d <rate> -u <rate> <target>",
             "ERROR:".red().bold()
@@ -865,20 +863,12 @@ pub fn apply_limit(
     let download_rate = download.map(BandwidthRate::parse).transpose()?;
     let upload_rate = upload.map(BandwidthRate::parse).transpose()?;
 
-    let (dl_bps, ul_bps, dl_display, ul_display) = if download_only {
-        let rate = download_rate.context("download rate required with -d only")?;
-        (Some(rate.bytes_per_sec), None, Some(rate.raw.clone()), None)
-    } else if upload_only {
-        let rate = upload_rate.context("upload rate required with -u only")?;
-        (None, Some(rate.bytes_per_sec), None, Some(rate.raw.clone()))
-    } else {
-        (
-            download_rate.as_ref().map(|r| r.bytes_per_sec),
-            upload_rate.as_ref().map(|r| r.bytes_per_sec),
-            download_rate.as_ref().map(|r| r.raw.clone()),
-            upload_rate.as_ref().map(|r| r.raw.clone()),
-        )
-    };
+    let (dl_bps, ul_bps, dl_display, ul_display) = (
+        download_rate.as_ref().map(|r| r.bytes_per_sec),
+        upload_rate.as_ref().map(|r| r.bytes_per_sec),
+        download_rate.as_ref().map(|r| r.raw.clone()),
+        upload_rate.as_ref().map(|r| r.raw.clone()),
+    );
 
     let pids = resolve_pids(target)?;
 

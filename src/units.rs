@@ -118,11 +118,6 @@ impl BandwidthRate {
             bail!("bandwidth rate cannot be empty. Examples: 500kb, 1mb, 2gb, 100byte");
         }
 
-        // Special keyword: "only" means no limit for this direction
-        if trimmed.eq_ignore_ascii_case("only") {
-            bail!("'only' is not a rate value; it is a flag meaning 'limit only this direction'");
-        }
-
         // Reject leading signs (+/-)
         let first = trimmed.chars().next().unwrap();
         if first == '+' || first == '-' {
