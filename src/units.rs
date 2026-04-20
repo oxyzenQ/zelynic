@@ -102,11 +102,12 @@ impl BandwidthRate {
     /// ```
     /// BandwidthRate::parse("500kb")  // 500 KB/s
     /// BandwidthRate::parse("1.5mb")  // Error: no floating point
-    /// BandwidthRate::parse("100byte") // 100 B/s
     /// BandwidthRate::parse("2gb")    // 2 GB/s
     /// ```
-    /// Minimum bandwidth rate: 1 byte per second.
-    pub const MIN_BYTES_PER_SEC: u64 = 1;
+    /// Minimum bandwidth rate: 1 KB/s (1024 bytes/s).
+    /// Rates below this cannot be accurately enforced by the Linux kernel's
+    /// HTB scheduler due to clock tick granularity (~1-4ms).
+    pub const MIN_BYTES_PER_SEC: u64 = 1024;
 
     pub fn parse(input: &str) -> Result<Self> {
         let trimmed = input.trim();
@@ -165,7 +166,7 @@ impl BandwidthRate {
 
         if value == 0 {
             bail!(
-                "bandwidth rate must be greater than zero, got '{}'. \n  {} Minimum: 1byte (1 B/s)",
+                "bandwidth rate must be greater than zero, got '{}'. \n  {} Minimum: 1kb (1 KB/s)",
                 input,
                 "Hint:".yellow()
             );
@@ -187,12 +188,13 @@ impl BandwidthRate {
 
         let bytes_per_sec = value * unit.bytes_multiplier();
 
-        // Enforce minimum rate
+        // Enforce minimum rate (1 KB/s — below this HTB cannot enforce accurately)
         if bytes_per_sec < Self::MIN_BYTES_PER_SEC {
             bail!(
-                "bandwidth rate {} {} is below the minimum allowed (1 byte/s)",
+                "bandwidth rate {} {} is below the minimum allowed (1 KB/s).\n  {} Minimum: 1kb (kernel HTB scheduler cannot enforce sub-KB/s rates accurately)",
                 value,
-                unit.short_label()
+                unit.short_label(),
+                "Hint:".yellow()
             );
         }
 
@@ -267,9 +269,24 @@ mod tests {
 
     #[test]
     fn test_parse_bytes() {
-        let rate = BandwidthRate::parse("100byte").unwrap();
-        assert_eq!(rate.bytes_per_sec, 100);
+        let rate = BandwidthRate::parse("2048byte").unwrap();
+        assert_eq!(rate.bytes_per_sec, 2048);
         assert_eq!(rate.unit, BandwidthUnit::BytesPerSec);
+    }
+
+    #[test]
+    fn test_reject_below_minimum() {
+        // Below 1 KB/s should be rejected
+        assert!(BandwidthRate::parse("100byte").is_err());
+        assert!(BandwidthRate::parse("500b").is_err());
+        assert!(BandwidthRate::parse("1b").is_err());
+    }
+
+    #[test]
+    fn test_minimum_boundary() {
+        // 1 KB/s (1024 bytes) should pass
+        let rate = BandwidthRate::parse("1kb").unwrap();
+        assert_eq!(rate.bytes_per_sec, 1024);
     }
 
     #[test]
