@@ -1,0 +1,95 @@
+#!/bin/bash
+# =============================================================================
+# OXY VERSION MANAGER
+# =============================================================================
+# Centralized version management — update ALL files from a single command.
+#
+# Usage:
+#   ./set-version.sh 3.0.0          # Update to v3.0.0
+#   ./set-version.sh 2.1.0 --commit  # Update and auto-commit
+#   ./set-version.sh                 # Show current version
+#
+# Single source of truth: Cargo.toml
+# Files updated: Cargo.toml, README.md
+# Files auto-derived: build.sh (reads from Cargo.toml), binary (env!("CARGO_PKG_VERSION"))
+# =============================================================================
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "${SCRIPT_DIR}"
+
+# Colors
+readonly RED='\033[0;31m'
+readonly GREEN='\033[0;32m'
+readonly YELLOW='\033[1;33m'
+readonly NC='\033[0m'
+
+# Read current version from Cargo.toml
+current_version() {
+    grep '^version = ' Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/'
+}
+
+# Validate semver format
+validate_version() {
+    local ver="$1"
+    if ! echo "${ver}" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$'; then
+        echo -e "${RED}Error: Invalid version '${ver}'. Expected format: X.Y.Z or X.Y.Z-label${NC}" >&2
+        exit 1
+    fi
+}
+
+# Show current version and exit
+if [ $# -eq 0 ]; then
+    echo -e "Current version: ${GREEN}v$(current_version)${NC}"
+    echo ""
+    echo "Usage: ./set-version.sh <VERSION> [--commit]"
+    exit 0
+fi
+
+NEW_VERSION="$1"
+shift
+
+COMMIT=false
+for arg in "$@"; do
+    case "${arg}" in
+        --commit|-c) COMMIT=true ;;
+        *) echo -e "${RED}Unknown option: ${arg}${NC}" >&2; exit 1 ;;
+    esac
+done
+
+validate_version "${NEW_VERSION}"
+CURRENT=$(current_version)
+
+if [ "${CURRENT}" = "${NEW_VERSION}" ]; then
+    echo -e "${YELLOW}Already at v${NEW_VERSION}, nothing to change.${NC}"
+    exit 0
+fi
+
+echo -e "Updating version: ${YELLOW}v${CURRENT}${NC} → ${GREEN}v${NEW_VERSION}${NC}"
+echo ""
+
+# --- Update Cargo.toml (source of truth) ---
+# Only update the [package] version (line 1-10 of file), not dependency versions
+sed -i "0,/^version = \".*\"/s//version = \"${NEW_VERSION}\"/" Cargo.toml
+echo -e "  ${GREEN}✓${NC} Cargo.toml          → ${NEW_VERSION}"
+
+# --- Update README.md ---
+sed -i "s|version-v.*-blue|version-v${NEW_VERSION}-blue|" README.md
+sed -i "s|oxy-v.*-x86_64|oxy-v${NEW_VERSION}-x86_64|" README.md
+sed -i "s|Version: v.*|Version: v${NEW_VERSION}|" README.md
+echo -e "  ${GREEN}✓${NC} README.md           → v${NEW_VERSION} (badge + example)"
+
+# --- build.sh reads dynamically from Cargo.toml, no update needed ---
+echo -e "  ${GREEN}✓${NC} build.sh            → auto (reads from Cargo.toml)"
+
+# --- Binary reads from Cargo.toml via env!("CARGO_PKG_VERSION"), no update needed ---
+echo -e "  ${GREEN}✓${NC} Binary (oxy)        → auto (reads from Cargo.toml)"
+
+echo ""
+echo -e "${GREEN}Version updated to v${NEW_VERSION}${NC}"
+
+if [ "${COMMIT}" = true ]; then
+    git add Cargo.toml README.md
+    git commit -m "release: v${NEW_VERSION}"
+    echo -e "${GREEN}✓ Committed: release: v${NEW_VERSION}${NC}"
+fi

@@ -4,7 +4,7 @@
 # =============================================================================
 # Optimized build script with intelligent core detection and advanced caching
 # Author: rezky_nightky
-# Version: 2.0.0
+# Version: (read dynamically from Cargo.toml)
 
 set -euo pipefail
 
@@ -22,6 +22,10 @@ readonly NC='\033[0m'
 
 # Configuration with intelligent defaults
 readonly PROJECT_NAME="oxy"
+
+# Read version from Cargo.toml (single source of truth)
+OXY_VERSION=$(grep '^version = ' Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/' || echo "unknown")
+readonly OXY_VERSION
 
 default_target() {
         if command -v rustc >/dev/null 2>&1; then
@@ -404,9 +408,9 @@ run_benchmark() {
 # =============================================================================
 
 show_help() {
-        cat <<'EOF'
+        cat <<EOF
 ╔════════════════════════════════════════════════════════════════╗
-║              Oxy Build Script - v2.0.0                       ║
+║              Oxy Build Script - v${OXY_VERSION}                       ║
 ║        Easy userspace bandwidth manager for Linux            ║
 ╚════════════════════════════════════════════════════════════════╝
 
