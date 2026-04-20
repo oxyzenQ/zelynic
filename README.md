@@ -153,11 +153,11 @@ Apply download and/or upload speed limits to a specific process:
 # Limit both download and upload
 sudo oxy strict -d 500kb -u 500kb brave
 
-# Limit only download
+# Limit only download (omit -u)
 sudo oxy strict -d 1mb firefox
 
-# Limit only upload (keyword "only" for the other direction)
-sudo oxy strict -u 250kb -d only 1234
+# Limit only upload (omit -d)
+sudo oxy strict -u 250kb 1234
 
 # Limit by PID
 sudo oxy strict -d 1mb -u 1mb 8100
@@ -257,11 +257,11 @@ oxy profile delete slow
 Monitor a process and send a desktop notification when bandwidth exceeds a threshold:
 
 ```bash
-# Alert when wget exceeds 500MB total transfer
-oxy watch -a 500mb wget
+# Alert when wget rate exceeds 500KB/s
+oxy watch -a 500kb wget
 
 # Check every 30 seconds
-oxy watch -a 1gb firefox -i 30
+oxy watch -a 5mb firefox -i 30
 ```
 
 ### Auto-Throttle Daemon

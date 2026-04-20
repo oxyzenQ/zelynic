@@ -102,17 +102,17 @@ pub enum Commands {
     /// Applies download and/or upload speed limits to the target process
     /// using Linux traffic control (tc) with HTB qdisc and cgroups.
     ///
-    /// Supported units: byte/bs, kb/kbps, mb/mbs, gb/gbs, kbit, mbit, gbit
+    /// Supported units: byte/bs, kb, mb, gb, kbit, mbit, gbit
     ///
     /// Use --preset for common profiles instead of manual rates:
-    ///   gaming    - 50mb/50mb (prioritizes low latency)
-    ///   streaming - 10mb/5mb  (balanced for video calls)
-    ///   background- 500kb/100kb (minimal, for downloads)
+    ///   gaming     - 50mb/50mb (prioritizes low latency)
+    ///   streaming  - 10mb/5mb  (balanced for video calls)
+    ///   background - 500kb/100kb (minimal, for downloads)
     ///
     /// Examples:
     ///   oxy strict -d 500kb -u 500kb brave
-    ///   oxy strict -d 1mb -u only firefox
-    ///   oxy strict -d only -u 250kb 1234
+    ///   oxy strict -d 1mb firefox               # Download only
+    ///   oxy strict -u 250kb 1234                # Upload only
     ///   oxy strict --preset gaming discord
     ///   oxy strict --preset background steam
     #[command(verbatim_doc_comment)]
@@ -260,12 +260,12 @@ pub enum Commands {
     /// download monitoring without keeping --live open.
     ///
     /// Examples:
-    ///   oxy watch --alert 500mb wget     # Alert when wget > 500MB/s
-    ///   oxy watch --alert 1gb firefox   # Alert when firefox > 1GB/s
+    ///   oxy watch --alert 500kb wget     # Alert when rate > 500KB/s
+    ///   oxy watch --alert 5mb firefox   # Alert when rate > 5MB/s
     ///   oxy watch --alert 100mb -i 30    # Check every 30 seconds
     #[command(verbatim_doc_comment)]
     Watch {
-        /// Alert threshold (e.g., 500mb, 1gb, 10mb)
+        /// Alert threshold as bandwidth rate (e.g., 500kb, 5mb, 100mb)
         #[arg(short = 'a', long, value_name = "RATE", required = true)]
         alert: String,
         /// Process to watch (name or PID)

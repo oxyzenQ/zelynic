@@ -209,8 +209,6 @@ impl AutoThrottle {
                     &proc.pid.to_string(),
                     Some("1mbit"),
                     Some("1mbit"),
-                    false,
-                    false,
                     self.iface_override.as_deref(),
                 ) {
                     eprintln!("    Failed to limit: {}", e);

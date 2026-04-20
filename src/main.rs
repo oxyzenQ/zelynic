@@ -142,31 +142,10 @@ fn main() -> Result<()> {
                 );
             }
 
-            // Check for "only" keyword in download/upload values
-            let download_only = dl_value
-                .as_deref()
-                .is_some_and(|v| v.eq_ignore_ascii_case("only"));
-            let upload_only = ul_value
-                .as_deref()
-                .is_some_and(|v| v.eq_ignore_ascii_case("only"));
-
-            let dl_ref = if download_only {
-                None
-            } else {
-                dl_value.as_deref()
-            };
-            let ul_ref = if upload_only {
-                None
-            } else {
-                ul_value.as_deref()
-            };
-
             limiter::apply_limit(
                 &target,
-                dl_ref,
-                ul_ref,
-                download_only,
-                upload_only,
+                dl_value.as_deref(),
+                ul_value.as_deref(),
                 iface_value,
             )?;
         }
@@ -392,11 +371,11 @@ fn print_help_all() {
         "  ".dimmed()
     );
     println!(
-        "    {} oxy strict -d 1mb firefox             # Download only limit",
+        "    {} oxy strict -d 1mb firefox             # Download only limit (omit -u)",
         "  ".dimmed()
     );
     println!(
-        "    {} oxy strict -u 250kb -d only 1234      # Upload only limit (keyword 'only')",
+        "    {} oxy strict -u 250kb 1234             # Upload only limit (omit -d)",
         "  ".dimmed()
     );
     println!(
@@ -534,11 +513,11 @@ fn print_help_all() {
     );
     println!("    {} Usage:", "  ".dimmed());
     println!(
-        "    {} oxy watch -a 500mb wget           # Alert when wget > 500MB total",
+        "    {} oxy watch -a 500kb wget           # Alert when wget rate > 500KB/s",
         "  ".dimmed()
     );
     println!(
-        "    {} oxy watch -a 1gb firefox -i 30    # Check every 30 seconds",
+        "    {} oxy watch -a 5mb firefox -i 30    # Alert when firefox rate > 5MB/s",
         "  ".dimmed()
     );
     println!();
