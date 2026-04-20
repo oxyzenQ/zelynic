@@ -180,8 +180,8 @@ The backend is auto-selected at runtime based on system capabilities.
 1. Update `CHANGELOG.md` with new version
 2. Update version in `Cargo.toml`
 3. Run `./build.sh check-all` to verify
-4. Tag release: `git tag v6.0.0`
-5. Push tag: `git push origin v6.0.0`
+4. Tag release: `git tag v2.0.0`
+5. Push tag: `git push origin v2.0.0`
 6. GitHub Actions builds and uploads release artifacts
 
 ## Questions?

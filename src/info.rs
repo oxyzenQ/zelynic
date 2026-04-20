@@ -31,7 +31,7 @@ fn build_hash() -> &'static str {
 
 /// Print the package version in a compact format.
 ///
-/// Output: `oxy v1.0.0`
+/// Output: `oxy v2.0.0`
 #[allow(dead_code)]
 pub fn print_version() {
     println!("{} {}", NAME, version_string());
@@ -40,7 +40,7 @@ pub fn print_version() {
 /// Print detailed package information.
 ///
 /// ```text
-/// Version: v1.0.0
+/// Version: v2.0.0
 /// Build: linux-x86_64 (ad36a81)
 /// Copyright: (c) 2026 rezky_nightky
 /// License: MIT

@@ -4,280 +4,168 @@ Complete reference for all oxy commands, options, and usage patterns.
 
 ## Command Reference
 
-### `oxy list` — Monitor Bandwidth Usage
+### `oxy list` — Monitor Bandwidth
 
-Displays a table of all processes with active network connections and their bandwidth statistics.
-
-#### Options
-
-| Flag | Description |
-|------|-------------|
-| `--usage-all` | Show all programs/ports with bandwidth usage |
-| `--high-to-low-usage-net` | Sort by highest to lowest bandwidth usage |
-
-#### Examples
+Displays processes with active network connections and bandwidth statistics.
 
 ```bash
-# Show all network activity
-oxy list --usage-all
-
-# Find top bandwidth consumers
-oxy list --high-to-low-usage-net
+oxy list                          # Table view (default)
+oxy list --live                   # Real-time TUI dashboard
+oxy list --live 2                 # 2-second refresh
+oxy list --live --interval 3      # Explicit interval
+oxy list --verbose                # Per-connection breakdown
+oxy list --json                   # JSON for scripting
 ```
 
-#### Output Columns
+**TUI controls:** `q`/`Esc` quit, `j`/`k` or `↑`/`↓` scroll, `Ctrl+C` quit
 
-| Column | Description |
-|--------|-------------|
-| PID | Process ID |
-| PROCESS | Process name |
-| CONN | Number of active connections |
-| DOWNLOAD (RX) | Total bytes received |
-| UPLOAD (TX) | Total bytes sent |
-| TOTAL | Sum of download + upload |
-
-#### Color Coding
-
-- **Green**: Low usage (< 10 MB)
-- **Yellow**: Medium usage (10-100 MB)
-- **Red**: High usage (> 100 MB)
-- **Dimmed**: No data available (kernel < 4.6 or inactive sockets)
+**Output columns:** Status (● limited / ○ free), PID, Process, RX/s, TX/s, History sparkline, RX Total, TX Total
 
 ---
 
 ### `oxy strict` — Apply Bandwidth Limits
 
-Apply download and/or upload speed limits to a specific process.
-
-#### Syntax
-
-```
-oxy strict [OPTIONS] <TARGET>
-```
-
-#### Options
-
-| Flag | Description | Example |
-|------|-------------|---------|
-| `-d`, `--download` | Download speed limit | `-d 500kb` |
-| `-u`, `--upload` | Upload speed limit | `-u 1mb` |
-| `<TARGET>` | Process name or PID | `brave`, `8100` |
-
-#### Usage Patterns
-
-**1. Limit both download and upload:**
 ```bash
-sudo oxy strict -d 500kb -u 500kb brave
+sudo oxy strict -d 500kb -u 500kb brave     # Both directions
+sudo oxy strict -d 1mb firefox               # Download only
+sudo oxy strict -u 250kb -d only 1234       # Upload only (keyword 'only')
+sudo oxy strict -d 2mb -u 2mb 8100          # By PID
+sudo oxy strict -d 10mbit -u 5mbit steam    # Bit-based units
+sudo oxy strict --preset gaming discord     # Preset profile
 ```
 
-**2. Limit only download (keep upload unlimited):**
-```bash
-sudo oxy strict -d 1mb -u only firefox
-```
+**Presets:**
 
-**3. Limit only upload (keep download unlimited):**
-```bash
-sudo oxy strict -d only -u 500kb brave
-```
+| Name | Download | Upload | Use case |
+|------|----------|--------|----------|
+| `gaming` | 50 MB/s | 50 MB/s | Low latency priority |
+| `streaming` | 10 MB/s | 5 MB/s | Video calls |
+| `background` | 500 KB/s | 100 KB/s | Downloads, updates |
 
-**4. Limit by PID:**
-```bash
-sudo oxy strict -d 2mb -u 2mb 8100
-```
+Re-limiting the same process auto-cleans old rules.
 
-**5. Different limits for download and upload:**
-```bash
-sudo oxy strict -d 5mb -u 1mb transmission
-```
+---
 
-**6. Use bit-based units:**
+### `oxy unstrict` — Remove Limits
+
 ```bash
-sudo oxy strict -d 10mbit -u 5mbit steam
+sudo oxy unstrict brave            # By name
+sudo oxy unstrict 1234             # By PID
 ```
 
 ---
 
-### `oxy unstrict` — Remove Bandwidth Limits
-
-Remove all bandwidth restrictions that were previously applied to a process.
-
-#### Syntax
-
-```
-oxy unstrict <TARGET>
-```
-
-#### Examples
+### `oxy status` — Active Limits
 
 ```bash
-# Remove limits by process name
-sudo oxy unstrict brave
-
-# Remove limits by PID
-sudo oxy unstrict 8100
-```
-
-This command removes all tc classes, tc filters, and cgroup rules associated with the target process, restoring full bandwidth access.
-
----
-
-### `oxy -V` — Print Version
-
-```bash
-oxy -V
-# Output: oxy v1.0.0-stable.1
+oxy status
 ```
 
 ---
 
-### `oxy -i` — Print Package Info
+### `oxy clean` — Remove Orphaned Limits
 
 ```bash
-oxy -i
-```
-
-Output:
-```
-Version: v1.0.0-stable.1
-Build: linux-x86_64 (3c74245)
-Copyright: (c) 2026 rezky_nightky
-License: MIT
-Source: https://github.com/oxyzenq/oxy
+sudo oxy clean
 ```
 
 ---
+
+### `oxy qos` — Priority-Based Shaping
+
+```bash
+sudo oxy qos high brave            # High priority (bandwidth first)
+sudo oxy qos low wget              # Low priority (leftovers only)
+sudo oxy qos status                # Show QoS assignments
+sudo oxy qos reset                 # Clear all QoS rules
+```
+
+---
+
+### `oxy profile` — Named Profiles
+
+```bash
+oxy profile save slow --dl 50kb --ul 50kb
+sudo oxy profile apply slow steam
+oxy profile list
+oxy profile delete slow
+```
+
+---
+
+### `oxy watch` — Bandwidth Alerts
+
+```bash
+oxy watch -a 500mb wget            # Alert when > 500MB total
+oxy watch -a 1gb firefox -i 30     # Check every 30 seconds
+```
+
+---
+
+### `oxy auto` — Auto-Throttle Daemon
+
+```bash
+sudo oxy auto --download 100mb --upload 50mb
+sudo oxy auto --download 80mb --kill firefox
+sudo oxy auto --status
+```
+
+---
+
+### `oxy log` — Bandwidth History
+
+```bash
+oxy log                            # Recent history
+oxy log --snapshot                 # Record current state
+oxy log --last 1h                  # Last hour
+oxy log --json                     # JSON output
+```
+
+---
+
+### `oxy backend` — Backend Info
+
+```bash
+oxy backend
+```
+
+---
+
+## Global Options
+
+```bash
+--iface                            # List available interfaces
+--iface wlp1s0                     # Use specific interface
+--iface eth0 list --live           # Interface + command
+--no-color                         # Disable colored output
+-i, --info                         # Package information
+-v, --ver                          # Short version
+-V, --version                      # Long version
+--help-all                         # Comprehensive help
+```
 
 ## Supported Units
 
-### Byte-Based Units (1 unit = 1024^n bytes)
+| Unit | Description | Example |
+|------|-------------|---------|
+| `byte`, `bs` | Bytes per second | `500bs` |
+| `kb` | Kilobytes per second (1024 B) | `500kb` |
+| `mb` | Megabytes per second (1024 KB) | `1mb` |
+| `gb` | Gigabytes per second (1024 MB) | `1gb` |
+| `kbit` | Kilobits per second | `100kbit` |
+| `mbit` | Megabits per second | `10mbit` |
+| `gbit` | Gigabits per second | `1gbit` |
 
-| Unit | Aliases | Multiplier | Example |
-|------|---------|------------|---------|
-| Bytes/sec | `b`, `byte`, `bytes`, `bs` | 1 | `500bs` |
-| Kilobytes/sec | `kb`, `kbs`, `kb/s` | 1024 | `500kb` |
-| Megabytes/sec | `mb`, `mbs`, `mb/s` | 1,048,576 | `2mb` |
-| Gigabytes/sec | `gb`, `gbs`, `gb/s` | 1,073,741,824 | `1gb` |
+## Architecture
 
-### Bit-Based Units (1 unit = 1024^n bits)
-
-| Unit | Aliases | Multiplier (bytes) | Example |
-|------|---------|-------------------|---------|
-| Kilobits/sec | `kbit`, `kbits` | 128 | `100kbit` |
-| Megabits/sec | `mbit`, `mbits` | 131,072 | `10mbit` |
-| Gigabits/sec | `gbit`, `gbits` | 134,217,728 | `1gbit` |
-
----
-
-## Advanced Usage
-
-### Limiting Multiple Processes
-
-You can apply limits to different processes independently:
-
-```bash
-# Limit Brave browser
-sudo oxy strict -d 2mb -u 1mb brave
-
-# Limit Firefox
-sudo oxy strict -d 1mb -u 500kb firefox
-
-# Limit a download manager
-sudo oxy strict -d 5mb -u 2mb transmission
 ```
+Monitoring:
+  ss -tuneiH → parse_ss_output() → build_inode_cache(/proc/*/fd/)
+  → aggregate_by_process() → display (table/JSON/TUI)
 
-### Using PID Instead of Name
+Limiting:
+  Upload:    Process → nftables (mark by UID) → tc fw filter → HTB class
+  Download:  NIC → nftables (socket cgroupv2 / meta skuid) → limit rate
 
-When multiple instances of a program are running, use the PID to target a specific one:
-
-```bash
-# Find the PID
-ps aux | grep brave
-
-# Apply limit to specific PID
-sudo oxy strict -d 1mb -u 500kb 8100
-```
-
-### Removing All Limits
-
-To remove all active limits on the system:
-
-```bash
-# List active limits first
-cat /run/oxy/state.json
-
-# Remove each one individually
-sudo oxy unstrict brave
-sudo oxy unstrict firefox
-```
-
-### Monitoring Changes
-
-Apply a limit and then monitor the effect:
-
-```bash
-# Terminal 1: Apply limit
-sudo oxy strict -d 500kb -u 500kb brave
-
-# Terminal 2: Monitor bandwidth
-watch -n 1 'oxy list --high-to-low-usage-net'
-```
-
----
-
-## How Bandwidth Limiting Works
-
-### Technical Overview
-
-oxy uses the following Linux kernel features:
-
-1. **HTB qdisc (Hierarchical Token Bucket)**: A queueing discipline that provides hierarchical rate limiting with burst support
-2. **Traffic classes**: Each limited process gets its own class with a guaranteed rate (`rate`) and maximum burst rate (`ceil`)
-3. **Cgroup net_cls**: Tags outgoing packets with a class ID based on the process's cgroup membership
-4. **tc filters**: Routes tagged packets to the appropriate class for enforcement
-
-### Rate Limiting Details
-
-- The `rate` parameter sets the guaranteed bandwidth
-- The `ceil` parameter allows temporary bursting up to 110% of the set rate
-- A 15KB burst buffer is configured for smooth traffic shaping
-- Upload (egress) limiting is precise and per-process
-- Download (ingress) limiting uses ingress policing which applies at the interface level
-
-### State Persistence
-
-oxy stores its state in `/run/oxy/state.json`. This allows:
-- Tracking which processes have active limits
-- Proper cleanup when limits are removed
-- Surviving daemon restarts (state persists until explicitly removed)
-
----
-
-## Common Scenarios
-
-### Throttling a Download
-
-```bash
-sudo oxy strict -d 2mb -u only transmission
-```
-
-### Limiting Video Streaming Quality
-
-```bash
-sudo oxy strict -d 5mb -u 500kb firefox
-```
-
-### Preventing a Process from Hogging Bandwidth
-
-```bash
-sudo oxy strict -d 1mb -u 500kb docker
-```
-
-### Giving Priority to a Specific Application
-
-Limit background processes to free up bandwidth for your main application:
-
-```bash
-sudo oxy strict -d 500kb -u 250kb updates
-sudo oxy strict -d 500kb -u 250kb backup
-# Your main app gets the remaining bandwidth
+State:  /run/oxy/state.json
 ```
