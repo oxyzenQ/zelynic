@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 /// ratatui-based TUI module for oxy live mode.
 ///
 /// Provides a premium visual experience with:

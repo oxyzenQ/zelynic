@@ -379,7 +379,7 @@ oxy -i
 ```
 Version: v2.0.0
 Build: linux-x86_64 (ad36a81)
-Copyright: (c) 2026 rezky_nightky
+Copyright: (c) 2026 Rezky_nightky
 License: MIT
 Source: https://github.com/oxyzenq/oxy
 ```
@@ -399,10 +399,10 @@ Source: https://github.com/oxyzenq/oxy
 
 ## License
 
-MIT License — Copyright (c) 2026 rezky_nightky
+MIT License — Copyright (c) 2026 Rezky_nightky
 
 See [LICENSE](LICENSE) for details.
 
 ## Author
 
-**rezky_nightky** — [GitHub](https://github.com/oxyzenq)
+**Rezky_nightky** — [GitHub](https://github.com/oxyzenq)

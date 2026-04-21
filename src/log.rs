@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 /// Historical bandwidth logging module.
 ///
 /// Persists bandwidth snapshots over time for trend analysis.

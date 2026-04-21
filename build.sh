@@ -3,7 +3,7 @@
 # OXY BUILD AUTOMATION SCRIPT
 # =============================================================================
 # Optimized build script with intelligent core detection and advanced caching
-# Author: rezky_nightky
+# Author: Rezky_nightky
 # Version: (read dynamically from Cargo.toml)
 
 set -euo pipefail

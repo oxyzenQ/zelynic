@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 /// oxy package information constants and display functions.
 ///
 /// Build metadata is embedded at compile time using env! macros.
@@ -8,7 +9,7 @@ pub const NAME: &str = "oxy";
 pub fn build_target() -> &'static str {
     option_env!("CARGO_CFG_TARGET_ARCH").unwrap_or("x86_64")
 }
-pub const COPYRIGHT: &str = "(c) 2026 rezky_nightky";
+pub const COPYRIGHT: &str = "(c) 2026 Rezky_nightky";
 pub const LICENSE: &str = "MIT";
 pub const REPOSITORY: &str = "https://github.com/oxyzenq/oxy";
 #[allow(dead_code)]
@@ -42,7 +43,7 @@ pub fn print_version() {
 /// ```text
 /// Version: v2.0.0
 /// Build: linux-x86_64 (ad36a81)
-/// Copyright: (c) 2026 rezky_nightky
+/// Copyright: (c) 2026 Rezky_nightky
 /// License: MIT
 /// Source: https://github.com/oxyzenq/oxy
 /// ```

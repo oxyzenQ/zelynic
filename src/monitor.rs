@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 /// Network bandwidth monitoring module.
 ///
 /// This module monitors per-process network bandwidth usage by combining

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 /// Quality of Service (QoS) priority-based bandwidth shaping module.
 ///
 /// Instead of hard bandwidth limits, assigns processes to priority tiers.
