@@ -158,8 +158,12 @@ fn main() -> Result<()> {
             limiter::list_active_limits()?;
         }
 
-        Some(Commands::Clean) => {
-            limiter::clean_orphans()?;
+        Some(Commands::Clean { all }) => {
+            if all {
+                limiter::emergency_cleanup()?;
+            } else {
+                limiter::clean_orphans()?;
+            }
         }
 
         Some(Commands::Log {

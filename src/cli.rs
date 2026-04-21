@@ -187,7 +187,15 @@ pub enum Commands {
     /// already exited. Run this periodically or when you suspect stale
     /// rules are accumulating.
     #[command(verbatim_doc_comment)]
-    Clean,
+    Clean {
+        /// Perform emergency cleanup: remove ALL oxy state, rules, and cgroups.
+        /// Use this when normal unstrict fails (e.g., target process has exited).
+        #[arg(
+            long,
+            help = "Remove ALL oxy state, nftables rules, tc objects, and cgroups"
+        )]
+        all: bool,
+    },
 
     /// Show bandwidth usage history
     ///

@@ -705,20 +705,21 @@ pub fn remove_cgroup(pid: u32) -> Result<()> {
         return Ok(());
     }
 
-    let (is_v2, is_hybrid) = detect_cgroup_version();
-
     let procs_path = format!("{}/cgroup.procs", cgroup_path);
     if Path::new(&procs_path).exists() {
         if let Ok(content) = fs::read_to_string(&procs_path) {
             for pid_str in content.lines() {
                 if let Ok(proc_pid) = pid_str.trim().parse::<u32>() {
-                    let root_procs = if is_v2 && !is_hybrid {
-                        "/sys/fs/cgroup/cgroup.procs".to_string()
-                    } else {
-                        format!("{}/cgroup.procs", CGROUP_BASE)
-                    };
-                    if Path::new(&root_procs).exists() {
-                        fs::write(&root_procs, proc_pid.to_string()).ok();
+                    // Skip dead processes — kernel removes them from cgroup.procs automatically
+                    if !std::path::Path::new(&format!("/proc/{}", proc_pid)).exists() {
+                        continue;
+                    }
+                    // Move living processes to parent oxy cgroup (NOT system root cgroup).
+                    // Writing to /sys/fs/cgroup/cgroup.procs (root) breaks systemd --user
+                    // cgroup delegation and can prevent all user apps from launching.
+                    let safe_procs = format!("{}/cgroup.procs", CGROUP_BASE);
+                    if Path::new(&safe_procs).exists() {
+                        fs::write(&safe_procs, proc_pid.to_string()).ok();
                     }
                 }
             }
@@ -737,13 +738,13 @@ pub fn remove_cgroup(pid: u32) -> Result<()> {
                     if let Ok(content) = fs::read_to_string(&procs_path) {
                         for pid_str in content.lines() {
                             if let Ok(proc_pid) = pid_str.trim().parse::<u32>() {
-                                let root_procs = if is_v2 && !is_hybrid {
-                                    "/sys/fs/cgroup/cgroup.procs".to_string()
-                                } else {
-                                    format!("{}/cgroup.procs", CGROUP_BASE)
-                                };
-                                if Path::new(&root_procs).exists() {
-                                    let _ = fs::write(&root_procs, proc_pid.to_string());
+                                // Skip dead processes
+                                if !std::path::Path::new(&format!("/proc/{}", proc_pid)).exists() {
+                                    continue;
+                                }
+                                let safe_procs = format!("{}/cgroup.procs", CGROUP_BASE);
+                                if Path::new(&safe_procs).exists() {
+                                    let _ = fs::write(&safe_procs, proc_pid.to_string());
                                 }
                             }
                         }
@@ -771,7 +772,6 @@ fn remove_uid_cgroup(uid: u32) -> Result<()> {
         return Ok(());
     }
 
-    let (is_v2, is_hybrid) = detect_cgroup_version();
     let procs_path = format!("{}/cgroup.procs", cgroup_path);
 
     // Move all processes back to root
@@ -779,13 +779,13 @@ fn remove_uid_cgroup(uid: u32) -> Result<()> {
         if let Ok(content) = fs::read_to_string(&procs_path) {
             for pid_str in content.lines() {
                 if let Ok(proc_pid) = pid_str.trim().parse::<u32>() {
-                    let root_procs = if is_v2 && !is_hybrid {
-                        "/sys/fs/cgroup/cgroup.procs".to_string()
-                    } else {
-                        format!("{}/cgroup.procs", CGROUP_BASE)
-                    };
-                    if Path::new(&root_procs).exists() {
-                        fs::write(&root_procs, proc_pid.to_string()).ok();
+                    // Skip dead processes
+                    if !std::path::Path::new(&format!("/proc/{}", proc_pid)).exists() {
+                        continue;
+                    }
+                    let safe_procs = format!("{}/cgroup.procs", CGROUP_BASE);
+                    if Path::new(&safe_procs).exists() {
+                        fs::write(&safe_procs, proc_pid.to_string()).ok();
                     }
                 }
             }
@@ -806,13 +806,13 @@ fn remove_uid_cgroup(uid: u32) -> Result<()> {
                     if let Ok(content) = fs::read_to_string(&procs_path) {
                         for pid_str in content.lines() {
                             if let Ok(proc_pid) = pid_str.trim().parse::<u32>() {
-                                let root_procs = if is_v2 && !is_hybrid {
-                                    "/sys/fs/cgroup/cgroup.procs".to_string()
-                                } else {
-                                    format!("{}/cgroup.procs", CGROUP_BASE)
-                                };
-                                if Path::new(&root_procs).exists() {
-                                    let _ = fs::write(&root_procs, proc_pid.to_string());
+                                // Skip dead processes
+                                if !std::path::Path::new(&format!("/proc/{}", proc_pid)).exists() {
+                                    continue;
+                                }
+                                let safe_procs = format!("{}/cgroup.procs", CGROUP_BASE);
+                                if Path::new(&safe_procs).exists() {
+                                    let _ = fs::write(&safe_procs, proc_pid.to_string());
                                 }
                             }
                         }
@@ -843,6 +843,14 @@ pub fn apply_limit(
     iface_override: Option<&str>,
 ) -> Result<()> {
     check_root()?;
+
+    // Auto-cleanup: remove stale limits for dead processes before applying new limits.
+    // This prevents accumulation of orphaned state when target processes exit
+    // without running `oxy unstrict` first.
+    if let Err(e) = clean_orphans() {
+        // Don't fail — just log. The user's requested operation is more important.
+        eprintln!("{}: auto-cleanup failed: {}", "WARNING".yellow(), e);
+    }
 
     if download.is_none() && upload.is_none() {
         bail!(
@@ -1329,24 +1337,45 @@ pub fn apply_limit(
 pub fn remove_limit(target: &str) -> Result<()> {
     check_root()?;
 
-    let pids = resolve_pids(target)?;
-
     let mut state = OxyState::load()?;
-
-    let mut removed_count = 0;
     let target_lower = target.to_lowercase();
-
+    let mut removed_count = 0;
     let mut to_remove = Vec::new();
 
+    // Strategy 1: Match by target name in state file (works even if process has exited).
+    // This is the primary lookup — it ensures cleanup always works regardless of
+    // whether the target process is still running.
     for (idx, record) in state.limits.iter().enumerate() {
         let rec_lower = record.target.to_lowercase();
-        let matches = pids.contains(&record.pid)
-            || rec_lower == target_lower
+        let matches = rec_lower == target_lower
             || rec_lower.contains(&target_lower)
             || target_lower.contains(&rec_lower);
 
         if matches {
             to_remove.push(idx);
+        }
+    }
+
+    // Strategy 2: If no name match, try matching by numeric PID.
+    if to_remove.is_empty() {
+        if let Ok(pid) = target.parse::<u32>() {
+            for (idx, record) in state.limits.iter().enumerate() {
+                if record.pid == pid {
+                    to_remove.push(idx);
+                }
+            }
+        }
+    }
+
+    // Strategy 3: Try resolving running processes by name (for running processes
+    // whose binary name differs from the stored target string).
+    if to_remove.is_empty() {
+        if let Ok(pids) = resolve_pids(target) {
+            for (idx, record) in state.limits.iter().enumerate() {
+                if pids.contains(&record.pid) {
+                    to_remove.push(idx);
+                }
+            }
         }
     }
 
@@ -1639,6 +1668,106 @@ pub fn clean_orphans() -> Result<()> {
     println!();
     println!(
         "  {} Run 'oxy status' to see current active limits.",
+        "Info:".yellow()
+    );
+
+    Ok(())
+}
+
+/// Emergency cleanup: remove ALL oxy state, nftables rules, tc objects, and cgroups.
+///
+/// This is the "nuclear option" for when normal unstrict fails — for example,
+/// when the target process has exited and the system's cgroup delegation has
+/// been corrupted by oxy writing PIDs to the root cgroup.
+///
+/// Call with: `oxy clean --all`
+pub fn emergency_cleanup() -> Result<()> {
+    check_root()?;
+
+    println!(
+        "{}",
+        "oxy clean: performing full emergency cleanup..."
+            .yellow()
+            .bold()
+    );
+
+    // 1. Remove nftables inet oxy table (stops all packet marking/rate limiting)
+    let _ = Command::new("nft")
+        .args(["delete", "table", "inet", "oxy"])
+        .output();
+    println!("  {} Removed nftables inet oxy table", "✓".green());
+
+    // 2. Remove HTB qdisc and all oxy classes/filters on all interfaces
+    let interfaces = list_interfaces();
+    for iface in &interfaces {
+        let _ = Command::new("tc")
+            .args(["qdisc", "del", "dev", iface, "root", "handle", "1:"])
+            .output();
+        let _ = Command::new("tc")
+            .args(["qdisc", "del", "dev", iface, "ingress"])
+            .output();
+    }
+    println!(
+        "  {} Removed tc qdiscs on {} interface(s)",
+        "✓".green(),
+        interfaces.len()
+    );
+
+    // 3. Remove all oxy cgroups (per-UID and per-PID)
+    let oxy_base = Path::new(CGROUP_BASE);
+    if oxy_base.exists() {
+        // Remove per-UID cgroups (uid_*)
+        if let Ok(entries) = fs::read_dir(oxy_base) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    // Evict any living processes to parent oxy cgroup (NOT root)
+                    let procs_path = path.join("cgroup.procs");
+                    if procs_path.exists() {
+                        if let Ok(content) = fs::read_to_string(&procs_path) {
+                            for pid_str in content.lines() {
+                                if let Ok(proc_pid) = pid_str.trim().parse::<u32>() {
+                                    // Skip dead processes
+                                    if !std::path::Path::new(&format!("/proc/{}", proc_pid))
+                                        .exists()
+                                    {
+                                        continue;
+                                    }
+                                    // Move to parent oxy cgroup, NOT system root
+                                    let parent_procs = format!("{}/cgroup.procs", CGROUP_BASE);
+                                    if Path::new(&parent_procs).exists() {
+                                        let _ = fs::write(&parent_procs, proc_pid.to_string());
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    let _ = fs::remove_dir_all(&path);
+                }
+            }
+        }
+        // Remove the base oxy cgroup itself
+        let _ = fs::remove_dir(CGROUP_BASE);
+        println!("  {} Removed all oxy cgroups", "✓".green());
+    } else {
+        println!("  {} No oxy cgroups found", "✓".dimmed());
+    }
+
+    // 4. Remove state files
+    if Path::new(STATE_DIR).exists() {
+        let _ = fs::remove_dir_all(STATE_DIR);
+        println!("  {} Removed state directory {}", "✓".green(), STATE_DIR);
+    } else {
+        println!("  {} No state directory found", "✓".dimmed());
+    }
+
+    println!();
+    println!(
+        "{}",
+        "oxy clean: all oxy state has been removed".green().bold()
+    );
+    println!(
+        "  {} System should now be fully restored.",
         "Info:".yellow()
     );
 
