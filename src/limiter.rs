@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 /// Bandwidth limiting module using Linux traffic control (tc) and cgroups.
 ///
 /// Architecture:

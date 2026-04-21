@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 use clap::{Parser, Subcommand};
 
 /// oxy - Easy userspace bandwidth manager for Linux
@@ -8,7 +9,7 @@ use clap::{Parser, Subcommand};
 #[command(
     name = "oxy",
     version,
-    author = "rezky_nightky <oxyzenq>",
+    author = "Rezky_nightky <oxyzenq>",
     about = "Easy userspace bandwidth manager for Linux",
     long_about = None,
     propagate_version = true,

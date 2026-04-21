@@ -46,7 +46,7 @@ oxy -i
 ```
 Version: v2.0.0
 Build: linux-x86_64 (abc1234)
-Copyright: (c) 2026 rezky_nightky
+Copyright: (c) 2026 Rezky_nightky
 License: MIT
 Source: https://github.com/oxyzenq/oxy
 ```

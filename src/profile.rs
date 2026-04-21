@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 /// Named bandwidth profile management module.
 ///
 /// Provides persistent storage for named bandwidth limit profiles

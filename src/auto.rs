@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 /// Auto-throttle: background daemon mode for automatic bandwidth management.
 ///
 /// Monitors total system bandwidth and automatically applies limits or

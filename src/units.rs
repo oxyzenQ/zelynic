@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 use anyhow::{bail, Context, Result};
 use colored::Colorize;
 use std::fmt;

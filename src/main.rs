@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 /// oxy - Easy userspace bandwidth manager for Linux
 ///
 /// oxy provides a simple CLI interface for monitoring and limiting
@@ -808,7 +809,7 @@ fn generate_man_page() -> anyhow::Result<()> {
 
     // Author
     man.push_str(".SH AUTHOR\n");
-    man.push_str("Written by rezky_nightky.\n");
+    man.push_str("Written by Rezky_nightky.\n");
 
     // Print to stdout
     println!("{}", man);

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 /// Bandwidth watch module for monitoring and alerting.
 ///
 /// Provides `oxy watch --alert` functionality to monitor a process
