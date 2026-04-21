@@ -4,18 +4,17 @@
 /// Architecture:
 ///
 /// **Upload (egress) limiting:**
-///   Process → nftables output (meta skuid → mark) → tc fw filter → HTB class (rate-limited)
-///   On cgroup v1/hybrid: also uses tc cgroup filter as fallback for existing connections.
+///   Process (in target cgroup) → tc cgroup filter → HTB class (rate-limited)
+///   On cgroup v1/hybrid: per-PID cgroups with net_cls.classid as fallback.
 ///
 /// **Download (ingress) limiting (nftables socket cgroupv2 + limit rate):**
 ///   NIC → nftables inet input (socket cgroupv2 <cg_id> limit rate → accept/drop)
-///   Primary match: `socket cgroupv2 <cg_id>` — matches packets whose socket belongs
-///   to a specific cgroup.  Fallback: `meta skuid <uid>` for UID-based matching.
-///   UDP fallback: `ct mark 0x<uid_hex>` — conntrack mark propagated from egress.
+///   Match: `socket cgroupv2 <cg_id>` — matches packets whose socket belongs
+///   to a specific per-target cgroup.
 ///
-/// **Per-UID cgroups:**
-///   All target PIDs sharing a UID are moved to `/sys/fs/cgroup/oxy/uid_<UID>/`
-///   so that nftables `socket cgroupv2` can match download traffic per UID.
+/// **Per-target cgroups:**
+///   All target PIDs are moved to `/sys/fs/cgroup/oxy/target_<sanitized_name>/`
+///   so that nftables `socket cgroupv2` can match download traffic per target.
 ///   On cgroup v1/hybrid, per-PID cgroups with net_cls.classid are used instead.
 ///
 /// State is persisted to disk so that limits survive across invocations
@@ -23,6 +22,7 @@
 use anyhow::{bail, Context, Result};
 use colored::Colorize;
 use serde::{Deserialize, Serialize};
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::Path;
 use std::process::Command;
@@ -68,7 +68,7 @@ fn ensure_kernel_modules() -> Result<()> {
         "sch_htb",      // HTB qdisc (for upload shaping)
         "cls_fw",       // fw classifier (fwmark-based routing)
         "sch_ingress",  // ingress qdisc (for download policing)
-        "nf_conntrack", // conntrack (mark propagation for download on cgroup v1/hybrid)
+        "nf_conntrack", // conntrack
     ];
 
     for module in modules {
@@ -80,11 +80,6 @@ fn ensure_kernel_modules() -> Result<()> {
 }
 
 /// Ensure netfilter conntrack is enabled for mark propagation.
-///
-/// Required for download limiting: egress marks are saved to conntrack and
-/// restored for reply packets. On pure cgroup v2, `socket cgroupv2` is the
-/// primary match; `ct mark` serves as a UDP fallback where sockets are not
-/// early-demuxed.
 fn ensure_conntrack() -> Result<()> {
     let _ = Command::new("modprobe").args(["nf_conntrack"]).output();
 
@@ -103,8 +98,6 @@ fn ensure_conntrack() -> Result<()> {
 }
 
 /// Get the UID of a process.
-///
-/// Used with nftables `meta skuid` to match egress packets from specific users.
 fn get_process_uid(pid: u32) -> Option<u32> {
     let uid_path = format!("/proc/{}/status", pid);
     if let Ok(content) = fs::read_to_string(&uid_path) {
@@ -120,101 +113,109 @@ fn get_process_uid(pid: u32) -> Option<u32> {
     None
 }
 
+/// Sanitize a target name for use as a cgroup directory name.
+///
+/// Rules: lowercase, replace non-alphanumeric chars with underscore, max 64 chars.
+fn sanitize_target_name(target: &str) -> String {
+    let sanitized: String = target
+        .chars()
+        .map(|c| {
+            if c.is_alphanumeric() {
+                c.to_ascii_lowercase()
+            } else {
+                '_'
+            }
+        })
+        .collect();
+    // Truncate to max 64 characters
+    sanitized.chars().take(64).collect()
+}
+
+/// Derive a stable HTB class ID (minor) from a target name.
+///
+/// Uses a simple hash of the sanitized target name, mapped into range 100..65535.
+fn target_class_id(target: &str) -> u32 {
+    use std::hash::{Hash, Hasher};
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    target.hash(&mut hasher);
+    let hash = hasher.finish() as u32;
+    // Map into range 100..65535 (avoid 0 and very low numbers, stay within u16)
+    100 + (hash % 65435)
+}
+
 // ---------------------------------------------------------------------------
 // nftables rules management
 // ---------------------------------------------------------------------------
 
-/// Build the nftables `inet oxy` table for egress marking, conntrack propagation,
-/// and download rate limiting via `socket cgroupv2` + `limit rate`.
+/// Build the nftables `inet oxy` table for egress marking (upload) and
+/// download rate limiting via `socket cgroupv2`.
 ///
 /// Uses `inet` (IPv4 + IPv6) so both protocol families are handled.
 ///
-/// Output chain: marks egress packets by UID (deduplicated — one rule per UID).
-/// Postrouting: saves mark to conntrack for reply (download) packets.
-/// Download chain: applies per-UID `limit rate` policer at the input hook using
-///   `socket cgroupv2` (primary), `meta skuid` (fallback), and `ct mark` (UDP fallback).
+/// Output chain: marks egress packets by target cgroup (deduplicated by cgroup_id).
+///   `socket cgroupv2 <cg_id> meta mark set <target_hash>` sets a fw mark so
+///   that tc `fw` filter can route the packet to the per-target HTB class.
+///
+/// Download chain: applies per-target `limit rate` policer at the input hook
+/// using `socket cgroupv2 <cg_id>`.  Deduplicates by cgroup_id since all PIDs
+/// of the same target share one per-target cgroup.
 fn build_nft_ip_ruleset(limits: &[LimitRecord]) -> String {
     let mut ruleset = String::new();
     ruleset.push_str("table inet oxy {\n");
 
-    // Output: mark egress packets by UID (deduplicated).
-    // When multiple PIDs share the same UID, nftables cannot distinguish them
-    // via `meta skuid` alone — all matching rules fire and the last mark wins.
-    // We deduplicate by UID and use the UID itself as the mark value so that
-    // every packet from the same UID gets a consistent mark for conntrack.
+    // Output: mark egress packets by target cgroup.
+    // Uses `socket cgroupv2 <cg_id>` to match packets whose socket belongs to
+    // the per-target cgroup, then sets a fw mark equal to the target's HTB
+    // class minor ID.  The tc `fw` filter on egress uses this mark to classify
+    // packets into the correct HTB class for upload shaping.
     ruleset.push_str("  chain output {\n");
     ruleset.push_str("    type filter hook output priority mangle; policy accept;\n");
 
-    let mut seen_uids = std::collections::HashSet::new();
+    // Collect (cgroup_id → target_class_minor) deduplicated.
+    // All records for the same target share one cgroup and one class minor.
+    let mut cg_to_mark: HashMap<u64, u32> = HashMap::new();
     for record in limits {
-        if let Some(uid) = get_process_uid(record.pid) {
-            if seen_uids.insert(uid) {
-                ruleset.push_str(&format!(
-                    "    meta skuid {} meta mark set 0x{:08x};\n",
-                    uid, uid
-                ));
+        if let Some(cgid) = record.cgroup_id {
+            if !cg_to_mark.contains_key(&cgid) {
+                cg_to_mark.insert(cgid, target_class_id(&sanitize_target_name(&record.target)));
             }
         }
     }
+
+    for (cgid, mark) in &cg_to_mark {
+        ruleset.push_str(&format!(
+            "    socket cgroupv2 {} meta mark set {};\n",
+            cgid, mark
+        ));
+    }
     ruleset.push_str("  }\n");
 
-    // Postrouting: save mark into conntrack for reply packets
-    ruleset.push_str("  chain postrouting {\n");
-    ruleset.push_str("    type filter hook postrouting priority srcnat; policy accept;\n");
-    ruleset.push_str("    meta mark != 0 ct mark set meta mark;\n");
-    ruleset.push_str("  }\n");
-
-    // Download chain: rate-limit inbound traffic per UID at the input hook.
-    // Three match tiers provide coverage for different kernel/socket states:
-    //   1. socket cgroupv2 <cg_id> — primary (TCP early demux)
-    //   2. meta skuid <uid>         — fallback (local sockets)
-    //   3. ct mark 0x<uid_hex>      — UDP fallback (conntrack mark from egress)
-    // Each tier has a `limit rate ... accept` followed by unconditional `drop`
-    // for packets exceeding the rate.
+    // Download chain: rate-limit inbound traffic per target at the input hook.
+    // Uses `socket cgroupv2 <cg_id>` to match packets whose socket belongs to
+    // the per-target cgroup. Deduplicates by cgroup_id (multiple records for
+    // the same target share the same cgroup).
     ruleset.push_str("  chain download {\n");
     ruleset.push_str("    type filter hook input priority mangle; policy accept;\n");
 
-    // Collect per-UID download limits with associated cgroup IDs.
-    // A UID may appear in multiple records; we take the minimum download rate.
-    let mut uid_dl_info: std::collections::HashMap<u32, (u64, Option<u64>)> =
-        std::collections::HashMap::new();
+    // Collect per-target download limits deduplicated by cgroup_id.
+    // A cgroup_id may appear in multiple records; we take the minimum download rate.
+    let mut cg_dl_info: HashMap<u64, u64> = HashMap::new();
     for record in limits.iter().filter(|l| l.download_bytes_per_sec.is_some()) {
-        if let Some(uid) = get_process_uid(record.pid) {
+        if let Some(cgid) = record.cgroup_id {
             let dl_bps = record.download_bytes_per_sec.unwrap();
-            let entry = uid_dl_info.entry(uid).or_insert((dl_bps, None));
-            entry.0 = entry.0.min(dl_bps);
-            // Prefer any available cgroup_id
-            if entry.1.is_none() {
-                entry.1 = record.cgroup_id;
-            }
+            let entry = cg_dl_info.entry(cgid).or_insert(dl_bps);
+            *entry = (*entry).min(dl_bps);
         }
     }
 
-    for (uid, (dl_bps, cg_id)) in &uid_dl_info {
+    for (cgid, dl_bps) in &cg_dl_info {
         let burst = (*dl_bps / 2).max(65536);
 
-        // Tier 1: socket cgroupv2 (primary — requires cgroup v2 + per-UID cgroup)
-        if let Some(cgid) = cg_id {
-            ruleset.push_str(&format!(
-                "    socket cgroupv2 {} limit rate {} bytes/second burst {} bytes accept;\n",
-                cgid, dl_bps, burst
-            ));
-            ruleset.push_str(&format!("    socket cgroupv2 {} drop;\n", cgid));
-        }
-
-        // Tier 2: meta skuid (fallback for local sockets)
         ruleset.push_str(&format!(
-            "    meta skuid {} limit rate {} bytes/second burst {} bytes accept;\n",
-            uid, dl_bps, burst
+            "    socket cgroupv2 {} limit rate {} bytes/second burst {} bytes accept;\n",
+            cgid, dl_bps, burst
         ));
-        ruleset.push_str(&format!("    meta skuid {} drop;\n", uid));
-
-        // Tier 3: ct mark (UDP fallback — conntrack mark from egress output chain)
-        ruleset.push_str(&format!(
-            "    ct mark 0x{:08x} limit rate {} bytes/second burst {} bytes accept;\n",
-            uid, dl_bps, burst
-        ));
-        ruleset.push_str(&format!("    ct mark 0x{:08x} drop;\n", uid));
+        ruleset.push_str(&format!("    socket cgroupv2 {} drop;\n", cgid));
     }
 
     ruleset.push_str("  }\n");
@@ -362,11 +363,15 @@ pub struct LimitRecord {
     /// Kept for state file backward compatibility; always None for new limits.
     #[serde(default)]
     pub ingress_handle: Option<u32>,
-    /// Cgroup v2 ID (inode number) for the per-UID cgroup associated with
+    /// Cgroup v2 ID (inode number) for the per-target cgroup associated with
     /// this record.  Used by nftables `socket cgroupv2` to match download
     /// traffic in the inet input hook.
     #[serde(default)]
     pub cgroup_id: Option<u64>,
+    /// Path to the per-target cgroup (e.g., `/sys/fs/cgroup/oxy/target_helium`).
+    /// New for per-target isolation; None for legacy state files.
+    #[serde(default)]
+    pub target_cgroup_path: Option<String>,
 }
 
 /// Full state file structure containing all active limits.
@@ -762,12 +767,12 @@ pub fn remove_cgroup(pid: u32) -> Result<()> {
     Ok(())
 }
 
-/// Remove a per-UID cgroup directory and move its processes back to root.
+/// Remove a per-target cgroup directory and move its processes back to root.
 ///
-/// On cgroup v2, per-UID cgroups live at `/sys/fs/cgroup/oxy/uid_<UID>/`.
+/// On cgroup v2, per-target cgroups live at `/sys/fs/cgroup/oxy/target_<name>/`.
 /// This function evicts all member PIDs and deletes the directory.
-fn remove_uid_cgroup(uid: u32) -> Result<()> {
-    let cgroup_path = format!("{}/uid_{}", CGROUP_BASE, uid);
+fn remove_target_cgroup(sanitized_name: &str) -> Result<()> {
+    let cgroup_path = format!("{}/target_{}", CGROUP_BASE, sanitized_name);
 
     if !Path::new(&cgroup_path).exists() {
         return Ok(());
@@ -775,7 +780,7 @@ fn remove_uid_cgroup(uid: u32) -> Result<()> {
 
     let procs_path = format!("{}/cgroup.procs", cgroup_path);
 
-    // Move all processes back to root
+    // Move all processes back to parent oxy cgroup
     if Path::new(&procs_path).exists() {
         if let Ok(content) = fs::read_to_string(&procs_path) {
             for pid_str in content.lines() {
@@ -808,7 +813,8 @@ fn remove_uid_cgroup(uid: u32) -> Result<()> {
                         for pid_str in content.lines() {
                             if let Ok(proc_pid) = pid_str.trim().parse::<u32>() {
                                 // Skip dead processes
-                                if !std::path::Path::new(&format!("/proc/{}", proc_pid)).exists() {
+                                if !std::path::Path::new(&format!("/proc/{}", proc_pid)).exists()
+                                {
                                     continue;
                                 }
                                 let safe_procs = format!("{}/cgroup.procs", CGROUP_BASE);
@@ -824,7 +830,7 @@ fn remove_uid_cgroup(uid: u32) -> Result<()> {
         }
     }
     if !removed {
-        fs::remove_dir(&cgroup_path).context("failed to remove UID cgroup directory")?;
+        fs::remove_dir(&cgroup_path).context("failed to remove target cgroup directory")?;
     }
 
     Ok(())
@@ -880,6 +886,7 @@ pub fn apply_limit(
     );
 
     let pids = resolve_pids(target)?;
+    let sanitized = sanitize_target_name(target);
 
     println!("{} Using interface: {}", "→".cyan(), interface.cyan());
 
@@ -903,13 +910,9 @@ pub fn apply_limit(
 
         if !existing.is_empty() {
             // Collect info for cleanup before removing
-            let removed_ifaces: std::collections::HashSet<String> = existing
+            let removed_ifaces: HashSet<String> = existing
                 .iter()
                 .map(|&i| state.limits[i].interface.clone())
-                .collect();
-            let removed_uids: std::collections::HashSet<u32> = existing
-                .iter()
-                .filter_map(|&i| get_process_uid(state.limits[i].pid))
                 .collect();
 
             // Remove per-PID cgroups and state records
@@ -919,39 +922,47 @@ pub fn apply_limit(
             }
             state.save()?;
 
-            // Clean up per-UID tc objects if no limits remain for those UIDs
-            let remaining_uids: std::collections::HashSet<u32> = state
+            // Clean up per-target tc objects if no limits remain for this target
+            let remaining_targets: HashSet<String> = state
                 .limits
                 .iter()
-                .filter_map(|r| get_process_uid(r.pid))
+                .map(|r| sanitize_target_name(&r.target))
                 .collect();
-            for uid in &removed_uids {
-                if !remaining_uids.contains(uid) {
-                    let uid_class_id_str = format!("1:{:04x}", uid);
-                    for iface in &removed_ifaces {
-                        let _ = Command::new("tc")
-                            .args(["class", "del", "dev", iface, "classid", &uid_class_id_str])
-                            .output();
-                        let _ = Command::new("tc")
-                            .args([
-                                "filter",
-                                "del",
-                                "dev",
-                                iface,
-                                "parent",
-                                "1:0",
-                                "protocol",
-                                "ip",
-                                "prio",
-                                "100",
-                                "handle",
-                                &uid.to_string(),
-                                "fw",
-                            ])
-                            .output();
-                    }
-                    let _ = remove_uid_cgroup(*uid);
+
+            if !remaining_targets.contains(&sanitized) {
+                let tid = target_class_id(&sanitized);
+                let target_class_id_str = format!("1:{:04x}", tid);
+                for iface in &removed_ifaces {
+                    let _ = Command::new("tc")
+                        .args([
+                            "class",
+                            "del",
+                            "dev",
+                            iface,
+                            "classid",
+                            &target_class_id_str,
+                        ])
+                        .output();
+                    // Remove fw filter for this target
+                    let _ = Command::new("tc")
+                        .args([
+                            "filter",
+                            "del",
+                            "dev",
+                            iface,
+                            "parent",
+                            "1:0",
+                            "protocol",
+                            "ip",
+                            "prio",
+                            "100",
+                            "handle",
+                            &tid.to_string(),
+                            "fw",
+                        ])
+                        .output();
                 }
+                let _ = remove_target_cgroup(&sanitized);
             }
 
             // Refresh nft rules
@@ -985,7 +996,7 @@ pub fn apply_limit(
     // Set up HTB qdisc for upload (egress) shaping
     ensure_htb_qdisc(&interface)?;
 
-    // If download limiting is requested, ensure conntrack mark propagation
+    // If download limiting is requested, ensure conntrack
     if dl_bps.is_some() {
         if let Err(e) = ensure_conntrack() {
             eprintln!(
@@ -1033,55 +1044,35 @@ pub fn apply_limit(
     // Load existing state
     let mut state = OxyState::load()?;
 
-    // Phase 1: Group PIDs by UID, create per-UID cgroups (v2) or per-PID cgroups (v1).
-    // Build a map: UID → (cgroup_id, [pid, ...])
-    let mut uid_cgroups: std::collections::HashMap<u32, Option<u64>> =
-        std::collections::HashMap::new();
-    let mut pid_to_uid: std::collections::HashMap<u32, u32> = std::collections::HashMap::new();
+    // Phase 1: Create per-target cgroup (v2) or per-PID cgroups (v1).
+    // All PIDs for this target share one cgroup on pure cgroup v2.
+    let target_cg_path = format!("{}/target_{}", CGROUP_BASE, sanitized);
+    let mut cgroup_id: Option<u64> = None;
 
-    // First pass: resolve UIDs for all PIDs
-    for pid in &pids {
-        if let Some(uid) = get_process_uid(*pid) {
-            pid_to_uid.insert(*pid, uid);
-        }
-    }
-
-    // On pure cgroup v2: create per-UID cgroups and move all PIDs there.
-    // On cgroup v1/hybrid: create per-PID cgroups with net_cls.classid.
     if is_pure_v2 {
-        // Create per-UID cgroups under /sys/fs/cgroup/oxy/uid_<UID>/
-        for &uid in pid_to_uid.values() {
-            if uid_cgroups.contains_key(&uid) {
-                continue;
+        // Create per-target cgroup under /sys/fs/cgroup/oxy/target_<name>/
+        fs::create_dir_all(&target_cg_path).context(format!(
+            "failed to create cgroup v2 directory for target '{}'. Is cgroup2 mounted?",
+            target
+        ))?;
+
+        // Move all PIDs into the target cgroup
+        for pid in &pids {
+            let procs_path = format!("{}/cgroup.procs", target_cg_path);
+            if Path::new(&procs_path).exists() {
+                let _ = fs::write(&procs_path, pid.to_string());
             }
-            let uid_cg_path = format!("{}/uid_{}", CGROUP_BASE, uid);
-            fs::create_dir_all(&uid_cg_path).context(format!(
-                "failed to create cgroup v2 directory for UID {}. Is cgroup2 mounted?",
-                uid
-            ))?;
-
-            // Move all PIDs of this UID into the cgroup
-            for (&pid, &p_uid) in &pid_to_uid {
-                if p_uid == uid {
-                    let procs_path = format!("{}/cgroup.procs", uid_cg_path);
-                    if Path::new(&procs_path).exists() {
-                        let _ = fs::write(&procs_path, pid.to_string());
-                    }
-                }
-            }
-
-            // Read the cgroup.id for nftables socket cgroupv2 matching
-            let cg_id_path = format!("{}/cgroup.id", uid_cg_path);
-            let cg_id = if Path::new(&cg_id_path).exists() {
-                fs::read_to_string(&cg_id_path)
-                    .ok()
-                    .and_then(|s| s.trim().parse::<u64>().ok())
-            } else {
-                None
-            };
-
-            uid_cgroups.insert(uid, cg_id);
         }
+
+        // Read the cgroup.id for nftables socket cgroupv2 matching
+        let cg_id_path = format!("{}/cgroup.id", target_cg_path);
+        cgroup_id = if Path::new(&cg_id_path).exists() {
+            fs::read_to_string(&cg_id_path)
+                .ok()
+                .and_then(|s| s.trim().parse::<u64>().ok())
+        } else {
+            None
+        };
     }
 
     // Phase 2: Create records for each PID
@@ -1089,14 +1080,10 @@ pub fn apply_limit(
     for pid in &pids {
         let class_id = next_class_id()?;
 
-        let uid = pid_to_uid.get(pid).copied();
-        let cgroup_id = if is_pure_v2 {
-            uid.and_then(|u| uid_cgroups.get(&u).copied().flatten())
-        } else {
+        if !is_pure_v2 {
             // For v1/hybrid: create per-PID cgroup and ignore cgroup_id
             let _ = setup_cgroup(*pid, class_id);
-            None
-        };
+        }
 
         let record = LimitRecord {
             target: target.to_string(),
@@ -1110,48 +1097,51 @@ pub fn apply_limit(
             applied_at: chrono_now(),
             ingress_handle: None,
             cgroup_id,
+            target_cgroup_path: if is_pure_v2 {
+                Some(target_cg_path.clone())
+            } else {
+                None
+            },
         };
 
         state.limits.push(record);
         applied_count += 1;
     }
 
-    // Save state (needed before computing per-UID tc objects)
+    // Save state (needed before computing per-target tc objects)
     state.save()?;
 
-    // Phase 3: Create per-UID egress tc objects (HTB class + fw filter).
-    // Since the nftables mark is the UID value, the fw filter handle must also
-    // be the UID. All PIDs sharing a UID share one HTB class (upload) rate.
-    let mut uid_min_ul: std::collections::HashMap<u32, u64> = std::collections::HashMap::new();
-    let mut seen_uids = std::collections::HashSet::new();
+    // Phase 3: Create per-target egress tc objects (HTB class + cgroup filter).
+    // Compute minimum upload rate across all active limits for this target.
+    let mut target_min_ul: HashMap<String, u64> = HashMap::new();
     for record in &state.limits {
-        if let Some(uid) = get_process_uid(record.pid) {
-            let ul_kbit = record
-                .upload_bytes_per_sec
-                .map(|bps| (bps * 8) / 1000)
-                .unwrap_or(100_000_000);
-            uid_min_ul
-                .entry(uid)
-                .and_modify(|min| *min = (*min).min(ul_kbit))
-                .or_insert(ul_kbit);
-            seen_uids.insert(uid);
-        }
+        let ul_kbit = record
+            .upload_bytes_per_sec
+            .map(|bps| (bps * 8) / 1000)
+            .unwrap_or(100_000_000);
+        let san = sanitize_target_name(&record.target);
+        target_min_ul
+            .entry(san)
+            .and_modify(|min| *min = (*min).min(ul_kbit))
+            .or_insert(ul_kbit);
     }
 
+    let tid = target_class_id(&sanitized);
+    let class_id_str = format!("1:{:04x}", tid);
+
     let mut tx = TcTransaction::new();
-    for uid in &seen_uids {
-        let class_id_str = format!("1:{:04x}", uid);
-        let ul_kbit = uid_min_ul[uid];
+
+    if let Some(&ul_kbit) = target_min_ul.get(&sanitized) {
         let ceil_kbit = (ul_kbit as f64 * 1.1) as u64;
 
-        // --- Upload (egress): HTB class for this UID ---
+        // --- Upload (egress): HTB class for this target ---
         // Pre-delete existing class to make the operation idempotent.
         let _ = Command::new("tc")
             .args(["class", "del", "dev", &interface, "classid", &class_id_str])
             .output();
 
         tx.add(
-            &format!("egress class for UID {}", uid),
+            &format!("egress class for target {}", target),
             vec![
                 "class".into(),
                 "add".into(),
@@ -1181,62 +1171,65 @@ pub fn apply_limit(
             ],
         );
 
-        // --- Upload (egress): fw filter matching UID mark → UID HTB class ---
-        // Pre-delete existing filter to make the operation idempotent (allows
-        // re-running `oxy strict` without `oxy unstrict` first).
-        let _ = Command::new("tc")
-            .args([
-                "filter",
-                "del",
-                "dev",
-                &interface,
-                "parent",
-                "1:0",
-                "protocol",
-                "ip",
-                "prio",
-                "100",
-                "handle",
-                &uid.to_string(),
-                "fw",
-            ])
-            .output();
+        // --- Upload (egress): fw filter matching mark → target HTB class ---
+        // On pure v2, nftables output chain sets meta mark per target cgroup.
+        // The tc fw filter routes marked packets to the correct HTB class.
+        // Pre-delete existing filter to make the operation idempotent.
+        if is_pure_v2 {
+            let _ = Command::new("tc")
+                .args([
+                    "filter",
+                    "del",
+                    "dev",
+                    &interface,
+                    "parent",
+                    "1:0",
+                    "protocol",
+                    "ip",
+                    "prio",
+                    "100",
+                    "handle",
+                    &tid.to_string(),
+                    "fw",
+                ])
+                .output();
 
-        tx.add(
-            &format!("egress fw filter for UID {}", uid),
-            vec![
-                "filter".into(),
-                "add".into(),
-                "dev".into(),
-                interface.clone(),
-                "parent".into(),
-                "1:0".into(),
-                "protocol".into(),
-                "ip".into(),
-                "prio".into(),
-                "100".into(),
-                "handle".into(),
-                uid.to_string(),
-                "fw".into(),
-                "classid".into(),
-                class_id_str.clone(),
-            ],
-            vec![
-                "filter".into(),
-                "del".into(),
-                "dev".into(),
-                interface.clone(),
-                "parent".into(),
-                "1:0".into(),
-                "protocol".into(),
-                "ip".into(),
-                "prio".into(),
-                "100".into(),
-                "handle".into(),
-                uid.to_string(),
-                "fw".into(),
-            ],
-        );
+            tx.add(
+                &format!("egress fw filter for target {}", target),
+                vec![
+                    "filter".into(),
+                    "add".into(),
+                    "dev".into(),
+                    interface.clone(),
+                    "parent".into(),
+                    "1:0".into(),
+                    "protocol".into(),
+                    "ip".into(),
+                    "prio".into(),
+                    "100".into(),
+                    "handle".into(),
+                    tid.to_string(),
+                    "fw".into(),
+                    "classid".into(),
+                    class_id_str.clone(),
+                ],
+                vec![
+                    "filter".into(),
+                    "del".into(),
+                    "dev".into(),
+                    interface.clone(),
+                    "parent".into(),
+                    "1:0".into(),
+                    "protocol".into(),
+                    "ip".into(),
+                    "prio".into(),
+                    "100".into(),
+                    "handle".into(),
+                    tid.to_string(),
+                    "fw".into(),
+                ],
+            );
+        }
     }
 
     if let Err(e) = tx.execute() {
@@ -1248,7 +1241,7 @@ pub fn apply_limit(
         return Err(e);
     }
 
-    // Refresh nftables rules (inet table with output + postrouting + download chains)
+    // Refresh nftables rules (download chain with socket cgroupv2)
     if let Err(e) = refresh_nft_ip_rules(&state.limits) {
         eprintln!(
             "{}: Failed to apply nft packet marking rules: {}",
@@ -1256,7 +1249,7 @@ pub fn apply_limit(
             e
         );
         eprintln!(
-            "  {} Without nftables rules, packets will not be classified.",
+            "  {} Without nftables rules, download packets will not be rate-limited.",
             "NOTE:".yellow()
         );
     }
@@ -1306,17 +1299,10 @@ pub fn apply_limit(
     );
     println!("  Applied:   {} process(es)", applied_count);
 
-    // Warn about per-UID mode when multiple PIDs share a UID
-    let unique_pids_uids: std::collections::HashSet<u32> = pids
-        .iter()
-        .filter_map(|pid| get_process_uid(*pid))
-        .collect();
-    if unique_pids_uids.len() < pids.len() {
+    if is_pure_v2 {
         println!(
-            "  {} Rate limiting is per-UID ({} PIDs share {} UID).",
-            "NOTE:".yellow(),
-            pids.len(),
-            unique_pids_uids.len()
+            "  Cgroup:    {} (per-target isolation)",
+            target_cg_path
         );
     }
 
@@ -1389,16 +1375,16 @@ pub fn remove_limit(target: &str) -> Result<()> {
         return Ok(());
     }
 
-    // Collect interfaces and UIDs for cleanup
+    // Collect interfaces for cleanup
     let removed_ifaces: Vec<String> = to_remove
         .iter()
         .map(|&idx| state.limits[idx].interface.clone())
         .collect();
 
-    // Collect UIDs of records being removed
-    let removed_uids: std::collections::HashSet<u32> = to_remove
+    // Collect sanitized target names of records being removed
+    let removed_targets: HashSet<String> = to_remove
         .iter()
-        .filter_map(|&idx| get_process_uid(state.limits[idx].pid))
+        .map(|&idx| sanitize_target_name(&state.limits[idx].target))
         .collect();
 
     // Process removals in reverse order to maintain indices
@@ -1415,23 +1401,31 @@ pub fn remove_limit(target: &str) -> Result<()> {
     // Save updated state
     state.save()?;
 
-    // Clean up per-UID tc objects for UIDs that no longer have any limits.
-    // Compute remaining UIDs after removal.
-    let remaining_uids: std::collections::HashSet<u32> = state
+    // Clean up per-target tc objects for targets that no longer have any limits.
+    // Compute remaining sanitized target names after removal.
+    let remaining_targets: HashSet<String> = state
         .limits
         .iter()
-        .filter_map(|r| get_process_uid(r.pid))
+        .map(|r| sanitize_target_name(&r.target))
         .collect();
 
-    for uid in &removed_uids {
-        if !remaining_uids.contains(uid) {
-            let uid_class_id_str = format!("1:{:04x}", uid);
+    for san_name in &removed_targets {
+        if !remaining_targets.contains(san_name) {
+            let tid = target_class_id(san_name);
+            let target_class_id_str = format!("1:{:04x}", tid);
             for iface in &removed_ifaces {
-                // Remove per-UID HTB class
+                // Remove per-target HTB class
                 let _ = Command::new("tc")
-                    .args(["class", "del", "dev", iface, "classid", &uid_class_id_str])
+                    .args([
+                        "class",
+                        "del",
+                        "dev",
+                        iface,
+                        "classid",
+                        &target_class_id_str,
+                    ])
                     .output();
-                // Remove per-UID fw filter (handle = UID)
+                // Remove per-target fw filter
                 let _ = Command::new("tc")
                     .args([
                         "filter",
@@ -1445,14 +1439,14 @@ pub fn remove_limit(target: &str) -> Result<()> {
                         "prio",
                         "100",
                         "handle",
-                        &uid.to_string(),
+                        &tid.to_string(),
                         "fw",
                     ])
                     .output();
             }
 
-            // Remove per-UID cgroup
-            let _ = remove_uid_cgroup(*uid);
+            // Remove per-target cgroup
+            let _ = remove_target_cgroup(san_name);
         }
     }
 
@@ -1461,9 +1455,10 @@ pub fn remove_limit(target: &str) -> Result<()> {
         eprintln!("{}: Failed to refresh nft rules: {}", "WARNING".yellow(), e);
     }
 
-    // Clean up tc cgroup filter if no limits remain
+    // Clean up if no limits remain
     if state.limits.is_empty() {
         for iface in &removed_ifaces {
+            // Remove the v1/hybrid cgroup filter (no-op if not present)
             let _ = Command::new("tc")
                 .args([
                     "filter", "del", "dev", iface, "parent", "1:0", "protocol", "ip", "prio", "1",
@@ -1472,9 +1467,9 @@ pub fn remove_limit(target: &str) -> Result<()> {
                 .output();
         }
 
-        // Clean up all per-UID cgroups
-        for uid in &removed_uids {
-            let _ = remove_uid_cgroup(*uid);
+        // Clean up all per-target cgroups
+        for san_name in &removed_targets {
+            let _ = remove_target_cgroup(san_name);
         }
 
         // Clean up all nftables tables
@@ -1586,14 +1581,14 @@ pub fn clean_orphans() -> Result<()> {
         to_remove.len()
     );
 
-    // Collect UIDs of records being removed
-    let removed_uids: std::collections::HashSet<u32> = to_remove
+    // Collect sanitized target names of records being removed
+    let removed_targets: HashSet<String> = to_remove
         .iter()
-        .filter_map(|&idx| get_process_uid(state.limits[idx].pid))
+        .map(|&idx| sanitize_target_name(&state.limits[idx].target))
         .collect();
 
     // Collect interfaces for cleanup
-    let removed_ifaces: std::collections::HashSet<String> = to_remove
+    let removed_ifaces: HashSet<String> = to_remove
         .iter()
         .map(|&idx| state.limits[idx].interface.clone())
         .collect();
@@ -1618,19 +1613,27 @@ pub fn clean_orphans() -> Result<()> {
     // Save updated state
     state.save()?;
 
-    // Clean up per-UID tc objects for UIDs that no longer have any limits.
-    let remaining_uids: std::collections::HashSet<u32> = state
+    // Clean up per-target tc objects for targets that no longer have any limits.
+    let remaining_targets: HashSet<String> = state
         .limits
         .iter()
-        .filter_map(|r| get_process_uid(r.pid))
+        .map(|r| sanitize_target_name(&r.target))
         .collect();
 
-    for uid in &removed_uids {
-        if !remaining_uids.contains(uid) {
-            let uid_class_id_str = format!("1:{:04x}", uid);
+    for san_name in &removed_targets {
+        if !remaining_targets.contains(san_name) {
+            let tid = target_class_id(san_name);
+            let target_class_id_str = format!("1:{:04x}", tid);
             for iface in &removed_ifaces {
                 let _ = Command::new("tc")
-                    .args(["class", "del", "dev", iface, "classid", &uid_class_id_str])
+                    .args([
+                        "class",
+                        "del",
+                        "dev",
+                        iface,
+                        "classid",
+                        &target_class_id_str,
+                    ])
                     .output();
                 let _ = Command::new("tc")
                     .args([
@@ -1645,14 +1648,14 @@ pub fn clean_orphans() -> Result<()> {
                         "prio",
                         "100",
                         "handle",
-                        &uid.to_string(),
+                        &tid.to_string(),
                         "fw",
                     ])
                     .output();
             }
 
-            // Remove per-UID cgroup
-            let _ = remove_uid_cgroup(*uid);
+            // Remove per-target cgroup
+            let _ = remove_target_cgroup(san_name);
         }
     }
 
@@ -1714,10 +1717,10 @@ pub fn emergency_cleanup() -> Result<()> {
         interfaces.len()
     );
 
-    // 3. Remove all oxy cgroups (per-UID and per-PID)
+    // 3. Remove all oxy cgroups (per-target and per-PID)
     let oxy_base = Path::new(CGROUP_BASE);
     if oxy_base.exists() {
-        // Remove per-UID cgroups (uid_*)
+        // Remove all sub-cgroups (target_* and pid_*)
         if let Ok(entries) = fs::read_dir(oxy_base) {
             for entry in entries.flatten() {
                 let path = entry.path();
@@ -1847,13 +1850,12 @@ pub fn check_respawns() -> Result<()> {
 
         for &new_pid in &new_pids {
             if is_pure_v2 {
-                // On pure cgroup v2: move respawned PID to per-UID cgroup
-                if let Some(uid) = get_process_uid(new_pid) {
-                    let uid_cg_path = format!("{}/uid_{}", CGROUP_BASE, uid);
-                    let procs_path = format!("{}/cgroup.procs", uid_cg_path);
-                    if Path::new(&procs_path).exists() {
-                        let _ = fs::write(&procs_path, new_pid.to_string());
-                    }
+                // On pure cgroup v2: move respawned PID to per-target cgroup
+                let san = sanitize_target_name(&record.target);
+                let target_cg_path = format!("{}/target_{}", CGROUP_BASE, san);
+                let procs_path = format!("{}/cgroup.procs", target_cg_path);
+                if Path::new(&procs_path).exists() {
+                    let _ = fs::write(&procs_path, new_pid.to_string());
                 }
             } else {
                 // On cgroup v1/hybrid: create per-PID cgroup as before
