@@ -16,7 +16,8 @@
 ///   All target PIDs are moved to `/sys/fs/cgroup/oxy/target_<sanitized_name>/`
 ///   so that nftables can match traffic per target:
 ///   - `meta cgroup 2` (output hook): matches ALL egress from target processes
-///   - `socket cgroupv2` + `ct mark` (input hook): matches download traffic
+///   - `socket cgroupv2` + `ct mark` (input hook): matches download traffic.
+///
 ///   On cgroup v1/hybrid, per-PID cgroups with net_cls.classid are used instead.
 ///
 /// **Per-target nftables matching:**
@@ -1327,10 +1328,7 @@ pub fn apply_limit(
             .join(", ")
     );
     if let Some(ref dl) = dl_display {
-        println!(
-            "  Download:  {} (limited, nftables policer)",
-            dl.cyan()
-        );
+        println!("  Download:  {} (limited, nftables policer)", dl.cyan());
     } else {
         println!("  Download:  {}", "unlimited".dimmed());
     }
