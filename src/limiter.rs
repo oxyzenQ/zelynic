@@ -10,7 +10,8 @@
 /// **Download (ingress) limiting (nftables socket cgroupv2 + limit rate):**
 ///   NIC → nftables inet input (socket cgroupv2 <cg_id> limit rate → accept/drop)
 ///   Match: `socket cgroupv2 <cg_id>` — matches packets whose socket belongs
-///   to a specific per-target cgroup (new connections) or by UID (existing connections).
+///   to a specific per-target cgroup (new connections created after the
+///   process was moved to the cgroup).
 ///
 /// **Per-target cgroups:**
 ///   All target PIDs are moved to `/sys/fs/cgroup/oxy/target_<sanitized_name>/`
@@ -18,10 +19,12 @@
 ///   connections.  On cgroup v1/hybrid, per-PID cgroups with net_cls.classid
 ///   are used instead.
 ///
-/// **Hybrid nftables matching (download):**
-///   1. `socket cgroupv2 <cg_id>` — per-target, NEW connections only
+/// **Per-target nftables matching (download):**
+///   1. `socket cgroupv2 <cg_id>` — primary (NEW connections, per-target)
 ///   2. `ct mark <target_hash>` — existing connections via conntrack mark
-///   3. `meta skuid <uid>` — last resort fallback (per-UID)
+///
+/// NOTE: `meta skuid` is intentionally NOT used — it would leak limits to
+/// all processes of the same UID, breaking per-target isolation.
 ///
 /// State is persisted to disk so that limits survive across invocations
 /// and can be cleaned up properly with `oxy unstrict`.
@@ -107,8 +110,8 @@ fn ensure_conntrack() -> Result<()> {
 
 /// Get the UID of a process.
 ///
-/// Used for the `meta skuid` fallback in nftables (existing connections whose
-/// sockets predate the cgroup assignment).
+/// Retained for potential future use (e.g., v1/hybrid cgroup backends).
+#[allow(dead_code)]
 fn get_process_uid(pid: u32) -> Option<u32> {
     let uid_path = format!("/proc/{}/status", pid);
     if let Ok(content) = fs::read_to_string(&uid_path) {
@@ -163,14 +166,13 @@ fn target_class_id(target: &str) -> u32 {
 ///
 /// Uses `inet` (IPv4 + IPv6) so both protocol families are handled.
 ///
-/// Architecture (hybrid per-target + per-UID fallback):
+/// Architecture (per-target isolation via socket cgroupv2):
 ///
 /// **Output chain**: marks egress packets for tc fw filter upload shaping.
-///   - `socket cgroupv2 <cg_id>` — primary: matches sockets created after
-///     the process was moved to the per-target cgroup. Per-target isolation.
-///   - `meta skuid <uid>` — fallback: marks ALL egress packets from the
-///     target's UID. Needed for existing connections whose sockets were
-///     created before the cgroup assignment. Per-UID, not per-target.
+///   - `socket cgroupv2 <cg_id>` — matches sockets created after the
+///     process was moved to the per-target cgroup. Per-target isolation.
+///   NOTE: No `meta skuid` fallback — it would leak marks to all processes
+///   of the same UID, breaking per-target isolation.
 ///
 /// **Postrouting chain**: saves the fw mark into conntrack for reply packets.
 ///   This is critical: download packets arrive as replies to egress packets.
@@ -178,10 +180,11 @@ fn target_class_id(target: &str) -> u32 {
 ///   connections, even for connections that predate the cgroup assignment.
 ///
 /// **Download chain**: rate-limits inbound traffic at the input hook.
-///   Three tiers provide coverage for different connection states:
+///   Two tiers provide coverage for different connection states:
 ///   1. `socket cgroupv2 <cg_id>` — primary (NEW connections, per-target)
 ///   2. `ct mark <target_hash>` — fallback (EXISTING connections via ct mark)
-///   3. `meta skuid <uid>` — last resort (processes with no ct mark yet)
+///   NOTE: `meta skuid` is intentionally NOT used — it would leak limits
+///   to all processes of the same UID, breaking per-target isolation.
 fn build_nft_ip_ruleset(limits: &[LimitRecord]) -> String {
     let mut ruleset = String::new();
     ruleset.push_str("table inet oxy {\n");
@@ -206,17 +209,6 @@ fn build_nft_ip_ruleset(limits: &[LimitRecord]) -> String {
         ));
     }
 
-    // Tier 2: meta skuid — per-UID fallback for existing connections
-    // Only add if there are limits with UIDs but no cgroup_id (or as supplement)
-    let mut seen_uids: HashSet<u32> = HashSet::new();
-    for record in limits {
-        if let Some(uid) = record.uid {
-            if seen_uids.insert(uid) {
-                let mark = target_class_id(&sanitize_target_name(&record.target));
-                ruleset.push_str(&format!("    meta skuid {} meta mark set {};\n", uid, mark));
-            }
-        }
-    }
     ruleset.push_str("  }\n");
 
     // ---- Postrouting chain: save mark to conntrack ----
@@ -235,16 +227,6 @@ fn build_nft_ip_ruleset(limits: &[LimitRecord]) -> String {
         if let Some(cgid) = record.cgroup_id {
             let dl_bps = record.download_bytes_per_sec.unwrap();
             let entry = cg_dl_info.entry(cgid).or_insert(dl_bps);
-            *entry = (*entry).min(dl_bps);
-        }
-    }
-
-    // Collect per-UID download limits (for meta skuid fallback tier)
-    let mut uid_dl_info: HashMap<u32, u64> = HashMap::new();
-    for record in limits.iter().filter(|l| l.download_bytes_per_sec.is_some()) {
-        if let Some(uid) = record.uid {
-            let dl_bps = record.download_bytes_per_sec.unwrap();
-            let entry = uid_dl_info.entry(uid).or_insert(dl_bps);
             *entry = (*entry).min(dl_bps);
         }
     }
@@ -276,16 +258,6 @@ fn build_nft_ip_ruleset(limits: &[LimitRecord]) -> String {
             mark, dl_bps, burst
         ));
         ruleset.push_str(&format!("    ct mark {} drop;\n", mark));
-    }
-
-    // Tier 3: meta skuid — last resort (no ct mark yet, e.g. first packet)
-    for (uid, dl_bps) in &uid_dl_info {
-        let burst = (*dl_bps / 2).max(65536);
-        ruleset.push_str(&format!(
-            "    meta skuid {} limit rate {} bytes/second burst {} bytes accept;\n",
-            uid, dl_bps, burst
-        ));
-        ruleset.push_str(&format!("    meta skuid {} drop;\n", uid));
     }
 
     ruleset.push_str("  }\n");
@@ -441,8 +413,9 @@ pub struct LimitRecord {
     /// New for per-target isolation; None for legacy state files.
     #[serde(default)]
     pub target_cgroup_path: Option<String>,
-    /// UID of the target process.  Used for `meta skuid` fallback in nftables
-    /// (existing connections whose sockets predate the cgroup assignment).
+    /// UID of the target process.  Kept for backward compatibility with
+    /// legacy state files; always None for new limits (meta skuid fallback
+    /// was removed to prevent per-UID cross-process leaks).
     #[serde(default)]
     pub uid: Option<u32>,
 }
@@ -1118,10 +1091,8 @@ pub fn apply_limit(
 
     // Phase 1: Create per-target cgroup (v2) or per-PID cgroups (v1).
     // All PIDs for this target share one cgroup on pure cgroup v2.
-    // Also resolve UIDs for the meta skuid fallback (existing connections).
     let target_cg_path = format!("{}/target_{}", CGROUP_BASE, sanitized);
     let mut cgroup_id: Option<u64> = None;
-    let mut target_uid: Option<u32> = None;
 
     if is_pure_v2 {
         // Create per-target cgroup under /sys/fs/cgroup/oxy/target_<name>/
@@ -1148,10 +1119,6 @@ pub fn apply_limit(
             None
         };
 
-        // Resolve UID from first PID (for meta skuid fallback)
-        if let Some(first_pid) = pids.first() {
-            target_uid = get_process_uid(*first_pid);
-        }
     }
 
     // Phase 2: Create records for each PID
@@ -1181,7 +1148,7 @@ pub fn apply_limit(
             } else {
                 None
             },
-            uid: target_uid,
+            uid: None,
         };
 
         state.limits.push(record);
