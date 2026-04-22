@@ -213,10 +213,7 @@ fn build_nft_ip_ruleset(limits: &[LimitRecord]) -> String {
         if let Some(uid) = record.uid {
             if seen_uids.insert(uid) {
                 let mark = target_class_id(&sanitize_target_name(&record.target));
-                ruleset.push_str(&format!(
-                    "    meta skuid {} meta mark set {};\n",
-                    uid, mark
-                ));
+                ruleset.push_str(&format!("    meta skuid {} meta mark set {};\n", uid, mark));
             }
         }
     }
