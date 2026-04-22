@@ -1120,6 +1120,7 @@ pub fn apply_limit(
         } else {
             None
         };
+    }
 
     // Phase 2: Create records for each PID
     let mut applied_count = 0;
