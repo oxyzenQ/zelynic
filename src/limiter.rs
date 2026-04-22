@@ -98,6 +98,10 @@ fn ensure_conntrack() -> Result<()> {
 }
 
 /// Get the UID of a process.
+///
+/// Used for process validation. No longer used for cgroup/rate-limiting isolation
+/// (which is now per-target, not per-UID).
+#[allow(dead_code)]
 fn get_process_uid(pid: u32) -> Option<u32> {
     let uid_path = format!("/proc/{}/status", pid);
     if let Ok(content) = fs::read_to_string(&uid_path) {
@@ -176,9 +180,9 @@ fn build_nft_ip_ruleset(limits: &[LimitRecord]) -> String {
     let mut cg_to_mark: HashMap<u64, u32> = HashMap::new();
     for record in limits {
         if let Some(cgid) = record.cgroup_id {
-            if !cg_to_mark.contains_key(&cgid) {
-                cg_to_mark.insert(cgid, target_class_id(&sanitize_target_name(&record.target)));
-            }
+            cg_to_mark
+                .entry(cgid)
+                .or_insert_with(|| target_class_id(&sanitize_target_name(&record.target)));
         }
     }
 
@@ -813,8 +817,7 @@ fn remove_target_cgroup(sanitized_name: &str) -> Result<()> {
                         for pid_str in content.lines() {
                             if let Ok(proc_pid) = pid_str.trim().parse::<u32>() {
                                 // Skip dead processes
-                                if !std::path::Path::new(&format!("/proc/{}", proc_pid)).exists()
-                                {
+                                if !std::path::Path::new(&format!("/proc/{}", proc_pid)).exists() {
                                     continue;
                                 }
                                 let safe_procs = format!("{}/cgroup.procs", CGROUP_BASE);
@@ -1300,10 +1303,7 @@ pub fn apply_limit(
     println!("  Applied:   {} process(es)", applied_count);
 
     if is_pure_v2 {
-        println!(
-            "  Cgroup:    {} (per-target isolation)",
-            target_cg_path
-        );
+        println!("  Cgroup:    {} (per-target isolation)", target_cg_path);
     }
 
     println!();
