@@ -171,8 +171,9 @@ fn target_class_id(target: &str) -> u32 {
 /// **Output chain**: marks egress packets for tc fw filter upload shaping.
 ///   - `socket cgroupv2 <cg_id>` — matches sockets created after the
 ///     process was moved to the per-target cgroup. Per-target isolation.
-///   NOTE: No `meta skuid` fallback — it would leak marks to all processes
-///   of the same UID, breaking per-target isolation.
+///
+///   NOTE: No `meta skuid` fallback — it would leak marks to all
+///   processes of the same UID, breaking per-target isolation.
 ///
 /// **Postrouting chain**: saves the fw mark into conntrack for reply packets.
 ///   This is critical: download packets arrive as replies to egress packets.
@@ -183,8 +184,9 @@ fn target_class_id(target: &str) -> u32 {
 ///   Two tiers provide coverage for different connection states:
 ///   1. `socket cgroupv2 <cg_id>` — primary (NEW connections, per-target)
 ///   2. `ct mark <target_hash>` — fallback (EXISTING connections via ct mark)
-///   NOTE: `meta skuid` is intentionally NOT used — it would leak limits
-///   to all processes of the same UID, breaking per-target isolation.
+///
+///   NOTE: `meta skuid` is intentionally NOT used — it would leak
+///   limits to all processes of the same UID, breaking per-target isolation.
 fn build_nft_ip_ruleset(limits: &[LimitRecord]) -> String {
     let mut ruleset = String::new();
     ruleset.push_str("table inet oxy {\n");
@@ -1118,8 +1120,6 @@ pub fn apply_limit(
         } else {
             None
         };
-
-    }
 
     // Phase 2: Create records for each PID
     let mut applied_count = 0;
