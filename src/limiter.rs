@@ -1039,10 +1039,8 @@ pub fn apply_limit(
         );
     }
 
-    // Detect cgroup version
-    let (cg_is_v2, cg_is_hybrid) = detect_cgroup_version();
-    let use_cgroup_v1_backend = !cg_is_v2 || cg_is_hybrid;
-    let is_pure_v2 = cg_is_v2 && !cg_is_hybrid;
+    // Detect cgroup version (informational; we always try v2 first)
+    let (_cg_is_v2, _cg_is_hybrid) = detect_cgroup_version();
 
     // Set up HTB qdisc for upload (egress) shaping
     ensure_htb_qdisc(&interface)?;
@@ -1058,9 +1056,42 @@ pub fn apply_limit(
         }
     }
 
-    // For cgroup v1/hybrid, add tc cgroup filter on egress for reliable upload limiting
-    // that works for existing connections (not just new sockets)
-    if use_cgroup_v1_backend {
+    // Load existing state
+    let mut state = OxyState::load()?;
+
+    // Phase 1: Create per-target cgroup and read cgroup.id.
+    // We always try the v2 approach first, even on hybrid systems,
+    // because cgroup.id and cgroup.procs are available in the v2 hierarchy.
+    let target_cg_path = format!("{}/target_{}", CGROUP_BASE, sanitized);
+    let mut cgroup_id: Option<u64> = None;
+
+    fs::create_dir_all(&target_cg_path).context(format!(
+        "failed to create cgroup directory for target '{}'. Is cgroup2 mounted?",
+        target
+    ))?;
+
+    // Move all PIDs into the target cgroup
+    for pid in &pids {
+        let procs_path = format!("{}/cgroup.procs", target_cg_path);
+        if Path::new(&procs_path).exists() {
+            let _ = fs::write(&procs_path, pid.to_string());
+        }
+    }
+
+    // Read the cgroup.id for nftables meta cgroup 2 matching
+    let cg_id_path = format!("{}/cgroup.id", target_cg_path);
+    cgroup_id = if Path::new(&cg_id_path).exists() {
+        fs::read_to_string(&cg_id_path)
+            .ok()
+            .and_then(|s| s.trim().parse::<u64>().ok())
+    } else {
+        None
+    };
+
+    let use_v2 = cgroup_id.is_some();
+
+    // For v1 fallback: add tc cgroup filter on egress
+    if !use_v2 {
         let check = Command::new("tc")
             .args(["filter", "show", "dev", &interface, "parent", "1:0"])
             .output()
@@ -1092,47 +1123,13 @@ pub fn apply_limit(
         }
     }
 
-    // Load existing state
-    let mut state = OxyState::load()?;
-
-    // Phase 1: Create per-target cgroup (v2) or per-PID cgroups (v1).
-    // All PIDs for this target share one cgroup on pure cgroup v2.
-    let target_cg_path = format!("{}/target_{}", CGROUP_BASE, sanitized);
-    let mut cgroup_id: Option<u64> = None;
-
-    if is_pure_v2 {
-        // Create per-target cgroup under /sys/fs/cgroup/oxy/target_<name>/
-        fs::create_dir_all(&target_cg_path).context(format!(
-            "failed to create cgroup v2 directory for target '{}'. Is cgroup2 mounted?",
-            target
-        ))?;
-
-        // Move all PIDs into the target cgroup
-        for pid in &pids {
-            let procs_path = format!("{}/cgroup.procs", target_cg_path);
-            if Path::new(&procs_path).exists() {
-                let _ = fs::write(&procs_path, pid.to_string());
-            }
-        }
-
-        // Read the cgroup.id for nftables meta cgroup 2 matching
-        let cg_id_path = format!("{}/cgroup.id", target_cg_path);
-        cgroup_id = if Path::new(&cg_id_path).exists() {
-            fs::read_to_string(&cg_id_path)
-                .ok()
-                .and_then(|s| s.trim().parse::<u64>().ok())
-        } else {
-            None
-        };
-    }
-
     // Phase 2: Create records for each PID
     let mut applied_count = 0;
     for pid in &pids {
         let class_id = next_class_id()?;
 
-        if !is_pure_v2 {
-            // For v1/hybrid: create per-PID cgroup and ignore cgroup_id
+        if !use_v2 {
+            // v1 fallback: per-PID cgroups with net_cls.classid
             let _ = setup_cgroup(*pid, class_id);
         }
 
@@ -1148,7 +1145,7 @@ pub fn apply_limit(
             applied_at: chrono_now(),
             ingress_handle: None,
             cgroup_id,
-            target_cgroup_path: if is_pure_v2 {
+            target_cgroup_path: if use_v2 {
                 Some(target_cg_path.clone())
             } else {
                 None
@@ -1227,7 +1224,7 @@ pub fn apply_limit(
         // On pure v2, nftables output chain sets meta mark per target cgroup.
         // The tc fw filter routes marked packets to the correct HTB class.
         // Pre-delete existing filter to make the operation idempotent.
-        if is_pure_v2 {
+        if use_v2 {
             let _ = Command::new("tc")
                 .args([
                     "filter",
@@ -1339,16 +1336,16 @@ pub fn apply_limit(
     }
     println!("  Interface: {}", interface);
     println!(
-        "  Backend:   nftables + HTB | cgroup v{}",
-        if use_cgroup_v1_backend {
-            "1/hybrid"
+        "  Backend:   nftables + HTB | {}",
+        if use_v2 {
+            "cgroup v2 (per-target isolation)"
         } else {
-            "2"
+            "cgroup v1 fallback"
         }
     );
     println!("  Applied:   {} process(es)", applied_count);
 
-    if is_pure_v2 {
+    if use_v2 {
         println!("  Cgroup:    {} (per-target isolation)", target_cg_path);
     }
 
@@ -1850,9 +1847,6 @@ pub fn check_respawns() -> Result<()> {
         return Ok(());
     }
 
-    let (cg_is_v2, cg_is_hybrid) = detect_cgroup_version();
-    let is_pure_v2 = cg_is_v2 && !cg_is_hybrid;
-
     let mut respawned: Vec<(usize, Vec<u32>)> = Vec::new();
 
     // Check each limit for process death and potential respawn
@@ -1895,16 +1889,14 @@ pub fn check_respawns() -> Result<()> {
         let first_pid = new_pids[0];
 
         for &new_pid in &new_pids {
-            if is_pure_v2 {
-                // On pure cgroup v2: move respawned PID to per-target cgroup
-                let san = sanitize_target_name(&record.target);
-                let target_cg_path = format!("{}/target_{}", CGROUP_BASE, san);
-                let procs_path = format!("{}/cgroup.procs", target_cg_path);
+            // Always try per-target cgroup first (v2 approach works on hybrid too)
+            if let Some(ref tcg_path) = record.target_cgroup_path {
+                let procs_path = format!("{}/cgroup.procs", tcg_path);
                 if Path::new(&procs_path).exists() {
                     let _ = fs::write(&procs_path, new_pid.to_string());
                 }
             } else {
-                // On cgroup v1/hybrid: create per-PID cgroup as before
+                // v1 fallback: per-PID cgroups
                 let (cgroup_path, _) = setup_cgroup(new_pid, record.class_id)?;
                 let procs_path = format!("{}/cgroup.procs", cgroup_path);
                 if Path::new(&procs_path).exists() {
