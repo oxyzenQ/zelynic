@@ -34,6 +34,7 @@ use colored::Colorize;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::fs;
+use std::os::unix::fs::MetadataExt;
 use std::path::Path;
 use std::process::Command;
 
@@ -1039,7 +1040,7 @@ pub fn apply_limit(
         );
     }
 
-    // Detect cgroup version (informational; we always try v2 first)
+    // Detect cgroup version (informational)
     let (_cg_is_v2, _cg_is_hybrid) = detect_cgroup_version();
 
     // Set up HTB qdisc for upload (egress) shaping
@@ -1077,14 +1078,13 @@ pub fn apply_limit(
         }
     }
 
-    // Read the cgroup.id for nftables meta cgroup 2 matching
-    let cg_id_path = format!("{}/cgroup.id", target_cg_path);
-    let cgroup_id = if Path::new(&cg_id_path).exists() {
-        fs::read_to_string(&cg_id_path)
-            .ok()
-            .and_then(|s| s.trim().parse::<u64>().ok())
-    } else {
-        None
+    // Read the cgroup inode number for nftables meta cgroup 2 matching.
+    // We use stat() on the directory inode instead of reading cgroup.id,
+    // because cgroup.id may not exist on some kernel/systemd configurations.
+    // The inode number IS the cgroup ID — they are identical.
+    let cgroup_id = match fs::metadata(&target_cg_path) {
+        Ok(meta) => Some(meta.ino()),
+        Err(_) => None,
     };
 
     let use_v2 = cgroup_id.is_some();
