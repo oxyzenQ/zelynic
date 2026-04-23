@@ -1063,7 +1063,6 @@ pub fn apply_limit(
     // We always try the v2 approach first, even on hybrid systems,
     // because cgroup.id and cgroup.procs are available in the v2 hierarchy.
     let target_cg_path = format!("{}/target_{}", CGROUP_BASE, sanitized);
-    let cgroup_id;
 
     fs::create_dir_all(&target_cg_path).context(format!(
         "failed to create cgroup directory for target '{}'. Is cgroup2 mounted?",
@@ -1080,7 +1079,7 @@ pub fn apply_limit(
 
     // Read the cgroup.id for nftables meta cgroup 2 matching
     let cg_id_path = format!("{}/cgroup.id", target_cg_path);
-    cgroup_id = if Path::new(&cg_id_path).exists() {
+    let cgroup_id = if Path::new(&cg_id_path).exists() {
         fs::read_to_string(&cg_id_path)
             .ok()
             .and_then(|s| s.trim().parse::<u64>().ok())
