@@ -7,22 +7,23 @@
 ///   Process (in target cgroup) → tc cgroup filter → HTB class (rate-limited)
 ///   On cgroup v1/hybrid: per-PID cgroups with net_cls.classid as fallback.
 ///
-/// **Download (ingress) limiting (nftables cgroup + ct mark + limit rate):**
-///   NIC → nftables inet input (socket cgroupv2 / ct mark → limit rate → accept/drop)
-///   Two tiers: `socket cgroupv2 <cg_id>` for NEW connections, and `ct mark <hash>`
-///   for EXISTING connections (mark propagated from egress via `meta cgroup 2`).
+/// **Download (ingress) limiting (nftables ct mark + limit rate):**
+///   NIC → nftables inet input (ct mark → limit rate → accept/drop)
+///   ct mark is set by the output chain on egress packets via `meta cgroup`,
+///   then copied to conntrack by the postrouting chain. Reply (download) packets
+///   are matched by their ct mark.
 ///
 /// **Per-target cgroups:**
 ///   All target PIDs are moved to `/sys/fs/cgroup/oxy/target_<sanitized_name>/`
 ///   so that nftables can match traffic per target:
-///   - `meta cgroup 2` (output hook): matches ALL egress from target processes
-///   - `socket cgroupv2` + `ct mark` (input hook): matches download traffic.
+///   - `meta cgroup` (output hook): matches ALL egress from target processes
+///   - `ct mark` (input hook): matches download traffic via conntrack mark.
 ///
 ///   On cgroup v1/hybrid, per-PID cgroups with net_cls.classid are used instead.
 ///
 /// **Per-target nftables matching:**
-///   Output (egress): `meta cgroup 2 <cg_id>` → mark → tc HTB (upload shaping)
-///   Input (download): `socket cgroupv2` + `ct mark` → limit rate (ingress policing)
+///   Output (egress): `meta cgroup == <cg_id>` → mark → tc HTB (upload shaping)
+///   Input (download): `ct mark` → limit rate (ingress policing)
 ///
 /// NOTE: `meta skuid` is intentionally NOT used — it would leak limits to
 /// all processes of the same UID, breaking per-target isolation.
@@ -171,9 +172,9 @@ fn target_class_id(target: &str) -> u32 {
 /// Architecture (per-target isolation via cgroup v2):
 ///
 /// **Output chain**: marks egress packets for tc fw filter upload shaping.
-///   - `meta cgroup 2 == <cg_id>` — matches ALL egress packets from
+///   - `meta cgroup == <cg_id>` — matches ALL egress packets from
 ///     processes in the per-target cgroup, including pre-existing sockets.
-///     Unlike `socket cgroupv2` (which only matches new sockets), this
+///     Unlike socket-based matching (which only matches new sockets), this
 ///     ensures reliable upload shaping for already-running processes.
 ///
 ///   NOTE: `meta skuid` is intentionally NOT used — it would leak marks
@@ -185,10 +186,10 @@ fn target_class_id(target: &str) -> u32 {
 ///   connections, even for connections that predate the cgroup assignment.
 ///
 /// **Download chain**: rate-limits inbound traffic at the input hook.
-///   Two tiers provide coverage for different connection states:
-///   1. `socket cgroupv2 <cg_id>` — NEW connections (created after cgroup move)
-///   2. `ct mark <target_hash>` — EXISTING connections (mark set by output
-///      chain via `meta cgroup 2` on egress packets)
+///   Uses `ct mark <target_hash>` for ALL connections (both new and existing).
+///   The ct mark is set by the output chain on every egress packet, then
+///   copied to conntrack by the postrouting chain. When the response arrives,
+///   the input hook matches the ct mark and applies the rate limit.
 ///
 ///   NOTE: `meta skuid` is intentionally NOT used — it would leak
 ///   limits to all processes of the same UID, breaking per-target isolation.
@@ -200,7 +201,7 @@ fn build_nft_ip_ruleset(limits: &[LimitRecord]) -> String {
     ruleset.push_str("  chain output {\n");
     ruleset.push_str("    type filter hook output priority mangle; policy accept;\n");
 
-    // meta cgroup 2 — per-target (all egress, including pre-existing sockets)
+    // meta cgroup — per-target (all egress, including pre-existing sockets)
     let mut cg_to_mark: HashMap<u64, u32> = HashMap::new();
     for record in limits {
         if let Some(cgid) = record.cgroup_id {
@@ -211,7 +212,7 @@ fn build_nft_ip_ruleset(limits: &[LimitRecord]) -> String {
     }
     for (cgid, mark) in &cg_to_mark {
         ruleset.push_str(&format!(
-            "    meta cgroup 2 == {} meta mark set {};\n",
+            "    meta cgroup == {} meta mark set {};\n",
             cgid, mark
         ));
     }
@@ -228,17 +229,10 @@ fn build_nft_ip_ruleset(limits: &[LimitRecord]) -> String {
     ruleset.push_str("  chain download {\n");
     ruleset.push_str("    type filter hook input priority mangle; policy accept;\n");
 
-    // Collect per-cgroup_id download limits (for socket cgroupv2 primary tier)
-    let mut cg_dl_info: HashMap<u64, u64> = HashMap::new();
-    for record in limits.iter().filter(|l| l.download_bytes_per_sec.is_some()) {
-        if let Some(cgid) = record.cgroup_id {
-            let dl_bps = record.download_bytes_per_sec.unwrap();
-            let entry = cg_dl_info.entry(cgid).or_insert(dl_bps);
-            *entry = (*entry).min(dl_bps);
-        }
-    }
-
-    // Collect per-target mark → download rate (for ct mark fallback tier)
+    // Collect per-target mark → download rate
+    // Download limiting uses ct mark exclusively: the output chain marks
+    // egress packets via meta cgroup, postrouting copies to ct mark,
+    // and the input hook matches ct mark on reply (download) packets.
     let mut mark_dl_info: HashMap<u32, u64> = HashMap::new();
     for record in limits.iter().filter(|l| l.download_bytes_per_sec.is_some()) {
         let dl_bps = record.download_bytes_per_sec.unwrap();
@@ -247,17 +241,7 @@ fn build_nft_ip_ruleset(limits: &[LimitRecord]) -> String {
         *entry = (*entry).min(dl_bps);
     }
 
-    // Tier 1: socket cgroupv2 — per-target (new connections)
-    for (cgid, dl_bps) in &cg_dl_info {
-        let burst = (*dl_bps / 2).max(65536);
-        ruleset.push_str(&format!(
-            "    socket cgroupv2 {} limit rate {} bytes/second burst {} bytes accept;\n",
-            cgid, dl_bps, burst
-        ));
-        ruleset.push_str(&format!("    socket cgroupv2 {} drop;\n", cgid));
-    }
-
-    // Tier 2: ct mark — existing connections (marked by output chain)
+    // ct mark — all connections (marked by output chain via meta cgroup)
     for (mark, dl_bps) in &mark_dl_info {
         let burst = (*dl_bps / 2).max(65536);
         ruleset.push_str(&format!(
@@ -412,8 +396,8 @@ pub struct LimitRecord {
     #[serde(default)]
     pub ingress_handle: Option<u32>,
     /// Cgroup v2 ID (inode number) for the per-target cgroup.  Used by
-    /// nftables `meta cgroup 2` (output hook, egress marking) and
-    /// `socket cgroupv2` + `ct mark` (input hook, download policing).
+    /// nftables `meta cgroup` (output hook, egress marking) and
+    /// `ct mark` (input hook, download policing).
     #[serde(default)]
     pub cgroup_id: Option<u64>,
     /// Path to the per-target cgroup (e.g., `/sys/fs/cgroup/oxy/target_helium`).
@@ -1078,7 +1062,7 @@ pub fn apply_limit(
         }
     }
 
-    // Read the cgroup inode number for nftables meta cgroup 2 matching.
+    // Read the cgroup inode number for nftables meta cgroup matching.
     // We use stat() on the directory inode instead of reading cgroup.id,
     // because cgroup.id may not exist on some kernel/systemd configurations.
     // The inode number IS the cgroup ID — they are identical.
@@ -1289,7 +1273,7 @@ pub fn apply_limit(
         return Err(e);
     }
 
-    // Refresh nftables rules (output: meta cgroup 2, download: socket cgroupv2 + ct mark)
+    // Refresh nftables rules (output: meta cgroup, download: ct mark)
     if let Err(e) = refresh_nft_ip_rules(&state.limits) {
         eprintln!(
             "{}: Failed to apply nft packet marking rules: {}",
