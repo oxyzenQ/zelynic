@@ -1087,7 +1087,7 @@ pub fn apply_limit(
         } else {
             // kernel 6.1+: cgroup_id = (ino << 32) | gen (gen ≈ 0)
             fs::metadata(&target_cg_path)
-                .map(|m| (m.ino() as u64) << 32)
+                .map(|m| m.ino() << 32)
                 .ok()
         }
     };
@@ -1326,19 +1326,14 @@ pub fn apply_limit(
             let uid_rule = format!("meta skuid {}", uid_str);
 
             let _ = Command::new("nft")
-                .args([
-                    "add", "rule", "inet", "oxy", "output",
-                    &uid_rule, "drop",
-                ])
+                .args(["add", "rule", "inet", "oxy", "output", &uid_rule, "drop"])
                 .output();
 
             std::thread::sleep(std::time::Duration::from_millis(300));
 
             // Locate and remove the temporary DROP rule by its handle
             if let Ok(list_out) = Command::new("nft")
-                .args([
-                    "-a", "list", "chain", "inet", "oxy", "output",
-                ])
+                .args(["-a", "list", "chain", "inet", "oxy", "output"])
                 .output()
             {
                 let list_stdout = String::from_utf8_lossy(&list_out.stdout);
@@ -1346,10 +1341,9 @@ pub fn apply_limit(
                     if line.contains(&uid_rule) {
                         if let Some(pos) = line.rfind("handle ") {
                             let handle = line[pos + 7..].trim();
-                            let _ = Command::new("nft").args([
-                                "delete", "rule", "inet", "oxy", "output",
-                                "handle", handle,
-                            ]).output();
+                            let _ = Command::new("nft")
+                                .args(["delete", "rule", "inet", "oxy", "output", "handle", handle])
+                                .output();
                             break;
                         }
                     }
