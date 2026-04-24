@@ -216,8 +216,9 @@ fn build_nft_ip_ruleset(limits: &[LimitRecord]) -> String {
     }
     for (cgid, mark) in &cg_to_mark {
         ruleset.push_str(&format!(
-            "    meta cgroup == {} meta mark set {};\n",
-            cgid, mark
+            "    meta cgroup >> 32 == {} meta mark set {};\n",
+            cgid >> 32,
+            mark
         ));
     }
 
