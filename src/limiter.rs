@@ -16,7 +16,10 @@
 /// **Per-target cgroups:**
 ///   All target PIDs are moved to `/sys/fs/cgroup/oxy/target_<sanitized_name>/`
 ///   so that nftables can match traffic per target:
-///   - `meta cgroup` (output hook): matches ALL egress from target processes
+///   - `meta cgroup` (output hook): matches egress from sockets created while
+///     the process was in the target cgroup.  A brief UID-based egress drop
+///     after rule application forces existing connections to re-establish
+///     inside the correct cgroup.
 ///   - `ct mark` (input hook): matches download traffic via conntrack mark.
 ///
 ///   On cgroup v1/hybrid, per-PID cgroups with net_cls.classid are used instead.
@@ -112,9 +115,6 @@ fn ensure_conntrack() -> Result<()> {
 }
 
 /// Get the UID of a process.
-///
-/// Retained for potential future use (e.g., v1/hybrid cgroup backends).
-#[allow(dead_code)]
 fn get_process_uid(pid: u32) -> Option<u32> {
     let uid_path = format!("/proc/{}/status", pid);
     if let Ok(content) = fs::read_to_string(&uid_path) {
@@ -172,13 +172,17 @@ fn target_class_id(target: &str) -> u32 {
 /// Architecture (per-target isolation via cgroup v2):
 ///
 /// **Output chain**: marks egress packets for tc fw filter upload shaping.
-///   - `meta cgroup == <cg_id>` — matches ALL egress packets from
-///     processes in the per-target cgroup, including pre-existing sockets.
-///     Unlike socket-based matching (which only matches new sockets), this
-///     ensures reliable upload shaping for already-running processes.
+///   - `meta cgroup == <cg_id>` — matches egress packets whose socket was
+///     created while the sending process was in the target cgroup.
+///     NOTE: sockets created BEFORE the PID was moved retain their
+///     original cgroup and will NOT be matched.  To handle this, oxy
+///     briefly drops all egress from the target UID after applying the
+///     rules, forcing existing connections to re-establish with new
+///     sockets inside the target cgroup.
 ///
-///   NOTE: `meta skuid` is intentionally NOT used — it would leak marks
-///   to all processes of the same UID, breaking per-target isolation.
+///   NOTE: `meta skuid` is intentionally NOT used for packet marking —
+///   it would leak marks to all processes of the same UID, breaking
+///   per-target isolation.
 ///
 /// **Postrouting chain**: saves the fw mark into conntrack for reply packets.
 ///   This is critical: download packets arrive as replies to egress packets.
@@ -186,10 +190,10 @@ fn target_class_id(target: &str) -> u32 {
 ///   connections, even for connections that predate the cgroup assignment.
 ///
 /// **Download chain**: rate-limits inbound traffic at the input hook.
-///   Uses `ct mark <target_hash>` for ALL connections (both new and existing).
-///   The ct mark is set by the output chain on every egress packet, then
-///   copied to conntrack by the postrouting chain. When the response arrives,
-///   the input hook matches the ct mark and applies the rate limit.
+///   Uses `ct mark <target_hash>` for connections whose egress was marked
+///   by the output chain.  After force-reconnect, all active connections
+///   will have been re-established with sockets inside the target cgroup,
+///   so their egress is correctly marked and replies are rate-limited.
 ///
 ///   NOTE: `meta skuid` is intentionally NOT used — it would leak
 ///   limits to all processes of the same UID, breaking per-target isolation.
@@ -395,9 +399,10 @@ pub struct LimitRecord {
     /// Kept for state file backward compatibility; always None for new limits.
     #[serde(default)]
     pub ingress_handle: Option<u32>,
-    /// Cgroup v2 ID (inode number) for the per-target cgroup.  Used by
-    /// nftables `meta cgroup` (output hook, egress marking) and
-    /// `ct mark` (input hook, download policing).
+    /// Cgroup v2 ID for the per-target cgroup.  Computed as
+    /// `(inode << 32)` on kernel 6.1+ where `cgroup.id` was removed.
+    /// Used by nftables `meta cgroup` (output hook, egress marking)
+    /// and `ct mark` (input hook, download policing).
     #[serde(default)]
     pub cgroup_id: Option<u64>,
     /// Path to the per-target cgroup (e.g., `/sys/fs/cgroup/oxy/target_helium`).
@@ -1062,13 +1067,29 @@ pub fn apply_limit(
         }
     }
 
-    // Read the cgroup inode number for nftables meta cgroup matching.
-    // We use stat() on the directory inode instead of reading cgroup.id,
-    // because cgroup.id may not exist on some kernel/systemd configurations.
-    // The inode number IS the cgroup ID — they are identical.
-    let cgroup_id = match fs::metadata(&target_cg_path) {
-        Ok(meta) => Some(meta.ino()),
-        Err(_) => None,
+    // Read the cgroup ID for nftables `meta cgroup` matching.
+    //
+    // Since kernel 6.1 the kernel encodes the cgroup ID as
+    //   (kernfs_inode << 32) | generation.
+    // The `cgroup.id` file that exposed this value was removed in
+    // kernel 6.9, so on recent kernels we reconstruct the ID from
+    // the directory inode number.  For freshly-created cgroups the
+    // generation counter is 0, making the ID simply `ino << 32`.
+    //
+    // On pre-6.1 kernels `cgroup.id` still exists and returns the
+    // plain inode number.
+    let cgroup_id = {
+        let id_file = format!("{}/cgroup.id", target_cg_path);
+        if Path::new(&id_file).exists() {
+            fs::read_to_string(&id_file)
+                .ok()
+                .and_then(|s| s.trim().parse::<u64>().ok())
+        } else {
+            // kernel 6.1+: cgroup_id = (ino << 32) | gen (gen ≈ 0)
+            fs::metadata(&target_cg_path)
+                .map(|m| (m.ino() as u64) << 32)
+                .ok()
+        }
     };
 
     let use_v2 = cgroup_id.is_some();
@@ -1284,6 +1305,57 @@ pub fn apply_limit(
             "  {} Without nftables rules, download packets will not be rate-limited.",
             "NOTE:".yellow()
         );
+    }
+
+    // Force reconnection of existing sockets so that `meta cgroup`
+    // can match them.  `meta cgroup` uses sk->sk_cgrp_data which is
+    // set at socket *creation* time — it is NOT updated when the
+    // process is later moved to a different cgroup.  Without this step
+    // only sockets created *after* the PID was moved would be matched,
+    // leaving pre-existing browser connections untouched.
+    //
+    // We briefly drop all egress from the target UID (300 ms), forcing
+    // every TCP/UDP flow to reconnect.  After the drop is lifted the
+    // process creates new sockets inside the target cgroup, so
+    // `meta cgroup` now matches and marks them.  Non-target processes
+    // sharing the same UID are also briefly interrupted but reconnect
+    // normally and remain unmarked (un-limited).
+    if use_v2 {
+        if let Some(uid) = get_process_uid(pids[0]) {
+            let uid_str = uid.to_string();
+            let uid_rule = format!("meta skuid {}", uid_str);
+
+            let _ = Command::new("nft")
+                .args([
+                    "add", "rule", "inet", "oxy", "output",
+                    &uid_rule, "drop",
+                ])
+                .output();
+
+            std::thread::sleep(std::time::Duration::from_millis(300));
+
+            // Locate and remove the temporary DROP rule by its handle
+            if let Ok(list_out) = Command::new("nft")
+                .args([
+                    "-a", "list", "chain", "inet", "oxy", "output",
+                ])
+                .output()
+            {
+                let list_stdout = String::from_utf8_lossy(&list_out.stdout);
+                for line in list_stdout.lines() {
+                    if line.contains(&uid_rule) {
+                        if let Some(pos) = line.rfind("handle ") {
+                            let handle = line[pos + 7..].trim();
+                            let _ = Command::new("nft").args([
+                                "delete", "rule", "inet", "oxy", "output",
+                                "handle", handle,
+                            ]).output();
+                            break;
+                        }
+                    }
+                }
+            }
+        }
     }
 
     // Print summary
