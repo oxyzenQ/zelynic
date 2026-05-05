@@ -1087,9 +1087,7 @@ pub fn apply_limit(
                 .and_then(|s| s.trim().parse::<u64>().ok())
         } else {
             // kernel 6.1+: cgroup_id = (ino << 32) | gen (gen ≈ 0)
-            fs::metadata(&target_cg_path)
-                .map(|m| m.ino() << 32)
-                .ok()
+            fs::metadata(&target_cg_path).map(|m| m.ino() << 32).ok()
         }
     };
 
