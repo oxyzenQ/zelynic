@@ -84,6 +84,7 @@ fn ensure_kernel_modules() -> Result<()> {
         "cls_fw",       // fw classifier (fwmark-based routing)
         "sch_ingress",  // ingress qdisc (for download policing)
         "nf_conntrack", // conntrack
+        "sch_fq_codel", // Fair Queuing / CoDel (better queuing discipline)
     ];
 
     for module in modules {
@@ -128,6 +129,129 @@ fn get_process_uid(pid: u32) -> Option<u32> {
         }
     }
     None
+}
+
+/// Verify that a PID is actually in the expected cgroup.
+///
+/// Reads /proc/<pid>/cgroup and checks if the target cgroup path appears
+/// in the cgroup v2 hierarchy entry (the line starting with "0::").
+fn verify_pid_in_cgroup(pid: u32, expected_cg_path: &str) -> bool {
+    let cgroup_file = format!("/proc/{}/cgroup", pid);
+    if let Ok(content) = fs::read_to_string(&cgroup_file) {
+        for line in content.lines() {
+            // cgroup v2: "0::/path/to/cgroup"
+            if let Some(cg_path) = line.strip_prefix("0::") {
+                return cg_path.contains(&expected_cg_path.replace("/sys/fs/cgroup", ""));
+            }
+        }
+    }
+    false
+}
+
+/// Move a PID to a cgroup with verification and retry.
+///
+/// Writes the PID to cgroup.procs, then verifies membership.
+/// Retries up to 3 times because systemd may immediately move the PID back.
+/// Returns Ok(true) if the PID is confirmed in the cgroup, Ok(false) if it could
+/// not be moved (but did not hard-fail), or Err on unexpected errors.
+fn move_pid_to_cgroup_with_verify(pid: u32, target_cg_path: &str) -> Result<bool> {
+    let procs_path = format!("{}/cgroup.procs", target_cg_path);
+
+    if !Path::new(&procs_path).exists() {
+        return Ok(false);
+    }
+
+    let _expected_suffix = target_cg_path.replace("/sys/fs/cgroup", "");
+
+    for attempt in 0..3 {
+        if let Err(e) = fs::write(&procs_path, pid.to_string()) {
+            if attempt == 0 {
+                eprintln!(
+                    "{}: Failed to move PID {} to cgroup '{}': {}",
+                    "WARNING".yellow(),
+                    pid,
+                    target_cg_path,
+                    e
+                );
+            }
+            std::thread::sleep(std::time::Duration::from_millis(100));
+            continue;
+        }
+
+        // Verify the PID is actually in the cgroup
+        if verify_pid_in_cgroup(pid, target_cg_path) {
+            return Ok(true);
+        }
+
+        // systemd may have moved the PID back — retry
+        if attempt < 2 {
+            std::thread::sleep(std::time::Duration::from_millis(150));
+        }
+    }
+
+    eprintln!(
+        "{}: PID {} could not be confirmed in cgroup '{}' after 3 attempts. \n  {} systemd or cgroup delegation may be interfering. \n  {} Bandwidth limiting may not work for this process.",
+        "WARNING".yellow(),
+        pid,
+        target_cg_path,
+        "Cause:".dimmed(),
+        "Hint:".yellow()
+    );
+    Ok(false)
+}
+
+/// Resolve all PIDs of a process tree (parent + all descendants).
+///
+/// This is critical for multi-process applications like browsers (Brave, Chrome, Firefox)
+/// which spawn many child processes (renderers, GPU, network service, sandbox, etc.).
+/// Only the processes that actually do network I/O need to be in the cgroup, but
+/// to be safe we move the entire tree.
+#[allow(dead_code)]
+pub fn resolve_process_tree(root_pids: &[u32]) -> Vec<u32> {
+    let mut all_pids = Vec::new();
+    let mut queue: std::collections::VecDeque<u32> = root_pids.iter().copied().collect();
+
+    while let Some(pid) = queue.pop_front() {
+        if all_pids.contains(&pid) {
+            continue;
+        }
+        all_pids.push(pid);
+
+        // Find children by scanning /proc for processes whose ppid matches
+        if let Ok(entries) = fs::read_dir("/proc") {
+            for entry in entries.flatten() {
+                let name_str = entry.file_name().to_string_lossy().to_string();
+                if !name_str.chars().all(|c| c.is_ascii_digit()) {
+                    continue;
+                }
+                let child_pid: u32 = match name_str.parse() {
+                    Ok(p) => p,
+                    Err(_) => continue,
+                };
+
+                // Read stat to get ppid (format: pid (comm) state ppid ...)
+                let stat_path = format!("/proc/{}/stat", child_pid);
+                if let Ok(stat_content) = fs::read_to_string(&stat_path) {
+                    // The comm field can contain spaces and parentheses, so find
+                    // the last ')' and parse from there
+                    if let Some(close_paren) = stat_content.rfind(')') {
+                        let after_comm = &stat_content[close_paren + 2..];
+                        let fields: Vec<&str> = after_comm.split_whitespace().collect();
+                        // ppid is the first field after ') state'
+                        if fields.len() >= 2 {
+                            if let Ok(ppid) = fields[1].parse::<u32>() {
+                                if ppid == pid && !all_pids.contains(&child_pid) {
+                                    queue.push_back(child_pid);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    all_pids
 }
 
 /// Sanitize a target name for use as a cgroup directory name.
@@ -985,7 +1109,7 @@ pub fn apply_limit(
                             &target_class_id_str,
                         ])
                         .output();
-                    // Remove fw filter for this target
+                    // Remove fw filter for this target (IPv4)
                     let _ = Command::new("tc")
                         .args([
                             "filter",
@@ -996,6 +1120,24 @@ pub fn apply_limit(
                             "1:0",
                             "protocol",
                             "ip",
+                            "prio",
+                            "100",
+                            "handle",
+                            &tid.to_string(),
+                            "fw",
+                        ])
+                        .output();
+                    // Remove fw filter for this target (IPv6)
+                    let _ = Command::new("tc")
+                        .args([
+                            "filter",
+                            "del",
+                            "dev",
+                            iface,
+                            "parent",
+                            "1:0",
+                            "protocol",
+                            "ipv6",
                             "prio",
                             "100",
                             "handle",
@@ -1060,13 +1202,41 @@ pub fn apply_limit(
         target
     ))?;
 
-    // Move all PIDs into the target cgroup
+    // Move all PIDs into the target cgroup (with verification)
+    let mut confirmed_pids = Vec::new();
     for pid in &pids {
-        let procs_path = format!("{}/cgroup.procs", target_cg_path);
-        if Path::new(&procs_path).exists() {
-            let _ = fs::write(&procs_path, pid.to_string());
+        match move_pid_to_cgroup_with_verify(*pid, &target_cg_path) {
+            Ok(true) => {
+                confirmed_pids.push(*pid);
+            }
+            Ok(false) => {
+                // PID could not be confirmed in cgroup — still include it
+                // in the record (cgroup_id will be set, and if the PID is
+                // moved later by respawn handling, limiting will activate)
+                confirmed_pids.push(*pid);
+            }
+            Err(e) => {
+                eprintln!(
+                    "{}: Failed to move PID {} to cgroup: {}",
+                    "WARNING".yellow(),
+                    pid,
+                    e
+                );
+                confirmed_pids.push(*pid);
+            }
         }
     }
+
+    if confirmed_pids.is_empty() {
+        bail!(
+            "none of the resolved PIDs could be moved to cgroup '{}'. \n  {} systemd cgroup delegation may be preventing cgroup changes. \n  {} Try running: sudo oxy strict ...",
+            target_cg_path,
+            "ERROR:".red().bold(),
+            "Hint:".yellow()
+        );
+    }
+
+    let pids = confirmed_pids;
 
     // Read the cgroup ID for nftables `meta cgroup` matching.
     //
@@ -1228,6 +1398,7 @@ pub fn apply_limit(
         // The tc fw filter routes marked packets to the correct HTB class.
         // Pre-delete existing filter to make the operation idempotent.
         if use_v2 {
+            // Delete existing IPv4 filter
             let _ = Command::new("tc")
                 .args([
                     "filter",
@@ -1245,9 +1416,28 @@ pub fn apply_limit(
                     "fw",
                 ])
                 .output();
+            // Delete existing IPv6 filter
+            let _ = Command::new("tc")
+                .args([
+                    "filter",
+                    "del",
+                    "dev",
+                    &interface,
+                    "parent",
+                    "1:0",
+                    "protocol",
+                    "ipv6",
+                    "prio",
+                    "100",
+                    "handle",
+                    &tid.to_string(),
+                    "fw",
+                ])
+                .output();
 
+            // Add IPv4 fw filter
             tx.add(
-                &format!("egress fw filter for target {}", target),
+                &format!("egress fw filter (IPv4) for target {}", target),
                 vec![
                     "filter".into(),
                     "add".into(),
@@ -1274,6 +1464,43 @@ pub fn apply_limit(
                     "1:0".into(),
                     "protocol".into(),
                     "ip".into(),
+                    "prio".into(),
+                    "100".into(),
+                    "handle".into(),
+                    tid.to_string(),
+                    "fw".into(),
+                ],
+            );
+
+            // Add IPv6 fw filter (same handle, different protocol)
+            tx.add(
+                &format!("egress fw filter (IPv6) for target {}", target),
+                vec![
+                    "filter".into(),
+                    "add".into(),
+                    "dev".into(),
+                    interface.clone(),
+                    "parent".into(),
+                    "1:0".into(),
+                    "protocol".into(),
+                    "ipv6".into(),
+                    "prio".into(),
+                    "100".into(),
+                    "handle".into(),
+                    tid.to_string(),
+                    "fw".into(),
+                    "classid".into(),
+                    class_id_str.clone(),
+                ],
+                vec![
+                    "filter".into(),
+                    "del".into(),
+                    "dev".into(),
+                    interface.clone(),
+                    "parent".into(),
+                    "1:0".into(),
+                    "protocol".into(),
+                    "ipv6".into(),
                     "prio".into(),
                     "100".into(),
                     "handle".into(),
@@ -1516,7 +1743,7 @@ pub fn remove_limit(target: &str) -> Result<()> {
                         &target_class_id_str,
                     ])
                     .output();
-                // Remove per-target fw filter
+                // Remove per-target fw filter (IPv4)
                 let _ = Command::new("tc")
                     .args([
                         "filter",
@@ -1527,6 +1754,24 @@ pub fn remove_limit(target: &str) -> Result<()> {
                         "1:0",
                         "protocol",
                         "ip",
+                        "prio",
+                        "100",
+                        "handle",
+                        &tid.to_string(),
+                        "fw",
+                    ])
+                    .output();
+                // Remove per-target fw filter (IPv6)
+                let _ = Command::new("tc")
+                    .args([
+                        "filter",
+                        "del",
+                        "dev",
+                        iface,
+                        "parent",
+                        "1:0",
+                        "protocol",
+                        "ipv6",
                         "prio",
                         "100",
                         "handle",
@@ -1554,6 +1799,12 @@ pub fn remove_limit(target: &str) -> Result<()> {
                 .args([
                     "filter", "del", "dev", iface, "parent", "1:0", "protocol", "ip", "prio", "1",
                     "cgroup",
+                ])
+                .output();
+            let _ = Command::new("tc")
+                .args([
+                    "filter", "del", "dev", iface, "parent", "1:0", "protocol", "ipv6", "prio",
+                    "1", "cgroup",
                 ])
                 .output();
         }
@@ -1726,6 +1977,7 @@ pub fn clean_orphans() -> Result<()> {
                         &target_class_id_str,
                     ])
                     .output();
+                // Remove IPv4 fw filter
                 let _ = Command::new("tc")
                     .args([
                         "filter",
@@ -1736,6 +1988,24 @@ pub fn clean_orphans() -> Result<()> {
                         "1:0",
                         "protocol",
                         "ip",
+                        "prio",
+                        "100",
+                        "handle",
+                        &tid.to_string(),
+                        "fw",
+                    ])
+                    .output();
+                // Remove IPv6 fw filter
+                let _ = Command::new("tc")
+                    .args([
+                        "filter",
+                        "del",
+                        "dev",
+                        iface,
+                        "parent",
+                        "1:0",
+                        "protocol",
+                        "ipv6",
                         "prio",
                         "100",
                         "handle",
