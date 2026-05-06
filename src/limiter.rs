@@ -1428,7 +1428,7 @@ pub fn apply_limit(
                     "protocol",
                     "ipv6",
                     "prio",
-                    "100",
+                    "101",
                     "handle",
                     &tid.to_string(),
                     "fw",
@@ -1472,7 +1472,10 @@ pub fn apply_limit(
                 ],
             );
 
-            // Add IPv6 fw filter (same handle, different protocol)
+            // Add IPv6 fw filter (same handle, different protocol, different prio)
+            // NOTE: IPv6 filter uses prio 101 (IPv4 uses prio 100) because
+            // modern kernels (6.x) reject two filters at the same priority
+            // with different protocols on the same parent qdisc.
             tx.add(
                 &format!("egress fw filter (IPv6) for target {}", target),
                 vec![
@@ -1485,7 +1488,7 @@ pub fn apply_limit(
                     "protocol".into(),
                     "ipv6".into(),
                     "prio".into(),
-                    "100".into(),
+                    "101".into(),
                     "handle".into(),
                     tid.to_string(),
                     "fw".into(),
@@ -1502,7 +1505,7 @@ pub fn apply_limit(
                     "protocol".into(),
                     "ipv6".into(),
                     "prio".into(),
-                    "100".into(),
+                    "101".into(),
                     "handle".into(),
                     tid.to_string(),
                     "fw".into(),
@@ -1773,7 +1776,7 @@ pub fn remove_limit(target: &str) -> Result<()> {
                         "protocol",
                         "ipv6",
                         "prio",
-                        "100",
+                        "101",
                         "handle",
                         &tid.to_string(),
                         "fw",
@@ -2007,7 +2010,7 @@ pub fn clean_orphans() -> Result<()> {
                         "protocol",
                         "ipv6",
                         "prio",
-                        "100",
+                        "101",
                         "handle",
                         &tid.to_string(),
                         "fw",
