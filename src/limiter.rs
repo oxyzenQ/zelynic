@@ -4,32 +4,37 @@
 /// Architecture:
 ///
 /// **Upload (egress) limiting:**
-///   Process (in target cgroup) → tc cgroup filter → HTB class (rate-limited)
+///   Process (in target cgroup) → tc fw filter → HTB class (rate-limited)
 ///   On cgroup v1/hybrid: per-PID cgroups with net_cls.classid as fallback.
 ///
 /// **Download (ingress) limiting (nftables ct mark + limit rate):**
 ///   NIC → nftables inet input (ct mark → limit rate → accept/drop)
-///   ct mark is set by the output chain on egress packets via `meta cgroup`,
-///   then copied to conntrack by the postrouting chain. Reply (download) packets
-///   are matched by their ct mark.
+///   ct mark is set by the output chain on egress packets via
+///   `socket cgroupv2`, then copied to conntrack by the postrouting chain.
+///   Reply (download) packets are matched by their ct mark.
 ///
 /// **Per-target cgroups:**
 ///   All target PIDs are moved to `/sys/fs/cgroup/oxy/target_<sanitized_name>/`
 ///   so that nftables can match traffic per target:
-///   - `meta cgroup` (output hook): matches egress from sockets created while
-///     the process was in the target cgroup.  A brief UID-based egress drop
-///     after rule application forces existing connections to re-establish
-///     inside the correct cgroup.
+///   - `socket cgroupv2` (output hook): matches egress from sockets whose
+///     cgroup (at creation time) is the target cgroup.  Returns the 64-bit
+///     cgroup ID (= kernfs inode on 64-bit kernels).  A brief UID-based
+///     egress drop after rule application forces existing connections to
+///     re-establish inside the correct cgroup.
 ///   - `ct mark` (input hook): matches download traffic via conntrack mark.
 ///
 ///   On cgroup v1/hybrid, per-PID cgroups with net_cls.classid are used instead.
 ///
 /// **Per-target nftables matching:**
-///   Output (egress): `meta cgroup == <inode>` → mark → tc HTB (upload shaping)
+///   Output (egress): `socket cgroupv2 level 0 == <inode>` → mark → tc HTB
 ///   Input (download): `ct mark` → limit rate (ingress policing)
 ///
 /// NOTE: `meta skuid` is intentionally NOT used — it would leak limits to
 /// all processes of the same UID, breaking per-target isolation.
+///
+/// IMPORTANT: `meta cgroup` in nftables is a cgroup v1-only feature that
+/// returns `net_cls.classid`.  On cgroup v2 systems, `socket cgroupv2` must
+/// be used instead.  `socket cgroupv2` was added in kernel 5.7.
 ///
 /// State is persisted to disk so that limits survive across invocations
 /// and can be cleaned up properly with `oxy unstrict`.
@@ -296,8 +301,10 @@ fn target_class_id(target: &str) -> u32 {
 /// Architecture (per-target isolation via cgroup v2):
 ///
 /// **Output chain**: marks egress packets for tc fw filter upload shaping.
-///   - `meta cgroup == <cg_id>` — matches egress packets whose socket was
-///     created while the sending process was in the target cgroup.
+///   - `socket cgroupv2 level 0 == <cg_id>` — matches egress packets
+///     whose socket was created while the sending process was in the
+///     target cgroup.  The cgroup ID is the kernfs inode number (64-bit
+///     on 64-bit kernels).
 ///     NOTE: sockets created BEFORE the PID was moved retain their
 ///     original cgroup and will NOT be matched.  To handle this, oxy
 ///     briefly drops all egress from the target UID after applying the
@@ -307,6 +314,10 @@ fn target_class_id(target: &str) -> u32 {
 ///   NOTE: `meta skuid` is intentionally NOT used for packet marking —
 ///   it would leak marks to all processes of the same UID, breaking
 ///   per-target isolation.
+///
+///   NOTE: `meta cgroup` is NOT used because it only works with cgroup v1
+///   `net_cls.classid`.  On cgroup v2 systems, `socket cgroupv2` must be
+///   used instead (available since kernel 5.7).
 ///
 /// **Postrouting chain**: saves the fw mark into conntrack for reply packets.
 ///   This is critical: download packets arrive as replies to egress packets.
@@ -329,7 +340,7 @@ fn build_nft_ip_ruleset(limits: &[LimitRecord]) -> String {
     ruleset.push_str("  chain output {\n");
     ruleset.push_str("    type filter hook output priority mangle; policy accept;\n");
 
-    // meta cgroup — per-target (all egress, including pre-existing sockets)
+    // socket cgroupv2 — per-target (all egress, including pre-existing sockets)
     let mut cg_to_mark: HashMap<u64, u32> = HashMap::new();
     for record in limits {
         if let Some(cgid) = record.cgroup_id {
@@ -340,7 +351,7 @@ fn build_nft_ip_ruleset(limits: &[LimitRecord]) -> String {
     }
     for (cgid, mark) in &cg_to_mark {
         ruleset.push_str(&format!(
-            "    meta cgroup == {} meta mark set {};\n",
+            "    socket cgroupv2 level 0 == {} meta mark set {};\n",
             cgid, mark
         ));
     }
@@ -359,7 +370,7 @@ fn build_nft_ip_ruleset(limits: &[LimitRecord]) -> String {
 
     // Collect per-target mark → download rate
     // Download limiting uses ct mark exclusively: the output chain marks
-    // egress packets via meta cgroup, postrouting copies to ct mark,
+    // egress packets via socket cgroupv2, postrouting copies to ct mark,
     // and the input hook matches ct mark on reply (download) packets.
     let mut mark_dl_info: HashMap<u32, u64> = HashMap::new();
     for record in limits.iter().filter(|l| l.download_bytes_per_sec.is_some()) {
@@ -369,7 +380,7 @@ fn build_nft_ip_ruleset(limits: &[LimitRecord]) -> String {
         *entry = (*entry).min(dl_bps);
     }
 
-    // ct mark — all connections (marked by output chain via meta cgroup)
+    // ct mark — all connections (marked by output chain via socket cgroupv2)
     for (mark, dl_bps) in &mark_dl_info {
         let burst = (*dl_bps / 2).max(65536);
         ruleset.push_str(&format!(
@@ -523,11 +534,12 @@ pub struct LimitRecord {
     /// Kept for state file backward compatibility; always None for new limits.
     #[serde(default)]
     pub ingress_handle: Option<u32>,
-    /// Cgroup v2 ID for the per-target cgroup.  Stored as the
-    /// directory inode number (32-bit) for direct comparison with
-    /// nftables `meta cgroup` (32-bit expression).
-    /// Used by nftables `meta cgroup` (output hook, egress marking)
-    /// and `ct mark` (input hook, download policing).
+    /// Cgroup v2 ID for the per-target cgroup.  This is the kernfs inode
+    /// number of the cgroup directory (64-bit on 64-bit kernels).
+    /// Used by nftables `socket cgroupv2 level 0` (output hook, egress
+    /// marking) and `ct mark` (input hook, download policing).
+    /// NOTE: `meta cgroup` is NOT used — it only returns cgroup v1
+    /// `net_cls.classid`.  `socket cgroupv2` was added in kernel 5.7.
     #[serde(default)]
     pub cgroup_id: Option<u64>,
     /// Path to the per-target cgroup (e.g., `/sys/fs/cgroup/oxy/target_helium`).
@@ -1238,27 +1250,22 @@ pub fn apply_limit(
 
     let pids = confirmed_pids;
 
-    // Read the cgroup ID for nftables `meta cgroup` matching.
+    // Read the cgroup ID for nftables `socket cgroupv2` matching.
     //
-    // nftables `meta cgroup` is a 32-bit expression that returns the
-    // cgroup inode number.  We store it directly (no shifting) so the
-    // nftables rule can match with a simple `meta cgroup == <id>`.
+    // On 64-bit kernels, the cgroup v2 ID is simply the kernfs inode
+    // number of the cgroup directory.  `socket cgroupv2 level 0` returns
+    // this 64-bit value for matching in the output chain.
     //
-    // On pre-6.9 kernels the `cgroup.id` file still exists and may
-    // contain a 64-bit kernel ID.  We truncate it to 32 bits because
-    // nftables only sees the lower 32 bits.
-    //
-    // On kernel 6.9+ the file was removed, so we read the directory
-    // inode number directly.
+    // NOTE: `meta cgroup` in nftables only works with cgroup v1
+    // `net_cls.classid` and MUST NOT be used on cgroup v2 systems.
     let cgroup_id: Option<u64> = {
         let id_file = format!("{}/cgroup.id", target_cg_path);
         if Path::new(&id_file).exists() {
             fs::read_to_string(&id_file)
                 .ok()
                 .and_then(|s| s.trim().parse::<u64>().ok())
-                .map(|v| v & 0xFFFFFFFF) // truncate to 32 bits for nftables
         } else {
-            // kernel 6.9+: use directory inode directly (32-bit fits)
+            // cgroup v2: use directory inode (= kernfs inode = cgroup ID)
             fs::metadata(&target_cg_path).map(|m| m.ino()).ok()
         }
     };
@@ -1525,7 +1532,7 @@ pub fn apply_limit(
         return Err(e);
     }
 
-    // Refresh nftables rules (output: meta cgroup, download: ct mark)
+    // Refresh nftables rules (output: socket cgroupv2, download: ct mark)
     if let Err(e) = refresh_nft_ip_rules(&state.limits) {
         eprintln!(
             "{}: Failed to apply nft packet marking rules: {}",
@@ -1538,17 +1545,17 @@ pub fn apply_limit(
         );
     }
 
-    // Force reconnection of existing sockets so that `meta cgroup`
-    // can match them.  `meta cgroup` uses sk->sk_cgrp_data which is
-    // set at socket *creation* time — it is NOT updated when the
-    // process is later moved to a different cgroup.  Without this step
-    // only sockets created *after* the PID was moved would be matched,
-    // leaving pre-existing browser connections untouched.
+    // Force reconnection of existing sockets so that `socket cgroupv2`
+    // can match them.  The cgroup association is stored in sk->sk_cgrp_data
+    // at socket *creation* time — it is NOT updated when the process is
+    // later moved to a different cgroup.  Without this step only sockets
+    // created *after* the PID was moved would be matched, leaving
+    // pre-existing browser connections untouched.
     //
     // We briefly drop all egress from the target UID (300 ms), forcing
     // every TCP/UDP flow to reconnect.  After the drop is lifted the
     // process creates new sockets inside the target cgroup, so
-    // `meta cgroup` now matches and marks them.  Non-target processes
+    // `socket cgroupv2` now matches and marks them.  Non-target processes
     // sharing the same UID are also briefly interrupted but reconnect
     // normally and remain unmarked (un-limited).
     if use_v2 {
