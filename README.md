@@ -1,5 +1,17 @@
 # oxy
 
+> **⚠️ Project Status: PAUSED**
+>
+> This project is currently paused. Core features (monitor, list, profile, watch, QoS, auto-throttle) are functional, but per-process bandwidth limiting via `oxy strict` is not fully stable due to a cgroup v2 + nftables integration issue.
+>
+> **Known issue:** `nftables socket cgroupv2 level N == <inode>` expression fails with `cgroupv2 path fails: No such file or directory` at runtime. The `level` keyword is required by nftables syntax, but the cgroup inode resolution does not match what the kernel expects for the path lookup. This needs deeper investigation into cgroup v2 hierarchy delegation and inode-to-path mapping.
+>
+> **Future plans when resuming:**
+> - Investigate cgroup v2 inode resolution vs nftables path lookup mismatch
+> - Consider systemd slice integration instead of manual cgroup path management
+> - Evaluate alternative packet classification methods (e.g., `meta cgroup` with `cgroup2` mount awareness)
+> - Test on kernel 6.1+ where cgroup v2 socket matching has improved support
+
 <p align="center">
   <strong>Easy userspace bandwidth manager for Linux</strong>
 </p>
@@ -9,6 +21,7 @@
   <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
   <img src="https://img.shields.io/badge/platform-linux%20x86__64-orange" alt="Platform">
   <img src="https://img.shields.io/badge/rust-1.88%2B-DEA584" alt="Rust">
+  <img src="https://img.shields.io/badge/status-paused-yellow" alt="Status">
 </p>
 
 oxy is a CLI tool written in Rust that provides an easy-to-use interface for monitoring, limiting, and shaping per-process network bandwidth on Linux. It leverages Linux traffic control (`tc`) with HTB qdisc, `nftables` for marking, and `cgroup v2` for rate limiting. The `ss` utility is used for real-time bandwidth monitoring, and a built-in TUI dashboard provides a live, htop-like experience for network traffic.
