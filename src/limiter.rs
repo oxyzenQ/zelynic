@@ -341,8 +341,7 @@ fn build_nft_ip_ruleset(limits: &[LimitRecord]) -> String {
     for (cgid, mark) in &cg_to_mark {
         ruleset.push_str(&format!(
             "    meta cgroup == {} meta mark set {};\n",
-            cgid,
-            mark
+            cgid, mark
         ));
     }
 
@@ -1260,7 +1259,7 @@ pub fn apply_limit(
                 .map(|v| v & 0xFFFFFFFF) // truncate to 32 bits for nftables
         } else {
             // kernel 6.9+: use directory inode directly (32-bit fits)
-            fs::metadata(&target_cg_path).map(|m| m.ino() as u64).ok()
+            fs::metadata(&target_cg_path).map(|m| m.ino()).ok()
         }
     };
 
