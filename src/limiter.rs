@@ -26,7 +26,7 @@
 ///   On cgroup v1/hybrid, per-PID cgroups with net_cls.classid are used instead.
 ///
 /// **Per-target nftables matching:**
-///   Output (egress): `socket cgroupv2 level 0 == <inode>` → mark → tc HTB
+///   Output (egress): `socket cgroupv2 == <inode>` → mark → tc HTB
 ///   Input (download): `ct mark` → limit rate (ingress policing)
 ///
 /// NOTE: `meta skuid` is intentionally NOT used — it would leak limits to
@@ -301,7 +301,7 @@ fn target_class_id(target: &str) -> u32 {
 /// Architecture (per-target isolation via cgroup v2):
 ///
 /// **Output chain**: marks egress packets for tc fw filter upload shaping.
-///   - `socket cgroupv2 level 0 == <cg_id>` — matches egress packets
+///   - `socket cgroupv2 == <cg_id>` — matches egress packets
 ///     whose socket was created while the sending process was in the
 ///     target cgroup.  The cgroup ID is the kernfs inode number (64-bit
 ///     on 64-bit kernels).
@@ -351,7 +351,7 @@ fn build_nft_ip_ruleset(limits: &[LimitRecord]) -> String {
     }
     for (cgid, mark) in &cg_to_mark {
         ruleset.push_str(&format!(
-            "    socket cgroupv2 level 0 == {} meta mark set {};\n",
+            "    socket cgroupv2 == {} meta mark set {};\n",
             cgid, mark
         ));
     }
@@ -536,7 +536,7 @@ pub struct LimitRecord {
     pub ingress_handle: Option<u32>,
     /// Cgroup v2 ID for the per-target cgroup.  This is the kernfs inode
     /// number of the cgroup directory (64-bit on 64-bit kernels).
-    /// Used by nftables `socket cgroupv2 level 0` (output hook, egress
+    /// Used by nftables `socket cgroupv2` (output hook, egress
     /// marking) and `ct mark` (input hook, download policing).
     /// NOTE: `meta cgroup` is NOT used — it only returns cgroup v1
     /// `net_cls.classid`.  `socket cgroupv2` was added in kernel 5.7.
@@ -1253,7 +1253,7 @@ pub fn apply_limit(
     // Read the cgroup ID for nftables `socket cgroupv2` matching.
     //
     // On 64-bit kernels, the cgroup v2 ID is simply the kernfs inode
-    // number of the cgroup directory.  `socket cgroupv2 level 0` returns
+    // number of the cgroup directory.  `socket cgroupv2` returns
     // this 64-bit value for matching in the output chain.
     //
     // NOTE: `meta cgroup` in nftables only works with cgroup v1
