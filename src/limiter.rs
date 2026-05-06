@@ -25,7 +25,7 @@
 ///   On cgroup v1/hybrid, per-PID cgroups with net_cls.classid are used instead.
 ///
 /// **Per-target nftables matching:**
-///   Output (egress): `meta cgroup == <cg_id>` → mark → tc HTB (upload shaping)
+///   Output (egress): `meta cgroup == <inode>` → mark → tc HTB (upload shaping)
 ///   Input (download): `ct mark` → limit rate (ingress policing)
 ///
 /// NOTE: `meta skuid` is intentionally NOT used — it would leak limits to
@@ -340,8 +340,8 @@ fn build_nft_ip_ruleset(limits: &[LimitRecord]) -> String {
     }
     for (cgid, mark) in &cg_to_mark {
         ruleset.push_str(&format!(
-            "    meta cgroup >> 32 == {} meta mark set {};\n",
-            cgid >> 32,
+            "    meta cgroup == {} meta mark set {};\n",
+            cgid,
             mark
         ));
     }
@@ -524,8 +524,9 @@ pub struct LimitRecord {
     /// Kept for state file backward compatibility; always None for new limits.
     #[serde(default)]
     pub ingress_handle: Option<u32>,
-    /// Cgroup v2 ID for the per-target cgroup.  Computed as
-    /// `(inode << 32)` on kernel 6.1+ where `cgroup.id` was removed.
+    /// Cgroup v2 ID for the per-target cgroup.  Stored as the
+    /// directory inode number (32-bit) for direct comparison with
+    /// nftables `meta cgroup` (32-bit expression).
     /// Used by nftables `meta cgroup` (output hook, egress marking)
     /// and `ct mark` (input hook, download policing).
     #[serde(default)]
@@ -1240,24 +1241,26 @@ pub fn apply_limit(
 
     // Read the cgroup ID for nftables `meta cgroup` matching.
     //
-    // Since kernel 6.1 the kernel encodes the cgroup ID as
-    //   (kernfs_inode << 32) | generation.
-    // The `cgroup.id` file that exposed this value was removed in
-    // kernel 6.9, so on recent kernels we reconstruct the ID from
-    // the directory inode number.  For freshly-created cgroups the
-    // generation counter is 0, making the ID simply `ino << 32`.
+    // nftables `meta cgroup` is a 32-bit expression that returns the
+    // cgroup inode number.  We store it directly (no shifting) so the
+    // nftables rule can match with a simple `meta cgroup == <id>`.
     //
-    // On pre-6.1 kernels `cgroup.id` still exists and returns the
-    // plain inode number.
-    let cgroup_id = {
+    // On pre-6.9 kernels the `cgroup.id` file still exists and may
+    // contain a 64-bit kernel ID.  We truncate it to 32 bits because
+    // nftables only sees the lower 32 bits.
+    //
+    // On kernel 6.9+ the file was removed, so we read the directory
+    // inode number directly.
+    let cgroup_id: Option<u64> = {
         let id_file = format!("{}/cgroup.id", target_cg_path);
         if Path::new(&id_file).exists() {
             fs::read_to_string(&id_file)
                 .ok()
                 .and_then(|s| s.trim().parse::<u64>().ok())
+                .map(|v| v & 0xFFFFFFFF) // truncate to 32 bits for nftables
         } else {
-            // kernel 6.1+: cgroup_id = (ino << 32) | gen (gen ≈ 0)
-            fs::metadata(&target_cg_path).map(|m| m.ino() << 32).ok()
+            // kernel 6.9+: use directory inode directly (32-bit fits)
+            fs::metadata(&target_cg_path).map(|m| m.ino() as u64).ok()
         }
     };
 
