@@ -26,8 +26,12 @@
 ///   On cgroup v1/hybrid, per-PID cgroups with net_cls.classid are used instead.
 ///
 /// **Per-target nftables matching:**
-///   Output (egress): `socket cgroupv2 == <inode>` → mark → tc HTB
+///   Output (egress): `socket cgroupv2 level <depth> == <inode>` → mark → tc HTB
 ///   Input (download): `ct mark` → limit rate (ingress policing)
+///
+///   The `level` parameter specifies the depth of the target cgroup in the
+///   unified cgroup hierarchy (0 = root).  For oxy's per-target cgroups at
+///   `/sys/fs/cgroup/oxy/target_<name>/`, the level is 2.
 ///
 /// NOTE: `meta skuid` is intentionally NOT used — it would leak limits to
 /// all processes of the same UID, breaking per-target isolation.
@@ -277,6 +281,45 @@ fn sanitize_target_name(target: &str) -> String {
     sanitized.chars().take(64).collect()
 }
 
+/// Calculate the cgroup hierarchy depth (level) for nftables `socket cgroupv2 level N`.
+///
+/// The level is the number of path components between the cgroup mount point
+/// and the target cgroup directory.  For nftables, level 0 is the root cgroup
+/// (`/sys/fs/cgroup/`), level 1 is the first child, etc.
+///
+/// From the nftables(8) man page:
+///   "if the socket belongs to cgroupv2 a/b, ancestor level 1 checks for
+///    a matching on cgroup a and ancestor level 2 checks for a matching
+///    on cgroup b"
+///
+/// For oxy's per-target cgroups at `/sys/fs/cgroup/oxy/target_<name>/`,
+/// the relative path is `oxy/target_<name>` → level = 2.
+///
+/// Returns 2 as a default if the path cannot be determined (e.g., legacy
+/// state files without `target_cgroup_path`).
+fn cgroup_level(cg_path: Option<&str>) -> u32 {
+    const CGROUP_MOUNT: &str = "/sys/fs/cgroup/";
+
+    match cg_path {
+        Some(path) => {
+            let relative = path
+                .strip_prefix(CGROUP_MOUNT)
+                .unwrap_or(path)
+                .trim_matches('/');
+            if relative.is_empty() {
+                0
+            } else {
+                relative.split('/').count() as u32
+            }
+        }
+        None => {
+            // Legacy state file without cgroup path — assume the standard
+            // oxy cgroup depth of 2 (/oxy/target_<name>)
+            2
+        }
+    }
+}
+
 /// Derive a stable HTB class ID (minor) from a target name.
 ///
 /// Uses a simple hash of the sanitized target name, mapped into range 100..65535.
@@ -301,10 +344,12 @@ fn target_class_id(target: &str) -> u32 {
 /// Architecture (per-target isolation via cgroup v2):
 ///
 /// **Output chain**: marks egress packets for tc fw filter upload shaping.
-///   - `socket cgroupv2 == <cg_id>` — matches egress packets
-///     whose socket was created while the sending process was in the
-///     target cgroup.  The cgroup ID is the kernfs inode number (64-bit
-///     on 64-bit kernels).
+///   - `socket cgroupv2 level <depth> == <cg_id>` — matches egress packets
+///     whose socket belongs to the target cgroup at the specified hierarchy
+///     depth.  Level 0 is the root cgroup, level 1 is the first child, etc.
+///     For oxy's cgroups at `/oxy/target_<name>/`, level 2 matches the
+///     socket's own cgroup.  The cgroup ID is the kernfs inode number
+///     (64-bit on 64-bit kernels).
 ///     NOTE: sockets created BEFORE the PID was moved retain their
 ///     original cgroup and will NOT be matched.  To handle this, oxy
 ///     briefly drops all egress from the target UID after applying the
@@ -341,18 +386,31 @@ fn build_nft_ip_ruleset(limits: &[LimitRecord]) -> String {
     ruleset.push_str("    type filter hook output priority mangle; policy accept;\n");
 
     // socket cgroupv2 — per-target (all egress, including pre-existing sockets)
-    let mut cg_to_mark: HashMap<u64, u32> = HashMap::new();
+    //
+    // The `level` parameter specifies the depth of the cgroup in the unified
+    // hierarchy (0 = root).  For oxy's cgroups at /sys/fs/cgroup/oxy/target_<name>/,
+    // the depth is always 2 (oxy + target_name).  This is required by nftables
+    // to correctly resolve the cgroup path during rule validation.
+    //
+    // From the nftables(8) man page:
+    //   "if the socket belongs to cgroupv2 a/b, ancestor level 1 checks for
+    //    a matching on cgroup a and ancestor level 2 checks for a matching
+    //    on cgroup b"
+    // So level = depth from root, where level 0 is the root cgroup.
+    let mut cg_info: HashMap<u64, (u32, u32)> = HashMap::new(); // cgid -> (mark, level)
     for record in limits {
         if let Some(cgid) = record.cgroup_id {
-            cg_to_mark
-                .entry(cgid)
-                .or_insert_with(|| target_class_id(&sanitize_target_name(&record.target)));
+            cg_info.entry(cgid).or_insert_with(|| {
+                let mark = target_class_id(&sanitize_target_name(&record.target));
+                let level = cgroup_level(record.target_cgroup_path.as_deref());
+                (mark, level)
+            });
         }
     }
-    for (cgid, mark) in &cg_to_mark {
+    for (cgid, (mark, level)) in &cg_info {
         ruleset.push_str(&format!(
-            "    socket cgroupv2 == {} meta mark set {};\n",
-            cgid, mark
+            "    socket cgroupv2 level {} == {} meta mark set {};\n",
+            level, cgid, mark
         ));
     }
 
@@ -536,8 +594,8 @@ pub struct LimitRecord {
     pub ingress_handle: Option<u32>,
     /// Cgroup v2 ID for the per-target cgroup.  This is the kernfs inode
     /// number of the cgroup directory (64-bit on 64-bit kernels).
-    /// Used by nftables `socket cgroupv2` (output hook, egress
-    /// marking) and `ct mark` (input hook, download policing).
+    /// Used by nftables `socket cgroupv2 level <depth>` (output hook,
+    /// egress marking) and `ct mark` (input hook, download policing).
     /// NOTE: `meta cgroup` is NOT used — it only returns cgroup v1
     /// `net_cls.classid`.  `socket cgroupv2` was added in kernel 5.7.
     #[serde(default)]
@@ -1250,11 +1308,12 @@ pub fn apply_limit(
 
     let pids = confirmed_pids;
 
-    // Read the cgroup ID for nftables `socket cgroupv2` matching.
+    // Read the cgroup ID for nftables `socket cgroupv2 level <depth>` matching.
     //
     // On 64-bit kernels, the cgroup v2 ID is simply the kernfs inode
-    // number of the cgroup directory.  `socket cgroupv2` returns
-    // this 64-bit value for matching in the output chain.
+    // number of the cgroup directory.  `socket cgroupv2 level <depth>`
+    // returns this 64-bit value for matching in the output chain, where
+    // <depth> is the cgroup's depth in the unified hierarchy (0 = root).
     //
     // NOTE: `meta cgroup` in nftables only works with cgroup v1
     // `net_cls.classid` and MUST NOT be used on cgroup v2 systems.
