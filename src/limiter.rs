@@ -57,6 +57,8 @@ use crate::units::BandwidthRate;
 const STATE_DIR: &str = "/run/oxy";
 /// Path to the state file containing active bandwidth limits.
 const STATE_FILE: &str = "/run/oxy/state.json";
+/// Root of the unified cgroup v2 hierarchy.
+const CGROUP_ROOT: &str = "/sys/fs/cgroup";
 /// Base path for oxy's cgroup management.
 const CGROUP_BASE: &str = "/sys/fs/cgroup/oxy";
 
@@ -281,43 +283,58 @@ fn sanitize_target_name(target: &str) -> String {
     sanitized.chars().take(64).collect()
 }
 
-/// Calculate the cgroup hierarchy depth (level) for nftables `socket cgroupv2 level N`.
-///
-/// The level is the number of path components between the cgroup mount point
-/// and the target cgroup directory.  For nftables, level 0 is the root cgroup
-/// (`/sys/fs/cgroup/`), level 1 is the first child, etc.
-///
-/// From the nftables(8) man page:
-///   "if the socket belongs to cgroupv2 a/b, ancestor level 1 checks for
-///    a matching on cgroup a and ancestor level 2 checks for a matching
-///    on cgroup b"
-///
-/// For oxy's per-target cgroups at `/sys/fs/cgroup/oxy/target_<name>/`,
-/// the relative path is `oxy/target_<name>` → level = 2.
-///
-/// Returns 2 as a default if the path cannot be determined (e.g., legacy
-/// state files without `target_cgroup_path`).
-fn cgroup_level(cg_path: Option<&str>) -> u32 {
-    const CGROUP_MOUNT: &str = "/sys/fs/cgroup/";
+/// Convert an absolute cgroup v2 path into the relative path nftables expects.
+fn relative_cgroupv2_path(full_path: &str, target: &str) -> Result<String> {
+    let relative = Path::new(full_path)
+        .strip_prefix(CGROUP_ROOT)
+        .with_context(|| {
+            format!(
+                "failed to compute relative cgroupv2 path\n  full cgroup path: {}\n  expected root: {}\n  target: {}",
+                full_path, CGROUP_ROOT, target
+            )
+        })?
+        .to_string_lossy()
+        .trim_matches('/')
+        .to_string();
 
-    match cg_path {
-        Some(path) => {
-            let relative = path
-                .strip_prefix(CGROUP_MOUNT)
-                .unwrap_or(path)
-                .trim_matches('/');
-            if relative.is_empty() {
-                0
-            } else {
-                relative.split('/').count() as u32
-            }
-        }
-        None => {
-            // Legacy state file without cgroup path — assume the standard
-            // oxy cgroup depth of 2 (/oxy/target_<name>)
-            2
-        }
+    if relative.is_empty() {
+        bail!(
+            "failed to compute relative cgroupv2 path\n  full cgroup path: {}\n  expected root: {}\n  target: {}",
+            full_path,
+            CGROUP_ROOT,
+            target
+        );
     }
+
+    Ok(relative)
+}
+
+/// Calculate the cgroup hierarchy depth from a relative cgroup v2 path.
+fn cgroup_level_from_relative(relative_path: &str) -> u32 {
+    let relative_path = relative_path.trim_matches('/');
+    if relative_path.is_empty() {
+        0
+    } else {
+        relative_path
+            .split('/')
+            .filter(|component| !component.is_empty())
+            .count() as u32
+    }
+}
+
+/// Calculate the cgroup hierarchy depth for diagnostics.
+fn cgroup_level(cg_path: Option<&str>) -> u32 {
+    match cg_path {
+        Some(path) => relative_cgroupv2_path(path, "unknown")
+            .map(|relative| cgroup_level_from_relative(&relative))
+            .unwrap_or(2),
+        None => 2,
+    }
+}
+
+/// Escape a string for use inside an nftables quoted string literal.
+fn escape_nft_string(value: &str) -> String {
+    value.replace('\\', "\\\\").replace('"', "\\\"")
 }
 
 /// Derive a stable HTB class ID (minor) from a target name.
@@ -344,12 +361,11 @@ fn target_class_id(target: &str) -> u32 {
 /// Architecture (per-target isolation via cgroup v2):
 ///
 /// **Output chain**: marks egress packets for tc fw filter upload shaping.
-///   - `socket cgroupv2 level <depth> == <cg_id>` — matches egress packets
+///   - `socket cgroupv2 level <depth> "<path>"` — matches egress packets
 ///     whose socket belongs to the target cgroup at the specified hierarchy
 ///     depth.  Level 0 is the root cgroup, level 1 is the first child, etc.
 ///     For oxy's cgroups at `/oxy/target_<name>/`, level 2 matches the
-///     socket's own cgroup.  The cgroup ID is the kernfs inode number
-///     (64-bit on 64-bit kernels).
+///     socket's own cgroup.
 ///     NOTE: sockets created BEFORE the PID was moved retain their
 ///     original cgroup and will NOT be matched.  To handle this, oxy
 ///     briefly drops all egress from the target UID after applying the
@@ -377,7 +393,7 @@ fn target_class_id(target: &str) -> u32 {
 ///
 ///   NOTE: `meta skuid` is intentionally NOT used — it would leak
 ///   limits to all processes of the same UID, breaking per-target isolation.
-fn build_nft_ip_ruleset(limits: &[LimitRecord]) -> String {
+fn build_nft_ip_ruleset(limits: &[LimitRecord]) -> Result<String> {
     let mut ruleset = String::new();
     ruleset.push_str("table inet oxy {\n");
 
@@ -397,20 +413,27 @@ fn build_nft_ip_ruleset(limits: &[LimitRecord]) -> String {
     //    a matching on cgroup a and ancestor level 2 checks for a matching
     //    on cgroup b"
     // So level = depth from root, where level 0 is the root cgroup.
-    let mut cg_info: HashMap<u64, (u32, u32)> = HashMap::new(); // cgid -> (mark, level)
+    let mut cg_info: HashMap<String, (u32, u32)> = HashMap::new(); // relative path -> (mark, level)
     for record in limits {
-        if let Some(cgid) = record.cgroup_id {
-            cg_info.entry(cgid).or_insert_with(|| {
-                let mark = target_class_id(&sanitize_target_name(&record.target));
-                let level = cgroup_level(record.target_cgroup_path.as_deref());
-                (mark, level)
-            });
+        if record.cgroup_id.is_some() || record.target_cgroup_path.is_some() {
+            let full_path = record.target_cgroup_path.as_deref().ok_or_else(|| {
+                anyhow::anyhow!(
+                    "failed to compute relative cgroupv2 path\n  full cgroup path: unavailable\n  expected root: {}\n  target: {}",
+                    CGROUP_ROOT,
+                    record.target
+                )
+            })?;
+            let relative_path = relative_cgroupv2_path(full_path, &record.target)?;
+            let mark = target_class_id(&sanitize_target_name(&record.target));
+            let level = cgroup_level_from_relative(&relative_path);
+            cg_info.entry(relative_path).or_insert((mark, level));
         }
     }
-    for (cgid, (mark, level)) in &cg_info {
+    for (relative_path, (mark, level)) in &cg_info {
+        let escaped_path = escape_nft_string(relative_path);
         ruleset.push_str(&format!(
-            "    socket cgroupv2 level {} == {} meta mark set {};\n",
-            level, cgid, mark
+            "    socket cgroupv2 level {} \"{}\" meta mark set {};\n",
+            level, escaped_path, mark
         ));
     }
 
@@ -450,7 +473,7 @@ fn build_nft_ip_ruleset(limits: &[LimitRecord]) -> String {
 
     ruleset.push_str("  }\n");
     ruleset.push_str("}\n");
-    ruleset
+    Ok(ruleset)
 }
 
 /// Apply (or refresh) the nftables inet oxy table.
@@ -462,7 +485,7 @@ fn refresh_nft_ip_rules(limits: &[LimitRecord]) -> Result<()> {
         return Ok(());
     }
 
-    let ruleset = build_nft_ip_ruleset(limits);
+    let ruleset = build_nft_ip_ruleset(limits)?;
 
     let nft_file = "/run/oxy/oxy.nft";
     fs::create_dir_all(STATE_DIR).ok();
@@ -2367,4 +2390,75 @@ pub fn check_respawns() -> Result<()> {
     println!("{}", "oxy: respawn handling complete".green().bold());
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn test_limit_record(target: &str, cgroup_path: &str) -> LimitRecord {
+        LimitRecord {
+            target: target.to_string(),
+            pid: 1234,
+            download_bytes_per_sec: Some(1024 * 1024),
+            upload_bytes_per_sec: Some(1024 * 1024),
+            download_display: Some("1 MB/s".to_string()),
+            upload_display: Some("1 MB/s".to_string()),
+            interface: "eth0".to_string(),
+            class_id: 100,
+            applied_at: "test".to_string(),
+            ingress_handle: None,
+            cgroup_id: Some(13886),
+            target_cgroup_path: Some(cgroup_path.to_string()),
+            uid: None,
+        }
+    }
+
+    #[test]
+    fn relative_cgroup_path_for_oxy_target() {
+        let relative = relative_cgroupv2_path("/sys/fs/cgroup/oxy/target_brave", "brave").unwrap();
+
+        assert_eq!(relative, "oxy/target_brave");
+        assert_eq!(cgroup_level_from_relative(&relative), 2);
+    }
+
+    #[test]
+    fn relative_cgroup_path_for_single_component() {
+        let relative = relative_cgroupv2_path("/sys/fs/cgroup/foo", "foo").unwrap();
+
+        assert_eq!(relative, "foo");
+        assert_eq!(cgroup_level_from_relative(&relative), 1);
+    }
+
+    #[test]
+    fn relative_cgroup_path_rejects_outside_root() {
+        let err = relative_cgroupv2_path("/tmp/oxy/target_brave", "brave")
+            .unwrap_err()
+            .to_string();
+
+        assert!(err.contains("/tmp/oxy/target_brave"));
+        assert!(err.contains("/sys/fs/cgroup"));
+        assert!(err.contains("brave"));
+    }
+
+    #[test]
+    fn nft_string_escaping_handles_quote_and_backslash() {
+        assert_eq!(
+            escape_nft_string(r#"oxy/target_"brave\test"#),
+            r#"oxy/target_\"brave\\test"#
+        );
+    }
+
+    #[test]
+    fn nft_ruleset_uses_cgroupv2_path_match() {
+        let ruleset = build_nft_ip_ruleset(&[test_limit_record(
+            "brave",
+            "/sys/fs/cgroup/oxy/target_brave",
+        )])
+        .unwrap();
+
+        assert!(ruleset.contains(r#"socket cgroupv2 level 2 "oxy/target_brave" meta mark set"#));
+        assert!(!ruleset.contains("socket cgroupv2 level 2 =="));
+        assert!(!ruleset.contains("13886 meta mark set"));
+    }
 }
