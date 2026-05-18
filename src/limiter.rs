@@ -142,6 +142,22 @@ fn get_process_uid(pid: u32) -> Option<u32> {
     None
 }
 
+fn pid_exists(pid: u32) -> bool {
+    Path::new(&format!("/proc/{}", pid)).exists()
+}
+
+fn pid_cgroup_v2_line(pid: u32) -> String {
+    let cgroup_file = format!("/proc/{}/cgroup", pid);
+    match fs::read_to_string(&cgroup_file) {
+        Ok(content) => content
+            .lines()
+            .find(|line| line.starts_with("0::"))
+            .unwrap_or("(no cgroup v2 line)")
+            .to_string(),
+        Err(e) => format!("(failed to read {}: {})", cgroup_file, e),
+    }
+}
+
 /// Verify that a PID is actually in the expected cgroup.
 ///
 /// Reads /proc/<pid>/cgroup and checks if the target cgroup path appears
@@ -159,39 +175,63 @@ fn verify_pid_in_cgroup(pid: u32, expected_cg_path: &str) -> bool {
     false
 }
 
+struct PidCgroupMove {
+    moved: bool,
+    verified: bool,
+    vanished: bool,
+    cgroup_line: String,
+    error: Option<String>,
+}
+
 /// Move a PID to a cgroup with verification and retry.
 ///
 /// Writes the PID to cgroup.procs, then verifies membership.
 /// Retries up to 3 times because systemd may immediately move the PID back.
-/// Returns Ok(true) if the PID is confirmed in the cgroup, Ok(false) if it could
-/// not be moved (but did not hard-fail), or Err on unexpected errors.
-fn move_pid_to_cgroup_with_verify(pid: u32, target_cg_path: &str) -> Result<bool> {
+/// Returns structured coverage information for strict diagnostics.
+fn move_pid_to_cgroup_with_verify(pid: u32, target_cg_path: &str) -> PidCgroupMove {
     let procs_path = format!("{}/cgroup.procs", target_cg_path);
 
     if !Path::new(&procs_path).exists() {
-        return Ok(false);
+        return PidCgroupMove {
+            moved: false,
+            verified: false,
+            vanished: !pid_exists(pid),
+            cgroup_line: pid_cgroup_v2_line(pid),
+            error: Some(format!("{} does not exist", procs_path)),
+        };
     }
 
-    let _expected_suffix = target_cg_path.replace("/sys/fs/cgroup", "");
+    let mut moved = false;
+    let mut last_error = None;
 
     for attempt in 0..3 {
+        if !pid_exists(pid) {
+            return PidCgroupMove {
+                moved,
+                verified: false,
+                vanished: true,
+                cgroup_line: "(process vanished)".to_string(),
+                error: last_error,
+            };
+        }
+
         if let Err(e) = fs::write(&procs_path, pid.to_string()) {
-            if attempt == 0 {
-                eprintln!(
-                    "{}: Failed to move PID {} to cgroup '{}': {}",
-                    "WARNING".yellow(),
-                    pid,
-                    target_cg_path,
-                    e
-                );
-            }
+            last_error = Some(e.to_string());
             std::thread::sleep(std::time::Duration::from_millis(100));
             continue;
         }
 
+        moved = true;
+
         // Verify the PID is actually in the cgroup
         if verify_pid_in_cgroup(pid, target_cg_path) {
-            return Ok(true);
+            return PidCgroupMove {
+                moved: true,
+                verified: true,
+                vanished: false,
+                cgroup_line: pid_cgroup_v2_line(pid),
+                error: None,
+            };
         }
 
         // systemd may have moved the PID back — retry
@@ -200,15 +240,13 @@ fn move_pid_to_cgroup_with_verify(pid: u32, target_cg_path: &str) -> Result<bool
         }
     }
 
-    eprintln!(
-        "{}: PID {} could not be confirmed in cgroup '{}' after 3 attempts. \n  {} systemd or cgroup delegation may be interfering. \n  {} Bandwidth limiting may not work for this process.",
-        "WARNING".yellow(),
-        pid,
-        target_cg_path,
-        "Cause:".dimmed(),
-        "Hint:".yellow()
-    );
-    Ok(false)
+    PidCgroupMove {
+        moved,
+        verified: false,
+        vanished: !pid_exists(pid),
+        cgroup_line: pid_cgroup_v2_line(pid),
+        error: last_error,
+    }
 }
 
 /// Resolve all PIDs of a process tree (parent + all descendants).
@@ -337,6 +375,11 @@ fn escape_nft_string(value: &str) -> String {
     value.replace('\\', "\\\\").replace('"', "\\\"")
 }
 
+fn is_chromium_based_target(target: &str) -> bool {
+    let target = target.to_lowercase();
+    target.contains("brave") || target.contains("chrome") || target.contains("chromium")
+}
+
 /// Derive a stable HTB class ID (minor) from a target name.
 ///
 /// Uses a simple hash of the sanitized target name, mapped into range 100..65535.
@@ -432,7 +475,7 @@ fn build_nft_ip_ruleset(limits: &[LimitRecord]) -> Result<String> {
     for (relative_path, (mark, level)) in &cg_info {
         let escaped_path = escape_nft_string(relative_path);
         ruleset.push_str(&format!(
-            "    socket cgroupv2 level {} \"{}\" meta mark set {};\n",
+            "    socket cgroupv2 level {} \"{}\" counter meta mark set {};\n",
             level, escaped_path, mark
         ));
     }
@@ -442,7 +485,7 @@ fn build_nft_ip_ruleset(limits: &[LimitRecord]) -> Result<String> {
     // ---- Postrouting chain: save mark to conntrack ----
     ruleset.push_str("  chain postrouting {\n");
     ruleset.push_str("    type filter hook postrouting priority srcnat; policy accept;\n");
-    ruleset.push_str("    meta mark != 0 ct mark set meta mark;\n");
+    ruleset.push_str("    meta mark != 0 counter ct mark set meta mark;\n");
     ruleset.push_str("  }\n");
 
     // ---- Download chain: rate-limit inbound traffic ----
@@ -465,10 +508,10 @@ fn build_nft_ip_ruleset(limits: &[LimitRecord]) -> Result<String> {
     for (mark, dl_bps) in &mark_dl_info {
         let burst = (*dl_bps / 2).max(65536);
         ruleset.push_str(&format!(
-            "    ct mark {} limit rate {} bytes/second burst {} bytes accept;\n",
+            "    ct mark {} counter limit rate {} bytes/second burst {} bytes accept;\n",
             mark, dl_bps, burst
         ));
-        ruleset.push_str(&format!("    ct mark {} drop;\n", mark));
+        ruleset.push_str(&format!("    ct mark {} counter drop;\n", mark));
     }
 
     ruleset.push_str("  }\n");
@@ -791,7 +834,9 @@ pub fn resolve_pids(target: &str) -> Result<Vec<u32>> {
     }
 
     let mut pids = Vec::new();
+    let mut seen = HashSet::new();
     let proc_dir = Path::new("/proc");
+    let target_lower = target.to_lowercase();
 
     for entry in fs::read_dir(proc_dir).context("failed to read /proc directory")? {
         let entry = entry?;
@@ -804,14 +849,38 @@ pub fn resolve_pids(target: &str) -> Result<Vec<u32>> {
                 Err(_) => continue,
             };
 
-            let cmdline_path = format!("/proc/{}/cmdline", pid);
-            if let Ok(cmdline) = fs::read_to_string(&cmdline_path) {
-                let binary_name = cmdline.split('\0').next().unwrap_or("");
-                let program_name = binary_name.rsplit('/').next().unwrap_or(binary_name);
+            let cmdline = fs::read_to_string(format!("/proc/{}/cmdline", pid)).ok();
+            let comm = fs::read_to_string(format!("/proc/{}/comm", pid)).ok();
+            let exe = fs::read_link(format!("/proc/{}/exe", pid)).ok();
 
-                if program_name.to_lowercase().contains(&target.to_lowercase()) {
-                    pids.push(pid);
-                }
+            let cmdline_match = cmdline
+                .as_deref()
+                .map(|cmd| {
+                    let binary_name = cmd.split('\0').next().unwrap_or("");
+                    let program_name = binary_name.rsplit('/').next().unwrap_or(binary_name);
+                    program_name.to_lowercase().contains(&target_lower)
+                        || cmd
+                            .replace('\0', " ")
+                            .to_lowercase()
+                            .contains(&target_lower)
+                })
+                .unwrap_or(false);
+            let comm_match = comm
+                .as_deref()
+                .map(|name| name.trim().to_lowercase().contains(&target_lower))
+                .unwrap_or(false);
+            let exe_match = exe
+                .as_ref()
+                .and_then(|path| path.file_name())
+                .map(|name| {
+                    name.to_string_lossy()
+                        .to_lowercase()
+                        .contains(&target_lower)
+                })
+                .unwrap_or(false);
+
+            if (cmdline_match || comm_match || exe_match) && seen.insert(pid) {
+                pids.push(pid);
             }
         }
     }
@@ -1331,41 +1400,110 @@ pub fn apply_limit(
         target
     ))?;
 
-    // Move all PIDs into the target cgroup (with verification)
-    let mut confirmed_pids = Vec::new();
+    // Move all discovered PIDs into the target cgroup and verify coverage.
+    let discovered_count = pids.len();
+    let mut moved_count = 0usize;
+    let mut vanished_pids = Vec::new();
+    let mut failed_pids = Vec::new();
+    let mut verified_pids = Vec::new();
+
     for pid in &pids {
-        match move_pid_to_cgroup_with_verify(*pid, &target_cg_path) {
-            Ok(true) => {
-                confirmed_pids.push(*pid);
-            }
-            Ok(false) => {
-                // PID could not be confirmed in cgroup — still include it
-                // in the record (cgroup_id will be set, and if the PID is
-                // moved later by respawn handling, limiting will activate)
-                confirmed_pids.push(*pid);
-            }
-            Err(e) => {
-                eprintln!(
-                    "{}: Failed to move PID {} to cgroup: {}",
-                    "WARNING".yellow(),
-                    pid,
-                    e
-                );
-                confirmed_pids.push(*pid);
-            }
+        let result = move_pid_to_cgroup_with_verify(*pid, &target_cg_path);
+        if result.moved {
+            moved_count += 1;
+        }
+        if result.verified {
+            verified_pids.push(*pid);
+        } else if result.vanished {
+            vanished_pids.push(*pid);
+        } else {
+            failed_pids.push((*pid, result.cgroup_line, result.error));
         }
     }
 
-    if confirmed_pids.is_empty() {
+    if !failed_pids.is_empty() {
+        let examples = failed_pids
+            .iter()
+            .take(5)
+            .map(|(pid, line, error)| {
+                if let Some(error) = error {
+                    format!("PID {}: {} ({})", pid, line, error)
+                } else {
+                    format!("PID {}: {}", pid, line)
+                }
+            })
+            .collect::<Vec<_>>()
+            .join("\n  ");
+        let browser_hint = if is_chromium_based_target(target) {
+            "\n  Hint: Chromium-based browsers spawn multiple processes; make sure the network service process is in the target cgroup."
+        } else {
+            ""
+        };
+
         bail!(
-            "none of the resolved PIDs could be moved to cgroup '{}'. \n  {} systemd cgroup delegation may be preventing cgroup changes. \n  {} Try running: sudo oxy strict ...",
-            target_cg_path,
-            "ERROR:".red().bold(),
-            "Hint:".yellow()
+            "strict process coverage failed for '{}'\n  discovered: {}\n  moved: {}\n  verified: {}\n  vanished: {}\n  failed: {}\n  failed examples:\n  {}{}",
+            target,
+            discovered_count,
+            moved_count,
+            verified_pids.len(),
+            vanished_pids.len(),
+            failed_pids.len(),
+            examples,
+            browser_hint
         );
     }
 
-    let pids = confirmed_pids;
+    if verified_pids.is_empty() {
+        bail!(
+            "none of the discovered PIDs could be verified in cgroup '{}'.\n  discovered: {}\n  moved: {}\n  verified: 0\n  vanished: {}\n  failed: 0",
+            target_cg_path,
+            discovered_count,
+            moved_count,
+            vanished_pids.len()
+        );
+    }
+
+    // Re-check that all still-live matching PIDs are covered before saving state.
+    if target.parse::<u32>().is_err() {
+        let current_pids = resolve_pids(target)?;
+        let mut uncovered = Vec::new();
+        for pid in current_pids {
+            if !verify_pid_in_cgroup(pid, &target_cg_path) {
+                uncovered.push((pid, pid_cgroup_v2_line(pid)));
+            }
+        }
+
+        if !uncovered.is_empty() {
+            let examples = uncovered
+                .iter()
+                .take(5)
+                .map(|(pid, line)| format!("PID {}: {}", pid, line))
+                .collect::<Vec<_>>()
+                .join("\n  ");
+            let browser_hint = if is_chromium_based_target(target) {
+                "\n  Hint: Chromium-based browsers spawn multiple processes; make sure the network service process is in the target cgroup."
+            } else {
+                ""
+            };
+
+            bail!(
+                "strict process coverage changed while applying '{}'\n  initial discovered: {}\n  moved: {}\n  verified: {}\n  vanished: {}\n  newly uncovered live PIDs: {}\n  uncovered examples:\n  {}{}",
+                target,
+                discovered_count,
+                moved_count,
+                verified_pids.len(),
+                vanished_pids.len(),
+                uncovered.len(),
+                examples,
+                browser_hint
+            );
+        }
+    }
+
+    let pids = verified_pids;
+    let verified_count = pids.len();
+    let vanished_count = vanished_pids.len();
+    let failed_count = failed_pids.len();
 
     // Read the cgroup ID for nftables `socket cgroupv2 level <depth>` matching.
     //
@@ -1736,6 +1874,11 @@ pub fn apply_limit(
     println!("{}", "oxy strict: bandwidth limit applied".green().bold());
     println!();
     println!("  Target:    {}", target);
+    println!("  Discovered PIDs: {}", discovered_count);
+    println!("  Moved PIDs:      {}", moved_count);
+    println!("  Verified PIDs:   {}", verified_count);
+    println!("  Vanished PIDs:   {}", vanished_count);
+    println!("  Failed PIDs:     {}", failed_count);
     println!(
         "  PIDs:      {}",
         pids.iter()
@@ -2457,8 +2600,23 @@ mod tests {
         )])
         .unwrap();
 
-        assert!(ruleset.contains(r#"socket cgroupv2 level 2 "oxy/target_brave" meta mark set"#));
+        assert!(
+            ruleset.contains(r#"socket cgroupv2 level 2 "oxy/target_brave" counter meta mark set"#)
+        );
         assert!(!ruleset.contains("socket cgroupv2 level 2 =="));
         assert!(!ruleset.contains("13886 meta mark set"));
+    }
+
+    #[test]
+    fn nft_ruleset_adds_counters_to_strict_rules() {
+        let ruleset = build_nft_ip_ruleset(&[test_limit_record(
+            "brave",
+            "/sys/fs/cgroup/oxy/target_brave",
+        )])
+        .unwrap();
+
+        assert!(ruleset.contains("meta mark != 0 counter ct mark set meta mark;"));
+        assert!(ruleset.contains(" counter limit rate "));
+        assert!(ruleset.contains(" counter drop;"));
     }
 }
