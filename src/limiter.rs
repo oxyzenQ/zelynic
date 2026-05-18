@@ -468,18 +468,44 @@ fn refresh_nft_ip_rules(limits: &[LimitRecord]) -> Result<()> {
     fs::create_dir_all(STATE_DIR).ok();
     fs::write(nft_file, &ruleset).context("failed to write nft ruleset file")?;
 
+    let nft_check_cmd = format!("nft -c -f {}", nft_file);
+    let check_output = Command::new("nft")
+        .args(["-c", "-f", nft_file])
+        .output()
+        .context("failed to run nft preflight. Is nftables installed?")?;
+
+    if !check_output.status.success() {
+        let stdout = String::from_utf8_lossy(&check_output.stdout);
+        let stderr = String::from_utf8_lossy(&check_output.stderr);
+        bail!(
+            "failed to preflight nft inet table\n  ruleset: {}\n  command: {}\n  stdout:\n{}\n  stderr:\n{}",
+            nft_file,
+            nft_check_cmd,
+            stdout.trim_end(),
+            stderr.trim_end()
+        );
+    }
+
     let _ = Command::new("nft")
         .args(["delete", "table", "inet", "oxy"])
         .output();
 
+    let nft_apply_cmd = format!("nft -f {}", nft_file);
     let output = Command::new("nft")
         .args(["-f", nft_file])
         .output()
         .context("failed to run nft. Is nftables installed?")?;
 
     if !output.status.success() {
+        let stdout = String::from_utf8_lossy(&output.stdout);
         let stderr = String::from_utf8_lossy(&output.stderr);
-        bail!("failed to apply nft inet table: {}", stderr);
+        bail!(
+            "failed to apply nft inet table\n  ruleset: {}\n  command: {}\n  stdout:\n{}\n  stderr:\n{}",
+            nft_file,
+            nft_apply_cmd,
+            stdout.trim_end(),
+            stderr.trim_end()
+        );
     }
 
     Ok(())
@@ -1398,9 +1424,6 @@ pub fn apply_limit(
         applied_count += 1;
     }
 
-    // Save state (needed before computing per-target tc objects)
-    state.save()?;
-
     // Phase 3: Create per-target egress tc objects (HTB class + cgroup filter).
     // Compute minimum upload rate across all active limits for this target.
     let mut target_min_ul: HashMap<String, u64> = HashMap::new();
@@ -1593,16 +1616,33 @@ pub fn apply_limit(
 
     // Refresh nftables rules (output: socket cgroupv2, download: ct mark)
     if let Err(e) = refresh_nft_ip_rules(&state.limits) {
-        eprintln!(
-            "{}: Failed to apply nft packet marking rules: {}",
-            "ERROR".red().bold(),
-            e
-        );
-        eprintln!(
-            "  {} Without nftables rules, download packets will not be rate-limited.",
-            "NOTE:".yellow()
-        );
+        return Err(e).with_context(|| {
+            format!(
+                "failed to apply nft packet marking rules for target '{}'\n  target cgroup path: {}\n  cgroup id: {}\n  computed level: {}",
+                target,
+                if use_v2 {
+                    target_cg_path.as_str()
+                } else {
+                    "unavailable (cgroup v1 fallback)"
+                },
+                cgroup_id
+                    .map(|id| id.to_string())
+                    .unwrap_or_else(|| "unavailable".to_string()),
+                if use_v2 {
+                    cgroup_level(Some(&target_cg_path)).to_string()
+                } else {
+                    "unavailable".to_string()
+                }
+            )
+        });
     }
+
+    state.save().with_context(|| {
+        format!(
+            "failed to save oxy state after applying strict limit for target '{}'",
+            target
+        )
+    })?;
 
     // Force reconnection of existing sockets so that `socket cgroupv2`
     // can match them.  The cgroup association is stored in sk->sk_cgrp_data
