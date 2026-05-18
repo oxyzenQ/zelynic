@@ -472,7 +472,12 @@ fn refresh_nft_ip_rules(limits: &[LimitRecord]) -> Result<()> {
     let check_output = Command::new("nft")
         .args(["-c", "-f", nft_file])
         .output()
-        .context("failed to run nft preflight. Is nftables installed?")?;
+        .with_context(|| {
+            format!(
+                "failed to run nft preflight. Is nftables installed?\n  ruleset: {}\n  command: {}",
+                nft_file, nft_check_cmd
+            )
+        })?;
 
     if !check_output.status.success() {
         let stdout = String::from_utf8_lossy(&check_output.stdout);
@@ -494,7 +499,12 @@ fn refresh_nft_ip_rules(limits: &[LimitRecord]) -> Result<()> {
     let output = Command::new("nft")
         .args(["-f", nft_file])
         .output()
-        .context("failed to run nft. Is nftables installed?")?;
+        .with_context(|| {
+            format!(
+                "failed to run nft. Is nftables installed?\n  ruleset: {}\n  command: {}",
+                nft_file, nft_apply_cmd
+            )
+        })?;
 
     if !output.status.success() {
         let stdout = String::from_utf8_lossy(&output.stdout);
