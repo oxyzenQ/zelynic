@@ -375,6 +375,94 @@ fn escape_nft_string(value: &str) -> String {
     value.replace('\\', "\\\\").replace('"', "\\\"")
 }
 
+fn diagnostic_command_output(program: &str, args: &[&str]) -> String {
+    match Command::new(program).args(args).output() {
+        Ok(output) => {
+            let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+            format!(
+                "status={} stdout={} stderr={}",
+                output.status,
+                if stdout.is_empty() {
+                    "(empty)"
+                } else {
+                    &stdout
+                },
+                if stderr.is_empty() {
+                    "(empty)"
+                } else {
+                    &stderr
+                }
+            )
+        }
+        Err(e) => format!("failed to run: {}", e),
+    }
+}
+
+fn cgroup_mode_label_from_flags(is_v2: bool, is_hybrid: bool) -> &'static str {
+    match (is_v2, is_hybrid) {
+        (true, true) => "hybrid (cgroup v2 + v1 controllers)",
+        (true, false) => "pure cgroup v2",
+        (false, false) => "cgroup v1",
+        (false, true) => "unknown hybrid state",
+    }
+}
+
+fn cgroup_mode_label() -> &'static str {
+    let (is_v2, is_hybrid) = detect_cgroup_version();
+    cgroup_mode_label_from_flags(is_v2, is_hybrid)
+}
+
+fn cgroup2_mount_info_from_mountinfo(content: &str) -> String {
+    let lines: Vec<&str> = content
+        .lines()
+        .filter(|line| line.contains(" - cgroup2 "))
+        .collect();
+    if lines.is_empty() {
+        "(no cgroup2 mount found in /proc/self/mountinfo)".to_string()
+    } else {
+        lines.join("\n")
+    }
+}
+
+fn cgroup2_mount_info() -> String {
+    match fs::read_to_string("/proc/self/mountinfo") {
+        Ok(content) => cgroup2_mount_info_from_mountinfo(&content),
+        Err(e) => format!("(failed to read /proc/self/mountinfo: {})", e),
+    }
+}
+
+fn print_strict_diagnostic_header(
+    target: &str,
+    pids: &[u32],
+    target_cg_path: &str,
+    relative_cg_path: &str,
+    level: u32,
+) {
+    println!("{}", "Strict backend diagnostics".bold());
+    println!("  target: {}", target);
+    println!("  kernel: {}", diagnostic_command_output("uname", &["-r"]));
+    println!(
+        "  nft: {}",
+        diagnostic_command_output("nft", &["--version"])
+    );
+    println!("  tc: {}", diagnostic_command_output("tc", &["-V"]));
+    println!("  cgroup mode: {}", cgroup_mode_label());
+    println!("  cgroup2 mount info:\n{}", cgroup2_mount_info());
+    println!("  target PIDs: {:?}", pids);
+    println!("  target cgroup absolute path: {}", target_cg_path);
+    println!("  target cgroup nft relative path: {}", relative_cg_path);
+    println!("  computed cgroup level: {}", level);
+}
+
+fn print_state_file_diagnostic() {
+    println!("strict diagnostic: state file path: {}", STATE_FILE);
+    match fs::read_to_string(STATE_FILE) {
+        Ok(content) => println!("strict diagnostic: state file contents:\n{}", content),
+        Err(e) => println!("strict diagnostic: failed to read state file: {}", e),
+    }
+}
+
 fn is_chromium_based_target(target: &str) -> bool {
     let target = target.to_lowercase();
     target.contains("brave") || target.contains("chrome") || target.contains("chromium")
@@ -521,6 +609,10 @@ fn build_nft_ip_ruleset(limits: &[LimitRecord]) -> Result<String> {
 
 /// Apply (or refresh) the nftables inet oxy table.
 fn refresh_nft_ip_rules(limits: &[LimitRecord]) -> Result<()> {
+    refresh_nft_ip_rules_with_diagnostics(limits, false)
+}
+
+fn refresh_nft_ip_rules_with_diagnostics(limits: &[LimitRecord], diagnostics: bool) -> Result<()> {
     if limits.is_empty() {
         let _ = Command::new("nft")
             .args(["delete", "table", "inet", "oxy"])
@@ -531,6 +623,13 @@ fn refresh_nft_ip_rules(limits: &[LimitRecord]) -> Result<()> {
     let ruleset = build_nft_ip_ruleset(limits)?;
 
     let nft_file = "/run/oxy/oxy.nft";
+    if diagnostics {
+        println!(
+            "strict diagnostic: generated nft ruleset path: {}",
+            nft_file
+        );
+        println!("strict diagnostic: generated nft ruleset:\n{}", ruleset);
+    }
     fs::create_dir_all(STATE_DIR).ok();
     fs::write(nft_file, &ruleset).context("failed to write nft ruleset file")?;
 
@@ -544,6 +643,21 @@ fn refresh_nft_ip_rules(limits: &[LimitRecord]) -> Result<()> {
                 nft_file, nft_check_cmd
             )
         })?;
+
+    if diagnostics {
+        println!(
+            "strict diagnostic: command `{}` exited with {}",
+            nft_check_cmd, check_output.status
+        );
+        println!(
+            "strict diagnostic: nft -c stdout:\n{}",
+            String::from_utf8_lossy(&check_output.stdout).trim_end()
+        );
+        println!(
+            "strict diagnostic: nft -c stderr:\n{}",
+            String::from_utf8_lossy(&check_output.stderr).trim_end()
+        );
+    }
 
     if !check_output.status.success() {
         let stdout = String::from_utf8_lossy(&check_output.stdout);
@@ -571,6 +685,21 @@ fn refresh_nft_ip_rules(limits: &[LimitRecord]) -> Result<()> {
                 nft_file, nft_apply_cmd
             )
         })?;
+
+    if diagnostics {
+        println!(
+            "strict diagnostic: command `{}` exited with {}",
+            nft_apply_cmd, output.status
+        );
+        println!(
+            "strict diagnostic: nft -f stdout:\n{}",
+            String::from_utf8_lossy(&output.stdout).trim_end()
+        );
+        println!(
+            "strict diagnostic: nft -f stderr:\n{}",
+            String::from_utf8_lossy(&output.stderr).trim_end()
+        );
+    }
 
     if !output.status.success() {
         let stdout = String::from_utf8_lossy(&output.stdout);
@@ -613,17 +742,46 @@ impl TcTransaction {
             .push((desc.to_string(), cmd_args, rollback_args));
     }
 
-    fn execute(mut self) -> Result<()> {
+    fn execute_with_diagnostics(mut self, diagnostics: bool) -> Result<()> {
         let commands = std::mem::take(&mut self.commands);
 
         for (desc, cmd_args, rollback_args) in commands {
+            if diagnostics {
+                println!(
+                    "strict diagnostic: tc command ({}): tc {}",
+                    desc,
+                    cmd_args.join(" ")
+                );
+            }
             let output = Command::new("tc").args(&cmd_args).output();
 
             match output {
                 Ok(o) if o.status.success() => {
+                    if diagnostics {
+                        println!("strict diagnostic: tc exit status: {}", o.status);
+                        println!(
+                            "strict diagnostic: tc stdout:\n{}",
+                            String::from_utf8_lossy(&o.stdout).trim_end()
+                        );
+                        println!(
+                            "strict diagnostic: tc stderr:\n{}",
+                            String::from_utf8_lossy(&o.stderr).trim_end()
+                        );
+                    }
                     self.executed.push((desc.clone(), rollback_args));
                 }
                 Ok(o) => {
+                    if diagnostics {
+                        println!("strict diagnostic: tc exit status: {}", o.status);
+                        println!(
+                            "strict diagnostic: tc stdout:\n{}",
+                            String::from_utf8_lossy(&o.stdout).trim_end()
+                        );
+                        println!(
+                            "strict diagnostic: tc stderr:\n{}",
+                            String::from_utf8_lossy(&o.stderr).trim_end()
+                        );
+                    }
                     let stderr = String::from_utf8_lossy(&o.stderr);
                     if stderr.contains("File exists") {
                         continue;
@@ -1213,6 +1371,16 @@ pub fn apply_limit(
     upload: Option<&str>,
     iface_override: Option<&str>,
 ) -> Result<()> {
+    apply_limit_with_diagnostics(target, download, upload, iface_override, false)
+}
+
+pub fn apply_limit_with_diagnostics(
+    target: &str,
+    download: Option<&str>,
+    upload: Option<&str>,
+    iface_override: Option<&str>,
+    diagnostics: bool,
+) -> Result<()> {
     check_root()?;
 
     // Auto-cleanup: remove stale limits for dead processes before applying new limits.
@@ -1400,6 +1568,31 @@ pub fn apply_limit(
         target
     ))?;
 
+    if diagnostics {
+        let relative = relative_cgroupv2_path(&target_cg_path, target)?;
+        print_strict_diagnostic_header(
+            target,
+            &pids,
+            &target_cg_path,
+            &relative,
+            cgroup_level_from_relative(&relative),
+        );
+        match fs::metadata(&target_cg_path) {
+            Ok(metadata) => println!(
+                "strict diagnostic: cgroup directory inode: {}",
+                metadata.ino()
+            ),
+            Err(e) => println!("strict diagnostic: failed to stat cgroup directory: {}", e),
+        }
+        for pid in &pids {
+            println!(
+                "strict diagnostic: /proc/{}/cgroup before move: {}",
+                pid,
+                pid_cgroup_v2_line(*pid)
+            );
+        }
+    }
+
     // Move all discovered PIDs into the target cgroup and verify coverage.
     let discovered_count = pids.len();
     let mut moved_count = 0usize;
@@ -1409,6 +1602,26 @@ pub fn apply_limit(
 
     for pid in &pids {
         let result = move_pid_to_cgroup_with_verify(*pid, &target_cg_path);
+        if diagnostics {
+            println!(
+                "strict diagnostic: write PID {} to {}/cgroup.procs: moved={} verified={} vanished={} error={}",
+                pid,
+                target_cg_path,
+                result.moved,
+                result.verified,
+                result.vanished,
+                result.error.as_deref().unwrap_or("none")
+            );
+            println!(
+                "strict diagnostic: /proc/{}/cgroup after move: {}",
+                pid, result.cgroup_line
+            );
+            println!(
+                "strict diagnostic: verification for PID {}: {}",
+                pid,
+                if result.verified { "passed" } else { "failed" }
+            );
+        }
         if result.moved {
             moved_count += 1;
         }
@@ -1776,7 +1989,7 @@ pub fn apply_limit(
         }
     }
 
-    if let Err(e) = tx.execute() {
+    if let Err(e) = tx.execute_with_diagnostics(diagnostics) {
         eprintln!("{}: Failed to apply tc rules: {}", "ERROR".red().bold(), e);
         // Rollback cgroups
         for pid in &pids {
@@ -1786,7 +1999,7 @@ pub fn apply_limit(
     }
 
     // Refresh nftables rules (output: socket cgroupv2, download: ct mark)
-    if let Err(e) = refresh_nft_ip_rules(&state.limits) {
+    if let Err(e) = refresh_nft_ip_rules_with_diagnostics(&state.limits, diagnostics) {
         return Err(e).with_context(|| {
             format!(
                 "failed to apply nft packet marking rules for target '{}'\n  target cgroup path: {}\n  cgroup id: {}\n  computed level: {}",
@@ -1814,6 +2027,10 @@ pub fn apply_limit(
             target
         )
     })?;
+
+    if diagnostics {
+        print_state_file_diagnostic();
+    }
 
     // Force reconnection of existing sockets so that `socket cgroupv2`
     // can match them.  The cgroup association is stored in sk->sk_cgrp_data
@@ -2582,6 +2799,59 @@ mod tests {
         assert!(err.contains("/tmp/oxy/target_brave"));
         assert!(err.contains("/sys/fs/cgroup"));
         assert!(err.contains("brave"));
+    }
+
+    #[test]
+    fn strict_diagnostic_cgroup_path_and_level_match_oxy_target_layout() {
+        let target_cg_path = "/sys/fs/cgroup/oxy/target_firefox";
+        let relative = relative_cgroupv2_path(target_cg_path, "firefox").unwrap();
+
+        assert_eq!(relative, "oxy/target_firefox");
+        assert_eq!(cgroup_level_from_relative(&relative), 2);
+    }
+
+    #[test]
+    fn deeper_cgroup_path_preserves_full_relative_path_and_level() {
+        let path = "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/oxy/target_brave";
+        let relative = relative_cgroupv2_path(path, "brave").unwrap();
+
+        assert_eq!(
+            relative,
+            "user.slice/user-1000.slice/user@1000.service/oxy/target_brave"
+        );
+        assert_eq!(cgroup_level_from_relative(&relative), 5);
+    }
+
+    #[test]
+    fn cgroup_mode_label_from_flags_covers_all_modes() {
+        assert_eq!(
+            cgroup_mode_label_from_flags(true, true),
+            "hybrid (cgroup v2 + v1 controllers)"
+        );
+        assert_eq!(cgroup_mode_label_from_flags(true, false), "pure cgroup v2");
+        assert_eq!(cgroup_mode_label_from_flags(false, false), "cgroup v1");
+        assert_eq!(
+            cgroup_mode_label_from_flags(false, true),
+            "unknown hybrid state"
+        );
+    }
+
+    #[test]
+    fn cgroup2_mount_info_from_mountinfo_extracts_cgroup2_lines() {
+        let input = "1 2 0:1 / / rw - ext4 /dev/root rw\n3 2 0:29 / /sys/fs/cgroup rw - cgroup2 cgroup rw\n";
+
+        assert_eq!(
+            cgroup2_mount_info_from_mountinfo(input),
+            "3 2 0:29 / /sys/fs/cgroup rw - cgroup2 cgroup rw"
+        );
+    }
+
+    #[test]
+    fn cgroup2_mount_info_from_mountinfo_reports_missing_cgroup2() {
+        assert_eq!(
+            cgroup2_mount_info_from_mountinfo("1 2 0:1 / / rw - ext4 /dev/root rw"),
+            "(no cgroup2 mount found in /proc/self/mountinfo)"
+        );
     }
 
     #[test]
