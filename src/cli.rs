@@ -135,6 +135,13 @@ pub enum Commands {
         #[arg(long = "preset", value_name = "PROFILE", group = "preset_group")]
         preset: Option<String>,
 
+        /// Print strict backend diagnostics while applying the limit
+        ///
+        /// This keeps normal strict behavior but emits cgroup v2, nftables,
+        /// and tc details needed to debug backend failures on a real Linux host.
+        #[arg(long = "diagnose", alias = "diag")]
+        diagnose: bool,
+
         /// Target process name or PID (e.g., brave, firefox, 1234)
         target: String,
     },
@@ -389,4 +396,51 @@ pub enum QosCommands {
     Status,
     /// Reset all QoS rules
     Reset,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::Parser;
+
+    #[test]
+    fn strict_diagnose_flag_parses() {
+        let cli =
+            Cli::try_parse_from(["oxy", "strict", "--diagnose", "-d", "1mb", "firefox"]).unwrap();
+
+        match cli.command.unwrap() {
+            Commands::Strict {
+                diagnose, target, ..
+            } => {
+                assert!(diagnose);
+                assert_eq!(target, "firefox");
+            }
+            other => panic!("expected strict command, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn strict_diag_alias_parses() {
+        let cli = Cli::try_parse_from(["oxy", "strict", "--diag", "-u", "250kb", "1234"]).unwrap();
+
+        match cli.command.unwrap() {
+            Commands::Strict {
+                diagnose, target, ..
+            } => {
+                assert!(diagnose);
+                assert_eq!(target, "1234");
+            }
+            other => panic!("expected strict command, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn strict_diagnose_defaults_false() {
+        let cli = Cli::try_parse_from(["oxy", "strict", "-d", "1mb", "firefox"]).unwrap();
+
+        match cli.command.unwrap() {
+            Commands::Strict { diagnose, .. } => assert!(!diagnose),
+            other => panic!("expected strict command, got {other:?}"),
+        }
+    }
 }

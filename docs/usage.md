@@ -164,8 +164,14 @@ Monitoring:
   → aggregate_by_process() → display (table/JSON/TUI)
 
 Limiting:
-  Upload:    Process → nftables (mark by UID) → tc fw filter → HTB class
-  Download:  NIC → nftables (socket cgroupv2 / meta skuid) → limit rate
+  Upload:    Process in target cgroup → nftables socket cgroupv2 mark
+             → tc fw filter → HTB class
+  Download:  Egress mark → conntrack mark → nftables input ct mark
+             → limit rate
 
 State:  /run/oxy/state.json
+Rules:  /run/oxy/oxy.nft
+
+Note: `oxy strict` intentionally avoids UID-only matching (`meta skuid`)
+for enforcement because it can affect unrelated processes owned by the same user.
 ```
