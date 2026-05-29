@@ -113,6 +113,7 @@ fn main() -> Result<()> {
             download,
             upload,
             preset,
+            diagnose,
             target,
         }) => {
             // Resolve preset values if specified
@@ -143,11 +144,12 @@ fn main() -> Result<()> {
                 );
             }
 
-            limiter::apply_limit(
+            limiter::apply_limit_with_diagnostics(
                 &target,
                 dl_value.as_deref(),
                 ul_value.as_deref(),
                 iface_value,
+                diagnose,
             )?;
         }
 
@@ -388,6 +390,10 @@ fn print_help_all() {
         "  ".dimmed()
     );
     println!("    {} oxy strict --preset background steam", "  ".dimmed());
+    println!(
+        "    {} oxy strict --diagnose -d 1mb firefox  # Print backend diagnostics while applying",
+        "  ".dimmed()
+    );
     println!();
     println!("    {} Presets:", "  ".dimmed());
     println!(
