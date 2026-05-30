@@ -1,30 +1,40 @@
-# oxy
-
-> **⚠️ Project Status: PAUSED**
+> **Project status: paused**
 >
-> This project is currently paused. Core features (monitor, list, profile, watch, QoS, auto-throttle) are functional, but per-process bandwidth limiting via `oxy strict` is not fully stable due to a cgroup v2 + nftables integration issue.
+> This project is currently paused. Core features such as monitor, list, profile, watch, QoS, and auto-throttle are functional, but per-process bandwidth limiting through `oxy strict` is not fully stable because of a cgroup v2 and nftables integration issue.
 >
-> **Known issue:** `nftables socket cgroupv2 level N == <inode>` expression fails with `cgroupv2 path fails: No such file or directory` at runtime. The `level` keyword is required by nftables syntax, but the cgroup inode resolution does not match what the kernel expects for the path lookup. This needs deeper investigation into cgroup v2 hierarchy delegation and inode-to-path mapping.
+> **Known issue:** the `nftables socket cgroupv2 level N == <inode>` expression fails at runtime with `cgroupv2 path fails: No such file or directory`. The `level` keyword is required by nftables syntax, but the cgroup inode resolution does not currently match what the kernel expects for path lookup.
 >
-> **Future plans when resuming:**
-> - Investigate cgroup v2 inode resolution vs nftables path lookup mismatch
-> - Consider systemd slice integration instead of manual cgroup path management
-> - Evaluate alternative packet classification methods (e.g., `meta cgroup` with `cgroup2` mount awareness)
-> - Test on kernel 6.1+ where cgroup v2 socket matching has improved support
+> **Future investigation:**
+>
+> * Investigate cgroup v2 inode resolution versus nftables path lookup behavior
+> * Consider systemd slice integration instead of manual cgroup path management
+> * Evaluate alternative packet classification methods such as `meta cgroup`
+> * Test across newer Linux kernels with improved cgroup v2 socket matching support
 
 <p align="center">
-  <strong>Easy userspace bandwidth manager for Linux</strong>
+  <img src="assets/oxy-logo-orig.png" alt="oxy logo" width="240">
+</p>
+
+<h1 align="center">oxy</h1>
+
+<p align="center">
+  <strong>Easy userspace bandwidth manager for Linux.</strong>
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-v2.0.0-blue" alt="Version">
-  <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
-  <img src="https://img.shields.io/badge/platform-linux%20x86__64-orange" alt="Platform">
-  <img src="https://img.shields.io/badge/rust-1.88%2B-DEA584" alt="Rust">
-  <img src="https://img.shields.io/badge/status-paused-yellow" alt="Status">
+  Monitor, shape, and inspect per-process network bandwidth from one focused terminal tool.
 </p>
 
-oxy is a CLI tool written in Rust that provides an easy-to-use interface for monitoring, limiting, and shaping per-process network bandwidth on Linux. It leverages Linux traffic control (`tc`) with HTB qdisc, `nftables` for marking, and `cgroup v2` for rate limiting. The `ss` utility is used for real-time bandwidth monitoring, and a built-in TUI dashboard provides a live, htop-like experience for network traffic.
+<p align="center">
+  <img src="https://img.shields.io/badge/version-v2.0.0-7C3AED?style=flat-square&labelColor=111827" alt="Version v2.0.0">
+  <img src="https://img.shields.io/badge/license-MIT-6D28D9?style=flat-square&labelColor=111827" alt="MIT license">
+  <img src="https://img.shields.io/badge/platform-Linux%20x86__64-8B5CF6?style=flat-square&labelColor=111827" alt="Platform Linux x86_64">
+  <img src="https://img.shields.io/badge/Rust-1.88+-A855F7?style=flat-square&labelColor=111827" alt="Rust 1.88+">
+  <img src="https://img.shields.io/badge/status-paused-F59E0B?style=flat-square&labelColor=111827" alt="Status paused">
+</p>
+
+oxy is a Rust CLI tool for monitoring, limiting, and shaping per-process network bandwidth on Linux. It uses Linux traffic control (`tc`) with HTB qdisc, `nftables` for packet marking, and `cgroup v2` for process-aware rate limiting. Real-time monitoring is powered by `ss`, while the built-in TUI dashboard provides a live, htop-like view of network traffic.
+
 
 ---
 
