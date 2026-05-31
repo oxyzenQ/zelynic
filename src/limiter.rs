@@ -874,11 +874,11 @@ pub struct LimitRecord {
 
 /// Full state file structure containing all active limits.
 #[derive(Debug, Default, Serialize, Deserialize)]
-pub struct OxyState {
+pub struct ZelynicState {
     pub limits: Vec<LimitRecord>,
 }
 
-impl OxyState {
+impl ZelynicState {
     pub fn load() -> Result<Self> {
         if !Path::new(STATE_FILE).exists() {
             return Ok(Self::default());
@@ -886,7 +886,7 @@ impl OxyState {
 
         let content =
             fs::read_to_string(STATE_FILE).context("failed to read zelynic state file")?;
-        let state: OxyState =
+        let state: ZelynicState =
             serde_json::from_str(&content).context("failed to parse zelynic state file")?;
         Ok(state)
     }
@@ -1575,7 +1575,7 @@ pub fn apply_limit_with_diagnostics(
 
     // Auto-clean: remove any existing limits for this target to allow
     // seamless re-running `zelynic strict` without manual unstrict first.
-    if let Ok(mut state) = OxyState::load() {
+    if let Ok(mut state) = ZelynicState::load() {
         let target_lower = target.to_lowercase();
         let existing: Vec<usize> = state
             .limits
@@ -1707,7 +1707,7 @@ pub fn apply_limit_with_diagnostics(
     }
 
     // Load existing state
-    let mut state = OxyState::load()?;
+    let mut state = ZelynicState::load()?;
 
     // Phase 1: Create per-target cgroup and read cgroup.id.
     // We always try the v2 approach first, even on hybrid systems,
@@ -2306,7 +2306,7 @@ pub fn apply_limit_with_diagnostics(
 pub fn remove_limit(target: &str) -> Result<()> {
     check_root()?;
 
-    let mut state = OxyState::load()?;
+    let mut state = ZelynicState::load()?;
     let target_lower = target.to_lowercase();
     let mut removed_count = 0;
     let mut to_remove = Vec::new();
@@ -2508,7 +2508,7 @@ pub fn remove_limit(target: &str) -> Result<()> {
 pub fn list_active_limits() -> Result<()> {
     let _ = check_respawns();
 
-    let state = OxyState::load()?;
+    let state = ZelynicState::load()?;
 
     if state.limits.is_empty() {
         println!("{} No active bandwidth limits.", "Info:".yellow());
@@ -2549,7 +2549,7 @@ pub fn list_active_limits() -> Result<()> {
 pub fn clean_orphans() -> Result<()> {
     check_root()?;
 
-    let mut state = OxyState::load()?;
+    let mut state = ZelynicState::load()?;
 
     if state.limits.is_empty() {
         println!("{} No active bandwidth limits to clean.", "Info:".yellow());
@@ -2826,7 +2826,7 @@ fn chrono_now() -> String {
 pub fn check_respawns() -> Result<()> {
     check_root()?;
 
-    let mut state = OxyState::load()?;
+    let mut state = ZelynicState::load()?;
 
     if state.limits.is_empty() {
         return Ok(());

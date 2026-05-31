@@ -1,15 +1,10 @@
-> **Project status: paused**
+> **Project status: active again**
 >
-> This project is currently paused. Core features such as monitor, list, profile, watch, QoS, and auto-throttle are functional, but per-process bandwidth limiting through `zelynic strict` is not fully stable because of a cgroup v2 and nftables integration issue.
+> Zelynic is active again for the v2.0.0 Renaissance release. Core features such as monitor, list, profile, watch, QoS, and auto-throttle are functional, and per-process bandwidth limiting through `zelynic strict` has been validated on a modern Arch/CachyOS cgroup v2 host.
 >
-> **Known issue:** the `nftables socket cgroupv2 level N == <inode>` expression fails at runtime with `cgroupv2 path fails: No such file or directory`. The `level` keyword is required by nftables syntax, but the cgroup inode resolution does not currently match what the kernel expects for path lookup.
+> **Validation scope:** strict limiting is validated on tested modern cgroup v2 systems, including CachyOS/Arch with kernel `6.18.33-1-cachyos-lts`, nftables `v1.1.6`, tc/iproute2 `7.0.0`, pure cgroup v2, and interface `wlp1s0`. This is not yet a universal all-distro guarantee.
 >
-> **Future investigation:**
->
-> * Investigate cgroup v2 inode resolution versus nftables path lookup behavior
-> * Consider systemd slice integration instead of manual cgroup path management
-> * Evaluate alternative packet classification methods such as `meta cgroup`
-> * Test across newer Linux kernels with improved cgroup v2 socket matching support
+> **Troubleshooting:** use `zelynic strict --diagnose ...` to print target PID selection, cgroup v2, nftables, and tc diagnostics when validating a host.
 
 <p align="center">
   <img src="assets/zelynic-logo.png" alt="zelynic logo" width="240">
@@ -30,7 +25,7 @@
   <img src="https://img.shields.io/badge/license-GPL--3.0-E040FB?style=flat-square&labelColor=111827" alt="GPL-3.0 license">
   <img src="https://img.shields.io/badge/platform-Linux%20x86__64-8B5CF6?style=flat-square&labelColor=111827" alt="Platform Linux x86_64">
   <img src="https://img.shields.io/badge/Rust-1.88+-A855F7?style=flat-square&labelColor=111827" alt="Rust 1.88+">
-  <img src="https://img.shields.io/badge/status-paused-F59E0B?style=flat-square&labelColor=111827" alt="Status paused">
+  <img src="https://img.shields.io/badge/status-active-22C55E?style=flat-square&labelColor=111827" alt="Status active">
 </p>
 
 zelynic is a Rust CLI tool for monitoring, limiting, and shaping per-process network bandwidth on Linux. It uses Linux traffic control (`tc`) with HTB qdisc, `nftables` for packet marking, and `cgroup v2` for process-aware rate limiting. Real-time monitoring is powered by `ss`, while the built-in TUI dashboard provides a live, htop-like view of network traffic.
@@ -41,6 +36,12 @@ zelynic is a Rust CLI tool for monitoring, limiting, and shaping per-process net
 ## Renamed from Oxy
 
 Zelynic was previously named Oxy. The old repository and package name were `oxy`, and the command is now `zelynic`. Zelynic currently preserves legacy oxy runtime paths and nft/cgroup identifiers for backward compatibility. These may migrate in a future major release with a safe migration path.
+
+## Renaissance Validation
+
+The v2.0.0 Renaissance release validates `zelynic strict` on tested modern cgroup v2 systems. On CachyOS/Arch with kernel `6.18.33-1-cachyos-lts`, nftables `v1.1.6`, tc/iproute2 `7.0.0`, pure cgroup v2, and interface `wlp1s0`, Brave bandwidth limiting was observed within the expected range for both byte-based and bit-based limits.
+
+This does not guarantee identical behavior on every Linux distribution. Hosts need cgroup v2, nftables, and tc support, and `zelynic strict --diagnose` should be used when validating or troubleshooting a new environment. See [docs/validation.md](docs/validation.md) for details.
 
 ## Features
 
