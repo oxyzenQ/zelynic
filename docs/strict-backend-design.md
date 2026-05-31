@@ -12,6 +12,8 @@ This document describes the current `zelynic strict` enforcement backend. It is 
 
 The implementation deliberately does not use `meta skuid` as the isolation primitive. UID matching would affect unrelated processes owned by the same user and would hide cgroup/socket coverage bugs that need to be fixed directly.
 
+Compatibility note: Zelynic currently preserves legacy oxy runtime paths and nft/cgroup identifiers for backward compatibility. These may migrate in a future major release with a safe migration path.
+
 ## Apply workflow
 
 A strict apply should preserve these invariants:

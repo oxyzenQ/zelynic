@@ -30,7 +30,7 @@
 ///   Input (download): `ct mark` → limit rate (ingress policing)
 ///
 ///   The `level` parameter specifies the depth of the target cgroup in the
-///   unified cgroup hierarchy (0 = root).  For oxy's per-target cgroups at
+///   unified cgroup hierarchy (0 = root).  For the legacy per-target cgroups at
 ///   `/sys/fs/cgroup/oxy/target_<name>/`, the level is 2.
 ///
 /// NOTE: `meta skuid` is intentionally NOT used — it would leak limits to
@@ -53,13 +53,13 @@ use std::process::Command;
 
 use crate::units::BandwidthRate;
 
-/// Directory where oxy stores its runtime state.
+/// Directory where Zelynic stores legacy-compatible runtime state.
 const STATE_DIR: &str = "/run/oxy";
 /// Path to the state file containing active bandwidth limits.
 const STATE_FILE: &str = "/run/oxy/state.json";
 /// Root of the unified cgroup v2 hierarchy.
 const CGROUP_ROOT: &str = "/sys/fs/cgroup";
-/// Base path for oxy's cgroup management.
+/// Base path for Zelynic's legacy-compatible cgroup management.
 const CGROUP_BASE: &str = "/sys/fs/cgroup/oxy";
 
 /// Detect cgroup version (v1, v2, or hybrid).
@@ -495,10 +495,10 @@ fn target_class_id(target: &str) -> u32 {
 ///   - `socket cgroupv2 level <depth> "<path>"` — matches egress packets
 ///     whose socket belongs to the target cgroup at the specified hierarchy
 ///     depth.  Level 0 is the root cgroup, level 1 is the first child, etc.
-///     For oxy's cgroups at `/oxy/target_<name>/`, level 2 matches the
+///     For the legacy cgroups at `/oxy/target_<name>/`, level 2 matches the
 ///     socket's own cgroup.
 ///     NOTE: sockets created BEFORE the PID was moved retain their
-///     original cgroup and will NOT be matched.  To handle this, oxy
+///     original cgroup and will NOT be matched.  To handle this, Zelynic
 ///     briefly drops all egress from the target UID after applying the
 ///     rules, forcing existing connections to re-establish with new
 ///     sockets inside the target cgroup.
@@ -535,7 +535,7 @@ fn build_nft_ip_ruleset(limits: &[LimitRecord]) -> Result<String> {
     // socket cgroupv2 — per-target (all egress, including pre-existing sockets)
     //
     // The `level` parameter specifies the depth of the cgroup in the unified
-    // hierarchy (0 = root).  For oxy's cgroups at /sys/fs/cgroup/oxy/target_<name>/,
+    // hierarchy (0 = root).  For the legacy cgroups at /sys/fs/cgroup/oxy/target_<name>/,
     // the depth is always 2 (oxy + target_name).  This is required by nftables
     // to correctly resolve the cgroup path during rule validation.
     //
@@ -883,18 +883,19 @@ impl OxyState {
             return Ok(Self::default());
         }
 
-        let content = fs::read_to_string(STATE_FILE).context("failed to read oxy state file")?;
+        let content =
+            fs::read_to_string(STATE_FILE).context("failed to read zelynic state file")?;
         let state: OxyState =
-            serde_json::from_str(&content).context("failed to parse oxy state file")?;
+            serde_json::from_str(&content).context("failed to parse zelynic state file")?;
         Ok(state)
     }
 
     pub fn save(&self) -> Result<()> {
-        fs::create_dir_all(STATE_DIR).context("failed to create oxy state directory")?;
+        fs::create_dir_all(STATE_DIR).context("failed to create zelynic state directory")?;
 
         let content =
-            serde_json::to_string_pretty(self).context("failed to serialize oxy state")?;
-        fs::write(STATE_FILE, content).context("failed to write oxy state file")?;
+            serde_json::to_string_pretty(self).context("failed to serialize zelynic state")?;
+        fs::write(STATE_FILE, content).context("failed to write zelynic state file")?;
         Ok(())
     }
 }
@@ -1081,7 +1082,7 @@ pub fn get_process_name(pid: u32) -> String {
 /// Uses file locking (`flock`) to prevent race conditions when multiple
 /// `zelynic strict` invocations run concurrently.
 pub fn next_class_id() -> Result<u32> {
-    fs::create_dir_all(STATE_DIR).context("failed to create oxy state directory")?;
+    fs::create_dir_all(STATE_DIR).context("failed to create zelynic state directory")?;
 
     // Open (or create) the counter file with exclusive lock to prevent
     // concurrent zelynic processes from reading the same ID.
@@ -1243,7 +1244,7 @@ pub fn remove_cgroup(pid: u32) -> Result<()> {
                     if !std::path::Path::new(&format!("/proc/{}", proc_pid)).exists() {
                         continue;
                     }
-                    // Move living processes to parent oxy cgroup (NOT system root cgroup).
+                    // Move living processes to parent legacy cgroup (NOT system root cgroup).
                     // Writing to /sys/fs/cgroup/cgroup.procs (root) breaks systemd --user
                     // cgroup delegation and can prevent all user apps from launching.
                     let safe_procs = format!("{}/cgroup.procs", CGROUP_BASE);
@@ -1303,7 +1304,7 @@ fn remove_target_cgroup(sanitized_name: &str) -> Result<()> {
 
     let procs_path = format!("{}/cgroup.procs", cgroup_path);
 
-    // Move all processes back to parent oxy cgroup
+    // Move all processes back to parent legacy cgroup
     if Path::new(&procs_path).exists() {
         if let Ok(content) = fs::read_to_string(&procs_path) {
             for pid_str in content.lines() {
@@ -1364,7 +1365,7 @@ fn remove_target_cgroup(sanitized_name: &str) -> Result<()> {
 
 /// Apply a bandwidth limit (strict) to a target process.
 ///
-/// This is the main entry point for the `oxy strict` command.
+/// This is the main entry point for the `zelynic strict` command.
 pub fn apply_limit(
     target: &str,
     download: Option<&str>,
@@ -1385,7 +1386,7 @@ pub fn apply_limit_with_diagnostics(
 
     // Auto-cleanup: remove stale limits for dead processes before applying new limits.
     // This prevents accumulation of orphaned state when target processes exit
-    // without running `oxy unstrict` first.
+    // without running `zelynic unstrict` first.
     if let Err(e) = clean_orphans() {
         // Don't fail — just log. The user's requested operation is more important.
         eprintln!("{}: auto-cleanup failed: {}", "WARNING".yellow(), e);
@@ -1423,7 +1424,7 @@ pub fn apply_limit_with_diagnostics(
     println!("{} Using interface: {}", "→".cyan(), interface.cyan());
 
     // Auto-clean: remove any existing limits for this target to allow
-    // seamless re-running `oxy strict` without manual unstrict first.
+    // seamless re-running `zelynic strict` without manual unstrict first.
     if let Ok(mut state) = OxyState::load() {
         let target_lower = target.to_lowercase();
         let existing: Vec<usize> = state
@@ -2549,13 +2550,13 @@ pub fn clean_orphans() -> Result<()> {
     Ok(())
 }
 
-/// Emergency cleanup: remove ALL oxy state, nftables rules, tc objects, and cgroups.
+/// Emergency cleanup: remove ALL Zelynic state, nftables rules, tc objects, and cgroups.
 ///
 /// This is the "nuclear option" for when normal unstrict fails — for example,
 /// when the target process has exited and the system's cgroup delegation has
-/// been corrupted by oxy writing PIDs to the root cgroup.
+/// been corrupted by writing PIDs to the root cgroup.
 ///
-/// Call with: `oxy clean --all`
+/// Call with: `zelynic clean --all`
 pub fn emergency_cleanup() -> Result<()> {
     check_root()?;
 
@@ -2572,7 +2573,7 @@ pub fn emergency_cleanup() -> Result<()> {
         .output();
     println!("  {} Removed nftables inet oxy table", "✓".green());
 
-    // 2. Remove HTB qdisc and all oxy classes/filters on all interfaces
+    // 2. Remove HTB qdisc and all Zelynic classes/filters on all interfaces
     let interfaces = list_interfaces();
     for iface in &interfaces {
         let _ = Command::new("tc")
@@ -2596,7 +2597,7 @@ pub fn emergency_cleanup() -> Result<()> {
             for entry in entries.flatten() {
                 let path = entry.path();
                 if path.is_dir() {
-                    // Evict any living processes to parent oxy cgroup (NOT root)
+                    // Evict any living processes to parent legacy cgroup (NOT root)
                     let procs_path = path.join("cgroup.procs");
                     if procs_path.exists() {
                         if let Ok(content) = fs::read_to_string(&procs_path) {
@@ -2608,7 +2609,7 @@ pub fn emergency_cleanup() -> Result<()> {
                                     {
                                         continue;
                                     }
-                                    // Move to parent oxy cgroup, NOT system root
+                                    // Move to parent legacy cgroup, NOT system root
                                     let parent_procs = format!("{}/cgroup.procs", CGROUP_BASE);
                                     if Path::new(&parent_procs).exists() {
                                         let _ = fs::write(&parent_procs, proc_pid.to_string());

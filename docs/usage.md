@@ -175,3 +175,7 @@ Rules:  /run/oxy/oxy.nft
 Note: `zelynic strict` intentionally avoids UID-only matching (`meta skuid`)
 for enforcement because it can affect unrelated processes owned by the same user.
 ```
+
+Zelynic currently preserves legacy oxy runtime paths and nft/cgroup identifiers
+for backward compatibility. These may migrate in a future major release with a
+safe migration path.
