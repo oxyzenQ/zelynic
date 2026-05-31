@@ -138,11 +138,12 @@ pub enum Commands {
         /// Print strict backend diagnostics while applying the limit
         ///
         /// This keeps normal strict behavior but emits cgroup v2, nftables,
-        /// and tc details needed to debug backend failures on a real Linux host.
+        /// tc details, and selected-PID match reasons needed to debug backend
+        /// failures on a real Linux host.
         #[arg(long = "diagnose", alias = "diag")]
         diagnose: bool,
 
-        /// Target process name or PID (e.g., brave, firefox, 1234)
+        /// Target process name or PID (name matching is conservative; use PID for exact targeting)
         target: String,
     },
 

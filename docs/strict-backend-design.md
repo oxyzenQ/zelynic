@@ -20,7 +20,7 @@ A strict apply should preserve these invariants:
 
 1. Validate root privileges, rates, and network interface.
 2. Clean orphaned state before adding new state.
-3. Resolve the requested target to one or more PIDs.
+3. Resolve the requested target to one or more PIDs using conservative process-name matching. Numeric PID targets are exact; text targets match `/proc/<pid>/comm`, the `/proc/<pid>/exe` basename, or argv[0] basename with safe aliases such as `brave` -> `brave-browser`.
 4. Create `/sys/fs/cgroup/oxy/target_<sanitized_name>/`.
 5. Move every discovered live PID into that cgroup and verify membership through `/proc/<pid>/cgroup`.
 6. Re-resolve name-based targets before saving state so newly spawned live PIDs are not silently missed.
@@ -55,7 +55,7 @@ A useful bug report should include:
 - relevant `tc qdisc`, `tc class`, and `tc filter` output
 - `/run/oxy/state.json`
 
-`zelynic strict --diagnose ...` now prints most of this during an apply attempt so the next fix can be based on observed host behavior rather than guesses.
+`zelynic strict --diagnose ...` now prints most of this during an apply attempt, including why each selected PID matched, so the next fix can be based on observed host behavior rather than guesses.
 
 ## Backend alternatives
 

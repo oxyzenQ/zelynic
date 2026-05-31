@@ -46,6 +46,7 @@ use anyhow::{bail, Context, Result};
 use colored::Colorize;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
+use std::fmt;
 use std::fs;
 use std::os::unix::fs::MetadataExt;
 use std::path::Path;
@@ -982,11 +983,163 @@ pub fn validate_interface(name: &str) -> Result<()> {
     );
 }
 
-/// Resolve a target string (process name or PID) to actual running PIDs.
-pub fn resolve_pids(target: &str) -> Result<Vec<u32>> {
-    if let Ok(pid) = target.parse::<u32>() {
+/// Why a process was selected by the target resolver.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProcessMatchReason {
+    NumericPid,
+    CommExact,
+    ExeBasename,
+    Argv0Basename,
+}
+
+impl fmt::Display for ProcessMatchReason {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::NumericPid => f.write_str("numeric pid"),
+            Self::CommExact => f.write_str("comm"),
+            Self::ExeBasename => f.write_str("exe basename"),
+            Self::Argv0Basename => f.write_str("argv0 basename"),
+        }
+    }
+}
+
+/// A PID selected by the target resolver, including the selected field.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ResolvedPid {
+    pub pid: u32,
+    pub reason: ProcessMatchReason,
+    pub matched: String,
+}
+
+fn parse_numeric_pid_target(target: &str) -> Option<u32> {
+    if target.is_empty() || !target.chars().all(|c| c.is_ascii_digit()) {
+        return None;
+    }
+    target.parse().ok()
+}
+
+fn basename(value: &str) -> &str {
+    value.rsplit('/').next().unwrap_or(value)
+}
+
+fn normalize_process_name(value: &str) -> String {
+    basename(value).trim().to_lowercase()
+}
+
+fn safe_process_name_match(target: &str, candidate: &str) -> bool {
+    let target = normalize_process_name(target);
+    let candidate = normalize_process_name(candidate);
+
+    if target.is_empty() || candidate.is_empty() {
+        return false;
+    }
+
+    if candidate == target {
+        return true;
+    }
+
+    candidate
+        .strip_prefix(&target)
+        .and_then(|suffix| suffix.chars().next())
+        .is_some_and(|c| matches!(c, '-' | '_' | '.'))
+}
+
+fn is_wrapper_process_name(candidate: &str) -> bool {
+    matches!(
+        normalize_process_name(candidate).as_str(),
+        "zelynic"
+            | "sudo"
+            | "doas"
+            | "su"
+            | "bash"
+            | "zsh"
+            | "fish"
+            | "sh"
+            | "dash"
+            | "alacritty"
+            | "alacritty-msg"
+            | "gnome-terminal"
+            | "gnome-terminal-server"
+            | "konsole"
+            | "kitty"
+            | "wezterm"
+            | "foot"
+            | "tilix"
+            | "xterm"
+            | "rxvt"
+            | "urxvt"
+            | "tmux"
+            | "screen"
+    )
+}
+
+fn read_cmdline_argv(pid: u32) -> Vec<String> {
+    fs::read(format!("/proc/{}/cmdline", pid))
+        .ok()
+        .map(|bytes| {
+            bytes
+                .split(|b| *b == 0)
+                .filter(|arg| !arg.is_empty())
+                .map(|arg| String::from_utf8_lossy(arg).into_owned())
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn match_process_fields(
+    pid: u32,
+    target: &str,
+    comm: Option<&str>,
+    exe_basename: Option<&str>,
+    argv0: Option<&str>,
+) -> Option<ResolvedPid> {
+    if pid == std::process::id() {
+        return None;
+    }
+
+    if let Some(comm) = comm.map(str::trim) {
+        if safe_process_name_match(target, comm) && !is_wrapper_process_name(comm) {
+            return Some(ResolvedPid {
+                pid,
+                reason: ProcessMatchReason::CommExact,
+                matched: comm.to_string(),
+            });
+        }
+    }
+
+    if let Some(exe) = exe_basename {
+        if safe_process_name_match(target, exe) && !is_wrapper_process_name(exe) {
+            return Some(ResolvedPid {
+                pid,
+                reason: ProcessMatchReason::ExeBasename,
+                matched: exe.to_string(),
+            });
+        }
+    }
+
+    if let Some(argv0) = argv0 {
+        let argv0_base = basename(argv0);
+        if safe_process_name_match(target, argv0_base) && !is_wrapper_process_name(argv0_base) {
+            return Some(ResolvedPid {
+                pid,
+                reason: ProcessMatchReason::Argv0Basename,
+                matched: argv0_base.to_string(),
+            });
+        }
+    }
+
+    None
+}
+
+/// Resolve a target string (process name or PID) to running PIDs with match reasons.
+pub fn resolve_pids_detailed(target: &str) -> Result<Vec<ResolvedPid>> {
+    if let Some(pid) = parse_numeric_pid_target(target) {
         if Path::new(&format!("/proc/{}", pid)).exists() {
-            return Ok(vec![pid]);
+            return Ok(vec![ResolvedPid {
+                pid,
+                reason: ProcessMatchReason::NumericPid,
+                matched: pid.to_string(),
+            }]);
         } else {
             bail!("process with PID {} not found", pid);
         }
@@ -1008,38 +1161,25 @@ pub fn resolve_pids(target: &str) -> Result<Vec<u32>> {
                 Err(_) => continue,
             };
 
-            let cmdline = fs::read_to_string(format!("/proc/{}/cmdline", pid)).ok();
             let comm = fs::read_to_string(format!("/proc/{}/comm", pid)).ok();
             let exe = fs::read_link(format!("/proc/{}/exe", pid)).ok();
-
-            let cmdline_match = cmdline
-                .as_deref()
-                .map(|cmd| {
-                    let binary_name = cmd.split('\0').next().unwrap_or("");
-                    let program_name = binary_name.rsplit('/').next().unwrap_or(binary_name);
-                    program_name.to_lowercase().contains(&target_lower)
-                        || cmd
-                            .replace('\0', " ")
-                            .to_lowercase()
-                            .contains(&target_lower)
-                })
-                .unwrap_or(false);
-            let comm_match = comm
-                .as_deref()
-                .map(|name| name.trim().to_lowercase().contains(&target_lower))
-                .unwrap_or(false);
-            let exe_match = exe
+            let exe_basename = exe
                 .as_ref()
                 .and_then(|path| path.file_name())
-                .map(|name| {
-                    name.to_string_lossy()
-                        .to_lowercase()
-                        .contains(&target_lower)
-                })
-                .unwrap_or(false);
+                .map(|name| name.to_string_lossy().into_owned());
+            let argv = read_cmdline_argv(pid);
+            let argv0 = argv.first().map(String::as_str);
 
-            if (cmdline_match || comm_match || exe_match) && seen.insert(pid) {
-                pids.push(pid);
+            if let Some(resolved) = match_process_fields(
+                pid,
+                &target_lower,
+                comm.as_deref(),
+                exe_basename.as_deref(),
+                argv0,
+            ) {
+                if seen.insert(pid) {
+                    pids.push(resolved);
+                }
             }
         }
     }
@@ -1052,7 +1192,16 @@ pub fn resolve_pids(target: &str) -> Result<Vec<u32>> {
         );
     }
 
+    pids.sort_by_key(|resolved| resolved.pid);
     Ok(pids)
+}
+
+/// Resolve a target string (process name or PID) to actual running PIDs.
+pub fn resolve_pids(target: &str) -> Result<Vec<u32>> {
+    Ok(resolve_pids_detailed(target)?
+        .into_iter()
+        .map(|resolved| resolved.pid)
+        .collect())
 }
 
 /// Get the process name for a given PID.
@@ -1418,7 +1567,8 @@ pub fn apply_limit_with_diagnostics(
         upload_rate.as_ref().map(|r| r.to_string()),
     );
 
-    let pids = resolve_pids(target)?;
+    let resolved_pids = resolve_pids_detailed(target)?;
+    let pids: Vec<u32> = resolved_pids.iter().map(|resolved| resolved.pid).collect();
     let sanitized = sanitize_target_name(target);
 
     println!("{} Using interface: {}", "→".cyan(), interface.cyan());
@@ -1578,6 +1728,12 @@ pub fn apply_limit_with_diagnostics(
             &relative,
             cgroup_level_from_relative(&relative),
         );
+        for resolved in &resolved_pids {
+            println!(
+                "strict diagnostic: selected PID {} reason={} {}",
+                resolved.pid, resolved.reason, resolved.matched
+            );
+        }
         match fs::metadata(&target_cg_path) {
             Ok(metadata) => println!(
                 "strict diagnostic: cgroup directory inode: {}",
@@ -2779,6 +2935,98 @@ mod tests {
             target_cgroup_path: Some(cgroup_path.to_string()),
             uid: None,
         }
+    }
+
+    #[test]
+    fn process_target_matches_comm_exact() {
+        let resolved = match_process_fields(1000, "brave", Some("brave"), None, None).unwrap();
+
+        assert_eq!(resolved.pid, 1000);
+        assert_eq!(resolved.reason, ProcessMatchReason::CommExact);
+        assert_eq!(resolved.matched, "brave");
+    }
+
+    #[test]
+    fn process_target_matches_safe_exe_alias() {
+        let resolved =
+            match_process_fields(1000, "brave", None, Some("brave-browser"), None).unwrap();
+
+        assert_eq!(resolved.reason, ProcessMatchReason::ExeBasename);
+        assert_eq!(resolved.matched, "brave-browser");
+    }
+
+    #[test]
+    fn process_target_matches_safe_argv0_alias() {
+        let resolved = match_process_fields(
+            1000,
+            "brave",
+            None,
+            None,
+            Some("/usr/bin/brave-browser-stable"),
+        )
+        .unwrap();
+
+        assert_eq!(resolved.reason, ProcessMatchReason::Argv0Basename);
+        assert_eq!(resolved.matched, "brave-browser-stable");
+    }
+
+    #[test]
+    fn process_target_ignores_shell_cmdline_argument() {
+        let resolved = match_process_fields(
+            1000,
+            "brave",
+            Some("bash"),
+            Some("bash"),
+            Some("/usr/bin/bash"),
+        );
+
+        assert!(resolved.is_none());
+    }
+
+    #[test]
+    fn process_target_ignores_terminal_cmdline_argument() {
+        let resolved = match_process_fields(
+            1000,
+            "brave",
+            Some("Alacritty"),
+            Some("alacritty"),
+            Some("/usr/bin/alacritty"),
+        );
+
+        assert!(resolved.is_none());
+    }
+
+    #[test]
+    fn process_target_ignores_zelynic_itself() {
+        let resolved = match_process_fields(
+            std::process::id(),
+            "zelynic",
+            Some("zelynic"),
+            Some("zelynic"),
+            Some("target/debug/zelynic"),
+        );
+
+        assert!(resolved.is_none());
+    }
+
+    #[test]
+    fn numeric_pid_target_is_exact() {
+        let current_pid = std::process::id();
+        let resolved = resolve_pids_detailed(&current_pid.to_string()).unwrap();
+
+        assert_eq!(resolved.len(), 1);
+        assert_eq!(resolved[0].pid, current_pid);
+        assert_eq!(resolved[0].reason, ProcessMatchReason::NumericPid);
+    }
+
+    #[test]
+    fn process_target_substring_matching_is_conservative() {
+        assert!(safe_process_name_match("brave", "brave"));
+        assert!(safe_process_name_match("brave", "brave-browser"));
+        assert!(safe_process_name_match("brave", "brave_browser"));
+        assert!(!safe_process_name_match("brave", "bravery"));
+        assert!(!safe_process_name_match("brave", "xbrave"));
+        assert!(!safe_process_name_match("ave", "brave"));
     }
 
     #[test]
