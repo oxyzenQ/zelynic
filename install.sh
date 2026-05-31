@@ -1,9 +1,9 @@
 #!/bin/sh
-# oxy install script
-# Usage: curl -fsSL https://raw.githubusercontent.com/oxyzenq/oxy/main/install.sh | sh
+# zelynic install script
+# Usage: curl -fsSL https://raw.githubusercontent.com/oxyzenq/zelynic/main/install.sh | sh
 #
 # This script detects architecture, downloads the latest release from GitHub,
-# verifies SHA256 checksum, and installs oxy to /usr/local/bin/.
+# verifies SHA256 checksum, and installs zelynic to /usr/local/bin/.
 
 set -e
 
@@ -25,7 +25,7 @@ else
 fi
 
 # Configuration
-REPO="oxyzenq/oxy"
+REPO="oxyzenq/zelynic"
 INSTALL_DIR="/usr/local/bin"
 MAN_DIR="/usr/local/share/man/man1"
 
@@ -97,7 +97,7 @@ get_latest_version() {
 
 # Download and extract
 download_release() {
-    ARCHIVE_NAME="oxy-v${VERSION}-${ARCH}-linux.tar.gz"
+    ARCHIVE_NAME="zelynic-v${VERSION}-${ARCH}-linux.tar.gz"
     URL="https://github.com/$REPO/releases/download/v${VERSION}/${ARCHIVE_NAME}"
     SHA_URL="${URL}.sha256"
 
@@ -155,22 +155,22 @@ download_release() {
     }
 
     # Find extracted directory
-    EXTRACTED_DIR=$(find "$TMP_DIR" -maxdepth 1 -type d -name "oxy-*" | head -1)
+    EXTRACTED_DIR=$(find "$TMP_DIR" -maxdepth 1 -type d -name "zelynic-*" | head -1)
     if [ -z "$EXTRACTED_DIR" ]; then
         log_error "Could not find extracted directory"
         exit 1
     fi
 
-    BINARY_PATH="$EXTRACTED_DIR/oxy"
+    BINARY_PATH="$EXTRACTED_DIR/zelynic"
     if [ ! -f "$BINARY_PATH" ]; then
-        log_error "oxy binary not found in archive"
+        log_error "zelynic binary not found in archive"
         exit 1
     fi
 }
 
 # Install binary and man page
 install_files() {
-    log_info "Installing oxy to $INSTALL_DIR..."
+    log_info "Installing zelynic to $INSTALL_DIR..."
 
     # Create directories with proper permissions using install -d
     # -d = create directories
@@ -193,33 +193,33 @@ install_files() {
     # Install binary
     # -m 755 = executable by all, writable by owner
     if [ -n "$SUDO" ]; then
-        $SUDO install -m755 "$BINARY_PATH" "$INSTALL_DIR/oxy"
+        $SUDO install -m755 "$BINARY_PATH" "$INSTALL_DIR/zelynic"
     else
-        install -m755 "$BINARY_PATH" "$INSTALL_DIR/oxy"
+        install -m755 "$BINARY_PATH" "$INSTALL_DIR/zelynic"
     fi
 
     # Install man page if exists
-    MAN_PAGE="$EXTRACTED_DIR/man/oxy.1"
+    MAN_PAGE="$EXTRACTED_DIR/man/zelynic.1"
     if [ -f "$MAN_PAGE" ]; then
         log_info "Installing man page..."
         if [ -n "$SUDO" ]; then
-            $SUDO install -m644 "$MAN_PAGE" "$MAN_DIR/oxy.1"
+            $SUDO install -m644 "$MAN_PAGE" "$MAN_DIR/zelynic.1"
         else
-            install -m644 "$MAN_PAGE" "$MAN_DIR/oxy.1"
+            install -m644 "$MAN_PAGE" "$MAN_DIR/zelynic.1"
         fi
         log_success "Man page installed"
     fi
 
-    log_success "oxy installed to $INSTALL_DIR/oxy"
+    log_success "zelynic installed to $INSTALL_DIR/zelynic"
 }
 
 # Verify installation
 verify_install() {
-    if command -v oxy >/dev/null 2>&1; then
-        VERSION_INSTALLED=$(oxy --info 2>/dev/null | head -1 || echo "unknown")
+    if command -v zelynic >/dev/null 2>&1; then
+        VERSION_INSTALLED=$(zelynic --info 2>/dev/null | head -1 || echo "unknown")
         log_success "Installation verified: $VERSION_INSTALLED"
     else
-        log_warn "oxy not in PATH. Add $INSTALL_DIR to your PATH:"
+        log_warn "zelynic not in PATH. Add $INSTALL_DIR to your PATH:"
         echo "  export PATH=\"$INSTALL_DIR:\$PATH\""
     fi
 }
@@ -227,9 +227,9 @@ verify_install() {
 # Main
 main() {
     echo "${CYAN}"
-    echo "  ╦ ╦╔═╗╔╗ ╔═╗╦  ╦"
-    echo "  ║║║║╣ ╠╩╗╚═╗║  ║"
-    echo "  ╚╩╝╚═╝╚═╝╚═╝╩═╝╩═╝"
+    echo "  ╔═╗╔═╗╦  ╦ ╦╔╗ ╦╦╔═╗"
+    echo "   ╔╝║╣ ║  ╚╦╝║║ ║║║  "
+    echo "  ╚═╝╚═╝╩═╝ ╩ ╩╚═╩╩╚═╝"
     echo "${NC}"
     echo "  ${DIM}Easy userspace bandwidth manager for Linux${NC}"
     echo
@@ -245,9 +245,9 @@ main() {
     log_success "Installation complete!"
     echo
     echo "  ${DIM}Quick start:${NC}"
-    echo "    sudo oxy list              ${DIM}# List processes${NC}"
-    echo "    sudo oxy strict -d 1mb wget ${DIM}# Limit download${NC}"
-    echo "    sudo oxy --help            ${DIM}# Show all commands${NC}"
+    echo "    sudo zelynic list              ${DIM}# List processes${NC}"
+    echo "    sudo zelynic strict -d 1mb wget ${DIM}# Limit download${NC}"
+    echo "    sudo zelynic --help            ${DIM}# Show all commands${NC}"
     echo
 }
 

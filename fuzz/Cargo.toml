@@ -1,5 +1,5 @@
 [package]
-name = "oxy-fuzz"
+name = "zelynic-fuzz"
 version = "0.1.0"
 edition = "2021"
 rust-version = "1.88.0"
@@ -9,7 +9,7 @@ cargo-fuzz = true
 
 [dependencies]
 libfuzzer-sys = "0.4"
-oxy = { path = ".." }
+zelynic = { path = ".." }
 
 [[bin]]
 name = "fuzz_bandwidth_rate"

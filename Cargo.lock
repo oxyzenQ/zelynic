@@ -857,26 +857,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d6790f58c7ff633d8771f42965289203411a5e5c68388703c06e14f24770b41e"
 
 [[package]]
-name = "oxy"
-version = "2.0.0"
-dependencies = [
- "anyhow",
- "aya",
- "chrono",
- "clap",
- "clap_complete",
- "colored",
- "criterion",
- "crossterm",
- "libc",
- "nix",
- "ratatui",
- "serde",
- "serde_json",
- "time",
-]
-
-[[package]]
 name = "parking_lot"
 version = "0.12.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1543,6 +1523,26 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ae137229bcbd6cdf0f7b80a31df61766145077ddf49416a728b02cb3921ff3fc"
 dependencies = [
  "windows-link",
+]
+
+[[package]]
+name = "zelynic"
+version = "2.0.0"
+dependencies = [
+ "anyhow",
+ "aya",
+ "chrono",
+ "clap",
+ "clap_complete",
+ "colored",
+ "criterion",
+ "crossterm",
+ "libc",
+ "nix",
+ "ratatui",
+ "serde",
+ "serde_json",
+ "time",
 ]
 
 [[package]]

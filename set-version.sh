@@ -1,6 +1,6 @@
 #!/bin/bash
 # =============================================================================
-# OXY VERSION MANAGER
+# ZELYNIC VERSION MANAGER
 # =============================================================================
 # Centralized version management — update ALL files from a single command.
 #
@@ -75,7 +75,7 @@ echo -e "  ${GREEN}✓${NC} Cargo.toml          → ${NEW_VERSION}"
 
 # --- Update README.md ---
 sed -i "s|version-v.*-blue|version-v${NEW_VERSION}-blue|" README.md
-sed -i "s|oxy-v.*-x86_64|oxy-v${NEW_VERSION}-x86_64|" README.md
+sed -i "s|zelynic-v.*-x86_64|zelynic-v${NEW_VERSION}-x86_64|" README.md
 sed -i "s|Version: v.*|Version: v${NEW_VERSION}|" README.md
 echo -e "  ${GREEN}✓${NC} README.md           → v${NEW_VERSION} (badge + example)"
 
@@ -83,7 +83,7 @@ echo -e "  ${GREEN}✓${NC} README.md           → v${NEW_VERSION} (badge + exa
 echo -e "  ${GREEN}✓${NC} build.sh            → auto (reads from Cargo.toml)"
 
 # --- Binary reads from Cargo.toml via env!("CARGO_PKG_VERSION"), no update needed ---
-echo -e "  ${GREEN}✓${NC} Binary (oxy)        → auto (reads from Cargo.toml)"
+echo -e "  ${GREEN}✓${NC} Binary (zelynic)    → auto (reads from Cargo.toml)"
 
 echo ""
 echo -e "${GREEN}Version updated to v${NEW_VERSION}${NC}"

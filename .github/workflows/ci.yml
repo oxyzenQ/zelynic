@@ -105,14 +105,14 @@ jobs:
       - name: Show binary info
         run: |
           echo "=== Binary Info ==="
-          ls -lh target/release/oxy
-          file target/release/oxy
+          ls -lh target/release/zelynic
+          file target/release/zelynic
 
       - name: Upload release artifact
         uses: actions/upload-artifact@v4
         with:
-          name: oxy-linux-x86_64
-          path: target/release/oxy
+          name: zelynic-linux-x86_64
+          path: target/release/zelynic
           retention-days: 30
 
   # ===========================================================================

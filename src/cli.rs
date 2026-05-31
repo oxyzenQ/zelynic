@@ -1,13 +1,13 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: GPL-3.0-only
 use clap::{Parser, Subcommand};
 
-/// oxy - Easy userspace bandwidth manager for Linux
+/// zelynic - Easy userspace bandwidth manager for Linux
 ///
 /// Manage network bandwidth per process using Linux traffic control (tc) and cgroups.
 /// Requires root privileges for bandwidth limiting operations.
 #[derive(Parser, Debug)]
 #[command(
-    name = "oxy",
+    name = "zelynic",
     version,
     author = "Rezky_nightky <oxyzenq>",
     about = "Easy userspace bandwidth manager for Linux",
@@ -111,11 +111,11 @@ pub enum Commands {
     ///   background - 500kb/100kb (minimal, for downloads)
     ///
     /// Examples:
-    ///   oxy strict -d 500kb -u 500kb brave
-    ///   oxy strict -d 1mb firefox               # Download only
-    ///   oxy strict -u 250kb 1234                # Upload only
-    ///   oxy strict --preset gaming discord
-    ///   oxy strict --preset background steam
+    ///   zelynic strict -d 500kb -u 500kb brave
+    ///   zelynic strict -d 1mb firefox               # Download only
+    ///   zelynic strict -u 250kb 1234                # Upload only
+    ///   zelynic strict --preset gaming discord
+    ///   zelynic strict --preset background steam
     #[command(verbatim_doc_comment)]
     Strict {
         /// Download speed limit (e.g., 500kb, 1mb, 2gb, 100byte)
@@ -169,9 +169,9 @@ pub enum Commands {
     /// Install by redirecting output to your shell's completions directory.
     ///
     /// Examples:
-    ///   oxy completions bash > /usr/share/bash-completion/completions/oxy
-    ///   oxy completions zsh > /usr/local/share/zsh/site-functions/_oxy
-    ///   oxy completions fish > ~/.config/fish/completions/oxy.fish
+    ///   zelynic completions bash > /usr/share/bash-completion/completions/zelynic
+    ///   zelynic completions zsh > /usr/local/share/zsh/site-functions/_zelynic
+    ///   zelynic completions fish > ~/.config/fish/completions/zelynic.fish
     #[command(verbatim_doc_comment)]
     Completions {
         /// Shell to generate completions for (bash, zsh, fish, elvish, powershell)
@@ -184,8 +184,8 @@ pub enum Commands {
     /// Install by redirecting output to your man page directory.
     ///
     /// Examples:
-    ///   oxy man > /usr/share/man/man1/oxy.1
-    ///   oxy man | gzip > /usr/share/man/man1/oxy.1.gz
+    ///   zelynic man > /usr/share/man/man1/zelynic.1
+    ///   zelynic man | gzip > /usr/share/man/man1/zelynic.1.gz
     #[command(verbatim_doc_comment)]
     Man,
 
@@ -211,10 +211,10 @@ pub enum Commands {
     /// Use with --snapshot to record current state for later analysis.
     ///
     /// Examples:
-    ///   oxy log              # Show recent history
-    ///   oxy log --snapshot     # Record current state
-    ///   oxy log --last 1h      # Show last hour
-    ///   oxy log --last 24h     # Show last 24 hours
+    ///   zelynic log              # Show recent history
+    ///   zelynic log --snapshot     # Record current state
+    ///   zelynic log --last 1h      # Show last hour
+    ///   zelynic log --last 24h     # Show last 24 hours
     #[command(verbatim_doc_comment)]
     Log {
         /// Record current bandwidth snapshot
@@ -236,11 +236,11 @@ pub enum Commands {
     /// Profiles persist across sessions and can be applied with a single command.
     ///
     /// Examples:
-    ///   oxy profile save background --dl 100kb --ul 100kb
-    ///   oxy profile save streaming --dl 5mb --ul 2mb
-    ///   oxy profile list
-    ///   oxy profile apply background firefox
-    ///   oxy profile delete background
+    ///   zelynic profile save background --dl 100kb --ul 100kb
+    ///   zelynic profile save streaming --dl 5mb --ul 2mb
+    ///   zelynic profile list
+    ///   zelynic profile apply background firefox
+    ///   zelynic profile delete background
     #[command(verbatim_doc_comment)]
     Profile {
         /// Profile subcommand
@@ -258,10 +258,10 @@ pub enum Commands {
     /// priority and browser to high — browser stays fast, wget gets leftovers.
     ///
     /// Examples:
-    ///   oxy qos high brave        # High priority for browser
-    ///   oxy qos low wget           # Low priority for download
-    ///   oxy qos status             # Show current QoS assignments
-    ///   oxy qos reset              # Clear all QoS rules
+    ///   zelynic qos high brave        # High priority for browser
+    ///   zelynic qos low wget           # Low priority for download
+    ///   zelynic qos status             # Show current QoS assignments
+    ///   zelynic qos reset              # Clear all QoS rules
     #[command(verbatim_doc_comment)]
     Qos {
         /// QoS subcommand
@@ -276,9 +276,9 @@ pub enum Commands {
     /// download monitoring without keeping --live open.
     ///
     /// Examples:
-    ///   oxy watch --alert 500kb wget     # Alert when rate > 500KB/s
-    ///   oxy watch --alert 5mb firefox   # Alert when rate > 5MB/s
-    ///   oxy watch --alert 100mb -i 30    # Check every 30 seconds
+    ///   zelynic watch --alert 500kb wget     # Alert when rate > 500KB/s
+    ///   zelynic watch --alert 5mb firefox   # Alert when rate > 5MB/s
+    ///   zelynic watch --alert 100mb -i 30    # Check every 30 seconds
     #[command(verbatim_doc_comment)]
     Watch {
         /// Alert threshold as bandwidth rate (e.g., 500kb, 5mb, 100mb)
@@ -308,9 +308,9 @@ pub enum Commands {
     /// Perfect for unattended systems that need automatic bandwidth management.
     ///
     /// Examples:
-    ///   oxy auto --download 100mb --upload 50mb     # Limit when > threshold
-    ///   oxy auto --download 80mb --kill firefox    # Kill heavy users
-    ///   oxy auto --daemon                          # Run as daemon
+    ///   zelynic auto --download 100mb --upload 50mb     # Limit when > threshold
+    ///   zelynic auto --download 80mb --kill firefox    # Kill heavy users
+    ///   zelynic auto --daemon                          # Run as daemon
     #[command(verbatim_doc_comment)]
     Auto {
         /// Download threshold (e.g., 100mb, 1gb)
@@ -406,7 +406,7 @@ mod tests {
     #[test]
     fn strict_diagnose_flag_parses() {
         let cli =
-            Cli::try_parse_from(["oxy", "strict", "--diagnose", "-d", "1mb", "firefox"]).unwrap();
+            Cli::try_parse_from(["zelynic", "strict", "--diagnose", "-d", "1mb", "firefox"]).unwrap();
 
         match cli.command.unwrap() {
             Commands::Strict {
@@ -421,7 +421,7 @@ mod tests {
 
     #[test]
     fn strict_diag_alias_parses() {
-        let cli = Cli::try_parse_from(["oxy", "strict", "--diag", "-u", "250kb", "1234"]).unwrap();
+        let cli = Cli::try_parse_from(["zelynic", "strict", "--diag", "-u", "250kb", "1234"]).unwrap();
 
         match cli.command.unwrap() {
             Commands::Strict {
@@ -436,7 +436,7 @@ mod tests {
 
     #[test]
     fn strict_diagnose_defaults_false() {
-        let cli = Cli::try_parse_from(["oxy", "strict", "-d", "1mb", "firefox"]).unwrap();
+        let cli = Cli::try_parse_from(["zelynic", "strict", "-d", "1mb", "firefox"]).unwrap();
 
         match cli.command.unwrap() {
             Commands::Strict { diagnose, .. } => assert!(!diagnose),

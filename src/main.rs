@@ -1,7 +1,7 @@
-// SPDX-License-Identifier: MIT
-/// oxy - Easy userspace bandwidth manager for Linux
+// SPDX-License-Identifier: GPL-3.0-only
+/// zelynic - Easy userspace bandwidth manager for Linux
 ///
-/// oxy provides a simple CLI interface for monitoring and limiting
+/// zelynic provides a simple CLI interface for monitoring and limiting
 /// per-process network bandwidth on Linux systems. It uses Linux
 /// traffic control (tc) with HTB qdisc and cgroups for rate limiting,
 /// and the `ss` utility for bandwidth monitoring.
@@ -280,7 +280,7 @@ fn main() -> Result<()> {
 
         None => {
             // No subcommand: print help
-            Cli::parse_from(["oxy", "--help"]);
+            Cli::parse_from(["zelynic", "--help"]);
         }
     }
 
@@ -289,7 +289,7 @@ fn main() -> Result<()> {
 
 /// Print comprehensive help with all commands, options, and examples.
 ///
-/// This is shown via `oxy --help-all` and covers every subcommand with
+/// This is shown via `zelynic --help-all` and covers every subcommand with
 /// practical usage examples that aren't visible in the default `-h` output.
 fn print_help_all() {
     println!(
@@ -298,7 +298,7 @@ fn print_help_all() {
         format!("v{}", info::VERSION).dimmed()
     );
     println!("{}", "USAGE".bold());
-    println!("  oxy [FLAGS] [COMMAND] [ARGS]\n");
+    println!("  zelynic [FLAGS] [COMMAND] [ARGS]\n");
 
     println!("{}", "FLAGS".bold());
     println!("  -i, --info              Print detailed package information");
@@ -325,34 +325,34 @@ fn print_help_all() {
         "  ".dimmed()
     );
     println!("    {} Usage:", "  ".dimmed());
-    println!("    {} oxy list", "  ".dimmed());
+    println!("    {} zelynic list", "  ".dimmed());
     println!(
-        "    {} oxy list --live            # {} Real-time TUI dashboard (like iftop/bpftrace)",
+        "    {} zelynic list --live            # {} Real-time TUI dashboard (like iftop/bpftrace)",
         "  ".dimmed(),
         "RECOMMENDED".cyan()
     );
     println!(
-        "    {} oxy list --live 2          # Shorthand: 2s refresh interval",
+        "    {} zelynic list --live 2          # Shorthand: 2s refresh interval",
         "  ".dimmed()
     );
     println!(
-        "    {} oxy list --live --interval 2  # Explicit interval (same as above)",
+        "    {} zelynic list --live --interval 2  # Explicit interval (same as above)",
         "  ".dimmed()
     );
     println!(
-        "    {} oxy list --verbose          # Show individual socket connections",
+        "    {} zelynic list --verbose          # Show individual socket connections",
         "  ".dimmed()
     );
     println!(
-        "    {} oxy list --high-to-low-usage-net  # Sort by bandwidth (highest first)",
+        "    {} zelynic list --high-to-low-usage-net  # Sort by bandwidth (highest first)",
         "  ".dimmed()
     );
     println!(
-        "    {} oxy list --usage-all        # Show all programs (default)",
+        "    {} zelynic list --usage-all        # Show all programs (default)",
         "  ".dimmed()
     );
     println!(
-        "    {} oxy list --json             # JSON output for scripting",
+        "    {} zelynic list --json             # JSON output for scripting",
         "  ".dimmed()
     );
     println!();
@@ -374,24 +374,24 @@ fn print_help_all() {
     );
     println!("    {} Usage:", "  ".dimmed());
     println!(
-        "    {} oxy strict -d 500kb -u 500kb brave    # Limit both directions",
+        "    {} zelynic strict -d 500kb -u 500kb brave    # Limit both directions",
         "  ".dimmed()
     );
     println!(
-        "    {} oxy strict -d 1mb firefox             # Download only limit (omit -u)",
+        "    {} zelynic strict -d 1mb firefox             # Download only limit (omit -u)",
         "  ".dimmed()
     );
     println!(
-        "    {} oxy strict -u 250kb 1234             # Upload only limit (omit -d)",
+        "    {} zelynic strict -u 250kb 1234             # Upload only limit (omit -d)",
         "  ".dimmed()
     );
     println!(
-        "    {} oxy strict --preset gaming discord     # Use preset profile",
+        "    {} zelynic strict --preset gaming discord     # Use preset profile",
         "  ".dimmed()
     );
-    println!("    {} oxy strict --preset background steam", "  ".dimmed());
+    println!("    {} zelynic strict --preset background steam", "  ".dimmed());
     println!(
-        "    {} oxy strict --diagnose -d 1mb firefox  # Print backend diagnostics while applying",
+        "    {} zelynic strict --diagnose -d 1mb firefox  # Print backend diagnostics while applying",
         "  ".dimmed()
     );
     println!();
@@ -431,11 +431,11 @@ fn print_help_all() {
     );
     println!("    {} Usage:", "  ".dimmed());
     println!(
-        "    {} oxy unstrict brave            # By process name",
+        "    {} zelynic unstrict brave            # By process name",
         "  ".dimmed()
     );
     println!(
-        "    {} oxy unstrict 1234             # By PID",
+        "    {} zelynic unstrict 1234             # By PID",
         "  ".dimmed()
     );
     println!();
@@ -450,7 +450,7 @@ fn print_help_all() {
         "    {} Displays all currently applied limits with process info.\n",
         "  ".dimmed()
     );
-    println!("    {} Usage: oxy status", "  ".dimmed());
+    println!("    {} Usage: zelynic status", "  ".dimmed());
     println!();
 
     // --- clean ---
@@ -463,7 +463,7 @@ fn print_help_all() {
         "    {} Removes tc/cgroup rules for processes that have already exited.\n",
         "  ".dimmed()
     );
-    println!("    {} Usage: sudo oxy clean", "  ".dimmed());
+    println!("    {} Usage: sudo zelynic clean", "  ".dimmed());
     println!();
 
     // --- profile ---
@@ -478,12 +478,12 @@ fn print_help_all() {
     );
     println!("    {} Usage:", "  ".dimmed());
     println!(
-        "    {} oxy profile save slow --dl 50kb --ul 50kb",
+        "    {} zelynic profile save slow --dl 50kb --ul 50kb",
         "  ".dimmed()
     );
-    println!("    {} oxy profile apply slow brave", "  ".dimmed());
-    println!("    {} oxy profile list", "  ".dimmed());
-    println!("    {} oxy profile delete slow", "  ".dimmed());
+    println!("    {} zelynic profile apply slow brave", "  ".dimmed());
+    println!("    {} zelynic profile list", "  ".dimmed());
+    println!("    {} zelynic profile delete slow", "  ".dimmed());
     println!();
 
     // --- qos ---
@@ -495,19 +495,19 @@ fn print_help_all() {
     println!("    {} Assign priority tiers instead of hard limits. High priority gets\n    {} bandwidth first; idle bandwidth from low priority redistributes.\n", "  ".dimmed(), "  ".dimmed());
     println!("    {} Usage:", "  ".dimmed());
     println!(
-        "    {} oxy qos high brave             # High priority (gets bandwidth first)",
+        "    {} zelynic qos high brave             # High priority (gets bandwidth first)",
         "  ".dimmed()
     );
     println!(
-        "    {} oxy qos low wget               # Low priority (gets leftovers)",
+        "    {} zelynic qos low wget               # Low priority (gets leftovers)",
         "  ".dimmed()
     );
     println!(
-        "    {} oxy qos status                 # Show QoS assignments",
+        "    {} zelynic qos status                 # Show QoS assignments",
         "  ".dimmed()
     );
     println!(
-        "    {} oxy qos reset                  # Clear all QoS rules",
+        "    {} zelynic qos reset                  # Clear all QoS rules",
         "  ".dimmed()
     );
     println!();
@@ -524,11 +524,11 @@ fn print_help_all() {
     );
     println!("    {} Usage:", "  ".dimmed());
     println!(
-        "    {} oxy watch -a 500kb wget           # Alert when wget rate > 500KB/s",
+        "    {} zelynic watch -a 500kb wget           # Alert when wget rate > 500KB/s",
         "  ".dimmed()
     );
     println!(
-        "    {} oxy watch -a 5mb firefox -i 30    # Alert when firefox rate > 5MB/s",
+        "    {} zelynic watch -a 5mb firefox -i 30    # Alert when firefox rate > 5MB/s",
         "  ".dimmed()
     );
     println!();
@@ -545,16 +545,16 @@ fn print_help_all() {
     );
     println!("    {} Usage:", "  ".dimmed());
     println!(
-        "    {} oxy auto --download 100mb --upload 50mb",
+        "    {} zelynic auto --download 100mb --upload 50mb",
         "  ".dimmed()
     );
     println!(
-        "    {} oxy auto --download 80mb --kill firefox",
+        "    {} zelynic auto --download 80mb --kill firefox",
         "  ".dimmed()
     );
-    println!("    {} oxy auto --daemon", "  ".dimmed());
+    println!("    {} zelynic auto --daemon", "  ".dimmed());
     println!(
-        "    {} oxy auto --status           # Check if daemon is running",
+        "    {} zelynic auto --status           # Check if daemon is running",
         "  ".dimmed()
     );
     println!();
@@ -571,19 +571,19 @@ fn print_help_all() {
     );
     println!("    {} Usage:", "  ".dimmed());
     println!(
-        "    {} oxy log                   # Show recent history",
+        "    {} zelynic log                   # Show recent history",
         "  ".dimmed()
     );
     println!(
-        "    {} oxy log --snapshot         # Record current state",
+        "    {} zelynic log --snapshot         # Record current state",
         "  ".dimmed()
     );
     println!(
-        "    {} oxy log --last 1h          # Show last hour",
+        "    {} zelynic log --last 1h          # Show last hour",
         "  ".dimmed()
     );
     println!(
-        "    {} oxy log --json             # JSON output",
+        "    {} zelynic log --json             # JSON output",
         "  ".dimmed()
     );
     println!();
@@ -598,7 +598,7 @@ fn print_help_all() {
         "    {} Shows active backend (tc/cgroup) and eBPF support status.\n",
         "  ".dimmed()
     );
-    println!("    {} Usage: oxy backend", "  ".dimmed());
+    println!("    {} Usage: zelynic backend", "  ".dimmed());
     println!();
 
     // --- completions ---
@@ -613,15 +613,15 @@ fn print_help_all() {
     );
     println!("    {} Usage:", "  ".dimmed());
     println!(
-        "    {} oxy completions bash  > /usr/share/bash-completion/completions/oxy",
+        "    {} zelynic completions bash  > /usr/share/bash-completion/completions/zelynic",
         "  ".dimmed()
     );
     println!(
-        "    {} oxy completions zsh   > ~/.zsh/completions/_oxy",
+        "    {} zelynic completions zsh   > ~/.zsh/completions/_zelynic",
         "  ".dimmed()
     );
     println!(
-        "    {} oxy completions fish  > ~/.config/fish/completions/oxy.fish",
+        "    {} zelynic completions fish  > ~/.config/fish/completions/zelynic.fish",
         "  ".dimmed()
     );
     println!();
@@ -637,7 +637,7 @@ fn print_help_all() {
         "  ".dimmed()
     );
     println!("    {} Usage:", "  ".dimmed());
-    println!("    {} oxy man > /usr/share/man/man1/oxy.1", "  ".dimmed());
+    println!("    {} zelynic man > /usr/share/man/man1/zelynic.1", "  ".dimmed());
     println!();
 
     // --- globals ---
@@ -651,36 +651,36 @@ fn print_help_all() {
 
     println!("{}", "EXAMPLES".bold());
     println!("  # List available interfaces");
-    println!("  oxy --iface");
+    println!("  zelynic --iface");
     println!();
     println!("  # Real-time monitoring");
-    println!("  oxy list --live");
+    println!("  zelynic list --live");
     println!();
     println!("  # Limit browser bandwidth");
-    println!("  sudo oxy strict -d 1mb -u 500kb brave");
+    println!("  sudo zelynic strict -d 1mb -u 500kb brave");
     println!();
     println!("  # Re-limit without unstrict (auto-cleans old rules)");
-    println!("  sudo oxy strict -d 500kb brave      # apply limit");
-    println!("  sudo oxy strict -d 10mb brave       # auto-overrides to 10mb");
+    println!("  sudo zelynic strict -d 500kb brave      # apply limit");
+    println!("  sudo zelynic strict -d 10mb brave       # auto-overrides to 10mb");
     println!();
     println!("  # Quick preset");
-    println!("  sudo oxy strict --preset gaming discord");
+    println!("  sudo zelynic strict --preset gaming discord");
     println!();
     println!("  # Specify interface explicitly");
-    println!("  sudo oxy --iface wlan0 strict -d 1mb brave");
-    println!("  sudo oxy --iface eth0 qos high firefox");
-    println!("  oxy --iface enp3s0 list --live");
+    println!("  sudo zelynic --iface wlan0 strict -d 1mb brave");
+    println!("  sudo zelynic --iface eth0 qos high firefox");
+    println!("  zelynic --iface enp3s0 list --live");
     println!();
     println!("  # Remove limits");
-    println!("  sudo oxy unstrict brave");
+    println!("  sudo zelynic unstrict brave");
     println!();
     println!("  # Custom profile workflow");
-    println!("  oxy profile save slow --dl 50kb --ul 50kb");
-    println!("  sudo oxy profile apply slow steam");
+    println!("  zelynic profile save slow --dl 50kb --ul 50kb");
+    println!("  sudo zelynic profile apply slow steam");
     println!();
     println!("  # QoS: browser first, downloads get leftovers");
-    println!("  sudo oxy qos high brave");
-    println!("  sudo oxy qos low wget");
+    println!("  sudo zelynic qos high brave");
+    println!("  sudo zelynic qos low wget");
     println!();
 }
 
@@ -706,7 +706,7 @@ fn generate_man_page() -> anyhow::Result<()> {
     // Header
     let date = chrono::Local::now().format("%B %Y").to_string();
     man.push_str(&format!(
-        r#".TH "{}" "1" "{}" "oxy {}" "User Commands""#,
+        r#".TH "{}" "1" "{}" "zelynic {}" "User Commands""#,
         name.to_uppercase(),
         date,
         version
@@ -792,19 +792,19 @@ fn generate_man_page() -> anyhow::Result<()> {
     // Examples section
     man.push_str(".SH EXAMPLES\n");
     man.push_str(".TP\n");
-    man.push_str(".B oxy list --live\n");
+    man.push_str(".B zelynic list --live\n");
     man.push_str("Start interactive bandwidth monitor.\n");
     man.push_str(".TP\n");
-    man.push_str(".B oxy strict -d 1mb -u 500kb firefox\n");
+    man.push_str(".B zelynic strict -d 1mb -u 500kb firefox\n");
     man.push_str("Limit Firefox to 1MB/s download and 500KB/s upload.\n");
     man.push_str(".TP\n");
-    man.push_str(".B oxy strict --preset gaming discord\n");
+    man.push_str(".B zelynic strict --preset gaming discord\n");
     man.push_str("Apply gaming preset (50mb/50mb) to Discord.\n");
     man.push_str(".TP\n");
-    man.push_str(".B oxy unstrict firefox\n");
+    man.push_str(".B zelynic unstrict firefox\n");
     man.push_str("Remove all limits from Firefox.\n");
     man.push_str(".TP\n");
-    man.push_str(".B oxy status\n");
+    man.push_str(".B zelynic status\n");
     man.push_str("Show all active bandwidth limits.\n");
 
     // See also

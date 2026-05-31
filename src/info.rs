@@ -1,17 +1,17 @@
-// SPDX-License-Identifier: MIT
-/// oxy package information constants and display functions.
+// SPDX-License-Identifier: GPL-3.0-only
+/// zelynic package information constants and display functions.
 ///
 /// Build metadata is embedded at compile time using env! macros.
 /// For custom builds, set these via cargo build flags or build.rs.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 #[allow(dead_code)]
-pub const NAME: &str = "oxy";
+pub const NAME: &str = "zelynic";
 pub fn build_target() -> &'static str {
     option_env!("CARGO_CFG_TARGET_ARCH").unwrap_or("x86_64")
 }
 pub const COPYRIGHT: &str = "(c) 2026 Rezky_nightky";
-pub const LICENSE: &str = "MIT";
-pub const REPOSITORY: &str = "https://github.com/oxyzenq/oxy";
+pub const LICENSE: &str = "GPL-3.0";
+pub const REPOSITORY: &str = "https://github.com/oxyzenq/zelynic";
 #[allow(dead_code)]
 pub const DESCRIPTION: &str = "Easy userspace bandwidth manager for Linux";
 
@@ -32,7 +32,7 @@ fn build_hash() -> &'static str {
 
 /// Print the package version in a compact format.
 ///
-/// Output: `oxy v2.0.0`
+/// Output: `zelynic v2.0.0`
 #[allow(dead_code)]
 pub fn print_version() {
     println!("{} {}", NAME, version_string());
@@ -44,8 +44,8 @@ pub fn print_version() {
 /// Version: v2.0.0
 /// Build: linux-x86_64 (ad36a81)
 /// Copyright: (c) 2026 Rezky_nightky
-/// License: MIT
-/// Source: https://github.com/oxyzenq/oxy
+/// License: GPL-3.0
+/// Source: https://github.com/oxyzenq/zelynic
 /// ```
 pub fn print_info() {
     println!("Version: {}", version_string());
