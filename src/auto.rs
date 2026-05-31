@@ -168,7 +168,7 @@ impl AutoThrottle {
         target: &str,
         processes: &[crate::monitor::ProcessBandwidth],
     ) -> Result<()> {
-        // Use shared resolve_pids for consistent substring matching
+        // Use shared resolve_pids for conservative process-name matching
         let target_pids = match resolve_pids(target) {
             Ok(pids) => pids,
             Err(_) => return Ok(()),

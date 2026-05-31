@@ -44,6 +44,12 @@ sudo zelynic strict --preset gaming discord     # Preset profile
 
 Re-limiting the same process auto-cleans old rules.
 
+Process-name matching is intentionally conservative: text targets match
+`/proc/<pid>/comm`, the `/proc/<pid>/exe` basename, or the argv[0] basename
+exactly, with safe aliases such as `brave` matching `brave-browser`. Zelynic
+does not select unrelated shells or terminals just because their full command
+line contains the target word. Use a numeric PID when exact targeting is needed.
+
 ---
 
 ### `zelynic unstrict` — Remove Limits
