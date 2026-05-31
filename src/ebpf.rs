@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: MIT
-/// eBPF backend for oxy bandwidth management.
+// SPDX-License-Identifier: GPL-3.0-only
+/// eBPF backend for zelynic bandwidth management.
 ///
 /// This module provides an optional eBPF-based backend using aya-rs (Pure Rust eBPF).
 /// When enabled with the `ebpf` feature flag, it can replace the tc/cgroup backend
@@ -200,7 +200,7 @@ impl EbpfSupport {
         if self.supported {
             println!("  Overall: {}", "SUPPORTED".green().bold());
             println!(
-                "  {} eBPF limiter is not yet implemented — oxy uses tc/cgroup",
+                "  {} eBPF limiter is not yet implemented — zelynic uses tc/cgroup",
                 "  ".dimmed()
             );
         } else if !is_root && self.kernel_ok && self.bpf_fs_ok && self.config_ok {
@@ -209,7 +209,7 @@ impl EbpfSupport {
         } else {
             println!("  Overall: {}", "NOT SUPPORTED".red().bold());
             println!(
-                "  {} oxy will continue using tc/cgroup backend (no impact)",
+                "  {} zelynic will continue using tc/cgroup backend (no impact)",
                 "  ".dimmed()
             );
         }
@@ -287,7 +287,7 @@ fn config_contains_ebpf(config: &str) -> bool {
 }
 
 /// Backend selection — reserved for future eBPF implementation.
-/// Currently unused; oxy always uses tc/cgroup.
+/// Currently unused; zelynic always uses tc/cgroup.
 #[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Backend {

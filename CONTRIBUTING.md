@@ -1,6 +1,6 @@
-# Contributing to oxy
+# Contributing to zelynic
 
-Thank you for your interest in contributing to oxy! This document provides
+Thank you for your interest in contributing to zelynic! This document provides
 guidelines and information for developers.
 
 ## Development Setup
@@ -8,14 +8,14 @@ guidelines and information for developers.
 ### Prerequisites
 
 - **Rust** 1.88.0 or later (see `rust-version` in `Cargo.toml`)
-- **Linux** system (required for testing, as oxy uses Linux-specific APIs)
+- **Linux** system (required for testing, as zelynic uses Linux-specific APIs)
 - **Root access** (required for testing bandwidth limiting functionality)
 
 ### Clone and Build
 
 ```bash
-git clone https://github.com/oxyzenq/oxy.git
-cd oxy
+git clone https://github.com/oxyzenq/zelynic.git
+cd zelynic
 cargo build --release
 ```
 
@@ -119,7 +119,7 @@ When testing bandwidth limiting, use `iperf3` or `curl` with `--limit-rate`:
 iperf3 -s
 
 # Terminal 2: Limit a process
-sudo ./target/release/oxy strict -d 1mb iperf3
+sudo ./target/release/zelynic strict -d 1mb iperf3
 
 # Terminal 3: Run client (should be limited)
 iperf3 -c localhost
@@ -134,14 +134,14 @@ Before submitting a PR, verify:
 - [ ] `cargo clippy -- -D warnings` passes
 - [ ] `cargo fmt --all` produces no changes
 - [ ] `./build.sh check-all` passes
-- [ ] `oxy --help` shows updated commands
-- [ ] Man page generates correctly (`oxy man`)
+- [ ] `zelynic --help` shows updated commands
+- [ ] Man page generates correctly (`zelynic man`)
 
 ## Architecture
 
 ### Backend Selection
 
-oxy supports two backends:
+zelynic supports two backends:
 
 1. **tc/cgroup** (default) — Works on all Linux systems, uses traffic control
 2. **eBPF** (optional) — Lower overhead, requires kernel 5.2+ and CAP_BPF
@@ -171,7 +171,7 @@ The backend is auto-selected at runtime based on system capabilities.
 
 ## Security
 
-- oxy requires root for `tc`, `cgcreate`, and `/proc` access
+- zelynic requires root for `tc`, `cgcreate`, and `/proc` access
 - CAP_NET_ADMIN alone is insufficient for full functionality
 - State files are stored in `/run/oxy/` with 0755 permissions
 
@@ -186,11 +186,11 @@ The backend is auto-selected at runtime based on system capabilities.
 
 ## Questions?
 
-- Open an [issue](https://github.com/oxyzenq/oxy/issues) for bugs
-- Start a [discussion](https://github.com/oxyzenq/oxy/discussions) for questions
+- Open an [issue](https://github.com/oxyzenq/zelynic/issues) for bugs
+- Start a [discussion](https://github.com/oxyzenq/zelynic/discussions) for questions
 - Read the [ROADMAP.md](ROADMAP.md) for future plans
 
 ## License
 
 By contributing, you agree that your contributions will be licensed under
-the MIT License.
+the GNU General Public License v3.0.

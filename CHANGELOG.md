@@ -19,18 +19,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Auto-detects default interface
   - Validates against available interfaces
   - Works with all commands (`list`, `strict`, `qos`, `profile`, `auto`)
-- **`--live N` shorthand** — `oxy list --live 2` instead of `--live --interval 2`
-- **Preset profiles** — `oxy strict --preset gaming/streaming/background`
-- **QoS priority shaping** — `oxy qos high/low` with HTB priority tiers
-- **Named profiles** — `oxy profile save/apply/list/delete`
-- **Auto-throttle daemon** — `oxy auto` with download/upload thresholds
-- **Bandwidth watch** — `oxy watch --alert` with desktop notifications
-- **Bandwidth history** — `oxy log` with snapshots and rotation
-- **Auto-cleanup on re-limit** — `oxy strict` auto-removes old rules for same target
+- **`--live N` shorthand** — `zelynic list --live 2` instead of `--live --interval 2`
+- **Preset profiles** — `zelynic strict --preset gaming/streaming/background`
+- **QoS priority shaping** — `zelynic qos high/low` with HTB priority tiers
+- **Named profiles** — `zelynic profile save/apply/list/delete`
+- **Auto-throttle daemon** — `zelynic auto` with download/upload thresholds
+- **Bandwidth watch** — `zelynic watch --alert` with desktop notifications
+- **Bandwidth history** — `zelynic log` with snapshots and rotation
+- **Auto-cleanup on re-limit** — `zelynic strict` auto-removes old rules for same target
 - **Shell completions** — Bash, Zsh, Fish, Elvish, PowerShell
-- **Man page generation** — `oxy man`
-- **`oxy backend`** — eBPF/tc support detection
-- **`oxy auto --status`** — Check auto-throttle daemon status
+- **Man page generation** — `zelynic man`
+- **`zelynic backend`** — eBPF/tc support detection
+- **`zelynic auto --status`** — Check auto-throttle daemon status
 - **`--help-all`** — Comprehensive help with all commands and examples
 - **`--no-color`** — Disable colored output (also respects `NO_COLOR=1`)
 - **IPv6 support** — Correct parsing of `[::1]:443` bracket notation
@@ -52,7 +52,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Terminal corruption on TUI error (raw mode entered before validation)
 - Class ID race condition with `flock(2)` file locking
 - Panic hook properly restored after TUI exit
-- `oxy watch` no longer requires root (monitoring is read-only)
+- `zelynic watch` no longer requires root (monitoring is read-only)
 - Strict CLI validation — unknown interface names show error with available list
 
 ### Removed
@@ -67,9 +67,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Initial release with tc-based bandwidth limiting
 - Process resolution via `/proc/net/tcp` and inode matching
-- `oxy list`, `oxy strict`, `oxy unstrict`, `oxy status` commands
+- `zelynic list`, `zelynic strict`, `zelynic unstrict`, `zelynic status` commands
 - Basic CLI interface with colored output
 
-[Unreleased]: https://github.com/oxyzenq/oxy/compare/v2.0.0...HEAD
-[2.0.0]: https://github.com/oxyzenq/oxy/compare/v1.0.0...v2.0.0
-[1.0.0]: https://github.com/oxyzenq/oxy/releases/tag/v1.0.0
+[Unreleased]: https://github.com/oxyzenq/zelynic/compare/v2.0.0...HEAD
+[2.0.0]: https://github.com/oxyzenq/zelynic/compare/v1.0.0...v2.0.0
+[1.0.0]: https://github.com/oxyzenq/zelynic/releases/tag/v1.0.0

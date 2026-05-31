@@ -1,7 +1,7 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: GPL-3.0-only
 /// Bandwidth watch module for monitoring and alerting.
 ///
-/// Provides `oxy watch --alert` functionality to monitor a process
+/// Provides `zelynic watch --alert` functionality to monitor a process
 /// and send notifications when bandwidth exceeds specified thresholds.
 use anyhow::{bail, Context, Result};
 use colored::Colorize;
@@ -163,7 +163,7 @@ fn get_process_bytes(pid: u32) -> Result<u64> {
 
 /// Send desktop notification or stderr fallback.
 fn send_notification(process: &str, message: &str, custom_cmd: Option<&str>) -> Result<()> {
-    let summary = format!("oxy: {} alert", process);
+    let summary = format!("zelynic: {} alert", process);
 
     // Try custom command first
     if let Some(cmd) = custom_cmd {

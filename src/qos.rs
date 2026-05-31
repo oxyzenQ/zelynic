@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: GPL-3.0-only
 /// Quality of Service (QoS) priority-based bandwidth shaping module.
 ///
 /// Instead of hard bandwidth limits, assigns processes to priority tiers.
@@ -229,8 +229,8 @@ pub fn show_qos_status() -> Result<()> {
     if state.assignments.is_empty() {
         println!("{} No active QoS assignments.", "Info:".yellow());
         println!();
-        println!("  Use 'oxy qos high <process>' to prioritize a process");
-        println!("  Use 'oxy qos low <process>' to deprioritize a process");
+        println!("  Use 'zelynic qos high <process>' to prioritize a process");
+        println!("  Use 'zelynic qos low <process>' to deprioritize a process");
         return Ok(());
     }
 
@@ -321,7 +321,7 @@ pub fn reset_qos(iface_override: Option<&str>) -> Result<()> {
     new_state.save()?;
 
     println!();
-    println!("{}", "oxy qos: all rules reset".green().bold());
+    println!("{}", "zelynic qos: all rules reset".green().bold());
 
     Ok(())
 }

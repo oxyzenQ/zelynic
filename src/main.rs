@@ -389,7 +389,10 @@ fn print_help_all() {
         "    {} zelynic strict --preset gaming discord     # Use preset profile",
         "  ".dimmed()
     );
-    println!("    {} zelynic strict --preset background steam", "  ".dimmed());
+    println!(
+        "    {} zelynic strict --preset background steam",
+        "  ".dimmed()
+    );
     println!(
         "    {} zelynic strict --diagnose -d 1mb firefox  # Print backend diagnostics while applying",
         "  ".dimmed()
@@ -637,7 +640,10 @@ fn print_help_all() {
         "  ".dimmed()
     );
     println!("    {} Usage:", "  ".dimmed());
-    println!("    {} zelynic man > /usr/share/man/man1/zelynic.1", "  ".dimmed());
+    println!(
+        "    {} zelynic man > /usr/share/man/man1/zelynic.1",
+        "  ".dimmed()
+    );
     println!();
 
     // --- globals ---
@@ -780,8 +786,10 @@ fn generate_man_page() -> anyhow::Result<()> {
     man.push_str(".B -i, --info\n");
     man.push_str("Print detailed package information.\n");
 
-    // Files section
+    // Files section — paths preserved for backward compatibility with existing installs
     man.push_str(".SH FILES\n");
+    man.push_str(".PP\n");
+    man.push_str("The following paths are legacy paths preserved for backward compatibility with existing installations:\n");
     man.push_str(".TP\n");
     man.push_str(".I /run/oxy/state.json\n");
     man.push_str("Runtime state file containing active bandwidth limits.\n");

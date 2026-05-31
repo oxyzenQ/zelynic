@@ -1,6 +1,6 @@
 > **Project status: paused**
 >
-> This project is currently paused. Core features such as monitor, list, profile, watch, QoS, and auto-throttle are functional, but per-process bandwidth limiting through `oxy strict` is not fully stable because of a cgroup v2 and nftables integration issue.
+> This project is currently paused. Core features such as monitor, list, profile, watch, QoS, and auto-throttle are functional, but per-process bandwidth limiting through `zelynic strict` is not fully stable because of a cgroup v2 and nftables integration issue.
 >
 > **Known issue:** the `nftables socket cgroupv2 level N == <inode>` expression fails at runtime with `cgroupv2 path fails: No such file or directory`. The `level` keyword is required by nftables syntax, but the cgroup inode resolution does not currently match what the kernel expects for path lookup.
 >
@@ -12,10 +12,10 @@
 > * Test across newer Linux kernels with improved cgroup v2 socket matching support
 
 <p align="center">
-  <img src="assets/oxy-logo-orig.png" alt="oxy logo" width="240">
+  <img src="assets/oxy-logo-orig.png" alt="zelynic logo" width="240">
 </p>
 
-<h1 align="center">oxy</h1>
+<h1 align="center">zelynic</h1>
 
 <p align="center">
   <strong>Easy userspace bandwidth manager for Linux.</strong>
@@ -27,13 +27,13 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/version-v2.0.0-7C3AED?style=flat-square&labelColor=111827" alt="Version v2.0.0">
-  <img src="https://img.shields.io/badge/license-MIT-6D28D9?style=flat-square&labelColor=111827" alt="MIT license">
+  <img src="https://img.shields.io/badge/license-GPL--3.0-E040FB?style=flat-square&labelColor=111827" alt="GPL-3.0 license">
   <img src="https://img.shields.io/badge/platform-Linux%20x86__64-8B5CF6?style=flat-square&labelColor=111827" alt="Platform Linux x86_64">
   <img src="https://img.shields.io/badge/Rust-1.88+-A855F7?style=flat-square&labelColor=111827" alt="Rust 1.88+">
   <img src="https://img.shields.io/badge/status-paused-F59E0B?style=flat-square&labelColor=111827" alt="Status paused">
 </p>
 
-oxy is a Rust CLI tool for monitoring, limiting, and shaping per-process network bandwidth on Linux. It uses Linux traffic control (`tc`) with HTB qdisc, `nftables` for packet marking, and `cgroup v2` for process-aware rate limiting. Real-time monitoring is powered by `ss`, while the built-in TUI dashboard provides a live, htop-like view of network traffic.
+zelynic is a Rust CLI tool for monitoring, limiting, and shaping per-process network bandwidth on Linux. It uses Linux traffic control (`tc`) with HTB qdisc, `nftables` for packet marking, and `cgroup v2` for process-aware rate limiting. Real-time monitoring is powered by `ss`, while the built-in TUI dashboard provides a live, htop-like view of network traffic.
 
 
 ---
@@ -70,14 +70,14 @@ oxy is a Rust CLI tool for monitoring, limiting, and shaping per-process network
 
 ### Download Release
 
-Download the latest release from [GitHub Releases](https://github.com/oxyzenq/oxy/releases):
+Download the latest release from [GitHub Releases](https://github.com/oxyzenq/zelynic/releases):
 
 ```bash
 # Download and extract
-curl -sL https://github.com/oxyzenq/oxy/releases/latest/download/oxy-v2.0.0-x86_64-linux.tar.gz | tar xz
+curl -sL https://github.com/oxyzenq/zelynic/releases/latest/download/zelynic-v2.0.0-x86_64-linux.tar.gz | tar xz
 
 # Install system-wide
-sudo install -Dm755 oxy-v2.0.0-x86_64-linux/oxy /usr/local/bin/oxy
+sudo install -Dm755 zelynic-v2.0.0-x86_64-linux/zelynic /usr/local/bin/zelynic
 ```
 
 Verify the download with SHA256 checksums published alongside each release.
@@ -85,32 +85,32 @@ Verify the download with SHA256 checksums published alongside each release.
 ### From Source
 
 ```bash
-git clone https://github.com/oxyzenq/oxy.git
-cd oxy
+git clone https://github.com/oxyzenq/zelynic.git
+cd zelynic
 cargo build --release
 
 # Install system-wide
-sudo install -Dm755 target/release/oxy /usr/local/bin/oxy
+sudo install -Dm755 target/release/zelynic /usr/local/bin/zelynic
 ```
 
 ### Quick Build
 
 ```bash
 cargo build --release
-sudo install -Dm755 target/release/oxy /usr/local/bin/oxy
+sudo install -Dm755 target/release/zelynic /usr/local/bin/zelynic
 ```
 
 ### Shell Completions
 
 ```bash
 # Bash
-oxy completions bash | sudo tee /usr/share/bash-completion/completions/oxy > /dev/null
+zelynic completions bash | sudo tee /usr/share/bash-completion/completions/zelynic > /dev/null
 
 # Zsh
-oxy completions zsh > ~/.zsh/completions/_oxy
+zelynic completions zsh > ~/.zsh/completions/_zelynic
 
 # Fish
-oxy completions fish > ~/.config/fish/completions/oxy.fish
+zelynic completions fish > ~/.config/fish/completions/zelynic.fish
 ```
 
 ## Usage
@@ -118,7 +118,7 @@ oxy completions fish > ~/.config/fish/completions/oxy.fish
 ### Quick Reference
 
 ```
-oxy [FLAGS] [COMMAND] [ARGS]
+zelynic [FLAGS] [COMMAND] [ARGS]
 
 FLAGS:
     -i, --info              Print detailed package information
@@ -150,22 +150,22 @@ Show all programs/ports with active bandwidth usage:
 
 ```bash
 # List all processes with bandwidth usage (default)
-oxy list
+zelynic list
 
 # Real-time TUI dashboard (like htop for network)
-oxy list --live
+zelynic list --live
 
 # Live mode with custom refresh interval (2 seconds)
-oxy list --live --interval 2
+zelynic list --live --interval 2
 
 # Sort by highest to lowest bandwidth usage
-oxy list --high-to-low-usage-net
+zelynic list --high-to-low-usage-net
 
 # Show individual socket connections per process
-oxy list --verbose
+zelynic list --verbose
 
 # Output as JSON for scripting
-oxy list --json
+zelynic list --json
 ```
 
 ### Limit Bandwidth (strict)
@@ -174,30 +174,30 @@ Apply download and/or upload speed limits to a specific process:
 
 ```bash
 # Limit both download and upload
-sudo oxy strict -d 500kb -u 500kb brave
+sudo zelynic strict -d 500kb -u 500kb brave
 
 # Limit only download (omit -u)
-sudo oxy strict -d 1mb firefox
+sudo zelynic strict -d 1mb firefox
 
 # Limit only upload (omit -d)
-sudo oxy strict -u 250kb 1234
+sudo zelynic strict -u 250kb 1234
 
 # Limit by PID
-sudo oxy strict -d 1mb -u 1mb 8100
+sudo zelynic strict -d 1mb -u 1mb 8100
 
 # Use a preset profile
-sudo oxy strict --preset gaming discord
-sudo oxy strict --preset background steam
-sudo oxy strict --preset streaming zoom
+sudo zelynic strict --preset gaming discord
+sudo zelynic strict --preset background steam
+sudo zelynic strict --preset streaming zoom
 ```
 
-> **Note:** PID 0 (kernel idle thread) and user names (e.g., `root`) cannot be limited. oxy targets processes by PID or binary name. PID 0 is not a userspace process and has no network sockets or cgroup association.
+> **Note:** PID 0 (kernel idle thread) and user names (e.g., `root`) cannot be limited. zelynic targets processes by PID or binary name. PID 0 is not a userspace process and has no network sockets or cgroup association.
 
 Re-limiting without `unstrict` first is supported — old rules are auto-cleaned:
 
 ```bash
-sudo oxy strict -d 500kb brave       # apply limit
-sudo oxy strict -d 10mb brave        # auto-overrides to 10mb
+sudo zelynic strict -d 500kb brave       # apply limit
+sudo zelynic strict -d 10mb brave        # auto-overrides to 10mb
 ```
 
 ### Remove Bandwidth Limits (unstrict)
@@ -206,16 +206,16 @@ Remove all bandwidth restrictions from a process:
 
 ```bash
 # By process name
-sudo oxy unstrict brave
+sudo zelynic unstrict brave
 
 # By PID
-sudo oxy unstrict 8100
+sudo zelynic unstrict 8100
 ```
 
 ### Show Active Limits
 
 ```bash
-oxy status
+zelynic status
 ```
 
 ### Clean Up Orphans
@@ -223,7 +223,7 @@ oxy status
 Remove tc/cgroup rules for processes that have already exited:
 
 ```bash
-sudo oxy clean
+sudo zelynic clean
 ```
 
 ### Network Interface
@@ -232,12 +232,12 @@ Auto-detect is used by default. Explicitly specify an interface with `--iface`:
 
 ```bash
 # List available interfaces
-oxy --iface
+zelynic --iface
 
 # Use a specific interface for any command
-oxy --iface wlan0 list --live
-sudo oxy --iface eth0 strict -d 1mb brave
-sudo oxy --iface enp3s0 qos high firefox
+zelynic --iface wlan0 list --live
+sudo zelynic --iface eth0 strict -d 1mb brave
+sudo zelynic --iface enp3s0 qos high firefox
 ```
 
 ### QoS Priority Shaping
@@ -246,16 +246,16 @@ Assign priority tiers instead of hard limits. High priority processes get bandwi
 
 ```bash
 # High priority for browser
-sudo oxy qos high brave
+sudo zelynic qos high brave
 
 # Low priority for download manager
-sudo oxy qos low wget
+sudo zelynic qos low wget
 
 # Show current QoS assignments
-oxy qos status
+zelynic qos status
 
 # Clear all QoS rules
-sudo oxy qos reset
+sudo zelynic qos reset
 ```
 
 ### Profile Management
@@ -264,17 +264,17 @@ Save and load custom bandwidth profiles:
 
 ```bash
 # Save a profile
-oxy profile save slow --dl 50kb --ul 50kb
-oxy profile save streaming --dl 5mb --ul 2mb
+zelynic profile save slow --dl 50kb --ul 50kb
+zelynic profile save streaming --dl 5mb --ul 2mb
 
 # Apply a profile
-sudo oxy profile apply slow steam
+sudo zelynic profile apply slow steam
 
 # List all profiles
-oxy profile list
+zelynic profile list
 
 # Delete a profile
-oxy profile delete slow
+zelynic profile delete slow
 ```
 
 ### Watch & Alert
@@ -283,10 +283,10 @@ Monitor a process and send a desktop notification when bandwidth exceeds a thres
 
 ```bash
 # Alert when wget rate exceeds 500KB/s
-oxy watch -a 500kb wget
+zelynic watch -a 500kb wget
 
 # Check every 30 seconds
-oxy watch -a 5mb firefox -i 30
+zelynic watch -a 5mb firefox -i 30
 ```
 
 ### Auto-Throttle Daemon
@@ -295,13 +295,13 @@ Continuously monitor and automatically apply limits when thresholds are exceeded
 
 ```bash
 # Auto-limit when download exceeds 100MB/s and upload exceeds 50MB/s
-sudo oxy auto --download 100mb --upload 50mb
+sudo zelynic auto --download 100mb --upload 50mb
 
 # Kill heavy processes instead of limiting
-sudo oxy auto --download 80mb --kill firefox
+sudo zelynic auto --download 80mb --kill firefox
 
 # Run as a background daemon
-sudo oxy auto --daemon
+sudo zelynic auto --daemon
 ```
 
 ### Bandwidth Logging
@@ -310,16 +310,16 @@ Record and review historical bandwidth usage:
 
 ```bash
 # Show recent history
-oxy log
+zelynic log
 
 # Record a snapshot of current state
-oxy log --snapshot
+zelynic log --snapshot
 
 # Show last hour
-oxy log --last 1h
+zelynic log --last 1h
 
 # JSON output for analysis
-oxy log --json
+zelynic log --json
 ```
 
 ### Presets
@@ -348,7 +348,7 @@ Built-in presets for common use cases:
 
 ## Architecture
 
-oxy works by combining several Linux kernel features:
+zelynic works by combining several Linux kernel features:
 
 ### Bandwidth Monitoring
 
@@ -370,7 +370,7 @@ Uses a layered approach:
                     Upload (egress)
 ┌─────────────┐     ┌──────────────┐     ┌────────────────┐
 │   Process   │────>│  Cgroup v2   │────>│  socket        │
-│   (PID)     │     │  (oxy/pid)   │     │  cgroupv2 tag  │
+│   (PID)     │     │  (zelynic/pid)   │     │  cgroupv2 tag  │
 └─────────────┘     └──────────────┘     └───────┬────────┘
                                                   │
                                                   v
@@ -382,7 +382,7 @@ Uses a layered approach:
 
                     Download (ingress)
 ┌─────────────┐     ┌──────────────┐     ┌────────────────┐
-│   Network   │────>│  nftables    │────>│  tc HTB qdisc  │
+│  Network   │────>│  nftables    │────>│  tc HTB qdisc  │
 │  Interface  │     │  (prerouting │     │  (rate limit)  │
 │  (eth0)     │     │   mark)      │     │                │
 └─────────────┘     └──────────────┘     └────────────────┘
@@ -392,19 +392,19 @@ Uses a layered approach:
 
 ```bash
 # Print version
-oxy -v
+zelynic -v
 
 # Print detailed info
-oxy -i
+zelynic -i
 ```
 
-**Example output of `oxy -i`:**
+**Example output of `zelynic -i`:**
 ```
 Version: v2.0.0
 Build: linux-x86_64 (ad36a81)
 Copyright: (c) 2026 Rezky_nightky
-License: MIT
-Source: https://github.com/oxyzenq/oxy
+License: GPL-3.0
+Source: https://github.com/oxyzenq/zelynic
 ```
 
 ## Building
@@ -422,7 +422,7 @@ Source: https://github.com/oxyzenq/oxy
 
 ## License
 
-MIT License — Copyright (c) 2026 Rezky_nightky
+GNU General Public License v3.0 — Copyright (c) 2026 Rezky_nightky
 
 See [LICENSE](LICENSE) for details.
 

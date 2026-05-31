@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: GPL-3.0-only
 /// Bandwidth limiting module using Linux traffic control (tc) and cgroups.
 ///
 /// Architecture:
@@ -41,7 +41,7 @@
 /// be used instead.  `socket cgroupv2` was added in kernel 5.7.
 ///
 /// State is persisted to disk so that limits survive across invocations
-/// and can be cleaned up properly with `oxy unstrict`.
+/// and can be cleaned up properly with `zelynic unstrict`.
 use anyhow::{bail, Context, Result};
 use colored::Colorize;
 use serde::{Deserialize, Serialize};
@@ -908,7 +908,7 @@ pub fn check_root() -> Result<()> {
     let uid = nix::unistd::Uid::current();
     if !uid.is_root() {
         bail!(
-            "{} root privileges are required for bandwidth limiting operations.\n  {} Run with: sudo oxy strict ...",
+            "{} root privileges are required for bandwidth limiting operations.\n  {} Run with: sudo zelynic strict ...",
             "ERROR:".red().bold(),
             "Hint:".yellow()
         );
@@ -1079,12 +1079,12 @@ pub fn get_process_name(pid: u32) -> String {
 /// Get the next available TC class ID and increment the counter.
 ///
 /// Uses file locking (`flock`) to prevent race conditions when multiple
-/// `oxy strict` invocations run concurrently.
+/// `zelynic strict` invocations run concurrently.
 pub fn next_class_id() -> Result<u32> {
     fs::create_dir_all(STATE_DIR).context("failed to create oxy state directory")?;
 
     // Open (or create) the counter file with exclusive lock to prevent
-    // concurrent oxy processes from reading the same ID.
+    // concurrent zelynic processes from reading the same ID.
     use std::os::unix::io::AsRawFd;
     let file = std::fs::OpenOptions::new()
         .read(true)
@@ -1393,7 +1393,7 @@ pub fn apply_limit_with_diagnostics(
 
     if download.is_none() && upload.is_none() {
         bail!(
-            "no bandwidth limit specified.\n  {} Usage: oxy strict -d <rate> -u <rate> <target>",
+            "no bandwidth limit specified.\n  {} Usage: zelynic strict -d <rate> -u <rate> <target>",
             "ERROR:".red().bold()
         );
     }
@@ -2023,7 +2023,7 @@ pub fn apply_limit_with_diagnostics(
 
     state.save().with_context(|| {
         format!(
-            "failed to save oxy state after applying strict limit for target '{}'",
+            "failed to save zelynic state after applying strict limit for target '{}'",
             target
         )
     })?;
@@ -2081,14 +2081,17 @@ pub fn apply_limit_with_diagnostics(
     if applied_count == 0 {
         println!(
             "{}",
-            "oxy strict: no bandwidth limits were applied"
+            "zelynic strict: no bandwidth limits were applied"
                 .yellow()
                 .bold()
         );
         return Ok(());
     }
 
-    println!("{}", "oxy strict: bandwidth limit applied".green().bold());
+    println!(
+        "{}",
+        "zelynic strict: bandwidth limit applied".green().bold()
+    );
     println!();
     println!("  Target:    {}", target);
     println!("  Discovered PIDs: {}", discovered_count);
@@ -2130,7 +2133,7 @@ pub fn apply_limit_with_diagnostics(
 
     println!();
     println!(
-        "  {} Use 'oxy unstrict {}' to remove limits.",
+        "  {} Use 'zelynic unstrict {}' to remove limits.",
         "Info:".yellow(),
         target
     );
@@ -2326,7 +2329,7 @@ pub fn remove_limit(target: &str) -> Result<()> {
 
     println!(
         "{}",
-        "oxy unstrict: bandwidth limits removed".green().bold()
+        "zelynic unstrict: bandwidth limits removed".green().bold()
     );
     println!();
     println!("  Target:    {}", target);
@@ -2530,13 +2533,16 @@ pub fn clean_orphans() -> Result<()> {
     }
 
     println!();
-    println!("{}", "oxy clean: orphaned limits removed".green().bold());
+    println!(
+        "{}",
+        "zelynic clean: orphaned limits removed".green().bold()
+    );
     println!();
     println!("  Removed:   {} orphaned limit(s)", removed_count);
     println!("  Remaining: {} active limit(s)", kept_count);
     println!();
     println!(
-        "  {} Run 'oxy status' to see current active limits.",
+        "  {} Run 'zelynic status' to see current active limits.",
         "Info:".yellow()
     );
 
@@ -2555,7 +2561,7 @@ pub fn emergency_cleanup() -> Result<()> {
 
     println!(
         "{}",
-        "oxy clean: performing full emergency cleanup..."
+        "zelynic clean: performing full emergency cleanup..."
             .yellow()
             .bold()
     );
@@ -2633,7 +2639,7 @@ pub fn emergency_cleanup() -> Result<()> {
     println!();
     println!(
         "{}",
-        "oxy clean: all oxy state has been removed".green().bold()
+        "zelynic clean: all state has been removed".green().bold()
     );
     println!(
         "  {} System should now be fully restored.",
@@ -2692,7 +2698,7 @@ pub fn check_respawns() -> Result<()> {
 
     println!(
         "{}",
-        "oxy: detected process respawn(s), re-applying limits..."
+        "zelynic: detected process respawn(s), re-applying limits..."
             .yellow()
             .bold()
     );
@@ -2747,7 +2753,7 @@ pub fn check_respawns() -> Result<()> {
     }
 
     println!();
-    println!("{}", "oxy: respawn handling complete".green().bold());
+    println!("{}", "zelynic: respawn handling complete".green().bold());
 
     Ok(())
 }

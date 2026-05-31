@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: GPL-3.0-only
 /// Network bandwidth monitoring module.
 ///
 /// This module monitors per-process network bandwidth usage by combining
@@ -536,7 +536,7 @@ fn print_process_table(processes: &[ProcessBandwidth]) {
     );
     println!(
         "{}",
-        "For real-time rate monitoring, use oxy list --live.".dimmed()
+        "For real-time rate monitoring, use zelynic list --live.".dimmed()
     );
 }
 

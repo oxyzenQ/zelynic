@@ -1,10 +1,10 @@
-# `oxy strict` backend design
+# `zelynic strict` backend design
 
-This document describes the current `oxy strict` enforcement backend. It is intentionally descriptive, not a claim that bandwidth limiting is fully reliable on every Linux host.
+This document describes the current `zelynic strict` enforcement backend. It is intentionally descriptive, not a claim that bandwidth limiting is fully reliable on every Linux host.
 
 ## Current backend
 
-`oxy strict` currently combines three Linux mechanisms:
+`zelynic strict` currently combines three Linux mechanisms:
 
 1. **cgroup v2 process grouping**: discovered target PIDs are moved under `/sys/fs/cgroup/oxy/target_<name>/` and verified through `/proc/<pid>/cgroup`.
 2. **nftables socket matching and conntrack marking**: the generated `table inet oxy` marks egress packets with `socket cgroupv2 level ...`, copies the packet mark to `ct mark` in postrouting, and uses the connection mark for download policing in the input hook.
@@ -34,7 +34,7 @@ The backend is sensitive to details that vary by kernel, nftables version, syste
 
 - `socket cgroupv2 level ...` matching depends on the cgroup path and ancestor level semantics accepted by the installed nftables/kernel pair.
 - A PID can be written to `cgroup.procs` successfully and then be moved back by systemd or another manager.
-- Multi-process applications can spawn new network-capable processes while `oxy strict` is applying.
+- Multi-process applications can spawn new network-capable processes while `zelynic strict` is applying.
 - Sockets created before cgroup movement retain their original socket cgroup association.
 - Download limiting relies on egress packet marking being copied to conntrack and later observed on reply packets.
 - nftables input-hook rate limiting is policing, not queueing/shaping, so behavior can differ from upload HTB shaping.
@@ -53,7 +53,7 @@ A useful bug report should include:
 - relevant `tc qdisc`, `tc class`, and `tc filter` output
 - `/run/oxy/state.json`
 
-`oxy strict --diagnose ...` now prints most of this during an apply attempt so the next fix can be based on observed host behavior rather than guesses.
+`zelynic strict --diagnose ...` now prints most of this during an apply attempt so the next fix can be based on observed host behavior rather than guesses.
 
 ## Backend alternatives
 
@@ -63,7 +63,7 @@ This remains the best short-term path because it is already implemented and pres
 
 ### 2. `systemd-run` transient scope/slice backend
 
-Instead of moving arbitrary existing PIDs, `oxy` could create or request a transient systemd scope/slice and place the target there. This may cooperate better with systemd but is harder for already-running GUI applications and requires systemd-specific code paths.
+Instead of moving arbitrary existing PIDs, `zelynic` could create or request a transient systemd scope/slice and place the target there. This may cooperate better with systemd but is harder for already-running GUI applications and requires systemd-specific code paths.
 
 ### 3. cgroup v1 `net_cls` fallback
 
@@ -75,11 +75,11 @@ A fallback could repeatedly discover target process trees and apply marks by pro
 
 ### 5. application wrapper mode
 
-The most reliable cgroup placement model is for `oxy` to start the target process inside the desired cgroup before any sockets exist. That avoids the existing-socket problem and reduces races, but it is a new user workflow and does not solve already-running applications.
+The most reliable cgroup placement model is for `zelynic` to start the target process inside the desired cgroup before any sockets exist. That avoids the existing-socket problem and reduces races, but it is a new user workflow and does not solve already-running applications.
 
 ## Recommended next implementation path
 
 1. Keep the current backend behavior intact.
-2. Use `oxy strict --diagnose` on an affected Arch/Linux machine.
+2. Use `zelynic strict --diagnose` on an affected Arch/Linux machine.
 3. Fix only the proven failure point, most likely in cgroup path/level generation, PID movement verification, or nftables rule application.
 4. Consider adding a small backend boundary later around rule installation and cleanup, but do not rewrite PID discovery, cgroup movement, state, and tc/nft orchestration until the current failure is proven.
