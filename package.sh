@@ -1,5 +1,5 @@
 #!/bin/bash
-# Package script for oxy releases
+# Package script for zelynic releases
 # Creates tar.gz archives with proper structure for GitHub Releases
 
 set -e
@@ -47,7 +47,7 @@ build_target() {
     cargo build --release --target "$target" 2>&1 | tail -5
 
     # Check if binary is static
-    local binary_path="target/${target}/release/oxy"
+    local binary_path="target/${target}/release/zelynic"
     if [[ "$target" == *"musl"* ]]; then
         if ldd "$binary_path" 2>&1 | grep -q "statically linked"; then
             log_success "Binary is statically linked"
@@ -65,7 +65,7 @@ create_archive() {
     local arch_name="$2"
     local binary_path="$3"
 
-    local pkg_name="oxy-v${version}-${arch_name}"
+    local pkg_name="zelynic-v${version}-${arch_name}"
     local pkg_dir="dist/${pkg_name}"
 
     log_info "Creating archive: ${pkg_name}.tar.gz"
@@ -76,26 +76,26 @@ create_archive() {
     install -dm755 "$pkg_dir/man"
 
     # Copy binary
-    install -m755 "$binary_path" "$pkg_dir/oxy"
+    install -m755 "$binary_path" "$pkg_dir/zelynic"
 
     # Copy documentation
     install -m644 README.md "$pkg_dir/"
     install -m644 LICENSE "$pkg_dir/"
 
     # Generate man page if possible
-    if command -v oxy >/dev/null 2>&1 || [ -f "$binary_path" ]; then
+    if command -v zelynic >/dev/null 2>&1 || [ -f "$binary_path" ]; then
         log_info "Generating man page..."
-        "$binary_path" man > "$pkg_dir/man/oxy.1" 2>/dev/null || {
+        "$binary_path" man > "$pkg_dir/man/zelynic.1" 2>/dev/null || {
             # Fallback: create basic man page
-            cat > "$pkg_dir/man/oxy.1" << 'EOF'
-.TH OXY 1 "2024" "oxy" "User Commands"
+            cat > "$pkg_dir/man/zelynic.1" << 'EOF'
+.TH ZELYNIC 1 "2024" "zelynic" "User Commands"
 .SH NAME
-oxy \- Easy userspace bandwidth manager for Linux
+zelynic \- Easy userspace bandwidth manager for Linux
 .SH SYNOPSIS
-.B oxy
+.B zelynic
 [\fIOPTIONS\fR] [\fICOMMAND\fR]
 .SH DESCRIPTION
-oxy provides a simple CLI interface for monitoring and limiting
+zelynic provides a simple CLI interface for monitoring and limiting
 per-process network bandwidth on Linux systems.
 .SH COMMANDS
 .TP
@@ -147,27 +147,27 @@ Network interface to use
 .SH EXAMPLES
 .TP
 List processes:
-.B sudo oxy list
+.B sudo zelynic list
 .TP
 Limit download to 1MB/s:
-.B sudo oxy strict -d 1mb firefox
+.B sudo zelynic strict -d 1mb firefox
 .TP
 Monitor live bandwidth:
-.B sudo oxy list --live
+.B sudo zelynic list --live
 .TP
 Set high priority:
-.B sudo oxy qos high brave
+.B sudo zelynic qos high brave
 .SH SEE ALSO
 .BR tc (8),
 .BR cgexec (1),
 .BR ss (8)
 .SH AUTHOR
-oxy contributors
+zelynic contributors
 .SH LICENSE
-MIT
+GPL-3.0
 EOF
         }
-        gzip -f "$pkg_dir/man/oxy.1"
+        gzip -f "$pkg_dir/man/zelynic.1"
         log_success "Man page created"
     fi
 
@@ -191,7 +191,7 @@ EOF
 # Main packaging function
 main() {
     VERSION=$(get_version)
-    log_info "Packaging oxy v${VERSION}"
+    log_info "Packaging zelynic v${VERSION}"
 
     # Create dist directory
     install -dm755 dist

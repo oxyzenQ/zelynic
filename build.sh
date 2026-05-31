@@ -1,6 +1,6 @@
 #!/bin/bash
 # =============================================================================
-# OXY BUILD AUTOMATION SCRIPT
+# ZELYNIC BUILD AUTOMATION SCRIPT
 # =============================================================================
 # Optimized build script with intelligent core detection and advanced caching
 # Author: Rezky_nightky
@@ -21,11 +21,11 @@ readonly CYAN='\033[0;36m'
 readonly NC='\033[0m'
 
 # Configuration with intelligent defaults
-readonly PROJECT_NAME="oxy"
+readonly PROJECT_NAME="zelynic"
 
 # Read version from Cargo.toml (single source of truth)
-OXY_VERSION=$(grep '^version = ' Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/' || echo "unknown")
-readonly OXY_VERSION
+ZELYNIC_VERSION=$(grep '^version = ' Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/' || echo "unknown")
+readonly ZELYNIC_VERSION
 
 default_target() {
         if command -v rustc >/dev/null 2>&1; then
@@ -39,7 +39,7 @@ default_target() {
         echo "x86_64-unknown-linux-gnu"
 }
 
-readonly TARGET="${OXY_TARGET:-$(default_target)}"
+readonly TARGET="${ZELYNIC_TARGET:-$(default_target)}"
 export RUST_BACKTRACE="${RUST_BACKTRACE:-1}"
 
 # Intelligent job calculation: 75% of cores, min 1, max 8 for heat control
@@ -52,7 +52,7 @@ calculate_jobs() {
         echo "$jobs"
 }
 
-MAX_JOBS="${OXY_JOBS:-$(calculate_jobs)}"
+MAX_JOBS="${ZELYNIC_JOBS:-$(calculate_jobs)}"
 export MAKEFLAGS="-j${MAX_JOBS}"
 export CARGO_BUILD_JOBS="${MAX_JOBS}"
 
@@ -410,7 +410,7 @@ run_benchmark() {
 show_help() {
         cat <<EOF
 ╔════════════════════════════════════════════════════════════════╗
-║              Oxy Build Script - v${OXY_VERSION}                       ║
+║           Zelynic Build Script - v${ZELYNIC_VERSION}                  ║
 ║        Easy userspace bandwidth manager for Linux            ║
 ╚════════════════════════════════════════════════════════════════╝
 
@@ -440,15 +440,15 @@ OPTIONS:
     --verbose       Enable verbose output
 
 ENVIRONMENT VARIABLES:
-    OXY_JOBS         Override CPU core limit (default: auto)
-    OXY_TARGET       Override build target (default: rustc host target)
+    ZELYNIC_JOBS     Override CPU core limit (default: auto)
+    ZELYNIC_TARGET   Override build target (default: rustc host target)
     RUST_BACKTRACE   Control backtrace verbosity (default: 1)
 
 EXAMPLES:
     ./build.sh release                  # Build release version
     ./build.sh check-all                # Run all quality checks
     ./build.sh ci                       # Run CI pipeline
-    OXY_JOBS=4 ./build.sh all           # Full build with 4 cores
+    ZELYNIC_JOBS=4 ./build.sh all       # Full build with 4 cores
     ./build.sh --verbose release        # Verbose release build
 
 TOOLS INTEGRATION:

@@ -1,11 +1,11 @@
 [package]
-name = "oxy"
+name = "zelynic"
 version = "2.0.0"
 edition = "2021"
 description = "Easy userspace bandwidth manager for Linux"
 authors = ["Rezky_nightky"]
-license = "MIT"
-repository = "https://github.com/oxyzenq/oxy"
+license = "GPL-3.0-only"
+repository = "https://github.com/oxyzenq/zelynic"
 readme = "README.md"
 keywords = ["bandwidth", "network", "linux", "traffic-control", "rate-limiting"]
 categories = ["command-line-utilities", "network-programming"]
