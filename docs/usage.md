@@ -133,7 +133,20 @@ zelynic log --json                     # JSON output
 
 ```bash
 zelynic backend
+zelynic backend doctor
+zelynic backend doctor --json
 ```
+
+`zelynic backend` keeps the short active-backend and eBPF summary. `zelynic backend doctor` prints a read-only capability matrix and deterministic backend scores. Zelynic detects host capabilities and recommends the safest available backend; it does not claim that strict limiting works on every Linux distribution without validation.
+
+Support matrix:
+
+| Host type | Status |
+|-----------|--------|
+| Arch/CachyOS pure cgroup v2 | Tested |
+| Modern systemd + cgroup v2 distros | Expected |
+| Older Ubuntu/Debian, hybrid cgroup, containers, WSL, non-systemd distros | Partial/unknown |
+| systemd-scope backend, cgroup v1 fallback, eBPF backend | Future |
 
 ---
 

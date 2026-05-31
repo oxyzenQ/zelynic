@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-use clap::{Parser, Subcommand};
+use clap::{Args, Parser, Subcommand};
 
 /// zelynic - Easy userspace bandwidth manager for Linux
 ///
@@ -337,11 +337,30 @@ pub enum Commands {
         status: bool,
     },
 
-    /// Show backend information and eBPF capability check
+    /// Show backend information and capability checks
     ///
     /// Displays the active backend (tc/cgroup) and whether the system
-    /// supports eBPF for future use.
-    Backend,
+    /// supports eBPF for future use. Use `zelynic backend doctor` for a
+    /// detailed read-only capability matrix.
+    Backend {
+        /// Optional backend diagnostic command
+        #[command(subcommand)]
+        command: Option<BackendCommands>,
+    },
+}
+
+/// Backend diagnostics subcommands.
+#[derive(Debug, Subcommand)]
+pub enum BackendCommands {
+    /// Show detailed read-only host capability diagnostics and backend scoring
+    Doctor(BackendDoctorArgs),
+}
+
+#[derive(Debug, Args)]
+pub struct BackendDoctorArgs {
+    /// Output Backend Doctor report as JSON
+    #[arg(long)]
+    pub json: bool,
 }
 
 /// Profile management subcommands.
