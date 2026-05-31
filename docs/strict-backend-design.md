@@ -57,6 +57,17 @@ A useful bug report should include:
 
 `zelynic strict --diagnose ...` now prints most of this during an apply attempt, including why each selected PID matched, so the next fix can be based on observed host behavior rather than guesses.
 
+`zelynic backend doctor` is the read-only preflight for host capability detection. It reports kernel, cgroup, nftables, tc, conntrack, systemd, and eBPF signals, then scores backend candidates without modifying nftables, tc, or cgroups. Backend Doctor can recommend the safest available backend, but strict mode is only truly validated after a real `zelynic strict --diagnose ...` test.
+
+## Support matrix
+
+| Host type | Status |
+|-----------|--------|
+| Arch/CachyOS pure cgroup v2 | Tested |
+| Modern systemd + cgroup v2 distros | Expected |
+| Older Ubuntu/Debian, hybrid cgroup, containers, WSL, non-systemd distros | Partial/unknown |
+| systemd-scope backend, cgroup v1 fallback, eBPF backend | Future |
+
 ## Backend alternatives
 
 ### 1. Current cgroup v2 + nftables backend
