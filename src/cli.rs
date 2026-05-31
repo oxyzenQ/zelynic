@@ -180,7 +180,7 @@ pub enum Commands {
 
     /// Generate man page
     ///
-    /// Outputs a man page in roff format for oxy.
+    /// Outputs a man page in roff format for zelynic.
     /// Install by redirecting output to your man page directory.
     ///
     /// Examples:
@@ -196,11 +196,11 @@ pub enum Commands {
     /// rules are accumulating.
     #[command(verbatim_doc_comment)]
     Clean {
-        /// Perform emergency cleanup: remove ALL oxy state, rules, and cgroups.
+        /// Perform emergency cleanup: remove ALL state, rules, and cgroups.
         /// Use this when normal unstrict fails (e.g., target process has exited).
         #[arg(
             long,
-            help = "Remove ALL oxy state, nftables rules, tc objects, and cgroups"
+            help = "Remove ALL state, nftables rules, tc objects, and cgroups"
         )]
         all: bool,
     },
@@ -405,8 +405,8 @@ mod tests {
 
     #[test]
     fn strict_diagnose_flag_parses() {
-        let cli =
-            Cli::try_parse_from(["zelynic", "strict", "--diagnose", "-d", "1mb", "firefox"]).unwrap();
+        let cli = Cli::try_parse_from(["zelynic", "strict", "--diagnose", "-d", "1mb", "firefox"])
+            .unwrap();
 
         match cli.command.unwrap() {
             Commands::Strict {
@@ -421,7 +421,8 @@ mod tests {
 
     #[test]
     fn strict_diag_alias_parses() {
-        let cli = Cli::try_parse_from(["zelynic", "strict", "--diag", "-u", "250kb", "1234"]).unwrap();
+        let cli =
+            Cli::try_parse_from(["zelynic", "strict", "--diag", "-u", "250kb", "1234"]).unwrap();
 
         match cli.command.unwrap() {
             Commands::Strict {

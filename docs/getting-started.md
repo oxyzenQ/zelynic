@@ -1,6 +1,6 @@
-# Getting Started with oxy
+# Getting Started with zelynic
 
-Welcome to **oxy**, the easy userspace bandwidth manager for Linux.
+Welcome to **zelynic**, the easy userspace bandwidth manager for Linux.
 
 ## Prerequisites
 
@@ -21,34 +21,34 @@ rustc --version             # Only if building from source (1.88+)
 ### Install Script (Recommended)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/oxyzenq/oxy/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/oxyzenq/zelynic/main/install.sh | sh
 ```
 
 ### Build from Source
 
 ```bash
-git clone https://github.com/oxyzenq/oxy.git
-cd oxy
+git clone https://github.com/oxyzenq/zelynic.git
+cd zelynic
 cargo build --release
-sudo install -Dm755 target/release/oxy /usr/local/bin/oxy
+sudo install -Dm755 target/release/zelynic /usr/local/bin/zelynic
 ```
 
 ### GitHub Releases
 
-Download from [Releases](https://github.com/oxyzenq/oxy/releases) — includes SHA256 checksums.
+Download from [Releases](https://github.com/oxyzenq/zelynic/releases) — includes SHA256 checksums.
 
 ## Verify Installation
 
 ```bash
-oxy -i
+zelynic -i
 ```
 
 ```
 Version: v2.0.0
 Build: linux-x86_64 (abc1234)
 Copyright: (c) 2026 Rezky_nightky
-License: MIT
-Source: https://github.com/oxyzenq/oxy
+License: GPL-3.0
+Source: https://github.com/oxyzenq/zelynic
 ```
 
 ## Quick Start
@@ -56,27 +56,27 @@ Source: https://github.com/oxyzenq/oxy
 ### 1. Monitor Bandwidth
 
 ```bash
-oxy list                          # Table of all processes
-oxy list --live                   # Real-time TUI (recommended)
-oxy list --live 2                 # 2-second refresh
+zelynic list                          # Table of all processes
+zelynic list --live                   # Real-time TUI (recommended)
+zelynic list --live 2                 # 2-second refresh
 ```
 
 ### 2. Limit a Process
 
 ```bash
-sudo oxy strict -d 500kb -u 500kb brave
+sudo zelynic strict -d 500kb -u 500kb brave
 ```
 
 ### 3. Check Active Limits
 
 ```bash
-oxy status
+zelynic status
 ```
 
 ### 4. Remove Limits
 
 ```bash
-sudo oxy unstrict brave
+sudo zelynic unstrict brave
 ```
 
 ## Troubleshooting
@@ -86,7 +86,7 @@ sudo oxy unstrict brave
 | `ss command failed` | `sudo apt install iproute2` |
 | `root privileges required` | Use `sudo` for limiting commands |
 | `no default route found` | Ensure system is connected to a network |
-| `unknown interface 'X'` | Run `oxy --iface` to list available interfaces |
+| `unknown interface 'X'` | Run `zelynic --iface` to list available interfaces |
 
 ## Next Steps
 

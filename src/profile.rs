@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: GPL-3.0-only
 /// Named bandwidth profile management module.
 ///
 /// Provides persistent storage for named bandwidth limit profiles
@@ -204,7 +204,7 @@ pub fn list_profiles() -> Result<()> {
 
     if profiles.is_empty() {
         println!("{} No profiles found.", "Info:".yellow());
-        println!("  Create one with: oxy profile save <name> --dl <rate> --ul <rate>");
+        println!("  Create one with: zelynic profile save <name> --dl <rate> --ul <rate>");
         return Ok(());
     }
 
@@ -234,7 +234,7 @@ pub fn list_profiles() -> Result<()> {
 
     println!();
     println!(
-        "  {} Use 'oxy profile apply <name> <target>' to apply a profile",
+        "  {} Use 'zelynic profile apply <name> <target>' to apply a profile",
         "Tip:".cyan()
     );
     println!(

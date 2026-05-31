@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: MIT
-/// ratatui-based TUI module for oxy live mode.
+// SPDX-License-Identifier: GPL-3.0-only
+/// ratatui-based TUI module for zelynic live mode.
 ///
 /// Provides a premium visual experience with:
 /// - Unicode box drawing (╭─┬─╮╰─┴─╯)
@@ -246,7 +246,7 @@ impl TuiApp {
         let process_count = self.processes.len();
         let header_text = format!(
             " {} {} │ {}s │ {} │ {} proc{} │ RX: {} │ TX: {} ",
-            "oxy",
+            "zelynic",
             "live",
             self.interval_secs,
             self.interface,

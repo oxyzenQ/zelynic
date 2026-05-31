@@ -44,20 +44,20 @@ jobs:
       - name: Prepare release artifacts
         run: |
           VERSION=${GITHUB_REF_NAME#v}
-          PKG_NAME="oxy-v${VERSION}-x86_64-linux"
+          PKG_NAME="zelynic-v${VERSION}-x86_64-linux"
           mkdir -p "dist/${PKG_NAME}/man"
 
           # Copy binary
-          cp target/x86_64-unknown-linux-gnu/release/oxy "dist/${PKG_NAME}/oxy"
+          cp target/x86_64-unknown-linux-gnu/release/zelynic "dist/${PKG_NAME}/zelynic"
 
           # Copy documentation
           cp README.md LICENSE "dist/${PKG_NAME}/"
 
           # Generate man page
-          chmod +x "dist/${PKG_NAME}/oxy"
-          ./dist/${PKG_NAME}/oxy man > "dist/${PKG_NAME}/man/oxy.1" 2>/dev/null || true
-          if [ -f "dist/${PKG_NAME}/man/oxy.1" ]; then
-            gzip -f "dist/${PKG_NAME}/man/oxy.1"
+          chmod +x "dist/${PKG_NAME}/zelynic"
+          ./dist/${PKG_NAME}/zelynic man > "dist/${PKG_NAME}/man/zelynic.1" 2>/dev/null || true
+          if [ -f "dist/${PKG_NAME}/man/zelynic.1" ]; then
+            gzip -f "dist/${PKG_NAME}/man/zelynic.1"
           fi
 
           # Create tar.gz archive
@@ -108,7 +108,7 @@ jobs:
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
           CURRENT_TAG="${GITHUB_REF_NAME}"
-          PKG_NAME="oxy-v${VERSION}-x86_64-linux"
+          PKG_NAME="zelynic-v${VERSION}-x86_64-linux"
 
           # Find previous tag for changelog range
           PREV_TAG=$(git tag --sort=-version:refname | grep -v "^${CURRENT_TAG}$" | head -n 1 || true)
@@ -135,7 +135,7 @@ jobs:
           echo '### Install' >> "${RELEASE_FILE}"
           echo '```bash' >> "${RELEASE_FILE}"
           echo "tar -xzf ${PKG_NAME}.tar.gz" >> "${RELEASE_FILE}"
-          echo "sudo install -Dm755 ${PKG_NAME}/oxy /usr/local/bin/oxy" >> "${RELEASE_FILE}"
+          echo "sudo install -Dm755 ${PKG_NAME}/zelynic /usr/local/bin/zelynic" >> "${RELEASE_FILE}"
           echo '```' >> "${RELEASE_FILE}"
           echo "" >> "${RELEASE_FILE}"
 
@@ -149,10 +149,10 @@ jobs:
           # --- Quick Start ---
           echo '### Quick Start' >> "${RELEASE_FILE}"
           echo '```bash' >> "${RELEASE_FILE}"
-          echo 'oxy list --live                             # Real-time TUI dashboard' >> "${RELEASE_FILE}"
-          echo 'sudo oxy strict -d 1mb brave                # Limit bandwidth' >> "${RELEASE_FILE}"
-          echo 'sudo oxy strict --preset gaming discord      # Use preset' >> "${RELEASE_FILE}"
-          echo 'oxy --help-all                              # All commands' >> "${RELEASE_FILE}"
+          echo 'zelynic list --live                             # Real-time TUI dashboard' >> "${RELEASE_FILE}"
+          echo 'sudo zelynic strict -d 1mb brave                # Limit bandwidth' >> "${RELEASE_FILE}"
+          echo 'sudo zelynic strict --preset gaming discord      # Use preset' >> "${RELEASE_FILE}"
+          echo 'zelynic --help-all                              # All commands' >> "${RELEASE_FILE}"
           echo '```' >> "${RELEASE_FILE}"
           echo "" >> "${RELEASE_FILE}"
 
@@ -174,7 +174,7 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          name: "oxy v${{ github.ref_name }}"
+          name: "zelynic v${{ github.ref_name }}"
           files: dist/*
           body: ${{ steps.release_body.outputs.release_body }}
           draft: false

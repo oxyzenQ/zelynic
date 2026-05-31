@@ -1,20 +1,20 @@
-# oxy Usage Guide
+# zelynic Usage Guide
 
-Complete reference for all oxy commands, options, and usage patterns.
+Complete reference for all zelynic commands, options, and usage patterns.
 
 ## Command Reference
 
-### `oxy list` — Monitor Bandwidth
+### `zelynic list` — Monitor Bandwidth
 
 Displays processes with active network connections and bandwidth statistics.
 
 ```bash
-oxy list                          # Table view (default)
-oxy list --live                   # Real-time TUI dashboard
-oxy list --live 2                 # 2-second refresh
-oxy list --live --interval 3      # Explicit interval
-oxy list --verbose                # Per-connection breakdown
-oxy list --json                   # JSON for scripting
+zelynic list                          # Table view (default)
+zelynic list --live                   # Real-time TUI dashboard
+zelynic list --live 2                 # 2-second refresh
+zelynic list --live --interval 3      # Explicit interval
+zelynic list --verbose                # Per-connection breakdown
+zelynic list --json                   # JSON for scripting
 ```
 
 **TUI controls:** `q`/`Esc` quit, `j`/`k` or `↑`/`↓` scroll, `Ctrl+C` quit
@@ -23,15 +23,15 @@ oxy list --json                   # JSON for scripting
 
 ---
 
-### `oxy strict` — Apply Bandwidth Limits
+### `zelynic strict` — Apply Bandwidth Limits
 
 ```bash
-sudo oxy strict -d 500kb -u 500kb brave     # Both directions
-sudo oxy strict -d 1mb firefox               # Download only
-sudo oxy strict -u 250kb -d only 1234       # Upload only (keyword 'only')
-sudo oxy strict -d 2mb -u 2mb 8100          # By PID
-sudo oxy strict -d 10mbit -u 5mbit steam    # Bit-based units
-sudo oxy strict --preset gaming discord     # Preset profile
+sudo zelynic strict -d 500kb -u 500kb brave     # Both directions
+sudo zelynic strict -d 1mb firefox               # Download only
+sudo zelynic strict -u 250kb -d only 1234       # Upload only (keyword 'only')
+sudo zelynic strict -d 2mb -u 2mb 8100          # By PID
+sudo zelynic strict -d 10mbit -u 5mbit steam    # Bit-based units
+sudo zelynic strict --preset gaming discord     # Preset profile
 ```
 
 **Presets:**
@@ -46,87 +46,87 @@ Re-limiting the same process auto-cleans old rules.
 
 ---
 
-### `oxy unstrict` — Remove Limits
+### `zelynic unstrict` — Remove Limits
 
 ```bash
-sudo oxy unstrict brave            # By name
-sudo oxy unstrict 1234             # By PID
+sudo zelynic unstrict brave            # By name
+sudo zelynic unstrict 1234             # By PID
 ```
 
 ---
 
-### `oxy status` — Active Limits
+### `zelynic status` — Active Limits
 
 ```bash
-oxy status
+zelynic status
 ```
 
 ---
 
-### `oxy clean` — Remove Orphaned Limits
+### `zelynic clean` — Remove Orphaned Limits
 
 ```bash
-sudo oxy clean
+sudo zelynic clean
 ```
 
 ---
 
-### `oxy qos` — Priority-Based Shaping
+### `zelynic qos` — Priority-Based Shaping
 
 ```bash
-sudo oxy qos high brave            # High priority (bandwidth first)
-sudo oxy qos low wget              # Low priority (leftovers only)
-sudo oxy qos status                # Show QoS assignments
-sudo oxy qos reset                 # Clear all QoS rules
+sudo zelynic qos high brave            # High priority (bandwidth first)
+sudo zelynic qos low wget              # Low priority (leftovers only)
+zelynic qos status                # Show QoS assignments
+sudo zelynic qos reset                 # Clear all QoS rules
 ```
 
 ---
 
-### `oxy profile` — Named Profiles
+### `zelynic profile` — Named Profiles
 
 ```bash
-oxy profile save slow --dl 50kb --ul 50kb
-sudo oxy profile apply slow steam
-oxy profile list
-oxy profile delete slow
+zelynic profile save slow --dl 50kb --ul 50kb
+sudo zelynic profile apply slow steam
+zelynic profile list
+zelynic profile delete slow
 ```
 
 ---
 
-### `oxy watch` — Bandwidth Alerts
+### `zelynic watch` — Bandwidth Alerts
 
 ```bash
-oxy watch -a 500mb wget            # Alert when > 500MB total
-oxy watch -a 1gb firefox -i 30     # Check every 30 seconds
+zelynic watch -a 500mb wget            # Alert when > 500MB total
+zelynic watch -a 1gb firefox -i 30     # Check every 30 seconds
 ```
 
 ---
 
-### `oxy auto` — Auto-Throttle Daemon
+### `zelynic auto` — Auto-Throttle Daemon
 
 ```bash
-sudo oxy auto --download 100mb --upload 50mb
-sudo oxy auto --download 80mb --kill firefox
-sudo oxy auto --status
+sudo zelynic auto --download 100mb --upload 50mb
+sudo zelynic auto --download 80mb --kill firefox
+sudo zelynic auto --status
 ```
 
 ---
 
-### `oxy log` — Bandwidth History
+### `zelynic log` — Bandwidth History
 
 ```bash
-oxy log                            # Recent history
-oxy log --snapshot                 # Record current state
-oxy log --last 1h                  # Last hour
-oxy log --json                     # JSON output
+zelynic log                            # Recent history
+zelynic log --snapshot                 # Record current state
+zelynic log --last 1h                  # Last hour
+zelynic log --json                     # JSON output
 ```
 
 ---
 
-### `oxy backend` — Backend Info
+### `zelynic backend` — Backend Info
 
 ```bash
-oxy backend
+zelynic backend
 ```
 
 ---
@@ -172,6 +172,6 @@ Limiting:
 State:  /run/oxy/state.json
 Rules:  /run/oxy/oxy.nft
 
-Note: `oxy strict` intentionally avoids UID-only matching (`meta skuid`)
+Note: `zelynic strict` intentionally avoids UID-only matching (`meta skuid`)
 for enforcement because it can affect unrelated processes owned by the same user.
 ```

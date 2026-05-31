@@ -1,8 +1,8 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: GPL-3.0-only
 /// Historical bandwidth logging module.
 ///
 /// Persists bandwidth snapshots over time for trend analysis.
-/// Stores data in ~/.local/share/oxy/history/ with rotation.
+/// Stores data in ~/.local/share/zelynic/history/ with rotation.
 use anyhow::{Context, Result};
 use chrono::{DateTime, Local, Utc};
 use colored::Colorize;
@@ -122,7 +122,7 @@ pub fn show_history(hours: Option<u64>, json_output: bool) -> Result<()> {
 
     if snapshots.is_empty() {
         println!("{} No bandwidth history found.", "Info:".yellow());
-        println!("  Run 'oxy log --snapshot' to record current state.");
+        println!("  Run 'zelynic log --snapshot' to record current state.");
         return Ok(());
     }
 

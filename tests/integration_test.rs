@@ -1,4 +1,4 @@
-//! Integration tests for oxy
+//! Integration tests for zelynic
 //!
 //! These tests require root privileges and a Linux system.
 //! Run with: sudo cargo test --test integration_test
@@ -7,33 +7,33 @@ use std::process::Command;
 use std::thread;
 use std::time::Duration;
 
-/// Test helper to run oxy commands
+/// Test helper to run zelynic commands
 ///
 /// Uses the release binary if available, otherwise falls back to debug.
 fn oxy_cmd() -> Command {
-    let binary = env!("CARGO_BIN_EXE_oxy");
+    let binary = env!("CARGO_BIN_EXE_zelynic");
     let mut cmd = Command::new(binary);
     cmd.env("NO_COLOR", "1");
     cmd
 }
 
-/// Test that oxy list works
+/// Test that zelynic list works
 #[test]
 #[ignore = "requires root"]
 fn test_list_basic() {
     let output = oxy_cmd()
         .arg("list")
         .output()
-        .expect("Failed to execute oxy list");
+        .expect("Failed to execute zelynic list");
 
     assert!(
         output.status.success(),
-        "oxy list failed: {}",
+        "zelynic list failed: {}",
         String::from_utf8_lossy(&output.stderr)
     );
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(!stdout.is_empty(), "oxy list produced no output");
+    assert!(!stdout.is_empty(), "zelynic list produced no output");
 }
 
 /// Test JSON output format
@@ -44,7 +44,7 @@ fn test_list_json() {
         .arg("list")
         .arg("--json")
         .output()
-        .expect("Failed to execute oxy list --json");
+        .expect("Failed to execute zelynic list --json");
 
     assert!(output.status.success());
 
@@ -63,7 +63,7 @@ fn test_rate_parse() {
     let output = oxy_cmd()
         .args(["strict", "-d", "invalid", "12345"])
         .output()
-        .expect("Failed to execute oxy strict");
+        .expect("Failed to execute zelynic strict");
 
     assert!(!output.status.success(), "Invalid rate should fail");
 }
@@ -195,7 +195,10 @@ fn test_man_generation() {
         stdout.contains(".TH"),
         "Man page should contain roff header"
     );
-    assert!(stdout.contains("oxy"), "Man page should contain 'oxy'");
+    assert!(
+        stdout.contains("zelynic"),
+        "Man page should contain 'zelynic'"
+    );
 }
 
 /// Test backend info
@@ -226,5 +229,8 @@ fn test_version() {
     assert!(output.status.success());
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("oxy"), "Version should contain 'oxy'");
+    assert!(
+        stdout.contains("zelynic"),
+        "Version should contain 'zelynic'"
+    );
 }
