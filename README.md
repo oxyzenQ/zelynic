@@ -12,7 +12,7 @@
 > * Test across newer Linux kernels with improved cgroup v2 socket matching support
 
 <p align="center">
-  <img src="assets/oxy-logo-orig.png" alt="zelynic logo" width="240">
+  <img src="assets/zelynic-logo.png" alt="zelynic logo" width="240">
 </p>
 
 <h1 align="center">zelynic</h1>
@@ -37,6 +37,10 @@ zelynic is a Rust CLI tool for monitoring, limiting, and shaping per-process net
 
 
 ---
+
+## Renamed from Oxy
+
+Zelynic was previously named Oxy. The old repository and package name were `oxy`, and the command is now `zelynic`. Zelynic currently preserves legacy oxy runtime paths and nft/cgroup identifiers for backward compatibility. These may migrate in a future major release with a safe migration path.
 
 ## Features
 
@@ -370,7 +374,7 @@ Uses a layered approach:
                     Upload (egress)
 ┌─────────────┐     ┌──────────────┐     ┌────────────────┐
 │   Process   │────>│  Cgroup v2   │────>│  socket        │
-│   (PID)     │     │  (zelynic/pid)   │     │  cgroupv2 tag  │
+│   (PID)     │     │  (legacy oxy) │     │  cgroupv2 tag  │
 └─────────────┘     └──────────────┘     └───────┬────────┘
                                                   │
                                                   v

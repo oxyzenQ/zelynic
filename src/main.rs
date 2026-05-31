@@ -789,7 +789,7 @@ fn generate_man_page() -> anyhow::Result<()> {
     // Files section — paths preserved for backward compatibility with existing installs
     man.push_str(".SH FILES\n");
     man.push_str(".PP\n");
-    man.push_str("The following paths are legacy paths preserved for backward compatibility with existing installations:\n");
+    man.push_str("Zelynic currently preserves legacy oxy runtime paths and nft/cgroup identifiers for backward compatibility. These may migrate in a future major release with a safe migration path.\n");
     man.push_str(".TP\n");
     man.push_str(".I /run/oxy/state.json\n");
     man.push_str("Runtime state file containing active bandwidth limits.\n");

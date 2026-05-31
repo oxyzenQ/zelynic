@@ -154,7 +154,7 @@ The backend is auto-selected at runtime based on system capabilities.
 2. **Create cgroup** → Move process to new cgroup
 3. **Setup tc** → Add HTB qdisc and class
 4. **Apply filter** → Match cgroup classid to tc class
-5. **Persist state** → Save to `/run/oxy/state.json`
+5. **Persist state** → Save to `/run/oxy/state.json` (legacy compatibility path)
 
 ### Monitoring Flow
 
@@ -173,7 +173,7 @@ The backend is auto-selected at runtime based on system capabilities.
 
 - zelynic requires root for `tc`, `cgcreate`, and `/proc` access
 - CAP_NET_ADMIN alone is insufficient for full functionality
-- State files are stored in `/run/oxy/` with 0755 permissions
+- State files are stored in `/run/oxy/` with 0755 permissions. Zelynic currently preserves legacy oxy runtime paths and nft/cgroup identifiers for backward compatibility. These may migrate in a future major release with a safe migration path.
 
 ## Release Process
 
