@@ -141,7 +141,8 @@ pub fn detect_backend_doctor_report() -> BackendDoctorReport {
     let recommended_backend = recommend_backend(&backend_candidates).to_string();
     let notes = vec![
         "Backend Doctor does not modify nftables, tc, or cgroups.".to_string(),
-        "Strict mode is only truly validated after a real strict --diagnose test.".to_string(),
+        "Status meanings: supported = host likely has requirements; partial = requirements or implementation work remain; future = not implemented as an active strict backend.".to_string(),
+        "Strict mode is only truly validated after a real zelynic strict --diagnose test.".to_string(),
     ];
     let mut warnings = Vec::new();
 
@@ -320,20 +321,20 @@ fn score_modern_cgroupv2_nft_tc(system: &SystemInfo, caps: &CapabilityMatrix) ->
 fn score_systemd_scope_wrapper(system: &SystemInfo) -> BackendCandidate {
     let mut missing = Vec::new();
     let mut risk_notes = Vec::new();
-    let mut score = 35u8;
+    let mut score = 30u8;
 
     if system.systemd.available {
-        score += 18;
+        score += 15;
     } else {
         missing.push("systemd".to_string());
     }
     if system.systemd_run.available {
-        score += 17;
+        score += 15;
     } else {
         missing.push("systemd-run".to_string());
     }
     if matches!(system.cgroup_mode, CgroupMode::PureV2 | CgroupMode::Hybrid) {
-        score += 10;
+        score += 8;
     } else {
         missing.push("cgroup v2 hierarchy".to_string());
     }
@@ -348,7 +349,7 @@ fn score_systemd_scope_wrapper(system: &SystemInfo) -> BackendCandidate {
         } else {
             BackendCandidateStatus::Unavailable
         },
-        confidence: score.min(80),
+        confidence: score.min(68),
         missing_requirements: missing,
         risk_notes,
     }
@@ -389,7 +390,7 @@ fn score_interface_global_fallback(system: &SystemInfo) -> BackendCandidate {
     BackendCandidate {
         name: "interface-global-fallback".to_string(),
         status: if system.tc.available {
-            BackendCandidateStatus::Supported
+            BackendCandidateStatus::Partial
         } else {
             BackendCandidateStatus::Unavailable
         },
@@ -405,8 +406,8 @@ fn score_interface_global_fallback(system: &SystemInfo) -> BackendCandidate {
 
 fn score_ebpf_future(caps: &CapabilityMatrix) -> BackendCandidate {
     let confidence = match caps.ebpf {
-        CapabilityStatus::Yes => 75,
-        CapabilityStatus::RequiresRoot | CapabilityStatus::Likely => 65,
+        CapabilityStatus::Yes => 50,
+        CapabilityStatus::RequiresRoot | CapabilityStatus::Likely => 45,
         CapabilityStatus::Unknown => 40,
         CapabilityStatus::No => 20,
     };
@@ -445,10 +446,10 @@ fn print_backend_doctor_report(report: &BackendDoctorReport) {
     println!();
 
     println!("{}", "System:".bold());
-    println!("Kernel: {}", report.system.kernel);
-    println!("cgroup: {}", report.system.cgroup_mode);
+    println!("  Kernel: {}", report.system.kernel);
+    println!("  cgroup: {}", report.system.cgroup_mode);
     println!(
-        "cgroup2 mount: {}",
+        "  cgroup2 mount: {}",
         report
             .system
             .cgroup2_mount_path
@@ -456,57 +457,60 @@ fn print_backend_doctor_report(report: &BackendDoctorReport) {
             .unwrap_or("not found")
     );
     println!(
-        "cgroup2 flags: {}",
+        "  cgroup2 flags: {}",
         if report.system.cgroup2_mount_flags.is_empty() {
             "unknown".to_string()
         } else {
             report.system.cgroup2_mount_flags.join(",")
         }
     );
-    println!("nftables: {}", tool_display(&report.system.nftables));
-    println!("tc/iproute2: {}", tool_display(&report.system.tc));
-    println!("systemd: {}", tool_display(&report.system.systemd));
-    println!("systemd-run: {}", tool_display(&report.system.systemd_run));
+    println!("  nftables: {}", tool_display(&report.system.nftables));
+    println!("  tc/iproute2: {}", tool_display(&report.system.tc));
+    println!("  systemd: {}", tool_display(&report.system.systemd));
+    println!(
+        "  systemd-run: {}",
+        tool_display(&report.system.systemd_run)
+    );
     println!();
 
     println!("{}", "Capabilities:".bold());
-    println!("cgroup v2: {}", report.capabilities.cgroup_v2);
+    println!("  cgroup v2: {}", report.capabilities.cgroup_v2);
     println!(
-        "nft socket cgroupv2: {}",
+        "  nft socket cgroupv2: {}",
         report.capabilities.nft_socket_cgroupv2
     );
-    println!("tc HTB: {}", report.capabilities.tc_htb);
-    println!("fw filter: {}", report.capabilities.fw_filter);
-    println!("conntrack mark: {}", report.capabilities.conntrack_mark);
-    println!("BPF filesystem: {}", report.capabilities.bpf_fs_mounted);
-    println!("eBPF: {}", ebpf_display(report.capabilities.ebpf));
+    println!("  tc HTB: {}", report.capabilities.tc_htb);
+    println!("  fw filter: {}", report.capabilities.fw_filter);
+    println!("  conntrack mark: {}", report.capabilities.conntrack_mark);
+    println!("  BPF filesystem: {}", report.capabilities.bpf_fs_mounted);
+    println!("  eBPF: {}", ebpf_display(report.capabilities.ebpf));
     println!();
 
     println!("{}", "Backend candidates:".bold());
     for candidate in &report.backend_candidates {
         println!(
-            "{}: {}, confidence {}%",
+            "  {}: {}, confidence {}%",
             candidate.name, candidate.status, candidate.confidence
         );
         if !candidate.missing_requirements.is_empty() {
-            println!("  missing: {}", candidate.missing_requirements.join(", "));
+            println!("    missing: {}", candidate.missing_requirements.join(", "));
         }
         if !candidate.risk_notes.is_empty() {
-            println!("  risks: {}", candidate.risk_notes.join("; "));
+            println!("    risks: {}", candidate.risk_notes.join("; "));
         }
     }
     println!();
 
     println!("{}", "Recommended:".bold());
-    println!("{}", report.recommended_backend);
+    println!("  {}", report.recommended_backend);
     println!();
 
     println!("{}", "Notes:".bold());
     for note in &report.notes {
-        println!("- {}", note);
+        println!("  - {}", note);
     }
     for warning in &report.warnings {
-        println!("- {}", warning);
+        println!("  - {}", warning);
     }
 }
 
@@ -707,6 +711,41 @@ mod tests {
     }
 
     #[test]
+    fn non_active_backends_use_partial_or_future_readiness() {
+        let system = system(CgroupMode::PureV2, true, true, true);
+        let caps = CapabilityMatrix {
+            cgroup_v2: CapabilityStatus::Yes,
+            nft_socket_cgroupv2: CapabilityStatus::Likely,
+            tc_htb: CapabilityStatus::Likely,
+            fw_filter: CapabilityStatus::Likely,
+            conntrack_mark: CapabilityStatus::Likely,
+            bpf_fs_mounted: CapabilityStatus::Yes,
+            ebpf: CapabilityStatus::RequiresRoot,
+        };
+
+        let candidates = score_backend_candidates(&system, &caps);
+        let systemd = candidates
+            .iter()
+            .find(|candidate| candidate.name == "systemd-scope-wrapper")
+            .unwrap();
+        let interface = candidates
+            .iter()
+            .find(|candidate| candidate.name == "interface-global-fallback")
+            .unwrap();
+        let ebpf = candidates
+            .iter()
+            .find(|candidate| candidate.name == "ebpf-future")
+            .unwrap();
+
+        assert_eq!(systemd.status, BackendCandidateStatus::Partial);
+        assert!((65..=70).contains(&systemd.confidence));
+        assert_eq!(interface.status, BackendCandidateStatus::Partial);
+        assert_eq!(interface.confidence, 50);
+        assert_eq!(ebpf.status, BackendCandidateStatus::Future);
+        assert!((40..=50).contains(&ebpf.confidence));
+    }
+
+    #[test]
     fn missing_nft_makes_modern_backend_unavailable_or_partial() {
         let system = system(CgroupMode::PureV2, false, true, true);
         let caps = CapabilityMatrix {
@@ -732,7 +771,7 @@ mod tests {
     }
 
     #[test]
-    fn recommendation_falls_back_when_modern_is_unavailable() {
+    fn recommendation_prefers_legacy_v1_over_conceptual_interface_fallback() {
         let system = system(CgroupMode::V1Legacy, false, true, false);
         let caps = CapabilityMatrix {
             cgroup_v2: CapabilityStatus::No,
@@ -746,7 +785,7 @@ mod tests {
 
         let candidates = score_backend_candidates(&system, &caps);
 
-        assert_eq!(recommend_backend(&candidates), "interface-global-fallback");
+        assert_eq!(recommend_backend(&candidates), "legacy-cgroup-v1-net-cls");
     }
 
     #[test]
