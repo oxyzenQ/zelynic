@@ -269,6 +269,8 @@ sudo zelynic --iface eth0 strict -d 1mb brave
 sudo zelynic --iface enp3s0 qos high firefox
 ```
 
+For strict limits, the interface is auto-detected when `zelynic strict` is applied by reading the current default route. If the host later switches from WiFi to Ethernet, VPN, tethering, or another default route, upload shaping can remain attached to the old interface. For now, run `sudo zelynic unstrict <target>` and re-apply `zelynic strict` after the network changes. `zelynic status` warns when saved limits are attached to a different interface than the current default route.
+
 ### QoS Priority Shaping
 
 Assign priority tiers instead of hard limits. High priority processes get bandwidth first; idle bandwidth from low-priority processes redistributes automatically:
