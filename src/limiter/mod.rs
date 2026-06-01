@@ -57,6 +57,7 @@ mod cleanup;
 mod diagnostics;
 mod nft;
 mod process;
+mod refresh;
 mod state;
 mod tc;
 
@@ -73,6 +74,7 @@ pub use process::{
     get_process_name, resolve_pids, resolve_pids_detailed, resolve_process_tree,
     ProcessMatchReason, ResolvedPid,
 };
+pub use refresh::refresh_limit;
 pub use state::{LimitRecord, ZelynicState};
 pub use tc::next_class_id;
 

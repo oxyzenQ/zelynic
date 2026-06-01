@@ -52,6 +52,24 @@ line contains the target word. Use a numeric PID when exact targeting is needed.
 
 ---
 
+### `zelynic refresh` — Refresh Respawned Targets
+
+```bash
+sudo zelynic refresh brave
+```
+
+Reloads, tabs, and child processes normally remain limited while they stay in
+the existing target cgroup. If a browser or app is closed completely and
+reopened, the new top-level PIDs start in the normal system cgroup. `refresh`
+requires an existing active strict state, discovers current matching PIDs, moves
+only missing live PIDs into the existing target cgroup, and avoids duplicating
+nftables tables, tc classes, or tc filters.
+
+If no active state exists, run `zelynic strict` first or re-run `zelynic strict`
+to replace the old limit intentionally.
+
+---
+
 ### `zelynic unstrict` — Remove Limits
 
 ```bash
