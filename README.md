@@ -106,6 +106,11 @@ sudo install -Dm755 zelynic-v2.0.0-x86_64-linux/zelynic /usr/local/bin/zelynic
 
 Verify the download with SHA256 checksums published alongside each release.
 
+Release naming convention:
+
+- Tag: `v2.0.0`
+- Title: `Zelynic v2.0.0 Renaissance`
+
 ### From Source
 
 ```bash
