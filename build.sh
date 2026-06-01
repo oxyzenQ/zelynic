@@ -83,6 +83,11 @@ log_step() {
         echo -e "${CYAN}[→]${NC} $1"
 }
 
+cargo_subcommand_available() {
+        local subcommand="$1"
+        cargo "${subcommand}" --version >/dev/null 2>&1
+}
+
 # =============================================================================
 # Toolchain & Environment Setup
 # =============================================================================
@@ -177,7 +182,7 @@ update_dependencies() {
         fi
 
         # Security audit
-        if command -v cargo-audit &>/dev/null; then
+        if cargo_subcommand_available audit; then
                 if cargo audit --quiet 2>/dev/null; then
                         log_success "Security audit passed"
                 else
@@ -307,7 +312,7 @@ run_fmt_fix() {
 run_audit() {
         log_step "Running security audit..."
 
-        if ! command -v cargo-audit &>/dev/null; then
+        if ! cargo_subcommand_available audit; then
                 log_warning "cargo-audit not installed (skipping). Install: cargo install cargo-audit --locked"
                 return 0
         fi
@@ -323,7 +328,7 @@ run_audit() {
 run_deny_check() {
         log_step "Checking dependency policies..."
 
-        if ! command -v cargo-deny &>/dev/null; then
+        if ! cargo_subcommand_available deny; then
                 log_warning "cargo-deny not installed (skipping). Install: cargo install cargo-deny --locked"
                 return 0
         fi
@@ -425,7 +430,7 @@ COMMANDS:
     bench           Run benchmarks
 
     check           Quick checks (fmt + clippy)
-    check-all       Comprehensive checks (fmt + clippy + test + audit + deny)
+    check-all       Recommended local quality gate (fmt + clippy + test + audit + deny)
     fmt             Format code
     clean           Clean build artifacts
     update          Update dependencies and audit
@@ -446,7 +451,7 @@ ENVIRONMENT VARIABLES:
 
 EXAMPLES:
     ./build.sh release                  # Build release version
-    ./build.sh check-all                # Run all quality checks
+    ./build.sh check-all                # Recommended before commits/PRs
     ./build.sh ci                       # Run CI pipeline
     ZELYNIC_JOBS=4 ./build.sh all       # Full build with 4 cores
     ./build.sh --verbose release        # Verbose release build
@@ -454,8 +459,10 @@ EXAMPLES:
 TOOLS INTEGRATION:
     sccache   - Build caching (install: cargo install sccache)
     nextest   - Fast test runner (install: cargo install cargo-nextest)
-    audit     - Security auditing (install: cargo install cargo-audit)
-    deny      - Dependency policies (install: cargo install cargo-deny)
+    audit     - Security auditing (optional; missing tool warns/skips)
+                install: cargo install cargo-audit --locked
+    deny      - Dependency policies (optional; missing tool warns/skips)
+                install: cargo install cargo-deny --locked
 
 EOF
 }

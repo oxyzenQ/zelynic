@@ -14,7 +14,7 @@ use std::path::Path;
 use crate::monitor::{aggregate_by_process, collect_bandwidth_stats, ProcessBandwidth};
 
 /// Directory for history files.
-const HISTORY_DIR: &str = "/run/oxy/history";
+const HISTORY_DIR: &str = "/run/zelynic/history";
 /// Maximum number of snapshot files to keep (rotation).
 const MAX_HISTORY_FILES: usize = 100;
 
