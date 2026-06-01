@@ -6,6 +6,7 @@
 /// traffic control (tc) with HTB qdisc and cgroups for rate limiting,
 /// and the `ss` utility for bandwidth monitoring.
 mod auto;
+mod capabilities;
 mod cli;
 mod ebpf;
 mod info;
@@ -23,7 +24,7 @@ use clap::{CommandFactory, Parser};
 use clap_complete::{generate, Shell};
 use colored::Colorize;
 
-use cli::{Cli, Commands, ProfileCommands, QosCommands};
+use cli::{BackendCommands, Cli, Commands, ProfileCommands, QosCommands};
 
 fn main() -> Result<()> {
     // Handle -v (lowercase) before clap parsing, since clap reserves -V for --version
@@ -272,11 +273,16 @@ fn main() -> Result<()> {
             generate_man_page()?;
         }
 
-        Some(Commands::Backend) => {
-            ebpf::print_backend_info();
-            println!();
-            ebpf::check_ebpf_support().print_status();
-        }
+        Some(Commands::Backend { command }) => match command {
+            Some(BackendCommands::Doctor(args)) => {
+                capabilities::run_backend_doctor(args.json)?;
+            }
+            None => {
+                ebpf::print_backend_info();
+                println!();
+                ebpf::check_ebpf_support().print_status();
+            }
+        },
 
         None => {
             // No subcommand: print help
@@ -595,13 +601,15 @@ fn print_help_all() {
     println!(
         "  {} {}",
         "backend".green().bold(),
-        "— Show backend info and eBPF capability check".dimmed()
+        "— Show backend info and capability checks".dimmed()
     );
     println!(
-        "    {} Shows active backend (tc/cgroup) and eBPF support status.\n",
+        "    {} Shows active backend summary or a read-only Backend Doctor matrix.\n",
         "  ".dimmed()
     );
     println!("    {} Usage: zelynic backend", "  ".dimmed());
+    println!("    {} Usage: zelynic backend doctor", "  ".dimmed());
+    println!("    {} Usage: zelynic backend doctor --json", "  ".dimmed());
     println!();
 
     // --- completions ---
