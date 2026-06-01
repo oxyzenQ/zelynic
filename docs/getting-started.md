@@ -44,7 +44,7 @@ zelynic -i
 ```
 
 ```
-Version: v2.0.0
+Version: v2.1.0
 Build: linux-x86_64 (abc1234)
 Copyright: (c) 2026 Rezky_nightky
 License: GPL-3.0
