@@ -70,6 +70,19 @@ to replace the old limit intentionally.
 
 ---
 
+### Existing Connections
+
+`zelynic strict` applies to new connections after the target is moved into the
+Zelynic cgroup. An already-running download, stream, or speed test may continue
+on its existing socket until the request reconnects. For predictable results,
+apply strict before starting the network activity, or reload/restart the target's
+network request after strict is applied.
+
+Zelynic does not flush conntrack entries or forcibly reset existing connections
+by default.
+
+---
+
 ### `zelynic unstrict` — Remove Limits
 
 ```bash
