@@ -110,8 +110,13 @@ jobs:
           CURRENT_TAG="${GITHUB_REF_NAME}"
           PKG_NAME="zelynic-v${VERSION}-x86_64-linux"
 
-          # Find previous tag for changelog range
-          PREV_TAG=$(git tag --sort=-version:refname | grep -v "^${CURRENT_TAG}$" | head -n 1 || true)
+          # Find previous stable release tag for changelog range.
+          # Snapshot/pre-release helper tags such as v2.0.0-stable-snapshot
+          # must not be used as the baseline for a stable release.
+          PREV_TAG=$(git tag --sort=-version:refname \
+            | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' \
+            | grep -v "^${CURRENT_TAG}$" \
+            | head -n 1 || true)
 
           # Build changelog (last 20 non-trivial commits only)
           if [ -n "${PREV_TAG}" ]; then

@@ -411,34 +411,33 @@ Uses the `ss` (socket statistics) command to discover all active TCP/UDP sockets
 
 Uses a layered approach:
 
-1. **HTB qdisc** — Hierarchical Token Bucket queueing discipline provides the rate-limiting mechanism
-2. **Traffic classes** — Each limited process gets its own tc class with configurable rate/ceil
-3. **Cgroup v2** — Tags traffic originating from specific processes using socket cgroupv2 classification
-4. **nftables** — Marks packets in prerouting for download (ingress) direction
-5. **tc filters** — Routes tagged traffic to the appropriate class for enforcement
+1. **Cgroup v2** — Places target PIDs in `/sys/fs/cgroup/zelynic/target_<name>`.
+2. **nftables socket matching** — Matches target sockets with `socket cgroupv2`.
+3. **Packet and conntrack marks** — Marks target flows so upload and download can be identified.
+4. **tc fw filter + HTB class** — Shapes upload/egress traffic on the selected interface.
+5. **nftables input policer** — Limits marked download/ingress responses with `limit/drop`.
 
 ### How It Works
 
-```
-                    Upload (egress)
-┌─────────────┐     ┌──────────────┐     ┌────────────────┐
-│   Process   │────>│  Cgroup v2   │────>│  socket        │
-│   (PID)     │     │  (zelynic)   │     │  cgroupv2 tag  │
-└─────────────┘     └──────────────┘     └───────┬────────┘
-                                                  │
-                                                  v
-┌─────────────┐     ┌──────────────┐     ┌────────────────┐
-│  Network    │<────│  tc filter   │<────│  tc HTB qdisc  │
-│  Interface  │     │  (cgroup     │     │  (rate limit)  │
-│  (eth0)     │     │   match)     │     │                │
-└─────────────┘     └──────────────┘     └────────────────┘
+```text
+Upload / egress
+  Process PID
+    -> cgroup v2 target (/sys/fs/cgroup/zelynic/target_<name>)
+    -> nft output: socket cgroupv2 match
+    -> meta mark / ct mark
+    -> tc fw filter
+    -> HTB class
+    -> network interface
 
-                    Download (ingress)
-┌─────────────┐     ┌──────────────┐     ┌────────────────┐
-│  Network   │────>│  nftables    │────>│  tc HTB qdisc  │
-│  Interface  │     │  (prerouting │     │  (rate limit)  │
-│  (eth0)     │     │   mark)      │     │                │
-└─────────────┘     └──────────────┘     └────────────────┘
+Download / ingress
+  Process opens connection
+    -> nft output marks socket/flow
+    -> conntrack mark is stored
+
+  Incoming response
+    -> nft input matches ct mark
+    -> nft limit/drop policer
+    -> process receives limited download
 ```
 
 ## Package Information
