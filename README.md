@@ -43,6 +43,25 @@ The v2.0.0 Renaissance release validates `zelynic strict` on tested modern cgrou
 
 This does not guarantee identical behavior on every Linux distribution. Hosts need cgroup v2, nftables, and tc support, and `zelynic strict --diagnose` should be used when validating or troubleshooting a new environment. See [docs/validation.md](docs/validation.md) for details.
 
+## Backend Doctor
+
+Zelynic detects host capabilities and recommends the safest available backend. The read-only Backend Doctor checks kernel, cgroup, nftables, tc, conntrack, systemd, and eBPF signals without modifying nftables, tc, or cgroups:
+
+```bash
+zelynic backend              # Summary and eBPF capability check
+zelynic backend doctor       # Detailed capability matrix
+zelynic backend doctor --json
+```
+
+Support matrix:
+
+| Host type | Status |
+|-----------|--------|
+| Arch/CachyOS pure cgroup v2 | Tested |
+| Modern systemd + cgroup v2 distros | Expected |
+| Older Ubuntu/Debian, hybrid cgroup, containers, WSL, non-systemd distros | Partial/unknown |
+| systemd-scope backend, cgroup v1 fallback, eBPF backend | Future |
+
 ## Features
 
 - **Monitor** bandwidth usage per process/program with cumulative and real-time rates
@@ -144,7 +163,7 @@ COMMANDS:
     watch                   Monitor and alert on bandwidth threshold
     auto                    Auto-throttle daemon mode
     log                     Bandwidth usage history
-    backend                 Show backend and eBPF support status
+    backend                 Show backend info and capability checks
     completions             Generate shell completions
     man                     Generate man page
 ```
