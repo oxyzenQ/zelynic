@@ -158,6 +158,10 @@ fn main() -> Result<()> {
             limiter::remove_limit(&target)?;
         }
 
+        Some(Commands::Refresh { target }) => {
+            limiter::refresh_limit(&target)?;
+        }
+
         Some(Commands::Status) => {
             limiter::list_active_limits()?;
         }
@@ -449,6 +453,27 @@ fn print_help_all() {
     );
     println!();
 
+    // --- refresh ---
+    println!(
+        "  {} {}",
+        "refresh".green().bold(),
+        "— Move respawned target PIDs into an existing limit".dimmed()
+    );
+    println!(
+        "    {} Reuses existing state, cgroup, nftables rules, and tc filters.\n",
+        "  ".dimmed()
+    );
+    println!("    {} Usage:", "  ".dimmed());
+    println!(
+        "    {} sudo zelynic refresh brave        # Refresh reopened browser PIDs",
+        "  ".dimmed()
+    );
+    println!(
+        "    {} sudo zelynic refresh 1234         # Refresh by PID target",
+        "  ".dimmed()
+    );
+    println!();
+
     // --- status ---
     println!(
         "  {} {}",
@@ -688,6 +713,9 @@ fn print_help_all() {
     println!("  # Remove limits");
     println!("  sudo zelynic unstrict brave");
     println!();
+    println!("  # Refresh a reopened/respawned target without duplicating rules");
+    println!("  sudo zelynic refresh brave");
+    println!();
     println!("  # Custom profile workflow");
     println!("  zelynic profile save slow --dl 50kb --ul 50kb");
     println!("  sudo zelynic profile apply slow steam");
@@ -794,15 +822,15 @@ fn generate_man_page() -> anyhow::Result<()> {
     man.push_str(".B -i, --info\n");
     man.push_str("Print detailed package information.\n");
 
-    // Files section — paths preserved for backward compatibility with existing installs
+    // Files section
     man.push_str(".SH FILES\n");
     man.push_str(".PP\n");
-    man.push_str("Zelynic currently preserves legacy oxy runtime paths and nft/cgroup identifiers for backward compatibility. These may migrate in a future major release with a safe migration path.\n");
+    man.push_str("Zelynic uses the zelynic runtime namespace for state, cgroups, and nftables identifiers.\n");
     man.push_str(".TP\n");
-    man.push_str(".I /run/oxy/state.json\n");
+    man.push_str(".I /run/zelynic/state.json\n");
     man.push_str("Runtime state file containing active bandwidth limits.\n");
     man.push_str(".TP\n");
-    man.push_str(".I /sys/fs/cgroup/oxy/\n");
+    man.push_str(".I /sys/fs/cgroup/zelynic/\n");
     man.push_str("Cgroup directory for process classification.\n");
 
     // Examples section
@@ -819,6 +847,9 @@ fn generate_man_page() -> anyhow::Result<()> {
     man.push_str(".TP\n");
     man.push_str(".B zelynic unstrict firefox\n");
     man.push_str("Remove all limits from Firefox.\n");
+    man.push_str(".TP\n");
+    man.push_str(".B zelynic refresh firefox\n");
+    man.push_str("Move reopened or respawned Firefox PIDs into the existing limit without duplicating rules.\n");
     man.push_str(".TP\n");
     man.push_str(".B zelynic status\n");
     man.push_str("Show all active bandwidth limits.\n");

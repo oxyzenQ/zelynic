@@ -35,7 +35,7 @@ zelynic is a Rust CLI tool for monitoring, limiting, and shaping per-process net
 
 ## Renamed from Oxy
 
-Zelynic was previously named Oxy. The old repository and package name were `oxy`, and the command is now `zelynic`. Zelynic currently preserves legacy oxy runtime paths and nft/cgroup identifiers for backward compatibility. These may migrate in a future major release with a safe migration path.
+Zelynic was previously named Oxy. The old repository and package name were `oxy`, and the command is now `zelynic`. Runtime state, cgroups, and nftables identifiers now use the `zelynic` namespace; v2.0.0-era `oxy` runtime artifacts are treated as legacy cleanup targets.
 
 ## Renaissance Validation
 
@@ -106,6 +106,11 @@ sudo install -Dm755 zelynic-v2.0.0-x86_64-linux/zelynic /usr/local/bin/zelynic
 
 Verify the download with SHA256 checksums published alongside each release.
 
+Release naming convention:
+
+- Tag: `v2.0.0`
+- Title: `Zelynic v2.0.0 Renaissance`
+
 ### From Source
 
 ```bash
@@ -156,6 +161,7 @@ COMMANDS:
     list                    List network bandwidth usage per process
     strict                  Set bandwidth limits for a process
     unstrict                Remove all bandwidth limits
+    refresh                 Refresh an existing limit after process respawn
     status                  Show active bandwidth limits
     clean                   Clean up orphaned bandwidth limits
     profile                 Manage named bandwidth profiles
@@ -224,6 +230,22 @@ sudo zelynic strict -d 500kb brave       # apply limit
 sudo zelynic strict -d 10mb brave        # auto-overrides to 10mb
 ```
 
+Reloads, tabs, and child processes normally remain limited while the browser
+process tree stays inside the target cgroup. If the application is closed
+completely and reopened, run `refresh` to move the new PIDs into the existing
+limit without duplicating nftables or tc rules:
+
+```bash
+sudo zelynic refresh brave
+```
+
+Strict applies to new connections after the target has been moved into the
+Zelynic cgroup. An already-running download or speed test can keep using its
+existing socket until the request reconnects. Apply `zelynic strict` before
+starting the network activity, or reload/restart the target's network request
+after strict is applied. Zelynic does not flush conntrack entries or forcibly
+reset existing connections by default.
+
 ### Remove Bandwidth Limits (unstrict)
 
 Remove all bandwidth restrictions from a process:
@@ -235,6 +257,11 @@ sudo zelynic unstrict brave
 # By PID
 sudo zelynic unstrict 8100
 ```
+
+When available, strict records the process's original cgroup before moving it.
+`unstrict` tries to restore live PIDs to that recorded cgroup safely; if the
+destination cannot be validated, Zelynic warns and falls back to the Zelynic
+parent cgroup instead of guessing systemd paths.
 
 ### Show Active Limits
 
@@ -263,6 +290,8 @@ zelynic --iface wlan0 list --live
 sudo zelynic --iface eth0 strict -d 1mb brave
 sudo zelynic --iface enp3s0 qos high firefox
 ```
+
+For strict limits, the interface is auto-detected when `zelynic strict` is applied by reading the current default route. If the host later switches from WiFi to Ethernet, VPN, tethering, or another default route, upload shaping can remain attached to the old interface. For now, run `sudo zelynic unstrict <target>` and re-apply `zelynic strict` after the network changes. `zelynic status` warns when saved limits are attached to a different interface than the current default route.
 
 ### QoS Priority Shaping
 
@@ -394,7 +423,7 @@ Uses a layered approach:
                     Upload (egress)
 ┌─────────────┐     ┌──────────────┐     ┌────────────────┐
 │   Process   │────>│  Cgroup v2   │────>│  socket        │
-│   (PID)     │     │  (legacy oxy) │     │  cgroupv2 tag  │
+│   (PID)     │     │  (zelynic)   │     │  cgroupv2 tag  │
 └─────────────┘     └──────────────┘     └───────┬────────┘
                                                   │
                                                   v
@@ -434,7 +463,7 @@ Source: https://github.com/oxyzenq/zelynic
 ## Building
 
 ```bash
-# Quick quality checks
+# Recommended local quality gate for Rust/core changes
 ./build.sh check-all
 
 # Build release binary
@@ -443,6 +472,18 @@ Source: https://github.com/oxyzenq/zelynic
 # Full CI pipeline (checks + release build)
 ./build.sh ci
 ```
+
+Manual fallback:
+
+```bash
+cargo fmt --all -- --check
+cargo clippy --all-targets --all-features -- -D warnings
+cargo test
+cargo audit
+cargo deny check all
+```
+
+See [docs/supply-chain.md](docs/supply-chain.md) for dependency policy and supply-chain check details.
 
 ## License
 

@@ -52,12 +52,49 @@ line contains the target word. Use a numeric PID when exact targeting is needed.
 
 ---
 
+### `zelynic refresh` — Refresh Respawned Targets
+
+```bash
+sudo zelynic refresh brave
+```
+
+Reloads, tabs, and child processes normally remain limited while they stay in
+the existing target cgroup. If a browser or app is closed completely and
+reopened, the new top-level PIDs start in the normal system cgroup. `refresh`
+requires an existing active strict state, discovers current matching PIDs, moves
+only missing live PIDs into the existing target cgroup, and avoids duplicating
+nftables tables, tc classes, or tc filters.
+
+If no active state exists, run `zelynic strict` first or re-run `zelynic strict`
+to replace the old limit intentionally.
+
+---
+
+### Existing Connections
+
+`zelynic strict` applies to new connections after the target is moved into the
+Zelynic cgroup. An already-running download, stream, or speed test may continue
+on its existing socket until the request reconnects. For predictable results,
+apply strict before starting the network activity, or reload/restart the target's
+network request after strict is applied.
+
+Zelynic does not flush conntrack entries or forcibly reset existing connections
+by default.
+
+---
+
 ### `zelynic unstrict` — Remove Limits
 
 ```bash
 sudo zelynic unstrict brave            # By name
 sudo zelynic unstrict 1234             # By PID
 ```
+
+When strict state includes the process's original cgroup, `unstrict` attempts to
+restore live PIDs to that cgroup before removing the target cgroup. If the
+original destination no longer exists or cannot be validated safely, Zelynic
+does not guess systemd paths; it warns and uses the Zelynic parent cgroup as the
+safe fallback when possible.
 
 ---
 
@@ -66,6 +103,10 @@ sudo zelynic unstrict 1234             # By PID
 ```bash
 zelynic status
 ```
+
+`zelynic status` also warns when active strict limits are attached to an
+interface that differs from the current default route. This can happen after
+switching between WiFi, Ethernet, VPN, tethering, or other network paths.
 
 ---
 
@@ -163,6 +204,12 @@ Support matrix:
 --help-all                         # Comprehensive help
 ```
 
+When `--iface` is not provided, Zelynic auto-detects the interface at command
+execution time from `ip route show default`. Strict upload shaping is attached
+to the interface chosen when the limit is applied. If the default route changes
+later, run `sudo zelynic unstrict <target>` and re-apply `zelynic strict` on the
+current interface.
+
 ## Supported Units
 
 | Unit | Description | Example |
@@ -188,13 +235,12 @@ Limiting:
   Download:  Egress mark → conntrack mark → nftables input ct mark
              → limit rate
 
-State:  /run/oxy/state.json
-Rules:  /run/oxy/oxy.nft
+State:  /run/zelynic/state.json
+Rules:  /run/zelynic/zelynic.nft
 
 Note: `zelynic strict` intentionally avoids UID-only matching (`meta skuid`)
 for enforcement because it can affect unrelated processes owned by the same user.
 ```
 
-Zelynic currently preserves legacy oxy runtime paths and nft/cgroup identifiers
-for backward compatibility. These may migrate in a future major release with a
-safe migration path.
+Runtime state, generated nftables rules, cgroups, and nftables identifiers use
+the `zelynic` namespace.

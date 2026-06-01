@@ -23,9 +23,9 @@ fn chrono_now() -> String {
 }
 
 /// Directory for profile storage.
-const PROFILE_DIR: &str = "/run/oxy/profiles";
+const PROFILE_DIR: &str = "/run/zelynic/profiles";
 /// Profile database file.
-const PROFILE_DB: &str = "/run/oxy/profiles/profiles.json";
+const PROFILE_DB: &str = "/run/zelynic/profiles/profiles.json";
 
 /// A named bandwidth profile.
 #[derive(Debug, Clone, Serialize, Deserialize)]

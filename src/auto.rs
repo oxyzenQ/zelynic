@@ -17,7 +17,7 @@ use crate::monitor::{aggregate_by_process, collect_bandwidth_stats};
 use crate::units::{format_bytes, BandwidthRate};
 
 /// PID file for daemon.
-const DAEMON_PID_FILE: &str = "/run/oxy/auto_daemon.pid";
+const DAEMON_PID_FILE: &str = "/run/zelynic/auto_daemon.pid";
 
 /// Auto-throttle state.
 #[derive(Debug)]

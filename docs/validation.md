@@ -76,7 +76,7 @@ Use `zelynic strict --diagnose ...` when validating a new host. Diagnostics incl
 
 ## Known Caveats
 
-- Legacy runtime paths and identifiers intentionally still use `oxy` for compatibility: `/run/oxy`, `/sys/fs/cgroup/oxy`, and `table inet oxy`.
+- Runtime paths and identifiers now use the `zelynic` namespace. v2.0.0-era `oxy` paths are historical and should only appear during legacy cleanup.
 - The strict backend is validated on tested modern cgroup v2 systems, not all Linux distributions.
 - cgroup v2, nftables, and tc/iproute2 availability are required for strict limiting.
 - Browser speed tests can briefly burst before stabilizing.

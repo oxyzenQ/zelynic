@@ -157,6 +157,21 @@ pub enum Commands {
         target: String,
     },
 
+    /// Refresh an existing limit after a target process respawns
+    ///
+    /// Discovers current PIDs for an already-limited target and moves any
+    /// missing live PIDs into the existing target cgroup. This does not create
+    /// a new limit and does not duplicate nftables or tc rules.
+    ///
+    /// Examples:
+    ///   zelynic refresh brave
+    ///   zelynic refresh 1234
+    #[command(verbatim_doc_comment)]
+    Refresh {
+        /// Target process name or PID that already has an active strict limit
+        target: String,
+    },
+
     /// Show active bandwidth limits
     ///
     /// Displays all currently active bandwidth limits that were applied
@@ -462,6 +477,16 @@ mod tests {
         match cli.command.unwrap() {
             Commands::Strict { diagnose, .. } => assert!(!diagnose),
             other => panic!("expected strict command, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn refresh_command_parses_target() {
+        let cli = Cli::try_parse_from(["zelynic", "refresh", "brave"]).unwrap();
+
+        match cli.command.unwrap() {
+            Commands::Refresh { target } => assert_eq!(target, "brave"),
+            other => panic!("expected refresh command, got {other:?}"),
         }
     }
 }
