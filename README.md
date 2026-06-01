@@ -241,6 +241,11 @@ sudo zelynic unstrict brave
 sudo zelynic unstrict 8100
 ```
 
+When available, strict records the process's original cgroup before moving it.
+`unstrict` tries to restore live PIDs to that recorded cgroup safely; if the
+destination cannot be validated, Zelynic warns and falls back to the Zelynic
+parent cgroup instead of guessing systemd paths.
+
 ### Show Active Limits
 
 ```bash

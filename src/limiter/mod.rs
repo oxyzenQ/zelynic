@@ -77,9 +77,9 @@ pub use state::{LimitRecord, ZelynicState};
 pub use tc::next_class_id;
 
 use cgroup::{
-    cgroup_level, cgroup_level_from_relative, detect_cgroup_version,
-    move_pid_to_cgroup_with_verify, pid_cgroup_v2_line, relative_cgroupv2_path,
-    remove_target_cgroup, verify_pid_in_cgroup,
+    cgroup_level, cgroup_level_from_relative, current_cgroup_v2_absolute_path,
+    detect_cgroup_version, move_pid_to_cgroup_with_verify, pid_cgroup_v2_line,
+    relative_cgroupv2_path, remove_target_cgroup_if_empty, verify_pid_in_cgroup,
 };
 use cleanup::chrono_now;
 use diagnostics::{print_state_file_diagnostic, print_strict_diagnostic_header};
@@ -299,7 +299,7 @@ pub fn apply_limit_with_diagnostics(
                         ])
                         .output();
                 }
-                let _ = remove_target_cgroup(&sanitized);
+                let _ = remove_target_cgroup_if_empty(&sanitized);
             }
 
             // Refresh nft rules
@@ -392,8 +392,10 @@ pub fn apply_limit_with_diagnostics(
     let mut vanished_pids = Vec::new();
     let mut failed_pids = Vec::new();
     let mut verified_pids = Vec::new();
+    let mut original_cgroup_paths: HashMap<u32, Option<String>> = HashMap::new();
 
     for pid in &pids {
+        original_cgroup_paths.insert(*pid, current_cgroup_v2_absolute_path(*pid));
         let result = move_pid_to_cgroup_with_verify(*pid, &target_cg_path);
         if diagnostics {
             println!(
@@ -594,6 +596,7 @@ pub fn apply_limit_with_diagnostics(
             } else {
                 None
             },
+            original_cgroup_path: original_cgroup_paths.get(pid).cloned().flatten(),
             uid: None,
         };
 

@@ -24,7 +24,7 @@ A strict apply should preserve these invariants:
 4. Create `/sys/fs/cgroup/zelynic/target_<sanitized_name>/`.
 5. Move every discovered live PID into that cgroup and verify membership through `/proc/<pid>/cgroup`.
 6. Re-resolve name-based targets before saving state so newly spawned live PIDs are not silently missed.
-7. Persist one state record per verified PID while sharing the per-target nftables mark and tc class identity.
+7. Persist one state record per verified PID while sharing the per-target nftables mark and tc class identity. When available, state also records the PID's original cgroup v2 path before movement.
 8. Install or refresh tc HTB classes and fw filters.
 9. Generate `/run/zelynic/zelynic.nft`, preflight it with `nft -c -f`, then apply it with `nft -f`.
 10. Save `/run/zelynic/state.json` only after enforcement artifacts have been created.
@@ -35,6 +35,12 @@ at apply time from `ip route show default`. The tc HTB upload side remains
 attached to that interface. If the host later switches default routes, re-run
 `unstrict` and apply strict again; automatic tc migration is intentionally not
 implemented yet.
+
+Unstrict note: Zelynic tries to restore each live PID to its recorded original
+cgroup when the path is still under `/sys/fs/cgroup`, exists, and exposes
+`cgroup.procs`. If that cannot be proven safely, Zelynic avoids guessing
+systemd/user paths and falls back to the `/sys/fs/cgroup/zelynic` parent cgroup
+or leaves the target cgroup in place when it is not empty.
 
 ## Why this is fragile
 
