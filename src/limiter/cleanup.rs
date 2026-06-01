@@ -7,7 +7,8 @@ use std::path::Path;
 use std::process::Command;
 
 use super::cgroup::{
-    check_root, list_interfaces, remove_cgroup, remove_target_cgroup, setup_cgroup,
+    check_root, get_default_interface, list_interfaces, remove_cgroup, remove_target_cgroup,
+    setup_cgroup,
 };
 use super::nft::refresh_nft_ip_rules;
 use super::process::{get_process_name, resolve_pids, sanitize_target_name};
@@ -102,6 +103,36 @@ pub(super) fn cleanup_legacy_runtime_namespace(verbose: bool) {
     }
 
     remove_legacy_cgroup_if_safe(Path::new(LEGACY_CGROUP_BASE), verbose);
+}
+
+fn print_interface_change_warning(state: &ZelynicState) {
+    let Ok(default_iface) = get_default_interface() else {
+        return;
+    };
+
+    let mut stored_ifaces: Vec<String> = state
+        .limits
+        .iter()
+        .filter(|record| record.interface != default_iface)
+        .map(|record| record.interface.clone())
+        .collect();
+    stored_ifaces.sort();
+    stored_ifaces.dedup();
+
+    if stored_ifaces.is_empty() {
+        return;
+    }
+
+    println!(
+        "{} Active limit interface differs from the current default route.",
+        "Warning:".yellow().bold()
+    );
+    println!("  Current default interface: {}", default_iface.cyan());
+    println!("  Stored limit interface(s): {}", stored_ifaces.join(", "));
+    println!(
+        "  Upload tc shaping remains attached to the stored interface. If the network changed, run 'sudo zelynic unstrict <target>' and re-apply strict on the current interface."
+    );
+    println!();
 }
 
 // ---------------------------------------------------------------------------
@@ -324,6 +355,7 @@ pub fn list_active_limits() -> Result<()> {
 
     println!("{}", "Active Bandwidth Limits:".green().bold());
     println!();
+    print_interface_change_warning(&state);
 
     for record in &state.limits {
         let process_name = get_process_name(record.pid);

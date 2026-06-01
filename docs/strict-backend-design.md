@@ -30,6 +30,12 @@ A strict apply should preserve these invariants:
 10. Save `/run/zelynic/state.json` only after enforcement artifacts have been created.
 11. Force a short reconnect window because sockets created before cgroup movement keep their old socket cgroup association.
 
+Interface note: when `--iface` is not provided, strict mode detects the interface
+at apply time from `ip route show default`. The tc HTB upload side remains
+attached to that interface. If the host later switches default routes, re-run
+`unstrict` and apply strict again; automatic tc migration is intentionally not
+implemented yet.
+
 ## Why this is fragile
 
 The backend is sensitive to details that vary by kernel, nftables version, systemd policy, and process model:

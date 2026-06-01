@@ -67,6 +67,10 @@ sudo zelynic unstrict 1234             # By PID
 zelynic status
 ```
 
+`zelynic status` also warns when active strict limits are attached to an
+interface that differs from the current default route. This can happen after
+switching between WiFi, Ethernet, VPN, tethering, or other network paths.
+
 ---
 
 ### `zelynic clean` — Remove Orphaned Limits
@@ -162,6 +166,12 @@ Support matrix:
 -V, --version                      # Long version
 --help-all                         # Comprehensive help
 ```
+
+When `--iface` is not provided, Zelynic auto-detects the interface at command
+execution time from `ip route show default`. Strict upload shaping is attached
+to the interface chosen when the limit is applied. If the default route changes
+later, run `sudo zelynic unstrict <target>` and re-apply `zelynic strict` on the
+current interface.
 
 ## Supported Units
 

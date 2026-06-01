@@ -247,21 +247,20 @@ pub fn get_default_interface() -> Result<String> {
     }
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    let default_line = stdout
-        .lines()
-        .next()
-        .context("no default route found. Is the system connected to a network?")?;
-
-    if let Some(dev_pos) = default_line.find("dev ") {
-        let after_dev = &default_line[dev_pos + 4..];
-        let iface = after_dev
-            .split_whitespace()
-            .next()
-            .context("could not parse interface name from default route")?;
-        return Ok(iface.to_string());
+    if stdout.lines().next().is_none() {
+        bail!("no default route found. Is the system connected to a network?");
     }
 
-    bail!("could not determine default network interface from route table");
+    parse_default_interface_from_route_output(&stdout).context(
+        "could not determine default network interface from route table. Is the system connected to a network?",
+    )
+}
+
+pub(super) fn parse_default_interface_from_route_output(output: &str) -> Option<String> {
+    let default_line = output.lines().next()?;
+    let dev_pos = default_line.find("dev ")?;
+    let after_dev = &default_line[dev_pos + 4..];
+    after_dev.split_whitespace().next().map(str::to_string)
 }
 
 /// List all available network interfaces on the system.
@@ -573,6 +572,38 @@ mod tests {
         assert_eq!(
             cgroup2_mount_info_from_mountinfo("1 2 0:1 / / rw - ext4 /dev/root rw"),
             "(no cgroup2 mount found in /proc/self/mountinfo)"
+        );
+    }
+
+    #[test]
+    fn default_route_parser_extracts_interface() {
+        let route = "default via 192.168.1.1 dev wlp1s0 proto dhcp src 192.168.1.42 metric 600\n";
+
+        assert_eq!(
+            parse_default_interface_from_route_output(route),
+            Some("wlp1s0".to_string())
+        );
+    }
+
+    #[test]
+    fn default_route_parser_uses_first_default_line() {
+        let route = "\
+default via 10.8.0.1 dev tun0 proto static metric 50
+default via 192.168.1.1 dev wlp1s0 proto dhcp metric 600
+";
+
+        assert_eq!(
+            parse_default_interface_from_route_output(route),
+            Some("tun0".to_string())
+        );
+    }
+
+    #[test]
+    fn default_route_parser_reports_missing_interface() {
+        assert_eq!(parse_default_interface_from_route_output(""), None);
+        assert_eq!(
+            parse_default_interface_from_route_output("default via 192.168.1.1\n"),
+            None
         );
     }
 }
