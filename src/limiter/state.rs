@@ -35,7 +35,7 @@ pub struct LimitRecord {
     /// `net_cls.classid`.  `socket cgroupv2` was added in kernel 5.7.
     #[serde(default)]
     pub cgroup_id: Option<u64>,
-    /// Path to the per-target cgroup (e.g., `/sys/fs/cgroup/oxy/target_helium`).
+    /// Path to the per-target cgroup (e.g., `/sys/fs/cgroup/zelynic/target_helium`).
     /// New for per-target isolation; None for legacy state files.
     #[serde(default)]
     pub target_cgroup_path: Option<String>,
@@ -72,5 +72,13 @@ impl ZelynicState {
             serde_json::to_string_pretty(self).context("failed to serialize zelynic state")?;
         fs::write(STATE_FILE, content).context("failed to write zelynic state file")?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn state_file_path_uses_zelynic_namespace() {
+        assert_eq!(super::super::STATE_FILE, "/run/zelynic/state.json");
     }
 }

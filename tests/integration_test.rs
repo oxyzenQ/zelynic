@@ -10,7 +10,7 @@ use std::time::Duration;
 /// Test helper to run zelynic commands
 ///
 /// Uses the release binary if available, otherwise falls back to debug.
-fn oxy_cmd() -> Command {
+fn zelynic_cmd() -> Command {
     let binary = env!("CARGO_BIN_EXE_zelynic");
     let mut cmd = Command::new(binary);
     cmd.env("NO_COLOR", "1");
@@ -21,7 +21,7 @@ fn oxy_cmd() -> Command {
 #[test]
 #[ignore = "requires root"]
 fn test_list_basic() {
-    let output = oxy_cmd()
+    let output = zelynic_cmd()
         .arg("list")
         .output()
         .expect("Failed to execute zelynic list");
@@ -40,7 +40,7 @@ fn test_list_basic() {
 #[test]
 #[ignore = "requires root"]
 fn test_list_json() {
-    let output = oxy_cmd()
+    let output = zelynic_cmd()
         .arg("list")
         .arg("--json")
         .output()
@@ -60,7 +60,7 @@ fn test_list_json() {
 #[ignore = "requires root"]
 fn test_rate_parse() {
     // Test that invalid rate produces error
-    let output = oxy_cmd()
+    let output = zelynic_cmd()
         .args(["strict", "-d", "invalid", "12345"])
         .output()
         .expect("Failed to execute zelynic strict");
@@ -85,7 +85,7 @@ fn test_strict_unstrict_cycle() {
     thread::sleep(Duration::from_millis(100));
 
     // Apply limit
-    let output = oxy_cmd()
+    let output = zelynic_cmd()
         .args(["strict", "-d", "1mb", &pid.to_string()])
         .output()
         .expect("Failed to apply limit");
@@ -97,7 +97,7 @@ fn test_strict_unstrict_cycle() {
     );
 
     // Check status
-    let output = oxy_cmd()
+    let output = zelynic_cmd()
         .arg("status")
         .output()
         .expect("Failed to get status");
@@ -110,7 +110,7 @@ fn test_strict_unstrict_cycle() {
     );
 
     // Remove limit
-    let output = oxy_cmd()
+    let output = zelynic_cmd()
         .args(["unstrict", &pid.to_string()])
         .output()
         .expect("Failed to remove limit");
@@ -130,7 +130,7 @@ fn test_strict_unstrict_cycle() {
 #[ignore = "requires root"]
 fn test_profile_save_apply() {
     // Save a test profile
-    let output = oxy_cmd()
+    let output = zelynic_cmd()
         .args(["profile", "save", "test-profile", "-d", "5mb", "-u", "2mb"])
         .output()
         .expect("Failed to save profile");
@@ -142,7 +142,7 @@ fn test_profile_save_apply() {
     );
 
     // List profiles
-    let output = oxy_cmd()
+    let output = zelynic_cmd()
         .args(["profile", "list"])
         .output()
         .expect("Failed to list profiles");
@@ -155,7 +155,7 @@ fn test_profile_save_apply() {
     );
 
     // Cleanup: delete test profile
-    let _ = oxy_cmd()
+    let _ = zelynic_cmd()
         .args(["profile", "delete", "test-profile"])
         .output();
 }
@@ -166,7 +166,7 @@ fn test_completions_generation() {
     let shells = vec!["bash", "zsh", "fish", "powershell", "elvish"];
 
     for shell in shells {
-        let output = oxy_cmd()
+        let output = zelynic_cmd()
             .args(["completions", shell])
             .output()
             .unwrap_or_else(|_| panic!("Failed to generate {} completions", shell));
@@ -183,7 +183,7 @@ fn test_completions_generation() {
 /// Test man page generation
 #[test]
 fn test_man_generation() {
-    let output = oxy_cmd()
+    let output = zelynic_cmd()
         .arg("man")
         .output()
         .expect("Failed to generate man page");
@@ -204,7 +204,7 @@ fn test_man_generation() {
 /// Test backend info
 #[test]
 fn test_backend_info() {
-    let output = oxy_cmd()
+    let output = zelynic_cmd()
         .arg("backend")
         .output()
         .expect("Failed to get backend info");
@@ -221,7 +221,7 @@ fn test_backend_info() {
 /// Test version output
 #[test]
 fn test_version() {
-    let output = oxy_cmd()
+    let output = zelynic_cmd()
         .arg("--version")
         .output()
         .expect("Failed to get version");

@@ -35,7 +35,7 @@ zelynic is a Rust CLI tool for monitoring, limiting, and shaping per-process net
 
 ## Renamed from Oxy
 
-Zelynic was previously named Oxy. The old repository and package name were `oxy`, and the command is now `zelynic`. Zelynic currently preserves legacy oxy runtime paths and nft/cgroup identifiers for backward compatibility. These may migrate in a future major release with a safe migration path.
+Zelynic was previously named Oxy. The old repository and package name were `oxy`, and the command is now `zelynic`. Runtime state, cgroups, and nftables identifiers now use the `zelynic` namespace; v2.0.0-era `oxy` runtime artifacts are treated as legacy cleanup targets.
 
 ## Renaissance Validation
 
@@ -399,7 +399,7 @@ Uses a layered approach:
                     Upload (egress)
 ┌─────────────┐     ┌──────────────┐     ┌────────────────┐
 │   Process   │────>│  Cgroup v2   │────>│  socket        │
-│   (PID)     │     │  (legacy oxy) │     │  cgroupv2 tag  │
+│   (PID)     │     │  (zelynic)   │     │  cgroupv2 tag  │
 └─────────────┘     └──────────────┘     └───────┬────────┘
                                                   │
                                                   v

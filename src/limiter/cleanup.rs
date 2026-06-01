@@ -13,7 +13,96 @@ use super::nft::refresh_nft_ip_rules;
 use super::process::{get_process_name, resolve_pids, sanitize_target_name};
 use super::state::ZelynicState;
 use super::tc::target_class_id;
-use super::{CGROUP_BASE, STATE_DIR};
+use super::{
+    CGROUP_BASE, LEGACY_CGROUP_BASE, LEGACY_NFT_TABLE, LEGACY_STATE_DIR, NFT_TABLE, STATE_DIR,
+};
+
+fn live_pids_in_cgroup(path: &Path) -> Vec<u32> {
+    let procs_path = path.join("cgroup.procs");
+    fs::read_to_string(procs_path)
+        .ok()
+        .map(|content| {
+            content
+                .lines()
+                .filter_map(|pid| pid.trim().parse::<u32>().ok())
+                .filter(|pid| Path::new(&format!("/proc/{}", pid)).exists())
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn remove_legacy_cgroup_if_safe(path: &Path, verbose: bool) -> bool {
+    if !path.exists() {
+        return true;
+    }
+
+    if let Ok(entries) = fs::read_dir(path) {
+        for entry in entries.flatten() {
+            let child = entry.path();
+            if child.is_dir() {
+                remove_legacy_cgroup_if_safe(&child, verbose);
+            }
+        }
+    }
+
+    let live_pids = live_pids_in_cgroup(path);
+    if !live_pids.is_empty() {
+        if verbose {
+            eprintln!(
+                "{}: legacy cgroup {} still contains live PID(s): {:?}; leaving it in place",
+                "WARNING".yellow(),
+                path.display(),
+                live_pids
+            );
+        }
+        return false;
+    }
+
+    match fs::remove_dir(path) {
+        Ok(()) => true,
+        Err(e) => {
+            if verbose && path.exists() {
+                eprintln!(
+                    "{}: could not remove legacy cgroup {}: {}",
+                    "WARNING".yellow(),
+                    path.display(),
+                    e
+                );
+            }
+            false
+        }
+    }
+}
+
+pub(super) fn cleanup_legacy_runtime_namespace(verbose: bool) {
+    let _ = Command::new("nft")
+        .args(["delete", "table", "inet", LEGACY_NFT_TABLE])
+        .output();
+
+    let legacy_state = Path::new(LEGACY_STATE_DIR);
+    if legacy_state.exists() {
+        match fs::remove_dir_all(legacy_state) {
+            Ok(()) => {
+                if verbose {
+                    eprintln!(
+                        "{} Removed legacy runtime directory {}",
+                        "Info:".yellow(),
+                        LEGACY_STATE_DIR
+                    );
+                }
+            }
+            Err(e) if verbose => eprintln!(
+                "{}: could not remove legacy runtime directory {}: {}",
+                "WARNING".yellow(),
+                LEGACY_STATE_DIR,
+                e
+            ),
+            Err(_) => {}
+        }
+    }
+
+    remove_legacy_cgroup_if_safe(Path::new(LEGACY_CGROUP_BASE), verbose);
+}
 
 // ---------------------------------------------------------------------------
 // Main: remove_limit
@@ -22,6 +111,7 @@ use super::{CGROUP_BASE, STATE_DIR};
 /// Remove all bandwidth limits (unstrict) from a target process.
 pub fn remove_limit(target: &str) -> Result<()> {
     check_root()?;
+    cleanup_legacy_runtime_namespace(true);
 
     let mut state = ZelynicState::load()?;
     let target_lower = target.to_lowercase();
@@ -197,7 +287,7 @@ pub fn remove_limit(target: &str) -> Result<()> {
 
         // Clean up all nftables tables
         let _ = Command::new("nft")
-            .args(["delete", "table", "inet", "oxy"])
+            .args(["delete", "table", "inet", NFT_TABLE])
             .output();
     }
 
@@ -265,6 +355,7 @@ pub fn list_active_limits() -> Result<()> {
 /// Clean up orphaned bandwidth limits for processes that have exited.
 pub fn clean_orphans() -> Result<()> {
     check_root()?;
+    cleanup_legacy_runtime_namespace(true);
 
     let mut state = ZelynicState::load()?;
 
@@ -432,6 +523,7 @@ pub fn clean_orphans() -> Result<()> {
 /// Call with: `zelynic clean --all`
 pub fn emergency_cleanup() -> Result<()> {
     check_root()?;
+    cleanup_legacy_runtime_namespace(true);
 
     println!(
         "{}",
@@ -440,11 +532,11 @@ pub fn emergency_cleanup() -> Result<()> {
             .bold()
     );
 
-    // 1. Remove nftables inet oxy table (stops all packet marking/rate limiting)
+    // 1. Remove nftables inet zelynic table (stops all packet marking/rate limiting)
     let _ = Command::new("nft")
-        .args(["delete", "table", "inet", "oxy"])
+        .args(["delete", "table", "inet", NFT_TABLE])
         .output();
-    println!("  {} Removed nftables inet oxy table", "✓".green());
+    println!("  {} Removed nftables inet zelynic table", "✓".green());
 
     // 2. Remove HTB qdisc and all Zelynic classes/filters on all interfaces
     let interfaces = list_interfaces();
@@ -462,15 +554,15 @@ pub fn emergency_cleanup() -> Result<()> {
         interfaces.len()
     );
 
-    // 3. Remove all oxy cgroups (per-target and per-PID)
-    let oxy_base = Path::new(CGROUP_BASE);
-    if oxy_base.exists() {
+    // 3. Remove all zelynic cgroups (per-target and per-PID)
+    let zelynic_base = Path::new(CGROUP_BASE);
+    if zelynic_base.exists() {
         // Remove all sub-cgroups (target_* and pid_*)
-        if let Ok(entries) = fs::read_dir(oxy_base) {
+        if let Ok(entries) = fs::read_dir(zelynic_base) {
             for entry in entries.flatten() {
                 let path = entry.path();
                 if path.is_dir() {
-                    // Evict any living processes to parent legacy cgroup (NOT root)
+                    // Evict any living processes to parent Zelynic cgroup (NOT root)
                     let procs_path = path.join("cgroup.procs");
                     if procs_path.exists() {
                         if let Ok(content) = fs::read_to_string(&procs_path) {
@@ -482,7 +574,7 @@ pub fn emergency_cleanup() -> Result<()> {
                                     {
                                         continue;
                                     }
-                                    // Move to parent legacy cgroup, NOT system root
+                                    // Move to parent Zelynic cgroup, NOT system root
                                     let parent_procs = format!("{}/cgroup.procs", CGROUP_BASE);
                                     if Path::new(&parent_procs).exists() {
                                         let _ = fs::write(&parent_procs, proc_pid.to_string());
@@ -495,11 +587,11 @@ pub fn emergency_cleanup() -> Result<()> {
                 }
             }
         }
-        // Remove the base oxy cgroup itself
+        // Remove the base zelynic cgroup itself
         let _ = fs::remove_dir(CGROUP_BASE);
-        println!("  {} Removed all oxy cgroups", "✓".green());
+        println!("  {} Removed all zelynic cgroups", "✓".green());
     } else {
-        println!("  {} No oxy cgroups found", "✓".dimmed());
+        println!("  {} No zelynic cgroups found", "✓".dimmed());
     }
 
     // 4. Remove state files
@@ -542,6 +634,7 @@ pub(super) fn chrono_now() -> String {
 /// Check for process respawns and re-apply limits to new PIDs.
 pub fn check_respawns() -> Result<()> {
     check_root()?;
+    cleanup_legacy_runtime_namespace(true);
 
     let mut state = ZelynicState::load()?;
 
@@ -630,4 +723,14 @@ pub fn check_respawns() -> Result<()> {
     println!("{}", "zelynic: respawn handling complete".green().bold());
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn legacy_cleanup_targets_v2_runtime_namespace() {
+        assert_eq!(super::super::LEGACY_STATE_DIR, "/run/oxy");
+        assert_eq!(super::super::LEGACY_CGROUP_BASE, "/sys/fs/cgroup/oxy");
+        assert_eq!(super::super::LEGACY_NFT_TABLE, "oxy");
+    }
 }

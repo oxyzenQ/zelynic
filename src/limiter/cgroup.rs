@@ -310,8 +310,7 @@ pub fn setup_cgroup(pid: u32, class_id: u32) -> Result<(String, bool)> {
 
     if is_v2 && !is_hybrid {
         // Pure cgroup v2 - create under unified hierarchy
-        let unified_base = "/sys/fs/cgroup";
-        let v2_cgroup_path = format!("{}/oxy/pid_{}", unified_base, pid);
+        let v2_cgroup_path = format!("{}/pid_{}", CGROUP_BASE, pid);
         fs::create_dir_all(&v2_cgroup_path)
             .context("failed to create cgroup v2 directory. Is cgroup2 filesystem mounted?")?;
 
@@ -420,7 +419,7 @@ pub fn remove_cgroup(pid: u32) -> Result<()> {
 
 /// Remove a per-target cgroup directory and move its processes back to root.
 ///
-/// On cgroup v2, per-target cgroups live at `/sys/fs/cgroup/oxy/target_<name>/`.
+/// On cgroup v2, per-target cgroups live at `/sys/fs/cgroup/zelynic/target_<name>/`.
 /// This function evicts all member PIDs and deletes the directory.
 pub(super) fn remove_target_cgroup(sanitized_name: &str) -> Result<()> {
     let cgroup_path = format!("{}/target_{}", CGROUP_BASE, sanitized_name);
@@ -491,10 +490,16 @@ mod tests {
     use super::*;
 
     #[test]
-    fn relative_cgroup_path_for_oxy_target() {
-        let relative = relative_cgroupv2_path("/sys/fs/cgroup/oxy/target_brave", "brave").unwrap();
+    fn cgroup_base_path_uses_zelynic_namespace() {
+        assert_eq!(super::super::CGROUP_BASE, "/sys/fs/cgroup/zelynic");
+    }
 
-        assert_eq!(relative, "oxy/target_brave");
+    #[test]
+    fn relative_cgroup_path_for_zelynic_target() {
+        let relative =
+            relative_cgroupv2_path("/sys/fs/cgroup/zelynic/target_brave", "brave").unwrap();
+
+        assert_eq!(relative, "zelynic/target_brave");
         assert_eq!(cgroup_level_from_relative(&relative), 2);
     }
 
@@ -508,32 +513,33 @@ mod tests {
 
     #[test]
     fn relative_cgroup_path_rejects_outside_root() {
-        let err = relative_cgroupv2_path("/tmp/oxy/target_brave", "brave")
+        let err = relative_cgroupv2_path("/tmp/zelynic/target_brave", "brave")
             .unwrap_err()
             .to_string();
 
-        assert!(err.contains("/tmp/oxy/target_brave"));
+        assert!(err.contains("/tmp/zelynic/target_brave"));
         assert!(err.contains("/sys/fs/cgroup"));
         assert!(err.contains("brave"));
     }
 
     #[test]
-    fn strict_diagnostic_cgroup_path_and_level_match_oxy_target_layout() {
-        let target_cg_path = "/sys/fs/cgroup/oxy/target_firefox";
+    fn strict_diagnostic_cgroup_path_and_level_match_zelynic_target_layout() {
+        let target_cg_path = "/sys/fs/cgroup/zelynic/target_firefox";
         let relative = relative_cgroupv2_path(target_cg_path, "firefox").unwrap();
 
-        assert_eq!(relative, "oxy/target_firefox");
+        assert_eq!(relative, "zelynic/target_firefox");
         assert_eq!(cgroup_level_from_relative(&relative), 2);
     }
 
     #[test]
     fn deeper_cgroup_path_preserves_full_relative_path_and_level() {
-        let path = "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/oxy/target_brave";
+        let path =
+            "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/zelynic/target_brave";
         let relative = relative_cgroupv2_path(path, "brave").unwrap();
 
         assert_eq!(
             relative,
-            "user.slice/user-1000.slice/user@1000.service/oxy/target_brave"
+            "user.slice/user-1000.slice/user@1000.service/zelynic/target_brave"
         );
         assert_eq!(cgroup_level_from_relative(&relative), 5);
     }

@@ -14,7 +14,7 @@
 ///   Reply (download) packets are matched by their ct mark.
 ///
 /// **Per-target cgroups:**
-///   All target PIDs are moved to `/sys/fs/cgroup/oxy/target_<sanitized_name>/`
+///   All target PIDs are moved to `/sys/fs/cgroup/zelynic/target_<sanitized_name>/`
 ///   so that nftables can match traffic per target:
 ///   - `socket cgroupv2` (output hook): matches egress from sockets whose
 ///     cgroup (at creation time) is the target cgroup.  Returns the 64-bit
@@ -30,8 +30,8 @@
 ///   Input (download): `ct mark` → limit rate (ingress policing)
 ///
 ///   The `level` parameter specifies the depth of the target cgroup in the
-///   unified cgroup hierarchy (0 = root).  For the legacy per-target cgroups at
-///   `/sys/fs/cgroup/oxy/target_<name>/`, the level is 2.
+///   unified cgroup hierarchy (0 = root).  For the per-target cgroups at
+///   `/sys/fs/cgroup/zelynic/target_<name>/`, the level is 2.
 ///
 /// NOTE: `meta skuid` is intentionally NOT used — it would leak limits to
 /// all processes of the same UID, breaking per-target isolation.
@@ -87,14 +87,24 @@ use nft::{refresh_nft_ip_rules, refresh_nft_ip_rules_with_diagnostics};
 use process::{get_process_uid, is_chromium_based_target, sanitize_target_name};
 use tc::{ensure_htb_qdisc, target_class_id, TcTransaction};
 
-/// Directory where Zelynic stores legacy-compatible runtime state.
-const STATE_DIR: &str = "/run/oxy";
+/// Directory where Zelynic stores runtime state.
+const STATE_DIR: &str = "/run/zelynic";
 /// Path to the state file containing active bandwidth limits.
-const STATE_FILE: &str = "/run/oxy/state.json";
+const STATE_FILE: &str = "/run/zelynic/state.json";
+/// Path to the generated nftables ruleset.
+const NFT_RULESET_FILE: &str = "/run/zelynic/zelynic.nft";
 /// Root of the unified cgroup v2 hierarchy.
 const CGROUP_ROOT: &str = "/sys/fs/cgroup";
-/// Base path for Zelynic's legacy-compatible cgroup management.
-const CGROUP_BASE: &str = "/sys/fs/cgroup/oxy";
+/// Base path for Zelynic's runtime cgroup management.
+const CGROUP_BASE: &str = "/sys/fs/cgroup/zelynic";
+/// Runtime nftables table name.
+const NFT_TABLE: &str = "zelynic";
+/// Legacy v2.0.0 runtime state directory, cleaned up conservatively.
+const LEGACY_STATE_DIR: &str = "/run/oxy";
+/// Legacy v2.0.0 cgroup base, cleaned up only when empty/safe.
+const LEGACY_CGROUP_BASE: &str = "/sys/fs/cgroup/oxy";
+/// Legacy v2.0.0 nftables table name.
+const LEGACY_NFT_TABLE: &str = "oxy";
 /// Ensure required kernel modules for traffic control are loaded.
 fn ensure_kernel_modules() -> Result<()> {
     // List of modules required for tc bandwidth limiting
@@ -157,6 +167,7 @@ pub fn apply_limit_with_diagnostics(
     diagnostics: bool,
 ) -> Result<()> {
     check_root()?;
+    cleanup::cleanup_legacy_runtime_namespace(true);
 
     // Auto-cleanup: remove stale limits for dead processes before applying new limits.
     // This prevents accumulation of orphaned state when target processes exit
@@ -833,14 +844,16 @@ pub fn apply_limit_with_diagnostics(
             let uid_rule = format!("meta skuid {}", uid_str);
 
             let _ = Command::new("nft")
-                .args(["add", "rule", "inet", "oxy", "output", &uid_rule, "drop"])
+                .args([
+                    "add", "rule", "inet", NFT_TABLE, "output", &uid_rule, "drop",
+                ])
                 .output();
 
             std::thread::sleep(std::time::Duration::from_millis(300));
 
             // Locate and remove the temporary DROP rule by its handle
             if let Ok(list_out) = Command::new("nft")
-                .args(["-a", "list", "chain", "inet", "oxy", "output"])
+                .args(["-a", "list", "chain", "inet", NFT_TABLE, "output"])
                 .output()
             {
                 let list_stdout = String::from_utf8_lossy(&list_out.stdout);
@@ -849,7 +862,9 @@ pub fn apply_limit_with_diagnostics(
                         if let Some(pos) = line.rfind("handle ") {
                             let handle = line[pos + 7..].trim();
                             let _ = Command::new("nft")
-                                .args(["delete", "rule", "inet", "oxy", "output", "handle", handle])
+                                .args([
+                                    "delete", "rule", "inet", NFT_TABLE, "output", "handle", handle,
+                                ])
                                 .output();
                             break;
                         }

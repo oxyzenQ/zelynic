@@ -22,7 +22,7 @@ use crate::limiter::{
 };
 
 /// QoS state file.
-const QOS_STATE_FILE: &str = "/run/oxy/qos_state.json";
+const QOS_STATE_FILE: &str = "/run/zelynic/qos_state.json";
 
 /// Priority tier for a process.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]

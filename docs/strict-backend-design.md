@@ -6,13 +6,13 @@ This document describes the current `zelynic strict` enforcement backend. It is 
 
 `zelynic strict` currently combines three Linux mechanisms:
 
-1. **cgroup v2 process grouping**: discovered target PIDs are moved under `/sys/fs/cgroup/oxy/target_<name>/` and verified through `/proc/<pid>/cgroup`.
-2. **nftables socket matching and conntrack marking**: the generated `table inet oxy` marks egress packets with `socket cgroupv2 level ...`, copies the packet mark to `ct mark` in postrouting, and uses the connection mark for download policing in the input hook.
+1. **cgroup v2 process grouping**: discovered target PIDs are moved under `/sys/fs/cgroup/zelynic/target_<name>/` and verified through `/proc/<pid>/cgroup`.
+2. **nftables socket matching and conntrack marking**: the generated `table inet zelynic` marks egress packets with `socket cgroupv2 level ...`, copies the packet mark to `ct mark` in postrouting, and uses the connection mark for download policing in the input hook.
 3. **tc HTB upload shaping**: target packet marks are routed by `tc` fw filters into a per-target HTB class.
 
 The implementation deliberately does not use `meta skuid` as the isolation primitive. UID matching would affect unrelated processes owned by the same user and would hide cgroup/socket coverage bugs that need to be fixed directly.
 
-Compatibility note: Zelynic currently preserves legacy oxy runtime paths and nft/cgroup identifiers for backward compatibility. These may migrate in a future major release with a safe migration path.
+Runtime namespace note: Zelynic uses `/run/zelynic`, `/sys/fs/cgroup/zelynic`, and `table inet zelynic`. v2.0.0-era `oxy` runtime artifacts are legacy cleanup targets and should not be used for new strict state.
 
 ## Apply workflow
 
@@ -21,13 +21,13 @@ A strict apply should preserve these invariants:
 1. Validate root privileges, rates, and network interface.
 2. Clean orphaned state before adding new state.
 3. Resolve the requested target to one or more PIDs using conservative process-name matching. Numeric PID targets are exact; text targets match `/proc/<pid>/comm`, the `/proc/<pid>/exe` basename, or argv[0] basename with safe aliases such as `brave` -> `brave-browser`.
-4. Create `/sys/fs/cgroup/oxy/target_<sanitized_name>/`.
+4. Create `/sys/fs/cgroup/zelynic/target_<sanitized_name>/`.
 5. Move every discovered live PID into that cgroup and verify membership through `/proc/<pid>/cgroup`.
 6. Re-resolve name-based targets before saving state so newly spawned live PIDs are not silently missed.
 7. Persist one state record per verified PID while sharing the per-target nftables mark and tc class identity.
 8. Install or refresh tc HTB classes and fw filters.
-9. Generate `/run/oxy/oxy.nft`, preflight it with `nft -c -f`, then apply it with `nft -f`.
-10. Save `/run/oxy/state.json` only after enforcement artifacts have been created.
+9. Generate `/run/zelynic/zelynic.nft`, preflight it with `nft -c -f`, then apply it with `nft -f`.
+10. Save `/run/zelynic/state.json` only after enforcement artifacts have been created.
 11. Force a short reconnect window because sockets created before cgroup movement keep their old socket cgroup association.
 
 ## Why this is fragile
@@ -50,10 +50,11 @@ A useful bug report should include:
 - iproute2/tc version (`tc -V`)
 - cgroup mode and cgroup2 mount line from `/proc/self/mountinfo`
 - target PID list and `/proc/<pid>/cgroup` before and after movement
-- generated `/run/oxy/oxy.nft`
-- stdout/stderr from `nft -c -f /run/oxy/oxy.nft` and `nft -f /run/oxy/oxy.nft`
+- generated `/run/zelynic/zelynic.nft`
+- stdout/stderr from `nft -c -f /run/zelynic/zelynic.nft` and `nft -f /run/zelynic/zelynic.nft`
+- current nftables table handles from `sudo nft -a list table inet zelynic`
 - relevant `tc qdisc`, `tc class`, and `tc filter` output
-- `/run/oxy/state.json`
+- `/run/zelynic/state.json`
 
 `zelynic strict --diagnose ...` now prints most of this during an apply attempt, including why each selected PID matched, so the next fix can be based on observed host behavior rather than guesses.
 
