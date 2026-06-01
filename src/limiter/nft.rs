@@ -8,7 +8,7 @@ use super::cgroup::{cgroup_level_from_relative, relative_cgroupv2_path};
 use super::process::sanitize_target_name;
 use super::state::LimitRecord;
 use super::tc::target_class_id;
-use super::{CGROUP_ROOT, STATE_DIR};
+use super::{CGROUP_ROOT, NFT_RULESET_FILE, NFT_TABLE, STATE_DIR};
 
 /// Escape a string for use inside an nftables quoted string literal.
 fn escape_nft_string(value: &str) -> String {
@@ -18,7 +18,7 @@ fn escape_nft_string(value: &str) -> String {
 // nftables rules management
 // ---------------------------------------------------------------------------
 
-/// Build the nftables `inet oxy` table for egress marking (upload) and
+/// Build the nftables `inet zelynic` table for egress marking (upload) and
 /// download rate limiting via cgroup matching.
 ///
 /// Uses `inet` (IPv4 + IPv6) so both protocol families are handled.
@@ -29,7 +29,7 @@ fn escape_nft_string(value: &str) -> String {
 ///   - `socket cgroupv2 level <depth> "<path>"` — matches egress packets
 ///     whose socket belongs to the target cgroup at the specified hierarchy
 ///     depth.  Level 0 is the root cgroup, level 1 is the first child, etc.
-///     For the legacy cgroups at `/oxy/target_<name>/`, level 2 matches the
+///     For the cgroups at `/zelynic/target_<name>/`, level 2 matches the
 ///     socket's own cgroup.
 ///     NOTE: sockets created BEFORE the PID was moved retain their
 ///     original cgroup and will NOT be matched.  To handle this, Zelynic
@@ -60,7 +60,7 @@ fn escape_nft_string(value: &str) -> String {
 ///   limits to all processes of the same UID, breaking per-target isolation.
 fn build_nft_ip_ruleset(limits: &[LimitRecord]) -> Result<String> {
     let mut ruleset = String::new();
-    ruleset.push_str("table inet oxy {\n");
+    ruleset.push_str(&format!("table inet {} {{\n", NFT_TABLE));
 
     // ---- Output chain: mark egress packets ----
     ruleset.push_str("  chain output {\n");
@@ -69,8 +69,8 @@ fn build_nft_ip_ruleset(limits: &[LimitRecord]) -> Result<String> {
     // socket cgroupv2 — per-target (all egress, including pre-existing sockets)
     //
     // The `level` parameter specifies the depth of the cgroup in the unified
-    // hierarchy (0 = root).  For the legacy cgroups at /sys/fs/cgroup/oxy/target_<name>/,
-    // the depth is always 2 (oxy + target_name).  This is required by nftables
+    // hierarchy (0 = root).  For the cgroups at /sys/fs/cgroup/zelynic/target_<name>/,
+    // the depth is always 2 (zelynic + target_name).  This is required by nftables
     // to correctly resolve the cgroup path during rule validation.
     //
     // From the nftables(8) man page:
@@ -141,7 +141,7 @@ fn build_nft_ip_ruleset(limits: &[LimitRecord]) -> Result<String> {
     Ok(ruleset)
 }
 
-/// Apply (or refresh) the nftables inet oxy table.
+/// Apply (or refresh) the nftables inet zelynic table.
 pub(super) fn refresh_nft_ip_rules(limits: &[LimitRecord]) -> Result<()> {
     refresh_nft_ip_rules_with_diagnostics(limits, false)
 }
@@ -152,14 +152,14 @@ pub(super) fn refresh_nft_ip_rules_with_diagnostics(
 ) -> Result<()> {
     if limits.is_empty() {
         let _ = Command::new("nft")
-            .args(["delete", "table", "inet", "oxy"])
+            .args(["delete", "table", "inet", NFT_TABLE])
             .output();
         return Ok(());
     }
 
     let ruleset = build_nft_ip_ruleset(limits)?;
 
-    let nft_file = "/run/oxy/oxy.nft";
+    let nft_file = NFT_RULESET_FILE;
     if diagnostics {
         println!(
             "strict diagnostic: generated nft ruleset path: {}",
@@ -209,7 +209,7 @@ pub(super) fn refresh_nft_ip_rules_with_diagnostics(
     }
 
     let _ = Command::new("nft")
-        .args(["delete", "table", "inet", "oxy"])
+        .args(["delete", "table", "inet", NFT_TABLE])
         .output();
 
     let nft_apply_cmd = format!("nft -f {}", nft_file);
@@ -276,10 +276,27 @@ mod tests {
     }
 
     #[test]
+    fn generated_nft_file_path_uses_zelynic_namespace() {
+        assert_eq!(super::super::NFT_RULESET_FILE, "/run/zelynic/zelynic.nft");
+    }
+
+    #[test]
+    fn nft_ruleset_uses_zelynic_table() {
+        let ruleset = build_nft_ip_ruleset(&[test_limit_record(
+            "brave",
+            "/sys/fs/cgroup/zelynic/target_brave",
+        )])
+        .unwrap();
+
+        assert!(ruleset.starts_with("table inet zelynic {"));
+        assert!(!ruleset.contains("table inet oxy"));
+    }
+
+    #[test]
     fn nft_string_escaping_handles_quote_and_backslash() {
         assert_eq!(
-            escape_nft_string(r#"oxy/target_"brave\test"#),
-            r#"oxy/target_\"brave\\test"#
+            escape_nft_string(r#"zelynic/target_"brave\test"#),
+            r#"zelynic/target_\"brave\\test"#
         );
     }
 
@@ -287,13 +304,12 @@ mod tests {
     fn nft_ruleset_uses_cgroupv2_path_match() {
         let ruleset = build_nft_ip_ruleset(&[test_limit_record(
             "brave",
-            "/sys/fs/cgroup/oxy/target_brave",
+            "/sys/fs/cgroup/zelynic/target_brave",
         )])
         .unwrap();
 
-        assert!(
-            ruleset.contains(r#"socket cgroupv2 level 2 "oxy/target_brave" counter meta mark set"#)
-        );
+        assert!(ruleset
+            .contains(r#"socket cgroupv2 level 2 "zelynic/target_brave" counter meta mark set"#));
         assert!(!ruleset.contains("socket cgroupv2 level 2 =="));
         assert!(!ruleset.contains("13886 meta mark set"));
     }
@@ -302,7 +318,7 @@ mod tests {
     fn nft_ruleset_adds_counters_to_strict_rules() {
         let ruleset = build_nft_ip_ruleset(&[test_limit_record(
             "brave",
-            "/sys/fs/cgroup/oxy/target_brave",
+            "/sys/fs/cgroup/zelynic/target_brave",
         )])
         .unwrap();
 

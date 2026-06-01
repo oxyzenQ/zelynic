@@ -794,15 +794,15 @@ fn generate_man_page() -> anyhow::Result<()> {
     man.push_str(".B -i, --info\n");
     man.push_str("Print detailed package information.\n");
 
-    // Files section — paths preserved for backward compatibility with existing installs
+    // Files section
     man.push_str(".SH FILES\n");
     man.push_str(".PP\n");
-    man.push_str("Zelynic currently preserves legacy oxy runtime paths and nft/cgroup identifiers for backward compatibility. These may migrate in a future major release with a safe migration path.\n");
+    man.push_str("Zelynic uses the zelynic runtime namespace for state, cgroups, and nftables identifiers.\n");
     man.push_str(".TP\n");
-    man.push_str(".I /run/oxy/state.json\n");
+    man.push_str(".I /run/zelynic/state.json\n");
     man.push_str("Runtime state file containing active bandwidth limits.\n");
     man.push_str(".TP\n");
-    man.push_str(".I /sys/fs/cgroup/oxy/\n");
+    man.push_str(".I /sys/fs/cgroup/zelynic/\n");
     man.push_str("Cgroup directory for process classification.\n");
 
     // Examples section

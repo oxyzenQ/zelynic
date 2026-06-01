@@ -188,13 +188,12 @@ Limiting:
   Download:  Egress mark → conntrack mark → nftables input ct mark
              → limit rate
 
-State:  /run/oxy/state.json
-Rules:  /run/oxy/oxy.nft
+State:  /run/zelynic/state.json
+Rules:  /run/zelynic/zelynic.nft
 
 Note: `zelynic strict` intentionally avoids UID-only matching (`meta skuid`)
 for enforcement because it can affect unrelated processes owned by the same user.
 ```
 
-Zelynic currently preserves legacy oxy runtime paths and nft/cgroup identifiers
-for backward compatibility. These may migrate in a future major release with a
-safe migration path.
+Runtime state, generated nftables rules, cgroups, and nftables identifiers use
+the `zelynic` namespace.

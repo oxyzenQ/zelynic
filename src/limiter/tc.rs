@@ -22,7 +22,7 @@ pub(super) fn target_class_id(target: &str) -> u32 {
 // ---------------------------------------------------------------------------
 
 /// The next available class ID counter file.
-const CLASS_ID_FILE: &str = "/run/oxy/.next_class_id";
+const CLASS_ID_FILE: &str = "/run/zelynic/.next_class_id";
 
 /// Transactional tc command executor with rollback support.
 pub(super) struct TcTransaction {
