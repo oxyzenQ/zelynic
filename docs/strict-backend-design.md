@@ -30,6 +30,13 @@ A strict apply should preserve these invariants:
 10. Save `/run/zelynic/state.json` only after enforcement artifacts have been created.
 11. Force a short reconnect window because sockets created before cgroup movement keep their old socket cgroup association.
 
+Existing connection note: strict applies cleanly to new sockets created after the
+process is in the target cgroup. Long-lived connections that were already open
+before strict was applied may continue until the request reconnects. Zelynic does
+not flush conntrack entries or forcibly reset connections by default; users
+should apply strict before starting the network activity or reload/restart the
+request after strict is applied.
+
 Interface note: when `--iface` is not provided, strict mode detects the interface
 at apply time from `ip route show default`. The tc HTB upload side remains
 attached to that interface. If the host later switches default routes, re-run

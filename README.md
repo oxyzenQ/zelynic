@@ -239,6 +239,13 @@ limit without duplicating nftables or tc rules:
 sudo zelynic refresh brave
 ```
 
+Strict applies to new connections after the target has been moved into the
+Zelynic cgroup. An already-running download or speed test can keep using its
+existing socket until the request reconnects. Apply `zelynic strict` before
+starting the network activity, or reload/restart the target's network request
+after strict is applied. Zelynic does not flush conntrack entries or forcibly
+reset existing connections by default.
+
 ### Remove Bandwidth Limits (unstrict)
 
 Remove all bandwidth restrictions from a process:
