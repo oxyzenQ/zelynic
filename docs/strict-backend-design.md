@@ -42,6 +42,12 @@ cgroup when the path is still under `/sys/fs/cgroup`, exists, and exposes
 systemd/user paths and falls back to the `/sys/fs/cgroup/zelynic` parent cgroup
 or leaves the target cgroup in place when it is not empty.
 
+Refresh note: Zelynic does not run a daemon or automatically capture a fully
+reopened application. `zelynic refresh <target>` is the explicit manual path for
+that lifecycle: it reuses the existing state and target cgroup, discovers current
+matching PIDs, moves only missing live PIDs into the cgroup, records their
+original cgroup where available, and leaves nftables/tc rules untouched.
+
 ## Why this is fragile
 
 The backend is sensitive to details that vary by kernel, nftables version, systemd policy, and process model:

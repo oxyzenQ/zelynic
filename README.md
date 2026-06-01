@@ -161,6 +161,7 @@ COMMANDS:
     list                    List network bandwidth usage per process
     strict                  Set bandwidth limits for a process
     unstrict                Remove all bandwidth limits
+    refresh                 Refresh an existing limit after process respawn
     status                  Show active bandwidth limits
     clean                   Clean up orphaned bandwidth limits
     profile                 Manage named bandwidth profiles
@@ -227,6 +228,15 @@ Re-limiting without `unstrict` first is supported — old rules are auto-cleaned
 ```bash
 sudo zelynic strict -d 500kb brave       # apply limit
 sudo zelynic strict -d 10mb brave        # auto-overrides to 10mb
+```
+
+Reloads, tabs, and child processes normally remain limited while the browser
+process tree stays inside the target cgroup. If the application is closed
+completely and reopened, run `refresh` to move the new PIDs into the existing
+limit without duplicating nftables or tc rules:
+
+```bash
+sudo zelynic refresh brave
 ```
 
 ### Remove Bandwidth Limits (unstrict)
