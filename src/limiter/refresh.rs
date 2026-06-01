@@ -235,7 +235,7 @@ mod tests {
     }
 
     #[test]
-    fn refresh_requires_existing_active_state() {
+    fn refresh_after_unstrict_has_no_active_target_state() {
         let state = ZelynicState { limits: vec![] };
         assert!(find_refresh_template(&state, "brave").is_none());
     }
