@@ -11,8 +11,41 @@ use super::cleanup::chrono_now;
 use super::process::resolve_pids;
 use super::state::{LimitRecord, ZelynicState};
 
+#[derive(Debug, PartialEq, Eq)]
+enum RefreshDiscovery {
+    CurrentPids(Vec<u32>),
+    PreserveActiveState(String),
+}
+
 fn pid_exists(pid: u32) -> bool {
     Path::new(&format!("/proc/{}", pid)).exists()
+}
+
+fn no_active_limit_message(target: &str) -> String {
+    format!(
+        "No active limit found for '{}'. Run zelynic strict first.",
+        target
+    )
+}
+
+fn preserved_state_message(target: &str) -> String {
+    format!(
+        "No running PID found for '{}'; active limit state preserved.",
+        target
+    )
+}
+
+fn plan_refresh_discovery(target: &str, resolved_pids: Result<Vec<u32>>) -> RefreshDiscovery {
+    match resolved_pids {
+        Ok(pids) if !pids.is_empty() => RefreshDiscovery::CurrentPids(pids),
+        Ok(_) | Err(_) => RefreshDiscovery::PreserveActiveState(preserved_state_message(target)),
+    }
+}
+
+fn clone_state(state: &ZelynicState) -> ZelynicState {
+    ZelynicState {
+        limits: state.limits.clone(),
+    }
 }
 
 fn target_matches_record(record: &LimitRecord, target: &str) -> bool {
@@ -102,13 +135,18 @@ fn format_pid_list(pids: &[u32]) -> String {
 /// Refresh an existing strict limit by moving newly discovered PIDs into the
 /// already configured target cgroup.
 pub fn refresh_limit(target: &str) -> Result<()> {
-    let mut state = ZelynicState::load()?;
+    let state = ZelynicState::load()?;
     let Some(template) = find_refresh_template(&state, target) else {
-        println!(
-            "No active limit found for '{}'. Run zelynic strict first.",
-            target
-        );
+        println!("{}", no_active_limit_message(target));
         return Ok(());
+    };
+
+    let discovered = match plan_refresh_discovery(target, resolve_pids(target)) {
+        RefreshDiscovery::CurrentPids(pids) => pids,
+        RefreshDiscovery::PreserveActiveState(message) => {
+            println!("{}", message);
+            return Ok(());
+        }
     };
 
     check_root()?;
@@ -129,20 +167,16 @@ pub fn refresh_limit(target: &str) -> Result<()> {
         );
     }
 
-    let stale_removed = prune_stale_target_records(&mut state, target, pid_exists);
-    if stale_removed > 0 {
-        state.save()?;
-    }
-
-    let discovered = resolve_pids(target)?;
+    let mut updated_state = clone_state(&state);
+    let stale_removed = prune_stale_target_records(&mut updated_state, target, pid_exists);
     let mut already_limited = Vec::new();
     let mut newly_moved = Vec::new();
     let mut failed = Vec::new();
 
     for pid in &discovered {
         if verify_pid_in_cgroup(*pid, &target_cgroup_path) {
-            if !record_exists_for_pid(&state, target, *pid) {
-                append_refreshed_record(&mut state, &template, *pid, None);
+            if !record_exists_for_pid(&updated_state, target, *pid) {
+                append_refreshed_record(&mut updated_state, &template, *pid, None);
             }
             already_limited.push(*pid);
             continue;
@@ -152,7 +186,7 @@ pub fn refresh_limit(target: &str) -> Result<()> {
         let outcome = move_pid_to_cgroup_with_verify(*pid, &target_cgroup_path);
 
         if outcome.verified {
-            append_refreshed_record(&mut state, &template, *pid, original_cgroup_path);
+            append_refreshed_record(&mut updated_state, &template, *pid, original_cgroup_path);
             newly_moved.push(*pid);
         } else {
             failed.push((
@@ -164,7 +198,7 @@ pub fn refresh_limit(target: &str) -> Result<()> {
         }
     }
 
-    state.save()?;
+    updated_state.save()?;
 
     let current_default = get_default_interface().ok();
     let iface_mismatch = interface_mismatch(&template.interface, current_default.as_deref());
@@ -238,6 +272,36 @@ mod tests {
     fn refresh_after_unstrict_has_no_active_target_state() {
         let state = ZelynicState { limits: vec![] };
         assert!(find_refresh_template(&state, "brave").is_none());
+        assert_eq!(
+            no_active_limit_message("brave"),
+            "No active limit found for 'brave'. Run zelynic strict first."
+        );
+    }
+
+    #[test]
+    fn app_not_running_preserves_active_state() {
+        let state = ZelynicState {
+            limits: vec![record("brave", 10)],
+        };
+        let original_len = state.limits.len();
+        let discovery = plan_refresh_discovery("brave", Err(anyhow::anyhow!("not running")));
+
+        assert_eq!(
+            discovery,
+            RefreshDiscovery::PreserveActiveState(
+                "No running PID found for 'brave'; active limit state preserved.".to_string()
+            )
+        );
+        assert_eq!(state.limits.len(), original_len);
+        assert!(find_refresh_template(&state, "brave").is_some());
+    }
+
+    #[test]
+    fn app_not_running_reports_preserved_state() {
+        assert_eq!(
+            preserved_state_message("brave"),
+            "No running PID found for 'brave'; active limit state preserved."
+        );
     }
 
     #[test]
@@ -251,6 +315,47 @@ mod tests {
         assert_eq!(removed, 1);
         assert_eq!(state.limits.len(), 1);
         assert_eq!(state.limits[0].target, "firefox");
+    }
+
+    #[test]
+    fn stale_records_are_pruned_after_current_pids_exist() {
+        let state = ZelynicState {
+            limits: vec![
+                record("brave", 10),
+                record("brave", 11),
+                record("firefox", 20),
+            ],
+        };
+        let discovery = plan_refresh_discovery("brave", Ok(vec![11]));
+        let mut updated_state = clone_state(&state);
+
+        let stale_removed = match discovery {
+            RefreshDiscovery::CurrentPids(_) => {
+                prune_stale_target_records(&mut updated_state, "brave", |pid| pid == 11)
+            }
+            RefreshDiscovery::PreserveActiveState(_) => 0,
+        };
+
+        assert_eq!(stale_removed, 1);
+        assert!(record_exists_for_pid(&updated_state, "brave", 11));
+        assert!(!record_exists_for_pid(&updated_state, "brave", 10));
+        assert!(record_exists_for_pid(&updated_state, "firefox", 20));
+    }
+
+    #[test]
+    fn pid_resolution_failure_does_not_produce_empty_target_state() {
+        let state = ZelynicState {
+            limits: vec![record("brave", 10)],
+        };
+        let updated_state = clone_state(&state);
+        let discovery = plan_refresh_discovery("brave", Err(anyhow::anyhow!("not running")));
+
+        assert!(matches!(
+            discovery,
+            RefreshDiscovery::PreserveActiveState(_)
+        ));
+        assert!(find_refresh_template(&updated_state, "brave").is_some());
+        assert_eq!(updated_state.limits.len(), 1);
     }
 
     #[test]
