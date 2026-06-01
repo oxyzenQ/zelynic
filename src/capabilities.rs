@@ -119,7 +119,7 @@ pub struct BackendDoctorReport {
     pub system: SystemInfo,
     pub capabilities: CapabilityMatrix,
     pub backend_candidates: Vec<BackendCandidate>,
-    pub recommended_backend: String,
+    pub recommended_backend: Option<String>,
     pub notes: Vec<String>,
     pub warnings: Vec<String>,
 }
@@ -138,7 +138,7 @@ pub fn detect_backend_doctor_report() -> BackendDoctorReport {
     let system = detect_system_info();
     let capabilities = detect_capabilities(&system);
     let backend_candidates = score_backend_candidates(&system, &capabilities);
-    let recommended_backend = recommend_backend(&backend_candidates).to_string();
+    let recommended_backend = recommend_backend(&backend_candidates).map(str::to_string);
     let notes = vec![
         "Backend Doctor does not modify nftables, tc, or cgroups.".to_string(),
         "Status meanings: supported = host likely has requirements; partial = requirements or implementation work remain; future = not implemented as an active strict backend.".to_string(),
@@ -154,6 +154,10 @@ pub fn detect_backend_doctor_report() -> BackendDoctorReport {
         && capabilities.nft_socket_cgroupv2 != CapabilityStatus::Yes
     {
         warnings.push("nft socket cgroupv2 support could not be proven safely.".to_string());
+    }
+    if recommended_backend.is_none() {
+        warnings
+            .push("No supported or partial backend candidate detected on this host.".to_string());
     }
 
     BackendDoctorReport {
@@ -244,10 +248,15 @@ pub fn score_backend_candidates(
     ]
 }
 
-pub fn recommend_backend(candidates: &[BackendCandidate]) -> &str {
+pub fn recommend_backend(candidates: &[BackendCandidate]) -> Option<&str> {
     candidates
         .iter()
-        .filter(|candidate| candidate.status != BackendCandidateStatus::Future)
+        .filter(|candidate| {
+            matches!(
+                candidate.status,
+                BackendCandidateStatus::Supported | BackendCandidateStatus::Partial
+            )
+        })
         .max_by_key(|candidate| match candidate.status {
             BackendCandidateStatus::Supported => (3u8, candidate.confidence),
             BackendCandidateStatus::Partial => (2u8, candidate.confidence),
@@ -255,7 +264,6 @@ pub fn recommend_backend(candidates: &[BackendCandidate]) -> &str {
             BackendCandidateStatus::Future => (0u8, candidate.confidence),
         })
         .map(|candidate| candidate.name.as_str())
-        .unwrap_or("modern-cgroupv2-nft-tc")
 }
 
 fn score_modern_cgroupv2_nft_tc(system: &SystemInfo, caps: &CapabilityMatrix) -> BackendCandidate {
@@ -502,7 +510,13 @@ fn print_backend_doctor_report(report: &BackendDoctorReport) {
     println!();
 
     println!("{}", "Recommended:".bold());
-    println!("  {}", report.recommended_backend);
+    println!(
+        "  {}",
+        report
+            .recommended_backend
+            .as_deref()
+            .unwrap_or("no available backend")
+    );
     println!();
 
     println!("{}", "Notes:".bold());
@@ -707,7 +721,10 @@ mod tests {
 
         assert_eq!(modern.status, BackendCandidateStatus::Supported);
         assert!(modern.confidence >= 90);
-        assert_eq!(recommend_backend(&candidates), "modern-cgroupv2-nft-tc");
+        assert_eq!(
+            recommend_backend(&candidates),
+            Some("modern-cgroupv2-nft-tc")
+        );
     }
 
     #[test]
@@ -785,7 +802,82 @@ mod tests {
 
         let candidates = score_backend_candidates(&system, &caps);
 
-        assert_eq!(recommend_backend(&candidates), "legacy-cgroup-v1-net-cls");
+        assert_eq!(
+            recommend_backend(&candidates),
+            Some("legacy-cgroup-v1-net-cls")
+        );
+    }
+
+    #[test]
+    fn all_unavailable_or_future_candidates_have_no_recommendation() {
+        let candidates = vec![
+            BackendCandidate {
+                name: "unavailable-high-confidence".to_string(),
+                status: BackendCandidateStatus::Unavailable,
+                confidence: 99,
+                missing_requirements: vec!["everything".to_string()],
+                risk_notes: Vec::new(),
+            },
+            BackendCandidate {
+                name: "future-high-confidence".to_string(),
+                status: BackendCandidateStatus::Future,
+                confidence: 99,
+                missing_requirements: vec!["implementation".to_string()],
+                risk_notes: Vec::new(),
+            },
+        ];
+
+        assert_eq!(recommend_backend(&candidates), None);
+    }
+
+    #[test]
+    fn unavailable_candidate_cannot_beat_partial_candidate() {
+        let candidates = vec![
+            BackendCandidate {
+                name: "unavailable-high-confidence".to_string(),
+                status: BackendCandidateStatus::Unavailable,
+                confidence: 99,
+                missing_requirements: vec!["critical requirement".to_string()],
+                risk_notes: Vec::new(),
+            },
+            BackendCandidate {
+                name: "partial-low-confidence".to_string(),
+                status: BackendCandidateStatus::Partial,
+                confidence: 10,
+                missing_requirements: vec!["some implementation work".to_string()],
+                risk_notes: Vec::new(),
+            },
+        ];
+
+        assert_eq!(
+            recommend_backend(&candidates),
+            Some("partial-low-confidence")
+        );
+    }
+
+    #[test]
+    fn supported_candidate_beats_partial_candidate() {
+        let candidates = vec![
+            BackendCandidate {
+                name: "partial-high-confidence".to_string(),
+                status: BackendCandidateStatus::Partial,
+                confidence: 99,
+                missing_requirements: Vec::new(),
+                risk_notes: Vec::new(),
+            },
+            BackendCandidate {
+                name: "supported-low-confidence".to_string(),
+                status: BackendCandidateStatus::Supported,
+                confidence: 1,
+                missing_requirements: Vec::new(),
+                risk_notes: Vec::new(),
+            },
+        ];
+
+        assert_eq!(
+            recommend_backend(&candidates),
+            Some("supported-low-confidence")
+        );
     }
 
     #[test]
@@ -808,7 +900,7 @@ mod tests {
                 missing_requirements: Vec::new(),
                 risk_notes: Vec::new(),
             }],
-            recommended_backend: "modern-cgroupv2-nft-tc".to_string(),
+            recommended_backend: Some("modern-cgroupv2-nft-tc".to_string()),
             notes: vec!["read-only".to_string()],
             warnings: Vec::new(),
         };
@@ -817,5 +909,38 @@ mod tests {
 
         assert!(json.contains("modern-cgroupv2-nft-tc"));
         assert!(json.contains("pure-v2"));
+    }
+
+    #[test]
+    fn doctor_report_serializes_no_recommendation_as_json_null() {
+        let report = BackendDoctorReport {
+            system: system(CgroupMode::Unknown, false, false, false),
+            capabilities: CapabilityMatrix {
+                cgroup_v2: CapabilityStatus::Unknown,
+                nft_socket_cgroupv2: CapabilityStatus::No,
+                tc_htb: CapabilityStatus::No,
+                fw_filter: CapabilityStatus::No,
+                conntrack_mark: CapabilityStatus::Unknown,
+                bpf_fs_mounted: CapabilityStatus::No,
+                ebpf: CapabilityStatus::No,
+            },
+            backend_candidates: vec![BackendCandidate {
+                name: "unavailable".to_string(),
+                status: BackendCandidateStatus::Unavailable,
+                confidence: 99,
+                missing_requirements: vec!["tc".to_string()],
+                risk_notes: Vec::new(),
+            }],
+            recommended_backend: None,
+            notes: Vec::new(),
+            warnings: vec![
+                "No supported or partial backend candidate detected on this host.".to_string(),
+            ],
+        };
+
+        let json = serde_json::to_string(&report).unwrap();
+
+        assert!(json.contains(r#""recommended_backend":null"#));
+        assert!(json.contains("No supported or partial backend candidate detected"));
     }
 }
