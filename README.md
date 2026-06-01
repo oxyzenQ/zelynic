@@ -1,6 +1,6 @@
 > **Project status: active again**
 >
-> Zelynic is active again for the v2.0.0 Renaissance release. Core features such as monitor, list, profile, watch, QoS, and auto-throttle are functional, and per-process bandwidth limiting through `zelynic strict` has been validated on a modern Arch/CachyOS cgroup v2 host.
+> Zelynic is active again after the v2.0.0 Renaissance release. Core features such as monitor, list, profile, watch, QoS, auto-throttle, Backend Doctor, and per-process bandwidth limiting through `zelynic strict` have been validated on a modern Arch/CachyOS cgroup v2 host.
 >
 > **Validation scope:** strict limiting is validated on tested modern cgroup v2 systems, including CachyOS/Arch with kernel `6.18.33-1-cachyos-lts`, nftables `v1.1.6`, tc/iproute2 `7.0.0`, pure cgroup v2, and interface `wlp1s0`. This is not yet a universal all-distro guarantee.
 >
@@ -21,7 +21,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-v2.0.0-7C3AED?style=flat-square&labelColor=111827" alt="Version v2.0.0">
+  <img src="https://img.shields.io/badge/version-v2.1.0-7C3AED?style=flat-square&labelColor=111827" alt="Version v2.1.0">
   <img src="https://img.shields.io/badge/license-GPL--3.0-E040FB?style=flat-square&labelColor=111827" alt="GPL-3.0 license">
   <img src="https://img.shields.io/badge/platform-Linux%20x86__64-8B5CF6?style=flat-square&labelColor=111827" alt="Platform Linux x86_64">
   <img src="https://img.shields.io/badge/Rust-1.88+-A855F7?style=flat-square&labelColor=111827" alt="Rust 1.88+">
@@ -98,18 +98,18 @@ Download the latest release from [GitHub Releases](https://github.com/oxyzenq/ze
 
 ```bash
 # Download and extract
-curl -sL https://github.com/oxyzenq/zelynic/releases/latest/download/zelynic-v2.0.0-x86_64-linux.tar.gz | tar xz
+curl -sL https://github.com/oxyzenq/zelynic/releases/latest/download/zelynic-v2.1.0-x86_64-linux.tar.gz | tar xz
 
 # Install system-wide
-sudo install -Dm755 zelynic-v2.0.0-x86_64-linux/zelynic /usr/local/bin/zelynic
+sudo install -Dm755 zelynic-v2.1.0-x86_64-linux/zelynic /usr/local/bin/zelynic
 ```
 
 Verify the download with SHA256 checksums published alongside each release.
 
 Release naming convention:
 
-- Tag: `v2.0.0`
-- Title: `Zelynic v2.0.0 Renaissance`
+- Tag: `v2.1.0`
+- Title: `Zelynic v2.1.0 Backend Doctor`
 
 ### From Source
 
@@ -453,7 +453,7 @@ zelynic -i
 
 **Example output of `zelynic -i`:**
 ```
-Version: v2.0.0
+Version: v2.1.0
 Build: linux-x86_64 (ad36a81)
 Copyright: (c) 2026 Rezky_nightky
 License: GPL-3.0

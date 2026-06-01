@@ -5,6 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0] - 2026-06-02 - v2.1.0 Backend Doctor
+
+### Added
+
+- **Backend Doctor**: Added `zelynic backend doctor` and `zelynic backend doctor --json` for read-only host capability diagnostics and deterministic backend recommendations.
+- **Refresh command**: Added `zelynic refresh <target>` to manually move reopened or respawned target PIDs into an existing active limit without duplicating nftables or tc rules.
+- **Interface-change warning**: `zelynic status` now warns when active limits are attached to an interface that differs from the current default route.
+- **Release notes**: Added `docs/release-v2.1.0.md` with validation notes and caveats for this release.
+
+### Changed
+
+- **Runtime namespace**: Migrated active runtime paths and identifiers from legacy `oxy` names to `zelynic`: `/run/zelynic`, `/run/zelynic/zelynic.nft`, `/sys/fs/cgroup/zelynic`, and `table inet zelynic`.
+- **Limiter internals**: Split the limiter implementation into focused modules without intentionally changing strict backend behavior.
+- **Supply-chain policy**: Hardened local dependency checks with documented `cargo audit`, `cargo deny`, and `./build.sh check-all` workflow.
+- **Strict lifecycle docs**: Documented that `zelynic strict` applies to new connections after cgroup movement; already-running requests may need reload or restart.
+
+### Fixed
+
+- **Unstrict cgroup restore**: `zelynic unstrict` now records and restores original cgroups when safe, falls back conservatively, removes empty target cgroups, and explains kept cgroups.
+- **Refresh state preservation**: Mistimed `zelynic refresh <target>` no longer deletes active target state when the app is not currently running.
+- **Release wording**: Fixed release/version wording that could produce duplicate `v` prefixes in docs or release titles.
+
+### Notes
+
+- Strict limiting remains validated on tested modern cgroup v2 systems, not all Linux distributions.
+- v2.0.0-era `oxy` runtime artifacts are treated as legacy cleanup targets only.
+- See `docs/release-v2.1.0.md` for release validation notes.
+
 ## [2.0.0] - 2026-06-01 - v2.0.0 Renaissance
 
 ### Renaissance Notes
@@ -95,6 +123,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `zelynic list`, `zelynic strict`, `zelynic unstrict`, `zelynic status` commands
 - Basic CLI interface with colored output
 
-[Unreleased]: https://github.com/oxyzenq/zelynic/compare/v2.0.0...HEAD
+[Unreleased]: https://github.com/oxyzenq/zelynic/compare/v2.1.0...HEAD
+[2.1.0]: https://github.com/oxyzenq/zelynic/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/oxyzenq/zelynic/compare/v1.0.0...v2.0.0
 [1.0.0]: https://github.com/oxyzenq/zelynic/releases/tag/v1.0.0
