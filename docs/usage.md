@@ -68,6 +68,9 @@ nftables tables, tc classes, or tc filters.
 If no active state exists, run `zelynic strict` first or re-run `zelynic strict`
 to replace the old limit intentionally.
 
+If the target is not running yet, `refresh` preserves the active limit state and
+waits for you to relaunch the target before trying again.
+
 ---
 
 ### Existing Connections
