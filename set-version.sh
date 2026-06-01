@@ -74,7 +74,7 @@ sed -i "0,/^version = \".*\"/s//version = \"${NEW_VERSION}\"/" Cargo.toml
 echo -e "  ${GREEN}✓${NC} Cargo.toml          → ${NEW_VERSION}"
 
 # --- Update README.md ---
-sed -i "s|version-v.*-blue|version-v${NEW_VERSION}-blue|" README.md
+sed -i -E "s|version-v[^?]*\\?|version-v${NEW_VERSION}-7C3AED?|" README.md
 sed -i "s|zelynic-v.*-x86_64|zelynic-v${NEW_VERSION}-x86_64|" README.md
 sed -i "s|Version: v.*|Version: v${NEW_VERSION}|" README.md
 echo -e "  ${GREEN}✓${NC} README.md           → v${NEW_VERSION} (badge + example)"
