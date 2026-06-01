@@ -546,8 +546,23 @@ pub fn remove_cgroup(pid: u32) -> Result<()> {
 pub(super) enum CgroupRemoval {
     NotFound,
     Removed,
-    KeptNonEmpty,
+    KeptNonEmpty { live_pids: Vec<u32> },
     Failed(String),
+}
+
+fn live_pids_in_cgroup(path: &Path) -> Vec<u32> {
+    fs::read_to_string(path.join("cgroup.procs"))
+        .ok()
+        .map(|content| live_pids_from_cgroup_procs(&content))
+        .unwrap_or_default()
+}
+
+fn live_pids_from_cgroup_procs(content: &str) -> Vec<u32> {
+    content
+        .lines()
+        .filter_map(|pid| pid.trim().parse::<u32>().ok())
+        .filter(|pid| Path::new(&format!("/proc/{}", pid)).exists())
+        .collect()
 }
 
 pub(super) fn remove_cgroup_path_if_empty(path: &Path) -> CgroupRemoval {
@@ -555,15 +570,9 @@ pub(super) fn remove_cgroup_path_if_empty(path: &Path) -> CgroupRemoval {
         return CgroupRemoval::NotFound;
     }
 
-    let procs_path = path.join("cgroup.procs");
-    if let Ok(content) = fs::read_to_string(&procs_path) {
-        let has_live_pids = content
-            .lines()
-            .filter_map(|pid| pid.trim().parse().ok())
-            .any(|pid: u32| Path::new(&format!("/proc/{}", pid)).exists());
-        if has_live_pids {
-            return CgroupRemoval::KeptNonEmpty;
-        }
+    let live_pids = live_pids_in_cgroup(path);
+    if !live_pids.is_empty() {
+        return CgroupRemoval::KeptNonEmpty { live_pids };
     }
 
     match fs::remove_dir(path) {
@@ -774,10 +783,17 @@ default via 192.168.1.1 dev wlp1s0 proto dhcp metric 600
 
         assert_eq!(
             remove_cgroup_path_if_empty(&path),
-            CgroupRemoval::KeptNonEmpty
+            CgroupRemoval::KeptNonEmpty {
+                live_pids: vec![std::process::id()]
+            }
         );
         assert!(path.exists());
 
         let _ = fs::remove_dir_all(&path);
+    }
+
+    #[test]
+    fn dead_pid_entries_do_not_count_as_live_cgroup_members() {
+        assert!(live_pids_from_cgroup_procs("999999999\n").is_empty());
     }
 }

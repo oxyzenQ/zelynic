@@ -138,10 +138,39 @@ fn print_interface_change_warning(state: &ZelynicState) {
 fn cgroup_removal_label(status: &CgroupRemoval) -> String {
     match status {
         CgroupRemoval::NotFound => "not present".to_string(),
-        CgroupRemoval::Removed => "removed empty zelynic parent".to_string(),
-        CgroupRemoval::KeptNonEmpty => "kept because it contains live PID(s)".to_string(),
+        CgroupRemoval::Removed => "removed because it was empty".to_string(),
+        CgroupRemoval::KeptNonEmpty { live_pids } => {
+            let sample = live_pids
+                .iter()
+                .take(8)
+                .map(u32::to_string)
+                .collect::<Vec<_>>()
+                .join(", ");
+            if live_pids.len() > 8 {
+                format!(
+                    "kept because it contains {} live PID(s): {}, ...",
+                    live_pids.len(),
+                    sample
+                )
+            } else {
+                format!(
+                    "kept because it contains {} live PID(s): {}",
+                    live_pids.len(),
+                    sample
+                )
+            }
+        }
         CgroupRemoval::Failed(error) => format!("kept ({})", error),
     }
+}
+
+fn remove_state_records_by_indices(state: &mut ZelynicState, indices: &[usize]) -> usize {
+    let mut removed = 0usize;
+    for &idx in indices.iter().rev() {
+        state.limits.remove(idx);
+        removed += 1;
+    }
+    removed
 }
 
 // ---------------------------------------------------------------------------
@@ -224,6 +253,7 @@ pub fn remove_limit(target: &str) -> Result<()> {
     let mut target_cgroups_removed = 0usize;
     let mut target_cgroups_kept = 0usize;
     let mut target_cgroups_failed = 0usize;
+    let mut target_cgroup_statuses: Vec<(String, CgroupRemoval)> = Vec::new();
     let mut parent_cgroup_status = None;
 
     for &idx in to_remove.iter().rev() {
@@ -242,10 +272,9 @@ pub fn remove_limit(target: &str) -> Result<()> {
 
         // Remove per-PID cgroup for this PID (v1/hybrid)
         remove_cgroup(record.pid)?;
-
-        state.limits.remove(idx);
-        removed_count += 1;
     }
+
+    removed_count += remove_state_records_by_indices(&mut state, &to_remove);
 
     // Save updated state
     state.save()?;
@@ -313,12 +342,14 @@ pub fn remove_limit(target: &str) -> Result<()> {
             }
 
             // Remove per-target cgroup only when it is empty.
-            match remove_target_cgroup_if_empty(san_name) {
+            let status = remove_target_cgroup_if_empty(san_name);
+            match &status {
                 CgroupRemoval::Removed => target_cgroups_removed += 1,
-                CgroupRemoval::KeptNonEmpty => target_cgroups_kept += 1,
+                CgroupRemoval::KeptNonEmpty { .. } => target_cgroups_kept += 1,
                 CgroupRemoval::Failed(_) => target_cgroups_failed += 1,
                 CgroupRemoval::NotFound => {}
             }
+            target_cgroup_statuses.push((san_name.clone(), status));
         }
     }
 
@@ -367,6 +398,9 @@ pub fn remove_limit(target: &str) -> Result<()> {
         "  Cgroups:   {} removed, {} kept, {} failed",
         target_cgroups_removed, target_cgroups_kept, target_cgroups_failed
     );
+    for (san_name, status) in &target_cgroup_statuses {
+        println!("    target_{}: {}", san_name, cgroup_removal_label(status));
+    }
     if let Some(status) = parent_cgroup_status {
         println!("  Parent:    {}", cgroup_removal_label(&status));
     }
@@ -809,10 +843,68 @@ pub fn check_respawns() -> Result<()> {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use crate::limiter::LimitRecord;
+
+    fn record(target: &str, pid: u32) -> LimitRecord {
+        LimitRecord {
+            target: target.to_string(),
+            pid,
+            download_bytes_per_sec: Some(62_500),
+            upload_bytes_per_sec: Some(62_500),
+            download_display: Some("500 Kbit/s".to_string()),
+            upload_display: Some("500 Kbit/s".to_string()),
+            interface: "wlp1s0".to_string(),
+            class_id: 100,
+            applied_at: "test".to_string(),
+            ingress_handle: None,
+            cgroup_id: Some(42),
+            target_cgroup_path: Some(format!("/sys/fs/cgroup/zelynic/target_{}", target)),
+            original_cgroup_path: None,
+            uid: None,
+        }
+    }
+
     #[test]
     fn legacy_cleanup_targets_v2_runtime_namespace() {
         assert_eq!(super::super::LEGACY_STATE_DIR, "/run/oxy");
         assert_eq!(super::super::LEGACY_CGROUP_BASE, "/sys/fs/cgroup/oxy");
         assert_eq!(super::super::LEGACY_NFT_TABLE, "oxy");
+    }
+
+    #[test]
+    fn unstrict_state_removal_drops_target_records_only() {
+        let mut state = ZelynicState {
+            limits: vec![
+                record("brave", 10),
+                record("helium", 20),
+                record("helium", 21),
+            ],
+        };
+
+        let removed = remove_state_records_by_indices(&mut state, &[1, 2]);
+
+        assert_eq!(removed, 2);
+        assert_eq!(state.limits.len(), 1);
+        assert_eq!(state.limits[0].target, "brave");
+    }
+
+    #[test]
+    fn cgroup_removal_label_reports_live_pids_for_kept_targets() {
+        let label = cgroup_removal_label(&CgroupRemoval::KeptNonEmpty {
+            live_pids: vec![1234, 5678],
+        });
+
+        assert_eq!(label, "kept because it contains 2 live PID(s): 1234, 5678");
+    }
+
+    #[test]
+    fn parent_cgroup_label_reports_fallback_live_pid() {
+        let label = cgroup_removal_label(&CgroupRemoval::KeptNonEmpty {
+            live_pids: vec![std::process::id()],
+        });
+
+        assert!(label.contains("kept because it contains 1 live PID(s)"));
+        assert!(label.contains(&std::process::id().to_string()));
     }
 }
