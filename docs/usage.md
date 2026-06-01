@@ -59,6 +59,12 @@ sudo zelynic unstrict brave            # By name
 sudo zelynic unstrict 1234             # By PID
 ```
 
+When strict state includes the process's original cgroup, `unstrict` attempts to
+restore live PIDs to that cgroup before removing the target cgroup. If the
+original destination no longer exists or cannot be validated safely, Zelynic
+does not guess systemd paths; it warns and uses the Zelynic parent cgroup as the
+safe fallback when possible.
+
 ---
 
 ### `zelynic status` — Active Limits

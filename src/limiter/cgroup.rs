@@ -2,7 +2,7 @@
 use anyhow::{bail, Context, Result};
 use colored::Colorize;
 use std::fs;
-use std::path::Path;
+use std::path::{Component, Path};
 use std::process::Command;
 
 use super::{CGROUP_BASE, CGROUP_ROOT};
@@ -45,6 +45,26 @@ pub(super) fn pid_cgroup_v2_line(pid: u32) -> String {
             .to_string(),
         Err(e) => format!("(failed to read {}: {})", cgroup_file, e),
     }
+}
+
+pub(super) fn cgroup_v2_absolute_path_from_proc_cgroup(content: &str) -> Option<String> {
+    let relative = content.lines().find_map(|line| line.strip_prefix("0::"))?;
+    let relative = relative.trim();
+    if relative.is_empty() || relative == "/" {
+        return Some(CGROUP_ROOT.to_string());
+    }
+
+    Some(format!(
+        "{}/{}",
+        CGROUP_ROOT.trim_end_matches('/'),
+        relative.trim_start_matches('/')
+    ))
+}
+
+pub(super) fn current_cgroup_v2_absolute_path(pid: u32) -> Option<String> {
+    fs::read_to_string(format!("/proc/{}/cgroup", pid))
+        .ok()
+        .and_then(|content| cgroup_v2_absolute_path_from_proc_cgroup(&content))
 }
 
 /// Verify that a PID is actually in the expected cgroup.
@@ -135,6 +155,112 @@ pub(super) fn move_pid_to_cgroup_with_verify(pid: u32, target_cg_path: &str) -> 
         vanished: !pid_exists(pid),
         cgroup_line: pid_cgroup_v2_line(pid),
         error: last_error,
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) enum RestoreDecision {
+    Restore,
+    FallbackMissingOriginal,
+    FallbackInvalidOriginal,
+    FallbackMissingDestination,
+}
+
+impl RestoreDecision {
+    pub(super) fn reason(&self) -> &'static str {
+        match self {
+            Self::Restore => "restore",
+            Self::FallbackMissingOriginal => "missing original cgroup",
+            Self::FallbackInvalidOriginal => "invalid original cgroup",
+            Self::FallbackMissingDestination => "original cgroup no longer exists",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct RestoreOutcome {
+    pub(super) restored: bool,
+    pub(super) fallback: bool,
+    pub(super) vanished: bool,
+    pub(super) reason: String,
+}
+
+pub(super) fn valid_original_cgroup_destination(path: &str) -> bool {
+    let path = Path::new(path);
+    if !path.is_absolute() {
+        return false;
+    }
+
+    let Ok(relative) = path.strip_prefix(CGROUP_ROOT) else {
+        return false;
+    };
+
+    if relative.as_os_str().is_empty() {
+        return false;
+    }
+
+    !relative
+        .components()
+        .any(|component| matches!(component, Component::ParentDir))
+}
+
+pub(super) fn plan_original_cgroup_restore(
+    original_cgroup_path: Option<&str>,
+    destination_exists: bool,
+) -> RestoreDecision {
+    let Some(path) = original_cgroup_path else {
+        return RestoreDecision::FallbackMissingOriginal;
+    };
+
+    if !valid_original_cgroup_destination(path) {
+        return RestoreDecision::FallbackInvalidOriginal;
+    }
+
+    if !destination_exists {
+        return RestoreDecision::FallbackMissingDestination;
+    }
+
+    RestoreDecision::Restore
+}
+
+pub(super) fn restore_pid_to_original_or_parent(
+    pid: u32,
+    original_cgroup_path: Option<&str>,
+) -> RestoreOutcome {
+    if !pid_exists(pid) {
+        return RestoreOutcome {
+            restored: false,
+            fallback: false,
+            vanished: true,
+            reason: "process vanished".to_string(),
+        };
+    }
+
+    let destination_exists = original_cgroup_path
+        .map(|path| Path::new(path).join("cgroup.procs").exists())
+        .unwrap_or(false);
+    let decision = plan_original_cgroup_restore(original_cgroup_path, destination_exists);
+
+    if decision == RestoreDecision::Restore {
+        if let Some(path) = original_cgroup_path {
+            let result = move_pid_to_cgroup_with_verify(pid, path);
+            if result.verified {
+                return RestoreOutcome {
+                    restored: true,
+                    fallback: false,
+                    vanished: false,
+                    reason: "restored to original cgroup".to_string(),
+                };
+            }
+        }
+    }
+
+    let fallback_result = move_pid_to_cgroup_with_verify(pid, CGROUP_BASE);
+    RestoreOutcome {
+        restored: false,
+        fallback: fallback_result.moved || fallback_result.verified,
+        vanished: fallback_result.vanished,
+        reason: decision.reason().to_string(),
     }
 }
 /// Convert an absolute cgroup v2 path into the relative path nftables expects.
@@ -369,7 +495,7 @@ pub fn remove_cgroup(pid: u32) -> Result<()> {
                     if !std::path::Path::new(&format!("/proc/{}", proc_pid)).exists() {
                         continue;
                     }
-                    // Move living processes to parent legacy cgroup (NOT system root cgroup).
+                    // Move living processes to parent Zelynic cgroup (NOT system root cgroup).
                     // Writing to /sys/fs/cgroup/cgroup.procs (root) breaks systemd --user
                     // cgroup delegation and can prevent all user apps from launching.
                     let safe_procs = format!("{}/cgroup.procs", CGROUP_BASE);
@@ -416,72 +542,42 @@ pub fn remove_cgroup(pid: u32) -> Result<()> {
     Ok(())
 }
 
-/// Remove a per-target cgroup directory and move its processes back to root.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) enum CgroupRemoval {
+    NotFound,
+    Removed,
+    KeptNonEmpty,
+    Failed(String),
+}
+
+pub(super) fn remove_cgroup_path_if_empty(path: &Path) -> CgroupRemoval {
+    if !path.exists() {
+        return CgroupRemoval::NotFound;
+    }
+
+    let procs_path = path.join("cgroup.procs");
+    if let Ok(content) = fs::read_to_string(&procs_path) {
+        let has_live_pids = content
+            .lines()
+            .filter_map(|pid| pid.trim().parse().ok())
+            .any(|pid: u32| Path::new(&format!("/proc/{}", pid)).exists());
+        if has_live_pids {
+            return CgroupRemoval::KeptNonEmpty;
+        }
+    }
+
+    match fs::remove_dir(path) {
+        Ok(()) => CgroupRemoval::Removed,
+        Err(e) => CgroupRemoval::Failed(e.to_string()),
+    }
+}
+
+/// Remove an empty per-target cgroup directory without moving live processes.
 ///
 /// On cgroup v2, per-target cgroups live at `/sys/fs/cgroup/zelynic/target_<name>/`.
-/// This function evicts all member PIDs and deletes the directory.
-pub(super) fn remove_target_cgroup(sanitized_name: &str) -> Result<()> {
+pub(super) fn remove_target_cgroup_if_empty(sanitized_name: &str) -> CgroupRemoval {
     let cgroup_path = format!("{}/target_{}", CGROUP_BASE, sanitized_name);
-
-    if !Path::new(&cgroup_path).exists() {
-        return Ok(());
-    }
-
-    let procs_path = format!("{}/cgroup.procs", cgroup_path);
-
-    // Move all processes back to parent legacy cgroup
-    if Path::new(&procs_path).exists() {
-        if let Ok(content) = fs::read_to_string(&procs_path) {
-            for pid_str in content.lines() {
-                if let Ok(proc_pid) = pid_str.trim().parse::<u32>() {
-                    // Skip dead processes
-                    if !std::path::Path::new(&format!("/proc/{}", proc_pid)).exists() {
-                        continue;
-                    }
-                    let safe_procs = format!("{}/cgroup.procs", CGROUP_BASE);
-                    if Path::new(&safe_procs).exists() {
-                        fs::write(&safe_procs, proc_pid.to_string()).ok();
-                    }
-                }
-            }
-        }
-    }
-
-    // Retry removal up to 5 times (processes may linger briefly)
-    let mut removed = false;
-    for _ in 0..5 {
-        match fs::remove_dir(&cgroup_path) {
-            Ok(()) => {
-                removed = true;
-                break;
-            }
-            Err(_) => {
-                // Re-evict any remaining processes
-                if Path::new(&procs_path).exists() {
-                    if let Ok(content) = fs::read_to_string(&procs_path) {
-                        for pid_str in content.lines() {
-                            if let Ok(proc_pid) = pid_str.trim().parse::<u32>() {
-                                // Skip dead processes
-                                if !std::path::Path::new(&format!("/proc/{}", proc_pid)).exists() {
-                                    continue;
-                                }
-                                let safe_procs = format!("{}/cgroup.procs", CGROUP_BASE);
-                                if Path::new(&safe_procs).exists() {
-                                    let _ = fs::write(&safe_procs, proc_pid.to_string());
-                                }
-                            }
-                        }
-                    }
-                }
-                std::thread::sleep(std::time::Duration::from_millis(100));
-            }
-        }
-    }
-    if !removed {
-        fs::remove_dir(&cgroup_path).context("failed to remove target cgroup directory")?;
-    }
-
-    Ok(())
+    remove_cgroup_path_if_empty(Path::new(&cgroup_path))
 }
 
 #[cfg(test)]
@@ -605,5 +701,83 @@ default via 192.168.1.1 dev wlp1s0 proto dhcp metric 600
             parse_default_interface_from_route_output("default via 192.168.1.1\n"),
             None
         );
+    }
+
+    #[test]
+    fn proc_cgroup_parser_returns_absolute_cgroup_path() {
+        let content = "0::/user.slice/user-1000.slice/session.scope\n";
+
+        assert_eq!(
+            cgroup_v2_absolute_path_from_proc_cgroup(content).as_deref(),
+            Some("/sys/fs/cgroup/user.slice/user-1000.slice/session.scope")
+        );
+    }
+
+    #[test]
+    fn original_cgroup_validation_rejects_unsafe_paths() {
+        assert!(valid_original_cgroup_destination(
+            "/sys/fs/cgroup/user.slice/user-1000.slice/session.scope"
+        ));
+        assert!(!valid_original_cgroup_destination(
+            "user.slice/session.scope"
+        ));
+        assert!(!valid_original_cgroup_destination("/tmp/user.slice"));
+        assert!(!valid_original_cgroup_destination("/sys/fs/cgroup"));
+        assert!(!valid_original_cgroup_destination(
+            "/sys/fs/cgroup/user.slice/../other.slice"
+        ));
+    }
+
+    #[test]
+    fn restore_decision_logic_is_conservative() {
+        assert_eq!(
+            plan_original_cgroup_restore(
+                Some("/sys/fs/cgroup/user.slice/user-1000.slice/session.scope"),
+                true
+            ),
+            RestoreDecision::Restore
+        );
+        assert_eq!(
+            plan_original_cgroup_restore(None, true),
+            RestoreDecision::FallbackMissingOriginal
+        );
+        assert_eq!(
+            plan_original_cgroup_restore(Some("/tmp/not-cgroup"), true),
+            RestoreDecision::FallbackInvalidOriginal
+        );
+        assert_eq!(
+            plan_original_cgroup_restore(Some("/sys/fs/cgroup/user.slice/missing.scope"), false),
+            RestoreDecision::FallbackMissingDestination
+        );
+    }
+
+    #[test]
+    fn empty_cgroup_path_is_removed() {
+        let path =
+            std::env::temp_dir().join(format!("zelynic-empty-cgroup-test-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&path);
+        fs::create_dir_all(&path).unwrap();
+
+        assert_eq!(remove_cgroup_path_if_empty(&path), CgroupRemoval::Removed);
+        assert!(!path.exists());
+    }
+
+    #[test]
+    fn non_empty_cgroup_path_is_kept() {
+        let path = std::env::temp_dir().join(format!(
+            "zelynic-non-empty-cgroup-test-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&path);
+        fs::create_dir_all(&path).unwrap();
+        fs::write(path.join("cgroup.procs"), std::process::id().to_string()).unwrap();
+
+        assert_eq!(
+            remove_cgroup_path_if_empty(&path),
+            CgroupRemoval::KeptNonEmpty
+        );
+        assert!(path.exists());
+
+        let _ = fs::remove_dir_all(&path);
     }
 }

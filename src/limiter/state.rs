@@ -39,6 +39,11 @@ pub struct LimitRecord {
     /// New for per-target isolation; None for legacy state files.
     #[serde(default)]
     pub target_cgroup_path: Option<String>,
+    /// Original cgroup v2 path recorded before strict moved the PID.
+    /// Used by unstrict to restore the process safely when the destination
+    /// still exists. None for older state files and cgroup v1 fallback state.
+    #[serde(default)]
+    pub original_cgroup_path: Option<String>,
     /// UID of the target process.  Kept for backward compatibility with
     /// legacy state files; always None for new limits (meta skuid fallback
     /// was removed to prevent per-UID cross-process leaks).
@@ -77,8 +82,73 @@ impl ZelynicState {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
     #[test]
     fn state_file_path_uses_zelynic_namespace() {
         assert_eq!(super::super::STATE_FILE, "/run/zelynic/state.json");
+    }
+
+    #[test]
+    fn old_state_without_original_cgroup_path_still_parses() {
+        let json = r#"
+        {
+          "limits": [
+            {
+              "target": "brave",
+              "pid": 1234,
+              "download_bytes_per_sec": 62500,
+              "upload_bytes_per_sec": 62500,
+              "download_display": "500 Kbit/s",
+              "upload_display": "500 Kbit/s",
+              "interface": "wlp1s0",
+              "class_id": 100,
+              "applied_at": "test",
+              "ingress_handle": null,
+              "cgroup_id": 42,
+              "target_cgroup_path": "/sys/fs/cgroup/zelynic/target_brave",
+              "uid": null
+            }
+          ]
+        }
+        "#;
+
+        let state: ZelynicState = serde_json::from_str(json).unwrap();
+
+        assert_eq!(state.limits.len(), 1);
+        assert_eq!(state.limits[0].original_cgroup_path, None);
+    }
+
+    #[test]
+    fn new_state_with_original_cgroup_path_parses() {
+        let json = r#"
+        {
+          "limits": [
+            {
+              "target": "brave",
+              "pid": 1234,
+              "download_bytes_per_sec": 62500,
+              "upload_bytes_per_sec": 62500,
+              "download_display": "500 Kbit/s",
+              "upload_display": "500 Kbit/s",
+              "interface": "wlp1s0",
+              "class_id": 100,
+              "applied_at": "test",
+              "ingress_handle": null,
+              "cgroup_id": 42,
+              "target_cgroup_path": "/sys/fs/cgroup/zelynic/target_brave",
+              "original_cgroup_path": "/sys/fs/cgroup/user.slice/user-1000.slice/session.scope",
+              "uid": null
+            }
+          ]
+        }
+        "#;
+
+        let state: ZelynicState = serde_json::from_str(json).unwrap();
+
+        assert_eq!(
+            state.limits[0].original_cgroup_path.as_deref(),
+            Some("/sys/fs/cgroup/user.slice/user-1000.slice/session.scope")
+        );
     }
 }

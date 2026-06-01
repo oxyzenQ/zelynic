@@ -271,6 +271,9 @@ mod tests {
             ingress_handle: None,
             cgroup_id: Some(13886),
             target_cgroup_path: Some(cgroup_path.to_string()),
+            original_cgroup_path: Some(
+                "/sys/fs/cgroup/user.slice/user-1000.slice/session.scope".to_string(),
+            ),
             uid: None,
         }
     }

@@ -7,8 +7,8 @@ use std::path::Path;
 use std::process::Command;
 
 use super::cgroup::{
-    check_root, get_default_interface, list_interfaces, remove_cgroup, remove_target_cgroup,
-    setup_cgroup,
+    check_root, get_default_interface, list_interfaces, remove_cgroup, remove_cgroup_path_if_empty,
+    remove_target_cgroup_if_empty, restore_pid_to_original_or_parent, setup_cgroup, CgroupRemoval,
 };
 use super::nft::refresh_nft_ip_rules;
 use super::process::{get_process_name, resolve_pids, sanitize_target_name};
@@ -135,6 +135,15 @@ fn print_interface_change_warning(state: &ZelynicState) {
     println!();
 }
 
+fn cgroup_removal_label(status: &CgroupRemoval) -> String {
+    match status {
+        CgroupRemoval::NotFound => "not present".to_string(),
+        CgroupRemoval::Removed => "removed empty zelynic parent".to_string(),
+        CgroupRemoval::KeptNonEmpty => "kept because it contains live PID(s)".to_string(),
+        CgroupRemoval::Failed(error) => format!("kept ({})", error),
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Main: remove_limit
 // ---------------------------------------------------------------------------
@@ -208,8 +217,28 @@ pub fn remove_limit(target: &str) -> Result<()> {
         .collect();
 
     // Process removals in reverse order to maintain indices
+    let mut restored_pids = 0usize;
+    let mut fallback_pids = 0usize;
+    let mut vanished_pids = 0usize;
+    let mut restore_warnings = Vec::new();
+    let mut target_cgroups_removed = 0usize;
+    let mut target_cgroups_kept = 0usize;
+    let mut target_cgroups_failed = 0usize;
+    let mut parent_cgroup_status = None;
+
     for &idx in to_remove.iter().rev() {
         let record = &state.limits[idx];
+
+        let restore =
+            restore_pid_to_original_or_parent(record.pid, record.original_cgroup_path.as_deref());
+        if restore.restored {
+            restored_pids += 1;
+        } else if restore.vanished {
+            vanished_pids += 1;
+        } else {
+            fallback_pids += 1;
+            restore_warnings.push(format!("PID {}: {}", record.pid, restore.reason));
+        }
 
         // Remove per-PID cgroup for this PID (v1/hybrid)
         remove_cgroup(record.pid)?;
@@ -283,8 +312,13 @@ pub fn remove_limit(target: &str) -> Result<()> {
                     .output();
             }
 
-            // Remove per-target cgroup
-            let _ = remove_target_cgroup(san_name);
+            // Remove per-target cgroup only when it is empty.
+            match remove_target_cgroup_if_empty(san_name) {
+                CgroupRemoval::Removed => target_cgroups_removed += 1,
+                CgroupRemoval::KeptNonEmpty => target_cgroups_kept += 1,
+                CgroupRemoval::Failed(_) => target_cgroups_failed += 1,
+                CgroupRemoval::NotFound => {}
+            }
         }
     }
 
@@ -311,15 +345,12 @@ pub fn remove_limit(target: &str) -> Result<()> {
                 .output();
         }
 
-        // Clean up all per-target cgroups
-        for san_name in &removed_targets {
-            let _ = remove_target_cgroup(san_name);
-        }
-
         // Clean up all nftables tables
         let _ = Command::new("nft")
             .args(["delete", "table", "inet", NFT_TABLE])
             .output();
+
+        parent_cgroup_status = Some(remove_cgroup_path_if_empty(Path::new(CGROUP_BASE)));
     }
 
     println!(
@@ -329,6 +360,25 @@ pub fn remove_limit(target: &str) -> Result<()> {
     println!();
     println!("  Target:    {}", target);
     println!("  Removed:   {} limit(s)", removed_count);
+    println!("  Restored:  {} PID(s)", restored_pids);
+    println!("  Fallback:  {} PID(s)", fallback_pids);
+    println!("  Vanished:  {} PID(s)", vanished_pids);
+    println!(
+        "  Cgroups:   {} removed, {} kept, {} failed",
+        target_cgroups_removed, target_cgroups_kept, target_cgroups_failed
+    );
+    if let Some(status) = parent_cgroup_status {
+        println!("  Parent:    {}", cgroup_removal_label(&status));
+    }
+    if !restore_warnings.is_empty() {
+        println!(
+            "  {} Original cgroup restore was skipped for some PID(s); fallback used the Zelynic parent cgroup when possible.",
+            "Warning:".yellow()
+        );
+        for warning in restore_warnings.iter().take(3) {
+            println!("    {}", warning);
+        }
+    }
     println!(
         "  {} All bandwidth restrictions for '{}' have been lifted.",
         "Info:".yellow(),
@@ -520,7 +570,7 @@ pub fn clean_orphans() -> Result<()> {
             }
 
             // Remove per-target cgroup
-            let _ = remove_target_cgroup(san_name);
+            let _ = remove_target_cgroup_if_empty(san_name);
         }
     }
 
