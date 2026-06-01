@@ -439,7 +439,7 @@ Source: https://github.com/oxyzenq/zelynic
 ## Building
 
 ```bash
-# Quick quality checks
+# Recommended local quality gate for Rust/core changes
 ./build.sh check-all
 
 # Build release binary
@@ -448,6 +448,18 @@ Source: https://github.com/oxyzenq/zelynic
 # Full CI pipeline (checks + release build)
 ./build.sh ci
 ```
+
+Manual fallback:
+
+```bash
+cargo fmt --all -- --check
+cargo clippy --all-targets --all-features -- -D warnings
+cargo test
+cargo audit
+cargo deny check all
+```
+
+See [docs/supply-chain.md](docs/supply-chain.md) for dependency policy and supply-chain check details.
 
 ## License
 
