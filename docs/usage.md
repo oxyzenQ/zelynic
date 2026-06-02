@@ -127,7 +127,9 @@ When strict state includes the process's original cgroup, `unstrict` attempts to
 restore live PIDs to that cgroup before removing the target cgroup. If the
 original destination no longer exists or cannot be validated safely, Zelynic
 does not guess systemd paths; it warns and uses the Zelynic parent cgroup as the
-safe fallback when possible.
+safe fallback when possible. Zelynic also refuses to restore a PID into a
+Zelynic-managed target cgroup, which prevents re-applied limits from trapping
+processes inside stale target cgroups during `unstrict`.
 
 ---
 

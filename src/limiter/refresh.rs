@@ -5,7 +5,7 @@ use std::path::Path;
 
 use super::cgroup::{
     check_root, current_cgroup_v2_absolute_path, get_default_interface,
-    move_pid_to_cgroup_with_verify, verify_pid_in_cgroup,
+    move_pid_to_cgroup_with_verify, safe_original_cgroup_path, verify_pid_in_cgroup,
 };
 use super::cleanup::chrono_now;
 use super::process::resolve_pids;
@@ -182,7 +182,7 @@ pub fn refresh_limit(target: &str) -> Result<()> {
             continue;
         }
 
-        let original_cgroup_path = current_cgroup_v2_absolute_path(*pid);
+        let original_cgroup_path = safe_original_cgroup_path(current_cgroup_v2_absolute_path(*pid));
         let outcome = move_pid_to_cgroup_with_verify(*pid, &target_cgroup_path);
 
         if outcome.verified {
@@ -414,6 +414,24 @@ mod tests {
             refreshed.original_cgroup_path.as_deref(),
             Some("/sys/fs/cgroup/user.slice/app.scope")
         );
+    }
+
+    #[test]
+    fn refreshed_pid_does_not_record_zelynic_target_as_original_cgroup() {
+        let template = record("brave", 10);
+        let mut state = ZelynicState {
+            limits: vec![template.clone()],
+        };
+
+        append_refreshed_record(
+            &mut state,
+            &template,
+            11,
+            safe_original_cgroup_path(Some("/sys/fs/cgroup/zelynic/target_brave".to_string())),
+        );
+
+        let refreshed = state.limits.iter().find(|record| record.pid == 11).unwrap();
+        assert_eq!(refreshed.original_cgroup_path, None);
     }
 
     #[test]
