@@ -104,6 +104,11 @@ This remains the best short-term path because it is already implemented and pres
 
 Instead of moving arbitrary existing PIDs, `zelynic` could create or request a transient systemd scope/slice and place the target there. This may cooperate better with systemd but is harder for already-running GUI applications and requires systemd-specific code paths.
 
+The v2.2 groundwork exposes `zelynic run --dry-run ...` to review planned
+scope/cgroup wiring without launching a process or modifying nftables, tc,
+cgroups, or state. See [systemd-wrapper-design.md](systemd-wrapper-design.md)
+for the proposed wrapper model and non-goals.
+
 ### 3. cgroup v1 `net_cls` fallback
 
 Where available, cgroup v1 `net_cls.classid` can integrate with tc cgroup filters. This is not a good primary path on modern pure cgroup v2 systems and should remain a compatibility fallback only.

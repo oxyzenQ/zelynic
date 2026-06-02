@@ -15,6 +15,7 @@ mod log;
 mod monitor;
 mod profile;
 mod qos;
+mod systemd_wrapper;
 mod tui;
 mod units;
 mod watch;
@@ -160,6 +161,22 @@ fn main() -> Result<()> {
 
         Some(Commands::Refresh { target }) => {
             limiter::refresh_limit(&target)?;
+        }
+
+        Some(Commands::Run {
+            dry_run,
+            target,
+            download,
+            upload,
+            command,
+        }) => {
+            systemd_wrapper::run_systemd_wrapper_dry_run(
+                dry_run,
+                target.as_deref(),
+                download.as_deref(),
+                upload.as_deref(),
+                &command,
+            )?;
         }
 
         Some(Commands::Status) => {
@@ -470,6 +487,27 @@ fn print_help_all() {
     );
     println!(
         "    {} sudo zelynic refresh 1234         # Refresh by PID target",
+        "  ".dimmed()
+    );
+    println!();
+
+    // --- run ---
+    println!(
+        "  {} {}",
+        "run".green().bold(),
+        "— Experimental systemd scope wrapper dry-run".dimmed()
+    );
+    println!(
+        "    {} Prints planned scope/cgroup wiring without launching anything.\n",
+        "  ".dimmed()
+    );
+    println!("    {} Usage:", "  ".dimmed());
+    println!(
+        "    {} zelynic run --dry-run -d 500kbit -u 500kbit -- helium",
+        "  ".dimmed()
+    );
+    println!(
+        "    {} zelynic run --dry-run --target helium -d 500kbit -- helium --flag",
         "  ".dimmed()
     );
     println!();

@@ -172,6 +172,44 @@ pub enum Commands {
         target: String,
     },
 
+    /// Experimental dry-run for launching a command in a future systemd scope
+    ///
+    /// This is v2.2 groundwork only. It validates rates and prints the planned
+    /// scope/cgroup wiring, but does not launch a process and does not modify
+    /// nftables, tc, cgroups, or state.
+    ///
+    /// Examples:
+    ///   zelynic run --dry-run -d 500kbit -u 500kbit -- helium
+    ///   zelynic run --dry-run --target helium -d 500kbit -- helium --flag
+    #[command(verbatim_doc_comment)]
+    Run {
+        /// Show the planned systemd scope wrapper without launching anything
+        #[arg(long = "dry-run")]
+        dry_run: bool,
+
+        /// Optional target name for state/cgroup naming; defaults to command basename
+        #[arg(long = "target", value_name = "TARGET")]
+        target: Option<String>,
+
+        /// Download speed limit (e.g., 500kb, 1mb, 500kbit)
+        #[arg(short = 'd', long = "download", allow_hyphen_values = true)]
+        download: Option<String>,
+
+        /// Upload speed limit (e.g., 500kb, 1mb, 500kbit)
+        #[arg(short = 'u', long = "upload", allow_hyphen_values = true)]
+        upload: Option<String>,
+
+        /// Command to launch in the future wrapper mode; pass after `--`
+        #[arg(
+            required = true,
+            num_args = 1..,
+            last = true,
+            allow_hyphen_values = true,
+            value_name = "COMMAND"
+        )]
+        command: Vec<String>,
+    },
+
     /// Show active bandwidth limits
     ///
     /// Displays all currently active bandwidth limits that were applied
@@ -487,6 +525,39 @@ mod tests {
         match cli.command.unwrap() {
             Commands::Refresh { target } => assert_eq!(target, "brave"),
             other => panic!("expected refresh command, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn run_dry_run_parses_command_after_separator() {
+        let cli = Cli::try_parse_from([
+            "zelynic",
+            "run",
+            "--dry-run",
+            "-d",
+            "500kbit",
+            "-u",
+            "500kbit",
+            "--",
+            "echo",
+            "hello",
+        ])
+        .unwrap();
+
+        match cli.command.unwrap() {
+            Commands::Run {
+                dry_run,
+                download,
+                upload,
+                command,
+                ..
+            } => {
+                assert!(dry_run);
+                assert_eq!(download.as_deref(), Some("500kbit"));
+                assert_eq!(upload.as_deref(), Some("500kbit"));
+                assert_eq!(command, vec!["echo", "hello"]);
+            }
+            other => panic!("expected run command, got {other:?}"),
         }
     }
 }

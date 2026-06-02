@@ -103,6 +103,7 @@ pub struct CapabilityMatrix {
     pub conntrack_mark: CapabilityStatus,
     pub bpf_fs_mounted: CapabilityStatus,
     pub ebpf: CapabilityStatus,
+    pub transient_scope_wrapper: CapabilityStatus,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -143,6 +144,7 @@ pub fn detect_backend_doctor_report() -> BackendDoctorReport {
         "Backend Doctor does not modify nftables, tc, or cgroups.".to_string(),
         "Status meanings: supported = host likely has requirements; partial = requirements or implementation work remain; future = not implemented as an active strict backend.".to_string(),
         "Strict mode is only truly validated after a real zelynic strict --diagnose test.".to_string(),
+        "Systemd scope wrapper/run mode is experimental groundwork and dry-run only.".to_string(),
     ];
     let mut warnings = Vec::new();
 
@@ -232,6 +234,20 @@ fn detect_capabilities(system: &SystemInfo) -> CapabilityMatrix {
         } else {
             CapabilityStatus::No
         },
+        transient_scope_wrapper: transient_scope_wrapper_readiness(system),
+    }
+}
+
+fn transient_scope_wrapper_readiness(system: &SystemInfo) -> CapabilityStatus {
+    if system.systemd.available
+        && system.systemd_run.available
+        && matches!(system.cgroup_mode, CgroupMode::PureV2 | CgroupMode::Hybrid)
+    {
+        CapabilityStatus::Likely
+    } else if !system.systemd.available || !system.systemd_run.available {
+        CapabilityStatus::No
+    } else {
+        CapabilityStatus::Unknown
     }
 }
 
@@ -492,6 +508,11 @@ fn print_backend_doctor_report(report: &BackendDoctorReport) {
     println!("  conntrack mark: {}", report.capabilities.conntrack_mark);
     println!("  BPF filesystem: {}", report.capabilities.bpf_fs_mounted);
     println!("  eBPF: {}", ebpf_display(report.capabilities.ebpf));
+    println!(
+        "  transient scope wrapper: {}",
+        report.capabilities.transient_scope_wrapper
+    );
+    println!("  recommended for v2.2 run mode: experimental/future");
     println!();
 
     println!("{}", "Backend candidates:".bold());
@@ -711,6 +732,7 @@ mod tests {
             conntrack_mark: CapabilityStatus::Likely,
             bpf_fs_mounted: CapabilityStatus::Yes,
             ebpf: CapabilityStatus::RequiresRoot,
+            transient_scope_wrapper: CapabilityStatus::Likely,
         };
 
         let candidates = score_backend_candidates(&system, &caps);
@@ -738,6 +760,7 @@ mod tests {
             conntrack_mark: CapabilityStatus::Likely,
             bpf_fs_mounted: CapabilityStatus::Yes,
             ebpf: CapabilityStatus::RequiresRoot,
+            transient_scope_wrapper: CapabilityStatus::Likely,
         };
 
         let candidates = score_backend_candidates(&system, &caps);
@@ -773,6 +796,7 @@ mod tests {
             conntrack_mark: CapabilityStatus::Likely,
             bpf_fs_mounted: CapabilityStatus::Yes,
             ebpf: CapabilityStatus::No,
+            transient_scope_wrapper: CapabilityStatus::Likely,
         };
 
         let candidates = score_backend_candidates(&system, &caps);
@@ -798,6 +822,7 @@ mod tests {
             conntrack_mark: CapabilityStatus::Unknown,
             bpf_fs_mounted: CapabilityStatus::No,
             ebpf: CapabilityStatus::No,
+            transient_scope_wrapper: CapabilityStatus::No,
         };
 
         let candidates = score_backend_candidates(&system, &caps);
@@ -892,6 +917,7 @@ mod tests {
                 conntrack_mark: CapabilityStatus::Likely,
                 bpf_fs_mounted: CapabilityStatus::Yes,
                 ebpf: CapabilityStatus::RequiresRoot,
+                transient_scope_wrapper: CapabilityStatus::Likely,
             },
             backend_candidates: vec![BackendCandidate {
                 name: "modern-cgroupv2-nft-tc".to_string(),
@@ -923,6 +949,7 @@ mod tests {
                 conntrack_mark: CapabilityStatus::Unknown,
                 bpf_fs_mounted: CapabilityStatus::No,
                 ebpf: CapabilityStatus::No,
+                transient_scope_wrapper: CapabilityStatus::No,
             },
             backend_candidates: vec![BackendCandidate {
                 name: "unavailable".to_string(),
@@ -942,5 +969,26 @@ mod tests {
 
         assert!(json.contains(r#""recommended_backend":null"#));
         assert!(json.contains("No supported or partial backend candidate detected"));
+    }
+
+    #[test]
+    fn transient_scope_wrapper_readiness_requires_systemd_run_and_cgroup_v2() {
+        let ready = system(CgroupMode::PureV2, true, true, true);
+        assert_eq!(
+            transient_scope_wrapper_readiness(&ready),
+            CapabilityStatus::Likely
+        );
+
+        let no_systemd = system(CgroupMode::PureV2, true, true, false);
+        assert_eq!(
+            transient_scope_wrapper_readiness(&no_systemd),
+            CapabilityStatus::No
+        );
+
+        let legacy = system(CgroupMode::V1Legacy, true, true, true);
+        assert_eq!(
+            transient_scope_wrapper_readiness(&legacy),
+            CapabilityStatus::Unknown
+        );
     }
 }
