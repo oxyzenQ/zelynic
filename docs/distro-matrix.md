@@ -26,7 +26,7 @@ contributor with reproducible steps.
 
 | Environment | Status | Notes |
 |-------------|--------|-------|
-| **Arch Linux / CachyOS** | Validated | Modern pure cgroup v2 host. Kernel `6.18.33-1-cachyos-lts`, nftables `v1.1.6`, tc/iproute2 `7.0.0`, pure cgroup v2. Brave bandwidth limiting observed within expected ranges. |
+| **Arch Linux / CachyOS** | [Validated](validation-reports/arch-cachyos.md) | Modern pure cgroup v2 host. Kernel `6.18.33-1-cachyos-lts`, nftables `v1.1.6`, tc/iproute2 `7.0.0`, pure cgroup v2. Brave bandwidth limiting observed within expected ranges. |
 | **Fedora** | Candidate | Fedora ships cgroup v2 by default since Fedora 31, includes nftables and modern tc. Strict limiting is expected to work but has not been explicitly validated. |
 | **Ubuntu** | Candidate | Ubuntu 22.04+ enables cgroup v2 by default. Older Ubuntu releases use hybrid cgroup v1/v2 which may need manual configuration. Not yet validated. |
 | **Debian** | Candidate | Debian 12 (Bookworm) and later default to cgroup v2. Earlier releases use hybrid or v1-only mode. Not yet validated. |
@@ -120,10 +120,11 @@ After successful validation, record:
 - Observed bandwidth ranges
 - Any caveats or workarounds needed
 
-Update this matrix and `docs/validation.md` with the results.
+Update this matrix and `docs/validation.md` with the results. Use the [validation report template](validation-reports/template.md) to record results in a consistent format, and see the [validation reports README](validation-reports/README.md) for instructions.
 
 ## See Also
 
+- [docs/validation-reports/](validation-reports/README.md) — per-distribution validation reports
 - [docs/validation.md](validation.md) — real-machine validation records
 - [docs/strict-backend-design.md](strict-backend-design.md) — strict limiter architecture
 - [docs/systemd-wrapper-design.md](systemd-wrapper-design.md) — systemd scope wrapper design

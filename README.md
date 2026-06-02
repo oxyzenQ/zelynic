@@ -75,7 +75,7 @@ Support matrix — see [docs/distro-matrix.md](docs/distro-matrix.md) for the fu
 | Older Ubuntu/Debian, hybrid cgroup, containers, WSL, non-systemd distros | Partial / Unsupported |
 | systemd-scope backend, cgroup v1 fallback, eBPF backend | Future |
 
-The strict limiter path is validated on tested modern cgroup v2 Linux hosts. Other distributions are listed as candidates pending explicit validation. See the [distro matrix](docs/distro-matrix.md) for details.
+The strict limiter path is validated on tested modern cgroup v2 Linux hosts. Other distributions are listed as candidates pending explicit validation. See the [distro matrix](docs/distro-matrix.md) for details and the [validation reports](docs/validation-reports/README.md) for per-distro evidence.
 
 ## Features
 
