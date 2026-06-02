@@ -128,7 +128,10 @@ These are manual-only operations. Do not run them from automated scripts or CI p
 
 ### Documentation After Validation
 
-When adding a new distribution to the validated set, record the following and update [docs/distro-matrix.md](distro-matrix.md):
+When adding a new distribution to the validated set, use the
+[validation report template](validation-reports/template.md) to record results
+in a consistent format. See the [validation reports README](validation-reports/README.md)
+for instructions on how to file a report. Key fields to record:
 
 - Distribution name and version
 - Kernel version (`uname -r`)
@@ -137,3 +140,6 @@ When adding a new distribution to the validated set, record the following and up
 - Network interface used
 - Target application and observed bandwidth ranges
 - Any caveats or workarounds needed
+
+Update [docs/distro-matrix.md](distro-matrix.md) with the final status and link
+to the new report.
