@@ -19,6 +19,20 @@ pub(super) struct RunDryRunPlan {
     pub pid_handoff: PidHandoffPlan,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct LiveRunPlan {
+    pub target: String,
+    pub scope_unit: String,
+    pub scope_mode: ScopeMode,
+    pub command_argv: Vec<String>,
+    pub download: Option<String>,
+    pub upload: Option<String>,
+    pub attach_target_cgroup: String,
+    pub systemd_run_argv: Vec<String>,
+    pub pid_discovery_argv: Vec<Vec<String>>,
+    pub strict_attach_step: String,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum ScopeMode {
     System,
@@ -77,6 +91,30 @@ pub(super) fn build_dry_run_plan(
         upload: parse_rate_display(upload)?,
         systemd_run,
         pid_handoff,
+    })
+}
+
+pub(super) fn build_live_run_plan(
+    target: Option<&str>,
+    download: Option<&str>,
+    upload: Option<&str>,
+    command: &[String],
+) -> Result<LiveRunPlan> {
+    let preview = build_dry_run_plan(target, download, upload, command)?;
+    let systemd_run_argv = systemd_run_argv(&preview.systemd_run);
+    let pid_discovery_argv = preview.pid_handoff.discovery_commands.clone();
+
+    Ok(LiveRunPlan {
+        target: preview.target.clone(),
+        scope_unit: preview.scope_name.clone(),
+        scope_mode: preview.systemd_run.scope_mode,
+        command_argv: preview.command.clone(),
+        download: preview.download.clone(),
+        upload: preview.upload.clone(),
+        attach_target_cgroup: preview.attach_target_cgroup.clone(),
+        systemd_run_argv,
+        pid_discovery_argv,
+        strict_attach_step: "apply existing Zelynic strict attach backend".to_string(),
     })
 }
 
@@ -161,6 +199,29 @@ mod tests {
         assert_eq!(
             plan.systemd_run.description,
             "Zelynic target Helium Browser!"
+        );
+    }
+
+    #[test]
+    fn live_run_plan_reuses_dry_run_planning_data() {
+        let command = vec!["echo".to_string(), "hello".to_string()];
+        let plan =
+            build_live_run_plan(Some("Helium Browser!"), Some("500kbit"), None, &command).unwrap();
+
+        assert_eq!(plan.target, "Helium Browser!");
+        assert_eq!(plan.scope_unit, "zelynic-run-helium_browser.scope");
+        assert_eq!(plan.scope_mode, ScopeMode::System);
+        assert_eq!(plan.command_argv, command);
+        assert_eq!(plan.download.as_deref(), Some("500 Kbit/s"));
+        assert_eq!(
+            plan.attach_target_cgroup,
+            "/sys/fs/cgroup/zelynic/target_helium_browser"
+        );
+        assert_eq!(plan.systemd_run_argv[0], "systemd-run");
+        assert!(plan.pid_discovery_argv[0].contains(&"systemctl".to_string()));
+        assert_eq!(
+            plan.strict_attach_step,
+            "apply existing Zelynic strict attach backend"
         );
     }
 }

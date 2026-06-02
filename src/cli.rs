@@ -172,20 +172,25 @@ pub enum Commands {
         target: String,
     },
 
-    /// Experimental dry-run for launching a command in a future systemd scope
+    /// Experimental groundwork for launching a command in a future systemd scope
     ///
-    /// This is v2.2 groundwork only. It validates rates and prints the planned
-    /// scope/cgroup wiring, but does not launch a process and does not modify
-    /// nftables, tc, cgroups, or state.
+    /// This is v2.2 groundwork only. Use --dry-run for a safe preview. The
+    /// --execute opt-in is experimental and currently stops at a non-mutating
+    /// implementation boundary.
     ///
     /// Examples:
     ///   zelynic run --dry-run -d 500kbit -u 500kbit -- helium
+    ///   zelynic run --execute -d 500kbit -u 500kbit -- helium
     ///   zelynic run --dry-run --target helium -d 500kbit -- helium --flag
     #[command(verbatim_doc_comment)]
     Run {
         /// Show the planned systemd scope wrapper without launching anything
-        #[arg(long = "dry-run")]
+        #[arg(long = "dry-run", conflicts_with = "execute")]
         dry_run: bool,
+
+        /// Experimental live execution opt-in; currently parsed but not implemented
+        #[arg(long = "execute", conflicts_with = "dry_run")]
+        execute: bool,
 
         /// Optional target name for state/cgroup naming; defaults to command basename
         #[arg(long = "target", value_name = "TARGET")]
@@ -474,7 +479,7 @@ pub enum QosCommands {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use clap::Parser;
+    use clap::{CommandFactory, Parser};
 
     #[test]
     fn strict_diagnose_flag_parses() {
@@ -547,17 +552,78 @@ mod tests {
         match cli.command.unwrap() {
             Commands::Run {
                 dry_run,
+                execute,
                 download,
                 upload,
                 command,
                 ..
             } => {
                 assert!(dry_run);
+                assert!(!execute);
                 assert_eq!(download.as_deref(), Some("500kbit"));
                 assert_eq!(upload.as_deref(), Some("500kbit"));
                 assert_eq!(command, vec!["echo", "hello"]);
             }
             other => panic!("expected run command, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn run_execute_parses_command_after_separator() {
+        let cli = Cli::try_parse_from([
+            "zelynic",
+            "run",
+            "--execute",
+            "-d",
+            "500kbit",
+            "--",
+            "echo",
+            "hello",
+        ])
+        .unwrap();
+
+        match cli.command.unwrap() {
+            Commands::Run {
+                dry_run,
+                execute,
+                download,
+                command,
+                ..
+            } => {
+                assert!(!dry_run);
+                assert!(execute);
+                assert_eq!(download.as_deref(), Some("500kbit"));
+                assert_eq!(command, vec!["echo", "hello"]);
+            }
+            other => panic!("expected run command, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn run_dry_run_and_execute_conflict() {
+        let result = Cli::try_parse_from([
+            "zelynic",
+            "run",
+            "--dry-run",
+            "--execute",
+            "--",
+            "echo",
+            "hello",
+        ]);
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn run_help_mentions_execute_is_experimental() {
+        let mut command = Cli::command();
+        let help = command
+            .find_subcommand_mut("run")
+            .expect("run subcommand")
+            .render_long_help()
+            .to_string();
+
+        assert!(help.contains("--execute"));
+        assert!(help.contains("Experimental live execution opt-in"));
     }
 }

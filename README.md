@@ -56,9 +56,10 @@ zelynic backend doctor --json
 The v2.2 development line also includes `zelynic run --dry-run` groundwork for
 a future systemd scope wrapper mode. It prints the planned scope/cgroup wiring
 and preview-only `systemd-run` launch command without launching a process or
-modifying nftables, tc, cgroups, or state. The likely future model is
-launch-then-attach: systemd starts the command, then Zelynic attaches discovered
-PIDs with the existing strict backend.
+modifying nftables, tc, cgroups, or state. `zelynic run --execute` is gated as
+an experimental opt-in and currently stops at a non-mutating not-implemented
+boundary. The likely future model is launch-then-attach: systemd starts the
+command, then Zelynic attaches discovered PIDs with the existing strict backend.
 
 Support matrix:
 
@@ -73,7 +74,7 @@ Support matrix:
 
 - **Monitor** bandwidth usage per process/program with cumulative and real-time rates
 - **Limit** download and/or upload speeds per process with tc + nftables + cgroup v2
-- **Experimental run dry-run** — preview future systemd scope wrapper wiring without runtime changes
+- **Experimental run planning** — preview future systemd scope wrapper wiring without runtime changes
 - **QoS priority shaping** — assign high/low priority tiers instead of hard limits
 - **TUI dashboard** — live bandwidth monitor with sparklines, scrolling, and dual RX/TX graphs
 - **Auto-throttle daemon** — background mode that auto-limits when thresholds are exceeded
