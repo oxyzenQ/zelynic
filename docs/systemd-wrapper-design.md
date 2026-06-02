@@ -48,10 +48,11 @@ behavior.
 
 `--execute` is now parseable as an explicit experimental opt-in, but live
 execution is not implemented yet. It builds the same structured plan, prints a
-concise execution preview, and returns a normal not-implemented error without
-running `systemd-run`, `systemctl`, or modifying nftables, tc, cgroups, or
-state. Running `zelynic run` without `--dry-run` or `--execute` errors clearly
-so live behavior cannot be selected accidentally.
+concise execution preview with a non-mutating preflight decision, and returns a
+normal not-implemented error without running `systemd-run`, `systemctl`, or
+modifying nftables, tc, cgroups, or state. Running `zelynic run` without
+`--dry-run` or `--execute` errors clearly so live behavior cannot be selected
+accidentally.
 
 The displayed `systemd-run` command is for visibility only. Internally, Zelynic
 keeps the command as structured argv; a future live implementation must execute
@@ -65,6 +66,15 @@ therefore the safer v2.2 planning default for GUI/user applications. System
 scope can still be previewed with `--scope-mode system`, but it remains
 planning-only and should require root or explicit opt-in before any future live
 implementation.
+
+The execution preflight model is deliberately conservative:
+
+| Scope mode | Current privilege | Decision |
+|------------|-------------------|----------|
+| user | non-root | blocked: user launch may work, but strict attach requires root |
+| user | root | blocked: root can attach, but user-scope launch needs explicit user/session context |
+| system | non-root | blocked: system scope requires root; Zelynic refuses accidental Polkit prompts |
+| system | root | future-capable: possible implementation path, but live execution is still absent |
 
 ## Chosen v2.2 Model: Launch Then Attach
 
@@ -183,7 +193,8 @@ Polkit prompts when requested from an unprivileged desktop session, and
 launching desktop GUI apps as root is usually wrong. User scope is better for
 GUI session ownership and avoids surprise system authorization prompts, but it
 must preserve enough session context for Wayland/X11, DBus, portals, and desktop
-integration.
+integration. It also does not remove the need for privileged cgroup/nft/tc
+attach work.
 
 Future implementation needs to decide whether the command is launched through:
 

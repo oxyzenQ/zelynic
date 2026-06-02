@@ -3,11 +3,13 @@ use anyhow::{bail, Result};
 
 mod discovery;
 mod plan;
+mod preflight;
 mod render;
 mod sanitize;
 
 pub(crate) use plan::ScopeMode;
 use plan::{build_dry_run_plan_with_scope_mode, build_live_run_plan_with_scope_mode, LiveRunPlan};
+use preflight::current_execution_preflight;
 use render::{print_dry_run_plan, print_live_run_plan};
 
 pub fn run_systemd_wrapper(
@@ -27,8 +29,10 @@ pub fn run_systemd_wrapper(
             Ok(())
         }
         (false, true) => {
-            let plan =
-                build_live_run_plan_with_scope_mode(target, download, upload, command, scope_mode)?;
+            let preflight = current_execution_preflight(scope_mode);
+            let plan = build_live_run_plan_with_scope_mode(
+                target, download, upload, command, scope_mode, preflight,
+            )?;
             print_live_run_plan(&plan);
             execute_live_run(&plan)
         }

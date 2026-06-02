@@ -104,7 +104,14 @@ User scope is the default planning mode to avoid accidental system Polkit
 prompts; system scope is available only as explicit preview via
 `--scope-mode system`. `--execute` is an explicit experimental opt-in, but live
 execution is still not implemented in this pass and stops at a non-mutating
-boundary. Running `zelynic run` without either flag errors clearly.
+boundary. Its preview includes an execution preflight explaining why full live
+limiting is blocked or future-only for the selected scope mode. Running
+`zelynic run` without either flag errors clearly.
+
+Full live limiting still needs a privilege handoff design: user-scope launch is
+good for GUI/session ownership, but applying cgroup/nft/tc limits generally
+requires root. System-scope launch will require root and explicit opt-in so
+Zelynic does not accidentally trigger desktop Polkit prompts.
 
 The rendered command is for review; future live code must preserve structured
 argv instead of executing a shell string.

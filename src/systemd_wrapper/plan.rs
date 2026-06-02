@@ -2,6 +2,9 @@
 use anyhow::{bail, Result};
 
 use super::discovery::{build_pid_handoff_plan, PidHandoffPlan};
+use super::preflight::ExecutionPreflight;
+#[cfg(test)]
+use super::preflight::{evaluate_execution_preflight, ExecutionPreflightInput};
 use super::sanitize::sanitize_scope_component;
 use crate::units::BandwidthRate;
 
@@ -31,6 +34,7 @@ pub(super) struct LiveRunPlan {
     pub systemd_run_argv: Vec<String>,
     pub pid_discovery_argv: Vec<Vec<String>>,
     pub strict_attach_step: String,
+    pub preflight: ExecutionPreflight,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -114,7 +118,18 @@ pub(super) fn build_live_run_plan(
     upload: Option<&str>,
     command: &[String],
 ) -> Result<LiveRunPlan> {
-    build_live_run_plan_with_scope_mode(target, download, upload, command, ScopeMode::User)
+    let preflight = evaluate_execution_preflight(ExecutionPreflightInput {
+        scope_mode: ScopeMode::User,
+        is_root: false,
+    });
+    build_live_run_plan_with_scope_mode(
+        target,
+        download,
+        upload,
+        command,
+        ScopeMode::User,
+        preflight,
+    )
 }
 
 pub(super) fn build_live_run_plan_with_scope_mode(
@@ -123,6 +138,7 @@ pub(super) fn build_live_run_plan_with_scope_mode(
     upload: Option<&str>,
     command: &[String],
     scope_mode: ScopeMode,
+    preflight: ExecutionPreflight,
 ) -> Result<LiveRunPlan> {
     let preview =
         build_dry_run_plan_with_scope_mode(target, download, upload, command, scope_mode)?;
@@ -140,6 +156,7 @@ pub(super) fn build_live_run_plan_with_scope_mode(
         systemd_run_argv,
         pid_discovery_argv,
         strict_attach_step: "apply existing Zelynic strict attach backend".to_string(),
+        preflight,
     })
 }
 
@@ -254,6 +271,8 @@ mod tests {
             plan.strict_attach_step,
             "apply existing Zelynic strict attach backend"
         );
+        assert_eq!(plan.preflight.scope_mode, ScopeMode::User);
+        assert_eq!(plan.preflight.readiness.label(), "blocked");
     }
 
     #[test]
