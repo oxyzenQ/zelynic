@@ -1,15 +1,18 @@
 // SPDX-License-Identifier: GPL-3.0-only
 use colored::Colorize;
+use std::io::{self, Write};
 
 use super::discovery::PidHandoffPlan;
 use super::plan::{systemd_run_argv, LiveRunPlan, RunDryRunPlan, SystemdRunPlan};
 
 pub(super) fn print_dry_run_plan(plan: &RunDryRunPlan) {
     colorize_dry_run_plan(&render_dry_run_plan(plan));
+    let _ = io::stdout().flush();
 }
 
 pub(super) fn print_live_run_plan(plan: &LiveRunPlan) {
     colorize_dry_run_plan(&render_live_run_plan(plan));
+    let _ = io::stdout().flush();
 }
 
 pub(super) fn render_dry_run_plan(plan: &RunDryRunPlan) -> String {
