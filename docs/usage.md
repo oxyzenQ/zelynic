@@ -86,20 +86,25 @@ by default.
 
 ---
 
-### `zelynic run` — Experimental Systemd Wrapper Dry-Run
+### `zelynic run` — Experimental Systemd Wrapper Planning
 
 ```bash
 zelynic run --dry-run -d 500kbit -u 500kbit -- echo hello
 zelynic run --dry-run --target helium -d 500kbit -- helium
+zelynic run --execute -d 500kbit -u 500kbit -- helium
 ```
 
 `run` is v2.2 groundwork for a future systemd scope wrapper mode. Today it is
-dry-run only: it validates the target, rates, and command, prints the planned
-scope, future Zelynic attach target, preview-only `systemd-run` launch command,
-PID discovery handoff, and launch-then-attach flow, then exits without launching
-a process or modifying nftables, tc, cgroups, or state. The rendered command is
-for review; future live code must preserve structured argv instead of executing
-a shell string.
+safe by default: `--dry-run` validates the target, rates, and command, prints
+the planned scope, future Zelynic attach target, preview-only `systemd-run`
+launch command, PID discovery handoff, and launch-then-attach flow, then exits
+without launching a process or modifying nftables, tc, cgroups, or state.
+`--execute` is an explicit experimental opt-in, but live execution is still not
+implemented in this pass and stops at a non-mutating boundary. Running `zelynic
+run` without either flag errors clearly.
+
+The rendered command is for review; future live code must preserve structured
+argv instead of executing a shell string.
 
 The systemd scope and `/sys/fs/cgroup/zelynic/target_<target>` are not the same
 cgroup in the current design. Future v2.2 work is expected to launch through

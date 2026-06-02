@@ -165,13 +165,15 @@ fn main() -> Result<()> {
 
         Some(Commands::Run {
             dry_run,
+            execute,
             target,
             download,
             upload,
             command,
         }) => {
-            systemd_wrapper::run_systemd_wrapper_dry_run(
+            systemd_wrapper::run_systemd_wrapper(
                 dry_run,
+                execute,
                 target.as_deref(),
                 download.as_deref(),
                 upload.as_deref(),
@@ -495,10 +497,10 @@ fn print_help_all() {
     println!(
         "  {} {}",
         "run".green().bold(),
-        "— Experimental systemd scope wrapper dry-run".dimmed()
+        "— Experimental systemd scope wrapper planning".dimmed()
     );
     println!(
-        "    {} Prints planned scope/cgroup wiring without launching anything.\n",
+        "    {} Use --dry-run to preview. --execute is experimental and currently gated.\n",
         "  ".dimmed()
     );
     println!("    {} Usage:", "  ".dimmed());
@@ -508,6 +510,10 @@ fn print_help_all() {
     );
     println!(
         "    {} zelynic run --dry-run --target helium -d 500kbit -- helium --flag",
+        "  ".dimmed()
+    );
+    println!(
+        "    {} zelynic run --execute -d 500kbit -u 500kbit -- helium  # Not implemented yet",
         "  ".dimmed()
     );
     println!();

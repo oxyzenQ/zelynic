@@ -26,11 +26,12 @@ Possible future commands:
 sudo zelynic run -d 500kbit -u 500kbit -- helium
 sudo zelynic run --target helium -d 500kbit -u 500kbit -- helium
 zelynic run --dry-run -d 500kbit -u 500kbit -- helium
+zelynic run --execute -d 500kbit -u 500kbit -- helium
 ```
 
 ## Current Dry Run
 
-The current `run` command is intentionally dry-run only. It parses rates,
+The current `run` command is intentionally gated. `--dry-run` parses rates,
 target, and command arguments, then prints:
 
 - planned transient systemd scope name
@@ -45,6 +46,13 @@ target, and command arguments, then prints:
 
 This makes the future UX reviewable without introducing new privileged runtime
 behavior.
+
+`--execute` is now parseable as an explicit experimental opt-in, but live
+execution is not implemented yet. It builds the same structured plan, prints a
+concise execution preview, and returns a normal not-implemented error without
+running `systemd-run`, `systemctl`, or modifying nftables, tc, cgroups, or
+state. Running `zelynic run` without `--dry-run` or `--execute` errors clearly
+so live behavior cannot be selected accidentally.
 
 The displayed `systemd-run` command is for visibility only. Internally, Zelynic
 keeps the command as structured argv; a future live implementation must execute
@@ -152,6 +160,11 @@ A live implementation should reuse the existing strict backend helpers for:
 The wrapper should not create a parallel limiter backend. It should only change
 how the first process is launched before Zelynic attaches it to the existing
 target cgroup model.
+
+The live execution boundary should remain narrow: build a structured
+`systemd-run` argv, launch without a shell, read structured PID discovery data,
+then hand validated PIDs to the existing attach backend. The current
+`--execute` path deliberately stops before that boundary is crossed.
 
 ## Root And User Scope Tradeoffs
 

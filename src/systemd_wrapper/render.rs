@@ -2,10 +2,14 @@
 use colored::Colorize;
 
 use super::discovery::PidHandoffPlan;
-use super::plan::{systemd_run_argv, RunDryRunPlan, SystemdRunPlan};
+use super::plan::{systemd_run_argv, LiveRunPlan, RunDryRunPlan, SystemdRunPlan};
 
 pub(super) fn print_dry_run_plan(plan: &RunDryRunPlan) {
     colorize_dry_run_plan(&render_dry_run_plan(plan));
+}
+
+pub(super) fn print_live_run_plan(plan: &LiveRunPlan) {
+    colorize_dry_run_plan(&render_live_run_plan(plan));
 }
 
 pub(super) fn render_dry_run_plan(plan: &RunDryRunPlan) -> String {
@@ -95,6 +99,63 @@ pub(super) fn render_dry_run_plan(plan: &RunDryRunPlan) -> String {
         "  No nftables, tc, cgroup, or state changes were made.",
     );
     push_line(&mut output, "  Live launch is not implemented yet.");
+
+    output
+}
+
+pub(super) fn render_live_run_plan(plan: &LiveRunPlan) -> String {
+    let mut output = String::new();
+
+    push_line(&mut output, "zelynic run execute plan");
+    push_line(&mut output, &format!("  Target: {}", plan.target));
+    push_line(
+        &mut output,
+        &format!("  Scope mode: {}", plan.scope_mode.label()),
+    );
+    push_line(&mut output, &format!("  Scope: {}", plan.scope_unit));
+    push_line(
+        &mut output,
+        &format!("  Command: {}", render_command(&plan.command_argv)),
+    );
+    push_line(
+        &mut output,
+        &format!(
+            "  Download: {}",
+            plan.download.as_deref().unwrap_or("unlimited")
+        ),
+    );
+    push_line(
+        &mut output,
+        &format!(
+            "  Upload: {}",
+            plan.upload.as_deref().unwrap_or("unlimited")
+        ),
+    );
+    push_line(
+        &mut output,
+        &format!("  Future attach target: {}", plan.attach_target_cgroup),
+    );
+    push_line(&mut output, "");
+    push_line(&mut output, "  Future launch argv:");
+    push_line(
+        &mut output,
+        &format!("  {}", render_argv(&plan.systemd_run_argv)),
+    );
+    push_line(&mut output, "");
+    push_line(&mut output, "  Future PID discovery argv:");
+    for command in &plan.pid_discovery_argv {
+        push_line(&mut output, &format!("    {}", render_argv(command)));
+    }
+    push_line(&mut output, "");
+    push_line(
+        &mut output,
+        &format!("  Future strict attach: {}", plan.strict_attach_step),
+    );
+    push_line(&mut output, "  No process was launched.");
+    push_line(
+        &mut output,
+        "  No nftables, tc, cgroup, or state changes were made.",
+    );
 
     output
 }
@@ -261,5 +322,26 @@ mod tests {
 
         assert!(rendered.contains("systemd ControlGroup and Zelynic attach target are distinct"));
         assert!(rendered.contains("/sys/fs/cgroup/zelynic/target_helium"));
+    }
+
+    #[test]
+    fn live_run_output_is_execute_plan_without_mutation_notice() {
+        let command = vec!["echo".to_string(), "hello".to_string()];
+        let plan = crate::systemd_wrapper::plan::build_live_run_plan(
+            None,
+            Some("500kbit"),
+            None,
+            &command,
+        )
+        .unwrap();
+        let rendered = render_live_run_plan(&plan);
+
+        assert!(rendered.contains("zelynic run execute plan"));
+        assert!(rendered.contains("Future launch argv"));
+        assert!(rendered.contains("Future PID discovery argv"));
+        assert!(rendered.contains("Future strict attach"));
+        assert!(rendered.contains("systemd-run --scope --unit zelynic-run-echo"));
+        assert!(rendered.contains("No process was launched."));
+        assert!(rendered.contains("No nftables, tc, cgroup, or state changes were made."));
     }
 }
