@@ -52,6 +52,7 @@ use std::process::Command;
 
 use crate::units::BandwidthRate;
 
+mod attach;
 mod cgroup;
 mod cleanup;
 mod diagnostics;
@@ -75,9 +76,13 @@ pub use process::{
     ProcessMatchReason, ResolvedPid,
 };
 pub use refresh::refresh_limit;
+#[allow(unused_imports)]
 pub use state::{LimitRecord, ZelynicState};
 pub use tc::next_class_id;
 
+use attach::{
+    build_limit_record, dedupe_resolved_target_pids, LimitRecordTemplate, ResolvedTargetPid,
+};
 use cgroup::{
     cgroup_level, cgroup_level_from_relative, current_cgroup_v2_absolute_path,
     detect_cgroup_version, move_pid_to_cgroup_with_verify, pid_cgroup_v2_line,
@@ -145,9 +150,7 @@ fn ensure_conntrack() -> Result<()> {
 
     Ok(())
 }
-// ---------------------------------------------------------------------------
 // Main: apply_limit
-// ---------------------------------------------------------------------------
 
 /// Apply a bandwidth limit (strict) to a target process.
 ///
@@ -198,6 +201,30 @@ pub fn apply_limit_with_diagnostics(
     let download_rate = download.map(BandwidthRate::parse).transpose()?;
     let upload_rate = upload.map(BandwidthRate::parse).transpose()?;
 
+    let resolved_pids = resolve_pids_detailed(target)?
+        .into_iter()
+        .map(ResolvedTargetPid::from)
+        .collect();
+
+    apply_limit_to_resolved_pids(
+        target,
+        resolved_pids,
+        download_rate,
+        upload_rate,
+        interface,
+        diagnostics,
+    )
+}
+
+pub(crate) fn apply_limit_to_resolved_pids(
+    target: &str,
+    resolved_pids: Vec<ResolvedTargetPid>,
+    download_rate: Option<BandwidthRate>,
+    upload_rate: Option<BandwidthRate>,
+    interface: String,
+    diagnostics: bool,
+) -> Result<()> {
+    let resolved_pids = dedupe_resolved_target_pids(resolved_pids)?;
     let (dl_bps, ul_bps, dl_display, ul_display) = (
         download_rate.as_ref().map(|r| r.bytes_per_sec),
         upload_rate.as_ref().map(|r| r.bytes_per_sec),
@@ -205,7 +232,6 @@ pub fn apply_limit_with_diagnostics(
         upload_rate.as_ref().map(|r| r.to_string()),
     );
 
-    let resolved_pids = resolve_pids_detailed(target)?;
     let pids: Vec<u32> = resolved_pids.iter().map(|resolved| resolved.pid).collect();
     let sanitized = sanitize_target_name(target);
 
@@ -368,8 +394,9 @@ pub fn apply_limit_with_diagnostics(
         );
         for resolved in &resolved_pids {
             println!(
-                "strict diagnostic: selected PID {} reason={} {}",
-                resolved.pid, resolved.reason, resolved.matched
+                "strict diagnostic: selected PID {} {}",
+                resolved.pid,
+                resolved.diagnostic_label()
             );
         }
         match fs::metadata(&target_cg_path) {
@@ -396,9 +423,14 @@ pub fn apply_limit_with_diagnostics(
     let mut verified_pids = Vec::new();
     let mut original_cgroup_paths: HashMap<u32, Option<String>> = HashMap::new();
 
-    for pid in &pids {
-        original_cgroup_paths.insert(*pid, current_cgroup_v2_absolute_path(*pid));
-        let result = move_pid_to_cgroup_with_verify(*pid, &target_cg_path);
+    for resolved in &resolved_pids {
+        let pid = resolved.pid;
+        let original_cgroup_path = resolved
+            .original_cgroup_path
+            .clone()
+            .or_else(|| current_cgroup_v2_absolute_path(pid));
+        original_cgroup_paths.insert(pid, original_cgroup_path);
+        let result = move_pid_to_cgroup_with_verify(pid, &target_cg_path);
         if diagnostics {
             println!(
                 "strict diagnostic: write PID {} to {}/cgroup.procs: moved={} verified={} vanished={} error={}",
@@ -423,11 +455,11 @@ pub fn apply_limit_with_diagnostics(
             moved_count += 1;
         }
         if result.verified {
-            verified_pids.push(*pid);
+            verified_pids.push(pid);
         } else if result.vanished {
-            vanished_pids.push(*pid);
+            vanished_pids.push(pid);
         } else {
-            failed_pids.push((*pid, result.cgroup_line, result.error));
+            failed_pids.push((pid, result.cgroup_line, result.error));
         }
     }
 
@@ -537,6 +569,20 @@ pub fn apply_limit_with_diagnostics(
     };
 
     let use_v2 = cgroup_id.is_some();
+    let record_template = LimitRecordTemplate {
+        target: target.to_string(),
+        download_bytes_per_sec: dl_bps,
+        upload_bytes_per_sec: ul_bps,
+        download_display: dl_display.clone(),
+        upload_display: ul_display.clone(),
+        interface: interface.clone(),
+        cgroup_id,
+        target_cgroup_path: if use_v2 {
+            Some(target_cg_path.clone())
+        } else {
+            None
+        },
+    };
 
     // For v1 fallback: add tc cgroup filter on egress
     if !use_v2 {
@@ -581,26 +627,13 @@ pub fn apply_limit_with_diagnostics(
             let _ = setup_cgroup(*pid, class_id);
         }
 
-        let record = LimitRecord {
-            target: target.to_string(),
-            pid: *pid,
-            download_bytes_per_sec: dl_bps,
-            upload_bytes_per_sec: ul_bps,
-            download_display: dl_display.clone(),
-            upload_display: ul_display.clone(),
-            interface: interface.clone(),
-            class_id,
-            applied_at: chrono_now(),
-            ingress_handle: None,
-            cgroup_id,
-            target_cgroup_path: if use_v2 {
-                Some(target_cg_path.clone())
-            } else {
-                None
-            },
-            original_cgroup_path: original_cgroup_paths.get(pid).cloned().flatten(),
-            uid: None,
-        };
+        let mut resolved = resolved_pids
+            .iter()
+            .find(|resolved| resolved.pid == *pid)
+            .cloned()
+            .expect("verified PID came from resolved PID list");
+        resolved.original_cgroup_path = original_cgroup_paths.get(pid).cloned().flatten();
+        let record = build_limit_record(&record_template, &resolved, class_id, chrono_now());
 
         state.limits.push(record);
         applied_count += 1;
@@ -941,4 +974,25 @@ pub fn apply_limit_with_diagnostics(
     );
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn resolved_pid_attach_api_rejects_empty_pid_list() {
+        let err = apply_limit_to_resolved_pids(
+            "helium",
+            Vec::new(),
+            None,
+            None,
+            "wlp1s0".to_string(),
+            false,
+        )
+        .unwrap_err()
+        .to_string();
+
+        assert_eq!(err, "strict attach requires at least one resolved PID");
+    }
 }

@@ -117,6 +117,11 @@ Zelynic should move only validated live PIDs into
 `/sys/fs/cgroup/zelynic/target_<target>` and then reuse the existing nftables/tc
 setup.
 
+The strict backend now has an internal resolved-PID attach path for that handoff:
+future run mode can keep launch and PID discovery separate, then pass validated
+PID metadata into the existing strict enforcement path instead of asking the
+process-name resolver to rediscover the launched command.
+
 The parser accepts both normal `systemctl show` key/value output:
 
 ```text
@@ -163,7 +168,7 @@ target cgroup model.
 
 The live execution boundary should remain narrow: build a structured
 `systemd-run` argv, launch without a shell, read structured PID discovery data,
-then hand validated PIDs to the existing attach backend. The current
+then hand validated PIDs to the resolved-PID strict attach API. The current
 `--execute` path deliberately stops before that boundary is crossed.
 
 ## Root And User Scope Tradeoffs
