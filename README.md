@@ -56,8 +56,10 @@ zelynic backend doctor --json
 The v2.2 development line also includes `zelynic run --dry-run` groundwork for
 a future systemd scope wrapper mode. It prints the planned scope/cgroup wiring
 and preview-only `systemd-run` launch command without launching a process or
-modifying nftables, tc, cgroups, or state. `zelynic run --execute` is gated as
-an experimental opt-in and currently stops at a non-mutating not-implemented
+modifying nftables, tc, cgroups, or state. User scope is the default planning
+mode to avoid accidental system Polkit prompts; system scope can be previewed
+explicitly with `--scope-mode system`. `zelynic run --execute` is gated as an
+experimental opt-in and currently stops at a non-mutating not-implemented
 boundary. The likely future model is launch-then-attach: systemd starts the
 command, then Zelynic attaches discovered PIDs with the existing strict backend.
 

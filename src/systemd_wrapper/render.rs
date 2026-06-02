@@ -24,6 +24,7 @@ pub(super) fn render_dry_run_plan(plan: &RunDryRunPlan) -> String {
         &mut output,
         &format!("  Scope mode: {}", plan.systemd_run.scope_mode.label()),
     );
+    push_line(&mut output, &format!("  Scope note: {}", scope_note()));
     push_line(&mut output, &format!("  Scope: {}", plan.scope_name));
     push_line(
         &mut output,
@@ -115,6 +116,7 @@ pub(super) fn render_live_run_plan(plan: &LiveRunPlan) -> String {
         &mut output,
         &format!("  Scope mode: {}", plan.scope_mode.label()),
     );
+    push_line(&mut output, &format!("  Scope note: {}", scope_note()));
     push_line(&mut output, &format!("  Scope: {}", plan.scope_unit));
     push_line(
         &mut output,
@@ -185,6 +187,10 @@ pub(super) fn render_command(command: &[String]) -> String {
     render_argv(command)
 }
 
+fn scope_note() -> &'static str {
+    "user scope is the default to avoid system Polkit prompts; system scope is explicit planning-only"
+}
+
 fn shell_quote(value: &str) -> String {
     if !value.is_empty()
         && value
@@ -228,7 +234,7 @@ mod tests {
 
         assert_eq!(
             render_systemd_run_command(&plan.systemd_run),
-            "systemd-run --scope --unit zelynic-run-helium --description 'Zelynic target helium' -- echo hello"
+            "systemd-run --user --scope --unit zelynic-run-helium --description 'Zelynic target helium' -- echo hello"
         );
     }
 
@@ -259,7 +265,9 @@ mod tests {
 
         assert!(rendered.contains("Future launch command"));
         assert!(rendered.contains("Future attach target"));
-        assert!(rendered.contains("systemd-run --scope --unit zelynic-run-echo"));
+        assert!(rendered.contains("Scope mode: user"));
+        assert!(rendered.contains("user scope is the default to avoid system Polkit prompts"));
+        assert!(rendered.contains("systemd-run --user --scope --unit zelynic-run-echo"));
         assert!(!rendered.contains("Planned cgroup"));
         assert!(rendered.contains("No process was launched."));
         assert!(rendered.contains("No nftables, tc, cgroup, or state changes were made."));
@@ -287,7 +295,7 @@ mod tests {
         let rendered = render_dry_run_plan(&plan);
 
         assert!(rendered.contains("Future PID discovery"));
-        assert!(rendered.contains("method: systemctl show zelynic-run-helium.scope"));
+        assert!(rendered.contains("method: systemctl --user show zelynic-run-helium.scope"));
         assert!(rendered.contains("fallback: scan cgroup.procs under the reported ControlGroup"));
         assert!(rendered.contains("attach: move discovered PID(s) into the Zelynic target cgroup"));
     }
@@ -300,7 +308,7 @@ mod tests {
 
         assert_eq!(
             commands[0],
-            "systemctl show zelynic-run-helium_browser.scope --property MainPID --property ControlGroup --value"
+            "systemctl --user show zelynic-run-helium_browser.scope --property MainPID --property ControlGroup --value"
         );
     }
 
@@ -343,8 +351,29 @@ mod tests {
         assert!(rendered.contains("Future launch argv"));
         assert!(rendered.contains("Future PID discovery argv"));
         assert!(rendered.contains("Future strict attach"));
-        assert!(rendered.contains("systemd-run --scope --unit zelynic-run-echo"));
+        assert!(rendered.contains("Scope mode: user"));
+        assert!(rendered.contains("systemd-run --user --scope --unit zelynic-run-echo"));
         assert!(rendered.contains("No process was launched."));
         assert!(rendered.contains("No nftables, tc, cgroup, or state changes were made."));
+    }
+
+    #[test]
+    fn dry_run_output_can_preview_system_scope_explicitly() {
+        let command = vec!["echo".to_string(), "hello".to_string()];
+        let plan = crate::systemd_wrapper::plan::build_dry_run_plan_with_scope_mode(
+            None,
+            Some("500kbit"),
+            None,
+            &command,
+            crate::systemd_wrapper::ScopeMode::System,
+        )
+        .unwrap();
+        let rendered = render_dry_run_plan(&plan);
+
+        assert!(rendered.contains("Scope mode: system"));
+        assert!(rendered.contains("systemd-run --scope --unit zelynic-run-echo"));
+        assert!(rendered.contains(
+            "systemctl show zelynic-run-echo.scope --property MainPID --property ControlGroup --value"
+        ));
     }
 }
