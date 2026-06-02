@@ -15,6 +15,7 @@ pub struct RunDryRunPlan {
     pub download: Option<String>,
     pub upload: Option<String>,
     pub systemd_run: SystemdRunPlan,
+    pub pid_handoff: PidHandoffPlan,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -37,6 +38,16 @@ pub struct SystemdRunPlan {
     pub command_argv: Vec<String>,
     pub scope_mode: ScopeMode,
     pub target: String,
+    pub attach_target_cgroup: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PidHandoffPlan {
+    pub method: String,
+    pub fallback: String,
+    pub attach: String,
+    pub discovery_commands: Vec<Vec<String>>,
+    pub scope_unit_name: String,
     pub attach_target_cgroup: String,
 }
 
@@ -80,6 +91,7 @@ pub fn build_dry_run_plan(
         target: target_name.clone(),
         attach_target_cgroup: attach_target_cgroup.clone(),
     };
+    let pid_handoff = build_pid_handoff_plan(&systemd_run);
 
     Ok(RunDryRunPlan {
         target: target_name,
@@ -89,6 +101,7 @@ pub fn build_dry_run_plan(
         download: parse_rate_display(download)?,
         upload: parse_rate_display(upload)?,
         systemd_run,
+        pid_handoff,
     })
 }
 
@@ -146,6 +159,50 @@ pub fn render_systemd_run_command(plan: &SystemdRunPlan) -> String {
     render_argv(&systemd_run_argv(plan))
 }
 
+pub fn build_pid_handoff_plan(systemd_run: &SystemdRunPlan) -> PidHandoffPlan {
+    let scope_name = format!("{}.scope", systemd_run.scope_unit_name);
+    PidHandoffPlan {
+        method: format!(
+            "systemctl show {} --property MainPID,ControlGroup",
+            scope_name
+        ),
+        fallback: "scan cgroup.procs under the reported ControlGroup".to_string(),
+        attach: "move discovered PID(s) into the Zelynic target cgroup".to_string(),
+        discovery_commands: vec![
+            systemctl_show_argv(systemd_run),
+            vec![
+                "cat".to_string(),
+                "/sys/fs/cgroup/<reported-control-group>/cgroup.procs".to_string(),
+            ],
+        ],
+        scope_unit_name: scope_name,
+        attach_target_cgroup: systemd_run.attach_target_cgroup.clone(),
+    }
+}
+
+pub fn render_discovery_commands(plan: &PidHandoffPlan) -> Vec<String> {
+    plan.discovery_commands
+        .iter()
+        .map(|argv| render_argv(argv))
+        .collect()
+}
+
+fn systemctl_show_argv(plan: &SystemdRunPlan) -> Vec<String> {
+    let mut argv = vec!["systemctl".to_string()];
+    if plan.scope_mode == ScopeMode::System {
+        argv.push("show".to_string());
+    }
+    argv.extend([
+        format!("{}.scope", plan.scope_unit_name),
+        "--property".to_string(),
+        "MainPID".to_string(),
+        "--property".to_string(),
+        "ControlGroup".to_string(),
+        "--value".to_string(),
+    ]);
+    argv
+}
+
 pub fn render_dry_run_plan(plan: &RunDryRunPlan) -> String {
     let mut output = String::new();
 
@@ -199,6 +256,29 @@ pub fn render_dry_run_plan(plan: &RunDryRunPlan) -> String {
         &mut output,
         "  4. enforce nftables + HTB limits on the Zelynic target cgroup",
     );
+    push_line(&mut output, "");
+    push_line(&mut output, "  Future PID discovery:");
+    push_line(
+        &mut output,
+        &format!("    method: {}", plan.pid_handoff.method),
+    );
+    push_line(
+        &mut output,
+        &format!("    fallback: {}", plan.pid_handoff.fallback),
+    );
+    push_line(
+        &mut output,
+        &format!("    attach: {}", plan.pid_handoff.attach),
+    );
+    push_line(
+        &mut output,
+        "    note: systemd ControlGroup and Zelynic attach target are distinct",
+    );
+    push_line(&mut output, "");
+    push_line(&mut output, "  Future PID discovery commands:");
+    for command in render_discovery_commands(&plan.pid_handoff) {
+        push_line(&mut output, &format!("    {}", command));
+    }
     push_line(&mut output, "");
     push_line(&mut output, "  No process was launched.");
     push_line(
@@ -382,5 +462,52 @@ mod tests {
         assert!(rendered.contains("3. apply existing Zelynic strict attach backend"));
         assert!(rendered.contains("4. enforce nftables + HTB limits on the Zelynic target cgroup"));
         assert!(rendered.contains("Live launch is not implemented yet."));
+    }
+
+    #[test]
+    fn dry_run_output_includes_future_pid_discovery_section() {
+        let command = vec!["helium".to_string()];
+        let plan = build_dry_run_plan(Some("helium"), None, None, &command).unwrap();
+        let rendered = render_dry_run_plan(&plan);
+
+        assert!(rendered.contains("Future PID discovery"));
+        assert!(rendered.contains("method: systemctl show zelynic-run-helium.scope"));
+        assert!(rendered.contains("fallback: scan cgroup.procs under the reported ControlGroup"));
+        assert!(rendered.contains("attach: move discovered PID(s) into the Zelynic target cgroup"));
+    }
+
+    #[test]
+    fn pid_discovery_command_preview_uses_scope_unit() {
+        let command = vec!["helium".to_string()];
+        let plan = build_dry_run_plan(Some("Helium Browser!"), None, None, &command).unwrap();
+        let commands = render_discovery_commands(&plan.pid_handoff);
+
+        assert_eq!(
+            commands[0],
+            "systemctl show zelynic-run-helium_browser.scope --property MainPID --property ControlGroup --value"
+        );
+    }
+
+    #[test]
+    fn cgroup_procs_fallback_is_template_not_guessed_path() {
+        let command = vec!["helium".to_string()];
+        let plan = build_dry_run_plan(Some("helium"), None, None, &command).unwrap();
+        let commands = render_discovery_commands(&plan.pid_handoff);
+
+        assert_eq!(
+            commands[1],
+            "cat '/sys/fs/cgroup/<reported-control-group>/cgroup.procs'"
+        );
+        assert!(!commands[1].contains("zelynic-run-helium.scope"));
+    }
+
+    #[test]
+    fn output_states_systemd_controlgroup_and_attach_target_are_distinct() {
+        let command = vec!["helium".to_string()];
+        let plan = build_dry_run_plan(Some("helium"), None, None, &command).unwrap();
+        let rendered = render_dry_run_plan(&plan);
+
+        assert!(rendered.contains("systemd ControlGroup and Zelynic attach target are distinct"));
+        assert!(rendered.contains("/sys/fs/cgroup/zelynic/target_helium"));
     }
 }
