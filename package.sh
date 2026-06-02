@@ -1,4 +1,6 @@
 #!/bin/bash
+# Copyright (C) 2026 rezky_nightky
+# SPDX-License-Identifier: GPL-3.0-only
 # Package script for zelynic releases
 # Creates tar.gz archives with proper structure for GitHub Releases
 

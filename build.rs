@@ -1,3 +1,5 @@
+// Copyright (C) 2026 rezky_nightky
+// SPDX-License-Identifier: GPL-3.0-only
 fn main() {
     let git_hash = std::process::Command::new("git")
         .args(["rev-parse", "--short", "HEAD"])

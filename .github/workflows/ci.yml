@@ -2,20 +2,20 @@ name: CI
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main]
   pull_request:
-    branches: [main, develop]
+    branches: [main]
+
+permissions:
+  contents: read
 
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
 
 jobs:
-  # ===========================================================================
-  # Lint & Format Checks
-  # ===========================================================================
-  lint:
-    name: Lint & Format
+  quality:
+    name: Linux quality gate
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -26,61 +26,32 @@ jobs:
         with:
           components: rustfmt, clippy
 
-      - name: Cache cargo registry & build
+      - name: Cache cargo registry and build output
         uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: ${{ runner.os }}-cargo-lint-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-quality-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-lint-
+            ${{ runner.os }}-cargo-quality-
 
       - name: Check formatting
         run: cargo fmt --all -- --check
 
-      - name: Run Clippy
-        run: cargo clippy --all-targets --all-features -- -D warnings
-
-  # ===========================================================================
-  # Tests
-  # ===========================================================================
-  test:
-    name: Test (stable)
-    runs-on: ubuntu-latest
-    needs: lint
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache cargo registry & build
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-test-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-test-
-
-      - name: Build binary
-        run: cargo build --locked
-
       - name: Run tests
         run: cargo test --locked
 
-  # ===========================================================================
-  # Build (Release)
-  # ===========================================================================
-  build:
-    name: Build Release
+      - name: Run clippy
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+      - name: Run policy checks
+        run: python3 scripts/check-policy.py
+
+  supply-chain:
+    name: Supply-chain checks
     runs-on: ubuntu-latest
-    needs: test
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -88,79 +59,51 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Cache cargo registry & build
+      - name: Cache cargo registry and build output
         uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: ${{ runner.os }}-cargo-release-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-supply-chain-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-release-
-
-      - name: Build release binary
-        run: cargo build --release --locked
-
-      - name: Show binary info
-        run: |
-          echo "=== Binary Info ==="
-          ls -lh target/release/zelynic
-          file target/release/zelynic
-
-      - name: Upload release artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: zelynic-linux-x86_64
-          path: target/release/zelynic
-          retention-days: 30
-
-  # ===========================================================================
-  # Security Audit
-  # ===========================================================================
-  audit:
-    name: Security Audit
-    runs-on: ubuntu-latest
-    needs: lint
-    continue-on-error: true
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+            ${{ runner.os }}-cargo-supply-chain-
 
       - name: Install cargo-audit
         run: cargo install cargo-audit --locked
 
-      - name: Run security audit
+      - name: Run cargo audit
         run: cargo audit
 
-  # ===========================================================================
-  # MSRV Check (Minimum Supported Rust Version)
-  # ===========================================================================
-  msrv:
-    name: MSRV Check (1.88.0)
+      - name: Install cargo-deny
+        run: cargo install cargo-deny --locked
+
+      - name: Run cargo deny
+        if: hashFiles('deny.toml') != ''
+        run: cargo deny check
+
+  release-build-smoke:
+    name: Release build smoke
     runs-on: ubuntu-latest
-    needs: lint
-    continue-on-error: true
+    needs: [quality, supply-chain]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install Rust toolchain (MSRV)
-        uses: dtolnay/rust-toolchain@1.88.0
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
 
-      - name: Cache cargo registry & build
+      - name: Cache cargo registry and build output
         uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: ${{ runner.os }}-cargo-msrv-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-release-smoke-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-msrv-
+            ${{ runner.os }}-cargo-release-smoke-
 
-      - name: Check compilation with MSRV
-        run: cargo check --locked
+      - name: Build release binary
+        run: cargo build --release --locked
