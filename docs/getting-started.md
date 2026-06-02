@@ -18,11 +18,17 @@ rustc --version             # Only if building from source (1.88+)
 
 ## Installation
 
-### Install Script (Recommended)
+### GitHub Releases
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/oxyzenq/zelynic/main/install.sh | sh
+# Download and extract the release archive
+curl -sL https://github.com/oxyzenq/zelynic/releases/latest/download/zelynic-v2.1.0-x86_64-linux.tar.gz | tar xz
+
+# Install system-wide
+sudo install -Dm755 zelynic-v2.1.0-x86_64-linux/zelynic /usr/local/bin/zelynic
 ```
+
+Verify the download with the SHA256 checksums published alongside each release.
 
 ### Build from Source
 
@@ -33,9 +39,7 @@ cargo build --release
 sudo install -Dm755 target/release/zelynic /usr/local/bin/zelynic
 ```
 
-### GitHub Releases
-
-Download from [Releases](https://github.com/oxyzenq/zelynic/releases) — includes SHA256 checksums.
+Release archives are available from [Releases](https://github.com/oxyzenq/zelynic/releases).
 
 ## Verify Installation
 
