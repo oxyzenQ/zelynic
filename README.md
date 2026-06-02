@@ -55,8 +55,10 @@ zelynic backend doctor --json
 
 The v2.2 development line also includes `zelynic run --dry-run` groundwork for
 a future systemd scope wrapper mode. It prints the planned scope/cgroup wiring
-and preview-only `systemd-run` command without launching a process or modifying
-nftables, tc, cgroups, or state.
+and preview-only `systemd-run` launch command without launching a process or
+modifying nftables, tc, cgroups, or state. The likely future model is
+launch-then-attach: systemd starts the command, then Zelynic attaches discovered
+PIDs with the existing strict backend.
 
 Support matrix:
 
