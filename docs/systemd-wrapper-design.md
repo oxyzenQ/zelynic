@@ -39,6 +39,7 @@ target, and command arguments, then prints:
 - preview-only `systemd-run` command line
 - future Zelynic attach target cgroup path
 - planned launch-then-attach flow
+- future PID discovery method and preview commands
 - confirmation that no process was launched
 - confirmation that nftables, tc, cgroups, and state were not changed
 
@@ -73,6 +74,40 @@ An alternative native systemd cgroup backend would match nftables rules against
 the systemd scope's relative cgroup path instead of the Zelynic target cgroup.
 That requires backend abstraction work and is better treated as future major
 backend design, not this v2.2 dry-run path.
+
+## PID Discovery Handoff
+
+After a future live launch, Zelynic needs a narrow handoff from systemd launch
+state into the existing strict attach backend. The planned first check is:
+
+```bash
+systemctl show zelynic-run-<target>.scope --property MainPID --property ControlGroup --value
+```
+
+`MainPID` is the preferred direct PID when systemd reports one. `ControlGroup`
+identifies the systemd launch scope location, not the Zelynic attach target.
+If `MainPID` is missing, zero, or insufficient for a process tree, Zelynic can
+scan the reported scope's process list:
+
+```bash
+cat /sys/fs/cgroup/<reported-control-group>/cgroup.procs
+```
+
+The `<reported-control-group>` segment is intentionally a placeholder in
+dry-run output. Live code must use the ControlGroup reported by systemd and must
+not guess a systemd cgroup path from the unit name.
+
+For the current dry-run default, discovery previews system scope commands. A
+future user-scope mode would need matching commands such as:
+
+```bash
+systemctl --user show zelynic-run-<target>.scope --property MainPID --property ControlGroup --value
+```
+
+Discovery must complete before applying strict attach. Once PIDs are known,
+Zelynic should move only validated live PIDs into
+`/sys/fs/cgroup/zelynic/target_<target>` and then reuse the existing nftables/tc
+setup.
 
 ## Integration With Strict
 
@@ -120,6 +155,10 @@ systemd paths.
 - GUI apps need the correct Wayland/X11 environment
 - DBus session bus and portals must remain available
 - child process inheritance must be verified across browsers and launchers
+- `MainPID` may be `0` for some transient scopes
+- the scope may exit before PID discovery completes
+- commands may daemonize or hand off work to another process
+- discovery must happen before applying strict attach
 - systemd versions differ in transient scope behavior
 - non-systemd distros need a different path or a clear unsupported result
 - containers and WSL may expose partial systemd/cgroup signals
