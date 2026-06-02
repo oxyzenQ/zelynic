@@ -10,7 +10,7 @@ const CGROUP_BASE: &str = "/sys/fs/cgroup/zelynic";
 pub struct RunDryRunPlan {
     pub target: String,
     pub scope_name: String,
-    pub target_cgroup_path: String,
+    pub attach_target_cgroup: String,
     pub command: Vec<String>,
     pub download: Option<String>,
     pub upload: Option<String>,
@@ -37,7 +37,7 @@ pub struct SystemdRunPlan {
     pub command_argv: Vec<String>,
     pub scope_mode: ScopeMode,
     pub target: String,
-    pub planned_cgroup_path: String,
+    pub attach_target_cgroup: String,
 }
 
 pub fn run_systemd_wrapper_dry_run(
@@ -71,20 +71,20 @@ pub fn build_dry_run_plan(
         .unwrap_or_else(|| command_basename(&command[0]));
     let sanitized = sanitize_scope_component(&target_name);
     let scope_unit_name = format!("zelynic-run-{}", sanitized);
-    let target_cgroup_path = format!("{}/target_{}", CGROUP_BASE, sanitized);
+    let attach_target_cgroup = format!("{}/target_{}", CGROUP_BASE, sanitized);
     let systemd_run = SystemdRunPlan {
         scope_unit_name: scope_unit_name.clone(),
         description: format!("Zelynic target {}", target_name),
         command_argv: command.to_vec(),
         scope_mode: ScopeMode::System,
         target: target_name.clone(),
-        planned_cgroup_path: target_cgroup_path.clone(),
+        attach_target_cgroup: attach_target_cgroup.clone(),
     };
 
     Ok(RunDryRunPlan {
         target: target_name,
         scope_name: format!("{}.scope", scope_unit_name),
-        target_cgroup_path,
+        attach_target_cgroup,
         command: command.to_vec(),
         download: parse_rate_display(download)?,
         upload: parse_rate_display(upload)?,
@@ -176,13 +176,28 @@ pub fn render_dry_run_plan(plan: &RunDryRunPlan) -> String {
     );
     push_line(
         &mut output,
-        &format!("  Planned cgroup: {}", plan.target_cgroup_path),
+        &format!("  Future attach target: {}", plan.attach_target_cgroup),
     );
     push_line(&mut output, "");
-    push_line(&mut output, "  Future systemd-run command:");
+    push_line(&mut output, "  Future launch command:");
     push_line(
         &mut output,
         &format!("  {}", render_systemd_run_command(&plan.systemd_run)),
+    );
+    push_line(&mut output, "");
+    push_line(&mut output, "  Planned flow:");
+    push_line(
+        &mut output,
+        "  1. launch command in transient systemd scope",
+    );
+    push_line(&mut output, "  2. discover launched PID(s)");
+    push_line(
+        &mut output,
+        "  3. apply existing Zelynic strict attach backend",
+    );
+    push_line(
+        &mut output,
+        "  4. enforce nftables + HTB limits on the Zelynic target cgroup",
     );
     push_line(&mut output, "");
     push_line(&mut output, "  No process was launched.");
@@ -190,10 +205,7 @@ pub fn render_dry_run_plan(plan: &RunDryRunPlan) -> String {
         &mut output,
         "  No nftables, tc, cgroup, or state changes were made.",
     );
-    push_line(
-        &mut output,
-        "  Live systemd scope wrapper mode is future work.",
-    );
+    push_line(&mut output, "  Live launch is not implemented yet.");
 
     output
 }
@@ -274,7 +286,7 @@ mod tests {
         assert_eq!(plan.target, "helium");
         assert_eq!(plan.scope_name, "zelynic-run-helium.scope");
         assert_eq!(
-            plan.target_cgroup_path,
+            plan.attach_target_cgroup,
             "/sys/fs/cgroup/zelynic/target_helium"
         );
         assert_eq!(plan.download.as_deref(), Some("500 Kbit/s"));
@@ -291,7 +303,7 @@ mod tests {
         assert_eq!(plan.target, "custom target");
         assert_eq!(plan.scope_name, "zelynic-run-custom_target.scope");
         assert_eq!(
-            plan.target_cgroup_path,
+            plan.attach_target_cgroup,
             "/sys/fs/cgroup/zelynic/target_custom_target"
         );
         assert_eq!(render_command(&plan.command), "echo 'hello world'");
@@ -334,7 +346,7 @@ mod tests {
 
         assert_eq!(plan.scope_name, "zelynic-run-helium_browser.scope");
         assert_eq!(
-            plan.target_cgroup_path,
+            plan.attach_target_cgroup,
             "/sys/fs/cgroup/zelynic/target_helium_browser"
         );
         assert_eq!(
@@ -344,14 +356,31 @@ mod tests {
     }
 
     #[test]
-    fn dry_run_output_includes_future_command_and_no_mutation_notice() {
+    fn dry_run_output_includes_launch_command_attach_target_and_no_mutation_notice() {
         let command = vec!["echo".to_string(), "hello".to_string()];
         let plan = build_dry_run_plan(None, Some("500kbit"), Some("500kbit"), &command).unwrap();
         let rendered = render_dry_run_plan(&plan);
 
-        assert!(rendered.contains("Future systemd-run command"));
+        assert!(rendered.contains("Future launch command"));
+        assert!(rendered.contains("Future attach target"));
         assert!(rendered.contains("systemd-run --scope --unit zelynic-run-echo"));
+        assert!(!rendered.contains("Planned cgroup"));
         assert!(rendered.contains("No process was launched."));
         assert!(rendered.contains("No nftables, tc, cgroup, or state changes were made."));
+    }
+
+    #[test]
+    fn dry_run_output_describes_launch_then_attach_flow() {
+        let command = vec!["helium".to_string()];
+        let plan =
+            build_dry_run_plan(Some("helium"), Some("500kbit"), Some("500kbit"), &command).unwrap();
+        let rendered = render_dry_run_plan(&plan);
+
+        assert!(rendered.contains("Planned flow"));
+        assert!(rendered.contains("1. launch command in transient systemd scope"));
+        assert!(rendered.contains("2. discover launched PID(s)"));
+        assert!(rendered.contains("3. apply existing Zelynic strict attach backend"));
+        assert!(rendered.contains("4. enforce nftables + HTB limits on the Zelynic target cgroup"));
+        assert!(rendered.contains("Live launch is not implemented yet."));
     }
 }

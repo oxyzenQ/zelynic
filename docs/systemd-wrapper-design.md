@@ -15,8 +15,10 @@ strict apply.
 
 ## Goal
 
-Launch a target command inside a Zelynic-controlled systemd scope so the initial
-process and its children inherit the intended cgroup from the start.
+Launch a target command through systemd, discover the launched process IDs, and
+then attach those PIDs with the existing Zelynic strict backend. This keeps the
+runtime namespace under `/sys/fs/cgroup/zelynic/target_<target>` without
+pretending that `systemd-run --scope` creates that cgroup directly.
 
 Possible future commands:
 
@@ -31,11 +33,12 @@ zelynic run --dry-run -d 500kbit -u 500kbit -- helium
 The current `run` command is intentionally dry-run only. It parses rates,
 target, and command arguments, then prints:
 
-- planned systemd scope name
+- planned transient systemd scope name
 - planned scope mode
 - command that would be launched
 - preview-only `systemd-run` command line
-- planned Zelynic target cgroup path
+- future Zelynic attach target cgroup path
+- planned launch-then-attach flow
 - confirmation that no process was launched
 - confirmation that nftables, tc, cgroups, and state were not changed
 
@@ -51,6 +54,26 @@ The dry-run default is `Scope mode: system`. That is only a planning default:
 GUI applications may need user-scope or split root/user handling later so their
 Wayland/X11, DBus, portal, and desktop session environment remains intact.
 
+## Chosen v2.2 Model: Launch Then Attach
+
+The likely v2.2 implementation path is:
+
+1. launch the command in a transient systemd scope
+2. discover the launched main PID and relevant child/scope PIDs
+3. apply the existing Zelynic strict attach backend
+4. enforce nftables + HTB limits against the Zelynic target cgroup
+
+In this model, the systemd scope path and the Zelynic target cgroup are not the
+same thing. `systemd-run --scope --unit zelynic-run-<target> ...` creates a
+systemd-managed scope under system/user slices. Zelynic would then attach the
+selected PIDs into `/sys/fs/cgroup/zelynic/target_<target>` using the same
+cgroup/nft/tc backend used by `zelynic strict`.
+
+An alternative native systemd cgroup backend would match nftables rules against
+the systemd scope's relative cgroup path instead of the Zelynic target cgroup.
+That requires backend abstraction work and is better treated as future major
+backend design, not this v2.2 dry-run path.
+
 ## Integration With Strict
 
 A live implementation should reuse the existing strict backend helpers for:
@@ -63,7 +86,8 @@ A live implementation should reuse the existing strict backend helpers for:
 - unstrict cleanup
 
 The wrapper should not create a parallel limiter backend. It should only change
-how the first process enters the target cgroup.
+how the first process is launched before Zelynic attaches it to the existing
+target cgroup model.
 
 ## Root And User Scope Tradeoffs
 

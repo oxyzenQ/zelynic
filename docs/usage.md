@@ -95,10 +95,15 @@ zelynic run --dry-run --target helium -d 500kbit -- helium
 
 `run` is v2.2 groundwork for a future systemd scope wrapper mode. Today it is
 dry-run only: it validates the target, rates, and command, prints the planned
-scope, cgroup path, and preview-only `systemd-run` command, then exits without
-launching a process or modifying nftables, tc, cgroups, or state. The rendered
-command is for review; future live code must preserve structured argv instead
-of executing a shell string.
+scope, future Zelynic attach target, preview-only `systemd-run` launch command,
+and launch-then-attach flow, then exits without launching a process or modifying
+nftables, tc, cgroups, or state. The rendered command is for review; future live
+code must preserve structured argv instead of executing a shell string.
+
+The systemd scope and `/sys/fs/cgroup/zelynic/target_<target>` are not the same
+cgroup in the current design. Future v2.2 work is expected to launch through
+systemd first, discover the launched PIDs, then reuse the existing strict attach
+backend.
 
 See [systemd-wrapper-design.md](systemd-wrapper-design.md) for the design notes
 and risk list.
