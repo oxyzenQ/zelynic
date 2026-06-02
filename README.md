@@ -60,8 +60,11 @@ modifying nftables, tc, cgroups, or state. User scope is the default planning
 mode to avoid accidental system Polkit prompts; system scope can be previewed
 explicitly with `--scope-mode system`. `zelynic run --execute` is gated as an
 experimental opt-in and currently stops at a non-mutating not-implemented
-boundary. The likely future model is launch-then-attach: systemd starts the
-command, then Zelynic attaches discovered PIDs with the existing strict backend.
+boundary after printing an execution preflight. Full live limiting still needs a
+privilege handoff design because user-scope launch and root-required limiter
+attachment have different requirements. The likely future model is
+launch-then-attach: systemd starts the command, then Zelynic attaches discovered
+PIDs with the existing strict backend.
 
 Support matrix:
 

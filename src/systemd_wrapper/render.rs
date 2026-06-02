@@ -152,6 +152,28 @@ pub(super) fn render_live_run_plan(plan: &LiveRunPlan) -> String {
         push_line(&mut output, &format!("    {}", render_argv(command)));
     }
     push_line(&mut output, "");
+    push_line(&mut output, "  Execution preflight:");
+    push_line(
+        &mut output,
+        &format!("    scope mode: {}", plan.preflight.scope_mode.label()),
+    );
+    push_line(
+        &mut output,
+        &format!("    launch: {}", plan.preflight.launch),
+    );
+    push_line(
+        &mut output,
+        &format!("    attach: {}", plan.preflight.attach),
+    );
+    push_line(
+        &mut output,
+        &format!("    readiness: {}", plan.preflight.readiness.label()),
+    );
+    push_line(
+        &mut output,
+        &format!("    reason: {}", plan.preflight.reason),
+    );
+    push_line(&mut output, "");
     push_line(
         &mut output,
         &format!("  Future strict attach: {}", plan.strict_attach_step),
@@ -350,6 +372,9 @@ mod tests {
         assert!(rendered.contains("zelynic run execute plan"));
         assert!(rendered.contains("Future launch argv"));
         assert!(rendered.contains("Future PID discovery argv"));
+        assert!(rendered.contains("Execution preflight"));
+        assert!(rendered.contains("readiness: blocked"));
+        assert!(rendered.contains("applying limits requires root"));
         assert!(rendered.contains("Future strict attach"));
         assert!(rendered.contains("Scope mode: user"));
         assert!(rendered.contains("systemd-run --user --scope --unit zelynic-run-echo"));
