@@ -81,3 +81,59 @@ Use `zelynic strict --diagnose ...` when validating a new host. Diagnostics incl
 - cgroup v2, nftables, and tc/iproute2 availability are required for strict limiting.
 - Browser speed tests can briefly burst before stabilizing.
 - Process-name matching is intentionally conservative; use a numeric PID when exact targeting is needed.
+
+## Distro Validation Flow
+
+See [docs/distro-matrix.md](distro-matrix.md) for the full distribution support matrix and status labels.
+
+### Step 1: Non-Root Read-Only Checks (safe, no privileges)
+
+Collect host facts and check capabilities without modifying anything:
+
+```bash
+# Gather kernel, distro, cgroup, and tool information
+bash scripts/collect-host-facts.sh
+
+# Check backend capabilities (read-only)
+zelynic backend
+
+# Full Backend Doctor report
+zelynic backend doctor
+
+# Export for record-keeping
+zelynic backend doctor --json > backend-doctor-<distro>.json
+```
+
+These commands require no root privileges and make no changes to the system. They can be run on any Linux host to determine whether Zelynic's strict limiter path is likely to function.
+
+### Step 2: Privileged Strict Limiter Checks (requires root, modifies state)
+
+These commands will load nftables rules, configure tc qdiscs, write to cgroup files, and create state in `/run/zelynic/`. Run only on hosts where Step 1 confirmed the required capabilities:
+
+```bash
+# Apply strict limit with full diagnostics
+sudo zelynic strict --diagnose -d 500kb -u 500kb <target>
+
+# Check active limits
+zelynic status
+
+# Verify with a speed test or download in the target application
+
+# Remove limits and clean up
+sudo zelynic unstrict <target>
+zelynic status
+```
+
+These are manual-only operations. Do not run them from automated scripts or CI pipelines unless the environment is specifically prepared for destructive cgroup/tc/nft testing.
+
+### Documentation After Validation
+
+When adding a new distribution to the validated set, record the following and update [docs/distro-matrix.md](distro-matrix.md):
+
+- Distribution name and version
+- Kernel version (`uname -r`)
+- nftables and tc versions
+- cgroup mode (pure v2, hybrid, or v1)
+- Network interface used
+- Target application and observed bandwidth ranges
+- Any caveats or workarounds needed
