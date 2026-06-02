@@ -22,11 +22,13 @@ The full changelog compare must use the previous stable release tag:
 https://github.com/oxyzenQ/zelynic/compare/vPREVIOUS...vCURRENT
 ```
 
-For v2.1.0, the correct compare URL is:
+For v2.2.0, the correct compare URL is:
 
 ```text
-https://github.com/oxyzenQ/zelynic/compare/v2.0.0...v2.1.0
+https://github.com/oxyzenQ/zelynic/compare/v2.1.0...v2.2.0
 ```
+
+The previous stable baseline for v2.2.0 is `v2.1.0`.
 
 Snapshot or helper tags such as `v2.0.0-stable-snapshot` must not be used as the
 stable release baseline.

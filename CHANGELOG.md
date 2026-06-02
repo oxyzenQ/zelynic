@@ -5,6 +5,36 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.0] - 2026-06-03 - v2.2.0 Scope Prelude
+
+### Added
+
+- **Experimental run groundwork**: Added `zelynic run` planning for a future systemd wrapper workflow.
+- **Dry-run systemd wrapper planning**: `zelynic run --dry-run ...` renders the planned launch command, attach target, PID discovery handoff, and launch-then-attach flow without launching a process or modifying nftables, tc, cgroups, or state.
+- **User-scope-first planning**: Run planning now defaults to user scope and previews `systemd-run --user --scope` to avoid surprise system Polkit prompts for GUI/user applications.
+- **Scope mode selection**: Added planning-only `--scope-mode <user|system>` so system-scope previews are explicit.
+- **Execution preflight**: `zelynic run --execute ...` now prints a non-mutating preflight that explains why live limiting is blocked or future-only for the selected scope/privilege combination.
+- **Resolved-PID attach groundwork**: Added an internal strict attach path for already-resolved PIDs, preparing future launch-then-attach integration without changing current strict behavior.
+- **Release notes**: Added `docs/release-v2.2.0.md` with scope, caveats, and validation notes for this release.
+
+### Changed
+
+- **Systemd wrapper docs**: Clarified that the future v2.2 model is launch-then-attach, not a native systemd cgroup backend.
+- **Module layout**: Split large systemd wrapper and capability modules, and slimmed limiter orchestration so core Rust files stay under 1000 LOC.
+- **Run safety wording**: README and usage docs now consistently describe `run` as experimental groundwork and `dry-run` as the safe preview path.
+
+### Fixed
+
+- **Unstrict lifecycle cleanup**: Fixed a lifecycle bug where PIDs already inside Zelynic target cgroups could be recorded as their own original restore destination.
+- **Target cgroup removal**: After unstrict, Zelynic now avoids restoring PIDs back into `/sys/fs/cgroup/zelynic/target_<target>`, falls back to `/sys/fs/cgroup/zelynic` when needed, and can remove the emptied target cgroup.
+
+### Notes
+
+- `zelynic run --execute` is still non-mutating in v2.2.0 and returns `Live systemd wrapper execution is not implemented yet.`
+- v2.2.0 does not implement live `systemd-run` execution.
+- `zelynic strict` remains the currently validated limiter path.
+- Systemd wrapper/run mode remains experimental groundwork, not a supported active backend.
+
 ## [2.1.0] - 2026-06-02 - v2.1.0 Backend Doctor
 
 ### Added
@@ -123,7 +153,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `zelynic list`, `zelynic strict`, `zelynic unstrict`, `zelynic status` commands
 - Basic CLI interface with colored output
 
-[Unreleased]: https://github.com/oxyzenq/zelynic/compare/v2.1.0...HEAD
+[Unreleased]: https://github.com/oxyzenq/zelynic/compare/v2.2.0...HEAD
+[2.2.0]: https://github.com/oxyzenq/zelynic/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/oxyzenq/zelynic/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/oxyzenq/zelynic/compare/v1.0.0...v2.0.0
 [1.0.0]: https://github.com/oxyzenq/zelynic/releases/tag/v1.0.0

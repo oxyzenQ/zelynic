@@ -22,10 +22,10 @@ rustc --version             # Only if building from source (1.88+)
 
 ```bash
 # Download and extract the release archive
-curl -sL https://github.com/oxyzenq/zelynic/releases/latest/download/zelynic-v2.1.0-x86_64-linux.tar.gz | tar xz
+curl -sL https://github.com/oxyzenq/zelynic/releases/latest/download/zelynic-v2.2.0-x86_64-linux.tar.gz | tar xz
 
 # Install system-wide
-sudo install -Dm755 zelynic-v2.1.0-x86_64-linux/zelynic /usr/local/bin/zelynic
+sudo install -Dm755 zelynic-v2.2.0-x86_64-linux/zelynic /usr/local/bin/zelynic
 ```
 
 Verify the download with the SHA256 checksums published alongside each release.
@@ -48,7 +48,7 @@ zelynic -i
 ```
 
 ```
-Version: v2.1.0
+Version: v2.2.0
 Build: linux-x86_64 (abc1234)
 Copyright: (c) 2026 Rezky_nightky
 License: GPL-3.0
