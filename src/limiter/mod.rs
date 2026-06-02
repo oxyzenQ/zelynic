@@ -89,7 +89,7 @@ use attach::{
 use cgroup::{
     cgroup_level, cgroup_level_from_relative, current_cgroup_v2_absolute_path,
     detect_cgroup_version, move_pid_to_cgroup_with_verify, pid_cgroup_v2_line,
-    relative_cgroupv2_path, verify_pid_in_cgroup,
+    relative_cgroupv2_path, safe_original_cgroup_path, verify_pid_in_cgroup,
 };
 use cleanup::chrono_now;
 use diagnostics::{print_state_file_diagnostic, print_strict_diagnostic_header};
@@ -292,6 +292,7 @@ pub(crate) fn apply_limit_to_resolved_pids(
             .original_cgroup_path
             .clone()
             .or_else(|| current_cgroup_v2_absolute_path(pid));
+        let original_cgroup_path = safe_original_cgroup_path(original_cgroup_path);
         original_cgroup_paths.insert(pid, original_cgroup_path);
         let result = move_pid_to_cgroup_with_verify(pid, &target_cg_path);
         if diagnostics {

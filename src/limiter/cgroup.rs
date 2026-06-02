@@ -163,6 +163,7 @@ pub(super) enum RestoreDecision {
     Restore,
     FallbackMissingOriginal,
     FallbackInvalidOriginal,
+    FallbackZelynicManagedOriginal,
     FallbackMissingDestination,
 }
 
@@ -172,6 +173,9 @@ impl RestoreDecision {
             Self::Restore => "restore",
             Self::FallbackMissingOriginal => "missing original cgroup",
             Self::FallbackInvalidOriginal => "invalid original cgroup",
+            Self::FallbackZelynicManagedOriginal => {
+                "original cgroup is Zelynic-managed; skipping restore to target cgroup"
+            }
             Self::FallbackMissingDestination => "original cgroup no longer exists",
         }
     }
@@ -199,9 +203,21 @@ pub(super) fn valid_original_cgroup_destination(path: &str) -> bool {
         return false;
     }
 
+    if is_zelynic_managed_cgroup_path(path) {
+        return false;
+    }
+
     !relative
         .components()
         .any(|component| matches!(component, Component::ParentDir))
+}
+
+pub(super) fn is_zelynic_managed_cgroup_path(path: &Path) -> bool {
+    path == Path::new(CGROUP_BASE) || path.strip_prefix(CGROUP_BASE).is_ok()
+}
+
+pub(super) fn safe_original_cgroup_path(path: Option<String>) -> Option<String> {
+    path.filter(|path| valid_original_cgroup_destination(path))
 }
 
 pub(super) fn plan_original_cgroup_restore(
@@ -211,6 +227,10 @@ pub(super) fn plan_original_cgroup_restore(
     let Some(path) = original_cgroup_path else {
         return RestoreDecision::FallbackMissingOriginal;
     };
+
+    if is_zelynic_managed_cgroup_path(Path::new(path)) {
+        return RestoreDecision::FallbackZelynicManagedOriginal;
+    }
 
     if !valid_original_cgroup_destination(path) {
         return RestoreDecision::FallbackInvalidOriginal;
@@ -735,6 +755,10 @@ default via 192.168.1.1 dev wlp1s0 proto dhcp metric 600
         assert!(!valid_original_cgroup_destination(
             "/sys/fs/cgroup/user.slice/../other.slice"
         ));
+        assert!(!valid_original_cgroup_destination("/sys/fs/cgroup/zelynic"));
+        assert!(!valid_original_cgroup_destination(
+            "/sys/fs/cgroup/zelynic/target_helium"
+        ));
     }
 
     #[test]
@@ -755,8 +779,43 @@ default via 192.168.1.1 dev wlp1s0 proto dhcp metric 600
             RestoreDecision::FallbackInvalidOriginal
         );
         assert_eq!(
+            plan_original_cgroup_restore(Some("/sys/fs/cgroup/zelynic/target_helium"), true),
+            RestoreDecision::FallbackZelynicManagedOriginal
+        );
+        assert_eq!(
             plan_original_cgroup_restore(Some("/sys/fs/cgroup/user.slice/missing.scope"), false),
             RestoreDecision::FallbackMissingDestination
+        );
+    }
+
+    #[test]
+    fn original_cgroup_capture_rejects_zelynic_managed_cgroups() {
+        assert_eq!(
+            safe_original_cgroup_path(Some(
+                "/sys/fs/cgroup/user.slice/user-1000.slice/session.scope".to_string()
+            ))
+            .as_deref(),
+            Some("/sys/fs/cgroup/user.slice/user-1000.slice/session.scope")
+        );
+        assert_eq!(
+            safe_original_cgroup_path(Some("/sys/fs/cgroup/zelynic/target_helium".to_string())),
+            None
+        );
+        assert_eq!(
+            safe_original_cgroup_path(Some("/sys/fs/cgroup/zelynic".to_string())),
+            None
+        );
+    }
+
+    #[test]
+    fn old_state_target_cgroup_restore_reason_uses_fallback() {
+        let decision =
+            plan_original_cgroup_restore(Some("/sys/fs/cgroup/zelynic/target_brave"), true);
+
+        assert_eq!(decision, RestoreDecision::FallbackZelynicManagedOriginal);
+        assert_eq!(
+            decision.reason(),
+            "original cgroup is Zelynic-managed; skipping restore to target cgroup"
         );
     }
 
