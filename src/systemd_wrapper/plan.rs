@@ -34,13 +34,15 @@ pub(super) struct LiveRunPlan {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum ScopeMode {
+pub(crate) enum ScopeMode {
+    User,
     System,
 }
 
 impl ScopeMode {
     pub(super) fn label(self) -> &'static str {
         match self {
+            ScopeMode::User => "user",
             ScopeMode::System => "system",
         }
     }
@@ -56,11 +58,22 @@ pub(super) struct SystemdRunPlan {
     pub attach_target_cgroup: String,
 }
 
+#[cfg(test)]
 pub(super) fn build_dry_run_plan(
     target: Option<&str>,
     download: Option<&str>,
     upload: Option<&str>,
     command: &[String],
+) -> Result<RunDryRunPlan> {
+    build_dry_run_plan_with_scope_mode(target, download, upload, command, ScopeMode::User)
+}
+
+pub(super) fn build_dry_run_plan_with_scope_mode(
+    target: Option<&str>,
+    download: Option<&str>,
+    upload: Option<&str>,
+    command: &[String],
+    scope_mode: ScopeMode,
 ) -> Result<RunDryRunPlan> {
     if command.is_empty() {
         bail!("zelynic run requires a command after --");
@@ -76,7 +89,7 @@ pub(super) fn build_dry_run_plan(
         scope_unit_name: scope_unit_name.clone(),
         description: format!("Zelynic target {}", target_name),
         command_argv: command.to_vec(),
-        scope_mode: ScopeMode::System,
+        scope_mode,
         target: target_name.clone(),
         attach_target_cgroup: attach_target_cgroup.clone(),
     };
@@ -94,13 +107,25 @@ pub(super) fn build_dry_run_plan(
     })
 }
 
+#[cfg(test)]
 pub(super) fn build_live_run_plan(
     target: Option<&str>,
     download: Option<&str>,
     upload: Option<&str>,
     command: &[String],
 ) -> Result<LiveRunPlan> {
-    let preview = build_dry_run_plan(target, download, upload, command)?;
+    build_live_run_plan_with_scope_mode(target, download, upload, command, ScopeMode::User)
+}
+
+pub(super) fn build_live_run_plan_with_scope_mode(
+    target: Option<&str>,
+    download: Option<&str>,
+    upload: Option<&str>,
+    command: &[String],
+    scope_mode: ScopeMode,
+) -> Result<LiveRunPlan> {
+    let preview =
+        build_dry_run_plan_with_scope_mode(target, download, upload, command, scope_mode)?;
     let systemd_run_argv = systemd_run_argv(&preview.systemd_run);
     let pid_discovery_argv = preview.pid_handoff.discovery_commands.clone();
 
@@ -121,8 +146,14 @@ pub(super) fn build_live_run_plan(
 pub(super) fn systemd_run_argv(plan: &SystemdRunPlan) -> Vec<String> {
     let mut argv = vec!["systemd-run".to_string()];
 
-    if plan.scope_mode == ScopeMode::System {
-        argv.push("--scope".to_string());
+    match plan.scope_mode {
+        ScopeMode::User => {
+            argv.push("--user".to_string());
+            argv.push("--scope".to_string());
+        }
+        ScopeMode::System => {
+            argv.push("--scope".to_string());
+        }
     }
 
     argv.extend([
@@ -169,7 +200,7 @@ mod tests {
         assert_eq!(plan.download.as_deref(), Some("500 Kbit/s"));
         assert_eq!(plan.upload.as_deref(), Some("1 MB/s"));
         assert_eq!(plan.systemd_run.scope_unit_name, "zelynic-run-helium");
-        assert_eq!(plan.systemd_run.scope_mode, ScopeMode::System);
+        assert_eq!(plan.systemd_run.scope_mode, ScopeMode::User);
     }
 
     #[test]
@@ -210,7 +241,7 @@ mod tests {
 
         assert_eq!(plan.target, "Helium Browser!");
         assert_eq!(plan.scope_unit, "zelynic-run-helium_browser.scope");
-        assert_eq!(plan.scope_mode, ScopeMode::System);
+        assert_eq!(plan.scope_mode, ScopeMode::User);
         assert_eq!(plan.command_argv, command);
         assert_eq!(plan.download.as_deref(), Some("500 Kbit/s"));
         assert_eq!(
@@ -222,6 +253,35 @@ mod tests {
         assert_eq!(
             plan.strict_attach_step,
             "apply existing Zelynic strict attach backend"
+        );
+    }
+
+    #[test]
+    fn dry_run_plan_can_preview_system_scope_explicitly() {
+        let command = vec!["echo".to_string(), "hello".to_string()];
+        let plan = build_dry_run_plan_with_scope_mode(
+            Some("echo"),
+            Some("500kbit"),
+            None,
+            &command,
+            ScopeMode::System,
+        )
+        .unwrap();
+
+        assert_eq!(plan.systemd_run.scope_mode, ScopeMode::System);
+        assert_eq!(
+            systemd_run_argv(&plan.systemd_run),
+            vec![
+                "systemd-run",
+                "--scope",
+                "--unit",
+                "zelynic-run-echo",
+                "--description",
+                "Zelynic target echo",
+                "--",
+                "echo",
+                "hello",
+            ]
         );
     }
 }

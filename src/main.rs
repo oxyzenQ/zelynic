@@ -167,16 +167,22 @@ fn main() -> Result<()> {
             dry_run,
             execute,
             target,
+            scope_mode,
             download,
             upload,
             command,
         }) => {
+            let scope_mode = match scope_mode {
+                cli::RunScopeModeArg::User => systemd_wrapper::ScopeMode::User,
+                cli::RunScopeModeArg::System => systemd_wrapper::ScopeMode::System,
+            };
             systemd_wrapper::run_systemd_wrapper(
                 dry_run,
                 execute,
                 target.as_deref(),
                 download.as_deref(),
                 upload.as_deref(),
+                scope_mode,
                 &command,
             )?;
         }
@@ -500,7 +506,7 @@ fn print_help_all() {
         "— Experimental systemd scope wrapper planning".dimmed()
     );
     println!(
-        "    {} Use --dry-run to preview. --execute is experimental and currently gated.\n",
+        "    {} Use --dry-run to preview. User scope is the default; --execute is gated.\n",
         "  ".dimmed()
     );
     println!("    {} Usage:", "  ".dimmed());
@@ -510,6 +516,10 @@ fn print_help_all() {
     );
     println!(
         "    {} zelynic run --dry-run --target helium -d 500kbit -- helium --flag",
+        "  ".dimmed()
+    );
+    println!(
+        "    {} zelynic run --dry-run --scope-mode system -d 500kbit -- helium",
         "  ".dimmed()
     );
     println!(

@@ -23,9 +23,8 @@ pretending that `systemd-run --scope` creates that cgroup directly.
 Possible future commands:
 
 ```bash
-sudo zelynic run -d 500kbit -u 500kbit -- helium
-sudo zelynic run --target helium -d 500kbit -u 500kbit -- helium
 zelynic run --dry-run -d 500kbit -u 500kbit -- helium
+zelynic run --dry-run --scope-mode system -d 500kbit -- helium
 zelynic run --execute -d 500kbit -u 500kbit -- helium
 ```
 
@@ -59,9 +58,13 @@ keeps the command as structured argv; a future live implementation must execute
 structured arguments directly and must not pass a rendered shell string to a
 shell.
 
-The dry-run default is `Scope mode: system`. That is only a planning default:
-GUI applications may need user-scope or split root/user handling later so their
-Wayland/X11, DBus, portal, and desktop session environment remains intact.
+The dry-run default is `Scope mode: user`. Manual probing showed that plain
+system scope can trigger Polkit desktop authentication, while
+`systemd-run --user --scope ...` worked for a user-scope probe. User scope is
+therefore the safer v2.2 planning default for GUI/user applications. System
+scope can still be previewed with `--scope-mode system`, but it remains
+planning-only and should require root or explicit opt-in before any future live
+implementation.
 
 ## Chosen v2.2 Model: Launch Then Attach
 
@@ -73,10 +76,12 @@ The likely v2.2 implementation path is:
 4. enforce nftables + HTB limits against the Zelynic target cgroup
 
 In this model, the systemd scope path and the Zelynic target cgroup are not the
-same thing. `systemd-run --scope --unit zelynic-run-<target> ...` creates a
-systemd-managed scope under system/user slices. Zelynic would then attach the
-selected PIDs into `/sys/fs/cgroup/zelynic/target_<target>` using the same
-cgroup/nft/tc backend used by `zelynic strict`.
+same thing. `systemd-run --user --scope --unit zelynic-run-<target> ...`
+creates a systemd-managed scope under the user manager. Explicit system-scope
+planning uses `systemd-run --scope --unit ...` and creates a scope under system
+slices. In either case, Zelynic would then attach the selected PIDs into
+`/sys/fs/cgroup/zelynic/target_<target>` using the same cgroup/nft/tc backend
+used by `zelynic strict`.
 
 An alternative native systemd cgroup backend would match nftables rules against
 the systemd scope's relative cgroup path instead of the Zelynic target cgroup.
@@ -89,7 +94,7 @@ After a future live launch, Zelynic needs a narrow handoff from systemd launch
 state into the existing strict attach backend. The planned first check is:
 
 ```bash
-systemctl show zelynic-run-<target>.scope --property MainPID --property ControlGroup --value
+systemctl --user show zelynic-run-<target>.scope --property MainPID --property ControlGroup --value
 ```
 
 `MainPID` is the preferred direct PID when systemd reports one. `ControlGroup`
@@ -105,11 +110,11 @@ The `<reported-control-group>` segment is intentionally a placeholder in
 dry-run output. Live code must use the ControlGroup reported by systemd and must
 not guess a systemd cgroup path from the unit name.
 
-For the current dry-run default, discovery previews system scope commands. A
-future user-scope mode would need matching commands such as:
+For explicit system-scope planning, discovery previews the matching system
+manager command:
 
 ```bash
-systemctl --user show zelynic-run-<target>.scope --property MainPID --property ControlGroup --value
+systemctl show zelynic-run-<target>.scope --property MainPID --property ControlGroup --value
 ```
 
 Discovery must complete before applying strict attach. Once PIDs are known,
@@ -173,10 +178,12 @@ then hand validated PIDs to the resolved-PID strict attach API. The current
 
 ## Root And User Scope Tradeoffs
 
-Root scope may be simpler for tc/nft/cgroup setup, but launching desktop GUI
-apps as root is usually wrong. User scope is better for GUI session ownership,
-but must preserve enough session context for Wayland/X11, DBus, portals, and
-desktop integration.
+Root/system scope may be simpler for tc/nft/cgroup setup, but it can trigger
+Polkit prompts when requested from an unprivileged desktop session, and
+launching desktop GUI apps as root is usually wrong. User scope is better for
+GUI session ownership and avoids surprise system authorization prompts, but it
+must preserve enough session context for Wayland/X11, DBus, portals, and desktop
+integration.
 
 Future implementation needs to decide whether the command is launched through:
 

@@ -14,10 +14,7 @@ pub(super) struct PidHandoffPlan {
 pub(super) fn build_pid_handoff_plan(systemd_run: &SystemdRunPlan) -> PidHandoffPlan {
     let scope_name = format!("{}.scope", systemd_run.scope_unit_name);
     PidHandoffPlan {
-        method: format!(
-            "systemctl show {} --property MainPID,ControlGroup",
-            scope_name
-        ),
+        method: systemctl_show_method(systemd_run, &scope_name),
         fallback: "scan cgroup.procs under the reported ControlGroup".to_string(),
         attach: "move discovered PID(s) into the Zelynic target cgroup".to_string(),
         discovery_commands: vec![
@@ -32,10 +29,29 @@ pub(super) fn build_pid_handoff_plan(systemd_run: &SystemdRunPlan) -> PidHandoff
     }
 }
 
+fn systemctl_show_method(plan: &SystemdRunPlan, scope_name: &str) -> String {
+    match plan.scope_mode {
+        ScopeMode::User => format!(
+            "systemctl --user show {} --property MainPID,ControlGroup",
+            scope_name
+        ),
+        ScopeMode::System => format!(
+            "systemctl show {} --property MainPID,ControlGroup",
+            scope_name
+        ),
+    }
+}
+
 fn systemctl_show_argv(plan: &SystemdRunPlan) -> Vec<String> {
     let mut argv = vec!["systemctl".to_string()];
-    if plan.scope_mode == ScopeMode::System {
-        argv.push("show".to_string());
+    match plan.scope_mode {
+        ScopeMode::User => {
+            argv.push("--user".to_string());
+            argv.push("show".to_string());
+        }
+        ScopeMode::System => {
+            argv.push("show".to_string());
+        }
     }
     argv.extend([
         format!("{}.scope", plan.scope_unit_name),
@@ -238,7 +254,7 @@ mod tests {
             scope_unit_name: scope_unit_name.to_string(),
             description: "Zelynic target helium".to_string(),
             command_argv: vec!["helium".to_string()],
-            scope_mode: ScopeMode::System,
+            scope_mode: ScopeMode::User,
             target: "helium".to_string(),
             attach_target_cgroup: "/sys/fs/cgroup/zelynic/target_helium".to_string(),
         }
@@ -252,6 +268,7 @@ mod tests {
             plan.discovery_commands[0],
             vec![
                 "systemctl",
+                "--user",
                 "show",
                 "zelynic-run-helium_browser.scope",
                 "--property",
@@ -260,6 +277,31 @@ mod tests {
                 "ControlGroup",
                 "--value",
             ]
+        );
+    }
+
+    #[test]
+    fn pid_discovery_command_preview_can_use_system_scope() {
+        let mut system_plan = systemd_run_plan("zelynic-run-helium_browser");
+        system_plan.scope_mode = ScopeMode::System;
+        let plan = build_pid_handoff_plan(&system_plan);
+
+        assert_eq!(
+            plan.discovery_commands[0],
+            vec![
+                "systemctl",
+                "show",
+                "zelynic-run-helium_browser.scope",
+                "--property",
+                "MainPID",
+                "--property",
+                "ControlGroup",
+                "--value",
+            ]
+        );
+        assert_eq!(
+            plan.method,
+            "systemctl show zelynic-run-helium_browser.scope --property MainPID,ControlGroup"
         );
     }
 

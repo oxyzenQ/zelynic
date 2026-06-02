@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-use clap::{Args, Parser, Subcommand};
+use clap::{Args, Parser, Subcommand, ValueEnum};
 
 /// zelynic - Easy userspace bandwidth manager for Linux
 ///
@@ -174,12 +174,14 @@ pub enum Commands {
 
     /// Experimental groundwork for launching a command in a future systemd scope
     ///
-    /// This is v2.2 groundwork only. Use --dry-run for a safe preview. The
+    /// This is v2.2 groundwork only. Use --dry-run for a safe preview. User
+    /// scope is the default to avoid system Polkit prompts. The
     /// --execute opt-in is experimental and currently stops at a non-mutating
     /// implementation boundary.
     ///
     /// Examples:
     ///   zelynic run --dry-run -d 500kbit -u 500kbit -- helium
+    ///   zelynic run --dry-run --scope-mode system -d 500kbit -- helium
     ///   zelynic run --execute -d 500kbit -u 500kbit -- helium
     ///   zelynic run --dry-run --target helium -d 500kbit -- helium --flag
     #[command(verbatim_doc_comment)]
@@ -195,6 +197,10 @@ pub enum Commands {
         /// Optional target name for state/cgroup naming; defaults to command basename
         #[arg(long = "target", value_name = "TARGET")]
         target: Option<String>,
+
+        /// Planning scope mode for the future systemd wrapper
+        #[arg(long = "scope-mode", value_enum, default_value_t = RunScopeModeArg::User)]
+        scope_mode: RunScopeModeArg,
 
         /// Download speed limit (e.g., 500kb, 1mb, 500kbit)
         #[arg(short = 'd', long = "download", allow_hyphen_values = true)]
@@ -407,6 +413,14 @@ pub enum Commands {
     },
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
+pub enum RunScopeModeArg {
+    /// Preview a user-scoped transient systemd unit
+    User,
+    /// Preview a system-scoped transient systemd unit
+    System,
+}
+
 /// Backend diagnostics subcommands.
 #[derive(Debug, Subcommand)]
 pub enum BackendCommands {
@@ -553,6 +567,7 @@ mod tests {
             Commands::Run {
                 dry_run,
                 execute,
+                scope_mode,
                 download,
                 upload,
                 command,
@@ -560,6 +575,7 @@ mod tests {
             } => {
                 assert!(dry_run);
                 assert!(!execute);
+                assert_eq!(scope_mode, RunScopeModeArg::User);
                 assert_eq!(download.as_deref(), Some("500kbit"));
                 assert_eq!(upload.as_deref(), Some("500kbit"));
                 assert_eq!(command, vec!["echo", "hello"]);
@@ -586,12 +602,14 @@ mod tests {
             Commands::Run {
                 dry_run,
                 execute,
+                scope_mode,
                 download,
                 command,
                 ..
             } => {
                 assert!(!dry_run);
                 assert!(execute);
+                assert_eq!(scope_mode, RunScopeModeArg::User);
                 assert_eq!(download.as_deref(), Some("500kbit"));
                 assert_eq!(command, vec!["echo", "hello"]);
             }
@@ -615,6 +633,26 @@ mod tests {
     }
 
     #[test]
+    fn run_scope_mode_system_parses_for_planning() {
+        let cli = Cli::try_parse_from([
+            "zelynic",
+            "run",
+            "--dry-run",
+            "--scope-mode",
+            "system",
+            "--",
+            "echo",
+            "hello",
+        ])
+        .unwrap();
+
+        match cli.command.unwrap() {
+            Commands::Run { scope_mode, .. } => assert_eq!(scope_mode, RunScopeModeArg::System),
+            other => panic!("expected run command, got {other:?}"),
+        }
+    }
+
+    #[test]
     fn run_help_mentions_execute_is_experimental() {
         let mut command = Cli::command();
         let help = command
@@ -625,5 +663,9 @@ mod tests {
 
         assert!(help.contains("--execute"));
         assert!(help.contains("Experimental live execution opt-in"));
+        assert!(help.contains("--scope-mode"));
+        assert!(help.contains("Possible values:"));
+        assert!(help.contains("user:"));
+        assert!(help.contains("system:"));
     }
 }
