@@ -109,6 +109,35 @@ Zelynic should move only validated live PIDs into
 `/sys/fs/cgroup/zelynic/target_<target>` and then reuse the existing nftables/tc
 setup.
 
+The parser accepts both normal `systemctl show` key/value output:
+
+```text
+MainPID=12345
+ControlGroup=/system.slice/zelynic-run-helium.scope
+```
+
+and `--value` output in requested-property order:
+
+```text
+12345
+/system.slice/zelynic-run-helium.scope
+```
+
+Discovery decisions are deterministic:
+
+| Parsed metadata | Decision |
+|-----------------|----------|
+| valid `MainPID` + valid `ControlGroup` | use MainPID and optionally scan ControlGroup |
+| valid `MainPID` only | use MainPID |
+| valid `ControlGroup` only | scan ControlGroup |
+| neither usable | no usable discovery |
+
+`MainPID=0` is treated as no usable main PID. `ControlGroup` must be an absolute
+systemd relative cgroup path, must not be `/`, and must not contain `..`. A
+validated ControlGroup is only converted into a future path such as
+`/sys/fs/cgroup/system.slice/zelynic-run-helium.scope/cgroup.procs`; dry-run code
+does not read it.
+
 ## Integration With Strict
 
 A live implementation should reuse the existing strict backend helpers for:
