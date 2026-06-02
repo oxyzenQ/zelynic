@@ -32,13 +32,24 @@ The current `run` command is intentionally dry-run only. It parses rates,
 target, and command arguments, then prints:
 
 - planned systemd scope name
+- planned scope mode
 - command that would be launched
+- preview-only `systemd-run` command line
 - planned Zelynic target cgroup path
 - confirmation that no process was launched
 - confirmation that nftables, tc, cgroups, and state were not changed
 
 This makes the future UX reviewable without introducing new privileged runtime
 behavior.
+
+The displayed `systemd-run` command is for visibility only. Internally, Zelynic
+keeps the command as structured argv; a future live implementation must execute
+structured arguments directly and must not pass a rendered shell string to a
+shell.
+
+The dry-run default is `Scope mode: system`. That is only a planning default:
+GUI applications may need user-scope or split root/user handling later so their
+Wayland/X11, DBus, portal, and desktop session environment remains intact.
 
 ## Integration With Strict
 

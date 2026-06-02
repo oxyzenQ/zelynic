@@ -55,7 +55,8 @@ zelynic backend doctor --json
 
 The v2.2 development line also includes `zelynic run --dry-run` groundwork for
 a future systemd scope wrapper mode. It prints the planned scope/cgroup wiring
-without launching a process or modifying nftables, tc, cgroups, or state.
+and preview-only `systemd-run` command without launching a process or modifying
+nftables, tc, cgroups, or state.
 
 Support matrix:
 

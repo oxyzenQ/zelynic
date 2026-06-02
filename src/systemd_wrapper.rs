@@ -14,6 +14,30 @@ pub struct RunDryRunPlan {
     pub command: Vec<String>,
     pub download: Option<String>,
     pub upload: Option<String>,
+    pub systemd_run: SystemdRunPlan,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ScopeMode {
+    System,
+}
+
+impl ScopeMode {
+    fn label(self) -> &'static str {
+        match self {
+            ScopeMode::System => "system",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SystemdRunPlan {
+    pub scope_unit_name: String,
+    pub description: String,
+    pub command_argv: Vec<String>,
+    pub scope_mode: ScopeMode,
+    pub target: String,
+    pub planned_cgroup_path: String,
 }
 
 pub fn run_systemd_wrapper_dry_run(
@@ -46,33 +70,150 @@ pub fn build_dry_run_plan(
         .map(str::to_string)
         .unwrap_or_else(|| command_basename(&command[0]));
     let sanitized = sanitize_scope_component(&target_name);
+    let scope_unit_name = format!("zelynic-run-{}", sanitized);
+    let target_cgroup_path = format!("{}/target_{}", CGROUP_BASE, sanitized);
+    let systemd_run = SystemdRunPlan {
+        scope_unit_name: scope_unit_name.clone(),
+        description: format!("Zelynic target {}", target_name),
+        command_argv: command.to_vec(),
+        scope_mode: ScopeMode::System,
+        target: target_name.clone(),
+        planned_cgroup_path: target_cgroup_path.clone(),
+    };
 
     Ok(RunDryRunPlan {
         target: target_name,
-        scope_name: format!("zelynic-run-{}.scope", sanitized),
-        target_cgroup_path: format!("{}/target_{}", CGROUP_BASE, sanitized),
+        scope_name: format!("{}.scope", scope_unit_name),
+        target_cgroup_path,
         command: command.to_vec(),
         download: parse_rate_display(download)?,
         upload: parse_rate_display(upload)?,
+        systemd_run,
     })
 }
 
 pub fn sanitize_scope_component(value: &str) -> String {
-    let sanitized: String = value
-        .chars()
-        .map(|ch| {
-            if ch.is_ascii_alphanumeric() || ch == '-' || ch == '_' || ch == '.' {
-                ch
-            } else {
-                '_'
-            }
-        })
-        .collect();
-    let sanitized = sanitized.trim_matches('_');
+    let mut sanitized = String::new();
+    let mut last_was_separator = false;
+
+    for ch in value.chars() {
+        if ch.is_ascii_alphanumeric() {
+            sanitized.push(ch.to_ascii_lowercase());
+            last_was_separator = false;
+        } else if !last_was_separator && !sanitized.is_empty() {
+            sanitized.push('_');
+            last_was_separator = true;
+        }
+    }
+
+    if sanitized.ends_with('_') {
+        sanitized.pop();
+    }
+
     if sanitized.is_empty() {
         "target".to_string()
     } else {
-        sanitized.to_string()
+        sanitized
+    }
+}
+
+pub fn systemd_run_argv(plan: &SystemdRunPlan) -> Vec<String> {
+    let mut argv = vec!["systemd-run".to_string()];
+
+    if plan.scope_mode == ScopeMode::System {
+        argv.push("--scope".to_string());
+    }
+
+    argv.extend([
+        "--unit".to_string(),
+        plan.scope_unit_name.clone(),
+        "--description".to_string(),
+        plan.description.clone(),
+        "--".to_string(),
+    ]);
+    argv.extend(plan.command_argv.clone());
+    argv
+}
+
+pub fn render_argv(argv: &[String]) -> String {
+    argv.iter()
+        .map(|part| shell_quote(part))
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+pub fn render_systemd_run_command(plan: &SystemdRunPlan) -> String {
+    render_argv(&systemd_run_argv(plan))
+}
+
+pub fn render_dry_run_plan(plan: &RunDryRunPlan) -> String {
+    let mut output = String::new();
+
+    push_line(&mut output, "zelynic run dry-run");
+    push_line(&mut output, &format!("  Target: {}", plan.target));
+    push_line(
+        &mut output,
+        &format!("  Scope mode: {}", plan.systemd_run.scope_mode.label()),
+    );
+    push_line(&mut output, &format!("  Scope: {}", plan.scope_name));
+    push_line(
+        &mut output,
+        &format!("  Command: {}", render_command(&plan.command)),
+    );
+    push_line(
+        &mut output,
+        &format!(
+            "  Download: {}",
+            plan.download.as_deref().unwrap_or("unlimited")
+        ),
+    );
+    push_line(
+        &mut output,
+        &format!(
+            "  Upload: {}",
+            plan.upload.as_deref().unwrap_or("unlimited")
+        ),
+    );
+    push_line(
+        &mut output,
+        &format!("  Planned cgroup: {}", plan.target_cgroup_path),
+    );
+    push_line(&mut output, "");
+    push_line(&mut output, "  Future systemd-run command:");
+    push_line(
+        &mut output,
+        &format!("  {}", render_systemd_run_command(&plan.systemd_run)),
+    );
+    push_line(&mut output, "");
+    push_line(&mut output, "  No process was launched.");
+    push_line(
+        &mut output,
+        "  No nftables, tc, cgroup, or state changes were made.",
+    );
+    push_line(
+        &mut output,
+        "  Live systemd scope wrapper mode is future work.",
+    );
+
+    output
+}
+
+fn push_line(output: &mut String, line: &str) {
+    output.push_str(line);
+    output.push('\n');
+}
+
+fn colorize_dry_run_plan(rendered: &str) {
+    for (index, line) in rendered.lines().enumerate() {
+        if index == 0 {
+            println!("{}", line.green().bold());
+        } else if let Some(target) = line.strip_prefix("  Target: ") {
+            println!("  Target: {}", target.cyan());
+        } else if let Some(scope) = line.strip_prefix("  Scope: ") {
+            println!("  Scope: {}", scope.cyan());
+        } else {
+            println!("{line}");
+        }
     }
 }
 
@@ -91,17 +232,14 @@ fn parse_rate_display(rate: Option<&str>) -> Result<Option<String>> {
 }
 
 fn render_command(command: &[String]) -> String {
-    command
-        .iter()
-        .map(|part| shell_quote(part))
-        .collect::<Vec<_>>()
-        .join(" ")
+    render_argv(command)
 }
 
 fn shell_quote(value: &str) -> String {
-    if value
-        .chars()
-        .all(|ch| ch.is_ascii_alphanumeric() || "-_./:=+".contains(ch))
+    if !value.is_empty()
+        && value
+            .chars()
+            .all(|ch| ch.is_ascii_alphanumeric() || "-_./:=+".contains(ch))
     {
         value.to_string()
     } else {
@@ -110,23 +248,7 @@ fn shell_quote(value: &str) -> String {
 }
 
 fn print_dry_run_plan(plan: &RunDryRunPlan) {
-    println!("{}", "zelynic run dry-run".green().bold());
-    println!("  Target: {}", plan.target.cyan());
-    println!("  Scope: {}", plan.scope_name.cyan());
-    println!("  Command: {}", render_command(&plan.command));
-    println!(
-        "  Download: {}",
-        plan.download.as_deref().unwrap_or("unlimited")
-    );
-    println!(
-        "  Upload: {}",
-        plan.upload.as_deref().unwrap_or("unlimited")
-    );
-    println!("  Planned cgroup: {}", plan.target_cgroup_path);
-    println!();
-    println!("  No process was launched.");
-    println!("  No nftables, tc, cgroup, or state changes were made.");
-    println!("  Live systemd scope wrapper mode is future work.");
+    colorize_dry_run_plan(&render_dry_run_plan(plan));
 }
 
 #[cfg(test)]
@@ -135,10 +257,12 @@ mod tests {
 
     #[test]
     fn scope_component_sanitizes_unsafe_characters() {
+        assert_eq!(sanitize_scope_component("helium"), "helium");
         assert_eq!(
-            sanitize_scope_component("Helium Browser!/Main"),
-            "Helium_Browser__Main"
+            sanitize_scope_component("Helium Browser!"),
+            "helium_browser"
         );
+        assert_eq!(sanitize_scope_component("foo///bar"), "foo_bar");
         assert_eq!(sanitize_scope_component("///"), "target");
     }
 
@@ -155,6 +279,8 @@ mod tests {
         );
         assert_eq!(plan.download.as_deref(), Some("500 Kbit/s"));
         assert_eq!(plan.upload.as_deref(), Some("1 MB/s"));
+        assert_eq!(plan.systemd_run.scope_unit_name, "zelynic-run-helium");
+        assert_eq!(plan.systemd_run.scope_mode, ScopeMode::System);
     }
 
     #[test]
@@ -169,5 +295,63 @@ mod tests {
             "/sys/fs/cgroup/zelynic/target_custom_target"
         );
         assert_eq!(render_command(&plan.command), "echo 'hello world'");
+    }
+
+    #[test]
+    fn systemd_run_plan_renders_simple_command() {
+        let command = vec!["echo".to_string(), "hello".to_string()];
+        let plan = build_dry_run_plan(Some("helium"), Some("500kbit"), None, &command).unwrap();
+
+        assert_eq!(
+            render_systemd_run_command(&plan.systemd_run),
+            "systemd-run --scope --unit zelynic-run-helium --description 'Zelynic target helium' -- echo hello"
+        );
+    }
+
+    #[test]
+    fn command_rendering_quotes_spaces_and_special_characters() {
+        let argv = vec![
+            "systemd-run".to_string(),
+            "--".to_string(),
+            "helium".to_string(),
+            "--new-window".to_string(),
+            "https://fast.com".to_string(),
+            "hello world".to_string(),
+            "$(touch /tmp/nope)".to_string(),
+            "that's-fine".to_string(),
+        ];
+
+        assert_eq!(
+            render_argv(&argv),
+            "systemd-run -- helium --new-window https://fast.com 'hello world' '$(touch /tmp/nope)' 'that'\\''s-fine'"
+        );
+    }
+
+    #[test]
+    fn explicit_target_affects_scope_name_and_description() {
+        let command = vec!["helium".to_string()];
+        let plan = build_dry_run_plan(Some("Helium Browser!"), None, None, &command).unwrap();
+
+        assert_eq!(plan.scope_name, "zelynic-run-helium_browser.scope");
+        assert_eq!(
+            plan.target_cgroup_path,
+            "/sys/fs/cgroup/zelynic/target_helium_browser"
+        );
+        assert_eq!(
+            plan.systemd_run.description,
+            "Zelynic target Helium Browser!"
+        );
+    }
+
+    #[test]
+    fn dry_run_output_includes_future_command_and_no_mutation_notice() {
+        let command = vec!["echo".to_string(), "hello".to_string()];
+        let plan = build_dry_run_plan(None, Some("500kbit"), Some("500kbit"), &command).unwrap();
+        let rendered = render_dry_run_plan(&plan);
+
+        assert!(rendered.contains("Future systemd-run command"));
+        assert!(rendered.contains("systemd-run --scope --unit zelynic-run-echo"));
+        assert!(rendered.contains("No process was launched."));
+        assert!(rendered.contains("No nftables, tc, cgroup, or state changes were made."));
     }
 }
