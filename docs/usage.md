@@ -86,6 +86,23 @@ by default.
 
 ---
 
+### `zelynic run` — Experimental Systemd Wrapper Dry-Run
+
+```bash
+zelynic run --dry-run -d 500kbit -u 500kbit -- echo hello
+zelynic run --dry-run --target helium -d 500kbit -- helium
+```
+
+`run` is v2.2 groundwork for a future systemd scope wrapper mode. Today it is
+dry-run only: it validates the target, rates, and command, prints the planned
+scope and cgroup path, and exits without launching a process or modifying
+nftables, tc, cgroups, or state.
+
+See [systemd-wrapper-design.md](systemd-wrapper-design.md) for the design notes
+and risk list.
+
+---
+
 ### `zelynic unstrict` — Remove Limits
 
 ```bash

@@ -53,6 +53,10 @@ zelynic backend doctor       # Detailed capability matrix
 zelynic backend doctor --json
 ```
 
+The v2.2 development line also includes `zelynic run --dry-run` groundwork for
+a future systemd scope wrapper mode. It prints the planned scope/cgroup wiring
+without launching a process or modifying nftables, tc, cgroups, or state.
+
 Support matrix:
 
 | Host type | Status |
@@ -66,6 +70,7 @@ Support matrix:
 
 - **Monitor** bandwidth usage per process/program with cumulative and real-time rates
 - **Limit** download and/or upload speeds per process with tc + nftables + cgroup v2
+- **Experimental run dry-run** — preview future systemd scope wrapper wiring without runtime changes
 - **QoS priority shaping** — assign high/low priority tiers instead of hard limits
 - **TUI dashboard** — live bandwidth monitor with sparklines, scrolling, and dual RX/TX graphs
 - **Auto-throttle daemon** — background mode that auto-limits when thresholds are exceeded
