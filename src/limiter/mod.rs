@@ -44,7 +44,7 @@
 /// and can be cleaned up properly with `zelynic unstrict`.
 use anyhow::{bail, Context, Result};
 use colored::Colorize;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::fs;
 use std::os::unix::fs::MetadataExt;
 use std::path::Path;
@@ -57,7 +57,10 @@ mod cgroup;
 mod cleanup;
 mod diagnostics;
 mod nft;
+mod output;
+mod prereq;
 mod process;
+mod reapply;
 mod refresh;
 mod state;
 mod tc;
@@ -86,12 +89,15 @@ use attach::{
 use cgroup::{
     cgroup_level, cgroup_level_from_relative, current_cgroup_v2_absolute_path,
     detect_cgroup_version, move_pid_to_cgroup_with_verify, pid_cgroup_v2_line,
-    relative_cgroupv2_path, remove_target_cgroup_if_empty, verify_pid_in_cgroup,
+    relative_cgroupv2_path, verify_pid_in_cgroup,
 };
 use cleanup::chrono_now;
 use diagnostics::{print_state_file_diagnostic, print_strict_diagnostic_header};
-use nft::{refresh_nft_ip_rules, refresh_nft_ip_rules_with_diagnostics};
-use process::{get_process_uid, is_chromium_based_target, sanitize_target_name};
+use nft::refresh_nft_ip_rules_with_diagnostics;
+use output::{print_strict_apply_summary, StrictApplySummary};
+use prereq::{ensure_conntrack, ensure_kernel_modules, force_reconnect_existing_sockets};
+use process::{is_chromium_based_target, sanitize_target_name};
+use reapply::auto_clean_existing_limits;
 use tc::{ensure_htb_qdisc, target_class_id, TcTransaction};
 
 /// Directory where Zelynic stores runtime state.
@@ -112,44 +118,6 @@ const LEGACY_STATE_DIR: &str = "/run/oxy";
 const LEGACY_CGROUP_BASE: &str = "/sys/fs/cgroup/oxy";
 /// Legacy v2.0.0 nftables table name.
 const LEGACY_NFT_TABLE: &str = "oxy";
-/// Ensure required kernel modules for traffic control are loaded.
-fn ensure_kernel_modules() -> Result<()> {
-    // List of modules required for tc bandwidth limiting
-    let modules = [
-        "sch_htb",      // HTB qdisc (for upload shaping)
-        "cls_fw",       // fw classifier (fwmark-based routing)
-        "sch_ingress",  // ingress qdisc (for download policing)
-        "nf_conntrack", // conntrack
-        "sch_fq_codel", // Fair Queuing / CoDel (better queuing discipline)
-    ];
-
-    for module in modules {
-        // Use modprobe to load modules. Ignore errors; they may be built-in.
-        let _ = Command::new("modprobe").arg(module).output();
-    }
-
-    Ok(())
-}
-
-/// Ensure netfilter conntrack is enabled for ct mark propagation.
-/// Required for the download fallback: egress marks are saved to conntrack,
-/// then matched on reply (download) packets via `ct mark`.
-fn ensure_conntrack() -> Result<()> {
-    let _ = Command::new("modprobe").args(["nf_conntrack"]).output();
-
-    let params = [
-        ("net.netfilter.nf_conntrack_acct", "1"),
-        ("net.netfilter.nf_conntrack_mark", "1"),
-    ];
-
-    for (key, val) in params {
-        let _ = Command::new("sysctl")
-            .args(["-w", &format!("{}={}", key, val)])
-            .output();
-    }
-
-    Ok(())
-}
 // Main: apply_limit
 
 /// Apply a bandwidth limit (strict) to a target process.
@@ -237,112 +205,7 @@ pub(crate) fn apply_limit_to_resolved_pids(
 
     println!("{} Using interface: {}", "→".cyan(), interface.cyan());
 
-    // Auto-clean: remove any existing limits for this target to allow
-    // seamless re-running `zelynic strict` without manual unstrict first.
-    if let Ok(mut state) = ZelynicState::load() {
-        let target_lower = target.to_lowercase();
-        let existing: Vec<usize> = state
-            .limits
-            .iter()
-            .enumerate()
-            .filter(|(_, r)| {
-                let rec_lower = r.target.to_lowercase();
-                pids.contains(&r.pid)
-                    || rec_lower == target_lower
-                    || rec_lower.contains(&target_lower)
-                    || target_lower.contains(&rec_lower)
-            })
-            .map(|(i, _)| i)
-            .collect();
-
-        if !existing.is_empty() {
-            // Collect info for cleanup before removing
-            let removed_ifaces: HashSet<String> = existing
-                .iter()
-                .map(|&i| state.limits[i].interface.clone())
-                .collect();
-
-            // Remove per-PID cgroups and state records
-            for &idx in existing.iter().rev() {
-                let _ = remove_cgroup(state.limits[idx].pid);
-                state.limits.remove(idx);
-            }
-            state.save()?;
-
-            // Clean up per-target tc objects if no limits remain for this target
-            let remaining_targets: HashSet<String> = state
-                .limits
-                .iter()
-                .map(|r| sanitize_target_name(&r.target))
-                .collect();
-
-            if !remaining_targets.contains(&sanitized) {
-                let tid = target_class_id(&sanitized);
-                let target_class_id_str = format!("1:{:04x}", tid);
-                for iface in &removed_ifaces {
-                    let _ = Command::new("tc")
-                        .args([
-                            "class",
-                            "del",
-                            "dev",
-                            iface,
-                            "classid",
-                            &target_class_id_str,
-                        ])
-                        .output();
-                    // Remove fw filter for this target (IPv4)
-                    let _ = Command::new("tc")
-                        .args([
-                            "filter",
-                            "del",
-                            "dev",
-                            iface,
-                            "parent",
-                            "1:0",
-                            "protocol",
-                            "ip",
-                            "prio",
-                            "100",
-                            "handle",
-                            &tid.to_string(),
-                            "fw",
-                        ])
-                        .output();
-                    // Remove fw filter for this target (IPv6)
-                    let _ = Command::new("tc")
-                        .args([
-                            "filter",
-                            "del",
-                            "dev",
-                            iface,
-                            "parent",
-                            "1:0",
-                            "protocol",
-                            "ipv6",
-                            "prio",
-                            "100",
-                            "handle",
-                            &tid.to_string(),
-                            "fw",
-                        ])
-                        .output();
-                }
-                let _ = remove_target_cgroup_if_empty(&sanitized);
-            }
-
-            // Refresh nft rules
-            if let Err(e) = refresh_nft_ip_rules(&state.limits) {
-                eprintln!("{}: Failed to refresh nft rules: {}", "WARNING".yellow(), e);
-            }
-
-            println!(
-                "  {} Auto-cleaned {} previous limit(s) for '{}'",
-                "Info:".dimmed(),
-                existing.len(),
-                target
-            );
-        }
-    }
+    auto_clean_existing_limits(target, &pids, &sanitized)?;
 
     // Ensure kernel modules
     if let Err(e) = ensure_kernel_modules() {
@@ -863,115 +726,23 @@ pub(crate) fn apply_limit_to_resolved_pids(
         print_state_file_diagnostic();
     }
 
-    // Force reconnection of existing sockets so that `socket cgroupv2`
-    // can match them.  The cgroup association is stored in sk->sk_cgrp_data
-    // at socket *creation* time — it is NOT updated when the process is
-    // later moved to a different cgroup.  Without this step only sockets
-    // created *after* the PID was moved would be matched, leaving
-    // pre-existing browser connections untouched.
-    //
-    // We briefly drop all egress from the target UID (300 ms), forcing
-    // every TCP/UDP flow to reconnect.  After the drop is lifted the
-    // process creates new sockets inside the target cgroup, so
-    // `socket cgroupv2` now matches and marks them.  Non-target processes
-    // sharing the same UID are also briefly interrupted but reconnect
-    // normally and remain unmarked (un-limited).
-    if use_v2 {
-        if let Some(uid) = get_process_uid(pids[0]) {
-            let uid_str = uid.to_string();
-            let uid_rule = format!("meta skuid {}", uid_str);
+    force_reconnect_existing_sockets(use_v2, &pids);
 
-            let _ = Command::new("nft")
-                .args([
-                    "add", "rule", "inet", NFT_TABLE, "output", &uid_rule, "drop",
-                ])
-                .output();
-
-            std::thread::sleep(std::time::Duration::from_millis(300));
-
-            // Locate and remove the temporary DROP rule by its handle
-            if let Ok(list_out) = Command::new("nft")
-                .args(["-a", "list", "chain", "inet", NFT_TABLE, "output"])
-                .output()
-            {
-                let list_stdout = String::from_utf8_lossy(&list_out.stdout);
-                for line in list_stdout.lines() {
-                    if line.contains(&uid_rule) {
-                        if let Some(pos) = line.rfind("handle ") {
-                            let handle = line[pos + 7..].trim();
-                            let _ = Command::new("nft")
-                                .args([
-                                    "delete", "rule", "inet", NFT_TABLE, "output", "handle", handle,
-                                ])
-                                .output();
-                            break;
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    // Print summary
-    if applied_count == 0 {
-        println!(
-            "{}",
-            "zelynic strict: no bandwidth limits were applied"
-                .yellow()
-                .bold()
-        );
-        return Ok(());
-    }
-
-    println!(
-        "{}",
-        "zelynic strict: bandwidth limit applied".green().bold()
-    );
-    println!();
-    println!("  Target:    {}", target);
-    println!("  Discovered PIDs: {}", discovered_count);
-    println!("  Moved PIDs:      {}", moved_count);
-    println!("  Verified PIDs:   {}", verified_count);
-    println!("  Vanished PIDs:   {}", vanished_count);
-    println!("  Failed PIDs:     {}", failed_count);
-    println!(
-        "  PIDs:      {}",
-        pids.iter()
-            .map(|p| format!("{}", p))
-            .collect::<Vec<_>>()
-            .join(", ")
-    );
-    if let Some(ref dl) = dl_display {
-        println!("  Download:  {} (limited, nftables policer)", dl.cyan());
-    } else {
-        println!("  Download:  {}", "unlimited".dimmed());
-    }
-    if let Some(ref ul) = ul_display {
-        println!("  Upload:    {} (limited, HTB)", ul.cyan());
-    } else {
-        println!("  Upload:    {}", "unlimited".dimmed());
-    }
-    println!("  Interface: {}", interface);
-    println!(
-        "  Backend:   nftables + HTB | {}",
-        if use_v2 {
-            "cgroup v2 (per-target isolation)"
-        } else {
-            "cgroup v1 fallback"
-        }
-    );
-    println!("  Applied:   {} process(es)", applied_count);
-
-    if use_v2 {
-        println!("  Cgroup:    {} (per-target isolation)", target_cg_path);
-    }
-
-    println!();
-    println!(
-        "  {} Use 'zelynic unstrict {}' to remove limits.",
-        "Info:".yellow(),
-        target
-    );
+    print_strict_apply_summary(&StrictApplySummary {
+        target,
+        discovered_count,
+        moved_count,
+        verified_count,
+        vanished_count,
+        failed_count,
+        pids: &pids,
+        download_display: dl_display.as_deref(),
+        upload_display: ul_display.as_deref(),
+        interface: &interface,
+        use_v2,
+        target_cg_path: &target_cg_path,
+        applied_count,
+    });
 
     Ok(())
 }
