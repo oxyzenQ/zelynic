@@ -494,9 +494,12 @@ cargo clippy --all-targets --all-features -- -D warnings
 cargo test
 cargo audit
 cargo deny check all
+python3 scripts/check-policy.py
 ```
 
-See [docs/supply-chain.md](docs/supply-chain.md) for dependency policy and supply-chain check details.
+See [RULES.md](RULES.md) for source policy rules and
+[docs/supply-chain.md](docs/supply-chain.md) for dependency policy and
+supply-chain check details.
 
 ## License
 

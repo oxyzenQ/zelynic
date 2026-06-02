@@ -1,0 +1,60 @@
+name: Dependency Update Validation
+
+on:
+  schedule:
+    - cron: "23 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  validate-updated-lockfile:
+    name: Validate cargo update result
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Update dependencies in runner workspace
+        run: |
+          echo "Validation-only workflow: cargo update runs in this CI workspace only."
+          echo "This workflow does not commit, push, or open a pull request."
+          cargo update
+
+      - name: Show dependency diff
+        run: git diff -- Cargo.lock || true
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Run tests
+        run: cargo test --locked
+
+      - name: Run clippy
+        run: cargo clippy --locked --all-targets --all-features -- -D warnings
+
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked
+
+      - name: Run cargo audit
+        run: cargo audit
+
+      - name: Install cargo-deny
+        run: cargo install cargo-deny --locked
+
+      - name: Run cargo deny
+        if: hashFiles('deny.toml') != ''
+        run: cargo deny check
+
+      - name: Run policy checks
+        run: python3 scripts/check-policy.py

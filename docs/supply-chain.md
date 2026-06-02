@@ -12,6 +12,16 @@ Run this before commits and pull requests that touch Rust/core code:
 
 `check-all` runs formatting, clippy, tests, `cargo audit`, and `cargo deny` when the optional tools are installed. Missing `cargo-audit` or `cargo-deny` is reported as a warning and skipped so contributors can still run the core checks. If `cargo-deny` is installed and `deny.toml` is present, a deny failure fails `check-all`.
 
+The CI policy gate also runs:
+
+```bash
+python3 scripts/check-policy.py
+```
+
+That script enforces the source rules documented in [`RULES.md`](../RULES.md),
+including the 1000 LOC hard limit for checked core/code files and required
+copyright/SPDX headers.
+
 Manual fallback:
 
 ```bash
@@ -20,6 +30,7 @@ cargo clippy --all-targets --all-features -- -D warnings
 cargo test
 cargo audit
 cargo deny check all
+python3 scripts/check-policy.py
 ```
 
 If `cargo-nextest` is installed, `build.sh` uses it for faster tests. Otherwise it falls back to `cargo test`.

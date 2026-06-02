@@ -1,4 +1,6 @@
 #!/bin/bash
+# Copyright (C) 2026 rezky_nightky
+# SPDX-License-Identifier: GPL-3.0-only
 # =============================================================================
 # ZELYNIC BUILD AUTOMATION SCRIPT
 # =============================================================================
@@ -346,6 +348,17 @@ run_deny_check() {
         fi
 }
 
+run_policy_check() {
+        log_step "Running repository policy checks..."
+
+        if python3 scripts/check-policy.py; then
+                log_success "Repository policy checks passed"
+        else
+                log_error "Repository policy checks failed"
+                return 1
+        fi
+}
+
 run_comprehensive_check() {
         local failed=0
 
@@ -359,6 +372,7 @@ run_comprehensive_check() {
         run_tests || ((failed++))
         run_audit || ((failed++))
         run_deny_check || ((failed++))
+        run_policy_check || ((failed++))
 
         echo ""
         if [ $failed -eq 0 ]; then
@@ -430,7 +444,7 @@ COMMANDS:
     bench           Run benchmarks
 
     check           Quick checks (fmt + clippy)
-    check-all       Recommended local quality gate (fmt + clippy + test + audit + deny)
+    check-all       Recommended local quality gate (fmt + clippy + test + audit + deny + policy)
     fmt             Format code
     clean           Clean build artifacts
     update          Update dependencies and audit

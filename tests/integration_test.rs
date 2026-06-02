@@ -1,3 +1,5 @@
+// Copyright (C) 2026 rezky_nightky
+// SPDX-License-Identifier: GPL-3.0-only
 //! Integration tests for zelynic
 //!
 //! These tests require root privileges and a Linux system.
