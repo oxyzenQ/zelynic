@@ -66,14 +66,16 @@ attachment have different requirements. The likely future model is
 launch-then-attach: systemd starts the command, then Zelynic attaches discovered
 PIDs with the existing strict backend.
 
-Support matrix:
+Support matrix — see [docs/distro-matrix.md](docs/distro-matrix.md) for the full distribution support matrix with validation status:
 
 | Host type | Status |
 |-----------|--------|
-| Arch/CachyOS pure cgroup v2 | Tested |
-| Modern systemd + cgroup v2 distros | Expected |
-| Older Ubuntu/Debian, hybrid cgroup, containers, WSL, non-systemd distros | Partial/unknown |
+| Arch/CachyOS pure cgroup v2 | Validated |
+| Modern systemd + cgroup v2 distros (Fedora, Ubuntu 22.04+, Debian 12+) | Candidate |
+| Older Ubuntu/Debian, hybrid cgroup, containers, WSL, non-systemd distros | Partial / Unsupported |
 | systemd-scope backend, cgroup v1 fallback, eBPF backend | Future |
+
+The strict limiter path is validated on tested modern cgroup v2 Linux hosts. Other distributions are listed as candidates pending explicit validation. See the [distro matrix](docs/distro-matrix.md) for details.
 
 ## Features
 
