@@ -9,11 +9,60 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **`run_systemd_wrapper` signature**: Added `probe_live` parameter to
+  `run_systemd_wrapper` and `handle_run` for the v2.5 Scope Runner live
+  probe path.
+
 ### Added
+
+- **Scope Runner live probe**: Added `--probe-live` flag to `zelynic run`
+  for a controlled, root-only, system-scope live probe. When invoked as
+  `sudo zelynic run --execute --scope-mode system --probe-live -- <command>`,
+  Zelynic launches a real transient systemd scope via `systemd-run --scope`,
+  queries the scope unit properties via `systemctl show`, reads PID(s) from
+  `cgroup.procs`, and reports findings. Does NOT apply bandwidth limits,
+  modify nftables, tc, Zelynic cgroups, or state.
+- **Scope Runner gating**: The `--probe-live` path requires all three:
+  `--execute`, `--scope-mode system`, and root (euid == 0). Missing any
+  requirement falls back to existing behavior (not-implemented or
+  privilege error).
+- **User-scope probe blocked**: `--probe-live` with user scope returns
+  "User-scope live runner is not implemented" — user-scope needs
+  privilege/session handoff.
+- **Scope Runner module**: Added `src/systemd_wrapper/scope_runner.rs`
+  containing probe gate logic (`probe_gate`), live probe execution
+  (`run_scope_probe`), output rendering (`render_scope_probe_output`),
+  and plan builder (`build_probe_systemd_run_plan`). Unit name convention:
+  `zelynic-probe-v250-<sanitized_target>`.
+- **Probe output wording**: Scope Runner output honestly states "Scope
+  Runner live probe", "No limiter attach was performed", "No nftables, tc,
+  Zelynic cgroup, or state changes were made", "Bandwidth limiting is not
+  active from this command yet", and documents cleanup command.
+- **Scope Runner tests**: Added unit tests for gate logic (missing flag
+  blocked, user scope blocked, system non-root blocked, system root allowed
+  by preflight model), output wording (no limiter claims, no nftables/tc
+  claims, no Zelynic cgroup/state claims, cleanup command present), plan
+  builder (v2.5 naming, target sanitization, empty command error), command
+  rendering, and unit name sanitization safety.
+- **CLI tests**: Added tests for `--probe-live` parsing (with execute and
+  system), `--probe-live` requires `--execute`, and `--probe-live` defaults
+  to false.
 
 ### Docs
 
+- **Scope Runner section**: Added "Scope Runner Live Probe (v2.5)" section
+  to `docs/scope-lab.md` explaining what the probe does, what it does not do,
+  requirements, CLI syntax, cleanup, implementation details, unit name
+  convention, and user-scope status.
+- **Wrapper design update**: Updated `docs/systemd-wrapper-design.md` to
+  mention the v2.5 Scope Runner and its `--probe-live` gate.
+
 ### Notes
+
+- `zelynic run --execute` without `--probe-live` remains non-mutating and
+  returns "Live systemd wrapper execution is not implemented yet."
+- No bandwidth limiting is applied by the Scope Runner.
+- No version bump yet.
 
 ## [2.4.0] - 2026-06-03 - v2.4.0 Scope Lab
 

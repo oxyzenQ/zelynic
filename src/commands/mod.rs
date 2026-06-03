@@ -54,13 +54,14 @@ pub(crate) fn dispatch(cli: Cli, iface_value: Option<&str>) -> Result<()> {
         Some(Commands::Run {
             dry_run,
             execute,
+            probe_live,
             target,
             scope_mode,
             download,
             upload,
             command,
         }) => run::handle_run(
-            dry_run, execute, target, scope_mode, download, upload, &command,
+            dry_run, execute, probe_live, target, scope_mode, download, upload, &command,
         ),
 
         Some(Commands::Status) => strict::handle_status(),

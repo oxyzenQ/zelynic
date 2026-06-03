@@ -195,6 +195,15 @@ pub enum Commands {
         #[arg(long = "execute", conflicts_with = "dry_run")]
         execute: bool,
 
+        /// Root-only system-scope live probe (v2.5 Scope Runner)
+        ///
+        /// Requires --execute, --scope-mode system, and root (euid == 0).
+        /// Launches a real transient systemd scope, discovers the ControlGroup
+        /// and PID(s), then reports findings. Does NOT apply bandwidth limits,
+        /// modify nftables, tc, or Zelynic cgroups.
+        #[arg(long = "probe-live", requires = "execute")]
+        probe_live: bool,
+
         /// Optional target name for state/cgroup naming; defaults to command basename
         #[arg(long = "target", value_name = "TARGET")]
         target: Option<String>,
@@ -568,6 +577,7 @@ mod tests {
             Commands::Run {
                 dry_run,
                 execute,
+                probe_live,
                 scope_mode,
                 download,
                 upload,
@@ -576,6 +586,7 @@ mod tests {
             } => {
                 assert!(dry_run);
                 assert!(!execute);
+                assert!(!probe_live);
                 assert_eq!(scope_mode, RunScopeModeArg::User);
                 assert_eq!(download.as_deref(), Some("500kbit"));
                 assert_eq!(upload.as_deref(), Some("500kbit"));
@@ -603,6 +614,7 @@ mod tests {
             Commands::Run {
                 dry_run,
                 execute,
+                probe_live,
                 scope_mode,
                 download,
                 command,
@@ -610,6 +622,7 @@ mod tests {
             } => {
                 assert!(!dry_run);
                 assert!(execute);
+                assert!(!probe_live);
                 assert_eq!(scope_mode, RunScopeModeArg::User);
                 assert_eq!(download.as_deref(), Some("500kbit"));
                 assert_eq!(command, vec!["echo", "hello"]);
@@ -649,6 +662,80 @@ mod tests {
 
         match cli.command.unwrap() {
             Commands::Run { scope_mode, .. } => assert_eq!(scope_mode, RunScopeModeArg::System),
+            other => panic!("expected run command, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn run_probe_live_parses_with_execute_and_system() {
+        let cli = Cli::try_parse_from([
+            "zelynic",
+            "run",
+            "--execute",
+            "--scope-mode",
+            "system",
+            "--probe-live",
+            "-d",
+            "500kbit",
+            "--",
+            "sleep",
+            "30",
+        ])
+        .unwrap();
+
+        match cli.command.unwrap() {
+            Commands::Run {
+                dry_run,
+                execute,
+                probe_live,
+                scope_mode,
+                download,
+                command,
+                ..
+            } => {
+                assert!(!dry_run);
+                assert!(execute);
+                assert!(probe_live);
+                assert_eq!(scope_mode, RunScopeModeArg::System);
+                assert_eq!(download.as_deref(), Some("500kbit"));
+                assert_eq!(command, vec!["sleep", "30"]);
+            }
+            other => panic!("expected run command, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn run_probe_live_requires_execute() {
+        let result = Cli::try_parse_from([
+            "zelynic",
+            "run",
+            "--probe-live",
+            "--scope-mode",
+            "system",
+            "--",
+            "sleep",
+            "30",
+        ]);
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn run_probe_live_defaults_false() {
+        let cli = Cli::try_parse_from([
+            "zelynic",
+            "run",
+            "--execute",
+            "--scope-mode",
+            "system",
+            "--",
+            "sleep",
+            "30",
+        ])
+        .unwrap();
+
+        match cli.command.unwrap() {
+            Commands::Run { probe_live, .. } => assert!(!probe_live),
             other => panic!("expected run command, got {other:?}"),
         }
     }

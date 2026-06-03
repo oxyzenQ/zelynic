@@ -253,7 +253,8 @@ planned output.
 
 ## Live Execution Status
 
-**Live execution is not implemented.** The current `zelynic run --execute` path:
+**Live execution is not implemented for the general run path.** The current
+`zelynic run --execute` path:
 
 - Builds a structured execution plan.
 - Prints the plan with ControlGroup-first discovery wording.
@@ -264,6 +265,95 @@ planned output.
 Live execution remains blocked until privilege/session handoff is designed and
 implemented. See the [Privilege and Session Handoff](#privilege-and-session-handoff)
 section below.
+
+## Scope Runner Live Probe (v2.5)
+
+The v2.5 phase adds an explicit, controlled live probe for system-scope
+transient systemd scope units. This is **not** the final limiter backend — it
+is a Scope Lab runner that validates the launch-discover pipeline without
+applying any bandwidth limiting.
+
+### What It Does
+
+When invoked with `--execute --scope-mode system --probe-live`, the Scope
+Runner:
+
+1. Launches a real transient systemd scope via `systemd-run --scope --unit
+   <unit> --description <desc> -- <command>` (backgrounded).
+2. Queries the scope unit via `systemctl show <unit>.scope --property
+   MainPID --property ControlGroup --property ActiveState --property SubState`.
+3. Reads PID(s) from `/sys/fs/cgroup${ControlGroup}/cgroup.procs` if the
+   ControlGroup was discovered.
+4. Reports findings: scope unit name, ControlGroup, ActiveState, SubState,
+   discovered PID(s).
+5. Prints honest safety disclaimers (no limiter attach, no nftables/tc/cgroup
+   changes, bandwidth not active).
+6. Documents cleanup command: `sudo systemctl stop <unit>.scope`.
+
+### What It Does NOT Do
+
+- Does NOT run `zelynic strict`.
+- Does NOT call limiter attach.
+- Does NOT modify nftables.
+- Does NOT modify tc/qdisc/filter.
+- Does NOT create or move processes into Zelynic cgroups.
+- Does NOT write Zelynic state files.
+- Does NOT claim bandwidth limiting is active.
+
+### Requirements (All Must Be True)
+
+1. `--execute` flag is set.
+2. `--scope-mode system` is set.
+3. `--probe-live` flag is set.
+4. Effective UID is 0 (root).
+
+If any requirement is missing, the old behavior is preserved:
+- Missing `--probe-live`: returns "Live systemd wrapper execution is not
+  implemented yet."
+- User scope with `--probe-live`: returns "User-scope live runner is not
+  implemented." — user-scope live runner needs privilege/session handoff.
+- System scope non-root with `--probe-live`: returns "Scope Runner live probe
+  requires root (euid == 0)."
+
+### CLI Syntax
+
+```bash
+sudo zelynic run --execute --scope-mode system --probe-live -d 500kbit -u 500kbit -- sleep 60
+```
+
+### Cleanup
+
+The scope runs in the background. To stop it:
+
+```bash
+sudo systemctl stop zelynic-probe-v250-sleep.scope
+```
+
+### Implementation
+
+The Scope Runner is implemented in `src/systemd_wrapper/scope_runner.rs`:
+
+- `probe_gate()`: Gating logic (probe_live + system + root).
+- `run_scope_probe()`: Live execution (systemd-run, systemctl show,
+  cgroup.procs read).
+- `render_scope_probe_output()`: Honest output rendering.
+- `build_probe_systemd_run_plan()`: Plan builder with v2.5 naming
+  (`zelynic-probe-v250-<sanitized_target>`).
+
+### Unit Name Convention
+
+Probe scope units use the naming pattern:
+`zelynic-probe-v250-<sanitized_target>` to distinguish them from the future
+run-mode units (`zelynic-run-<target>`). Target names are sanitized to
+lowercase alphanumeric with underscore separators, matching the existing
+sanitization logic.
+
+### User-Scope Status
+
+`--probe-live` with default/user scope remains blocked. The error message
+explains that user-scope live runner needs privilege/session handoff, which is
+not implemented. This gate is enforced in `probe_gate()` before any system
+calls are made.
 
 ## Privilege and Session Handoff
 

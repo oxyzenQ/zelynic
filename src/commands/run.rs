@@ -10,9 +10,11 @@ use crate::systemd_wrapper;
 ///
 /// Converts the CLI scope-mode argument to the internal enum and delegates
 /// to the systemd wrapper module.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn handle_run(
     dry_run: bool,
     execute: bool,
+    probe_live: bool,
     target: Option<String>,
     scope_mode: RunScopeModeArg,
     download: Option<String>,
@@ -26,6 +28,7 @@ pub(crate) fn handle_run(
     systemd_wrapper::run_systemd_wrapper(
         dry_run,
         execute,
+        probe_live,
         target.as_deref(),
         download.as_deref(),
         upload.as_deref(),

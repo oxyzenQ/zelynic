@@ -54,6 +54,13 @@ modifying nftables, tc, cgroups, or state. Running `zelynic run` without
 `--dry-run` or `--execute` errors clearly so live behavior cannot be selected
 accidentally.
 
+The v2.5 Scope Runner adds `--probe-live` as an explicit gate for a controlled,
+root-only, system-scope live probe. When `--execute --scope-mode system
+--probe-live` is used with root, the Scope Runner actually launches a transient
+systemd scope, discovers the ControlGroup and PID(s), and reports findings
+without applying any bandwidth limiting. See `docs/scope-lab.md` for the full
+Scope Runner design.
+
 The displayed `systemd-run` command is for visibility only. Internally, Zelynic
 keeps the command as structured argv; a future live implementation must execute
 structured arguments directly and must not pass a rendered shell string to a
