@@ -57,9 +57,10 @@ accidentally.
 The v2.5 Scope Runner adds `--probe-live` as an explicit gate for a controlled,
 root-only, system-scope live probe. When `--execute --scope-mode system
 --probe-live` is used with root, the Scope Runner actually launches a transient
-systemd scope, discovers the ControlGroup and PID(s), and reports findings
-without applying any bandwidth limiting. See `docs/scope-lab.md` for the full
-Scope Runner design.
+systemd scope, discovers the ControlGroup and PID(s), reports findings, and
+prints a non-mutating "Future attach preview" that bridges discovered PIDs to
+the future resolved-PID strict attach backend — all without applying any
+bandwidth limiting. See `docs/scope-lab.md` for the full Scope Runner design.
 
 The displayed `systemd-run` command is for visibility only. Internally, Zelynic
 keeps the command as structured argv; a future live implementation must execute

@@ -47,6 +47,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **CLI tests**: Added tests for `--probe-live` parsing (with execute and
   system), `--probe-live` requires `--execute`, and `--probe-live` defaults
   to false.
+- **Future attach preview**: Added non-mutating "Future attach preview"
+  section to the Scope Runner live probe output. After successful discovery,
+  the preview displays discovered PID(s), future target cgroup path,
+  requested download/upload rates, attach source, strict backend label, and
+  "preview only; not applied" status. Does NOT move PIDs, create cgroups,
+  modify nftables/tc, write state, or call `zelynic strict`.
+- **AttachPreview model**: Added `AttachPreview` struct and
+  `build_attach_preview` builder in `scope_runner.rs` for constructing the
+  preview from probe result data, target name, and bandwidth rates. Uses the
+  same sanitization and rate parsing as the dry-run/execute planning path.
+- **Attach preview tests**: Added unit tests verifying preview includes
+  discovered PIDs, future target cgroup, requested rates, preview-only
+  status, no-PID-moved disclaimer, no nftables/tc/cgroup/state disclaimer,
+  absence of enforcement words ("enforced", "attached", "limited",
+  "active limiter"), safe handling of empty PIDs, unlimited rates when not
+  specified, and backward-compatible render without preview.
 
 ### Docs
 
@@ -54,6 +70,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   to `docs/scope-lab.md` explaining what the probe does, what it does not do,
   requirements, CLI syntax, cleanup, implementation details, unit name
   convention, and user-scope status.
+- **Attach preview docs**: Added "Future Attach Preview" subsection to
+  `docs/scope-lab.md` explaining the preview-only section, its fields,
+  safety disclaimers, what it does not do, implementation, and future
+  direction (separate explicit attach gate).
 - **Wrapper design update**: Updated `docs/systemd-wrapper-design.md` to
   mention the v2.5 Scope Runner and its `--probe-live` gate.
 

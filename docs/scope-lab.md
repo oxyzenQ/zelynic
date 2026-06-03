@@ -355,6 +355,68 @@ explains that user-scope live runner needs privilege/session handoff, which is
 not implemented. This gate is enforced in `probe_gate()` before any system
 calls are made.
 
+### Future Attach Preview
+
+After a successful live probe discovery, the Scope Runner prints a non-mutating
+"Future attach preview" section. This preview bridges the discovered PID(s)
+from the scope probe to the future resolved-PID strict attach backend, without
+performing any mutation.
+
+The preview section displays:
+
+- **discovered PID(s)**: PID(s) found in the scope's cgroup.procs, or "(none)"
+  if no PIDs were discovered.
+- **future target cgroup**: The Zelynic target cgroup path that would be used
+  for attachment (e.g. `/sys/fs/cgroup/zelynic/target_sleep`). This cgroup is
+  NOT created by the preview.
+- **requested download/upload**: The bandwidth rates specified on the command
+  line, formatted as display strings (e.g. "500 Kbit/s"), or "unlimited" if not
+  specified.
+- **attach source**: Label identifying where PIDs were discovered ("systemd
+  scope probe").
+- **strict backend**: Label describing the backend that would perform the
+  future attach ("existing resolved-PID attach backend").
+- **status**: Always "preview only; not applied".
+
+After the preview fields, additional safety disclaimers are printed:
+
+- "No PID was moved."
+- "No limiter attach was performed."
+- "No nftables, tc, Zelynic cgroup, or state changes were made."
+- "Bandwidth limiting is not active from this command yet."
+
+#### What the Preview Does NOT Do
+
+- Does NOT move any PID into any cgroup.
+- Does NOT create Zelynic target cgroups.
+- Does NOT modify nftables rules or chains.
+- Does NOT modify tc/qdisc/filter state.
+- Does NOT write Zelynic state files.
+- Does NOT call `zelynic strict`.
+- Does NOT call the limiter attach execution path.
+- Does NOT say "attached", "limited", "enforced", or "active limiter".
+
+#### Implementation
+
+The preview is implemented as a pure data model (`AttachPreview` struct in
+`scope_runner.rs`) with a builder function (`build_attach_preview`) and inline
+rendering in `render_scope_probe_output_with_preview`. The builder uses the
+same target name sanitization and bandwidth rate parsing as the dry-run/execute
+planning path, ensuring consistency between preview and plan output.
+
+The existing `render_scope_probe_output` function is preserved for backward
+compatibility; it delegates to `render_scope_probe_output_with_preview(result,
+None)`, producing identical output to the phase 1 format when no preview is
+present.
+
+#### Future Direction
+
+The preview bridges discovered PIDs to the future resolved-PID strict attach
+backend. The next step would be a separate, explicit attach gate (e.g.
+`--attach`) that actually moves PIDs into the Zelynic target cgroup and applies
+limits. This would NOT be automatic — the user would need to explicitly opt in
+with the attach gate. The Scope Runner probe itself remains non-mutating.
+
 ## Privilege and Session Handoff
 
 The fundamental blocker for live `zelynic run` execution is a privilege boundary

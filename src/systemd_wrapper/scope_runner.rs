@@ -21,6 +21,10 @@ use super::plan::{systemd_run_argv, ScopeMode, SystemdRunPlan};
 use super::render::push_line;
 use super::sanitize::sanitize_scope_component;
 
+use crate::units::BandwidthRate;
+
+const CGROUP_BASE: &str = "/sys/fs/cgroup/zelynic";
+
 // ---------------------------------------------------------------------------
 // Public gate
 // ---------------------------------------------------------------------------
@@ -65,6 +69,28 @@ pub(crate) struct ScopeProbeResult {
     pub sub_state: Option<String>,
     pub pids: Vec<u32>,
     pub cgroup_procs_path: Option<String>,
+}
+
+/// Non-mutating preview of a future limiter attach based on probe discovery.
+///
+/// This is purely informational. It does not move PIDs, create cgroups,
+/// modify nftables/tc, or write state.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct AttachPreview {
+    /// Discovered PID(s) from the scope probe.
+    pub pids: Vec<u32>,
+    /// Future Zelynic target cgroup path (not yet created).
+    pub future_target_cgroup: String,
+    /// Requested download rate (display string, e.g. "500 Kbit/s").
+    pub download: Option<String>,
+    /// Requested upload rate (display string, e.g. "500 Kbit/s").
+    pub upload: Option<String>,
+    /// Label describing where PIDs were discovered.
+    pub attach_source: String,
+    /// Label describing the strict backend that would be used.
+    pub strict_backend: String,
+    /// Status indicating this is a preview, not applied.
+    pub status: String,
 }
 
 pub(crate) fn run_scope_probe(systemd_run: &SystemdRunPlan) -> Result<ScopeProbeResult> {
@@ -135,6 +161,33 @@ pub(crate) fn run_scope_probe(systemd_run: &SystemdRunPlan) -> Result<ScopeProbe
     })
 }
 
+pub(crate) fn build_attach_preview(
+    target_name: &str,
+    pids: &[u32],
+    download: Option<&str>,
+    upload: Option<&str>,
+) -> Result<AttachPreview> {
+    let sanitized = sanitize_scope_component(target_name);
+    let future_target_cgroup = format!("{}/target_{}", CGROUP_BASE, sanitized);
+
+    let download_display = download
+        .map(|v| BandwidthRate::parse(v).map(|p| p.to_string()))
+        .transpose()?;
+    let upload_display = upload
+        .map(|v| BandwidthRate::parse(v).map(|p| p.to_string()))
+        .transpose()?;
+
+    Ok(AttachPreview {
+        pids: pids.to_vec(),
+        future_target_cgroup,
+        download: download_display,
+        upload: upload_display,
+        attach_source: "systemd scope probe".to_string(),
+        strict_backend: "existing resolved-PID attach backend".to_string(),
+        status: "preview only; not applied".to_string(),
+    })
+}
+
 fn parse_property(output: &str, property: &str) -> Option<String> {
     let prefix = format!("{}=", property);
     for line in output.lines() {
@@ -152,7 +205,15 @@ fn parse_property(output: &str, property: &str) -> Option<String> {
 // Output rendering
 // ---------------------------------------------------------------------------
 
+#[cfg(test)]
 pub(crate) fn render_scope_probe_output(result: &ScopeProbeResult) -> String {
+    render_scope_probe_output_with_preview(result, None)
+}
+
+pub(crate) fn render_scope_probe_output_with_preview(
+    result: &ScopeProbeResult,
+    preview: Option<&AttachPreview>,
+) -> String {
     let mut output = String::new();
 
     push_line(&mut output, "Scope Runner live probe");
@@ -192,7 +253,51 @@ pub(crate) fn render_scope_probe_output(result: &ScopeProbeResult) -> String {
         );
     }
 
+    // Attach preview section (phase 2)
+    if let Some(prev) = preview {
+        push_line(&mut output, "");
+        push_line(&mut output, "  Future attach preview:");
+        if prev.pids.is_empty() {
+            push_line(&mut output, "    discovered PID(s): (none)");
+        } else {
+            push_line(
+                &mut output,
+                &format!("    discovered PID(s): {}", format_pid_list(&prev.pids)),
+            );
+        }
+        push_line(
+            &mut output,
+            &format!("    future target cgroup: {}", prev.future_target_cgroup),
+        );
+        push_line(
+            &mut output,
+            &format!(
+                "    requested download: {}",
+                prev.download.as_deref().unwrap_or("unlimited")
+            ),
+        );
+        push_line(
+            &mut output,
+            &format!(
+                "    requested upload: {}",
+                prev.upload.as_deref().unwrap_or("unlimited")
+            ),
+        );
+        push_line(
+            &mut output,
+            &format!("    attach source: {}", prev.attach_source),
+        );
+        push_line(
+            &mut output,
+            &format!("    strict backend: {}", prev.strict_backend),
+        );
+        push_line(&mut output, &format!("    status: {}", prev.status));
+    }
+
     push_line(&mut output, "");
+    if preview.is_some() {
+        push_line(&mut output, "  No PID was moved.");
+    }
     push_line(&mut output, "  No limiter attach was performed.");
     push_line(
         &mut output,
@@ -214,8 +319,23 @@ pub(crate) fn render_scope_probe_output(result: &ScopeProbeResult) -> String {
     output
 }
 
+#[cfg(test)]
+#[allow(dead_code)]
 pub(crate) fn print_scope_probe_output(result: &ScopeProbeResult) {
-    let rendered = render_scope_probe_output(result);
+    print_rendered_scope_output(&render_scope_probe_output(result));
+}
+
+pub(crate) fn print_scope_probe_output_with_preview(
+    result: &ScopeProbeResult,
+    preview: &AttachPreview,
+) {
+    print_rendered_scope_output(&render_scope_probe_output_with_preview(
+        result,
+        Some(preview),
+    ));
+}
+
+fn print_rendered_scope_output(rendered: &str) {
     for (index, line) in rendered.lines().enumerate() {
         if index == 0 {
             println!("{}", line.green().bold());
@@ -480,5 +600,181 @@ mod tests {
         assert!(!plan.scope_unit_name.contains('$'));
         assert!(!plan.scope_unit_name.contains('('));
         assert!(!plan.scope_unit_name.contains(')'));
+    }
+
+    // ---- attach preview build tests ----
+
+    #[test]
+    fn attach_preview_builds_with_correct_cgroup_path() {
+        let preview =
+            build_attach_preview("sleep", &[12345], Some("500kbit"), Some("500kbit")).unwrap();
+
+        assert_eq!(
+            preview.future_target_cgroup,
+            "/sys/fs/cgroup/zelynic/target_sleep"
+        );
+        assert_eq!(preview.pids, vec![12345]);
+        assert_eq!(preview.download.as_deref(), Some("500 Kbit/s"));
+        assert_eq!(preview.upload.as_deref(), Some("500 Kbit/s"));
+        assert_eq!(preview.attach_source, "systemd scope probe");
+        assert_eq!(
+            preview.strict_backend,
+            "existing resolved-PID attach backend"
+        );
+        assert_eq!(preview.status, "preview only; not applied");
+    }
+
+    #[test]
+    fn attach_preview_sanitizes_target_name() {
+        let preview = build_attach_preview("Hello World!", &[], None, None).unwrap();
+
+        assert_eq!(
+            preview.future_target_cgroup,
+            "/sys/fs/cgroup/zelynic/target_hello_world"
+        );
+    }
+
+    #[test]
+    fn attach_preview_handles_missing_rates() {
+        let preview = build_attach_preview("sleep", &[42], None, None).unwrap();
+
+        assert_eq!(preview.download, None);
+        assert_eq!(preview.upload, None);
+    }
+
+    #[test]
+    fn attach_preview_handles_empty_pids() {
+        let preview = build_attach_preview("sleep", &[], Some("1mbit"), None).unwrap();
+
+        assert!(preview.pids.is_empty());
+        assert_eq!(preview.download.as_deref(), Some("1 Mbit/s"));
+    }
+
+    // ---- attach preview render tests ----
+
+    fn full_probe_result() -> ScopeProbeResult {
+        ScopeProbeResult {
+            scope_unit_name: "zelynic-probe-v250-sleep".to_string(),
+            scope_unit: "zelynic-probe-v250-sleep.scope".to_string(),
+            control_group: Some("/system.slice/zelynic-probe-v250-sleep.scope".to_string()),
+            active_state: Some("active".to_string()),
+            sub_state: Some("running".to_string()),
+            pids: vec![12345],
+            cgroup_procs_path: None,
+        }
+    }
+
+    fn sample_preview() -> AttachPreview {
+        build_attach_preview("sleep", &[12345], Some("500kbit"), Some("500kbit")).unwrap()
+    }
+
+    #[test]
+    fn preview_includes_discovered_pids() {
+        let rendered =
+            render_scope_probe_output_with_preview(&full_probe_result(), Some(&sample_preview()));
+        assert!(rendered.contains("    discovered PID(s): 12345"));
+    }
+
+    #[test]
+    fn preview_includes_future_target_cgroup() {
+        let rendered =
+            render_scope_probe_output_with_preview(&full_probe_result(), Some(&sample_preview()));
+        assert!(rendered.contains("    future target cgroup: /sys/fs/cgroup/zelynic/target_sleep"));
+    }
+
+    #[test]
+    fn preview_includes_requested_download_and_upload() {
+        let rendered =
+            render_scope_probe_output_with_preview(&full_probe_result(), Some(&sample_preview()));
+        assert!(rendered.contains("    requested download: 500 Kbit/s"));
+        assert!(rendered.contains("    requested upload: 500 Kbit/s"));
+    }
+
+    #[test]
+    fn preview_says_preview_only_not_applied() {
+        let rendered =
+            render_scope_probe_output_with_preview(&full_probe_result(), Some(&sample_preview()));
+        assert!(rendered.contains("    status: preview only; not applied"));
+    }
+
+    #[test]
+    fn preview_says_no_pid_was_moved() {
+        let rendered =
+            render_scope_probe_output_with_preview(&full_probe_result(), Some(&sample_preview()));
+        assert!(rendered.contains("No PID was moved"));
+    }
+
+    #[test]
+    fn preview_says_no_nftables_tc_zelynic_cgroup_state_changes() {
+        let rendered =
+            render_scope_probe_output_with_preview(&full_probe_result(), Some(&sample_preview()));
+        assert!(rendered.contains("No nftables, tc, Zelynic cgroup, or state changes were made"));
+    }
+
+    #[test]
+    fn preview_does_not_include_enforcement_words() {
+        let rendered =
+            render_scope_probe_output_with_preview(&full_probe_result(), Some(&sample_preview()));
+        assert!(
+            !rendered.contains("enforced"),
+            "preview must not say 'enforced'"
+        );
+        assert!(
+            !rendered.contains("active limiter"),
+            "preview must not say 'active limiter'"
+        );
+        assert!(
+            !rendered.contains("attached"),
+            "preview must not say 'attached'"
+        );
+        assert!(
+            !rendered.contains("limited"),
+            "preview must not say 'limited'"
+        );
+    }
+
+    #[test]
+    fn preview_empty_pids_handled_safely() {
+        let empty_preview = build_attach_preview("sleep", &[], Some("500kbit"), None).unwrap();
+        let result = ScopeProbeResult {
+            scope_unit_name: "zelynic-probe-v250-sleep".to_string(),
+            scope_unit: "zelynic-probe-v250-sleep.scope".to_string(),
+            control_group: None,
+            active_state: None,
+            sub_state: None,
+            pids: vec![],
+            cgroup_procs_path: None,
+        };
+        let rendered = render_scope_probe_output_with_preview(&result, Some(&empty_preview));
+        assert!(rendered.contains("    discovered PID(s): (none)"));
+        assert!(rendered.contains("preview only; not applied"));
+    }
+
+    #[test]
+    fn preview_without_rates_shows_unlimited() {
+        let no_rate_preview = build_attach_preview("sleep", &[42], None, None).unwrap();
+        let rendered =
+            render_scope_probe_output_with_preview(&full_probe_result(), Some(&no_rate_preview));
+        assert!(rendered.contains("    requested download: unlimited"));
+        assert!(rendered.contains("    requested upload: unlimited"));
+    }
+
+    #[test]
+    fn render_without_preview_matches_old_format() {
+        let rendered = render_scope_probe_output(&full_probe_result());
+        // Old format: no preview section, no "No PID was moved."
+        assert!(!rendered.contains("Future attach preview"));
+        assert!(!rendered.contains("No PID was moved"));
+        // But still has the standard safety lines
+        assert!(rendered.contains("No limiter attach was performed"));
+        assert!(rendered.contains("Bandwidth limiting is not active"));
+    }
+
+    #[test]
+    fn preview_includes_attach_source_and_strict_backend() {
+        let rendered =
+            render_scope_probe_output_with_preview(&full_probe_result(), Some(&sample_preview()));
+        assert!(rendered.contains("    attach source: systemd scope probe"));
+        assert!(rendered.contains("    strict backend: existing resolved-PID attach backend"));
     }
 }

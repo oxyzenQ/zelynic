@@ -38,7 +38,7 @@ pub fn run_systemd_wrapper(
         (false, true) => {
             // Check if probe-live path is requested
             if probe_live {
-                return run_probe_live(scope_mode, target, command);
+                return run_probe_live(scope_mode, target, download, upload, command);
             }
             let preflight = current_execution_preflight(scope_mode);
             let plan = build_live_run_plan_with_scope_mode(
@@ -55,7 +55,13 @@ pub fn run_systemd_wrapper(
 }
 
 /// Scope Runner live probe: root-only, system-scope only.
-fn run_probe_live(scope_mode: ScopeMode, target: Option<&str>, command: &[String]) -> Result<()> {
+fn run_probe_live(
+    scope_mode: ScopeMode,
+    target: Option<&str>,
+    download: Option<&str>,
+    upload: Option<&str>,
+    command: &[String],
+) -> Result<()> {
     // Gate check: probe_live + system + root
     scope_runner::probe_gate(true, scope_mode)?;
 
@@ -63,7 +69,11 @@ fn run_probe_live(scope_mode: ScopeMode, target: Option<&str>, command: &[String
 
     let result = scope_runner::run_scope_probe(&systemd_run)?;
 
-    scope_runner::print_scope_probe_output(&result);
+    // Build non-mutating attach preview
+    let preview =
+        scope_runner::build_attach_preview(&systemd_run.target, &result.pids, download, upload)?;
+
+    scope_runner::print_scope_probe_output_with_preview(&result, &preview);
 
     Ok(())
 }
