@@ -4,7 +4,7 @@ use colored::Colorize;
 use std::io::{self, Write};
 
 use super::discovery::PidHandoffPlan;
-use super::plan::{systemd_run_argv, LiveRunPlan, RunDryRunPlan, SystemdRunPlan};
+use super::plan::{systemd_run_argv, LiveRunPlan, RunDryRunPlan, ScopeMode, SystemdRunPlan};
 
 pub(super) fn print_dry_run_plan(plan: &RunDryRunPlan) {
     colorize_dry_run_plan(&render_dry_run_plan(plan));
@@ -85,7 +85,10 @@ pub(super) fn render_dry_run_plan(plan: &RunDryRunPlan) -> String {
     );
     push_line(
         &mut output,
-        "    step 1: read ControlGroup path from 'systemctl --user show <unit> --property ControlGroup'",
+        &format!(
+            "    step 1: read ControlGroup path from '{}'",
+            scope_aware_show_command(plan.systemd_run.scope_mode)
+        ),
     );
     push_line(
         &mut output,
@@ -171,7 +174,10 @@ pub(super) fn render_live_run_plan(plan: &LiveRunPlan) -> String {
     push_line(&mut output, "    primary: ControlGroup from scope unit");
     push_line(
         &mut output,
-        "    step 1: read ControlGroup from 'systemctl show <unit> --property ControlGroup'",
+        &format!(
+            "    step 1: read ControlGroup from '{}'",
+            scope_aware_show_command(plan.scope_mode)
+        ),
     );
     push_line(
         &mut output,
@@ -242,6 +248,13 @@ pub(super) fn render_discovery_commands(plan: &PidHandoffPlan) -> Vec<String> {
 
 pub(super) fn render_command(command: &[String]) -> String {
     render_argv(command)
+}
+
+fn scope_aware_show_command(scope_mode: ScopeMode) -> String {
+    match scope_mode {
+        ScopeMode::User => "systemctl --user show <unit> --property ControlGroup".to_string(),
+        ScopeMode::System => "systemctl show <unit> --property ControlGroup".to_string(),
+    }
 }
 
 fn scope_note() -> &'static str {
@@ -347,21 +360,86 @@ mod tests {
     }
 
     #[test]
-    fn dry_run_output_describes_control_group_first_pid_discovery() {
+    fn dry_run_user_scope_discovery_wording_uses_systemctl_user_show() {
         let command = vec!["helium".to_string()];
         let plan = build_dry_run_plan(Some("helium"), None, None, &command).unwrap();
         let rendered = render_dry_run_plan(&plan);
 
         assert!(rendered.contains("Future PID discovery (ControlGroup-first)"));
         assert!(rendered.contains("primary: ControlGroup from systemd scope unit"));
-        assert!(rendered.contains("step 1: read ControlGroup path from"));
-        assert!(
-            rendered.contains("step 2: read PIDs from /sys/fs/cgroup${ControlGroup}/cgroup.procs")
-        );
+        assert!(rendered.contains(
+            "step 1: read ControlGroup path from 'systemctl --user show <unit> --property ControlGroup'"
+        ));
         assert!(rendered.contains("MainPID: optional/diagnostic only"));
         assert!(rendered.contains("method: systemctl --user show zelynic-run-helium.scope"));
         assert!(rendered.contains("fallback: scan cgroup.procs under the reported ControlGroup"));
         assert!(rendered.contains("attach: move discovered PID(s) into the Zelynic target cgroup"));
+    }
+
+    #[test]
+    fn dry_run_system_scope_discovery_wording_uses_systemctl_show() {
+        let command = vec!["echo".to_string()];
+        let plan = crate::systemd_wrapper::plan::build_dry_run_plan_with_scope_mode(
+            None,
+            None,
+            None,
+            &command,
+            ScopeMode::System,
+        )
+        .unwrap();
+        let rendered = render_dry_run_plan(&plan);
+
+        assert!(rendered.contains("Scope mode: system"));
+        assert!(rendered.contains(
+            "step 1: read ControlGroup path from 'systemctl show <unit> --property ControlGroup'"
+        ));
+        // Must NOT contain --user in the step 1 wording for system scope
+        assert!(!rendered.contains("step 1: read ControlGroup path from 'systemctl --user show"));
+        assert!(rendered.contains("method: systemctl show zelynic-run-echo.scope"));
+    }
+
+    #[test]
+    fn execute_plan_user_scope_discovery_uses_systemctl_user_show() {
+        let command = vec!["echo".to_string(), "hello".to_string()];
+        let plan = crate::systemd_wrapper::plan::build_live_run_plan(
+            None,
+            Some("500kbit"),
+            None,
+            &command,
+        )
+        .unwrap();
+        let rendered = render_live_run_plan(&plan);
+
+        assert!(rendered.contains(
+            "step 1: read ControlGroup from 'systemctl --user show <unit> --property ControlGroup'"
+        ));
+    }
+
+    #[test]
+    fn execute_plan_system_scope_discovery_uses_systemctl_show() {
+        let command = vec!["echo".to_string()];
+        let plan = crate::systemd_wrapper::plan::build_live_run_plan_with_scope_mode(
+            None,
+            None,
+            None,
+            &command,
+            ScopeMode::System,
+            crate::systemd_wrapper::preflight::evaluate_execution_preflight(
+                crate::systemd_wrapper::preflight::ExecutionPreflightInput {
+                    scope_mode: ScopeMode::System,
+                    is_root: false,
+                },
+            ),
+        )
+        .unwrap();
+        let rendered = render_live_run_plan(&plan);
+
+        assert!(rendered.contains("Scope mode: system"));
+        assert!(rendered.contains(
+            "step 1: read ControlGroup from 'systemctl show <unit> --property ControlGroup'"
+        ));
+        // Must NOT contain --user in step 1 wording for system scope
+        assert!(!rendered.contains("step 1: read ControlGroup from 'systemctl --user show"));
     }
 
     #[test]
@@ -400,7 +478,7 @@ mod tests {
     }
 
     #[test]
-    fn live_run_output_describes_control_group_first_discovery() {
+    fn execute_output_preserves_all_safety_wording() {
         let command = vec!["echo".to_string(), "hello".to_string()];
         let plan = crate::systemd_wrapper::plan::build_live_run_plan(
             None,

@@ -27,7 +27,7 @@ impl ExecutionReadiness {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) struct ExecutionPreflightInput {
+pub(crate) struct ExecutionPreflightInput {
     pub scope_mode: ScopeMode,
     pub is_root: bool,
 }
@@ -39,7 +39,7 @@ pub(super) fn current_execution_preflight(scope_mode: ScopeMode) -> ExecutionPre
     })
 }
 
-pub(super) fn evaluate_execution_preflight(input: ExecutionPreflightInput) -> ExecutionPreflight {
+pub(crate) fn evaluate_execution_preflight(input: ExecutionPreflightInput) -> ExecutionPreflight {
     match (input.scope_mode, input.is_root) {
         (ScopeMode::User, false) => ExecutionPreflight {
             scope_mode: input.scope_mode,
