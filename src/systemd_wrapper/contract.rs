@@ -105,6 +105,11 @@ pub(crate) fn build_run_contract(scope_mode: ScopeMode) -> RunContract {
         ScopeMode::System => StepPrivilege::SystemManager,
     };
 
+    let discover_privilege = match scope_mode {
+        ScopeMode::User => StepPrivilege::User,
+        ScopeMode::System => StepPrivilege::SystemManager,
+    };
+
     let steps = vec![
         ContractStep {
             phase: ContractPhase::Launch,
@@ -123,7 +128,7 @@ pub(crate) fn build_run_contract(scope_mode: ScopeMode) -> RunContract {
                 "read ControlGroup from '{}', then read PID(s) from /sys/fs/cgroup${{ControlGroup}}/cgroup.procs",
                 discover_show
             ),
-            privilege: StepPrivilege::User,
+            privilege: discover_privilege,
             scope_mode,
         },
         ContractStep {
@@ -205,6 +210,12 @@ mod tests {
         assert!(!contract.steps[1]
             .description
             .contains("systemctl --user show"));
+        // System scope discover must NOT be privilege: user
+        assert_eq!(contract.steps[1].privilege, StepPrivilege::SystemManager);
+        assert_eq!(
+            contract.steps[1].privilege.label(),
+            "system manager / root-or-polkit"
+        );
 
         assert_eq!(contract.steps[2].privilege, StepPrivilege::Root);
     }
@@ -217,6 +228,32 @@ mod tests {
             StepPrivilege::User,
             "system scope launch should not have user privilege"
         );
+    }
+
+    #[test]
+    fn system_scope_discover_privilege_is_not_user() {
+        let contract = build_run_contract(ScopeMode::System);
+        assert_ne!(
+            contract.steps[1].privilege,
+            StepPrivilege::User,
+            "system scope discover should not have user privilege"
+        );
+        assert_eq!(
+            contract.steps[1].privilege,
+            StepPrivilege::SystemManager,
+            "system scope discover should have system manager privilege"
+        );
+    }
+
+    #[test]
+    fn user_scope_discover_privilege_is_user_manager() {
+        let contract = build_run_contract(ScopeMode::User);
+        assert_eq!(
+            contract.steps[1].privilege,
+            StepPrivilege::User,
+            "user scope discover should have user manager privilege"
+        );
+        assert_eq!(contract.steps[1].privilege.label(), "user manager");
     }
 
     #[test]
