@@ -1,0 +1,104 @@
+# Copyright (C) 2026 rezky_nightky
+# SPDX-License-Identifier: GPL-3.0-only
+# =============================================================================
+# Auto-Update & Self-Healing — runs weekly, updates deps directly on main
+# =============================================================================
+# NO dependabot. This workflow handles all dependency maintenance:
+#   1. cargo update — bump all dependency versions in Cargo.lock
+#   2. Self-heal   — cargo fmt, clippy fixes, full test suite
+#   3. Commit + push directly to main (no PR)
+# =============================================================================
+
+name: Auto-Update Dependencies
+
+on:
+  schedule:
+    # Every Monday at 06:00 UTC (weekly)
+    - cron: "0 6 * * 1"
+  workflow_dispatch: # Allow manual trigger
+
+permissions:
+  contents: write
+
+jobs:
+  auto-update:
+    name: Update & Self-Heal
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Update dependencies
+        run: cargo update --verbose
+
+      - name: Self-heal — format code
+        run: cargo fmt --all
+
+      - name: Self-heal — apply Clippy fixes
+        run: cargo clippy --all-targets --all-features --fix --allow-dirty --allow-staged 2>&1 || true
+
+      - name: Self-heal — final Clippy check (must be clean)
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+      - name: Self-heal — run tests
+        run: cargo test --locked
+
+      - name: Install cargo-deny
+        run: cargo install cargo-deny --locked
+
+      - name: Check dependency policies
+        run: cargo deny check all
+
+      - name: Run repository policy check
+        run: python3 scripts/check-policy.py
+
+      - name: Verify release build
+        run: cargo build --release --locked
+
+      # Only commit and push if there are actual changes
+      - name: Check for changes
+        id: changes
+        run: |
+          if git diff --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Commit and push
+        if: steps.changes.outputs.changed == 'true'
+        run: |
+          git config user.name "oxyzenQ"
+          git config user.email "130107241+oxyzenQ@users.noreply.github.com"
+          git add -A
+          CHANGES=$(git diff --cached --stat)
+          git commit -m "chore: weekly dependency update & self-heal
+
+          Auto-updated dependencies via cargo update.
+          Applied automatic formatting and Clippy fixes.
+          Verified: fmt, clippy, test, cargo-deny, policy, release build."
+          git push origin main
+          echo "::notice::Pushed weekly dependency update to main"
+          echo "$CHANGES"
+
+      - name: No changes
+        if: steps.changes.outputs.changed == 'false'
+        run: echo "Dependencies are already up to date — nothing to commit."

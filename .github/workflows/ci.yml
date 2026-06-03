@@ -1,3 +1,9 @@
+# Copyright (C) 2026 rezky_nightky
+# SPDX-License-Identifier: GPL-3.0-only
+# =============================================================================
+# CI Pipeline — runs on every push and PR to main
+# =============================================================================
+
 name: CI
 
 on:
@@ -6,104 +12,50 @@ on:
   pull_request:
     branches: [main]
 
-permissions:
-  contents: read
-
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
 
 jobs:
-  quality:
-    name: Linux quality gate
+  check:
+    name: Lint & Test
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          components: rustfmt, clippy
+          components: clippy, rustfmt
 
-      - name: Cache cargo registry and build output
+      - name: Cache cargo registry
         uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: ${{ runner.os }}-cargo-quality-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-quality-
+            ${{ runner.os }}-cargo-
 
       - name: Check formatting
         run: cargo fmt --all -- --check
 
-      - name: Run tests
-        run: cargo test --locked
-
-      - name: Run clippy
+      - name: Clippy
         run: cargo clippy --all-targets --all-features -- -D warnings
 
-      - name: Run policy checks
-        run: python3 scripts/check-policy.py
-
-  supply-chain:
-    name: Supply-chain checks
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache cargo registry and build output
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-supply-chain-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-supply-chain-
-
-      - name: Install cargo-audit
-        run: cargo install cargo-audit --locked
-
-      - name: Run cargo audit
-        run: cargo audit
+      - name: Run tests
+        run: cargo test --locked
 
       - name: Install cargo-deny
         run: cargo install cargo-deny --locked
 
-      - name: Run cargo deny
-        if: hashFiles('deny.toml') != ''
-        run: cargo deny check
+      - name: Check dependency policies
+        run: cargo deny check all
 
-  release-build-smoke:
-    name: Release build smoke
-    runs-on: ubuntu-latest
-    needs: [quality, supply-chain]
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - name: Run repository policy check
+        run: python3 scripts/check-policy.py
 
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache cargo registry and build output
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-release-smoke-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-release-smoke-
-
-      - name: Build release binary
+      - name: Verify release build
         run: cargo build --release --locked
