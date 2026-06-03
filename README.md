@@ -21,7 +21,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-v2.5.0-7C3AED?style=flat-square&labelColor=111827" alt="Version v2.4.0">
+  <img src="https://img.shields.io/badge/version-v2.6.0-7C3AED?style=flat-square&labelColor=111827" alt="Version v2.4.0">
   <img src="https://img.shields.io/badge/license-GPL--3.0-E040FB?style=flat-square&labelColor=111827" alt="GPL-3.0 license">
   <img src="https://img.shields.io/badge/platform-Linux%20x86__64-8B5CF6?style=flat-square&labelColor=111827" alt="Platform Linux x86_64">
   <img src="https://img.shields.io/badge/Rust-1.88+-A855F7?style=flat-square&labelColor=111827" alt="Rust 1.88+">
@@ -118,10 +118,10 @@ Download the latest release from [GitHub Releases](https://github.com/oxyzenq/ze
 
 ```bash
 # Download and extract
-curl -sL https://github.com/oxyzenq/zelynic/releases/latest/download/zelynic-v2.5.0-x86_64-linux.tar.gz | tar xz
+curl -sL https://github.com/oxyzenq/zelynic/releases/latest/download/zelynic-v2.6.0-x86_64-linux.tar.gz | tar xz
 
 # Install system-wide
-sudo install -Dm755 zelynic-v2.5.0-x86_64-linux/zelynic /usr/local/bin/zelynic
+sudo install -Dm755 zelynic-v2.6.0-x86_64-linux/zelynic /usr/local/bin/zelynic
 ```
 
 Verify the download with SHA256 checksums published alongside each release.
@@ -474,7 +474,7 @@ zelynic -i
 
 **Example output of `zelynic -i`:**
 ```
-Version: v2.5.0
+Version: v2.6.0
 Build: linux-x86_64 (ad36a81)
 Copyright: (c) 2026 Rezky_nightky
 License: GPL-3.0
