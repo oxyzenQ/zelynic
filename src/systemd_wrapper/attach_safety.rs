@@ -21,9 +21,7 @@ pub(crate) struct AttachSafetyPreflight {
     pub pid_safety_checks: Vec<crate::systemd_wrapper::pid_safety::PidSafetyCheck>,
     pub pid_liveness_check: String,
     pub self_protection_check: String,
-    pub rollback_plan: Vec<String>,
-    pub mutation_checklist: Vec<String>,
-    pub mutation_status: String,
+    pub attach_transaction_plan: crate::systemd_wrapper::attach_transaction::AttachTransactionPlan,
     pub live_attach_status: String,
     pub readiness: String,
 }
@@ -65,18 +63,7 @@ pub(crate) fn build_attach_safety_preflight(
         pid_liveness_check: "required before attach; reject dead PIDs".to_string(),
         self_protection_check:
             "required before attach; reject Zelynic itself, dead PIDs, and already managed Zelynic cgroups until explicitly supported".to_string(),
-        rollback_plan: vec![
-            "restore PID(s) to captured original cgroup path".to_string(),
-            "cleanup Zelynic target cgroup only if safe and empty".to_string(),
-            "remove nftables/tc state only if created by this future attach operation".to_string(),
-        ],
-        mutation_checklist: vec![
-            "future: create/prepare Zelynic target cgroup".to_string(),
-            "future: move validated PID(s) after original cgroup capture".to_string(),
-            "future: install nftables/tc state owned by this attach operation".to_string(),
-            "today: all mutations are blocked".to_string(),
-        ],
-        mutation_status: "blocked".to_string(),
+        attach_transaction_plan: crate::systemd_wrapper::attach_transaction::build_attach_transaction_plan(),
         live_attach_status: "not implemented".to_string(),
         readiness: "preview only; not evaluated live".to_string(),
     }
@@ -124,22 +111,28 @@ pub(crate) fn render_attach_safety_preflight_section(
         &format!("    self-protection: {}", preflight.self_protection_check),
     );
     render_pid_safety_checks(output, &preflight.pid_safety_checks);
-    push_line(output, "    rollback plan: required before attach");
-    for item in &preflight.rollback_plan {
-        push_line(output, &format!("      - {}", item));
-    }
-    push_line(output, "    mutation checklist:");
-    for item in &preflight.mutation_checklist {
-        push_line(output, &format!("      - {}", item));
-    }
-    push_line(
-        output,
-        &format!("    mutation status: {}", preflight.mutation_status),
-    );
+    render_attach_transaction_plan(output, &preflight.attach_transaction_plan);
     push_line(
         output,
         &format!("    live attach: {}", preflight.live_attach_status),
     );
+}
+
+fn render_attach_transaction_plan(
+    output: &mut String,
+    plan: &crate::systemd_wrapper::attach_transaction::AttachTransactionPlan,
+) {
+    push_line(output, "    Future attach transaction plan:");
+    push_line(output, &format!("      status: {}", plan.status));
+    push_line(output, "      steps:");
+    for step in &plan.steps {
+        push_line(output, &format!("        {}", step));
+    }
+    push_line(output, "      rollback:");
+    for step in &plan.rollback {
+        push_line(output, &format!("        {}", step));
+    }
+    push_line(output, &format!("      execution: {}", plan.execution));
 }
 
 fn render_original_cgroup_capture_preview(
@@ -347,30 +340,15 @@ mod tests {
     }
 
     #[test]
-    fn safety_model_includes_rollback_plan_requirement() {
+    fn safety_model_includes_attach_transaction_plan() {
         let preflight = sample_preflight();
-        assert!(preflight
-            .rollback_plan
-            .iter()
-            .any(|item| item.contains("restore PID(s)")));
-        assert!(preflight
-            .rollback_plan
-            .iter()
-            .any(|item| item.contains("safe and empty")));
-        assert!(preflight
-            .rollback_plan
-            .iter()
-            .any(|item| item.contains("nftables/tc state")));
-    }
-
-    #[test]
-    fn safety_model_says_mutation_is_blocked() {
-        let preflight = sample_preflight();
-        assert_eq!(preflight.mutation_status, "blocked");
-        assert!(preflight
-            .mutation_checklist
-            .iter()
-            .any(|item| item.contains("today: all mutations are blocked")));
+        assert_eq!(
+            preflight.attach_transaction_plan.status,
+            "model only; not executed"
+        );
+        assert_eq!(preflight.attach_transaction_plan.execution, "blocked");
+        assert!(!preflight.attach_transaction_plan.steps.is_empty());
+        assert!(!preflight.attach_transaction_plan.rollback.is_empty());
     }
 
     #[test]
@@ -395,8 +373,9 @@ mod tests {
         assert!(output.contains("original cgroup capture preview"));
         assert!(output.contains("rollback target: pending original cgroup capture"));
         assert!(output.contains("self-protection: required before attach"));
-        assert!(output.contains("rollback plan: required before attach"));
-        assert!(output.contains("mutation status: blocked"));
+        assert!(output.contains("Future attach transaction plan:"));
+        assert!(output.contains("status: model only; not executed"));
+        assert!(output.contains("execution: blocked"));
         assert!(output.contains("live attach: not implemented"));
     }
 
@@ -425,7 +404,7 @@ mod tests {
 
         assert!(output.contains("PID 12345: captured from sample"));
         assert!(output.contains("rollback target: /sys/fs/cgroup/system.slice/example.scope"));
-        assert!(output.contains("mutation status: blocked"));
+        assert!(output.contains("execution: blocked"));
         assert!(output.contains("live attach: not implemented"));
     }
 

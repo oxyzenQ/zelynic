@@ -4,6 +4,7 @@ use anyhow::{bail, Result};
 
 mod attach_preview;
 mod attach_safety;
+mod attach_transaction;
 mod contract;
 mod discovery;
 mod manual_probe;

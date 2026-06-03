@@ -283,11 +283,11 @@ mod tests {
         let mut output = String::new();
         render_attach_preview_section(&mut output, &sample_preview());
 
-        assert!(output.contains("Attach safety preflight"));
-        assert!(output.contains("PID liveness: required before attach"));
-        assert!(output.contains("original cgroup capture: required before attach"));
+        assert!(output.contains("original cgroup capture preview:"));
+        assert!(output.contains("rollback target: pending original cgroup capture"));
         assert!(output.contains("self-protection: required before attach"));
-        assert!(output.contains("mutation status: blocked"));
+        assert!(output.contains("Future attach transaction plan:"));
+        assert!(output.contains("execution: blocked"));
         assert!(output.contains("live attach: not implemented"));
     }
 }
