@@ -146,11 +146,129 @@ for PID discovery. In the decision model:
 - Does not launch `systemd-run`, `systemctl`, or any process.
 - Does not modify nftables, tc, cgroups, or state.
 
-Live execution remains blocked until:
+Live execution remains blocked until privilege/session handoff is designed and
+implemented. See the [Privilege and Session Handoff](#privilege-and-session-handoff)
+section below.
 
-1. Privilege/session handoff is designed (user-scope launch + root attach).
-2. Backgrounded scope launch and timing are handled robustly.
-3. PID discovery and strict attach are integrated with proper error handling.
+## Privilege and Session Handoff
+
+The fundamental blocker for live `zelynic run` execution is a privilege boundary
+problem: launching a command in a user session does not require root, but
+attaching bandwidth limits requires root. These two operations must cooperate
+without creating usability problems or security gaps.
+
+### The Privilege Boundary
+
+| Step | Operation | Privilege Required | Context |
+|------|-----------|-------------------|---------|
+| 1. Launch | `systemd-run --user --scope ...` | User (no root) | User manager, session |
+| 2. Discover | `systemctl --user show ... --property ControlGroup` | User (no root) | User manager |
+| 3. Read PIDs | `cat /sys/fs/cgroup/.../cgroup.procs` | User (no root) | Cgroup filesystem |
+| 4. Attach | Move PIDs into `/sys/fs/cgroup/zelynic/target_*` | **Root** | System cgroup |
+| 5. Enforce | nftables + tc HTB rules | **Root** | Network namespace |
+
+Steps 1-3 run in the user's session context. Steps 4-5 require root. This
+split means `zelynic run` cannot be a single monolithic process running as one
+user.
+
+### Why This Is Hard
+
+**User-scope launch runs in the user manager/session.** When `systemd-run
+--user --scope` launches a process, that process inherits the user's session
+environment: Wayland/X11 display, DBus session bus, portal access, desktop
+theme, and other session-specific resources. This is critical for GUI
+applications like browsers. If zelynic were to launch the command as root, the
+application would run in root's session and lose access to the user's desktop
+integration.
+
+**Strict attach currently requires root.** The existing `zelynic strict`
+backend needs root to create cgroup directories under `/sys/fs/cgroup/zelynic/`,
+write nftables rules to the `inet zelynic` table, and configure tc HTB classes
+and filters on the network interface. There is no non-root path for these
+operations on a standard Linux system.
+
+**Root may not have direct access to the correct user session context.** Even if
+zelynic runs as root, the root user's session is separate from the target user's
+session. Root cannot trivially see or interact with the user's `systemd --user`
+manager or its scope units without explicitly setting `XDG_RUNTIME_DIR`,
+`DBUS_SESSION_BUS_ADDRESS`, and other session variables.
+
+**Plain system scope can trigger Polkit/floating auth.** Running `systemd-run
+--scope` (system scope, not user scope) from an unprivileged desktop session
+can trigger a Polkit authentication prompt. This is unexpected and disruptive
+for a bandwidth limiter tool. Zelynic deliberately avoids triggering Polkit
+prompts in its current design.
+
+**Sudo `systemd-run` can wait for password and get stuck in some shells.** If
+zelynic were to internally call `sudo systemd-run ...`, the sudo password
+prompt may conflict with the terminal state, pipe handling, or shell integration.
+In some terminal emulators and shell configurations, sudo can hang waiting for
+a password that never comes. This makes internal sudo invocation unreliable as
+a default behavior.
+
+### Candidate Future Designs
+
+All designs below are **future work and not implemented**. They represent
+potential paths that may be explored in later v2.4 phases or subsequent
+versions.
+
+**Design A: User launches scope, root helper attaches discovered PIDs.**
+
+The unprivileged zelynic binary:
+1. Calls `systemd-run --user --scope` to launch the command (no root).
+2. Queries `systemctl --user show` for ControlGroup (no root).
+3. Reads `cgroup.procs` for discovered PIDs (no root).
+4. Sends the discovered PIDs to a privileged helper (via Unix socket, D-Bus,
+   or setuid helper).
+
+The privileged helper (running as root):
+5. Moves the discovered PIDs into `/sys/fs/cgroup/zelynic/target_*`.
+6. Applies nftables and tc HTB rules.
+
+This preserves the user's session context for the launched application while
+gaining root only for the attach step. The communication channel between the
+unprivileged launcher and the privileged helper needs careful design to avoid
+PID races (discovered PIDs may exit before the helper processes them) and to
+ensure the helper only processes requests from legitimate zelynic invocations.
+
+**Design B: Root launches system scope only with explicit sudo/root mode.**
+
+The user runs `sudo zelynic run --execute ...`. The entire zelynic process runs
+as root:
+1. Calls `systemd-run --scope` (system scope, not user scope) to launch the
+   command.
+2. Queries `systemctl show` for ControlGroup.
+3. Reads `cgroup.procs` for discovered PIDs.
+4. Moves PIDs into the Zelynic target cgroup.
+5. Applies nftables and tc HTB rules.
+
+This avoids the user-session problem entirely by running as root, but it means
+the launched application runs in root's context. For CLI tools and non-GUI
+applications this may be acceptable, but for browsers and GUI apps this approach
+loses desktop integration. This design would need an explicit `--sudo` or
+root-detection mode to avoid surprising users.
+
+**Design C: Split launch/attach command pair.**
+
+Two separate invocations:
+1. `zelynic run launch --dry-run/-d/-u -- <command>` launches the command in
+   a user scope and prints the discovered PIDs and ControlGroup path.
+2. `zelynic run attach --target <name>` (run as root) reads the stored PID
+   metadata from a shared state file and moves the PIDs into the Zelynic cgroup,
+   then applies limits.
+
+This decouples launch from attach entirely. The user runs the launch command
+normally, then runs the attach command with elevated privileges. No inter-process
+communication or helper daemon is needed. The shared state file must be in a
+location accessible to both the user and root (e.g., `/run/zelynic/` with
+appropriate permissions).
+
+### Current Decision: Blocked
+
+None of these designs have been implemented. The `zelynic run --execute` path
+remains non-mutating and returns "Live systemd wrapper execution is not
+implemented yet." until one of these designs (or an alternative) is selected,
+implemented, and validated.
 
 ## Strict Attach Requirement
 

@@ -133,7 +133,7 @@ pub(super) fn build_live_run_plan(
     )
 }
 
-pub(super) fn build_live_run_plan_with_scope_mode(
+pub(crate) fn build_live_run_plan_with_scope_mode(
     target: Option<&str>,
     download: Option<&str>,
     upload: Option<&str>,
