@@ -76,16 +76,16 @@ pub(super) mod pid_discovery {
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub enum PidDiscoveryDecision {
-        UseMainPid(u32),
+        /// ControlGroup-first: scan cgroup.procs under the discovered ControlGroup path.
+        /// This is the primary discovery method for scope units.
         ScanControlGroup {
             control_group: String,
             cgroup_procs_path: String,
         },
-        UseMainPidAndMaybeScan {
-            pid: u32,
-            control_group: String,
-            cgroup_procs_path: String,
-        },
+        /// Fallback: use MainPID when ControlGroup is not available.
+        /// MainPID is optional/diagnostic only for scope units.
+        UseMainPid(u32),
+        /// No usable discovery path from systemd metadata.
         NoUsableDiscovery(String),
     }
 
@@ -124,21 +124,17 @@ pub(super) mod pid_discovery {
                 .map(|path| (control_group, path))
         });
 
-        match (metadata.main_pid, valid_control_group) {
-            (Some(pid), Some((control_group, cgroup_procs_path))) => {
-                PidDiscoveryDecision::UseMainPidAndMaybeScan {
-                    pid,
-                    control_group: control_group.to_string(),
-                    cgroup_procs_path,
-                }
-            }
-            (Some(pid), None) => PidDiscoveryDecision::UseMainPid(pid),
-            (None, Some((control_group, cgroup_procs_path))) => {
+        // ControlGroup-first discovery for scope units.
+        // MainPID is optional/diagnostic only; scope units may report MainPID=0 or absent.
+        // ControlGroup + cgroup.procs is the reliable discovery path.
+        match (valid_control_group, metadata.main_pid) {
+            (Some((control_group, cgroup_procs_path)), _) => {
                 PidDiscoveryDecision::ScanControlGroup {
                     control_group: control_group.to_string(),
                     cgroup_procs_path,
                 }
             }
+            (None, Some(pid)) => PidDiscoveryDecision::UseMainPid(pid),
             (None, None) => PidDiscoveryDecision::NoUsableDiscovery(
                 "no usable MainPID or ControlGroup from systemd metadata".to_string(),
             ),
@@ -419,16 +415,53 @@ mod tests {
     }
 
     #[test]
-    fn decision_model_uses_main_pid_and_maybe_scan_when_both_available() {
+    fn control_group_first_even_when_main_pid_is_valid() {
+        // ControlGroup-first discovery: when both MainPID and ControlGroup are
+        // available, ControlGroup should be the primary discovery method.
+        // MainPID is optional/diagnostic only for scope units.
         let parsed =
-            parse_systemctl_show_output("MainPID=12345\nControlGroup=/system.slice/foo.scope\n");
+            parse_systemctl_show_output("MainPID=12345\nControlGroup=/user.slice/user-1000.slice/user@1000.service/app.slice/zelynic-run-sleep.scope\n");
 
+        assert_eq!(parsed.main_pid, Some(12345));
         assert_eq!(
             decide_pid_discovery(&parsed),
-            PidDiscoveryDecision::UseMainPidAndMaybeScan {
-                pid: 12345,
-                control_group: "/system.slice/foo.scope".to_string(),
-                cgroup_procs_path: "/sys/fs/cgroup/system.slice/foo.scope/cgroup.procs".to_string(),
+            PidDiscoveryDecision::ScanControlGroup {
+                control_group: "/user.slice/user-1000.slice/user@1000.service/app.slice/zelynic-run-sleep.scope".to_string(),
+                cgroup_procs_path: "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/zelynic-run-sleep.scope/cgroup.procs".to_string(),
+            }
+        );
+    }
+
+    #[test]
+    fn control_group_first_with_main_pid_zero_still_uses_control_group() {
+        // MainPID=0 is not usable; ControlGroup-first means we prefer cgroup.procs
+        // even when MainPID is absent/zero.
+        let parsed =
+            parse_systemctl_show_output("MainPID=0\nControlGroup=/user.slice/user-1000.slice/user@1000.service/app.slice/zelynic-run-sleep.scope\n");
+
+        assert_eq!(parsed.main_pid, None);
+        assert!(parsed.warnings.iter().any(|w| w.contains("MainPID=0")));
+        assert_eq!(
+            decide_pid_discovery(&parsed),
+            PidDiscoveryDecision::ScanControlGroup {
+                control_group: "/user.slice/user-1000.slice/user@1000.service/app.slice/zelynic-run-sleep.scope".to_string(),
+                cgroup_procs_path: "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/zelynic-run-sleep.scope/cgroup.procs".to_string(),
+            }
+        );
+    }
+
+    #[test]
+    fn scope_unit_without_main_pid_uses_control_group_directly() {
+        // Real probe: scope units may not provide a useful MainPID at all.
+        // ControlGroup path is the reliable discovery method.
+        let parsed = parse_systemctl_show_output("ControlGroup=/user.slice/user-1000.slice/user@1000.service/app.slice/zelynic-run-sleep-bg.scope\n");
+
+        assert_eq!(parsed.main_pid, None);
+        assert_eq!(
+            decide_pid_discovery(&parsed),
+            PidDiscoveryDecision::ScanControlGroup {
+                control_group: "/user.slice/user-1000.slice/user@1000.service/app.slice/zelynic-run-sleep-bg.scope".to_string(),
+                cgroup_procs_path: "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/zelynic-run-sleep-bg.scope/cgroup.procs".to_string(),
             }
         );
     }

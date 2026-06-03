@@ -76,14 +76,15 @@ The execution preflight model is deliberately conservative:
 | system | non-root | blocked: system scope requires root; Zelynic refuses accidental Polkit prompts |
 | system | root | future-capable: possible implementation path, but live execution is still absent |
 
-## Chosen v2.2 Model: Launch Then Attach
+## Chosen Model: Launch Then Attach (ControlGroup-First)
 
-The likely v2.2 implementation path is:
+The implementation path is:
 
-1. launch the command in a transient systemd scope
-2. discover the launched main PID and relevant child/scope PIDs
-3. apply the existing Zelynic strict attach backend
-4. enforce nftables + HTB limits against the Zelynic target cgroup
+1. launch the command in a transient systemd scope (backgrounded)
+2. discover the ControlGroup path from the scope unit
+3. read PID(s) from `cgroup.procs` under the discovered ControlGroup
+4. apply the existing Zelynic strict attach backend
+5. enforce nftables + HTB limits against the Zelynic target cgroup
 
 In this model, the systemd scope path and the Zelynic target cgroup are not the
 same thing. `systemd-run --user --scope --unit zelynic-run-<target> ...`
@@ -98,19 +99,26 @@ the systemd scope's relative cgroup path instead of the Zelynic target cgroup.
 That requires backend abstraction work and is better treated as future major
 backend design, not this v2.2 dry-run path.
 
-## PID Discovery Handoff
+## PID Discovery Handoff (ControlGroup-First)
 
 After a future live launch, Zelynic needs a narrow handoff from systemd launch
-state into the existing strict attach backend. The planned first check is:
+state into the existing strict attach backend. Based on real probe findings
+(documented in `docs/scope-lab.md`), PID discovery for scope units uses a
+**ControlGroup-first** strategy.
+
+The planned first check reads the ControlGroup property:
 
 ```bash
 systemctl --user show zelynic-run-<target>.scope --property MainPID --property ControlGroup --value
 ```
 
-`MainPID` is the preferred direct PID when systemd reports one. `ControlGroup`
-identifies the systemd launch scope location, not the Zelynic attach target.
-If `MainPID` is missing, zero, or insufficient for a process tree, Zelynic can
-scan the reported scope's process list:
+`MainPID` is requested for diagnostic/logging purposes only. For scope units,
+`MainPID` may be `0`, absent, or not useful because scopes track external
+processes rather than internally managed services. `ControlGroup` is the
+primary source of truth for PID discovery.
+
+Once the ControlGroup path is known, Zelynic reads all PIDs from the scope's
+cgroup:
 
 ```bash
 cat /sys/fs/cgroup/<reported-control-group>/cgroup.procs
@@ -151,14 +159,18 @@ and `--value` output in requested-property order:
 /system.slice/zelynic-run-helium.scope
 ```
 
-Discovery decisions are deterministic:
+Discovery decisions are deterministic (ControlGroup-first):
 
 | Parsed metadata | Decision |
 |-----------------|----------|
-| valid `MainPID` + valid `ControlGroup` | use MainPID and optionally scan ControlGroup |
-| valid `MainPID` only | use MainPID |
-| valid `ControlGroup` only | scan ControlGroup |
+| valid `ControlGroup` (with or without `MainPID`) | scan ControlGroup via `cgroup.procs` |
+| valid `MainPID` only (no ControlGroup) | use MainPID as fallback |
 | neither usable | no usable discovery |
+
+When both `MainPID` and `ControlGroup` are available, the decision is to scan
+ControlGroup. This is the v2.4 ControlGroup-first model based on real probe
+findings: scope units reliably report their ControlGroup path, while MainPID
+may be 0, absent, or not representative of all processes in the scope.
 
 `MainPID=0` is treated as no usable main PID. `ControlGroup` must be an absolute
 systemd relative cgroup path, must not be `/`, and must not contain `..`. A
@@ -220,8 +232,8 @@ systemd paths.
 - GUI apps need the correct Wayland/X11 environment
 - DBus session bus and portals must remain available
 - child process inheritance must be verified across browsers and launchers
-- `MainPID` may be `0` for some transient scopes
-- the scope may exit before PID discovery completes
+- `MainPID` may be `0` or absent for some transient scope units; ControlGroup-first discovery is the intended design direction
+- foreground scope may exit before PID discovery completes; backgrounded launch is preferred
 - commands may daemonize or hand off work to another process
 - discovery must happen before applying strict attach
 - systemd versions differ in transient scope behavior
