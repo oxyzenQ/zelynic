@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Attach Safety Preflight**: Added a pure, non-mutating Scope Runner attach
+  safety model that documents discovered PID(s), future target cgroup,
+  required PID liveness checks, original cgroup capture, self-protection,
+  rollback planning, mutation ownership, and live attach blocked status.
+
+### Changed
+
+- **Future Attach Preview**: Scope Runner attach preview now renders the
+  Attach Safety Preflight section while continuing to perform no PID movement,
+  limiter attach, nftables/tc changes, Zelynic cgroup changes, or state writes.
+
 ## [2.5.0] - 2026-06-03 - v2.5.0 Scope Runner
 
 ### Changed

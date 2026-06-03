@@ -385,6 +385,39 @@ After the preview fields, additional safety disclaimers are printed:
 - "No nftables, tc, Zelynic cgroup, or state changes were made."
 - "Bandwidth limiting is not active from this command yet."
 
+### Attach Safety Preflight (v2.6 Groundwork)
+
+The v2.6 Attach Safety Lab adds an "Attach safety preflight" section below the
+Future Attach Preview. This section is pure and non-mutating. It is a data model
+and render step only; it does not read `/proc`, write files, move PIDs, create
+cgroups, call nftables/tc, write Zelynic state, or call the limiter attach
+execution path.
+
+The preflight describes the checks that must exist before any future live attach
+can be considered:
+
+- **PID liveness**: Every discovered PID must be verified alive immediately
+  before attach.
+- **Original cgroup capture**: Every PID's current cgroup path must be captured
+  before movement so rollback has a known destination.
+- **Self-protection**: Zelynic must reject its own PID, dead PIDs, and PIDs
+  already inside Zelynic-managed cgroups unless that case is explicitly
+  supported later.
+- **Rollback plan**: A future attach must be able to restore PID(s) to captured
+  original cgroups, clean up the Zelynic target cgroup only when safe and empty,
+  and remove nftables/tc state only when it was created by that attach
+  operation.
+- **Mutation ownership**: Any future cgroup, nftables, tc, or state changes must
+  be owned by the attach operation so cleanup can be precise.
+
+Current status remains:
+
+- `mutation status: blocked`
+- `live attach: not implemented`
+
+The preflight does not enable `--attach-live`. The `--attach-live` gate remains
+hard-blocked.
+
 #### What the Preview Does NOT Do
 
 - Does NOT move any PID into any cgroup.

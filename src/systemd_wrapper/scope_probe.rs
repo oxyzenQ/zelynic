@@ -481,6 +481,34 @@ mod tests {
     }
 
     #[test]
+    fn preview_includes_attach_safety_preflight_section() {
+        let rendered =
+            render_scope_probe_output_with_preview(&full_probe_result(), Some(&sample_preview()));
+
+        assert!(rendered.contains("Attach safety preflight"));
+        assert!(rendered.contains("status: preview only; not evaluated live"));
+        assert!(rendered.contains("PID liveness: required before attach"));
+        assert!(rendered.contains("original cgroup capture: required before attach"));
+        assert!(rendered.contains("self-protection: required before attach"));
+        assert!(rendered.contains("rollback plan: required before attach"));
+        assert!(rendered.contains("mutation status: blocked"));
+        assert!(rendered.contains("live attach: not implemented"));
+    }
+
+    #[test]
+    fn preview_safety_output_does_not_claim_attached_limited_or_enforced() {
+        let rendered =
+            render_scope_probe_output_with_preview(&full_probe_result(), Some(&sample_preview()));
+
+        assert!(!rendered.contains("attached"));
+        assert!(!rendered.contains("limited"));
+        assert!(!rendered.contains("enforced"));
+        assert!(rendered.contains("No PID was moved."));
+        assert!(rendered.contains("No limiter attach was performed."));
+        assert!(rendered.contains("No nftables, tc, Zelynic cgroup, or state changes were made."));
+    }
+
+    #[test]
     fn preview_empty_pids_handled_safely() {
         let empty_preview =
             super::super::attach_preview::build_attach_preview("sleep", &[], Some("500kbit"), None)

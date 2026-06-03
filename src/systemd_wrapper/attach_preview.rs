@@ -7,6 +7,9 @@
 
 use anyhow::Result;
 
+use super::attach_safety::{
+    build_attach_safety_preflight, render_attach_safety_preflight_section, AttachSafetyPreflight,
+};
 use super::render::push_line;
 use super::sanitize::sanitize_scope_component;
 
@@ -38,6 +41,8 @@ pub(crate) struct AttachPreview {
     pub strict_backend: String,
     /// Status indicating this is a preview, not applied.
     pub status: String,
+    /// Pure safety preflight for future live attach.
+    pub safety_preflight: AttachSafetyPreflight,
 }
 
 // ---------------------------------------------------------------------------
@@ -60,6 +65,8 @@ pub(crate) fn build_attach_preview(
         .map(|v| BandwidthRate::parse(v).map(|p| p.to_string()))
         .transpose()?;
 
+    let safety_preflight = build_attach_safety_preflight(pids, &future_target_cgroup);
+
     Ok(AttachPreview {
         pids: pids.to_vec(),
         future_target_cgroup,
@@ -68,6 +75,7 @@ pub(crate) fn build_attach_preview(
         attach_source: "systemd scope probe".to_string(),
         strict_backend: "existing resolved-PID attach backend".to_string(),
         status: "preview only; not applied".to_string(),
+        safety_preflight,
     })
 }
 
@@ -113,6 +121,7 @@ pub(crate) fn render_attach_preview_section(output: &mut String, preview: &Attac
         &format!("    strict backend: {}", preview.strict_backend),
     );
     push_line(output, &format!("    status: {}", preview.status));
+    render_attach_safety_preflight_section(output, &preview.safety_preflight);
 }
 
 fn format_pid_list(pids: &[u32]) -> String {
@@ -150,6 +159,10 @@ mod tests {
             "existing resolved-PID attach backend"
         );
         assert_eq!(preview.status, "preview only; not applied");
+        assert_eq!(
+            preview.safety_preflight.future_target_cgroup,
+            "/sys/fs/cgroup/zelynic/target_sleep"
+        );
     }
 
     #[test]
@@ -259,5 +272,18 @@ mod tests {
         render_attach_preview_section(&mut output, &sample_preview());
         assert!(output.contains("    attach source: systemd scope probe"));
         assert!(output.contains("    strict backend: existing resolved-PID attach backend"));
+    }
+
+    #[test]
+    fn preview_includes_attach_safety_preflight() {
+        let mut output = String::new();
+        render_attach_preview_section(&mut output, &sample_preview());
+
+        assert!(output.contains("Attach safety preflight"));
+        assert!(output.contains("PID liveness: required before attach"));
+        assert!(output.contains("original cgroup capture: required before attach"));
+        assert!(output.contains("self-protection: required before attach"));
+        assert!(output.contains("mutation status: blocked"));
+        assert!(output.contains("live attach: not implemented"));
     }
 }
