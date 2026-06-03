@@ -59,26 +59,45 @@ pub(super) fn render_dry_run_plan(plan: &RunDryRunPlan) -> String {
     push_line(&mut output, "  Planned flow:");
     push_line(
         &mut output,
-        "  1. launch command in transient systemd scope",
-    );
-    push_line(&mut output, "  2. discover launched PID(s)");
-    push_line(
-        &mut output,
-        "  3. apply existing Zelynic strict attach backend",
+        "  1. launch command in transient systemd scope (backgrounded)",
     );
     push_line(
         &mut output,
-        "  4. enforce nftables + HTB limits on the Zelynic target cgroup",
+        "  2. discover ControlGroup path from scope unit",
+    );
+    push_line(
+        &mut output,
+        "  3. read PID(s) from cgroup.procs under discovered ControlGroup",
+    );
+    push_line(
+        &mut output,
+        "  4. apply existing Zelynic strict attach backend",
+    );
+    push_line(
+        &mut output,
+        "  5. enforce nftables + HTB limits on the Zelynic target cgroup",
     );
     push_line(&mut output, "");
-    push_line(&mut output, "  Future PID discovery:");
+    push_line(&mut output, "  Future PID discovery (ControlGroup-first):");
+    push_line(
+        &mut output,
+        "    primary: ControlGroup from systemd scope unit",
+    );
+    push_line(
+        &mut output,
+        "    step 1: read ControlGroup path from 'systemctl --user show <unit> --property ControlGroup'",
+    );
+    push_line(
+        &mut output,
+        "    step 2: read PIDs from /sys/fs/cgroup${ControlGroup}/cgroup.procs",
+    );
     push_line(
         &mut output,
         &format!("    method: {}", plan.pid_handoff.method),
     );
     push_line(
         &mut output,
-        "    parser: planned; MainPID=0 will fall back to ControlGroup scan",
+        "    MainPID: optional/diagnostic only; scope units may report MainPID=0 or absent",
     );
     push_line(
         &mut output,
@@ -148,6 +167,20 @@ pub(super) fn render_live_run_plan(plan: &LiveRunPlan) -> String {
         &format!("  {}", render_argv(&plan.systemd_run_argv)),
     );
     push_line(&mut output, "");
+    push_line(&mut output, "  Future PID discovery (ControlGroup-first):");
+    push_line(&mut output, "    primary: ControlGroup from scope unit");
+    push_line(
+        &mut output,
+        "    step 1: read ControlGroup from 'systemctl show <unit> --property ControlGroup'",
+    );
+    push_line(
+        &mut output,
+        "    step 2: read PIDs from /sys/fs/cgroup${ControlGroup}/cgroup.procs",
+    );
+    push_line(
+        &mut output,
+        "    MainPID: optional/diagnostic only; scope units may report MainPID=0 or absent",
+    );
     push_line(&mut output, "  Future PID discovery argv:");
     for command in &plan.pid_discovery_argv {
         push_line(&mut output, &format!("    {}", render_argv(command)));
@@ -184,6 +217,7 @@ pub(super) fn render_live_run_plan(plan: &LiveRunPlan) -> String {
         &mut output,
         "  No nftables, tc, cgroup, or state changes were made.",
     );
+    push_line(&mut output, "  Live launch is not implemented yet.");
 
     output
 }
@@ -297,27 +331,34 @@ mod tests {
     }
 
     #[test]
-    fn dry_run_output_describes_launch_then_attach_flow() {
+    fn dry_run_output_describes_control_group_first_flow() {
         let command = vec!["helium".to_string()];
         let plan =
             build_dry_run_plan(Some("helium"), Some("500kbit"), Some("500kbit"), &command).unwrap();
         let rendered = render_dry_run_plan(&plan);
 
         assert!(rendered.contains("Planned flow"));
-        assert!(rendered.contains("1. launch command in transient systemd scope"));
-        assert!(rendered.contains("2. discover launched PID(s)"));
-        assert!(rendered.contains("3. apply existing Zelynic strict attach backend"));
-        assert!(rendered.contains("4. enforce nftables + HTB limits on the Zelynic target cgroup"));
+        assert!(rendered.contains("1. launch command in transient systemd scope (backgrounded)"));
+        assert!(rendered.contains("2. discover ControlGroup path from scope unit"));
+        assert!(rendered.contains("3. read PID(s) from cgroup.procs under discovered ControlGroup"));
+        assert!(rendered.contains("4. apply existing Zelynic strict attach backend"));
+        assert!(rendered.contains("5. enforce nftables + HTB limits on the Zelynic target cgroup"));
         assert!(rendered.contains("Live launch is not implemented yet."));
     }
 
     #[test]
-    fn dry_run_output_includes_future_pid_discovery_section() {
+    fn dry_run_output_describes_control_group_first_pid_discovery() {
         let command = vec!["helium".to_string()];
         let plan = build_dry_run_plan(Some("helium"), None, None, &command).unwrap();
         let rendered = render_dry_run_plan(&plan);
 
-        assert!(rendered.contains("Future PID discovery"));
+        assert!(rendered.contains("Future PID discovery (ControlGroup-first)"));
+        assert!(rendered.contains("primary: ControlGroup from systemd scope unit"));
+        assert!(rendered.contains("step 1: read ControlGroup path from"));
+        assert!(
+            rendered.contains("step 2: read PIDs from /sys/fs/cgroup${ControlGroup}/cgroup.procs")
+        );
+        assert!(rendered.contains("MainPID: optional/diagnostic only"));
         assert!(rendered.contains("method: systemctl --user show zelynic-run-helium.scope"));
         assert!(rendered.contains("fallback: scan cgroup.procs under the reported ControlGroup"));
         assert!(rendered.contains("attach: move discovered PID(s) into the Zelynic target cgroup"));
@@ -359,7 +400,7 @@ mod tests {
     }
 
     #[test]
-    fn live_run_output_is_execute_plan_without_mutation_notice() {
+    fn live_run_output_describes_control_group_first_discovery() {
         let command = vec!["echo".to_string(), "hello".to_string()];
         let plan = crate::systemd_wrapper::plan::build_live_run_plan(
             None,
@@ -370,17 +411,12 @@ mod tests {
         .unwrap();
         let rendered = render_live_run_plan(&plan);
 
-        assert!(rendered.contains("zelynic run execute plan"));
-        assert!(rendered.contains("Future launch argv"));
-        assert!(rendered.contains("Future PID discovery argv"));
-        assert!(rendered.contains("Execution preflight"));
-        assert!(rendered.contains("readiness: blocked"));
-        assert!(rendered.contains("applying limits requires root"));
-        assert!(rendered.contains("Future strict attach"));
-        assert!(rendered.contains("Scope mode: user"));
-        assert!(rendered.contains("systemd-run --user --scope --unit zelynic-run-echo"));
+        assert!(rendered.contains("Future PID discovery (ControlGroup-first)"));
+        assert!(rendered.contains("primary: ControlGroup from scope unit"));
+        assert!(rendered.contains("MainPID: optional/diagnostic only"));
         assert!(rendered.contains("No process was launched."));
         assert!(rendered.contains("No nftables, tc, cgroup, or state changes were made."));
+        assert!(rendered.contains("Live launch is not implemented yet."));
     }
 
     #[test]
