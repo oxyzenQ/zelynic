@@ -86,6 +86,15 @@ The implementation path is:
 4. apply the existing Zelynic strict attach backend
 5. enforce nftables + HTB limits against the Zelynic target cgroup
 
+This split is now formalized as the **launch/discover/attach contract** in
+`src/systemd_wrapper/contract.rs`. The contract is a pure data model (no side
+effects) that represents the three phases and their safety gates. Each phase is
+explicitly marked as not implemented, and the privilege boundary between
+user-context launch/discover and root-context attach is codified in the
+contract's `StepPrivilege` field. This design contract does not implement live
+execution; it exists to make the future model explicit before any
+implementation begins.
+
 In this model, the systemd scope path and the Zelynic target cgroup are not the
 same thing. `systemd-run --user --scope --unit zelynic-run-<target> ...`
 creates a systemd-managed scope under the user manager. Explicit system-scope

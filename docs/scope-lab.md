@@ -136,6 +136,88 @@ for PID discovery. In the decision model:
   use `UseMainPid` as a fallback.
 - If neither is available: report `NoUsableDiscovery`.
 
+## Launch / Discover / Attach Contract
+
+The v2.4 Scope Lab phase 3 introduces a **design contract** that models the future
+live run as a split, three-phase operation. This contract is a planning artifact,
+not live execution. No code in this phase performs any mutation, systemd calls,
+filesystem writes, or process launches.
+
+### Contract Overview
+
+The contract defines three sequential phases, each represented as a data-only
+struct in `src/systemd_wrapper/contract.rs`:
+
+| Phase | Description | Privilege | Implemented |
+|-------|-------------|-----------|-------------|
+| **Launch** | Create a transient systemd scope via `systemd-run` (user or system) | User | No |
+| **Discover** | Read ControlGroup from scope unit, then read PID(s) from `cgroup.procs` | User | No |
+| **Attach** | Move discovered PIDs into Zelynic target cgroup and apply nftables + tc HTB limits | Root | No |
+
+The contract is **pure data**: no `std::process::Command`, no filesystem I/O,
+no nftables/tc/cgroup mutation. It exists to make the launch-then-attach model
+explicit in code before any live implementation begins.
+
+### Phase Details
+
+**Launch phase** creates a transient systemd scope:
+
+- User scope: `systemd-run --user --scope --unit <unit> -- <command>`
+- System scope: `systemd-run --scope --unit <unit> -- <command>`
+
+The command is backgrounded for PID discovery inspection time. This phase runs
+in the user's session context (for user scope), preserving Wayland/X11, DBus,
+portal access, and desktop integration.
+
+**Discover phase** uses the ControlGroup-first PID discovery model:
+
+1. Read ControlGroup from `systemctl [--user] show <unit> --property ControlGroup`.
+2. Read PID(s) from `/sys/fs/cgroup${ControlGroup}/cgroup.procs`.
+3. MainPID is optional/diagnostic only; not the primary source of truth.
+
+This phase requires no special privilege beyond cgroup filesystem read access.
+
+**Attach phase** applies the existing Zelynic strict backend:
+
+- Move discovered PID(s) into `/sys/fs/cgroup/zelynic/target_<target>`.
+- Apply nftables rules to the `inet zelynic` table.
+- Configure tc HTB classes and filters.
+
+This phase **requires root**. The existing `zelynic strict` backend already
+provides this capability for resolved PIDs. The contract simply describes the
+handoff point.
+
+### Safety Properties
+
+- `live_execution_implemented` is always `false` in the contract.
+- All three steps are marked `implemented: false`.
+- Safety gates enumerate blockers: live execution not implemented, attach requires
+  root while launch runs in user context.
+- The contract model has no side effects: it is data-only, suitable for testing
+  without mocking or sandboxing.
+
+### Privilege and Session Implications
+
+The launch/discover/attach contract makes the privilege boundary explicit:
+
+- **Launch + Discover** (steps 1-2): run as the calling user, in the user's
+  session context. No root required.
+- **Attach** (step 3): requires root for cgroup management, nftables, and tc.
+
+User-scope launch combined with root attach requires explicit privilege/session
+handoff. None of the candidate designs from the [Privilege and Session
+Handoff](#privilege-and-session-handoff) section have been implemented. Live
+execution remains blocked until one of those designs (or an alternative) is
+selected and implemented.
+
+### Contract in Dry-Run and Execute Output
+
+Both `zelynic run --dry-run` and `zelynic run --execute` now include a
+"Future launch/discover/attach contract" section in their output. This section
+lists the three phases with their implementation status, description, and
+privilege requirements. The output is designed to be readable and not overly
+noisy.
+
 ## Live Execution Status
 
 **Live execution is not implemented.** The current `zelynic run --execute` path:

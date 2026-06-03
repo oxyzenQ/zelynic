@@ -3,6 +3,7 @@
 use colored::Colorize;
 use std::io::{self, Write};
 
+use super::contract::build_run_contract;
 use super::discovery::PidHandoffPlan;
 use super::plan::{systemd_run_argv, LiveRunPlan, RunDryRunPlan, ScopeMode, SystemdRunPlan};
 
@@ -120,6 +121,8 @@ pub(super) fn render_dry_run_plan(plan: &RunDryRunPlan) -> String {
         push_line(&mut output, &format!("    {}", command));
     }
     push_line(&mut output, "");
+    push_contract_section(&mut output, &plan.systemd_run.scope_mode);
+    push_line(&mut output, "");
     push_line(&mut output, "  No process was launched.");
     push_line(
         &mut output,
@@ -218,6 +221,9 @@ pub(super) fn render_live_run_plan(plan: &LiveRunPlan) -> String {
         &mut output,
         &format!("  Future strict attach: {}", plan.strict_attach_step),
     );
+    push_line(&mut output, "");
+    push_contract_section(&mut output, &plan.scope_mode);
+    push_line(&mut output, "");
     push_line(&mut output, "  No process was launched.");
     push_line(
         &mut output,
@@ -255,6 +261,35 @@ fn scope_aware_show_command(scope_mode: ScopeMode) -> String {
         ScopeMode::User => "systemctl --user show <unit> --property ControlGroup".to_string(),
         ScopeMode::System => "systemctl show <unit> --property ControlGroup".to_string(),
     }
+}
+
+fn push_contract_section(output: &mut String, scope_mode: &ScopeMode) {
+    let contract = build_run_contract(*scope_mode);
+    push_line(output, "  Future launch/discover/attach contract:");
+    for (index, step) in contract.steps.iter().enumerate() {
+        push_line(
+            output,
+            &format!(
+                "    {}. {}: [{}] {} (privilege: {})",
+                index + 1,
+                step.phase.label(),
+                if step.implemented {
+                    "ready"
+                } else {
+                    "not implemented"
+                },
+                step.description,
+                step.privilege.label(),
+            ),
+        );
+    }
+    push_line(
+        output,
+        &format!(
+            "    live execution implemented: {}",
+            contract.live_execution_implemented,
+        ),
+    );
 }
 
 fn scope_note() -> &'static str {
@@ -515,5 +550,129 @@ mod tests {
         assert!(rendered.contains(
             "systemctl show zelynic-run-echo.scope --property MainPID --property ControlGroup --value"
         ));
+    }
+
+    #[test]
+    fn dry_run_contract_section_present_and_not_implemented() {
+        let command = vec!["echo".to_string()];
+        let plan = build_dry_run_plan(None, Some("500kbit"), None, &command).unwrap();
+        let rendered = render_dry_run_plan(&plan);
+
+        assert!(rendered.contains("Future launch/discover/attach contract:"));
+        assert!(rendered.contains("1. launch: [not implemented]"));
+        assert!(rendered.contains("2. discover: [not implemented]"));
+        assert!(rendered.contains("3. attach: [not implemented]"));
+        assert!(rendered.contains("live execution implemented: false"));
+        assert!(rendered.contains("privilege: user"));
+        assert!(rendered.contains("privilege: root"));
+    }
+
+    #[test]
+    fn dry_run_contract_user_scope_uses_user_scope_launch_command() {
+        let command = vec!["helium".to_string()];
+        let plan = build_dry_run_plan(Some("helium"), None, None, &command).unwrap();
+        let rendered = render_dry_run_plan(&plan);
+
+        assert!(rendered.contains("--user --scope"));
+        assert!(rendered.contains("systemctl --user show"));
+    }
+
+    #[test]
+    fn dry_run_contract_system_scope_uses_system_scope_launch_command() {
+        let command = vec!["echo".to_string()];
+        let plan = crate::systemd_wrapper::plan::build_dry_run_plan_with_scope_mode(
+            None,
+            None,
+            None,
+            &command,
+            crate::systemd_wrapper::ScopeMode::System,
+        )
+        .unwrap();
+        let rendered = render_dry_run_plan(&plan);
+
+        assert!(rendered.contains("--scope"));
+        assert!(!rendered.contains("1. launch: [not implemented] create transient systemd scope via systemd-run --user --scope"));
+        assert!(rendered.contains("systemctl show <unit> --property ControlGroup"));
+    }
+
+    #[test]
+    fn dry_run_contract_attach_step_requires_root() {
+        let command = vec!["echo".to_string()];
+        let plan = build_dry_run_plan(None, None, None, &command).unwrap();
+        let rendered = render_dry_run_plan(&plan);
+
+        // The attach step line should have "privilege: root"
+        assert!(rendered.contains("privilege: root"));
+    }
+
+    #[test]
+    fn dry_run_contract_preserves_safety_wording_after_contract_section() {
+        let command = vec!["echo".to_string()];
+        let plan = build_dry_run_plan(None, None, None, &command).unwrap();
+        let rendered = render_dry_run_plan(&plan);
+
+        // Safety lines must still be present
+        assert!(rendered.contains("No process was launched."));
+        assert!(rendered.contains("No nftables, tc, cgroup, or state changes were made."));
+        assert!(rendered.contains("Live launch is not implemented yet."));
+    }
+
+    #[test]
+    fn execute_contract_section_present_and_not_implemented() {
+        let command = vec!["echo".to_string(), "hello".to_string()];
+        let plan = crate::systemd_wrapper::plan::build_live_run_plan(
+            None,
+            Some("500kbit"),
+            None,
+            &command,
+        )
+        .unwrap();
+        let rendered = render_live_run_plan(&plan);
+
+        assert!(rendered.contains("Future launch/discover/attach contract:"));
+        assert!(rendered.contains("1. launch: [not implemented]"));
+        assert!(rendered.contains("2. discover: [not implemented]"));
+        assert!(rendered.contains("3. attach: [not implemented]"));
+        assert!(rendered.contains("live execution implemented: false"));
+    }
+
+    #[test]
+    fn execute_contract_preserves_all_safety_wording() {
+        let command = vec!["echo".to_string(), "hello".to_string()];
+        let plan = crate::systemd_wrapper::plan::build_live_run_plan(
+            None,
+            Some("500kbit"),
+            None,
+            &command,
+        )
+        .unwrap();
+        let rendered = render_live_run_plan(&plan);
+
+        assert!(rendered.contains("No process was launched."));
+        assert!(rendered.contains("No nftables, tc, cgroup, or state changes were made."));
+        assert!(rendered.contains("Live launch is not implemented yet."));
+    }
+
+    #[test]
+    fn execute_contract_system_scope_uses_system_commands() {
+        let command = vec!["echo".to_string()];
+        let plan = crate::systemd_wrapper::plan::build_live_run_plan_with_scope_mode(
+            None,
+            None,
+            None,
+            &command,
+            crate::systemd_wrapper::ScopeMode::System,
+            crate::systemd_wrapper::preflight::evaluate_execution_preflight(
+                crate::systemd_wrapper::preflight::ExecutionPreflightInput {
+                    scope_mode: crate::systemd_wrapper::ScopeMode::System,
+                    is_root: false,
+                },
+            ),
+        )
+        .unwrap();
+        let rendered = render_live_run_plan(&plan);
+
+        assert!(rendered.contains("Future launch/discover/attach contract:"));
+        assert!(rendered.contains("1. launch: [not implemented]"));
     }
 }
