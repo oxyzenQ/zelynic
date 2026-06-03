@@ -18,6 +18,7 @@ pub(crate) struct AttachSafetyPreflight {
     pub future_target_cgroup: String,
     pub original_cgroup_capture: String,
     pub original_cgroup_previews: Vec<OriginalCgroupCapturePreview>,
+    pub pid_safety_checks: Vec<crate::systemd_wrapper::pid_safety::PidSafetyCheck>,
     pub pid_liveness_check: String,
     pub self_protection_check: String,
     pub rollback_plan: Vec<String>,
@@ -32,19 +33,35 @@ pub(crate) fn build_attach_safety_preflight(
     future_target_cgroup: &str,
     live_cgroup_previews: Option<Vec<OriginalCgroupCapturePreview>>,
 ) -> AttachSafetyPreflight {
-    let (original_cgroup_capture, original_cgroup_previews) = match live_cgroup_previews {
-        Some(previews) => ("read-only capture completed".to_string(), previews),
-        None => (
-            "required before attach; not read in this probe".to_string(),
-            build_pending_original_cgroup_previews(discovered_pids),
-        ),
-    };
+    let (original_cgroup_capture, original_cgroup_previews, pid_safety_checks) =
+        match live_cgroup_previews {
+            Some(previews) => {
+                let checks = previews
+                    .iter()
+                    .map(crate::systemd_wrapper::pid_safety::evaluate_pid_safety_live)
+                    .collect();
+                ("read-only capture completed".to_string(), previews, checks)
+            }
+            None => {
+                let previews = build_pending_original_cgroup_previews(discovered_pids);
+                let checks = previews
+                    .iter()
+                    .map(|p| crate::systemd_wrapper::pid_safety::evaluate_pid_safety(p, 0, false))
+                    .collect();
+                (
+                    "required before attach; not read in this probe".to_string(),
+                    previews,
+                    checks,
+                )
+            }
+        };
 
     AttachSafetyPreflight {
         discovered_pids: discovered_pids.to_vec(),
         future_target_cgroup: future_target_cgroup.to_string(),
         original_cgroup_capture,
         original_cgroup_previews,
+        pid_safety_checks,
         pid_liveness_check: "required before attach; reject dead PIDs".to_string(),
         self_protection_check:
             "required before attach; reject Zelynic itself, dead PIDs, and already managed Zelynic cgroups until explicitly supported".to_string(),
@@ -106,6 +123,7 @@ pub(crate) fn render_attach_safety_preflight_section(
         output,
         &format!("    self-protection: {}", preflight.self_protection_check),
     );
+    render_pid_safety_checks(output, &preflight.pid_safety_checks);
     push_line(output, "    rollback plan: required before attach");
     for item in &preflight.rollback_plan {
         push_line(output, &format!("      - {}", item));
@@ -221,6 +239,55 @@ fn render_original_cgroup_capture_preview(
                 }
             }
         }
+    }
+}
+
+fn render_pid_safety_checks(
+    output: &mut String,
+    checks: &[crate::systemd_wrapper::pid_safety::PidSafetyCheck],
+) {
+    push_line(output, "    PID safety checks:");
+    if checks.is_empty() {
+        push_line(output, "      (none)");
+        return;
+    }
+    for check in checks {
+        use crate::systemd_wrapper::pid_safety::{AttachEligibility, LivenessStatus};
+        if check.eligibility == AttachEligibility::Pending {
+            push_line(
+                output,
+                &format!("      PID {}: pending live evaluation", check.pid),
+            );
+            continue;
+        }
+
+        push_line(
+            output,
+            &format!(
+                "      PID {}: liveness: {}",
+                check.pid,
+                check.liveness.label()
+            ),
+        );
+
+        if check.liveness != LivenessStatus::Missing {
+            push_line(
+                output,
+                &format!(
+                    "      PID {}: self-protection: {}",
+                    check.pid,
+                    check.self_protection.label()
+                ),
+            );
+        }
+        push_line(
+            output,
+            &format!(
+                "      PID {}: future attach eligibility: {}",
+                check.pid,
+                check.eligibility.label()
+            ),
+        );
     }
 }
 
@@ -360,5 +427,55 @@ mod tests {
         assert!(output.contains("rollback target: /sys/fs/cgroup/system.slice/example.scope"));
         assert!(output.contains("mutation status: blocked"));
         assert!(output.contains("live attach: not implemented"));
+    }
+
+    #[test]
+    fn rendered_safety_output_can_show_live_safety_checks() {
+        use crate::systemd_wrapper::pid_safety::{
+            AttachEligibility, LivenessStatus, PidSafetyCheck, SelfProtectionStatus,
+        };
+
+        let mut preflight = sample_preflight();
+        preflight.pid_safety_checks = vec![PidSafetyCheck {
+            pid: 12345,
+            liveness: LivenessStatus::Alive,
+            self_protection: SelfProtectionStatus::Allowed,
+            eligibility: AttachEligibility::PreflightOk,
+            reason: "test".to_string(),
+        }];
+        let mut output = String::new();
+
+        render_attach_safety_preflight_section(&mut output, &preflight);
+
+        assert!(output.contains("PID safety checks:"));
+        assert!(output.contains("PID 12345: liveness: alive"));
+        assert!(output.contains("PID 12345: self-protection: allowed"));
+        assert!(output
+            .contains("PID 12345: future attach eligibility: preflight ok; attach still blocked"));
+    }
+
+    #[test]
+    fn rendered_safety_output_can_show_missing_pid_blocked() {
+        use crate::systemd_wrapper::pid_safety::{
+            AttachEligibility, LivenessStatus, PidSafetyCheck, SelfProtectionStatus,
+        };
+
+        let mut preflight = sample_preflight();
+        preflight.pid_safety_checks = vec![PidSafetyCheck {
+            pid: 12345,
+            liveness: LivenessStatus::Missing,
+            self_protection: SelfProtectionStatus::Unknown,
+            eligibility: AttachEligibility::Blocked,
+            reason: "test".to_string(),
+        }];
+        let mut output = String::new();
+
+        render_attach_safety_preflight_section(&mut output, &preflight);
+
+        assert!(output.contains("PID safety checks:"));
+        assert!(output.contains("PID 12345: liveness: missing/stale"));
+        // missing should not print self-protection
+        assert!(!output.contains("PID 12345: self-protection"));
+        assert!(output.contains("PID 12345: future attach eligibility: blocked"));
     }
 }

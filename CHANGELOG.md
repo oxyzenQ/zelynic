@@ -19,6 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Live original cgroup capture**: Added read-only parsing of `/proc/<pid>/cgroup`
   during the system-scope live probe, reporting honest rollback targets instead
   of claiming capture was not read.
+- **PID Safety Model**: Added read-only PID liveness and self-protection checks
+  to the Attach Safety preflight output. The live probe now dynamically rejects
+  missing PIDs, already-managed PIDs, and the Zelynic process itself.
 
 ### Changed
 

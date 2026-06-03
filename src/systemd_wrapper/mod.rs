@@ -8,6 +8,7 @@ mod contract;
 mod discovery;
 mod manual_probe;
 mod original_cgroup_preview;
+mod pid_safety;
 mod plan;
 mod preflight;
 mod render;

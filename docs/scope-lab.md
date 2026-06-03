@@ -458,6 +458,29 @@ Live Scope Runner probe output now reports the actual captured path:
 This keeps rollback planning visible and prepares the exact rollback destination
 before any future attach path could move a PID.
 
+#### Read-only PID liveness and self-protection checks
+
+The v2.6 phase 4 lab introduces read-only PID liveness and self-protection
+evaluations to the root system-scope `--probe-live` path. This is vital safety
+groundwork. Before any future attach, Zelynic evaluates discovered PIDs to ensure
+they are still alive and that they are not Zelynic itself or already in a
+Zelynic-managed cgroup.
+
+- **Read-only**: Liveness checks rely on non-intrusive lightweight reads, such as
+  checking if `/proc/<pid>` exists.
+- **Attach still blocked**: A normal successful status (e.g. `preflight ok; attach still blocked`)
+  simply means the PID is eligible. It does NOT mean the PID was attached or limited.
+- **Live attach blocked**: Live attach (`--attach-live`) remains hard-blocked.
+
+Live Scope Runner probe output now includes:
+
+```text
+    PID safety checks:
+      PID <pid>: liveness: alive
+      PID <pid>: self-protection: allowed
+      PID <pid>: future attach eligibility: preflight ok; attach still blocked
+```
+
 #### What the Preview Does NOT Do
 
 - Does NOT move any PID into any cgroup.

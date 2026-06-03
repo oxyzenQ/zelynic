@@ -82,6 +82,11 @@ capture to the root system-scope `--probe-live` path, which actually reads
 honest exact rollback targets or marks them as unavailable/stale if the process
 has exited. It remains strictly read-only and does not enable live attach.
 
+The v2.6 phase 4 lab introduces read-only PID liveness and self-protection
+evaluations to the root system-scope `--probe-live` path. This ensures PIDs are
+still alive and that Zelynic does not attempt to attach itself or already-managed
+cgroups. Live attach remains strictly blocked.
+
 The displayed `systemd-run` command is for visibility only. Internally, Zelynic
 keeps the command as structured argv; a future live implementation must execute
 structured arguments directly and must not pass a rendered shell string to a
