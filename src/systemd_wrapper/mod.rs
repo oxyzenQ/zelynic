@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 use anyhow::{bail, Result};
 
+mod attach_preview;
 mod contract;
 mod discovery;
 mod manual_probe;
@@ -10,6 +11,7 @@ mod preflight;
 mod render;
 mod render_contract;
 mod sanitize;
+mod scope_probe;
 mod scope_runner;
 
 pub(crate) use plan::ScopeMode;
