@@ -1,6 +1,6 @@
 [package]
 name = "zelynic"
-version = "2.2.0"
+version = "2.3.0"
 edition = "2021"
 description = "Easy userspace bandwidth manager for Linux"
 authors = ["Rezky_nightky"]
