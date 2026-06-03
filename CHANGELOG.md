@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+### Added
+
+### Docs
+
+### Notes
+
+## [2.4.0] - 2026-06-03 - v2.4.0 Scope Lab
+
+### Changed
+
 - **ControlGroup-first PID discovery**: Refactored systemd wrapper PID discovery model to prefer ControlGroup + cgroup.procs as the primary discovery path for scope units. MainPID is now optional/diagnostic only; scope units may report MainPID=0 or absent. Based on real probe findings documented in `docs/scope-lab.md`.
 - **Dry-run and execute output**: Updated planned flow to describe backgrounded scope launch, ControlGroup path discovery, and cgroup.procs PID reading as the intended 5-step discovery sequence. MainPID is described as optional/diagnostic only in output.
 - **Scope-aware discovery wording**: Fixed dry-run and execute plan output to render scope-mode-specific `systemctl` commands. User scope now correctly shows `systemctl --user show <unit> --property ControlGroup` in the PID discovery step. System scope shows `systemctl show <unit> --property ControlGroup`. Previously the wording was hardcoded to one form regardless of scope mode.
@@ -209,7 +219,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `zelynic list`, `zelynic strict`, `zelynic unstrict`, `zelynic status` commands
 - Basic CLI interface with colored output
 
-[Unreleased]: https://github.com/oxyzenq/zelynic/compare/v2.3.0...HEAD
+[Unreleased]: https://github.com/oxyzenq/zelynic/compare/v2.4.0...HEAD
+[2.4.0]: https://github.com/oxyzenq/zelynic/compare/v2.3.0...v2.4.0
 [2.3.0]: https://github.com/oxyzenq/zelynic/compare/v2.2.0...v2.3.0
 [2.2.0]: https://github.com/oxyzenq/zelynic/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/oxyzenq/zelynic/compare/v2.0.0...v2.1.0
