@@ -218,6 +218,39 @@ lists the three phases with their implementation status, description, and
 privilege requirements. The output is designed to be readable and not overly
 noisy.
 
+### Manual Probe Recipe
+
+The v2.4 Scope Lab phase 4 adds a **manual probe recipe** to the `zelynic run
+--dry-run` output. This recipe provides ready-to-copy/paste shell commands
+that users can run manually to test the Scope Lab flow without Zelynic executing
+anything. The recipe is clearly marked as manual-only and is not executed by
+Zelynic itself.
+
+The recipe appears only in `--dry-run` output (omitted from `--execute` to avoid
+noise) and includes four steps:
+
+1. **Start backgrounded scope**: Launches a transient systemd scope in the
+   background so there is time to inspect it.
+2. **Inspect scope unit**: Queries systemd for MainPID, ControlGroup,
+   ActiveState, and SubState properties.
+3. **Read PID(s) from cgroup.procs**: Reads the ControlGroup path from the
+   scope unit, then reads `cgroup.procs` to discover the actual PIDs.
+4. **Cleanup**: Stops the scope unit.
+
+For **user scope**, the recipe uses `systemd-run --user --scope` and `systemctl
+--user` commands. No privilege escalation is needed. The backgrounded scope runs
+in the user's session context.
+
+For **system scope**, the recipe includes a clear warning that system scope may
+require root/sudo and that plain non-root system scope can trigger Polkit/floating
+auth. The recipe prefixes `systemd-run` and `systemctl stop` with `sudo`. The
+inspect and cgroup.procs read steps use plain `systemctl show` (read-only, no
+privilege escalation needed).
+
+The recipe uses the same scope unit name and description that `zelynic run`
+would use, so users can directly compare the recipe output against Zelynic's
+planned output.
+
 ## Live Execution Status
 
 **Live execution is not implemented.** The current `zelynic run --execute` path:

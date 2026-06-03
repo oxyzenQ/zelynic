@@ -24,11 +24,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Scope-aware discovery wording tests**: Added tests verifying user-scope dry-run renders `systemctl --user show` in discovery wording, system-scope dry-run renders `systemctl show` (without `--user`), and execute plans use matching scope-aware wording for both user and system modes.
 - **Launch/discover/attach contract tests**: Added tests for the contract model verifying user-scope uses user launch + user systemctl discovery, system-scope uses system launch + system systemctl discovery, discover phase is ControlGroup-first, attach requires root, live execution is always false, and contract has no mutation/execution side effects.
 - **Contract render integration tests**: Added tests verifying dry-run and execute output include the contract section, contract steps show correct privilege labels, and existing safety wording is preserved after the contract section.
+- **Manual probe recipe in dry-run**: Added a "Manual probe recipe" section to `zelynic run --dry-run` output that provides ready-to-copy/paste shell commands for manually testing the Scope Lab flow. User scope recipe uses `systemd-run --user --scope` with `systemctl --user` inspect/cleanup. System scope recipe includes a warning about root/sudo/Polkit and uses `sudo systemd-run --scope` with `sudo systemctl stop`. The recipe is clearly marked as manual-only and not executed by Zelynic. Omitted from `--execute` output to avoid noise.
+- **Manual probe recipe tests**: Added tests verifying user-scope recipe includes backgrounded `systemd-run --user --scope` with trailing `&`, `systemctl --user show` for inspect, `systemctl --user stop` for cleanup, and `cgroup.procs` mention. System-scope tests verify root/sudo/Polkit warning presence, `sudo systemd-run --scope` usage, and `sudo systemctl stop` usage. Additional tests confirm safety wording is preserved after recipe and execute output omits the recipe.
 
 ### Docs
 
 - **Launch/discover/attach contract**: Added a "Launch / Discover / Attach Contract" section to `docs/scope-lab.md` explaining the three-phase design contract (launch, discover, attach), its safety properties, privilege implications, and how it appears in dry-run/execute output.
 - **Split contract mention**: Updated `docs/systemd-wrapper-design.md` to reference the contract model as the formalization of the launch-then-attach design.
+- **Manual probe recipe doc**: Added a "Manual Probe Recipe" section to `docs/scope-lab.md` describing the four-step manual probe recipe added in phase 4, its scope-aware behavior, and its placement in dry-run output.
 
 ### Notes
 
