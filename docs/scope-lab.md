@@ -418,6 +418,34 @@ Current status remains:
 The preflight does not enable `--attach-live`. The `--attach-live` gate remains
 hard-blocked.
 
+#### Original Cgroup Capture Preview
+
+The v2.6 phase 2 lab adds a pure original-cgroup capture preview model for
+future rollback planning. It parses sample `/proc/<pid>/cgroup` text in unit
+tests and validates cgroup v2 paths before they could become rollback targets.
+
+The parser/model accepts pure cgroup v2 lines such as:
+
+```text
+0::/user.slice/user-1000.slice/session-2.scope
+0::/system.slice/example.scope
+```
+
+It rejects malformed input, empty cgroup paths, parent traversal (`..`), and
+paths already under `/zelynic` because restoring into a Zelynic-managed target
+cgroup would be unsafe.
+
+Live Scope Runner probe output still does **not** read `/proc/<pid>/cgroup`.
+Instead, it reports:
+
+- `original cgroup capture: required before attach; not read in this probe`
+- `rollback target: pending original cgroup capture`
+
+This keeps rollback planning visible without claiming rollback is ready. A
+future live attach path must capture each PID's original cgroup immediately
+before moving it, then use that captured path as the rollback destination if the
+attach operation fails or is later removed.
+
 #### What the Preview Does NOT Do
 
 - Does NOT move any PID into any cgroup.

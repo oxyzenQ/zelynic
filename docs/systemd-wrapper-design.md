@@ -75,6 +75,12 @@ cgroup capture, self-protection, rollback planning, and mutation ownership for a
 future attach path. It does not enable live attach and does not perform any
 mutation.
 
+The v2.6 phase 2 original-cgroup capture preview adds a pure parser/model for
+sample `/proc/<pid>/cgroup` content. Live probe output still does not read
+`/proc`; it reports that original cgroup capture is required and that rollback
+targets are pending until a future attach implementation captures them
+immediately before PID movement.
+
 The displayed `systemd-run` command is for visibility only. Internally, Zelynic
 keeps the command as structured argv; a future live implementation must execute
 structured arguments directly and must not pass a rendered shell string to a

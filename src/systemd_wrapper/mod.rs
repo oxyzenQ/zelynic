@@ -7,6 +7,7 @@ mod attach_safety;
 mod contract;
 mod discovery;
 mod manual_probe;
+mod original_cgroup_preview;
 mod plan;
 mod preflight;
 mod render;

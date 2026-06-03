@@ -13,12 +13,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   safety model that documents discovered PID(s), future target cgroup,
   required PID liveness checks, original cgroup capture, self-protection,
   rollback planning, mutation ownership, and live attach blocked status.
+- **Original cgroup capture preview**: Added a pure parser/model for sample
+  `/proc/<pid>/cgroup` content so future rollback planning can validate cgroup
+  v2 paths without reading live `/proc` or moving PIDs.
 
 ### Changed
 
 - **Future Attach Preview**: Scope Runner attach preview now renders the
   Attach Safety Preflight section while continuing to perform no PID movement,
   limiter attach, nftables/tc changes, Zelynic cgroup changes, or state writes.
+- **Attach Safety rendering**: The preflight now explicitly reports original
+  cgroup capture as required and not read in the live probe, with rollback
+  targets pending until a future attach implementation captures them.
 
 ## [2.5.0] - 2026-06-03 - v2.5.0 Scope Runner
 

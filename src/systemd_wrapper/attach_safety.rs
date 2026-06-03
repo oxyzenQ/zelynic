@@ -6,6 +6,10 @@
 //! This module does not read `/proc`, write cgroups, call nftables/tc, write
 //! Zelynic state, or call the limiter attach execution path.
 
+use super::original_cgroup_preview::{
+    build_pending_original_cgroup_previews, OriginalCgroupCapturePreview,
+    OriginalCgroupCaptureStatus,
+};
 use super::render::push_line;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -13,6 +17,7 @@ pub(crate) struct AttachSafetyPreflight {
     pub discovered_pids: Vec<u32>,
     pub future_target_cgroup: String,
     pub original_cgroup_capture: String,
+    pub original_cgroup_previews: Vec<OriginalCgroupCapturePreview>,
     pub pid_liveness_check: String,
     pub self_protection_check: String,
     pub rollback_plan: Vec<String>,
@@ -30,7 +35,8 @@ pub(crate) fn build_attach_safety_preflight(
         discovered_pids: discovered_pids.to_vec(),
         future_target_cgroup: future_target_cgroup.to_string(),
         original_cgroup_capture:
-            "required before attach; capture each PID's current cgroup path".to_string(),
+            "required before attach; not read in this probe".to_string(),
+        original_cgroup_previews: build_pending_original_cgroup_previews(discovered_pids),
         pid_liveness_check: "required before attach; reject dead PIDs".to_string(),
         self_protection_check:
             "required before attach; reject Zelynic itself, dead PIDs, and already managed Zelynic cgroups until explicitly supported".to_string(),
@@ -87,6 +93,7 @@ pub(crate) fn render_attach_safety_preflight_section(
             preflight.original_cgroup_capture
         ),
     );
+    render_original_cgroup_capture_preview(output, &preflight.original_cgroup_previews);
     push_line(
         output,
         &format!("    self-protection: {}", preflight.self_protection_check),
@@ -109,6 +116,73 @@ pub(crate) fn render_attach_safety_preflight_section(
     );
 }
 
+fn render_original_cgroup_capture_preview(
+    output: &mut String,
+    previews: &[OriginalCgroupCapturePreview],
+) {
+    push_line(output, "    original cgroup capture preview:");
+    if previews.is_empty() {
+        push_line(
+            output,
+            "      status: required before attach; not read in this probe",
+        );
+        push_line(
+            output,
+            "      rollback target: pending original cgroup capture",
+        );
+        return;
+    }
+
+    if previews
+        .iter()
+        .all(|preview| preview.status == OriginalCgroupCaptureStatus::Required)
+    {
+        push_line(
+            output,
+            "      status: required before attach; not read in this probe",
+        );
+        push_line(
+            output,
+            "      rollback target: pending original cgroup capture",
+        );
+        let pending_pids = previews
+            .iter()
+            .map(|preview| preview.pid)
+            .collect::<Vec<_>>();
+        push_line(
+            output,
+            &format!(
+                "      PID capture: pending for {}",
+                format_pid_list(&pending_pids)
+            ),
+        );
+        return;
+    }
+
+    for preview in previews {
+        match preview.rollback_target_path.as_deref() {
+            Some(rollback_target) => push_line(
+                output,
+                &format!(
+                    "      PID {}: {}; rollback target: {}",
+                    preview.pid,
+                    preview.status.label(),
+                    rollback_target
+                ),
+            ),
+            None => push_line(
+                output,
+                &format!(
+                    "      PID {}: {}; rollback target: pending original cgroup capture ({})",
+                    preview.pid,
+                    preview.status.label(),
+                    preview.reason
+                ),
+            ),
+        }
+    }
+}
+
 fn format_pid_list(pids: &[u32]) -> String {
     pids.iter()
         .map(|pid| pid.to_string())
@@ -119,6 +193,7 @@ fn format_pid_list(pids: &[u32]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::systemd_wrapper::original_cgroup_preview::build_original_cgroup_preview_from_sample;
 
     fn sample_preflight() -> AttachSafetyPreflight {
         build_attach_safety_preflight(&[12345, 12346], "/sys/fs/cgroup/zelynic/target_sleep")
@@ -138,7 +213,11 @@ mod tests {
             .contains("required before attach"));
         assert!(preflight
             .original_cgroup_capture
-            .contains("current cgroup path"));
+            .contains("not read in this probe"));
+        assert!(preflight.original_cgroup_previews.iter().all(|preview| {
+            preview.status == OriginalCgroupCaptureStatus::Required
+                && preview.rollback_target_path.is_none()
+        }));
     }
 
     #[test]
@@ -203,9 +282,41 @@ mod tests {
         assert!(output.contains("Attach safety preflight"));
         assert!(output.contains("status: preview only; not evaluated live"));
         assert!(output.contains("PID liveness: required before attach"));
-        assert!(output.contains("original cgroup capture: required before attach"));
+        assert!(output
+            .contains("original cgroup capture: required before attach; not read in this probe"));
+        assert!(output.contains("original cgroup capture preview"));
+        assert!(output.contains("rollback target: pending original cgroup capture"));
         assert!(output.contains("self-protection: required before attach"));
         assert!(output.contains("rollback plan: required before attach"));
+        assert!(output.contains("mutation status: blocked"));
+        assert!(output.contains("live attach: not implemented"));
+    }
+
+    #[test]
+    fn rendered_safety_output_does_not_claim_rollback_ready_without_sample_capture() {
+        let preflight = sample_preflight();
+        let mut output = String::new();
+
+        render_attach_safety_preflight_section(&mut output, &preflight);
+
+        assert!(!output.contains("captured from sample"));
+        assert!(!output.contains("/sys/fs/cgroup/system.slice/example.scope"));
+        assert!(output.contains("rollback target: pending original cgroup capture"));
+    }
+
+    #[test]
+    fn rendered_safety_output_can_show_sample_rollback_ready_state() {
+        let mut preflight = sample_preflight();
+        preflight.original_cgroup_previews = vec![build_original_cgroup_preview_from_sample(
+            12345,
+            "0::/system.slice/example.scope\n",
+        )];
+        let mut output = String::new();
+
+        render_attach_safety_preflight_section(&mut output, &preflight);
+
+        assert!(output.contains("PID 12345: captured from sample"));
+        assert!(output.contains("rollback target: /sys/fs/cgroup/system.slice/example.scope"));
         assert!(output.contains("mutation status: blocked"));
         assert!(output.contains("live attach: not implemented"));
     }

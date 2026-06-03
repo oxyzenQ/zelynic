@@ -488,7 +488,10 @@ mod tests {
         assert!(rendered.contains("Attach safety preflight"));
         assert!(rendered.contains("status: preview only; not evaluated live"));
         assert!(rendered.contains("PID liveness: required before attach"));
-        assert!(rendered.contains("original cgroup capture: required before attach"));
+        assert!(rendered
+            .contains("original cgroup capture: required before attach; not read in this probe"));
+        assert!(rendered.contains("original cgroup capture preview"));
+        assert!(rendered.contains("rollback target: pending original cgroup capture"));
         assert!(rendered.contains("self-protection: required before attach"));
         assert!(rendered.contains("rollback plan: required before attach"));
         assert!(rendered.contains("mutation status: blocked"));
