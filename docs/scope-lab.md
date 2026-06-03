@@ -611,6 +611,67 @@ model means: launch via user-scope (no root), discover PIDs (read-only cgroup),
 then attach via strict backend (requires root). The privilege boundary is between
 steps 3 and 4 of the discovery flow.
 
+## Validation Report
+
+A dedicated validation report for the v2.5 Scope Runner (live probe, attach
+preview, and `--attach-live` hard-block) is available at:
+
+- [docs/validation-reports/scope-runner-v2.5.md](validation-reports/scope-runner-v2.5.md)
+
+That report documents six tested command scenarios (four non-root blocked, root
+probe passed, root attach-live hard-blocked), observed results, and final
+status. The Scope Runner live probe and attach preview are validated; live
+limiter attach is not implemented; user-scope live runner remains blocked.
+
+## Release Checklist (Scope Runner Smoke Matrix)
+
+Before cutting a release that includes the Scope Runner, verify the following
+smoke tests on a real cgroup v2 host:
+
+### Non-Root Gate Checks (No Privilege Required)
+
+1. `zelynic run --execute -d 500kbit -- sleep 1`
+   - Expected: "Live systemd wrapper execution is not implemented yet."
+2. `zelynic run --execute --scope-mode system -d 500kbit -- sleep 1`
+   - Expected: "Live systemd wrapper execution is not implemented yet."
+3. `zelynic run --execute --scope-mode user --probe-live -d 500kbit -- sleep 1`
+   - Expected: "User-scope live runner is not implemented."
+4. `zelynic run --execute --scope-mode system --probe-live -d 500kbit -- sleep 1`
+   - Expected: "Scope Runner live probe requires root (euid == 0)."
+
+All four must return the expected blocking message. No systemd scope should be
+launched, no mutation should occur, and no privilege escalation should be
+attempted.
+
+### Root Probe Smoke
+
+5. `sudo zelynic run --execute --scope-mode system --probe-live -d 500kbit -u 500kbit -- sleep 5`
+   - Expected: launches systemd scope, discovers ControlGroup and PID,
+     renders Future Attach Preview, prints safety disclaimers.
+   - Verify: no PID moved, no limiter attach, no nftables/tc changes, no
+     Zelynic cgroup/state changes, bandwidth not active.
+   - After completion: unit should be inactive/dead.
+
+### Root Attach-Live Hard-Block Smoke
+
+6. `sudo zelynic run --execute --scope-mode system --probe-live --attach-live -d 500kbit -u 500kbit -- sleep 5`
+   - Expected: "Scope Runner live attach is not implemented yet. This build
+     only supports live probe and attach preview."
+   - Verify: no PID moved, no limiter attach, no nftables/tc changes, no
+     Zelynic cgroup/state changes.
+
+### Automated Validation
+
+In addition to the manual smoke tests, run the full automated validation suite:
+
+```bash
+cargo fmt --all -- --check
+cargo test --locked
+cargo clippy --all-targets --all-features -- -D warnings
+python3 scripts/check-policy.py
+git diff --check
+```
+
 ## Probe Caveats
 
 - Findings are from a single Arch/CachyOS host. Other distributions may behave

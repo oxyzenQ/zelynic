@@ -62,6 +62,16 @@ environment is specifically prepared for destructive cgroup, tc, and nftables
 testing. Do not run them on production hosts without understanding the
 consequences.
 
+### Scope Runner Validation Report
+
+A Scope Runner report documents the results of testing the v2.5 Scope Runner
+subsystem (live probe, attach preview, and `--attach-live` hard-block gate).
+This includes both non-root gate verification and root-level probe smoke tests.
+The Scope Runner does not modify nftables, tc, cgroups, or state even when
+run as root with `--probe-live`; it is a non-mutating pipeline validation.
+
+See [scope-runner-v2.5.md](scope-runner-v2.5.md) for an example.
+
 ## How to File a Report
 
 1. Copy [template.md](template.md) to a new file named after the distribution:

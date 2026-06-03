@@ -105,6 +105,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Wrapper design update**: Updated `docs/systemd-wrapper-design.md` to
   mention the v2.5 Scope Runner, its `--probe-live` gate, and the
   `--attach-live` hard-blocked future gate.
+- **Scope Runner validation report**: Added
+  `docs/validation-reports/scope-runner-v2.5.md` documenting six tested
+  command scenarios (four non-root blocked, root probe passed, root
+  attach-live hard-blocked), observed results, and final status.
+- **Release checklist**: Added "Release Checklist (Scope Runner Smoke
+  Matrix)" section to `docs/scope-lab.md` with six manual smoke tests
+  covering non-root gates, root probe, and attach-live hard-block.
+- **Validation report index**: Added "Scope Runner Validation Report"
+  type to `docs/validation-reports/README.md`.
 
 ### Notes
 
