@@ -604,6 +604,52 @@ mod tests {
     }
 
     #[test]
+    fn dry_run_contract_system_scope_discover_privilege_is_system_manager() {
+        let command = vec!["echo".to_string()];
+        let plan = crate::systemd_wrapper::plan::build_dry_run_plan_with_scope_mode(
+            None,
+            None,
+            None,
+            &command,
+            crate::systemd_wrapper::ScopeMode::System,
+        )
+        .unwrap();
+        let rendered = render_dry_run_plan(&plan);
+
+        // System scope discover line must NOT say "privilege: user manager"
+        let discover_line = rendered
+            .lines()
+            .find(|l| l.contains("2. discover:"))
+            .expect("should have a discover line");
+        assert!(
+            !discover_line.contains("privilege: user manager"),
+            "system scope discover must not show user manager privilege"
+        );
+        // System scope discover line must mention system manager
+        assert!(
+            discover_line.contains("privilege: system manager / root-or-polkit"),
+            "system scope discover should show system manager privilege"
+        );
+    }
+
+    #[test]
+    fn dry_run_contract_user_scope_discover_privilege_is_user_manager() {
+        let command = vec!["echo".to_string()];
+        let plan = build_dry_run_plan(None, Some("500kbit"), None, &command).unwrap();
+        let rendered = render_dry_run_plan(&plan);
+
+        // User scope discover line should still say "privilege: user manager"
+        let discover_line = rendered
+            .lines()
+            .find(|l| l.contains("2. discover:"))
+            .expect("should have a discover line");
+        assert!(
+            discover_line.contains("privilege: user manager"),
+            "user scope discover should show user manager privilege"
+        );
+    }
+
+    #[test]
     fn dry_run_contract_attach_step_requires_root() {
         let command = vec!["echo".to_string()];
         let plan = build_dry_run_plan(None, None, None, &command).unwrap();
