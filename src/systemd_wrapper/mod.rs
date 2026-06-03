@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 use anyhow::{bail, Result};
 
+mod contract;
 mod discovery;
 mod plan;
 mod preflight;
