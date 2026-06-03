@@ -3,9 +3,10 @@
 use colored::Colorize;
 use std::io::{self, Write};
 
-use super::contract::build_run_contract;
 use super::discovery::PidHandoffPlan;
+use super::manual_probe::push_manual_probe_recipe;
 use super::plan::{systemd_run_argv, LiveRunPlan, RunDryRunPlan, ScopeMode, SystemdRunPlan};
+use super::render_contract::push_contract_section;
 
 pub(super) fn print_dry_run_plan(plan: &RunDryRunPlan) {
     colorize_dry_run_plan(&render_dry_run_plan(plan));
@@ -265,129 +266,11 @@ fn scope_aware_show_command(scope_mode: ScopeMode) -> String {
     }
 }
 
-fn push_contract_section(output: &mut String, scope_mode: &ScopeMode) {
-    let contract = build_run_contract(*scope_mode);
-    push_line(output, "  Future launch/discover/attach contract:");
-    for (index, step) in contract.steps.iter().enumerate() {
-        push_line(
-            output,
-            &format!(
-                "    {}. {}: [{}] {} (privilege: {})",
-                index + 1,
-                step.phase.label(),
-                if step.implemented {
-                    "ready"
-                } else {
-                    "not implemented"
-                },
-                step.description,
-                step.privilege.label(),
-            ),
-        );
-    }
-    push_line(
-        output,
-        &format!(
-            "    live execution implemented: {}",
-            contract.live_execution_implemented,
-        ),
-    );
-}
-
-fn push_manual_probe_recipe(output: &mut String, plan: &RunDryRunPlan) {
-    let scope_mode = plan.systemd_run.scope_mode;
-    let unit = &plan.scope_name;
-    let scope_unit_name = &plan.systemd_run.scope_unit_name;
-    let description = &plan.systemd_run.description;
-    let command_str = plan
-        .command
-        .iter()
-        .map(|c| shell_quote(c))
-        .collect::<Vec<_>>()
-        .join(" ");
-
-    push_line(
-        output,
-        "  Manual probe recipe (copy/paste only, not executed by Zelynic):",
-    );
-
-    if scope_mode == ScopeMode::System {
-        push_line(output, "    WARNING: system scope may require root/sudo.");
-        push_line(
-            output,
-            "    Plain non-root system scope can trigger Polkit/floating auth.",
-        );
-        push_line(
-            output,
-            "    Do not run from automation unless privilege/session behavior is understood.",
-        );
-    }
-
-    let scope_flags = match scope_mode {
-        ScopeMode::User => "--user --scope",
-        ScopeMode::System => "--scope",
-    };
-    let sudo = match scope_mode {
-        ScopeMode::User => "",
-        ScopeMode::System => "sudo ",
-    };
-
-    // 1. start backgrounded scope
-    push_line(output, "    1. start backgrounded scope:");
-    push_line(
-        output,
-        &format!(
-            "       {}systemd-run {} --unit {} --description {} -- {} &",
-            sudo,
-            scope_flags,
-            scope_unit_name,
-            shell_quote(description),
-            command_str
-        ),
-    );
-
-    // 2. inspect scope unit
-    push_line(output, "    2. inspect scope unit:");
-    let show_cmd = match scope_mode {
-        ScopeMode::User => format!("systemctl --user show {}", unit),
-        ScopeMode::System => format!("systemctl show {}", unit),
-    };
-    push_line(
-        output,
-        &format!(
-            "       {} --property MainPID --property ControlGroup --property ActiveState --property SubState",
-            show_cmd
-        ),
-    );
-
-    // 3. read PID(s) from cgroup.procs
-    push_line(output, "    3. read PID(s) from cgroup.procs:");
-    let cg_cmd = match scope_mode {
-        ScopeMode::User => format!(
-            "systemctl --user show {} --property ControlGroup --value",
-            unit
-        ),
-        ScopeMode::System => {
-            format!("systemctl show {} --property ControlGroup --value", unit)
-        }
-    };
-    push_line(output, &format!("       cg=$({}) && \\", cg_cmd));
-    push_line(output, "       cat \"/sys/fs/cgroup${cg}/cgroup.procs\"");
-
-    // 4. cleanup
-    push_line(output, "    4. cleanup:");
-    let stop_cmd = match scope_mode {
-        ScopeMode::User => format!("systemctl --user stop {}", unit),
-        ScopeMode::System => format!("systemctl stop {}", unit),
-    };
-    push_line(output, &format!("       {}{}", sudo, stop_cmd));
-}
-
 fn scope_note() -> &'static str {
     "user scope is the default to avoid system Polkit prompts; system scope is explicit planning-only"
 }
 
-fn shell_quote(value: &str) -> String {
+pub(super) fn shell_quote(value: &str) -> String {
     if !value.is_empty()
         && value
             .chars()
@@ -399,7 +282,7 @@ fn shell_quote(value: &str) -> String {
     }
 }
 
-fn push_line(output: &mut String, line: &str) {
+pub(super) fn push_line(output: &mut String, line: &str) {
     output.push_str(line);
     output.push('\n');
 }
@@ -644,113 +527,6 @@ mod tests {
     }
 
     #[test]
-    fn dry_run_contract_section_present_and_not_implemented() {
-        let command = vec!["echo".to_string()];
-        let plan = build_dry_run_plan(None, Some("500kbit"), None, &command).unwrap();
-        let rendered = render_dry_run_plan(&plan);
-
-        assert!(rendered.contains("Future launch/discover/attach contract:"));
-        assert!(rendered.contains("1. launch: [not implemented]"));
-        assert!(rendered.contains("2. discover: [not implemented]"));
-        assert!(rendered.contains("3. attach: [not implemented]"));
-        assert!(rendered.contains("live execution implemented: false"));
-        assert!(rendered.contains("privilege: user manager"));
-        assert!(rendered.contains("privilege: root"));
-    }
-
-    #[test]
-    fn dry_run_contract_user_scope_uses_user_scope_launch_command() {
-        let command = vec!["helium".to_string()];
-        let plan = build_dry_run_plan(Some("helium"), None, None, &command).unwrap();
-        let rendered = render_dry_run_plan(&plan);
-
-        assert!(rendered.contains("--user --scope"));
-        assert!(rendered.contains("systemctl --user show"));
-    }
-
-    #[test]
-    fn dry_run_contract_system_scope_uses_system_scope_launch_command() {
-        let command = vec!["echo".to_string()];
-        let plan = crate::systemd_wrapper::plan::build_dry_run_plan_with_scope_mode(
-            None,
-            None,
-            None,
-            &command,
-            crate::systemd_wrapper::ScopeMode::System,
-        )
-        .unwrap();
-        let rendered = render_dry_run_plan(&plan);
-
-        assert!(rendered.contains("--scope"));
-        assert!(!rendered.contains("1. launch: [not implemented] create transient systemd scope via systemd-run --user --scope"));
-        assert!(rendered.contains("systemctl show <unit> --property ControlGroup"));
-        // System scope launch must show system manager privilege, not user
-        assert!(rendered.contains("privilege: system manager / root-or-polkit"));
-        // System scope launch line must NOT say "privilege: user manager"
-        let launch_line = rendered
-            .lines()
-            .find(|l| l.contains("1. launch:"))
-            .expect("should have a launch line");
-        assert!(!launch_line.contains("privilege: user manager"));
-    }
-
-    #[test]
-    fn dry_run_contract_system_scope_discover_privilege_is_system_manager() {
-        let command = vec!["echo".to_string()];
-        let plan = crate::systemd_wrapper::plan::build_dry_run_plan_with_scope_mode(
-            None,
-            None,
-            None,
-            &command,
-            crate::systemd_wrapper::ScopeMode::System,
-        )
-        .unwrap();
-        let rendered = render_dry_run_plan(&plan);
-
-        // System scope discover line must NOT say "privilege: user manager"
-        let discover_line = rendered
-            .lines()
-            .find(|l| l.contains("2. discover:"))
-            .expect("should have a discover line");
-        assert!(
-            !discover_line.contains("privilege: user manager"),
-            "system scope discover must not show user manager privilege"
-        );
-        // System scope discover line must mention system manager
-        assert!(
-            discover_line.contains("privilege: system manager / root-or-polkit"),
-            "system scope discover should show system manager privilege"
-        );
-    }
-
-    #[test]
-    fn dry_run_contract_user_scope_discover_privilege_is_user_manager() {
-        let command = vec!["echo".to_string()];
-        let plan = build_dry_run_plan(None, Some("500kbit"), None, &command).unwrap();
-        let rendered = render_dry_run_plan(&plan);
-
-        // User scope discover line should still say "privilege: user manager"
-        let discover_line = rendered
-            .lines()
-            .find(|l| l.contains("2. discover:"))
-            .expect("should have a discover line");
-        assert!(
-            discover_line.contains("privilege: user manager"),
-            "user scope discover should show user manager privilege"
-        );
-    }
-
-    #[test]
-    fn dry_run_contract_attach_step_requires_root() {
-        let command = vec!["echo".to_string()];
-        let plan = build_dry_run_plan(None, None, None, &command).unwrap();
-        let rendered = render_dry_run_plan(&plan);
-
-        // The attach step line should have "privilege: root"
-        assert!(rendered.contains("privilege: root"));
-    }
-
-    #[test]
     fn dry_run_contract_preserves_safety_wording_after_contract_section() {
         let command = vec!["echo".to_string()];
         let plan = build_dry_run_plan(None, None, None, &command).unwrap();
@@ -760,25 +536,6 @@ mod tests {
         assert!(rendered.contains("No process was launched."));
         assert!(rendered.contains("No nftables, tc, cgroup, or state changes were made."));
         assert!(rendered.contains("Live launch is not implemented yet."));
-    }
-
-    #[test]
-    fn execute_contract_section_present_and_not_implemented() {
-        let command = vec!["echo".to_string(), "hello".to_string()];
-        let plan = crate::systemd_wrapper::plan::build_live_run_plan(
-            None,
-            Some("500kbit"),
-            None,
-            &command,
-        )
-        .unwrap();
-        let rendered = render_live_run_plan(&plan);
-
-        assert!(rendered.contains("Future launch/discover/attach contract:"));
-        assert!(rendered.contains("1. launch: [not implemented]"));
-        assert!(rendered.contains("2. discover: [not implemented]"));
-        assert!(rendered.contains("3. attach: [not implemented]"));
-        assert!(rendered.contains("live execution implemented: false"));
     }
 
     #[test]
@@ -819,133 +576,6 @@ mod tests {
 
         assert!(rendered.contains("Future launch/discover/attach contract:"));
         assert!(rendered.contains("1. launch: [not implemented]"));
-    }
-
-    // --- Manual probe recipe tests ---
-
-    #[test]
-    fn dry_run_user_scope_includes_manual_probe_recipe() {
-        let command = vec!["sleep".to_string(), "30".to_string()];
-        let plan = build_dry_run_plan(None, Some("500kbit"), None, &command).unwrap();
-        let rendered = render_dry_run_plan(&plan);
-
-        assert!(
-            rendered.contains("Manual probe recipe (copy/paste only, not executed by Zelynic):")
-        );
-        assert!(rendered.contains("1. start backgrounded scope:"));
-        assert!(rendered.contains("2. inspect scope unit:"));
-        assert!(rendered.contains("3. read PID(s) from cgroup.procs:"));
-        assert!(rendered.contains("4. cleanup:"));
-    }
-
-    #[test]
-    fn dry_run_user_scope_recipe_uses_backgrounded_systemd_run_user_scope() {
-        let command = vec!["sleep".to_string(), "30".to_string()];
-        let plan = build_dry_run_plan(None, Some("500kbit"), None, &command).unwrap();
-        let rendered = render_dry_run_plan(&plan);
-
-        // Recipe must use --user --scope with trailing & for backgrounding
-        assert!(
-            rendered.contains("systemd-run --user --scope --unit zelynic-run-sleep"),
-            "recipe should include systemd-run --user --scope with scope unit name"
-        );
-        // Find the recipe start line (not the "Future launch command" section)
-        let recipe_lines: Vec<&str> = rendered
-            .lines()
-            .skip_while(|l| !l.contains("Manual probe recipe"))
-            .collect();
-        let start_line = recipe_lines
-            .iter()
-            .find(|l| l.contains("systemd-run --user --scope"))
-            .expect("should have recipe start line with systemd-run");
-        assert!(
-            start_line.trim().ends_with('&'),
-            "recipe start command should end with & for backgrounding"
-        );
-        // Must NOT have sudo for user scope
-        let recipe_block = recipe_lines.join("\n");
-        assert!(
-            !recipe_block.contains("sudo systemd-run"),
-            "user scope recipe should not contain sudo"
-        );
-    }
-
-    #[test]
-    fn dry_run_user_scope_recipe_includes_systemctl_user_show_and_stop() {
-        let command = vec!["echo".to_string(), "hello".to_string()];
-        let plan = build_dry_run_plan(Some("echo"), None, None, &command).unwrap();
-        let rendered = render_dry_run_plan(&plan);
-
-        // Recipe inspect step uses systemctl --user show
-        assert!(
-            rendered.contains("systemctl --user show zelynic-run-echo.scope --property MainPID"),
-            "recipe inspect should use systemctl --user show with unit"
-        );
-        // Recipe cleanup uses systemctl --user stop
-        assert!(
-            rendered.contains("systemctl --user stop zelynic-run-echo.scope"),
-            "recipe cleanup should use systemctl --user stop with unit"
-        );
-        // Recipe must include cgroup.procs
-        assert!(
-            rendered.contains("cgroup.procs"),
-            "recipe must mention cgroup.procs"
-        );
-        // No WARNING for user scope
-        assert!(
-            !rendered.contains("WARNING: system scope may require root/sudo"),
-            "user scope recipe should not have system scope warning"
-        );
-    }
-
-    #[test]
-    fn dry_run_system_scope_recipe_includes_root_polkit_warning() {
-        let command = vec!["sleep".to_string(), "30".to_string()];
-        let plan = crate::systemd_wrapper::plan::build_dry_run_plan_with_scope_mode(
-            None,
-            None,
-            None,
-            &command,
-            ScopeMode::System,
-        )
-        .unwrap();
-        let rendered = render_dry_run_plan(&plan);
-
-        assert!(rendered.contains("WARNING: system scope may require root/sudo."));
-        assert!(rendered.contains("Plain non-root system scope can trigger Polkit/floating auth."));
-        assert!(rendered.contains(
-            "Do not run from automation unless privilege/session behavior is understood."
-        ));
-    }
-
-    #[test]
-    fn dry_run_system_scope_recipe_uses_system_scope_commands_and_sudo() {
-        let command = vec!["sleep".to_string(), "30".to_string()];
-        let plan = crate::systemd_wrapper::plan::build_dry_run_plan_with_scope_mode(
-            None,
-            None,
-            None,
-            &command,
-            ScopeMode::System,
-        )
-        .unwrap();
-        let rendered = render_dry_run_plan(&plan);
-
-        // Recipe start must use sudo systemd-run --scope (no --user)
-        assert!(
-            rendered.contains("sudo systemd-run --scope --unit zelynic-run-sleep"),
-            "system scope recipe should use sudo systemd-run --scope"
-        );
-        // Recipe inspect must use systemctl show (no --user)
-        assert!(
-            rendered.contains("systemctl show zelynic-run-sleep.scope --property MainPID"),
-            "system scope recipe inspect should use systemctl show without --user"
-        );
-        // Recipe cleanup must use sudo systemctl stop
-        assert!(
-            rendered.contains("sudo systemctl stop zelynic-run-sleep.scope"),
-            "system scope recipe cleanup should use sudo systemctl stop"
-        );
     }
 
     #[test]
