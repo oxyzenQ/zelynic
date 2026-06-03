@@ -563,7 +563,7 @@ mod tests {
         assert!(rendered.contains("2. discover: [not implemented]"));
         assert!(rendered.contains("3. attach: [not implemented]"));
         assert!(rendered.contains("live execution implemented: false"));
-        assert!(rendered.contains("privilege: user"));
+        assert!(rendered.contains("privilege: user manager"));
         assert!(rendered.contains("privilege: root"));
     }
 
@@ -593,6 +593,14 @@ mod tests {
         assert!(rendered.contains("--scope"));
         assert!(!rendered.contains("1. launch: [not implemented] create transient systemd scope via systemd-run --user --scope"));
         assert!(rendered.contains("systemctl show <unit> --property ControlGroup"));
+        // System scope launch must show system manager privilege, not user
+        assert!(rendered.contains("privilege: system manager / root-or-polkit"));
+        // System scope launch line must NOT say "privilege: user manager"
+        let launch_line = rendered
+            .lines()
+            .find(|l| l.contains("1. launch:"))
+            .expect("should have a launch line");
+        assert!(!launch_line.contains("privilege: user manager"));
     }
 
     #[test]
