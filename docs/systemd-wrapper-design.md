@@ -76,10 +76,11 @@ future attach path. It does not enable live attach and does not perform any
 mutation.
 
 The v2.6 phase 2 original-cgroup capture preview adds a pure parser/model for
-sample `/proc/<pid>/cgroup` content. Live probe output still does not read
-`/proc`; it reports that original cgroup capture is required and that rollback
-targets are pending until a future attach implementation captures them
-immediately before PID movement.
+sample `/proc/<pid>/cgroup` content. The v2.6 phase 3 lab adds a read-only live
+capture to the root system-scope `--probe-live` path, which actually reads
+`/proc/<pid>/cgroup` for discovered PIDs. The live probe output reports the
+honest exact rollback targets or marks them as unavailable/stale if the process
+has exited. It remains strictly read-only and does not enable live attach.
 
 The displayed `systemd-run` command is for visibility only. Internally, Zelynic
 keeps the command as structured argv; a future live implementation must execute

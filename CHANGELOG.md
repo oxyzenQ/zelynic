@@ -16,6 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Original cgroup capture preview**: Added a pure parser/model for sample
   `/proc/<pid>/cgroup` content so future rollback planning can validate cgroup
   v2 paths without reading live `/proc` or moving PIDs.
+- **Live original cgroup capture**: Added read-only parsing of `/proc/<pid>/cgroup`
+  during the system-scope live probe, reporting honest rollback targets instead
+  of claiming capture was not read.
 
 ### Changed
 
@@ -23,8 +26,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Attach Safety Preflight section while continuing to perform no PID movement,
   limiter attach, nftables/tc changes, Zelynic cgroup changes, or state writes.
 - **Attach Safety rendering**: The preflight now explicitly reports original
-  cgroup capture as required and not read in the live probe, with rollback
-  targets pending until a future attach implementation captures them.
+  cgroup capture from the live probe, displaying honest exact rollback targets
+  or "original cgroup capture unavailable/stale" if the PID already exited.
 
 ## [2.5.0] - 2026-06-03 - v2.5.0 Scope Runner
 

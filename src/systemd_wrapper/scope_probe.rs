@@ -462,6 +462,7 @@ mod tests {
             &[12345],
             Some("500kbit"),
             Some("500kbit"),
+            None,
         )
         .unwrap()
     }
@@ -513,9 +514,14 @@ mod tests {
 
     #[test]
     fn preview_empty_pids_handled_safely() {
-        let empty_preview =
-            super::super::attach_preview::build_attach_preview("sleep", &[], Some("500kbit"), None)
-                .unwrap();
+        let empty_preview = super::super::attach_preview::build_attach_preview(
+            "sleep",
+            &[],
+            Some("500kbit"),
+            None,
+            None,
+        )
+        .unwrap();
         let result = ScopeProbeResult {
             scope_unit_name: "zelynic-probe-v250-sleep".to_string(),
             scope_unit: "zelynic-probe-v250-sleep.scope".to_string(),
@@ -533,7 +539,8 @@ mod tests {
     #[test]
     fn preview_without_rates_shows_unlimited() {
         let no_rate_preview =
-            super::super::attach_preview::build_attach_preview("sleep", &[42], None, None).unwrap();
+            super::super::attach_preview::build_attach_preview("sleep", &[42], None, None, None)
+                .unwrap();
         let rendered =
             render_scope_probe_output_with_preview(&full_probe_result(), Some(&no_rate_preview));
         assert!(rendered.contains("    requested download: unlimited"));

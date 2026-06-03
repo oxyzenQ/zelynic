@@ -81,9 +81,17 @@ fn run_probe_live(
 
     let result = scope_runner::run_scope_probe(&systemd_run)?;
 
+    // Read live cgroups before attach preview
+    let live_previews = original_cgroup_preview::capture_original_cgroups_live(&result.pids);
+
     // Build non-mutating attach preview
-    let preview =
-        scope_runner::build_attach_preview(&systemd_run.target, &result.pids, download, upload)?;
+    let preview = scope_runner::build_attach_preview(
+        &systemd_run.target,
+        &result.pids,
+        download,
+        upload,
+        Some(live_previews),
+    )?;
 
     scope_runner::print_scope_probe_output_with_preview(&result, &preview);
 

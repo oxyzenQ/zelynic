@@ -54,6 +54,7 @@ pub(crate) fn build_attach_preview(
     pids: &[u32],
     download: Option<&str>,
     upload: Option<&str>,
+    live_cgroup_previews: Option<Vec<super::original_cgroup_preview::OriginalCgroupCapturePreview>>,
 ) -> Result<AttachPreview> {
     let sanitized = sanitize_scope_component(target_name);
     let future_target_cgroup = format!("{}/target_{}", CGROUP_BASE, sanitized);
@@ -65,7 +66,8 @@ pub(crate) fn build_attach_preview(
         .map(|v| BandwidthRate::parse(v).map(|p| p.to_string()))
         .transpose()?;
 
-    let safety_preflight = build_attach_safety_preflight(pids, &future_target_cgroup);
+    let safety_preflight =
+        build_attach_safety_preflight(pids, &future_target_cgroup, live_cgroup_previews);
 
     Ok(AttachPreview {
         pids: pids.to_vec(),
@@ -144,7 +146,8 @@ mod tests {
     #[test]
     fn attach_preview_builds_with_correct_cgroup_path() {
         let preview =
-            build_attach_preview("sleep", &[12345], Some("500kbit"), Some("500kbit")).unwrap();
+            build_attach_preview("sleep", &[12345], Some("500kbit"), Some("500kbit"), None)
+                .unwrap();
 
         assert_eq!(
             preview.future_target_cgroup,
@@ -167,7 +170,7 @@ mod tests {
 
     #[test]
     fn attach_preview_sanitizes_target_name() {
-        let preview = build_attach_preview("Hello World!", &[], None, None).unwrap();
+        let preview = build_attach_preview("Hello World!", &[], None, None, None).unwrap();
 
         assert_eq!(
             preview.future_target_cgroup,
@@ -177,7 +180,7 @@ mod tests {
 
     #[test]
     fn attach_preview_handles_missing_rates() {
-        let preview = build_attach_preview("sleep", &[42], None, None).unwrap();
+        let preview = build_attach_preview("sleep", &[42], None, None, None).unwrap();
 
         assert_eq!(preview.download, None);
         assert_eq!(preview.upload, None);
@@ -185,7 +188,7 @@ mod tests {
 
     #[test]
     fn attach_preview_handles_empty_pids() {
-        let preview = build_attach_preview("sleep", &[], Some("1mbit"), None).unwrap();
+        let preview = build_attach_preview("sleep", &[], Some("1mbit"), None, None).unwrap();
 
         assert!(preview.pids.is_empty());
         assert_eq!(preview.download.as_deref(), Some("1 Mbit/s"));
@@ -194,7 +197,7 @@ mod tests {
     // ---- render tests ----
 
     fn sample_preview() -> AttachPreview {
-        build_attach_preview("sleep", &[12345], Some("500kbit"), Some("500kbit")).unwrap()
+        build_attach_preview("sleep", &[12345], Some("500kbit"), Some("500kbit"), None).unwrap()
     }
 
     #[test]
@@ -250,7 +253,8 @@ mod tests {
 
     #[test]
     fn preview_empty_pids_handled_safely() {
-        let empty_preview = build_attach_preview("sleep", &[], Some("500kbit"), None).unwrap();
+        let empty_preview =
+            build_attach_preview("sleep", &[], Some("500kbit"), None, None).unwrap();
         let mut output = String::new();
         render_attach_preview_section(&mut output, &empty_preview);
         assert!(output.contains("    discovered PID(s): (none)"));
@@ -259,7 +263,7 @@ mod tests {
 
     #[test]
     fn preview_without_rates_shows_unlimited() {
-        let no_rate_preview = build_attach_preview("sleep", &[42], None, None).unwrap();
+        let no_rate_preview = build_attach_preview("sleep", &[42], None, None, None).unwrap();
         let mut output = String::new();
         render_attach_preview_section(&mut output, &no_rate_preview);
         assert!(output.contains("    requested download: unlimited"));

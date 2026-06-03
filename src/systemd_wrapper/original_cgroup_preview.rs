@@ -15,6 +15,7 @@ const CGROUP_FS_ROOT: &str = "/sys/fs/cgroup";
 pub(crate) enum OriginalCgroupCaptureStatus {
     Required,
     CapturedFromSample,
+    CapturedLive,
     Missing,
     Unsafe,
     ZelynicManaged,
@@ -25,6 +26,7 @@ impl OriginalCgroupCaptureStatus {
         match self {
             Self::Required => "required",
             Self::CapturedFromSample => "captured from sample",
+            Self::CapturedLive => "captured",
             Self::Missing => "missing",
             Self::Unsafe => "unsafe",
             Self::ZelynicManaged => "zelynic-managed",
@@ -116,6 +118,64 @@ pub(crate) fn build_original_cgroup_preview_from_sample(
             original_cgroup_path: None,
             rollback_target_path: None,
             reason: err.reason().to_string(),
+        },
+    }
+}
+
+pub(crate) fn capture_original_cgroups_live(pids: &[u32]) -> Vec<OriginalCgroupCapturePreview> {
+    pids.iter()
+        .copied()
+        .map(|pid| {
+            let path = format!("/proc/{}/cgroup", pid);
+            let content = std::fs::read_to_string(&path).ok();
+            build_live_preview_from_content(pid, content.as_deref())
+        })
+        .collect()
+}
+
+pub(crate) fn build_live_preview_from_content(
+    pid: u32,
+    content: Option<&str>,
+) -> OriginalCgroupCapturePreview {
+    match content {
+        Some(c) => match parse_proc_cgroup_v2_path(c) {
+            Ok(cgroup_path) => OriginalCgroupCapturePreview {
+                pid,
+                status: OriginalCgroupCaptureStatus::CapturedLive,
+                rollback_target_path: Some(cgroup_v2_path_to_fs_path(&cgroup_path)),
+                original_cgroup_path: Some(cgroup_path),
+                reason: "rollback target captured from live original cgroup".to_string(),
+            },
+            Err(OriginalCgroupParseError::MissingV2Line) => OriginalCgroupCapturePreview {
+                pid,
+                status: OriginalCgroupCaptureStatus::Missing,
+                original_cgroup_path: None,
+                rollback_target_path: None,
+                reason: OriginalCgroupParseError::MissingV2Line.reason().to_string(),
+            },
+            Err(OriginalCgroupParseError::ZelynicManaged) => OriginalCgroupCapturePreview {
+                pid,
+                status: OriginalCgroupCaptureStatus::ZelynicManaged,
+                original_cgroup_path: None,
+                rollback_target_path: None,
+                reason: OriginalCgroupParseError::ZelynicManaged
+                    .reason()
+                    .to_string(),
+            },
+            Err(err) => OriginalCgroupCapturePreview {
+                pid,
+                status: OriginalCgroupCaptureStatus::Unsafe,
+                original_cgroup_path: None,
+                rollback_target_path: None,
+                reason: err.reason().to_string(),
+            },
+        },
+        None => OriginalCgroupCapturePreview {
+            pid,
+            status: OriginalCgroupCaptureStatus::Missing,
+            original_cgroup_path: None,
+            rollback_target_path: None,
+            reason: "original cgroup capture unavailable/stale".to_string(),
         },
     }
 }
@@ -266,5 +326,33 @@ mod tests {
             cgroup_v2_path_to_fs_path("/system.slice/foo.scope"),
             "/sys/fs/cgroup/system.slice/foo.scope"
         );
+    }
+
+    #[test]
+    fn build_live_preview_from_content_missing() {
+        let preview = build_live_preview_from_content(12345, None);
+        assert_eq!(preview.status, OriginalCgroupCaptureStatus::Missing);
+        assert_eq!(preview.reason, "original cgroup capture unavailable/stale");
+    }
+
+    #[test]
+    fn build_live_preview_from_content_valid() {
+        let preview =
+            build_live_preview_from_content(12345, Some("0::/system.slice/example.scope\n"));
+        assert_eq!(preview.status, OriginalCgroupCaptureStatus::CapturedLive);
+        assert_eq!(
+            preview.original_cgroup_path.as_deref(),
+            Some("/system.slice/example.scope")
+        );
+        assert_eq!(
+            preview.rollback_target_path.as_deref(),
+            Some("/sys/fs/cgroup/system.slice/example.scope")
+        );
+    }
+
+    #[test]
+    fn build_live_preview_from_content_unsafe() {
+        let preview = build_live_preview_from_content(12345, Some("0::/../bad\n"));
+        assert_eq!(preview.status, OriginalCgroupCaptureStatus::Unsafe);
     }
 }

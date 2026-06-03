@@ -30,13 +30,21 @@ pub(crate) struct AttachSafetyPreflight {
 pub(crate) fn build_attach_safety_preflight(
     discovered_pids: &[u32],
     future_target_cgroup: &str,
+    live_cgroup_previews: Option<Vec<OriginalCgroupCapturePreview>>,
 ) -> AttachSafetyPreflight {
+    let (original_cgroup_capture, original_cgroup_previews) = match live_cgroup_previews {
+        Some(previews) => ("read-only capture completed".to_string(), previews),
+        None => (
+            "required before attach; not read in this probe".to_string(),
+            build_pending_original_cgroup_previews(discovered_pids),
+        ),
+    };
+
     AttachSafetyPreflight {
         discovered_pids: discovered_pids.to_vec(),
         future_target_cgroup: future_target_cgroup.to_string(),
-        original_cgroup_capture:
-            "required before attach; not read in this probe".to_string(),
-        original_cgroup_previews: build_pending_original_cgroup_previews(discovered_pids),
+        original_cgroup_capture,
+        original_cgroup_previews,
         pid_liveness_check: "required before attach; reject dead PIDs".to_string(),
         self_protection_check:
             "required before attach; reject Zelynic itself, dead PIDs, and already managed Zelynic cgroups until explicitly supported".to_string(),
@@ -161,24 +169,57 @@ fn render_original_cgroup_capture_preview(
 
     for preview in previews {
         match preview.rollback_target_path.as_deref() {
-            Some(rollback_target) => push_line(
-                output,
-                &format!(
-                    "      PID {}: {}; rollback target: {}",
-                    preview.pid,
-                    preview.status.label(),
-                    rollback_target
-                ),
-            ),
-            None => push_line(
-                output,
-                &format!(
-                    "      PID {}: {}; rollback target: pending original cgroup capture ({})",
-                    preview.pid,
-                    preview.status.label(),
-                    preview.reason
-                ),
-            ),
+            Some(rollback_target) => {
+                if preview.status == OriginalCgroupCaptureStatus::CapturedLive {
+                    push_line(
+                        output,
+                        &format!(
+                            "      PID {}: captured original cgroup: {}",
+                            preview.pid,
+                            preview.original_cgroup_path.as_deref().unwrap_or("")
+                        ),
+                    );
+                    push_line(
+                        output,
+                        &format!("      rollback target: {}", rollback_target),
+                    );
+                } else {
+                    push_line(
+                        output,
+                        &format!(
+                            "      PID {}: {}; rollback target: {}",
+                            preview.pid,
+                            preview.status.label(),
+                            rollback_target
+                        ),
+                    );
+                }
+            }
+            None => {
+                if preview.reason == "original cgroup capture unavailable/stale" {
+                    push_line(
+                        output,
+                        &format!(
+                            "      PID {}: original cgroup capture unavailable/stale",
+                            preview.pid
+                        ),
+                    );
+                    push_line(
+                        output,
+                        "      rollback target: pending original cgroup capture",
+                    );
+                } else {
+                    push_line(
+                        output,
+                        &format!(
+                            "      PID {}: {}; rollback target: pending original cgroup capture ({})",
+                            preview.pid,
+                            preview.status.label(),
+                            preview.reason
+                        ),
+                    );
+                }
+            }
         }
     }
 }
@@ -196,7 +237,7 @@ mod tests {
     use crate::systemd_wrapper::original_cgroup_preview::build_original_cgroup_preview_from_sample;
 
     fn sample_preflight() -> AttachSafetyPreflight {
-        build_attach_safety_preflight(&[12345, 12346], "/sys/fs/cgroup/zelynic/target_sleep")
+        build_attach_safety_preflight(&[12345, 12346], "/sys/fs/cgroup/zelynic/target_sleep", None)
     }
 
     #[test]

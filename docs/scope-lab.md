@@ -435,16 +435,28 @@ It rejects malformed input, empty cgroup paths, parent traversal (`..`), and
 paths already under `/zelynic` because restoring into a Zelynic-managed target
 cgroup would be unsafe.
 
-Live Scope Runner probe output still does **not** read `/proc/<pid>/cgroup`.
-Instead, it reports:
+#### Read-only original cgroup capture
 
-- `original cgroup capture: required before attach; not read in this probe`
-- `rollback target: pending original cgroup capture`
+The v2.6 phase 3 lab introduces a read-only live original cgroup capture to the
+successful root system-scope `--probe-live` path. This reads `/proc/<pid>/cgroup`
+only after a successful root system-scope probe discovers PIDs.
 
-This keeps rollback planning visible without claiming rollback is ready. A
-future live attach path must capture each PID's original cgroup immediately
-before moving it, then use that captured path as the rollback destination if the
-attach operation fails or is later removed.
+- **Read-only**: This capture is strictly read-only. It does NOT attach, move,
+  or limit any processes.
+- **Honest rollback targets**: The rollback target becomes known and is displayed
+  only if the capture succeeds. If the process has already exited and its cgroup
+  cannot be read, it is marked as `missing` with reason `original cgroup capture unavailable/stale`.
+- **Blocked attach**: The live attach (`--attach-live`) remains blocked. This
+  capture step is merely information gathering for a future safe rollback plan.
+
+Live Scope Runner probe output now reports the actual captured path:
+
+- `original cgroup capture: read-only capture completed`
+- `PID <pid>: captured original cgroup: /system.slice/example.scope`
+- `rollback target: /sys/fs/cgroup/system.slice/example.scope`
+
+This keeps rollback planning visible and prepares the exact rollback destination
+before any future attach path could move a PID.
 
 #### What the Preview Does NOT Do
 
