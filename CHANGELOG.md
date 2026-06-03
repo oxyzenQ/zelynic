@@ -7,12 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.3.0] - 2026-06-03 - v2.3.0 Distro Matrix
+
 ### Added
 
+- **Source policy enforcement**: Added `RULES.md` with project-wide policy rules including a 1000 LOC limit per core code file and mandatory copyright/SPDX headers.
+- **Policy checker**: Added `scripts/check-policy.py` for automated policy enforcement as part of the `./build.sh check-all` quality gate.
+- **Dependency policy**: Added `deny.toml` for structured cargo-deny checks and `docs/supply-chain.md` documenting the supply-chain policy.
+- **Command module extraction**: Extracted command handlers from `src/main.rs` into `src/commands/` module (mod.rs, strict.rs, run.rs, profile.rs, monitor.rs, backend.rs, help.rs), slimming main.rs from 926 to 94 LOC.
 - **Distro support matrix**: Added `docs/distro-matrix.md` with distribution support status labels, required capabilities, and validation checklist for tracking which Linux distributions have been validated with Zelynic's strict limiter path.
 - **Host fact collector**: Added `scripts/collect-host-facts.sh`, a non-mutating, no-sudo shell script that collects kernel, distro, cgroup, userspace tool, and default route information for host capability assessment.
 - **Distro validation flow**: Added a structured two-step validation flow to `docs/validation.md` covering non-root read-only capability checks and privileged strict limiter validation with documentation guidance.
 - **Validation report templates**: Added `docs/validation-reports/` with README, per-distro report template, and initial Arch/CachyOS validation report documenting the v2.0.0 strict limiter test results.
+- **Release notes**: Added `docs/release-v2.3.0.md` with scope, validation, and caveat notes for this release.
+
+### Notes
+
+- No runtime limiter behavior changes in this release. All commits are documentation, policy enforcement, CI/CD hardening, and code organization.
+- Strict limiter path remains validated on tested Arch/CachyOS modern cgroup v2 host only. Fedora/Ubuntu/Debian remain candidate/pending.
+- `zelynic run --execute` remains non-mutating. Live systemd-run execution is not implemented.
+- `zelynic run` remains experimental groundwork, not a supported active backend.
 
 ## [2.2.0] - 2026-06-03 - v2.2.0 Scope Prelude
 
@@ -162,7 +176,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `zelynic list`, `zelynic strict`, `zelynic unstrict`, `zelynic status` commands
 - Basic CLI interface with colored output
 
-[Unreleased]: https://github.com/oxyzenq/zelynic/compare/v2.2.0...HEAD
+[Unreleased]: https://github.com/oxyzenq/zelynic/compare/v2.3.0...HEAD
+[2.3.0]: https://github.com/oxyzenq/zelynic/compare/v2.2.0...v2.3.0
 [2.2.0]: https://github.com/oxyzenq/zelynic/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/oxyzenq/zelynic/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/oxyzenq/zelynic/compare/v1.0.0...v2.0.0
