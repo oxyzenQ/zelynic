@@ -150,7 +150,7 @@ struct in `src/systemd_wrapper/contract.rs`:
 
 | Phase | Description | Privilege | Implemented |
 |-------|-------------|-----------|-------------|
-| **Launch** | Create a transient systemd scope via `systemd-run` (user or system) | User | No |
+| **Launch** | Create a transient systemd scope via `systemd-run` (user or system) | User manager (user scope) / system manager or root-or-polkit (system scope) | No |
 | **Discover** | Read ControlGroup from scope unit, then read PID(s) from `cgroup.procs` | User | No |
 | **Attach** | Move discovered PIDs into Zelynic target cgroup and apply nftables + tc HTB limits | Root | No |
 

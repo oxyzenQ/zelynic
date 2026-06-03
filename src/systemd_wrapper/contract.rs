@@ -53,8 +53,10 @@ impl ContractPhase {
 /// Privilege requirements for a contract step.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum StepPrivilege {
-    /// No special privilege needed (user context).
+    /// No special privilege needed (user manager / session context).
     User,
+    /// System manager context; requires root or may trigger Polkit/floating auth.
+    SystemManager,
     /// Root privilege required.
     Root,
 }
@@ -62,7 +64,8 @@ pub(crate) enum StepPrivilege {
 impl StepPrivilege {
     pub(crate) fn label(self) -> &'static str {
         match self {
-            StepPrivilege::User => "user",
+            StepPrivilege::User => "user manager",
+            StepPrivilege::SystemManager => "system manager / root-or-polkit",
             StepPrivilege::Root => "root",
         }
     }
@@ -97,6 +100,11 @@ pub(crate) fn build_run_contract(scope_mode: ScopeMode) -> RunContract {
         ScopeMode::System => "systemctl show <unit> --property ControlGroup",
     };
 
+    let launch_privilege = match scope_mode {
+        ScopeMode::User => StepPrivilege::User,
+        ScopeMode::System => StepPrivilege::SystemManager,
+    };
+
     let steps = vec![
         ContractStep {
             phase: ContractPhase::Launch,
@@ -105,7 +113,7 @@ pub(crate) fn build_run_contract(scope_mode: ScopeMode) -> RunContract {
                 "create transient systemd scope via systemd-run {} --unit <unit> -- <command>",
                 launch_scope_arg
             ),
-            privilege: StepPrivilege::User,
+            privilege: launch_privilege,
             scope_mode,
         },
         ContractStep {
@@ -127,15 +135,17 @@ pub(crate) fn build_run_contract(scope_mode: ScopeMode) -> RunContract {
         },
     ];
 
+    let launch_context = match scope_mode {
+        ScopeMode::User => "user-scope launch runs in user manager context",
+        ScopeMode::System => "system-scope launch requires root or triggers Polkit",
+    };
+
     let safety_gates = vec![
         SafetyGate {
             reason: "live execution is not implemented yet".to_string(),
         },
         SafetyGate {
-            reason: format!(
-                "attach step requires root; {}-scope launch runs in user context",
-                scope_mode.label()
-            ),
+            reason: format!("attach step requires root; {}", launch_context),
         },
     ];
 
@@ -160,6 +170,8 @@ mod tests {
         assert_eq!(contract.steps[0].scope_mode, ScopeMode::User);
         assert!(!contract.steps[0].implemented);
         assert!(contract.steps[0].description.contains("--user --scope"));
+        // User scope launch privilege label should say "user manager"
+        assert_eq!(contract.steps[0].privilege.label(), "user manager");
 
         assert_eq!(contract.steps[1].phase, ContractPhase::Discover);
         assert_eq!(contract.steps[1].privilege, StepPrivilege::User);
@@ -180,6 +192,12 @@ mod tests {
         assert_eq!(contract.steps[0].scope_mode, ScopeMode::System);
         assert!(contract.steps[0].description.contains("--scope"));
         assert!(!contract.steps[0].description.contains("--user --scope"));
+        // System scope launch must NOT be privilege: user
+        assert_eq!(contract.steps[0].privilege, StepPrivilege::SystemManager);
+        assert_eq!(
+            contract.steps[0].privilege.label(),
+            "system manager / root-or-polkit"
+        );
 
         assert!(contract.steps[1]
             .description
@@ -189,6 +207,16 @@ mod tests {
             .contains("systemctl --user show"));
 
         assert_eq!(contract.steps[2].privilege, StepPrivilege::Root);
+    }
+
+    #[test]
+    fn system_scope_launch_privilege_is_not_user() {
+        let contract = build_run_contract(ScopeMode::System);
+        assert_ne!(
+            contract.steps[0].privilege,
+            StepPrivilege::User,
+            "system scope launch should not have user privilege"
+        );
     }
 
     #[test]
@@ -271,6 +299,19 @@ mod tests {
             .safety_gates
             .iter()
             .any(|g| g.reason.contains("system-scope")));
+        assert!(contract
+            .safety_gates
+            .iter()
+            .any(|g| g.reason.contains("Polkit")));
+    }
+
+    #[test]
+    fn user_scope_contract_safety_gate_mentions_user_manager() {
+        let contract = build_run_contract(ScopeMode::User);
+        assert!(contract
+            .safety_gates
+            .iter()
+            .any(|g| g.reason.contains("user manager")));
     }
 
     #[test]
