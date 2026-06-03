@@ -4,9 +4,11 @@ use anyhow::{bail, Result};
 
 mod contract;
 mod discovery;
+mod manual_probe;
 mod plan;
 mod preflight;
 mod render;
+mod render_contract;
 mod sanitize;
 
 pub(crate) use plan::ScopeMode;
