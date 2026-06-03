@@ -412,10 +412,71 @@ present.
 #### Future Direction
 
 The preview bridges discovered PIDs to the future resolved-PID strict attach
-backend. The next step would be a separate, explicit attach gate (e.g.
-`--attach`) that actually moves PIDs into the Zelynic target cgroup and applies
-limits. This would NOT be automatic — the user would need to explicitly opt in
-with the attach gate. The Scope Runner probe itself remains non-mutating.
+backend. The next step is the `--attach-live` flag — a separate, explicit
+attach gate that would actually move PIDs into the Zelynic target cgroup and
+apply limits. This would NOT be automatic — the user would need to explicitly
+opt in with `--attach-live`. The Scope Runner probe itself remains non-mutating.
+
+### Live Attach Gate (`--attach-live`)
+
+The `--attach-live` flag is an explicit future gate for live limiter attach.
+It is **hard-blocked** in this build — no attach operation is performed.
+
+#### What `--attach-live` Does NOT Do
+
+- Does NOT move any PID into any cgroup.
+- Does NOT create Zelynic target cgroups.
+- Does NOT modify nftables rules or chains.
+- Does NOT modify tc/qdisc/filter state.
+- Does NOT write Zelynic state files.
+- Does NOT call `zelynic strict`.
+- Does NOT call the limiter attach execution path.
+
+#### Requirements (All Must Be True)
+
+1. `--execute` flag is set.
+2. `--scope-mode system` is set.
+3. `--probe-live` flag is set.
+4. `--attach-live` flag is set.
+5. Effective UID is 0 (root).
+
+Even when all requirements are met, the attach gate returns:
+
+> "Scope Runner live attach is not implemented yet. This build only supports
+> live probe and attach preview."
+
+#### Gate Order
+
+The gates are evaluated in strict order:
+
+1. `--probe-live` must be set (Clap enforces `requires = "execute"` and
+   `requires = "probe_live"` for `--attach-live`).
+2. `--scope-mode system` is required (probe gate).
+3. Root (euid == 0) is required (probe gate).
+4. `--attach-live` is checked **after** probe gate passes, and hard-blocks.
+
+This means the attach gate is reached only when the probe gate would otherwise
+succeed. At that point, the attach gate deliberately refuses.
+
+#### Current Supported Live Path
+
+The only supported live path in this build is:
+
+```
+launch system scope → discover ControlGroup/PID → print attach preview
+```
+
+Live attach requires another explicit implementation step and is not
+available in this build.
+
+#### CLI Syntax (Hard-Blocked)
+
+```bash
+sudo zelynic run --execute --scope-mode system --probe-live --attach-live \
+  -d 500kbit -u 500kbit -- sleep 60
+# Error: Scope Runner live attach is not implemented yet.
+# This build only supports live probe and attach preview.
+```
 
 ## Privilege and Session Handoff
 

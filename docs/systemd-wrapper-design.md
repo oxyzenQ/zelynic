@@ -60,7 +60,14 @@ root-only, system-scope live probe. When `--execute --scope-mode system
 systemd scope, discovers the ControlGroup and PID(s), reports findings, and
 prints a non-mutating "Future attach preview" that bridges discovered PIDs to
 the future resolved-PID strict attach backend — all without applying any
-bandwidth limiting. See `docs/scope-lab.md` for the full Scope Runner design.
+bandwidth limiting.
+
+The v2.5 Scope Runner also adds `--attach-live` as an explicit future gate for
+live limiter attach. It is **hard-blocked** in this build — even when all
+requirements are met (execute + probe-live + system scope + root), the command
+fails with "live attach is not implemented yet." No PID movement, no limiter
+attach, no nftables/tc/cgroup/state changes are performed. See
+`docs/scope-lab.md` for the full Scope Runner and Live Attach Gate design.
 
 The displayed `systemd-run` command is for visibility only. Internally, Zelynic
 keeps the command as structured argv; a future live implementation must execute

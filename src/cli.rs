@@ -204,6 +204,20 @@ pub enum Commands {
         #[arg(long = "probe-live", requires = "execute")]
         probe_live: bool,
 
+        /// Explicit future live attach gate (v2.5 Scope Runner, HARD-BLOCKED)
+        ///
+        /// Requires --execute, --scope-mode system, --probe-live, and root.
+        /// This flag is reserved for a future implementation step where
+        /// discovered PID(s) would be moved into the Zelynic target cgroup
+        /// and bandwidth limits would be applied.
+        ///
+        /// **This build hard-blocks attach.** Even when all requirements
+        /// are met, the command will fail with "live attach is not
+        /// implemented yet." No PID movement, no limiter attach, no
+        /// nftables/tc/cgroup/state changes are performed.
+        #[arg(long = "attach-live", requires = "execute", requires = "probe_live")]
+        attach_live: bool,
+
         /// Optional target name for state/cgroup naming; defaults to command basename
         #[arg(long = "target", value_name = "TARGET")]
         target: Option<String>,
@@ -578,6 +592,7 @@ mod tests {
                 dry_run,
                 execute,
                 probe_live,
+                attach_live,
                 scope_mode,
                 download,
                 upload,
@@ -587,6 +602,7 @@ mod tests {
                 assert!(dry_run);
                 assert!(!execute);
                 assert!(!probe_live);
+                assert!(!attach_live);
                 assert_eq!(scope_mode, RunScopeModeArg::User);
                 assert_eq!(download.as_deref(), Some("500kbit"));
                 assert_eq!(upload.as_deref(), Some("500kbit"));
@@ -615,6 +631,7 @@ mod tests {
                 dry_run,
                 execute,
                 probe_live,
+                attach_live,
                 scope_mode,
                 download,
                 command,
@@ -623,6 +640,7 @@ mod tests {
                 assert!(!dry_run);
                 assert!(execute);
                 assert!(!probe_live);
+                assert!(!attach_live);
                 assert_eq!(scope_mode, RunScopeModeArg::User);
                 assert_eq!(download.as_deref(), Some("500kbit"));
                 assert_eq!(command, vec!["echo", "hello"]);
@@ -688,6 +706,7 @@ mod tests {
                 dry_run,
                 execute,
                 probe_live,
+                attach_live,
                 scope_mode,
                 download,
                 command,
@@ -696,6 +715,7 @@ mod tests {
                 assert!(!dry_run);
                 assert!(execute);
                 assert!(probe_live);
+                assert!(!attach_live);
                 assert_eq!(scope_mode, RunScopeModeArg::System);
                 assert_eq!(download.as_deref(), Some("500kbit"));
                 assert_eq!(command, vec!["sleep", "30"]);
@@ -735,7 +755,112 @@ mod tests {
         .unwrap();
 
         match cli.command.unwrap() {
-            Commands::Run { probe_live, .. } => assert!(!probe_live),
+            Commands::Run {
+                probe_live,
+                attach_live,
+                ..
+            } => {
+                assert!(!probe_live);
+                assert!(!attach_live);
+            }
+            other => panic!("expected run command, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn run_attach_live_parses_with_probe_live_and_system() {
+        let cli = Cli::try_parse_from([
+            "zelynic",
+            "run",
+            "--execute",
+            "--scope-mode",
+            "system",
+            "--probe-live",
+            "--attach-live",
+            "-d",
+            "500kbit",
+            "-u",
+            "500kbit",
+            "--",
+            "sleep",
+            "60",
+        ])
+        .unwrap();
+
+        match cli.command.unwrap() {
+            Commands::Run {
+                dry_run,
+                execute,
+                probe_live,
+                attach_live,
+                scope_mode,
+                download,
+                upload,
+                command,
+                ..
+            } => {
+                assert!(!dry_run);
+                assert!(execute);
+                assert!(probe_live);
+                assert!(attach_live);
+                assert_eq!(scope_mode, RunScopeModeArg::System);
+                assert_eq!(download.as_deref(), Some("500kbit"));
+                assert_eq!(upload.as_deref(), Some("500kbit"));
+                assert_eq!(command, vec!["sleep", "60"]);
+            }
+            other => panic!("expected run command, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn run_attach_live_requires_execute() {
+        let result = Cli::try_parse_from([
+            "zelynic",
+            "run",
+            "--attach-live",
+            "--probe-live",
+            "--",
+            "sleep",
+            "30",
+        ]);
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn run_attach_live_requires_probe_live() {
+        let result = Cli::try_parse_from([
+            "zelynic",
+            "run",
+            "--execute",
+            "--scope-mode",
+            "system",
+            "--attach-live",
+            "--",
+            "sleep",
+            "30",
+        ]);
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn run_attach_live_defaults_false() {
+        let cli = Cli::try_parse_from([
+            "zelynic",
+            "run",
+            "--execute",
+            "--scope-mode",
+            "system",
+            "--probe-live",
+            "--",
+            "sleep",
+            "30",
+        ])
+        .unwrap();
+
+        match cli.command.unwrap() {
+            Commands::Run { attach_live, .. } => assert!(!attach_live),
             other => panic!("expected run command, got {other:?}"),
         }
     }

@@ -47,6 +47,21 @@ pub(crate) fn probe_gate(probe_live: bool, scope_mode: ScopeMode) -> anyhow::Res
     Ok(())
 }
 
+/// Attach gate check: always hard-blocks in this build.
+///
+/// This gate is reached only after probe_gate passes (i.e. probe_live +
+/// system + root). It deliberately refuses to perform any attach operation
+/// and returns a clear "not implemented yet" error.
+///
+/// No PID movement, no limiter attach, no nftables/tc/cgroup/state
+/// changes are performed.
+pub(crate) fn attach_gate() -> anyhow::Result<()> {
+    bail!(
+        "Scope Runner live attach is not implemented yet. \
+         This build only supports live probe and attach preview."
+    )
+}
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -55,7 +70,7 @@ pub(crate) fn probe_gate(probe_live: bool, scope_mode: ScopeMode) -> anyhow::Res
 mod tests {
     use super::*;
 
-    // ---- gate tests ----
+    // ---- probe gate tests ----
 
     #[test]
     fn gate_blocks_when_probe_live_not_set() {
@@ -89,5 +104,22 @@ mod tests {
         assert!(probe_gate(false, ScopeMode::System).is_err()); // no probe flag
         assert!(probe_gate(true, ScopeMode::User).is_err()); // user scope
                                                              // The root check depends on runtime euid
+    }
+
+    // ---- attach gate tests ----
+
+    #[test]
+    fn attach_gate_always_hard_blocks() {
+        let err = attach_gate().unwrap_err().to_string();
+        assert!(err.contains("live attach is not implemented yet"));
+        assert!(err.contains("live probe and attach preview"));
+    }
+
+    #[test]
+    fn attach_gate_does_not_claim_attached() {
+        let err = attach_gate().unwrap_err().to_string();
+        assert!(!err.contains("attached"));
+        assert!(!err.contains("limited"));
+        assert!(!err.contains("enforced"));
     }
 }

@@ -9,12 +9,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **`run_systemd_wrapper` signature**: Added `probe_live` parameter to
+- **`run_systemd_wrapper` signature**: Added `attach_live` parameter to
   `run_systemd_wrapper` and `handle_run` for the v2.5 Scope Runner live
-  probe path.
+  attach gate.
+- **Module split**: Refactored `scope_runner.rs` into focused modules
+  (`scope_runner.rs`, `scope_probe.rs`, `attach_preview.rs`) to keep files
+  under 1000 LOC.
 
 ### Added
 
+- **Live attach gate flag**: Added `--attach-live` flag to `zelynic run`
+  for an explicit future live limiter attach gate. Requires `--execute`,
+  `--probe-live`, `--scope-mode system`, and root. This flag is
+  **hard-blocked** — even when all requirements are met, the command fails
+  with "Scope Runner live attach is not implemented yet. This build only
+  supports live probe and attach preview." No PID movement, no limiter
+  attach, no nftables/tc/cgroup/state changes are performed.
+- **Attach gate Clap constraints**: `--attach-live` uses Clap
+  `requires = "execute"` and `requires = "probe_live"` to reject
+  obvious invalid combinations at parse time.
+- **Attach gate function**: Added `attach_gate()` in `scope_runner.rs`
+  that always returns a hard-blocked "not implemented yet" error.
+- **Attach gate tests**: Added unit tests verifying the attach gate always
+  hard-blocks, does not claim "attached"/"limited"/"enforced", and does
+  not claim mutation. Added integration tests in `mod.rs` verifying that
+  `attach_live` without `probe_live` falls through to not-implemented,
+  `attach_live` with user scope is blocked by probe gate, and
+  `attach_live` with system scope non-root is blocked by probe gate.
+- **CLI tests**: Added tests for `--attach-live` parsing, `--attach-live`
+  requires `--execute`, `--attach-live` requires `--probe-live`, and
+  `--attach-live` defaults to false.
 - **Scope Runner live probe**: Added `--probe-live` flag to `zelynic run`
   for a controlled, root-only, system-scope live probe. When invoked as
   `sudo zelynic run --execute --scope-mode system --probe-live -- <command>`,
@@ -74,13 +98,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `docs/scope-lab.md` explaining the preview-only section, its fields,
   safety disclaimers, what it does not do, implementation, and future
   direction (separate explicit attach gate).
+- **Live attach gate docs**: Added "Live Attach Gate (`--attach-live`)"
+  section to `docs/scope-lab.md` explaining the hard-blocked future attach
+  gate, its requirements, gate order, what it does not do, and the current
+  supported live path.
 - **Wrapper design update**: Updated `docs/systemd-wrapper-design.md` to
-  mention the v2.5 Scope Runner and its `--probe-live` gate.
+  mention the v2.5 Scope Runner, its `--probe-live` gate, and the
+  `--attach-live` hard-blocked future gate.
 
 ### Notes
 
 - `zelynic run --execute` without `--probe-live` remains non-mutating and
   returns "Live systemd wrapper execution is not implemented yet."
+- `--attach-live` is hard-blocked in this build. Even with root +
+  `--execute` + `--probe-live` + `--scope-mode system`, the command
+  returns "live attach is not implemented yet."
 - No bandwidth limiting is applied by the Scope Runner.
 - No version bump yet.
 
