@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.5.0] - 2026-06-03 - v2.5.0 Scope Runner
+
 ### Changed
 
 - **`run_systemd_wrapper` signature**: Added `attach_live` parameter to
@@ -123,7 +125,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `--execute` + `--probe-live` + `--scope-mode system`, the command
   returns "live attach is not implemented yet."
 - No bandwidth limiting is applied by the Scope Runner.
-- No version bump yet.
+- `zelynic strict` remains the only validated active limiter path.
 
 ## [2.4.0] - 2026-06-03 - v2.4.0 Scope Lab
 
@@ -329,7 +331,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `zelynic list`, `zelynic strict`, `zelynic unstrict`, `zelynic status` commands
 - Basic CLI interface with colored output
 
-[Unreleased]: https://github.com/oxyzenq/zelynic/compare/v2.4.0...HEAD
+[Unreleased]: https://github.com/oxyzenq/zelynic/compare/v2.5.0...HEAD
+[2.5.0]: https://github.com/oxyzenq/zelynic/compare/v2.4.0...v2.5.0
 [2.4.0]: https://github.com/oxyzenq/zelynic/compare/v2.3.0...v2.4.0
 [2.3.0]: https://github.com/oxyzenq/zelynic/compare/v2.2.0...v2.3.0
 [2.2.0]: https://github.com/oxyzenq/zelynic/compare/v2.1.0...v2.2.0

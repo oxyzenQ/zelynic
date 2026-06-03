@@ -21,7 +21,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-v2.4.0-7C3AED?style=flat-square&labelColor=111827" alt="Version v2.4.0">
+  <img src="https://img.shields.io/badge/version-v2.5.0-7C3AED?style=flat-square&labelColor=111827" alt="Version v2.4.0">
   <img src="https://img.shields.io/badge/license-GPL--3.0-E040FB?style=flat-square&labelColor=111827" alt="GPL-3.0 license">
   <img src="https://img.shields.io/badge/platform-Linux%20x86__64-8B5CF6?style=flat-square&labelColor=111827" alt="Platform Linux x86_64">
   <img src="https://img.shields.io/badge/Rust-1.88+-A855F7?style=flat-square&labelColor=111827" alt="Rust 1.88+">
@@ -53,18 +53,22 @@ zelynic backend doctor       # Detailed capability matrix
 zelynic backend doctor --json
 ```
 
-The v2.2 development line also includes `zelynic run --dry-run` groundwork for
-a future systemd scope wrapper mode. It prints the planned scope/cgroup wiring
-and preview-only `systemd-run` launch command without launching a process or
-modifying nftables, tc, cgroups, or state. User scope is the default planning
-mode to avoid accidental system Polkit prompts; system scope can be previewed
-explicitly with `--scope-mode system`. `zelynic run --execute` is gated as an
-experimental opt-in and currently stops at a non-mutating not-implemented
-boundary after printing an execution preflight. Full live limiting still needs a
-privilege handoff design because user-scope launch and root-required limiter
-attachment have different requirements. The likely future model is
-launch-then-attach: systemd starts the command, then Zelynic attaches discovered
-PIDs with the existing strict backend.
+The `zelynic run` command provides systemd scope wrapper planning and a live
+probe lab for system-scope units. `zelynic run --dry-run` renders the planned
+scope/cgroup wiring and preview-only `systemd-run` launch command without
+launching a process or modifying nftables, tc, cgroups, or state. The v2.5 Scope
+Runner adds `--probe-live` for a root-only, system-scope live probe that
+launches a real transient systemd scope, discovers ControlGroup and PID(s) via
+`cgroup.procs`, and renders a non-mutating Future Attach Preview. User scope is
+the default planning mode to avoid accidental system Polkit prompts; system
+scope can be previewed explicitly with `--scope-mode system`. `zelynic run
+--execute` without `--probe-live` remains gated as an experimental opt-in
+and returns a non-mutating not-implemented boundary. `--attach-live` exists
+but is hard-blocked. Full live limiting still needs a privilege handoff design
+because user-scope launch and root-required limiter attachment have different
+requirements. `zelynic strict` remains the only validated active limiter path.
+See [docs/scope-lab.md](docs/scope-lab.md) for the full Scope Lab design and
+probe findings.
 
 Support matrix — see [docs/distro-matrix.md](docs/distro-matrix.md) for the full distribution support matrix with validation status:
 
@@ -81,7 +85,7 @@ The strict limiter path is validated on tested modern cgroup v2 Linux hosts. Oth
 
 - **Monitor** bandwidth usage per process/program with cumulative and real-time rates
 - **Limit** download and/or upload speeds per process with tc + nftables + cgroup v2
-- **Experimental run planning** — preview future systemd scope wrapper wiring without runtime changes
+- **Experimental run planning and live probe** — preview future systemd scope wrapper wiring, live system-scope probe with PID discovery and attach preview
 - **QoS priority shaping** — assign high/low priority tiers instead of hard limits
 - **TUI dashboard** — live bandwidth monitor with sparklines, scrolling, and dual RX/TX graphs
 - **Auto-throttle daemon** — background mode that auto-limits when thresholds are exceeded
@@ -114,20 +118,20 @@ Download the latest release from [GitHub Releases](https://github.com/oxyzenq/ze
 
 ```bash
 # Download and extract
-curl -sL https://github.com/oxyzenq/zelynic/releases/latest/download/zelynic-v2.4.0-x86_64-linux.tar.gz | tar xz
+curl -sL https://github.com/oxyzenq/zelynic/releases/latest/download/zelynic-v2.5.0-x86_64-linux.tar.gz | tar xz
 
 # Install system-wide
-sudo install -Dm755 zelynic-v2.4.0-x86_64-linux/zelynic /usr/local/bin/zelynic
+sudo install -Dm755 zelynic-v2.5.0-x86_64-linux/zelynic /usr/local/bin/zelynic
 ```
 
 Verify the download with SHA256 checksums published alongside each release.
 
 Release naming convention:
 
-- Tag: `v2.4.0`
-- Title: `Zelynic v2.4.0 Scope Lab`
+- Tag: `v2.5.0`
+- Title: `Zelynic v2.5.0 Scope Runner`
 
-See [docs/release-v2.4.0.md](docs/release-v2.4.0.md) for the v2.4.0 release notes.
+See [docs/release-v2.5.0.md](docs/release-v2.5.0.md) for the v2.5.0 release notes.
 
 ### From Source
 
@@ -470,7 +474,7 @@ zelynic -i
 
 **Example output of `zelynic -i`:**
 ```
-Version: v2.4.0
+Version: v2.5.0
 Build: linux-x86_64 (ad36a81)
 Copyright: (c) 2026 Rezky_nightky
 License: GPL-3.0
