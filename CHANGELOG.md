@@ -34,6 +34,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   cgroup path validation and `cgroup.procs` write-target previews. It keeps
   parent/target creation as future work and performs no live cgroup reads or
   writes.
+- **Cgroup environment diagnostics model**: Added a pure parser/model for sample
+  `/proc/self/mountinfo` cgroup v2 mount facts, including mount path,
+  read-write/read-only mode, missing mount detection, and unexpected mount path
+  reporting.
 
 ### Changed
 
@@ -54,6 +58,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Move-only executor output**: The skeleton now renders target cgroup
   preflight details, including the future Zelynic target namespace and
   target/rollback `cgroup.procs` paths, while keeping execution blocked.
+- **Target preflight output**: The target cgroup preflight now includes
+  model-only cgroup environment diagnostics and explicitly keeps
+  `cgroup.procs` writes blocked.
 
 ## [2.5.0] - 2026-06-03 - v2.5.0 Scope Runner
 

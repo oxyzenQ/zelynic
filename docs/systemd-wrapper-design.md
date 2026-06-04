@@ -105,6 +105,11 @@ future target and rollback `cgroup.procs` paths, and marks parent/target cgroup
 creation as future work. It remains model-only and performs no live filesystem
 metadata checks or cgroup writes.
 
+The v2.7 phase 4 lab adds pure cgroup environment diagnostics for future
+move-only execution. It parses sample mountinfo text to model cgroup v2 mount
+path and read-write/read-only status, then renders current Scope Runner output
+as not checked live with `cgroup.procs` writes blocked.
+
 The displayed `systemd-run` command is for visibility only. Internally, Zelynic
 keeps the command as structured argv; a future live implementation must execute
 structured arguments directly and must not pass a rendered shell string to a

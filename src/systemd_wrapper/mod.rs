@@ -5,6 +5,7 @@ use anyhow::{bail, Result};
 mod attach_preview;
 mod attach_safety;
 mod attach_transaction;
+mod cgroup_environment;
 mod contract;
 mod discovery;
 mod experimental_attach_gate;

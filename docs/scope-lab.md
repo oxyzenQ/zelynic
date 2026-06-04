@@ -565,6 +565,27 @@ root. This phase still performs no `mkdir`, no `cgroup.procs` write, no PID
 movement, no limiter attach, no nftables/tc operation, and no Zelynic state
 write.
 
+#### Read-only cgroup environment diagnostics (v2.7 Phase 4)
+
+The v2.7 phase 4 lab adds cgroup environment diagnostics below the target
+cgroup preflight. The code includes a pure parser/model for sample
+`/proc/self/mountinfo` content so future live checks can reason about the
+cgroup v2 mount path and mount mode.
+
+The model can represent:
+
+- cgroup v2 mount path, preferably `/sys/fs/cgroup`
+- mount mode: read-write, read-only, or unknown
+- missing cgroup v2 mount
+- unexpected cgroup v2 mount path
+- target namespace existence as not checked
+- target cgroup existence as not checked
+- `cgroup.procs` writes as blocked
+
+This phase does not read live mountinfo in the Scope Runner output path. It
+also does not create cgroups, does not write `cgroup.procs`, does not move PIDs,
+and does not enable live limiter attach.
+
 Even if every checklist item is `ok`, the final result remains:
 
 ```text

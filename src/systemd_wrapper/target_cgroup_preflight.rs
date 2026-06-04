@@ -8,6 +8,10 @@
 //! metadata, create directories, write cgroup.procs, move PIDs, call nftables
 //! or tc, write Zelynic state, or execute commands.
 
+use super::cgroup_environment::{
+    build_cgroup_environment_diagnostics, render_cgroup_environment_diagnostics_section,
+    CgroupEnvironmentDiagnostics,
+};
 use super::render::push_line;
 
 pub(crate) const ZELYNIC_CGROUP_ROOT: &str = "/sys/fs/cgroup/zelynic";
@@ -22,6 +26,7 @@ pub(crate) struct TargetCgroupPreflight {
     pub rollback_cgroup_procs: Option<String>,
     pub parent_status: CgroupPathStatus,
     pub target_status: CgroupPathStatus,
+    pub cgroup_environment: CgroupEnvironmentDiagnostics,
     pub execution: String,
     pub blocked_reasons: Vec<String>,
 }
@@ -75,6 +80,7 @@ pub(crate) fn build_target_cgroup_preflight(
         } else {
             CgroupPathStatus::Unsafe
         },
+        cgroup_environment: build_cgroup_environment_diagnostics(None),
         execution: "blocked".to_string(),
         blocked_reasons,
     }
@@ -132,6 +138,7 @@ pub(crate) fn render_target_cgroup_preflight_section(
             ),
         );
     }
+    render_cgroup_environment_diagnostics_section(output, &preflight.cgroup_environment);
     push_line(
         output,
         &format!("        execution: {}", preflight.execution),
@@ -258,6 +265,16 @@ mod tests {
         render_target_cgroup_preflight_section(&mut output, &valid_preflight());
 
         assert!(output.contains("execution: blocked"));
+    }
+
+    #[test]
+    fn output_includes_cgroup_environment_diagnostics() {
+        let mut output = String::new();
+        render_target_cgroup_preflight_section(&mut output, &valid_preflight());
+
+        assert!(output.contains("Cgroup environment diagnostics:"));
+        assert!(output.contains("cgroup v2 mount: not checked"));
+        assert!(output.contains("cgroup.procs writes: blocked"));
     }
 
     #[test]
