@@ -1,6 +1,6 @@
 > **Project status: active again**
 >
-> Zelynic is active again after the v2.0.0 Renaissance release. Core features such as monitor, list, profile, watch, QoS, auto-throttle, Backend Doctor, and per-process bandwidth limiting through `zelynic strict` have been validated on a modern Arch/CachyOS cgroup v2 host.
+> zelynic is active again after the v2.0.0 Renaissance release. Core features such as monitor, list, profile, watch, QoS, auto-throttle, Backend Doctor, and per-process bandwidth limiting through `zelynic strict` have been validated on a modern Arch/CachyOS cgroup v2 host.
 >
 > **Validation scope:** strict limiting is validated on tested modern cgroup v2 systems, including CachyOS/Arch with kernel `6.18.33-1-cachyos-lts`, nftables `v1.1.6`, tc/iproute2 `7.0.0`, pure cgroup v2, and interface `wlp1s0`. This is not yet a universal all-distro guarantee.
 >
@@ -13,19 +13,17 @@
 <h1 align="center">zelynic</h1>
 
 <p align="center">
-  <strong>Easy userspace bandwidth manager for Linux.</strong>
+  <strong>A serious Linux bandwidth control system for process-aware monitoring, shaping, and validation.</strong>
 </p>
 
 <p align="center">
-  Monitor, shape, and inspect per-process network bandwidth from one focused terminal tool.
+  Built around `tc`, `nftables`, and cgroup v2 to make per-process network behavior inspectable and controllable from the terminal.
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-v2.6.0-7C3AED?style=flat-square&labelColor=111827" alt="Version v2.4.0">
-  <img src="https://img.shields.io/badge/license-GPL--3.0-E040FB?style=flat-square&labelColor=111827" alt="GPL-3.0 license">
-  <img src="https://img.shields.io/badge/platform-Linux%20x86__64-8B5CF6?style=flat-square&labelColor=111827" alt="Platform Linux x86_64">
-  <img src="https://img.shields.io/badge/Rust-1.88+-A855F7?style=flat-square&labelColor=111827" alt="Rust 1.88+">
-  <img src="https://img.shields.io/badge/status-active-22C55E?style=flat-square&labelColor=111827" alt="Status active">
+  <a href="https://ko-fi.com/rezky">
+    <img src="https://img.shields.io/badge/Ko--fi-support-7C3AED?style=flat-square&logo=kofi&logoColor=white&labelColor=111827" alt="Support on Ko-fi">
+  </a>
 </p>
 
 zelynic is a Rust CLI tool for monitoring, limiting, and shaping per-process network bandwidth on Linux. It uses Linux traffic control (`tc`) with HTB qdisc, `nftables` for packet marking, and `cgroup v2` for process-aware rate limiting. Real-time monitoring is powered by `ss`, while the built-in TUI dashboard provides a live, htop-like view of network traffic.
