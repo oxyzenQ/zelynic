@@ -87,6 +87,13 @@ evaluations to the root system-scope `--probe-live` path. This ensures PIDs are
 still alive and that Zelynic does not attempt to attach itself or already-managed
 cgroups. Live attach remains strictly blocked.
 
+The v2.7 Experimental Attach Lab phase 1 adds explicit consent flags and a pure
+gate checklist for a future single-PID, move-only attach experiment:
+`--experimental-single-pid-attach`, `--i-understand-this-moves-pids`, and
+`--rollback-required`. The checklist can report whether every future gate is
+ready, but the final result is still blocked and no PID movement, nftables/tc
+change, Zelynic cgroup change, or state write is performed.
+
 The displayed `systemd-run` command is for visibility only. Internally, Zelynic
 keeps the command as structured argv; a future live implementation must execute
 structured arguments directly and must not pass a rendered shell string to a

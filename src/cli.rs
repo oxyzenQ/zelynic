@@ -175,16 +175,9 @@ pub enum Commands {
 
     /// Experimental groundwork for launching a command in a future systemd scope
     ///
-    /// This is v2.2 groundwork only. Use --dry-run for a safe preview. User
-    /// scope is the default to avoid system Polkit prompts. The
-    /// --execute opt-in is experimental and currently stops at a non-mutating
-    /// implementation boundary.
-    ///
     /// Examples:
     ///   zelynic run --dry-run -d 500kbit -u 500kbit -- helium
-    ///   zelynic run --dry-run --scope-mode system -d 500kbit -- helium
     ///   zelynic run --execute -d 500kbit -u 500kbit -- helium
-    ///   zelynic run --dry-run --target helium -d 500kbit -- helium --flag
     #[command(verbatim_doc_comment)]
     Run {
         /// Show the planned systemd scope wrapper without launching anything
@@ -195,46 +188,57 @@ pub enum Commands {
         #[arg(long = "execute", conflicts_with = "dry_run")]
         execute: bool,
 
-        /// Root-only system-scope live probe (v2.5 Scope Runner)
-        ///
-        /// Requires --execute, --scope-mode system, and root (euid == 0).
-        /// Launches a real transient systemd scope, discovers the ControlGroup
-        /// and PID(s), then reports findings. Does NOT apply bandwidth limits,
-        /// modify nftables, tc, or Zelynic cgroups.
+        /// Root-only system-scope live probe; reports findings without applying limits
         #[arg(long = "probe-live", requires = "execute")]
         probe_live: bool,
 
-        /// Explicit future live attach gate (v2.5 Scope Runner, HARD-BLOCKED)
-        ///
-        /// Requires --execute, --scope-mode system, --probe-live, and root.
-        /// This flag is reserved for a future implementation step where
-        /// discovered PID(s) would be moved into the Zelynic target cgroup
-        /// and bandwidth limits would be applied.
-        ///
-        /// **This build hard-blocks attach.** Even when all requirements
-        /// are met, the command will fail with "live attach is not
-        /// implemented yet." No PID movement, no limiter attach, no
-        /// nftables/tc/cgroup/state changes are performed.
+        /// Explicit future live attach gate; hard-blocked and non-mutating
         #[arg(long = "attach-live", requires = "execute", requires = "probe_live")]
         attach_live: bool,
+
+        /// Experimental single-PID move attach consent gate (v2.7, HARD-BLOCKED)
+        #[arg(
+            long = "experimental-single-pid-attach",
+            requires = "execute",
+            requires = "probe_live",
+            requires = "attach_live"
+        )]
+        experimental_single_pid_attach: bool,
+
+        /// Acknowledge future PID movement experiments
+        #[arg(
+            long = "i-understand-this-moves-pids",
+            requires = "execute",
+            requires = "probe_live",
+            requires = "attach_live"
+        )]
+        i_understand_this_moves_pids: bool,
+
+        #[arg(
+            long = "rollback-required",
+            requires = "execute",
+            requires = "probe_live",
+            requires = "attach_live"
+        )]
+        rollback_required: bool,
 
         /// Optional target name for state/cgroup naming; defaults to command basename
         #[arg(long = "target", value_name = "TARGET")]
         target: Option<String>,
 
-        /// Planning scope mode for the future systemd wrapper
+        /// Planning scope mode
         #[arg(long = "scope-mode", value_enum, default_value_t = RunScopeModeArg::User)]
         scope_mode: RunScopeModeArg,
 
-        /// Download speed limit (e.g., 500kb, 1mb, 500kbit)
+        /// Download speed limit
         #[arg(short = 'd', long = "download", allow_hyphen_values = true)]
         download: Option<String>,
 
-        /// Upload speed limit (e.g., 500kb, 1mb, 500kbit)
+        /// Upload speed limit
         #[arg(short = 'u', long = "upload", allow_hyphen_values = true)]
         upload: Option<String>,
 
-        /// Command to launch in the future wrapper mode; pass after `--`
+        /// Command to launch; pass after `--`
         #[arg(
             required = true,
             num_args = 1..,
@@ -593,6 +597,9 @@ mod tests {
                 execute,
                 probe_live,
                 attach_live,
+                experimental_single_pid_attach,
+                i_understand_this_moves_pids,
+                rollback_required,
                 scope_mode,
                 download,
                 upload,
@@ -603,6 +610,9 @@ mod tests {
                 assert!(!execute);
                 assert!(!probe_live);
                 assert!(!attach_live);
+                assert!(!experimental_single_pid_attach);
+                assert!(!i_understand_this_moves_pids);
+                assert!(!rollback_required);
                 assert_eq!(scope_mode, RunScopeModeArg::User);
                 assert_eq!(download.as_deref(), Some("500kbit"));
                 assert_eq!(upload.as_deref(), Some("500kbit"));
@@ -632,6 +642,9 @@ mod tests {
                 execute,
                 probe_live,
                 attach_live,
+                experimental_single_pid_attach,
+                i_understand_this_moves_pids,
+                rollback_required,
                 scope_mode,
                 download,
                 command,
@@ -641,6 +654,9 @@ mod tests {
                 assert!(execute);
                 assert!(!probe_live);
                 assert!(!attach_live);
+                assert!(!experimental_single_pid_attach);
+                assert!(!i_understand_this_moves_pids);
+                assert!(!rollback_required);
                 assert_eq!(scope_mode, RunScopeModeArg::User);
                 assert_eq!(download.as_deref(), Some("500kbit"));
                 assert_eq!(command, vec!["echo", "hello"]);
@@ -707,6 +723,9 @@ mod tests {
                 execute,
                 probe_live,
                 attach_live,
+                experimental_single_pid_attach,
+                i_understand_this_moves_pids,
+                rollback_required,
                 scope_mode,
                 download,
                 command,
@@ -716,6 +735,9 @@ mod tests {
                 assert!(execute);
                 assert!(probe_live);
                 assert!(!attach_live);
+                assert!(!experimental_single_pid_attach);
+                assert!(!i_understand_this_moves_pids);
+                assert!(!rollback_required);
                 assert_eq!(scope_mode, RunScopeModeArg::System);
                 assert_eq!(download.as_deref(), Some("500kbit"));
                 assert_eq!(command, vec!["sleep", "30"]);
@@ -793,6 +815,9 @@ mod tests {
                 execute,
                 probe_live,
                 attach_live,
+                experimental_single_pid_attach,
+                i_understand_this_moves_pids,
+                rollback_required,
                 scope_mode,
                 download,
                 upload,
@@ -803,6 +828,9 @@ mod tests {
                 assert!(execute);
                 assert!(probe_live);
                 assert!(attach_live);
+                assert!(!experimental_single_pid_attach);
+                assert!(!i_understand_this_moves_pids);
+                assert!(!rollback_required);
                 assert_eq!(scope_mode, RunScopeModeArg::System);
                 assert_eq!(download.as_deref(), Some("500kbit"));
                 assert_eq!(upload.as_deref(), Some("500kbit"));
@@ -866,6 +894,89 @@ mod tests {
     }
 
     #[test]
+    fn run_experimental_attach_flags_parse() {
+        let cli = Cli::try_parse_from([
+            "zelynic",
+            "run",
+            "--execute",
+            "--scope-mode",
+            "system",
+            "--probe-live",
+            "--attach-live",
+            "--experimental-single-pid-attach",
+            "--i-understand-this-moves-pids",
+            "--rollback-required",
+            "--",
+            "sleep",
+            "30",
+        ])
+        .unwrap();
+
+        match cli.command.unwrap() {
+            Commands::Run {
+                experimental_single_pid_attach,
+                i_understand_this_moves_pids,
+                rollback_required,
+                ..
+            } => {
+                assert!(experimental_single_pid_attach);
+                assert!(i_understand_this_moves_pids);
+                assert!(rollback_required);
+            }
+            other => panic!("expected run command, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn run_experimental_attach_flags_default_false() {
+        let cli = Cli::try_parse_from([
+            "zelynic",
+            "run",
+            "--execute",
+            "--scope-mode",
+            "system",
+            "--probe-live",
+            "--attach-live",
+            "--",
+            "sleep",
+            "30",
+        ])
+        .unwrap();
+
+        match cli.command.unwrap() {
+            Commands::Run {
+                experimental_single_pid_attach,
+                i_understand_this_moves_pids,
+                rollback_required,
+                ..
+            } => {
+                assert!(!experimental_single_pid_attach);
+                assert!(!i_understand_this_moves_pids);
+                assert!(!rollback_required);
+            }
+            other => panic!("expected run command, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn run_experimental_attach_flags_require_attach_live() {
+        let result = Cli::try_parse_from([
+            "zelynic",
+            "run",
+            "--execute",
+            "--scope-mode",
+            "system",
+            "--probe-live",
+            "--experimental-single-pid-attach",
+            "--",
+            "sleep",
+            "30",
+        ]);
+
+        assert!(result.is_err());
+    }
+
+    #[test]
     fn run_help_mentions_execute_is_experimental() {
         let mut command = Cli::command();
         let help = command
@@ -876,6 +987,9 @@ mod tests {
 
         assert!(help.contains("--execute"));
         assert!(help.contains("Experimental live execution opt-in"));
+        assert!(help.contains("--experimental-single-pid-attach"));
+        assert!(help.contains("--i-understand-this-moves-pids"));
+        assert!(help.contains("--rollback-required"));
         assert!(help.contains("--scope-mode"));
         assert!(help.contains("Possible values:"));
         assert!(help.contains("user:"));

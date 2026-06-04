@@ -10,6 +10,9 @@ use anyhow::Result;
 use super::attach_safety::{
     build_attach_safety_preflight, render_attach_safety_preflight_section, AttachSafetyPreflight,
 };
+use super::experimental_attach_gate::{
+    render_experimental_attach_gate_section, ExperimentalAttachGateChecklist,
+};
 use super::render::push_line;
 use super::sanitize::sanitize_scope_component;
 
@@ -43,6 +46,8 @@ pub(crate) struct AttachPreview {
     pub status: String,
     /// Pure safety preflight for future live attach.
     pub safety_preflight: AttachSafetyPreflight,
+    /// Optional explicit gate checklist for future experimental PID movement.
+    pub experimental_attach_gate: Option<ExperimentalAttachGateChecklist>,
 }
 
 // ---------------------------------------------------------------------------
@@ -78,7 +83,16 @@ pub(crate) fn build_attach_preview(
         strict_backend: "existing resolved-PID attach backend".to_string(),
         status: "preview only; not applied".to_string(),
         safety_preflight,
+        experimental_attach_gate: None,
     })
+}
+
+pub(crate) fn with_experimental_attach_gate(
+    mut preview: AttachPreview,
+    gate: ExperimentalAttachGateChecklist,
+) -> AttachPreview {
+    preview.experimental_attach_gate = Some(gate);
+    preview
 }
 
 // ---------------------------------------------------------------------------
@@ -124,6 +138,9 @@ pub(crate) fn render_attach_preview_section(output: &mut String, preview: &Attac
     );
     push_line(output, &format!("    status: {}", preview.status));
     render_attach_safety_preflight_section(output, &preview.safety_preflight);
+    if let Some(gate) = &preview.experimental_attach_gate {
+        render_experimental_attach_gate_section(output, gate);
+    }
 }
 
 fn format_pid_list(pids: &[u32]) -> String {
@@ -140,6 +157,10 @@ fn format_pid_list(pids: &[u32]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::systemd_wrapper::experimental_attach_gate::{
+        evaluate_experimental_attach_gate, ExperimentalAttachConsent, ExperimentalAttachGateInput,
+    };
+    use crate::systemd_wrapper::plan::ScopeMode;
 
     // ---- build tests ----
 
@@ -289,5 +310,38 @@ mod tests {
         assert!(output.contains("Future attach transaction plan:"));
         assert!(output.contains("execution: blocked"));
         assert!(output.contains("live attach: not implemented"));
+    }
+
+    #[test]
+    fn preview_can_include_experimental_attach_gate_when_supplied() {
+        let checklist = evaluate_experimental_attach_gate(ExperimentalAttachGateInput {
+            execute: true,
+            scope_mode: ScopeMode::System,
+            probe_live: true,
+            attach_live: true,
+            is_root: true,
+            consent: ExperimentalAttachConsent {
+                experimental_single_pid_attach: true,
+                i_understand_this_moves_pids: true,
+                rollback_required: true,
+            },
+            discovered_pid_count: 1,
+            original_cgroup_capture_valid: true,
+            pid_liveness_alive: true,
+            self_protection_allowed: true,
+            transaction_model_only: true,
+            mutation_mode_move_only: true,
+            nft_tc_state_disabled: true,
+        });
+        let preview = with_experimental_attach_gate(sample_preview(), checklist);
+        let mut output = String::new();
+
+        render_attach_preview_section(&mut output, &preview);
+
+        assert!(output.contains("Experimental attach gate:"));
+        assert!(output.contains("mutation mode: move-only"));
+        assert!(output.contains("nft/tc/state: disabled"));
+        assert!(output.contains("final: blocked"));
+        assert!(output.contains("reason: experimental PID move is not implemented yet"));
     }
 }

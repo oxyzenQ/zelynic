@@ -22,6 +22,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **PID Safety Model**: Added read-only PID liveness and self-protection checks
   to the Attach Safety preflight output. The live probe now dynamically rejects
   missing PIDs, already-managed PIDs, and the Zelynic process itself.
+- **Experimental attach gate checklist**: Added `--experimental-single-pid-attach`,
+  `--i-understand-this-moves-pids`, and `--rollback-required` as explicit
+  future-consent flags for a single-PID move-only attach experiment. The gate is
+  pure/model-only and remains blocked.
 
 ### Changed
 
@@ -31,6 +35,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Attach Safety rendering**: The preflight now explicitly reports original
   cgroup capture from the live probe, displaying honest exact rollback targets
   or "original cgroup capture unavailable/stale" if the PID already exited.
+- **Attach-live path**: When the full experimental consent bundle is present,
+  the future attach path can render a gate checklist after a successful probe,
+  then still returns "Experimental PID move is not implemented yet" without PID
+  movement, limiter attach, nftables/tc changes, Zelynic cgroup changes, or
+  state writes.
 
 ## [2.5.0] - 2026-06-03 - v2.5.0 Scope Runner
 

@@ -13,6 +13,7 @@ use super::plan::ScopeMode;
 
 // Re-export items that `mod.rs` consumes.
 pub(crate) use super::attach_preview::build_attach_preview;
+pub(crate) use super::attach_preview::with_experimental_attach_gate;
 pub(crate) use super::scope_probe::build_probe_systemd_run_plan;
 pub(crate) use super::scope_probe::print_scope_probe_output_with_preview;
 pub(crate) use super::scope_probe::run_scope_probe;

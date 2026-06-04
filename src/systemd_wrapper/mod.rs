@@ -7,6 +7,7 @@ mod attach_safety;
 mod attach_transaction;
 mod contract;
 mod discovery;
+mod experimental_attach_gate;
 mod manual_probe;
 mod original_cgroup_preview;
 mod pid_safety;
@@ -18,6 +19,10 @@ mod sanitize;
 mod scope_probe;
 mod scope_runner;
 
+use experimental_attach_gate::{
+    build_gate_input_from_preview, evaluate_experimental_attach_gate, ExperimentalAttachConsent,
+    EXPERIMENTAL_PID_MOVE_NOT_IMPLEMENTED,
+};
 pub(crate) use plan::ScopeMode;
 use plan::{build_dry_run_plan_with_scope_mode, build_live_run_plan_with_scope_mode, LiveRunPlan};
 use preflight::current_execution_preflight;
@@ -29,6 +34,9 @@ pub fn run_systemd_wrapper(
     execute: bool,
     probe_live: bool,
     attach_live: bool,
+    experimental_single_pid_attach: bool,
+    i_understand_this_moves_pids: bool,
+    rollback_required: bool,
     target: Option<&str>,
     download: Option<&str>,
     upload: Option<&str>,
@@ -45,7 +53,20 @@ pub fn run_systemd_wrapper(
         (false, true) => {
             // Check if probe-live path is requested
             if probe_live {
-                return run_probe_live(scope_mode, attach_live, target, download, upload, command);
+                let consent = ExperimentalAttachConsent {
+                    experimental_single_pid_attach,
+                    i_understand_this_moves_pids,
+                    rollback_required,
+                };
+                return run_probe_live(
+                    scope_mode,
+                    attach_live,
+                    consent,
+                    target,
+                    download,
+                    upload,
+                    command,
+                );
             }
             let preflight = current_execution_preflight(scope_mode);
             let plan = build_live_run_plan_with_scope_mode(
@@ -65,6 +86,7 @@ pub fn run_systemd_wrapper(
 fn run_probe_live(
     scope_mode: ScopeMode,
     attach_live: bool,
+    attach_consent: ExperimentalAttachConsent,
     target: Option<&str>,
     download: Option<&str>,
     upload: Option<&str>,
@@ -73,9 +95,9 @@ fn run_probe_live(
     // Gate check: probe_live + system + root
     scope_runner::probe_gate(true, scope_mode)?;
 
-    // If attach_live is requested, hard-block before doing anything.
-    // No probe execution, no mutation, just the blocked message.
-    if attach_live {
+    // Preserve the legacy hard block unless the v2.7 experimental consent
+    // bundle is complete. Missing consent does not run the live probe.
+    if attach_live && !attach_consent.all_present() {
         return scope_runner::attach_gate();
     }
 
@@ -87,7 +109,7 @@ fn run_probe_live(
     let live_previews = original_cgroup_preview::capture_original_cgroups_live(&result.pids);
 
     // Build non-mutating attach preview
-    let preview = scope_runner::build_attach_preview(
+    let mut preview = scope_runner::build_attach_preview(
         &systemd_run.target,
         &result.pids,
         download,
@@ -95,7 +117,25 @@ fn run_probe_live(
         Some(live_previews),
     )?;
 
+    if attach_live {
+        let input = build_gate_input_from_preview(
+            &preview,
+            true,
+            scope_mode,
+            true,
+            true,
+            true,
+            attach_consent,
+        );
+        let checklist = evaluate_experimental_attach_gate(input);
+        preview = scope_runner::with_experimental_attach_gate(preview, checklist);
+    }
+
     scope_runner::print_scope_probe_output_with_preview(&result, &preview);
+
+    if attach_live {
+        anyhow::bail!(EXPERIMENTAL_PID_MOVE_NOT_IMPLEMENTED);
+    }
 
     Ok(())
 }
@@ -112,6 +152,9 @@ mod tests {
     fn run_without_mode_errors_clearly() {
         let command = vec!["echo".to_string(), "hello".to_string()];
         let err = run_systemd_wrapper(
+            false,
+            false,
+            false,
             false,
             false,
             false,
@@ -153,6 +196,9 @@ mod tests {
             true,
             false, // probe_live = false
             false, // attach_live = false
+            false,
+            false,
+            false,
             None,
             None,
             None,
@@ -176,6 +222,9 @@ mod tests {
             true,
             true,  // probe_live = true
             false, // attach_live = false
+            false,
+            false,
+            false,
             None,
             None,
             None,
@@ -196,6 +245,9 @@ mod tests {
             true,
             true,  // probe_live = true
             false, // attach_live = false
+            false,
+            false,
+            false,
             None,
             None,
             None,
@@ -220,6 +272,9 @@ mod tests {
             true,
             false, // probe_live = false
             true,  // attach_live = true (should not be reachable via CLI)
+            false,
+            false,
+            false,
             None,
             None,
             None,
@@ -243,6 +298,9 @@ mod tests {
             true,
             true, // probe_live = true
             true, // attach_live = true
+            false,
+            false,
+            false,
             None,
             None,
             None,
@@ -263,6 +321,9 @@ mod tests {
             true,
             true, // probe_live = true
             true, // attach_live = true
+            false,
+            false,
+            false,
             None,
             None,
             None,
@@ -274,6 +335,30 @@ mod tests {
 
         // Non-root: probe gate blocks before attach gate is reached
         assert!(err.contains("requires root"));
+    }
+
+    #[test]
+    fn experimental_attach_all_flags_system_non_root_returns_root_required_via_gate() {
+        let command = vec!["sleep".to_string(), "30".to_string()];
+        let err = run_systemd_wrapper(
+            false,
+            true,
+            true, // probe_live = true
+            true, // attach_live = true
+            true,
+            true,
+            true,
+            None,
+            None,
+            None,
+            ScopeMode::System,
+            &command,
+        )
+        .unwrap_err()
+        .to_string();
+
+        assert!(err.contains("requires root"));
+        assert!(!err.contains("Experimental PID move is not implemented yet"));
     }
 
     #[test]

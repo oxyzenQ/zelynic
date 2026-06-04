@@ -481,6 +481,54 @@ Live Scope Runner probe output now includes:
       PID <pid>: future attach eligibility: preflight ok; attach still blocked
 ```
 
+### Experimental Attach Gate (v2.7 Phase 1)
+
+The v2.7 Experimental Attach Lab adds an explicit gate checklist for a future
+single-PID, move-only attach experiment. This phase is still model-only and
+non-mutating. It does not move PIDs, create cgroups, write `cgroup.procs`,
+apply nftables/tc state, write Zelynic state, or call the limiter attach path.
+
+The future experiment requires every existing Scope Runner gate plus three
+additional explicit consent flags:
+
+```bash
+zelynic run --execute --scope-mode system --probe-live --attach-live \
+  --experimental-single-pid-attach \
+  --i-understand-this-moves-pids \
+  --rollback-required \
+  -d 500kbit -u 500kbit -- sleep 60
+```
+
+The checklist evaluates:
+
+- `--execute`
+- `--scope-mode system`
+- `--probe-live`
+- `--attach-live`
+- root / `euid == 0`
+- `--experimental-single-pid-attach`
+- `--i-understand-this-moves-pids`
+- `--rollback-required`
+- exactly one discovered PID
+- valid original cgroup capture and rollback target
+- PID liveness
+- self-protection
+- model-only transaction plan
+- move-only mutation mode
+- nftables/tc/Zelynic state disabled
+
+Even if every checklist item is `ok`, the final result remains:
+
+```text
+final: blocked
+reason: experimental PID move is not implemented yet
+```
+
+This phase exists to make the future consent and safety boundary auditable
+before any implementation can write cgroups. The `--attach-live` path remains
+hard-blocked/non-mutating, and bandwidth limiting is not active from this
+command.
+
 #### What the Preview Does NOT Do
 
 - Does NOT move any PID into any cgroup.
@@ -536,10 +584,17 @@ It is **hard-blocked** in this build — no attach operation is performed.
 4. `--attach-live` flag is set.
 5. Effective UID is 0 (root).
 
-Even when all requirements are met, the attach gate returns:
+Without the v2.7 experimental consent bundle, the attach gate preserves the
+existing hard-blocked behavior and returns:
 
 > "Scope Runner live attach is not implemented yet. This build only supports
 > live probe and attach preview."
+
+With the full v2.7 experimental consent bundle, the root system-scope probe may
+render the Experimental Attach Gate checklist and still returns:
+
+> "Experimental PID move is not implemented yet. This build only supports live
+> probe, safety checks, and attach/rollback planning."
 
 #### Gate Order
 
@@ -549,7 +604,10 @@ The gates are evaluated in strict order:
    `requires = "probe_live"` for `--attach-live`).
 2. `--scope-mode system` is required (probe gate).
 3. Root (euid == 0) is required (probe gate).
-4. `--attach-live` is checked **after** probe gate passes, and hard-blocks.
+4. `--attach-live` without the full experimental consent bundle hard-blocks
+   before the live probe runs.
+5. `--attach-live` with the full experimental consent bundle may render the
+   gate checklist after the live probe, then hard-blocks before any mutation.
 
 This means the attach gate is reached only when the probe gate would otherwise
 succeed. At that point, the attach gate deliberately refuses.
