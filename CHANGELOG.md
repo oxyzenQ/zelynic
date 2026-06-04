@@ -51,6 +51,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`docs/experimental-pid-move-lab.md`) for the v2.8 first real write path.
   Phase 1 is design-only. The first real write boundary remains cgroup-only,
   single-PID, and rollback-first. No runtime changes.
+- **Mkdir-only executor skeleton**: Added pure, non-mutating mkdir-only executor
+  skeleton in `src/systemd_wrapper/mkdir_transaction.rs`. Models the exact
+  future mkdir-only write sequence (namespace prepare, target cgroup create,
+  verify exists, cleanup if operation-owned and empty) while remaining
+  hard-blocked. No filesystem writes, no mkdir, no PID movement, no
+  cgroup.procs writes, no nftables/tc/state changes. The skeleton renders in
+  the experimental attach gate output with `first real write: not enabled in
+  this build`.
 
 ### Changed
 

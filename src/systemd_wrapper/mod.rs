@@ -10,6 +10,7 @@ mod contract;
 mod discovery;
 mod experimental_attach_gate;
 mod manual_probe;
+mod mkdir_transaction;
 mod move_transaction;
 mod operation_journal;
 mod original_cgroup_preview;

@@ -125,10 +125,13 @@ for the validation report.
 
 The v2.8 Experimental PID Move Lab is the next milestone. Phase 1 is
 design-only, establishing the safety gates, write boundaries, rollback rules,
-and forbidden behaviors for the first real cgroup write path. The first real
-write will be a narrow `mkdir`-only experiment with no PID movement. See
-[docs/experimental-pid-move-lab.md](experimental-pid-move-lab.md) for the full
-design document.
+and forbidden behaviors for the first real cgroup write path. Phase 2a adds a
+pure mkdir-only executor skeleton to the experimental attach gate output in
+`src/systemd_wrapper/mkdir_transaction.rs`, modelling the exact future
+mkdir-only write sequence while remaining hard-blocked and non-mutating. The
+first real write will be a narrow `mkdir`-only experiment with no PID
+movement. See [docs/experimental-pid-move-lab.md](experimental-pid-move-lab.md)
+for the full design document.
 
 The displayed `systemd-run` command is for visibility only. Internally, Zelynic
 keeps the command as structured argv; a future live implementation must execute

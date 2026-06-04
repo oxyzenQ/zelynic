@@ -9,6 +9,9 @@
 //! limiter attach execution path.
 
 use super::attach_preview::AttachPreview;
+use super::mkdir_transaction::{
+    build_mkdir_transaction_skeleton, render_mkdir_transaction_skeleton_section,
+};
 use super::move_transaction::{
     build_move_transaction_skeleton, render_move_transaction_skeleton_section, MoveTransaction,
 };
@@ -223,6 +226,9 @@ pub(crate) fn render_experimental_attach_gate_section(
         &format!("    nft/tc/state: {}", checklist.nft_tc_state),
     );
     render_move_transaction_skeleton_section(output, &checklist.move_transaction);
+    let mkdir_transaction =
+        build_mkdir_transaction_skeleton(&checklist.move_transaction.target_cgroup_path);
+    render_mkdir_transaction_skeleton_section(output, &mkdir_transaction);
     push_line(output, &format!("    final: {}", checklist.final_status));
     push_line(output, &format!("    reason: {}", checklist.reason));
 }
@@ -465,5 +471,54 @@ mod tests {
         assert!(!output.contains("attached"));
         assert!(!output.contains("limited"));
         assert!(!output.contains("enforced"));
+    }
+
+    #[test]
+    fn gate_output_includes_mkdir_only_executor_skeleton() {
+        let checklist = evaluate_experimental_attach_gate(ok_input());
+        let mut output = String::new();
+
+        render_experimental_attach_gate_section(&mut output, &checklist);
+
+        assert!(output.contains("Mkdir-only executor skeleton"));
+        assert!(output.contains("cgroup mkdir-only"));
+        assert!(output.contains("first real write: not enabled in this build"));
+        assert!(output.contains("pid movement: disabled"));
+        assert!(output.contains("cgroup.procs writes: disabled"));
+        assert!(output.contains("create/prepare /sys/fs/cgroup/zelynic/target_sleep"));
+        assert!(output.contains(
+            "cleanup /sys/fs/cgroup/zelynic/target_sleep only if operation-owned and empty"
+        ));
+    }
+
+    #[test]
+    fn gate_output_mkdir_skeleton_does_not_claim_created_or_written() {
+        let checklist = evaluate_experimental_attach_gate(ok_input());
+        let mut output = String::new();
+
+        render_experimental_attach_gate_section(&mut output, &checklist);
+
+        assert!(!output.contains(" directory created"));
+        assert!(!output.contains("was written"));
+        assert!(!output.contains("was moved"));
+    }
+
+    #[test]
+    fn gate_output_mkdir_appears_after_move_only_skeleton() {
+        let checklist = evaluate_experimental_attach_gate(ok_input());
+        let mut output = String::new();
+
+        render_experimental_attach_gate_section(&mut output, &checklist);
+
+        let move_pos = output
+            .find("Move-only executor skeleton")
+            .expect("move skeleton present");
+        let mkdir_pos = output
+            .find("Mkdir-only executor skeleton")
+            .expect("mkdir skeleton present");
+        assert!(
+            mkdir_pos > move_pos,
+            "mkdir skeleton must appear after move-only skeleton"
+        );
     }
 }

@@ -885,7 +885,10 @@ canonical safety footer and block. Release notes for v2.7.0 are available at:
 The v2.8 Experimental PID Move Lab is the next milestone after v2.7. It defines
 the design for the first real write path in the Scope Runner: a narrow,
 guarded `mkdir`-only experiment followed by a single-PID move-only with
-immediate rollback. Phase 1 is design-only with no runtime changes. See
+immediate rollback. Phase 1 is design-only with no runtime changes. Phase 2a
+adds a pure mkdir-only executor skeleton to the experimental attach gate output
+(`src/systemd_wrapper/mkdir_transaction.rs`), modelling the exact future
+mkdir-only write sequence while remaining hard-blocked and non-mutating. See
 [docs/experimental-pid-move-lab.md](experimental-pid-move-lab.md) for the full
 design document covering the phase ladder, safety gates, write boundaries,
 rollback rules, forbidden behaviors, manual smoke strategy, and success

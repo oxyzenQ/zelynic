@@ -29,7 +29,7 @@ write step is validated and rolled back.
 v2.8 is decomposed into five sequential phases. Each phase must pass CI, pass
 a local root smoke matrix, and be documented before the next phase begins.
 
-### Phase 1: Design Only (Current Phase)
+### Phase 1: Design Only (Completed)
 
 - Produce this design document.
 - Update `docs/scope-lab.md`, `docs/systemd-wrapper-design.md`, and
@@ -38,6 +38,22 @@ a local root smoke matrix, and be documented before the next phase begins.
 - This phase establishes the safety gates, write boundaries, rollback rules,
   forbidden behaviors, manual smoke strategy, and success criteria that all
   subsequent phases must follow.
+
+### Phase 2a: Mkdir-Only Executor Skeleton (Current Phase)
+
+- Add a pure, non-mutating mkdir-only executor skeleton to the experimental
+  attach gate output in `src/systemd_wrapper/mkdir_transaction.rs`.
+- The skeleton models the exact future mkdir-only write sequence:
+  1. Create/prepare `/sys/fs/cgroup/zelynic` (namespace directory).
+  2. Create/prepare `/sys/fs/cgroup/zelynic/target_<name>` (target cgroup).
+  3. Verify target cgroup directory exists.
+  4. Cleanup target cgroup only if operation-owned and empty.
+- No PID movement. No `cgroup.procs` write. No nftables/tc/state writes.
+- The skeleton is hard-blocked: output includes `status: skeleton only; not
+  executed`, `execution: blocked`, and `first real write: not enabled in this build`.
+- The canonical safety footer is rendered once (not duplicated).
+- Local validation passed: 328 unit tests + 4 integration tests, 5 ignored,
+  clippy clean, policy PASS, fmt clean.
 
 ### Phase 2: Target Cgroup `mkdir`-Only Experiment
 
