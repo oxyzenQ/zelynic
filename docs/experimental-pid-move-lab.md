@@ -102,7 +102,7 @@ a local root smoke matrix, and be documented before the next phase begins.
 - Updated this design document with phase status markers.
 - No runtime changes. Docs/report only.
 
-### Phase 3a: Single PID Move + Rollback Design (Current Phase)
+### Phase 3a: Single PID Move + Rollback Design (Completed)
 
 - Produced design document
   (`docs/v2.8-phase-3a-single-pid-rollback-design.md`)
@@ -126,6 +126,41 @@ a local root smoke matrix, and be documented before the next phase begins.
   cleanup safety tests. Root smoke test deferred to future implementation.
 - No runtime changes. Docs/design only.
 - Live PID movement is still not implemented.
+
+### Phase 3b: Move Transaction Skeleton Alignment (Current Phase)
+
+- Aligned the existing `move_transaction.rs` skeleton with the phase 3a
+  design document's 10-step transaction model.
+- Updated operation step descriptions to match phase 3a terminology:
+  "planned" for model-only steps, "planned write" for future writes,
+  "planned verify" for future verifications, "planned rollback" for future
+  rollback writes.
+- Added step 7 "record move success (in-memory model update only)" which
+  was missing from the original skeleton.
+- Added explicit PID liveness recheck step (step 2) and original cgroup
+  validation step (step 3) with clear descriptions matching the phase 3a
+  design.
+- Updated `writes_modelled` list from 5 to 7 items to cover the full
+  transaction lifecycle including record and cleanup.
+- Added "transaction steps" and "rollback steps" rendering in the skeleton
+  output so the 10-step model and 3 rollback steps are visible in gate output.
+- Added explicit safety disclaimers in rendered output: "pid movement: not
+  performed", "cgroup.procs writes: not performed", "phase: 3b skeleton
+  alignment".
+- Updated operation journal planned events from 8 to 12 to align with
+  the 10-step model (gates re-evaluated, PID liveness rechecked, original
+  cgroup validated, target cgroup prepared, move, verification, record,
+  rollback restore, rollback verification, target cleanup, blocked).
+- Added 14 new tests: PID liveness recheck, original cgroup validation,
+  record move success, immediate rollback (3 assertions), target cleanup
+  boundary, operation count (10), writes_modelled count (7), rollback
+  count (3), output honesty for cgroup.procs and pid movement, phase 3b
+  label, transaction steps rendering, rollback steps rendering, empty
+  original cgroup blocking.
+- All existing 13 move_transaction tests continue to pass.
+- No runtime changes. All output remains model-only/skeleton-only/execution-blocked.
+- Live PID movement is still not implemented.
+- No cgroup.procs write was performed.
 
 ### Phase 3: Single PID Move-Only + Immediate Rollback (Not Started)
 
@@ -434,20 +469,23 @@ v2.8 is considered successful when all of the following are true:
 
 ## Current Status
 
-v2.8 phase 3a is the current phase. It produces a design document for
-the single PID move + immediate rollback experiment. No runtime changes are
-introduced. Live PID movement remains not implemented.
+v2.8 phase 3b is the current phase. It aligns the move transaction skeleton
+and operation journal with the phase 3a design document. No runtime changes
+are introduced. Live PID movement remains not implemented.
 
 | Property | Status |
 |----------|--------|
-| PID movement | Not implemented (phase 3a: design documented) |
+| PID movement | Not implemented (phase 3b: skeleton aligned) |
 | Cgroup directory creation | Phase 2b: mkdir-only with --mkdir-live (first real write) |
 | Output honesty | Phase 2b.1: truthful footer for --mkdir-live path |
-| `cgroup.procs` write | Not implemented (phase 3a: design documented) |
+| `cgroup.procs` write | Not implemented (phase 3b: skeleton aligned) |
+| Move transaction skeleton | Phase 3b: aligned with 10-step 3a design, 27 tests passing |
+| Operation journal | Phase 3b: 12 planned events aligned with 10-step model |
 | Limiter attach | Not implemented |
 | nftables/tc/state changes | Not implemented |
 | `--attach-live` | Hard-blocked / non-mutating |
-| Phase 3a (PID move design) | Current: `docs/v2.8-phase-3a-single-pid-rollback-design.md` |
+| Phase 3b (skeleton alignment) | Current: `move_transaction.rs` + `operation_journal.rs` |
+| Phase 3a (PID move design) | Completed: `docs/v2.8-phase-3a-single-pid-rollback-design.md` |
 | Validation report | Phase 2c: `docs/v2.8-phase-2c-validation-report.md` |
 
 ## Next Milestone After v2.8

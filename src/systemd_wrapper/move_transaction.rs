@@ -7,6 +7,9 @@
 //! This module models the future write sequence only. It does not create
 //! directories, write cgroup.procs, read cgroup.procs, call nftables/tc, write
 //! Zelynic state, execute commands, or call the limiter attach path.
+//!
+//! Phase 3b aligned the 10-step transaction model with the phase 3a design
+//! document. All steps remain "planned" / model-only / execution-blocked.
 
 use super::operation_journal::{
     build_operation_journal_preview, render_operation_journal_preview_section,
@@ -80,22 +83,22 @@ pub(crate) fn build_move_transaction_skeleton(
 
     MoveTransaction {
         status: "skeleton only; not executed".to_string(),
-        mode: "single PID cgroup move + rollback".to_string(),
+        mode: "move-only: single PID cgroup move + immediate rollback".to_string(),
         pid_count: pids.len(),
         pids: pids.to_vec(),
         target_cgroup_path: target_cgroup_path.to_string(),
         original_cgroup_path,
         operations: vec![
-            op("1. verify gate checklist is still valid"),
-            op("2. verify exactly one PID"),
-            op("3. verify source/original cgroup path captured"),
-            op("4. verify target cgroup path is under /sys/fs/cgroup/zelynic/"),
-            op("5. future write: create/prepare target cgroup directory"),
-            op("6. future write: write PID into target cgroup cgroup.procs"),
-            op("7. future verify: PID appears in target cgroup.procs"),
-            op("8. future rollback: write PID back into original cgroup cgroup.procs"),
-            op("9. future verify: PID restored to original cgroup"),
-            op("10. future cleanup: remove target cgroup only if safe/empty"),
+            op("1. planned: re-evaluate all safety gates at move time"),
+            op("2. planned: PID liveness recheck (/proc/<pid> exists)"),
+            op("3. planned: original cgroup validation (safe path, not under /zelynic/)"),
+            op("4. planned write: create/prepare target cgroup directory"),
+            op("5. planned write: write PID into target cgroup cgroup.procs"),
+            op("6. planned verify: PID appears in target cgroup.procs"),
+            op("7. planned: record move success (in-memory model update only)"),
+            op("8. planned rollback: write PID back into original cgroup cgroup.procs"),
+            op("9. planned verify: PID restored to original cgroup"),
+            op("10. planned cleanup: remove target cgroup only if safe/empty"),
         ],
         rollback: vec![
             rollback("write PID back to original cgroup.procs"),
@@ -103,11 +106,13 @@ pub(crate) fn build_move_transaction_skeleton(
             rollback("remove target cgroup only if safe and empty"),
         ],
         writes_modelled: vec![
-            "prepare Zelynic target cgroup".to_string(),
-            "write PID to target cgroup.procs".to_string(),
-            "verify PID in target cgroup".to_string(),
-            "write PID back to original cgroup.procs".to_string(),
-            "verify PID restored".to_string(),
+            "create/prepare target cgroup directory".to_string(),
+            "write PID into target cgroup.procs".to_string(),
+            "verify PID in target cgroup.procs".to_string(),
+            "record move success (in-memory)".to_string(),
+            "write PID back into original cgroup.procs (rollback)".to_string(),
+            "verify PID restored in original cgroup".to_string(),
+            "remove target cgroup if empty/operation-owned".to_string(),
         ],
         operation_journal,
         target_cgroup_preflight,
@@ -124,6 +129,14 @@ pub(crate) fn render_move_transaction_skeleton_section(
     push_line(output, "    Move-only executor skeleton:");
     push_line(output, &format!("      status: {}", transaction.status));
     push_line(output, &format!("      mode: {}", transaction.mode));
+    push_line(output, "      transaction steps:");
+    for op_step in &transaction.operations {
+        push_line(output, &format!("        {}", op_step.description));
+    }
+    push_line(output, "      rollback steps:");
+    for rb in &transaction.rollback {
+        push_line(output, &format!("        {}", rb.description));
+    }
     push_line(output, "      writes modelled:");
     for (index, item) in transaction.writes_modelled.iter().enumerate() {
         push_line(output, &format!("        {}. {}", index + 1, item));
@@ -143,6 +156,9 @@ pub(crate) fn render_move_transaction_skeleton_section(
         output,
         &format!("      execution: {}", transaction.execution),
     );
+    push_line(output, "      pid movement: not performed");
+    push_line(output, "      cgroup.procs writes: not performed");
+    push_line(output, "      phase: 3b skeleton alignment");
 }
 
 fn is_safe_zelynic_target_cgroup(path: &str) -> bool {
@@ -312,5 +328,115 @@ mod tests {
         assert!(!output.contains("attached"));
         assert!(!output.contains("limited"));
         assert!(!output.contains("enforced"));
+    }
+
+    // ---- phase 3b alignment tests ----
+
+    #[test]
+    fn skeleton_includes_pid_liveness_recheck_step() {
+        let text = operation_text(&valid_transaction());
+        assert!(text.contains("PID liveness"));
+    }
+
+    #[test]
+    fn skeleton_includes_original_cgroup_validation_step() {
+        let text = operation_text(&valid_transaction());
+        assert!(text.contains("original cgroup validation"));
+    }
+
+    #[test]
+    fn skeleton_includes_record_move_success_step() {
+        let text = operation_text(&valid_transaction());
+        assert!(text.contains("record move success"));
+    }
+
+    #[test]
+    fn skeleton_includes_immediate_rollback_step() {
+        let transaction = valid_transaction();
+        assert!(!transaction.rollback.is_empty());
+        assert!(transaction
+            .rollback
+            .iter()
+            .any(|r| r.description.contains("write PID back")));
+        assert!(transaction
+            .rollback
+            .iter()
+            .any(|r| r.description.contains("verify PID restored")));
+        assert!(transaction
+            .rollback
+            .iter()
+            .any(|r| r.description.contains("remove target cgroup")));
+    }
+
+    #[test]
+    fn skeleton_includes_target_cleanup_boundary() {
+        let text = operation_text(&valid_transaction());
+        assert!(text.contains("safe/empty"));
+    }
+
+    #[test]
+    fn skeleton_operations_count_is_ten() {
+        let transaction = valid_transaction();
+        assert_eq!(transaction.operations.len(), 10);
+    }
+
+    #[test]
+    fn skeleton_writes_modelled_count_is_seven() {
+        let transaction = valid_transaction();
+        assert_eq!(transaction.writes_modelled.len(), 7);
+    }
+
+    #[test]
+    fn skeleton_rollback_count_is_three() {
+        let transaction = valid_transaction();
+        assert_eq!(transaction.rollback.len(), 3);
+    }
+
+    #[test]
+    fn rendered_output_explicitly_says_cgroup_procs_not_performed() {
+        let mut output = String::new();
+        render_move_transaction_skeleton_section(&mut output, &valid_transaction());
+        assert!(output.contains("cgroup.procs writes: not performed"));
+        assert!(output.contains("pid movement: not performed"));
+    }
+
+    #[test]
+    fn rendered_output_says_phase_3b_skeleton_model_only() {
+        let mut output = String::new();
+        render_move_transaction_skeleton_section(&mut output, &valid_transaction());
+        assert!(output.contains("phase: 3b skeleton alignment"));
+        assert!(output.contains("skeleton only; not executed"));
+    }
+
+    #[test]
+    fn rendered_output_includes_transaction_steps() {
+        let mut output = String::new();
+        render_move_transaction_skeleton_section(&mut output, &valid_transaction());
+        assert!(output.contains("transaction steps:"));
+        assert!(output.contains("re-evaluate all safety gates"));
+        assert!(output.contains("PID liveness recheck"));
+        assert!(output.contains("record move success"));
+    }
+
+    #[test]
+    fn rendered_output_includes_rollback_steps() {
+        let mut output = String::new();
+        render_move_transaction_skeleton_section(&mut output, &valid_transaction());
+        assert!(output.contains("rollback steps:"));
+        assert!(output.contains("write PID back to original cgroup.procs"));
+        assert!(output.contains("verify PID restored to original cgroup"));
+        assert!(output.contains("remove target cgroup only if safe and empty"));
+    }
+
+    #[test]
+    fn skeleton_blocks_empty_original_cgroup_string() {
+        let transaction = build_move_transaction_skeleton(
+            &[12345],
+            "/sys/fs/cgroup/zelynic/target_sleep",
+            Some(""),
+        );
+        assert!(transaction
+            .blocked_reasons
+            .contains(&"original cgroup capture is required".to_string()));
     }
 }

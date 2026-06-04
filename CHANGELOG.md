@@ -94,6 +94,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   plan (unit tests, output honesty tests, gate tests, cleanup safety tests),
   and relationship to existing move_transaction.rs skeleton. Docs/design only;
   no runtime behavior changed. Live PID movement remains not implemented.
+- **v2.8 phase 3b move transaction skeleton alignment**: Aligned the
+  `move_transaction.rs` skeleton with the phase 3a design document's 10-step
+  transaction model. Updated operation step descriptions with "planned"
+  terminology, added step 7 "record move success", added PID liveness
+  recheck and original cgroup validation steps with clear descriptions.
+  Updated `writes_modelled` from 5 to 7 items. Added "transaction steps"
+  and "rollback steps" rendering to skeleton output for visibility in gate
+  output. Added explicit safety disclaimers ("pid movement: not performed",
+  "cgroup.procs writes: not performed", "phase: 3b skeleton alignment").
+  Updated operation journal planned events from 8 to 12 to align with
+  10-step model. Added 14 new tests (PID liveness, original cgroup
+  validation, record move success, immediate rollback, target cleanup
+  boundary, operation/writes_modelled/rollback counts, output honesty,
+  phase 3b label, transaction steps rendering, rollback steps rendering,
+  empty original cgroup blocking). Docs/skeleton-only; no runtime behavior
+  changed. Live PID movement remains not implemented. No cgroup.procs
+  write was performed.
 
 ### Changed
 

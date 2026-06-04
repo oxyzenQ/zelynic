@@ -8,6 +8,9 @@
 //! events. It does not persist state, write files, create cgroups, write
 //! cgroup.procs, move PIDs, call nftables/tc, execute commands, or call the
 //! limiter attach path.
+//!
+//! Phase 3b aligned the planned events with the 10-step transaction model
+//! from the phase 3a design document.
 
 use super::render::push_line;
 
@@ -146,12 +149,16 @@ fn fnv1a64(bytes: &[u8]) -> u64 {
 fn planned_events() -> Vec<JournalEvent> {
     [
         "planned",
-        "preflight_checked",
-        "target_cgroup_prepare_planned",
+        "gates_re_evaluated",
+        "pid_liveness_rechecked",
+        "original_cgroup_validated",
+        "target_cgroup_prepared",
         "pid_move_planned",
-        "verification_planned",
-        "rollback_planned",
-        "cleanup_planned",
+        "pid_verification_planned",
+        "move_success_recorded",
+        "rollback_pid_restore_planned",
+        "rollback_verification_planned",
+        "target_cleanup_planned",
         "blocked_not_executed",
     ]
     .into_iter()
@@ -220,12 +227,16 @@ mod tests {
             names,
             vec![
                 "planned",
-                "preflight_checked",
-                "target_cgroup_prepare_planned",
+                "gates_re_evaluated",
+                "pid_liveness_rechecked",
+                "original_cgroup_validated",
+                "target_cgroup_prepared",
                 "pid_move_planned",
-                "verification_planned",
-                "rollback_planned",
-                "cleanup_planned",
+                "pid_verification_planned",
+                "move_success_recorded",
+                "rollback_pid_restore_planned",
+                "rollback_verification_planned",
+                "target_cleanup_planned",
                 "blocked_not_executed",
             ]
         );
