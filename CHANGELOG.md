@@ -30,6 +30,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   future single-PID cgroup move and immediate rollback sequence. It documents
   target cgroup preparation, `cgroup.procs` writes, verification, rollback, and
   safe cleanup while keeping execution blocked.
+- **Target cgroup environment preflight**: Added a pure model for future target
+  cgroup path validation and `cgroup.procs` write-target previews. It keeps
+  parent/target creation as future work and performs no live cgroup reads or
+  writes.
 
 ### Changed
 
@@ -47,6 +51,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Experimental gate rendering**: The full experimental gate now includes the
   move-only executor skeleton so future write ordering is visible without
   duplicating the canonical no-mutation safety footer.
+- **Move-only executor output**: The skeleton now renders target cgroup
+  preflight details, including the future Zelynic target namespace and
+  target/rollback `cgroup.procs` paths, while keeping execution blocked.
 
 ## [2.5.0] - 2026-06-03 - v2.5.0 Scope Runner
 

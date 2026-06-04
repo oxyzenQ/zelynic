@@ -99,6 +99,12 @@ the future single-PID cgroup write order and immediate rollback verification,
 but it remains skeleton-only: no `cgroup.procs` write, no target cgroup creation,
 no limiter attach, and no nftables/tc/state mutation is performed.
 
+The v2.7 phase 3 lab adds a target cgroup environment preflight to the skeleton.
+It validates the future target path under `/sys/fs/cgroup/zelynic`, renders the
+future target and rollback `cgroup.procs` paths, and marks parent/target cgroup
+creation as future work. It remains model-only and performs no live filesystem
+metadata checks or cgroup writes.
+
 The displayed `systemd-run` command is for visibility only. Internally, Zelynic
 keeps the command as structured argv; a future live implementation must execute
 structured arguments directly and must not pass a rendered shell string to a

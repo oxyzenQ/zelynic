@@ -19,6 +19,7 @@ mod render_contract;
 mod sanitize;
 mod scope_probe;
 mod scope_runner;
+mod target_cgroup_preflight;
 
 use experimental_attach_gate::{
     build_gate_input_from_preview, evaluate_experimental_attach_gate, ExperimentalAttachConsent,

@@ -543,6 +543,28 @@ This is still model-only:
 - The limiter attach path is not called.
 - `--attach-live` remains hard-blocked after rendering the checklist.
 
+#### Target cgroup environment preflight (v2.7 Phase 3)
+
+The v2.7 phase 3 lab adds a target cgroup environment preflight to the
+move-only executor skeleton. This preflight models the future filesystem paths
+that a single-PID move experiment would need, but it does not inspect live
+filesystem metadata and does not create anything.
+
+The preflight checks and renders:
+
+- target namespace: `/sys/fs/cgroup/zelynic`
+- target cgroup path, such as `/sys/fs/cgroup/zelynic/target_sleep`
+- future target `cgroup.procs` path
+- future rollback `cgroup.procs` path from the captured original cgroup
+- parent and target status as "not created by this probe; future creation needed"
+- execution status: `blocked`
+
+Unsafe paths are blocked in the model, including paths outside the Zelynic
+namespace, paths containing parent traversal (`..`), and the cgroup filesystem
+root. This phase still performs no `mkdir`, no `cgroup.procs` write, no PID
+movement, no limiter attach, no nftables/tc operation, and no Zelynic state
+write.
+
 Even if every checklist item is `ok`, the final result remains:
 
 ```text

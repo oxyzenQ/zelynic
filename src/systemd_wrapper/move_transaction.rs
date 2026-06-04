@@ -9,6 +9,9 @@
 //! Zelynic state, execute commands, or call the limiter attach path.
 
 use super::render::push_line;
+use super::target_cgroup_preflight::{
+    build_target_cgroup_preflight, render_target_cgroup_preflight_section, TargetCgroupPreflight,
+};
 
 const ZELYNIC_CGROUP_ROOT: &str = "/sys/fs/cgroup/zelynic";
 
@@ -22,6 +25,7 @@ pub(crate) struct MoveTransaction {
     pub operations: Vec<MoveOperation>,
     pub rollback: Vec<RollbackOperation>,
     pub writes_modelled: Vec<String>,
+    pub target_cgroup_preflight: TargetCgroupPreflight,
     pub execution: String,
     pub blocked_reasons: Vec<String>,
 }
@@ -42,6 +46,8 @@ pub(crate) fn build_move_transaction_skeleton(
     original_cgroup_path: Option<&str>,
 ) -> MoveTransaction {
     let mut blocked_reasons = Vec::new();
+    let target_cgroup_preflight =
+        build_target_cgroup_preflight(target_cgroup_path, original_cgroup_path);
 
     if pid_count != 1 {
         blocked_reasons.push("exactly one discovered PID is required".to_string());
@@ -89,6 +95,7 @@ pub(crate) fn build_move_transaction_skeleton(
             "write PID back to original cgroup.procs".to_string(),
             "verify PID restored".to_string(),
         ],
+        target_cgroup_preflight,
         execution: "blocked".to_string(),
         blocked_reasons,
     }
@@ -115,6 +122,7 @@ pub(crate) fn render_move_transaction_skeleton_section(
             ),
         );
     }
+    render_target_cgroup_preflight_section(output, &transaction.target_cgroup_preflight);
     push_line(
         output,
         &format!("      execution: {}", transaction.execution),
@@ -207,6 +215,22 @@ mod tests {
     }
 
     #[test]
+    fn skeleton_includes_target_cgroup_preflight() {
+        let transaction = valid_transaction();
+        assert_eq!(
+            transaction.target_cgroup_preflight.target_cgroup,
+            "/sys/fs/cgroup/zelynic/target_sleep"
+        );
+        assert_eq!(
+            transaction
+                .target_cgroup_preflight
+                .target_cgroup_procs
+                .as_deref(),
+            Some("/sys/fs/cgroup/zelynic/target_sleep/cgroup.procs")
+        );
+    }
+
+    #[test]
     fn invalid_target_path_outside_zelynic_is_blocked() {
         let transaction = build_move_transaction_skeleton(
             1,
@@ -215,6 +239,10 @@ mod tests {
         );
 
         assert!(transaction
+            .blocked_reasons
+            .contains(&"target cgroup must be under /sys/fs/cgroup/zelynic/".to_string()));
+        assert!(transaction
+            .target_cgroup_preflight
             .blocked_reasons
             .contains(&"target cgroup must be under /sys/fs/cgroup/zelynic/".to_string()));
     }
