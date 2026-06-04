@@ -7,7 +7,7 @@
 > **Troubleshooting:** use `zelynic strict --diagnose ...` to print target PID selection, cgroup v2, nftables, and tc diagnostics when validating a host.
 
 <p align="center">
-  <img src="assets/zelynic-logo.png" alt="zelynic logo" width="240">
+  <img src="assets/zelynic-new-logo.png" alt="zelynic logo" width="240">
 </p>
 
 <h1 align="center">zelynic</h1>
