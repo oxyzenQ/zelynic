@@ -68,6 +68,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `--experimental-single-pid-attach`, `--i-understand-this-moves-pids`, and
   `--rollback-required`. No PID movement, no cgroup.procs write, no nftables/tc
   or state changes.
+- **Mkdir-live output honesty fix**: Fixed misleading canonical safety footer
+  when `--mkdir-live` is active. The old footer claiming "No nftables, tc,
+  Zelynic cgroup, or state changes were made" is replaced with truthful
+  wording for the mkdir-live path: "No nftables, tc, or Zelynic state changes
+  were made." and "Mkdir-only cgroup preparation was performed." The mkdir
+  experiment section now includes explicit honest lines: "No cgroup.procs
+  write was performed." and "Parent namespace may remain: /sys/fs/cgroup/zelynic".
+  The error message for `--mkdir-live` + `--attach-live` is now "Mkdir-only
+  experiment completed; experimental PID move is not implemented yet." Normal
+  non-mkdir paths preserve the existing canonical safety footer unchanged. No
+  runtime behavior change; only output/reporting wording affected.
+- **v2.8 phase 2c validation report**: Added validation report
+  (`docs/v2.8-phase-2c-validation-report.md`) documenting the first real write
+  (mkdir-only), output honesty, non-root gate verification, and root mkdir-live
+  smoke validation. Docs/report only; no runtime changes.
 
 ### Changed
 

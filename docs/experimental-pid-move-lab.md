@@ -55,7 +55,7 @@ a local root smoke matrix, and be documented before the next phase begins.
 - Local validation passed: 328 unit tests + 4 integration tests, 5 ignored,
   clippy clean, policy PASS, fmt clean.
 
-### Phase 2b: Actual Mkdir-Only Experiment (Current Phase)
+### Phase 2b: Actual Mkdir-Only Experiment (Completed)
 
 - Implemented the first real-write experiment in `src/systemd_wrapper/mkdir_executor.rs`.
 - When `--mkdir-live` is present with all existing gates, the command:
@@ -78,6 +78,40 @@ a local root smoke matrix, and be documented before the next phase begins.
 - The `--attach-live` path remains hard-blocked and non-mutating when
   `--mkdir-live` is absent.
 
+### Phase 2b.1: Output Honesty Fix (Completed)
+
+- Fixed misleading canonical safety footer when `--mkdir-live` is active.
+- The old footer "No nftables, tc, Zelynic cgroup, or state changes were
+  made" is replaced with truthful wording:
+  "No nftables, tc, or Zelynic state changes were made." and
+  "Mkdir-only cgroup preparation was performed."
+- Added explicit honest lines to the mkdir experiment section output:
+  "No cgroup.procs write was performed." and
+  "Parent namespace may remain: /sys/fs/cgroup/zelynic".
+- Added honest error message for `--mkdir-live` + `--attach-live`:
+  "Mkdir-only experiment completed; experimental PID move is not
+  implemented yet."
+- Normal non-mkdir paths preserve the existing canonical safety footer
+  unchanged. No runtime behavior change.
+
+### Phase 2c: Validation Report + Release Prep (Completed)
+
+- Produced validation report (`docs/v2.8-phase-2c-validation-report.md`)
+  documenting the first real write (mkdir-only), output honesty,
+  non-root gate verification, and root mkdir-live smoke validation.
+- Updated this design document with phase status markers.
+- No runtime changes. Docs/report only.
+
+### Phase 3: Single PID Move-Only + Immediate Rollback (Not Started)
+
+- Design-only. Does not implement PID movement.
+- Produces design documentation for the move sequence, rollback protocol,
+  and verification steps.
+- The first actual PID move (when eventually implemented in a future
+  phase) must be root-only, system-scope-only, single disposable PID
+  (e.g., `sleep 3`), with immediate rollback, no limiter attach, no
+  nftables/tc/state mutation, and no persistent state write.
+
 ### Phase 2: Target Cgroup `mkdir`-Only Experiment
 
 - Introduce a narrow, guarded code path that creates
@@ -91,15 +125,16 @@ a local root smoke matrix, and be documented before the next phase begins.
 - Local root smoke must confirm the cgroup appears and disappears, and that
   no other system state is modified.
 
-### Phase 3: Single PID Move-Only + Immediate Rollback
+### Phase 3: Single PID Move-Only + Immediate Rollback (Future)
 
-- Introduce a narrow code path that writes one PID into the target
-  `cgroup.procs`, verifies the PID appears in the target cgroup, then
-  immediately writes the PID back into the original `cgroup.procs`.
-- Verify the PID is restored to the original cgroup.
-- Remove the target cgroup only if empty and safe.
-- No limiter attach. No nftables/tc/state writes.
-- The PID move path requires every safety gate defined in this document.
+- Design-only next. Does not implement PID movement.
+- Must produce design documentation for the move sequence, rollback
+  protocol, and verification steps before any code is written.
+- When eventually implemented, the first actual PID move must be:
+  root-only, system-scope-only, single disposable PID (e.g., `sleep 3`),
+  with immediate rollback, no limiter attach, no nftables/tc/state
+  mutation, and no persistent state write.
+- See the phase 3 section above for the full move sequence design.
 - Local root smoke must confirm the PID moves to the target, is restored to
   the original cgroup, and the target cgroup is cleaned up.
 
@@ -374,20 +409,22 @@ v2.8 is considered successful when all of the following are true:
 
 ## Current Status
 
-v2.8 phase 1 (this document) is design-only. No runtime changes are
-introduced. No Rust code is modified. The purpose of this phase is to
-establish the safety gates, write boundaries, rollback rules, forbidden
-behaviors, manual smoke strategy, and success criteria that all subsequent
-v2.8 phases must follow.
+v2.8 phase 2c is completed. The validation report and release prep
+documentation have been produced. The next phase is phase 3 (design-only
+for single PID move + immediate rollback). No runtime changes were
+introduced in phase 2c.
 
 | Property | Status |
 |----------|--------|
 | PID movement | Not implemented |
-| Cgroup directory creation | Phase 2b: mkdir-only with --mkdir-live |
+| Cgroup directory creation | Phase 2b: mkdir-only with --mkdir-live (first real write) |
+| Output honesty | Phase 2b.1: truthful footer for --mkdir-live path |
 | `cgroup.procs` write | Not implemented |
 | Limiter attach | Not implemented |
 | nftables/tc/state changes | Not implemented |
 | `--attach-live` | Hard-blocked / non-mutating |
+| Phase 3 (PID move design) | Not started |
+| Validation report | Phase 2c: `docs/v2.8-phase-2c-validation-report.md` |
 
 ## Next Milestone After v2.8
 
