@@ -139,6 +139,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   honesty, error constant audit, missing flag path blocking). Updated
   scope_probe.rs footer count for new deny line. Produced output audit
   document. No runtime behavior changes. All output remains non-mutating.
+- **v2.8 phase 3e release-readiness / freeze report**: Produced release-
+  readiness freeze report (`docs/v2.8-phase-3e-release-readiness-freeze.md`)
+  summarizing all completed phases (2b mkdir-only executor, 2c validation
+  report, 3a single PID rollback design, 3b move transaction skeleton
+  alignment, 3c executor seam + hard gates, 3d output audit + negative-
+  path smoke coverage). Documents current validated state (local green, CI
+  green, root smoke green, version still v2.7.0, no live PID move). Lists
+  7 explicit freeze safety guarantees (no PID move, no cgroup.procs write,
+  no limiter attach, no nft/tc/state mutation, no persistent state write,
+  no bandwidth limiting from experimental path, mkdir-only may create/
+  cleanup target cgroup only). Documents 9 phase 4 entry criteria and full
+  artifact inventory. Docs/report only; no runtime code changes.
 
 ### Changed
 

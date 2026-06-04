@@ -196,7 +196,7 @@ a local root smoke matrix, and be documented before the next phase begins.
 - No runtime mutation. No live PID move. No cgroup.procs write. No
   limiter attach. No nft/tc/state changes.
 
-### Phase 3d: Output Audit + Negative-Path Smoke Coverage (Current Phase)
+### Phase 3d: Output Audit + Negative-Path Smoke Coverage (Completed)
 
 - Audited and locked output honesty for all experimental attach and move
   executor seam paths before any future real PID move phase.
@@ -227,6 +227,21 @@ a local root smoke matrix, and be documented before the next phase begins.
 - No runtime behavior changes. All output remains model-only/skeleton-only/
   execution-blocked. No new code paths, no write operations. Live PID
   movement remains not implemented.
+
+### Phase 3e: Release-Readiness / Freeze Report (Current Phase)
+
+- Produced release-readiness freeze report
+  (`docs/v2.8-phase-3e-release-readiness-freeze.md`).
+- Summarizes all completed phases (2b, 2c, 3a, 3b, 3c, 3d) with scope,
+  deliverables, and status.
+- Documents current validated state: local validation green, CI green,
+  root smoke green, version still v2.7.0, no live PID move implemented.
+- Documents 7 explicit freeze safety guarantees: no PID move, no cgroup.procs
+  write, no limiter attach, no nftables/tc/Zelynic state mutation, no
+  persistent state write, no bandwidth limiting from experimental path,
+  mkdir-only may create/cleanup target cgroup only.
+- Documents phase 4 entry criteria (9 conditions) and artifact inventory.
+- No runtime code changes. Docs/report only.
 
 ### Phase 3: Single PID Move-Only + Immediate Rollback (Not Started)
 
@@ -535,23 +550,24 @@ v2.8 is considered successful when all of the following are true:
 
 ## Current Status
 
-v2.8 phase 3d is the current phase. It audits and locks output honesty for
-all experimental attach and move executor seam paths. No runtime changes are
-introduced. Live PID movement remains not implemented.
+v2.8 phase 3e is the current phase. It freezes the v2.8 Experimental PID
+Move Lab at its current validated state with a release-readiness report.
+No runtime changes are introduced. Live PID movement remains not implemented.
 
 | Property | Status |
 |----------|--------|
-| PID movement | Not implemented (phase 3d: output audit + negative-path coverage) |
+| PID movement | Not implemented |
 | Cgroup directory creation | Phase 2b: mkdir-only with --mkdir-live (first real write) |
 | Output honesty | Phase 3d: canonical 7-deny-line audit across 11 negative paths |
-| `cgroup.procs` write | Not implemented (phase 3d: output audit + negative-path coverage) |
+| `cgroup.procs` write | Not implemented |
 | Move transaction skeleton | Phase 3b: aligned with 10-step 3a design, 27 tests passing |
 | Move executor seam | Phase 3d: 7 canonical deny lines, 33 tests passing |
 | Limiter attach | Not implemented |
 | nftables/tc/state changes | Not implemented |
 | `--attach-live` | Hard-blocked / non-mutating |
 | Operation journal | Phase 3b: 12 planned events aligned with 10-step model |
-| Phase 3d (output audit) | Current: 22 new tests, output audit doc |
+| Phase 3e (release-readiness/freeze) | Current: freeze report, docs-only |
+| Phase 3d (output audit) | Completed: 22 new tests, output audit doc |
 | Phase 3c (executor seam + hard gates) | Completed: `move_executor.rs` + gate integration |
 | Phase 3b (skeleton alignment) | Completed: `move_transaction.rs` + `operation_journal.rs` |
 | Phase 3a (PID move design) | Completed: `docs/v2.8-phase-3a-single-pid-rollback-design.md` |
