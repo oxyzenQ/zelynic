@@ -271,7 +271,7 @@ a local root smoke matrix, and be documented before the next phase begins.
   tests. No root smoke, no live PID move.
 - No runtime code changes. Docs/design only.
 
-### Phase 4b: Failure Simulation Model + Fake Tests (Current Phase)
+### Phase 4b: Failure Simulation Model + Fake Tests (Completed)
 
 - Implemented failure simulation model and comprehensive tests in
   `src/systemd_wrapper/failure_simulation/` (mod.rs + tests/mod.rs).
@@ -294,6 +294,45 @@ a local root smoke matrix, and be documented before the next phase begins.
 - No live PID move. No real cgroup.procs write. No limiter attach.
   No nftables/tc/Zelynic state mutation. No persistent state write.
   All simulation is pure model/fake-only.
+
+### Phase 4c: Fake Writer Injection Harness (Current Phase)
+
+- Added fake writer injection harness in
+  `src/systemd_wrapper/failure_simulation/fake_writer/` (fake_writer.rs +
+  tests.rs).
+- Models fake write operations on cgroup.procs files: fake write PID to
+  target, fake verify PID in target, fake write PID back to original,
+  fake verify restored, fake cleanup target cgroup.
+- Injectable fake failure modes: EACCES on target write, ENOENT on target
+  write, EBUSY on target write, EACCES on rollback write, ENOENT on
+  rollback write, EBUSY on cleanup, stale/dead PID before write,
+  stale/dead PID after target write, original cgroup missing before
+  rollback, target cgroup unexpectedly non-empty during cleanup.
+- Fake writer result model: operation attempted/succeeded/failed, fake
+  errno label, PID location after operation (not moved, verified in target,
+  verified restored, rollback unverified, unknown), rollback required,
+  manual recovery required, target may remain.
+- Pure functions: `simulate_fake_transaction()` models the full 6-step
+  transaction with injectable failure at any step boundary.
+  `render_fake_transaction_result()` renders structured diagnostic output.
+- Canonical deny lines in every rendered output: no real cgroup.procs
+  write, no live PID move, no limiter attach, no nft/tc/Zelynic state
+  mutation, no persistent state write.
+- Tests covering: happy path (target write success, rollback success),
+  target write failures (EACCES/ENOENT/EBUSY never claim PID moved,
+  no rollback required), failure after target write requires rollback
+  attempt, rollback failures report manual recovery required, cleanup
+  EBUSY leaves target, non-empty target never deleted, original cgroup
+  missing reports loudly, stale PID before write never attempts any write,
+  every rendered output denies real cgroup.procs write, every rendered
+  output denies live PID move, every rendered output denies limiter
+  attach, every rendered output denies nft/tc/state mutation, every
+  rendered output says fake/model-only, no retry loop modeled.
+- Submodule wired into `failure_simulation/mod.rs`, crate-private,
+  test-focused, no CLI command exposed, no runtime behavior change.
+- No live PID move. No real cgroup.procs write. No limiter attach.
+  No nftables/tc/Zelynic state mutation. No persistent state write.
+  All writer simulation is pure fake/in-memory/test-only/model-only.
 
 ### Phase 3: Single PID Move-Only + Immediate Rollback (Not Started)
 

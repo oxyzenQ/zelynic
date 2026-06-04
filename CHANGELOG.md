@@ -184,6 +184,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   path and no runtime behavior change. No live PID move, no real
   cgroup.procs write, no limiter attach, no nftables/tc/Zelynic state
   mutation, no persistent state write. All simulation is pure model/fake-only.
+- **v2.8 phase 4c fake writer injection harness**: Added fake writer
+  injection harness in `src/systemd_wrapper/failure_simulation/fake_writer/`
+  (fake_writer.rs + tests.rs) that simulates cgroup.procs write outcomes
+  and transaction failures without touching the real system. Models fake
+  write operations (write PID to target, verify in target, write PID back
+  to original, verify restored, cleanup target) with 10 injectable failure
+  modes (EACCES/ENOENT/EBUSY on target write, EACCES/ENOENT on rollback
+  write, EBUSY on cleanup, stale PID before/after target write, original
+  cgroup missing before rollback, target non-empty during cleanup). Fake
+  writer result model captures operation status (attempted/succeeded/failed),
+  fake errno, PID location (not moved, verified in target, verified
+  restored, rollback unverified, unknown), rollback/recovery/cleanup flags.
+  Pure functions `simulate_fake_transaction()` and
+  `render_fake_transaction_result()`. Canonical deny lines in every rendered
+  output: no real cgroup.procs write, no live PID move, no limiter attach,
+  no nft/tc/Zelynic state mutation, no persistent state write. Tests
+  covering happy path, all failure modes, deny-line persistence, no retry
+  loops, render structure, determinism, and cleanup-safety invariants.
+  Submodule wired into failure_simulation/mod.rs, crate-private,
+  test-focused, no CLI path, no runtime behavior change. No live PID move,
+  no real cgroup.procs write, no limiter attach, no nftables/tc/Zelynic
+  state mutation, no persistent state write. All writer simulation is pure
+  fake/in-memory/test-only/model-only.
 
 ### Changed
 

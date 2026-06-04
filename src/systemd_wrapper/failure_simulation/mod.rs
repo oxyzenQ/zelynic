@@ -22,6 +22,8 @@
 //! `cgroup.procs` write, no limiter attach, no nftables/tc/Zelynic state
 //! mutation, and no persistent state write. All simulation is pure model/fake-only.
 
+mod fake_writer;
+
 use super::render::push_line;
 
 // ---------------------------------------------------------------------------
