@@ -1,5 +1,9 @@
 // Copyright (C) 2026 rezky_nightky
 // SPDX-License-Identifier: GPL-3.0-only
+//! Hard safety boundary: no live PID move, no real cgroup.procs write,
+//! no limiter attach, no nftables/tc/Zelynic state mutation, no persistent
+//! state write. All simulation is pure model/fake-only.
+
 #![allow(dead_code)]
 //!
 //! Failure Simulation Model: pure model for the 12 failure scenarios defined in
@@ -714,4 +718,5 @@ impl FailureScenario {
     }
 }
 
-// Tests are in tests/mod.rs
+#[cfg(test)]
+mod tests;
