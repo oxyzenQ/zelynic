@@ -29,6 +29,8 @@ use experimental_attach_gate::{
     build_gate_input_from_preview, evaluate_experimental_attach_gate, ExperimentalAttachConsent,
     EXPERIMENTAL_PID_MOVE_NOT_IMPLEMENTED,
 };
+pub(crate) const MKDIR_LIVE_PID_MOVE_NOT_IMPLEMENTED: &str =
+    "Mkdir-only experiment completed; experimental PID move is not implemented yet.";
 use mkdir_executor::{render_mkdir_experiment_section, run_mkdir_only_experiment};
 pub(crate) use plan::ScopeMode;
 use plan::{build_dry_run_plan_with_scope_mode, build_live_run_plan_with_scope_mode, LiveRunPlan};
@@ -142,7 +144,7 @@ fn run_probe_live(
         preview = scope_runner::with_experimental_attach_gate(preview, checklist);
     }
 
-    scope_runner::print_scope_probe_output_with_preview(&result, &preview);
+    scope_runner::print_scope_probe_output_with_preview(&result, &preview, mkdir_live);
 
     // ---- mkdir-only experiment (v2.8 phase 2b) ----
     if mkdir_live {
@@ -163,7 +165,11 @@ fn run_probe_live(
     }
 
     if attach_live {
-        anyhow::bail!(EXPERIMENTAL_PID_MOVE_NOT_IMPLEMENTED);
+        if mkdir_live {
+            anyhow::bail!(MKDIR_LIVE_PID_MOVE_NOT_IMPLEMENTED);
+        } else {
+            anyhow::bail!(EXPERIMENTAL_PID_MOVE_NOT_IMPLEMENTED);
+        }
     }
 
     Ok(())
@@ -443,5 +449,53 @@ mod tests {
         assert!(!err.contains("limiter attach was performed"));
         assert!(!err.contains("nftables"));
         assert!(!err.contains("active limiter"));
+    }
+
+    // ---- mkdir-live error message tests ----
+
+    #[test]
+    fn mkdir_live_error_message_is_honest_about_completion() {
+        // Verify the constant exists and has the right wording
+        assert!(MKDIR_LIVE_PID_MOVE_NOT_IMPLEMENTED.contains("Mkdir-only experiment completed"));
+        assert!(MKDIR_LIVE_PID_MOVE_NOT_IMPLEMENTED
+            .contains("experimental PID move is not implemented yet"));
+        // Must not claim full attach success
+        assert!(!MKDIR_LIVE_PID_MOVE_NOT_IMPLEMENTED.contains("attach"));
+    }
+
+    #[test]
+    fn mkdir_live_error_differs_from_non_mkdir_error() {
+        // The mkdir-live error message must be distinct from the non-mkdir one
+        assert_ne!(
+            MKDIR_LIVE_PID_MOVE_NOT_IMPLEMENTED,
+            EXPERIMENTAL_PID_MOVE_NOT_IMPLEMENTED
+        );
+    }
+
+    #[test]
+    fn mkdir_live_non_root_still_blocks_at_root_gate() {
+        let command = vec!["sleep".to_string(), "30".to_string()];
+        let err = run_systemd_wrapper(
+            false,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            None,
+            Some("500kbit"),
+            Some("500kbit"),
+            ScopeMode::System,
+            &command,
+        )
+        .unwrap_err()
+        .to_string();
+
+        // Non-root: blocks at root gate, never reaches mkdir-live error
+        assert!(err.contains("requires root"));
+        assert!(!err.contains(MKDIR_LIVE_PID_MOVE_NOT_IMPLEMENTED));
+        assert!(!err.contains("Experimental PID move is not implemented yet"));
     }
 }

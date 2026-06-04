@@ -127,12 +127,13 @@ fn parse_property(output: &str, property: &str) -> Option<String> {
 
 #[cfg(test)]
 pub(crate) fn render_scope_probe_output(result: &ScopeProbeResult) -> String {
-    render_scope_probe_output_with_preview(result, None)
+    render_scope_probe_output_with_preview(result, None, false)
 }
 
 pub(crate) fn render_scope_probe_output_with_preview(
     result: &ScopeProbeResult,
     preview: Option<&AttachPreview>,
+    mkdir_live: bool,
 ) -> String {
     let mut output = String::new();
 
@@ -183,10 +184,21 @@ pub(crate) fn render_scope_probe_output_with_preview(
         push_line(&mut output, "  No PID was moved.");
     }
     push_line(&mut output, "  No limiter attach was performed.");
-    push_line(
-        &mut output,
-        "  No nftables, tc, Zelynic cgroup, or state changes were made.",
-    );
+    if mkdir_live {
+        push_line(
+            &mut output,
+            "  No nftables, tc, or Zelynic state changes were made.",
+        );
+        push_line(
+            &mut output,
+            "  Mkdir-only cgroup preparation was performed.",
+        );
+    } else {
+        push_line(
+            &mut output,
+            "  No nftables, tc, Zelynic cgroup, or state changes were made.",
+        );
+    }
     push_line(
         &mut output,
         "  Bandwidth limiting is not active from this command yet.",
@@ -206,10 +218,12 @@ pub(crate) fn render_scope_probe_output_with_preview(
 pub(crate) fn print_scope_probe_output_with_preview(
     result: &ScopeProbeResult,
     preview: &AttachPreview,
+    mkdir_live: bool,
 ) {
     print_rendered_scope_output(&render_scope_probe_output_with_preview(
         result,
         Some(preview),
+        mkdir_live,
     ));
 }
 
@@ -469,22 +483,31 @@ mod tests {
 
     #[test]
     fn preview_says_no_pid_was_moved() {
-        let rendered =
-            render_scope_probe_output_with_preview(&full_probe_result(), Some(&sample_preview()));
+        let rendered = render_scope_probe_output_with_preview(
+            &full_probe_result(),
+            Some(&sample_preview()),
+            false,
+        );
         assert!(rendered.contains("No PID was moved"));
     }
 
     #[test]
     fn preview_says_no_nftables_tc_zelynic_cgroup_state_changes() {
-        let rendered =
-            render_scope_probe_output_with_preview(&full_probe_result(), Some(&sample_preview()));
+        let rendered = render_scope_probe_output_with_preview(
+            &full_probe_result(),
+            Some(&sample_preview()),
+            false,
+        );
         assert!(rendered.contains("No nftables, tc, Zelynic cgroup, or state changes were made"));
     }
 
     #[test]
     fn preview_includes_attach_safety_preflight_section() {
-        let rendered =
-            render_scope_probe_output_with_preview(&full_probe_result(), Some(&sample_preview()));
+        let rendered = render_scope_probe_output_with_preview(
+            &full_probe_result(),
+            Some(&sample_preview()),
+            false,
+        );
 
         assert!(rendered.contains("Attach safety preflight"));
         assert!(rendered.contains("status: preview only; not evaluated live"));
@@ -501,8 +524,11 @@ mod tests {
 
     #[test]
     fn preview_safety_output_does_not_claim_attached_limited_or_enforced() {
-        let rendered =
-            render_scope_probe_output_with_preview(&full_probe_result(), Some(&sample_preview()));
+        let rendered = render_scope_probe_output_with_preview(
+            &full_probe_result(),
+            Some(&sample_preview()),
+            false,
+        );
 
         assert!(!rendered.contains("attached"));
         assert!(!rendered.contains("limited"));
@@ -542,7 +568,8 @@ mod tests {
         );
         let preview =
             super::super::attach_preview::with_experimental_attach_gate(sample_preview(), gate);
-        let rendered = render_scope_probe_output_with_preview(&full_probe_result(), Some(&preview));
+        let rendered =
+            render_scope_probe_output_with_preview(&full_probe_result(), Some(&preview), false);
 
         assert!(rendered.contains("Experimental attach gate:"));
         assert!(rendered.contains("final: blocked"));
@@ -584,7 +611,7 @@ mod tests {
             pids: vec![],
             cgroup_procs_path: None,
         };
-        let rendered = render_scope_probe_output_with_preview(&result, Some(&empty_preview));
+        let rendered = render_scope_probe_output_with_preview(&result, Some(&empty_preview), false);
         assert!(rendered.contains("    discovered PID(s): (none)"));
         assert!(rendered.contains("preview only; not applied"));
     }
@@ -594,8 +621,11 @@ mod tests {
         let no_rate_preview =
             super::super::attach_preview::build_attach_preview("sleep", &[42], None, None, None)
                 .unwrap();
-        let rendered =
-            render_scope_probe_output_with_preview(&full_probe_result(), Some(&no_rate_preview));
+        let rendered = render_scope_probe_output_with_preview(
+            &full_probe_result(),
+            Some(&no_rate_preview),
+            false,
+        );
         assert!(rendered.contains("    requested download: unlimited"));
         assert!(rendered.contains("    requested upload: unlimited"));
     }
@@ -609,5 +639,74 @@ mod tests {
         // But still has the standard safety lines
         assert!(rendered.contains("No limiter attach was performed"));
         assert!(rendered.contains("Bandwidth limiting is not active"));
+    }
+
+    // ---- mkdir-live output honesty tests ----
+
+    #[test]
+    fn mkdir_live_footer_does_not_claim_no_zelynic_cgroup_changes() {
+        let rendered = render_scope_probe_output_with_preview(
+            &full_probe_result(),
+            Some(&sample_preview()),
+            true,
+        );
+        // Must NOT contain the old misleading "No ... Zelynic cgroup ... changes were made"
+        assert!(!rendered.contains("No nftables, tc, Zelynic cgroup, or state changes were made"));
+    }
+
+    #[test]
+    fn mkdir_live_footer_contains_mkdir_preparation_was_performed() {
+        let rendered = render_scope_probe_output_with_preview(
+            &full_probe_result(),
+            Some(&sample_preview()),
+            true,
+        );
+        assert!(rendered.contains("Mkdir-only cgroup preparation was performed"));
+    }
+
+    #[test]
+    fn mkdir_live_footer_contains_no_zelynic_state_changes() {
+        let rendered = render_scope_probe_output_with_preview(
+            &full_probe_result(),
+            Some(&sample_preview()),
+            true,
+        );
+        assert!(rendered.contains("No nftables, tc, or Zelynic state changes were made"));
+    }
+
+    #[test]
+    fn mkdir_live_footer_preserves_no_pid_moved_and_bandwidth_lines() {
+        let rendered = render_scope_probe_output_with_preview(
+            &full_probe_result(),
+            Some(&sample_preview()),
+            true,
+        );
+        assert!(rendered.contains("No PID was moved."));
+        assert!(rendered.contains("No limiter attach was performed."));
+        assert!(rendered.contains("Bandwidth limiting is not active from this command yet."));
+    }
+
+    #[test]
+    fn non_mkdir_live_still_uses_canonical_safety_footer() {
+        let rendered = render_scope_probe_output_with_preview(
+            &full_probe_result(),
+            Some(&sample_preview()),
+            false,
+        );
+        // Non-mkdir path must still contain the original canonical footer
+        assert!(rendered.contains("No nftables, tc, Zelynic cgroup, or state changes were made."));
+        // Must NOT contain mkdir-live-specific wording
+        assert!(!rendered.contains("Mkdir-only cgroup preparation was performed"));
+        assert!(!rendered.contains("No nftables, tc, or Zelynic state changes were made"));
+    }
+
+    #[test]
+    fn mkdir_live_without_preview_still_has_honest_footer() {
+        let rendered = render_scope_probe_output_with_preview(&full_probe_result(), None, true);
+        // No preview means no "No PID was moved" line, but mkdir-live footer still present
+        assert!(!rendered.contains("No PID was moved"));
+        assert!(rendered.contains("Mkdir-only cgroup preparation was performed"));
+        assert!(rendered.contains("No nftables, tc, or Zelynic state changes were made"));
+        assert!(!rendered.contains("No nftables, tc, Zelynic cgroup, or state changes were made"));
     }
 }

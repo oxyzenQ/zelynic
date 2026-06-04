@@ -345,6 +345,15 @@ pub(crate) fn render_mkdir_experiment_section(output: &mut String, result: &Mkdi
         &format!("    nft/tc/state: {}", result.nft_tc_state),
     );
     push_line(output, "    limiter attach: not performed");
+    push_line(output, "");
+    push_line(output, "    No cgroup.procs write was performed.");
+    push_line(
+        output,
+        &format!(
+            "    Parent namespace may remain: {}",
+            result.parent_namespace
+        ),
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -719,5 +728,71 @@ mod tests {
             "/tmp/test",
             "/tmp/test/target_curl_123"
         ));
+    }
+
+    // ---- mkdir-live output honesty tests ----
+
+    #[test]
+    fn output_contains_explicit_no_cgroup_procs_write() {
+        let root = temp_root();
+        let target = default_target(&root);
+        let result = run_mkdir_only_experiment(&root, &target);
+        let mut output = String::new();
+        render_mkdir_experiment_section(&mut output, &result);
+        assert!(output.contains("No cgroup.procs write was performed"));
+        cleanup_temp(&root);
+    }
+
+    #[test]
+    fn output_contains_parent_namespace_may_remain() {
+        let root = temp_root();
+        let target = default_target(&root);
+        let result = run_mkdir_only_experiment(&root, &target);
+        let mut output = String::new();
+        render_mkdir_experiment_section(&mut output, &result);
+        assert!(output.contains("Parent namespace may remain"));
+        assert!(output.contains(&root));
+        cleanup_temp(&root);
+    }
+
+    #[test]
+    fn output_does_not_contain_misleading_zelynic_cgroup_changes() {
+        let root = temp_root();
+        let target = default_target(&root);
+        let result = run_mkdir_only_experiment(&root, &target);
+        let mut output = String::new();
+        render_mkdir_experiment_section(&mut output, &result);
+        // Must NOT contain the misleading old footer
+        assert!(!output.contains("No nftables, tc, Zelynic cgroup, or state changes were made"));
+        cleanup_temp(&root);
+    }
+
+    #[test]
+    fn output_leftover_case_includes_parent_namespace_line() {
+        let root = temp_root();
+        let target = default_target(&root);
+        let _ = fs::create_dir_all(&target);
+        let procs_path = Path::new(&target).join("cgroup.procs");
+        let _ = fs::write(&procs_path, "99999\n");
+        let (performed, reason, leftover) = attempt_cleanup_target(&target);
+        assert!(!performed);
+
+        let result = MkdirExperimentResult {
+            parent_namespace: root.clone(),
+            target_cgroup_path: target.clone(),
+            steps: vec![],
+            cleanup_performed: false,
+            cleanup_reason: reason,
+            pid_movement: "disabled".to_string(),
+            cgroup_procs_writes: "disabled".to_string(),
+            nft_tc_state: "disabled".to_string(),
+            leftover_target: leftover,
+        };
+        let mut output = String::new();
+        render_mkdir_experiment_section(&mut output, &result);
+        // Even with leftover, must show parent namespace line
+        assert!(output.contains("Parent namespace may remain"));
+        assert!(output.contains("No cgroup.procs write was performed"));
+        cleanup_temp(&root);
     }
 }
