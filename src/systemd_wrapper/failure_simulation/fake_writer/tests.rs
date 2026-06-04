@@ -5,8 +5,7 @@ use super::*;
 
 const TEST_PID: u32 = 1234;
 const TEST_TARGET: &str = "/sys/fs/cgroup/zelynic/target_test";
-const TEST_ORIGINAL: &str =
-    "/sys/fs/cgroup/user.slice/user-1000.slice/session-1.scope";
+const TEST_ORIGINAL: &str = "/sys/fs/cgroup/user.slice/user-1000.slice/session-1.scope";
 
 fn sim_none() -> FakeTransactionResult {
     simulate_fake_transaction(TEST_PID, TEST_TARGET, TEST_ORIGINAL, FakeFailureMode::None)
@@ -66,7 +65,10 @@ fn fake_rollback_success_updates_pid_location_to_verified_restored() {
         FakePidLocation::VerifiedRestored,
         "PID location must be verified restored after successful rollback"
     );
-    assert!(!result.target_may_remain, "target must not remain after cleanup");
+    assert!(
+        !result.target_may_remain,
+        "target must not remain after cleanup"
+    );
     assert!(
         !result.manual_recovery_required,
         "manual recovery must not be required in happy path"
@@ -513,9 +515,7 @@ fn occurs_after_target_write_correct() {
     assert!(FakeFailureMode::RollbackWriteEnoent.occurs_after_target_write());
     assert!(FakeFailureMode::CleanupEbusy.occurs_after_target_write());
     assert!(FakeFailureMode::TargetNonEmptyDuringCleanup.occurs_after_target_write());
-    assert!(
-        FakeFailureMode::OriginalCgroupMissingBeforeRollback.occurs_after_target_write()
-    );
+    assert!(FakeFailureMode::OriginalCgroupMissingBeforeRollback.occurs_after_target_write());
     // Modes where the failure happens before or at target write
     assert!(!FakeFailureMode::TargetWriteEacces.occurs_after_target_write());
     assert!(!FakeFailureMode::StalePidBeforeWrite.occurs_after_target_write());
@@ -524,12 +524,27 @@ fn occurs_after_target_write_correct() {
 
 #[test]
 fn errno_label_correctness() {
-    assert_eq!(FakeFailureMode::TargetWriteEacces.errno_label(), Some("EACCES"));
-    assert_eq!(FakeFailureMode::TargetWriteEnoent.errno_label(), Some("ENOENT"));
-    assert_eq!(FakeFailureMode::TargetWriteEbusy.errno_label(), Some("EBUSY"));
-    assert_eq!(FakeFailureMode::RollbackWriteEacces.errno_label(), Some("EACCES"));
+    assert_eq!(
+        FakeFailureMode::TargetWriteEacces.errno_label(),
+        Some("EACCES")
+    );
+    assert_eq!(
+        FakeFailureMode::TargetWriteEnoent.errno_label(),
+        Some("ENOENT")
+    );
+    assert_eq!(
+        FakeFailureMode::TargetWriteEbusy.errno_label(),
+        Some("EBUSY")
+    );
+    assert_eq!(
+        FakeFailureMode::RollbackWriteEacces.errno_label(),
+        Some("EACCES")
+    );
     assert_eq!(FakeFailureMode::CleanupEbusy.errno_label(), Some("EBUSY"));
-    assert_eq!(FakeFailureMode::StalePidAfterTargetWrite.errno_label(), Some("ESRCH"));
+    assert_eq!(
+        FakeFailureMode::StalePidAfterTargetWrite.errno_label(),
+        Some("ESRCH")
+    );
     assert_eq!(
         FakeFailureMode::OriginalCgroupMissingBeforeRollback.errno_label(),
         Some("ENOENT")
@@ -602,7 +617,10 @@ fn render_includes_deny_lines_section() {
 #[test]
 fn render_has_five_deny_lines() {
     let output = rendered(&sim_none());
-    let count = output.lines().filter(|l| l.contains("fake/model-only:")).count();
+    let count = output
+        .lines()
+        .filter(|l| l.contains("fake/model-only:"))
+        .count();
     assert_eq!(count, 5, "expected 5 fake/model-only deny lines");
 }
 
@@ -644,9 +662,18 @@ fn operation_status_labels_are_non_empty() {
 #[test]
 fn fake_pid_location_labels_match_phase_4a_taxonomy() {
     assert_eq!(FakePidLocation::NotMoved.label(), "not moved");
-    assert_eq!(FakePidLocation::VerifiedInTarget.label(), "verified in target");
-    assert_eq!(FakePidLocation::VerifiedRestored.label(), "verified restored");
-    assert_eq!(FakePidLocation::RollbackUnverified.label(), "rollback unverified");
+    assert_eq!(
+        FakePidLocation::VerifiedInTarget.label(),
+        "verified in target"
+    );
+    assert_eq!(
+        FakePidLocation::VerifiedRestored.label(),
+        "verified restored"
+    );
+    assert_eq!(
+        FakePidLocation::RollbackUnverified.label(),
+        "rollback unverified"
+    );
     assert_eq!(FakePidLocation::Unknown.label(), "unknown");
 }
 
@@ -678,8 +705,10 @@ fn render_is_deterministic() {
 
 #[test]
 fn cleanup_failure_pid_location_still_verified_restored() {
-    for mode in &[FakeFailureMode::CleanupEbusy, FakeFailureMode::TargetNonEmptyDuringCleanup]
-    {
+    for mode in &[
+        FakeFailureMode::CleanupEbusy,
+        FakeFailureMode::TargetNonEmptyDuringCleanup,
+    ] {
         let result = sim(*mode);
         assert_eq!(
             result.pid_location,

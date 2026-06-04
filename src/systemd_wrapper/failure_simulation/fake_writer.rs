@@ -106,9 +106,7 @@ impl FakeFailureMode {
             Self::CleanupEbusy => "cleanup EBUSY",
             Self::StalePidBeforeWrite => "stale PID before write",
             Self::StalePidAfterTargetWrite => "stale PID after target write",
-            Self::OriginalCgroupMissingBeforeRollback => {
-                "original cgroup missing before rollback"
-            }
+            Self::OriginalCgroupMissingBeforeRollback => "original cgroup missing before rollback",
             Self::TargetNonEmptyDuringCleanup => "target non-empty during cleanup",
         }
     }
@@ -156,10 +154,7 @@ impl FakeFailureMode {
     /// Returns true if this failure mode injects a fault at the rollback write
     /// step (step 8), meaning the PID may be stranded in the target.
     pub(crate) fn is_rollback_write_failure(&self) -> bool {
-        matches!(
-            self,
-            Self::RollbackWriteEacces | Self::RollbackWriteEnoent
-        )
+        matches!(self, Self::RollbackWriteEacces | Self::RollbackWriteEnoent)
     }
 
     /// Returns true if this failure mode occurs after the target write has
