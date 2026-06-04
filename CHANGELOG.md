@@ -59,6 +59,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   cgroup.procs writes, no nftables/tc/state changes. The skeleton renders in
   the experimental attach gate output with `first real write: not enabled in
   this build`.
+- **Mkdir-only experiment executor**: Added `src/systemd_wrapper/mkdir_executor.rs`
+  with the first real-write experiment for v2.8 phase 2b. When `--mkdir-live`
+  is present with all existing gates, creates the Zelynic cgroup namespace
+  directory and target cgroup, verifies existence, then cleans up the target
+  cgroup if empty and operation-owned. New `--mkdir-live` CLI flag requires
+  `--execute`, `--probe-live`, `--attach-live`,
+  `--experimental-single-pid-attach`, `--i-understand-this-moves-pids`, and
+  `--rollback-required`. No PID movement, no cgroup.procs write, no nftables/tc
+  or state changes.
 
 ### Changed
 

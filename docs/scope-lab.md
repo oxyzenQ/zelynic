@@ -950,3 +950,13 @@ git diff --check
 - systemd versions differ in transient scope behavior and property reporting.
 - Containers and WSL may expose partial systemd/cgroup signals.
 - No privileged operations were performed during these probes.
+
+## v2.8 Phase 2b: Mkdir-Only Experiment
+
+The mkdir-only experiment is the first real write in the Zelynic Scope Runner.
+When `--mkdir-live` is used with the full experimental consent bundle, the
+command creates `/sys/fs/cgroup/zelynic/` and
+`/sys/fs/cgroup/zelynic/target_<name>`, verifies the target exists, then
+removes the target cgroup if it is empty and operation-owned. The parent
+namespace directory may remain. See
+[Experimental PID Move Lab](experimental-pid-move-lab.md) for the full design.

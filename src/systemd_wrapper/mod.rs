@@ -10,6 +10,7 @@ mod contract;
 mod discovery;
 mod experimental_attach_gate;
 mod manual_probe;
+mod mkdir_executor;
 mod mkdir_transaction;
 mod move_transaction;
 mod operation_journal;
@@ -28,6 +29,7 @@ use experimental_attach_gate::{
     build_gate_input_from_preview, evaluate_experimental_attach_gate, ExperimentalAttachConsent,
     EXPERIMENTAL_PID_MOVE_NOT_IMPLEMENTED,
 };
+use mkdir_executor::{render_mkdir_experiment_section, run_mkdir_only_experiment};
 pub(crate) use plan::ScopeMode;
 use plan::{build_dry_run_plan_with_scope_mode, build_live_run_plan_with_scope_mode, LiveRunPlan};
 use preflight::current_execution_preflight;
@@ -42,6 +44,7 @@ pub fn run_systemd_wrapper(
     experimental_single_pid_attach: bool,
     i_understand_this_moves_pids: bool,
     rollback_required: bool,
+    mkdir_live: bool,
     target: Option<&str>,
     download: Option<&str>,
     upload: Option<&str>,
@@ -67,6 +70,7 @@ pub fn run_systemd_wrapper(
                     scope_mode,
                     attach_live,
                     consent,
+                    mkdir_live,
                     target,
                     download,
                     upload,
@@ -88,10 +92,12 @@ pub fn run_systemd_wrapper(
 }
 
 /// Scope Runner live probe: root-only, system-scope only.
+#[allow(clippy::too_many_arguments)]
 fn run_probe_live(
     scope_mode: ScopeMode,
     attach_live: bool,
     attach_consent: ExperimentalAttachConsent,
+    mkdir_live: bool,
     target: Option<&str>,
     download: Option<&str>,
     upload: Option<&str>,
@@ -138,6 +144,24 @@ fn run_probe_live(
 
     scope_runner::print_scope_probe_output_with_preview(&result, &preview);
 
+    // ---- mkdir-only experiment (v2.8 phase 2b) ----
+    if mkdir_live {
+        let target_name = target.map(str::to_string).unwrap_or_else(|| {
+            command
+                .first()
+                .map(|c| c.rsplit('/').next().unwrap_or(c).to_string())
+                .unwrap_or_else(|| "unknown".to_string())
+        });
+        let target_cgroup_path = format!(
+            "{}/target_{}",
+            mkdir_executor::ZELYNIC_CGROUP_ROOT,
+            sanitize::sanitize_scope_component(&target_name)
+        );
+        let experiment =
+            run_mkdir_only_experiment(mkdir_executor::ZELYNIC_CGROUP_ROOT, &target_cgroup_path);
+        print_mkdir_experiment_result(&experiment);
+    }
+
     if attach_live {
         anyhow::bail!(EXPERIMENTAL_PID_MOVE_NOT_IMPLEMENTED);
     }
@@ -149,6 +173,14 @@ fn execute_live_run(_plan: &LiveRunPlan) -> Result<()> {
     bail!("Live systemd wrapper execution is not implemented yet.")
 }
 
+fn print_mkdir_experiment_result(experiment: &mkdir_executor::MkdirExperimentResult) {
+    let mut output = String::new();
+    render_mkdir_experiment_section(&mut output, experiment);
+    for line in output.lines() {
+        println!("{line}");
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -157,6 +189,7 @@ mod tests {
     fn run_without_mode_errors_clearly() {
         let command = vec!["echo".to_string(), "hello".to_string()];
         let err = run_systemd_wrapper(
+            false,
             false,
             false,
             false,
@@ -194,13 +227,12 @@ mod tests {
     #[test]
     fn execute_without_probe_live_returns_not_implemented() {
         let command = vec!["sleep".to_string(), "30".to_string()];
-        // Non-root execute without probe-live should fall through to
-        // the old execute_live_run which returns not-implemented.
         let err = run_systemd_wrapper(
             false,
             true,
-            false, // probe_live = false
-            false, // attach_live = false
+            false,
+            false,
+            false,
             false,
             false,
             false,
@@ -225,15 +257,16 @@ mod tests {
         let err = run_systemd_wrapper(
             false,
             true,
-            true,  // probe_live = true
-            false, // attach_live = false
+            true,
+            false,
+            false,
             false,
             false,
             false,
             None,
             None,
             None,
-            ScopeMode::User, // user scope → blocked
+            ScopeMode::User,
             &command,
         )
         .unwrap_err()
@@ -248,35 +281,33 @@ mod tests {
         let err = run_systemd_wrapper(
             false,
             true,
-            true,  // probe_live = true
-            false, // attach_live = false
+            true,
+            false,
+            false,
             false,
             false,
             false,
             None,
             None,
             None,
-            ScopeMode::System, // system scope
+            ScopeMode::System,
             &command,
         )
         .unwrap_err()
         .to_string();
 
-        // In CI we're non-root, so this should say requires root
         assert!(err.contains("requires root"));
     }
 
     #[test]
     fn attach_live_without_probe_live_returns_not_implemented() {
         let command = vec!["sleep".to_string(), "30".to_string()];
-        // Clap rejects --attach-live without --probe-live at the CLI level,
-        // but as a runtime guard: attach_live with probe_live=false falls
-        // through to the non-probe path (not-implemented).
         let err = run_systemd_wrapper(
             false,
             true,
-            false, // probe_live = false
-            true,  // attach_live = true (should not be reachable via CLI)
+            false,
+            true,
+            false,
             false,
             false,
             false,
@@ -301,15 +332,16 @@ mod tests {
         let err = run_systemd_wrapper(
             false,
             true,
-            true, // probe_live = true
-            true, // attach_live = true
+            true,
+            true,
+            false,
             false,
             false,
             false,
             None,
             None,
             None,
-            ScopeMode::User, // user scope → blocked before attach gate
+            ScopeMode::User,
             &command,
         )
         .unwrap_err()
@@ -324,15 +356,16 @@ mod tests {
         let err = run_systemd_wrapper(
             false,
             true,
-            true, // probe_live = true
-            true, // attach_live = true
+            true,
+            true,
+            false,
             false,
             false,
             false,
             None,
             None,
             None,
-            ScopeMode::System, // system scope
+            ScopeMode::System,
             &command,
         )
         .unwrap_err()
@@ -348,11 +381,12 @@ mod tests {
         let err = run_systemd_wrapper(
             false,
             true,
-            true, // probe_live = true
-            true, // attach_live = true
             true,
             true,
             true,
+            true,
+            true,
+            false,
             None,
             None,
             None,
@@ -367,8 +401,33 @@ mod tests {
     }
 
     #[test]
+    fn mkdir_live_system_non_root_blocks_at_root_gate() {
+        let command = vec!["sleep".to_string(), "30".to_string()];
+        let err = run_systemd_wrapper(
+            false,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            None,
+            None,
+            None,
+            ScopeMode::System,
+            &command,
+        )
+        .unwrap_err()
+        .to_string();
+
+        // Non-root: probe gate blocks before mkdir is reached
+        assert!(err.contains("requires root"));
+        assert!(!err.contains("Experimental PID move is not implemented yet"));
+    }
+
+    #[test]
     fn attach_live_root_would_hard_block_if_gate_reached() {
-        // We can't test as root in CI, but we can test the attach_gate directly.
         let err = scope_runner::attach_gate().unwrap_err().to_string();
         assert!(err.contains("live attach is not implemented yet"));
         assert!(err.contains("live probe and attach preview"));

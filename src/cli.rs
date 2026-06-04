@@ -231,10 +231,24 @@ pub enum Commands {
         )]
         rollback_required: bool,
 
+        /// First real-write experiment: mkdir-only cgroup preparation with cleanup (v2.8 phase 2b)
+        #[arg(
+            long = "mkdir-live",
+            requires = "execute",
+            requires = "probe_live",
+            requires = "attach_live",
+            requires = "experimental_single_pid_attach",
+            requires = "i_understand_this_moves_pids",
+            requires = "rollback_required"
+        )]
+        mkdir_live: bool,
+
+        #[allow(dead_code)]
         /// Optional target name for state/cgroup naming; defaults to command basename
         #[arg(long = "target", value_name = "TARGET")]
         target: Option<String>,
 
+        #[allow(dead_code)]
         /// Planning scope mode
         #[arg(long = "scope-mode", value_enum, default_value_t = RunScopeModeArg::User)]
         scope_mode: RunScopeModeArg,

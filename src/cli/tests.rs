@@ -475,3 +475,222 @@ fn run_help_mentions_execute_is_experimental() {
     assert!(help.contains("user:"));
     assert!(help.contains("system:"));
 }
+
+// ---- --mkdir-live tests ----
+
+#[test]
+fn run_mkdir_live_defaults_false() {
+    let cli = Cli::try_parse_from([
+        "zelynic",
+        "run",
+        "--execute",
+        "--scope-mode",
+        "system",
+        "--probe-live",
+        "--attach-live",
+        "--experimental-single-pid-attach",
+        "--i-understand-this-moves-pids",
+        "--rollback-required",
+        "--",
+        "sleep",
+        "30",
+    ])
+    .unwrap();
+
+    match cli.command.unwrap() {
+        Commands::Run { mkdir_live, .. } => assert!(!mkdir_live),
+        other => panic!("expected run command, got {other:?}"),
+    }
+}
+
+#[test]
+fn run_mkdir_live_parses_with_full_consent_bundle() {
+    let cli = Cli::try_parse_from([
+        "zelynic",
+        "run",
+        "--execute",
+        "--scope-mode",
+        "system",
+        "--probe-live",
+        "--attach-live",
+        "--experimental-single-pid-attach",
+        "--i-understand-this-moves-pids",
+        "--rollback-required",
+        "--mkdir-live",
+        "-d",
+        "500kbit",
+        "-u",
+        "500kbit",
+        "--",
+        "sleep",
+        "3",
+    ])
+    .unwrap();
+
+    match cli.command.unwrap() {
+        Commands::Run {
+            execute,
+            probe_live,
+            attach_live,
+            experimental_single_pid_attach,
+            i_understand_this_moves_pids,
+            rollback_required,
+            mkdir_live,
+            download,
+            upload,
+            command,
+            ..
+        } => {
+            assert!(execute);
+            assert!(probe_live);
+            assert!(attach_live);
+            assert!(experimental_single_pid_attach);
+            assert!(i_understand_this_moves_pids);
+            assert!(rollback_required);
+            assert!(mkdir_live);
+            assert_eq!(download.as_deref(), Some("500kbit"));
+            assert_eq!(upload.as_deref(), Some("500kbit"));
+            assert_eq!(command, vec!["sleep", "3"]);
+        }
+        other => panic!("expected run command, got {other:?}"),
+    }
+}
+
+#[test]
+fn run_mkdir_live_requires_execute() {
+    let result = Cli::try_parse_from([
+        "zelynic",
+        "run",
+        "--scope-mode",
+        "system",
+        "--probe-live",
+        "--attach-live",
+        "--experimental-single-pid-attach",
+        "--i-understand-this-moves-pids",
+        "--rollback-required",
+        "--mkdir-live",
+        "--",
+        "sleep",
+        "3",
+    ]);
+
+    assert!(result.is_err());
+}
+
+#[test]
+fn run_mkdir_live_requires_probe_live() {
+    let result = Cli::try_parse_from([
+        "zelynic",
+        "run",
+        "--execute",
+        "--scope-mode",
+        "system",
+        "--attach-live",
+        "--experimental-single-pid-attach",
+        "--i-understand-this-moves-pids",
+        "--rollback-required",
+        "--mkdir-live",
+        "--",
+        "sleep",
+        "3",
+    ]);
+
+    assert!(result.is_err());
+}
+
+#[test]
+fn run_mkdir_live_requires_attach_live() {
+    let result = Cli::try_parse_from([
+        "zelynic",
+        "run",
+        "--execute",
+        "--scope-mode",
+        "system",
+        "--probe-live",
+        "--experimental-single-pid-attach",
+        "--i-understand-this-moves-pids",
+        "--rollback-required",
+        "--mkdir-live",
+        "--",
+        "sleep",
+        "3",
+    ]);
+
+    assert!(result.is_err());
+}
+
+#[test]
+fn run_mkdir_live_requires_experimental_single_pid_attach() {
+    let result = Cli::try_parse_from([
+        "zelynic",
+        "run",
+        "--execute",
+        "--scope-mode",
+        "system",
+        "--probe-live",
+        "--attach-live",
+        "--i-understand-this-moves-pids",
+        "--rollback-required",
+        "--mkdir-live",
+        "--",
+        "sleep",
+        "3",
+    ]);
+
+    assert!(result.is_err());
+}
+
+#[test]
+fn run_mkdir_live_requires_i_understand_this_moves_pids() {
+    let result = Cli::try_parse_from([
+        "zelynic",
+        "run",
+        "--execute",
+        "--scope-mode",
+        "system",
+        "--probe-live",
+        "--attach-live",
+        "--experimental-single-pid-attach",
+        "--rollback-required",
+        "--mkdir-live",
+        "--",
+        "sleep",
+        "3",
+    ]);
+
+    assert!(result.is_err());
+}
+
+#[test]
+fn run_mkdir_live_requires_rollback_required() {
+    let result = Cli::try_parse_from([
+        "zelynic",
+        "run",
+        "--execute",
+        "--scope-mode",
+        "system",
+        "--probe-live",
+        "--attach-live",
+        "--experimental-single-pid-attach",
+        "--i-understand-this-moves-pids",
+        "--mkdir-live",
+        "--",
+        "sleep",
+        "3",
+    ]);
+
+    assert!(result.is_err());
+}
+
+#[test]
+fn run_help_mentions_mkdir_live() {
+    let mut command = Cli::command();
+    let help = command
+        .find_subcommand_mut("run")
+        .expect("run subcommand")
+        .render_long_help()
+        .to_string();
+
+    assert!(help.contains("--mkdir-live"));
+    assert!(help.contains("mkdir-only"));
+}

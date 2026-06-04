@@ -39,7 +39,7 @@ a local root smoke matrix, and be documented before the next phase begins.
   forbidden behaviors, manual smoke strategy, and success criteria that all
   subsequent phases must follow.
 
-### Phase 2a: Mkdir-Only Executor Skeleton (Current Phase)
+### Phase 2a: Mkdir-Only Executor Skeleton (Completed)
 
 - Add a pure, non-mutating mkdir-only executor skeleton to the experimental
   attach gate output in `src/systemd_wrapper/mkdir_transaction.rs`.
@@ -54,6 +54,29 @@ a local root smoke matrix, and be documented before the next phase begins.
 - The canonical safety footer is rendered once (not duplicated).
 - Local validation passed: 328 unit tests + 4 integration tests, 5 ignored,
   clippy clean, policy PASS, fmt clean.
+
+### Phase 2b: Actual Mkdir-Only Experiment (Current Phase)
+
+- Implemented the first real-write experiment in `src/systemd_wrapper/mkdir_executor.rs`.
+- When `--mkdir-live` is present with all existing gates, the command:
+  1. Launches the transient systemd scope as the current root probe does.
+  2. Discovers PID/control group as usual.
+  3. Runs existing read-only safety checks as usual.
+  4. Creates/prepares `/sys/fs/cgroup/zelynic` (namespace directory).
+  5. Creates/prepares `/sys/fs/cgroup/zelynic/target_<name>` (target cgroup).
+  6. Verifies the target cgroup directory exists.
+  7. Removes the target cgroup only if it is empty, operation-owned, and safe.
+  8. Leaves `/sys/fs/cgroup/zelynic` in place (namespace directory).
+- New `--mkdir-live` flag requires all existing experimental consent flags
+  (`--execute`, `--scope-mode system`, `--probe-live`, `--attach-live`,
+  `--experimental-single-pid-attach`, `--i-understand-this-moves-pids`,
+  `--rollback-required`).
+- No PID movement. No `cgroup.procs` write. No nftables/tc/state writes.
+- Cleanup only removes empty, operation-owned target cgroups. On uncertainty,
+  the target is left in place and reported.
+- Tests use temp directories; no live `/sys/fs/cgroup` in unit tests.
+- The `--attach-live` path remains hard-blocked and non-mutating when
+  `--mkdir-live` is absent.
 
 ### Phase 2: Target Cgroup `mkdir`-Only Experiment
 
@@ -118,6 +141,7 @@ evaluation order must match the list below.
 | `--experimental-single-pid-attach` | Must be set | Clap `requires` / gate check |
 | `--i-understand-this-moves-pids` | Must be set | Clap `requires` / gate check |
 | `--rollback-required` | Must be set | Clap `requires` / gate check |
+| `--mkdir-live` | Must be set for real mkdir experiment | Clap `requires` / runtime gate |
 
 ### Required Runtime Conditions
 
@@ -359,7 +383,7 @@ v2.8 phases must follow.
 | Property | Status |
 |----------|--------|
 | PID movement | Not implemented |
-| Cgroup directory creation | Not implemented |
+| Cgroup directory creation | Phase 2b: mkdir-only with --mkdir-live |
 | `cgroup.procs` write | Not implemented |
 | Limiter attach | Not implemented |
 | nftables/tc/state changes | Not implemented |

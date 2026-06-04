@@ -128,7 +128,8 @@ design-only, establishing the safety gates, write boundaries, rollback rules,
 and forbidden behaviors for the first real cgroup write path. Phase 2a adds a
 pure mkdir-only executor skeleton to the experimental attach gate output in
 `src/systemd_wrapper/mkdir_transaction.rs`, modelling the exact future
-mkdir-only write sequence while remaining hard-blocked and non-mutating. The
+mkdir-only write sequence while remaining hard-blocked and non-mutating. v2.8
+phase 2b adds the actual mkdir-only experiment executor with `--mkdir-live`. The
 first real write will be a narrow `mkdir`-only experiment with no PID
 movement. See [docs/experimental-pid-move-lab.md](experimental-pid-move-lab.md)
 for the full design document.
