@@ -110,6 +110,11 @@ move-only execution. It parses sample mountinfo text to model cgroup v2 mount
 path and read-write/read-only status, then renders current Scope Runner output
 as not checked live with `cgroup.procs` writes blocked.
 
+The v2.7 phase 5 lab adds an operation journal preview. It gives each future
+move-only experiment a deterministic model-only operation id, owner label, event
+list, and rollback boundary. The journal is not persisted, state writes remain
+blocked, and rollback is limited to operation-owned state.
+
 The displayed `systemd-run` command is for visibility only. Internally, Zelynic
 keeps the command as structured argv; a future live implementation must execute
 structured arguments directly and must not pass a rendered shell string to a

@@ -43,6 +43,7 @@ pub(crate) struct ExperimentalAttachGateInput {
     pub attach_live: bool,
     pub is_root: bool,
     pub consent: ExperimentalAttachConsent,
+    pub discovered_pids: Vec<u32>,
     pub discovered_pid_count: usize,
     pub original_cgroup_capture_valid: bool,
     pub pid_liveness_alive: bool,
@@ -134,6 +135,7 @@ pub(crate) fn build_gate_input_from_preview(
         attach_live,
         is_root,
         consent,
+        discovered_pids: preview.pids.clone(),
         discovered_pid_count: preview.pids.len(),
         original_cgroup_capture_valid,
         pid_liveness_alive,
@@ -150,7 +152,7 @@ pub(crate) fn evaluate_experimental_attach_gate(
     input: ExperimentalAttachGateInput,
 ) -> ExperimentalAttachGateChecklist {
     let move_transaction = build_move_transaction_skeleton(
-        input.discovered_pid_count,
+        &input.discovered_pids,
         &input.target_cgroup_path,
         input.original_rollback_path.as_deref(),
     );
@@ -308,6 +310,7 @@ mod tests {
             attach_live: true,
             is_root: true,
             consent: ok_consent(),
+            discovered_pids: vec![12345],
             discovered_pid_count: 1,
             original_cgroup_capture_valid: true,
             pid_liveness_alive: true,
@@ -370,6 +373,7 @@ mod tests {
     fn multiple_discovered_pids_block() {
         let mut input = ok_input();
         input.discovered_pid_count = 2;
+        input.discovered_pids = vec![12345, 12346];
         let checklist = evaluate_experimental_attach_gate(input);
 
         assert_eq!(

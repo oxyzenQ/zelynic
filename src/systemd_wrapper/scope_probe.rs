@@ -526,6 +526,7 @@ mod tests {
                     i_understand_this_moves_pids: true,
                     rollback_required: true,
                 },
+                discovered_pids: vec![12345],
                 discovered_pid_count: 1,
                 original_cgroup_capture_valid: true,
                 pid_liveness_alive: true,

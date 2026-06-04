@@ -586,6 +586,29 @@ This phase does not read live mountinfo in the Scope Runner output path. It
 also does not create cgroups, does not write `cgroup.procs`, does not move PIDs,
 and does not enable live limiter attach.
 
+#### Operation journal preview (v2.7 Phase 5)
+
+The v2.7 phase 5 lab adds a pure operation journal preview to the move-only
+executor skeleton. A future mutation path must be operation-owned and journaled
+before any real write can be considered; this phase models that requirement but
+does not persist anything.
+
+The journal preview includes:
+
+- a deterministic preview operation id derived from target, PID list, and mode
+- operation owner: `zelynic-scope-runner`
+- operation mode: `move-only`
+- target name, target cgroup, original cgroup, and PID list ownership context
+- ordered planned events from `planned` through `blocked_not_executed`
+- rollback boundary: operation-owned state only
+- state writes: blocked
+- execution: blocked
+
+Rollback is explicitly scoped: a future rollback may only touch state owned by
+that operation, and the rollback target must be the captured original cgroup.
+External or non-owned state must not be removed. Live PID movement remains
+blocked, no journal is persisted, and no Zelynic state file is written.
+
 Even if every checklist item is `ok`, the final result remains:
 
 ```text

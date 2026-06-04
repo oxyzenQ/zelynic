@@ -8,6 +8,10 @@
 //! directories, write cgroup.procs, read cgroup.procs, call nftables/tc, write
 //! Zelynic state, execute commands, or call the limiter attach path.
 
+use super::operation_journal::{
+    build_operation_journal_preview, render_operation_journal_preview_section,
+    OperationJournalPreview,
+};
 use super::render::push_line;
 use super::target_cgroup_preflight::{
     build_target_cgroup_preflight, render_target_cgroup_preflight_section, TargetCgroupPreflight,
@@ -20,11 +24,13 @@ pub(crate) struct MoveTransaction {
     pub status: String,
     pub mode: String,
     pub pid_count: usize,
+    pub pids: Vec<u32>,
     pub target_cgroup_path: String,
     pub original_cgroup_path: Option<String>,
     pub operations: Vec<MoveOperation>,
     pub rollback: Vec<RollbackOperation>,
     pub writes_modelled: Vec<String>,
+    pub operation_journal: OperationJournalPreview,
     pub target_cgroup_preflight: TargetCgroupPreflight,
     pub execution: String,
     pub blocked_reasons: Vec<String>,
@@ -41,15 +47,22 @@ pub(crate) struct RollbackOperation {
 }
 
 pub(crate) fn build_move_transaction_skeleton(
-    pid_count: usize,
+    pids: &[u32],
     target_cgroup_path: &str,
     original_cgroup_path: Option<&str>,
 ) -> MoveTransaction {
     let mut blocked_reasons = Vec::new();
     let target_cgroup_preflight =
         build_target_cgroup_preflight(target_cgroup_path, original_cgroup_path);
+    let target_name = target_name_from_cgroup(target_cgroup_path);
+    let operation_journal = build_operation_journal_preview(
+        &target_name,
+        target_cgroup_path,
+        original_cgroup_path,
+        pids,
+    );
 
-    if pid_count != 1 {
+    if pids.len() != 1 {
         blocked_reasons.push("exactly one discovered PID is required".to_string());
     }
 
@@ -68,7 +81,8 @@ pub(crate) fn build_move_transaction_skeleton(
     MoveTransaction {
         status: "skeleton only; not executed".to_string(),
         mode: "single PID cgroup move + rollback".to_string(),
-        pid_count,
+        pid_count: pids.len(),
+        pids: pids.to_vec(),
         target_cgroup_path: target_cgroup_path.to_string(),
         original_cgroup_path,
         operations: vec![
@@ -95,6 +109,7 @@ pub(crate) fn build_move_transaction_skeleton(
             "write PID back to original cgroup.procs".to_string(),
             "verify PID restored".to_string(),
         ],
+        operation_journal,
         target_cgroup_preflight,
         execution: "blocked".to_string(),
         blocked_reasons,
@@ -122,6 +137,7 @@ pub(crate) fn render_move_transaction_skeleton_section(
             ),
         );
     }
+    render_operation_journal_preview_section(output, &transaction.operation_journal);
     render_target_cgroup_preflight_section(output, &transaction.target_cgroup_preflight);
     push_line(
         output,
@@ -151,13 +167,22 @@ fn rollback(description: &str) -> RollbackOperation {
     }
 }
 
+fn target_name_from_cgroup(path: &str) -> String {
+    path.rsplit('/')
+        .next()
+        .and_then(|name| name.strip_prefix("target_"))
+        .filter(|name| !name.is_empty())
+        .unwrap_or("target")
+        .to_string()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     fn valid_transaction() -> MoveTransaction {
         build_move_transaction_skeleton(
-            1,
+            &[12345],
             "/sys/fs/cgroup/zelynic/target_sleep",
             Some("/sys/fs/cgroup/user.slice/session-2.scope"),
         )
@@ -233,7 +258,7 @@ mod tests {
     #[test]
     fn invalid_target_path_outside_zelynic_is_blocked() {
         let transaction = build_move_transaction_skeleton(
-            1,
+            &[12345],
             "/sys/fs/cgroup/system.slice/example.scope",
             Some("/sys/fs/cgroup/user.slice/session-2.scope"),
         );
@@ -250,7 +275,7 @@ mod tests {
     #[test]
     fn missing_original_cgroup_capture_is_blocked() {
         let transaction =
-            build_move_transaction_skeleton(1, "/sys/fs/cgroup/zelynic/target_sleep", None);
+            build_move_transaction_skeleton(&[12345], "/sys/fs/cgroup/zelynic/target_sleep", None);
 
         assert!(transaction
             .blocked_reasons
@@ -260,7 +285,7 @@ mod tests {
     #[test]
     fn multiple_pid_input_is_blocked() {
         let transaction = build_move_transaction_skeleton(
-            2,
+            &[12345, 12346],
             "/sys/fs/cgroup/zelynic/target_sleep",
             Some("/sys/fs/cgroup/user.slice/session-2.scope"),
         );
@@ -268,6 +293,14 @@ mod tests {
         assert!(transaction
             .blocked_reasons
             .contains(&"exactly one discovered PID is required".to_string()));
+    }
+
+    #[test]
+    fn skeleton_includes_operation_journal_preview() {
+        let transaction = valid_transaction();
+        assert_eq!(transaction.operation_journal.owner, "zelynic-scope-runner");
+        assert_eq!(transaction.operation_journal.mode, "move-only");
+        assert_eq!(transaction.operation_journal.pids, vec![12345]);
     }
 
     #[test]

@@ -38,6 +38,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `/proc/self/mountinfo` cgroup v2 mount facts, including mount path,
   read-write/read-only mode, missing mount detection, and unexpected mount path
   reporting.
+- **Operation journal preview**: Added a pure operation journal model for the
+  future move-only executor, including deterministic preview operation IDs,
+  operation ownership labels, ordered journal events, rollback boundary, and
+  blocked state-write status.
 
 ### Changed
 
@@ -61,6 +65,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Target preflight output**: The target cgroup preflight now includes
   model-only cgroup environment diagnostics and explicitly keeps
   `cgroup.procs` writes blocked.
+- **Move-only executor output**: The skeleton now renders an operation journal
+  preview so future mutation ownership and rollback boundaries are visible
+  before any real write path exists.
 
 ## [2.5.0] - 2026-06-03 - v2.5.0 Scope Runner
 
