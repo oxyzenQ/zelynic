@@ -47,6 +47,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **v2.7.0 release documentation**: Added validation report
   (`docs/validation-reports/experimental-attach-v2.7.md`) and release notes
   (`docs/release-v2.7.0.md`) for the v2.7.0 Experimental Attach Lab.
+- **v2.8 Experimental PID Move Lab design**: Added design document
+  (`docs/experimental-pid-move-lab.md`) for the v2.8 first real write path.
+  Phase 1 is design-only. The first real write boundary remains cgroup-only,
+  single-PID, and rollback-first. No runtime changes.
 
 ### Changed
 

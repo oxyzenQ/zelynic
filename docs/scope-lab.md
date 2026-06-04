@@ -880,6 +880,17 @@ canonical safety footer and block. Release notes for v2.7.0 are available at:
 
 - [docs/release-v2.7.0.md](release-v2.7.0.md)
 
+## v2.8 Experimental PID Move Lab Design
+
+The v2.8 Experimental PID Move Lab is the next milestone after v2.7. It defines
+the design for the first real write path in the Scope Runner: a narrow,
+guarded `mkdir`-only experiment followed by a single-PID move-only with
+immediate rollback. Phase 1 is design-only with no runtime changes. See
+[docs/experimental-pid-move-lab.md](experimental-pid-move-lab.md) for the full
+design document covering the phase ladder, safety gates, write boundaries,
+rollback rules, forbidden behaviors, manual smoke strategy, and success
+criteria.
+
 ## Release Checklist (Scope Runner Smoke Matrix)
 
 Before cutting a release that includes the Scope Runner, verify the following

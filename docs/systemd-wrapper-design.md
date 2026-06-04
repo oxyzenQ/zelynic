@@ -123,6 +123,13 @@ writes, and no limiter attach are performed from the Scope Runner. See
 [docs/validation-reports/experimental-attach-v2.7.md](validation-reports/experimental-attach-v2.7.md)
 for the validation report.
 
+The v2.8 Experimental PID Move Lab is the next milestone. Phase 1 is
+design-only, establishing the safety gates, write boundaries, rollback rules,
+and forbidden behaviors for the first real cgroup write path. The first real
+write will be a narrow `mkdir`-only experiment with no PID movement. See
+[docs/experimental-pid-move-lab.md](experimental-pid-move-lab.md) for the full
+design document.
+
 The displayed `systemd-run` command is for visibility only. Internally, Zelynic
 keeps the command as structured argv; a future live implementation must execute
 structured arguments directly and must not pass a rendered shell string to a
