@@ -26,6 +26,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `--i-understand-this-moves-pids`, and `--rollback-required` as explicit
   future-consent flags for a single-PID move-only attach experiment. The gate is
   pure/model-only and remains blocked.
+- **Move-only executor skeleton**: Added a pure, non-mutating model of the
+  future single-PID cgroup move and immediate rollback sequence. It documents
+  target cgroup preparation, `cgroup.procs` writes, verification, rollback, and
+  safe cleanup while keeping execution blocked.
 
 ### Changed
 
@@ -40,6 +44,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   then still returns "Experimental PID move is not implemented yet" without PID
   movement, limiter attach, nftables/tc changes, Zelynic cgroup changes, or
   state writes.
+- **Experimental gate rendering**: The full experimental gate now includes the
+  move-only executor skeleton so future write ordering is visible without
+  duplicating the canonical no-mutation safety footer.
 
 ## [2.5.0] - 2026-06-03 - v2.5.0 Scope Runner
 

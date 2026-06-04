@@ -517,6 +517,32 @@ The checklist evaluates:
 - move-only mutation mode
 - nftables/tc/Zelynic state disabled
 
+#### Move-only executor skeleton (v2.7 Phase 2)
+
+The v2.7 phase 2 lab adds a pure move-only executor skeleton to the experimental
+gate output. This skeleton models the exact future write order for the first
+possible mutation experiment, but it executes nothing.
+
+The modelled future sequence is intentionally narrow:
+
+1. Verify the gate checklist is still valid.
+2. Verify exactly one discovered PID.
+3. Verify the original cgroup path was captured for rollback.
+4. Verify the target cgroup is under `/sys/fs/cgroup/zelynic/`.
+5. Prepare the Zelynic target cgroup.
+6. Write the PID to the target `cgroup.procs`.
+7. Verify the PID appears in the target cgroup.
+8. Write the PID back to the original `cgroup.procs`.
+9. Verify the PID was restored.
+10. Remove the target cgroup only if it is safe and empty.
+
+This is still model-only:
+
+- PID movement is not implemented.
+- nftables, tc, and Zelynic state remain disabled.
+- The limiter attach path is not called.
+- `--attach-live` remains hard-blocked after rendering the checklist.
+
 Even if every checklist item is `ok`, the final result remains:
 
 ```text

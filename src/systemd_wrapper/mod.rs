@@ -9,6 +9,7 @@ mod contract;
 mod discovery;
 mod experimental_attach_gate;
 mod manual_probe;
+mod move_transaction;
 mod original_cgroup_preview;
 mod pid_safety;
 mod plan;

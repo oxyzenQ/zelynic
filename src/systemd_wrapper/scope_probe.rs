@@ -533,6 +533,10 @@ mod tests {
                 transaction_model_only: true,
                 mutation_mode_move_only: true,
                 nft_tc_state_disabled: true,
+                target_cgroup_path: "/sys/fs/cgroup/zelynic/target_sleep".to_string(),
+                original_rollback_path: Some(
+                    "/sys/fs/cgroup/user.slice/session-2.scope".to_string(),
+                ),
             },
         );
         let preview =

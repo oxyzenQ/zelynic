@@ -94,6 +94,11 @@ gate checklist for a future single-PID, move-only attach experiment:
 ready, but the final result is still blocked and no PID movement, nftables/tc
 change, Zelynic cgroup change, or state write is performed.
 
+The v2.7 phase 2 lab adds a move-only executor skeleton to that gate. It models
+the future single-PID cgroup write order and immediate rollback verification,
+but it remains skeleton-only: no `cgroup.procs` write, no target cgroup creation,
+no limiter attach, and no nftables/tc/state mutation is performed.
+
 The displayed `systemd-run` command is for visibility only. Internally, Zelynic
 keeps the command as structured argv; a future live implementation must execute
 structured arguments directly and must not pass a rendered shell string to a

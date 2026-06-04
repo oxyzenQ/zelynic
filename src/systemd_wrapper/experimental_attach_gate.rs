@@ -9,6 +9,9 @@
 //! limiter attach execution path.
 
 use super::attach_preview::AttachPreview;
+use super::move_transaction::{
+    build_move_transaction_skeleton, render_move_transaction_skeleton_section, MoveTransaction,
+};
 use super::original_cgroup_preview::OriginalCgroupCaptureStatus;
 use super::pid_safety::{LivenessStatus, SelfProtectionStatus};
 use super::plan::ScopeMode;
@@ -32,7 +35,7 @@ impl ExperimentalAttachConsent {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ExperimentalAttachGateInput {
     pub execute: bool,
     pub scope_mode: ScopeMode,
@@ -47,6 +50,8 @@ pub(crate) struct ExperimentalAttachGateInput {
     pub transaction_model_only: bool,
     pub mutation_mode_move_only: bool,
     pub nft_tc_state_disabled: bool,
+    pub target_cgroup_path: String,
+    pub original_rollback_path: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -78,6 +83,7 @@ pub(crate) struct ExperimentalAttachGateChecklist {
     pub checks: Vec<GateCheck>,
     pub mutation_mode: String,
     pub nft_tc_state: String,
+    pub move_transaction: MoveTransaction,
     pub final_status: String,
     pub reason: String,
 }
@@ -116,6 +122,10 @@ pub(crate) fn build_gate_input_from_preview(
     let transaction_model_only = safety.attach_transaction_plan.status
         == "model only; not executed"
         && safety.attach_transaction_plan.execution == "blocked";
+    let original_rollback_path = safety
+        .original_cgroup_previews
+        .first()
+        .and_then(|preview| preview.rollback_target_path.clone());
 
     ExperimentalAttachGateInput {
         execute,
@@ -131,12 +141,19 @@ pub(crate) fn build_gate_input_from_preview(
         transaction_model_only,
         mutation_mode_move_only: true,
         nft_tc_state_disabled: true,
+        target_cgroup_path: preview.future_target_cgroup.clone(),
+        original_rollback_path,
     }
 }
 
 pub(crate) fn evaluate_experimental_attach_gate(
     input: ExperimentalAttachGateInput,
 ) -> ExperimentalAttachGateChecklist {
+    let move_transaction = build_move_transaction_skeleton(
+        input.discovered_pid_count,
+        &input.target_cgroup_path,
+        input.original_rollback_path.as_deref(),
+    );
     let checks = vec![
         bool_check("execute", input.execute),
         scope_mode_check(input.scope_mode),
@@ -160,6 +177,10 @@ pub(crate) fn evaluate_experimental_attach_gate(
         bool_blocking_check("PID safety", input.pid_liveness_alive),
         bool_blocking_check("self-protection", input.self_protection_allowed),
         bool_blocking_check("transaction plan", input.transaction_model_only),
+        bool_blocking_check(
+            "move-only executor skeleton",
+            move_transaction.blocked_reasons.is_empty(),
+        ),
         bool_blocking_check("mutation mode", input.mutation_mode_move_only),
         bool_blocking_check("nft/tc/state", input.nft_tc_state_disabled),
     ];
@@ -168,6 +189,7 @@ pub(crate) fn evaluate_experimental_attach_gate(
         checks,
         mutation_mode: "move-only".to_string(),
         nft_tc_state: "disabled".to_string(),
+        move_transaction,
         final_status: "blocked".to_string(),
         reason: "experimental PID move is not implemented yet".to_string(),
     }
@@ -198,6 +220,7 @@ pub(crate) fn render_experimental_attach_gate_section(
         output,
         &format!("    nft/tc/state: {}", checklist.nft_tc_state),
     );
+    render_move_transaction_skeleton_section(output, &checklist.move_transaction);
     push_line(output, &format!("    final: {}", checklist.final_status));
     push_line(output, &format!("    reason: {}", checklist.reason));
 }
@@ -292,6 +315,8 @@ mod tests {
             transaction_model_only: true,
             mutation_mode_move_only: true,
             nft_tc_state_disabled: true,
+            target_cgroup_path: "/sys/fs/cgroup/zelynic/target_sleep".to_string(),
+            original_rollback_path: Some("/sys/fs/cgroup/user.slice/session-2.scope".to_string()),
         }
     }
 
@@ -357,6 +382,7 @@ mod tests {
     fn missing_original_cgroup_capture_blocks() {
         let mut input = ok_input();
         input.original_cgroup_capture_valid = false;
+        input.original_rollback_path = None;
         let checklist = evaluate_experimental_attach_gate(input);
 
         assert_eq!(
@@ -402,6 +428,11 @@ mod tests {
             checklist.reason,
             "experimental PID move is not implemented yet"
         );
+        assert_eq!(
+            checklist.move_transaction.status,
+            "skeleton only; not executed"
+        );
+        assert_eq!(checklist.move_transaction.execution, "blocked");
     }
 
     #[test]
@@ -413,6 +444,8 @@ mod tests {
 
         assert!(output.contains("Experimental attach gate"));
         assert!(output.contains("nft/tc/state: disabled"));
+        assert!(output.contains("Move-only executor skeleton"));
+        assert!(output.contains("execution: blocked"));
         assert!(!output.contains("No PID was moved."));
         assert!(!output.contains("No limiter attach was performed."));
         assert!(!output.contains("No nftables, tc, Zelynic cgroup, or state changes were made."));
