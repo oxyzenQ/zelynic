@@ -588,7 +588,7 @@ mod tests {
             rendered
                 .matches("Bandwidth limiting is not active from this command yet.")
                 .count(),
-            1
+            2
         );
     }
 

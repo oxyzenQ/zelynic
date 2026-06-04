@@ -499,4 +499,163 @@ mod tests {
         assert!(!err.contains(MKDIR_LIVE_PID_MOVE_NOT_IMPLEMENTED));
         assert!(!err.contains("Experimental PID move is not implemented yet"));
     }
+
+    // ---- phase 3d: output audit + negative-path error honesty ----
+
+    #[test]
+    fn non_root_full_consent_error_comprehensive_honesty() {
+        let command = vec!["sleep".to_string(), "30".to_string()];
+        let err = run_systemd_wrapper(
+            false,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            false,
+            None,
+            None,
+            None,
+            ScopeMode::System,
+            &command,
+        )
+        .unwrap_err()
+        .to_string();
+        // Non-root: blocked at root gate, no mutation happened
+        assert!(err.contains("requires root"));
+        assert!(!err.contains("PID was moved"));
+        assert!(!err.contains("cgroup.procs written"));
+        assert!(!err.contains("limiter attach"));
+        assert!(!err.contains("nftables"));
+        assert!(!err.contains("bandwidth limiting active"));
+        assert!(!err.contains("persistent state written"));
+        assert!(!err.contains("rollback performed"));
+    }
+
+    #[test]
+    fn user_scope_attach_error_never_claims_mutation() {
+        let command = vec!["sleep".to_string(), "30".to_string()];
+        let err = run_systemd_wrapper(
+            false,
+            true,
+            true,
+            true,
+            false,
+            false,
+            false,
+            false,
+            None,
+            None,
+            None,
+            ScopeMode::User,
+            &command,
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(err.contains("User-scope live runner is not implemented"));
+        assert!(!err.contains("PID was moved"));
+        assert!(!err.contains("cgroup.procs written"));
+        assert!(!err.contains("limiter attached"));
+        assert!(!err.contains("nftables"));
+        assert!(!err.contains("state changed"));
+    }
+
+    #[test]
+    fn attach_gate_error_comprehensive_honesty_audit() {
+        let err = scope_runner::attach_gate().unwrap_err().to_string();
+        assert!(err.contains("live attach is not implemented yet"));
+        assert!(err.contains("live probe and attach preview"));
+        // Must not claim any mutation
+        assert!(!err.contains("PID was moved"));
+        assert!(!err.contains("cgroup.procs written"));
+        assert!(!err.contains("limiter attached"));
+        assert!(!err.contains("limiter attach was performed"));
+        assert!(!err.contains("nftables"));
+        assert!(!err.contains("bandwidth limiting active"));
+        assert!(!err.contains("state written"));
+        assert!(!err.contains("rollback performed"));
+        assert!(!err.contains("enforced"));
+        assert!(!err.contains("limited"));
+    }
+
+    #[test]
+    fn probe_gate_user_scope_error_honesty() {
+        let err = scope_runner::probe_gate(true, ScopeMode::User)
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("User-scope live runner is not implemented"));
+        assert!(!err.contains("PID was moved"));
+        assert!(!err.contains("limiter attached"));
+        assert!(!err.contains("nftables"));
+        assert!(!err.contains("bandwidth limiting active"));
+    }
+
+    #[test]
+    fn all_error_constants_never_claim_mutation() {
+        // EXPERIMENTAL_PID_MOVE_NOT_IMPLEMENTED
+        assert!(!EXPERIMENTAL_PID_MOVE_NOT_IMPLEMENTED.contains("PID was moved"));
+        assert!(!EXPERIMENTAL_PID_MOVE_NOT_IMPLEMENTED.contains("cgroup.procs written"));
+        assert!(!EXPERIMENTAL_PID_MOVE_NOT_IMPLEMENTED.contains("limiter attached"));
+        assert!(!EXPERIMENTAL_PID_MOVE_NOT_IMPLEMENTED.contains("nftables"));
+        assert!(!EXPERIMENTAL_PID_MOVE_NOT_IMPLEMENTED.contains("state changed"));
+        assert!(EXPERIMENTAL_PID_MOVE_NOT_IMPLEMENTED
+            .contains("Experimental PID move is not implemented yet"));
+        // MKDIR_LIVE_PID_MOVE_NOT_IMPLEMENTED
+        assert!(!MKDIR_LIVE_PID_MOVE_NOT_IMPLEMENTED.contains("PID was moved"));
+        assert!(!MKDIR_LIVE_PID_MOVE_NOT_IMPLEMENTED.contains("limiter attached"));
+        assert!(!MKDIR_LIVE_PID_MOVE_NOT_IMPLEMENTED.contains("nftables"));
+        assert!(MKDIR_LIVE_PID_MOVE_NOT_IMPLEMENTED
+            .contains("experimental PID move is not implemented yet"));
+    }
+
+    #[test]
+    fn missing_probe_live_blocks_without_reaching_attach() {
+        let command = vec!["sleep".to_string(), "30".to_string()];
+        let err = run_systemd_wrapper(
+            false,
+            true,
+            false,
+            true,
+            true,
+            true,
+            true,
+            false,
+            None,
+            None,
+            None,
+            ScopeMode::System,
+            &command,
+        )
+        .unwrap_err()
+        .to_string();
+        // Falls through to "not implemented yet" since probe_live is false
+        assert!(err.contains("not implemented yet"));
+        assert!(!err.contains("PID was moved"));
+        assert!(!err.contains("limiter attached"));
+    }
+
+    #[test]
+    fn missing_attach_live_without_probe_falls_through() {
+        let command = vec!["sleep".to_string(), "30".to_string()];
+        let err = run_systemd_wrapper(
+            false,
+            true,
+            false,
+            true,
+            false,
+            false,
+            false,
+            false,
+            None,
+            None,
+            None,
+            ScopeMode::System,
+            &command,
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(err.contains("not implemented yet"));
+        assert!(!err.contains("PID was moved"));
+    }
 }

@@ -162,7 +162,7 @@ a local root smoke matrix, and be documented before the next phase begins.
 - Live PID movement is still not implemented.
 - No cgroup.procs write was performed.
 
-### Phase 3c: Executor Seam + Hard Gates (Current Phase)
+### Phase 3c: Executor Seam + Hard Gates (Completed)
 
 - Added `src/systemd_wrapper/move_executor.rs` as the model-only executor
   seam — the structural bridge between the gate checklist and the future
@@ -195,6 +195,38 @@ a local root smoke matrix, and be documented before the next phase begins.
   gate output includes seam section, seam ordering in gate output.
 - No runtime mutation. No live PID move. No cgroup.procs write. No
   limiter attach. No nft/tc/state changes.
+
+### Phase 3d: Output Audit + Negative-Path Smoke Coverage (Current Phase)
+
+- Audited and locked output honesty for all experimental attach and move
+  executor seam paths before any future real PID move phase.
+- Added two new canonical deny lines to the seam disclaimers:
+  `Experimental PID move is not implemented yet.` and
+  `Bandwidth limiting is not active from this command yet.`
+- Added 22 new tests across three modules:
+  - `move_executor.rs`: 11 tests — canonical deny-line presence for all
+    negative paths (non-root, user scope, multi-PID, missing original
+    cgroup), deny-line absence of false claims (bandwidth active, rollback
+    performed), comprehensive negative-path mutation claim sweep across 5
+    scenarios.
+  - `experimental_attach_gate.rs`: 10 tests — negative-path output honesty
+    for non-root, user scope, missing consent, multi-PID, missing original
+    cgroup; 11-path comprehensive seam disclaimer coverage sweep; not-
+    implemented constant wording audit; final status always blocked for all
+    negative paths; all-valid path includes seam with all deny lines.
+  - `mod.rs`: 7 tests — comprehensive error message honesty for non-root,
+    user scope, attach gate, probe gate, both error constants, missing
+    probe-live, missing attach-live.
+- Updated `scope_probe.rs` footer count assertion to reflect the new
+  "Bandwidth limiting is not active" line appearing in both the seam and
+  the canonical safety footer.
+- Produced output audit document
+  (`docs/v2.8-phase-3d-output-audit.md`) documenting the negative-path
+  matrix, canonical deny lines, output wording prohibitions, and why this
+  phase is still non-mutating.
+- No runtime behavior changes. All output remains model-only/skeleton-only/
+  execution-blocked. No new code paths, no write operations. Live PID
+  movement remains not implemented.
 
 ### Phase 3: Single PID Move-Only + Immediate Rollback (Not Started)
 
@@ -503,24 +535,24 @@ v2.8 is considered successful when all of the following are true:
 
 ## Current Status
 
-v2.8 phase 3c is the current phase. It adds the model-only move executor
-seam with hard gates, preparing the code structure for a future live
-single-PID move while making it impossible to run mutation in this phase.
-No runtime changes are introduced. Live PID movement remains not implemented.
+v2.8 phase 3d is the current phase. It audits and locks output honesty for
+all experimental attach and move executor seam paths. No runtime changes are
+introduced. Live PID movement remains not implemented.
 
 | Property | Status |
 |----------|--------|
-| PID movement | Not implemented (phase 3c: executor seam + hard gates) |
+| PID movement | Not implemented (phase 3d: output audit + negative-path coverage) |
 | Cgroup directory creation | Phase 2b: mkdir-only with --mkdir-live (first real write) |
-| Output honesty | Phase 2b.1: truthful footer for --mkdir-live path |
-| `cgroup.procs` write | Not implemented (phase 3c: executor seam + hard gates) |
+| Output honesty | Phase 3d: canonical 7-deny-line audit across 11 negative paths |
+| `cgroup.procs` write | Not implemented (phase 3d: output audit + negative-path coverage) |
 | Move transaction skeleton | Phase 3b: aligned with 10-step 3a design, 27 tests passing |
-| Move executor seam | Phase 3c: model-only seam, 22 tests passing |
+| Move executor seam | Phase 3d: 7 canonical deny lines, 33 tests passing |
 | Limiter attach | Not implemented |
 | nftables/tc/state changes | Not implemented |
 | `--attach-live` | Hard-blocked / non-mutating |
 | Operation journal | Phase 3b: 12 planned events aligned with 10-step model |
-| Phase 3c (executor seam + hard gates) | Current: `move_executor.rs` + gate integration |
+| Phase 3d (output audit) | Current: 22 new tests, output audit doc |
+| Phase 3c (executor seam + hard gates) | Completed: `move_executor.rs` + gate integration |
 | Phase 3b (skeleton alignment) | Completed: `move_transaction.rs` + `operation_journal.rs` |
 | Phase 3a (PID move design) | Completed: `docs/v2.8-phase-3a-single-pid-rollback-design.md` |
 | Validation report | Phase 2c: `docs/v2.8-phase-2c-validation-report.md` |

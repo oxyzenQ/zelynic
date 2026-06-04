@@ -126,6 +126,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   hard-gate blocking, output honesty, disclaimer presence, and gate
   integration. No runtime mutation. No live PID move. No cgroup.procs
   write. No limiter attach. No nft/tc/state changes.
+- **v2.8 phase 3d output audit + negative-path smoke coverage**: Audited
+  and locked output honesty for all experimental attach and move executor
+  seam paths. Added two new canonical deny lines to the seam disclaimers:
+  "Experimental PID move is not implemented yet." and "Bandwidth limiting
+  is not active from this command yet." Added 22 new tests across three
+  modules: move_executor.rs (11 tests for canonical deny-line presence
+  across negative paths, false claim absence, comprehensive mutation
+  sweep), experimental_attach_gate.rs (10 tests for negative-path output
+  honesty, 11-path seam disclaimer sweep, error constant wording audit,
+  final status always blocked), mod.rs (7 tests for error message
+  honesty, error constant audit, missing flag path blocking). Updated
+  scope_probe.rs footer count for new deny line. Produced output audit
+  document. No runtime behavior changes. All output remains non-mutating.
 
 ### Changed
 

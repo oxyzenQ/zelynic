@@ -229,6 +229,8 @@ pub(crate) fn evaluate_move_executor_seam(input: &MoveExecutorInput) -> MoveExec
         "no limiter attach was performed".to_string(),
         "no nftables/tc/Zelynic state changes were made".to_string(),
         "no persistent state write was performed".to_string(),
+        "Experimental PID move is not implemented yet.".to_string(),
+        "Bandwidth limiting is not active from this command yet.".to_string(),
     ];
 
     MoveExecutorResult {
@@ -608,5 +610,172 @@ mod tests {
         input.original_cgroup_path = Some("   ".to_string());
         let result = evaluate_move_executor_seam(&input);
         assert!(!ok_gate(&result, "original cgroup"));
+    }
+
+    // ---- phase 3d: canonical deny-line tests ----
+
+    #[test]
+    fn rendered_output_includes_experimental_pid_move_not_implemented_yet() {
+        let output = rendered_text(&evaluate_move_executor_seam(&valid_input()));
+        assert!(output.contains("Experimental PID move is not implemented yet."));
+    }
+
+    #[test]
+    fn rendered_output_includes_bandwidth_limiting_not_active() {
+        let output = rendered_text(&evaluate_move_executor_seam(&valid_input()));
+        assert!(output.contains("Bandwidth limiting is not active from this command yet."));
+    }
+
+    #[test]
+    fn rendered_output_never_claims_bandwidth_active() {
+        let output = rendered_text(&evaluate_move_executor_seam(&valid_input()));
+        assert!(!output.contains("bandwidth limiting is active"));
+        assert!(!output.contains("Bandwidth limiting active"));
+        assert!(!output.contains("limiting is active from this command"));
+    }
+
+    #[test]
+    fn rendered_output_never_claims_rollback_performed() {
+        let output = rendered_text(&evaluate_move_executor_seam(&valid_input()));
+        assert!(!output.contains("rollback performed"));
+        assert!(!output.contains("rollback was performed"));
+        assert!(!output.contains("PID was restored"));
+    }
+
+    #[test]
+    fn rendered_non_root_output_includes_all_canonical_deny_lines() {
+        let mut input = valid_input();
+        input.is_root = false;
+        let output = rendered_text(&evaluate_move_executor_seam(&input));
+        assert!(output.contains("no PID was moved"));
+        assert!(output.contains("no cgroup.procs write was performed"));
+        assert!(output.contains("no limiter attach was performed"));
+        assert!(output.contains("no nftables/tc/Zelynic state changes were made"));
+        assert!(output.contains("no persistent state write was performed"));
+        assert!(output.contains("Experimental PID move is not implemented yet."));
+        assert!(output.contains("Bandwidth limiting is not active from this command yet."));
+    }
+
+    #[test]
+    fn rendered_user_scope_output_includes_all_canonical_deny_lines() {
+        let mut input = valid_input();
+        input.scope_mode = ScopeMode::User;
+        let output = rendered_text(&evaluate_move_executor_seam(&input));
+        assert!(output.contains("no PID was moved"));
+        assert!(output.contains("no cgroup.procs write was performed"));
+        assert!(output.contains("no limiter attach was performed"));
+        assert!(output.contains("no nftables/tc/Zelynic state changes were made"));
+        assert!(output.contains("no persistent state write was performed"));
+        assert!(output.contains("Experimental PID move is not implemented yet."));
+        assert!(output.contains("Bandwidth limiting is not active from this command yet."));
+    }
+
+    #[test]
+    fn rendered_multi_pid_output_includes_all_canonical_deny_lines() {
+        let mut input = valid_input();
+        input.pids = vec![12345, 12346];
+        let output = rendered_text(&evaluate_move_executor_seam(&input));
+        assert!(output.contains("no PID was moved"));
+        assert!(output.contains("no cgroup.procs write was performed"));
+        assert!(output.contains("no limiter attach was performed"));
+        assert!(output.contains("no nftables/tc/Zelynic state changes were made"));
+        assert!(output.contains("no persistent state write was performed"));
+        assert!(output.contains("Experimental PID move is not implemented yet."));
+        assert!(output.contains("Bandwidth limiting is not active from this command yet."));
+    }
+
+    #[test]
+    fn rendered_missing_original_cgroup_includes_all_canonical_deny_lines() {
+        let mut input = valid_input();
+        input.original_cgroup_path = None;
+        let output = rendered_text(&evaluate_move_executor_seam(&input));
+        assert!(output.contains("no PID was moved"));
+        assert!(output.contains("no cgroup.procs write was performed"));
+        assert!(output.contains("no limiter attach was performed"));
+        assert!(output.contains("no nftables/tc/Zelynic state changes were made"));
+        assert!(output.contains("no persistent state write was performed"));
+        assert!(output.contains("Experimental PID move is not implemented yet."));
+        assert!(output.contains("Bandwidth limiting is not active from this command yet."));
+    }
+
+    #[test]
+    fn all_canonical_deny_lines_present_in_result_disclaimers() {
+        let result = evaluate_move_executor_seam(&valid_input());
+        assert!(result
+            .disclaimers
+            .iter()
+            .any(|d| d.contains("no PID was moved")));
+        assert!(result
+            .disclaimers
+            .iter()
+            .any(|d| d.contains("no cgroup.procs write was performed")));
+        assert!(result
+            .disclaimers
+            .iter()
+            .any(|d| d.contains("no limiter attach was performed")));
+        assert!(result
+            .disclaimers
+            .iter()
+            .any(|d| d.contains("no nftables/tc/Zelynic state changes were made")));
+        assert!(result
+            .disclaimers
+            .iter()
+            .any(|d| d.contains("no persistent state write was performed")));
+        assert!(result
+            .disclaimers
+            .iter()
+            .any(|d| d.contains("Experimental PID move is not implemented yet")));
+        assert!(result
+            .disclaimers
+            .iter()
+            .any(|d| d.contains("Bandwidth limiting is not active from this command yet")));
+    }
+
+    #[test]
+    #[allow(clippy::type_complexity)]
+    fn negative_path_outputs_never_claim_mutation() {
+        let scenarios: Vec<(&str, fn(&mut MoveExecutorInput))> = vec![
+            ("non-root", |i| i.is_root = false),
+            ("user scope", |i| i.scope_mode = ScopeMode::User),
+            ("multi-PID", |i| i.pids = vec![1, 2]),
+            ("missing original cgroup", |i| i.original_cgroup_path = None),
+            ("missing consent", |i| i.consent_all_present = false),
+        ];
+        for (label, modify) in scenarios {
+            let mut input = valid_input();
+            modify(&mut input);
+            let output = rendered_text(&evaluate_move_executor_seam(&input));
+            assert!(
+                !output.contains("PID was moved."),
+                "{}: must not claim PID moved",
+                label
+            );
+            assert!(
+                !output.contains("cgroup.procs written"),
+                "{}: must not claim cgroup.procs written",
+                label
+            );
+            assert!(
+                !output.contains("limiter attached"),
+                "{}: must not claim limiter attached",
+                label
+            );
+            assert!(
+                !output.contains("bandwidth limiting active"),
+                "{}: must not claim bandwidth limiting active",
+                label
+            );
+            assert!(
+                !output.contains("state changes were made")
+                    || output.contains("no nftables/tc/Zelynic state changes were made"),
+                "{}: must not claim positive state mutation",
+                label
+            );
+            assert!(
+                !output.contains("rollback performed"),
+                "{}: must not claim rollback performed",
+                label
+            );
+        }
     }
 }

@@ -615,4 +615,202 @@ mod tests {
             "mkdir skeleton must appear after seam"
         );
     }
+
+    // ---- phase 3d: output audit + negative-path deny-line tests ----
+
+    fn gate_rendered(checklist: &ExperimentalAttachGateChecklist) -> String {
+        let mut output = String::new();
+        render_experimental_attach_gate_section(&mut output, checklist);
+        output
+    }
+
+    #[test]
+    fn non_root_gate_output_never_claims_pid_moved_or_cgroup_procs() {
+        let mut input = ok_input();
+        input.is_root = false;
+        let output = gate_rendered(&evaluate_experimental_attach_gate(input));
+        assert!(!output.contains("PID was moved."));
+        assert!(!output.contains("cgroup.procs written"));
+        assert!(!output.contains("limiter attached"));
+        assert!(!output.contains("bandwidth limiting active"));
+        assert!(!output.contains("rollback performed"));
+    }
+
+    #[test]
+    fn user_scope_gate_output_never_claims_mutation() {
+        let mut input = ok_input();
+        input.scope_mode = ScopeMode::User;
+        let output = gate_rendered(&evaluate_experimental_attach_gate(input));
+        assert!(!output.contains("PID was moved."));
+        assert!(!output.contains("cgroup.procs written"));
+        assert!(!output.contains("limiter attached"));
+        assert!(!output.contains("bandwidth limiting active"));
+        assert!(!output.contains("nftables rule"));
+        assert!(!output.contains("state file written"));
+    }
+
+    #[test]
+    fn missing_consent_gate_output_seam_includes_all_deny_lines() {
+        let mut input = ok_input();
+        input.consent.experimental_single_pid_attach = false;
+        let output = gate_rendered(&evaluate_experimental_attach_gate(input));
+        // Seam disclaimers still render even when consent is missing
+        assert!(output.contains("no PID was moved"));
+        assert!(output.contains("no cgroup.procs write was performed"));
+        assert!(output.contains("no limiter attach was performed"));
+        assert!(output.contains("no nftables/tc/Zelynic state changes were made"));
+        assert!(output.contains("no persistent state write was performed"));
+        assert!(output.contains("Experimental PID move is not implemented yet."));
+        assert!(output.contains("Bandwidth limiting is not active from this command yet."));
+    }
+
+    #[test]
+    fn multi_pid_gate_output_seam_includes_all_deny_lines() {
+        let mut input = ok_input();
+        input.discovered_pid_count = 2;
+        input.discovered_pids = vec![12345, 12346];
+        let output = gate_rendered(&evaluate_experimental_attach_gate(input));
+        assert!(output.contains("no PID was moved"));
+        assert!(output.contains("no cgroup.procs write was performed"));
+        assert!(output.contains("no limiter attach was performed"));
+        assert!(output.contains("no nftables/tc/Zelynic state changes were made"));
+        assert!(output.contains("no persistent state write was performed"));
+        assert!(output.contains("Experimental PID move is not implemented yet."));
+        assert!(output.contains("Bandwidth limiting is not active from this command yet."));
+    }
+
+    #[test]
+    fn missing_original_cgroup_gate_output_seam_includes_deny_lines() {
+        let mut input = ok_input();
+        input.original_cgroup_capture_valid = false;
+        input.original_rollback_path = None;
+        let output = gate_rendered(&evaluate_experimental_attach_gate(input));
+        assert!(output.contains("no PID was moved"));
+        assert!(output.contains("no cgroup.procs write was performed"));
+        assert!(output.contains("no limiter attach was performed"));
+        assert!(output.contains("Experimental PID move is not implemented yet."));
+        assert!(output.contains("Bandwidth limiting is not active from this command yet."));
+    }
+
+    #[test]
+    #[allow(clippy::type_complexity)]
+    fn all_negative_paths_seam_disclaimers_present() {
+        let scenarios: Vec<(&str, fn(&mut ExperimentalAttachGateInput))> = vec![
+            ("non-root", |i| i.is_root = false),
+            ("user scope", |i| i.scope_mode = ScopeMode::User),
+            ("no probe-live", |i| i.probe_live = false),
+            ("no attach-live", |i| i.attach_live = false),
+            ("no experimental-single-pid-attach", |i| {
+                i.consent.experimental_single_pid_attach = false
+            }),
+            ("no i-understand-this-moves-pids", |i| {
+                i.consent.i_understand_this_moves_pids = false
+            }),
+            ("no rollback-required", |i| {
+                i.consent.rollback_required = false
+            }),
+            ("no original cgroup", |i| {
+                i.original_cgroup_capture_valid = false;
+                i.original_rollback_path = None;
+            }),
+            ("multi-PID", |i| {
+                i.discovered_pid_count = 2;
+                i.discovered_pids = vec![1, 2];
+            }),
+            ("stale PID liveness", |i| i.pid_liveness_alive = false),
+            ("self-protection blocked", |i| {
+                i.self_protection_allowed = false
+            }),
+        ];
+        for (label, modify) in scenarios {
+            let mut input = ok_input();
+            modify(&mut input);
+            let output = gate_rendered(&evaluate_experimental_attach_gate(input));
+            assert!(
+                output.contains("no PID was moved"),
+                "{}: must include 'no PID was moved' in seam disclaimers",
+                label
+            );
+            assert!(
+                output.contains("no cgroup.procs write was performed"),
+                "{}: must include 'no cgroup.procs write was performed'",
+                label
+            );
+            assert!(
+                output.contains("no limiter attach was performed"),
+                "{}: must include 'no limiter attach was performed'",
+                label
+            );
+            assert!(
+                output.contains("Experimental PID move is not implemented yet."),
+                "{}: must include not-implemented denial",
+                label
+            );
+            assert!(
+                output.contains("Bandwidth limiting is not active from this command yet."),
+                "{}: must include bandwidth-not-active denial",
+                label
+            );
+        }
+    }
+
+    #[test]
+    fn not_implemented_constant_includes_canonical_phrases() {
+        assert!(EXPERIMENTAL_PID_MOVE_NOT_IMPLEMENTED
+            .contains("Experimental PID move is not implemented yet"));
+        assert!(EXPERIMENTAL_PID_MOVE_NOT_IMPLEMENTED.contains("live probe"));
+        assert!(EXPERIMENTAL_PID_MOVE_NOT_IMPLEMENTED.contains("safety checks"));
+        assert!(!EXPERIMENTAL_PID_MOVE_NOT_IMPLEMENTED.contains("PID was moved"));
+        assert!(!EXPERIMENTAL_PID_MOVE_NOT_IMPLEMENTED.contains("cgroup.procs written"));
+        assert!(!EXPERIMENTAL_PID_MOVE_NOT_IMPLEMENTED.contains("limiter attached"));
+        assert!(!EXPERIMENTAL_PID_MOVE_NOT_IMPLEMENTED.contains("bandwidth limiting active"));
+    }
+
+    #[test]
+    fn gate_output_final_and_reason_always_blocked() {
+        let scenarios: Vec<fn(&mut ExperimentalAttachGateInput)> = vec![
+            |i| i.is_root = false,
+            |i| i.scope_mode = ScopeMode::User,
+            |i| i.consent.experimental_single_pid_attach = false,
+            |i| i.consent.i_understand_this_moves_pids = false,
+            |i| i.consent.rollback_required = false,
+            |i| {
+                i.original_cgroup_capture_valid = false;
+                i.original_rollback_path = None;
+            },
+            |i| {
+                i.discovered_pid_count = 2;
+                i.discovered_pids = vec![1, 2];
+            },
+            |i| i.pid_liveness_alive = false,
+            |i| i.self_protection_allowed = false,
+        ];
+        for modify in scenarios {
+            let mut input = ok_input();
+            modify(&mut input);
+            let checklist = evaluate_experimental_attach_gate(input);
+            assert_eq!(checklist.final_status, "blocked");
+            assert!(checklist.reason.contains("not implemented"));
+        }
+        // All-valid path also blocked
+        let checklist = evaluate_experimental_attach_gate(ok_input());
+        assert_eq!(checklist.final_status, "blocked");
+        assert!(checklist.reason.contains("not implemented"));
+    }
+
+    #[test]
+    fn gate_output_all_valid_includes_seam_with_all_deny_lines() {
+        let output = gate_rendered(&evaluate_experimental_attach_gate(ok_input()));
+        assert!(output.contains("Move executor seam"));
+        assert!(output.contains("no PID was moved"));
+        assert!(output.contains("no cgroup.procs write was performed"));
+        assert!(output.contains("no limiter attach was performed"));
+        assert!(output.contains("no nftables/tc/Zelynic state changes were made"));
+        assert!(output.contains("no persistent state write was performed"));
+        assert!(output.contains("Experimental PID move is not implemented yet."));
+        assert!(output.contains("Bandwidth limiting is not active from this command yet."));
+        assert!(output.contains("executor-seam only"));
+        assert!(output.contains("status: blocked"));
+        assert!(output.contains("execution: not implemented"));
+    }
 }
