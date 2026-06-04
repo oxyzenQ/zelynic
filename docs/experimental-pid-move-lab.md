@@ -102,6 +102,31 @@ a local root smoke matrix, and be documented before the next phase begins.
 - Updated this design document with phase status markers.
 - No runtime changes. Docs/report only.
 
+### Phase 3a: Single PID Move + Rollback Design (Current Phase)
+
+- Produced design document
+  (`docs/v2.8-phase-3a-single-pid-rollback-design.md`)
+  specifying the first actual PID move experiment.
+- The design specifies: root-only, system-scope-only, single disposable PID
+  (`sleep 3` or `sleep 10`), immediate rollback, no limiter attach, no
+  nft/tc/state mutation, no persistent state write, no multi-PID process
+  trees, no user scope, no long-running apps, no browser/terminal/desktop
+  processes, no bandwidth limiting claim.
+- Includes exact 10-step transaction model: gate re-evaluation, PID
+  liveness recheck, original cgroup validation, target cgroup preparation,
+  move PID to target, verify in target, record move success, rollback PID
+  to original, verify restored, cleanup target cgroup.
+- Includes failure policy: every failure after move attempts rollback,
+  rollback failure reported loudly, no retry loops, no limiter attach even
+  if move succeeds, no cleanup of non-empty cgroups, no cleanup outside
+  `/sys/fs/cgroup/zelynic`.
+- Includes test plan: unit tests for transaction model, output honesty
+  tests, gate tests (non-root blocked, user-scope blocked, multi-PID
+  blocked, zelynic/self PID blocked, invalid original cgroup blocked),
+  cleanup safety tests. Root smoke test deferred to future implementation.
+- No runtime changes. Docs/design only.
+- Live PID movement is still not implemented.
+
 ### Phase 3: Single PID Move-Only + Immediate Rollback (Not Started)
 
 - Design-only. Does not implement PID movement.
@@ -409,21 +434,20 @@ v2.8 is considered successful when all of the following are true:
 
 ## Current Status
 
-v2.8 phase 2c is completed. The validation report and release prep
-documentation have been produced. The next phase is phase 3 (design-only
-for single PID move + immediate rollback). No runtime changes were
-introduced in phase 2c.
+v2.8 phase 3a is the current phase. It produces a design document for
+the single PID move + immediate rollback experiment. No runtime changes are
+introduced. Live PID movement remains not implemented.
 
 | Property | Status |
 |----------|--------|
-| PID movement | Not implemented |
+| PID movement | Not implemented (phase 3a: design documented) |
 | Cgroup directory creation | Phase 2b: mkdir-only with --mkdir-live (first real write) |
 | Output honesty | Phase 2b.1: truthful footer for --mkdir-live path |
-| `cgroup.procs` write | Not implemented |
+| `cgroup.procs` write | Not implemented (phase 3a: design documented) |
 | Limiter attach | Not implemented |
 | nftables/tc/state changes | Not implemented |
 | `--attach-live` | Hard-blocked / non-mutating |
-| Phase 3 (PID move design) | Not started |
+| Phase 3a (PID move design) | Current: `docs/v2.8-phase-3a-single-pid-rollback-design.md` |
 | Validation report | Phase 2c: `docs/v2.8-phase-2c-validation-report.md` |
 
 ## Next Milestone After v2.8

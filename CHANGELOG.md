@@ -83,6 +83,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`docs/v2.8-phase-2c-validation-report.md`) documenting the first real write
   (mkdir-only), output honesty, non-root gate verification, and root mkdir-live
   smoke validation. Docs/report only; no runtime changes.
+- **v2.8 phase 3a single PID move + rollback design**: Added design document
+  (`docs/v2.8-phase-3a-single-pid-rollback-design.md`) specifying the first
+  actual PID move experiment. Design is root-only, system-scope-only, single
+  disposable PID only (`sleep 3`), immediate rollback, no limiter attach, no
+  nft/tc/state mutation, no persistent state write, no multi-PID process trees,
+  no user scope, no long-running apps, no bandwidth limiting claim. Includes
+  exact 10-step transaction model, failure policy (every failure after move
+  attempts rollback, rollback failure reported loudly, no retry loops), test
+  plan (unit tests, output honesty tests, gate tests, cleanup safety tests),
+  and relationship to existing move_transaction.rs skeleton. Docs/design only;
+  no runtime behavior changed. Live PID movement remains not implemented.
 
 ### Changed
 
