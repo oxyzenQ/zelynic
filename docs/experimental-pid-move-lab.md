@@ -243,7 +243,7 @@ a local root smoke matrix, and be documented before the next phase begins.
 - Documents phase 4 entry criteria (9 conditions) and artifact inventory.
 - No runtime code changes. Docs/report only.
 
-### Phase 4a: Failure Simulation Design (Current Phase)
+### Phase 4a: Failure Simulation Design (Completed)
 
 - Produced failure simulation design document
   (`docs/v2.8-phase-4a-failure-simulation-design.md`).
@@ -270,6 +270,30 @@ a local root smoke matrix, and be documented before the next phase begins.
   injection tests, 13 render tests, 7 canonical deny-line persistence
   tests. No root smoke, no live PID move.
 - No runtime code changes. Docs/design only.
+
+### Phase 4b: Failure Simulation Model + Fake Tests (Current Phase)
+
+- Implemented failure simulation model and comprehensive tests in
+  `src/systemd_wrapper/failure_simulation/` (mod.rs + tests/mod.rs).
+- Pure model code: 12 failure scenario enum (F1-F12), PID location status
+  taxonomy, rollback decision model, cleanup decision model, simulation result
+  struct, and canonical deny lines.
+- Pure functions: `build_failure_simulation_matrix()`,
+  `simulate_failure_scenario()`, `render_failure_simulation_result()`.
+- 73 new tests covering: matrix completeness (12 scenarios), PID location
+  assertions for each scenario, rollback decision correctness, cleanup
+  decision correctness, render output simulation/model-only markers,
+  canonical deny lines (live PID move, cgroup.procs write, limiter attach,
+  nft/tc/state mutation, persistent state write), no false rollback
+  claims, no retry loops, FailureScenario enum helpers, PID location
+  label coverage, render structure verification, simulation result field
+  correctness, universal failure rules (9 rules from phase 4a),
+  determinism, and CleanupDecision helper correctness.
+- Module wired into `src/systemd_wrapper/mod.rs` with no CLI path, no
+  runtime behavior change.
+- No live PID move. No real cgroup.procs write. No limiter attach.
+  No nftables/tc/Zelynic state mutation. No persistent state write.
+  All simulation is pure model/fake-only.
 
 ### Phase 3: Single PID Move-Only + Immediate Rollback (Not Started)
 
@@ -578,9 +602,9 @@ v2.8 is considered successful when all of the following are true:
 
 ## Current Status
 
-v2.8 phase 4a is the current phase. It designs the failure simulation
-infrastructure for the future first real single-PID move experiment. No runtime
-changes are introduced. Live PID movement remains not implemented.
+v2.8 phase 4b is the current phase. It implements the phase 4a failure
+simulation design as pure Rust model code and tests. No runtime changes
+are introduced. Live PID movement remains not implemented.
 
 | Property | Status |
 |----------|--------|
@@ -590,7 +614,8 @@ changes are introduced. Live PID movement remains not implemented.
 | `cgroup.procs` write | Not implemented |
 | Move transaction skeleton | Phase 3b: aligned with 10-step 3a design, 27 tests passing |
 | Move executor seam | Phase 3d: 7 canonical deny lines, 33 tests passing |
-| Failure simulation design | Phase 4a: 12 scenarios, 9 universal rules, 54 planned tests |
+| Failure simulation design | Phase 4a: completed. 12 scenarios, 9 universal rules, 54 planned tests |
+| Failure simulation model | Phase 4b: current. 73 tests, pure model + fake tests. No live PID move |
 | Limiter attach | Not implemented |
 | nftables/tc/state changes | Not implemented |
 | `--attach-live` | Hard-blocked / non-mutating |

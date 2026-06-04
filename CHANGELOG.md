@@ -166,6 +166,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   plan: 21 fake filesystem unit tests, 13 fake writer injection tests, 13
   render tests, 7 canonical deny-line persistence tests. No root smoke, no
   live PID move. Docs/design only; no runtime code changes.
+- **v2.8 phase 4b failure simulation model + fake tests**: Implemented
+  pure Rust model code and 73 tests for the 12 failure scenarios from
+  phase 4a in `src/systemd_wrapper/failure_simulation/` (mod.rs +
+  tests/mod.rs). Pure model code includes: 12 failure scenario enum
+  (F1-F12), PID location status taxonomy (not moved, verified in target,
+  verified restored, rollback unverified, unknown), rollback decision
+  model, cleanup decision model, simulation result struct with canonical
+  deny lines, and pure functions (build_failure_simulation_matrix,
+  simulate_failure_scenario, render_failure_simulation_result). 73 tests
+  cover: matrix completeness, per-scenario PID location/rollback/cleanup
+  correctness, render output simulation/model-only markers, canonical
+  deny lines (live PID move, cgroup.procs write, limiter attach, nft/tc/state
+  mutation, persistent state write), no false rollback claims, no retry
+  loops, universal failure rules (9 rules from phase 4a), render structure
+  verification, and determinism. Module wired into systemd_wrapper with no CLI
+  path and no runtime behavior change. No live PID move, no real
+  cgroup.procs write, no limiter attach, no nftables/tc/Zelynic state
+  mutation, no persistent state write. All simulation is pure model/fake-only.
 
 ### Changed
 
