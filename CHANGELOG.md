@@ -26,6 +26,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `--i-understand-this-moves-pids`, and `--rollback-required` as explicit
   future-consent flags for a single-PID move-only attach experiment. The gate is
   pure/model-only and remains blocked.
+- **CLI refactor**: Split `src/cli.rs` from ~998 LOC to ~522 LOC. Moved CLI
+  tests to `src/cli/tests.rs`. Deduped experimental gate safety footer.
 - **Move-only executor skeleton**: Added a pure, non-mutating model of the
   future single-PID cgroup move and immediate rollback sequence. It documents
   target cgroup preparation, `cgroup.procs` writes, verification, rollback, and
@@ -42,6 +44,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   future move-only executor, including deterministic preview operation IDs,
   operation ownership labels, ordered journal events, rollback boundary, and
   blocked state-write status.
+- **v2.7.0 release documentation**: Added validation report
+  (`docs/validation-reports/experimental-attach-v2.7.md`) and release notes
+  (`docs/release-v2.7.0.md`) for the v2.7.0 Experimental Attach Lab.
 
 ### Changed
 

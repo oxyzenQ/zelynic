@@ -115,6 +115,14 @@ move-only experiment a deterministic model-only operation id, owner label, event
 list, and rollback boundary. The journal is not persisted, state writes remain
 blocked, and rollback is limited to operation-owned state.
 
+The v2.7 Experimental Attach Lab release (phases 1 through 5 plus phase 1.1
+CLI refactor) remains entirely non-mutating. No PID movement, no cgroup directory
+creation, no `cgroup.procs` write, no nftables/tc changes, no Zelynic state
+writes, and no limiter attach are performed from the Scope Runner. See
+[docs/release-v2.7.0.md](release-v2.7.0.md) for the v2.7.0 release notes and
+[docs/validation-reports/experimental-attach-v2.7.md](validation-reports/experimental-attach-v2.7.md)
+for the validation report.
+
 The displayed `systemd-run` command is for visibility only. Internally, Zelynic
 keeps the command as structured argv; a future live implementation must execute
 structured arguments directly and must not pass a rendered shell string to a

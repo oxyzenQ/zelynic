@@ -72,6 +72,19 @@ run as root with `--probe-live`; it is a non-mutating pipeline validation.
 
 See [scope-runner-v2.5.md](scope-runner-v2.5.md) for an example.
 
+### Experimental Attach Validation Report
+
+An Experimental Attach report documents the results of testing the v2.7.0
+Experimental Attach Lab subsystem, which includes the experimental attach gate
+checklist, explicit consent flags, move-only executor skeleton, target cgroup
+preflight, cgroup environment diagnostics, and operation journal preview. Like
+the Scope Runner report, it is a non-mutating pipeline validation: no PID
+movement, no cgroup writes, no nftables/tc changes, no state writes are
+performed.
+
+See [experimental-attach-v2.7.md](experimental-attach-v2.7.md) for the v2.7.0
+Experimental Attach Lab validation report.
+
 ## How to File a Report
 
 1. Copy [template.md](template.md) to a new file named after the distribution:

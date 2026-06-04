@@ -869,6 +869,17 @@ probe passed, root attach-live hard-blocked), observed results, and final
 status. The Scope Runner live probe and attach preview are validated; live
 limiter attach is not implemented; user-scope live runner remains blocked.
 
+A dedicated validation report for the v2.7.0 Experimental Attach Lab is
+available at:
+
+- [docs/validation-reports/experimental-attach-v2.7.md](validation-reports/experimental-attach-v2.7.md)
+
+That report documents the non-root gate block and root full experimental consent
+probe with all preflight/gate/checklist sections rendered, followed by the
+canonical safety footer and block. Release notes for v2.7.0 are available at:
+
+- [docs/release-v2.7.0.md](release-v2.7.0.md)
+
 ## Release Checklist (Scope Runner Smoke Matrix)
 
 Before cutting a release that includes the Scope Runner, verify the following
