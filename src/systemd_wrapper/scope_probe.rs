@@ -513,6 +513,54 @@ mod tests {
     }
 
     #[test]
+    fn experimental_gate_output_uses_single_canonical_safety_footer() {
+        let gate = super::super::experimental_attach_gate::evaluate_experimental_attach_gate(
+            super::super::experimental_attach_gate::ExperimentalAttachGateInput {
+                execute: true,
+                scope_mode: ScopeMode::System,
+                probe_live: true,
+                attach_live: true,
+                is_root: true,
+                consent: super::super::experimental_attach_gate::ExperimentalAttachConsent {
+                    experimental_single_pid_attach: true,
+                    i_understand_this_moves_pids: true,
+                    rollback_required: true,
+                },
+                discovered_pid_count: 1,
+                original_cgroup_capture_valid: true,
+                pid_liveness_alive: true,
+                self_protection_allowed: true,
+                transaction_model_only: true,
+                mutation_mode_move_only: true,
+                nft_tc_state_disabled: true,
+            },
+        );
+        let preview =
+            super::super::attach_preview::with_experimental_attach_gate(sample_preview(), gate);
+        let rendered = render_scope_probe_output_with_preview(&full_probe_result(), Some(&preview));
+
+        assert!(rendered.contains("Experimental attach gate:"));
+        assert!(rendered.contains("final: blocked"));
+        assert_eq!(rendered.matches("No PID was moved.").count(), 1);
+        assert_eq!(
+            rendered.matches("No limiter attach was performed.").count(),
+            1
+        );
+        assert_eq!(
+            rendered
+                .matches("No nftables, tc, Zelynic cgroup, or state changes were made.")
+                .count(),
+            1
+        );
+        assert_eq!(
+            rendered
+                .matches("Bandwidth limiting is not active from this command yet.")
+                .count(),
+            1
+        );
+    }
+
+    #[test]
     fn preview_empty_pids_handled_safely() {
         let empty_preview = super::super::attach_preview::build_attach_preview(
             "sleep",

@@ -200,16 +200,6 @@ pub(crate) fn render_experimental_attach_gate_section(
     );
     push_line(output, &format!("    final: {}", checklist.final_status));
     push_line(output, &format!("    reason: {}", checklist.reason));
-    push_line(output, "    No PID was moved.");
-    push_line(output, "    No limiter attach was performed.");
-    push_line(
-        output,
-        "    No nftables, tc, Zelynic cgroup, or state changes were made.",
-    );
-    push_line(
-        output,
-        "    Bandwidth limiting is not active from this command yet.",
-    );
 }
 
 fn bool_check(name: &str, present: bool) -> GateCheck {
@@ -415,7 +405,7 @@ mod tests {
     }
 
     #[test]
-    fn gate_output_includes_no_nft_tc_state_and_no_pid_moved() {
+    fn gate_output_includes_disabled_state_without_footer_duplication() {
         let checklist = evaluate_experimental_attach_gate(ok_input());
         let mut output = String::new();
 
@@ -423,9 +413,9 @@ mod tests {
 
         assert!(output.contains("Experimental attach gate"));
         assert!(output.contains("nft/tc/state: disabled"));
-        assert!(output.contains("No PID was moved."));
-        assert!(output.contains("No limiter attach was performed."));
-        assert!(output.contains("No nftables, tc, Zelynic cgroup, or state changes were made."));
+        assert!(!output.contains("No PID was moved."));
+        assert!(!output.contains("No limiter attach was performed."));
+        assert!(!output.contains("No nftables, tc, Zelynic cgroup, or state changes were made."));
     }
 
     #[test]
