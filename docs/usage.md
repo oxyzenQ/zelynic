@@ -245,7 +245,9 @@ Support matrix:
 --no-color                         # Disable colored output
 -i, --info                         # Package information
 -v, --ver                          # Short version
--V, --version                      # Long version
+-V, --version                      # Complete version and build information
+--check-update                     # Check the latest upstream release
+--check-updated                    # Alias for --check-update
 --help-all                         # Comprehensive help
 ```
 

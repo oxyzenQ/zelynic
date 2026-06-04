@@ -20,9 +20,10 @@ pub(crate) fn print_help_all() {
 
     println!("{}", "FLAGS".bold());
     println!("  -i, --info              Print detailed package information");
+    println!("  -V, --version           Print complete version and build information");
+    println!("  --check-update          Check the latest upstream release");
     println!("  --no-color              Disable colored output");
     println!("  -v, --ver               Print version (short)");
-    println!("  -V, --version           Print version (long)");
     println!("  -h, --help              Show basic help");
     println!(
         "  --help-all              {} Show this comprehensive help\n",

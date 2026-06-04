@@ -8,7 +8,7 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 #[allow(dead_code)]
 pub const NAME: &str = "zelynic";
 pub fn build_target() -> &'static str {
-    option_env!("CARGO_CFG_TARGET_ARCH").unwrap_or("x86_64")
+    std::env::consts::ARCH
 }
 pub const COPYRIGHT: &str = "(c) 2026 Rezky_nightky";
 pub const LICENSE: &str = "GPL-3.0";
@@ -23,7 +23,7 @@ fn version_string() -> String {
 
 /// Get the build target string (architecture + OS).
 fn build_string() -> String {
-    format!("linux-{}", build_target())
+    format!("{}-{}", std::env::consts::OS, build_target())
 }
 
 /// Get the git commit hash injected at build time by build.rs.

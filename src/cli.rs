@@ -13,6 +13,7 @@ use clap::{Args, Parser, Subcommand, ValueEnum};
     author = "Rezky_nightky <oxyzenq>",
     about = "Easy userspace bandwidth manager for Linux",
     long_about = None,
+    disable_version_flag = true,
     propagate_version = true,
     arg_required_else_help = false,
 )]
@@ -23,6 +24,14 @@ pub struct Cli {
     /// Print detailed package information
     #[arg(short = 'i', long = "info", global = false)]
     pub info: bool,
+
+    /// Print complete version and build information
+    #[arg(short = 'V', long = "version", global = false)]
+    pub version: bool,
+
+    /// Check the latest upstream GitHub release
+    #[arg(long = "check-update", alias = "check-updated", global = false)]
+    pub check_update: bool,
 
     /// Disable colored output
     ///

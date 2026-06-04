@@ -172,7 +172,9 @@ zelynic [FLAGS] [COMMAND] [ARGS]
 FLAGS:
     -i, --info              Print detailed package information
     -v, --ver               Print version (short)
-    -V, --version           Print version (long)
+    -V, --version           Print complete version and build information
+    --check-update          Check the latest upstream release
+    --check-updated         Alias for --check-update
     --help-all              Show comprehensive help with all commands and examples
     --iface [INTERFACE]     Specify network interface (no value = list available)
     --no-color              Disable colored output
@@ -466,11 +468,14 @@ Download / ingress
 # Print version
 zelynic -v
 
-# Print detailed info
-zelynic -i
+# Print complete version and build info
+zelynic -V
+
+# Check the latest upstream release
+zelynic --check-update
 ```
 
-**Example output of `zelynic -i`:**
+**Example output of `zelynic -V`:**
 ```
 Version: v2.6.0
 Build: linux-x86_64 (ad36a81)

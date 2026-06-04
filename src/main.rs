@@ -20,6 +20,7 @@ mod qos;
 mod systemd_wrapper;
 mod tui;
 mod units;
+mod update;
 mod watch;
 
 use anyhow::Result;
@@ -29,7 +30,7 @@ use colored::Colorize;
 use cli::Cli;
 
 fn main() -> Result<()> {
-    // Handle -v (lowercase) before clap parsing, since clap reserves -V for --version
+    // Keep the legacy compact version flag separate from the full -V report.
     let args: Vec<String> = std::env::args().collect();
     if args.len() == 2 && (args[1] == "-v" || args[1] == "--ver") {
         info::print_version();
@@ -47,6 +48,16 @@ fn main() -> Result<()> {
     // Disable colors if --no-color flag is set or NO_COLOR env var is present
     if cli.no_color || std::env::var("NO_COLOR").is_ok() {
         colored::control::set_override(false);
+    }
+
+    if cli.version {
+        info::print_info();
+        return Ok(());
+    }
+
+    if cli.check_update {
+        update::check_update(info::VERSION).map_err(anyhow::Error::msg)?;
+        return Ok(());
     }
 
     // Handle -i / --info flag (takes priority over subcommands)
