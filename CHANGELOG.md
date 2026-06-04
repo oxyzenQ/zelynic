@@ -151,6 +151,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   no bandwidth limiting from experimental path, mkdir-only may create/
   cleanup target cgroup only). Documents 9 phase 4 entry criteria and full
   artifact inventory. Docs/report only; no runtime code changes.
+- **v2.8 phase 4a failure simulation design**: Produced failure simulation
+  design document (`docs/v2.8-phase-4a-failure-simulation-design.md`)
+  defining 12 failure scenarios (F1-F12) for the future first real single-
+  PID move experiment. Covers failure before target cgroup creation, failure
+  after target creation but before PID move, failure after PID move but
+  before/during/after verification and rollback, stale/dead PID during
+  transaction, original cgroup disappears, target becomes non-empty, permission
+  denied on cgroup.procs write, and unexpected EBUSY/ENOENT/EACCES. For each
+  scenario: rollback behavior, output honesty, cleanup behavior, target
+  leftover policy, manual recovery needs, and forbidden claims. Defines 9
+  universal failure rules and PID location label taxonomy (not moved, verified
+  in target, verified restored, rollback unverified, unknown). Includes test
+  plan: 21 fake filesystem unit tests, 13 fake writer injection tests, 13
+  render tests, 7 canonical deny-line persistence tests. No root smoke, no
+  live PID move. Docs/design only; no runtime code changes.
 
 ### Changed
 

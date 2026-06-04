@@ -228,7 +228,7 @@ a local root smoke matrix, and be documented before the next phase begins.
   execution-blocked. No new code paths, no write operations. Live PID
   movement remains not implemented.
 
-### Phase 3e: Release-Readiness / Freeze Report (Current Phase)
+### Phase 3e: Release-Readiness / Freeze Report (Completed)
 
 - Produced release-readiness freeze report
   (`docs/v2.8-phase-3e-release-readiness-freeze.md`).
@@ -242,6 +242,34 @@ a local root smoke matrix, and be documented before the next phase begins.
   mkdir-only may create/cleanup target cgroup only.
 - Documents phase 4 entry criteria (9 conditions) and artifact inventory.
 - No runtime code changes. Docs/report only.
+
+### Phase 4a: Failure Simulation Design (Current Phase)
+
+- Produced failure simulation design document
+  (`docs/v2.8-phase-4a-failure-simulation-design.md`).
+- Defines 12 failure scenarios (F1–F12) covering every credible failure
+  mode in the 10-step transaction model: failure before target cgroup
+  creation, failure after target creation but before PID move, failure
+  after PID move but before verification, failure after verification but
+  before rollback, failure during rollback write, failure after rollback
+  write but before verification, failure during target cleanup, stale/dead
+  PID during transaction, original cgroup disappears, target cgroup becomes
+  non-empty, permission denied on cgroup.procs write, and unexpected
+  EBUSY/ENOENT/EACCES behavior.
+- For each scenario documents: expected rollback behavior, expected output
+  honesty, expected cleanup behavior, whether target cgroup may remain,
+  whether manual recovery is required, and what must never be claimed.
+- Defines 9 universal failure rules: no false rollback claims, rollback
+  attempted once if move may have occurred, rollback failure reported
+  loudly, no limiter attach after partial move, no nft/tc/state write in
+  failure path, no deletion of non-empty cgroup, no deletion outside
+  /sys/fs/cgroup/zelynic/, no retry loops, PID location explicitly stated.
+- Defines PID location label taxonomy: not moved, verified in target,
+  verified restored, rollback unverified, unknown.
+- Includes test plan: 21 fake filesystem unit tests, 13 fake writer
+  injection tests, 13 render tests, 7 canonical deny-line persistence
+  tests. No root smoke, no live PID move.
+- No runtime code changes. Docs/design only.
 
 ### Phase 3: Single PID Move-Only + Immediate Rollback (Not Started)
 
@@ -550,9 +578,9 @@ v2.8 is considered successful when all of the following are true:
 
 ## Current Status
 
-v2.8 phase 3e is the current phase. It freezes the v2.8 Experimental PID
-Move Lab at its current validated state with a release-readiness report.
-No runtime changes are introduced. Live PID movement remains not implemented.
+v2.8 phase 4a is the current phase. It designs the failure simulation
+infrastructure for the future first real single-PID move experiment. No runtime
+changes are introduced. Live PID movement remains not implemented.
 
 | Property | Status |
 |----------|--------|
@@ -562,11 +590,13 @@ No runtime changes are introduced. Live PID movement remains not implemented.
 | `cgroup.procs` write | Not implemented |
 | Move transaction skeleton | Phase 3b: aligned with 10-step 3a design, 27 tests passing |
 | Move executor seam | Phase 3d: 7 canonical deny lines, 33 tests passing |
+| Failure simulation design | Phase 4a: 12 scenarios, 9 universal rules, 54 planned tests |
 | Limiter attach | Not implemented |
 | nftables/tc/state changes | Not implemented |
 | `--attach-live` | Hard-blocked / non-mutating |
 | Operation journal | Phase 3b: 12 planned events aligned with 10-step model |
-| Phase 3e (release-readiness/freeze) | Current: freeze report, docs-only |
+| Phase 4a (failure simulation design) | Current: design-only, no runtime changes |
+| Phase 3e (release-readiness/freeze) | Completed: freeze report, docs-only |
 | Phase 3d (output audit) | Completed: 22 new tests, output audit doc |
 | Phase 3c (executor seam + hard gates) | Completed: `move_executor.rs` + gate integration |
 | Phase 3b (skeleton alignment) | Completed: `move_transaction.rs` + `operation_journal.rs` |
