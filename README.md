@@ -116,10 +116,10 @@ Download the latest release from [GitHub Releases](https://github.com/oxyzenq/ze
 
 ```bash
 # Download and extract
-curl -sL https://github.com/oxyzenq/zelynic/releases/latest/download/zelynic-v2.6.0-x86_64-linux.tar.gz | tar xz
+curl -sL https://github.com/oxyzenq/zelynic/releases/latest/download/zelynic-v2.7.0-x86_64-linux.tar.gz | tar xz
 
 # Install system-wide
-sudo install -Dm755 zelynic-v2.6.0-x86_64-linux/zelynic /usr/local/bin/zelynic
+sudo install -Dm755 zelynic-v2.7.0-x86_64-linux/zelynic /usr/local/bin/zelynic
 ```
 
 Verify the download with SHA256 checksums published alongside each release.
@@ -477,7 +477,7 @@ zelynic --check-update
 
 **Example output of `zelynic -V`:**
 ```
-Version: v2.6.0
+Version: v2.7.0
 Build: linux-x86_64 (ad36a81)
 Copyright: (c) 2026 Rezky_nightky
 License: GPL-3.0
