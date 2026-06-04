@@ -12,6 +12,7 @@ mod experimental_attach_gate;
 mod manual_probe;
 mod mkdir_executor;
 mod mkdir_transaction;
+mod move_executor;
 mod move_transaction;
 mod operation_journal;
 mod original_cgroup_preview;

@@ -12,6 +12,10 @@ use super::attach_preview::AttachPreview;
 use super::mkdir_transaction::{
     build_mkdir_transaction_skeleton, render_mkdir_transaction_skeleton_section,
 };
+use super::move_executor::{
+    evaluate_move_executor_seam, render_move_executor_seam_section, MoveExecutorInput,
+    MoveExecutorResult,
+};
 use super::move_transaction::{
     build_move_transaction_skeleton, render_move_transaction_skeleton_section, MoveTransaction,
 };
@@ -88,6 +92,7 @@ pub(crate) struct ExperimentalAttachGateChecklist {
     pub mutation_mode: String,
     pub nft_tc_state: String,
     pub move_transaction: MoveTransaction,
+    pub move_executor_seam: MoveExecutorResult,
     pub final_status: String,
     pub reason: String,
 }
@@ -190,11 +195,23 @@ pub(crate) fn evaluate_experimental_attach_gate(
         bool_blocking_check("nft/tc/state", input.nft_tc_state_disabled),
     ];
 
+    // Build the move executor seam (phase 3c)
+    let seam_input = MoveExecutorInput {
+        pids: input.discovered_pids.clone(),
+        target_cgroup_path: input.target_cgroup_path.clone(),
+        original_cgroup_path: input.original_rollback_path.clone(),
+        is_root: input.is_root,
+        scope_mode: input.scope_mode,
+        consent_all_present: input.consent.all_present(),
+    };
+    let move_executor_seam = evaluate_move_executor_seam(&seam_input);
+
     ExperimentalAttachGateChecklist {
         checks,
         mutation_mode: "move-only".to_string(),
         nft_tc_state: "disabled".to_string(),
         move_transaction,
+        move_executor_seam,
         final_status: "blocked".to_string(),
         reason: "experimental PID move is not implemented yet".to_string(),
     }
@@ -226,6 +243,7 @@ pub(crate) fn render_experimental_attach_gate_section(
         &format!("    nft/tc/state: {}", checklist.nft_tc_state),
     );
     render_move_transaction_skeleton_section(output, &checklist.move_transaction);
+    render_move_executor_seam_section(output, &checklist.move_executor_seam);
     let mkdir_transaction =
         build_mkdir_transaction_skeleton(&checklist.move_transaction.target_cgroup_path);
     render_mkdir_transaction_skeleton_section(output, &mkdir_transaction);
@@ -500,7 +518,9 @@ mod tests {
 
         assert!(!output.contains(" directory created"));
         assert!(!output.contains("was written"));
-        assert!(!output.contains("was moved"));
+        // The seam explicitly denies PID movement ("no PID was moved");
+        // check for positive claim only, not the denial substring
+        assert!(!output.contains(" PID was moved."));
     }
 
     #[test]
@@ -519,6 +539,80 @@ mod tests {
         assert!(
             mkdir_pos > move_pos,
             "mkdir skeleton must appear after move-only skeleton"
+        );
+    }
+
+    // ---- phase 3c seam gate tests ----
+
+    #[test]
+    fn gate_checklist_includes_move_executor_seam() {
+        let checklist = evaluate_experimental_attach_gate(ok_input());
+        assert!(checklist.move_executor_seam.is_blocked());
+        assert_eq!(checklist.move_executor_seam.status, "blocked");
+        assert_eq!(checklist.move_executor_seam.execution, "not implemented");
+    }
+
+    #[test]
+    fn seam_always_blocked_even_when_all_gate_inputs_ok() {
+        let checklist = evaluate_experimental_attach_gate(ok_input());
+        // All gate checks pass
+        assert!(checklist
+            .checks
+            .iter()
+            .all(|check| check.status == GateCheckStatus::Ok));
+        // Seam is still hard-blocked
+        assert!(checklist.move_executor_seam.is_blocked());
+        assert!(checklist
+            .move_executor_seam
+            .blocked_reasons
+            .iter()
+            .any(|r| r.contains("not implemented")));
+    }
+
+    #[test]
+    fn seam_non_root_propagates_to_gate_output() {
+        let mut input = ok_input();
+        input.is_root = false;
+        let checklist = evaluate_experimental_attach_gate(input);
+        assert!(checklist.move_executor_seam.is_blocked());
+        assert!(checklist
+            .move_executor_seam
+            .blocked_reasons
+            .iter()
+            .any(|r| r.contains("non-root")));
+    }
+
+    #[test]
+    fn gate_output_includes_move_executor_seam_section() {
+        let checklist = evaluate_experimental_attach_gate(ok_input());
+        let mut output = String::new();
+        render_experimental_attach_gate_section(&mut output, &checklist);
+        assert!(output.contains("Move executor seam"));
+        assert!(output.contains("executor-seam only"));
+        assert!(output.contains("no PID was moved"));
+        assert!(output.contains("no cgroup.procs write was performed"));
+        assert!(output.contains("no limiter attach was performed"));
+    }
+
+    #[test]
+    fn gate_output_seam_appears_after_move_skeleton_before_mkdir() {
+        let checklist = evaluate_experimental_attach_gate(ok_input());
+        let mut output = String::new();
+        render_experimental_attach_gate_section(&mut output, &checklist);
+        let move_pos = output
+            .find("Move-only executor skeleton")
+            .expect("move skeleton present");
+        let seam_pos = output.find("Move executor seam").expect("seam present");
+        let mkdir_pos = output
+            .find("Mkdir-only executor skeleton")
+            .expect("mkdir skeleton present");
+        assert!(
+            seam_pos > move_pos,
+            "seam must appear after move-only skeleton"
+        );
+        assert!(
+            mkdir_pos > seam_pos,
+            "mkdir skeleton must appear after seam"
         );
     }
 }

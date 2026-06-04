@@ -127,7 +127,7 @@ a local root smoke matrix, and be documented before the next phase begins.
 - No runtime changes. Docs/design only.
 - Live PID movement is still not implemented.
 
-### Phase 3b: Move Transaction Skeleton Alignment (Current Phase)
+### Phase 3b: Move Transaction Skeleton Alignment (Completed)
 
 - Aligned the existing `move_transaction.rs` skeleton with the phase 3a
   design document's 10-step transaction model.
@@ -161,6 +161,40 @@ a local root smoke matrix, and be documented before the next phase begins.
 - No runtime changes. All output remains model-only/skeleton-only/execution-blocked.
 - Live PID movement is still not implemented.
 - No cgroup.procs write was performed.
+
+### Phase 3c: Executor Seam + Hard Gates (Current Phase)
+
+- Added `src/systemd_wrapper/move_executor.rs` as the model-only executor
+  seam — the structural bridge between the gate checklist and the future
+  live write path.
+- The executor seam accepts move transaction model inputs and validates
+  all hard gates (root, system scope, single PID, original cgroup present
+  and non-empty, original cgroup not under `/zelynic/`, target under
+  `/sys/fs/cgroup/zelynic/`, rollback consent present).
+- Every mutating step returns blocked/not-implemented. The seam explicitly
+  states: phase 3c is executor-seam only, live PID move is not implemented,
+  no cgroup.procs write was performed, no PID was moved, no limiter attach
+  was performed, no nftables/tc/Zelynic state changes were made, no
+  persistent state write was performed.
+- Even when all gate inputs are valid, the executor returns blocked because
+  live PID move is not implemented in this phase.
+- Wired the seam into the experimental attach gate output as a preview/
+  report section, appearing after the move-only executor skeleton and before
+  the mkdir-only executor skeleton.
+- Added 22 seam tests: non-root blocked, user scope blocked, multi-PID
+  blocked, missing original cgroup blocked, empty original cgroup blocked,
+  zelynic-managed original cgroup blocked, invalid target outside namespace
+  blocked, missing rollback consent blocked, zero PID edge case, whitespace-
+  only original cgroup blocked, executor always blocked even with all valid
+  inputs, rendered output never claims attached/limited/enforced, rendered
+  output contains "no cgroup.procs write was performed", all required
+  disclaimers present, rendered output includes explicit denials, phase 3c
+  label, rendered structure (gates/disclaimers), rendered phase and status,
+  gate ordering correct, is_safe_target helper tests, gate checklist
+  includes seam, seam always blocked via gate, non-root propagates to gate,
+  gate output includes seam section, seam ordering in gate output.
+- No runtime mutation. No live PID move. No cgroup.procs write. No
+  limiter attach. No nft/tc/state changes.
 
 ### Phase 3: Single PID Move-Only + Immediate Rollback (Not Started)
 
@@ -469,22 +503,25 @@ v2.8 is considered successful when all of the following are true:
 
 ## Current Status
 
-v2.8 phase 3b is the current phase. It aligns the move transaction skeleton
-and operation journal with the phase 3a design document. No runtime changes
-are introduced. Live PID movement remains not implemented.
+v2.8 phase 3c is the current phase. It adds the model-only move executor
+seam with hard gates, preparing the code structure for a future live
+single-PID move while making it impossible to run mutation in this phase.
+No runtime changes are introduced. Live PID movement remains not implemented.
 
 | Property | Status |
 |----------|--------|
-| PID movement | Not implemented (phase 3b: skeleton aligned) |
+| PID movement | Not implemented (phase 3c: executor seam + hard gates) |
 | Cgroup directory creation | Phase 2b: mkdir-only with --mkdir-live (first real write) |
 | Output honesty | Phase 2b.1: truthful footer for --mkdir-live path |
-| `cgroup.procs` write | Not implemented (phase 3b: skeleton aligned) |
+| `cgroup.procs` write | Not implemented (phase 3c: executor seam + hard gates) |
 | Move transaction skeleton | Phase 3b: aligned with 10-step 3a design, 27 tests passing |
-| Operation journal | Phase 3b: 12 planned events aligned with 10-step model |
+| Move executor seam | Phase 3c: model-only seam, 22 tests passing |
 | Limiter attach | Not implemented |
 | nftables/tc/state changes | Not implemented |
 | `--attach-live` | Hard-blocked / non-mutating |
-| Phase 3b (skeleton alignment) | Current: `move_transaction.rs` + `operation_journal.rs` |
+| Operation journal | Phase 3b: 12 planned events aligned with 10-step model |
+| Phase 3c (executor seam + hard gates) | Current: `move_executor.rs` + gate integration |
+| Phase 3b (skeleton alignment) | Completed: `move_transaction.rs` + `operation_journal.rs` |
 | Phase 3a (PID move design) | Completed: `docs/v2.8-phase-3a-single-pid-rollback-design.md` |
 | Validation report | Phase 2c: `docs/v2.8-phase-2c-validation-report.md` |
 

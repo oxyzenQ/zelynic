@@ -111,9 +111,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   empty original cgroup blocking). Docs/skeleton-only; no runtime behavior
   changed. Live PID movement remains not implemented. No cgroup.procs
   write was performed.
+- **v2.8 phase 3c executor seam + hard gates**: Added
+  `src/systemd_wrapper/move_executor.rs` as the model-only executor seam —
+  the structural bridge between the gate checklist and the future live write
+  path. The seam validates all hard gates (root, system scope, single PID,
+  original cgroup present and non-empty, original cgroup not under
+  `/zelynic/`, target under `/sys/fs/cgroup/zelynic/`, rollback consent
+  present) and always returns blocked. Explicit disclaimers: phase 3c is
+  executor-seam only, live PID move is not implemented, no cgroup.procs
+  write was performed, no PID was moved, no limiter attach was performed,
+  no nftables/tc/Zelynic state changes were made, no persistent state
+  write was performed. Wired the seam into the experimental attach gate
+  output as a preview/report section. Added 22 seam tests covering all
+  hard-gate blocking, output honesty, disclaimer presence, and gate
+  integration. No runtime mutation. No live PID move. No cgroup.procs
+  write. No limiter attach. No nft/tc/state changes.
 
 ### Changed
 
+- **Experimental gate rendering**: The full experimental gate now includes
+  the move executor seam (phase 3c) section between the move-only executor
+  skeleton and the mkdir-only executor skeleton, showing gate validation
+  results and explicit disclaimers before any future live write path.
 - **Future Attach Preview**: Scope Runner attach preview now renders the
   Attach Safety Preflight section while continuing to perform no PID movement,
   limiter attach, nftables/tc changes, Zelynic cgroup changes, or state writes.
