@@ -103,6 +103,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   saturating add. No CLI command, no live system reads, no filesystem access, no
   enforcement, no eBPF, no network blocking, no limiter attach. Internal/pub(crate)
   only.
+- **v2.9 phase 4b documentation count correction**: Fixed session_delta test count
+  typo in `CHANGELOG.md` and `docs/v2.9-network-accounting-lab.md`: corrected
+  "29 tests" to verified value "33 tests", corrected accounting total from "112
+  (83 + 29)" to "116 (83 + 33)". Docs-only correction; no Rust behavior changes,
+  no test changes.
+- **v2.9 phase 5 local ledger design**: Produced design document
+  (`docs/v2.9-phase-5-local-ledger-design.md`) defining the future local usage
+  ledger for persistent session and quota tracking. Ledger data model: root
+  structure (schema_version, created_at, updated_at, host_id, session_id,
+  entries, metadata), LedgerEntry (entry_id, timestamp, entry_type, source_label,
+  interface, rx/tx bytes/packets, combined_bytes, reset_detected, reset_details,
+  read_only, provenance, reserved target_app/target_cgroup/target_pid fields
+  marked not implemented), ResetDetail (counter_field, start/end values, reason),
+  QuotaConfigEntry (future, not implemented). Storage boundary: recommended path
+  under XDG_DATA_HOME/zelynic/ with atomic write strategy (temp file + fsync +
+  rename + verify), corruption handling (schema validation, backup fallback, no
+  silent recovery), rotation/cleanup (time-based and size-based, no automatic
+  rotation, backup before prune), permission expectations (0600 file, 0700
+  directory, no world-readable). Privacy constraints: no secrets, no raw packet
+  data, no process command lines without privacy review, no DNS/URLs, no remote
+  IP addresses, no individual connection timestamps. Honesty constraints:
+  interface counters are not per-app attribution, ledger must not imply
+  enforcement, quota guard, network blocking, or eBPF; counters may reset
+  after reboot; ledger may be incomplete. Future commands designed (not
+  implemented): zelynic usage --session, --since-boot, --interface, --ledger;
+  zelynic ledger inspect, ledger clear; zelynic quota status. Future
+  implementation roadmap: phase 5 design only, phase 6 pure model +
+  serialization tests, phase 7 read-only render/inspect model, phase 8 optional
+  explicit persistence, future v3.x quota guard, future v4.x eBPF observer.
+  Ledger integrity invariants: monotonic timestamps, schema version consistency,
+  host ID consistency, no negative values, combined bytes consistency, read-only
+  flag always true. Privacy review requirements defined for pre-phase-8 gate.
+  Phase 5 is design-only: no Rust code, no file I/O, no CLI, no tests. No
+  enforcement, no eBPF, no network blocking, no limiter attach, no nft/tc
+  mutation, no state mutation, no PID movement, no cgroup.procs write, no
+  live /proc or sysfs read.
 
 ## [2.8.0] - 2026-06-06 - v2.8.0 Experimental PID Move Lab
 
