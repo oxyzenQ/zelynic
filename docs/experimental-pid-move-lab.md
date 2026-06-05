@@ -452,7 +452,7 @@ a local root smoke matrix, and be documented before the next phase begins.
 - Docs/design only. No Rust code changes. No runtime behavior changes.
   No live PID move.
 
-### Phase 5c: Guarded Real Move Implementation Design (Current Phase)
+### Phase 5c: Guarded Real Move Implementation Design (Completed)
 
 - Produced implementation design document
   (`docs/v2.8-phase-5c-guarded-real-move-implementation-design.md`) for
@@ -484,6 +484,45 @@ a local root smoke matrix, and be documented before the next phase begins.
   gate flags, verify output, report, cleanup.
 - Docs/design only. No Rust code changes. No runtime behavior changes.
   No live PID move.
+
+### Phase 5d: Guarded Real Writer Seam (Current Phase)
+
+- Added `src/systemd_wrapper/guarded_real_writer.rs` as the narrow code
+  seam for the future guarded real writer. The seam models the future real
+  writer boundary without performing any writes.
+- Input model: pid, original cgroup path, target cgroup path, root gate,
+  system-scope gate, single PID gate, rollback consent gate.
+- Result model: status (always blocked), reason, pid location (always not
+  moved), rollback attempted (always false), cleanup attempted (always
+  false), cgroup.procs writes performed (always false), limiter attach
+  performed (always false), nft/tc/state mutation performed (always false).
+- 7 canonical deny lines in every output: no live PID move, no real
+  cgroup.procs write, no limiter attach, no nft/tc/Zelynic state changes,
+  no persistent state write, no CLI path for live PID move, guarded real
+  writer seam is hard-blocked.
+- Pure functions only: `build_guarded_real_writer_plan()` and
+  `render_guarded_real_writer_plan()`. No I/O, no filesystem access, no
+  /proc access, no /sys access.
+- Gate validation: root, system scope, single non-zero PID, original
+  cgroup present and non-empty, original cgroup not under /zelynic/,
+  target under /sys/fs/cgroup/zelynic/, rollback consent present.
+- Wired into `src/systemd_wrapper/mod.rs` with no CLI command, no runtime
+  path exposure, no real filesystem access.
+- Tests covering: seam always blocked even when all gates valid, non-root
+  blocks, user scope blocks, zero PID blocks, multi-PID blocks, missing
+  original cgroup blocks, zelynic-managed original cgroup blocks, target
+  outside namespace blocks, missing rollback consent blocks, rendered
+  output includes all 7 deny lines, rendered output never claims PID moved,
+  rendered output never claims cgroup.procs write, rendered output never
+  claims rollback performed, rendered output never claims limiter attach,
+  rendered output never claims bandwidth limiting active, rendered output
+  never claims nft/tc/state mutation, rendered output says hard-blocked/
+  not implemented, negative-path comprehensive mutation sweep, result
+  model field correctness, determinism, gate ordering, helper correctness,
+  phase label presence, render structure verification.
+- No live PID move. No real cgroup.procs write. No limiter attach. No
+  nftables/tc/Zelynic state mutation. No persistent state write. No CLI
+  path for live PID move. The seam is always hard-blocked.
 
 ### Phase 3: Single PID Move-Only + Immediate Rollback (Not Started)
 
