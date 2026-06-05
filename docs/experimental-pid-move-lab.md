@@ -485,7 +485,7 @@ a local root smoke matrix, and be documented before the next phase begins.
 - Docs/design only. No Rust code changes. No runtime behavior changes.
   No live PID move.
 
-### Phase 5d: Guarded Real Writer Seam (Current Phase)
+### Phase 5d: Guarded Real Writer Seam (Completed)
 
 - Added `src/systemd_wrapper/guarded_real_writer.rs` as the narrow code
   seam for the future guarded real writer. The seam models the future real
@@ -523,6 +523,38 @@ a local root smoke matrix, and be documented before the next phase begins.
 - No live PID move. No real cgroup.procs write. No limiter attach. No
   nftables/tc/Zelynic state mutation. No persistent state write. No CLI
   path for live PID move. The seam is always hard-blocked.
+
+### Phase 5e: Guarded Real Writer Seam Freeze / Non-Exposure Audit (Current Phase)
+
+- Produced freeze/non-exposure audit report
+  (`docs/v2.8-phase-5e-guarded-real-writer-freeze.md`) summarizing all
+  phases 5a–5d work and auditing the guarded real writer seam's non-exposure.
+- Phase 5 summary: 5a readiness (11 constraints, 14-step smoke plan, 10 abort
+  conditions), 5b operator checklist (7 preflight checks, 12 abort conditions,
+  11 recovery steps, output honesty requirements), 5c implementation design
+  (CgroupProcsWriter trait, 11 transaction steps, 14 safety gates, 12 abort
+  conditions, failure handling, output honesty contract, ~66 test plan), 5d
+  guarded real writer seam (945 LOC, 45 tests, 7 gates, 7 canonical deny lines,
+  pure functions only, no I/O, no filesystem/proc/sys access).
+- Current test state: guarded_real_writer 45 tests passed, total 645 tests
+  passed. Binary version remains v2.7.0.
+- Explicit seam freeze guarantees: always returns blocked/not implemented, no
+  live PID move, no real cgroup.procs write, no rollback write, no cleanup
+  mutation, no limiter attach, no nft/tc/Zelynic state mutation, no persistent
+  state write, no CLI path enabled, no /proc access, no /sys access, no
+  filesystem mutation.
+- Non-exposure audit: module registered as internal systemd_wrapper module
+  only, no public CLI command uses it, existing attach-live path remains
+  hard-blocked, existing mkdir-live path remains mkdir-only, failure_simulation
+  remains fake/model-only, fake_writer remains fake/model-only, move_executor
+  remains blocked/seam-only, move_transaction remains skeleton/model-only.
+- Future phase entry criteria (11 conditions): root-only, system-scope-only,
+  single disposable sleep PID only, original cgroup captured and verified,
+  target under /sys/fs/cgroup/zelynic only, rollback consent present, rollback
+  path reviewed, manual recovery reviewed, exact smoke commands reviewed, no
+  limiter/nft/tc/state, explicit operator confirmation before real smoke.
+- Docs/report only. No runtime code changes. No Rust source file modifications.
+  No live PID move. No cgroup.procs write.
 
 ### Phase 3: Single PID Move-Only + Immediate Rollback (Not Started)
 

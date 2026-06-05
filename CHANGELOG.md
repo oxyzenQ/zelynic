@@ -329,6 +329,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   PID move, no real cgroup.procs write, no limiter attach, no nft/tc/Zelynic
   state mutation, no persistent state write, no CLI path for live PID move.
   The seam is always hard-blocked and non-mutating.
+- **v2.8 phase 5e guarded real writer seam freeze/non-exposure audit**: Produced
+  freeze/non-exposure audit report
+  (`docs/v2.8-phase-5e-guarded-real-writer-freeze.md`) summarizing phases
+  5a–5d and auditing the guarded real writer seam's non-exposure across the
+  codebase. Phase 5 summary: 5a readiness (11 constraints, 14-step smoke plan,
+  10 abort conditions), 5b operator checklist (7 preflight checks, 12 abort
+  conditions, 11 recovery steps), 5c implementation design (CgroupProcsWriter
+  trait, 11 transaction steps, 14 safety gates, 12 abort conditions, output
+  honesty contract, ~66 test plan), 5d guarded real writer seam (945 LOC, 45
+  tests, 7 gates, 7 canonical deny lines, pure functions only, no I/O). Current
+  test state: guarded_real_writer 45 tests passed, total 645 tests passed,
+  binary version remains v2.7.0. Explicit seam freeze guarantees (11 items):
+  always returns blocked/not implemented, no live PID move, no real cgroup.procs
+  write, no rollback write, no cleanup mutation, no limiter attach, no nft/tc/
+  Zelynic state mutation, no persistent state write, no CLI path enabled, no
+  /proc access, no /sys access, no filesystem mutation. Non-exposure audit:
+  module registered as internal only, no public CLI command uses it, attach-live
+  remains hard-blocked, mkdir-live remains mkdir-only, failure_simulation and
+  fake_writer remain fake/model-only, move_executor remains blocked, move_
+  transaction remains skeleton/model-only. Future phase entry criteria (11
+  conditions): root-only, system-scope-only, single disposable sleep PID only,
+  original cgroup captured and verified, target under zelynic only, rollback
+  consent present, rollback path reviewed, manual recovery reviewed, exact smoke
+  commands reviewed, no limiter/nft/tc/state, explicit operator confirmation
+  before real smoke. Docs/report only; no runtime code changes. No live PID move.
 
 ### Changed
 
