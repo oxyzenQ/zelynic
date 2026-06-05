@@ -1,13 +1,5 @@
 # Copyright (C) 2026 rezky_nightky
 # SPDX-License-Identifier: GPL-3.0-only
-# =============================================================================
-# Auto-Update & Self-Healing — runs weekly, updates deps directly on main
-# =============================================================================
-# NO dependabot. This workflow handles all dependency maintenance:
-#   1. cargo update — bump all dependency versions in Cargo.lock
-#   2. Self-heal   — cargo fmt, clippy fixes, full test suite
-#   3. Commit + push directly to main (no PR)
-# =============================================================================
 
 name: Auto-Update Dependencies
 
@@ -15,20 +7,27 @@ on:
   schedule:
     # Every Monday at 06:00 UTC (weekly)
     - cron: "0 6 * * 1"
-  workflow_dispatch: # Allow manual trigger
+  workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  auto-update:
-    name: Update & Self-Heal
+  validate:
+    name: Validate dependency update
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      changed: ${{ steps.changes.outputs.changed }}
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
         with:
           ref: main
-          token: ${{ secrets.GITHUB_TOKEN }}
+          persist-credentials: false
+          fetch-depth: 1
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -49,56 +48,102 @@ jobs:
       - name: Update dependencies
         run: cargo update --verbose
 
-      - name: Self-heal — format code
-        run: cargo fmt --all
+      - name: Enforce dependency-only diff
+        id: changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "Dependencies are already up to date"
+            exit 0
+          fi
 
-      - name: Self-heal — apply Clippy fixes
-        run: cargo clippy --all-targets --all-features --fix --allow-dirty --allow-staged 2>&1 || true
+          git diff --name-only | tee /tmp/changed-files.txt
+          if grep -vE '^Cargo\.lock$' /tmp/changed-files.txt; then
+            echo "::error::Auto-update may only modify Cargo.lock"
+            exit 1
+          fi
 
-      - name: Self-heal — final Clippy check (must be clean)
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Check formatting
+        if: steps.changes.outputs.changed == 'true'
+        run: cargo fmt --all -- --check
+
+      - name: Clippy
+        if: steps.changes.outputs.changed == 'true'
         run: cargo clippy --all-targets --all-features -- -D warnings
 
-      - name: Self-heal — run tests
+      - name: Run tests
+        if: steps.changes.outputs.changed == 'true'
         run: cargo test --locked
 
       - name: Install cargo-deny
+        if: steps.changes.outputs.changed == 'true'
         run: cargo install cargo-deny --locked
 
       - name: Check dependency policies
+        if: steps.changes.outputs.changed == 'true'
         run: cargo deny check all
 
       - name: Run repository policy check
+        if: steps.changes.outputs.changed == 'true'
         run: python3 scripts/check-policy.py
 
       - name: Verify release build
+        if: steps.changes.outputs.changed == 'true'
         run: cargo build --release --locked
 
-      # Only commit and push if there are actual changes
-      - name: Check for changes
-        id: changes
-        run: |
-          if git diff --quiet; then
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "changed=true" >> "$GITHUB_OUTPUT"
-          fi
+      - name: Upload validated Cargo.lock
+        if: steps.changes.outputs.changed == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: validated-cargo-lock
+          path: Cargo.lock
+          if-no-files-found: error
+
+  commit:
+    name: Commit dependency update
+    runs-on: ubuntu-latest
+    needs: validate
+    if: needs.validate.outputs.changed == 'true'
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Download validated Cargo.lock
+        uses: actions/download-artifact@v4
+        with:
+          name: validated-cargo-lock
+          path: .auto-update
 
       - name: Commit and push
-        if: steps.changes.outputs.changed == 'true'
+        shell: bash
         run: |
+          set -euo pipefail
+          cp .auto-update/Cargo.lock Cargo.lock
+
+          if git diff --quiet; then
+            echo "Validated lockfile is already current"
+            exit 0
+          fi
+
+          git diff --name-only | tee /tmp/changed-files.txt
+          if grep -vE '^Cargo\.lock$' /tmp/changed-files.txt; then
+            echo "::error::Commit job may only modify Cargo.lock"
+            exit 1
+          fi
+
           git config user.name "oxyzenQ"
           git config user.email "130107241+oxyzenQ@users.noreply.github.com"
-          git add -A
-          CHANGES=$(git diff --cached --stat)
-          git commit -m "chore: weekly dependency update & self-heal
-
-          Auto-updated dependencies via cargo update.
-          Applied automatic formatting and Clippy fixes.
-          Verified: fmt, clippy, test, cargo-deny, policy, release build."
+          git add Cargo.lock
+          git commit -m "chore: weekly dependency update"
           git push origin main
-          echo "::notice::Pushed weekly dependency update to main"
-          echo "$CHANGES"
-
-      - name: No changes
-        if: steps.changes.outputs.changed == 'false'
-        run: echo "Dependencies are already up to date — nothing to commit."
