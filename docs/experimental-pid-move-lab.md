@@ -556,7 +556,7 @@ a local root smoke matrix, and be documented before the next phase begins.
 - Docs/report only. No runtime code changes. No Rust source file modifications.
   No live PID move. No cgroup.procs write.
 
-### Phase 5f: Guarded Real Writer LOC Split / Maintainability Refactor (Current Phase)
+### Phase 5f: Guarded Real Writer LOC Split / Maintainability Refactor (Completed)
 
 - Refactored `src/systemd_wrapper/guarded_real_writer.rs` (945 LOC, single file)
   into a directory module with four files: `mod.rs` (216 LOC, build function +
@@ -573,6 +573,40 @@ a local root smoke matrix, and be documented before the next phase begins.
 - No runtime behavior changes. No new code paths. No filesystem/proc/sys access.
   No live PID move. No cgroup.procs write. No limiter attach. No nft/tc/state
   mutation. No persistent state write. No CLI enablement. Refactor/split only.
+
+### Phase 5g: Guarded Real Writer Integration Audit / Blocked-Path Proof (Current Phase)
+
+- Produced integration audit / blocked-path proof report
+  (`docs/v2.8-phase-5g-guarded-real-writer-integration-audit.md`) proving the
+  guarded real writer seam remains internal, hard-blocked, non-mutating, and
+  unreachable from any live CLI or runtime path after the 5f split.
+- Phase history summary: 5d guarded real writer seam (945 LOC, 45 tests, 7 gates,
+  7 canonical deny lines, pure functions only), 5e seam freeze/non-exposure audit,
+  5f LOC split into directory module (mod.rs 216, model.rs 154, render.rs 82,
+  tests.rs 513).
+- Blocked-path proof (9 properties): guarded_real_writer module is internal only
+  (private `mod` declaration, `pub(crate)` re-exports only), no CLI command calls
+  it, no runtime path calls it, attach-live path remains hard-blocked, mkdir-live
+  path remains mkdir-only, move_executor remains blocked, move_transaction
+  remains skeleton/model-only, failure_simulation remains fake/model-only,
+  fake_writer remains fake/model-only.
+- Output/safety proof: 7 canonical deny lines in every rendered output, all
+  forbidden claims verified absent (PID moved, cgroup.procs write, rollback
+  performed, cleanup mutation, limiter attach, bandwidth limiting active,
+  nft/tc/state mutation, persistent state write), all result fields hardcoded
+  non-mutating, comprehensive negative-path mutation sweep covers 7 scenarios.
+- Future real move activation criteria (9 conditions): separate explicit
+  implementation phase, separate explicit CLI gate, separate root smoke review,
+  root-only, system-scope-only, single disposable sleep PID only, immediate
+  rollback required, no limiter/nft/tc/state, operator must review exact
+  commands before execution.
+- Current test state: guarded_real_writer 45 tests passed, total 645 tests
+  passed. All files under 1000 LOC. Binary version remains v2.7.0.
+- Explicit safety confirmation: no live PID move, no real cgroup.procs write,
+  no limiter attach, no nft/tc/state mutation, no persistent state write, no
+  CLI path for live PID move enabled.
+- Docs/report only. No Rust source file modifications. No runtime behavior
+  changes. No live PID move.
 
 ### Phase 3: Single PID Move-Only + Immediate Rollback (Not Started)
 

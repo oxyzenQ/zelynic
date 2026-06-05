@@ -367,6 +367,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   All files under 1000 LOC. No runtime behavior changes. Refactor/split only.
   No live PID move, no cgroup.procs write, no limiter attach, no nft/tc/state
   mutation, no persistent state write.
+- **v2.8 phase 5g guarded real writer integration audit/blocked-path proof**:
+  Produced integration audit report
+  (`docs/v2.8-phase-5g-guarded-real-writer-integration-audit.md`) proving the
+  guarded real writer seam remains internal, hard-blocked, non-mutating, and
+  unreachable from any live CLI or runtime path after the 5f split. Blocked-path
+  proof covers 9 properties: module is internal only, no CLI command calls it,
+  no runtime path calls it, attach-live path remains hard-blocked, mkdir-live
+  path remains mkdir-only, move_executor remains blocked, move_transaction
+  remains skeleton/model-only, failure_simulation remains fake/model-only,
+  fake_writer remains fake/model-only. Output/safety proof documents 7 canonical
+  deny lines, all forbidden claims verified absent, all result fields hardcoded
+  non-mutating, and comprehensive negative-path mutation sweep. Future real move
+  activation requires 9 explicit conditions. Docs/report only; no Rust source file
+  modifications. No runtime behavior changes. No live PID move.
 
 ### Changed
 
