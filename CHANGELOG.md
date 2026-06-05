@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **v2.9 Network Accounting Lab design**: Added design document
+  (`docs/v2.9-network-accounting-lab.md`) for the v2.9 read-only accounting
+  milestone. Phase 1 is design-only: defines data model, data sources
+  (`/proc/net/dev`, sysfs, nftables counters, tc statistics), honesty
+  constraints (interface counters are not per-app, PID attribution is
+  snapshot-based, counter reset on reboot, read-only must not claim
+  enforcement), future command surface (`zelynic usage`, `zelynic quota
+  status`, `zelynic limit-background`), phase plan (6 phases), and future
+  version roadmap (v3.x quota guard, v4.x eBPF observer). v2.9 is a
+  read-only accounting milestone only — no enforcement, no blocking, no quota
+  guard, no eBPF, no PID movement, no cgroup.procs write, no nft/tc
+  mutation, no persistent state mutation, no CLI changes. `zelynic strict`
+  remains the only validated active limiter path.
+
 ## [2.8.0] - 2026-06-06 - v2.8.0 Experimental PID Move Lab
 
 v2.8.0 is a **safety/research milestone** release. It does NOT implement live

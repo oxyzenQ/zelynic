@@ -1044,19 +1044,23 @@ active limiter path.
 
 ## Next Milestone After v2.8
 
-The v2.8 Experimental PID Move Lab proves that Zelynic can safely perform a
-single-PID cgroup move with immediate rollback. After v2.8 is validated:
+The v2.8 Experimental PID Move Lab proved that Zelynic can safely design a
+single-PID cgroup move with immediate rollback (all model-only/fake-only in
+v2.8; no live PID move was implemented).
 
-- **v2.9 or later** may explore limiter attach from the Scope Runner, but only
-  after PID move and rollback are proven reliable across multiple hosts and
-  edge cases. The first limiter attach would likely be a single-PID move with
-  persistent placement and nftables/tc enforcement, with rollback still
-  available.
-- **v3.0** remains the milestone for runtime path migration and backend
-  abstraction stabilization. The current tc/nftables/cgroup backend would
-  remain the only active backend until v3.0.
-- **eBPF** remains future work with no timeline. It is not in scope for v2.8
-  or v2.9.
+**v2.9 Network Accounting Lab** is the next milestone. See
+`docs/v2.9-network-accounting-lab.md` for the full design document. v2.9 is a
+read-only accounting foundation for future quota guard, per-app usage history,
+allow/block mode, and eventual eBPF observer backend. Phase 1 is design-only.
+No enforcement, no blocking, no quota guard, no eBPF, no PID movement, no
+cgroup.procs write, no nft/tc mutation.
+
+- **v2.9**: Network Accounting Lab (read-only accounting design, interface
+  counter model, future command surface). Docs/design only for phase 1.
+- **v3.x**: Future quota guard / allow-block app mode (requires per-app
+  attribution and enforcement backend).
+- **v4.x**: Future eBPF observer / classifier backend (requires kernel 5.4+,
+  CAP_BPF or root).
 
 The incremental approach ensures each mutation type is validated in
 isolation before combining them. The pure models from v2.7 (executor
