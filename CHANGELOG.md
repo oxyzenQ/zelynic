@@ -265,6 +265,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   permissions unexpected, rollback target unverifiable, ambiguous output.
   Expected output honesty requirements and manual recovery procedures defined.
   Docs/design only; no runtime code changes. No live PID move.
+- **v2.8 phase 5b manual smoke operator checklist**: Produced operator
+  checklist document (`docs/v2.8-phase-5b-manual-smoke-operator-checklist.md`)
+  with exact review-only command tables for the future first real PID move smoke.
+  All commands are for review only; no current Zelynic command performs this
+  move; no limiter attach or nft/tc/state mutation is part of this smoke.
+  Checklist sections: preflight environment checks (7), disposable sleep
+  process creation (5), PID/cgroup capture (6), target path verification (5),
+  target preparation (3), planned PID move (2), target verification (3),
+  immediate rollback (2), rollback verification (3), cleanup (3), post-smoke
+  audit (6). Explicit abort checklist (12 conditions): not root, not system
+  scope, PID missing/stale, multiple PIDs, original cgroup missing/Zelynic-
+  managed, target outside zelynic namespace, target non-empty, cgroup mount
+  read-only, permissions unexpected, rollback unverifiable, ambiguous output.
+  Expected observation table and manual recovery checklist (11 steps). Output
+  honesty requirements with 7 canonical deny lines and honest substitutions.
+  Docs/design only; no runtime code changes. No live PID move.
 
 ### Changed
 
