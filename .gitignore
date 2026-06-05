@@ -1,36 +1,21 @@
-# Build
+# Rust
 target/
 
 # IDE
 .idea/
 .vscode/
-*.iml
-
-# Editor
-*.swp
-*.swo
-*~
-*.rs.bk
-*.orig
-compile_commands.json
 
 # OS
 .DS_Store
 Thumbs.db
 
-# Env
+# Environment
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
 
-# Coverage
-*.profraw
-*.profdata
-coverage/
-
-# Temp
+# Temporary files
 *.tmp
 *.bak
 *.log
-core
-core.*
+*~
