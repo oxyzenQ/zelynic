@@ -8,11 +8,13 @@ on:
     paths:
       - '**/*.md'
       - '**/*.txt'
+      - '**/*.rst'
       - 'LICENSE'
   pull_request:
     paths:
       - '**/*.md'
       - '**/*.txt'
+      - '**/*.rst'
       - 'LICENSE'
 
 permissions:
@@ -20,13 +22,15 @@ permissions:
 
 jobs:
   lint:
-    name: Markdown Lint
+    name: Docs Spelling Check
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Markdown Lint
+      - name: Install codespell
+        run: python3 -m pip install --user codespell
+
+      - name: Check documentation files
         run: |
-          # Basic check for now
-          grep -r "." **/*.md > /dev/null
+          find . -type f \( -name '*.md' -o -name '*.txt' -o -name '*.rst' \) -print0             | xargs -0r codespell

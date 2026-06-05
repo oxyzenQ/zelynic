@@ -10,39 +10,31 @@ on:
   push:
     branches: [main]
     paths:
-      - 'Cargo.toml'
+      - '**/*.rs'
+      - '**/*.toml'
+      - '**/*.sh'
+      - '**/*.py'
       - 'Cargo.lock'
       - 'build.rs'
       - 'rust-toolchain*'
       - 'deny.toml'
-      - 'build.sh'
-      - 'package.sh'
-      - 'set-version.sh'
+      - '.cargo/**'
       - 'scripts/**'
-      - 'src/**'
-      - 'tests/**'
-      - 'benches/**'
-      - 'examples/**'
-      - 'fuzz/**'
-      - '.github/workflows/ci.yml'
+      - '.github/workflows/**'
   pull_request:
     branches: [main]
     paths:
-      - 'Cargo.toml'
+      - '**/*.rs'
+      - '**/*.toml'
+      - '**/*.sh'
+      - '**/*.py'
       - 'Cargo.lock'
       - 'build.rs'
       - 'rust-toolchain*'
       - 'deny.toml'
-      - 'build.sh'
-      - 'package.sh'
-      - 'set-version.sh'
+      - '.cargo/**'
       - 'scripts/**'
-      - 'src/**'
-      - 'tests/**'
-      - 'benches/**'
-      - 'examples/**'
-      - 'fuzz/**'
-      - '.github/workflows/ci.yml'
+      - '.github/workflows/**'
 
 env:
   CARGO_TERM_COLOR: always
