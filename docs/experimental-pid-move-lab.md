@@ -524,7 +524,7 @@ a local root smoke matrix, and be documented before the next phase begins.
   nftables/tc/Zelynic state mutation. No persistent state write. No CLI
   path for live PID move. The seam is always hard-blocked.
 
-### Phase 5e: Guarded Real Writer Seam Freeze / Non-Exposure Audit (Current Phase)
+### Phase 5e: Guarded Real Writer Seam Freeze / Non-Exposure Audit (Completed)
 
 - Produced freeze/non-exposure audit report
   (`docs/v2.8-phase-5e-guarded-real-writer-freeze.md`) summarizing all
@@ -555,6 +555,24 @@ a local root smoke matrix, and be documented before the next phase begins.
   limiter/nft/tc/state, explicit operator confirmation before real smoke.
 - Docs/report only. No runtime code changes. No Rust source file modifications.
   No live PID move. No cgroup.procs write.
+
+### Phase 5f: Guarded Real Writer LOC Split / Maintainability Refactor (Current Phase)
+
+- Refactored `src/systemd_wrapper/guarded_real_writer.rs` (945 LOC, single file)
+  into a directory module with four files: `mod.rs` (216 LOC, build function +
+  helper), `model.rs` (154 LOC, input/result/gate types + canonical deny lines),
+  `render.rs` (82 LOC, render function), `tests.rs` (513 LOC, all 45 tests).
+- Preserved exact behavior: seam always blocked/not implemented, all result
+  fields hardcoded non-mutating, all 7 canonical deny lines present in every
+  output, no forbidden claims.
+- Preserved API compatibility: `build_guarded_real_writer_plan()` and
+  `render_guarded_real_writer_plan()` remain `pub(crate)`. All types
+  re-exported via `pub(crate) use model::*` in mod.rs. No CLI exposure.
+- All 45 guarded_real_writer tests pass with identical results. Total test
+  count remains 645. All files under 1000 LOC. Binary version remains v2.7.0.
+- No runtime behavior changes. No new code paths. No filesystem/proc/sys access.
+  No live PID move. No cgroup.procs write. No limiter attach. No nft/tc/state
+  mutation. No persistent state write. No CLI enablement. Refactor/split only.
 
 ### Phase 3: Single PID Move-Only + Immediate Rollback (Not Started)
 
