@@ -39,6 +39,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   input order preservation, snapshot aggregation helpers, render output
   honesty verification, error display formatting, design contract verification.
   No CLI command, no live system reads, no filesystem access, no enforcement.
+- **v2.9 phase 3 read-only usage preview renderer**: Added
+  `src/accounting/usage_preview.rs` with pure model and renderer for the
+  future `zelynic usage` command display contract. Model types:
+  `UsagePreview` (total RX/TX/combined bytes, interface count, per-interface
+  rows with human-readable IEC formatting, source label, attribution scope
+  "interface-only", enforcement status "inactive/not implemented"),
+  `UsagePreviewRow` (interface name, raw + human-readable RX/TX/total bytes,
+  loopback flag). Pure functions: `build_usage_preview(snapshot)` with
+  saturating arithmetic, `render_usage_preview(preview)` with comprehensive
+  safety disclaimers (read-only, interface-level only, not per-app, no quota
+  enforcement, no network blocking, no limiter attach, no nft/tc/state mutation,
+  no live /proc/sysfs read), `format_bytes_human(bytes)` for IEC binary prefix
+  formatting (B/KiB/MiB/GiB/TiB). 30 pure unit tests: human-readable
+  formatting (zero, bytes, KiB, MiB, GiB, TiB, u64::MAX no-panic), preview
+  build (one/multiple interface, empty snapshot, order preservation, source
+  label, attribution scope, enforcement status, loopback flag, human-readable
+  fields), preview render (read-only statement, interface-level only, per-app
+  denial, quota/network-blocking/limiter-attach/nft-tc-state-mutation/live
+  /proc-sysfs denial, source label, human-readable bytes, empty snapshot,
+  determinism), overflow-safe saturating totals (u64::MAX). No CLI command,
+  no live system reads, no filesystem access, no enforcement.
 
 ## [2.8.0] - 2026-06-06 - v2.8.0 Experimental PID Move Lab
 
