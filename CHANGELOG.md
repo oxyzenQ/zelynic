@@ -71,6 +71,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   CLI exposure. All files under 1000 LOC. Refactor/split only. No live
   system reads, no state write, no enforcement, no quota, no eBPF, no
   network blocking, no limiter attach.
+- **v2.9 phase 4 session delta model**: Added
+  `src/accounting/session_delta.rs` with pure model for computing network usage
+  differences between two `InterfaceCounterSnapshot` values. Model types:
+  `SessionDelta` (per-interface delta rows, reset warnings, total RX/TX/combined
+  delta bytes, interface count, source label, attribution scope
+  "interface-level only", enforcement status "inactive/not implemented",
+  read-only flag "model-only"), `SessionDeltaRow` (interface name, per-counter
+  deltas for RX/TX bytes and packets, reset flags, presence flags),
+  `CounterResetWarning` (interface, counter field, start/end values with Display
+  formatting). Pure functions: `build_session_delta(start, end)` computes
+  per-interface deltas with deterministic ordering (start interfaces first, then
+  end-only), explicit counter reset detection (end < start → delta = 0, warning
+  emitted, no negative values, no silent underflow), overflow-safe saturating
+  totals; `render_session_delta()` renders human-readable output with 7 safety
+  disclaimers (read-only session delta model, interface-level only, not per-app
+  attribution, no quota enforcement active, no network blocking active, no limiter
+  attach performed, no nft/tc/Zelynic state mutation performed, no live /proc or
+  sysfs read performed) and counter reset/decrease warnings if present. Tests in
+  `src/accounting/tests/session_delta.rs` (29 tests): normal one-interface delta,
+  multiple interfaces, totals correctness, zero delta, interface only in end,
+  interface only in start, RX/TX byte counter reset detection, RX/TX packet
+  counter reset detection, no silent underflow, deterministic output order, render
+  read-only/model-only, render per-app denial, render quota enforcement denial,
+  render network blocking denial, render limiter attach denial, render nft/tc/state
+  mutation denial, render live /proc/sysfs read denial, render reset warnings,
+  overflow-safe totals (u64::MAX), saturating totals no panic, no CLI fields
+  (structural), empty snapshots, source label, render determinism, render empty
+  delta, multiple resets same interface, end-only interface ordering, warning display
+  formatting, render source label, render saturating label, combined delta
+  saturating add. No CLI command, no live system reads, no filesystem access, no
+  enforcement, no eBPF, no network blocking, no limiter attach. Internal/pub(crate)
+  only.
 
 ## [2.8.0] - 2026-06-06 - v2.8.0 Experimental PID Move Lab
 

@@ -22,6 +22,7 @@
 //! - This module does **not** claim enforcement, quota guard, or blocking.
 
 mod interface_counters;
+mod session_delta;
 mod usage_preview;
 
 #[cfg(test)]
@@ -33,6 +34,10 @@ mod tests;
 pub(crate) use interface_counters::{
     parse_proc_net_dev, parse_proc_net_dev_line, render_interface_counter_snapshot,
     InterfaceCounter, InterfaceCounterSnapshot, ParseError, SourceLabel,
+};
+#[allow(unused_imports)]
+pub(crate) use session_delta::{
+    build_session_delta, render_session_delta, CounterResetWarning, SessionDelta, SessionDeltaRow,
 };
 #[allow(unused_imports)]
 pub(crate) use usage_preview::{
