@@ -574,7 +574,7 @@ a local root smoke matrix, and be documented before the next phase begins.
   No live PID move. No cgroup.procs write. No limiter attach. No nft/tc/state
   mutation. No persistent state write. No CLI enablement. Refactor/split only.
 
-### Phase 5g: Guarded Real Writer Integration Audit / Blocked-Path Proof (Current Phase)
+### Phase 5g: Guarded Real Writer Integration Audit / Blocked-Path Proof (Completed)
 
 - Produced integration audit / blocked-path proof report
   (`docs/v2.8-phase-5g-guarded-real-writer-integration-audit.md`) proving the
@@ -602,6 +602,45 @@ a local root smoke matrix, and be documented before the next phase begins.
   commands before execution.
 - Current test state: guarded_real_writer 45 tests passed, total 645 tests
   passed. All files under 1000 LOC. Binary version remains v2.7.0.
+- Explicit safety confirmation: no live PID move, no real cgroup.procs write,
+  no limiter attach, no nft/tc/state mutation, no persistent state write, no
+  CLI path for live PID move enabled.
+- Docs/report only. No Rust source file modifications. No runtime behavior
+  changes. No live PID move.
+
+### Phase 5h: Final Pre-Real-Write Validation / Release Gate Report (Current Phase)
+
+- Produced final pre-real-write validation / release gate report
+  (`docs/v2.8-phase-5h-final-pre-real-write-validation.md`) summarizing all
+  phase 5 work (5a through 5g) and serving as the release gate before any
+  future real cgroup.procs write.
+- Phase 5 summary: 5a readiness (11 constraints, 14-step smoke plan, 10 abort
+  conditions), 5b operator checklist (review-only commands, 12 abort conditions,
+  11 recovery steps, output honesty requirements), 5c implementation design
+  (CgroupProcsWriter trait, 11 transaction steps, 14 safety gates, 12 abort
+  conditions, ~66 test plan), 5d guarded real writer seam (945 LOC, 45 tests,
+  7 gates, 7 canonical deny lines, pure functions only), 5e seam freeze/
+  non-exposure audit (11 freeze guarantees, non-exposure verification), 5f LOC
+  split (mod.rs 216, model.rs 154, render.rs 82, tests.rs 513, API preserved),
+  5g integration audit (9 blocked-path properties, output/safety proof).
+- Current validation state: guarded_real_writer 45 tests passed, total 645 tests
+  passed, ./build.sh check-all passed, policy check 84 files, all split files
+  under 1000 LOC, version still v2.7.0.
+- 11 explicit pre-real-write freeze guarantees: no live PID move, no real
+  cgroup.procs write, no rollback write, no cleanup mutation, no limiter attach,
+  no nft/tc/Zelynic state mutation, no persistent state write, no CLI path
+  enabled, no /proc access, no /sys access, no filesystem mutation from
+  guarded_real_writer.
+- Blocked-path proof summary (9 properties): guarded_real_writer internal-only,
+  no CLI command calls it, attach-live hard-blocked, mkdir-live mkdir-only,
+  move_executor blocked, move_transaction skeleton/model-only, failure_simulation
+  fake/model-only, fake_writer fake/model-only, no runtime path calls it.
+- Next-phase entry criteria (13 conditions): separate explicit implementation
+  phase, separate explicit operator confirmation, root-only, system-scope-only,
+  single disposable sleep PID only, original cgroup captured and verified, target
+  under /sys/fs/cgroup/zelynic only, immediate rollback required, rollback path
+  reviewed, manual recovery reviewed, exact smoke commands reviewed, no
+  limiter/nft/tc/state, abort on ambiguity.
 - Explicit safety confirmation: no live PID move, no real cgroup.procs write,
   no limiter attach, no nft/tc/state mutation, no persistent state write, no
   CLI path for live PID move enabled.
