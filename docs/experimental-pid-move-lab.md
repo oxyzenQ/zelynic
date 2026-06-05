@@ -295,7 +295,7 @@ a local root smoke matrix, and be documented before the next phase begins.
   No nftables/tc/Zelynic state mutation. No persistent state write.
   All simulation is pure model/fake-only.
 
-### Phase 4c: Fake Writer Injection Harness (Current Phase)
+### Phase 4c: Fake Writer Injection Harness (Completed)
 
 - Added fake writer injection harness in
   `src/systemd_wrapper/failure_simulation/fake_writer/` (fake_writer.rs +
@@ -333,6 +333,41 @@ a local root smoke matrix, and be documented before the next phase begins.
 - No live PID move. No real cgroup.procs write. No limiter attach.
   No nftables/tc/Zelynic state mutation. No persistent state write.
   All writer simulation is pure fake/in-memory/test-only/model-only.
+
+### Phase 4d: Fake Writer Render/Output Matrix (Current Phase)
+
+- Added canonical render/output matrix in
+  `src/systemd_wrapper/failure_simulation/fake_writer/render_matrix/`
+  (render_matrix.rs + tests.rs).
+- Covers every `FakeFailureMode` (11 variants) with deterministic,
+  honest, non-mutating rendered output.
+- For each mode, output includes: phase label (4d), fake/model-only
+  statement, failure mode label, fake errno when applicable, per-step
+  operation status (target write, target verification, rollback write,
+  rollback verification, cleanup), PID location label, rollback required,
+  manual recovery required, target may remain.
+- 7 canonical deny lines in every output: no live PID move, no real
+  cgroup.procs write, no limiter attach, no nft/tc/Zelynic state changes,
+  no persistent state write, no CLI path for live PID move, fake/model-only.
+- Explicit forbidden claims: no claim of real PID moved, no claim of real
+  cgroup.procs written, no claim of real rollback performed, no limiter
+  attached, no bandwidth limiting active, no nft/tc/state mutation, no
+  cleanup success when cleanup failed.
+- Pure functions: `build_full_render_matrix()`, `render_matrix_entry()`,
+  `render_matrix_output()`.
+- Tests covering: matrix completeness, determinism, phase label presence,
+  fake/model-only statement, all 7 canonical deny lines per mode,
+  forbidden claim absence, errno label rendering, target write failures
+  never claim rollback, rollback failures report manual recovery, cleanup
+  EBUSY reports target may remain, non-empty target never claims deletion,
+  stale PID before write does not attempt write, stale PID after target
+  write requires rollback, PID location in all modes, no retry loop,
+  render structure verification, mode-specific correctness assertions.
+- Submodule wired into `fake_writer.rs`, crate-private, test-focused,
+  no CLI command exposed, no runtime behavior change.
+- No live PID move. No real cgroup.procs write. No limiter attach.
+  No nftables/tc/Zelynic state mutation. No persistent state write.
+  All render output is pure fake/model-only/render-only.
 
 ### Phase 3: Single PID Move-Only + Immediate Rollback (Not Started)
 

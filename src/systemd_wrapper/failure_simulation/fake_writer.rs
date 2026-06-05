@@ -526,6 +526,8 @@ pub(crate) fn render_fake_transaction_result(result: &FakeTransactionResult) -> 
     output
 }
 
+pub(crate) mod render_matrix;
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------

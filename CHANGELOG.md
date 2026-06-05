@@ -207,6 +207,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   no real cgroup.procs write, no limiter attach, no nftables/tc/Zelynic
   state mutation, no persistent state write. All writer simulation is pure
   fake/in-memory/test-only/model-only.
+- **v2.8 phase 4d fake writer render/output matrix**: Added canonical
+  render/output matrix in `src/systemd_wrapper/failure_simulation/fake_writer/
+  render_matrix/` (render_matrix.rs + tests.rs) that covers every
+  FakeFailureMode (11 variants) with deterministic, honest, non-mutating
+  rendered output. For each mode: phase label (4d), fake/model-only
+  statement, failure mode label, fake errno, per-step operation status,
+  PID location, rollback/recovery/cleanup flags. 7 canonical deny lines
+  (no live PID move, no real cgroup.procs write, no limiter attach, no
+  nft/tc/Zelynic state changes, no persistent state write, no CLI path for
+  live PID move, fake/model-only). Explicit forbidden claims (no real PID
+  moved, no real rollback, no limiter attached, no bandwidth limiting active,
+  no nft/tc/state mutation, no cleanup success when cleanup failed). Pure
+  functions: `build_full_render_matrix()`, `render_matrix_entry()`,
+  `render_matrix_output()`. Tests: matrix completeness, determinism, all 7
+  deny lines per mode, forbidden claim absence, errno rendering, target
+  write failures never claim rollback, rollback failures report manual
+  recovery, cleanup EBUSY leaves target, non-empty target never deleted,
+  stale PID before write no operations, stale PID after target write
+  requires rollback, PID location in all modes, no retry loop, render
+  structure, mode-specific correctness. Submodule wired into fake_writer.rs,
+  crate-private, no CLI path, no runtime change. No live PID move, no real
+  cgroup.procs write, no limiter attach, no nft/tc/Zelynic state mutation,
+  no persistent state write. All output is pure fake/model-only/render-only.
 
 ### Changed
 
