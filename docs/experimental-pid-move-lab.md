@@ -334,7 +334,7 @@ a local root smoke matrix, and be documented before the next phase begins.
   No nftables/tc/Zelynic state mutation. No persistent state write.
   All writer simulation is pure fake/in-memory/test-only/model-only.
 
-### Phase 4d: Fake Writer Render/Output Matrix (Current Phase)
+### Phase 4d: Fake Writer Render/Output Matrix (Completed)
 
 - Added canonical render/output matrix in
   `src/systemd_wrapper/failure_simulation/fake_writer/render_matrix/`
@@ -368,6 +368,29 @@ a local root smoke matrix, and be documented before the next phase begins.
 - No live PID move. No real cgroup.procs write. No limiter attach.
   No nftables/tc/Zelynic state mutation. No persistent state write.
   All render output is pure fake/model-only/render-only.
+
+### Phase 4e: Failure Simulation Freeze / Validation Report (Current Phase)
+
+- Produced freeze/validation report
+  (`docs/v2.8-phase-4e-failure-simulation-freeze.md`) summarizing all
+  phases 4a–4d work.
+- Report covers: phase 4a design (12 failure scenarios, 9 universal rules),
+  phase 4b model + 73 tests, phase 4b test wiring fix, phase 4c fake writer
+  harness + 42 tests, phase 4c format fix, phase 4d render/output matrix +
+  36 tests.
+- Current test totals: failure_simulation 151, fake_writer 78, project 604.
+- Current validation state: `./build.sh check-all` passed, CI green, security
+  audit passed, policy check passed (80 files), version still v2.7.0.
+- Explicit freeze guarantees: no live PID move, no real cgroup.procs write,
+  no limiter attach, no nft/tc/Zelynic state mutation, no persistent state
+  write, no CLI enablement for live PID move, all simulation is fake/model-only.
+- Phase 5 entry criteria: freeze report complete, CI green, all failure
+  simulation tests wired and passing, root smoke commands reviewed before
+  execution, first real PID move remains blocked until phase 5, future real
+  move must be root-only, system-scope-only, single disposable sleep PID only,
+  immediate rollback required, no limiter attach, no nft/tc/state mutation.
+- Docs/report only. No Rust code changes. No runtime behavior changes.
+  No live PID move.
 
 ### Phase 3: Single PID Move-Only + Immediate Rollback (Not Started)
 

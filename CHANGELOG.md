@@ -230,6 +230,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   crate-private, no CLI path, no runtime change. No live PID move, no real
   cgroup.procs write, no limiter attach, no nft/tc/Zelynic state mutation,
   no persistent state write. All output is pure fake/model-only/render-only.
+- **v2.8 phase 4e failure simulation freeze/validation report**: Produced
+  freeze/validation report (`docs/v2.8-phase-4e-failure-simulation-freeze.md`)
+  summarizing phases 4a–4d: phase 4a failure simulation design (12 scenarios,
+  9 universal rules, test plan), phase 4b failure simulation model + 73 tests,
+  phase 4b test wiring fix, phase 4c fake writer injection harness + 42 tests,
+  phase 4c formatting fix, phase 4d fake writer render/output matrix + 36
+  tests. Current totals: failure_simulation 151 tests, fake_writer 78 tests,
+  project 604 tests. Validation state: `./build.sh check-all` passed, CI green,
+  security audit passed, policy check passed (80 files), version still v2.7.0.
+  Explicit freeze guarantees: no live PID move, no real cgroup.procs write,
+  no limiter attach, no nft/tc/Zelynic state mutation, no persistent state
+  write, no CLI enablement for live PID move, all simulation fake/model-only.
+  Phase 5 entry criteria defined: freeze report complete, CI green, all tests
+  wired and passing, root smoke commands reviewed before execution, first real
+  PID move remains blocked until phase 5, future real move must be root-only,
+  system-scope-only, single disposable sleep PID only, immediate rollback
+  required, no limiter attach, no nft/tc/state mutation. Docs/report only; no
+  runtime code changes.
 
 ### Changed
 
