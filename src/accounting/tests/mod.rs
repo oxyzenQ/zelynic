@@ -8,6 +8,7 @@
 //! **no** quota enforcement, **no** eBPF, **no** PID movement, **no** cgroup writes.
 
 mod interface_counters;
+mod session_delta;
 mod usage_preview;
 
 /// Standard `/proc/net/dev` sample with three interfaces.
