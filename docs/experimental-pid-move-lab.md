@@ -392,7 +392,7 @@ a local root smoke matrix, and be documented before the next phase begins.
 - Docs/report only. No Rust code changes. No runtime behavior changes.
   No live PID move.
 
-### Phase 5a: First Real Move Readiness / Manual Smoke Plan (Current Phase)
+### Phase 5a: First Real Move Readiness / Manual Smoke Plan (Completed)
 
 - Produced readiness document
   (`docs/v2.8-phase-5a-first-real-move-readiness.md`) defining the only
@@ -420,6 +420,37 @@ a local root smoke matrix, and be documented before the next phase begins.
   stop disposable sleep scope.
 - Docs/design only. No Rust code changes. No runtime behavior changes.
   No live PID move. No cgroup.procs write.
+
+### Phase 5b: Manual Smoke Command Review + Exact Operator Checklist (Current Phase)
+
+- Produced operator checklist document
+  (`docs/v2.8-phase-5b-manual-smoke-operator-checklist.md`) with exact
+  review-only command tables for every smoke step.
+- All commands are for review only; no current Zelynic command performs this
+  move; no limiter attach or nft/tc/state mutation is part of this smoke.
+- Checklist sections: preflight environment checks (7 items), disposable
+  sleep process creation (5 items), PID and cgroup capture (6 items), target
+  path verification (5 items), target preparation (3 items), planned PID move
+  to target (2 items), planned target verification (3 items), planned
+  immediate rollback (2 items), planned rollback verification (3 items),
+  planned cleanup (3 items), post-smoke audit (6 items).
+- Explicit abort checklist (12 conditions): not root, not system scope, PID
+  missing/stale, more than one PID, original cgroup missing, original cgroup
+  Zelynic-managed, target outside zelynic namespace, target exists and
+  non-empty, cgroup mount read-only, permissions unexpected, rollback target
+  unverifiable, any output ambiguous.
+- Expected observation table: before/after move, after rollback, after
+  cleanup, final state (no limiter, no nft/tc/state, no persistent state).
+- Manual recovery checklist (11 steps): inspect PID cgroup, verify original
+  exists, verify writable, move back only to verified original, never delete
+  non-empty target, never delete outside zelynic, stop sleep scope, report
+  PID location honestly.
+- Output honesty requirements: must state PID moved/restored/unknown/not
+  moved, rollback attempted/succeeded, cleanup status; must never claim
+  limiter attach, bandwidth limiting, nft/tc/state mutation, persistent
+  state write. 7 canonical deny lines with honest substitutions.
+- Docs/design only. No Rust code changes. No runtime behavior changes.
+  No live PID move.
 
 ### Phase 3: Single PID Move-Only + Immediate Rollback (Not Started)
 
