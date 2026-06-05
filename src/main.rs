@@ -6,6 +6,7 @@
 /// per-process network bandwidth on Linux systems. It uses Linux
 /// traffic control (tc) with HTB qdisc and cgroups for rate limiting,
 /// and the `ss` utility for bandwidth monitoring.
+mod accounting;
 mod auto;
 mod capabilities;
 mod cli;

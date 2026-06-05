@@ -22,6 +22,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   guard, no eBPF, no PID movement, no cgroup.procs write, no nft/tc
   mutation, no persistent state mutation, no CLI changes. `zelynic strict`
   remains the only validated active limiter path.
+- **v2.9 phase 2 interface counter model + pure parser tests**: Added
+  `src/accounting/` module with pure Rust types and parsers for
+  `/proc/net/dev`-style content. Model types: `InterfaceCounter` (interface
+  name, RX/TX bytes/packets), `InterfaceCounterSnapshot` (ordered list with
+  source label), `ParseError` (structured error enum), `SourceLabel`
+  (observational marker). Pure parser `parse_proc_net_dev(content: &str)`
+  handles standard `/proc/net/dev` format with header skipping, interface name
+  trimming, colon validation, field count validation, u64 parsing with overflow
+  detection. Render helper `render_interface_counter_snapshot()` with honesty
+  labels: "read-only parsed sample", "aggregate interface traffic, not per-app",
+  "No enforcement", "No quota guard", "No per-app attribution". 53 pure unit
+  tests: single/multiple interface parsing, header skipping, lo/wlan0/eth0/
+  wlp/enp/usb0 name support, whitespace trimming, missing colon/too-few-fields/
+  non-numeric/overflow/negative rejection, empty input handling, determinism,
+  input order preservation, snapshot aggregation helpers, render output
+  honesty verification, error display formatting, design contract verification.
+  No CLI command, no live system reads, no filesystem access, no enforcement.
 
 ## [2.8.0] - 2026-06-06 - v2.8.0 Experimental PID Move Lab
 
