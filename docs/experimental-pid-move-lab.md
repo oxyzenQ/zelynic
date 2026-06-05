@@ -421,7 +421,7 @@ a local root smoke matrix, and be documented before the next phase begins.
 - Docs/design only. No Rust code changes. No runtime behavior changes.
   No live PID move. No cgroup.procs write.
 
-### Phase 5b: Manual Smoke Command Review + Exact Operator Checklist (Current Phase)
+### Phase 5b: Manual Smoke Command Review + Exact Operator Checklist (Completed)
 
 - Produced operator checklist document
   (`docs/v2.8-phase-5b-manual-smoke-operator-checklist.md`) with exact
@@ -449,6 +449,39 @@ a local root smoke matrix, and be documented before the next phase begins.
   moved, rollback attempted/succeeded, cleanup status; must never claim
   limiter attach, bandwidth limiting, nft/tc/state mutation, persistent
   state write. 7 canonical deny lines with honest substitutions.
+- Docs/design only. No Rust code changes. No runtime behavior changes.
+  No live PID move.
+
+### Phase 5c: Guarded Real Move Implementation Design (Current Phase)
+
+- Produced implementation design document
+  (`docs/v2.8-phase-5c-guarded-real-move-implementation-design.md`) for
+  the future guarded real PID move.
+- Defines the only allowed future live target: root-only, system-scope-only,
+  single disposable sleep PID, operation-owned Zelynic target cgroup, immediate
+  rollback required, no limiter attach, no nft/tc/Zelynic state mutation,
+  no persistent state write, no browser/terminal/desktop/user app, no multi-PID
+  tree.
+- Proposed code architecture: `CgroupProcsWriter` trait with live writer
+  (narrow, isolated, cgroup.procs-only) and fake writer adapter (test-only).
+  Live writer has no limiter/nft/tc/state knowledge. Transaction controller
+  decides rollback. Renderer reports verified PID location.
+- Exact transaction steps (11 steps: pre-flight gates through post-smoke
+  audit), 14 safety gates (root, system scope, single PID, PID liveness,
+  original cgroup captured/verified/not-Zelynic-managed, target under zelynic/
+  empty/operation-owned, cgroup mount writable, rollback consent, no limiter
+  path reachable), 12 abort conditions.
+- Failure handling: pre-target abort (no rollback), target write failure
+  (rollback required), verification failure (rollback required), rollback
+  write failure (report loudly, manual recovery), rollback verification
+  failure (unverified), cleanup failure (leave and report), never retry.
+- Output honesty contract: 6 required fields, 8 forbidden claims, 7
+  canonical deny lines with honest substitutions.
+- Test strategy: ~66 new unit tests using fake writer, real writer compiled
+  but not reachable without all gates, CLI remains blocked, no forbidden
+  claims, no limiter/nft/tc/state interaction.
+- Root smoke strategy: preflight checks, create target, execute with all
+  gate flags, verify output, report, cleanup.
 - Docs/design only. No Rust code changes. No runtime behavior changes.
   No live PID move.
 

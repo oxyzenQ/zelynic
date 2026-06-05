@@ -281,6 +281,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Expected observation table and manual recovery checklist (11 steps). Output
   honesty requirements with 7 canonical deny lines and honest substitutions.
   Docs/design only; no runtime code changes. No live PID move.
+- **v2.8 phase 5c guarded real move implementation design**: Produced
+  implementation design document
+  (`docs/v2.8-phase-5c-guarded-real-move-implementation-design.md`) for the
+  future guarded real PID move. Defines 11 allowed-target constraints
+  (root-only, system-scope-only, single disposable sleep PID, operation-owned
+  Zelynic target, immediate rollback, no limiter, no nft/tc/state mutation,
+  no persistent state write, no browser/terminal/desktop/user app, no
+  multi-PID tree). Proposed code architecture: `CgroupProcsWriter` trait with
+  narrow live writer (cgroup.procs-only, no limiter/nft/tc/state knowledge)
+  and fake writer adapter (test-only). Transaction controller decides rollback,
+  renderer reports verified PID location. 11 exact transaction steps
+  (pre-flight gates through post-smoke audit), 14 safety gates, 12 abort
+  conditions. Failure handling for all scenarios (pre-target, target write,
+  verification, rollback write/verification, cleanup) with never-retry rule.
+  Output honesty contract (6 required fields, 8 forbidden claims, 7 canonical
+  deny lines). Test strategy (~66 unit tests using fake writer, real writer
+  compiled but unreachable without all gates, CLI blocked). Root smoke
+  strategy. Docs/design only; no runtime code changes. No live PID move.
 
 ### Changed
 
