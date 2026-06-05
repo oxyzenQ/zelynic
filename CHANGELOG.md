@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.8.0] - 2026-06-06 - v2.8.0 Experimental PID Move Lab
+
+v2.8.0 is a **safety/research milestone** release. It does NOT implement live
+PID movement, does NOT write real `cgroup.procs`, does NOT attach a limiter
+from the Scope Runner, does NOT mutate nftables/tc/Zelynic state, does NOT
+persist operation state, and does NOT enable any CLI path for live PID move.
+The `--attach-live` flag remains hard-blocked. `zelynic strict` remains the
+only validated active limiter path. All v2.8 experimental code is model-only,
+fake/model-only, or mkdir-only (cgroup directory creation only — no PID
+movement).
+
 ### Added
 
 - **Attach Safety Preflight**: Added a pure, non-mutating Scope Runner attach

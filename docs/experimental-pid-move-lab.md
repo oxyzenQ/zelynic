@@ -647,7 +647,7 @@ a local root smoke matrix, and be documented before the next phase begins.
 - Docs/report only. No Rust source file modifications. No runtime behavior
   changes. No live PID move.
 
-### Phase 5i: Release-Candidate Freeze / Full Validation Index (Current Phase)
+### Phase 5i: Release-Candidate Freeze / Full Validation Index (Completed)
 
 - Produced release-candidate freeze / full validation index
   (`docs/v2.8-phase-5i-release-candidate-freeze.md`) covering the entire v2.8
@@ -662,8 +662,8 @@ a local root smoke matrix, and be documented before the next phase begins.
   5e seam freeze, 5f LOC split, 5g integration audit, 5h final pre-real-write
   validation).
 - Current validation state: guarded_real_writer 45 tests passed, total 645 tests
-  passed, ./build.sh check-all passed, policy check 84 files, version still
-  v2.7.0.
+  passed, ./build.sh check-all passed, policy check 84 files, version bumped
+  to v2.8.0.
 - 12 final v2.8 RC safety guarantees: no live PID move implemented, no real
   cgroup.procs write implemented, no rollback write implemented, no cleanup
   mutation from guarded_real_writer, no limiter attach, no nft/tc/Zelynic state
@@ -682,6 +682,27 @@ a local root smoke matrix, and be documented before the next phase begins.
   CLI path for live PID move enabled.
 - Docs/report only. No Rust source file modifications. No runtime behavior
   changes. No live PID move.
+
+### Phase 6: v2.8.0 Release Prep — Version Bump and Release Notes (Completed)
+
+- Bumped version from v2.7.0 to v2.8.0 in Cargo.toml, Cargo.lock, README.md,
+  and CHANGELOG.md.
+- Updated CHANGELOG.md with v2.8.0 release section including safety/research
+  milestone disclaimer.
+- Created `docs/release-v2.8.0.md` following the established release notes
+  pattern (matching `docs/release-v2.7.0.md`).
+- Updated `src/update.rs` with v2.8.0 version comparison test.
+- Release notes explicitly state: v2.8.0 is NOT a real PID movement release,
+  does NOT write real cgroup.procs, does NOT attach limiter, does NOT mutate
+  nftables/tc/Zelynic state, does NOT persist operation state, does NOT enable
+  CLI path for live PID move. The guarded real writer seam exists but is
+  hard-blocked. mkdir-live remains mkdir-only. failure_simulation and fake_writer
+  remain fake/model-only. `zelynic strict` remains the only validated active
+  limiter path.
+- No new Rust source code. Version metadata and documentation only.
+- Explicit safety confirmation: no live PID move, no real cgroup.procs write,
+  no limiter attach, no nft/tc/state mutation, no persistent state write, no
+  CLI path for live PID move enabled.
 
 ### Phase 3: Single PID Move-Only + Immediate Rollback (Not Started)
 
@@ -990,9 +1011,14 @@ v2.8 is considered successful when all of the following are true:
 
 ## Current Status
 
-v2.8 phase 4b is the current phase. It implements the phase 4a failure
-simulation design as pure Rust model code and tests. No runtime changes
-are introduced. Live PID movement remains not implemented.
+All v2.8 phases are completed. v2.8.0 has been frozen as a
+safety/research milestone release. The version has been bumped to v2.8.0.
+Release notes are available at `docs/release-v2.8.0.md`.
+
+No live PID movement has been implemented. The guarded real writer seam
+remains internal-only and hard-blocked. All experimental code is model-only,
+fake/model-only, or mkdir-only. `zelynic strict` remains the only validated
+active limiter path.
 
 | Property | Status |
 |----------|--------|
