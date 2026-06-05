@@ -354,6 +354,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   consent present, rollback path reviewed, manual recovery reviewed, exact smoke
   commands reviewed, no limiter/nft/tc/state, explicit operator confirmation
   before real smoke. Docs/report only; no runtime code changes. No live PID move.
+- **v2.8 phase 5f guarded real writer LOC split/maintainability refactor**:
+  Refactored `src/systemd_wrapper/guarded_real_writer.rs` (945 LOC single file)
+  into a directory module with four files: `mod.rs` (216 LOC, build function +
+  is_safe_writer_target helper + re-exports), `model.rs` (154 LOC, input/result/
+  gate types + canonical deny lines + constants), `render.rs` (82 LOC,
+  render_guarded_real_writer_plan function), `tests.rs` (513 LOC, all 45 tests).
+  Preserved exact behavior and API compatibility: seam always returns blocked/
+  not implemented, all result fields hardcoded non-mutating, all 7 canonical
+  deny lines present, no forbidden claims, no CLI exposure. All 45 guarded_
+  real_writer tests pass with identical results. Total tests remain 645.
+  All files under 1000 LOC. No runtime behavior changes. Refactor/split only.
+  No live PID move, no cgroup.procs write, no limiter attach, no nft/tc/state
+  mutation, no persistent state write.
 
 ### Changed
 
