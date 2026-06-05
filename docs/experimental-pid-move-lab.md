@@ -608,7 +608,7 @@ a local root smoke matrix, and be documented before the next phase begins.
 - Docs/report only. No Rust source file modifications. No runtime behavior
   changes. No live PID move.
 
-### Phase 5h: Final Pre-Real-Write Validation / Release Gate Report (Current Phase)
+### Phase 5h: Final Pre-Real-Write Validation / Release Gate Report (Completed)
 
 - Produced final pre-real-write validation / release gate report
   (`docs/v2.8-phase-5h-final-pre-real-write-validation.md`) summarizing all
@@ -641,6 +641,42 @@ a local root smoke matrix, and be documented before the next phase begins.
   under /sys/fs/cgroup/zelynic only, immediate rollback required, rollback path
   reviewed, manual recovery reviewed, exact smoke commands reviewed, no
   limiter/nft/tc/state, abort on ambiguity.
+- Explicit safety confirmation: no live PID move, no real cgroup.procs write,
+  no limiter attach, no nft/tc/state mutation, no persistent state write, no
+  CLI path for live PID move enabled.
+- Docs/report only. No Rust source file modifications. No runtime behavior
+  changes. No live PID move.
+
+### Phase 5i: Release-Candidate Freeze / Full Validation Index (Current Phase)
+
+- Produced release-candidate freeze / full validation index
+  (`docs/v2.8-phase-5i-release-candidate-freeze.md`) covering the entire v2.8
+  Experimental PID Move Lab timeline from phase 1 through 5h.
+- Full timeline summary: phase 1 design doc only, phase 2 cgroup mkdir-only
+  experiment (2a skeleton, 2b executor, 2b.1 output honesty fix, 2c validation),
+  phase 3 single PID move-only + immediate rollback (3a design, 3b skeleton
+  alignment, 3c executor seam, 3d output audit, 3e freeze), phase 4 rollback
+  failure simulation (4a design, 4b model + tests, 4c fake writer, 4d render/
+  output matrix, 4e freeze), phase 5 first real move readiness (5a readiness,
+  5b operator checklist, 5c implementation design, 5d guarded real writer seam,
+  5e seam freeze, 5f LOC split, 5g integration audit, 5h final pre-real-write
+  validation).
+- Current validation state: guarded_real_writer 45 tests passed, total 645 tests
+  passed, ./build.sh check-all passed, policy check 84 files, version still
+  v2.7.0.
+- 12 final v2.8 RC safety guarantees: no live PID move implemented, no real
+  cgroup.procs write implemented, no rollback write implemented, no cleanup
+  mutation from guarded_real_writer, no limiter attach, no nft/tc/Zelynic state
+  mutation, no persistent state write, no CLI path enabled for live PID move,
+  guarded_real_writer remains internal-only and hard-blocked, failure_simulation
+  remains fake/model-only, fake_writer remains fake/model-only, mkdir-live
+  remains mkdir-only.
+- Release-candidate decision: v2.8 can be frozen as a safety/research milestone
+  without any live PID movement having been implemented. Future real PID move
+  requires a separate explicit post-RC phase with its own entry criteria, design,
+  review, and validation. Post-RC requirements: root-only, system-scope-only,
+  single disposable sleep PID only, immediate rollback, no limiter/nft/tc/state,
+  explicit operator confirmation, abort on ambiguity.
 - Explicit safety confirmation: no live PID move, no real cgroup.procs write,
   no limiter attach, no nft/tc/state mutation, no persistent state write, no
   CLI path for live PID move enabled.

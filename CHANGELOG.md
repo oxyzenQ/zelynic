@@ -391,6 +391,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   proof summary (9 properties), next-phase entry criteria (13 conditions), and
   artifact inventory. Docs/report only; no Rust source file modifications. No
   runtime behavior changes. No live PID move.
+- **v2.8 phase 5i release-candidate freeze/full validation index**: Produced
+  release-candidate freeze / full validation index
+  (`docs/v2.8-phase-5i-release-candidate-freeze.md`) covering the entire v2.8
+  Experimental PID Move Lab timeline from phase 1 through 5h. Report covers:
+  full timeline summary (phases 1, 2a–2c, 3a–3e, 4a–4e, 5a–5h), current
+  validation state (45 guarded_real_writer tests, 645 total tests, 84 files), 12
+  final RC safety guarantees, release-candidate decision (v2.8 can be frozen as
+  safety/research milestone without live PID movement), future post-RC
+  requirements (separate explicit phase, root-only, system-scope-only, single
+  disposable sleep PID only, immediate rollback, no limiter/nft/tc/state,
+  explicit operator confirmation, abort on ambiguity), and full artifact
+  inventory. Docs/report only; no Rust source file modifications. No runtime
+  behavior changes. No live PID move.
 
 ### Changed
 
