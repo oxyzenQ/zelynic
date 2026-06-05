@@ -248,6 +248,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   system-scope-only, single disposable sleep PID only, immediate rollback
   required, no limiter attach, no nft/tc/state mutation. Docs/report only; no
   runtime code changes.
+- **v2.8 phase 5a first real move readiness/manual smoke plan**: Produced
+  readiness document (`docs/v2.8-phase-5a-first-real-move-readiness.md`)
+  defining the only acceptable future first real PID move smoke. 11 constraints:
+  root-only, system-scope-only, single disposable sleep PID only, immediate
+  rollback required, no limiter attach, no nft/tc/Zelynic state mutation, no
+  persistent state write, no browser/terminal/desktop process, no user app, no
+  multi-PID tree, no bandwidth limiting claim. 14-step manual smoke command
+  plan: create disposable sleep scope, capture PID, capture original cgroup,
+  verify cgroup mount, prepare target, verify target empty, write PID to
+  target cgroup.procs, verify PID in target, immediate rollback write, verify
+  restored, cleanup empty target, verify no leftover, verify no nft/tc/state
+  changes, stop sleep scope. 10 abort conditions: PID missing/stale, more than
+  one PID, original cgroup missing, original cgroup Zelynic-managed, target
+  outside zelynic namespace, target non-empty, cgroup mount read-only,
+  permissions unexpected, rollback target unverifiable, ambiguous output.
+  Expected output honesty requirements and manual recovery procedures defined.
+  Docs/design only; no runtime code changes. No live PID move.
 
 ### Changed
 

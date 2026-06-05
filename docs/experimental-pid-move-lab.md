@@ -369,7 +369,7 @@ a local root smoke matrix, and be documented before the next phase begins.
   No nftables/tc/Zelynic state mutation. No persistent state write.
   All render output is pure fake/model-only/render-only.
 
-### Phase 4e: Failure Simulation Freeze / Validation Report (Current Phase)
+### Phase 4e: Failure Simulation Freeze / Validation Report (Completed)
 
 - Produced freeze/validation report
   (`docs/v2.8-phase-4e-failure-simulation-freeze.md`) summarizing all
@@ -391,6 +391,35 @@ a local root smoke matrix, and be documented before the next phase begins.
   immediate rollback required, no limiter attach, no nft/tc/state mutation.
 - Docs/report only. No Rust code changes. No runtime behavior changes.
   No live PID move.
+
+### Phase 5a: First Real Move Readiness / Manual Smoke Plan (Current Phase)
+
+- Produced readiness document
+  (`docs/v2.8-phase-5a-first-real-move-readiness.md`) defining the only
+  acceptable future first real PID move smoke.
+- Defines 11 constraints for the first real move: root-only,
+  system-scope-only, single disposable sleep PID only, immediate rollback
+  required, no limiter attach, no nft/tc/Zelynic state mutation, no
+  persistent state write, no browser/terminal/desktop process, no user app,
+  no multi-PID tree, no bandwidth limiting claim.
+- Manual smoke command plan (14 steps): create disposable sleep scope,
+  capture PID, capture original cgroup, verify cgroup mount, prepare target,
+  verify target empty, write PID to target, verify in target, immediate
+  rollback, verify restored, cleanup target, verify no leftover, verify no
+  nft/tc/state changes, stop sleep scope.
+- Abort conditions (10): PID missing/stale, more than one PID, original
+  cgroup missing, original cgroup Zelynic-managed, target outside zelynic
+  namespace, target non-empty, cgroup mount read-only, permissions
+  unexpected, rollback target unverifiable, ambiguous output.
+- Expected output honesty: must state PID moved/restored/unknown/not-moved,
+  must state rollback attempted/succeeded/failed, must not claim limiter
+  attach, bandwidth limiting, or nft/tc/state mutation. 7 canonical deny
+  lines with honest substitutions for real operations.
+- Manual recovery: inspect PID cgroup, move back only if original verified,
+  leave target if non-empty, never delete outside `/sys/fs/cgroup/zelynic/`,
+  stop disposable sleep scope.
+- Docs/design only. No Rust code changes. No runtime behavior changes.
+  No live PID move. No cgroup.procs write.
 
 ### Phase 3: Single PID Move-Only + Immediate Rollback (Not Started)
 
