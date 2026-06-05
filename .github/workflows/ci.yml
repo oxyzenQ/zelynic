@@ -9,8 +9,40 @@ name: CI
 on:
   push:
     branches: [main]
+    paths:
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'build.rs'
+      - 'rust-toolchain*'
+      - 'deny.toml'
+      - 'build.sh'
+      - 'package.sh'
+      - 'set-version.sh'
+      - 'scripts/**'
+      - 'src/**'
+      - 'tests/**'
+      - 'benches/**'
+      - 'examples/**'
+      - 'fuzz/**'
+      - '.github/workflows/ci.yml'
   pull_request:
     branches: [main]
+    paths:
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'build.rs'
+      - 'rust-toolchain*'
+      - 'deny.toml'
+      - 'build.sh'
+      - 'package.sh'
+      - 'set-version.sh'
+      - 'scripts/**'
+      - 'src/**'
+      - 'tests/**'
+      - 'benches/**'
+      - 'examples/**'
+      - 'fuzz/**'
+      - '.github/workflows/ci.yml'
 
 env:
   CARGO_TERM_COLOR: always
