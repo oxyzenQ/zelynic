@@ -16,9 +16,9 @@
 //! mutation, and no persistent state write. All output is pure
 //! fake/model-only/render-only.
 
-use super::{simulate_fake_transaction, FakeFailureMode, FakeTransactionResult, OperationStatus};
 #[cfg(test)]
 use super::FakePidLocation;
+use super::{simulate_fake_transaction, FakeFailureMode, FakeTransactionResult, OperationStatus};
 use crate::systemd_wrapper::render::push_line;
 
 // ---------------------------------------------------------------------------
