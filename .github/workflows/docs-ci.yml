@@ -1,0 +1,32 @@
+# Copyright (C) 2026 rezky_nightky
+# SPDX-License-Identifier: GPL-3.0-only
+
+name: Docs CI
+
+on:
+  push:
+    paths:
+      - '**/*.md'
+      - '**/*.txt'
+      - 'LICENSE'
+  pull_request:
+    paths:
+      - '**/*.md'
+      - '**/*.txt'
+      - 'LICENSE'
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Markdown Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Markdown Lint
+        run: |
+          # Basic check for now
+          grep -r "." **/*.md > /dev/null
