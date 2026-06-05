@@ -60,6 +60,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   /proc-sysfs denial, source label, human-readable bytes, empty snapshot,
   determinism), overflow-safe saturating totals (u64::MAX). No CLI command,
   no live system reads, no filesystem access, no enforcement.
+- **v2.9 phase 3b accounting tests LOC split / maintainability refactor**:
+  Refactored `src/accounting/tests.rs` (949 LOC) into a directory module
+  with three focused files: `tests/mod.rs` (36 LOC, shared test constants +
+  module declarations), `tests/interface_counters.rs` (637 LOC, 53 parser,
+  render, error, and snapshot tests), `tests/usage_preview.rs` (299 LOC, 30
+  usage preview build, render, format, and overflow tests). Preserved all 83
+  accounting tests with identical behavior. No parser or renderer behavior
+  changes, no formatting changes except rustfmt, no public API changes, no
+  CLI exposure. All files under 1000 LOC. Refactor/split only. No live
+  system reads, no state write, no enforcement, no quota, no eBPF, no
+  network blocking, no limiter attach.
 
 ## [2.8.0] - 2026-06-06 - v2.8.0 Experimental PID Move Lab
 
