@@ -89,7 +89,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   attribution, no quota enforcement active, no network blocking active, no limiter
   attach performed, no nft/tc/Zelynic state mutation performed, no live /proc or
   sysfs read performed) and counter reset/decrease warnings if present. Tests in
-  `src/accounting/tests/session_delta.rs` (29 tests): normal one-interface delta,
+  `src/accounting/tests/session_delta.rs` (33 tests): normal one-interface delta,
   multiple interfaces, totals correctness, zero delta, interface only in end,
   interface only in start, RX/TX byte counter reset detection, RX/TX packet
   counter reset detection, no silent underflow, deterministic output order, render
