@@ -299,6 +299,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   deny lines). Test strategy (~66 unit tests using fake writer, real writer
   compiled but unreachable without all gates, CLI blocked). Root smoke
   strategy. Docs/design only; no runtime code changes. No live PID move.
+- **v2.8 phase 5d guarded real writer seam**: Added
+  `src/systemd_wrapper/guarded_real_writer.rs` as the narrow code seam for
+  the future guarded real writer. The seam models the future real writer
+  boundary without performing any writes — always returns blocked/not
+  implemented. Input model: pid, original cgroup path, target cgroup path,
+  root gate, system-scope gate, single PID gate, rollback consent gate.
+  Result model: status (always blocked), reason, pid location (always not
+  moved), rollback attempted (always false), cleanup attempted (always
+  false), cgroup.procs writes performed (always false), limiter attach
+  performed (always false), nft/tc/state mutation performed (always false).
+  7 canonical deny lines: no live PID move, no real cgroup.procs write, no
+  limiter attach, no nft/tc/Zelynic state changes, no persistent state
+  write, no CLI path for live PID move, guarded real writer seam is
+  hard-blocked. Pure functions only: `build_guarded_real_writer_plan()` and
+  `render_guarded_real_writer_plan()`. No I/O, no filesystem access, no /proc
+  access, no /sys access. Gate validation: root, system scope, single
+  non-zero PID, original cgroup present and non-empty, original cgroup not
+  under /zelynic/, target under /sys/fs/cgroup/zelynic/, rollback consent.
+  Wired into `mod.rs` with no CLI command and no runtime path exposure.
+  Tests covering: seam always blocked, gate blocking (non-root, user scope,
+  zero PID, multi-PID, missing original cgroup, zelynic-managed original
+  cgroup, target outside namespace, missing rollback consent), result model
+  field correctness, deny line presence (all 7 in every output), forbidden
+  claim absence (PID moved, cgroup.procs write, rollback performed, limiter
+  attach, bandwidth limiting active, nft/tc/state mutation, hard-blocked/
+  not implemented), negative-path comprehensive mutation sweep, determinism,
+  gate ordering, helper correctness, phase label, render structure. No live
+  PID move, no real cgroup.procs write, no limiter attach, no nft/tc/Zelynic
+  state mutation, no persistent state write, no CLI path for live PID move.
+  The seam is always hard-blocked and non-mutating.
 
 ### Changed
 

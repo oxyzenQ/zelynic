@@ -10,6 +10,7 @@ mod contract;
 mod discovery;
 mod experimental_attach_gate;
 mod failure_simulation;
+mod guarded_real_writer;
 mod manual_probe;
 mod mkdir_executor;
 mod mkdir_transaction;
