@@ -381,6 +381,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   non-mutating, and comprehensive negative-path mutation sweep. Future real move
   activation requires 9 explicit conditions. Docs/report only; no Rust source file
   modifications. No runtime behavior changes. No live PID move.
+- **v2.8 phase 5h final pre-real-write validation/release gate report**:
+  Produced final pre-real-write validation / release gate report
+  (`docs/v2.8-phase-5h-final-pre-real-write-validation.md`) summarizing all
+  phase 5 work (5a through 5g) and serving as the release gate before any future
+  real cgroup.procs write. Report covers: phase 5 summary (7 sub-phases), current
+  validation state (45 guarded_real_writer tests, 645 total tests, 84 files, all
+  under 1000 LOC), 11 explicit pre-real-write freeze guarantees, blocked-path
+  proof summary (9 properties), next-phase entry criteria (13 conditions), and
+  artifact inventory. Docs/report only; no Rust source file modifications. No
+  runtime behavior changes. No live PID move.
 
 ### Changed
 
