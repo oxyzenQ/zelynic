@@ -184,6 +184,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   read, no loop/watch, no JSON output, no delta sampling. Only allowed live
   filesystem read is `/proc/net/dev`. CLI is single-shot only. `zelynic strict`
   remains the only validated active limiter path.
+- **v3.0 phase 5b `usage --sample` live CLI validation / output honesty freeze**:
+  Produced validation freeze document
+  (`docs/v3.0-phase-5b-usage-sample-validation-freeze.md`) freezing the first
+  live read-only CLI command before adding JSON, delta sampling, filtering,
+  or persistence. Summarized all phases 1-5: design, reader seam, injected
+  reader backend, tests split, CLI gate, actual CLI implementation. Documented
+  current validation state: usage 52 tests, live_proc_net_dev 75 tests,
+  accounting 331 tests, unit 998 tests, integration 4 passed / 5 ignored,
+  check-all passed, LOC policy passed. Documented live CLI behavior proof:
+  `zelynic usage` without `--sample` rejected by clap (no silent read),
+  `--sample` performs one read of `/proc/net/dev`, command exits after one
+  sample, no loop/watch, no arbitrary path input, no sysfs read, no ledger
+  persistence, no state mutation, no enforcement/blocking. Documented output
+  honesty proof: all 13 required honesty disclaimers verified by handler and
+  render tests, error output includes all denial disclaimers. Added 3 optional
+  phase 5b tests in `src/commands/usage.rs`: `rendered_output_contains_all_
+  honesty_lines` (14-line sweep verifying all honesty disclaimers in success
+  output), `error_output_contains_all_honesty_lines` (14-line sweep
+  verifying all honesty disclaimers in error output), `no_json_delta_interval_
+  flags_on_usage_command` (structural test verifying --json, --delta,
+  --interval, --interface are all rejected by clap on the usage subcommand).
+  Updated docs: lab doc (phase 5 completed, phase 5b current/freeze), phase 4
+  gate doc (phase 5b freeze note), CHANGELOG. Phase 5b is validation freeze:
+  no new features, no JSON, no delta sampling, no loop/watch, no interface
+  filtering, no persistence. Freeze criteria defined for future phase entry.
+  No eBPF, no quota enforcement, no network blocking, no limiter attach, no
+  nft/tc mutation, no state mutation, no filesystem persistence, no ledger
+  file read/write, no PID move, no cgroup.procs write, no sysfs read, no
+  filesystem writes, no arbitrary path reads. Only allowed live filesystem
+  read is `/proc/net/dev`. CLI remains single-shot only. `zelynic strict`
+  remains the only validated active limiter path.
 
 ## [2.9.0] - 2026-06-07 - v2.9.0 Network Accounting Lab
 
