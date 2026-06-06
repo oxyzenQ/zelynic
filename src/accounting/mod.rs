@@ -61,9 +61,11 @@ pub(crate) use ledger_persistence::{
 #[allow(unused_imports)]
 pub(crate) use live_proc_net_dev::{
     build_live_proc_net_dev_error_plan, build_live_proc_net_dev_read_plan,
-    build_live_proc_net_dev_snapshot_from_content, render_live_proc_net_dev_read_plan,
-    LiveProcNetDevReadPlan, LiveReadStatus, DEFAULT_LIVE_SOURCE_PATH, SOURCE_LABEL_INJECTED,
-    SOURCE_LABEL_LIVE,
+    build_live_proc_net_dev_snapshot_from_content, read_live_proc_net_dev,
+    read_live_proc_net_dev_with_injected_reader, render_live_proc_net_dev_read_plan, ContentReader,
+    FakeReadErrorReader, InjectedContentReader, LiveProcNetDevReadPlan, LiveReadError,
+    LiveReadStatus, DEFAULT_LIVE_SOURCE_PATH, FORBIDDEN_FS_WRITE_APIS, FORBIDDEN_PATHS,
+    SOURCE_LABEL_INJECTED, SOURCE_LABEL_LIVE,
 };
 #[allow(unused_imports)]
 pub(crate) use session_delta::{
