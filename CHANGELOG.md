@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **v3.0 Live Read-Only Usage Lab design**: Added design document
+  (`docs/v3.0-live-read-only-usage-lab.md`) for the v3.0 live read-only usage
+  milestone. Phase 1 is design-only: defines the future command contract
+  (`zelynic usage`, `zelynic usage --sample`, `zelynic usage --interface`,
+  `zelynic usage --json`, `zelynic usage --delta --interval`, `zelynic usage
+  --since-start`, `zelynic usage --no-loopback`, `zelynic usage
+  --all-interfaces`), all marked as planned/not implemented/read-only/interface
+  -level only/not per-app attribution/not quota enforcement/not network blocking.
+  Defines the live `/proc/net/dev` reader boundary (may read only
+  `/proc/net/dev`, must not read arbitrary files, must not write, must not mutate
+  system state, must reuse existing parser, must expose source label honestly as
+  live_proc_net_dev, must not claim per-app attribution). Defines output honesty
+  requirements (interface-level only, not per-app attribution, no quota enforcement
+  active, no network blocking active, no limiter attach performed, no nft/tc
+  /Zelynic state mutation performed, no ledger persistence performed, no eBPF
+  used, counters may reset after reboot). Defines future JSON output contract
+  (schema_version, source, sampled_at if caller-provided, interfaces with
+  rx_bytes/tx_bytes/combined_bytes/loopback, totals, honesty flags:
+  per_app_attribution=false, quota_enforcement_active=false,
+  network_blocking_active=false, persistence_performed=false, ebpf_used=false).
+  Phase plan: 7 phases (design, reader seam, live reader tests, CLI preview,
+  JSON output, delta sampling design, RC freeze). No Rust code changes, no test
+  additions, no live system reads, no CLI command registration in phase 1.
+  Updated `docs/v2.9-network-accounting-lab.md` with next-milestone note pointing
+  to v3.0. v3.0 does NOT implement eBPF, quota enforcement, network blocking,
+  limiter attach, nft/tc mutation, state mutation, filesystem persistence, ledger
+  file read/write, PID movement, cgroup.procs write, live /proc or sysfs read, or
+  CLI enablement in phase 1. `zelynic strict` remains the only validated active
+  limiter path.
+
 ## [2.9.0] - 2026-06-07 - v2.9.0 Network Accounting Lab
 
 v2.9.0 is a **read-only accounting foundation** release. It does NOT implement
