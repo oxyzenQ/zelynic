@@ -152,6 +152,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   persistence, no ledger file read/write, no PID move, no cgroup.procs write,
   no sysfs read, no CLI enablement, no filesystem write, no arbitrary path
   read. `zelynic strict` remains the only validated active limiter path.
+- **v3.0 phase 5 `zelynic usage --sample` read-only single-shot CLI**: Implemented
+  the `zelynic usage --sample` command that reads `/proc/net/dev` exactly once,
+  parses with the existing reader seam, and renders an honest read-only usage
+  preview. Added `Usage { sample: bool }` variant to `Commands` enum in
+  `src/cli.rs` with `--sample` as a required flag (clap enforces: `zelynic
+  usage` without `--sample` is rejected). Created `src/commands/usage.rs` handler:
+  `handle_usage_sample()` calls `read_live_proc_net_dev()` for the single live
+  filesystem read, `render_usage_plan()` wraps `render_live_proc_net_dev_read_plan()`
+  with CLI prefix; test-only `handle_usage_sample_with_reader()` accepts
+  `&dyn ContentReader` for injected reader testing. Wired dispatch in
+  `src/commands/mod.rs`. Source path hardcoded to `/proc/net/dev` — no arbitrary
+  path input accepted. Output includes all 13 honesty disclaimers: read-only
+  /proc/net/dev seam, interface-level only (not per-app attribution), no quota
+  enforcement active, no network blocking active, no limiter attach performed,
+  no nft/tc/Zelynic state mutation performed, no ledger persistence performed,
+  no eBPF used, no cgroup mutation, no PID movement, counters may reset after
+  reboot/interface reset, filesystem write not performed, state mutation not
+  performed. 25 new tests (3 CLI parse in `src/cli/tests.rs` + 22 handler
+  output in `src/commands/usage.rs`): usage_sample_parses, usage_requires_
+  sample_flag, usage_help_mentions_sample, fake reader success/read error/parse
+  error renders, output includes interface-level only, output denies per-app
+  attribution/quota enforcement/network blocking/limiter attach/nft-tc-state-
+  mutation/ledger persistence/eBPF/cgroup mutation/PID movement, error output
+  includes honesty disclaimers, no-sample handler, no arbitrary path argument,
+  output includes source path, counters may reset warning, read-only seam
+  statement. All files under 1000 LOC. No eBPF, no quota enforcement, no
+  network blocking, no limiter attach, no nft/tc mutation, no state mutation, no
+  filesystem persistence, no ledger file read/write, no PID move, no
+  cgroup.procs write, no sysfs read, no filesystem write, no arbitrary path
+  read, no loop/watch, no JSON output, no delta sampling. Only allowed live
+  filesystem read is `/proc/net/dev`. CLI is single-shot only. `zelynic strict`
+  remains the only validated active limiter path.
 
 ## [2.9.0] - 2026-06-07 - v2.9.0 Network Accounting Lab
 

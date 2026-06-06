@@ -479,6 +479,39 @@ fn run_help_mentions_execute_is_experimental() {
 // ---- --mkdir-live tests ----
 
 #[test]
+fn usage_sample_parses() {
+    let cli = Cli::try_parse_from(["zelynic", "usage", "--sample"]).unwrap();
+
+    match cli.command.unwrap() {
+        Commands::Usage { sample } => assert!(sample),
+        other => panic!("expected usage command, got {other:?}"),
+    }
+}
+
+#[test]
+fn usage_requires_sample_flag() {
+    let result = Cli::try_parse_from(["zelynic", "usage"]);
+    // Without --sample, clap should error because sample is required.
+    assert!(result.is_err());
+}
+
+#[test]
+fn usage_help_mentions_sample() {
+    let mut command = Cli::command();
+    let help = command
+        .find_subcommand_mut("usage")
+        .expect("usage subcommand")
+        .render_long_help()
+        .to_string();
+
+    assert!(help.contains("--sample"));
+    assert!(help.contains("live read-only"));
+    assert!(help.contains("/proc/net/dev"));
+}
+
+// ---- --mkdir-live tests ----
+
+#[test]
 fn run_mkdir_live_defaults_false() {
     let cli = Cli::try_parse_from([
         "zelynic",

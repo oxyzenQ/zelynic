@@ -452,6 +452,22 @@ pub enum Commands {
         status: bool,
     },
 
+    /// Show live read-only network interface usage counters
+    ///
+    /// Displays a single read-only snapshot of network interface counters
+    /// from /proc/net/dev. Requires --sample in this phase.
+    ///
+    /// This command is read-only: it does not block, throttle, enforce
+    /// quotas, or mutate any system state.
+    ///
+    /// Examples:
+    ///   zelynic usage --sample    # Single live snapshot
+    Usage {
+        /// Perform a single live read-only snapshot of /proc/net/dev
+        #[arg(long, required = true)]
+        sample: bool,
+    },
+
     /// Show backend information and capability checks
     ///
     /// Displays the active backend (tc/cgroup) and whether the system
