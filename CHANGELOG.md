@@ -549,6 +549,58 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   filesystem writes, no arbitrary path reads. Only allowed live filesystem
   read is `/proc/net/dev`. CLI remains finite and single-shot. `zelynic strict`
   remains the only validated active limiter path.
+- **v3.0 phase 13 delta JSON output contract design**: Design-only phase defining
+  the machine-readable JSON schema for future `zelynic usage --sample --delta
+  --json`. Produced design document
+  (`docs/v3.0-phase-13-usage-delta-json-output-contract.md`) with complete
+  schema specification. Defines top-level JSON shape: schema_version (integer,
+  currently 1), command ("usage --sample --delta --json"), source_path
+  ("/proc/net/dev"), source_label ("live_proc_net_dev"), sample_mode ("delta"),
+  sample_count (2), delta_wait_ms (1000), read_count (0/1/2), start_sample
+  (summary object or null), end_sample (summary object or null), interfaces
+  (per-interface delta array), totals (delta totals with reset/added/removed
+  counts), warnings (12 default warnings plus conditional counter reset
+  warnings), honesty (19 boolean flags). Defines timestamp policy: timestamps
+  intentionally omitted from start_sample/end_sample; no silent wall-clock
+  generation; delta_wait_ms provides deterministic gap information. Defines
+  per-interface delta object: name, loopback, start_rx_bytes, start_tx_bytes,
+  end_rx_bytes, end_tx_bytes, delta_rx_bytes, delta_tx_bytes,
+  delta_combined_bytes, start_rx_packets, start_tx_packets, end_rx_packets,
+  end_tx_packets, delta_rx_packets, delta_tx_packets, counter_reset_detected,
+  interface_added, interface_removed. Defines totals:
+  total_delta_rx_bytes, total_delta_tx_bytes, total_delta_combined_bytes,
+  interface_count, loopback_interface_count, non_loopback_interface_count,
+  counter_reset_count, interface_added_count, interface_removed_count. Defines
+  19 honesty flags: 12 constant false (per_app_attribution,
+  quota_enforcement_active, network_blocking_active, limiter_attach_performed,
+  nft_tc_state_mutation_performed, ledger_persistence_performed, ebpf_used,
+  cgroup_mutation_performed, pid_movement_performed, filesystem_write_performed,
+  state_mutation_performed, loop_watch_mode, configurable_interval,
+  interface_filtering, arbitrary_path_read), 2 constant true
+  (interface_level_only, single_shot, delta_json_output), 3 dynamic
+  (live_read_performed, read_count). Defines error JSON shape: read_error,
+  parse_error, unsupported_flag_error; error payload preserves all honesty flags;
+  precise read_count/sample_count behavior for first-read failure (read_count=0,
+  live_read_performed=false) vs second-read failure (read_count=1,
+  live_read_performed=true). Includes sample success JSON, sample error JSON
+  (second read failure, parse failure), sample counter reset warning success
+  JSON. Defines relationship to existing snapshot JSON contract. Phase 13 is
+  design-only: no Rust code changes, no CLI flag registration, no JSON
+  serialization, no runtime behavior changes, no test additions, no new
+  dependencies, no implementation of --delta --json, no CLI behavior change, no
+  configurable interval, no loop/watch, no daemon, no interface filtering, no
+  persistence, no ledger, no eBPF, no quota enforcement, no network blocking,
+  no limiter attach, no nft/tc mutation, no state mutation, no PID movement, no
+  cgroup.procs write, no sysfs read, no filesystem write, no arbitrary path
+  read. Updated docs: lab doc (phase 12b completed, phase 13 current/design),
+  phase 12b freeze doc (note that phase 13 designs future delta JSON output only),
+  phase 9 design doc (note that JSON contract is being designed after text delta
+  freeze), CHANGELOG. No eBPF, no quota enforcement, no network blocking, no
+  limiter attach, no nft/tc mutation, no state mutation, no filesystem
+  persistence, no ledger file read/write, no PID move, no cgroup.procs write, no
+  sysfs read, no filesystem writes, no arbitrary path reads. Only allowed live
+  filesystem read is `/proc/net/dev`. CLI remains finite and single-shot.
+  `zelynic strict` remains the only validated active limiter path.
 
 ## [2.9.0] - 2026-06-07 - v2.9.0 Network Accounting Lab
 
