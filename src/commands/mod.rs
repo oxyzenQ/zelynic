@@ -147,9 +147,9 @@ pub(crate) fn dispatch(cli: Cli, iface_value: Option<&str>) -> Result<()> {
             None => backend::handle_backend_info(),
         },
 
-        Some(Commands::Usage { sample: true }) => usage::handle_usage_sample(),
+        Some(Commands::Usage { sample: true, json }) => usage::handle_usage_sample(json),
 
-        Some(Commands::Usage { sample: false }) => usage::handle_usage_no_sample(),
+        Some(Commands::Usage { sample: false, .. }) => usage::handle_usage_no_sample(),
 
         None => {
             // No subcommand: print help

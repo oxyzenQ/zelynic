@@ -115,3 +115,45 @@ Stage Summary:
 - Unit tests: 867 → 901 (+34)
 - All files under 1000 LOC
 - Safety confirmed: no eBPF, no quota enforcement, no network blocking, no limiter attach, no nft/tc mutation, no state mutation, no filesystem persistence, no filesystem read/write, no directory/file creation/removal, no PID move, no cgroup.procs write, no live /proc or sysfs read, no CLI
+
+---
+Task ID: 10
+Agent: main
+Task: v3.0 phase 7b JSON model validation / error-type contract freeze
+
+Work Log:
+- Read all source-of-truth files: usage_json.rs (318 LOC), usage_json tests (602 LOC, 41 tests), phase 6 contract doc, phase 6 doc (Phase 7 Note), lab doc, CHANGELOG, Cargo.toml, mod.rs, tests/mod.rs
+- Verified UsageJsonErrorType serialization via code inspection: explicit #[serde(rename = "...")] attributes on all 3 variants
+  - Read → "read_error" ✓
+  - Parse → "parse_error" ✓
+  - UnsupportedFlag → "unsupported_flag_error" ✓
+- Confirmed existing tests already prove correct serialization:
+  - serializes_read_error_json: json.contains("\"read_error\"")
+  - serializes_parse_error_json: json.contains("\"parse_error\"")
+  - serializes_unsupported_flag_error_json: json.contains("\"unsupported_flag_error\"")
+  - round_trips_error_json: full serialize → deserialize → equality
+  - error_type_display: Display trait returns canonical strings
+- No Rust behavior changes needed — tests already prove correct serialization
+- Created docs/v3.0-phase-7b-usage-json-validation-freeze.md (freeze report):
+  - Canonical error type strings documented
+  - 12 honesty boolean flags confirmed constant in v3.0
+  - sampled_at policy documented (omit when None, never silently generated)
+  - Phase 7 model summary with all types and pure functions
+  - Freeze criteria (14 items) for phase 8 entry
+- Updated docs/v3.0-live-read-only-usage-lab.md: phase 7 completed, phase 7b current/freeze
+- Updated docs/v3.0-phase-6-usage-json-output-contract.md: added Phase 7b canonical error type string clarification
+- Updated CHANGELOG.md: added Unreleased v3.0 phase 7b entry
+- Validation: fmt ✓, clippy ✓, 41 usage_json tests ✓, 96 usage tests ✓, 372 accounting tests ✓, 1042 unit tests ✓, check-all ✓, git diff --check ✓
+- Committed as 8490034 and pushed to origin main
+
+Stage Summary:
+- Commit: 8490034
+- 4 files changed, 374 insertions, 1 deletion
+- New files: docs/v3.0-phase-7b-usage-json-validation-freeze.md
+- Modified files: CHANGELOG.md, docs/v3.0-live-read-only-usage-lab.md, docs/v3.0-phase-6-usage-json-output-contract.md
+- No Rust behavior changes. No new tests. No new code. Docs-only validation freeze.
+- Test counts unchanged: 41 usage_json, 372 accounting, 1042 unit, 96 usage, 4/5 integration
+- Canonical error type strings confirmed: read_error, parse_error, unsupported_flag_error
+- All 12 honesty flags confirmed constant in v3.0
+- sampled_at policy confirmed: omitted when None (skip_serializing_if), never silently generated
+- Safety confirmed: no JSON CLI flag, no delta sampling, no loop/watch, no persistence, no ledger file read/write, no eBPF, no quota enforcement, no network blocking, no limiter attach, no nft/tc mutation, no state mutation, no PID movement, no cgroup.procs write, no sysfs read, no filesystem writes, no arbitrary path reads, only live filesystem read is /proc/net/dev, CLI remains single-shot only

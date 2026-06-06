@@ -17,13 +17,15 @@
 //! - Does not mutate nftables/tc rules.
 //! - Does not move PIDs or write cgroup.procs.
 //! - Does not read sysfs.
-//! - Does not implement loop/watch, JSON, or delta sampling.
+//! - Does not implement loop/watch or delta sampling.
 //! - No filesystem persistence, no ledger file read/write.
 
 use anyhow::Result;
 
 use crate::accounting::{
-    read_live_proc_net_dev, render_live_proc_net_dev_read_plan, LiveProcNetDevReadPlan,
+    build_usage_json_error, build_usage_json_from_snapshot, read_live_proc_net_dev,
+    render_live_proc_net_dev_read_plan, serialize_usage_json, LiveProcNetDevReadPlan,
+    UsageJsonErrorType,
 };
 
 #[cfg(test)]
@@ -35,16 +37,67 @@ use crate::accounting::{
 /// Handle the `zelynic usage --sample` command.
 ///
 /// Reads `/proc/net/dev` exactly once, parses with the existing reader seam,
-/// renders an honest read-only usage preview, and prints to stdout.
+/// and either renders text output or JSON output depending on the `--json` flag.
+/// When `--json` is set, prints structured JSON only (no human text prefix/suffix).
+/// When `--json` is not set, renders the honest read-only usage preview.
 ///
 /// # Errors
 ///
 /// Returns an error if the read or render fails (but never mutates state).
-pub fn handle_usage_sample() -> Result<()> {
+pub fn handle_usage_sample(json: bool) -> Result<()> {
     let plan = read_live_proc_net_dev();
-    let rendered = render_usage_plan(&plan);
-    println!("{}", rendered);
+    if json {
+        let json_output = build_json_from_plan(&plan);
+        let serialized = serialize_usage_json(&json_output);
+        println!("{}", serialized?);
+    } else {
+        let rendered = render_usage_plan(&plan);
+        println!("{}", rendered);
+    }
     Ok(())
+}
+
+/// Build a `UsageJsonOutput` from a `LiveProcNetDevReadPlan`.
+///
+/// Maps the read plan's read_status to the appropriate JSON output:
+/// - Success with snapshot → success JSON with interface data.
+/// - Error with "read error:" prefix → read_error JSON.
+/// - Error with "parse error:" prefix → parse_error JSON.
+/// - Planned → should not occur in production (treated as read error).
+///
+/// Honesty flags and warnings are always preserved. `sampled_at` is omitted
+/// (None) — no silent wall-clock timestamp generation.
+pub(crate) fn build_json_from_plan(
+    plan: &LiveProcNetDevReadPlan,
+) -> crate::accounting::UsageJsonOutput {
+    match &plan.read_status {
+        crate::accounting::LiveReadStatus::Success => {
+            if let Some(ref snapshot) = plan.snapshot {
+                build_usage_json_from_snapshot(snapshot, None)
+            } else {
+                build_usage_json_error(
+                    UsageJsonErrorType::Read,
+                    "no snapshot available after successful read",
+                    None,
+                )
+            }
+        }
+        crate::accounting::LiveReadStatus::Error(msg) => {
+            let (error_type, message) = if msg.starts_with("read error:") {
+                (UsageJsonErrorType::Read, msg.as_str())
+            } else if msg.starts_with("parse error:") {
+                (UsageJsonErrorType::Parse, msg.as_str())
+            } else {
+                (UsageJsonErrorType::Read, msg.as_str())
+            };
+            build_usage_json_error(error_type, message, None)
+        }
+        crate::accounting::LiveReadStatus::Planned => build_usage_json_error(
+            UsageJsonErrorType::Read,
+            "read was planned but never executed",
+            None,
+        ),
+    }
 }
 
 /// Handle `zelynic usage` without `--sample`.
@@ -81,6 +134,17 @@ pub(crate) fn handle_usage_sample_with_reader(reader: &dyn ContentReader) -> Res
     let plan = read_live_proc_net_dev_with_injected_reader(reader);
     let rendered = render_usage_plan(&plan);
     Ok(rendered)
+}
+
+/// Core usage JSON sample function that accepts an injected reader.
+///
+/// This enables testing the JSON output pipeline without live filesystem
+/// reads. Returns the serialized JSON string for test assertions.
+#[cfg(test)]
+pub(crate) fn handle_usage_sample_json_with_reader(reader: &dyn ContentReader) -> Result<String> {
+    let plan = read_live_proc_net_dev_with_injected_reader(reader);
+    let json_output = build_json_from_plan(&plan);
+    Ok(serialize_usage_json(&json_output)?)
 }
 
 #[cfg(test)]
@@ -349,26 +413,42 @@ Inter-|   Receive                                                |  Transmit
         }
     }
 
-    // ── Phase 5b: no JSON/delta/interval flags exist yet ───────────
+    // ── Phase 8: --json is now accepted with --sample ───────────────
 
     #[test]
-    fn no_json_delta_interval_flags_on_usage_command() {
-        // Structural test: verify the Usage variant only has `sample: bool`.
-        let cli = Cli::try_parse_from(["zelynic", "usage", "--sample"]).unwrap();
+    fn cli_parses_usage_sample_json() {
+        let cli = Cli::try_parse_from(["zelynic", "usage", "--sample", "--json"]).unwrap();
         match cli.command.unwrap() {
-            Commands::Usage { sample } => {
+            Commands::Usage { sample, json } => {
                 assert!(sample);
-                // The Usage variant has no --json, --delta, --interval, --interface,
-                // --no-loopback, or --all-interfaces flags.
-                // This is verified structurally: the Usage enum variant only
-                // contains `sample: bool` and no other fields.
+                assert!(json);
             }
             other => panic!("expected usage command, got {other:?}"),
         }
+    }
 
-        // Verify that --json is not accepted by the usage subcommand.
-        let json_result = Cli::try_parse_from(["zelynic", "usage", "--sample", "--json"]);
-        assert!(json_result.is_err(), "--json should not be accepted");
+    #[test]
+    fn cli_rejects_json_without_sample() {
+        // --json requires --sample; clap should reject --json alone.
+        let result = Cli::try_parse_from(["zelynic", "usage", "--json"]);
+        assert!(
+            result.is_err(),
+            "--json without --sample should be rejected"
+        );
+    }
+
+    // ── Phase 5b/8: no delta/interval/interface/watch/path flags ─────
+
+    #[test]
+    fn no_delta_interval_interface_flags_on_usage_command() {
+        let cli = Cli::try_parse_from(["zelynic", "usage", "--sample"]).unwrap();
+        match cli.command.unwrap() {
+            Commands::Usage { sample, json } => {
+                assert!(sample);
+                assert!(!json);
+            }
+            other => panic!("expected usage command, got {other:?}"),
+        }
 
         // Verify that --delta is not accepted by the usage subcommand.
         let delta_result = Cli::try_parse_from(["zelynic", "usage", "--sample", "--delta"]);
@@ -386,5 +466,193 @@ Inter-|   Receive                                                |  Transmit
         let iface_result =
             Cli::try_parse_from(["zelynic", "usage", "--sample", "--interface", "eth0"]);
         assert!(iface_result.is_err(), "--interface should not be accepted");
+
+        // Verify that --watch is not accepted.
+        let watch_result = Cli::try_parse_from(["zelynic", "usage", "--sample", "--watch"]);
+        assert!(watch_result.is_err(), "--watch should not be accepted");
+
+        // Verify that --path is not accepted.
+        let path_result =
+            Cli::try_parse_from(["zelynic", "usage", "--sample", "--path", "/proc/net/dev"]);
+        assert!(path_result.is_err(), "--path should not be accepted");
+    }
+
+    // ── Phase 8: JSON success output ────────────────────────────────
+
+    #[test]
+    fn json_success_with_fake_reader() {
+        let reader = InjectedContentReader::new(CLI_TEST_SAMPLE);
+        let json_str = handle_usage_sample_json_with_reader(&reader).unwrap();
+        // Verify it's valid JSON.
+        let parsed: serde_json::Value = serde_json::from_str(&json_str).unwrap();
+        assert_eq!(parsed["schema_version"], 1);
+        assert_eq!(parsed["command"], "usage --sample --json");
+        assert_eq!(parsed["source_path"], "/proc/net/dev");
+        assert_eq!(parsed["source_label"], "live_proc_net_dev");
+        assert!(parsed["sampled_at"].is_null());
+        assert!(parsed["error"].is_null());
+        let interfaces = parsed["interfaces"].as_array().unwrap();
+        assert_eq!(interfaces.len(), 3);
+        assert_eq!(interfaces[0]["name"], "lo");
+        assert_eq!(interfaces[1]["name"], "wlan0");
+        assert_eq!(interfaces[2]["name"], "eth0");
+        assert_eq!(parsed["totals"]["interface_count"], 3);
+    }
+
+    #[test]
+    fn json_success_includes_source_path() {
+        let reader = InjectedContentReader::new(CLI_TEST_SAMPLE);
+        let json_str = handle_usage_sample_json_with_reader(&reader).unwrap();
+        assert!(json_str.contains("\"source_path\": \"/proc/net/dev\""));
+    }
+
+    #[test]
+    fn json_success_includes_source_label() {
+        let reader = InjectedContentReader::new(CLI_TEST_SAMPLE);
+        let json_str = handle_usage_sample_json_with_reader(&reader).unwrap();
+        assert!(json_str.contains("\"source_label\": \"live_proc_net_dev\""));
+    }
+
+    #[test]
+    fn json_success_omits_sampled_at() {
+        let reader = InjectedContentReader::new(CLI_TEST_SAMPLE);
+        let json_str = handle_usage_sample_json_with_reader(&reader).unwrap();
+        // sampled_at should be absent from JSON (skip_serializing_if = Option::is_none).
+        assert!(!json_str.contains("sampled_at"));
+    }
+
+    #[test]
+    fn json_success_includes_all_12_honesty_flags() {
+        let reader = InjectedContentReader::new(CLI_TEST_SAMPLE);
+        let json_str = handle_usage_sample_json_with_reader(&reader).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&json_str).unwrap();
+        let honesty = &parsed["honesty"];
+        assert_eq!(honesty["interface_level_only"], true);
+        assert_eq!(honesty["per_app_attribution"], false);
+        assert_eq!(honesty["quota_enforcement_active"], false);
+        assert_eq!(honesty["network_blocking_active"], false);
+        assert_eq!(honesty["limiter_attach_performed"], false);
+        assert_eq!(honesty["nft_tc_state_mutation_performed"], false);
+        assert_eq!(honesty["ledger_persistence_performed"], false);
+        assert_eq!(honesty["ebpf_used"], false);
+        assert_eq!(honesty["cgroup_mutation_performed"], false);
+        assert_eq!(honesty["pid_movement_performed"], false);
+        assert_eq!(honesty["filesystem_write_performed"], false);
+        assert_eq!(honesty["state_mutation_performed"], false);
+    }
+
+    // ── Phase 8: JSON read error output ──────────────────────────────
+
+    #[test]
+    fn json_read_error_with_fake_reader() {
+        let reader = FakeReadErrorReader::new("permission denied");
+        let json_str = handle_usage_sample_json_with_reader(&reader).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&json_str).unwrap();
+        assert_eq!(parsed["error"]["type"], "read_error");
+        assert!(parsed["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("permission denied"));
+        assert_eq!(parsed["interfaces"].as_array().unwrap().len(), 0);
+        assert_eq!(parsed["totals"]["interface_count"], 0);
+        // Error JSON preserves honesty flags.
+        assert_eq!(parsed["honesty"]["interface_level_only"], true);
+        assert_eq!(parsed["honesty"]["ebpf_used"], false);
+    }
+
+    #[test]
+    fn json_read_error_preserves_honesty_flags() {
+        let reader = FakeReadErrorReader::new("permission denied");
+        let json_str = handle_usage_sample_json_with_reader(&reader).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&json_str).unwrap();
+        let honesty = &parsed["honesty"];
+        assert_eq!(honesty["per_app_attribution"], false);
+        assert_eq!(honesty["quota_enforcement_active"], false);
+        assert_eq!(honesty["network_blocking_active"], false);
+        assert_eq!(honesty["limiter_attach_performed"], false);
+        assert_eq!(honesty["nft_tc_state_mutation_performed"], false);
+        assert_eq!(honesty["ledger_persistence_performed"], false);
+        assert_eq!(honesty["cgroup_mutation_performed"], false);
+        assert_eq!(honesty["pid_movement_performed"], false);
+        assert_eq!(honesty["filesystem_write_performed"], false);
+        assert_eq!(honesty["state_mutation_performed"], false);
+    }
+
+    // ── Phase 8: JSON parse error output ─────────────────────────────
+
+    #[test]
+    fn json_parse_error_with_fake_reader() {
+        let malformed = "wlan0 1000 10 0 0 0 0 0 0 2000 20 0 0 0 0 0 0";
+        let reader = InjectedContentReader::new(malformed);
+        let json_str = handle_usage_sample_json_with_reader(&reader).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&json_str).unwrap();
+        assert_eq!(parsed["error"]["type"], "parse_error");
+        assert_eq!(parsed["interfaces"].as_array().unwrap().len(), 0);
+        assert_eq!(parsed["totals"]["interface_count"], 0);
+        // Error JSON preserves honesty flags.
+        assert_eq!(parsed["honesty"]["interface_level_only"], true);
+    }
+
+    // ── Phase 8: text output unchanged with --sample ───────────────
+
+    #[test]
+    fn text_output_unchanged_with_sample() {
+        let reader = InjectedContentReader::new(CLI_TEST_SAMPLE);
+        let rendered = handle_usage_sample_with_reader(&reader).unwrap();
+        assert!(rendered.contains("zelynic usage --sample"));
+        assert!(rendered.contains("Read status: success"));
+        assert!(rendered.contains("3 interface(s) parsed"));
+        // All 13 honesty lines still present.
+        assert!(rendered.contains("read-only /proc/net/dev seam"));
+        assert!(rendered.contains("interface-level only"));
+        assert!(rendered.contains("not per-app attribution"));
+        assert!(rendered.contains("no quota enforcement active"));
+        assert!(rendered.contains("no network blocking active"));
+        assert!(rendered.contains("no limiter attach performed"));
+        assert!(rendered.contains("no nft/tc/Zelynic state mutation performed"));
+        assert!(rendered.contains("no ledger persistence performed"));
+        assert!(rendered.contains("no eBPF used"));
+        assert!(rendered.contains("no cgroup mutation"));
+        assert!(rendered.contains("no PID movement"));
+        assert!(rendered.contains("counters may reset"));
+        assert!(rendered.contains("filesystem write not performed"));
+        assert!(rendered.contains("state mutation not performed"));
+    }
+
+    // ── Phase 8: CLI remains single-shot ─────────────────────────────
+
+    #[test]
+    fn cli_remains_single_shot() {
+        // The Usage variant only has sample and json flags — no loop, watch,
+        // interval, or delta flags.
+        let cli = Cli::try_parse_from(["zelynic", "usage", "--sample"]).unwrap();
+        match cli.command.unwrap() {
+            Commands::Usage { sample, json } => {
+                assert!(sample);
+                assert!(!json);
+                // No other fields exist on this variant.
+            }
+            other => panic!("expected usage command, got {other:?}"),
+        }
+    }
+
+    // ── Phase 8: no arbitrary path input exists ──────────────────────
+
+    #[test]
+    fn no_arbitrary_path_in_json_mode() {
+        // The JSON path uses the same hardcoded /proc/net/dev source.
+        let reader = InjectedContentReader::new(CLI_TEST_SAMPLE);
+        let json_str = handle_usage_sample_json_with_reader(&reader).unwrap();
+        assert!(json_str.contains("\"source_path\": \"/proc/net/dev\""));
+        // No --path flag exists.
+        let path_result = Cli::try_parse_from([
+            "zelynic",
+            "usage",
+            "--sample",
+            "--json",
+            "--path",
+            "/tmp/test",
+        ]);
+        assert!(path_result.is_err(), "--path should not be accepted");
     }
 }
