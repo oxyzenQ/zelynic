@@ -112,6 +112,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   read/write, no PID move, no cgroup.procs write, no sysfs read, no CLI
   enablement, no filesystem write, no arbitrary path read. `zelynic strict`
   remains the only validated active limiter path.
+- **v3.0 phase 3b live_proc_net_dev tests LOC split / maintainability refactor**:
+  Refactored `src/accounting/tests/live_proc_net_dev.rs` (924 LOC, 75 tests)
+  into a directory module with five focused files for maintainability:
+  `tests/live_proc_net_dev/mod.rs` (shared imports, test data constants, module
+  declarations), `tests/live_proc_net_dev/seam.rs` (phase 2 injected content
+  parsing, read plan, loopback detection, large counter tests — 17 tests),
+  `tests/live_proc_net_dev/injected_reader.rs` (phase 3 fake reader backend,
+  source path, reader flags, LiveReadError display, structural no-path/real-read
+  tests — 16 tests), `tests/live_proc_net_dev/render.rs` (all render output
+  honesty disclaimer, mutation flag, snapshot summary, determinism, error plan,
+  injected-reader and read-error honesty tests — 38 tests),
+  `tests/live_proc_net_dev/boundary_audit.rs` (structural/safety boundary tests:
+  no CLI command, no filesystem write APIs, source-level sysfs/cgroup/FS write
+  audit — 4 tests). Preserved all 75 live_proc_net_dev tests with identical
+  behavior. Accounting test count remains 331. Unit test count remains 976.
+  No live reader behavior changes, no parser behavior changes, no renderer
+  behavior changes, no output wording changes, no public API changes, no CLI
+  exposure. All files under 1000 LOC. Refactor/split only. No eBPF, no quota
+  enforcement, no network blocking, no limiter attach, no nft/tc mutation, no
+  state mutation, no filesystem persistence, no ledger file read/write, no PID
+  move, no cgroup.procs write, no sysfs read, no CLI enablement, no filesystem
+  write, no arbitrary path read. `zelynic strict` remains the only validated
+  active limiter path.
 
 ## [2.9.0] - 2026-06-07 - v2.9.0 Network Accounting Lab
 
