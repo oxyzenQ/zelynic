@@ -287,6 +287,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   no actual filesystem persistence, no filesystem read/write, no directory/
   file creation/removal, no PID move, no cgroup.procs write, no live /proc
   or sysfs read, no CLI enablement.
+- **v2.9 phase 11 release-candidate freeze / full validation index**: Produced
+  release-candidate freeze document
+  (`docs/v2.9-phase-11-release-candidate-freeze.md`) summarizing the full
+  v2.9 timeline (phases 1 through 10), current validation state, final RC
+  safety guarantees, and release-candidate decision. Full phase timeline:
+  phase 1 design, phase 2 interface counter model + parser tests (53 tests),
+  phase 3 usage preview renderer (30 tests), phase 3b tests LOC split,
+  phase 4 session delta model (33 tests), phase 4b count correction, phase 5
+  local ledger design, phase 6 pure ledger model + JSON serialization (33
+  tests), phase 7 ledger inspect/render model (30 tests), phase 8
+  persistence path design + safe-path model (43 tests), phase 9 persistence
+  I/O contract + hard-blocked seam (34 tests), phase 10 persistence seam
+  freeze / non-exposure audit. Validation state: accounting 256 tests, unit
+  901 tests, integration 4 passed / 5 ignored, check-all passed, LOC policy
+  passed, version still v2.8.0. Final v2.9 RC safety guarantees: no eBPF, no
+  quota enforcement, no network blocking, no limiter attach, no nft/tc
+  mutation, no Zelynic runtime state mutation, no actual filesystem
+  persistence, no filesystem read/write, no directory/file creation/removal,
+  no PID move, no cgroup.procs write, no live /proc or sysfs read, no CLI
+  command for accounting/ledger, existing zelynic strict remains the only
+  validated active limiter path. Release-candidate decision: v2.9 frozen as
+  read-only accounting foundation; does not implement live usage command,
+  persistence, quota guard, or allow/block mode; future persistence requires
+  separate explicit post-RC phase; future quota/background guard deferred to
+  v3.x; future eBPF observer deferred to v4.x. Phase 11 is docs/report only:
+  no Rust code changes, no test additions, no runtime behavior changes.
 
 ## [2.8.0] - 2026-06-06 - v2.8.0 Experimental PID Move Lab
 
