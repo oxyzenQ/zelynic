@@ -28,6 +28,7 @@ mod ledger_path;
 mod ledger_persistence;
 mod live_proc_net_dev;
 mod session_delta;
+mod usage_json;
 mod usage_preview;
 
 #[cfg(test)]
@@ -70,6 +71,13 @@ pub(crate) use live_proc_net_dev::{
 #[allow(unused_imports)]
 pub(crate) use session_delta::{
     build_session_delta, render_session_delta, CounterResetWarning, SessionDelta, SessionDeltaRow,
+};
+#[allow(unused_imports)]
+pub(crate) use usage_json::{
+    build_usage_json_error, build_usage_json_from_snapshot, default_honesty_flags,
+    default_warnings, deserialize_usage_json, serialize_usage_json, UsageJsonError,
+    UsageJsonErrorType, UsageJsonHonesty, UsageJsonInterface, UsageJsonOutput, UsageJsonTotals,
+    COMMAND_USAGE_SAMPLE_JSON, SCHEMA_VERSION,
 };
 #[allow(unused_imports)]
 pub(crate) use usage_preview::{
