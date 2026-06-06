@@ -14,6 +14,7 @@ pub(crate) mod profile;
 pub(crate) mod run;
 pub(crate) mod strict;
 pub(crate) mod usage;
+pub(crate) mod usage_delta;
 
 use anyhow::Result;
 use clap::Parser;
@@ -147,7 +148,11 @@ pub(crate) fn dispatch(cli: Cli, iface_value: Option<&str>) -> Result<()> {
             None => backend::handle_backend_info(),
         },
 
-        Some(Commands::Usage { sample: true, json }) => usage::handle_usage_sample(json),
+        Some(Commands::Usage {
+            sample: true,
+            json,
+            delta,
+        }) => usage::handle_usage_sample(json, delta),
 
         Some(Commands::Usage { sample: false, .. }) => usage::handle_usage_no_sample(),
 

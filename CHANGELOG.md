@@ -478,6 +478,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   arbitrary path reads. Only allowed live filesystem read is `/proc/net/dev`.
   CLI remains single-shot only. `zelynic strict` remains the only validated
   active limiter path.
+- **v3.0 phase 12 `usage --sample --delta` two-sample read-only delta CLI**: Implemented
+  actual two-sample read-only delta behavior for `zelynic usage --sample --delta`.
+  Added `--delta` flag to `Usage` variant in `src/cli.rs` with `requires = "sample"`
+  (clap rejects `--delta` without `--sample`). Created `src/commands/usage_delta.rs`
+  (delta handler module, ~820 LOC): `handle_usage_delta()` reads `/proc/net/dev`
+  exactly twice via existing `read_live_proc_net_dev()`, waits a bounded default
+  duration (1 second) between samples, computes per-interface deltas using existing
+  `build_session_delta()` and `UsageDeltaOutput` model from phase 10, renders live
+  delta text output with 16 safety disclaimers, and exits. `render_usage_delta_live()`
+  replaces phase-10 model-only renderer with live-appropriate text. `--delta --json`
+  combination is rejected before any live read (delta JSON deferred to phase 13).
+  Existing `usage --sample` text and `usage --sample --json` unchanged. Added test
+  infrastructure for injected two-sample delta: `DualSampleReader` trait (fake
+  readers for both samples), `SampleSleeper` trait (fake sleeper that counts calls
+  without sleeping), `CountingReader` (verifies exactly two reads), `CountingSleeper`
+  (verifies exactly one sleep), `FakeDualReader/FakeFailFirstReader/FakeFailSecondReader/
+  FakeParseFailFirstReader/FakeParseFailSecondReader` (error injection). 32 new tests
+  in `src/commands/usage_delta.rs`: CLI parse `--sample --delta`, CLI rejects `--delta`
+  without `--sample`, CLI accepts `--delta --json` (handler rejects), fake reader
+  success renders delta output, fake reader called exactly twice, fake sleeper called
+  exactly once, read failure on first/second sample reported honestly, parse failure
+  on first/second sample reported honestly, counter reset/decrease warning appears,
+  output includes interface-level only, output denies per-app attribution/quota
+  enforcement/network blocking/limiter attach/nft-tc-state-mutation/ledger
+  persistence/eBPF/cgroup mutation/PID movement/filesystem write/state mutation,
+  no arbitrary path argument, no loop/watch/interval flags, output includes source
+  path, two-sample statement, counters may reset, delta incomplete on reset, all 16
+  honesty lines sweep, delta totals correctness, render determinism. Updated tests
+  in `src/commands/usage.rs`: removed `--delta` rejection assertion (now accepted),
+  updated `cli_remains_single_shot` and `cli_parses_usage_sample_json` for new
+  `delta` field. Updated `src/cli/tests.rs` for new `delta` field. Updated
+  `src/commands/mod.rs` with `usage_delta` module and delta dispatch. Test counts:
+  usage_delta 65 (was 33, +32), usage 179 (was 147, +32), accounting 405 (unchanged),
+  unit 1125 (was 1093, +32), integration 4/5, check-all passed. All files under
+  1000 LOC. No eBPF, no quota enforcement, no network blocking, no limiter attach,
+  no nft/tc mutation, no state mutation, no filesystem persistence, no ledger file
+  read/write, no PID move, no cgroup.procs write, no sysfs read, no filesystem
+  writes, no arbitrary path reads. Only allowed live filesystem read is
+  `/proc/net/dev`. CLI remains finite and single-shot. `zelynic strict` remains
+  the only validated active limiter path.
 
 ## [2.9.0] - 2026-06-07 - v2.9.0 Network Accounting Lab
 
