@@ -22,6 +22,7 @@
 //! - This module does **not** claim enforcement, quota guard, or blocking.
 
 mod interface_counters;
+mod ledger;
 mod session_delta;
 mod usage_preview;
 
@@ -34,6 +35,11 @@ mod tests;
 pub(crate) use interface_counters::{
     parse_proc_net_dev, parse_proc_net_dev_line, render_interface_counter_snapshot,
     InterfaceCounter, InterfaceCounterSnapshot, ParseError, SourceLabel,
+};
+#[allow(unused_imports)]
+pub(crate) use ledger::{
+    add_session_delta_entry, add_snapshot_entry, deserialize_ledger_from_json, new_empty_ledger,
+    render_ledger_summary, serialize_ledger_to_json, Ledger, LedgerEntry, LedgerError, ResetDetail,
 };
 #[allow(unused_imports)]
 pub(crate) use session_delta::{
