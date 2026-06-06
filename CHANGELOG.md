@@ -401,6 +401,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   interval sampling, no loop/watch. Only allowed live filesystem read is
   `/proc/net/dev`. CLI remains single-shot only. `zelynic strict` remains the
   only validated active limiter path.
+- **v3.0 phase 10 pure delta output model + render tests**: Added
+  `src/accounting/usage_delta.rs` (284 LOC) with pure Rust model and renderer
+  for future `zelynic usage --sample --delta` output. Model types:
+  `UsageDeltaOutput` (schema_source_label, start/end source labels, per-interface
+  delta rows, total_rx_delta_bytes, total_tx_delta_bytes,
+  total_combined_delta_bytes, interface_count, warnings array, warning_count),
+  `UsageDeltaRow` (interface name, rx/tx/combined delta bytes, human-readable
+  formatting via IEC binary prefixes, has_reset flag). Pure functions:
+  `build_usage_delta_from_session_delta()` transforms existing `SessionDelta`
+  into display-oriented `UsageDeltaOutput`, `render_usage_delta()` renders
+  human-readable output with 14 safety disclaimers (future delta output model
+  only, no CLI flag enabled yet, no live second sample was taken by this
+  model, interface-level only/not per-app attribution, no quota enforcement
+  active, no network blocking active, no limiter attach performed, no nft/tc
+  /Zelynic state mutation performed, no ledger persistence performed, no eBPF
+  used, no cgroup mutation performed, no PID movement performed, filesystem
+  write not performed, state mutation not performed, counters may reset after
+  reboot or interface reset). Render also includes delta-specific counter
+  reset/decrease warnings from `CounterResetWarning` and delta may be
+  incomplete warning when resets detected. 33 tests in
+  `src/accounting/tests/usage_delta.rs` (487 LOC): builds delta output from
+  simple session_delta, totals rx/tx/combined correctly, handles empty delta,
+  handles interface added/removed, handles counter reset/decrease warnings,
+  render includes future-model-only statement, render says CLI flag not
+  enabled yet, render says no live second sample taken by this model, render
+  denies per-app attribution/quota enforcement/network blocking/limiter attach/
+  nft-tc-state-mutation/ledger persistence/eBPF/cgroup mutation/PID movement/
+  filesystem write/state mutation, no CLI flag added structural, no live
+  /proc read in tests structural, no filesystem write APIs structural,
+  render includes counter reset warnings, render includes delta incomplete
+  warning on reset, render includes counters may reset disclaimer, render shows
+  interface-level only, human-readable formatting works, zero delta produces
+  zero human-readable, render determinism, build determinism, source label is
+  model-only, has_reset flag reflects session_delta. Module registered in
+  `src/accounting/mod.rs` and `src/accounting/tests/mod.rs`. Updated docs: lab
+  doc (phase 9 completed, phase 10 current), phase 9 design doc (phase 10
+  implementation note), CHANGELOG. No CLI flag registration. No `--delta` in
+  clap. No interval sampling. No loop/watch mode. No interface filtering. No
+  persistence. No eBPF, no quota enforcement, no network blocking, no limiter
+  attach, no nft/tc mutation, no state mutation, no filesystem persistence,
+  no ledger file read/write, no PID move, no cgroup.procs write, no sysfs
+  read, no filesystem writes, no arbitrary path reads. Only allowed live
+  filesystem read is `/proc/net/dev`. CLI remains single-shot only. All files
+  under 1000 LOC. `zelynic strict` remains the only validated active limiter
+  path.
 
 ## [2.9.0] - 2026-06-07 - v2.9.0 Network Accounting Lab
 

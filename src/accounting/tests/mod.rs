@@ -14,6 +14,7 @@ mod ledger_path;
 mod ledger_persistence;
 mod live_proc_net_dev;
 mod session_delta;
+mod usage_delta;
 mod usage_json;
 mod usage_preview;
 
