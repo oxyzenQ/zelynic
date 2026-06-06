@@ -4,9 +4,12 @@
 //! Live `/proc/net/dev` reader seam for v3.0 Live Read-Only Usage Lab.
 //!
 //! This module provides a read-only seam model that can eventually read live
-//! interface counters from `/proc/net/dev`. In v3.0 phase 2, only the **injected
-//! content parsing** path is implemented — no live filesystem reads occur. The
-//! seam is `pub(crate)` and not reachable from CLI.
+//! interface counters from `/proc/net/dev`. In v3.0 phase 3, an **injected reader
+//! backend** is added via a `ContentReader` trait, allowing the read path to be
+//! exercised with fake content in tests without touching the filesystem. A live
+//! read function is also provided but is NOT called from CLI or unit tests.
+//!
+//! The seam is `pub(crate)` and not reachable from CLI.
 //!
 //! # Safety
 //!
@@ -20,7 +23,7 @@
 //! - No ledger file read/write.
 //! - No PID movement.
 //! - No `cgroup.procs` write.
-//! - No `/sys/fs/cgroup` access.
+//! - No sysfs/cgroup access.
 //! - No live sysfs read.
 //! - No CLI command is registered.
 //! - Source path is hardcoded to `/proc/net/dev` — no arbitrary path accepted.
@@ -37,7 +40,9 @@
 
 use std::fmt;
 
-use super::interface_counters::{parse_proc_net_dev, InterfaceCounterSnapshot, ParseError};
+use super::interface_counters::{
+    parse_proc_net_dev, InterfaceCounterSnapshot, ParseError, SourceLabel,
+};
 
 /// The hardcoded source path for live `/proc/net/dev` reads.
 ///
@@ -301,3 +306,242 @@ pub fn render_live_proc_net_dev_read_plan(plan: &LiveProcNetDevReadPlan) -> Stri
 
     out
 }
+
+// ── Phase 3: Injected Reader Backend ─────────────────────────────────────
+
+/// Error type distinguishing read failures from parse failures in the live
+/// reader path.
+///
+/// - `ReadFailed`: The content source itself failed to provide content
+///   (e.g., simulated I/O error, file not found).
+/// - `ParseFailed`: The content was read successfully but parsing failed.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum LiveReadError {
+    /// The content read itself failed.
+    ReadFailed(String),
+    /// The read succeeded but parsing the content failed.
+    ParseFailed(ParseError),
+}
+
+impl fmt::Display for LiveReadError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            LiveReadError::ReadFailed(msg) => write!(f, "read failed: {}", msg),
+            LiveReadError::ParseFailed(e) => write!(f, "parse failed: {}", e),
+        }
+    }
+}
+
+impl std::error::Error for LiveReadError {}
+
+/// Trait for injecting content into the live reader seam.
+///
+/// Implementations provide content that simulates reading `/proc/net/dev`.
+/// The trait does **not** expose any path configuration — the source path is
+/// always the hardcoded `DEFAULT_LIVE_SOURCE_PATH`.
+///
+/// This trait enables testing the full read → parse pipeline without touching
+/// the filesystem. The live read function (`read_live_proc_net_dev`) is the
+/// production path; the injected reader is for tests only.
+pub trait ContentReader {
+    /// Read and return the content string, or an error message on failure.
+    fn read_content(&self) -> Result<String, String>;
+}
+
+/// Fake reader that returns injected content (simulates a successful read).
+///
+/// Used in unit tests to exercise the read → parse pipeline without
+/// touching the filesystem. The content is provided at construction time.
+pub struct InjectedContentReader {
+    content: String,
+}
+
+impl InjectedContentReader {
+    /// Create a new fake reader that returns the given content.
+    pub fn new(content: &str) -> Self {
+        Self {
+            content: content.to_string(),
+        }
+    }
+}
+
+impl ContentReader for InjectedContentReader {
+    fn read_content(&self) -> Result<String, String> {
+        Ok(self.content.clone())
+    }
+}
+
+/// Fake reader that simulates a read failure (e.g., permission denied).
+///
+/// Used in unit tests to verify that read errors are handled correctly
+/// without touching the filesystem.
+pub struct FakeReadErrorReader {
+    error_message: String,
+}
+
+impl FakeReadErrorReader {
+    /// Create a new fake reader that fails with the given error message.
+    pub fn new(error_message: &str) -> Self {
+        Self {
+            error_message: error_message.to_string(),
+        }
+    }
+}
+
+impl ContentReader for FakeReadErrorReader {
+    fn read_content(&self) -> Result<String, String> {
+        Err(self.error_message.clone())
+    }
+}
+
+/// Read `/proc/net/dev` content via an injected reader and parse it.
+///
+/// Uses the provided `ContentReader` to obtain content, then passes it to
+/// the existing `parse_proc_net_dev` parser. The source path is always
+/// `DEFAULT_LIVE_SOURCE_PATH` (`/proc/net/dev`) — the reader itself does
+/// not accept or expose any path configuration.
+///
+/// Returns a `LiveProcNetDevReadPlan` with:
+/// - `source_label` = `"live_proc_net_dev_sample"` (injected reader)
+/// - `filesystem_read_performed` = `true` when read succeeds, `false` on failure
+/// - `filesystem_write_performed` = `false` (always)
+/// - `state_mutation_performed` = `false` (always)
+///
+/// Error handling:
+/// - Read failure (reader returns `Err`): plan with `read_status = Error("read error: ...")`
+/// - Parse failure: plan with `read_status = Error("parse error: ...")`
+/// - Success: plan with `read_status = Success` and parsed snapshot
+///
+/// The source label is `live_proc_net_dev_sample` to honestly indicate this
+/// is not a live filesystem read but an injected content parse.
+pub fn read_live_proc_net_dev_with_injected_reader(
+    reader: &dyn ContentReader,
+) -> LiveProcNetDevReadPlan {
+    match reader.read_content() {
+        Ok(content) => match parse_proc_net_dev(&content) {
+            Ok(snapshot) => {
+                let snapshot_with_label = InterfaceCounterSnapshot {
+                    interfaces: snapshot.interfaces,
+                    source: SourceLabel::ProcNetDevSample,
+                };
+                LiveProcNetDevReadPlan {
+                    source_path: DEFAULT_LIVE_SOURCE_PATH.to_string(),
+                    source_label: SOURCE_LABEL_INJECTED.to_string(),
+                    read_status: LiveReadStatus::Success,
+                    filesystem_read_performed: true,
+                    filesystem_write_performed: false,
+                    state_mutation_performed: false,
+                    snapshot: Some(snapshot_with_label),
+                    safe_reason:
+                        "injected content read and parsed successfully via injected reader"
+                            .to_string(),
+                }
+            }
+            Err(parse_err) => LiveProcNetDevReadPlan {
+                source_path: DEFAULT_LIVE_SOURCE_PATH.to_string(),
+                source_label: SOURCE_LABEL_INJECTED.to_string(),
+                read_status: LiveReadStatus::Error(format!("parse error: {}", parse_err)),
+                filesystem_read_performed: true,
+                filesystem_write_performed: false,
+                state_mutation_performed: false,
+                snapshot: None,
+                safe_reason: format!("parse error: {}", parse_err),
+            },
+        },
+        Err(read_err) => LiveProcNetDevReadPlan {
+            source_path: DEFAULT_LIVE_SOURCE_PATH.to_string(),
+            source_label: SOURCE_LABEL_INJECTED.to_string(),
+            read_status: LiveReadStatus::Error(format!("read error: {}", read_err)),
+            filesystem_read_performed: false,
+            filesystem_write_performed: false,
+            state_mutation_performed: false,
+            snapshot: None,
+            safe_reason: format!("read error: {}", read_err),
+        },
+    }
+}
+
+/// Read the live `/proc/net/dev` file and parse it.
+///
+/// This function performs an actual filesystem read of `/proc/net/dev` using
+/// `std::fs::read_to_string`. It is the production read path for future use in
+/// phase 4+ when the `zelynic usage --sample` command is implemented.
+///
+/// # Safety
+///
+/// - Reads **only** `/proc/net/dev` — path is hardcoded, not configurable.
+/// - Does **not** write anything.
+/// - Does **not** mutate system state.
+/// - Does **not** accept arbitrary path input.
+/// - Is NOT called from CLI.
+/// - Is NOT called in unit tests (tests use `InjectedContentReader`).
+///
+/// # Errors
+///
+/// If the file cannot be read (e.g., not found, permission denied), returns
+/// a plan with `read_status = Error("read error: ...")`. If the content
+/// cannot be parsed, returns a plan with `read_status = Error("parse error: ...")`.
+#[allow(dead_code)]
+pub fn read_live_proc_net_dev() -> LiveProcNetDevReadPlan {
+    match std::fs::read_to_string(DEFAULT_LIVE_SOURCE_PATH) {
+        Ok(content) => match parse_proc_net_dev(&content) {
+            Ok(snapshot) => {
+                let snapshot_with_label = InterfaceCounterSnapshot {
+                    interfaces: snapshot.interfaces,
+                    source: SourceLabel::ParsedProcNetDev,
+                };
+                LiveProcNetDevReadPlan {
+                    source_path: DEFAULT_LIVE_SOURCE_PATH.to_string(),
+                    source_label: SOURCE_LABEL_LIVE.to_string(),
+                    read_status: LiveReadStatus::Success,
+                    filesystem_read_performed: true,
+                    filesystem_write_performed: false,
+                    state_mutation_performed: false,
+                    snapshot: Some(snapshot_with_label),
+                    safe_reason: "live /proc/net/dev read and parsed successfully".to_string(),
+                }
+            }
+            Err(parse_err) => LiveProcNetDevReadPlan {
+                source_path: DEFAULT_LIVE_SOURCE_PATH.to_string(),
+                source_label: SOURCE_LABEL_LIVE.to_string(),
+                read_status: LiveReadStatus::Error(format!("parse error: {}", parse_err)),
+                filesystem_read_performed: true,
+                filesystem_write_performed: false,
+                state_mutation_performed: false,
+                snapshot: None,
+                safe_reason: format!("parse error: {}", parse_err),
+            },
+        },
+        Err(io_err) => LiveProcNetDevReadPlan {
+            source_path: DEFAULT_LIVE_SOURCE_PATH.to_string(),
+            source_label: SOURCE_LABEL_LIVE.to_string(),
+            read_status: LiveReadStatus::Error(format!("read error: {}", io_err)),
+            filesystem_read_performed: false,
+            filesystem_write_performed: false,
+            state_mutation_performed: false,
+            snapshot: None,
+            safe_reason: format!("read error: {}", io_err),
+        },
+    }
+}
+
+/// Source-level audit constants for verifying the live reader module does not
+/// contain forbidden filesystem write API calls. These are checked against the
+/// module source text in tests.
+///
+/// The module does NOT use any write, create, remove, rename, copy, or link
+/// filesystem APIs. Only `read_to_string` is used (in `read_live_proc_net_dev`).
+pub const FORBIDDEN_FS_WRITE_APIS: &[&str] = &[
+    "fs::write",
+    "fs::create_dir",
+    "fs::remove_file",
+    "fs::remove_dir",
+    "fs::rename",
+    "fs::copy",
+    "fs::hard_link",
+    "fs::soft_link",
+];
+
+/// Verify that the live reader module does not reference forbidden paths.
+/// This is a source-level audit constant used in tests.
+pub const FORBIDDEN_PATHS: &[&str] = &["/sys/fs/cgroup", "/sys/class/net", "sysfs"];

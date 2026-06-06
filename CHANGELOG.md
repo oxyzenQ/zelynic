@@ -81,6 +81,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   read/write, no PID move, no cgroup.procs write, no sysfs read, no CLI
   enablement, no filesystem write. `zelynic strict` remains the only validated
   active limiter path.
+- **v3.0 phase 3 injected live reader backend + read boundary audit**: Extended
+  `src/accounting/live_proc_net_dev.rs` with `ContentReader` trait for injecting
+  content into the read seam, `InjectedContentReader` (returns injected content,
+  simulates successful read), `FakeReadErrorReader` (simulates read failure),
+  `read_live_proc_net_dev_with_injected_reader()` exercises full read → parse
+  pipeline via injected reader distinguishing read errors ("read error:" prefix)
+  from parse errors ("parse error:" prefix) in `read_status`, `read_live_proc_net_dev()`
+  performs actual `std::fs::read_to_string` of `/proc/net/dev` (NOT called from CLI
+  or unit tests, provided for future phase 4+), `LiveReadError` enum distinguishes
+  `ReadFailed` from `ParseFailed` with Display impl, source-level boundary audit
+  constants `FORBIDDEN_FS_WRITE_APIS` and `FORBIDDEN_PATHS` for verifying module
+  source does not contain forbidden filesystem write APIs or sysfs/cgroup paths.
+  `ContentReader` trait has no path parameter — source path is always `/proc/net/dev`
+  (hardcoded). 36 new tests in `src/accounting/tests/live_proc_net_dev.rs` (total
+  75): fake reader success parses sample content, fake reader failure returns read
+  error, fake reader malformed content returns parse error, source path is exactly
+  /proc/net/dev, injected reader source path is /proc/net/dev, arbitrary paths not
+  accepted by injected reader, no sysfs/cgroup paths in module source (source-level
+  audit), no filesystem write APIs in module source (source-level audit), rendered
+  injected success/error/parse-error output includes read-only statement, rendered
+  error output denies per-app attribution/quota enforcement/network blocking/
+  limiter attach/nft-tc-state-mutation/ledger persistence/eBPF/cgroup mutation/
+  PID movement, injected reader sets honest source label, injected reader success
+  sets filesystem_read_performed=true, read error sets filesystem_read_performed=false,
+  ContentReader trait has no path parameter (structural), tests do not read real
+  /proc/net/dev (structural), LiveReadError display read-failed/parse-failed.
+  No eBPF, no quota enforcement, no network blocking, no limiter attach, no
+  nft/tc mutation, no state mutation, no filesystem persistence, no ledger file
+  read/write, no PID move, no cgroup.procs write, no sysfs read, no CLI
+  enablement, no filesystem write, no arbitrary path read. `zelynic strict`
+  remains the only validated active limiter path.
 
 ## [2.9.0] - 2026-06-07 - v2.9.0 Network Accounting Lab
 
