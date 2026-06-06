@@ -313,6 +313,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   filesystem writes, no arbitrary path reads, no delta sampling, no loop/watch.
   Only allowed live filesystem read is `/proc/net/dev`. CLI remains single-shot
   only. `zelynic strict` remains the only validated active limiter path.
+- **v3.0 phase 8 wire `usage --sample --json` CLI**: Wired the `--json` flag to the
+  `zelynic usage --sample` command for machine-readable JSON output. Added `json: bool`
+  flag to `Usage` variant in `src/cli.rs` with `requires = "sample"` (clap rejects
+  `--json` without `--sample`). Added `handle_usage_sample(json: bool)` in
+  `src/commands/usage.rs` that routes to text or JSON output; `build_json_from_plan()`
+  converts `LiveProcNetDevReadPlan` to `UsageJsonOutput` using existing `build_usage_
+  json_from_snapshot()` for success and `build_usage_json_error()` for read/parse errors.
+  JSON output is printed to stdout only, no human text prefix/suffix. `sampled_at` is
+  omitted (None, no silent wall-clock generation). Single-shot only: one read, one
+  parse, one JSON output, exit. Text output (`usage --sample`) unchanged — all 13
+  honesty lines remain present. 13 new tests in `src/commands/usage.rs`: CLI parse
+  `usage --sample --json`, CLI rejects `--json` without `--sample`, no delta/interval/
+  interface/watch/path flags, JSON success with fake reader (schema_version, command,
+  source_path, source_label, sampled_at omitted, error null, interfaces, totals,
+  interface_count), JSON success includes source_path/source_label, JSON success omits
+  sampled_at, JSON success includes all 12 honesty flags, JSON read error uses
+  `"read_error"`, JSON read error preserves honesty flags, JSON parse error uses
+  `"parse_error"`, text output unchanged, CLI remains single-shot, no arbitrary path
+  in JSON mode. Updated `src/commands/mod.rs` dispatch and `src/cli/tests.rs` parse
+  test. Test counts: usage 109 (was 96, +13), unit 1055 (was 1042, +13). All files
+  under 1000 LOC. No eBPF, no quota enforcement, no network blocking, no limiter
+  attach, no nft/tc mutation, no state mutation, no filesystem persistence, no ledger
+  file read/write, no PID move, no cgroup.procs write, no sysfs read, no filesystem
+  writes, no arbitrary path reads, no delta sampling, no loop/watch. Only allowed
+  live filesystem read is `/proc/net/dev`. CLI remains single-shot only. `zelynic
+  strict` remains the only validated active limiter path.
 
 ## [2.9.0] - 2026-06-07 - v2.9.0 Network Accounting Lab
 

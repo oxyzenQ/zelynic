@@ -461,11 +461,19 @@ pub enum Commands {
     /// quotas, or mutate any system state.
     ///
     /// Examples:
-    ///   zelynic usage --sample    # Single live snapshot
+    ///   zelynic usage --sample             # Single live snapshot (text)
+    ///   zelynic usage --sample --json     # Single live snapshot (JSON)
     Usage {
         /// Perform a single live read-only snapshot of /proc/net/dev
         #[arg(long, required = true)]
         sample: bool,
+
+        /// Output machine-readable JSON (requires --sample)
+        ///
+        /// When used with --sample, prints the usage snapshot as structured
+        /// JSON instead of human-readable text. Single-shot only.
+        #[arg(long, requires = "sample")]
+        json: bool,
     },
 
     /// Show backend information and capability checks
