@@ -518,6 +518,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   writes, no arbitrary path reads. Only allowed live filesystem read is
   `/proc/net/dev`. CLI remains finite and single-shot. `zelynic strict` remains
   the only validated active limiter path.
+- **v3.0 phase 12b usage delta validation freeze + LOC split / maintainability
+  refactor**: Validation/documentation phase freezing and auditing the first
+  two-sample delta CLI implementation before adding delta JSON output (phase 13).
+  Produced freeze document (`docs/v3.0-phase-12b-usage-delta-validation-freeze.md`)
+  summarizing phases 9-12 delta design, model, CLI gate, and implementation; current
+  validation state (usage_delta 65 tests, usage 179 tests, live_proc_net_dev 75 tests,
+  accounting 405 tests, unit 1125 tests, integration 4/5, check-all passed); delta
+  CLI behavior proof (reads /proc/net/dev exactly twice, bounded 1s wait, exits after
+  second sample, no loop/watch/interval, no interface filter, no arbitrary path,
+  --delta --json rejected, --delta without --sample rejected by clap). Refactored
+  `src/commands/usage_delta.rs` (~920 LOC, single file) into a directory module
+  with four focused files: `usage_delta/mod.rs` (module doc, submodule declarations,
+  re-exports), `usage_delta/handler.rs` (handle_usage_delta, run_delta_live,
+  extract_snapshot_from_plan), `usage_delta/render.rs` (render_usage_delta_live
+  with 16 safety disclaimers), `usage_delta/tests.rs` (test infrastructure:
+  DualSampleReader/SampleSleeper traits, fake readers, counting sleeper/reader,
+  run_delta_with_deps + 32 test functions). All 65 usage_delta tests preserved
+  with identical behavior and assertions. No output wording changes, no runtime
+  behavior changes, no new tests, no new dependencies, no new CLI flags. All
+  files under 1000 LOC with comfortable margin for phase 13 work. Updated docs:
+  lab doc (phase 12 completed, phase 12b current/freeze), phase 11 gate doc
+  (phase 12b implementation frozen before JSON delta note), phase 9 design doc
+  (phase 12b validates before JSON delta note), CHANGELOG. Phase 12b is
+  validation freeze + refactor/split only: no delta JSON output, no configurable
+  interval, no loop/watch mode, no daemon/background behavior, no interface
+  filtering, no persistence, no ledger file read/write, no eBPF, no quota
+  enforcement, no network blocking, no limiter attach, no nft/tc mutation,
+  no state mutation, no PID move, no cgroup.procs write, no sysfs read, no
+  filesystem writes, no arbitrary path reads. Only allowed live filesystem
+  read is `/proc/net/dev`. CLI remains finite and single-shot. `zelynic strict`
+  remains the only validated active limiter path.
 
 ## [2.9.0] - 2026-06-07 - v2.9.0 Network Accounting Lab
 
