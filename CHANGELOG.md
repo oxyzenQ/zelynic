@@ -368,6 +368,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   path reads, no delta sampling, no loop/watch. Only allowed live filesystem read
   is `/proc/net/dev`. CLI remains single-shot only. `zelynic strict` remains the
   only validated active limiter path.
+- **v3.0 phase 9 delta sampling design for `usage --sample --delta`**: Produced
+  design document (`docs/v3.0-phase-9-usage-delta-sampling-design.md`) defining
+  the future delta sampling behavior for `zelynic usage --sample --delta`. Defines
+  two-sample protocol: first sample reads `/proc/net/dev` exactly once, explicit
+  wait duration (future `--interval` flag required), second sample reads
+  `/proc/net/dev` exactly once, delta computation via existing `session_delta`
+  model from v2.9 (`build_session_delta()`). Defines sampling rules: no silent
+  underflow (counter reset → delta=0 with warning), no background loop, no
+  daemon, no state persistence, interface-level only, not per-app attribution,
+  no quota enforcement, no network blocking, no eBPF, no cgroup mutation, no PID
+  movement. Defines future command shape: `zelynic usage --sample --delta`,
+  optional future `--interval 5s`, optional future `--json`, no watch/loop mode,
+  no arbitrary path, no interface filter. Defines output honesty requirements:
+  all 13 existing disclaimers retained, plus delta-specific counter reset
+  warnings and incomplete delta acknowledgment. Defines JSON delta contract
+  direction: reuse existing 12 honesty boolean flags, add `delta` section only in
+  future phase with start/end source labels, interval_seconds (optional), delta
+  interfaces (rx_delta_bytes, tx_delta_bytes, combined_delta_bytes,
+  rx_delta_packets, tx_delta_packets, reset flags, present_in_start/end),
+  delta totals, delta warnings array. Defines phase plan: phase 9 design only,
+  phase 10 pure delta output model + render tests, phase 11 CLI gate for
+  `--delta`, phase 12 single-shot two-sample delta implementation, phase 13
+  delta JSON contract/wiring, phase 14 validation freeze. Updated docs: lab doc
+  (phase 8b completed, phase 9 current/design), phase 8b freeze doc (note pointing
+  to phase 9 delta design), CHANGELOG. Phase 9 is design-only: no Rust code
+  changes, no CLI flag registration, no JSON schema changes, no test additions, no
+  runtime behavior changes. No eBPF, no quota enforcement, no network blocking,
+  no limiter attach, no nft/tc mutation, no state mutation, no filesystem
+  persistence, no ledger file read/write, no PID move, no cgroup.procs write, no
+  sysfs read, no filesystem writes, no arbitrary path reads, no delta CLI flag, no
+  interval sampling, no loop/watch. Only allowed live filesystem read is
+  `/proc/net/dev`. CLI remains single-shot only. `zelynic strict` remains the
+  only validated active limiter path.
 
 ## [2.9.0] - 2026-06-07 - v2.9.0 Network Accounting Lab
 
