@@ -38,6 +38,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   file read/write, PID movement, cgroup.procs write, live /proc or sysfs read, or
   CLI enablement in phase 1. `zelynic strict` remains the only validated active
   limiter path.
+- **v3.0 phase 2 live /proc/net/dev reader seam**: Added
+  `src/accounting/live_proc_net_dev.rs` with read-only seam model for the future
+  `zelynic usage --sample` command. Model types: `LiveProcNetDevReadPlan`
+  (source_path hardcoded to `/proc/net/dev`, source_label, read_status
+  Planned/Success/Error, filesystem_read_performed=false, filesystem_write_performed
+  =false, state_mutation_performed=false, optional parsed snapshot, safe_reason),
+  `LiveReadStatus` (Planned, Success, Error). Pure functions:
+  `build_live_proc_net_dev_snapshot_from_content(content)` parses injected
+  content via existing parser, returns plan with source_label
+  `live_proc_net_dev_sample`; `build_live_proc_net_dev_read_plan()` returns
+  planned state with source_label `live_proc_net_dev`; `build_live_proc_net_dev_
+  error_plan(error)` returns error state; `render_live_proc_net_dev_read_plan()`
+  renders human-readable output with 13 honesty disclaimers (read-only
+  /proc/net/dev seam, interface-level only/not per-app attribution, no quota
+  enforcement active, no network blocking active, no limiter attach performed, no
+  nft/tc/Zelynic state mutation performed, no ledger persistence performed, no
+  eBPF used, no cgroup mutation, no PID movement, counters may reset after
+  reboot/interface reset, filesystem write not performed, state mutation not
+  performed). Source path is hardcoded — no arbitrary paths accepted. No live
+  filesystem reads — injected content parsing only. No CLI command registered.
+  Reader seam is `pub(crate)` only. 35 tests in
+  `src/accounting/tests/live_proc_net_dev.rs`: injected content parses via
+  existing parser, honest source label, minimal/unusual interface names parse,
+  malformed content returns parse errors (no colon, too few fields, non-numeric),
+  empty/headers-only content returns empty snapshot, read plan points only to
+  /proc/net/dev, read plan does not accept arbitrary path, read plan is planned
+  state with live source label, error plan has correct status, injected plan
+  flags are correct, render includes read-only seam statement, render denies
+  per-app attribution, render denies quota enforcement, render denies network
+  blocking, render denies limiter attach, render denies nft/tc/state mutation,
+  render denies ledger persistence, render denies eBPF, render denies cgroup
+  mutation, render denies PID movement, render warns counters may reset, render
+  includes filesystem write not performed, render includes state mutation not
+  performed, render includes source path and label, render planned plan shows
+  planned status, no CLI command is added (structural), no filesystem write
+  APIs used (structural), render shows snapshot summary, render shows empty
+  snapshot, render is deterministic, render shows mutation flags, render error
+  plan shows error status, loopback detection, large counter handling (u64::MAX).
+  No eBPF, no quota enforcement, no network blocking, no limiter attach, no
+  nft/tc mutation, no state mutation, no filesystem persistence, no ledger file
+  read/write, no PID move, no cgroup.procs write, no sysfs read, no CLI
+  enablement, no filesystem write. `zelynic strict` remains the only validated
+  active limiter path.
 
 ## [2.9.0] - 2026-06-07 - v2.9.0 Network Accounting Lab
 
