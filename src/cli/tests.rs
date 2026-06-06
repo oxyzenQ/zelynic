@@ -483,7 +483,7 @@ fn usage_sample_parses() {
     let cli = Cli::try_parse_from(["zelynic", "usage", "--sample"]).unwrap();
 
     match cli.command.unwrap() {
-        Commands::Usage { sample, json } => {
+        Commands::Usage { sample, json, .. } => {
             assert!(sample);
             assert!(!json);
         }

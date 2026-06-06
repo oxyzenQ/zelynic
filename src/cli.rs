@@ -463,6 +463,7 @@ pub enum Commands {
     /// Examples:
     ///   zelynic usage --sample             # Single live snapshot (text)
     ///   zelynic usage --sample --json     # Single live snapshot (JSON)
+    ///   zelynic usage --sample --delta    # Two-sample delta (text only)
     Usage {
         /// Perform a single live read-only snapshot of /proc/net/dev
         #[arg(long, required = true)]
@@ -474,6 +475,14 @@ pub enum Commands {
         /// JSON instead of human-readable text. Single-shot only.
         #[arg(long, requires = "sample")]
         json: bool,
+
+        /// Compute two-sample read-only delta (requires --sample)
+        ///
+        /// Reads /proc/net/dev twice with a 1-second wait between samples,
+        /// computes per-interface byte deltas, and renders the result.
+        /// Text output only -- delta JSON is not yet implemented.
+        #[arg(long, requires = "sample")]
+        delta: bool,
     },
 
     /// Show backend information and capability checks

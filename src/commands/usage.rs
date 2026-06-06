@@ -20,6 +20,8 @@
 //! - Does not implement loop/watch or delta sampling.
 //! - No filesystem persistence, no ledger file read/write.
 
+use std::time::Duration;
+
 use anyhow::Result;
 
 use crate::accounting::{
@@ -27,6 +29,8 @@ use crate::accounting::{
     render_live_proc_net_dev_read_plan, serialize_usage_json, LiveProcNetDevReadPlan,
     UsageJsonErrorType,
 };
+
+use crate::commands::usage_delta::handle_usage_delta;
 
 #[cfg(test)]
 use crate::accounting::{
@@ -36,15 +40,30 @@ use crate::accounting::{
 
 /// Handle the `zelynic usage --sample` command.
 ///
-/// Reads `/proc/net/dev` exactly once, parses with the existing reader seam,
-/// and either renders text output or JSON output depending on the `--json` flag.
-/// When `--json` is set, prints structured JSON only (no human text prefix/suffix).
-/// When `--json` is not set, renders the honest read-only usage preview.
+/// Reads `/proc/net/dev` exactly once (or twice for delta), parses with the
+/// existing reader seam, and either renders text output or JSON output
+/// depending on the `--json` and `--delta` flags.
+///
+/// - `--sample --delta`: two-sample delta text output (live read-only).
+/// - `--sample --delta --json`: rejected (delta JSON not yet implemented).
+/// - `--sample --json`: single-sample JSON output.
+/// - `--sample`: single-sample text output.
 ///
 /// # Errors
 ///
 /// Returns an error if the read or render fails (but never mutates state).
-pub fn handle_usage_sample(json: bool) -> Result<()> {
+pub fn handle_usage_sample(json: bool, delta: bool) -> Result<()> {
+    if delta && json {
+        // Delta JSON is not yet implemented (phase 13).
+        // Reject before any live read.
+        eprintln!("error: --delta --json is not yet implemented.");
+        eprintln!("Use `zelynic usage --sample --delta` for text delta output.");
+        eprintln!("No live read was performed.");
+        return Ok(());
+    }
+    if delta {
+        return handle_usage_delta();
+    }
     let plan = read_live_proc_net_dev();
     if json {
         let json_output = build_json_from_plan(&plan);
@@ -135,6 +154,10 @@ pub(crate) fn handle_usage_sample_with_reader(reader: &dyn ContentReader) -> Res
     let rendered = render_usage_plan(&plan);
     Ok(rendered)
 }
+
+/// Default delta wait duration between two samples.
+/// Conservative 1-second default for the two-sample read-only delta.
+pub(crate) const DEFAULT_DELTA_WAIT_DURATION: Duration = Duration::from_secs(1);
 
 /// Core usage JSON sample function that accepts an injected reader.
 ///
@@ -419,9 +442,15 @@ Inter-|   Receive                                                |  Transmit
     fn cli_parses_usage_sample_json() {
         let cli = Cli::try_parse_from(["zelynic", "usage", "--sample", "--json"]).unwrap();
         match cli.command.unwrap() {
-            Commands::Usage { sample, json } => {
+            Commands::Usage {
+                sample,
+                json,
+                delta,
+                ..
+            } => {
                 assert!(sample);
                 assert!(json);
+                assert!(!delta);
             }
             other => panic!("expected usage command, got {other:?}"),
         }
@@ -437,23 +466,10 @@ Inter-|   Receive                                                |  Transmit
         );
     }
 
-    // ── Phase 5b/8: no delta/interval/interface/watch/path flags ─────
+    // ── Phase 5b/8: no interval/interface/watch/path flags ─────
 
     #[test]
-    fn no_delta_interval_interface_flags_on_usage_command() {
-        let cli = Cli::try_parse_from(["zelynic", "usage", "--sample"]).unwrap();
-        match cli.command.unwrap() {
-            Commands::Usage { sample, json } => {
-                assert!(sample);
-                assert!(!json);
-            }
-            other => panic!("expected usage command, got {other:?}"),
-        }
-
-        // Verify that --delta is not accepted by the usage subcommand.
-        let delta_result = Cli::try_parse_from(["zelynic", "usage", "--sample", "--delta"]);
-        assert!(delta_result.is_err(), "--delta should not be accepted");
-
+    fn no_interval_interface_watch_path_flags_on_usage_command() {
         // Verify that --interval is not accepted by the usage subcommand.
         let interval_result =
             Cli::try_parse_from(["zelynic", "usage", "--sample", "--interval", "5"]);
@@ -623,13 +639,18 @@ Inter-|   Receive                                                |  Transmit
 
     #[test]
     fn cli_remains_single_shot() {
-        // The Usage variant only has sample and json flags — no loop, watch,
-        // interval, or delta flags.
+        // The Usage variant has sample, json, and delta flags — no loop, watch,
+        // interval, or other continuous monitoring flags.
         let cli = Cli::try_parse_from(["zelynic", "usage", "--sample"]).unwrap();
         match cli.command.unwrap() {
-            Commands::Usage { sample, json } => {
+            Commands::Usage {
+                sample,
+                json,
+                delta,
+            } => {
                 assert!(sample);
                 assert!(!json);
+                assert!(!delta);
                 // No other fields exist on this variant.
             }
             other => panic!("expected usage command, got {other:?}"),
