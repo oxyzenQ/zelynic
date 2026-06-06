@@ -169,6 +169,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   No new dependencies (serde/serde_json already present). No filesystem I/O, no live
   counter reads, no CLI command, no enforcement, no eBPF, no network blocking, no
   limiter attach, no nft/tc mutation. Accounting tests: 149 (53 + 30 + 33 + 33).
+- **v2.9 phase 7 ledger inspect/render model**: Added
+  `src/accounting/ledger_inspect.rs` with pure inspection model and renderer
+  for the future `zelynic usage --ledger` and `zelynic ledger inspect` display
+  contracts. Model type: `LedgerInspect` (total_entries, snapshot_count,
+  delta_count, total_rx_bytes, total_tx_bytes, total_combined_bytes, interfaces
+  in deterministic sorted order via BTreeSet, reset_warning_count,
+  schema_version, created_at, updated_at, host_id, session_id, provenance
+  "local ledger inspect model only", attribution_scope "interface-level only",
+  enforcement_status "inactive/not implemented", read_only "model-only").
+  Pure functions: `build_ledger_inspect(ledger)` computes aggregate statistics
+  using saturating arithmetic and collects interfaces in sorted order for
+  deterministic output; `render_ledger_inspect(inspect)` produces human-readable
+  output with entry breakdown (snapshots/deltas), interface list, aggregate
+  totals (saturating, overflow-safe), reset warning count, and attribution/
+  enforcement metadata. 9 safety disclaimers in render output: ledger inspect
+  model only, no filesystem read performed, no filesystem write performed,
+  no live /proc or sysfs read performed, interface-level only (not per-app
+  attribution), quota enforcement inactive/not implemented, network blocking
+  inactive/not implemented, no limiter attach performed, no nft/tc/Zelynic
+  state mutation performed. 30 tests in
+  `src/accounting/tests/ledger_inspect.rs`: inspect empty ledger, inspect one
+  snapshot entry, inspect one delta entry, inspect mixed entries, counts
+  snapshot/delta correctly, totals rx/tx/combined correctly, lists interfaces
+  deterministically, interfaces sorted across many, detects reset warnings,
+  no reset warnings when none, handles u64::MAX safely, saturating totals
+  with large entries, render model-only statement, render denies filesystem
+  read, render denies filesystem write, render denies live /proc/sysfs, render
+  denies per-app attribution, render denies quota enforcement, render denies
+  network blocking, render denies limiter attach, render denies nft/tc/state
+  mutation, no CLI structural, no filesystem APIs used, inspect metadata
+  fields, render determinism, render empty ledger, render includes reset
+  warning count, render with session_id, render includes saturating label.
+  No new dependencies. No filesystem I/O, no live counter reads, no CLI
+  command, no enforcement, no eBPF, no network blocking, no limiter attach,
+  no nft/tc mutation. Accounting tests: 179 (53 + 30 + 33 + 33 + 30).
 
 ## [2.8.0] - 2026-06-06 - v2.8.0 Experimental PID Move Lab
 

@@ -23,6 +23,7 @@
 
 mod interface_counters;
 mod ledger;
+mod ledger_inspect;
 mod session_delta;
 mod usage_preview;
 
@@ -41,6 +42,8 @@ pub(crate) use ledger::{
     add_session_delta_entry, add_snapshot_entry, deserialize_ledger_from_json, new_empty_ledger,
     render_ledger_summary, serialize_ledger_to_json, Ledger, LedgerEntry, LedgerError, ResetDetail,
 };
+#[allow(unused_imports)]
+pub(crate) use ledger_inspect::{build_ledger_inspect, render_ledger_inspect, LedgerInspect};
 #[allow(unused_imports)]
 pub(crate) use session_delta::{
     build_session_delta, render_session_delta, CounterResetWarning, SessionDelta, SessionDeltaRow,
