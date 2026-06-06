@@ -447,6 +447,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   under 1000 LOC. `zelynic strict` remains the only validated active limiter
   path.
 
+- **v3.0 phase 11 `--delta` CLI gate design / blocked flag contract**:
+  Produced design/gate document (`docs/v3.0-phase-11-usage-delta-cli-gate.md`)
+  defining the CLI gate and activation rules for future
+  `zelynic usage --sample --delta`. Defined future command contract
+  (`zelynic usage --sample --delta` text output, `zelynic usage --sample
+  --delta --json` JSON combo). Defined absolute constraints: interface-level
+  only, no per-app attribution, no quota enforcement, no network blocking,
+  no persistence, no eBPF, no nft/tc mutation, no cgroup/PID mutation, no
+  loop/watch, no arbitrary path, no filesystem write, read-only. Defined
+  delta-specific constraints: exactly two reads, bounded wait, no background
+  loop, no daemon behavior, counter reset handling, single-shot. Defined 12
+  activation gates (phase completion, two-read behavior reviewed, reader seam
+  integrity, no arbitrary path input, output honesty verified, no
+  enforcement/blocking/persistence claims, no background loop, reset/decrease
+  handling reviewed, text output reviewed, JSON output contract reviewed,
+  tests prove no persistence/enforcement claims, manual smoke output reviewed).
+  Defined initial CLI behavior: preferred docs-only (no `--delta` flag
+  registered), hard-blocked flag as fallback (rejected before any I/O).
+  Defined that `usage --delta` without `--sample` must not read
+  `/proc/net/dev`, `usage --sample --delta --json` must not be enabled until
+  phase 13, `--interval` remains unavailable until a future explicit phase.
+  Updated docs: lab doc (phase 10 completed, phase 11 current), phase 9
+  design doc (phase 11 CLI gate note), CHANGELOG. Phase 11 is design-only: no
+  Rust code changes, no CLI flag registration, no live system reads, no
+  filesystem writes, no new tests, no new dependencies. No eBPF, no quota
+  enforcement, no network blocking, no limiter attach, no nft/tc mutation,
+  no state mutation, no filesystem persistence, no ledger file read/write, no
+  PID move, no cgroup.procs write, no sysfs read, no filesystem writes, no
+  arbitrary path reads. Only allowed live filesystem read is `/proc/net/dev`.
+  CLI remains single-shot only. `zelynic strict` remains the only validated
+  active limiter path.
+
 ## [2.9.0] - 2026-06-07 - v2.9.0 Network Accounting Lab
 
 v2.9.0 is a **read-only accounting foundation** release. It does NOT implement
