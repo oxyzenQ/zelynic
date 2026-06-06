@@ -215,6 +215,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   filesystem writes, no arbitrary path reads. Only allowed live filesystem
   read is `/proc/net/dev`. CLI remains single-shot only. `zelynic strict`
   remains the only validated active limiter path.
+- **v3.0 phase 6 JSON output contract design**: Produced design document
+  (`docs/v3.0-phase-6-usage-json-output-contract.md`) defining the JSON output
+  schema for future `zelynic usage --sample --json`. Schema defines: schema_version
+  (integer, currently 1), command ("usage --sample --json"), source_path
+  ("/proc/net/dev"), source_label ("live_proc_net_dev"), sampled_at (string or
+  null, caller-provided only, no silent wall-clock timestamp generation),
+  interfaces array (per-interface: name, rx_bytes, tx_bytes, combined_bytes,
+  rx_packets, tx_packets, loopback), totals (total_rx_bytes, total_tx_bytes,
+  total_combined_bytes, interface_count), honesty object (12 boolean flags:
+  interface_level_only=true, per_app_attribution=false, quota_enforcement_active=
+  false, network_blocking_active=false, limiter_attach_performed=false, nft_tc_
+  state_mutation_performed=false, ledger_persistence_performed=false, ebpf_used=
+  false, cgroup_mutation_performed=false, pid_movement_performed=false, filesystem_
+  write_performed=false, state_mutation_performed=false), warnings array
+  (counters may reset, not per-app attribution). Error JSON contract: read_error,
+  parse_error, unsupported_flag_error -- all errors retain full honesty flags and
+  warnings, errors must not claim partial enforcement or mutation, error object
+  mutually exclusive with interface data. CLI behavior contract: --json requires
+  --sample (--json without --sample must not read /proc/net/dev), single-shot
+  only (no loop/watch/delta/interval), no arbitrary path, no interface filtering
+  in v3.0. Honesty disclaimer count standardized to 13 lines (matching render
+  function comment; one line contains two substrings checked separately in
+  tests). Implementation plan: phase 7 pure JSON model + serialization tests,
+  phase 8 wire --json flag, phase 9 JSON validation/freeze, future phase delta
+  sampling design. Updated docs: lab doc (phase 5b completed, phase 6 current/
+  design, phase plan extended to phases 7-11), phase 5b freeze doc (note pointing
+  to phase 6), phase 4 gate doc (note pointing to phase 6), CHANGELOG. Phase 6
+  is design-only: no Rust code changes, no test additions, no CLI flag
+  registration, no JSON serialization, no runtime behavior changes. No eBPF,
+  no quota enforcement, no network blocking, no limiter attach, no nft/tc
+  mutation, no state mutation, no filesystem persistence, no ledger file
+  read/write, no PID move, no cgroup.procs write, no sysfs read, no filesystem
+  writes, no arbitrary path reads. Only allowed live filesystem read is
+  `/proc/net/dev`. CLI remains single-shot only. `zelynic strict` remains the
+  only validated active limiter path.
 
 ## [2.9.0] - 2026-06-07 - v2.9.0 Network Accounting Lab
 
