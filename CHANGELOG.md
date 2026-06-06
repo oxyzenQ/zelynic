@@ -204,6 +204,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   No new dependencies. No filesystem I/O, no live counter reads, no CLI
   command, no enforcement, no eBPF, no network blocking, no limiter attach,
   no nft/tc mutation. Accounting tests: 179 (53 + 30 + 33 + 33 + 30).
+- **v2.9 phase 8 persistence path design + safe-path model**: Added
+  `src/accounting/ledger_path.rs` with pure persistence path planning model
+  for future ledger filesystem operations. Model types: `LedgerPathPlan`
+  (base_directory, ledger_filename, full_ledger_path, namespace_label,
+  path_status, safe_reason, model_only=true, filesystem_read_performed=false,
+  filesystem_write_performed=false, persistence_enabled=false), `PathStatus`
+  (Accepted, Rejected), `PathError` (EmptyBaseDirectory, EmptyFilename,
+  AbsoluteFilename, ParentTraversalInFilename, ParentTraversalInBasePath,
+  OutsideNamespace, SuspiciousFilename) with Display impl. Constants:
+  `DEFAULT_LEDGER_FILENAME` ("network-ledger-v1.json"),
+  `DEFAULT_NAMESPACE_LABEL` ("zelynic"). Pure functions:
+  `build_default_ledger_path_plan(base_directory)` uses defaults;
+  `build_ledger_path_plan(base, namespace, filename)` validates all inputs
+  structurally (string-based, no filesystem access, no std::fs APIs, no
+  canonicalization using live filesystem); `render_ledger_path_plan()` produces
+  human-readable output with 9 safety disclaimers (persistence path model only,
+  no filesystem read was performed, no filesystem write was performed, no
+  ledger file was created, no ledger file was read, persistence is not enabled,
+  no live /proc or sysfs read was performed, no quota enforcement or network
+  blocking is active, no nft/tc/Zelynic state mutation was performed). Path
+  boundary: reject empty base, reject empty filename, reject absolute filename,
+  reject parent traversal in filename/base, reject outside-namespace paths,
+  reject suspicious filenames, allow deterministic default filename. 43 tests
+  in `src/accounting/tests/ledger_path.rs`. No new dependencies. No filesystem
+  I/O, no live counter reads, no CLI command, no enforcement, no eBPF, no
+  network blocking, no limiter attach, no nft/tc mutation. Accounting tests:
+  222 (53 + 30 + 33 + 33 + 30 + 43).
 
 ## [2.8.0] - 2026-06-06 - v2.8.0 Experimental PID Move Lab
 
