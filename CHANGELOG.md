@@ -231,6 +231,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   I/O, no live counter reads, no CLI command, no enforcement, no eBPF, no
   network blocking, no limiter attach, no nft/tc mutation. Accounting tests:
   222 (53 + 30 + 33 + 33 + 30 + 43).
+- **v2.9 phase 9 persistence I/O contract + hard-blocked seam**: Added
+  `src/accounting/ledger_persistence.rs` with hard-blocked persistence I/O
+  contract seam for future ledger read/write operations. Model types:
+  `LedgerPersistencePlan` (operation, path_plan, persistence_status,
+  blocked_reason, model_only=true, filesystem_read_performed=false,
+  filesystem_write_performed=false, directory_create_performed=false,
+  file_create_performed=false, file_remove_performed=false,
+  state_mutation_performed=false, persistence_enabled=false),
+  `PersistenceOperation` (ReadLedger, WriteLedger, AtomicReplace, Backup,
+  ValidatePath), `PersistenceStatus` (Blocked, Rejected), `PersistenceError`
+  (HardBlocked, UnsafePath) with Display impl. Pure functions:
+  `build_ledger_read_plan()`, `build_ledger_write_plan()`,
+  `build_ledger_persistence_plan()` all return hard-blocked plans; unsafe path
+  plans are rejected. `render_ledger_persistence_plan()` produces human-readable
+  output with 12 safety disclaimers (hard-blocked seam, no fs read, no fs write,
+  no ledger file created, no ledger file read, no ledger file saved, no
+  directory created, no file removed, persistence not enabled, no live
+  /proc/sysfs read, no quota enforcement or network blocking, no nft/tc/state
+  mutation). Always hard-blocks read/write/atomic replace/backup. No std::fs
+  APIs. No filesystem I/O. No directory/file creation/removal. 34 tests in
+  `src/accounting/tests/ledger_persistence.rs`. No new dependencies. No
+  filesystem I/O, no live counter reads, no CLI command, no enforcement, no
+  eBPF, no network blocking, no limiter attach, no nft/tc mutation. Accounting
+  tests: 256 (53 + 30 + 33 + 33 + 30 + 43 + 34).
 
 ## [2.8.0] - 2026-06-06 - v2.8.0 Experimental PID Move Lab
 

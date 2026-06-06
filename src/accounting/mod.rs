@@ -25,6 +25,7 @@ mod interface_counters;
 mod ledger;
 mod ledger_inspect;
 mod ledger_path;
+mod ledger_persistence;
 mod session_delta;
 mod usage_preview;
 
@@ -49,6 +50,12 @@ pub(crate) use ledger_inspect::{build_ledger_inspect, render_ledger_inspect, Led
 pub(crate) use ledger_path::{
     build_default_ledger_path_plan, build_ledger_path_plan, render_ledger_path_plan,
     LedgerPathPlan, PathError, PathStatus,
+};
+#[allow(unused_imports)]
+pub(crate) use ledger_persistence::{
+    build_ledger_persistence_plan, build_ledger_read_plan, build_ledger_write_plan,
+    render_ledger_persistence_plan, LedgerPersistencePlan, PersistenceError, PersistenceOperation,
+    PersistenceStatus, BLOCKED_REASON,
 };
 #[allow(unused_imports)]
 pub(crate) use session_delta::{

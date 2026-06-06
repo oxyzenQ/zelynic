@@ -11,6 +11,7 @@ mod interface_counters;
 mod ledger;
 mod ledger_inspect;
 mod ledger_path;
+mod ledger_persistence;
 mod session_delta;
 mod usage_preview;
 
