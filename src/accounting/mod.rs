@@ -28,6 +28,7 @@ mod ledger_path;
 mod ledger_persistence;
 mod live_proc_net_dev;
 mod session_delta;
+mod usage_delta;
 mod usage_json;
 mod usage_preview;
 
@@ -71,6 +72,10 @@ pub(crate) use live_proc_net_dev::{
 #[allow(unused_imports)]
 pub(crate) use session_delta::{
     build_session_delta, render_session_delta, CounterResetWarning, SessionDelta, SessionDeltaRow,
+};
+#[allow(unused_imports)]
+pub(crate) use usage_delta::{
+    build_usage_delta_from_session_delta, render_usage_delta, UsageDeltaOutput, UsageDeltaRow,
 };
 #[allow(unused_imports)]
 pub(crate) use usage_json::{

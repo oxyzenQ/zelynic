@@ -157,3 +157,68 @@ Stage Summary:
 - All 12 honesty flags confirmed constant in v3.0
 - sampled_at policy confirmed: omitted when None (skip_serializing_if), never silently generated
 - Safety confirmed: no JSON CLI flag, no delta sampling, no loop/watch, no persistence, no ledger file read/write, no eBPF, no quota enforcement, no network blocking, no limiter attach, no nft/tc mutation, no state mutation, no PID movement, no cgroup.procs write, no sysfs read, no filesystem writes, no arbitrary path reads, only live filesystem read is /proc/net/dev, CLI remains single-shot only
+---
+Task ID: 2
+Agent: main
+Task: v3.0 phase 8 wire usage --sample --json CLI
+
+Work Log:
+- Read source files: src/cli.rs, src/commands/usage.rs, src/commands/mod.rs, src/accounting/usage_json.rs, src/accounting/live_proc_net_dev.rs, src/accounting/interface_counters.rs
+- Read docs: v3.0-phase-6, v3.0-phase-7b, v3.0-live-read-only-usage-lab, CHANGELOG
+- Added json: bool flag to Usage variant in src/cli.rs with #[arg(long, requires = "sample")]
+- Updated src/commands/mod.rs dispatch to pass json flag
+- Updated src/commands/usage.rs: handle_usage_sample(json), build_json_from_plan(), handle_usage_sample_json_with_reader()
+- Updated src/cli/tests.rs usage_sample_parses for new json field
+- Added 13 new phase 8 tests in src/commands/usage.rs
+- Updated 4 docs: lab doc, phase 6 contract, phase 7b freeze, CHANGELOG
+- Validated: cargo fmt, clippy, all tests, check-all, manual run, git diff --check
+- Committed and pushed: edef402
+
+Stage Summary:
+- Phase 8 complete: --json flag wired to usage --sample
+- Test counts: usage 109 (+13), unit 1055 (+13), usage_json 41, accounting 372
+- Changed files: src/cli.rs, src/commands/usage.rs, src/commands/mod.rs, src/cli/tests.rs, CHANGELOG, 3 docs
+- JSON output matches phase 6 contract exactly
+---
+Task ID: 1
+Agent: main
+Task: v3.0 phase 8b usage --sample --json CLI validation freeze / contract audit
+
+Work Log:
+- Read source files: usage.rs (658→727 LOC), usage_json.rs (318 LOC), lab doc, phase 6/7b docs, CHANGELOG
+- Added 5 optional phase 8b tests to src/commands/usage.rs:
+  json_output_starts_with_brace, json_output_contains_no_human_header,
+  json_output_contains_warnings_array, json_error_output_starts_with_brace,
+  json_error_output_contains_no_human_header
+- Created docs/v3.0-phase-8b-usage-json-cli-validation-freeze.md (382 LOC)
+- Updated 4 docs: lab doc (phase 8b section), phase 6 (phase 8b note), phase 7b (phase 8b note), CHANGELOG
+- Validation: fmt pass, clippy pass, usage 114 tests pass, usage_json 41 pass, live_proc_net_dev 75 pass, accounting 372 pass, unit 1060 pass, integration 4/5, check-all pass
+- Manual runs: usage --sample prints text with 13 honesty lines, usage --sample --json prints valid JSON only
+- git diff --check: no whitespace issues
+- Committed and pushed to origin main
+
+Stage Summary:
+- Commit: e4181ea
+- Changed files: 6 (usage.rs, 4 docs, CHANGELOG)
+- Test counts: usage 114 (+5), unit 1060 (+5), all others unchanged
+- LOC: usage.rs 727, usage_json.rs 318, all under 1000
+- Phase 8b is validation freeze — no new features added
+---
+Task ID: 1
+Agent: main
+Task: v3.0 phase 9 delta sampling design for usage --sample --delta
+
+Work Log:
+- Pre-checked for stale safety-count wording (17-Point, 19-Point): none found
+- Read all relevant docs and source files (session_delta.rs, usage_json.rs, phase 8b freeze doc, lab doc, CHANGELOG.md)
+- Created docs/v3.0-phase-9-usage-delta-sampling-design.md (comprehensive design doc)
+- Updated docs/v3.0-live-read-only-usage-lab.md: marked phase 8b completed, added phase 9 current/design, updated planned phases 10-14
+- Updated docs/v3.0-phase-8b-usage-json-cli-validation-freeze.md: added Phase 9 note
+- Updated CHANGELOG.md: added Unreleased v3.0 phase 9 entry
+- Validated: check-all passed, usage 114 tests, usage_json 41 tests, accounting 372 tests, git diff --check clean
+- Committed c9abcd7, pushed to origin main
+
+Stage Summary:
+- Phase 9 is design-only, no code changes
+- All validation passed
+- 4 files changed, 681 insertions, 12 deletions
