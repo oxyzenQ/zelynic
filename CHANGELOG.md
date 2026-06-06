@@ -139,6 +139,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   enforcement, no eBPF, no network blocking, no limiter attach, no nft/tc
   mutation, no state mutation, no PID movement, no cgroup.procs write, no
   live /proc or sysfs read.
+- **v2.9 phase 6 pure ledger model + serialization tests**: Added
+  `src/accounting/ledger.rs` (389 LOC) with pure Rust data model and JSON
+  serialization for the future local usage ledger. Model types: `Ledger`
+  (schema_version, created_at, updated_at, host_id, session_id, entries),
+  `LedgerEntry` (entry_id, timestamp, entry_type, source_label, interface,
+  rx/tx bytes/packets, combined_bytes, reset_detected, reset_details, read_only,
+  provenance, attribution_scope, enforcement_status), `ResetDetail`
+  (counter_field, start_value, end_value, reason), `LedgerError` (JsonParse,
+  UnsupportedSchemaVersion, Validation, SafetyViolation) with Display impl. Pure
+  functions: `new_empty_ledger()`, `add_snapshot_entry()`, `add_session_delta_entry()`,
+  `serialize_ledger_to_json()` (deterministic pretty JSON), `deserialize_ledger_from_json()`
+  (validates JSON, schema version, required fields, safety constraints: read_only=true,
+  attribution_scope="interface-level only", enforcement_status="inactive/not implemented",
+  combined_bytes=rx+tx, entry_type in {snapshot,delta}), `render_ledger_summary()` with
+  8 safety disclaimers (model only, no fs write, no live /proc/sysfs read, interface-level
+  only/not per-app, quota inactive, network blocking inactive, no limiter attach, no
+  nft/tc/state mutation). 33 tests in `src/accounting/tests/ledger.rs` (703 LOC):
+  empty ledger creation, snapshot entry, session delta entry, serialize empty/with entries,
+  deserialize valid, round-trip (with session_id, reset_details), reject malformed JSON,
+  reject unsupported schema version, reject active enforcement, reject per-app attribution,
+  reject missing required fields, reject entry missing fields, reject read_only=false,
+  reject combined_bytes inconsistency, reject unknown entry type, u64::MAX counters,
+  render model-only statement, render denies fs write, render denies live /proc/sysfs,
+  render denies per-app attribution, render denies quota enforcement, render denies
+  network blocking, render denies limiter attach, render denies nft/tc/state mutation,
+  render with entries, render with reset entries, deterministic serialization, error
+  display, multiple interfaces, saturating overflow, no CLI structural, no fs APIs.
+  No new dependencies (serde/serde_json already present). No filesystem I/O, no live
+  counter reads, no CLI command, no enforcement, no eBPF, no network blocking, no
+  limiter attach, no nft/tc mutation. Accounting tests: 149 (53 + 30 + 33 + 33).
 
 ## [2.8.0] - 2026-06-06 - v2.8.0 Experimental PID Move Lab
 

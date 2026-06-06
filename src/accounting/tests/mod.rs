@@ -8,6 +8,7 @@
 //! **no** quota enforcement, **no** eBPF, **no** PID movement, **no** cgroup writes.
 
 mod interface_counters;
+mod ledger;
 mod session_delta;
 mod usage_preview;
 
