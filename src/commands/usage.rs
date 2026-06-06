@@ -86,6 +86,8 @@ pub(crate) fn handle_usage_sample_with_reader(reader: &dyn ContentReader) -> Res
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::cli::{Cli, Commands};
+    use clap::Parser;
 
     /// Standard multi-interface sample for CLI tests.
     const CLI_TEST_SAMPLE: &str = "\
@@ -287,5 +289,102 @@ Inter-|   Receive                                                |  Transmit
         let reader = InjectedContentReader::new(CLI_TEST_SAMPLE);
         let rendered = handle_usage_sample_with_reader(&reader).unwrap();
         assert!(rendered.contains("read-only /proc/net/dev seam"));
+    }
+
+    // ── Phase 5b: rendered output contains ALL 13 honesty lines ────
+
+    #[test]
+    fn rendered_output_contains_all_honesty_lines() {
+        let reader = InjectedContentReader::new(CLI_TEST_SAMPLE);
+        let rendered = handle_usage_sample_with_reader(&reader).unwrap();
+        let required_lines = [
+            "read-only /proc/net/dev seam",
+            "interface-level only",
+            "not per-app attribution",
+            "no quota enforcement active",
+            "no network blocking active",
+            "no limiter attach performed",
+            "no nft/tc/Zelynic state mutation performed",
+            "no ledger persistence performed",
+            "no eBPF used",
+            "no cgroup mutation",
+            "no PID movement",
+            "counters may reset",
+            "filesystem write not performed",
+            "state mutation not performed",
+        ];
+        for line in &required_lines {
+            assert!(rendered.contains(line), "missing honesty line: {}", line);
+        }
+    }
+
+    // ── Phase 5b: error output contains ALL 13 honesty lines ───────
+
+    #[test]
+    fn error_output_contains_all_honesty_lines() {
+        let reader = FakeReadErrorReader::new("permission denied");
+        let rendered = handle_usage_sample_with_reader(&reader).unwrap();
+        let required_lines = [
+            "read-only /proc/net/dev seam",
+            "interface-level only",
+            "not per-app attribution",
+            "no quota enforcement active",
+            "no network blocking active",
+            "no limiter attach performed",
+            "no nft/tc/Zelynic state mutation performed",
+            "no ledger persistence performed",
+            "no eBPF used",
+            "no cgroup mutation",
+            "no PID movement",
+            "counters may reset",
+            "filesystem write not performed",
+            "state mutation not performed",
+        ];
+        for line in &required_lines {
+            assert!(
+                rendered.contains(line),
+                "error output missing honesty line: {}",
+                line
+            );
+        }
+    }
+
+    // ── Phase 5b: no JSON/delta/interval flags exist yet ───────────
+
+    #[test]
+    fn no_json_delta_interval_flags_on_usage_command() {
+        // Structural test: verify the Usage variant only has `sample: bool`.
+        let cli = Cli::try_parse_from(["zelynic", "usage", "--sample"]).unwrap();
+        match cli.command.unwrap() {
+            Commands::Usage { sample } => {
+                assert!(sample);
+                // The Usage variant has no --json, --delta, --interval, --interface,
+                // --no-loopback, or --all-interfaces flags.
+                // This is verified structurally: the Usage enum variant only
+                // contains `sample: bool` and no other fields.
+            }
+            other => panic!("expected usage command, got {other:?}"),
+        }
+
+        // Verify that --json is not accepted by the usage subcommand.
+        let json_result = Cli::try_parse_from(["zelynic", "usage", "--sample", "--json"]);
+        assert!(json_result.is_err(), "--json should not be accepted");
+
+        // Verify that --delta is not accepted by the usage subcommand.
+        let delta_result = Cli::try_parse_from(["zelynic", "usage", "--sample", "--delta"]);
+        assert!(delta_result.is_err(), "--delta should not be accepted");
+
+        // Verify that --interval is not accepted by the usage subcommand.
+        let interval_result =
+            Cli::try_parse_from(["zelynic", "usage", "--sample", "--interval", "5"]);
+        assert!(
+            interval_result.is_err(),
+            "--interval should not be accepted"
+        );
+
+        // Verify that --interface is not accepted by the usage subcommand.
+        let iface_result =
+            Cli::try_parse_from(["zelynic", "usage", "--sample", "--interface", "eth0"]);
+        assert!(iface_result.is_err(), "--interface should not be accepted");
     }
 }
