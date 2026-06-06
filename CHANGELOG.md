@@ -290,6 +290,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   path reads, no delta sampling, no loop/watch. Only allowed live filesystem
   read is `/proc/net/dev`. CLI remains single-shot only. `zelynic strict` remains
   the only validated active limiter path.
+- **v3.0 phase 7b JSON model validation / error-type contract freeze**:
+  Validation/documentation-only phase confirming the pure JSON output model from
+  phase 7 before wiring `--json` to CLI in phase 8. Verified canonical error type
+  strings via code inspection and existing tests: `read_error` (via
+  `#[serde(rename = "read_error")]`), `parse_error` (via
+  `#[serde(rename = "parse_error")]`), `unsupported_flag_error` (via
+  `#[serde(rename = "unsupported_flag_error")]`). Clarified documentation
+  ambiguity about serde rename behavior: the `UsageJsonErrorType` enum uses
+  explicit rename attributes, not automatic snake_case conversion. Confirmed all 12
+  honesty flags are constant in v3.0. Confirmed `sampled_at` policy: omitted when
+  None (via `skip_serializing_if`), never silently generated. Produced freeze
+  document (`docs/v3.0-phase-7b-usage-json-validation-freeze.md`) summarizing
+  phase 6 JSON contract design, phase 7 pure JSON model, canonical error type
+  strings, 12 honesty boolean flags, sampled_at policy, and freeze criteria for
+  phase 8 entry. Updated docs: lab doc (phase 7 completed, phase 7b current/
+  freeze), phase 6 contract doc (canonical error type string clarification),
+  CHANGELOG. No Rust behavior changes. No new tests. No new code. No `--json`
+  CLI flag enabled. No eBPF, no quota enforcement, no network blocking, no limiter
+  attach, no nft/tc mutation, no state mutation, no filesystem persistence, no
+  ledger file read/write, no PID move, no cgroup.procs write, no sysfs read, no
+  filesystem writes, no arbitrary path reads, no delta sampling, no loop/watch.
+  Only allowed live filesystem read is `/proc/net/dev`. CLI remains single-shot
+  only. `zelynic strict` remains the only validated active limiter path.
 
 ## [2.9.0] - 2026-06-07 - v2.9.0 Network Accounting Lab
 
