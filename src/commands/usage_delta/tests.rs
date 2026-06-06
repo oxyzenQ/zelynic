@@ -1,205 +1,15 @@
 // Copyright (C) 2026 rezky_nightky
 // SPDX-License-Identifier: GPL-3.0-only
 //!
-//! Handler for the `zelynic usage --sample --delta` command (v3.0 phase 12).
+//! Test infrastructure and tests for the `usage --sample --delta` command.
 //!
-//! This module implements the actual two-sample read-only delta CLI that reads
-//! `/proc/net/dev` twice, waits a bounded duration between samples, computes
-//! per-interface byte deltas using the existing `SessionDelta` model, and
-//! renders honest interface-level delta output before exiting.
-//!
-//! # Safety
-//!
-//! - Reads only `/proc/net/dev` -- path is hardcoded, not configurable.
-//! - Exactly two reads, then exit. No loop, no watch, no daemon.
-//! - Does not write anything.
-//! - Does not mutate system state.
-//! - Does not block, throttle, or enforce quotas.
-//! - Does not attach limiters.
-//! - Does not load/attach eBPF.
-//! - Does not mutate nftables/tc rules.
-//! - Does not move PIDs or write cgroup.procs.
-//! - Does not read sysfs.
-//! - Does not implement interval sampling (wait duration is hardcoded).
-//! - No filesystem persistence, no ledger file read/write.
-//! - No delta JSON output (deferred to phase 13).
-//! - CLI remains finite and single-shot.
+//! This module contains injected test doubles (DualSampleReader, SampleSleeper),
+//! fake implementations, and all 32 test functions that exercise the delta handler
+//! via `run_delta_with_deps()` without touching the live filesystem.
 
-use std::thread;
+use crate::accounting::{build_session_delta, build_usage_delta_from_session_delta};
 
-use anyhow::Result;
-
-use crate::accounting::{
-    build_session_delta, build_usage_delta_from_session_delta, read_live_proc_net_dev,
-    UsageDeltaOutput,
-};
-use crate::commands::usage::DEFAULT_DELTA_WAIT_DURATION;
-
-/// Handle the `zelynic usage --sample --delta` command.
-///
-/// Reads `/proc/net/dev` exactly twice with a bounded wait between samples,
-/// computes per-interface deltas using the existing `SessionDelta` model,
-/// and renders honest interface-level delta text output.
-///
-/// # Flow
-///
-/// 1. Read `/proc/net/dev` (first sample)
-/// 2. If read/parse fails: report error, exit (no delta computation)
-/// 3. Wait for the default delta duration (1 second)
-/// 4. Read `/proc/net/dev` (second sample)
-/// 5. If read/parse fails: report error, exit (no partial delta)
-/// 6. Compute `SessionDelta` from both snapshots
-/// 7. Build `UsageDeltaOutput` and render live delta text
-/// 8. Print and exit
-///
-/// # Errors
-///
-/// Returns an error if any read or render fails (but never mutates state).
-pub fn handle_usage_delta() -> Result<()> {
-    let rendered = run_delta_live()?;
-    println!("{}", rendered);
-    Ok(())
-}
-
-/// Run the two-sample delta computation with live `/proc/net/dev` reads.
-///
-/// This function performs exactly two live reads of `/proc/net/dev`,
-/// separated by a bounded sleep, and returns the rendered delta text.
-fn run_delta_live() -> Result<String> {
-    // First read
-    let plan1 = read_live_proc_net_dev();
-    let snapshot1 = extract_snapshot_from_plan(&plan1)?;
-
-    // Wait between samples
-    thread::sleep(DEFAULT_DELTA_WAIT_DURATION);
-
-    // Second read
-    let plan2 = read_live_proc_net_dev();
-    let snapshot2 = extract_snapshot_from_plan(&plan2)?;
-
-    // Compute delta
-    let session_delta = build_session_delta(&snapshot1, &snapshot2);
-    let usage_delta_output = build_usage_delta_from_session_delta(&session_delta);
-
-    // Render live delta output
-    Ok(render_usage_delta_live(&usage_delta_output))
-}
-
-/// Extract a parsed snapshot from a `LiveProcNetDevReadPlan`.
-///
-/// Returns the snapshot on success, or an appropriate error message
-/// distinguishing read errors from parse errors.
-fn extract_snapshot_from_plan(
-    plan: &crate::accounting::LiveProcNetDevReadPlan,
-) -> Result<crate::accounting::InterfaceCounterSnapshot> {
-    match &plan.read_status {
-        crate::accounting::LiveReadStatus::Success => {
-            if let Some(ref snapshot) = plan.snapshot {
-                Ok(snapshot.clone())
-            } else {
-                anyhow::bail!("read error: no snapshot available after successful read")
-            }
-        }
-        crate::accounting::LiveReadStatus::Error(msg) => anyhow::bail!("{}", msg),
-        crate::accounting::LiveReadStatus::Planned => {
-            anyhow::bail!("read error: read was planned but never executed")
-        }
-    }
-}
-
-/// Render a `UsageDeltaOutput` for the live two-sample delta CLI.
-///
-/// This render function replaces the phase-10 model-only renderer with
-/// live-appropriate text that indicates an actual two-sample delta was
-/// performed from `/proc/net/dev`.
-///
-/// The output includes comprehensive safety disclaimers matching the
-/// phase-12 requirements: two-sample read-only delta, source path,
-/// interface-level only, all denial statements, counter reset warnings.
-pub(crate) fn render_usage_delta_live(output: &UsageDeltaOutput) -> String {
-    let mut out = String::new();
-
-    out.push_str("zelynic usage --sample --delta -- live read-only two-sample delta\n");
-    out.push_str("Source: /proc/net/dev (two reads)\n");
-    out.push_str(&format!(
-        "Delta wait: {}s between samples\n",
-        DEFAULT_DELTA_WAIT_DURATION.as_secs()
-    ));
-    out.push('\n');
-
-    // Attribution and scope
-    out.push_str("Attribution: interface-level only (not per-app attribution)\n");
-    out.push('\n');
-
-    if output.rows.is_empty() {
-        out.push_str("No interface deltas computed.\n");
-        out.push('\n');
-    } else {
-        out.push_str("Interface delta (interface-level only, not per-app attribution):\n");
-        out.push_str(&format!(
-            "  {:16} {:>14} {:>14} {:>18}\n",
-            "Interface", "RX delta", "TX delta", "Combined delta"
-        ));
-        for row in &output.rows {
-            let reset_tag = if row.has_reset {
-                " [COUNTER RESET]"
-            } else {
-                ""
-            };
-            out.push_str(&format!(
-                "  {:16} {:>12} B {:>12} B {:>14} B{}\n",
-                row.interface,
-                row.rx_delta_bytes,
-                row.tx_delta_bytes,
-                row.combined_delta_bytes,
-                reset_tag,
-            ));
-        }
-        out.push('\n');
-    }
-
-    // Totals
-    out.push_str("Delta totals (saturating, overflow-safe):\n");
-    out.push_str(&format!(
-        "  RX: {} bytes  TX: {} bytes  Combined: {} bytes\n",
-        output.total_rx_delta_bytes, output.total_tx_delta_bytes, output.total_combined_delta_bytes
-    ));
-    out.push_str(&format!("  Interfaces: {}\n", output.interface_count));
-    out.push('\n');
-
-    // Warnings
-    if !output.warnings.is_empty() {
-        out.push_str("Counter reset/decrease warnings:\n");
-        for w in &output.warnings {
-            out.push_str(&format!("  {}\n", w));
-        }
-        out.push('\n');
-        out.push_str(
-            "WARNING: delta may be incomplete if interface counter reset/decrease occurred\n",
-        );
-        out.push('\n');
-    }
-
-    // Comprehensive safety disclaimers (all required by phase 12)
-    out.push_str("Safety disclaimers:\n");
-    out.push_str("  - two-sample read-only delta\n");
-    out.push_str("  - source path: /proc/net/dev\n");
-    out.push_str("  - interface-level only (not per-app attribution)\n");
-    out.push_str("  - no quota enforcement active\n");
-    out.push_str("  - no network blocking active\n");
-    out.push_str("  - no limiter attach performed\n");
-    out.push_str("  - no nft/tc/Zelynic state mutation performed\n");
-    out.push_str("  - no ledger persistence performed\n");
-    out.push_str("  - no eBPF used\n");
-    out.push_str("  - no cgroup mutation\n");
-    out.push_str("  - no PID movement\n");
-    out.push_str("  - filesystem write not performed\n");
-    out.push_str("  - state mutation not performed\n");
-    out.push_str("  - counters may reset after reboot or interface reset\n");
-    out.push_str("  - delta may be incomplete if counter reset/decrease occurred\n");
-
-    out
-}
+use super::render::render_usage_delta_live;
 
 // -- Test infrastructure --------------------------------------------------
 
@@ -207,7 +17,6 @@ pub(crate) fn render_usage_delta_live(output: &UsageDeltaOutput) -> String {
 ///
 /// Used for test injection: production uses `read_live_proc_net_dev()`,
 /// tests use fake implementations that return controlled content.
-#[cfg(test)]
 pub(crate) trait DualSampleReader {
     /// Read the first (start) sample. Returns content string or error.
     fn read_first(&self) -> std::result::Result<String, String>;
@@ -219,20 +28,17 @@ pub(crate) trait DualSampleReader {
 ///
 /// Used for test injection: production uses `std::thread::sleep`,
 /// tests use fake implementations that count calls without sleeping.
-#[cfg(test)]
 pub(crate) trait SampleSleeper {
     /// Sleep for the delta wait duration.
     fn sleep(&self);
 }
 
 /// Fake dual reader that returns injected content for both samples.
-#[cfg(test)]
 pub(crate) struct FakeDualReader {
     pub first_content: String,
     pub second_content: String,
 }
 
-#[cfg(test)]
 impl DualSampleReader for FakeDualReader {
     fn read_first(&self) -> std::result::Result<String, String> {
         Ok(self.first_content.clone())
@@ -243,12 +49,10 @@ impl DualSampleReader for FakeDualReader {
 }
 
 /// Fake dual reader that fails on the first read.
-#[cfg(test)]
 pub(crate) struct FakeFailFirstReader {
     pub error_msg: String,
 }
 
-#[cfg(test)]
 impl DualSampleReader for FakeFailFirstReader {
     fn read_first(&self) -> std::result::Result<String, String> {
         Err(self.error_msg.clone())
@@ -259,13 +63,11 @@ impl DualSampleReader for FakeFailFirstReader {
 }
 
 /// Fake dual reader that fails on the second read.
-#[cfg(test)]
 pub(crate) struct FakeFailSecondReader {
     pub first_content: String,
     pub error_msg: String,
 }
 
-#[cfg(test)]
 impl DualSampleReader for FakeFailSecondReader {
     fn read_first(&self) -> std::result::Result<String, String> {
         Ok(self.first_content.clone())
@@ -276,13 +78,11 @@ impl DualSampleReader for FakeFailSecondReader {
 }
 
 /// Fake dual reader that returns malformed content on the first read (parse error).
-#[cfg(test)]
 pub(crate) struct FakeParseFailFirstReader {
     pub first_content: String,
     pub second_content: String,
 }
 
-#[cfg(test)]
 impl DualSampleReader for FakeParseFailFirstReader {
     fn read_first(&self) -> std::result::Result<String, String> {
         Ok(self.first_content.clone())
@@ -293,13 +93,11 @@ impl DualSampleReader for FakeParseFailFirstReader {
 }
 
 /// Fake dual reader that returns malformed content on the second read (parse error).
-#[cfg(test)]
 pub(crate) struct FakeParseFailSecondReader {
     pub first_content: String,
     pub second_content: String,
 }
 
-#[cfg(test)]
 impl DualSampleReader for FakeParseFailSecondReader {
     fn read_first(&self) -> std::result::Result<String, String> {
         Ok(self.first_content.clone())
@@ -310,12 +108,10 @@ impl DualSampleReader for FakeParseFailSecondReader {
 }
 
 /// Counting sleeper that records how many times sleep() was called.
-#[cfg(test)]
 pub(crate) struct CountingSleeper {
     pub sleep_count: std::cell::Cell<usize>,
 }
 
-#[cfg(test)]
 impl CountingSleeper {
     pub fn new() -> Self {
         Self {
@@ -324,7 +120,6 @@ impl CountingSleeper {
     }
 }
 
-#[cfg(test)]
 impl SampleSleeper for CountingSleeper {
     fn sleep(&self) {
         self.sleep_count.set(self.sleep_count.get() + 1);
@@ -332,7 +127,6 @@ impl SampleSleeper for CountingSleeper {
 }
 
 /// Counting reader that records how many times each read method was called.
-#[cfg(test)]
 pub(crate) struct CountingReader {
     pub first_content: String,
     pub second_content: String,
@@ -340,7 +134,6 @@ pub(crate) struct CountingReader {
     pub second_count: std::cell::Cell<usize>,
 }
 
-#[cfg(test)]
 impl CountingReader {
     pub fn new(first: &str, second: &str) -> Self {
         Self {
@@ -352,7 +145,6 @@ impl CountingReader {
     }
 }
 
-#[cfg(test)]
 impl DualSampleReader for CountingReader {
     fn read_first(&self) -> std::result::Result<String, String> {
         self.first_count.set(self.first_count.get() + 1);
@@ -369,11 +161,10 @@ impl DualSampleReader for CountingReader {
 /// Accepts injected reader and sleeper, performs the two-sample delta
 /// computation, and returns the rendered text output. This function is
 /// the single point of test injection for the entire delta pipeline.
-#[cfg(test)]
 pub(crate) fn run_delta_with_deps<R: DualSampleReader, S: SampleSleeper>(
     reader: &R,
     sleeper: &S,
-) -> Result<String> {
+) -> anyhow::Result<String> {
     use crate::accounting::parse_proc_net_dev;
 
     // First read
@@ -401,7 +192,7 @@ pub(crate) fn run_delta_with_deps<R: DualSampleReader, S: SampleSleeper>(
     Ok(render_usage_delta_live(&usage_delta_output))
 }
 
-#[cfg(test)]
+#[allow(clippy::module_inception)]
 mod tests {
     use super::*;
     use crate::cli::{Cli, Commands};
@@ -660,7 +451,6 @@ Inter-|   Receive                                                |  Transmit
     }
 
     // -- Output denies limiter attach -----------------------------
-
     #[test]
     fn output_denies_limiter_attach() {
         let reader = FakeDualReader {
@@ -673,7 +463,6 @@ Inter-|   Receive                                                |  Transmit
     }
 
     // -- Output denies nft/tc/state mutation ------------------------
-
     #[test]
     fn output_denies_nft_tc_state_mutation() {
         let reader = FakeDualReader {
@@ -686,7 +475,6 @@ Inter-|   Receive                                                |  Transmit
     }
 
     // -- Output denies ledger persistence --------------------------
-
     #[test]
     fn output_denies_ledger_persistence() {
         let reader = FakeDualReader {
@@ -699,7 +487,6 @@ Inter-|   Receive                                                |  Transmit
     }
 
     // -- Output denies eBPF ---------------------------------------
-
     #[test]
     fn output_denies_ebpf() {
         let reader = FakeDualReader {
@@ -712,7 +499,6 @@ Inter-|   Receive                                                |  Transmit
     }
 
     // -- Output denies cgroup mutation ----------------------------
-
     #[test]
     fn output_denies_cgroup_mutation() {
         let reader = FakeDualReader {
@@ -725,7 +511,6 @@ Inter-|   Receive                                                |  Transmit
     }
 
     // -- Output denies PID movement --------------------------------
-
     #[test]
     fn output_denies_pid_movement() {
         let reader = FakeDualReader {
@@ -738,7 +523,6 @@ Inter-|   Receive                                                |  Transmit
     }
 
     // -- Output denies filesystem write -----------------------------
-
     #[test]
     fn output_denies_filesystem_write() {
         let reader = FakeDualReader {
@@ -751,7 +535,6 @@ Inter-|   Receive                                                |  Transmit
     }
 
     // -- Output denies state mutation ------------------------------
-
     #[test]
     fn output_denies_state_mutation() {
         let reader = FakeDualReader {
@@ -764,7 +547,6 @@ Inter-|   Receive                                                |  Transmit
     }
 
     // -- No arbitrary path argument exists -------------------------
-
     #[test]
     fn no_arbitrary_path_argument_exists() {
         // Structural test: DualSampleReader has no path parameter.
@@ -779,7 +561,6 @@ Inter-|   Receive                                                |  Transmit
     }
 
     // -- No loop/watch/interval flags exist ------------------------
-
     #[test]
     fn no_loop_watch_interval_flags() {
         // --watch is not accepted
@@ -797,7 +578,6 @@ Inter-|   Receive                                                |  Transmit
     }
 
     // -- Output includes source path --------------------------------
-
     #[test]
     fn output_includes_source_path() {
         let reader = FakeDualReader {
@@ -810,7 +590,6 @@ Inter-|   Receive                                                |  Transmit
     }
 
     // -- Output includes two-sample statement ------------------------
-
     #[test]
     fn output_includes_two_sample_statement() {
         let reader = FakeDualReader {
@@ -823,7 +602,6 @@ Inter-|   Receive                                                |  Transmit
     }
 
     // -- Output includes counters may reset warning -----------------
-
     #[test]
     fn output_includes_counters_may_reset() {
         let reader = FakeDualReader {
@@ -836,7 +614,6 @@ Inter-|   Receive                                                |  Transmit
     }
 
     // -- Output includes delta incomplete warning on reset ----------
-
     #[test]
     fn output_includes_delta_incomplete_on_reset() {
         let reader = FakeDualReader {
@@ -849,7 +626,6 @@ Inter-|   Receive                                                |  Transmit
     }
 
     // -- Delta output contains all 16 required honesty lines --------
-
     #[test]
     fn delta_output_contains_all_honesty_lines() {
         let reader = FakeDualReader {
@@ -882,7 +658,6 @@ Inter-|   Receive                                                |  Transmit
     }
 
     // -- Delta totals are correct ----------------------------------
-
     #[test]
     fn delta_totals_are_correct() {
         let reader = FakeDualReader {
@@ -900,7 +675,6 @@ Inter-|   Receive                                                |  Transmit
     }
 
     // -- Render is deterministic ------------------------------------
-
     #[test]
     fn render_is_deterministic() {
         let reader = FakeDualReader {
