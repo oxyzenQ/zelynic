@@ -339,6 +339,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   writes, no arbitrary path reads, no delta sampling, no loop/watch. Only allowed
   live filesystem read is `/proc/net/dev`. CLI remains single-shot only. `zelynic
   strict` remains the only validated active limiter path.
+- **v3.0 phase 8b `usage --sample --json` CLI validation freeze / contract audit**:
+  Validation/documentation phase freezing and auditing the first machine-readable
+  CLI output before adding delta sampling, filters, persistence, or any future
+  automation. Summarized phases 6-8: JSON output contract design (schema_version,
+  command, source_path, source_label, sampled_at policy, 12 honesty flags, error
+  types read_error/parse_error/unsupported_flag_error, warnings array), pure JSON
+  model + serialization tests, JSON model validation / error-type contract freeze,
+  `--json` CLI wiring (single-shot, JSON only, no human prefix/suffix, --json
+  requires --sample). Documented JSON CLI behavior proof: reads `/proc/net/dev`
+  exactly once, prints JSON only, exits after one sample, no loop/watch, no
+  delta/interval, no interface filter, no arbitrary path input, no sysfs read, no
+  ledger persistence, no state mutation, no enforcement/blocking. Documented JSON
+  schema proof: all fields verified by tests (schema_version=1, command="usage
+  --sample --json", source_path="/proc/net/dev", source_label="live_proc_net_dev",
+  sampled_at omitted, interfaces/totals/honesty/warnings present, error payloads use
+  canonical error_type strings). Added 5 optional phase 8b tests in
+  `src/commands/usage.rs`: `json_output_starts_with_brace`, `json_output_contains_
+  no_human_header`, `json_output_contains_warnings_array`, `json_error_output_starts_
+  with_brace`, `json_error_output_contains_no_human_header`. Updated docs: lab doc
+  (phase 8 completed, phase 8b current/freeze), phase 6 contract doc (phase 8b
+  freezes CLI JSON contract note), phase 7b freeze doc (phase 8b confirms CLI wiring
+  note), CHANGELOG. Phase 8b is validation freeze: no new features, no delta
+  sampling, no loop/watch, no interface filtering, no persistence. No eBPF, no
+  quota enforcement, no network blocking, no limiter attach, no nft/tc mutation,
+  no state mutation, no filesystem persistence, no ledger file read/write, no PID
+  move, no cgroup.procs write, no sysfs read, no filesystem writes, no arbitrary
+  path reads, no delta sampling, no loop/watch. Only allowed live filesystem read
+  is `/proc/net/dev`. CLI remains single-shot only. `zelynic strict` remains the
+  only validated active limiter path.
 
 ## [2.9.0] - 2026-06-07 - v2.9.0 Network Accounting Lab
 

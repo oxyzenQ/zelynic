@@ -655,4 +655,73 @@ Inter-|   Receive                                                |  Transmit
         ]);
         assert!(path_result.is_err(), "--path should not be accepted");
     }
+
+    // ── Phase 8b: JSON CLI contract audit tests ────────────────────
+
+    #[test]
+    fn json_output_starts_with_brace() {
+        let reader = InjectedContentReader::new(CLI_TEST_SAMPLE);
+        let json_str = handle_usage_sample_json_with_reader(&reader).unwrap();
+        let trimmed = json_str.trim_start();
+        assert!(
+            trimmed.starts_with('{'),
+            "JSON output must start with '{{', got: {}",
+            &trimmed[..trimmed.len().min(20)]
+        );
+    }
+
+    #[test]
+    fn json_output_contains_no_human_header() {
+        let reader = InjectedContentReader::new(CLI_TEST_SAMPLE);
+        let json_str = handle_usage_sample_json_with_reader(&reader).unwrap();
+        assert!(
+            !json_str.contains("zelynic usage --sample"),
+            "JSON output must not contain human text header"
+        );
+        assert!(
+            !json_str.contains("Read status:"),
+            "JSON output must not contain human read status"
+        );
+        assert!(
+            !json_str.contains("interface(s) parsed"),
+            "JSON output must not contain human parse summary"
+        );
+    }
+
+    #[test]
+    fn json_output_contains_warnings_array() {
+        let reader = InjectedContentReader::new(CLI_TEST_SAMPLE);
+        let json_str = handle_usage_sample_json_with_reader(&reader).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&json_str).unwrap();
+        let warnings = parsed["warnings"].as_array().unwrap();
+        assert!(!warnings.is_empty(), "warnings array must not be empty");
+        assert!(warnings
+            .iter()
+            .any(|w| w.as_str().unwrap().contains("Counters may reset")));
+        assert!(warnings
+            .iter()
+            .any(|w| w.as_str().unwrap().contains("per-app attribution")));
+    }
+
+    #[test]
+    fn json_error_output_starts_with_brace() {
+        let reader = FakeReadErrorReader::new("permission denied");
+        let json_str = handle_usage_sample_json_with_reader(&reader).unwrap();
+        let trimmed = json_str.trim_start();
+        assert!(
+            trimmed.starts_with('{'),
+            "error JSON output must start with '{{', got: {}",
+            &trimmed[..trimmed.len().min(20)]
+        );
+    }
+
+    #[test]
+    fn json_error_output_contains_no_human_header() {
+        let reader = FakeReadErrorReader::new("permission denied");
+        let json_str = handle_usage_sample_json_with_reader(&reader).unwrap();
+        assert!(
+            !json_str.contains("zelynic usage --sample"),
+            "error JSON must not contain human text header"
+        );
+    }
 }
