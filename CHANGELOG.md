@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.9.0] - 2026-06-07 - v2.9.0 Network Accounting Lab
+
+v2.9.0 is a **read-only accounting foundation** release. It does NOT implement
+actual filesystem persistence, does NOT read or write any ledger file from disk,
+does NOT add a live usage CLI command, does NOT implement quota enforcement, does
+NOT block any network traffic, does NOT implement eBPF, does NOT attach limiters
+or mutate nftables/tc rules, does NOT move PIDs, does NOT write cgroup.procs,
+does NOT touch /sys/fs/cgroup for accounting, and does NOT add any CLI command
+for accounting or ledger operations. All v2.9 code is pure model and
+serialization tests only. `zelynic strict` remains the only validated active
+limiter path.
+
 ### Added
 
 - **v2.9 Network Accounting Lab design**: Added design document
@@ -1077,7 +1089,8 @@ movement).
 - `zelynic list`, `zelynic strict`, `zelynic unstrict`, `zelynic status` commands
 - Basic CLI interface with colored output
 
-[Unreleased]: https://github.com/oxyzenq/zelynic/compare/v2.5.0...HEAD
+[Unreleased]: https://github.com/oxyzenq/zelynic/compare/v2.9.0...HEAD
+[2.9.0]: https://github.com/oxyzenQ/zelynic/compare/v2.8.0...v2.9.0
 [2.5.0]: https://github.com/oxyzenq/zelynic/compare/v2.4.0...v2.5.0
 [2.4.0]: https://github.com/oxyzenq/zelynic/compare/v2.3.0...v2.4.0
 [2.3.0]: https://github.com/oxyzenq/zelynic/compare/v2.2.0...v2.3.0

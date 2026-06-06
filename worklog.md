@@ -79,3 +79,39 @@ Stage Summary:
 - Modified files: docs/v2.9-network-accounting-lab.md, CHANGELOG.md
 - No Rust code changes. No file I/O. No CLI. No tests. Docs/design only.
 - Safety confirmed: no eBPF, no quota enforcement, no network blocking, no limiter attach, no nft/tc mutation, no state mutation, no actual persistence, no PID move, no cgroup.procs write, no live /proc or sysfs read, no CLI enablement
+---
+Task ID: 9
+Agent: main
+Task: v2.9 phase 9 persistence I/O contract + hard-blocked seam
+
+Work Log:
+- Read existing accounting codebase: ledger.rs, ledger_inspect.rs, ledger_path.rs, mod.rs, tests/mod.rs
+- Created src/accounting/ledger_persistence.rs (340 LOC) with:
+  - PersistenceError enum (HardBlocked, UnsafePath) with Display impl
+  - PersistenceOperation enum (ReadLedger, WriteLedger, AtomicReplace, Backup, ValidatePath) with Copy
+  - PersistenceStatus enum (Blocked, Rejected)
+  - LedgerPersistencePlan struct (operation, path_plan, persistence_status, blocked_reason, model_only=true, 6 false flags)
+  - BLOCKED_REASON const
+  - build_ledger_read_plan(), build_ledger_write_plan(), build_ledger_persistence_plan() pure functions
+  - render_ledger_persistence_plan() with 12 safety disclaimers
+  - All operations hard-blocked; unsafe paths rejected via LedgerPathPlan integration
+- Created src/accounting/tests/ledger_persistence.rs (410 LOC) with 34 tests
+- Wired ledger_persistence module in mod.rs (pub(crate), #[allow(unused_imports)])
+- Wired ledger_persistence test module in tests/mod.rs
+- Updated docs/v2.9-network-accounting-lab.md (phase 8 completed, phase 9 current)
+- Updated docs/v2.9-phase-5-local-ledger-design.md (phase 9 completion note)
+- Updated CHANGELOG.md (Unreleased phase 9 entry)
+- Fixed borrow/move compile errors (added Copy to PersistenceOperation, pre-cloned PathStatus)
+- Fixed formatting with cargo fmt
+- Validation: fmt ✓, clippy ✓, 34 ledger_persistence tests ✓, 256 accounting tests ✓, check-all ✓ (901 total: 867 unit + 4 integration passed, 5 ignored), git diff --check ✓
+- Committed as 528679b and pushed to origin main
+
+Stage Summary:
+- Commit: 528679b
+- 7 files changed, 849 insertions, 1 deletion
+- New files: ledger_persistence.rs (340 LOC), tests/ledger_persistence.rs (410 LOC)
+- Modified files: mod.rs, tests/mod.rs, design doc, phase-5 doc, CHANGELOG
+- Accounting tests: 222 → 256 (+34)
+- Unit tests: 867 → 901 (+34)
+- All files under 1000 LOC
+- Safety confirmed: no eBPF, no quota enforcement, no network blocking, no limiter attach, no nft/tc mutation, no state mutation, no filesystem persistence, no filesystem read/write, no directory/file creation/removal, no PID move, no cgroup.procs write, no live /proc or sysfs read, no CLI
