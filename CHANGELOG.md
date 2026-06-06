@@ -255,6 +255,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   filesystem I/O, no live counter reads, no CLI command, no enforcement, no
   eBPF, no network blocking, no limiter attach, no nft/tc mutation. Accounting
   tests: 256 (53 + 30 + 33 + 33 + 30 + 43 + 34).
+- **v2.9 phase 10 persistence seam freeze / non-exposure audit**: Produced
+  freeze/audit report (`docs/v2.9-phase-10-persistence-seam-freeze.md`)
+  documenting the persistence boundary established in phases 8 and 9. Phase
+  summary: phase 5 local ledger design, phase 6 pure ledger model + JSON
+  serialization tests, phase 7 ledger inspect/render model, phase 8 persistence
+  path design + safe-path model, phase 9 persistence I/O contract + hard-blocked
+  seam. Validation state: ledger_path 43 tests, ledger_persistence 34 tests,
+  ledger_inspect 30 tests, ledger 33 tests, accounting 256 tests, unit 901
+  tests, integration 4 passed / 5 ignored, check-all passed, LOC policy passed.
+  Persistence freeze guarantees: ledger_persistence always returns blocked/not
+  implemented; persistence_enabled=false; filesystem_read_performed=false;
+  filesystem_write_performed=false; directory_create_performed=false;
+  file_create_performed=false; file_remove_performed=false;
+  state_mutation_performed=false; model_only=true; no ledger file loaded; no
+  ledger file saved; no atomic replace completed; no backup completed. Non-
+  exposure audit: ledger_path and ledger_persistence are internal model only
+  (pub(crate)); no CLI command or runtime path calls persistence modules; no
+  filesystem I/O APIs used in accounting persistence modules; existing strict
+  limiter remains the only validated active limiter path; accounting remains
+  model/read-only foundation; no quota guard or background data guard active.
+  Future phase entry criteria before actual persistence: separate explicit
+  implementation phase required; safe path plan must be accepted; persistence
+  seam must be explicitly unblocked; atomic write strategy reviewed; corruption
+  handling reviewed; schema migration reviewed; privacy review completed; no
+  per-app attribution claim; no quota/enforcement claim; exact file path
+  reviewed before write; explicit operator confirmation before first
+  filesystem write. Phase 10 is docs/report only: no Rust code changes, no test
+  additions, no runtime behavior changes. No eBPF, no quota enforcement, no
+  network blocking, no limiter attach, no nft/tc mutation, no state mutation,
+  no actual filesystem persistence, no filesystem read/write, no directory/
+  file creation/removal, no PID move, no cgroup.procs write, no live /proc
+  or sysfs read, no CLI enablement.
 
 ## [2.8.0] - 2026-06-06 - v2.8.0 Experimental PID Move Lab
 
