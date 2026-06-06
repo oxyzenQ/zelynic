@@ -250,6 +250,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   writes, no arbitrary path reads. Only allowed live filesystem read is
   `/proc/net/dev`. CLI remains single-shot only. `zelynic strict` remains the
   only validated active limiter path.
+- **v3.0 phase 7 pure JSON model + serialization tests**: Added
+  `src/accounting/usage_json.rs` (318 LOC) with pure Rust data model and
+  serde serialization for the JSON output schema defined in the phase 6 contract.
+  Model types: `UsageJsonOutput` (top-level with schema_version, command, source_path,
+  source_label, sampled_at via skip_serializing_if, interfaces array, optional
+  error, totals, honesty flags, warnings), `UsageJsonInterface` (per-interface:
+  name, rx/tx bytes, combined_bytes, rx/tx packets, loopback), `UsageJsonTotals`
+  (total_rx/tx/combined_bytes, interface_count), `UsageJsonHonesty` (12 constant
+  boolean flags: interface_level_only=true, per_app_attribution=false,
+  quota_enforcement_active=false, network_blocking_active=false, limiter_attach_
+  performed=false, nft_tc_state_mutation_performed=false, ledger_persistence_
+  performed=false, ebpf_used=false, cgroup_mutation_performed=false, pid_movement_
+  performed=false, filesystem_write_performed=false, state_mutation_performed=
+  false), `UsageJsonError` (type + message), `UsageJsonErrorType` (Read/Parse/
+  UnsupportedFlag with serde rename to snake_case). Pure functions:
+  `build_usage_json_from_snapshot()` builds from InterfaceCounterSnapshot with
+  optional sampled_at (caller-provided only, no silent timestamp generation),
+  `build_usage_json_error()` builds error JSON with empty interfaces, zero totals,
+  and full honesty flags preserved, `serialize_usage_json()` deterministic pretty
+  JSON, `deserialize_usage_json()` for round-trip testing. 41 tests in
+  `src/accounting/tests/usage_json.rs` (602 LOC): single/multi-interface builds,
+  totals correctness, source path/label, schema version, command, sampled_at omit/
+  include, no silent timestamp, all 12 honesty flags, default honesty constants,
+  warnings, serialize success/read error/parse error/unsupported flag error,
+  round-trip success/error, error preserves all honesty flags, empty interfaces
+  on error, empty snapshot, loopback flag, u64::MAX counters with saturating
+  combined bytes, determinism, no CLI flag structural, no live read structural,
+  no filesystem write structural, deserialize rejects malformed/missing fields,
+  serialized JSON includes all 12 honesty flags in both success and error outputs,
+  error type display, default warnings count, sampled_at skip_serializing_if. No
+  new dependencies (serde/serde_json already present). No CLI flag registration.
+  No `--json` in clap. Module registered in `src/accounting/mod.rs` and
+  `src/accounting/tests/mod.rs`. Updated docs: lab doc (phase 6 completed, phase 7
+  current), phase 6 contract doc (phase 7 implementation note), CHANGELOG. No eBPF,
+  no quota enforcement, no network blocking, no limiter attach, no nft/tc mutation,
+  no state mutation, no filesystem persistence, no ledger file read/write, no PID
+  move, no cgroup.procs write, no sysfs read, no filesystem writes, no arbitrary
+  path reads, no delta sampling, no loop/watch. Only allowed live filesystem
+  read is `/proc/net/dev`. CLI remains single-shot only. `zelynic strict` remains
+  the only validated active limiter path.
 
 ## [2.9.0] - 2026-06-07 - v2.9.0 Network Accounting Lab
 

@@ -14,6 +14,7 @@ mod ledger_path;
 mod ledger_persistence;
 mod live_proc_net_dev;
 mod session_delta;
+mod usage_json;
 mod usage_preview;
 
 /// Standard `/proc/net/dev` sample with three interfaces.
