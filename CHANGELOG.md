@@ -135,6 +135,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   move, no cgroup.procs write, no sysfs read, no CLI enablement, no filesystem
   write, no arbitrary path read. `zelynic strict` remains the only validated
   active limiter path.
+- **v3.0 phase 4 `zelynic usage --sample` CLI gate design**: Produced design/gate
+  document (`docs/v3.0-phase-4-usage-sample-cli-gate.md`) defining the activation
+  criteria and contract for the future `zelynic usage --sample` command. Defined
+  9 activation gates that must be satisfied before CLI registration: phase
+  completion, reader seam integrity, no arbitrary path input, output honesty (13
+  required disclaimers), no enforcement/blocking/persistence claims, no background
+  loop, no JSON until phase 5, manual smoke review, clap integration pattern.
+  Defined future implementation plan (4 steps: add Commands variant, add
+  dispatch handler, wire into dispatch, validate). Defined relationship to
+  existing architecture (reader seam reuse, output contract reuse, distinction
+  from `zelynic list --live`). Phase 4 is design-only: no Rust code changes,
+  no test additions, no CLI command registration, no live system reads, no
+  filesystem writes. No eBPF, no quota enforcement, no network blocking, no
+  limiter attach, no nft/tc mutation, no state mutation, no filesystem
+  persistence, no ledger file read/write, no PID move, no cgroup.procs write,
+  no sysfs read, no CLI enablement, no filesystem write, no arbitrary path
+  read. `zelynic strict` remains the only validated active limiter path.
 
 ## [2.9.0] - 2026-06-07 - v2.9.0 Network Accounting Lab
 
