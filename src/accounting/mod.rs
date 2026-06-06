@@ -26,6 +26,7 @@ mod ledger;
 mod ledger_inspect;
 mod ledger_path;
 mod ledger_persistence;
+mod live_proc_net_dev;
 mod session_delta;
 mod usage_preview;
 
@@ -56,6 +57,13 @@ pub(crate) use ledger_persistence::{
     build_ledger_persistence_plan, build_ledger_read_plan, build_ledger_write_plan,
     render_ledger_persistence_plan, LedgerPersistencePlan, PersistenceError, PersistenceOperation,
     PersistenceStatus, BLOCKED_REASON,
+};
+#[allow(unused_imports)]
+pub(crate) use live_proc_net_dev::{
+    build_live_proc_net_dev_error_plan, build_live_proc_net_dev_read_plan,
+    build_live_proc_net_dev_snapshot_from_content, render_live_proc_net_dev_read_plan,
+    LiveProcNetDevReadPlan, LiveReadStatus, DEFAULT_LIVE_SOURCE_PATH, SOURCE_LABEL_INJECTED,
+    SOURCE_LABEL_LIVE,
 };
 #[allow(unused_imports)]
 pub(crate) use session_delta::{
