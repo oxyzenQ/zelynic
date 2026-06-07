@@ -752,6 +752,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   files under 1000 LOC. Refactor/split only. `zelynic strict` remains the only
   validated active limiter path.
 
+- **v3.0 phase 17 release artifact audit + tag readiness**: Docs/audit-only phase
+  auditing release artifacts, tag readiness, and documentation consistency before
+  the v3.0.0 tag is created. Built and verified release binary via `cargo build
+  --release --locked` (2.2M, ELF 64-bit, x86_64, stripped). Verified all CLI
+  commands against release binary directly: `--version`, `-V`, `--help`, `usage
+  --help`, all four usage variants, `usage --delta` rejection. jq proof passed.
+  Audited artifact naming readiness (release.yml and package.sh derive version
+  dynamically, will produce `zelynic-v3.0.0-x86_64-linux.tar.gz`). Audited
+  checksum readiness (sha256sum process documented). Audited docs consistency:
+  README download URLs correct, release naming convention updated from stale v2.5.0
+  to v3.0.0. Produced phase 17 document
+  (`docs/v3.0-phase-17-release-artifact-audit-tag-readiness.md`). Updated lab
+  doc (phase 16 completed, phase 17 current). 1227 tests across 2 binaries,
+  5 skipped, all passing. check-all passes. All files under 1000 LOC. No tag
+  created. No GitHub release created. No package published. No artifact uploaded.
+  No JSON schema change. No behavior change. No new dependencies. No new tests.
+  No version string changes.
+
 ## [3.0.0] - 2026-06-07 - v3.0.0 Live Read-Only Usage Lab
 
 v3.0.0 is a **live read-only usage** release. It adds the `zelynic usage` command family
@@ -764,8 +782,8 @@ the only validated active limiter path.
 
 ### Added
 
-- **v3.0 Live Read-Only Usage Lab**: 16 sequential phases (design through release
-  prep) delivering the `zelynic usage` command family for live read-only interface
+- **v3.0 Live Read-Only Usage Lab**: 17 sequential phases (design through release
+  audit) delivering the `zelynic usage` command family for live read-only interface
   counter sampling. Phases 1-15b span: design document, `/proc/net/dev` reader
   seam, injected reader backend, test LOC split, CLI gate design, single-shot
   `zelynic usage --sample` CLI, output honesty freeze, JSON output contract design,
@@ -774,8 +792,9 @@ the only validated active limiter path.
   output model + render tests, `--delta` CLI gate design, two-sample delta CLI,
   delta validation freeze, delta JSON contract design, pure delta JSON model +
   serialization tests, delta JSON test split, delta JSON CLI wiring, delta JSON
-  CLI validation freeze + release readiness audit, and final release prep with
-  version bump to v3.0.0.
+  CLI validation freeze + release readiness audit, final release prep with
+  version bump to v3.0.0, and release artifact audit with tag readiness
+  assessment.
 - **`zelynic usage --sample`**: Single-shot read-only live interface counter
   snapshot from `/proc/net/dev`. Reads exactly once, parses with existing parser,
   renders with 13 honesty disclaimers. Requires `--sample` flag. Source path
