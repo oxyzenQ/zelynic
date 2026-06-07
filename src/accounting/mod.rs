@@ -29,6 +29,7 @@ mod ledger_persistence;
 mod live_proc_net_dev;
 mod session_delta;
 mod usage_delta;
+mod usage_delta_json;
 mod usage_json;
 mod usage_preview;
 
@@ -76,6 +77,16 @@ pub(crate) use session_delta::{
 #[allow(unused_imports)]
 pub(crate) use usage_delta::{
     build_usage_delta_from_session_delta, render_usage_delta, UsageDeltaOutput, UsageDeltaRow,
+};
+#[allow(unused_imports)]
+pub(crate) use usage_delta_json::{
+    build_delta_json_first_read_error, build_delta_json_second_read_error,
+    build_delta_json_success, build_delta_json_unsupported_flag_error, delta_default_warnings,
+    delta_error_first_read_honesty, delta_error_second_read_honesty,
+    delta_error_unsupported_flag_honesty, delta_success_honesty_flags, deserialize_delta_json,
+    serialize_delta_json, DeltaJsonError, DeltaJsonErrorType, DeltaJsonHonesty, DeltaJsonInterface,
+    DeltaJsonSampleSummary, DeltaJsonTotals, UsageDeltaJsonOutput, COMMAND_USAGE_SAMPLE_DELTA_JSON,
+    DEFAULT_DELTA_WAIT_MS, DELTA_SCHEMA_VERSION, SAMPLE_MODE_DELTA, SOURCE_LABEL_DELTA_JSON,
 };
 #[allow(unused_imports)]
 pub(crate) use usage_json::{
