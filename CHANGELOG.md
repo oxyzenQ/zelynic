@@ -601,6 +601,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   sysfs read, no filesystem writes, no arbitrary path reads. Only allowed live
   filesystem read is `/proc/net/dev`. CLI remains finite and single-shot.
   `zelynic strict` remains the only validated active limiter path.
+- **v3.0 phase 14 pure delta JSON model + serialization tests**: Added
+  `src/accounting/usage_delta_json.rs` with pure delta JSON output model for future
+  `zelynic usage --sample --delta --json` (model-only, no CLI wiring). Top-level
+  `UsageDeltaJsonOutput` with 14 fields: schema_version, command, source_path,
+  source_label, sample_mode ("delta"), sample_count, delta_wait_ms (1000),
+  read_count, start_sample (Option<DeltaJsonSampleSummary>), end_sample, interfaces
+  (Vec<DeltaJsonInterface>), totals (DeltaJsonTotals), warnings (Vec<String>),
+  honesty (DeltaJsonHonesty with 19 flags), error (Option<DeltaJsonError>).
+  Per-interface `DeltaJsonInterface` with 19 fields: name, loopback,
+  start_rx/tx_bytes, end_rx/tx_bytes, delta_rx/tx_bytes, delta_combined_bytes,
+  start_rx/tx_packets, end_rx/tx_packets, delta_rx/tx_packets,
+  counter_reset_detected, interface_added, interface_removed. `DeltaJsonTotals`
+  with 9 fields: total_delta_rx/tx/combined_bytes, interface_count,
+  loopback_interface_count, non_loopback_interface_count, counter_reset_count,
+  interface_added_count, interface_removed_count. `DeltaJsonHonesty` with 19
+  flags: 12 constant boolean from snapshot contract + 7 delta-specific
+  (delta_json_output=true, live_read_performed, read_count u32, single_shot=true,
+  loop_watch_mode=false, configurable_interval=false, interface_filtering=false,
+  arbitrary_path_read=false). Builder functions: `build_delta_json_success` (from
+  two InterfaceCounterSnapshot), `build_delta_json_first_read_error`
+  (read_count=0, live_read_performed=false, sample_count=0),
+  `build_delta_json_second_read_error` (read_count=1, live_read_performed=true,
+  sample_count=1, start_sample populated), `build_delta_json_unsupported_flag_error`.
+  Serialization: `serialize_delta_json`, `deserialize_delta_json` for deterministic
+  pretty-printed round-trip. Added `src/accounting/tests/usage_delta_json.rs`
+  with 60+ deterministic unit tests: normal delta success, interface names, start/end
+  counter fields, delta bytes/packets computation, totals correctness, loopback/
+  non-loopback counts, sample summaries, top-level fields (schema_version, command,
+  source_path, source_label, sample_mode, sample_count, delta_wait_ms, read_count),
+  counter reset detection, interface added/removed detection, all 19 honesty flags,
+  default 13 warnings, first/second/unsupported flag error payloads, error honesty
+  flag precision (read_count=0/1/2, live_read_performed), serialization JSON content
+  verification, round-trip tests (success, error, counter reset), malformed JSON
+  rejection, u64::MAX handling, saturating totals, determinism, zero delta, loopback
+  flag, structural no-CLI/no-live-read tests, sample summaries in JSON, multiple
+  counter resets on same interface. Updated `src/accounting/mod.rs` and
+  `src/accounting/tests/mod.rs` to register the new module and re-export all public
+  types/functions. No CLI flag registered. No JSON output wired to CLI. No live
+  filesystem reads in tests. No new dependencies. No behavior changes. No eBPF, no
+  quota enforcement, no network blocking, no limiter attach, no nft/tc mutation,
+  no state mutation, no filesystem persistence, no ledger file read/write, no PID
+  move, no cgroup.procs write, no sysfs read, no filesystem writes, no arbitrary
+  path reads. Only allowed live filesystem read is `/proc/net/dev`. CLI remains
+  finite and single-shot. `zelynic strict` remains the only validated active limiter
+  path. Updated docs: lab doc (phase 13 completed, phase 14 current/model-only),
+  phase 13 contract doc (phase 14 note), CHANGELOG.
 
 ## [2.9.0] - 2026-06-07 - v2.9.0 Network Accounting Lab
 
