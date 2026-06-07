@@ -115,21 +115,61 @@ The strict limiter path is validated on tested modern cgroup v2 Linux hosts. Oth
 Download the latest release from [GitHub Releases](https://github.com/oxyzenq/zelynic/releases):
 
 ```bash
-# Download and extract
-curl -sL https://github.com/oxyzenq/zelynic/releases/latest/download/zelynic-v3.0.0-x86_64-linux.tar.gz | tar xz
+# Download tarball and checksum
+curl -L -O https://github.com/oxyzenQ/zelynic/releases/download/v3.0.1/zelynic-v3.0.1-x86_64-linux.tar.gz
+curl -L -O https://github.com/oxyzenQ/zelynic/releases/download/v3.0.1/zelynic-v3.0.1-x86_64-linux.tar.gz.sha256
+
+# Verify checksum
+sha256sum -c zelynic-v3.0.1-x86_64-linux.tar.gz.sha256
+
+# Extract (creates zelynic-v3.0.1-x86_64-linux/ directory)
+tar -xzf zelynic-v3.0.1-x86_64-linux.tar.gz
+cd zelynic-v3.0.1-x86_64-linux
+
+# Verify binary
+./zelynic --version
 
 # Install system-wide
-sudo install -Dm755 zelynic-v3.0.0-x86_64-linux/zelynic /usr/local/bin/zelynic
+sudo install -Dm755 zelynic /usr/local/bin/zelynic
+zelynic --version
 ```
 
-Verify the download with SHA256 checksums published alongside each release.
+The tarball extracts into `zelynic-v3.0.1-x86_64-linux/` with the binary at
+`zelynic-v3.0.1-x86_64-linux/zelynic`. SHA256 checksums are published alongside
+each release for download verification.
+
+### Man Page
+
+The release tarball includes a pre-generated man page at `man/zelynic.1.gz`.
+
+```bash
+# View man page from extracted tarball
+man ./man/zelynic.1.gz
+
+# Or install system-wide
+sudo install -Dm644 man/zelynic.1.gz /usr/share/man/man1/zelynic.1.gz
+man zelynic
+```
+
+Minimal systems may need `man-db` or `mandoc` installed to view man pages.
+
+### Scripting with jq
+
+The `usage --sample --delta --json` output is machine-readable and pipes well
+with `jq` for monitoring scripts and dashboards:
+
+```bash
+zelynic usage --sample --delta --json | jq '.command'
+zelynic usage --sample --delta --json | jq '.totals.total_delta_combined_bytes'
+zelynic usage --sample --delta --json | jq '.interfaces[] | {name, delta: .delta_combined_bytes}'
+```
 
 Release naming convention:
 
-- Tag: `v3.0.0`
-- Title: `Zelynic v3.0.0 Live Read-Only Usage Lab`
+- Tag: `v3.0.1`
+- Title: `Zelynic v3.0.1 Post-Release Docs + Install Polish`
 
-See the v3.0.0 changelog entry for release details.
+See the v3.0.1 changelog entry for release details.
 
 ### From Source
 
@@ -498,7 +538,7 @@ zelynic --check-update
 
 **Example output of `zelynic -V`:**
 ```
-Version: v3.0.0
+Version: v3.0.1
 Build: linux-x86_64 (COMMIT_HASH)
 Copyright: (c) 2026 Rezky_nightky
 License: GPL-3.0
