@@ -786,6 +786,8 @@ man page documentation, and scripting examples.
 - Added `jq` scriptability examples for `usage --sample --delta --json` output
 - Updated README release naming convention to v3.0.1
 - Updated README version example output to v3.0.1
+- Fixed stale build commit metadata in release binary (`build.rs` now
+  re-runs when `.git/HEAD` changes, ensuring `GIT_HASH` stays current)
 
 ## [3.0.0] - 2026-06-07 - v3.0.0 Live Read-Only Usage Lab
 
