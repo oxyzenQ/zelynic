@@ -647,6 +647,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   finite and single-shot. `zelynic strict` remains the only validated active limiter
   path. Updated docs: lab doc (phase 13 completed, phase 14 current/model-only),
   phase 13 contract doc (phase 14 note), CHANGELOG.
+- **v3.0 phase 15 wire `usage --sample --delta --json` CLI from frozen pure model**:
+  Wired the frozen phase 14 pure delta JSON model to the CLI, enabling
+  `zelynic usage --sample --delta --json` to produce machine-readable JSON output
+  from two live `/proc/net/dev` reads. Changed `handle_usage_sample()` in
+  `src/commands/usage.rs` to route `--delta --json` to the new
+  `handle_usage_delta_json()` in `src/commands/usage_delta/handler.rs` instead of
+  rejecting before any live read. Added `handle_usage_delta_json()`,
+  `run_delta_live_json()`, and `classify_error()` in
+  `src/commands/usage_delta/handler.rs`: performs exactly two reads of
+  `/proc/net/dev`, one bounded sleep (1 second), produces valid JSON via frozen
+  phase 14 model functions (`build_delta_json_success` for success,
+  `build_delta_json_first_read_error` for first-read failure,
+  `build_delta_json_second_read_error` for second-read failure). JSON output
+  contains schema_version, command ("usage --sample --delta --json"), source_path,
+  source_label, sample_mode, sample_count, delta_wait_ms, read_count,
+  start_sample/end_sample summaries, interfaces array, totals, warnings, honesty
+  (19 flags), and error object. Error JSON correctly classifies read errors vs parse
+  errors, and second-read errors report read_count=1 with first sample summary.
+  Added `run_delta_json_with_deps()` test injection function and
+  `run_delta_json_first_error_deps()` in
+  `src/commands/usage_delta/tests_json.rs` (new file). 30 new tests: CLI parse,
+  JSON starts with brace, no human header, valid JSON parse, command/source_path/
+  source_label/sample_count/read_count/error null verification, interfaces/totals/
+  warnings/honesty present, reader called exactly twice, sleeper called exactly once,
+  first/second read/parse error JSON structure (read_count, live_read_performed,
+  start_sample/end_sample), no live read in tests, no filesystem write APIs,
+  no arbitrary path, no interval/watch/interface/path flags, usage --delta still
+  rejected by clap, sample_mode delta, delta_wait_ms, start/end sample present,
+  error no human text, honesty delta_json_output/single_shot true, all 15 constant
+  false flags, totals correctness. `usage --sample` text output unchanged.
+  `usage --sample --json` output unchanged. `usage --sample --delta` text output
+  unchanged. Updated docs: lab doc (phase 14b completed, phase 15 current),
+  phase 13 contract doc (phase 15 implementation note), phase 14b freeze doc
+  (phase 15 wires frozen model to CLI), CHANGELOG. Test counts: usage_delta_json
+  66 (unchanged), usage_delta 161 (was 131, +30), usage 275 (was 245, +30),
+  accounting 471 (unchanged), unit 1221 (was 1195, +26). All files under 1000
+  LOC. No eBPF, no quota enforcement, no network blocking, no limiter attach,
+  no nft/tc mutation, no state mutation, no filesystem persistence, no ledger file
+  read/write, no PID move, no cgroup.procs write, no sysfs read, no filesystem
+  writes, no arbitrary path reads. Only allowed live filesystem read is
+  `/proc/net/dev`. CLI remains finite and single-shot. `zelynic strict` remains the
+  only validated active limiter path.
 - **v3.0 phase 14b usage delta JSON validation freeze + test split / maintainability
   refactor**: Validation/documentation/split phase freezing the pure delta JSON model
   and serialization tests from phase 14 before wiring `--delta --json` to CLI.
