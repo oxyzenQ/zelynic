@@ -601,6 +601,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   sysfs read, no filesystem writes, no arbitrary path reads. Only allowed live
   filesystem read is `/proc/net/dev`. CLI remains finite and single-shot.
   `zelynic strict` remains the only validated active limiter path.
+- **v3.0 phase 15b usage delta JSON CLI validation freeze + release readiness audit**:
+  Validation/documentation/audit phase freezing the newly public `usage --sample
+  --delta --json` CLI behavior before any v3.0 release preparation. Produced freeze
+  document (`docs/v3.0-phase-15b-usage-delta-json-cli-validation-freeze.md`)
+  summarizing phase 13 contract design, phase 14 pure model/serialization, phase
+  14b test split, phase 15 CLI wiring, local validation counts (1225+ tests),
+  manual jq proof (schema_version=1, command="usage --sample --delta --json",
+  sample_mode="delta", sample_count=2, read_count=2, error=null), CI green proof,
+  safety boundary, and release readiness assessment. Added 2 cross-command isolation
+  tests in `src/commands/usage_delta/tests_json.rs`:
+  `delta_json_output_distinct_from_snapshot_json` (proves delta JSON has
+  sample_mode=delta, delta_wait_ms, command=...--delta--json, sample_count=2,
+  read_count=2, start/end sample objects), `delta_text_output_is_not_json` (proves
+  delta text contains human header, does not start with `{`). Confirmed all 19
+  required validation checks covered across 32 CLI-level tests and 66 pure model
+  tests. Updated docs: lab doc (phase 15 completed, phase 15b current/freeze),
+  phase 13 contract doc (phase 15b freezes public CLI behavior after wiring),
+  phase 14b freeze doc (phase 15b validates release readiness after CLI wiring),
+  CHANGELOG. No JSON schema change. No CLI behavior change. No runtime behavior
+  change. No new CLI flags. No new dependencies. Test counts: usage_delta_json 66
+  (unchanged), usage_delta 163 (was 161, +2), usage 277 (was 275, +2),
+  accounting 471 (unchanged), unit 1227 (was 1225, +2). All files under 1000 LOC.
+  No eBPF, no quota enforcement, no network blocking, no limiter attach, no nft/tc
+  mutation, no state mutation, no filesystem persistence, no ledger file read/write,
+  no PID move, no cgroup.procs write, no sysfs read, no filesystem writes, no
+  arbitrary path reads. Only allowed live filesystem read is `/proc/net/dev`. CLI
+  remains finite and single-shot. `zelynic strict` remains the only validated active
+  limiter path.
 - **v3.0 phase 14 pure delta JSON model + serialization tests**: Added
   `src/accounting/usage_delta_json.rs` with pure delta JSON output model for future
   `zelynic usage --sample --delta --json` (model-only, no CLI wiring). Top-level
