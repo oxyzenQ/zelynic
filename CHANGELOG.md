@@ -770,6 +770,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   No JSON schema change. No behavior change. No new dependencies. No new tests.
   No version string changes.
 
+## [3.0.1] - 2026-06-07
+
+v3.0.1 is a post-release documentation and install polish patch. It does NOT change
+any runtime behavior, JSON schema, CLI flags, or enforcement logic. The sole purpose
+is to improve the post-release user experience with clearer install instructions,
+man page documentation, and scripting examples.
+
+### Changed
+
+- Documentation/install polish after v3.0.0 release
+- Clarified tarball extraction path and binary path in README install instructions
+- Added SHA256 checksum verification step to README download example
+- Added man page usage note with system-wide install instructions
+- Added `jq` scriptability examples for `usage --sample --delta --json` output
+- Updated README release naming convention to v3.0.1
+- Updated README version example output to v3.0.1
+
 ## [3.0.0] - 2026-06-07 - v3.0.0 Live Read-Only Usage Lab
 
 v3.0.0 is a **live read-only usage** release. It adds the `zelynic usage` command family
@@ -1902,7 +1919,8 @@ movement).
 - `zelynic list`, `zelynic strict`, `zelynic unstrict`, `zelynic status` commands
 - Basic CLI interface with colored output
 
-[Unreleased]: https://github.com/oxyzenQ/zelynic/compare/v3.0.0...HEAD
+[Unreleased]: https://github.com/oxyzenQ/zelynic/compare/v3.0.1...HEAD
+[3.0.1]: https://github.com/oxyzenQ/zelynic/compare/v3.0.0...v3.0.1
 [3.0.0]: https://github.com/oxyzenQ/zelynic/compare/v2.9.0...v3.0.0
 [2.9.0]: https://github.com/oxyzenQ/zelynic/compare/v2.8.0...v2.9.0
 [2.5.0]: https://github.com/oxyzenq/zelynic/compare/v2.4.0...v2.5.0
