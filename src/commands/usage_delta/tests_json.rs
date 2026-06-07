@@ -76,7 +76,7 @@ pub(crate) fn run_delta_json_first_error_deps<R: DualSampleReader, S: SampleSlee
 mod tests {
     use super::*;
     use crate::cli::{Cli, Commands};
-    use clap::Parser;
+    use clap::{CommandFactory, Parser};
 
     /// Standard start sample for delta JSON tests.
     const DELTA_START: &str = "\
@@ -655,5 +655,67 @@ Inter-|   Receive                                                |  Transmit
             text.contains("zelynic usage --sample --delta"),
             "delta text output must contain human-readable header"
         );
+    }
+
+    // -- Phase 17b: usage help mentions delta JSON example --
+
+    #[test]
+    fn usage_help_mentions_delta_json_example() {
+        let mut command = Cli::command();
+        let usage_help = command
+            .find_subcommand_mut("usage")
+            .expect("usage subcommand must exist")
+            .render_long_help()
+            .to_string();
+        assert!(
+            usage_help.contains("usage --sample --delta --json"),
+            "usage --help must mention 'usage --sample --delta --json' example"
+        );
+    }
+
+    // -- Phase 17b: usage help does NOT contain stale "not yet implemented" --
+
+    #[test]
+    fn usage_help_does_not_say_delta_json_not_yet_implemented() {
+        let mut command = Cli::command();
+        let usage_help = command
+            .find_subcommand_mut("usage")
+            .expect("usage subcommand must exist")
+            .render_long_help()
+            .to_string();
+        assert!(
+            !usage_help.contains("not yet implemented"),
+            "usage --help must not contain 'not yet implemented': stale text found"
+        );
+    }
+
+    // -- Phase 17b: usage help does NOT say "text only" for delta --
+
+    #[test]
+    fn usage_help_does_not_say_text_only_for_delta() {
+        let mut command = Cli::command();
+        let usage_help = command
+            .find_subcommand_mut("usage")
+            .expect("usage subcommand must exist")
+            .render_long_help()
+            .to_string();
+        assert!(
+            !usage_help.contains("text only"),
+            "usage --help must not say 'text only' for delta: stale text found"
+        );
+    }
+
+    // -- Phase 17b: usage --sample --delta --json remains valid JSON --
+
+    #[test]
+    fn delta_json_remains_valid_json() {
+        let reader = FakeDualReader {
+            first_content: DELTA_START.to_string(),
+            second_content: DELTA_END_NORMAL.to_string(),
+        };
+        let sleeper = CountingSleeper::new();
+        let json_str = run_delta_json_with_deps(&reader, &sleeper).unwrap();
+        let _: serde_json::Value =
+            serde_json::from_str(&json_str).expect("delta JSON output must remain valid JSON");
     }
 }

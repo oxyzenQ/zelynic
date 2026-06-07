@@ -817,7 +817,7 @@ the only validated active limiter path.
   no limiter attach, no nft/tc/state mutation, no ledger persistence, no eBPF,
   no cgroup mutation, no PID movement, counters may reset after reboot,
   filesystem write not performed, state mutation not performed.
-- **1227 tests** across 2 binaries (5 skipped), all passing.
+- **1231 tests** across 2 binaries (5 skipped), all passing.
 - **`zelynic strict`** remains the only validated active limiter path.
 
 ## [2.9.0] - 2026-06-07 - v2.9.0 Network Accounting Lab
