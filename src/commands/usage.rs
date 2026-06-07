@@ -19,6 +19,7 @@
 //! - Does not read sysfs.
 //! - Does not implement loop/watch or delta sampling.
 //! - No filesystem persistence, no ledger file read/write.
+//! - `--delta --json` is now wired to the frozen phase 14 pure model (phase 15).
 
 use std::time::Duration;
 
@@ -30,7 +31,7 @@ use crate::accounting::{
     UsageJsonErrorType,
 };
 
-use crate::commands::usage_delta::handle_usage_delta;
+use crate::commands::usage_delta::{handle_usage_delta, handle_usage_delta_json};
 
 #[cfg(test)]
 use crate::accounting::{
@@ -44,8 +45,8 @@ use crate::accounting::{
 /// existing reader seam, and either renders text output or JSON output
 /// depending on the `--json` and `--delta` flags.
 ///
+/// - `--sample --delta --json`: two-sample delta JSON output (live read-only).
 /// - `--sample --delta`: two-sample delta text output (live read-only).
-/// - `--sample --delta --json`: rejected (delta JSON not yet implemented).
 /// - `--sample --json`: single-sample JSON output.
 /// - `--sample`: single-sample text output.
 ///
@@ -54,12 +55,7 @@ use crate::accounting::{
 /// Returns an error if the read or render fails (but never mutates state).
 pub fn handle_usage_sample(json: bool, delta: bool) -> Result<()> {
     if delta && json {
-        // Delta JSON is not yet implemented (phase 13).
-        // Reject before any live read.
-        eprintln!("error: --delta --json is not yet implemented.");
-        eprintln!("Use `zelynic usage --sample --delta` for text delta output.");
-        eprintln!("No live read was performed.");
-        return Ok(());
+        return handle_usage_delta_json();
     }
     if delta {
         return handle_usage_delta();

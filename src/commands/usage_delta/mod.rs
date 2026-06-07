@@ -31,4 +31,7 @@ pub(crate) mod render;
 #[cfg(test)]
 pub(crate) mod tests;
 
-pub(crate) use handler::handle_usage_delta;
+#[cfg(test)]
+pub(crate) mod tests_json;
+
+pub(crate) use handler::{handle_usage_delta, handle_usage_delta_json};
