@@ -15,7 +15,8 @@ use crate::accounting::{
 };
 
 use super::tests::{
-    CountingReader, CountingSleeper, DualSampleReader, FakeDualReader, SampleSleeper,
+    run_delta_with_deps, CountingReader, CountingSleeper, DualSampleReader, FakeDualReader,
+    SampleSleeper,
 };
 
 // -- Test injection point --------------------------------------------------
@@ -605,5 +606,54 @@ Inter-|   Receive                                                |  Transmit
         assert_eq!(parsed["totals"]["total_delta_tx_bytes"], 600000);
         assert_eq!(parsed["totals"]["total_delta_combined_bytes"], 1700000);
         assert_eq!(parsed["totals"]["interface_count"], 2);
+    }
+
+    // -- Phase 15b: Cross-command isolation: delta JSON is distinct from snapshot JSON --
+
+    #[test]
+    fn delta_json_output_distinct_from_snapshot_json() {
+        let reader = FakeDualReader {
+            first_content: DELTA_START.to_string(),
+            second_content: DELTA_END_NORMAL.to_string(),
+        };
+        let sleeper = CountingSleeper::new();
+        let json_str = run_delta_json_with_deps(&reader, &sleeper).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&json_str).unwrap();
+        // Delta JSON has fields that snapshot JSON does not
+        assert_eq!(parsed["sample_mode"], "delta");
+        assert_eq!(parsed["delta_wait_ms"], 1000);
+        assert_eq!(parsed["command"], "usage --sample --delta --json");
+        assert_eq!(parsed["sample_count"], 2);
+        assert_eq!(parsed["read_count"], 2);
+        assert!(parsed["start_sample"].is_object());
+        assert!(parsed["end_sample"].is_object());
+        // These fields must exist in delta JSON and NOT in snapshot JSON
+        assert!(parsed.get("sample_mode").is_some());
+        assert!(parsed.get("delta_wait_ms").is_some());
+        assert!(parsed.get("start_sample").is_some());
+        assert!(parsed.get("end_sample").is_some());
+    }
+
+    // -- Phase 15b: Cross-command isolation: delta text is human text, not JSON --
+
+    #[test]
+    fn delta_text_output_is_not_json() {
+        let reader = FakeDualReader {
+            first_content: DELTA_START.to_string(),
+            second_content: DELTA_END_NORMAL.to_string(),
+        };
+        let sleeper = CountingSleeper::new();
+        let text = run_delta_with_deps(&reader, &sleeper).unwrap();
+        let trimmed = text.trim_start();
+        assert!(
+            !trimmed.starts_with('{'),
+            "delta text output must not start with '{{' (JSON), got: {}",
+            &trimmed[..trimmed.len().min(30)]
+        );
+        // Delta text output should contain human-readable headers
+        assert!(
+            text.contains("zelynic usage --sample --delta"),
+            "delta text output must contain human-readable header"
+        );
     }
 }
