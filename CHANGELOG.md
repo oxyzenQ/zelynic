@@ -647,6 +647,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   finite and single-shot. `zelynic strict` remains the only validated active limiter
   path. Updated docs: lab doc (phase 13 completed, phase 14 current/model-only),
   phase 13 contract doc (phase 14 note), CHANGELOG.
+- **v3.0 phase 14b usage delta JSON validation freeze + test split / maintainability
+  refactor**: Validation/documentation/split phase freezing the pure delta JSON model
+  and serialization tests from phase 14 before wiring `--delta --json` to CLI.
+  Refactored `src/accounting/tests/usage_delta_json.rs` (973 LOC, 66 tests) into
+  a directory module with six focused files for maintainability:
+  `tests/usage_delta_json/mod.rs` (80 LOC, shared imports, sample data constants,
+  parse helper, module declarations),
+  `tests/usage_delta_json/success.rs` (489 LOC, 33 tests — success build,
+  validation, counter reset, interface add/remove, empty snapshots, u64::MAX,
+  saturating, determinism, serialization, round-trip, sample summaries),
+  `tests/usage_delta_json/errors.rs` (197 LOC, 17 tests — first/second read error,
+  unsupported flag, error warnings, serialization, round-trip error, deserialize
+  rejection, error type display),
+  `tests/usage_delta_json/warnings.rs` (56 LOC, 6 tests — default 13 warnings,
+  counter reset warnings, delta incomplete, not-per-app),
+  `tests/usage_delta_json/honesty.rs` (156 LOC, 7 tests — all 19 flags, default
+  constants, first/second read error honesty, error preserves all flags, serialized
+  JSON honesty),
+  `tests/usage_delta_json/safety.rs` (32 LOC, 3 tests — no CLI flag, no live
+  /proc/net/dev read, no filesystem write APIs). Preserved all 66 usage_delta_json
+  tests with identical behavior. No runtime behavior changes, no model type changes,
+  no serialization behavior changes, no output wording changes, no public API
+  changes, no CLI exposure, no JSON schema changes. Produced freeze document
+  (`docs/v3.0-phase-14b-usage-delta-json-validation-freeze.md`) summarizing phase
+  13 contract design, phase 14 pure model/serialization implementation, current test
+  counts, CLI still not wired, and why test split was needed. Updated docs: lab doc
+  (phase 14 completed, phase 14b current/freeze), phase 13 contract doc (phase
+  14/14b notes), CHANGELOG. No eBPF, no quota enforcement, no network blocking,
+  no limiter attach, no nft/tc mutation, no state mutation, no filesystem
+  persistence, no ledger file read/write, no PID move, no cgroup.procs write,
+  no sysfs read, no filesystem writes, no arbitrary path reads. Only allowed live
+  filesystem read is `/proc/net/dev`. CLI remains finite and single-shot. All
+  files under 1000 LOC. Refactor/split only. `zelynic strict` remains the only
+  validated active limiter path.
 
 ## [2.9.0] - 2026-06-07 - v2.9.0 Network Accounting Lab
 
