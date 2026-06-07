@@ -126,10 +126,10 @@ Verify the download with SHA256 checksums published alongside each release.
 
 Release naming convention:
 
-- Tag: `v2.5.0`
-- Title: `Zelynic v2.5.0 Scope Runner`
+- Tag: `v3.0.0`
+- Title: `Zelynic v3.0.0 Live Read-Only Usage Lab`
 
-See [docs/release-v2.5.0.md](docs/release-v2.5.0.md) for the v2.5.0 release notes.
+See the v3.0.0 changelog entry for release details.
 
 ### From Source
 
