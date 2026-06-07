@@ -10,12 +10,33 @@ Post-release documentation and installation polish to improve the user
 experience after the v3.0.0 release. This patch does NOT change runtime
 behavior, JSON schema, CLI flags, or enforcement logic.
 
+### Build Metadata Fix
+
+Fixed stale build commit hash in release binaries. The `build.rs` script
+runs `git rev-parse --short HEAD` to embed the current commit into the
+binary via the `GIT_HASH` env var, but was missing `cargo:rerun-if-changed`
+directives for git metadata files. Cargo's default fingerprinting only
+re-runs `build.rs` when package source files change — not when `.git/HEAD`
+or branch refs change. This caused release binaries built from a new commit
+to retain the old commit hash from a prior build cache.
+
+Added `cargo:rerun-if-changed=.git/HEAD` and
+`cargo:rerun-if-changed=.git/refs/` to `build.rs` so the build script
+re-executes whenever git HEAD advances, keeping `GIT_HASH` current without
+requiring `cargo clean`.
+
 ## What Changed
 
 ### Version Bump
 
 - `Cargo.toml`: `3.0.0` -> `3.0.1`
 - `Cargo.lock`: zelynic package `3.0.0` -> `3.0.1`
+
+### Build Metadata Fix
+
+- `build.rs`: Added `cargo:rerun-if-changed=.git/HEAD` and
+  `cargo:rerun-if-changed=.git/refs/` so the embedded `GIT_HASH` stays
+  current when git HEAD advances, without requiring `cargo clean`.
 
 ### README Improvements
 
@@ -113,6 +134,8 @@ git diff --check
 ## Release Checklist
 
 - [x] Version bumped to v3.0.1 in Cargo.toml and Cargo.lock
+- [x] build.rs rerun-if-changed directives added for .git/HEAD and .git/refs/
+- [x] Build commit metadata reports current HEAD after clean rebuild
 - [x] README download URLs updated for v3.0.1
 - [x] README install instructions include checksum verification
 - [x] README tarball extraction path and binary path documented
