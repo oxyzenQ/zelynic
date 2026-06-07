@@ -116,10 +116,10 @@ Download the latest release from [GitHub Releases](https://github.com/oxyzenq/ze
 
 ```bash
 # Download and extract
-curl -sL https://github.com/oxyzenq/zelynic/releases/latest/download/zelynic-v2.9.0-x86_64-linux.tar.gz | tar xz
+curl -sL https://github.com/oxyzenq/zelynic/releases/latest/download/zelynic-v3.0.0-x86_64-linux.tar.gz | tar xz
 
 # Install system-wide
-sudo install -Dm755 zelynic-v2.9.0-x86_64-linux/zelynic /usr/local/bin/zelynic
+sudo install -Dm755 zelynic-v3.0.0-x86_64-linux/zelynic /usr/local/bin/zelynic
 ```
 
 Verify the download with SHA256 checksums published alongside each release.
@@ -194,6 +194,7 @@ COMMANDS:
     backend                 Show backend info and capability checks
     completions             Generate shell completions
     man                     Generate man page
+    usage                   Show live interface usage (single snapshot or delta)
 ```
 
 ### List Network Usage
@@ -397,6 +398,26 @@ zelynic log --last 1h
 zelynic log --json
 ```
 
+### Live Interface Usage (v3.0)
+
+Show live interface counters from `/proc/net/dev` — single snapshot or delta between two samples:
+
+```bash
+# Single snapshot (text)
+zelynic usage --sample
+
+# Single snapshot (JSON)
+zelynic usage --sample --json
+
+# Delta between two samples (text)
+zelynic usage --sample --delta
+
+# Delta between two samples (JSON)
+zelynic usage --sample --delta --json
+```
+
+All usage commands are read-only, interface-level only, single-shot. No loop, no watch, no persistence, no enforcement.
+
 ### Presets
 
 Built-in presets for common use cases:
@@ -477,7 +498,7 @@ zelynic --check-update
 
 **Example output of `zelynic -V`:**
 ```
-Version: v2.9.0
+Version: v3.0.0
 Build: linux-x86_64 (COMMIT_HASH)
 Copyright: (c) 2026 Rezky_nightky
 License: GPL-3.0

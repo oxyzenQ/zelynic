@@ -752,6 +752,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   files under 1000 LOC. Refactor/split only. `zelynic strict` remains the only
   validated active limiter path.
 
+## [3.0.0] - 2026-06-07 - v3.0.0 Live Read-Only Usage Lab
+
+v3.0.0 is a **live read-only usage** release. It adds the `zelynic usage` command family
+that reads `/proc/net/dev` for live interface-level counters, with text and JSON output
+modes including finite two-sample delta computation. It does NOT implement eBPF, quota
+enforcement, network blocking, limiter attach, nftables/tc mutation, state mutation,
+PID movement, cgroup.procs writes, filesystem persistence, ledger file read/write, sysfs
+reads, or any configurable interval/loop/watch/daemon behavior. `zelynic strict` remains
+the only validated active limiter path.
+
+### Added
+
+- **v3.0 Live Read-Only Usage Lab**: 16 sequential phases (design through release
+  prep) delivering the `zelynic usage` command family for live read-only interface
+  counter sampling. Phases 1-15b span: design document, `/proc/net/dev` reader
+  seam, injected reader backend, test LOC split, CLI gate design, single-shot
+  `zelynic usage --sample` CLI, output honesty freeze, JSON output contract design,
+  pure JSON model + serialization tests, JSON model validation freeze, `--json`
+  CLI wiring, JSON CLI validation freeze, delta sampling design, pure delta
+  output model + render tests, `--delta` CLI gate design, two-sample delta CLI,
+  delta validation freeze, delta JSON contract design, pure delta JSON model +
+  serialization tests, delta JSON test split, delta JSON CLI wiring, delta JSON
+  CLI validation freeze + release readiness audit, and final release prep with
+  version bump to v3.0.0.
+- **`zelynic usage --sample`**: Single-shot read-only live interface counter
+  snapshot from `/proc/net/dev`. Reads exactly once, parses with existing parser,
+  renders with 13 honesty disclaimers. Requires `--sample` flag. Source path
+  hardcoded to `/proc/net/dev`. No arbitrary path input. No loop/watch. No
+  enforcement.
+- **`zelynic usage --sample --json`**: Machine-readable JSON output of live interface
+  counters. Schema version 1, 12 honesty boolean flags, error types (read_error,
+  parse_error, unsupported_flag_error), `sampled_at` omitted when not provided.
+  Single-shot only. JSON only to stdout.
+- **`zelynic usage --sample --delta`**: Finite two-sample read-only delta
+  computation. Reads `/proc/net/dev` exactly twice with bounded 1-second wait,
+  computes per-interface RX/TX deltas, renders with 16 safety disclaimers.
+  Counter reset/decrease detection with warnings.
+- **`zelynic usage --sample --delta --json`**: Machine-readable JSON delta output.
+  Schema version 1, sample_mode=delta, sample_count=2, read_count=2, start/end
+  samples, per-interface delta bytes/packets, delta totals, 12 honesty flags.
+  Delta text distinct from snapshot JSON. Cross-command isolation verified.
+- **Strict honesty flags**: All v3.0 output includes explicit honesty disclaimers:
+  interface-level only (not per-app), no quota enforcement, no network blocking,
+  no limiter attach, no nft/tc/state mutation, no ledger persistence, no eBPF,
+  no cgroup mutation, no PID movement, counters may reset after reboot,
+  filesystem write not performed, state mutation not performed.
+- **1227 tests** across 2 binaries (5 skipped), all passing.
+- **`zelynic strict`** remains the only validated active limiter path.
+
 ## [2.9.0] - 2026-06-07 - v2.9.0 Network Accounting Lab
 
 v2.9.0 is a **read-only accounting foundation** release. It does NOT implement
@@ -1834,7 +1883,8 @@ movement).
 - `zelynic list`, `zelynic strict`, `zelynic unstrict`, `zelynic status` commands
 - Basic CLI interface with colored output
 
-[Unreleased]: https://github.com/oxyzenq/zelynic/compare/v2.9.0...HEAD
+[Unreleased]: https://github.com/oxyzenQ/zelynic/compare/v3.0.0...HEAD
+[3.0.0]: https://github.com/oxyzenQ/zelynic/compare/v2.9.0...v3.0.0
 [2.9.0]: https://github.com/oxyzenQ/zelynic/compare/v2.8.0...v2.9.0
 [2.5.0]: https://github.com/oxyzenq/zelynic/compare/v2.4.0...v2.5.0
 [2.4.0]: https://github.com/oxyzenq/zelynic/compare/v2.3.0...v2.4.0
