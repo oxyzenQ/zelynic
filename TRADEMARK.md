@@ -8,7 +8,7 @@ This document governs the use of the **Zelynic** name, logo, and associated bran
 
 ## 1. Trademark Ownership
 
-The name **"Zelynic"** and all associated logos, icons, artwork, and visual identifiers (collectively, the **"Marks"**) are trademarks of the project creator (Rezky Nightky). These Marks are **not** covered by the MIT License granted to the source code.
+The name **"Zelynic"** and all associated logos, icons, artwork, and visual identifiers (collectively, the **"Marks"**) are trademarks of the project creator (`rezky_nightky (oxyzenQ)`). These Marks are **not** covered by the MIT License granted to the source code.
 
 Use of the Marks is permitted only as described in this policy. All other uses require prior written consent.
 
@@ -64,7 +64,7 @@ Forks and derivative works **must** clearly distinguish themselves from the orig
 A suggested attribution format:
 
 ```
-This project is a fork of Zelynic by Rezky Nightky.
+This project is a fork of Zelynic by rezky_nightky (oxyzenQ).
 Original repository: https://github.com/oxyzenQ/zelynic
 ```
 

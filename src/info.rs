@@ -10,9 +10,9 @@ pub const NAME: &str = "zelynic";
 pub fn build_target() -> &'static str {
     std::env::consts::ARCH
 }
-pub const COPYRIGHT: &str = "(c) 2026 Rezky_nightky";
+pub const COPYRIGHT: &str = "(c) 2026 rezky_nightky (oxyzenQ)";
 pub const LICENSE: &str = "GPL-3.0";
-pub const REPOSITORY: &str = "https://github.com/oxyzenq/zelynic";
+pub const REPOSITORY: &str = "https://github.com/oxyzenQ/zelynic";
 #[allow(dead_code)]
 pub const DESCRIPTION: &str = "Easy userspace bandwidth manager for Linux";
 
@@ -44,9 +44,9 @@ pub fn print_version() {
 /// ```text
 /// Version: v2.0.0
 /// Build: linux-x86_64 (ad36a81)
-/// Copyright: (c) 2026 Rezky_nightky
+/// Copyright: (c) 2026 rezky_nightky (oxyzenQ)
 /// License: GPL-3.0
-/// Source: https://github.com/oxyzenq/zelynic
+/// Source: https://github.com/oxyzenQ/zelynic
 /// ```
 pub fn print_info() {
     println!("Version: {}", version_string());
