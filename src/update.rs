@@ -4,7 +4,7 @@
 use std::process::Command;
 
 const GITHUB_API_URL: &str = "https://api.github.com/repos/oxyzenq/zelynic/releases/latest";
-const RELEASES_URL: &str = "https://github.com/oxyzenq/zelynic/releases/latest";
+const RELEASES_URL: &str = "https://github.com/oxyzenQ/zelynic/releases/latest";
 
 #[derive(Debug, PartialEq, Eq)]
 enum UpdateStatus {

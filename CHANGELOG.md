@@ -1925,10 +1925,10 @@ movement).
 [3.0.1]: https://github.com/oxyzenQ/zelynic/compare/v3.0.0...v3.0.1
 [3.0.0]: https://github.com/oxyzenQ/zelynic/compare/v2.9.0...v3.0.0
 [2.9.0]: https://github.com/oxyzenQ/zelynic/compare/v2.8.0...v2.9.0
-[2.5.0]: https://github.com/oxyzenq/zelynic/compare/v2.4.0...v2.5.0
-[2.4.0]: https://github.com/oxyzenq/zelynic/compare/v2.3.0...v2.4.0
-[2.3.0]: https://github.com/oxyzenq/zelynic/compare/v2.2.0...v2.3.0
-[2.2.0]: https://github.com/oxyzenq/zelynic/compare/v2.1.0...v2.2.0
-[2.1.0]: https://github.com/oxyzenq/zelynic/compare/v2.0.0...v2.1.0
-[2.0.0]: https://github.com/oxyzenq/zelynic/compare/v1.0.0...v2.0.0
-[1.0.0]: https://github.com/oxyzenq/zelynic/releases/tag/v1.0.0
+[2.5.0]: https://github.com/oxyzenQ/zelynic/compare/v2.4.0...v2.5.0
+[2.4.0]: https://github.com/oxyzenQ/zelynic/compare/v2.3.0...v2.4.0
+[2.3.0]: https://github.com/oxyzenQ/zelynic/compare/v2.2.0...v2.3.0
+[2.2.0]: https://github.com/oxyzenQ/zelynic/compare/v2.1.0...v2.2.0
+[2.1.0]: https://github.com/oxyzenQ/zelynic/compare/v2.0.0...v2.1.0
+[2.0.0]: https://github.com/oxyzenQ/zelynic/compare/v1.0.0...v2.0.0
+[1.0.0]: https://github.com/oxyzenQ/zelynic/releases/tag/v1.0.0

@@ -5,7 +5,7 @@
 # ZELYNIC BUILD AUTOMATION SCRIPT
 # =============================================================================
 # Optimized build script with intelligent core detection and advanced caching
-# Author: Rezky_nightky
+# Author: rezky_nightky (oxyzenQ)
 # Version: (read dynamically from Cargo.toml)
 
 set -euo pipefail

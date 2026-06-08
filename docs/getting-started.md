@@ -22,7 +22,7 @@ rustc --version             # Only if building from source (1.88+)
 
 ```bash
 # Download and extract the release archive
-curl -sL https://github.com/oxyzenq/zelynic/releases/latest/download/zelynic-v2.2.0-x86_64-linux.tar.gz | tar xz
+curl -sL https://github.com/oxyzenQ/zelynic/releases/latest/download/zelynic-v2.2.0-x86_64-linux.tar.gz | tar xz
 
 # Install system-wide
 sudo install -Dm755 zelynic-v2.2.0-x86_64-linux/zelynic /usr/local/bin/zelynic
@@ -33,13 +33,13 @@ Verify the download with the SHA256 checksums published alongside each release.
 ### Build from Source
 
 ```bash
-git clone https://github.com/oxyzenq/zelynic.git
+git clone https://github.com/oxyzenQ/zelynic.git
 cd zelynic
 cargo build --release
 sudo install -Dm755 target/release/zelynic /usr/local/bin/zelynic
 ```
 
-Release archives are available from [Releases](https://github.com/oxyzenq/zelynic/releases).
+Release archives are available from [Releases](https://github.com/oxyzenQ/zelynic/releases).
 
 ## Verify Installation
 
@@ -50,9 +50,9 @@ zelynic -i
 ```
 Version: v2.2.0
 Build: linux-x86_64 (abc1234)
-Copyright: (c) 2026 Rezky_nightky
+Copyright: (c) 2026 rezky_nightky (oxyzenQ)
 License: GPL-3.0
-Source: https://github.com/oxyzenq/zelynic
+Source: https://github.com/oxyzenQ/zelynic
 ```
 
 ## Quick Start

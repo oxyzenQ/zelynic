@@ -112,7 +112,7 @@ The strict limiter path is validated on tested modern cgroup v2 Linux hosts. Oth
 
 ### Download Release
 
-Download the latest release from [GitHub Releases](https://github.com/oxyzenq/zelynic/releases):
+Download the latest release from [GitHub Releases](https://github.com/oxyzenQ/zelynic/releases):
 
 ```bash
 # Download tarball and checksum
@@ -174,7 +174,7 @@ See the v3.0.1 changelog entry for release details.
 ### From Source
 
 ```bash
-git clone https://github.com/oxyzenq/zelynic.git
+git clone https://github.com/oxyzenQ/zelynic.git
 cd zelynic
 cargo build --release
 
@@ -540,9 +540,9 @@ zelynic --check-update
 ```
 Version: v3.0.1
 Build: linux-x86_64 (COMMIT_HASH)
-Copyright: (c) 2026 Rezky_nightky
+Copyright: (c) 2026 rezky_nightky (oxyzenQ)
 License: GPL-3.0
-Source: https://github.com/oxyzenq/zelynic
+Source: https://github.com/oxyzenQ/zelynic
 ```
 
 ## Building
@@ -575,10 +575,10 @@ supply-chain check details.
 
 ## License
 
-GNU General Public License v3.0 — Copyright (c) 2026 Rezky_nightky
+GNU General Public License v3.0 — Copyright (c) 2026 rezky_nightky (oxyzenQ)
 
 See [LICENSE](LICENSE) for details.
 
 ## Author
 
-**Rezky_nightky** — [GitHub](https://github.com/oxyzenq)
+**rezky_nightky (oxyzenQ)** — [GitHub](https://github.com/oxyzenQ)

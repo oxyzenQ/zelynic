@@ -233,7 +233,7 @@ fn test_version() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
         stdout.contains("Version:")
-            && stdout.contains("Source: https://github.com/oxyzenq/zelynic"),
+            && stdout.contains("Source: https://github.com/oxyzenQ/zelynic"),
         "Version should contain complete zelynic metadata"
     );
 }

@@ -56,7 +56,7 @@ jobs:
 
           # Generate man page
           chmod +x "dist/${PKG_NAME}/zelynic"
-          ./dist/${PKG_NAME}/zelynic man > "dist/${PKG_NAME}/man/zelynic.1" 2>/dev/null || true
+          "./dist/${PKG_NAME}/zelynic" man > "dist/${PKG_NAME}/man/zelynic.1" 2>/dev/null || true
           if [ -f "dist/${PKG_NAME}/man/zelynic.1" ]; then
             gzip -f "dist/${PKG_NAME}/man/zelynic.1"
           fi
@@ -134,37 +134,41 @@ jobs:
           RELEASE_FILE="/tmp/release_body.md"
 
           # --- Header: description only (title is set via 'name' field, no duplication) ---
-          echo "Easy userspace bandwidth manager for Linux — x86_64" > "${RELEASE_FILE}"
-          echo "" >> "${RELEASE_FILE}"
+          {
+            echo "Easy userspace bandwidth manager for Linux — x86_64"
+            echo ""
 
-          # --- Install ---
-          echo '### Install' >> "${RELEASE_FILE}"
-          echo '```bash' >> "${RELEASE_FILE}"
-          echo "tar -xzf ${PKG_NAME}.tar.gz" >> "${RELEASE_FILE}"
-          echo "sudo install -Dm755 ${PKG_NAME}/zelynic /usr/local/bin/zelynic" >> "${RELEASE_FILE}"
-          echo '```' >> "${RELEASE_FILE}"
-          echo "" >> "${RELEASE_FILE}"
+            # --- Install ---
+            echo '### Install'
+            echo '```bash'
+            echo "tar -xzf ${PKG_NAME}.tar.gz"
+            echo "sudo install -Dm755 ${PKG_NAME}/zelynic /usr/local/bin/zelynic"
+            echo '```'
+            echo ""
 
-          # --- Verify ---
-          echo '### Verify' >> "${RELEASE_FILE}"
-          echo '```bash' >> "${RELEASE_FILE}"
-          echo "sha256sum -c ${PKG_NAME}.tar.gz.sha256" >> "${RELEASE_FILE}"
-          echo '```' >> "${RELEASE_FILE}"
-          echo "" >> "${RELEASE_FILE}"
+            # --- Verify ---
+            echo '### Verify'
+            echo '```bash'
+            echo "sha256sum -c ${PKG_NAME}.tar.gz.sha256"
+            echo '```'
+            echo ""
 
-          # --- Quick Start ---
-          echo '### Quick Start' >> "${RELEASE_FILE}"
-          echo '```bash' >> "${RELEASE_FILE}"
-          echo 'zelynic list --live                             # Real-time TUI dashboard' >> "${RELEASE_FILE}"
-          echo 'sudo zelynic strict -d 1mb brave                # Limit bandwidth' >> "${RELEASE_FILE}"
-          echo 'sudo zelynic strict --preset gaming discord      # Use preset' >> "${RELEASE_FILE}"
-          echo 'zelynic --help-all                              # All commands' >> "${RELEASE_FILE}"
-          echo '```' >> "${RELEASE_FILE}"
-          echo "" >> "${RELEASE_FILE}"
+            # --- Quick Start ---
+            echo '### Quick Start'
+            echo '```bash'
+          } > "${RELEASE_FILE}"
+          {
+            echo 'zelynic list --live                             # Real-time TUI dashboard'
+            echo 'sudo zelynic strict -d 1mb brave                # Limit bandwidth'
+            echo 'sudo zelynic strict --preset gaming discord      # Use preset'
+            echo 'zelynic --help-all                              # All commands'
+            echo '```'
+            echo ""
 
-          # --- Changelog summary (compact) ---
-          echo "---" >> "${RELEASE_FILE}"
-          echo "**${COMMIT_COUNT} changes** since ${PREV_TAG:-first commit}  |  [Full Changelog](https://github.com/oxyzenq/zelynic/compare/${PREV_TAG:-$(git rev-list --max-parents=0 HEAD | cut -c1-7)}...${CURRENT_TAG})" >> "${RELEASE_FILE}"
+            # --- Changelog summary (compact) ---
+            echo "---"
+            echo "**${COMMIT_COUNT} changes** since ${PREV_TAG:-first commit}  |  [Full Changelog](https://github.com/oxyzenQ/zelynic/compare/${PREV_TAG:-$(git rev-list --max-parents=0 HEAD | cut -c1-7)}...${CURRENT_TAG})"
+          } >> "${RELEASE_FILE}"
 
           # Feed to GITHUB_OUTPUT
           {

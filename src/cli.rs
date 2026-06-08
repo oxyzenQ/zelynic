@@ -10,7 +10,7 @@ use clap::{Args, Parser, Subcommand, ValueEnum};
 #[command(
     name = "zelynic",
     version,
-    author = "Rezky_nightky <oxyzenq>",
+    author = "rezky_nightky (oxyzenQ)",
     about = "Easy userspace bandwidth manager for Linux",
     long_about = None,
     disable_version_flag = true,

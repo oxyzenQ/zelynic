@@ -14,7 +14,7 @@ guidelines and information for developers.
 ### Clone and Build
 
 ```bash
-git clone https://github.com/oxyzenq/zelynic.git
+git clone https://github.com/oxyzenQ/zelynic.git
 cd zelynic
 cargo build --release
 ```
@@ -186,8 +186,8 @@ The backend is auto-selected at runtime based on system capabilities.
 
 ## Questions?
 
-- Open an [issue](https://github.com/oxyzenq/zelynic/issues) for bugs
-- Start a [discussion](https://github.com/oxyzenq/zelynic/discussions) for questions
+- Open an [issue](https://github.com/oxyzenQ/zelynic/issues) for bugs
+- Start a [discussion](https://github.com/oxyzenQ/zelynic/discussions) for questions
 - Read the [ROADMAP.md](ROADMAP.md) for future plans
 
 ## License
