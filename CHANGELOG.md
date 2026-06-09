@@ -9,6 +9,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **v3.1 phase 4 pure Ledger Identity Report Model**: Added
+  `src/accounting/ledger_identity_report.rs` (385 LOC) with a pure report model
+  that summarizes `LedgerIdentityAttachment` values (from phase 3) into
+  deterministic report structures. Types: `LedgerIdentityReport` (top-level report
+  with totals, per-target breakdown, per-interface breakdown, scope counts, honesty
+  flags, provenance), `LedgerIdentityReportTarget` (per-target summary with
+  deterministic key, interface, attribution scope, optional process/cgroup identity
+  hints, byte totals, entry count), `LedgerIdentityReportInterface` (per-interface
+  aggregate with byte totals and entry count), `LedgerIdentityReportTotals`
+  (aggregate rx/tx/combined bytes and entry count), `LedgerIdentityReportHonesty`
+  (14 report-level honesty/safety flags: attribution_is_best_effort=true,
+  interface_level_data_source=true, per_app_attribution_may_be_partial=true,
+  interface_level_remains_authoritative=true, enforcement_inactive=true, all
+  persistence/mutation/enforcement flags false). Pure functions:
+  `build_ledger_identity_report(attachments)` builds deterministic report from a
+  slice of `LedgerIdentityAttachment` using BTreeMap for sorted grouping by
+  interface + scope + identity hints with saturating arithmetic,
+  `default_report_honesty()` returns default flags, `serialize_report_json()` and
+  `deserialize_report_json()` for JSON round-trip, `render_ledger_identity_report()`
+  for human-readable output with scope counts, interface/target breakdown, totals,
+  and 13 safety disclaimers (best-effort attribution, interface authoritative,
+  no enforcement, no persistence, no filesystem write, no network blocking, no
+  quota, no eBPF, no nft/tc mutation, no cgroup mutation, no daemon/watch). Design
+  decision: small additive module consuming existing phase 3 attachments, not
+  replacing `ledger_inspect`. All report types derive serde Serialize/Deserialize
+  using existing dependency — no new dependency added. 37 deterministic tests in
+  `src/accounting/tests/ledger_identity_report.rs` (510 LOC): empty report,
+  interface-only/process/cgroup/target-best-effort attachment reports, mixed
+  attachments, unknown target attachment, totals preserve rx/tx/combined bytes,
+  entry counts correct, deterministic ordering by interface/target key,
+  serialization round-trip, serialization deterministic, render output says
+  best-effort, render says interface authoritative, render says no enforcement/
+  persistence/filesystem write/network blocking/quota/eBPF/daemon-watch, no live
+  /proc reads structural, no filesystem read/write APIs, no CLI command structural,
+  no persistence enabled, no enforcement active, default honesty flags, no-identity
+  attachments, render includes target/interface/totals/daemon-watch sections, empty
+  serialization round-trip, deserialize rejects invalid, mixed no-identity + identity,
+  loopback interface. Module registered in `src/accounting/mod.rs` and
+  `src/accounting/tests/mod.rs`. All types re-exported via `pub(crate) use`. Phase 4
+  design doc: `docs/v3.1-phase-4-ledger-identity-report-model.md`. Phase 1/2/3 docs
+  updated with phase 4 completion notes. No CLI wiring. No live process scanning. No
+  persistence writes. No runtime resolver. No enforcement active. No existing v3.0
+  JSON schema change. No version bump. No new dependency.
+
 - **v3.1 phase 3 pure Ledger + Identity Alignment**: Added
   `src/accounting/ledger_identity.rs` (228 LOC) with a pure adapter model
   that connects existing ledger entries (`LedgerEntry` from v2.9) to the v3.1
