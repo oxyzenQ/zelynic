@@ -9,6 +9,7 @@
 
 pub(crate) mod backend;
 pub(crate) mod help;
+pub(crate) mod ledger;
 pub(crate) mod monitor;
 pub(crate) mod profile;
 pub(crate) mod run;
@@ -151,12 +152,9 @@ pub(crate) fn dispatch(cli: Cli, iface_value: Option<&str>) -> Result<()> {
             None => backend::handle_backend_info(),
         },
 
-        // v3.1 phase 6: design-gated ledger subcommand — always rejected.
+        // v3.1 phase 10: ledger inspect wired to fixture preview; export remains blocked.
         Some(Commands::Ledger { command }) => match command {
-            LedgerCommands::Inspect { .. } => Err(anyhow::anyhow!(
-                "{}",
-                render_design_gated_message("ledger inspect")
-            )),
+            LedgerCommands::Inspect { json } => ledger::handle_ledger_inspect(json),
             LedgerCommands::Export { .. } => Err(anyhow::anyhow!(
                 "{}",
                 render_design_gated_message("ledger export")
