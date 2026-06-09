@@ -7,6 +7,7 @@
 //! **no** live sysfs reads, **no** filesystem access, **no** network blocking,
 //! **no** quota enforcement, **no** eBPF, **no** PID movement, **no** cgroup writes.
 
+mod identity;
 mod interface_counters;
 mod ledger;
 mod ledger_inspect;

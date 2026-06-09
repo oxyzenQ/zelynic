@@ -9,6 +9,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **v3.1 phase 2 pure App Identity model**: Added `src/accounting/identity.rs`
+  with pure Rust data model types for app/target identity attribution as defined
+  in the v3.1 phase 1 contract. Types: `TargetIdentity` (composed wrapper with
+  optional process/cgroup/interface), `ProcessIdentity` (best-effort fields:
+  pid, comm, argv0, cmdline, executable_path), `CgroupIdentity` (cgroup_path,
+  systemd_unit, systemd_scope), `InterfaceIdentity` (name, loopback with
+  static `is_loopback_name()`), `ResolvedUsageTarget` (pairs identity with
+  `UsageAttributionScope`), `UsageAttributionScope` (enum: InterfaceOnly,
+  ProcessBestEffort, CgroupBestEffort, TargetBestEffort, Unknown), `IdentityHonesty`
+  (attribution_is_best_effort, interface_level_data_source,
+  per_app_attribution_may_be_partial, enforcement_active=false,
+  persistence_performed=false). Helper functions: `default_identity_honesty()`,
+  `render_resolved_target()` (human-readable output with best-effort disclaimers),
+  `serialize_identity_json()`, `deserialize_identity_json()`,
+  `serialize_identity_honesty()`. All types use serde derive with
+  `skip_serializing_if` for optional fields. No live filesystem reads, no
+  process scanning, no CLI wiring, no persistence, no enforcement. 43
+  deterministic tests in `src/accounting/tests/identity.rs`: empty/unknown
+  models, process identity with PID/comm/argv0/exe, cgroup identity with
+  path/systemd, interface loopback detection, resolved target with all scopes,
+  serialization round-trips, deterministic serialization, None-field omission,
+  honesty flag defaults, render output with best-effort statements, Display
+  impl, distinct scope variants, constructor validation, malformed JSON
+  rejection. Module registered in `src/accounting/mod.rs` and tests mod. Phase
+  2 design doc: `docs/v3.1-phase-2-pure-app-identity-model.md`. Phase 1
+  contract doc updated with phase 2 implementation note. No feature added.
+  No CLI behavior change. No JSON schema change. No runtime behavior change.
+  No version bump. No new dependency.
+
 - **v3.1 phase 1 App Identity + Network Ledger contract design**: Added design
   document (`docs/v3.1-phase-1-app-identity-network-ledger-contract.md`) defining
   the v3.1 direction for connecting usage data to app/target identity and
