@@ -9,6 +9,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **v3.1 phase 6 CLI Parser Gate Tests**: Added hidden clap variants for all 7
+  future v3.1 candidate commands defined in the phase 5 gate design document,
+  with dispatch-level rejection and 29 deterministic gate tests. Hidden usage
+  flags (`--session`, `--since-boot`, `--interface`, `--target`) added to
+  `Commands::Usage` in `src/cli.rs` (680 LOC) with `hide = true` and
+  `requires = "sample"`. Hidden `Commands::Ledger` subcommand with
+  `LedgerCommands::Inspect` and `LedgerCommands::Export` variants added to
+  `Commands` enum. `DESIGN_GATED_DISCLAIMERS` constant (10 safety disclaimers)
+  and `render_design_gated_message()` function added for dispatch-level
+  rejection output. Dispatch in `src/commands/mod.rs` (213 LOC) updated: ledger
+  subcommand always rejected with design-gated message; usage hidden flags
+  checked and rejected before existing `handle_usage_sample()` is called.
+  Existing v3.0 usage behavior fully preserved: `--sample` still required,
+  `--json` and `--delta` still require `--sample`, all 4 existing v3.0
+  usage commands unchanged in parser and dispatch. 29 gate tests in
+  `src/cli/v31_gate_tests.rs` (296 LOC): 5 hidden usage flag parsing tests
+  (session/since-boot/interface/target parse with --sample; all rejected
+  without --sample), 3 hidden ledger subcommand parsing tests (inspect,
+  inspect --json, export --json), 13 safety disclaimer output tests (exact
+  count 10, all-10 sweep, individual checks for design-gated/no live
+  resolver/no ledger persistence/no filesystem write/no enforcement/no
+  network blocking/no nft-tc mutation/no cgroup mutation/no eBPF/no PID
+  movement), 6 v3.0 usage regression tests (without-sample rejected,
+  --sample parses with all hidden defaults false/none, --sample --json,
+  --sample --delta, --sample --delta --json, --delta without --sample
+  rejected), 2 structural safety tests (ledger hidden from help, hidden
+  flags not in usage help). Existing usage handler test updated for
+  `--interface` now being a hidden design-gated flag. All files under 1000
+  LOC. Design doc: `docs/v3.1-phase-6-cli-parser-gate-tests.md`. Phase 1/5
+  docs updated with phase 6 completion notes. No working commands enabled.
+  No behavior change for existing v3.0 commands. No live process scanning.
+  No new /proc reads. No filesystem write. No ledger persistence write
+  enabled. No enforcement active. No existing v3.0 JSON schema change.
+  No version bump. No new dependency. No tag/release/publish.
+
 - **v3.1 phase 5 CLI Gate Design**: Added design document
   (`docs/v3.1-phase-5-cli-gate-design.md`) defining future CLI command gates
   for v3.1 App Identity + Network Ledger workflows. Docs/design only — no

@@ -19,7 +19,10 @@ pub(crate) mod usage_delta;
 use anyhow::Result;
 use clap::Parser;
 
-use crate::cli::{BackendCommands, Cli, Commands, ProfileCommands, QosCommands};
+use crate::cli::{
+    render_design_gated_message, BackendCommands, Cli, Commands, LedgerCommands, ProfileCommands,
+    QosCommands,
+};
 
 /// Top-level CLI dispatch: match parsed subcommand and delegate to focused handlers.
 pub(crate) fn dispatch(cli: Cli, iface_value: Option<&str>) -> Result<()> {
@@ -148,11 +151,56 @@ pub(crate) fn dispatch(cli: Cli, iface_value: Option<&str>) -> Result<()> {
             None => backend::handle_backend_info(),
         },
 
+        // v3.1 phase 6: design-gated ledger subcommand — always rejected.
+        Some(Commands::Ledger { command }) => match command {
+            LedgerCommands::Inspect { .. } => Err(anyhow::anyhow!(
+                "{}",
+                render_design_gated_message("ledger inspect")
+            )),
+            LedgerCommands::Export { .. } => Err(anyhow::anyhow!(
+                "{}",
+                render_design_gated_message("ledger export")
+            )),
+        },
+
+        // v3.0 usage: handle existing flags, reject future-gated flags.
         Some(Commands::Usage {
             sample: true,
             json,
             delta,
-        }) => usage::handle_usage_sample(json, delta),
+            session,
+            since_boot,
+            usage_interface,
+            usage_target,
+        }) => {
+            // Reject any future-gated flags that were parsed.
+            if session {
+                return Err(anyhow::anyhow!(
+                    "{}",
+                    render_design_gated_message("usage --session")
+                ));
+            }
+            if since_boot {
+                return Err(anyhow::anyhow!(
+                    "{}",
+                    render_design_gated_message("usage --since-boot")
+                ));
+            }
+            if usage_interface.is_some() {
+                return Err(anyhow::anyhow!(
+                    "{}",
+                    render_design_gated_message("usage --interface")
+                ));
+            }
+            if usage_target.is_some() {
+                return Err(anyhow::anyhow!(
+                    "{}",
+                    render_design_gated_message("usage --target")
+                ));
+            }
+            // No future-gated flags: proceed with existing v3.0 behavior.
+            usage::handle_usage_sample(json, delta)
+        }
 
         Some(Commands::Usage { sample: false, .. }) => usage::handle_usage_no_sample(),
 

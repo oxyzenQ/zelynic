@@ -232,6 +232,7 @@ Inter-|   Receive                                                |  Transmit
                 sample,
                 json,
                 delta,
+                ..
             } => {
                 assert!(sample);
                 assert!(delta);
@@ -263,6 +264,7 @@ Inter-|   Receive                                                |  Transmit
                 sample,
                 json,
                 delta,
+                ..
             } => {
                 assert!(sample);
                 assert!(json);

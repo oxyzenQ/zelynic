@@ -474,10 +474,22 @@ Inter-|   Receive                                                |  Transmit
             "--interval should not be accepted"
         );
 
-        // Verify that --interface is not accepted by the usage subcommand.
+        // --interface is now a v3.1 phase 6 hidden design-gated flag on usage.
+        // It parses but is hard-blocked at dispatch with safety disclaimers.
         let iface_result =
             Cli::try_parse_from(["zelynic", "usage", "--sample", "--interface", "eth0"]);
-        assert!(iface_result.is_err(), "--interface should not be accepted");
+        assert!(
+            iface_result.is_ok(),
+            "--interface should parse as hidden flag"
+        );
+        match iface_result.unwrap().command.unwrap() {
+            crate::cli::Commands::Usage {
+                usage_interface, ..
+            } => {
+                assert_eq!(usage_interface.as_deref(), Some("eth0"));
+            }
+            other => panic!("expected usage, got {other:?}"),
+        }
 
         // Verify that --watch is not accepted.
         let watch_result = Cli::try_parse_from(["zelynic", "usage", "--sample", "--watch"]);
@@ -643,6 +655,7 @@ Inter-|   Receive                                                |  Transmit
                 sample,
                 json,
                 delta,
+                ..
             } => {
                 assert!(sample);
                 assert!(!json);
