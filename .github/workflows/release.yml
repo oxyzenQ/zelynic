@@ -1,3 +1,6 @@
+# Copyright (C) 2026 rezky_nightky
+# SPDX-License-Identifier: GPL-3.0-only
+
 name: Release
 
 on:
@@ -167,7 +170,9 @@ jobs:
 
             # --- Changelog summary (compact) ---
             echo "---"
-            echo "**${COMMIT_COUNT} changes** since ${PREV_TAG:-first commit}  |  [Full Changelog](https://github.com/oxyzenQ/zelynic/compare/${PREV_TAG:-$(git rev-list --max-parents=0 HEAD | cut -c1-7)}...${CURRENT_TAG})"
+            COMPARE_URL="https://github.com/oxyzenQ/zelynic/compare/"
+            COMPARE_URL="${COMPARE_URL}${PREV_TAG:-$(git rev-list --max-parents=0 HEAD | cut -c1-7)}...${CURRENT_TAG}"
+            echo "**${COMMIT_COUNT} changes** since ${PREV_TAG:-first commit}  |  [Full Changelog](${COMPARE_URL})"
           } >> "${RELEASE_FILE}"
 
           # Feed to GITHUB_OUTPUT
