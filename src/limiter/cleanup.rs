@@ -15,6 +15,7 @@ use super::nft::refresh_nft_ip_rules;
 use super::process::{get_process_name, resolve_pids, sanitize_target_name};
 use super::state::ZelynicState;
 use super::tc::target_class_id;
+use super::traffic_proof::is_tunnel_interface;
 use super::{
     CGROUP_BASE, LEGACY_CGROUP_BASE, LEGACY_NFT_TABLE, LEGACY_STATE_DIR, NFT_TABLE, STATE_DIR,
 };
@@ -124,15 +125,27 @@ fn print_interface_change_warning(state: &ZelynicState) {
         return;
     }
 
+    // Check if stored interfaces include tunnel/VPN interfaces.
+    // When --iface is used with a VPN interface, the default route mismatch
+    // is expected and should not be presented as a failure.
+    let has_tunnel = stored_ifaces.iter().any(|i| is_tunnel_interface(i));
+
     println!(
         "{} Active limit interface differs from the current default route.",
         "Warning:".yellow().bold()
     );
     println!("  Current default interface: {}", default_iface.cyan());
     println!("  Stored limit interface(s): {}", stored_ifaces.join(", "));
-    println!(
-        "  Upload tc shaping remains attached to the stored interface. If the network changed, run 'sudo zelynic unstrict <target>' and re-apply strict on the current interface."
-    );
+    if has_tunnel {
+        println!("  Note: The stored interface appears to be a VPN/tunnel interface.");
+        println!(
+            "  This is expected when using --iface with a VPN interface; upload shaping remains attached to the stored interface."
+        );
+    } else {
+        println!(
+            "  Upload tc shaping remains attached to the stored interface. If the network changed, run 'sudo zelynic unstrict <target>' and re-apply strict on the current interface."
+        );
+    }
     println!();
 }
 

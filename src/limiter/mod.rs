@@ -65,6 +65,7 @@ mod reapply;
 mod refresh;
 mod state;
 mod tc;
+mod traffic_proof;
 
 pub use cgroup::{
     check_root, get_default_interface, list_interfaces, remove_cgroup, setup_cgroup,
@@ -100,6 +101,10 @@ use prereq::{ensure_conntrack, ensure_kernel_modules, force_reconnect_existing_s
 use process::{is_chromium_based_target, sanitize_target_name};
 use reapply::auto_clean_existing_limits;
 use tc::{ensure_htb_qdisc, target_class_id, TcTransaction};
+use traffic_proof::{
+    classify_traffic_proof, is_tunnel_interface, parse_nft_counter_lines_for_mark,
+    StrictTrafficProof, StrictTrafficProofStatus, TunnelInterfaceCheck,
+};
 
 /// Directory where Zelynic stores runtime state.
 const STATE_DIR: &str = "/run/zelynic";
@@ -119,6 +124,61 @@ const LEGACY_STATE_DIR: &str = "/run/oxy";
 const LEGACY_CGROUP_BASE: &str = "/sys/fs/cgroup/oxy";
 /// Legacy v2.0.0 nftables table name.
 const LEGACY_NFT_TABLE: &str = "oxy";
+
+/// Build a traffic proof assessment after nft rules are applied.
+///
+/// When `--diagnose` is used, reads nft counters to check if traffic has
+/// actually matched the installed cgroup/policer rules. Also checks if the
+/// interface is a tunnel/VPN interface and records whether it was explicitly
+/// specified.
+///
+/// This function does NOT change enforcement semantics — it is purely
+/// diagnostic/read-only.
+fn build_traffic_proof(
+    diagnostics: bool,
+    interface: &str,
+    explicit_iface: bool,
+    target_cg_path: &str,
+    target: &str,
+    mark: u32,
+) -> StrictTrafficProof {
+    // Tunnel interface detection (pure string check, always runs)
+    let tunnel = if is_tunnel_interface(interface) {
+        Some(TunnelInterfaceCheck {
+            is_tunnel: true,
+            interface_name: interface.to_string(),
+        })
+    } else {
+        None
+    };
+
+    // Counter read-back only when --diagnose is enabled
+    let (status, counters) = if diagnostics {
+        let nft_output = std::process::Command::new("nft")
+            .args(["list", "table", "inet", NFT_TABLE])
+            .output()
+            .ok()
+            .map(|o| String::from_utf8_lossy(&o.stdout).to_string())
+            .unwrap_or_default();
+
+        let relative = relative_cgroupv2_path(target_cg_path, target)
+            .unwrap_or_else(|_| format!("zelynic/target_{}", sanitize_target_name(target)));
+
+        let parsed = parse_nft_counter_lines_for_mark(&nft_output, &relative, mark as u64);
+        let status = classify_traffic_proof(&parsed);
+        (status, Some(parsed))
+    } else {
+        (StrictTrafficProofStatus::NotChecked, None)
+    };
+
+    StrictTrafficProof {
+        status,
+        counters,
+        tunnel,
+        explicit_interface: explicit_iface,
+    }
+}
+
 // Main: apply_limit
 
 /// Apply a bandwidth limit (strict) to a target process.
@@ -182,6 +242,7 @@ pub fn apply_limit_with_diagnostics(
         upload_rate,
         interface,
         diagnostics,
+        iface_override.is_some(),
     )
 }
 
@@ -192,6 +253,7 @@ pub(crate) fn apply_limit_to_resolved_pids(
     upload_rate: Option<BandwidthRate>,
     interface: String,
     diagnostics: bool,
+    explicit_interface: bool,
 ) -> Result<()> {
     let resolved_pids = dedupe_resolved_target_pids(resolved_pids)?;
     let (dl_bps, ul_bps, dl_display, ul_display) = (
@@ -730,6 +792,19 @@ pub(crate) fn apply_limit_to_resolved_pids(
 
     force_reconnect_existing_sockets(use_v2, &pids);
 
+    // --- Traffic proof assessment ---
+    // Read nft counters (diagnostic-only) and check for tunnel interfaces.
+    // This does NOT change enforcement semantics — it only makes output honest
+    // about the difference between "policy installed" and "traffic proven".
+    let traffic_proof = build_traffic_proof(
+        diagnostics,
+        &interface,
+        explicit_interface,
+        &target_cg_path,
+        target,
+        tid,
+    );
+
     print_strict_apply_summary(&StrictApplySummary {
         target,
         discovered_count,
@@ -744,6 +819,7 @@ pub(crate) fn apply_limit_to_resolved_pids(
         use_v2,
         target_cg_path: &target_cg_path,
         applied_count,
+        traffic_proof: &traffic_proof,
     });
 
     Ok(())
@@ -761,6 +837,7 @@ mod tests {
             None,
             None,
             "wlp1s0".to_string(),
+            false,
             false,
         )
         .unwrap_err()

@@ -11,6 +11,7 @@ use super::cgroup::{
 use super::cleanup::chrono_now;
 use super::process::resolve_pids;
 use super::state::{LimitRecord, ZelynicState};
+use super::traffic_proof::is_tunnel_interface;
 
 #[derive(Debug, PartialEq, Eq)]
 enum RefreshDiscovery {
@@ -227,6 +228,11 @@ pub fn refresh_limit(target: &str) -> Result<()> {
 
     if iface_mismatch {
         if let Some(current) = current_default {
+            // Check if stored interface is a tunnel/VPN interface.
+            // When --iface is used with a VPN interface, the default route
+            // mismatch is expected and should not be presented as a failure.
+            let stored_is_tunnel = is_tunnel_interface(&template.interface);
+
             println!();
             println!(
                 "{} Stored interface differs from the current default route.",
@@ -234,10 +240,17 @@ pub fn refresh_limit(target: &str) -> Result<()> {
             );
             println!("  Stored limit interface: {}", template.interface.cyan());
             println!("  Current default interface: {}", current.cyan());
-            println!(
-                "  Refresh keeps the existing tc attachment. Run 'sudo zelynic unstrict {}' and re-apply strict to migrate interfaces.",
-                template.target
-            );
+            if stored_is_tunnel {
+                println!("  Note: The stored interface appears to be a VPN/tunnel interface.");
+                println!(
+                    "  This is expected when using --iface with a VPN interface; upload shaping remains attached to the stored interface."
+                );
+            } else {
+                println!(
+                    "  Refresh keeps the existing tc attachment. Run 'sudo zelynic unstrict {}' and re-apply strict to migrate interfaces.",
+                    template.target
+                );
+            }
         }
     }
 

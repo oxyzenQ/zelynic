@@ -2,6 +2,9 @@
 // SPDX-License-Identifier: GPL-3.0-only
 use colored::Colorize;
 
+use super::traffic_proof::render_strict_traffic_proof;
+use super::traffic_proof::StrictTrafficProof;
+
 pub(super) struct StrictApplySummary<'a> {
     pub target: &'a str,
     pub discovered_count: usize,
@@ -16,6 +19,7 @@ pub(super) struct StrictApplySummary<'a> {
     pub use_v2: bool,
     pub target_cg_path: &'a str,
     pub applied_count: usize,
+    pub traffic_proof: &'a StrictTrafficProof,
 }
 
 pub(super) fn print_strict_apply_summary(summary: &StrictApplySummary<'_>) {
@@ -50,14 +54,21 @@ pub(super) fn print_strict_apply_summary(summary: &StrictApplySummary<'_>) {
             .join(", ")
     );
 
+    // Honesty wording: "policy installed" not "limited".
+    // "PID moved and verified" does NOT prove traffic is being shaped.
+    // The nft/tc policy is installed, but traffic matching is proven only
+    // when nft counters are non-zero (inspected via --diagnose).
     if let Some(dl) = summary.download_display {
-        println!("  Download:  {} (limited, nftables policer)", dl.cyan());
+        println!(
+            "  Download:  {} (policy installed, nftables policer)",
+            dl.cyan()
+        );
     } else {
         println!("  Download:  {}", "unlimited".dimmed());
     }
 
     if let Some(ul) = summary.upload_display {
-        println!("  Upload:    {} (limited, HTB)", ul.cyan());
+        println!("  Upload:    {} (policy installed, HTB)", ul.cyan());
     } else {
         println!("  Upload:    {}", "unlimited".dimmed());
     }
@@ -79,6 +90,11 @@ pub(super) fn print_strict_apply_summary(summary: &StrictApplySummary<'_>) {
             summary.target_cg_path
         );
     }
+
+    // Traffic proof section: honest status about whether traffic is actually
+    // being matched by the installed nft rules. Only populated when --diagnose
+    // is used (reads nft counters), otherwise shows "not checked".
+    render_strict_traffic_proof(summary.traffic_proof);
 
     println!();
     println!(
