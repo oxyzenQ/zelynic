@@ -25,6 +25,7 @@ mod identity;
 mod interface_counters;
 mod ledger;
 mod ledger_identity;
+mod ledger_identity_preview;
 mod ledger_identity_report;
 mod ledger_inspect;
 mod ledger_path;
@@ -61,6 +62,11 @@ pub(crate) use ledger::{
 pub(crate) use ledger_identity::{
     build_identity_attachment, build_interface_only_attachment, build_no_identity_attachment,
     render_identity_summary, render_ledger_identity_attachment, LedgerIdentityAttachment,
+};
+#[allow(unused_imports)]
+pub(crate) use ledger_identity_preview::{
+    build_ledger_identity_preview_report, deserialize_preview_report_json,
+    render_ledger_identity_preview_report, serialize_preview_report_json,
 };
 #[allow(unused_imports)]
 pub(crate) use ledger_identity_report::{
