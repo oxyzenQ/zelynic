@@ -179,7 +179,7 @@ pub(crate) fn generate_man_page() -> Result<()> {
 
     // Author
     man.push_str(".SH AUTHOR\n");
-    man.push_str("Written by rezky_nightky (oxyzenQ).\n");
+    man.push_str("Written by rezky_nightky (oxyzenQ) <with.rezky@gmail.com>.\n");
 
     // Print to stdout
     println!("{}", man);
