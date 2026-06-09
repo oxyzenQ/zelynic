@@ -24,6 +24,7 @@
 mod identity;
 mod interface_counters;
 mod ledger;
+mod ledger_identity;
 mod ledger_inspect;
 mod ledger_path;
 mod ledger_persistence;
@@ -54,6 +55,11 @@ pub(crate) use interface_counters::{
 pub(crate) use ledger::{
     add_session_delta_entry, add_snapshot_entry, deserialize_ledger_from_json, new_empty_ledger,
     render_ledger_summary, serialize_ledger_to_json, Ledger, LedgerEntry, LedgerError, ResetDetail,
+};
+#[allow(unused_imports)]
+pub(crate) use ledger_identity::{
+    build_identity_attachment, build_interface_only_attachment, build_no_identity_attachment,
+    render_identity_summary, render_ledger_identity_attachment, LedgerIdentityAttachment,
 };
 #[allow(unused_imports)]
 pub(crate) use ledger_inspect::{build_ledger_inspect, render_ledger_inspect, LedgerInspect};

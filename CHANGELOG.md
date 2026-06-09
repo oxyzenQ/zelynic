@@ -9,6 +9,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **v3.1 phase 3 pure Ledger + Identity Alignment**: Added
+  `src/accounting/ledger_identity.rs` (228 LOC) with a pure adapter model
+  that connects existing ledger entries (`LedgerEntry` from v2.9) to the v3.1
+  identity model (`ResolvedUsageTarget`, `TargetIdentity`,
+  `UsageAttributionScope`) without modifying the existing ledger serde schema.
+  Types: `LedgerIdentityAttachment` (wraps cloned `LedgerEntry` with optional
+  `ResolvedUsageTarget` and `IdentityHonesty`; `identity: None` means
+  interface-level only, `identity: Some(...)` means best-effort attribution).
+  Pure functions: `build_interface_only_attachment(entry)` creates
+  `InterfaceOnly` scope derived from entry's interface name (detects loopback),
+  `build_identity_attachment(entry, identity)` attaches pre-built identity,
+  `build_no_identity_attachment(entry)` creates default no-identity attachment,
+  `render_ledger_identity_attachment(attachment)` renders human-readable output
+  with best-effort disclaimers (when identity present: scope, identity fields,
+  "Identity attribution is best-effort."; when absent: "interface-level only
+  (no per-app identity)"; always: "No enforcement, no persistence, no
+  mutation."), `render_identity_summary(attachments)` renders multi-entry
+  summary with count breakdown and attribution scope list. Design decision:
+  separate adapter module approach chosen over adding identity fields to
+  `LedgerEntry` to preserve backward compatibility — existing ledger JSON
+  deserialization remains fully functional, existing safety invariants
+  (`attribution_scope == "interface-level only"`, `enforcement_status ==
+  "inactive/not implemented"`) remain validated. No duplicate ledger system
+  created — imports and reuses existing types from `ledger` and `identity`
+  modules. 29 deterministic tests in
+  `src/accounting/tests/ledger_identity.rs` (312 LOC): old entries without
+  identity still work (2), old ledger JSON deserializes without identity field,
+  interface-only identity with wlan0/lo/delta entries (3), process best-effort
+  identity with PID/comm/executable (1), cgroup best-effort identity with
+  cgroup_path/systemd_unit (1), serialization round-trip with
+  interface/process/cgroup identity (3), serialization determinism (1), no
+  live /proc reads structural (1), no filesystem APIs structural (1), no CLI
+  command structural (1), no persistence enabled (1), no enforcement flags
+  active (1), render output says interface-level only (1), render with
+  identity says best-effort (1), render process identity includes PID (1),
+  render cgroup identity includes cgroup_path (1), render no
+  enforcement/persistence (1), render loopback marker (1), summary render
+  empty/mixed/all-with-identity/best-effort-disclaimer (4), existing ledger
+  JSON backward compatible (2), attachment does not mutate original entry (1),
+  TargetBestEffort combined identity (1). Module registered in
+  `src/accounting/mod.rs` and `src/accounting/tests/mod.rs`. All types
+  re-exported via `pub(crate) use`. Phase 3 design doc:
+  `docs/v3.1-phase-3-ledger-identity-alignment.md`. Phase 1 contract doc
+  updated with phase 3 completion note. Phase 2 doc updated with phase 3
+  relationship. No CLI wiring. No live process scanning. No persistence writes.
+  No runtime resolver. No enforcement active. No existing v3.0 JSON schema
+  change. No version bump. No new dependency.
+
 - **v3.1 phase 2 pure App Identity model**: Added `src/accounting/identity.rs`
   with pure Rust data model types for app/target identity attribution as defined
   in the v3.1 phase 1 contract. Types: `TargetIdentity` (composed wrapper with
