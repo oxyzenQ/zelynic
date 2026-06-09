@@ -21,10 +21,11 @@
 //!
 //! # Phase 9 Scope
 //!
-//! Phase 9 implements the persistence I/O contract seam. No actual filesystem
-//! persistence occurs. All persistence plans are hard-blocked and perform no
-//! I/O. The contract exists only in memory during tests and future persistence
-//! phases.
+//! Phase 9 reviews and hardens the persistence I/O contract seam. Adds
+//! `symlink_blocked` and `hidden_state_directory_created` flags (always false)
+//! and 14th/15th render disclaimers. No actual filesystem persistence occurs.
+//! All persistence plans are hard-blocked and perform no I/O. The contract
+//! exists only in memory during tests and future persistence phases.
 
 #![allow(dead_code)]
 
@@ -121,6 +122,10 @@ pub struct LedgerPersistencePlan {
     pub state_mutation_performed: bool,
     /// Always false — persistence is not enabled in v2.9.
     pub persistence_enabled: bool,
+    /// Always false — no symlink resolution was performed.
+    pub symlink_blocked: bool,
+    /// Always false — no hidden state directory was created.
+    pub hidden_state_directory_created: bool,
 }
 
 /// Build a persistence plan for a ledger read operation.
@@ -197,6 +202,8 @@ fn build_persistence_plan(
             file_remove_performed: false,
             state_mutation_performed: false,
             persistence_enabled: false,
+            symlink_blocked: false,
+            hidden_state_directory_created: false,
         };
     }
 
@@ -217,6 +224,8 @@ fn build_persistence_plan(
         file_remove_performed: false,
         state_mutation_performed: false,
         persistence_enabled: false,
+        symlink_blocked: false,
+        hidden_state_directory_created: false,
     }
 }
 
@@ -225,7 +234,7 @@ fn build_persistence_plan(
 /// The output includes the planned operation, path information, blocked
 /// status, model flags, and comprehensive safety disclaimers.
 ///
-/// # Safety Disclaimers (12 total)
+/// # Safety Disclaimers (14 total)
 ///
 /// 1. persistence I/O seam is hard-blocked
 /// 2. no filesystem read was performed
@@ -239,6 +248,8 @@ fn build_persistence_plan(
 /// 10. no live /proc or sysfs read was performed
 /// 11. no quota enforcement or network blocking is active
 /// 12. no nft/tc/Zelynic state mutation was performed
+/// 13. no symlink resolution was performed
+/// 14. no hidden state directory was created
 pub fn render_ledger_persistence_plan(plan: &LedgerPersistencePlan) -> String {
     let mut out = String::new();
 
@@ -319,9 +330,14 @@ pub fn render_ledger_persistence_plan(plan: &LedgerPersistencePlan) -> String {
         "Persistence enabled: {}\n",
         plan.persistence_enabled
     ));
+    out.push_str(&format!("Symlink blocked: {}\n", plan.symlink_blocked));
+    out.push_str(&format!(
+        "Hidden state directory created: {}\n",
+        plan.hidden_state_directory_created
+    ));
     out.push('\n');
 
-    // 12 safety disclaimers
+    // 14 safety disclaimers
     out.push_str("Safety disclaimers:\n");
     out.push_str("  - persistence I/O seam is hard-blocked\n");
     out.push_str("  - no filesystem read was performed\n");
@@ -335,6 +351,8 @@ pub fn render_ledger_persistence_plan(plan: &LedgerPersistencePlan) -> String {
     out.push_str("  - no live /proc or sysfs read was performed\n");
     out.push_str("  - no quota enforcement or network blocking is active\n");
     out.push_str("  - no nft/tc/Zelynic state mutation was performed\n");
+    out.push_str("  - no symlink resolution was performed\n");
+    out.push_str("  - no hidden state directory was created\n");
 
     out
 }

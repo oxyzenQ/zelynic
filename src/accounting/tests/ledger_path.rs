@@ -1,7 +1,7 @@
 // Copyright (C) 2026 rezky_nightky
 // SPDX-License-Identifier: GPL-3.0-only
 //!
-//! Pure ledger path planning model tests for v2.9 phase 8.
+//! Pure ledger path planning model tests for v3.1 phase 9.
 //!
 //! All tests use string inputs — **no** filesystem reads or writes,
 //! **no** live `/proc/net/dev` reads, **no** live sysfs reads,
@@ -155,6 +155,7 @@ fn test_model_does_not_canonicalize_live_filesystem() {
     assert!(!plan.filesystem_read_performed);
     assert!(!plan.filesystem_write_performed);
     assert!(!plan.persistence_enabled);
+    assert!(!plan.symlink_resolution_performed);
 }
 
 #[test]
@@ -239,6 +240,13 @@ fn test_render_denies_nft_tc_state_mutation() {
     assert!(rendered.contains("no nft/tc/Zelynic state mutation was performed"));
 }
 
+#[test]
+fn test_render_denies_symlink_resolution() {
+    let plan = build_default_ledger_path_plan("/home/user/.local/share");
+    let rendered = render_ledger_path_plan(&plan);
+    assert!(rendered.contains("no symlink resolution was performed"));
+}
+
 // ── Structural/safety tests ───────────────────────────────────────
 
 #[test]
@@ -307,6 +315,7 @@ fn test_render_rejected_plan_denies_filesystem() {
     assert!(rendered.contains("no live /proc or sysfs read was performed"));
     assert!(rendered.contains("no quota enforcement or network blocking is active"));
     assert!(rendered.contains("no nft/tc/Zelynic state mutation was performed"));
+    assert!(rendered.contains("no symlink resolution was performed"));
 }
 
 // ── PathError display tests ─────────────────────────────────────────
@@ -392,4 +401,107 @@ fn test_double_slash_base_handled() {
     // The path is built by joining, so double slashes may appear
     assert!(plan.full_ledger_path.contains("zelynic"));
     assert!(plan.full_ledger_path.contains("network-ledger-v1.json"));
+}
+
+// ── Phase 9 seam hardening tests ───────────────────────────────────
+
+#[test]
+fn test_symlink_resolution_flag_always_false_accepted() {
+    let plan = build_default_ledger_path_plan("/home/user/.local/share");
+    assert!(!plan.symlink_resolution_performed);
+}
+
+#[test]
+fn test_symlink_resolution_flag_always_false_rejected() {
+    let plan = build_ledger_path_plan("", "zelynic", "network-ledger-v1.json");
+    assert!(!plan.symlink_resolution_performed);
+}
+
+#[test]
+fn test_symlink_resolution_flag_always_false_absolute() {
+    let plan = build_ledger_path_plan("/home/user/.local/share", "zelynic", "/etc/passwd");
+    assert!(!plan.symlink_resolution_performed);
+}
+
+#[test]
+fn test_symlink_resolution_flag_always_false_traversal() {
+    let plan = build_ledger_path_plan("/home/user/.local/share", "zelynic", "../etc/passwd");
+    assert!(!plan.symlink_resolution_performed);
+}
+
+#[test]
+fn test_render_rejected_includes_symlink_disclaimer() {
+    let plan = build_ledger_path_plan("/home/user/../etc", "zelynic", "network-ledger-v1.json");
+    let rendered = render_ledger_path_plan(&plan);
+    assert!(rendered.contains("no symlink resolution was performed"));
+}
+
+#[test]
+fn test_all_model_flags_false_for_accepted_plan() {
+    let plan = build_default_ledger_path_plan("/home/user/.local/share");
+    assert!(plan.model_only);
+    assert!(!plan.filesystem_read_performed);
+    assert!(!plan.filesystem_write_performed);
+    assert!(!plan.persistence_enabled);
+    assert!(!plan.symlink_resolution_performed);
+}
+
+#[test]
+fn test_all_model_flags_false_for_rejected_plan() {
+    let plan = build_ledger_path_plan("", "zelynic", "network-ledger-v1.json");
+    assert!(plan.model_only);
+    assert!(!plan.filesystem_read_performed);
+    assert!(!plan.filesystem_write_performed);
+    assert!(!plan.persistence_enabled);
+    assert!(!plan.symlink_resolution_performed);
+}
+
+#[test]
+fn test_comprehensive_render_disclaimer_sweep_accepted() {
+    let plan = build_default_ledger_path_plan("/home/user/.local/share");
+    let rendered = render_ledger_path_plan(&plan);
+    let required_disclaimers = [
+        "persistence path model only",
+        "no filesystem read was performed",
+        "no filesystem write was performed",
+        "no ledger file was created",
+        "no ledger file was read",
+        "persistence is not enabled",
+        "no live /proc or sysfs read was performed",
+        "no quota enforcement or network blocking is active",
+        "no nft/tc/Zelynic state mutation was performed",
+        "no symlink resolution was performed",
+    ];
+    for disclaimer in &required_disclaimers {
+        assert!(
+            rendered.contains(disclaimer),
+            "accepted plan render missing disclaimer: {:?}",
+            disclaimer
+        );
+    }
+}
+
+#[test]
+fn test_comprehensive_render_disclaimer_sweep_rejected() {
+    let plan = build_ledger_path_plan("/home/user/.local/share", "zelynic", "ledger;rm -rf /");
+    let rendered = render_ledger_path_plan(&plan);
+    let required_disclaimers = [
+        "persistence path model only",
+        "no filesystem read was performed",
+        "no filesystem write was performed",
+        "no ledger file was created",
+        "no ledger file was read",
+        "persistence is not enabled",
+        "no live /proc or sysfs read was performed",
+        "no quota enforcement or network blocking is active",
+        "no nft/tc/Zelynic state mutation was performed",
+        "no symlink resolution was performed",
+    ];
+    for disclaimer in &required_disclaimers {
+        assert!(
+            rendered.contains(disclaimer),
+            "rejected plan render missing disclaimer: {:?}",
+            disclaimer
+        );
+    }
 }
