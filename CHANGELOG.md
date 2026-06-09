@@ -9,6 +9,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **v3.1 phase 8 Explicit Persistence Design Freeze**: Added design document
+  (`docs/v3.1-phase-8-explicit-persistence-design-freeze.md`) defining the
+  future persistence contract before any implementation work. Nine sections:
+  Purpose (explicit user command only, no hidden writes, no daemon, no auto-save,
+  no network enforcement), Current Baseline (v3.0.1 usage commands live read-only,
+  v3.1 identity/report/preview layers pure model or fixture-only, existing
+  `ledger_persistence` module hard-blocked, no CLI reads or writes ledger
+  files), Future Persistence Principles (7 frozen principles: explicit user
+  command, no silent write, no auto-save, no background process, no network
+  enforcement, no permission/block/allow, no system state mutation), Future
+  Ledger File Lifecycle (design only: JSON format via existing `Ledger`
+  serialization with `schema_version: 1`, file location via existing
+  `build_ledger_path_plan()` with XDG default `~/.local/share/zelynic/`,
+  atomic write design with temp file + fsync + rename sequence, backup
+  strategy with `.bak` file, corruption handling for parse/schema/validation
+  errors), Persistence Safety Gates (13 required gates: path validation,
+  schema validation, explicit command, explicit output path, dry-run mode
+  first, no overwrite without explicit flag, atomic temp file design,
+  checksum/integrity marker design, backup design, no symlink surprises,
+  no parent traversal, no absolute unsafe path unless explicitly allowed,
+  no hidden state directory without documentation), Future Command Candidates
+  (6 candidates: `zelynic ledger inspect`, `zelynic ledger inspect --json`,
+  `zelynic ledger export --json`, `zelynic ledger save --dry-run`,
+  `zelynic ledger save --output <path>`, `zelynic ledger validate <path>`
+  — all remain not implemented), JSON/Schema Policy (v3.0 usage JSON
+  `schema_version: 1` frozen, future ledger JSON uses separate schema,
+  old ledger schema compatibility protected, schema migration must be
+  explicit and tested), Non-Goals (16 explicit exclusions), Future
+  Implementation Sequence (phases 9-14+: seam model review, read-only
+  inspect from fixture behind gated command, path validation hardening,
+  explicit file read design/gate, export-only JSON command, save/write
+  only after separate freeze). Phase 1/5/6/7 docs updated with phase 8
+  completion notes. Docs/design only. Persistence remains disabled. No
+  runtime behavior change. No JSON schema change. No CLI behavior change.
+  No version bump. No new dependency. No tag/release/publish.
+
 - **v3.1 phase 7 Read-Only Report Preview Using In-Memory Fixtures**: Added
   `src/accounting/ledger_identity_preview.rs` (148 LOC) with a pure fixture-based
   preview path that builds a `LedgerIdentityReport` from in-memory fixture data only.
