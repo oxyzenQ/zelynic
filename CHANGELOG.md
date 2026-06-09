@@ -9,6 +9,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **v3.1 phase 1 App Identity + Network Ledger contract design**: Added design
+  document (`docs/v3.1-phase-1-app-identity-network-ledger-contract.md`) defining
+  the v3.1 direction for connecting usage data to app/target identity and
+  preparing ledger/history reporting. Phase 1 is docs/design only: defines future
+  identity model types (`TargetIdentity`, `ProcessIdentity`, `CgroupIdentity`,
+  `InterfaceIdentity`, `ResolvedUsageTarget`, `UsageAttributionScope`), identity
+  sources (comm, argv0, exe_path, PID, cgroup path, systemd unit, interface name,
+  boot/session ID) with stability classifications (stable, unstable, best-effort),
+  ledger concept types (`UsageLedger`, `UsageSession`, `UsageSampleEntry`,
+  `UsageDeltaEntry`, `TargetUsageEntry`, `InterfaceUsageEntry`, `LedgerProvenance`,
+  `LedgerHonesty`), ledger storage boundary design (explicit, user-visible,
+  test-gated, no hidden background write, no daemon, no auto-start), future report
+  views (since-session, since-boot, per-interface, per-target, top consumers,
+  human-readable, JSON), future command candidates (`zelynic usage --session`,
+  `--since-boot`, `--interface`, `--target`, `zelynic ledger inspect`,
+  `zelynic ledger inspect --json`, `zelynic ledger export --json`), JSON contract
+  direction (schema_version=2, report_mode, source, session, interfaces, targets,
+  totals, warnings, honesty, error), and honesty/safety flags (attribution best-effort,
+  interface-level data source, per-app attribution partial, persistence/network
+  blocking/quota enforcement/nft-tc/cgroup/ebpf/daemon/single-shot flags).
+  Explicitly documents non-goals: no runtime code, no CLI behavior change,
+  no version bump, no persistence, no app identity resolver, no permission/block/allow,
+  no quota guard, no eBPF, no nft/tc/cgroup mutation, no PID move, no daemon/watch.
+  v3.1 follows the safety progression: observe (v3.0) → identify → record → report
+  (v3.1) → enforce (future). v3.1 covers identify → record → report only. Proposes
+  8-phase implementation roadmap (phase 1 contract design, phase 2 pure identity
+  model, phase 3 pure ledger schema, phase 4 ledger report model, phase 5 CLI gate
+  design, phase 6 read-only preview, phase 7 explicit persistence design, phase 8+
+  gated persistence). No runtime behavior change. No JSON schema change. No CLI
+  behavior change. No new dependency. No version bump.
+
 - **v3.0 Live Read-Only Usage Lab design**: Added design document
   (`docs/v3.0-live-read-only-usage-lab.md`) for the v3.0 live read-only usage
   milestone. Phase 1 is design-only: defines the future command contract
