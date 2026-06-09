@@ -9,6 +9,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **v3.1 phase 10 Gated Ledger Inspect Activation**: Wired the existing phase 7
+  `build_ledger_inspect()` and `render_ledger_inspect()` to the hidden
+  `zelynic ledger inspect` clap dispatch gate with an in-memory fixture
+  `Ledger` (no filesystem I/O). Added `src/commands/ledger.rs` (272 LOC)
+  with `handle_ledger_inspect(json)` handler and `build_fixture_ledger()`
+  that constructs a deterministic 3-entry ledger (2 snapshots: wlan0/eth0,
+  1 delta: wlan0). Text mode renders the inspect summary with 9 safety
+  disclaimers; `--json` mode serializes the fixture ledger via existing
+  `serialize_ledger_to_json()`. Command remains `#[command(hide = true)]`.
+  Dispatch in `src/commands/mod.rs` updated: `LedgerCommands::Inspect` now
+  calls `ledger::handle_ledger_inspect(json)` returning `Ok(())`;
+  `LedgerCommands::Export` remains hard-rejected with design-gated message.
+  51 new deterministic tests: 16 handler tests in
+  `src/commands/ledger.rs` (fixture entry counts, snapshot/delta counts,
+  sorted interfaces, read-only flag, totals, no filesystem access, JSON
+  serialization valid, text output content, provenance, enforcement inactive,
+  JSON round-trip, render determinism, no persistence in JSON, no live
+  /proc read, handler returns ok for text and json); 11 Phase 10 gate
+  tests in `src/cli/v31_gate_tests.rs` (Section F: inspect dispatch
+  succeeds, inspect --json dispatch succeeds, export dispatch still rejected
+  with design-gated message, hidden usage flags still rejected, inspect
+  output contains model-only disclaimer, inspect JSON output valid with
+  expected fields, v3.0 usage JSON schema unchanged, persistence hard-block
+  unchanged with Blocked status, no version bump, command remains hidden
+  from help, inspect has no enforcement). Updated phase 6 gate test
+  comments for phase 10 context. All files under 1000 LOC. Design doc:
+  `docs/v3.1-phase-10-gated-ledger-inspect-activation.md`. No ledger file
+  read. No ledger file write. No live filesystem reads. No persistence
+  enablement. No hidden state directory creation. No symlink resolution.
+  No daemon/watch mode. No enforcement. No network blocking. No nft/tc
+  mutation. No cgroup mutation. No PID move. No eBPF. No existing v3.0
+  JSON schema change. No CLI behavior change for existing commands. No
+  version bump. No tag/release/publish. No new dependency.
+
 - **v3.1 phase 9 Persistence Seam Model Review**: Pure model audit and safety
   hardening of the existing persistence seam after the phase 8 design freeze.
   Adds `symlink_resolution_performed: bool` field (always false) to

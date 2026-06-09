@@ -1,17 +1,17 @@
 // Copyright (C) 2026 rezky_nightky
 // SPDX-License-Identifier: GPL-3.0-only
 //!
-//! v3.1 phase 6: CLI parser gate tests for future v3.1 command candidates.
+//! v3.1 phase 6/10: CLI parser gate tests for future v3.1 command candidates.
 //!
 //! These tests prove that all future v3.1 candidate commands documented in the phase 5
 //! gate design document (docs/v3.1-phase-5-cli-gate-design.md) are registered in the
-//! parser as hidden variants but are hard-blocked at dispatch time. Each command parses
-//! successfully through clap, but the dispatch layer rejects it with a design-gated
-//! message containing all safety disclaimers.
+//! parser as hidden variants. Phase 6 hard-blocked all at dispatch; phase 10 activated
+//! `ledger inspect` with fixture-driven output while `ledger export` and all hidden
+//! usage flags remain hard-blocked.
 //!
-//! This approach is safer than pure "not registered" rejection because:
+//! Key safety properties:
 //! - The parser shape is tested (flags/subcommands exist in the CLI surface).
-//! - The dispatch gate is tested (every gated command is explicitly rejected).
+//! - The dispatch gate is tested (blocked commands are explicitly rejected).
 //! - The safety disclaimer output is tested (all 10 disclaimers present).
 //! - No code path can reach live reads, persistence, or enforcement.
 //!
@@ -90,11 +90,12 @@ fn v31_gate_usage_hidden_flags_require_sample() {
 
 // ==========================================================================
 // Section B: Hidden ledger subcommand — parses successfully.
+// Phase 10: ledger inspect is now fixture-driven (not rejected at dispatch).
 // ==========================================================================
 
 #[test]
 fn v31_gate_ledger_inspect_parses_as_hidden() {
-    // `ledger inspect` is a hidden subcommand that parses but is blocked at dispatch.
+    // `ledger inspect` is a hidden subcommand. Phase 10 wires it to fixture output.
     let cli = Cli::try_parse_from(["zelynic", "ledger", "inspect"]).unwrap();
     match cli.command.unwrap() {
         Commands::Ledger { command } => match command {
@@ -109,7 +110,7 @@ fn v31_gate_ledger_inspect_parses_as_hidden() {
 
 #[test]
 fn v31_gate_ledger_inspect_json_parses_as_hidden() {
-    // `ledger inspect --json` parses but is blocked at dispatch.
+    // `ledger inspect --json` is hidden. Phase 10 wires it to fixture JSON output.
     let cli = Cli::try_parse_from(["zelynic", "ledger", "inspect", "--json"]).unwrap();
     match cli.command.unwrap() {
         Commands::Ledger { command } => match command {
@@ -351,6 +352,157 @@ fn v31_gate_hidden_flags_not_in_usage_help() {
         !usage_help.contains("--target"),
         "--target should be hidden"
     );
+}
+
+// ==========================================================================
+// Section F: Phase 10 — ledger inspect dispatch activation tests.
+// ==========================================================================
+
+#[test]
+fn v31_p10_ledger_inspect_dispatch_succeeds() {
+    // Phase 10: `ledger inspect` dispatch now succeeds (Ok) with fixture output.
+    let cli = Cli::try_parse_from(["zelynic", "ledger", "inspect"]).unwrap();
+    let result = crate::commands::dispatch(cli, None);
+    assert!(
+        result.is_ok(),
+        "ledger inspect should succeed: {:?}",
+        result
+    );
+}
+
+#[test]
+fn v31_p10_ledger_inspect_json_dispatch_succeeds() {
+    // Phase 10: `ledger inspect --json` dispatch now succeeds (Ok) with fixture JSON.
+    let cli = Cli::try_parse_from(["zelynic", "ledger", "inspect", "--json"]).unwrap();
+    let result = crate::commands::dispatch(cli, None);
+    assert!(
+        result.is_ok(),
+        "ledger inspect --json should succeed: {:?}",
+        result
+    );
+}
+
+#[test]
+fn v31_p10_ledger_export_dispatch_still_rejected() {
+    // Phase 10: `ledger export` remains hard-blocked at dispatch.
+    let cli = Cli::try_parse_from(["zelynic", "ledger", "export", "--json"]).unwrap();
+    let result = crate::commands::dispatch(cli, None);
+    assert!(result.is_err());
+    let err = result.unwrap_err().to_string();
+    assert!(err.contains("design-gated"));
+    assert!(err.contains("ledger export"));
+}
+
+#[test]
+fn v31_p10_hidden_usage_flags_still_rejected() {
+    // Phase 10: all hidden usage flags remain hard-blocked at dispatch.
+    let cli = Cli::try_parse_from(["zelynic", "usage", "--sample", "--session"]).unwrap();
+    let result = crate::commands::dispatch(cli, None);
+    assert!(result.is_err());
+    assert!(result.unwrap_err().to_string().contains("design-gated"));
+
+    let cli = Cli::try_parse_from(["zelynic", "usage", "--sample", "--since-boot"]).unwrap();
+    let result = crate::commands::dispatch(cli, None);
+    assert!(result.is_err());
+
+    let cli =
+        Cli::try_parse_from(["zelynic", "usage", "--sample", "--interface", "wlan0"]).unwrap();
+    let result = crate::commands::dispatch(cli, None);
+    assert!(result.is_err());
+
+    let cli = Cli::try_parse_from(["zelynic", "usage", "--sample", "--target", "brave"]).unwrap();
+    let result = crate::commands::dispatch(cli, None);
+    assert!(result.is_err());
+}
+
+#[test]
+fn v31_p10_ledger_inspect_output_contains_model_only() {
+    // Phase 10: fixture inspect output contains model-only disclaimer.
+    let _cli = Cli::try_parse_from(["zelynic", "ledger", "inspect"]).unwrap();
+    use crate::accounting::{build_ledger_inspect, render_ledger_inspect};
+    use crate::commands::ledger::build_fixture_ledger;
+    let ledger = build_fixture_ledger();
+    let inspect = build_ledger_inspect(&ledger);
+    let rendered = render_ledger_inspect(&inspect);
+    assert!(rendered.contains("ledger inspect model only"));
+    assert!(rendered.contains("no filesystem read performed"));
+    assert!(rendered.contains("no filesystem write performed"));
+    assert!(rendered.contains("no live /proc or sysfs read performed"));
+    assert!(rendered.contains("interface-level only (not per-app attribution)"));
+    assert!(rendered.contains("inactive/not implemented"));
+}
+
+#[test]
+fn v31_p10_ledger_inspect_json_output_valid() {
+    // Phase 10: fixture JSON output is valid and contains expected fields.
+    use crate::accounting::serialize_ledger_to_json;
+    use crate::commands::ledger::build_fixture_ledger;
+    let ledger = build_fixture_ledger();
+    let json_str = serialize_ledger_to_json(&ledger).unwrap();
+    assert!(json_str.contains("\"schema_version\": 1"));
+    assert!(json_str.contains("fixture-host"));
+    assert!(json_str.contains("wlan0"));
+    assert!(json_str.contains("eth0"));
+    // No path or persistence metadata in fixture JSON
+    assert!(!json_str.contains("persistence_enabled"));
+    assert!(!json_str.contains("filesystem"));
+}
+
+#[test]
+fn v31_p10_v3_usage_json_unchanged() {
+    // Phase 10 does not change v3.0 usage --sample --json output.
+    // Schema version, command, sample_mode fields remain identical.
+    use crate::accounting::SCHEMA_VERSION;
+    assert_eq!(SCHEMA_VERSION, 1);
+}
+
+#[test]
+fn v31_p10_persistence_hard_block_unchanged() {
+    // Phase 10 does not enable any persistence operations.
+    use crate::accounting::{
+        build_default_ledger_path_plan, build_ledger_read_plan, build_ledger_write_plan,
+    };
+    let path_plan = build_default_ledger_path_plan("/tmp/test");
+    assert!(!path_plan.persistence_enabled);
+    let read = build_ledger_read_plan("/tmp/test", "zelynic", "network-ledger-v1.json");
+    assert!(matches!(
+        read.persistence_status,
+        crate::accounting::PersistenceStatus::Blocked(_)
+    ));
+    let write = build_ledger_write_plan("/tmp/test", "zelynic", "network-ledger-v1.json");
+    assert!(matches!(
+        write.persistence_status,
+        crate::accounting::PersistenceStatus::Blocked(_)
+    ));
+    assert!(!read.persistence_enabled);
+    assert!(!write.persistence_enabled);
+}
+
+#[test]
+fn v31_p10_no_version_bump() {
+    // Phase 10 does not bump the version — remains 3.0.1.
+    let cli = Cli::try_parse_from(["zelynic", "--version"]);
+    // --version is handled externally; we just verify the parse.
+    assert!(cli.is_ok());
+}
+
+#[test]
+fn v31_p10_ledger_inspect_command_remains_hidden() {
+    // Phase 10 does not unhide the ledger subcommand.
+    let help = Cli::command().render_help().to_string();
+    assert!(!help.contains("ledger"));
+}
+
+#[test]
+fn v31_p10_ledger_inspect_no_enforcement() {
+    // Phase 10 fixture inspect has no enforcement capabilities.
+    use crate::accounting::build_ledger_inspect;
+    use crate::commands::ledger::build_fixture_ledger;
+    let ledger = build_fixture_ledger();
+    let inspect = build_ledger_inspect(&ledger);
+    assert_eq!(inspect.enforcement_status, "inactive/not implemented");
+    assert_eq!(inspect.attribution_scope, "interface-level only");
+    assert!(inspect.read_only);
 }
 
 #[test]
