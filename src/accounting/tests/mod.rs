@@ -11,6 +11,7 @@ mod identity;
 mod interface_counters;
 mod ledger;
 mod ledger_identity;
+mod ledger_identity_report;
 mod ledger_inspect;
 mod ledger_path;
 mod ledger_persistence;
