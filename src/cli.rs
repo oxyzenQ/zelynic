@@ -485,6 +485,52 @@ pub enum Commands {
         /// Fixed 1-second delta wait. No loop/watch mode. Read-only /proc/net/dev only.
         #[arg(long, requires = "sample")]
         delta: bool,
+
+        // ---- v3.1 phase 6: hidden future-gated flags (parsed but hard-blocked). ----
+        /// [design-gated] Report usage accumulated since session start.
+        /// Not yet implemented. Requires ledger persistence.
+        #[arg(long = "session", hide = true, requires = "sample")]
+        #[allow(dead_code)]
+        session: bool,
+
+        /// [design-gated] Report usage accumulated since system boot.
+        /// Not yet implemented. Requires ledger persistence + boot_id.
+        #[arg(long = "since-boot", hide = true, requires = "sample")]
+        #[allow(dead_code)]
+        since_boot: bool,
+
+        /// [design-gated] Filter usage output to a specific interface.
+        /// Not yet implemented.
+        #[arg(
+            long = "interface",
+            hide = true,
+            requires = "sample",
+            value_name = "NAME"
+        )]
+        #[allow(dead_code)]
+        usage_interface: Option<String>,
+
+        /// [design-gated] Report usage attributed to a specific target.
+        /// Not yet implemented. Requires persistence + identity resolver.
+        #[arg(
+            long = "target",
+            hide = true,
+            requires = "sample",
+            value_name = "TARGET"
+        )]
+        #[allow(dead_code)]
+        usage_target: Option<String>,
+    },
+
+    /// [design-gated] Network ledger inspection and export (v3.1 phase 6).
+    ///
+    /// This subcommand is registered in the parser but hard-blocked at dispatch.
+    /// It will be activated in a future phase after persistence is implemented.
+    #[command(hide = true)]
+    Ledger {
+        /// Ledger subcommand (inspect, export)
+        #[command(subcommand)]
+        command: LedgerCommands,
     },
 
     /// Show backend information and capability checks
@@ -551,6 +597,26 @@ pub enum ProfileCommands {
     },
 }
 
+/// Ledger subcommands (v3.1 phase 6: design-gated, hard-blocked at dispatch).
+#[derive(Debug, Subcommand)]
+pub enum LedgerCommands {
+    /// Display a human-readable ledger summary.
+    #[command(hide = true)]
+    Inspect {
+        /// Output as JSON (requires schema_version 2+).
+        #[arg(long, hide = true)]
+        json: bool,
+    },
+
+    /// Export full ledger data as JSON.
+    #[command(hide = true)]
+    Export {
+        /// Output as JSON.
+        #[arg(long, hide = true)]
+        json: bool,
+    },
+}
+
 /// QoS priority management subcommands.
 #[derive(Debug, Subcommand)]
 pub enum QosCommands {
@@ -576,5 +642,39 @@ pub enum QosCommands {
     Reset,
 }
 
+/// v3.1 phase 6: design-gated safety disclaimer output.
+///
+/// Returns the multi-line rejection message printed when a design-gated
+/// command is encountered at dispatch time. Each line is a separate safety
+/// disclaimer confirming the command is blocked.
+pub(crate) const DESIGN_GATED_DISCLAIMERS: &[&str] = &[
+    "design-gated: this command is not yet implemented",
+    "no live resolver: no process scanning or identity resolution",
+    "no ledger persistence: no file read/write for ledger data",
+    "no filesystem write: no files are written to disk",
+    "no enforcement: no blocking, throttling, or quota active",
+    "no network blocking: no traffic blocking or shaping",
+    "no nft/tc mutation: no nftables or traffic control changes",
+    "no cgroup mutation: no cgroup writes or PID movement",
+    "no eBPF: no eBPF program loading or attachment",
+    "no PID movement: no processes moved between cgroups",
+];
+
+/// Render the design-gated rejection message for a blocked command.
+pub(crate) fn render_design_gated_message(command_name: &str) -> String {
+    let mut lines = Vec::with_capacity(DESIGN_GATED_DISCLAIMERS.len() + 2);
+    lines.push(format!(
+        "error: '{}' is design-gated and not yet available.",
+        command_name
+    ));
+    lines.push(String::new());
+    for d in DESIGN_GATED_DISCLAIMERS {
+        lines.push(format!("  - {}", d));
+    }
+    lines.join("\n")
+}
+
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod v31_gate_tests;
