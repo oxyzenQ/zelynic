@@ -9,6 +9,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **v3.1 phase 5 CLI Gate Design**: Added design document
+  (`docs/v3.1-phase-5-cli-gate-design.md`) defining future CLI command gates
+  for v3.1 App Identity + Network Ledger workflows. Docs/design only — no
+  runtime code, no CLI wiring, no new flags, no behavior change. Nine required
+  sections: Purpose (define CLI gates before implementation, prevent accidental
+  behavior drift, keep v3.0 usage command stable), Current CLI Baseline
+  (documents all active v3.0.1 usage commands with --sample/--json/--delta,
+  rejected commands, CLI surface that does not exist, frozen JSON schema
+  version 1), Future Command Candidates (7 candidates: `zelynic usage
+  --session`, `zelynic usage --since-boot`, `zelynic usage --interface <name>`,
+  `zelynic usage --target <target>`, `zelynic ledger inspect`, `zelynic ledger
+  inspect --json`, `zelynic ledger export --json` — each classified by
+  dependency on live /proc/net/dev sample, pure model only, future ledger
+  persistence, future identity resolver, future report model), Command Status
+  Matrix (7x7 table classifying every candidate by: design-only/future gated
+  implementation, requires persistence, requires resolver, read-only, writes
+  files, enforcement, pure model available), Compatibility Policy (v3.0 usage
+  behavior protected: `zelynic usage --sample --json` and `zelynic usage
+  --sample --delta --json` scripts must continue working unchanged; `--sample`
+  remains required; new flags are additive; `zelynic ledger` is a separate
+  top-level subcommand; decision documented that `zelynic usage` remains
+  sample-gated to avoid ambiguity between live sampling and ledger reporting),
+  JSON Output Policy (v3.0 schema_version=1 frozen; future v3.1 ledger/report
+  JSON must use separate schema_version 2+; schema version is the discriminator;
+  honesty flags extended not modified; error format consistent), Safety Gates
+  (6 gate categories: persistence gate — no persistence unless explicit, file
+  path user-visible, no silent writes; daemon/background gate — no background
+  daemon, no auto-start, no watch/loop; enforcement/mutation gate — no
+  enforcement, no nft/tc, no cgroup mutation, no PID movement, no eBPF, no
+  quota; I/O gate — no hidden writes, no hidden reads; identity resolver gate —
+  read-only resolution, best-effort only, no PID tracking; command activation
+  gate checklist — 13-item checklist before any future command activation),
+  Suggested Implementation Sequence (phase 6: CLI parser gate tests only with
+  hidden/rejected commands; phase 7: read-only report preview using in-memory
+  fixtures; phase 8: explicit persistence design freeze; phase 9: persistence
+  seam implementation still disabled by default; phase 10+: gated ledger
+  inspect implementation), Non-Goals (17 explicit exclusions: no runtime code,
+  no CLI wiring, no new flags, no behavior change, no version bump, no
+  persistence implementation, no ledger file write, no live resolver, no
+  enforcement, no quota guard, no eBPF, no nft/tc mutation, no cgroup mutation,
+  no daemon, no tag, no GitHub release, no package publish). Updated phase 1/2/3/4
+  docs with phase 5 completion notes. No CLI wiring. No new CLI flags. No live
+  process scanning. No new /proc reads. No filesystem write. No ledger persistence
+  write enabled. No permission/block/allow mode. No quota guard. No eBPF. No
+  nft/tc mutation. No cgroup mutation. No PID move. No runtime behavior change.
+  No existing v3.0 JSON schema change. No CLI behavior change. No version bump.
+  No new dependency.
+
 - **v3.1 phase 4 pure Ledger Identity Report Model**: Added
   `src/accounting/ledger_identity_report.rs` (385 LOC) with a pure report model
   that summarizes `LedgerIdentityAttachment` values (from phase 3) into
