@@ -581,4 +581,4 @@ See [LICENSE](LICENSE) for details.
 
 ## Author
 
-**rezky_nightky (oxyzenQ)** — [GitHub](https://github.com/oxyzenQ)
+**rezky_nightky (oxyzenQ)** — [GitHub](https://github.com/oxyzenQ) — with dot rezky at gmail dot com
