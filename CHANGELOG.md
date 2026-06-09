@@ -9,6 +9,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **v3.1 phase 7 Read-Only Report Preview Using In-Memory Fixtures**: Added
+  `src/accounting/ledger_identity_preview.rs` (148 LOC) with a pure fixture-based
+  preview path that builds a `LedgerIdentityReport` from in-memory fixture data only.
+  Pure functions: `build_ledger_identity_preview_report(entries, identities)` accepts
+  parallel slices of `LedgerEntry` and `Option<ResolvedUsageTarget>`, builds
+  `LedgerIdentityAttachment` values, and delegates to existing
+  `build_ledger_identity_report()` — no new model types created;
+  `render_ledger_identity_preview_report(report)` wraps base report render with
+  explicit "read-only preview" header and 13 preview-specific safety disclaimers
+  (read-only preview, in-memory fixture data only, no live resolver, no filesystem
+  read, no filesystem write, no ledger persistence, no enforcement, no network
+  blocking, no quota, no eBPF, no nft/tc mutation, no cgroup mutation, no PID
+  movement); `serialize_preview_report_json()` and
+  `deserialize_preview_report_json()` reuse existing report JSON serialization.
+  Design decision: thin orchestration layer reusing all existing types from
+  `LedgerEntry`, `ResolvedUsageTarget`, `LedgerIdentityAttachment`, and
+  `LedgerIdentityReport` — no duplicate ledger system. Mismatched slice lengths
+  use shorter (excess entries/identities silently ignored). Module registered in
+  `src/accounting/mod.rs` and `src/accounting/tests/mod.rs`. All types
+  re-exported via `pub(crate) use`. 33 deterministic tests in
+  `src/accounting/tests/ledger_identity_preview.rs` (557 LOC): empty fixture
+  builds empty report, interface-only fixture builds report, process best-effort
+  fixture builds report, cgroup best-effort fixture builds report, target
+  best-effort fixture builds report, mixed fixture builds deterministic report,
+  preview totals preserve rx/tx/combined bytes, preview preserves entry counts,
+  preview render says read-only preview, preview render says in-memory fixture
+  only, preview render says no live resolver, preview render says no filesystem
+  read, preview render says no filesystem write, preview render says no ledger
+  persistence, preview render says no enforcement, preview render says no network
+  blocking, preview render says no quota, preview render says no eBPF, preview
+  render says no nft/tc mutation, preview render says no cgroup mutation,
+  preview render says no PID movement, serialization round-trip, serialization
+  deterministic, no CLI command added, no live /proc reads in tests, old
+  ledger_identity_report tests remain unchanged, phase 6 gate tests remain
+  unchanged, mismatched slice lengths use shorter, preview render includes base
+  report content, preview render with no-identity entries, honesty flags no
+  enforcement. Design doc: `docs/v3.1-phase-7-read-only-report-preview-fixtures.md`.
+  Phase 1/5/6 docs updated with phase 7 completion notes. No working commands
+  enabled. No CLI wiring. No live process scanning. No new /proc reads. No
+  filesystem read. No filesystem write. No ledger persistence read/write. No
+  enforcement active. No existing v3.0 JSON schema change. No version bump. No
+  new dependency. No tag/release/publish.
+
 - **v3.1 phase 6 CLI Parser Gate Tests**: Added hidden clap variants for all 7
   future v3.1 candidate commands defined in the phase 5 gate design document,
   with dispatch-level rejection and 29 deterministic gate tests. Hidden usage
