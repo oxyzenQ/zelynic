@@ -9,6 +9,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **v3.1 phase 10b Gated Ledger Inspect Validation Freeze**: Validation
+  hardening + deterministic tests + docs only. Freezes and audits the Phase 10
+  hidden fixture-only inspect preview behavior before any future file-backed
+  inspect work. Added 28 deterministic invariant tests to
+  `src/cli/v31_gate_tests.rs` (Section G, 894 LOC) proving: fixture data only
+  (text and JSON, invariants 1-2), no persistence coupling (inspect does not call
+  path planning or persistence read plan, invariants 3-4), no filesystem I/O (no
+  `std::fs` APIs, invariant 5), output disclaimer completeness (fixture
+  preview, no file read, no file write, no persistence, no live resolver,
+  no enforcement, no network blocking, no nft/tc mutation, no cgroup mutation,
+  no PID movement, invariants 6-15), schema and CLI boundary invariants
+  (valid JSON separate from v3.0 usage schema, v3.0 schema_version 1
+  unchanged, export still design-gated, hidden usage flags still design-gated,
+  ledger hidden from help, usage help free of hidden flags, no new visible
+  command, no file/output path argument, no overwrite/save flag, no
+  daemon/watch/interval mode, no v3.0 runtime change, invariants 16-28).
+  Created design doc:
+  `docs/v3.1-phase-10b-gated-ledger-inspect-validation-freeze.md`. Updated
+  `docs/v3.1-phase-10-gated-ledger-inspect-activation.md`,
+  `docs/v3.1-phase-8-explicit-persistence-design-freeze.md`,
+  `docs/v3.1-phase-9-persistence-seam-model-review.md` with Phase 10b
+  completion notes. Updated CHANGELOG. Total unit tests: 1481 (was 1453,
+  +28). Validation: `cargo fmt` clean, `cargo clippy` clean, `cargo
+  test --locked` 1481 passed, `build.sh check-all` all quality checks passed.
+  Release binary: v3.0.1. `ledger inspect` outputs fixture text with 9 safety
+  disclaimers. `ledger inspect --json` outputs valid fixture JSON
+  (schema_version=1, 3 entries). `ledger export --json` returns design-gated
+  rejection. `usage --sample --delta --json` returns schema_version=1, error=null.
+  Validation freeze only — no file-backed ledger inspect. No ledger file
+  read. No ledger file write. No ledger export enablement. No persistence
+  enablement. No live app identity resolver. No live process scanning. No
+  new /proc reads. No filesystem read/write runtime path. No
+  permission/block/allow mode. No quota guard. No eBPF. No nft/tc mutation.
+  No cgroup mutation. No PID move. No public v3.0 CLI behavior change.
+  No existing v3.0 JSON schema change. No version bump. No tag created. No
+  GitHub release created. No package published.
+
 - **v3.1 phase 10 Gated Ledger Inspect Activation**: Wired the existing phase 7
   `build_ledger_inspect()` and `render_ledger_inspect()` to the hidden
   `zelynic ledger inspect` clap dispatch gate with an in-memory fixture
