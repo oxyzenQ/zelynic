@@ -164,7 +164,7 @@ Set high priority:
 .BR cgexec (1),
 .BR ss (8)
 .SH AUTHOR
-Written by rezky_nightky (oxyzenQ) <with.rezky@gmail.com>.
+Written by rezky_nightky (oxyzenQ) — with dot rezky at gmail dot com.
 .SH LICENSE
 GPL-3.0
 EOF
