@@ -17,12 +17,13 @@
 //! - No CLI command is exposed.
 //! - No enforcement, blocking, or state mutation.
 //!
-//! # Phase 8 Scope
+//! # Phase 9 Scope
 //!
-//! Phase 8 implements the persistence path design + safe-path model. No
-//! filesystem persistence occurs. Paths are validated structurally (string
-//! analysis) only. The path plan exists only in memory during tests and future
-//! persistence phases.
+//! Phase 9 reviews and hardens the persistence path seam model. Adds
+//! `symlink_resolution_performed` flag (always false) and 10th render
+//! disclaimer. No filesystem persistence occurs. Paths are validated
+//! structurally (string analysis) only. The path plan exists only in
+//! memory during tests and future persistence phases.
 
 #![allow(dead_code)]
 
@@ -111,6 +112,8 @@ pub struct LedgerPathPlan {
     pub filesystem_write_performed: bool,
     /// Always false — persistence is not enabled in v2.9.
     pub persistence_enabled: bool,
+    /// Always false — no symlink resolution was performed.
+    pub symlink_resolution_performed: bool,
 }
 
 /// Check whether a filename contains suspicious characters.
@@ -183,6 +186,7 @@ pub fn build_ledger_path_plan(
             filesystem_read_performed: false,
             filesystem_write_performed: false,
             persistence_enabled: false,
+            symlink_resolution_performed: false,
         };
     }
 
@@ -199,6 +203,7 @@ pub fn build_ledger_path_plan(
             filesystem_read_performed: false,
             filesystem_write_performed: false,
             persistence_enabled: false,
+            symlink_resolution_performed: false,
         };
     }
 
@@ -215,6 +220,7 @@ pub fn build_ledger_path_plan(
             filesystem_read_performed: false,
             filesystem_write_performed: false,
             persistence_enabled: false,
+            symlink_resolution_performed: false,
         };
     }
 
@@ -237,6 +243,7 @@ pub fn build_ledger_path_plan(
             filesystem_read_performed: false,
             filesystem_write_performed: false,
             persistence_enabled: false,
+            symlink_resolution_performed: false,
         };
     }
 
@@ -259,6 +266,7 @@ pub fn build_ledger_path_plan(
             filesystem_read_performed: false,
             filesystem_write_performed: false,
             persistence_enabled: false,
+            symlink_resolution_performed: false,
         };
     }
 
@@ -281,6 +289,7 @@ pub fn build_ledger_path_plan(
             filesystem_read_performed: false,
             filesystem_write_performed: false,
             persistence_enabled: false,
+            symlink_resolution_performed: false,
         };
     }
 
@@ -303,6 +312,7 @@ pub fn build_ledger_path_plan(
             filesystem_read_performed: false,
             filesystem_write_performed: false,
             persistence_enabled: false,
+            symlink_resolution_performed: false,
         };
     }
 
@@ -335,6 +345,7 @@ pub fn build_ledger_path_plan(
             filesystem_read_performed: false,
             filesystem_write_performed: false,
             persistence_enabled: false,
+            symlink_resolution_performed: false,
         };
     }
 
@@ -349,6 +360,7 @@ pub fn build_ledger_path_plan(
         filesystem_read_performed: false,
         filesystem_write_performed: false,
         persistence_enabled: false,
+        symlink_resolution_performed: false,
     }
 }
 
@@ -357,7 +369,7 @@ pub fn build_ledger_path_plan(
 /// The output includes the planned path components, validation status, and
 /// comprehensive safety disclaimers.
 ///
-/// # Safety Disclaimers (9 total)
+/// # Safety Disclaimers (10 total)
 ///
 /// 1. persistence path model only
 /// 2. no filesystem read was performed
@@ -368,6 +380,7 @@ pub fn build_ledger_path_plan(
 /// 7. no live /proc or sysfs read was performed
 /// 8. no quota enforcement or network blocking is active
 /// 9. no nft/tc/Zelynic state mutation was performed
+/// 10. no symlink resolution was performed
 pub fn render_ledger_path_plan(plan: &LedgerPathPlan) -> String {
     let mut out = String::new();
 
@@ -421,6 +434,7 @@ pub fn render_ledger_path_plan(plan: &LedgerPathPlan) -> String {
     out.push_str("  - no live /proc or sysfs read was performed\n");
     out.push_str("  - no quota enforcement or network blocking is active\n");
     out.push_str("  - no nft/tc/Zelynic state mutation was performed\n");
+    out.push_str("  - no symlink resolution was performed\n");
 
     out
 }

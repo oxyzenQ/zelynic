@@ -9,6 +9,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **v3.1 phase 9 Persistence Seam Model Review**: Pure model audit and safety
+  hardening of the existing persistence seam after the phase 8 design freeze.
+  Adds `symlink_resolution_performed: bool` field (always false) to
+  `LedgerPathPlan` in `src/accounting/ledger_path.rs` (440 LOC) covering
+  phase 8 Gate 10 (No Symlink Surprises). Adds `symlink_blocked: bool` and
+  `hidden_state_directory_created: bool` fields (always false) to
+  `LedgerPersistencePlan` in `src/accounting/ledger_persistence.rs` (358 LOC)
+  covering Gates 10 and 13 (No Hidden State Directory). Render disclaimers
+  updated: `ledger_path.rs` now has 10 safety disclaimers (was 9, added "no
+  symlink resolution was performed"); `ledger_persistence.rs` now has 14
+  safety disclaimers (was 12, added "no symlink resolution was performed" and
+  "no hidden state directory was created"). 50 new deterministic tests added:
+  `src/accounting/tests/ledger_path.rs` (507 LOC, 53 total, was 33): symlink
+  flag tests (4: accepted/rejected/absolute/traversal all false), render symlink
+  disclaimer tests (2: accepted + rejected), comprehensive model flag tests
+  (2: accepted + rejected), comprehensive 10-disclaimer render sweep tests
+  (2: accepted + rejected), updated existing tests with new flag checks (2);
+  `src/accounting/tests/ledger_persistence.rs` (700 LOC, 59 total, was 29):
+  ValidatePath operation tests (2: blocked + unsafe path rejected), exhaustive
+  all-operations-blocked sweep (2: all 5 operations blocked + reason check),
+  symlink flag tests (2: accepted + rejected), hidden state directory flag
+  tests (2: accepted + rejected), render disclaimer tests (2: symlink +
+  hidden), render flag tests (1: model flag output), comprehensive mutation
+  flag tests (2: 9-flag sweep accepted + rejected), comprehensive 14-disclaimer
+  render sweep tests (2: accepted + rejected), rejected plan flag tests (1),
+  per-operation symlink flag tests (2: read + backup). All files under 1000
+  LOC. Design doc: `docs/v3.1-phase-9-persistence-seam-model-review.md`.
+  Phase 1/8 docs updated with phase 9 completion notes. Persistence seam
+  review only — no persistence implementation. No ledger file read. No
+  ledger file write. No working ledger CLI. No live app identity resolver.
+  No live process scanning. No new /proc reads. No filesystem read/write
+  runtime path. No permission/block/allow mode. No quota guard. No eBPF.
+  No nft/tc mutation. No cgroup mutation. No PID move. No runtime behavior
+  change. No existing v3.0 JSON schema change. No CLI behavior change.
+  No version bump. No tag/release/publish. No new dependency.
+
 - **v3.1 phase 8 Explicit Persistence Design Freeze**: Added design document
   (`docs/v3.1-phase-8-explicit-persistence-design-freeze.md`) defining the
   future persistence contract before any implementation work. Nine sections:
