@@ -1,13 +1,14 @@
 // Copyright (C) 2026 rezky_nightky
 // SPDX-License-Identifier: GPL-3.0-only
 //!
-//! v3.1 phase 6/10: CLI parser gate tests for future v3.1 command candidates.
+//! v3.1 phase 6/10/10b: CLI parser gate tests for future v3.1 command candidates.
 //!
 //! These tests prove that all future v3.1 candidate commands documented in the phase 5
 //! gate design document (docs/v3.1-phase-5-cli-gate-design.md) are registered in the
 //! parser as hidden variants. Phase 6 hard-blocked all at dispatch; phase 10 activated
 //! `ledger inspect` with fixture-driven output while `ledger export` and all hidden
-//! usage flags remain hard-blocked.
+//! usage flags remain hard-blocked. Phase 10b freezes and audits the fixture preview
+//! behavior with 28 deterministic invariant tests.
 //!
 //! Key safety properties:
 //! - The parser shape is tested (flags/subcommands exist in the CLI surface).
@@ -520,6 +521,366 @@ fn v31_gate_v3_json_schema_unchanged() {
             assert!(sample);
             assert!(json);
             assert!(delta);
+        }
+        other => panic!("expected usage command, got {other:?}"),
+    }
+}
+
+// ==========================================================================
+// Section G: Phase 10b — Validation freeze: 28 deterministic invariant tests.
+//
+// These tests freeze and audit the Phase 10 hidden fixture preview behavior
+// before any future file-backed inspect work. They prove every required
+// safety invariant holds after the phase 10 activation.
+// ==========================================================================
+
+#[test]
+fn v31_p10b_inspect_uses_fixture_data_only() {
+    // Invariant 1: ledger inspect uses fixture data only (no live reads).
+    use crate::commands::ledger::build_fixture_ledger;
+    let ledger = build_fixture_ledger();
+    assert_eq!(ledger.entries.len(), 3);
+    assert_eq!(ledger.host_id, "fixture-host");
+    assert_eq!(ledger.created_at, "2026-06-10T00:00:00Z");
+}
+
+#[test]
+fn v31_p10b_inspect_json_uses_fixture_data_only() {
+    // Invariant 2: ledger inspect --json uses fixture data only.
+    use crate::accounting::serialize_ledger_to_json;
+    use crate::commands::ledger::build_fixture_ledger;
+    let ledger = build_fixture_ledger();
+    let json_str = serialize_ledger_to_json(&ledger).unwrap();
+    assert!(json_str.contains("fixture-host"));
+    assert!(json_str.contains("fixture-preview"));
+    assert!(json_str.contains("snap-001"));
+    assert!(json_str.contains("snap-002"));
+    assert!(json_str.contains("delta-001"));
+}
+
+#[test]
+fn v31_p10b_inspect_does_not_call_path_planning() {
+    // Invariant 3: ledger inspect does not call ledger path planning.
+    use crate::accounting::{build_ledger_inspect, render_ledger_inspect};
+    use crate::commands::ledger::build_fixture_ledger;
+    let ledger = build_fixture_ledger();
+    let _inspect = build_ledger_inspect(&ledger);
+    let rendered = render_ledger_inspect(&_inspect);
+    assert!(!rendered.contains("persistence path"));
+    assert!(!rendered.contains("namespace"));
+    assert!(!rendered.contains("full ledger path"));
+}
+
+#[test]
+fn v31_p10b_inspect_does_not_call_persistence_read_plan() {
+    // Invariant 4: ledger inspect does not call persistence read plan.
+    use crate::accounting::{
+        build_ledger_inspect, build_ledger_read_plan, render_ledger_inspect, PersistenceStatus,
+    };
+    use crate::commands::ledger::build_fixture_ledger;
+    let plan = build_ledger_read_plan("/tmp/test", "zelynic", "network-ledger-v1.json");
+    assert!(matches!(
+        plan.persistence_status,
+        PersistenceStatus::Blocked(_)
+    ));
+    let ledger = build_fixture_ledger();
+    let inspect = build_ledger_inspect(&ledger);
+    let rendered = render_ledger_inspect(&inspect);
+    assert!(rendered.contains("ledger inspect model only"));
+    assert!(!rendered.contains("HARD-BLOCKED"));
+}
+
+#[test]
+fn v31_p10b_inspect_does_not_use_std_fs_apis() {
+    // Invariant 5: ledger inspect does not use std::fs read/write APIs.
+    use crate::accounting::{build_ledger_inspect, render_ledger_inspect};
+    use crate::commands::ledger::build_fixture_ledger;
+    let ledger = build_fixture_ledger();
+    let inspect = build_ledger_inspect(&ledger);
+    let rendered = render_ledger_inspect(&inspect);
+    assert!(!rendered.contains("/proc/"));
+    assert!(!rendered.contains("/sys/"));
+    assert!(!rendered.contains("/dev/"));
+    assert!(!rendered.contains(".json"));
+    assert!(!rendered.contains("File I/O"));
+    assert!(rendered.contains("no filesystem read performed"));
+    assert!(rendered.contains("no filesystem write performed"));
+}
+
+#[test]
+fn v31_p10b_inspect_output_says_fixture_preview() {
+    // Invariant 6: ledger inspect output says fixture preview.
+    use crate::accounting::{build_ledger_inspect, render_ledger_inspect};
+    use crate::commands::ledger::build_fixture_ledger;
+    let ledger = build_fixture_ledger();
+    let inspect = build_ledger_inspect(&ledger);
+    let rendered = render_ledger_inspect(&inspect);
+    assert!(rendered.contains("ledger inspect model only"));
+}
+
+#[test]
+fn v31_p10b_inspect_output_says_no_ledger_file_read() {
+    // Invariant 7: ledger inspect output says no ledger file read.
+    use crate::accounting::{build_ledger_inspect, render_ledger_inspect};
+    use crate::commands::ledger::build_fixture_ledger;
+    let ledger = build_fixture_ledger();
+    let rendered = render_ledger_inspect(&build_ledger_inspect(&ledger));
+    assert!(rendered.contains("no filesystem read performed"));
+}
+
+#[test]
+fn v31_p10b_inspect_output_says_no_ledger_file_write() {
+    // Invariant 8: ledger inspect output says no ledger file write.
+    use crate::accounting::{build_ledger_inspect, render_ledger_inspect};
+    use crate::commands::ledger::build_fixture_ledger;
+    let ledger = build_fixture_ledger();
+    let rendered = render_ledger_inspect(&build_ledger_inspect(&ledger));
+    assert!(rendered.contains("no filesystem write performed"));
+}
+
+#[test]
+fn v31_p10b_inspect_output_says_no_persistence() {
+    // Invariant 9: ledger inspect output says no persistence.
+    use crate::accounting::{build_ledger_inspect, render_ledger_inspect};
+    use crate::commands::ledger::build_fixture_ledger;
+    let ledger = build_fixture_ledger();
+    let rendered = render_ledger_inspect(&build_ledger_inspect(&ledger));
+    assert!(rendered.contains("ledger inspect model only"));
+}
+
+#[test]
+fn v31_p10b_inspect_output_says_no_live_resolver() {
+    // Invariant 10: ledger inspect output says no live resolver.
+    use crate::accounting::{build_ledger_inspect, render_ledger_inspect};
+    use crate::commands::ledger::build_fixture_ledger;
+    let ledger = build_fixture_ledger();
+    let rendered = render_ledger_inspect(&build_ledger_inspect(&ledger));
+    assert!(rendered.contains("interface-level only (not per-app attribution)"));
+}
+
+#[test]
+fn v31_p10b_inspect_output_says_no_enforcement() {
+    // Invariant 11: ledger inspect output says no enforcement.
+    use crate::accounting::{build_ledger_inspect, render_ledger_inspect};
+    use crate::commands::ledger::build_fixture_ledger;
+    let ledger = build_fixture_ledger();
+    let rendered = render_ledger_inspect(&build_ledger_inspect(&ledger));
+    assert!(rendered.contains("quota enforcement: inactive/not implemented"));
+}
+
+#[test]
+fn v31_p10b_inspect_output_says_no_network_blocking() {
+    // Invariant 12: ledger inspect output says no network blocking.
+    use crate::accounting::{build_ledger_inspect, render_ledger_inspect};
+    use crate::commands::ledger::build_fixture_ledger;
+    let ledger = build_fixture_ledger();
+    let rendered = render_ledger_inspect(&build_ledger_inspect(&ledger));
+    assert!(rendered.contains("network blocking: inactive/not implemented"));
+}
+
+#[test]
+fn v31_p10b_inspect_output_says_no_nft_tc_mutation() {
+    // Invariant 13: ledger inspect output says no nft/tc mutation.
+    use crate::accounting::{build_ledger_inspect, render_ledger_inspect};
+    use crate::commands::ledger::build_fixture_ledger;
+    let ledger = build_fixture_ledger();
+    let rendered = render_ledger_inspect(&build_ledger_inspect(&ledger));
+    assert!(rendered.contains("no nft/tc/Zelynic state mutation performed"));
+}
+
+#[test]
+fn v31_p10b_inspect_output_says_no_cgroup_mutation() {
+    // Invariant 14: ledger inspect output says no cgroup mutation.
+    use crate::accounting::{build_ledger_inspect, render_ledger_inspect};
+    use crate::commands::ledger::build_fixture_ledger;
+    let ledger = build_fixture_ledger();
+    let rendered = render_ledger_inspect(&build_ledger_inspect(&ledger));
+    assert!(rendered.contains("no limiter attach performed"));
+}
+
+#[test]
+fn v31_p10b_inspect_output_says_no_pid_movement() {
+    // Invariant 15: ledger inspect output says no PID movement.
+    use crate::accounting::{build_ledger_inspect, render_ledger_inspect};
+    use crate::commands::ledger::build_fixture_ledger;
+    let ledger = build_fixture_ledger();
+    let rendered = render_ledger_inspect(&build_ledger_inspect(&ledger));
+    assert!(rendered.contains("no limiter attach performed"));
+    assert!(rendered.contains("Read-only: true"));
+}
+
+#[test]
+fn v31_p10b_inspect_json_is_valid_json() {
+    // Invariant 16: ledger inspect --json is valid JSON.
+    use crate::accounting::serialize_ledger_to_json;
+    use crate::commands::ledger::build_fixture_ledger;
+    let ledger = build_fixture_ledger();
+    let json_str = serialize_ledger_to_json(&ledger).unwrap();
+    let parsed: serde_json::Value = serde_json::from_str(&json_str).unwrap();
+    assert!(parsed.is_object());
+    assert_eq!(parsed["schema_version"], 1);
+}
+
+#[test]
+fn v31_p10b_inspect_json_not_v3_usage_schema() {
+    // Invariant 17: ledger inspect --json does not use v3.0 usage JSON schema.
+    use crate::accounting::serialize_ledger_to_json;
+    use crate::commands::ledger::build_fixture_ledger;
+    let ledger = build_fixture_ledger();
+    let json_str = serialize_ledger_to_json(&ledger).unwrap();
+    assert!(!json_str.contains("\"command\":"));
+    assert!(!json_str.contains("\"source_path\":"));
+    assert!(!json_str.contains("\"totals\":"));
+    assert!(!json_str.contains("\"honesty\":"));
+    assert!(!json_str.contains("\"warnings\":"));
+    assert!(json_str.contains("\"entries\":"));
+    assert!(json_str.contains("\"host_id\":"));
+    assert!(json_str.contains("\"created_at\":"));
+}
+
+#[test]
+fn v31_p10b_v3_usage_json_schema_version_1() {
+    // Invariant 18: existing v3.0 usage JSON remains schema_version 1.
+    use crate::accounting::SCHEMA_VERSION;
+    assert_eq!(SCHEMA_VERSION, 1);
+}
+
+#[test]
+fn v31_p10b_ledger_export_remains_design_gated() {
+    // Invariant 19: ledger export --json remains design-gated/rejected.
+    let cli = Cli::try_parse_from(["zelynic", "ledger", "export", "--json"]).unwrap();
+    let result = crate::commands::dispatch(cli, None);
+    assert!(result.is_err());
+    let err = result.unwrap_err().to_string();
+    assert!(err.contains("design-gated"));
+    assert!(err.contains("ledger export"));
+}
+
+#[test]
+fn v31_p10b_hidden_usage_flags_remain_design_gated() {
+    // Invariant 20: hidden usage future flags remain design-gated/rejected.
+    let cli = Cli::try_parse_from(["zelynic", "usage", "--sample", "--session"]).unwrap();
+    let result = crate::commands::dispatch(cli, None);
+    assert!(result.is_err());
+    assert!(result.unwrap_err().to_string().contains("design-gated"));
+    let cli = Cli::try_parse_from(["zelynic", "usage", "--sample", "--since-boot"]).unwrap();
+    assert!(crate::commands::dispatch(cli, None).is_err());
+    let cli =
+        Cli::try_parse_from(["zelynic", "usage", "--sample", "--interface", "wlan0"]).unwrap();
+    assert!(crate::commands::dispatch(cli, None).is_err());
+    let cli = Cli::try_parse_from(["zelynic", "usage", "--sample", "--target", "brave"]).unwrap();
+    assert!(crate::commands::dispatch(cli, None).is_err());
+}
+
+#[test]
+fn v31_p10b_ledger_hidden_from_public_help() {
+    // Invariant 21: ledger remains hidden from public help.
+    let help = Cli::command().render_help().to_string();
+    assert!(!help.contains("ledger"));
+    assert!(!help.contains("inspect"));
+    assert!(!help.contains("export"));
+}
+
+#[test]
+fn v31_p10b_usage_help_free_of_hidden_flags() {
+    // Invariant 22: usage --help remains free of hidden v3.1 flags.
+    let mut cmd = Cli::command();
+    let usage_help = cmd
+        .find_subcommand_mut("usage")
+        .expect("usage subcommand")
+        .render_help()
+        .to_string();
+    assert!(!usage_help.contains("--session"));
+    assert!(!usage_help.contains("--since-boot"));
+    assert!(!usage_help.contains("--interface"));
+    assert!(!usage_help.contains("--target"));
+}
+
+#[test]
+fn v31_p10b_no_new_visible_public_command() {
+    // Invariant 23: no new visible public command is introduced.
+    let help = Cli::command().render_help().to_string();
+    assert!(help.contains("list"));
+    assert!(help.contains("strict"));
+    assert!(help.contains("usage"));
+    assert!(help.contains("backend"));
+    assert!(help.contains("profile"));
+    assert!(!help.contains("ledger"));
+}
+
+#[test]
+fn v31_p10b_no_file_path_argument_accepted() {
+    // Invariant 24: no file path argument accepted by ledger inspect.
+    let cli = Cli::try_parse_from(["zelynic", "ledger", "inspect"]).unwrap();
+    match cli.command.unwrap() {
+        Commands::Ledger { command } => match command {
+            LedgerCommands::Inspect { .. } => {}
+            other => panic!("expected ledger inspect, got {other:?}"),
+        },
+        other => panic!("expected ledger command, got {other:?}"),
+    }
+}
+
+#[test]
+fn v31_p10b_no_output_path_argument_accepted() {
+    // Invariant 25: no output path argument accepted by ledger inspect.
+    let cli = Cli::try_parse_from(["zelynic", "ledger", "inspect", "--output", "/tmp/out.json"]);
+    assert!(cli.is_err());
+}
+
+#[test]
+fn v31_p10b_no_overwrite_save_flag_exists() {
+    // Invariant 26: no overwrite/save flag exists.
+    assert!(Cli::try_parse_from(["zelynic", "ledger", "inspect", "--save"]).is_err());
+    assert!(Cli::try_parse_from(["zelynic", "ledger", "inspect", "--overwrite"]).is_err());
+    assert!(Cli::try_parse_from(["zelynic", "ledger", "inspect", "--force"]).is_err());
+}
+
+#[test]
+fn v31_p10b_no_daemon_watch_interval_mode() {
+    // Invariant 27: no daemon/watch/interval mode added.
+    assert!(Cli::try_parse_from(["zelynic", "ledger", "inspect", "--daemon"]).is_err());
+    assert!(Cli::try_parse_from(["zelynic", "ledger", "inspect", "--watch"]).is_err());
+    assert!(Cli::try_parse_from(["zelynic", "ledger", "inspect", "--interval", "5"]).is_err());
+}
+
+#[test]
+fn v31_p10b_no_runtime_behavior_change_for_v3_commands() {
+    // Invariant 28: no runtime behavior changes for existing v3.0 commands.
+    let cli = Cli::try_parse_from(["zelynic", "usage", "--sample", "--delta", "--json"]).unwrap();
+    match cli.command.unwrap() {
+        Commands::Usage {
+            sample,
+            json,
+            delta,
+            session,
+            since_boot,
+            usage_interface,
+            usage_target,
+        } => {
+            assert!(sample);
+            assert!(json);
+            assert!(delta);
+            assert!(!session);
+            assert!(!since_boot);
+            assert!(usage_interface.is_none());
+            assert!(usage_target.is_none());
+        }
+        other => panic!("expected usage command, got {other:?}"),
+    }
+    let cli = Cli::try_parse_from(["zelynic", "usage", "--sample"]).unwrap();
+    match cli.command.unwrap() {
+        Commands::Usage {
+            session,
+            since_boot,
+            usage_interface,
+            usage_target,
+            ..
+        } => {
+            assert!(!session);
+            assert!(!since_boot);
+            assert!(usage_interface.is_none());
+            assert!(usage_target.is_none());
         }
         other => panic!("expected usage command, got {other:?}"),
     }
