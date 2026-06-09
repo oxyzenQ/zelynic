@@ -21,6 +21,7 @@
 //! - This module does **not** claim per-app attribution.
 //! - This module does **not** claim enforcement, quota guard, or blocking.
 
+mod identity;
 mod interface_counters;
 mod ledger;
 mod ledger_inspect;
@@ -38,6 +39,12 @@ mod tests;
 
 // Re-exports for internal use by tests and future phases.
 // Currently unused from main.rs — no CLI command yet.
+#[allow(unused_imports)]
+pub(crate) use identity::{
+    default_identity_honesty, deserialize_identity_json, render_resolved_target,
+    serialize_identity_honesty, serialize_identity_json, CgroupIdentity, IdentityHonesty,
+    InterfaceIdentity, ProcessIdentity, ResolvedUsageTarget, TargetIdentity, UsageAttributionScope,
+};
 #[allow(unused_imports)]
 pub(crate) use interface_counters::{
     parse_proc_net_dev, parse_proc_net_dev_line, render_interface_counter_snapshot,
