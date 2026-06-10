@@ -9,6 +9,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **v3.1 phase 15 Ledger Export JSON Gate Design**: Docs/design/
+  deterministic tests only. Freezes the future contract for `ledger
+  export --json --file <PATH>` before any implementation. Chosen
+  future shape: `zelynic ledger export --json --file <PATH>` (read
+  source file, validate, emit ledger JSON to stdout only). Eight
+  rejected alternatives documented: implicit default path export,
+  export from live state, `--output <PATH>` for output file, `--overwrite`
+  flag, auto-export from persistence, combined inspect/export/save
+  command, export from live /proc/sysfs directly, export enforcement/
+  limiter state as ledger data. Sixteen design rules frozen as
+  contract: export remains gated, explicit `--file` required, read-only
+  only, path validation before read, schema validation before output,
+  JSON to stdout only, no file write, no directory creation, no backup/
+  migration/rename/truncate/delete/overwrite, no silent default path
+  read, no live /proc/sysfs read, no nft/tc/cgroup/PID mutation,
+  honest non-mutating errors, export JSON schema is separate from v3.0
+  usage and inspect schemas, v3.0 usage JSON unchanged, ledger inspect
+  unchanged. JSON schema boundary documented: three distinct schemas
+  (v3.0 usage, ledger inspect, future export). Future activation
+  checklist with 12 items. Created design doc
+  `docs/v3.1-phase-15-ledger-export-json-gate-design.md`. Updated
+  phase 12/13/14 docs with Phase 15 forward-references. Updated
+  CHANGELOG. 22 deterministic guard tests added in
+  `src/commands/ledger_p15_tests.rs` (Section T): doc exists, doc
+  states future shape, doc says gated, doc rejects implicit default,
+  doc rejects output/overwrite, doc says read-only, doc says path
+  validation, doc says schema validation, doc says no live proc/sysfs,
+  doc says no mutation, doc says v3.0 usage unchanged, doc says inspect
+  unchanged, export --json gated, export --json --file rejected, export
+  --output rejected, export --overwrite rejected, inspect fixture
+  works, inspect --json fixture works, inspect --file fixture works,
+  usage schema unchanged, no version bump, all files under 1000 LOC.
+  Design freeze only. No export implementation. No file write. No
+  output file. No overwrite. No save. No persistence. No default
+  ledger path read. No migration/backup/rename/truncate/delete/overwrite.
+  No live resolver. No enforcement. No nft/tc/cgroup/PID mutation.
+  No eBPF. No quota. No daemon/watch. No v3.0 usage JSON schema
+  change. No ledger inspect JSON schema change. No version bump. No
+  tag/release/publish. No new dependencies.
+
 - **v3.1 phase 14 Ledger Inspect User Docs / Examples Polish**: Docs +
   deterministic doc/CLI guard tests only. No runtime behavior change.
   No ledger inspect parsing behavior change. No `ledger inspect --file`
