@@ -195,6 +195,19 @@ the hypothesis is not supported. Possible explanations include:
    daemonize or detach from the terminal.
 4. **Root required**: Same as `strict`, requires root privileges.
 
+## Manual Validation Matrix
+
+A manual validation matrix has been created in
+[strict-run-lab-manual-validation-matrix.md](strict-run-lab-manual-validation-matrix.md)
+defining 12 structured manual test scenarios that must be completed with recorded nft
+counter values before any future stable wrapper promotion. The matrix expands the
+original single-experiment validation into a systematic, repeatable evidence-gathering
+process covering non-VPN, VPN/tun, single/multi-connection, browser, cleanup, error,
+and regression scenarios.
+
+This phase does NOT implement stable wrapper behavior, does NOT promote strict-run-lab
+to stable, and does NOT change existing strict behavior or enforcement semantics.
+
 ## Scope Constraints
 
 The `strict-run-lab` command is intentionally constrained:

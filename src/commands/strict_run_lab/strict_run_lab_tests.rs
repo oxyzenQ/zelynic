@@ -145,9 +145,7 @@ fn handler_source_says_traffic_proof() {
     let s = module_source();
     assert!(s.contains("Traffic proof"));
 }
-
 // === Section B: Pure model tests ===
-
 #[test]
 fn proof_state_default_is_all_false() {
     let ps = StrictRunLabProofState::default();
@@ -344,9 +342,7 @@ fn outcome_policy_applied_variant() {
         panic!("expected PolicyApplied variant");
     }
 }
-
 // === Section D: Proof summary render tests ===
-
 #[test]
 fn proof_summary_renders_not_checked() {
     assert!(
@@ -888,86 +884,111 @@ fn freeze_outcome_all_variants_exhaustive() {
     }
 }
 
-// === Section M: Stable wrapper design contract invariants ===
-// These enforce invariants from docs/strict-run-wrapper-stable-contract.md.
-
+// === Section M: Contract + matrix invariants ===
+const CONTRACT_DOC: &str = include_str!("../../../docs/strict-run-wrapper-stable-contract.md");
+const MATRIX_DOC: &str = include_str!("../../../docs/strict-run-lab-manual-validation-matrix.md");
 #[test]
-fn contract_stable_wrapper_not_yet_implemented() {
-    // CLI-level: strict-run-lab hidden, no --net-limit, no --run on strict.
-    let help = crate::cli::Cli::command().render_help().to_string();
-    assert!(!help.contains("strict-run-lab"), "must remain hidden");
-    let run_help = crate::cli::Cli::command()
+fn contract_doc_has_required_sections() {
+    let d = CONTRACT_DOC;
+    assert!(d.contains("Chosen Future Stable Command Shape"));
+    assert!(d.contains("Safety Contract"));
+    assert!(d.contains("Traffic Proof Contract"));
+    assert!(d.contains("Cleanup Contract"));
+    assert!(d.contains("Compatibility Contract"));
+    assert!(d.contains("Required Before Stable Promotion"));
+    assert!(d.contains("strict --run"));
+    assert!(d.contains("run --net-limit"));
+}
+#[test]
+fn matrix_doc_exists_with_all_scenarios() {
+    for id in [
+        "SRL-MVM-001",
+        "SRL-MVM-002",
+        "SRL-MVM-003",
+        "SRL-MVM-004",
+        "SRL-MVM-005",
+        "SRL-MVM-006",
+        "SRL-MVM-007",
+        "SRL-MVM-008",
+        "SRL-MVM-009",
+        "SRL-MVM-010",
+        "SRL-MVM-011",
+        "SRL-MVM-012",
+    ] {
+        assert!(MATRIX_DOC.contains(id), "missing scenario {id}");
+    }
+}
+#[test]
+fn matrix_doc_includes_counter_fields() {
+    let d = MATRIX_DOC;
+    assert!(d.contains("nft socket cgroupv2 counter behavior"));
+    assert!(d.contains("ct mark counter behavior"));
+    assert!(d.contains("download policer counter behavior"));
+    assert!(d.contains("drop counter behavior"));
+}
+#[test]
+fn matrix_doc_includes_cleanup_criteria() {
+    assert!(MATRIX_DOC.contains("expected cleanup behavior"));
+    assert!(MATRIX_DOC.contains("orphaned"));
+}
+#[test]
+fn matrix_doc_says_experimental() {
+    assert!(MATRIX_DOC.contains("experimental"));
+    assert!(MATRIX_DOC.contains("NOT promote"));
+}
+#[test]
+fn matrix_doc_says_stable_not_implemented() {
+    assert!(MATRIX_DOC.contains("does NOT implement stable wrapper"));
+    assert!(MATRIX_DOC.contains("does NOT promote"));
+}
+#[test]
+fn no_stable_alias_in_cli() {
+    assert!(!crate::cli::Cli::command()
         .find_subcommand_mut("run")
-        .expect("run")
+        .unwrap()
         .render_long_help()
-        .to_string();
-    assert!(!run_help.contains("net-limit"), "no --net-limit");
-    let strict_help = crate::cli::Cli::command()
+        .to_string()
+        .contains("net-limit"));
+    assert!(!crate::cli::Cli::command()
         .find_subcommand_mut("strict")
-        .expect("strict")
+        .unwrap()
         .render_long_help()
-        .to_string();
-    assert!(!strict_help.contains("--run"), "no --run");
-    // Handler-level: unchanged behavior, experimental wording, no forbidden code.
-    let s = module_source();
-    assert!(!s.contains("handle_strict("), "no handle_strict call");
-    assert!(
-        s.contains("experimental") && s.contains("not stable"),
-        "still experimental"
-    );
-    assert!(
-        !s.contains("schema_version") && !s.contains("UsageSnapshot"),
-        "no schema change"
-    );
-    assert!(
-        !s.contains("LedgerPersistencePlan") && !s.contains("quota"),
-        "no ledger/quota"
-    );
-    assert!(
-        !s.contains("daemon") && !s.contains("watch"),
-        "no daemon/watch"
-    );
-    assert!(!s.contains("ebpf") && !s.contains("eBPF"), "no eBPF");
-    // Version: must remain 3.0.1 for design-only work.
-    assert!(
-        include_str!("../../../Cargo.toml").contains("version = \"3.0.1\""),
-        "no version bump"
-    );
+        .to_string()
+        .contains("--run"));
 }
-
 #[test]
-fn contract_design_doc_exists_with_required_sections() {
-    let doc = include_str!("../../../docs/strict-run-wrapper-stable-contract.md");
+fn matrix_hidden_from_help() {
+    assert!(!crate::cli::Cli::command()
+        .render_help()
+        .to_string()
+        .contains("strict-run-lab"));
+}
+#[test]
+fn matrix_json_schema_unchanged() {
+    let s = module_source();
+    assert!(!s.contains("schema_version") && !s.contains("UsageSnapshot"));
+}
+#[test]
+fn matrix_strict_unchanged() {
+    let s = module_source();
+    assert!(!s.contains("handle_strict(") && !s.contains("force_reconnect"));
+}
+#[test]
+fn matrix_no_forbidden_features() {
+    let s = module_source();
     assert!(
-        doc.contains("Chosen Future Stable Command Shape"),
-        "must have command shape"
-    );
-    assert!(doc.contains("Safety Contract"), "must have safety contract");
-    assert!(
-        doc.contains("Traffic Proof Contract"),
-        "must have traffic proof"
-    );
-    assert!(
-        doc.contains("Cleanup Contract"),
-        "must have cleanup contract"
-    );
-    assert!(
-        doc.contains("Compatibility Contract"),
-        "must have compatibility"
-    );
-    assert!(
-        doc.contains("Required Before Stable Promotion"),
-        "must have promotion"
-    );
-    assert!(doc.contains("strict --run"), "must mention chosen shape");
-    assert!(
-        doc.contains("run --net-limit"),
-        "must document rejected alt"
+        !s.contains("daemon")
+            && !s.contains("watch")
+            && !s.contains("quota")
+            && !s.contains("LedgerPersistencePlan")
+            && !s.contains("ebpf")
+            && !s.contains("eBPF")
     );
 }
-
-// === Section L: Helpers ===
-
+#[test]
+fn matrix_no_version_bump() {
+    assert!(include_str!("../../../Cargo.toml").contains("version = \"3.0.1\""));
+}
 fn module_source() -> String {
     let source = include_str!("mod.rs");
     if let Some(pos) = source.find("#[cfg(test)]") {

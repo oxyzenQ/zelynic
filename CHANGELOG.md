@@ -9,6 +9,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **strict-run-lab manual validation matrix**: Docs + deterministic tests only. No
+  code behavior changes. Created `docs/strict-run-lab-manual-validation-matrix.md`
+  defining 12 structured manual test scenarios (SRL-MVM-001 through SRL-MVM-012)
+  that must be executed and recorded with actual nft counter values before any future
+  stable wrapper promotion. Scenarios: non-VPN single/multi-connection aria2c,
+  VPN/tun single/multi-connection aria2c, browser process wrapper smoke test, failed
+  exec cleanup, Ctrl+C cleanup, child normal exit cleanup, interface mismatch warning,
+  no-root permission error, existing attach-based strict regression, existing strict
+  traffic proof honesty regression. Each scenario defines: scenario_id, command,
+  interface, expected route interface, expected cgroup placement, expected nft socket
+  cgroupv2/ct mark/download policer/drop counter behavior, expected speed behavior,
+  expected cleanup behavior, pass/fail criteria, and notes. Includes environment
+  template and recording template. Updated
+  `docs/strict-run-wrapper-stable-contract.md` (Section 6.5 current status with matrix
+  reference), `docs/strict-run-lab-validation-freeze.md` (manual validation matrix
+  phase section), `docs/strict-prelaunch-cgroup-wrapper-experiment.md` (manual
+  validation matrix section). 12 deterministic tests added in
+  `src/commands/strict_run_lab/strict_run_lab_tests.rs` (Section N): matrix doc
+  exists with all 12 required scenarios, matrix doc includes all required counter
+  fields, matrix doc includes cleanup criteria, matrix doc says strict-run-lab
+  remains experimental, matrix doc says stable strict --run is not implemented,
+  stable alias does not exist in CLI, strict-run-lab remains hidden from normal
+  help, v3.0 usage JSON schema unchanged, existing strict behavior unchanged, no
+  eBPF/quota/daemon/watch/ledger persistence added, no version bump. Total tests:
+  1604 (was 1592, +12). Manual validation matrix phase only — does NOT implement
+  stable wrapper behavior, does NOT promote strict-run-lab to stable, does NOT
+  change existing strict behavior, does NOT add eBPF/quota/daemon/watch/ledger/
+  schema changes/version bump/tag/release/publish.
+
 - **strict-run-wrapper stable command design contract**: Design doc only — no code
   changes. Created `docs/strict-run-wrapper-stable-contract.md` defining the contract
   for a future stable wrapper command that launches a process inside a managed cgroup

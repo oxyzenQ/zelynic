@@ -229,6 +229,23 @@ The validation freeze is strictly tests + docs + minor output/honesty polish:
 - Does NOT change version numbers or create releases
 - Does NOT add tags, GitHub releases, or package publications
 
+## Manual Validation Matrix Phase
+
+A manual validation matrix has been created in
+[strict-run-lab-manual-validation-matrix.md](strict-run-lab-manual-validation-matrix.md)
+defining 12 structured manual test scenarios (SRL-MVM-001 through SRL-MVM-012) that
+must be executed and recorded with actual nft counter values before any future stable
+wrapper promotion. Scenarios cover: non-VPN single/multi-connection aria2c, VPN/tun
+single/multi-connection aria2c, browser process wrapper smoke test, failed exec
+cleanup, Ctrl+C cleanup, child normal exit cleanup, interface mismatch warning,
+no-root permission error, existing attach-based strict regression, and existing strict
+traffic proof honesty regression. Each scenario defines exact commands, expected nft
+counter behaviors, expected cleanup behaviors, and pass/fail criteria.
+
+The matrix phase does NOT implement stable wrapper behavior, does NOT promote
+strict-run-lab to stable, does NOT change existing strict behavior, and does NOT
+add eBPF/quota/daemon/watch/ledger/schema changes.
+
 ## Future Stable Wrapper Design Contract
 
 A design contract for a future stable wrapper command has been documented in

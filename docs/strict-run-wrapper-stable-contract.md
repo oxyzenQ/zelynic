@@ -346,9 +346,18 @@ Tests must pass on at least:
 ### 6.5 Current Status
 
 As of the `strict-run-lab` experiment:
-- Test 2 (VPN/tun test): PASSED (proton0, aria2c, all counters nonzero)
+- Test 2 (VPN/tun test): PASSED (proton0, aria2c, all counters nonzero, single run)
 - All other tests: NOT YET RUN
-- Deterministic tests 11-13: PASSED (71 tests in strict_run_lab module)
+- Deterministic tests 11-13: PASSED (76 tests in strict_run_lab module)
+
+A comprehensive manual validation matrix has been defined in
+[strict-run-lab-manual-validation-matrix.md](strict-run-lab-manual-validation-matrix.md)
+with 12 scenarios (SRL-MVM-001 through SRL-MVM-012) covering non-VPN and VPN/tun
+interfaces, single and multi-connection downloads, browser process wrapping, failed
+exec cleanup, Ctrl+C cleanup, normal exit cleanup, interface mismatch, no-root
+permission error, and existing strict behavior regression. All 12 scenarios must be
+manually executed and recorded with nft counter values before stable promotion can
+be considered.
 
 ## 7. Relationship to Existing Commands
 
