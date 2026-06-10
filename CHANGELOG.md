@@ -9,6 +9,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **v3.1 phase 19 Ledger Public Surface / README Link Polish**: Docs +
+  deterministic doc/CLI guard tests only. No runtime behavior change. No
+  CLI parsing change. No hidden command made public. No export behavior
+  change. No inspect behavior change. No JSON schema change. No --output.
+  No --overwrite. No save/write/persistence. No default path read. No
+  live /proc/sysfs read. No live resolver. No enforcement. No nft/tc/
+  cgroup/PID mutation. No version bump. No tag/release/publish. No new
+  dependencies. Makes v3.1 ledger docs discoverable from README while
+  preserving the hidden/experimental safety boundary. Links to Phase 14
+  inspect user docs and Phase 18 export user docs. Explains ledger
+  inspect/export are v3.1 experimental/hidden commands. Distinguishes
+  inspect summary from export raw ledger JSON. States export remains
+  stdout-only and explicit --file only. States no output file flag, no
+  overwrite, no persistence, no save, no default ledger path read. States
+  no live resolver, no enforcement, no nft/tc/cgroup/PID mutation. States
+  v3.0 usage JSON remains unchanged. States no version bump/release in
+  this phase. 22 deterministic guard tests added in
+  `src/commands/ledger_p19_tests.rs` (Section X): doc exists and nonempty,
+  README links to ledger docs, doc links to Phase 14 inspect docs, doc
+  links to Phase 18 export docs, doc distinguishes inspect from export,
+  doc says stdout-only, doc says --file required, doc says no
+  --output/overwrite/write, doc says no persistence/save/default path,
+  doc says no live resolver/enforcement/nft/tc/cgroup/PID mutation,
+  ledger inspect still works, ledger inspect --json still works, ledger
+  export --json --file valid still works, export --json without --file
+  still fails, export --file without --json still fails, --output rejected,
+  --overwrite rejected, usage delta JSON unchanged, no version bump, all
+  files under 1000 LOC, no new dependencies, production code no output-
+  file write APIs. Created design doc
+  `docs/v3.1-phase-19-ledger-public-surface-readme-link-polish.md`. Added
+  v3.1 Ledger section to README.md with links to Phase 14/18/19 docs.
+  Updated phase 18/14 docs with Phase 19 forward-references. Updated
+  CHANGELOG. Documentation polish only. No code changes.
+
 - **v3.1 phase 18 Ledger Export User Docs / UX Examples Polish**:
   Docs + deterministic doc/CLI guard tests only. No runtime behavior
   change. No export behavior change. No export JSON schema change. No
