@@ -285,6 +285,25 @@ child directly into it via `CommandExt::pre_exec`. This means all sockets create
 by the child process should be classified under the target cgroup from creation
 time, potentially allowing the nft `socket cgroupv2` match to actually observe traffic.
 
-If the pre-launch approach still shows 0 counters (especially on VPN/tunnel
-interfaces like proton0), this would confirm that the limitation is at the
-kernel/tunnel encapsulation level rather than the socket-cgroup timing level.
+### Pre-Launch Experiment Result: Hypothesis Confirmed
+
+The pre-launch experiment was run on the same environment (Linux 6.18, ProtonVPN
+proton0, aria2c) and produced nonzero counters across all four nft counter groups:
+
+| Counter | Attach-After-Socket | Pre-Launch |
+|---------|--------------------:|----------------:|
+| nft socket cgroupv2 pkts | 0 | **1,800** |
+| nft socket cgroupv2 bytes | 0 | **210,054** |
+| nft download policer pkts | 0 | **3,236** |
+| nft download policer bytes | 0 | **4,456,466** |
+| nft drop pkts | 0 | **531** |
+| nft drop bytes | 0 | **741,189** |
+
+This confirms that the socket-cgroup timing was the primary issue: when sockets are
+created inside the correct cgroup (pre-launch), nft `socket cgroupv2` correctly
+matches traffic even on VPN/tunnel interfaces. The download policer actively shaped
+traffic (531 dropped packets), confirming the full shaping pipeline was operational.
+
+See [strict-run-lab-validation-freeze.md](strict-run-lab-validation-freeze.md) for
+the validation freeze with 13 deterministic invariant tests and detailed proof
+documentation.

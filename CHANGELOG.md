@@ -9,6 +9,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **strict-run-lab validation freeze + proof capture**: Tests + docs + output/honesty
+  polish only. Locks the hidden experimental `strict-run-lab` command with 13 new
+  deterministic validation freeze tests in `src/commands/strict_run_lab.rs` (Section K,
+  tests 64-76). Total tests in module: 76 (was 63, +13). Total unit tests: 1590 (was
+  1577, +13). Tests prove: command hidden from normal help, requires `--` before child
+  command, says experimental/lab/not stable, says pre-launch cgroup placement, reuses
+  shared traffic proof model, no false success claims on zero counters (including
+  partial proof), cleanup wording present, cleanup on error path (kill+wait+cleanup),
+  strict behavior unchanged (no handle_strict or force_reconnect), usage JSON schema
+  unchanged, no forbidden features (daemon/watch/quota/eBPF/ledger/schema/systemd/
+  enforcement/visible command), live proof values reproducible (1800 pkts/210054 bytes
+  cgroup match, 3236 pkts/4456466 bytes policer, 531 pkts/741189 bytes drop on
+  proton0 tunnel), outcome model exhaustive (all 5 variants). Model cleanup:
+  `StrictRunLabProofState` changed to derive `Default`, `StrictRunLabOutcome` changed
+  to derive `Default` with `#[default]` on `ErrorBeforeLaunch`, added `use
+  clap::{CommandFactory, Parser}` to test imports. Created design doc:
+  `docs/strict-run-lab-validation-freeze.md` with live proof values, 13 invariant
+  descriptions, pure model documentation, output honesty polish notes. Updated
+  `docs/strict-prelaunch-cgroup-wrapper-experiment.md` with live proof section:
+  hypothesis confirmed, nonzero counters on proton0 tunnel, comparison table.
+  Updated `docs/strict-traffic-proof-honesty-audit.md` with pre-launch experiment
+  success section: attach-after-socket vs pre-launch counter comparison, socket-cgroup
+  timing confirmed as primary issue. Validation: `cargo fmt --check` clean, `cargo
+  clippy` clean, `cargo test --locked` 1590 passed. Validation freeze only — does
+  NOT promote to stable, does NOT change existing `strict` behavior, does NOT add
+  eBPF/quota/daemon/watch/ledger/schema changes/version bump/tag/release/publish.
+
 - **strict-run-lab pre-launch cgroup wrapper experiment**: Hidden experimental
   command that launches a child process inside a Zelynic-managed cgroup BEFORE
   the child opens network sockets, then applies the same nft/tc policy and traffic
