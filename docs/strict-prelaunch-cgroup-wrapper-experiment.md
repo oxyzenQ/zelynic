@@ -142,6 +142,42 @@ For the pre-launch approach to be considered effective, the nft counters must sh
 | nft cgroup match | packets > 0, bytes > 0 |
 | nft download policer | packets > 0, bytes > 0 |
 
+### Live Proof Results (Hypothesis Confirmed)
+
+The experiment was run successfully on Linux 6.18 + ProtonVPN (proton0) + aria2c.
+
+**Command**: `zelynic strict-run-lab --diagnose --iface proton0 -d 100kb -- aria2c -x 1 -s 1 https://releases.ubuntu.com/24.04/ubuntu-24.04-desktop-amd64.iso`
+
+**Observed nft Counter Values**:
+
+| Counter | Packets | Bytes |
+|---------|---------|-------|
+| nft socket cgroupv2 match | 1,800 | 210,054 |
+| nft ct mark | 1,971 | 286,838 |
+| nft download policer | 3,236 | 4,456,466 |
+| nft drop | 531 | 741,189 |
+
+**Comparison with attach-after-socket**:
+
+| Metric | Attach-After-Socket (strict) | Pre-Launch (strict-run-lab) |
+|--------|-------------------------------|-----------------------------|
+| PID cgroup verification | Success | Success |
+| nft socket cgroupv2 pkts | 0 | **1,800** |
+| nft socket cgroupv2 bytes | 0 | **210,054** |
+| nft download policer pkts | 0 | **3,236** |
+| nft download policer bytes | 0 | **4,456,466** |
+| nft drop pkts | 0 | **531** |
+| nft drop bytes | 0 | **741,189** |
+| Traffic proof active | No | **Yes** |
+
+**Conclusion**: The hypothesis is confirmed. Pre-launch cgroup placement via
+`CommandExt::pre_exec` produces nonzero nft counters on a VPN/tunnel interface
+where the attach-after-socket approach showed 0/0. All four counter groups show
+active traffic matching, including policer drops confirming enforcement.
+
+See [strict-run-lab-validation-freeze.md](strict-run-lab-validation-freeze.md) for
+the full validation freeze with 13 deterministic invariant tests.
+
 If both counters remain at 0 despite the child being verified in the cgroup,
 the hypothesis is not supported. Possible explanations include:
 - Kernel behavior with `socket cgroupv2` on tunnel interfaces

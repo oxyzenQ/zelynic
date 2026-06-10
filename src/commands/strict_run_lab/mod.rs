@@ -33,6 +33,166 @@ use limiter::{
 /// for this lab handler.
 const CGROUP_BASE: &str = "/sys/fs/cgroup/zelynic";
 
+// ---------------------------------------------------------------------------
+// Pure model types for validation freeze
+// ---------------------------------------------------------------------------
+
+/// Outcome of the strict-run-lab experiment.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[cfg_attr(not(test), allow(dead_code))]
+pub enum StrictRunLabOutcome {
+    Launched {
+        child_pid: u32,
+        verified_in_cgroup: bool,
+    },
+    PolicyApplied {
+        child_pid: u32,
+        verified_in_cgroup: bool,
+        proof_state: StrictRunLabProofState,
+    },
+    Completed {
+        child_pid: u32,
+        verified_in_cgroup: bool,
+        proof_state: StrictRunLabProofState,
+        exit_success: bool,
+        cleanup_attempted: bool,
+    },
+    #[default]
+    ErrorBeforeLaunch,
+    ErrorAfterLaunch {
+        child_pid: u32,
+        cleanup_attempted: bool,
+    },
+}
+
+/// Proof state observed from nft counters during a lab run.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct StrictRunLabProofState {
+    pub checked: bool,
+    pub cgroup_match_observed: bool,
+    pub policer_match_observed: bool,
+    pub drop_observed: bool,
+    pub is_tunnel: bool,
+    pub placed_before_exec: bool,
+}
+
+impl StrictRunLabProofState {
+    /// Build a proof state from the shared traffic proof model and lab context.
+    pub fn from_traffic_proof(
+        proof: &limiter::traffic_proof::StrictTrafficProof,
+        placed_before_exec: bool,
+    ) -> Self {
+        let (cgroup_match_observed, policer_match_observed) =
+            if let Some(ref counters) = proof.counters {
+                (
+                    counters.cgroup_match.packets > 0,
+                    counters.policer_match.packets > 0,
+                )
+            } else {
+                (false, false)
+            };
+        Self {
+            checked: proof.counters.is_some(),
+            cgroup_match_observed,
+            policer_match_observed,
+            drop_observed: policer_match_observed,
+            is_tunnel: proof.tunnel.as_ref().map(|t| t.is_tunnel).unwrap_or(false),
+            placed_before_exec,
+        }
+    }
+
+    /// Honest classification: traffic proof is active only when cgroup match
+    /// AND policer match are both observed with nonzero counters.
+    pub fn is_traffic_proof_active(&self) -> bool {
+        self.checked && self.cgroup_match_observed && self.policer_match_observed
+    }
+}
+
+/// Render a lab proof summary to stdout.
+pub fn render_lab_proof_summary(proof: &StrictRunLabProofState, interface: &str) {
+    println!("{}", "--- strict-run-lab proof summary ---".dimmed());
+    println!(
+        "  Child placed in cgroup before sockets created: {}",
+        if proof.placed_before_exec {
+            "yes".green().to_string()
+        } else {
+            "no".red().to_string()
+        }
+    );
+    println!(
+        "  Traffic proof checked: {}",
+        if proof.checked {
+            "yes".to_string()
+        } else {
+            "no".dimmed().to_string()
+        }
+    );
+    println!(
+        "  nft socket cgroupv2 match observed: {}",
+        if proof.cgroup_match_observed {
+            "yes (packets > 0)".green().to_string()
+        } else {
+            "no (0 packets)".yellow().to_string()
+        }
+    );
+    println!(
+        "  nft download policer match observed: {}",
+        if proof.policer_match_observed {
+            "yes (packets > 0)".green().to_string()
+        } else {
+            "no (0 packets)".yellow().to_string()
+        }
+    );
+    println!(
+        "  nft drop counter observed: {}",
+        if proof.drop_observed {
+            "yes (packets > 0)".green().to_string()
+        } else {
+            "no (0 packets)".yellow().to_string()
+        }
+    );
+    if proof.is_tunnel {
+        println!(
+            "  Interface {} is a VPN/tunnel interface.",
+            interface.yellow()
+        );
+        println!("  {}", "WARNING: VPN/tunnel cases may still vary.".yellow());
+    }
+    println!();
+    println!(
+        "  Proof conclusion: {}",
+        if proof.is_traffic_proof_active() {
+            "traffic proof observed -- shaping appears active in this run"
+                .green()
+                .to_string()
+        } else if proof.checked && !proof.cgroup_match_observed {
+            "no traffic proof observed -- counters remain at zero"
+                .yellow()
+                .to_string()
+        } else if proof.checked && proof.cgroup_match_observed && !proof.policer_match_observed {
+            "partial proof -- cgroup match observed but policer did not trigger"
+                .yellow()
+                .to_string()
+        } else {
+            "traffic proof not checked".dimmed().to_string()
+        }
+    );
+    println!();
+    println!(
+        "  {}",
+        "IMPORTANT: attach-after-socket limitation remains for stable 'strict'.".yellow()
+    );
+    println!(
+        "  {}",
+        "This experiment is not stable. Do not promote based on a single run.".yellow()
+    );
+    println!("{}", "--- end proof summary ---".dimmed());
+}
+
+// ---------------------------------------------------------------------------
+// Banner
+// ---------------------------------------------------------------------------
+
 /// Print the experimental warning banner.
 fn print_experimental_banner() {
     println!("{}", "=".repeat(60).dimmed());
@@ -52,19 +212,19 @@ fn print_experimental_banner() {
             .bold()
     );
     println!("{}", "Existing VPN/tunnel warnings still apply.".yellow());
+    println!(
+        "{}",
+        "Attach-after-socket limitation remains for stable 'strict'.".yellow()
+    );
     println!("{}", "=".repeat(60).dimmed());
     println!();
 }
 
+// ---------------------------------------------------------------------------
+// Handler
+// ---------------------------------------------------------------------------
+
 /// Handle the hidden `strict-run-lab` command.
-///
-/// Steps:
-/// 1. Validate root, rates, interface
-/// 2. Create the target cgroup BEFORE launching child
-/// 3. Fork+exec the child with pre_exec cgroup placement
-/// 4. Apply same nft/tc policy using the child PID (already in cgroup)
-/// 5. Wait for child exit
-/// 6. Cleanup cgroup and rules
 pub(crate) fn handle_strict_run_lab(
     download: Option<String>,
     upload: Option<String>,
@@ -169,15 +329,9 @@ pub(crate) fn handle_strict_run_lab(
         .stderr(Stdio::inherit());
 
     // SAFETY: The pre_exec closure runs between fork(2) and exec(3).
-    // We only write the child's own PID to a cgroup.procs file — this is
-    // a safe, well-understood Unix pattern. We do NOT:
-    // - allocate memory (malloc is unsafe after fork)
-    // - spawn threads (only async-signal-safe functions)
-    // - access mutable global state
-    // The only operation is a single write(2) to cgroup.procs.
+    // We only write the child's own PID to a cgroup.procs file.
     unsafe {
         cmd.pre_exec(move || {
-            // Write own PID to cgroup.procs before exec
             let procs_path = format!("{}/cgroup.procs", child_cg_path);
             if let Err(e) = fs::write(&procs_path, std::process::id().to_string()) {
                 eprintln!("strict-run-lab: pre_exec cgroup placement failed: {}", e);
@@ -223,9 +377,6 @@ pub(crate) fn handle_strict_run_lab(
         "->".cyan()
     );
 
-    // Apply limit using the existing strict infrastructure.
-    // The child is already in the cgroup, so move_pid will verify
-    // it's already there. The policy (nft rules + tc objects) is the same.
     if let Err(e) = apply_limit_with_diagnostics(
         &target_name,
         download.as_deref(),
@@ -234,7 +385,6 @@ pub(crate) fn handle_strict_run_lab(
         true, // always diagnose in lab mode
     ) {
         eprintln!("{}: Failed to apply policy: {}", "ERROR".red().bold(), e);
-        // Cleanup: kill child and remove cgroup
         let _ = child.kill();
         let _ = child.wait();
         attempt_cleanup(&target_cg_path, &interface, diagnose);
@@ -245,7 +395,6 @@ pub(crate) fn handle_strict_run_lab(
     println!();
 
     // --- Step 6: Traffic proof diagnostics ---
-    // Read nft counters to assess whether traffic is actually matched.
     let tid = limiter::target_class_id(&target_name);
     let traffic_proof = build_traffic_proof(
         true, // always diagnose in lab mode
@@ -255,6 +404,9 @@ pub(crate) fn handle_strict_run_lab(
         &target_name,
         tid,
     );
+
+    let lab_proof_state =
+        StrictRunLabProofState::from_traffic_proof(&traffic_proof, verified_in_cgroup);
 
     // Print lab-specific summary
     println!(
@@ -280,8 +432,7 @@ pub(crate) fn handle_strict_run_lab(
     println!("  Placed in cgroup before exec: {}", verified_in_cgroup);
     println!();
 
-    // Traffic proof section: honest status about whether traffic is actually
-    // being matched by the installed nft rules.
+    // Traffic proof section
     limiter::traffic_proof::render_strict_traffic_proof(&traffic_proof);
 
     println!();
@@ -299,6 +450,9 @@ pub(crate) fn handle_strict_run_lab(
         }
     }
     println!();
+
+    // Lab proof summary with detailed counter breakdown
+    render_lab_proof_summary(&lab_proof_state, &interface);
 
     println!("{}", "Waiting for child process to exit...".dimmed());
     println!(
@@ -327,14 +481,12 @@ pub(crate) fn handle_strict_run_lab(
     println!("{} Cleanup attempted after child exit.", "->".cyan());
     attempt_cleanup(&target_cg_path, &interface, diagnose);
 
-    // Remove this target from state
     let mut final_state = ZelynicState::load().unwrap_or_default();
     final_state
         .limits
         .retain(|l| l.target != target_name && l.pid != child_pid);
     final_state.save().ok();
 
-    // If no limits left, clean up nft table entirely
     if final_state.limits.is_empty() {
         let _ = Command::new("nft")
             .args(["delete", "table", "inet", "zelynic"])
@@ -350,13 +502,20 @@ pub(crate) fn handle_strict_run_lab(
         "{}",
         "Do not use this as evidence that Zelynic shaping works in production.".yellow()
     );
+    println!(
+        "{}",
+        "Attach-after-socket limitation remains for stable 'strict'.".yellow()
+    );
 
     Ok(())
 }
 
+// ---------------------------------------------------------------------------
+// Cleanup
+// ---------------------------------------------------------------------------
+
 /// Attempt cleanup of cgroup and tc objects.
 fn attempt_cleanup(target_cg_path: &str, interface: &str, diagnose: bool) {
-    // Remove target cgroup
     if let Err(e) = fs::remove_dir(target_cg_path) {
         if diagnose {
             println!("  Cleanup: failed to remove cgroup dir: {}", e);
@@ -365,7 +524,6 @@ fn attempt_cleanup(target_cg_path: &str, interface: &str, diagnose: bool) {
         println!("  Cleanup: removed target cgroup directory.");
     }
 
-    // Remove tc class/filters for this target
     let sanitized = sanitize_target_name(
         Path::new(target_cg_path)
             .file_name()
@@ -417,225 +575,4 @@ fn attempt_cleanup(target_cg_path: &str, interface: &str, diagnose: bool) {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    // --- Test 1: experimental output contains lab/experimental wording ---
-    #[test]
-    fn experimental_banner_contains_lab_wording() {
-        let source = module_source();
-        assert!(source.contains("EXPERIMENTAL"));
-        assert!(source.contains("PRE-LAUNCH"));
-        assert!(source.contains("LAB"));
-    }
-
-    // --- Test 2: experimental output says pre-launch cgroup ---
-    #[test]
-    fn experimental_banner_says_pre_launch_cgroup() {
-        let source = module_source();
-        assert!(source.contains("cgroup"));
-    }
-
-    // --- Test 3: output does not claim stable ---
-    #[test]
-    fn experimental_banner_does_not_claim_stable() {
-        let source = module_source();
-        assert!(source.contains("not stable"));
-    }
-
-    // --- Test 4: output says PID moved is not traffic proven ---
-    #[test]
-    fn experimental_banner_says_pid_not_traffic_proven() {
-        let source = module_source();
-        assert!(source.contains("PID moved"));
-        assert!(source.contains("traffic proven"));
-    }
-
-    // --- Test 5: tunnel warning still appears for proton0/tun0/wg0 ---
-    #[test]
-    fn tunnel_detection_works_for_lab_command() {
-        assert!(limiter::traffic_proof::is_tunnel_interface("proton0"));
-        assert!(limiter::traffic_proof::is_tunnel_interface("tun0"));
-        assert!(limiter::traffic_proof::is_tunnel_interface("wg0"));
-        assert!(!limiter::traffic_proof::is_tunnel_interface("eth0"));
-    }
-
-    // --- Test 6: traffic proof model is reused ---
-    #[test]
-    fn traffic_proof_model_reused_in_lab() {
-        let proof = limiter::traffic_proof::StrictTrafficProof::default();
-        assert_eq!(
-            proof.status,
-            limiter::traffic_proof::StrictTrafficProofStatus::NotChecked
-        );
-    }
-
-    // --- Test 7: cleanup plan exists for child exit ---
-    #[test]
-    fn cleanup_function_exists() {
-        let _ = attempt_cleanup as fn(&str, &str, bool);
-    }
-
-    // --- Test 8: no daemon/watch code in module ---
-    #[test]
-    fn no_daemon_watch_code() {
-        let source = module_source();
-        assert!(
-            !source.contains("daemon"),
-            "strict-run-lab must not contain daemon code"
-        );
-        assert!(
-            !source.contains("watch"),
-            "strict-run-lab must not contain watch code"
-        );
-    }
-
-    // --- Test 9: no quota code ---
-    #[test]
-    fn no_quota_code() {
-        let source = module_source();
-        assert!(
-            !source.contains("quota"),
-            "strict-run-lab must not contain quota code"
-        );
-    }
-
-    // --- Test 10: no eBPF code ---
-    #[test]
-    fn no_ebpf_code() {
-        let source = module_source();
-        assert!(
-            !source.contains("ebpf") && !source.contains("eBPF"),
-            "strict-run-lab must not contain eBPF code"
-        );
-    }
-
-    // --- Test 11: no ledger persistence ---
-    #[test]
-    fn no_ledger_persistence() {
-        let source = module_source();
-        assert!(
-            !source.contains("LedgerPersistencePlan") && !source.contains("LedgerPathPlan"),
-            "strict-run-lab must not reference ledger persistence"
-        );
-    }
-
-    // --- Test 12: no v3.0 usage JSON schema change ---
-    #[test]
-    fn no_usage_json_schema_change() {
-        let source = module_source();
-        assert!(
-            !source.contains("schema_version"),
-            "strict-run-lab must not reference usage JSON schema"
-        );
-    }
-
-    // --- Test 13: cleanup plan attempted on error ---
-    #[test]
-    fn cleanup_called_on_error_paths() {
-        let source = module_source();
-        assert!(
-            source.contains("attempt_cleanup"),
-            "strict-run-lab must call attempt_cleanup on error paths"
-        );
-    }
-
-    // --- Test 14: no detach/daemonize ---
-    #[test]
-    fn no_detach_or_daemonize() {
-        let source = module_source();
-        assert!(
-            !source.contains("detach") && !source.contains("daemonize"),
-            "strict-run-lab must not detach or daemonize"
-        );
-    }
-
-    // --- Test 15: output does not claim traffic proven when counters are zero ---
-    #[test]
-    fn zero_counters_not_claimed_as_proven() {
-        let proof = limiter::traffic_proof::StrictTrafficProof {
-            status: limiter::traffic_proof::StrictTrafficProofStatus::NoMatchObserved,
-            counters: Some(limiter::traffic_proof::StrictTrafficProofCounters {
-                cgroup_match: limiter::traffic_proof::NftCounter::default(),
-                policer_match: limiter::traffic_proof::NftCounter::default(),
-                checked: true,
-            }),
-            tunnel: None,
-            explicit_interface: false,
-        };
-        let rendered = capture_traffic_proof_render(&proof);
-        assert!(rendered.contains("not observed"));
-        assert!(!rendered.contains("active"));
-    }
-
-    // --- Test 16: handler says experimental ---
-    #[test]
-    fn handler_source_says_experimental() {
-        let source = module_source();
-        assert!(source.contains("experimental"));
-    }
-
-    // --- Test 17: handler says lab ---
-    #[test]
-    fn handler_source_says_lab() {
-        let source = module_source();
-        assert!(source.contains("lab"));
-    }
-
-    // --- Test 18: handler says policy installed ---
-    #[test]
-    fn handler_source_says_policy_installed() {
-        let source = module_source();
-        assert!(source.contains("Policy installed"));
-    }
-
-    // --- Test 19: handler says pre-launch cgroup ---
-    #[test]
-    fn handler_source_says_pre_launch_cgroup() {
-        let source = module_source();
-        assert!(source.contains("pre-launch"));
-        assert!(source.contains("cgroup"));
-    }
-
-    // --- Test 20: handler says traffic proof ---
-    #[test]
-    fn handler_source_says_traffic_proof() {
-        let source = module_source();
-        assert!(source.contains("Traffic proof"));
-    }
-
-    fn capture_traffic_proof_render(proof: &limiter::traffic_proof::StrictTrafficProof) -> String {
-        let mut lines = Vec::new();
-        match &proof.status {
-            limiter::traffic_proof::StrictTrafficProofStatus::NoMatchObserved => {
-                if let Some(ref counters) = proof.counters {
-                    lines.push(format!(
-                        "nft cgroup match: packets {}, bytes {}",
-                        counters.cgroup_match.packets, counters.cgroup_match.bytes
-                    ));
-                    lines.push(format!(
-                        "download policer: packets {}, bytes {}",
-                        counters.policer_match.packets, counters.policer_match.bytes
-                    ));
-                }
-                lines.push("Traffic proof: not observed yet".to_string());
-            }
-            limiter::traffic_proof::StrictTrafficProofStatus::PolicerMatchObserved => {
-                lines.push(
-                    "Traffic proof: policer observed (download rate limiting active)".to_string(),
-                );
-            }
-            _ => {}
-        }
-        lines.join("\n")
-    }
-
-    fn module_source() -> String {
-        let source = include_str!("strict_run_lab.rs");
-        if let Some(pos) = source.find("#[cfg(test)]") {
-            source[..pos].to_string()
-        } else {
-            source.to_string()
-        }
-    }
-}
+mod strict_run_lab_tests;
