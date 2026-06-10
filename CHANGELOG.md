@@ -9,6 +9,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **v3.1 phase 18 Ledger Export User Docs / UX Examples Polish**:
+  Docs + deterministic doc/CLI guard tests only. No runtime behavior
+  change. No export behavior change. No export JSON schema change. No
+  ledger inspect behavior change. No v3.0 usage JSON schema change.
+  No output file export. No --output. No --overwrite. No
+  save/write/persistence. No default path read. No live /proc/sysfs
+  read. No live resolver. No enforcement. No nft/tc/cgroup/PID
+  mutation. No version bump. No tag/release/publish. No new
+  dependencies. Polishes user-facing documentation for
+  `ledger export --json --file <PATH>`. Clarifies distinction between
+  five ledger command variants. Includes minimal valid ledger JSON
+  example with all required fields. Includes copy-paste examples:
+  fixture creation, inspect file, inspect file JSON, export JSON, jq
+  pipe, shell redirect with warning about Zelynic having no --output.
+  Includes expected output snippets for success and error cases.
+  Includes comprehensive safety wording. Includes schema boundary
+  documentation. Includes troubleshooting section. 40 deterministic
+  guard tests added in
+  `src/commands/ledger_p18_tests.rs` (Section W): doc exists and
+  nonempty, doc explains export command, doc distinguishes all five
+  variants, doc includes minimal valid JSON example, doc includes all
+  required entry fields, doc includes fixture creation example, doc
+  includes jq export example, doc mentions shell redirect is
+  user-controlled, doc includes missing --file/--json errors, doc
+  includes --output/--overwrite rejected, doc says stdout-only, doc
+  says no output file/no overwrite, doc says no internal file write,
+  doc says no persistence/save/default path, doc says no live
+  /proc/sysfs/resolver/enforcement/nft/tc/cgroup/PID mutation, doc
+  says export JSON is ledger JSON not inspect/usage JSON, doc
+  troubleshoots missing entry_id, doc troubleshoots combined_bytes
+  mismatch, doc troubleshoots read_only=false, doc troubleshoots wrong
+  attribution_scope/enforcement_status, export valid still succeeds,
+  export jq proof fields preserved, export output valid JSON,
+  export output deterministic, export no human header, missing
+  --file still fails honestly, missing --json still fails honestly,
+  --output rejected, --overwrite rejected, inspect fixture still
+  works, inspect --json fixture still works, inspect --file still
+  works, inspect --file --json still works, usage delta JSON
+  unchanged, no version bump, all files under 1000 LOC, no new
+  dependencies, production code no output-file write APIs.
+  Created design doc
+  `docs/v3.1-phase-18-ledger-export-user-docs-examples-polish.md`.
+  Updated phase 14/16/17 docs with Phase 18 forward-references.
+  Updated CHANGELOG. Documentation polish only. No code changes.
+
 - **v3.1 phase 17 Ledger Export Error Matrix Freeze / Regression
   Hardening**: Deterministic tests + docs polish only. Regression
   hardening only. No new runtime features. No export success JSON schema
