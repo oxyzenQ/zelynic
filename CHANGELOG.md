@@ -9,6 +9,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **v3.1 phase 16 Ledger Export JSON Activation (stdout-only + explicit
+  --file)**: Small runtime activation + docs + deterministic tests.
+  Activates `zelynic ledger export --json --file <PATH>`. Reads the
+  specified ledger file, validates path and schema using the same
+  hardened rules as `ledger inspect --file`, and emits validated ledger
+  JSON to stdout only. Requires both `--json` and `--file <PATH>`;
+  missing either fails honestly. No output file export. No `--output`.
+  No `--overwrite`. No file write. No directory creation. No
+  save/persistence. No default ledger path reads. No live
+  /proc/sysfs read. No nft/tc/cgroup/PID mutation. No v3.0 usage JSON
+  schema change. No ledger inspect JSON schema change. No version bump.
+  No tag/release/publish. No new dependencies. Runtime changes:
+  `LedgerCommands::Export` gains `file: Option<String>` (hidden) in
+  `src/cli.rs`. New `handle_ledger_export(json, file)` in
+  `src/commands/ledger.rs` reuses shared `validate_ledger_file_path()`
+  and `read_ledger_file()` with prefix parameter for proper error
+  messages. Existing `validate_inspect_file_path()` and
+  `read_ledger_file_inspect()` are backward-compatible wrappers.
+  Dispatch in `src/commands/mod.rs` routes export to the new handler.
+  Created design doc
+  `docs/v3.1-phase-16-ledger-export-json-activation.md`. Updated phase
+  14/15 docs with Phase 16 forward-references. Updated CHANGELOG. 40
+  deterministic guard tests added in
+  `src/commands/ledger_p16_tests.rs` (Section U): doc exists (12 doc
+  content tests), export --json --file valid succeeds, exported JSON
+  valid/parsable, schema_version=1, host_id preserved, entries length
+  preserved, round-trips through parser, deterministic across reads,
+  not inspect JSON, not usage JSON, missing --file fails honestly,
+  missing --json fails honestly, parent traversal rejected, nonexistent
+  rejected, malformed JSON rejected, unsupported schema rejected,
+  missing field rejected, invalid invariant rejected, --output rejected,
+  --overwrite rejected, inspect fixture/JSON/file/file-JSON still work,
+  usage delta JSON unchanged, no version bump, all files under 1000
+  LOC, production code no write APIs, no new dependencies. Updated
+  Phase 15 tests (T-13/T-14) and v31_gate_tests for Phase 16 reality.
+  Stdout-only. Read-only. No file write. No persistence. No live
+  resolver. No enforcement. No nft/tc/cgroup/PID mutation. No eBPF.
+  No quota. No daemon/watch. No v3.0 usage JSON schema change. No
+  ledger inspect JSON schema change. No version bump. No tag/release/
+  publish. No new dependencies.
+
 - **v3.1 phase 15 Ledger Export JSON Gate Design**: Docs/design/
   deterministic tests only. Freezes the future contract for `ledger
   export --json --file <PATH>` before any implementation. Chosen

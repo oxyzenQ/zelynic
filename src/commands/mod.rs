@@ -193,10 +193,9 @@ pub(crate) fn dispatch(cli: Cli, iface_value: Option<&str>) -> Result<()> {
             LedgerCommands::Inspect { json, file } => {
                 ledger::handle_ledger_inspect(json, file.as_deref())
             }
-            LedgerCommands::Export { .. } => Err(anyhow::anyhow!(
-                "{}",
-                render_design_gated_message("ledger export")
-            )),
+            LedgerCommands::Export { json, file } => {
+                ledger::handle_ledger_export(json, file.as_deref())
+            }
         },
 
         // v3.0 usage: handle existing flags, reject future-gated flags.

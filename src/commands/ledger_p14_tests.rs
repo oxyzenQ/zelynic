@@ -201,9 +201,9 @@ fn v31_p14_ledger_inspect_file_valid_fixture_json_works() {
     std::fs::remove_dir_all(&dir).ok();
 }
 
-// S-15: ledger export --json remains design-gated.
+// S-15: ledger export --json is rejected without --file (Phase 16 activated).
 #[test]
-fn v31_p14_ledger_export_remains_design_gated() {
+fn v31_p14_ledger_export_rejected_without_file() {
     use crate::cli::Cli;
     use clap::Parser;
     let cli = Cli::try_parse_from(["zelynic", "ledger", "export", "--json"]).unwrap();
@@ -211,8 +211,8 @@ fn v31_p14_ledger_export_remains_design_gated() {
     assert!(result.is_err());
     let err = result.unwrap_err().to_string();
     assert!(
-        err.contains("design-gated"),
-        "export must remain design-gated: {}",
+        err.contains("--file"),
+        "export must be rejected with --file message: {}",
         err
     );
 }

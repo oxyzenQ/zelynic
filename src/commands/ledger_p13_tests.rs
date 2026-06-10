@@ -141,7 +141,7 @@ fn v31_p13_malformed_json_error_says_invalid_ledger() {
     std::fs::create_dir_all(&dir).unwrap();
     let fp = write_json_to_temp(&dir, "m.json", "{{not valid}");
     let v = validate_inspect_file_path(fp.to_str().unwrap()).unwrap();
-    let r = read_ledger_file(&v);
+    let r = read_ledger_file_inspect(&v);
     assert!(r.is_err());
     let err = r.unwrap_err();
     assert!(
@@ -158,7 +158,7 @@ fn v31_p13_completely_invalid_json_error() {
     std::fs::create_dir_all(&dir).unwrap();
     let fp = write_json_to_temp(&dir, "x.json", "not json at all!!!");
     let v = validate_inspect_file_path(fp.to_str().unwrap()).unwrap();
-    let r = read_ledger_file(&v);
+    let r = read_ledger_file_inspect(&v);
     assert!(r.is_err());
     let err = r.unwrap_err();
     assert!(
@@ -180,7 +180,7 @@ fn v31_p13_unsupported_schema_error_says_unsupported() {
         r#"{"schema_version":0,"created_at":"","updated_at":"","host_id":"","entries":[]}"#,
     );
     let v = validate_inspect_file_path(fp.to_str().unwrap()).unwrap();
-    let r = read_ledger_file(&v);
+    let r = read_ledger_file_inspect(&v);
     assert!(r.is_err());
     let err = r.unwrap_err();
     assert!(
@@ -198,7 +198,7 @@ fn v31_p13_missing_top_level_field_error() {
     std::fs::create_dir_all(&dir).unwrap();
     let fp = write_json_to_temp(&dir, "t.json", r#"{"schema_version":1,"entries":[]}"#);
     let v = validate_inspect_file_path(fp.to_str().unwrap()).unwrap();
-    let r = read_ledger_file(&v);
+    let r = read_ledger_file_inspect(&v);
     assert!(r.is_err());
     let err = r.unwrap_err();
     assert!(
@@ -220,7 +220,7 @@ fn v31_p13_missing_entry_field_error() {
         r#"{"schema_version":1,"created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z","host_id":"h","entries":[{"entry_id":"e1"}]}"#,
     );
     let v = validate_inspect_file_path(fp.to_str().unwrap()).unwrap();
-    let r = read_ledger_file(&v);
+    let r = read_ledger_file_inspect(&v);
     assert!(r.is_err());
     let err = r.unwrap_err();
     assert!(
@@ -242,7 +242,7 @@ fn v31_p13_invalid_combined_bytes_rejected() {
         r#"{"schema_version":1,"created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z","host_id":"h","entries":[{"entry_id":"e1","timestamp":"2026-01-01T00:00:00Z","entry_type":"snapshot","source_label":"t","interface":"eth0","rx_bytes":100,"tx_bytes":50,"combined_bytes":9999,"read_only":true,"provenance":"test","attribution_scope":"interface-level only","enforcement_status":"inactive/not implemented","reset_detected":false,"reset_details":[]}]}"#,
     );
     let v = validate_inspect_file_path(fp.to_str().unwrap()).unwrap();
-    let r = read_ledger_file(&v);
+    let r = read_ledger_file_inspect(&v);
     assert!(r.is_err());
     let err = r.unwrap_err();
     assert!(
@@ -264,7 +264,7 @@ fn v31_p13_read_only_false_rejected() {
         r#"{"schema_version":1,"created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z","host_id":"h","entries":[{"entry_id":"e1","timestamp":"2026-01-01T00:00:00Z","entry_type":"snapshot","source_label":"t","interface":"eth0","rx_bytes":100,"tx_bytes":50,"combined_bytes":150,"read_only":false,"provenance":"test","attribution_scope":"interface-level only","enforcement_status":"inactive/not implemented","reset_detected":false,"reset_details":[]}]}"#,
     );
     let v = validate_inspect_file_path(fp.to_str().unwrap()).unwrap();
-    let r = read_ledger_file(&v);
+    let r = read_ledger_file_inspect(&v);
     assert!(r.is_err());
     let err = r.unwrap_err();
     assert!(
@@ -286,7 +286,7 @@ fn v31_p13_invalid_attribution_scope_rejected() {
         r#"{"schema_version":1,"created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z","host_id":"h","entries":[{"entry_id":"e1","timestamp":"2026-01-01T00:00:00Z","entry_type":"snapshot","source_label":"t","interface":"eth0","rx_bytes":100,"tx_bytes":50,"combined_bytes":150,"read_only":true,"provenance":"test","attribution_scope":"per-app","enforcement_status":"inactive/not implemented","reset_detected":false,"reset_details":[]}]}"#,
     );
     let v = validate_inspect_file_path(fp.to_str().unwrap()).unwrap();
-    let r = read_ledger_file(&v);
+    let r = read_ledger_file_inspect(&v);
     assert!(r.is_err());
     let err = r.unwrap_err();
     assert!(
@@ -308,7 +308,7 @@ fn v31_p13_enforcement_active_error_says_enforcement() {
         r#"{"schema_version":1,"created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z","host_id":"h","entries":[{"entry_id":"e1","timestamp":"2026-01-01T00:00:00Z","entry_type":"snapshot","source_label":"t","interface":"eth0","rx_bytes":100,"tx_bytes":50,"combined_bytes":150,"read_only":true,"provenance":"test","attribution_scope":"interface-level only","enforcement_status":"enforcing","reset_detected":false,"reset_details":[]}]}"#,
     );
     let v = validate_inspect_file_path(fp.to_str().unwrap()).unwrap();
-    let r = read_ledger_file(&v);
+    let r = read_ledger_file_inspect(&v);
     assert!(r.is_err());
     let err = r.unwrap_err();
     assert!(
@@ -352,9 +352,9 @@ fn v31_p13_file_read_json_deterministic_across_reads() {
     std::fs::create_dir_all(&dir).unwrap();
     let fp = write_fixture_to_temp(dir.to_str().unwrap(), "d.json");
     let v = validate_inspect_file_path(fp.to_str().unwrap()).unwrap();
-    let loaded = read_ledger_file(&v).unwrap();
+    let loaded = read_ledger_file_inspect(&v).unwrap();
     let j1 = serialize_ledger_to_json(&loaded).unwrap();
-    let loaded2 = read_ledger_file(&v).unwrap();
+    let loaded2 = read_ledger_file_inspect(&v).unwrap();
     let j2 = serialize_ledger_to_json(&loaded2).unwrap();
     assert_eq!(j1, j2, "JSON output must be deterministic");
     std::fs::remove_dir_all(&dir).ok();
