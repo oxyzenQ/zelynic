@@ -100,7 +100,7 @@ fn v31_gate_ledger_inspect_parses_as_hidden() {
     let cli = Cli::try_parse_from(["zelynic", "ledger", "inspect"]).unwrap();
     match cli.command.unwrap() {
         Commands::Ledger { command } => match command {
-            LedgerCommands::Inspect { json } => {
+            LedgerCommands::Inspect { json, .. } => {
                 assert!(!json);
             }
             other => panic!("expected ledger inspect, got {other:?}"),
@@ -115,7 +115,7 @@ fn v31_gate_ledger_inspect_json_parses_as_hidden() {
     let cli = Cli::try_parse_from(["zelynic", "ledger", "inspect", "--json"]).unwrap();
     match cli.command.unwrap() {
         Commands::Ledger { command } => match command {
-            LedgerCommands::Inspect { json } => {
+            LedgerCommands::Inspect { json, .. } => {
                 assert!(json);
             }
             other => panic!("expected ledger inspect, got {other:?}"),
@@ -809,12 +809,14 @@ fn v31_p10b_no_new_visible_public_command() {
 }
 
 #[test]
-fn v31_p10b_no_file_path_argument_accepted() {
-    // Invariant 24: no file path argument accepted by ledger inspect.
+fn v31_p10b_ledger_inspect_without_file_remains_fixture() {
+    // Invariant 24 (updated): ledger inspect without --file is fixture-only.
     let cli = Cli::try_parse_from(["zelynic", "ledger", "inspect"]).unwrap();
     match cli.command.unwrap() {
         Commands::Ledger { command } => match command {
-            LedgerCommands::Inspect { .. } => {}
+            LedgerCommands::Inspect { file, .. } => {
+                assert!(file.is_none(), "no --file means fixture-only");
+            }
             other => panic!("expected ledger inspect, got {other:?}"),
         },
         other => panic!("expected ledger command, got {other:?}"),
@@ -889,10 +891,19 @@ fn v31_p11_ledger_inspect_json_fixture_only_dispatch_succeeds() {
 }
 
 #[test]
-fn v31_p11_ledger_inspect_file_flag_rejected_by_clap() {
-    // Phase 11: --file is not a valid flag on ledger inspect.
-    let r = Cli::try_parse_from(["zelynic", "ledger", "inspect", "--file", "/tmp/x.json"]);
-    assert!(r.is_err(), "--file must not be accepted by clap");
+fn v31_p12_ledger_inspect_file_flag_parses() {
+    // Phase 12: --file is now a valid hidden flag on ledger inspect.
+    let cli =
+        Cli::try_parse_from(["zelynic", "ledger", "inspect", "--file", "/tmp/x.json"]).unwrap();
+    match cli.command.unwrap() {
+        Commands::Ledger { command } => match command {
+            LedgerCommands::Inspect { file, .. } => {
+                assert_eq!(file.as_deref(), Some("/tmp/x.json"));
+            }
+            other => panic!("expected ledger inspect, got {other:?}"),
+        },
+        other => panic!("expected ledger command, got {other:?}"),
+    }
 }
 
 #[test]
@@ -940,4 +951,41 @@ fn v31_p11_all_touched_files_under_1000_loc() {
     // Verified structurally — this test exists to make the requirement explicit.
     // The actual LOC counts are verified in CI by the build script and in the
     // phase 11 commit message.
+}
+
+// ==========================================================================
+// Section I: Phase 12 — ledger inspect --file read-only implementation tests.
+// ==========================================================================
+
+#[test]
+fn v31_p12_fixture_dispatch_unchanged() {
+    // Fixture-only dispatch remains unchanged without --file.
+    let cli = Cli::try_parse_from(["zelynic", "ledger", "inspect"]).unwrap();
+    assert!(crate::commands::dispatch(cli, None).is_ok());
+    let cli2 = Cli::try_parse_from(["zelynic", "ledger", "inspect", "--json"]).unwrap();
+    assert!(crate::commands::dispatch(cli2, None).is_ok());
+}
+
+#[test]
+fn v31_p12_input_flag_still_rejected() {
+    assert!(
+        Cli::try_parse_from(["zelynic", "ledger", "inspect", "--input", "/tmp/x.json"]).is_err()
+    );
+}
+
+#[test]
+fn v31_p12_file_missing_value_rejected() {
+    let r = Cli::try_parse_from(["zelynic", "ledger", "inspect", "--file"]);
+    assert!(r.is_err());
+}
+
+#[test]
+fn v31_p12_export_gated_schema_and_version() {
+    let cli = Cli::try_parse_from(["zelynic", "ledger", "export", "--json"]).unwrap();
+    let result = crate::commands::dispatch(cli, None);
+    assert!(result.is_err());
+    assert!(result.unwrap_err().to_string().contains("design-gated"));
+    use crate::accounting::SCHEMA_VERSION;
+    assert_eq!(SCHEMA_VERSION, 1);
+    assert!(include_str!("../../Cargo.toml").contains("version = \"3.0.1\""));
 }

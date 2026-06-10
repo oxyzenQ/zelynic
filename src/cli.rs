@@ -657,6 +657,9 @@ pub enum LedgerCommands {
         /// Output as JSON (requires schema_version 2+).
         #[arg(long, hide = true)]
         json: bool,
+        /// [v3.1 phase 12] Read ledger from explicit file path (read-only).
+        #[arg(long = "file", hide = true, value_name = "PATH")]
+        file: Option<String>,
     },
 
     /// Export full ledger data as JSON.
