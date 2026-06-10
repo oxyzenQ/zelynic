@@ -573,6 +573,17 @@ See [RULES.md](RULES.md) for source policy rules and
 [docs/supply-chain.md](docs/supply-chain.md) for dependency policy and
 supply-chain check details.
 
+## v3.1 Ledger (Experimental/Hidden)
+
+The `zelynic ledger` subcommand is a v3.1 experimental/hidden command
+(hidden from `--help`). It provides read-only inspection and export of
+ledger JSON files. No persistence, no enforcement, no nft/tc/cgroup
+mutation. See the detailed documentation:
+
+- [Ledger Inspect User Docs (Phase 14)](docs/v3.1-phase-14-ledger-inspect-user-docs-examples-polish.md)
+- [Ledger Export User Docs (Phase 18)](docs/v3.1-phase-18-ledger-export-user-docs-examples-polish.md)
+- [Ledger Public Surface / README Link Polish (Phase 19)](docs/v3.1-phase-19-ledger-public-surface-readme-link-polish.md)
+
 ## License
 
 GNU General Public License v3.0 — Copyright (c) 2026 rezky_nightky (oxyzenQ)
