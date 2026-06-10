@@ -9,6 +9,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **v3.1 phase 13 Ledger File-Read Error Matrix Freeze**: Tests +
+  docs + small error wording refinements only. Freezes and hardens the
+  error behavior of the explicit `ledger inspect --file` read-only path
+  before any future export/save/persistence phase. 22 deterministic tests
+  added in `src/commands/ledger_p13_tests.rs` (Section R: parent traversal
+  mid-path rejected, empty path error says "empty", pipe character
+  rejected, null character rejected, space in filename rejected, symlink
+  error mentions "symlink", directory path rejected with "not a regular
+  file", nonexistent file error says "cannot access", malformed JSON error
+  says "invalid ledger", completely invalid JSON error, unsupported schema
+  error says "unsupported schema version", missing top-level field error,
+  missing entry field error, invalid combined_bytes rejected, read_only=false
+  rejected, invalid attribution_scope rejected, enforcement_active error
+  says "enforcement_status", fixture inspect text unchanged, fixture
+  inspect JSON unchanged, file-read JSON deterministic across reads,
+  prod code no mutation APIs, v3 usage schema version unchanged, ledger.rs
+  under 1000 LOC, phase 13 doc exists and nonempty, doc says error hardening
+  only, doc says no default path read, doc says no file write, doc says no
+  export, doc says v3.0 usage JSON unchanged). No production code changes.
+  Created design doc
+  `docs/v3.1-phase-13-ledger-file-read-error-matrix-freeze.md`. Updated
+  phase 11/12 docs with Phase 13 forward-references. Updated CHANGELOG.
+  Error hardening only. No default ledger path read. No file write. No
+  export. No save. No persistence. No migration. No live resolver. No
+  enforcement. No nft/tc/cgroup/PID mutation. No eBPF. No quota. No
+  daemon/watch. No v3.0 usage JSON schema change. No version bump. No
+  tag/release/publish. No new dependencies.
+
 - **v3.1 phase 12 Gated Ledger Inspect File-Read Implementation**: Minimal
   runtime implementation + deterministic tests + docs. Enables explicit
   `--file <PATH>` read-only file read for `ledger inspect`. When `--file`
