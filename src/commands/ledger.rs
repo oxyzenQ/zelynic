@@ -270,4 +270,87 @@ mod tests {
         let result = handle_ledger_inspect(true);
         assert!(result.is_ok());
     }
+
+    // === Section P: Phase 11 — file-read gate design doc content tests ===
+
+    const P11_DOC: &str =
+        include_str!("../../docs/v3.1-phase-11-ledger-inspect-file-read-gate-design.md");
+
+    #[test]
+    fn v31_p11_design_doc_exists() {
+        assert!(
+            !P11_DOC.is_empty(),
+            "phase 11 design doc must exist and be non-empty"
+        );
+    }
+
+    #[test]
+    fn v31_p11_design_doc_states_future_shape() {
+        assert!(
+            P11_DOC.contains("ledger inspect --file <PATH>"),
+            "design doc must state future shape ledger inspect --file <PATH>"
+        );
+    }
+
+    #[test]
+    fn v31_p11_design_doc_rejects_implicit_default_file_read() {
+        assert!(
+            P11_DOC.contains("Implicit Default File Read (Rejected)"),
+            "design doc must explicitly reject implicit default file read"
+        );
+    }
+
+    #[test]
+    fn v31_p11_design_doc_says_no_fs_read_implemented() {
+        assert!(
+            P11_DOC.contains("no filesystem read is implemented in this phase"),
+            "design doc must say no filesystem read is implemented"
+        );
+    }
+
+    #[test]
+    fn v31_p11_design_doc_says_no_fs_write_implemented() {
+        assert!(
+            P11_DOC.contains("no filesystem write is implemented in this phase"),
+            "design doc must say no filesystem write is implemented"
+        );
+    }
+
+    #[test]
+    fn v31_p11_design_doc_says_no_symlink_following_silently() {
+        assert!(
+            P11_DOC.contains("no symlink following silently"),
+            "design doc must say no symlink following silently"
+        );
+    }
+
+    #[test]
+    fn v31_p11_design_doc_says_path_validation_required() {
+        assert!(
+            P11_DOC.contains("path validation is required before future read"),
+            "design doc must say path validation is required"
+        );
+    }
+
+    #[test]
+    fn v31_p11_design_doc_says_schema_validation_required() {
+        assert!(
+            P11_DOC.contains("schema validation is required before render"),
+            "design doc must say schema validation is required"
+        );
+    }
+
+    #[test]
+    fn v31_p11_handler_uses_no_std_fs_apis() {
+        // Verify the handler module source does not import or use std::fs.
+        let handler_source = include_str!("mod.rs");
+        assert!(
+            !handler_source.contains("std::fs"),
+            "ledger handler must not use std::fs APIs"
+        );
+        assert!(
+            !handler_source.contains("use std::fs"),
+            "ledger handler must not import std::fs"
+        );
+    }
 }
