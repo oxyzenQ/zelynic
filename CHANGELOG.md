@@ -9,6 +9,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **v3.1 phase 17 Ledger Export Error Matrix Freeze / Regression
+  Hardening**: Deterministic tests + docs polish only. Regression
+  hardening only. No new runtime features. No export success JSON schema
+  change. No ledger inspect behavior change. No v3.0 usage JSON schema
+  change. No output file export. No --output. No --overwrite. No
+  save/write/persistence. No default path read. No live /proc/sysfs
+  read. No live resolver. No enforcement. No nft/tc/cgroup/PID
+  mutation. No version bump. No tag/release/publish. No new
+  dependencies. Freezes the Phase 16 export behavior with 50
+  deterministic guard tests in `src/commands/ledger_p17_tests.rs`
+  (Section V): doc exists and nonempty, doc says regression hardening
+  only, doc says only activated shape is `ledger export --json --file
+  <PATH>`, doc says stdout-only, doc says --file required, doc says
+  --json required, doc says no output/overwrite/write/persistence/
+  default path, doc says no live /proc/sysfs/resolver/enforcement/nft/
+  tc/cgroup/PID mutation, doc says export JSON is ledger JSON not
+  inspect not usage, doc says v3.0 usage JSON unchanged, doc says
+  ledger inspect JSON unchanged, export valid ledger succeeds, exported
+  JSON parses, schema_version=1, preserves host_id, preserves entries
+  length, preserves entry_id, preserves created_at/updated_at,
+  preserves read_only=true, preserves enforcement_status
+  inactive/not implemented, no human header, deterministic across
+  reads, round-trips through parser, not inspect JSON, not usage JSON,
+  missing --file fails honestly, missing --json fails honestly, parent
+  traversal rejected, suspicious filename rejected, directory path
+  rejected, symlink path rejected, nonexistent file rejected, malformed
+  JSON rejected, unsupported schema rejected, missing top-level field
+  rejected, missing entry field rejected, invalid combined_bytes
+  rejected, read_only=false rejected, active enforcement_status
+  rejected, invalid attribution_scope rejected, --output rejected,
+  --overwrite rejected, inspect fixture still works, inspect --json
+  fixture still works, inspect --file still works, inspect --file
+  --json still works, usage delta JSON unchanged, no version bump, all
+  files under 1000 LOC, production code no write APIs. Created design
+  doc `docs/v3.1-phase-17-ledger-export-error-matrix-freeze.md`.
+  Updated phase 15/16 docs with Phase 17 forward-references. Updated
+  CHANGELOG. Unreadable-file testing documented as non-deterministic
+  and not tested to avoid flaky chmod-based tests. Stdout-only.
+  Read-only. No file write. No persistence. No live resolver. No
+  enforcement. No nft/tc/cgroup/PID mutation. No eBPF. No quota. No
+  daemon/watch. No v3.0 usage JSON schema change. No ledger inspect
+  JSON schema change. No version bump. No tag/release/publish. No new
+  dependencies.
+
 - **v3.1 phase 16 Ledger Export JSON Activation (stdout-only + explicit
   --file)**: Small runtime activation + docs + deterministic tests.
   Activates `zelynic ledger export --json --file <PATH>`. Reads the
