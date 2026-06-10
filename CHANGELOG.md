@@ -9,6 +9,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **strict-run-wrapper stable command design contract**: Design doc only — no code
+  changes. Created `docs/strict-run-wrapper-stable-contract.md` defining the contract
+  for a future stable wrapper command that launches a process inside a managed cgroup
+  before sockets are created. Nine sections: chosen future command shape
+  (`zelynic strict --run -d <rate> -- <command>`, chosen over `run --net-limit` and
+  `run --strict`), safety contract (12 invariants: pre-exec cgroup placement, policy
+  installed != traffic proven, traffic proof counters shown, cleanup after child exit,
+  no daemon/detach, explicit user command only, no hidden background limit, no
+  persistence, no quota, no eBPF, no stable claim until multi-host testing), traffic
+  proof contract (4 counter groups, 4 proof states, honesty requirement, known proof
+  values from live experiment), cleanup contract (5-step sequence, error handling,
+  signal handling, exec failure cleanup), compatibility contract (existing strict
+  unchanged, strict-run-lab remains hidden/experimental, v3.0 usage JSON schema
+  unchanged, no ledger behavior affected), promotion checklist (10 required test
+  scenarios: non-VPN, VPN/tun, single/multi-connection, browser, child exit cleanup,
+  Ctrl+C cleanup, failed exec cleanup, no-root error, interface mismatch warning),
+  environmental matrix, relationship to existing commands, non-goals, design decision
+  record. Updated `docs/strict-run-lab-validation-freeze.md` and
+  `docs/strict-prelaunch-cgroup-wrapper-experiment.md` with references to the design
+  contract. Updated CHANGELOG. Design contract only — does NOT implement any stable
+  command, does NOT promote strict-run-lab to stable, does NOT change existing strict
+  behavior, does NOT add eBPF/quota/daemon/watch/ledger/schema changes/version bump/
+  tag/release/publish. 12 new deterministic invariant tests added to
+  `src/commands/strict_run_lab/strict_run_lab_tests.rs` (Section M) proving:
+  strict-run-lab remains hidden from help, no `run --net-limit` alias exists, no
+  `strict --run` flag exists yet, existing strict behavior unchanged (no `handle_strict`
+  call), output still says experimental, no version bump in Cargo.toml, no v3.0 usage
+  JSON schema change, no ledger persistence code, no quota code, no daemon/watch code,
+  no eBPF code, design contract doc exists with required sections. Total tests:
+  1592 (was 1590, +2). Validation: `cargo fmt --check` clean, `cargo clippy` clean,
+  `cargo test --locked` 1592 passed.
+
 - **strict-run-lab validation freeze + proof capture**: Tests + docs + output/honesty
   polish only. Locks the hidden experimental `strict-run-lab` command with 13 new
   deterministic validation freeze tests in `src/commands/strict_run_lab.rs` (Section K,

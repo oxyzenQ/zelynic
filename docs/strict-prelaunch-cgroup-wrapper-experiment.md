@@ -260,6 +260,16 @@ The `strict-run-lab` command is intentionally constrained:
 - `src/commands/mod.rs`: Dispatch already wired
 - `src/cli/tests.rs`: CLI parse tests already present
 
+## Future Stable Wrapper Design
+
+A design contract for a future stable wrapper command has been created in
+[strict-run-wrapper-stable-contract.md](strict-run-wrapper-stable-contract.md).
+The chosen shape is `zelynic strict --run -d <rate> -- <command>`, which extends
+the `strict` family with a launch mode modifier. The contract defines safety,
+traffic proof, cleanup, and compatibility requirements, plus a promotion
+checklist of 10 required test scenarios. The design is documentation only and
+does not implement any stable command.
+
 ## Non-Goals
 
 - This is NOT a production feature

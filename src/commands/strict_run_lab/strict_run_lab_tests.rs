@@ -191,10 +191,12 @@ fn proof_state_is_traffic_proof_active_requires_all() {
 fn proof_state_from_traffic_proof_no_counters() {
     let p = limiter::traffic_proof::StrictTrafficProof::default();
     let ps = StrictRunLabProofState::from_traffic_proof(&p, false);
-    assert!(!ps.checked);
-    assert!(!ps.cgroup_match_observed);
-    assert!(!ps.policer_match_observed);
-    assert!(!ps.placed_before_exec);
+    assert!(
+        !ps.checked
+            && !ps.cgroup_match_observed
+            && !ps.policer_match_observed
+            && !ps.placed_before_exec
+    );
 }
 
 #[test]
@@ -210,11 +212,12 @@ fn proof_state_from_traffic_proof_zero_counters() {
         explicit_interface: false,
     };
     let ps = StrictRunLabProofState::from_traffic_proof(&p, true);
-    assert!(ps.checked);
-    assert!(!ps.cgroup_match_observed);
-    assert!(!ps.policer_match_observed);
-    assert!(ps.placed_before_exec);
-    assert!(!ps.is_traffic_proof_active());
+    assert!(
+        ps.checked
+            && ps.placed_before_exec
+            && !ps.cgroup_match_observed
+            && !ps.is_traffic_proof_active()
+    );
 }
 
 #[test]
@@ -239,13 +242,10 @@ fn proof_state_from_traffic_proof_nonzero_counters() {
         explicit_interface: true,
     };
     let ps = StrictRunLabProofState::from_traffic_proof(&p, true);
-    assert!(ps.checked);
-    assert!(ps.cgroup_match_observed);
-    assert!(ps.policer_match_observed);
-    assert!(ps.drop_observed);
-    assert!(ps.is_tunnel);
-    assert!(ps.placed_before_exec);
-    assert!(ps.is_traffic_proof_active());
+    assert!(
+        ps.checked && ps.cgroup_match_observed && ps.policer_match_observed && ps.drop_observed
+    );
+    assert!(ps.is_tunnel && ps.placed_before_exec && ps.is_traffic_proof_active());
 }
 
 #[test]
@@ -257,8 +257,7 @@ fn proof_state_from_traffic_proof_tunnel_detection() {
         }),
         ..Default::default()
     };
-    let ps = StrictRunLabProofState::from_traffic_proof(&p, false);
-    assert!(ps.is_tunnel);
+    assert!(StrictRunLabProofState::from_traffic_proof(&p, false).is_tunnel);
 }
 
 // === Section C: Outcome model tests ===
@@ -350,8 +349,10 @@ fn outcome_policy_applied_variant() {
 
 #[test]
 fn proof_summary_renders_not_checked() {
-    let r = capture_proof_render(&StrictRunLabProofState::default(), "eth0");
-    assert!(r.contains("traffic proof not checked"));
+    assert!(
+        capture_proof_render(&StrictRunLabProofState::default(), "eth0")
+            .contains("traffic proof not checked")
+    );
 }
 
 #[test]
@@ -377,8 +378,7 @@ fn proof_summary_renders_traffic_proof_active() {
         ..Default::default()
     };
     let r = capture_proof_render(&ps, "eth0");
-    assert!(r.contains("traffic proof observed"));
-    assert!(r.contains("shaping appears active"));
+    assert!(r.contains("traffic proof observed") && r.contains("shaping appears active"));
 }
 
 #[test]
@@ -396,38 +396,41 @@ fn proof_summary_renders_tunnel_warning() {
 
 #[test]
 fn proof_summary_renders_attach_limitation() {
-    let r = capture_proof_render(&StrictRunLabProofState::default(), "eth0");
-    assert!(r.contains("attach-after-socket limitation"));
+    assert!(
+        capture_proof_render(&StrictRunLabProofState::default(), "eth0")
+            .contains("attach-after-socket limitation")
+    );
 }
 
 #[test]
 fn proof_summary_renders_not_stable() {
-    let r = capture_proof_render(&StrictRunLabProofState::default(), "eth0");
-    assert!(r.contains("not stable"));
+    assert!(
+        capture_proof_render(&StrictRunLabProofState::default(), "eth0").contains("not stable")
+    );
 }
 
 #[test]
 fn proof_summary_renders_placed_before_exec_yes() {
-    let r = capture_proof_render(
+    assert!(capture_proof_render(
         &StrictRunLabProofState {
             placed_before_exec: true,
             ..Default::default()
         },
         "eth0",
-    );
-    assert!(r.contains("yes"));
+    )
+    .contains("yes"));
 }
 
 #[test]
 fn proof_summary_renders_placed_before_exec_no() {
-    let r = capture_proof_render(
+    assert!(capture_proof_render(
         &StrictRunLabProofState {
             placed_before_exec: false,
             ..Default::default()
         },
         "eth0",
-    );
-    assert!(r.contains("no"));
+    )
+    .contains("no"));
 }
 
 #[test]
@@ -441,19 +444,23 @@ fn proof_summary_renders_counter_details() {
         ..Default::default()
     };
     let r = capture_proof_render(&ps, "eth0");
-    assert!(r.contains("cgroup_match: true"));
-    assert!(r.contains("policer_match: true"));
-    assert!(r.contains("drop: true"));
+    assert!(
+        r.contains("cgroup_match: true")
+            && r.contains("policer_match: true")
+            && r.contains("drop: true")
+    );
 }
 
 #[test]
 fn proof_summary_does_not_claim_success_when_zero() {
-    let ps = StrictRunLabProofState {
-        checked: true,
-        placed_before_exec: true,
-        ..Default::default()
-    };
-    let r = capture_proof_render(&ps, "eth0");
+    let r = capture_proof_render(
+        &StrictRunLabProofState {
+            checked: true,
+            placed_before_exec: true,
+            ..Default::default()
+        },
+        "eth0",
+    );
     assert!(!r.contains("shaping appears active"));
 }
 
@@ -486,8 +493,7 @@ fn output_says_vpn_tunnel_cases_may_vary() {
 #[test]
 fn output_says_experiment_not_stable() {
     let s = module_source();
-    assert!(s.contains("not stable"));
-    assert!(s.contains("Do not use this as evidence"));
+    assert!(s.contains("not stable") && s.contains("Do not use this as evidence"));
 }
 
 #[test]
@@ -568,8 +574,7 @@ fn proof_state_equality_works() {
 #[test]
 fn proof_state_debug_works() {
     let d = format!("{:?}", StrictRunLabProofState::default());
-    assert!(d.contains("StrictRunLabProofState"));
-    assert!(d.contains("checked: false"));
+    assert!(d.contains("StrictRunLabProofState") && d.contains("checked: false"));
 }
 
 #[test]
@@ -584,8 +589,7 @@ fn outcome_debug_works() {
             cleanup_attempted: true,
         }
     );
-    assert!(d.contains("Completed"));
-    assert!(d.contains("child_pid: 1234"));
+    assert!(d.contains("Completed") && d.contains("child_pid: 1234"));
 }
 
 // === Section J: Helpers ===
@@ -617,22 +621,23 @@ fn capture_tp_render(proof: &limiter::traffic_proof::StrictTrafficProof) -> Stri
 }
 
 fn capture_proof_render(proof: &StrictRunLabProofState, interface: &str) -> String {
-    let mut lines = Vec::new();
-    lines.push(format!(
-        "placed: {}",
-        if proof.placed_before_exec {
-            "yes"
-        } else {
-            "no"
-        }
-    ));
-    lines.push(format!("checked: {}", proof.checked));
-    lines.push(format!("cgroup_match: {}", proof.cgroup_match_observed));
-    lines.push(format!("policer_match: {}", proof.policer_match_observed));
-    lines.push(format!("drop: {}", proof.drop_observed));
-    lines.push(format!("tunnel: {}", proof.is_tunnel));
-    lines.push(format!("interface: {}", interface));
-    lines.push(format!("active: {}", proof.is_traffic_proof_active()));
+    let mut lines = vec![
+        format!(
+            "placed: {}",
+            if proof.placed_before_exec {
+                "yes"
+            } else {
+                "no"
+            }
+        ),
+        format!("checked: {}", proof.checked),
+        format!("cgroup_match: {}", proof.cgroup_match_observed),
+        format!("policer_match: {}", proof.policer_match_observed),
+        format!("drop: {}", proof.drop_observed),
+        format!("tunnel: {}", proof.is_tunnel),
+        format!("interface: {}", interface),
+        format!("active: {}", proof.is_traffic_proof_active()),
+    ];
     if proof.is_traffic_proof_active() {
         lines.push("traffic proof observed -- shaping appears active in this run".to_string());
     } else if proof.checked && !proof.cgroup_match_observed {
@@ -652,8 +657,6 @@ fn capture_proof_render(proof: &StrictRunLabProofState, interface: &str) -> Stri
 
 #[test]
 fn freeze_hidden_from_help_cli_level() {
-    // Prove the StrictRunLab variant uses hide = true in clap.
-    // This is a structural invariant: the command must remain hidden.
     let help = crate::cli::Cli::command().render_help().to_string();
     assert!(
         !help.contains("strict-run-lab"),
@@ -663,8 +666,6 @@ fn freeze_hidden_from_help_cli_level() {
 
 #[test]
 fn freeze_requires_double_dash_before_command() {
-    // Prove the command requires at least one positional arg after --.
-    // Without a command, clap must reject.
     let result = crate::cli::Cli::try_parse_from(["zelynic", "strict-run-lab", "-d", "100kb"]);
     assert!(
         result.is_err(),
@@ -678,7 +679,6 @@ fn freeze_says_experimental_and_lab_and_not_stable() {
     assert!(s.contains("experimental"), "must say experimental");
     assert!(s.contains("lab"), "must say lab");
     assert!(s.contains("not stable"), "must say not stable");
-    // Must also NOT say "stable" as a positive claim
     assert!(
         !s.contains("stable command"),
         "must not claim to be a stable command"
@@ -695,8 +695,6 @@ fn freeze_says_pre_launch_cgroup_placement() {
 
 #[test]
 fn freeze_traffic_proof_reuses_shared_model() {
-    // Prove that StrictRunLabProofState::from_traffic_proof is the only
-    // conversion path — no parallel parsing or alternative proof logic.
     let s = module_source();
     assert!(
         s.contains("from_traffic_proof"),
@@ -714,8 +712,6 @@ fn freeze_traffic_proof_reuses_shared_model() {
 
 #[test]
 fn freeze_no_false_success_on_zero_counters() {
-    // Even if placed_before_exec=true, zero counters must NOT yield
-    // is_traffic_proof_active().
     let ps = StrictRunLabProofState {
         checked: true,
         placed_before_exec: true,
@@ -725,7 +721,6 @@ fn freeze_no_false_success_on_zero_counters() {
         !ps.is_traffic_proof_active(),
         "zero counters must never be claimed as active proof"
     );
-    // And partial: cgroup match but no policer must NOT be active
     let partial = StrictRunLabProofState {
         checked: true,
         cgroup_match_observed: true,
@@ -749,7 +744,6 @@ fn freeze_cleanup_wording_present() {
 #[test]
 fn freeze_cleanup_on_error_path() {
     let s = module_source();
-    // On policy apply failure: kill child, wait, then cleanup
     assert!(
         s.contains("child.kill()"),
         "must kill child on policy error"
@@ -763,8 +757,6 @@ fn freeze_cleanup_on_error_path() {
 
 #[test]
 fn freeze_strict_behavior_unchanged() {
-    // The lab handler must not modify stable strict behavior.
-    // Verify: no reference to the stable strict handler function.
     let s = module_source();
     assert!(
         !s.contains("handle_strict("),
@@ -805,14 +797,6 @@ fn freeze_no_forbidden_features() {
 
 #[test]
 fn freeze_live_proof_values_reproducible() {
-    // Deterministic test using the exact live proof values from the
-    // successful experiment:
-    //   socket cgroupv2: 1800 pkts / 210054 bytes
-    //   ct mark: 1971 pkts / 286838 bytes
-    //   download policer: 3236 pkts / 4456466 bytes
-    //   drop: 531 pkts / 741189 bytes
-    //
-    // All four counters > 0 → is_traffic_proof_active() must be true.
     let proof = limiter::traffic_proof::StrictTrafficProof {
         status: limiter::traffic_proof::StrictTrafficProofStatus::PolicerMatchObserved,
         counters: Some(limiter::traffic_proof::StrictTrafficProofCounters {
@@ -833,21 +817,12 @@ fn freeze_live_proof_values_reproducible() {
         explicit_interface: true,
     };
     let ps = StrictRunLabProofState::from_traffic_proof(&proof, true);
-    assert_eq!(
-        ps.cgroup_match_observed, true,
-        "cgroup match must be observed"
-    );
-    assert_eq!(
-        ps.policer_match_observed, true,
-        "policer match must be observed"
-    );
-    assert_eq!(ps.drop_observed, true, "drop must be derived from policer");
-    assert_eq!(ps.is_tunnel, true, "proton0 must be detected as tunnel");
-    assert_eq!(
-        ps.placed_before_exec, true,
-        "must record pre-exec placement"
-    );
-    assert_eq!(ps.checked, true, "must record that counters were checked");
+    assert!(ps.cgroup_match_observed, "cgroup match must be observed");
+    assert!(ps.policer_match_observed, "policer match must be observed");
+    assert!(ps.drop_observed, "drop must be derived from policer");
+    assert!(ps.is_tunnel, "proton0 must be detected as tunnel");
+    assert!(ps.placed_before_exec, "must record pre-exec placement");
+    assert!(ps.checked, "must record that counters were checked");
     assert!(
         ps.is_traffic_proof_active(),
         "live proof values (1800/210054, 3236/4456466) must yield active proof"
@@ -856,7 +831,6 @@ fn freeze_live_proof_values_reproducible() {
 
 #[test]
 fn freeze_outcome_all_variants_exhaustive() {
-    // Prove all 5 outcome variants are constructible and match expectations.
     use StrictRunLabOutcome::*;
     let ps = StrictRunLabProofState {
         checked: true,
@@ -866,7 +840,6 @@ fn freeze_outcome_all_variants_exhaustive() {
         is_tunnel: false,
         placed_before_exec: true,
     };
-
     match (Launched {
         child_pid: 1,
         verified_in_cgroup: true,
@@ -913,6 +886,84 @@ fn freeze_outcome_all_variants_exhaustive() {
         }
         _ => panic!("ErrorAfterLaunch mismatch"),
     }
+}
+
+// === Section M: Stable wrapper design contract invariants ===
+// These enforce invariants from docs/strict-run-wrapper-stable-contract.md.
+
+#[test]
+fn contract_stable_wrapper_not_yet_implemented() {
+    // CLI-level: strict-run-lab hidden, no --net-limit, no --run on strict.
+    let help = crate::cli::Cli::command().render_help().to_string();
+    assert!(!help.contains("strict-run-lab"), "must remain hidden");
+    let run_help = crate::cli::Cli::command()
+        .find_subcommand_mut("run")
+        .expect("run")
+        .render_long_help()
+        .to_string();
+    assert!(!run_help.contains("net-limit"), "no --net-limit");
+    let strict_help = crate::cli::Cli::command()
+        .find_subcommand_mut("strict")
+        .expect("strict")
+        .render_long_help()
+        .to_string();
+    assert!(!strict_help.contains("--run"), "no --run");
+    // Handler-level: unchanged behavior, experimental wording, no forbidden code.
+    let s = module_source();
+    assert!(!s.contains("handle_strict("), "no handle_strict call");
+    assert!(
+        s.contains("experimental") && s.contains("not stable"),
+        "still experimental"
+    );
+    assert!(
+        !s.contains("schema_version") && !s.contains("UsageSnapshot"),
+        "no schema change"
+    );
+    assert!(
+        !s.contains("LedgerPersistencePlan") && !s.contains("quota"),
+        "no ledger/quota"
+    );
+    assert!(
+        !s.contains("daemon") && !s.contains("watch"),
+        "no daemon/watch"
+    );
+    assert!(!s.contains("ebpf") && !s.contains("eBPF"), "no eBPF");
+    // Version: must remain 3.0.1 for design-only work.
+    assert!(
+        include_str!("../../../Cargo.toml").contains("version = \"3.0.1\""),
+        "no version bump"
+    );
+}
+
+#[test]
+fn contract_design_doc_exists_with_required_sections() {
+    let doc = include_str!("../../../docs/strict-run-wrapper-stable-contract.md");
+    assert!(
+        doc.contains("Chosen Future Stable Command Shape"),
+        "must have command shape"
+    );
+    assert!(doc.contains("Safety Contract"), "must have safety contract");
+    assert!(
+        doc.contains("Traffic Proof Contract"),
+        "must have traffic proof"
+    );
+    assert!(
+        doc.contains("Cleanup Contract"),
+        "must have cleanup contract"
+    );
+    assert!(
+        doc.contains("Compatibility Contract"),
+        "must have compatibility"
+    );
+    assert!(
+        doc.contains("Required Before Stable Promotion"),
+        "must have promotion"
+    );
+    assert!(doc.contains("strict --run"), "must mention chosen shape");
+    assert!(
+        doc.contains("run --net-limit"),
+        "must document rejected alt"
+    );
 }
 
 // === Section L: Helpers ===

@@ -229,6 +229,15 @@ The validation freeze is strictly tests + docs + minor output/honesty polish:
 - Does NOT change version numbers or create releases
 - Does NOT add tags, GitHub releases, or package publications
 
+## Future Stable Wrapper Design Contract
+
+A design contract for a future stable wrapper command has been documented in
+[strict-run-wrapper-stable-contract.md](strict-run-wrapper-stable-contract.md).
+That document defines the chosen command shape (`zelynic strict --run`), the
+safety contract, the traffic proof contract, the cleanup contract, the
+compatibility contract, and the promotion checklist. It is design only and does
+not implement any stable command.
+
 ## Non-Goals
 
 - This is NOT a production feature promotion
