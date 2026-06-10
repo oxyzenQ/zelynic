@@ -9,6 +9,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **v3.1 phase 14 Ledger Inspect User Docs / Examples Polish**: Docs +
+  deterministic doc/CLI guard tests only. No runtime behavior change.
+  No ledger inspect parsing behavior change. No `ledger inspect --file`
+  behavior change. Polishes user-facing documentation for all four
+  `ledger inspect` command variants: fixture text, fixture JSON, explicit
+  `--file` text, explicit `--file` JSON. Documents the critical
+  distinction between fixture-only preview (no `--file`) and explicit
+  read-only file inspect (`--file <PATH>`). Includes minimal valid
+  ledger JSON example with all required fields documented. Includes
+  expected output examples for all four variants. Includes invalid
+  input examples: parent traversal path, nonexistent file, malformed
+  JSON, unsupported schema version, missing required field, invalid
+  invariant. Includes comprehensive safety wording: no default ledger
+  path read, no implicit persistence, no file write, no export, no
+  save, no migration, no backup, no rename, no truncate, no delete, no
+  overwrite, no live resolver, no enforcement, no nft/tc/cgroup/PID
+  mutation, no /proc or sysfs read, v3.0 usage JSON unchanged. Includes
+  future roadmap boundary: export gated, save/write not implemented,
+  persistence not enabled, documentation polish only. Created design doc
+  `docs/v3.1-phase-14-ledger-inspect-user-docs-examples-polish.md`.
+  Updated phase 11/12/13 docs with Phase 14 forward-references. Updated
+  CHANGELOG. 18 deterministic guard tests added in
+  `src/commands/ledger_p14_tests.rs`: doc exists, doc includes all four
+  commands, doc says fixture-only when no `--file`, doc says explicit
+  read-only when `--file`, doc includes valid JSON example, doc includes
+  invalid examples, doc says export gated, doc says no save/write/
+  persistence, doc says no nft/tc/cgroup/PID mutation, doc says v3.0
+  usage unchanged, ledger inspect still works, ledger inspect --json
+  still works, inspect --file valid fixture still works, inspect --file
+  valid fixture --json still works, export remains design-gated, no
+  output/save/overwrite flags exist, no version bump, all files under
+  1000 LOC. Docs/examples polish only. No production code changes.
+
 - **v3.1 phase 13 Ledger File-Read Error Matrix Freeze**: Tests +
   docs + small error wording refinements only. Freezes and hardens the
   error behavior of the explicit `ledger inspect --file` read-only path
