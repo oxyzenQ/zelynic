@@ -902,18 +902,9 @@ fn contract_doc_has_required_sections() {
 #[test]
 fn matrix_doc_exists_with_all_scenarios() {
     for id in [
-        "SRL-MVM-001",
-        "SRL-MVM-002",
-        "SRL-MVM-003",
-        "SRL-MVM-004",
-        "SRL-MVM-005",
-        "SRL-MVM-006",
-        "SRL-MVM-007",
-        "SRL-MVM-008",
-        "SRL-MVM-009",
-        "SRL-MVM-010",
-        "SRL-MVM-011",
-        "SRL-MVM-012",
+        "SRL-MVM-001", "SRL-MVM-002", "SRL-MVM-003", "SRL-MVM-004",
+        "SRL-MVM-005", "SRL-MVM-006", "SRL-MVM-007", "SRL-MVM-008",
+        "SRL-MVM-009", "SRL-MVM-010", "SRL-MVM-011", "SRL-MVM-012",
     ] {
         assert!(MATRIX_DOC.contains(id), "missing scenario {id}");
     }
@@ -949,12 +940,14 @@ fn no_stable_alias_in_cli() {
         .render_long_help()
         .to_string()
         .contains("net-limit"));
-    assert!(!crate::cli::Cli::command()
+    // --run-lab is hidden; check normal help (render_long_help shows hidden args).
+    let h = crate::cli::Cli::command()
         .find_subcommand_mut("strict")
         .unwrap()
-        .render_long_help()
-        .to_string()
-        .contains("--run"));
+        .render_help()
+        .to_string();
+    assert!(!h.contains("--run "), "stable --run must not exist");
+    assert!(!h.contains("run-lab"), "hidden --run-lab must not appear");
 }
 #[test]
 fn matrix_hidden_from_help() {

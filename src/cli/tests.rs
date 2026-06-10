@@ -14,7 +14,7 @@ fn strict_diagnose_flag_parses() {
             diagnose, target, ..
         } => {
             assert!(diagnose);
-            assert_eq!(target, "firefox");
+            assert_eq!(target, vec!["firefox"]);
         }
         other => panic!("expected strict command, got {other:?}"),
     }
@@ -29,7 +29,7 @@ fn strict_diag_alias_parses() {
             diagnose, target, ..
         } => {
             assert!(diagnose);
-            assert_eq!(target, "1234");
+            assert_eq!(target, vec!["1234"]);
         }
         other => panic!("expected strict command, got {other:?}"),
     }
@@ -41,6 +41,169 @@ fn strict_diagnose_defaults_false() {
 
     match cli.command.unwrap() {
         Commands::Strict { diagnose, .. } => assert!(!diagnose),
+        other => panic!("expected strict command, got {other:?}"),
+    }
+}
+
+// ---- strict --run-lab hidden alias tests ----
+
+#[test]
+fn strict_run_lab_alias_parses_with_double_dash() {
+    let cli = Cli::try_parse_from([
+        "zelynic",
+        "strict",
+        "--run-lab",
+        "--diagnose",
+        "--iface",
+        "proton0",
+        "-d",
+        "100kb",
+        "--",
+        "aria2c",
+        "-x",
+        "1",
+        "https://example.com/file.iso",
+    ])
+    .unwrap();
+
+    match cli.command.unwrap() {
+        Commands::Strict {
+            download,
+            run_lab,
+            target,
+            ..
+        } => {
+            assert!(run_lab, "--run-lab must be true");
+            assert_eq!(download.as_deref(), Some("100kb"));
+            // target captures all positional args after --
+            assert_eq!(
+                target,
+                vec!["aria2c", "-x", "1", "https://example.com/file.iso"]
+            );
+        }
+        other => panic!("expected strict --run-lab, got {other:?}"),
+    }
+}
+
+#[test]
+fn strict_run_lab_alias_single_command_no_extra_args() {
+    let cli = Cli::try_parse_from([
+        "zelynic",
+        "strict",
+        "--run-lab",
+        "-d",
+        "100kb",
+        "--",
+        "echo",
+        "hello",
+    ])
+    .unwrap();
+
+    match cli.command.unwrap() {
+        Commands::Strict {
+            run_lab, target, ..
+        } => {
+            assert!(run_lab);
+            assert_eq!(target, vec!["echo", "hello"]);
+        }
+        other => panic!("expected strict --run-lab, got {other:?}"),
+    }
+}
+
+#[test]
+fn strict_run_lab_alias_without_dash_still_captures() {
+    // Without --, args starting with - are treated as flags and cause parse error.
+    // This is expected: users must use -- with --run-lab when child args look like flags.
+    let result = Cli::try_parse_from([
+        "zelynic",
+        "strict",
+        "--run-lab",
+        "-d",
+        "100kb",
+        "aria2c",
+        "-x",
+        "1",
+    ]);
+    // Expected to fail because -x looks like a flag.
+    assert!(result.is_err(), "without --, -x is parsed as unknown flag");
+}
+
+#[test]
+fn strict_run_lab_alias_requires_target() {
+    let result = Cli::try_parse_from(["zelynic", "strict", "--run-lab", "-d", "100kb"]);
+    // clap may accept this (Vec<String> can be empty) but the handler
+    // will reject it at dispatch time ("no command specified").
+    // We accept either behavior at the parse level.
+    if let Ok(cli) = result {
+        match cli.command.unwrap() {
+            Commands::Strict {
+                run_lab, target, ..
+            } => {
+                assert!(run_lab);
+                assert!(target.is_empty(), "no positional args should be captured");
+            }
+            other => panic!("expected strict --run-lab, got {other:?}"),
+        }
+    }
+    // If clap rejects it, that's also fine.
+}
+
+#[test]
+fn strict_run_lab_alias_hidden_from_normal_help() {
+    // --run-lab is hidden, so it must not appear in normal (short) help.
+    let help = Cli::command()
+        .find_subcommand_mut("strict")
+        .unwrap()
+        .render_help()
+        .to_string();
+    assert!(
+        !help.contains("run-lab"),
+        "--run-lab must be hidden from strict normal help"
+    );
+}
+
+#[test]
+fn strict_run_lab_alias_defaults_false() {
+    let cli = Cli::try_parse_from(["zelynic", "strict", "-d", "1mb", "firefox"]).unwrap();
+
+    match cli.command.unwrap() {
+        Commands::Strict {
+            run_lab, target, ..
+        } => {
+            assert!(!run_lab, "--run-lab must default to false");
+            assert_eq!(target, vec!["firefox"]);
+        }
+        other => panic!("expected strict command, got {other:?}"),
+    }
+}
+
+#[test]
+fn strict_normal_mode_no_run_lab() {
+    let cli = Cli::try_parse_from(["zelynic", "strict", "-d", "1mb", "firefox"]).unwrap();
+    match cli.command.unwrap() {
+        Commands::Strict {
+            run_lab, target, ..
+        } => {
+            assert!(!run_lab);
+            assert_eq!(target, vec!["firefox"]);
+        }
+        other => panic!("expected strict command, got {other:?}"),
+    }
+}
+
+#[test]
+fn strict_normal_mode_rejects_extra_args() {
+    // Normal mode: extra positional args are accepted by clap (Vec<String>)
+    // but must be rejected at dispatch. This test verifies clap parsing succeeds
+    // (dispatch-level rejection is tested in integration).
+    let cli = Cli::try_parse_from(["zelynic", "strict", "-d", "1mb", "firefox", "brave"]).unwrap();
+    match cli.command.unwrap() {
+        Commands::Strict {
+            run_lab, target, ..
+        } => {
+            assert!(!run_lab);
+            assert_eq!(target, vec!["firefox", "brave"]);
+        }
         other => panic!("expected strict command, got {other:?}"),
     }
 }

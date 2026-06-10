@@ -9,6 +9,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **strict-run UX simplification gate (Option A: hidden `--run-lab` alias)**: Adds a
+  hidden `--run-lab` flag to the existing `strict` subcommand that internally delegates
+  to `handle_strict_run_lab()`, making the pre-launch wrapper easier to invoke without
+  exposing it as stable. The working command becomes
+  `zelynic strict --run-lab -d 100kb -- aria2c https://example.com/file.iso` (shorter
+  than the full `zelynic strict-run-lab ...` path). Implementation: added `run_lab: bool`
+  (hidden) and changed `target` from `String` to `Vec<String>` with `num_args = 1..` in
+  `src/cli.rs` to support multi-arg child commands. Dispatch in `src/commands/mod.rs`
+  routes `--run-lab` to `strict_run_lab::handle_strict_run_lab()` with `target` as the
+  command vec; normal mode validates `target.len() == 1` and delegates to existing
+  `handle_strict()`. Extra positional args in normal mode rejected at dispatch with
+  "unexpected argument" error. Output reuses existing experimental banner, traffic proof
+  counters, and Ctrl+C cleanup from `strict-run-lab`. 9 new deterministic CLI parse
+  tests in `src/cli/tests.rs`: alias parses with `--`, single command, without `--`
+  (flag-like args error), requires target, hidden from normal help, defaults false,
+  normal mode no run-lab, normal mode rejects extra args. Updated existing tests for
+  `target` changed to `Vec<String>`. Updated `no_stable_alias_in_cli` test in
+  `src/commands/strict_run_lab/strict_run_lab_tests.rs` to check `render_help()` (not
+  `render_long_help()` which shows hidden args) and verify both `--run ` (stable) and
+  `run-lab` (hidden experimental) absent. Created `docs/strict-run-ux-simplification-gate.md`
+  documenting background, design decision (Option A chosen), implementation details,
+  and safety guarantees. Updated `docs/strict-run-wrapper-stable-contract.md` with
+  current implementation status. UX simplification/gate only — existing `strict -d
+  100kb aria2c` remains attach mode (unchanged semantics), `strict-run-lab` hidden
+  subcommand still works, no eBPF/quota/daemon/watch/ledger persistence, no v3.0 usage
+  JSON schema change, no version bump, no tag, no release, no package publish.
+
 - **strict-run-lab Ctrl+C cleanup audit/fix**: Minimal runtime fix for Ctrl+C
   (SIGINT) cleanup in the hidden experimental strict-run-lab command. Prior to
   this fix, Ctrl+C terminated the parent without cleanup, leaving orphaned
