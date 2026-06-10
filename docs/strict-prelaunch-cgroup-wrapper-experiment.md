@@ -113,6 +113,17 @@ The cleanup function `attempt_cleanup()` removes:
 Additionally, after the child exits, the handler removes the target from
 `ZelynicState` and deletes the entire nft table if no other limits remain.
 
+### Ctrl+C Cleanup (Audit Phase)
+
+Prior to the Ctrl+C cleanup audit phase, pressing Ctrl+C would terminate
+the parent without running cleanup, leaving orphaned state. A fix was
+implemented using `libc::sigaction` (no new dependencies) that installs a
+SIGINT handler which sets a global `AtomicBool`. The blocking `child.wait()`
+was replaced with a polled `try_wait()` loop that detects the signal, kills
+the child, and runs the full cleanup sequence. See
+[strict-run-lab-ctrlc-cleanup-audit.md](strict-run-lab-ctrlc-cleanup-audit.md)
+for details.
+
 ### Key Difference from `strict`
 
 The stable `strict` command:

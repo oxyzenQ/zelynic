@@ -52,7 +52,7 @@ fn traffic_proof_model_reused_in_lab() {
 
 #[test]
 fn cleanup_function_exists() {
-    let _ = attempt_cleanup as fn(&str, &str, bool);
+    let _ = attempt_cleanup as fn(&str, &str, &str, bool) -> CleanupStatus;
 }
 
 #[test]
@@ -989,7 +989,7 @@ fn matrix_no_forbidden_features() {
 fn matrix_no_version_bump() {
     assert!(include_str!("../../../Cargo.toml").contains("version = \"3.0.1\""));
 }
-fn module_source() -> String {
+pub(super) fn module_source() -> String {
     let source = include_str!("mod.rs");
     if let Some(pos) = source.find("#[cfg(test)]") {
         source[..pos].to_string()
