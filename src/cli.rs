@@ -153,8 +153,24 @@ pub enum Commands {
         #[arg(long = "diagnose", alias = "diag")]
         diagnose: bool,
 
+        /// [hidden/experimental] Pre-launch cgroup wrapper alias.
+        ///
+        /// Launches child inside Zelynic cgroup before sockets are created,
+        /// then applies the same nft/tc policy. This is an alias for the
+        /// hidden `strict-run-lab` command. It is NOT stable.
+        ///
+        /// When set, the positional TARGET and all trailing args become the
+        /// child command (pass after `--`):
+        ///   zelynic strict --run-lab --diagnose -d 100kb -- aria2c https://example.com/f.iso
+        #[arg(long = "run-lab", hide = true)]
+        run_lab: bool,
+
         /// Target process name or PID (name matching is conservative; use PID for exact targeting)
-        target: String,
+        ///
+        /// In normal mode: exactly one value (process name or PID).
+        /// In --run-lab mode: child command and args (pass after `--`).
+        #[arg(value_name = "TARGET", num_args = 1..)]
+        target: Vec<String>,
     },
 
     /// Remove all bandwidth limits from a process

@@ -51,8 +51,33 @@ pub(crate) fn dispatch(cli: Cli, iface_value: Option<&str>) -> Result<()> {
             upload,
             preset,
             diagnose,
+            run_lab,
             target,
-        }) => strict::handle_strict(download, upload, preset, diagnose, &target, iface_value),
+        }) => {
+            if run_lab {
+                // Hidden experimental alias: strict --run-lab → strict-run-lab handler.
+                // target contains the full child command (name + args after `--`).
+                strict_run_lab::handle_strict_run_lab(
+                    download,
+                    upload,
+                    diagnose,
+                    iface_value,
+                    &target,
+                )
+            } else {
+                // Normal attach-mode strict: target must be exactly one value.
+                if target.len() != 1 {
+                    // Reject extra positional args in normal mode.
+                    // This preserves the existing CLI contract: strict takes exactly one target.
+                    let extra: Vec<&str> = target.iter().skip(1).map(|s| s.as_str()).collect();
+                    return Err(anyhow::anyhow!(
+                        "unexpected argument(s): {}. Usage: zelynic strict -d <rate> <TARGET>",
+                        extra.join(" ")
+                    ));
+                }
+                strict::handle_strict(download, upload, preset, diagnose, &target[0], iface_value)
+            }
+        }
 
         Some(Commands::Unstrict { target }) => strict::handle_unstrict(&target),
 
