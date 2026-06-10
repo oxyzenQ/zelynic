@@ -703,6 +703,8 @@ fn attempt_cleanup(
 }
 
 #[cfg(test)]
+mod contract_matrix_tests;
+#[cfg(test)]
 mod ctrlc_cleanup_tests;
 #[cfg(test)]
 mod strict_run_lab_tests;
