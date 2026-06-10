@@ -307,6 +307,10 @@ Notes: <any observations, anomalies, VPN reconnects, etc.>
 
 ## Relationship to Other Documents
 
+- [strict-run-lab-ctrlc-cleanup-audit.md](strict-run-lab-ctrlc-cleanup-audit.md): Records
+  the audit and fix of the Ctrl+C cleanup behavior. SRL-MVM-007 (Ctrl+C cleanup)
+  was partially failing before this audit phase. The fix adds a libc-based SIGINT
+  handler that triggers cleanup on Ctrl+C.
 - [strict-run-wrapper-stable-contract.md](strict-run-wrapper-stable-contract.md): Defines the
   future stable wrapper design contract. This matrix is the evidence-gathering phase
   that feeds into that contract's promotion checklist (Section 6).
@@ -321,14 +325,14 @@ Notes: <any observations, anomalies, VPN reconnects, etc.>
 
 | Scenario | Status | Date | Result |
 |----------|--------|------|--------|
-| SRL-MVM-001 | Not run | - | - |
+| SRL-MVM-001 | PASS (single run) | 2026-06-10 | All 4 counter groups nonzero; speed 60-106 KiB/s at 100kb policy; manual unstrict cleanup succeeded; Ctrl+C cleanup NOT tested before ctrlc-cleanup-audit phase |
 | SRL-MVM-002 | Not run | - | - |
 | SRL-MVM-003 | Partially run (Linux 6.18 + proton0, single run, nonzero counters) | 2026-06-10 | PASS (single run) |
 | SRL-MVM-004 | Not run | - | - |
 | SRL-MVM-005 | Not run | - | - |
 | SRL-MVM-006 | Not run | - | - |
-| SRL-MVM-007 | Not run | - | - |
-| SRL-MVM-008 | Not run | - | - |
+| SRL-MVM-007 | Fix implemented; pending re-test | 2026-06-10 | Ctrl+C cleanup now uses libc sigaction handler. See ctrlc-cleanup-audit.md |
+| SRL-MVM-008 | Pending re-test | - | - |
 | SRL-MVM-009 | Not run | - | - |
 | SRL-MVM-010 | Not run | - | - |
 | SRL-MVM-011 | Not run | - | - |

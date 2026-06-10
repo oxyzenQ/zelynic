@@ -9,6 +9,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **strict-run-lab Ctrl+C cleanup audit/fix**: Minimal runtime fix for Ctrl+C
+  (SIGINT) cleanup in the hidden experimental strict-run-lab command. Prior to
+  this fix, Ctrl+C terminated the parent without cleanup, leaving orphaned
+  cgroup directories, tc objects, and nft table entries. The fix adds a
+  libc-based SIGINT handler (no new dependencies) using `libc::sigaction` that
+  sets a global `AtomicBool`, replaces the blocking `child.wait()` with a polled
+  `try_wait()` loop that detects the signal, kills the child, and runs the full
+  cleanup sequence. Adds `CleanupStatus` enum for tracking cleanup results
+  (succeeded/partial failure/not attempted). Adds honest cleanup summary
+  output distinguishing cleanup attempted/succeeded/partially-failed states.
+  Adds 24 deterministic tests in
+  `src/commands/strict_run_lab/ctrlc_cleanup_tests.rs` (Section N): CleanupStatus
+  model tests, cleanup wording assertions, signal handler presence tests, state
+  entry removal, nft table cleanup, no new dependencies, experimental status
+  preserved, no stable strict --run, existing strict unchanged, no forbidden
+  features, no version bump. Created
+  `docs/strict-run-lab-ctrlc-cleanup-audit.md` documenting the problem, fix
+  design, cleanup status model, and output wording. Updated
+  `docs/strict-run-lab-manual-validation-matrix.md` (SRL-MVM-001 PASS result,
+  SRL-MVM-007 fix status), `docs/strict-run-lab-validation-freeze.md` (Ctrl+C
+  cleanup audit phase section), `docs/strict-prelaunch-cgroup-wrapper-experiment.md`
+  (Ctrl+C cleanup section). Does NOT promote strict-run-lab to stable. Does NOT
+  implement stable `strict --run`. Does NOT change existing strict behavior.
+  Does NOT add eBPF/quota/daemon/watch/ledger/schema changes/version bump/tag/
+  release/publish. No new crate dependencies.
+
 - **strict-run-lab manual validation matrix**: Docs + deterministic tests only. No
   code behavior changes. Created `docs/strict-run-lab-manual-validation-matrix.md`
   defining 12 structured manual test scenarios (SRL-MVM-001 through SRL-MVM-012)

@@ -229,6 +229,20 @@ The validation freeze is strictly tests + docs + minor output/honesty polish:
 - Does NOT change version numbers or create releases
 - Does NOT add tags, GitHub releases, or package publications
 
+## Ctrl+C Cleanup Audit Phase
+
+A Ctrl+C cleanup audit and fix was implemented (see
+[strict-run-lab-ctrlc-cleanup-audit.md](strict-run-lab-ctrlc-cleanup-audit.md)).
+Prior to this phase, pressing Ctrl+C while a child was running under
+strict-run-lab would terminate the parent without cleanup, leaving orphaned
+cgroups, tc objects, and nft table entries. The fix adds a minimal libc-based
+SIGINT handler using `libc::sigaction` (no new dependencies) that sets a
+global `AtomicBool`, a polled `try_wait()` loop that detects the signal,
+kills the child, and runs the full cleanup sequence. SRL-MVM-001 shaping
+proof passed before this phase. The cleanup audit phase does NOT promote
+strict-run-lab to stable, does NOT change existing strict behavior, and does NOT
+add eBPF/quota/daemon/watch/ledger/schema changes.
+
 ## Manual Validation Matrix Phase
 
 A manual validation matrix has been created in

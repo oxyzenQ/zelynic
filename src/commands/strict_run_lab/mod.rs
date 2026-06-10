@@ -21,6 +21,7 @@ use std::os::unix::fs::MetadataExt;
 use std::os::unix::process::CommandExt;
 use std::path::Path;
 use std::process::{Command, Stdio};
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::limiter;
 
@@ -32,6 +33,61 @@ use limiter::{
 /// CGROUP_BASE is in limiter/mod.rs but not public. Reproduce the constant
 /// for this lab handler.
 const CGROUP_BASE: &str = "/sys/fs/cgroup/zelynic";
+
+// ---------------------------------------------------------------------------
+// Cleanup status model
+// ---------------------------------------------------------------------------
+
+/// Result of an attempt to clean up strict-run-lab state.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[cfg_attr(not(test), allow(dead_code))]
+pub(crate) enum CleanupStatus {
+    /// All cleanup steps succeeded.
+    #[default]
+    Succeeded,
+    /// Some cleanup steps failed; details are in the vector.
+    PartialFailure(Vec<String>),
+    /// Cleanup was not attempted (e.g., child vanished before policy applied).
+    NotAttempted,
+}
+
+// ---------------------------------------------------------------------------
+// Ctrl+C signal handler (libc-based, no extra nix feature required)
+// ---------------------------------------------------------------------------
+
+/// Global flag set to true when SIGINT is received.
+/// This is the only data the signal handler writes to — lock-free and
+/// async-signal-safe.
+static SIGINT_RECEIVED: AtomicBool = AtomicBool::new(false);
+
+extern "C" fn sigint_handler(_signo: std::ffi::c_int) {
+    SIGINT_RECEIVED.store(true, Ordering::Release);
+}
+
+/// Install a SIGINT handler that sets `SIGINT_RECEIVED`.
+/// Returns the previous `sigaction` struct so it can be restored.
+fn install_sigint_handler() -> Result<libc::sigaction> {
+    unsafe {
+        let mut old_sa: libc::sigaction = std::mem::zeroed();
+        let mut new_sa: libc::sigaction = std::mem::zeroed();
+        new_sa.sa_sigaction = sigint_handler as *const () as libc::sighandler_t;
+        new_sa.sa_flags = libc::SA_RESTART;
+        libc::sigaddset(&mut new_sa.sa_mask, libc::SIGINT);
+        if libc::sigaction(libc::SIGINT, &new_sa, &mut old_sa) != 0 {
+            bail!("sigaction failed: {}", std::io::Error::last_os_error());
+        }
+        Ok(old_sa)
+    }
+}
+
+/// Restore the previous SIGINT handler.
+fn restore_sigint_handler(prev_sa: &libc::sigaction) {
+    unsafe {
+        let mut discarded: libc::sigaction = std::mem::zeroed();
+        let _ = libc::sigaction(libc::SIGINT, prev_sa, &mut discarded);
+    }
+    SIGINT_RECEIVED.store(false, Ordering::Release);
+}
 
 // ---------------------------------------------------------------------------
 // Pure model types for validation freeze
@@ -387,7 +443,7 @@ pub(crate) fn handle_strict_run_lab(
         eprintln!("{}: Failed to apply policy: {}", "ERROR".red().bold(), e);
         let _ = child.kill();
         let _ = child.wait();
-        attempt_cleanup(&target_cg_path, &interface, diagnose);
+        attempt_cleanup(&target_cg_path, &interface, &target_name, diagnose);
         return Err(e);
     }
 
@@ -461,8 +517,39 @@ pub(crate) fn handle_strict_run_lab(
     );
     println!();
 
-    // --- Step 7: Wait for child exit ---
-    let exit_status = child.wait().context("failed to wait for child process")?;
+    // --- Step 7: Wait for child exit (with Ctrl+C handling) ---
+    let prev_sa = install_sigint_handler().context("failed to install SIGINT handler")?;
+
+    // Wait in a loop so we can check the signal flag.
+    // On SIGINT, our handler sets SIGINT_RECEIVED, and we break out
+    // to kill the child and run cleanup.
+    let exit_status = loop {
+        match child.try_wait() {
+            Ok(Some(status)) => break Ok(status),
+            Ok(None) => {
+                if SIGINT_RECEIVED.load(Ordering::Acquire) {
+                    eprintln!(
+                        "{} Ctrl+C received, stopping child (PID {})...",
+                        "SIGINT".yellow().bold(),
+                        child_pid
+                    );
+                    let _ = child.kill();
+                    // Wait for child after kill so we reap it.
+                    match child.wait() {
+                        Ok(s) => break Ok(s),
+                        Err(e) => break Err(e),
+                    }
+                }
+                std::thread::sleep(std::time::Duration::from_millis(50));
+            }
+            Err(e) => break Err(e),
+        }
+    }
+    .context("failed to wait for child process")?;
+
+    // Restore default signal handling after child is reaped.
+    restore_sigint_handler(&prev_sa);
+    let interrupted = SIGINT_RECEIVED.load(Ordering::Acquire);
     println!();
     println!(
         "{} Child exited with status: {}",
@@ -478,19 +565,44 @@ pub(crate) fn handle_strict_run_lab(
 
     // --- Step 8: Cleanup ---
     println!();
-    println!("{} Cleanup attempted after child exit.", "->".cyan());
-    attempt_cleanup(&target_cg_path, &interface, diagnose);
+    if interrupted {
+        eprintln!("{} Cleanup attempted after Ctrl+C.", "->".cyan());
+    } else {
+        println!("{} Cleanup attempted after child exit.", "->".cyan());
+    }
+    let cleanup_status = attempt_cleanup(&target_cg_path, &interface, &target_name, diagnose);
 
+    // Remove state entry for this target/pid.
     let mut final_state = ZelynicState::load().unwrap_or_default();
     final_state
         .limits
         .retain(|l| l.target != target_name && l.pid != child_pid);
     final_state.save().ok();
 
+    // Remove nft table if no limits remain.
+    // Note: The lab manages a single target, so after removing its state entry,
+    // the table should be empty. If other limits exist, their rules remain
+    // untouched (they were not modified by this lab run).
     if final_state.limits.is_empty() {
         let _ = Command::new("nft")
             .args(["delete", "table", "inet", "zelynic"])
             .output();
+    }
+
+    // Print cleanup summary.
+    match &cleanup_status {
+        CleanupStatus::Succeeded => {
+            println!("  Cleanup: {}", "succeeded".green());
+        }
+        CleanupStatus::PartialFailure(errors) => {
+            println!("  Cleanup: {}", "partially failed".yellow().bold());
+            for e in errors.iter().take(5) {
+                println!("    {}", e);
+            }
+        }
+        CleanupStatus::NotAttempted => {
+            println!("  Cleanup: {}", "not attempted".dimmed());
+        }
     }
 
     println!();
@@ -514,21 +626,32 @@ pub(crate) fn handle_strict_run_lab(
 // Cleanup
 // ---------------------------------------------------------------------------
 
-/// Attempt cleanup of cgroup and tc objects.
-fn attempt_cleanup(target_cg_path: &str, interface: &str, diagnose: bool) {
+/// Attempt cleanup of cgroup and tc objects. Returns a CleanupStatus.
+fn attempt_cleanup(
+    target_cg_path: &str,
+    interface: &str,
+    target_name: &str,
+    diagnose: bool,
+) -> CleanupStatus {
+    let mut errors = Vec::new();
+
+    // 1. Remove target cgroup directory.
     if let Err(e) = fs::remove_dir(target_cg_path) {
+        let msg = format!("failed to remove cgroup dir: {}", e);
         if diagnose {
-            println!("  Cleanup: failed to remove cgroup dir: {}", e);
+            println!("  Cleanup: {}", msg);
         }
+        errors.push(msg);
     } else {
         println!("  Cleanup: removed target cgroup directory.");
     }
 
+    // 2. Remove tc filters and HTB class.
     let sanitized = sanitize_target_name(
         Path::new(target_cg_path)
             .file_name()
             .and_then(|n| n.to_str())
-            .unwrap_or("unknown"),
+            .unwrap_or(target_name),
     );
     let tid = limiter::target_class_id(&sanitized);
     let class_id_str = format!("1:{:04x}", tid);
@@ -570,9 +693,16 @@ fn attempt_cleanup(target_cg_path: &str, interface: &str, diagnose: bool) {
     let _ = Command::new("tc")
         .args(["class", "del", "dev", interface, "classid", &class_id_str])
         .output();
-
     println!("  Cleanup: removed tc class and filters.");
+
+    if errors.is_empty() {
+        CleanupStatus::Succeeded
+    } else {
+        CleanupStatus::PartialFailure(errors)
+    }
 }
 
+#[cfg(test)]
+mod ctrlc_cleanup_tests;
 #[cfg(test)]
 mod strict_run_lab_tests;
