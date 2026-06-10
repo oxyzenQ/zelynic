@@ -1,29 +1,32 @@
 // Copyright (C) 2026 rezky_nightky
 // SPDX-License-Identifier: GPL-3.0-only
 //!
-//! Handler for the `zelynic ledger inspect` command (v3.1 phase 10).
+//! Handler for the `zelynic ledger inspect` command (v3.1 phases 10/12).
 //!
 //! This module wires the existing `build_ledger_inspect()` and
 //! `render_ledger_inspect()` functions from the accounting layer to the
-//! hidden CLI dispatch gate. The handler builds an in-memory fixture
-//! `Ledger` (no filesystem reads or writes), computes aggregate inspect
-//! statistics, and renders the output as human-readable text or JSON.
+//! hidden CLI dispatch gate. Without `--file`, the handler builds an
+//! in-memory fixture `Ledger` (no filesystem reads or writes). With
+//! `--file <PATH>`, the handler performs an explicit read-only file read
+//! with path validation, schema validation, and safety-checked output.
 //!
 //! # Safety
 //!
-//! - No filesystem reads — the fixture ledger is constructed in memory.
-//! - No filesystem writes — no files are written to disk.
+//! - Fixture mode: no filesystem reads or writes.
+//! - File-read mode: read-only file access only. No writes, no directory
+//!   creation, no symlink following, no persistence save, no live resolver,
+//!   no enforcement, no nft/tc/cgroup/PID mutation.
 //! - No live `/proc/net/dev` or sysfs reads.
-//! - No enforcement, blocking, or state mutation.
-//! - No ledger persistence — the ledger exists only in memory during
-//!   the handler call.
 //! - Command remains `#[command(hide = true)]` in clap.
+
+use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 
+use crate::accounting::{add_session_delta_entry, add_snapshot_entry};
 use crate::accounting::{
-    add_session_delta_entry, add_snapshot_entry, build_ledger_inspect, new_empty_ledger,
-    render_ledger_inspect, serialize_ledger_to_json, Ledger,
+    build_ledger_inspect, deserialize_ledger_from_json, new_empty_ledger, render_ledger_inspect,
+    serialize_ledger_to_json, Ledger, LedgerInspect,
 };
 
 /// Build the phase 10 in-memory fixture ledger for inspect preview.
@@ -86,31 +89,214 @@ pub(crate) fn build_fixture_ledger() -> Ledger {
     ledger
 }
 
+/// Validate an explicit `--file <PATH>` argument for ledger inspect.
+///
+/// Performs conservative validation before any filesystem read:
+/// - Rejects empty paths.
+/// - Rejects parent traversal (`..`) components.
+/// - Rejects suspicious characters in the filename (only `[a-zA-Z0-9._-]`).
+/// - Verifies the path exists and is a regular file (not symlink, not dir).
+///
+/// # Safety Model Limitations
+///
+/// This validation is conservative but does not cover all possible attacks:
+/// - It does not check file permissions (the OS rejects unreadable files).
+/// - It does not resolve mount points or filesystem boundaries.
+/// - Symlink detection uses `symlink_metadata` (does not follow symlinks).
+fn validate_inspect_file_path(path: &str) -> Result<PathBuf, String> {
+    if path.is_empty() {
+        return Err("ledger inspect --file: path must not be empty".to_string());
+    }
+
+    let path_obj = Path::new(path);
+
+    // Reject parent traversal components
+    for component in path_obj.components() {
+        if let std::path::Component::ParentDir = component {
+            return Err("ledger inspect --file: parent traversal (..) is not allowed".to_string());
+        }
+    }
+
+    // Validate filename characters
+    if let Some(filename) = path_obj.file_name() {
+        let name = filename.to_string_lossy();
+        if name.is_empty() {
+            return Err("ledger inspect --file: filename must not be empty".to_string());
+        }
+        for ch in name.chars() {
+            if !ch.is_ascii_alphanumeric() && ch != '.' && ch != '-' && ch != '_' {
+                return Err(format!(
+                    "ledger inspect --file: suspicious character '{}' in filename '{}'",
+                    ch, name
+                ));
+            }
+        }
+    } else {
+        return Err("ledger inspect --file: path has no filename component".to_string());
+    }
+
+    // Filesystem checks: must exist, be regular file, not symlink
+    let meta = std::fs::symlink_metadata(path)
+        .map_err(|e| format!("ledger inspect --file: cannot access '{}': {}", path, e))?;
+
+    if meta.file_type().is_symlink() {
+        return Err(format!(
+            "ledger inspect --file: '{}' is a symlink; symlinks are not followed",
+            path
+        ));
+    }
+
+    if !meta.file_type().is_file() {
+        return Err(format!(
+            "ledger inspect --file: '{}' is not a regular file",
+            path
+        ));
+    }
+
+    Ok(path_obj.to_path_buf())
+}
+
+/// Read a ledger file from disk (read-only).
+///
+/// Reads the file content as a string, then deserializes and validates
+/// using the existing `deserialize_ledger_from_json` which checks:
+/// - JSON syntax
+/// - schema_version is supported
+/// - All entries pass `validate_safety()` (read_only, attribution_scope,
+///   enforcement_status, combined_bytes consistency)
+fn read_ledger_file(path: &Path) -> Result<Ledger, String> {
+    let content = std::fs::read_to_string(path).map_err(|e| {
+        format!(
+            "ledger inspect --file: failed to read '{}': {}",
+            path.display(),
+            e
+        )
+    })?;
+
+    deserialize_ledger_from_json(&content).map_err(|e| {
+        format!(
+            "ledger inspect --file: invalid ledger in '{}': {}",
+            path.display(),
+            e
+        )
+    })
+}
+
+/// Render file-read inspect output as human-readable text.
+///
+/// Reuses `LedgerInspect` model data but outputs file-read-specific
+/// disclaimers that identify the source as an explicit file read and
+/// affirm all read-only safety guarantees.
+fn render_file_read_inspect_text(inspect: &LedgerInspect, file_path: &str) -> String {
+    let mut out = String::new();
+
+    out.push_str("Zelynic v2.9 ledger inspect (source: explicit file read)\n");
+    out.push_str(&format!("File: {}\n", file_path));
+    out.push_str(&format!("Schema version: {}\n", inspect.schema_version));
+    out.push_str(&format!("Created: {}\n", inspect.created_at));
+    out.push_str(&format!("Updated: {}\n", inspect.updated_at));
+    out.push_str(&format!("Host: {}\n", inspect.host_id));
+    if let Some(ref sid) = inspect.session_id {
+        out.push_str(&format!("Session: {}\n", sid));
+    }
+    out.push_str(&format!("Provenance: {}\n", inspect.provenance));
+    out.push('\n');
+
+    out.push_str(&format!(
+        "Entries: {} ({} snapshots, {} deltas)\n",
+        inspect.total_entries, inspect.snapshot_count, inspect.delta_count
+    ));
+    out.push('\n');
+
+    if inspect.interfaces.is_empty() {
+        out.push_str("No interfaces observed.\n");
+    } else {
+        out.push_str(&format!("Interfaces: {}\n", inspect.interfaces.join(", ")));
+    }
+    out.push('\n');
+
+    out.push_str("Aggregate totals (saturating, overflow-safe):\n");
+    out.push_str(&format!(
+        "  RX: {} bytes  TX: {} bytes  Combined: {} bytes\n",
+        inspect.total_rx_bytes, inspect.total_tx_bytes, inspect.total_combined_bytes
+    ));
+    out.push('\n');
+
+    out.push_str(&format!(
+        "Reset warnings: {}\n",
+        inspect.reset_warning_count
+    ));
+    out.push('\n');
+
+    out.push_str(&format!(
+        "Attribution scope: {} (this is not per-app attribution)\n",
+        inspect.attribution_scope
+    ));
+    out.push_str(&format!(
+        "Enforcement status: {} (no quota enforcement active)\n",
+        inspect.enforcement_status
+    ));
+    out.push_str(&format!("Read-only: {}\n", inspect.read_only));
+    out.push('\n');
+
+    out.push_str("Safety disclaimers:\n");
+    out.push_str("  - source: explicit file read (read-only, no file write)\n");
+    out.push_str("  - no persistence save performed\n");
+    out.push_str("  - no live /proc or sysfs read performed\n");
+    out.push_str("  - no live app identity resolver performed\n");
+    out.push_str("  - interface-level only (not per-app attribution)\n");
+    out.push_str("  - quota enforcement: inactive/not implemented\n");
+    out.push_str("  - network blocking: inactive/not implemented\n");
+    out.push_str("  - no limiter attach performed\n");
+    out.push_str("  - no nft/tc/Zelynic state mutation performed\n");
+
+    out
+}
+
 /// Handle the `zelynic ledger inspect` command.
 ///
-/// Builds an in-memory fixture ledger, computes inspect statistics via
-/// `build_ledger_inspect()`, and renders the output as human-readable
-/// text (default) or JSON (`--json` flag).
+/// Without `--file`: builds an in-memory fixture ledger (Phase 10 behavior).
+/// With `--file <PATH>`: validates the path, reads the file, validates
+/// the ledger schema, and renders output (Phase 12 behavior).
 ///
 /// # Arguments
 ///
-/// * `json` - If true, output the fixture ledger as JSON instead of
-///   the human-readable inspect summary.
+/// * `json` - If true, output as JSON instead of human-readable text.
+/// * `file` - If Some(path), read the ledger from this explicit file path.
 ///
 /// # Returns
 ///
 /// `Ok(())` with output printed to stdout, or an error.
-pub(crate) fn handle_ledger_inspect(json: bool) -> Result<()> {
-    let ledger = build_fixture_ledger();
-
-    if json {
-        let json_str = serialize_ledger_to_json(&ledger)
-            .map_err(|e| anyhow::anyhow!("fixture ledger serialization failed: {}", e))?;
-        println!("{}", json_str);
-    } else {
-        let inspect = build_ledger_inspect(&ledger);
-        let rendered = render_ledger_inspect(&inspect);
-        println!("{}", rendered);
+pub(crate) fn handle_ledger_inspect(json: bool, file: Option<&str>) -> Result<()> {
+    match file {
+        None => {
+            // Fixture-only mode (Phase 10, unchanged).
+            let ledger = build_fixture_ledger();
+            if json {
+                let json_str = serialize_ledger_to_json(&ledger)
+                    .map_err(|e| anyhow::anyhow!("fixture ledger serialization failed: {}", e))?;
+                println!("{}", json_str);
+            } else {
+                let inspect = build_ledger_inspect(&ledger);
+                let rendered = render_ledger_inspect(&inspect);
+                println!("{}", rendered);
+            }
+        }
+        Some(path) => {
+            // Explicit file-read mode (Phase 12).
+            let validated =
+                validate_inspect_file_path(path).map_err(|e| anyhow::anyhow!("{}", e))?;
+            let ledger = read_ledger_file(&validated).map_err(|e| anyhow::anyhow!("{}", e))?;
+            if json {
+                let json_str = serialize_ledger_to_json(&ledger)
+                    .map_err(|e| anyhow::anyhow!("file ledger serialization failed: {}", e))?;
+                println!("{}", json_str);
+            } else {
+                let inspect = build_ledger_inspect(&ledger);
+                let rendered = render_file_read_inspect_text(&inspect, path);
+                println!("{}", rendered);
+            }
+        }
     }
 
     Ok(())
@@ -183,7 +369,6 @@ mod tests {
     fn test_fixture_json_serialization_valid() {
         let ledger = build_fixture_ledger();
         let json_str = serialize_ledger_to_json(&ledger).unwrap();
-        // Verify it's valid JSON containing expected fields
         assert!(json_str.contains("schema_version"));
         assert!(json_str.contains("fixture-host"));
         assert!(json_str.contains("wlan0"));
@@ -197,7 +382,6 @@ mod tests {
         let ledger = build_fixture_ledger();
         let inspect = build_ledger_inspect(&ledger);
         let rendered = render_ledger_inspect(&inspect);
-        // Verify key content in text output
         assert!(rendered.contains("Entries: 3 (2 snapshots, 1 deltas)"));
         assert!(rendered.contains("Interfaces: eth0, wlan0"));
         assert!(rendered.contains("saturating, overflow-safe"));
@@ -226,7 +410,7 @@ mod tests {
     fn test_fixture_json_round_trip() {
         let ledger = build_fixture_ledger();
         let json_str = serialize_ledger_to_json(&ledger).unwrap();
-        let deserialized = crate::accounting::deserialize_ledger_from_json(&json_str).unwrap();
+        let deserialized = deserialize_ledger_from_json(&json_str).unwrap();
         assert_eq!(ledger, deserialized);
     }
 
@@ -245,7 +429,6 @@ mod tests {
     fn test_fixture_no_persistence_in_json() {
         let ledger = build_fixture_ledger();
         let json_str = serialize_ledger_to_json(&ledger).unwrap();
-        // JSON is fixture-only — no path, no persistence metadata
         assert!(!json_str.contains("filesystem"));
         assert!(!json_str.contains("persistence_enabled"));
         assert!(!json_str.contains("directory"));
@@ -261,13 +444,13 @@ mod tests {
 
     #[test]
     fn test_handle_ledger_inspect_returns_ok() {
-        let result = handle_ledger_inspect(false);
+        let result = handle_ledger_inspect(false, None);
         assert!(result.is_ok());
     }
 
     #[test]
     fn test_handle_ledger_inspect_json_returns_ok() {
-        let result = handle_ledger_inspect(true);
+        let result = handle_ledger_inspect(true, None);
         assert!(result.is_ok());
     }
 
@@ -288,69 +471,220 @@ mod tests {
     fn v31_p11_design_doc_states_future_shape() {
         assert!(
             P11_DOC.contains("ledger inspect --file <PATH>"),
-            "design doc must state future shape ledger inspect --file <PATH>"
+            "design doc must state future shape"
         );
     }
 
     #[test]
     fn v31_p11_design_doc_rejects_implicit_default_file_read() {
-        assert!(
-            P11_DOC.contains("Implicit Default File Read (Rejected)"),
-            "design doc must explicitly reject implicit default file read"
-        );
+        assert!(P11_DOC.contains("Implicit Default File Read (Rejected)"));
     }
 
     #[test]
     fn v31_p11_design_doc_says_no_fs_read_implemented() {
-        assert!(
-            P11_DOC.contains("no filesystem read is implemented in this phase"),
-            "design doc must say no filesystem read is implemented"
-        );
+        assert!(P11_DOC.contains("no filesystem read is implemented in this phase"));
     }
 
     #[test]
     fn v31_p11_design_doc_says_no_fs_write_implemented() {
-        assert!(
-            P11_DOC.contains("no filesystem write is implemented in this phase"),
-            "design doc must say no filesystem write is implemented"
-        );
+        assert!(P11_DOC.contains("no filesystem write is implemented in this phase"));
     }
 
     #[test]
     fn v31_p11_design_doc_says_no_symlink_following_silently() {
-        assert!(
-            P11_DOC.contains("no symlink following silently"),
-            "design doc must say no symlink following silently"
-        );
+        assert!(P11_DOC.contains("no symlink following silently"));
     }
 
     #[test]
     fn v31_p11_design_doc_says_path_validation_required() {
-        assert!(
-            P11_DOC.contains("path validation is required before future read"),
-            "design doc must say path validation is required"
-        );
+        assert!(P11_DOC.contains("path validation is required before future read"));
     }
 
     #[test]
     fn v31_p11_design_doc_says_schema_validation_required() {
-        assert!(
-            P11_DOC.contains("schema validation is required before render"),
-            "design doc must say schema validation is required"
-        );
+        assert!(P11_DOC.contains("schema validation is required before render"));
     }
 
     #[test]
-    fn v31_p11_handler_uses_no_std_fs_apis() {
-        // Verify the handler module source does not import or use std::fs.
-        let handler_source = include_str!("mod.rs");
-        assert!(
-            !handler_source.contains("std::fs"),
-            "ledger handler must not use std::fs APIs"
-        );
-        assert!(
-            !handler_source.contains("use std::fs"),
-            "ledger handler must not import std::fs"
-        );
+    fn v31_p11_dispatch_module_uses_no_std_fs() {
+        // The dispatch module (mod.rs) must not use std::fs.
+        let dispatch_source = include_str!("mod.rs");
+        assert!(!dispatch_source.contains("std::fs"));
+    }
+
+    // === Section Q: Phase 12 — file-read handler tests ===
+
+    /// Helper: write a valid fixture ledger JSON to a temp file.
+    fn write_fixture_to_temp(dir: &str, name: &str) -> std::path::PathBuf {
+        let p = std::path::PathBuf::from(dir).join(name);
+        let ledger = build_fixture_ledger();
+        let json = serialize_ledger_to_json(&ledger).unwrap();
+        std::fs::write(&p, json).unwrap();
+        p
+    }
+
+    #[test]
+    fn v31_p12_file_read_valid_text() {
+        let dir = std::env::temp_dir().join("zelynic_p12_text");
+        std::fs::create_dir_all(&dir).unwrap();
+        let fp = write_fixture_to_temp(dir.to_str().unwrap(), "v.json");
+        let result = handle_ledger_inspect(false, Some(fp.to_str().unwrap()));
+        assert!(result.is_ok());
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn v31_p12_file_read_valid_json() {
+        let dir = std::env::temp_dir().join("zelynic_p12_json");
+        std::fs::create_dir_all(&dir).unwrap();
+        let fp = write_fixture_to_temp(dir.to_str().unwrap(), "v.json");
+        let result = handle_ledger_inspect(true, Some(fp.to_str().unwrap()));
+        assert!(result.is_ok());
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn v31_p12_file_read_parent_traversal_rejected() {
+        let r = validate_inspect_file_path("../bad.json");
+        assert!(r.is_err());
+        assert!(r.unwrap_err().contains("parent traversal"));
+    }
+
+    #[test]
+    fn v31_p12_file_read_empty_path_rejected() {
+        let r = validate_inspect_file_path("");
+        assert!(r.is_err());
+        assert!(r.unwrap_err().contains("empty"));
+    }
+
+    #[test]
+    fn v31_p12_file_read_symlink_rejected() {
+        let dir = std::env::temp_dir().join("zelynic_p12_sym");
+        std::fs::create_dir_all(&dir).unwrap();
+        let real = dir.join("real.json");
+        let sym = dir.join("sym.json");
+        write_fixture_to_temp(dir.to_str().unwrap(), "real.json");
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(&real, &sym).unwrap();
+        #[cfg(unix)]
+        {
+            let r = validate_inspect_file_path(sym.to_str().unwrap());
+            assert!(r.is_err());
+            assert!(r.unwrap_err().contains("symlink"));
+        }
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn v31_p12_file_read_malformed_json_error() {
+        let dir = std::env::temp_dir().join("zelynic_p12_mal");
+        std::fs::create_dir_all(&dir).unwrap();
+        let fp = dir.join("bad.json");
+        std::fs::write(&fp, "{invalid json").unwrap();
+        let v = validate_inspect_file_path(fp.to_str().unwrap()).unwrap();
+        let r = read_ledger_file(&v);
+        assert!(r.is_err());
+        assert!(r.unwrap_err().contains("invalid ledger"));
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn v31_p12_file_read_unsupported_schema_error() {
+        let dir = std::env::temp_dir().join("zelynic_p12_sch");
+        std::fs::create_dir_all(&dir).unwrap();
+        let fp = dir.join("s.json");
+        std::fs::write(
+            &fp,
+            r#"{"schema_version":99,"created_at":"","updated_at":"","host_id":"","entries":[]}"#,
+        )
+        .unwrap();
+        let v = validate_inspect_file_path(fp.to_str().unwrap()).unwrap();
+        let r = read_ledger_file(&v);
+        assert!(r.is_err());
+        let err = r.unwrap_err();
+        assert!(err.contains("schema") || err.contains("Unsupported"));
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn v31_p12_file_read_enforcement_claim_rejected() {
+        let dir = std::env::temp_dir().join("zelynic_p12_enf");
+        std::fs::create_dir_all(&dir).unwrap();
+        let fp = dir.join("e.json");
+        let bad = r#"{"schema_version":1,"created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z","host_id":"h","entries":[{"entry_id":"e1","timestamp":"2026-01-01T00:00:00Z","entry_type":"snapshot","source_label":"t","interface":"eth0","rx_bytes":100,"tx_bytes":50,"combined_bytes":150,"read_only":true,"provenance":"test","attribution_scope":"interface-level only","enforcement_status":"active","reset_detected":false,"reset_details":[]}]}"#;
+        std::fs::write(&fp, bad).unwrap();
+        let v = validate_inspect_file_path(fp.to_str().unwrap()).unwrap();
+        let r = read_ledger_file(&v);
+        assert!(r.is_err());
+        assert!(r.unwrap_err().contains("enforcement_status"));
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn v31_p12_file_read_text_says_explicit_file_read() {
+        let dir = std::env::temp_dir().join("zelynic_p12_src");
+        std::fs::create_dir_all(&dir).unwrap();
+        let fp = write_fixture_to_temp(dir.to_str().unwrap(), "s.json");
+        let v = validate_inspect_file_path(fp.to_str().unwrap()).unwrap();
+        let loaded = read_ledger_file(&v).unwrap();
+        let ins = build_ledger_inspect(&loaded);
+        let rendered = render_file_read_inspect_text(&ins, fp.to_str().unwrap());
+        assert!(rendered.contains("source: explicit file read"));
+        assert!(rendered.contains("no persistence save"));
+        assert!(rendered.contains("no live app identity resolver"));
+        assert!(rendered.contains("no nft/tc/Zelynic state mutation"));
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn v31_p12_file_read_json_valid_deterministic() {
+        let dir = std::env::temp_dir().join("zelynic_p12_det");
+        std::fs::create_dir_all(&dir).unwrap();
+        let fp = write_fixture_to_temp(dir.to_str().unwrap(), "d.json");
+        let v = validate_inspect_file_path(fp.to_str().unwrap()).unwrap();
+        let loaded = read_ledger_file(&v).unwrap();
+        let j1 = serialize_ledger_to_json(&loaded).unwrap();
+        let j2 = serialize_ledger_to_json(&loaded).unwrap();
+        assert_eq!(j1, j2);
+        let parsed: serde_json::Value = serde_json::from_str(&j1).unwrap();
+        assert_eq!(parsed["schema_version"], 1);
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn v31_p12_file_read_suspicious_name_rejected() {
+        let r = validate_inspect_file_path("/tmp/ledger;rm-rf.json");
+        assert!(r.is_err());
+        assert!(r.unwrap_err().contains("suspicious character"));
+    }
+
+    #[test]
+    fn v31_p12_file_read_text_says_no_file_write() {
+        let dir = std::env::temp_dir().join("zelynic_p12_nw");
+        std::fs::create_dir_all(&dir).unwrap();
+        let fp = write_fixture_to_temp(dir.to_str().unwrap(), "n.json");
+        let v = validate_inspect_file_path(fp.to_str().unwrap()).unwrap();
+        let loaded = read_ledger_file(&v).unwrap();
+        let ins = build_ledger_inspect(&loaded);
+        let rendered = render_file_read_inspect_text(&ins, fp.to_str().unwrap());
+        assert!(rendered.contains("read-only, no file write"));
+        assert!(rendered.contains("no limiter attach performed"));
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn v31_p12_file_read_handler_no_write_apis() {
+        // Verify production code does not use file write APIs.
+        // Split at test section to exclude test helper code.
+        let source = include_str!("ledger.rs");
+        let prod_end = source.find("#[cfg(test)]").unwrap_or(source.len());
+        let prod = &source[..prod_end];
+        assert!(!prod.contains("create_dir"), "no create_dir");
+        assert!(!prod.contains("remove_file"), "no remove_file");
+        assert!(!prod.contains("remove_dir"), "no remove_dir");
+        assert!(!prod.contains("rename("), "no rename");
+        assert!(!prod.contains("fs::copy("), "no fs::copy");
+        assert!(!prod.contains("File::create"), "no File::create");
+        assert!(!prod.contains("OpenOptions"), "no OpenOptions");
     }
 }

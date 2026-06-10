@@ -190,7 +190,9 @@ pub(crate) fn dispatch(cli: Cli, iface_value: Option<&str>) -> Result<()> {
 
         // v3.1 phase 10: ledger inspect wired to fixture preview; export remains blocked.
         Some(Commands::Ledger { command }) => match command {
-            LedgerCommands::Inspect { json } => ledger::handle_ledger_inspect(json),
+            LedgerCommands::Inspect { json, file } => {
+                ledger::handle_ledger_inspect(json, file.as_deref())
+            }
             LedgerCommands::Export { .. } => Err(anyhow::anyhow!(
                 "{}",
                 render_design_gated_message("ledger export")

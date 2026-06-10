@@ -9,6 +9,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **v3.1 phase 12 Gated Ledger Inspect File-Read Implementation**: Minimal
+  runtime implementation + deterministic tests + docs. Enables explicit
+  `--file <PATH>` read-only file read for `ledger inspect`. When `--file`
+  is provided, the handler validates the path (rejects parent traversal,
+  suspicious characters, symlinks, non-regular-files), reads the file
+  (read-only via `std::fs::read_to_string`), deserializes and validates the
+  ledger JSON using existing `deserialize_ledger_from_json()` (schema
+  version, read-only, attribution scope, enforcement status, combined bytes
+  consistency), and renders the output. Text output says "source: explicit
+  file read" with disclaimers for no file write, no persistence save, no
+  live resolver, no enforcement, no nft/tc/cgroup/PID mutation. JSON output
+  uses existing `serialize_ledger_to_json()` (deterministic, does not alter
+  v3.0 usage JSON). Plain `ledger inspect` without `--file` remains
+  fixture-only unchanged. `--input` flag remains rejected. `ledger export
+  --json` remains design-gated. CLI changes: `LedgerCommands::Inspect`
+  gains `file: Option<String>` (hidden) in `src/cli.rs`. Handler changes:
+  `src/commands/ledger.rs` (692 LOC) adds `validate_inspect_file_path()`,
+  `read_ledger_file()`, `render_file_read_inspect_text()`, modifies
+  `handle_ledger_inspect()` to accept `file: Option<&str>`. Dispatch in
+  `src/commands/mod.rs` passes `file` to handler. 16 deterministic tests
+  added: 12 handler tests in `src/commands/ledger.rs` (Section Q: valid
+  file-read text, valid file-read JSON, parent traversal rejected, empty
+  path rejected, symlink rejected, malformed JSON error, unsupported schema
+  error, enforcement claim rejected, text says explicit file read, JSON
+  valid and deterministic, suspicious name rejected, text says no file
+  write, no write APIs in production code) and 5 gate tests in
+  `src/cli/v31_gate_tests.rs` (Section I: fixture dispatch unchanged,
+  input flag rejected, file missing value rejected, export gated + schema
+  + version unchanged, --file parses correctly). Updated Phase 11 test
+  from "file rejected" to "file parses". Updated Phase 10b test name for
+  clarity. Created design doc
+  `docs/v3.1-phase-12-gated-ledger-inspect-file-read.md`. Updated phase
+  8/10b/11 docs with Phase 12 completion notes. Updated CHANGELOG. This
+  is not full persistence — it is explicit read-only inspect. No default
+  path read. No file write. No persistence save. No export. No migration.
+  No live resolver. No enforcement. No nft/tc/cgroup/PID mutation. No eBPF.
+  No quota. No daemon/watch. No v3.0 usage JSON schema change. No version
+  bump. No tag/release/publish. No new dependencies.
+
 - **v3.1 phase 11 Ledger Inspect File-Read Gate Design**: Docs/design/
   deterministic tests only. Freezes the future contract for moving from
   fixture-only `ledger inspect` toward explicit user-selected ledger file
