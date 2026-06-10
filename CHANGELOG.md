@@ -9,6 +9,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **v3.1 phase 11 Ledger Inspect File-Read Gate Design**: Docs/design/
+  deterministic tests only. Freezes the future contract for moving from
+  fixture-only `ledger inspect` toward explicit user-selected ledger file
+  reads. Chosen future command shape: `zelynic ledger inspect --file <PATH>`
+  and `zelynic ledger inspect --file <PATH> --json`. Five rejected alternatives
+  documented: implicit default file read, auto-reading XDG directory without
+  explicit request, environment variable path, live state read, combined
+  inspect/export/save. Eleven design rules frozen as contract: fixture-only by
+  default, explicit `--file` required, path validation before read via existing
+  `build_ledger_path_plan()`, no symlink following silently, no directory
+  creation, no write operations, parse then validate schema via existing
+  `validate_safety()`, honest non-mutating errors, export remains gated, save
+  remains not implemented, v3.0 usage JSON schema unchanged. Created design doc
+  `docs/v3.1-phase-11-ledger-inspect-file-read-gate-design.md`. Updated phase
+  8/9/10/10b docs with phase 11 completion notes. 18 deterministic tests
+  added: 9 doc-content tests in `src/commands/ledger.rs` (Section P: design
+  doc exists, states future shape, rejects implicit default, says no fs read,
+  says no fs write, says no symlink following, says path validation required,
+  says schema validation required, no std::fs APIs used by handler) and 9
+  behavioral tests in `src/cli/v31_gate_tests.rs` (Section H: ledger inspect
+  fixture-only dispatch, inspect --json fixture-only dispatch, --file rejected
+  by clap, --input rejected by clap, export remains design-gated, no output
+  path flag, v3.0 usage JSON schema unchanged, no version bump, all files under
+  1000 LOC). Docs/design/tests only — no file read implemented. No file write
+  implemented. No persistence enabled. No live resolver. No enforcement. No
+  nft/tc/cgroup/PID mutation. No eBPF. No quota guard. No daemon/watch mode.
+  No v3.0 usage JSON schema change. No version bump. No tag/release/publish.
+  No new dependencies.
+
 - **strict-run UX simplification gate (Option A: hidden `--run-lab` alias)**: Adds a
   hidden `--run-lab` flag to the existing `strict` subcommand that internally delegates
   to `handle_strict_run_lab()`, making the pre-launch wrapper easier to invoke without
