@@ -14,6 +14,7 @@ pub(crate) mod monitor;
 pub(crate) mod profile;
 pub(crate) mod run;
 pub(crate) mod strict;
+pub(crate) mod strict_run_lab;
 pub(crate) mod usage;
 pub(crate) mod usage_delta;
 
@@ -151,6 +152,16 @@ pub(crate) fn dispatch(cli: Cli, iface_value: Option<&str>) -> Result<()> {
             Some(BackendCommands::Doctor(args)) => backend::handle_doctor(args.json),
             None => backend::handle_backend_info(),
         },
+
+        // Experimental pre-launch cgroup wrapper (hidden lab command).
+        Some(Commands::StrictRunLab {
+            download,
+            upload,
+            diagnose,
+            command,
+        }) => {
+            strict_run_lab::handle_strict_run_lab(download, upload, diagnose, iface_value, &command)
+        }
 
         // v3.1 phase 10: ledger inspect wired to fixture preview; export remains blocked.
         Some(Commands::Ledger { command }) => match command {

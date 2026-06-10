@@ -730,3 +730,97 @@ fn run_help_mentions_mkdir_live() {
     assert!(help.contains("--mkdir-live"));
     assert!(help.contains("mkdir-only"));
 }
+
+// ---- strict-run-lab hidden command tests ----
+
+#[test]
+fn strict_run_lab_parses_with_double_dash_separator() {
+    let cli = Cli::try_parse_from([
+        "zelynic",
+        "strict-run-lab",
+        "--diagnose",
+        "--iface",
+        "proton0",
+        "-d",
+        "100kb",
+        "--",
+        "aria2c",
+        "-x",
+        "1",
+        "https://example.com/file.iso",
+    ])
+    .unwrap();
+
+    match cli.command.unwrap() {
+        Commands::StrictRunLab {
+            download,
+            upload,
+            diagnose,
+            command,
+        } => {
+            assert_eq!(download.as_deref(), Some("100kb"));
+            assert!(upload.is_none());
+            assert!(diagnose);
+            assert_eq!(
+                command,
+                vec!["aria2c", "-x", "1", "https://example.com/file.iso"]
+            );
+        }
+        other => panic!("expected strict-run-lab, got {other:?}"),
+    }
+}
+
+#[test]
+fn strict_run_lab_requires_command_after_separator() {
+    let result = Cli::try_parse_from(["zelynic", "strict-run-lab", "-d", "100kb"]);
+    // Without a command after --, clap should error because command is required.
+    assert!(result.is_err());
+}
+
+#[test]
+fn strict_run_lab_command_hidden_from_normal_help() {
+    let help = Cli::command().render_help().to_string();
+    assert!(
+        !help.contains("strict-run-lab"),
+        "strict-run-lab should be hidden from normal help"
+    );
+}
+
+#[test]
+fn strict_run_lab_diag_alias_parses() {
+    let cli = Cli::try_parse_from([
+        "zelynic",
+        "strict-run-lab",
+        "--diag",
+        "-d",
+        "100kb",
+        "--",
+        "echo",
+        "hello",
+    ])
+    .unwrap();
+
+    match cli.command.unwrap() {
+        Commands::StrictRunLab { diagnose, .. } => assert!(diagnose),
+        other => panic!("expected strict-run-lab, got {other:?}"),
+    }
+}
+
+#[test]
+fn strict_run_lab_diagnose_defaults_false() {
+    let cli = Cli::try_parse_from([
+        "zelynic",
+        "strict-run-lab",
+        "-d",
+        "100kb",
+        "--",
+        "echo",
+        "hello",
+    ])
+    .unwrap();
+
+    match cli.command.unwrap() {
+        Commands::StrictRunLab { diagnose, .. } => assert!(!diagnose),
+        other => panic!("expected strict-run-lab, got {other:?}"),
+    }
+}

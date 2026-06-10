@@ -10,7 +10,7 @@ use super::STATE_DIR;
 /// Derive a stable HTB class ID (minor) from a target name.
 ///
 /// Uses a simple hash of the sanitized target name, mapped into range 100..65535.
-pub(super) fn target_class_id(target: &str) -> u32 {
+pub(crate) fn target_class_id(target: &str) -> u32 {
     use std::hash::{Hash, Hasher};
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     target.hash(&mut hasher);
@@ -26,7 +26,7 @@ pub(super) fn target_class_id(target: &str) -> u32 {
 const CLASS_ID_FILE: &str = "/run/zelynic/.next_class_id";
 
 /// Transactional tc command executor with rollback support.
-pub(super) struct TcTransaction {
+pub(crate) struct TcTransaction {
     commands: Vec<(String, Vec<String>, Vec<String>)>,
     executed: Vec<(String, Vec<String>)>,
 }
@@ -187,7 +187,7 @@ pub fn next_class_id() -> Result<u32> {
 // ---------------------------------------------------------------------------
 
 /// Set up the HTB qdisc root on the specified interface if not already present.
-pub(super) fn ensure_htb_qdisc(interface: &str) -> Result<()> {
+pub(crate) fn ensure_htb_qdisc(interface: &str) -> Result<()> {
     let check = Command::new("tc")
         .args(["qdisc", "show", "dev", interface])
         .output()
