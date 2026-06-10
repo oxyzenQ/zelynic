@@ -65,7 +65,7 @@ mod reapply;
 mod refresh;
 mod state;
 mod tc;
-mod traffic_proof;
+pub(crate) mod traffic_proof;
 
 pub use cgroup::{
     check_root, get_default_interface, list_interfaces, remove_cgroup, setup_cgroup,
@@ -85,23 +85,26 @@ pub use refresh::refresh_limit;
 pub use state::{LimitRecord, ZelynicState};
 pub use tc::next_class_id;
 
-use attach::{
+pub(crate) use attach::{
     build_limit_record, dedupe_resolved_target_pids, LimitRecordTemplate, ResolvedTargetPid,
 };
+pub(crate) use cgroup::verify_pid_in_cgroup;
 use cgroup::{
     cgroup_level, cgroup_level_from_relative, current_cgroup_v2_absolute_path,
     detect_cgroup_version, move_pid_to_cgroup_with_verify, pid_cgroup_v2_line,
-    relative_cgroupv2_path, safe_original_cgroup_path, verify_pid_in_cgroup,
+    relative_cgroupv2_path, safe_original_cgroup_path,
 };
 use cleanup::chrono_now;
 use diagnostics::{print_state_file_diagnostic, print_strict_diagnostic_header};
 use nft::refresh_nft_ip_rules_with_diagnostics;
-use output::{print_strict_apply_summary, StrictApplySummary};
-use prereq::{ensure_conntrack, ensure_kernel_modules, force_reconnect_existing_sockets};
-use process::{is_chromium_based_target, sanitize_target_name};
+pub(crate) use output::{print_strict_apply_summary, StrictApplySummary};
+use prereq::force_reconnect_existing_sockets;
+pub(crate) use prereq::{ensure_conntrack, ensure_kernel_modules};
+use process::is_chromium_based_target;
+pub(crate) use process::sanitize_target_name;
 use reapply::auto_clean_existing_limits;
-use tc::{ensure_htb_qdisc, target_class_id, TcTransaction};
-use traffic_proof::{
+pub(crate) use tc::{ensure_htb_qdisc, target_class_id, TcTransaction};
+pub(crate) use traffic_proof::{
     classify_traffic_proof, is_tunnel_interface, parse_nft_counter_lines_for_mark,
     StrictTrafficProof, StrictTrafficProofStatus, TunnelInterfaceCheck,
 };
@@ -134,7 +137,7 @@ const LEGACY_NFT_TABLE: &str = "oxy";
 ///
 /// This function does NOT change enforcement semantics — it is purely
 /// diagnostic/read-only.
-fn build_traffic_proof(
+pub(crate) fn build_traffic_proof(
     diagnostics: bool,
     interface: &str,
     explicit_iface: bool,

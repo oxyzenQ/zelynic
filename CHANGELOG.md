@@ -9,6 +9,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **strict-run-lab pre-launch cgroup wrapper experiment**: Hidden experimental
+  command that launches a child process inside a Zelynic-managed cgroup BEFORE
+  the child opens network sockets, then applies the same nft/tc policy and traffic
+  proof diagnostics as the stable `strict` command. Tests the hypothesis that
+  pre-launch cgroup placement improves nft `socket cgroupv2` counter matching
+  compared to the existing attach-after-socket approach (which showed 0 counters
+  in the traffic proof honesty audit). Handler in `src/commands/strict_run_lab.rs`
+  (~420 LOC non-test, ~200 LOC test): validates root/rates/interface, creates
+  target cgroup before child launch, uses `CommandExt::pre_exec` to write child
+  PID to `cgroup.procs` before `exec()`, verifies cgroup placement after 100ms,
+  delegates to `apply_limit_with_diagnostics()` for nft/tc policy, reads traffic
+  proof counters, waits for child exit, then cleans up cgroup/tc/state. Safety:
+  `pre_exec` closure performs only a single `write(2)` to `cgroup.procs` — no
+  memory allocation, no threads, no mutable global state. Cleanup removes cgroup
+  directory, tc class/filters, state entry, and optionally nft table. Visibility
+  changes in `src/limiter/mod.rs`: changed `mod traffic_proof` to
+  `pub(crate) mod traffic_proof`; changed several `use` to `pub(crate) use`
+  for `verify_pid_in_cgroup`, `sanitize_target_name`, `print_strict_apply_summary`,
+  `StrictApplySummary`, `ensure_conntrack`, `ensure_kernel_modules`,
+  `ensure_htb_qdisc`, `target_class_id`, `TcTransaction`, traffic_proof re-exports.
+  Visibility changes in `src/limiter/tc.rs`: `target_class_id`, `TcTransaction`,
+  `ensure_htb_qdisc` changed from `pub(super)` to `pub(crate)`. Visibility
+  changes in `src/limiter/process.rs`: `sanitize_target_name` changed from
+  `pub(super)` to `pub(crate)`. Visibility changes in `src/limiter/prereq.rs`:
+  `ensure_kernel_modules`, `ensure_conntrack` changed from `pub(super)` to
+  `pub(crate)`. Visibility changes in `src/limiter/output.rs`:
+  `print_strict_apply_summary` changed from `pub(super)` to `pub(crate)`. 20 new
+  deterministic tests in `strict_run_lab.rs`: output content (experimental/lab/pre-launch/
+  cgroup/traffic proof/policy installed wording), functional (tunnel detection reuse,
+  traffic proof model reuse, cleanup function existence, zero counters honesty),
+  safety invariants (no daemon/watch/quota/eBPF/ledger/schema/detach). Total unit
+  tests: 1539 (was 1519, +20). Validation: `cargo fmt --check` clean, `cargo clippy`
+  clean, `cargo test` 1539 passed, `python3 scripts/check-policy.py` 135 files pass.
+  Design doc: `docs/strict-prelaunch-cgroup-wrapper-experiment.md`. Updated
+  `docs/strict-traffic-proof-honesty-audit.md` with pre-launch experiment context.
+  Pre-existing CLI definition and dispatch wiring in `src/cli.rs` and
+  `src/commands/mod.rs` (already committed). Experimental/lab only — does not alter
+  existing `strict` semantics, no enforcement change, no eBPF, no daemon/watch, no
+  quota, no persistence, no ledger file read/write, no v3.0 usage JSON schema change,
+  no version bump, no tag created, no GitHub release created, no package published.
+
 - **strict traffic proof honesty audit**: Diagnostics/output/docs only phase making strict output honest about the difference between PID moved/verified and traffic actually shaped. Live finding: on Linux 6.18 + ProtonVPN/proton0, PID cgroup verification succeeds but nft cgroup match and download policer counters remain at 0 packets/0 bytes — verified PID moved does not prove traffic shaped. New module `src/limiter/traffic_proof.rs` (905 LOC) with pure model types (`StrictTrafficProofCounters`, `StrictTrafficProofStatus` enum with NotChecked/NoMatchObserved/CgroupMatchObserved/PolicerMatchObserved/Inconclusive, `TunnelInterfaceCheck`, `StrictTrafficProof`), nft counter parser (`parse_nft_counter_lines_for_mark()`), tunnel interface detector (`is_tunnel_interface()` for tun*/wg*/proton*/tap*/vpn*), traffic proof renderer (`render_strict_traffic_proof()`), and classifier (`classify_traffic_proof()`). Modified `src/limiter/output.rs` (102 LOC): strict summary wording changed from "limited" to "policy installed" (e.g. "Download: 1 MB/s (policy installed, nftables policer)" instead of "(limited, nftables policer)"); added traffic proof section to summary output showing nft counter values and honest status. Modified `src/limiter/mod.rs` (848 LOC): added `build_traffic_proof()` helper that reads nft counters (diagnostic-only, with `--diagnose`) and detects tunnel interfaces; integrated into apply flow after nft rules are applied but before summary print. Modified `src/limiter/cleanup.rs` (926 LOC): improved interface change warning in status to be tunnel-aware — when stored interface is a VPN/tunnel interface, warning notes this is expected with `--iface` instead of suggesting re-apply. Modified `src/limiter/refresh.rs` (459 LOC): same tunnel-aware improvement for refresh interface mismatch warning. 35 new deterministic tests covering: counter parsing (zero/nonzero/both/large/empty/missing counters), classification (all 4 states + inconclusive), tunnel detection (proton0/tun0/wg0/wlp1s0/case-insensitive/normal interfaces), output wording (policy installed vs limited, bypass warning content, counter values in diagnose, honest not-checked status), structural safety (no enforcement code, no ruleset generation, no filesystem persistence, no ledger persistence, no eBPF, no quota, no daemon/watch, no JSON schema change, no ledger inspect reference). All files under 1000 LOC. Design doc: `docs/strict-traffic-proof-honesty-audit.md`. Strict honesty/audit only — no enforcement semantics change, no eBPF, no daemon/watch, no quota, no persistence, no ledger file read/write, no new /proc reads beyond existing strict diagnostics, no v3.0 usage JSON schema change, no version bump, no tag created, no GitHub release created, no package published.
 
 - **v3.1 phase 10b Gated Ledger Inspect Validation Freeze**: Validation

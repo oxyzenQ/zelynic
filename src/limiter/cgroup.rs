@@ -72,7 +72,7 @@ pub(super) fn current_cgroup_v2_absolute_path(pid: u32) -> Option<String> {
 ///
 /// Reads /proc/<pid>/cgroup and checks if the target cgroup path appears
 /// in the cgroup v2 hierarchy entry (the line starting with "0::").
-pub(super) fn verify_pid_in_cgroup(pid: u32, expected_cg_path: &str) -> bool {
+pub(crate) fn verify_pid_in_cgroup(pid: u32, expected_cg_path: &str) -> bool {
     let cgroup_file = format!("/proc/{}/cgroup", pid);
     if let Ok(content) = fs::read_to_string(&cgroup_file) {
         for line in content.lines() {

@@ -5,7 +5,7 @@ use colored::Colorize;
 use super::traffic_proof::render_strict_traffic_proof;
 use super::traffic_proof::StrictTrafficProof;
 
-pub(super) struct StrictApplySummary<'a> {
+pub(crate) struct StrictApplySummary<'a> {
     pub target: &'a str,
     pub discovered_count: usize,
     pub moved_count: usize,
@@ -22,7 +22,7 @@ pub(super) struct StrictApplySummary<'a> {
     pub traffic_proof: &'a StrictTrafficProof,
 }
 
-pub(super) fn print_strict_apply_summary(summary: &StrictApplySummary<'_>) {
+pub(crate) fn print_strict_apply_summary(summary: &StrictApplySummary<'_>) {
     if summary.applied_count == 0 {
         println!(
             "{}",

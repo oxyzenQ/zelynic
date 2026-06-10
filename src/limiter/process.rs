@@ -79,7 +79,7 @@ pub fn resolve_process_tree(root_pids: &[u32]) -> Vec<u32> {
 /// Sanitize a target name for use as a cgroup directory name.
 ///
 /// Rules: lowercase, replace non-alphanumeric chars with underscore, max 64 chars.
-pub(super) fn sanitize_target_name(target: &str) -> String {
+pub(crate) fn sanitize_target_name(target: &str) -> String {
     let sanitized: String = target
         .chars()
         .map(|c| {

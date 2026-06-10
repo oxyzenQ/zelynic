@@ -7,7 +7,7 @@ use super::process::get_process_uid;
 use super::NFT_TABLE;
 
 /// Ensure required kernel modules for traffic control are loaded.
-pub(super) fn ensure_kernel_modules() -> Result<()> {
+pub(crate) fn ensure_kernel_modules() -> Result<()> {
     let modules = [
         "sch_htb",
         "cls_fw",
@@ -24,7 +24,7 @@ pub(super) fn ensure_kernel_modules() -> Result<()> {
 }
 
 /// Ensure netfilter conntrack is enabled for ct mark propagation.
-pub(super) fn ensure_conntrack() -> Result<()> {
+pub(crate) fn ensure_conntrack() -> Result<()> {
     let _ = Command::new("modprobe").args(["nf_conntrack"]).output();
 
     let params = [

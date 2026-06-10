@@ -522,6 +522,41 @@ pub enum Commands {
         usage_target: Option<String>,
     },
 
+    /// [experimental] Pre-launch cgroup wrapper for strict traffic proof experiment.
+    ///
+    /// Launches a child process inside a Zelynic-managed cgroup before the child
+    /// opens network sockets, then applies the same nft/tc policy. This tests
+    /// whether pre-launch cgroup placement improves socket cgroupv2 matching.
+    ///
+    /// HIDDEN: this is an experimental lab command. Do NOT use in production.
+    ///
+    /// Examples:
+    ///   zelynic strict-run-lab --diagnose --iface proton0 -d 100kb -- aria2c -x 1 -s 1 https://example.com/file.iso
+    #[command(hide = true, verbatim_doc_comment)]
+    StrictRunLab {
+        /// Download speed limit (e.g., 500kb, 1mb, 100byte)
+        #[arg(short = 'd', long = "download", allow_hyphen_values = true)]
+        download: Option<String>,
+
+        /// Upload speed limit (e.g., 500kb, 1mb, 100byte)
+        #[arg(short = 'u', long = "upload", allow_hyphen_values = true)]
+        upload: Option<String>,
+
+        /// Print strict backend diagnostics while applying the limit
+        #[arg(long = "diagnose", alias = "diag")]
+        diagnose: bool,
+
+        /// Command to launch; pass after `--`
+        #[arg(
+            required = true,
+            num_args = 1..,
+            last = true,
+            allow_hyphen_values = true,
+            value_name = "COMMAND"
+        )]
+        command: Vec<String>,
+    },
+
     /// [design-gated] Network ledger inspection and export (v3.1 phase 6).
     ///
     /// This subcommand is registered in the parser but hard-blocked at dispatch.

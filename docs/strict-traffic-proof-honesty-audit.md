@@ -270,3 +270,21 @@ By surfacing the nft counter state honestly, users can see whether their traffic
 policy is actually being applied, and take appropriate action (e.g., restarting
 the target process after policy installation, or using a different shaping
 approach for tunnel traffic).
+
+## Follow-Up: Pre-Launch Cgroup Wrapper Experiment
+
+A follow-up experiment has been implemented as the hidden `strict-run-lab` command
+to test whether placing a child process inside the Zelynic cgroup before it opens
+network sockets improves nft `socket cgroupv2` counter matching. See
+[strict-prelaunch-cgroup-wrapper-experiment.md](strict-prelaunch-cgroup-wrapper-experiment.md)
+for full details.
+
+The key difference: instead of moving an already-running process into a cgroup
+(attach-after-socket), `strict-run-lab` creates the cgroup first, then launches the
+child directly into it via `CommandExt::pre_exec`. This means all sockets created
+by the child process should be classified under the target cgroup from creation
+time, potentially allowing the nft `socket cgroupv2` match to actually observe traffic.
+
+If the pre-launch approach still shows 0 counters (especially on VPN/tunnel
+interfaces like proton0), this would confirm that the limitation is at the
+kernel/tunnel encapsulation level rather than the socket-cgroup timing level.
