@@ -750,3 +750,7 @@ mod p15_tests;
 #[cfg(test)]
 #[path = "ledger_p16_tests.rs"]
 mod p16_tests;
+
+#[cfg(test)]
+#[path = "ledger_p17_tests.rs"]
+mod p17_tests;
