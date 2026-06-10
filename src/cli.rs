@@ -668,6 +668,9 @@ pub enum LedgerCommands {
         /// Output as JSON.
         #[arg(long, hide = true)]
         json: bool,
+        /// [v3.1 phase 16] Read ledger from explicit file path (read-only, stdout-only).
+        #[arg(long = "file", hide = true, value_name = "PATH")]
+        file: Option<String>,
     },
 }
 

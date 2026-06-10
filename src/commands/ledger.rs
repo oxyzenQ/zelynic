@@ -103,9 +103,9 @@ pub(crate) fn build_fixture_ledger() -> Ledger {
 /// - It does not check file permissions (the OS rejects unreadable files).
 /// - It does not resolve mount points or filesystem boundaries.
 /// - Symlink detection uses `symlink_metadata` (does not follow symlinks).
-fn validate_inspect_file_path(path: &str) -> Result<PathBuf, String> {
+fn validate_ledger_file_path(path: &str, prefix: &str) -> Result<PathBuf, String> {
     if path.is_empty() {
-        return Err("ledger inspect --file: path must not be empty".to_string());
+        return Err(format!("{}: path must not be empty", prefix));
     }
 
     let path_obj = Path::new(path);
@@ -113,7 +113,7 @@ fn validate_inspect_file_path(path: &str) -> Result<PathBuf, String> {
     // Reject parent traversal components
     for component in path_obj.components() {
         if let std::path::Component::ParentDir = component {
-            return Err("ledger inspect --file: parent traversal (..) is not allowed".to_string());
+            return Err(format!("{}: parent traversal (..) is not allowed", prefix));
         }
     }
 
@@ -121,39 +121,41 @@ fn validate_inspect_file_path(path: &str) -> Result<PathBuf, String> {
     if let Some(filename) = path_obj.file_name() {
         let name = filename.to_string_lossy();
         if name.is_empty() {
-            return Err("ledger inspect --file: filename must not be empty".to_string());
+            return Err(format!("{}: filename must not be empty", prefix));
         }
         for ch in name.chars() {
             if !ch.is_ascii_alphanumeric() && ch != '.' && ch != '-' && ch != '_' {
                 return Err(format!(
-                    "ledger inspect --file: suspicious character '{}' in filename '{}'",
-                    ch, name
+                    "{}: suspicious character '{}' in filename '{}'",
+                    prefix, ch, name
                 ));
             }
         }
     } else {
-        return Err("ledger inspect --file: path has no filename component".to_string());
+        return Err(format!("{}: path has no filename component", prefix));
     }
 
     // Filesystem checks: must exist, be regular file, not symlink
     let meta = std::fs::symlink_metadata(path)
-        .map_err(|e| format!("ledger inspect --file: cannot access '{}': {}", path, e))?;
+        .map_err(|e| format!("{}: cannot access '{}': {}", prefix, path, e))?;
 
     if meta.file_type().is_symlink() {
         return Err(format!(
-            "ledger inspect --file: '{}' is a symlink; symlinks are not followed",
-            path
+            "{}: '{}' is a symlink; symlinks are not followed",
+            prefix, path
         ));
     }
 
     if !meta.file_type().is_file() {
-        return Err(format!(
-            "ledger inspect --file: '{}' is not a regular file",
-            path
-        ));
+        return Err(format!("{}: '{}' is not a regular file", prefix, path));
     }
 
     Ok(path_obj.to_path_buf())
+}
+
+/// Backward-compatible wrapper using inspect prefix.
+fn validate_inspect_file_path(path: &str) -> Result<PathBuf, String> {
+    validate_ledger_file_path(path, "ledger inspect --file")
 }
 
 /// Read a ledger file from disk (read-only).
@@ -164,22 +166,17 @@ fn validate_inspect_file_path(path: &str) -> Result<PathBuf, String> {
 /// - schema_version is supported
 /// - All entries pass `validate_safety()` (read_only, attribution_scope,
 ///   enforcement_status, combined_bytes consistency)
-fn read_ledger_file(path: &Path) -> Result<Ledger, String> {
-    let content = std::fs::read_to_string(path).map_err(|e| {
-        format!(
-            "ledger inspect --file: failed to read '{}': {}",
-            path.display(),
-            e
-        )
-    })?;
+fn read_ledger_file(path: &Path, prefix: &str) -> Result<Ledger, String> {
+    let content = std::fs::read_to_string(path)
+        .map_err(|e| format!("{}: failed to read '{}': {}", prefix, path.display(), e))?;
 
-    deserialize_ledger_from_json(&content).map_err(|e| {
-        format!(
-            "ledger inspect --file: invalid ledger in '{}': {}",
-            path.display(),
-            e
-        )
-    })
+    deserialize_ledger_from_json(&content)
+        .map_err(|e| format!("{}: invalid ledger in '{}': {}", prefix, path.display(), e))
+}
+
+/// Backward-compatible wrapper using inspect prefix.
+fn read_ledger_file_inspect(path: &Path) -> Result<Ledger, String> {
+    read_ledger_file(path, "ledger inspect --file")
 }
 
 /// Render file-read inspect output as human-readable text.
@@ -286,7 +283,8 @@ pub(crate) fn handle_ledger_inspect(json: bool, file: Option<&str>) -> Result<()
             // Explicit file-read mode (Phase 12).
             let validated =
                 validate_inspect_file_path(path).map_err(|e| anyhow::anyhow!("{}", e))?;
-            let ledger = read_ledger_file(&validated).map_err(|e| anyhow::anyhow!("{}", e))?;
+            let ledger =
+                read_ledger_file_inspect(&validated).map_err(|e| anyhow::anyhow!("{}", e))?;
             if json {
                 let json_str = serialize_ledger_to_json(&ledger)
                     .map_err(|e| anyhow::anyhow!("file ledger serialization failed: {}", e))?;
@@ -298,6 +296,54 @@ pub(crate) fn handle_ledger_inspect(json: bool, file: Option<&str>) -> Result<()
             }
         }
     }
+
+    Ok(())
+}
+
+/// Handle the `zelynic ledger export` command.
+///
+/// Requires both `--json` and `--file <PATH>`. Reads the specified ledger
+/// file, validates it, and emits the validated ledger JSON to stdout only.
+/// No file write, no output file, no overwrite, no persistence.
+///
+/// # Arguments
+///
+/// * `json` - Must be true; export requires --json.
+/// * `file` - Must be Some(path); export requires explicit --file.
+///
+/// # Returns
+///
+/// `Ok(())` with JSON printed to stdout, or an error.
+pub(crate) fn handle_ledger_export(json: bool, file: Option<&str>) -> Result<()> {
+    // --json is required.
+    if !json {
+        return Err(anyhow::anyhow!(
+            "ledger export: --json is required for export"
+        ));
+    }
+
+    // --file is required.
+    let path = match file {
+        Some(p) => p,
+        None => {
+            return Err(anyhow::anyhow!(
+                "ledger export: --file <PATH> is required for export"
+            ));
+        }
+    };
+
+    // Validate path using the same hardened rules as inspect --file.
+    let validated = validate_ledger_file_path(path, "ledger export --file")
+        .map_err(|e| anyhow::anyhow!("{}", e))?;
+
+    // Read and validate the ledger via the existing pipeline.
+    let ledger = read_ledger_file(&validated, "ledger export --file")
+        .map_err(|e| anyhow::anyhow!("{}", e))?;
+
+    // Reserialize canonically and emit to stdout.
+    let json_str = serialize_ledger_to_json(&ledger)
+        .map_err(|e| anyhow::anyhow!("ledger export: serialization failed: {}", e))?;
+    println!("{}", json_str);
 
     Ok(())
 }
@@ -582,7 +628,7 @@ mod tests {
         let fp = dir.join("bad.json");
         std::fs::write(&fp, "{invalid json").unwrap();
         let v = validate_inspect_file_path(fp.to_str().unwrap()).unwrap();
-        let r = read_ledger_file(&v);
+        let r = read_ledger_file_inspect(&v);
         assert!(r.is_err());
         assert!(r.unwrap_err().contains("invalid ledger"));
         std::fs::remove_dir_all(&dir).ok();
@@ -599,7 +645,7 @@ mod tests {
         )
         .unwrap();
         let v = validate_inspect_file_path(fp.to_str().unwrap()).unwrap();
-        let r = read_ledger_file(&v);
+        let r = read_ledger_file_inspect(&v);
         assert!(r.is_err());
         let err = r.unwrap_err();
         assert!(err.contains("schema") || err.contains("Unsupported"));
@@ -614,7 +660,7 @@ mod tests {
         let bad = r#"{"schema_version":1,"created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z","host_id":"h","entries":[{"entry_id":"e1","timestamp":"2026-01-01T00:00:00Z","entry_type":"snapshot","source_label":"t","interface":"eth0","rx_bytes":100,"tx_bytes":50,"combined_bytes":150,"read_only":true,"provenance":"test","attribution_scope":"interface-level only","enforcement_status":"active","reset_detected":false,"reset_details":[]}]}"#;
         std::fs::write(&fp, bad).unwrap();
         let v = validate_inspect_file_path(fp.to_str().unwrap()).unwrap();
-        let r = read_ledger_file(&v);
+        let r = read_ledger_file_inspect(&v);
         assert!(r.is_err());
         assert!(r.unwrap_err().contains("enforcement_status"));
         std::fs::remove_dir_all(&dir).ok();
@@ -626,7 +672,7 @@ mod tests {
         std::fs::create_dir_all(&dir).unwrap();
         let fp = write_fixture_to_temp(dir.to_str().unwrap(), "s.json");
         let v = validate_inspect_file_path(fp.to_str().unwrap()).unwrap();
-        let loaded = read_ledger_file(&v).unwrap();
+        let loaded = read_ledger_file_inspect(&v).unwrap();
         let ins = build_ledger_inspect(&loaded);
         let rendered = render_file_read_inspect_text(&ins, fp.to_str().unwrap());
         assert!(rendered.contains("source: explicit file read"));
@@ -642,7 +688,7 @@ mod tests {
         std::fs::create_dir_all(&dir).unwrap();
         let fp = write_fixture_to_temp(dir.to_str().unwrap(), "d.json");
         let v = validate_inspect_file_path(fp.to_str().unwrap()).unwrap();
-        let loaded = read_ledger_file(&v).unwrap();
+        let loaded = read_ledger_file_inspect(&v).unwrap();
         let j1 = serialize_ledger_to_json(&loaded).unwrap();
         let j2 = serialize_ledger_to_json(&loaded).unwrap();
         assert_eq!(j1, j2);
@@ -664,7 +710,7 @@ mod tests {
         std::fs::create_dir_all(&dir).unwrap();
         let fp = write_fixture_to_temp(dir.to_str().unwrap(), "n.json");
         let v = validate_inspect_file_path(fp.to_str().unwrap()).unwrap();
-        let loaded = read_ledger_file(&v).unwrap();
+        let loaded = read_ledger_file_inspect(&v).unwrap();
         let ins = build_ledger_inspect(&loaded);
         let rendered = render_file_read_inspect_text(&ins, fp.to_str().unwrap());
         assert!(rendered.contains("read-only, no file write"));
@@ -700,3 +746,7 @@ mod p14_tests;
 #[cfg(test)]
 #[path = "ledger_p15_tests.rs"]
 mod p15_tests;
+
+#[cfg(test)]
+#[path = "ledger_p16_tests.rs"]
+mod p16_tests;

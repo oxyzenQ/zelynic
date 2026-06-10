@@ -124,9 +124,9 @@ fn v31_p15_doc_says_inspect_unchanged() {
     );
 }
 
-// T-13: Current ledger export --json remains design-gated.
+// T-13: ledger export --json without --file fails honestly (Phase 16 activated).
 #[test]
-fn v31_p15_export_json_remains_gated() {
+fn v31_p15_export_json_no_file_fails_honestly() {
     use crate::cli::Cli;
     use clap::Parser;
     let cli = Cli::try_parse_from(["zelynic", "ledger", "export", "--json"]).unwrap();
@@ -134,30 +134,42 @@ fn v31_p15_export_json_remains_gated() {
     assert!(result.is_err());
     let err = result.unwrap_err().to_string();
     assert!(
-        err.contains("design-gated"),
-        "export must remain design-gated: {}",
+        err.contains("--file"),
+        "export --json without --file must mention --file: {}",
+        err
+    );
+    assert!(
+        !err.contains("design-gated"),
+        "export must NOT be design-gated anymore: {}",
         err
     );
 }
 
-// T-14: Current ledger export --json --file something is rejected or gated.
-// Currently Export has no --file flag, so clap should reject it.
+// T-14: ledger export --json --file parses (Phase 16 added --file to Export).
+// Without a valid file on disk, dispatch will fail with a file error,
+// but clap parsing succeeds.
 #[test]
-fn v31_p15_export_json_file_rejected() {
+fn v31_p15_export_json_file_parses() {
     use crate::cli::Cli;
     use clap::Parser;
-    let r = Cli::try_parse_from([
+    let cli = Cli::try_parse_from([
         "zelynic",
         "ledger",
         "export",
         "--json",
         "--file",
-        "/tmp/test.json",
+        "/tmp/nonexistent_p15_test.json",
     ]);
-    // --file is not defined on Export, so clap must reject it.
+    // Clap must succeed (file flag exists).
+    assert!(cli.is_ok(), "export --json --file must parse");
+    // Dispatch must fail (file does not exist).
+    let result = crate::commands::dispatch(cli.unwrap(), None);
+    assert!(result.is_err());
+    let err = result.unwrap_err().to_string();
     assert!(
-        r.is_err(),
-        "export --file must be rejected (flag not defined)"
+        err.contains("cannot access"),
+        "must fail with file error: {}",
+        err
     );
 }
 

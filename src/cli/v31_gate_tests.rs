@@ -130,7 +130,7 @@ fn v31_gate_ledger_export_json_parses_as_hidden() {
     let cli = Cli::try_parse_from(["zelynic", "ledger", "export", "--json"]).unwrap();
     match cli.command.unwrap() {
         Commands::Ledger { command } => match command {
-            LedgerCommands::Export { json } => {
+            LedgerCommands::Export { json, .. } => {
                 assert!(json);
             }
             other => panic!("expected ledger export, got {other:?}"),
@@ -384,13 +384,17 @@ fn v31_p10_ledger_inspect_json_dispatch_succeeds() {
 }
 
 #[test]
-fn v31_p10_ledger_export_dispatch_still_rejected() {
-    // Phase 10: `ledger export` remains hard-blocked at dispatch.
+fn v31_p10_ledger_export_dispatch_rejected_without_file() {
+    // Phase 10/16: `ledger export` is rejected without --file.
     let cli = Cli::try_parse_from(["zelynic", "ledger", "export", "--json"]).unwrap();
     let result = crate::commands::dispatch(cli, None);
     assert!(result.is_err());
     let err = result.unwrap_err().to_string();
-    assert!(err.contains("design-gated"));
+    assert!(
+        err.contains("--file"),
+        "export must be rejected with --file message: {}",
+        err
+    );
     assert!(err.contains("ledger export"));
 }
 
@@ -746,13 +750,13 @@ fn v31_p10b_v3_usage_json_schema_version_1() {
 }
 
 #[test]
-fn v31_p10b_ledger_export_remains_design_gated() {
-    // Invariant 19: ledger export --json remains design-gated/rejected.
+fn v31_p10b_ledger_export_rejected_without_file() {
+    // Invariant 19: ledger export --json is rejected without --file (Phase 16 activated).
     let cli = Cli::try_parse_from(["zelynic", "ledger", "export", "--json"]).unwrap();
     let result = crate::commands::dispatch(cli, None);
     assert!(result.is_err());
     let err = result.unwrap_err().to_string();
-    assert!(err.contains("design-gated"));
+    assert!(err.contains("--file"));
     assert!(err.contains("ledger export"));
 }
 
@@ -914,12 +918,12 @@ fn v31_p11_ledger_inspect_input_flag_rejected_by_clap() {
 }
 
 #[test]
-fn v31_p11_ledger_export_remains_design_gated() {
-    // Phase 11: ledger export --json remains design-gated.
+fn v31_p11_ledger_export_rejected_without_file() {
+    // Phase 11/16: ledger export --json is rejected without --file.
     let cli = Cli::try_parse_from(["zelynic", "ledger", "export", "--json"]).unwrap();
     let result = crate::commands::dispatch(cli, None);
     assert!(result.is_err());
-    assert!(result.unwrap_err().to_string().contains("design-gated"));
+    assert!(result.unwrap_err().to_string().contains("--file"));
 }
 
 #[test]
@@ -980,11 +984,11 @@ fn v31_p12_file_missing_value_rejected() {
 }
 
 #[test]
-fn v31_p12_export_gated_schema_and_version() {
+fn v31_p12_export_rejected_without_file() {
     let cli = Cli::try_parse_from(["zelynic", "ledger", "export", "--json"]).unwrap();
     let result = crate::commands::dispatch(cli, None);
     assert!(result.is_err());
-    assert!(result.unwrap_err().to_string().contains("design-gated"));
+    assert!(result.unwrap_err().to_string().contains("--file"));
     use crate::accounting::SCHEMA_VERSION;
     assert_eq!(SCHEMA_VERSION, 1);
     assert!(include_str!("../../Cargo.toml").contains("version = \"3.0.1\""));
