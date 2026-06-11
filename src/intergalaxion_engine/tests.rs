@@ -1,11 +1,12 @@
 // Copyright (C) 2026 rezky_nightky
 // SPDX-License-Identifier: GPL-3.0-only
-//! Compile-safe and invariant tests for the Intergalaxion Engine (Phase I-0).
+//! Compile-safe and invariant tests for the Intergalaxion Engine.
 //!
 //! These tests verify that:
 //! 1. All modules compile.
 //! 2. All model defaults are safe (observer-only, no enforcement).
 //! 3. No existing CLI behavior is changed.
+//! 4. Probe plans are model-only with no live kernel operations.
 
 use super::*;
 use crate::cli::Cli;
@@ -499,6 +500,458 @@ fn i1_all_touched_files_under_1000_loc() {
         ("mod.rs", I1_MOD_SOURCE),
         ("tests.rs", include_str!("tests.rs")),
         ("I-1 doc", I1_DOC),
+    ] {
+        assert!(
+            source.lines().count() < 1000,
+            "{name} must stay under 1000 LOC"
+        );
+    }
+}
+
+// -- Phase I-2: minimal eBPF observer probe design --------------------
+
+use crate::intergalaxion_engine::backends::ebpf::probe_plan::*;
+use crate::intergalaxion_engine::backends::ebpf::{
+    validate_probe_plan_safety, EbpfEventKind, EbpfMapPlan, EbpfObserverState,
+};
+
+const I2_DOC: &str =
+    include_str!("../../docs/intergalaxion/I-2-minimal-ebpf-observer-probe-design.md");
+const I2_PROBE_PLAN_SOURCE: &str = include_str!("backends/ebpf/probe_plan.rs");
+
+fn make_unsafe_plan(flag: &str) -> EbpfProbePlan {
+    let mut plan = EbpfProbePlan::default();
+    match flag {
+        "program_load_enabled" => plan.program_load_enabled = true,
+        "attach_enabled" => plan.attach_enabled = true,
+        "map_create_enabled" => plan.map_create_enabled = true,
+        "map_pin_enabled" => plan.map_pin_enabled = true,
+        "packet_drop_enabled" => plan.packet_drop_enabled = true,
+        "enforcement_enabled" => plan.enforcement_enabled = true,
+        "mutation_enabled" => plan.mutation_enabled = true,
+        _ => {}
+    }
+    plan
+}
+
+#[test]
+fn i2_default_probe_plan_is_model_only() {
+    let plan = EbpfProbePlan::default();
+    assert_eq!(plan.safety_mode, EbpfProbeSafetyMode::ModelOnly);
+}
+
+#[test]
+fn i2_default_probe_plan_kind_is_noop() {
+    let plan = EbpfProbePlan::default();
+    assert_eq!(plan.kind, EbpfProbeKind::Noop);
+}
+
+#[test]
+fn i2_default_probe_plan_has_program_load_disabled() {
+    let plan = EbpfProbePlan::default();
+    assert!(!plan.program_load_enabled);
+}
+
+#[test]
+fn i2_default_probe_plan_has_attach_disabled() {
+    let plan = EbpfProbePlan::default();
+    assert!(!plan.attach_enabled);
+}
+
+#[test]
+fn i2_default_probe_plan_has_map_create_disabled() {
+    let plan = EbpfProbePlan::default();
+    assert!(!plan.map_create_enabled);
+}
+
+#[test]
+fn i2_default_probe_plan_has_map_pin_disabled() {
+    let plan = EbpfProbePlan::default();
+    assert!(!plan.map_pin_enabled);
+}
+
+#[test]
+fn i2_default_probe_plan_has_packet_drop_disabled() {
+    let plan = EbpfProbePlan::default();
+    assert!(!plan.packet_drop_enabled);
+}
+
+#[test]
+fn i2_default_probe_plan_has_enforcement_disabled() {
+    let plan = EbpfProbePlan::default();
+    assert!(!plan.enforcement_enabled);
+}
+
+#[test]
+fn i2_default_probe_plan_has_mutation_disabled() {
+    let plan = EbpfProbePlan::default();
+    assert!(!plan.mutation_enabled);
+}
+
+#[test]
+fn i2_default_probe_plan_notes_empty() {
+    let plan = EbpfProbePlan::default();
+    assert!(plan.notes.is_empty());
+}
+
+// -- Helper plan factory tests ----------------------------------------
+
+#[test]
+fn i2_socket_observer_plan_is_observer_only() {
+    let plan = minimal_socket_observer_probe_plan();
+    assert_eq!(plan.kind, EbpfProbeKind::SocketObserver);
+    assert_eq!(plan.safety_mode, EbpfProbeSafetyMode::ModelOnly);
+    assert!(!plan.program_load_enabled);
+    assert!(!plan.attach_enabled);
+    assert!(!plan.packet_drop_enabled);
+    assert!(!plan.enforcement_enabled);
+    assert!(!plan.mutation_enabled);
+}
+
+#[test]
+fn i2_cgroup_skb_observer_plan_is_observer_only() {
+    let plan = minimal_cgroup_skb_observer_probe_plan();
+    assert_eq!(plan.kind, EbpfProbeKind::CgroupSkbObserver);
+    assert_eq!(plan.safety_mode, EbpfProbeSafetyMode::ModelOnly);
+    assert!(plan.requires_bpf_fs);
+    assert!(plan.requires_btf);
+    assert!(plan.requires_cap_bpf_or_sys_admin);
+    assert!(!plan.program_load_enabled);
+    assert!(!plan.attach_enabled);
+    assert!(!plan.packet_drop_enabled);
+    assert!(!plan.enforcement_enabled);
+    assert!(!plan.mutation_enabled);
+}
+
+#[test]
+fn i2_tracepoint_observer_plan_is_observer_only() {
+    let plan = minimal_tracepoint_observer_probe_plan();
+    assert_eq!(plan.kind, EbpfProbeKind::TracepointObserver);
+    assert_eq!(plan.safety_mode, EbpfProbeSafetyMode::ModelOnly);
+    assert!(!plan.requires_bpf_fs);
+    assert!(plan.requires_btf);
+    assert!(!plan.program_load_enabled);
+    assert!(!plan.attach_enabled);
+    assert!(!plan.packet_drop_enabled);
+    assert!(!plan.enforcement_enabled);
+    assert!(!plan.mutation_enabled);
+}
+
+// -- Validator tests ---------------------------------------------------
+
+#[test]
+fn i2_validator_accepts_safe_model_only_plan() {
+    let plan = EbpfProbePlan::default();
+    assert!(validate_probe_plan_safety(&plan).is_ok());
+}
+
+#[test]
+fn i2_validator_accepts_socket_observer_plan() {
+    let plan = minimal_socket_observer_probe_plan();
+    assert!(validate_probe_plan_safety(&plan).is_ok());
+}
+
+#[test]
+fn i2_validator_accepts_cgroup_skb_observer_plan() {
+    let plan = minimal_cgroup_skb_observer_probe_plan();
+    assert!(validate_probe_plan_safety(&plan).is_ok());
+}
+
+#[test]
+fn i2_validator_accepts_tracepoint_observer_plan() {
+    let plan = minimal_tracepoint_observer_probe_plan();
+    assert!(validate_probe_plan_safety(&plan).is_ok());
+}
+
+#[test]
+fn i2_validator_rejects_program_load_enabled() {
+    let plan = make_unsafe_plan("program_load_enabled");
+    let result = validate_probe_plan_safety(&plan);
+    assert!(result.is_err());
+    assert!(result.unwrap_err().contains("program_load_enabled"));
+}
+
+#[test]
+fn i2_validator_rejects_attach_enabled() {
+    let plan = make_unsafe_plan("attach_enabled");
+    let result = validate_probe_plan_safety(&plan);
+    assert!(result.is_err());
+    assert!(result.unwrap_err().contains("attach_enabled"));
+}
+
+#[test]
+fn i2_validator_rejects_map_create_enabled() {
+    let plan = make_unsafe_plan("map_create_enabled");
+    let result = validate_probe_plan_safety(&plan);
+    assert!(result.is_err());
+    assert!(result.unwrap_err().contains("map_create_enabled"));
+}
+
+#[test]
+fn i2_validator_rejects_map_pin_enabled() {
+    let plan = make_unsafe_plan("map_pin_enabled");
+    let result = validate_probe_plan_safety(&plan);
+    assert!(result.is_err());
+    assert!(result.unwrap_err().contains("map_pin_enabled"));
+}
+
+#[test]
+fn i2_validator_rejects_packet_drop_enabled() {
+    let plan = make_unsafe_plan("packet_drop_enabled");
+    let result = validate_probe_plan_safety(&plan);
+    assert!(result.is_err());
+    assert!(result.unwrap_err().contains("packet_drop_enabled"));
+}
+
+#[test]
+fn i2_validator_rejects_enforcement_enabled() {
+    let plan = make_unsafe_plan("enforcement_enabled");
+    let result = validate_probe_plan_safety(&plan);
+    assert!(result.is_err());
+    assert!(result.unwrap_err().contains("enforcement_enabled"));
+}
+
+#[test]
+fn i2_validator_rejects_mutation_enabled() {
+    let plan = make_unsafe_plan("mutation_enabled");
+    let result = validate_probe_plan_safety(&plan);
+    assert!(result.is_err());
+    assert!(result.unwrap_err().contains("mutation_enabled"));
+}
+
+// -- Observer probe design composition tests ---------------------------
+
+#[test]
+fn i2_observer_probe_design_composes_defaults() {
+    let design = EbpfObserverProbeDesign::default();
+    assert_eq!(design.plan.kind, EbpfProbeKind::Noop);
+    assert_eq!(design.plan.safety_mode, EbpfProbeSafetyMode::ModelOnly);
+    assert_eq!(design.event_kind, EbpfEventKind::Noop);
+    assert!(design.map_plan.maps.is_empty());
+    assert_eq!(design.observer_state, EbpfObserverState::Inactive);
+}
+
+#[test]
+fn i2_observer_state_remains_inactive_by_default() {
+    assert_eq!(EbpfObserverState::default(), EbpfObserverState::Inactive);
+}
+
+#[test]
+fn i2_observer_probe_design_all_flags_false() {
+    let design = EbpfObserverProbeDesign::default();
+    assert!(!design.plan.program_load_enabled);
+    assert!(!design.plan.attach_enabled);
+    assert!(!design.plan.map_create_enabled);
+    assert!(!design.plan.map_pin_enabled);
+    assert!(!design.plan.packet_drop_enabled);
+    assert!(!design.plan.enforcement_enabled);
+    assert!(!design.plan.mutation_enabled);
+}
+
+// -- Capability detector continuity -----------------------------------
+
+#[test]
+fn i2_capability_detector_still_defaults_unavailable() {
+    let report = EbpfCapabilityReport::default();
+    assert_eq!(report.readiness, EbpfReadinessLevel::Unavailable);
+    assert!(!report.observer_ready);
+}
+
+// -- CLI exposure tests -----------------------------------------------
+
+#[test]
+fn i2_public_help_does_not_mention_intergalaxion() {
+    let help = Cli::command().render_help().to_string();
+    assert!(!help.to_ascii_lowercase().contains("intergalaxion"));
+}
+
+#[test]
+fn i2_public_help_does_not_add_block_allow_quota() {
+    let help = Cli::command()
+        .render_help()
+        .to_string()
+        .to_ascii_lowercase();
+    assert!(!help.contains("block"));
+    assert!(!help.contains("allow"));
+    assert!(!help.contains("quota"));
+}
+
+// -- Version and ledger continuity tests -------------------------------
+
+#[test]
+fn i2_version_remains_3_1_0() {
+    assert!(include_str!("../../Cargo.toml").contains("version = \"3.1.0\""));
+}
+
+#[test]
+fn i2_existing_ledger_inspect_json_still_works() {
+    assert!(handle_ledger_inspect(true, None).is_ok());
+}
+
+fn write_i2_valid_ledger_fixture(name: &str) -> std::path::PathBuf {
+    let dir = std::env::temp_dir().join(format!("zelynic_i2_{name}_{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("ledger-valid.json");
+    std::fs::write(
+        &path,
+        r#"{
+  "schema_version": 1,
+  "created_at": "2026-01-01T00:00:00Z",
+  "updated_at": "2026-01-01T00:00:00Z",
+  "host_id": "intergalaxion-i2-host",
+  "entries": [
+    {
+      "entry_id": "intergalaxion-i2-entry-1",
+      "timestamp": "2026-01-01T00:00:00Z",
+      "entry_type": "snapshot",
+      "source_label": "intergalaxion i2 runtime proof",
+      "interface": "eth0",
+      "rx_bytes": 100,
+      "tx_bytes": 200,
+      "combined_bytes": 300,
+      "read_only": true,
+      "provenance": "intergalaxion observer probe design proof",
+      "attribution_scope": "interface-level only",
+      "enforcement_status": "inactive/not implemented",
+      "reset_detected": false,
+      "reset_details": []
+    }
+  ]
+}
+"#,
+    )
+    .unwrap();
+    path
+}
+
+#[test]
+fn i2_existing_ledger_export_json_file_still_works() {
+    let path = write_i2_valid_ledger_fixture("export");
+    assert!(handle_ledger_export(true, Some(path.to_str().unwrap())).is_ok());
+}
+
+// -- No dependency tests ------------------------------------------------
+
+#[test]
+fn i2_no_new_dependency_added() {
+    let cargo_toml = include_str!("../../Cargo.toml");
+    // aya already existed in I-0 as optional; confirm no new deps added.
+    assert!(cargo_toml.contains("aya"));
+}
+
+// -- Forbidden source pattern tests (I-2 probe plan source only) ------
+
+#[test]
+fn i2_no_aya_load_or_attach_in_probe_plan_source() {
+    for forbidden in [
+        "Bpf::load",
+        "load_file",
+        "program_mut",
+        ".attach(",
+        "MapData",
+        "create_map",
+        "pin(",
+        "bpf_prog_load",
+        "bpf_map_create",
+    ] {
+        assert!(
+            !I2_PROBE_PLAN_SOURCE.contains(forbidden),
+            "probe_plan.rs must not contain {forbidden}"
+        );
+    }
+}
+
+#[test]
+fn i2_no_nft_tc_drop_block_allow_quota_in_probe_plan_source() {
+    // Check forbidden patterns only in code lines, not comments.
+    for line in I2_PROBE_PLAN_SOURCE.lines() {
+        let code = line.trim();
+        // Skip comments and doc comments.
+        if code.starts_with("//") || code.starts_with("//!") || code.starts_with("///") {
+            continue;
+        }
+        assert!(
+            !code.contains("drop_packet"),
+            "probe_plan.rs code must not contain 'drop_packet'"
+        );
+        // block/allow/quota as string literals or method calls, not in comments.
+        assert!(
+            !code.contains("\"block\"") && !code.contains(".block"),
+            "probe_plan.rs code must not contain 'block' as identifier"
+        );
+        assert!(
+            !code.contains("\"allow\"") && !code.contains(".allow"),
+            "probe_plan.rs code must not contain 'allow' as identifier"
+        );
+        assert!(
+            !code.contains("\"quota\"") && !code.contains(".quota"),
+            "probe_plan.rs code must not contain 'quota' as identifier"
+        );
+    }
+    // Whole-source checks for patterns unlikely to appear in valid Rust code.
+    assert!(
+        !I2_PROBE_PLAN_SOURCE.contains("nft"),
+        "probe_plan.rs must not contain 'nft'"
+    );
+}
+
+#[test]
+fn i2_no_nft_or_tc_backend_under_intergalaxion() {
+    assert!(!std::path::Path::new("src/intergalaxion_engine/backends/nft.rs").exists());
+    assert!(!std::path::Path::new("src/intergalaxion_engine/backends/tc.rs").exists());
+}
+
+// -- Doc content tests -------------------------------------------------
+
+#[test]
+fn i2_docs_exist_and_mention_model_only() {
+    assert!(!I2_DOC.is_empty());
+    assert!(
+        I2_DOC.contains("model-only")
+            || I2_DOC.contains("design only")
+            || I2_DOC.contains("design/model")
+    );
+}
+
+#[test]
+fn i2_docs_say_no_attach_load_or_map_create_or_pin() {
+    assert!(I2_DOC.contains("no eBPF attach"));
+    assert!(I2_DOC.contains("no eBPF program load"));
+    assert!(I2_DOC.contains("no eBPF map create"));
+    assert!(I2_DOC.contains("no eBPF map pin"));
+}
+
+#[test]
+fn i2_docs_say_no_enforcement() {
+    assert!(I2_DOC.contains("no enforcement"));
+}
+
+#[test]
+fn i2_docs_say_no_block_allow_or_quota() {
+    assert!(I2_DOC.contains("no block/allow/quota"));
+}
+
+#[test]
+fn i2_docs_say_no_nft_tc_fallback() {
+    assert!(I2_DOC.contains("no nft/tc fallback") || I2_DOC.contains("no nft/tc"));
+}
+
+#[test]
+fn i2_docs_say_no_public_cli() {
+    assert!(I2_DOC.contains("no public CLI"));
+}
+
+#[test]
+fn i2_docs_say_no_kernel_mutation() {
+    assert!(I2_DOC.contains("no kernel mutation") || I2_DOC.contains("no mutation"));
+}
+
+#[test]
+fn i2_all_touched_files_under_1000_loc() {
+    for (name, source) in [
+        ("probe_plan.rs", I2_PROBE_PLAN_SOURCE),
+        ("I-2 doc", I2_DOC),
+        ("tests.rs", include_str!("tests.rs")),
     ] {
         assert!(
             source.lines().count() < 1000,

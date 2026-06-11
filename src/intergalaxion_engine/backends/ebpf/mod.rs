@@ -16,6 +16,7 @@ pub mod events;
 pub mod maps;
 pub mod observer;
 pub mod probe;
+pub mod probe_plan;
 
 #[allow(unused_imports)]
 pub use capability::*;
@@ -29,3 +30,5 @@ pub use maps::*;
 pub use observer::*;
 #[allow(unused_imports)]
 pub use probe::*;
+#[allow(unused_imports)]
+pub use probe_plan::*;
