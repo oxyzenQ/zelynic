@@ -55,5 +55,3 @@ pub struct EngineState {
     /// Whether any kernel mutation was performed (always false in I-0).
     pub mutation_performed: bool,
 }
-
-

@@ -34,11 +34,7 @@ pub enum SafetyCheck {
 /// This function always returns `SafetyCheck::Ok` for the default
 /// engine state because no operations are allowed that could violate
 /// the invariants.
-pub fn check_i0_invariants(
-    engine_active: bool,
-    enforcement: bool,
-    mutation: bool,
-) -> SafetyCheck {
+pub fn check_i0_invariants(engine_active: bool, enforcement: bool, mutation: bool) -> SafetyCheck {
     if enforcement {
         return SafetyCheck::Violation(SafetyViolation::EnforcementInObserverMode);
     }
