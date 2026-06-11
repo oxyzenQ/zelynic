@@ -41,6 +41,8 @@ mod tests_i6;
 mod tests_i7;
 #[cfg(test)]
 mod tests_i8;
+#[cfg(test)]
+mod tests_i9;
 
 pub mod live_readiness;
 
