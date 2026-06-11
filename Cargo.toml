@@ -33,6 +33,7 @@ optional = true
 [features]
 default = []
 ebpf = ["aya"]
+intergalaxion-live-attach-lab = ["aya"]
 
 [profile.release]
 opt-level = 3
