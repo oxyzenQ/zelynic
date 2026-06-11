@@ -236,12 +236,12 @@ fn v31_p15_usage_delta_json_unchanged() {
     assert_eq!(SCHEMA_VERSION, 1);
 }
 
-// T-21: No version bump.
+// T-21: Version updated to 3.1.0 in Phase 22.
 #[test]
-fn v31_p15_no_version_bump() {
+fn v31_p15_version_is_3_1_0() {
     assert!(
-        include_str!("../../Cargo.toml").contains("version = \"3.0.1\""),
-        "version must remain 3.0.1"
+        include_str!("../../Cargo.toml").contains("version = \"3.1.0\""),
+        "version must be 3.1.0"
     );
 }
 

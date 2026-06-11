@@ -9,6 +9,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **v3.1 phase 22 Release Prep / Version Bump**: Version bump +
+  release documentation + deterministic tests only. Release prep only.
+  Bumps project version from 3.0.1 to 3.1.0 in Cargo.toml and
+  Cargo.lock. No tag. No GitHub release. No package publish. No runtime
+  behavior change. No CLI parsing change except version metadata. No
+  hidden command made public. No export behavior change. No inspect
+  behavior change. No JSON schema change. No --output. No --overwrite.
+  No save/write/persistence. No default path read. No live /proc/sysfs
+  read. No live resolver. No enforcement. No nft/tc/cgroup/PID mutation.
+  No new dependencies. No v3.2/v3.3/v4 work started. Updates all old
+  version assertions from 3.0.1 to 3.1.0 where they test package version.
+  Renames test functions from `no_version_bump` to `version_is_3_1_0`
+  where appropriate. JSON schema versions remain unchanged (all three at
+  schema_version 1). Command surface unchanged (five frozen shapes).
+  Hidden/experimental boundary preserved. 46 deterministic guard tests
+  added in `src/commands/ledger_p22_tests.rs` (Section AA): doc exists
+  and nonempty, doc says version bumped to 3.1.0, doc says release prep
+  only, doc says no tag/release/publish, doc says v3.2/v3.3/v4 not
+  started, doc says command behavior unchanged except package version, doc
+  lists all five frozen ledger command shapes, doc lists missing --file
+  rejected, doc lists missing --json rejected, doc lists --output
+  rejected, doc lists --overwrite rejected, doc says no save/write/
+  persistence/default path, doc says no live resolver/enforcement/
+  permission, doc says no quota/eBPF/daemon-watch, doc says no nft/tc/
+  cgroup/PID mutation, doc says package version changes but JSON schemas
+  do not, doc says v3.0 usage JSON unchanged, doc says ledger inspect
+  JSON unchanged, doc says ledger export JSON unchanged, Cargo.toml
+  version is 3.1.0, README still links to Phase 14 inspect docs, README
+  still links to Phase 18 export docs, README or docs preserve hidden/
+  experimental ledger wording, Phase 21 doc exists and says final audit,
+  ledger inspect still works, ledger inspect --json still works, ledger
+  inspect --file valid still works, ledger inspect --file valid --json
+  still works, ledger export --json --file valid still works, export
+  --json without --file still fails honestly, export --file without
+  --json still fails honestly, --output rejected, --overwrite rejected,
+  usage delta JSON schema unchanged, ledger command remains hidden, no
+  new dependencies, all files under 1000 LOC, production code no
+  output-file write APIs, production code no persistence/save/default-
+  path auto-read, production code no live resolver/enforcement/mutation
+  APIs, no v3.2 permission/block/allow command surface, no v3.3 quota
+  command surface, no v4 eBPF command surface, CHANGELOG has Phase 22
+  entry but does not claim tag/release/publish, all old version
+  assertions updated from 3.0.1 to 3.1.0. Created design doc
+  `docs/v3.1-phase-22-release-prep-version-bump.md`. Updated previous
+  phase docs with Phase 22 forward-references. Updated CHANGELOG. Added Phase
+  22 link to README.md. Release-prep / version bump only.
+
 - **v3.1 phase 21 Final Audit Before Version Bump**: Docs +
   deterministic tests only. Final audit gate only. No version bump. No
   tag. No GitHub release. No package publish. No runtime behavior change.

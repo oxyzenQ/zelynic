@@ -126,6 +126,6 @@ fn matrix_no_forbidden_features() {
 }
 
 #[test]
-fn matrix_no_version_bump() {
-    assert!(include_str!("../../../Cargo.toml").contains("version = \"3.0.1\""));
+fn matrix_version_is_3_1_0() {
+    assert!(include_str!("../../../Cargo.toml").contains("version = \"3.1.0\""));
 }

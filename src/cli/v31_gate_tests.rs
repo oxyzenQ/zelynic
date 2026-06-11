@@ -485,7 +485,7 @@ fn v31_p10_persistence_hard_block_unchanged() {
 
 #[test]
 fn v31_p10_no_version_bump() {
-    // Phase 10 does not bump the version — remains 3.0.1.
+    // Phase 10 originally did not bump the version. Phase 22 bumped to 3.1.0.
     let cli = Cli::try_parse_from(["zelynic", "--version"]);
     // --version is handled externally; we just verify the parse.
     assert!(cli.is_ok());
@@ -944,9 +944,9 @@ fn v31_p11_v3_usage_json_schema_unchanged() {
 }
 
 #[test]
-fn v31_p11_no_version_bump() {
-    // Phase 11: version remains 3.0.1.
-    assert!(include_str!("../../Cargo.toml").contains("version = \"3.0.1\""));
+fn v31_p11_version_is_3_1_0() {
+    // Phase 22: version bumped to 3.1.0.
+    assert!(include_str!("../../Cargo.toml").contains("version = \"3.1.0\""));
 }
 
 #[test]
@@ -991,5 +991,5 @@ fn v31_p12_export_rejected_without_file() {
     assert!(result.unwrap_err().to_string().contains("--file"));
     use crate::accounting::SCHEMA_VERSION;
     assert_eq!(SCHEMA_VERSION, 1);
-    assert!(include_str!("../../Cargo.toml").contains("version = \"3.0.1\""));
+    assert!(include_str!("../../Cargo.toml").contains("version = \"3.1.0\""));
 }

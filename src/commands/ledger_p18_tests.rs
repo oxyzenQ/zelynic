@@ -442,12 +442,12 @@ fn v31_p18_usage_delta_json_unchanged() {
 
 // --- Structural safety tests (W-37..W-40) ---
 
-// W-37
+// W-37: Version updated to 3.1.0 in Phase 22.
 #[test]
-fn v31_p18_no_version_bump() {
+fn v31_p18_version_is_3_1_0() {
     assert!(
-        include_str!("../../Cargo.toml").contains("version = \"3.0.1\""),
-        "version must remain 3.0.1"
+        include_str!("../../Cargo.toml").contains("version = \"3.1.0\""),
+        "version must be 3.1.0"
     );
 }
 

@@ -145,8 +145,8 @@ fn ctrlc_no_forbidden_features_added() {
 }
 
 #[test]
-fn ctrlc_no_version_bump() {
-    assert!(include_str!("../../../Cargo.toml").contains("version = \"3.0.1\""));
+fn ctrlc_version_is_3_1_0() {
+    assert!(include_str!("../../../Cargo.toml").contains("version = \"3.1.0\""));
 }
 
 #[test]

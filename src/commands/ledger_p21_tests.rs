@@ -52,13 +52,13 @@ fn v31_p21_doc_says_final_audit_only() {
     );
 }
 
-// --- Z-03: Doc says no version bump ---
+// --- Z-03: Doc says no version bump (Phase 21 was before version bump) ---
 
 #[test]
-fn v31_p21_doc_says_no_version_bump() {
+fn v31_p21_doc_says_no_version_bump_in_phase_21() {
     assert!(
         P21_DOC.contains("No version bump") || P21_DOC.contains("no version bump"),
-        "doc must say no version bump"
+        "Phase 21 doc must say no version bump in Phase 21"
     );
 }
 
@@ -414,13 +414,13 @@ fn v31_p21_no_new_dependencies() {
     assert!(!cargo.contains("reqwest"), "no reqwest dependency");
 }
 
-// --- Z-34: No version bump ---
+// --- Z-34: Version updated to 3.1.0 in Phase 22 ---
 
 #[test]
-fn v31_p21_no_version_bump() {
+fn v31_p21_version_is_3_1_0() {
     assert!(
-        include_str!("../../Cargo.toml").contains("version = \"3.0.1\""),
-        "version must remain 3.0.1"
+        include_str!("../../Cargo.toml").contains("version = \"3.1.0\""),
+        "version must be 3.1.0"
     );
 }
 
