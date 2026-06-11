@@ -13,6 +13,7 @@ mod cli;
 mod commands;
 mod ebpf;
 mod info;
+mod intergalaxion_engine;
 mod limiter;
 mod log;
 mod monitor;
