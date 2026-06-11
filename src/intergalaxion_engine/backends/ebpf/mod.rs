@@ -12,16 +12,20 @@
 
 pub mod capability;
 pub mod detector;
+pub mod event_schema;
 pub mod events;
 pub mod maps;
 pub mod observer;
 pub mod probe;
 pub mod probe_plan;
+pub mod ringbuf;
 
 #[allow(unused_imports)]
 pub use capability::*;
 #[allow(unused_imports)]
 pub use detector::*;
+#[allow(unused_imports)]
+pub use event_schema::*;
 #[allow(unused_imports)]
 pub use events::*;
 #[allow(unused_imports)]
@@ -32,3 +36,5 @@ pub use observer::*;
 pub use probe::*;
 #[allow(unused_imports)]
 pub use probe_plan::*;
+#[allow(unused_imports)]
+pub use ringbuf::*;

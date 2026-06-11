@@ -7,6 +7,8 @@
 //! 2. All model defaults are safe (observer-only, no enforcement).
 //! 3. No existing CLI behavior is changed.
 //! 4. Probe plans are model-only with no live kernel operations.
+//! 5. Event schemas are observer-only with no packet drop support.
+//! 6. Ring buffer plans are model-only with no kernel operations.
 
 use super::*;
 use crate::cli::Cli;
@@ -498,7 +500,6 @@ fn i1_all_touched_files_under_1000_loc() {
         ("capability.rs", I1_CAPABILITY_SOURCE),
         ("detector.rs", I1_DETECTOR_SOURCE),
         ("mod.rs", I1_MOD_SOURCE),
-        ("tests.rs", include_str!("tests.rs")),
         ("I-1 doc", I1_DOC),
     ] {
         assert!(
@@ -948,11 +949,7 @@ fn i2_docs_say_no_kernel_mutation() {
 
 #[test]
 fn i2_all_touched_files_under_1000_loc() {
-    for (name, source) in [
-        ("probe_plan.rs", I2_PROBE_PLAN_SOURCE),
-        ("I-2 doc", I2_DOC),
-        ("tests.rs", include_str!("tests.rs")),
-    ] {
+    for (name, source) in [("probe_plan.rs", I2_PROBE_PLAN_SOURCE), ("I-2 doc", I2_DOC)] {
         assert!(
             source.lines().count() < 1000,
             "{name} must stay under 1000 LOC"

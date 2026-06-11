@@ -29,6 +29,8 @@
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tests_i3;
 
 pub mod backends;
 pub mod identity;
