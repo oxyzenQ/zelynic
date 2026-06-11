@@ -20,6 +20,7 @@ pub mod event_stream_evidence_audit;
 pub mod event_stream_fixture;
 pub mod event_stream_plan;
 pub mod event_stream_reader;
+pub mod event_stream_reader_spike_prep;
 pub mod events;
 pub mod live_attach_artifact;
 pub mod live_attach_executor;
@@ -54,6 +55,8 @@ pub use event_stream_fixture::*;
 pub use event_stream_plan::*;
 #[allow(unused_imports)]
 pub use event_stream_reader::*;
+#[allow(unused_imports)]
+pub use event_stream_reader_spike_prep::*;
 #[allow(unused_imports)]
 pub use events::*;
 #[allow(unused_imports)]
