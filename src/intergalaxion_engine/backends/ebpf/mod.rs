@@ -16,6 +16,7 @@ pub mod decoder;
 pub mod detector;
 pub mod event_schema;
 pub mod events;
+pub mod live_attach_artifact;
 pub mod live_attach_executor;
 pub mod live_attach_gate;
 pub mod loader_boundary;
@@ -38,6 +39,8 @@ pub use detector::*;
 pub use event_schema::*;
 #[allow(unused_imports)]
 pub use events::*;
+#[allow(unused_imports)]
+pub use live_attach_artifact::*;
 #[allow(unused_imports)]
 pub use live_attach_executor::*;
 #[allow(unused_imports)]
