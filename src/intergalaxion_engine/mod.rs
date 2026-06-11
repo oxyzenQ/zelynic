@@ -32,6 +32,8 @@ mod tests;
 #[cfg(test)]
 mod tests_i10a;
 #[cfg(test)]
+mod tests_i10b;
+#[cfg(test)]
 mod tests_i3;
 #[cfg(test)]
 mod tests_i4;
@@ -46,6 +48,7 @@ mod tests_i8;
 #[cfg(test)]
 mod tests_i9;
 
+pub mod live_attach_runbook;
 pub mod live_readiness;
 pub mod static_audit;
 
@@ -62,6 +65,10 @@ pub use live_readiness::*;
 /// Static safety audit module.
 #[allow(unused_imports)]
 pub use static_audit::*;
+
+/// Live attach runbook module.
+#[allow(unused_imports)]
+pub use live_attach_runbook::*;
 
 /// Top-level engine state summary for the intergalaxion branch.
 ///
