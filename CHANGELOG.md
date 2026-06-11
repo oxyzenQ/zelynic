@@ -9,6 +9,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **v3.1 phase 21 Final Audit Before Version Bump**: Docs +
+  deterministic tests only. Final audit gate only. No version bump. No
+  tag. No GitHub release. No package publish. No runtime behavior change.
+  No CLI parsing change. No hidden command made public. No export behavior
+  change. No inspect behavior change. No JSON schema change. No --output.
+  No --overwrite. No save/write/persistence. No default path read. No
+  live /proc/sysfs read. No live resolver. No enforcement. No nft/tc/
+  cgroup/PID mutation. No new dependencies. No v3.2/v3.3/v4 work
+  started. Performs one final comprehensive audit proving v3.1 is
+  release-ready as a candidate before any version bump/tag/release/publish
+  phase. Documents: Phase 21 is final audit only, no version bump/tag/
+  release/publish happens in Phase 21, v3.1 is release-ready candidate
+  after Phase 20, Phase 21 is the audit gate before any release-prep/
+  version-bump phase, frozen v3.1 ledger command surface (five shapes),
+  rejected/absent command shapes (export without --file, export without
+  --json, --output, --overwrite, persistence save/write, permission/block/
+  allow, quota), frozen JSON schemas (v3.0 usage, ledger inspect, ledger
+  export), safety freeze (no output file, no overwrite, no internal file
+  write, no save, no persistence, no default ledger path read, no live
+  /proc/sysfs read, no live resolver, no enforcement, no permission/block/
+  allow, no quota, no eBPF, no daemon/watch, no nft/tc/cgroup/PID/
+  Zelynic mutation), release readiness checklist, next-step boundary
+  (Phase 22 may be v3.1 release prep only after Phase 21 is locked; v3.2
+  must not begin until v3.1 release boundary is closed). 42 deterministic
+  guard tests added in `src/commands/ledger_p21_tests.rs` (Section Z): doc
+  exists and nonempty, doc says final audit only, doc says no version
+  bump, doc says no tag/release/publish, doc says v3.1 is release-ready
+  candidate, doc says Phase 21 is before version bump/release prep, doc
+  lists all five frozen ledger command shapes, doc lists rejected export
+  missing --file, doc lists rejected export missing --json, doc lists
+  rejected --output, doc lists rejected --overwrite, doc says no save/
+  write/persistence/default path, doc says no live resolver/enforcement/
+  permission/block/allow, doc says no quota/eBPF/daemon-watch, doc says
+  no nft/tc/cgroup/PID/Zelynic mutation, doc says v3.0 usage JSON
+  unchanged, doc says ledger inspect JSON unchanged, doc says export JSON
+  unchanged, README still links to Phase 14 inspect docs, README still
+  links to Phase 18 export docs, Phase 20 doc exists and says release-
+  readiness freeze, ledger inspect still works, ledger inspect --json
+  still works, ledger inspect --file valid still works, ledger inspect
+  --file valid --json still works, ledger export --json --file valid still
+  works, export --json without --file still fails honestly, export --file
+  without --json still fails honestly, --output rejected, --overwrite
+  rejected, usage delta JSON schema unchanged, ledger command remains
+  hidden, no new dependencies, no version bump, all files under 1000 LOC,
+  production code no output-file write APIs, production code no
+  persistence/save/default-path auto-read, production code no enforcement/
+  mutation APIs, no v3.2 permission/block/allow command surface, no v3.3
+  quota command surface, no v4 eBPF command surface, CHANGELOG has Phase
+  21 entry but does not claim release/tag/publish. Created design doc
+  `docs/v3.1-phase-21-final-audit-before-version-bump.md`. Updated phase
+  17/18/19/20 docs with Phase 21 forward-references. Updated CHANGELOG.
+  Added Phase 21 link to README.md. Final audit only. No code changes.
+
 - **v3.1 phase 20 Ledger Release Readiness Freeze**: Docs +
   deterministic tests only. Release-readiness freeze only. No runtime
   behavior change. No CLI parsing change. No hidden command made public.
