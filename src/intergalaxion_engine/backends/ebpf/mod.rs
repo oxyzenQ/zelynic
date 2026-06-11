@@ -15,6 +15,7 @@ pub mod decoder;
 pub mod detector;
 pub mod event_schema;
 pub mod events;
+pub mod loader_boundary;
 pub mod maps;
 pub mod observer;
 pub mod probe;
@@ -32,6 +33,8 @@ pub use detector::*;
 pub use event_schema::*;
 #[allow(unused_imports)]
 pub use events::*;
+#[allow(unused_imports)]
+pub use loader_boundary::*;
 #[allow(unused_imports)]
 pub use maps::*;
 #[allow(unused_imports)]
