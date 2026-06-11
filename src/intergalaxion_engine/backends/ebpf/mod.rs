@@ -15,6 +15,7 @@ pub mod capability;
 pub mod decoder;
 pub mod detector;
 pub mod event_schema;
+pub mod event_stream_fixture;
 pub mod event_stream_plan;
 pub mod event_stream_reader;
 pub mod events;
@@ -41,6 +42,8 @@ pub use decoder::*;
 pub use detector::*;
 #[allow(unused_imports)]
 pub use event_schema::*;
+#[allow(unused_imports)]
+pub use event_stream_fixture::*;
 #[allow(unused_imports)]
 pub use event_stream_plan::*;
 #[allow(unused_imports)]
