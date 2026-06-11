@@ -33,12 +33,20 @@ mod tests;
 mod tests_i3;
 #[cfg(test)]
 mod tests_i4;
+#[cfg(test)]
+mod tests_i5;
+
+pub mod live_readiness;
 
 pub mod backends;
 pub mod identity;
 pub mod ledger_bridge;
 pub mod safety;
 pub mod telemetry;
+
+/// Live-readiness gate module.
+#[allow(unused_imports)]
+pub use live_readiness::*;
 
 /// Top-level engine state summary for the intergalaxion branch.
 ///
