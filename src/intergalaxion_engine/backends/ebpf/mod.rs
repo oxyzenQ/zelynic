@@ -19,6 +19,7 @@ pub mod maps;
 pub mod observer;
 pub mod probe;
 pub mod probe_plan;
+pub mod program_skeleton;
 pub mod ringbuf;
 
 #[allow(unused_imports)]
@@ -39,5 +40,7 @@ pub use observer::*;
 pub use probe::*;
 #[allow(unused_imports)]
 pub use probe_plan::*;
+#[allow(unused_imports)]
+pub use program_skeleton::*;
 #[allow(unused_imports)]
 pub use ringbuf::*;
