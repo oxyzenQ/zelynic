@@ -19,6 +19,7 @@ pub mod events;
 pub mod live_attach_artifact;
 pub mod live_attach_executor;
 pub mod live_attach_gate;
+pub mod live_attach_lab;
 pub mod loader_boundary;
 pub mod maps;
 pub mod observer;
@@ -45,6 +46,8 @@ pub use live_attach_artifact::*;
 pub use live_attach_executor::*;
 #[allow(unused_imports)]
 pub use live_attach_gate::*;
+#[allow(unused_imports)]
+pub use live_attach_lab::*;
 #[allow(unused_imports)]
 pub use loader_boundary::*;
 #[allow(unused_imports)]
