@@ -11,6 +11,7 @@
 //! * All mutation flags default to false.
 
 pub mod capability;
+pub mod decoder;
 pub mod detector;
 pub mod event_schema;
 pub mod events;
@@ -22,6 +23,8 @@ pub mod ringbuf;
 
 #[allow(unused_imports)]
 pub use capability::*;
+#[allow(unused_imports)]
+pub use decoder::*;
 #[allow(unused_imports)]
 pub use detector::*;
 #[allow(unused_imports)]

@@ -6,6 +6,11 @@
 //! that are compatible with the existing v3.1.0 ledger JSON schema. In I-0
 //! no live bridge is active — this module only defines the translation model.
 
+pub mod event_bridge;
+
+#[allow(unused_imports)]
+pub use event_bridge::*;
+
 /// A pending bridge event that may be committed to the ledger in a future phase.
 #[derive(Debug, Clone, Default)]
 pub struct BridgeEvent {
