@@ -583,6 +583,7 @@ mutation. See the detailed documentation:
 - [Ledger Inspect User Docs (Phase 14)](docs/v3.1-phase-14-ledger-inspect-user-docs-examples-polish.md)
 - [Ledger Export User Docs (Phase 18)](docs/v3.1-phase-18-ledger-export-user-docs-examples-polish.md)
 - [Ledger Public Surface / README Link Polish (Phase 19)](docs/v3.1-phase-19-ledger-public-surface-readme-link-polish.md)
+- [Ledger Release Readiness Freeze (Phase 20)](docs/v3.1-phase-20-ledger-release-readiness-freeze.md)
 
 ## License
 

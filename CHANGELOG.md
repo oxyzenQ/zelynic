@@ -9,6 +9,58 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **v3.1 phase 20 Ledger Release Readiness Freeze**: Docs +
+  deterministic tests only. Release-readiness freeze only. No runtime
+  behavior change. No CLI parsing change. No hidden command made public.
+  No export behavior change. No inspect behavior change. No JSON schema
+  change. No --output. No --overwrite. No save/write/persistence. No
+  default path read. No live /proc/sysfs read. No live resolver. No
+  enforcement. No nft/tc/cgroup/PID mutation. No version bump. No tag/
+  release/publish. No new dependencies. Freezes v3.1 ledger as
+  release-ready before any release/tag step. Documents all five frozen
+  ledger command shapes. States frozen JSON schemas (v3.0 usage, ledger
+  inspect, ledger export). States inspect vs export boundary. States
+  export boundary (stdout-only, explicit --file required, --json
+  required, path validation before read, schema validation before output,
+  no output file flag, no overwrite). States full safety boundary (no
+  internal file write, no persistence/save/default path read, no live
+  /proc/sysfs read, no live resolver, no enforcement, no permission/block/
+  allow mode, no quota, no eBPF, no daemon/watch, no nft/tc/cgroup/PID/
+  Zelynic mutation). Includes release readiness checklist. Includes
+  explicit non-goals (no version bump, no tag, no release, no publish, no
+  v3.2 permission mode, no v3.3 quota guard, no v4 eBPF backend).
+  Includes next-step boundary (Phase 21 may be release prep only if
+  maintainers choose; v3.2 must not begin until v3.1 release boundary is
+  closed). 42 deterministic guard tests added in
+  `src/commands/ledger_p20_tests.rs` (Section Y): doc exists and nonempty,
+  doc says release-readiness freeze only, doc says no runtime behavior
+  change, doc says no CLI visibility change, doc lists all five ledger
+  command shapes, doc distinguishes inspect summary from export raw JSON,
+  doc says export stdout-only, doc says explicit --file required, doc says
+  --json required, doc says path validation before read, doc says schema
+  validation before output, doc says no output file/no overwrite, doc says
+  no internal file write, doc says no persistence/save/default path, doc
+  says no live /proc/sysfs read, doc says no live resolver/enforcement/
+  permission mode, doc says no quota/eBPF/daemon-watch, doc says no
+  nft/tc/cgroup/PID mutation, doc says v3.0 usage JSON unchanged, doc
+  says ledger inspect JSON unchanged, doc says export JSON unchanged, doc
+  says no version bump/tag/release/publish, README still links to Phase 14
+  inspect docs, README still links to Phase 18 export docs, hidden/
+  experimental wording preserved, ledger inspect still works, ledger
+  inspect --json still works, ledger inspect --file valid still works,
+  ledger inspect --file valid --json still works, ledger export --json
+  --file valid still works, export --json without --file still fails,
+  export --file without --json still fails, --output rejected, --overwrite
+  rejected, usage delta JSON schema unchanged, ledger command remains
+  hidden, no new dependencies, no version bump, all files under 1000 LOC,
+  production code no output-file write APIs, production code no
+  persistence/default-path auto-read, production code no enforcement/
+  mutation APIs. Created design doc
+  `docs/v3.1-phase-20-ledger-release-readiness-freeze.md`. Added Phase 20
+  link to README.md. Updated phase 17/18/19 docs with Phase 20
+  forward-references. Updated CHANGELOG. Documentation freeze only. No
+  code changes.
+
 - **v3.1 phase 19 Ledger Public Surface / README Link Polish**: Docs +
   deterministic doc/CLI guard tests only. No runtime behavior change. No
   CLI parsing change. No hidden command made public. No export behavior
