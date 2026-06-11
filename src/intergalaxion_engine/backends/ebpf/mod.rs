@@ -16,6 +16,7 @@ pub mod decoder;
 pub mod detector;
 pub mod event_schema;
 pub mod event_stream_plan;
+pub mod event_stream_reader;
 pub mod events;
 pub mod live_attach_artifact;
 pub mod live_attach_executor;
@@ -42,6 +43,8 @@ pub use detector::*;
 pub use event_schema::*;
 #[allow(unused_imports)]
 pub use event_stream_plan::*;
+#[allow(unused_imports)]
+pub use event_stream_reader::*;
 #[allow(unused_imports)]
 pub use events::*;
 #[allow(unused_imports)]

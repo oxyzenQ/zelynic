@@ -33,6 +33,7 @@ optional = true
 [features]
 default = []
 ebpf = ["aya"]
+intergalaxion-event-stream-lab = []
 intergalaxion-live-attach-lab = ["aya"]
 
 [profile.release]
