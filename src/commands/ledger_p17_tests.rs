@@ -568,10 +568,10 @@ fn v31_p17_usage_delta_json_unchanged() {
 // --- Structural safety tests (V-48..V-50) ---
 
 #[test]
-fn v31_p17_no_version_bump() {
+fn v31_p17_version_is_3_1_0() {
     assert!(
-        include_str!("../../Cargo.toml").contains("version = \"3.0.1\""),
-        "version must remain 3.0.1"
+        include_str!("../../Cargo.toml").contains("version = \"3.1.0\""),
+        "version must be 3.1.0"
     );
 }
 

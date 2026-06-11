@@ -585,6 +585,7 @@ mutation. See the detailed documentation:
 - [Ledger Public Surface / README Link Polish (Phase 19)](docs/v3.1-phase-19-ledger-public-surface-readme-link-polish.md)
 - [Ledger Release Readiness Freeze (Phase 20)](docs/v3.1-phase-20-ledger-release-readiness-freeze.md)
 - [Final Audit Before Version Bump (Phase 21)](docs/v3.1-phase-21-final-audit-before-version-bump.md)
+- [Release Prep / Version Bump (Phase 22)](docs/v3.1-phase-22-release-prep-version-bump.md)
 
 ## License
 
