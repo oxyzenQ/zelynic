@@ -10,6 +10,7 @@
 //! * Observer state defaults to inactive.
 //! * All mutation flags default to false.
 
+pub mod attach_plan;
 pub mod capability;
 pub mod decoder;
 pub mod detector;
@@ -23,6 +24,8 @@ pub mod probe_plan;
 pub mod program_skeleton;
 pub mod ringbuf;
 
+#[allow(unused_imports)]
+pub use attach_plan::*;
 #[allow(unused_imports)]
 pub use capability::*;
 #[allow(unused_imports)]
