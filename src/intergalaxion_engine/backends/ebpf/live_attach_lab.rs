@@ -178,7 +178,7 @@ pub fn default_live_attach_lab_execution_input() -> EbpfLiveAttachLabExecutionIn
 }
 
 /// Build a safe base result with all operation flags false.
-fn safe_base_result() -> EbpfLiveAttachLabExecutionResult {
+pub(crate) fn safe_base_result_internal() -> EbpfLiveAttachLabExecutionResult {
     EbpfLiveAttachLabExecutionResult {
         status: EbpfLiveAttachLabStatus::FeatureDisabled,
         attempted: false,
@@ -230,7 +230,7 @@ fn safe_base_result() -> EbpfLiveAttachLabExecutionResult {
 pub fn evaluate_live_attach_lab_execution(
     input: &EbpfLiveAttachLabExecutionInput,
 ) -> EbpfLiveAttachLabExecutionResult {
-    let base = safe_base_result();
+    let base = safe_base_result_internal();
 
     // ── 1. Feature gate check ────────────────────────────────────────
 
