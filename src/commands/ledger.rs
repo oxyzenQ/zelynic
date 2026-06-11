@@ -766,3 +766,7 @@ mod p19_tests;
 #[cfg(test)]
 #[path = "ledger_p20_tests.rs"]
 mod p20_tests;
+
+#[cfg(test)]
+#[path = "ledger_p21_tests.rs"]
+mod p21_tests;
