@@ -16,6 +16,7 @@ pub mod decoder;
 pub mod detector;
 pub mod event_schema;
 pub mod event_stream_dry_run;
+pub mod event_stream_evidence_audit;
 pub mod event_stream_fixture;
 pub mod event_stream_plan;
 pub mod event_stream_reader;
@@ -45,6 +46,8 @@ pub use detector::*;
 pub use event_schema::*;
 #[allow(unused_imports)]
 pub use event_stream_dry_run::*;
+#[allow(unused_imports)]
+pub use event_stream_evidence_audit::*;
 #[allow(unused_imports)]
 pub use event_stream_fixture::*;
 #[allow(unused_imports)]
