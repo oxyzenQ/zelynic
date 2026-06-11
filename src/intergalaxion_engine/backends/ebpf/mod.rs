@@ -21,6 +21,7 @@ pub mod event_stream_fixture;
 pub mod event_stream_plan;
 pub mod event_stream_reader;
 pub mod event_stream_reader_spike_executor;
+pub mod event_stream_reader_spike_executor_audit;
 pub mod event_stream_reader_spike_prep;
 pub mod events;
 pub mod live_attach_artifact;
@@ -58,6 +59,8 @@ pub use event_stream_plan::*;
 pub use event_stream_reader::*;
 #[allow(unused_imports)]
 pub use event_stream_reader_spike_executor::*;
+#[allow(unused_imports)]
+pub use event_stream_reader_spike_executor_audit::*;
 #[allow(unused_imports)]
 pub use event_stream_reader_spike_prep::*;
 #[allow(unused_imports)]

@@ -56,6 +56,8 @@ mod tests_i15a;
 #[cfg(test)]
 mod tests_i16;
 #[cfg(test)]
+mod tests_i16a;
+#[cfg(test)]
 mod tests_i3;
 #[cfg(test)]
 mod tests_i4;
