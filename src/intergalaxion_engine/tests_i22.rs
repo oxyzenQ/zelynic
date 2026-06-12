@@ -776,8 +776,11 @@ fn i22_no_nft_tc_source() {
         let entry = entry.expect("dir entry");
         let name = entry.file_name();
         let name_str = name.to_string_lossy();
+        // I-32+ introduced brave-specific tc/ifb dry-run files (allowed)
+        let is_brave_tc = name_str.contains("brave_limit_lab_plan")
+            || name_str.contains("brave_tc_ifb_dry_run_wiring");
         assert!(
-            !name_str.contains("nft") && !name_str.contains("tc"),
+            (!name_str.contains("nft") && !name_str.contains("tc")) || is_brave_tc,
             "no nft/tc source: {}",
             name_str
         );

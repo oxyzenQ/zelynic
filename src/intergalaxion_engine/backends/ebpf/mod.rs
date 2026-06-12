@@ -14,6 +14,7 @@ pub mod attach_plan;
 pub mod brave_cgroup_scope_dry_run;
 pub mod brave_identity_scope_proof;
 pub mod brave_limit_lab_plan;
+pub mod brave_tc_ifb_dry_run_wiring;
 pub mod capability;
 pub mod decoder;
 pub mod detector;
@@ -63,6 +64,8 @@ pub use brave_cgroup_scope_dry_run::*;
 pub use brave_identity_scope_proof::*;
 #[allow(unused_imports)]
 pub use brave_limit_lab_plan::*;
+#[allow(unused_imports)]
+pub use brave_tc_ifb_dry_run_wiring::*;
 #[allow(unused_imports)]
 pub use capability::*;
 #[allow(unused_imports)]
