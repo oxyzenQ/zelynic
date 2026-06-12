@@ -86,6 +86,8 @@ mod tests_i29;
 #[cfg(test)]
 mod tests_i3;
 #[cfg(test)]
+mod tests_i30;
+#[cfg(test)]
 mod tests_i4;
 #[cfg(test)]
 mod tests_i5;

@@ -23,6 +23,7 @@ pub mod event_stream_reader;
 pub mod event_stream_reader_lab_completion_review_pack;
 pub mod event_stream_reader_lab_milestone_freeze;
 pub mod event_stream_reader_lab_next_arc_entry_gate;
+pub mod event_stream_reader_lab_next_arc_freeze_review_pack;
 pub mod event_stream_reader_lab_next_arc_plan;
 pub mod event_stream_reader_lab_next_arc_review_pack;
 pub mod event_stream_reader_lab_next_arc_static_freeze;
@@ -76,6 +77,8 @@ pub use event_stream_reader_lab_completion_review_pack::*;
 pub use event_stream_reader_lab_milestone_freeze::*;
 #[allow(unused_imports)]
 pub use event_stream_reader_lab_next_arc_entry_gate::*;
+#[allow(unused_imports)]
+pub use event_stream_reader_lab_next_arc_freeze_review_pack::*;
 #[allow(unused_imports)]
 pub use event_stream_reader_lab_next_arc_plan::*;
 #[allow(unused_imports)]
