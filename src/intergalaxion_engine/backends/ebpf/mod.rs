@@ -20,6 +20,7 @@ pub mod event_stream_evidence_audit;
 pub mod event_stream_fixture;
 pub mod event_stream_plan;
 pub mod event_stream_reader;
+pub mod event_stream_reader_lab_completion_review_pack;
 pub mod event_stream_reader_lab_milestone_freeze;
 pub mod event_stream_reader_lab_next_arc_plan;
 pub mod event_stream_reader_lab_policy_completion_gate;
@@ -66,6 +67,8 @@ pub use event_stream_fixture::*;
 pub use event_stream_plan::*;
 #[allow(unused_imports)]
 pub use event_stream_reader::*;
+#[allow(unused_imports)]
+pub use event_stream_reader_lab_completion_review_pack::*;
 #[allow(unused_imports)]
 pub use event_stream_reader_lab_milestone_freeze::*;
 #[allow(unused_imports)]
