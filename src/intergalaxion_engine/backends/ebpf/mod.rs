@@ -21,6 +21,7 @@ pub mod event_stream_fixture;
 pub mod event_stream_plan;
 pub mod event_stream_reader;
 pub mod event_stream_reader_lab_milestone_freeze;
+pub mod event_stream_reader_lab_next_arc_plan;
 pub mod event_stream_reader_spike_executor;
 pub mod event_stream_reader_spike_executor_audit;
 pub mod event_stream_reader_spike_prep;
@@ -63,6 +64,8 @@ pub use event_stream_plan::*;
 pub use event_stream_reader::*;
 #[allow(unused_imports)]
 pub use event_stream_reader_lab_milestone_freeze::*;
+#[allow(unused_imports)]
+pub use event_stream_reader_lab_next_arc_plan::*;
 #[allow(unused_imports)]
 pub use event_stream_reader_spike_executor::*;
 #[allow(unused_imports)]
