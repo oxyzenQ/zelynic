@@ -25,6 +25,7 @@ pub mod event_stream_reader_spike_executor_audit;
 pub mod event_stream_reader_spike_prep;
 pub mod event_stream_reader_spike_release_gate;
 pub mod event_stream_reader_spike_result;
+pub mod event_stream_reader_spike_review_pack;
 pub mod events;
 pub mod live_attach_artifact;
 pub mod live_attach_executor;
@@ -69,6 +70,8 @@ pub use event_stream_reader_spike_prep::*;
 pub use event_stream_reader_spike_release_gate::*;
 #[allow(unused_imports)]
 pub use event_stream_reader_spike_result::*;
+#[allow(unused_imports)]
+pub use event_stream_reader_spike_review_pack::*;
 #[allow(unused_imports)]
 pub use events::*;
 #[allow(unused_imports)]
