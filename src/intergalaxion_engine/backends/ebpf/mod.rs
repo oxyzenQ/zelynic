@@ -22,6 +22,7 @@ pub mod event_stream_plan;
 pub mod event_stream_reader;
 pub mod event_stream_reader_lab_milestone_freeze;
 pub mod event_stream_reader_lab_next_arc_plan;
+pub mod event_stream_reader_lab_policy_completion_gate;
 pub mod event_stream_reader_lab_static_policy_freeze;
 pub mod event_stream_reader_lab_static_policy_hardening;
 pub mod event_stream_reader_lab_static_policy_review_pack;
@@ -69,6 +70,8 @@ pub use event_stream_reader::*;
 pub use event_stream_reader_lab_milestone_freeze::*;
 #[allow(unused_imports)]
 pub use event_stream_reader_lab_next_arc_plan::*;
+#[allow(unused_imports)]
+pub use event_stream_reader_lab_policy_completion_gate::*;
 #[allow(unused_imports)]
 pub use event_stream_reader_lab_static_policy_freeze::*;
 #[allow(unused_imports)]
