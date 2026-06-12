@@ -274,7 +274,7 @@ pub struct EbpfReaderLabNextArcPlan {
 
 // -- Helper functions --
 
-fn safe_base_plan() -> EbpfReaderLabNextArcPlan {
+pub(crate) fn safe_base_plan() -> EbpfReaderLabNextArcPlan {
     EbpfReaderLabNextArcPlan {
         phase: String::from("I-21"),
         status: EbpfReaderLabNextArcPlanStatus::Draft,
