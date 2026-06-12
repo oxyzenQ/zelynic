@@ -11,6 +11,7 @@
 //! * All mutation flags default to false.
 
 pub mod attach_plan;
+pub mod brave_limit_lab_plan;
 pub mod capability;
 pub mod decoder;
 pub mod detector;
@@ -54,6 +55,8 @@ pub mod ringbuf;
 
 #[allow(unused_imports)]
 pub use attach_plan::*;
+#[allow(unused_imports)]
+pub use brave_limit_lab_plan::*;
 #[allow(unused_imports)]
 pub use capability::*;
 #[allow(unused_imports)]
