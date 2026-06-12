@@ -11,6 +11,7 @@
 //! * All mutation flags default to false.
 
 pub mod attach_plan;
+pub mod brave_cgroup_scope_dry_run;
 pub mod brave_identity_scope_proof;
 pub mod brave_limit_lab_plan;
 pub mod capability;
@@ -56,6 +57,8 @@ pub mod ringbuf;
 
 #[allow(unused_imports)]
 pub use attach_plan::*;
+#[allow(unused_imports)]
+pub use brave_cgroup_scope_dry_run::*;
 #[allow(unused_imports)]
 pub use brave_identity_scope_proof::*;
 #[allow(unused_imports)]
