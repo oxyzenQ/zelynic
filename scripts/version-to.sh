@@ -77,7 +77,8 @@ echo -e "  ${GREEN}✓${NC} Cargo.toml          → ${NEW_VERSION}"
 
 # --- Update README.md ---
 sed -i -E "s|version-v[^?]*\\?|version-v${NEW_VERSION}-7C3AED?|" README.md
-sed -i "s|zelynic-v.*-x86_64|zelynic-v${NEW_VERSION}-x86_64|" README.md
+sed -i -E "s|releases/download/v[0-9]+\\.[0-9]+\\.[0-9]+|releases/download/v${NEW_VERSION}|g" README.md
+sed -i -E "s|zelynic-v[0-9]+\\.[0-9]+\\.[0-9]+(-[A-Za-z0-9.]+)?-x86_64|zelynic-v${NEW_VERSION}-x86_64|g" README.md
 sed -i "s|Version: v.*|Version: v${NEW_VERSION}|" README.md
 echo -e "  ${GREEN}✓${NC} README.md           → v${NEW_VERSION} (badge + example)"
 
