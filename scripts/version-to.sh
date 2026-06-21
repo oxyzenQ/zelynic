@@ -7,17 +7,17 @@
 # Centralized version management — update ALL files from a single command.
 #
 # Usage:
-#   ./set-version.sh 3.0.0          # Update to v3.0.0
-#   ./set-version.sh 2.1.0 --commit  # Update and auto-commit
-#   ./set-version.sh                 # Show current version
+#   ./scripts/version-to.sh v3.0.0          # Update to v3.0.0
+#   ./scripts/version-to.sh v2.1.0 --commit # Update and auto-commit
+#   ./scripts/version-to.sh                 # Show current version
 #
 # Single source of truth: Cargo.toml
 # Files updated: Cargo.toml, README.md
-# Files auto-derived: build.sh (reads from Cargo.toml), binary (env!("CARGO_PKG_VERSION"))
+# Files auto-derived: scripts/build.sh (reads from Cargo.toml), binary (env!("CARGO_PKG_VERSION"))
 # =============================================================================
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${SCRIPT_DIR}"
 
 # Colors
@@ -44,11 +44,11 @@ validate_version() {
 if [ $# -eq 0 ]; then
     echo -e "Current version: ${GREEN}v$(current_version)${NC}"
     echo ""
-    echo "Usage: ./set-version.sh <VERSION> [--commit]"
+    echo "Usage: ./scripts/version-to.sh v<VERSION> [--commit]"
     exit 0
 fi
 
-NEW_VERSION="$1"
+NEW_VERSION="${1#v}"
 shift
 
 COMMIT=false
@@ -81,8 +81,8 @@ sed -i "s|zelynic-v.*-x86_64|zelynic-v${NEW_VERSION}-x86_64|" README.md
 sed -i "s|Version: v.*|Version: v${NEW_VERSION}|" README.md
 echo -e "  ${GREEN}✓${NC} README.md           → v${NEW_VERSION} (badge + example)"
 
-# --- build.sh reads dynamically from Cargo.toml, no update needed ---
-echo -e "  ${GREEN}✓${NC} build.sh            → auto (reads from Cargo.toml)"
+# --- scripts/build.sh reads dynamically from Cargo.toml, no update needed ---
+echo -e "  ${GREEN}✓${NC} scripts/build.sh    → auto (reads from Cargo.toml)"
 
 # --- Binary reads from Cargo.toml via env!("CARGO_PKG_VERSION"), no update needed ---
 echo -e "  ${GREEN}✓${NC} Binary (zelynic)    → auto (reads from Cargo.toml)"

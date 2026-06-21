@@ -26,7 +26,7 @@ cargo build --release
 cargo test
 
 # Run all quality checks
-./build.sh check-all
+./scripts/build.sh check-all
 ```
 
 ### Build with Features
@@ -133,7 +133,7 @@ Before submitting a PR, verify:
 - [ ] `cargo test` passes
 - [ ] `cargo clippy -- -D warnings` passes
 - [ ] `cargo fmt --all` produces no changes
-- [ ] `./build.sh check-all` passes
+- [ ] `./scripts/build.sh check-all` passes
 - [ ] `zelynic --help` shows updated commands
 - [ ] Man page generates correctly (`zelynic man`)
 
@@ -179,7 +179,7 @@ The backend is auto-selected at runtime based on system capabilities.
 
 1. Update `CHANGELOG.md` with new version
 2. Update version in `Cargo.toml`
-3. Run `./build.sh check-all` to verify
+3. Run `./scripts/build.sh check-all` to verify
 4. Tag release: `git tag v2.0.0`
 5. Push tag: `git push origin v2.0.0`
 6. GitHub Actions builds and uploads release artifacts

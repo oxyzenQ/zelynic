@@ -379,7 +379,7 @@ a local root smoke matrix, and be documented before the next phase begins.
   harness + 42 tests, phase 4c format fix, phase 4d render/output matrix +
   36 tests.
 - Current test totals: failure_simulation 151, fake_writer 78, project 604.
-- Current validation state: `./build.sh check-all` passed, CI green, security
+- Current validation state: `./scripts/build.sh check-all` passed, CI green, security
   audit passed, policy check passed (80 files), version still v2.7.0.
 - Explicit freeze guarantees: no live PID move, no real cgroup.procs write,
   no limiter attach, no nft/tc/Zelynic state mutation, no persistent state
@@ -624,7 +624,7 @@ a local root smoke matrix, and be documented before the next phase begins.
   split (mod.rs 216, model.rs 154, render.rs 82, tests.rs 513, API preserved),
   5g integration audit (9 blocked-path properties, output/safety proof).
 - Current validation state: guarded_real_writer 45 tests passed, total 645 tests
-  passed, ./build.sh check-all passed, policy check 84 files, all split files
+  passed, ./scripts/build.sh check-all passed, policy check 84 files, all split files
   under 1000 LOC, version still v2.7.0.
 - 11 explicit pre-real-write freeze guarantees: no live PID move, no real
   cgroup.procs write, no rollback write, no cleanup mutation, no limiter attach,
@@ -662,7 +662,7 @@ a local root smoke matrix, and be documented before the next phase begins.
   5e seam freeze, 5f LOC split, 5g integration audit, 5h final pre-real-write
   validation).
 - Current validation state: guarded_real_writer 45 tests passed, total 645 tests
-  passed, ./build.sh check-all passed, policy check 84 files, version bumped
+  passed, ./scripts/build.sh check-all passed, policy check 84 files, version bumped
   to v2.8.0.
 - 12 final v2.8 RC safety guarantees: no live PID move implemented, no real
   cgroup.procs write implemented, no rollback write implemented, no cleanup

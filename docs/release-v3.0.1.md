@@ -112,7 +112,7 @@ cargo test --locked live_proc_net_dev
 cargo test --locked accounting
 
 # Full check-all
-./build.sh check-all
+./scripts/build.sh check-all
 
 # Release build
 cargo build --release --locked

@@ -7,7 +7,7 @@ Zelynic uses two complementary Rust dependency checks in the local quality gate.
 Run this before commits and pull requests that touch Rust/core code:
 
 ```bash
-./build.sh check-all
+./scripts/build.sh check-all
 ```
 
 `check-all` runs formatting, clippy, tests, `cargo audit`, and `cargo deny` when the optional tools are installed. Missing `cargo-audit` or `cargo-deny` is reported as a warning and skipped so contributors can still run the core checks. If `cargo-deny` is installed and `deny.toml` is present, a deny failure fails `check-all`.

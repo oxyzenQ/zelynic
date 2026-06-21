@@ -68,8 +68,8 @@ jobs:
           cd dist
           tar -czf "${PKG_NAME}.tar.gz" "${PKG_NAME}"
 
-          # Generate SHA256 checksum
-          sha256sum "${PKG_NAME}.tar.gz" > "${PKG_NAME}.tar.gz.sha256"
+          # Generate SHA512 checksum
+          sha512sum "${PKG_NAME}.tar.gz" > "${PKG_NAME}.tar.gz.sha512sum"
 
           echo "PKG_NAME=${PKG_NAME}" >> "$GITHUB_ENV"
 
@@ -145,14 +145,14 @@ jobs:
             echo '### Install'
             echo '```bash'
             echo "tar -xzf ${PKG_NAME}.tar.gz"
-            echo "sudo install -Dm755 ${PKG_NAME}/zelynic /usr/local/bin/zelynic"
+            echo "install -Dm755 ${PKG_NAME}/zelynic \"\\$HOME/.local/bin/zelynic\""
             echo '```'
             echo ""
 
             # --- Verify ---
             echo '### Verify'
             echo '```bash'
-            echo "sha256sum -c ${PKG_NAME}.tar.gz.sha256"
+            echo "sha512sum -c ${PKG_NAME}.tar.gz.sha512sum"
             echo '```'
             echo ""
 
