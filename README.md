@@ -7,7 +7,7 @@
 > **Troubleshooting:** use `zelynic strict --diagnose ...` to print target PID selection, cgroup v2, nftables, and tc diagnostics when validating a host.
 
 <p align="center">
-  <img src="assets/zelynic-new-logo.png" alt="zelynic logo" width="240">
+  <img src="assets/zelynic-new-logo.png" alt="zelynic logo" width="260">
 </p>
 
 <h1 align="center">zelynic</h1>
@@ -116,15 +116,15 @@ Download the latest release from [GitHub Releases](https://github.com/oxyzenQ/ze
 
 ```bash
 # Download tarball and checksum
-curl -L -O https://github.com/oxyzenQ/zelynic/releases/download/v3.0.1/zelynic-v3.0.1-x86_64-linux.tar.gz
-curl -L -O https://github.com/oxyzenQ/zelynic/releases/download/v3.0.1/zelynic-v3.0.1-x86_64-linux.tar.gz.sha512sum
+curl -L -O https://github.com/oxyzenQ/zelynic/releases/download/v3.1.1/zelynic-v3.1.1-x86_64-linux.tar.gz
+curl -L -O https://github.com/oxyzenQ/zelynic/releases/download/v3.1.1/zelynic-v3.1.1-x86_64-linux.tar.gz.sha512sum
 
 # Verify checksum
-sha512sum -c zelynic-v3.0.1-x86_64-linux.tar.gz.sha512sum
+sha512sum -c zelynic-v3.1.1-x86_64-linux.tar.gz.sha512sum
 
-# Extract (creates zelynic-v3.0.1-x86_64-linux/ directory)
-tar -xzf zelynic-v3.0.1-x86_64-linux.tar.gz
-cd zelynic-v3.0.1-x86_64-linux
+# Extract (creates zelynic-v3.1.1-x86_64-linux/ directory)
+tar -xzf zelynic-v3.1.1-x86_64-linux.tar.gz
+cd zelynic-v3.1.1-x86_64-linux
 
 # Verify binary
 ./zelynic --version
@@ -134,8 +134,8 @@ install -Dm755 zelynic "$HOME/.local/bin/zelynic"
 zelynic --version
 ```
 
-The tarball extracts into `zelynic-v3.0.1-x86_64-linux/` with the binary at
-`zelynic-v3.0.1-x86_64-linux/zelynic`. SHA512 checksums are published alongside
+The tarball extracts into `zelynic-v3.1.1-x86_64-linux/` with the binary at
+`zelynic-v3.1.1-x86_64-linux/zelynic`. SHA512 checksums are published alongside
 each release for download verification.
 
 ### Man Page
@@ -166,10 +166,10 @@ zelynic usage --sample --delta --json | jq '.interfaces[] | {name, delta: .delta
 
 Release naming convention:
 
-- Tag: `v3.0.1`
-- Title: `Zelynic v3.0.1 Post-Release Docs + Install Polish`
+- Tag: `v3.1.1`
+- Title: `zelynic v3.1.1 Release Fixes`
 
-See the v3.0.1 changelog entry for release details.
+See the v3.1.1 changelog entry for release details.
 
 ### From Source
 
@@ -538,7 +538,7 @@ zelynic --check-update
 
 **Example output of `zelynic -V`:**
 ```
-Version: v3.0.1
+Version: v3.1.1
 Build: linux-x86_64 (COMMIT_HASH)
 Copyright: (c) 2026 rezky_nightky (oxyzenQ)
 License: GPL-3.0
