@@ -414,16 +414,6 @@ fn v31_p21_no_new_dependencies() {
     assert!(!cargo.contains("reqwest"), "no reqwest dependency");
 }
 
-// --- Z-34: Version updated to 3.1.0 in Phase 22 ---
-
-#[test]
-fn v31_p21_version_is_3_1_0() {
-    assert!(
-        include_str!("../../Cargo.toml").contains("version = \"3.1.0\""),
-        "version must be 3.1.0"
-    );
-}
-
 // --- Z-35: All touched files under 1000 LOC ---
 
 #[test]

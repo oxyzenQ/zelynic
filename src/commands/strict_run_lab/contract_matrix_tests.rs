@@ -124,8 +124,3 @@ fn matrix_no_forbidden_features() {
             && !s.contains("eBPF")
     );
 }
-
-#[test]
-fn matrix_version_is_3_1_0() {
-    assert!(include_str!("../../../Cargo.toml").contains("version = \"3.1.0\""));
-}

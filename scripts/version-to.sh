@@ -12,7 +12,7 @@
 #   ./scripts/version-to.sh                 # Show current version
 #
 # Single source of truth: Cargo.toml
-# Files updated: Cargo.toml, README.md
+# Files updated: Cargo.toml, Cargo.lock, README.md
 # Files auto-derived: scripts/build.sh (reads from Cargo.toml), binary (env!("CARGO_PKG_VERSION"))
 # =============================================================================
 set -euo pipefail
@@ -75,6 +75,23 @@ echo ""
 sed -i "0,/^version = \".*\"/s//version = \"${NEW_VERSION}\"/" Cargo.toml
 echo -e "  ${GREEN}✓${NC} Cargo.toml          → ${NEW_VERSION}"
 
+# --- Update Cargo.lock (zelynic package entry only) ---
+# Cargo.lock has the form:
+#   [[package]]
+#   name = "zelynic"
+#   version = "OLD"
+# We update only the zelynic package version, NOT dependency versions
+# (those are the job of `cargo update`, not a version bump).
+if [ -f Cargo.lock ]; then
+    sed -i -E "/^name = \"zelynic\"$/{n;s|^version = \"${CURRENT}\"|version = \"${NEW_VERSION}\"|;}" Cargo.lock
+    LOCK_VER="$(grep -A1 '^name = "zelynic"' Cargo.lock | grep '^version = "' | head -1 | sed -E 's/^version = "(.+)"/\1/')"
+    if [ "${LOCK_VER}" = "${NEW_VERSION}" ]; then
+        echo -e "  ${GREEN}✓${NC} Cargo.lock          → zelynic version = ${NEW_VERSION}"
+    else
+        echo -e "  ${YELLOW}⚠${NC} Cargo.lock          → expected ${NEW_VERSION}, got ${LOCK_VER} (run 'cargo update -p zelynic' to fix)"
+    fi
+fi
+
 # --- Update README.md ---
 sed -i -E "s|version-v[^?]*\\?|version-v${NEW_VERSION}-7C3AED?|" README.md
 sed -i -E "s|releases/download/v[0-9]+\\.[0-9]+\\.[0-9]+|releases/download/v${NEW_VERSION}|g" README.md
@@ -92,7 +109,7 @@ echo ""
 echo -e "${GREEN}Version updated to v${NEW_VERSION}${NC}"
 
 if [ "${COMMIT}" = true ]; then
-    git add Cargo.toml README.md
+    git add Cargo.toml Cargo.lock README.md
     git commit -m "release: v${NEW_VERSION}"
     echo -e "${GREEN}✓ Committed: release: v${NEW_VERSION}${NC}"
 fi
