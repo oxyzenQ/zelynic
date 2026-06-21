@@ -185,7 +185,7 @@ This release passed all quality gates:
 - `cargo fmt --all -- --check` — formatting clean
 - `cargo clippy --all-targets --all-features -- -D warnings` — no warnings
 - `cargo test --locked guarded_real_writer` — 45 tests passed
-- `./build.sh check-all` — 645 tests passed, 84 files
+- `./scripts/build.sh check-all` — 645 tests passed, 84 files
 - `python3 scripts/check-policy.py` — all files under 1000 LOC, all headers
   present
 - `git diff --check` — no whitespace errors

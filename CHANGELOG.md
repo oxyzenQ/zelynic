@@ -2489,7 +2489,7 @@ movement).
   phase 4b test wiring fix, phase 4c fake writer injection harness + 42 tests,
   phase 4c formatting fix, phase 4d fake writer render/output matrix + 36
   tests. Current totals: failure_simulation 151 tests, fake_writer 78 tests,
-  project 604 tests. Validation state: `./build.sh check-all` passed, CI green,
+  project 604 tests. Validation state: `./scripts/build.sh check-all` passed, CI green,
   security audit passed, policy check passed (80 files), version still v2.7.0.
   Explicit freeze guarantees: no live PID move, no real cgroup.procs write,
   no limiter attach, no nft/tc/Zelynic state mutation, no persistent state
@@ -2847,7 +2847,7 @@ movement).
 ### Added
 
 - **Source policy enforcement**: Added `RULES.md` with project-wide policy rules including a 1000 LOC limit per core code file and mandatory copyright/SPDX headers.
-- **Policy checker**: Added `scripts/check-policy.py` for automated policy enforcement as part of the `./build.sh check-all` quality gate.
+- **Policy checker**: Added `scripts/check-policy.py` for automated policy enforcement as part of the `./scripts/build.sh check-all` quality gate.
 - **Dependency policy**: Added `deny.toml` for structured cargo-deny checks and `docs/supply-chain.md` documenting the supply-chain policy.
 - **Command module extraction**: Extracted command handlers from `src/main.rs` into `src/commands/` module (mod.rs, strict.rs, run.rs, profile.rs, monitor.rs, backend.rs, help.rs), slimming main.rs from 926 to 94 LOC.
 - **Distro support matrix**: Added `docs/distro-matrix.md` with distribution support status labels, required capabilities, and validation checklist for tracking which Linux distributions have been validated with Zelynic's strict limiter path.
@@ -2906,7 +2906,7 @@ movement).
 
 - **Runtime namespace**: Migrated active runtime paths and identifiers from legacy `oxy` names to `zelynic`: `/run/zelynic`, `/run/zelynic/zelynic.nft`, `/sys/fs/cgroup/zelynic`, and `table inet zelynic`.
 - **Limiter internals**: Split the limiter implementation into focused modules without intentionally changing strict backend behavior.
-- **Supply-chain policy**: Hardened local dependency checks with documented `cargo audit`, `cargo deny`, and `./build.sh check-all` workflow.
+- **Supply-chain policy**: Hardened local dependency checks with documented `cargo audit`, `cargo deny`, and `./scripts/build.sh check-all` workflow.
 - **Strict lifecycle docs**: Documented that `zelynic strict` applies to new connections after cgroup movement; already-running requests may need reload or restart.
 
 ### Fixed

@@ -5,7 +5,7 @@ Use this checklist when preparing a stable Zelynic release.
 ## Version And Tagging
 
 - Version bump command uses raw SemVer:
-  `./set-version.sh X.Y.Z`
+  `./scripts/version-to.sh X.Y.Z`
 - Tag format:
   `vX.Y.Z`
 - Release title format:
@@ -38,7 +38,7 @@ stable release baseline.
 Before tagging, run:
 
 ```bash
-./build.sh check-all
+./scripts/build.sh check-all
 cargo run -- --version
 cargo run -- backend doctor
 cargo run -- refresh --help

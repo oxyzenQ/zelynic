@@ -177,9 +177,9 @@ EOF
     local archive_name="${pkg_name}.tar.gz"
     tar -czf "dist/${archive_name}" -C dist "$pkg_name"
 
-    # Generate SHA256
+    # Generate SHA512
     cd dist
-    sha256sum "$archive_name" > "${archive_name}.sha256"
+    sha512sum "$archive_name" > "${archive_name}.sha512sum"
     cd ..
 
     log_success "Archive created: dist/${archive_name}"
@@ -224,8 +224,8 @@ main() {
     echo "  Archives in dist/:"
     ls -lh dist/*.tar.gz | awk '{print "    " $9 " (" $5 ")"}'
     echo
-    echo "  SHA256 checksums:"
-    cat dist/*.sha256 | while read line; do
+    echo "  SHA512 checksums:"
+    cat dist/*.sha512sum | while read line; do
         echo "    $line"
     done
     echo

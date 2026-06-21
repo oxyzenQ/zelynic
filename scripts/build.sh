@@ -434,7 +434,7 @@ show_help() {
 ╚════════════════════════════════════════════════════════════════╝
 
 USAGE:
-    ./build.sh [COMMAND] [OPTIONS]
+    ./scripts/build.sh [COMMAND] [OPTIONS]
 
 COMMANDS:
     debug           Build debug version (default)
@@ -464,11 +464,11 @@ ENVIRONMENT VARIABLES:
     RUST_BACKTRACE   Control backtrace verbosity (default: 1)
 
 EXAMPLES:
-    ./build.sh release                  # Build release version
-    ./build.sh check-all                # Recommended before commits/PRs
-    ./build.sh ci                       # Run CI pipeline
-    ZELYNIC_JOBS=4 ./build.sh all       # Full build with 4 cores
-    ./build.sh --verbose release        # Verbose release build
+    ./scripts/build.sh release                  # Build release version
+    ./scripts/build.sh check-all                # Recommended before commits/PRs
+    ./scripts/build.sh ci                       # Run CI pipeline
+    ZELYNIC_JOBS=4 ./scripts/build.sh all       # Full build with 4 cores
+    ./scripts/build.sh --verbose release        # Verbose release build
 
 TOOLS INTEGRATION:
     sccache   - Build caching (install: cargo install sccache)
@@ -575,7 +575,7 @@ main() {
                 check_rust_toolchain
                 run_quick_check
                 ;;
-        check-all)
+        check-all|--check-all)
                 run_comprehensive_check
                 ;;
         ci)

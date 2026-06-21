@@ -14,7 +14,7 @@ behavior.
   source files.
 - Added `scripts/check-policy.py` to enforce policy rules automatically as part
   of the quality gate.
-- `./build.sh check-all` now runs policy checks alongside fmt, clippy, test,
+- `./scripts/build.sh check-all` now runs policy checks alongside fmt, clippy, test,
   audit, and deny checks.
 
 ### CI/CD Maturity

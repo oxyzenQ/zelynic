@@ -228,7 +228,7 @@ This release passed all quality gates:
 - `cargo clippy --all-targets --all-features -- -D warnings` — no warnings
 - `cargo test --locked accounting` — 256 tests passed
 - `cargo test --locked ledger_persistence` — 34 tests passed
-- `./build.sh check-all` — 901 unit tests passed, 4 integration passed / 5
+- `./scripts/build.sh check-all` — 901 unit tests passed, 4 integration passed / 5
   ignored, 100 files policy check passed
 - `git diff --check` — no whitespace errors
 

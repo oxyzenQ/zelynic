@@ -117,10 +117,10 @@ Download the latest release from [GitHub Releases](https://github.com/oxyzenQ/ze
 ```bash
 # Download tarball and checksum
 curl -L -O https://github.com/oxyzenQ/zelynic/releases/download/v3.0.1/zelynic-v3.0.1-x86_64-linux.tar.gz
-curl -L -O https://github.com/oxyzenQ/zelynic/releases/download/v3.0.1/zelynic-v3.0.1-x86_64-linux.tar.gz.sha256
+curl -L -O https://github.com/oxyzenQ/zelynic/releases/download/v3.0.1/zelynic-v3.0.1-x86_64-linux.tar.gz.sha512sum
 
 # Verify checksum
-sha256sum -c zelynic-v3.0.1-x86_64-linux.tar.gz.sha256
+sha512sum -c zelynic-v3.0.1-x86_64-linux.tar.gz.sha512sum
 
 # Extract (creates zelynic-v3.0.1-x86_64-linux/ directory)
 tar -xzf zelynic-v3.0.1-x86_64-linux.tar.gz
@@ -129,13 +129,13 @@ cd zelynic-v3.0.1-x86_64-linux
 # Verify binary
 ./zelynic --version
 
-# Install system-wide
-sudo install -Dm755 zelynic /usr/local/bin/zelynic
+# Install for the current user
+install -Dm755 zelynic "$HOME/.local/bin/zelynic"
 zelynic --version
 ```
 
 The tarball extracts into `zelynic-v3.0.1-x86_64-linux/` with the binary at
-`zelynic-v3.0.1-x86_64-linux/zelynic`. SHA256 checksums are published alongside
+`zelynic-v3.0.1-x86_64-linux/zelynic`. SHA512 checksums are published alongside
 each release for download verification.
 
 ### Man Page
@@ -146,8 +146,8 @@ The release tarball includes a pre-generated man page at `man/zelynic.1.gz`.
 # View man page from extracted tarball
 man ./man/zelynic.1.gz
 
-# Or install system-wide
-sudo install -Dm644 man/zelynic.1.gz /usr/share/man/man1/zelynic.1.gz
+# Or install for the current user
+install -Dm644 man/zelynic.1.gz "$HOME/.local/share/man/man1/zelynic.1.gz"
 man zelynic
 ```
 
@@ -178,15 +178,15 @@ git clone https://github.com/oxyzenQ/zelynic.git
 cd zelynic
 cargo build --release
 
-# Install system-wide
-sudo install -Dm755 target/release/zelynic /usr/local/bin/zelynic
+# Install for the current user
+install -Dm755 target/release/zelynic "$HOME/.local/bin/zelynic"
 ```
 
 ### Quick Build
 
 ```bash
 cargo build --release
-sudo install -Dm755 target/release/zelynic /usr/local/bin/zelynic
+install -Dm755 target/release/zelynic "$HOME/.local/bin/zelynic"
 ```
 
 ### Shell Completions
@@ -549,13 +549,13 @@ Source: https://github.com/oxyzenQ/zelynic
 
 ```bash
 # Recommended local quality gate for Rust/core changes
-./build.sh check-all
+./scripts/build.sh check-all
 
 # Build release binary
-./build.sh release
+./scripts/build.sh release
 
 # Full CI pipeline (checks + release build)
-./build.sh ci
+./scripts/build.sh ci
 ```
 
 Manual fallback:

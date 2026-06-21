@@ -14,7 +14,7 @@ same tc/nftables/cgroup v2 backend validated on tested modern cgroup v2 systems.
   `/run/zelynic/zelynic.nft`, `/sys/fs/cgroup/zelynic`, and
   `table inet zelynic`.
 - Supply-chain policy hardened with `cargo audit`, `cargo deny`, and documented
-  `./build.sh check-all` workflow.
+  `./scripts/build.sh check-all` workflow.
 - Limiter internals split into focused modules while preserving strict backend
   behavior.
 - `unstrict` records and restores original cgroups when safe, falls back
