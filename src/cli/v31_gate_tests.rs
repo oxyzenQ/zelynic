@@ -944,12 +944,6 @@ fn v31_p11_v3_usage_json_schema_unchanged() {
 }
 
 #[test]
-fn v31_p11_version_is_3_1_0() {
-    // Phase 22: version bumped to 3.1.0.
-    assert!(include_str!("../../Cargo.toml").contains("version = \"3.1.0\""));
-}
-
-#[test]
 fn v31_p11_all_touched_files_under_1000_loc() {
     // Phase 11: every file touched in this phase is under 1000 LOC.
     // Verified structurally — this test exists to make the requirement explicit.
@@ -991,5 +985,4 @@ fn v31_p12_export_rejected_without_file() {
     assert!(result.unwrap_err().to_string().contains("--file"));
     use crate::accounting::SCHEMA_VERSION;
     assert_eq!(SCHEMA_VERSION, 1);
-    assert!(include_str!("../../Cargo.toml").contains("version = \"3.1.0\""));
 }

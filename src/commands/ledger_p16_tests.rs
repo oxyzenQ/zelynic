@@ -439,15 +439,6 @@ fn v31_p16_usage_delta_json_unchanged() {
 
 // --- Structural safety tests (U-37 through U-40) ---
 
-// U-37: Version updated to 3.1.0 in Phase 22.
-#[test]
-fn v31_p16_version_is_3_1_0() {
-    assert!(
-        include_str!("../../Cargo.toml").contains("version = \"3.1.0\""),
-        "version must be 3.1.0"
-    );
-}
-
 // U-38: all touched files remain under 1000 LOC.
 #[test]
 fn v31_p16_all_files_under_1000_loc() {

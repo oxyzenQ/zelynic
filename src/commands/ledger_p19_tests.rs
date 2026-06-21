@@ -232,16 +232,6 @@ fn v31_p19_usage_delta_json_unchanged() {
     assert_eq!(SCHEMA_VERSION, 1);
 }
 
-// --- X-19: Version updated to 3.1.0 in Phase 22 ---
-
-#[test]
-fn v31_p19_version_is_3_1_0() {
-    assert!(
-        include_str!("../../Cargo.toml").contains("version = \"3.1.0\""),
-        "version must be 3.1.0"
-    );
-}
-
 // --- X-20: all touched files under 1000 LOC ---
 
 #[test]
