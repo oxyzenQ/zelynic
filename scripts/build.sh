@@ -359,6 +359,22 @@ run_policy_check() {
         fi
 }
 
+run_version_anti_pattern_check() {
+        log_step "Checking for hardcoded version-string anti-patterns..."
+
+        if [ ! -f "scripts/check-version-anti-patterns.sh" ]; then
+                log_error "scripts/check-version-anti-patterns.sh not found"
+                return 1
+        fi
+
+        if bash scripts/check-version-anti-patterns.sh; then
+                log_success "Version anti-pattern check passed"
+        else
+                log_error "Version anti-pattern check failed (use env!(\"CARGO_PKG_VERSION\") instead)"
+                return 1
+        fi
+}
+
 run_comprehensive_check() {
         local failed=0
 
@@ -373,6 +389,7 @@ run_comprehensive_check() {
         run_audit || ((failed++))
         run_deny_check || ((failed++))
         run_policy_check || ((failed++))
+        run_version_anti_pattern_check || ((failed++))
 
         echo ""
         if [ $failed -eq 0 ]; then
