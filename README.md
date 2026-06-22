@@ -13,15 +13,6 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/oxyzenQ/zelynic/releases">
-    <img src="https://img.shields.io/github/v/release/oxyzenQ/zelynic?style=flat-square&label=release&color=7C3AED" alt="Latest release">
-  </a>
-  <a href="https://github.com/oxyzenQ/zelynic/actions">
-    <img src="https://img.shields.io/github/actions/workflow/status/oxyzenQ/zelynic/ci.yml?style=flat-square&label=CI" alt="CI status">
-  </a>
-  <a href="LICENSE">
-    <img src="https://img.shields.io/badge/license-GPL--3.0--only-7C3AED?style=flat-square" alt="License">
-  </a>
   <a href="https://ko-fi.com/rezky">
     <img src="https://img.shields.io/badge/Ko--fi-support-7C3AED?style=flat-square&logo=kofi&logoColor=white&labelColor=111827" alt="Support on Ko-fi">
   </a>
