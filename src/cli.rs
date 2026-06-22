@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 use clap::{Args, Parser, Subcommand, ValueEnum};
 
-/// zelynic - Easy userspace bandwidth manager for Linux
+/// zelynic - Per-process network shaping and bandwidth control for Linux
 ///
 /// Manage network bandwidth per process using Linux traffic control (tc) and cgroups.
 /// Requires root privileges for bandwidth limiting operations.
@@ -11,7 +11,7 @@ use clap::{Args, Parser, Subcommand, ValueEnum};
     name = "zelynic",
     version,
     author = "rezky_nightky (oxyzenQ)",
-    about = "Easy userspace bandwidth manager for Linux",
+    about = env!("CARGO_PKG_DESCRIPTION"),
     long_about = None,
     disable_version_flag = true,
     propagate_version = true,

@@ -1,8 +1,8 @@
 // Copyright (C) 2026 rezky_nightky
 // SPDX-License-Identifier: GPL-3.0-only
-/// zelynic - Easy userspace bandwidth manager for Linux
+/// zelynic - Per-process network shaping and bandwidth control for Linux
 ///
-/// zelynic provides a simple CLI interface for monitoring and limiting
+/// zelynic provides a CLI interface for monitoring and limiting
 /// per-process network bandwidth on Linux systems. It uses Linux
 /// traffic control (tc) with HTB qdisc and cgroups for rate limiting,
 /// and the `ss` utility for bandwidth monitoring.

@@ -12,7 +12,7 @@ use crate::info;
 pub(crate) fn print_help_all() {
     println!(
         "  {} | {}\n",
-        "Easy userspace bandwidth manager for Linux".dimmed(),
+        info::DESCRIPTION.dimmed(),
         format!("v{}", info::VERSION).dimmed()
     );
     println!("{}", "USAGE".bold());

@@ -2,7 +2,7 @@
 name = "zelynic"
 version = "3.1.1"
 edition = "2021"
-description = "Easy userspace bandwidth manager for Linux"
+description = "Per-process network shaping and bandwidth control for Linux"
 authors = ["rezky_nightky (oxyzenQ) <with dot rezky at gmail dot com>"]
 license = "GPL-3.0-only"
 repository = "https://github.com/oxyzenQ/zelynic"
