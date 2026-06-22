@@ -14,7 +14,7 @@ pub const COPYRIGHT: &str = "(c) 2026 rezky_nightky (oxyzenQ)";
 pub const LICENSE: &str = "GPL-3.0";
 pub const REPOSITORY: &str = "https://github.com/oxyzenQ/zelynic";
 #[allow(dead_code)]
-pub const DESCRIPTION: &str = "Easy userspace bandwidth manager for Linux";
+pub const DESCRIPTION: &str = env!("CARGO_PKG_DESCRIPTION");
 
 /// Get the full version string.
 fn version_string() -> String {
