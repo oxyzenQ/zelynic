@@ -6,7 +6,7 @@ name: Maintenance deps weekly
 on:
   schedule:
     # Every Monday at 00:00 UTC (07:00 WIB)
-    - cron: "0 0 * * 1"
+    - cron: "0 7 * * 1"
   workflow_dispatch:
 
 permissions:
