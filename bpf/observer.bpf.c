@@ -1,4 +1,6 @@
+// Copyright (C) 2026 rezky_nightky
 // SPDX-License-Identifier: GPL-3.0-only
+//
 // zelynic eBPF observer — cgroup_skb egress traffic counter
 //
 // This BPF program attaches to cgroup_skb/egress and counts packets + bytes
