@@ -42,7 +42,7 @@ struct event {
 
 struct {
     __uint(type, BPF_MAP_TYPE_RINGBUF);
-    __uint(max_entries, 256 * 1024); // 256KB ring buffer
+    __uint(max_entries, 1024 * 1024); // 1MB ring buffer
 } events SEC(".maps");
 
 // ─── Per-cgroup packet/byte counters ────────────────────────────
@@ -90,6 +90,13 @@ int observe_egress(struct __sk_buff *skb) {
             .bytes = pkt_len,
         };
         bpf_map_update_elem(&cgroup_counters, &cgroup_id, &new_stats, BPF_ANY);
+    }
+
+    // Throttle: only emit 1 event per 50 packets per cgroup
+    // This prevents ring buffer overflow during speed tests (thousands of pkt/sec)
+    stats = bpf_map_lookup_elem(&cgroup_counters, &cgroup_id);
+    if (!stats || (stats->packets % 50 != 0)) {
+        return 1; // allow packet, skip event
     }
 
     // Parse packet headers — cgroup_skb has NO Ethernet header
