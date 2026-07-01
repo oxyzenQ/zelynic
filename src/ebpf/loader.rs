@@ -1,72 +1,67 @@
 // Copyright (C) 2026 rezky_nightky
 // SPDX-License-Identifier: GPL-3.0-only
 
-//! eBPF loader — load, attach, and detach the observer BPF program.
+//! eBPF loader — load, attach, and read cgroup counters directly.
 //!
-//! Uses aya-rs to load the BPF object file and attach
-//! it to the cgroup v2 hierarchy.
-//!
-//! The BPF object is loaded from a file path at runtime (not embedded),
-//! so it can be updated without recompiling zelynic.
+//! Simplified: no ring buffer. BPF program updates a hash map,
+//! userspace reads the map directly every interval.
 
 use anyhow::{bail, Context, Result};
 use aya::{
+    maps::HashMap as BpfHashMap,
     programs::{CgroupAttachMode, CgroupSkb, CgroupSkbAttachType},
     Ebpf,
 };
 use std::fs::File;
 use std::path::PathBuf;
 
-/// Default path to the compiled BPF object file.
 const BPF_OBJECT_PATH: &str = "bpf/observer.bpf.o";
 
-/// Active eBPF observer session.
+/// Per-cgroup stats from BPF map (must match C struct).
+/// Must be Plain Old Data for aya's Pod trait.
+#[repr(C)]
+#[derive(Debug, Clone, Copy, Default)]
+#[repr(align(8))]
+pub struct CgroupStatsRaw {
+    pub packets: u64,
+    pub bytes: u64,
+    pub last_event_packet: u64,
+}
+
+unsafe impl aya::Pod for CgroupStatsRaw {}
+
 pub struct Observer {
     bpf: Option<Ebpf>,
-    /// cgroup path we attached to.
     cgroup_path: String,
+    /// Previous stats for delta calculation.
+    prev_stats: std::collections::HashMap<u32, CgroupStatsRaw>,
 }
 
 impl Observer {
-    /// Load the BPF program and attach to cgroup v2 hierarchy.
-    ///
-    /// Requires:
-    /// - CAP_BPF or root
-    /// - /sys/fs/cgroup exists (cgroup v2)
-    /// - BPF object compiled (bpf/observer.bpf.o)
     pub fn attach() -> Result<Self> {
-        // Verify cgroup v2
         let cgroup_path = "/sys/fs/cgroup";
         if !PathBuf::from(cgroup_path).exists() {
             bail!("cgroup v2 not found at {cgroup_path}");
         }
 
-        // Find BPF object file
         let obj_path = find_bpf_object()?;
         eprintln!("[ebpf] Loading BPF object from {}", obj_path.display());
-
-        // Read BPF object
         let obj_data = std::fs::read(&obj_path)
             .context(format!("Failed to read BPF object: {}", obj_path.display()))?;
 
-        // Load BPF object
         let mut bpf = Ebpf::load(&obj_data).context("Failed to load BPF object")?;
 
-        // Get the cgroup_skb/egress program
         let program: &mut CgroupSkb = bpf
             .program_mut("observe_egress")
             .context("BPF program 'observe_egress' not found")?
             .try_into()?;
 
-        // Load the program into kernel
         program.load()?;
 
-        // Open cgroup v2 root directory as fd (aya requires AsFd)
         let cgroup_file =
             File::open(cgroup_path).context("Failed to open cgroup root directory")?;
 
-        // Attach to cgroup v2 root
-        program
+        let _link_id = program
             .attach(
                 cgroup_file,
                 CgroupSkbAttachType::Egress,
@@ -74,39 +69,68 @@ impl Observer {
             )
             .context("Failed to attach BPF program to cgroup")?;
 
+        // link_id is stored internally by aya — program stays attached
+        // as long as the Ebpf object is alive
         eprintln!("[ebpf] Observer attached to {cgroup_path}");
         eprintln!("[ebpf] Monitoring egress traffic for all processes");
 
         Ok(Observer {
             bpf: Some(bpf),
             cgroup_path: cgroup_path.to_string(),
+            prev_stats: std::collections::HashMap::new(),
         })
     }
 
-    /// Poll ring buffer and process events inline via callback.
-    /// Returns number of events processed. Zero-allocation.
-    pub fn poll_events<F>(&mut self, mut handler: F) -> Result<usize>
-    where
-        F: FnMut(&[u8]),
-    {
-        let bpf = self.bpf.as_mut().context("BPF program not loaded")?;
-        let events_map = bpf
-            .map_mut("events")
-            .context("BPF map 'events' not found")?;
-        let mut ringbuf =
-            aya::maps::RingBuf::try_from(events_map).context("Failed to create ring buffer")?;
+    /// Read cgroup_counters map directly. Returns (cgroup_id, stats) pairs.
+    pub fn read_counters(&self) -> Result<Vec<(u32, CgroupStatsRaw)>> {
+        let bpf = self.bpf.as_ref().context("BPF not loaded")?;
+        let map: BpfHashMap<_, u32, CgroupStatsRaw> =
+            BpfHashMap::try_from(bpf.map("cgroup_counters").context("map not found")?)
+                .context("Failed to access cgroup_counters map")?;
 
-        let mut count = 0;
-        while let Some(item) = ringbuf.next() {
-            handler(&item);
-            count += 1;
+        let mut results = Vec::new();
+        for entry in map.iter() {
+            match entry {
+                Ok((key, value)) => results.push((key, value)),
+                Err(_) => continue,
+            }
         }
-        Ok(count)
+        Ok(results)
     }
 
-    /// Detach and clean up.
+    /// Read counters, compute deltas, return summary.
+    pub fn poll_and_summarize(&mut self) -> Result<CounterSummary> {
+        let current = self.read_counters()?;
+        let mut summary = CounterSummary::default();
+
+        for (cgroup_id, stats) in &current {
+            let prev = self.prev_stats.get(cgroup_id).copied().unwrap_or_default();
+            let delta_packets = stats.packets.saturating_sub(prev.packets);
+            let delta_bytes = stats.bytes.saturating_sub(prev.bytes);
+
+            if delta_packets > 0 {
+                summary.total_packets += delta_packets;
+                summary.total_bytes += delta_bytes;
+                summary.cgroups.push(CgroupDelta {
+                    cgroup_id: *cgroup_id,
+                    packets: delta_packets,
+                    bytes: delta_bytes,
+                    total_packets: stats.packets,
+                    total_bytes: stats.bytes,
+                });
+            }
+        }
+
+        // Update prev_stats
+        self.prev_stats.clear();
+        for (cgroup_id, stats) in current {
+            self.prev_stats.insert(cgroup_id, stats);
+        }
+
+        Ok(summary)
+    }
+
     pub fn detach(&mut self) {
-        // Just drop the Ebpf — it auto-detaches
         self.bpf = None;
         eprintln!("[ebpf] Observer detached from {}", self.cgroup_path);
     }
@@ -121,7 +145,56 @@ impl Drop for Observer {
     }
 }
 
-/// Find the BPF object file — checks multiple locations.
+#[derive(Debug, Default)]
+pub struct CounterSummary {
+    pub total_packets: u64,
+    pub total_bytes: u64,
+    pub cgroups: Vec<CgroupDelta>,
+}
+
+#[derive(Debug, Clone)]
+pub struct CgroupDelta {
+    pub cgroup_id: u32,
+    pub packets: u64,
+    pub bytes: u64,
+    pub total_packets: u64,
+    pub total_bytes: u64,
+}
+
+impl CounterSummary {
+    pub fn print(&self) {
+        if self.total_packets == 0 {
+            println!("\n  (no traffic since last check)");
+            return;
+        }
+
+        println!("\n━━━ eBPF Traffic Summary ━━━");
+        println!("  Packets:  {}", self.total_packets);
+        println!("  Bytes:    {}", format_bytes(self.total_bytes));
+        println!("  Cgroups:  {}", self.cgroups.len());
+        println!();
+
+        let mut sorted = self.cgroups.clone();
+        sorted.sort_by_key(|c| std::cmp::Reverse(c.bytes));
+
+        println!(
+            "  {:<20} {:>10} {:>10} {:>12}",
+            "CGROUP", "DELTA PKT", "DELTA BYTES", "TOTAL BYTES"
+        );
+        println!("  {}", "─".repeat(56));
+
+        for c in sorted.iter().take(20) {
+            println!(
+                "  {:<20} {:>10} {:>10} {:>12}",
+                format!("cg:{}", c.cgroup_id),
+                c.packets,
+                format_bytes(c.bytes),
+                format_bytes(c.total_bytes),
+            );
+        }
+    }
+}
+
 fn find_bpf_object() -> Result<PathBuf> {
     let candidates = [
         PathBuf::from(BPF_OBJECT_PATH),
@@ -142,4 +215,16 @@ fn find_bpf_object() -> Result<PathBuf> {
          Searched: {:?}",
         candidates
     )
+}
+
+fn format_bytes(bytes: u64) -> String {
+    if bytes < 1024 {
+        format!("{} B", bytes)
+    } else if bytes < 1024 * 1024 {
+        format!("{:.1} KB", bytes as f64 / 1024.0)
+    } else if bytes < 1024 * 1024 * 1024 {
+        format!("{:.1} MB", bytes as f64 / (1024.0 * 1024.0))
+    } else {
+        format!("{:.2} GB", bytes as f64 / (1024.0 * 1024.0 * 1024.0))
+    }
 }
