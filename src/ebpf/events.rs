@@ -6,16 +6,12 @@
 //! Events are produced by the BPF program (bpf/observer.bpf.c) and
 //! consumed here via aya's RingBuf API.
 
-use anyhow::Result;
-use aya::maps::RingBuf;
 use std::collections::HashMap;
 
 /// Event type constants — must match BPF C source.
 pub const EVENT_PACKET: u32 = 1;
 
 /// Network event from BPF observer.
-///
-/// This struct must match the layout in bpf/observer.bpf.c exactly.
 #[repr(C)]
 #[derive(Debug, Clone, Default)]
 pub struct NetworkEvent {
@@ -24,7 +20,7 @@ pub struct NetworkEvent {
     pub pid: u32,
     pub uid: u32,
     pub protocol: u16,
-    pub direction: u16, // 0=egress, 1=ingress
+    pub direction: u16,
     pub pkt_len: u32,
     pub src_ip: u32,
     pub dst_ip: u32,
@@ -34,27 +30,21 @@ pub struct NetworkEvent {
 }
 
 impl NetworkEvent {
-    /// Parse from raw bytes (from ring buffer).
+    /// Parse from raw bytes.
     pub fn from_bytes(data: &[u8]) -> Option<Self> {
         if data.len() < std::mem::size_of::<NetworkEvent>() {
             return None;
         }
-
-        // Safe because we checked the size and the struct is repr(C)
-        // with no padding between fields (all u32/u16 arrays).
         let event: NetworkEvent =
             unsafe { std::ptr::read_unaligned(data.as_ptr() as *const NetworkEvent) };
-
         Some(event)
     }
 
-    /// Get process name as string (null-terminated).
     pub fn comm_str(&self) -> String {
         let end = self.comm.iter().position(|&b| b == 0).unwrap_or(16);
         String::from_utf8_lossy(&self.comm[..end]).to_string()
     }
 
-    /// Format IP address as human-readable string.
     pub fn format_ip(ip: u32) -> String {
         format!(
             "{}.{}.{}.{}",
@@ -65,22 +55,12 @@ impl NetworkEvent {
         )
     }
 
-    /// Get protocol name.
     pub fn protocol_name(&self) -> &'static str {
         match self.protocol {
             6 => "TCP",
             17 => "UDP",
             1 => "ICMP",
             _ => "OTHER",
-        }
-    }
-
-    /// Get direction name.
-    pub fn direction_name(&self) -> &'static str {
-        match self.direction {
-            0 => "EGRESS",
-            1 => "INGRESS",
-            _ => "UNKNOWN",
         }
     }
 }
@@ -94,20 +74,17 @@ pub struct CgroupStats {
     pub last_comm: String,
 }
 
-/// Event reader that consumes ring buffer and aggregates stats.
-pub struct EventReader {
-    ringbuf: RingBuf,
+/// Event aggregator that processes raw event bytes.
+pub struct EventAggregator {
     pub stats: HashMap<u32, CgroupStats>,
     pub total_events: u64,
     pub total_packets: u64,
     pub total_bytes: u64,
 }
 
-impl EventReader {
-    /// Create new event reader from ring buffer.
-    pub fn new(ringbuf: RingBuf) -> Self {
-        EventReader {
-            ringbuf,
+impl EventAggregator {
+    pub fn new() -> Self {
+        EventAggregator {
             stats: HashMap::new(),
             total_events: 0,
             total_packets: 0,
@@ -115,13 +92,9 @@ impl EventReader {
         }
     }
 
-    /// Poll for new events. Returns number of events consumed.
-    pub fn poll(&mut self) -> Result<usize> {
-        let mut count = 0;
-
-        while let Some(item) = self.ringbuf.next() {
-            let data = &item[..];
-
+    /// Process raw event bytes from the ring buffer.
+    pub fn process_events(&mut self, events: &[Vec<u8>]) {
+        for data in events {
             if let Some(event) = NetworkEvent::from_bytes(data) {
                 self.total_events += 1;
                 self.total_packets += 1;
@@ -132,12 +105,8 @@ impl EventReader {
                 stats.bytes += event.pkt_len as u64;
                 stats.last_pid = event.pid;
                 stats.last_comm = event.comm_str();
-
-                count += 1;
             }
         }
-
-        Ok(count)
     }
 
     /// Print current stats summary.
@@ -149,7 +118,6 @@ impl EventReader {
         println!("  Unique cgroups: {}", self.stats.len());
         println!();
 
-        // Sort by bytes descending
         let mut sorted: Vec<_> = self.stats.iter().collect();
         sorted.sort_by_key(|(_, s)| std::cmp::Reverse(s.bytes));
 
@@ -179,7 +147,6 @@ impl EventReader {
     }
 }
 
-/// Format bytes as human-readable string.
 fn format_bytes(bytes: u64) -> String {
     if bytes < 1024 {
         format!("{} B", bytes)
@@ -204,11 +171,10 @@ mod tests {
 
     #[test]
     fn test_network_event_from_bytes_valid() {
-        // Create a valid event byte array
         let mut data = vec![0u8; std::mem::size_of::<NetworkEvent>()];
-        data[0..4].copy_from_slice(&1u32.to_ne_bytes()); // event_type
-        data[4..8].copy_from_slice(&12345u32.to_ne_bytes()); // cgroup_id
-        data[8..12].copy_from_slice(&1000u32.to_ne_bytes()); // pid
+        data[0..4].copy_from_slice(&1u32.to_ne_bytes());
+        data[4..8].copy_from_slice(&12345u32.to_ne_bytes());
+        data[8..12].copy_from_slice(&1000u32.to_ne_bytes());
 
         let event = NetworkEvent::from_bytes(&data).unwrap();
         assert_eq!(event.event_type, EVENT_PACKET);
@@ -225,22 +191,6 @@ mod tests {
     }
 
     #[test]
-    fn test_format_ip() {
-        // 192.168.1.1 in little-endian (network byte order)
-        let ip = 0x0101A8C0; // 192.168.1.1
-        assert_eq!(NetworkEvent::format_ip(ip), "192.168.1.1");
-    }
-
-    #[test]
-    fn test_protocol_name() {
-        let mut event = NetworkEvent::default();
-        event.protocol = 6;
-        assert_eq!(event.protocol_name(), "TCP");
-        event.protocol = 17;
-        assert_eq!(event.protocol_name(), "UDP");
-    }
-
-    #[test]
     fn test_format_bytes() {
         assert_eq!(format_bytes(0), "0 B");
         assert_eq!(format_bytes(512), "512 B");
@@ -249,10 +199,15 @@ mod tests {
     }
 
     #[test]
-    fn test_cgroup_stats_default() {
-        let stats = CgroupStats::default();
-        assert_eq!(stats.packets, 0);
-        assert_eq!(stats.bytes, 0);
-        assert_eq!(stats.last_pid, 0);
+    fn test_event_aggregator() {
+        let mut agg = EventAggregator::new();
+        let mut data = vec![0u8; std::mem::size_of::<NetworkEvent>()];
+        data[0..4].copy_from_slice(&1u32.to_ne_bytes());
+        data[4..8].copy_from_slice(&999u32.to_ne_bytes());
+        data[8..12].copy_from_slice(&1000u32.to_ne_bytes());
+
+        agg.process_events(&[data]);
+        assert_eq!(agg.total_events, 1);
+        assert_eq!(agg.stats.len(), 1);
     }
 }

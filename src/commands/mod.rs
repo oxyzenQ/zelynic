@@ -184,17 +184,14 @@ pub(crate) fn dispatch(cli: Cli, iface_value: Option<&str>) -> Result<()> {
                 crate::ebpf::print_observer_status();
                 Ok(())
             }
-            Some(EbpfCommands::Observe {
-                duration,
-                interval: _,
-            }) => {
+            Some(EbpfCommands::Observe { duration, interval }) => {
                 #[cfg(feature = "ebpf")]
                 {
                     handle_ebpf_observe(duration, interval)
                 }
                 #[cfg(not(feature = "ebpf"))]
                 {
-                    let _ = duration;
+                    let _ = (duration, interval);
                     eprintln!(
                         "eBPF observer not compiled. Rebuild with: cargo build --features ebpf"
                     );
@@ -279,53 +276,41 @@ pub(crate) fn dispatch(cli: Cli, iface_value: Option<&str>) -> Result<()> {
 /// eBPF observer: load BPF program, attach, read events, print summary.
 #[cfg(feature = "ebpf")]
 fn handle_ebpf_observe(duration: u64, interval: u64) -> Result<()> {
-    use crate::ebpf::events::EventReader;
+    use crate::ebpf::events::EventAggregator;
     use crate::ebpf::loader::Observer;
     use std::time::{Duration, Instant};
 
-    // Check capabilities
     if !nix::unistd::geteuid().is_root() {
         eprintln!("eBPF observer requires root. Run with sudo.");
         return Err(anyhow::anyhow!("root required for eBPF observer"));
     }
 
-    // Attach BPF program
-    let observer = Observer::attach()?;
+    let mut observer = Observer::attach()?;
     eprintln!("[ebpf] Press Ctrl+C to stop\n");
 
-    // Get ring buffer
-    let ringbuf = observer.ring_buffer()?;
-    let mut reader = EventReader::new(ringbuf);
-
+    let mut aggregator = EventAggregator::new();
     let start = Instant::now();
     let interval_dur = Duration::from_secs(interval);
     let mut last_print = Instant::now();
 
     loop {
-        // Poll for events
-        reader.poll()?;
+        let events = observer.poll_events()?;
+        aggregator.process_events(&events);
 
-        // Print summary at interval
         if last_print.elapsed() >= interval_dur {
-            reader.print_summary();
+            aggregator.print_summary();
             last_print = Instant::now();
         }
 
-        // Check duration limit (0 = until Ctrl+C)
         if duration > 0 && start.elapsed() >= Duration::from_secs(duration) {
             eprintln!("\n[ebpf] Duration reached, stopping...");
             break;
         }
 
-        // Small sleep to avoid CPU spin
         std::thread::sleep(Duration::from_millis(100));
     }
 
-    // Final summary
-    reader.print_summary();
-
-    // Clean up
+    aggregator.print_summary();
     observer.detach();
-
     Ok(())
 }
