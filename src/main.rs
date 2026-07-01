@@ -12,6 +12,7 @@ mod capabilities;
 mod cli;
 mod commands;
 mod ebpf;
+mod ebpf_legacy;
 mod info;
 mod limiter;
 mod log;

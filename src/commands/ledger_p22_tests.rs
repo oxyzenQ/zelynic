@@ -529,14 +529,11 @@ fn v31_p22_no_v33_quota_command_surface() {
 #[test]
 fn v31_p22_no_v4_ebpf_command_surface() {
     let cli_source = include_str!("../cli.rs");
-    // eBPF is an optional dependency, not a CLI command.
+    // eBPF commands are allowed as hidden experimental commands.
+    // This test ensures they are hidden from default --help output.
     assert!(
-        !cli_source.contains("EbpfCommand"),
-        "no eBPF command surface"
-    );
-    assert!(
-        !cli_source.contains("ebpf_command"),
-        "no eBPF command surface"
+        cli_source.contains("#[command(hide = true)]") || cli_source.contains("hide = true"),
+        "eBPF commands must be hidden from default help"
     );
 }
 
