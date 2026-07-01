@@ -321,7 +321,7 @@ fn handle_ebpf_observe(duration: u64, interval: u64) -> Result<()> {
             break;
         }
 
-        std::thread::sleep(Duration::from_millis(50));
+        std::thread::sleep(Duration::from_millis(200));
     }
 
     aggregator.print_summary();

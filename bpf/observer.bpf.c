@@ -3,128 +3,97 @@
 //
 // zelynic eBPF observer — cgroup_skb egress traffic counter
 //
-// This BPF program attaches to cgroup_skb/egress and counts packets + bytes
-// per cgroup. Events are sent to a ring buffer for userspace consumption.
-//
 // Build: clang -O2 -g -target bpf -c bpf/observer.bpf.c -o bpf/observer.bpf.o
 
 #include <linux/bpf.h>
 #include <linux/if_ether.h>
 #include <linux/ip.h>
-#include <linux/ipv6.h>
 #include <linux/tcp.h>
 #include <linux/udp.h>
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_endian.h>
 
-// ─── Event types ────────────────────────────────────────────────
-
 #define EVENT_PACKET 1
 
-// ─── Event structure (must match Rust side) ─────────────────────
-
 struct event {
-    __u32 event_type;      // EVENT_PACKET
-    __u32 cgroup_id;       // cgroup v2 ID
-    __u32 pid;             // process ID
-    __u32 uid;             // user ID
-    __u16 protocol;        // IP protocol (TCP=6, UDP=17)
-    __u16 direction;       // 0=egress, 1=ingress
-    __u32 pkt_len;         // packet length in bytes
-    __u32 src_ip;          // source IPv4 address (network byte order)
-    __u32 dst_ip;          // destination IPv4 address
-    __u16 src_port;        // source port
-    __u16 dst_port;        // destination port
-    char comm[16];         // process name (task comm)
+    __u32 event_type;
+    __u32 cgroup_id;
+    __u32 pid;
+    __u32 uid;
+    __u16 protocol;
+    __u16 direction;
+    __u32 pkt_len;
+    __u32 src_ip;
+    __u32 dst_ip;
+    __u16 src_port;
+    __u16 dst_port;
+    char comm[16];
 };
 
-// ─── Ring buffer for events ─────────────────────────────────────
-
+// Ring buffer — 2MB for high traffic bursts
 struct {
     __uint(type, BPF_MAP_TYPE_RINGBUF);
-    __uint(max_entries, 1024 * 1024); // 1MB ring buffer
+    __uint(max_entries, 2 * 1024 * 1024);
 } events SEC(".maps");
 
-// ─── Per-cgroup packet/byte counters ────────────────────────────
-
+// Per-cgroup counters
 struct cgroup_stats {
     __u64 packets;
     __u64 bytes;
+    __u64 last_event_packet; // packet count at last event emission
 };
 
 struct {
     __uint(type, BPF_MAP_TYPE_HASH);
-    __uint(max_entries, 1024);
-    __type(key, __u32);    // cgroup_id
+    __uint(max_entries, 256);
+    __type(key, __u32);
     __type(value, struct cgroup_stats);
 } cgroup_counters SEC(".maps");
 
-// ─── Main eBPF program: cgroup_skb/egress ──────────────────────
-//
-// IMPORTANT: cgroup_skb programs do NOT have an Ethernet header.
-// skb->data points directly to the IP header.
-// Use skb->protocol to determine L3 protocol.
-
 SEC("cgroup_skb/egress")
 int observe_egress(struct __sk_buff *skb) {
-    // Get cgroup ID
     __u64 cgid = bpf_get_current_cgroup_id();
     __u32 cgroup_id = (__u32)cgid;
-
-    // Get process info
     __u64 pid_tgid = bpf_get_current_pid_tgid();
     __u32 pid = pid_tgid >> 32;
     __u32 uid = bpf_get_current_uid_gid();
-
-    // Get packet length
     __u32 pkt_len = skb->len;
 
-    // Update per-cgroup counters
+    // Update counters — use BPF_ANY to create if missing
     struct cgroup_stats *stats = bpf_map_lookup_elem(&cgroup_counters, &cgroup_id);
     if (stats) {
-        __sync_fetch_and_add(&stats->packets, 1);
-        __sync_fetch_and_add(&stats->bytes, pkt_len);
+        stats->packets += 1;
+        stats->bytes += pkt_len;
     } else {
-        struct cgroup_stats new_stats = {
-            .packets = 1,
-            .bytes = pkt_len,
-        };
-        bpf_map_update_elem(&cgroup_counters, &cgroup_id, &new_stats, BPF_ANY);
+        struct cgroup_stats init = {};
+        init.packets = 1;
+        init.bytes = pkt_len;
+        bpf_map_update_elem(&cgroup_counters, &cgroup_id, &init, BPF_ANY);
+        stats = bpf_map_lookup_elem(&cgroup_counters, &cgroup_id);
+        if (!stats) return 1;
     }
 
-    // Throttle: only emit 1 event per 50 packets per cgroup
-    // This prevents ring buffer overflow during speed tests (thousands of pkt/sec)
-    stats = bpf_map_lookup_elem(&cgroup_counters, &cgroup_id);
-    if (!stats || (stats->packets % 50 != 0)) {
-        return 1; // allow packet, skip event
+    // Throttle: emit 1 event per 100 packets per cgroup
+    // Use last_event_packet to track when we last emitted
+    if (stats->packets - stats->last_event_packet < 100) {
+        return 1;
     }
+    stats->last_event_packet = stats->packets;
 
-    // Parse packet headers — cgroup_skb has NO Ethernet header
-    // skb->data points directly to IP header
+    // Parse IP header (cgroup_skb has NO Ethernet header)
     __u16 protocol = 0;
     __u32 src_ip = 0, dst_ip = 0;
     __u16 src_port = 0, dst_port = 0;
 
-    // Check L3 protocol via skb->protocol
-    // ETH_P_IP = 0x0800 (IPv4), ETH_P_IPV6 = 0x86DD (IPv6)
-    if (skb->protocol != bpf_htons(ETH_P_IP)) {
-        // Not IPv4 (could be IPv6, ARP, etc) — still emit event but no L3/L4 info
-        protocol = 0;
-    } else {
-        // Parse IPv4 header directly (no Ethernet header in cgroup_skb)
+    if (skb->protocol == bpf_htons(ETH_P_IP)) {
         void *data_end = (void *)(long)skb->data_end;
-        void *data = (void *)(long)skb->data;
-
-        struct iphdr *iph = data;
-        if ((void *)(iph + 1) > data_end) {
-            return 1;
-        }
+        struct iphdr *iph = (void *)(long)skb->data;
+        if ((void *)(iph + 1) > data_end) return 1;
 
         protocol = iph->protocol;
         src_ip = iph->saddr;
         dst_ip = iph->daddr;
 
-        // Parse TCP/UDP ports
         if (protocol == 6 || protocol == 17) {
             void *transport = (void *)(iph + 1);
             if (protocol == 6) {
@@ -143,28 +112,25 @@ int observe_egress(struct __sk_buff *skb) {
         }
     }
 
-    // Emit event to ring buffer
+    // Emit event
     struct event *e = bpf_ringbuf_reserve(&events, sizeof(*e), 0);
-    if (!e) {
-        return 1; // allow packet even if we can't log
-    }
+    if (!e) return 1;
 
     e->event_type = EVENT_PACKET;
     e->cgroup_id = cgroup_id;
     e->pid = pid;
     e->uid = uid;
     e->protocol = protocol;
-    e->direction = 0; // egress
+    e->direction = 0;
     e->pkt_len = pkt_len;
     e->src_ip = src_ip;
     e->dst_ip = dst_ip;
     e->src_port = src_port;
     e->dst_port = dst_port;
     bpf_get_current_comm(&e->comm, sizeof(e->comm));
-
     bpf_ringbuf_submit(e, 0);
 
-    return 1; // always allow packet — observer only, no enforcement
+    return 1;
 }
 
 char _license[] SEC("license") = "GPL";
