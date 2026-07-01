@@ -7,7 +7,6 @@
 // per cgroup. Events are sent to a ring buffer for userspace consumption.
 //
 // Build: clang -O2 -g -target bpf -c bpf/observer.bpf.c -o bpf/observer.bpf.o
-//   (or use: cargo build --features ebpf with build.rs)
 
 #include <linux/bpf.h>
 #include <linux/if_ether.h>
@@ -27,7 +26,7 @@
 struct event {
     __u32 event_type;      // EVENT_PACKET
     __u32 cgroup_id;       // cgroup v2 ID
-    __u32 pid;             // process ID (from bpf_get_current_pid_tgid)
+    __u32 pid;             // process ID
     __u32 uid;             // user ID
     __u16 protocol;        // IP protocol (TCP=6, UDP=17)
     __u16 direction;       // 0=egress, 1=ingress
@@ -61,6 +60,10 @@ struct {
 } cgroup_counters SEC(".maps");
 
 // ─── Main eBPF program: cgroup_skb/egress ──────────────────────
+//
+// IMPORTANT: cgroup_skb programs do NOT have an Ethernet header.
+// skb->data points directly to the IP header.
+// Use skb->protocol to determine L3 protocol.
 
 SEC("cgroup_skb/egress")
 int observe_egress(struct __sk_buff *skb) {
@@ -89,52 +92,46 @@ int observe_egress(struct __sk_buff *skb) {
         bpf_map_update_elem(&cgroup_counters, &cgroup_id, &new_stats, BPF_ANY);
     }
 
-    // Re-read stats after update (may have been just created)
-    stats = bpf_map_lookup_elem(&cgroup_counters, &cgroup_id);
-
-    // Emit event for every packet (no throttling — ring buffer is 256KB, plenty)
-    // Parse packet headers
+    // Parse packet headers — cgroup_skb has NO Ethernet header
+    // skb->data points directly to IP header
     __u16 protocol = 0;
     __u32 src_ip = 0, dst_ip = 0;
     __u16 src_port = 0, dst_port = 0;
 
-    // Try to parse IPv4
-    void *data_end = (void *)(long)skb->data_end;
-    void *data = (void *)(long)skb->data;
+    // Check L3 protocol via skb->protocol
+    // ETH_P_IP = 0x0800 (IPv4), ETH_P_IPV6 = 0x86DD (IPv6)
+    if (skb->protocol != bpf_htons(ETH_P_IP)) {
+        // Not IPv4 (could be IPv6, ARP, etc) — still emit event but no L3/L4 info
+        protocol = 0;
+    } else {
+        // Parse IPv4 header directly (no Ethernet header in cgroup_skb)
+        void *data_end = (void *)(long)skb->data_end;
+        void *data = (void *)(long)skb->data;
 
-    struct ethhdr *eth = data;
-    if ((void *)(eth + 1) > data_end) {
-        return 1;
-    }
+        struct iphdr *iph = data;
+        if ((void *)(iph + 1) > data_end) {
+            return 1;
+        }
 
-    // Check if IPv4
-    if (eth->h_proto != bpf_htons(ETH_P_IP)) {
-        return 1;
-    }
+        protocol = iph->protocol;
+        src_ip = iph->saddr;
+        dst_ip = iph->daddr;
 
-    struct iphdr *iph = (void *)(eth + 1);
-    if ((void *)(iph + 1) > data_end) {
-        return 1;
-    }
-
-    protocol = iph->protocol;
-    src_ip = iph->saddr;
-    dst_ip = iph->daddr;
-
-    // Parse TCP/UDP ports
-    if (protocol == 6 || protocol == 17) { // TCP or UDP
-        void *transport = (void *)(iph + 1);
-        if (protocol == 6) {
-            struct tcphdr *tcp = transport;
-            if ((void *)(tcp + 1) <= data_end) {
-                src_port = bpf_ntohs(tcp->source);
-                dst_port = bpf_ntohs(tcp->dest);
-            }
-        } else {
-            struct udphdr *udp = transport;
-            if ((void *)(udp + 1) <= data_end) {
-                src_port = bpf_ntohs(udp->source);
-                dst_port = bpf_ntohs(udp->dest);
+        // Parse TCP/UDP ports
+        if (protocol == 6 || protocol == 17) {
+            void *transport = (void *)(iph + 1);
+            if (protocol == 6) {
+                struct tcphdr *tcp = transport;
+                if ((void *)(tcp + 1) <= data_end) {
+                    src_port = bpf_ntohs(tcp->source);
+                    dst_port = bpf_ntohs(tcp->dest);
+                }
+            } else {
+                struct udphdr *udp = transport;
+                if ((void *)(udp + 1) <= data_end) {
+                    src_port = bpf_ntohs(udp->source);
+                    dst_port = bpf_ntohs(udp->dest);
+                }
             }
         }
     }
