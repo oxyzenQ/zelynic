@@ -65,7 +65,7 @@ struct {
 SEC("cgroup_skb/egress")
 int observe_egress(struct __sk_buff *skb) {
     // Get cgroup ID
-    __u64 cgid = bpf_get_cgroup_id();
+    __u64 cgid = bpf_get_current_cgroup_id();
     __u32 cgroup_id = (__u32)cgid;
 
     // Get process info
