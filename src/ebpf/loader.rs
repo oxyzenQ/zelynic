@@ -83,23 +83,25 @@ impl Observer {
         })
     }
 
-    /// Poll for events from the ring buffer.
-    /// Returns raw events as Vec<u8> for the caller to parse.
-    pub fn poll_events(&mut self) -> Result<Vec<Vec<u8>>> {
+    /// Poll ring buffer and process events inline via callback.
+    /// Returns number of events processed. Zero-allocation.
+    pub fn poll_events<F>(&mut self, mut handler: F) -> Result<usize>
+    where
+        F: FnMut(&[u8]),
+    {
         let bpf = self.bpf.as_mut().context("BPF program not loaded")?;
-
         let events_map = bpf
             .map_mut("events")
             .context("BPF map 'events' not found")?;
-
         let mut ringbuf =
             aya::maps::RingBuf::try_from(events_map).context("Failed to create ring buffer")?;
 
-        let mut events = Vec::new();
+        let mut count = 0;
         while let Some(item) = ringbuf.next() {
-            events.push(item.to_vec());
+            handler(&item);
+            count += 1;
         }
-        Ok(events)
+        Ok(count)
     }
 
     /// Detach and clean up.

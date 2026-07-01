@@ -100,11 +100,14 @@ impl EventAggregator {
                 self.total_packets += 1;
                 self.total_bytes += event.pkt_len as u64;
 
-                let stats = self.stats.entry(event.cgroup_id).or_default();
-                stats.packets += 1;
-                stats.bytes += event.pkt_len as u64;
-                stats.last_pid = event.pid;
-                stats.last_comm = event.comm_str();
+                // Only track top 100 cgroups to prevent unbounded memory growth
+                if self.stats.len() < 100 || self.stats.contains_key(&event.cgroup_id) {
+                    let stats = self.stats.entry(event.cgroup_id).or_default();
+                    stats.packets += 1;
+                    stats.bytes += event.pkt_len as u64;
+                    stats.last_pid = event.pid;
+                    stats.last_comm = event.comm_str();
+                }
             }
         }
     }
