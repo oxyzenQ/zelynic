@@ -3,25 +3,26 @@
 
 //! eBPF loader — load, attach, and detach the observer BPF program.
 //!
-//! Uses aya-rs to load the pre-compiled BPF object file and attach
+//! Uses aya-rs to load the BPF object file and attach
 //! it to the cgroup v2 hierarchy.
+//!
+//! The BPF object is loaded from a file path at runtime (not embedded),
+//! so it can be updated without recompiling zelynic.
 
 use anyhow::{bail, Context, Result};
 use aya::{
-    include_bytes_aligned,
-    maps::RingBuf,
-    programs::{CgroupSkb, CgroupSkbAttachOptions},
-    Bpf,
+    programs::{CgroupAttachMode, CgroupSkb, CgroupSkbAttachType},
+    Ebpf,
 };
-use std::path::Path;
+use std::fs::File;
+use std::path::PathBuf;
 
-/// Pre-compiled BPF object file (embedded at compile time).
-/// Build with: clang -O2 -g -target bpf -c bpf/observer.bpf.c -o bpf/observer.bpf.o
-static BPF_OBJECT: &[u8] = include_bytes_aligned!("../../bpf/observer.bpf.o");
+/// Default path to the compiled BPF object file.
+const BPF_OBJECT_PATH: &str = "bpf/observer.bpf.o";
 
 /// Active eBPF observer session.
 pub struct Observer {
-    bpf: Bpf,
+    bpf: Option<Ebpf>,
     /// cgroup path we attached to.
     cgroup_path: String,
 }
@@ -36,55 +37,107 @@ impl Observer {
     pub fn attach() -> Result<Self> {
         // Verify cgroup v2
         let cgroup_path = "/sys/fs/cgroup";
-        if !Path::new(cgroup_path).exists() {
-            bail!("cgroup v2 not found at {cgroup_path} — eBPF observer requires cgroup v2");
+        if !PathBuf::from(cgroup_path).exists() {
+            bail!("cgroup v2 not found at {cgroup_path}");
         }
 
+        // Find BPF object file
+        let obj_path = find_bpf_object()?;
+        eprintln!("[ebpf] Loading BPF object from {}", obj_path.display());
+
+        // Read BPF object
+        let obj_data = std::fs::read(&obj_path)
+            .context(format!("Failed to read BPF object: {}", obj_path.display()))?;
+
         // Load BPF object
-        let mut bpf = Bpf::load(BPF_OBJECT)
-            .context("Failed to load BPF object — ensure bpf/observer.bpf.o is compiled")?;
+        let mut bpf = Ebpf::load(&obj_data).context("Failed to load BPF object")?;
 
         // Get the cgroup_skb/egress program
         let program: &mut CgroupSkb = bpf
             .program_mut("observe_egress")
-            .context("BPF program 'observe_egress' not found in object file")?
+            .context("BPF program 'observe_egress' not found")?
             .try_into()?;
 
         // Load the program into kernel
         program.load()?;
 
-        // Attach to cgroup v2 root (observes all egress traffic)
+        // Open cgroup v2 root directory as fd (aya requires AsFd)
+        let cgroup_file =
+            File::open(cgroup_path).context("Failed to open cgroup root directory")?;
+
+        // Attach to cgroup v2 root
         program
-            .attach(cgroup_path, CgroupSkbAttachOptions::default())
+            .attach(
+                cgroup_file,
+                CgroupSkbAttachType::Egress,
+                CgroupAttachMode::default(),
+            )
             .context("Failed to attach BPF program to cgroup")?;
 
         eprintln!("[ebpf] Observer attached to {cgroup_path}");
         eprintln!("[ebpf] Monitoring egress traffic for all processes");
 
         Ok(Observer {
-            bpf,
+            bpf: Some(bpf),
             cgroup_path: cgroup_path.to_string(),
         })
     }
 
-    /// Get the ring buffer for reading events.
-    pub fn ring_buffer(&mut self) -> Result<RingBuf> {
-        self.bpf
-            .take_map("events")
-            .context("BPF map 'events' not found")
-            .and_then(|m| RingBuf::try_from(m).context("Failed to create ring buffer from map"))
+    /// Poll for events from the ring buffer.
+    /// Returns raw events as Vec<u8> for the caller to parse.
+    pub fn poll_events(&mut self) -> Result<Vec<Vec<u8>>> {
+        let bpf = self.bpf.as_mut().context("BPF program not loaded")?;
+
+        let events_map = bpf
+            .map_mut("events")
+            .context("BPF map 'events' not found")?;
+
+        let mut ringbuf =
+            aya::maps::RingBuf::try_from(events_map).context("Failed to create ring buffer")?;
+
+        let mut events = Vec::new();
+        while let Some(item) = ringbuf.next() {
+            events.push(item.to_vec());
+        }
+        Ok(events)
     }
 
     /// Detach and clean up.
-    pub fn detach(self) {
-        // Bpf drop automatically detaches all programs
+    pub fn detach(&mut self) {
+        // Just drop the Ebpf — it auto-detaches
+        self.bpf = None;
         eprintln!("[ebpf] Observer detached from {}", self.cgroup_path);
-        drop(self.bpf);
     }
 }
 
 impl Drop for Observer {
     fn drop(&mut self) {
-        eprintln!("[ebpf] Cleaning up BPF programs");
+        if self.bpf.is_some() {
+            eprintln!("[ebpf] Cleaning up BPF programs");
+            self.bpf = None;
+        }
     }
+}
+
+/// Find the BPF object file — checks multiple locations.
+fn find_bpf_object() -> Result<PathBuf> {
+    let candidates = [
+        PathBuf::from(BPF_OBJECT_PATH),
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(BPF_OBJECT_PATH),
+        PathBuf::from("/usr/lib/zelynic/observer.bpf.o"),
+        PathBuf::from("/usr/local/lib/zelynic/observer.bpf.o"),
+    ];
+
+    for path in &candidates {
+        if path.exists() {
+            return Ok(path.clone());
+        }
+    }
+
+    bail!(
+        "BPF object file not found. Compile with:\n  \
+         clang -O2 -g -target bpf -c bpf/observer.bpf.c -o bpf/observer.bpf.o\n  \
+         Searched: {:?}",
+        candidates
+    )
 }

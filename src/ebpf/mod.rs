@@ -2,25 +2,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 //! eBPF observer engine — real kernel-level traffic observation.
-//!
-//! This module provides the userspace side of zelynic's eBPF observer:
-//! - Load BPF program (cgroup_skb/egress observer)
-//! - Attach to cgroup v2 hierarchy
-//! - Read events from ring buffer
-//! - Map events to process/cgroup identity
-//! - Feed into zelynic's accounting ledger
-//!
-//! # Safety
-//!
-//! Observer only — no packet drop, no enforcement, no mutation.
-//! Always returns 1 (allow) from BPF program.
-//!
-//! # Requirements
-//!
-//! - Linux 5.8+ (cgroup_skb + ring buffer)
-//! - CAP_BPF or root
-//! - /sys/fs/bpf mounted
-//! - Compiled with `--features ebpf`
+
+#![cfg_attr(feature = "ebpf", allow(dead_code))]
 
 #[cfg(feature = "ebpf")]
 pub mod events;
@@ -29,8 +12,10 @@ pub mod identity;
 #[cfg(feature = "ebpf")]
 pub mod loader;
 
-// Re-export capability detection (always available, even without ebpf feature)
+// Re-export capability detection (always available)
 pub use crate::ebpf_legacy::*;
+
+use colored::Colorize;
 
 /// Print eBPF observer status.
 #[cfg(feature = "ebpf")]
