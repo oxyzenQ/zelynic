@@ -294,8 +294,22 @@ fn handle_ebpf_observe(duration: u64, interval: u64) -> Result<()> {
     let mut last_print = Instant::now();
 
     loop {
-        let events = observer.poll_events()?;
-        aggregator.process_events(&events);
+        // Zero-allocation poll: process events inline via callback
+        observer.poll_events(|data| {
+            if let Some(event) = crate::ebpf::events::NetworkEvent::from_bytes(data) {
+                aggregator.total_events += 1;
+                aggregator.total_packets += 1;
+                aggregator.total_bytes += event.pkt_len as u64;
+
+                if aggregator.stats.len() < 100 || aggregator.stats.contains_key(&event.cgroup_id) {
+                    let stats = aggregator.stats.entry(event.cgroup_id).or_default();
+                    stats.packets += 1;
+                    stats.bytes += event.pkt_len as u64;
+                    stats.last_pid = event.pid;
+                    stats.last_comm = event.comm_str();
+                }
+            }
+        })?;
 
         if last_print.elapsed() >= interval_dur {
             aggregator.print_summary();
