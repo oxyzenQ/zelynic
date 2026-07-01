@@ -594,6 +594,16 @@ pub enum Commands {
         #[command(subcommand)]
         command: Option<BackendCommands>,
     },
+
+    /// eBPF observer engine (experimental, requires --features ebpf)
+    ///
+    /// Real-time kernel-level traffic observation using eBPF.
+    /// Observer only — no enforcement, no packet drop.
+    #[command(hide = true)]
+    Ebpf {
+        #[command(subcommand)]
+        command: Option<EbpfCommands>,
+    },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
@@ -609,6 +619,24 @@ pub enum RunScopeModeArg {
 pub enum BackendCommands {
     /// Show detailed read-only host capability diagnostics and backend scoring
     Doctor(BackendDoctorArgs),
+}
+
+/// eBPF observer subcommands.
+#[derive(Debug, Subcommand)]
+pub enum EbpfCommands {
+    /// Check if the system supports eBPF observer
+    Check,
+
+    /// Start real-time traffic observer (requires root + --features ebpf)
+    Observe {
+        /// Duration in seconds (0 = until Ctrl+C)
+        #[arg(long, default_value = "0")]
+        duration: u64,
+
+        /// Print summary every N seconds
+        #[arg(long, default_value = "5")]
+        interval: u64,
+    },
 }
 
 #[derive(Debug, Args)]
