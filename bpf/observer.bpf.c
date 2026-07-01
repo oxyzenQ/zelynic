@@ -89,11 +89,10 @@ int observe_egress(struct __sk_buff *skb) {
         bpf_map_update_elem(&cgroup_counters, &cgroup_id, &new_stats, BPF_ANY);
     }
 
-    // Only emit event every 10th packet (reduce ring buffer pressure)
-    if (stats && (stats->packets % 10 != 0)) {
-        return 1; // allow packet
-    }
+    // Re-read stats after update (may have been just created)
+    stats = bpf_map_lookup_elem(&cgroup_counters, &cgroup_id);
 
+    // Emit event for every packet (no throttling — ring buffer is 256KB, plenty)
     // Parse packet headers
     __u16 protocol = 0;
     __u32 src_ip = 0, dst_ip = 0;
