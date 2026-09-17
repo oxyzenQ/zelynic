@@ -27,21 +27,37 @@ TOTAL=0
 
 BINARY="${1:-./target/release/zelynic}"
 
-log_pass() { echo -e "  ${GREEN}OK PASS${NC}: $1"; PASS=$((PASS + 1)); }
-log_fail() { echo -e "  ${RED}X FAIL${NC}: $1"; FAIL=$((FAIL + 1)); }
-log_test() { echo ""; echo -e "  ${YELLOW}TEST${NC}: $1"; TOTAL=$((TOTAL + 1)); }
+log_pass() {
+	echo -e "  ${GREEN}OK PASS${NC}: $1"
+	PASS=$((PASS + 1))
+}
+log_fail() {
+	echo -e "  ${RED}X FAIL${NC}: $1"
+	FAIL=$((FAIL + 1))
+}
+log_test() {
+	echo ""
+	echo -e "  ${YELLOW}TEST${NC}: $1"
+	TOTAL=$((TOTAL + 1))
+}
 
 check_root() {
-    [ "$(id -u)" -eq 0 ] || { echo -e "${RED}Requires root${NC}"; exit 1; }
+	[ "$(id -u)" -eq 0 ] || {
+		echo -e "${RED}Requires root${NC}"
+		exit 1
+	}
 }
 
 check_binary() {
-    [ -f "$BINARY" ] || { echo -e "${RED}Binary not found: $BINARY${NC}"; exit 1; }
+	[ -f "$BINARY" ] || {
+		echo -e "${RED}Binary not found: $BINARY${NC}"
+		exit 1
+	}
 }
 
 cleanup() {
-    "$BINARY" unstrict-all 2>/dev/null || true
-    pkill -f "curl.*example.com" 2>/dev/null || true
+	"$BINARY" unstrict-all 2>/dev/null || true
+	pkill -f "curl.*example.com" 2>/dev/null || true
 }
 
 echo "━━━ zelynic Reload Test Suite ━━━"
@@ -65,9 +81,9 @@ sleep 1
 "$BINARY" strict-single "$SLEEP_COMM" 500kb 2>/dev/null
 sleep 1
 if "$BINARY" status 2>/dev/null | grep -q "500.0 KB/s"; then
-    log_pass "Rate changed during traffic without crash"
+	log_pass "Rate changed during traffic without crash"
 else
-    log_fail "Rate change failed during traffic"
+	log_fail "Rate change failed during traffic"
 fi
 kill "$SLEEP_PID" 2>/dev/null || true
 cleanup
@@ -83,9 +99,9 @@ sleep 0.5
 sleep 0.5
 "$BINARY" strict-single "$SLEEP_COMM" 200kb 2>/dev/null
 if "$BINARY" status 2>/dev/null | grep -q "200.0 KB/s"; then
-    log_pass "Re-apply after unstrict works"
+	log_pass "Re-apply after unstrict works"
 else
-    log_fail "Re-apply failed"
+	log_fail "Re-apply failed"
 fi
 kill "$SLEEP_PID" 2>/dev/null || true
 cleanup
@@ -97,13 +113,13 @@ SLEEP_PID=$!
 SLEEP_COMM=$(cat /proc/$SLEEP_PID/comm 2>/dev/null || echo "sleep")
 ERRORS=0
 for rate in 100kb 500kb 1mb 100kb; do
-    "$BINARY" strict-single "$SLEEP_COMM" "$rate" 2>/dev/null || ERRORS=$((ERRORS + 1))
-    sleep 0.3
+	"$BINARY" strict-single "$SLEEP_COMM" "$rate" 2>/dev/null || ERRORS=$((ERRORS + 1))
+	sleep 0.3
 done
 if [ "$ERRORS" -eq 0 ]; then
-    log_pass "4 rapid rate changes succeeded"
+	log_pass "4 rapid rate changes succeeded"
 else
-    log_fail "$ERRORS errors in rapid rate changes"
+	log_fail "$ERRORS errors in rapid rate changes"
 fi
 kill "$SLEEP_PID" 2>/dev/null || true
 cleanup
@@ -113,10 +129,10 @@ log_test "Change rate while packets are being dropped"
 sleep 600 &
 SLEEP_PID=$!
 SLEEP_COMM=$(cat /proc/$SLEEP_PID/comm 2>/dev/null || echo "sleep")
-"$BINARY" strict-single "$SLEEP_COMM" 10kb 2>/dev/null  # Very low rate → lots of drops
+"$BINARY" strict-single "$SLEEP_COMM" 10kb 2>/dev/null # Very low rate → lots of drops
 # Generate traffic
-for i in 1 2 3; do
-    curl -s -o /dev/null http://example.com/largefile 2>/dev/null &
+for _ in 1 2 3; do
+	curl -s -o /dev/null http://example.com/largefile 2>/dev/null &
 done
 sleep 2
 # Check drops are happening
@@ -126,9 +142,9 @@ DROPS_BEFORE=$("$BINARY" status 2>/dev/null | grep "$SLEEP_COMM" | awk '{print $
 sleep 1
 DROPS_AFTER=$("$BINARY" status 2>/dev/null | grep "$SLEEP_COMM" | awk '{print $5}' | head -1)
 if [ -n "$DROPS_BEFORE" ] && [ -n "$DROPS_AFTER" ]; then
-    log_pass "Rate changed during active drops (before: $DROPS_BEFORE, after: $DROPS_AFTER)"
+	log_pass "Rate changed during active drops (before: $DROPS_BEFORE, after: $DROPS_AFTER)"
 else
-    log_pass "Rate changed during traffic (drop data may be empty)"
+	log_pass "Rate changed during traffic (drop data may be empty)"
 fi
 kill "$SLEEP_PID" 2>/dev/null || true
 pkill -f "curl.*example.com" 2>/dev/null || true
@@ -139,9 +155,9 @@ log_test "Final state verification"
 "$BINARY" strict-single curl 100kb 2>/dev/null || true
 "$BINARY" unstrict-all 2>/dev/null
 if [ ! -d "/sys/fs/bpf/zelynic" ] || [ -z "$(ls -A /sys/fs/bpf/zelynic 2>/dev/null)" ]; then
-    log_pass "Final state is clean"
+	log_pass "Final state is clean"
 else
-    log_fail "Residual pins remain"
+	log_fail "Residual pins remain"
 fi
 
 # Summary

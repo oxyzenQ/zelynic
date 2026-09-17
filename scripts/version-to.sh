@@ -28,24 +28,24 @@ readonly NC='\033[0m'
 
 # Read current version from Cargo.toml
 current_version() {
-    grep '^version = ' Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/'
+	grep '^version = ' Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/'
 }
 
 # Validate semver format
 validate_version() {
-    local ver="$1"
-    if ! echo "${ver}" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$'; then
-        echo -e "${RED}Error: Invalid version '${ver}'. Expected format: X.Y.Z or X.Y.Z-label${NC}" >&2
-        exit 1
-    fi
+	local ver="$1"
+	if ! echo "${ver}" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$'; then
+		echo -e "${RED}Error: Invalid version '${ver}'. Expected format: X.Y.Z or X.Y.Z-label${NC}" >&2
+		exit 1
+	fi
 }
 
 # Show current version and exit
 if [ $# -eq 0 ]; then
-    echo -e "Current version: ${GREEN}v$(current_version)${NC}"
-    echo ""
-    echo "Usage: ./scripts/version-to.sh v<VERSION> [--commit]"
-    exit 0
+	echo -e "Current version: ${GREEN}v$(current_version)${NC}"
+	echo ""
+	echo "Usage: ./scripts/version-to.sh v<VERSION> [--commit]"
+	exit 0
 fi
 
 NEW_VERSION="${1#v}"
@@ -53,18 +53,21 @@ shift
 
 COMMIT=false
 for arg in "$@"; do
-    case "${arg}" in
-        --commit|-c) COMMIT=true ;;
-        *) echo -e "${RED}Unknown option: ${arg}${NC}" >&2; exit 1 ;;
-    esac
+	case "${arg}" in
+	--commit | -c) COMMIT=true ;;
+	*)
+		echo -e "${RED}Unknown option: ${arg}${NC}" >&2
+		exit 1
+		;;
+	esac
 done
 
 validate_version "${NEW_VERSION}"
 CURRENT=$(current_version)
 
 if [ "${CURRENT}" = "${NEW_VERSION}" ]; then
-    echo -e "${YELLOW}Already at v${NEW_VERSION}, nothing to change.${NC}"
-    exit 0
+	echo -e "${YELLOW}Already at v${NEW_VERSION}, nothing to change.${NC}"
+	exit 0
 fi
 
 echo -e "Updating version: ${YELLOW}v${CURRENT}${NC} → ${GREEN}v${NEW_VERSION}${NC}"
@@ -83,13 +86,13 @@ echo -e "  ${GREEN}OK${NC} Cargo.toml          → ${NEW_VERSION}"
 # We update only the zelynic package version, NOT dependency versions
 # (those are the job of `cargo update`, not a version bump).
 if [ -f Cargo.lock ]; then
-    sed -i -E "/^name = \"zelynic\"$/{n;s|^version = \"${CURRENT}\"|version = \"${NEW_VERSION}\"|;}" Cargo.lock
-    LOCK_VER="$(grep -A1 '^name = "zelynic"' Cargo.lock | grep '^version = "' | head -1 | sed -E 's/^version = "(.+)"/\1/')"
-    if [ "${LOCK_VER}" = "${NEW_VERSION}" ]; then
-        echo -e "  ${GREEN}OK${NC} Cargo.lock          → zelynic version = ${NEW_VERSION}"
-    else
-        echo -e "  ${YELLOW}!${NC} Cargo.lock          → expected ${NEW_VERSION}, got ${LOCK_VER} (run 'cargo update -p zelynic' to fix)"
-    fi
+	sed -i -E "/^name = \"zelynic\"$/{n;s|^version = \"${CURRENT}\"|version = \"${NEW_VERSION}\"|;}" Cargo.lock
+	LOCK_VER="$(grep -A1 '^name = "zelynic"' Cargo.lock | grep '^version = "' | head -1 | sed -E 's/^version = "(.+)"/\1/')"
+	if [ "${LOCK_VER}" = "${NEW_VERSION}" ]; then
+		echo -e "  ${GREEN}OK${NC} Cargo.lock          → zelynic version = ${NEW_VERSION}"
+	else
+		echo -e "  ${YELLOW}!${NC} Cargo.lock          → expected ${NEW_VERSION}, got ${LOCK_VER} (run 'cargo update -p zelynic' to fix)"
+	fi
 fi
 
 # --- Update README.md ---
@@ -109,7 +112,7 @@ echo ""
 echo -e "${GREEN}Version updated to v${NEW_VERSION}${NC}"
 
 if [ "${COMMIT}" = true ]; then
-    git add Cargo.toml Cargo.lock README.md
-    git commit -m "release: v${NEW_VERSION}"
-    echo -e "${GREEN}OK Committed: release: v${NEW_VERSION}${NC}"
+	git add Cargo.toml Cargo.lock README.md
+	git commit -m "release: v${NEW_VERSION}"
+	echo -e "${GREEN}OK Committed: release: v${NEW_VERSION}${NC}"
 fi

@@ -14,32 +14,32 @@ DURATION="${1:-60}"
 # Auto-detect binary: installed > tarball > source build
 BINARY=""
 if command -v zelynic >/dev/null 2>&1; then
-    BINARY="zelynic"
+	BINARY="zelynic"
 elif [[ -x "./zelynic" ]]; then
-    BINARY="./zelynic"
+	BINARY="./zelynic"
 elif [[ -x "./target/release/zelynic" ]]; then
-    BINARY="./target/release/zelynic"
+	BINARY="./target/release/zelynic"
 fi
 BPF_OBJ="bpf/limiter.bpf.o"
 
 if [[ $EUID -ne 0 ]]; then
-    echo "This script requires root. Run with sudo."
-    exit 1
+	echo "This script requires root. Run with sudo."
+	exit 1
 fi
 
 if [[ -z "$BINARY" ]]; then
-    echo "Building zelynic..."
-    cargo build --release --features ebpf
-    BINARY="./target/release/zelynic"
+	echo "Building zelynic..."
+	cargo build --release --features ebpf
+	BINARY="./target/release/zelynic"
 fi
 
 if [[ ! -f "$BPF_OBJ" ]]; then
-    if command -v clang >/dev/null 2>&1; then
-        echo "Compiling BPF object..."
-        clang -O2 -g -target bpf -c bpf/limiter.bpf.c -o "$BPF_OBJ"
-    else
-        echo "BPF object not found. Using pre-compiled or skipping."
-    fi
+	if command -v clang >/dev/null 2>&1; then
+		echo "Compiling BPF object..."
+		clang -O2 -g -target bpf -c bpf/limiter.bpf.c -o "$BPF_OBJ"
+	else
+		echo "BPF object not found. Using pre-compiled or skipping."
+	fi
 fi
 
 echo "━━━ zelynic Stress Test (${DURATION}s) ━━━"
@@ -48,8 +48,14 @@ echo ""
 PASS=0
 FAIL=0
 
-pass() { echo "  OK $1"; PASS=$((PASS + 1)); }
-fail() { echo "  X $1"; FAIL=$((FAIL + 1)); }
+pass() {
+	echo "  OK $1"
+	PASS=$((PASS + 1))
+}
+fail() {
+	echo "  X $1"
+	FAIL=$((FAIL + 1))
+}
 
 # Start a long-running background process (curl download for traffic)
 echo "Starting background download (curl)..."
@@ -59,13 +65,13 @@ CURL_COMM=$(cat /proc/$CURL_PID/comm 2>/dev/null || echo "curl")
 sleep 1
 
 if [[ "$CURL_COMM" == "curl" ]]; then
-    TARGET="$CURL_COMM"
-    TARGET_PID="$CURL_PID"
+	TARGET="$CURL_COMM"
+	TARGET_PID="$CURL_PID"
 else
-    # Fallback: use a sleep process (no traffic, but tests policy apply)
-    sleep 120 &
-    TARGET_PID=$!
-    TARGET=$(cat /proc/$TARGET_PID/comm 2>/dev/null || echo "sleep")
+	# Fallback: use a sleep process (no traffic, but tests policy apply)
+	sleep 120 &
+	TARGET_PID=$!
+	TARGET=$(cat /proc/$TARGET_PID/comm 2>/dev/null || echo "sleep")
 fi
 echo "  Target: $TARGET (PID $TARGET_PID)"
 echo ""
@@ -73,12 +79,12 @@ echo ""
 # Test 1: Basic single-app limit
 echo "Test 1: Basic single-app limit ($TARGET 500kb)"
 $BINARY strict-single "$TARGET" 500kb 2>&1
-sleep 3  # Wait for child to stabilize
+sleep 3 # Wait for child to stabilize
 STATUS=$($BINARY status 2>&1)
 if echo "$STATUS" | grep -q "Active limits"; then
-    pass "Limit applied + status shows active limits"
+	pass "Limit applied + status shows active limits"
 else
-    fail "Status shows no active limits"
+	fail "Status shows no active limits"
 fi
 
 # Test 2: Override (change rate)
@@ -94,9 +100,9 @@ STATUS=$($BINARY status 2>&1)
 CGROUP_COUNT=$(echo "$STATUS" | grep -c 'cg:' || true)
 CGROUP_COUNT=${CGROUP_COUNT:-0}
 if [[ "$CGROUP_COUNT" -le 2 ]]; then
-    pass "Override works (no duplicates: $CGROUP_COUNT cgroups)"
+	pass "Override works (no duplicates: $CGROUP_COUNT cgroups)"
 else
-    fail "Override failed ($CGROUP_COUNT cgroups — should be ≤2)"
+	fail "Override failed ($CGROUP_COUNT cgroups — should be ≤2)"
 fi
 
 # Test 3: Status shows correct rate
@@ -104,9 +110,9 @@ echo ""
 echo "Test 3: Status shows correct rate (1mb)"
 STATUS=$($BINARY status 2>&1)
 if echo "$STATUS" | grep -q "976.6 KB/s"; then
-    pass "Status shows 1mb rate"
+	pass "Status shows 1mb rate"
 else
-    fail "Status does not show 1mb rate"
+	fail "Status does not show 1mb rate"
 fi
 
 # Test 4: unstrict single target
@@ -116,9 +122,9 @@ $BINARY unstrict "$TARGET" 2>&1
 sleep 1
 STATUS=$($BINARY status 2>&1)
 if echo "$STATUS" | grep -q "No active limits"; then
-    pass "unstrict removed all limits (child killed, no residue)"
+	pass "unstrict removed all limits (child killed, no residue)"
 else
-    pass "unstrict removed target (other limits may remain)"
+	pass "unstrict removed target (other limits may remain)"
 fi
 
 # Test 5: Re-apply + unstrict-all
@@ -130,15 +136,15 @@ $BINARY unstrict-all 2>&1
 sleep 1
 
 if [[ -f /tmp/zelynic.pid ]]; then
-    fail "PID file still exists"
+	fail "PID file still exists"
 else
-    pass "PID file removed"
+	pass "PID file removed"
 fi
 
 if [[ -d /sys/fs/bpf/zelynic ]]; then
-    fail "Pin directory still exists"
+	fail "Pin directory still exists"
 else
-    pass "Pin directory removed"
+	pass "Pin directory removed"
 fi
 
 # Test 6: Crash cleanup (kill child, verify watchdog)
@@ -149,32 +155,34 @@ sleep 2
 
 PID_FILE="/tmp/zelynic.pid"
 if [[ -f "$PID_FILE" ]]; then
-    CHILD_PID=$(cat "$PID_FILE")
-    echo "  Killing serve child (PID $CHILD_PID)..."
-    kill -9 "$CHILD_PID" 2>/dev/null || true
-    sleep 1
-    
-    # Verify PID file still exists (child was killed, but PID file not cleaned)
-    if [[ -f "$PID_FILE" ]]; then
-        pass "PID file persists after crash (expected — unstrict-all will clean)"
-    else
-        fail "PID file disappeared unexpectedly"
-    fi
-    
-    # Clean up
-    $BINARY unstrict-all 2>/dev/null || true
-    # Manual cleanup if unstrict-all fails (child already dead)
-    rm -f /tmp/zelynic.pid
-    rm -f /sys/fs/bpf/zelynic/* 2>/dev/null || true
-    rmdir /sys/fs/bpf/zelynic 2>/dev/null || true
-    pass "Crash cleanup verified"
+	CHILD_PID=$(cat "$PID_FILE")
+	echo "  Killing serve child (PID $CHILD_PID)..."
+	kill -9 "$CHILD_PID" 2>/dev/null || true
+	sleep 1
+
+	# Verify PID file still exists (child was killed, but PID file not cleaned)
+	if [[ -f "$PID_FILE" ]]; then
+		pass "PID file persists after crash (expected — unstrict-all will clean)"
+	else
+		fail "PID file disappeared unexpectedly"
+	fi
+
+	# Clean up
+	$BINARY unstrict-all 2>/dev/null || true
+	# Manual cleanup if unstrict-all fails (child already dead)
+	rm -f /tmp/zelynic.pid
+	rm -f /sys/fs/bpf/zelynic/* 2>/dev/null || true
+	rmdir /sys/fs/bpf/zelynic 2>/dev/null || true
+	pass "Crash cleanup verified"
 else
-    fail "PID file not found"
+	fail "PID file not found"
 fi
 
 # Cleanup
 kill "$CURL_PID" 2>/dev/null || true
-[[ -n "${TARGET_PID:-}" ]] && kill "$TARGET_PID" 2>/dev/null || true
+if [[ -n "${TARGET_PID:-}" ]]; then
+	kill "$TARGET_PID" 2>/dev/null || true
+fi
 $BINARY unstrict-all 2>/dev/null || true
 
 echo ""
@@ -183,9 +191,9 @@ echo "Passed: $PASS"
 echo "Failed: $FAIL"
 echo ""
 if [[ "$FAIL" -eq 0 ]]; then
-    echo "OK ALL TESTS PASSED"
-    exit 0
+	echo "OK ALL TESTS PASSED"
+	exit 0
 else
-    echo "X $FAIL test(s) failed"
-    exit 1
+	echo "X $FAIL test(s) failed"
+	exit 1
 fi
