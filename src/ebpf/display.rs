@@ -8,7 +8,7 @@ use anyhow::Result;
 use std::collections::HashMap;
 
 use crate::ebpf::identity::IdentityMap;
-use crate::ebpf::limiter_types::{
+use crate::ebpf::limiter::{
     format_bytes, format_rate, monotonic_ns, terminal_width, LimiterStatsRaw, PolicyRaw,
 };
 

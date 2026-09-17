@@ -15,7 +15,7 @@ pub fn handle_block_single(target_str: &str, force: bool, verbose: bool) -> Resu
     }
 
     let _lock = crate::ebpf::lock::acquire()?;
-    super::check_dangerous_target(target_str, force)?;
+    super::safety::check_dangerous_target(target_str, force)?;
 
     Limiter::attach(verbose)?;
 
@@ -49,7 +49,7 @@ pub fn handle_block_multi(targets_str: &str, force: bool, verbose: bool) -> Resu
     let targets: Vec<Target> = targets_str.split(':').map(Target::parse).collect();
     for t in &targets {
         if let Target::ProcessName(name) = t {
-            super::check_dangerous_target(name, force)?;
+            super::safety::check_dangerous_target(name, force)?;
         }
     }
 
