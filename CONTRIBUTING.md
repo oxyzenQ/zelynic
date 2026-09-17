@@ -31,17 +31,25 @@ cargo build --release --features ebpf
 
 ```
 src/
-  main.rs              — entry point
-  cli.rs               — CLI definition (clap)
-  commands/mod.rs      — command dispatchers
-  commands/help.rs     — --help-all output
-  commands/block.rs    — block-* handlers
-  commands/cleanup.rs  — unstrict / unstrict-all / recover handlers
-  commands/monitor.rs  — status / list-apps / observe / top handlers
+  main.rs              — entry point (the only file at src/ root)
+  cli/mod.rs           — CLI definition (clap)
+  commands/
+    mod.rs             — command dispatchers
+    help.rs            — --help-all output
+    block.rs           — block-* handlers
+    cleanup.rs         — unstrict / unstrict-all / recover handlers
+    monitor.rs         — status / list-apps / observe / top handlers
+    safety.rs          — dangerous-target blocklist + guards
+    strict.rs          — strict-single / strict-multi / limit-all handlers
+    rates.rs           — CLI rate-string resolution
   ebpf/
     mod.rs             — module exports
-    limiter.rs         — Limiter struct + BPF map operations
-    limiter_types.rs   — types, constants, helper functions
+    limiter/
+      mod.rs           — Limiter struct + lifecycle (attach / open_pinned) + re-exports
+      types.rs         — constants + BPF map structs + high-level API types
+      format.rs        — rate/duration parsing + formatting helpers
+      policy.rs        — apply / resolve / write / delete policy operations
+      stats.rs         — status printing + map readers + identity accessors
     identity.rs        — cgroup ID → process name resolution
     loader.rs          — observer BPF loader
     display.rs         — traffic table rendering
@@ -50,9 +58,9 @@ src/
     pin.rs             — BPF pin cleanup
   capabilities/mod.rs  — eBPF support check (doctor)
   output/mod.rs        — capability-aware brand purple styling layer
-  info.rs              — version report (-V)
-  update.rs            — --check-update
-  terminal.rs          — alt-screen box mode
+  info/mod.rs          — version report (-V)
+  update/mod.rs        — --check-update
+  terminal/mod.rs      — alt-screen box mode
 
 bpf/
   limiter.bpf.c        — token-bucket enforcer (ingress + egress)
@@ -60,7 +68,7 @@ bpf/
 
 scripts/
   build.sh             — check-all orchestration
-  gate-keepers.sh      — pre-commit non-code gates (11 checks)
+  gate-keepers.sh      — pre-commit non-code gates (13 checks)
   check-permissions.sh — 644/755 permission guard
   check-loc.sh         — Rust file LOC cap (500, // LOC_EXEMPT: markers)
   check-headers.sh     — license header check (rs/c/h/py/sh/toml/yml/md)

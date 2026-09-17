@@ -61,7 +61,7 @@ userspace tool coordination, no format mismatches, no leaked state.
 ┌─────────────────────────────────────────────────────────┐
 │  Layer 4 — Presentation                                 │
 │  CLI / JSON                                            │
-│  src/commands/, src/cli.rs                              │
+│  src/commands/, src/cli/                             │
 ├─────────────────────────────────────────────────────────┤
 │  Layer 3 — Aggregation                                  │
 │  delta computation, summary, sorting                    │

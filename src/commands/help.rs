@@ -89,7 +89,7 @@ pub(crate) fn print_help_all() {
     println!("  • Min-rate guard: rejects < 1kb (use --allow-dangerous)");
     println!(
         "  • Dangerous target warning: {} system processes blocked by default",
-        super::DANGEROUS_TARGETS.len()
+        crate::commands::safety::DANGEROUS_TARGETS.len()
     );
     println!("    (use --force to override)");
     println!("  • Fail-safe: BPF returns allow on any error path");
