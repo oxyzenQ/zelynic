@@ -9,10 +9,16 @@ use crate::ebpf::limiter::{Limiter, RateSpec, Target};
 
 /// Block a single app from the internet.
 pub fn handle_block_single(target_str: &str, force: bool, verbose: bool) -> Result<()> {
+    // Input validation first (fail-fast, no privileges needed): the
+    // dangerous-target blocklist is pure string matching — a policy
+    // refusal surfaces before the root requirement, the same
+    // parse-before-execute ladder as the strict handlers (smoke-run
+    // find).
+    super::safety::check_dangerous_target(target_str, force)?;
+
     super::ensure_root()?;
 
     let _lock = crate::ebpf::lock::acquire()?;
-    super::safety::check_dangerous_target(target_str, force)?;
 
     Limiter::attach(verbose)?;
 
@@ -40,10 +46,9 @@ pub fn handle_block_single(target_str: &str, force: bool, verbose: bool) -> Resu
 
 /// Block multiple apps from the internet.
 pub fn handle_block_multi(targets_str: &str, force: bool, verbose: bool) -> Result<()> {
-    super::ensure_root()?;
-
-    let _lock = crate::ebpf::lock::acquire()?;
-
+    // Input validation first (fail-fast, no privileges needed) — same
+    // parse-before-execute ladder as the strict-multi handler.
+    //
     // Same parsing contract as strict-multi: trim each part, drop
     // empties, and fail with an example instead of silently limiting
     // an empty-name cgroup.
@@ -64,6 +69,10 @@ pub fn handle_block_multi(targets_str: &str, force: bool, verbose: bool) -> Resu
             super::safety::check_dangerous_target(name, force)?;
         }
     }
+
+    super::ensure_root()?;
+
+    let _lock = crate::ebpf::lock::acquire()?;
 
     Limiter::attach(verbose)?;
     let mut limiter = Limiter::open_pinned(verbose)?;

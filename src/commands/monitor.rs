@@ -99,12 +99,17 @@ pub fn handle_observe(live: Option<&str>, cgroup: Option<u32>, verbose: bool) ->
     use crate::terminal;
     use std::time::Duration;
 
-    super::ensure_root()?;
-
+    // Input validation first (fail-fast, no privileges needed): the
+    // live-duration string is pure parsing — a typo surfaces its
+    // did-you-mean tip before the root requirement, the same
+    // parse-before-execute ladder as the strict handlers (smoke-run
+    // find).
     let duration_secs = match live {
         Some(s) => crate::ebpf::limiter::parse_time_duration(s)?,
         None => 0,
     };
+
+    super::ensure_root()?;
 
     let mut observer = Observer::attach_quiet(true)?;
     observer.refresh_identity();
@@ -151,6 +156,18 @@ pub fn handle_top(
     use std::collections::HashMap;
     use std::time::{Duration, Instant};
 
+    // Input validation first (fail-fast, no privileges needed): both
+    // duration strings are pure parsing — a typo surfaces its
+    // did-you-mean tip before the root requirement (smoke-run find).
+    let live_secs = match live {
+        Some(s) => Some(crate::ebpf::limiter::parse_time_duration(s)?),
+        None => None,
+    };
+    let snapshot_secs = match duration {
+        Some(s) => crate::ebpf::limiter::parse_time_duration(s)?,
+        None => 10,
+    };
+
     super::ensure_root()?;
 
     let mut observer = Observer::attach_quiet(true)?;
@@ -162,8 +179,7 @@ pub fn handle_top(
     let mut cumulative: HashMap<u32, (u64, u64, u64)> = HashMap::new();
     let _ = observer.poll_and_summarize()?;
 
-    if let Some(live_str) = live {
-        let duration_secs = crate::ebpf::limiter::parse_time_duration(live_str)?;
+    if let Some(duration_secs) = live_secs {
         let dur = if duration_secs > 0 {
             Duration::from_secs(duration_secs)
         } else {
@@ -186,10 +202,7 @@ pub fn handle_top(
             print_top_table(&cumulative, limit, observer.identity(), "accumulated");
         });
     } else {
-        let dur_secs = match duration {
-            Some(s) => crate::ebpf::limiter::parse_time_duration(s)?,
-            None => 10,
-        };
+        let dur_secs = snapshot_secs;
 
         eprintln_safe!(
             "{}",
@@ -294,5 +307,36 @@ fn print_top_table(
     if let Some(proc_name) = top_proc_name {
         println_safe!("  {} Top consumer: {proc_name}", warn_bold("→"));
         println_safe!("  Limit it: sudo zelynic strict-single {proc_name} 100kb\n");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Parse-before-execute contract (live smoke-run find): a typo'd
+    /// live-duration string must surface its did-you-mean tip BEFORE
+    /// the privilege guard, matching the strict handlers' ladder and
+    /// clap's own argument validation order.
+    ///
+    /// Safe on any uid: the duration error returns before ensure_root(),
+    /// so the test never reaches observer attach even as root.
+    #[cfg(feature = "ebpf")]
+    #[test]
+    fn duration_typo_surfaces_before_root_guard() {
+        let err = handle_observe(Some("3min"), None, false).expect_err("typo'd duration must fail");
+        let msg = format!("{err}");
+        assert!(
+            msg.contains("Invalid duration '3min'"),
+            "duration error must lead, got: {msg}"
+        );
+        assert!(
+            msg.contains("tip: a similar value exists: '3m'"),
+            "typo tip must ride along, got: {msg}"
+        );
+        assert!(
+            !msg.contains("root required"),
+            "duration error must precede the root guard, got: {msg}"
+        );
     }
 }

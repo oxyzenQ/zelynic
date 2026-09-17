@@ -21,12 +21,11 @@ pub(crate) fn handle_strict_single(
 ) -> Result<()> {
     use crate::ebpf::limiter::{Limiter, Target};
 
-    super::ensure_root()?;
-
-    // Prevent concurrent operations (race condition elimination).
-    let _lock = crate::ebpf::lock::acquire()?;
-    check_dangerous_target(target_str, force)?;
-
+    // Input validation first (fail-fast, no privileges needed): rate
+    // strings and the dangerous-target blocklist are pure parsing, so
+    // a typo surfaces its did-you-mean tip before the root requirement
+    // — the same parse-before-execute contract clap applies to its own
+    // arguments (live root-machine smoke-run find).
     let rates = resolve_rates(rate, download, upload, allow_dangerous)?;
 
     if rates.download.is_none() && rates.upload.is_none() {
@@ -35,6 +34,13 @@ pub(crate) fn handle_strict_single(
              Example: zelynic strict-single brave 100kb"
         ));
     }
+
+    check_dangerous_target(target_str, force)?;
+
+    super::ensure_root()?;
+
+    // Prevent concurrent operations (race condition elimination).
+    let _lock = crate::ebpf::lock::acquire()?;
 
     let target = Target::parse(target_str);
 
@@ -66,18 +72,8 @@ pub(crate) fn handle_strict_multi(
 ) -> Result<()> {
     use crate::ebpf::limiter::{Limiter, Target};
 
-    super::ensure_root()?;
-
-    // Prevent concurrent operations (race condition elimination).
-    let _lock = crate::ebpf::lock::acquire()?;
-    // Check each target for dangerous names.
-    for t in targets_str.split(':') {
-        let t = t.trim();
-        if !t.is_empty() {
-            check_dangerous_target(t, force)?;
-        }
-    }
-
+    // Input validation first (fail-fast, no privileges needed) — same
+    // parse-before-execute ladder as handle_strict_single.
     let rates = resolve_rates(rate, download, upload, allow_dangerous)?;
 
     if rates.download.is_none() && rates.upload.is_none() {
@@ -100,6 +96,19 @@ pub(crate) fn handle_strict_multi(
              Example: zelynic strict-multi brave:curl:pacman 1mb"
         ));
     }
+
+    // Check each target for dangerous names.
+    for t in targets_str.split(':') {
+        let t = t.trim();
+        if !t.is_empty() {
+            check_dangerous_target(t, force)?;
+        }
+    }
+
+    super::ensure_root()?;
+
+    // Prevent concurrent operations (race condition elimination).
+    let _lock = crate::ebpf::lock::acquire()?;
 
     // Attach + pin BPF programs if not already pinned (fire-and-forget:
     // pins survive process exit, no daemon).
@@ -144,10 +153,8 @@ pub(crate) fn handle_limit_all(
     use crate::ebpf::identity::IdentityMap;
     use crate::ebpf::limiter::{Limiter, Target};
 
-    super::ensure_root()?;
-
-    // Prevent concurrent operations (race condition elimination).
-    let _lock = crate::ebpf::lock::acquire()?;
+    // Input validation first (fail-fast, no privileges needed) — same
+    // parse-before-execute ladder as the other strict handlers.
     let rates = resolve_rates(rate, download, upload, allow_dangerous)?;
 
     if rates.download.is_none() && rates.upload.is_none() {
@@ -156,6 +163,11 @@ pub(crate) fn handle_limit_all(
              Example: zelynic limit-all 500kb"
         ));
     }
+
+    super::ensure_root()?;
+
+    // Prevent concurrent operations (race condition elimination).
+    let _lock = crate::ebpf::lock::acquire()?;
 
     // Get all apps from identity map.
     let mut identity = IdentityMap::new();
@@ -268,4 +280,56 @@ fn print_pin_summary(target_str: &str, rates: &crate::ebpf::limiter::RateSpec, a
         parts.join(" + ")
     );
     eprintln_safe!("Run 'zelynic unstrict {target_str}' to remove, 'zelynic status' to check.");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Parse-before-execute contract (live smoke-run find): a typo'd
+    /// rate must surface its did-you-mean tip BEFORE the privilege
+    /// guard, exactly like clap validates its own arguments before any
+    /// handler runs. Previously ensure_root() ran first, so a non-root
+    /// user was told to sudo before learning their rate string was
+    /// wrong — a wasted privileged round-trip.
+    ///
+    /// Safe on any uid: the rate error returns before ensure_root(), so
+    /// the test never reaches BPF attach even when run as root.
+    #[cfg(feature = "ebpf")]
+    #[test]
+    fn rate_typo_surfaces_before_root_guard() {
+        let err = handle_strict_single("bash", Some("1MB"), None, None, false, false, false)
+            .expect_err("typo'd rate must fail");
+        let msg = format!("{err}");
+        assert!(
+            msg.contains("Invalid rate '1MB'"),
+            "rate error must lead, got: {msg}"
+        );
+        assert!(
+            msg.contains("tip: a similar value exists: '1mb'"),
+            "typo tip must ride along, got: {msg}"
+        );
+        assert!(
+            !msg.contains("root required"),
+            "rate error must precede the root guard, got: {msg}"
+        );
+    }
+
+    /// Same contract for the dangerous-target blocklist: a policy
+    /// refusal must surface before the privilege guard.
+    #[cfg(feature = "ebpf")]
+    #[test]
+    fn dangerous_target_refusal_surfaces_before_root_guard() {
+        let err = handle_strict_single("sshd", Some("1mb"), None, None, false, false, false)
+            .expect_err("dangerous target must be refused");
+        let msg = format!("{err}");
+        assert!(
+            msg.contains("'sshd' is a system process"),
+            "dangerous-target refusal must lead, got: {msg}"
+        );
+        assert!(
+            !msg.contains("root required"),
+            "policy refusal must precede the root guard, got: {msg}"
+        );
+    }
 }
