@@ -27,8 +27,8 @@ TOTAL=0
 
 BINARY="${1:-./target/release/zelynic}"
 
-log_pass() { echo -e "  ${GREEN}✓ PASS${NC}: $1"; PASS=$((PASS + 1)); }
-log_fail() { echo -e "  ${RED}✗ FAIL${NC}: $1"; FAIL=$((FAIL + 1)); }
+log_pass() { echo -e "  ${GREEN}OK PASS${NC}: $1"; PASS=$((PASS + 1)); }
+log_fail() { echo -e "  ${RED}X FAIL${NC}: $1"; FAIL=$((FAIL + 1)); }
 log_test() { echo ""; echo -e "  ${YELLOW}TEST${NC}: $1"; TOTAL=$((TOTAL + 1)); }
 
 check_root() {

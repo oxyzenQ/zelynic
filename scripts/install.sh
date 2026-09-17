@@ -87,14 +87,14 @@ if [[ ! -f "${BINARY}" ]]; then
                 -c bpf/limiter.bpf.c -o bpf/limiter.bpf.o
             clang -O2 -g -target bpf ${ARCH_INCLUDE} \
                 -c bpf/observer.bpf.c -o bpf/observer.bpf.o
-            echo "✓ BPF objects compiled"
+            echo "OK BPF objects compiled"
         else
             echo "ERROR: BPF objects not found and clang not installed."
             echo "  Install clang + libbpf-dev, or download pre-compiled release."
             exit 1
         fi
     else
-        echo "✓ BPF objects already compiled"
+        echo "OK BPF objects already compiled"
     fi
 
     # Build Rust binary

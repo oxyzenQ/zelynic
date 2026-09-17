@@ -31,12 +31,12 @@ BINARY="${1:-./target/release/zelynic}"
 PIN_DIR="/sys/fs/bpf/zelynic"
 
 log_pass() {
-    echo -e "  ${GREEN}✓ PASS${NC}: $1"
+    echo -e "  ${GREEN}OK PASS${NC}: $1"
     PASS=$((PASS + 1))
 }
 
 log_fail() {
-    echo -e "  ${RED}✗ FAIL${NC}: $1"
+    echo -e "  ${RED}X FAIL${NC}: $1"
     FAIL=$((FAIL + 1))
 }
 

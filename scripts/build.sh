@@ -70,15 +70,15 @@ log_info() {
 }
 
 log_success() {
-        echo -e "${GREEN}[✓]${NC} $1"
+        echo -e "${GREEN}[OK]${NC} $1"
 }
 
 log_warning() {
-        echo -e "${YELLOW}[⚠]${NC} $1"
+        echo -e "${YELLOW}[WARN]${NC} $1"
 }
 
 log_error() {
-        echo -e "${RED}[✗]${NC} $1" >&2
+        echo -e "${RED}[FAIL]${NC} $1" >&2
 }
 
 log_step() {
@@ -447,7 +447,7 @@ show_help() {
         cat <<EOF
 ╔════════════════════════════════════════════════════════════════╗
 ║           Zelynic Build Script - v${ZELYNIC_VERSION}                  ║
-║        Easy userspace bandwidth manager for Linux            ║
+║        Per-app network rate limiter for Linux                ║
 ╚════════════════════════════════════════════════════════════════╝
 
 USAGE:

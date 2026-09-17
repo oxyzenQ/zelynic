@@ -8,9 +8,9 @@ name: CI
 
 on:
   push:
-    branches: [main, wolf-architecture]
+    branches: ["main"]
   pull_request:
-    branches: [main, wolf-architecture]
+    branches: ["main"]
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
@@ -126,7 +126,7 @@ jobs:
         run: |
           test -f bpf/observer.bpf.o
           test -f bpf/limiter.bpf.o
-          echo "✓ BPF objects compiled successfully"
+          echo "OK: BPF objects compiled successfully"
 
       - name: Build Rust with ebpf feature
         run: cargo build --features ebpf --locked

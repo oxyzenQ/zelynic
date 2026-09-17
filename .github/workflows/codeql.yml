@@ -1,0 +1,96 @@
+# Copyright (C) 2026 rezky_nightky
+# SPDX-License-Identifier: GPL-3.0-only
+
+# CodeQL security analysis for zelynic.
+#
+# Auto-detects languages in the repository and runs CodeQL analysis.
+# zelynic's security surface is the Rust CLI plus the eBPF C datapath;
+# the analysis is pinned to `rust` because the bpf/*.c objects are
+# compiled manually with clang (no C build system), which would break
+# CodeQL C autobuild. Python tooling scripts are covered by the
+# shellcheck/codespell gates in ci.yml instead.
+#
+# Weekly scheduled scan Monday 03:00 UTC for full coverage.
+
+name: "Dragon Guard - CodeQL"
+
+'on':
+  push:
+    branches: ["main"]
+    paths:
+      # Rust
+      - 'src/**'
+      - 'tests/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'build.rs'
+      - 'rust-toolchain.toml'
+      - '.cargo/**'
+      # eBPF C datapath
+      - 'bpf/**'
+      # Shell + Python tooling
+      - 'scripts/**'
+      - '*.py'
+      - '*.sh'
+  pull_request:
+    branches: ["main"]
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - 'bpf/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'build.rs'
+      - 'rust-toolchain.toml'
+      - '.cargo/**'
+      - 'scripts/**'
+  schedule:
+    - cron: '0 3 * * 1'
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+  security-events: write
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  RUST_VERSION: "1.98.1"
+
+jobs:
+  analyze:
+    name: Dragon Guard - CodeQL Analyze
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+
+      # Pinned to rust: the security surface users run is the Rust
+      # binary. CodeQL C autobuild would fail on bpf/*.c (manual clang
+      # compile, no build system), so C stays outside CodeQL and is
+      # covered by the clang-format + BPF compile gates in ci.yml.
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: rust
+
+      - name: Build (autobuild)
+        uses: github/codeql-action/autobuild@v4
+
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: /rust
+          upload: true

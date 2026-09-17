@@ -209,20 +209,20 @@ slightly easier to maintain.
 
 ### What zelynic IS
 
-- ✅ **Single CLI binary** — no daemon, no service, no config file
-- ✅ **Pure eBPF** — no tc, no nft, no wrappers
-- ✅ **Small codebase** — minimal dependencies, easy to audit
-- ✅ **Predictable behavior** — same input → same output, every time
-- ✅ **Linux-first** — BSD/macOS source support OK, never anything else
+- **Single CLI binary** — no daemon, no service, no config file
+- **Pure eBPF** — no tc, no nft, no wrappers
+- **Small codebase** — minimal dependencies, easy to audit
+- **Predictable behavior** — same input → same output, every time
+- **Linux-first** — BSD/macOS source support OK, never anything else
 
 ### What zelynic will NEVER be
 
-- ❌ No TUI (terminal user interface)
-- ❌ No systemd service dependency
-- ❌ No `config.toml` (CLI flags only)
-- ❌ No daemon mode
-- ❌ No REST API
-- ❌ No non-Linux support
+- No TUI (terminal user interface)
+- No systemd service dependency
+- No `config.toml` (CLI flags only)
+- No daemon mode
+- No REST API
+- No non-Linux support
 
 ### Stable API (from v10.0.0)
 

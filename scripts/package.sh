@@ -14,13 +14,13 @@ log_info() {
     printf "${CYAN}→${NC} %s\n" "$1"
 }
 log_success() {
-    printf "${GREEN}✓${NC} %s\n" "$1"
+    printf "${GREEN}OK${NC} %s\n" "$1"
 }
 log_warn() {
-    printf "${YELLOW}⚠${NC} %s\n" "$1"
+    printf "${YELLOW}!${NC} %s\n" "$1"
 }
 log_error() {
-    printf "${RED}✗${NC} %s\n" "$1" >&2
+    printf "${RED}X${NC} %s\n" "$1" >&2
 }
 # Get version from Cargo.toml
 get_version() {

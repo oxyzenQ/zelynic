@@ -76,11 +76,18 @@ scripts/
 
 ```bash
 ./scripts/build.sh check-all
+./scripts/gate-keepers.sh
 ```
 
-This runs: cargo fmt --check, cargo clippy --all-features -D warnings,
-cargo test --locked, cargo deny check all, python3 scripts/check-policy.py,
-yamllint, codespell, actionlint.
+`build.sh check-all` runs: cargo fmt --check, cargo clippy --all-features -D warnings,
+cargo test --locked, cargo deny check all (skips when not installed),
+python3 scripts/check-policy.py, yamllint, codespell, actionlint.
+
+`gate-keepers.sh` runs the non-code gates: bash -n + shellcheck + shfmt on
+shell scripts, yamllint + actionlint on workflows, TOML validation, codespell,
+SPDX license headers, file permission guard (644 files / 755 executables and
+directories), and the repo-wide emoji sweep. Missing tools are skipped with a
+warning.
 
 ## Branch Strategy
 
