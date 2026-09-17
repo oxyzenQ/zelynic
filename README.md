@@ -42,7 +42,7 @@ same WiFi interface. No `tc`, no `nftables`, no `LD_PRELOAD`, no daemon.
 | **Schema migration** | BPF struct changes auto-detected + auto-cleaned on upgrade. |
 | **Crash recovery** | `zelynic recover` detects + removes orphaned BPF pins. File lock prevents corruption. |
 | **Discovery workflow** | `zelynic top --live` finds bandwidth hogs. Other limiters can't discover. |
-| **Alt screen mode** | Clean terminal like htop. Zero trace on exit. No scrollback pollution. |
+| **Box mode** | In-place refresh with a clean exit — zero scrollback pollution, no TUI. |
 
 ### vs traditional tools
 
@@ -69,9 +69,13 @@ same WiFi interface. No `tc`, no `nftables`, no `LD_PRELOAD`, no daemon.
 git clone https://github.com/oxyzenQ/zelynic.git
 cd zelynic
 
-# Compile BPF programs
-clang -O2 -g -target bpf -c bpf/observer.bpf.c -o bpf/observer.bpf.o
-clang -O2 -g -target bpf -c bpf/limiter.bpf.c -o bpf/limiter.bpf.o
+# Compile BPF programs (same command as CI; the -I flag resolves
+# multiarch kernel headers on Debian/Ubuntu)
+ARCH="$(uname -m)"
+clang -O2 -g -target bpf -I"/usr/include/${ARCH}-linux-gnu" \
+  -c bpf/observer.bpf.c -o bpf/observer.bpf.o
+clang -O2 -g -target bpf -I"/usr/include/${ARCH}-linux-gnu" \
+  -c bpf/limiter.bpf.c -o bpf/limiter.bpf.o
 
 # Build Rust binary
 cargo build --release --features ebpf
@@ -103,7 +107,6 @@ sudo zelynic observe
 
 # Block an app from internet entirely
 sudo zelynic block-single brave
-sudo zelynic unstrict brave
 
 # Check active limits
 sudo zelynic status
@@ -268,7 +271,7 @@ Verified on 6 distributions (all pass 17/17 depth + 13/13 leak tests):
 |--------|--------|--------|-------------|
 | Arch Linux | 6.18 | GNU | brave 100kb → 730 Kbps |
 | CachyOS VM | 7.1 | MUSL | chromium 360kb → 3.0 Mbps |
-| Ubuntu 26.04 | 6.15 | GNU | firefox 100kb → 650 Kbps |
+| Ubuntu 26.04 | 7.0 | GNU | firefox 100kb → 650 Kbps |
 | Fedora 44 | 6.19 | GNU | firefox 100kb → 690 Kbps |
 | Ubuntu 21.10 | 5.13 | MUSL | GeckoMain 100kb → 770 Kbps |
 | Debian 13 | 6.12 | MUSL | firefox-esr 900kb → 7.0 Mbps |
