@@ -8,10 +8,10 @@ This document defines the visual identity and communication standards for the Ze
 
 **Zelynic** is a serious Linux bandwidth control system for process-aware monitoring, shaping, and validation. The brand reflects:
 
-- **Technical Precision** — engineered with `tc`, `nftables`, and `cgroup v2`
+- **Technical Precision** — enforced by a pure eBPF datapath on cgroup v2
 - **Reliability** — robust per-process network behavior control
 - **Professionalism** — clean CLI, detailed diagnostics, and thorough validation
-- **Clarity** — htop-like TUI, transparent monitoring
+- **Clarity** — clean CLI output, box-mode monitoring (`observe` / `top`)
 
 ---
 
@@ -37,7 +37,7 @@ This document defines the visual identity and communication standards for the Ze
 
 ### 3.1. Logo file
 
-The official logo is located at [`assets/zelynic-new-logo.png`](assets/zelynic-new-logo.png).
+The official logo is located at [`assets/zelynic-logo-master.png`](assets/zelynic-logo-master.png).
 
 ### 3.2. Usage rules
 

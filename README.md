@@ -171,7 +171,7 @@ For `--live` and `--duration` flags:
 - **Fire-and-forget**: `strict-single` exits 0, limit persists in background
 - **No residue**: `unstrict-all` removes all pin files + directory
 - **Fail-safe BPF**: returns "allow" on any error path (never blocks on failure)
-- **Dangerous target protection**: 53 system processes blocked by default
+- **Dangerous target protection**: 57 system processes blocked by default
 - **Overflow detection**: absurd rates show friendly warning, not wrapped values
 - **Crash recovery**: `zelynic recover` detects + cleans orphaned BPF pins
 - **File lock**: prevents concurrent operations from corrupting BPF state

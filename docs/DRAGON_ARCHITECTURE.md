@@ -28,7 +28,7 @@ userspace tool coordination, no format mismatches, no leaked state.
 
 1. **Pure eBPF.** All kernel-level operations are BPF programs. No `tc`, no
    `iptables`, no `nft`, no `systemd-run` cgroup tricks. If a feature can't be
-   done in BPF, it doesn't belong in dragon-architecture zelynic.
+   done in BPF, it doesn't belong in zelynic.
 
 2. **Single Hooking Layer.** All observation and enforcement happens at BPF
    hook points (`cgroup_skb`, `sock_ops`, `xdp`, `tc`-cls-act-BPF — but
@@ -57,7 +57,7 @@ userspace tool coordination, no format mismatches, no leaked state.
 ```
 ┌─────────────────────────────────────────────────────────┐
 │  Layer 4 — Presentation                                 │
-│  CLI / JSON / (future) TUI                              │
+│  CLI / JSON                                            │
 │  src/commands/, src/cli.rs                              │
 ├─────────────────────────────────────────────────────────┤
 │  Layer 3 — Aggregation                                  │
@@ -74,9 +74,9 @@ userspace tool coordination, no format mismatches, no leaked state.
 ├─────────────────────────────────────────────────────────┤
 │  Layer 0 — BPF Programs (kernel)                        │
 │  cgroup_skb/egress observer → cgroup_counters map       │
-│  bpf/observer.bpf.c                                     │
-│  (future: limiter.bpf.c, policer.bpf.c)                 │
-└─────────────────────────────────────────────────────────┘
+│  cgroup_skb ingress+egress limiter → token-bucket       │
+│  bpf/observer.bpf.c, bpf/limiter.bpf.c                  │
+│  (future: policer.bpf.c)                                │
 ```
 
 ### Layer 0 — BPF Programs (kernel)
@@ -116,14 +116,15 @@ calculations, top-N sorting, and threshold detection live.
 
 ### Layer 4 — Presentation
 
-CLI output (`CounterSummary::print()`), JSON output (future), TUI (future).
+CLI output (`CounterSummary::print()`), JSON output (`--print-json`).
 This layer never touches BPF directly — it consumes `CounterSummary` +
 `IdentityMap` and renders.
 
-## Roadmap (Dragon Architecture branch only)
+## Roadmap
 
-This branch is the staging ground for the pure-eBPF rewrite. The legacy
-`tc`/`nft`/`systemd-wrapper` code stays on `main` for the v3.x line.
+Dragon Architecture is the mainline: `main` carries the pure-eBPF v10
+line. The legacy `tc`/`nft`/`systemd-wrapper` code is frozen on the
+`legacy` branch (final v3.1.1, no new development).
 
 ### Done
 - [x] Layer 0: `bpf/observer.bpf.c` — cgroup_skb/egress counter
@@ -149,17 +150,16 @@ This branch is the staging ground for the pure-eBPF rewrite. The legacy
 - [x] Verified: real enforcement on Arch Linux, kernel 6.18, AMD Ryzen 7
 
 ### Next (Phase W5 — Production Hardening)
-- [ ] Cross-distro testing (Ubuntu LTS, Fedora, Debian, openSUSE)
-- [ ] Kernel version testing (5.13, 6.1 LTS, 6.6 LTS, 6.12+)
-- [ ] Stress test: `scripts/stress-test.sh`
-- [ ] Benchmark: `scripts/benchmark.sh` (CPU/memory overhead)
-- [ ] Layer 4: `--json` output for tooling integration
+- [x] Cross-distro testing — 6 distros verified (see CROSS_DISTRO_RESULTS.md)
+- [ ] Kernel version testing (5.13, 6.12, 6.18+ verified; 6.1/6.6 LTS pending)
+- [x] Stress test: `scripts/stress-test.sh`
+- [x] Benchmark: `scripts/benchmarking.sh` (CPU/memory overhead — see PERFORMANCE.md)
+- [x] Layer 4: `--print-json` output for tooling integration
 
 ### Future (post-v4.0)
 - [ ] Layer 0: `bpf/policer.bpf.c` — DSCP marking via `sock_ops`
 - [ ] Layer 0: XDP ingress counter (separate from cgroup_skb)
 - [ ] Layer 2: cgroup path → systemd unit name resolution
-- [ ] Layer 4: TUI dashboard
 - [ ] Layer 0: per-process (not just per-cgroup) enforcement
 
 ## Non-Goals
@@ -170,19 +170,19 @@ This branch is the staging ground for the pure-eBPF rewrite. The legacy
 - **No daemon mode.** Every invocation is one-shot. Fire-and-forget uses a
   minimal child process (sleeps + refreshes watchdog), not a daemon. The child
   dies on `unstrict` or system reboot.
-- **No combined-tool fallback.** If BPF can't do it, dragon-architecture zelynic
-  doesn't do it. The legacy `tc`/`nft` code stays on `main` for users who
-  need it, but this branch is pure eBPF.
+- **No combined-tool fallback.** If BPF can't do it, zelynic doesn't do
+  it. The legacy `tc`/`nft` code is frozen on the `legacy` branch for
+  users who need it; `main` is pure eBPF.
 - **No REST API / MCP / TUI-as-server.** CLI + config + exit codes. That's it.
 
 ## Branch Strategy
 
-- `main` — legacy zelynic v3.x line (`tc`/`nft`/`systemd-wrapper`). Tagged
-  releases continue here until dragon-architecture is production-ready.
-- `dragon-architecture` — pure eBPF rewrite. v4.0.0-alpha milestone. Active
-  development. Will merge to `main` as v4.0.0 after cross-distro testing.
-- `intergalaxion` — **deleted** (was 44 commits of planning docs, 0 BPF programs).
-  Superseded by `dragon-architecture` which ships real code.
+- `main` — pure eBPF v10.x (Dragon Architecture). Maintenance mode.
+- `legacy` — v3.1.1 (`tc`/`nft`/`systemd-wrapper`). Final legacy release,
+  no new development.
+- `intergalaxion` — **deleted** (was 44 commits of planning docs, 0 BPF
+  programs). Superseded by the Dragon Architecture rewrite which ships
+  real code.
 
 ## Naming
 

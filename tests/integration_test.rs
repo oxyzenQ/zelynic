@@ -81,9 +81,9 @@ fn test_strict_unstrict_cycle() {
 
     thread::sleep(Duration::from_millis(100));
 
-    // Apply limit
+    // Apply limit (lowercase rate units; per-direction flag)
     let output = zelynic_cmd()
-        .args(["strict-single", "sleep", "-d", "1MB/s", "--duration", "1"])
+        .args(["strict-single", "sleep", "-d", "1mb"])
         .output()
         .expect("Failed to apply limit");
 

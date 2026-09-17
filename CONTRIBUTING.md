@@ -32,18 +32,25 @@ src/
   cli.rs               — CLI definition (clap)
   commands/mod.rs      — command dispatchers
   commands/help.rs     — --help-all output
-  commands/backend.rs  — completions + man page
+  commands/block.rs    — block-* handlers
+  commands/cleanup.rs  — unstrict / unstrict-all / recover handlers
+  commands/monitor.rs  — status / list-apps / observe / top handlers
   ebpf/
     mod.rs             — module exports
     limiter.rs         — Limiter struct + BPF map operations
     limiter_types.rs   — types, constants, helper functions
     identity.rs        — cgroup ID → process name resolution
     loader.rs          — observer BPF loader
+    display.rs         — traffic table rendering
+    bpf_syscall.rs     — raw bpf() syscall fallback
+    lock.rs            — file lock (concurrency guard)
+    pin.rs             — BPF pin cleanup
     audit.rs           — JSONL audit log
   ebpf_legacy.rs       — kernel capability detection
   capabilities/mod.rs  — eBPF support check (doctor)
-  info.rs              — version + build info
+  info.rs              — version report (-V)
   update.rs            — --check-update
+  terminal.rs          — alt-screen box mode
 
 bpf/
   limiter.bpf.c        — token-bucket enforcer (ingress + egress)
@@ -51,12 +58,13 @@ bpf/
 
 scripts/
   build.sh             — check-all orchestration
+  gate-keepers.sh      — pre-commit non-code gates
+  check-permissions.sh — 644/755 permission guard
   check-policy.py      — LOC + copyright + SPDX check
-  stress-test.sh       — 6-test stress suite
+  stress-test.sh       — stress suite
   leak-test.sh         — orphan detection after every operation
-  distros-depth-test.sh — 17-test comprehensive suite
-  long-endurance-test.sh — 24h continuous enforcement
-  benchmark.sh         — CPU/memory overhead measurement
+  distros-depth-test.sh — comprehensive distro suite
+  benchmarking.sh      — CPU/memory overhead measurement (wraps benchmarking.py)
 ```
 
 ## Coding Standards
@@ -68,7 +76,7 @@ scripts/
    // SPDX-License-Identifier: GPL-3.0-only
    ```
 3. **License**: GPL-3.0-only
-4. **No tc/nft/systemd-wrapper**: pure eBPF only on `dragon-architecture` branch
+4. **No tc/nft/systemd-wrapper**: pure eBPF only on `main`
 5. **Fail-safe**: BPF programs return 1 (allow) on every error path
 6. **Lowercase units**: rate formats use `kb`, `mb`, `gb` (no uppercase, no `/s`)
 
@@ -91,5 +99,5 @@ warning.
 
 ## Branch Strategy
 
-- `main` — legacy v3.x (tc/nft/systemd-wrapper). Stable, maintained.
-- `dragon-architecture` — pure eBPF v4.0.0-alpha. Active development.
+- `main` — pure eBPF v10.x (Dragon Architecture). Maintenance mode.
+- `legacy` — v3.1.1 (tc/nft/systemd-wrapper). Final legacy release, no new development.
