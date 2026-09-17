@@ -113,6 +113,16 @@ scripts/
 5. **No tc/nft/systemd-wrapper**: pure eBPF only on `main`
 6. **Fail-safe**: BPF programs return 1 (allow) on every error path
 7. **Lowercase units**: rate formats use `kb`, `mb`, `gb` (no uppercase, no `/s`)
+8. **Dependency discipline** (NIGHT-hunt-6 supply-chain rule): every
+   direct dependency needs live call sites and an entry in
+   `docs/DEPENDENCY_AUDIT.md`; feature lists are trimmed to the modules
+   actually used (`default-features = false` + explicit features, see
+   the `clap`/`nix` entries in `Cargo.toml`); zero-call-site deps get
+   removed, not kept "for later". No time crates — wall-clock math is
+   the Hinnant civil-from-days algorithm in `build.rs` (chrono is
+   banned in `deny.toml`; re-adding it fails CI). `deny.toml` runs the
+   full feature graph (`all-features = true`), so the eBPF subtree is
+   inside every advisories/licenses/bans check.
 
 ## Pre-commit
 

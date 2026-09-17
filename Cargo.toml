@@ -19,18 +19,45 @@ rust-version = "1.98"
 # error-context + suggestions are the exact default set, pinned explicitly
 # so accidental default-feature additions cannot slip in. `color` feeds
 # the brand-styled help/errors; `suggestions` feeds the did-you-mean tips.
+# Dependency contract (NIGHT-hunt-6 strict supply-chain audit, 2026-09-18):
+# every direct dependency below must have a live call-site justification
+# recorded in docs/DEPENDENCY_AUDIT.md. Anything with zero call sites gets
+# removed (chrono, 2026-09-18), feature lists get trimmed to the exact
+# modules used (nix, 2026-09-18), and regressions are blocked in CI by
+# the chrono ban in deny.toml (cargo deny check all).
 clap = { version = "4", default-features = false, features = ["std", "color", "help", "usage", "error-context", "derive", "suggestions"] }
 anyhow = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-nix = { version = "0.31", features = ["process", "fs", "feature", "user", "signal", "term"] }
-chrono = { version = "0.4", default-features = false, features = ["clock"] }
+# Minimal safe-syscall wrapper. Feature list is exactly what the source
+# uses (NIGHT-hunt-6 trim; was process+fs+feature+user+signal+term):
+#   user    -> nix::unistd::geteuid()   (capabilities/mod.rs, commands/mod.rs)
+#   term    -> nix::sys::termios        (terminal/mod.rs raw mode)
+#   feature -> nix::sys::utsname::uname (bpf_syscall.rs kernel check;
+#              also a hard prerequisite of the `user` feature itself)
+# Dropped: process (fork/exec/wait), fs (stat/at), signal (kill) — zero
+# call sites each; enabling them compiled unused libc surface into every
+# build.
+nix = { version = "0.31", features = ["user", "term", "feature"] }
 libc = "0.2"
 
 # eBPF support (optional)
 [dependencies.aya]
 version = "0.13"
 optional = true
+
+# chrono dropped (Hinnant-style, NIGHT-hunt-6 2026-09-18; cosmostrix
+# lineage — same drop, stronger case). Was: `chrono = { version = "0.4",
+# default-features = false, features = ["clock"] }`. The `clock` feature
+# dragged iana-time-zone + num-traits into the lockfile for ZERO
+# production call sites — a grep for `chrono::` across src/, build.rs and
+# tests/ returned nothing; the dep was pure supply-chain dead weight
+# compiled into every build. Wall-clock formatting that would have needed
+# it (the `Build-time:` stamp in `-V`) is computed by Howard Hinnant's
+# civil_from_days algorithm directly in build.rs
+# (http://howardhinnant.github.io/date_algorithms.html) — no time crate,
+# std only. Re-adding chrono fails `cargo deny check all` in CI (deny.toml
+# bans section).
 
 [features]
 default = []
@@ -60,6 +87,3 @@ inherits = "release"
 
 [profile.pro-native-musl]
 inherits = "release"
-
-[dev-dependencies]
-serde = { version = "1", features = ["derive"] }

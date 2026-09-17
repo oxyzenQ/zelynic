@@ -43,6 +43,20 @@ same WiFi interface. No `tc`, no `nftables`, no `LD_PRELOAD`, no daemon.
 | **Crash recovery** | `zelynic recover` detects + removes orphaned BPF pins. File lock prevents corruption. |
 | **Discovery workflow** | `zelynic top --live` finds bandwidth hogs. Other limiters can't discover. |
 | **Box mode** | In-place refresh with a clean exit — zero scrollback pollution, no TUI. |
+| **Strict dependency diet** | 7 direct deps, 54 lockfile crates, every one justified in [docs/DEPENDENCY_AUDIT.md](docs/DEPENDENCY_AUDIT.md). |
+
+### Dependency policy (supply chain)
+
+zelynic treats dependencies as attack surface (NIGHT-hunt-6). The rules:
+
+- Every direct dependency has live call sites, recorded in
+  [docs/DEPENDENCY_AUDIT.md](docs/DEPENDENCY_AUDIT.md).
+- No time crates: the `Build-time` stamp in `-V` is computed by Howard
+  Hinnant's civil-from-days algorithm in `build.rs` (chrono was removed
+  with zero call sites — it kept 27 crates in the lockfile for nothing,
+  and is now banned in `deny.toml`).
+- `cargo deny check all` runs over the full feature graph (including the
+  eBPF subtree) in CI; re-adding chrono fails the build.
 
 ### vs traditional tools
 
@@ -103,7 +117,12 @@ report their build label in the version output:
 ```bash
 $ ./target/pro-native-gnu/zelynic -V
 Build: local-native-gnu (<hash>)
+Build-time: 9/18/2026 01:30 (UTC)
 ```
+
+The `Build-time` line is stamped at compile time by the Hinnant
+civil-from-days algorithm in `build.rs` — UTC only, no time crate in
+the dependency tree (see the dependency policy above).
 
 A native build never clobbers `target/release/zelynic` — the separate
 profile names keep both binaries side by side. Note: a native binary
