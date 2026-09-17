@@ -47,16 +47,26 @@ pub fn parse_time_duration(s: &str) -> Result<u64> {
     } else if let Some(v) = s.strip_suffix("s") {
         (v, 1u64)
     } else {
-        bail!(
-            "Invalid duration '{}'. Use format: 1s, 3m, 10h, or plain number (seconds)",
-            s
-        );
+        // Flagship typo rescue: suggest the near-miss duration the user
+        // probably meant (`3min` -> `3m`, `10sec` -> `10s`, `5H` -> `5h`).
+        // The tip line renders white via the line-aware error renderer.
+        let mut msg =
+            format!("Invalid duration '{s}'. Use format: 1s, 3m, 10h, or plain number (seconds)");
+        if let Some(tip) = crate::cli::ux::duration_tip(s) {
+            msg.push_str(&tip);
+        }
+        bail!("{msg}")
     };
 
-    let n: u64 = num_part
-        .trim()
-        .parse()
-        .map_err(|e| anyhow::anyhow!("Invalid number in duration '{}': {}", s, e))?;
+    let n: u64 = num_part.trim().parse().map_err(|e| {
+        // Same typo rescue as the suffix branch: a near-miss unit
+        // (`1kib` strips to number "1ki" + implied b) surfaces here.
+        let mut msg = format!("Invalid number in duration '{s}': {e}");
+        if let Some(tip) = crate::cli::ux::duration_tip(s) {
+            msg.push_str(&tip);
+        }
+        anyhow::anyhow!(msg)
+    })?;
 
     Ok(n.saturating_mul(multiplier))
 }
@@ -81,34 +91,44 @@ pub fn parse_rate(s: &str) -> Result<u64> {
     } else if let Some(v) = s.strip_suffix("b") {
         (v, 1u64)
     } else {
-        bail!(
-            "Invalid rate '{}'. Use lowercase: 1mb, 500kb, 1gb, or plain number",
-            s
-        );
+        // Flagship typo rescue: suggest the near-miss rate the user
+        // probably meant (`1MB` -> `1mb`, `1kib` -> `1kb`, `10mbps` ->
+        // `10mb`). The tip line renders white via the line-aware error
+        // renderer in the output layer.
+        let mut msg =
+            format!("Invalid rate '{s}'. Use lowercase: 1mb, 500kb, 1gb, or plain number");
+        if let Some(tip) = crate::cli::ux::rate_tip(s) {
+            msg.push_str(&tip);
+        }
+        bail!("{msg}")
     };
 
-    let n: u64 = num_part
-        .trim()
-        .parse()
-        .map_err(|e| anyhow::anyhow!("Invalid number in rate '{}': {}", s, e))?;
+    let n: u64 = num_part.trim().parse().map_err(|e| {
+        // Same typo rescue as the suffix branch: a near-miss unit
+        // like `1kib` strips its trailing 'b' and lands here with
+        // the unparsable number "1ki".
+        let mut msg = format!("Invalid number in rate '{s}': {e}");
+        if let Some(tip) = crate::cli::ux::rate_tip(s) {
+            msg.push_str(&tip);
+        }
+        anyhow::anyhow!(msg)
+    })?;
 
     // Use checked_mul to detect overflow. saturating_mul would return u64::MAX
     // which is misleading (user sees 18446744073709551615 instead of their input).
     match n.checked_mul(multiplier) {
         Some(result) => Ok(result),
-        None => bail!(
-            "Warning: rate '{s}' is too large (overflow). Maximum is 1gb (1,000,000,000 b/s)."
-        ),
+        None => bail!("Rate '{s}' is too large — the value overflows 64-bit math."),
     }
 }
 
 /// Validate rate is within bounds.
 /// rate = 0 is allowed (means BLOCK in BPF schema v3+).
-/// rate 1-1023 is rejected (below minimum, would brick apps).
+/// rate 1-999 is rejected (below minimum, would brick apps).
 pub fn validate_rate(rate_bps: u64) -> Result<()> {
     if rate_bps > 0 && rate_bps < MIN_RATE {
         bail!(
-            "Rate {} is below minimum ({} B/s = 1 KB/s).\n\
+            "Rate {} is below minimum ({} B/s = 1 KB/s, decimal SI).\n\
              Use --allow-dangerous to override. Use 0 for block.",
             rate_bps,
             MIN_RATE
@@ -233,6 +253,26 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_rate_uppercase_error_suggests_lowercase_twin() {
+        // Flagship typo rescue: the error must carry a tip line pointing
+        // at the lowercase twin (NIGHT-hunt-5).
+        let err_msg = format!("{}", parse_rate("1MB").unwrap_err());
+        assert!(
+            err_msg.contains("tip: a similar value exists: '1mb'"),
+            "error must suggest the lowercase twin, got: {err_msg}"
+        );
+    }
+
+    #[test]
+    fn test_parse_rate_near_miss_unit_suggestion() {
+        let err_msg = format!("{}", parse_rate("1kib").unwrap_err());
+        assert!(
+            err_msg.contains("tip: a similar value exists: '1kb'"),
+            "error must suggest the near-miss unit, got: {err_msg}"
+        );
+    }
+
+    #[test]
     fn test_parse_rate_invalid() {
         assert!(parse_rate("abc").is_err());
         assert!(parse_rate("1xb").is_err());
@@ -252,10 +292,12 @@ mod tests {
             err_msg.contains("100000000000000000kb"),
             "error should show original input, got: {err_msg}"
         );
-        // Must say "Warning:" not be a raw overflow.
+        // Must name the overflow plainly. The old message carried a
+        // bogus "Maximum is 1gb" from a pre-100gb era and a misleading
+        // "Warning:" prefix on a hard error (NIGHT-hunt-5).
         assert!(
-            err_msg.starts_with("Warning:"),
-            "error should start with 'Warning:', got: {err_msg}"
+            err_msg.contains("overflows 64-bit math"),
+            "error should name the overflow, got: {err_msg}"
         );
         // Must NOT show the wrapped u64::MAX value.
         assert!(
@@ -275,7 +317,20 @@ mod tests {
     #[test]
     fn test_validate_rate_minimum() {
         assert!(validate_rate(512).is_err());
+        assert!(validate_rate(1000).is_ok());
         assert!(validate_rate(1024).is_ok());
+    }
+
+    #[test]
+    fn test_validate_rate_minimum_harmonized_with_parser() {
+        // NIGHT-hunt-5 harmonization: MIN_RATE is decimal SI (1000 B/s),
+        // matching parse_rate where 1kb = 1000. The documented minimum
+        // "1 KB/s" must accept the documented input "1kb" — before the
+        // fix, MIN_RATE was 1024 and `strict-single brave 1kb` was
+        // rejected as below-minimum, contradicting every doc.
+        let rate = parse_rate("1kb").unwrap();
+        assert_eq!(rate, 1000);
+        assert!(validate_rate(rate).is_ok());
     }
 
     #[test]

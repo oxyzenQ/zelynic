@@ -13,9 +13,9 @@ fn parse_rate_checked(s: &str, allow_dangerous: bool) -> Result<u64> {
     if !allow_dangerous {
         validate_rate(rate)?;
     } else if rate < MIN_RATE {
-        eprintln!("[limiter] WARNING: rate below minimum — overriding with --allow-dangerous");
+        eprintln_safe!("[limiter] WARNING: rate below minimum — overriding with --allow-dangerous");
     } else if rate > MAX_RATE {
-        eprintln!("[limiter] WARNING: rate above maximum — overriding with --allow-dangerous");
+        eprintln_safe!("[limiter] WARNING: rate above maximum — overriding with --allow-dangerous");
     }
     Ok(rate)
 }
@@ -67,7 +67,7 @@ fn parse_rates(
             if !allow_dangerous {
                 validate_rate(rate)?;
             } else if rate < MIN_RATE {
-                eprintln!(
+                eprintln_safe!(
                     "[limiter] WARNING: rate below minimum — overriding with --allow-dangerous"
                 );
             }
@@ -82,7 +82,7 @@ fn parse_rates(
             if !allow_dangerous {
                 validate_rate(rate)?;
             } else if rate < MIN_RATE {
-                eprintln!(
+                eprintln_safe!(
                     "[limiter] WARNING: rate below minimum — overriding with --allow-dangerous"
                 );
             }

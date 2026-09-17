@@ -10,8 +10,13 @@
 
 pub const BPF_OBJECT_PATH: &str = "bpf/limiter.bpf.o";
 
-/// Minimum allowed rate: 1 KB/s.
-pub const MIN_RATE: u64 = 1024;
+/// Minimum allowed rate: 1 KB/s (1000 B/s, decimal SI).
+///
+/// NIGHT-hunt-5 harmonization: matches `parse_rate`, where 1kb = 1000
+/// (decimal SI, the documented contract). The old value 1024 was a
+/// binary-unit leftover that rejected the documented minimum input
+/// `1kb` (1000 < 1024) — the parser, the guard, and the docs disagreed.
+pub const MIN_RATE: u64 = 1000;
 
 /// Maximum allowed rate: 100 GB/s.
 /// zelynic can enforce up to infinity, but 100 GB/s is the practical default.

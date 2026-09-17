@@ -34,6 +34,35 @@ use crate::ebpf::pin::unpin_all;
 #[cfg(feature = "ebpf")]
 const PID_FILE: &str = "/tmp/zelynic.pid";
 
+/// Shared root guard — one clean branded error instead of the old
+/// double print (a plain "requires root" line followed by a second
+/// duplicated "root required" error from the anyhow path).
+///
+/// The tip line renders white via the line-aware error renderer.
+/// ebpf-gated: every caller is an eBPF-surface command handler.
+#[cfg(feature = "ebpf")]
+pub(crate) fn ensure_root() -> Result<()> {
+    if nix::unistd::geteuid().is_root() {
+        Ok(())
+    } else {
+        Err(anyhow::anyhow!(
+            "root required — eBPF operations need CAP_BPF\n  \
+             tip: re-run with sudo"
+        ))
+    }
+}
+
+/// Shared error for commands compiled without the `ebpf` feature:
+/// a single actionable message instead of the old eprintln + Err pair,
+/// which printed the failure twice.
+#[cfg(not(feature = "ebpf"))]
+fn ebpf_disabled() -> Result<()> {
+    Err(anyhow::anyhow!(
+        "eBPF not compiled into this build\n  \
+         tip: rebuild with 'cargo build --features ebpf'"
+    ))
+}
+
 /// Top-level CLI dispatch.
 pub(crate) fn dispatch(cli: Cli) -> Result<()> {
     match cli.command {
@@ -68,8 +97,7 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
                     force,
                     cli.verbose,
                 );
-                eprintln!("eBPF not compiled. Rebuild with: cargo build --features ebpf");
-                Err(anyhow::anyhow!("eBPF feature not enabled"))
+                ebpf_disabled()
             }
         }
 
@@ -104,8 +132,7 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
                     force,
                     cli.verbose,
                 );
-                eprintln!("eBPF not compiled. Rebuild with: cargo build --features ebpf");
-                Err(anyhow::anyhow!("eBPF feature not enabled"))
+                ebpf_disabled()
             }
         }
 
@@ -130,8 +157,7 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
             #[cfg(not(feature = "ebpf"))]
             {
                 let _ = (rate, download, upload, allow_dangerous, force, cli.verbose);
-                eprintln!("eBPF not compiled. Rebuild with: cargo build --features ebpf");
-                Err(anyhow::anyhow!("eBPF feature not enabled"))
+                ebpf_disabled()
             }
         }
 
@@ -143,8 +169,7 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
             #[cfg(not(feature = "ebpf"))]
             {
                 let _ = (target, force, cli.verbose);
-                eprintln!("eBPF not compiled. Rebuild with: cargo build --features ebpf");
-                Err(anyhow::anyhow!("eBPF feature not enabled"))
+                ebpf_disabled()
             }
         }
 
@@ -156,8 +181,7 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
             #[cfg(not(feature = "ebpf"))]
             {
                 let _ = (targets, force, cli.verbose);
-                eprintln!("eBPF not compiled. Rebuild with: cargo build --features ebpf");
-                Err(anyhow::anyhow!("eBPF feature not enabled"))
+                ebpf_disabled()
             }
         }
 
@@ -169,8 +193,7 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
             #[cfg(not(feature = "ebpf"))]
             {
                 let _ = (force, cli.verbose);
-                eprintln!("eBPF not compiled. Rebuild with: cargo build --features ebpf");
-                Err(anyhow::anyhow!("eBPF feature not enabled"))
+                ebpf_disabled()
             }
         }
 
@@ -182,8 +205,7 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
             #[cfg(not(feature = "ebpf"))]
             {
                 let _ = (target, cli.verbose);
-                eprintln!("eBPF not compiled. Rebuild with: cargo build --features ebpf");
-                Err(anyhow::anyhow!("eBPF feature not enabled"))
+                ebpf_disabled()
             }
         }
 
@@ -194,8 +216,7 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
             }
             #[cfg(not(feature = "ebpf"))]
             {
-                eprintln!("eBPF not compiled. Rebuild with: cargo build --features ebpf");
-                Err(anyhow::anyhow!("eBPF feature not enabled"))
+                ebpf_disabled()
             }
         }
 
@@ -206,8 +227,7 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
             }
             #[cfg(not(feature = "ebpf"))]
             {
-                eprintln!("eBPF not compiled. Rebuild with: cargo build --features ebpf");
-                Err(anyhow::anyhow!("eBPF feature not enabled"))
+                ebpf_disabled()
             }
         }
 
@@ -218,8 +238,7 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
             }
             #[cfg(not(feature = "ebpf"))]
             {
-                eprintln!("eBPF not compiled. Rebuild with: cargo build --features ebpf");
-                Err(anyhow::anyhow!("eBPF feature not enabled"))
+                ebpf_disabled()
             }
         }
 
@@ -230,8 +249,7 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
             }
             #[cfg(not(feature = "ebpf"))]
             {
-                eprintln!("eBPF not compiled. Rebuild with: cargo build --features ebpf");
-                Err(anyhow::anyhow!("eBPF feature not enabled"))
+                ebpf_disabled()
             }
         }
 
@@ -243,8 +261,7 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
             #[cfg(not(feature = "ebpf"))]
             {
                 let _ = (live, cgroup, cli.verbose);
-                eprintln!("eBPF not compiled. Rebuild with: cargo build --features ebpf");
-                Err(anyhow::anyhow!("eBPF feature not enabled"))
+                ebpf_disabled()
             }
         }
 
@@ -260,20 +277,19 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
             #[cfg(not(feature = "ebpf"))]
             {
                 let _ = (duration, limit, live, cli.verbose);
-                eprintln!("eBPF not compiled. Rebuild with: cargo build --features ebpf");
-                Err(anyhow::anyhow!("eBPF feature not enabled"))
+                ebpf_disabled()
             }
         }
 
         Some(Commands::Doctor) => crate::capabilities::run_doctor(cli.print_json),
 
         None => {
-            if cli.help_all {
-                help::print_help_all();
-                Ok(())
-            } else {
-                Cli::parse_from(["zelynic", "--help"]);
-                Ok(())
+            // No subcommand: show the standard clap help. Routed through
+            // the branded bridge so the output is styled and written via
+            // the broken-pipe-safe stdout path.
+            match Cli::try_parse_from(["zelynic", "--help"]) {
+                Ok(_) => Ok(()),
+                Err(e) => crate::cli::ux::exit_clap_error(e),
             }
         }
     }

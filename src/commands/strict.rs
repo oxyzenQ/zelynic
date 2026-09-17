@@ -21,10 +21,7 @@ pub(crate) fn handle_strict_single(
 ) -> Result<()> {
     use crate::ebpf::limiter::{Limiter, Target};
 
-    if !nix::unistd::geteuid().is_root() {
-        eprintln!("zelynic requires root. Run with sudo.");
-        return Err(anyhow::anyhow!("root required"));
-    }
+    super::ensure_root()?;
 
     // Prevent concurrent operations (race condition elimination).
     let _lock = crate::ebpf::lock::acquire()?;
@@ -48,7 +45,7 @@ pub(crate) fn handle_strict_single(
     let mut limiter = Limiter::open_pinned(verbose)?;
     let applied = limiter.apply_single(&target, &rates)?;
     if applied == 0 {
-        eprintln!("No cgroup found for '{target_str}'. Nothing to limit.");
+        eprintln_safe!("No cgroup found for '{target_str}'. Nothing to limit.");
         return Ok(());
     }
 
@@ -69,10 +66,7 @@ pub(crate) fn handle_strict_multi(
 ) -> Result<()> {
     use crate::ebpf::limiter::{Limiter, Target};
 
-    if !nix::unistd::geteuid().is_root() {
-        eprintln!("zelynic requires root. Run with sudo.");
-        return Err(anyhow::anyhow!("root required"));
-    }
+    super::ensure_root()?;
 
     // Prevent concurrent operations (race condition elimination).
     let _lock = crate::ebpf::lock::acquire()?;
@@ -107,7 +101,8 @@ pub(crate) fn handle_strict_multi(
         ));
     }
 
-    // If no serve child running, spawn one.
+    // Attach + pin BPF programs if not already pinned (fire-and-forget:
+    // pins survive process exit, no daemon).
     if !crate::ebpf::limiter::Limiter::is_pinned() {
         crate::ebpf::limiter::Limiter::attach(verbose)?;
     }
@@ -115,17 +110,21 @@ pub(crate) fn handle_strict_multi(
     let mut limiter = Limiter::open_pinned(verbose)?;
     let applied = limiter.apply_group(&targets, &rates)?;
     if applied == 0 {
-        eprintln!("No cgroups found for any target in '{targets_str}'. Nothing to limit.");
+        eprintln_safe!("No cgroups found for any target in '{targets_str}'. Nothing to limit.");
         return Ok(());
     }
 
     print_pin_summary(targets_str, &rates, applied);
 
-    // Verify serve child is still alive after apply.
+    // Validate final state: pins must still be present after apply. A
+    // concurrent operation (unstrict-all in another terminal) can tear
+    // them down mid-flight; the old code misattributed this to a
+    // "serve child" that no longer exists and read a stale log file.
     if !crate::ebpf::limiter::Limiter::is_pinned() {
-        let log = std::fs::read_to_string("/tmp/zelynic-serve.log").unwrap_or_default();
-        eprintln!("WARNING: Serve child died after applying policies!");
-        eprintln!("Log: {log}");
+        return Err(anyhow::anyhow!(
+            "BPF pins missing after apply — a concurrent operation may have interfered\n  \
+             tip: run 'zelynic recover' to repair state"
+        ));
     }
     Ok(())
 }
@@ -145,10 +144,7 @@ pub(crate) fn handle_limit_all(
     use crate::ebpf::identity::IdentityMap;
     use crate::ebpf::limiter::{Limiter, Target};
 
-    if !nix::unistd::geteuid().is_root() {
-        eprintln!("zelynic requires root. Run with sudo.");
-        return Err(anyhow::anyhow!("root required"));
-    }
+    super::ensure_root()?;
 
     // Prevent concurrent operations (race condition elimination).
     let _lock = crate::ebpf::lock::acquire()?;
@@ -184,7 +180,7 @@ pub(crate) fn handle_limit_all(
     }
 
     if user_apps.is_empty() {
-        eprintln!("No apps found to limit.");
+        eprintln_safe!("No apps found to limit.");
         return Ok(());
     }
 
@@ -192,7 +188,7 @@ pub(crate) fn handle_limit_all(
     user_apps.sort();
     user_apps.dedup();
 
-    eprintln!(
+    eprintln_safe!(
         "Limiting {} app(s) to {}",
         user_apps.len(),
         rates
@@ -202,12 +198,12 @@ pub(crate) fn handle_limit_all(
     );
 
     if !skipped.is_empty() {
-        eprintln!(
+        eprintln_safe!(
             "Skipped {} system app(s) (use --force to include):",
             skipped.len()
         );
         for s in &skipped {
-            eprintln!("  - {s}");
+            eprintln_safe!("  - {s}");
         }
     }
 
@@ -217,7 +213,8 @@ pub(crate) fn handle_limit_all(
         .map(|n| Target::ProcessName(n.clone()))
         .collect();
 
-    // If no serve child running, spawn one.
+    // Attach + pin BPF programs if not already pinned (fire-and-forget:
+    // pins survive process exit, no daemon).
     if !crate::ebpf::limiter::Limiter::is_pinned() {
         crate::ebpf::limiter::Limiter::attach(verbose)?;
     }
@@ -227,10 +224,13 @@ pub(crate) fn handle_limit_all(
 
     print_pin_summary(&format!("{} apps", user_apps.len()), &rates, applied);
 
+    // Validate final state: pins must still be present after apply (see
+    // handle_strict_multi for the rationale).
     if !crate::ebpf::limiter::Limiter::is_pinned() {
-        let log = std::fs::read_to_string("/tmp/zelynic-serve.log").unwrap_or_default();
-        eprintln!("WARNING: Serve child died after applying policies!");
-        eprintln!("Log: {log}");
+        return Err(anyhow::anyhow!(
+            "BPF pins missing after apply — a concurrent operation may have interfered\n  \
+             tip: run 'zelynic recover' to repair state"
+        ));
     }
     Ok(())
 }
@@ -263,9 +263,9 @@ fn print_pin_summary(target_str: &str, rates: &crate::ebpf::limiter::RateSpec, a
     .copied()
     .collect();
 
-    eprintln!(
+    eprintln_safe!(
         "Limiting '{target_str}' to {} ({applied} policies, active in background)",
         parts.join(" + ")
     );
-    eprintln!("Run 'zelynic unstrict {target_str}' to remove, 'zelynic status' to check.");
+    eprintln_safe!("Run 'zelynic unstrict {target_str}' to remove, 'zelynic status' to check.");
 }

@@ -15,7 +15,11 @@ categories = ["command-line-utilities", "network-programming"]
 rust-version = "1.98"
 
 [dependencies]
-clap = { version = "4", features = ["derive"] }
+# Explicit feature set (cosmostrix contract): std + color + help + usage +
+# error-context + suggestions are the exact default set, pinned explicitly
+# so accidental default-feature additions cannot slip in. `color` feeds
+# the brand-styled help/errors; `suggestions` feeds the did-you-mean tips.
+clap = { version = "4", default-features = false, features = ["std", "color", "help", "usage", "error-context", "derive", "suggestions"] }
 anyhow = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

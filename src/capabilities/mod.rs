@@ -88,7 +88,7 @@ fn find_cgroup2_mount() -> Option<String> {
 pub fn run_doctor(json: bool) -> Result<()> {
     let report = detect();
     if json {
-        println!("{}", serde_json::to_string_pretty(&report)?);
+        println_safe!("{}", serde_json::to_string_pretty(&report)?);
     } else {
         print_report(&report);
     }
@@ -98,10 +98,10 @@ pub fn run_doctor(json: bool) -> Result<()> {
 fn print_report(report: &CapabilityReport) {
     use crate::output::{brand_bold, error_bold, ok_bold, warn_bold};
 
-    println!("{}", brand_bold("━━━ zelynic eBPF Capability Doctor ━━━"));
-    println!();
-    println!("  Kernel:     {}", report.system.kernel);
-    println!(
+    println_safe!("{}", brand_bold("━━━ zelynic eBPF Capability Doctor ━━━"));
+    println_safe!();
+    println_safe!("  Kernel:     {}", report.system.kernel);
+    println_safe!(
         "  cgroup v2:  {}",
         if report.system.cgroup_v2 {
             ok_bold("YES")
@@ -109,7 +109,7 @@ fn print_report(report: &CapabilityReport) {
             error_bold("NO")
         }
     );
-    println!(
+    println_safe!(
         "  BPF fs:     {}",
         if report.system.bpf_fs_mounted {
             ok_bold("YES")
@@ -117,7 +117,7 @@ fn print_report(report: &CapabilityReport) {
             error_bold("NO")
         }
     );
-    println!(
+    println_safe!(
         "  Root:       {}",
         if report.system.is_root {
             ok_bold("YES")
@@ -125,7 +125,7 @@ fn print_report(report: &CapabilityReport) {
             warn_bold("NO")
         }
     );
-    println!(
+    println_safe!(
         "  eBPF:       {}",
         if report.ebpf_supported {
             ok_bold("SUPPORTED")
@@ -135,23 +135,23 @@ fn print_report(report: &CapabilityReport) {
     );
 
     if !report.warnings.is_empty() {
-        println!();
-        println!("{}", warn_bold("Warnings:"));
+        println_safe!();
+        println_safe!("{}", warn_bold("Warnings:"));
         for w in &report.warnings {
-            println!("  ! {w}");
+            println_safe!("  ! {w}");
         }
     }
 
     // Check BPF pin state (only if eBPF is supported + running as root).
     if report.ebpf_supported && report.system.is_root {
-        println!();
+        println_safe!();
         print_pin_state();
     }
 
     if report.ebpf_supported && report.system.is_root {
-        println!();
-        println!(
-            "  {} Run `zelynic strict-single <target> <rate>` or `zelynic observe`",
+        println_safe!();
+        println_safe!(
+            "  {} Run 'zelynic strict-single <target> <rate>' or 'zelynic observe'",
             ok_bold("Ready:")
         );
     }
@@ -165,7 +165,7 @@ fn print_pin_state() {
     let pin_dir = std::path::Path::new("/sys/fs/bpf/zelynic");
 
     if !pin_dir.exists() {
-        println!("  Pins:       {} (no limits active)", ok_bold("clean"));
+        println_safe!("  Pins:       {} (no limits active)", ok_bold("clean"));
         return;
     }
 
@@ -174,7 +174,7 @@ fn print_pin_state() {
         .unwrap_or_default();
 
     if entries.is_empty() {
-        println!("  Pins:       {} (empty directory)", ok_bold("clean"));
+        println_safe!("  Pins:       {} (empty directory)", ok_bold("clean"));
         return;
     }
 
@@ -186,13 +186,13 @@ fn print_pin_state() {
     let all_valid = has_dl_prog && has_ul_prog && has_dl_link && has_ul_link;
 
     if all_valid {
-        println!(
+        println_safe!(
             "  Pins:       {} ({} files, BPF active)",
             ok_bold("active"),
             entries.len()
         );
     } else {
-        println!(
+        println_safe!(
             "  Pins:       {} ({} files, partial — run 'zelynic recover')",
             warn_bold("STALE"),
             entries.len()

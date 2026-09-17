@@ -82,6 +82,6 @@ pub fn print_version_report() {
         build_hash()
     );
 
-    println!("{}", crate::output::brand(&header));
-    println!("{body}");
+    println_safe!("{}", crate::output::brand(&header));
+    println_safe!("{body}");
 }

@@ -2,10 +2,13 @@
 // SPDX-License-Identifier: GPL-3.0-only
 use clap::{Parser, Subcommand};
 
-/// zelynic — Per-app network rate limiter for Linux
+pub(crate) mod suggestion;
+pub(crate) mod ux;
+
+/// zelynic — Per-app network rate limiter and traffic monitor for Linux
 ///
-/// Limit any app's download/upload speed using eBPF. Pure kernel enforcement,
-/// no tc/nft. Requires kernel 5.13+ and root.
+/// Limit and observe any app's download/upload speed using eBPF. Pure
+/// kernel enforcement, no tc/nft. Requires kernel 5.13+ and root.
 #[derive(Parser, Debug)]
 #[command(
     name = "zelynic",
@@ -16,6 +19,7 @@ use clap::{Parser, Subcommand};
     disable_version_flag = true,
     propagate_version = true,
     arg_required_else_help = false,
+    styles = clap_styles(),
 )]
 pub struct Cli {
     #[command(subcommand)]
@@ -29,10 +33,6 @@ pub struct Cli {
     #[arg(long = "check-update", alias = "check-updated", global = false)]
     pub check_update: bool,
 
-    /// Disable colored output
-    #[arg(long, global = true, help = "Disable colored output")]
-    pub no_color: bool,
-
     /// Verbose/debug output
     #[arg(short = 'v', long = "verbose", global = true)]
     pub verbose: bool,
@@ -44,6 +44,48 @@ pub struct Cli {
     /// Show comprehensive help
     #[arg(long = "help-all", global = false)]
     pub help_all: bool,
+}
+
+// ── Clap brand styling (cosmostrix contract, NIGHT-hunt-5) ─────────────────
+//
+// Purple brand identity: section headings (Usage, Commands, Options)
+// render in bold truecolor purple #A855F7 — the same RGB as the
+// [`crate::output`] brand layer, so every purple element in --help,
+// -V, and errors uses the exact same value. Literals render bold;
+// placeholders stay in the terminal default color.
+//
+// Style harmony (owner mandate): clap's default styles leave error
+// labels plain red and tip/suggestion lines GREEN — hues that disagree
+// with the branded error path (error red #FF5A5A, suggestion white
+// #DCEBFF, warn yellow #FFEB3C). These entries align clap's error
+// rendering with the output-layer semantic palette so both surfaces
+// (clap-rendered and ux-rendered) look identical.
+
+use clap::builder::styling::{Color, Effects, RgbColor, Style};
+use clap::builder::Styles;
+
+#[must_use]
+pub(crate) fn clap_styles() -> Styles {
+    Styles::styled()
+        .header(
+            Style::new()
+                .effects(Effects::BOLD)
+                .fg_color(Some(Color::Rgb(RgbColor(168, 85, 247)))),
+        )
+        .usage(
+            Style::new()
+                .effects(Effects::BOLD)
+                .fg_color(Some(Color::Rgb(RgbColor(168, 85, 247)))),
+        )
+        .literal(Style::new().effects(Effects::BOLD))
+        .placeholder(Style::new())
+        .error(
+            Style::new()
+                .effects(Effects::BOLD)
+                .fg_color(Some(Color::Rgb(RgbColor(255, 90, 90)))),
+        )
+        .valid(Style::new().fg_color(Some(Color::Rgb(RgbColor(220, 235, 255)))))
+        .invalid(Style::new().fg_color(Some(Color::Rgb(RgbColor(255, 235, 60)))))
 }
 
 #[derive(Subcommand, Debug)]
@@ -72,7 +114,7 @@ pub enum Commands {
         #[arg(short = 'u', long = "upload")]
         upload: Option<String>,
 
-        /// Allow rates below 1 kb (dangerous)
+        /// Allow rates below 1kb (dangerous)
         #[arg(long)]
         allow_dangerous: bool,
 
@@ -106,7 +148,7 @@ pub enum Commands {
         #[arg(short = 'u', long = "upload")]
         upload: Option<String>,
 
-        /// Allow rates below 1 kb (dangerous)
+        /// Allow rates below 1kb (dangerous)
         #[arg(long)]
         allow_dangerous: bool,
 

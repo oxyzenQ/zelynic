@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 //! Status display logic — human-readable table + JSON output.
-//! Extracted from limiter.rs to keep core logic under 800 LOC.
+//! Extracted from the limiter core to keep every module under the
+//! 500-line cap (scripts/check-loc.sh).
 
 use anyhow::Result;
 use std::collections::HashMap;
@@ -65,34 +66,34 @@ pub fn print_status(
     identity: &IdentityMap,
     watchdog_deadline: Option<u64>,
 ) {
-    println!("\n━━━ zelynic Status ━━━");
+    println_safe!("\n{}", crate::output::brand_bold("━━━ zelynic Status ━━━"));
 
     match watchdog_deadline {
         Some(0) | None => {
-            println!("  Watchdog: not set (enforcing)");
+            println_safe!("  Watchdog: not set (enforcing)");
         }
         Some(deadline) => {
             let now = monotonic_ns();
             if deadline > now {
                 let remaining = (deadline - now) / 1_000_000_000;
-                println!("  Watchdog: {remaining}s remaining");
+                println_safe!("  Watchdog: {remaining}s remaining");
             } else {
-                println!("  Watchdog: EXPIRED (BPF is no-op)");
+                println_safe!("  Watchdog: EXPIRED (BPF is no-op)");
             }
         }
     }
 
     if dl_policies.is_empty() && ul_policies.is_empty() {
-        println!("  Active limits: none");
+        println_safe!("  Active limits: none");
         return;
     }
 
-    println!(
+    println_safe!(
         "  Active limits: {} dl, {} ul",
         dl_policies.len(),
         ul_policies.len()
     );
-    println!();
+    println_safe!();
 
     let data = collect_display_data(dl_policies, ul_policies, stats);
     if data.is_empty() {
@@ -132,7 +133,7 @@ pub fn print_status(
         col_widths[0] = col_widths[0].saturating_sub(excess).max(10);
     }
 
-    println!(
+    println_safe!(
         "  {:<w0$} {:>w1$} {:>w2$} {:>w3$} {:>w4$}",
         headers[0],
         headers[1],
@@ -146,7 +147,7 @@ pub fn print_status(
         w4 = col_widths[4]
     );
     let sep_len: usize = col_widths.iter().sum::<usize>() + 4;
-    println!("  {}", "─".repeat(sep_len));
+    println_safe!("  {}", "─".repeat(sep_len));
 
     for row in &rows {
         let label = if row.0.chars().count() > col_widths[0] {
@@ -159,7 +160,7 @@ pub fn print_status(
         } else {
             row.0.clone()
         };
-        println!(
+        println_safe!(
             "  {:<w0$} {:>w1$} {:>w2$} {:>w3$} {:>w4$}",
             label,
             row.1,
@@ -232,6 +233,6 @@ pub fn print_status_json(
         limits,
     };
 
-    println!("{}", serde_json::to_string_pretty(&status)?);
+    println_safe!("{}", serde_json::to_string_pretty(&status)?);
     Ok(())
 }
