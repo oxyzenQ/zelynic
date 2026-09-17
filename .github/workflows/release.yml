@@ -11,6 +11,11 @@ on:
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
   CARGO_TERM_COLOR: always
+  # Single source of truth for the Rust toolchain version.
+  # Keep in sync with rust-toolchain.toml + Cargo.toml rust-version
+  # (enforced by scripts/check-rust-version-sync.sh; bump via
+  # scripts/rust-version-to.sh).
+  RUST_VERSION: "1.98.1"
 
 jobs:
   # ===========================================================================
@@ -29,6 +34,7 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
+          toolchain: ${{ env.RUST_VERSION }}
           targets: x86_64-unknown-linux-gnu,x86_64-unknown-linux-musl
 
       - name: Install BPF build dependencies

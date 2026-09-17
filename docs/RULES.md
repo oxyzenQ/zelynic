@@ -1,15 +1,60 @@
+<!-- Copyright (C) 2026 rezky_nightky -->
+<!-- SPDX-License-Identifier: GPL-3.0-only -->
+
 # Zelynic Project Rules
 
 ## File Size
 
-- Core/code files must stay under `1000` lines of code.
-- This applies to source and core files such as `*.rs`, `*.c`, `*.h`, `*.css`,
-  `*.py`, and `*.sh`.
-- This excludes `*.md`, `*.txt`, generated files, lockfiles, assets, release
+- Rust source files must stay under `500` lines (hard cap, owner rule).
+- This applies to every `.rs` file under `src/` (recursive) plus `build.rs`.
+- It excludes `*.md`, `*.txt`, generated files, lockfiles, assets, release
   artifacts, `.git/`, and `target/`.
 - `src/main.rs` has a soft target of `100-300` LOC in a mature project and
   should remain bootstrap/wiring only.
-- `src/cli.rs` may be larger when it is mostly declarative Clap definitions.
+- A file that legitimately cannot be split self-declares an exemption at
+  the top of the file:
+
+  ```rust
+  // LOC_EXEMPT: <one-line justification>
+  ```
+
+  The marker is tracked migration debt — removing it is deleting the
+  comment, nothing else. There is no hardcoded exemption list in the
+  checker (lists drift out of sync; markers live with the file).
+
+### Enforcement
+
+`scripts/check-loc.sh` (wired into `scripts/gate-keepers.sh`) scans the
+policy scope, prints every file's count, and fails on any file over the
+cap without an exemption marker.
+
+## Rust Toolchain Pin
+
+- `rust-toolchain.toml` pins a concrete `X.Y.Z` version — never a
+  channel alias (`stable` drifts; a future release could silently
+  break the build). This is the dormant-mode policy.
+- The pin must agree with `Cargo.toml` `rust-version` (MSRV, major.minor)
+  and every workflow `RUST_VERSION` env that installs a toolchain.
+- Bump everything in one command: `./scripts/rust-version-to.sh <X.Y.Z>`
+  (idempotent, refuses dirty trees, audits docs for stale references,
+  verifies sync as its final gate).
+- `scripts/check-rust-version-sync.sh` (wired into `gate-keepers.sh`)
+  fails the gate on any disagreement or on a channel alias.
+
+## Documentation Disclaimer
+
+- Every living `.md` file carries the stale-data disclaimer at the
+  bottom (`<!-- ZELYNIC-DISCLAIMER -->` block).
+- `CHANGELOG.md` is excluded — frozen historical record, never
+  rewritten (the same exclusion policy as every other gate).
+- Inject with `./scripts/inject-disclaimer.sh`; verify with
+  `./scripts/inject-disclaimer.sh --check` (wired into
+  `gate-keepers.sh`; the gatekeeper's `--fix` auto-injects).
+
+Rationale: maintainers (and AI agents) update source code but forget to
+sync every doc that references a number, path, or symbol. Chasing
+perfect sync has diminishing returns; the uniform disclaimer asks
+readers to cross-check the source instead.
 
 ## Manual Workflow
 
@@ -93,3 +138,20 @@ current package version is already verified by
 `tests/integration_test.rs::test_version` (which uses the `--version` CLI
 flag), so per-module version assertions are redundant anyway.
 
+<!-- ZELYNIC-DISCLAIMER -->
+<!--
+  Documentation Disclaimer — read before relying on any data point.
+
+  This document may contain stale data, hardcoded counts, or outdated
+  file paths and symbol names. Maintainers update source code but may
+  forget to sync every doc — perfect sync across every .md file is a
+  known maintenance burden with diminishing returns.
+
+  Source code (`src/**/*.rs`, `bpf/*.bpf.c`) is the single source of
+  truth. Always cross-check against the actual source files before
+  relying on any specific number (target count, LOC, rate bound),
+  file path, function name, or config key.
+
+  If you find a discrepancy, please open a PR — the doc is wrong, not
+  the source.
+-->

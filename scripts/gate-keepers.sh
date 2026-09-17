@@ -22,12 +22,21 @@
 #   3.  actionlint on .github/workflows/*.yml
 #   4.  TOML syntax validation (python3 tomllib)
 #   5.  codespell on all text files (repo .codespellrc)
-#   6.  SPDX license header check on source files
+#   6.  SPDX license header check (scripts/check-headers.sh — dual-line
+#       contract across rs/c/h/py/sh/toml/yml/yaml/md; untracked files
+#       included so new files fail BEFORE commit)
 #   7.  File permission guard (owner rule — git-tracked files 644,
 #       tracked executables and directories 755, shebang parity;
 #       scripts/check-permissions.sh, --fix chmods)
 #   8.  Emoji sweep (owner rule — no emoji-class codepoints in ANY
-#       tracked text file; strict detector, exit 1 on hits)
+#       tracked text file; cosmostrix fail blocks, strict detector,
+#       exit 1 on hits)
+#   9.  Rust source LOC cap (owner rule — scripts/check-loc.sh, hard
+#       limit 500 lines; // LOC_EXEMPT: marker = tracked migration debt)
+#  10.  Rust toolchain version sync (scripts/check-rust-version-sync.sh —
+#       rust-toolchain.toml pin == Cargo.toml MSRV == workflow RUST_VERSION)
+#  11.  Documentation disclaimer (scripts/inject-disclaimer.sh --check —
+#       every living .md carries the stale-data warning; --fix injects)
 #
 # Missing tools are skipped with a warning so the gate stays usable
 # on minimal development machines; CI enforces the full set.
@@ -215,31 +224,20 @@ else
 	warn "codespell not installed — skipping"
 fi
 
-# ── 6. SPDX License Headers ────────────────────────────────────────────────
-# Every tracked source file must carry the two-line license header:
-#   Copyright (C) 2026 rezky_nightky
-#   SPDX-License-Identifier: GPL-3.0-only
-# Shebang'd scripts carry it on lines 2-3, other files on lines 1-2,
-# so the check scans a 5-line window after an optional shebang — the
-# same semantics as scripts/check-policy.py (header_window).
-header "SPDX License Headers"
-SPDX_ERR=0
-SPDX_CHECKED=0
-while IFS= read -r -d '' f; do
-	SPDX_CHECKED=$((SPDX_CHECKED + 1))
-	# A 6-line window covers both layouts: header on lines 1-2 (plain
-	# sources) or on lines 2-3 (shebang'd scripts).
-	if ! head -n 6 "$f" | grep -q 'Copyright (C) 2026 rezky_nightky' ||
-		! head -n 6 "$f" | grep -q 'SPDX-License-Identifier: GPL-3.0-only'; then
-		echo -e "${RED}MISSING HEADER: ${f}${NC}"
-		SPDX_ERR=$((SPDX_ERR + 1))
+# ── 6. SPDX License Headers (scripts/check-headers.sh) ──────────────────
+# Dual-line contract (Copyright + SPDX-License-Identifier) across
+# rs/c/h/py/sh/toml/yml/yaml/md, including untracked-but-present files
+# (pre-commit proxy parity). CHANGELOG.md is excluded as frozen history.
+header "SPDX License Headers (check-headers.sh)"
+if [ -f scripts/check-headers.sh ]; then
+	if bash scripts/check-headers.sh 2>&1; then
+		info "license headers: all source, config, and doc files carry the header"
+		PASS=$((PASS + 1))
+	else
+		fail "license headers: violations found (no auto-fix - add the 2-line header)"
 	fi
-done < <(git ls-files '*.rs' '*.c' '*.h' '*.py' '*.sh' | while IFS= read -r f; do [ -f "$f" ] && printf '%s\0' "$f"; done)
-if [ "$SPDX_ERR" -eq 0 ]; then
-	info "SPDX headers: all ${SPDX_CHECKED} source files carry the license header"
-	PASS=$((PASS + 1))
 else
-	fail "SPDX headers: ${SPDX_ERR} file(s) missing license headers (no auto-fix - add the 2-line header)"
+	warn "check-headers.sh not found — skipping"
 fi
 
 # ── 7. File Permission Guard (644/755 owner rule) ─────────────────────────
@@ -285,12 +283,19 @@ from pathlib import Path
 # Emoji-class codepoint ranges (enough coverage for the sweep; the
 # goal is to block emoji, not to enumerate every Unicode symbol).
 RANGES = (
-    (0x1F300, 0x1FAFF),   # Miscellaneous Symbols and Pictographs .. Symbols and Pictographs Extended-A
-    (0x2600, 0x27BF),     # Miscellaneous Symbols .. Dingbats
-    (0x1F000, 0x1F2FF),   # Mahjong Tiles, Domino Tiles, Playing Cards
-    (0xFE0F, 0xFE0F),     # Variation Selector-16 (emoji presentation)
-    (0x2B00, 0x2BFF),     # Miscellaneous Symbols and Arrows (includes stars)
+    (0x1F000, 0x1FFFF),  # astral emoji (incl. regional indicator flags)
+    (0x2600, 0x27BF),   # Miscellaneous Symbols .. Dingbats
+    (0x2300, 0x23FF),   # Misc Technical (clocks, media controls, key caps)
+    (0x2B00, 0x2BFF),   # Misc Symbols and Arrows (stars, thick arrows)
+    (0xFE0F, 0xFE0F),   # Variation Selector-16 (emoji presentation)
+    (0xFE0E, 0xFE0E),   # Variation Selector-15 (text presentation)
+    (0x200D, 0x200D),   # Zero-Width Joiner (emoji composition)
 )
+
+# Allowed non-ASCII (typographic house style, never flagged): prose
+# arrows U+2190..21FF, box drawing + geometric U+2500..25FF, em/en dash,
+# ellipsis, bullet, math operators. None of those ranges intersect the
+# fail blocks, so the allowlist needs no carve-outs.
 
 def is_emoji(cp: int) -> bool:
     return any(lo <= cp <= hi for lo, hi in RANGES)
@@ -327,6 +332,62 @@ PYEOF
 	fi
 else
 	warn "python3 not installed — skipping"
+fi
+
+# ── 9. Rust Source LOC Cap (owner rule: 500) ────────────────────────────────
+# Hard limit from docs/RULES.md "Source file size cap". A file over the
+# cap passes ONLY with a self-declared `// LOC_EXEMPT:` marker plus a
+# one-line justification (tracked migration debt, not silent rot).
+header "Rust LOC Cap (check-loc.sh, limit 500)"
+if [ -f scripts/check-loc.sh ]; then
+	if bash scripts/check-loc.sh 2>&1 | tail -20; then
+		info "LOC cap: all Rust files within policy (limit 500)"
+		PASS=$((PASS + 1))
+	else
+		fail "LOC cap: file(s) over 500 lines without an exemption marker (split them or add // LOC_EXEMPT:)"
+	fi
+else
+	warn "check-loc.sh not found — skipping"
+fi
+
+# ── 10. Rust Toolchain Version Sync ────────────────────────────────────────
+# rust-toolchain.toml channel (authoritative pin) must agree with the
+# Cargo.toml MSRV and every workflow RUST_VERSION env. Channel aliases
+# (stable/beta/nightly) are rejected under the dormant-mode policy.
+header "Rust Version Sync (check-rust-version-sync.sh)"
+if [ -f scripts/check-rust-version-sync.sh ]; then
+	if bash scripts/check-rust-version-sync.sh 2>&1; then
+		info "rust version: toolchain pin, MSRV, and CI pins in sync"
+		PASS=$((PASS + 1))
+	else
+		fail "rust version: sources out of sync (fix with ./scripts/rust-version-to.sh <X.Y.Z>)"
+	fi
+else
+	warn "check-rust-version-sync.sh not found — skipping"
+fi
+
+# ── 11. Documentation Disclaimer ──────────────────────────────────────────
+# Every living .md file carries the stale-data disclaimer at the bottom
+# (CHANGELOG.md excluded as frozen history). --fix auto-injects.
+header "Documentation Disclaimer (inject-disclaimer.sh)"
+if [ -f scripts/inject-disclaimer.sh ]; then
+	if bash scripts/inject-disclaimer.sh --check 2>&1; then
+		info "disclaimer: all living .md files carry the stale-data warning"
+		PASS=$((PASS + 1))
+	else
+		if $FIX_MODE; then
+			if bash scripts/inject-disclaimer.sh >/dev/null 2>&1; then
+				info "disclaimer: auto-injected (review git diff)"
+				PASS=$((PASS + 1))
+			else
+				fail "disclaimer: auto-inject failed"
+			fi
+		else
+			fail "disclaimer: .md file(s) missing the stale-data warning (auto-fixable via --fix)"
+		fi
+	fi
+else
+	warn "inject-disclaimer.sh not found — skipping"
 fi
 
 # ── Summary ────────────────────────────────────────────────────────────────

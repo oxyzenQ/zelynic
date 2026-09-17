@@ -1,3 +1,6 @@
+<!-- Copyright (C) 2026 rezky_nightky -->
+<!-- SPDX-License-Identifier: GPL-3.0-only -->
+
 # Contributing to zelynic
 
 Thank you for your interest in contributing to zelynic! This document covers
@@ -57,9 +60,14 @@ bpf/
 
 scripts/
   build.sh             — check-all orchestration
-  gate-keepers.sh      — pre-commit non-code gates
+  gate-keepers.sh      — pre-commit non-code gates (11 checks)
   check-permissions.sh — 644/755 permission guard
-  check-policy.py      — LOC + copyright + SPDX check
+  check-loc.sh         — Rust file LOC cap (500, // LOC_EXEMPT: markers)
+  check-headers.sh     — license header check (rs/c/h/py/sh/toml/yml/md)
+  check-rust-version-sync.sh — toolchain pin == MSRV == CI pin
+  rust-version-to.sh   — one-command Rust toolchain bumper
+  inject-disclaimer.sh — .md stale-data disclaimer (inject + --check)
+  check-policy.py      — copyright + SPDX policy check
   stress-test.sh       — stress suite
   leak-test.sh         — orphan detection after every operation
   distros-depth-test.sh — comprehensive distro suite
@@ -68,16 +76,22 @@ scripts/
 
 ## Coding Standards
 
-1. **LOC limit**: < 1000 lines per file (enforced by `check-policy.py`)
-2. **Copyright + SPDX**: every source file must have:
+1. **LOC limit**: < 500 lines per `.rs` file (enforced by `scripts/check-loc.sh`, wired into `gate-keepers.sh`; a file that cannot be split self-declares `// LOC_EXEMPT: <reason>`)
+2. **Copyright + SPDX**: every source, config, and doc file must have:
    ```
-   // Copyright (C) 2026 rezky_nightky
-   // SPDX-License-Identifier: GPL-3.0-only
+   Copyright (C) 2026 rezky_nightky
+   SPDX-License-Identifier: GPL-3.0-only
    ```
+   (comments prefixed per language; `.md` uses HTML comments. Enforced by
+   `scripts/check-headers.sh`.)
 3. **License**: GPL-3.0-only
-4. **No tc/nft/systemd-wrapper**: pure eBPF only on `main`
-5. **Fail-safe**: BPF programs return 1 (allow) on every error path
-6. **Lowercase units**: rate formats use `kb`, `mb`, `gb` (no uppercase, no `/s`)
+4. **Rust toolchain**: pinned to a concrete X.Y.Z in `rust-toolchain.toml`
+   (never `stable` — dormant-mode policy). Bump with
+   `./scripts/rust-version-to.sh <X.Y.Z>`; sync enforced by
+   `scripts/check-rust-version-sync.sh`.
+5. **No tc/nft/systemd-wrapper**: pure eBPF only on `main`
+6. **Fail-safe**: BPF programs return 1 (allow) on every error path
+7. **Lowercase units**: rate formats use `kb`, `mb`, `gb` (no uppercase, no `/s`)
 
 ## Pre-commit
 
@@ -100,3 +114,20 @@ warning.
 
 - `main` — pure eBPF v10.x (Dragon Architecture). Maintenance mode.
 - `legacy` — v3.1.1 (tc/nft/systemd-wrapper). Final legacy release, no new development.
+<!-- ZELYNIC-DISCLAIMER -->
+<!--
+  Documentation Disclaimer — read before relying on any data point.
+
+  This document may contain stale data, hardcoded counts, or outdated
+  file paths and symbol names. Maintainers update source code but may
+  forget to sync every doc — perfect sync across every .md file is a
+  known maintenance burden with diminishing returns.
+
+  Source code (`src/**/*.rs`, `bpf/*.bpf.c`) is the single source of
+  truth. Always cross-check against the actual source files before
+  relying on any specific number (target count, LOC, rate bound),
+  file path, function name, or config key.
+
+  If you find a discrepancy, please open a PR — the doc is wrong, not
+  the source.
+-->
