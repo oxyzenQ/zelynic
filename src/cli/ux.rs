@@ -2,13 +2,16 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 //! CLI UX contract — the single authority for user-facing CLI errors,
-//! tips, usage lines, and the help footer (cosmostrix `cli/ux.rs`
-//! lineage, ported in NIGHT-hunt-5).
+//! tips, and usage lines (cosmostrix `cli/ux.rs` lineage, ported in
+//! NIGHT-hunt-5).
 //!
 //! Exit-code contract: clap usage errors exit 2 (clap's usage code);
 //! runtime failures exit 1 via the anyhow path in `main()`. Every
 //! fatal CLI path renders through this module so all layers end
-//! identically.
+//! identically — with exactly one canonical `For more information,
+//! try '--help'.` footer, rendered by clap's own error formatter
+//! (never appended manually here; a manual append duplicates it —
+//! the owner-reported NIGHT-improve-1 regression).
 //!
 //! Rendering: clap errors are re-rendered with the command's brand
 //! styles (purple headers/usage, red error label, white `valid` tips —
@@ -24,10 +27,6 @@ use super::suggestion::closest_long_flag_ci;
 #[cfg(feature = "ebpf")]
 use super::suggestion::closest_value_match;
 use crate::cli::Cli;
-
-/// Help footer matching clap's canonical wording, appended to every
-/// fatal CLI error so all layers end identically.
-const HELP_FOOTER: &str = "For more information, try '--help'.";
 
 // ── Clap error bridge ──────────────────────────────────────────────────────
 
@@ -82,8 +81,10 @@ fn enrich_unknown_arg_suggestion(e: &mut clap::Error, cmd: &clap::builder::Comma
 ///   usage context is replaced with the real full usage (clap narrows
 ///   the usage line to the suggested flag, which reads as if that flag
 ///   were required), then the error is re-rendered with the command's
-///   brand styles and the help footer is appended so clap-side errors
-///   end exactly like runtime-side errors.
+///   brand styles. The canonical `For more information, try '--help'.`
+///   footer is rendered by clap's own formatter (help_flag context) —
+///   appending it here again would duplicate it, the exact regression
+///   the owner reported on `zelynic backend` / `zelynic helpp`.
 pub(crate) fn exit_clap_error(e: clap::Error) -> ! {
     match e.kind() {
         clap::error::ErrorKind::DisplayHelp | clap::error::ErrorKind::DisplayVersion => {
@@ -110,11 +111,12 @@ pub(crate) fn exit_clap_error(e: clap::Error) -> ! {
 
     // Re-render with the command's styles applied, then print to the
     // error's own stream (stderr for error kinds). Broken pipe is
-    // swallowed, matching clap's own exit() behavior.
+    // swallowed, matching clap's own exit() behavior. The render ends
+    // with clap's canonical help footer already — nothing is appended
+    // after this print.
     let e = e.format(&mut cmd);
     let _ = e.print();
 
-    eprintln_safe!("\n{HELP_FOOTER}");
     std::process::exit(2);
 }
 
@@ -203,9 +205,52 @@ pub(crate) fn duration_tip(input: &str) -> Option<String> {
 mod tests {
     use super::*;
 
+    /// Canonical clap help-footer wording, matched as a literal so the
+    /// regression test below hunts the exact duplication the owner
+    /// reported (`zelynic backend` / `zelynic helpp` printed it twice).
+    const HELP_FOOTER: &str = "For more information, try '--help'.";
+
+    /// Render an error exactly the way [`exit_clap_error`] does (minus
+    /// the process::exit), so render-level contracts are testable.
+    fn render_via_bridge(argv: &[&str]) -> String {
+        use clap::Parser;
+        let mut err = Cli::try_parse_from(argv).expect_err("argv must fail to parse");
+        let mut cmd = Cli::command();
+        enrich_unknown_arg_suggestion(&mut err, &cmd);
+        err.insert(
+            ContextKind::Usage,
+            ContextValue::StyledStr(cmd.render_usage()),
+        );
+        err.format(&mut cmd).render().to_string()
+    }
+
+    /// Regression (owner-reported, NIGHT-improve-1 session): every
+    /// fatal CLI error must end with EXACTLY ONE canonical help footer.
+    /// clap's formatter renders the footer from the help_flag context;
+    /// the bridge previously appended a second copy on top of clap's
+    /// own render. The matrix covers each error family: unknown
+    /// subcommand without a tip, unknown subcommand with clap's
+    /// did-you-mean tip, unknown flag with the case-insensitive rescue,
+    /// and a missing required argument.
     #[test]
-    fn help_footer_matches_clap_wording() {
-        assert_eq!(HELP_FOOTER, "For more information, try '--help'.");
+    fn rendered_error_carries_exactly_one_help_footer() {
+        for argv in [
+            vec!["zelynic", "backend"],
+            vec!["zelynic", "helpp"],
+            vec!["zelynic", "--VERBOS", "doctor"],
+            vec!["zelynic", "strict-single"],
+        ] {
+            let rendered = render_via_bridge(&argv);
+            assert_eq!(
+                rendered.matches(HELP_FOOTER).count(),
+                1,
+                "exactly one help footer for {argv:?}, got:\n{rendered}"
+            );
+            assert!(
+                rendered.trim_end().ends_with(HELP_FOOTER),
+                "the single footer must terminate the render for {argv:?}, got:\n{rendered}"
+            );
+        }
     }
 
     #[cfg(feature = "ebpf")]
