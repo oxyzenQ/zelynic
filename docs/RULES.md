@@ -23,11 +23,12 @@ Do not guess past failing checks.
 
 ## Release Honesty
 
-- The validated limiter path is `zelynic strict`.
-- The `zelynic run` path is experimental planning/preflight groundwork.
-- Do not overclaim live `systemd-run` behavior.
-- `zelynic run --execute` must remain non-mutating until live execution is
-  deliberately implemented and validated.
+- The validated limiter paths are `zelynic strict-single` and
+  `zelynic strict-multi`.
+- The `zelynic block-*` family shares the same pinned-map enforcement
+  mechanism (zero-rate policy).
+- Do not overclaim enforcement beyond what the pinned maps + watchdog
+  actually guarantee.
 
 ## Test Discipline
 

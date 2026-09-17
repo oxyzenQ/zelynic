@@ -287,7 +287,6 @@ pub(crate) fn unpin_all_bpf() -> Result<()> {
 
 /// List of dangerous/system process names that should not be limited
 /// without --force flag. Limiting these can destabilize the system.
-#[cfg(feature = "ebpf")]
 const DANGEROUS_TARGETS: &[&str] = &[
     "root",
     "init",
