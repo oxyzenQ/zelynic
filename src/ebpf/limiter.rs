@@ -1,6 +1,7 @@
 // Copyright (C) 2026 rezky_nightky
 // SPDX-License-Identifier: GPL-3.0-only
 
+// LOC_EXEMPT: Limiter impl; split lands with the NIGHT-hunt-3 restructure
 //! eBPF limiter — token-bucket rate enforcement per cgroup or per group.
 //!
 //! Types and helpers in `limiter_types.rs`. This file contains the

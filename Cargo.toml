@@ -1,3 +1,6 @@
+# Copyright (C) 2026 rezky_nightky
+# SPDX-License-Identifier: GPL-3.0-only
+
 [package]
 name = "zelynic"
 version = "10.0.0"
@@ -9,7 +12,7 @@ repository = "https://github.com/oxyzenQ/zelynic"
 readme = "README.md"
 keywords = ["bandwidth", "network", "rate-limiter", "linux", "ebpf"]
 categories = ["command-line-utilities", "network-programming"]
-rust-version = "1.88.0"
+rust-version = "1.98"
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }

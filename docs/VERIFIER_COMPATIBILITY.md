@@ -1,3 +1,6 @@
+<!-- Copyright (C) 2026 rezky_nightky -->
+<!-- SPDX-License-Identifier: GPL-3.0-only -->
+
 # Verifier Compatibility
 
 > BPF verifier assumptions, instruction limits, and kernel compatibility.
@@ -99,3 +102,20 @@ Common rejection causes:
 2. **"back-edge from"** — loop detected (zelynic has no loops — shouldn't happen)
 3. **"stack frame too large"** — >512 bytes stack (zelynic uses ~200 — safe)
 4. **"unknown func"** — helper not available on kernel version
+<!-- ZELYNIC-DISCLAIMER -->
+<!--
+  Documentation Disclaimer — read before relying on any data point.
+
+  This document may contain stale data, hardcoded counts, or outdated
+  file paths and symbol names. Maintainers update source code but may
+  forget to sync every doc — perfect sync across every .md file is a
+  known maintenance burden with diminishing returns.
+
+  Source code (`src/**/*.rs`, `bpf/*.bpf.c`) is the single source of
+  truth. Always cross-check against the actual source files before
+  relying on any specific number (target count, LOC, rate bound),
+  file path, function name, or config key.
+
+  If you find a discrepancy, please open a PR — the doc is wrong, not
+  the source.
+-->

@@ -1,7 +1,15 @@
 # Copyright (C) 2026 rezky_nightky
 # SPDX-License-Identifier: GPL-3.0-only
 
+# Default toolchain: pinned to 1.98.1 (with rustfmt + clippy).
+#
+# Dormant mode: pinned to a specific version instead of "stable" so that
+# a future `stable` release cannot silently break the build. When updating
+# to a newer Rust version, bump this channel + the MSRV in Cargo.toml via
+# `./scripts/rust-version-to.sh <X.Y.Z>` and run the full gatekeeper
+# (`./scripts/build.sh check-all`) to verify.
+
 [toolchain]
-channel = "stable"
+channel = "1.98.1"
 profile = "minimal"
 components = ["rustfmt", "clippy"]

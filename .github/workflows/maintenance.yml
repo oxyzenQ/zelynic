@@ -14,6 +14,11 @@ permissions:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  # Single source of truth for the Rust toolchain version.
+  # Keep in sync with rust-toolchain.toml + Cargo.toml rust-version
+  # (enforced by scripts/check-rust-version-sync.sh; bump via
+  # scripts/rust-version-to.sh).
+  RUST_VERSION: "1.98.1"
 
 jobs:
   validate:
@@ -35,6 +40,7 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
+          toolchain: ${{ env.RUST_VERSION }}
           components: clippy, rustfmt
 
       - name: Cache cargo registry

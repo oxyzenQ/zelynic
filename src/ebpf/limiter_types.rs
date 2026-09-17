@@ -1,6 +1,7 @@
 // Copyright (C) 2026 rezky_nightky
 // SPDX-License-Identifier: GPL-3.0-only
 
+// LOC_EXEMPT: types plus rate helpers and tests; split lands with the NIGHT-hunt-3 restructure
 //! Limiter types, constants, and helper functions.
 //! Extracted from limiter.rs to keep file under 1000 LOC.
 
