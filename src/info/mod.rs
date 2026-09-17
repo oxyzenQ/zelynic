@@ -66,6 +66,34 @@ fn build_hash() -> &'static str {
     option_env!("GIT_HASH").unwrap_or("unknown")
 }
 
+/// Get the build timestamp injected at build time by build.rs.
+///
+/// Computed by Howard Hinnant's civil_from_days algorithm inside
+/// build.rs (NIGHT-hunt-6, cosmostrix lineage) — `M/D/YYYY HH:MM (UTC)`
+/// — so no time crate (chrono and friends) is needed anywhere in the
+/// dependency tree. Falls back to "unknown" only when the build script
+/// could not read the system clock (pre-UNIX_EPOCH host clock).
+fn build_time() -> &'static str {
+    option_env!("ZELYNIC_BUILD_TIME").unwrap_or("unknown")
+}
+
+/// The plain-text body of the version report (everything after the
+/// brand header). Separated from [`print_version_report`] so tests can
+/// assert the full line set without capturing stdout.
+fn version_body() -> String {
+    format!(
+        "Architecture: Dragon (pure eBPF)\n\
+         Build: {} ({})\n\
+         Build-time: {}\n\
+         Copyright: {COPYRIGHT}\n\
+         License: {LICENSE}\n\
+         Source: {REPOSITORY}",
+        build_label(),
+        build_hash(),
+        build_time()
+    )
+}
+
 /// Print the full version report for `-V` / `--version`.
 ///
 /// cosmostrix-style layout: brand header (name + version, then the
@@ -82,6 +110,7 @@ fn build_hash() -> &'static str {
 /// Per-app network rate limiter and traffic monitor for Linux. Pure eBPF. Silent but killer.
 /// Architecture: Dragon (pure eBPF)
 /// Build: linux-amd64-gnu (ad36a81)
+/// Build-time: 9/18/2026 01:30 (UTC)
 /// Copyright: (c) 2026 rezky_nightky (oxyzenQ)
 /// License: GPL-3.0-only
 /// Source: https://github.com/oxyzenQ/zelynic
@@ -89,21 +118,15 @@ fn build_hash() -> &'static str {
 ///
 /// The `Build:` line carries the canonical label from [`build_label`]:
 /// `local-native-gnu` / `local-native-musl` for alias builds, the
-/// detected `linux-<arch>-<libc>` string for plain builds.
+/// detected `linux-<arch>-<libc>` string for plain builds. The
+/// `Build-time:` line (NIGHT-hunt-6, cosmostrix parity) is stamped by
+/// build.rs via the Hinnant civil-from-days algorithm — UTC-only, so
+/// no timezone database is pulled into the binary and the stamp is
+/// identical across build hosts.
 pub fn print_version_report() {
     let header = format!("{NAME}: v{VERSION}\n{DESCRIPTION}");
-    let body = format!(
-        "Architecture: Dragon (pure eBPF)\n\
-         Build: {} ({})\n\
-         Copyright: {COPYRIGHT}\n\
-         License: {LICENSE}\n\
-         Source: {REPOSITORY}",
-        build_label(),
-        build_hash()
-    );
-
     println_safe!("{}", crate::output::brand(&header));
-    println_safe!("{body}");
+    println_safe!("{}", version_body());
 }
 
 #[cfg(test)]
@@ -135,5 +158,75 @@ mod tests {
             "label must be a single token: {label}"
         );
         assert_eq!(label, label.to_lowercase());
+    }
+
+    /// NIGHT-hunt-6 contract: the version report carries the Build-time
+    /// line between Build and Copyright (cosmostrix parity), and every
+    /// documented line is present exactly once.
+    #[test]
+    fn version_report_carries_build_time_line() {
+        let body = version_body();
+        for line in [
+            "Architecture: Dragon (pure eBPF)",
+            "Build-time: ",
+            "Copyright: (c) 2026 rezky_nightky (oxyzenQ)",
+            "License: GPL-3.0-only",
+            "Source: https://github.com/oxyzenQ/zelynic",
+        ] {
+            let count = body.lines().filter(|l| l.contains(line)).count();
+            assert_eq!(count, 1, "line must appear exactly once: {line}");
+        }
+        // Ordering: Build-time sits directly after the Build line.
+        let lines: Vec<&str> = body.lines().collect();
+        let build_idx = lines
+            .iter()
+            .position(|l| l.starts_with("Build: "))
+            .expect("Build: line present");
+        assert!(
+            lines[build_idx + 1].starts_with("Build-time: "),
+            "Build-time must follow Build, got: {}",
+            lines[build_idx + 1]
+        );
+    }
+
+    /// NIGHT-hunt-6 contract: the stamped build time is either the
+    /// documented degraded "unknown" (host clock unreadable at build
+    /// time) or matches the Hinnant `M/D/YYYY HH:MM (UTC)` shape with
+    /// a plausible year. A malformed stamp (e.g. an accidental local-
+    /// time format with an offset suffix) fails here, not in the wild.
+    #[test]
+    fn build_time_stamp_shape_is_m_d_yyyy_hh_mm_utc() {
+        let stamp = build_time();
+        if stamp == "unknown" {
+            return; // degraded path, documented
+        }
+        assert!(
+            stamp.ends_with(" (UTC)"),
+            "stamp must carry the (UTC) suffix: {stamp}"
+        );
+        let core = stamp.strip_suffix(" (UTC)").expect("suffix checked above");
+        // Shape: M/D/YYYY then space then HH:MM (2-digit, zero-padded).
+        let (date, time) = core
+            .split_once(' ')
+            .unwrap_or_else(|| panic!("date and time must be space-separated: {stamp}"));
+        let date_parts: Vec<&str> = date.split('/').collect();
+        assert_eq!(date_parts.len(), 3, "date must be M/D/YYYY: {stamp}");
+        let (month, day, year) = (
+            date_parts[0].parse::<u32>().unwrap_or(0),
+            date_parts[1].parse::<u32>().unwrap_or(0),
+            date_parts[2].parse::<u32>().unwrap_or(0),
+        );
+        assert!((1..=12).contains(&month), "month out of range: {stamp}");
+        assert!((1..=31).contains(&day), "day out of range: {stamp}");
+        assert!(year >= 2026, "year implausibly old: {stamp}");
+        // Time is HH:MM — two 2-digit fields, hour and minute in range.
+        let time_parts: Vec<&str> = time.split(':').collect();
+        assert_eq!(time_parts.len(), 2, "time must be HH:MM: {stamp}");
+        assert_eq!(time_parts[0].len(), 2, "hour must be 2 digits: {stamp}");
+        assert_eq!(time_parts[1].len(), 2, "minute must be 2 digits: {stamp}");
+        let hour = time_parts[0].parse::<u32>().unwrap_or(99);
+        let minute = time_parts[1].parse::<u32>().unwrap_or(99);
+        assert!(hour <= 23, "hour out of range: {stamp}");
+        assert!(minute <= 59, "minute out of range: {stamp}");
     }
 }
