@@ -28,8 +28,8 @@ that:
 - Loads BPF programs via aya
 - Reads/writes BPF maps (policies, stats, watchdog)
 - Walks `/proc` to resolve process names → cgroup IDs
-- Refreshes watchdog every 200ms (serve child only)
-- Pins maps to `/sys/fs/bpf/zelynic/` for fire-and-forget access
+- Pins programs + links + maps to `/sys/fs/bpf/zelynic/` for
+  fire-and-forget enforcement (no process needs to stay alive)
 
 ### What zelynic Does NOT Do
 - No telemetry, analytics, or phone-home
@@ -37,7 +37,7 @@ that:
 - No data collection or logging of user activity
 - No modification of system files (except BPF pin files)
 - No installation of systemd services or cron jobs
-- No background daemon (serve child is minimal: sleeps + refreshes watchdog)
+- No background process of any kind — enforcement lives in the kernel
 - No reading of user files (only `/proc/*/comm` and `/proc/*/cgroup`)
 - No network packet inspection (BPF only counts bytes, doesn't read content)
 
@@ -50,9 +50,9 @@ that:
 | `/proc/*/status` | Read | UID for identity display |
 | `/sys/fs/cgroup/*` | Read | `cgroup.id` file for ID resolution |
 | `/sys/fs/cgroup` | Read | Attach BPF programs |
-| `/sys/fs/bpf/zelynic/*` | Read/Write | Pinned BPF maps |
-| `/tmp/zelynic.pid` | Read/Write | Serve child PID tracking |
-| `~/.local/share/zelynic/audit.jsonl` | Write | Audit log (enforcement events) |
+| `/sys/fs/bpf/zelynic/*` | Read/Write | Pinned BPF programs, links, maps |
+| `/tmp/zelynic.pid` | Remove-only | Legacy cleanup (never written by v10; removed if left by old versions) |
+| `/tmp/zelynic.lock` | Read/Write | flock-based operation guard (removed content on release) |
 
 **No other file system access.** No reading of user documents, browser data,
 network config, or system passwords.
@@ -69,26 +69,25 @@ The only network-related activity:
 
 ## Crash Safety
 
-### If zelynic crashes (serve child dies):
-1. Watchdog deadline stops being refreshed
-2. After 30 seconds, BPF program sees `now > deadline` → returns 1 (allow all)
-3. All traffic resumes automatically — no manual intervention needed
-4. No residue: PID file + pin files remain, but BPF is no-op
+### If zelynic crashes mid-operation:
+1. Enforcement is unaffected — it lives in pinned BPF programs + links,
+   not in any zelynic process
+2. A crash between "pin" and "write policy" can leave orphaned pin files;
+   `zelynic recover` detects and removes them
+3. The flock guard (`/tmp/zelynic.lock`) releases automatically when the
+   crashed process dies — no stuck lock
 
 ### If user runs `unstrict-all`:
-1. Serve child killed (SIGTERM → wait 3s → SIGKILL)
-2. PID file removed
-3. Pin files removed (`/sys/fs/bpf/zelynic/*`)
-4. Pin directory removed
-5. BPF programs unloaded (kernel cleans up when last reference closes)
-6. **Zero residue** — system returns to pre-zelynic state
+1. All pin files removed (`/sys/fs/bpf/zelynic/*`)
+2. Pin directory removed
+3. BPF programs + links unloaded (kernel cleans up when the last
+   reference closes)
+4. **Zero residue** — system returns to pre-zelynic state
 
 ### If user reboots:
-1. Serve child dies (part of normal shutdown)
-2. PID file remains (in `/tmp`, cleared on reboot)
-3. Pin files remain (in `/sys/fs/bpf`, cleared on reboot since bpffs is tmpfs)
-4. BPF programs unloaded
-5. **Zero residue** after reboot
+1. bpffs is not persistent — all pins vanish with the mount
+2. BPF programs unloaded, limits gone
+3. **Zero residue** after reboot
 
 ## BPF Safety
 
@@ -100,25 +99,27 @@ The only network-related activity:
 
 ### Fail-safe design:
 - No policy for cgroup → allow (return 1)
-- Rate = 0 → allow (return 1)
 - Bucket creation fails → allow (return 1)
 - Map lookup fails → allow (return 1)
-- Watchdog expired → allow (return 1)
-- Watchdog not set → allow (return 1) — **but only in ephemeral mode**
+- Watchdog expired → allow (return 1) — dormant mechanism, see below
 
 ### Pin mode (fire-and-forget):
-- Watchdog is set to 0 (disabled) — BPF always enforces
-- If serve child crashes: watchdog stays at 0, BPF keeps enforcing
-- Recovery: `zelynic unstrict-all` kills child + removes pins
-- If `unstrict-all` fails (child already dead): manual cleanup with `rm`
+- The watchdog is never armed in v10 (deadline 0 = absent) — BPF always enforces
+- Rate = 0 is an explicit user request: `block-single`/`block-*` write a
+  zero rate and BPF blocks all traffic for that cgroup (schema v3)
+- If anything unexpected happens to the pins, `zelynic recover` repairs
+  state and `unstrict-all` removes everything
 
 ## Memory Safety (Rust)
 
 zelynic is written in Rust, which provides:
 - **Memory safety**: no buffer overflows, no use-after-free, no null dereferences
 - **Thread safety**: no data races (Rust ownership model)
-- **No unsafe code** in userspace (except `libc::clock_gettime` and `libc::setsid`,
-  both standard POSIX calls with well-defined semantics)
+- **No unsafe code** in userspace outside six audited `unsafe` blocks:
+  `libc::flock` (operation guard), three raw `bpf()` syscall wrappers
+  (bpf_syscall.rs — link create/pin/close), `libc::clock_gettime`, and
+  `libc::ioctl(TIOCGWINSZ)` for terminal width — all standard POSIX
+  calls with well-defined semantics
 
 ### BPF C code:
 - BPF verifier ensures memory safety at load time
@@ -135,32 +136,11 @@ zelynic is written in Rust, which provides:
   - Over-counting is not possible
   - Stats are for display only, not for enforcement decisions
 
-### Watchdog refresh:
-- Serve child refreshes every 200ms
-- BPF reads deadline atomically (single u64 read)
-- If refresh is late, BPF may briefly allow all traffic (safe direction)
-
-### Parent + child map access:
-- Both access pinned maps via separate file descriptors
+### Concurrent CLI invocations:
+- The flock guard (`lock.rs`) serializes mutating operations — two
+  zelynic processes never write policy maps at the same time
 - Kernel BPF map operations are atomic per-entry
-- `insert` (write policy) and `remove` (delete policy) are atomic
 - No torn reads/writes possible
-
-## Audit Log
-
-zelynic logs enforcement events to `~/.local/share/zelynic/audit.jsonl`:
-- `enforce_start`: when strict command is run
-- `policy_apply`: which cgroup + rate was applied
-- `enforce_stop`: when unstrict is run
-- `rate_rejected`: when a rate below minimum is rejected
-
-**This log is local only.** It is never transmitted anywhere. It contains:
-- Timestamps
-- Cgroup IDs + process names
-- Rate limits (bytes/second)
-- Packet counts (allowed/dropped)
-
-**No packet content, no URLs, no IP addresses, no user data.**
 
 ## Verifying Safety Yourself
 

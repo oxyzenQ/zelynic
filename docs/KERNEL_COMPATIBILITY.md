@@ -3,7 +3,7 @@
 
 # Kernel Compatibility
 
-> Requirements for running zelynic v5.0.0 (Dragon Architecture).
+> Requirements for running zelynic v10.0.0 (Dragon Architecture).
 
 ## Minimum Requirements
 
@@ -38,6 +38,7 @@ for `bpf_link_create`.
 ### `BPF_MAP_TYPE_ARRAY` + `BPF_MAP_TYPE_HASH` — kernel 4.18+
 Standard BPF map types. Used for:
 - `watchdog_deadline` (ARRAY, 1 entry)
+- `schema_version` (ARRAY, 1 entry)
 - `cgroup_policy_dl/ul` (HASH, 1024 entries)
 - `cgroup_bucket_dl/ul` (HASH, 1024 entries)
 - `group_bucket_dl/ul` (HASH, 256 entries)
@@ -48,13 +49,13 @@ zelynic requires cgroup v2 (unified hierarchy). cgroup v1 is NOT supported.
 
 Check: `stat -fc %T /sys/fs/cgroup` should return `cgroup2fs`.
 
-## Distro Compatibility (v5.0.0)
+## Distro Compatibility (v10.0.0)
 
 | Distro | Kernel | Status | Notes |
 |--------|--------|--------|-------|
 | **Arch Linux** | 6.18+ | Verified | Dev machine (CachyOS 6.18) — all tests pass |
-| **Ubuntu 24.04 LTS** | 6.8 | Verified | CI build matrix — compiles + tests pass |
-| **Ubuntu 22.04 LTS** | 5.15 | Verified | CI build matrix — compiles + tests pass |
+| **Ubuntu 24.04 LTS** | 6.8 | Build-verified | CI build matrix — compiles + unit tests pass (no runtime record) |
+| **Ubuntu 22.04 LTS** | 5.15 | Build-verified | CI build matrix — compiles + unit tests pass (no runtime record) |
 | **Fedora 44** | 6.19 | Verified | Real enforcement tested (firefox 100kb → 690 Kbps) |
 | **Debian 13** | 6.12 | Verified | Real enforcement tested (firefox-esr 900kb → 7.0 Mbps) |
 | **Ubuntu 21.10** | 5.13 | Verified | Minimum kernel — MUSL binary, all tests pass |
@@ -63,17 +64,18 @@ Check: `stat -fc %T /sys/fs/cgroup` should return `cgroup2fs`.
 | **CentOS Stream 9** | 5.14 | Should work | Edge case (5.14 > 5.13 minimum) |
 | **Alpine** | 6.x | Should work | musl libc — may need testing |
 
-## Testing Matrix (v5.0.0)
+## Testing Matrix (v10.0.0)
 
-### Kernels — all verified PASS
+### Kernels — verified PASS where recorded
 - [x] 5.13 (minimum — Ubuntu 21.10, MUSL binary)
-- [x] 6.1 LTS (Debian 13)
-- [x] 6.8 (Ubuntu 24.04 LTS)
 - [x] 6.12 (Debian 13)
-- [x] 6.15 (Ubuntu 26.04)
 - [x] 6.18 (Arch Linux — dev machine)
 - [x] 6.19 (Fedora 44)
+- [x] 7.0 (Ubuntu 26.04)
 - [x] 7.1 (CachyOS VM)
+- [ ] 6.1 LTS (pending — no runtime record)
+- [ ] 6.6 LTS (pending — no runtime record)
+- [ ] 6.8 (Ubuntu 24.04 — CI build matrix only, no runtime record)
 
 ### Hardware
 - [x] AMD (dev machine — Ryzen 7 5800HS, verified)

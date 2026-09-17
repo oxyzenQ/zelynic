@@ -8,7 +8,7 @@ the build process, project structure, and coding standards.
 
 ## Prerequisites
 
-- Rust 1.88+ (stable)
+- Rust 1.98+ (pinned to a concrete version in `rust-toolchain.toml`)
 - clang 10+ (compile BPF programs)
 - libbpf-dev (BPF headers)
 - linux-libc-dev (multiarch kernel headers)
@@ -32,9 +32,14 @@ cargo build --release --features ebpf
 ```
 src/
   main.rs              — entry point (the only file at src/ root)
-  cli/mod.rs           — CLI definition (clap)
+  cli/
+    mod.rs             — CLI definition (clap) + brand clap styles
+    ux.rs              — CLI UX contract: clap error bridge, help footer,
+                          exit codes, rate/duration typo tips
+    suggestion.rs      — suggestion engine (edit distance + case-insensitive
+                          Jaro for flag rescue)
   commands/
-    mod.rs             — command dispatchers
+    mod.rs             — dispatchers + shared root/ebpf guards
     help.rs            — --help-all output
     block.rs           — block-* handlers
     cleanup.rs         — unstrict / unstrict-all / recover handlers
@@ -57,7 +62,10 @@ src/
     lock.rs            — file lock (concurrency guard)
     pin.rs             — BPF pin cleanup
   capabilities/mod.rs  — eBPF support check (doctor)
-  output/mod.rs        — capability-aware brand purple styling layer
+  output/
+    mod.rs             — capability-aware brand styling layer + broken-pipe-safe
+                          print macros + suggestion white semantic
+    labeled.rs        — line-aware labeled error/warning renderer
   info/mod.rs          — version report (-V)
   update/mod.rs        — --check-update
   terminal/mod.rs      — alt-screen box mode
@@ -108,15 +116,19 @@ scripts/
 ./scripts/gate-keepers.sh
 ```
 
-`build.sh check-all` runs: cargo fmt --check, cargo clippy --all-features -D warnings,
-cargo test --locked, cargo deny check all (skips when not installed),
-python3 scripts/check-policy.py, yamllint, codespell, actionlint.
+`build.sh check-all` runs the Rust-side gates: toolchain check, cargo fmt
+--check, cargo clippy --all-targets --all-features -D warnings, cargo test,
+cargo audit + cargo deny (both skip with a warning when not installed),
+the repository policy check (check-policy.py), and the version-string
+anti-pattern check.
 
-`gate-keepers.sh` runs the non-code gates: bash -n + shellcheck + shfmt on
-shell scripts, yamllint + actionlint on workflows, TOML validation, codespell,
-SPDX license headers, file permission guard (644 files / 755 executables and
-directories), and the repo-wide emoji sweep. Missing tools are skipped with a
-warning.
+`gate-keepers.sh` runs the 13 non-code gates: bash -n + shellcheck + shfmt
+on shell scripts, yamllint + actionlint on workflows, TOML validation,
+codespell, SPDX license headers (check-headers.sh), file permission guard
+(644 files / 755 executables and directories), the repo-wide emoji sweep,
+the 500-line Rust LOC cap (check-loc.sh), the toolchain-pin sync check
+(check-rust-version-sync.sh), and the documentation disclaimer check
+(inject-disclaimer.sh). Missing tools are skipped with a warning.
 
 ## Branch Strategy
 

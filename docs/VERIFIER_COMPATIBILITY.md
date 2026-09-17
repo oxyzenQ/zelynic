@@ -20,6 +20,8 @@ zelynic requires **kernel 5.13+** for:
 | `bpf_map_lookup_elem()` | 4.18+ | All map reads |
 | `bpf_map_update_elem()` | 4.18+ | All map writes |
 | `bpf_get_current_comm()` | 4.18+ | Observer event comm field |
+| `bpf_get_current_pid_tgid()` | 4.18+ | Observer event PID attribution |
+| `bpf_get_current_uid_gid()` | 4.18+ | Observer event UID attribution |
 
 ## Verifier Constraints
 
@@ -65,12 +67,13 @@ if (!bkt) {
 |-----|------|-------------|----------|------------|
 | `cgroup_policy_dl` | HASH | 1024 | 4 (u32) | 24 (PolicyRaw) |
 | `cgroup_policy_ul` | HASH | 1024 | 4 (u32) | 24 (PolicyRaw) |
-| `cgroup_bucket_dl` | HASH | 1024 | 4 (u32) | 16 (BucketRaw) |
-| `cgroup_bucket_ul` | HASH | 1024 | 4 (u32) | 16 (BucketRaw) |
-| `group_bucket_dl` | HASH | 256 | 4 (u32) | 16 (BucketRaw) |
-| `group_bucket_ul` | HASH | 256 | 4 (u32) | 16 (BucketRaw) |
+| `cgroup_bucket_dl` | HASH | 1024 | 4 (u32) | 24 (BucketRaw, schema v2+) |
+| `cgroup_bucket_ul` | HASH | 1024 | 4 (u32) | 24 (BucketRaw, schema v2+) |
+| `group_bucket_dl` | HASH | 256 | 4 (u32) | 24 (BucketRaw, schema v2+) |
+| `group_bucket_ul` | HASH | 256 | 4 (u32) | 24 (BucketRaw, schema v2+) |
 | `cgroup_limiter_stats` | HASH | 1024 | 4 (u32) | 32 (LimiterStatsRaw) |
 | `watchdog_deadline` | ARRAY | 1 | 4 (u32) | 8 (u64) |
+| `schema_version` | ARRAY | 1 | 4 (u32) | 4 (u32) |
 
 ## Overflow Safety
 

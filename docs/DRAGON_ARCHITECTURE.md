@@ -159,7 +159,7 @@ line. The legacy `tc`/`nft`/`systemd-wrapper` code is frozen on the
 - [x] Benchmark: `scripts/benchmarking.sh` (CPU/memory overhead — see PERFORMANCE.md)
 - [x] Layer 4: `--print-json` output for tooling integration
 
-### Future (post-v4.0)
+### Future ideas (unscheduled — v10 is maintenance mode)
 - [ ] Layer 0: `bpf/policer.bpf.c` — DSCP marking via `sock_ops`
 - [ ] Layer 0: XDP ingress counter (separate from cgroup_skb)
 - [ ] Layer 2: cgroup path → systemd unit name resolution
@@ -170,9 +170,10 @@ line. The legacy `tc`/`nft`/`systemd-wrapper` code is frozen on the
 - **No Windows support.** Ever.
 - **No macOS/BSD support for the `ebpf` feature.** Source compiles, feature
   is no-op.
-- **No daemon mode.** Every invocation is one-shot. Fire-and-forget uses a
-  minimal child process (sleeps + refreshes watchdog), not a daemon. The child
-  dies on `unstrict` or system reboot.
+- **No daemon mode.** Every invocation is one-shot. Fire-and-forget pins
+  BPF programs + links to bpffs — the kernel enforces with zero zelynic
+  processes running. `unstrict-all` removes the pins; a reboot clears
+  them (bpffs is not persistent across boots).
 - **No combined-tool fallback.** If BPF can't do it, zelynic doesn't do
   it. The legacy `tc`/`nft` code is frozen on the `legacy` branch for
   users who need it; `main` is pure eBPF.
