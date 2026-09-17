@@ -1,12 +1,19 @@
 // Copyright (C) 2026 rezky_nightky
 // SPDX-License-Identifier: GPL-3.0-only
-/// zelynic package information constants and display functions.
+
+//! zelynic package information constants and the version report.
 ///
 /// Build metadata is embedded at compile time using env! macros.
 /// For custom builds, set these via cargo build flags or build.rs.
+use colored::Colorize;
+
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
-#[allow(dead_code)]
 pub const NAME: &str = "zelynic";
+pub const COPYRIGHT: &str = "(c) 2026 rezky_nightky (oxyzenQ)";
+pub const LICENSE: &str = "GPL-3.0-only";
+pub const REPOSITORY: &str = "https://github.com/oxyzenQ/zelynic";
+pub const DESCRIPTION: &str = env!("CARGO_PKG_DESCRIPTION");
+
 pub fn build_target() -> &'static str {
     // Dynamic build target label: detects arch + libc env at compile time.
     // Returns e.g. "amd64-gnu" (glibc, dynamic) or "amd64-musl" (static)
@@ -34,16 +41,6 @@ pub fn build_target() -> &'static str {
         }
     }
 }
-pub const COPYRIGHT: &str = "(c) 2026 rezky_nightky (oxyzenQ)";
-pub const LICENSE: &str = "GPL-3.0";
-pub const REPOSITORY: &str = "https://github.com/oxyzenQ/zelynic";
-#[allow(dead_code)]
-pub const DESCRIPTION: &str = env!("CARGO_PKG_DESCRIPTION");
-
-/// Get the full version string.
-fn version_string() -> String {
-    format!("v{}", VERSION)
-}
 
 /// Get the build target string (architecture + OS).
 fn build_string() -> String {
@@ -55,28 +52,41 @@ fn build_hash() -> &'static str {
     option_env!("GIT_HASH").unwrap_or("unknown")
 }
 
-/// Print the package version in a compact format.
+/// Print the full version report for `-V` / `--version`.
 ///
-/// Output: `zelynic v2.0.0`
-#[allow(dead_code)]
-pub fn print_version() {
-    println!("{} {}", NAME, version_string());
-}
-
-/// Print detailed package information.
+/// cosmostrix-style layout: brand header (name + version, then the
+/// one-line description), followed by plain build facts. The header is
+/// rendered in the brand accent color on a TTY; when piped (non-TTY)
+/// everything is plain text so ANSI codes never leak into scripts or
+/// log files. The Architecture line stays on its own line so it is easy
+/// to grep from scripts (`zelynic -V | grep Architecture`).
 ///
 /// ```text
-/// Version: v2.0.0
+/// zelynic: v10.0.0
+/// Per-app network rate limiter for Linux. Pure eBPF. Silent but killer.
+/// Architecture: Dragon (pure eBPF)
 /// Build: linux-amd64 (ad36a81)
 /// Copyright: (c) 2026 rezky_nightky (oxyzenQ)
-/// License: GPL-3.0
+/// License: GPL-3.0-only
 /// Source: https://github.com/oxyzenQ/zelynic
 /// ```
-pub fn print_info() {
-    println!("Version: {}", version_string());
-    println!("Build: {} ({})", build_string(), build_hash());
-    println!("Architecture: Dragon (pure eBPF)");
-    println!("Copyright: {}", COPYRIGHT);
-    println!("License: {}", LICENSE);
-    println!("Source: {}", REPOSITORY);
+pub fn print_version_report() {
+    let header = format!("{NAME}: v{VERSION}\n{DESCRIPTION}");
+    let body = format!(
+        "Architecture: Dragon (pure eBPF)\n\
+         Build: {} ({})\n\
+         Copyright: {COPYRIGHT}\n\
+         License: {LICENSE}\n\
+         Source: {REPOSITORY}",
+        build_string(),
+        build_hash()
+    );
+
+    let is_tty = std::io::IsTerminal::is_terminal(&std::io::stdout());
+    if is_tty {
+        println!("{}", header.cyan().bold());
+    } else {
+        println!("{header}");
+    }
+    println!("{body}");
 }

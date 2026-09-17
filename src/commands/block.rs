@@ -33,7 +33,7 @@ pub fn handle_block_single(target_str: &str, force: bool, verbose: bool) -> Resu
     }
 
     eprintln!("Blocked '{target_str}' from internet ({applied} policies, active in background)");
-    eprintln!("Run 'zelynic unblock {target_str}' to restore access, 'zelynic status' to check.");
+    eprintln!("Run 'zelynic unstrict {target_str}' to restore access, 'zelynic status' to check.");
     Ok(())
 }
 
@@ -67,7 +67,7 @@ pub fn handle_block_multi(targets_str: &str, force: bool, verbose: bool) -> Resu
     }
 
     eprintln!("Blocked '{targets_str}' from internet ({applied} policies, active in background)");
-    eprintln!("Run 'zelynic unblock <target>' to restore access.");
+    eprintln!("Run 'zelynic unstrict <target>' to restore access.");
     Ok(())
 }
 

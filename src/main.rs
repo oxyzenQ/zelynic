@@ -45,17 +45,12 @@ fn try_main() -> Result<()> {
     }
 
     if cli.version {
-        info::print_info();
+        info::print_version_report();
         return Ok(());
     }
 
     if cli.check_update {
         update::check_update(info::VERSION).map_err(anyhow::Error::msg)?;
-        return Ok(());
-    }
-
-    if cli.info {
-        info::print_info();
         return Ok(());
     }
 

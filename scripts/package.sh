@@ -54,7 +54,6 @@ create_archive() {
     log_info "Creating archive: ${pkg_name}.tar.gz"
     rm -rf "$pkg_dir"
     install -dm755 "$pkg_dir"
-    install -dm755 "$pkg_dir/man"
     # Copy binary
     install -m755 "$binary_path" "$pkg_dir/zelynic"
     # Copy BPF objects (pre-compiled — users don't need clang)
@@ -76,10 +75,6 @@ create_archive() {
     for script in distros-depth-test.sh leak-test.sh stress-test.sh benchmarking.sh ; do
         [[ -f "scripts/$script" ]] && install -m755 "scripts/$script" "$pkg_dir/scripts/"
     done
-    # Generate man page
-    log_info "Generating man page..."
-    "$binary_path" man > "$pkg_dir/man/zelynic.1" 2>/dev/null || true
-    gzip -f "$pkg_dir/man/zelynic.1" 2>/dev/null || true
     # Create archive
     local archive_name="${pkg_name}.tar.gz"
     tar -czf "dist/${archive_name}" -C dist "$pkg_name"

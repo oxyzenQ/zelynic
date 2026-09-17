@@ -69,12 +69,6 @@ pub(crate) fn print_help_all() {
     println!("    sudo zelynic block-all                   # all user apps");
     println!("    sudo zelynic block-all --force            # include system apps");
     println!(
-        "  {} — Unblock an app (restore internet access)",
-        "zelynic unblock <target>".green()
-    );
-    println!("    zelynic unblock brave");
-    println!();
-    println!(
         "  {} — Recover from crash (clean orphaned pins)",
         "zelynic recover".green()
     );
@@ -105,9 +99,12 @@ pub(crate) fn print_help_all() {
     println!("  {} — Check eBPF support", "zelynic doctor".green());
     println!();
     println!("{}", "Global flags:".cyan().bold());
-    println!("  -v, --verbose     Debug output");
-    println!("  --print-json      JSON output (where applicable)");
-    println!("  --no-color        Disable colored output");
+    println!("  -V, --version    Version and build information");
+    println!("  --check-update   Check the latest upstream GitHub release");
+    println!("  -v, --verbose    Debug output");
+    println!("  --print-json     JSON output (where applicable)");
+    println!("  --no-color       Disable colored output");
+    println!("  --help-all       This comprehensive reference");
     println!();
     println!("{}", "Rate formats:".cyan().bold());
     println!("  500b    1kb    500kb    1mb    1gb    100gb    (lowercase only)");
