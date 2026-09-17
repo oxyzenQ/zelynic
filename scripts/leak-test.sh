@@ -22,8 +22,8 @@ BPF_OBJ="bpf/limiter.bpf.o"
 PASS=0
 FAIL=0
 
-pass() { echo "  ✓ $1"; PASS=$((PASS + 1)); }
-fail() { echo "  ✗ $1"; FAIL=$((FAIL + 1)); }
+pass() { echo "  OK $1"; PASS=$((PASS + 1)); }
+fail() { echo "  X $1"; FAIL=$((FAIL + 1)); }
 
 check_clean() {
     local label="$1"
@@ -196,9 +196,9 @@ echo "━━━ Leak Test Summary ━━━"
 echo "  Passed: $PASS"
 echo "  Failed: $FAIL"
 if [[ "$FAIL" -eq 0 ]]; then
-    echo "  ✅ ALL LEAK TESTS PASSED — zero orphans"
+    echo "  ALL LEAK TESTS PASSED — zero orphans"
     exit 0
 else
-    echo "  ❌ $FAIL leak(s) detected"
+    echo "  FAIL $FAIL leak(s) detected"
     exit 1
 fi

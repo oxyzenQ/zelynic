@@ -163,35 +163,35 @@ impl EbpfSupport {
         println!(
             "  Kernel 5.2+: {}",
             if self.kernel_ok {
-                "✓".green()
+                "OK".green()
             } else {
-                "✗".red()
+                "X".red()
             }
         );
 
         // Show CAP_BPF with context about why it failed
         if self.caps_ok {
-            println!("  CAP_BPF/root: {}", "✓".green());
+            println!("  CAP_BPF/root: {}", "OK".green());
         } else if !is_root && self.kernel_ok && self.config_ok {
             println!("  CAP_BPF/root: {} (run with sudo to check)", "?".yellow());
         } else {
-            println!("  CAP_BPF/root: {}", "✗".red());
+            println!("  CAP_BPF/root: {}", "X".red());
         }
 
         println!(
             "  BPF fs mounted: {}",
             if self.bpf_fs_ok {
-                "✓".green()
+                "OK".green()
             } else {
-                "✗".red()
+                "X".red()
             }
         );
         println!(
             "  Kernel configs: {}",
             if self.config_ok {
-                "✓".green()
+                "OK".green()
             } else {
-                "✗".red()
+                "X".red()
             }
         );
         println!();
@@ -334,7 +334,7 @@ pub fn print_backend_info() {
     if ebpf_support.supported {
         println!(
             "  {} eBPF: supported on this system (not yet implemented)",
-            "✓".green()
+            "OK".green()
         );
     } else if !nix::unistd::geteuid().is_root()
         && ebpf_support.kernel_ok

@@ -138,7 +138,7 @@ fn print_report(report: &CapabilityReport) {
         println!();
         println!("{}", "Warnings:".yellow().bold());
         for w in &report.warnings {
-            println!("  ⚠ {w}");
+            println!("  ! {w}");
         }
     }
 

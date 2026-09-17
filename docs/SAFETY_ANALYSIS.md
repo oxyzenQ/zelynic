@@ -29,14 +29,14 @@ that:
 - Pins maps to `/sys/fs/bpf/zelynic/` for fire-and-forget access
 
 ### What zelynic Does NOT Do
-- ❌ No telemetry, analytics, or phone-home
-- ❌ No automatic network connections (except opt-in `--check-update`)
-- ❌ No data collection or logging of user activity
-- ❌ No modification of system files (except BPF pin files)
-- ❌ No installation of systemd services or cron jobs
-- ❌ No background daemon (serve child is minimal: sleeps + refreshes watchdog)
-- ❌ No reading of user files (only `/proc/*/comm` and `/proc/*/cgroup`)
-- ❌ No network packet inspection (BPF only counts bytes, doesn't read content)
+- No telemetry, analytics, or phone-home
+- No automatic network connections (except opt-in `--check-update`)
+- No data collection or logging of user activity
+- No modification of system files (except BPF pin files)
+- No installation of systemd services or cron jobs
+- No background daemon (serve child is minimal: sleeps + refreshes watchdog)
+- No reading of user files (only `/proc/*/comm` and `/proc/*/cgroup`)
+- No network packet inspection (BPF only counts bytes, doesn't read content)
 
 ## File System Access
 

@@ -48,8 +48,8 @@ echo ""
 PASS=0
 FAIL=0
 
-pass() { echo "  ✓ $1"; PASS=$((PASS + 1)); }
-fail() { echo "  ✗ $1"; FAIL=$((FAIL + 1)); }
+pass() { echo "  OK $1"; PASS=$((PASS + 1)); }
+fail() { echo "  X $1"; FAIL=$((FAIL + 1)); }
 
 # Start a long-running background process (curl download for traffic)
 echo "Starting background download (curl)..."
@@ -183,9 +183,9 @@ echo "Passed: $PASS"
 echo "Failed: $FAIL"
 echo ""
 if [[ "$FAIL" -eq 0 ]]; then
-    echo "✓ ALL TESTS PASSED"
+    echo "OK ALL TESTS PASSED"
     exit 0
 else
-    echo "✗ $FAIL test(s) failed"
+    echo "X $FAIL test(s) failed"
     exit 1
 fi

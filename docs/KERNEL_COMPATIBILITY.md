@@ -49,20 +49,20 @@ Check: `stat -fc %T /sys/fs/cgroup` should return `cgroup2fs`.
 
 | Distro | Kernel | Status | Notes |
 |--------|--------|--------|-------|
-| **Arch Linux** | 6.18+ | ✅ Verified | Dev machine (CachyOS 6.18) — all tests pass |
-| **Ubuntu 24.04 LTS** | 6.8 | ✅ Verified | CI build matrix — compiles + tests pass |
-| **Ubuntu 22.04 LTS** | 5.15 | ✅ Verified | CI build matrix — compiles + tests pass |
-| **Fedora 44** | 6.19 | ✅ Verified | Real enforcement tested (firefox 100kb → 690 Kbps) |
-| **Debian 13** | 6.12 | ✅ Verified | Real enforcement tested (firefox-esr 900kb → 7.0 Mbps) |
-| **Ubuntu 21.10** | 5.13 | ✅ Verified | Minimum kernel — MUSL binary, all tests pass |
-| **CachyOS VM** | 7.1 | ✅ Verified | MUSL binary, chromium 360kb → 3.0 Mbps (98%) |
-| **openSUSE Tumbleweed** | 6.x | ⚠️ Should work | Not yet tested |
-| **CentOS Stream 9** | 5.14 | ⚠️ Should work | Edge case (5.14 > 5.13 minimum) |
-| **Alpine** | 6.x | ⚠️ Should work | musl libc — may need testing |
+| **Arch Linux** | 6.18+ | Verified | Dev machine (CachyOS 6.18) — all tests pass |
+| **Ubuntu 24.04 LTS** | 6.8 | Verified | CI build matrix — compiles + tests pass |
+| **Ubuntu 22.04 LTS** | 5.15 | Verified | CI build matrix — compiles + tests pass |
+| **Fedora 44** | 6.19 | Verified | Real enforcement tested (firefox 100kb → 690 Kbps) |
+| **Debian 13** | 6.12 | Verified | Real enforcement tested (firefox-esr 900kb → 7.0 Mbps) |
+| **Ubuntu 21.10** | 5.13 | Verified | Minimum kernel — MUSL binary, all tests pass |
+| **CachyOS VM** | 7.1 | Verified | MUSL binary, chromium 360kb → 3.0 Mbps (98%) |
+| **openSUSE Tumbleweed** | 6.x | Should work | Not yet tested |
+| **CentOS Stream 9** | 5.14 | Should work | Edge case (5.14 > 5.13 minimum) |
+| **Alpine** | 6.x | Should work | musl libc — may need testing |
 
 ## Testing Matrix (v5.0.0)
 
-### Kernels — all verified ✅
+### Kernels — all verified PASS
 - [x] 5.13 (minimum — Ubuntu 21.10, MUSL binary)
 - [x] 6.1 LTS (Debian 13)
 - [x] 6.8 (Ubuntu 24.04 LTS)

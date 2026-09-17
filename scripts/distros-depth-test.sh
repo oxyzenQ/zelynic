@@ -29,13 +29,13 @@ RESULTS=()
 # ━━ Helpers ━━
 
 pass() {
-    echo "  ✓ $1"
+    echo "  OK $1"
     PASS=$((PASS + 1))
     RESULTS+=("PASS|$1")
 }
 
 fail() {
-    echo "  ✗ $1"
+    echo "  X $1"
     FAIL=$((FAIL + 1))
     RESULTS+=("FAIL|$1")
 }
@@ -469,9 +469,9 @@ for result in "${RESULTS[@]}"; do
     STATUS="${result%%|*}"
     NAME="${result#*|}"
     if [[ "$STATUS" == "PASS" ]]; then
-        MARK="✓ PASS"
+        MARK="OK PASS"
     elif [[ "$STATUS" == "FAIL" ]]; then
-        MARK="✗ FAIL"
+        MARK="X FAIL"
     else
         MARK="⊘ SKIP"
     fi
@@ -486,9 +486,9 @@ echo "  Skipped: $SKIP"
 echo ""
 
 if [[ "$FAIL" -eq 0 ]]; then
-    echo "  ✅ ALL TESTS PASSED — zelynic is stable on $OS_INFO"
+    echo "  ALL TESTS PASSED — zelynic is stable on $OS_INFO"
     exit 0
 else
-    echo "  ❌ $FAIL test(s) FAILED — review above"
+    echo "  FAIL $FAIL test(s) FAILED — review above"
     exit 1
 fi

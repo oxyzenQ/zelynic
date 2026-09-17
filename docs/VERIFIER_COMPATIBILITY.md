@@ -81,11 +81,11 @@ Token bucket calculation: `(elapsed_ns * rate_bps) / NS_PER_SEC`
 
 | Kernel | Status | Notes |
 |--------|--------|-------|
-| 5.13 | ⚠️ Untested | Minimum — cgroup.id available |
-| 6.1 LTS | ⚠️ Untested | Common server kernel |
-| 6.6 LTS | ⚠️ Untested | Latest LTS |
-| 6.12+ | ⚠️ Untested | Recent stable |
-| 6.18 (CachyOS) | ✅ Verified | User's machine, 17/17 tests pass |
+| 5.13 | Untested | Minimum — cgroup.id available |
+| 6.1 LTS | Untested | Common server kernel |
+| 6.6 LTS | Untested | Latest LTS |
+| 6.12+ | Untested | Recent stable |
+| 6.18 (CachyOS) | Verified | User's machine, 17/17 tests pass |
 
 ## Verifier Log
 

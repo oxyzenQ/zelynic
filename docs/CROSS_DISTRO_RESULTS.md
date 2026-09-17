@@ -6,12 +6,12 @@
 
 | Distro | Kernel | Binary | Depth Test | Leak Test | Real Enforcement | Status |
 |--------|--------|--------|-----------|-----------|-----------------|--------|
-| **Arch Linux** (CachyOS) | 6.18.35 | GNU | 17/17 ✅ | 13/13 ✅ | brave 100kb → 730 Kbps | ✅ PASS |
-| **CachyOS** (VM) | 7.1.2 | MUSL | 17/17 ✅ | 13/13 ✅ | chromium -d 10kb → 71 Kbps, -d 360kb → 3.0 Mbps | ✅ PASS |
-| **Ubuntu 26.04 LTS** | 7.0.0 | GNU | 17/17 ✅ | 13/13 ✅ | firefox 100kb → 650 Kbps, 10kb → 70 Kbps | ✅ PASS |
-| **Fedora 44** | 6.19.10 | GNU | 17/17 ✅ | 13/13 ✅ | firefox 100kb → 690 Kbps, 10kb → 72 Kbps | ✅ PASS |
-| **Ubuntu 21.10** | **5.13.0** | **MUSL** | **17/17 ✅** | **13/13 ✅** | **GeckoMain 100kb → 770 Kbps, 10kb → 72 Kbps** | ✅ PASS |
-| **Debian 13** (trixie) | 6.12.86 | MUSL | 17/17 ✅ | 13/13 ✅ | firefox-esr -d 900kb → 7.0 Mbps, -u 100kb → 1.1 Mbps | ✅ PASS |
+| **Arch Linux** (CachyOS) | 6.18.35 | GNU | 17/17 PASS | 13/13 PASS | brave 100kb → 730 Kbps | PASS |
+| **CachyOS** (VM) | 7.1.2 | MUSL | 17/17 PASS | 13/13 PASS | chromium -d 10kb → 71 Kbps, -d 360kb → 3.0 Mbps | PASS |
+| **Ubuntu 26.04 LTS** | 7.0.0 | GNU | 17/17 PASS | 13/13 PASS | firefox 100kb → 650 Kbps, 10kb → 70 Kbps | PASS |
+| **Fedora 44** | 6.19.10 | GNU | 17/17 PASS | 13/13 PASS | firefox 100kb → 690 Kbps, 10kb → 72 Kbps | PASS |
+| **Ubuntu 21.10** | **5.13.0** | **MUSL** | **17/17 PASS** | **13/13 PASS** | **GeckoMain 100kb → 770 Kbps, 10kb → 72 Kbps** | PASS |
+| **Debian 13** (trixie) | 6.12.86 | MUSL | 17/17 PASS | 13/13 PASS | firefox-esr -d 900kb → 7.0 Mbps, -u 100kb → 1.1 Mbps | PASS |
 
 **Overall: 6/6 distros pass depth test + leak test. Real enforcement verified on all. Minimum kernel 5.13 verified. Both GNU + MUSL binaries verified. Zero bugs. Zero leaks. Production-ready.**
 
@@ -19,14 +19,14 @@
 
 Kernel 5.10.134 (below 5.13 minimum) — runtime tests not possible.
 Build verification only:
-- ✅ `cargo build --features ebpf` → success
-- ✅ `cargo clippy --all-targets --all-features -- -D warnings` → 0 lints
-- ✅ `cargo fmt --check` → clean
-- ✅ `cargo test --features ebpf` → 41 passed
-- ✅ `cargo build --release --locked --features ebpf` → 1.7MB binary
-- ✅ `python3 scripts/check-policy.py` → PASS
-- ✅ `codespell` → clean
-- ✅ BPF syntax check (gcc stubs) → exit 0
+- `cargo build --features ebpf` → success
+- `cargo clippy --all-targets --all-features -- -D warnings` → 0 lints
+- `cargo fmt --check` → clean
+- `cargo test --features ebpf` → 41 passed
+- `cargo build --release --locked --features ebpf` → 1.7MB binary
+- `python3 scripts/check-policy.py` → PASS
+- `codespell` → clean
+- BPF syntax check (gcc stubs) → exit 0
 
 ## Test Details
 
@@ -156,12 +156,12 @@ Slightly under target due to TCP backoff from dropped packets.
 ## Pre-Compiled BPF Compatibility
 
 BPF objects compiled on Arch Linux (kernel 6.18) successfully loaded on:
-- ✅ Arch Linux 6.18.35
-- ✅ CachyOS 7.1.2 (MUSL)
-- ✅ Ubuntu 26.04 7.0.0
-- ✅ Fedora 44 6.19.10
-- ✅ Ubuntu 21.10 5.13.0 (minimum kernel)
-- ✅ Debian 13 6.12.86
+- Arch Linux 6.18.35
+- CachyOS 7.1.2 (MUSL)
+- Ubuntu 26.04 7.0.0
+- Fedora 44 6.19.10
+- Ubuntu 21.10 5.13.0 (minimum kernel)
+- Debian 13 6.12.86
 
 **BPF bytecode is portable across kernel versions** (5.13 → 7.1). No
 recompilation needed per distro. Both GNU (glibc) and MUSL (static) binaries
