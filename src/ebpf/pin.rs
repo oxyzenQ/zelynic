@@ -20,13 +20,11 @@ pub const PIN_PROG_UL: &str = "/sys/fs/bpf/zelynic/enforce_ul";
 pub const PIN_LINK_DL: &str = "/sys/fs/bpf/zelynic/enforce_dl_link";
 pub const PIN_LINK_UL: &str = "/sys/fs/bpf/zelynic/enforce_ul_link";
 
-/// Map pins (all 8 maps are pinned via LIBBPF_PIN_BY_NAME).
+/// Map pins opened directly by userspace (policy + stats + watchdog +
+/// schema version). The four bucket maps stay kernel-internal after the
+/// serve-mode removal, so their paths carry no userspace constant.
 pub const PIN_MAP_POLICY_DL: &str = "/sys/fs/bpf/zelynic/cgroup_policy_dl";
 pub const PIN_MAP_POLICY_UL: &str = "/sys/fs/bpf/zelynic/cgroup_policy_ul";
-pub const PIN_MAP_BUCKET_DL: &str = "/sys/fs/bpf/zelynic/cgroup_bucket_dl";
-pub const PIN_MAP_BUCKET_UL: &str = "/sys/fs/bpf/zelynic/cgroup_bucket_ul";
-pub const PIN_MAP_GROUP_BUCKET_DL: &str = "/sys/fs/bpf/zelynic/group_bucket_dl";
-pub const PIN_MAP_GROUP_BUCKET_UL: &str = "/sys/fs/bpf/zelynic/group_bucket_ul";
 pub const PIN_MAP_WATCHDOG: &str = "/sys/fs/bpf/zelynic/watchdog_deadline";
 pub const PIN_MAP_STATS: &str = "/sys/fs/bpf/zelynic/cgroup_limiter_stats";
 pub const PIN_MAP_SCHEMA_VERSION: &str = "/sys/fs/bpf/zelynic/schema_version";

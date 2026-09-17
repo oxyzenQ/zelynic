@@ -2,13 +2,11 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 //! eBPF observer + limiter engine — real kernel-level traffic observation and enforcement.
+//!
+//! Dragon Architecture: pure eBPF, no userspace backend fallback. The
+//! legacy tc/cgroup/nftables backend was removed in v4; every command
+//! under this module compiles only with the `ebpf` feature enabled.
 
-// When ebpf feature is off, the modules are compiled out but ebpf_legacy
-// re-exports + colored import may produce dead_code warnings. Suppress them.
-#![allow(dead_code, unused_imports)]
-
-#[cfg(feature = "ebpf")]
-pub mod audit;
 #[cfg(feature = "ebpf")]
 pub mod bpf_syscall;
 #[cfg(feature = "ebpf")]
@@ -25,28 +23,3 @@ pub mod loader;
 pub mod lock;
 #[cfg(feature = "ebpf")]
 pub mod pin;
-
-// Re-export capability detection (always available)
-pub use crate::ebpf_legacy::*;
-
-use colored::Colorize;
-
-/// Print eBPF observer status.
-#[cfg(feature = "ebpf")]
-pub fn print_observer_status() {
-    let support = check_ebpf_support();
-    support.print_status();
-
-    if support.supported {
-        println!("  Observer: {}", "READY".green().bold());
-        println!("  Usage: sudo zelynic observe");
-    } else {
-        println!("  Observer: {}", "NOT AVAILABLE".red().bold());
-        println!("  Install: clang, libbpf-dev, then rebuild with --features ebpf");
-    }
-}
-
-#[cfg(not(feature = "ebpf"))]
-pub fn print_observer_status() {
-    println!("  eBPF: not compiled (rebuild with --features ebpf)");
-}

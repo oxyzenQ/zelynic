@@ -31,10 +31,8 @@ const DEFAULT_REFRESH_TTL_SECS: u64 = 10;
 #[derive(Debug, Clone, Default)]
 pub struct ProcessIdentity {
     pub cgroup_id: u32,
-    pub pid: u32,
     pub uid: u32,
     pub comm: String,
-    pub cgroup_path: Option<String>,
 }
 
 /// Cached identity mapping: cgroup_id (u32) → ProcessIdentity.
@@ -64,7 +62,8 @@ impl IdentityMap {
         }
     }
 
-    /// Create with custom refresh TTL (useful for testing).
+    /// Create with custom refresh TTL (test seam for TTL logic).
+    #[cfg(test)]
     pub fn with_ttl(ttl: Duration) -> Self {
         IdentityMap {
             cache: HashMap::new(),
@@ -167,10 +166,8 @@ impl IdentityMap {
                 cgroup_id,
                 ProcessIdentity {
                     cgroup_id,
-                    pid,
                     uid,
                     comm,
-                    cgroup_path: Some(cgroup_path),
                 },
             );
         }
@@ -209,32 +206,6 @@ impl IdentityMap {
             }
             _ => format!("cg:{cgroup_id}"),
         }
-    }
-
-    /// Get a verbose display label including the cgroup path.
-    ///
-    /// Format: `cg:73386 (firefox) /user.slice/...` if resolved with path,
-    /// `cg:73386 (firefox)` if resolved without path, else `cg:73386`.
-    pub fn label_verbose(&self, cgroup_id: u32) -> String {
-        match self.get(cgroup_id) {
-            Some(id) if !id.comm.is_empty() && id.cgroup_path.is_some() => {
-                format!(
-                    "cg:{cgroup_id} ({}) {}",
-                    id.comm,
-                    id.cgroup_path.as_ref().unwrap()
-                )
-            }
-            Some(id) if !id.comm.is_empty() => {
-                format!("cg:{cgroup_id} ({})", id.comm)
-            }
-            _ => format!("cg:{cgroup_id}"),
-        }
-    }
-
-    /// Clear cache and reset refresh timestamp.
-    pub fn clear(&mut self) {
-        self.cache.clear();
-        self.last_refresh = None;
     }
 
     /// Number of cached identities.
@@ -306,27 +277,9 @@ mod tests {
     }
 
     #[test]
-    fn test_label_verbose_for_unknown_cgroup() {
-        let map = IdentityMap::new();
-        assert_eq!(map.label_verbose(99999), "cg:99999");
-    }
-
-    #[test]
     fn test_get_returns_none_when_empty() {
         let map = IdentityMap::new();
         assert!(map.get(1).is_none());
-    }
-
-    #[test]
-    fn test_clear_resets_cache() {
-        // Insert a fake entry by manually manipulating cache via refresh.
-        // Since refresh() on /proc may or may not find entries in CI,
-        // we test the clear() contract independently.
-        let mut map = IdentityMap::new();
-        // After clear on an empty map, should still be empty.
-        map.clear();
-        assert!(map.is_empty());
-        assert_eq!(map.len(), 0);
     }
 
     #[test]
@@ -369,18 +322,12 @@ mod tests {
             12345,
             ProcessIdentity {
                 cgroup_id: 12345,
-                pid: 1000,
                 uid: 1000,
                 comm: "firefox".to_string(),
-                cgroup_path: Some("/user.slice/user-1000.slice/...".to_string()),
             },
         );
 
         assert_eq!(map.label(12345), "cg:12345 (firefox)");
-        assert_eq!(
-            map.label_verbose(12345),
-            "cg:12345 (firefox) /user.slice/user-1000.slice/..."
-        );
     }
 
     #[test]
@@ -390,16 +337,13 @@ mod tests {
             12345,
             ProcessIdentity {
                 cgroup_id: 12345,
-                pid: 1000,
                 uid: 1000,
                 comm: String::new(),
-                cgroup_path: None,
             },
         );
 
         // Empty comm → fall back to raw label.
         assert_eq!(map.label(12345), "cg:12345");
-        assert_eq!(map.label_verbose(12345), "cg:12345");
     }
 
     #[test]
@@ -419,20 +363,16 @@ mod tests {
             1,
             ProcessIdentity {
                 cgroup_id: 1,
-                pid: 1,
                 uid: 0,
                 comm: "init".to_string(),
-                cgroup_path: Some("/".to_string()),
             },
         );
         map.cache.insert(
             2,
             ProcessIdentity {
                 cgroup_id: 2,
-                pid: 100,
                 uid: 1000,
                 comm: "shell".to_string(),
-                cgroup_path: Some("/user.slice".to_string()),
             },
         );
 

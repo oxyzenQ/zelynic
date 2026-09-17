@@ -5,12 +5,13 @@
 <h1 align="center">zelynic</h1>
 
 <p align="center">
-  <strong>Per-app network rate limiter for Linux. Pure eBPF. Silent but killer.</strong>
+  <strong>Per-app network rate limiter and traffic monitor for Linux. Pure eBPF. Silent but killer.</strong>
 </p>
 
 <p align="center">
   One of the first open-source Linux bandwidth managers built around a pure eBPF datapath
-  with per-application rate limiting, fractional precision, and zero-daemon enforcement.
+  with per-application rate limiting, live traffic monitoring, fractional precision, and
+  zero-daemon enforcement.
 </p>
 
 <p align="center">
