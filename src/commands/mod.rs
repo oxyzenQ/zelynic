@@ -3,7 +3,6 @@
 
 //! Command handlers for zelynic CLI (Dragon Architecture — pure eBPF).
 
-pub(crate) mod backend;
 #[cfg(feature = "ebpf")]
 pub(crate) mod block;
 #[cfg(feature = "ebpf")]
@@ -167,19 +166,6 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
             }
         }
 
-        Some(Commands::Unblock { target }) => {
-            #[cfg(feature = "ebpf")]
-            {
-                cleanup::handle_unstrict(&target, cli.verbose)
-            }
-            #[cfg(not(feature = "ebpf"))]
-            {
-                let _ = (target, cli.verbose);
-                eprintln!("eBPF not compiled. Rebuild with: cargo build --features ebpf");
-                Err(anyhow::anyhow!("eBPF feature not enabled"))
-            }
-        }
-
         Some(Commands::Unstrict { target }) => {
             #[cfg(feature = "ebpf")]
             {
@@ -272,10 +258,6 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
         }
 
         Some(Commands::Doctor) => crate::capabilities::run_doctor(cli.print_json),
-
-        Some(Commands::Completions { shell }) => backend::handle_completions(&shell),
-
-        Some(Commands::Man) => backend::generate_man_page(),
 
         None => {
             if cli.help_all {

@@ -108,48 +108,7 @@ fn test_strict_unstrict_cycle() {
     let _ = sleep_cmd.kill();
 }
 
-/// Test completions generation
-#[test]
-fn test_completions_generation() {
-    let shells = vec!["bash", "zsh", "fish", "powershell", "elvish"];
-
-    for shell in shells {
-        let output = zelynic_cmd()
-            .args(["completions", shell])
-            .output()
-            .unwrap_or_else(|_| panic!("Failed to generate {} completions", shell));
-
-        assert!(
-            output.status.success(),
-            "Failed to generate {} completions",
-            shell
-        );
-        assert!(!output.stdout.is_empty(), "{} completions are empty", shell);
-    }
-}
-
-/// Test man page generation
-#[test]
-fn test_man_generation() {
-    let output = zelynic_cmd()
-        .arg("man")
-        .output()
-        .expect("Failed to generate man page");
-
-    assert!(output.status.success());
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(
-        stdout.contains(".TH"),
-        "Man page should contain roff header"
-    );
-    assert!(
-        stdout.contains("zelynic"),
-        "Man page should contain 'zelynic'"
-    );
-}
-
-/// Test version output
+/// Test version output (-V report: brand header + build facts)
 #[test]
 fn test_version() {
     let output = zelynic_cmd()
@@ -161,9 +120,11 @@ fn test_version() {
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
-        stdout.contains("Version:")
+        stdout.contains("zelynic: v")
             && stdout.contains("Architecture: Dragon")
+            && stdout.contains("Build: ")
+            && stdout.contains("License: GPL-3.0-only")
             && stdout.contains("Source: https://github.com/oxyzenQ/zelynic"),
-        "Version should contain complete zelynic metadata with Dragon Architecture"
+        "Version report must contain the full zelynic metadata, got:\n{stdout}"
     );
 }

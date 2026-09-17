@@ -99,7 +99,7 @@ sudo zelynic observe
 
 # Block an app from internet entirely
 sudo zelynic block-single brave
-sudo zelynic unblock brave
+sudo zelynic unstrict brave
 
 # Check active limits
 sudo zelynic status
@@ -130,7 +130,6 @@ block-single <target> [--force]
 block-multi  <a:b:c>   [--force]
 block-all              [--force]
 unstrict <target>
-unblock <target>
 unstrict-all
 recover
 status [--print-json]
@@ -138,8 +137,6 @@ list-apps [--print-json]
 observe [--live <dur>] [--cgroup <id>]
 top [--duration <dur>] [--live <dur>] [--limit N]
 doctor [--print-json]
-completions <shell>
-man
 ```
 
 ## Rate Formats
@@ -203,7 +200,7 @@ For `--live` and `--duration` flags:
 
 ## Philosophy
 
-**Stable, strong, boring, easy maintenance, silent but killer.**
+**Stable, strong, boring, and silent but killer.**
 
 zelynic is a Linux utility that is simple from the user's perspective,
 but powerful under the hood. The interface rarely changes. Features don't

@@ -13,8 +13,6 @@ rust-version = "1.88.0"
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }
-clap_complete = "4"
-clap_mangen = "0.2"
 colored = "3"
 anyhow = "1"
 serde = { version = "1", features = ["derive"] }

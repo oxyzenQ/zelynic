@@ -21,10 +21,6 @@ pub struct Cli {
     #[command(subcommand)]
     pub command: Option<Commands>,
 
-    /// Print detailed package information
-    #[arg(short = 'i', long = "info", global = false)]
-    pub info: bool,
-
     /// Print complete version and build information
     #[arg(short = 'V', long = "version", global = false)]
     pub version: bool,
@@ -187,15 +183,6 @@ pub enum Commands {
         force: bool,
     },
 
-    /// Unblock an app (remove block, same as unstrict)
-    ///
-    /// Example: zelynic unblock brave
-    #[command(name = "unblock")]
-    Unblock {
-        /// Target: process name or cgroup ID
-        target: String,
-    },
-
     /// Remove rate limit from a target
     ///
     /// Example: zelynic unstrict brave
@@ -260,13 +247,4 @@ pub enum Commands {
     /// Check if your machine supports eBPF
     #[command(name = "doctor")]
     Doctor,
-
-    /// Generate shell completions
-    Completions {
-        /// Shell: bash, zsh, fish, elvish, powershell
-        shell: String,
-    },
-
-    /// Generate man page
-    Man,
 }
