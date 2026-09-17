@@ -13,3 +13,56 @@ rustflags = ["-C", "target-feature=+crt-static"]
 [target.aarch64-unknown-linux-musl]
 linker = "rust-lld"
 rustflags = ["-C", "target-feature=+crt-static"]
+
+# ── Native-CPU host build aliases (NIGHT-improve-1, cosmostrix
+# pro-native lineage) ────────────────────────────────────────────────────
+#
+# Owner contract: `cargo pro-native-gnu` / `cargo pro-native-musl`
+# compile for the host CPU (`-C target-cpu=native`) with dynamic
+# linking (gnu/glibc) or static linking (musl) respectively. Both
+# carry `--features ebpf` so the result is the full flagship binary
+# (same feature set as the CI release build), not the ebpf-less dev
+# shell. Separate profile names land the binaries in
+# target/pro-native-gnu/zelynic and
+# target/x86_64-unknown-linux-musl/pro-native-musl/zelynic so a
+# native build never clobbers target/release/zelynic.
+#
+# Precedence note (verified live on cargo 1.98.1): target-level
+# rustflags SHADOW build-level rustflags, so the musl alias must set
+# target.x86_64-unknown-linux-musl.rustflags directly — passing only
+# build.rustflags there would be silently ignored by the [target] block
+# above. CLI --config rustflags are additionally CONCATENATED with the
+# file's target rustflags (not replaced), so the file's +crt-static
+# lands too; the alias carries both flags explicitly anyway so its
+# native+static contract stays self-contained if the [target] block
+# ever changes.
+#
+# aarch64 hosts: pro-native-gnu works as-is (host triple, dynamic);
+# pro-native-musl is x86_64-only because cargo aliases cannot detect
+# the host arch — mirror this block with the aarch64 target triple if
+# a static aarch64 native build is ever needed.
+[alias]
+pro-native-gnu = [
+  "build",
+  "--profile",
+  "pro-native-gnu",
+  "--features",
+  "ebpf",
+  "--config",
+  "env.ZELYNIC_BUILD=\"local-native-gnu\"",
+  "--config",
+  "build.rustflags=[\"-C\",\"target-cpu=native\"]",
+]
+pro-native-musl = [
+  "build",
+  "--profile",
+  "pro-native-musl",
+  "--features",
+  "ebpf",
+  "--config",
+  "env.ZELYNIC_BUILD=\"local-native-musl\"",
+  "--config",
+  "target.x86_64-unknown-linux-musl.rustflags=[\"-C\",\"target-cpu=native\",\"-C\",\"target-feature=+crt-static\"]",
+  "--target",
+  "x86_64-unknown-linux-musl",
+]

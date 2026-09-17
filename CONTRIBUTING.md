@@ -25,6 +25,11 @@ clang -O2 -g -target bpf -I/usr/include/$(uname -m)-linux-gnu \
 
 # Build Rust binary
 cargo build --release --features ebpf
+
+# Native-CPU host builds (cosmostrix pro-native lineage; see README
+# "Native-CPU host builds" for the full contract)
+cargo pro-native-gnu    # host CPU, dynamic (glibc)
+cargo pro-native-musl   # host CPU, static (musl)
 ```
 
 ## Project Structure

@@ -81,6 +81,35 @@ clang -O2 -g -target bpf -I"/usr/include/${ARCH}-linux-gnu" \
 cargo build --release --features ebpf
 ```
 
+#### Native-CPU host builds
+
+For a binary compiled specifically for the host CPU (maximum
+performance on the machine it runs on, cosmostrix `pro-native`
+lineage):
+
+```bash
+# Dynamic linking (glibc) — lands in target/pro-native-gnu/zelynic
+cargo pro-native-gnu
+
+# Static linking (musl) — lands in
+# target/x86_64-unknown-linux-musl/pro-native-musl/zelynic
+cargo pro-native-musl
+```
+
+Both aliases build the full flagship binary (`--features ebpf`,
+same optimization tier as release) with `-C target-cpu=native`, and
+report their build label in the version output:
+
+```bash
+$ ./target/pro-native-gnu/zelynic -V
+Build: local-native-gnu (<hash>)
+```
+
+A native build never clobbers `target/release/zelynic` — the separate
+profile names keep both binaries side by side. Note: a native binary
+only runs on the CPU family it was compiled for; ship the plain
+release build for distribution.
+
 ### Usage
 
 ```bash
