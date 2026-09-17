@@ -9,7 +9,7 @@ use std::collections::HashMap;
 
 use crate::ebpf::identity::IdentityMap;
 use crate::ebpf::limiter_types::{
-    format_bytes, format_rate, monotonic_ns, terminal_width, Direction, LimiterStatsRaw, PolicyRaw,
+    format_bytes, format_rate, monotonic_ns, terminal_width, LimiterStatsRaw, PolicyRaw,
 };
 
 /// Combined policy data for display.

@@ -96,47 +96,47 @@ pub fn run_doctor(json: bool) -> Result<()> {
 }
 
 fn print_report(report: &CapabilityReport) {
-    use colored::Colorize;
+    use crate::output::{brand_bold, error_bold, ok_bold, warn_bold};
 
-    println!("{}", "━━━ zelynic eBPF Capability Doctor ━━━".bold());
+    println!("{}", brand_bold("━━━ zelynic eBPF Capability Doctor ━━━"));
     println!();
     println!("  Kernel:     {}", report.system.kernel);
     println!(
         "  cgroup v2:  {}",
         if report.system.cgroup_v2 {
-            "YES".green().bold()
+            ok_bold("YES")
         } else {
-            "NO".red().bold()
+            error_bold("NO")
         }
     );
     println!(
         "  BPF fs:     {}",
         if report.system.bpf_fs_mounted {
-            "YES".green().bold()
+            ok_bold("YES")
         } else {
-            "NO".red().bold()
+            error_bold("NO")
         }
     );
     println!(
         "  Root:       {}",
         if report.system.is_root {
-            "YES".green().bold()
+            ok_bold("YES")
         } else {
-            "NO".yellow().bold()
+            warn_bold("NO")
         }
     );
     println!(
         "  eBPF:       {}",
         if report.ebpf_supported {
-            "SUPPORTED".green().bold()
+            ok_bold("SUPPORTED")
         } else {
-            "NOT SUPPORTED".red().bold()
+            error_bold("NOT SUPPORTED")
         }
     );
 
     if !report.warnings.is_empty() {
         println!();
-        println!("{}", "Warnings:".yellow().bold());
+        println!("{}", warn_bold("Warnings:"));
         for w in &report.warnings {
             println!("  ! {w}");
         }
@@ -152,7 +152,7 @@ fn print_report(report: &CapabilityReport) {
         println!();
         println!(
             "  {} Run `zelynic strict-single <target> <rate>` or `zelynic observe`",
-            "Ready:".green().bold()
+            ok_bold("Ready:")
         );
     }
 }
@@ -160,15 +160,12 @@ fn print_report(report: &CapabilityReport) {
 /// Print BPF pin state — checks /sys/fs/bpf/zelynic/ for active/stale pins.
 #[cfg(feature = "ebpf")]
 fn print_pin_state() {
-    use colored::Colorize;
+    use crate::output::{ok_bold, warn_bold};
 
     let pin_dir = std::path::Path::new("/sys/fs/bpf/zelynic");
 
     if !pin_dir.exists() {
-        println!(
-            "  Pins:       {} (no limits active)",
-            "clean".green().bold()
-        );
+        println!("  Pins:       {} (no limits active)", ok_bold("clean"));
         return;
     }
 
@@ -177,7 +174,7 @@ fn print_pin_state() {
         .unwrap_or_default();
 
     if entries.is_empty() {
-        println!("  Pins:       {} (empty directory)", "clean".green().bold());
+        println!("  Pins:       {} (empty directory)", ok_bold("clean"));
         return;
     }
 
@@ -191,13 +188,13 @@ fn print_pin_state() {
     if all_valid {
         println!(
             "  Pins:       {} ({} files, BPF active)",
-            "active".green().bold(),
+            ok_bold("active"),
             entries.len()
         );
     } else {
         println!(
             "  Pins:       {} ({} files, partial — run 'zelynic recover')",
-            "STALE".yellow().bold(),
+            warn_bold("STALE"),
             entries.len()
         );
     }

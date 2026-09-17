@@ -45,9 +45,8 @@ src/
     bpf_syscall.rs     — raw bpf() syscall fallback
     lock.rs            — file lock (concurrency guard)
     pin.rs             — BPF pin cleanup
-    audit.rs           — JSONL audit log
-  ebpf_legacy.rs       — kernel capability detection
   capabilities/mod.rs  — eBPF support check (doctor)
+  output/mod.rs        — capability-aware brand purple styling layer
   info.rs              — version report (-V)
   update.rs            — --check-update
   terminal.rs          — alt-screen box mode

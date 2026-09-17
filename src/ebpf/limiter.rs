@@ -20,10 +20,7 @@ use crate::ebpf::bpf_syscall::{
     create_and_pin_link, kernel_supports_bpf_link, BPF_CGROUP_INET_EGRESS, BPF_CGROUP_INET_INGRESS,
 };
 use crate::ebpf::identity::IdentityMap;
-use crate::ebpf::limiter_types::{
-    default_burst, find_bpf_object, monotonic_ns, terminal_width, BucketRaw, BPF_OBJECT_PATH,
-    SCHEMA_VERSION_EXPECTED,
-};
+use crate::ebpf::limiter_types::{default_burst, find_bpf_object, SCHEMA_VERSION_EXPECTED};
 
 // Re-export public types/functions for external use.
 pub use crate::ebpf::limiter_types::{
@@ -33,14 +30,13 @@ pub use crate::ebpf::limiter_types::{
 
 pub use crate::ebpf::pin::{
     pin_dir_has_files, read_pinned_schema_version, unpin_all, PIN_DIR, PIN_LINK_DL, PIN_LINK_UL,
-    PIN_MAP_POLICY_DL, PIN_MAP_POLICY_UL, PIN_MAP_SCHEMA_VERSION, PIN_MAP_STATS, PIN_MAP_WATCHDOG,
-    PIN_PROG_DL, PIN_PROG_UL,
+    PIN_MAP_POLICY_DL, PIN_MAP_POLICY_UL, PIN_MAP_STATS, PIN_MAP_WATCHDOG, PIN_PROG_DL,
+    PIN_PROG_UL,
 };
 // ━━ Limiter struct ━━
 
 pub struct Limiter {
     bpf: Option<Ebpf>,
-    cgroup_path: String,
     identity: IdentityMap,
     verbose: bool,
 }
@@ -351,26 +347,6 @@ impl Limiter {
         Ok(removed)
     }
 
-    /// Remove ALL policies (unstrict-all).
-    pub fn unstrict_all(&mut self) -> Result<usize> {
-        // Clear policy maps (PolicyRaw, size 24).
-        let dl_count = self.clear_policy_map("cgroup_policy_dl")?;
-        let ul_count = self.clear_policy_map("cgroup_policy_ul")?;
-
-        // Clear bucket maps (BucketRaw, size 16).
-        let _ = self.clear_bucket_map("cgroup_bucket_dl");
-        let _ = self.clear_bucket_map("cgroup_bucket_ul");
-        let _ = self.clear_bucket_map("group_bucket_dl");
-        let _ = self.clear_bucket_map("group_bucket_ul");
-
-        // Clear stats map (LimiterStatsRaw, size 32).
-        let _ = self.clear_stats_map("cgroup_limiter_stats");
-
-        let total = dl_count + ul_count;
-        eprintln!("[limiter] Unstrict-all: {} policies removed", total);
-        Ok(total)
-    }
-
     /// Print status: active limits + watchdog.
     pub fn print_status(&self) {
         let dl = self.read_policies(Direction::Download).unwrap_or_default();
@@ -602,81 +578,6 @@ impl Limiter {
         }
     }
 
-    /// Clear all entries from a policy map. Returns count removed.
-    fn clear_policy_map(&mut self, map_name: &str) -> Result<usize> {
-        let bpf = self.bpf.as_mut().context("BPF not loaded")?;
-
-        let keys: Vec<u32> = {
-            let map: BpfHashMap<_, u32, PolicyRaw> =
-                BpfHashMap::try_from(bpf.map(map_name).context(format!("{map_name} not found"))?)
-                    .context(format!("Failed to access {map_name}"))?;
-            map.iter().flatten().map(|(k, _)| k).collect()
-        };
-
-        let count = keys.len();
-
-        let mut map: BpfHashMap<_, u32, PolicyRaw> = BpfHashMap::try_from(
-            bpf.map_mut(map_name)
-                .context(format!("{map_name} not found"))?,
-        )
-        .context(format!("Failed to access {map_name} (mut)"))?;
-        for key in &keys {
-            let _ = map.remove(key);
-        }
-
-        Ok(count)
-    }
-
-    /// Clear all entries from a bucket map (BucketRaw).
-    fn clear_bucket_map(&mut self, map_name: &str) -> Result<usize> {
-        let bpf = self.bpf.as_mut().context("BPF not loaded")?;
-
-        let keys: Vec<u32> = {
-            let map: BpfHashMap<_, u32, BucketRaw> =
-                BpfHashMap::try_from(bpf.map(map_name).context(format!("{map_name} not found"))?)
-                    .context(format!("Failed to access {map_name}"))?;
-            map.iter().flatten().map(|(k, _)| k).collect()
-        };
-
-        let count = keys.len();
-
-        let mut map: BpfHashMap<_, u32, BucketRaw> = BpfHashMap::try_from(
-            bpf.map_mut(map_name)
-                .context(format!("{map_name} not found"))?,
-        )
-        .context(format!("Failed to access {map_name} (mut)"))?;
-        for key in &keys {
-            let _ = map.remove(key);
-        }
-
-        Ok(count)
-    }
-
-    /// Clear all entries from the stats map (LimiterStatsRaw).
-    fn clear_stats_map(&mut self, map_name: &str) -> Result<usize> {
-        let bpf = self.bpf.as_mut().context("BPF not loaded")?;
-
-        let keys: Vec<u32> = {
-            let map: BpfHashMap<_, u32, LimiterStatsRaw> =
-                BpfHashMap::try_from(bpf.map(map_name).context(format!("{map_name} not found"))?)
-                    .context(format!("Failed to access {map_name}"))?;
-            map.iter().flatten().map(|(k, _)| k).collect()
-        };
-
-        let count = keys.len();
-
-        let mut map: BpfHashMap<_, u32, LimiterStatsRaw> = BpfHashMap::try_from(
-            bpf.map_mut(map_name)
-                .context(format!("{map_name} not found"))?,
-        )
-        .context(format!("Failed to access {map_name} (mut)"))?;
-        for key in &keys {
-            let _ = map.remove(key);
-        }
-
-        Ok(count)
-    }
-
     /// Read current watchdog deadline.
     pub fn read_watchdog(&self) -> Result<Option<u64>> {
         if let Some(bpf) = self.bpf.as_ref() {
@@ -713,11 +614,6 @@ impl Limiter {
         self.read_policies(direction)
     }
 
-    /// Read enforcement stats (public for status display).
-    pub fn read_stats_public(&self) -> Result<Vec<(u32, LimiterStatsRaw)>> {
-        self.read_stats()
-    }
-
     /// Borrow identity map.
     pub fn identity(&self) -> &IdentityMap {
         &self.identity
@@ -726,16 +622,6 @@ impl Limiter {
     /// Force-refresh identity map. Returns number of cgroups resolved.
     pub fn refresh_identity(&mut self) -> usize {
         self.identity.refresh()
-    }
-
-    /// Pin a BPF map to the given path. Allows parent process to access maps.
-    pub fn pin_map(&self, map_name: &str, pin_path: &str) -> Result<()> {
-        let bpf = self.bpf.as_ref().context("BPF not loaded")?;
-        bpf.map(map_name)
-            .context(format!("{map_name} not found"))?
-            .pin(pin_path)
-            .context(format!("Failed to pin {map_name} to {pin_path}"))?;
-        Ok(())
     }
 
     /// Open pinned maps for read/write access (no BPF program load needed).
@@ -747,7 +633,6 @@ impl Limiter {
     pub fn open_pinned(verbose: bool) -> Result<Self> {
         let limiter = Limiter {
             bpf: None, // No Ebpf object — using pinned maps directly
-            cgroup_path: "/sys/fs/cgroup".to_string(),
             identity: IdentityMap::new(),
             verbose,
         };
@@ -757,14 +642,6 @@ impl Limiter {
         }
 
         Ok(limiter)
-    }
-
-    /// Detach BPF programs.
-    pub fn detach(&mut self) {
-        self.bpf = None;
-        if self.verbose {
-            eprintln!("[limiter] Detached from {}", self.cgroup_path);
-        }
     }
 }
 

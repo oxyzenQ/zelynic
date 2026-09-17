@@ -34,7 +34,6 @@ unsafe impl aya::Pod for CgroupStatsRaw {}
 
 pub struct Observer {
     bpf: Option<Ebpf>,
-    cgroup_path: String,
     /// Previous egress stats for delta calculation.
     prev_stats: std::collections::HashMap<u32, CgroupStatsRaw>,
     /// Previous ingress stats for delta calculation.
@@ -45,10 +44,6 @@ pub struct Observer {
 }
 
 impl Observer {
-    pub fn attach() -> Result<Self> {
-        Self::attach_quiet(false)
-    }
-
     /// Attach with optional quiet mode (suppresses eprintln messages).
     /// Used by observe/top when running in alt-screen mode.
     pub fn attach_quiet(quiet: bool) -> Result<Self> {
@@ -104,7 +99,6 @@ impl Observer {
 
         Ok(Observer {
             bpf: Some(bpf),
-            cgroup_path: cgroup_path.to_string(),
             prev_stats: std::collections::HashMap::new(),
             prev_stats_ingress: std::collections::HashMap::new(),
             identity: IdentityMap::new(),
@@ -176,7 +170,6 @@ impl Observer {
                     cgroup_id: *cgroup_id,
                     packets: delta_packets,
                     bytes: delta_bytes,
-                    total_packets: stats.packets,
                     total_bytes: stats.bytes,
                     ingress_packets: 0,
                     ingress_bytes: 0,
@@ -210,7 +203,6 @@ impl Observer {
                         cgroup_id: *cgroup_id,
                         packets: 0,
                         bytes: 0,
-                        total_packets: 0,
                         total_bytes: 0,
                         ingress_packets: delta_packets,
                         ingress_bytes: delta_bytes,
@@ -238,11 +230,6 @@ impl Observer {
     pub fn detach(&mut self) {
         self.bpf = None;
     }
-
-    pub fn detach_verbose(&mut self) {
-        self.bpf = None;
-        eprintln!("[ebpf] Observer detached from {}", self.cgroup_path);
-    }
 }
 
 impl Drop for Observer {
@@ -265,7 +252,6 @@ pub struct CgroupDelta {
     pub cgroup_id: u32,
     pub packets: u64,
     pub bytes: u64,
-    pub total_packets: u64,
     pub total_bytes: u64,
     pub ingress_packets: u64,
     pub ingress_bytes: u64,
@@ -360,36 +346,6 @@ impl CounterSummary {
                 c.packets,
                 format_bytes(c.bytes),
                 format_bytes(c.total_bytes),
-            );
-        }
-    }
-
-    /// Print summary with verbose labels (includes cgroup path).
-    pub fn print_verbose(&self, identity: &IdentityMap) {
-        if self.total_packets == 0 {
-            println!("\n  (no traffic since last check)");
-            return;
-        }
-
-        println!("\n━━━ eBPF Traffic Summary (verbose) ━━━");
-        println!("  Packets:  {}", self.total_packets);
-        println!("  Bytes:    {}", format_bytes(self.total_bytes));
-        println!("  Cgroups:  {}", self.cgroups.len());
-        if !identity.is_empty() {
-            println!("  Resolved: {} cgroup identities", identity.len());
-        }
-        println!();
-
-        let mut sorted = self.cgroups.clone();
-        sorted.sort_by_key(|c| std::cmp::Reverse(c.bytes));
-
-        for c in sorted.iter().take(20) {
-            println!("  {}", identity.label_verbose(c.cgroup_id));
-            println!(
-                "    delta: {} pkt / {}   total: {}",
-                c.packets,
-                format_bytes(c.bytes),
-                format_bytes(c.total_bytes)
             );
         }
     }

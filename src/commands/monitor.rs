@@ -54,7 +54,7 @@ pub fn handle_status(verbose: bool, json: bool) -> Result<()> {
 #[cfg(feature = "ebpf")]
 pub fn handle_list_apps(json: bool) -> Result<()> {
     use crate::ebpf::identity::IdentityMap;
-    use colored::Colorize;
+    use crate::output::brand_bold;
 
     let mut identity = IdentityMap::new();
     let count = identity.refresh();
@@ -78,7 +78,7 @@ pub fn handle_list_apps(json: bool) -> Result<()> {
         return Ok(());
     }
 
-    println!("{}", "━━━ Apps with cgroup IDs ━━━".bold());
+    println!("{}", brand_bold("━━━ Apps with cgroup IDs ━━━"));
     println!("  {} cgroups resolved\n", count);
     println!("  {:<30} {:>10} {:>8}", "PROCESS", "CGROUP ID", "UID");
     println!("  {}", "─".repeat(50));
@@ -224,7 +224,7 @@ fn print_top_table(
     identity: &crate::ebpf::identity::IdentityMap,
     mode: &str,
 ) {
-    use colored::Colorize;
+    use crate::output::warn_bold;
 
     let mut talkers: Vec<(u32, u64, u64, u64, u64)> = cumulative
         .iter()
@@ -280,7 +280,7 @@ fn print_top_table(
     println!("  {grand_total_pkt} packets total\n");
 
     if let Some(proc_name) = top_proc_name {
-        println!("  {} Top consumer: {proc_name}", "→".yellow().bold());
+        println!("  {} Top consumer: {proc_name}", warn_bold("→"));
         println!("  Limit it: sudo zelynic strict-single {proc_name} 100kb\n");
     }
 }

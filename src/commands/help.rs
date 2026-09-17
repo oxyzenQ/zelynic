@@ -3,102 +3,72 @@
 
 //! Help text for `zelynic --help-all`.
 
-use colored::Colorize;
+use crate::output::brand_bold;
 
 /// Print comprehensive help with all commands and examples.
+///
+/// Brand identity (cosmostrix help format): the banner and every section
+/// heading render in brand purple #A855F7 (bold); all command syntax,
+/// examples, and body text stay in the terminal default color so the
+/// reference remains readable and diff-friendly when piped.
 pub(crate) fn print_help_all() {
     println!(
         "{}",
-        "━━━ zelynic — Per-app Network Rate Limiter ━━━".bold()
+        brand_bold("━━━ zelynic — Per-app Network Rate Limiter & Monitor ━━━")
     );
     println!();
-    println!("Limit any app's download/upload speed using eBPF.");
+    println!("Limit and observe any app's download/upload speed using eBPF.");
     println!("Pure kernel enforcement — no tc, no nft. Requires kernel 5.13+ and root.");
     println!();
-    println!("{}", "Commands:".cyan().bold());
+    println!("{}", brand_bold("Commands:"));
     println!();
     println!(
-        "  {} — Limit a single app",
-        "zelynic strict-single <target> [rate] [-d <rate>] [-u <rate>]".green()
+        "  zelynic strict-single <target> [rate] [-d <rate>] [-u <rate>] — Limit a single app"
     );
     println!("    sudo zelynic strict-single brave 100kb              # both dl+ul = 100kb");
     println!("    sudo zelynic strict-single brave -d 100kb           # download only");
     println!("    sudo zelynic strict-single brave -u 500kb           # upload only");
     println!("    sudo zelynic strict-single firefox -d 1mb -u 500kb  # both, different rates");
     println!();
-    println!(
-        "  {} — Limit multiple apps sharing one rate (group limit)",
-        "zelynic strict-multi <a:b:c> [rate] [-d <rate>] [-u <rate>]".green()
-    );
+    println!("  zelynic strict-multi <a:b:c> [rate] [-d <rate>] [-u <rate>] — Limit multiple apps sharing one rate (group limit)");
     println!("    sudo zelynic strict-multi brave:curl:pacman 1mb");
     println!("    sudo zelynic strict-multi brave:firefox -d 1mb -u 500kb");
     println!("    (all apps collectively share the rate — if one downloads at full");
     println!("     rate, others get nothing)");
     println!();
     println!(
-        "  {} — Limit ALL user apps from list-apps",
-        "zelynic limit-all [rate] [-d <rate>] [-u <rate>]".green()
+        "  zelynic limit-all [rate] [-d <rate>] [-u <rate>] — Limit ALL user apps from list-apps"
     );
     println!("    sudo zelynic limit-all 500kb              # limit all user apps");
     println!("    sudo zelynic limit-all -d 1mb -u 500kb    # per-direction");
-    println!(
-        "  {} — Remove limit from one app",
-        "zelynic unstrict <target>".green()
-    );
+    println!("  zelynic unstrict <target> — Remove limit from one app");
     println!("    zelynic unstrict brave");
     println!();
-    println!(
-        "  {} — Remove ALL limits (emergency reset)",
-        "zelynic unstrict-all".green()
-    );
+    println!("  zelynic unstrict-all — Remove ALL limits (emergency reset)");
     println!();
-    println!(
-        "  {} — Block an app from the internet entirely",
-        "zelynic block-single <target>".green()
-    );
+    println!("  zelynic block-single <target> — Block an app from the internet entirely");
     println!("    sudo zelynic block-single brave");
-    println!(
-        "  {} — Block multiple apps from internet",
-        "zelynic block-multi <a:b:c>".green()
-    );
+    println!("  zelynic block-multi <a:b:c> — Block multiple apps from internet");
     println!("    sudo zelynic block-multi brave:curl:pacman");
-    println!(
-        "  {} — Block ALL user apps from internet",
-        "zelynic block-all".green()
-    );
+    println!("  zelynic block-all — Block ALL user apps from internet");
     println!("    sudo zelynic block-all                   # all user apps");
     println!("    sudo zelynic block-all --force            # include system apps");
-    println!(
-        "  {} — Recover from crash (clean orphaned pins)",
-        "zelynic recover".green()
-    );
+    println!("  zelynic recover — Recover from crash (clean orphaned pins)");
     println!();
-    println!(
-        "  {} — Show active limits + watchdog status",
-        "zelynic status".green()
-    );
-    println!(
-        "  {} — List apps with cgroup IDs",
-        "zelynic list-apps".green()
-    );
-    println!(
-        "  {} — Real-time traffic monitor (box mode, in-place)",
-        "zelynic observe [--live <dur>] [--cgroup <id>]".green()
-    );
+    println!("  zelynic status — Show active limits + watchdog status");
+    println!("  zelynic list-apps — List apps with cgroup IDs");
+    println!("  zelynic observe [--live <dur>] [--cgroup <id>] — Real-time traffic monitor (box mode, in-place)");
     println!("    sudo zelynic observe                    # live forever, q/ESC to quit");
     println!("    sudo zelynic observe --live 3m           # live for 3 minutes");
     println!("    sudo zelynic observe --cgroup 8066       # filter to one cgroup");
-    println!(
-        "  {} — Find top bandwidth consumers",
-        "zelynic top [--duration <dur>] [--live <dur>] [--limit N]".green()
-    );
+    println!("  zelynic top [--duration <dur>] [--live <dur>] [--limit N] — Find top bandwidth consumers");
     println!("    sudo zelynic top                        # 10s snapshot, top 10");
     println!("    sudo zelynic top --duration 30s         # 30s snapshot");
     println!("    sudo zelynic top --live 5m              # live box mode for 5 min");
     println!("    sudo zelynic top --live 0               # live forever (catches bursty apps)");
-    println!("  {} — Check eBPF support", "zelynic doctor".green());
+    println!("  zelynic doctor — Check eBPF support");
     println!();
-    println!("{}", "Global flags:".cyan().bold());
+    println!("{}", brand_bold("Global flags:"));
     println!("  -V, --version    Version and build information");
     println!("  --check-update   Check the latest upstream GitHub release");
     println!("  -v, --verbose    Debug output");
@@ -106,16 +76,16 @@ pub(crate) fn print_help_all() {
     println!("  --no-color       Disable colored output");
     println!("  --help-all       This comprehensive reference");
     println!();
-    println!("{}", "Rate formats:".cyan().bold());
+    println!("{}", brand_bold("Rate formats:"));
     println!("  500b    1kb    500kb    1mb    1gb    100gb    (lowercase only)");
     println!("  Min: 1kb (1024 b/s)    Max: 100gb (100,000,000,000 b/s)");
     println!("  Both bounds overridable with --allow-dangerous");
     println!();
-    println!("{}", "Target formats:".cyan().bold());
+    println!("{}", brand_bold("Target formats:"));
     println!("  <process_name>  e.g., brave, firefox, curl");
     println!("  <cgroup_id>     e.g., 73386 (use 'zelynic list-apps' to find)");
     println!();
-    println!("{}", "Safety:".cyan().bold());
+    println!("{}", brand_bold("Safety:"));
     println!("  • Min-rate guard: rejects < 1kb (use --allow-dangerous)");
     println!(
         "  • Dangerous target warning: {} system processes blocked by default",
@@ -124,7 +94,7 @@ pub(crate) fn print_help_all() {
     println!("    (use --force to override)");
     println!("  • Fail-safe: BPF returns allow on any error path");
     println!();
-    println!("{}", "Examples:".cyan().bold());
+    println!("{}", brand_bold("Examples:"));
     println!("  # Limit brave to 100kb/s (both download + upload)");
     println!("  sudo zelynic strict-single brave 100kb");
     println!();

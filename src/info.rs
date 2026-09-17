@@ -5,8 +5,6 @@
 ///
 /// Build metadata is embedded at compile time using env! macros.
 /// For custom builds, set these via cargo build flags or build.rs.
-use colored::Colorize;
-
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 pub const NAME: &str = "zelynic";
 pub const COPYRIGHT: &str = "(c) 2026 rezky_nightky (oxyzenQ)";
@@ -56,14 +54,16 @@ fn build_hash() -> &'static str {
 ///
 /// cosmostrix-style layout: brand header (name + version, then the
 /// one-line description), followed by plain build facts. The header is
-/// rendered in the brand accent color on a TTY; when piped (non-TTY)
-/// everything is plain text so ANSI codes never leak into scripts or
-/// log files. The Architecture line stays on its own line so it is easy
-/// to grep from scripts (`zelynic -V | grep Architecture`).
+/// rendered in brand purple #A855F7 (regular weight, exactly as the
+/// cosmostrix `version_report()` does) on a TTY, degrading through
+/// 256-color/16-color tiers; when piped (non-TTY) everything is plain
+/// text so ANSI codes never leak into scripts or log files. The
+/// Architecture line stays on its own line so it is easy to grep from
+/// scripts (`zelynic -V | grep Architecture`).
 ///
 /// ```text
 /// zelynic: v10.0.0
-/// Per-app network rate limiter for Linux. Pure eBPF. Silent but killer.
+/// Per-app network rate limiter and traffic monitor for Linux. Pure eBPF. Silent but killer.
 /// Architecture: Dragon (pure eBPF)
 /// Build: linux-amd64 (ad36a81)
 /// Copyright: (c) 2026 rezky_nightky (oxyzenQ)
@@ -82,11 +82,6 @@ pub fn print_version_report() {
         build_hash()
     );
 
-    let is_tty = std::io::IsTerminal::is_terminal(&std::io::stdout());
-    if is_tty {
-        println!("{}", header.cyan().bold());
-    } else {
-        println!("{header}");
-    }
+    println!("{}", crate::output::brand(&header));
     println!("{body}");
 }

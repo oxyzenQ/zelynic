@@ -1,14 +1,15 @@
 // Copyright (C) 2026 rezky_nightky
 // SPDX-License-Identifier: GPL-3.0-only
-/// zelynic — Per-app network rate limiter for Linux
+/// zelynic — Per-app network rate limiter and traffic monitor for Linux
 ///
-/// Limit any app's download/upload speed using eBPF. Pure kernel enforcement.
+/// Limit and observe any app's download/upload speed using eBPF.
+/// Pure kernel enforcement.
 mod capabilities;
 mod cli;
 mod commands;
 mod ebpf;
-mod ebpf_legacy;
 mod info;
+mod output;
 #[cfg(feature = "ebpf")]
 mod terminal;
 mod update;
@@ -41,7 +42,7 @@ fn try_main() -> Result<()> {
     }
 
     if cli.no_color || std::env::var("NO_COLOR").is_ok() {
-        colored::control::set_override(false);
+        output::disable_color();
     }
 
     if cli.version {

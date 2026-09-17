@@ -43,6 +43,13 @@ unsafe impl aya::Pod for PolicyRaw {}
 #[repr(C)]
 #[derive(Debug, Clone, Copy, Default)]
 #[repr(align(8))]
+// Userspace mirror of the BPF token-bucket map value. The bucket maps
+// are kernel-internal after the serve-mode removal (userspace last read
+// them via the deleted clear_bucket_map), so this type is never
+// constructed in production — but it stays as the schema-layout contract:
+// the size/field assertions in the tests below guard drift against
+// `struct bucket` in bpf/limiter.bpf.c.
+#[allow(dead_code)]
 pub struct BucketRaw {
     pub tokens: u64,
     pub last_refill_ns: u64,
