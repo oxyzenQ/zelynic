@@ -48,5 +48,18 @@ panic = "unwind"    # Must be unwind — aya BPF library can panic internally
 overflow-checks = false
 incremental = false
 
+# Native-CPU host build profiles for the cargo aliases
+# pro-native-gnu / pro-native-musl (see .cargo/config.toml [alias]).
+# They inherit release unchanged — the only delta is the alias-injected
+# `-C target-cpu=native` — so alias binaries are bit-for-bit the same
+# optimization tier as release. Separate profile names exist so the
+# binaries land in target/<profile>/ and never clobber
+# target/release/zelynic (cosmostrix pro-native contract).
+[profile.pro-native-gnu]
+inherits = "release"
+
+[profile.pro-native-musl]
+inherits = "release"
+
 [dev-dependencies]
 serde = { version = "1", features = ["derive"] }
