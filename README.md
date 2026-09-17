@@ -204,7 +204,7 @@ For `--live` and `--duration` flags:
 
 ## Philosophy
 
-**Stable, strong, boring, and silent but killer.**
+**Boring and silent but killer.**
 
 zelynic is a Linux utility that is simple from the user's perspective,
 but powerful under the hood. The interface rarely changes. Features don't
