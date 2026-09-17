@@ -14,7 +14,7 @@ PROJECT_NAME="zelynic"
 REPO_URL="https://github.com/oxyzenQ/zelynic"
 
 usage() {
-    cat <<EOF
+	cat <<EOF
 Usage: $0 [--system|--user|--all]
 
   (default)  Auto-detect: scan /usr/bin, ~/.local/bin
@@ -30,13 +30,29 @@ EOF
 
 MODE="--all"
 while [[ $# -gt 0 ]]; do
-    case "$1" in
-        --system) MODE="--system"; shift ;;
-        --user)   MODE="--user";   shift ;;
-        --all)    MODE="--all";    shift ;;
-        -h|--help) usage; exit 0 ;;
-        *) echo "error: unknown argument: $1" >&2; usage; exit 2 ;;
-    esac
+	case "$1" in
+	--system)
+		MODE="--system"
+		shift
+		;;
+	--user)
+		MODE="--user"
+		shift
+		;;
+	--all)
+		MODE="--all"
+		shift
+		;;
+	-h | --help)
+		usage
+		exit 0
+		;;
+	*)
+		echo "error: unknown argument: $1" >&2
+		usage
+		exit 2
+		;;
+	esac
 done
 
 SYSTEM_BIN="/usr/bin"
@@ -46,41 +62,41 @@ USER_BPF="${HOME}/.local/lib/${PROJECT_NAME}"
 removed=0
 
 remove_at() {
-    local target="$1"
-    local need_sudo="$2"
-    if [[ -e "${target}" ]]; then
-        if [[ "${need_sudo}" == "yes" ]]; then
-            sudo rm -rf "${target}"
-        else
-            rm -rf "${target}"
-        fi
-        echo "   removed: ${target}"
-        removed=$((removed+1))
-    fi
+	local target="$1"
+	local need_sudo="$2"
+	if [[ -e "${target}" ]]; then
+		if [[ "${need_sudo}" == "yes" ]]; then
+			sudo rm -rf "${target}"
+		else
+			rm -rf "${target}"
+		fi
+		echo "   removed: ${target}"
+		removed=$((removed + 1))
+	fi
 }
 
 echo ">> Uninstalling ${PROJECT_NAME}"
 
 case "${MODE}" in
-    --system)
-        remove_at "${SYSTEM_BIN}/${PROJECT_NAME}" yes
-        remove_at "${SYSTEM_BPF}" yes
-        ;;
-    --user)
-        remove_at "${USER_BIN}/${PROJECT_NAME}" no
-        remove_at "${USER_BPF}" no
-        ;;
-    --all)
-        remove_at "${SYSTEM_BIN}/${PROJECT_NAME}" yes
-        remove_at "${SYSTEM_BPF}" yes
-        remove_at "${USER_BIN}/${PROJECT_NAME}" no
-        remove_at "${USER_BPF}" no
-        ;;
+--system)
+	remove_at "${SYSTEM_BIN}/${PROJECT_NAME}" yes
+	remove_at "${SYSTEM_BPF}" yes
+	;;
+--user)
+	remove_at "${USER_BIN}/${PROJECT_NAME}" no
+	remove_at "${USER_BPF}" no
+	;;
+--all)
+	remove_at "${SYSTEM_BIN}/${PROJECT_NAME}" yes
+	remove_at "${SYSTEM_BPF}" yes
+	remove_at "${USER_BIN}/${PROJECT_NAME}" no
+	remove_at "${USER_BPF}" no
+	;;
 esac
 
 if [[ ${removed} -eq 0 ]]; then
-    echo "   (nothing found to remove)"
-    exit 0
+	echo "   (nothing found to remove)"
+	exit 0
 fi
 
 echo ">> Done. Removed ${removed} artifact(s)."

@@ -31,38 +31,38 @@ BINARY="${1:-./target/release/zelynic}"
 PIN_DIR="/sys/fs/bpf/zelynic"
 
 log_pass() {
-    echo -e "  ${GREEN}OK PASS${NC}: $1"
-    PASS=$((PASS + 1))
+	echo -e "  ${GREEN}OK PASS${NC}: $1"
+	PASS=$((PASS + 1))
 }
 
 log_fail() {
-    echo -e "  ${RED}X FAIL${NC}: $1"
-    FAIL=$((FAIL + 1))
+	echo -e "  ${RED}X FAIL${NC}: $1"
+	FAIL=$((FAIL + 1))
 }
 
 log_test() {
-    echo ""
-    echo -e "  ${YELLOW}TEST${NC}: $1"
-    TOTAL=$((TOTAL + 1))
+	echo ""
+	echo -e "  ${YELLOW}TEST${NC}: $1"
+	TOTAL=$((TOTAL + 1))
 }
 
 check_root() {
-    if [ "$(id -u)" -ne 0 ]; then
-        echo -e "${RED}ERROR: This test requires root. Run with sudo.${NC}"
-        exit 1
-    fi
+	if [ "$(id -u)" -ne 0 ]; then
+		echo -e "${RED}ERROR: This test requires root. Run with sudo.${NC}"
+		exit 1
+	fi
 }
 
 check_binary() {
-    if [ ! -f "$BINARY" ]; then
-        echo -e "${RED}ERROR: Binary not found: $BINARY${NC}"
-        echo "Build first: cargo build --release --features ebpf"
-        exit 1
-    fi
+	if [ ! -f "$BINARY" ]; then
+		echo -e "${RED}ERROR: Binary not found: $BINARY${NC}"
+		echo "Build first: cargo build --release --features ebpf"
+		exit 1
+	fi
 }
 
 cleanup() {
-    "$BINARY" unstrict-all 2>/dev/null || true
+	"$BINARY" unstrict-all 2>/dev/null || true
 }
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -78,9 +78,9 @@ cleanup
 # Test 1: Clean state baseline
 log_test "Clean state baseline — no pins should exist"
 if [ ! -d "$PIN_DIR" ] || [ -z "$(ls -A "$PIN_DIR" 2>/dev/null)" ]; then
-    log_pass "Pin directory is clean"
+	log_pass "Pin directory is clean"
 else
-    log_fail "Pin directory has files (run 'zelynic unstrict-all' first)"
+	log_fail "Pin directory has files (run 'zelynic unstrict-all' first)"
 fi
 
 # Test 2: Apply limit, verify active
@@ -88,27 +88,27 @@ log_test "Apply limit, verify BPF is active"
 "$BINARY" strict-single curl 100kb 2>/dev/null || true
 sleep 1
 if "$BINARY" status 2>/dev/null | grep -q "enforcing"; then
-    log_pass "BPF is active after strict-single"
+	log_pass "BPF is active after strict-single"
 else
-    log_fail "BPF not active after strict-single"
+	log_fail "BPF not active after strict-single"
 fi
 
 # Test 3: Simulate crash — remove program pins (stale state)
 log_test "Simulate crash — remove program pins (stale state)"
 rm -f "$PIN_DIR/enforce_dl" "$PIN_DIR/enforce_ul" 2>/dev/null
 if "$BINARY" status 2>/dev/null | grep -q "Stale"; then
-    log_pass "Status detects stale state"
+	log_pass "Status detects stale state"
 else
-    log_fail "Status does not detect stale state"
+	log_fail "Status does not detect stale state"
 fi
 
 # Test 4: Run recover → verify cleanup
 log_test "Run 'recover' → verify cleanup"
 "$BINARY" recover 2>/dev/null
 if [ ! -d "$PIN_DIR" ] || [ -z "$(ls -A "$PIN_DIR" 2>/dev/null)" ]; then
-    log_pass "Recover cleaned up stale pins"
+	log_pass "Recover cleaned up stale pins"
 else
-    log_fail "Recover did not clean up pins"
+	log_fail "Recover did not clean up pins"
 fi
 
 # Test 5: Apply limit, simulate partial pin state (remove one program pin)
@@ -117,9 +117,9 @@ log_test "Apply limit, simulate partial state (remove enforce_dl only)"
 sleep 1
 rm -f "$PIN_DIR/enforce_dl" 2>/dev/null
 if "$BINARY" status 2>/dev/null | grep -q "Stale"; then
-    log_pass "Status detects partial state"
+	log_pass "Status detects partial state"
 else
-    log_fail "Status does not detect partial state"
+	log_fail "Status does not detect partial state"
 fi
 
 # Test 6: Run strict-single → verify auto-recovery
@@ -127,9 +127,9 @@ log_test "strict-single auto-recovers from stale state"
 "$BINARY" strict-single curl 100kb 2>/dev/null
 sleep 1
 if "$BINARY" status 2>/dev/null | grep -q "enforcing"; then
-    log_pass "strict-single auto-recovered"
+	log_pass "strict-single auto-recovered"
 else
-    log_fail "strict-single did not auto-recover"
+	log_fail "strict-single did not auto-recover"
 fi
 
 # Test 7: Doctor reports pin state
@@ -138,27 +138,27 @@ cleanup
 "$BINARY" strict-single curl 100kb 2>/dev/null || true
 sleep 1
 if "$BINARY" doctor 2>/dev/null | grep -q "Pins:"; then
-    log_pass "Doctor shows pin state"
+	log_pass "Doctor shows pin state"
 else
-    log_fail "Doctor does not show pin state"
+	log_fail "Doctor does not show pin state"
 fi
 
 # Test 8: Multiple crash-recover cycles
 log_test "Multiple crash-recover cycles (3x)"
 cleanup
 for i in 1 2 3; do
-    "$BINARY" strict-single curl 100kb 2>/dev/null || true
-    sleep 0.5
-    # Simulate crash — remove program pins
-    rm -f "$PIN_DIR/enforce_dl" "$PIN_DIR/enforce_ul" 2>/dev/null
-    "$BINARY" recover 2>/dev/null
-    if [ -d "$PIN_DIR" ] && [ -n "$(ls -A "$PIN_DIR" 2>/dev/null)" ]; then
-        log_fail "Cycle $i: pins remain after recover"
-        break
-    fi
+	"$BINARY" strict-single curl 100kb 2>/dev/null || true
+	sleep 0.5
+	# Simulate crash — remove program pins
+	rm -f "$PIN_DIR/enforce_dl" "$PIN_DIR/enforce_ul" 2>/dev/null
+	"$BINARY" recover 2>/dev/null
+	if [ -d "$PIN_DIR" ] && [ -n "$(ls -A "$PIN_DIR" 2>/dev/null)" ]; then
+		log_fail "Cycle $i: pins remain after recover"
+		break
+	fi
 done
 if [ "$FAIL" -eq 0 ]; then
-    log_pass "All 3 crash-recover cycles succeeded"
+	log_pass "All 3 crash-recover cycles succeeded"
 fi
 
 # Test 9: Final state verification
@@ -166,9 +166,9 @@ log_test "Final state — should be clean after unstrict-all"
 "$BINARY" strict-single curl 100kb 2>/dev/null || true
 "$BINARY" unstrict-all 2>/dev/null
 if [ ! -d "$PIN_DIR" ] || [ -z "$(ls -A "$PIN_DIR" 2>/dev/null)" ]; then
-    log_pass "Final state is clean"
+	log_pass "Final state is clean"
 else
-    log_fail "Final state has residual pins"
+	log_fail "Final state has residual pins"
 fi
 
 # Summary
@@ -179,6 +179,6 @@ echo -e "  ${GREEN}Passed: $PASS${NC}"
 echo -e "  ${RED}Failed: $FAIL${NC}"
 
 if [ "$FAIL" -gt 0 ]; then
-    exit 1
+	exit 1
 fi
 exit 0
