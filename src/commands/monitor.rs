@@ -10,32 +10,29 @@ use anyhow::Result;
 pub fn handle_status(verbose: bool, json: bool) -> Result<()> {
     use crate::ebpf::limiter::{pin_dir_has_files, Limiter};
 
-    if !nix::unistd::geteuid().is_root() {
-        eprintln!("zelynic requires root. Run with sudo.");
-        return Err(anyhow::anyhow!("root required"));
-    }
+    super::ensure_root()?;
 
     if !pin_dir_has_files() {
         if json {
-            println!(
+            println_safe!(
                 "{}",
                 serde_json::json!({"watchdog": "clean", "active_limits": 0, "limits": []})
             );
         } else {
-            println!("No active limits.");
+            println_safe!("No active limits.");
         }
         return Ok(());
     }
 
     if !Limiter::is_pinned() {
         if json {
-            println!(
+            println_safe!(
                 "{}",
                 serde_json::json!({"error": "stale pins detected", "hint": "run 'zelynic recover'"})
             );
         } else {
-            println!("Stale BPF pin files detected (partial state from old version).");
-            println!("Run 'zelynic unstrict-all' to clean up, then re-apply limits.");
+            println_safe!("Stale BPF pin files detected (partial state from old version).");
+            println_safe!("Run 'zelynic recover' to clean up, then re-apply limits.");
         }
         return Ok(());
     }
@@ -74,17 +71,17 @@ pub fn handle_list_apps(json: bool) -> Result<()> {
                 })
             })
             .collect();
-        println!("{}", serde_json::json!({"total": count, "apps": apps}));
+        println_safe!("{}", serde_json::json!({"total": count, "apps": apps}));
         return Ok(());
     }
 
-    println!("{}", brand_bold("━━━ Apps with cgroup IDs ━━━"));
-    println!("  {} cgroups resolved\n", count);
-    println!("  {:<30} {:>10} {:>8}", "PROCESS", "CGROUP ID", "UID");
-    println!("  {}", "─".repeat(50));
+    println_safe!("{}", brand_bold("━━━ Apps with cgroup IDs ━━━"));
+    println_safe!("  {} cgroups resolved\n", count);
+    println_safe!("  {:<30} {:>10} {:>8}", "PROCESS", "CGROUP ID", "UID");
+    println_safe!("  {}", "─".repeat(50));
 
     for id in entries {
-        println!(
+        println_safe!(
             "  {:<30} {:>10} {:>8}",
             id.comm,
             format!("cg:{}", id.cgroup_id),
@@ -102,10 +99,7 @@ pub fn handle_observe(live: Option<&str>, cgroup: Option<u32>, verbose: bool) ->
     use crate::terminal;
     use std::time::Duration;
 
-    if !nix::unistd::geteuid().is_root() {
-        eprintln!("zelynic requires root. Run with sudo.");
-        return Err(anyhow::anyhow!("root required"));
-    }
+    super::ensure_root()?;
 
     let duration_secs = match live {
         Some(s) => crate::ebpf::limiter::parse_time_duration(s)?,
@@ -115,7 +109,7 @@ pub fn handle_observe(live: Option<&str>, cgroup: Option<u32>, verbose: bool) ->
     let mut observer = Observer::attach_quiet(true)?;
     observer.refresh_identity();
     if verbose {
-        eprintln!("[ebpf] {} cgroups resolved", observer.identity().len());
+        eprintln_safe!("[ebpf] {} cgroups resolved", observer.identity().len());
     }
 
     let _ = observer.poll_and_summarize()?;
@@ -128,7 +122,11 @@ pub fn handle_observe(live: Option<&str>, cgroup: Option<u32>, verbose: bool) ->
 
     terminal::run_alt(Duration::from_secs(1), duration, || {
         let summary = observer.poll_and_summarize().unwrap_or_default();
-        println!("━━━ zelynic Observe (press q/ESC to quit) ━━━\n");
+        println_safe!(
+            "{}",
+            crate::output::brand_bold("━━━ zelynic Observe (press q/ESC to quit) ━━━")
+        );
+        println_safe!();
         if let Some(cg) = cgroup {
             summary.print_filtered(observer.identity(), cg);
         } else {
@@ -146,20 +144,20 @@ pub fn handle_top(
     duration: Option<&str>,
     limit: usize,
     live: Option<&str>,
-    _verbose: bool,
+    verbose: bool,
 ) -> Result<()> {
     use crate::ebpf::loader::Observer;
     use crate::terminal;
     use std::collections::HashMap;
     use std::time::{Duration, Instant};
 
-    if !nix::unistd::geteuid().is_root() {
-        eprintln!("zelynic requires root. Run with sudo.");
-        return Err(anyhow::anyhow!("root required"));
-    }
+    super::ensure_root()?;
 
     let mut observer = Observer::attach_quiet(true)?;
     observer.refresh_identity();
+    if verbose {
+        eprintln_safe!("[ebpf] {} cgroups resolved", observer.identity().len());
+    }
 
     let mut cumulative: HashMap<u32, (u64, u64, u64)> = HashMap::new();
     let _ = observer.poll_and_summarize()?;
@@ -180,7 +178,11 @@ pub fn handle_top(
                 entry.1 += c.bytes;
                 entry.2 += c.packets + c.ingress_packets;
             }
-            println!("━━━ zelynic Top — LIVE (press q/ESC to quit) ━━━\n");
+            println_safe!(
+                "{}",
+                crate::output::brand_bold("━━━ zelynic Top — LIVE (press q/ESC to quit) ━━━")
+            );
+            println_safe!();
             print_top_table(&cumulative, limit, observer.identity(), "accumulated");
         });
     } else {
@@ -189,8 +191,11 @@ pub fn handle_top(
             None => 10,
         };
 
-        eprintln!("━━━ zelynic Top — sampling for {dur_secs}s ━━━");
-        eprintln!("  (collecting traffic data...)\n");
+        eprintln_safe!(
+            "{}",
+            crate::output::brand_bold(&format!("━━━ zelynic Top — sampling for {dur_secs}s ━━━"))
+        );
+        eprintln_safe!("  (collecting traffic data...)\n");
 
         let start = Instant::now();
         while start.elapsed() < Duration::from_secs(dur_secs) {
@@ -235,18 +240,25 @@ fn print_top_table(
     talkers.sort_by_key(|t| std::cmp::Reverse(t.3));
 
     if talkers.is_empty() {
-        println!("  (no traffic yet — waiting...)\n");
+        println_safe!("  (no traffic yet — waiting...)\n");
         return;
     }
 
     let shown = talkers.len().min(limit);
-    println!("━━━ Top {shown} Bandwidth Consumers ({mode}) ━━━");
-    println!();
-    println!(
-        "  {:>3}  {:<28} {:>12} {:>12} {:>12}",
-        "#", "CGROUP", "DOWNLOAD", "UPLOAD", "TOTAL"
+    println_safe!(
+        "{}",
+        crate::output::brand_bold(&format!("━━━ Top {shown} Bandwidth Consumers ({mode}) ━━━"))
     );
-    println!("  {}", "─".repeat(73));
+    println_safe!();
+    println_safe!(
+        "  {:>3}  {:<28} {:>12} {:>12} {:>12}",
+        "#",
+        "CGROUP",
+        "DOWNLOAD",
+        "UPLOAD",
+        "TOTAL"
+    );
+    println_safe!("  {}", "─".repeat(73));
 
     let mut top_proc_name: Option<String> = None;
     let mut grand_total_pkt: u64 = 0;
@@ -257,7 +269,7 @@ fn print_top_table(
         let label = identity.label(*cgroup_id);
         grand_total_pkt += total_pkt;
 
-        println!(
+        println_safe!(
             "  {:>3}  {:<28} {:>12} {:>12} {:>12}",
             i + 1,
             label,
@@ -276,11 +288,11 @@ fn print_top_table(
         }
     }
 
-    println!();
-    println!("  {grand_total_pkt} packets total\n");
+    println_safe!();
+    println_safe!("  {grand_total_pkt} packets total\n");
 
     if let Some(proc_name) = top_proc_name {
-        println!("  {} Top consumer: {proc_name}", warn_bold("→"));
-        println!("  Limit it: sudo zelynic strict-single {proc_name} 100kb\n");
+        println_safe!("  {} Top consumer: {proc_name}", warn_bold("→"));
+        println_safe!("  Limit it: sudo zelynic strict-single {proc_name} 100kb\n");
     }
 }

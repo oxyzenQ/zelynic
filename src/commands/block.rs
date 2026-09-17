@@ -9,10 +9,7 @@ use crate::ebpf::limiter::{Limiter, RateSpec, Target};
 
 /// Block a single app from the internet.
 pub fn handle_block_single(target_str: &str, force: bool, verbose: bool) -> Result<()> {
-    if !nix::unistd::geteuid().is_root() {
-        eprintln!("zelynic requires root. Run with sudo.");
-        return Err(anyhow::anyhow!("root required"));
-    }
+    super::ensure_root()?;
 
     let _lock = crate::ebpf::lock::acquire()?;
     super::safety::check_dangerous_target(target_str, force)?;
@@ -28,25 +25,40 @@ pub fn handle_block_single(target_str: &str, force: bool, verbose: bool) -> Resu
     };
     let applied = limiter.apply_single(&target, &rates)?;
     if applied == 0 {
-        eprintln!("No cgroup found for '{target_str}'. Nothing to block.");
+        eprintln_safe!("No cgroup found for '{target_str}'. Nothing to block.");
         return Ok(());
     }
 
-    eprintln!("Blocked '{target_str}' from internet ({applied} policies, active in background)");
-    eprintln!("Run 'zelynic unstrict {target_str}' to restore access, 'zelynic status' to check.");
+    eprintln_safe!(
+        "Blocked '{target_str}' from internet ({applied} policies, active in background)"
+    );
+    eprintln_safe!(
+        "Run 'zelynic unstrict {target_str}' to restore access, 'zelynic status' to check."
+    );
     Ok(())
 }
 
 /// Block multiple apps from the internet.
 pub fn handle_block_multi(targets_str: &str, force: bool, verbose: bool) -> Result<()> {
-    if !nix::unistd::geteuid().is_root() {
-        eprintln!("zelynic requires root. Run with sudo.");
-        return Err(anyhow::anyhow!("root required"));
-    }
+    super::ensure_root()?;
 
     let _lock = crate::ebpf::lock::acquire()?;
 
-    let targets: Vec<Target> = targets_str.split(':').map(Target::parse).collect();
+    // Same parsing contract as strict-multi: trim each part, drop
+    // empties, and fail with an example instead of silently limiting
+    // an empty-name cgroup.
+    let targets: Vec<Target> = targets_str
+        .split(':')
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+        .map(Target::parse)
+        .collect();
+    if targets.is_empty() {
+        return Err(anyhow::anyhow!(
+            "No targets specified. Use colon-separated list.\n\
+             Example: zelynic block-multi brave:curl:pacman"
+        ));
+    }
     for t in &targets {
         if let Target::ProcessName(name) = t {
             super::safety::check_dangerous_target(name, force)?;
@@ -62,12 +74,14 @@ pub fn handle_block_multi(targets_str: &str, force: bool, verbose: bool) -> Resu
     };
     let applied = limiter.apply_group(&targets, &rates)?;
     if applied == 0 {
-        eprintln!("No cgroups found for '{targets_str}'. Nothing to block.");
+        eprintln_safe!("No cgroups found for '{targets_str}'. Nothing to block.");
         return Ok(());
     }
 
-    eprintln!("Blocked '{targets_str}' from internet ({applied} policies, active in background)");
-    eprintln!("Run 'zelynic unstrict <target>' to restore access.");
+    eprintln_safe!(
+        "Blocked '{targets_str}' from internet ({applied} policies, active in background)"
+    );
+    eprintln_safe!("Run 'zelynic unstrict <target>' to restore access.");
     Ok(())
 }
 
@@ -75,36 +89,40 @@ pub fn handle_block_multi(targets_str: &str, force: bool, verbose: bool) -> Resu
 pub fn handle_block_all(force: bool, verbose: bool) -> Result<()> {
     use crate::ebpf::identity::IdentityMap;
 
-    if !nix::unistd::geteuid().is_root() {
-        eprintln!("zelynic requires root. Run with sudo.");
-        return Err(anyhow::anyhow!("root required"));
-    }
+    super::ensure_root()?;
 
     let _lock = crate::ebpf::lock::acquire()?;
 
     let mut identity = IdentityMap::new();
     identity.refresh();
 
+    // Same "system app" definition as limit-all: uid 0 OR on the
+    // dangerous-target blocklist. The old filter (uid == 0 only) would
+    // have blocked user-session processes like gnome-shell, pipewire,
+    // and the display manager — a desktop-killer inconsistency with
+    // limit-all's guard.
     let user_apps: Vec<_> = identity
         .all()
         .into_iter()
-        .filter(|e| !e.comm.is_empty() && e.uid > 0)
+        .filter(|e| !e.comm.is_empty() && e.uid > 0 && !super::safety::is_dangerous_target(&e.comm))
         .collect();
 
     let system_apps: Vec<_> = identity
         .all()
         .into_iter()
-        .filter(|e| !e.comm.is_empty() && e.uid == 0)
+        .filter(|e| {
+            !e.comm.is_empty() && (e.uid == 0 || super::safety::is_dangerous_target(&e.comm))
+        })
         .collect();
 
     if !force && !system_apps.is_empty() {
-        eprintln!("Blocking {} user app(s)", user_apps.len());
-        eprintln!(
+        eprintln_safe!("Blocking {} user app(s)", user_apps.len());
+        eprintln_safe!(
             "Skipped {} system app(s) (use --force to include):",
             system_apps.len()
         );
         for app in system_apps.iter().take(20) {
-            eprintln!("  - {}", app.comm);
+            eprintln_safe!("  - {}", app.comm);
         }
     }
 
@@ -123,7 +141,7 @@ pub fn handle_block_all(force: bool, verbose: bool) -> Result<()> {
     };
 
     if targets.is_empty() {
-        eprintln!("No apps to block.");
+        eprintln_safe!("No apps to block.");
         return Ok(());
     }
 
@@ -135,10 +153,10 @@ pub fn handle_block_all(force: bool, verbose: bool) -> Result<()> {
         upload: Some(0),
     };
     let applied = limiter.apply_group(&targets, &rates)?;
-    eprintln!(
+    eprintln_safe!(
         "Blocked {} app(s) from internet ({applied} policies, active in background)",
         targets.len()
     );
-    eprintln!("Run 'zelynic unstrict-all' to restore all access.");
+    eprintln_safe!("Run 'zelynic unstrict-all' to restore all access.");
     Ok(())
 }

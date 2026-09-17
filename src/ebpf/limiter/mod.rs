@@ -70,7 +70,7 @@ impl Limiter {
             match read_pinned_schema_version() {
                 Some(v) if v == SCHEMA_VERSION_EXPECTED => {
                     if verbose {
-                        eprintln!(
+                        eprintln_safe!(
                             "[limiter] BPF programs + links already pinned (schema v{v}) — reusing"
                         );
                     }
@@ -78,7 +78,7 @@ impl Limiter {
                 }
                 Some(v) => {
                     if verbose {
-                        eprintln!(
+                        eprintln_safe!(
                             "[limiter] Schema version mismatch: pinned v{v} ≠ expected v{SCHEMA_VERSION_EXPECTED} — reloading"
                         );
                     }
@@ -86,7 +86,7 @@ impl Limiter {
                 }
                 None => {
                     if verbose {
-                        eprintln!("[limiter] Schema version map missing — reloading");
+                        eprintln_safe!("[limiter] Schema version map missing — reloading");
                     }
                     unpin_all()?;
                 }
@@ -96,7 +96,7 @@ impl Limiter {
             // crashed run. Clean up everything before reloading.
             if pin_dir_has_files() {
                 if verbose {
-                    eprintln!("[limiter] Stale pin files detected — cleaning up");
+                    eprintln_safe!("[limiter] Stale pin files detected — cleaning up");
                 }
                 unpin_all()?;
             }
@@ -104,7 +104,7 @@ impl Limiter {
 
         let obj_path = find_bpf_object()?;
         if verbose {
-            eprintln!("[limiter] Loading BPF object from {}", obj_path.display());
+            eprintln_safe!("[limiter] Loading BPF object from {}", obj_path.display());
         }
         let obj_data = std::fs::read(&obj_path)
             .context(format!("Failed to read BPF object: {}", obj_path.display()))?;
@@ -223,7 +223,7 @@ impl Limiter {
         }
 
         if verbose {
-            eprintln!("[limiter] Attached + pinned to {cgroup_path} (ingress + egress)");
+            eprintln_safe!("[limiter] Attached + pinned to {cgroup_path} (ingress + egress)");
         }
 
         // Drop Ebpf object — programs stay loaded because pinned, links stay
@@ -240,7 +240,9 @@ impl Limiter {
     }
 
     /// Open pinned maps for read/write access (no BPF program load needed).
-    /// Used by parent process to access policies managed by serve child.
+    /// Used by short-lived CLI invocations to read and write the pinned
+    /// policy maps directly — the maps persist because they are pinned,
+    /// so no background process is required.
     ///
     /// Identity refresh is lazy — only triggered when `refresh_identity()`
     /// or `maybe_refresh_identity()` is called. This speeds up startup
@@ -253,7 +255,7 @@ impl Limiter {
         };
 
         if verbose {
-            eprintln!("[limiter] Opened pinned maps (identity lazy-loaded)");
+            eprintln_safe!("[limiter] Opened pinned maps (identity lazy-loaded)");
         }
 
         Ok(limiter)

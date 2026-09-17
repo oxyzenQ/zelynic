@@ -3,7 +3,9 @@
 
 use std::process::Command;
 
-const GITHUB_API_URL: &str = "https://api.github.com/repos/oxyzenq/zelynic/releases/latest";
+use crate::output::{brand_bold, ok_bold, warn_bold};
+
+const GITHUB_API_URL: &str = "https://api.github.com/repos/oxyzenQ/zelynic/releases/latest";
 const RELEASES_URL: &str = "https://github.com/oxyzenQ/zelynic/releases/latest";
 
 #[derive(Debug, PartialEq, Eq)]
@@ -125,17 +127,20 @@ pub fn check_update(current_version: &str) -> Result<(), String> {
 
     let latest_tag = extract_tag_name(body)
         .ok_or_else(|| "could not parse latest release tag from GitHub response".to_string())?;
-    let status = match compare_versions(current_version, &latest_tag) {
-        UpdateStatus::UpToDate => "up to date",
-        UpdateStatus::UpdateAvailable => "update available",
-        UpdateStatus::CurrentIsNewer => "current is newer than latest release",
-    };
 
-    println!("zelynic update check");
-    println!("Current: {}", normalize_version(current_version));
-    println!("Latest:  {}", normalize_version(&latest_tag));
-    println!("Status:  {status}");
-    println!("Source:  {RELEASES_URL}");
+    // Branded report (NIGHT-hunt-5): header in brand purple like every
+    // other zelynic banner; status verdict colored by semantic (green =
+    // current, yellow = attention).
+    println_safe!("{}", brand_bold("━━━ zelynic Update Check ━━━"));
+    println_safe!("Current: {}", normalize_version(current_version));
+    println_safe!("Latest:  {}", normalize_version(&latest_tag));
+    let status_line = match compare_versions(current_version, &latest_tag) {
+        UpdateStatus::UpToDate => ok_bold("up to date"),
+        UpdateStatus::UpdateAvailable => warn_bold("update available"),
+        UpdateStatus::CurrentIsNewer => "current is newer than latest release".to_string(),
+    };
+    println_safe!("Status:  {status_line}");
+    println_safe!("Source:  {RELEASES_URL}");
 
     Ok(())
 }

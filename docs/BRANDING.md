@@ -31,7 +31,12 @@ The color is rendered in whatever depth the terminal actually supports
 | TrueColor | `COLORTERM=truecolor/24bit`, `TERM` contains `-direct`/`-truecolor`, or truecolor-native terminal names (alacritty, kitty, ghostty, wezterm, foot, contour) | `ESC[38;2;168;85;247m` |
 | 256-color | `TERM` contains `256color` | `ESC[38;5;135m` (closest xterm-256 cube match) |
 | 16-color | `TERM` set but unrecognized | `ESC[35m` (magenta) |
-| Mono | `NO_COLOR`, `CLICOLOR=0`, `--no-color`, or not a TTY (unless `CLICOLOR_FORCE=1`) | plain text |
+| Mono | `NO_COLOR`, `CLICOLOR=0`, or not a TTY (unless `CLICOLOR_FORCE=1`) | plain text |
+
+There is no `--no-color` CLI flag (NIGHT-hunt-5 owner mandate: purple
+is branding, branding has no opt-out) — color is always on for
+terminals, and the standard env vars above remain the only control
+surface, exactly like cosmostrix.
 
 Source of truth: `src/output/mod.rs` (`BRAND_PURPLE_RGB`, `brand_open()`).
 
@@ -39,12 +44,29 @@ Usage surfaces:
 
 - `-V` / `--version` header (name + version + description) — regular weight
 - `--help-all` banner and section headings — bold
-- `list-apps` banner — bold
+- clap `--help` / error rendering — headers and Usage in bold purple via
+  `clap_styles()` (`src/cli/mod.rs`); error labels bold red, tips white
+- `status` / `observe` / `top` / `recover` / `list-apps` banners — bold
+- `--check-update` report banner — bold
 
-Status colors (green `#50FA7B`, red `#FF5A5A`, yellow `#FFEB3C`) use the
-same capability tiers for doctor verdicts and warnings. All styled output
-degrades to plain text when piped so ANSI codes never leak into scripts,
-logs, or JSON consumers.
+Status colors use the same capability tiers (owner color contract,
+NIGHT-hunt-5 — cosmostrix S-master-HUNT-5 lineage):
+
+| Semantic | RGB | Used for |
+|---|---|---|
+| Brand purple | `#A855F7` | banners, section headings, Usage headers |
+| Status green | `#50FA7B` | affirmative doctor verdicts (YES, SUPPORTED), up-to-date |
+| Error red | `#FF5A5A` | `error:` labels and error bodies |
+| Warning yellow | `#FFEB3C` | `!` warning labels, warnings, update-available |
+| Suggestion white | `#DCEBFF` | `tip:` / `hint:` / did-you-mean lines, distinct from the error they fix |
+
+All styled output degrades to plain text when piped so ANSI codes never
+leak into scripts, logs, or JSON consumers. Every user-facing print goes
+through the broken-pipe-safe macros (`println_safe!` / `eprintln_safe!`)
+so piping into a short reader (`zelynic --help-all | head -2`) truncates
+cleanly instead of panicking with exit 101.
+
+Exit-code contract: clap usage errors exit 2; runtime failures exit 1.
 
 ---
 

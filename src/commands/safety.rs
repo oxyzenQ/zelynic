@@ -7,6 +7,9 @@
 #[cfg(feature = "ebpf")]
 use anyhow::Result;
 
+#[cfg(feature = "ebpf")]
+use crate::output::eprintln_warn_labeled;
+
 /// List of dangerous/system process names that should not be limited
 /// without --force flag. Limiting these can destabilize the system.
 pub(crate) const DANGEROUS_TARGETS: &[&str] = &[
@@ -88,13 +91,15 @@ pub(crate) fn check_dangerous_target(target_str: &str, force: bool) -> Result<()
 
     if is_dangerous_target(target_str) {
         if force {
-            eprintln!("WARNING: '{target_str}' is a system process. Forcing with --force.");
-            eprintln!("  This may destabilize your system. Use 'zelynic unstrict {target_str}' to remove.");
+            eprintln_warn_labeled(&format!(
+                "'{target_str}' is a system process. Forcing with --force.\n  \
+                 This may destabilize your system. Use 'zelynic unstrict {target_str}' to remove."
+            ));
             Ok(())
         } else {
             Err(anyhow::anyhow!(
-                "'{target_str}' is a system process. Limiting it may destabilize your system.\n\
-                 If you really want to do this, use: zelynic strict-single {target_str} 100kb --force"
+                "'{target_str}' is a system process. Limiting it may destabilize your system.\n  \
+                 tip: re-run with --force if you really want this"
             ))
         }
     } else {

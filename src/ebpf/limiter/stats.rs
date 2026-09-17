@@ -45,8 +45,8 @@ impl super::Limiter {
             Ok(results)
         } else {
             let pin_path = self.pinned_policy_path(direction);
-            let map_data = MapData::from_pin(&pin_path)
-                .map_err(|e| anyhow!("pinned map {pin_path}: {e:?}"))?;
+            let map_data =
+                MapData::from_pin(&pin_path).map_err(|e| anyhow!("pinned map {pin_path}: {e}"))?;
             let map_obj = aya::maps::Map::HashMap(map_data);
             let map: BpfHashMap<_, u32, PolicyRaw> = BpfHashMap::try_from(&map_obj)
                 .context(format!("Failed to open pinned map {pin_path}"))?;
@@ -75,7 +75,7 @@ impl super::Limiter {
             // Pin mode: read from pinned stats map.
             let pin_path = PIN_MAP_STATS;
             let map_data =
-                MapData::from_pin(pin_path).map_err(|e| anyhow!("pinned stats map: {e:?}"))?;
+                MapData::from_pin(pin_path).map_err(|e| anyhow!("pinned stats map: {e}"))?;
             let map_obj = aya::maps::Map::HashMap(map_data);
             let map: BpfHashMap<_, u32, LimiterStatsRaw> =
                 BpfHashMap::try_from(&map_obj).context("Failed to open pinned stats map")?;
@@ -105,7 +105,7 @@ impl super::Limiter {
             // Pin mode: read from pinned watchdog map.
             let pin_path = PIN_MAP_WATCHDOG;
             let map_data =
-                MapData::from_pin(pin_path).map_err(|e| anyhow!("pinned watchdog map: {e:?}"))?;
+                MapData::from_pin(pin_path).map_err(|e| anyhow!("pinned watchdog map: {e}"))?;
             let map_obj = aya::maps::Map::Array(map_data);
             let map: BpfArray<_, u64> =
                 BpfArray::try_from(&map_obj).context("Failed to open pinned watchdog map")?;

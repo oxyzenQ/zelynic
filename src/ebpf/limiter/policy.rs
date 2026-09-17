@@ -45,7 +45,7 @@ impl super::Limiter {
             let ids = self.resolve_target(target)?;
             if ids.is_empty() {
                 if self.verbose {
-                    eprintln!("[limiter] no cgroup found for '{:?}' — skipping", target);
+                    eprintln_safe!("[limiter] no cgroup found for '{:?}' — skipping", target);
                 }
                 continue;
             }
@@ -81,7 +81,7 @@ impl super::Limiter {
         let group_label = format!("group:{}", group_id);
         if self.verbose {
             if let Some(dl_rate) = rates.download {
-                eprintln!(
+                eprintln_safe!(
                     "[limiter] {} download → {} (shared by {} cgroups)",
                     group_label,
                     format_rate(dl_rate),
@@ -89,7 +89,7 @@ impl super::Limiter {
                 );
             }
             if let Some(ul_rate) = rates.upload {
-                eprintln!(
+                eprintln_safe!(
                     "[limiter] {} upload → {} (shared by {} cgroups)",
                     group_label,
                     format_rate(ul_rate),
@@ -123,7 +123,7 @@ impl super::Limiter {
             }
 
             if found {
-                eprintln!("[limiter] Unstrict: {label} — limits removed");
+                eprintln_safe!("[limiter] Unstrict: {label} — limits removed");
                 removed += 1;
             }
         }
@@ -240,8 +240,8 @@ impl super::Limiter {
         } else {
             // Pin mode: open pinned map.
             let pin_path = self.pinned_policy_path(direction);
-            let map_data = MapData::from_pin(&pin_path)
-                .map_err(|e| anyhow!("pinned map {pin_path}: {e:?}"))?;
+            let map_data =
+                MapData::from_pin(&pin_path).map_err(|e| anyhow!("pinned map {pin_path}: {e}"))?;
             let mut map_obj = aya::maps::Map::HashMap(map_data);
             let mut map: BpfHashMap<_, u32, PolicyRaw> = BpfHashMap::try_from(&mut map_obj)
                 .context(format!("Failed to open pinned map {pin_path}"))?;
@@ -266,8 +266,8 @@ impl super::Limiter {
             }
         } else {
             let pin_path = self.pinned_policy_path(direction);
-            let map_data = MapData::from_pin(&pin_path)
-                .map_err(|e| anyhow!("pinned map {pin_path}: {e:?}"))?;
+            let map_data =
+                MapData::from_pin(&pin_path).map_err(|e| anyhow!("pinned map {pin_path}: {e}"))?;
             let mut map_obj = aya::maps::Map::HashMap(map_data);
             let mut map: BpfHashMap<_, u32, PolicyRaw> = BpfHashMap::try_from(&mut map_obj)
                 .context(format!("Failed to open pinned map {pin_path}"))?;
