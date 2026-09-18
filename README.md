@@ -306,28 +306,34 @@ slightly easier to maintain.
 - No REST API
 - No non-Linux support
 
-### Stable API (from v10.0.0)
+### Stable API (from v11.0.0)
 
-Starting with v10.0.0, the CLI surface is frozen. No breaking changes
+Starting with v11.0.0, the CLI surface is frozen. No breaking changes
 to commands, flags, or output format. Future releases focus on:
 - Bug fixes
 - Kernel compatibility updates
 - Performance improvements (internal, no API changes)
 
-### Maintenance Mode (from v10.0.0)
+### Maintenance Mode (from v11.0.0)
 
-> **Zelynic v10 marks the beginning of maintenance mode. Future releases
+> **Zelynic v11 marks the beginning of maintenance mode. Future releases
 > prioritize stability, compatibility, performance, and bug fixes over
 > feature expansion.**
 
 No new features unless critical for security or compatibility.
 Release cadence slows to "when needed".
 
+### Release channels
+
+Stable releases are tagged `vX.Y.Z`. Pre-release builds are restricted to
+four channels — `dev`, `nightly`, `alpha`, `beta` (e.g. `v11.0.0-dev.1`).
+CI rejects any other suffix and never marks a pre-release as "latest".
+
 ## Branches
 
 | Branch | Purpose | Status |
 |--------|---------|--------|
-| `main` | Pure eBPF v10.x (Dragon Architecture) | Maintenance mode |
+| `main` | Pure eBPF v11.x (Dragon Architecture) | Maintenance mode |
 | `legacy` | v3.1.1 (tc/nft/systemd-wrapper) | Final legacy release, no new development |
 
 ## Documentation

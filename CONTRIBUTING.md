@@ -147,7 +147,7 @@ the 500-line Rust LOC cap (check-loc.sh), the toolchain-pin sync check
 
 ## Branch Strategy
 
-- `main` — pure eBPF v10.x (Dragon Architecture). Maintenance mode.
+- `main` — pure eBPF v11.x (Dragon Architecture). Maintenance mode.
 - `legacy` — v3.1.1 (tc/nft/systemd-wrapper). Final legacy release, no new development.
 <!-- ZELYNIC-DISCLAIMER -->
 <!--

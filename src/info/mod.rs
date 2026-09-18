@@ -106,7 +106,7 @@ fn version_body() -> String {
 /// scripts (`zelynic -V | grep Architecture`).
 ///
 /// ```text
-/// zelynic: v10.0.0
+/// zelynic: v11.0.0
 /// Per-app network rate limiter and traffic monitor for Linux. Pure eBPF. Silent but killer.
 /// Architecture: Dragon (pure eBPF)
 /// Build: linux-amd64-gnu (ad36a81)
