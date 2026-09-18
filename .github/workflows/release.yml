@@ -168,8 +168,8 @@ jobs:
              scripts/race-condition-test.sh scripts/reload-test.sh \
              scripts/crash-recovery-test.sh "dist/${PKG_GNU}/scripts/"
           chmod +x "dist/${PKG_GNU}/scripts/"*.sh "dist/${PKG_GNU}/scripts/"*.py
-          "./dist/${PKG_GNU}/zelynic" man > "dist/${PKG_GNU}/man/zelynic.1" 2>/dev/null || true
-          [ -f "dist/${PKG_GNU}/man/zelynic.1" ] && gzip -f "dist/${PKG_GNU}/man/zelynic.1"
+          "./dist/${PKG_GNU}/zelynic" man > "dist/${PKG_GNU}/man/zelynic.1"
+          gzip -f "dist/${PKG_GNU}/man/zelynic.1"
           cd dist && tar -czf "${PKG_GNU}.tar.gz" "${PKG_GNU}"
           # Checksums: SHA-512 (classical) + BLAKE2b-512 + SHAKE256 (quantum-resistant)
           sha512sum "${PKG_GNU}.tar.gz" > "${PKG_GNU}.tar.gz.sha512sum"
@@ -198,8 +198,8 @@ jobs:
              scripts/race-condition-test.sh scripts/reload-test.sh \
              scripts/crash-recovery-test.sh "dist/${PKG_MUSL}/scripts/"
           chmod +x "dist/${PKG_MUSL}/scripts/"*.sh "dist/${PKG_MUSL}/scripts/"*.py
-          "./dist/${PKG_MUSL}/zelynic" man > "dist/${PKG_MUSL}/man/zelynic.1" 2>/dev/null || true
-          [ -f "dist/${PKG_MUSL}/man/zelynic.1" ] && gzip -f "dist/${PKG_MUSL}/man/zelynic.1"
+          "./dist/${PKG_MUSL}/zelynic" man > "dist/${PKG_MUSL}/man/zelynic.1"
+          gzip -f "dist/${PKG_MUSL}/man/zelynic.1"
           cd dist && tar -czf "${PKG_MUSL}.tar.gz" "${PKG_MUSL}"
           # Checksums: SHA-512 (classical) + BLAKE2b-512 + SHAKE256 (quantum-resistant)
           sha512sum "${PKG_MUSL}.tar.gz" > "${PKG_MUSL}.tar.gz.sha512sum"

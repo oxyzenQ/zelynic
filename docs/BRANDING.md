@@ -43,8 +43,9 @@ Source of truth: `src/output/mod.rs` (`BRAND_PURPLE_RGB`, `brand_open()`).
 Usage surfaces:
 
 - `-V` / `--version` header (name + version + description) — regular weight
-- `--help-all` banner and section headings — bold
-- clap `--help` / error rendering — headers and Usage in bold purple via
+- `--help` banner and section headings — bold (single-tier help surface,
+  NIGHT-improve-3: the former --help-all reference merged into --help)
+- clap error rendering — headers and Usage in bold purple via
   `clap_styles()` (`src/cli/mod.rs`); error labels bold red, tips white
 - `status` / `observe` / `top` / `recover` / `list-apps` banners — bold
 - `--check-update` report banner — bold
@@ -63,7 +64,7 @@ NIGHT-hunt-5 — cosmostrix S-master-HUNT-5 lineage):
 All styled output degrades to plain text when piped so ANSI codes never
 leak into scripts, logs, or JSON consumers. Every user-facing print goes
 through the broken-pipe-safe macros (`println_safe!` / `eprintln_safe!`)
-so piping into a short reader (`zelynic --help-all | head -2`) truncates
+so piping into a short reader (`zelynic --help | head -2`) truncates
 cleanly instead of panicking with exit 101.
 
 Exit-code contract: clap usage errors exit 2; runtime failures exit 1.

@@ -32,7 +32,7 @@
 //!
 //! Every user-facing print goes through the broken-pipe-safe macros
 //! [`println_safe!`] / [`eprintln_safe!`]: Rust ignores SIGPIPE, so a
-//! piped reader exiting early (`zelynic --help-all | head -2`) turns
+//! piped reader exiting early (`zelynic --help | head -2`) turns
 //! `println!` into a panic with exit 101. The safe macros discard the
 //! write error instead — the report is truncated at the pipe boundary
 //! and the process exits with its intended code, standard Unix CLI
@@ -83,7 +83,7 @@ const SUGGESTION_RGB: (u8, u8, u8) = (220, 235, 255);
 //
 // Rust ignores SIGPIPE by default, so when the user pipes a report into
 // head/jq/grep and the reader exits early, println!/eprintln! panic on
-// EPIPE with exit 101 (verified live on zelynic: `zelynic --help-all |
+// EPIPE with exit 101 (verified live on zelynic: `zelynic --help |
 // head -2` aborted with 101). The macros below discard the write error
 // instead — safe for every reachable output site, including the
 // error paths that run while the terminal is being torn down.

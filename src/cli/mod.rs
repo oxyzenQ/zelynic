@@ -17,6 +17,8 @@ pub(crate) mod ux;
     about = env!("CARGO_PKG_DESCRIPTION"),
     long_about = None,
     disable_version_flag = true,
+    disable_help_flag = true,
+    disable_help_subcommand = true,
     propagate_version = true,
     arg_required_else_help = false,
     styles = clap_styles(),
@@ -24,6 +26,17 @@ pub(crate) mod ux;
 pub struct Cli {
     #[command(subcommand)]
     pub command: Option<Commands>,
+
+    /// Print the end-to-end reference (usage, commands, examples)
+    ///
+    /// Single-tier help surface (NIGHT-improve-3, cosmostrix v30-simplify
+    /// lineage): the former `--help-all` reference and the top-level help
+    /// are one flag. `disable_help_flag`/`disable_help_subcommand` above
+    /// stop clap from auto-generating its own `--help`/`-h`/`help`
+    /// subcommand at every level — this field is the only help surface,
+    /// intercepted in `main` to print the curated reference.
+    #[arg(short = 'h', long = "help", global = false)]
+    pub help: bool,
 
     /// Print complete version and build information
     #[arg(short = 'V', long = "version", global = false)]
@@ -40,10 +53,6 @@ pub struct Cli {
     /// Output as JSON (where applicable)
     #[arg(long, global = true)]
     pub print_json: bool,
-
-    /// Show comprehensive help
-    #[arg(long = "help-all", global = false)]
-    pub help_all: bool,
 }
 
 // ── Clap brand styling (cosmostrix contract, NIGHT-hunt-5) ─────────────────
@@ -297,4 +306,12 @@ pub enum Commands {
     /// Check if your machine supports eBPF
     #[command(name = "doctor")]
     Doctor,
+
+    /// Print the zelynic man page (troff format)
+    ///
+    /// Writes a roff man page to stdout. The release pipeline pipes it
+    /// into `man/zelynic.1` for the release tarballs. Same single source
+    /// as `--help` — see `commands::help`.
+    #[command(name = "man")]
+    Man,
 }

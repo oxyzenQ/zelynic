@@ -40,16 +40,23 @@ fn main() {
 fn try_main() -> Result<()> {
     // Parse through the branded bridge: usage errors get the
     // case-insensitive typo rescue, the real usage line, clap's brand
-    // styles, and the canonical help footer — all with exit 2. Help
-    // requests go to stdout with exit 0 through the broken-pipe-safe
-    // writer (`zelynic --help | head` truncates instead of panicking).
+    // styles, and the canonical help footer — all with exit 2. The
+    // top-level --help request goes to stdout with exit 0 through the
+    // broken-pipe-safe writer (`zelynic --help | head` truncates
+    // instead of panicking). clap generates no help flag of its own
+    // (single-tier help surface, NIGHT-improve-3): subcommand-level
+    // `--help` is an unknown argument and exits 2 with a suggestion.
     let cli = match Cli::try_parse() {
         Ok(cli) => cli,
         Err(e) => cli::ux::exit_clap_error(e),
     };
 
-    if cli.help_all {
-        commands::help::print_help_all();
+    // --help: print the end-to-end reference and exit 0. Checked
+    // before every other early return so `zelynic --help` works no
+    // matter what follows it (parse errors still fire first — clap
+    // must finish parsing before this field can be read).
+    if cli.help {
+        commands::help::print_help();
         return Ok(());
     }
 

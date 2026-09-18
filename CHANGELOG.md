@@ -23,6 +23,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   contract from v11.0.0 (previously v10.0.0), matching the v11 line under
   development; the README documents the release-channel contract.
 
+### CLI
+
+- **feat: single-tier help surface** — `--help-all` merged into `--help`
+  (NIGHT-improve-3, cosmostrix v30-simplify lineage). `zelynic --help`,
+  `zelynic -h`, and bare `zelynic` now print the one end-to-end reference
+  (usage, commands, flags, rate/target formats, safety, examples). clap's
+  auto-generated help flag, `-h`, and `help` subcommand are disabled at
+  every level: `zelynic strict-single brave --help` (and any
+  subcommand-position help) is a usage error that exits 2 with a tip
+  pointing at `zelynic --help`; the removed `--help-all` flag gets the
+  same guidance. Errors keep exactly one canonical
+  "For more information, try '--help'." footer — now appended by the CLI
+  UX bridge itself (clap can no longer render it without an
+  ArgAction::Help argument), byte-identical to clap's own format.
+
+- **fix: `zelynic man` existed in the release pipeline only** — release.yml
+  has piped `zelynic man` into `man/zelynic.1` since the beginning, but
+  the subcommand never existed and the swallowed failure shipped an empty
+  gzipped man page in every tarball. The command now emits a real troff
+  man page (NAME, SYNOPSIS, COMMANDS, GLOBAL FLAGS, RATE/TARGET FORMATS,
+  SAFETY, EXAMPLES, SEE ALSO) from the same single help authority, and
+  the release steps no longer swallow man-generation failures. Both
+  outputs are drift-pinned by integration tests covering the full command
+  set.
+
 ## [7.0.0] — 2026-07-11
 
 ### Production Hardening
