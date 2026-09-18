@@ -82,7 +82,12 @@ src/
     labeled.rs        — line-aware labeled error/warning renderer
   info/mod.rs          — version report (-V)
   update/mod.rs        — --check-update
-  terminal/mod.rs      — alt-screen box mode
+  terminal/
+    mod.rs           — alt-screen box mode + the monitor loop
+    diff.rs          — diff-based render engine (NIGHT-improve-2, the
+                        cosmic-dragon-engine adaptation: shadow, dirty
+                        runs, single write syscall, idle zero-emit);
+                        unit pins in diff_tests.rs
 
 bpf/
   limiter.bpf.c        — token-bucket enforcer (ingress + egress)

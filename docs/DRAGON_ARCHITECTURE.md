@@ -61,7 +61,9 @@ userspace tool coordination, no format mismatches, no leaked state.
 ┌─────────────────────────────────────────────────────────┐
 │  Layer 4 — Presentation                                 │
 │  CLI / JSON, responsive monitor rendering               │
+│  + diff-based emission (NIGHT-improve-2)                │
 │  src/commands/, src/cli/, src/ebpf/render.rs            │
+│  src/terminal/ (alt screen + DiffScreen)                │
 ├─────────────────────────────────────────────────────────┤
 │  Layer 3 — Aggregation                                  │
 │  delta computation, summary, sorting                    │
@@ -138,7 +140,12 @@ calculations, top-N sorting, and threshold detection live.
 CLI output (`ebpf/render.rs`, the responsive monitor engine, NIGHT-hunt-7),
 JSON output (`--print-json`).
 This layer never touches BPF directly — it consumes `CounterSummary` +
-`IdentityMap` and renders.
+`IdentityMap` and renders. Monitor frames flow through the diff-based
+engine (`terminal/diff.rs`, NIGHT-improve-2 — the cosmic-dragon-engine
+adaptation from cosmostrix): the renderer builds logical lines, the
+engine diffs them against the previous frame's shadow, and emits only
+the changed rows in one write syscall — idle frames emit nothing and
+the screen is never wiped mid-session.
 
 ## Roadmap
 

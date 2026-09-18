@@ -66,12 +66,15 @@ fn plan_top_columns(width: usize) -> TopColumns {
     }
 }
 
-/// Render the live top-talkers table.
+/// Render the live top-talkers table (NIGHT-improve-2:
+/// line-building — the caller submits the vector to the diff-based
+/// screen engine).
 ///
 /// `cumulative` maps cgroup_id -> (download, upload, packets),
 /// accumulated across every poll so far. `interval` is the live
 /// refresh cadence (drives the title bar).
 pub fn render_top_table(
+    lines: &mut Vec<String>,
     cumulative: &HashMap<u32, (u64, u64, u64)>,
     limit: usize,
     identity: &IdentityMap,
@@ -82,7 +85,7 @@ pub fn render_top_table(
     let cols = plan_top_columns(geo.width);
 
     let core = format!("zelynic top — live, {}s refresh", interval.as_secs());
-    println_safe!("{}", title_bar(&core, "q quit", geo.width));
+    lines.push(title_bar(&core, "q quit", geo.width));
 
     let mut talkers: Vec<(u32, u64, u64, u64, u64)> = cumulative
         .iter()
@@ -91,7 +94,7 @@ pub fn render_top_table(
         .collect();
 
     if talkers.is_empty() {
-        println_safe!("  waiting for traffic…");
+        lines.push("  waiting for traffic…".to_string());
         return;
     }
 
@@ -99,7 +102,7 @@ pub fn render_top_table(
 
     // Header row (regular purple).
     if cols.show_total {
-        println_safe!(
+        lines.push(format!(
             "  {:>2}  {} {:>w1$} {:>w2$} {:>w3$}",
             "#",
             brand(&truncate_label("PROCESS", cols.label_w)),
@@ -109,9 +112,9 @@ pub fn render_top_table(
             w1 = cols.dl_w,
             w2 = cols.ul_w,
             w3 = cols.dl_w
-        );
+        ));
     } else {
-        println_safe!(
+        lines.push(format!(
             "  {:>2}  {} {:>w1$} {:>w2$}",
             "#",
             brand(&truncate_label("PROCESS", cols.label_w)),
@@ -119,9 +122,9 @@ pub fn render_top_table(
             "UPLOAD",
             w1 = cols.dl_w,
             w2 = cols.ul_w
-        );
+        ));
     }
-    println_safe!("  {}", "─".repeat(geo.width.saturating_sub(2)));
+    lines.push(format!("  {}", "─".repeat(geo.width.saturating_sub(2))));
 
     // Row budget counts detail lines too (NIGHT-hunt-8): a row plus
     // its eagle-eyes lines must fit as a unit.
@@ -145,7 +148,7 @@ pub fn render_top_table(
         grand_total_pkt += total_pkt;
 
         if cols.show_total {
-            println_safe!(
+            lines.push(format!(
                 "  {:>2}  {:<w0$} {:>w1$} {:>w2$} {:>w3$}",
                 i + 1,
                 label,
@@ -156,9 +159,9 @@ pub fn render_top_table(
                 w1 = cols.dl_w,
                 w2 = cols.ul_w,
                 w3 = cols.dl_w
-            );
+            ));
         } else {
-            println_safe!(
+            lines.push(format!(
                 "  {:>2}  {:<w0$} {:>w1$} {:>w2$}",
                 i + 1,
                 label,
@@ -167,10 +170,10 @@ pub fn render_top_table(
                 w0 = cols.label_w,
                 w1 = cols.dl_w,
                 w2 = cols.ul_w
-            );
+            ));
         }
         for line in details {
-            println_safe!("{line}");
+            lines.push(line);
         }
         used += need;
         emitted += 1;
@@ -189,18 +192,20 @@ pub fn render_top_table(
     }
 
     if talkers.len() > emitted {
-        println_safe!(
+        lines.push(format!(
             "  (+{} more talkers hidden — raise --limit or the window)",
             talkers.len() - emitted
-        );
+        ));
     }
 
-    println_safe!("  {}", "─".repeat(geo.width.saturating_sub(2)));
-    println_safe!("  {grand_total_pkt} packets total");
+    lines.push(format!("  {}", "─".repeat(geo.width.saturating_sub(2))));
+    lines.push(format!("  {grand_total_pkt} packets total"));
 
     if let Some(proc_name) = top_proc_name {
-        println_safe!("  {} Top consumer: {proc_name}", warn_bold("→"));
-        println_safe!("  Limit it: sudo zelynic strict-single {proc_name} 100kb");
+        lines.push(format!("  {} Top consumer: {proc_name}", warn_bold("→")));
+        lines.push(format!(
+            "  Limit it: sudo zelynic strict-single {proc_name} 100kb"
+        ));
     }
 }
 
@@ -233,5 +238,25 @@ mod tests {
         assert!(!cols.show_total);
         assert_eq!(cols.label_w, 14);
         assert_eq!(cols.dl_w, 9);
+    }
+
+    /// NIGHT-improve-2 line-building pin: the renderer fills the
+    /// caller's vector (title bar first, waiting-note when idle) —
+    /// the diff engine's input contract.
+    #[test]
+    fn top_table_builds_lines() {
+        let mut lines = Vec::new();
+        let empty: HashMap<u32, (u64, u64, u64)> = HashMap::new();
+        render_top_table(
+            &mut lines,
+            &empty,
+            10,
+            &IdentityMap::new(),
+            None,
+            Duration::from_secs(5),
+        );
+        assert_eq!(lines.len(), 2, "idle table = title + waiting note");
+        assert!(lines[0].starts_with("─── zelynic top — live, 5s refresh"));
+        assert_eq!(lines[1], "  waiting for traffic…");
     }
 }

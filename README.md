@@ -51,6 +51,7 @@ same WiFi interface. No `tc`, no `nftables`, no `LD_PRELOAD`, no daemon.
 | **Discovery workflow** | `zelynic top` (live box) finds bandwidth hogs. Other limiters can't discover. |
 | **Box mode** | In-place refresh with a clean exit — zero scrollback pollution, no TUI. Responsive layout adapts to any terminal size (NIGHT-hunt-7). |
 | **Always-live monitors** | `observe`/`top` run live until you press q — no timers, no snapshot mode (NIGHT-hunt-12). |
+| **Diff-based rendering** | Monitor frames go through a cosmic-dragon-style diff engine: only changed rows are emitted, one write syscall per frame, idle frames cost zero I/O, and the screen is never wiped mid-session (NIGHT-improve-2). |
 | **Refresh control** | `--interval 1s..60s` on `observe`/`top` — realtime cadence you choose, with a live RATE column computed from the interval. |
 | **Eagle-eyes detail** | Monitor rows name the processes and endpoints INSIDE a cgroup — `curl (4012) -> 142.250.191.78:443` under a row labeled alacritty (NIGHT-hunt-8). |
 | **Strict dependency diet** | 7 direct deps, 54 lockfile crates, every one justified in [docs/DEPENDENCY_AUDIT.md](docs/DEPENDENCY_AUDIT.md). |
@@ -248,8 +249,9 @@ Lowercase units only (decimal SI: 1 KB = 1000 bytes):
 
 `--interval` (observe, top) accepts the same duration formats — plain
 seconds, `2s`, `1m` — but must land between 1s and 60s: below 1s spams
-full-frame redraws, above 60s stops being a live monitor.
-Out-of-range values fail fast with the bounds in the message.
+refreshes well past what a human can read, above 60s stops being a
+live monitor. Out-of-range values fail fast with the bounds in the
+message.
 
 ### Inside a cgroup (NIGHT-hunt-8)
 

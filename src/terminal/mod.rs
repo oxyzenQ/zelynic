@@ -6,6 +6,16 @@
 //! Uses the terminal's alternate screen buffer (xterm ESC[?1049h).
 //! Content is rendered on the alt screen; when zelynic exits, the
 //! original screen is restored — no trace left in scrollback.
+//!
+//! NIGHT-improve-2: the monitor loop renders through the diff-based
+//! engine ([`DiffScreen`], see `diff.rs`) — only rows that changed
+//! since the previous frame are emitted, in ONE write syscall. The
+//! former per-refresh full redraw (screen wipe + every line + one
+//! flush per line) is gone.
+
+mod diff;
+
+pub use diff::{DiffScreen, RawStdout};
 
 use anyhow::Result;
 use std::io::{self, Read, Write};
@@ -86,55 +96,61 @@ pub fn should_quit() -> bool {
     false
 }
 
-/// Clear screen and move cursor to top-left (on alt screen).
-pub fn clear_screen() {
-    print!("\x1b[2J\x1b[H");
-}
-
-/// Run an alternate-screen loop.
+/// Run an alternate-screen loop with the diff-based render engine
+/// (NIGHT-improve-2).
 ///
-/// Renders content on the alt screen, refreshing every `refresh_interval`.
+/// `render` fills a reusable line vector with the frame's logical
+/// content (title bar, header, rows, footer — exactly what the
+/// renderer used to println). The engine diffs that against the
+/// previous frame's shadow and writes the minimal ANSI stream: idle
+/// frames emit nothing, sparse changes reposition only dirty rows,
+/// dense diffs rewrite sequentially, and a resize resets fully.
+/// One write syscall per frame, zero screen wipes (no ESC[2J — the
+/// VTE scrollback hazard the cosmic dragon engine documented).
+///
 /// Exits on q — the ONLY quit key (NIGHT-hunt-16: always live, no
 /// duration timer, no ESC quit, no Ctrl+C quit).
 /// On exit, the original terminal screen is restored — no trace in scrollback.
 pub fn run_alt<F>(refresh_interval: Duration, mut render: F)
 where
-    F: FnMut(),
+    F: FnMut(&mut Vec<String>),
 {
+    let mut run = |screen: &mut DiffScreen, lines: &mut Vec<String>| {
+        let mut last_render = Instant::now() - refresh_interval; // render immediately on first iteration
+        loop {
+            if should_quit() {
+                break;
+            }
+
+            if last_render.elapsed() >= refresh_interval {
+                lines.clear();
+                render(lines);
+                let mut stdout = RawStdout;
+                screen.emit(lines, &mut stdout);
+                last_render = Instant::now();
+            }
+
+            std::thread::sleep(Duration::from_millis(50));
+        }
+    };
+
     let _screen = match AltScreen::enter() {
         Ok(g) => g,
         Err(_) => {
-            // Fallback: simple loop (no alt screen). Key handling
-            // still applies (NIGHT-hunt-16): 'q' must quit in the
-            // fallback too — the contract is q-only on BOTH paths,
-            // not q-only only when termios cooperates.
-            loop {
-                if should_quit() {
-                    break;
-                }
-                clear_screen();
-                render();
-                io::stdout().flush().ok();
-                std::thread::sleep(refresh_interval);
-            }
+            // Fallback: simple loop (no alt screen). Same diff
+            // engine, same key contract (NIGHT-hunt-16): 'q' must
+            // quit here too — the contract is q-only on BOTH paths.
+            // When stdout is not a TTY the ANSI stream is inert
+            // bytes in the pipe — the same class of output the
+            // pre-diff fallback produced with its screen clears.
+            let mut screen = DiffScreen::new();
+            let mut lines: Vec<String> = Vec::with_capacity(48);
+            run(&mut screen, &mut lines);
             return;
         }
     };
 
-    let mut last_render = Instant::now() - refresh_interval; // render immediately on first iteration
-
-    loop {
-        if should_quit() {
-            break;
-        }
-
-        if last_render.elapsed() >= refresh_interval {
-            clear_screen();
-            render();
-            io::stdout().flush().ok();
-            last_render = Instant::now();
-        }
-
-        std::thread::sleep(Duration::from_millis(50));
-    }
+    let mut screen = DiffScreen::new();
+    let mut lines: Vec<String> = Vec::with_capacity(48);
+    run(&mut screen, &mut lines);
 }

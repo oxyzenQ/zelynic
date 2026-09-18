@@ -15,7 +15,6 @@ use crate::ebpf::identity::IdentityMap;
 use crate::ebpf::limiter::format_bytes;
 use crate::ebpf::loader::{CgroupDelta, CounterSummary};
 use crate::output::brand;
-
 /// Observe column layout derived from the frame width.
 ///
 /// Degradation ladder (2-column margin, 2-column gaps):
@@ -66,7 +65,9 @@ fn plan_observe_columns(width: usize) -> ObserveColumns {
     }
 }
 
-/// Render one observe frame (alt screen).
+/// Render one observe frame (NIGHT-improve-2: line-building — the
+/// caller submits the vector to the diff-based screen engine, which
+/// emits only the rows that changed).
 ///
 /// `interval` is the poll interval between frames; the RATE column
 /// reports `delta / interval` as bytes per second. `conns`
@@ -74,6 +75,7 @@ fn plan_observe_columns(width: usize) -> ObserveColumns {
 /// pass `None` when socket detail is unavailable (deterministic
 /// harnesses) — rows then render plain.
 pub fn render_observe_frame(
+    lines: &mut Vec<String>,
     summary: &CounterSummary,
     identity: &IdentityMap,
     conns: Option<&ConnectionMap>,
@@ -87,23 +89,20 @@ pub fn render_observe_frame(
     } else {
         format!("{:.1}s refresh", interval.as_secs_f64())
     };
-    println_safe!(
-        "{}",
-        title_bar(
-            &format!("zelynic observe — {interval_str}"),
-            "q quit",
-            geo.width
-        )
-    );
+    lines.push(title_bar(
+        &format!("zelynic observe — {interval_str}"),
+        "q quit",
+        geo.width,
+    ));
 
     if summary.total_packets == 0 && summary.total_ingress_packets == 0 {
-        println_safe!("  waiting for traffic…");
+        lines.push("  waiting for traffic…".to_string());
         return;
     }
 
     // Header row (regular purple — brand layer, NIGHT-hunt-5).
     if cols.show_rate {
-        println_safe!(
+        lines.push(format!(
             "  {} {:>w1$} {:>w2$} {:>w3$}",
             brand(&truncate_label("PROCESS", cols.label_w)),
             "DOWNLOAD",
@@ -112,18 +111,18 @@ pub fn render_observe_frame(
             w1 = cols.dl_w,
             w2 = cols.ul_w,
             w3 = cols.dl_w
-        );
+        ));
     } else {
-        println_safe!(
+        lines.push(format!(
             "  {} {:>w1$} {:>w2$}",
             brand(&truncate_label("PROCESS", cols.label_w)),
             "DOWNLOAD",
             "UPLOAD",
             w1 = cols.dl_w,
             w2 = cols.ul_w
-        );
+        ));
     }
-    println_safe!("  {}", "─".repeat(geo.width.saturating_sub(2)));
+    lines.push(format!("  {}", "─".repeat(geo.width.saturating_sub(2))));
 
     let mut sorted = summary.cgroups.clone();
     sorted.sort_by_key(|c| std::cmp::Reverse(c.bytes + c.ingress_bytes));
@@ -139,38 +138,39 @@ pub fn render_observe_frame(
         if used + need > line_budget && emitted > 0 {
             break;
         }
-        render_observe_row(c, identity, conns, &cols, interval);
+        render_observe_row(lines, c, identity, conns, &cols, interval);
         for line in details {
-            println_safe!("{line}");
+            lines.push(line);
         }
         used += need;
         emitted += 1;
     }
     if sorted.len() > emitted {
-        println_safe!(
+        lines.push(format!(
             "  (+{} more cgroups hidden — raise the window)",
             sorted.len() - emitted
-        );
+        ));
     }
 
-    println_safe!("  {}", "─".repeat(geo.width.saturating_sub(2)));
-    println_safe!(
+    lines.push(format!("  {}", "─".repeat(geo.width.saturating_sub(2))));
+    lines.push(format!(
         "  total  down {}  up {}  {} packets  {} cgroups",
         format_bytes(summary.total_ingress_bytes),
         format_bytes(summary.total_bytes),
         summary.total_packets + summary.total_ingress_packets,
         sorted.len()
-    );
+    ));
     if identity.is_empty() {
         // Rare: the /proc walk resolved nothing (permissions, a
         // stripped container). Say so instead of pretending the raw
         // cgroup IDs are app names.
-        println_safe!("  (identities unresolved — labels show raw cgroup IDs)");
+        lines.push("  (identities unresolved — labels show raw cgroup IDs)".to_string());
     }
 }
 
 /// One observe data row.
 fn render_observe_row(
+    lines: &mut Vec<String>,
     c: &CgroupDelta,
     identity: &IdentityMap,
     conns: Option<&ConnectionMap>,
@@ -186,7 +186,7 @@ fn render_observe_row(
 
     if cols.show_rate {
         let rate = format_rate_or_dash(rate_bps(c.ingress_bytes + c.bytes, interval));
-        println_safe!(
+        lines.push(format!(
             "  {:<w0$} {:>w1$} {:>w2$} {:>w3$}",
             label,
             dl,
@@ -196,9 +196,9 @@ fn render_observe_row(
             w1 = cols.dl_w,
             w2 = cols.ul_w,
             w3 = cols.dl_w
-        );
+        ));
     } else {
-        println_safe!(
+        lines.push(format!(
             "  {:<w0$} {:>w1$} {:>w2$}",
             label,
             dl,
@@ -206,7 +206,7 @@ fn render_observe_row(
             w0 = cols.label_w,
             w1 = cols.dl_w,
             w2 = cols.ul_w
-        );
+        ));
     }
 }
 
@@ -214,8 +214,10 @@ fn render_observe_row(
 ///
 /// The single-cgroup view switches to a key/value block: with one
 /// process, the delta, rate, and lifetime totals are the interesting
-/// numbers and a table wastes the width.
+/// numbers and a table wastes the width. Line-building contract per
+/// [`render_observe_frame`] (NIGHT-improve-2).
 pub fn render_observe_filtered(
+    lines: &mut Vec<String>,
     summary: &CounterSummary,
     identity: &IdentityMap,
     conns: Option<&ConnectionMap>,
@@ -224,44 +226,47 @@ pub fn render_observe_filtered(
 ) {
     let geo = super::FrameGeometry::probe();
 
-    println_safe!(
-        "{}",
-        title_bar(
-            &format!("zelynic observe — cgroup {cgroup_id}"),
-            "q quit",
-            geo.width
-        )
-    );
+    lines.push(title_bar(
+        &format!("zelynic observe — cgroup {cgroup_id}"),
+        "q quit",
+        geo.width,
+    ));
 
     let Some(c) = summary.cgroups.iter().find(|c| c.cgroup_id == cgroup_id) else {
-        println_safe!("  no traffic for cgroup {cgroup_id} since last check");
+        lines.push(format!(
+            "  no traffic for cgroup {cgroup_id} since last check"
+        ));
         return;
     };
 
-    println_safe!(
+    lines.push(format!(
         "  process   {}",
         label_with_count(identity, conns, cgroup_id)
-    );
-    println_safe!(
+    ));
+    lines.push(format!(
         "  download  {} ({})",
         format_bytes(c.ingress_bytes),
         c.ingress_packets
-    );
-    println_safe!("  upload    {} ({})", format_bytes(c.bytes), c.packets);
-    println_safe!(
+    ));
+    lines.push(format!(
+        "  upload    {} ({})",
+        format_bytes(c.bytes),
+        c.packets
+    ));
+    lines.push(format!(
         "  rate      {}",
         format_rate_or_dash(rate_bps(c.ingress_bytes + c.bytes, interval))
-    );
-    println_safe!(
+    ));
+    lines.push(format!(
         "  lifetime  {}",
         format_bytes(c.ingress_bytes + c.total_bytes)
-    );
+    ));
 
     // Full eagle-eyes view for the filtered cgroup: every
     // socket-holding process with its endpoints, uncapped (the
     // single-cgroup view exists precisely to answer "who exactly").
     for line in super::full_detail_lines(conns, cgroup_id) {
-        println_safe!("{line}");
+        lines.push(line);
     }
 }
 
@@ -295,5 +300,24 @@ mod tests {
         assert!(!cols.show_rate);
         assert_eq!(cols.label_w, 12);
         assert_eq!(cols.dl_w, 9);
+    }
+
+    /// NIGHT-improve-2 line-building pin: the renderer fills the
+    /// caller's vector (title bar first, waiting-note when idle) —
+    /// the diff engine's input contract.
+    #[test]
+    fn observe_frame_builds_lines() {
+        let mut lines = Vec::new();
+        let summary = CounterSummary::default();
+        render_observe_frame(
+            &mut lines,
+            &summary,
+            &IdentityMap::new(),
+            None,
+            Duration::from_secs(1),
+        );
+        assert_eq!(lines.len(), 2, "idle frame = title + waiting note");
+        assert!(lines[0].starts_with("─── zelynic observe — 1s refresh"));
+        assert_eq!(lines[1], "  waiting for traffic…");
     }
 }

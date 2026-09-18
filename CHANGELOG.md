@@ -9,6 +9,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **perf: diff-based monitor rendering — the cosmic dragon engine
+  adapted (NIGHT-improve-2)** — the monitor loop used to wipe the
+  whole alt screen (ESC[2J) and reprint every line on every refresh:
+  a full redraw per frame, one write+flush syscall PER LINE, and
+  terminal-side full-screen rework even when nothing changed (the
+  owner's wasted-energy/wasted-I/O complaint). Ported the diff-based
+  render discipline from cosmostrix's cosmic dragon engine
+  (github.com/oxyzenQ/cosmostrix) at line granularity, the honest
+  fit for zelynic's styled text tables: a shadow of the previous
+  frame, dirty-row runs repositioned with one MoveTo per run, a
+  byte-exact crossover between sparse and sequential emission
+  (cosmostrix's fixed 12.5% ratio assumed 1-char cells; rows here
+  are 50-80 chars, so the exact costs are computed per frame), one
+  write(2) per frame through a raw-fd writer, and an idle fast path
+  that emits ZERO bytes when nothing changed. Resizes reset fully
+  via one TIOCGWINSZ probe per frame. Renderers became line builders
+  (render_observe_frame / render_observe_filtered / render_top_table
+  fill a reusable Vec<String>; the engine swaps it with the shadow —
+  zero per-frame cloning). Safety dividend: ESC[2J is never emitted
+  anymore — on VTE terminals a 2J inside the alt screen can flag the
+  main screen's scrollback for deletion on exit (documented in
+  docs/SAFETY_ANALYSIS.md's render-path audit); resets use
+  cursor-anchored ESC[H + ESC[J. Unicode-safe by construction (rows
+  written whole, cursor only at row starts). Benchmark protocol
+  extension: each captured frame now carries the logical content AND
+  the engine's emitted byte count (###EMIT###), so pre-diff and
+  post-diff captures compare honestly (emit == full frame for the
+  old renderer). 11 unit pins on the engine (idle zero-emit, first
+  frame reset, sparse repositioning, run joining, shrink tail-clear,
+  resize reset, tall-frame sequential fallback, byte-exact crossover,
+  style-byte parity, CJK rows, shadow swap) + renderer line-building
+  pins. Degenerate tall-frame case (rows >= terminal height) keeps
+  the pre-diff scrolling semantics via the sequential path.
+
 - **refactor: one canonical /proc boundary (NIGHT-optimized-1)** —
   the pid-to-cgroup resolution and the sanitized comm read existed
   as THREE independent inline copies (identity walk, connection

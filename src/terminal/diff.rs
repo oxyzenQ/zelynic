@@ -1,0 +1,323 @@
+// Copyright (C) 2026 rezky_nightky
+// SPDX-License-Identifier: GPL-3.0-only
+
+//! Diff-based render engine for the alt-screen monitors
+//! (NIGHT-improve-2) — zelynic's line-granularity adaptation of the
+//! cosmic dragon engine (cosmostrix,
+//! github.com/oxyzenQ/cosmostrix —
+//! src/engine/cosmic_dragon_engine/terminal/{mod,draw,last_frame}.rs).
+//!
+//! Owner problem: the monitor loop cleared the WHOLE alt screen
+//! (ESC[2J + ESC[H) and reprinted every line on every refresh — a
+//! full redraw per frame, one write+flush syscall PER LINE, and a
+//! terminal-side full-screen wipe, even when nothing changed. For a
+//! focus monitor that runs for minutes that is wasted energy, wasted
+//! I/O, and visible flicker.
+//!
+//! Dragon-engine principles ported here:
+//! - **Shadow** (their `LastFrame`): the previous frame's lines are
+//!   kept; only rows that differ are emitted.
+//! - **Idle fast path**: zero dirty rows → zero bytes, zero syscalls
+//!   (their zero-emit idle resync).
+//! - **One write syscall per frame**: the whole emission batch goes
+//!   out through a single `write(2)` (their 64 KiB buffered single
+//!   `write_all`; here a direct fd write — no std LineWriter to
+//!   split the buffer at embedded newlines).
+//! - **Crossover between sparse and sequential emission**: they used
+//!   a fixed 12.5% dirty-cell ratio because a cell is 1 char, so the
+//!   MoveTo-vs-rewrite math collapses to a ratio. zelynic rows are
+//!   ~50-80 chars, so the crossover is computed BYTE-EXACTLY from
+//!   the actual line lengths every frame — no magic number.
+//! - **Never ESC[2J**: a 2J inside the alternate screen can set an
+//!   internal flag on VTE-based terminals that wipes the MAIN
+//!   screen's scrollback on exit (the hazard cosmostrix documented
+//!   in their draw path). Resets use ESC[H + ESC[J — a
+//!   cursor-anchored erase with the same visual result and no
+//!   scrollback side effect. The previous renderer emitted 2J every
+//!   frame inside the alt screen; this engine never emits it at all.
+//! - **Resize = width change → full reset**: the probe is one
+//!   TIOCGWINSZ ioctl per frame (the render layer already probes
+//!   twice per frame for layout); no SIGWINCH plumbing, no stale
+//!   geometry.
+//!
+//! Line granularity (vs their cell grid) is the honest adaptation:
+//! zelynic's monitors are styled text tables, not per-cell scenes. A
+//! row diff is unicode-width-safe by construction — whole lines are
+//! written and the cursor is only ever positioned at row starts, so
+//! double-width glyphs never desync the column math. Embedded ANSI
+//! style bytes are part of the line string, so a style change is a
+//! row change, exactly like a content change.
+
+use std::io::Write;
+use std::mem;
+
+/// Escape prefixes/bodies used by the emission paths.
+const HOME: &[u8] = b"\x1b[H"; // cursor to row 1, col 1 (3 bytes)
+const ERASE_BELOW: &[u8] = b"\x1b[J"; // erase cursor..end of screen (3 bytes)
+const ERASE_EOL: &[u8] = b"\x1b[K"; // erase cursor..end of line (3 bytes)
+
+/// Terminal size probe (TIOCGWINSZ on stdout). Mirrors the limiter
+/// format.rs probe: falls back to (80, 24) when stdout is not a TTY
+/// (piped output, tests, benchmark harnesses) or reports a
+/// degenerate zero size.
+fn probe_size() -> (usize, usize) {
+    use libc::{ioctl, winsize, STDOUT_FILENO, TIOCGWINSZ};
+    let mut ws: winsize = winsize {
+        ws_row: 0,
+        ws_col: 0,
+        ws_xpixel: 0,
+        ws_ypixel: 0,
+    };
+    // SAFETY: ioctl with TIOCGWINSZ writes to a valid winsize struct.
+    let ret = unsafe { ioctl(STDOUT_FILENO, TIOCGWINSZ, &mut ws) };
+    if ret == 0 && ws.ws_row > 0 && ws.ws_col > 0 {
+        (ws.ws_col as usize, ws.ws_row as usize)
+    } else {
+        (80, 24)
+    }
+}
+
+/// Decimal digit count of `n` (>= 1 for n == 0).
+fn dec_len(n: usize) -> usize {
+    let mut digits = 1;
+    let mut v = n / 10;
+    while v > 0 {
+        digits += 1;
+        v /= 10;
+    }
+    digits
+}
+
+/// Append `ESC[{row};1H` (MoveTo row, column 1; rows are 1-based).
+fn push_move_to(buf: &mut Vec<u8>, row: usize) {
+    buf.extend_from_slice(b"\x1b[");
+    push_decimal(buf, row);
+    buf.extend_from_slice(b";1H");
+}
+
+/// Allocation-free decimal append.
+fn push_decimal(buf: &mut Vec<u8>, n: usize) {
+    if n == 0 {
+        buf.push(b'0');
+        return;
+    }
+    let mut digits = [0u8; 20];
+    let mut i = digits.len();
+    let mut v = n;
+    while v > 0 {
+        i -= 1;
+        digits[i] = b'0' + (v % 10) as u8;
+        v /= 10;
+    }
+    buf.extend_from_slice(&digits[i..]);
+}
+
+/// The diff-based screen: shadow + emission buffer, reused frame to
+/// frame (the dragon engine's allocation-reuse discipline — the
+/// Vec capacities survive the whole session, only lengths churn).
+pub struct DiffScreen {
+    /// Previous frame's lines (the shadow). Swapped with the
+    /// caller's line vector on every emit, so both buffers stay warm
+    /// and no per-frame String cloning happens.
+    prev: Vec<String>,
+    /// Terminal width the shadow was rendered for. A mismatch (the
+    /// resize case) forces a full reset emit.
+    width: usize,
+    /// False until the first emit — the physical screen state is
+    /// unknown, so the first frame must paint everything (the
+    /// dragon engine's force_full_emit invariant).
+    ever_drawn: bool,
+    /// Emission buffer, one `write(2)` per frame.
+    buf: Vec<u8>,
+}
+
+impl Default for DiffScreen {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl DiffScreen {
+    pub fn new() -> Self {
+        DiffScreen {
+            prev: Vec::new(),
+            width: 0,
+            ever_drawn: false,
+            buf: Vec::with_capacity(8 * 1024),
+        }
+    }
+
+    /// Emit one frame: diff `lines` against the shadow and write the
+    /// minimal ANSI stream to `sink` in a single `write_all`. Probes
+    /// the terminal size (one ioctl) for the resize check. Returns
+    /// the number of bytes the emission consists of (0 = idle frame,
+    /// nothing written).
+    ///
+    /// `lines` is swapped with the internal shadow: after the call
+    /// the caller's vector holds the PREVIOUS frame's strings —
+    /// clear it and refill for the next frame (both `run_alt` and
+    /// the benchmark harness do exactly that). This keeps the two
+    /// vectors' allocations warm with zero per-frame cloning.
+    pub fn emit(&mut self, lines: &mut Vec<String>, sink: &mut dyn Write) -> usize {
+        let (w, h) = probe_size();
+        self.emit_at(w, h, lines, sink)
+    }
+
+    /// Size-injectable core (the benchmark harness pins a
+    /// deterministic 80x40 so the strategy choice is a property of
+    /// the engine, not of the piped-fallback probe).
+    pub fn emit_at(
+        &mut self,
+        width: usize,
+        height: usize,
+        lines: &mut Vec<String>,
+        sink: &mut dyn Write,
+    ) -> usize {
+        let reset = !self.ever_drawn || width != self.width;
+        self.width = width;
+        self.ever_drawn = true;
+
+        let n = lines.len();
+        let shrunk = n < self.prev.len();
+
+        // Degenerate tall-frame case: the frame meets/exceeds the
+        // terminal height, so absolute row positioning would clamp to
+        // the bottom row and overwrite it. Fall back to sequential
+        // writes — the scrolling semantics of the pre-diff renderer,
+        // preserved exactly (this only happens on terminals shorter
+        // than the chrome+capped rows, i.e. under ~24 rows).
+        let seq_forced = n >= height;
+
+        let dirty: Vec<bool> = (0..n)
+            .map(|i| reset || i >= self.prev.len() || lines[i] != self.prev[i])
+            .collect();
+        let dirty_count = dirty.iter().filter(|d| **d).count();
+
+        // Idle fast path: nothing changed, no reset, no shrink. Zero
+        // bytes, zero syscalls — the "waiting for traffic" monitor
+        // holds its frame for free.
+        if dirty_count == 0 && !reset && !shrunk && !seq_forced {
+            mem::swap(&mut self.prev, lines);
+            return 0;
+        }
+
+        // Tail clear: the frame shrank — rows below it still hold
+        // the previous frame's content. Erase from the first row
+        // below the frame to the end of screen. Guarded to a valid
+        // row (n < height also implies seq_forced is false, so the
+        // two branches below agree on when this is safe).
+        let tail_clear = shrunk && n < height;
+
+        // Maximal runs of consecutive dirty rows (row-major, so a
+        // run is emitted with ONE MoveTo and LF-separated rows —
+        // the dragon engine's contiguous-run batching).
+        let mut runs: Vec<(usize, usize)> = Vec::new();
+        let mut i = 0;
+        while i < n {
+            if dirty[i] {
+                let start = i;
+                while i < n && dirty[i] {
+                    i += 1;
+                }
+                runs.push((start, i));
+            } else {
+                i += 1;
+            }
+        }
+
+        // Byte-exact crossover. Sequential: home + every row
+        // (content + erase-EOL + LF) + tail. Sparse: per run a MoveTo
+        // (5 + row digits) + every DIRTY row (content + erase-EOL +
+        // LF) + tail. The dragon engine's 12.5% ratio assumed 1-char
+        // cells; with ~50-80-char rows the exact costs are one
+        // integer add each, so no ratio is needed.
+        let rows_cost = |range: (usize, usize)| -> usize {
+            (range.0..range.1)
+                .map(|r| lines[r].len() + ERASE_EOL.len() + 1)
+                .sum()
+        };
+        let tail_cost = if tail_clear {
+            5 + dec_len(n + 1) + ERASE_BELOW.len()
+        } else {
+            0
+        };
+        let seq_cost =
+            HOME.len() + if reset { ERASE_BELOW.len() } else { 0 } + rows_cost((0, n)) + tail_cost;
+        let sparse_cost = runs
+            .iter()
+            .map(|&r| 5 + dec_len(r.0 + 1) + rows_cost(r))
+            .sum::<usize>()
+            + tail_cost;
+
+        self.buf.clear();
+        if !reset && !seq_forced && sparse_cost < seq_cost {
+            // Sparse path: skip every clean row; position once per
+            // dirty run.
+            for &(start, end) in &runs {
+                push_move_to(&mut self.buf, start + 1);
+                for line in lines.iter().take(end).skip(start) {
+                    self.buf.extend_from_slice(line.as_bytes());
+                    self.buf.extend_from_slice(ERASE_EOL);
+                    self.buf.push(b'\n');
+                }
+            }
+        } else {
+            // Sequential path (dense diff, first frame, resize, or
+            // degenerate height): home, then every row in order —
+            // same order and same scrolling behavior as the
+            // pre-diff println renderer, minus the screen wipe.
+            self.buf.extend_from_slice(HOME);
+            if reset {
+                self.buf.extend_from_slice(ERASE_BELOW);
+            }
+            for line in lines.iter() {
+                self.buf.extend_from_slice(line.as_bytes());
+                self.buf.extend_from_slice(ERASE_EOL);
+                self.buf.push(b'\n');
+            }
+        }
+        if tail_clear {
+            push_move_to(&mut self.buf, n + 1);
+            self.buf.extend_from_slice(ERASE_BELOW);
+        }
+
+        let emitted = self.buf.len();
+        if emitted > 0 {
+            // Broken-pipe contract (println_safe parity): emission
+            // errors are discarded — a short-reader kills the
+            // monitor quietly, never a panic.
+            let _ = sink.write_all(&self.buf);
+        }
+        mem::swap(&mut self.prev, lines);
+        emitted
+    }
+}
+
+/// Stdout as a raw fd writer: ONE `write(2)` per frame, bypassing
+/// the std LineWriter (which would split the batch at every
+/// embedded newline — the exact per-line syscall churn this engine
+/// exists to remove).
+pub struct RawStdout;
+
+impl Write for RawStdout {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        // SAFETY: write(2) on fd 1 with a valid buffer + length; the
+        // return value is the transferred count. EPIPE surfaces as
+        // an io error and is discarded by the caller, matching the
+        // println_safe broken-pipe contract.
+        let n = unsafe { libc::write(1, buf.as_ptr().cast(), buf.len()) };
+        if n < 0 {
+            Err(std::io::Error::last_os_error())
+        } else {
+            Ok(n as usize)
+        }
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(()) // raw fd: nothing is buffered
+    }
+}
+
+#[cfg(test)]
+#[path = "diff_tests.rs"]
+mod diff_tests;
