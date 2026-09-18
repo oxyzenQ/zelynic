@@ -10,7 +10,8 @@
 **zelynic is safe. It is not malware.** It is a pure eBPF bandwidth limiter
 that:
 - Does NOT collect, transmit, or store user data
-- Does NOT make network connections (except `--check-update` which is opt-in)
+- Does NOT make network connections (except `--check-update` which is opt-in
+  and refuses to run as root)
 - Does NOT modify system files (except `/sys/fs/bpf/zelynic/` pin files)
 - Does NOT install services, cron jobs, or daemons
 - Does NOT require internet access to function
@@ -65,7 +66,28 @@ The only network-related activity:
 1. **BPF programs**: hook network packets in kernel (count/enforce) — do NOT
    read packet content, do NOT connect to anything
 2. **`--check-update` flag**: opt-in GitHub API call to check latest release.
-   Disabled by default. Only runs when user explicitly requests it.
+   Disabled by default. Only runs when user explicitly requests it — and
+   **refuses to run as root** (exit with an error before any network I/O;
+   re-run without sudo).
+
+## Privilege Model
+
+Full root-usage audit (NIGHT-hunt-11). Every command has exactly one
+privilege contract:
+
+| Surface | Root? | Contract |
+|---------|-------|----------|
+| `strict-single`/`strict-multi`/`limit-all`, `block-single`/`block-multi`/`block-all`, `unstrict`/`unstrict-all`/`recover` | required | load, attach, and pin BPF programs; write policy maps. Fail fast with a "re-run with sudo" tip before touching BPF state when run non-root |
+| `status`, `observe`, `top` | required | read pinned BPF maps (same fail-fast guard) |
+| `list-apps`, `doctor` | either | pure `/proc` + `/sys` reads; `doctor` additionally reports pin state when root |
+| `--help`, `-h`, `-V`/`--version`, `man`, bare invocation | either | pure stdout, no side effects, no file or network access |
+| `--check-update` | **refused** | network fetch via curl — exits with a branded error when euid is 0, before any network I/O |
+
+The `--check-update` refusal is deliberate: a root network round-trip buys
+nothing (the check only reads a release tag), curl would inherit root's
+environment wholesale, and any future download step would plant root-owned
+files into the invoking user's home. This is the mirror image of the eBPF
+guard: there root is the requirement, here root is the hazard.
 
 ## Crash Safety
 

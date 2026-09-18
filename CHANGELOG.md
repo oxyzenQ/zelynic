@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Safety
+
+- **fix: `--check-update` refuses to run as root** — the update check
+  shells out to curl for a GitHub release tag, so `sudo zelynic
+  --check-update` was a privileged network round-trip that bought
+  nothing (curl inherits root's environment wholesale, and any future
+  download step would plant root-owned files in the invoking user's
+  home). euid 0 now exits with a branded error and a "re-run without
+  sudo" tip before any network I/O happens (NIGHT-hunt-11). The full
+  command-by-command privilege matrix is documented in
+  docs/SAFETY_ANALYSIS.md: eBPF surfaces keep the inverse guard (fail
+  fast with the sudo tip before touching BPF state), `--help`/`-V`/
+  `man`/`doctor`/`list-apps` stay uid-agnostic pure-read surfaces, and
+  the one network surface refuses root outright.
+
 ### Release Engineering
 
 - **ci: pre-release channel contract** — release tags are validated in a
