@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Docs
+
+- **docs: crypto donation addresses on the README (owner)** — SOL /
+  USDT (Solana network), ETH / USDT (Ethereum network), and BTC
+  (Taproot) receive addresses added directly below the Ko-fi badge.
+  Every address was cryptographically verified before publishing: the
+  Solana address base58-decodes to a 32-byte Ed25519 pubkey; the
+  Ethereum address passes the EIP-55 mixed-case checksum (keccak-256
+  round-trip, implementation self-tested against the canonical EIP-55
+  vector); the Bitcoin address passes the BIP-350 bech32m checksum
+  with witness v1 and a 32-byte program — i.e. P2TR taproot (bech32m
+  encoding, not native segwit's bech32/v0), confirming the owner's
+  taproot label. Verification tooling kept outside the repo
+  (scripts/verify-donation-addresses.py in the workspace).
+
 ### Security
 
 - **docs: SECURITY.md — the security foundation (NIGHT-security-2)** —

@@ -23,6 +23,13 @@
   </a>
 </p>
 
+<p align="center">
+  <strong>Donate</strong><br>
+  <sub>SOL / USDT (Solana network): <code>88umzS7abaToaGQVgTVXt5SnuvcjTw2jPSM6Ha2JYmXM</code></sub><br>
+  <sub>ETH / USDT (Ethereum network): <code>0x1bCbA21c07B5636a942De27AA7Ee8283cEDb4C3D</code></sub><br>
+  <sub>BTC (Taproot): <code>bc1p88nqysn4p8u9zxwz2pyxs5pl77wllcrk6ca2r2l3ryr3863hxkys5vdkze</code></sub>
+</p>
+
 ---
 
 ## Why zelynic?
