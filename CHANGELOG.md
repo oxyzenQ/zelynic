@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- **fix: operation lock moved out of the world-writable /tmp (NIGHT-hunt-14 /
+  security-1)** — the flock guard lived at /tmp/zelynic.lock, which handed any
+  local unprivileged user two primitives against the root-running tool: lock
+  squatting (create the file and hold flock forever → every enforcement
+  command fails with "another zelynic operation is in progress" until an
+  admin intervenes) and a symlink-following open(O_WRONLY) as root. The lock
+  now lives at /run/zelynic/zelynic.lock inside a root-owned 0700 directory
+  created on first use (/run is a root-owned tmpfs — same trust class as
+  /sys/fs/bpf; only root can create entries inside). A unit drift-pin keeps
+  the path out of world-writable locations forever; the legacy /tmp file is
+  removed opportunistically (unlink is symlink-safe); error wording and the
+  non-blocking retry contract are unchanged. Full audit matrix — including
+  the verified-clean verdicts (update.rs curl hardening inventory, panic
+  hunt, path handling, arithmetic, u32 cgroup-ID width, blocklist scope) —
+  documented in docs/SAFETY_ANALYSIS.md.
+
+- **ci: event context reaches run: scripts only through env (NIGHT-hunt-14)**
+  — ci.yml's change-detection step interpolated ${{ github.event.*.sha }}
+  directly inside the script. The values are git-controlled SHAs (no
+  attacker free text, so nothing was exploitable), but env-var isolation is
+  the canonical defense-in-depth against the script-injection class and now
+  applies to every event field the step reads. No workflow interpolates
+  event context inside run: anymore; the PR trigger remains pull_request
+  (never pull_request_target), so fork builds see no secrets.
+
 ### Added
 
 - **test: non-root end-to-end depth suite (NIGHT-hunt-13)** —
