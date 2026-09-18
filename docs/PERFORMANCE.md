@@ -172,6 +172,29 @@ clears four orders of magnitude more frames per second than a
 terminal can display. The fps cost buys full-width purple brand bars
 plus per-frame width/height probing (dynamic screen size).
 
+### NIGHT-hunt-8 A/B (eagle-eyes detail lines, 2026-09-18)
+
+The harness gained a synthetic ConnectionMap fixture (every third
+cgroup multi-tenant, busy flags toggling every 3 frames — a
+worst-case churn pattern), so the A/B measures the real cost of
+rendering per-process socket detail:
+
+| Metric | hunt-7 layout | hunt-8 + detail | Delta |
+|--------|---------------|-----------------|-------|
+| fps | 14,995 | 14,721 | -1.8% |
+| bytes/frame | 1,717 | 1,438 | -16.3% (detail displaces rows in the same height budget) |
+| frame entropy | 3.909 | 4.208 | +7.7% (information gained) |
+| density gini | 0.1595 | 0.1812 | +13.6% (light detail rows), still below the 0.1918 pre-hunt-7 baseline |
+| dirty cells/frame | 385.7 | 755.4 | +95.8% under forced busy-flag toggling |
+| bytes/sec churn | 25.7 MB | 21.2 MB | -17.8% |
+
+Reading: the eagle-eyes capability costs ~2% render throughput and
+displaces bytes within the fixed height budget (frames get SMALLER).
+Dirty cells double only under the fixture's artificial all-sockets-
+flip pattern; against the original pre-hunt-7 baseline the full
+detail-carrying frame churns roughly the same 755 vs 721 cells —
+the attribution comes free with the responsive layout.
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.

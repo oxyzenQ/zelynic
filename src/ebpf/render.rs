@@ -29,8 +29,11 @@
 //! - [`observe`] — the aggregate + single-cgroup observe renderers
 //! - [`top`] — the top-talkers renderer (live + snapshot)
 //! - `bench` (cfg(test)) — the frame A/B benchmark harness
-//! - this root — geometry probing, column budgets, shared helpers
+//! - this root — geometry probing, column budgets, shared helpers,
+//!   and the NIGHT-hunt-8 connection-detail lines (label +N suffix,
+//!   per-process endpoint lines shared by observe and top)
 
+mod detail;
 mod observe;
 mod top;
 
@@ -39,6 +42,8 @@ mod bench;
 
 pub use observe::{render_observe_filtered, render_observe_frame};
 pub use top::{render_top_table, TopMode};
+
+pub(crate) use detail::{comm_from_label, detail_lines, full_detail_lines, label_with_count};
 
 use crate::ebpf::limiter::{format_rate, terminal_height, terminal_width};
 use crate::output::brand_bold;
@@ -151,7 +156,6 @@ pub(crate) fn title_bar(core: &str, hint: &str, width: usize) -> String {
 
     brand_bold(&format!("{PREFIX}{core} {fill}{hint_part}"))
 }
-
 #[cfg(test)]
 mod tests {
     use super::*;

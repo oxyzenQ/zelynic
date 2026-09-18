@@ -87,6 +87,13 @@ numerics, and no per-cell noise (values are never packed as
   row count is height-capped so frames never scroll.
 - Refresh cadence: `--interval` (1s..60s, default 1s observe / 5s top
   live); the RATE column divides deltas by exactly that interval.
+- Eagle-eyes detail (NIGHT-hunt-8): multi-tenant cgroups carry a
+  `+N` process suffix — `cg:73386 (alacritty +3)` — and up to three
+  indented detail lines naming the socket-holding processes inside:
+  `    └ curl (4242) → 142.250.191.78:443`. UDP endpoints are tagged
+  (`udp 8.8.8.8:53`), busy sockets flagged `[busy]`; remaining
+  holders collapse into `+N more socket-holding processes`. Detail
+  lines count against the height budget so frames never scroll.
 
 ---
 

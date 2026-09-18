@@ -48,13 +48,22 @@ pub fn handle_status(verbose: bool, json: bool) -> Result<()> {
 }
 
 /// Handle `zelynic list-apps` — list apps with cgroup IDs.
+///
+/// NIGHT-hunt-8: the listing carries the cgroup's process and socket
+/// counts, because a row named "alacritty" that actually hosts curl,
+/// wget and ssh is exactly the discovery-stage lie the owner hit.
 #[cfg(feature = "ebpf")]
 pub fn handle_list_apps(json: bool) -> Result<()> {
+    use crate::ebpf::connections::ConnectionMap;
     use crate::ebpf::identity::IdentityMap;
     use crate::output::brand_bold;
 
     let mut identity = IdentityMap::new();
     let count = identity.refresh();
+
+    // One /proc walk feeds both maps: identities + socket detail.
+    let mut conns = ConnectionMap::new();
+    let socket_cgroups = conns.refresh();
 
     let mut entries: Vec<_> = identity.all().into_iter().collect();
     entries.sort_by(|a, b| a.comm.cmp(&b.comm));
@@ -68,6 +77,8 @@ pub fn handle_list_apps(json: bool) -> Result<()> {
                     "process": e.comm,
                     "cgroup_id": e.cgroup_id,
                     "uid": e.uid,
+                    "processes": conns.proc_count(e.cgroup_id),
+                    "sockets": conns.socket_count(e.cgroup_id),
                 })
             })
             .collect();
@@ -76,14 +87,27 @@ pub fn handle_list_apps(json: bool) -> Result<()> {
     }
 
     println_safe!("{}", brand_bold("━━━ Apps with cgroup IDs ━━━"));
-    println_safe!("  {} cgroups resolved\n", count);
-    println_safe!("  {:<30} {:>10} {:>8}", "PROCESS", "CGROUP ID", "UID");
-    println_safe!("  {}", "─".repeat(50));
+    println_safe!(
+        "  {} cgroups resolved, {} with live sockets\n",
+        count,
+        socket_cgroups
+    );
+    println_safe!(
+        "  {:<30} {:>7} {:>8} {:>10} {:>8}",
+        "PROCESS",
+        "PROCS",
+        "SOCKETS",
+        "CGROUP ID",
+        "UID"
+    );
+    println_safe!("  {}", "─".repeat(70));
 
     for id in entries {
         println_safe!(
-            "  {:<30} {:>10} {:>8}",
+            "  {:<30} {:>7} {:>8} {:>10} {:>8}",
             id.comm,
+            conns.proc_count(id.cgroup_id),
+            conns.socket_count(id.cgroup_id),
             format!("cg:{}", id.cgroup_id),
             id.uid
         );
@@ -105,6 +129,7 @@ pub fn handle_observe(
     interval: Option<&str>,
     verbose: bool,
 ) -> Result<()> {
+    use crate::ebpf::connections::ConnectionMap;
     use crate::ebpf::loader::Observer;
     use crate::ebpf::render::render_observe_filtered;
     use crate::ebpf::render::render_observe_frame;
@@ -141,13 +166,17 @@ pub fn handle_observe(
         Duration::ZERO
     };
 
+    // Eagle-eyes detail (NIGHT-hunt-8): per-cgroup process/socket
+    // detail, TTL-cached inside the map so 1s frames reuse the scan.
+    let mut conns = ConnectionMap::new();
     let interval = Duration::from_secs(interval_secs);
     terminal::run_alt(interval, duration, || {
         let summary = observer.poll_and_summarize().unwrap_or_default();
+        conns.maybe_refresh();
         if let Some(cg) = cgroup {
-            render_observe_filtered(&summary, observer.identity(), cg, interval);
+            render_observe_filtered(&summary, observer.identity(), Some(&conns), cg, interval);
         } else {
-            render_observe_frame(&summary, observer.identity(), interval);
+            render_observe_frame(&summary, observer.identity(), Some(&conns), interval);
         }
     });
 
@@ -169,6 +198,7 @@ pub fn handle_top(
     interval: Option<&str>,
     verbose: bool,
 ) -> Result<()> {
+    use crate::ebpf::connections::ConnectionMap;
     use crate::ebpf::loader::Observer;
     use crate::ebpf::render::{render_top_table, TopMode};
     use crate::terminal;
@@ -200,6 +230,7 @@ pub fn handle_top(
     }
 
     let mut cumulative: HashMap<u32, (u64, u64, u64)> = HashMap::new();
+    let mut conns = ConnectionMap::new();
     let _ = observer.poll_and_summarize()?;
 
     if let Some(duration_secs) = live_secs {
@@ -218,10 +249,12 @@ pub fn handle_top(
                 entry.1 += c.bytes;
                 entry.2 += c.packets + c.ingress_packets;
             }
+            conns.maybe_refresh();
             render_top_table(
                 &cumulative,
                 limit,
                 observer.identity(),
+                Some(&conns),
                 &TopMode::Live { interval },
             );
         });
@@ -246,10 +279,12 @@ pub fn handle_top(
             }
         }
 
+        conns.refresh();
         render_top_table(
             &cumulative,
             limit,
             observer.identity(),
+            Some(&conns),
             &TopMode::Sample {
                 label: &format!("{dur_secs}s sample"),
             },
