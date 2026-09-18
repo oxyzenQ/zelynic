@@ -370,7 +370,8 @@ zelynic uses `cgroup.id` files and bpf_link. Run `zelynic doctor` on a
 new machine. Old distributions booting cgroup v1 cannot host zelynic.
 
 **8. One enforcement-changing operation at a time.**
-A non-blocking file lock (`flock` on `/tmp/zelynic.lock`) guards
+A non-blocking file lock (`flock` on `/run/zelynic/zelynic.lock`, inside a
+root-only directory) guards
 strict/block/unstrict/recover: a second concurrent operation exits
 immediately with "another zelynic operation is in progress — wait for
 it to finish, then retry" rather than waiting silently or interleaving

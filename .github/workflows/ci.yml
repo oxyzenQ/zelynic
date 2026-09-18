@@ -33,13 +33,23 @@ jobs:
           fetch-depth: 0
       - name: Detect core file changes
         id: detect
+        # NIGHT-hunt-14 hardening: event context reaches the script only
+        # through environment variables, never via direct ${{ }}
+        # interpolation inside run: — the canonical defense-in-depth
+        # against the script-injection class even though these fields
+        # are git-controlled SHAs today.
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          HEAD_SHA: ${{ github.sha }}
         run: |
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            BASE="${{ github.event.pull_request.base.sha }}"
-            HEAD="${{ github.event.pull_request.head.sha }}"
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            BASE="$PR_BASE"
+            HEAD="$PR_HEAD"
           else
             BASE=$(git rev-parse HEAD~1 2>/dev/null || git rev-list --max-parents=0 HEAD)
-            HEAD="${{ github.sha }}"
+            HEAD="$HEAD_SHA"
           fi
           FILES=$(git diff --name-only "$BASE" "$HEAD" 2>/dev/null || git ls-files)
           CORE_PATTERN='\.(rs|toml|c|py)$|Cargo\.lock$|^build\.rs$|^rust-toolchain|^scripts/|^\.cargo/|^bpf/'
