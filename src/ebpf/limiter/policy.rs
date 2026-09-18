@@ -239,9 +239,13 @@ impl super::Limiter {
                         Err(_) => continue,
                     };
 
-                    // Read comm.
+                    // Read comm. Sanitized at the read boundary
+                    // (NIGHT-cybersecurity-1): matching must operate on
+                    // the same canonical label list-apps displays, so a
+                    // prctl-spoofed comm can never display one thing and
+                    // match another.
                     let comm = match std::fs::read_to_string(format!("/proc/{pid}/comm")) {
-                        Ok(s) => s.trim().to_lowercase(),
+                        Ok(s) => crate::ebpf::identity::sanitize_comm(s.trim()).to_lowercase(),
                         Err(_) => continue,
                     };
 

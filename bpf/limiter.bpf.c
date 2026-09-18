@@ -158,29 +158,56 @@ static __always_inline int enforce(struct policy *pol, struct bucket *bkt,
         elapsed = 0;
     }
 
-    // Cap elapsed at 1 second to prevent overflow and limit burst after idle.
-    // Max product: 1e9 ns * 1e9 bps = 1e18, fits in u64 (max 1.8e19).
+    // Cap elapsed at 1 second to limit burst after idle.
     if (elapsed > NS_PER_SEC) {
         elapsed = NS_PER_SEC;
     }
 
-    // Calculate refill with fractional precision.
-    // product = elapsed_ns * rate_bps (max 1e18, fits u64)
-    // refill_whole = product / NS_PER_SEC (integer bytes)
-    // refill_frac  = product % NS_PER_SEC (sub-byte remainder)
+    // Calculate refill with fractional precision, overflow-safe
+    // (NIGHT-cybersecurity-1).
+    //
+    // The former single product elapsed * rate_bps overflowed u64
+    // whenever rate exceeded u64::MAX / 1s (~18.4 GB/s) and the
+    // bucket sat idle past ~0.18s — inside the tool's documented
+    // 100 GB/s ceiling on 800-GbE-class hardware. The wrapped
+    // product made the refill garbage (still capped at burst, so no
+    // enforcement bypass, but the rate precision contract broke
+    // exactly at the high end). Two paths now:
+    //
+    //  * fill-detect: once elapsed is large enough that the true
+    //    refill reaches 2x burst, the bucket caps at burst anyway —
+    //    skip the multiply and credit burst directly (the fraction
+    //    resets, matching the cap branch below).
+    //  * exact multiply: below that threshold the product is
+    //    < 2 * burst * NS_PER_SEC, which is <= 2e17 for any burst
+    //    the userspace clamp admits (100 MB; the formula itself stays
+    //    inside u64 up to ~9.2 GB burst) — safely representable.
+    //
+    // Callers guarantee rate_bps > 0 (rate 0 short-circuits to the
+    // block drop before enforce); the explicit guard keeps that
+    // invariant local and protects the division.
     __u64 refill_whole = 0;
     __u64 new_frac     = bkt->frac_rem;
-    if (elapsed > 0) {
-        __u64 product     = elapsed * pol->rate_bps;
-        refill_whole      = product / NS_PER_SEC;
-        __u64 refill_frac = product % NS_PER_SEC;
+    if (elapsed > 0 && pol->rate_bps > 0) {
+        __u64 fill_ns =
+            (2ULL * pol->burst_bytes * NS_PER_SEC) / pol->rate_bps;
+        if (elapsed >= fill_ns) {
+            // Refill >= 2x burst: the cap below makes the exact value
+            // irrelevant — burst is the answer.
+            refill_whole = pol->burst_bytes;
+            new_frac     = 0;
+        } else {
+            __u64 product     = elapsed * pol->rate_bps;
+            refill_whole      = product / NS_PER_SEC;
+            __u64 refill_frac = product % NS_PER_SEC;
 
-        // Accumulate fractional remainder. If it overflows NS_PER_SEC,
-        // carry 1 byte into the integer tokens.
-        new_frac = bkt->frac_rem + refill_frac;
-        if (new_frac >= NS_PER_SEC) {
-            refill_whole += 1;
-            new_frac -= NS_PER_SEC;
+            // Accumulate fractional remainder. If it overflows
+            // NS_PER_SEC, carry 1 byte into the integer tokens.
+            new_frac = bkt->frac_rem + refill_frac;
+            if (new_frac >= NS_PER_SEC) {
+                refill_whole += 1;
+                new_frac -= NS_PER_SEC;
+            }
         }
     }
 

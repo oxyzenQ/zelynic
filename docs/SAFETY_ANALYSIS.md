@@ -233,6 +233,91 @@ no secrets).
   already root and owns the system. Renaming a binary to dodge the
   blocklist is out of scope by design.
 
+## Security Audit (NIGHT-cybersecurity-1, 2026-09)
+
+Second master audit, hunting beyond the hunt-14 surface list. Two
+real findings fixed; the rest of the sweep verified clean.
+
+### Finding 1 (fixed): comm-label terminal injection
+
+`prctl(PR_SET_NAME)` lets ANY unprivileged process set its own
+`/proc/<pid>/comm` to 15 bytes of near-arbitrary content — including
+ANSI/OSC escape sequences and newlines. zelynic printed those labels
+raw on every display surface that runs as root in the admin's
+terminal: the list-apps table, the observe/top monitor tables, the
+eagle-eyes per-process detail lines, and the verbose resolution
+trace. That is a terminal-injection primitive handed to an
+unprivileged attacker:
+
+- **OSC 52** (`ESC ] 5 2 ; ... BEL`) can rewrite the admin's
+  clipboard in terminals that honor it (exfiltration and poisoning).
+- **Newlines** forge lines that look like zelynic's own output — a
+  fake table row with a wrong cgroup ID nudges an admin toward
+  unstricting/blocking the wrong target.
+- **Escape sequences** corrupt the alt-screen monitor mid-render.
+
+Fix: `sanitize_comm()` (src/ebpf/identity/mod.rs) replaces every
+control character — Rust `char::is_control`, covering C0, DEL, and
+the C1 range — with `?` at all THREE /proc read boundaries (identity
+walk, connection walk, and the resolve_target match walk), so every
+downstream consumer (display, JSON, matching, majority-vote tally)
+is safe by construction and matching operates on the same canonical
+label list-apps displays. procps-ng applies the same substitution to
+comm for the same reason. The kernel quirk that a copied binary's
+basename becomes its comm gives the non-root depth suite a
+pure-shell spoofer: it plants hostile comms and asserts list-apps
+output (text and JSON) never carries a raw ESC byte; the sanitize
+behavior itself is pinned by unit tests covering the OSC-52,
+forged-row, DEL, and C1 families plus the clean-pass fast path.
+
+### Finding 2 (fixed): u64 overflow in the BPF token refill
+
+The limiter's refill product `elapsed_ns * rate_bps` overflowed
+u64 whenever rate exceeded `u64::MAX / 1s` (~18.4 GB/s) and the
+bucket sat idle past ~0.18 s — squarely inside the documented 100
+GB/s ceiling (one 800 GbE NIC). The in-code comment claimed safety
+with stale math ("1e9 ns * 1e9 bps = 1e18") that assumed a 1 GB/s
+rate cap the CLI never had. Demonstrated damage (see the
+verification harness): at rate 100gb after 184467441 ns of idle the
+wrapped product collapsed the refill to 26 bytes where the true
+refill caps at the 100 MB burst — the post-idle burst credit lost
+by a factor of ~4,000,000. No enforcement bypass was possible (the
+result is still capped at `burst_bytes`), but the rate-precision
+contract broke exactly at the high end, and most wrap offsets cap
+by luck, which is why the bug hid.
+
+Fix: two-path arithmetic in `enforce()` (bpf/limiter.bpf.c). A
+fill-detect threshold (`elapsed >= 2 * burst * NS_PER_SEC / rate`)
+credits the burst directly — below it, the product is provably
+`< 2 * burst * NS_PER_SEC <= 2e17` for any burst the userspace
+clamp admits (100 MB), safely inside u64. The `rate > 0` guard is
+explicit (callers already short-circuit rate 0 to the block drop,
+so the division is protected twice). Verified against an exact
+`__int128` reference across 2,880 parameter combinations (rates
+1kb..100gb spanning the 18.4 GB/s overflow edge, elapsed
+sub-microsecond..2 s, three burst sizes, token/fraction states,
+and fill-threshold boundary-adjacent values): bit-identical
+everywhere, with the old arithmetic's wrap demonstrated first.
+Harness kept outside the repo (workspace
+scripts/verify-bpf-refill.c — compiles with plain cc, no BPF
+attachment needed).
+
+### Verified clean (no change needed, this pass)
+
+- **Rate parsing:** `checked_mul` on the suffix multiply with a
+  documented rejection path; raw-byte input bounded by MAX_RATE
+  with a typo tip; timestamps use `saturating_mul` (hunt-14 held).
+- **Observer datapath:** pure counter accumulation — no multiplies,
+  no division, no attacker-controlled arithmetic.
+- **Spoofed-comm resolution:** an unprivileged process renaming
+  itself to a target's name joins the resolution result
+  symmetrically (same strict/unstrict action as the real target —
+  self-DoS, the SECURITY.md out-of-scope class); the verbose trace
+  shows every matched (pid, cgroup) pair, so the noise is visible.
+- **cmdline/environ:** never read — comm (15 bytes) is the only
+  /proc-derived attacker-controlled string, and it is now
+  sanitized at the boundary.
+
 ## Verifying Safety Yourself
 
 ### Check network connections:

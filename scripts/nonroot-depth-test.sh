@@ -305,6 +305,62 @@ else
 	echo "$check_probe" | head -3 | sed 's/^/       /'
 fi
 
+# ━━ comm-spoof terminal-injection guard (NIGHT-cybersecurity-1) ━━
+
+echo "── comm-spoof display guard (NIGHT-cybersecurity-1) ──"
+
+# prctl(PR_SET_NAME) lets any unprivileged process set a 15-byte comm
+# containing ANSI/OSC escapes and newlines. A kernel quirk gives a
+# pure-shell spoofer the same power WITHOUT prctl: comm defaults to the
+# executable's basename, so a copied binary with a hostile filename
+# carries that name into /proc/<pid>/comm. The invariant under test is
+# environment-independent: list-apps output (text AND JSON) must never
+# carry a raw ESC byte. On systems where the identity walk resolves
+# cgroups, the spoofed labels surface sanitized ('?' substitution); on
+# cgroup-namespaced sandboxes where the walk resolves nothing, the
+# invariant still holds vacuously — and the sanitize behavior itself is
+# pinned by the identity unit tests.
+SPOOF_DIR="$(mktemp -d)"
+SLEEP_BIN="$(command -v sleep || echo /bin/sleep)"
+spoof_pids=()
+cleanup_spoof() {
+	kill "${spoof_pids[@]}" 2>/dev/null || true
+	wait "${spoof_pids[@]}" 2>/dev/null || true
+	rm -rf "$SPOOF_DIR"
+}
+trap cleanup_spoof EXIT
+
+# Spoofer 1: OSC 52 clipboard-write attempt (ESC ] 5 2 ; p ; EVIL= BEL).
+cp "$SLEEP_BIN" "$SPOOF_DIR/$(printf '\033]52;p;EVIL=\007')"
+# shellcheck disable=SC2289 # the hostile name IS the point: a newline in a command name is legal on Linux
+"$SPOOF_DIR/$(printf '\033]52;p;EVIL=\007')" 30 &
+spoof_pids+=($!)
+
+# Spoofer 2: newline row-forgery (a fake "8066" cgroup-id row).
+cp "$SLEEP_BIN" "$SPOOF_DIR/evil
+8066"
+# shellcheck disable=SC2289 # the hostile name IS the point: a newline in a command name is legal on Linux
+"$SPOOF_DIR/evil
+8066" 30 &
+spoof_pids+=($!)
+
+# Give both processes a moment to appear in /proc before the walk.
+sleep 0.3
+
+if "$BINARY" list-apps 2>&1 | LC_ALL=C grep -qF "$(printf '\033')"; then
+	fail "list-apps output must never carry a raw ESC byte (comm-spoof guard)"
+else
+	pass "list-apps output carries no raw ESC byte (comm-spoof guard)"
+fi
+if "$BINARY" list-apps --print-json 2>&1 | LC_ALL=C grep -qF "$(printf '\033')"; then
+	fail "list-apps --print-json must never carry a raw ESC byte (comm-spoof guard)"
+else
+	pass "list-apps --print-json carries no raw ESC byte (comm-spoof guard)"
+fi
+
+cleanup_spoof
+trap - EXIT
+
 # ━━ Summary ━━
 
 echo

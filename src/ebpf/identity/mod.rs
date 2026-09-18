@@ -32,8 +32,10 @@ use std::os::unix::fs::MetadataExt;
 use std::path::Path;
 use std::time::{Duration, Instant};
 
+mod sanitize;
 mod tally;
 
+pub use sanitize::sanitize_comm;
 use tally::{pick_representative, CommStat};
 
 /// Default refresh interval: rebuild the identity map every 10 seconds.
@@ -172,10 +174,14 @@ impl IdentityMap {
             // On a single system, cgroup IDs are well under 2^32 in practice.
             let cgroup_id = cgroup_id_64 as u32;
 
-            // Read /proc/<pid>/comm for the tally.
+            // Read /proc/<pid>/comm for the tally. Sanitized at the
+            // boundary (NIGHT-cybersecurity-1): the label is attacker
+            // controllable via prctl, and it flows to every display
+            // surface — list-apps, observe/top, detail lines — as well
+            // as the majority-vote tally below.
             let comm = fs::read_to_string(format!("/proc/{pid}/comm"))
                 .ok()
-                .map(|s| s.trim().to_string())
+                .map(|s| sanitize_comm(s.trim()))
                 .unwrap_or_default();
 
             // Unreadable comm: count the cgroup as alive but never let a
