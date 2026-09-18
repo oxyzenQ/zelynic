@@ -93,6 +93,7 @@ scripts/
   stress-test.sh       — stress suite
   leak-test.sh         — orphan detection after every operation
   distros-depth-test.sh — comprehensive distro suite
+  nonroot-depth-test.sh — unprivileged contract matrix (NIGHT-hunt-13)
   benchmarking.sh      — CPU/memory overhead measurement (wraps benchmarking.py)
 ```
 
