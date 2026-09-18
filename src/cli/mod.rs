@@ -43,6 +43,11 @@ pub struct Cli {
     pub version: bool,
 
     /// Check the latest upstream GitHub release
+    ///
+    /// Network surface (NIGHT-hunt-11): the check shells out to curl,
+    /// so it must never ride root privileges — `update::check_update`
+    /// refuses euid 0 with a "re-run without sudo" tip before any
+    /// network I/O happens.
     #[arg(long = "check-update", alias = "check-updated", global = false)]
     pub check_update: bool,
 

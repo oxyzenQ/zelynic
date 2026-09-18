@@ -205,6 +205,12 @@ top [--duration <dur>] [--live <dur>] [--limit N] [--interval <1s-60s>]
 doctor [--print-json]
 ```
 
+Global flags work on every command: `-v/--verbose` (diagnostic trace),
+`--print-json`, `--help`, `-V/--version`, and `--check-update` — which
+**refuses to run as root**: it is a plain network fetch, so re-run it
+without `sudo` (see docs/SAFETY_ANALYSIS.md for the full privilege
+matrix).
+
 ## Rate Formats
 
 Lowercase units only (decimal SI: 1 KB = 1000 bytes):

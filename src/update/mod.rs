@@ -8,6 +8,27 @@ use crate::output::{brand_bold, ok_bold, warn_bold};
 const GITHUB_API_URL: &str = "https://api.github.com/repos/oxyzenQ/zelynic/releases/latest";
 const RELEASES_URL: &str = "https://github.com/oxyzenQ/zelynic/releases/latest";
 
+/// Root refusal for `--check-update` (NIGHT-hunt-11).
+///
+/// The update check is a plain network fetch (curl against the GitHub
+/// API): running it as root is a privileged network round-trip that buys
+/// nothing — curl inherits root's environment wholesale, and any future
+/// download step would plant root-owned files into the invoking user's
+/// home. The guard refuses euid 0 before any network I/O happens.
+///
+/// Pure function of the euid fact so both the decision and the wording
+/// are unit-pinned below.
+fn root_refusal(euid_is_root: bool) -> Option<&'static str> {
+    if euid_is_root {
+        Some(
+            "root refused — update check performs a network fetch, do not use sudo\n  \
+             tip: re-run without sudo",
+        )
+    } else {
+        None
+    }
+}
+
 #[derive(Debug, PartialEq, Eq)]
 enum UpdateStatus {
     UpToDate,
@@ -89,6 +110,14 @@ fn http_failure(code: u16) -> &'static str {
 }
 
 pub fn check_update(current_version: &str) -> Result<(), String> {
+    // Privilege guard first (NIGHT-hunt-11): refuse euid 0 before any
+    // network I/O — this is the mirror image of the eBPF handlers'
+    // ensure_root() ladder, applied to the one command where root is
+    // the hazard instead of the requirement.
+    if let Some(refusal) = root_refusal(nix::unistd::geteuid().is_root()) {
+        return Err(refusal.to_string());
+    }
+
     let output = Command::new("curl")
         .args([
             "--silent",
@@ -148,6 +177,37 @@ pub fn check_update(current_version: &str) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// NIGHT-hunt-11 drift pin: the root refusal wording is the
+    /// owner-facing contract ("do not use sudo for check download") —
+    /// it must name the hazard (network fetch), the refusal (do not use
+    /// sudo), and the fix (re-run without sudo).
+    #[test]
+    fn update_check_refuses_root_with_do_not_use_sudo_tip() {
+        let msg = root_refusal(true).expect("euid 0 must be refused");
+        assert!(
+            msg.contains("do not use sudo"),
+            "refusal must carry the do-not-use-sudo verdict, got: {msg}"
+        );
+        assert!(
+            msg.contains("network fetch"),
+            "refusal must say why: network fetch as root, got: {msg}"
+        );
+        assert!(
+            msg.contains("tip: re-run without sudo"),
+            "refusal must carry the actionable tip, got: {msg}"
+        );
+    }
+
+    /// The inverse contract: a normal user invocation passes the guard
+    /// untouched (None means proceed to the network fetch).
+    #[test]
+    fn update_check_allows_non_root() {
+        assert!(
+            root_refusal(false).is_none(),
+            "non-root must pass the guard"
+        );
+    }
 
     #[test]
     fn extracts_tag_name() {

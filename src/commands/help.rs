@@ -127,7 +127,7 @@ pub(crate) fn print_help() {
     println_safe!("{}", brand_bold("Global flags:"));
     println_safe!("  -h, --help       This end-to-end reference (usage, commands, examples)");
     println_safe!("  -V, --version    Version and build information");
-    println_safe!("  --check-update   Check the latest upstream GitHub release");
+    println_safe!("  --check-update   Check the latest upstream GitHub release (refuses sudo)");
     println_safe!(
         "  -v, --verbose    Diagnostic trace: target resolution, policy writes, BPF lifecycle"
     );
@@ -281,7 +281,9 @@ pub(crate) fn print_man_page() {
     );
     man_flag(
         "\\-\\-check\\-update",
-        "Check the latest upstream GitHub release.",
+        "Check the latest upstream GitHub release. Refuses to run as root; \
+         re-run without sudo: the check is a plain network fetch and must \
+         not ride root privileges.",
     );
     man_flag(
         "\\-v, \\-\\-verbose",
