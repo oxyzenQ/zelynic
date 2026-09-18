@@ -71,6 +71,22 @@ pub fn parse_time_duration(s: &str) -> Result<u64> {
     Ok(n.saturating_mul(multiplier))
 }
 
+/// Parse a monitor refresh interval (NIGHT-hunt-7): 1s to 60s.
+///
+/// Accepts the same duration grammar as [`parse_time_duration`]
+/// (plain seconds, `2s`, `1m`), then clamps to the owner-mandated
+/// realtime window: anything below 1s spams the CPU with full-frame
+/// redraws, anything above 60s stops feeling like a live monitor.
+/// Out-of-range values fail with the bounds spelled out so the fix
+/// is obvious.
+pub fn parse_monitor_interval(s: &str) -> Result<u64> {
+    let secs = parse_time_duration(s)?;
+    if !(1..=60).contains(&secs) {
+        bail!("Invalid interval '{s}': refresh interval must be between 1s and 60s");
+    }
+    Ok(secs)
+}
+
 /// Parse a rate string. Lowercase units only: kb, mb, gb, b.
 ///
 /// Returns the rate in bytes per second. On overflow (input too large for u64),
@@ -198,6 +214,26 @@ pub fn format_rate(bps: u64) -> String {
 /// Get terminal width in columns. Uses ioctl TIOCGWINSZ.
 /// Falls back to 80 if detection fails (piped output, no tty).
 pub fn terminal_width() -> usize {
+    match terminal_winsize() {
+        Some((cols, _)) => cols as usize,
+        None => 80,
+    }
+}
+
+/// Get terminal height in rows (NIGHT-hunt-7). Uses ioctl
+/// TIOCGWINSZ; falls back to 24 if detection fails (piped output,
+/// no tty). The monitor render engine re-probes this on every frame
+/// so resize events are picked up at the next refresh.
+pub fn terminal_height() -> usize {
+    match terminal_winsize() {
+        Some((_, rows)) => rows as usize,
+        None => 24,
+    }
+}
+
+/// Shared TIOCGWINSZ probe for width/height. Returns (cols, rows)
+/// when the ioctl succeeds and reports a non-degenerate size.
+fn terminal_winsize() -> Option<(u16, u16)> {
     use libc::{ioctl, winsize, STDOUT_FILENO, TIOCGWINSZ};
     let mut ws: winsize = winsize {
         ws_row: 0,
@@ -207,10 +243,10 @@ pub fn terminal_width() -> usize {
     };
     // SAFETY: ioctl with TIOCGWINSZ writes to a valid winsize struct.
     let ret = unsafe { ioctl(STDOUT_FILENO, TIOCGWINSZ, &mut ws) };
-    if ret == 0 && ws.ws_col > 0 {
-        ws.ws_col as usize
+    if ret == 0 && ws.ws_col > 0 && ws.ws_row > 0 {
+        Some((ws.ws_col, ws.ws_row))
     } else {
-        80
+        None
     }
 }
 

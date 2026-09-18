@@ -21,3 +21,5 @@ pub mod loader;
 pub mod lock;
 #[cfg(feature = "ebpf")]
 pub mod pin;
+#[cfg(feature = "ebpf")]
+pub mod render;

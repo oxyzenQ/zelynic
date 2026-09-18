@@ -42,7 +42,8 @@ same WiFi interface. No `tc`, no `nftables`, no `LD_PRELOAD`, no daemon.
 | **Schema migration** | BPF struct changes auto-detected + auto-cleaned on upgrade. |
 | **Crash recovery** | `zelynic recover` detects + removes orphaned BPF pins. File lock prevents corruption. |
 | **Discovery workflow** | `zelynic top --live` finds bandwidth hogs. Other limiters can't discover. |
-| **Box mode** | In-place refresh with a clean exit — zero scrollback pollution, no TUI. |
+| **Box mode** | In-place refresh with a clean exit — zero scrollback pollution, no TUI. Responsive layout adapts to any terminal size (NIGHT-hunt-7). |
+| **Refresh control** | `--interval 1s..60s` on `observe`/`top --live` — realtime cadence you choose, with a live RATE column computed from the interval. |
 | **Strict dependency diet** | 7 direct deps, 54 lockfile crates, every one justified in [docs/DEPENDENCY_AUDIT.md](docs/DEPENDENCY_AUDIT.md). |
 
 ### Dependency policy (supply chain)
@@ -153,6 +154,12 @@ sudo zelynic top --live 0
 # Monitor traffic in alt screen (UL + DL, clean terminal)
 sudo zelynic observe
 
+# Same monitor, calmer cadence + rate column scaled to the interval
+sudo zelynic observe --interval 5s
+
+# Live top with a 2s refresh instead of the 5s default
+sudo zelynic top --live 0 --interval 2s
+
 # Block an app from internet entirely
 sudo zelynic block-single brave
 
@@ -189,8 +196,8 @@ unstrict-all
 recover
 status [--print-json]
 list-apps [--print-json]
-observe [--live <dur>] [--cgroup <id>]
-top [--duration <dur>] [--live <dur>] [--limit N]
+observe [--live <dur>] [--cgroup <id>] [--interval <1s-60s>]
+top [--duration <dur>] [--live <dur>] [--limit N] [--interval <1s-60s>]
 doctor [--print-json]
 ```
 
@@ -218,6 +225,11 @@ For `--live` and `--duration` flags:
 | `3m` | 3 minutes |
 | `10h` | 10 hours |
 | `0` | forever (until q/ESC/Ctrl+C) |
+
+`--interval` (observe, top live) accepts the same formats but must
+land between 1s and 60s — below 1s spams full-frame redraws, above
+60s stops being a live monitor. Out-of-range values fail fast with
+the bounds in the message.
 
 ## Safety Features
 

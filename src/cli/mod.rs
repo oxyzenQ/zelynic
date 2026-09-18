@@ -266,6 +266,10 @@ pub enum Commands {
         /// Filter: only show this cgroup ID (e.g., 73386)
         #[arg(long)]
         cgroup: Option<u32>,
+
+        /// Refresh interval: 1s to 60s (default: 1s)
+        #[arg(long)]
+        interval: Option<String>,
     },
 
     /// Find top bandwidth consumers (snapshot or live box mode)
@@ -284,6 +288,10 @@ pub enum Commands {
         /// Live mode: run until q/ESC/Ctrl+C. Optional duration: --live 3m
         #[arg(long)]
         live: Option<String>,
+
+        /// Live-mode refresh interval: 1s to 60s (default: 5s)
+        #[arg(long)]
+        interval: Option<String>,
     },
 
     /// Check if your machine supports eBPF

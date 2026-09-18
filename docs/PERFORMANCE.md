@@ -126,6 +126,52 @@ diff <(jq -S . before.json) <(jq -S . after.json)
 ```
 
 If mean latency increases by > 10%, investigate.
+
+## Frame Render Benchmark (NIGHT-hunt-7)
+
+The system benchmark above needs root eBPF, which sandboxes and CI
+runners often cannot provide. The frame benchmark closes that gap for
+the monitor render layer: it drives the REAL print path
+(`ebpf/render.rs`) with synthetic traffic from a fixed-seed LCG, so
+before/after runs see byte-identical data and the only variable is
+the layout engine. Root is NOT required.
+
+```bash
+./scripts/frame-bench.py --save before.json
+# ... change the layout ...
+./scripts/frame-bench.py --save after.json --compare before.json
+```
+
+Metrics (owner's visual + performance contract):
+
+| Metric | Meaning | Direction |
+|--------|---------|-----------|
+| `density_gini` | visual mass concentration across rows | lower = calmer |
+| `frame_entropy` | character diversity, bits/char | context-dependent |
+| `fps` | render-path throughput ceiling | far above terminal needs |
+| `dirty_cells` | cells redrawn between frames | lower = less churn |
+| `bytes_frame` | emitted bytes per redraw | lower = cheaper frame |
+
+### NIGHT-hunt-7 A/B (responsive layout, 2026-09-18)
+
+Pre-change baseline vs the responsive engine (10s runs, dev profile,
+piped 80x24 geometry, identical synthetic data):
+
+| Metric | Before | After | Delta |
+|--------|--------|-------|-------|
+| density gini | 0.1918 | 0.1595 | **-16.8%** (calmer) |
+| dirty cells/frame | 720.7 | 385.7 | **-46.5%** (less churn) |
+| dirty ratio | 0.3630 | 0.2096 | **-42.3%** |
+| avg rows | 29.0 | 23.0 | -20.7% (height-capped) |
+| avg width | 67.0 | 80.0 | full-width flagship bars |
+| fps | 16,656 | 14,995 | -10.0%, still ~15k ceiling |
+
+Reading: the frame is measurably calmer (gini down) and the terminal
+absorbs less than half the redraw churn, while the render path still
+clears four orders of magnitude more frames per second than a
+terminal can display. The fps cost buys full-width purple brand bars
+plus per-frame width/height probing (dynamic screen size).
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.

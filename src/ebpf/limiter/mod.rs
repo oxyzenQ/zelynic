@@ -18,8 +18,8 @@ mod types;
 
 // Re-export public types/functions for external use.
 pub use format::{
-    find_bpf_object, format_bytes, format_rate, monotonic_ns, parse_rate, parse_time_duration,
-    terminal_width, validate_rate,
+    find_bpf_object, format_bytes, format_rate, monotonic_ns, parse_monitor_interval, parse_rate,
+    parse_time_duration, terminal_height, terminal_width, validate_rate,
 };
 pub use types::{Direction, LimiterStatsRaw, PolicyRaw, RateSpec, Target, MAX_RATE, MIN_RATE};
 

@@ -93,17 +93,33 @@ pub fn handle_list_apps(json: bool) -> Result<()> {
 }
 
 /// Handle `zelynic observe` — real-time traffic monitor (alt screen).
+///
+/// `interval` (NIGHT-hunt-7) is the refresh cadence, 1s..60s via
+/// `--interval`; it drives both the render loop AND the BPF poll, so
+/// per-frame deltas divide by exactly the interval for the RATE
+/// column.
 #[cfg(feature = "ebpf")]
-pub fn handle_observe(live: Option<&str>, cgroup: Option<u32>, verbose: bool) -> Result<()> {
+pub fn handle_observe(
+    live: Option<&str>,
+    cgroup: Option<u32>,
+    interval: Option<&str>,
+    verbose: bool,
+) -> Result<()> {
     use crate::ebpf::loader::Observer;
+    use crate::ebpf::render::render_observe_filtered;
+    use crate::ebpf::render::render_observe_frame;
     use crate::terminal;
     use std::time::Duration;
 
-    // Input validation first (fail-fast, no privileges needed): the
-    // live-duration string is pure parsing — a typo surfaces its
-    // did-you-mean tip before the root requirement, the same
-    // parse-before-execute ladder as the strict handlers (smoke-run
-    // find).
+    // Input validation first (fail-fast, no privileges needed): both
+    // the live-duration and the refresh-interval strings are pure
+    // parsing — a typo surfaces its did-you-mean tip before the root
+    // requirement, the same parse-before-execute ladder as the strict
+    // handlers (smoke-run find).
+    let interval_secs = match interval {
+        Some(s) => crate::ebpf::limiter::parse_monitor_interval(s)?,
+        None => 1,
+    };
     let duration_secs = match live {
         Some(s) => crate::ebpf::limiter::parse_time_duration(s)?,
         None => 0,
@@ -125,17 +141,13 @@ pub fn handle_observe(live: Option<&str>, cgroup: Option<u32>, verbose: bool) ->
         Duration::ZERO
     };
 
-    terminal::run_alt(Duration::from_secs(1), duration, || {
+    let interval = Duration::from_secs(interval_secs);
+    terminal::run_alt(interval, duration, || {
         let summary = observer.poll_and_summarize().unwrap_or_default();
-        println_safe!(
-            "{}",
-            crate::output::brand_bold("━━━ zelynic Observe (press q/ESC to quit) ━━━")
-        );
-        println_safe!();
         if let Some(cg) = cgroup {
-            summary.print_filtered(observer.identity(), cg);
+            render_observe_filtered(&summary, observer.identity(), cg, interval);
         } else {
-            summary.print(observer.identity());
+            render_observe_frame(&summary, observer.identity(), interval);
         }
     });
 
@@ -144,24 +156,35 @@ pub fn handle_observe(live: Option<&str>, cgroup: Option<u32>, verbose: bool) ->
 }
 
 /// Handle `zelynic top` — snapshot or live top talkers.
+///
+/// `interval` (NIGHT-hunt-7) is the live-mode refresh cadence,
+/// 1s..60s via `--interval` (default 5s); snapshot mode ignores it —
+/// its 500ms poll cadence is an internal sampling detail, not a UI
+/// knob.
 #[cfg(feature = "ebpf")]
 pub fn handle_top(
     duration: Option<&str>,
     limit: usize,
     live: Option<&str>,
+    interval: Option<&str>,
     verbose: bool,
 ) -> Result<()> {
     use crate::ebpf::loader::Observer;
+    use crate::ebpf::render::{render_top_table, TopMode};
     use crate::terminal;
     use std::collections::HashMap;
     use std::time::{Duration, Instant};
 
-    // Input validation first (fail-fast, no privileges needed): both
-    // duration strings are pure parsing — a typo surfaces its
+    // Input validation first (fail-fast, no privileges needed): all
+    // three duration strings are pure parsing — a typo surfaces its
     // did-you-mean tip before the root requirement (smoke-run find).
     let live_secs = match live {
         Some(s) => Some(crate::ebpf::limiter::parse_time_duration(s)?),
         None => None,
+    };
+    let interval_secs = match interval {
+        Some(s) => crate::ebpf::limiter::parse_monitor_interval(s)?,
+        None => 5,
     };
     let snapshot_secs = match duration {
         Some(s) => crate::ebpf::limiter::parse_time_duration(s)?,
@@ -186,7 +209,8 @@ pub fn handle_top(
             Duration::ZERO
         };
 
-        terminal::run_alt(Duration::from_secs(5), dur, || {
+        let interval = Duration::from_secs(interval_secs);
+        terminal::run_alt(interval, dur, || {
             let summary = observer.poll_and_summarize().unwrap_or_default();
             for c in &summary.cgroups {
                 let entry = cumulative.entry(c.cgroup_id).or_insert((0, 0, 0));
@@ -194,12 +218,12 @@ pub fn handle_top(
                 entry.1 += c.bytes;
                 entry.2 += c.packets + c.ingress_packets;
             }
-            println_safe!(
-                "{}",
-                crate::output::brand_bold("━━━ zelynic Top — LIVE (press q/ESC to quit) ━━━")
+            render_top_table(
+                &cumulative,
+                limit,
+                observer.identity(),
+                &TopMode::Live { interval },
             );
-            println_safe!();
-            print_top_table(&cumulative, limit, observer.identity(), "accumulated");
         });
     } else {
         let dur_secs = snapshot_secs;
@@ -222,92 +246,18 @@ pub fn handle_top(
             }
         }
 
-        print_top_table(
+        render_top_table(
             &cumulative,
             limit,
             observer.identity(),
-            &format!("{dur_secs}s sample"),
+            &TopMode::Sample {
+                label: &format!("{dur_secs}s sample"),
+            },
         );
     }
 
     observer.detach();
     Ok(())
-}
-
-/// Print sorted top talkers table from cumulative data.
-#[cfg(feature = "ebpf")]
-fn print_top_table(
-    cumulative: &std::collections::HashMap<u32, (u64, u64, u64)>,
-    limit: usize,
-    identity: &crate::ebpf::identity::IdentityMap,
-    mode: &str,
-) {
-    use crate::output::warn_bold;
-
-    let mut talkers: Vec<(u32, u64, u64, u64, u64)> = cumulative
-        .iter()
-        .map(|(cg, (dl, ul, pkt))| (*cg, *dl, *ul, dl + ul, *pkt))
-        .filter(|(_, _, _, total, _)| *total > 0)
-        .collect();
-
-    talkers.sort_by_key(|t| std::cmp::Reverse(t.3));
-
-    if talkers.is_empty() {
-        println_safe!("  (no traffic yet — waiting...)\n");
-        return;
-    }
-
-    let shown = talkers.len().min(limit);
-    println_safe!(
-        "{}",
-        crate::output::brand_bold(&format!("━━━ Top {shown} Bandwidth Consumers ({mode}) ━━━"))
-    );
-    println_safe!();
-    println_safe!(
-        "  {:>3}  {:<28} {:>12} {:>12} {:>12}",
-        "#",
-        "CGROUP",
-        "DOWNLOAD",
-        "UPLOAD",
-        "TOTAL"
-    );
-    println_safe!("  {}", "─".repeat(73));
-
-    let mut top_proc_name: Option<String> = None;
-    let mut grand_total_pkt: u64 = 0;
-
-    for (i, (cgroup_id, dl_bytes, ul_bytes, total, total_pkt)) in
-        talkers.iter().take(limit).enumerate()
-    {
-        let label = identity.label(*cgroup_id);
-        grand_total_pkt += total_pkt;
-
-        println_safe!(
-            "  {:>3}  {:<28} {:>12} {:>12} {:>12}",
-            i + 1,
-            label,
-            crate::ebpf::limiter::format_bytes(*dl_bytes),
-            crate::ebpf::limiter::format_bytes(*ul_bytes),
-            crate::ebpf::limiter::format_bytes(*total),
-        );
-
-        if i == 0 {
-            top_proc_name = label
-                .split('(')
-                .nth(1)
-                .and_then(|s| s.strip_suffix(')'))
-                .filter(|s| !s.is_empty() && *s != "unknown")
-                .map(|s| s.to_string());
-        }
-    }
-
-    println_safe!();
-    println_safe!("  {grand_total_pkt} packets total\n");
-
-    if let Some(proc_name) = top_proc_name {
-        println_safe!("  {} Top consumer: {proc_name}", warn_bold("→"));
-        println_safe!("  Limit it: sudo zelynic strict-single {proc_name} 100kb\n");
-    }
 }
 
 #[cfg(test)]
@@ -324,7 +274,8 @@ mod tests {
     #[cfg(feature = "ebpf")]
     #[test]
     fn duration_typo_surfaces_before_root_guard() {
-        let err = handle_observe(Some("3min"), None, false).expect_err("typo'd duration must fail");
+        let err =
+            handle_observe(Some("3min"), None, None, false).expect_err("typo'd duration must fail");
         let msg = format!("{err}");
         assert!(
             msg.contains("Invalid duration '3min'"),
@@ -338,5 +289,27 @@ mod tests {
             !msg.contains("root required"),
             "duration error must precede the root guard, got: {msg}"
         );
+    }
+
+    /// Interval bounds (NIGHT-hunt-7): the 1s..60s window is enforced
+    /// BEFORE the privilege guard, same fail-fast ladder as --live
+    /// parsing. Safe on any uid: both bounds return before
+    /// ensure_root(), so the test never attaches an observer.
+    #[cfg(feature = "ebpf")]
+    #[test]
+    fn interval_bounds_surface_before_root_guard() {
+        for bad in ["0", "61", "90s", "2m"] {
+            let err = handle_observe(None, None, Some(bad), false)
+                .expect_err("out-of-range interval must fail");
+            let msg = format!("{err}");
+            assert!(
+                msg.contains("must be between 1s and 60s"),
+                "interval '{bad}' must name the bounds, got: {msg}"
+            );
+            assert!(
+                !msg.contains("root required"),
+                "interval error must precede the root guard, got: {msg}"
+            );
+        }
     }
 }

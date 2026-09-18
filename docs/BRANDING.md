@@ -68,6 +68,26 @@ cleanly instead of panicking with exit 101.
 
 Exit-code contract: clap usage errors exit 2; runtime failures exit 1.
 
+### 2.1. Monitor layout (NIGHT-hunt-7)
+
+The `observe` / `top` monitors render "boring but elegant flagship"
+(owner contract): one bold-purple title bar filled to the full frame
+width, regular-purple column headers, thin separators, right-aligned
+numerics, and no per-cell noise (values are never packed as
+`89 (1.2 MB)` — that is what the RATE column is for).
+
+- Title bar: `─── zelynic observe — 1s refresh ────…── q/ESC quit`,
+  bold purple, right-aligned key hint when width allows.
+- Column headers: `PROCESS  DOWNLOAD  UPLOAD  RATE`, regular purple.
+- Rows and totals: terminal default color — the purple frame carries
+  the brand so data stays maximally readable.
+- The layout re-probes width AND height every frame (TIOCGWINSZ), so
+  resizing the terminal adapts on the next refresh: columns degrade
+  (RATE first, then TOTAL), labels truncate with an ellipsis, and the
+  row count is height-capped so frames never scroll.
+- Refresh cadence: `--interval` (1s..60s, default 1s observe / 5s top
+  live); the RATE column divides deltas by exactly that interval.
+
 ---
 
 ## 3. Name Usage

@@ -253,14 +253,18 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
             }
         }
 
-        Some(Commands::Observe { live, cgroup }) => {
+        Some(Commands::Observe {
+            live,
+            cgroup,
+            interval,
+        }) => {
             #[cfg(feature = "ebpf")]
             {
-                monitor::handle_observe(live.as_deref(), cgroup, cli.verbose)
+                monitor::handle_observe(live.as_deref(), cgroup, interval.as_deref(), cli.verbose)
             }
             #[cfg(not(feature = "ebpf"))]
             {
-                let _ = (live, cgroup, cli.verbose);
+                let _ = (live, cgroup, interval, cli.verbose);
                 ebpf_disabled()
             }
         }
@@ -269,14 +273,21 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
             duration,
             limit,
             live,
+            interval,
         }) => {
             #[cfg(feature = "ebpf")]
             {
-                monitor::handle_top(duration.as_deref(), limit, live.as_deref(), cli.verbose)
+                monitor::handle_top(
+                    duration.as_deref(),
+                    limit,
+                    live.as_deref(),
+                    interval.as_deref(),
+                    cli.verbose,
+                )
             }
             #[cfg(not(feature = "ebpf"))]
             {
-                let _ = (duration, limit, live, cli.verbose);
+                let _ = (duration, limit, live, interval, cli.verbose);
                 ebpf_disabled()
             }
         }
