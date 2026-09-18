@@ -91,7 +91,7 @@ pub fn render_observe_frame(
         "{}",
         title_bar(
             &format!("zelynic observe — {interval_str}"),
-            "q/ESC quit",
+            "q quit",
             geo.width
         )
     );
@@ -228,7 +228,7 @@ pub fn render_observe_filtered(
         "{}",
         title_bar(
             &format!("zelynic observe — cgroup {cgroup_id}"),
-            "q/ESC quit",
+            "q quit",
             geo.width
         )
     );

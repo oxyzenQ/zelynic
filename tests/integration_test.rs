@@ -256,7 +256,7 @@ fn test_help_pipe_to_head_does_not_panic() {
 /// curated reference. Extend the list when the CLI surface grows.
 #[test]
 fn test_help_lists_every_command() {
-    const KNOWN_COMMANDS: [&str; 18] = [
+    const KNOWN_COMMANDS: [&str; 17] = [
         "strict-single",
         "strict-multi",
         "limit-all",
@@ -273,7 +273,6 @@ fn test_help_lists_every_command() {
         "observe",
         "top",
         "doctor",
-        "man",
         "strict",
     ];
 
@@ -293,12 +292,19 @@ fn test_help_lists_every_command() {
             "--help must document the '{cmd}' command"
         );
     }
+    // NIGHT-hunt-12: the removed `man` subcommand must NOT be
+    // documented anymore — --help is the only reference surface.
+    assert!(
+        !stdout.contains("zelynic man"),
+        "--help must not document the removed 'man' command, got:\n{stdout}"
+    );
 }
 
 /// NIGHT-improve-5: the reference groups commands by verb — strict,
 /// limit, block, unstrict (owner's grouping), plus monitor and system —
-/// so the 15-command surface scans as six chunks. Pins the group
-/// headings in --help and the .SS subsections in the man page.
+/// so the command surface scans as six chunks. Pins the group
+/// headings in --help (NIGHT-hunt-12: the man page renderer is gone,
+/// so --help is the only pinned surface).
 #[test]
 fn test_help_groups_commands_by_verb() {
     const GROUPS: [&str; 6] = [
@@ -321,24 +327,6 @@ fn test_help_groups_commands_by_verb() {
         assert!(
             stdout.contains(g),
             "--help must carry the '{g}' group heading"
-        );
-    }
-
-    let man = zelynic_cmd()
-        .arg("man")
-        .output()
-        .expect("Failed to execute zelynic man");
-
-    assert_eq!(man.status.code(), Some(0));
-    let man_out = String::from_utf8_lossy(&man.stdout);
-    assert!(
-        man_out.contains(".SS "),
-        "man page must carry .SS group subsections, got:\n{man_out}"
-    );
-    for g in ["strict", "limit", "block", "unstrict", "monitor", "system"] {
-        assert!(
-            man_out.contains(&format!(".SS \"{g} ")),
-            "man page must group under '{g}', got:\n{man_out}"
         );
     }
 }
@@ -504,48 +492,53 @@ fn test_unstrict_single_alias_is_unstrict() {
     );
 }
 
-/// NIGHT-improve-3 hunt: `zelynic man` was missing while the release
-/// pipeline already piped it into man/zelynic.1 — every tarball shipped
-/// an empty gzipped man page. The command now emits the real troff page.
+/// NIGHT-hunt-12: the `man` subcommand is removed totally — it must
+/// be an unrecognized subcommand (exit 2), not a silent success. The
+/// release tarballs no longer ship man/zelynic.1; `--help` is the one
+/// reference surface.
 #[test]
-fn test_man_outputs_troff() {
-    const KNOWN_COMMANDS: [&str; 18] = [
-        "strict-single",
-        "strict-multi",
-        "limit-all",
-        "block-single",
-        "block-multi",
-        "block-all",
-        "unstrict",
-        "unstrict-multi",
-        "unstrict-single",
-        "unstrict-all",
-        "recover",
-        "status",
-        "list-apps",
-        "observe",
-        "top",
-        "doctor",
-        "man",
-        "strict",
-    ];
-
+fn test_removed_man_command_is_rejected() {
     let output = zelynic_cmd()
         .arg("man")
         .output()
         .expect("Failed to execute zelynic man");
 
-    assert_eq!(output.status.code(), Some(0), "zelynic man exits 0");
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(
-        stdout.starts_with(".TH ZELYNIC 1"),
-        "troff page must open with .TH, got:\n{}",
-        &stdout[..stdout.len().min(120)]
+    assert_eq!(
+        output.status.code(),
+        Some(2),
+        "removed 'man' must be a usage error"
     );
-    for section in [".SH NAME", ".SH SYNOPSIS", ".SH COMMANDS", ".SH EXAMPLES"] {
-        assert!(stdout.contains(section), "man page must carry {section}");
-    }
-    for cmd in KNOWN_COMMANDS {
-        assert!(stdout.contains(cmd), "man page must document '{cmd}'");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("unrecognized subcommand 'man'"),
+        "error must name the removed subcommand, got:\n{stderr}"
+    );
+}
+
+/// NIGHT-hunt-12: the monitor family is always-live — `--live` and
+/// `--duration` are removed from observe/top, so both must fail as
+/// unknown arguments (exit 2) instead of silently changing behavior.
+#[test]
+fn test_removed_monitor_timer_flags_are_rejected() {
+    for argv in [
+        vec!["observe", "--live", "3m"],
+        vec!["top", "--live", "0"],
+        vec!["top", "--duration", "30s"],
+    ] {
+        let output = zelynic_cmd()
+            .args(&argv)
+            .output()
+            .unwrap_or_else(|e| panic!("Failed to execute zelynic {argv:?}: {e}"));
+
+        assert_eq!(
+            output.status.code(),
+            Some(2),
+            "removed timer flag {argv:?} must be a usage error"
+        );
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            stderr.contains("unexpected argument"),
+            "error must name the rejected flag, got:\n{stderr}"
+        );
     }
 }

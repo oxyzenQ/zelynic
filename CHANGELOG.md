@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- **feat: CLI surface diet (NIGHT-hunt-12)** — the `man` subcommand is
+  removed totally, along with its troff renderer (~170 lines) and the
+  release-pipeline step that piped it into `man/zelynic.1`: tarballs no
+  longer ship a man page, `--help` is the single reference surface.
+  Audit verdict on the rest of the owner's removal list: `-i/--info`,
+  `completions`, and `unblock` (the unstrict duplicate) were already
+  absent from the codebase — verified by grep, only historical
+  changelog/migration records mention them. Typing `man` now exits 2
+  with an unrecognized-subcommand error.
+
+### Changed
+
+- **feat: monitors are always live, quit with q (NIGHT-hunt-12)** —
+  `observe` and `top` no longer carry `--live`/`--duration` timers: the
+  box refreshes until the user quits, and top's former 10s snapshot mode
+  is gone (one presentation, the live box; `TopMode` enum removed and
+  `render_top_table` now takes the interval directly). The quit contract
+  changed to q/Ctrl+C — the ESC quit is removed because a standalone ESC
+  byte is indistinguishable from the head of every escape sequence
+  (arrows, mouse, scroll), which made stray sequences a coin flip;
+  title-bar hints and every doc now read "q quit". Removed flags fail as
+  unknown arguments (exit 2), pinned by integration tests.
+
 ### Safety
 
 - **fix: `--check-update` refuses to run as root** — the update check

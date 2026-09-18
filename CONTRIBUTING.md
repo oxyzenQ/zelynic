@@ -45,7 +45,8 @@ src/
                           Jaro for flag rescue)
   commands/
     mod.rs             — dispatchers + shared root/ebpf guards
-    help.rs            — --help reference + man page (single authority)
+    help.rs            — --help reference (single authority; the man
+                          renderer was removed in NIGHT-hunt-12)
     block.rs           — block-* handlers
     cleanup.rs         — unstrict / unstrict-all / recover handlers
     monitor.rs         — status / list-apps / observe / top handlers

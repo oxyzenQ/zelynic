@@ -1,8 +1,11 @@
 // Copyright (C) 2026 rezky_nightky
 // SPDX-License-Identifier: GPL-3.0-only
 
-//! Top-talkers renderer (NIGHT-hunt-7): live (`--live`) and snapshot
-//! modes share one responsive table.
+//! Top-talkers renderer (NIGHT-hunt-7): one responsive live table.
+//!
+//! Always live (NIGHT-hunt-12): the former snapshot/sample mode and
+//! the `TopMode` enum are gone — there is exactly one presentation,
+//! the live box.
 
 use std::collections::HashMap;
 use std::time::Duration;
@@ -63,36 +66,23 @@ fn plan_top_columns(width: usize) -> TopColumns {
     }
 }
 
-/// Which top mode is rendering (drives the title bar).
-pub enum TopMode<'a> {
-    /// Continuous live mode: `--live`, refreshing every `interval`.
-    Live { interval: Duration },
-    /// One-shot snapshot, labeled with the sample window
-    /// (e.g. "10s sample").
-    Sample { label: &'a str },
-}
-
-/// Render the top-talkers table (live or snapshot).
+/// Render the live top-talkers table.
 ///
 /// `cumulative` maps cgroup_id -> (download, upload, packets),
-/// accumulated across every poll so far.
+/// accumulated across every poll so far. `interval` is the live
+/// refresh cadence (drives the title bar).
 pub fn render_top_table(
     cumulative: &HashMap<u32, (u64, u64, u64)>,
     limit: usize,
     identity: &IdentityMap,
     conns: Option<&ConnectionMap>,
-    mode: &TopMode,
+    interval: Duration,
 ) {
     let geo = super::FrameGeometry::probe();
     let cols = plan_top_columns(geo.width);
 
-    let core = match mode {
-        TopMode::Live { interval } => {
-            format!("zelynic top — live, {}s refresh", interval.as_secs())
-        }
-        TopMode::Sample { label } => format!("zelynic top — {label}"),
-    };
-    println_safe!("{}", title_bar(&core, "q/ESC quit", geo.width));
+    let core = format!("zelynic top — live, {}s refresh", interval.as_secs());
+    println_safe!("{}", title_bar(&core, "q quit", geo.width));
 
     let mut talkers: Vec<(u32, u64, u64, u64, u64)> = cumulative
         .iter()

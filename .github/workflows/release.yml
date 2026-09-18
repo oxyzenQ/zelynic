@@ -155,7 +155,7 @@ jobs:
 
           # --- GNU (glibc) tarball ---
           PKG_GNU="zelynic-v${VERSION}-linux-amd64-gnu"
-          mkdir -p "dist/${PKG_GNU}/man" "dist/${PKG_GNU}/bpf" "dist/${PKG_GNU}/scripts"
+          mkdir -p "dist/${PKG_GNU}/bpf" "dist/${PKG_GNU}/scripts"
           cp target/x86_64-unknown-linux-gnu/release/zelynic "dist/${PKG_GNU}/zelynic"
           chmod +x "dist/${PKG_GNU}/zelynic"
           cp bpf/limiter.bpf.o  "dist/${PKG_GNU}/bpf/"
@@ -168,8 +168,6 @@ jobs:
              scripts/race-condition-test.sh scripts/reload-test.sh \
              scripts/crash-recovery-test.sh "dist/${PKG_GNU}/scripts/"
           chmod +x "dist/${PKG_GNU}/scripts/"*.sh "dist/${PKG_GNU}/scripts/"*.py
-          "./dist/${PKG_GNU}/zelynic" man > "dist/${PKG_GNU}/man/zelynic.1"
-          gzip -f "dist/${PKG_GNU}/man/zelynic.1"
           cd dist && tar -czf "${PKG_GNU}.tar.gz" "${PKG_GNU}"
           # Checksums: SHA-512 (classical) + BLAKE2b-512 + SHAKE256 (quantum-resistant)
           sha512sum "${PKG_GNU}.tar.gz" > "${PKG_GNU}.tar.gz.sha512sum"
@@ -185,7 +183,7 @@ jobs:
 
           # --- MUSL (static, for old glibc) tarball ---
           PKG_MUSL="zelynic-v${VERSION}-linux-amd64-musl"
-          mkdir -p "dist/${PKG_MUSL}/man" "dist/${PKG_MUSL}/bpf" "dist/${PKG_MUSL}/scripts"
+          mkdir -p "dist/${PKG_MUSL}/bpf" "dist/${PKG_MUSL}/scripts"
           cp target/x86_64-unknown-linux-musl/release/zelynic "dist/${PKG_MUSL}/zelynic"
           chmod +x "dist/${PKG_MUSL}/zelynic"
           cp bpf/limiter.bpf.o  "dist/${PKG_MUSL}/bpf/"
@@ -198,8 +196,6 @@ jobs:
              scripts/race-condition-test.sh scripts/reload-test.sh \
              scripts/crash-recovery-test.sh "dist/${PKG_MUSL}/scripts/"
           chmod +x "dist/${PKG_MUSL}/scripts/"*.sh "dist/${PKG_MUSL}/scripts/"*.py
-          "./dist/${PKG_MUSL}/zelynic" man > "dist/${PKG_MUSL}/man/zelynic.1"
-          gzip -f "dist/${PKG_MUSL}/man/zelynic.1"
           cd dist && tar -czf "${PKG_MUSL}.tar.gz" "${PKG_MUSL}"
           # Checksums: SHA-512 (classical) + BLAKE2b-512 + SHAKE256 (quantum-resistant)
           sha512sum "${PKG_MUSL}.tar.gz" > "${PKG_MUSL}.tar.gz.sha512sum"
