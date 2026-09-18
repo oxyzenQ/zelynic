@@ -6,7 +6,11 @@
 
 use std::time::Duration;
 
-use super::{format_rate_or_dash, rate_bps, rows_for_height, title_bar, truncate_label};
+use super::{
+    detail_lines, format_rate_or_dash, label_with_count, rate_bps, rows_for_height, title_bar,
+    truncate_label,
+};
+use crate::ebpf::connections::ConnectionMap;
 use crate::ebpf::identity::IdentityMap;
 use crate::ebpf::limiter::format_bytes;
 use crate::ebpf::loader::{CgroupDelta, CounterSummary};
@@ -65,8 +69,16 @@ fn plan_observe_columns(width: usize) -> ObserveColumns {
 /// Render one observe frame (alt screen).
 ///
 /// `interval` is the poll interval between frames; the RATE column
-/// reports `delta / interval` as bytes per second.
-pub fn render_observe_frame(summary: &CounterSummary, identity: &IdentityMap, interval: Duration) {
+/// reports `delta / interval` as bytes per second. `conns`
+/// (NIGHT-hunt-8) supplies per-cgroup process/connection detail:
+/// pass `None` when socket detail is unavailable (deterministic
+/// harnesses) — rows then render plain.
+pub fn render_observe_frame(
+    summary: &CounterSummary,
+    identity: &IdentityMap,
+    conns: Option<&ConnectionMap>,
+    interval: Duration,
+) {
     let geo = super::FrameGeometry::probe();
     let cols = plan_observe_columns(geo.width);
 
@@ -116,14 +128,28 @@ pub fn render_observe_frame(summary: &CounterSummary, identity: &IdentityMap, in
     let mut sorted = summary.cgroups.clone();
     sorted.sort_by_key(|c| std::cmp::Reverse(c.bytes + c.ingress_bytes));
 
-    let shown = rows_for_height(geo.height).min(sorted.len());
-    for c in sorted.iter().take(shown) {
-        render_observe_row(c, identity, &cols, interval);
+    // Row budget counts detail lines too (NIGHT-hunt-8): a row plus
+    // its eagle-eyes lines must fit as a unit.
+    let line_budget = rows_for_height(geo.height);
+    let mut used = 0usize;
+    let mut emitted = 0usize;
+    for c in &sorted {
+        let details = detail_lines(conns, c.cgroup_id);
+        let need = 1 + details.len();
+        if used + need > line_budget && emitted > 0 {
+            break;
+        }
+        render_observe_row(c, identity, conns, &cols, interval);
+        for line in details {
+            println_safe!("{line}");
+        }
+        used += need;
+        emitted += 1;
     }
-    if sorted.len() > shown {
+    if sorted.len() > emitted {
         println_safe!(
             "  (+{} more cgroups hidden — raise the window)",
-            sorted.len() - shown
+            sorted.len() - emitted
         );
     }
 
@@ -147,10 +173,14 @@ pub fn render_observe_frame(summary: &CounterSummary, identity: &IdentityMap, in
 fn render_observe_row(
     c: &CgroupDelta,
     identity: &IdentityMap,
+    conns: Option<&ConnectionMap>,
     cols: &ObserveColumns,
     interval: Duration,
 ) {
-    let label = truncate_label(&identity.label(c.cgroup_id), cols.label_w);
+    let label = truncate_label(
+        &label_with_count(identity, conns, c.cgroup_id),
+        cols.label_w,
+    );
     let dl = format_bytes(c.ingress_bytes);
     let ul = format_bytes(c.bytes);
 
@@ -188,6 +218,7 @@ fn render_observe_row(
 pub fn render_observe_filtered(
     summary: &CounterSummary,
     identity: &IdentityMap,
+    conns: Option<&ConnectionMap>,
     cgroup_id: u32,
     interval: Duration,
 ) {
@@ -207,7 +238,10 @@ pub fn render_observe_filtered(
         return;
     };
 
-    println_safe!("  process   {}", identity.label(cgroup_id));
+    println_safe!(
+        "  process   {}",
+        label_with_count(identity, conns, cgroup_id)
+    );
     println_safe!(
         "  download  {} ({})",
         format_bytes(c.ingress_bytes),
@@ -222,6 +256,13 @@ pub fn render_observe_filtered(
         "  lifetime  {}",
         format_bytes(c.ingress_bytes + c.total_bytes)
     );
+
+    // Full eagle-eyes view for the filtered cgroup: every
+    // socket-holding process with its endpoints, uncapped (the
+    // single-cgroup view exists precisely to answer "who exactly").
+    for line in super::full_detail_lines(conns, cgroup_id) {
+        println_safe!("{line}");
+    }
 }
 
 #[cfg(test)]

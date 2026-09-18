@@ -10,6 +10,8 @@
 #[cfg(feature = "ebpf")]
 pub mod bpf_syscall;
 #[cfg(feature = "ebpf")]
+pub mod connections;
+#[cfg(feature = "ebpf")]
 pub mod display;
 #[cfg(feature = "ebpf")]
 pub mod identity;

@@ -14,10 +14,18 @@
 //! in-memory CounterSummary, so the harness runs in sandboxes where
 //! `observe` cannot attach (the same constraint the NIGHT-hunt-6
 //! commit documented for the system benchmark).
+//!
+//! NIGHT-hunt-8: the harness also installs a synthetic ConnectionMap
+//! (deterministic fixture, no /proc), so the eagle-eyes detail lines
+//! are rendered and measured — the frame cost of socket detail is
+//! part of the A/B contract, not an unmeasured add-on.
 
 use std::time::{Duration, Instant};
 
 use super::render_observe_frame;
+use crate::ebpf::connections::{
+    CgroupConnections, ConnectionMap, ProcessDetail, Proto, SocketInfo,
+};
 use crate::ebpf::identity::{IdentityMap, ProcessIdentity};
 use crate::ebpf::loader::{CgroupDelta, CounterSummary};
 
@@ -80,21 +88,84 @@ fn frame_bench_observe() {
     ];
 
     let mut identity = IdentityMap::new();
+    let mut conns = ConnectionMap::new();
     let mut ul_total: [u64; CGROUPS] = [0; CGROUPS];
     let mut dl_total: [u64; CGROUPS] = [0; CGROUPS];
 
+    // Every third cgroup is multi-tenant with socket detail — the
+    // owner's exact complaint shape (curl/wget inside "alacritty").
+    // The busy flags toggle with the frame counter so detail lines
+    // contribute realistic dirty-cell churn.
+    let remotes = [
+        "142.250.191.78:443",
+        "1.1.1.1:443",
+        "8.8.8.8:53",
+        "93.184.216.34:80",
+    ];
+
     for (i, comm) in comms.iter().enumerate() {
+        let cg = i as u32 + 7_000;
         identity.insert(ProcessIdentity {
-            cgroup_id: i as u32 + 7_000,
+            cgroup_id: cg,
             uid: 1000,
             comm: (*comm).to_string(),
         });
+
+        if i % 3 == 0 {
+            let socket = |idx: usize| SocketInfo {
+                proto: if idx == 2 { Proto::Udp } else { Proto::Tcp },
+                remote: remotes[idx % remotes.len()].to_string(),
+                state: if idx == 2 { "CLOSE" } else { "ESTABLISHED" },
+                queued: false,
+            };
+            conns.insert(
+                cg,
+                CgroupConnections {
+                    total_procs: 4,
+                    socket_holders: vec![
+                        ProcessDetail {
+                            pid: 4_000 + i as u32,
+                            comm: "curl".to_string(),
+                            sockets: vec![socket(0), socket(1)],
+                        },
+                        ProcessDetail {
+                            pid: 5_000 + i as u32,
+                            comm: "wget".to_string(),
+                            sockets: vec![socket(2)],
+                        },
+                    ],
+                },
+            );
+        }
     }
+
+    // Re-stamp socket busy flags per frame (fixtures stay
+    // deterministic: pure function of the frame counter).
+    let mut frame_no: u64 = 0;
 
     let start = Instant::now();
     let mut frames: u64 = 0;
 
     while start.elapsed() < budget {
+        for i in (0..CGROUPS).step_by(3) {
+            if let Some(detail) = conns.get_mut(i as u32 + 7_000) {
+                for proc in &mut detail.socket_holders {
+                    for (idx, socket) in proc.sockets.iter_mut().enumerate() {
+                        socket.queued = (frame_no + idx as u64).is_multiple_of(3);
+                    }
+                }
+                // Keep the fixture sorted the way refresh() would.
+                detail.socket_holders.sort_by_key(|p| {
+                    (
+                        std::cmp::Reverse(p.sockets.len()),
+                        std::cmp::Reverse(p.sockets.iter().any(|s| s.queued)),
+                        p.pid,
+                    )
+                });
+            }
+        }
+        frame_no += 1;
+
         let mut cgroups = Vec::with_capacity(CGROUPS);
         for i in 0..CGROUPS {
             let ul_delta = next(240_000);
@@ -123,7 +194,7 @@ fn frame_bench_observe() {
 
         // Frame delimiter consumed by scripts/frame-bench.py.
         println_safe!("###FRAME###");
-        render_observe_frame(&summary, &identity, Duration::from_secs(1));
+        render_observe_frame(&summary, &identity, Some(&conns), Duration::from_secs(1));
         frames += 1;
     }
 

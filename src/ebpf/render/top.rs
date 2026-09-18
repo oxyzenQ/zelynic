@@ -7,7 +7,10 @@
 use std::collections::HashMap;
 use std::time::Duration;
 
-use super::{rows_for_height, title_bar, truncate_label};
+use super::{
+    comm_from_label, detail_lines, label_with_count, rows_for_height, title_bar, truncate_label,
+};
+use crate::ebpf::connections::ConnectionMap;
 use crate::ebpf::identity::IdentityMap;
 use crate::ebpf::limiter::format_bytes;
 use crate::output::{brand, warn_bold};
@@ -77,6 +80,7 @@ pub fn render_top_table(
     cumulative: &HashMap<u32, (u64, u64, u64)>,
     limit: usize,
     identity: &IdentityMap,
+    conns: Option<&ConnectionMap>,
     mode: &TopMode,
 ) {
     let geo = super::FrameGeometry::probe();
@@ -129,16 +133,25 @@ pub fn render_top_table(
     }
     println_safe!("  {}", "─".repeat(geo.width.saturating_sub(2)));
 
-    let height_cap = rows_for_height(geo.height);
-    let shown = talkers.len().min(limit).min(height_cap);
-
+    // Row budget counts detail lines too (NIGHT-hunt-8): a row plus
+    // its eagle-eyes lines must fit as a unit.
+    let line_budget = rows_for_height(geo.height);
+    let mut used = 0usize;
+    let mut emitted = 0usize;
     let mut top_proc_name: Option<String> = None;
     let mut grand_total_pkt: u64 = 0;
 
-    for (i, (cgroup_id, dl_bytes, ul_bytes, total, total_pkt)) in
-        talkers.iter().take(shown).enumerate()
-    {
-        let label = truncate_label(&identity.label(*cgroup_id), cols.label_w);
+    for (i, (cgroup_id, dl_bytes, ul_bytes, total, total_pkt)) in talkers.iter().enumerate() {
+        if emitted >= limit {
+            break;
+        }
+        let details = detail_lines(conns, *cgroup_id);
+        let need = 1 + details.len();
+        if used + need > line_budget && emitted > 0 {
+            break;
+        }
+
+        let label = truncate_label(&label_with_count(identity, conns, *cgroup_id), cols.label_w);
         grand_total_pkt += total_pkt;
 
         if cols.show_total {
@@ -166,21 +179,29 @@ pub fn render_top_table(
                 w2 = cols.ul_w
             );
         }
+        for line in details {
+            println_safe!("{line}");
+        }
+        used += need;
+        emitted += 1;
 
         if i == 0 {
-            top_proc_name = label
-                .split('(')
-                .nth(1)
-                .and_then(|s| s.strip_suffix(')'))
-                .filter(|s| !s.is_empty() && *s != "unknown")
-                .map(|s| s.to_string());
+            // Eagle-eyes hint (NIGHT-hunt-8): when socket detail is
+            // available, name the busiest process INSIDE the top
+            // cgroup, not just the cgroup's first-resolved comm —
+            // "Top consumer: curl" instead of "alacritty".
+            top_proc_name = conns
+                .and_then(|c| c.get(*cgroup_id))
+                .and_then(|d| d.socket_holders.first())
+                .map(|p| p.comm.clone())
+                .or_else(|| comm_from_label(&label));
         }
     }
 
-    if talkers.len() > shown {
+    if talkers.len() > emitted {
         println_safe!(
             "  (+{} more talkers hidden — raise --limit or the window)",
-            talkers.len() - shown
+            talkers.len() - emitted
         );
     }
 

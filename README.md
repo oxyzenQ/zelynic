@@ -44,6 +44,7 @@ same WiFi interface. No `tc`, no `nftables`, no `LD_PRELOAD`, no daemon.
 | **Discovery workflow** | `zelynic top --live` finds bandwidth hogs. Other limiters can't discover. |
 | **Box mode** | In-place refresh with a clean exit — zero scrollback pollution, no TUI. Responsive layout adapts to any terminal size (NIGHT-hunt-7). |
 | **Refresh control** | `--interval 1s..60s` on `observe`/`top --live` — realtime cadence you choose, with a live RATE column computed from the interval. |
+| **Eagle-eyes detail** | Monitor rows name the processes and endpoints INSIDE a cgroup — `curl (4012) -> 142.250.191.78:443` under a row labeled alacritty (NIGHT-hunt-8). |
 | **Strict dependency diet** | 7 direct deps, 54 lockfile crates, every one justified in [docs/DEPENDENCY_AUDIT.md](docs/DEPENDENCY_AUDIT.md). |
 
 ### Dependency policy (supply chain)
@@ -160,6 +161,9 @@ sudo zelynic observe --interval 5s
 # Live top with a 2s refresh instead of the 5s default
 sudo zelynic top --live 0 --interval 2s
 
+# Zoom into one cgroup: full process + endpoint detail
+sudo zelynic observe --cgroup 73386
+
 # Block an app from internet entirely
 sudo zelynic block-single brave
 
@@ -230,6 +234,17 @@ For `--live` and `--duration` flags:
 land between 1s and 60s — below 1s spams full-frame redraws, above
 60s stops being a live monitor. Out-of-range values fail fast with
 the bounds in the message.
+
+### Inside a cgroup (NIGHT-hunt-8)
+
+BPF counters are per-cgroup, and on systemd a whole terminal
+session shares one cgroup — a row labeled `alacritty` may be
+carrying `curl` traffic. Monitor rows therefore show what lives
+inside: a `+N` process-count suffix on the label, and per-process
+socket detail lines with remote endpoints (TCP/UDP, busy flags).
+`observe --cgroup <id>` zooms in with the uncapped view, and
+`list-apps` carries PROCS/SOCKETS columns so the multi-tenancy is
+visible at discovery time.
 
 ## Safety Features
 

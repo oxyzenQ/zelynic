@@ -69,7 +69,9 @@ userspace tool coordination, no format mismatches, no leaked state.
 ├─────────────────────────────────────────────────────────┤
 │  Layer 2 — Identity Resolution (userspace)              │
 │  cgroup ID → process name / uid / path                  │
+│  + per-cgroup process/socket detail (NIGHT-hunt-8)      │
 │  src/ebpf/identity.rs (IdentityMap)                     │
+│  src/ebpf/connections.rs (ConnectionMap)                │
 ├─────────────────────────────────────────────────────────┤
 │  Layer 1 — Map Interface                                │
 │  typed access to BPF maps (HashMap, RingBuf, PerCpu)    │
@@ -110,6 +112,12 @@ a reverse map: cgroup ID → `ProcessIdentity { pid, uid, comm, cgroup_path }`.
 
 Refresh policy: 10s TTL by default. Refresh is best-effort — if `/proc` walk
 fails, labels fall back to raw `cg:{id}`. The BPF program is unaffected.
+
+Layer 2.5 — Connection detail (NIGHT-hunt-8): `ConnectionMap` joins
+/proc/net/{tcp,tcp6,udp,udp6} with per-PID fds and the identity
+resolution to answer "which process inside this cgroup is actually
+talking, and to where". Userspace-only, TTL-cached (3s), best-effort
+like Layer 2 — a stripped /proc yields no detail lines, never errors.
 
 ### Layer 3 — Aggregation
 
