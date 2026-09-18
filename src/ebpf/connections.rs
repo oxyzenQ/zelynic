@@ -12,7 +12,7 @@
 //! that gap userspace-only, with zero BPF changes: it joins the
 //! kernel's own socket tables (/proc/net/{tcp,tcp6,udp,udp6}) with
 //! per-PID file descriptors (/proc/<pid>/fd/*) and the cgroup
-//! resolution from identity.rs.
+//! resolution from identity/.
 //!
 //! What it produces per cgroup:
 //! - the total process count (the "(alacritty +3)" label suffix — a
@@ -32,7 +32,7 @@ use std::collections::HashMap;
 use std::fs;
 use std::time::{Duration, Instant};
 
-use crate::ebpf::identity::resolve_cgroup_id_from_path;
+use crate::ebpf::identity::{pid_cgroup_id, pid_comm};
 
 /// Default refresh TTL: detail lines tolerate 3s staleness — socket
 /// churn is slower than the 1s byte counters, and the /proc+fd walk
@@ -160,13 +160,11 @@ impl ConnectionMap {
                         std::cmp::Reverse(s.queued),
                     )
                 });
-                // Sanitized at the read boundary (NIGHT-cybersecurity-1):
-                // comm is attacker-controllable via prctl and this label
-                // flows into the eagle-eyes detail lines of observe.
-                let comm = fs::read_to_string(format!("/proc/{pid}/comm"))
-                    .ok()
-                    .map(|s| crate::ebpf::identity::sanitize_comm(s.trim()))
-                    .unwrap_or_else(|| format!("pid {pid}"));
+                // Canonical comm boundary (NIGHT-optimized-1):
+                // sanitize happens inside pid_comm() — comm is
+                // attacker-controllable via prctl and this label flows
+                // into the eagle-eyes detail lines of observe.
+                let comm = pid_comm(pid).unwrap_or_else(|| format!("pid {pid}"));
                 entry.socket_holders.push(ProcessDetail {
                     pid,
                     comm,
@@ -247,16 +245,10 @@ impl ConnectionMap {
 
 // ── /proc walking helpers ───────────────────────────────────────────────────
 
-/// Resolve the cgroup ID (u32, BPF map key width) a PID lives in.
-fn pid_cgroup_id(pid: u32) -> Option<u32> {
-    let content = fs::read_to_string(format!("/proc/{pid}/cgroup")).ok()?;
-    let path = content.lines().next()?.split("::").nth(1)?.trim();
-    if path.is_empty() {
-        return None;
-    }
-    let id64 = resolve_cgroup_id_from_path(&format!("/sys/fs/cgroup{path}"))?;
-    Some(id64 as u32)
-}
+// pid_cgroup_id and pid_comm live in identity/mod.rs as the ONE
+// canonical /proc boundary (NIGHT-optimized-1): this walk, the
+// identity walk, and the resolve_target match walk all route
+// through them, so boundary fixes land once, not three times.
 
 /// Read all four kernel socket tables into one inode-keyed map.
 fn read_socket_tables() -> HashMap<u64, SocketInfo> {

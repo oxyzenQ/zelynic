@@ -239,47 +239,28 @@ impl super::Limiter {
                         Err(_) => continue,
                     };
 
-                    // Read comm. Sanitized at the read boundary
-                    // (NIGHT-cybersecurity-1): matching must operate on
-                    // the same canonical label list-apps displays, so a
-                    // prctl-spoofed comm can never display one thing and
-                    // match another.
-                    let comm = match std::fs::read_to_string(format!("/proc/{pid}/comm")) {
-                        Ok(s) => crate::ebpf::identity::sanitize_comm(s.trim()).to_lowercase(),
-                        Err(_) => continue,
+                    // Read comm through the canonical boundary
+                    // (NIGHT-optimized-1): pid_comm() sanitizes, so
+                    // matching operates on the same canonical label
+                    // list-apps displays — a prctl-spoofed comm can
+                    // never display one thing and match another.
+                    let Some(comm) = crate::ebpf::identity::pid_comm(pid) else {
+                        continue;
                     };
+                    let comm = comm.to_lowercase();
 
                     if comm != name_lower {
                         continue;
                     }
 
-                    // Read cgroup path.
-                    let cgroup_content =
-                        match std::fs::read_to_string(format!("/proc/{pid}/cgroup")) {
-                            Ok(s) => s,
-                            Err(_) => continue,
-                        };
-
-                    let cgroup_path = cgroup_content
-                        .lines()
-                        .next()
-                        .and_then(|line| line.split("::").nth(1))
-                        .map(|s| s.trim().to_string());
-
-                    let cgroup_path = match cgroup_path {
-                        Some(p) if !p.is_empty() => p,
-                        _ => continue,
+                    // Cgroup membership through the same canonical
+                    // boundary (NIGHT-optimized-1): one pid-to-cgroup
+                    // resolution shared with the identity walk and the
+                    // connection walk.
+                    let Some(cgroup_id) = crate::ebpf::identity::pid_cgroup_id(pid) else {
+                        continue;
                     };
 
-                    // Resolve cgroup_id.
-                    let full_path = format!("/sys/fs/cgroup{cgroup_path}");
-                    let cgroup_id_64 =
-                        match crate::ebpf::identity::resolve_cgroup_id_from_path(&full_path) {
-                            Some(id) => id,
-                            None => continue,
-                        };
-
-                    let cgroup_id = cgroup_id_64 as u32;
                     matched.push((pid, cgroup_id));
                     if seen.insert(cgroup_id) {
                         cgroup_ids.push(cgroup_id);

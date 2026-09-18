@@ -70,7 +70,7 @@ userspace tool coordination, no format mismatches, no leaked state.
 │  Layer 2 — Identity Resolution (userspace)              │
 │  cgroup ID → process name / uid / path                  │
 │  + per-cgroup process/socket detail (NIGHT-hunt-8)      │
-│  src/ebpf/identity.rs (IdentityMap)                     │
+│  src/ebpf/identity/ (IdentityMap)                       │
 │  src/ebpf/connections.rs (ConnectionMap)                │
 ├─────────────────────────────────────────────────────────┤
 │  Layer 1 — Map Interface                                │

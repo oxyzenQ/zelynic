@@ -61,7 +61,15 @@ src/
       format.rs        — rate/duration parsing + formatting helpers
       policy.rs        — apply / resolve / write / delete policy operations
       stats.rs         — status printing + map readers + identity accessors
-    identity.rs        — cgroup ID → process name resolution
+    identity/
+      mod.rs           — cgroup ID → process name resolution + the canonical
+                          /proc boundary helpers (pid_cgroup_id / pid_comm)
+      tally.rs         — majority-vote representative pick (per-cgroup comm tally)
+      sanitize.rs      — comm control-char sanitize (terminal-injection guard)
+    connections.rs     — per-cgroup process + socket detail (eagle eyes)
+      connections/parse.rs — /proc/net + fd-symlink parsers
+    render.rs          — responsive render engine for observe/top (NIGHT-hunt-7)
+      render/          — observe / top / detail frame renderers + bench fixture
     loader.rs          — observer BPF loader
     display.rs         — traffic table rendering
     bpf_syscall.rs     — raw bpf() syscall fallback

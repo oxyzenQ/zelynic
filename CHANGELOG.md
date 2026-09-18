@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **refactor: one canonical /proc boundary (NIGHT-optimized-1)** —
+  the pid-to-cgroup resolution and the sanitized comm read existed
+  as THREE independent inline copies (identity walk, connection
+  walk, resolve_target match walk) — the NIGHT-cybersecurity-1
+  sanitize fix had to land three times in lockstep, and the next
+  boundary fix would too. Consolidated into two canonical helpers
+  in identity/mod.rs: pid_cgroup_id() (parse /proc/<pid>/cgroup,
+  resolve via /sys/fs/cgroup, truncate to the u32 BPF key width)
+  and pid_comm() (read + sanitize_comm in one place). All three
+  walks route through them now, so a boundary fix lands once and
+  can never drift between surfaces — display, JSON, matching, and
+  the majority-vote tally all consume the same canonical reads.
+  Callers keep their own fallback policy (tally: empty label;
+  connection walk: "pid {n}"; match walk: case-insensitive
+  compare). Pure dedupe: zero behavior change, zero test-count
+  change (113 unit + 23 integration ebpf, 25 + 21 default, both
+  pass), binary semantics identical.
+
 ### Security
 
 - **security: comm-label terminal injection + BPF refill overflow
