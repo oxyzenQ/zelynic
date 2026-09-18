@@ -41,13 +41,14 @@ pub(crate) fn print_help() {
     println_safe!("  {}", brand_bold("strict — apply rate limits"));
     println_safe!();
     println_safe!("  zelynic strict-single <target> [rate] [-d <rate>] [-u <rate>]");
-    println_safe!("    Limit one app's network speed.");
+    println_safe!("    Limit one app's network speed ('strict' is the shorthand).");
     println_safe!("    sudo zelynic strict-single brave 100kb              # both dl+ul = 100kb");
     println_safe!("    sudo zelynic strict-single brave -d 100kb           # download only");
     println_safe!("    sudo zelynic strict-single brave -u 500kb           # upload only");
     println_safe!(
         "    sudo zelynic strict-single firefox -d 1mb -u 500kb  # both, different rates"
     );
+    println_safe!("    sudo zelynic strict brave 100kb                     # shorthand form");
     println_safe!();
     println_safe!("  zelynic strict-multi <a:b:c> [rate] [-d <rate>] [-u <rate>]");
     println_safe!("    Limit multiple apps sharing ONE rate (group limit).");
@@ -81,8 +82,12 @@ pub(crate) fn print_help() {
     println_safe!("  {}", brand_bold("unstrict — remove limits & recover"));
     println_safe!();
     println_safe!("  zelynic unstrict <target>");
-    println_safe!("    Remove the rate limit from one app.");
+    println_safe!("    Remove the rate limit from one app ('unstrict-single' is an alias).");
     println_safe!("    sudo zelynic unstrict brave");
+    println_safe!();
+    println_safe!("  zelynic unstrict-multi <a:b:c>");
+    println_safe!("    Remove rate limits from multiple apps at once.");
+    println_safe!("    sudo zelynic unstrict-multi brave:curl:pacman");
     println_safe!();
     println_safe!("  zelynic unstrict-all");
     println_safe!("    Remove ALL limits (emergency reset).");
@@ -214,7 +219,13 @@ pub(crate) fn print_man_page() {
     man_cmd(
         "strict-single <target> [rate] [-d <rate>] [-u <rate>]",
         "Limit a single app's network speed. \\fBbrave 100kb\\fR limits both \
-         download and upload; \\fB\\-d\\fR/\\fB\\-u\\fR set per-direction rates.",
+         download and upload; \\fB\\-d\\fR/\\fB\\-u\\fR set per-direction rates. \
+         \\fBstrict\\fR is the shorthand for this command.",
+    );
+    man_cmd(
+        "strict <target> [rate] [-d <rate>] [-u <rate>]",
+        "Shorthand for \\fBstrict\\-single\\fR (NIGHT\\-hunt\\-10): the missing bare \
+         verb used to exit with an unrecognized\\-subcommand error.",
     );
     man_cmd(
         "strict-multi <a:b:c> [rate] [-d <rate>] [-u <rate>]",
@@ -243,7 +254,17 @@ pub(crate) fn print_man_page() {
          default; \\fB\\-\\-force\\fR includes them.",
     );
     println_safe!(".SS \"unstrict \\- remove limits and recover\"");
-    man_cmd("unstrict <target>", "Remove rate limit from one app.");
+    man_cmd(
+        "unstrict <target>",
+        "Remove rate limit from one app. unstrict-single is an alias mirroring \
+         the strict-single / strict-multi naming pair.",
+    );
+    man_cmd(
+        "unstrict-multi <a:b:c>",
+        "Remove rate limits from multiple apps at once (NIGHT\\-hunt\\-10): \
+         mirrors strict\\-multi's colon syntax, so bulk removal no longer \
+         needs repeated single calls or the unstrict\\-all sledgehammer.",
+    );
     man_cmd("unstrict-all", "Remove ALL rate limits (emergency reset).");
     man_cmd(
         "recover",

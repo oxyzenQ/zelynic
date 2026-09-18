@@ -40,6 +40,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### CLI
 
+- **feat: unstrict family completion + strict shorthand**
+  (NIGHT-hunt-10) — `strict` is now the bare-verb shorthand for
+  `strict-single` (the owner's `zelynic strict brave` used to die with
+  "unrecognized subcommand 'strict'"), `unstrict-single` is the alias
+  that mirrors the strict-single/strict-multi naming pair, and the new
+  `unstrict-multi <a:b:c>` removes limits from several apps in one shot
+  with strict-multi's colon syntax — bulk removal no longer needs
+  repeated single calls or the unstrict-all sledgehammer. A colon list
+  typed into the single-target slot now gets a routing tip
+  ("colon-separated lists belong to strict-multi") instead of a bare
+  no-match. --help and the man page document all three; the help/man
+  drift pins grow from 15 to 18 commands.
+
+- **fix: cgroup labels are majority-voted, not first-pid-wins**
+  (NIGHT-hunt-10) — the identity walk named each cgroup after
+  whichever process the /proc readdir happened to serve first, so a
+  lone chrome_crashpad labeled the cgroup whose other ~30 processes
+  were all brave. status showed the browser's actual traffic carrier
+  as "cg:18526 (chrome_crashpad)"; `unstrict 18526` then silently
+  removed brave's enforcement while the owner believed only a crash
+  handler had been freed — the "limit not works" report. The
+  representative is now the comm hosting the most live processes
+  (ties break to the lowest PID; unreadable comms never outvote real
+  ones; a fully-unreadable cgroup keeps the raw cg:{id} fallback so
+  recover() still sees it alive). Same walk, one pass, still 10s TTL.
+
+- **fix: unstrict counts policies, matching strict** — the apply side
+  reported "4 policies" for a two-cgroup/two-direction limit while the
+  remove side said "Removed 1 limit" for the same state (cgroups vs
+  policies). Both sides now count policies (dl and ul each). When a
+  name-based unstrict removes nothing while other policies are still
+  live, a note points at `status` (lists them) and `recover` (removes
+  dead-cgroup orphans) — the exact trap behind the owner's leftover
+  limit confusion.
+
 - **feat: single-tier help surface** — `--help-all` merged into `--help`
   (NIGHT-improve-3, cosmostrix v30-simplify lineage). `zelynic --help`,
   `zelynic -h`, and bare `zelynic` now print the one end-to-end reference

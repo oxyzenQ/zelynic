@@ -52,6 +52,12 @@ pub(crate) fn handle_strict_single(
     let applied = limiter.apply_single(&target, &rates)?;
     if applied == 0 {
         eprintln_safe!("No cgroup found for '{target_str}'. Nothing to limit.");
+        // NIGHT-hunt-10: a colon list in the single-target slot is the
+        // natural mistake now that 'strict' exists as a shorthand —
+        // route it to the multi form instead of a bare no-match.
+        if target_str.contains(':') {
+            eprintln_safe!("tip: colon-separated lists belong to strict-multi");
+        }
         return Ok(());
     }
 

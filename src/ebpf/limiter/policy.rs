@@ -161,6 +161,12 @@ impl super::Limiter {
     }
 
     /// Remove policy for a target (unstrict).
+    ///
+    /// Returns the number of POLICIES removed — each direction (dl/ul)
+    /// counts separately, the same unit `apply_single`/`apply_group`
+    /// report as "(N policies, active in background)". NIGHT-hunt-10:
+    /// the old per-cgroup counting printed "Removed 1 limit" for the
+    /// same state strict-single had just described as "4 policies".
     pub fn unstrict(&mut self, target: &Target) -> Result<usize> {
         let cgroup_ids = self.resolve_target(target)?;
         let mut removed = 0usize;
@@ -169,21 +175,23 @@ impl super::Limiter {
             let label = self.identity.label(*cgroup_id);
             let mut found = false;
 
-            // Remove from dl + ul policy maps.
+            // Remove from dl + ul policy maps — each deleted direction
+            // is one policy removed.
             if let Ok(deleted) = self.delete_policy(*cgroup_id, Direction::Download) {
                 if deleted {
                     found = true;
+                    removed += 1;
                 }
             }
             if let Ok(deleted) = self.delete_policy(*cgroup_id, Direction::Upload) {
                 if deleted {
                     found = true;
+                    removed += 1;
                 }
             }
 
             if found {
                 eprintln_safe!("[limiter] Unstrict: {label} — limits removed");
-                removed += 1;
             }
         }
 
