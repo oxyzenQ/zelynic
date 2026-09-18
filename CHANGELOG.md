@@ -66,6 +66,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   wording is unit-pinned by drift tests. `--help` and `man` now describe
   the flag as what it is instead of "Debug output".
 
+- **feat: `--help` groups commands by verb** (NIGHT-improve-5) — the
+  Commands section now scans as six chunks instead of a flat 15-entry
+  wall: `strict — apply rate limits` (strict-single, strict-multi),
+  `limit — bulk rate limits` (limit-all), `block — cut internet access`
+  (block-single, block-multi, block-all), `unstrict — remove limits &
+  recover` (unstrict, unstrict-all, recover), `monitor — traffic
+  visibility` (status, list-apps, observe, top), and `system — support`
+  (doctor, man). Group headings render in the same brand purple as
+  section headings; each synopsis sits on its own line with the
+  description and examples indented below, replacing the former
+  120-character mixed syntax+description lines. The man page mirrors
+  the grouping with `.SS` subsections. All 15 commands, flags, and
+  examples are unchanged in content; a new integration drift test pins
+  the six group headings in both renderers.
+
 ### Repository
 
 - **chore: changelog split into active file + v10-era archive**

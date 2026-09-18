@@ -292,6 +292,54 @@ fn test_help_lists_every_command() {
     }
 }
 
+/// NIGHT-improve-5: the reference groups commands by verb — strict,
+/// limit, block, unstrict (owner's grouping), plus monitor and system —
+/// so the 15-command surface scans as six chunks. Pins the group
+/// headings in --help and the .SS subsections in the man page.
+#[test]
+fn test_help_groups_commands_by_verb() {
+    const GROUPS: [&str; 6] = [
+        "strict — apply rate limits",
+        "limit — bulk rate limits",
+        "block — cut internet access",
+        "unstrict — remove limits & recover",
+        "monitor — traffic visibility",
+        "system — support",
+    ];
+
+    let output = zelynic_cmd()
+        .arg("--help")
+        .output()
+        .expect("Failed to execute zelynic --help");
+
+    assert_eq!(output.status.code(), Some(0));
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    for g in GROUPS {
+        assert!(
+            stdout.contains(g),
+            "--help must carry the '{g}' group heading"
+        );
+    }
+
+    let man = zelynic_cmd()
+        .arg("man")
+        .output()
+        .expect("Failed to execute zelynic man");
+
+    assert_eq!(man.status.code(), Some(0));
+    let man_out = String::from_utf8_lossy(&man.stdout);
+    assert!(
+        man_out.contains(".SS "),
+        "man page must carry .SS group subsections, got:\n{man_out}"
+    );
+    for g in ["strict", "limit", "block", "unstrict", "monitor", "system"] {
+        assert!(
+            man_out.contains(&format!(".SS \"{g} ")),
+            "man page must group under '{g}', got:\n{man_out}"
+        );
+    }
+}
+
 /// Bare invocation prints the same single reference as --help (exit 0,
 /// stdout) — the old clap auto-help path is gone with the single-tier
 /// help surface.
