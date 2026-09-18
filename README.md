@@ -345,9 +345,21 @@ CI rejects any other suffix and never marks a pre-release as "latest".
 | `main` | Pure eBPF v11.x (Dragon Architecture) | Maintenance mode |
 | `legacy` | v3.1.1 (tc/nft/systemd-wrapper) | Final legacy release, no new development |
 
+## Security
+
+zelynic runs as root and programs the kernel datapath, so security is
+part of the product. Found something? **Report it privately** — see
+[SECURITY.md](SECURITY.md) for the policy, the supported versions, and
+what counts as a vulnerability. The audit trail (findings, verdicts,
+accepted risks) lives in
+[docs/SAFETY_ANALYSIS.md](docs/SAFETY_ANALYSIS.md), and the privilege
+matrix is documented there too: root is required only where the kernel
+demands it, and refused outright for `--check-update`.
+
 ## Documentation
 
 - [Complete Usage Guide](docs/USAGE.md) — every command, workflows, honest limitations, troubleshooting (the flagship reference)
+- [Security Policy](SECURITY.md) — reporting, scope, supported versions
 - [Dragon Architecture](docs/DRAGON_ARCHITECTURE.md) — design + principles
 - [Kernel Compatibility](docs/KERNEL_COMPATIBILITY.md) — requirements + distro matrix
 - [Performance Metrics](docs/PERFORMANCE.md) — deep benchmark results + targets

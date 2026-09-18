@@ -9,6 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **docs: SECURITY.md — the security foundation (NIGHT-security-2)** —
+  a GitHub-recognized policy file at the repo root: private reporting
+  channel (GitHub vulnerability reporting / draft advisory — never a
+  public issue), supported-versions table (v11 main supported, 10.x and
+  the 3.x legacy branch unsupported), scope boundaries with reasoning
+  (in: CLI + loader + datapath + release pipeline + the privilege UX
+  contract; out: anything requiring the attacker to already be root,
+  documented enforcement-model limits, self-DoS), the
+  what-counts-as-a-vulnerability class table with current posture per
+  class, the shipped-hardening inventory, and the
+  easy-to-use-by-construction principle (no keys, no config, no new
+  workflow steps — the one behavioral rule is a clear error message).
+  README gains a Security section linking it; the USAGE maintainer's
+  map binds security-relevant changes to SECURITY.md + SAFETY_ANALYSIS
+  so they move together.
+
 - **fix: operation lock moved out of the world-writable /tmp (NIGHT-hunt-14 /
   security-1)** — the flock guard lived at /tmp/zelynic.lock, which handed any
   local unprivileged user two primitives against the root-running tool: lock

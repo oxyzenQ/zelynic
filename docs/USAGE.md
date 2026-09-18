@@ -521,6 +521,7 @@ Where things live when a command changes (update these together):
 | Rate/interval parsing | `src/ebpf/limiter/format.rs`, `src/cli/ux.rs` (typo tips) |
 | Status/JSON shapes | `src/ebpf/display.rs` — JSON is stable API, treat changes as breaking |
 | Docs after any behavioral change | This file + README + CHANGELOG; `docs/SAFETY_ANALYSIS.md` for privilege changes |
+| Security-relevant change | `SECURITY.md` posture table + `docs/SAFETY_ANALYSIS.md` audit section — move them together |
 
 Quality gates before every commit (both must pass):
 
