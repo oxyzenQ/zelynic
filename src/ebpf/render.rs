@@ -27,7 +27,7 @@
 //!
 //! Module map (mirrors the limiter/ split, owner LOC cap):
 //! - [`observe`] — the aggregate + single-cgroup observe renderers
-//! - [`top`] — the top-talkers renderer (live + snapshot)
+//! - [`top`] — the top-talkers renderer (always live, NIGHT-hunt-12)
 //! - `bench` (cfg(test)) — the frame A/B benchmark harness
 //! - this root — geometry probing, column budgets, shared helpers,
 //!   and the NIGHT-hunt-8 connection-detail lines (label +N suffix,
@@ -41,7 +41,7 @@ mod top;
 mod bench;
 
 pub use observe::{render_observe_filtered, render_observe_frame};
-pub use top::{render_top_table, TopMode};
+pub use top::render_top_table;
 
 pub(crate) use detail::{comm_from_label, detail_lines, full_detail_lines, label_with_count};
 
@@ -205,19 +205,19 @@ mod tests {
     /// degradation on narrow frames.
     #[test]
     fn title_bar_fills_width() {
-        let bar = title_bar("zelynic observe — 1s refresh", "q/ESC quit", 80);
+        let bar = title_bar("zelynic observe — 1s refresh", "q quit", 80);
         // Mono mode (tests run piped): plain text, exact width.
         assert_eq!(bar.chars().count(), 80);
         assert!(bar.starts_with("─── zelynic observe — 1s refresh"));
-        assert!(bar.ends_with("q/ESC quit"));
+        assert!(bar.ends_with("q quit"));
 
         // Narrow: core only, still starts with the brand prefix.
         let tiny = title_bar("zelynic top", "", 10);
         assert!(tiny.starts_with("─── zelynic top"));
 
         // Medium: hint suppressed before it would collide with core.
-        let mid = title_bar("zelynic observe — 1s refresh", "q/ESC quit", 40);
-        assert!(!mid.contains("q/ESC"));
+        let mid = title_bar("zelynic observe — 1s refresh", "q quit", 40);
+        assert!(!mid.contains("q quit"));
         assert_eq!(mid.chars().count(), 40);
     }
 }

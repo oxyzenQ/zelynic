@@ -53,13 +53,15 @@ impl Drop for AltScreen {
     }
 }
 
-/// Check if q, ESC, or Ctrl+C was pressed (non-blocking).
+/// Check if q or Ctrl+C was pressed (non-blocking).
 ///
-/// ESC handling: a standalone ESC key sends exactly 1 byte (0x1b).
-/// Escape sequences (scroll, arrows, mouse) send 0x1b followed by more
-/// bytes (e.g., 0x5b for '['). We distinguish:
-///   - 1 byte, 0x1b → ESC key → quit
-///   - 0x1b + more bytes → escape sequence → drain, don't quit
+/// Exit contract (NIGHT-hunt-12): 'q' is THE quit key — the former
+/// ESC quit is gone because a standalone ESC byte is indistinguishable
+/// from the head of every escape sequence (arrows, mouse, scroll) and
+/// quit on ESC made any stray sequence a coin flip. Ctrl+C (0x03)
+/// stays as the universal interrupt so a broken 'q' can never trap the
+/// user in the alt screen. Escape sequences (0x1b + more bytes) are
+/// drained, never treated as quit.
 pub fn should_quit() -> bool {
     let mut buf = [0u8; 16];
     if let Ok(n) = io::stdin().read(&mut buf) {
@@ -67,19 +69,13 @@ pub fn should_quit() -> bool {
             // Check first byte
             let first = buf[0];
 
-            // Ctrl+C (0x03) or 'q'
+            // Ctrl+C (0x03) or 'q' — the only two quit bytes.
             if first == 0x03 || first == b'q' {
                 return true;
             }
 
-            // ESC key: standalone ESC is exactly 1 byte (0x1b).
-            // If 0x1b is followed by more bytes, it's an escape sequence
-            // (scroll, arrow, mouse) — drain it, don't quit.
-            if first == 0x1b && n == 1 {
-                return true;
-            }
-
-            // Everything else: drain (multi-byte escape sequences, etc.)
+            // Everything else: drain (standalone ESC and multi-byte
+            // escape sequences alike — ESC no longer quits).
         }
     }
     false
@@ -93,9 +89,10 @@ pub fn clear_screen() {
 /// Run an alternate-screen loop.
 ///
 /// Renders content on the alt screen, refreshing every `refresh_interval`.
-/// Exits on q/ESC/Ctrl+C or after `duration` (ZERO = forever).
+/// Exits on q/Ctrl+C (NIGHT-hunt-12: always live — no duration timer,
+/// no ESC quit).
 /// On exit, the original terminal screen is restored — no trace in scrollback.
-pub fn run_alt<F>(refresh_interval: Duration, duration: Duration, mut render: F)
+pub fn run_alt<F>(refresh_interval: Duration, mut render: F)
 where
     F: FnMut(),
 {
@@ -103,29 +100,19 @@ where
         Ok(g) => g,
         Err(_) => {
             // Fallback: simple loop (no alt screen, no key handling)
-            let start = Instant::now();
             loop {
                 clear_screen();
                 render();
                 io::stdout().flush().ok();
-                if duration > Duration::ZERO && start.elapsed() >= duration {
-                    break;
-                }
                 std::thread::sleep(refresh_interval);
             }
-            return;
         }
     };
 
-    let start = Instant::now();
     let mut last_render = Instant::now() - refresh_interval; // render immediately on first iteration
 
     loop {
         if should_quit() {
-            break;
-        }
-
-        if duration > Duration::ZERO && start.elapsed() >= duration {
             break;
         }
 

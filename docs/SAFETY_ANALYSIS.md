@@ -80,7 +80,7 @@ privilege contract:
 | `strict-single`/`strict-multi`/`limit-all`, `block-single`/`block-multi`/`block-all`, `unstrict`/`unstrict-all`/`recover` | required | load, attach, and pin BPF programs; write policy maps. Fail fast with a "re-run with sudo" tip before touching BPF state when run non-root |
 | `status`, `observe`, `top` | required | read pinned BPF maps (same fail-fast guard) |
 | `list-apps`, `doctor` | either | pure `/proc` + `/sys` reads; `doctor` additionally reports pin state when root |
-| `--help`, `-h`, `-V`/`--version`, `man`, bare invocation | either | pure stdout, no side effects, no file or network access |
+| `--help`, `-h`, `-V`/`--version`, bare invocation | either | pure stdout, no side effects, no file or network access |
 | `--check-update` | **refused** | network fetch via curl — exits with a branded error when euid is 0, before any network I/O |
 
 The `--check-update` refusal is deliberate: a root network round-trip buys

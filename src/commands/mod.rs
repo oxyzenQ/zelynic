@@ -264,51 +264,31 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
             }
         }
 
-        Some(Commands::Observe {
-            live,
-            cgroup,
-            interval,
-        }) => {
+        Some(Commands::Observe { cgroup, interval }) => {
             #[cfg(feature = "ebpf")]
             {
-                monitor::handle_observe(live.as_deref(), cgroup, interval.as_deref(), cli.verbose)
+                monitor::handle_observe(cgroup, interval.as_deref(), cli.verbose)
             }
             #[cfg(not(feature = "ebpf"))]
             {
-                let _ = (live, cgroup, interval, cli.verbose);
+                let _ = (cgroup, interval, cli.verbose);
                 ebpf_disabled()
             }
         }
 
-        Some(Commands::Top {
-            duration,
-            limit,
-            live,
-            interval,
-        }) => {
+        Some(Commands::Top { limit, interval }) => {
             #[cfg(feature = "ebpf")]
             {
-                monitor::handle_top(
-                    duration.as_deref(),
-                    limit,
-                    live.as_deref(),
-                    interval.as_deref(),
-                    cli.verbose,
-                )
+                monitor::handle_top(limit, interval.as_deref(), cli.verbose)
             }
             #[cfg(not(feature = "ebpf"))]
             {
-                let _ = (duration, limit, live, interval, cli.verbose);
+                let _ = (limit, interval, cli.verbose);
                 ebpf_disabled()
             }
         }
 
         Some(Commands::Doctor) => crate::capabilities::run_doctor(cli.print_json),
-
-        Some(Commands::Man) => {
-            help::print_man_page();
-            Ok(())
-        }
 
         None => {
             // No subcommand: print the end-to-end reference — the same

@@ -118,17 +118,14 @@ pub fn handle_list_apps(json: bool) -> Result<()> {
 
 /// Handle `zelynic observe` — real-time traffic monitor (alt screen).
 ///
+/// Always live (NIGHT-hunt-12): the former `--live <dur>` timer is
+/// gone — the box refreshes until the user quits (q or Ctrl+C).
 /// `interval` (NIGHT-hunt-7) is the refresh cadence, 1s..60s via
 /// `--interval`; it drives both the render loop AND the BPF poll, so
 /// per-frame deltas divide by exactly the interval for the RATE
 /// column.
 #[cfg(feature = "ebpf")]
-pub fn handle_observe(
-    live: Option<&str>,
-    cgroup: Option<u32>,
-    interval: Option<&str>,
-    verbose: bool,
-) -> Result<()> {
+pub fn handle_observe(cgroup: Option<u32>, interval: Option<&str>, verbose: bool) -> Result<()> {
     use crate::ebpf::connections::ConnectionMap;
     use crate::ebpf::loader::Observer;
     use crate::ebpf::render::render_observe_filtered;
@@ -136,18 +133,14 @@ pub fn handle_observe(
     use crate::terminal;
     use std::time::Duration;
 
-    // Input validation first (fail-fast, no privileges needed): both
-    // the live-duration and the refresh-interval strings are pure
-    // parsing — a typo surfaces its did-you-mean tip before the root
-    // requirement, the same parse-before-execute ladder as the strict
-    // handlers (smoke-run find).
+    // Input validation first (fail-fast, no privileges needed): the
+    // refresh-interval string is pure parsing — a typo surfaces its
+    // did-you-mean tip before the root requirement, the same
+    // parse-before-execute ladder as the strict handlers (smoke-run
+    // find).
     let interval_secs = match interval {
         Some(s) => crate::ebpf::limiter::parse_monitor_interval(s)?,
         None => 1,
-    };
-    let duration_secs = match live {
-        Some(s) => crate::ebpf::limiter::parse_time_duration(s)?,
-        None => 0,
     };
 
     super::ensure_root()?;
@@ -164,17 +157,11 @@ pub fn handle_observe(
 
     let _ = observer.poll_and_summarize()?;
 
-    let duration = if duration_secs > 0 {
-        Duration::from_secs(duration_secs)
-    } else {
-        Duration::ZERO
-    };
-
     // Eagle-eyes detail (NIGHT-hunt-8): per-cgroup process/socket
     // detail, TTL-cached inside the map so 1s frames reuse the scan.
     let mut conns = ConnectionMap::new();
     let interval = Duration::from_secs(interval_secs);
-    terminal::run_alt(interval, duration, || {
+    terminal::run_alt(interval, || {
         let summary = observer.poll_and_summarize().unwrap_or_default();
         conns.maybe_refresh();
         if let Some(cg) = cgroup {
@@ -188,48 +175,34 @@ pub fn handle_observe(
     Ok(())
 }
 
-/// Handle `zelynic top` — snapshot or live top talkers.
+/// Handle `zelynic top` — live top talkers (box mode).
 ///
-/// `interval` (NIGHT-hunt-7) is the live-mode refresh cadence,
-/// 1s..60s via `--interval` (default 5s); snapshot mode ignores it —
-/// its 500ms poll cadence is an internal sampling detail, not a UI
-/// knob.
+/// Always live (NIGHT-hunt-12): the former snapshot mode (`--duration`)
+/// and `--live` timer are gone — the table refreshes until the user
+/// quits (q or Ctrl+C). `interval` (NIGHT-hunt-7) is the refresh
+/// cadence, 1s..60s via `--interval` (default 5s).
 #[cfg(feature = "ebpf")]
-pub fn handle_top(
-    duration: Option<&str>,
-    limit: usize,
-    live: Option<&str>,
-    interval: Option<&str>,
-    verbose: bool,
-) -> Result<()> {
+pub fn handle_top(limit: usize, interval: Option<&str>, verbose: bool) -> Result<()> {
     use crate::ebpf::connections::ConnectionMap;
     use crate::ebpf::loader::Observer;
-    use crate::ebpf::render::{render_top_table, TopMode};
+    use crate::ebpf::render::render_top_table;
     use crate::terminal;
     use std::collections::HashMap;
-    use std::time::{Duration, Instant};
+    use std::time::Duration;
 
-    // Input validation first (fail-fast, no privileges needed): all
-    // three duration strings are pure parsing — a typo surfaces its
+    // Input validation first (fail-fast, no privileges needed): the
+    // refresh-interval string is pure parsing — a typo surfaces its
     // did-you-mean tip before the root requirement (smoke-run find).
-    let live_secs = match live {
-        Some(s) => Some(crate::ebpf::limiter::parse_time_duration(s)?),
-        None => None,
-    };
     let interval_secs = match interval {
         Some(s) => crate::ebpf::limiter::parse_monitor_interval(s)?,
         None => 5,
-    };
-    let snapshot_secs = match duration {
-        Some(s) => crate::ebpf::limiter::parse_time_duration(s)?,
-        None => 10,
     };
 
     super::ensure_root()?;
 
     // Same verbose contract as observe (NIGHT-hunt-9): the loader trace
-    // prints before any snapshot/banner output, so -v explains where
-    // the observer object came from and what it attached to.
+    // prints before the live box takes over, so -v explains where the
+    // observer object came from and what it attached to.
     let mut observer = Observer::attach_quiet(!verbose)?;
     observer.refresh_identity();
     if verbose {
@@ -240,63 +213,24 @@ pub fn handle_top(
     let mut conns = ConnectionMap::new();
     let _ = observer.poll_and_summarize()?;
 
-    if let Some(duration_secs) = live_secs {
-        let dur = if duration_secs > 0 {
-            Duration::from_secs(duration_secs)
-        } else {
-            Duration::ZERO
-        };
-
-        let interval = Duration::from_secs(interval_secs);
-        terminal::run_alt(interval, dur, || {
-            let summary = observer.poll_and_summarize().unwrap_or_default();
-            for c in &summary.cgroups {
-                let entry = cumulative.entry(c.cgroup_id).or_insert((0, 0, 0));
-                entry.0 += c.ingress_bytes;
-                entry.1 += c.bytes;
-                entry.2 += c.packets + c.ingress_packets;
-            }
-            conns.maybe_refresh();
-            render_top_table(
-                &cumulative,
-                limit,
-                observer.identity(),
-                Some(&conns),
-                &TopMode::Live { interval },
-            );
-        });
-    } else {
-        let dur_secs = snapshot_secs;
-
-        eprintln_safe!(
-            "{}",
-            crate::output::brand_bold(&format!("━━━ zelynic Top — sampling for {dur_secs}s ━━━"))
-        );
-        eprintln_safe!("  (collecting traffic data...)\n");
-
-        let start = Instant::now();
-        while start.elapsed() < Duration::from_secs(dur_secs) {
-            std::thread::sleep(Duration::from_millis(500));
-            let summary = observer.poll_and_summarize()?;
-            for c in &summary.cgroups {
-                let entry = cumulative.entry(c.cgroup_id).or_insert((0, 0, 0));
-                entry.0 += c.ingress_bytes;
-                entry.1 += c.bytes;
-                entry.2 += c.packets + c.ingress_packets;
-            }
+    let interval = Duration::from_secs(interval_secs);
+    terminal::run_alt(interval, || {
+        let summary = observer.poll_and_summarize().unwrap_or_default();
+        for c in &summary.cgroups {
+            let entry = cumulative.entry(c.cgroup_id).or_insert((0, 0, 0));
+            entry.0 += c.ingress_bytes;
+            entry.1 += c.bytes;
+            entry.2 += c.packets + c.ingress_packets;
         }
-
-        conns.refresh();
+        conns.maybe_refresh();
         render_top_table(
             &cumulative,
             limit,
             observer.identity(),
             Some(&conns),
-            &TopMode::Sample {
-                label: &format!("{dur_secs}s sample"),
-            },
+            interval,
         );
-    }
+    });
 
     observer.detach();
     Ok(())
@@ -307,17 +241,16 @@ mod tests {
     use super::*;
 
     /// Parse-before-execute contract (live smoke-run find): a typo'd
-    /// live-duration string must surface its did-you-mean tip BEFORE
+    /// refresh-interval string must surface its did-you-mean tip BEFORE
     /// the privilege guard, matching the strict handlers' ladder and
     /// clap's own argument validation order.
     ///
-    /// Safe on any uid: the duration error returns before ensure_root(),
+    /// Safe on any uid: the interval error returns before ensure_root(),
     /// so the test never reaches observer attach even as root.
     #[cfg(feature = "ebpf")]
     #[test]
     fn duration_typo_surfaces_before_root_guard() {
-        let err =
-            handle_observe(Some("3min"), None, None, false).expect_err("typo'd duration must fail");
+        let err = handle_observe(None, Some("3min"), false).expect_err("typo'd interval must fail");
         let msg = format!("{err}");
         assert!(
             msg.contains("Invalid duration '3min'"),
@@ -334,14 +267,14 @@ mod tests {
     }
 
     /// Interval bounds (NIGHT-hunt-7): the 1s..60s window is enforced
-    /// BEFORE the privilege guard, same fail-fast ladder as --live
-    /// parsing. Safe on any uid: both bounds return before
+    /// BEFORE the privilege guard, same fail-fast ladder as interval
+    /// typo parsing. Safe on any uid: both bounds return before
     /// ensure_root(), so the test never attaches an observer.
     #[cfg(feature = "ebpf")]
     #[test]
     fn interval_bounds_surface_before_root_guard() {
         for bad in ["0", "61", "90s", "2m"] {
-            let err = handle_observe(None, None, Some(bad), false)
+            let err = handle_observe(None, Some(bad), false)
                 .expect_err("out-of-range interval must fail");
             let msg = format!("{err}");
             assert!(

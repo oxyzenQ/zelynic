@@ -294,15 +294,12 @@ pub enum Commands {
     #[command(name = "list-apps")]
     ListApps,
 
-    /// Real-time traffic monitor (box mode, in-place refresh)
+    /// Real-time traffic monitor (live box mode, in-place refresh)
     ///
-    /// Runs in terminal box mode — no scrollback spam. Exit with q/ESC/Ctrl+C.
+    /// Always live (NIGHT-hunt-12): the former `--live <dur>` timer is
+    /// gone — the box refreshes until you quit. Exit with q or Ctrl+C.
     #[command(name = "observe")]
     Observe {
-        /// Live duration: 1s, 3m, 10h, or 0 (forever). Default: forever.
-        #[arg(long)]
-        live: Option<String>,
-
         /// Filter: only show this cgroup ID (e.g., 73386)
         #[arg(long)]
         cgroup: Option<u32>,
@@ -312,24 +309,18 @@ pub enum Commands {
         interval: Option<String>,
     },
 
-    /// Find top bandwidth consumers (snapshot or live box mode)
+    /// Live top bandwidth consumers (box mode)
     ///
-    /// Default: 10s snapshot. Use --live for continuous tracking.
+    /// Always live (NIGHT-hunt-12): the former snapshot mode
+    /// (`--duration`) and `--live` timer are gone — the table
+    /// refreshes until you quit. Exit with q or Ctrl+C.
     #[command(name = "top")]
     Top {
-        /// Snapshot duration (without --live): 1s, 3m, 10h. Default: 10s.
-        #[arg(long)]
-        duration: Option<String>,
-
         /// Number of top talkers to show
         #[arg(long, default_value = "10")]
         limit: usize,
 
-        /// Live mode: run until q/ESC/Ctrl+C. Optional duration: --live 3m
-        #[arg(long)]
-        live: Option<String>,
-
-        /// Live-mode refresh interval: 1s to 60s (default: 5s)
+        /// Refresh interval: 1s to 60s (default: 5s)
         #[arg(long)]
         interval: Option<String>,
     },
@@ -337,12 +328,4 @@ pub enum Commands {
     /// Check if your machine supports eBPF
     #[command(name = "doctor")]
     Doctor,
-
-    /// Print the zelynic man page (troff format)
-    ///
-    /// Writes a roff man page to stdout. The release pipeline pipes it
-    /// into `man/zelynic.1` for the release tarballs. Same single source
-    /// as `--help` — see `commands::help`.
-    #[command(name = "man")]
-    Man,
 }

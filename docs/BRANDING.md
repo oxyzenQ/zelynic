@@ -79,7 +79,7 @@ width, regular-purple column headers, thin separators, right-aligned
 numerics, and no per-cell noise (values are never packed as
 `89 (1.2 MB)` — that is what the RATE column is for).
 
-- Title bar: `─── zelynic observe — 1s refresh ────…── q/ESC quit`,
+- Title bar: `─── zelynic observe — 1s refresh ────…── q quit`,
   bold purple, right-aligned key hint when width allows.
 - Column headers: `PROCESS  DOWNLOAD  UPLOAD  RATE`, regular purple.
 - Rows and totals: terminal default color — the purple frame carries
@@ -88,8 +88,8 @@ numerics, and no per-cell noise (values are never packed as
   resizing the terminal adapts on the next refresh: columns degrade
   (RATE first, then TOTAL), labels truncate with an ellipsis, and the
   row count is height-capped so frames never scroll.
-- Refresh cadence: `--interval` (1s..60s, default 1s observe / 5s top
-  live); the RATE column divides deltas by exactly that interval.
+- Refresh cadence: `--interval` (1s..60s, default 1s observe / 5s top);
+  the RATE column divides deltas by exactly that interval.
 - Eagle-eyes detail (NIGHT-hunt-8): multi-tenant cgroups carry a
   `+N` process suffix — `cg:73386 (alacritty +3)` — and up to three
   indented detail lines naming the socket-holding processes inside:

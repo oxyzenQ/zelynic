@@ -41,9 +41,10 @@ same WiFi interface. No `tc`, no `nftables`, no `LD_PRELOAD`, no daemon.
 | **Fractional precision** | 0.00% rate error. Sub-byte token accumulation. Others lose ~0.7%. |
 | **Schema migration** | BPF struct changes auto-detected + auto-cleaned on upgrade. |
 | **Crash recovery** | `zelynic recover` detects + removes orphaned BPF pins. File lock prevents corruption. |
-| **Discovery workflow** | `zelynic top --live` finds bandwidth hogs. Other limiters can't discover. |
+| **Discovery workflow** | `zelynic top` (live box) finds bandwidth hogs. Other limiters can't discover. |
 | **Box mode** | In-place refresh with a clean exit — zero scrollback pollution, no TUI. Responsive layout adapts to any terminal size (NIGHT-hunt-7). |
-| **Refresh control** | `--interval 1s..60s` on `observe`/`top --live` — realtime cadence you choose, with a live RATE column computed from the interval. |
+| **Always-live monitors** | `observe`/`top` run live until you press q — no timers, no snapshot mode (NIGHT-hunt-12). |
+| **Refresh control** | `--interval 1s..60s` on `observe`/`top` — realtime cadence you choose, with a live RATE column computed from the interval. |
 | **Eagle-eyes detail** | Monitor rows name the processes and endpoints INSIDE a cgroup — `curl (4012) -> 142.250.191.78:443` under a row labeled alacritty (NIGHT-hunt-8). |
 | **Strict dependency diet** | 7 direct deps, 54 lockfile crates, every one justified in [docs/DEPENDENCY_AUDIT.md](docs/DEPENDENCY_AUDIT.md). |
 
@@ -148,20 +149,17 @@ sudo zelynic strict-multi brave:curl:pacman 1mb
 # Limit ALL user apps
 sudo zelynic limit-all 500kb
 
-# Find what's eating your bandwidth (10s snapshot)
+# Find what's eating your bandwidth (live box, q to quit)
 sudo zelynic top
 
-# Live tracking — catches bursty apps (q/ESC/Ctrl+C to quit)
-sudo zelynic top --live 0
+# Live top with a 2s refresh instead of the 5s default
+sudo zelynic top --interval 2s
 
 # Monitor traffic in alt screen (UL + DL, clean terminal)
 sudo zelynic observe
 
 # Same monitor, calmer cadence + rate column scaled to the interval
 sudo zelynic observe --interval 5s
-
-# Live top with a 2s refresh instead of the 5s default
-sudo zelynic top --live 0 --interval 2s
 
 # Zoom into one cgroup: full process + endpoint detail
 sudo zelynic observe --cgroup 73386
@@ -204,10 +202,15 @@ unstrict-all
 recover
 status [--print-json]
 list-apps [--print-json]
-observe [--live <dur>] [--cgroup <id>] [--interval <1s-60s>]
-top [--duration <dur>] [--live <dur>] [--limit N] [--interval <1s-60s>]
+observe [--cgroup <id>] [--interval <1s-60s>]
+top [--limit N] [--interval <1s-60s>]
 doctor [--print-json]
 ```
+
+Monitors are always live (NIGHT-hunt-12): the former `--live`/`--duration`
+timers — and the `man`, `completions`, `unblock`, `-i/--info` surfaces —
+are removed. `--help` is the single reference; quit a monitor box with
+`q` (Ctrl+C also exits).
 
 Global flags work on every command: `-v/--verbose` (diagnostic trace),
 `--print-json`, `--help`, `-V/--version`, and `--check-update` — which
@@ -229,21 +232,12 @@ Lowercase units only (decimal SI: 1 KB = 1000 bytes):
 
 **Bounds**: minimum 1 KB/s, maximum 100 GB/s. Both overridable with `--allow-dangerous`.
 
-## Time Durations
+## Refresh Intervals
 
-For `--live` and `--duration` flags:
-
-| Format | Meaning |
-|--------|---------|
-| `1s` | 1 second |
-| `3m` | 3 minutes |
-| `10h` | 10 hours |
-| `0` | forever (until q/ESC/Ctrl+C) |
-
-`--interval` (observe, top live) accepts the same formats but must
-land between 1s and 60s — below 1s spams full-frame redraws, above
-60s stops being a live monitor. Out-of-range values fail fast with
-the bounds in the message.
+`--interval` (observe, top) accepts the same duration formats — plain
+seconds, `2s`, `1m` — but must land between 1s and 60s: below 1s spams
+full-frame redraws, above 60s stops being a live monitor.
+Out-of-range values fail fast with the bounds in the message.
 
 ### Inside a cgroup (NIGHT-hunt-8)
 
