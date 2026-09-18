@@ -73,6 +73,11 @@ zelynic treats dependencies as attack surface (NIGHT-hunt-6). The rules:
 
 ## Quick Start
 
+New here? Skim the [Complete Usage Guide](docs/USAGE.md) — especially its
+[honest limitations](docs/USAGE.md#honest-limitations--read-this) section
+(rules apply to apps that exist at command time; apps launched later need
+a re-run; limits do not survive reboot).
+
 ### Prerequisites
 
 - Linux kernel 5.13+ (cgroup v2 + `cgroup.id` file + bpf_link support)
@@ -342,6 +347,7 @@ CI rejects any other suffix and never marks a pre-release as "latest".
 
 ## Documentation
 
+- [Complete Usage Guide](docs/USAGE.md) — every command, workflows, honest limitations, troubleshooting (the flagship reference)
 - [Dragon Architecture](docs/DRAGON_ARCHITECTURE.md) — design + principles
 - [Kernel Compatibility](docs/KERNEL_COMPATIBILITY.md) — requirements + distro matrix
 - [Performance Metrics](docs/PERFORMANCE.md) — deep benchmark results + targets

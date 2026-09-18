@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **docs: Complete Usage Guide (NIGHT-docs-2)** — docs/USAGE.md is the
+  flagship usage reference: the cgroup mental model, every command
+  documented with real behavior details (rate precedence, group buckets,
+  block-as-zero-rate, non-blocking lock), discover-limit-verify-remove
+  workflows, troubleshooting matrix, stable JSON shapes, exit codes,
+  FAQ, and a maintainer's map tying every change type to the files and
+  drift-pin tests that must move with it. Centerpiece: an honest
+  limitations section, led by the owner's snapshot-semantics case —
+  strict-single/limit-all rules apply to the cgroups resolved at
+  command time; apps launched afterwards are not auto-limited and need
+  a re-run (no daemon by design), while new processes joining an
+  already-limited cgroup are covered. Also documented: limits do not
+  survive reboot (bpffs pins + cgroup ID churn), name resolution needs
+  a running app, one name can match several cgroups, decimal-SI rates,
+  cumulative status counters, and the frozen v11 CLI surface. README
+  links it from Quick Start and Documentation.
+
 ### Removed
 
 - **feat: CLI surface diet (NIGHT-hunt-12)** — the `man` subcommand is
