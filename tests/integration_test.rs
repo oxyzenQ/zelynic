@@ -555,7 +555,7 @@ fn euid_is_root() -> bool {
         })
         .and_then(|l| l.split_whitespace().nth(1).map(|u| u.to_string()))
         .and_then(|u| u.parse::<u32>().ok())
-        .map_or(false, |euid| euid == 0)
+        == Some(0)
 }
 
 /// NIGHT-hunt-13: the unprivileged contract. Every enforcement
