@@ -6,9 +6,11 @@
 //! help merged into one flag, cosmostrix v30-simplify lineage).
 //!
 //! Both renderers below must stay in sync — same commands, same flags,
-//! same examples. The integration tests pin this: every subcommand the
-//! CLI exposes must appear in both outputs, so adding a command without
-//! updating this module fails the suite.
+//! same examples, and the same verb grouping (NIGHT-improve-5: strict /
+//! limit / block / unstrict, plus monitor and system). The integration
+//! tests pin this: every subcommand the CLI exposes must appear in both
+//! outputs and both must carry the group headings, so adding a command
+//! or reshuffling a group without updating this module fails the suite.
 
 use crate::output::brand_bold;
 
@@ -30,9 +32,16 @@ pub(crate) fn print_help() {
     println_safe!();
     println_safe!("{}", brand_bold("Commands:"));
     println_safe!();
-    println_safe!(
-        "  zelynic strict-single <target> [rate] [-d <rate>] [-u <rate>] — Limit a single app"
-    );
+    // NIGHT-improve-5: commands grouped by verb (strict / limit /
+    // block / unstrict, plus monitor and system) so the 15-command
+    // surface scans as six chunks instead of one flat wall. Group
+    // headings carry the same brand purple as section headings; each
+    // synopsis sits on its own line with the description and examples
+    // indented below — no more 120-char mixed lines.
+    println_safe!("  {}", brand_bold("strict — apply rate limits"));
+    println_safe!();
+    println_safe!("  zelynic strict-single <target> [rate] [-d <rate>] [-u <rate>]");
+    println_safe!("    Limit one app's network speed.");
     println_safe!("    sudo zelynic strict-single brave 100kb              # both dl+ul = 100kb");
     println_safe!("    sudo zelynic strict-single brave -d 100kb           # download only");
     println_safe!("    sudo zelynic strict-single brave -u 500kb           # upload only");
@@ -40,45 +49,80 @@ pub(crate) fn print_help() {
         "    sudo zelynic strict-single firefox -d 1mb -u 500kb  # both, different rates"
     );
     println_safe!();
-    println_safe!("  zelynic strict-multi <a:b:c> [rate] [-d <rate>] [-u <rate>] — Limit multiple apps sharing one rate (group limit)");
+    println_safe!("  zelynic strict-multi <a:b:c> [rate] [-d <rate>] [-u <rate>]");
+    println_safe!("    Limit multiple apps sharing ONE rate (group limit).");
+    println_safe!("    All apps collectively share the rate — if one downloads at full");
+    println_safe!("    rate, the others get nothing.");
     println_safe!("    sudo zelynic strict-multi brave:curl:pacman 1mb");
     println_safe!("    sudo zelynic strict-multi brave:firefox -d 1mb -u 500kb");
-    println_safe!("    (all apps collectively share the rate — if one downloads at full");
-    println_safe!("     rate, others get nothing)");
     println_safe!();
-    println_safe!(
-        "  zelynic limit-all [rate] [-d <rate>] [-u <rate>] — Limit ALL user apps from list-apps"
-    );
+    println_safe!("  {}", brand_bold("limit — bulk rate limits"));
+    println_safe!();
+    println_safe!("  zelynic limit-all [rate] [-d <rate>] [-u <rate>]");
+    println_safe!("    Limit ALL user apps (system apps excluded; --force includes them).");
     println_safe!("    sudo zelynic limit-all 500kb              # limit all user apps");
     println_safe!("    sudo zelynic limit-all -d 1mb -u 500kb    # per-direction");
-    println_safe!("  zelynic unstrict <target> — Remove limit from one app");
-    println_safe!("    sudo zelynic unstrict brave");
     println_safe!();
-    println_safe!("  zelynic unstrict-all — Remove ALL limits (emergency reset)");
+    println_safe!("  {}", brand_bold("block — cut internet access"));
     println_safe!();
-    println_safe!("  zelynic block-single <target> — Block an app from the internet entirely");
+    println_safe!("  zelynic block-single <target>");
+    println_safe!("    Block one app from the internet entirely.");
     println_safe!("    sudo zelynic block-single brave");
-    println_safe!("  zelynic block-multi <a:b:c> — Block multiple apps from internet");
+    println_safe!();
+    println_safe!("  zelynic block-multi <a:b:c>");
+    println_safe!("    Block multiple apps from the internet.");
     println_safe!("    sudo zelynic block-multi brave:curl:pacman");
-    println_safe!("  zelynic block-all — Block ALL user apps from internet");
+    println_safe!();
+    println_safe!("  zelynic block-all");
+    println_safe!("    Block ALL user apps (--force includes system apps).");
     println_safe!("    sudo zelynic block-all                   # all user apps");
     println_safe!("    sudo zelynic block-all --force            # include system apps");
-    println_safe!("  zelynic recover — Recover from crash (clean orphaned pins)");
     println_safe!();
-    println_safe!("  zelynic status — Show active limits + watchdog status");
-    println_safe!("  zelynic list-apps — List apps with cgroup IDs");
-    println_safe!("  zelynic observe [--live <dur>] [--cgroup <id>] [--interval <1s-60s>] — Real-time traffic monitor (box mode, in-place)");
+    println_safe!("  {}", brand_bold("unstrict — remove limits & recover"));
+    println_safe!();
+    println_safe!("  zelynic unstrict <target>");
+    println_safe!("    Remove the rate limit from one app.");
+    println_safe!("    sudo zelynic unstrict brave");
+    println_safe!();
+    println_safe!("  zelynic unstrict-all");
+    println_safe!("    Remove ALL limits (emergency reset).");
+    println_safe!();
+    println_safe!("  zelynic recover");
+    println_safe!("    Clean orphaned BPF pins after a crash (SIGKILL, OOM, power loss).");
+    println_safe!("    Safe to run anytime — does nothing if state is clean.");
+    println_safe!();
+    println_safe!("  {}", brand_bold("monitor — traffic visibility"));
+    println_safe!();
+    println_safe!("  zelynic status");
+    println_safe!("    Show active limits and watchdog status.");
+    println_safe!();
+    println_safe!("  zelynic list-apps");
+    println_safe!("    List apps with their cgroup IDs.");
+    println_safe!();
+    println_safe!("  zelynic observe [--live <dur>] [--cgroup <id>] [--interval <1s-60s>]");
+    println_safe!("    Real-time traffic monitor (box mode, in-place refresh).");
+    println_safe!("    Exit with q/ESC/Ctrl+C.");
     println_safe!("    sudo zelynic observe                    # live forever, q/ESC to quit");
     println_safe!("    sudo zelynic observe --live 3m           # live for 3 minutes");
     println_safe!("    sudo zelynic observe --cgroup 8066       # filter to one cgroup");
     println_safe!("    sudo zelynic observe --interval 5s       # calmer cadence + rate column");
-    println_safe!("  zelynic top [--duration <dur>] [--live <dur>] [--limit N] [--interval <1s-60s>] — Find top bandwidth consumers");
+    println_safe!();
+    println_safe!(
+        "  zelynic top [--duration <dur>] [--live <dur>] [--limit N] [--interval <1s-60s>]"
+    );
+    println_safe!("    Find top bandwidth consumers (default: 10s snapshot, top 10).");
     println_safe!("    sudo zelynic top                        # 10s snapshot, top 10");
     println_safe!("    sudo zelynic top --duration 30s         # 30s snapshot");
     println_safe!("    sudo zelynic top --live 5m              # live box mode for 5 min");
     println_safe!("    sudo zelynic top --live 0 --interval 2s # live forever, 2s refresh");
-    println_safe!("  zelynic doctor — Check eBPF support");
-    println_safe!("  zelynic man — Print the man page (troff, for man/zelynic.1)");
+    println_safe!();
+    println_safe!("  {}", brand_bold("system — support"));
+    println_safe!();
+    println_safe!("  zelynic doctor");
+    println_safe!("    Check if your machine supports eBPF.");
+    println_safe!();
+    println_safe!("  zelynic man");
+    println_safe!("    Print the man page (troff, for man/zelynic.1).");
     println_safe!();
     println_safe!("{}", brand_bold("Global flags:"));
     println_safe!("  -h, --help       This end-to-end reference (usage, commands, examples)");
@@ -164,6 +208,9 @@ pub(crate) fn print_man_page() {
     println_safe!("Limit and observe any app's download/upload speed using eBPF. Pure");
     println_safe!("kernel enforcement \\- no tc, no nft. Requires kernel 5.13+ and root.");
     println_safe!(".SH COMMANDS");
+    // Same verb grouping as --help (NIGHT-improve-5): .SS subsections
+    // keep the flat .TP list scannable in the pager too.
+    println_safe!(".SS \"strict \\- apply rate limits\"");
     man_cmd(
         "strict-single <target> [rate] [-d <rate>] [-u <rate>]",
         "Limit a single app's network speed. \\fBbrave 100kb\\fR limits both \
@@ -175,11 +222,13 @@ pub(crate) fn print_man_page() {
          group collectively share the rate limit; if one downloads at full \
          rate, the others get nothing.",
     );
+    println_safe!(".SS \"limit \\- bulk rate limits\"");
     man_cmd(
         "limit-all [rate] [-d <rate>] [-u <rate>]",
         "Limit ALL user apps from list-apps. System apps are excluded by \
          default; \\fB\\-\\-force\\fR includes them.",
     );
+    println_safe!(".SS \"block \\- cut internet access\"");
     man_cmd(
         "block-single <target>",
         "Block an app from accessing the internet entirely.",
@@ -193,6 +242,7 @@ pub(crate) fn print_man_page() {
         "Block ALL user apps from the internet. System apps are excluded by \
          default; \\fB\\-\\-force\\fR includes them.",
     );
+    println_safe!(".SS \"unstrict \\- remove limits and recover\"");
     man_cmd("unstrict <target>", "Remove rate limit from one app.");
     man_cmd("unstrict-all", "Remove ALL rate limits (emergency reset).");
     man_cmd(
@@ -200,6 +250,7 @@ pub(crate) fn print_man_page() {
         "Recover from crash: detect and remove orphaned BPF pins left by a \
          killed zelynic. Safe to run anytime.",
     );
+    println_safe!(".SS \"monitor \\- traffic visibility\"");
     man_cmd("status", "Show active limits and watchdog status.");
     man_cmd("list-apps", "List apps with their cgroup IDs.");
     man_cmd(
@@ -212,6 +263,7 @@ pub(crate) fn print_man_page() {
         "Find top bandwidth consumers. Default: 10s snapshot, top 10. Use \
          \\fB\\-\\-live\\fR for continuous tracking.",
     );
+    println_safe!(".SS \"system \\- support\"");
     man_cmd("doctor", "Check if your machine supports eBPF.");
     man_cmd(
         "man",
