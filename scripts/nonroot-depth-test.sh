@@ -205,6 +205,7 @@ ROOT_ARGS=(
 	"block-single brave"
 	"block-multi brave:curl"
 	"block-all"
+	"unstrict-single brave"
 	"unstrict brave"
 	"unstrict-multi brave:curl"
 	"unstrict-all"

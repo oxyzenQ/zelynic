@@ -35,7 +35,7 @@ sudo zelynic list-apps                 # find the app + its cgroup id
 sudo zelynic strict-single brave 100kb # limit it (download AND upload)
 sudo zelynic status                    # verify the limit is live
 sudo zelynic observe                   # watch traffic live (q to quit)
-sudo zelynic unstrict brave            # remove the limit
+sudo zelynic unstrict-single brave   # remove the limit
 ```
 
 Limiting is **fire-and-forget**: the command writes rules into pinned
@@ -80,8 +80,10 @@ it** (and re-assigns cgroup IDs anyway): limits are not reboot-persistent.
 Names follow one grammar: **strict** applies limits, **block** cuts
 access entirely, **unstrict** removes limits. `-single` takes one
 target, `-multi` takes a colon-separated list, `-all` sweeps every user
-app. `strict` is the shorthand for `strict-single`; `unstrict-single`
-is an alias of `unstrict`.
+app. `strict` is the shorthand for `strict-single`; `unstrict` is the
+shorthand for `unstrict-single` (NIGHT-hunt-16 — the canonical always
+carries the `-single` suffix, so the two verb families read
+symmetrically).
 
 ### strict-single / strict — limit one app
 
@@ -146,14 +148,15 @@ sudo zelynic block-all [--force]
 
 Cut internet access entirely — packets are dropped at the cgroup
 boundary in both directions. Same target grammar and `--force` contract
-as strict. `unstrict` removes a block exactly like it removes a rate
-limit (blocks and limits live in the same policy maps; a blocked cgroup
-shows a 0-rate policy in `status`).
+as strict. `unstrict-single` removes a block exactly like it removes
+a rate limit (blocks and limits live in the same policy maps; a
+blocked cgroup shows a 0-rate policy in `status`).
 
-### unstrict / unstrict-multi / unstrict-all
+### unstrict-single / unstrict-multi / unstrict-all
 
 ```bash
-sudo zelynic unstrict brave            # (alias: unstrict-single)
+sudo zelynic unstrict-single brave     # canonical ('unstrict' is the shorthand)
+sudo zelynic unstrict brave            # shorthand form
 sudo zelynic unstrict-multi brave:curl:pacman
 sudo zelynic unstrict-all              # emergency reset: removes everything
 ```
@@ -208,9 +211,9 @@ Always-live box mode (NIGHT-hunt-12): full-screen in-place refresh, no
 scrollback spam, adaptive layout (columns degrade on narrow terminals;
 a RATE column appears from width 50). `--cgroup` zooms into one cgroup
 with per-process and per-socket endpoint detail. Default refresh 1s;
-`--interval` calms it down to at most 60s. **Quit with `q`** (Ctrl+C
-also exits; ESC no longer quits — stray escape sequences made it a
-coin flip).
+`--interval` calms it down to at most 60s. **Quit with `q` — the only
+quit key** (NIGHT-hunt-16; ESC and Ctrl+C are drained, never treated
+as quit).
 
 ### top — live bandwidth ranking
 
@@ -267,7 +270,7 @@ sudo zelynic strict-single brave 100kb
 sudo zelynic status                   # see the policy + counters
 # ... browse with the limit active; check a speed test site:
 # 100kb means 100 KB/s = 0.8 Mbps on speed-test readouts (decimal SI)
-sudo zelynic unstrict brave
+sudo zelynic unstrict-single brave
 ```
 
 **Cap a pool of download tools:**
@@ -402,7 +405,7 @@ purpose — `--help` is the single reference.
 | `Invalid interval '90s'` | Refresh interval must be 1s..60s. |
 | `Stale BPF pin files detected` | A previous run was killed mid-operation. Run `sudo zelynic recover`, then re-apply limits. |
 | `BPF object file not found` | Compile the BPF objects (see README Build section) or install a release tarball, then `zelynic doctor`. |
-| Monitor won't exit | Press `q`. Ctrl+C also exits. ESC deliberately no longer quits (NIGHT-hunt-12). |
+| Monitor won't exit | Press `q` — the only quit key (NIGHT-hunt-16). ESC and Ctrl+C are deliberately drained, never treated as quit. If a wedged terminal swallows the `q` byte: `pkill zelynic` from another shell, then `stty sane`. |
 | Limit seems not enforced | Check `sudo zelynic status` — is the cgroup listed? Verify the app's traffic is actually flowing through the limited cgroup (`observe --cgroup`). If the app was restarted after the limit was set, re-apply (see limitation #1). |
 | Two zelynic commands interfered | The lock is deliberately non-blocking: the second command exited with "another zelynic operation is in progress". Wait for the first to finish, re-run it. If pins ended up inconsistent: `recover`. |
 
@@ -504,9 +507,11 @@ No. zelynic is Linux-only (cgroup v2 + eBPF). It is a Linux-native tool
 by design.
 
 **How do I quit observe/top?**
-Press `q` (Ctrl+C also exits). ESC was removed as a quit key in
-NIGHT-hunt-12 — escape sequences from arrows/mouse made accidental
-quits too easy.
+Press `q` — the only quit key (NIGHT-hunt-16). ESC was removed as a
+quit key in NIGHT-hunt-12 (escape sequences from arrows/mouse made
+accidental quits too easy); Ctrl+C quit was removed in NIGHT-hunt-16
+for the same single-key contract as htop/vim — the title bar says
+"q quit" and nothing else quits.
 
 ---
 

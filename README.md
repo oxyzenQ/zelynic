@@ -186,7 +186,7 @@ sudo zelynic status
 sudo zelynic status --print-json | jq '.limits[]'
 
 # Remove one app's limit
-sudo zelynic unstrict brave
+sudo zelynic unstrict-single brave
 
 # Remove ALL limits (emergency)
 sudo zelynic unstrict-all
@@ -208,7 +208,7 @@ limit-all              [rate] [-d <rate>] [-u <rate>] [--allow-dangerous] [--for
 block-single <target> [--force]
 block-multi  <a:b:c>   [--force]
 block-all              [--force]
-unstrict <target>       ('unstrict-single' is an alias)
+unstrict-single <target> ('unstrict' is the shorthand)
 unstrict-multi <a:b:c>
 unstrict-all
 recover
@@ -222,7 +222,7 @@ doctor [--print-json]
 Monitors are always live (NIGHT-hunt-12): the former `--live`/`--duration`
 timers — and the `man`, `completions`, `unblock`, `-i/--info` surfaces —
 are removed. `--help` is the single reference; quit a monitor box with
-`q` (Ctrl+C also exits).
+`q` — the only quit key (NIGHT-hunt-16).
 
 Global flags work on every command: `-v/--verbose` (diagnostic trace),
 `--print-json`, `--help`, `-V/--version`, and `--check-update` — which

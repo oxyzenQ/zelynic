@@ -53,15 +53,20 @@ impl Drop for AltScreen {
     }
 }
 
-/// Check if q or Ctrl+C was pressed (non-blocking).
+/// Check if q was pressed (non-blocking).
 ///
-/// Exit contract (NIGHT-hunt-12): 'q' is THE quit key — the former
-/// ESC quit is gone because a standalone ESC byte is indistinguishable
-/// from the head of every escape sequence (arrows, mouse, scroll) and
-/// quit on ESC made any stray sequence a coin flip. Ctrl+C (0x03)
-/// stays as the universal interrupt so a broken 'q' can never trap the
-/// user in the alt screen. Escape sequences (0x1b + more bytes) are
-/// drained, never treated as quit.
+/// Exit contract (NIGHT-hunt-16): 'q' is THE quit key — the ONLY one.
+/// The former ESC quit is gone because a standalone ESC byte is
+/// indistinguishable from the head of every escape sequence (arrows,
+/// mouse, scroll) and quit on ESC made any stray sequence a coin flip.
+/// Ctrl+C (0x03) no longer quits either (NIGHT-hunt-16 supersedes the
+/// hunt-12 interrupt clause): mainstream TUI tools (htop, vim, less)
+/// treat Ctrl+C as an interrupt, not an exit, and the single-key
+/// contract keeps the documented behavior unambiguous — the title bar
+/// says "q quit" and nothing else quits. Ctrl+C, ESC, and every
+/// multi-byte escape sequence are drained, never treated as quit. If
+/// a wedged terminal ever swallows the 'q' byte, recovery from
+/// another shell is `pkill zelynic` followed by `stty sane`.
 pub fn should_quit() -> bool {
     let mut buf = [0u8; 16];
     if let Ok(n) = io::stdin().read(&mut buf) {
@@ -69,13 +74,13 @@ pub fn should_quit() -> bool {
             // Check first byte
             let first = buf[0];
 
-            // Ctrl+C (0x03) or 'q' — the only two quit bytes.
-            if first == 0x03 || first == b'q' {
+            // 'q' — the only quit byte (NIGHT-hunt-16).
+            if first == b'q' {
                 return true;
             }
 
-            // Everything else: drain (standalone ESC and multi-byte
-            // escape sequences alike — ESC no longer quits).
+            // Everything else: drain (Ctrl+C, standalone ESC, and
+            // multi-byte escape sequences alike — none of them quit).
         }
     }
     false
@@ -89,8 +94,8 @@ pub fn clear_screen() {
 /// Run an alternate-screen loop.
 ///
 /// Renders content on the alt screen, refreshing every `refresh_interval`.
-/// Exits on q/Ctrl+C (NIGHT-hunt-12: always live — no duration timer,
-/// no ESC quit).
+/// Exits on q — the ONLY quit key (NIGHT-hunt-16: always live, no
+/// duration timer, no ESC quit, no Ctrl+C quit).
 /// On exit, the original terminal screen is restored — no trace in scrollback.
 pub fn run_alt<F>(refresh_interval: Duration, mut render: F)
 where
@@ -99,13 +104,20 @@ where
     let _screen = match AltScreen::enter() {
         Ok(g) => g,
         Err(_) => {
-            // Fallback: simple loop (no alt screen, no key handling)
+            // Fallback: simple loop (no alt screen). Key handling
+            // still applies (NIGHT-hunt-16): 'q' must quit in the
+            // fallback too — the contract is q-only on BOTH paths,
+            // not q-only only when termios cooperates.
             loop {
+                if should_quit() {
+                    break;
+                }
                 clear_screen();
                 render();
                 io::stdout().flush().ok();
                 std::thread::sleep(refresh_interval);
             }
+            return;
         }
     };
 
