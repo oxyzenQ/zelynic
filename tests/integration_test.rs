@@ -331,6 +331,66 @@ fn test_help_groups_commands_by_verb() {
     }
 }
 
+/// NIGHT-hunt-16: the unstrict family reads symmetrically with the
+/// strict family — the CANONICAL single-target command is
+/// `unstrict-single` (synopsis line in --help) and `unstrict` is the
+/// shorthand, exactly mirroring `strict-single` / `strict`. A bare
+/// `zelynic unstrict <target>` synopsis line is the inconsistency the
+/// owner flagged and must never come back.
+#[test]
+fn test_help_unstrict_synopsis_is_canonical() {
+    let output = zelynic_cmd()
+        .arg("--help")
+        .output()
+        .expect("Failed to execute zelynic --help");
+
+    assert_eq!(output.status.code(), Some(0));
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("zelynic unstrict-single <target>"),
+        "--help must show the canonical unstrict-single synopsis, got:\n{stdout}"
+    );
+    assert!(
+        stdout.contains("('unstrict' is the shorthand)"),
+        "--help must label unstrict as the shorthand, mirroring strict, got:\n{stdout}"
+    );
+    assert!(
+        !stdout.contains("zelynic unstrict <target>"),
+        "--help must NOT present bare 'unstrict' as the canonical synopsis (NIGHT-hunt-16), got:\n{stdout}"
+    );
+    // The strict family pin (same symmetry, pre-existing contract).
+    assert!(
+        stdout.contains("zelynic strict-single <target> [rate]"),
+        "--help must show the canonical strict-single synopsis, got:\n{stdout}"
+    );
+}
+
+/// NIGHT-hunt-16: 'q' is the ONLY documented monitor quit key. The
+/// reference must carry the q-only exit contract and must never again
+/// advertise Ctrl+C (or ESC) as a quit path.
+#[test]
+fn test_help_monitor_quit_contract_is_q_only() {
+    let output = zelynic_cmd()
+        .arg("--help")
+        .output()
+        .expect("Failed to execute zelynic --help");
+
+    assert_eq!(output.status.code(), Some(0));
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("Exit with q (the only quit key)"),
+        "--help must state the q-only exit contract, got:\n{stdout}"
+    );
+    assert!(
+        !stdout.contains("Ctrl+C"),
+        "--help must NOT advertise Ctrl+C as a monitor quit key (NIGHT-hunt-16), got:\n{stdout}"
+    );
+    assert!(
+        !stdout.contains("Ctrl-C") && !stdout.contains("ESC quit"),
+        "--help must NOT advertise any non-q quit key (NIGHT-hunt-16), got:\n{stdout}"
+    );
+}
+
 /// Bare invocation prints the same single reference as --help (exit 0,
 /// stdout) — the old clap auto-help path is gone with the single-tier
 /// help surface.
@@ -470,26 +530,30 @@ fn test_unstrict_multi_requires_targets() {
     );
 }
 
-/// NIGHT-hunt-10: unstrict-single is the alias mirroring the
-/// strict-single/strict-multi pair — missing <target> is a usage error
-/// about the same required positional as `unstrict` itself.
+/// NIGHT-hunt-10 introduced the alias; NIGHT-hunt-16 flipped the
+/// canonical to unstrict-single (strict/unstrict symmetry: canonical
+/// carries the -single suffix, shorthand drops it). Missing <target>
+/// is a usage error naming the required positional — for BOTH the
+/// canonical and the shorthand invocation.
 #[test]
 fn test_unstrict_single_alias_is_unstrict() {
-    let output = zelynic_cmd()
-        .arg("unstrict-single")
-        .output()
-        .expect("Failed to execute zelynic unstrict-single");
+    for form in ["unstrict-single", "unstrict"] {
+        let output = zelynic_cmd()
+            .arg(form)
+            .output()
+            .unwrap_or_else(|e| panic!("Failed to execute zelynic {form}: {e}"));
 
-    assert_eq!(
-        output.status.code(),
-        Some(2),
-        "unstrict-single without a target must be a usage error"
-    );
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        stderr.contains("required arguments were not provided") && stderr.contains("<TARGET>"),
-        "error must name the missing unstrict positional, got:\n{stderr}"
-    );
+        assert_eq!(
+            output.status.code(),
+            Some(2),
+            "{form} without a target must be a usage error"
+        );
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            stderr.contains("required arguments were not provided") && stderr.contains("<TARGET>"),
+            "error must name the missing {form} positional, got:\n{stderr}"
+        );
+    }
 }
 
 /// NIGHT-hunt-12: the `man` subcommand is removed totally — it must

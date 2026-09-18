@@ -251,11 +251,13 @@ pub enum Commands {
 
     /// Remove rate limit(s) from a target
     ///
-    /// 'unstrict-single' is the alias that mirrors the strict-single /
-    /// strict-multi naming pair (NIGHT-hunt-10).
+    /// 'unstrict' is the shorthand that mirrors the strict / strict-single
+    /// pair (NIGHT-hunt-10 introduced the alias; NIGHT-hunt-16 flipped the
+    /// canonical to unstrict-single so the strict and unstrict families
+    /// read symmetrically: canonical always carries the -single suffix).
     ///
-    /// Example: zelynic unstrict brave
-    #[command(name = "unstrict", alias = "unstrict-single")]
+    /// Example: zelynic unstrict-single brave
+    #[command(name = "unstrict-single", alias = "unstrict")]
     Unstrict {
         /// Target: process name or cgroup ID
         target: String,
@@ -297,7 +299,8 @@ pub enum Commands {
     /// Real-time traffic monitor (live box mode, in-place refresh)
     ///
     /// Always live (NIGHT-hunt-12): the former `--live <dur>` timer is
-    /// gone — the box refreshes until you quit. Exit with q or Ctrl+C.
+    /// gone — the box refreshes until you quit. Exit with q (the only
+    /// quit key, NIGHT-hunt-16).
     #[command(name = "observe")]
     Observe {
         /// Filter: only show this cgroup ID (e.g., 73386)
@@ -313,7 +316,8 @@ pub enum Commands {
     ///
     /// Always live (NIGHT-hunt-12): the former snapshot mode
     /// (`--duration`) and `--live` timer are gone — the table
-    /// refreshes until you quit. Exit with q or Ctrl+C.
+    /// refreshes until you quit. Exit with q (the only quit key,
+    /// NIGHT-hunt-16).
     #[command(name = "top")]
     Top {
         /// Number of top talkers to show

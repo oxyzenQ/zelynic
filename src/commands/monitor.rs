@@ -119,7 +119,8 @@ pub fn handle_list_apps(json: bool) -> Result<()> {
 /// Handle `zelynic observe` — real-time traffic monitor (alt screen).
 ///
 /// Always live (NIGHT-hunt-12): the former `--live <dur>` timer is
-/// gone — the box refreshes until the user quits (q or Ctrl+C).
+/// gone — the box refreshes until the user quits (q is the only quit
+/// key, NIGHT-hunt-16).
 /// `interval` (NIGHT-hunt-7) is the refresh cadence, 1s..60s via
 /// `--interval`; it drives both the render loop AND the BPF poll, so
 /// per-frame deltas divide by exactly the interval for the RATE
@@ -179,7 +180,7 @@ pub fn handle_observe(cgroup: Option<u32>, interval: Option<&str>, verbose: bool
 ///
 /// Always live (NIGHT-hunt-12): the former snapshot mode (`--duration`)
 /// and `--live` timer are gone — the table refreshes until the user
-/// quits (q or Ctrl+C). `interval` (NIGHT-hunt-7) is the refresh
+/// quits (q is the only quit key, NIGHT-hunt-16). `interval` (NIGHT-hunt-7) is the refresh
 /// cadence, 1s..60s via `--interval` (default 5s).
 #[cfg(feature = "ebpf")]
 pub fn handle_top(limit: usize, interval: Option<&str>, verbose: bool) -> Result<()> {

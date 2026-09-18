@@ -83,9 +83,10 @@ pub(crate) fn print_help() {
     println_safe!();
     println_safe!("  {}", brand_bold("unstrict — remove limits & recover"));
     println_safe!();
-    println_safe!("  zelynic unstrict <target>");
-    println_safe!("    Remove the rate limit from one app ('unstrict-single' is an alias).");
-    println_safe!("    sudo zelynic unstrict brave");
+    println_safe!("  zelynic unstrict-single <target>");
+    println_safe!("    Remove the rate limit from one app ('unstrict' is the shorthand).");
+    println_safe!("    sudo zelynic unstrict-single brave");
+    println_safe!("    sudo zelynic unstrict brave                  # shorthand form");
     println_safe!();
     println_safe!("  zelynic unstrict-multi <a:b:c>");
     println_safe!("    Remove rate limits from multiple apps at once.");
@@ -108,7 +109,7 @@ pub(crate) fn print_help() {
     println_safe!();
     println_safe!("  zelynic observe [--cgroup <id>] [--interval <1s-60s>]");
     println_safe!("    Live traffic monitor (box mode, in-place refresh).");
-    println_safe!("    Exit with q (Ctrl+C also quits).");
+    println_safe!("    Exit with q (the only quit key).");
     println_safe!("    sudo zelynic observe                    # live box, q to quit");
     println_safe!("    sudo zelynic observe --cgroup 8066       # filter to one cgroup");
     println_safe!("    sudo zelynic observe --interval 5s       # calmer cadence + rate column");

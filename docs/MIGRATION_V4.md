@@ -38,7 +38,7 @@ These v3.x commands are **gone** in v4.0:
 |--------------|-------------------|
 | `zelynic strict -d 500kb brave` | `zelynic strict-single brave 500kb` |
 | `zelynic strict -d 500kb -u 100kb brave` | `zelynic strict-single brave -d 500kb -u 100kb` |
-| `zelynic unstrict brave` | `zelynic unstrict brave` (same) |
+| `zelynic unstrict brave` | `zelynic unstrict-single brave` (the `unstrict` shorthand still works) |
 | `zelynic status` | `zelynic status` (same) |
 | `zelynic clean --all` | `zelynic unstrict-all` |
 | `zelynic list` | `zelynic list-apps` |
@@ -129,7 +129,7 @@ zelynic profile apply gaming discord
 
 # v4.0 (shell alias):
 alias limit-gaming='sudo zelynic strict-single discord 50mb'
-alias unlimit='sudo zelynic unstrict discord'
+alias unlimit='sudo zelynic unstrict-single discord'
 ```
 
 ## What Stays the Same

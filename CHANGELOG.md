@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **cli: unstrict-single is the canonical name, unstrict the shorthand
+  (NIGHT-hunt-16)** — the strict family documents `strict-single` as
+  canonical with `strict` the shorthand, but the unstrict family was
+  mirror-inverted: `unstrict` was canonical and `unstrict-single` the
+  alias (owner-found inconsistency). Flipped for strict/unstrict
+  symmetry: the canonical always carries the `-single` suffix. The
+  `unstrict` invocation still works (alias, like `strict`). --help
+  synopsis, README commands table, USAGE grammar + sections +
+  examples, and MIGRATION_V4 mapping all teach the canonical form now;
+  the nonroot depth suite gained a canonical-form refusal case; the
+  integration drift pins assert the canonical synopsis AND that a bare
+  `zelynic unstrict <target>` synopsis line never returns.
+
+- **monitor: 'q' is the ONLY quit key (NIGHT-hunt-16)** — Ctrl+C
+  (byte 0x03) no longer quits observe/top: raw mode disables ISIG, so
+  the byte was silently swallowed as a quit path while every doc
+  advertised "q or Ctrl+C" — an ambiguous two-key contract where the
+  title bar only ever said "q quit". Now 'q' is the single documented
+  and implemented exit (mainstream TUI convention: htop/vim/less treat
+  Ctrl+C as an interrupt, not an exit); Ctrl+C, ESC, and all escape
+  sequences are drained. The termios-failure fallback loop also honors
+  q (previously it had no key handling at all — a quit-path
+  inconsistency between the two render paths). If a wedged terminal
+  ever swallows the 'q' byte, recovery is `pkill zelynic` + `stty
+  sane` (documented in USAGE troubleshooting). --help, README, USAGE,
+  and the CLI doc comments state the q-only contract; an integration
+  drift pin forbids "Ctrl+C" from ever returning to --help.
+
 ### Docs
 
 - **docs: crypto donation addresses on the README (owner)** — SOL /
