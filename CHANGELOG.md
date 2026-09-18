@@ -9,6 +9,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **test: non-root end-to-end depth suite (NIGHT-hunt-13)** —
+  scripts/nonroot-depth-test.sh runs the full unprivileged contract
+  matrix (70 cases): informational surfaces exit 0 with real output,
+  all 16 enforcement forms refuse cleanly (exit 1, "root required" +
+  sudo tip), input validation precedes the privilege guard (rate
+  typo/bounds/minimum/maximum fire before root), removed surfaces
+  (man, unblock, completions, info, -i, --live, --duration, --help-all,
+  --no-color) fail as usage errors, and hostile edge inputs (empty
+  target, u64-overflow numeric, path-shaped, spaces, negative, unicode
+  rate) never panic — exit 101 and backtraces are asserted absent on
+  every case. The --check-update probe is time-boxed and accepts either
+  a rendered report or a clean mapped network error. Verified live as
+  uid 1001: 70/70 PASS, zero fixes needed — the non-root surface was
+  already clean; two owner-relevant facts pinned along the way: rate 0b
+  is deliberately legal (block shorthand), and the colon-list routing
+  tip is post-apply advice (root-only), both now contract tests.
+  Integration pins added: 12-command root-refusal wording matrix
+  (uid-gated so sudo cargo test stays green), the uid-independent
+  fail-fast ladder (ebpf-gated), edge-input no-panic pins, and the
+  default-build "eBPF not compiled" honesty wording.
+
 - **docs: Complete Usage Guide (NIGHT-docs-2)** — docs/USAGE.md is the
   flagship usage reference: the cgroup mental model, every command
   documented with real behavior details (rate precedence, group buckets,
