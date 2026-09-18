@@ -135,7 +135,9 @@ release build for distribution.
 
 ```bash
 # Limit a single app (both download + upload = 100kb)
+# ('strict' is the shorthand for strict-single)
 sudo zelynic strict-single brave 100kb
+sudo zelynic strict brave 100kb
 
 # Limit per-direction
 sudo zelynic strict-single firefox -d 1mb -u 500kb
@@ -190,12 +192,14 @@ sudo zelynic doctor
 
 ```
 strict-single <target> [rate] [-d <rate>] [-u <rate>] [--allow-dangerous] [--force]
+              ('strict' is the shorthand for strict-single)
 strict-multi  <a:b:c>  [rate] [-d <rate>] [-u <rate>] [--allow-dangerous] [--force]
 limit-all              [rate] [-d <rate>] [-u <rate>] [--allow-dangerous] [--force]
 block-single <target> [--force]
 block-multi  <a:b:c>   [--force]
 block-all              [--force]
-unstrict <target>
+unstrict <target>       ('unstrict-single' is an alias)
+unstrict-multi <a:b:c>
 unstrict-all
 recover
 status [--print-json]

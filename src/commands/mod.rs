@@ -208,6 +208,18 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
             }
         }
 
+        Some(Commands::UnstrictMulti { targets }) => {
+            #[cfg(feature = "ebpf")]
+            {
+                cleanup::handle_unstrict_multi(&targets, cli.verbose)
+            }
+            #[cfg(not(feature = "ebpf"))]
+            {
+                let _ = (targets, cli.verbose);
+                ebpf_disabled()
+            }
+        }
+
         Some(Commands::UnstrictAll) => {
             #[cfg(feature = "ebpf")]
             {

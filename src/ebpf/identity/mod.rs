@@ -15,6 +15,14 @@
 //! reverse-resolve: walk /proc to find which PID lives in which cgroup, then
 //! look up the cgroup's path and the process's name/uid.
 //!
+//! The representative name per cgroup is chosen by MAJORITY VOTE
+//! (NIGHT-hunt-10): the comm hosting the most processes names the
+//! cgroup. The previous first-pid-wins rule let a single
+//! chrome_crashpad process label the cgroup whose other ~30 processes
+//! were all brave — status then showed the browser's real traffic
+//! carrier as "cg:18526 (chrome_crashpad)", and removing that
+//! "helper" silently removed brave's enforcement.
+//!
 //! This layer is **userspace-only** and **best-effort**: if resolution fails,
 //! we fall back to raw `cg:{id}` labels. The BPF program is unaffected.
 
@@ -23,6 +31,10 @@ use std::fs;
 use std::os::unix::fs::MetadataExt;
 use std::path::Path;
 use std::time::{Duration, Instant};
+
+mod tally;
+
+use tally::{pick_representative, CommStat};
 
 /// Default refresh interval: rebuild the identity map every 10 seconds.
 const DEFAULT_REFRESH_TTL_SECS: u64 = 10;
@@ -89,15 +101,24 @@ impl IdentityMap {
     /// 1. Read `/proc/<pid>/cgroup` → cgroup path (v2 format: `0::/path`)
     /// 2. Read `/sys/fs/cgroup{path}/cgroup.id` → 64-bit cgroup ID
     /// 3. Truncate to u32 to match BPF map key
-    /// 4. Read `/proc/<pid>/comm` → process name
+    /// 4. Read `/proc/<pid>/comm` → process name (tallied per cgroup)
     /// 5. Read `/proc/<pid>/status` → uid
     ///
-    /// First PID wins per cgroup_id (multiple PIDs share a cgroup; we only
-    /// need one representative for display purposes).
+    /// The cgroup's representative identity is the MAJORITY comm
+    /// (NIGHT-hunt-10, see [`pick_representative`]) — first-pid-wins
+    /// let one chrome_crashpad speak for a cgroup of 30 brave
+    /// processes. Unreadable comms never outvote real ones; a cgroup
+    /// whose every comm read failed keeps an empty-comm identity (the
+    /// `cg:{id}` label fallback) so crash-recovery still sees it alive.
     ///
     /// Returns the number of unique cgroups discovered.
     pub fn refresh(&mut self) -> usize {
         self.cache.clear();
+
+        // cgroup_id → comm tally. Entries exist for every resolvable
+        // cgroup even when no comm was readable (empty map), so the
+        // alive-cgroup set stays complete for recover().
+        let mut per_cgroup: HashMap<u32, HashMap<String, CommStat>> = HashMap::new();
 
         let proc_entries = match fs::read_dir("/proc") {
             Ok(e) => e,
@@ -151,16 +172,18 @@ impl IdentityMap {
             // On a single system, cgroup IDs are well under 2^32 in practice.
             let cgroup_id = cgroup_id_64 as u32;
 
-            // Skip if we already have an entry for this cgroup.
-            if self.cache.contains_key(&cgroup_id) {
-                continue;
-            }
-
-            // Read /proc/<pid>/comm for the process name.
+            // Read /proc/<pid>/comm for the tally.
             let comm = fs::read_to_string(format!("/proc/{pid}/comm"))
                 .ok()
                 .map(|s| s.trim().to_string())
                 .unwrap_or_default();
+
+            // Unreadable comm: count the cgroup as alive but never let a
+            // blank name outvote real ones.
+            let comm_stats = per_cgroup.entry(cgroup_id).or_default();
+            if comm.is_empty() {
+                continue;
+            }
 
             // Read /proc/<pid>/status for uid (first field after "Uid:").
             let uid = fs::read_to_string(format!("/proc/{pid}/status"))
@@ -173,6 +196,29 @@ impl IdentityMap {
                 })
                 .unwrap_or(0);
 
+            match comm_stats.get_mut(&comm) {
+                Some(stat) => {
+                    stat.count += 1;
+                    if pid < stat.min_pid {
+                        stat.min_pid = pid;
+                        stat.min_pid_uid = uid;
+                    }
+                }
+                None => {
+                    comm_stats.insert(
+                        comm,
+                        CommStat {
+                            count: 1,
+                            min_pid: pid,
+                            min_pid_uid: uid,
+                        },
+                    );
+                }
+            }
+        }
+
+        for (cgroup_id, comm_stats) in per_cgroup {
+            let (comm, uid) = pick_representative(&comm_stats).unwrap_or_default();
             self.cache.insert(
                 cgroup_id,
                 ProcessIdentity {

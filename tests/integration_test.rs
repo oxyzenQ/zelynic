@@ -256,7 +256,7 @@ fn test_help_pipe_to_head_does_not_panic() {
 /// curated reference. Extend the list when the CLI surface grows.
 #[test]
 fn test_help_lists_every_command() {
-    const KNOWN_COMMANDS: [&str; 15] = [
+    const KNOWN_COMMANDS: [&str; 18] = [
         "strict-single",
         "strict-multi",
         "limit-all",
@@ -264,6 +264,8 @@ fn test_help_lists_every_command() {
         "block-multi",
         "block-all",
         "unstrict",
+        "unstrict-multi",
+        "unstrict-single",
         "unstrict-all",
         "recover",
         "status",
@@ -272,6 +274,7 @@ fn test_help_lists_every_command() {
         "top",
         "doctor",
         "man",
+        "strict",
     ];
 
     let output = zelynic_cmd()
@@ -412,12 +415,101 @@ fn test_removed_help_all_flag_suggests_help() {
     );
 }
 
+/// NIGHT-hunt-10: `strict` is the bare-verb shorthand for
+/// strict-single — the owner's `zelynic strict brave` used to die with
+/// an unrecognized-subcommand error. Missing <target> must be a usage
+/// error (exit 2) about the required positional <TARGET>, proving the
+/// alias is wired to a real command instead of rejected outright.
+#[test]
+fn test_strict_shorthand_is_strict_single() {
+    let output = zelynic_cmd()
+        .arg("strict")
+        .output()
+        .expect("Failed to execute zelynic strict");
+
+    assert_eq!(
+        output.status.code(),
+        Some(2),
+        "strict without a target must be a usage error"
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("required arguments were not provided") && stderr.contains("<TARGET>"),
+        "error must name the missing strict-single positional, got:\n{stderr}"
+    );
+}
+
+/// NIGHT-hunt-10: the strict shorthand must reach strict-single's
+/// validation ladder — an invalid rate surfaces its did-you-mean tip
+/// BEFORE the root guard, so this pins the dispatch without requiring
+/// root or eBPF state. ebpf-gated: the rate ladder lives in the
+/// feature-gated handler (the default build answers "eBPF not compiled").
+#[cfg(feature = "ebpf")]
+#[test]
+fn test_strict_shorthand_reaches_rate_validation() {
+    let output = zelynic_cmd()
+        .args(["strict", "brave", "1MB"])
+        .output()
+        .expect("Failed to execute zelynic strict brave 1MB");
+
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("Invalid rate '1MB'"),
+        "strict must route into strict-single's rate validation, got:\n{stderr}"
+    );
+}
+
+/// NIGHT-hunt-10: unstrict-multi exists and takes a colon-separated
+/// target list — missing <targets> is a usage error naming the required
+/// positional.
+#[test]
+fn test_unstrict_multi_requires_targets() {
+    let output = zelynic_cmd()
+        .arg("unstrict-multi")
+        .output()
+        .expect("Failed to execute zelynic unstrict-multi");
+
+    assert_eq!(
+        output.status.code(),
+        Some(2),
+        "unstrict-multi without targets must be a usage error"
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("required arguments were not provided") && stderr.contains("<TARGETS>"),
+        "error must name the missing unstrict-multi positional, got:\n{stderr}"
+    );
+}
+
+/// NIGHT-hunt-10: unstrict-single is the alias mirroring the
+/// strict-single/strict-multi pair — missing <target> is a usage error
+/// about the same required positional as `unstrict` itself.
+#[test]
+fn test_unstrict_single_alias_is_unstrict() {
+    let output = zelynic_cmd()
+        .arg("unstrict-single")
+        .output()
+        .expect("Failed to execute zelynic unstrict-single");
+
+    assert_eq!(
+        output.status.code(),
+        Some(2),
+        "unstrict-single without a target must be a usage error"
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("required arguments were not provided") && stderr.contains("<TARGET>"),
+        "error must name the missing unstrict positional, got:\n{stderr}"
+    );
+}
+
 /// NIGHT-improve-3 hunt: `zelynic man` was missing while the release
 /// pipeline already piped it into man/zelynic.1 — every tarball shipped
 /// an empty gzipped man page. The command now emits the real troff page.
 #[test]
 fn test_man_outputs_troff() {
-    const KNOWN_COMMANDS: [&str; 15] = [
+    const KNOWN_COMMANDS: [&str; 18] = [
         "strict-single",
         "strict-multi",
         "limit-all",
@@ -425,6 +517,8 @@ fn test_man_outputs_troff() {
         "block-multi",
         "block-all",
         "unstrict",
+        "unstrict-multi",
+        "unstrict-single",
         "unstrict-all",
         "recover",
         "status",
@@ -433,6 +527,7 @@ fn test_man_outputs_troff() {
         "top",
         "doctor",
         "man",
+        "strict",
     ];
 
     let output = zelynic_cmd()

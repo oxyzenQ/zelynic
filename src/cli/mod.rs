@@ -111,12 +111,17 @@ pub(crate) fn clap_styles() -> Styles {
 pub enum Commands {
     /// Limit a single app's network speed
     ///
+    /// 'strict' is the shorthand for this command (NIGHT-hunt-10: the
+    /// missing bare verb made owners type `zelynic strict brave` into
+    /// an unrecognized-subcommand error).
+    ///
     /// Examples:
     ///   zelynic strict-single brave 100kb              # both dl+ul = 100kb
     ///   zelynic strict-single brave -d 100kb           # download only
     ///   zelynic strict-single brave -u 500kb           # upload only
     ///   zelynic strict-single firefox -d 1mb -u 500kb  # both, different rates
-    #[command(name = "strict-single")]
+    ///   zelynic strict brave -d 1mb                    # shorthand form
+    #[command(name = "strict-single", alias = "strict")]
     StrictSingle {
         /// Target: process name (e.g., brave) or cgroup ID (e.g., 73386)
         target: String,
@@ -244,13 +249,29 @@ pub enum Commands {
         force: bool,
     },
 
-    /// Remove rate limit from a target
+    /// Remove rate limit(s) from a target
+    ///
+    /// 'unstrict-single' is the alias that mirrors the strict-single /
+    /// strict-multi naming pair (NIGHT-hunt-10).
     ///
     /// Example: zelynic unstrict brave
-    #[command(name = "unstrict")]
+    #[command(name = "unstrict", alias = "unstrict-single")]
     Unstrict {
         /// Target: process name or cgroup ID
         target: String,
+    },
+
+    /// Remove rate limits from multiple apps at once
+    ///
+    /// Mirrors strict-multi's colon syntax (NIGHT-hunt-10): the unstrict
+    /// family previously had no multi form, so bulk removal meant either
+    /// repeated single calls or the unstrict-all sledgehammer.
+    ///
+    /// Example: zelynic unstrict-multi brave:curl:pacman
+    #[command(name = "unstrict-multi")]
+    UnstrictMulti {
+        /// Targets separated by colons (e.g., brave:curl:pacman)
+        targets: String,
     },
 
     /// Remove ALL rate limits (emergency reset)

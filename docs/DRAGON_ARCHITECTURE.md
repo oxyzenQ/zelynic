@@ -110,6 +110,14 @@ BPF returns raw cgroup IDs (`cg:73386`). Humans need `cg:73386 (firefox)`.
 This layer walks `/proc/*/cgroup` + `/sys/fs/cgroup{path}/cgroup.id` to build
 a reverse map: cgroup ID → `ProcessIdentity { pid, uid, comm, cgroup_path }`.
 
+The representative name per cgroup is chosen by MAJORITY VOTE
+(NIGHT-hunt-10): the comm hosting the most live processes names the
+cgroup (ties break to the lowest PID). The old first-pid-wins rule let
+a lone `chrome_crashpad` label a cgroup whose other ~30 processes were
+all `brave` — `status` then showed the browser's actual traffic carrier
+as `(chrome_crashpad)`, and removing that "helper" silently removed
+brave's enforcement. Unreadable comms never outvote real ones.
+
 Refresh policy: 10s TTL by default. Refresh is best-effort — if `/proc` walk
 fails, labels fall back to raw `cg:{id}`. The BPF program is unaffected.
 

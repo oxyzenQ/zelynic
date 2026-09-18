@@ -32,6 +32,11 @@ pub fn handle_block_single(target_str: &str, force: bool, verbose: bool) -> Resu
     let applied = limiter.apply_single(&target, &rates)?;
     if applied == 0 {
         eprintln_safe!("No cgroup found for '{target_str}'. Nothing to block.");
+        // Same routing tip as strict-single (NIGHT-hunt-10): colon
+        // lists belong to the multi form.
+        if target_str.contains(':') {
+            eprintln_safe!("tip: colon-separated lists belong to block-multi");
+        }
         return Ok(());
     }
 
