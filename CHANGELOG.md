@@ -7,6 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- **security: comm-label terminal injection + BPF refill overflow
+  (NIGHT-cybersecurity-1)** — second master audit, two real findings
+  fixed. (1) prctl(PR_SET_NAME) lets any unprivileged process set a
+  15-byte /proc comm containing ANSI/OSC escapes and newlines, and
+  zelynic printed those labels raw on root-run surfaces (list-apps
+  table, observe/top monitors, eagle-eyes detail, verbose trace) —
+  OSC 52 can rewrite the admin's clipboard, newlines forge output
+  lines (a fake cgroup-id row steers the admin toward the wrong
+  target), escapes corrupt the alt screen. Fix: sanitize_comm()
+  replaces every control char (C0, DEL, C1) with '?' at all three
+  /proc read boundaries (identity walk, connection walk, the
+  resolve_target match walk) — display, JSON, matching, and tally
+  safe by construction; procps-ng does the same. The non-root depth
+  suite gained a pure-shell comm spoofer (a copied binary's basename
+  becomes its comm) asserting list-apps text and JSON never carry a
+  raw ESC byte; unit pins cover the OSC-52, forged-row, DEL, C1, and
+  clean-pass families. (2) The BPF token refill product elapsed_ns *
+  rate_bps overflowed u64 at rates above ~18.4 GB/s (u64::MAX / 1s)
+  with ~0.18s+ of idle — inside the documented 100 GB/s ceiling;
+  the stale in-code comment assumed a 1 GB/s cap that never existed.
+  Demonstrated: at 100gb after 184467441 ns idle the wrapped refill
+  collapsed to 26 bytes vs the 100 MB burst cap (post-idle credit
+  lost ~4,000,000x; no bypass — always capped at burst). Fix:
+  fill-detect threshold (elapsed >= 2*burst*NS_PER_SEC/rate credits
+  burst directly; below it the product is provably < 2e17) with an
+  explicit rate>0 guard. Proven bit-identical to an __int128
+  reference across 2,880 parameter combinations including the
+  overflow edge and threshold boundaries (harness outside the repo).
+  Audit sweep otherwise verified clean: rate parsing checked_mul
+  (held), observer datapath pure counters, spoofed-comm resolution
+  symmetric (self-DoS class, out of scope), cmdline/environ never
+  read. Full detail in docs/SAFETY_ANALYSIS.md.
+
 ### Fixed
 
 - **cli: unstrict-single is the canonical name, unstrict the shorthand

@@ -160,9 +160,12 @@ impl ConnectionMap {
                         std::cmp::Reverse(s.queued),
                     )
                 });
+                // Sanitized at the read boundary (NIGHT-cybersecurity-1):
+                // comm is attacker-controllable via prctl and this label
+                // flows into the eagle-eyes detail lines of observe.
                 let comm = fs::read_to_string(format!("/proc/{pid}/comm"))
                     .ok()
-                    .map(|s| s.trim().to_string())
+                    .map(|s| crate::ebpf::identity::sanitize_comm(s.trim()))
                     .unwrap_or_else(|| format!("pid {pid}"));
                 entry.socket_holders.push(ProcessDetail {
                     pid,
