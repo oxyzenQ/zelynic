@@ -134,7 +134,7 @@ This layer never touches BPF directly — it consumes `CounterSummary` +
 
 ## Roadmap
 
-Dragon Architecture is the mainline: `main` carries the pure-eBPF v10
+Dragon Architecture is the mainline: `main` carries the pure-eBPF v11
 line. The legacy `tc`/`nft`/`systemd-wrapper` code is frozen on the
 `legacy` branch (final v3.1.1, no new development).
 
@@ -168,7 +168,7 @@ line. The legacy `tc`/`nft`/`systemd-wrapper` code is frozen on the
 - [x] Benchmark: `scripts/benchmarking.sh` (CPU/memory overhead — see PERFORMANCE.md)
 - [x] Layer 4: `--print-json` output for tooling integration
 
-### Future ideas (unscheduled — v10 is maintenance mode)
+### Future ideas (unscheduled — v11 is maintenance mode)
 - [ ] Layer 0: `bpf/policer.bpf.c` — DSCP marking via `sock_ops`
 - [ ] Layer 0: XDP ingress counter (separate from cgroup_skb)
 - [ ] Layer 2: cgroup path → systemd unit name resolution
@@ -190,7 +190,7 @@ line. The legacy `tc`/`nft`/`systemd-wrapper` code is frozen on the
 
 ## Branch Strategy
 
-- `main` — pure eBPF v10.x (Dragon Architecture). Maintenance mode.
+- `main` — pure eBPF v11.x (Dragon Architecture). Maintenance mode.
 - `legacy` — v3.1.1 (`tc`/`nft`/`systemd-wrapper`). Final legacy release,
   no new development.
 - `intergalaxion` — **deleted** (was 44 commits of planning docs, 0 BPF

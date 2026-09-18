@@ -3,7 +3,7 @@
 
 # Kernel Compatibility
 
-> Requirements for running zelynic v10.0.0 (Dragon Architecture).
+> Requirements for running zelynic (Dragon Architecture).
 
 ## Minimum Requirements
 
@@ -49,7 +49,7 @@ zelynic requires cgroup v2 (unified hierarchy). cgroup v1 is NOT supported.
 
 Check: `stat -fc %T /sys/fs/cgroup` should return `cgroup2fs`.
 
-## Distro Compatibility (v10.0.0)
+## Distro Compatibility
 
 | Distro | Kernel | Status | Notes |
 |--------|--------|--------|-------|
@@ -64,7 +64,7 @@ Check: `stat -fc %T /sys/fs/cgroup` should return `cgroup2fs`.
 | **CentOS Stream 9** | 5.14 | Should work | Edge case (5.14 > 5.13 minimum) |
 | **Alpine** | 6.x | Should work | musl libc — may need testing |
 
-## Testing Matrix (v10.0.0)
+## Testing Matrix
 
 ### Kernels — verified PASS where recorded
 - [x] 5.13 (minimum — Ubuntu 21.10, MUSL binary)

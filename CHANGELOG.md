@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Release Engineering
+
+- **ci: pre-release channel contract** — release tags are validated in a
+  fail-fast `validate` job before any build cost. Stable releases use plain
+  `vX.Y.Z`; pre-release builds are restricted to the `dev`, `nightly`,
+  `alpha`, and `beta` channels (e.g. `v11.0.0-dev.1`). Any other suffix
+  (including the old `-stable.N` format) fails validation and no binary is
+  built. Pre-releases now carry a "(Pre-Release)" title, never inherit the
+  "latest" marker, and their changelog body spans from the previous build;
+  stable bodies still span from the previous stable release.
+
+- **docs: API stability contract is v11** — the README, CONTRIBUTING, and
+  living architecture docs now state the stable-API and maintenance-mode
+  contract from v11.0.0 (previously v10.0.0), matching the v11 line under
+  development; the README documents the release-channel contract.
+
 ## [7.0.0] — 2026-07-11
 
 ### Production Hardening

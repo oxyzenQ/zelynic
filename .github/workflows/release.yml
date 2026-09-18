@@ -19,11 +19,76 @@ env:
 
 jobs:
   # ===========================================================================
+  # Validate Release Tag (fail fast, before any build cost)
+  # ===========================================================================
+  # Release channel contract (cosmostrix lineage): a tag is either a
+  # stable release (plain vX.Y.Z) or a pre-release restricted to the
+  # dev / nightly / alpha / beta channels (vX.Y.Z-<channel>[.N]). Any
+  # other suffix fails validation here, so no binary is built and no
+  # GitHub release is ever created for an unsupported channel.
+  validate:
+    name: Validate release tag
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.ver.outputs.tag }}
+      version: ${{ steps.ver.outputs.version }}
+      prerelease: ${{ steps.ver.outputs.prerelease }}
+    steps:
+      - name: Validate tag and classify release channel
+        id: ver
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+
+          # Reject old format like v10.0.0-stable.1
+          if [[ "${TAG}" =~ -stable\. ]]; then
+            echo "::error::Old tag format detected: ${TAG}"
+            echo "Stable releases no longer use -stable.N suffixes."
+            echo "Use format: vX.Y.Z, example: v11.0.0"
+            exit 1
+          fi
+
+          # Must match vX.Y.Z or vX.Y.Z-<channel>[.N]
+          if ! [[ "${TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9]+(\.[0-9]+)?)?$ ]]; then
+            echo "::error::Invalid release tag: ${TAG}"
+            echo "Expected format: vX.Y.Z (stable) or vX.Y.Z-<channel>.N (pre-release)"
+            echo "Examples: v11.0.0, v11.0.0-beta.1"
+            exit 1
+          fi
+
+          VERSION="${TAG#v}"
+          PRE="false"
+          if [[ "${VERSION}" == *-* ]]; then
+            SUFFIX="${VERSION#*-}"
+            CHANNEL="${SUFFIX%%.*}"
+            case "${CHANNEL}" in
+              dev|nightly|alpha|beta)
+                PRE="true"
+                ;;
+              *)
+                echo "::error::Unsupported pre-release channel: '${CHANNEL}'"
+                echo "Pre-releases are restricted to: dev, nightly, alpha, beta."
+                echo "Stable releases use the plain vX.Y.Z format."
+                exit 1
+                ;;
+            esac
+          fi
+
+          {
+            echo "tag=${TAG}"
+            echo "version=${VERSION}"
+            echo "prerelease=${PRE}"
+          } >> "$GITHUB_OUTPUT"
+
+          echo "Tag validation passed: ${TAG} (prerelease=${PRE})"
+
+  # ===========================================================================
   # Build Release Binary (amd64 Linux only, with eBPF support)
   # ===========================================================================
   build:
     name: Build Release Binary (eBPF)
     runs-on: ubuntu-latest
+    needs: validate
 
     steps:
       - name: Checkout repository
@@ -164,7 +229,7 @@ jobs:
   release:
     name: Create GitHub Release
     runs-on: ubuntu-latest
-    needs: build
+    needs: [validate, build]
     permissions:
       contents: write
     steps:
@@ -180,27 +245,60 @@ jobs:
           path: dist
 
       - name: Generate release body
+        id: body
         run: |
-          PREV_TAG=$(git tag --sort=-creatordate | grep -v "^${GITHUB_REF_NAME}$" | head -1 || true)
+          set -euo pipefail
+          TAG="${{ needs.validate.outputs.tag }}"
+          IS_PRERELEASE="${{ needs.validate.outputs.prerelease }}"
+
+          # Pre-release: prev = any previous tag (including pre-releases)
+          # — users testing pre-release builds want to see what changed
+          # since the last build.
+          # Stable: prev = nearest previous STABLE tag (skip pre-releases)
+          # — the stable changelog spans from the last stable release.
+          if [ "${IS_PRERELEASE}" = "true" ]; then
+            PREV_TAG=$(git tag --sort=-creatordate | grep -v "^${TAG}$" | head -1 || true)
+          else
+            PREV_TAG=$(git tag --sort=-creatordate \
+              | grep -v "^${TAG}$" \
+              | grep -vE '^v[0-9]+\.[0-9]+\.[0-9]+-(dev|nightly|alpha|beta)[\.-]' \
+              | head -1 || true)
+          fi
+
           {
-            if [ -n "$PREV_TAG" ]; then
+            if [ -n "${PREV_TAG}" ]; then
               echo "## What's Changed"
               echo ""
-              git log --no-merges --pretty=format:'- %s (%h)' "${PREV_TAG}..${GITHUB_REF_NAME}"
+              git log --no-merges --pretty=format:'- %s (%h)' "${PREV_TAG}..${TAG}"
               echo ""
             else
               echo "Initial release."
             fi
           } > release-body.md
+
+          # Release title: pre-releases carry an explicit "(Pre-Release)"
+          # suffix so users can distinguish them at a glance in the
+          # releases list; stable releases use the bare tag name.
+          if [ "${IS_PRERELEASE}" = "true" ]; then
+            echo "title=${TAG} (Pre-Release)" >> "$GITHUB_OUTPUT"
+          else
+            echo "title=${TAG}" >> "$GITHUB_OUTPUT"
+          fi
+
           echo "=== Release body ==="
           cat release-body.md
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ needs.validate.outputs.tag }}
+          name: ${{ steps.body.outputs.title }}
           body_path: release-body.md
           files: dist/*
           draft: false
-          prerelease: ${{ contains(github.ref_name, '-') }}
+          # Pre-releases (dev/nightly/alpha/beta) are never marked
+          # "latest" — the latest pointer only tracks stable releases.
+          prerelease: ${{ needs.validate.outputs.prerelease }}
+          make_latest: ${{ needs.validate.outputs.prerelease != 'true' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
