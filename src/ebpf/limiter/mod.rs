@@ -44,6 +44,18 @@ use crate::ebpf::bpf_syscall::{
 use crate::ebpf::identity::IdentityMap;
 use types::SCHEMA_VERSION_EXPECTED;
 
+/// Verbose trace line for the attach strategy (NIGHT-hunt-9): the link
+/// mode decides whether limits survive process exit via pinned bpf_links
+/// or the legacy attach whose links leak by design. Pure so the wording
+/// is unit-pinned in the tests below.
+fn link_mode_line(supports_link: bool) -> String {
+    if supports_link {
+        "[limiter] bpf_link supported — programs + links pinned (survive exit)".to_string()
+    } else {
+        "[limiter] bpf_link unsupported (pre-5.7) — legacy attach, links leak by design".to_string()
+    }
+}
+
 // ━━ Limiter struct ━━
 
 pub struct Limiter {
@@ -149,6 +161,9 @@ impl Limiter {
 
         // Check kernel version for bpf_link support BEFORE borrowing ul_prog.
         let supports_link = kernel_supports_bpf_link();
+        if verbose {
+            eprintln_safe!("{}", link_mode_line(supports_link));
+        }
 
         if supports_link {
             // Kernel 5.7+: extract fd, then borrow ul_prog separately.
@@ -267,5 +282,24 @@ impl Drop for Limiter {
         if self.bpf.is_some() {
             self.bpf = None;
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// NIGHT-hunt-9 drift pin: the attach-strategy trace wording is part
+    /// of the verbose diagnostic contract — exact strings, pinned.
+    #[test]
+    fn link_mode_line_pins_both_strategies() {
+        assert_eq!(
+            link_mode_line(true),
+            "[limiter] bpf_link supported — programs + links pinned (survive exit)"
+        );
+        assert_eq!(
+            link_mode_line(false),
+            "[limiter] bpf_link unsupported (pre-5.7) — legacy attach, links leak by design"
+        );
     }
 }

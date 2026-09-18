@@ -46,7 +46,12 @@ pub struct Cli {
     #[arg(long = "check-update", alias = "check-updated", global = false)]
     pub check_update: bool,
 
-    /// Verbose/debug output
+    /// Diagnostic trace for enforcement internals
+    ///
+    /// stderr-only trace of what the engine actually decided (NIGHT-hunt-9):
+    /// /proc target resolution (pids → cgroups), every policy write
+    /// (rate + burst), BPF lifecycle (pin reuse, schema migration, link
+    /// mode), and the monitor loader steps. JSON output stays clean.
     #[arg(short = 'v', long = "verbose", global = true)]
     pub verbose: bool,
 

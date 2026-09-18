@@ -48,6 +48,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   outputs are drift-pinned by integration tests covering the full command
   set.
 
+### Diagnostics
+
+- **feat: `-v/--verbose` is a real diagnostic surface** (NIGHT-hunt-9) —
+  audit verdict: the flag was not a pure gimmick (the BPF lifecycle lines
+  were real), but it was silent on the exact questions debugging asks. It
+  now traces: `/proc` target resolution (`[limiter] 'brave' resolved:
+  cg:73386 (3 pids)` — the multi-pid-per-cgroup evidence behind the
+  NIGHT-hunt-8 alacritty/curl confusion, plus a list-apps tip when
+  nothing matches), every policy write (`cg:73386 download → 100.0 KB/s
+  (burst 100.0 KB)`; `BLOCKED` for block commands, shared-bucket writes
+  included), the attach strategy (`bpf_link supported — programs + links
+  pinned (survive exit)` vs the pre-5.7 legacy leak path), the observer
+  loader trace for observe/top (previously hard-quiet), and the pin-file
+  listing in unstrict-all (previously the flag was discarded there).
+  Trace goes to stderr only, so `--print-json` output stays clean; all
+  wording is unit-pinned by drift tests. `--help` and `man` now describe
+  the flag as what it is instead of "Debug output".
+
 ## [7.0.0] — 2026-07-11
 
 ### Production Hardening

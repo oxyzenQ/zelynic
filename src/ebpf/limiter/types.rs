@@ -111,6 +111,16 @@ impl Direction {
             Direction::Upload => "ul",
         }
     }
+
+    /// Human-readable direction name for the verbose trace surface
+    /// (NIGHT-hunt-9): `suffix()` is the BPF map-name fragment
+    /// ("dl"/"ul"); this is the full word the diagnostic lines print.
+    pub fn label(&self) -> &'static str {
+        match self {
+            Direction::Download => "download",
+            Direction::Upload => "upload",
+        }
+    }
 }
 
 #[cfg(test)]

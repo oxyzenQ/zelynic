@@ -84,7 +84,9 @@ pub(crate) fn print_help() {
     println_safe!("  -h, --help       This end-to-end reference (usage, commands, examples)");
     println_safe!("  -V, --version    Version and build information");
     println_safe!("  --check-update   Check the latest upstream GitHub release");
-    println_safe!("  -v, --verbose    Debug output");
+    println_safe!(
+        "  -v, --verbose    Diagnostic trace: target resolution, policy writes, BPF lifecycle"
+    );
     println_safe!("  --print-json     JSON output (where applicable)");
     println_safe!();
     println_safe!("{}", brand_bold("Rate formats:"));
@@ -229,7 +231,11 @@ pub(crate) fn print_man_page() {
         "\\-\\-check\\-update",
         "Check the latest upstream GitHub release.",
     );
-    man_flag("\\-v, \\-\\-verbose", "Verbose/debug output.");
+    man_flag(
+        "\\-v, \\-\\-verbose",
+        "Print the diagnostic trace: target resolution (pids to cgroups), policy \
+         writes (rate + burst), and the BPF lifecycle (pins, schema, link mode).",
+    );
     man_flag("\\-\\-print\\-json", "Output as JSON (where applicable).");
     println_safe!(".SH RATE FORMATS");
     println_safe!("500b, 1kb, 500kb, 1mb, 1gb, 100gb (lowercase only). Minimum 1kb");
