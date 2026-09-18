@@ -19,8 +19,10 @@
 # Scope: git-tracked files PLUS untracked-but-present files (respecting
 #   .gitignore), so a new source file missing its header fails the check
 #   BEFORE it can be committed (pre-commit proxy parity).
-# Excluded: CHANGELOG.md — frozen historical record, never rewritten
-#   (the same exclusion policy as every other gate).
+# Excluded: CHANGELOG.md and CHANGELOG-V10-ERA.md — frozen
+#   historical records, never rewritten (the same exclusion policy as
+#   every other gate). The era file joined the exclusion when the
+#   NIGHT-improve-4 split moved the pre-v11 history out of CHANGELOG.md.
 #
 # Usage: bash scripts/check-headers.sh
 
@@ -67,7 +69,7 @@ done < <(
 	# commit, not after CI picks it up).
 	git ls-files --cached --others --exclude-standard 2>/dev/null |
 		grep -E '\.(rs|c|h|py|sh|toml|yml|yaml|md)$' |
-		grep -v '^CHANGELOG\.md$' |
+		grep -v -E '^CHANGELOG(-V10-ERA)?\.md$' |
 		while IFS= read -r line; do
 			printf '%s\0' "${REPO_ROOT}/${line}"
 		done
