@@ -204,13 +204,7 @@ mod tests {
 
     #[test]
     fn closest_long_flag_ci_suggests_verbose_for_verbos() {
-        let candidates = [
-            "version",
-            "check-update",
-            "verbose",
-            "print-json",
-            "help-all",
-        ];
+        let candidates = ["version", "check-update", "verbose", "print-json", "help"];
         assert_eq!(
             closest_long_flag_ci("VERBOS", &candidates),
             Some("verbose".to_string())
@@ -223,13 +217,7 @@ mod tests {
 
     #[test]
     fn closest_long_flag_ci_stays_silent_for_distant_input() {
-        let candidates = [
-            "version",
-            "check-update",
-            "verbose",
-            "print-json",
-            "help-all",
-        ];
+        let candidates = ["version", "check-update", "verbose", "print-json", "help"];
         assert_eq!(closest_long_flag_ci("zzzzqqqq", &candidates), None);
         assert_eq!(closest_long_flag_ci("x", &candidates), None);
         assert_eq!(closest_long_flag_ci("", &candidates), None);

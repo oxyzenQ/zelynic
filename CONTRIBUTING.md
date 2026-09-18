@@ -45,7 +45,7 @@ src/
                           Jaro for flag rescue)
   commands/
     mod.rs             — dispatchers + shared root/ebpf guards
-    help.rs            — --help-all output
+    help.rs            — --help reference + man page (single authority)
     block.rs           — block-* handlers
     cleanup.rs         — unstrict / unstrict-all / recover handlers
     monitor.rs         — status / list-apps / observe / top handlers

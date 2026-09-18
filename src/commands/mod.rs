@@ -6,7 +6,7 @@
 #[cfg(feature = "ebpf")]
 pub(crate) mod block;
 // The safety blocklist is pure data (no eBPF dependency) — always
-// compiled so --help-all can count it in every build. The rate and
+// compiled so --help can count it in every build. The rate and
 // strict handler modules are eBPF-only surfaces.
 #[cfg(feature = "ebpf")]
 pub(crate) mod cleanup;
@@ -23,7 +23,6 @@ pub(crate) mod strict;
 use anyhow::Result;
 #[cfg(feature = "ebpf")]
 use anyhow::Result;
-use clap::Parser;
 
 use crate::cli::{Cli, Commands};
 
@@ -294,14 +293,17 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
 
         Some(Commands::Doctor) => crate::capabilities::run_doctor(cli.print_json),
 
+        Some(Commands::Man) => {
+            help::print_man_page();
+            Ok(())
+        }
+
         None => {
-            // No subcommand: show the standard clap help. Routed through
-            // the branded bridge so the output is styled and written via
-            // the broken-pipe-safe stdout path.
-            match Cli::try_parse_from(["zelynic", "--help"]) {
-                Ok(_) => Ok(()),
-                Err(e) => crate::cli::ux::exit_clap_error(e),
-            }
+            // No subcommand: print the end-to-end reference — the same
+            // single help surface as `zelynic --help`, written through
+            // the broken-pipe-safe stdout path (exit 0).
+            help::print_help();
+            Ok(())
         }
     }
 }

@@ -9,9 +9,12 @@
 //! runtime failures exit 1 via the anyhow path in `main()`. Every
 //! fatal CLI path renders through this module so all layers end
 //! identically — with exactly one canonical `For more information,
-//! try '--help'.` footer, rendered by clap's own error formatter
-//! (never appended manually here; a manual append duplicates it —
-//! the owner-reported NIGHT-improve-1 regression).
+//! try '--help'.` footer. Since NIGHT-improve-3 clap cannot render
+//! that footer itself (the footer key comes from an ArgAction::Help
+//! argument, and zelynic intercepts `--help` manually to print the
+//! end-to-end reference), so the bridge appends the canonical wording
+//! itself — exactly once, never duplicated (the NIGHT-improve-1
+//! regression the tests below pin).
 //!
 //! Rendering: clap errors are re-rendered with the command's brand
 //! styles (purple headers/usage, red error label, white `valid` tips —
@@ -28,6 +31,12 @@ use super::suggestion::closest_long_flag_ci;
 use super::suggestion::closest_value_match;
 use crate::cli::Cli;
 
+/// Canonical clap help-footer wording — appended by the bridge because
+/// clap's own formatter only renders it when an ArgAction::Help argument
+/// exists, and zelynic's `--help` is intercepted manually instead
+/// (single-tier help surface, NIGHT-improve-3; cosmostrix lineage).
+const HELP_FOOTER: &str = "For more information, try '--help'.";
+
 // ── Clap error bridge ──────────────────────────────────────────────────────
 
 /// Case-insensitive flag-suggestion fallback for clap UnknownArgument
@@ -39,10 +48,18 @@ use crate::cli::Cli;
 /// position and `valid` (white) style — no custom printing, no second
 /// tip, no render surgery.
 ///
+/// Help-position rescue (NIGHT-improve-3): `--help`/`-h` parse at the
+/// top level, so an UnknownArgument for them can only originate from
+/// a subcommand position (the custom help arg is not global). Instead
+/// of the generic rescue — which would suggest the very flag the user
+/// already typed — the tip points at the one help authority:
+/// `zelynic --help`.
+///
 /// No-op for: every non-UnknownArgument error kind, errors that
 /// already carry a suggestion (clap's tip is never duplicated), and
 /// dashes-only inputs (short flags — Jaro of a single char never
-/// clears 0.7, matching clap's own silence).
+/// clears 0.7, matching clap's own silence; the `-h` rescue above is
+/// the deliberate exception).
 fn enrich_unknown_arg_suggestion(e: &mut clap::Error, cmd: &clap::builder::Command) {
     if e.kind() != clap::error::ErrorKind::UnknownArgument {
         return;
@@ -57,6 +74,18 @@ fn enrich_unknown_arg_suggestion(e: &mut clap::Error, cmd: &clap::builder::Comma
         _ => return,
     };
     if typed.is_empty() {
+        return;
+    }
+    if typed == "help" || typed == "h" {
+        // Drop clap's trailing-value escape-hatch tip ("to pass '--help'
+        // as a value, use '-- --help'") first: subcommands with optional
+        // positionals (strict-single, top, ...) get it injected
+        // automatically, and two tips dilute the one that matters.
+        e.remove(ContextKind::Suggested);
+        e.insert(
+            ContextKind::SuggestedArg,
+            ContextValue::String("zelynic --help".to_string()),
+        );
         return;
     }
     let candidates: Vec<&str> = cmd
@@ -74,31 +103,20 @@ fn enrich_unknown_arg_suggestion(e: &mut clap::Error, cmd: &clap::builder::Comma
 
 /// Render a clap parse error in the canonical zelynic shape and exit.
 ///
-/// - `DisplayHelp` / `DisplayVersion` kinds go to stdout with exit 0
-///   (clap's own contract), written through the broken-pipe-safe path
-///   so `zelynic --help | head` truncates cleanly instead of panicking.
-/// - Every error kind: case-insensitive typo rescue first, then the
-///   usage context is replaced with the real full usage (clap narrows
-///   the usage line to the suggested flag, which reads as if that flag
-///   were required), then the error is re-rendered with the command's
-///   brand styles. The canonical `For more information, try '--help'.`
-///   footer is rendered by clap's own formatter (help_flag context) —
-///   appending it here again would duplicate it, the exact regression
-///   the owner reported on `zelynic backend` / `zelynic helpp`.
+/// Every error kind: case-insensitive typo rescue first (including the
+/// help-position rescue), then the usage context is replaced with the
+/// real full usage (clap narrows the usage line to the suggested flag,
+/// which reads as if that flag were required), then the error is
+/// re-rendered with the command's brand styles. clap's DisplayHelp /
+/// DisplayVersion kinds can no longer occur: the built-in help flag,
+/// help subcommand, and version flag are all disabled and replaced by
+/// custom top-level args intercepted in `main` (NIGHT-improve-3). The
+/// canonical `For more information, try '--help'.` footer is appended
+/// by the bridge itself — clap's formatter skips it without an
+/// ArgAction::Help argument — so every fatal CLI error ends with
+/// exactly one footer (the NIGHT-improve-1 regression stays pinned by
+/// the tests below).
 pub(crate) fn exit_clap_error(e: clap::Error) -> ! {
-    match e.kind() {
-        clap::error::ErrorKind::DisplayHelp | clap::error::ErrorKind::DisplayVersion => {
-            // clap's print() routes through its Colorizer: the styled
-            // content renders on a TTY (brand purple headers via
-            // clap_styles) and is stripped when piped, and write errors
-            // are returned instead of panicking — broken-pipe safe by
-            // construction (`zelynic --help | head` truncates cleanly).
-            let _ = e.print();
-            std::process::exit(0);
-        }
-        _ => {}
-    }
-
     let mut e = e;
     let mut cmd = Cli::command();
     enrich_unknown_arg_suggestion(&mut e, &cmd);
@@ -111,12 +129,13 @@ pub(crate) fn exit_clap_error(e: clap::Error) -> ! {
 
     // Re-render with the command's styles applied, then print to the
     // error's own stream (stderr for error kinds). Broken pipe is
-    // swallowed, matching clap's own exit() behavior. The render ends
-    // with clap's canonical help footer already — nothing is appended
-    // after this print.
+    // swallowed, matching clap's own exit() behavior. The clap render
+    // ends with a bare newline; the append below closes it into
+    // clap's canonical footer spacing ("\n\nFor more information…\n").
     let e = e.format(&mut cmd);
     let _ = e.print();
 
+    eprintln_safe!("\n{HELP_FOOTER}");
     std::process::exit(2);
 }
 
@@ -210,8 +229,19 @@ mod tests {
     /// reported (`zelynic backend` / `zelynic helpp` printed it twice).
     const HELP_FOOTER: &str = "For more information, try '--help'.";
 
+    /// Footer wording is pinned to clap's canonical string byte-for-byte:
+    /// the manual append must never drift from what clap itself renders
+    /// for commands with a built-in help flag (cosmostrix lineage).
+    #[test]
+    fn help_footer_matches_clap_wording() {
+        assert_eq!(HELP_FOOTER, "For more information, try '--help'.");
+    }
+
     /// Render an error exactly the way [`exit_clap_error`] does (minus
     /// the process::exit), so render-level contracts are testable.
+    /// Mirrors the full stderr byte stream: the clap render (which ends
+    /// with a bare newline) followed by the bridge's manual footer
+    /// append — reproducing clap's canonical "\n\n<footer>\n" tail.
     fn render_via_bridge(argv: &[&str]) -> String {
         use clap::Parser;
         let mut err = Cli::try_parse_from(argv).expect_err("argv must fail to parse");
@@ -221,7 +251,8 @@ mod tests {
             ContextKind::Usage,
             ContextValue::StyledStr(cmd.render_usage()),
         );
-        err.format(&mut cmd).render().to_string()
+        let rendered = err.format(&mut cmd).render().to_string();
+        format!("{rendered}\n{HELP_FOOTER}\n")
     }
 
     /// Regression (owner-reported, NIGHT-improve-1 session): every
@@ -251,6 +282,62 @@ mod tests {
                 "the single footer must terminate the render for {argv:?}, got:\n{rendered}"
             );
         }
+    }
+
+    // ── Single-tier help surface (NIGHT-improve-3) ─────────────────────
+
+    /// Subcommand-position --help must fail (exit 2 family) with the
+    /// error, the real usage line, a tip pointing at the one help
+    /// authority, and exactly one canonical footer. `--help` parses at
+    /// the top level, so this UnknownArgument can only mean the user
+    /// placed it after a subcommand.
+    #[test]
+    fn subcommand_help_position_points_at_top_level_help() {
+        let rendered = render_via_bridge(&["zelynic", "strict-single", "brave", "--help"]);
+        assert!(
+            rendered.contains("unexpected argument '--help'"),
+            "must name the rejected flag, got:\n{rendered}"
+        );
+        assert!(
+            rendered.contains("'zelynic --help'"),
+            "tip must point at the top-level help authority, got:\n{rendered}"
+        );
+        assert!(
+            rendered.contains("Usage: zelynic"),
+            "usage must be the real full usage, got:\n{rendered}"
+        );
+        assert_eq!(rendered.matches(HELP_FOOTER).count(), 1);
+    }
+
+    /// The -h short form gets the same rescue as --help when typed in a
+    /// subcommand position.
+    #[test]
+    fn subcommand_short_help_position_points_at_top_level_help() {
+        let rendered = render_via_bridge(&["zelynic", "status", "-h"]);
+        assert!(
+            rendered.contains("unexpected argument '-h'"),
+            "must name the rejected flag, got:\n{rendered}"
+        );
+        assert!(
+            rendered.contains("'zelynic --help'"),
+            "tip must point at the top-level help authority, got:\n{rendered}"
+        );
+    }
+
+    /// The removed --help-all flag must still guide the user: the
+    /// closest-match rescue suggests --help, so the old muscle memory
+    /// lands on the new single surface instead of a dead end.
+    #[test]
+    fn removed_help_all_flag_suggests_help() {
+        let rendered = render_via_bridge(&["zelynic", "--help-all"]);
+        assert!(
+            rendered.contains("unexpected argument '--help-all'"),
+            "must name the removed flag, got:\n{rendered}"
+        );
+        assert!(
+            rendered.contains("--help"),
+            "must suggest the merged --help flag, got:\n{rendered}"
+        );
     }
 
     #[cfg(feature = "ebpf")]

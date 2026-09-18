@@ -200,18 +200,19 @@ fn test_case_variant_flag_typo_gets_rescued() {
 
 /// Piping into a short reader must not panic: the safe print macros
 /// discard EPIPE instead of aborting with exit 101 (verified live
-/// before NIGHT-hunt-5: `zelynic --help-all | head -2` panicked).
+/// before NIGHT-hunt-5: `zelynic --help | head -2` panicked — then the
+/// flag was still --help-all; merged into --help by NIGHT-improve-3).
 #[test]
-fn test_help_all_pipe_to_head_does_not_panic() {
+fn test_help_pipe_to_head_does_not_panic() {
     use std::io::Read as _;
     use std::process::Stdio;
 
     let mut child = zelynic_cmd()
-        .arg("--help-all")
+        .arg("--help")
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
         .spawn()
-        .expect("Failed to spawn zelynic --help-all");
+        .expect("Failed to spawn zelynic --help");
 
     // Read a sliver, then drop the pipe handle — the reader end closes
     // while the child is still producing output, so its remaining
@@ -223,9 +224,166 @@ fn test_help_all_pipe_to_head_does_not_panic() {
         drop(stdout);
     }
 
-    let status = child.wait().expect("Failed to wait for zelynic --help-all");
+    let status = child.wait().expect("Failed to wait for zelynic --help");
     assert!(
         status.success(),
         "EPIPE must truncate silently, not panic: {status}"
     );
+}
+
+/// NIGHT-improve-3: --help is the single end-to-end reference (the
+/// former --help-all merged in). Every CLI surface command must appear
+/// in it — this is the drift pin between the Commands enum and the
+/// curated reference. Extend the list when the CLI surface grows.
+#[test]
+fn test_help_lists_every_command() {
+    const KNOWN_COMMANDS: [&str; 15] = [
+        "strict-single",
+        "strict-multi",
+        "limit-all",
+        "block-single",
+        "block-multi",
+        "block-all",
+        "unstrict",
+        "unstrict-all",
+        "recover",
+        "status",
+        "list-apps",
+        "observe",
+        "top",
+        "doctor",
+        "man",
+    ];
+
+    let output = zelynic_cmd()
+        .arg("--help")
+        .output()
+        .expect("Failed to execute zelynic --help");
+
+    assert_eq!(output.status.code(), Some(0), "--help exits 0");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    for section in ["Commands:", "Global flags:", "Rate formats:", "Examples:"] {
+        assert!(stdout.contains(section), "--help must carry {section}");
+    }
+    for cmd in KNOWN_COMMANDS {
+        assert!(
+            stdout.contains(cmd),
+            "--help must document the '{cmd}' command"
+        );
+    }
+}
+
+/// Bare invocation prints the same single reference as --help (exit 0,
+/// stdout) — the old clap auto-help path is gone with the single-tier
+/// help surface.
+#[test]
+fn test_bare_invocation_prints_reference() {
+    let output = zelynic_cmd()
+        .output()
+        .expect("Failed to execute bare zelynic");
+
+    assert_eq!(output.status.code(), Some(0));
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("Commands:"),
+        "bare zelynic prints the end-to-end reference, got:\n{stdout}"
+    );
+}
+
+/// NIGHT-improve-3 owner contract: --help typed after a subcommand is a
+/// usage error (exit 2) whose tip points at the one help authority —
+/// `zelynic --help` — with the real usage line and exactly one
+/// canonical footer.
+#[test]
+fn test_subcommand_help_errors_with_suggestion() {
+    let output = zelynic_cmd()
+        .args(["strict-single", "brave", "--help"])
+        .output()
+        .expect("Failed to execute zelynic strict-single brave --help");
+
+    assert_eq!(output.status.code(), Some(2));
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("unexpected argument '--help'"),
+        "must name the rejected flag, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("'zelynic --help'"),
+        "tip must point at the top-level help authority, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("Usage: zelynic"),
+        "error must carry the real usage line, got:\n{stderr}"
+    );
+    assert_eq!(
+        stderr
+            .matches("For more information, try '--help'.")
+            .count(),
+        1,
+        "exactly one canonical footer, got:\n{stderr}"
+    );
+}
+
+/// The removed --help-all flag must land users on the merged surface:
+/// usage error with a --help suggestion (old muscle memory, new path).
+#[test]
+fn test_removed_help_all_flag_suggests_help() {
+    let output = zelynic_cmd()
+        .arg("--help-all")
+        .output()
+        .expect("Failed to execute zelynic --help-all");
+
+    assert_eq!(output.status.code(), Some(2));
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("unexpected argument '--help-all'"),
+        "must name the removed flag, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("--help"),
+        "must suggest the merged --help flag, got:\n{stderr}"
+    );
+}
+
+/// NIGHT-improve-3 hunt: `zelynic man` was missing while the release
+/// pipeline already piped it into man/zelynic.1 — every tarball shipped
+/// an empty gzipped man page. The command now emits the real troff page.
+#[test]
+fn test_man_outputs_troff() {
+    const KNOWN_COMMANDS: [&str; 15] = [
+        "strict-single",
+        "strict-multi",
+        "limit-all",
+        "block-single",
+        "block-multi",
+        "block-all",
+        "unstrict",
+        "unstrict-all",
+        "recover",
+        "status",
+        "list-apps",
+        "observe",
+        "top",
+        "doctor",
+        "man",
+    ];
+
+    let output = zelynic_cmd()
+        .arg("man")
+        .output()
+        .expect("Failed to execute zelynic man");
+
+    assert_eq!(output.status.code(), Some(0), "zelynic man exits 0");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.starts_with(".TH ZELYNIC 1"),
+        "troff page must open with .TH, got:\n{}",
+        &stdout[..stdout.len().min(120)]
+    );
+    for section in [".SH NAME", ".SH SYNOPSIS", ".SH COMMANDS", ".SH EXAMPLES"] {
+        assert!(stdout.contains(section), "man page must carry {section}");
+    }
+    for cmd in KNOWN_COMMANDS {
+        assert!(stdout.contains(cmd), "man page must document '{cmd}'");
+    }
 }
