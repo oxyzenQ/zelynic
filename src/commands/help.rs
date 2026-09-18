@@ -59,17 +59,16 @@ pub(crate) fn print_help_all() {
     println_safe!();
     println_safe!("  zelynic status — Show active limits + watchdog status");
     println_safe!("  zelynic list-apps — List apps with cgroup IDs");
-    println_safe!("  zelynic observe [--live <dur>] [--cgroup <id>] — Real-time traffic monitor (box mode, in-place)");
+    println_safe!("  zelynic observe [--live <dur>] [--cgroup <id>] [--interval <1s-60s>] — Real-time traffic monitor (box mode, in-place)");
     println_safe!("    sudo zelynic observe                    # live forever, q/ESC to quit");
     println_safe!("    sudo zelynic observe --live 3m           # live for 3 minutes");
     println_safe!("    sudo zelynic observe --cgroup 8066       # filter to one cgroup");
-    println_safe!("  zelynic top [--duration <dur>] [--live <dur>] [--limit N] — Find top bandwidth consumers");
+    println_safe!("    sudo zelynic observe --interval 5s       # calmer cadence + rate column");
+    println_safe!("  zelynic top [--duration <dur>] [--live <dur>] [--limit N] [--interval <1s-60s>] — Find top bandwidth consumers");
     println_safe!("    sudo zelynic top                        # 10s snapshot, top 10");
     println_safe!("    sudo zelynic top --duration 30s         # 30s snapshot");
     println_safe!("    sudo zelynic top --live 5m              # live box mode for 5 min");
-    println_safe!(
-        "    sudo zelynic top --live 0               # live forever (catches bursty apps)"
-    );
+    println_safe!("    sudo zelynic top --live 0 --interval 2s # live forever, 2s refresh");
     println_safe!("  zelynic doctor — Check eBPF support");
     println_safe!();
     println_safe!("{}", brand_bold("Global flags:"));

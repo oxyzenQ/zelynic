@@ -16,12 +16,9 @@ use std::fs::File;
 use std::path::PathBuf;
 
 use crate::ebpf::identity::IdentityMap;
-// Unified decimal-SI byte formatting (NIGHT-hunt-5): the local
-// binary-1024 copy disagreed with the limiter's decimal format — the
-// same byte count rendered as different numbers in observe/top vs
-// status. One formatter, one unit system.
-use crate::ebpf::limiter::format_bytes;
-use crate::output::brand_bold;
+// Rendering of CounterSummary moved to ebpf/render.rs (NIGHT-hunt-7);
+// the loader is now I/O-only. Byte formatting lives in
+// limiter::format (unified decimal-SI, NIGHT-hunt-5).
 
 const BPF_OBJECT_PATH: &str = "bpf/observer.bpf.o";
 
@@ -261,108 +258,6 @@ pub struct CgroupDelta {
     pub total_bytes: u64,
     pub ingress_packets: u64,
     pub ingress_bytes: u64,
-}
-
-impl CounterSummary {
-    /// Print summary using identity map for human-readable cgroup labels.
-    ///
-    /// Dragon Architecture Layer 3: Aggregation enriches raw counters with
-    /// identity (Layer 2) before presentation (Layer 4).
-    pub fn print(&self, identity: &IdentityMap) {
-        if self.total_packets == 0 && self.total_ingress_packets == 0 {
-            println_safe!("\n  (no traffic since last check)");
-            return;
-        }
-
-        println_safe!("\n{}", brand_bold("━━━ eBPF Traffic Summary ━━━"));
-        println_safe!(
-            "  Egress (upload):  {} packets, {}",
-            self.total_packets,
-            format_bytes(self.total_bytes)
-        );
-        println_safe!(
-            "  Ingress (download): {} packets, {}",
-            self.total_ingress_packets,
-            format_bytes(self.total_ingress_bytes)
-        );
-        println_safe!("  Cgroups:  {}", self.cgroups.len());
-        if !identity.is_empty() {
-            println_safe!("  Resolved: {} cgroup identities", identity.len());
-        }
-        println_safe!();
-
-        let mut sorted = self.cgroups.clone();
-        sorted.sort_by_key(|c| std::cmp::Reverse(c.bytes + c.ingress_bytes));
-
-        println_safe!(
-            "  {:<30} {:>12} {:>12}",
-            "CGROUP",
-            "EGRESS (UL)",
-            "INGRESS (DL)"
-        );
-        println_safe!("  {}", "─".repeat(58));
-
-        for c in sorted.iter().take(20) {
-            let ul_str = if c.bytes > 0 {
-                format!("{} ({})", c.packets, format_bytes(c.bytes))
-            } else {
-                "—".to_string()
-            };
-            let dl_str = if c.ingress_bytes > 0 {
-                format!("{} ({})", c.ingress_packets, format_bytes(c.ingress_bytes))
-            } else {
-                "—".to_string()
-            };
-            println_safe!(
-                "  {:<30} {:>12} {:>12}",
-                identity.label(c.cgroup_id),
-                ul_str,
-                dl_str,
-            );
-        }
-    }
-
-    /// Print summary filtered to a single cgroup ID.
-    pub fn print_filtered(&self, identity: &IdentityMap, cgroup_id: u32) {
-        let filtered: Vec<_> = self
-            .cgroups
-            .iter()
-            .filter(|c| c.cgroup_id == cgroup_id)
-            .collect();
-
-        if filtered.is_empty() {
-            println_safe!("\n  (no traffic for cgroup {cgroup_id} since last check)");
-            return;
-        }
-
-        println_safe!(
-            "\n{}",
-            brand_bold(&format!("━━━ eBPF Traffic (cgroup {cgroup_id}) ━━━"))
-        );
-        let label = identity.label(cgroup_id);
-        println_safe!("  Label:    {label}");
-        println_safe!("  Cgroups:  {}", filtered.len());
-        println_safe!();
-
-        println_safe!(
-            "  {:<30} {:>10} {:>10} {:>12}",
-            "CGROUP",
-            "DELTA PKT",
-            "DELTA BYTES",
-            "TOTAL BYTES"
-        );
-        println_safe!("  {}", "─".repeat(66));
-
-        for c in &filtered {
-            println_safe!(
-                "  {:<30} {:>10} {:>10} {:>12}",
-                label,
-                c.packets,
-                format_bytes(c.bytes),
-                format_bytes(c.total_bytes),
-            );
-        }
-    }
 }
 
 fn find_bpf_object() -> Result<PathBuf> {

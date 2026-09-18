@@ -60,8 +60,8 @@ userspace tool coordination, no format mismatches, no leaked state.
 ```
 ┌─────────────────────────────────────────────────────────┐
 │  Layer 4 — Presentation                                 │
-│  CLI / JSON                                            │
-│  src/commands/, src/cli/                             │
+│  CLI / JSON, responsive monitor rendering               │
+│  src/commands/, src/cli/, src/ebpf/render.rs            │
 ├─────────────────────────────────────────────────────────┤
 │  Layer 3 — Aggregation                                  │
 │  delta computation, summary, sorting                    │
@@ -119,7 +119,8 @@ calculations, top-N sorting, and threshold detection live.
 
 ### Layer 4 — Presentation
 
-CLI output (`CounterSummary::print()`), JSON output (`--print-json`).
+CLI output (`ebpf/render.rs`, the responsive monitor engine, NIGHT-hunt-7),
+JSON output (`--print-json`).
 This layer never touches BPF directly — it consumes `CounterSummary` +
 `IdentityMap` and renders.
 

@@ -72,6 +72,17 @@ impl IdentityMap {
         }
     }
 
+    /// Test seam: insert a synthetic identity directly.
+    ///
+    /// Cross-module harnesses (the frame benchmark in `render.rs`)
+    /// need realistic label sets without walking /proc. In-module tests
+    /// touch `cache` directly; this seam offers the same power to
+    /// sibling modules under cfg(test).
+    #[cfg(test)]
+    pub fn insert(&mut self, id: ProcessIdentity) {
+        self.cache.insert(id.cgroup_id, id);
+    }
+
     /// Force a full refresh: walk /proc to rebuild the reverse map.
     ///
     /// For each live PID:
