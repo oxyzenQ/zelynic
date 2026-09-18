@@ -7,7 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **docs: src/RULES.md — the colocated source-tree rules
+  (NIGHT-docs-4)** — the reminder of the rules that govern src/ and
+  tests/, standing in the tree where contributors actually work (the
+  cosmostrix src/RULES.md convention): directory discipline
+  (subsystem directories with mod.rs owners, main.rs stays
+  bootstrap, cohesion splits not function slices), the 500-line cap
+  with its self-declared LOC_EXEMPT markers, where tests live (unit
+  pins in-module or in a *_tests.rs sibling; cross-binary contract
+  pins in tests/integration/), and the header/disclaimer
+  requirements — all pointing at docs/RULES.md as the canonical
+  policy. Stale references fixed while at it: docs/RULES.md's
+  File Size scope and docs/USAGE.md's maintainer map still pointed
+  at the monolithic tests/integration_test.rs path.
+
 ### Changed
+
+- **refactor: LOC gate covers tests/ — the 770-line integration
+  suite split by surface (NIGHT-docs-4)** — scripts/check-loc.sh now
+  scans src/** AND tests/** (recursive) plus build.rs, per the
+  owner's directive. That exposed the one file the old gate could
+  not see: tests/integration_test.rs at 770 lines, 54% over the cap.
+  Split into tests/integration/ (ONE test binary via main.rs — build
+  time unchanged, no per-file link cost) by surface: main.rs (shared
+  helpers zelynic_cmd/euid_is_root), smoke.rs (doctor, version,
+  lifecycle), cli_ux.rs (flag/error UX + EPIPE pin), help_pins.rs
+  (--help reference drift pins), surface_pins.rs (alias/removal
+  wiring), privilege.rs (unprivileged contract + validation ladder
+  + edge no-panic). All 26 tests preserved verbatim (23 run + 3
+  ignored, both feature configs), every file under 156 lines.
+  References updated everywhere they lived: docs/RULES.md,
+  docs/USAGE.md's maintainer map, and both mentions in
+  scripts/check-version-anti-patterns.sh now name
+  tests/integration/smoke.rs::test_version. No src/ change — binary
+  semantics identical, benchmark skipped per the docs-only rule.
 
 - **perf: diff-based monitor rendering — the cosmic dragon engine
   adapted (NIGHT-improve-2)** — the monitor loop used to wipe the

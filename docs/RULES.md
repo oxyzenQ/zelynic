@@ -6,7 +6,11 @@
 ## File Size
 
 - Rust source files must stay under `500` lines (hard cap, owner rule).
-- This applies to every `.rs` file under `src/` (recursive) plus `build.rs`.
+- This applies to every `.rs` file under `src/` AND `tests/` (both
+  recursive) plus `build.rs` (NIGHT-docs-4 — the tests tree is code
+  too, and it grew past the cap: the old 770-line
+  `tests/integration_test.rs` was split into `tests/integration/`,
+  one file per surface).
 - It excludes `*.md`, `*.txt`, generated files, lockfiles, assets, release
   artifacts, `.git/`, and `target/`.
 - `src/main.rs` has a soft target of `100-300` LOC in a mature project and
@@ -135,7 +139,7 @@ are detected. The guard catches:
 If a future test genuinely needs the current package version, use
 `env!("CARGO_PKG_VERSION")` — never hardcode the literal string. The
 current package version is already verified by
-`tests/integration_test.rs::test_version` (which uses the `--version` CLI
+`tests/integration/smoke.rs::test_version` (which uses the `--version` CLI
 flag), so per-module version assertions are redundant anyway.
 
 <!-- ZELYNIC-DISCLAIMER -->
