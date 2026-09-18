@@ -7,9 +7,44 @@
 use anyhow::{anyhow, Context, Result};
 use aya::maps::{HashMap as BpfHashMap, MapData};
 
-use super::format::{default_burst, format_rate};
+use super::format::{default_burst, format_bytes, format_rate};
 use super::types::{Direction, PolicyRaw, RateSpec, Target};
 use crate::ebpf::pin::{PIN_MAP_POLICY_DL, PIN_MAP_POLICY_UL};
+
+/// Verbose trace line for one policy write (NIGHT-hunt-9): the exact
+/// cgroup, direction, rate, and token-bucket burst handed to the BPF
+/// map — the facts an owner needs when a limit "doesn't feel right".
+/// Pure formatting so the wording is unit-pinned below.
+fn policy_write_line(cgroup_id: u32, direction: Direction, rate_bps: u64) -> String {
+    format!(
+        "[limiter] cg:{cgroup_id} {} → {} (burst {})",
+        direction.label(),
+        format_rate(rate_bps),
+        format_bytes(default_burst(rate_bps))
+    )
+}
+
+/// Verbose trace line for a /proc target resolution (NIGHT-hunt-9):
+/// which cgroups a process name landed in and how many PIDs each
+/// hosts. This is the diagnostic the alacritty-hosting-curl confusion
+/// (NIGHT-hunt-8 lineage) always needed — the walk's decision, not
+/// just its count. `matched` carries (pid, cgroup_id) pairs.
+fn resolution_trace_line(name: &str, matched: &[(u32, u32)]) -> String {
+    if matched.is_empty() {
+        format!("[limiter] '{name}': no process matched in /proc walk — try 'zelynic list-apps'")
+    } else {
+        let mut per_cgroup: std::collections::BTreeMap<u32, usize> =
+            std::collections::BTreeMap::new();
+        for (_, cg) in matched {
+            *per_cgroup.entry(*cg).or_default() += 1;
+        }
+        let parts: Vec<String> = per_cgroup
+            .iter()
+            .map(|(cg, n)| format!("cg:{cg} ({n} pid{})", if *n == 1 { "" } else { "s" }))
+            .collect();
+        format!("[limiter] '{name}' resolved: {}", parts.join(", "))
+    }
+}
 
 impl super::Limiter {
     /// Apply strict-single: individual policy per cgroup.
@@ -24,11 +59,23 @@ impl super::Limiter {
         for cgroup_id in &cgroup_ids {
             if let Some(dl_rate) = rates.download {
                 self.write_policy(*cgroup_id, dl_rate, 0, Direction::Download)?;
+                if self.verbose {
+                    eprintln_safe!(
+                        "{}",
+                        policy_write_line(*cgroup_id, Direction::Download, dl_rate)
+                    );
+                }
                 applied += 1;
             }
 
             if let Some(ul_rate) = rates.upload {
                 self.write_policy(*cgroup_id, ul_rate, 0, Direction::Upload)?;
+                if self.verbose {
+                    eprintln_safe!(
+                        "{}",
+                        policy_write_line(*cgroup_id, Direction::Upload, ul_rate)
+                    );
+                }
                 applied += 1;
             }
         }
@@ -39,14 +86,14 @@ impl super::Limiter {
     /// Apply strict-multi: all cgroups share one group token bucket.
     /// A random group_id is generated. All cgroups get policy pointing to it.
     pub fn apply_group(&mut self, targets: &[Target], rates: &RateSpec) -> Result<usize> {
-        // Resolve all targets to cgroup IDs.
+        // Resolve all targets to cgroup IDs. resolve_target prints its
+        // own verbose trace (matched pids → cgroups, or the empty-walk
+        // reason), so an unresolved target no longer needs a second
+        // skip line here.
         let mut all_cgroup_ids: Vec<u32> = Vec::new();
         for target in targets {
             let ids = self.resolve_target(target)?;
             if ids.is_empty() {
-                if self.verbose {
-                    eprintln_safe!("[limiter] no cgroup found for '{:?}' — skipping", target);
-                }
                 continue;
             }
             all_cgroup_ids.extend(ids);
@@ -69,11 +116,23 @@ impl super::Limiter {
         for cgroup_id in &all_cgroup_ids {
             if let Some(dl_rate) = rates.download {
                 self.write_policy(*cgroup_id, dl_rate, group_id, Direction::Download)?;
+                if self.verbose {
+                    eprintln_safe!(
+                        "{}",
+                        policy_write_line(*cgroup_id, Direction::Download, dl_rate)
+                    );
+                }
                 applied += 1;
             }
 
             if let Some(ul_rate) = rates.upload {
                 self.write_policy(*cgroup_id, ul_rate, group_id, Direction::Upload)?;
+                if self.verbose {
+                    eprintln_safe!(
+                        "{}",
+                        policy_write_line(*cgroup_id, Direction::Upload, ul_rate)
+                    );
+                }
                 applied += 1;
             }
         }
@@ -139,12 +198,22 @@ impl super::Limiter {
     /// with alacritty — direct lookup finds aria2c's PID directly.
     fn resolve_target(&mut self, target: &Target) -> Result<Vec<u32>> {
         match target {
-            Target::CgroupId(id) => Ok(vec![*id]),
+            Target::CgroupId(id) => {
+                if self.verbose {
+                    eprintln_safe!("[limiter] cg:{id} targeted directly (no /proc walk)");
+                }
+                Ok(vec![*id])
+            }
             Target::ProcessName(name) => {
                 // Direct /proc walk: find all PIDs whose comm matches.
                 let name_lower = name.to_lowercase();
                 let mut cgroup_ids = Vec::new();
                 let mut seen = std::collections::HashSet::new();
+                // Verbose evidence (NIGHT-hunt-9): every (pid, cgroup)
+                // pair the walk accepted, so the trace shows the
+                // decision — including multiple pids sharing one
+                // cgroup, the NIGHT-hunt-8 discovery-stage lie.
+                let mut matched: Vec<(u32, u32)> = Vec::new();
 
                 let proc_entries = match std::fs::read_dir("/proc") {
                     Ok(e) => e,
@@ -199,9 +268,14 @@ impl super::Limiter {
                         };
 
                     let cgroup_id = cgroup_id_64 as u32;
+                    matched.push((pid, cgroup_id));
                     if seen.insert(cgroup_id) {
                         cgroup_ids.push(cgroup_id);
                     }
+                }
+
+                if self.verbose {
+                    eprintln_safe!("{}", resolution_trace_line(name, &matched));
                 }
 
                 // Also refresh identity map for display purposes.
@@ -284,5 +358,59 @@ impl super::Limiter {
             Direction::Download => PIN_MAP_POLICY_DL.to_string(),
             Direction::Upload => PIN_MAP_POLICY_UL.to_string(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// NIGHT-hunt-9 drift pins: the verbose trace wording is part of the
+    /// diagnostic contract owners debug against — exact strings, pinned.
+
+    #[test]
+    fn policy_write_line_names_cgroup_direction_rate_and_burst() {
+        assert_eq!(
+            policy_write_line(73386, Direction::Download, 100_000),
+            "[limiter] cg:73386 download → 100.0 KB/s (burst 100.0 KB)"
+        );
+        assert_eq!(
+            policy_write_line(1, Direction::Upload, 1_000_000),
+            "[limiter] cg:1 upload → 1.0 MB/s (burst 1.0 MB)"
+        );
+    }
+
+    #[test]
+    fn policy_write_line_blocks_show_blocked_rate_and_floor_burst() {
+        // Block commands write rate 0: the trace must say BLOCKED and
+        // show the 4 KB burst floor (default_burst clamps to 4096).
+        assert_eq!(
+            policy_write_line(73386, Direction::Download, 0),
+            "[limiter] cg:73386 download → BLOCKED (burst 4.1 KB)"
+        );
+    }
+
+    #[test]
+    fn resolution_trace_line_reports_pids_per_cgroup_deterministically() {
+        // Two pids share cg:73386 (the NIGHT-hunt-8 lie: one cgroup
+        // hosting several processes), one more lands in cg:73390.
+        // BTreeMap keeps the cgroup order stable regardless of walk order.
+        assert_eq!(
+            resolution_trace_line("brave", &[(202, 73386), (101, 73386), (303, 73390)]),
+            "[limiter] 'brave' resolved: cg:73386 (2 pids), cg:73390 (1 pid)"
+        );
+        assert_eq!(
+            resolution_trace_line("curl", &[(101, 73386)]),
+            "[limiter] 'curl' resolved: cg:73386 (1 pid)"
+        );
+    }
+
+    #[test]
+    fn resolution_trace_line_points_at_list_apps_when_nothing_matches() {
+        assert_eq!(
+            resolution_trace_line("nonexistent-app", &[]),
+            "[limiter] 'nonexistent-app': no process matched in /proc walk — \
+             try 'zelynic list-apps'"
+        );
     }
 }

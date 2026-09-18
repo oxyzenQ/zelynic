@@ -49,7 +49,7 @@ pub fn handle_unstrict(target_str: &str, verbose: bool) -> Result<()> {
 }
 
 #[cfg(feature = "ebpf")]
-pub fn handle_unstrict_all(_verbose: bool) -> Result<()> {
+pub fn handle_unstrict_all(verbose: bool) -> Result<()> {
     use crate::ebpf::limiter::pin_dir_has_files;
 
     super::ensure_root()?;
@@ -63,6 +63,19 @@ pub fn handle_unstrict_all(_verbose: bool) -> Result<()> {
     if !pin_dir_has_files() {
         eprintln_safe!("No active limits. Nothing to remove.");
         return Ok(());
+    }
+
+    // NIGHT-hunt-9: verbose lists exactly which pin files are being torn
+    // down before the wipe — the same evidence recover() prints for its
+    // stale-state branch. Previously this handler discarded the flag.
+    if verbose {
+        if let Ok(entries) = std::fs::read_dir(crate::ebpf::limiter::PIN_DIR) {
+            for entry in entries.flatten() {
+                if let Some(name) = entry.file_name().to_str() {
+                    eprintln_safe!("  - {name}");
+                }
+            }
+        }
     }
 
     super::unpin_all_bpf()?;

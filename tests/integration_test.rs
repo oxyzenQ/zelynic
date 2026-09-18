@@ -198,6 +198,25 @@ fn test_case_variant_flag_typo_gets_rescued() {
     );
 }
 
+/// NIGHT-hunt-9: -v/--verbose is a real global flag — it must parse on
+/// any command path (here: doctor, which never touches eBPF) without
+/// changing the exit contract. Pins the global=true wiring so a future
+/// refactor cannot silently demote it to a per-command flag.
+#[test]
+fn test_verbose_flag_parses_globally() {
+    let output = zelynic_cmd()
+        .args(["--verbose", "doctor"])
+        .output()
+        .expect("Failed to execute zelynic --verbose doctor");
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "--verbose must be accepted globally, got:\n{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
 /// Piping into a short reader must not panic: the safe print macros
 /// discard EPIPE instead of aborting with exit 101 (verified live
 /// before NIGHT-hunt-5: `zelynic --help | head -2` panicked — then the

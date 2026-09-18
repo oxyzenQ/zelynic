@@ -152,7 +152,11 @@ pub fn handle_observe(
 
     super::ensure_root()?;
 
-    let mut observer = Observer::attach_quiet(true)?;
+    // quiet only when NOT verbose (NIGHT-hunt-9): -v surfaces the
+    // observer loader trace (object path, attach) on stderr before
+    // the alt screen takes over — the same diagnostic depth the
+    // limiter lifecycle gives strict/block handlers.
+    let mut observer = Observer::attach_quiet(!verbose)?;
     observer.refresh_identity();
     if verbose {
         eprintln_safe!("[ebpf] {} cgroups resolved", observer.identity().len());
@@ -223,7 +227,10 @@ pub fn handle_top(
 
     super::ensure_root()?;
 
-    let mut observer = Observer::attach_quiet(true)?;
+    // Same verbose contract as observe (NIGHT-hunt-9): the loader trace
+    // prints before any snapshot/banner output, so -v explains where
+    // the observer object came from and what it attached to.
+    let mut observer = Observer::attach_quiet(!verbose)?;
     observer.refresh_identity();
     if verbose {
         eprintln_safe!("[ebpf] {} cgroups resolved", observer.identity().len());
