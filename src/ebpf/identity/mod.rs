@@ -143,46 +143,22 @@ impl IdentityMap {
                 Err(_) => continue,
             };
 
-            // Read /proc/<pid>/cgroup.
-            let cgroup_file = format!("/proc/{pid}/cgroup");
-            let cgroup_content = match fs::read_to_string(&cgroup_file) {
-                Ok(s) => s,
-                Err(_) => continue,
+            // Shared /proc boundary helpers (NIGHT-optimized-1): the
+            // pid-to-cgroup resolution and the sanitized comm read now
+            // live once — this walk, the connection walk, and the
+            // resolve_target match walk all call the same functions, so
+            // boundary fixes (like the cybersecurity-1 sanitize) apply
+            // in one place, not three.
+            let Some(cgroup_id) = pid_cgroup_id(pid) else {
+                continue;
             };
-
-            // Parse "0::/path/to/cgroup" (cgroup v2 single-line format).
-            // Lines like "0::/user.slice/..." — take the part after "::".
-            let cgroup_path = cgroup_content
-                .lines()
-                .next()
-                .and_then(|line| line.split("::").nth(1))
-                .map(|s| s.trim().to_string());
-
-            let cgroup_path = match cgroup_path {
-                Some(p) if !p.is_empty() => p,
-                _ => continue,
-            };
-
-            // Resolve cgroup_id via /sys/fs/cgroup{path}/cgroup.id (kernel 5.13+).
-            let full_path = format!("/sys/fs/cgroup{cgroup_path}");
-            let cgroup_id_64 = match cgroup_id_from_path(&full_path) {
-                Some(id) => id,
-                None => continue,
-            };
-
-            // Truncate to u32 to match BPF map key type.
-            // On a single system, cgroup IDs are well under 2^32 in practice.
-            let cgroup_id = cgroup_id_64 as u32;
 
             // Read /proc/<pid>/comm for the tally. Sanitized at the
             // boundary (NIGHT-cybersecurity-1): the label is attacker
             // controllable via prctl, and it flows to every display
             // surface — list-apps, observe/top, detail lines — as well
             // as the majority-vote tally below.
-            let comm = fs::read_to_string(format!("/proc/{pid}/comm"))
-                .ok()
-                .map(|s| sanitize_comm(s.trim()))
-                .unwrap_or_default();
+            let comm = pid_comm(pid).unwrap_or_default();
 
             // Unreadable comm: count the cgroup as alive but never let a
             // blank name outvote real ones.
@@ -287,10 +263,38 @@ impl IdentityMap {
     }
 }
 
-/// Resolve a 64-bit cgroup ID from a cgroup v2 path.
-/// Public for use by limiter's direct /proc lookup.
-pub fn resolve_cgroup_id_from_path(path: &str) -> Option<u64> {
-    cgroup_id_from_path(path)
+/// Resolve the cgroup ID (u32, BPF map key width) a PID lives in
+/// (NIGHT-optimized-1: the ONE canonical pid-to-cgroup boundary —
+/// the identity walk, the connection walk, and the resolve_target
+/// match walk all route through here; the only public door to the
+/// path-based resolver below, so no caller can skip the u32
+/// truncation or the v2-format parsing this function owns).
+///
+/// Reads `/proc/<pid>/cgroup`, parses the cgroup v2 `0::/path`
+/// single-line format, and resolves the ID via
+/// [`cgroup_id_from_path`]. Truncates to u32 to match the
+/// BPF map key type (cgroup IDs are well under 2^32 in practice —
+/// see the SAFETY_ANALYSIS audit note on ID width).
+pub fn pid_cgroup_id(pid: u32) -> Option<u32> {
+    let content = fs::read_to_string(format!("/proc/{pid}/cgroup")).ok()?;
+    let path = content.lines().next()?.split("::").nth(1)?.trim();
+    if path.is_empty() {
+        return None;
+    }
+    let id64 = cgroup_id_from_path(&format!("/sys/fs/cgroup{path}"))?;
+    Some(id64 as u32)
+}
+
+/// Read and sanitize a PID's comm (NIGHT-optimized-1: the ONE
+/// canonical comm boundary; sanitize semantics per
+/// [`sanitize_comm`]). Callers own the fallback: the identity tally
+/// treats a failed read as an empty label, the connection walk shows
+/// `pid {n}`, and the match walk lowercases for case-insensitive
+/// comparison.
+pub fn pid_comm(pid: u32) -> Option<String> {
+    fs::read_to_string(format!("/proc/{pid}/comm"))
+        .ok()
+        .map(|s| sanitize_comm(s.trim()))
 }
 
 /// Resolve a 64-bit cgroup ID from a cgroup v2 path.

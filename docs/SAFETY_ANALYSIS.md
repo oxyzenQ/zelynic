@@ -256,14 +256,18 @@ unprivileged attacker:
   unstricting/blocking the wrong target.
 - **Escape sequences** corrupt the alt-screen monitor mid-render.
 
-Fix: `sanitize_comm()` (src/ebpf/identity/mod.rs) replaces every
+Fix: `sanitize_comm()` (src/ebpf/identity/sanitize.rs) replaces every
 control character — Rust `char::is_control`, covering C0, DEL, and
 the C1 range — with `?` at all THREE /proc read boundaries (identity
 walk, connection walk, and the resolve_target match walk), so every
 downstream consumer (display, JSON, matching, majority-vote tally)
 is safe by construction and matching operates on the same canonical
 label list-apps displays. procps-ng applies the same substitution to
-comm for the same reason. The kernel quirk that a copied binary's
+comm for the same reason. NIGHT-optimized-1 then consolidated the
+three boundaries into two canonical helpers — `pid_cgroup_id()` and
+`pid_comm()` (src/ebpf/identity/mod.rs) — that all three walks call,
+so sanitize and every future boundary fix apply once and can never
+drift between surfaces. The kernel quirk that a copied binary's
 basename becomes its comm gives the non-root depth suite a
 pure-shell spoofer: it plants hostile comms and asserts list-apps
 output (text and JSON) never carries a raw ESC byte; the sanitize
