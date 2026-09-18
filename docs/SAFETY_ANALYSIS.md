@@ -322,6 +322,35 @@ attachment needed).
   /proc-derived attacker-controlled string, and it is now
   sanitized at the boundary.
 
+## Render Path Audit (NIGHT-improve-2, 2026-09)
+
+The monitor loop's emission was audited while porting the cosmic
+dragon engine's diff-based rendering (the owner's full-redraw
+complaint). One real terminal-safety hazard found and removed:
+
+- **ESC[2J inside the alternate screen (fixed).** The former
+  `run_alt` wiped the whole alt screen (ESC[2J + ESC[H) on EVERY
+  refresh. On VTE-based terminals a 2J inside the alt screen can set
+  an internal flag that wipes the MAIN screen's scrollback when the
+  alt screen is later left — the same hazard cosmostrix's dragon
+  engine documented and designed around. zelynic now never emits 2J
+  at all: frame resets use ESC[H + ESC[J (cursor-anchored erase —
+  same visual result, no scrollback side effect), and per-frame
+  wipes are gone entirely because only changed rows are written.
+- **Broken-pipe contract preserved:** the diff engine discards
+  write errors exactly like `println_safe!` did — a short reader
+  (pipe closed mid-frame) ends the monitor quietly, never a panic.
+- **Syscall surface reduced:** one `write(2)` per frame (via a raw
+  fd writer) where the former path issued one write+flush per line
+  plus the wipe; idle frames (nothing changed) write nothing. The
+  emission path performs no `ioctl` beyond one TIOCGWINSZ size probe
+  per frame (the resize check — the render layer already probed
+  twice per frame for layout).
+- **Unicode safety by construction:** rows are written whole and the
+  cursor is only positioned at row starts, so double-width glyphs
+  never desync column math (a cell-grid renderer has to handle this
+  per cell; the line-granularity diff cannot express it).
+
 ## Verifying Safety Yourself
 
 ### Check network connections:

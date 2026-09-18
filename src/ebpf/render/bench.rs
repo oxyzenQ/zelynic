@@ -3,12 +3,13 @@
 
 //! Frame benchmark harness (NIGHT-hunt-7 A/B protocol).
 //!
-//! Renders synthetic observe frames through the REAL print path so
+//! Renders synthetic observe frames through the REAL render path so
 //! scripts/frame-bench.py can compute the owner's visual and
 //! performance metrics (density gini, frame entropy, fps, dirty
-//! cells). Synthetic traffic evolves from a fixed-seed LCG, so a run
-//! BEFORE a layout change and one AFTER see byte-identical data —
-//! the only variable is the layout engine itself.
+//! cells, emit bytes). Synthetic traffic evolves from a fixed-seed
+//! LCG, so a run BEFORE a layout change and one AFTER see
+//! byte-identical data — the only variable is the layout engine
+//! itself.
 //!
 //! Root/eBPF is NOT required: the render layer is exercised with an
 //! in-memory CounterSummary, so the harness runs in sandboxes where
@@ -19,6 +20,18 @@
 //! (deterministic fixture, no /proc), so the eagle-eyes detail lines
 //! are rendered and measured — the frame cost of socket detail is
 //! part of the A/B contract, not an unmeasured add-on.
+//!
+//! NIGHT-improve-2 protocol extension: each captured frame carries
+//! BOTH the logical content (the lines the renderer produced — the
+//! visual-parity surface, directly comparable with pre-diff captures)
+//! AND the diff engine's actual emission size
+//! (`###EMIT### bytes=N`). The emission goes to a real sink (/dev/null
+//! — one write syscall per frame, the honest per-frame I/O cost of
+//! the new engine; the pipe carries only markers + logical lines so
+//! the captures stay splitlines-clean). The engine is pinned to a
+//! deterministic 80x40 screen so the strategy choice (sparse vs
+//! sequential) is a property of the engine, not of the piped
+//! fallback probe.
 
 use std::time::{Duration, Instant};
 
@@ -28,6 +41,7 @@ use crate::ebpf::connections::{
 };
 use crate::ebpf::identity::{IdentityMap, ProcessIdentity};
 use crate::ebpf::loader::{CgroupDelta, CounterSummary};
+use crate::terminal::DiffScreen;
 
 #[test]
 #[ignore = "benchmark harness: run via scripts/frame-bench.py"]
@@ -143,6 +157,19 @@ fn frame_bench_observe() {
     // deterministic: pure function of the frame counter).
     let mut frame_no: u64 = 0;
 
+    // NIGHT-improve-2: the diff engine + a real write sink. /dev/null
+    // keeps the one-syscall-per-frame write cost in the timing without
+    // polluting the marker protocol (the emitted ANSI stream contains
+    // newlines and would corrupt the splitlines-based capture). Fall
+    // back to an in-memory sink only if /dev/null is unavailable.
+    let mut screen = DiffScreen::new();
+    let mut lines: Vec<String> = Vec::with_capacity(48);
+    let mut devnull = std::fs::OpenOptions::new()
+        .write(true)
+        .open("/dev/null")
+        .ok();
+    let mut mem_sink = Vec::new();
+
     let start = Instant::now();
     let mut frames: u64 = 0;
 
@@ -192,9 +219,27 @@ fn frame_bench_observe() {
             cgroups,
         };
 
-        // Frame delimiter consumed by scripts/frame-bench.py.
+        // Frame capture protocol (NIGHT-improve-2): logical content
+        // first (visual metrics + A-comparable), then the diff
+        // engine's real emission (byte count reported, bytes written
+        // to the sink). Pinned 80x40 — see the module docs.
+        lines.clear();
+        render_observe_frame(
+            &mut lines,
+            &summary,
+            &identity,
+            Some(&conns),
+            Duration::from_secs(1),
+        );
         println_safe!("###FRAME###");
-        render_observe_frame(&summary, &identity, Some(&conns), Duration::from_secs(1));
+        for line in &lines {
+            println_safe!("{line}");
+        }
+        let emitted = match &mut devnull {
+            Some(sink) => screen.emit_at(80, 40, &mut lines, sink),
+            None => screen.emit_at(80, 40, &mut lines, &mut mem_sink),
+        };
+        println_safe!("###EMIT### bytes={emitted}");
         frames += 1;
     }
 

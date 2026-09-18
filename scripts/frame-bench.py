@@ -15,13 +15,18 @@ performance metrics over the captured frames:
     frame_entropy  Shannon entropy of the character distribution, in
                    bits/char. Higher = more information per cell.
   Performance:
-    fps            frames per second through the REAL print path
-                   (println_safe! + per-line flush, piped stdout).
+    fps            frames per second through the REAL render path.
     dirty_cells    average cells that change between consecutive
                    frames (grid-aligned diff, space-padded). Lower =
                    less redraw churn for the terminal.
     bytes_frame    average frame size in bytes (what the terminal
                    must absorb per redraw).
+    emit_bytes     average bytes the diff engine actually EMITTED per
+                   frame (NIGHT-improve-2 protocol). Absent on
+                   pre-diff captures, where it equals bytes_frame —
+                   the full-redraw renderer emitted everything it
+                   printed. Lower = the I/O the terminal really
+                   absorbs after the diff engine.
 
 The Rust harness renders synthetic traffic from a fixed-seed LCG, so a
 `--save` run BEFORE a layout change and one AFTER are directly
@@ -55,6 +60,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 TEST_NAME = "frame_bench_observe"
 DELIM = "###FRAME###"
+EMIT_RE = re.compile(r"###EMIT### bytes=(\d+)")
 META_RE = re.compile(r"###META### frames=(\d+) elapsed_ms=(\d+)")
 DEFAULT_TIMEOUT_SECS = 600  # build + link + 10s render budget
 
@@ -90,8 +96,17 @@ def run_harness(quick: bool, timeout: int):
 
 
 def split_frames(stdout: str):
-    """Split harness stdout into (frames, meta) using the delimiters."""
+    """Split harness stdout into (frames, emits, meta).
+
+    NIGHT-improve-2: a frame's logical content runs from ###FRAME###
+    up to ###EMIT### (or the next marker); the diff engine's emitted
+    byte count rides on the ###EMIT### bytes=N line. Pre-diff
+    captures have no ###EMIT### — the logical section then ends at
+    the next ###FRAME###/###META### and the emission defaults to the
+    full frame (that renderer printed everything it emitted).
+    """
     frames = []
+    emits = []
     meta = None
     current = None
     for line in stdout.splitlines():
@@ -100,9 +115,19 @@ def split_frames(stdout: str):
                 frames.append("\n".join(current))
             current = []
             continue
+        m = EMIT_RE.search(line)
+        if m:
+            emits.append(int(m.group(1)))
+            # The logical frame ends here; the diff emission is not
+            # part of the visual capture.
+            if current is not None:
+                frames.append("\n".join(current))
+                current = None
+            continue
         m = META_RE.search(line)
         if m:
             meta = {"frames": int(m.group(1)), "elapsed_ms": int(m.group(2))}
+            current = None
             continue
         if current is not None:
             current.append(line)
@@ -112,7 +137,7 @@ def split_frames(stdout: str):
         print("[frame-bench] FATAL: no frames captured (delimiter not found)",
               file=sys.stderr)
         sys.exit(1)
-    return frames, meta
+    return frames, emits, meta
 
 
 def gini(values):
@@ -166,7 +191,7 @@ def dirty_cells(a, b):
     return dirty, width * max(len(ra), len(rb))
 
 
-def compute(frames, meta):
+def compute(frames, emits, meta):
     """Full metric set over the captured frames."""
     per_frame = [frame_metrics(f) for f in frames]
 
@@ -177,8 +202,15 @@ def compute(frames, meta):
         dirty.append(d)
         total_cells += cells
 
+    # NIGHT-improve-2: emission bytes per frame. Without ###EMIT###
+    # markers (pre-diff captures) the renderer emitted everything it
+    # printed — the full logical frame — so emit_bytes == bytes_frame
+    # and the comparison across the protocol boundary stays honest.
+    emit_bytes = (sum(emits) / len(emits)) if emits else \
+        (sum(m["chars"] for m in per_frame) / len(per_frame))
+
     result = {
-        "frames_captured": len(frames),
+        "frames_captured": len(per_frame),
         "avg_rows": sum(m["rows"] for m in per_frame) / len(per_frame),
         "avg_width": sum(m["width"] for m in per_frame) / len(per_frame),
         "bytes_frame": sum(m["chars"] for m in per_frame) / len(per_frame),
@@ -186,6 +218,10 @@ def compute(frames, meta):
         "frame_entropy": sum(m["frame_entropy"] for m in per_frame) / len(per_frame),
         "dirty_cells": (sum(dirty) / len(dirty)) if dirty else 0.0,
         "dirty_ratio": (sum(dirty) / total_cells) if total_cells else 0.0,
+        "emit_bytes": emit_bytes,
+        "emit_ratio": (emit_bytes / (sum(m["chars"] for m in per_frame) / len(per_frame)))
+        if per_frame else 0.0,
+        "emit_protocol": bool(emits),
     }
 
     if meta:
@@ -199,7 +235,7 @@ def compute(frames, meta):
 
     # bytes the terminal absorbs per second (redraw churn rate)
     if result["fps"]:
-        result["bytes_per_sec"] = result["bytes_frame"] * result["fps"]
+        result["bytes_per_sec"] = result["emit_bytes"] * result["fps"]
     return result
 
 
@@ -213,6 +249,9 @@ def report(result, label):
     print(f"  avg rows             {result['avg_rows']:>10.1f}")
     print(f"  avg width            {result['avg_width']:>10.1f}")
     print(f"  bytes/frame          {result['bytes_frame']:>10.1f}")
+    print(f"  emit bytes/frame     {result['emit_bytes']:>10.1f}"
+          + ("" if result.get("emit_protocol") else "  (no emit markers: = full redraw)"))
+    print(f"  emit ratio           {result['emit_ratio']:>10.2f}")
     print(f"  density gini         {result['density_gini']:>10.4f}")
     print(f"  frame entropy        {result['frame_entropy']:>10.4f} bits/char")
     print(f"  dirty cells/frame    {result['dirty_cells']:>10.1f}")
@@ -225,9 +264,11 @@ def compare(before, after):
     """Side-by-side A/B table with deltas."""
     rows = [
         ("fps (render path)", "fps", "{:.1f}", "higher"),
-        ("avg rows", "avg_rows", "{:.1f}", "lower"),
+        ("avg rows", "avg_rows", "{:.1f}", "context"),
         ("avg width", "avg_width", "{:.1f}", "context"),
         ("bytes/frame", "bytes_frame", "{:.1f}", "lower"),
+        ("emit bytes/frame", "emit_bytes", "{:.1f}", "lower"),
+        ("emit ratio", "emit_ratio", "{:.2f}", "lower"),
         ("density gini", "density_gini", "{:.4f}", "lower"),
         ("frame entropy", "frame_entropy", "{:.4f}", "higher"),
         ("dirty cells/frame", "dirty_cells", "{:.1f}", "lower"),
@@ -270,12 +311,12 @@ def main():
 
     if args.frames:
         stdout = Path(args.frames).read_text()
-        frames, meta = split_frames(stdout)
+        frames, emits, meta = split_frames(stdout)
     else:
         stdout = run_harness(args.quick, args.timeout)
-        frames, meta = split_frames(stdout)
+        frames, emits, meta = split_frames(stdout)
 
-    result = compute(frames, meta)
+    result = compute(frames, emits, meta)
     label = args.label or ("quick" if args.quick else "full 10s")
     report(result, label)
 

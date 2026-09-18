@@ -160,15 +160,24 @@ pub fn handle_observe(cgroup: Option<u32>, interval: Option<&str>, verbose: bool
 
     // Eagle-eyes detail (NIGHT-hunt-8): per-cgroup process/socket
     // detail, TTL-cached inside the map so 1s frames reuse the scan.
+    // NIGHT-improve-2: the closure builds the frame's logical lines;
+    // run_alt's diff engine emits only what changed.
     let mut conns = ConnectionMap::new();
     let interval = Duration::from_secs(interval_secs);
-    terminal::run_alt(interval, || {
+    terminal::run_alt(interval, |lines| {
         let summary = observer.poll_and_summarize().unwrap_or_default();
         conns.maybe_refresh();
         if let Some(cg) = cgroup {
-            render_observe_filtered(&summary, observer.identity(), Some(&conns), cg, interval);
+            render_observe_filtered(
+                lines,
+                &summary,
+                observer.identity(),
+                Some(&conns),
+                cg,
+                interval,
+            );
         } else {
-            render_observe_frame(&summary, observer.identity(), Some(&conns), interval);
+            render_observe_frame(lines, &summary, observer.identity(), Some(&conns), interval);
         }
     });
 
@@ -214,8 +223,10 @@ pub fn handle_top(limit: usize, interval: Option<&str>, verbose: bool) -> Result
     let mut conns = ConnectionMap::new();
     let _ = observer.poll_and_summarize()?;
 
+    // NIGHT-improve-2: same line-building contract as observe — the
+    // diff engine emits only the changed rows.
     let interval = Duration::from_secs(interval_secs);
-    terminal::run_alt(interval, || {
+    terminal::run_alt(interval, |lines| {
         let summary = observer.poll_and_summarize().unwrap_or_default();
         for c in &summary.cgroups {
             let entry = cumulative.entry(c.cgroup_id).or_insert((0, 0, 0));
@@ -225,6 +236,7 @@ pub fn handle_top(limit: usize, interval: Option<&str>, verbose: bool) -> Result
         }
         conns.maybe_refresh();
         render_top_table(
+            lines,
             &cumulative,
             limit,
             observer.identity(),

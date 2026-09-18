@@ -209,7 +209,12 @@ sudo zelynic observe [--cgroup <id>] [--interval <1s-60s>]
 
 Always-live box mode (NIGHT-hunt-12): full-screen in-place refresh, no
 scrollback spam, adaptive layout (columns degrade on narrow terminals;
-a RATE column appears from width 50). `--cgroup` zooms into one cgroup
+a RATE column appears from width 50). Frames render through the
+diff-based engine (NIGHT-improve-2): only the rows that changed since
+the previous frame are written — one write syscall per frame, an
+unchanged frame costs zero I/O, and the screen is never wiped
+mid-session (no flicker, no alt-screen scrollback side effects).
+`--cgroup` zooms into one cgroup
 with per-process and per-socket endpoint detail. Default refresh 1s;
 `--interval` calms it down to at most 60s. **Quit with `q` — the only
 quit key** (NIGHT-hunt-16; ESC and Ctrl+C are drained, never treated
@@ -522,7 +527,7 @@ Where things live when a command changes (update these together):
 | Change | Files to touch |
 |--------|----------------|
 | New/changed command or flag | `src/cli/mod.rs` (definition), `src/commands/mod.rs` (dispatch), handler in `src/commands/`, `src/commands/help.rs` (reference), `tests/integration_test.rs` (drift pins: `test_help_lists_every_command` + removal pins), README Commands block |
-| Monitor rendering | `src/ebpf/render/` (`observe.rs`, `top.rs`, `detail.rs`), `src/terminal/mod.rs` (alt screen + quit keys), `docs/BRANDING.md` |
+| Monitor rendering | `src/ebpf/render/` (`observe.rs`, `top.rs`, `detail.rs` — line builders), `src/terminal/mod.rs` (monitor loop), `src/terminal/diff.rs` (diff engine + quit keys live in mod.rs), `docs/BRANDING.md` |
 | Rate/interval parsing | `src/ebpf/limiter/format.rs`, `src/cli/ux.rs` (typo tips) |
 | Status/JSON shapes | `src/ebpf/display.rs` — JSON is stable API, treat changes as breaking |
 | Docs after any behavioral change | This file + README + CHANGELOG; `docs/SAFETY_ANALYSIS.md` for privilege changes |
@@ -537,7 +542,9 @@ Quality gates before every commit (both must pass):
 
 Frame-level render changes additionally get the 10s A/B benchmark:
 `scripts/frame-bench.py` before/after, reporting density gini, frame
-entropy, fps, dirty cells (protocol in the script header).
+entropy, fps, dirty cells, and (NIGHT-improve-2) the diff engine's
+emitted bytes per frame against the logical frame (protocol in the
+script header).
 
 Source of truth is always `src/**` — if any doc (including this one)
 disagrees with the code, the doc is wrong; open a PR.
