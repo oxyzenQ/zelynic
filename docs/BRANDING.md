@@ -44,7 +44,9 @@ Usage surfaces:
 
 - `-V` / `--version` header (name + version + description) — regular weight
 - `--help` banner and section headings — bold (single-tier help surface,
-  NIGHT-improve-3: the former --help-all reference merged into --help)
+  NIGHT-improve-3: the former --help-all reference merged into --help);
+  command group headings carry the same bold purple (NIGHT-improve-5:
+  strict / limit / block / unstrict / monitor / system)
 - clap error rendering — headers and Usage in bold purple via
   `clap_styles()` (`src/cli/mod.rs`); error labels bold red, tips white
 - `status` / `observe` / `top` / `recover` / `list-apps` banners — bold
