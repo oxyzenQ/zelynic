@@ -16,7 +16,7 @@
 #
 # Correct pattern (allowed):
 #   The current package version is verified by cargo metadata and by
-#   tests/integration_test.rs::test_version (which uses the --version
+#   tests/integration/smoke.rs::test_version (which uses the --version
 #   CLI flag). No test should assert that Cargo.toml contains its own
 #   version field — that is tautological (always true).
 #
@@ -90,7 +90,7 @@ else
 	echo -e "${RED}FAIL: $VIOLATIONS file(s) contain hardcoded version assertions${NC}"
 	echo ""
 	echo "Fix: delete tautological version tests. The current package version"
-	echo "is already verified by tests/integration_test.rs::test_version."
+	echo "is already verified by tests/integration/smoke.rs::test_version."
 	echo ""
 	echo "If you genuinely need to assert a version in a test, use:"
 	echo '  const V: &str = env!("CARGO_PKG_VERSION");'

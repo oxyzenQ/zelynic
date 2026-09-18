@@ -526,7 +526,7 @@ Where things live when a command changes (update these together):
 
 | Change | Files to touch |
 |--------|----------------|
-| New/changed command or flag | `src/cli/mod.rs` (definition), `src/commands/mod.rs` (dispatch), handler in `src/commands/`, `src/commands/help.rs` (reference), `tests/integration_test.rs` (drift pins: `test_help_lists_every_command` + removal pins), README Commands block |
+| New/changed command or flag | `src/cli/mod.rs` (definition), `src/commands/mod.rs` (dispatch), handler in `src/commands/`, `src/commands/help.rs` (reference), `tests/integration/help_pins.rs` (drift pins: `test_help_lists_every_command` + removal pins) + `tests/integration/surface_pins.rs` (alias/removal wiring), README Commands block |
 | Monitor rendering | `src/ebpf/render/` (`observe.rs`, `top.rs`, `detail.rs` — line builders), `src/terminal/mod.rs` (monitor loop), `src/terminal/diff.rs` (diff engine + quit keys live in mod.rs), `docs/BRANDING.md` |
 | Rate/interval parsing | `src/ebpf/limiter/format.rs`, `src/cli/ux.rs` (typo tips) |
 | Status/JSON shapes | `src/ebpf/display.rs` — JSON is stable API, treat changes as breaking |

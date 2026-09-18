@@ -7,16 +7,18 @@
 #
 # Ensures all Rust source files stay under the hard LOC cap.
 # Owner rule: the cap is 500 lines (see docs/RULES.md "Source file size
-# cap" for the full policy).
+# cap" and src/RULES.md for the full policy).
 #
 # Exemption mechanism: NO hardcoded file list. Instead, each file that
 # legitimately exceeds 500 LOC self-declares with a marker comment:
 #
 #   // LOC_EXEMPT: <one-line justification>
 #
-# The script dynamically scans every .rs file under src/ (recursive)
-# PLUS build.rs. For any file over the limit, it greps for the marker.
-# If found -> exempt (tracked migration debt). If not -> FAIL.
+# The script dynamically scans every .rs file under src/ AND tests/
+# (both recursive — NIGHT-docs-4: the tests tree grew past the cap and
+# belongs under the same discipline as src/) PLUS build.rs. For any
+# file over the limit, it greps for the marker. If found -> exempt
+# (tracked migration debt). If not -> FAIL.
 #
 # Benefits:
 # - No hardcoded paths in this script (they drift out of sync).
@@ -43,15 +45,15 @@ EXEMPT_MARKER='// LOC_EXEMPT:'
 echo "Rust source file line counts (max ${MAX_LINES}):"
 echo ""
 
-# Dynamically collect all .rs files under src/ (recursive) plus
-# build.rs. No hardcoding.
+# Dynamically collect all .rs files under src/ AND tests/ (both
+# recursive, NIGHT-docs-4) plus build.rs. No hardcoding.
 FILES=$( (
-	find src -name '*.rs' 2>/dev/null
+	find src tests -name '*.rs' 2>/dev/null
 	{ [ -f build.rs ] && echo build.rs; } || true
 ) | sort)
 
 if [ -z "$FILES" ]; then
-	echo "No .rs files found under src/ (or build.rs)"
+	echo "No .rs files found under src/, tests/ (or build.rs)"
 	exit 0
 fi
 
