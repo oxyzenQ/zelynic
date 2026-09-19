@@ -66,18 +66,18 @@ FAIL=0
 FIX_MODE=false
 
 if [[ "${1:-}" == "--fix" || "${1:-}" == "--fix-all" ]]; then
-        FIX_MODE=true
+	FIX_MODE=true
 fi
 
 info() { echo -e "${GREEN}[PASS]${NC} $1"; }
 warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 fail() {
-        echo -e "${RED}[FAIL]${NC} $1"
-        FAIL=$((FAIL + 1))
+	echo -e "${RED}[FAIL]${NC} $1"
+	FAIL=$((FAIL + 1))
 }
 header() {
-        echo ""
-        echo "── $1 ──"
+	echo ""
+	echo "── $1 ──"
 }
 
 # ── 1. Shell scripts (strict triad: bash -n + shellcheck + shfmt -d) ───────
@@ -93,40 +93,40 @@ SHELL_FILES=$(find . -name '*.sh' -not -path './.git/*' -not -path './target/*' 
 # slower static-analysis tools even start.
 header "bash -n (syntax)"
 if [ -n "$SHELL_FILES" ]; then
-        BASHN_ERR=0
-        # shellcheck disable=SC2086 # word splitting is intentional for file list
-        for f in $SHELL_FILES; do
-                if ! bash -n "$f" 2>&1; then
-                        fail "bash -n: syntax error in $f"
-                        BASHN_ERR=$((BASHN_ERR + 1))
-                fi
-        done
-        if [ "$BASHN_ERR" -eq 0 ]; then
-                info "bash -n: all .sh files syntax-clean"
-                PASS=$((PASS + 1))
-        fi
+	BASHN_ERR=0
+	# shellcheck disable=SC2086 # word splitting is intentional for file list
+	for f in $SHELL_FILES; do
+		if ! bash -n "$f" 2>&1; then
+			fail "bash -n: syntax error in $f"
+			BASHN_ERR=$((BASHN_ERR + 1))
+		fi
+	done
+	if [ "$BASHN_ERR" -eq 0 ]; then
+		info "bash -n: all .sh files syntax-clean"
+		PASS=$((PASS + 1))
+	fi
 else
-        info "bash -n: no .sh files found"
-        PASS=$((PASS + 1))
+	info "bash -n: no .sh files found"
+	PASS=$((PASS + 1))
 fi
 
 # ── 1b. shellcheck (static analysis) ───────────────────────────────────────
 header "shellcheck"
 if command -v shellcheck >/dev/null 2>&1; then
-        if [ -n "$SHELL_FILES" ]; then
-                # shellcheck disable=SC2086 # word splitting is intentional for file list
-                if shellcheck ${SHELL_FILES} 2>&1; then
-                        info "shellcheck: all .sh files pass"
-                        PASS=$((PASS + 1))
-                else
-                        fail "shellcheck: errors found in .sh files"
-                fi
-        else
-                info "shellcheck: no .sh files found"
-                PASS=$((PASS + 1))
-        fi
+	if [ -n "$SHELL_FILES" ]; then
+		# shellcheck disable=SC2086 # word splitting is intentional for file list
+		if shellcheck ${SHELL_FILES} 2>&1; then
+			info "shellcheck: all .sh files pass"
+			PASS=$((PASS + 1))
+		else
+			fail "shellcheck: errors found in .sh files"
+		fi
+	else
+		info "shellcheck: no .sh files found"
+		PASS=$((PASS + 1))
+	fi
 else
-        warn "shellcheck not installed — skipping"
+	warn "shellcheck not installed — skipping"
 fi
 
 # ── 1c. shfmt -d (format check) ────────────────────────────────────────────
@@ -135,101 +135,101 @@ fi
 # auto-canonicalize; the diff is then empty on the next run.
 header "shfmt -d (format)"
 if command -v shfmt >/dev/null 2>&1; then
-        if [ -n "$SHELL_FILES" ]; then
-                # shellcheck disable=SC2086 # word splitting is intentional for file list
-                if shfmt -d ${SHELL_FILES} 2>&1; then
-                        info "shfmt: all .sh files formatted"
-                        PASS=$((PASS + 1))
-                else
-                        if $FIX_MODE; then
-                                # shellcheck disable=SC2086 # word splitting is intentional for file list
-                                if shfmt -w ${SHELL_FILES} 2>&1; then
-                                        info "shfmt: auto-canonicalized (review $(git diff))"
-                                        PASS=$((PASS + 1))
-                                else
-                                        fail "shfmt: auto-format failed (review errors above)"
-                                fi
-                        else
-                                fail "shfmt: .sh files not formatted (run with --fix to auto-format)"
-                        fi
-                fi
-        else
-                info "shfmt: no .sh files found"
-                PASS=$((PASS + 1))
-        fi
+	if [ -n "$SHELL_FILES" ]; then
+		# shellcheck disable=SC2086 # word splitting is intentional for file list
+		if shfmt -d ${SHELL_FILES} 2>&1; then
+			info "shfmt: all .sh files formatted"
+			PASS=$((PASS + 1))
+		else
+			if $FIX_MODE; then
+				# shellcheck disable=SC2086 # word splitting is intentional for file list
+				if shfmt -w ${SHELL_FILES} 2>&1; then
+					info "shfmt: auto-canonicalized (review $(git diff))"
+					PASS=$((PASS + 1))
+				else
+					fail "shfmt: auto-format failed (review errors above)"
+				fi
+			else
+				fail "shfmt: .sh files not formatted (run with --fix to auto-format)"
+			fi
+		fi
+	else
+		info "shfmt: no .sh files found"
+		PASS=$((PASS + 1))
+	fi
 else
-        warn "shfmt not installed — skipping (https://github.com/mvdan/sh)"
+	warn "shfmt not installed — skipping (https://github.com/mvdan/sh)"
 fi
 
 # ── 2. Yamllint ────────────────────────────────────────────────────────────
 header "Yamllint"
 if command -v yamllint >/dev/null 2>&1; then
-        # CI parity: .github/** must pass the repo .yamllint config — the
-        # same one the CI workflow_quality job enforces (line-length max
-        # 120 included).
-        GITHUB_YAML=$(find .github -name '*.yml' -o -name '*.yaml' 2>/dev/null)
-        YAML_OK=0
-        if [ -n "$GITHUB_YAML" ]; then
-                # shellcheck disable=SC2086 # word splitting is intentional for file list
-                yamllint -c .yamllint ${GITHUB_YAML} 2>&1 || YAML_OK=1
-        fi
-        if [ "$YAML_OK" -eq 0 ]; then
-                info "yamllint: all .github YAML files pass (repo config)"
-                PASS=$((PASS + 1))
-        else
-                fail "yamllint: errors found in YAML files"
-        fi
+	# CI parity: .github/** must pass the repo .yamllint config — the
+	# same one the CI workflow_quality job enforces (line-length max
+	# 120 included).
+	GITHUB_YAML=$(find .github -name '*.yml' -o -name '*.yaml' 2>/dev/null)
+	YAML_OK=0
+	if [ -n "$GITHUB_YAML" ]; then
+		# shellcheck disable=SC2086 # word splitting is intentional for file list
+		yamllint -c .yamllint ${GITHUB_YAML} 2>&1 || YAML_OK=1
+	fi
+	if [ "$YAML_OK" -eq 0 ]; then
+		info "yamllint: all .github YAML files pass (repo config)"
+		PASS=$((PASS + 1))
+	else
+		fail "yamllint: errors found in YAML files"
+	fi
 else
-        warn "yamllint not installed — skipping"
+	warn "yamllint not installed — skipping"
 fi
 
 # ── 3. Actionlint ──────────────────────────────────────────────────────────
 header "Actionlint"
 if command -v actionlint >/dev/null 2>&1; then
-        if actionlint .github/workflows/*.yml 2>&1; then
-                info "actionlint: all workflow files pass"
-                PASS=$((PASS + 1))
-        else
-                fail "actionlint: errors found in workflow files"
-        fi
+	if actionlint .github/workflows/*.yml 2>&1; then
+		info "actionlint: all workflow files pass"
+		PASS=$((PASS + 1))
+	else
+		fail "actionlint: errors found in workflow files"
+	fi
 else
-        warn "actionlint not installed — skipping"
+	warn "actionlint not installed — skipping"
 fi
 
 # ── 4. TOML Syntax ─────────────────────────────────────────────────────────
 header "TOML Syntax"
 if command -v python3 >/dev/null 2>&1; then
-        TOML_ERR=0
-        while IFS= read -r -d '' f; do
-                if ! python3 -c "import tomllib, sys; tomllib.load(open(sys.argv[1], 'rb'))" "$f" 2>/dev/null; then
-                        echo -e "${RED}INVALID TOML: ${f}${NC}"
-                        TOML_ERR=$((TOML_ERR + 1))
-                fi
-        done < <(find . -name '*.toml' -not -path './target/*' -not -path './.git/*' -print0 2>/dev/null)
-        if [ "$TOML_ERR" -eq 0 ]; then
-                info "TOML: all .toml files valid"
-                PASS=$((PASS + 1))
-        else
-                fail "TOML: ${TOML_ERR} file(s) have syntax errors"
-        fi
+	TOML_ERR=0
+	while IFS= read -r -d '' f; do
+		if ! python3 -c "import tomllib, sys; tomllib.load(open(sys.argv[1], 'rb'))" "$f" 2>/dev/null; then
+			echo -e "${RED}INVALID TOML: ${f}${NC}"
+			TOML_ERR=$((TOML_ERR + 1))
+		fi
+	done < <(find . -name '*.toml' -not -path './target/*' -not -path './.git/*' -print0 2>/dev/null)
+	if [ "$TOML_ERR" -eq 0 ]; then
+		info "TOML: all .toml files valid"
+		PASS=$((PASS + 1))
+	else
+		fail "TOML: ${TOML_ERR} file(s) have syntax errors"
+	fi
 else
-        warn "python3 not installed — skipping"
+	warn "python3 not installed — skipping"
 fi
 
 # ── 5. Codespell ──────────────────────────────────────────────────────────
 header "Codespell"
 if command -v codespell >/dev/null 2>&1; then
-        if codespell --config .codespellrc . 2>&1; then
-                info "codespell: no spelling errors"
-                PASS=$((PASS + 1))
-        else
-                # Deliberately NOT auto-fixed even under --fix: codespell -w
-                # would rewrite identifiers, ASCII art, and URLs where apparent
-                # misspellings are intentional (see .codespellrc ignore list).
-                fail "codespell: spelling errors found (never auto-fixed - review manually)"
-        fi
+	if codespell --config .codespellrc . 2>&1; then
+		info "codespell: no spelling errors"
+		PASS=$((PASS + 1))
+	else
+		# Deliberately NOT auto-fixed even under --fix: codespell -w
+		# would rewrite identifiers, ASCII art, and URLs where apparent
+		# misspellings are intentional (see .codespellrc ignore list).
+		fail "codespell: spelling errors found (never auto-fixed - review manually)"
+	fi
 else
-        warn "codespell not installed — skipping"
+	warn "codespell not installed — skipping"
 fi
 
 # ── 6. SPDX License Headers (scripts/check-headers.sh) ──────────────────
@@ -238,14 +238,14 @@ fi
 # (pre-commit proxy parity). CHANGELOG.md is excluded as frozen history.
 header "SPDX License Headers (check-headers.sh)"
 if [ -f scripts/check-headers.sh ]; then
-        if bash scripts/check-headers.sh 2>&1; then
-                info "license headers: all source, config, and doc files carry the header"
-                PASS=$((PASS + 1))
-        else
-                fail "license headers: violations found (no auto-fix - add the 2-line header)"
-        fi
+	if bash scripts/check-headers.sh 2>&1; then
+		info "license headers: all source, config, and doc files carry the header"
+		PASS=$((PASS + 1))
+	else
+		fail "license headers: violations found (no auto-fix - add the 2-line header)"
+	fi
 else
-        warn "check-headers.sh not found — skipping"
+	warn "check-headers.sh not found — skipping"
 fi
 
 # ── 7. File Permission Guard (644/755 owner rule) ─────────────────────────
@@ -255,23 +255,23 @@ fi
 # 664/775 repairs are invisible because git records only the exec bit).
 header "Permission Guard (644/755)"
 if [ -f scripts/check-permissions.sh ]; then
-        if $FIX_MODE; then
-                if bash scripts/check-permissions.sh --fix 2>&1; then
-                        info "permissions: violations auto-fixed (review git diff for exec-bit changes)"
-                        PASS=$((PASS + 1))
-                else
-                        fail "permissions: violations not fully auto-fixable (review output above)"
-                fi
-        else
-                if bash scripts/check-permissions.sh 2>&1; then
-                        info "permissions: files 644, executables and directories 755"
-                        PASS=$((PASS + 1))
-                else
-                        fail "permissions: violations found (auto-fixable via --fix)"
-                fi
-        fi
+	if $FIX_MODE; then
+		if bash scripts/check-permissions.sh --fix 2>&1; then
+			info "permissions: violations auto-fixed (review git diff for exec-bit changes)"
+			PASS=$((PASS + 1))
+		else
+			fail "permissions: violations not fully auto-fixable (review output above)"
+		fi
+	else
+		if bash scripts/check-permissions.sh 2>&1; then
+			info "permissions: files 644, executables and directories 755"
+			PASS=$((PASS + 1))
+		else
+			fail "permissions: violations found (auto-fixable via --fix)"
+		fi
+	fi
 else
-        warn "check-permissions.sh not found — skipping"
+	warn "check-permissions.sh not found — skipping"
 fi
 
 # ── 8. Emoji Sweep (repo-wide) ─────────────────────────────────────────────
@@ -283,8 +283,8 @@ fi
 # never rewritten, the same exclusion policy as the docs audit).
 header "Emoji Sweep (repo-wide)"
 if command -v python3 >/dev/null 2>&1; then
-        EMOJI_RC=0
-        python3 - <<'PYEOF' || EMOJI_RC=1
+	EMOJI_RC=0
+	python3 - <<'PYEOF' || EMOJI_RC=1
 import sys
 from pathlib import Path
 
@@ -332,14 +332,14 @@ if len(hits) > 20:
 
 sys.exit(1 if hits else 0)
 PYEOF
-        if [ "$EMOJI_RC" -eq 0 ]; then
-                info "emoji sweep: no emoji-class codepoints in tracked text files"
-                PASS=$((PASS + 1))
-        else
-                fail "emoji sweep: emoji found (review the file:line list above)"
-        fi
+	if [ "$EMOJI_RC" -eq 0 ]; then
+		info "emoji sweep: no emoji-class codepoints in tracked text files"
+		PASS=$((PASS + 1))
+	else
+		fail "emoji sweep: emoji found (review the file:line list above)"
+	fi
 else
-        warn "python3 not installed — skipping"
+	warn "python3 not installed — skipping"
 fi
 
 # ── 9. Rust Source LOC Cap (owner rule: 500) ────────────────────────────────
@@ -348,14 +348,14 @@ fi
 # one-line justification (tracked migration debt, not silent rot).
 header "Rust LOC Cap (check-loc.sh, limit 500)"
 if [ -f scripts/check-loc.sh ]; then
-        if bash scripts/check-loc.sh 2>&1 | tail -20; then
-                info "LOC cap: all Rust files within policy (limit 500)"
-                PASS=$((PASS + 1))
-        else
-                fail "LOC cap: file(s) over 500 lines without an exemption marker (split them or add // LOC_EXEMPT:)"
-        fi
+	if bash scripts/check-loc.sh 2>&1 | tail -20; then
+		info "LOC cap: all Rust files within policy (limit 500)"
+		PASS=$((PASS + 1))
+	else
+		fail "LOC cap: file(s) over 500 lines without an exemption marker (split them or add // LOC_EXEMPT:)"
+	fi
 else
-        warn "check-loc.sh not found — skipping"
+	warn "check-loc.sh not found — skipping"
 fi
 
 # ── 10. Rust Toolchain Version Sync ────────────────────────────────────────
@@ -364,14 +364,14 @@ fi
 # (stable/beta/nightly) are rejected under the dormant-mode policy.
 header "Rust Version Sync (check-rust-version-sync.sh)"
 if [ -f scripts/check-rust-version-sync.sh ]; then
-        if bash scripts/check-rust-version-sync.sh 2>&1; then
-                info "rust version: toolchain pin, MSRV, and CI pins in sync"
-                PASS=$((PASS + 1))
-        else
-                fail "rust version: sources out of sync (fix with ./scripts/rust-version-to.sh <X.Y.Z>)"
-        fi
+	if bash scripts/check-rust-version-sync.sh 2>&1; then
+		info "rust version: toolchain pin, MSRV, and CI pins in sync"
+		PASS=$((PASS + 1))
+	else
+		fail "rust version: sources out of sync (fix with ./scripts/rust-version-to.sh <X.Y.Z>)"
+	fi
 else
-        warn "check-rust-version-sync.sh not found — skipping"
+	warn "check-rust-version-sync.sh not found — skipping"
 fi
 
 # ── 11. Documentation Disclaimer ──────────────────────────────────────────
@@ -379,23 +379,23 @@ fi
 # (CHANGELOG.md excluded as frozen history). --fix auto-injects.
 header "Documentation Disclaimer (inject-disclaimer.sh)"
 if [ -f scripts/inject-disclaimer.sh ]; then
-        if bash scripts/inject-disclaimer.sh --check 2>&1; then
-                info "disclaimer: all living .md files carry the stale-data warning"
-                PASS=$((PASS + 1))
-        else
-                if $FIX_MODE; then
-                        if bash scripts/inject-disclaimer.sh >/dev/null 2>&1; then
-                                info "disclaimer: auto-injected (review git diff)"
-                                PASS=$((PASS + 1))
-                        else
-                                fail "disclaimer: auto-inject failed"
-                        fi
-                else
-                        fail "disclaimer: .md file(s) missing the stale-data warning (auto-fixable via --fix)"
-                fi
-        fi
+	if bash scripts/inject-disclaimer.sh --check 2>&1; then
+		info "disclaimer: all living .md files carry the stale-data warning"
+		PASS=$((PASS + 1))
+	else
+		if $FIX_MODE; then
+			if bash scripts/inject-disclaimer.sh >/dev/null 2>&1; then
+				info "disclaimer: auto-injected (review git diff)"
+				PASS=$((PASS + 1))
+			else
+				fail "disclaimer: auto-inject failed"
+			fi
+		else
+			fail "disclaimer: .md file(s) missing the stale-data warning (auto-fixable via --fix)"
+		fi
+	fi
 else
-        warn "inject-disclaimer.sh not found — skipping"
+	warn "inject-disclaimer.sh not found — skipping"
 fi
 
 # ── 12. rustfmt (ebpf/ pure-Rust crate, exact CI parity) ──────────────────────
@@ -407,15 +407,15 @@ fi
 # own toolchain from ebpf/rust-toolchain.toml.
 header "rustfmt (ebpf/ crate, CI parity)"
 if [ -d ebpf ]; then
-        # Subshell: the cd must not leak into the gates below.
-        if (cd ebpf && cargo fmt --all -- --check) 2>&1; then
-                info "rustfmt: ebpf/ formatted (exact CI command)"
-                PASS=$((PASS + 1))
-        else
-                fail "rustfmt: ebpf/ needs formatting (run: cd ebpf && cargo fmt)"
-        fi
+	# Subshell: the cd must not leak into the gates below.
+	if (cd ebpf && cargo fmt --all -- --check) 2>&1; then
+		info "rustfmt: ebpf/ formatted (exact CI command)"
+		PASS=$((PASS + 1))
+	else
+		fail "rustfmt: ebpf/ needs formatting (run: cd ebpf && cargo fmt)"
+	fi
 else
-        warn "ebpf/ directory not found — skipping"
+	warn "ebpf/ directory not found — skipping"
 fi
 
 # ── 13. Test-Tree Discipline (owner rule, NIGHT-hunt-17) ──────────────────
@@ -429,30 +429,30 @@ fi
 header "Test-Tree Discipline (all .rs test files under test/)"
 DISC_OK=true
 if [ -d tests ]; then
-        fail "test-tree: tests/ directory exists — its contents belong under test/ (autotests = false)"
-        DISC_OK=false
+	fail "test-tree: tests/ directory exists — its contents belong under test/ (autotests = false)"
+	DISC_OK=false
 fi
 STRAY_TEST_FILES=$(find src -type f \( -name '*_tests.rs' -o -name '*_test.rs' \) 2>/dev/null)
 if [ -n "$STRAY_TEST_FILES" ]; then
-        fail "test-tree: test module files under src/ (they belong under test/):"
-        echo "$STRAY_TEST_FILES"
-        DISC_OK=false
+	fail "test-tree: test module files under src/ (they belong under test/):"
+	echo "$STRAY_TEST_FILES"
+	DISC_OK=false
 fi
 BAD_TEST_PATHS=$(sed -n '/^\[\[test\]\]/,/^\[/{s/^path[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p;}' Cargo.toml 2>/dev/null | grep -v '^test/' || true)
 if [ -n "$BAD_TEST_PATHS" ]; then
-        fail "test-tree: [[test]] target path(s) outside test/:"
-        echo "$BAD_TEST_PATHS"
-        DISC_OK=false
+	fail "test-tree: [[test]] target path(s) outside test/:"
+	echo "$BAD_TEST_PATHS"
+	DISC_OK=false
 fi
 BAD_MOD_PATHS=$(grep -rn '#\[path = ' src/ 2>/dev/null | grep -v '/test/' || true)
 if [ -n "$BAD_MOD_PATHS" ]; then
-        fail "test-tree: #[path] module wirings in src/ that do not resolve under test/:"
-        echo "$BAD_MOD_PATHS"
-        DISC_OK=false
+	fail "test-tree: #[path] module wirings in src/ that do not resolve under test/:"
+	echo "$BAD_MOD_PATHS"
+	DISC_OK=false
 fi
 if $DISC_OK; then
-        info "test-tree: disciplined (no tests/, no src/*_tests.rs, [[test]] and #[path] under test/)"
-        PASS=$((PASS + 1))
+	info "test-tree: disciplined (no tests/, no src/*_tests.rs, [[test]] and #[path] under test/)"
+	PASS=$((PASS + 1))
 fi
 
 # ── Summary ────────────────────────────────────────────────────────────────
@@ -462,16 +462,16 @@ echo -e "  Gatekeeper Results: ${GREEN}${PASS} passed${NC}, ${RED}${FAIL} failed
 echo "═══════════════════════════════════════════════════════════════"
 
 if [ "$FAIL" -gt 0 ]; then
-        echo -e "${RED}COMMIT BLOCKED: ${FAIL} check(s) failed.${NC}"
-        if ! $FIX_MODE; then
-                echo "Fix the issues above, or run: ./scripts/gate-keepers.sh --fix"
-                echo "(codespell findings are never auto-fixed - review those manually)"
-        else
-                echo "Auto-fixes applied where possible; remaining findings need manual"
-                echo "attention. Re-run plain ./scripts/gate-keepers.sh to confirm."
-        fi
-        exit 1
+	echo -e "${RED}COMMIT BLOCKED: ${FAIL} check(s) failed.${NC}"
+	if ! $FIX_MODE; then
+		echo "Fix the issues above, or run: ./scripts/gate-keepers.sh --fix"
+		echo "(codespell findings are never auto-fixed - review those manually)"
+	else
+		echo "Auto-fixes applied where possible; remaining findings need manual"
+		echo "attention. Re-run plain ./scripts/gate-keepers.sh to confirm."
+	fi
+	exit 1
 else
-        echo -e "${GREEN}All checks passed — safe to commit.${NC}"
-        exit 0
+	echo -e "${GREEN}All checks passed — safe to commit.${NC}"
+	exit 0
 fi
