@@ -73,7 +73,6 @@ if [[ -z "$BINARY" ]]; then
 	BINARY="./target/release/zelynic"
 fi
 
-
 echo "━━━ zelynic Leak Test ━━━"
 echo ""
 

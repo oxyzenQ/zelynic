@@ -9,6 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **build: the shfmt gate never ran anywhere — seven scripts
+  canonicalized, CI now enforces the check (NIGHT-hunt-23)** — a hunt
+  finding while tooling up the host bootstrap: gate-keepers check 1c
+  (shfmt -d, canonical shell formatting) had never executed on this
+  repository — the tool was absent from every dev machine (the gate
+  skips missing tools with a warning) and no CI job ran it, so seven
+  scripts (gate-keepers.sh itself, install.sh, package.sh,
+  uninstall.sh, distros-depth-test.sh, leak-test.sh, stress-test.sh)
+  had drifted to space indentation undetected. The fix is mechanical
+  (shfmt -w — whitespace-only churn, no content change; bash -n +
+  shellcheck verified green before and after) plus enforcement: the
+  workflow_quality job installs pinned shfmt v3.10.0 (the same
+  version the local gate now runs) and enforces shfmt -d over the
+  same file list as gate-keepers 1c via find -exec — actionlint's
+  embedded shellcheck caught the unquoted $(find ...) word-splitting
+  in the first draft of that step. From this commit on, non-canonical
+  shell formatting fails both locally and CI-side.
+
 - **docs: phase-3 docs sync — every C/clang reference swept from the
   living documentation (NIGHT-improve-1, phase 3, stage 4)** — the
   docs catch up with the pure-Rust reality: README and CONTRIBUTING

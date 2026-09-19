@@ -32,7 +32,6 @@ if [[ -z "$BINARY" ]]; then
 	BINARY="./target/release/zelynic"
 fi
 
-
 echo "━━━ zelynic Stress Test (${DURATION}s) ━━━"
 echo ""
 

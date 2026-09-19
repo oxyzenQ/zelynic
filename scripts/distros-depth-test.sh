@@ -63,7 +63,6 @@ if [[ -z "$BINARY" ]]; then
 	BINARY="./target/release/zelynic"
 fi
 
-
 # Cleanup any existing state
 $BINARY unstrict-all 2>/dev/null || true
 

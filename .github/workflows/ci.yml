@@ -202,6 +202,13 @@ jobs:
           go install github.com/rhysd/actionlint/cmd/actionlint@latest
           echo "${HOME}/go/bin" >> "${GITHUB_PATH}"
 
+      - name: Install shfmt (pinned, matches the local gate)
+        run: |
+          curl -sSfL -o /tmp/shfmt \
+            https://github.com/mvdan/sh/releases/download/v3.10.0/shfmt_v3.10.0_linux_amd64
+          sudo install -m755 /tmp/shfmt /usr/local/bin/shfmt
+          shfmt --version
+
       - name: Run actionlint
         run: actionlint .github/workflows/*.yml
 
@@ -215,3 +222,12 @@ jobs:
           else
             codespell --skip './.git,./target,./assets,./dist,./node_modules' .
           fi
+
+      # NIGHT-hunt-23: the shfmt gate (gate-keepers check 1c) had never
+      # executed anywhere before this — the tool was absent locally
+      # (skipped with a warning) and no CI job ran it, so seven scripts
+      # had drifted to non-canonical formatting undetected. This step
+      # enforces the same canonical style CI-side; the file list mirrors
+      # gate-keepers 1c (build-output trees excluded).
+      - name: Run shfmt (canonical shell formatting)
+        run: find . -name '*.sh' -not -path './.git/*' -not -path './target/*' -exec shfmt -d {} +
