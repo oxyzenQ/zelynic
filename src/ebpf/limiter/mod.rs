@@ -44,6 +44,33 @@ use crate::ebpf::bpf_syscall::{
 use crate::ebpf::identity::IdentityMap;
 use types::SCHEMA_VERSION_EXPECTED;
 
+/// NIGHT-hunt-19 (error-path audit): the single operational-pin
+/// predicate. Pure so the partial-failure regression is unit-pinned.
+///
+/// Program pins alone are NOT operational on kernels with bpf_link
+/// (5.7+ — the supported floor is 5.13): the attach sequence pins the
+/// two programs first and creates the cgroup links second, so a
+/// failure in between (bpffs full, memlimit hit, SIGKILL mid-attach)
+/// leaves programs pinned with nothing attached to the cgroup — every
+/// policy would be written to maps no hook ever executes. On pre-5.7
+/// kernels the legacy attach path never pins links, so program pins
+/// alone are the operational contract there by design.
+fn pins_operational(
+    supports_link: bool,
+    prog_dl: bool,
+    prog_ul: bool,
+    link_dl: bool,
+    link_ul: bool,
+) -> bool {
+    if !(prog_dl && prog_ul) {
+        return false;
+    }
+    if supports_link {
+        return link_dl && link_ul;
+    }
+    true
+}
+
 /// Verbose trace line for the attach strategy (NIGHT-hunt-9): the link
 /// mode decides whether limits survive process exit via pinned bpf_links
 /// or the legacy attach whose links leak by design. Pure so the wording
@@ -73,8 +100,11 @@ impl Limiter {
             bail!("cgroup v2 not found at {cgroup_path}");
         }
 
-        // Check if ALL pins exist (fully operational from previous run).
-        let all_pinned = PathBuf::from(PIN_PROG_DL).exists() && PathBuf::from(PIN_PROG_UL).exists();
+        // Check if the pinned state is fully operational from a previous
+        // run. NIGHT-hunt-19: one predicate everywhere — on bpf_link
+        // kernels the link pins are load-bearing (they ARE the cgroup
+        // attachment), so a half-attached state must reload, never reuse.
+        let all_pinned = Self::is_pinned();
 
         if all_pinned {
             // Check schema version. If mismatch (e.g. upgraded from v1 to v2),
@@ -248,10 +278,23 @@ impl Limiter {
         Ok(())
     }
 
-    /// Check if BPF programs are already pinned (active from previous run).
-    /// Programs are required. Links are optional (only on kernel 5.7+).
+    /// Check whether the limiter's pinned state is fully operational.
+    ///
+    /// On bpf_link kernels (5.7+; the supported floor is 5.13): both
+    /// program pins AND both link pins — the links are what attach the
+    /// programs to the cgroup, so a state without them enforces nothing.
+    /// NIGHT-hunt-19 closed the silent-no-enforcement trap where the old
+    /// program-pins-only check "reused" exactly that half-attached
+    /// state. On pre-5.7 kernels the legacy attach keeps programs hooked
+    /// without link pins, so program pins alone are operational there.
     pub fn is_pinned() -> bool {
-        PathBuf::from(PIN_PROG_DL).exists() && PathBuf::from(PIN_PROG_UL).exists()
+        pins_operational(
+            kernel_supports_bpf_link(),
+            PathBuf::from(PIN_PROG_DL).exists(),
+            PathBuf::from(PIN_PROG_UL).exists(),
+            PathBuf::from(PIN_LINK_DL).exists(),
+            PathBuf::from(PIN_LINK_UL).exists(),
+        )
     }
 
     /// Open pinned maps for read/write access (no BPF program load needed).
@@ -288,6 +331,28 @@ impl Drop for Limiter {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// NIGHT-hunt-19 drift pins: the operational predicate must not
+    /// trust program pins alone on bpf_link kernels — that is the exact
+    /// partial-failure state (link create/pin failed after both programs
+    /// were pinned) that the old check "reused" while nothing enforced.
+    #[test]
+    fn pins_operational_requires_link_pins_on_bpf_link_kernels() {
+        // Fully operational.
+        assert!(pins_operational(true, true, true, true, true));
+        // Partial failure: programs pinned, a link missing — NOT
+        // operational, must reload instead of reuse.
+        assert!(!pins_operational(true, true, true, false, false));
+        assert!(!pins_operational(true, true, true, true, false));
+        assert!(!pins_operational(true, true, true, false, true));
+        // Missing program pins: never operational.
+        assert!(!pins_operational(true, false, true, true, true));
+        assert!(!pins_operational(true, true, false, true, true));
+        assert!(!pins_operational(false, false, false, false, false));
+        // Pre-5.7 kernels: the legacy attach never pins links, so
+        // program pins alone are the operational contract there.
+        assert!(pins_operational(false, true, true, false, false));
+    }
 
     /// NIGHT-hunt-9 drift pin: the attach-strategy trace wording is part
     /// of the verbose diagnostic contract — exact strings, pinned.

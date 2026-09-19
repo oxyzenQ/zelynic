@@ -31,7 +31,7 @@ pub fn handle_status(verbose: bool, json: bool) -> Result<()> {
                 serde_json::json!({"error": "stale pins detected", "hint": "run 'zelynic recover'"})
             );
         } else {
-            println_safe!("Stale BPF pin files detected (partial state from old version).");
+            println_safe!("Stale BPF pin files detected (partial enforcement state).");
             println_safe!("Run 'zelynic recover' to clean up, then re-apply limits.");
         }
         return Ok(());
