@@ -30,6 +30,12 @@
 # install to /usr/local/bin, which fits the ephemeral privileged
 # runner better; this is the host path.
 #
+# Never silent: every long step announces itself before it starts,
+# and the bpf-linker download shows a live progress bar when stderr
+# is a terminal (curl --progress-bar / wget --show-progress). Piped
+# or logged runs stay quiet — no megabytes of carriage-return spam
+# in CI logs. The final line reports total wall-clock elapsed.
+#
 # Usage:
 #   ./scripts/bootstrap-ebpf.sh          install whatever is missing
 #   ./scripts/bootstrap-ebpf.sh --check  report status only, change
@@ -172,13 +178,31 @@ install_bpf_linker() {
 	extracted="${TMP_DIR}/extract"
 	mkdir -p "${extracted}"
 
-	ok "downloading ${url}"
+	# The one big fetch of this bootstrap (a ~100 MB tar.zst — the
+	# slow step on slow links). Announce it, then show a live
+	# progress bar so the script is never silent while it runs;
+	# quiet when stderr is not a terminal (logs, CI capture).
+	ok "downloading ${url} (~100 MB, the slow step — progress below)"
+	local progress_ok=true
+	if [[ ! -t 2 ]]; then
+		progress_ok=false
+	fi
 	if command -v curl >/dev/null 2>&1; then
-		curl -fsSL --retry 3 -o "${archive}" "${url}" ||
-			die "download failed — check network access, or fetch ${url} by hand and extract bpf-linker into ${LOCAL_BIN}"
+		if [[ "${progress_ok}" == true ]]; then
+			curl -fSL --retry 3 --progress-bar -o "${archive}" "${url}" ||
+				die "download failed — check network access, or fetch ${url} by hand and extract bpf-linker into ${LOCAL_BIN}"
+		else
+			curl -fsSL --retry 3 -o "${archive}" "${url}" ||
+				die "download failed — check network access, or fetch ${url} by hand and extract bpf-linker into ${LOCAL_BIN}"
+		fi
 	elif command -v wget >/dev/null 2>&1; then
-		wget -q -O "${archive}" "${url}" ||
-			die "download failed — check network access, or fetch ${url} by hand and extract bpf-linker into ${LOCAL_BIN}"
+		if [[ "${progress_ok}" == true ]]; then
+			wget -nv --show-progress -O "${archive}" "${url}" ||
+				die "download failed — check network access, or fetch ${url} by hand and extract bpf-linker into ${LOCAL_BIN}"
+		else
+			wget -q -O "${archive}" "${url}" ||
+				die "download failed — check network access, or fetch ${url} by hand and extract bpf-linker into ${LOCAL_BIN}"
+		fi
 	else
 		die "neither curl nor wget is available — fetch ${url} by hand and extract bpf-linker into ${LOCAL_BIN}"
 	fi
@@ -210,11 +234,13 @@ install_bpf_linker() {
 extract_tar_zst() {
 	local archive="$1" dest="$2"
 	if command -v zstd >/dev/null 2>&1 && tar --zstd -tf "$archive" >/dev/null 2>&1; then
+		ok "extracting (tar --zstd)..."
 		tar --zstd -xf "$archive" -C "$dest"
 		return 0
 	fi
 	if command -v python3 >/dev/null 2>&1 && python3 -c 'import zstandard' >/dev/null 2>&1; then
 		local tarfile="${archive%.tar.zst}.tar"
+		ok "extracting (python3 zstandard, a few seconds)..."
 		python3 - "$archive" "$tarfile" <<'PYEOF'
 import sys
 
@@ -281,4 +307,5 @@ case ":${PATH}:" in
 esac
 
 ok "all eBPF build prerequisites are satisfied."
+ok "bootstrap finished in ${SECONDS}s"
 ok "next: cargo build --release --features ebpf   (or: cargo pro-native-gnu)"
