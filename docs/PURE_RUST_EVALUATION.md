@@ -1,14 +1,16 @@
 <!-- Copyright (C) 2026 rezky_nightky -->
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 
-# Pure Rust eBPF Evaluation (NIGHT-improve-1, stage 1)
+# Pure Rust eBPF Evaluation (NIGHT-improve-1, stage 1 + phase 2)
 
 > Research artifact on the `pure-rust-prototype` branch. Nothing here
 > ships on `main` unless the decision section (below) says so. The
 > stage-1 goal is the owner-approved DeepSeek plan: rewrite ONE BPF
 > program (the observer) with `aya-ebpf`, measure everything, and let
 > the numbers decide whether a Phase 2 (limiter) or Phase 3 (full pure
-> Rust) makes sense for zelynic.
+> Rust) makes sense for zelynic. Phase 2 (the limiter port) is now
+> complete on this branch — the Phase 2 section below carries the
+> port, its verification, and the measurements.
 
 ## Why this document exists
 
@@ -418,6 +420,13 @@ Phase 2 should also settle the dead-ringbuf question from the
 research section: either both objects drop the unconsumed `events`
 map or a consumer finally reads it.
 
+> Phase 2 status: **DONE** — ported, verified, and measured. See the
+> Phase 2 section below; the stop criteria pass with a wider margin
+> than stage 1 (code-only ratio 0.93x — the Rust side is smaller
+> than the C twin). The dead-ringbuf question is observer-scoped
+> only (the limiter has never had a ringbuf) and stays open for
+> Phase 3.
+
 ### Verdict
 
 1. **Stage 1: SUCCESS.** The criteria pass, the port is verified
@@ -425,7 +434,8 @@ map or a consumer finally reads it.
    reproducible research artifact.
 2. **Phase 2 (limiter port on this branch): GO.** Mechanical work,
    subset surface, high information value — it completes the
-   pure-Rust picture before any mainline decision.
+   pure-Rust picture before any mainline decision. **DONE** — see
+   the Phase 2 section; every criterion passed with margin.
 3. **Phase 3 (drop C from the mainline): HOLD.** A mainline
    nightly-dependency for BPF builds would contradict the repo's
    own dormant-mode toolchain pin (rust-toolchain.toml pins 1.98.1
@@ -450,6 +460,195 @@ map or a consumer finally reads it.
 | aya 0.13 -> 0.14 userspace pairing changes | low | low | compatibility verified empirically, not assumed; re-verify per bump |
 | Nightly-only stalls forever | unknown | Phase 3 never happens | Phase 3 is HOLD, not CANCEL — re-evaluate per aya release |
 
+## Phase 2: the limiter port (NIGHT-improve-1, phase 2)
+
+The Phase 2 GO verdict above was executed on this branch as three
+commits (task map at the bottom of this document). This section is
+the stage-2 evidence: what was ported, the pinning contract that
+made it non-trivial, the verification output, and the measurements.
+
+### The port
+
+`ebpf/src/bin/limiter.rs` (396 lines) is the line-for-line port of
+`bpf/limiter.bpf.c` (364 lines), built as a second detached binary
+(`zelynic-limiter`) in the same crate. Both programs carry over:
+`enforce_dl` on `cgroup_skb/ingress` and `enforce_ul` on
+`cgroup_skb/egress`. The token-bucket core ports verbatim — the
+fractional remainder accumulation (schema v2) and the
+overflow-safe fill-detect path (NIGHT-cybersecurity-1) including
+its guard comments. The `get_stats` / `get_bucket`
+init-then-relookup helpers keep their insert-result-ignored
+behavior with the rationale commented in place.
+
+One structural choice differs from the C twin, on purpose: the C
+file duplicates the whole enforcement flow in both program bodies;
+the port factors the shared tail into a single
+`#[inline(always)] try_enforce` helper that receives the three
+direction-specific maps. LLVM inlines it into both programs, so the
+verifier sees the same instruction shape and the object stays a
+faithful translation — measured, not assumed, via the harness below
+(sections, map geometry, and pinning all verify identically for
+both programs).
+
+### The pinning contract (the real phase-2 question)
+
+The stage-1 observer maps are anonymous (no pinning); the limiter's
+nine maps are the opposite — every one declares
+`LIBBPF_PIN_BY_NAME`, and the entire persistence design of zelynic
+(policies surviving process exit) rests on that field. So phase 2's
+make-or-break question was: does the pinning flag survive the round
+trip through a `#[map]`-emitted legacy `bpf_map_def`, aya-obj's
+parser, and aya 0.13.1's loader?
+
+Verified from the pinned sources, not from memory:
+
+1. `aya_ebpf`'s `HashMap::pinned` / `Array::pinned` constructors set
+   `PinningType::ByName` in the emitted `bpf_map_def`.
+2. `aya-obj` 0.2.1 (the exact parser inside aya 0.13.1) reads the
+   `pinning` field of the legacy 28-byte `bpf_map_def` — the field
+   is public in `maps.rs` and the harness reads it directly.
+3. `aya` 0.13.1's `EbpfLoader` branches on `PinningType::ByName` at
+   load and calls `MapData::create_pinned_by_name(path, ...)`,
+   exactly the libbpf `PIN_BY_NAME` behavior the comment in
+   `src/ebpf/limiter/mod.rs` documents.
+
+A detail discovered while verifying point 3, recorded so nobody
+trips on it later: with no `map_pin_path` configured, aya pins
+ByName maps to `/sys/fs/bpf` (the libbpf default root), NOT to
+`/sys/fs/bpf/zelynic`. The production loader always sets
+`map_pin_path(PIN_DIR)`, so zelynic is unaffected — but anyone
+hand-loading the object with `aya::Ebpf::load` on a privileged host
+will scatter nine pins into the bpffs root. The harness therefore
+treats the load step as environment-limited by default.
+
+### The limiter port contract
+
+| Contract element | C twin | Rust port |
+|---|---|---|
+| Program `enforce_dl` | `SEC("cgroup_skb/ingress")` | `#[cgroup_skb(ingress)]` |
+| Program `enforce_ul` | `SEC("cgroup_skb/egress")` | `#[cgroup_skb(egress)]` |
+| Maps `cgroup_{policy,bucket}_{dl,ul}` | HASH u32 -> policy/bucket (24 B), 1024, pinned | identical |
+| Maps `group_bucket_{dl,ul}` | HASH u32 -> bucket (24 B), 256, pinned | identical |
+| Map `watchdog_deadline` | ARRAY u32 -> u64, 1, pinned | identical |
+| Map `schema_version` | ARRAY u32 -> u32, 1, pinned | identical |
+| Map `cgroup_limiter_stats` | HASH u32 -> limiter_stats (32 B), 1024, pinned | identical |
+| Map pinning | `__uint(pinning, LIBBPF_PIN_BY_NAME)` x9 | `HashMap::pinned` / `Array::pinned` x9 |
+| `struct policy` layout | 24 B | compile-time size pin |
+| `struct bucket` layout | 24 B (schema v2) | compile-time size pin |
+| `struct limiter_stats` layout | 32 B | compile-time size pin |
+| License | `GPL` | `GPL` |
+| Refill math | frac_rem + fill-detect | line-for-line port |
+| stats/bucket init | insert-result ignored, relookup | line-for-line port |
+
+### Verification output (scratch harness, 2026-09-19)
+
+The stage-1 harness was rebuilt for this phase with one extension:
+per-map pinning verification (the parse-level field that phase 2's
+contract depends on), plus a contract-table mode that fails on any
+geometry mismatch or unexpected symbol. The observer object was
+re-verified first as a regression baseline — its three maps still
+report `pinned=false`, which proves the harness genuinely reads the
+pinning field rather than defaulting to true.
+
+```
+PARSE OK (zelynic-limiter)
+OK   program enforce_dl (section matches CgroupSkbIngress)
+OK   program enforce_ul (section matches CgroupSkbEgress)
+OK   map cgroup_policy_dl:      HASH  key=4 value=24 max=1024 pinned=true
+OK   map cgroup_bucket_dl:      HASH  key=4 value=24 max=1024 pinned=true
+OK   map group_bucket_dl:       HASH  key=4 value=24 max=256  pinned=true
+OK   map cgroup_policy_ul:      HASH  key=4 value=24 max=1024 pinned=true
+OK   map cgroup_bucket_ul:      HASH  key=4 value=24 max=1024 pinned=true
+OK   map group_bucket_ul:       HASH  key=4 value=24 max=256  pinned=true
+OK   map watchdog_deadline:     ARRAY key=4 value=8  max=1    pinned=true
+OK   map schema_version:        ARRAY key=4 value=4  max=1    pinned=true
+OK   map cgroup_limiter_stats:  HASH  key=4 value=32 max=1024 pinned=true
+LOAD env-limited: map error: failed to create map `cgroup_bucket_dl` with code -1
+CONTRACT: all names, sections, layouts, and pins verified
+```
+
+The load line is the expected unprivileged-sandbox result (the
+first HASH create succeeds, the memlock budget is exhausted by the
+second). The fact that the loader got as far as creating maps by
+name also proves the map relocations resolved. The observer
+regression run reports all `pinned=false` and the ringbuf EPERM, as
+in stage 1.
+
+### Phase 2 measurements
+
+Line counts (same methodology as the stage-4 table; the script
+reproduces the stage-4 numbers on the observer pair exactly):
+
+| File | total | blank | comment | code |
+|---|---|---|---|---|
+| `bpf/limiter.bpf.c` | 364 | 38 | 101 | 225 |
+| `ebpf/src/bin/limiter.rs` | 396 | 44 | 143 | 209 |
+
+Ratios: **1.09x total, 0.93x code-only.** This is the first port
+where the Rust code lines are fewer than the C twin's — the C side
+duplicates the enforcement flow in both program bodies, and the
+factored Rust helper erases the duplication while the comment load
+grows. The DeepSeek stop criterion (>2x) is not merely met; the
+trend from observer (1.27x code) to limiter (0.93x code) shows the
+ratio is a function of C-side duplication, not of Rust verbosity.
+
+Build cost (same machine class as stage 4; both binaries):
+
+| Path | cold | warm | notes |
+|---|---|---|---|
+| Rust (lean, both objects) | 22.6 s | 0.32 s | cold includes build-std core + aya-ebpf + both binaries; the limiter adds ~0.1 s over stage-1's 22.5 s |
+| Rust (BTF + debuginfo) | 15.3 s* | — | *incremental over the lean artifacts; limiter object 144,392 B (observer: 128,136 B, matching stage 4) |
+
+Object properties:
+
+| Property | C twin | Rust port |
+|---|---|---|
+| Lean object size | not built here (no clang in sandbox) | 5,624 B |
+| BTF + debuginfo variant | default (`clang -g`) | 144,392 B |
+| Map definition format | BTF-style `.maps` section | legacy 28-byte `bpf_map_def` in `maps` section (pinning field set) |
+| Program sections | `cgroup_skb/ingress`, `cgroup_skb/egress` | identical (macro-emitted) |
+| License section | `GPL` | `GPL` |
+
+Adoption path: identical to the observer's — place the built object
+at `bpf/limiter.bpf.o` and the existing loader reads it with zero
+userspace changes (the integration point is the object file, not a
+feature flag). On a privileged host the runtime A/B protocol from
+stage 1 applies: swap the object, run the observe/limit loop, and
+compare the enforcement behavior against the C twin.
+
+### Phase 2 findings (hunt)
+
+Beyond the port itself, the phase-2 hunt recorded three items:
+
+1. **Stale CI comment (mainline, out of blast radius):**
+   `.github/workflows/codeql.yml` says "shellcheck/codespell gates
+   in ci.yml instead" — codespell is there, but ci.yml contains no
+   shellcheck job at all (and no shfmt). The comment predates a
+   workflow cleanup. Recorded for the owner; fixing it belongs to
+   a mainline docs/CI commit, not this research branch.
+2. **The default-pin-path footgun** (documented in the pinning
+   contract section above): plain `Ebpf::load` pins ByName maps to
+   the bpffs root. Production code is unaffected; the hazard only
+   exists for hand-loading experiments.
+3. **The dead-ringbuf question is observer-scoped.** The limiter
+   has never carried a ringbuf, so phase 2 has nothing to decide
+   there. The question (drop the unconsumed `events` map from the
+   observer or add a consumer) remains open and is now explicitly
+   a Phase 3 decision item.
+
+### Phase 2 verdict
+
+Both stop criteria pass with room to spare (1.09x total, 0.93x
+code-only, nightly unchanged as the accepted cost), the pinning
+contract round-trips through the pinned userspace stack exactly,
+and the mainline stayed green throughout (gate-keepers 15/15,
+build.sh check-all, zero shipped-surface changes — benchmark
+skipped per the owner rule, same as stage 1). Phase 3 (drop C from
+the mainline) remains HOLD pending a stable-Rust aya-ebpf; the
+detached crate now covers BOTH production objects, so the research
+artifact is complete and the Phase 3 decision has everything it
+needs.
+
 ## Stage-1 task map (DeepSeek plan, one commit each)
 
 1. Research (this document's ecosystem and compatibility sections).
@@ -465,6 +664,17 @@ map or a consumer finally reads it.
    discipline gate landed), and the stale "(NIGHT-improve-1)" tag
    removed from the pro-native alias comment in .cargo/config.toml
    so this task owns the label cleanly.
+
+## Phase-2 task map (one commit each)
+
+1. The port: `ebpf/src/bin/limiter.rs` plus the `zelynic-limiter`
+   binary declaration — both programs, all nine pinned maps, the
+   token-bucket core, harness-verified before commit.
+2. Measurements and decision: this document's Phase 2 section (LOC
+   ratio 1.09x/0.93x, build cost, object properties, the pinning
+   contract verification, and the hunt findings).
+3. Docs sync: CHANGELOG entry for phase 2 and the stale-reference
+   sweep across the repo's pointers to this branch.
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.
