@@ -116,11 +116,15 @@ pub(crate) fn handle_strict_multi(
     // Prevent concurrent operations (race condition elimination).
     let _lock = crate::ebpf::lock::acquire()?;
 
-    // Attach + pin BPF programs if not already pinned (fire-and-forget:
-    // pins survive process exit, no daemon).
-    if !crate::ebpf::limiter::Limiter::is_pinned() {
-        crate::ebpf::limiter::Limiter::attach(verbose)?;
-    }
+    // Attach + pin BPF programs (fire-and-forget: pins survive process
+    // exit, no daemon). NIGHT-hunt-21: unconditional — attach() IS the
+    // lifecycle ladder (operational-reuse check, schema-version
+    // migration, stale-pin cleanup). The old `if !is_pinned()` pre-check
+    // skipped the schema step, so an upgraded binary facing
+    // stale-schema pins would write policies into old-layout maps while
+    // strict-single and the block family already ran the full ladder.
+    // With healthy, current pins attach() is a few stats + one read.
+    crate::ebpf::limiter::Limiter::attach(verbose)?;
 
     let mut limiter = Limiter::open_pinned(verbose)?;
     let applied = limiter.apply_group(&targets, &rates)?;
@@ -231,11 +235,10 @@ pub(crate) fn handle_limit_all(
         .map(|n| Target::ProcessName(n.clone()))
         .collect();
 
-    // Attach + pin BPF programs if not already pinned (fire-and-forget:
-    // pins survive process exit, no daemon).
-    if !crate::ebpf::limiter::Limiter::is_pinned() {
-        crate::ebpf::limiter::Limiter::attach(verbose)?;
-    }
+    // Attach + pin BPF programs (fire-and-forget: pins survive process
+    // exit, no daemon). Unconditional for the same schema-ladder parity
+    // as handle_strict_multi (NIGHT-hunt-21).
+    crate::ebpf::limiter::Limiter::attach(verbose)?;
 
     let mut limiter = Limiter::open_pinned(verbose)?;
     let applied = limiter.apply_group(&targets, &rates)?;

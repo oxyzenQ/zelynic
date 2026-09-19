@@ -25,6 +25,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **fix: every policy-writing command runs the full attach ladder
+  (NIGHT-hunt-21, apply-path discipline)** — the NIGHT-hunt-20 audit
+  found `handle_strict_multi` and `handle_limit_all` pre-checking
+  `if !is_pinned()` before calling `attach()`, which SKIPS the
+  schema-version migration inside attach(): with healthy-looking but
+  stale-schema pins (an upgraded binary, pins surviving since before
+  the upgrade), strict-multi/limit-all would open the old-layout
+  pinned maps and write new-layout `PolicyRaw` entries into them —
+  strict-single and the whole block family already ran the ladder
+  unconditionally, so the two pre-checks were both an outlier and a
+  correctness gap. The pre-checks are gone: attach() is the ONE
+  lifecycle ladder everywhere (operational-reuse check, schema
+  migration, stale-pin cleanup), and with healthy current pins it
+  costs a few stat()s plus one array read. The post-apply pin
+  validation in both handlers is unchanged.
 - **fix: policy apply/remove mid-flight error paths made honest —
   strict all-or-nothing apply, ENOENT-only "absent", verified-zero
   unpin (NIGHT-hunt-20, error-path audit)** — the owner-named audit
