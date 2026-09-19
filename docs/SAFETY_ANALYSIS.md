@@ -134,7 +134,9 @@ guard: there root is the requirement, here root is the hazard.
   pins AND BOTH link pins exist — the links are the cgroup attachment
   itself, so a half-attached state (crash between program pinning and
   link creation) reloads instead of being "reused" with nothing
-  enforcing
+  enforcing. Every policy-writing command runs this ladder
+  unconditionally (NIGHT-hunt-21) — no handler pre-checks its way
+  past the schema-version migration
 - If anything unexpected happens to the pins, `zelynic recover` repairs
   state and `unstrict-all` removes everything
 
