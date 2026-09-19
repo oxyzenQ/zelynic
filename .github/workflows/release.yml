@@ -171,7 +171,8 @@ jobs:
           cp scripts/distros-depth-test.sh scripts/leak-test.sh \
              scripts/stress-test.sh scripts/benchmarking.sh scripts/benchmarking.py \
              scripts/race-condition-test.sh scripts/reload-test.sh \
-             scripts/crash-recovery-test.sh "dist/${PKG_GNU}/scripts/"
+             scripts/crash-recovery-test.sh scripts/limiter-depth-test.sh \
+             scripts/limiter-depth-test.py "dist/${PKG_GNU}/scripts/"
           chmod +x "dist/${PKG_GNU}/scripts/"*.sh "dist/${PKG_GNU}/scripts/"*.py
           cd dist && tar -czf "${PKG_GNU}.tar.gz" "${PKG_GNU}"
           # Checksums: SHA-512 (classical) + BLAKE2b-512 + SHAKE256 (quantum-resistant)
@@ -197,7 +198,8 @@ jobs:
           cp scripts/distros-depth-test.sh scripts/leak-test.sh \
              scripts/stress-test.sh scripts/benchmarking.sh scripts/benchmarking.py \
              scripts/race-condition-test.sh scripts/reload-test.sh \
-             scripts/crash-recovery-test.sh "dist/${PKG_MUSL}/scripts/"
+             scripts/crash-recovery-test.sh scripts/limiter-depth-test.sh \
+             scripts/limiter-depth-test.py "dist/${PKG_MUSL}/scripts/"
           chmod +x "dist/${PKG_MUSL}/scripts/"*.sh "dist/${PKG_MUSL}/scripts/"*.py
           cd dist && tar -czf "${PKG_MUSL}.tar.gz" "${PKG_MUSL}"
           # Checksums: SHA-512 (classical) + BLAKE2b-512 + SHAKE256 (quantum-resistant)

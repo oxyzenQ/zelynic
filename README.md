@@ -387,6 +387,17 @@ Verified on 6 distributions (all pass 17/17 depth + 13/13 leak tests):
 | Ubuntu 21.10 | 5.13 | MUSL | GeckoMain 100kb → 770 Kbps |
 | Debian 13 | 6.12 | MUSL | firefox-esr 900kb → 7.0 Mbps |
 
+Want to depth-verify your own machine (or a VM, or a friend's distro)?
+One command, no external test server — the flagship harness generates
+loopback traffic in an isolated test cgroup and checks measured rate
+accuracy, kernel-drop proof, BPF accounting, sustained stability, and
+residue (NIGHT-master-1):
+
+```bash
+sudo ./scripts/limiter-depth-test.sh          # full run (~2 min)
+sudo ./scripts/limiter-depth-test.sh --quick  # fast pass (~45s)
+```
+
 ## Release Verification
 
 Each release ships **three** checksums: classical SHA-512 + quantum-resistant

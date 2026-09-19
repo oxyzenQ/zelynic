@@ -108,6 +108,11 @@ scripts/
   leak-test.sh         — orphan detection after every operation
   distros-depth-test.sh — comprehensive distro suite
   nonroot-depth-test.sh — unprivileged contract matrix (NIGHT-hunt-13)
+  limiter-depth-test.sh — flagship limiter depth stress test (NIGHT-master-1;
+                wraps limiter-depth-test.py: self-contained loopback traffic,
+                dedicated test cgroup, measured rate accuracy + kernel-drop
+                proof + BPF accounting cross-check + drift guard + reload
+                cycles; the tool for validating a new distro)
   benchmarking.sh      — CPU/memory overhead measurement (wraps benchmarking.py)
 ```
 
