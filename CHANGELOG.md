@@ -93,6 +93,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **fix: codeql.yml header comment made honest — shell coverage
+  pointer corrected (NIGHT-improve-1, phase-2 hunt finding 1)** —
+  the comment claimed Python tooling scripts are "covered by the
+  shellcheck/codespell gates in ci.yml instead"; codespell is
+  indeed there (the workflow_quality job), but ci.yml has never
+  carried a shellcheck job — shell scripts get shellcheck locally
+  via scripts/gate-keepers.sh only. The comment predates a
+  workflow cleanup; phase 2 recorded it as mainline-scope debt,
+  and the merge made this the right moment to settle it. The
+  comment now says exactly what runs where, and the evaluation
+  document's hunt-finding entry is marked resolved.
+
 - **docs: src/RULES.md — the colocated source-tree rules
   (NIGHT-docs-4)** — the reminder of the rules that govern src/ and
   tests/, standing in the tree where contributors actually work (the

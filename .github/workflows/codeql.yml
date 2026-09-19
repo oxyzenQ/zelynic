@@ -8,7 +8,9 @@
 # the analysis is pinned to `rust` because the bpf/*.c objects are
 # compiled manually with clang (no C build system), which would break
 # CodeQL C autobuild. Python tooling scripts are covered by the
-# shellcheck/codespell gates in ci.yml instead.
+# codespell gate in ci.yml instead; shell scripts are covered by the
+# local gate-keepers shellcheck (scripts/gate-keepers.sh) — ci.yml
+# has no shellcheck job.
 #
 # Weekly scheduled scan Monday 03:00 UTC for full coverage.
 
