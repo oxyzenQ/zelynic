@@ -7,6 +7,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **test: the flagship limiter depth stress harness —
+  scripts/limiter-depth-test.sh + limiter-depth-test.py
+  (NIGHT-master-1)** — one script to depth-stress the limiter on any
+  machine (own hardware, a VirtualBox, a friend's ubuntu/arch/gentoo)
+  with minimum requirements: python3 stdlib only, no external test
+  server, no pip installs. The design closes the two gaps the older
+  distros-depth-test.sh has: its curl-against-speedtest-server
+  approach needs internet and measures nothing, and its verdicts are
+  "limit row active" — never the enforced rate. The new harness: (1)
+  generates traffic on loopback with an in-process raw-socket server
+  (chunked GET stream for downloads, PUT-discard for uploads), so it
+  runs anywhere including air-gapped VMs; (2) moves the whole test
+  process into a dedicated cgroup (/sys/fs/cgroup/zelynic-depth,
+  self-healing on re-runs, graceful fallback to the session cgroup
+  with an honest mode note) so only test traffic is policed and the
+  owner's session keeps full speed; (3) targets limits by cgroup ID
+  — the exact Target::CgroupId path zelynic exposes — so resolution
+  is deterministic, no comm-majority ambiguity; (4) MEASURES every
+  verdict: rate accuracy at 100kb/1mb/10mb (adaptive skip when the
+  baseline is too close), upload accuracy via the server's
+  byte-exact count, 5-connection aggregate under one shared limit, a
+  20s sustained run with per-window drift guard, and a non-binding
+  policy (whole-GB rate) for BPF overhead versus baseline; (5)
+  proves enforcement ran in the kernel, not just in a map row:
+  packets_dropped > 0 under binding limits plus a
+  bytes_allowed-vs-client-bytes agreement check, both read from
+  status --print-json; (6) 25 rate-change cycles through the pinned
+  maps, verified via the same JSON contract reload-test.sh covers;
+  (7) full residue checks (pins, pid file, test cgroup) plus a dmesg
+  scan, and --json / --quick / --band flags matching the
+  benchmarking.py conventions. The loopback engine itself is
+  byte-exact: the command read stops at the newline and hands
+  coalesced stream bytes back to the counter (a fixed recv(8)
+  silently swallowed blob bytes — caught by strict count comparison
+  during development; three upload trials now agree with the server
+  count to the byte, 5 GB each). Verified in a no-BPF sandbox with a
+  7-assertion smoke matrix: engine (download 4.8 GB/s, upload,
+  parallel, counters), the hybrid /proc/self/cgroup v2-line parse
+  (v1 lines first — the naive first-line read was wrong there),
+  rate-string round-trips, the root guard, binary-resolution
+  failure, and --band validation; the ebpf binary builds clean and
+  doctor --print-json flows through the parser (graceful FAIL with
+  warnings on unsuitable machines). The real depth run belongs on
+  privileged machines: it ships in both release tarballs
+  (release.yml) and is wired into CONTRIBUTING, README's test
+  section, and the CROSS_DISTRO_RESULTS re-validation note.
+
 ### Fixed
 
 - **build: the bootstrap download was silent — progress bars, step

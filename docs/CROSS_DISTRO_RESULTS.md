@@ -14,6 +14,16 @@
 > Re-validation on the phase-3 tarballs belongs to the next release
 > cycle.
 
+> Future runs (NIGHT-master-1): `scripts/limiter-depth-test.sh` is the
+> flagship harness for exactly that re-validation — self-contained
+> loopback traffic (no external speedtest server), a dedicated test
+> cgroup so only test traffic is policed, measured rate accuracy at
+> 100kb/1mb/10mb plus upload, kernel-drop proof and BPF-accounting
+> cross-checks from `status --print-json`, a sustained drift guard,
+> reload cycles, and full residue checks. Run it on any new distro
+> (`sudo ./scripts/limiter-depth-test.sh --json`) and file the
+> measured ratios in this document.
+
 ## Summary
 
 | Distro | Kernel | Binary | Depth Test | Leak Test | Real Enforcement | Status |
