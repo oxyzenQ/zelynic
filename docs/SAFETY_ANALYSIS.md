@@ -170,6 +170,61 @@ zelynic is written in Rust, which provides:
 - Kernel BPF map operations are atomic per-entry
 - No torn reads/writes possible
 
+## Policy Error-Path Audit (NIGHT-hunt-20, 2026-09)
+
+Owner-named surface: apply/remove mid-flight error paths in
+`policy.rs` and the unstrict/recover handlers. Three real defects
+closed; the rest of the surface evaluated and kept by design.
+
+### Finding 1 (fixed): partial apply was invisible
+
+`apply_single`/`apply_group` write per-cgroup policies in a loop; a
+mid-flight write failure (map full at 1024 entries — reachable via
+`limit-all`/`block-all` on cgroup-dense systemd desktops, ENOMEM, or a
+map-open failure) propagated the error while the already-written prefix
+stayed ENFORCED with no mention — the inverse of the hunt-19 trap: a
+command that "failed" while silently limiting. Fix: strict
+all-or-nothing. Every write is ledgered; the first failure rolls the
+whole invocation back, and if a rollback delete itself fails, the error
+names the exact surviving policies. Both outcome wordings are
+unit-pinned.
+
+### Finding 2 (fixed): delete errors conflated with "absent"
+
+`delete_policy` mapped EVERY remove error to `Ok(false)` ("not found"),
+so ENOENT was indistinguishable from ENOMEM/EACCES/EINVAL; `unstrict`
+then reported "No active limits found" while limits stayed enforced,
+and `recover` counted failed deletes as removed. Fix: only ENOENT
+classifies as absent (`MapError::SyscallError` with
+`io::ErrorKind::NotFound` — a pure classifier, unit-pinned against the
+real errno set); every other error surfaces with its cgroup and
+direction. `recover`'s orphan sweep now counts actual per-direction
+deletions instead of printing the orphan-cgroup count as if it were
+removed policies, and names any deletes that failed.
+
+### Finding 3 (fixed): destructive unpin on read failure
+
+`count_remaining_policies` used `unwrap_or_default`: a transient
+map-read failure counted as ZERO remaining policies, and zero is the
+auto-unpin trigger — a failed read could tear down ALL enforcement while
+the user had asked to remove one target's limits. Fix: the zero must be
+verified. Read errors propagate; on failure the pins stay and a warning
+names the repair tool. The unstrict honesty note likewise only claims
+"N other policies remain" from a verified count.
+
+### Kept by design (evaluated, no change)
+
+- Removal stays best-effort across cgroups (a partial remove maximizes
+  cleanup progress) but every survivor is reported — strict
+  all-or-nothing applies to apply, not to cleanup.
+- `group_id` generation (pid*1000 + subsec_nanos%1000): a collision
+  needs a pid delta whose *1000 mod 2^32 lands under 1000 — unreachable
+  with Linux pid_max <= 4194304 and one apply per CLI process.
+- The per-(cgroup, direction) pinned-map open during apply is 2N map
+  opens — measurable only at hundreds of cgroups; correctness-first,
+  left as is (a `with_policy_map` accessor now deduplicates the
+  acquisition path for write and delete).
+
 ## Security Audit (NIGHT-hunt-14 / security-1, 2026-09)
 
 Master audit across every attack surface a local unprivileged user,
