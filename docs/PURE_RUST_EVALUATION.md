@@ -169,6 +169,54 @@ buffer" simplification. Phase 2 should decide whether BOTH objects
 drop the dead ringbuf or a consumer arrives; stage 1 keeps it for
 exact parity.
 
+## Stage 2: prototype setup (this branch)
+
+The upstream aya-template converts the whole project to a cargo
+workspace (root `Cargo.toml` with `default-members`, a `*-common`
+crate, userspace `build.rs` driving the nightly cross-build). That
+is the right shape for a NEW project — and the wrong shape for this
+evaluation, because a workspace conversion touches the root
+manifest, the gate scripts, CI, `deny.toml` and the release
+toolchain in one move. Stage 1 needs the smallest possible blast
+radius. So the prototype uses a **detached crate** instead:
+
+```
+ebpf/                     nightly-only, invisible to the default build
+  Cargo.toml              empty [workspace] table = not in the root graph
+  Cargo.lock              committed: the research artifact is reproducible
+  .cargo/config.toml      bpfel-unknown-none target + build-std, so the
+                          build is exactly `cd ebpf && cargo +nightly build --release`
+  src/main.rs             the observer port (stage 3)
+```
+
+Why each choice is safe for the v11 line (all verified locally after
+the crate landed):
+
+- The empty `[workspace]` table keeps `ebpf/` out of every
+  root-level cargo invocation: `build.sh check-all` (fmt, clippy
+  `--all-targets --all-features`, tests) runs unchanged and green —
+  measured, not assumed.
+- `rust-toolchain.toml` at the root still pins 1.98.1 for the
+  default build; the ebpf crate is only ever touched through an
+  explicit `cargo +nightly`, which overrides the toolchain file.
+- The LOC gate scans root `src/` + `test/` only; the version-sync
+  gate reads the root manifest only; the header gate is satisfied by
+  giving every new file the standard GPL header.
+- One gate adaptation was required: `.codespellrc` now also skips
+  `./ebpf/target` (build artifacts of the new crate; the entry
+  follows the existing `./target` precedent). No other gate changed.
+- `ebpf/target/` is covered by the existing root `.gitignore`
+  `target/` rule (verified with `git check-ignore`).
+
+The skeleton build (stage 2 commit) compiles a minimal
+`#[cgroup_skb(egress)]` stub end to end — nightly 1.100.0, build-std
+core, bpf-linker 0.11.1 from PATH — and the object passes the
+verification harness: parse OK, license `GPL`, section classified as
+`CgroupSkbEgress`. Cold build cost of the whole toolchain path
+(build-std core + aya-ebpf + crate): ~22 s; warm rebuild: ~0.4 s.
+The shipped zelynic binary and both C objects are untouched by this
+stage, so no benchmark was run (docs-and-skeleton only).
+
 ## Stage-1 task map (DeepSeek plan, one commit each)
 
 1. Research (this document's ecosystem and compatibility sections).
