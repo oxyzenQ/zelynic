@@ -72,7 +72,7 @@ Run the gates before committing (both must pass):
 
 ```bash
 ./scripts/build.sh check-all     # fmt + clippy + tests + policy (2-min local cap)
-./scripts/gate-keepers.sh        # 14 checks: lint, policy, versions, disclaimers
+./scripts/gate-keepers.sh        # 15 checks: lint, policy, versions, disclaimers
 ```
 
 Frame-level render changes additionally get the 10s A/B benchmark
