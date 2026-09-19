@@ -216,6 +216,30 @@ Reading: every visual metric identical — expected by construction,
 since the monitor's emitted byte stream is unchanged and only the
 terminal-mode plumbing (constants + tests) was added.
 
+### NIGHT-improve-1 phase 3 A/B (embedded eBPF objects, 2026-09-19)
+
+The loader-switch commit (76b9547) moved both eBPF objects from
+on-disk discovery to include_bytes! embedding — a load-path change,
+not a render-path change. The A/B proves the render path is
+untouched with data (A = 1fa542e in a throwaway worktree, B =
+76b9547, 10 s formal runs):
+
+| Metric | 1fa542e | 76b9547 | Delta |
+|--------|---------|---------|-------|
+| fps | 14,502 | 14,269 | -1.6% (machine noise) |
+| bytes/frame | 1,437.5 | 1,437.6 | +0.0% |
+| emit bytes/frame | 1,375.6 | 1,375.6 | -0.0% |
+| frame entropy | 4.1913 | 4.1912 | -0.0% |
+| density gini | 0.1812 | 0.1812 | -0.0% |
+| dirty cells/frame | 755.4 | 755.3 | -0.0% |
+
+Reading: every visual metric identical, fps delta in the same
+noise class as every previous A/B (-1.1%, -1.55%, +1.2%). The
+frame-bench harness renders from an in-memory CounterSummary, and
+the loader change only affects where Ebpf::load gets its bytes —
+identical output was the expected result, now proven rather than
+asserted.
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.
