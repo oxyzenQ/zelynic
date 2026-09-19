@@ -1,35 +1,12 @@
 // Copyright (C) 2026 rezky_nightky
 // SPDX-License-Identifier: GPL-3.0-only
 
-//! Rate and duration parsing/formatting, BPF object discovery, and
-//! small terminal/sysfs helpers for the limiter.
+//! Rate and duration parsing/formatting, and small terminal/sysfs
+//! helpers for the limiter.
 
 use anyhow::{bail, Result};
-use std::path::PathBuf;
 
-use super::types::{BPF_OBJECT_PATH, MAX_RATE, MIN_RATE};
-
-pub fn find_bpf_object() -> Result<PathBuf> {
-    let candidates = [
-        PathBuf::from(BPF_OBJECT_PATH),
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(BPF_OBJECT_PATH),
-        PathBuf::from("/usr/lib/zelynic/limiter.bpf.o"),
-        PathBuf::from("/usr/local/lib/zelynic/limiter.bpf.o"),
-    ];
-
-    for path in &candidates {
-        if path.exists() {
-            return Ok(path.clone());
-        }
-    }
-
-    bail!(
-        "BPF object file not found. Compile with:\n  \
-         clang -O2 -g -target bpf -c bpf/limiter.bpf.c -o bpf/limiter.bpf.o\n  \
-         Searched: {:?}",
-        candidates
-    )
-}
+use super::types::{MAX_RATE, MIN_RATE};
 
 /// Parse a time duration string. Formats: 1s, 3m, 10h, or plain number (seconds).
 /// Returns duration in seconds. 0 = infinity.

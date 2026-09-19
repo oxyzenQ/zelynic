@@ -9,6 +9,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **research: eBPF objects embedded in the binary — the loader
+  switch to the pure-Rust artifacts (NIGHT-improve-1, phase 3,
+  stage 2)** — both loaders now load the objects shipped INSIDE the
+  binary: `include_bytes!` from the build.rs OUT_DIR staging
+  (`OBSERVER_ELF` in `ebpf/loader.rs`, `LIMITER_ELF` in
+  `ebpf/limiter/types.rs`). The entire on-disk object pipeline is
+  deleted from the userspace: `find_bpf_object()` (both copies),
+  the `BPF_OBJECT_PATH` constants, the four-path candidate search
+  (cwd, manifest dir, /usr/lib/zelynic/, /usr/local/lib/zelynic/),
+  and the "BPF object file not found. Compile with: clang ..."
+  error strings — that whole error class is structurally impossible
+  now (verified by an unprivileged runtime smoke test: the binary
+  proceeds past object discovery straight to the root check). The
+  release binary is one self-contained artifact: no loose .o files,
+  no install-path dependency, no version-skew window between binary
+  and objects. Runtime behavior is byte-identical beyond the object
+  source: `Ebpf::load` / `EbpfLoader::load` receive the same bytes
+  aya would have read from disk, the pinning flow
+  (`map_pin_path(PIN_DIR)`, PIN_BY_NAME maps, schema-version gate)
+  is untouched, and the verbose diagnostics now say "embedded"
+  instead of a path. New drift pins: `test/ebpf/
+  embedded_object_tests.rs` (#[path]-wired from loader.rs) holds
+  the compile-time contract that both embedded blobs are non-empty
+  ELF files before `Ebpf::load` ever sees them; build.rs's staging
+  ELF-magic check covers the same invariant at build time. 149 + 23
+  tests green, clippy -D warnings clean, and the 10 s render-path
+  A/B for this commit is recorded in PERFORMANCE.md.
+
 - **research: pure-Rust eBPF promoted to the production build path
   (NIGHT-improve-1, phase 3, stage 1)** — executing the owner's
   go-totally-pure-Rust directive: the detached `ebpf/` aya-ebpf

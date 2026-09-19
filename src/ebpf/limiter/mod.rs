@@ -18,10 +18,12 @@ mod types;
 
 // Re-export public types/functions for external use.
 pub use format::{
-    find_bpf_object, format_bytes, format_rate, monotonic_ns, parse_monitor_interval, parse_rate,
+    format_bytes, format_rate, monotonic_ns, parse_monitor_interval, parse_rate,
     parse_time_duration, terminal_height, terminal_width, validate_rate,
 };
-pub use types::{Direction, LimiterStatsRaw, PolicyRaw, RateSpec, Target, MAX_RATE, MIN_RATE};
+pub use types::{
+    Direction, LimiterStatsRaw, PolicyRaw, RateSpec, Target, LIMITER_ELF, MAX_RATE, MIN_RATE,
+};
 
 pub use crate::ebpf::pin::{
     pin_dir_has_files, read_pinned_schema_version, unpin_all, PIN_DIR, PIN_LINK_DL, PIN_LINK_UL,
@@ -144,25 +146,25 @@ impl Limiter {
             }
         }
 
-        let obj_path = find_bpf_object()?;
+        let obj_data = LIMITER_ELF;
         if verbose {
-            eprintln_safe!("[limiter] Loading BPF object from {}", obj_path.display());
+            eprintln_safe!("[limiter] Loading embedded BPF limiter object");
         }
-        let obj_data = std::fs::read(&obj_path)
-            .context(format!("Failed to read BPF object: {}", obj_path.display()))?;
 
         // Create pin directory BEFORE load so maps with LIBBPF_PIN_BY_NAME
         // can be auto-pinned by EbpfLoader.
         std::fs::create_dir_all(PIN_DIR)?;
 
         // Use EbpfLoader with map_pin_path so all maps declared with
-        // __uint(pinning, LIBBPF_PIN_BY_NAME) in limiter.bpf.c are auto-pinned
+        // __uint(pinning, LIBBPF_PIN_BY_NAME) in the BPF object are auto-pinned
         // to /sys/fs/bpf/zelynic/<map_name>. This is what makes policies
         // persist across zelynic invocations — without it, maps vanish when
         // the Ebpf object is dropped and open_pinned() hits ENOENT.
+        // (NIGHT-improve-1 phase 3: the object bytes are the embedded
+        // pure-Rust aya-ebpf build — same map contract, same pinning.)
         let mut bpf = EbpfLoader::new()
             .map_pin_path(PIN_DIR)
-            .load(&obj_data)
+            .load(obj_data)
             .context("Failed to load BPF object")?;
 
         // Write schema version to the pinned schema_version map.
