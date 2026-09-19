@@ -5,9 +5,13 @@
 # Install zelynic system-wide or user-local.
 #
 # Works in two modes:
-#   1. From release tarball: binary + BPF objects already pre-compiled.
-#      Just install them. No clang, no cargo needed.
-#   2. From source repo: compile BPF (if needed) + build Rust binary.
+#   1. From release tarball: the self-contained binary (eBPF objects
+#      embedded inside it — NIGHT-improve-1 phase 3). No toolchain
+#      needed, just install the one file.
+#   2. From source repo: build the pure-Rust binary. The eBPF objects
+#      are built from the aya-ebpf crate and embedded automatically by
+#      build.rs; the prerequisites are rustup's dated nightly pin and
+#      bpf-linker (checked below with install pointers).
 #
 # Usage:
 #   ./install.sh --user     → install to ~/.local/bin (default)
@@ -18,120 +22,105 @@
 set -euo pipefail
 
 PROJECT_NAME="zelynic"
+EBPF_TOOLCHAIN="nightly-2026-09-18"
 INSTALL_MODE="--user"
 
 # Parse args
 for arg in "$@"; do
-	case "$arg" in
-	--system) INSTALL_MODE="--system" ;;
-	--user) INSTALL_MODE="--user" ;;
-	--help | -h)
-		echo "Usage: $0 [--system|--user]"
-		echo "  --user    Install to ~/.local/bin (default)"
-		echo "  --system  Install to /usr/bin (script uses sudo internally)"
-		exit 0
-		;;
-	*)
-		echo "Unknown option: $arg"
-		echo "Usage: $0 [--system|--user]"
-		exit 1
-		;;
-	esac
+        case "$arg" in
+        --system) INSTALL_MODE="--system" ;;
+        --user) INSTALL_MODE="--user" ;;
+        --help | -h)
+                echo "Usage: $0 [--system|--user]"
+                echo "  --user    Install to ~/.local/bin (default)"
+                echo "  --system  Install to /usr/bin (script uses sudo internally)"
+                exit 0
+                ;;
+        *)
+                echo "Unknown option: $arg"
+                echo "Usage: $0 [--system|--user]"
+                exit 1
+                ;;
+        esac
 done
 
 # Detect mode: release tarball (binary exists) or source repo (Cargo.toml exists)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BINARY="${SCRIPT_DIR}/${PROJECT_NAME}"
-BPF_DIR="${SCRIPT_DIR}/bpf"
 
 if [[ ! -f "${BINARY}" ]]; then
-	# Source mode — need to build
+        # Source mode — need to build
 
-	# Refuse to run as root — cargo build must run as the current user.
-	# If run with sudo, cargo build would create root-owned files in target/,
-	# breaking future `cargo clean` / `cargo build` for the normal user.
-	if [[ $EUID -eq 0 ]]; then
-		echo "error: do not run this script with sudo (source build mode)." >&2
-		echo "  cargo build would run as root, corrupting target/ ownership." >&2
-		echo "  Run: $0 --system" >&2
-		echo "  The script will use sudo internally only for the install step." >&2
-		exit 1
-	fi
+        # Refuse to run as root — cargo build must run as the current user.
+        # If run with sudo, cargo build would create root-owned files in target/,
+        # breaking future `cargo clean` / `cargo build` for the normal user.
+        if [[ $EUID -eq 0 ]]; then
+                echo "error: do not run this script with sudo (source build mode)." >&2
+                echo "  cargo build would run as root, corrupting target/ ownership." >&2
+                echo "  Run: $0 --system" >&2
+                echo "  The script will use sudo internally only for the install step." >&2
+                exit 1
+        fi
 
-	if [[ -f "${SCRIPT_DIR}/Cargo.toml" ]]; then
-		REPO_ROOT="${SCRIPT_DIR}"
-	elif [[ -f "${SCRIPT_DIR}/../Cargo.toml" ]]; then
-		REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-	else
-		echo "ERROR: No pre-compiled binary found and no Cargo.toml."
-		echo "  Run from release tarball directory or repo root."
-		exit 1
-	fi
+        if [[ -f "${SCRIPT_DIR}/Cargo.toml" ]]; then
+                REPO_ROOT="${SCRIPT_DIR}"
+        elif [[ -f "${SCRIPT_DIR}/../Cargo.toml" ]]; then
+                REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+        else
+                echo "ERROR: No pre-compiled binary found and no Cargo.toml."
+                echo "  Run from release tarball directory or repo root."
+                exit 1
+        fi
 
-	cd "${REPO_ROOT}"
-	BINARY="target/release/${PROJECT_NAME}"
-	BPF_DIR="bpf"
+        cd "${REPO_ROOT}"
+        BINARY="target/release/${PROJECT_NAME}"
 
-	# Compile BPF objects if not already present
-	BPF_LIMITER="${BPF_DIR}/limiter.bpf.o"
-	BPF_OBSERVER="${BPF_DIR}/observer.bpf.o"
+        # Prerequisites for the pure-Rust eBPF build (NIGHT-improve-1
+        # phase 3): the dated nightly pin and bpf-linker. build.rs
+        # fails with the same pointers if these are missing; this
+        # pre-check gives the friendly version before any compile
+        # time is spent.
+        if ! command -v rustup >/dev/null 2>&1; then
+                echo "ERROR: rustup is required to build zelynic (the eBPF objects"
+                echo "  build with the pinned nightly toolchain ${EBPF_TOOLCHAIN})."
+                echo "  Install rustup: https://rustup.rs"
+                exit 1
+        fi
+        if ! rustup toolchain list 2>/dev/null | grep -q "${EBPF_TOOLCHAIN}"; then
+                echo "ERROR: the pinned nightly toolchain is not installed."
+                echo "  rustup toolchain install ${EBPF_TOOLCHAIN} --component rust-src --component rustfmt"
+                exit 1
+        fi
+        if ! command -v bpf-linker >/dev/null 2>&1; then
+                echo "ERROR: bpf-linker not found on PATH (the eBPF link step)."
+                echo "  Prebuilt binary: https://github.com/aya-rs/bpf-linker/releases (v0.11.1)"
+                exit 1
+        fi
 
-	if [[ ! -f "${BPF_LIMITER}" ]] || [[ ! -f "${BPF_OBSERVER}" ]]; then
-		if command -v clang >/dev/null 2>&1; then
-			echo "Compiling BPF objects..."
-			ARCH_INCLUDE=()
-			if [[ -d "/usr/include/$(uname -m)-linux-gnu" ]]; then
-				ARCH_INCLUDE=(-I "/usr/include/$(uname -m)-linux-gnu")
-			fi
-			clang -O2 -g -target bpf "${ARCH_INCLUDE[@]}" \
-				-c bpf/limiter.bpf.c -o bpf/limiter.bpf.o
-			clang -O2 -g -target bpf "${ARCH_INCLUDE[@]}" \
-				-c bpf/observer.bpf.c -o bpf/observer.bpf.o
-			echo "OK BPF objects compiled"
-		else
-			echo "ERROR: BPF objects not found and clang not installed."
-			echo "  Install clang + libbpf-dev, or download pre-compiled release."
-			exit 1
-		fi
-	else
-		echo "OK BPF objects already compiled"
-	fi
-
-	# Build Rust binary
-	echo "Building ${PROJECT_NAME} with eBPF support..."
-	cargo build --release --locked --features ebpf
+        # Build the self-contained binary: the pure-Rust eBPF objects are
+        # cross-built by build.rs's nested nightly build and embedded.
+        echo "Building ${PROJECT_NAME} (pure-Rust eBPF objects embedded)..."
+        cargo build --release --locked --features ebpf
 fi
 
 # Verify binary exists
 if [[ ! -f "${BINARY}" ]]; then
-	echo "ERROR: Binary not found at ${BINARY}"
-	exit 1
-fi
-
-# Verify BPF objects exist
-if [[ ! -f "${BPF_DIR}/limiter.bpf.o" ]] || [[ ! -f "${BPF_DIR}/observer.bpf.o" ]]; then
-	echo "ERROR: BPF objects not found in ${BPF_DIR}/"
-	exit 1
+        echo "ERROR: Binary not found at ${BINARY}"
+        exit 1
 fi
 
 # Install — sudo used ONLY for --system mode install steps.
+# The BPF objects ride inside the binary (NIGHT-improve-1 phase 3):
+# nothing else to install, no /usr/lib/zelynic/ object directory.
 if [[ "${INSTALL_MODE}" == "--system" ]]; then
-	sudo install -Dm755 "${BINARY}" "/usr/bin/${PROJECT_NAME}"
-	sudo install -d /usr/lib/zelynic
-	sudo install -Dm644 "${BPF_DIR}/limiter.bpf.o" "/usr/lib/zelynic/limiter.bpf.o"
-	sudo install -Dm644 "${BPF_DIR}/observer.bpf.o" "/usr/lib/zelynic/observer.bpf.o"
-	echo "${PROJECT_NAME} installed to /usr/bin/${PROJECT_NAME}"
-	echo "BPF objects installed to /usr/lib/zelynic/"
-	echo "Run: ${PROJECT_NAME} doctor  (to verify eBPF support)"
+        sudo install -Dm755 "${BINARY}" "/usr/bin/${PROJECT_NAME}"
+        echo "${PROJECT_NAME} installed to /usr/bin/${PROJECT_NAME}"
+        echo "Run: ${PROJECT_NAME} doctor  (to verify eBPF support)"
 else
-	# User install — no sudo
-	BINDIR="${HOME}/.local/bin"
-	BPF_INSTALL_DIR="${HOME}/.local/lib/zelynic"
-	mkdir -p "${BINDIR}" "${BPF_INSTALL_DIR}"
-	install -Dm755 "${BINARY}" "${BINDIR}/${PROJECT_NAME}"
-	install -Dm644 "${BPF_DIR}/limiter.bpf.o" "${BPF_INSTALL_DIR}/limiter.bpf.o"
-	install -Dm644 "${BPF_DIR}/observer.bpf.o" "${BPF_INSTALL_DIR}/observer.bpf.o"
-	echo "${PROJECT_NAME} installed to ${BINDIR}/${PROJECT_NAME}"
-	echo "BPF objects installed to ${BPF_INSTALL_DIR}/"
-	echo "Make sure ${BINDIR} is in your PATH."
+        # User install — no sudo
+        BINDIR="${HOME}/.local/bin"
+        mkdir -p "${BINDIR}"
+        install -Dm755 "${BINARY}" "${BINDIR}/${PROJECT_NAME}"
+        echo "${PROJECT_NAME} installed to ${BINDIR}/${PROJECT_NAME}"
+        echo "Make sure ${BINDIR} is in your PATH."
 fi

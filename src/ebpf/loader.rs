@@ -34,7 +34,8 @@ use crate::ebpf::identity::IdentityMap;
 /// object discovery, no "not found" error class.
 const OBSERVER_ELF: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/zelynic-observer"));
 
-/// Per-cgroup stats from BPF map (must match C struct).
+/// Per-cgroup stats from BPF map (must match the observer
+/// program's CgroupStats in ebpf/src/main.rs — layout contract).
 /// Must be Plain Old Data for aya's Pod trait.
 #[repr(C)]
 #[derive(Debug, Clone, Copy, Default)]

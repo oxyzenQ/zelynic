@@ -4,13 +4,15 @@
 # CodeQL security analysis for zelynic.
 #
 # Auto-detects languages in the repository and runs CodeQL analysis.
-# zelynic's security surface is the Rust CLI plus the eBPF C datapath;
-# the analysis is pinned to `rust` because the bpf/*.c objects are
-# compiled manually with clang (no C build system), which would break
-# CodeQL C autobuild. Python tooling scripts are covered by the
-# codespell gate in ci.yml instead; shell scripts are covered by the
-# local gate-keepers shellcheck (scripts/gate-keepers.sh) — ci.yml
-# has no shellcheck job.
+# zelynic's security surface is Rust end to end (NIGHT-improve-1
+# phase 3: the BPF datapath is the aya-ebpf crate under ebpf/, and
+# the objects are embedded in the binary); the analysis is pinned to
+# `rust`, which now covers the whole shipped surface. The ebpf/
+# crate itself compiles on the nightly pin via the nested build —
+# outside CodeQL's stable-toolchain autobuild, and gated by the
+# eBPF Build CI jobs instead. Python tooling scripts are covered by
+# the codespell gate in ci.yml; shell scripts by the local
+# gate-keepers shellcheck (ci.yml has no shellcheck job).
 #
 # Weekly scheduled scan Monday 03:00 UTC for full coverage.
 
@@ -28,8 +30,6 @@ name: "Dragon Guard - CodeQL"
       - 'build.rs'
       - 'rust-toolchain.toml'
       - '.cargo/**'
-      # eBPF C datapath
-      - 'bpf/**'
       # Shell + Python tooling
       - 'scripts/**'
       - '*.py'
@@ -39,7 +39,6 @@ name: "Dragon Guard - CodeQL"
     paths:
       - 'src/**'
       - 'test/**'
-      - 'bpf/**'
       - 'Cargo.toml'
       - 'Cargo.lock'
       - 'build.rs'
@@ -80,9 +79,9 @@ jobs:
           cache-on-failure: true
 
       # Pinned to rust: the security surface users run is the Rust
-      # binary. CodeQL C autobuild would fail on bpf/*.c (manual clang
-      # compile, no build system), so C stays outside CodeQL and is
-      # covered by the clang-format + BPF compile gates in ci.yml.
+      # binary — the whole shipped code is Rust (phase 3). The ebpf/
+      # BPF crate is compiled by the eBPF Build CI jobs on the
+      # nightly pin (outside CodeQL's stable autobuild).
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v4
         with:

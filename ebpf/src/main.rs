@@ -1,8 +1,9 @@
 // Copyright (C) 2026 rezky_nightky
 // SPDX-License-Identifier: GPL-3.0-only
 //
-// zelynic eBPF observer, pure-Rust port of bpf/observer.bpf.c
-// (NIGHT-improve-1, stage 3).
+// zelynic eBPF observer, the pure-Rust BPF source (NIGHT-improve-1,
+// stage 3 port of the former bpf/observer.bpf.c; phase 3 deleted
+// the C side — the port is now the production source).
 //
 // Line-for-line translation of the C twin onto aya-ebpf 0.2.1. The
 // ELF contract with src/ebpf/loader.rs is identical (names, sections,
@@ -39,7 +40,8 @@ const IPPROTO_TCP: u8 = 6;
 /// IP protocol number for UDP (mirrors IPPROTO_UDP).
 const IPPROTO_UDP: u8 = 17;
 
-/// Mirrors `struct cgroup_stats` in bpf/observer.bpf.c.
+/// The BPF-side stats layout; the userspace mirror is
+/// `CgroupStatsRaw` in src/ebpf/loader.rs (layout contract).
 #[repr(C)]
 #[derive(Clone, Copy)]
 struct CgroupStats {
@@ -48,7 +50,9 @@ struct CgroupStats {
     last_event_packet: u64,
 }
 
-/// Mirrors `struct event` in bpf/observer.bpf.c.
+/// The packet-event layout (throttled to 1 per 100 packets per
+/// cgroup; written to the events ringbuf — the dead-ringbuf
+/// question is documented in docs/PURE_RUST_EVALUATION.md).
 #[repr(C)]
 struct Event {
     event_type: u32,

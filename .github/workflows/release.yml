@@ -107,16 +107,10 @@ jobs:
           toolchain: ${{ env.RUST_VERSION }}
           targets: x86_64-unknown-linux-gnu,x86_64-unknown-linux-musl
 
-      - name: Install BPF build dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y clang libbpf-dev linux-libc-dev
-
-      # NIGHT-improve-1 phase 3: the ebpf-feature builds now embed the
-      # pure-Rust eBPF objects (nested nightly build driven by
-      # build.rs) — the dated nightly pin and bpf-linker are build
-      # prerequisites alongside the C toolchain while the C objects
-      # are still packaged.
+      # NIGHT-improve-1 phase 3: the BPF objects are built pure-Rust
+      # (embedded in the binary) — the dated nightly pin and
+      # bpf-linker are the only BPF build prerequisites; the
+      # clang/libbpf-dev toolchain is gone from this workflow.
       - name: Install eBPF nightly toolchain (dated pin)
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -145,21 +139,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-x86_64-unknown-linux-gnu-cargo-release-
 
-      - name: Compile BPF objects
-        run: |
-          set -e
-          ARCH_INCLUDE=""
-          if [[ -d "/usr/include/$(uname -m)-linux-gnu" ]]; then
-            ARCH_INCLUDE="-I/usr/include/$(uname -m)-linux-gnu"
-          fi
-          clang -O2 -g -target bpf "${ARCH_INCLUDE}" \
-              -c bpf/limiter.bpf.c -o bpf/limiter.bpf.o
-          clang -O2 -g -target bpf "${ARCH_INCLUDE}" \
-              -c bpf/observer.bpf.c -o bpf/observer.bpf.o
-          echo "=== BPF objects compiled ==="
-          ls -lh bpf/*.bpf.o
-
-      - name: Build release binary (with eBPF feature)
+      - name: Build release binary (eBPF objects embedded)
         run: cargo build --release --target x86_64-unknown-linux-gnu --features ebpf
 
       - name: Build static binary (musl, for old glibc systems)
@@ -182,11 +162,9 @@ jobs:
 
           # --- GNU (glibc) tarball ---
           PKG_GNU="zelynic-v${VERSION}-linux-amd64-gnu"
-          mkdir -p "dist/${PKG_GNU}/bpf" "dist/${PKG_GNU}/scripts"
+          mkdir -p "dist/${PKG_GNU}/scripts"
           cp target/x86_64-unknown-linux-gnu/release/zelynic "dist/${PKG_GNU}/zelynic"
           chmod +x "dist/${PKG_GNU}/zelynic"
-          cp bpf/limiter.bpf.o  "dist/${PKG_GNU}/bpf/"
-          cp bpf/observer.bpf.o "dist/${PKG_GNU}/bpf/"
           cp README.md LICENSE "dist/${PKG_GNU}/"
           cp scripts/install.sh scripts/uninstall.sh "dist/${PKG_GNU}/"
           chmod +x "dist/${PKG_GNU}/install.sh" "dist/${PKG_GNU}/uninstall.sh"
@@ -210,11 +188,9 @@ jobs:
 
           # --- MUSL (static, for old glibc) tarball ---
           PKG_MUSL="zelynic-v${VERSION}-linux-amd64-musl"
-          mkdir -p "dist/${PKG_MUSL}/bpf" "dist/${PKG_MUSL}/scripts"
+          mkdir -p "dist/${PKG_MUSL}/scripts"
           cp target/x86_64-unknown-linux-musl/release/zelynic "dist/${PKG_MUSL}/zelynic"
           chmod +x "dist/${PKG_MUSL}/zelynic"
-          cp bpf/limiter.bpf.o  "dist/${PKG_MUSL}/bpf/"
-          cp bpf/observer.bpf.o "dist/${PKG_MUSL}/bpf/"
           cp README.md LICENSE "dist/${PKG_MUSL}/"
           cp scripts/install.sh scripts/uninstall.sh "dist/${PKG_MUSL}/"
           chmod +x "dist/${PKG_MUSL}/install.sh" "dist/${PKG_MUSL}/uninstall.sh"

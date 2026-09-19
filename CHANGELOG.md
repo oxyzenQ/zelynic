@@ -9,6 +9,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **research: C is deleted — zelynic is pure Rust end to end
+  (NIGHT-improve-1, phase 3, stage 3)** — executing the owner's
+  "totally pure Rust, delete the C/legacy code" directive:
+  `bpf/observer.bpf.c` and `bpf/limiter.bpf.c` are removed from the
+  tree. The BPF datapath source is now `ebpf/` (aya-ebpf), built by
+  the nested nightly pin and embedded in the binary (stage 1 + 2);
+  the userspace was always Rust. Zero C/legacy source files remain.
+  The whole toolchain story simplifies with them: no clang, no
+  libbpf-dev, no linux-libc-dev anywhere in the repo's build
+  surface. install.sh now ships one self-contained binary from
+  tarballs and pre-checks the two pure-Rust build prerequisites
+  (rustup's dated nightly pin, bpf-linker 0.11.1) with friendly
+  pointers before any compile time is spent; the object install
+  paths (/usr/lib/zelynic/, ~/.local/lib/zelynic/) are gone —
+  uninstall.sh still removes them as legacy cleanup for
+  pre-phase-3 upgrades. package.sh and release.yml stop packaging
+  bpf/*.o: the tarball is binary + docs + scripts, period. The
+  release workflow drops its clang install and C compile steps.
+  Gate 12 (clang-format on bpf/*.c) is replaced by rustfmt on the
+  ebpf/ crate — the same CI-parity spirit, now covering the
+  production BPF source; the local gate count is 10 passing. The
+  changes-job core pattern swaps `^bpf/` for `^ebpf/` (and drops
+  the dead `.c` alternative): ebpf-crate changes now trigger the
+  full Lint & Test + eBPF Build matrix — the old pattern never
+  watched ebpf/, a blind spot from the research era. codeql.yml's
+  comments and path triggers drop the C datapath story; the
+  analysis is pinned to rust, which now covers the whole shipped
+  surface. Live-contract comments in src/ (types.rs struct mirrors,
+  the loader's "must match C struct") and ebpf/ (the port headers)
+  now point at their in-tree counterparts or mark the C files as
+  the former source; the disclaimer template (inject-disclaimer.sh
+  + src/RULES.md) names `ebpf/src/**/*.rs` as source of truth
+  alongside `src/**`. Docs sweep follows in the next commit.
+
 - **research: eBPF objects embedded in the binary — the loader
   switch to the pure-Rust artifacts (NIGHT-improve-1, phase 3,
   stage 2)** — both loaders now load the objects shipped INSIDE the

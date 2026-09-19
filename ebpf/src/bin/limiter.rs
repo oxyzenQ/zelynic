@@ -1,8 +1,9 @@
 // Copyright (C) 2026 rezky_nightky
 // SPDX-License-Identifier: GPL-3.0-only
 //
-// zelynic eBPF limiter, pure-Rust port of bpf/limiter.bpf.c
-// (NIGHT-improve-1, phase 2, stage 1).
+// zelynic eBPF limiter, the pure-Rust BPF source (NIGHT-improve-1,
+// phase 2, stage 1: port of the former bpf/limiter.bpf.c; phase 3
+// deleted the C side — the port is now the production source).
 //
 // Dragon Architecture Layer 0: Enforcement. Pure eBPF. No tc, no
 // nft, no cgroup-wrapper. The kernel enforces. Two programs:
@@ -46,7 +47,8 @@ use aya_ebpf::{
 // invariants, the userspace tests assert the third copy.
 // ---------------------------------------------------------------------------
 
-/// Mirrors `struct policy` in bpf/limiter.bpf.c. group_id == 0 means
+/// The BPF-side policy layout; the userspace mirror is `PolicyRaw`
+/// in src/ebpf/limiter/types.rs (layout contract). group_id == 0 means
 /// "individual" (use cgroup bucket); group_id != 0 means "shared
 /// group" (use the group bucket keyed by group_id).
 #[repr(C)]
@@ -57,7 +59,8 @@ struct Policy {
     group_id: u32,
 }
 
-/// Mirrors `struct bucket` in bpf/limiter.bpf.c (schema v2 layout).
+/// The BPF-side token-bucket layout, schema v2 (userspace mirror:
+/// `BucketRaw` in src/ebpf/limiter/types.rs — the layout contract).
 ///
 /// `frac_rem` tracks the sub-byte fractional remainder from the
 /// refill calculation: `(elapsed_ns * rate_bps) % NS_PER_SEC`.
@@ -71,7 +74,8 @@ struct Bucket {
     frac_rem: u64,
 }
 
-/// Mirrors `struct limiter_stats` in bpf/limiter.bpf.c. Combined
+/// The BPF-side stats layout (userspace mirror: `LimiterStatsRaw`
+/// in src/ebpf/limiter/types.rs — the layout contract). Combined
 /// download + upload enforcement stats per cgroup.
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -90,8 +94,7 @@ const _: () = assert!(core::mem::size_of::<LimiterStats>() == 32);
 const NS_PER_SEC: u64 = 1_000_000_000;
 
 /// Current schema version. Increment when struct layouts or
-/// semantics change. Kept in sync with SCHEMA_VERSION in
-/// bpf/limiter.bpf.c and SCHEMA_VERSION_EXPECTED in
+/// semantics change. Kept in sync with SCHEMA_VERSION_EXPECTED in
 /// src/ebpf/limiter/types.rs (v3: rate_bps == 0 drops instead of
 /// allowing). The BPF program never writes it — userspace stamps
 /// the pinned map after load — so the constant exists purely as the
