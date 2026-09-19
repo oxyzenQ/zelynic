@@ -17,14 +17,20 @@
 #   3. Every directory holding tracked files (and the repo root) -> 755
 #   4. Shebang parity: a tracked file whose first line is #! must be
 #      git-tracked 100755 (covers .sh and .py alike)
+#   5. Untracked-but-present shebang files -> filesystem mode 755
+#      (a brand-new script is invisible to the tracked-only loops
+#      until it is staged, so a umask-002 worktree would pass the
+#      pre-commit gate and ship 775 in the commit that stages it —
+#      the exact NIGHT-master-1 incident)
 #
 # Usage:
 #   bash scripts/check-permissions.sh          # check only
 #   bash scripts/check-permissions.sh --fix    # chmod violations in place
 #
 # Scope notes:
-#   - Only git-tracked paths are checked; target/ and other untracked
-#     build output never appear
+#   - Tracked paths are checked in full; untracked paths only for
+#     the shebang rule (new scripts); ignored files (target/, build
+#     output) never appear — ls-files --exclude-standard
 #   - --fix changes permission bits only, never file content
 #   - git records only the executable bit, so 644<->664 and 755<->775
 #     repairs are invisible to git status; a 644<->755 flip (exec bit)
@@ -136,12 +142,12 @@ while read -r dir; do
 done < <(
 	git ls-files |
 		awk -F/ 'NF > 1 {
-			for (i = 1; i < NF; i++) {
-				p = $1
-				for (j = 2; j <= i; j++) p = p "/" $j
-				print p
-			}
-		}' |
+                        for (i = 1; i < NF; i++) {
+                                p = $1
+                                for (j = 2; j <= i; j++) p = p "/" $j
+                                print p
+                        }
+                }' |
 		sort -u
 )
 # The repository root itself.
@@ -183,6 +189,31 @@ while read -r candidate; do
 		fi
 	fi
 done < <(git grep -I -l '^#!' -- . 2>/dev/null || true)
+
+# ── 5. Untracked-but-present shebang files: fs mode 755 ───────────────────
+# The loops above read git ls-files, so a brand-new script is invisible
+# until staged — and a umask-002 worktree materializes it as 775. Check
+# the untracked set (ignored files excluded) so the pre-commit gate
+# catches wrong bits BEFORE the commit that stages them.
+
+while read -r candidate; do
+	[ -n "$candidate" ] || continue
+	first_line=$(head -n 1 "$candidate" 2>/dev/null) || continue
+	case "$first_line" in
+	'#!'*) ;;
+	*)
+		continue
+		;;
+	esac
+	# Tracked files are owned by the loop above.
+	git ls-files --error-unmatch "$candidate" >/dev/null 2>&1 && continue
+	SHEBANG_CHECKED=$((SHEBANG_CHECKED + 1))
+
+	actual=$(fs_mode "$candidate") || actual="unreadable"
+	if [ "$actual" != "755" ]; then
+		fix_or_report "$candidate" "755" "$actual" "new-file"
+	fi
+done < <(git ls-files --others --exclude-standard 2>/dev/null || true)
 
 # ── Summary ────────────────────────────────────────────────────────────────
 
