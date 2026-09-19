@@ -217,6 +217,46 @@ verification harness: parse OK, license `GPL`, section classified as
 The shipped zelynic binary and both C objects are untouched by this
 stage, so no benchmark was run (docs-and-skeleton only).
 
+## Stage 3: the observer port
+
+`ebpf/src/main.rs` (269 lines including the contract comments and
+compile-time pins) is the line-for-line port of
+`bpf/observer.bpf.c` (172 lines). Both programs, all three maps,
+the event and stats layouts, the throttle, and the license section
+carry over exactly; the section names come from the
+`#[cgroup_skb(egress)]` / `#[cgroup_skb(ingress)]` macros, which
+emit precisely the sections the C `SEC(...)` annotations produce.
+
+Verification output of the built object (3864 bytes lean; 128,136
+bytes with `-Cdebuginfo=2 -Clink-arg=--btf`) through the harness
+that uses aya-obj 0.2.1 + aya 0.13.1 — the exact userspace stack
+zelynic pins:
+
+```
+PARSE OK
+license: "GPL"
+programs:
+  observe_egress:   section=CgroupSkbEgress
+  observe_ingress:  section=CgroupSkbIngress
+maps:
+  cgroup_counters:          HASH    key=4  value=24  max=256
+  cgroup_counters_ingress:  HASH    key=4  value=24  max=256
+  events:                   RINGBUF 2 MB
+contract: all five names FOUND
+LOAD env-limited: ringbuf EPERM under a 64 KB RLIMIT_MEMLOCK
+                  (unprivileged sandbox; hash maps create fine)
+```
+
+The port adds four compile-time layout pins
+(`size_of::<CgroupStats>() == 24`, `Event == 52`, `Ipv4Header == 20`,
+`PortsHeader == 4`) — a class of guarantee the C file cannot express;
+the C side relies on the kernel headers for the same invariants.
+
+Build timings on this machine (see stage 4 for the full table):
+warm rebuild 0.31 s lean / 14.1 s for the BTF+debuginfo variant
+(that number includes rebuilding the crate and relinking with debug
+data).
+
 ## Stage-1 task map (DeepSeek plan, one commit each)
 
 1. Research (this document's ecosystem and compatibility sections).
