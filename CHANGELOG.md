@@ -89,6 +89,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **gates: the permission guard was blind to unstaged files —
+  untracked shebang scripts now checked (NIGHT-hunt-25)** — found the
+  hard way: NIGHT-master-1's two new scripts entered the repo as mode
+  775 (a umask-002 worktree materializes group-write bits) because
+  every loop in check-permissions.sh reads git ls-files — a brand-new
+  script is invisible until staged, so the pre-commit gate passed and
+  the wrong bits shipped in the commit that staged them (caught one
+  commit later by the tracked-mode scan; the repair is git-invisible
+  since git records only the executable bit). New check 5:
+  untracked-but-present files (ignored paths excluded via
+  ls-files --exclude-standard) whose first line is a shebang must
+  carry filesystem mode 755 — chmod-fixable like the rest. Verified
+  by reproducing the exact incident: an unstaged 775 shebang script
+  fails the gate before any git add, --fix restores 755, and the
+  tracked-file behavior is unchanged (118 files, 26 shebangs, green).
+  Header and scope notes updated to match.
+
 - **repo: a stray scripts/__pycache__ bytecode cache slipped into
   7e4c587** — the depth-test smoke runs compiled the module from
   inside the repo and .gitignore had no Python cache entry. Removed
