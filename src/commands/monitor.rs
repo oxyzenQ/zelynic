@@ -42,7 +42,9 @@ pub fn handle_status(verbose: bool, json: bool) -> Result<()> {
     if json {
         limiter.print_status_json()?;
     } else {
-        limiter.print_status();
+        // NIGHT-hunt-22: a failed map read surfaces as a non-zero
+        // exit — never rendered as "Active limits: none".
+        limiter.print_status()?;
     }
     Ok(())
 }

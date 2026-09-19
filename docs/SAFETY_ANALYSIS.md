@@ -227,6 +227,45 @@ names the repair tool. The unstrict honesty note likewise only claims
   left as is (a `with_policy_map` accessor now deduplicates the
   acquisition path for write and delete).
 
+## Status Display Audit (NIGHT-hunt-22, 2026-09)
+
+Owner-named surface: stats.rs and the monitor display reads. One real
+defect closed; three adjacent surfaces verified clean.
+
+### Finding 1 (fixed): status fabricated "no limits" from failed reads
+
+`print_status`/`print_status_json` flattened every map-read failure
+into empty data (`unwrap_or_default`, `.ok().flatten()`), and
+`read_watchdog` converted a failed read into "not set". Both print
+paths are invoked only after `handle_status` verified the enforcement
+pins are operational, so a read failure there is an anomaly by
+definition — yet the human path rendered "Active limits: none" and the
+JSON path emitted `{"active_limits": 0, "limits": []}` while limits
+were enforced. For a tool whose status command is the primary way to
+check enforcement (and whose JSON feeds scripts), that is the most
+user-facing form of the hunt-20 honesty trap. Fix: read failures
+propagate — non-zero exit with the map path in the error. The
+`--print-json` contract is now pinned by six unit tests via a pure
+`status_json` builder (field names, cgroup-count semantics of
+`active_limits`, null-vs-zero direction rendering, stats joining,
+watchdog wordings, the one honest zero state).
+
+### Verified clean (no change needed)
+
+- **Pin-name alignment:** every `PIN_MAP_*`/`PIN_PROG_*`/`PIN_LINK_*`
+  constant matches its BPF object name one-to-one — a wrong name would
+  have ENOENT-ed into exactly the swallowed-empty display that was
+  just fixed; the alignment removes that failure class.
+- **Live observe/top loops:** a transient poll failure renders a zero
+  frame and retries on the next tick — the documented task-7
+  soft-read decision for a live transient observer; the first poll
+  before the loop is hard-fail (`?`), so a dead observer never enters
+  the loop.
+- **Clean-state JSON:** `{"watchdog": "clean", ...}` from the
+  no-pin-files branch is a third wording by design — it reports "no
+  zelynic state at all", distinct from "enforcing" (pins up, nothing
+  limited) and the stale-pins error report.
+
 ## Security Audit (NIGHT-hunt-14 / security-1, 2026-09)
 
 Master audit across every attack surface a local unprivileged user,
