@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Docs
+
+- **docs: README flagship tidy — the cosmostrix anatomy, adapted for a
+  utility (NIGHT-docs-5)** — the README had all the facts but not the
+  flagship shape of the mature sibling project. Structural changes,
+  no facts invented: (1) a centered dragon-quote block under the
+  tagline (the cosmostrix brand-voice pattern, zelynic's own words);
+  (2) Prerequisites/Build restructured into Requirements + a proper
+  Installation section with the two real paths side by side —
+  install-from-release (self-contained tarball, three checksums,
+  install.sh --user/--system; previously the README showed ONLY the
+  build-from-source path even though the tarball has been the
+  distribution vehicle since phase 3) and install-from-source
+  (bootstrap + cargo, native builds kept as the nested subsection);
+  (3) a compact honest Limitations section in the README itself —
+  seven of USAGE.md's ten, with a pointer to the full list (the
+  flagship honesty pattern: limitations live in the README, not
+  buried in a linked guide); (4) a Contributing section naming the
+  gate bar (gate-keepers + build.sh check-all) and linking
+  CONTRIBUTING.md — which was previously unreachable from the README;
+  (5) the Documentation list extended with CROSS_DISTRO_RESULTS,
+  DEPENDENCY_AUDIT, and CONTRIBUTING; (6) an Intellectual Property &
+  Trademark section mirroring TRADEMARK.md's actual fork policy
+  (rename, drop the artwork, attribute) — TRADEMARK.md was referenced
+  from nowhere in the repo before this. Anchor hygiene verified
+  (release-verification link target exists); heading flow:
+  Why → Quick Start/Requirements/Install → Usage tour → reference
+  sections → Limitations → Safety → Architecture → Philosophy →
+  Contributing → Security → Documentation → Test Results → Release
+  Verification → IP & Trademark → License → Author.
+
 ### Added
 
 - **test: the flagship limiter depth stress harness —
