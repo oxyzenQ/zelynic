@@ -520,6 +520,21 @@ accidental quits too easy); Ctrl+C quit was removed in NIGHT-hunt-16
 for the same single-key contract as htop/vim — the title bar says
 "q quit" and nothing else quits.
 
+**Can I select and copy/paste text while the monitor runs?**
+Yes — that is a pinned contract (NIGHT-strict-1). zelynic never
+enables mouse tracking, focus reporting, or bracketed paste: the only
+terminal modes the monitor touches are the alternate screen and
+cursor visibility, both restored on exit. Click-drag selection,
+middle-click paste, and Ctrl+Shift+C/V behave exactly like in the
+plain shell — touching the mouse never hands the pointer to zelynic
+(unlike htop, where selection needs Shift while mouse mode is on).
+One inherent raw-mode caveat: pasted text is stdin, so a paste that
+contains the byte `q` quits the monitor — the q-only quit contract
+applies to every input byte alike. The contract is enforced by unit
+tests (`test/terminal/mouse_contract_tests.rs`) that pin the exact
+byte sequences and scan the whole source tree for any mouse-mode
+literal, so a future commit cannot silently capture the mouse.
+
 ---
 
 ## Maintainer's map

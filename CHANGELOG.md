@@ -9,6 +9,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **strict: monitor terminal contract pinned — the mouse and the
+  clipboard stay native, copy/paste is never captured
+  (NIGHT-strict-1)** — the owner rule that monitoring mode must not
+  take over copy/paste cursor/mouse when touched. Audit result: the
+  behavior was already correct — zelynic has never emitted a mouse
+  tracking, focus-reporting, or bracketed-paste sequence, so terminal
+  click-drag selection and middle-click / Ctrl+Shift+V paste have
+  always kept working while observe/top run. What was missing was the
+  guarantee: nothing stopped a future commit from adding `ESC[?1000h`
+  and silently breaking selection (the classic htop trap). The
+  contract is now enforced, not accidental: the alt-screen enter/exit
+  escape bytes live in named constants (`ALT_ENTER`/`ALT_EXIT`,
+  replacing two inline `print!` calls with the identical bytes), and
+  `test/terminal/mouse_contract_tests.rs` pins it three ways — exact
+  byte equality for enter and exit, a DEC-private-mode parse asserting
+  only 1049 (alternate screen) and 25 (cursor visibility) ever
+  appear with exit fully restoring enter, and a source-tree scanner
+  that fails on any `\x1b[?NNNN` literal outside {1049, 25} anywhere
+  in `src/**` (real literals only — prose comments naming a mode do
+  not trip it). The raw-mode caveat is documented not hidden: pasted
+  text is stdin, so a paste containing the byte 'q' quits the monitor
+  under the NIGHT-hunt-16 q-only quit contract — the same behavior
+  every raw-mode TUI including htop has. USAGE.md FAQ gains the
+  copy/paste answer. Byte output is unchanged (same sequences, same
+  bytes), proven by the 10 s render-path A/B recorded in the commit.
+
 - **research: pure-Rust prototype merged into main
   (NIGHT-improve-1, mainline sync)** — the `pure-rust-prototype`
   branch merged into `main` as a pure fast-forward
