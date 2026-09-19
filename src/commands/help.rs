@@ -135,8 +135,8 @@ pub(crate) fn print_help() {
     println_safe!("  --print-json     JSON output (where applicable)");
     println_safe!();
     println_safe!("{}", brand_bold("Rate formats:"));
-    println_safe!("  500b    1kb    500kb    1mb    1gb    100gb    (lowercase only)");
-    println_safe!("  Min: 1kb (1000 b/s, decimal SI)    Max: 100gb (100,000,000,000 b/s)");
+    println_safe!("  500b    1kb    500kb    1mb    1gb    1tb    (lowercase only)");
+    println_safe!("  Min: 1kb (1000 b/s, decimal SI)    Max: 1tb (1,000,000,000,000 b/s)");
     println_safe!("  Both bounds overridable with --allow-dangerous");
     println_safe!("  Color output is always on — set NO_COLOR=1 to disable");
     println_safe!();

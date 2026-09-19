@@ -18,10 +18,17 @@ pub const BPF_OBJECT_PATH: &str = "bpf/limiter.bpf.o";
 /// `1kb` (1000 < 1024) — the parser, the guard, and the docs disagreed.
 pub const MIN_RATE: u64 = 1000;
 
-/// Maximum allowed rate: 100 GB/s.
-/// zelynic can enforce up to infinity, but 100 GB/s is the practical default.
-/// Use `--allow-dangerous` to override.
-pub const MAX_RATE: u64 = 100_000_000_000;
+/// Maximum allowed rate: 1 TB/s.
+///
+/// Owner-approved option B (NIGHT-research-1): 8-TbE-class headroom —
+/// a decade of margin over shipping NICs — while staying far inside
+/// u64 and the BPF refill guard's exact-multiply bound (the
+/// cybersecurity-1 fill-detect fix is rate-agnostic: at this ceiling
+/// it engages after 200us of idle, and the product bound stays
+/// 2 * burst * NS_PER_SEC <= 2e17 at the 100 MB burst clamp).
+/// zelynic can enforce up to infinity; use `--allow-dangerous` to
+/// override.
+pub const MAX_RATE: u64 = 1_000_000_000_000;
 
 /// BPF schema version. Must match `SCHEMA_VERSION` in `bpf/limiter.bpf.c`.
 /// Increment both when BPF struct layouts or semantics change. Userspace checks

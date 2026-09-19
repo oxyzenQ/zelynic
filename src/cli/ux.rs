@@ -165,7 +165,7 @@ fn value_tip(suggestion: &str) -> String {
 pub(crate) fn rate_tip(input: &str) -> Option<String> {
     // Multi-char units first: on an edit-distance tie, `1xb` should
     // suggest `1kb` (the common fat-finger), not `1b`.
-    const UNITS: [&str; 4] = ["kb", "mb", "gb", "b"];
+    const UNITS: [&str; 5] = ["kb", "mb", "gb", "tb", "b"];
     let trimmed = input.trim();
 
     let lower = trimmed.to_ascii_lowercase();

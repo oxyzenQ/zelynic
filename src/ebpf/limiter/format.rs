@@ -87,7 +87,7 @@ pub fn parse_monitor_interval(s: &str) -> Result<u64> {
     Ok(secs)
 }
 
-/// Parse a rate string. Lowercase units only: kb, mb, gb, b.
+/// Parse a rate string. Lowercase units only: kb, mb, gb, tb, b.
 ///
 /// Returns the rate in bytes per second. On overflow (input too large for u64),
 /// returns an error with the original input shown — not the wrapped value.
@@ -98,7 +98,9 @@ pub fn parse_rate(s: &str) -> Result<u64> {
         return Ok(n);
     }
 
-    let (num_part, multiplier) = if let Some(v) = s.strip_suffix("gb") {
+    let (num_part, multiplier) = if let Some(v) = s.strip_suffix("tb") {
+        (v, 1_000_000_000_000u64)
+    } else if let Some(v) = s.strip_suffix("gb") {
         (v, 1_000_000_000u64)
     } else if let Some(v) = s.strip_suffix("mb") {
         (v, 1_000_000u64)
@@ -112,7 +114,7 @@ pub fn parse_rate(s: &str) -> Result<u64> {
         // `10mb`). The tip line renders white via the line-aware error
         // renderer in the output layer.
         let mut msg =
-            format!("Invalid rate '{s}'. Use lowercase: 1mb, 500kb, 1gb, or plain number");
+            format!("Invalid rate '{s}'. Use lowercase: 1mb, 500kb, 1gb, 1tb, or plain number");
         if let Some(tip) = crate::cli::ux::rate_tip(s) {
             msg.push_str(&tip);
         }
@@ -152,7 +154,7 @@ pub fn validate_rate(rate_bps: u64) -> Result<()> {
     }
     if rate_bps > MAX_RATE {
         bail!(
-            "Rate {} is above maximum ({} B/s = 100 GB/s).\n\
+            "Rate {} is above maximum ({} B/s = 1 TB/s).\n\
              Use --allow-dangerous to override.",
             rate_bps,
             MAX_RATE
@@ -351,6 +353,16 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_rate_tb_suffix_matches_new_ceiling() {
+        // NIGHT-research-1 option B: the 1 TB/s ceiling is expressible
+        // ergonomically; the old gb spelling parses identically.
+        assert_eq!(parse_rate("1tb").unwrap(), 1_000_000_000_000);
+        assert_eq!(parse_rate("500gb").unwrap(), 500_000_000_000);
+        assert_eq!(parse_rate("1000gb").unwrap(), parse_rate("1tb").unwrap());
+        assert!(validate_rate(parse_rate("1tb").unwrap()).is_ok());
+    }
+
+    #[test]
     fn test_validate_rate_minimum() {
         assert!(validate_rate(512).is_err());
         assert!(validate_rate(1000).is_ok());
@@ -371,7 +383,11 @@ mod tests {
 
     #[test]
     fn test_validate_rate_maximum() {
-        assert!(validate_rate(200_000_000_000).is_err());
+        // Owner-approved option B (NIGHT-research-1): the ceiling is
+        // 1 TB/s; 100 GB/s remains valid far below it.
+        assert!(validate_rate(2_000_000_000_000).is_err());
+        assert!(validate_rate(1_000_000_000_000).is_ok());
+        assert!(validate_rate(200_000_000_000).is_ok());
         assert!(validate_rate(100_000_000_000).is_ok());
     }
 
