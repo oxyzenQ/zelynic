@@ -99,7 +99,7 @@ fn test_input_validation_precedes_privilege_guard() {
     const CASES: [(&[&str], &str); 4] = [
         (&["strict-single", "brave", "1MB"], "Invalid rate '1MB'"),
         (&["strict-single", "brave", "1b"], "below minimum"),
-        (&["strict-single", "brave", "101gb"], "above maximum"),
+        (&["strict-single", "brave", "2tb"], "above maximum"),
         (&["observe", "--interval", "61s"], "between 1s and 60s"),
     ];
     for (argv, expected) in CASES {

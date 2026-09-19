@@ -169,10 +169,10 @@ static __always_inline int enforce(struct policy *pol, struct bucket *bkt,
     // The former single product elapsed * rate_bps overflowed u64
     // whenever rate exceeded u64::MAX / 1s (~18.4 GB/s) and the
     // bucket sat idle past ~0.18s — inside the tool's documented
-    // 100 GB/s ceiling on 800-GbE-class hardware. The wrapped
-    // product made the refill garbage (still capped at burst, so no
-    // enforcement bypass, but the rate precision contract broke
-    // exactly at the high end). Two paths now:
+    // 1 TB/s ceiling (NIGHT-research-1 option B) on 8-TbE-class
+    // hardware. The wrapped product made the refill garbage (still
+    // capped at burst, so no enforcement bypass, but the rate precision
+    // contract broke exactly at the high end). Two paths now:
     //
     //  * fill-detect: once elapsed is large enough that the true
     //    refill reaches 2x burst, the bucket caps at burst anyway —

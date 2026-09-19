@@ -366,7 +366,7 @@ silent.
 **5. Rates are decimal SI and per direction.**
 `100kb` = 100,000 bytes/s = 0.8 Mbps on a speed-test site. A positional
 rate sets **both** directions — `strict-single brave 100kb` limits
-upload too, not just download. Minimum 1kb, maximum 100gb; both bounds
+upload too, not just download. Minimum 1kb, maximum 1tb; both bounds
 overridable with `--allow-dangerous` (min) — below 1kb an app can stop
 working entirely.
 

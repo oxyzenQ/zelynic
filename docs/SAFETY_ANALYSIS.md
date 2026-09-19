@@ -306,6 +306,18 @@ Harness kept outside the repo (workspace
 scripts/verify-bpf-refill.c — compiles with plain cc, no BPF
 attachment needed).
 
+Ceiling note (NIGHT-research-1, owner-approved option B): the
+documented maximum rate is now 1 TB/s (8-TbE-class headroom, a
+decade of margin over shipping NICs). The Finding 2 fix needs no
+change there — its safety argument is rate-agnostic: the
+fill-detect threshold takes over before the multiply, and the
+exact-multiply product stays bounded by `2 * burst * NS_PER_SEC`
+(<= 2e17 at the unchanged 100 MB burst clamp) regardless of
+rate. At 1 TB/s the fill-detect path engages after just 200us of
+idle (`2 * 1e8 * 1e9 / 1e12`), so every longer gap skips the
+multiply entirely, and the 2e17 product bound retains ~92x
+headroom under u64::MAX.
+
 ### Verified clean (no change needed, this pass)
 
 - **Rate parsing:** `checked_mul` on the suffix multiply with a

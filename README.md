@@ -242,8 +242,9 @@ Lowercase units only (decimal SI: 1 KB = 1000 bytes):
 | `1mb` | 1 megabyte/second |
 | `1gb` | 1 gigabyte/second |
 | `100gb` | 100 gigabytes/second |
+| `1tb` | 1 terabyte/second |
 
-**Bounds**: minimum 1 KB/s, maximum 100 GB/s. Both overridable with `--allow-dangerous`.
+**Bounds**: minimum 1 KB/s, maximum 1 TB/s. Both overridable with `--allow-dangerous`.
 
 ## Refresh Intervals
 
@@ -267,7 +268,7 @@ visible at discovery time.
 ## Safety Features
 
 - **Min-rate guard**: rejects rates below 1 KB/s (prevents bricking apps)
-- **Max-rate guard**: rejects rates above 100 GB/s (unreasonable defaults)
+- **Max-rate guard**: rejects rates above 1 TB/s (unreasonable defaults)
 - **Fire-and-forget**: `strict-single` exits 0, limit persists in background
 - **No residue**: `unstrict-all` removes all pin files + directory
 - **Fail-safe BPF**: returns "allow" on any error path (never blocks on failure)

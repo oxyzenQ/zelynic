@@ -25,6 +25,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **feat: max rate ceiling raised to 1 TB/s — owner-approved option B
+  (NIGHT-research-1)** — the documented maximum rate moves from
+  100 GB/s (800-GbE class) to 1 TB/s (8-TbE class): a decade of
+  hardware margin while staying far inside u64 and the BPF refill
+  guard's exact-multiply bound. The Finding 2 (cybersecurity-1)
+  fix's safety argument is rate-agnostic and needs no change: the
+  fill-detect threshold engages after 200us of idle at the new
+  ceiling, and the product bound 2 * burst * NS_PER_SEC stays
+  <= 2e17 at the unchanged 100 MB burst clamp (~92x headroom under
+  u64::MAX). The parser gains the `tb` suffix (1tb =
+  1,000,000,000,000 B/s, decimal SI, consistent with kb/mb/gb)
+  plus tb in the near-miss unit rescue; the old 1000gb spelling
+  still parses identically. MIN_RATE is untouched (1 KB/s; 0 =
+  block) and `--allow-dangerous` still lifts both bounds. Burst
+  default stays 1 second of traffic clamped to 4 KB..100 MB.
+  Synced: validate_rate message, --help rate reference, README
+  rate table + bounds + safety row, USAGE strict section,
+  SAFETY_ANALYSIS Finding 2 ceiling note, bpf/limiter.bpf.c
+  ceiling comment. Tests: tb parse pin, new-bound validation pins
+  (1 TB/s accepted, above rejected, 100 GB/s still valid),
+  privilege ladder case moved to 2tb (also exercises the tb
+  suffix end-to-end through the real binary). Version untouched:
+  11.0.0-dev.1 (frozen-version policy).
+
 - **perf: tall-regime render repair — scroll-free top-aligned
   emission and idle zero-emit at every height (NIGHT-improve-6)** —
   the improve-2 engine's fallback for frames meeting or exceeding
