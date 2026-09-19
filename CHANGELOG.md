@@ -28,8 +28,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   map geometries, pins, GPL license, zero unexpected symbols
   (observer re-verified as a pinned=false regression baseline).
   Mainline untouched: gate-keepers 15/15, build.sh check-all
-  green, benchmark skipped (detached crate, zero shipped-surface
-  changes). Phase 3 remains HOLD pending stable-Rust aya-ebpf;
+  green, and the formal 10 s render-path A/B (A = 392ee80 in a
+  throwaway worktree, B = the branch tip) is metric-identical on
+  every visual metric (gini, entropy, dirty cells, bytes, emit
+  bytes all 0.00%), proving the zero-shipped-surface claim with
+  data. Phase 3 remains HOLD pending stable-Rust aya-ebpf;
   the research artifact now covers BOTH production objects. Hunt
   findings recorded in `docs/PURE_RUST_EVALUATION.md`: a stale
   shellcheck reference in the codeql.yml comment (mainline

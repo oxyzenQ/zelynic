@@ -620,6 +620,32 @@ Object properties:
 | Program sections | `cgroup_skb/ingress`, `cgroup_skb/egress` | identical (macro-emitted) |
 | License section | `GPL` | `GPL` |
 
+### Render-path A/B (owner benchmark protocol)
+
+10 s formal frame-bench at the pinned 80x40 harness geometry, A =
+392ee80 (pre-port, in a throwaway worktree), B = 9562cf6 (the
+branch tip after the three phase-2 commits; its src/ tree is
+byte-identical to the port commit's):
+
+| metric | before | after | delta |
+|---|---|---|---|
+| density gini | 0.1812 | 0.1812 | 0.00% |
+| frame entropy | 4.1913 | 4.1912 | -0.00% |
+| dirty cells/frame | 755.4 | 755.4 | -0.00% |
+| bytes/frame | 1437.5 | 1437.6 | +0.00% |
+| emit bytes/frame | 1375.6 | 1375.6 | -0.00% |
+| fps | 14486 | 14322 | -1.1% (machine noise) |
+
+Every visual metric identical, as expected by construction: none
+of the phase-2 commits touch `src/**`, so the shipped render path
+measured by the harness cannot change. The baseline run also
+reproduced the stage-4 numbers exactly (gini 0.1812, entropy
+4.1913, dirty 755.4) — the harness stays deterministic across
+machines and sessions. The run exists to prove the claim with data
+instead of assertion, per the owner rule that code-changing
+commits get the benchmark (the same protocol stage 1 applied to
+its port commit).
+
 Adoption path: identical to the observer's — place the built object
 at `bpf/limiter.bpf.o` and the existing loader reads it with zero
 userspace changes (the integration point is the object file, not a
@@ -653,12 +679,12 @@ Both stop criteria pass with room to spare (1.09x total, 0.93x
 code-only, nightly unchanged as the accepted cost), the pinning
 contract round-trips through the pinned userspace stack exactly,
 and the mainline stayed green throughout (gate-keepers 15/15,
-build.sh check-all, zero shipped-surface changes — benchmark
-skipped per the owner rule, same as stage 1). Phase 3 (drop C from
-the mainline) remains HOLD pending a stable-Rust aya-ebpf; the
-detached crate now covers BOTH production objects, so the research
-artifact is complete and the Phase 3 decision has everything it
-needs.
+build.sh check-all, and the render-path A/B above is
+metric-identical as expected — zero shipped-surface changes,
+proven with data). Phase 3 (drop C from the mainline) remains HOLD
+pending a stable-Rust aya-ebpf; the detached crate now covers BOTH
+production objects, so the research artifact is complete and the
+Phase 3 decision has everything it needs.
 
 ## Stage-1 task map (DeepSeek plan, one commit each)
 
@@ -686,6 +712,10 @@ needs.
    contract verification, and the hunt findings).
 3. Docs sync: CHANGELOG entry for phase 2 and the stale-reference
    sweep across the repo's pointers to this branch.
+4. Benchmark: the formal 10 s render-path A/B (A = 392ee80 in a
+   throwaway worktree, B = the branch tip), recorded in the
+   measurements section — every visual metric identical, proving
+   the zero-shipped-surface claim with data instead of assertion.
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.
