@@ -9,6 +9,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **docs: phase-3 docs sync — every C/clang reference swept from the
+  living documentation (NIGHT-improve-1, phase 3, stage 4)** — the
+  docs catch up with the pure-Rust reality: README and CONTRIBUTING
+  build sections are one `cargo build --release --features ebpf`
+  command with the two pure-Rust prerequisites (the dated nightly
+  pin + bpf-linker) replacing the clang/libbpf-dev/linux-libc-dev
+  lists and the two clang compile commands; CONTRIBUTING's project
+  tree lists `ebpf/` (the production BPF source, both programs)
+  where `bpf/` stood, its gates paragraph names rustfmt-on-ebpf as
+  gate 12 (and fixes a stale gate count — 14 -> the real 15, a
+  leftover from the stage-1 sweep); KERNEL_COMPATIBILITY's
+  component table swaps clang/libbpf-dev for the nightly pin +
+  bpf-linker rows and its troubleshooting section replaces the
+  "BPF object file not found" fix with the pure-Rust-build
+  prerequisite pointers; DRAGON_ARCHITECTURE's layer-0 entries and
+  the diagram box point at ebpf/src; SAFETY_ANALYSIS's fix
+  reference follows the enforcer to its new home;
+  CROSS_DISTRO_RESULTS gets a historical-record header (the runs
+  validated pre-phase-3 tarballs — re-validation on the
+  self-contained tarball belongs to the next release cycle); the
+  USAGE troubleshooting table entry for the deleted error class is
+  updated. The disclaimer boilerplate's source-of-truth line now
+  names `ebpf/src/**/*.rs` alongside `src/**` — the template in
+  inject-disclaimer.sh and all 16 existing copies swept.
+  PURE_RUST_EVALUATION.md gains the phase-3 record: the header
+  rewritten (the artifact is now the production source), the
+  stage-5 verdict updated (Phase 3: was HOLD, then EXECUTED by
+  owner directive — the override and the design that kept the
+  dormant-mode stable pin intact are both recorded), per-stage
+  execution sections with the commit SHAs, the post-phase-3
+  toolchain contract table, and the phase-3 task map.
+
 - **research: C is deleted — zelynic is pure Rust end to end
   (NIGHT-improve-1, phase 3, stage 3)** — executing the owner's
   "totally pure Rust, delete the C/legacy code" directive:

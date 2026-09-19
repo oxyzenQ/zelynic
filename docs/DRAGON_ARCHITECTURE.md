@@ -82,7 +82,7 @@ userspace tool coordination, no format mismatches, no leaked state.
 │  Layer 0 — BPF Programs (kernel)                        │
 │  cgroup_skb/egress observer → cgroup_counters map       │
 │  cgroup_skb ingress+egress limiter → token-bucket       │
-│  bpf/observer.bpf.c, bpf/limiter.bpf.c                  │
+│  ebpf/ (aya-ebpf: observer + limiter, pure Rust)        │
 │  (future: policer.bpf.c)                                │
 ```
 
@@ -158,12 +158,12 @@ Dragon Architecture is the mainline: `main` carries the pure-eBPF v11
 line.
 
 ### Done
-- [x] Layer 0: `bpf/observer.bpf.c` — cgroup_skb/egress counter
+- [x] Layer 0: `ebpf/src/main.rs` — cgroup_skb/egress counter
 - [x] Layer 1: `read_counters()` direct map read
 - [x] Layer 2: `IdentityMap` with /proc reverse-lookup + 10s TTL refresh
 - [x] Layer 3: `CounterSummary` with delta computation + sorting
 - [x] Layer 4: `print(&IdentityMap)` with human-readable labels
-- [x] Layer 0: `bpf/limiter.bpf.c` — cgroup_skb token-bucket enforcer (ingress + egress)
+- [x] Layer 0: `ebpf/src/bin/limiter.rs` — cgroup_skb token-bucket enforcer (ingress + egress)
 - [x] Layer 0: `bpf_skb_cgroup_id(skb)` for correct cgroup attribution
 - [x] Layer 1: `apply_single()` + `apply_group()` write to policy maps
 - [x] Layer 1: `read_stats()` reads from `cgroup_limiter_stats` map
@@ -230,7 +230,7 @@ inherits the name.
   forget to sync every doc — perfect sync across every .md file is a
   known maintenance burden with diminishing returns.
 
-  Source code (`src/**/*.rs`, `bpf/*.bpf.c`) is the single source of
+  Source code (`src/**/*.rs`, `ebpf/src/**/*.rs`) is the single source of
   truth. Always cross-check against the actual source files before
   relying on any specific number (target count, LOC, rate bound),
   file path, function name, or config key.

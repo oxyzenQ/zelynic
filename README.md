@@ -90,8 +90,14 @@ a re-run; limits do not survive reboot).
 
 - Linux kernel 5.13+ (cgroup v2 + `cgroup.id` file + bpf_link support)
 - Root access (BPF requires `CAP_BPF`)
-- `clang` (compile BPF programs)
-- `libbpf-dev` (BPF headers)
+- Rust 1.98+ (rustup; the repo pins the exact version in
+  `rust-toolchain.toml`)
+- The eBPF nightly pin + bpf-linker (the BPF side is pure Rust —
+  NIGHT-improve-1 phase 3; one-time setup):
+  ```bash
+  rustup toolchain install nightly-2026-09-18 --component rust-src --component rustfmt
+  # bpf-linker 0.11.1 prebuilt: https://github.com/aya-rs/bpf-linker/releases
+  ```
 
 ### Build
 
@@ -99,15 +105,8 @@ a re-run; limits do not survive reboot).
 git clone https://github.com/oxyzenQ/zelynic.git
 cd zelynic
 
-# Compile BPF programs (same command as CI; the -I flag resolves
-# multiarch kernel headers on Debian/Ubuntu)
-ARCH="$(uname -m)"
-clang -O2 -g -target bpf -I"/usr/include/${ARCH}-linux-gnu" \
-  -c bpf/observer.bpf.c -o bpf/observer.bpf.o
-clang -O2 -g -target bpf -I"/usr/include/${ARCH}-linux-gnu" \
-  -c bpf/limiter.bpf.c -o bpf/limiter.bpf.o
-
-# Build Rust binary
+# One command — the BPF objects are built pure-Rust (aya-ebpf, the
+# nested nightly build in build.rs) and embedded into the binary:
 cargo build --release --features ebpf
 ```
 
@@ -428,7 +427,7 @@ GPL-3.0-only
   forget to sync every doc — perfect sync across every .md file is a
   known maintenance burden with diminishing returns.
 
-  Source code (`src/**/*.rs`, `bpf/*.bpf.c`) is the single source of
+  Source code (`src/**/*.rs`, `ebpf/src/**/*.rs`) is the single source of
   truth. Always cross-check against the actual source files before
   relying on any specific number (target count, LOC, rate bound),
   file path, function name, or config key.

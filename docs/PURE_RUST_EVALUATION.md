@@ -1,19 +1,21 @@
 <!-- Copyright (C) 2026 rezky_nightky -->
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 
-# Pure Rust eBPF Evaluation (NIGHT-improve-1, stage 1 + phase 2)
+# Pure Rust eBPF Evaluation (NIGHT-improve-1, stage 1 + phase 2 + phase 3)
 
-> Research artifact, developed on the `pure-rust-prototype` branch
-> and merged into `main` as a pure fast-forward (392ee80 -> ca74cdb,
-> linear history, no merge commit). Nothing here ships in the
-> release binary: the detached `ebpf/` crate stays outside the
-> default build graph, so the v11 line contract is intact. The
-> stage-1 goal is the owner-approved DeepSeek plan: rewrite ONE BPF
-> program (the observer) with `aya-ebpf`, measure everything, and let
-> the numbers decide whether a Phase 2 (limiter) or Phase 3 (full pure
-> Rust) makes sense for zelynic. Phase 2 (the limiter port) is
-> complete — the Phase 2 section below carries the port, its
-> verification, and the measurements.
+> The full record of zelynic's C-to-Rust BPF migration. Stage 1
+> (the observer port) and phase 2 (the limiter port) ran as research
+> on the `pure-rust-prototype` branch, merged into `main` as a pure
+> fast-forward (392ee80 -> ca74cdb). Phase 3 — the owner's explicit
+> go-totally-pure-Rust directive — was then executed ON main as
+> three stages: the promoted build path, the embedded loaders, and
+> the deletion of `bpf/*.bpf.c` (see the Phase 3 section). The
+> `ebpf/` crate is now the production BPF source and its objects
+> ship INSIDE the binary; the default build (feature off) stays
+> stable-toolchain-only. The stage-1 goal was the owner-approved
+> DeepSeek plan: rewrite ONE BPF program (the observer) with
+> `aya-ebpf`, measure everything, and let the numbers decide — they
+> did, at every gate.
 
 ## Why this document exists
 
@@ -446,20 +448,24 @@ map or a consumer finally reads it.
    subset surface, high information value — it completes the
    pure-Rust picture before any mainline decision. **DONE** — see
    the Phase 2 section; every criterion passed with margin.
-3. **Phase 3 (drop C from the mainline): HOLD.** A mainline
+3. **Phase 3 (drop C from the mainline): was HOLD, then EXECUTED
+   by owner directive.** The original HOLD rationale: a mainline
    nightly-dependency for BPF builds would contradict the repo's
-   own dormant-mode toolchain pin (rust-toolchain.toml pins 1.98.1
-   precisely so no channel alias can drift the build; gate 10
-   enforces it). Revisit when aya-ebpf compiles on stable Rust.
-   Until then the detached crate keeps the mainline stable and the
-   research alive at zero cost to each other.
-4. **Adoption note:** the DeepSeek plan's `--features ebpf-rust`
-   flag turns out to be unnecessary even for adoption — both
-   loaders read the object from a file path (`bpf/observer.bpf.o`,
-   `bpf/limiter.bpf.o`), so the integration point is the object
-   file itself. A mainline user wanting the Rust-built observer
-   compiles this crate and places the artifact at that path; no
-   rebuild of zelynic, no feature flag, no userspace diff.
+   own dormant-mode toolchain pin. The owner reviewed the phase-2
+   evidence and explicitly overrode it ("delete the C/legacy code,
+   totally pure Rust") — accepting the nightly cost. Phase 3 ran
+   as three stages on main; the design kept the HOLD's core
+   concern intact: the DEFAULT build (feature off) never touches
+   nightly, so the dormant-mode stable pin still governs every
+   non-ebpf build. See the Phase 3 section for the execution
+   record.
+4. **Adoption note (historical, superseded by phase 3):** the
+   DeepSeek plan's `--features ebpf-rust` flag turned out to be
+   unnecessary even for adoption — both loaders read the object
+   from a file path, so the integration point was the object file
+   itself. Phase 3 replaced that mechanism entirely: the objects
+   are now embedded via include_bytes! and the file-path contract
+   is gone.
 
 ### Risk register
 
@@ -468,7 +474,7 @@ map or a consumer finally reads it.
 | aya-ebpf 0.2.x API churn (crate is 3 months old) | medium | low (detached crate, locked file) | ebpf/Cargo.lock committed; ports are 269 + 396 lines across two binaries |
 | bpf-linker prebuilt lag behind new nightly LLVM | medium | build break until new prebuilt | pin the working nightly in docs; prebuilts ship per release |
 | aya 0.13 -> 0.14 userspace pairing changes | low | low | compatibility verified empirically, not assumed; re-verify per bump |
-| Nightly-only stalls forever | unknown | Phase 3 never happens | Phase 3 is HOLD, not CANCEL — re-evaluate per aya release |
+| Nightly-only stalls forever | unknown | Phase 3 never happens | superseded: the owner accepted the nightly cost and phase 3 shipped; the dated pin caps the drift risk |
 
 ## Phase 2: the limiter port (NIGHT-improve-1, phase 2)
 
@@ -692,6 +698,82 @@ pending a stable-Rust aya-ebpf; the detached crate now covers BOTH
 production objects, so the research artifact is complete and the
 Phase 3 decision has everything it needs.
 
+## Phase 3: executed on main (NIGHT-improve-1, phase 3)
+
+The owner read the phase-2 record and gave the explicit directive:
+delete the C/legacy code, make zelynic totally pure Rust — the
+nightly cost accepted. The HOLD was overridden by its own owner;
+the design below keeps the HOLD's real concern (the dormant-mode
+stable pin) intact. Three stages, one commit each, all green:
+
+### Stage 1 — the promoted build path (1fa542e)
+
+The root `build.rs` now drives the eBPF build: with the `ebpf`
+feature on it runs a NESTED `rustup run nightly-2026-09-18 cargo
+build --release --locked --target bpfel-unknown-none -Z
+build-std=core` with cwd inside `ebpf/`, stages both objects into
+OUT_DIR (with an ELF-magic check), and the loaders embed them.
+Two aya-build upstream lessons were reproduced and fixed locally
+before the commit landed: the `CARGO` env var a build script
+receives points at the RESOLVED root toolchain's cargo (stable —
+silently dropping the toolchain file and the build-std flag), and
+the parent cargo exports `RUSTC` pointing at the stable rustc,
+which must be scrubbed from the child env or build-std core
+compiles against the wrong sysroot. The dated nightly pin moved
+from prose to a real file (`ebpf/rust-toolchain.toml`, with
+rust-src + rustfmt) — the risk-register mitigation made
+structural. CI followed: every build-carrying job installs the
+pin and bpf-linker 0.11.1; the eBPF Build matrix dropped
+clang/libbpf-dev and now gates the crate with rustfmt and builds
+it directly.
+
+### Stage 2 — the embedded loaders (76b9547)
+
+`include_bytes!` replaced the entire on-disk object pipeline:
+`OBSERVER_ELF` (loader.rs) and `LIMITER_ELF`
+(limiter/types.rs) carry the objects inside the binary.
+`find_bpf_object()` (both copies), the four-path candidate
+search, and the "BPF object file not found. Compile with: clang
+..." error strings are deleted — the error class is structurally
+impossible, verified by an unprivileged runtime smoke test (the
+binary proceeds straight to the root check). The pinning flow is
+untouched; `Ebpf::load`/`EbpfLoader::load` receive the same
+bytes aya would have read from disk. The formal 10 s render-path
+A/B (A = 1fa542e, B = 76b9547) is metric-identical on every
+visual metric — recorded in PERFORMANCE.md, because the owner
+rule gives every shipped-surface commit the benchmark.
+
+### Stage 3 — C deleted (f844038)
+
+`bpf/observer.bpf.c` and `bpf/limiter.bpf.c` are gone (-1,061
+lines against +504 of pure-Rust plumbing across the phase). No
+clang, no libbpf-dev, no linux-libc-dev anywhere in the build
+surface. install.sh ships one self-contained binary and
+pre-checks the two pure-Rust prerequisites with install pointers;
+package.sh and release.yml stop packaging loose objects (the
+tarball is binary + docs + scripts); gate 12 became rustfmt on
+the ebpf/ crate; the changes-job core pattern now watches `ebpf/`
+(it never did during the research era — a blind spot closed);
+codeql.yml drops the C datapath story; the live-contract comments
+point at their in-tree counterparts.
+
+### Toolchain contract after phase 3
+
+| Build | Toolchain | Notes |
+|---|---|---|
+| Default (`cargo build` / check-all / tests) | stable 1.98.1 pin | the dormant-mode contract, unchanged |
+| ebpf-feature builds (incl. clippy --all-features) | stable root + nested dated nightly | nightly entered only through build.rs, never the default path |
+| Direct ebpf work (`cd ebpf && cargo build`) | dated nightly pin | resolves from ebpf/rust-toolchain.toml |
+| Prerequisites | rustup + bpf-linker 0.11.1 prebuilt | no clang, no system LLVM, no libbpf headers |
+
+The runtime A/B on a privileged host (swap objects, run the
+observe/limit loop against real traffic) is the owner's own next
+step — the phase-2 sandbox was unprivileged by environment, and
+the phase-3 build reproduces both documented object sizes exactly
+(3,864 / 5,624 B), so the bytes that load on the host are the
+bytes the harness verified at the ELF-contract level.
+
+
 ## Stage-1 task map (DeepSeek plan, one commit each)
 
 1. Research (this document's ecosystem and compatibility sections).
@@ -722,6 +804,24 @@ Phase 3 decision has everything it needs.
    throwaway worktree, B = the branch tip), recorded in the
    measurements section — every visual metric identical, proving
    the zero-shipped-surface claim with data instead of assertion.
+
+## Phase-3 task map (one commit each)
+
+1. The promoted build path: root build.rs nested nightly build +
+   OUT_DIR staging with the ELF-magic check, the dated toolchain
+   pin file, publish = false, and the CI toolchain installs
+   (1fa542e).
+2. The embedded loaders: include_bytes! switch, deletion of the
+   object-discovery pipeline, embedded-object drift pins; the
+   benchmark record commit followed (76b9547, 39c09e4).
+3. C deleted: bpf/*.bpf.c removed, install/package/release
+   reworked to the self-contained binary, gate 12 -> ebpf rustfmt,
+   the changes-job pattern watching ebpf/, codeql cleanup
+   (f844038).
+4. Docs sync: this section, the toolchain contract table, and the
+   repo-wide sweep (README, CONTRIBUTING, KERNEL_COMPATIBILITY,
+   SAFETY_ANALYSIS, DRAGON_ARCHITECTURE, CROSS_DISTRO historical
+   note, USAGE, the disclaimer source-of-truth paths).
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.
@@ -731,7 +831,7 @@ Phase 3 decision has everything it needs.
   forget to sync every doc — perfect sync across every .md file is a
   known maintenance burden with diminishing returns.
 
-  Source code (`src/**/*.rs`, `bpf/*.bpf.c`) is the single source of
+  Source code (`src/**/*.rs`, `ebpf/src/**/*.rs`) is the single source of
   truth. Always cross-check against the actual source files before
   relying on any specific number (target count, LOC, rate bound),
   file path, function name, or config key.

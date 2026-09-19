@@ -221,7 +221,7 @@ Default answer is no. When a feature genuinely needs a new crate:
   forget to sync every doc — perfect sync across every .md file is a
   known maintenance burden with diminishing returns.
 
-  Source code (`src/**/*.rs`, `bpf/*.bpf.c`) is the single source of
+  Source code (`src/**/*.rs`, `ebpf/src/**/*.rs`) is the single source of
   truth. Always cross-check against the actual source files before
   relying on any specific number (target count, LOC, rate bound),
   file path, function name, or config key.

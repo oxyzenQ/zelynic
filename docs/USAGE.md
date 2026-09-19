@@ -411,7 +411,7 @@ purpose — `--help` is the single reference.
 | `Invalid rate '1MB'` (with a tip) | Units are lowercase. The tip suggests the fix (`1mb`). |
 | `Invalid interval '90s'` | Refresh interval must be 1s..60s. |
 | `Stale BPF pin files detected` | A previous run was killed mid-operation. Run `sudo zelynic recover`, then re-apply limits. |
-| `BPF object file not found` | Compile the BPF objects (see README Build section) or install a release tarball, then `zelynic doctor`. |
+| `the pure-Rust eBPF build failed` (build time) | The nightly pin or bpf-linker is missing — see README Build section for the two install commands. The old "BPF object file not found" error class is gone (objects are embedded). |
 | Monitor won't exit | Press `q` — the only quit key (NIGHT-hunt-16). ESC and Ctrl+C are deliberately drained, never treated as quit. If a wedged terminal swallows the `q` byte: `pkill zelynic` from another shell, then `stty sane`. |
 | Limit seems not enforced | Check `sudo zelynic status` — is the cgroup listed? Verify the app's traffic is actually flowing through the limited cgroup (`observe --cgroup`). If the app was restarted after the limit was set, re-apply (see limitation #1). |
 | Two zelynic commands interfered | The lock is deliberately non-blocking: the second command exited with "another zelynic operation is in progress". Wait for the first to finish, re-run it. If pins ended up inconsistent: `recover`. |
@@ -574,7 +574,7 @@ disagrees with the code, the doc is wrong; open a PR.
   forget to sync every doc — perfect sync across every .md file is a
   known maintenance burden with diminishing returns.
 
-  Source code (`src/**/*.rs`, `bpf/*.bpf.c`) is the single source of
+  Source code (`src/**/*.rs`, `ebpf/src/**/*.rs`) is the single source of
   truth. Always cross-check against the actual source files before
   relying on any specific number (target count, LOC, rate bound),
   file path, function name, or config key.
