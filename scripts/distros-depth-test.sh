@@ -20,7 +20,6 @@ elif [[ -x "./zelynic" ]]; then
 elif [[ -x "./target/release/zelynic" ]]; then
 	BINARY="./target/release/zelynic"
 fi
-BPF_OBJ="bpf/limiter.bpf.o"
 PASS=0
 FAIL=0
 SKIP=0
@@ -64,14 +63,6 @@ if [[ -z "$BINARY" ]]; then
 	BINARY="./target/release/zelynic"
 fi
 
-if [[ ! -f "$BPF_OBJ" ]]; then
-	if command -v clang >/dev/null 2>&1; then
-		echo "Compiling BPF object..."
-		clang -O2 -g -target bpf -c bpf/limiter.bpf.c -o "$BPF_OBJ"
-	else
-		echo "BPF object not found. Using pre-compiled or skipping."
-	fi
-fi
 
 # Cleanup any existing state
 $BINARY unstrict-all 2>/dev/null || true

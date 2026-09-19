@@ -3,8 +3,9 @@
 
 //! Limiter constants and data types.
 //!
-//! BPF map value structs mirror the C structs in `bpf/limiter.bpf.c`
-//! (layout contract); the high-level types drive the CLI-facing API.
+//! BPF map value structs mirror the limiter program's structs in
+//! `ebpf/src/bin/limiter.rs` (layout contract); the high-level types
+//! drive the CLI-facing API.
 
 // ━━ Constants ━━
 
@@ -34,7 +35,8 @@ pub const MIN_RATE: u64 = 1000;
 /// override.
 pub const MAX_RATE: u64 = 1_000_000_000_000;
 
-/// BPF schema version. Must match `SCHEMA_VERSION` in `bpf/limiter.bpf.c`.
+/// BPF schema version. Must match `SCHEMA_VERSION` in
+/// `ebpf/src/bin/limiter.rs`.
 /// Increment both when BPF struct layouts or semantics change. Userspace checks
 /// the pinned schema_version map on attach — if mismatch, cleans up + reloads.
 /// v1: initial (no frac_rem in bucket, no schema_version map)
@@ -42,7 +44,7 @@ pub const MAX_RATE: u64 = 1_000_000_000_000;
 /// v3: rate_bps == 0 changed from "allow all" to "block all" (block-single)
 pub const SCHEMA_VERSION_EXPECTED: u32 = 3;
 
-// ━━ BPF map value structs (must match C structs) ━━
+// ━━ BPF map value structs (must match the ebpf crate's structs) ━━
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, Default)]
@@ -63,7 +65,7 @@ unsafe impl aya::Pod for PolicyRaw {}
 // them via the deleted clear_bucket_map), so this type is never
 // constructed in production — but it stays as the schema-layout contract:
 // the size/field assertions in the tests below guard drift against
-// `struct bucket` in bpf/limiter.bpf.c.
+// `struct Bucket` in ebpf/src/bin/limiter.rs.
 #[allow(dead_code)]
 pub struct BucketRaw {
     pub tokens: u64,
@@ -244,7 +246,7 @@ mod tests {
 
     #[test]
     fn test_schema_version_constant() {
-        // Must match SCHEMA_VERSION in bpf/limiter.bpf.c.
+        // Must match SCHEMA_VERSION in ebpf/src/bin/limiter.rs.
         // When this changes, the BPF code must also change.
         assert_eq!(SCHEMA_VERSION_EXPECTED, 3);
     }

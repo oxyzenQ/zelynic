@@ -59,7 +59,7 @@ jobs:
             HEAD="$HEAD_SHA"
           fi
           FILES=$(git diff --name-only "$BASE" "$HEAD" 2>/dev/null || git ls-files)
-          CORE_PATTERN='\.(rs|toml|c|py)$|Cargo\.lock$|^build\.rs$|^rust-toolchain|^scripts/|^\.cargo/|^bpf/'
+          CORE_PATTERN='\.(rs|toml|py)$|Cargo\.lock$|^build\.rs$|^rust-toolchain|^scripts/|^\.cargo/|^ebpf/'
           if echo "$FILES" | grep -qE "$CORE_PATTERN"; then
             echo "core=true" >> "$GITHUB_OUTPUT"
           else
