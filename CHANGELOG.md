@@ -133,6 +133,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **ci: eBPF Build red since NIGHT-cybersecurity-1 — the over-wrapped
+  fill_ns line and the missing local C-side gate (NIGHT-ci-fix-1)** —
+  both eBPF Build matrix jobs (ubuntu-22.04, ubuntu-24.04) failed at
+  the "Check BPF C formatting" step on every run since the BPF refill
+  overflow fix landed: the fill_ns assignment in bpf/limiter.bpf.c
+  wrapped one line early even though the joined line fits the
+  80-column limit exactly, so clang-format rejected the file on both
+  runners before the compile steps ever ran. Joined the line — zero
+  replacements verified with clang-format 18.1.8 and 14.0.6 (both CI
+  images) under the exact CI invocation. The regression slipped
+  through because gate-keepers.sh had no C-side gate: added check 12
+  running `clang-format --dry-run --Werror bpf/*.c` (the exact eBPF
+  Build command) with the standard missing-tool skip. Gate count
+  references synced in CONTRIBUTING.md, docs/USAGE.md, and
+  src/RULES.md (13 -> 14). No behavior change. Version untouched:
+  11.0.0-dev.1 (frozen-version policy).
+
 - **cli: unstrict-single is the canonical name, unstrict the shorthand
   (NIGHT-hunt-16)** — the strict family documents `strict-single` as
   canonical with `strict` the shorthand, but the unstrict family was

@@ -189,8 +189,7 @@ static __always_inline int enforce(struct policy *pol, struct bucket *bkt,
     __u64 refill_whole = 0;
     __u64 new_frac     = bkt->frac_rem;
     if (elapsed > 0 && pol->rate_bps > 0) {
-        __u64 fill_ns =
-            (2ULL * pol->burst_bytes * NS_PER_SEC) / pol->rate_bps;
+        __u64 fill_ns = (2ULL * pol->burst_bytes * NS_PER_SEC) / pol->rate_bps;
         if (elapsed >= fill_ns) {
             // Refill >= 2x burst: the cap below makes the exact value
             // irrelevant — burst is the answer.

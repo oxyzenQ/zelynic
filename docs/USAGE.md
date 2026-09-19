@@ -537,7 +537,7 @@ Quality gates before every commit (both must pass):
 
 ```bash
 ./scripts/build.sh check-all     # fmt + clippy + tests + policy (2-min local cap)
-./scripts/gate-keepers.sh        # 13 checks: lint, policy, versions, disclaimers
+./scripts/gate-keepers.sh        # 14 checks: lint, policy, versions, disclaimers
 ```
 
 Frame-level render changes additionally get the 10s A/B benchmark:

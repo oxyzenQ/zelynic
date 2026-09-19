@@ -95,7 +95,7 @@ bpf/
 
 scripts/
   build.sh             — check-all orchestration
-  gate-keepers.sh      — pre-commit non-code gates (13 checks)
+  gate-keepers.sh      — pre-commit non-code gates (14 checks)
   check-permissions.sh — 644/755 permission guard
   check-loc.sh         — Rust file LOC cap (500, // LOC_EXEMPT: markers)
   check-headers.sh     — license header check (rs/c/h/py/sh/toml/yml/md)
@@ -152,12 +152,13 @@ cargo audit + cargo deny (both skip with a warning when not installed),
 the repository policy check (check-policy.py), and the version-string
 anti-pattern check.
 
-`gate-keepers.sh` runs the 13 non-code gates: bash -n + shellcheck + shfmt
+`gate-keepers.sh` runs the 14 non-code gates: bash -n + shellcheck + shfmt
 on shell scripts, yamllint + actionlint on workflows, TOML validation,
 codespell, SPDX license headers (check-headers.sh), file permission guard
 (644 files / 755 executables and directories), the repo-wide emoji sweep,
 the 500-line Rust LOC cap (check-loc.sh), the toolchain-pin sync check
-(check-rust-version-sync.sh), and the documentation disclaimer check
+(check-rust-version-sync.sh), clang-format on the BPF C sources (the
+exact eBPF Build CI command), and the documentation disclaimer check
 (inject-disclaimer.sh). Missing tools are skipped with a warning.
 
 ## Branch Strategy
