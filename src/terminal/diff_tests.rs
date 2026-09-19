@@ -271,6 +271,142 @@ fn emit_swaps_shadow_with_caller_buffer() {
     assert_eq!(shadow_len(&s), 2, "shadow holds the second frame");
 }
 
+/// Tall-regime idle frame (n >= h, nothing changed): ZERO bytes.
+/// The pre-improve-6 engine excluded seq_forced from the idle path,
+/// so every refresh repainted the full frame (~1.4 KB per frame on
+/// the classic 80x24) even while the monitor sat completely idle.
+#[test]
+fn tall_regime_idle_frame_emits_zero_bytes() {
+    let mut s = screen();
+    let rows: Vec<String> = (0..10).map(|i| format!("row{i}")).collect();
+    let mut lines = rows.clone();
+    let mut out = sink();
+    s.emit_at(80, 10, &mut lines, &mut out); // first frame: full paint
+    assert!(!out.is_empty());
+    out.clear();
+
+    let mut lines2 = rows.clone();
+    let n = s.emit_at(80, 10, &mut lines2, &mut out);
+    assert_eq!(n, 0, "tall-regime idle frame must emit nothing");
+    assert!(out.is_empty(), "tall-regime idle frame must not write");
+}
+
+/// A tall-regime frame never ends its emission with a linefeed: the
+/// final LF would be written with the cursor on the bottom row,
+/// scrolling the screen up one line per refresh (title-bar drift +
+/// layout shift). The stream ends with the last visible row's
+/// erase-EOL, and only the rows ABOVE the bottom carry separators.
+#[test]
+fn tall_regime_emission_never_ends_with_linefeed() {
+    let mut s = screen();
+    let mut lines: Vec<String> = (0..10).map(|i| format!("row{i}")).collect();
+    let mut out = sink();
+    s.emit_at(80, 10, &mut lines, &mut out);
+
+    let text = String::from_utf8_lossy(&out).to_string();
+    assert!(text.contains("row9\x1b[K"), "last visible row present");
+    assert!(
+        !text.ends_with('\n'),
+        "emission must not end with LF (bottom-row LF scrolls)"
+    );
+    assert_eq!(
+        text.matches('\n').count(),
+        9,
+        "exactly h-1 separators — no LF after the final visible row"
+    );
+}
+
+/// Degenerate tall frame (n > h, sub-8-row terminals): the emission
+/// is top-aligned and clipped to the viewport — the first h rows,
+/// nothing beyond, no trailing LF. The old engine wrote all n rows
+/// sequentially, scrolling the frame bottom-over-top every refresh.
+#[test]
+fn tall_regime_clips_to_the_viewport_top_aligned() {
+    let mut s = screen();
+    let mut lines: Vec<String> = (0..8).map(|i| format!("clip{i}")).collect();
+    let mut out = sink();
+    s.emit_at(80, 5, &mut lines, &mut out);
+
+    let text = String::from_utf8_lossy(&out).to_string();
+    for i in 0..5 {
+        assert!(
+            text.contains(&format!("clip{i}")),
+            "visible row {i} painted"
+        );
+    }
+    for i in 5..8 {
+        assert!(
+            !text.contains(&format!("clip{i}")),
+            "row {i} beyond the viewport must be clipped"
+        );
+    }
+    assert!(
+        !text.ends_with('\n'),
+        "no trailing LF at the viewport bottom"
+    );
+    assert_eq!(text.matches('\n').count(), 4, "h-1 separators only");
+}
+
+/// Rows clipped away by a shorter viewport are dirty by definition:
+/// when the terminal grows, the newly revealed rows repaint even
+/// though their content is byte-identical to the shadow (they were
+/// never physically painted). The `painted` term pins that invariant.
+#[test]
+fn clipped_rows_repaint_when_the_terminal_grows() {
+    let mut s = screen();
+    let rows: Vec<String> = (0..8).map(|i| format!("grow{i}")).collect();
+    let mut lines = rows.clone();
+    let mut out = sink();
+    s.emit_at(80, 5, &mut lines, &mut out); // clipped: rows 0..4 painted
+    out.clear();
+
+    // Terminal grows to 8 rows; frame content is IDENTICAL.
+    let mut same = rows.clone();
+    let n = s.emit_at(80, 8, &mut same, &mut out);
+    assert!(n > 0, "revealed rows must repaint (never idle here)");
+    let text = String::from_utf8_lossy(&out).to_string();
+    for i in 5..8 {
+        assert!(
+            text.contains(&format!("grow{i}")),
+            "revealed row {i} repainted"
+        );
+    }
+    assert!(!text.ends_with('\n'), "still no trailing LF at the bottom");
+}
+
+/// Regime transition tall -> short: the first short-regime frame is
+/// self-contained — home-anchored, every visible row re-emitted, tail
+/// cleared below the frame. Physical alignment follows from the
+/// no-trailing-LF pin (the screen never scrolled, so absolute rows
+/// land where the shadow believes they are); this pin locks the
+/// stream contract that makes that argument sound.
+#[test]
+fn tall_to_short_transition_stream_is_self_contained() {
+    let mut s = screen();
+    let mut lines: Vec<String> = (0..10).map(|i| format!("tall{i}")).collect();
+    let mut out = sink();
+    s.emit_at(80, 10, &mut lines, &mut out); // tall regime, full frame
+    out.clear();
+
+    // Terminal grows; the frame shrinks to 6 rows — short regime now.
+    let mut shorter: Vec<String> = (0..6).map(|i| format!("short{i}")).collect();
+    s.emit_at(80, 20, &mut shorter, &mut out);
+
+    let text = String::from_utf8_lossy(&out).to_string();
+    assert!(
+        text.starts_with("\x1b[H"),
+        "transition frame is home-anchored (self-contained), got {text:?}"
+    );
+    assert!(
+        text.contains("\x1b[7;1H\x1b[J"),
+        "tail erase below the shorter frame, got {text:?}"
+    );
+    for i in 0..6 {
+        assert!(text.contains(&format!("short{i}")), "row {i} re-emitted");
+    }
+    assert!(!text.contains("tall"), "old tall rows fully replaced");
+}
+
 fn shadow_len(s: &DiffScreen) -> usize {
     s.prev.len()
 }

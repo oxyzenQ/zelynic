@@ -39,6 +39,14 @@
 //!   TIOCGWINSZ ioctl per frame (the render layer already probes
 //!   twice per frame for layout); no SIGWINCH plumbing, no stale
 //!   geometry.
+//! - **Tall regime (rows >= terminal height) is top-aligned and
+//!   scroll-free (NIGHT-improve-6)**: the emission paints the first
+//!   min(rows, height) lines and never ends with a linefeed. The
+//!   pre-improve-6 engine ended every tall frame with a bottom-row
+//!   LF — one screen scroll per refresh, the title bar drifting off
+//!   on every terminal at or under the render cap (the classic
+//!   80x24 included) — and the idle path was disabled, forcing a
+//!   full repaint per frame even when nothing changed.
 //!
 //! Line granularity (vs their cell grid) is the honest adaptation:
 //! zelynic's monitors are styled text tables, not per-cell scenes. A
@@ -127,6 +135,13 @@ pub struct DiffScreen {
     /// unknown, so the first frame must paint everything (the
     /// dragon engine's force_full_emit invariant).
     ever_drawn: bool,
+    /// Number of leading frame rows physically on screen. Equals the
+    /// visible row count of the last emission — in the tall regime
+    /// that is clipped to the viewport (NIGHT-improve-6), so rows at
+    /// or beyond this index have never been painted and are dirty by
+    /// definition. Inert in the normal regime, where it always
+    /// equals the previous frame's full row count.
+    painted: usize,
     /// Emission buffer, one `write(2)` per frame.
     buf: Vec<u8>,
 }
@@ -143,6 +158,7 @@ impl DiffScreen {
             prev: Vec::new(),
             width: 0,
             ever_drawn: false,
+            painted: 0,
             buf: Vec::with_capacity(8 * 1024),
         }
     }
@@ -180,23 +196,38 @@ impl DiffScreen {
         let n = lines.len();
         let shrunk = n < self.prev.len();
 
-        // Degenerate tall-frame case: the frame meets/exceeds the
-        // terminal height, so absolute row positioning would clamp to
-        // the bottom row and overwrite it. Fall back to sequential
-        // writes — the scrolling semantics of the pre-diff renderer,
-        // preserved exactly (this only happens on terminals shorter
-        // than the chrome+capped rows, i.e. under ~24 rows).
+        // Tall regime: the frame meets/exceeds the terminal height, so
+        // absolute row positioning would clamp to the bottom row and a
+        // per-row LF at the viewport bottom would scroll the screen on
+        // every frame. The emission is therefore sequential and
+        // TOP-ALIGNED: only the first `visible` rows are painted and
+        // the final one carries no trailing LF (NIGHT-improve-6 — the
+        // former trailing LF scrolled the title bar off one line per
+        // refresh on every terminal at or under the render cap, the
+        // classic 80x24 included; the render layer caps the frame at
+        // exactly the terminal height there, so `visible` covers the
+        // whole frame, and only sub-8-row terminals actually clip).
         let seq_forced = n >= height;
+        let visible = n.min(height);
 
-        let dirty: Vec<bool> = (0..n)
-            .map(|i| reset || i >= self.prev.len() || lines[i] != self.prev[i])
+        // A row is dirty when it differs from the shadow, when it is
+        // new, or when it was never physically painted (clipped away
+        // by a shorter viewport earlier — the `painted` term). That
+        // term is inert in the normal regime (painted always equals
+        // the previous frame's full row count there) but forces a
+        // repaint of exactly the rows a taller terminal just revealed.
+        let dirty: Vec<bool> = (0..visible)
+            .map(|i| reset || i >= self.prev.len() || i >= self.painted || lines[i] != self.prev[i])
             .collect();
         let dirty_count = dirty.iter().filter(|d| **d).count();
 
         // Idle fast path: nothing changed, no reset, no shrink. Zero
         // bytes, zero syscalls — the "waiting for traffic" monitor
-        // holds its frame for free.
-        if dirty_count == 0 && !reset && !shrunk && !seq_forced {
+        // holds its frame for free at EVERY height (NIGHT-improve-6
+        // opened the tall regime: the frame is on screen and stable,
+        // so holding it costs nothing; the old engine repainted the
+        // full frame on every refresh there).
+        if dirty_count == 0 && !reset && !shrunk {
             mem::swap(&mut self.prev, lines);
             return 0;
         }
@@ -213,10 +244,10 @@ impl DiffScreen {
         // the dragon engine's contiguous-run batching).
         let mut runs: Vec<(usize, usize)> = Vec::new();
         let mut i = 0;
-        while i < n {
+        while i < visible {
             if dirty[i] {
                 let start = i;
-                while i < n && dirty[i] {
+                while i < visible && dirty[i] {
                     i += 1;
                 }
                 runs.push((start, i));
@@ -241,8 +272,10 @@ impl DiffScreen {
         } else {
             0
         };
-        let seq_cost =
-            HOME.len() + if reset { ERASE_BELOW.len() } else { 0 } + rows_cost((0, n)) + tail_cost;
+        let seq_cost = HOME.len()
+            + if reset { ERASE_BELOW.len() } else { 0 }
+            + rows_cost((0, visible))
+            + tail_cost;
         let sparse_cost = runs
             .iter()
             .map(|&r| 5 + dec_len(r.0 + 1) + rows_cost(r))
@@ -263,17 +296,24 @@ impl DiffScreen {
             }
         } else {
             // Sequential path (dense diff, first frame, resize, or
-            // degenerate height): home, then every row in order —
-            // same order and same scrolling behavior as the
-            // pre-diff println renderer, minus the screen wipe.
+            // the tall regime): home, then every VISIBLE row in
+            // order. In the tall regime the emission stops at the
+            // viewport bottom without a trailing LF — the
+            // pre-improve-6 engine ended every frame with a
+            // bottom-row LF, scrolling the screen one line per
+            // refresh. In the normal regime the trailing LF after
+            // the final row is preserved byte-exactly (it lands on a
+            // spare row below the frame and never scrolls).
             self.buf.extend_from_slice(HOME);
             if reset {
                 self.buf.extend_from_slice(ERASE_BELOW);
             }
-            for line in lines.iter() {
+            for (i, line) in lines.iter().take(visible).enumerate() {
                 self.buf.extend_from_slice(line.as_bytes());
                 self.buf.extend_from_slice(ERASE_EOL);
-                self.buf.push(b'\n');
+                if !seq_forced || i + 1 < visible {
+                    self.buf.push(b'\n');
+                }
             }
         }
         if tail_clear {
@@ -288,6 +328,7 @@ impl DiffScreen {
             // monitor quietly, never a panic.
             let _ = sink.write_all(&self.buf);
         }
+        self.painted = visible;
         mem::swap(&mut self.prev, lines);
         emitted
     }
