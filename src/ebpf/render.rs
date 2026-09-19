@@ -28,7 +28,8 @@
 //! Module map (mirrors the limiter/ split, owner LOC cap):
 //! - [`observe`] — the aggregate + single-cgroup observe renderers
 //! - [`top`] — the top-talkers renderer (always live, NIGHT-hunt-12)
-//! - `bench` (cfg(test)) — the frame A/B benchmark harness
+//! - `bench` (cfg(test)) — the frame A/B benchmark harness (wired in
+//!   from `test/ebpf/render/bench.rs`, NIGHT-hunt-17)
 //! - this root — geometry probing, column budgets, shared helpers,
 //!   and the NIGHT-hunt-8 connection-detail lines (label +N suffix,
 //!   per-process endpoint lines shared by observe and top)
@@ -38,6 +39,11 @@ mod observe;
 mod top;
 
 #[cfg(test)]
+// NIGHT-hunt-17: the A/B frame harness is a test file, so it lives
+// under the repo's single test/ tree (cosmostrix Pattern C) and is
+// #[path]-wired back here. frame-bench.py still finds it by test
+// name (frame_bench_observe), not by path.
+#[path = "../../test/ebpf/render/bench.rs"]
 mod bench;
 
 pub use observe::{render_observe_filtered, render_observe_frame};

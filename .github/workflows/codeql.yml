@@ -20,7 +20,7 @@ name: "Dragon Guard - CodeQL"
     paths:
       # Rust
       - 'src/**'
-      - 'tests/**'
+      - 'test/**'
       - 'Cargo.toml'
       - 'Cargo.lock'
       - 'build.rs'
@@ -36,7 +36,7 @@ name: "Dragon Guard - CodeQL"
     branches: ["main"]
     paths:
       - 'src/**'
-      - 'tests/**'
+      - 'test/**'
       - 'bpf/**'
       - 'Cargo.toml'
       - 'Cargo.lock'

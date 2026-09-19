@@ -360,5 +360,8 @@ impl Write for RawStdout {
 }
 
 #[cfg(test)]
-#[path = "diff_tests.rs"]
+// NIGHT-hunt-17: test files live under the repo's single test/ tree
+// (cosmostrix Pattern C), so the pins are #[path]-wired across trees
+// instead of sitting as a sibling file next to the engine.
+#[path = "../../test/terminal/diff_tests.rs"]
 mod diff_tests;

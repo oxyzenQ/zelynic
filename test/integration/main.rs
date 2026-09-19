@@ -5,8 +5,11 @@
 //!
 //! One test binary, split by surface (NIGHT-docs-4) so every file
 //! stays under the 500-LOC cap that `scripts/check-loc.sh` enforces
-//! over `src/**` AND `tests/**` (the same navigability rationale as
-//! cosmostrix's `src/RULES.md` split policy):
+//! over `src/**` AND `test/**` (the same navigability rationale as
+//! cosmostrix's `src/RULES.md` split policy). Since NIGHT-hunt-17 the
+//! whole tree lives under `test/` (cosmostrix Pattern C) and is the
+//! single test target declared in Cargo.toml (`autotests = false` —
+//! the old `tests/` directory convention is gone for good):
 //! - `smoke` — end-to-end surface checks (doctor, version, cycles)
 //! - `cli_ux` — flag/error UX contract pins (suggestions, EPIPE)
 //! - `help_pins` — `--help` reference drift pins

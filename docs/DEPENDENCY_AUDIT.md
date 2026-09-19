@@ -31,7 +31,7 @@ first place; the risk was in the build pipeline, not the artifact.
 ## Finding 1: chrono (removed) — zero call sites, 27 crates of baggage
 
 A repository-wide grep for `chrono::`, `DateTime`, `Utc`, `Local` and
-`NaiveDate` across `src/`, `build.rs`, and `tests/` returns zero
+`NaiveDate` across `src/`, `build.rs`, and `test/` returns zero
 matches (the only "Local" hit is `LocalFlags` from libc termios).
 chrono was declared in `Cargo.toml` with
 `default-features = false, features = ["clock"]` and never used once.

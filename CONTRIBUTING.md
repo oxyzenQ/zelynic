@@ -88,7 +88,7 @@ src/
                         cosmic-dragon-engine adaptation: shadow, dirty
                         runs, single write syscall, idle zero-emit;
                         NIGHT-improve-6: top-aligned scroll-free tall
-                        regime); unit pins in diff_tests.rs
+                        regime); unit pins in test/terminal/diff_tests.rs
 
 bpf/
   limiter.bpf.c        — token-bucket enforcer (ingress + egress)
