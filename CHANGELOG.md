@@ -9,6 +9,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **research: pure-Rust eBPF prototype, stage 1 complete
+  (NIGHT-improve-1, pure-rust-prototype branch)** — the
+  owner-briefed evaluation of migrating the BPF side from C to
+  aya-ebpf, executed exactly as the DeepSeek plan staged it, one
+  micro-commit per task. Lives on the `pure-rust-prototype` branch
+  (research artifact; mainline untouched by design): `ebpf/` is a
+  detached nightly-only crate holding the line-for-line port of
+  `bpf/observer.bpf.c` (269 lines vs 172, 1.27x code-only), and
+  `docs/PURE_RUST_EVALUATION.md` is the full record — ecosystem
+  state, toolchain requirements, the port contract, measurements,
+  and the decision. Headlines: the Rust-built object is a verified
+  drop-in for the pinned aya 0.13.1 userspace (identical program
+  sections, map names, and geometry; zero userspace changes
+  needed), the toolchain needs no clang/LLVM/sudo (rustup nightly +
+  prebuilt bpf-linker), the stop criterion (>2x LOC AND nightly)
+  is not met, the render-path A/B is metric-identical as expected
+  (detached crate, shipped binary unchanged). Decision: stage 1
+  SUCCESS, Phase 2 (limiter port — a strict-subset BPF surface) is
+  a GO on the same branch, Phase 3 (dropping C from mainline) is a
+  HOLD until aya-ebpf compiles on stable Rust, since a mainline
+  nightly dependency would contradict the dormant-mode toolchain
+  pin that gate 10 enforces. Hunt finding recorded for Phase 2:
+  the observer's `events` ring buffer is written by the BPF side
+  but never read by userspace.
+
+### Changed
+
 - **docs: src/RULES.md — the colocated source-tree rules
   (NIGHT-docs-4)** — the reminder of the rules that govern src/ and
   tests/, standing in the tree where contributors actually work (the

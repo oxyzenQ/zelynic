@@ -459,8 +459,12 @@ map or a consumer finally reads it.
 4. Measurements: LOC, build times, object layout, verification
    harness output.
 5. Decision: apply the stop/continue criteria to the numbers.
-6. Docs sync: CHANGELOG entry, stale-reference fixes, pointers from
-   the main docs to this branch.
+6. Docs sync: CHANGELOG entry (the discoverable pointer to this
+   branch), the stale gate-count references fixed (three files said
+   14 checks; the real count has been 15 since the test-tree
+   discipline gate landed), and the stale "(NIGHT-improve-1)" tag
+   removed from the pro-native alias comment in .cargo/config.toml
+   so this task owns the label cleanly.
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.

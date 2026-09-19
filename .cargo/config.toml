@@ -14,8 +14,8 @@ rustflags = ["-C", "target-feature=+crt-static"]
 linker = "rust-lld"
 rustflags = ["-C", "target-feature=+crt-static"]
 
-# ── Native-CPU host build aliases (NIGHT-improve-1, cosmostrix
-# pro-native lineage) ────────────────────────────────────────────────────
+# ── Native-CPU host build aliases (cosmostrix pro-native
+# lineage) ────────────────────────────────────────────────────────────────
 #
 # Owner contract: `cargo pro-native-gnu` / `cargo pro-native-musl`
 # compile for the host CPU (`-C target-cpu=native`) with dynamic
