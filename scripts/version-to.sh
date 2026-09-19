@@ -7,8 +7,8 @@
 # Centralized version management — update ALL files from a single command.
 #
 # Usage:
-#   ./scripts/version-to.sh v3.0.0          # Update to v3.0.0
-#   ./scripts/version-to.sh v2.1.0 --commit # Update and auto-commit
+#   ./scripts/version-to.sh v11.1.0        # Update to v11.1.0
+#   ./scripts/version-to.sh v11.0.1 --commit # Update and auto-commit
 #   ./scripts/version-to.sh                 # Show current version
 #
 # Single source of truth: Cargo.toml

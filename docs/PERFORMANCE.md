@@ -3,7 +3,7 @@
 
 # Performance Metrics
 
-> Deep benchmark results for zelynic v10.0.0 — measured on real hardware.
+> Deep benchmark results for zelynic — measured on real hardware.
 
 ## Measurement Methodology
 
@@ -97,7 +97,7 @@ Verified across 6 distributions (all within 2% of target):
 `open_pinned()` no longer scans /proc on every call. Only `status` command
 refreshes identity. Write operations ~50-100ms faster.
 
-### v10.0.0 — Kernel Version Detection
+### Kernel Version Detection
 
 Added `kernel_supports_bpf_link()` check. On kernel < 5.7, falls back to
 legacy `bpf_prog_attach` instead of crashing on `bpf_link_create`.

@@ -279,9 +279,8 @@ fi
 # scripts, configs alike. The detector scans anything that decodes as
 # strict UTF-8, so file types cannot escape it by extension.
 # Excluded: .git, target, the binary logo asset, lockfiles, and
-# CHANGELOG.md + CHANGELOG-V10-ERA.md (frozen historical records —
-# archive content is never rewritten, the same exclusion policy as
-# the docs audit).
+# CHANGELOG.md (frozen historical record — archive content is
+# never rewritten, the same exclusion policy as the docs audit).
 header "Emoji Sweep (repo-wide)"
 if command -v python3 >/dev/null 2>&1; then
 	EMOJI_RC=0
@@ -310,7 +309,7 @@ def is_emoji(cp: int) -> bool:
     return any(lo <= cp <= hi for lo, hi in RANGES)
 
 SKIP_DIRS = {".git", "target"}
-SKIP_FILES = {"CHANGELOG.md", "CHANGELOG-V10-ERA.md"}
+SKIP_FILES = {"CHANGELOG.md"}
 SKIP_SUFFIXES = (".png", ".lock")
 hits = []
 for path in Path(".").rglob("*"):

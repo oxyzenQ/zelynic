@@ -25,6 +25,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **chore: the v10-and-older era removed entirely (NIGHT-hunt-18)** —
+  owner rule: the legacy and deprecated era references are gone from
+  the tree. Deleted: `CHANGELOG-V10-ERA.md` (the 243KB pre-v11
+  history archive — git history is the only archive now) and
+  `docs/MIGRATION_V4.md` (the v3.x-to-v4 migration guide). Scrubbed
+  every era reference the hunt could find: the README, CONTRIBUTING,
+  SECURITY, and DRAGON_ARCHITECTURE branch and support tables lost
+  their legacy-branch rows; PERFORMANCE and CROSS_DISTRO_RESULTS
+  dropped their version-era labels; VERIFY_RELEASE examples moved to
+  the current format; KERNEL_COMPATIBILITY lost its v4.9+ qualifier;
+  SAFETY_ANALYSIS dropped its "since v10" phrasing; USAGE's
+  removed-surfaces note still documents the live usage errors without
+  the era word; code and script comments (capabilities, ebpf mod,
+  nonroot/leak suites, version-to usage examples, the anti-pattern
+  rule example, the release tag-format guard comment) no longer
+  narrate the old line. The era-file exclusions in check-headers.sh,
+  inject-disclaimer.sh, and the gate-keepers emoji sweep shrank back
+  to CHANGELOG.md only. Untouched on purpose: live kernel-API
+  terminology ("legacy bpf_prog_attach" is the kernel's own name for
+  the pre-5.7 attach path), the pre-v11 lock/pid remove-only hygiene
+  (live upgrade safety), BPF map schema v1/v2/v3 (live contract),
+  cgroup v2, and the Dragon Architecture "Why" rationale (current
+  design documentation, not era archaeology). Docs and comments only
+  — no production code change, the shipped binary is unchanged.
 - **refactor: every .rs test file under the single test/ tree
   (NIGHT-hunt-17)** — the whole test surface now lives under one
   top-level directory, cosmostrix Pattern C: `tests/integration/`
@@ -235,7 +259,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   symmetry: the canonical always carries the `-single` suffix. The
   `unstrict` invocation still works (alias, like `strict`). --help
   synopsis, README commands table, USAGE grammar + sections +
-  examples, and MIGRATION_V4 mapping all teach the canonical form now;
+  examples all teach the canonical form now;
   the nonroot depth suite gained a canonical-form refusal case; the
   integration drift pins assert the canonical synopsis AND that a bare
   `zelynic unstrict <target>` synopsis line never returns.
@@ -406,7 +430,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **docs: API stability contract is v11** — the README, CONTRIBUTING, and
   living architecture docs now state the stable-API and maintenance-mode
-  contract from v11.0.0 (previously v10.0.0), matching the v11 line under
+  contract from v11.0.0, matching the v11 line under
   development; the README documents the release-channel contract.
 
 ### CLI
@@ -502,22 +526,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   examples are unchanged in content; a new integration drift test pins
   the six group headings in both renderers.
 
-### Repository
-
-- **chore: changelog split into active file + v10-era archive**
-  (NIGHT-improve-4) — the pre-v11 release history (development
-  sections [1.0.0] through [7.0.0], the line up to the v10.x contract)
-  moved verbatim to `CHANGELOG-V10-ERA.md`, leaving `CHANGELOG.md` a
-  slim active file ([Unreleased] + a History pointer) instead of a
-  3.5k-line monolith. Both files are frozen historical records
-  for gate purposes: `check-headers.sh`, `inject-disclaimer.sh`, and
-  the gate-keepers emoji sweep extend their CHANGELOG.md exclusion to
-  the era file. No entry text was modified in the move.
-
-## History
-
-The frozen release history of the pre-v11 era (development sections
-[1.0.0] through [7.0.0], the line up to the v10.x contract) lives in
-[CHANGELOG-V10-ERA.md](CHANGELOG-V10-ERA.md) — split out in
-NIGHT-improve-4 to keep this file small. Entries there are verbatim
-historical records and are never rewritten.

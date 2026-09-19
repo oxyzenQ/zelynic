@@ -36,8 +36,8 @@ EXPECTED=$(awk '{print $1}' project-vX.Y.Z-linux-amd64-gnu.tar.gz.shake256)
 ```
 
 Replace `project-vX.Y.Z-linux-amd64-gnu` with the actual archive name
-(e.g. `zelynic-v10.0.0-linux-amd64-gnu` or
-`zelynic-v10.0.0-linux-amd64-musl`).
+(e.g. `zelynic-v11.0.0-linux-amd64-gnu` or
+`zelynic-v11.0.0-linux-amd64-musl`).
 
 ## Why three algorithms
 

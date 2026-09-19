@@ -20,7 +20,7 @@
 #   CLI flag). No test should assert that Cargo.toml contains its own
 #   version field — that is tautological (always true).
 #
-# Historical CHANGELOG assertions (e.g. contains("v3.0.1")) are NOT
+# Historical CHANGELOG assertions (e.g. contains("v1.2.3")) are NOT
 # blocked — those verify a historical release entry exists and remain
 # valid forever.
 #

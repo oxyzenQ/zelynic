@@ -13,8 +13,6 @@ vulnerability, and where the audit trail lives.
 | Version | Branch | Status |
 |---------|--------|--------|
 | 11.x (main) | `main` | **supported** — active maintenance (bug fixes, kernel compatibility, hardening) |
-| 10.x and earlier | history | **unsupported** — upgrade to the latest v11 release |
-| 3.x legacy | `legacy` | **unsupported** — final tc/nft era release, kept for archaeology only |
 
 Pre-release channels (`dev`, `nightly`, `alpha`, `beta`) are
 development artifacts: reports against them are welcome and triaged,

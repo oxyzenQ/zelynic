@@ -40,7 +40,7 @@ jobs:
           set -euo pipefail
           TAG="${GITHUB_REF_NAME}"
 
-          # Reject old format like v10.0.0-stable.1
+          # Reject the retired -stable.N tag format
           if [[ "${TAG}" =~ -stable\. ]]; then
             echo "::error::Old tag format detected: ${TAG}"
             echo "Stable releases no longer use -stable.N suffixes."

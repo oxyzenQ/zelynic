@@ -165,7 +165,6 @@ exact eBPF Build CI command), and the documentation disclaimer check
 ## Branch Strategy
 
 - `main` — pure eBPF v11.x (Dragon Architecture). Maintenance mode.
-- `legacy` — v3.1.1 (tc/nft/systemd-wrapper). Final legacy release, no new development.
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.

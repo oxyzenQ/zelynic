@@ -105,7 +105,7 @@ multiple test files just to satisfy one meta-test.
 ```rust
 // FORBIDDEN — tests that another test file contains a literal version.
 let p14 = include_str!("ledger_p14_tests.rs");
-assert!(p14.contains("3.1.0"), "p14 tests must assert 3.1.0");
+assert!(p14.contains("1.2.3"), "p14 tests must assert 1.2.3");
 ```
 
 ### Allowed: dynamic version assertions

@@ -3,8 +3,8 @@
 
 //! Capability detection (Dragon Architecture — eBPF only).
 //!
-//! Simplified from the legacy tc/nft/systemd scoring matrix. Now only
-//! detects: cgroup v2, BPF filesystem, kernel version, root privileges.
+//! Detects the eBPF facts that matter: cgroup v2, BPF filesystem,
+//! kernel version, root privileges.
 
 use anyhow::Result;
 use serde::{Deserialize, Serialize};

@@ -32,10 +32,8 @@
 #   disclaimer that asks readers to cross-check source code before
 #   believing any specific data point.
 #
-# Excluded: CHANGELOG.md and CHANGELOG-V10-ERA.md — frozen
-#   historical records, never rewritten (the same exclusion policy as
-#   every other gate). The era file joined the exclusion when the
-#   NIGHT-improve-4 split moved the pre-v11 history out of CHANGELOG.md.
+# Excluded: CHANGELOG.md — frozen historical record, never
+#   rewritten (the same exclusion policy as every other gate).
 
 set -euo pipefail
 
@@ -112,7 +110,7 @@ while IFS= read -r -d '' file; do
 done < <(
 	git ls-files --cached --others --exclude-standard 2>/dev/null |
 		grep -E '\.md$' |
-		grep -v -E '^CHANGELOG(-V10-ERA)?\.md$' |
+		grep -v -E '^CHANGELOG\.md$' |
 		while IFS= read -r line; do
 			printf '%s\0' "${REPO_ROOT}/${line}"
 		done
