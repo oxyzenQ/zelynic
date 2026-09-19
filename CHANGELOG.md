@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **build: the bootstrap download was silent — progress bars, step
+  announcements, and an elapsed-time report (NIGHT-hunt-24)** — the
+  owner's terminal told the whole story: `./scripts/bootstrap-ebpf.sh`
+  ran for 2m21s with nothing on screen (curl -fsSL and wget -q are
+  silent), looked stuck, got Ctrl+C'd, and the follow-up
+  `cargo pro-native-gnu` then failed on the missing bpf-linker — the
+  build.rs preflight naming the right missing piece, but only because
+  the interrupted bootstrap never got to install it. The script is now
+  never silent while it works: the bpf-linker download (the one big
+  fetch, ~100 MB) announces itself with size and "the slow step"
+  wording and runs curl with --progress-bar / wget with
+  --show-progress when stderr is a terminal, while piped or logged
+  runs keep the silent flag set (no megabytes of carriage-return spam
+  in CI logs); the tar.zst extraction announces which decompressor it
+  picked before the seconds-long decompress; and the final line
+  reports total wall-clock elapsed. Verified with a nine-assertion
+  functional matrix: --check and the satisfied full run unchanged
+  (idempotent, now with the elapsed line); a PTY-driven stub-download
+  run (fake HOME, real rustup DB, stub curl serving a real tar.zst
+  through the real python3-zstandard extraction path) proving
+  --progress-bar is selected when stderr is a terminal and the fake
+  bpf-linker lands in ~/.local/bin end to end; the same stub without
+  a PTY proving the silent -fsSL form and the absence of
+  --progress-bar; and a real network download with the exact flag
+  set. USAGE.md's troubleshooting table gains the row this incident
+  actually was: "looks stuck on the bpf-linker download" → it is the
+  ~100 MB fetch, the bar is live on terminals, and killing it
+  mid-download is safe (re-running skips what already finished).
+
 ### Removed
 
 - **cleanup: three dead files removed — the unreferenced C-era
