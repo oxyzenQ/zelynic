@@ -37,6 +37,9 @@
 #       rust-toolchain.toml pin == Cargo.toml MSRV == workflow RUST_VERSION)
 #  11.  Documentation disclaimer (scripts/inject-disclaimer.sh --check —
 #       every living .md carries the stale-data warning; --fix injects)
+#  12.  clang-format on bpf/*.c (the exact eBPF Build CI command —
+#       the C-side format gate whose absence let the
+#       NIGHT-cybersecurity-1 format regression reach CI)
 #
 # Missing tools are skipped with a warning so the gate stays usable
 # on minimal development machines; CI enforces the full set.
@@ -389,6 +392,25 @@ if [ -f scripts/inject-disclaimer.sh ]; then
 	fi
 else
 	warn "inject-disclaimer.sh not found — skipping"
+fi
+
+# ── 12. clang-format (BPF C, exact CI parity) ─────────────────────────────────
+# The eBPF Build jobs gate bpf/*.c with clang-format before any
+# compile step runs (ubuntu-22.04 = clang-format 14, ubuntu-24.04 =
+# 18). The NIGHT-cybersecurity-1 refill fix landed with one
+# over-wrapped line and both matrix jobs went red for four straight
+# runs because no local gate covered the C side. This check runs the
+# exact CI command so that regression class cannot slip through again.
+header "clang-format (bpf/*.c, CI parity)"
+if command -v clang-format >/dev/null 2>&1; then
+	if clang-format --dry-run --Werror bpf/*.c 2>&1; then
+		info "clang-format: bpf/*.c formatted (exact CI command)"
+		PASS=$((PASS + 1))
+	else
+		fail "clang-format: bpf/*.c needs formatting (run: clang-format -i bpf/*.c)"
+	fi
+else
+	warn "clang-format not installed — skipping"
 fi
 
 # ── Summary ────────────────────────────────────────────────────────────────
