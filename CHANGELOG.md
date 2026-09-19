@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- **cleanup: three dead files removed — the unreferenced C-era
+  verifier doc, the retired .clang-format, and the drifted local
+  packager (NIGHT-cleanup-1)** — a full-repo cross-reference audit
+  (every tracked file's basename searched against every other
+  tracked file, hidden directories included) plus a per-file read
+  found exactly three files with zero live references, all left
+  behind by earlier phases. docs/VERIFIER_COMPATIBILITY.md: no
+  README, CONTRIBUTING, workflow, or gate links to it, and its
+  content predates phase 3 — the "map access patterns" section is
+  literal C code snippets while the BPF side has been pure Rust
+  since f844038, and its all-"Untested" kernel matrix contradicts
+  the six-distro verified tables in README and
+  CROSS_DISTRO_RESULTS.md; the kernel-level requirements it
+  covered live on in docs/KERNEL_COMPATIBILITY.md. .clang-format:
+  the C sources it formatted were deleted in f844038 and the
+  clang-format gate retired in the same phase — a formatter config
+  for code that no longer exists. scripts/package.sh: a local
+  packager with zero live references that had silently drifted
+  from the real release path — release.yml builds both tarballs
+  with --features ebpf while package.sh built plain --release, so
+  its tarball would have shipped a binary without the embedded BPF
+  objects; it also shipped 4 test scripts to release.yml's 8 and
+  one SHA-512 checksum to release.yml's three (SHA-512 + BLAKE2b +
+  SHAKE256). Deleting it leaves release.yml as the single
+  packaging path. Header and disclaimer gates scan the tree
+  dynamically, so they re-scope automatically; gate-keepers 15/15
+  and build.sh check-all green after the removal. The historical
+  mentions in CHANGELOG.md and PURE_RUST_EVALUATION.md stay as
+  written (frozen records).
+
 ### Added
 
 - **build: host eBPF bootstrap in one command — scripts/bootstrap-ebpf.sh
