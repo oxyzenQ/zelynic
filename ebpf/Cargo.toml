@@ -31,4 +31,14 @@ aya-ebpf = "0.2.1"
 name = "zelynic-observer"
 path = "src/main.rs"
 
+# The limiter twin (NIGHT-improve-1, phase 2): port of
+# bpf/limiter.bpf.c. A separate binary so each object file stays a
+# self-contained, line-for-line mirror of its C twin — the two
+# objects share no struct surface (observer: cgroup_stats/event,
+# limiter: policy/bucket/limiter_stats), so a shared types crate
+# would buy nothing (see the stage-2 blast-radius rationale).
+[[bin]]
+name = "zelynic-limiter"
+path = "src/bin/limiter.rs"
+
 [workspace]
