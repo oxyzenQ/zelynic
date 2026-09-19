@@ -58,6 +58,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **repo: a stray scripts/__pycache__ bytecode cache slipped into
+  7e4c587** — the depth-test smoke runs compiled the module from
+  inside the repo and .gitignore had no Python cache entry. Removed
+  from tracking and ignored (__pycache__/, *.pyc); no other content
+  change.
+
 - **build: the bootstrap download was silent — progress bars, step
   announcements, and an elapsed-time report (NIGHT-hunt-24)** — the
   owner's terminal told the whole story: `./scripts/bootstrap-ebpf.sh`

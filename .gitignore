@@ -35,3 +35,7 @@ download/
 
 # object
 *.o
+
+# Python bytecode caches (test-script imports)
+__pycache__/
+*.pyc
