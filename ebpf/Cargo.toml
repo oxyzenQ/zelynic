@@ -1,0 +1,34 @@
+# Copyright (C) 2026 rezky_nightky
+# SPDX-License-Identifier: GPL-3.0-only
+
+# Pure-Rust eBPF prototype crate (NIGHT-improve-1, stage 2).
+#
+# Detached workspace ON PURPOSE: the empty [workspace] table below
+# keeps this crate outside the root package's build graph, so the
+# default stable-toolchain pipeline (build.sh check-all, CI, all 15
+# gates) is completely unaffected by anything here. The crate builds
+# only through its dedicated nightly command (see
+# docs/PURE_RUST_EVALUATION.md for the full rationale):
+#
+#   cd ebpf && cargo +nightly build --release
+#
+# Edition 2024 matches the aya-ebpf 0.2.1 upstream pairing (the
+# 2026-09 aya-template workspace). The crate is nightly-only by
+# design and must never enter the root crate's rust-version-sync
+# contract (the bpfel-unknown-none target needs -Z build-std, which
+# does not exist on stable).
+
+[package]
+name = "zelynic-ebpf"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+aya-ebpf = "0.2.1"
+
+[[bin]]
+name = "zelynic-observer"
+path = "src/main.rs"
+
+[workspace]
