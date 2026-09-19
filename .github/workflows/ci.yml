@@ -21,6 +21,13 @@ env:
   # (enforced by scripts/check-rust-version-sync.sh; bump via
   # scripts/rust-version-to.sh).
   RUST_VERSION: "1.98.1"
+  # NIGHT-strict-2: strict CI build — warning = failure. Every cargo
+  # build / test / release build in this workflow denies rustc
+  # warnings (clippy already runs -D warnings explicitly). Registry
+  # dependencies stay warning-capped (cargo passes --cap-lints allow
+  # for non-workspace crates), so only workspace-local code can fail
+  # the build.
+  RUSTFLAGS: "-D warnings"
 
 jobs:
   changes:
