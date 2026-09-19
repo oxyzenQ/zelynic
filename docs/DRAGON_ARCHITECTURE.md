@@ -155,8 +155,7 @@ height.
 ## Roadmap
 
 Dragon Architecture is the mainline: `main` carries the pure-eBPF v11
-line. The legacy `tc`/`nft`/`systemd-wrapper` code is frozen on the
-`legacy` branch (final v3.1.1, no new development).
+line.
 
 ### Done
 - [x] Layer 0: `bpf/observer.bpf.c` — cgroup_skb/egress counter
@@ -178,7 +177,6 @@ line. The legacy `tc`/`nft`/`systemd-wrapper` code is frozen on the
 - [x] Fire-and-forget: strict commands exit 0, limit persists via child process
 - [x] No residue: `unstrict-all` kills child + removes all pin files
 - [x] Override: re-running strict replaces old rate (no duplicates)
-- [x] Legacy code removed: ~17,000 LOC → ~3,600 LOC (79% reduction)
 - [x] Verified: real enforcement on Arch Linux, kernel 6.18, AMD Ryzen 7
 
 ### Next (Phase W5 — Production Hardening)
@@ -204,15 +202,12 @@ line. The legacy `tc`/`nft`/`systemd-wrapper` code is frozen on the
   processes running. `unstrict-all` removes the pins; a reboot clears
   them (bpffs is not persistent across boots).
 - **No combined-tool fallback.** If BPF can't do it, zelynic doesn't do
-  it. The legacy `tc`/`nft` code is frozen on the `legacy` branch for
-  users who need it; `main` is pure eBPF.
+  it. `main` is pure eBPF.
 - **No REST API / MCP / TUI-as-server.** CLI + config + exit codes. That's it.
 
 ## Branch Strategy
 
 - `main` — pure eBPF v11.x (Dragon Architecture). Maintenance mode.
-- `legacy` — v3.1.1 (`tc`/`nft`/`systemd-wrapper`). Final legacy release,
-  no new development.
 - `intergalaxion` — **deleted** (was 44 commits of planning docs, 0 BPF
   programs). Superseded by the Dragon Architecture rewrite which ships
   real code.

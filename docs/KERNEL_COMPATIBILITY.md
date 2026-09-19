@@ -29,7 +29,7 @@ Used by `IdentityMap` to resolve cgroup paths to IDs for display purposes.
 On older kernels, falls back to `stat()` inode (less reliable).
 
 ### `bpf_link_create` + `BPF_OBJ_PIN` — kernel 5.7+
-zelynic v4.9+ uses `bpf_link` (fd-based attachment) instead of legacy
+zelynic uses `bpf_link` (fd-based attachment) instead of legacy
 `bpf_prog_attach`. Links are pinned to bpffs so enforcement survives
 process exit. Aya 0.13's public API does not expose link pinning for
 `CgroupSkb`, so zelynic uses raw `bpf()` syscalls. Requires kernel 5.7+

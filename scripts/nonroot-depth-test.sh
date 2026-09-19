@@ -252,7 +252,7 @@ expect "unstrict-multi without targets" 2 "required arguments were not provided"
 expect "typo subcommand suggests fix" 2 "tip:" "strict-single" -- "$BINARY" strict-singl
 expect "case-variant flag rescued" 2 "--verbose" -- "$BINARY" --VERBOS doctor
 
-# Removed surfaces (NIGHT-hunt-12 + the already-absent legacy trio):
+# Removed surfaces (NIGHT-hunt-12 plus earlier removals):
 # every one must be a usage error, never a silent success.
 for gone in man unblock completions info; do
 	expect "removed subcommand '$gone' rejected" 2 "unrecognized subcommand" -- "$BINARY" "$gone"

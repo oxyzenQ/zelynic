@@ -3,7 +3,7 @@
 
 # Cross-Distro Validation Report
 
-> Verified test results for zelynic v4.0.0-alpha across multiple Linux distributions.
+> Verified test results for zelynic across multiple Linux distributions.
 
 ## Summary
 
@@ -174,9 +174,9 @@ verified across all tested distros.
 
 All distros tested with release tarball (no source build):
 ```bash
-curl -LO https://github.com/oxyzenQ/zelynic/releases/download/v4.0.0-alpha/zelynic-v4.0.0-alpha-linux-amd64.tar.gz
-tar xzf zelynic-v4.0.0-alpha-linux-amd64.tar.gz
-cd zelynic-v4.0.0-alpha-linux-amd64
+curl -LO https://github.com/oxyzenQ/zelynic/releases/download/vX.Y.Z/zelynic-vX.Y.Z-linux-amd64.tar.gz
+tar xzf zelynic-vX.Y.Z-linux-amd64.tar.gz
+cd zelynic-vX.Y.Z-linux-amd64
 sudo ./install.sh --system
 ```
 

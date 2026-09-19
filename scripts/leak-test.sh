@@ -55,7 +55,7 @@ check_active() {
 	pid=$(test -f /tmp/zelynic.pid && echo "1" || echo "0")
 
 	# Active = pin files exist (maps + programs pinned).
-	# PID file no longer used (fire-and-forget), but check for legacy.
+	# PID file no longer written (fire-and-forget), but check for leftovers.
 	if [[ "$pins" -gt 0 ]]; then
 		pass "$label: active (pins=$pins)"
 	else

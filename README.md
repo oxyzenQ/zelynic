@@ -353,7 +353,6 @@ CI rejects any other suffix and never marks a pre-release as "latest".
 | Branch | Purpose | Status |
 |--------|---------|--------|
 | `main` | Pure eBPF v11.x (Dragon Architecture) | Maintenance mode |
-| `legacy` | v3.1.1 (tc/nft/systemd-wrapper) | Final legacy release, no new development |
 
 ## Security
 
@@ -373,7 +372,6 @@ demands it, and refused outright for `--check-update`.
 - [Dragon Architecture](docs/DRAGON_ARCHITECTURE.md) — design + principles
 - [Kernel Compatibility](docs/KERNEL_COMPATIBILITY.md) — requirements + distro matrix
 - [Performance Metrics](docs/PERFORMANCE.md) — deep benchmark results + targets
-- [Migration to v4.0](docs/MIGRATION_V4.md) — v3.x → v4.0 guide
 - [Release Verification](docs/VERIFY_RELEASE.md) — checksum verification
 
 ## Test Results

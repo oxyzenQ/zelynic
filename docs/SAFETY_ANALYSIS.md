@@ -52,7 +52,7 @@ that:
 | `/sys/fs/cgroup/*` | Read | `cgroup.id` file for ID resolution |
 | `/sys/fs/cgroup` | Read | Attach BPF programs |
 | `/sys/fs/bpf/zelynic/*` | Read/Write | Pinned BPF programs, links, maps |
-| `/tmp/zelynic.pid` | Remove-only | Legacy cleanup (never written since v10; removed if left by old versions) |
+| `/tmp/zelynic.pid` | Remove-only | Hygiene: never written by the current line; removed if left by an old install |
 | `/run/zelynic/zelynic.lock` | Read/Write | flock-based operation guard inside the root-owned 0700 `/run/zelynic/` dir (NIGHT-hunt-14); the legacy `/tmp/zelynic.lock` is remove-only hygiene |
 
 **No other file system access.** No reading of user documents, browser data,
@@ -126,7 +126,7 @@ guard: there root is the requirement, here root is the hazard.
 - Watchdog expired → allow (return 1) — dormant mechanism, see below
 
 ### Pin mode (fire-and-forget):
-- The watchdog is never armed since v10 (deadline 0 = absent) — BPF always enforces
+- The watchdog is never armed (deadline 0 = absent) — BPF always enforces
 - Rate = 0 is an explicit user request: `block-single`/`block-*` write a
   zero rate and BPF blocks all traffic for that cgroup (schema v3)
 - If anything unexpected happens to the pins, `zelynic recover` repairs

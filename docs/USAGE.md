@@ -395,7 +395,7 @@ throughput meter. Use `observe` for live rates.
 
 **10. The CLI surface is frozen (v11).**
 Commands, flags, and output formats are stable API from v11.0.0.
-Removed legacy surfaces (`man`, `completions`, `unblock`, `-i/--info`,
+Removed surfaces (`man`, `completions`, `unblock`, `-i/--info`,
 `--live`, `--duration`, `--help-all`) exit with a usage error on
 purpose — `--help` is the single reference.
 
