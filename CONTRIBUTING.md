@@ -86,8 +86,9 @@ src/
     mod.rs           — alt-screen box mode + the monitor loop
     diff.rs          — diff-based render engine (NIGHT-improve-2, the
                         cosmic-dragon-engine adaptation: shadow, dirty
-                        runs, single write syscall, idle zero-emit);
-                        unit pins in diff_tests.rs
+                        runs, single write syscall, idle zero-emit;
+                        NIGHT-improve-6: top-aligned scroll-free tall
+                        regime); unit pins in diff_tests.rs
 
 bpf/
   limiter.bpf.c        — token-bucket enforcer (ingress + egress)

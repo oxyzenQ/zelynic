@@ -145,7 +145,12 @@ engine (`terminal/diff.rs`, NIGHT-improve-2 — the cosmic-dragon-engine
 adaptation from cosmostrix): the renderer builds logical lines, the
 engine diffs them against the previous frame's shadow, and emits only
 the changed rows in one write syscall — idle frames emit nothing and
-the screen is never wiped mid-session.
+the screen is never wiped mid-session. The tall regime (frame >=
+terminal height, every terminal at or under the render cap) is
+top-aligned and scroll-free (NIGHT-improve-6): the emission paints
+the first min(rows, height) lines without a trailing linefeed, so
+the title bar never drifts and an idle frame costs zero I/O at every
+height.
 
 ## Roadmap
 

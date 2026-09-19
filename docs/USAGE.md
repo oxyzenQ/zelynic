@@ -212,8 +212,10 @@ scrollback spam, adaptive layout (columns degrade on narrow terminals;
 a RATE column appears from width 50). Frames render through the
 diff-based engine (NIGHT-improve-2): only the rows that changed since
 the previous frame are written — one write syscall per frame, an
-unchanged frame costs zero I/O, and the screen is never wiped
-mid-session (no flicker, no alt-screen scrollback side effects).
+unchanged frame costs zero I/O at every terminal height
+(NIGHT-improve-6), and the screen is never wiped or scrolled
+mid-session (no flicker, no drift, no alt-screen scrollback side
+effects).
 `--cgroup` zooms into one cgroup
 with per-process and per-socket endpoint detail. Default refresh 1s;
 `--interval` calms it down to at most 60s. **Quit with `q` — the only

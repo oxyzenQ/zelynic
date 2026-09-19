@@ -350,6 +350,21 @@ complaint). One real terminal-safety hazard found and removed:
   cursor is only positioned at row starts, so double-width glyphs
   never desync column math (a cell-grid renderer has to handle this
   per cell; the line-granularity diff cannot express it).
+- **Tall-regime scroll removed (NIGHT-improve-6):** the improve-2
+  fallback for frames meeting or exceeding the terminal height
+  (every terminal at or under the render cap — the classic 80x24
+  included, plus piped monitors on the 80x24 probe fallback)
+  preserved the pre-diff scrolling semantics: a trailing linefeed at
+  the viewport bottom scrolled the alternate screen one line per
+  refresh, the title bar drifted off, tall-to-short transitions
+  misaligned against the scrolled screen, and the idle fast path was
+  disabled there, so even an unchanged frame repainted in full. The
+  emission is now top-aligned and clipped to min(rows, height) with
+  no trailing linefeed, and the idle path covers the tall regime, so
+  no refresh scrolls the screen at ANY height — the layout and
+  scrollback guarantees hold uniformly. A `painted` row count marks
+  clipped rows dirty, so a terminal that grows repaints exactly the
+  rows it just revealed.
 
 ## Verifying Safety Yourself
 

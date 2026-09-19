@@ -25,6 +25,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **perf: tall-regime render repair — scroll-free top-aligned
+  emission and idle zero-emit at every height (NIGHT-improve-6)** —
+  the improve-2 engine's fallback for frames meeting or exceeding
+  the terminal height kept the pre-diff scrolling semantics. Every
+  terminal at or under the render cap (27 rows — the classic 80x24
+  included, plus piped monitors on the 80x24 probe fallback) ran a
+  sequential regime that ended each frame with a bottom-row
+  linefeed: the screen scrolled one line per refresh, the title bar
+  drifted off, tall-to-short transitions misaligned against the
+  scrolled screen, and the idle fast path was disabled there, so
+  even a completely unchanged frame repainted in full every
+  refresh. The emission is now top-aligned and clipped to
+  min(rows, height) with no trailing linefeed; a `painted` row
+  count marks clipped rows dirty, so a terminal that grows repaints
+  exactly the rows it just revealed (never a stale gap); and the
+  idle fast path covers the tall regime — an unchanged frame costs
+  zero I/O at every height. The normal regime (rows < height) is
+  byte-identical by construction (the `painted` term is inert there
+  and the sequential/sparse paths are untouched); the 80x40 A/B
+  benchmark confirms bit-equal emissions while the tall regime
+  drops to zero bytes while idle. Five new engine pins (tall idle,
+  no-trailing-LF, viewport clip, reveal-on-grow, transition stream
+  contract — four proven failing against the old engine, the
+  transition pin locks the contract on both). 131 unit + 23
+  integration (ebpf), 25 + 21 (default), all pass. Docs synced:
+  USAGE observe section, SAFETY_ANALYSIS render-path audit,
+  DRAGON_ARCHITECTURE Layer 4, CONTRIBUTING module map. Two deferred
+  ports from cosmostrix's dragon engine evaluated and rejected with
+  architecture evidence: idle-resync (zelynic diffs the full frame
+  every iteration — no dirty-tracking state can go stale) and
+  style-run batching (zelynic rows are self-resetting styled lines —
+  no SGR stream to cache). Version untouched: 11.0.0-dev.1
+  (frozen-version policy).
+
 - **refactor: LOC gate covers tests/ — the 770-line integration
   suite split by surface (NIGHT-docs-4)** — scripts/check-loc.sh now
   scans src/** AND tests/** (recursive) plus build.rs, per the
