@@ -764,7 +764,7 @@ point at their in-tree counterparts.
 | Default (`cargo build` / check-all / tests) | stable 1.98.1 pin | the dormant-mode contract, unchanged |
 | ebpf-feature builds (incl. clippy --all-features) | stable root + nested dated nightly | nightly entered only through build.rs, never the default path |
 | Direct ebpf work (`cd ebpf && cargo build`) | dated nightly pin | resolves from ebpf/rust-toolchain.toml |
-| Prerequisites | rustup + bpf-linker 0.11.1 prebuilt | no clang, no system LLVM, no libbpf headers |
+| Prerequisites | rustup + bpf-linker 0.11.1 prebuilt | host install: ./scripts/bootstrap-ebpf.sh (NIGHT-host-1); no clang, no system LLVM, no libbpf headers |
 
 The runtime A/B on a privileged host (swap objects, run the
 observe/limit loop against real traffic) is the owner's own next
@@ -772,6 +772,34 @@ step — the phase-2 sandbox was unprivileged by environment, and
 the phase-3 build reproduces both documented object sizes exactly
 (3,864 / 5,624 B), so the bytes that load on the host are the
 bytes the harness verified at the ELF-contract level.
+
+### NIGHT-host-1: the first host run demanded a one-command bootstrap
+
+The owner's first host build after the merge spent the whole
+dependency compile and then hit the generic prerequisite panic —
+two manual installs (a rustup command plus a bpf-linker tar.zst
+download/extract/place) with no automation. NIGHT-host-1 fixes the
+path: scripts/bootstrap-ebpf.sh reads the dated pin straight from
+ebpf/rust-toolchain.toml (bump the pin, the script follows — only
+the bpf-linker version lives in the script, pin and linker being a
+validated pair), installs the toolchain with the minimal profile +
+rust-src + rustfmt, downloads the bpf-linker 0.11.1 prebuilt for
+the host arch into ~/.local/bin (no sudo, no system LLVM), and
+extracts the tar.zst with whichever decompressor the host actually
+has — GNU tar --zstd, a zstd binary, or python3 with the zstandard
+module (the last is not hypothetical: the dev sandbox itself has
+no zstd binary and no tar --zstd support). The script is
+idempotent, re-probes everything it changes, and --check reports
+status without side effects. build.rs gained a matching preflight
+that names the exact missing prerequisite in milliseconds, before
+any compile time is spent — which also closed a measured blind
+spot: a fully warm ebpf/target skips the link step, so a host with
+bpf-linker invisible on PATH used to build "successfully" until
+the next clean. The sandbox reproduced that silent pass before the
+fix and rejects it after (reproduced, then closed). CI keeps its
+own install (dtolnay/rust-toolchain + sudo to /usr/local/bin) —
+the ephemeral privileged runner fit, documented in the script
+header.
 
 
 ## Stage-1 task map (DeepSeek plan, one commit each)

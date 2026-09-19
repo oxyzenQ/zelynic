@@ -9,10 +9,10 @@ the build process, project structure, and coding standards.
 ## Prerequisites
 
 - Rust 1.98+ (pinned to a concrete version in `rust-toolchain.toml`)
-- The eBPF nightly pin (rustup; see `ebpf/rust-toolchain.toml` — the
-  BPF side is pure Rust and compiles on a dated nightly)
-- bpf-linker 0.11.1 on PATH (prebuilt:
-  https://github.com/aya-rs/bpf-linker/releases)
+- The eBPF nightly pin + bpf-linker 0.11.1 — one-time, one command:
+  `./scripts/bootstrap-ebpf.sh` (idempotent; `--check` reports
+  status only). The BPF side is pure Rust and compiles on the dated
+  nightly pinned in `ebpf/rust-toolchain.toml`
 - Linux kernel 5.13+ (cgroup v2 + cgroup.id file)
 
 ## Build

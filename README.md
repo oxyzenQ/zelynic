@@ -93,10 +93,11 @@ a re-run; limits do not survive reboot).
 - Rust 1.98+ (rustup; the repo pins the exact version in
   `rust-toolchain.toml`)
 - The eBPF nightly pin + bpf-linker (the BPF side is pure Rust —
-  NIGHT-improve-1 phase 3; one-time setup):
+  NIGHT-improve-1 phase 3; one-time host setup, one command — reads
+  the dated pin from `ebpf/rust-toolchain.toml` and installs the
+  bpf-linker 0.11.1 prebuilt into `~/.local/bin`, no sudo):
   ```bash
-  rustup toolchain install nightly-2026-09-18 --component rust-src --component rustfmt
-  # bpf-linker 0.11.1 prebuilt: https://github.com/aya-rs/bpf-linker/releases
+  ./scripts/bootstrap-ebpf.sh
   ```
 
 ### Build

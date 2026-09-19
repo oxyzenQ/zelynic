@@ -13,7 +13,7 @@
 | **cgroup** | v2 only | v2 only | zelynic uses `cgroup_skb/egress` + `ingress` hooks |
 | **BPF fs** | Mounted at `/sys/fs/bpf` | Mounted | Required for map + link pinning (fire-and-forget mode) |
 | **Root** | Required | Required | BPF program load + attach requires `CAP_BPF` or root |
-| **rustup nightly pin** | `nightly-2026-09-18` | same | The BPF side is pure Rust (NIGHT-improve-1 phase 3): the aya-ebpf crate cross-builds on the dated nightly pin |
+| **rustup nightly pin** | `nightly-2026-09-18` | same | The BPF side is pure Rust (NIGHT-improve-1 phase 3): the aya-ebpf crate cross-builds on the dated nightly pin — host install: `./scripts/bootstrap-ebpf.sh` |
 | **bpf-linker** | 0.11.1 | 0.11.1 | Links the bpfel-unknown-none objects (prebuilt static musl binary — no system LLVM) |
 
 ## Kernel Feature Dependencies
@@ -117,15 +117,24 @@ stat -fc %T /sys/fs/cgroup
 # Should output: cgroup2fs
 ```
 
-### "the pure-Rust eBPF build failed" (build time)
+### "the pinned nightly toolchain ... is not installed" or "bpf-linker is not on PATH" (build time)
 The BPF objects build inside the binary now (NIGHT-improve-1 phase
-3) — this error means the nightly pin or bpf-linker is missing:
+3); the build.rs preflight (NIGHT-host-1) names the exact missing
+prerequisite before any compile time is spent. One command fixes
+both:
+```bash
+./scripts/bootstrap-ebpf.sh
+```
+Manual alternative:
 ```bash
 rustup toolchain install nightly-2026-09-18 --component rust-src --component rustfmt
 # bpf-linker 0.11.1: https://github.com/aya-rs/bpf-linker/releases
 ```
-The former "BPF object file not found" error class is gone — the
-objects are embedded, never discovered on disk.
+A failure that instead reads "the pure-Rust eBPF build failed with
+prerequisites present" is a real compile error — the nested cargo
+output above it is the diagnosis. The former "BPF object file not
+found" error class is gone — the objects are embedded, never
+discovered on disk.
 
 ### "Failed to pin map"
 BPF filesystem not mounted:

@@ -9,6 +9,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **build: host eBPF bootstrap in one command — scripts/bootstrap-ebpf.sh
+  plus a precise build.rs prerequisite preflight (NIGHT-host-1)** — the
+  owner's first host build after the pure-Rust merge spent the whole
+  dependency compile and then panicked with a generic "needs the dated
+  nightly pin and bpf-linker" wall of text, which then required two
+  manual installs (a rustup command plus a bpf-linker tar.zst
+  download/extract/place). The new script does both in one command: it
+  reads the dated nightly pin straight from ebpf/rust-toolchain.toml
+  (bumping the pin re-targets the script — only the bpf-linker version
+  0.11.1 lives in the script, pin and linker being a validated pair),
+  installs the toolchain with the minimal profile + rust-src + rustfmt
+  components, downloads the bpf-linker prebuilt static-musl binary for
+  the host arch into ~/.local/bin (no sudo, no system LLVM), and
+  extracts the tar.zst release archive with whichever decompressor the
+  host actually has (GNU tar with zstd, a zstd binary, or python3 with
+  the zstandard module — the last is not hypothetical: the dev sandbox
+  itself has no zstd binary and no tar --zstd support). The script is
+  idempotent, re-probes everything it changed (verify, then trust),
+  and --check reports status without side effects. build.rs gains a
+  preflight before the nested nightly build: a missing toolchain or a
+  missing bpf-linker now fails in milliseconds with the exact missing
+  piece and the one-command fix — this also closes a warm-cache blind
+  spot found while testing (a fully-cached ebpf/target skips the link
+  step, so an ebpf-feature build used to succeed with bpf-linker
+  invisible on PATH and only fail on the next clean build; reproduced
+  before the fix, rejected after). The nested build's failure panic is
+  now honest about prerequisites being verified present. install.sh's
+  pre-checks, the ebpf rust-toolchain.toml comment, and the pro-native
+  alias comment in .cargo/config.toml all point at the script; README,
+  CONTRIBUTING, USAGE, KERNEL_COMPATIBILITY, and PURE_RUST_EVALUATION
+  sweep the two-command instructions into the one-command form (CI
+  keeps its own dtolnay/rust-toolchain + /usr/local/bin install — the
+  ephemeral privileged runner fit, documented in the script header).
+
 - **build: the shfmt gate never ran anywhere — seven scripts
   canonicalized, CI now enforces the check (NIGHT-hunt-23)** — a hunt
   finding while tooling up the host bootstrap: gate-keepers check 1c
