@@ -17,6 +17,14 @@
   zero-daemon enforcement.
 </p>
 
+<div align="center">
+
+> Run anything you like. Launch whatever you want.\
+> The dragon counts every byte that leaves the den —\
+> and the ledger never lies.
+
+</div>
+
 <p align="center">
   <a href="https://ko-fi.com/rezky">
     <img src="https://img.shields.io/badge/Ko--fi-support-7C3AED?style=flat-square&logo=kofi&logoColor=white&labelColor=111827" alt="Support on Ko-fi">
@@ -86,25 +94,48 @@ New here? Skim the [Complete Usage Guide](docs/USAGE.md) — especially its
 (rules apply to apps that exist at command time; apps launched later need
 a re-run; limits do not survive reboot).
 
-### Prerequisites
+### Requirements
 
 - Linux kernel 5.13+ (cgroup v2 + `cgroup.id` file + bpf_link support)
 - Root access (BPF requires `CAP_BPF`)
-- Rust 1.98+ (rustup; the repo pins the exact version in
-  `rust-toolchain.toml`)
-- The eBPF nightly pin + bpf-linker (the BPF side is pure Rust —
-  NIGHT-improve-1 phase 3; one-time host setup, one command — reads
-  the dated pin from `ebpf/rust-toolchain.toml` and installs the
-  bpf-linker 0.11.1 prebuilt into `~/.local/bin`, no sudo):
-  ```bash
-  ./scripts/bootstrap-ebpf.sh
-  ```
+- Python 3 for the test/benchmark scripts (stdlib only)
 
-### Build
+Unsure about your kernel? `zelynic doctor` says yes or no with the exact
+reason ([Kernel Compatibility](docs/KERNEL_COMPATIBILITY.md) has the full
+matrix and troubleshooting).
+
+### Install from a release (recommended)
+
+Each release ships a self-contained tarball — the pure-Rust eBPF objects
+are embedded in the binary, so no toolchain, no clang, no cargo is needed
+on the target machine:
+
+```bash
+tar -xzf zelynic-vX.Y.Z-linux-amd64-gnu.tar.gz   # or -musl for old glibc
+cd zelynic-vX.Y.Z-linux-amd64-gnu
+./install.sh --user                                # ~/.local/bin (default)
+# or: ./install.sh --system                        # /usr/bin (sudo internally)
+```
+
+Every tarball carries **three** checksums — classical SHA-512 plus
+quantum-resistant BLAKE2b-512 and SHAKE256. Verify before installing;
+the one-liners are in [Release Verification](#release-verification) below
+and in [docs/VERIFY_RELEASE.md](docs/VERIFY_RELEASE.md).
+
+### Install from source
+
+Building needs the pinned Rust toolchain (rustup installs the exact
+version from `rust-toolchain.toml`) plus the eBPF nightly pair —
+both land in one command:
 
 ```bash
 git clone https://github.com/oxyzenQ/zelynic.git
 cd zelynic
+
+# One-time host setup: the dated nightly pin from
+# ebpf/rust-toolchain.toml + the bpf-linker 0.11.1 prebuilt into
+# ~/.local/bin (no sudo, no system LLVM):
+./scripts/bootstrap-ebpf.sh
 
 # One command — the BPF objects are built pure-Rust (aya-ebpf, the
 # nested nightly build in build.rs) and embedded into the binary:
@@ -265,6 +296,33 @@ socket detail lines with remote endpoints (TCP/UDP, busy flags).
 `list-apps` carries PROCS/SOCKETS columns so the multi-tenancy is
 visible at discovery time.
 
+## Limitations (honest)
+
+zelynic is deliberately small and stateless. These are real behaviors,
+not bugs — the full ten-item list with examples lives in
+[USAGE.md](docs/USAGE.md#honest-limitations--read-this):
+
+- **Rules are a snapshot, not a subscription.** Limits apply to the
+  cgroups that exist at command time; apps launched afterwards (with
+  fresh cgroups) are not limited — re-run to sweep them in. No daemon
+  watches for newcomers, by design.
+- **Limits do not survive reboot.** bpffs is wiped at boot and cgroup
+  IDs are re-assigned; re-apply after reboot.
+- **Name resolution needs the app running.** `strict-single` matches
+  live processes in `/proc`; a stopped app has no cgroup to resolve.
+- **A name can match more than one cgroup.** `strict-single brave`
+  limits every cgroup hosting a `brave` process, helpers included —
+  usually what you want; target a cgroup ID for surgical control.
+- **Rates are decimal SI and per direction.** `100kb` = 100,000 B/s
+  (0.8 Mbps on speed-test sites); a positional rate limits BOTH
+  directions.
+- **Monitoring surfaces need root too.** Map reads are kernel
+  territory: only `list-apps`, `doctor`, `--help`, `-V` are
+  unprivileged.
+- **Counters are cumulative evidence.** ALLOWED/DROPPED accumulate
+  since the maps were created — enforcement proof, not a live meter
+  (`observe` is the live one).
+
 ## Safety Features
 
 - **Min-rate guard**: rejects rates below 1 KB/s (prevents bricking apps)
@@ -354,6 +412,20 @@ CI rejects any other suffix and never marks a pre-release as "latest".
 |--------|---------|--------|
 | `main` | Pure eBPF v11.x (Dragon Architecture) | Maintenance mode |
 
+## Contributing
+
+PRs and issues are welcome. The bar is the gate suite — run it before
+submitting:
+
+```bash
+./scripts/gate-keepers.sh        # 15 checks: fmt, lints, headers, policy, sync
+./scripts/build.sh check-all     # fmt + clippy + tests + policy
+```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the full guide (build, test
+suites, conventions, the script inventory) and
+[docs/RULES.md](docs/RULES.md) for project conventions.
+
 ## Security
 
 zelynic runs as root and programs the kernel datapath, so security is
@@ -372,7 +444,10 @@ demands it, and refused outright for `--check-update`.
 - [Dragon Architecture](docs/DRAGON_ARCHITECTURE.md) — design + principles
 - [Kernel Compatibility](docs/KERNEL_COMPATIBILITY.md) — requirements + distro matrix
 - [Performance Metrics](docs/PERFORMANCE.md) — deep benchmark results + targets
+- [Cross-Distro Results](docs/CROSS_DISTRO_RESULTS.md) — the 6-distro validation record
+- [Dependency Audit](docs/DEPENDENCY_AUDIT.md) — every direct dependency justified
 - [Release Verification](docs/VERIFY_RELEASE.md) — checksum verification
+- [Contributing Guide](CONTRIBUTING.md) — gates, conventions, script inventory
 
 ## Test Results
 
@@ -416,6 +491,29 @@ COMPUTED=$(python3 -c "import hashlib; print(hashlib.shake_256(open('zelynic-vX.
 EXPECTED=$(awk '{print $1}' zelynic-vX.Y.Z-linux-amd64-gnu.tar.gz.shake256)
 [ "$COMPUTED" = "$EXPECTED" ] && echo "OK" || echo "FAILED"
 ```
+
+## Intellectual Property & Trademark
+
+**zelynic** is the exclusive intellectual property of
+**rezky_nightky (oxyzenQ)**. Source code is licensed under
+**GPL-3.0-only** (see [LICENSE](LICENSE)); the name, logo, and branding
+(the Marks) are governed by [TRADEMARK.md](TRADEMARK.md), are NOT
+covered by the GPL, and are reserved by the owner.
+
+**Forking policy** (full text in [TRADEMARK.md](TRADEMARK.md),
+§3–§4):
+
+- **Unmodified redistribution and attribution**: allowed without
+  permission under the GPL — keep the license and notices intact.
+- **Forks and derivative works**: must rename to something that does
+  not include or resemble "Zelynic", drop the logo/artwork, and
+  attribute the original (a suggested attribution format is in the
+  policy). Open a GitHub issue before public release.
+
+For trademark licensing or written permission, contact
+**rezky_nightky (oxyzenQ)** — <https://github.com/oxyzenQ>.
+
+Copyright (C) 2026 rezky_nightky (oxyzenQ). All rights reserved.
 
 ## License
 
