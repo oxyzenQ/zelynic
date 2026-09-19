@@ -25,6 +25,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **fix: status never fabricates "no limits" from a failed read
+  (NIGHT-hunt-22, status-display audit)** — the owner-named surface
+  (stats.rs / monitor display reads) closed the last swallow family.
+  `print_status`/`print_status_json` flattened every map-read failure
+  into empty data via `unwrap_or_default()` — yet both are called
+  only AFTER `handle_status` verified the enforcement pins are
+  operational, so a failed read there is an anomaly by definition.
+  The human path rendered "Active limits: none" and the JSON path
+  emitted `{"active_limits": 0, "limits": []}` from a failed read —
+  the hunt-20 honesty trap in its most user-facing form: `status` is
+  the one surface owners use to check enforcement, and the JSON
+  variant feeds scripts fabricated "nothing is limited". Read
+  failures now propagate (non-zero exit, map path in the error);
+  `read_watchdog` no longer converts a failed read into "not set"
+  (the display-side twin of the hunt-20 delete conflation). The
+  `--print-json` contract itself is now pinned: `status_json` was
+  extracted as a pure builder and six unit pins hold the field
+  names, the cgroup-count (not direction-count) semantics of
+  `active_limits`, null-vs-zero direction rendering, stats joining,
+  the three watchdog wordings, and the one honest zero state (empty
+  maps after an orphan sweep). Verified along the way: every pin
+  path constant matches its BPF map name one-to-one (no silent
+  ENOENT from a wrong name), and the live observe/top loops keep
+  their documented soft-read behavior (a transient read failure
+  renders a zero frame and retries next tick — the task-7 decision,
+  untouched).
 - **fix: every policy-writing command runs the full attach ladder
   (NIGHT-hunt-21, apply-path discipline)** — the NIGHT-hunt-20 audit
   found `handle_strict_multi` and `handle_limit_all` pre-checking

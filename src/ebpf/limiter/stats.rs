@@ -12,20 +12,32 @@ use crate::ebpf::pin::{PIN_MAP_STATS, PIN_MAP_WATCHDOG};
 
 impl super::Limiter {
     /// Print status: active limits + watchdog.
-    pub fn print_status(&self) {
-        let dl = self.read_policies(Direction::Download).unwrap_or_default();
-        let ul = self.read_policies(Direction::Upload).unwrap_or_default();
-        let stats = self.read_stats().unwrap_or_default();
-        let wd = self.read_watchdog().ok().flatten();
+    ///
+    /// NIGHT-hunt-22: read failures PROPAGATE. Callers gate on
+    /// `is_pinned()` first, so a failed map read here is an anomaly —
+    /// rendering "Active limits: none" from it would fabricate the
+    /// exact opposite of the enforced truth on the one surface owners
+    /// use to check it.
+    pub fn print_status(&self) -> Result<()> {
+        let dl = self.read_policies(Direction::Download)?;
+        let ul = self.read_policies(Direction::Upload)?;
+        let stats = self.read_stats()?;
+        let wd = self.read_watchdog()?;
         crate::ebpf::display::print_status(&dl, &ul, &stats, &self.identity, wd);
+        Ok(())
     }
 
     /// Print status as JSON (for --print-json).
+    ///
+    /// Same contract as `print_status` (NIGHT-hunt-22): the JSON
+    /// surface feeds scripts, so a failed read must exit non-zero
+    /// instead of emitting `{"active_limits": 0, "limits": []}` —
+    /// automation would read that as "nothing is limited".
     pub fn print_status_json(&self) -> Result<()> {
-        let dl = self.read_policies(Direction::Download).unwrap_or_default();
-        let ul = self.read_policies(Direction::Upload).unwrap_or_default();
-        let stats = self.read_stats().unwrap_or_default();
-        let wd = self.read_watchdog().ok().flatten();
+        let dl = self.read_policies(Direction::Download)?;
+        let ul = self.read_policies(Direction::Upload)?;
+        let stats = self.read_stats()?;
+        let wd = self.read_watchdog()?;
         crate::ebpf::display::print_status_json(&dl, &ul, &stats, &self.identity, wd)
     }
 
@@ -88,6 +100,12 @@ impl super::Limiter {
     }
 
     /// Read current watchdog deadline.
+    ///
+    /// `Ok(None)` is kept for the display contract (rendered the same
+    /// as deadline 0, "not armed"). NIGHT-hunt-22: a failed read is an
+    /// `Err`, never a fabricated "absent" — the old `Err(_) => Ok(None)`
+    /// turned an unreadable watchdog into "Watchdog: not set", the
+    /// display-side twin of the hunt-20 delete conflation.
     pub fn read_watchdog(&self) -> Result<Option<u64>> {
         if let Some(bpf) = self.bpf.as_ref() {
             let map: BpfArray<_, u64> = BpfArray::try_from(
@@ -97,10 +115,9 @@ impl super::Limiter {
             .context("Failed to access watchdog_deadline")?;
 
             let index: u32 = 0;
-            match map.get(&index, 0) {
-                Ok(deadline) => Ok(Some(deadline)),
-                Err(_) => Ok(None),
-            }
+            map.get(&index, 0)
+                .map(Some)
+                .map_err(|e| anyhow!("watchdog_deadline read: {e}"))
         } else {
             // Pin mode: read from pinned watchdog map.
             let pin_path = PIN_MAP_WATCHDOG;
@@ -111,10 +128,9 @@ impl super::Limiter {
                 BpfArray::try_from(&map_obj).context("Failed to open pinned watchdog map")?;
 
             let index: u32 = 0;
-            match map.get(&index, 0) {
-                Ok(deadline) => Ok(Some(deadline)),
-                Err(_) => Ok(None),
-            }
+            map.get(&index, 0)
+                .map(Some)
+                .map_err(|e| anyhow!("watchdog_deadline read: {e}"))
         }
     }
 

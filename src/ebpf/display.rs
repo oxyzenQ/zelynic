@@ -184,27 +184,23 @@ pub fn print_status_json(
     identity: &IdentityMap,
     watchdog_deadline: Option<u64>,
 ) -> Result<()> {
-    use serde::Serialize;
+    let status = status_json(dl_policies, ul_policies, stats, identity, watchdog_deadline);
+    println_safe!("{}", serde_json::to_string_pretty(&status)?);
+    Ok(())
+}
 
-    #[derive(Serialize)]
-    struct LimitEntry {
-        cgroup_id: u32,
-        label: String,
-        download_bps: Option<u64>,
-        upload_bps: Option<u64>,
-        packets_allowed: u64,
-        packets_dropped: u64,
-        bytes_allowed: u64,
-        bytes_dropped: u64,
-    }
-
-    #[derive(Serialize)]
-    struct StatusJson {
-        watchdog: &'static str,
-        active_limits: usize,
-        limits: Vec<LimitEntry>,
-    }
-
+/// Assemble the status JSON document (pure, NIGHT-hunt-22: extracted
+/// so the scripting contract — field names, watchdog wording, count
+/// semantics — is unit-pinnable without capturing stdout). The shape
+/// is the `--print-json` contract scripts parse; changing a field
+/// name is a breaking change for automation.
+fn status_json(
+    dl_policies: &[(u32, PolicyRaw)],
+    ul_policies: &[(u32, PolicyRaw)],
+    stats: &[(u32, LimiterStatsRaw)],
+    identity: &IdentityMap,
+    watchdog_deadline: Option<u64>,
+) -> StatusJson {
     let watchdog = match watchdog_deadline {
         Some(0) | None => "enforcing",
         Some(d) if d > monotonic_ns() => "active",
@@ -227,12 +223,34 @@ pub fn print_status_json(
         })
         .collect();
 
-    let status = StatusJson {
+    StatusJson {
         watchdog,
         active_limits: limits.len(),
         limits,
-    };
-
-    println_safe!("{}", serde_json::to_string_pretty(&status)?);
-    Ok(())
+    }
 }
+
+#[derive(serde::Serialize)]
+struct LimitEntry {
+    cgroup_id: u32,
+    label: String,
+    download_bps: Option<u64>,
+    upload_bps: Option<u64>,
+    packets_allowed: u64,
+    packets_dropped: u64,
+    bytes_allowed: u64,
+    bytes_dropped: u64,
+}
+
+#[derive(serde::Serialize)]
+struct StatusJson {
+    watchdog: &'static str,
+    active_limits: usize,
+    limits: Vec<LimitEntry>,
+}
+
+// NIGHT-hunt-17: pins live under the single test/ tree, #[path]-wired
+// across trees (cosmostrix Pattern C).
+#[cfg(test)]
+#[path = "../../test/ebpf/display_tests.rs"]
+mod display_tests;
