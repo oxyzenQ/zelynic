@@ -13,6 +13,12 @@ readme = "README.md"
 keywords = ["bandwidth", "network", "rate-limiter", "linux", "ebpf"]
 categories = ["command-line-utilities", "network-programming"]
 rust-version = "1.98"
+# NIGHT-improve-1 phase 3: this package is not publishable to
+# crates.io — the ebpf feature builds BPF objects from the detached
+# ebpf/ crate beside this manifest (driven by build.rs), and a
+# package upload cannot carry that directory. Distribution is
+# git checkouts and GitHub release tarballs (release.yml).
+publish = false
 # NIGHT-hunt-17 (cosmostrix Pattern C discipline): every .rs test file
 # lives under the single top-level test/ tree. Autodiscovery of a
 # Cargo tests/ directory is OFF, so the only test targets are the

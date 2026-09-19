@@ -112,6 +112,28 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y clang libbpf-dev linux-libc-dev
 
+      # NIGHT-improve-1 phase 3: the ebpf-feature builds now embed the
+      # pure-Rust eBPF objects (nested nightly build driven by
+      # build.rs) — the dated nightly pin and bpf-linker are build
+      # prerequisites alongside the C toolchain while the C objects
+      # are still packaged.
+      - name: Install eBPF nightly toolchain (dated pin)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: nightly-2026-09-18
+          components: rust-src
+
+      - name: Install bpf-linker 0.11.1 (prebuilt static musl)
+        run: |
+          if ! command -v zstd >/dev/null 2>&1; then
+            sudo apt-get update -q && sudo apt-get install -y -q zstd
+          fi
+          curl -sL -o /tmp/bpf-linker.tar.zst \
+            https://github.com/aya-rs/bpf-linker/releases/download/v0.11.1/bpf-linker-x86_64-unknown-linux-musl.tar.zst
+          tar --zstd -xf /tmp/bpf-linker.tar.zst -C /tmp
+          sudo install -m755 /tmp/bpf-linker /usr/local/bin/bpf-linker
+          bpf-linker --version
+
       - name: Cache cargo registry & build
         uses: actions/cache@v5
         with:

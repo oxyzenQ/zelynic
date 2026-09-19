@@ -155,8 +155,7 @@ static schema_version: Array<u32> = Array::pinned(1, 0);
 /// `zelynic rates` command surface.
 #[allow(non_upper_case_globals)]
 #[map]
-static cgroup_limiter_stats: HashMap<u32, LimiterStats> =
-    HashMap::pinned(1024, 0);
+static cgroup_limiter_stats: HashMap<u32, LimiterStats> = HashMap::pinned(1024, 0);
 
 // ---------------------------------------------------------------------------
 // Enforcement core. Ported from the C `enforce` helper: refill
