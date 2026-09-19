@@ -5,6 +5,10 @@ fn main() {
     println!("cargo:rerun-if-changed=.git/HEAD");
     println!("cargo:rerun-if-changed=.git/refs/");
 
+    // NIGHT-improve-1 phase 3: drive the pure-Rust eBPF object build
+    // for ebpf-feature builds (see build_ebpf_objects below).
+    build_ebpf_objects();
+
     // Forward the ZELYNIC_BUILD label into the compile-time env consumed
     // by info::build_label() (cosmostrix canonical_build_label lineage).
     // The label is set by the cargo aliases pro-native-gnu /
@@ -42,6 +46,133 @@ fn main() {
     // inputs change (cargo's standard build-script caching).
     let build_time = format_build_time_utc();
     println!("cargo:rustc-env=ZELYNIC_BUILD_TIME={build_time}");
+}
+
+/// NIGHT-improve-1 phase 3: build the pure-Rust eBPF objects.
+///
+/// With the `ebpf` feature on, the shipped BPF objects are the
+/// aya-ebpf crate's own binaries (zelynic-observer / zelynic-limiter)
+/// cross-compiled for bpfel-unknown-none by a NESTED cargo invocation
+/// with cwd inside ebpf/. The nested build resolves ebpf/
+/// rust-toolchain.toml (the dated nightly pin — the bpfel target needs
+/// -Z build-std, nightly-only by design) and ebpf/.cargo/config.toml
+/// (target + build-std), and compiles into ebpf/target — its own
+/// target directory, because the crate is a detached workspace on
+/// purpose: no package-graph or lock overlap with this root build, so
+/// a stable-toolchain cargo can drive a nightly sub-build safely.
+/// The artifacts are copied into OUT_DIR, where the loaders embed them
+/// via include_bytes!
+///
+/// Prerequisites (one-time per machine, see ebpf/rust-toolchain.toml
+/// and docs/PURE_RUST_EVALUATION.md): the dated nightly with
+/// rust-src, and the bpf-linker 0.11.1 prebuilt binary on PATH.
+/// Missing either fails the nested build with rustup's/linker's own
+/// error text, and the panic below carries the install pointers. An
+/// ebpf-feature build is a pure-Rust build — there is no C fallback.
+///
+/// Default builds (feature off) never enter the nightly path at all:
+/// the dormant-mode stable-toolchain contract of the root build is
+/// unchanged.
+fn build_ebpf_objects() {
+    let manifest_dir =
+        std::path::PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR"));
+    let ebpf_dir = manifest_dir.join("ebpf");
+
+    // Rerun triggers: the ebpf crate's sources and its build wiring.
+    // ebpf/target is deliberately NOT watched — the nested cargo owns
+    // its own freshness, and watching build output would loop.
+    for rel in [
+        "src",
+        "Cargo.toml",
+        "Cargo.lock",
+        ".cargo/config.toml",
+        "rust-toolchain.toml",
+    ] {
+        println!("cargo:rerun-if-changed={}", ebpf_dir.join(rel).display());
+    }
+
+    // Only the ebpf feature needs the objects.
+    if std::env::var_os("CARGO_FEATURE_EBPF").is_none() {
+        return;
+    }
+
+    // Invoke the nested build through `rustup run <pin> cargo` — the
+    // aya-build upstream lesson: the CARGO env var handed to build
+    // scripts points at the RESOLVED toolchain cargo (stable 1.98.1
+    // here), which bypasses rustup's toolchain-file resolution and
+    // would silently drop the nightly-only -Z build-std flag. Forcing
+    // the toolchain through rustup makes the sub-build deterministic
+    // regardless of how this build script was invoked. cwd inside
+    // ebpf/ keeps the crate's own .cargo/config.toml in effect;
+    // target and build-std are ALSO passed explicitly so the
+    // invocation is correct even without the config. Environment is
+    // inherited so CI's strict RUSTFLAGS contract covers this crate
+    // too. --locked keeps the committed Cargo.lock authoritative.
+    // Stdio is inherited: the nested build's own compiler output
+    // streams through to the user/CI log.
+    const EBPF_TOOLCHAIN: &str = "nightly-2026-09-18";
+    let status = std::process::Command::new("rustup")
+        .args(["run", EBPF_TOOLCHAIN, "cargo"])
+        .current_dir(&ebpf_dir)
+        .args([
+            "build",
+            "--release",
+            "--locked",
+            "--target",
+            "bpfel-unknown-none",
+        ])
+        .args(["-Z", "build-std=core"])
+        // The aya-build upstream workaround: the parent cargo exports
+        // RUSTC pointing at the ROOT build's (stable) rustc — without
+        // removing it, the nightly sub-build would compile build-std
+        // core with the stable compiler and fail on its missing
+        // rust-src. The sub-build must resolve its own rustc.
+        .env_remove("RUSTC")
+        .env_remove("RUSTC_WORKSPACE_WRAPPER")
+        .status()
+        .unwrap_or_else(|e| {
+            panic!(
+                "failed to launch `rustup run {EBPF_TOOLCHAIN} cargo` — rustup is a \
+             hard prerequisite of the pure-Rust eBPF build: {e}"
+            )
+        });
+    if !status.success() {
+        panic!(
+            "the pure-Rust eBPF build failed. The ebpf crate needs the \
+             dated nightly pin and bpf-linker on PATH:\n  \
+             rustup toolchain install nightly-2026-09-18 \
+             --component rust-src --component rustfmt\n  \
+             bpf-linker 0.11.1: \
+             https://github.com/aya-rs/bpf-linker/releases\n  \
+             (rationale: docs/PURE_RUST_EVALUATION.md)"
+        );
+    }
+
+    // Copy both objects into OUT_DIR for include_bytes! embedding,
+    // verifying the ELF magic so a truncated or wrong-format artifact
+    // fails the build here instead of at load time on a user host.
+    let out_dir = std::path::PathBuf::from(std::env::var("OUT_DIR").expect("OUT_DIR"));
+    for name in ["zelynic-observer", "zelynic-limiter"] {
+        let src = ebpf_dir
+            .join("target")
+            .join("bpfel-unknown-none")
+            .join("release")
+            .join(name);
+        let data = std::fs::read(&src)
+            .unwrap_or_else(|e| panic!("expected eBPF object {} not readable: {e}", src.display()));
+        assert!(
+            data.len() > 4
+                && data[0] == 0x7f
+                && data[1] == b'E'
+                && data[2] == b'L'
+                && data[3] == b'F',
+            "eBPF object {} is not an ELF file (bpf-linker output corrupt?)",
+            src.display()
+        );
+        let dst = out_dir.join(name);
+        std::fs::write(&dst, &data)
+            .unwrap_or_else(|e| panic!("failed to stage {} into OUT_DIR: {e}", dst.display()));
+    }
 }
 
 /// Build timestamp in `M/D/YYYY HH:MM (UTC)` format, computed from

@@ -9,6 +9,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **research: pure-Rust eBPF promoted to the production build path
+  (NIGHT-improve-1, phase 3, stage 1)** — executing the owner's
+  go-totally-pure-Rust directive: the detached `ebpf/` aya-ebpf
+  crate is now what an ebpf-feature build actually ships, driven by
+  the root `build.rs` through a nested `rustup run
+  nightly-2026-09-18 cargo build --release --locked --target
+  bpfel-unknown-none -Z build-std=core` with cwd inside `ebpf/`.
+  Two upstream (aya-build) lessons are baked in with in-code
+  documentation: the `CARGO` env var a build script receives points
+  at the RESOLVED root toolchain's cargo (stable), so the sub-build
+  must force the toolchain through `rustup run` — and the parent
+  cargo exports `RUSTC` pointing at the stable rustc, which must be
+  scrubbed from the child env or build-std core compiles against
+  the wrong sysroot. Both failure modes were reproduced and fixed
+  locally before commit. The nested build compiles into the ebpf
+  crate's own target directory (detached workspace: no lock or
+  package-graph overlap with the root build), and `build.rs` stages
+  both objects into OUT_DIR with an ELF-magic check so a corrupt
+  artifact fails the build instead of failing on a user host.
+  Prerequisites are now explicit and pinned: `ebpf/rust-toolchain.toml`
+  (dated nightly + rust-src + rustfmt — a dated pin, not a floating
+  channel, so a new nightly's LLVM cannot drift past the pinned
+  bpf-linker) and bpf-linker 0.11.1 on PATH; the build.rs panic
+  carries the install pointers. Default builds (feature off) never
+  enter the nightly path — the dormant-mode stable contract is
+  unchanged, verified by a feature-off build staying at its normal
+  speed. The root manifest gains `publish = false` with rationale:
+  a crates.io upload cannot carry the detached ebpf/ directory, so
+  accidental publishing is now structurally impossible (git and
+  release tarballs remain the distribution channels). CI follows
+  the new prerequisites: all build-carrying jobs (ci.yml Lint &
+  Test + eBPF Build matrix, maintenance.yml, release.yml) install
+  the dated nightly and bpf-linker; the eBPF Build job drops
+  clang/libbpf-dev and now checks ebpf/ with rustfmt (the
+  clang-format step's replacement) and builds the crate directly
+  before the root build. The ebpf crate itself is now
+  rustfmt-clean (its formatting had never been checked — root fmt
+  cannot see the detached crate). Loaders still read objects from
+  the bpf/ path this stage — the embedding switch is the next
+  commit, keeping this one independently green.
+
 - **strict: monitor terminal contract pinned — the mouse and the
   clipboard stay native, copy/paste is never captured
   (NIGHT-strict-1)** — the owner rule that monitoring mode must not

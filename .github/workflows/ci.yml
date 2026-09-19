@@ -80,6 +80,27 @@ jobs:
           toolchain: ${{ env.RUST_VERSION }}
           components: clippy, rustfmt
 
+      # NIGHT-improve-1 phase 3: clippy --all-features compiles the
+      # ebpf-feature build, which drives the nested pure-Rust eBPF
+      # build in build.rs — the dated nightly pin (ebpf/
+      # rust-toolchain.toml) and bpf-linker must be present.
+      - name: Install eBPF nightly toolchain (dated pin)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: nightly-2026-09-18
+          components: rust-src
+
+      - name: Install bpf-linker 0.11.1 (prebuilt static musl)
+        run: |
+          if ! command -v zstd >/dev/null 2>&1; then
+            sudo apt-get update -q && sudo apt-get install -y -q zstd
+          fi
+          curl -sL -o /tmp/bpf-linker.tar.zst \
+            https://github.com/aya-rs/bpf-linker/releases/download/v0.11.1/bpf-linker-x86_64-unknown-linux-musl.tar.zst
+          tar --zstd -xf /tmp/bpf-linker.tar.zst -C /tmp
+          sudo install -m755 /tmp/bpf-linker /usr/local/bin/bpf-linker
+          bpf-linker --version
+
       - name: Cache cargo registry
         uses: actions/cache@v5
         with:
@@ -124,32 +145,43 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Install clang + libbpf-dev + linux-libc-dev
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y clang libbpf-dev linux-libc-dev
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
 
-      - name: Check BPF C formatting (clang-format)
-        run: |
-          clang-format --dry-run --Werror bpf/*.c
+      # NIGHT-improve-1 phase 3: the BPF objects are now built by the
+      # pure-Rust ebpf/ crate (aya-ebpf, nightly + bpf-linker) — the
+      # clang/libbpf-dev toolchain is gone from this job.
+      - name: Install eBPF nightly toolchain (dated pin)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: nightly-2026-09-18
+          components: rust-src, rustfmt
 
-      - name: Compile BPF observer
+      - name: Install bpf-linker 0.11.1 (prebuilt static musl)
         run: |
-          ARCH="$(uname -m)"
-          clang -O2 -g -target bpf \
-          -I"/usr/include/${ARCH}-linux-gnu" \
-          -c bpf/observer.bpf.c -o bpf/observer.bpf.o
-      - name: Compile BPF limiter
+          if ! command -v zstd >/dev/null 2>&1; then
+            sudo apt-get update -q && sudo apt-get install -y -q zstd
+          fi
+          curl -sL -o /tmp/bpf-linker.tar.zst \
+            https://github.com/aya-rs/bpf-linker/releases/download/v0.11.1/bpf-linker-x86_64-unknown-linux-musl.tar.zst
+          tar --zstd -xf /tmp/bpf-linker.tar.zst -C /tmp
+          sudo install -m755 /tmp/bpf-linker /usr/local/bin/bpf-linker
+          bpf-linker --version
+
+      - name: Check eBPF Rust formatting (rustfmt, nightly pin)
+        run: cd ebpf && cargo fmt --all -- --check
+
+      - name: Build pure-Rust eBPF objects (direct crate build)
+        run: cargo build --release --locked
+        working-directory: ebpf
+
+      - name: Verify eBPF objects exist
         run: |
-          ARCH="$(uname -m)"
-          clang -O2 -g -target bpf \
-          -I"/usr/include/${ARCH}-linux-gnu" \
-          -c bpf/limiter.bpf.c -o bpf/limiter.bpf.o
-      - name: Verify BPF objects exist
-        run: |
-          test -f bpf/observer.bpf.o
-          test -f bpf/limiter.bpf.o
-          echo "OK: BPF objects compiled successfully"
+          test -f ebpf/target/bpfel-unknown-none/release/zelynic-observer
+          test -f ebpf/target/bpfel-unknown-none/release/zelynic-limiter
+          echo "OK: pure-Rust eBPF objects built successfully"
 
       - name: Build Rust with ebpf feature
         run: cargo build --features ebpf --locked

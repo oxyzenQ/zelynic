@@ -1,27 +1,35 @@
 # Copyright (C) 2026 rezky_nightky
 # SPDX-License-Identifier: GPL-3.0-only
 
-# Pure-Rust eBPF prototype crate (NIGHT-improve-1, stage 2 +
-# phase 2).
+# Pure-Rust eBPF crate (NIGHT-improve-1, stage 2 + phase 2 + phase 3).
 #
-# Two detached binaries, one per C twin:
-#   zelynic-observer  — port of bpf/observer.bpf.c (stage 3)
-#   zelynic-limiter   — port of bpf/limiter.bpf.c (phase 2)
+# Two binaries, one per production object:
+#   zelynic-observer  — port of the former bpf/observer.bpf.c (stage 3)
+#   zelynic-limiter   — port of the former bpf/limiter.bpf.c (phase 2)
 #
-# Detached workspace ON PURPOSE: the empty [workspace] table below
-# keeps this crate outside the root package's build graph, so the
-# default stable-toolchain pipeline (build.sh check-all, CI, all 15
-# gates) is completely unaffected by anything here. The crate builds
-# only through its dedicated nightly command (see
-# docs/PURE_RUST_EVALUATION.md for the full rationale):
+# Phase 3 promoted this crate from research artifact to the production
+# BPF source: the root build.rs drives a nested cargo build of this
+# crate whenever the root `ebpf` feature is on, and the loaders embed
+# the artifacts from OUT_DIR. The crate is STILL a detached workspace
+# ON PURPOSE — the empty [workspace] table below keeps it outside the
+# root package's build graph, so:
+#   - the default stable-toolchain build (build.sh check-all, the 15
+#     local gates) never enters the nightly path;
+#   - the nested build compiles into its OWN target directory with no
+#     lock contention with the root build;
+#   - the bpfel-unknown-none -Z build-std cross-build can only be
+#     reached deliberately, never as a side effect.
 #
-#   cd ebpf && cargo +nightly build --release
+# The toolchain comes from THIS directory's rust-toolchain.toml (the
+# dated nightly pin); any cargo with cwd inside ebpf/ resolves it
+# automatically. Direct build (same thing build.rs drives):
+#
+#   cd ebpf && cargo build --release
 #
 # Edition 2024 matches the aya-ebpf 0.2.1 upstream pairing (the
 # 2026-09 aya-template workspace). The crate is nightly-only by
 # design and must never enter the root crate's rust-version-sync
-# contract (the bpfel-unknown-none target needs -Z build-std, which
-# does not exist on stable).
+# contract (gate 10 reads the ROOT manifest only).
 
 [package]
 name = "zelynic-ebpf"
