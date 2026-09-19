@@ -19,6 +19,10 @@ env:
   # (enforced by scripts/check-rust-version-sync.sh; bump via
   # scripts/rust-version-to.sh).
   RUST_VERSION: "1.98.1"
+  # NIGHT-strict-2: strict CI build — warning = failure, matching
+  # ci.yml and release.yml. Registry dependencies stay warning-capped
+  # (--cap-lints allow), so only workspace-local code can fail.
+  RUSTFLAGS: "-D warnings"
 
 jobs:
   validate:

@@ -119,6 +119,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **strict: CI builds deny warnings — warning = failure everywhere
+  cargo runs (NIGHT-strict-2)** — the owner rule for strict CI
+  builds, applied as a top-level `RUSTFLAGS: "-D warnings"` env in
+  all three build-carrying workflows (ci.yml, maintenance.yml,
+  release.yml). Every `cargo build`, `cargo test`, and release
+  binary build now fails on any rustc warning; clippy already ran
+  `-D warnings` explicitly, so the delta closes the rustc-warning
+  gap between clippy runs and real builds (the release path most of
+  all — a released binary compiled with warnings is the worst place
+  for one to hide). Scope notes, recorded honestly: registry
+  dependencies cannot fail the build (cargo passes `--cap-lints
+  allow` for non-workspace crates, verified locally by building the
+  full tree under the flag), local `build.sh check-all` stays
+  non-strict by design (clippy's `-D warnings` there already covers
+  the warning surface on the lint level; the strict env is the CI
+  contract), and the clang BPF compiles did NOT gain `-Wall
+  -Werror` — that surface cannot be verified in the research sandbox
+  (no clang) and the C objects are scheduled for deletion by the
+  pure-Rust switch, so adding an unverifiable flag to doomed
+  commands would be risk without value. Verified locally before
+  push: release build, default tests (25 + 21), ebpf-feature build,
+  and ebpf tests (147 + 23) all green under `RUSTFLAGS="-D
+  warnings"`.
+
 - **fix: codeql.yml header comment made honest — shell coverage
   pointer corrected (NIGHT-improve-1, phase-2 hunt finding 1)** —
   the comment claimed Python tooling scripts are "covered by the
