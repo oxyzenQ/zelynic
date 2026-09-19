@@ -257,6 +257,107 @@ warm rebuild 0.31 s lean / 14.1 s for the BTF+debuginfo variant
 (that number includes rebuilding the crate and relinking with debug
 data).
 
+## Stage 4: measurements
+
+All numbers measured on the research sandbox (same machine class as
+the frame-bench baseline runs; 2026-09-19, nightly 1.100.0,
+bpf-linker 0.11.1 prebuilt musl, aya-ebpf 0.2.1).
+
+### Line counts
+
+| File | total | blank | comment | code |
+|---|---|---|---|---|
+| `bpf/observer.bpf.c` | 172 | 21 | 16 | 135 |
+| `ebpf/src/main.rs` | 269 | 29 | 69 | 171 |
+
+Ratios: 1.56x total, **1.27x code-only**. The Rust side carries 53
+more comment lines than the C twin because the port documents the
+userspace contract, the parity decisions, and the swallow rationale
+in place. The DeepSeek stop criterion (>2x LOC) is not met on either
+count.
+
+### Build cost
+
+| Path | cold | warm | notes |
+|---|---|---|---|
+| Rust (lean) | 22.5 s | 0.31 s | cold = full pipeline: build-std core, aya-ebpf, crate, bpf-linker |
+| Rust (BTF + debuginfo) | 14.1 s* | — | *incremental over the lean artifacts; adds .BTF/.BTF.ext and DWARF |
+| C (`clang -O2 -target bpf`) | not measurable here | — | no clang in the sandbox; single-file C compile is sub-second by nature, but needs a clang + libbpf-headers toolchain present |
+
+The honest comparison is not seconds but toolchain surface: the C
+path needs clang and libbpf headers installed; the Rust path needs
+`rustup toolchain install nightly --component rust-src` plus one
+prebuilt bpf-linker binary (no system LLVM, no sudo, no clang). The
+22.5 s cold cost is paid once per clean checkout; every subsequent
+edit is the 0.31 s warm rebuild.
+
+### Object properties
+
+| Property | C twin | Rust port |
+|---|---|---|
+| Lean object size | not built here (no clang in sandbox) | 3864 B |
+| BTF + debuginfo variant | default (`clang -g`) | 128,136 B |
+| Map definition format | BTF-style `.maps` section | legacy 28-byte `bpf_map_def` in `maps` section |
+| Program sections | `cgroup_skb/egress`, `cgroup_skb/ingress` | identical (macro-emitted) |
+| License section | `GPL` | `GPL` |
+
+The map-format divergence is cosmetic for zelynic: aya 0.13.1 parses
+both formats into the same map metadata, and the loader only ever
+sees names and geometry (verified in the stage-3 output).
+
+### Render-path A/B (owner benchmark protocol)
+
+10 s formal frame-bench at the pinned 80x40 harness geometry, A =
+c7ed061 (pre-port) in a throwaway worktree, B = 1eef11e (the port
+commit):
+
+| metric | before | after | delta |
+|---|---|---|---|
+| density gini | 0.1812 | 0.1812 | 0.00% |
+| frame entropy | 4.1913 | 4.1913 | 0.00% |
+| dirty cells/frame | 755.42 | 755.39 | -0.00% |
+| bytes/frame | 1437.54 | 1437.55 | +0.00% |
+| emit bytes/frame | 1375.61 | 1375.61 | 0.00% |
+| fps | 14627 | 14400 | -1.55% (machine noise) |
+
+Every visual metric identical, as expected by construction: the
+detached ebpf crate is not part of the shipped binary, so the
+render path measured by the harness cannot change. The run exists to
+prove that claim with data instead of assertion, per the owner rule
+that code-changing commits get the benchmark.
+
+### Verification harness (reproducibility)
+
+The harness used for stage-3/4 verification is deliberately NOT
+committed as a crate (blast-radius discipline). It is small enough
+to reproduce verbatim — a throwaway cargo project depending on
+`aya = "0.13"` and `aya-obj = "0.2"` with this main:
+
+```rust
+fn main() {
+    let data = std::fs::read(std::env::args().nth(1).unwrap()).unwrap();
+    let obj = aya_obj::Object::parse(&data).unwrap();   // parse-only
+    for (name, p) in &obj.programs {
+        println!("program {name}: {:?}", p.section);
+    }
+    for (name, m) in &obj.maps {
+        println!("map {name}: type={} key={} value={} max={}",
+            m.map_type(), m.key_size(), m.value_size(), m.max_entries());
+    }
+    match aya::Ebpf::load(&data) {                      // creates maps
+        Ok(_) => println!("LOAD OK"),
+        Err(e) => println!("LOAD env-limited: {e}"),    // needs privileges
+    }
+}
+```
+
+Run it against `ebpf/target/bpfel-unknown-none/release/zelynic-observer`.
+On an unprivileged host the final line reports the ringbuf EPERM; on
+a privileged host (root, or CAP_BPF + CAP_SYS_ADMIN) it prints LOAD
+OK and Phase 2 can go one step further: run the real observe loop
+against the Rust object by placing it at `bpf/observer.bpf.o` — the
+loader reads the object from a path, so the swap needs no rebuild.
+
 ## Stage-1 task map (DeepSeek plan, one commit each)
 
 1. Research (this document's ecosystem and compatibility sections).
