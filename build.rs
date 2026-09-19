@@ -63,16 +63,25 @@ fn main() {
 /// The artifacts are copied into OUT_DIR, where the loaders embed them
 /// via include_bytes!
 ///
-/// Prerequisites (one-time per machine, see ebpf/rust-toolchain.toml
-/// and docs/PURE_RUST_EVALUATION.md): the dated nightly with
-/// rust-src, and the bpf-linker 0.11.1 prebuilt binary on PATH.
-/// Missing either fails the nested build with rustup's/linker's own
-/// error text, and the panic below carries the install pointers. An
-/// ebpf-feature build is a pure-Rust build — there is no C fallback.
+/// Prerequisites (one-time per machine, one command —
+/// scripts/bootstrap-ebpf.sh; see ebpf/rust-toolchain.toml and
+/// docs/PURE_RUST_EVALUATION.md): the dated nightly with rust-src,
+/// and the bpf-linker 0.11.1 prebuilt binary on PATH. The preflight
+/// (NIGHT-host-1) below fails fast, naming the exact missing piece
+/// and the one-command fix. An ebpf-feature build is a pure-Rust
+/// build — there is no C fallback.
 ///
 /// Default builds (feature off) never enter the nightly path at all:
 /// the dormant-mode stable-toolchain contract of the root build is
 /// unchanged.
+///
+/// The dated nightly pin driving the nested cross-build — mirrors
+/// ebpf/rust-toolchain.toml (which the nested build resolves from its
+/// own directory) and the pin scripts/bootstrap-ebpf.sh installs on
+/// hosts. Bump all three together (docs/PURE_RUST_EVALUATION.md
+/// records why a dated pin, never a floating channel).
+const EBPF_TOOLCHAIN: &str = "nightly-2026-09-18";
+
 fn build_ebpf_objects() {
     let manifest_dir =
         std::path::PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR"));
@@ -96,6 +105,18 @@ fn build_ebpf_objects() {
         return;
     }
 
+    // NIGHT-host-1: preflight the two host prerequisites BEFORE the
+    // nested build, so a failure names the exact missing piece and
+    // the one-command fix (scripts/bootstrap-ebpf.sh) instead of
+    // surfacing rustup's or the linker's raw error text after the
+    // dependency tree has already compiled — and so a missing
+    // bpf-linker is caught even when ebpf/target is fully cached (a
+    // warm nested build skips the link step, so without this check
+    // the prerequisite violation passes silently and only explodes
+    // on the next clean build — reproduced while testing this
+    // change).
+    preflight_ebpf_prerequisites(EBPF_TOOLCHAIN);
+
     // Invoke the nested build through `rustup run <pin> cargo` — the
     // aya-build upstream lesson: the CARGO env var handed to build
     // scripts points at the RESOLVED toolchain cargo (stable 1.98.1
@@ -110,7 +131,6 @@ fn build_ebpf_objects() {
     // too. --locked keeps the committed Cargo.lock authoritative.
     // Stdio is inherited: the nested build's own compiler output
     // streams through to the user/CI log.
-    const EBPF_TOOLCHAIN: &str = "nightly-2026-09-18";
     let status = std::process::Command::new("rustup")
         .args(["run", EBPF_TOOLCHAIN, "cargo"])
         .current_dir(&ebpf_dir)
@@ -137,14 +157,14 @@ fn build_ebpf_objects() {
             )
         });
     if !status.success() {
+        // The preflight already verified both prerequisites present,
+        // so reaching this branch means a real compile/link failure:
+        // the nested build's own output above is the diagnosis.
         panic!(
-            "the pure-Rust eBPF build failed. The ebpf crate needs the \
-             dated nightly pin and bpf-linker on PATH:\n  \
-             rustup toolchain install nightly-2026-09-18 \
-             --component rust-src --component rustfmt\n  \
-             bpf-linker 0.11.1: \
-             https://github.com/aya-rs/bpf-linker/releases\n  \
-             (rationale: docs/PURE_RUST_EVALUATION.md)"
+            "the pure-Rust eBPF build failed with prerequisites present \
+             ({EBPF_TOOLCHAIN} and bpf-linker were both verified by the \
+             preflight) — the nested cargo output above is the actual \
+             error (rationale: docs/PURE_RUST_EVALUATION.md)"
         );
     }
 
@@ -172,6 +192,105 @@ fn build_ebpf_objects() {
         let dst = out_dir.join(name);
         std::fs::write(&dst, &data)
             .unwrap_or_else(|e| panic!("failed to stage {} into OUT_DIR: {e}", dst.display()));
+    }
+}
+
+/// NIGHT-host-1: verify the two host prerequisites of an
+/// ebpf-feature build up front, panicking with the exact missing
+/// piece and the one-command fix. Cheap on purpose: one
+/// `rustup toolchain list` (tens of milliseconds) plus a PATH scan,
+/// and only on the ebpf-feature path — default builds never pay it.
+fn preflight_ebpf_prerequisites(toolchain: &str) {
+    // Toolchain: `rustup run` on a missing toolchain fails with
+    // rustup's own error text AFTER the dependency tree compiled; the
+    // preflight moves that failure to the front and makes it
+    // actionable. If rustup itself cannot run, stay silent — the
+    // nested invocation's launch panic names rustup as the hard
+    // prerequisite with its own precise message.
+    if let Some(list) = rustup_toolchain_list() {
+        if !list_has_toolchain(&list, toolchain) {
+            panic!(
+                "the pinned nightly toolchain {toolchain} is not installed, \
+                 but the ebpf feature requires it (ebpf/rust-toolchain.toml \
+                 pins it for the bpfel-unknown-none cross-build). \
+                 One-command fix:\n  \
+                 ./scripts/bootstrap-ebpf.sh\n  \
+                 (manual: rustup toolchain install {toolchain} --profile \
+                 minimal --component rust-src --component rustfmt)"
+            );
+        }
+    }
+
+    // bpf-linker: the link step only runs when ebpf/target is cold,
+    // so a warm cache hides a missing linker until the next clean
+    // build (reproduced while testing this change) — hence an
+    // unconditional PATH scan here, not a nested-build failure.
+    if !path_has_tool("bpf-linker") {
+        panic!(
+            "bpf-linker is not on PATH, but the ebpf feature requires it \
+             to link the bpfel-unknown-none objects (pinned version: \
+             0.11.1). One-command fix:\n  \
+             ./scripts/bootstrap-ebpf.sh\n  \
+             (already installed under ~/.local/bin? Put ~/.local/bin \
+             on PATH — the bootstrap script warns about exactly this)"
+        );
+    }
+}
+
+/// `rustup toolchain list` output, or None when rustup is missing or
+/// fails — in that case the nested invocation produces the real
+/// error and the preflight stays silent instead of guessing.
+fn rustup_toolchain_list() -> Option<String> {
+    let output = std::process::Command::new("rustup")
+        .args(["toolchain", "list"])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    Some(String::from_utf8_lossy(&output.stdout).into_owned())
+}
+
+/// Match a pin against `rustup toolchain list` output. Each line is
+/// "<toolchain-name>-<host-triple>" (optionally suffixed " (active)"),
+/// so a pin matches only when the line's first token IS the pin or
+/// the pin plus a "-" host-triple suffix — a longer lookalike pin
+/// sharing the prefix ("...-09-180-...") must not match.
+fn list_has_toolchain(list: &str, pin: &str) -> bool {
+    list.lines().any(|line| {
+        let name = line.split_whitespace().next().unwrap_or("");
+        name == pin || name.starts_with(&format!("{pin}-"))
+    })
+}
+
+/// Is `tool` present as an executable file anywhere on PATH?
+/// `command -v` semantics without spawning a shell, so the check
+/// works under any parent environment cargo hands the build script.
+fn path_has_tool(tool: &str) -> bool {
+    std::env::var_os("PATH")
+        .map(|paths| path_value_has_tool(&paths, tool))
+        .unwrap_or(false)
+}
+
+/// The testable core of [`path_has_tool`]: scan one PATH value.
+fn path_value_has_tool(path_value: &std::ffi::OsStr, tool: &str) -> bool {
+    std::env::split_paths(path_value).any(|dir| is_executable_file(&dir.join(tool)))
+}
+
+/// A regular file with at least one execute bit set — the same test
+/// shells apply when resolving a command name.
+fn is_executable_file(path: &std::path::Path) -> bool {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        match std::fs::metadata(path) {
+            Ok(metadata) => metadata.is_file() && metadata.permissions().mode() & 0o111 != 0,
+            Err(_) => false,
+        }
+    }
+    #[cfg(not(unix))]
+    {
+        path.is_file()
     }
 }
 
@@ -293,5 +412,77 @@ mod tests {
             result.contains("1969"),
             "negative-epoch result should land in 1969: {result}"
         );
+    }
+
+    #[test]
+    fn toolchain_list_matching_pins_the_host_triple_suffix_contract() {
+        // NIGHT-host-1: real `rustup toolchain list` shape — one
+        // "<name>-<host-triple>" line per toolchain, possibly suffixed
+        // "(active)" / "(default)". The preflight's toolchain probe
+        // must accept the pin and reject lookalikes.
+        let list = "1.98.1-x86_64-unknown-linux-gnu (active, default)\n\
+                    nightly-2026-09-18-x86_64-unknown-linux-gnu\n\
+                    stable-x86_64-unknown-linux-gnu\n";
+        assert!(list_has_toolchain(list, "nightly-2026-09-18"));
+        assert!(list_has_toolchain(list, "1.98.1"));
+        assert!(!list_has_toolchain(list, "nightly-2026-09-17"));
+
+        // A longer pin sharing the prefix must NOT match: only the
+        // exact pin, or the pin plus a "-" host-triple suffix, counts.
+        assert!(!list_has_toolchain(
+            "nightly-2026-09-180-x86_64-unknown-linux-gnu",
+            "nightly-2026-09-18"
+        ));
+
+        // Empty output (rustup with nothing installed yet) matches
+        // nothing — the preflight reports the pin as missing.
+        assert!(!list_has_toolchain("", "nightly-2026-09-18"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn path_scan_finds_only_executable_files_named_like_the_tool() {
+        // NIGHT-host-1: the preflight's bpf-linker probe is
+        // command-v semantics — an executable regular file on PATH.
+        // Non-executable files and directories of the same name must
+        // not satisfy it (the warm-cache blind spot fix relies on
+        // this being a real resolution test).
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = std::env::temp_dir().join(format!("zelynic-buildrs-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("temp dir setup");
+
+        // 1. executable file named like the tool -> found
+        let exec_dir = dir.join("exec");
+        std::fs::create_dir_all(&exec_dir).unwrap();
+        std::fs::write(exec_dir.join("bpf-linker"), b"").unwrap();
+        std::fs::set_permissions(
+            exec_dir.join("bpf-linker"),
+            std::fs::Permissions::from_mode(0o755),
+        )
+        .unwrap();
+
+        // 2. plain file, no execute bit -> not found despite the name
+        let plain_dir = dir.join("plain");
+        std::fs::create_dir_all(&plain_dir).unwrap();
+        std::fs::write(plain_dir.join("bpf-linker"), b"").unwrap();
+        std::fs::set_permissions(
+            plain_dir.join("bpf-linker"),
+            std::fs::Permissions::from_mode(0o644),
+        )
+        .unwrap();
+
+        // 3. a directory named like the tool -> not found (is_file gate)
+        let dir_case = dir.join("dircase");
+        std::fs::create_dir_all(dir_case.join("bpf-linker")).unwrap();
+
+        let with_exec = std::env::join_paths([&exec_dir, &plain_dir]).unwrap();
+        assert!(path_value_has_tool(&with_exec, "bpf-linker"));
+
+        let without_exec = std::env::join_paths([&plain_dir, &dir_case]).unwrap();
+        assert!(!path_value_has_tool(&without_exec, "bpf-linker"));
+
+        // hermetic: repeated runs reuse the same pid-keyed dir
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

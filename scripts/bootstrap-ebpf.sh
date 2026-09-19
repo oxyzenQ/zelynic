@@ -1,0 +1,284 @@
+#!/usr/bin/env bash
+# Copyright (C) 2026 rezky_nightky
+# SPDX-License-Identifier: GPL-3.0-only
+# PLATFORM: UNIX-only (Linux). zelynic is a Linux-only tool.
+#
+# Host bootstrap for the pure-Rust eBPF build (NIGHT-host-1).
+#
+# One command installs the two prerequisites that
+# `cargo build --release --features ebpf` (and the pro-native-gnu /
+# pro-native-musl aliases) need on a host:
+#   1. the dated nightly toolchain pinned by ebpf/rust-toolchain.toml
+#      (minimal profile, with the rust-src + rustfmt components)
+#   2. the bpf-linker 0.11.1 prebuilt static-musl binary, installed
+#      into ~/.local/bin (no sudo, no system LLVM, no clang)
+#
+# The nightly pin is READ from ebpf/rust-toolchain.toml, so bumping
+# the pin there re-targets this script automatically. Only the
+# bpf-linker version lives here: the pin and the linker are a
+# validated pair (rationale: docs/PURE_RUST_EVALUATION.md).
+#
+# The tar.zst release archive is extracted with whichever
+# decompressor the host actually has: GNU tar with zstd support, a
+# standalone zstd binary, or python3 with the zstandard module.
+# None of them -> explicit manual instructions, never a silent skip.
+#
+# Idempotent: re-running skips whatever is already satisfied, and
+# after any install the script re-probes everything it changed
+# (verify, then trust). CI does NOT use this script: the workflows
+# install the same pair through dtolnay/rust-toolchain + sudo
+# install to /usr/local/bin, which fits the ephemeral privileged
+# runner better; this is the host path.
+#
+# Usage:
+#   ./scripts/bootstrap-ebpf.sh          install whatever is missing
+#   ./scripts/bootstrap-ebpf.sh --check  report status only, change
+#                                        nothing (exit 1 if something
+#                                        is missing)
+
+set -euo pipefail
+
+BPF_LINKER_VERSION="0.11.1"
+BPF_LINKER_URL_BASE="https://github.com/aya-rs/bpf-linker/releases/download/v${BPF_LINKER_VERSION}"
+CHECK_ONLY=false
+
+case "${1:-}" in
+"") ;;
+--check) CHECK_ONLY=true ;;
+*)
+	echo "Usage: $0 [--check]" >&2
+	exit 1
+	;;
+esac
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+TOOLCHAIN_FILE="${REPO_ROOT}/ebpf/rust-toolchain.toml"
+LOCAL_BIN="${HOME}/.local/bin"
+TMP_DIR=""
+
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m'
+
+ok() { echo -e "${GREEN}[bootstrap-ebpf]${NC} $1"; }
+warn() { echo -e "${YELLOW}[bootstrap-ebpf]${NC} $1"; }
+die() {
+	echo -e "${RED}[bootstrap-ebpf]${NC} $1" >&2
+	exit 1
+}
+
+cleanup() {
+	if [[ -n "${TMP_DIR}" ]]; then
+		rm -rf "${TMP_DIR}"
+	fi
+}
+trap cleanup EXIT
+
+# ── Resolve the dated nightly pin from the crate's own file ────────────────
+[[ -f "${TOOLCHAIN_FILE}" ]] || die "ebpf/rust-toolchain.toml not found (${TOOLCHAIN_FILE}) — run from inside the zelynic repo."
+command -v rustup >/dev/null 2>&1 || die "rustup is not installed — get it from https://rustup.rs first (this script drives it)."
+
+EBPF_TOOLCHAIN="$(sed -n 's/^[[:space:]]*channel[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "${TOOLCHAIN_FILE}" | head -n 1)"
+[[ -n "${EBPF_TOOLCHAIN}" ]] || die "could not read the toolchain channel from ${TOOLCHAIN_FILE}."
+
+# ── Status probes (no side effects) ────────────────────────────────────────
+# TOOLCHAIN_OK: the pin appears in `rustup toolchain list`. rustup prints
+# one "<name>-<host-triple>" line per installed toolchain, so the probe
+# anchors on "<pin>-" to reject lookalike pins sharing a prefix.
+TOOLCHAIN_OK=false
+COMPONENTS_OK=false
+LINKER_OK=false
+LINKER_RESOLVED=""
+LINKER_VERSION_REPORTED=""
+
+probe_all() {
+	TOOLCHAIN_OK=false
+	if rustup toolchain list 2>/dev/null | grep -q "^${EBPF_TOOLCHAIN}-"; then
+		TOOLCHAIN_OK=true
+	fi
+
+	COMPONENTS_OK=true
+	# Components print either "rust-src (installed)" or a triple-suffixed
+	# "rustfmt-x86_64-unknown-linux-gnu (installed)" — the pattern accepts
+	# both shapes and rejects the uninstalled (marker-less) lines.
+	for component in rust-src rustfmt; do
+		if ! rustup component list --toolchain "${EBPF_TOOLCHAIN}" 2>/dev/null |
+			grep -qE "^${component}(-[^ ]*)?[[:space:]]+\(installed\)"; then
+			COMPONENTS_OK=false
+		fi
+	done
+
+	LINKER_OK=false
+	LINKER_ON_PATH=false
+	LINKER_RESOLVED=""
+	LINKER_VERSION_REPORTED=""
+	if command -v bpf-linker >/dev/null 2>&1; then
+		LINKER_RESOLVED="$(command -v bpf-linker)"
+		LINKER_VERSION_REPORTED="$(bpf-linker --version 2>/dev/null || echo "unknown")"
+		LINKER_ON_PATH=true
+	elif [[ -x "${LOCAL_BIN}/bpf-linker" ]]; then
+		# The script's own install target, present but not on PATH:
+		# counts as installed (no pointless re-download on re-run), but
+		# cargo cannot see it until PATH includes LOCAL_BIN — the
+		# report and --check say exactly that.
+		LINKER_RESOLVED="${LOCAL_BIN}/bpf-linker"
+		LINKER_VERSION_REPORTED="$("${LOCAL_BIN}/bpf-linker" --version 2>/dev/null || echo "unknown")"
+	fi
+	if [[ "${LINKER_VERSION_REPORTED}" == *"${BPF_LINKER_VERSION}"* ]]; then
+		LINKER_OK=true
+	fi
+}
+
+report() {
+	if [[ "${TOOLCHAIN_OK}" == true && "${COMPONENTS_OK}" == true ]]; then
+		ok "nightly pin ${EBPF_TOOLCHAIN}: installed (rust-src, rustfmt present)"
+	else
+		warn "nightly pin ${EBPF_TOOLCHAIN}: not fully installed"
+	fi
+	if [[ "${LINKER_OK}" == true && "${LINKER_ON_PATH}" == true ]]; then
+		ok "bpf-linker ${BPF_LINKER_VERSION}: ${LINKER_RESOLVED}"
+	elif [[ "${LINKER_OK}" == true ]]; then
+		warn "bpf-linker ${BPF_LINKER_VERSION}: installed at ${LINKER_RESOLVED} but NOT on PATH"
+	elif [[ -n "${LINKER_RESOLVED}" ]]; then
+		warn "bpf-linker: ${LINKER_RESOLVED} reports '${LINKER_VERSION_REPORTED}', expected ${BPF_LINKER_VERSION}"
+	else
+		warn "bpf-linker: not on PATH"
+	fi
+}
+
+probe_all
+
+# ── bpf-linker download + install (definitions before use) ────────────────
+install_bpf_linker() {
+	local arch asset url archive extracted
+	arch="$(uname -m)"
+	case "${arch}" in
+	x86_64)
+		asset="bpf-linker-x86_64-unknown-linux-musl.tar.zst"
+		;;
+	aarch64)
+		asset="bpf-linker-aarch64-unknown-linux-musl.tar.zst"
+		;;
+	*)
+		die "no bpf-linker ${BPF_LINKER_VERSION} prebuilt for ${arch} — build it from source: https://github.com/aya-rs/bpf-linker"
+		;;
+	esac
+	url="${BPF_LINKER_URL_BASE}/${asset}"
+
+	TMP_DIR="$(mktemp -d)"
+	archive="${TMP_DIR}/${asset}"
+	extracted="${TMP_DIR}/extract"
+	mkdir -p "${extracted}"
+
+	ok "downloading ${url}"
+	if command -v curl >/dev/null 2>&1; then
+		curl -fsSL --retry 3 -o "${archive}" "${url}" ||
+			die "download failed — check network access, or fetch ${url} by hand and extract bpf-linker into ${LOCAL_BIN}"
+	elif command -v wget >/dev/null 2>&1; then
+		wget -q -O "${archive}" "${url}" ||
+			die "download failed — check network access, or fetch ${url} by hand and extract bpf-linker into ${LOCAL_BIN}"
+	else
+		die "neither curl nor wget is available — fetch ${url} by hand and extract bpf-linker into ${LOCAL_BIN}"
+	fi
+	[[ -s "${archive}" ]] || die "downloaded file is empty: ${archive}"
+
+	extract_tar_zst "${archive}" "${extracted}"
+	[[ -f "${extracted}/bpf-linker" ]] ||
+		die "the archive did not contain a top-level bpf-linker binary — extract ${archive} manually and inspect it"
+
+	mkdir -p "${LOCAL_BIN}"
+	install -m755 "${extracted}/bpf-linker" "${LOCAL_BIN}/bpf-linker"
+	local installed_version
+	installed_version="$("${LOCAL_BIN}/bpf-linker" --version 2>/dev/null || echo "unknown")"
+	[[ "${installed_version}" == *"${BPF_LINKER_VERSION}"* ]] ||
+		die "installed bpf-linker reports '${installed_version}', expected ${BPF_LINKER_VERSION}"
+	ok "bpf-linker ${installed_version} installed to ${LOCAL_BIN}/bpf-linker"
+
+	if [[ -n "${LINKER_RESOLVED}" && "${LINKER_RESOLVED}" != "${LOCAL_BIN}/bpf-linker" ]]; then
+		warn "PATH resolves bpf-linker to ${LINKER_RESOLVED} — make sure ${LOCAL_BIN} comes first in PATH to use the pinned ${BPF_LINKER_VERSION}."
+	fi
+}
+
+# ── tar.zst extraction with host-available decompressors ───────────────────
+# Order: (1) GNU tar with zstd support (needs the zstd binary on PATH —
+# `tar --zstd` execs it; a tar that knows the flag but lacks the binary
+# fails, which is why the probe tests the actual round trip), (2) python3
+# with the zstandard module decompressing to .tar, then plain tar,
+# (3) explicit manual instructions.
+extract_tar_zst() {
+	local archive="$1" dest="$2"
+	if command -v zstd >/dev/null 2>&1 && tar --zstd -tf "$archive" >/dev/null 2>&1; then
+		tar --zstd -xf "$archive" -C "$dest"
+		return 0
+	fi
+	if command -v python3 >/dev/null 2>&1 && python3 -c 'import zstandard' >/dev/null 2>&1; then
+		local tarfile="${archive%.tar.zst}.tar"
+		python3 - "$archive" "$tarfile" <<'PYEOF'
+import sys
+
+import zstandard
+
+with open(sys.argv[1], "rb") as src, open(sys.argv[2], "wb") as dst:
+    zstandard.ZstdDecompressor().copy_stream(src, dst)
+PYEOF
+		tar -xf "$tarfile" -C "$dest"
+		return 0
+	fi
+	die "no zstd-capable extractor on this host (GNU tar with zstd, zstd binary, or python3 with the zstandard module) — extract ${archive} by hand into ${dest}"
+}
+
+# ── --check: report and exit, change nothing ───────────────────────────────
+if [[ "${CHECK_ONLY}" == true ]]; then
+	report
+	if [[ "${TOOLCHAIN_OK}" == true && "${COMPONENTS_OK}" == true && "${LINKER_OK}" == true && "${LINKER_ON_PATH}" == true ]]; then
+		exit 0
+	fi
+	die "--check: prerequisites not satisfied — run $0 (without --check) to install, and make sure ${LOCAL_BIN} is on PATH."
+fi
+
+# ── Install mode ───────────────────────────────────────────────────────────
+report
+
+if [[ "${TOOLCHAIN_OK}" != true ]]; then
+	ok "installing nightly ${EBPF_TOOLCHAIN} (minimal profile, rust-src + rustfmt)..."
+	rustup toolchain install "${EBPF_TOOLCHAIN}" --profile minimal --component rust-src --component rustfmt
+elif [[ "${COMPONENTS_OK}" != true ]]; then
+	ok "adding missing components to ${EBPF_TOOLCHAIN}..."
+	rustup component add rust-src rustfmt --toolchain "${EBPF_TOOLCHAIN}"
+fi
+
+if [[ "${LINKER_OK}" != true ]]; then
+	install_bpf_linker
+fi
+
+# ── Re-probe: verify what changed, then trust it ──────────────────────────
+probe_all
+report
+if [[ "${TOOLCHAIN_OK}" != true || "${COMPONENTS_OK}" != true ]]; then
+	die "the nightly pin ${EBPF_TOOLCHAIN} is still not fully installed — see the rustup output above."
+fi
+if [[ "${LINKER_OK}" != true ]]; then
+	die "bpf-linker is still not resolvable at version ${BPF_LINKER_VERSION} — see the messages above."
+fi
+
+# Functional sanity: the pin must be able to run rustc at all (this is
+# the exact entry build.rs uses for the nested cross-build).
+RUSTC_VERSION_REPORTED="$(rustup run "${EBPF_TOOLCHAIN}" rustc --version 2>/dev/null || echo "unknown")"
+[[ "${RUSTC_VERSION_REPORTED}" != "unknown" ]] || die "rustup run ${EBPF_TOOLCHAIN} rustc --version failed — the toolchain is listed but broken."
+ok "sanity: ${RUSTC_VERSION_REPORTED}"
+
+# ── PATH visibility warning ────────────────────────────────────────────────
+# bpf-linker lives in ~/.local/bin; if that directory is not on PATH,
+# cargo will not find it even though it is installed (the exact trap
+# the build.rs preflight now catches at build time).
+case ":${PATH}:" in
+*":${LOCAL_BIN}:"*) ;;
+*)
+	warn "${LOCAL_BIN} is not on PATH — add it (e.g. export PATH=\"\${HOME}/.local/bin:\$PATH\" in ~/.profile), or cargo cannot see bpf-linker."
+	;;
+esac
+
+ok "all eBPF build prerequisites are satisfied."
+ok "next: cargo build --release --features ebpf   (or: cargo pro-native-gnu)"

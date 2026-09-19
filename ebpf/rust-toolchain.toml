@@ -19,11 +19,12 @@
 # formatting gate (gate-keepers check 12) without leaving this
 # directory.
 #
-# Install once per machine:
-#   rustup toolchain install nightly-2026-09-18 \
-#     --component rust-src --component rustfmt
-# plus the bpf-linker 0.11.1 prebuilt binary on PATH (see
-# docs/PURE_RUST_EVALUATION.md for the toolchain rationale).
+# Install once per machine — one command (NIGHT-host-1):
+#   ./scripts/bootstrap-ebpf.sh
+# (manual alternative: rustup toolchain install nightly-2026-09-18 \
+#   --component rust-src --component rustfmt, plus the bpf-linker
+#   0.11.1 prebuilt binary on PATH — see
+#   docs/PURE_RUST_EVALUATION.md for the toolchain rationale).
 
 [toolchain]
 channel = "nightly-2026-09-18"

@@ -411,7 +411,7 @@ purpose — `--help` is the single reference.
 | `Invalid rate '1MB'` (with a tip) | Units are lowercase. The tip suggests the fix (`1mb`). |
 | `Invalid interval '90s'` | Refresh interval must be 1s..60s. |
 | `Stale BPF pin files detected` | A previous run was killed mid-operation. Run `sudo zelynic recover`, then re-apply limits. |
-| `the pure-Rust eBPF build failed` (build time) | The nightly pin or bpf-linker is missing — see README Build section for the two install commands. The old "BPF object file not found" error class is gone (objects are embedded). |
+| `the pinned nightly toolchain ... is not installed` / `bpf-linker is not on PATH` (build time) | One command fixes both: `./scripts/bootstrap-ebpf.sh` (NIGHT-host-1). If bpf-linker already sits in `~/.local/bin`, put that directory on PATH. `the pure-Rust eBPF build failed with prerequisites present` is a real compile error — read the nested cargo output above it. The old "BPF object file not found" error class is gone (objects are embedded). |
 | Monitor won't exit | Press `q` — the only quit key (NIGHT-hunt-16). ESC and Ctrl+C are deliberately drained, never treated as quit. If a wedged terminal swallows the `q` byte: `pkill zelynic` from another shell, then `stty sane`. |
 | Limit seems not enforced | Check `sudo zelynic status` — is the cgroup listed? Verify the app's traffic is actually flowing through the limited cgroup (`observe --cgroup`). If the app was restarted after the limit was set, re-apply (see limitation #1). |
 | Two zelynic commands interfered | The lock is deliberately non-blocking: the second command exited with "another zelynic operation is in progress". Wait for the first to finish, re-run it. If pins ended up inconsistent: `recover`. |

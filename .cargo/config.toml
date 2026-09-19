@@ -41,6 +41,11 @@ rustflags = ["-C", "target-feature=+crt-static"]
 # pro-native-musl is x86_64-only because cargo aliases cannot detect
 # the host arch — mirror this block with the aarch64 target triple if
 # a static aarch64 native build is ever needed.
+#
+# Prerequisites (one-time, NIGHT-host-1): both aliases carry
+# --features ebpf, so the host needs the dated nightly pin +
+# bpf-linker — ./scripts/bootstrap-ebpf.sh installs both (build.rs
+# preflights them before any compile time is spent).
 [alias]
 pro-native-gnu = [
   "build",
