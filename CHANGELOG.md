@@ -9,10 +9,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **research: pure-Rust prototype merged into main
+  (NIGHT-improve-1, mainline sync)** — the `pure-rust-prototype`
+  branch merged into `main` as a pure fast-forward
+  (392ee80 -> ca74cdb: linear history, no merge commit, the four
+  phase-2 commits intact), so both aya-ebpf ports (observer +
+  limiter) and the full evaluation record now live on main. The
+  `ebpf/` crate stays detached from the default build graph, so
+  the v11 line contract is untouched — verified on a
+  from-scratch toolchain this session: `build.sh check-all` green
+  (fmt, clippy, 21 tests, policy checks), gate-keepers 9/9 with
+  the unavailable linters CI-enforced (codespell green on the
+  merge-push run), and `cd ebpf && cargo +nightly build
+  --release` reproducing both documented object sizes exactly
+  (zelynic-observer 3,864 B; zelynic-limiter 5,624 B; nightly
+  1.100.0 + bpf-linker 0.11.1 prebuilt, 25 s cold / 0.05 s warm).
+  CI on the merge push ran workflow lint + codespell green; Lint
+  & Test and eBPF Build were skipped by the changes job's path
+  filter (the push's last commit is docs-only — the known
+  HEAD~1 blind spot), which is safe because the phase-2 commits
+  touch no root-build surface. This sync commit updates every
+  pointer that claimed the work lives on the branch, and
+  corrects the phase-2 commit count in the entry below (four
+  micro-commits: port, measurements, docs sync, benchmark).
+
 - **research: pure-Rust eBPF prototype, phase 2 complete
-  (NIGHT-improve-1 phase 2, pure-rust-prototype branch)** — the
-  limiter port, executed per the stage-1 GO verdict, three
-  micro-commits (port, measurements, docs sync). `ebpf/src/bin/
+  (NIGHT-improve-1 phase 2)** — the
+  limiter port, executed per the stage-1 GO verdict, four
+  micro-commits (port, measurements, docs sync, benchmark).
+  `ebpf/src/bin/
   limiter.rs` is the line-for-line aya-ebpf 0.2.1 port of
   `bpf/limiter.bpf.c` (396 lines vs 364, **0.93x code-only** — the
   first port where the Rust side has fewer code lines than the C
@@ -40,12 +65,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   hand-loading experiments.
 
 - **research: pure-Rust eBPF prototype, stage 1 complete
-  (NIGHT-improve-1, pure-rust-prototype branch)** — the
+  (NIGHT-improve-1)** — the
   owner-briefed evaluation of migrating the BPF side from C to
   aya-ebpf, executed exactly as the DeepSeek plan staged it, one
-  micro-commit per task. Lives on the `pure-rust-prototype` branch
-  (research artifact; mainline untouched by design): `ebpf/` is a
-  detached nightly-only crate holding the line-for-line port of
+  micro-commit per task. Lives in the detached nightly-only
+  `ebpf/` crate (research artifact; the default build is
+  untouched by design — developed on `pure-rust-prototype`,
+  merged into main as a fast-forward): the crate holds the
+  line-for-line port of
   `bpf/observer.bpf.c` (269 lines vs 172, 1.27x code-only), and
   `docs/PURE_RUST_EVALUATION.md` is the full record — ecosystem
   state, toolchain requirements, the port contract, measurements,

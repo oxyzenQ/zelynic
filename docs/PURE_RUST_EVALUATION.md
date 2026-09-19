@@ -3,14 +3,17 @@
 
 # Pure Rust eBPF Evaluation (NIGHT-improve-1, stage 1 + phase 2)
 
-> Research artifact on the `pure-rust-prototype` branch. Nothing here
-> ships on `main` unless the decision section (below) says so. The
+> Research artifact, developed on the `pure-rust-prototype` branch
+> and merged into `main` as a pure fast-forward (392ee80 -> ca74cdb,
+> linear history, no merge commit). Nothing here ships in the
+> release binary: the detached `ebpf/` crate stays outside the
+> default build graph, so the v11 line contract is intact. The
 > stage-1 goal is the owner-approved DeepSeek plan: rewrite ONE BPF
 > program (the observer) with `aya-ebpf`, measure everything, and let
 > the numbers decide whether a Phase 2 (limiter) or Phase 3 (full pure
-> Rust) makes sense for zelynic. Phase 2 (the limiter port) is now
-> complete on this branch — the Phase 2 section below carries the
-> port, its verification, and the measurements.
+> Rust) makes sense for zelynic. Phase 2 (the limiter port) is
+> complete — the Phase 2 section below carries the port, its
+> verification, and the measurements.
 
 ## Why this document exists
 
@@ -34,16 +37,17 @@ DeepSeek recommendation the owner adopted):
 
 ## Naming note
 
-The task label used throughout this branch is **NIGHT-improve-1**,
+The task label used throughout this work is **NIGHT-improve-1**,
 as briefed by the owner. A historical code comment in
 `.cargo/config.toml` (the pro-native aliases) also carried an
 "(NIGHT-improve-1)" tag; that label was never recorded in the
 CHANGELOG ledger (which jumped from the pre-improve era straight to
 NIGHT-improve-2). The stale comment is corrected in the final
-docs-sync commit of this branch so the ledger has exactly one
+docs-sync commit of stage 1 so the ledger has exactly one
 NIGHT-improve-1. If the owner prefers a different number, every
-reference lives on this branch only — renumbering is a one-commit
-affair.
+reference lives on the research artifact surface (this document,
+the CHANGELOG entries, the ebpf/ crate comments) — renumbering
+stays a one-commit affair.
 
 ## The aya ecosystem as measured (2026-09-19)
 
@@ -171,7 +175,7 @@ buffer" simplification. Phase 2 should decide whether BOTH objects
 drop the dead ringbuf or a consumer arrives; stage 1 keeps it for
 exact parity.
 
-## Stage 2: prototype setup (this branch)
+## Stage 2: prototype setup (the detached crate)
 
 The upstream aya-template converts the whole project to a cargo
 workspace (root `Cargo.toml` with `default-members`, a `*-common`
@@ -436,9 +440,9 @@ map or a consumer finally reads it.
 ### Verdict
 
 1. **Stage 1: SUCCESS.** The criteria pass, the port is verified
-   drop-in at the ELF-contract level, and the branch is a
+   drop-in at the ELF-contract level, and the prototype is a
    reproducible research artifact.
-2. **Phase 2 (limiter port on this branch): GO.** Mechanical work,
+2. **Phase 2 (limiter port): GO.** Mechanical work,
    subset surface, high information value — it completes the
    pure-Rust picture before any mainline decision. **DONE** — see
    the Phase 2 section; every criterion passed with margin.
@@ -468,7 +472,7 @@ map or a consumer finally reads it.
 
 ## Phase 2: the limiter port (NIGHT-improve-1, phase 2)
 
-The Phase 2 GO verdict above was executed on this branch as three
+The Phase 2 GO verdict above was executed as four
 commits (task map at the bottom of this document). This section is
 the stage-2 evidence: what was ported, the pinning contract that
 made it non-trivial, the verification output, and the measurements.
