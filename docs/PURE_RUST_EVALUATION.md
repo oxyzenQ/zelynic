@@ -661,12 +661,14 @@ compare the enforcement behavior against the C twin.
 
 Beyond the port itself, the phase-2 hunt recorded three items:
 
-1. **Stale CI comment (mainline, out of blast radius):**
-   `.github/workflows/codeql.yml` says "shellcheck/codespell gates
+1. **Stale CI comment (resolved on mainline, post-merge):**
+   `.github/workflows/codeql.yml` said "shellcheck/codespell gates
    in ci.yml instead" — codespell is there, but ci.yml contains no
    shellcheck job at all (and no shfmt). The comment predates a
-   workflow cleanup. Recorded for the owner; fixing it belongs to
-   a mainline docs/CI commit, not this research branch.
+   workflow cleanup. Recorded for the owner during phase 2 and
+   fixed in the mainline docs-sync commit that followed the merge:
+   the comment now points Python tooling at the ci.yml codespell
+   gate and shell coverage at the local gate-keepers shellcheck.
 2. **The default-pin-path footgun** (documented in the pinning
    contract section above): plain `Ebpf::load` pins ByName maps to
    the bpffs root. Production code is unaffected; the hazard only
