@@ -17,8 +17,10 @@
 #     "error: linker 'bpf-linker' not found" -- no silent fallback.
 #
 # BTF / debug info (aya-build parity flags) are NOT enabled by
-# default: the observer uses legacy map definitions and needs no
-# CO-RE introspection. When a Phase 2 wants BTF:
+# default: both objects (observer, limiter) use legacy map
+# definitions and need no CO-RE introspection. Phase 2 kept this
+# lean default (the BTF variant is measured in the evaluation doc,
+# not shipped). To build it:
 #   RUSTFLAGS='-Cdebuginfo=2 -Clink-arg=--btf' cargo +nightly build
 
 [build]

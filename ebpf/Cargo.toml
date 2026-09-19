@@ -1,7 +1,12 @@
 # Copyright (C) 2026 rezky_nightky
 # SPDX-License-Identifier: GPL-3.0-only
 
-# Pure-Rust eBPF prototype crate (NIGHT-improve-1, stage 2).
+# Pure-Rust eBPF prototype crate (NIGHT-improve-1, stage 2 +
+# phase 2).
+#
+# Two detached binaries, one per C twin:
+#   zelynic-observer  — port of bpf/observer.bpf.c (stage 3)
+#   zelynic-limiter   — port of bpf/limiter.bpf.c (phase 2)
 #
 # Detached workspace ON PURPOSE: the empty [workspace] table below
 # keeps this crate outside the root package's build graph, so the

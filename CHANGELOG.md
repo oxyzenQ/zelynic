@@ -9,6 +9,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **research: pure-Rust eBPF prototype, phase 2 complete
+  (NIGHT-improve-1 phase 2, pure-rust-prototype branch)** — the
+  limiter port, executed per the stage-1 GO verdict, three
+  micro-commits (port, measurements, docs sync). `ebpf/src/bin/
+  limiter.rs` is the line-for-line aya-ebpf 0.2.1 port of
+  `bpf/limiter.bpf.c` (396 lines vs 364, **0.93x code-only** — the
+  first port where the Rust side has fewer code lines than the C
+  twin; 1.09x total). Both programs (`enforce_dl` ingress,
+  `enforce_ul` egress), the token-bucket core with fractional
+  remainder tracking and the overflow-safe fill-detect path, and
+  all nine maps carry over; every map declares PIN_BY_NAME
+  (`HashMap::pinned` / `Array::pinned`), and that flag was
+  verified from source to round-trip through aya-obj 0.2.1's
+  legacy `bpf_map_def` parser and aya 0.13.1's `EbpfLoader` —
+  policies pinned by the Rust object survive process exit exactly
+  like the C twin's. Scratch-harness verified: sections, all nine
+  map geometries, pins, GPL license, zero unexpected symbols
+  (observer re-verified as a pinned=false regression baseline).
+  Mainline untouched: gate-keepers 15/15, build.sh check-all
+  green, benchmark skipped (detached crate, zero shipped-surface
+  changes). Phase 3 remains HOLD pending stable-Rust aya-ebpf;
+  the research artifact now covers BOTH production objects. Hunt
+  findings recorded in `docs/PURE_RUST_EVALUATION.md`: a stale
+  shellcheck reference in the codeql.yml comment (mainline
+  scope), and the `Ebpf::load` default-pin-path footgun for
+  hand-loading experiments.
+
 - **research: pure-Rust eBPF prototype, stage 1 complete
   (NIGHT-improve-1, pure-rust-prototype branch)** — the
   owner-briefed evaluation of migrating the BPF side from C to

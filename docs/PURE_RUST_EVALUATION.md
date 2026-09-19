@@ -360,6 +360,12 @@ OK and Phase 2 can go one step further: run the real observe loop
 against the Rust object by placing it at `bpf/observer.bpf.o` — the
 loader reads the object from a path, so the swap needs no rebuild.
 
+(Phase 2 note: the harness was later extended with per-map pinning
+verification and a contract-table mode that hard-fails on geometry
+mismatch or unexpected symbols — the same scratch-project protocol,
+one profile per object. The Phase 2 section carries its output; this
+stage-1 listing stays verbatim as the reproduction baseline.)
+
 ## Stage 5: the decision
 
 The stop criterion was fixed before any code existed: **stop if the
@@ -455,7 +461,7 @@ map or a consumer finally reads it.
 
 | Risk | Likelihood | Impact | Mitigation |
 |---|---|---|---|
-| aya-ebpf 0.2.x API churn (crate is 3 months old) | medium | low (detached crate, locked file) | ebpf/Cargo.lock committed; port is 269 lines |
+| aya-ebpf 0.2.x API churn (crate is 3 months old) | medium | low (detached crate, locked file) | ebpf/Cargo.lock committed; ports are 269 + 396 lines across two binaries |
 | bpf-linker prebuilt lag behind new nightly LLVM | medium | build break until new prebuilt | pin the working nightly in docs; prebuilts ship per release |
 | aya 0.13 -> 0.14 userspace pairing changes | low | low | compatibility verified empirically, not assumed; re-verify per bump |
 | Nightly-only stalls forever | unknown | Phase 3 never happens | Phase 3 is HOLD, not CANCEL — re-evaluate per aya release |
@@ -563,16 +569,21 @@ OK   map group_bucket_ul:       HASH  key=4 value=24 max=256  pinned=true
 OK   map watchdog_deadline:     ARRAY key=4 value=8  max=1    pinned=true
 OK   map schema_version:        ARRAY key=4 value=4  max=1    pinned=true
 OK   map cgroup_limiter_stats:  HASH  key=4 value=32 max=1024 pinned=true
-LOAD env-limited: map error: failed to create map `cgroup_bucket_dl` with code -1
+LOAD env-limited: map error: map `Some("schema_version")` requested pinning. pinning failed
 CONTRACT: all names, sections, layouts, and pins verified
 ```
 
-The load line is the expected unprivileged-sandbox result (the
-first HASH create succeeds, the memlock budget is exhausted by the
-second). The fact that the loader got as far as creating maps by
-name also proves the map relocations resolved. The observer
-regression run reports all `pinned=false` and the ringbuf EPERM, as
-in stage 1.
+The load line is the expected unprivileged-sandbox result. The exact
+failure point varies between runs with the loader's map iteration
+order (a std HashMap), but always lands in the environment-limited
+class: this sandbox's `/sys/fs/bpf` is a root-owned read-only
+directory, so the first ByName pin write fails. The message itself
+is the strongest parse-level evidence phase 2 has: the loader took
+the `PinningType::ByName` branch and attempted the pin — the exact
+code path the production loader exercises with
+`map_pin_path(PIN_DIR)` on a real host. Nothing leaks (the pin
+directory is unwritable and empty). The observer regression run
+reports all `pinned=false` and the ringbuf EPERM, as in stage 1.
 
 ### Phase 2 measurements
 
