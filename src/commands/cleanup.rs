@@ -34,17 +34,22 @@ pub fn handle_unstrict(target_str: &str, verbose: bool) -> Result<()> {
     // "limit not works" trap the owner hit — the limits live under
     // other names or dead cgroups. Point at the surfaces that tell the
     // truth instead of leaving the impression that nothing is limited.
-    let remaining = count_remaining_policies(&limiter);
-    if removed == 0 && remaining > 0 {
-        eprintln_safe!(
-            "Note: {remaining} other {} remain active — 'zelynic status' lists them; \
-             'zelynic recover' removes dead-cgroup orphans",
-            if remaining == 1 {
-                "policy is"
-            } else {
-                "policies are"
+    // NIGHT-hunt-20: the claim is only made from a VERIFIED count — an
+    // unreadable map prints no claim (the unpin decision below warns).
+    if removed == 0 {
+        if let Ok(remaining) = count_remaining_policies(&limiter) {
+            if remaining > 0 {
+                eprintln_safe!(
+                    "Note: {remaining} other {} remain active — 'zelynic status' lists them; \
+                     'zelynic recover' removes dead-cgroup orphans",
+                    if remaining == 1 {
+                        "policy is"
+                    } else {
+                        "policies are"
+                    }
+                );
             }
-        );
+        }
     }
 
     unpin_if_no_policies(&limiter, verbose)?;
@@ -98,17 +103,22 @@ pub fn handle_unstrict_multi(targets_str: &str, verbose: bool) -> Result<()> {
 
     // Same honesty note as handle_unstrict: leftovers under other
     // names or dead cgroups are the classic "limit not works" trap.
-    let remaining = count_remaining_policies(&limiter);
-    if removed == 0 && remaining > 0 {
-        eprintln_safe!(
-            "Note: {remaining} other {} remain active — 'zelynic status' lists them; \
-             'zelynic recover' removes dead-cgroup orphans",
-            if remaining == 1 {
-                "policy is"
-            } else {
-                "policies are"
+    // Same verified-count rule (NIGHT-hunt-20): no claim from a read
+    // that failed — unpin_if_no_policies prints the warning instead.
+    if removed == 0 {
+        if let Ok(remaining) = count_remaining_policies(&limiter) {
+            if remaining > 0 {
+                eprintln_safe!(
+                    "Note: {remaining} other {} remain active — 'zelynic status' lists them; \
+                     'zelynic recover' removes dead-cgroup orphans",
+                    if remaining == 1 {
+                        "policy is"
+                    } else {
+                        "policies are"
+                    }
+                );
             }
-        );
+        }
     }
 
     unpin_if_no_policies(&limiter, verbose)?;
@@ -136,28 +146,43 @@ fn remove_limits(limiter: &mut crate::ebpf::limiter::Limiter, targets: &[&str]) 
 }
 
 /// Count policies still live in both direction maps (for the honesty
-/// note and the unpin decision).
+/// note and the unpin decision). Read errors PROPAGATE
+/// (NIGHT-hunt-20): a failed read used to count as zero via
+/// `unwrap_or_default`, and zero is the unpin trigger — a transient
+/// read failure could tear down ALL enforcement while the user had
+/// asked to remove one target's limits.
 #[cfg(feature = "ebpf")]
-fn count_remaining_policies(limiter: &crate::ebpf::limiter::Limiter) -> usize {
-    let dl = limiter
-        .read_policies_public(crate::ebpf::limiter::Direction::Download)
-        .unwrap_or_default();
-    let ul = limiter
-        .read_policies_public(crate::ebpf::limiter::Direction::Upload)
-        .unwrap_or_default();
-    dl.len() + ul.len()
+fn count_remaining_policies(limiter: &crate::ebpf::limiter::Limiter) -> Result<usize> {
+    let dl = limiter.read_policies_public(crate::ebpf::limiter::Direction::Download)?;
+    let ul = limiter.read_policies_public(crate::ebpf::limiter::Direction::Upload)?;
+    Ok(dl.len() + ul.len())
 }
 
 /// If no policies remain, unpin all BPF programs (no residue).
+/// The zero must be VERIFIED (NIGHT-hunt-20): on a read failure the
+/// pins stay — unpinning on "couldn't read" is how a transient error
+/// tears down all enforcement mid-remove. The warning names the
+/// residue risk and the repair tool; the command still exits 0
+/// because the removal the user asked for did succeed.
 #[cfg(feature = "ebpf")]
 fn unpin_if_no_policies(limiter: &crate::ebpf::limiter::Limiter, verbose: bool) -> Result<()> {
-    if count_remaining_policies(limiter) == 0 {
-        super::unpin_all_bpf()?;
-        if verbose {
-            eprintln_safe!("[limiter] No policies remain — BPF unpinned, no residue");
+    match count_remaining_policies(limiter) {
+        Ok(0) => {
+            super::unpin_all_bpf()?;
+            if verbose {
+                eprintln_safe!("[limiter] No policies remain — BPF unpinned, no residue");
+            }
+            Ok(())
+        }
+        Ok(_) => Ok(()),
+        Err(e) => {
+            eprintln_safe!(
+                "Warning: policy maps unreadable ({e}) — leaving BPF pins in place; \
+                 run 'zelynic recover' to repair"
+            );
+            Ok(())
         }
     }
-    Ok(())
 }
 
 #[cfg(feature = "ebpf")]
@@ -277,13 +302,40 @@ pub fn handle_recover(verbose: bool) -> Result<()> {
         }
         eprintln_safe!("  Action: removing orphan policies...");
 
-        // Remove orphan policies from BPF maps.
+        // Remove orphan policies from BPF maps. NIGHT-hunt-20: the
+        // result reports what was ACTUALLY removed — the old code
+        // discarded every delete result and printed the orphan-CGROUP
+        // count as if it were the removed-POLICY count, so a failed
+        // delete was invisible and the number was wrong even on
+        // success (each cgroup carries up to two policies, dl + ul).
+        let mut orphans_removed = 0usize;
+        let mut failed: Vec<String> = Vec::new();
         for id in &orphan_ids {
-            let _ = limiter.delete_policy(*id, crate::ebpf::limiter::Direction::Download);
-            let _ = limiter.delete_policy(*id, crate::ebpf::limiter::Direction::Upload);
+            for direction in [
+                crate::ebpf::limiter::Direction::Download,
+                crate::ebpf::limiter::Direction::Upload,
+            ] {
+                match limiter.delete_policy(*id, direction) {
+                    Ok(true) => orphans_removed += 1,
+                    Ok(false) => {}
+                    Err(e) => failed.push(format!("cg:{id}: {e}")),
+                }
+            }
         }
 
-        eprintln_safe!("  Result: removed {} orphan policy(ies)", orphan_ids.len());
+        if failed.is_empty() {
+            eprintln_safe!("  Result: removed {orphans_removed} orphan policy(ies)");
+        } else {
+            eprintln_safe!(
+                "  Result: removed {orphans_removed} orphan policy(ies); {} could not \
+                 be removed: {}",
+                failed.len(),
+                failed.join(", ")
+            );
+            eprintln_safe!(
+                "  Next: retry 'zelynic recover', or 'zelynic unstrict-all' to force-clear"
+            );
+        }
         return Ok(());
     }
 

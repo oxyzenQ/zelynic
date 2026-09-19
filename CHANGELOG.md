@@ -25,6 +25,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **fix: policy apply/remove mid-flight error paths made honest —
+  strict all-or-nothing apply, ENOENT-only "absent", verified-zero
+  unpin (NIGHT-hunt-20, error-path audit)** — the owner-named audit
+  surface (`policy.rs` apply/remove mid-flight) closed three real
+  defects. (1) A mid-flight write failure (policy maps hold 1024
+  entries — `limit-all`/`block-all` on cgroup-dense systemd desktops
+  can hit that, plus ENOMEM or a map-open failure) propagated the
+  error while the already-written policy prefix stayed ENFORCED with
+  no mention — a command that "failed" while silently limiting, the
+  inverse of the hunt-19 trap. Applies are now strict all-or-nothing:
+  every write is ledgered, the first failure rolls the whole
+  invocation back, and if a rollback delete itself fails the error
+  names the exact surviving policies. (2) `delete_policy` mapped every
+  remove error to "not found", so ENOENT was indistinguishable from
+  ENOMEM/EACCES/EINVAL — `unstrict` could report "No active limits
+  found" while limits stayed enforced and `recover` counted failed
+  deletes as removed. Only ENOENT now classifies as absent (pure
+  classifier, unit-pinned against the real errno set); everything else
+  surfaces with cgroup + direction, and `recover` counts actual
+  per-direction deletions instead of the orphan-cgroup count. (3)
+  `count_remaining_policies` used `unwrap_or_default`, so a transient
+  map-read failure counted as zero remaining policies — and zero is
+  the auto-unpin trigger, meaning a failed read could tear down ALL
+  enforcement during a single-target unstrict. The unpin zero must now
+  be verified; on read failure the pins stay and a warning names
+  `recover` as the repair tool. Along the way the duplicated
+  ephemeral/pinned map-acquisition blocks in `write_policy` and
+  `delete_policy` merged into one `with_policy_map` accessor, and the
+  policy unit pins moved to `test/ebpf/limiter/policy_tests.rs`
+  (NIGHT-hunt-17 layout) to hold the module under the 500-LOC cap.
+  Evaluated and kept by design: best-effort removal with survivor
+  reporting (all-or-nothing applies to apply, not cleanup), the
+  `group_id` collision math (unreachable with real pid spaces), and
+  the per-(cgroup, direction) map-open pattern (correctness-first).
 - **fix: the operational pin check is link-aware — silent
   no-enforcement trap closed (NIGHT-hunt-19, error-path audit)** —
   the owner-approved audit of the loader/attach error paths found a
