@@ -25,6 +25,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **fix: the operational pin check is link-aware — silent
+  no-enforcement trap closed (NIGHT-hunt-19, error-path audit)** —
+  the owner-approved audit of the loader/attach error paths found a
+  real defect: `is_pinned()` (and `attach()`'s reuse decision) trusted
+  the two PROGRAM pins alone. On bpf_link kernels (5.7+ — every
+  supported kernel, the floor is 5.13) the attach sequence pins both
+  programs FIRST and creates the cgroup links SECOND, so a failure in
+  between (bpffs full, memlimit, SIGKILL mid-attach) leaves a
+  half-attached state: programs pinned, nothing hooked to the cgroup.
+  Every subsequent command then "reused" that state — strict wrote
+  policies to maps no hook executes, reported success, passed its own
+  post-apply pin validation, and status showed active limits while
+  NOTHING enforced. The fix is one predicate everywhere
+  (`pins_operational`, pure, unit-pinned): on bpf_link kernels both
+  program pins AND both link pins are required; a half-attached state
+  now reloads (unpin + fresh attach) or fails loudly instead of
+  silently not enforcing. On pre-5.7 kernels — below the supported
+  floor, defensive only — the legacy attach path never pins links, so
+  program pins alone remain the operational contract there. Messages
+  synced: recover's valid-state line and status's stale-pins line no
+  longer misdescribe the state; unstrict-all's cleanup rationale
+  covers partial states; SAFETY_ANALYSIS documents the link-aware
+  invariant.
 - **chore: the v10-and-older era removed entirely (NIGHT-hunt-18)** —
   owner rule: the legacy and deprecated era references are gone from
   the tree. Deleted: `CHANGELOG-V10-ERA.md` (the 243KB pre-v11

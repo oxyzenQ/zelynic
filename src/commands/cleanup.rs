@@ -169,9 +169,10 @@ pub fn handle_unstrict_all(verbose: bool) -> Result<()> {
     // Prevent concurrent operations (race condition elimination).
     let _lock = crate::ebpf::lock::acquire()?;
 
-    // Check if pin directory has any files. Can't rely on is_pinned() because
-    // stale pins from old versions (before link pinning) fail the 4-file check
-    // but still need cleanup.
+    // Check if pin directory has any files. Can't rely on is_pinned()
+    // because partial states that fail the operational check (stale pins
+    // from old versions, or a crash between program and link pinning —
+    // NIGHT-hunt-19) still need cleanup.
     if !pin_dir_has_files() {
         eprintln_safe!("No active limits. Nothing to remove.");
         return Ok(());
@@ -221,7 +222,7 @@ pub fn handle_recover(verbose: bool) -> Result<()> {
 
     if is_valid {
         // BPF is valid — check for orphan policies (cgroup dead, policy remains).
-        eprintln_safe!("  State: valid (BPF programs + links pinned)");
+        eprintln_safe!("  State: valid (enforcement pins intact)");
         eprintln_safe!("  Checking for orphan policies...");
 
         let mut limiter = Limiter::open_pinned(verbose)?;

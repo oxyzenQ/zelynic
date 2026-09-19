@@ -129,6 +129,12 @@ guard: there root is the requirement, here root is the hazard.
 - The watchdog is never armed (deadline 0 = absent) — BPF always enforces
 - Rate = 0 is an explicit user request: `block-single`/`block-*` write a
   zero rate and BPF blocks all traffic for that cgroup (schema v3)
+- The operational check is link-aware (NIGHT-hunt-19): on bpf_link
+  kernels (5.7+) a pinned state counts as active only when BOTH program
+  pins AND BOTH link pins exist — the links are the cgroup attachment
+  itself, so a half-attached state (crash between program pinning and
+  link creation) reloads instead of being "reused" with nothing
+  enforcing
 - If anything unexpected happens to the pins, `zelynic recover` repairs
   state and `unstrict-all` removes everything
 
