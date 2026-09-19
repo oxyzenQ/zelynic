@@ -358,6 +358,98 @@ OK and Phase 2 can go one step further: run the real observe loop
 against the Rust object by placing it at `bpf/observer.bpf.o` — the
 loader reads the object from a path, so the swap needs no rebuild.
 
+## Stage 5: the decision
+
+The stop criterion was fixed before any code existed: **stop if the
+port costs >2x the C LOC AND hard-requires nightly.** The
+measurements say:
+
+| Criterion | Threshold | Measured | Verdict |
+|---|---|---|---|
+| LOC ratio (total) | > 2x | 1.56x | pass |
+| LOC ratio (code-only) | > 2x | 1.27x | pass |
+| Nightly required for BPF builds | unavoidable blocker | still true (aya-ebpf 0.2.1, bpf-linker 0.11.1) | cost, not blocker |
+
+The conjunction is false, so by the plan's own letter stage 1
+**passes**. But the honest decision is broader than one criterion,
+so here is the full picture.
+
+### What worked better than expected
+
+- **Drop-in compatibility with the pinned userspace.** The object
+  loads and classifies through aya 0.13.1 — the version zelynic
+  ships today — with identical names, sections, and map geometry.
+  Phase 2/3 would need ZERO userspace changes for the observer.
+- **The toolchain story.** No clang, no system LLVM, no sudo, no
+  libbpf headers: rustup nightly + rust-src + one prebuilt static
+  bpf-linker. This was the biggest pre-research fear (bpf-linker's
+  source build needs specific LLVM versions) and the prebuilt path
+  dissolves it.
+- **Compile-time layout pins.** The Rust side asserts every shared
+  struct size at compile time; the C side trusts kernel headers.
+- **The detached-crate design.** The whole prototype lives beside
+  the mainline without touching it — gates, CI, release toolchain,
+  and the frozen v11 contract all stayed green through five commits.
+
+### What did not
+
+- **Nightly is still mandatory.** No stable-Rust BPF path exists in
+  the aya ecosystem as of 2026-09-19. This is the single real cost.
+- **The cold build is 22.5 s** (build-std core dominates) against a
+  sub-second C compile — paid once per clean checkout, 0.31 s after.
+- **Toolchain weight**: nightly toolchain + a 104 MB linker binary
+  versus clang + libbpf-dev, which every distro packages.
+
+### Phase 2 assessment (the limiter)
+
+`bpf/limiter.bpf.c` (364 lines) uses a **strict subset** of the BPF
+surface the observer port already proved: the same
+`cgroup_skb/ingress|egress` sections, only four helpers
+(`bpf_skb_cgroup_id`, `bpf_ktime_get_ns`, `bpf_map_lookup_elem`,
+`bpf_map_update_elem` — three already in the observer port), and
+only HASH and ARRAY maps (9 + 2). No spin locks, no timers, no
+exotic program types. The port is mechanical: same crate, same
+harness, the two ARRAY maps and `bpf_ktime_get_ns` are the only new
+API surface. One semantic to port carefully: the limiter's maps are
+pinned by name (LIBBPF_PIN_BY_NAME), which aya-ebpf supports via
+`HashMap::pinned` / `Array::pinned`.
+
+Phase 2 should also settle the dead-ringbuf question from the
+research section: either both objects drop the unconsumed `events`
+map or a consumer finally reads it.
+
+### Verdict
+
+1. **Stage 1: SUCCESS.** The criteria pass, the port is verified
+   drop-in at the ELF-contract level, and the branch is a
+   reproducible research artifact.
+2. **Phase 2 (limiter port on this branch): GO.** Mechanical work,
+   subset surface, high information value — it completes the
+   pure-Rust picture before any mainline decision.
+3. **Phase 3 (drop C from the mainline): HOLD.** A mainline
+   nightly-dependency for BPF builds would contradict the repo's
+   own dormant-mode toolchain pin (rust-toolchain.toml pins 1.98.1
+   precisely so no channel alias can drift the build; gate 10
+   enforces it). Revisit when aya-ebpf compiles on stable Rust.
+   Until then the detached crate keeps the mainline stable and the
+   research alive at zero cost to each other.
+4. **Adoption note:** the DeepSeek plan's `--features ebpf-rust`
+   flag turns out to be unnecessary even for adoption — both
+   loaders read the object from a file path (`bpf/observer.bpf.o`,
+   `bpf/limiter.bpf.o`), so the integration point is the object
+   file itself. A mainline user wanting the Rust-built observer
+   compiles this crate and places the artifact at that path; no
+   rebuild of zelynic, no feature flag, no userspace diff.
+
+### Risk register
+
+| Risk | Likelihood | Impact | Mitigation |
+|---|---|---|---|
+| aya-ebpf 0.2.x API churn (crate is 3 months old) | medium | low (detached crate, locked file) | ebpf/Cargo.lock committed; port is 269 lines |
+| bpf-linker prebuilt lag behind new nightly LLVM | medium | build break until new prebuilt | pin the working nightly in docs; prebuilts ship per release |
+| aya 0.13 -> 0.14 userspace pairing changes | low | low | compatibility verified empirically, not assumed; re-verify per bump |
+| Nightly-only stalls forever | unknown | Phase 3 never happens | Phase 3 is HOLD, not CANCEL — re-evaluate per aya release |
+
 ## Stage-1 task map (DeepSeek plan, one commit each)
 
 1. Research (this document's ecosystem and compatibility sections).
