@@ -5,6 +5,15 @@
 
 > Verified test results for zelynic across multiple Linux distributions.
 
+> Historical record: these runs validated the pre-phase-3 tarballs
+> (binary + loose C-compiled bpf/*.o objects + install.sh). Since
+> NIGHT-improve-1 phase 3 the tarball carries one self-contained
+> binary with the pure-Rust eBPF objects embedded — the "no clang,
+> no cargo, no rustup needed" property below is even stronger now,
+> but the results themselves were measured on the old packaging.
+> Re-validation on the phase-3 tarballs belongs to the next release
+> cycle.
+
 ## Summary
 
 | Distro | Kernel | Binary | Depth Test | Leak Test | Real Enforcement | Status |
@@ -190,7 +199,7 @@ No clang, no cargo, no rustup, no libbpf-dev needed.
   forget to sync every doc — perfect sync across every .md file is a
   known maintenance burden with diminishing returns.
 
-  Source code (`src/**/*.rs`, `bpf/*.bpf.c`) is the single source of
+  Source code (`src/**/*.rs`, `ebpf/src/**/*.rs`) is the single source of
   truth. Always cross-check against the actual source files before
   relying on any specific number (target count, LOC, rate bound),
   file path, function name, or config key.

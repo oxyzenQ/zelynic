@@ -9,21 +9,17 @@ the build process, project structure, and coding standards.
 ## Prerequisites
 
 - Rust 1.98+ (pinned to a concrete version in `rust-toolchain.toml`)
-- clang 10+ (compile BPF programs)
-- libbpf-dev (BPF headers)
-- linux-libc-dev (multiarch kernel headers)
+- The eBPF nightly pin (rustup; see `ebpf/rust-toolchain.toml` — the
+  BPF side is pure Rust and compiles on a dated nightly)
+- bpf-linker 0.11.1 on PATH (prebuilt:
+  https://github.com/aya-rs/bpf-linker/releases)
 - Linux kernel 5.13+ (cgroup v2 + cgroup.id file)
 
 ## Build
 
 ```bash
-# Compile BPF programs
-clang -O2 -g -target bpf -I/usr/include/$(uname -m)-linux-gnu \
-  -c bpf/limiter.bpf.c -o bpf/limiter.bpf.o
-clang -O2 -g -target bpf -I/usr/include/$(uname -m)-linux-gnu \
-  -c bpf/observer.bpf.c -o bpf/observer.bpf.o
-
-# Build Rust binary
+# One command — the pure-Rust eBPF objects (aya-ebpf) are built by
+# build.rs's nested nightly build and embedded into the binary:
 cargo build --release --features ebpf
 
 # Native-CPU host builds (cosmostrix pro-native lineage; see README
@@ -90,9 +86,13 @@ src/
                         NIGHT-improve-6: top-aligned scroll-free tall
                         regime); unit pins in test/terminal/diff_tests.rs
 
-bpf/
-  limiter.bpf.c        — token-bucket enforcer (ingress + egress)
-  observer.bpf.c       — traffic counter (egress)
+ebpf/                   — the pure-Rust BPF source (aya-ebpf; NIGHT-improve-1
+                          phase 3): nightly-only crate, built by build.rs's
+                          nested cross-build and embedded into the binary
+  src/main.rs           — the observer programs (egress + ingress traffic
+                          counters, throttle, events)
+  src/bin/limiter.rs    — the token-bucket enforcer (enforce_dl ingress +
+                          enforce_ul egress, nine PIN_BY_NAME maps)
 
 scripts/
   build.sh             — check-all orchestration
@@ -153,14 +153,15 @@ cargo audit + cargo deny (both skip with a warning when not installed),
 the repository policy check (check-policy.py), and the version-string
 anti-pattern check.
 
-`gate-keepers.sh` runs the 14 non-code gates: bash -n + shellcheck + shfmt
+`gate-keepers.sh` runs the 15 non-code gates: bash -n + shellcheck + shfmt
 on shell scripts, yamllint + actionlint on workflows, TOML validation,
 codespell, SPDX license headers (check-headers.sh), file permission guard
 (644 files / 755 executables and directories), the repo-wide emoji sweep,
 the 500-line Rust LOC cap (check-loc.sh), the toolchain-pin sync check
-(check-rust-version-sync.sh), clang-format on the BPF C sources (the
-exact eBPF Build CI command), and the documentation disclaimer check
-(inject-disclaimer.sh). Missing tools are skipped with a warning.
+(check-rust-version-sync.sh), rustfmt on the ebpf/ crate (the exact
+eBPF Build CI command — the former clang-format gate retired with the
+C sources in NIGHT-improve-1 phase 3), and the documentation disclaimer
+check (inject-disclaimer.sh). Missing tools are skipped with a warning.
 
 ## Branch Strategy
 
@@ -174,7 +175,7 @@ exact eBPF Build CI command), and the documentation disclaimer check
   forget to sync every doc — perfect sync across every .md file is a
   known maintenance burden with diminishing returns.
 
-  Source code (`src/**/*.rs`, `bpf/*.bpf.c`) is the single source of
+  Source code (`src/**/*.rs`, `ebpf/src/**/*.rs`) is the single source of
   truth. Always cross-check against the actual source files before
   relying on any specific number (target count, LOC, rate bound),
   file path, function name, or config key.

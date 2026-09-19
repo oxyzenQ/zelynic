@@ -392,7 +392,8 @@ result is still capped at `burst_bytes`), but the rate-precision
 contract broke exactly at the high end, and most wrap offsets cap
 by luck, which is why the bug hid.
 
-Fix: two-path arithmetic in `enforce()` (bpf/limiter.bpf.c). A
+Fix: two-path arithmetic in the enforcer (ebpf/src/bin/limiter.rs,
+ported from the former bpf/limiter.bpf.c). A
 fill-detect threshold (`elapsed >= 2 * burst * NS_PER_SEC / rate`)
 credits the burst directly — below it, the product is provably
 `< 2 * burst * NS_PER_SEC <= 2e17` for any burst the userspace
@@ -535,7 +536,7 @@ full audit under GPL-3.0-only.
   forget to sync every doc — perfect sync across every .md file is a
   known maintenance burden with diminishing returns.
 
-  Source code (`src/**/*.rs`, `bpf/*.bpf.c`) is the single source of
+  Source code (`src/**/*.rs`, `ebpf/src/**/*.rs`) is the single source of
   truth. Always cross-check against the actual source files before
   relying on any specific number (target count, LOC, rate bound),
   file path, function name, or config key.

@@ -13,8 +13,8 @@
 | **cgroup** | v2 only | v2 only | zelynic uses `cgroup_skb/egress` + `ingress` hooks |
 | **BPF fs** | Mounted at `/sys/fs/bpf` | Mounted | Required for map + link pinning (fire-and-forget mode) |
 | **Root** | Required | Required | BPF program load + attach requires `CAP_BPF` or root |
-| **clang** | 10+ | 16+ | Compile BPF C programs to BPF bytecode |
-| **libbpf-dev** | Any | Latest | BPF headers (`bpf_helpers.h`, `bpf_endian.h`) |
+| **rustup nightly pin** | `nightly-2026-09-18` | same | The BPF side is pure Rust (NIGHT-improve-1 phase 3): the aya-ebpf crate cross-builds on the dated nightly pin |
+| **bpf-linker** | 0.11.1 | 0.11.1 | Links the bpfel-unknown-none objects (prebuilt static musl binary — no system LLVM) |
 
 ## Kernel Feature Dependencies
 
@@ -117,12 +117,15 @@ stat -fc %T /sys/fs/cgroup
 # Should output: cgroup2fs
 ```
 
-### "BPF object file not found"
-Compile BPF programs:
+### "the pure-Rust eBPF build failed" (build time)
+The BPF objects build inside the binary now (NIGHT-improve-1 phase
+3) — this error means the nightly pin or bpf-linker is missing:
 ```bash
-clang -O2 -g -target bpf -c bpf/limiter.bpf.c -o bpf/limiter.bpf.o
-clang -O2 -g -target bpf -c bpf/observer.bpf.c -o bpf/observer.bpf.o
+rustup toolchain install nightly-2026-09-18 --component rust-src --component rustfmt
+# bpf-linker 0.11.1: https://github.com/aya-rs/bpf-linker/releases
 ```
+The former "BPF object file not found" error class is gone — the
+objects are embedded, never discovered on disk.
 
 ### "Failed to pin map"
 BPF filesystem not mounted:
@@ -143,7 +146,7 @@ Some older kernels have stricter verifier. Check dmesg for verifier log.
   forget to sync every doc — perfect sync across every .md file is a
   known maintenance burden with diminishing returns.
 
-  Source code (`src/**/*.rs`, `bpf/*.bpf.c`) is the single source of
+  Source code (`src/**/*.rs`, `ebpf/src/**/*.rs`) is the single source of
   truth. Always cross-check against the actual source files before
   relying on any specific number (target count, LOC, rate bound),
   file path, function name, or config key.
