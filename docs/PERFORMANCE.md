@@ -195,6 +195,27 @@ flip pattern; against the original pre-hunt-7 baseline the full
 detail-carrying frame churns roughly the same 755 vs 721 cells —
 the attribution comes free with the responsive layout.
 
+### NIGHT-strict-1 A/B (terminal-contract pin, 2026-09-19)
+
+The strict mouse/clipboard contract commit moved the alt-screen
+escape bytes into named constants (`ALT_ENTER` / `ALT_EXIT`) behind
+`write_all` — same bytes, different plumbing. The A/B exists to
+prove "byte output unchanged" with data instead of assertion (A =
+eb618d0 in a throwaway worktree, B = 1190ca3, 10 s formal runs):
+
+| Metric | eb618d0 | 1190ca3 | Delta |
+|--------|---------|---------|-------|
+| fps | 14,060 | 14,226 | +1.2% (machine noise) |
+| bytes/frame | 1,437.6 | 1,437.6 | -0.0% |
+| emit bytes/frame | 1,375.7 | 1,375.6 | -0.0% |
+| frame entropy | 4.1912 | 4.1912 | 0.00% |
+| density gini | 0.1812 | 0.1812 | 0.00% |
+| dirty cells/frame | 755.4 | 755.3 | -0.0% |
+
+Reading: every visual metric identical — expected by construction,
+since the monitor's emitted byte stream is unchanged and only the
+terminal-mode plumbing (constants + tests) was added.
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.
