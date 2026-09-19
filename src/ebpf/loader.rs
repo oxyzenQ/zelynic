@@ -5,6 +5,14 @@
 //!
 //! Simplified: no ring buffer. BPF program updates a hash map,
 //! userspace reads the map directly every interval.
+//!
+//! NIGHT-improve-1 phase 3: the object is EMBEDDED — the pure-Rust
+//! aya-ebpf build (build.rs nested nightly build) stages the
+//! zelynic-observer ELF into OUT_DIR and it rides inside the binary
+//! via include_bytes!. The former on-disk object search (bpf/ path,
+//! /usr/lib/zelynic/) is gone: one binary, zero loose artifacts, and
+//! the "BPF object file not found" error class is structurally
+//! impossible now.
 
 use anyhow::{bail, Context, Result};
 use aya::{
@@ -20,7 +28,11 @@ use crate::ebpf::identity::IdentityMap;
 // the loader is now I/O-only. Byte formatting lives in
 // limiter::format (unified decimal-SI, NIGHT-hunt-5).
 
-const BPF_OBJECT_PATH: &str = "bpf/observer.bpf.o";
+/// The embedded pure-Rust observer object (NIGHT-improve-1 phase 3):
+/// the aya-ebpf ELF staged into OUT_DIR by build.rs's nested nightly
+/// build. `Ebpf::load` takes the bytes directly — no file path, no
+/// object discovery, no "not found" error class.
+const OBSERVER_ELF: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/zelynic-observer"));
 
 /// Per-cgroup stats from BPF map (must match C struct).
 /// Must be Plain Old Data for aya's Pod trait.
@@ -55,14 +67,11 @@ impl Observer {
             bail!("cgroup v2 not found at {cgroup_path}");
         }
 
-        let obj_path = find_bpf_object()?;
         if !quiet {
-            eprintln_safe!("[ebpf] Loading BPF object from {}", obj_path.display());
+            eprintln_safe!("[ebpf] Loading embedded BPF observer object");
         }
-        let obj_data = std::fs::read(&obj_path)
-            .context(format!("Failed to read BPF object: {}", obj_path.display()))?;
 
-        let mut bpf = Ebpf::load(&obj_data).context("Failed to load BPF object")?;
+        let mut bpf = Ebpf::load(OBSERVER_ELF).context("Failed to load BPF object")?;
 
         let cgroup_file =
             File::open(cgroup_path).context("Failed to open cgroup root directory")?;
@@ -260,24 +269,9 @@ pub struct CgroupDelta {
     pub ingress_bytes: u64,
 }
 
-fn find_bpf_object() -> Result<PathBuf> {
-    let candidates = [
-        PathBuf::from(BPF_OBJECT_PATH),
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(BPF_OBJECT_PATH),
-        PathBuf::from("/usr/lib/zelynic/observer.bpf.o"),
-        PathBuf::from("/usr/local/lib/zelynic/observer.bpf.o"),
-    ];
-
-    for path in &candidates {
-        if path.exists() {
-            return Ok(path.clone());
-        }
-    }
-
-    bail!(
-        "BPF object file not found. Compile with:\n  \
-         clang -O2 -g -target bpf -c bpf/observer.bpf.c -o bpf/observer.bpf.o\n  \
-         Searched: {:?}",
-        candidates
-    )
-}
+// NIGHT-improve-1 phase 3: the embedded-object pins live under the
+// single test/ tree (cosmostrix Pattern C), #[path]-wired across
+// trees exactly like the limiter policy pins.
+#[cfg(test)]
+#[path = "../../test/ebpf/embedded_object_tests.rs"]
+mod embedded_object_tests;

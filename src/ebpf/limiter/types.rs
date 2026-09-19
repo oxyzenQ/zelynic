@@ -8,7 +8,11 @@
 
 // ━━ Constants ━━
 
-pub const BPF_OBJECT_PATH: &str = "bpf/limiter.bpf.o";
+/// The embedded pure-Rust limiter object (NIGHT-improve-1 phase 3):
+/// the aya-ebpf ELF staged into OUT_DIR by build.rs's nested nightly
+/// build, riding inside the binary via include_bytes!. `EbpfLoader`
+/// takes the bytes directly — no file path, no object discovery.
+pub const LIMITER_ELF: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/zelynic-limiter"));
 
 /// Minimum allowed rate: 1 KB/s (1000 B/s, decimal SI).
 ///
