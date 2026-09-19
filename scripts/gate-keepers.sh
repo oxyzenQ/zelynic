@@ -40,6 +40,11 @@
 #  12.  clang-format on bpf/*.c (the exact eBPF Build CI command —
 #       the C-side format gate whose absence let the
 #       NIGHT-cybersecurity-1 format regression reach CI)
+#  13.  Test-tree discipline (owner rule, NIGHT-hunt-17 — every .rs
+#       test file lives under test/, cosmostrix Pattern C: no tests/
+#       autodiscovery directory, no *_tests.rs/*_test.rs under src/,
+#       every [[test]] target and src/ #[path] wiring resolves under
+#       test/)
 #
 # Missing tools are skipped with a warning so the gate stays usable
 # on minimal development machines; CI enforces the full set.
@@ -411,6 +416,43 @@ if command -v clang-format >/dev/null 2>&1; then
 	fi
 else
 	warn "clang-format not installed — skipping"
+fi
+
+# ── 13. Test-Tree Discipline (owner rule, NIGHT-hunt-17) ──────────────────
+# Every .rs test file lives under the single top-level test/ tree
+# (cosmostrix Pattern C): no Cargo tests/ autodiscovery directory
+# (autotests = false keeps the old path inert), no *_tests.rs or
+# *_test.rs module files under src/, every [[test]] target declared
+# in Cargo.toml points under test/, and every #[path] module wiring
+# inside src/ resolves into test/. Test code gets the same one-tree
+# discipline as production code — one tree, one place.
+header "Test-Tree Discipline (all .rs test files under test/)"
+DISC_OK=true
+if [ -d tests ]; then
+	fail "test-tree: tests/ directory exists — its contents belong under test/ (autotests = false)"
+	DISC_OK=false
+fi
+STRAY_TEST_FILES=$(find src -type f \( -name '*_tests.rs' -o -name '*_test.rs' \) 2>/dev/null)
+if [ -n "$STRAY_TEST_FILES" ]; then
+	fail "test-tree: test module files under src/ (they belong under test/):"
+	echo "$STRAY_TEST_FILES"
+	DISC_OK=false
+fi
+BAD_TEST_PATHS=$(sed -n '/^\[\[test\]\]/,/^\[/{s/^path[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p;}' Cargo.toml 2>/dev/null | grep -v '^test/' || true)
+if [ -n "$BAD_TEST_PATHS" ]; then
+	fail "test-tree: [[test]] target path(s) outside test/:"
+	echo "$BAD_TEST_PATHS"
+	DISC_OK=false
+fi
+BAD_MOD_PATHS=$(grep -rn '#\[path = ' src/ 2>/dev/null | grep -v '/test/' || true)
+if [ -n "$BAD_MOD_PATHS" ]; then
+	fail "test-tree: #[path] module wirings in src/ that do not resolve under test/:"
+	echo "$BAD_MOD_PATHS"
+	DISC_OK=false
+fi
+if $DISC_OK; then
+	info "test-tree: disciplined (no tests/, no src/*_tests.rs, [[test]] and #[path] under test/)"
+	PASS=$((PASS + 1))
 fi
 
 # ── Summary ────────────────────────────────────────────────────────────────

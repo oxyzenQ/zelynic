@@ -2,8 +2,10 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 //! Unit pins for the diff-based render engine (NIGHT-improve-2) —
-//! kept in a sibling file to hold the engine itself under the 500-LOC
-//! cap (the check-loc policy; same split discipline as identity/).
+//! kept in the repo's single test/ tree (NIGHT-hunt-17, cosmostrix
+//! Pattern C) and #[path]-wired from the engine to hold the engine
+//! itself under the 500-LOC cap (the check-loc policy; same split
+//! discipline as identity/).
 
 use super::*;
 

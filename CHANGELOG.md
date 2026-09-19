@@ -25,6 +25,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **refactor: every .rs test file under the single test/ tree
+  (NIGHT-hunt-17)** — the whole test surface now lives under one
+  top-level directory, cosmostrix Pattern C: `tests/integration/`
+  moved to `test/integration/` (still the one integration binary,
+  now the only `[[test]]` target declared in Cargo.toml —
+  `autotests = false` makes the old tests/ autodiscovery path inert
+  for good), the diff-engine unit pins moved from
+  `src/terminal/diff_tests.rs` to `test/terminal/diff_tests.rs`, and
+  the A/B frame harness from `src/ebpf/render/bench.rs` to
+  `test/ebpf/render/bench.rs` — both `#[path]`-wired back to their
+  engines, so module paths, test names, and frame-bench.py's
+  name-based invocation are unchanged. Tightened for the future with
+  gate-keepers check 13 (test-tree discipline): no tests/ directory,
+  no `*_tests.rs`/`*_test.rs` under src/, every `[[test]]` target
+  and src/ `#[path]` wiring must resolve under test/. check-loc.sh
+  now scans src/ AND test/, the CodeQL path filters follow, and
+  RULES.md (docs/ and src/), CONTRIBUTING.md, USAGE.md, and
+  DEPENDENCY_AUDIT.md point at the new tree. No production code
+  touched — the shipped binary is unchanged.
 - **feat: max rate ceiling raised to 1 TB/s — owner-approved option B
   (NIGHT-research-1)** — the documented maximum rate moves from
   100 GB/s (800-GbE class) to 1 TB/s (8-TbE class): a decade of

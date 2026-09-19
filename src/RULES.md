@@ -4,7 +4,7 @@
 # src/ Rules — Structure, Size, and Headers
 
 > The colocated reminder of the rules that govern everything under
-> `src/` (and `tests/`). The canonical, full policy text lives in
+> `src/` (and `test/`). The canonical, full policy text lives in
 > [docs/RULES.md](../docs/RULES.md); this file exists so a contributor
 > standing in the source tree sees the rules without going digging —
 > the same convention as cosmostrix's `src/RULES.md`.
@@ -23,15 +23,18 @@
   in `ebpf/render/`, a new terminal-mode concern in `terminal/`).
 - Splitting a module that grew past the LOC cap is a COHESION split:
   the pieces share a theme (see `ebpf/identity/` → walk + tally +
-  sanitize, `terminal/diff.rs` + `diff_tests.rs`), re-exported from
+  sanitize, `terminal/diff.rs` + `test/terminal/diff_tests.rs`),
+  re-exported from
   the parent `mod.rs` so call sites keep resolving. Never split by
   slicing a function in half.
 
 ## Source File Size Cap
 
 - Hard cap: **500 lines per `.rs` file**, enforced by
-  `scripts/check-loc.sh` over `src/**` AND `tests/**` (recursive) plus
-  `build.rs` (NIGHT-docs-4 — the tests tree is code too).
+  `scripts/check-loc.sh` over `src/**` AND `test/**` (recursive) plus
+  `build.rs` (NIGHT-docs-4 — the test tree is code too; NIGHT-hunt-17
+  moved it to the single top-level `test/` directory, cosmostrix
+  Pattern C — `autotests = false`, one declared `[[test]]` target).
 - A file that legitimately cannot be split self-declares at the top:
 
   ```rust
@@ -41,10 +44,13 @@
   That marker is tracked migration debt — removing it is deleting the
   comment. There is NO hardcoded exemption list (lists drift; markers
   live with the file).
-- Tests live beside what they pin: unit pins in the module (or a
-  `*_tests.rs` sibling when the module would otherwise blow the cap),
-  cross-binary contract pins in `tests/integration/` (one binary,
-  split by surface — same 500-line discipline).
+- Tests live under the single top-level `test/` tree (NIGHT-hunt-17,
+  cosmostrix Pattern C): unit pins are `#[path]`-wired from the module
+  they pin (`test/terminal/diff_tests.rs`), the A/B frame harness from
+  `test/ebpf/render/bench.rs`, and cross-binary contract pins live in
+  `test/integration/` (one binary, split by surface, the only `[[test]]`
+  target — `autotests = false`). Same 500-line discipline; gate 13
+  (test-tree discipline) enforces the layout.
 
 ## Every File Carries Its License
 

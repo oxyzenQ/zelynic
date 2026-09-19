@@ -13,6 +13,12 @@ readme = "README.md"
 keywords = ["bandwidth", "network", "rate-limiter", "linux", "ebpf"]
 categories = ["command-line-utilities", "network-programming"]
 rust-version = "1.98"
+# NIGHT-hunt-17 (cosmostrix Pattern C discipline): every .rs test file
+# lives under the single top-level test/ tree. Autodiscovery of a
+# Cargo tests/ directory is OFF, so the only test targets are the
+# explicit [[test]] sections below — a stray tests/ directory can
+# never silently re-enable the old layout.
+autotests = false
 
 [dependencies]
 # Explicit feature set (cosmostrix contract): std + color + help + usage +
@@ -51,7 +57,7 @@ optional = true
 # default-features = false, features = ["clock"] }`. The `clock` feature
 # dragged iana-time-zone + num-traits into the lockfile for ZERO
 # production call sites — a grep for `chrono::` across src/, build.rs and
-# tests/ returned nothing; the dep was pure supply-chain dead weight
+# the test tree returned nothing; the dep was pure supply-chain dead weight
 # compiled into every build. Wall-clock formatting that would have needed
 # it (the `Build-time:` stamp in `-V`) is computed by Howard Hinnant's
 # civil_from_days algorithm directly in build.rs
@@ -62,6 +68,16 @@ optional = true
 [features]
 default = []
 ebpf = ["aya"]
+
+# The one integration test target (NIGHT-hunt-17: the tree moved from
+# tests/integration/ to test/integration/, and with autotests = false
+# this declaration is the ONLY way cargo learns about it — an explicit
+# contract instead of directory convention). Same single binary, same
+# surface split, same `cargo test --test integration` invocation; the
+# module files resolve relative to this path just as they did before.
+[[test]]
+name = "integration"
+path = "test/integration/main.rs"
 
 [profile.release]
 # Maximum optimization for production binary

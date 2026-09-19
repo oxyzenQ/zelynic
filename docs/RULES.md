@@ -6,11 +6,14 @@
 ## File Size
 
 - Rust source files must stay under `500` lines (hard cap, owner rule).
-- This applies to every `.rs` file under `src/` AND `tests/` (both
-  recursive) plus `build.rs` (NIGHT-docs-4 — the tests tree is code
-  too, and it grew past the cap: the old 770-line
-  `tests/integration_test.rs` was split into `tests/integration/`,
-  one file per surface).
+- This applies to every `.rs` file under `src/` AND `test/` (both
+  recursive) plus `build.rs` (NIGHT-docs-4 — the test tree is code
+  too, and it grew past the cap: the old 770-line integration file
+  was split into `test/integration/`, one file per surface).
+  NIGHT-hunt-17 tightened the layout further: every test file lives
+  under the single top-level `test/` tree (cosmostrix Pattern C),
+  Cargo autodiscovery is off (`autotests = false`), and the one
+  integration target is declared explicitly in `Cargo.toml`.
 - It excludes `*.md`, `*.txt`, generated files, lockfiles, assets, release
   artifacts, `.git/`, and `target/`.
 - `src/main.rs` has a soft target of `100-300` LOC in a mature project and
@@ -139,7 +142,7 @@ are detected. The guard catches:
 If a future test genuinely needs the current package version, use
 `env!("CARGO_PKG_VERSION")` — never hardcode the literal string. The
 current package version is already verified by
-`tests/integration/smoke.rs::test_version` (which uses the `--version` CLI
+`test/integration/smoke.rs::test_version` (which uses the `--version` CLI
 flag), so per-module version assertions are redundant anyway.
 
 <!-- ZELYNIC-DISCLAIMER -->

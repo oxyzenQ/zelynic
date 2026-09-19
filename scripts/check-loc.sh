@@ -14,9 +14,11 @@
 #
 #   // LOC_EXEMPT: <one-line justification>
 #
-# The script dynamically scans every .rs file under src/ AND tests/
-# (both recursive — NIGHT-docs-4: the tests tree grew past the cap and
-# belongs under the same discipline as src/) PLUS build.rs. For any
+# The script dynamically scans every .rs file under src/ AND test/
+# (both recursive — NIGHT-docs-4: the test tree grew past the cap and
+# belongs under the same discipline as src/) PLUS build.rs. Since
+# NIGHT-hunt-17 the whole test tree lives under test/ (cosmostrix
+# Pattern C: one test tree, autotests = false). For any
 # file over the limit, it greps for the marker. If found -> exempt
 # (tracked migration debt). If not -> FAIL.
 #
@@ -45,15 +47,15 @@ EXEMPT_MARKER='// LOC_EXEMPT:'
 echo "Rust source file line counts (max ${MAX_LINES}):"
 echo ""
 
-# Dynamically collect all .rs files under src/ AND tests/ (both
+# Dynamically collect all .rs files under src/ AND test/ (both
 # recursive, NIGHT-docs-4) plus build.rs. No hardcoding.
 FILES=$( (
-	find src tests -name '*.rs' 2>/dev/null
+	find src test -name '*.rs' 2>/dev/null
 	{ [ -f build.rs ] && echo build.rs; } || true
 ) | sort)
 
 if [ -z "$FILES" ]; then
-	echo "No .rs files found under src/, tests/ (or build.rs)"
+	echo "No .rs files found under src/, test/ (or build.rs)"
 	exit 0
 fi
 
