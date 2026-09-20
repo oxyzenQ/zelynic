@@ -50,7 +50,7 @@ same WiFi interface. No `tc`, no `nftables`, no `LD_PRELOAD`, no daemon.
 | **Schema migration** | BPF struct changes auto-detected + auto-cleaned on upgrade. |
 | **Crash recovery** | `zelynic recover` detects + removes orphaned BPF pins. File lock prevents corruption. |
 | **Discovery workflow** | `zelynic top` (live box) finds bandwidth hogs. Other limiters can't discover. |
-| **Box mode** | In-place refresh with a clean exit — zero scrollback pollution, no TUI. Responsive layout adapts to any terminal size (NIGHT-hunt-7). |
+| **Box mode** | In-place refresh with a clean exit — zero scrollback pollution, no TUI. Responsive layout adapts to any terminal size (NIGHT-hunt-7). Pointer takeover while running: text selection and copy are disabled, fully restored on exit (NIGHT-improve-7). |
 | **Always-live monitors** | `observe`/`top` run live until you press q — no timers, no snapshot mode (NIGHT-hunt-12). |
 | **Diff-based rendering** | Monitor frames go through a cosmic-dragon-style diff engine: only changed rows are emitted, one write syscall per frame, idle frames cost zero I/O, and the screen is never wiped mid-session (NIGHT-improve-2). |
 | **Refresh control** | `--interval 1s..60s` on `observe`/`top` — realtime cadence you choose, with a live RATE column computed from the interval. |

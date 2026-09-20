@@ -1,51 +1,67 @@
 // Copyright (C) 2026 rezky_nightky
 // SPDX-License-Identifier: GPL-3.0-only
 
-//! Unit pins for the NIGHT-strict-1 monitor terminal contract: the
-//! monitor never captures the mouse or the clipboard. Kept in the
-//! repo's single test/ tree (NIGHT-hunt-17, cosmostrix Pattern C) and
-//! #[path]-wired from src/terminal/mod.rs.
+//! Unit pins for the NIGHT-improve-7 monitor terminal contract: the
+//! monitor TAKES the pointer while the box runs, and gives it back
+//! on exit. Kept in the repo's single test/ tree (NIGHT-hunt-17,
+//! cosmostrix Pattern C) and #[path]-wired from src/terminal/mod.rs.
 //!
-//! The functional requirement is already how zelynic behaves (mouse
-//! tracking was never enabled); these pins make it a CONTRACT instead
-//! of an accident, so no future commit can silently take over the
-//! terminal's native selection and paste:
+//! This contract SUPERSEDES the NIGHT-strict-1 mouse clause (the
+//! strict-1 alt-screen + cursor-restore pins survive unchanged): box
+//! mode displays private data — cgroup names, PIDs, remote endpoints
+//! — and the owner rule is that none of it is copyable while the
+//! monitor runs. Mouse tracking (1000 press/release, 1002 button-drag,
+//! 1006 SGR encoding) moves the pointer into the application, so
+//! click-drag selects nothing and middle-click paste never lands in
+//! the monitor's stdin. These pins make it a CONTRACT instead of an
+//! accident, so no future commit can silently hand the pointer back
+//! to the terminal:
 //!
 //! 1. Byte-level pins over `ALT_ENTER` / `ALT_EXIT` — the only DEC
 //!    private modes the monitor may ever touch are 1049 (alternate
-//!    screen) and 25 (cursor visibility), and every mode enabled on
-//!    enter is restored on exit.
+//!    screen), 25 (cursor visibility), and the mouse-tracking trio
+//!    1000/1002/1006, and every mode enabled on enter is restored on
+//!    exit.
 //! 2. A source-tree scan: any `ESC[?` (DEC private mode) literal that
-//!    appears anywhere in `src/` must be one of the two allowed
-//!    modes. Adding `ESC[?1000h` (mouse click tracking),
-//!    `ESC[?1002h` (button-drag tracking), `ESC[?1003h` (any-motion
-//!    tracking), `ESC[?1006h` (SGR mouse), `ESC[?1004h` (focus
+//!    appears anywhere in `src/` must be one of the five allowed
+//!    modes. Adding `ESC[?1003h` (any-motion tracking — a stdin flood
+//!    with no extra selection coverage over 1002), `ESC[?1005h` /
+//!    `ESC[?1015h` (legacy mouse encodings), `ESC[?1004h` (focus
 //!    reporting), or `ESC[?2004h` (bracketed paste) anywhere in the
 //!    shipped source fails this test with the file and mode listed.
 //!
-//! Why this matters: any of those modes would break the owner rule
-//! that click-drag selection and middle-click / Ctrl+Shift+V paste
-//! keep working while the monitor runs — the terminal hands the
-//! pointer to the app the moment mouse tracking is on (the classic
-//! htop experience: selection stops working until you hold Shift).
+//! Why this matters: dropping the mouse modes would re-expose the
+//! monitor's private rows to plain click-drag selection; adding an
+//! unlisted mode would take over a terminal capability the monitor
+//! does not need. The owner rule is exactly the five modes, no more,
+//! no less.
 
 use super::{ALT_ENTER, ALT_EXIT};
 use std::path::{Path, PathBuf};
 
-/// The exact enter bytes: alternate screen on, cursor hidden,
-/// nothing else. Any delta here is a behavior change on every
-/// monitor startup and must be a deliberate, reviewed edit.
+/// The exact enter bytes: alternate screen on, cursor hidden, mouse
+/// tracking on (1000/1002/1006 — NIGHT-improve-7). Any delta here is a
+/// behavior change on every monitor startup and must be a deliberate,
+/// reviewed edit.
 #[test]
 fn alt_enter_bytes_pinned() {
-    assert_eq!(ALT_ENTER, b"\x1b[?1049h\x1b[?25l");
+    assert_eq!(
+        ALT_ENTER,
+        b"\x1b[?1049h\x1b[?25l\x1b[?1000h\x1b[?1002h\x1b[?1006h"
+    );
 }
 
-/// The exact exit bytes: alternate screen off, cursor shown. The
-/// exit must restore EVERY mode the enter touched — a restore
-/// mismatch here is how TUIs leave terminals wedged.
+/// The exact exit bytes: mouse tracking off (reverse of the enter),
+/// alternate screen off, cursor shown. The exit must restore EVERY
+/// mode the enter touched — a restore mismatch here is how TUIs leave
+/// terminals wedged (or, on this contract, leave the pointer captured
+/// after exit).
 #[test]
 fn alt_exit_bytes_pinned() {
-    assert_eq!(ALT_EXIT, b"\x1b[?1049l\x1b[?25h");
+    assert_eq!(
+        ALT_EXIT,
+        b"\x1b[?1006l\x1b[?1002l\x1b[?1000l\x1b[?1049l\x1b[?25h"
+    );
 }
 
 /// Extract every DEC private mode number from an escape byte
@@ -75,26 +91,34 @@ fn dec_private_modes(seq: &[u8]) -> Vec<u32> {
 }
 
 /// The strict mouse contract, byte level: the only DEC private
-/// modes in the monitor's enter/exit sequences are 1049 and 25.
-/// 1000-1006/1015 (mouse tracking), 1004 (focus), 2004 (bracketed
-/// paste) are all absent — the terminal's own selection cursor and
-/// paste handling stay in the terminal's hands.
+/// modes in the monitor's enter/exit sequences are 1049, 25, and the
+/// mouse-tracking trio 1000/1002/1006. Any-motion 1003 (stdin flood,
+/// no extra selection coverage), legacy encodings 1005/1015, focus
+/// 1004, and bracketed paste 2004 are all absent — the monitor takes
+/// EXACTLY the pointer, nothing more.
 #[test]
-fn monitor_never_enables_mouse_capture() {
+fn monitor_takes_pointer_and_fully_restores() {
     for seq in [ALT_ENTER, ALT_EXIT] {
         let modes = dec_private_modes(seq);
         assert!(
-            modes.iter().all(|m| *m == 1049 || *m == 25),
+            modes
+                .iter()
+                .all(|m| matches!(m, 1049 | 25 | 1000 | 1002 | 1006)),
             "unexpected DEC private mode(s) {modes:?} in monitor sequence — \
-             the NIGHT-strict-1 contract allows only 1049 and 25"
+             the NIGHT-improve-7 contract allows only 1049, 25, 1000, 1002, \
+             and 1006"
         );
     }
-    // And the full restore: both halves of the enter are undone.
+    // And the full restore: every mode the enter enabled is undone.
     assert!(ALT_EXIT.windows(8).any(|w| w == b"\x1b[?1049l"));
     assert!(ALT_EXIT.windows(6).any(|w| w == b"\x1b[?25h"));
+    assert!(ALT_EXIT.windows(8).any(|w| w == b"\x1b[?1000l"));
+    assert!(ALT_EXIT.windows(8).any(|w| w == b"\x1b[?1002l"));
+    assert!(ALT_EXIT.windows(8).any(|w| w == b"\x1b[?1006l"));
 }
 
-/// Source-tree scan: no DEC private mode outside {1049, 25} may
+/// Source-tree scan: no DEC private mode outside
+/// {1049, 25, 1000, 1002, 1006} may
 /// appear as a literal in any `src/**/*.rs` file. The scan looks for
 /// the six-character source text `\x1b[?` (backslash-x-1-b-lb-question
 /// — how a raw escape literal is spelled in Rust source), then reads
@@ -106,7 +130,7 @@ fn monitor_never_enables_mouse_capture() {
 /// src/ebpf/embedded.rs's doc comment quoting its `"ZELF-30" + NUL`
 /// magic next to an em-dash hit exactly that).
 #[test]
-fn source_tree_has_no_mouse_capture_sequences() {
+fn source_tree_has_only_sanctioned_dec_modes() {
     let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let src = manifest.join("src");
     let mut offenders: Vec<String> = Vec::new();
@@ -129,15 +153,18 @@ fn source_tree_has_no_mouse_capture_sequences() {
 
     assert!(
         offenders.is_empty(),
-        "NIGHT-strict-1 violation: non-allowed DEC private mode literal(s) \
-         found in src/ (each of these takes over the terminal's native \
-         mouse selection / paste while the monitor runs):\n  {}",
+        "NIGHT-improve-7 violation: non-sanctioned DEC private mode \
+         literal(s) found in src/ (the monitor's terminal takeover is \
+         exactly {{1049, 25, 1000, 1002, 1006}} — anything else grabs a \
+         capability the monitor does not need, or re-exposes the box \
+         to selection):\n  {}",
         offenders.join("\n  ")
     );
 }
 
 /// Scan one source file for `\x1b[?NNNN` literals and record any mode
-/// outside {1049, 25} as an offender string "file:line: mode NNNN".
+/// outside {1049, 25, 1000, 1002, 1006} as an offender string
+/// "file:line: mode NNNN".
 fn scan_source_file(path: &Path, offenders: &mut Vec<String>) {
     let text = match std::fs::read_to_string(path) {
         Ok(t) => t,
@@ -164,7 +191,7 @@ fn scan_source_file(path: &Path, offenders: &mut Vec<String>) {
             }
             if end > start {
                 let mode: u32 = text[start..end].parse().unwrap_or(0);
-                if mode != 1049 && mode != 25 {
+                if !matches!(mode, 1049 | 25 | 1000 | 1002 | 1006) {
                     offenders.push(format!(
                         "{}:{}: mode {}",
                         path.strip_prefix(env!("CARGO_MANIFEST_DIR"))
