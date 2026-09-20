@@ -27,7 +27,11 @@ env:
 jobs:
   validate:
     name: Maintenance deps weekly validate
-    runs-on: ubuntu-latest
+    # Runner pinned to ubuntu-24.04, never a floating ubuntu-latest:
+    # the label migrates to Ubuntu 26 on 2026-10-19 and would silently
+    # move the build environment (actions/runner-images#14748); OS
+    # upgrades here are deliberate, matrix-tested changes.
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     outputs:
@@ -138,7 +142,7 @@ jobs:
 
   commit:
     name: Maintenance deps weekly commit
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: validate
     if: needs.validate.outputs.changed == 'true'
     permissions:

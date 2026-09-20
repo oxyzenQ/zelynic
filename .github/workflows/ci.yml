@@ -31,7 +31,11 @@ env:
 
 jobs:
   changes:
-    runs-on: ubuntu-latest
+    # Runner pinned to ubuntu-24.04, never a floating ubuntu-latest:
+    # the label migrates to Ubuntu 26 on 2026-10-19 and would silently
+    # move the build environment (actions/runner-images#14748); OS
+    # upgrades here are deliberate, matrix-tested changes.
+    runs-on: ubuntu-24.04
     outputs:
       core: ${{ steps.detect.outputs.core }}
     steps:
@@ -70,7 +74,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.core == 'true'
     name: Lint & Test
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
 
@@ -191,7 +195,7 @@ jobs:
 
   workflow_quality:
     name: Workflow lint + codespell
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v5

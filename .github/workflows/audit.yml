@@ -18,7 +18,11 @@ env:
 jobs:
   audit:
     name: Observation-only audit
-    runs-on: ubuntu-latest
+    # Runner pinned to ubuntu-24.04, never a floating ubuntu-latest:
+    # the label migrates to Ubuntu 26 on 2026-10-19 and would silently
+    # move the build environment (actions/runner-images#14748); OS
+    # upgrades here are deliberate, matrix-tested changes.
+    runs-on: ubuntu-24.04
     continue-on-error: true
     steps:
       - name: Checkout repository

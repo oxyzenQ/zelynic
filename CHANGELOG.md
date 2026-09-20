@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Release Engineering
+
+- **ci: every runner pinned to ubuntu-24.04 — the ubuntu-latest label
+  is a silent time bomb (NIGHT-hunt-26)** — every workflow carried
+  GitHub's runner-images notice: "The ubuntu-latest label will migrate
+  to Ubuntu 26 beginning October 19, 2026"
+  (github.com/actions/runner-images#14748). On that date a floating
+  `ubuntu-latest` silently starts resolving to a new OS image — new
+  glibc, new kernel, new LLVM — under pipelines whose eBPF release
+  build is exactly the kind of workload that breaks on environment
+  drift. All 11 floating labels across the six workflows (ci, release,
+  audit, codeql, docs-ci, maintenance) now pin `ubuntu-24.04`, the
+  exact image ubuntu-latest resolves to today, so nothing about what
+  the pipelines run changes — the environment is only frozen. The
+  compatibility surface stays honestly covered: the ci.yml build
+  matrix already builds on ubuntu-22.04 and ubuntu-24.04 explicitly,
+  so a future move to Ubuntu 26 is a deliberate, matrix-first upgrade
+  (add the label, watch it build, then repin) instead of a
+  calendar-triggered surprise. Each workflow's first pinned job
+  carries a four-line comment recording the rationale and the
+  runner-images issue link for the next maintainer.
+
 ### Docs
 
 - **docs: README flagship tidy — the cosmostrix anatomy, adapted for a
