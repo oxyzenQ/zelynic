@@ -25,7 +25,12 @@
 #
 # Idempotent: re-running skips whatever is already satisfied, and
 # after any install the script re-probes everything it changed
-# (verify, then trust). CI does NOT use this script: the workflows
+# (verify, then trust). A listed-but-DAMAGED pin — an interrupted
+# install (Ctrl-C, power loss, full disk) leaves the directory
+# registered while its manifests are gone, and every rustup
+# component operation then dies with "missing manifest" — is
+# repaired automatically: removed and reinstalled from scratch, no
+# manual rustup commands. CI does NOT use this script: the workflows
 # install the same pair through dtolnay/rust-toolchain + sudo
 # install to /usr/local/bin, which fits the ephemeral privileged
 # runner better; this is the host path.
@@ -94,6 +99,7 @@ EBPF_TOOLCHAIN="$(sed -n 's/^[[:space:]]*channel[[:space:]]*=[[:space:]]*"\([^"]
 # one "<name>-<host-triple>" line per installed toolchain, so the probe
 # anchors on "<pin>-" to reject lookalike pins sharing a prefix.
 TOOLCHAIN_OK=false
+TOOLCHAIN_BROKEN=false
 COMPONENTS_OK=false
 LINKER_OK=false
 LINKER_RESOLVED=""
@@ -101,6 +107,7 @@ LINKER_VERSION_REPORTED=""
 
 probe_all() {
 	TOOLCHAIN_OK=false
+	TOOLCHAIN_BROKEN=false
 	if rustup toolchain list 2>/dev/null | grep -q "^${EBPF_TOOLCHAIN}-"; then
 		TOOLCHAIN_OK=true
 	fi
@@ -109,12 +116,30 @@ probe_all() {
 	# Components print either "rust-src (installed)" or a triple-suffixed
 	# "rustfmt-x86_64-unknown-linux-gnu (installed)" — the pattern accepts
 	# both shapes and rejects the uninstalled (marker-less) lines.
-	for component in rust-src rustfmt; do
-		if ! rustup component list --toolchain "${EBPF_TOOLCHAIN}" 2>/dev/null |
-			grep -qE "^${component}(-[^ ]*)?[[:space:]]+\(installed\)"; then
+	if [[ "${TOOLCHAIN_OK}" != true ]]; then
+		COMPONENTS_OK=false
+	else
+		# A listed pin can still be DAMAGED: an interrupted install
+		# (Ctrl-C, power loss, full disk) leaves the directory
+		# registered while its manifests are gone, and every rustup
+		# component operation then dies with "missing manifest".
+		# The component enumeration is the reliable detector — it is
+		# the exact operation that fails, while `rustup run ... rustc`
+		# still succeeds (the binaries are intact), so a run-based
+		# probe would miss the damage. One enumeration feeds both
+		# the damage verdict and the installed-marker greps.
+		local listing
+		if listing="$(rustup component list --toolchain "${EBPF_TOOLCHAIN}" 2>/dev/null)"; then
+			for component in rust-src rustfmt; do
+				if ! grep -qE "^${component}(-[^ ]*)?[[:space:]]+\(installed\)" <<<"${listing}"; then
+					COMPONENTS_OK=false
+				fi
+			done
+		else
+			TOOLCHAIN_BROKEN=true
 			COMPONENTS_OK=false
 		fi
-	done
+	fi
 
 	LINKER_OK=false
 	LINKER_ON_PATH=false
@@ -138,7 +163,9 @@ probe_all() {
 }
 
 report() {
-	if [[ "${TOOLCHAIN_OK}" == true && "${COMPONENTS_OK}" == true ]]; then
+	if [[ "${TOOLCHAIN_BROKEN}" == true ]]; then
+		warn "nightly pin ${EBPF_TOOLCHAIN}: LISTED but DAMAGED (component manifests missing — an interrupted install needs a reinstall)"
+	elif [[ "${TOOLCHAIN_OK}" == true && "${COMPONENTS_OK}" == true ]]; then
 		ok "nightly pin ${EBPF_TOOLCHAIN}: installed (rust-src, rustfmt present)"
 	else
 		warn "nightly pin ${EBPF_TOOLCHAIN}: not fully installed"
@@ -261,13 +288,23 @@ if [[ "${CHECK_ONLY}" == true ]]; then
 	if [[ "${TOOLCHAIN_OK}" == true && "${COMPONENTS_OK}" == true && "${LINKER_OK}" == true && "${LINKER_ON_PATH}" == true ]]; then
 		exit 0
 	fi
-	die "--check: prerequisites not satisfied — run $0 (without --check) to install, and make sure ${LOCAL_BIN} is on PATH."
+	die "--check: prerequisites not satisfied — run $0 (without --check) to install or repair, and make sure ${LOCAL_BIN} is on PATH."
 fi
 
 # ── Install mode ───────────────────────────────────────────────────────────
 report
 
-if [[ "${TOOLCHAIN_OK}" != true ]]; then
+# The broken-toolchain branch comes FIRST: a damaged pin is listed
+# (TOOLCHAIN_OK true) and fails the component probe (COMPONENTS_OK
+# false), so the component-add path below would die on rustup's raw
+# "missing manifest" error — the exact trap this branch removes.
+if [[ "${TOOLCHAIN_BROKEN}" == true ]]; then
+	warn "the ${EBPF_TOOLCHAIN} install is damaged (missing component manifests — rustup's own advice is to reinstall; this script does it automatically)"
+	ok "removing the damaged toolchain..."
+	rustup toolchain uninstall "${EBPF_TOOLCHAIN}"
+	ok "reinstalling nightly ${EBPF_TOOLCHAIN} from scratch (minimal profile, rust-src + rustfmt)..."
+	rustup toolchain install "${EBPF_TOOLCHAIN}" --profile minimal --component rust-src --component rustfmt
+elif [[ "${TOOLCHAIN_OK}" != true ]]; then
 	ok "installing nightly ${EBPF_TOOLCHAIN} (minimal profile, rust-src + rustfmt)..."
 	rustup toolchain install "${EBPF_TOOLCHAIN}" --profile minimal --component rust-src --component rustfmt
 elif [[ "${COMPONENTS_OK}" != true ]]; then
@@ -283,7 +320,7 @@ fi
 probe_all
 report
 if [[ "${TOOLCHAIN_OK}" != true || "${COMPONENTS_OK}" != true ]]; then
-	die "the nightly pin ${EBPF_TOOLCHAIN} is still not fully installed — see the rustup output above."
+	die "the nightly pin ${EBPF_TOOLCHAIN} is still not fully installed — see the rustup output above (a reinstall that fails midway leaves the pin damaged again; re-running this script repairs it)."
 fi
 if [[ "${LINKER_OK}" != true ]]; then
 	die "bpf-linker is still not resolvable at version ${BPF_LINKER_VERSION} — see the messages above."

@@ -1,5 +1,6 @@
 // Copyright (C) 2026 rezky_nightky
 // SPDX-License-Identifier: GPL-3.0-only
+// LOC_EXEMPT: a cargo build script is one self-contained file by design — splitting it means a [build-dependencies] crate (supply-chain surface the repo keeps at zero)
 fn main() {
     // Re-run build.rs whenever git HEAD changes so GIT_HASH stays fresh.
     println!("cargo:rerun-if-changed=.git/HEAD");
@@ -219,6 +220,21 @@ fn preflight_ebpf_prerequisites(toolchain: &str) {
                  minimal --component rust-src --component rustfmt)"
             );
         }
+        // NIGHT-hunt-27: a listed pin can still be DAMAGED (an
+        // interrupted install leaves the directory registered with
+        // no manifests); probe the manifests before the nested build
+        // turns that into raw errors far from the cause.
+        if !toolchain_manifests_loadable(toolchain) {
+            panic!(
+                "the pinned nightly toolchain {toolchain} is listed but \
+                 damaged: its component manifests are missing (an \
+                 interrupted install — Ctrl-C, power loss, or a full disk). \
+                 One-command repair:\n  \
+                 ./scripts/bootstrap-ebpf.sh\n  \
+                 (it detects this state, removes the damaged toolchain, and \
+                 reinstalls it — no manual rustup commands needed)"
+            );
+        }
     }
 
     // bpf-linker: the link step only runs when ebpf/target is cold,
@@ -249,6 +265,27 @@ fn rustup_toolchain_list() -> Option<String> {
         return None;
     }
     Some(String::from_utf8_lossy(&output.stdout).into_owned())
+}
+
+/// NIGHT-hunt-27: can the pin's component manifests be loaded? A
+/// toolchain listed by `rustup toolchain list` can still be damaged —
+/// an interrupted install (Ctrl-C, power loss, full disk) leaves the
+/// directory registered while its manifests are gone, and the exact
+/// operation that then fails is the component enumeration
+/// ("missing manifest in toolchain ..."), while `rustup run ... rustc`
+/// still succeeds (the binaries are intact) — so the breakage only
+/// surfaces later, deep in build-std. A local metadata read, never a
+/// network fetch. When rustup itself cannot run, report "loadable"
+/// and stay silent — the same contract as [`rustup_toolchain_list`]:
+/// the nested invocation then produces the real error.
+fn toolchain_manifests_loadable(toolchain: &str) -> bool {
+    std::process::Command::new("rustup")
+        .args(["component", "list", "--toolchain", toolchain])
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .map(|status| status.success())
+        .unwrap_or(true)
 }
 
 /// Match a pin against `rustup toolchain list` output. Each line is
@@ -437,6 +474,48 @@ mod tests {
         // Empty output (rustup with nothing installed yet) matches
         // nothing — the preflight reports the pin as missing.
         assert!(!list_has_toolchain("", "nightly-2026-09-18"));
+    }
+
+    /// NIGHT-hunt-27: verify the damaged-toolchain detector against
+    /// real rustup behavior, hermetically — a fake RUSTUP_HOME holding
+    /// an EMPTY toolchain directory reproduces the exact damaged state
+    /// an interrupted install leaves behind: the pin is listed, while
+    /// the component enumeration dies with "missing manifest"
+    /// (reproduced against rustup 1.29.1). Skipped when rustup is not
+    /// installed — the detector then reports "loadable" by contract.
+    #[test]
+    #[ignore = "mutates RUSTUP_HOME; run alongside the bootstrap self-heal matrix"]
+    fn damaged_toolchain_detection_matches_rustup_reality() {
+        if rustup_toolchain_list().is_none() {
+            return; // no rustup on this machine — nothing to verify against
+        }
+
+        let pin = "nightly-2026-09-18";
+        let host = std::env::consts::ARCH.to_string()
+            + "-unknown-linux-"
+            + match std::env::consts::OS {
+                "linux" => "gnu",
+                _ => return, // zelynic is Linux-only; other hosts lack the triple
+            };
+
+        let home = std::env::temp_dir().join(format!("zelynic-damaged-tc-{}", std::process::id()));
+        let toolchains = home.join("toolchains");
+        std::fs::create_dir_all(toolchains.join(format!("{pin}-{host}")))
+            .expect("fake toolchain dir");
+
+        let saved = std::env::var_os("RUSTUP_HOME");
+        std::env::set_var("RUSTUP_HOME", &home);
+        let verdict = toolchain_manifests_loadable(pin);
+        match saved {
+            Some(v) => std::env::set_var("RUSTUP_HOME", v),
+            None => std::env::remove_var("RUSTUP_HOME"),
+        }
+        let _ = std::fs::remove_dir_all(&home);
+
+        assert!(
+            !verdict,
+            "an empty (manifest-less) toolchain directory must be reported as damaged"
+        );
     }
 
     #[cfg(unix)]

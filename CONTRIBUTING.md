@@ -10,8 +10,9 @@ the build process, project structure, and coding standards.
 
 - Rust 1.98+ (pinned to a concrete version in `rust-toolchain.toml`)
 - The eBPF nightly pin + bpf-linker 0.11.1 — one-time, one command:
-  `./scripts/bootstrap-ebpf.sh` (idempotent; `--check` reports
-  status only). The BPF side is pure Rust and compiles on the dated
+  `./scripts/bootstrap-ebpf.sh` (idempotent, and it self-repairs a
+  damaged toolchain install; `--check` reports status only). The BPF
+  side is pure Rust and compiles on the dated
   nightly pinned in `ebpf/rust-toolchain.toml`
 - Linux kernel 5.13+ (cgroup v2 + cgroup.id file)
 
