@@ -14,6 +14,32 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ## [Unreleased]
 
+### Added
+
+- **scripts: the one-click brutal stress test (NIGHT-master-2)** — the
+  owner wanted "fast simple elegant flagship one click to brutal
+  stresstest" over the whole command surface. `scripts/brutal-stress-test.sh`
+  wraps `brutal-stress-test.py`: light mode (~2 min, basic limiting
+  sweep) and `--heavy` (the complete brutal matrix, 5+ minutes long
+  running until done). Coverage: strict-single / strict-multi /
+  limit-all, block-single / block-multi, unstrict-single ("unlock") /
+  unstrict-multi / unstrict-all, mixed concurrent policies on five
+  dedicated cgroups, reload cycles, sustain windows, non-binding
+  overhead, recover, list-apps — every rate verdict MEASURED (python
+  client + real curl burst download and upload processes, the owner's
+  manual-browser class of proof) and then proven in-kernel through the
+  status JSON (bytes_allowed / packets_dropped). The rate ladder walks
+  the parser's full span — 1kb (the minimum) through 10mb and 1gb up to
+  1tb (the maximum), skipping any rung the hardware cannot feed
+  (baseline < 2x rung), i.e. "up to 1 TB/s if hardware supports".
+  Self-contained on the cross-distro minimum (python3 stdlib, curl
+  optional — its stages SKIP, the rest keeps working); `--self-test`
+  verifies the measurement engine alone (no root, no zelynic, no BPF)
+  and runs in CI on every push. The legacy `scripts/stress-test.sh` is
+  retired: it depended on an external speedtest server (flaky,
+  metered, not reachable from many VMs) and asserted on a status
+  output format that no longer exists.
+
 ### Changed
 
 - **ebpf: observer counter maps raised 256 -> 1024 — the pure-Rust
