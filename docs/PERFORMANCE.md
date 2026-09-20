@@ -267,6 +267,30 @@ fixture's deterministic content pins the visual columns to
 identical values (entropy jitter of 0.0001 bits/char is float
 aggregation over the same content).
 
+### NIGHT-improve-8 A/B (observer capacity raise, 2026-09-21)
+
+The server-LTS audit commit (40cfa10) raised the observer counter
+maps 256 -> 1024 — a BPF object change (the embedded observer ELF is
+rebuilt), not a render-path change. The A/B proves the render engine
+is untouched across the ELF swap (A = ec1704b at HEAD, B = 40cfa10,
+10 s formal runs):
+
+| Metric | ec1704b | 40cfa10 | Delta |
+|--------|---------|---------|-------|
+| fps | 14,066 | 14,711 | +4.6% (machine noise) |
+| bytes/frame | 1,437.6 | 1,437.5 | -0.0% |
+| emit bytes/frame | 1,375.6 | 1,375.6 | -0.0% |
+| frame entropy | 4.1912 | 4.1913 | +0.0% |
+| density gini | 0.1812 | 0.1812 | 0.00% |
+| dirty cells/frame | 755.4 | 755.4 | +0.0% |
+
+Reading: every visual metric identical. The frame harness renders
+from an in-memory CounterSummary fed by a synthetic LCG — it never
+attaches the observer, so the map capacity is not in its path at all;
+the identical columns prove the ELF swap changed nothing in the emit
+pipeline. The fps delta tracks the same container-noise class as the
+improve-7 run minutes earlier (+5.2% on identical render bytes).
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.
