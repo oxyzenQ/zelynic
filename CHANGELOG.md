@@ -282,6 +282,19 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Release Engineering
 
+- **ci: all scheduled workflows run at the owner's morning — 00:00
+  UTC (07:00 WIB), one clock for every cron (NIGHT-improve-9)** — the
+  three scheduled triggers each kept their own clock: audit at
+  `17 3 * * *` (03:17 UTC daily), CodeQL at `0 3 * * 1` (03:00 UTC
+  Monday), and maintenance at `0 7 * * 1` (07:00 UTC Monday) — the
+  last with a comment claiming "00:00 UTC (07:00 WIB)" that its own
+  trigger contradicted by seven hours, the exact inconsistency behind
+  the owner's "all consistency" call. Unified: every cron now fires at
+  00:00 UTC = 07:00 WIB, the owner's morning (Asia/Jakarta, UTC+7);
+  cadences untouched (audit daily, CodeQL and maintenance Monday);
+  and each schedule comment names both clocks so the next reader
+  never has to do the arithmetic.
+
 - **ci: every runner pinned to ubuntu-24.04 — the ubuntu-latest label
   is a silent time bomb (NIGHT-hunt-26)** — every workflow carried
   GitHub's runner-images notice: "The ubuntu-latest label will migrate
