@@ -146,6 +146,43 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Fixed
 
+- **harnesses: the cgroup ID was always the kernfs inode — the
+  "cgroup.id file" never existed, and the brutal stress test now
+  survives its first real machine (NIGHT-hunt-31)** — the owner's
+  first live run of NIGHT-master-2 died at harness setup with
+  "harness error: cgroup.id unreadable for the session cgroup"
+  (0 passed, 0 failed, 0 skipped, 0s; the engine `--self-test` passed
+  4/4 because the sandbox has no cgroup v2 — the resolution path was
+  never exercised before the owner's box). Root cause: both python
+  harnesses resolved cgroup IDs by reading a
+  `/sys/fs/cgroup{path}/cgroup.id` file — a file that does not exist
+  in ANY mainline kernel; the belief also lived in the Rust
+  resolver's comments ("authoritative on kernel 5.13+") and seven
+  documentation files. zelynic itself only worked because
+  `cgroup_id_from_path` carried a `stat()` fallback under the phantom
+  read; the harnesses copied the phantom without the fallback. The
+  truth the kernel guarantees: `bpf_skb_cgroup_id()` returns
+  `cgrp->kn->id`, and kernfs publishes that same node id as the
+  directory's `st_ino` — `stat(2)` IS the resolution, and it is the
+  numbering every verified kernel in the cross-distro matrix ran on.
+  Fix: both harnesses (brutal-stress-test.py, limiter-depth-test.py)
+  resolve IDs by `stat().st_ino & 0xFFFFFFFF` (the BPF maps' u32
+  key), the Rust resolver drops the dead file read for the same
+  one-line stat, and every phantom claim is gone from the docs
+  (README, CONTRIBUTING, USAGE, SAFETY_ANALYSIS, DRAGON_ARCHITECTURE,
+  KERNEL_COMPATIBILITY, CROSS_DISTRO_RESULTS — the kernel floor stays
+  5.13+, now anchored on the real constraints: `bpf_link` 5.7+,
+  observer events ringbuf 5.8+, 5.13 = oldest verified matrix kernel).
+  Regression pins: the engine self-test creates a DECOY cgroup.id file
+  and asserts the resolver still returns the inode (a phantom file
+  can never win again), the same decoy pin exists as a Rust unit test,
+  plus stat-equals-inode and missing-dir-is-None pins. En passant:
+  limiter-depth-test.py's session fallback built its stat path with
+  `os.path.join(CGROUP_ROOT, path)`, which silently DISCARDS the base
+  on an absolute second argument (the fallback would have stat'ed a
+  nonexistent path); the brutal harness also learns the owner's
+  pro-native-gnu build dir as a zelynic-binary candidate.
+
 - **build: the embedded eBPF objects are 8-byte aligned by
   construction — the `error parsing ELF data` blocker with a HEALTHY
   artifact was the buffer's address, not its bytes (NIGHT-hunt-30)**

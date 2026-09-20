@@ -73,6 +73,7 @@ import shutil
 import socket
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 
@@ -222,7 +223,7 @@ class CgroupSet:
             cid = self._read_id(TEST_CGROUPS[0])
             if cid is None:
                 self._leave(TEST_CGROUPS[0])
-                raise OSError("cgroup.id unreadable")
+                raise OSError("cgroup id unresolvable (stat failed)")
             self.dedicated = True
             self.ids["a"] = cid
             self.paths["a"] = TEST_CGROUPS[0]
@@ -231,7 +232,7 @@ class CgroupSet:
                 self.paths[name] = path
                 c2 = self._read_id(path)
                 if c2 is None:
-                    raise OSError(f"cgroup.id unreadable for {path}")
+                    raise OSError(f"cgroup id unresolvable for {path}")
                 self.ids[name] = c2
             return f"dedicated fleet {TEST_CGROUPS[0]}..e"
         except OSError:
@@ -240,12 +241,12 @@ class CgroupSet:
         path = self._self_cgroup_path()
         if not path:
             raise RuntimeError(
-                "could not resolve a cgroup ID: cgroup v2 with the cgroup.id "
-                "file is required (kernel 5.13+)"
+                "could not resolve the session cgroup: /proc/self/cgroup has "
+                "no cgroup v2 (0::) line — a unified hierarchy is required"
             )
         cid = self._read_id(f"{CGROUP_ROOT}/{path}")
         if cid is None:
-            raise RuntimeError("cgroup.id unreadable for the session cgroup")
+            raise RuntimeError("session cgroup id unresolvable (stat failed)")
         for name in CG_NAMES:
             self.ids[name] = cid
             self.paths[name] = f"{CGROUP_ROOT}/{path}"
@@ -256,10 +257,14 @@ class CgroupSet:
 
     @staticmethod
     def _read_id(path):
+        """The cgroup ID is the kernfs inode number — the same numbering
+        bpf_skb_cgroup_id() returns (kernfs publishes kn->id as st_ino).
+        No cgroup.id file exists in any mainline kernel (NIGHT-hunt-31);
+        this mirrors zelynic's own cgroup_id_from_path, truncated to the
+        u32 the BPF maps key on."""
         try:
-            with open(f"{path}/cgroup.id") as f:
-                return int(f.read().strip()) & 0xFFFFFFFF
-        except (OSError, ValueError):
+            return os.stat(path).st_ino & 0xFFFFFFFF
+        except OSError:
             return None
 
     @staticmethod
@@ -683,7 +688,8 @@ def test_env():
         CGROUP_ROOT if cgroup2_mounted() else f"{CGROUP_ROOT} is not cgroup2fs",
     ) == "PASS" and ok
     ok = record(
-        "cgroup.id resolution (kernel 5.13+)", "PASS" if CG.ids.get("a") else "FAIL",
+        "cgroup ID resolution (kernfs inode)",
+        "PASS" if CG.ids.get("a") else "FAIL",
         f"cgroup id {CG.ids.get('a')}",
     ) == "PASS" and ok
     ok = record(
@@ -1192,6 +1198,23 @@ def self_test():
     out("zelynic brutal stress test — engine self-test (no root, no zelynic, no BPF)")
     start = time.perf_counter()
 
+    # NIGHT-hunt-31 pin: IDs resolve by stat(2) inode. The original
+    # engine read a phantom "cgroup.id" file and died on the first real
+    # machine it met — a decoy file must never win again.
+    probe = tempfile.mkdtemp(prefix="zelynic-brutal-selftest-")
+    try:
+        with open(os.path.join(probe, "cgroup.id"), "w") as f:
+            f.write("999999999\n")
+        got = CgroupSet._read_id(probe)
+        want = os.stat(probe).st_ino & 0xFFFFFFFF
+        record(
+            "engine: cgroup ID resolution (stat inode, decoy file ignored)",
+            "PASS" if got == want and got > 0 else "FAIL",
+            f"{got} vs stat inode {want}",
+        )
+    finally:
+        shutil.rmtree(probe, ignore_errors=True)
+
     def agree(name, client_bytes, server_bytes):
         ratio = client_bytes / server_bytes if server_bytes else 0.0
         return record(
@@ -1257,7 +1280,7 @@ def resolve_binary(explicit):
     found = shutil.which("zelynic")
     if found:
         candidates.append(found)
-    candidates += ["./zelynic", "./target/release/zelynic"]
+    candidates += ["./zelynic", "./target/release/zelynic", "./target/pro-native-gnu/zelynic"]
     for cand in candidates:
         if cand and os.path.isfile(cand) and os.access(cand, os.X_OK):
             BINARY = cand

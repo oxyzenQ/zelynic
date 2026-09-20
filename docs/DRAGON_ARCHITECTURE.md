@@ -109,7 +109,8 @@ above it works with Rust types.
 ### Layer 2 — Identity Resolution (userspace)
 
 BPF returns raw cgroup IDs (`cg:73386`). Humans need `cg:73386 (firefox)`.
-This layer walks `/proc/*/cgroup` + `/sys/fs/cgroup{path}/cgroup.id` to build
+This layer walks `/proc/*/cgroup` + `stat(2)` on `/sys/fs/cgroup{path}`
+(the kernfs inode IS the cgroup ID) to build
 a reverse map: cgroup ID → `ProcessIdentity { pid, uid, comm, cgroup_path }`.
 
 The representative name per cgroup is chosen by MAJORITY VOTE

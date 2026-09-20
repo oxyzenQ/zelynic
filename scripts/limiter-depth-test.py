@@ -39,7 +39,7 @@ Usage:
   ZELYNIC_BINARY=./zelynic sudo -E ./scripts/limiter-depth-test.sh
 
 What it verifies (verdicts PASS / FAIL / SKIP, exit 1 on any FAIL):
-  env      cgroup v2, cgroup.id, BPF fs, binary, doctor eBPF support
+  env      cgroup v2, cgroup ID resolution, BPF fs, binary, doctor eBPF support
   baseline unlimited loopback throughput (the measurement ceiling)
   policy   strict-single writes the exact policy (status JSON fields)
   rate     enforced download rate at 100kb / 1mb / 10mb (adaptive skip)
@@ -229,14 +229,16 @@ class TestCgroup:
                 self.path = TEST_CGROUP
                 self.id = cgid
                 return "dedicated cgroup " + TEST_CGROUP
-            # cgroup.id unreadable: undo and fall through to fallback.
+            # cgroup id unresolvable: undo and fall through to fallback.
             self._leave_dedicated()
         except OSError:
             pass
         # Fallback: resolve the cgroup this process already lives in.
         path = self._self_cgroup_path()
         if path:
-            cgid = self._read_id(os.path.join(CGROUP_ROOT, path))
+            # path is absolute (leading /) — os.path.join would DISCARD
+            # CGROUP_ROOT on an absolute second argument (NIGHT-hunt-31).
+            cgid = self._read_id(CGROUP_ROOT + path)
             if cgid is not None:
                 self.dedicated = False
                 self.path = path
@@ -246,8 +248,8 @@ class TestCgroup:
                     "unrelated session traffic joins the counters)".format(path)
                 )
         raise RuntimeError(
-            "could not resolve a cgroup ID: cgroup v2 with the cgroup.id "
-            "file is required (kernel 5.13+)"
+            "could not resolve a cgroup ID: no cgroup v2 (0::) line for this "
+            "process, or stat(2) failed on its cgroup directory"
         )
 
     def _absorb_leftover(self):
@@ -287,10 +289,13 @@ class TestCgroup:
 
     @staticmethod
     def _read_id(path):
+        # The kernfs inode IS the cgroup ID (bpf_skb_cgroup_id returns
+        # kn->id, published as st_ino) — no cgroup.id file exists in any
+        # mainline kernel (NIGHT-hunt-31). Mirrors zelynic's
+        # cgroup_id_from_path, truncated to the BPF map's u32 key.
         try:
-            with open(os.path.join(path, "cgroup.id")) as f:
-                return int(f.read().strip()) & 0xFFFFFFFF
-        except (OSError, ValueError):
+            return os.stat(path).st_ino & 0xFFFFFFFF
+        except OSError:
             return None
 
     @staticmethod
@@ -509,9 +514,9 @@ def test_env():
         "cgroup v2 unified hierarchy", "PASS" if cgroup2_mounted() else "FAIL",
         CGROUP_ROOT if cgroup2_mounted() else f"{CGROUP_ROOT} is not cgroup2fs",
     ) == "PASS" and ok
-    has_id_file = os.path.exists(os.path.join(CG.path if CG.dedicated else CGROUP_ROOT, "cgroup.id")) or CG.id is not None
     ok = record(
-        "cgroup.id resolution (kernel 5.13+)", "PASS" if has_id_file else "FAIL",
+        "cgroup ID resolution (kernfs inode)",
+        "PASS" if CG.id is not None else "FAIL",
         f"cgroup id {CG.id}",
     ) == "PASS" and ok
     ok = record(

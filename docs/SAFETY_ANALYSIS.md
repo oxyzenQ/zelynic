@@ -49,7 +49,7 @@ that:
 | `/proc/*/comm` | Read | Process name for target resolution |
 | `/proc/*/cgroup` | Read | Cgroup path for target resolution |
 | `/proc/*/status` | Read | UID for identity display |
-| `/sys/fs/cgroup/*` | Read | `cgroup.id` file for ID resolution |
+| `/sys/fs/cgroup/*` | Read | `stat(2)` inode for cgroup ID resolution |
 | `/sys/fs/cgroup` | Read | Attach BPF programs |
 | `/sys/fs/bpf/zelynic/*` | Read/Write | Pinned BPF programs, links, maps |
 | `/tmp/zelynic.pid` | Remove-only | Hygiene: never written by the current line; removed if left by an old install |

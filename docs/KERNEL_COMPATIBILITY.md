@@ -9,7 +9,7 @@
 
 | Component | Minimum | Recommended | Why |
 |-----------|---------|-------------|-----|
-| **Kernel** | 5.13+ | 6.6 LTS+ | `cgroup.id` file (5.13+), `bpf_skb_cgroup_id()` (4.18+), `bpf_link` (5.7+) |
+| **Kernel** | 5.13+ | 6.6 LTS+ | `bpf_skb_cgroup_id()` (4.18+), `bpf_link` (5.7+), observer events ringbuf (5.8+) — 5.13 is the oldest kernel in the verified matrix |
 | **cgroup** | v2 only | v2 only | zelynic uses `cgroup_skb/egress` + `ingress` hooks |
 | **BPF fs** | Mounted at `/sys/fs/bpf` | Mounted | Required for map + link pinning (fire-and-forget mode) |
 | **Root** | Required | Required | BPF program load + attach requires `CAP_BPF` or root |
@@ -23,10 +23,13 @@ Returns the cgroup ID of the **socket owner** (not current task). This is critic
 for correct attribution — TCP packets are processed in softirq context, not the
 originating process. Available since kernel 4.18 (2018).
 
-### `cgroup.id` file — kernel 5.13+
-File at `/sys/fs/cgroup{path}/cgroup.id` containing the 64-bit cgroup ID.
-Used by `IdentityMap` to resolve cgroup paths to IDs for display purposes.
-On older kernels, falls back to `stat()` inode (less reliable).
+### Cgroup ID resolution — `stat(2)` inode (every cgroup v2 kernel)
+There is no `cgroup.id` file in any mainline kernel (NIGHT-hunt-31
+removed that phantom from the resolver and both test harnesses). The
+cgroup ID is the kernfs inode number of the cgroup directory:
+`bpf_skb_cgroup_id()` returns `cgrp->kn->id`, and kernfs publishes that
+same node id as `st_ino` — so `stat(2)` is the whole resolution, and it
+is the numbering every verified kernel in the matrix ran on.
 
 ### `bpf_link_create` + `BPF_OBJ_PIN` — kernel 5.7+
 zelynic uses `bpf_link` (fd-based attachment) instead of legacy
@@ -101,8 +104,9 @@ Check: `stat -fc %T /sys/fs/cgroup` should return `cgroup2fs`.
 ## Known Limitations
 
 1. **cgroup v1 systems**: Not supported. zelynic will error on attach.
-2. **Kernel < 5.13**: `cgroup.id` file missing. Identity resolution falls back
-   to `stat()` inode, which may not match BPF cgroup ID on all systems.
+2. **Kernel < 5.8**: no observer events ringbuf (5.8+) — and `bpf_link`
+   itself needs 5.7+. Kernels below 5.13 are outside the verified matrix
+   (5.13 is the oldest kernel tested).
 3. **No BPF fs mounted**: Fire-and-forget mode (pin maps) will fail.
    Fix: `sudo mount -t bpf bpf /sys/fs/bpf`
 4. **Non-root**: BPF operations require root. Use `sudo`.

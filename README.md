@@ -88,7 +88,7 @@ before relying on a limit.
 
 ### Requirements
 
-- Linux kernel 5.13+ (cgroup v2 + `cgroup.id` file + bpf_link support)
+- Linux kernel 5.13+ (cgroup v2 + `bpf_link` support; the hard floor is 5.8, and 5.13 is the oldest verified kernel — docs/KERNEL_COMPATIBILITY.md)
 - Root access (BPF requires `CAP_BPF`)
 - Python 3 for the test/benchmark scripts (stdlib only)
 

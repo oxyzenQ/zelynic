@@ -14,7 +14,8 @@ the build process, project structure, and coding standards.
   damaged toolchain install; `--check` reports status only). The BPF
   side is pure Rust and compiles on the dated
   nightly pinned in `ebpf/rust-toolchain.toml`
-- Linux kernel 5.13+ (cgroup v2 + cgroup.id file)
+- Linux kernel 5.13+ (cgroup v2 + bpf_link; hard floor 5.8 — see
+  docs/KERNEL_COMPATIBILITY.md)
 
 ## Build
 

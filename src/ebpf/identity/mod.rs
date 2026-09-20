@@ -29,7 +29,6 @@
 use std::collections::HashMap;
 use std::fs;
 use std::os::unix::fs::MetadataExt;
-use std::path::Path;
 use std::time::{Duration, Instant};
 
 mod sanitize;
@@ -101,7 +100,8 @@ impl IdentityMap {
     ///
     /// For each live PID:
     /// 1. Read `/proc/<pid>/cgroup` → cgroup path (v2 format: `0::/path`)
-    /// 2. Read `/sys/fs/cgroup{path}/cgroup.id` → 64-bit cgroup ID
+    /// 2. `stat()` `/sys/fs/cgroup{path}` → the kernfs inode IS the
+    ///    64-bit cgroup ID
     /// 3. Truncate to u32 to match BPF map key
     /// 4. Read `/proc/<pid>/comm` → process name (tallied per cgroup)
     /// 5. Read `/proc/<pid>/status` → uid
@@ -299,29 +299,16 @@ pub fn pid_comm(pid: u32) -> Option<String> {
 
 /// Resolve a 64-bit cgroup ID from a cgroup v2 path.
 ///
-/// Strategy:
-/// 1. Try `/sys/fs/cgroup{path}/cgroup.id` file (kernel 5.13+).
-/// 2. Fall back to `stat()` inode number (works on older kernels, but the
-///    inode is NOT guaranteed to equal the BPF cgroup ID — use with caution).
-///
-/// On the user's system (kernel 6.18), the cgroup.id file is authoritative.
+/// The kernfs inode number IS the cgroup ID: `bpf_skb_cgroup_id()`
+/// returns `cgrp->kn->id`, and kernfs publishes that same node id as
+/// the directory's `st_ino` — `stat(2)` is the whole resolution, and it
+/// is the numbering every kernel in the verified cross-distro matrix
+/// ran on. (NIGHT-hunt-31: the "cgroup.id file" this resolver once
+/// tried first never existed in any mainline kernel — the stat path
+/// below was the one that always worked, so the phantom file read is
+/// gone.)
 fn cgroup_id_from_path(path: &str) -> Option<u64> {
-    // Method 1: read cgroup.id file (authoritative for cgroup v2, kernel 5.13+).
-    let id_file = Path::new(path).join("cgroup.id");
-    if let Ok(id_str) = fs::read_to_string(&id_file) {
-        if let Ok(id) = id_str.trim().parse::<u64>() {
-            return Some(id);
-        }
-    }
-
-    // Method 2: stat() fallback. For cgroup v2 on modern kernels, the inode
-    // number IS the cgroup ID — but this is an implementation detail. Use
-    // only when cgroup.id file is unavailable.
-    if let Ok(meta) = fs::metadata(path) {
-        return Some(meta.ino());
-    }
-
-    None
+    fs::metadata(path).ok().map(|meta| meta.ino())
 }
 
 #[cfg(test)]
@@ -445,5 +432,32 @@ mod tests {
 
         let all = map.all();
         assert_eq!(all.len(), 2);
+    }
+
+    #[test]
+    fn test_cgroup_id_from_path_is_the_inode() {
+        // NIGHT-hunt-31: the resolver is stat(2), nothing else.
+        let dir = std::env::temp_dir().join("zelynic-h31-inode");
+        fs::create_dir_all(&dir).unwrap();
+        let ino = fs::metadata(&dir).unwrap().ino();
+        assert_eq!(cgroup_id_from_path(dir.to_str().unwrap()), Some(ino));
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_cgroup_id_from_path_ignores_decoy_cgroup_id_file() {
+        // NIGHT-hunt-31 pin: a decoy cgroup.id file must never override
+        // the kernel's numbering — the file does not exist in mainline.
+        let dir = std::env::temp_dir().join("zelynic-h31-decoy");
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join("cgroup.id"), "999999999\n").unwrap();
+        let ino = fs::metadata(&dir).unwrap().ino();
+        assert_eq!(cgroup_id_from_path(dir.to_str().unwrap()), Some(ino));
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_cgroup_id_from_path_missing_dir_is_none() {
+        assert_eq!(cgroup_id_from_path("/nonexistent-zelynic-h31"), None);
     }
 }
