@@ -42,6 +42,51 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Changed
 
+- **monitor: the Shift+click hole is closed — a 100 ms selection
+  guard rewrites the whole frame, so no terminal-side selection
+  outlives one beat (NIGHT-improve-8)** — improve-7's pointer
+  takeover left exactly one copy path open, the one the owner then
+  hit: every mainstream terminal hands Shift-modified clicks to its
+  own selection machinery, and no escape sequence can switch that
+  off. The counter-physics is what `watch` has always relied on: a
+  terminal clears a selection the moment its cells are rewritten.
+  The monitor loop now runs a selection guard — on the TTY path
+  only, never the pipe fallback (a pipe has no selection machinery,
+  and the beats would only flood the benchmark harness and CI) —
+  re-emitting the whole frame every 100 ms via
+  `DiffScreen::force_repaint`: the shadow flipped back out plus
+  `ever_drawn = false`, so the beat rides the exact same tested
+  reset emission path a resize takes (HOME + erase-below + every
+  row — which also erases below a short frame, killing selections
+  there too). The beat is always WHOLE-frame on purpose: a partial
+  rewrite would leave the unrewritten rows selectable, the owner's
+  literal complaint ("still can copy some text"). The loop scheduler
+  is a pure function (`next_beat`) so the contract pins hold it: a
+  due render outranks a due guard (fresh content is also the
+  strongest selection killer), the guard clock never resets on a
+  render (a diff-only frame leaves the unchanged rows untouched —
+  exactly the cells that must still die), and the beat value itself
+  (100 ms — under the fastest deliberate human select-then-copy
+  round trip of ~200 ms) is pinned like the ALT_ENTER bytes. Cost,
+  quantified by the new diff pins: one whole-frame reset emission
+  per beat (~1.4 KB on the classic 80x24 frame, ~14 KB/s while the
+  box is live at 10 beats/s), zero effect on the render path (the
+  A/B below). Honest physics boundaries, documented in USAGE and
+  the module contract, not hidden: an X11-style terminal that
+  mirrors a COMPLETED selection into the PRIMARY clipboard at
+  button release can still catch what re-accumulates after the last
+  beat, and a Select All + Copy fired inside a single beat lands
+  before the next rewrite — both terminal-side, beyond any Linux
+  application's reach. Verified: 164 unit + 23 integration green
+  (8 new pins: six over the guard repaint engine — idle-path
+  defeat, byte-identical reset stream, shadow-contract involution,
+  beat idempotence, never-drawn no-op, tall-regime no-scroll — plus
+  the beat value and the scheduler ordering; the six engine pins
+  live in their own test/terminal/guard_tests.rs, #[path]-wired
+  beside diff_tests after the block pushed that file past the
+  500-LOC cap — one file per contract), gate-keepers 15/15,
+  build.sh check-all green.
+
 - **ebpf: observer counter maps raised 256 -> 1024 — the pure-Rust
   flagship's server-LTS audit (NIGHT-improve-8)** — the owner called
   the post-368c570 pure-Rust eBPF line peak-grade and asked for a

@@ -29,15 +29,25 @@
 //!    `ESC[?1015h` (legacy mouse encodings), `ESC[?1004h` (focus
 //!    reporting), or `ESC[?2004h` (bracketed paste) anywhere in the
 //!    shipped source fails this test with the file and mode listed.
+//! 3. NIGHT-improve-8 selection-guard pins: the guard beat value and
+//!    the loop scheduler (`next_beat`) — mouse tracking cannot reach
+//!    the terminal's Shift+click bypass, so the loop re-emits the
+//!    whole frame on the beat and no selection can outlive it; the
+//!    scheduler pins hold the ordering (render outranks guard, the
+//!    guard clock never resets on a render, the non-TTY fallback
+//!    never guards).
 //!
 //! Why this matters: dropping the mouse modes would re-expose the
 //! monitor's private rows to plain click-drag selection; adding an
 //! unlisted mode would take over a terminal capability the monitor
-//! does not need. The owner rule is exactly the five modes, no more,
-//! no less.
+//! does not need; stretching or dropping the guard beat would let a
+//! terminal-side Shift+click selection survive long enough to copy.
+//! The owner rule is exactly the five modes, no more, no less, and
+//! a beat no selection outlives.
 
-use super::{ALT_ENTER, ALT_EXIT};
+use super::{next_beat, Beat, ALT_ENTER, ALT_EXIT, SELECTION_GUARD_BEAT};
 use std::path::{Path, PathBuf};
+use std::time::{Duration, Instant};
 
 /// The exact enter bytes: alternate screen on, cursor hidden, mouse
 /// tracking on (1000/1002/1006 — NIGHT-improve-7). Any delta here is a
@@ -207,4 +217,79 @@ fn scan_source_file(path: &Path, offenders: &mut Vec<String>) {
             i += 1;
         }
     }
+}
+
+/// NIGHT-improve-8: the selection-guard beat value is the contract —
+/// "no selection outlives one beat" is only as strong as the beat
+/// is short. 100 ms sits under the fastest deliberate human
+/// select-then-copy round trip (double-click plus an immediate
+/// Ctrl+Shift+C lands around 200 ms) while costing one whole-frame
+/// rewrite per beat (~1.4 KB on the classic 80x24 frame).
+#[test]
+fn selection_guard_beat_pinned() {
+    assert_eq!(SELECTION_GUARD_BEAT, Duration::from_millis(100));
+}
+
+/// The loop scheduler contract (NIGHT-improve-8): a due render
+/// outranks a due guard (fresh content is also the strongest
+/// selection killer), the guard fires on its own clock between
+/// renders (a diff-only render never resets it — unchanged rows
+/// stay selectable, the hole the guard closes), and the non-TTY
+/// fallback never guards (a pipe has no selection machinery; the
+/// beats would only flood it).
+#[test]
+fn next_beat_orders_render_guard_sleep() {
+    let refresh = Duration::from_secs(1);
+    let now = Instant::now();
+
+    // Fresh loop: the first frame is due immediately.
+    assert!(matches!(
+        next_beat(now - refresh - Duration::from_millis(1), now, refresh, true),
+        Beat::Render
+    ));
+
+    // Mid-interval, beat not yet due: sleep.
+    assert!(matches!(
+        next_beat(
+            now - Duration::from_millis(500),
+            now - SELECTION_GUARD_BEAT + Duration::from_millis(20),
+            refresh,
+            true
+        ),
+        Beat::Sleep
+    ));
+
+    // Mid-interval, beat due: guard.
+    assert!(matches!(
+        next_beat(
+            now - Duration::from_millis(500),
+            now - SELECTION_GUARD_BEAT,
+            refresh,
+            true
+        ),
+        Beat::Guard
+    ));
+
+    // Both due: render wins.
+    assert!(matches!(
+        next_beat(
+            now - refresh,
+            now - SELECTION_GUARD_BEAT - Duration::from_millis(50),
+            refresh,
+            true
+        ),
+        Beat::Render
+    ));
+
+    // Non-TTY fallback: the guard clock can be far past due and
+    // the beat still never fires.
+    assert!(matches!(
+        next_beat(
+            now - Duration::from_millis(500),
+            now - Duration::from_secs(10),
+            refresh,
+            false
+        ),
+        Beat::Sleep
+    ));
 }
