@@ -152,6 +152,49 @@ alone — the owner's NIGHT-hunt-18 call.
   `observe` works without bpffs, giving a natural diagnostic split:
   observe works + strict fails = the pin filesystem is missing.
 
+- **bootstrap: a damaged nightly toolchain is now repaired, not
+  merely diagnosed (NIGHT-hunt-27)** — the owner's terminal showed
+  the exact hole: bootstrap-ebpf.sh reported the pin as "not fully
+  installed", tried `rustup component add`, and died on rustup's raw
+  `error: missing manifest in toolchain 'nightly-2026-09-18-
+  x86_64-unknown-linux-gnu'` with advice ("try reinstalling") that
+  landed as a manual to-do. An interrupted install (Ctrl-C, power
+  loss, full disk) leaves the toolchain directory registered while
+  its manifests are gone — the pin stays LISTED, and
+  `rustup run ... rustc` still succeeds because the binaries are
+  intact, so the old probe said "listed" and the old script then
+  walked straight into the component wall. The component enumeration
+  is now the damage detector (it is the exact operation that fails):
+  a listed-but-unenumerable pin is reported as "LISTED but DAMAGED",
+  then removed and reinstalled from scratch automatically — every
+  step announced, no manual rustup commands, and a reinstall that
+  itself dies midway leaves a state the next run repairs again (the
+  re-probe failure message says so). build.rs's preflight had the
+  same blind spot one layer down: it verified the pin was listed but
+  would have let a damaged one through, failing deep inside the
+  nested nightly build as raw rustup or compiler errors far from
+  the cause — it now runs the same manifest probe (a local metadata
+  read, tens of milliseconds, only on the ebpf-feature path) and
+  panics with the exact state and the same one-command repair
+  before any compile time is spent. Verified: the damaged state
+  reproduced deterministically against real rustup 1.29.1 (manifests
+  deleted from the installed pin — byte-for-byte the owner's error
+  text); a six-scenario functional matrix all green — fresh
+  install, damaged → self-heal (including a heal run killed
+  mid-reinstall that the next run finished from the resumed
+  download), idempotent healthy re-run, --check on damaged exiting 1
+  with nothing changed, --check on healthy exiting 0, and the
+  component-add-only path untouched; the standalone build.rs suite
+  (5 tests) plus a new ignored hermetic test that fakes a
+  manifest-less RUSTUP_HOME and asserts the detector fires against
+  real rustup; and a real `cargo check --features ebpf` on the
+  damaged pin panicking with the new message in milliseconds, with
+  the healed rerun passing the manifests probe and stopping exactly
+  at the deliberately absent bpf-linker check.
+
+  Benchmark: skipped — host tooling and preflight only; no
+  render-path or runtime code touched.
+
 ### Release Engineering
 
 - **ci: every runner pinned to ubuntu-24.04 — the ubuntu-latest label
@@ -197,50 +240,24 @@ alone — the owner's NIGHT-hunt-18 call.
   files. Codespell coverage of the era content is unchanged (the
   moved body was already codespell-clean in the active file).
 
-### Fixed
-
-- **bootstrap: a damaged nightly toolchain is now repaired, not
-  merely diagnosed (NIGHT-hunt-27)** — the owner's terminal showed
-  the exact hole: bootstrap-ebpf.sh reported the pin as "not fully
-  installed", tried `rustup component add`, and died on rustup's raw
-  `error: missing manifest in toolchain 'nightly-2026-09-18-
-  x86_64-unknown-linux-gnu'` with advice ("try reinstalling") that
-  landed as a manual to-do. An interrupted install (Ctrl-C, power
-  loss, full disk) leaves the toolchain directory registered while
-  its manifests are gone — the pin stays LISTED, and
-  `rustup run ... rustc` still succeeds because the binaries are
-  intact, so the old probe said "listed" and the old script then
-  walked straight into the component wall. The component enumeration
-  is now the damage detector (it is the exact operation that fails):
-  a listed-but-unenumerable pin is reported as "LISTED but DAMAGED",
-  then removed and reinstalled from scratch automatically — every
-  step announced, no manual rustup commands, and a reinstall that
-  itself dies midway leaves a state the next run repairs again (the
-  re-probe failure message says so). build.rs's preflight had the
-  same blind spot one layer down: it verified the pin was listed but
-  would have let a damaged one through, failing deep inside the
-  nested nightly build as raw rustup or compiler errors far from
-  the cause — it now runs the same manifest probe (a local metadata
-  read, tens of milliseconds, only on the ebpf-feature path) and
-  panics with the exact state and the same one-command repair
-  before any compile time is spent. Verified: the damaged state
-  reproduced deterministically against real rustup 1.29.1 (manifests
-  deleted from the installed pin — byte-for-byte the owner's error
-  text); a six-scenario functional matrix all green — fresh
-  install, damaged → self-heal (including a heal run killed
-  mid-reinstall that the next run finished from the resumed
-  download), idempotent healthy re-run, --check on damaged exiting 1
-  with nothing changed, --check on healthy exiting 0, and the
-  component-add-only path untouched; the standalone build.rs suite
-  (5 tests) plus a new ignored hermetic test that fakes a
-  manifest-less RUSTUP_HOME and asserts the detector fires against
-  real rustup; and a real `cargo check --features ebpf` on the
-  damaged pin panicking with the new message in milliseconds, with
-  the healed rerun passing the manifests probe and stopping exactly
-  at the deliberately absent bpf-linker check.
-
-  Benchmark: skipped — host tooling and preflight only; no
-  render-path or runtime code touched.
+- **docs: README flagship tidy — crypto donations moved from the
+  masthead to a dedicated Support section (NIGHT-docs-6)** — the
+  README opened with the raw three-address donation block at the
+  very top (masthead), which is placement no flagship project uses:
+  the reader meets wallet addresses before the first feature table.
+  Aligned with the cosmostrix (owner's reference flagship) layout:
+  the masthead keeps ONLY the Ko-fi badge; a `## Support` section
+  now sits in the reader flow just before Intellectual Property &
+  Trademark, carrying the maintainer line, the Ko-fi button, and
+  `### Crypto donations` in the owner-verified format (network
+  detail per asset, verification method prose, mismatch warning).
+  The IP section gained the flagship "NOT for sale" clause. En
+  passant: the `[Unreleased]` block had accumulated a duplicated
+  `### Fixed` heading (hunt-27's entry appended after `### Docs`
+  while hunt-30's sat in the first `### Fixed`) — the two sections
+  are merged, restoring one heading per category (Fixed →
+  Release Engineering → Docs). Benchmark: skipped — documentation
+  only, no render-path or runtime code touched.
 
 ## History
 
