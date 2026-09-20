@@ -16,6 +16,41 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Changed
 
+- **ebpf: observer counter maps raised 256 -> 1024 — the pure-Rust
+  flagship's server-LTS audit (NIGHT-improve-8)** — the owner called
+  the post-368c570 pure-Rust eBPF line peak-grade and asked for a
+  stability/LTS audit for "desktop Linux, even server use". The
+  deep audit verdict: the enforcement core is already at peak and
+  needs no rework — the token-bucket math is overflow-safe by
+  construction (the fill-detect branch bounds the exact-multiply
+  product to < 2 x burst x 1e9 <= 2e17 with the userspace burst
+  clamp at 100 MB; the fraction carry can never exceed one
+  NS_PER_SEC), apply paths are all-or-nothing with a rollback
+  ledger (NIGHT-hunt-20), the pin lifecycle predicate refuses
+  half-attached states (NIGHT-hunt-19), the lock is crash-proof
+  flock in a root-only directory, and schema migration is version-
+  stamped. The ONE real gap found: the observer's counter maps
+  held 256 entries per direction (the C twin's number, ported
+  line-for-line) while the limiter's policy maps hold 1024 — on
+  hosts with more than 256 live cgroups (Kubernetes nodes, systemd-
+  heavy servers, container hosts) the maps filled silently and
+  every further cgroup's traffic went UNCOUNTED: observe/top showed
+  nothing for it, because the insert-failure path in the BPF
+  program returns allow-and-skip. Fixed: both counter maps now
+  share COUNTER_MAP_MAX_ENTRIES = 1024, the limiter's capacity
+  class. The maps are unpinned and session-scoped (created fresh at
+  every observe/top run), so the raise carries no pin or schema
+  migration; kernel memory cost is 2 x 1024 x 24 B = 48 KiB per
+  observe session, freed on exit. Documented as the third
+  deliberate C-parity delta in docs/PURE_RUST_EVALUATION.md (the
+  frozen port-time bpftool dumps stay verbatim at 256) and as
+  honest limitation 11 in docs/USAGE.md. Deliberately NOT touched:
+  the limiter's pinned map capacities (1024 policies, 256 group
+  buckets) — those are pinned-map schema territory where a capacity
+  change would take effect only after unstrict-all and desync from
+  existing pins; a full map there already fails loudly with a full
+  rollback (NIGHT-hunt-20), which is the correct LTS behavior.
+
 - **monitor: box mode takes the pointer — copy/paste are disabled
   while observe/top run (NIGHT-improve-7)** — the owner reversed the
   NIGHT-strict-1 mouse clause: box mode is a live dashboard of

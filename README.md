@@ -296,7 +296,7 @@ visible at discovery time.
 ## Limitations (honest)
 
 zelynic is deliberately small and stateless. These are real behaviors,
-not bugs — the full ten-item list with examples lives in
+not bugs — the full eleven-item list with examples lives in
 [USAGE.md](docs/USAGE.md#honest-limitations--read-this):
 
 - **Rules are a snapshot, not a subscription.** Limits apply to the

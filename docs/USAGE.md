@@ -402,6 +402,14 @@ Removed surfaces (`man`, `completions`, `unblock`, `-i/--info`,
 `--live`, `--duration`, `--help-all`) exit with a usage error on
 purpose — `--help` is the single reference.
 
+**11. observe/top track at most 1024 distinct cgroups.**
+The monitor's counter maps hold 1024 entries per direction (raised
+from the port-time 256 in NIGHT-improve-8: Kubernetes nodes,
+systemd-heavy servers, and container hosts can exceed 256 live
+cgroups, and a full map silently stopped counting new cgroups).
+A host with more live cgroups than 1024 shows only the first 1024
+in the monitor rows.
+
 ---
 
 ## Troubleshooting

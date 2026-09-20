@@ -9,11 +9,13 @@
 // ELF contract with src/ebpf/loader.rs is identical (names, sections,
 // map types, struct layouts, GPL license) -- the verification
 // harness output and the full contract table live in
-// docs/PURE_RUST_EVALUATION.md. Two deliberate behavioral deltas are
-// documented there: ctx.load (bpf_skb_load_bytes) parses non-linear
-// skbs the C direct-access path silently skips, and the ingress
-// insert result is ignored exactly like the C twin (commented here
-// so a swallow audit finds the rationale in place).
+// docs/PURE_RUST_EVALUATION.md. Three deliberate behavioral deltas
+// are documented there: ctx.load (bpf_skb_load_bytes) parses
+// non-linear skbs the C direct-access path silently skips, the
+// ingress insert result is ignored exactly like the C twin (commented
+// here so a swallow audit finds the rationale in place), and the
+// counter map capacity is 1024 entries instead of the C twin's 256
+// (NIGHT-improve-8: server LTS — see COUNTER_MAP_MAX_ENTRIES below).
 //
 // Build: cd ebpf && cargo +nightly build --release
 
@@ -105,13 +107,31 @@ const _: () = assert!(core::mem::size_of::<PortsHeader>() == 4);
 // reason.
 // ---------------------------------------------------------------------------
 
-#[allow(non_upper_case_globals)]
-#[map]
-static cgroup_counters: HashMap<u32, CgroupStats> = HashMap::with_max_entries(256, 0);
+/// Counter map capacity, shared by both directions' maps.
+///
+/// NIGHT-improve-8 (server LTS): raised from the C twin's 256 to
+/// 1024, the limiter's policy-map capacity class. On hosts with more
+/// than 256 live cgroups — Kubernetes nodes, systemd-heavy servers,
+// container hosts — the 256-entry maps filled silently and every
+/// further cgroup's traffic went UNCOUNTED (observe/top showed
+/// nothing for it; the insert failure path returns allow-and-skip).
+/// The owner rule is "desktop Linux, even server use": a monitor
+/// that quietly under-reports on exactly the hosts with the most
+/// cgroups is a stability hole, not a footnote. These maps are
+/// unpinned and session-scoped (created fresh at every observe/top
+/// run), so the raise carries no pin or schema migration; kernel
+/// memory cost is 2 x 1024 x 24 B = 48 KiB for a session.
+const COUNTER_MAP_MAX_ENTRIES: u32 = 1024;
 
 #[allow(non_upper_case_globals)]
 #[map]
-static cgroup_counters_ingress: HashMap<u32, CgroupStats> = HashMap::with_max_entries(256, 0);
+static cgroup_counters: HashMap<u32, CgroupStats> =
+    HashMap::with_max_entries(COUNTER_MAP_MAX_ENTRIES, 0);
+
+#[allow(non_upper_case_globals)]
+#[map]
+static cgroup_counters_ingress: HashMap<u32, CgroupStats> =
+    HashMap::with_max_entries(COUNTER_MAP_MAX_ENTRIES, 0);
 
 /// Ring buffer, 2 MB for high traffic bursts. Written by this program,
 /// never read by zelynic userspace (see the hunt finding in
