@@ -24,7 +24,11 @@ the build process, project structure, and coding standards.
 cargo build --release --features ebpf
 
 # Native-CPU host builds (cosmostrix pro-native lineage; see README
-# "Native-CPU host builds" for the full contract)
+# "Native-CPU host builds" for the full contract). The alias-injected
+# `-C target-cpu=native` tunes the HOST binary only — build.rs strips
+# it (and any other host-CPU/linker rustflags) from the nested eBPF
+# build's environment, so a bpfel object never sees a host CPU name
+# (NIGHT-hunt-28).
 cargo pro-native-gnu    # host CPU, dynamic (glibc)
 cargo pro-native-musl   # host CPU, static (musl)
 ```

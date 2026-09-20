@@ -243,7 +243,10 @@ zelynic doctor [--print-json]
 
 Reports kernel version, cgroup v2 layout, BPF filesystem, pin state,
 and whether your machine can run zelynic. Run this first on a new
-distro.
+distro. The BPF-filesystem check verifies that `/sys/fs/bpf` is a
+real mounted bpf filesystem (statfs), not merely a directory that
+happens to exist (NIGHT-hunt-28) — the kernel creates that directory
+on every system, so existence alone says nothing.
 
 ---
 
@@ -411,6 +414,9 @@ purpose — `--help` is the single reference.
 | `Invalid rate '1MB'` (with a tip) | Units are lowercase. The tip suggests the fix (`1mb`). |
 | `Invalid interval '90s'` | Refresh interval must be 1s..60s. |
 | `Stale BPF pin files detected` | A previous run was killed mid-operation. Run `sudo zelynic recover`, then re-apply limits. |
+| `Failed to load BPF object` with `caused by:` lines under it | Every runtime error now prints its full cause chain (NIGHT-hunt-28) — read the `caused by:` lines: they name the exact map, syscall, and errno (e.g. `failed to create map 'X' with code -22`). If the chain ends in a pin/EINVAL shape instead, it is the mount below. |
+| `/sys/fs/bpf is not a mounted bpf filesystem` | The limiter pins its maps under `/sys/fs/bpf/zelynic`, and pinning needs a real bpffs mount — a directory merely existing there is not enough (the kernel always creates it; some distros never mount bpffs on it). Fix: `sudo mount -t bpf bpf /sys/fs/bpf`, made permanent via fstab or a systemd mount unit. Note `observe` needs no bpffs (its maps are unpinned) — if observe works but strict/limit fail, this is exactly it. |
+| `invalid CPU znver3` (or any CPU name) from bpf-linker during `cargo pro-native-gnu` | Fixed (NIGHT-hunt-28): the alias's `-C target-cpu=native` used to leak into the nested eBPF build and reach bpf-linker as `--cpu <host-cpu>`, which it rejects. build.rs now strips host-CPU and host-linker rustflags from the nested build's environment; the aliases work on any host CPU. |
 | `the pinned nightly toolchain ... is not installed` / `bpf-linker is not on PATH` (build time) | One command fixes both: `./scripts/bootstrap-ebpf.sh` (NIGHT-host-1). If bpf-linker already sits in `~/.local/bin`, put that directory on PATH. `the pure-Rust eBPF build failed with prerequisites present` is a real compile error — read the nested cargo output above it. The old "BPF object file not found" error class is gone (objects are embedded). |
 | `bootstrap-ebpf.sh` looks stuck on the bpf-linker download | It is the one big fetch (~100 MB) and can take minutes on slow links. On a terminal the script shows a live progress bar for exactly this step (NIGHT-hunt-24); piped/logged runs stay quiet. Killing it mid-download is safe — re-running skips whatever already finished. |
 | `error: missing manifest in toolchain 'nightly-...'` from rustup, or a build dying inside rustup commands | The dated nightly install is damaged — an interrupted `rustup toolchain install` (Ctrl-C, power loss, full disk) leaves the toolchain listed while its manifests are gone, so every component operation fails even though `rustc` itself still runs (which is why it slips past naive checks). Fix: run `./scripts/bootstrap-ebpf.sh` again — it detects the damaged state, removes the toolchain, and reinstalls it from scratch, no manual rustup commands (NIGHT-hunt-27); the build.rs preflight names this exact state with the same one-command repair. |

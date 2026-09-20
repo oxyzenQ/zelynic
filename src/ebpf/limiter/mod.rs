@@ -151,6 +151,29 @@ impl Limiter {
             eprintln_safe!("[limiter] Loading embedded BPF limiter object");
         }
 
+        // NIGHT-hunt-28: preflight the pin filesystem BEFORE any pin
+        // attempt. The limiter pins all nine maps by name, and a
+        // /sys/fs/bpf that exists but is not a mounted bpf filesystem
+        // (the kernel always creates the directory; some distros never
+        // mount bpffs on it) turns every BPF_OBJ_PIN into EINVAL deep
+        // inside EbpfLoader::load — a generic "Failed to load BPF
+        // object" far from any hint, the exact blind spot the owner's
+        // first Dragon run hit. Naming the mount fix here turns that
+        // dead end into a one-command repair. (The observer is
+        // deliberately NOT gated: its maps are unpinned, so observe
+        // works without bpffs — which also gives a natural diagnostic
+        // split: observe works + strict fails = pin filesystem.)
+        if !crate::capabilities::bpffs_mounted_at("/sys/fs/bpf") {
+            bail!(
+                "/sys/fs/bpf is not a mounted bpf filesystem — the limiter pins \
+                 its maps there so limits survive process exit, and every pin \
+                 would fail (EINVAL) deep inside the object load\n  \
+                 tip: sudo mount -t bpf bpf /sys/fs/bpf\n  \
+                 tip: make it permanent with an fstab entry or a systemd mount \
+                 unit — pins are wiped at boot unless the mount is"
+            );
+        }
+
         // Create pin directory BEFORE load so maps with LIBBPF_PIN_BY_NAME
         // can be auto-pinned by EbpfLoader.
         std::fs::create_dir_all(PIN_DIR)?;
