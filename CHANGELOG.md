@@ -16,6 +16,40 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Fixed
 
+- **build: a damaged eBPF object is now detected and self-healed
+  before it can ride into the binary (NIGHT-hunt-29)** — the
+  2026-09-20 test session's `error parsing BPF object: error parsing
+  ELF data` was a bpfel artifact damaged ON DISK after cargo had
+  marked its build unit fresh (cargo's freshness is
+  fingerprint-plus-existence, never output integrity — a truncated or
+  partially written file stays "fresh" forever). The old staging
+  check tested only the ELF magic, which a truncated file keeps (the
+  header lives in the first 64 bytes), so the corpse was staged into
+  OUT_DIR, embedded via include_bytes!, and died at load time on the
+  user host, far from the cause — identical on a fresh build and an
+  old one, because both embedded the same damaged artifact file.
+  Reproduced end to end in a sandbox (a 1000-byte prefix of the
+  5624-byte limiter, parsed by the exact aya 0.13.1 userspace pair,
+  reproduces the owner's error character for character). build.rs now
+  structurally validates both objects — ELF64/LSB/ET_REL/EM_BPF
+  identity, the section header table inside the file (bpf-linker
+  places it LAST, which makes this the truncation killer), every
+  non-NOBITS section's span inside the file, and the section name
+  string table index in range — and when validation fails, it
+  self-heals instead of failing the build: every on-disk copy of the
+  damaged object is deleted and the nested build is re-run once,
+  forcing a real relink. Both copies matter (cargo 1.98 layout): the
+  published `release/<name>` file is a HARDLINK of the canonical
+  `build/zelynic-ebpf/<hash>/out/<name>` unit output — they share one
+  inode, so damage through either name corrupts both, and deleting
+  only the published name lets cargo see the canonical copy intact,
+  declare the unit fresh, and silently re-publish the corpse (verified
+  live: a 0.05s "Finished" with the damaged file resurrected, mtime
+  untouched; only a missing canonical copy forces the relink). The
+  repair is visible as a `cargo:warning` naming the exact structural
+  violation; an object still damaged after the forced rebuild panics
+  with both violation reports and the bpf-linker reinstall hint.
+
 - **build: host-CPU rustflags no longer poison the nested eBPF build
   — `cargo pro-native-gnu` works on any host CPU (NIGHT-hunt-28)** —
   the aliases inject `-C target-cpu=native` via `--config
