@@ -97,7 +97,8 @@ Build verification only:
   - GeckoMain (Firefox) 100kb → 770 Kbps (96 KB/s = 96% accuracy)
   - GeckoMain (Firefox) 10kb → 72 Kbps (9 KB/s = 90% accuracy)
 - **Notes**: This is the **critical minimum kernel test**. Kernel 5.13 is
-  the absolute minimum (cgroup.id file available since 5.13). MUSL static
+  the absolute minimum of the verified matrix (the hard floor is the
+  observer's events ringbuf at 5.8+, and `bpf_link` at 5.7+). MUSL static
   binary solved glibc 2.34 vs 2.39 mismatch. Pre-compiled BPF objects from
   CI (compiled on Ubuntu 24.04) loaded successfully on kernel 5.13.
   No cargo, no clang, no rustup needed — just tarball + install.sh.

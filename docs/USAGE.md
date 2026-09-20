@@ -379,8 +379,10 @@ working entirely.
 policy choice.
 
 **7. Kernel 5.13+ with cgroup v2.**
-zelynic uses `cgroup.id` files and bpf_link. Run `zelynic doctor` on a
-new machine. Old distributions booting cgroup v1 cannot host zelynic.
+zelynic pins links via bpf_link and resolves cgroup IDs from the kernfs
+inode (the same numbering `bpf_skb_cgroup_id()` keys on). Run `zelynic
+doctor` on a new machine. Old distributions booting cgroup v1 cannot
+host zelynic.
 
 **8. One enforcement-changing operation at a time.**
 A non-blocking file lock (`flock` on `/run/zelynic/zelynic.lock`, inside a
