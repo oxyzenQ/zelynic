@@ -14,6 +14,62 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ## [Unreleased]
 
+### Fixed
+
+- **build: host-CPU rustflags no longer poison the nested eBPF build
+  — `cargo pro-native-gnu` works on any host CPU (NIGHT-hunt-28)** —
+  the aliases inject `-C target-cpu=native` via `--config
+  build.rustflags`, and cargo exports its resolved rustflags to build
+  scripts as `CARGO_ENCODED_RUSTFLAGS` (verified live on cargo
+  1.98.1). The nested bpfel build inherited them, and rustc forwarded
+  the resolved host CPU to bpf-linker as `--cpu znver3` — which
+  bpf-linker hard-rejects (`invalid CPU`), killing both objects at
+  the link step after ~4 minutes of compiling (reproduced on the
+  owner's Zen 3 host; plain `cargo build --release --features ebpf`
+  was unaffected because the root config's flags carry no host CPU).
+  build.rs now strips host-poison rustflags (`target-cpu=`,
+  `target-feature=`, `link-arg=` — the last also covers
+  build.sh's `-C link-arg=-fuse-ld=mold` fast-linker export, a
+  latent landmine on mold-equipped hosts) from both
+  `CARGO_ENCODED_RUSTFLAGS` and `RUSTFLAGS` before spawning the
+  nested build. Everything else survives byte-identically, so CI's
+  `RUSTFLAGS="-D warnings"` contract still covers the ebpf crate —
+  deliberately narrower than aya-build 0.2.0 upstream, which replaces
+  the variable wholesale and discards the inherited contract. Clean
+  values pass through untouched, which also preserves the nested
+  build's artifact cache (the ebpf tree did not recompile after the
+  change). Verified: the exact alias shape now finishes green where
+  it previously died at the link step.
+
+- **runtime errors now print their full cause chain (NIGHT-hunt-28)** —
+  `main()` rendered errors with `format!("{e}")`, which shows only
+  the outermost anyhow context: the first Dragon-architecture run on
+  the owner's host failed as a bare "Failed to load BPF object" while
+  the actual diagnosis (which map, which syscall, which errno) sat
+  invisible in the dropped chain. The render now walks the
+  `std::error::Error` source chain and emits one `caused by:` line
+  per hop through the same line-aware branded renderer (white `tip:`
+  lines unchanged). A load failure now self-describes: `error:
+  Failed to load BPF object` + `caused by: failed to create map
+  'X' with code -N` + the pin/EINVAL shape when that is the real
+  cause (see the bpffs fix below).
+
+- **doctor: the BPF-filesystem check verifies the mount, not the
+  directory (NIGHT-hunt-28)** — `bpf_fs_mounted` was
+  `Path::exists("/sys/fs/bpf")`, but the kernel creates that
+  directory on every Linux — on hosts where nothing is mounted on it
+  (an empty sysfs or tmpfs-backed directory), the doctor reported
+  `BPF fs: YES` while every pin operation was about to fail EINVAL.
+  The check now statfs()es the path and accepts only the real
+  `BPF_FS_MAGIC`; the warning names the one-command fix
+  (`sudo mount -t bpf bpf /sys/fs/bpf`). `Limiter::attach` gained
+  the same preflight before any pin attempt, so a non-bpffs
+  `/sys/fs/bpf` fails with the actionable mount message instead of a
+  generic load error from deep inside `EbpfLoader::load`. The
+  observer is deliberately NOT gated — its maps are unpinned, so
+  `observe` works without bpffs, giving a natural diagnostic split:
+  observe works + strict fails = the pin filesystem is missing.
+
 ### Release Engineering
 
 - **ci: every runner pinned to ubuntu-24.04 — the ubuntu-latest label

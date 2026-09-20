@@ -129,10 +129,15 @@ fn build_ebpf_objects() {
     // target and build-std are ALSO passed explicitly so the
     // invocation is correct even without the config. Environment is
     // inherited so CI's strict RUSTFLAGS contract covers this crate
-    // too. --locked keeps the committed Cargo.lock authoritative.
+    // too — with one carved-out exception (NIGHT-hunt-28): the
+    // rustflags themselves pass through strip_host_poison_rustflags
+    // first, because host-CPU and host-linker flags are poison for
+    // the bpfel cross-build (see that function's doc comment).
+    // --locked keeps the committed Cargo.lock authoritative.
     // Stdio is inherited: the nested build's own compiler output
     // streams through to the user/CI log.
-    let status = std::process::Command::new("rustup")
+    let mut nested = std::process::Command::new("rustup");
+    nested
         .args(["run", EBPF_TOOLCHAIN, "cargo"])
         .current_dir(&ebpf_dir)
         .args([
@@ -149,14 +154,14 @@ fn build_ebpf_objects() {
         // core with the stable compiler and fail on its missing
         // rust-src. The sub-build must resolve its own rustc.
         .env_remove("RUSTC")
-        .env_remove("RUSTC_WORKSPACE_WRAPPER")
-        .status()
-        .unwrap_or_else(|e| {
-            panic!(
-                "failed to launch `rustup run {EBPF_TOOLCHAIN} cargo` — rustup is a \
+        .env_remove("RUSTC_WORKSPACE_WRAPPER");
+    strip_host_poison_rustflags(&mut nested);
+    let status = nested.status().unwrap_or_else(|e| {
+        panic!(
+            "failed to launch `rustup run {EBPF_TOOLCHAIN} cargo` — rustup is a \
              hard prerequisite of the pure-Rust eBPF build: {e}"
-            )
-        });
+        )
+    });
     if !status.success() {
         // The preflight already verified both prerequisites present,
         // so reaching this branch means a real compile/link failure:
@@ -194,6 +199,113 @@ fn build_ebpf_objects() {
         std::fs::write(&dst, &data)
             .unwrap_or_else(|e| panic!("failed to stage {} into OUT_DIR: {e}", dst.display()));
     }
+}
+
+/// NIGHT-hunt-28: remove host-CPU and host-linker rustflags from the
+/// environment handed to the nested eBPF build.
+///
+/// The leak path (verified live on cargo 1.98.1 with a build script
+/// dumping its own environment): the parent cargo exports its
+/// RESOLVED rustflags to build scripts as `CARGO_ENCODED_RUSTFLAGS`
+/// (0x1F-separated — `--config build.rustflags=["-C","target-cpu=native"]`
+/// arrives here as `-C\u{1f}target-cpu=native`), and a user- or
+/// CI-exported `RUSTFLAGS` (space-separated) is inherited the same
+/// way. Host-tuning flags in that inheritance are poison for the
+/// bpfel cross-build: rustc cannot apply them to the BPF target but
+/// still forwards the resolved CPU to bpf-linker as `--cpu znver3`
+/// (any host arch lands here), which bpf-linker hard-rejects with
+/// `invalid CPU` — reproduced on the owner's Zen 3 host, where
+/// `cargo pro-native-gnu` died in the link step of both objects
+/// after ~4 minutes of compiling. The same family:
+/// `scripts/build.sh`'s fast-linker export `-C
+/// link-arg=-fuse-ld=mold` reaches bpf-linker's command line as an
+/// unknown argument (latent — only on hosts with mold installed).
+///
+/// Everything else survives verbatim, so CI's `RUSTFLAGS="-D
+/// warnings"` contract keeps covering the ebpf crate. This is
+/// deliberately narrower than aya-build 0.2.0 upstream, which
+/// replaces the variable wholesale with its own fixed flag set
+/// (`--cfg=bpf_target_arch`, `-Cdebuginfo=2`, `-Clink-arg=--btf`) and
+/// thereby discards any inherited contract — zelynic's nested build
+/// instead keeps the inheritance minus the poison.
+fn strip_host_poison_rustflags(cmd: &mut std::process::Command) {
+    if let Some(value) = std::env::var_os("CARGO_ENCODED_RUSTFLAGS") {
+        match strip_host_poison(&value.to_string_lossy(), "\u{1f}") {
+            Some(filtered) => {
+                cmd.env("CARGO_ENCODED_RUSTFLAGS", filtered);
+            }
+            None => {
+                cmd.env_remove("CARGO_ENCODED_RUSTFLAGS");
+            }
+        }
+    }
+    if let Some(value) = std::env::var_os("RUSTFLAGS") {
+        match strip_host_poison(&value.to_string_lossy(), " ") {
+            Some(filtered) => {
+                cmd.env("RUSTFLAGS", filtered);
+            }
+            None => {
+                cmd.env_remove("RUSTFLAGS");
+            }
+        }
+    }
+}
+
+/// Filter one rustflags value split on `sep` (the 0x1F separator for
+/// CARGO_ENCODED_RUSTFLAGS, a space for RUSTFLAGS).
+///
+/// Returns None when every token was host poison — the caller then
+/// removes the variable so the nested cargo falls back to
+/// ebpf/.cargo/config.toml (which sets no rustflags). Returns the
+/// ORIGINAL, byte-identical string when nothing matched — a clean
+/// value is never rewritten, so quoting oddities in the space form
+/// survive untouched. Only a value that actually contained poison is
+/// rebuilt by rejoining the survivors, and a poison token can never
+/// contain whitespace, so the rebuild cannot corrupt quoting either.
+///
+/// Poison tokens, in both the fused (`-Ctarget-cpu=native`) and
+/// pair (`-C` + `target-cpu=native`) spellings:
+///   - `target-cpu=` — becomes bpf-linker's `--cpu <host-cpu>`, invalid
+///   - `target-feature=` — host feature set, meaningless-to-harmful for bpfel
+///   - `link-arg=` — host linker args (mold/lld/fuse-ld) on bpf-linker's line
+fn strip_host_poison(value: &str, sep: &str) -> Option<String> {
+    let tokens: Vec<&str> = value.split(sep).collect();
+    let mut kept: Vec<&str> = Vec::with_capacity(tokens.len());
+    let mut i = 0;
+    while i < tokens.len() {
+        if is_host_poison_token(tokens[i]) {
+            i += 1;
+            continue;
+        }
+        // Pair spelling: "-C" followed by the flag with an "=" payload.
+        if tokens[i] == "-C" {
+            if let Some(next) = tokens.get(i + 1) {
+                if next.starts_with("target-cpu=")
+                    || next.starts_with("target-feature=")
+                    || next.starts_with("link-arg=")
+                {
+                    i += 2;
+                    continue;
+                }
+            }
+        }
+        kept.push(tokens[i]);
+        i += 1;
+    }
+    if kept.len() == tokens.len() {
+        Some(value.to_string())
+    } else if kept.is_empty() {
+        None
+    } else {
+        Some(kept.join(sep))
+    }
+}
+
+/// Fused-spelling poison check (`-Ctarget-cpu=...` as ONE token).
+fn is_host_poison_token(token: &str) -> bool {
+    token.starts_with("-Ctarget-cpu=")
+        || token.starts_with("-Ctarget-feature=")
+        || token.starts_with("-Clink-arg=")
 }
 
 /// NIGHT-host-1: verify the two host prerequisites of an
@@ -563,5 +675,81 @@ mod tests {
 
         // hermetic: repeated runs reuse the same pid-keyed dir
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// NIGHT-hunt-28: the rustflags sanitizer must reproduce the exact
+    /// leak the owner's Zen 3 host hit — the alias-shaped
+    /// CARGO_ENCODED_RUSTFLAGS (`-C\x1ftarget-cpu=native`) is entirely
+    /// poison, so the variable is removed (None), while every clean
+    /// token survives byte-identically.
+    #[test]
+    fn host_poison_stripping_matches_the_live_leak_shapes() {
+        // The exact value the pro-native-gnu alias produces (verified
+        // live by dumping the build script env): pure poison -> None.
+        assert_eq!(
+            strip_host_poison("-C\u{1f}target-cpu=native", "\u{1f}"),
+            None
+        );
+
+        // The pro-native-musl shape: CPU + feature, both poison -> None.
+        assert_eq!(
+            strip_host_poison(
+                "-C\u{1f}target-cpu=native\u{1f}-C\u{1f}target-feature=+crt-static",
+                "\u{1f}"
+            ),
+            None
+        );
+
+        // Poison plus CI's contract: the -D warnings pair survives.
+        assert_eq!(
+            strip_host_poison("-C\u{1f}target-cpu=native\u{1f}-D\u{1f}warnings", "\u{1f}"),
+            Some("-D\u{1f}warnings".to_string())
+        );
+
+        // The plain build's value (root .cargo/config.toml): clean
+        // passthrough, byte-identical.
+        assert_eq!(
+            strip_host_poison("-C\u{1f}codegen-units=1", "\u{1f}"),
+            Some("-C\u{1f}codegen-units=1".to_string())
+        );
+
+        // build.sh's fast-linker export (mold hosts): link-arg is
+        // poison for bpf-linker even in the pair spelling.
+        assert_eq!(
+            strip_host_poison(
+                "-C\u{1f}link-arg=-fuse-ld=mold\u{1f}-D\u{1f}warnings",
+                "\u{1f}"
+            ),
+            Some("-D\u{1f}warnings".to_string())
+        );
+
+        // The space-separated RUSTFLAGS form: clean value passes
+        // through untouched (quoting survives because no rewrite
+        // happens), poison is removed by space token.
+        assert_eq!(
+            strip_host_poison("-D warnings -C codegen-units=1", " "),
+            Some("-D warnings -C codegen-units=1".to_string())
+        );
+        assert_eq!(
+            strip_host_poison("-C target-cpu=native -D warnings", " "),
+            Some("-D warnings".to_string())
+        );
+
+        // Fused single-token spellings.
+        assert_eq!(strip_host_poison("-Ctarget-cpu=native", "\u{1f}"), None);
+        assert_eq!(strip_host_poison("-Ctarget-feature=avx2", " "), None);
+
+        // A trailing lone "-C" (malformed value) must survive intact
+        // rather than panic or eat the next token.
+        assert_eq!(
+            strip_host_poison("-D warnings -C", " "),
+            Some("-D warnings -C".to_string())
+        );
+
+        // "-C" followed by a NON-poison payload is kept whole.
+        assert_eq!(
+            strip_host_poison("-C\u{1f}debug-assertions=on", "\u{1f}"),
+            Some("-C\u{1f}debug-assertions=on".to_string())
+        );
     }
 }

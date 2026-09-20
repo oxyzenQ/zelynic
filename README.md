@@ -172,9 +172,13 @@ civil-from-days algorithm in `build.rs` — UTC only, no time crate in
 the dependency tree (see the dependency policy above).
 
 A native build never clobbers `target/release/zelynic` — the separate
-profile names keep both binaries side by side. Note: a native binary
-only runs on the CPU family it was compiled for; ship the plain
-release build for distribution.
+profile names keep both binaries side by side. The `-C
+target-cpu=native` tune applies to the host binary only: build.rs
+strips host-CPU and host-linker rustflags from the nested eBPF
+build's environment before invoking it (NIGHT-hunt-28), so the bpfel
+objects are identical no matter which alias built them. Note: a
+native binary only runs on the CPU family it was compiled for; ship
+the plain release build for distribution.
 
 ### Usage
 
