@@ -33,7 +33,11 @@ jobs:
   # GitHub release is ever created for an unsupported channel.
   validate:
     name: Validate release tag
-    runs-on: ubuntu-latest
+    # Runner pinned to ubuntu-24.04, never a floating ubuntu-latest:
+    # the label migrates to Ubuntu 26 on 2026-10-19 and would silently
+    # move the build environment (actions/runner-images#14748); OS
+    # upgrades here are deliberate, matrix-tested changes.
+    runs-on: ubuntu-24.04
     outputs:
       tag: ${{ steps.ver.outputs.tag }}
       version: ${{ steps.ver.outputs.version }}
@@ -92,7 +96,7 @@ jobs:
   # ===========================================================================
   build:
     name: Build Release Binary (eBPF)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: validate
 
     steps:
@@ -229,7 +233,7 @@ jobs:
   # ===========================================================================
   release:
     name: Create GitHub Release
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [validate, build]
     permissions:
       contents: write
