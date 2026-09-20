@@ -109,7 +109,12 @@ scripts/
   rust-version-to.sh   — one-command Rust toolchain bumper
   inject-disclaimer.sh — .md stale-data disclaimer (inject + --check)
   check-policy.py      — copyright + SPDX policy check
-  stress-test.sh       — stress suite
+  brutal-stress-test.sh — one-click brutal stress test (NIGHT-master-2;
+                wraps brutal-stress-test.py: light ~2 min / --heavy 5+ min
+                modes sweeping the whole command surface — strict/block/
+                unstrict x single/multi/all, curl burst download + upload,
+                rate ladder 1kb..1tb adaptive to hardware, five dedicated
+                cgroups, --self-test engine smoke for CI/containers)
   leak-test.sh         — orphan detection after every operation
   distros-depth-test.sh — comprehensive distro suite
   nonroot-depth-test.sh — unprivileged contract matrix (NIGHT-hunt-13)

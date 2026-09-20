@@ -134,6 +134,9 @@ jobs:
       - name: Run repository policy check
         run: python3 scripts/check-policy.py
 
+      - name: Brutal stress harness engine self-test
+        run: python3 scripts/brutal-stress-test.py --self-test
+
       - name: Verify release build
         run: cargo build --release --locked
 

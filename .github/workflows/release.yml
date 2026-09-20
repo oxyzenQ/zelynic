@@ -173,7 +173,8 @@ jobs:
           cp scripts/install.sh scripts/uninstall.sh "dist/${PKG_GNU}/"
           chmod +x "dist/${PKG_GNU}/install.sh" "dist/${PKG_GNU}/uninstall.sh"
           cp scripts/distros-depth-test.sh scripts/leak-test.sh \
-             scripts/stress-test.sh scripts/benchmarking.sh scripts/benchmarking.py \
+             scripts/brutal-stress-test.sh scripts/brutal-stress-test.py \
+             scripts/benchmarking.sh scripts/benchmarking.py \
              scripts/race-condition-test.sh scripts/reload-test.sh \
              scripts/crash-recovery-test.sh scripts/limiter-depth-test.sh \
              scripts/limiter-depth-test.py "dist/${PKG_GNU}/scripts/"
@@ -200,7 +201,8 @@ jobs:
           cp scripts/install.sh scripts/uninstall.sh "dist/${PKG_MUSL}/"
           chmod +x "dist/${PKG_MUSL}/install.sh" "dist/${PKG_MUSL}/uninstall.sh"
           cp scripts/distros-depth-test.sh scripts/leak-test.sh \
-             scripts/stress-test.sh scripts/benchmarking.sh scripts/benchmarking.py \
+             scripts/brutal-stress-test.sh scripts/brutal-stress-test.py \
+             scripts/benchmarking.sh scripts/benchmarking.py \
              scripts/race-condition-test.sh scripts/reload-test.sh \
              scripts/crash-recovery-test.sh scripts/limiter-depth-test.sh \
              scripts/limiter-depth-test.py "dist/${PKG_MUSL}/scripts/"
