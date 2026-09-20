@@ -14,6 +14,8 @@ pub mod connections;
 #[cfg(feature = "ebpf")]
 pub mod display;
 #[cfg(feature = "ebpf")]
+pub mod embedded;
+#[cfg(feature = "ebpf")]
 pub mod identity;
 #[cfg(feature = "ebpf")]
 pub mod limiter;

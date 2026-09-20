@@ -16,7 +16,17 @@
 //! on a user host. The full parse-level contract (sections, map
 //! geometry, pins, license) was verified by the phase-2 scratch
 //! harness and is recorded in docs/PURE_RUST_EVALUATION.md.
+//!
+//! NIGHT-hunt-30 added the alignment pins: the `object` crate's
+//! ELF64 parser reads its structures straight out of the embedded
+//! buffer and requires an 8-byte-aligned buffer ADDRESS. A plain
+//! align-1 `include_bytes!` static gets that only by linker luck —
+//! the owner host lost that luck on every build while the dev
+//! container kept winning it (the artifact was healthy all along).
+//! The pins below hold the AlignedElf embedding to its contract in
+//! every binary the suite runs in.
 
+use crate::ebpf::embedded::misalignment;
 use crate::ebpf::limiter::LIMITER_ELF;
 
 use super::OBSERVER_ELF;
@@ -46,4 +56,49 @@ fn embedded_limiter_object_is_elf() {
         "embedded limiter object failed the ELF magic check ({} bytes)",
         LIMITER_ELF.len()
     );
+}
+
+/// NIGHT-hunt-30: the embedded limiter bytes must sit at an
+/// 8-byte-aligned address — the `object` crate's Pod casts require
+/// it, and the AlignedElf wrapper (src/ebpf/embedded.rs) is the
+/// guarantee under test. A failure here is a build regression in the
+/// wrapper, not a test environment quirk.
+#[test]
+fn embedded_limiter_object_is_alignment_safe() {
+    assert_eq!(
+        misalignment(LIMITER_ELF),
+        None,
+        "the embedded limiter object address is not 8-byte aligned — the \
+         ELF64 parser will reject these healthy bytes (NIGHT-hunt-30)"
+    );
+}
+
+/// NIGHT-hunt-30: the observer twin of the alignment pin above.
+#[test]
+fn embedded_observer_object_is_alignment_safe() {
+    assert_eq!(
+        misalignment(OBSERVER_ELF),
+        None,
+        "the embedded observer object address is not 8-byte aligned — the \
+         ELF64 parser will reject these healthy bytes (NIGHT-hunt-30)"
+    );
+}
+
+/// NIGHT-hunt-30: the pure detector behind the load-path preflights
+/// must mirror the Pod-cast alignment law exactly — `None` at every
+/// 8-aligned address, `Some(ptr % 8)` one byte past each. A heap
+/// `Vec<u8>` is the fixture: malloc guarantees at least the 8-byte
+/// alignment the detector assumes for its base.
+#[test]
+fn misalignment_detector_matches_the_pod_cast_law() {
+    let data = LIMITER_ELF.to_vec();
+    assert_eq!(misalignment(&data), None, "heap base must be 8-aligned");
+    for shift in 1..8usize {
+        let shifted = &data[shift..];
+        assert_eq!(
+            misalignment(shifted),
+            Some(shift),
+            "a slice starting {shift} bytes past an 8-aligned base must report {shift}"
+        );
+    }
 }

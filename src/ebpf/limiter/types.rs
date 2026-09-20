@@ -13,7 +13,20 @@
 /// the aya-ebpf ELF staged into OUT_DIR by build.rs's nested nightly
 /// build, riding inside the binary via include_bytes!. `EbpfLoader`
 /// takes the bytes directly — no file path, no object discovery.
-pub const LIMITER_ELF: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/zelynic-limiter"));
+///
+/// NIGHT-hunt-30: the bytes ride inside [`AlignedElf`] so their
+/// address is 8-byte aligned BY CONSTRUCTION — the `object` crate's
+/// ELF64 parser reads its structures straight out of the buffer and
+/// requires that alignment, and the plain align-1 `include_bytes!`
+/// static landed unaligned on the owner host's builds (deterministic
+/// per host: every build there failed, every build in the dev
+/// container passed — the artifact itself was healthy the whole
+/// time). See src/ebpf/embedded.rs for the full hunt record.
+pub static LIMITER_ELF: &[u8] = &crate::ebpf::embedded::AlignedElf::new(*include_bytes!(concat!(
+    env!("OUT_DIR"),
+    "/zelynic-limiter"
+)))
+.bytes;
 
 /// Minimum allowed rate: 1 KB/s (1000 B/s, decimal SI).
 ///

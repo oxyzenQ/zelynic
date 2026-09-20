@@ -16,6 +16,54 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Fixed
 
+- **build: the embedded eBPF objects are 8-byte aligned by
+  construction — the `error parsing ELF data` blocker with a HEALTHY
+  artifact was the buffer's address, not its bytes (NIGHT-hunt-30)**
+  — after NIGHT-hunt-29 landed, the owner host still failed
+  `strict-single`/`limit-all` with the identical error chain on a
+  clean tree (`cargo clean` + full rebuild, no `cargo:warning`, the
+  staging validator silent — the artifact was fine). The real root
+  cause of the 2026-09-20..21 failures: aya hands the embedded bytes
+  straight to the `object` crate, whose Pod casts (`from_bytes` /
+  `slice_from_bytes`) read ELF64 structures directly out of the
+  buffer and therefore require the buffer's ADDRESS to be 8-byte
+  aligned. `include_bytes!` produces an align-1 static, so the
+  required alignment was pure linker-layout luck — and it broke
+  deterministically per host: every build on the owner host placed
+  the limiter object at an unaligned address (different source-path
+  strings, a different `ZELYNIC_BUILD` label, a different `.rodata`
+  packing than the dev container's), while every build in the dev
+  container happened to align — which is exactly why the hunt-29
+  damage theory fit every symptom while fixing none of them.
+  Reproduced character for character in the aya-0.13.1-exact
+  load-probe by shifting a known-good object to `ptr % 8 != 0`: the
+  parse dies on the very first header read, before any BPF-level
+  interpretation — hence the error's total silence about maps and
+  programs. Fix: both objects now ride inside `AlignedElf`
+  (src/ebpf/embedded.rs) — `#[repr(C, align(8))]` makes every
+  allocation of the type 8-aligned by contract (symbol alignment is
+  honored by every linker: a property of the type, not of layout
+  luck), and a fixed 8-byte guard field (the ASCII magic "ZELF-30"
+  plus a NUL) keeps the allocation's content unique, because rustc's
+  const interner dedups immutable allocations by bytes and IGNORES
+  alignment — verified live in a release probe, where a wrapper
+  static and a raw include of the same file MERGED onto one address;
+  the guard makes that fold impossible. A load-path preflight
+  (`misalignment` in both attach paths) and three test pins hold the
+  contract: any future regression fails with a one-line "address is N
+  bytes past an 8-byte boundary" diagnosis instead of a multi-day
+  hunt through a healthy artifact. Also fixed en passant: the
+  NIGHT-strict-1 source-tree scanner sliced a `&str` at byte
+  indices around every backslash in prose — a doc comment quoting a
+  NUL-terminated magic next to an em-dash panicked the scanner (the
+  needle comparison is byte-level now). Verified: 156 unit +
+  23 integration tests green, standalone build.rs suite 13 + 1
+  ignored, gate-keepers 11/11, and on the exact `cargo
+  pro-native-gnu` alias the binary's embedded objects sit at
+  8-aligned vaddrs inside guard-led allocations, byte-identical to
+  the staged artifacts, parsing clean in the aya-exact load-probe
+  (both objects; the container's expected no-caps EPERM at map
+  create is all that remains).
 - **build: a damaged eBPF object is now detected and self-healed
   before it can ride into the binary (NIGHT-hunt-29)** — the
   2026-09-20 test session's `error parsing BPF object: error parsing

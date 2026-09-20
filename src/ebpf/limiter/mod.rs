@@ -151,6 +151,17 @@ impl Limiter {
             eprintln_safe!("[limiter] Loading embedded BPF limiter object");
         }
 
+        // NIGHT-hunt-30: alignment preflight — structurally impossible
+        // with the AlignedElf embedding (src/ebpf/embedded.rs), kept
+        // so a future regression fails with a one-line diagnosis
+        // instead of aya's opaque "error parsing ELF data" on a
+        // healthy object (the owner host's 2026-09-20..21 blocker:
+        // every symptom pointed at the artifact, the artifact was
+        // fine, and the address of the embedded bytes was the bug).
+        if let Some(violation) = crate::ebpf::embedded::alignment_violation(obj_data, "limiter") {
+            bail!("{violation}");
+        }
+
         // NIGHT-hunt-28: preflight the pin filesystem BEFORE any pin
         // attempt. The limiter pins all nine maps by name, and a
         // /sys/fs/bpf that exists but is not a mounted bpf filesystem

@@ -32,7 +32,16 @@ use crate::ebpf::identity::IdentityMap;
 /// the aya-ebpf ELF staged into OUT_DIR by build.rs's nested nightly
 /// build. `Ebpf::load` takes the bytes directly — no file path, no
 /// object discovery, no "not found" error class.
-const OBSERVER_ELF: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/zelynic-observer"));
+///
+/// NIGHT-hunt-30: wrapped in [`AlignedElf`] for guaranteed 8-byte
+/// address alignment — the `object` crate's ELF64 parser requires
+/// it, and the plain align-1 static landed unaligned on the owner
+/// host (see src/ebpf/embedded.rs for the hunt record).
+static OBSERVER_ELF: &[u8] = &crate::ebpf::embedded::AlignedElf::new(*include_bytes!(concat!(
+    env!("OUT_DIR"),
+    "/zelynic-observer"
+)))
+.bytes;
 
 /// Per-cgroup stats from BPF map (must match the observer
 /// program's CgroupStats in ebpf/src/main.rs — layout contract).
@@ -70,6 +79,16 @@ impl Observer {
 
         if !quiet {
             eprintln_safe!("[ebpf] Loading embedded BPF observer object");
+        }
+
+        // NIGHT-hunt-30: alignment preflight — structurally impossible
+        // with the AlignedElf embedding, kept so a future regression
+        // fails with a one-line diagnosis instead of aya's opaque
+        // "error parsing ELF data" on a healthy object.
+        if let Some(violation) =
+            crate::ebpf::embedded::alignment_violation(OBSERVER_ELF, "observer")
+        {
+            bail!("{violation}");
         }
 
         let mut bpf = Ebpf::load(OBSERVER_ELF).context("Failed to load BPF object")?;
