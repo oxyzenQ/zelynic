@@ -14,6 +14,15 @@ MAX_LOC = 1000
 COPYRIGHT = "Copyright (C) 2026 rezky_nightky"
 SPDX = "SPDX-License-Identifier: GPL-3.0-only"
 
+# Self-declared LOC exemption (NIGHT-hunt-29): a file over MAX_LOC
+# passes only when it carries the LOC_EXEMPT marker in its own comment
+# syntax — the same mechanism scripts/check-loc.sh has sanctioned since
+# NIGHT-hunt-27's build.rs grew past its cap (see docs/RULES.md
+# "Source file size cap"). The justification lives with the file it
+# exempts, so this checker and check-loc.sh can never disagree about
+# the same file: both honor the identical marker.
+EXEMPT_MARKERS = ("// LOC_EXEMPT:", "# LOC_EXEMPT:")
+
 CHECKED_SUFFIXES = {".rs", ".c", ".h", ".css", ".py", ".sh"}
 EXCLUDED_DIRS = {
     ".git",
@@ -71,6 +80,7 @@ def has_required_header(lines: list[str]) -> bool:
 def main() -> int:
     failures: list[str] = []
     files = checked_files()
+    exempt_over_cap = 0
 
     for path in files:
         relative = path.relative_to(ROOT)
@@ -78,7 +88,10 @@ def main() -> int:
         lines = text.splitlines()
 
         if len(lines) > MAX_LOC:
-            failures.append(f"FAIL LOC    {relative}: {len(lines)} > {MAX_LOC}")
+            if any(marker in text for marker in EXEMPT_MARKERS):
+                exempt_over_cap += 1
+            else:
+                failures.append(f"FAIL LOC    {relative}: {len(lines)} > {MAX_LOC}")
 
         if not has_required_header(lines):
             failures.append(f"FAIL HEADER {relative}: missing copyright/SPDX header")
@@ -93,6 +106,8 @@ def main() -> int:
     print("Zelynic policy check: PASS")
     print(f"Checked {len(files)} file(s).")
     print(f"LOC limit: <= {MAX_LOC} for checked core/code files.")
+    if exempt_over_cap:
+        print(f"LOC exemptions (self-declared marker): {exempt_over_cap} file(s).")
     print("Headers: copyright + GPL-3.0-only SPDX present.")
     return 0
 
