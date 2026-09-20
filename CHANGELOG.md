@@ -14,6 +14,30 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ## [Unreleased]
 
+### Changed
+
+- **monitor: box mode takes the pointer — copy/paste are disabled
+  while observe/top run (NIGHT-improve-7)** — the owner reversed the
+  NIGHT-strict-1 mouse clause: box mode is a live dashboard of
+  private data (cgroup names, PIDs, remote endpoints) and none of
+  it may be copyable while the box runs. The monitor now enables
+  mouse tracking on enter — 1000 (press/release) + 1002 (button-drag)
+  + 1006 (SGR encoding), the exact trio vim-class TUIs use — so
+  click-drag selects nothing, Ctrl+Shift+C has no selection to copy,
+  and middle-click never reaches the monitor's stdin; the drained
+  mouse events are inert input under the q-only quit contract.
+  ALT_EXIT restores every mode (mouse modes off first, reverse of
+  the enter), verified by the pinned byte sequences. Any-motion
+  1003 stays out (a stdin flood with no extra selection coverage),
+  as do focus 1004 and bracketed paste 2004. The contract pins in
+  test/terminal/mouse_contract_tests.rs flipped with the policy:
+  the byte pins now assert the takeover, the mode allowlist is
+  {1049, 25, 1000, 1002, 1006}, and the source-tree scan fails on
+  anything else. Two honest caveats documented in USAGE.md: terminals
+  still offer a Shift+click bypass (terminal-side, no escape
+  sequence can switch it off), and a paste whose first byte is `q`
+  still quits (NIGHT-hunt-16 contract unchanged).
+
 ### Fixed
 
 - **build: the embedded eBPF objects are 8-byte aligned by

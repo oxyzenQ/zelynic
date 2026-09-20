@@ -530,19 +530,24 @@ for the same single-key contract as htop/vim — the title bar says
 "q quit" and nothing else quits.
 
 **Can I select and copy/paste text while the monitor runs?**
-Yes — that is a pinned contract (NIGHT-strict-1). zelynic never
-enables mouse tracking, focus reporting, or bracketed paste: the only
-terminal modes the monitor touches are the alternate screen and
-cursor visibility, both restored on exit. Click-drag selection,
-middle-click paste, and Ctrl+Shift+C/V behave exactly like in the
-plain shell — touching the mouse never hands the pointer to zelynic
-(unlike htop, where selection needs Shift while mouse mode is on).
-One inherent raw-mode caveat: pasted text is stdin, so a paste that
-contains the byte `q` quits the monitor — the q-only quit contract
-applies to every input byte alike. The contract is enforced by unit
-tests (`test/terminal/mouse_contract_tests.rs`) that pin the exact
-byte sequences and scan the whole source tree for any mouse-mode
-literal, so a future commit cannot silently capture the mouse.
+No — box mode takes the pointer (NIGHT-improve-7, superseding the
+NIGHT-strict-1 mouse clause). The monitor enables mouse tracking
+(1000 press/release, 1002 button-drag, 1006 SGR encoding) for its
+whole lifetime, so click-drag selects nothing, Ctrl+Shift+C has no
+selection to copy, and middle-click never lands in the monitor's
+stdin — the mouse events arrive as escape sequences and are drained
+as inert input. Every mode is restored on exit: press `q` and
+selection/paste work again immediately, nothing stays captured. Two
+honest caveats: mainstream terminals still offer a Shift+click
+bypass around application mouse tracking (a terminal-side feature no
+escape sequence can switch off), and pasted bytes that do reach
+stdin are drained like any other non-`q` input — a paste whose
+first byte is `q` still quits (the NIGHT-hunt-16 q-only contract).
+The contract is enforced by unit tests
+(`test/terminal/mouse_contract_tests.rs`) that pin the exact byte
+sequences and scan the whole source tree for any unsanctioned
+terminal-mode literal, so a future commit cannot silently loosen or
+widen the takeover.
 
 ---
 
