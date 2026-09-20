@@ -304,6 +304,17 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Docs
 
+- **readme: usage deduplicated (NIGHT-docs-7)** — the owner read the
+  README and saw the same usage data told twice: an annotated `### Usage`
+  example block plus a `## Commands` syntax block, each command listed
+  in both. Merged into ONE usage section where every command appears
+  exactly once (flags live in `--help`, units in Rate Formats, workflows
+  in docs/USAGE.md — each topic one home). Also deduplicated: the Quick
+  Start teaser that re-stated three limitation rules verbatim (the
+  honest-limitations section is the single home; the pointer stays),
+  and the Safety Features min/max rate bullets that repeated the Rate
+  Formats bounds (now one rate-bounds guard line linking there).
+
 - **docs: CHANGELOG split into lean active file plus a v11-era
   archive (NIGHT-docs-1)** — the active changelog had grown to a
   1.1k-line monolith where ~98% was the accumulated NIGHT research
