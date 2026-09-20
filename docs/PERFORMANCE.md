@@ -240,6 +240,33 @@ the loader change only affects where Ebpf::load gets its bytes —
 identical output was the expected result, now proven rather than
 asserted.
 
+### NIGHT-improve-7 A/B (pointer takeover, 2026-09-21)
+
+The mouse-capture commit (c4bbb7a) added three DEC private modes to
+the monitor's enter/exit sequences (1000/1002/1006 mouse tracking) —
+a terminal-contract change, not a render-path change. The A/B proves
+the rendered stream is untouched (A = ec1704b at HEAD, B = c4bbb7a,
+10 s formal runs):
+
+| Metric | ec1704b | c4bbb7a | Delta |
+|--------|---------|---------|-------|
+| fps | 14,066 | 14,801 | +5.2% (machine noise) |
+| bytes/frame | 1,437.6 | 1,437.5 | -0.0% |
+| emit bytes/frame | 1,375.6 | 1,375.6 | -0.0% |
+| frame entropy | 4.1912 | 4.1913 | +0.0% |
+| density gini | 0.1812 | 0.1812 | 0.00% |
+| dirty cells/frame | 755.4 | 755.4 | +0.0% |
+
+Reading: every visual metric identical — the mouse modes ride in the
+monitor's enter/exit guards (five write_all bytes once per session),
+not in the per-frame emit path, so the diff engine's output stream is
+byte-for-byte what it was. The fps delta is the largest seen in the
+A/B series but still the same noise class: the frame harness never
+opens a TTY, the mode bytes are not in its path at all, and the
+fixture's deterministic content pins the visual columns to
+identical values (entropy jitter of 0.0001 bits/char is float
+aggregation over the same content).
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.
