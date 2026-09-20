@@ -538,24 +538,36 @@ for the same single-key contract as htop/vim — the title bar says
 "q quit" and nothing else quits.
 
 **Can I select and copy/paste text while the monitor runs?**
-No — box mode takes the pointer (NIGHT-improve-7, superseding the
+No — box mode takes the pointer AND kills terminal-side selections on
+a fixed beat (NIGHT-improve-7 + NIGHT-improve-8, superseding the
 NIGHT-strict-1 mouse clause). The monitor enables mouse tracking
 (1000 press/release, 1002 button-drag, 1006 SGR encoding) for its
-whole lifetime, so click-drag selects nothing, Ctrl+Shift+C has no
-selection to copy, and middle-click never lands in the monitor's
-stdin — the mouse events arrive as escape sequences and are drained
-as inert input. Every mode is restored on exit: press `q` and
-selection/paste work again immediately, nothing stays captured. Two
-honest caveats: mainstream terminals still offer a Shift+click
-bypass around application mouse tracking (a terminal-side feature no
-escape sequence can switch off), and pasted bytes that do reach
-stdin are drained like any other non-`q` input — a paste whose
-first byte is `q` still quits (the NIGHT-hunt-16 q-only contract).
-The contract is enforced by unit tests
-(`test/terminal/mouse_contract_tests.rs`) that pin the exact byte
-sequences and scan the whole source tree for any unsanctioned
-terminal-mode literal, so a future commit cannot silently loosen or
-widen the takeover.
+whole lifetime, so click-drag selects nothing and middle-click never
+lands in the monitor's stdin. The one hole mouse tracking cannot
+close is the terminal's own Shift+click bypass — no escape sequence
+can switch that off — so the monitor additionally re-emits the
+whole frame every 100 ms while it runs: terminals clear a selection
+the moment its cells are rewritten (the same physics that makes
+`watch` output unselectable), which means a Shift+click selection
+cannot outlive one beat, and every copy path that needs a live
+selection (Ctrl+Shift+C, right-click Copy) finds nothing to copy.
+Every mode is restored on exit: press `q` and selection/paste work
+again immediately, nothing stays captured. Honest physics boundaries,
+documented not hidden: an X11-style terminal that mirrors a COMPLETED
+selection into the PRIMARY clipboard at button release can still
+catch whatever re-accumulates after the last beat (a terminal-side
+behavior no Linux application can retract), and a Select All + Copy
+fired inside a single 100 ms beat lands before the next rewrite —
+both are terminal emulator features outside any application's reach.
+Pasted bytes that do reach stdin are drained like any other non-`q`
+input — a paste whose first byte is `q` still quits (the
+NIGHT-hunt-16 q-only contract). The contract is enforced by unit
+tests (`test/terminal/mouse_contract_tests.rs` pins the byte
+sequences, the guard beat, and the loop scheduler, and scans the
+whole source tree for any unsanctioned terminal-mode literal;
+`test/terminal/diff_tests.rs` pins the guard's whole-frame
+repaint), so a future commit cannot silently loosen or widen the
+takeover.
 
 ---
 

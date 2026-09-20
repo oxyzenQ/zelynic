@@ -17,17 +17,35 @@
 //! selects terminal text, middle-click no longer pastes into the
 //! monitor's stdin, and Ctrl+Shift+C has no selection to copy.
 //! Every mode the enter touches is restored on exit (mouse modes
-//! off first, then alt screen off, cursor shown). Two honest
-//! caveats, documented not hidden: (a) every mainstream terminal
-//! still offers a Shift+click bypass around application mouse
-//! tracking — that is a terminal-side feature no escape sequence
-//! can switch off; (b) pasted bytes that do reach stdin are drained
-//! like any other non-q input (NIGHT-hunt-16 q-only quit contract
-//! unchanged). The contract is pinned two ways in
-//! test/terminal/mouse_contract_tests.rs: a byte-level pin over the
-//! sequences below, and a source-tree scan that fails if any
+//! off first, then alt screen off, cursor shown).
+//!
+//! NIGHT-improve-8 selection guard: mouse tracking leaves exactly
+//! one hole — the terminal's own Shift+click bypass, a terminal-side
+//! feature no escape sequence can switch off. The counter-physics:
+//! every mainstream terminal clears a selection the moment its
+//! cells are rewritten (why `watch` output can never be selected).
+//! So while the box runs, the loop re-emits the whole frame on a
+//! fixed beat ([`SELECTION_GUARD_BEAT`]): a shift-selection cannot
+//! outlive one beat, and every copy path that needs a live
+//! selection — Ctrl+Shift+C, right-click Copy — finds nothing to
+//! copy. The beat is always whole-frame
+//! (`DiffScreen::force_repaint`, the reset emission path): a
+//! partial rewrite would leave the unrewritten rows selectable,
+//! exactly the "still can copy some text" the owner reported.
+//! Honest physics boundaries, documented not hidden: (a) an
+//! X11-style terminal that mirrors a COMPLETED selection into the
+//! PRIMARY clipboard at button release can still catch what
+//! re-accumulates after the last beat — terminal-side, beyond any
+//! Linux application's reach; (b) a Select All + Copy fired inside
+//! a single beat lands before the next rewrite; (c) pasted bytes
+//! that do reach stdin are drained like any other non-q input
+//! (NIGHT-hunt-16 q-only quit contract unchanged). The contract is
+//! pinned three ways in test/terminal/mouse_contract_tests.rs
+//! (byte-level pins over the sequences below, the beat value and
+//! the loop scheduler, and a source-tree scan that fails if any
 //! `\x1b[?` mode outside {1049, 25, 1000, 1002, 1006} ever appears
-//! in src/.
+//! in src/), plus the whole-frame repaint pins in
+//! test/terminal/diff_tests.rs.
 //!
 //! NIGHT-improve-2: the monitor loop renders through the diff-based
 //! engine ([`DiffScreen`], see `diff.rs`) — only rows that changed
@@ -58,6 +76,50 @@ const ALT_ENTER: &[u8] = b"\x1b[?1049h\x1b[?25l\x1b[?1000h\x1b[?1002h\x1b[?1006h
 /// the main screen, cursor visible again. A full restore of every
 /// mode `ALT_ENTER` touched, and nothing more.
 const ALT_EXIT: &[u8] = b"\x1b[?1006l\x1b[?1002l\x1b[?1000l\x1b[?1049l\x1b[?25h";
+
+/// Selection-guard beat (NIGHT-improve-8): the cadence on which the
+/// monitor loop re-emits the whole frame while the box runs, so no
+/// terminal-side selection can outlive one beat. Mouse tracking
+/// cannot reach the terminal's Shift+click bypass (terminal-side,
+/// no escape sequence switches it off) — but a selection dies the
+/// moment its cells are rewritten, and 100 ms sits under the
+/// fastest deliberate human select-then-copy round trip
+/// (double-click plus an immediate Ctrl+Shift+C lands around
+/// 200 ms). Cost: one whole-frame rewrite per beat (~1.4 KB on
+/// the classic 80x24 frame), pinned by the diff tests. The loop
+/// wakes at 50 ms granularity, so a beat lands within 100..150 ms
+/// wall time.
+const SELECTION_GUARD_BEAT: Duration = Duration::from_millis(100);
+
+/// What the monitor loop owes the terminal this iteration
+/// (NIGHT-improve-8). A due `Render` outranks a due `Guard` —
+/// fresh content is also the strongest selection killer — but a
+/// render never resets the guard clock: a diff-only frame leaves
+/// the unchanged rows untouched, and those rows must still die on
+/// the next beat (the exact hole the guard exists to close).
+enum Beat {
+    /// A fresh frame: poll + render closure + diff emit.
+    Render,
+    /// A selection-guard repaint: re-emit the last frame in full.
+    Guard,
+    /// Nothing owed — sleep.
+    Sleep,
+}
+
+/// The monitor loop's scheduler, pure so the contract pins can
+/// hold it. `guard` is false on the non-TTY fallback path: a pipe
+/// has no selection machinery, and flooding it with whole-frame
+/// beats would only multiply the output volume (the benchmark
+/// harness and CI run exactly there).
+fn next_beat(last_render: Instant, last_guard: Instant, refresh: Duration, guard: bool) -> Beat {
+    if last_render.elapsed() >= refresh {
+        Beat::Render
+    } else if guard && last_guard.elapsed() >= SELECTION_GUARD_BEAT {
+        Beat::Guard
+    } else {
+        Beat::Sleep
+    }
+}
 
 /// Terminal guard — enters alt screen + raw mode, restores on drop.
 pub struct AltScreen {
@@ -159,19 +221,37 @@ pub fn run_alt<F>(refresh_interval: Duration, mut render: F)
 where
     F: FnMut(&mut Vec<String>),
 {
-    let mut run = |screen: &mut DiffScreen, lines: &mut Vec<String>| {
+    // NIGHT-improve-8: the guard runs only where a selection can
+    // exist — the TTY path. The pipe fallback passes guard=false
+    // (see next_beat).
+    let mut run = |screen: &mut DiffScreen, lines: &mut Vec<String>, guard: bool| {
         let mut last_render = Instant::now() - refresh_interval; // render immediately on first iteration
+        let mut last_guard = Instant::now();
         loop {
             if should_quit() {
                 break;
             }
 
-            if last_render.elapsed() >= refresh_interval {
-                lines.clear();
-                render(lines);
-                let mut stdout = RawStdout;
-                screen.emit(lines, &mut stdout);
-                last_render = Instant::now();
+            match next_beat(last_render, last_guard, refresh_interval, guard) {
+                Beat::Render => {
+                    lines.clear();
+                    render(lines);
+                    let mut stdout = RawStdout;
+                    screen.emit(lines, &mut stdout);
+                    last_render = Instant::now();
+                }
+                // The copy guard: re-emit the last frame in full,
+                // so any terminal-side selection (Shift+click hands
+                // those clicks to the terminal, not to us) dies
+                // within one beat. Always whole-frame — a partial
+                // rewrite would leave the untouched rows
+                // selectable, the owner's exact complaint.
+                Beat::Guard => {
+                    let mut stdout = RawStdout;
+                    screen.force_repaint(lines, &mut stdout);
+                    last_guard = Instant::now();
+                }
+                Beat::Sleep => {}
             }
 
             std::thread::sleep(Duration::from_millis(50));
@@ -187,16 +267,18 @@ where
             // When stdout is not a TTY the ANSI stream is inert
             // bytes in the pipe — the same class of output the
             // pre-diff fallback produced with its screen clears.
+            // No selection guard here: a pipe has no selection
+            // machinery, and the beats would only flood it.
             let mut screen = DiffScreen::new();
             let mut lines: Vec<String> = Vec::with_capacity(48);
-            run(&mut screen, &mut lines);
+            run(&mut screen, &mut lines, false);
             return;
         }
     };
 
     let mut screen = DiffScreen::new();
     let mut lines: Vec<String> = Vec::with_capacity(48);
-    run(&mut screen, &mut lines);
+    run(&mut screen, &mut lines, true);
 }
 
 // NIGHT-strict-1: the monitor terminal-contract pins live under the

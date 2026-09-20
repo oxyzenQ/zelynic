@@ -48,6 +48,18 @@
 //!   80x24 included) — and the idle path was disabled, forcing a
 //!   full repaint per frame even when nothing changed.
 //!
+//! - **Selection guard (NIGHT-improve-8)**: `force_repaint`
+//!   re-emits the last frame in full — the engine half of the
+//!   monitor's copy guard. Terminals clear a selection the moment
+//!   its cells are rewritten, so the loop's guard beat rides the
+//!   reset emission (HOME + erase-below + every row) to kill
+//!   terminal-side selections — Shift+click hands those clicks to
+//!   the terminal, not to the application. A partial rewrite
+//!   would leave the untouched rows selectable, so the beat is
+//!   always whole-frame; implemented as the shadow flipped back
+//!   out plus `ever_drawn = false`, the beat travels the exact
+//!   same tested emission path a resize takes.
+//!
 //! Line granularity (vs their cell grid) is the honest adaptation:
 //! zelynic's monitors are styled text tables, not per-cell scenes. A
 //! row diff is unicode-width-safe by construction — whole lines are
@@ -332,6 +344,59 @@ impl DiffScreen {
         mem::swap(&mut self.prev, lines);
         emitted
     }
+
+    /// Copy-guard repaint (NIGHT-improve-8): re-emit the last
+    /// painted frame IN FULL, bypassing the diff. Terminals clear a
+    /// selection the moment its cells are rewritten (the physics
+    /// that makes `watch` output unselectable) — the monitor loop
+    /// calls this on a fixed cadence so a terminal-side selection
+    /// (the Shift+click bypass hands those clicks to the terminal,
+    /// not the application) cannot outlive one beat, and every
+    /// copy path that needs a live selection finds nothing to copy.
+    /// The repaint is always whole-frame: a partial rewrite would
+    /// leave the unrewritten rows selectable — the owner's exact
+    /// complaint.
+    ///
+    /// Mechanism: flip the shadow back into the caller's buffer,
+    /// clear `ever_drawn`, and let [`DiffScreen::emit_at`] take its
+    /// reset path (HOME + erase-below + every row — which also
+    /// erases below a short frame, killing selections there too).
+    /// The double swap is an involution: the caller's vector and
+    /// the shadow end where they started, so run_alt's
+    /// clear-and-refill cycle is untouched. Returns the emitted
+    /// byte count, 0 when no frame has been painted yet (nothing
+    /// to protect).
+    pub fn force_repaint(&mut self, lines: &mut Vec<String>, sink: &mut dyn Write) -> usize {
+        let (w, h) = probe_size();
+        // A resize is in flight when the probed width moved since
+        // the last render: repainting old-width lines at the new
+        // width could wrap the final visible row and scroll — the
+        // exact hazard the tall-regime rules exist to prevent. The
+        // next render tick owns the resize (its emit resets fully),
+        // so the guard stands down instead of guessing.
+        if w != self.width {
+            return 0;
+        }
+        self.force_repaint_at(w, h, lines, sink)
+    }
+
+    /// Size-injectable core of the guard repaint (the emit/emit_at
+    /// discipline: contract pins and harnesses drive deterministic
+    /// sizes instead of the piped-fallback probe).
+    pub fn force_repaint_at(
+        &mut self,
+        width: usize,
+        height: usize,
+        lines: &mut Vec<String>,
+        sink: &mut dyn Write,
+    ) -> usize {
+        if !self.ever_drawn {
+            return 0; // nothing painted, nothing to protect
+        }
+        mem::swap(&mut self.prev, lines);
+        self.ever_drawn = false; // the reset path IS the whole-frame repaint
+        self.emit_at(width, height, lines, sink)
+    }
 }
 
 /// Stdout as a raw fd writer: ONE `write(2)` per frame, bypassing
@@ -365,3 +430,10 @@ impl Write for RawStdout {
 // instead of sitting as a sibling file next to the engine.
 #[path = "../../test/terminal/diff_tests.rs"]
 mod diff_tests;
+
+#[cfg(test)]
+// NIGHT-improve-8: the selection-guard engine pins — split into
+// their own file when they pushed diff_tests past the 500-LOC cap
+// (one file per contract, the same #[path] discipline as identity/).
+#[path = "../../test/terminal/guard_tests.rs"]
+mod guard_tests;
