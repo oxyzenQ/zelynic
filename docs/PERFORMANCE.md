@@ -291,6 +291,39 @@ the identical columns prove the ELF swap changed nothing in the emit
 pipeline. The fps delta tracks the same container-noise class as the
 improve-7 run minutes earlier (+5.2% on identical render bytes).
 
+### NIGHT-improve-8 A/B (monitor selection guard, 2026-09-21)
+
+The copy-guard commit (efa64a7) added a 100 ms whole-frame re-emit
+to the monitor LOOP — a terminal-behavior change (selections die
+when their cells are rewritten), not a render-path change. The A/B
+proves the render path untouched (A = e564c20 at HEAD, B = efa64a7,
+10 s formal runs):
+
+| Metric | e564c20 | efa64a7 | Delta |
+|--------|---------|---------|-------|
+| fps | 14,212.5 | 13,912.2 | -2.1% (machine noise) |
+| bytes/frame | 1,437.6 | 1,437.6 | +0.0% |
+| emit bytes/frame | 1,375.6 | 1,375.6 | +0.0% |
+| frame entropy | 4.1912 | 4.1912 | -0.0% |
+| density gini | 0.1812 | 0.1812 | -0.0% |
+| dirty cells/frame | 755.3 | 755.3 | -0.0% |
+
+Reading: every visual metric identical, and the fps delta is the
+same container-noise class as every previous A/B (-1.1%, -1.55%,
++1.2%, +5.2%, +4.6%). The guard is invisible to this harness by
+construction: the frame harness never opens a TTY, so run_alt takes
+its non-TTY fallback where the guard is disabled by contract (a
+pipe has no selection machinery) — the identical columns prove the
+guard changed nothing in the poll/render/emit pipeline. The guard's
+OWN cost is measured where it lives, in the new
+test/terminal/guard_tests.rs pins: one whole-frame reset emission
+per beat, byte-identical to a first paint of the same frame —
+~1.4 KB per beat on the classic 80x24 frame, ~14 KB/s while a real
+monitor is live at 10 beats/s (three orders of magnitude under the
+harness's ~19 MB/s render churn), one write(2) + one ioctl per
+beat. That is the entire, deliberate price of "no selection
+outlives one beat".
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.
