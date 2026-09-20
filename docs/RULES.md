@@ -52,8 +52,9 @@ cap without an exemption marker.
 
 - Every living `.md` file carries the stale-data disclaimer at the
   bottom (`<!-- ZELYNIC-DISCLAIMER -->` block).
-- `CHANGELOG.md` is excluded — frozen historical record, never
-  rewritten (the same exclusion policy as every other gate).
+- `CHANGELOG.md` and `CHANGELOG-V11-ERA.md` are excluded — frozen
+  historical records, never rewritten (the same exclusion policy as
+  every other gate).
 - Inject with `./scripts/inject-disclaimer.sh`; verify with
   `./scripts/inject-disclaimer.sh --check` (wired into
   `gate-keepers.sh`; the gatekeeper's `--fix` auto-injects).
