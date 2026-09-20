@@ -5,7 +5,9 @@ name: Audit
 
 on:
   schedule:
-    - cron: "17 3 * * *"
+    # Daily at 00:00 UTC (07:00 WIB) — the owner's morning, one clock
+    # for every scheduled workflow (NIGHT-improve-9).
+    - cron: "0 0 * * *"
   workflow_dispatch:
 
 permissions:

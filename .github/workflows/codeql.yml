@@ -14,7 +14,9 @@
 # the codespell gate in ci.yml; shell scripts by the local
 # gate-keepers shellcheck (ci.yml has no shellcheck job).
 #
-# Weekly scheduled scan Monday 03:00 UTC for full coverage.
+# Weekly scheduled scan Monday 00:00 UTC (07:00 WIB) for full
+# coverage — the owner's morning, one clock for every scheduled
+# workflow (NIGHT-improve-9).
 
 name: "Dragon Guard - CodeQL"
 
@@ -46,7 +48,9 @@ name: "Dragon Guard - CodeQL"
       - '.cargo/**'
       - 'scripts/**'
   schedule:
-    - cron: '0 3 * * 1'
+    # Monday 00:00 UTC (07:00 WIB) — the owner's morning, one clock
+    # for every scheduled workflow (NIGHT-improve-9).
+    - cron: '0 0 * * 1'
   workflow_dispatch:
 
 permissions:

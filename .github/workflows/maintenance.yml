@@ -5,8 +5,9 @@ name: Maintenance deps weekly
 
 on:
   schedule:
-    # Every Monday at 00:00 UTC (07:00 WIB)
-    - cron: "0 7 * * 1"
+    # Every Monday at 00:00 UTC (07:00 WIB) — the owner's morning,
+    # one clock for every scheduled workflow (NIGHT-improve-9).
+    - cron: "0 0 * * 1"
   workflow_dispatch:
 
 permissions:
