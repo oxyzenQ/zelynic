@@ -84,8 +84,7 @@ zelynic treats dependencies as attack surface (NIGHT-hunt-6). The rules:
 
 New here? Skim the [Complete Usage Guide](docs/USAGE.md) — especially its
 [honest limitations](docs/USAGE.md#honest-limitations--read-this) section
-(rules apply to apps that exist at command time; apps launched later need
-a re-run; limits do not survive reboot).
+before relying on a limit.
 
 ### Requirements
 
@@ -175,77 +174,42 @@ the plain release build for distribution.
 
 ### Usage
 
+Every command, once — flags live in `--help`, formats in
+[Rate Formats](#rate-formats), the full workflows in
+[docs/USAGE.md](docs/USAGE.md):
+
 ```bash
-# Limit a single app (both download + upload = 100kb)
-# ('strict' is the shorthand for strict-single)
-sudo zelynic strict-single brave 100kb
-sudo zelynic strict brave 100kb
+# Limit one app — positional rate sets BOTH download + upload
+sudo zelynic strict-single brave 100kb        # 'strict' is the shorthand
+sudo zelynic strict-single firefox -d 1mb -u 500kb   # per-direction
 
-# Limit per-direction
-sudo zelynic strict-single firefox -d 1mb -u 500kb
-
-# Limit multiple apps sharing one rate (group limit)
+# Group limit — several apps share ONE rate
 sudo zelynic strict-multi brave:curl:pacman 1mb
 
-# Limit ALL user apps
+# Every user app at once (system apps excluded unless --force)
 sudo zelynic limit-all 500kb
 
-# Find what's eating your bandwidth (live box, q to quit)
-sudo zelynic top
-
-# Live top with a 2s refresh instead of the 5s default
-sudo zelynic top --interval 2s
-
-# Monitor traffic in alt screen (UL + DL, clean terminal)
-sudo zelynic observe
-
-# Same monitor, calmer cadence + rate column scaled to the interval
-sudo zelynic observe --interval 5s
-
-# Zoom into one cgroup: full process + endpoint detail
-sudo zelynic observe --cgroup 73386
-
-# Block an app from internet entirely
+# Block apps from the internet entirely
 sudo zelynic block-single brave
+sudo zelynic block-multi brave:curl
+sudo zelynic block-all
 
-# Check active limits
-sudo zelynic status
+# Live monitors (box mode, q to quit) — top talkers / all traffic
+sudo zelynic top --interval 2s
+sudo zelynic observe --cgroup 73386   # zoom into one cgroup
 
-# JSON output (for scripts)
-sudo zelynic status --print-json | jq '.limits[]'
-
-# Remove one app's limit
+# Unlock — one app / a group / everything
 sudo zelynic unstrict-single brave
+sudo zelynic unstrict-multi brave:curl
+sudo zelynic unstrict-all            # emergency reset
 
-# Remove ALL limits (emergency)
-sudo zelynic unstrict-all
-
-# Recover from crash (clean orphaned pins)
-sudo zelynic recover
-
-# Check eBPF support
+# State: active limits, apps with cgroup IDs, eBPF support
+sudo zelynic status --print-json | jq '.limits[]'
+sudo zelynic list-apps
 sudo zelynic doctor
-```
 
-## Commands
-
-```
-strict-single <target> [rate] [-d <rate>] [-u <rate>] [--allow-dangerous] [--force]
-              ('strict' is the shorthand for strict-single)
-strict-multi  <a:b:c>  [rate] [-d <rate>] [-u <rate>] [--allow-dangerous] [--force]
-limit-all              [rate] [-d <rate>] [-u <rate>] [--allow-dangerous] [--force]
-block-single <target> [--force]
-block-multi  <a:b:c>   [--force]
-block-all              [--force]
-unstrict-single <target> ('unstrict' is the shorthand)
-unstrict-multi <a:b:c>
-unstrict-all
-recover
-status [--print-json]
-list-apps [--print-json]
-observe [--cgroup <id>] [--interval <1s-60s>]
-top [--limit N] [--interval <1s-60s>]
-doctor [--print-json]
+# Recover from a crash (clean orphaned BPF pins)
+sudo zelynic recover
 ```
 
 Monitors are always live (NIGHT-hunt-12): the former `--live`/`--duration`
@@ -322,8 +286,8 @@ not bugs — the full eleven-item list with examples lives in
 
 ## Safety Features
 
-- **Min-rate guard**: rejects rates below 1 KB/s (prevents bricking apps)
-- **Max-rate guard**: rejects rates above 1 TB/s (unreasonable defaults)
+- **Rate bounds guard**: 1 KB/s to 1 TB/s enforced — see
+  [Rate Formats](#rate-formats); `--allow-dangerous` overrides
 - **Fire-and-forget**: `strict-single` exits 0, limit persists in background
 - **No residue**: `unstrict-all` removes all pin files + directory
 - **Fail-safe BPF**: returns "allow" on any error path (never blocks on failure)
