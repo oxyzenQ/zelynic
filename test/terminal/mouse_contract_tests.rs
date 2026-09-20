@@ -100,7 +100,11 @@ fn monitor_never_enables_mouse_capture() {
 /// — how a raw escape literal is spelled in Rust source), then reads
 /// the digits that follow. Comments that merely NAME a mode in prose
 /// (e.g. "ESC[?1000h") do not trip this pin; only real byte-sequence
-/// literals do.
+/// literals do. The needle comparison is byte-level on purpose: a
+/// `&str` slice would panic on a backslash in prose that happens to
+/// sit a few bytes before a multi-byte character (NIGHT-hunt-30 —
+/// src/ebpf/embedded.rs's doc comment quoting its `"ZELF-30" + NUL`
+/// magic next to an em-dash hit exactly that).
 #[test]
 fn source_tree_has_no_mouse_capture_sequences() {
     let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
@@ -151,7 +155,7 @@ fn scan_source_file(path: &Path, offenders: &mut Vec<String>) {
         }
         if bytes[i] == b'\\'
             && i + needle.len() <= bytes.len()
-            && &text[i..i + needle.len()] == needle
+            && &bytes[i..i + needle.len()] == needle.as_bytes()
         {
             let start = i + needle.len();
             let mut end = start;
