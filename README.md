@@ -31,13 +31,6 @@
   </a>
 </p>
 
-<p align="center">
-  <strong>Donate</strong><br>
-  <sub>SOL / USDT (Solana network): <code>88umzS7abaToaGQVgTVXt5SnuvcjTw2jPSM6Ha2JYmXM</code></sub><br>
-  <sub>ETH / USDT (Ethereum network): <code>0x1bCbA21c07B5636a942De27AA7Ee8283cEDb4C3D</code></sub><br>
-  <sub>BTC (Taproot): <code>bc1p88nqysn4p8u9zxwz2pyxs5pl77wllcrk6ca2r2l3ryr3863hxkys5vdkze</code></sub>
-</p>
-
 ---
 
 ## Why zelynic?
@@ -496,13 +489,33 @@ EXPECTED=$(awk '{print $1}' zelynic-vX.Y.Z-linux-amd64-gnu.tar.gz.shake256)
 [ "$COMPUTED" = "$EXPECTED" ] && echo "OK" || echo "FAILED"
 ```
 
+## Support
+
+zelynic is an open-source project built and maintained independently by [rezky_nightky (oxyzenQ)](https://github.com/oxyzenQ).
+
+If this project helped you, or tamed your bandwidth, you can support future maintenance here:
+
+[![Support me on Ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/rezky)
+
+### Crypto donations
+
+Owner-verified receive addresses (rezky_nightky / oxyzenQ). All three passed offline cryptographic verification (EIP-55 mixed-case checksum for Ethereum, bech32m witness-v1 for Taproot, base58-to-32-byte ed25519 key for Solana). Always double-check the address on screen before sending — network mismatches (e.g., sending USDT-ERC20 to a Solana address, or sending BTC to a non-Taproot address) will permanently lose funds.
+
+- **Solana** — `SOL` / `USDT` (SPL) on Solana mainnet: `88umzS7abaToaGQVgTVXt5SnuvcjTw2jPSM6Ha2JYmXM`
+- **Ethereum** — `ETH` / `USDT` (ERC-20) / `USDC` (ERC-20) on Ethereum mainnet: `0x1bCbA21c07B5636a942De27AA7Ee8283cEDb4C3D`
+- **Bitcoin** — `BTC` on Taproot (P2TR, bech32m, `bc1p`-prefixed — verified Taproot, not native SegWit): `bc1p88nqysn4p8u9zxwz2pyxs5pl77wllcrk6ca2r2l3ryr3863hxkys5vdkze`
+
+Support is optional. The project remains open-source.
+
 ## Intellectual Property & Trademark
 
 **zelynic** is the exclusive intellectual property of
 **rezky_nightky (oxyzenQ)**. Source code is licensed under
 **GPL-3.0-only** (see [LICENSE](LICENSE)); the name, logo, and branding
 (the Marks) are governed by [TRADEMARK.md](TRADEMARK.md), are NOT
-covered by the GPL, and are reserved by the owner.
+covered by the GPL, and are reserved by the owner. This project is
+**NOT for sale** — unauthorized rebranding, relicensing, or
+source-code theft is strictly prohibited.
 
 **Forking policy** (full text in [TRADEMARK.md](TRADEMARK.md),
 §3–§4):
