@@ -113,9 +113,9 @@ section):
   `src/ebpf/loader.rs` attaches via `CgroupSkbAttachType::Egress` /
   `Ingress`.
 - The map contract resolves by name: `cgroup_counters` and
-  `cgroup_counters_ingress` (HASH, key 4, value 24, max 256) and
-  `events` (RINGBUF, 2 MB) — identical to the C object's contract
-  as coded in `bpf/observer.bpf.c`.
+  `cgroup_counters_ingress` (HASH, key 4, value 24, max 1024 since
+  NIGHT-improve-8 — the port-time value was 256, see deliberate
+  delta 3) and `events` (RINGBUF, 2 MB).
 - The `license` section carries `GPL` exactly like the C object
   (required: `bpf_skb_cgroup_id` is a GPL-only helper).
 
@@ -144,8 +144,8 @@ Every name, section, layout and helper the C object exposes, because
 |---|---|---|
 | Program `observe_egress` | `SEC("cgroup_skb/egress")` | `#[cgroup_skb(egress)]` |
 | Program `observe_ingress` | `SEC("cgroup_skb/ingress")` | `#[cgroup_skb(ingress)]` |
-| Map `cgroup_counters` | HASH u32 -> cgroup_stats (24 B), 256 | identical |
-| Map `cgroup_counters_ingress` | HASH u32 -> cgroup_stats (24 B), 256 | identical |
+| Map `cgroup_counters` | HASH u32 -> cgroup_stats (24 B), 256 | 1024 (NIGHT-improve-8, delta 3) |
+| Map `cgroup_counters_ingress` | HASH u32 -> cgroup_stats (24 B), 256 | 1024 (NIGHT-improve-8, delta 3) |
 | Map `events` | RINGBUF 2 MB | identical |
 | `struct event` layout | 52 B, `#[repr(C)]` mirror | compile-time size pin |
 | `struct cgroup_stats` layout | 24 B | compile-time size pin |
@@ -154,8 +154,8 @@ Every name, section, layout and helper the C object exposes, because
 | Event throttle | 1 event / 100 packets / cgroup | line-for-line port |
 | IPv4/TCP/UDP parse | direct data/data_end access | `ctx.load` helper copies |
 
-Two deliberate behavioral deltas, both documented for the decision
-section:
+Two deliberate behavioral deltas at port time, plus one added by
+NIGHT-improve-8, all documented for the decision section:
 
 1. The Rust port reads packet headers through `bpf_skb_load_bytes`
    (`ctx.load`) instead of direct `data`/`data_end` access. On
@@ -167,6 +167,16 @@ section:
 2. The C ingress program ignores the `bpf_map_update_elem` return
    value; the port keeps that exact behavior with a comment saying
    so (a swallow-audit would flag it otherwise).
+3. (NIGHT-improve-8) The counter maps' capacity is 1024 entries, not
+   the C twin's 256. On hosts with more than 256 live cgroups —
+   Kubernetes nodes, systemd-heavy servers, container hosts — the
+   port-time maps filled silently and every further cgroup's traffic
+   went uncounted (the insert-failure path returns allow-and-skip,
+   so observe/top showed nothing for it). The maps are unpinned and
+   session-scoped, so the raise carries no pin or schema migration;
+   kernel memory cost is 2 x 1024 x 24 B = 48 KiB per observe session.
+   The frozen bpftool dumps below still show the port-time 256 —
+   they are verbatim records of the port verification.
 
 A hunt finding recorded while porting, independent of Rust vs C: the
 `events` ringbuf is **written by the BPF side but never read by
