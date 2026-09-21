@@ -299,7 +299,8 @@ slightly easier to maintain.
 - **Pure eBPF** — no tc, no nft, no wrappers
 - **Small codebase** — minimal dependencies, easy to audit
 - **Predictable behavior** — same input → same output, every time
-- **Linux-first** — BSD/macOS source support OK, never anything else
+- **Linux-only at runtime** — the `ebpf` feature is a no-op
+  elsewhere; BSD/macOS and Windows are out of scope, ever
 
 ### What zelynic will NEVER be
 

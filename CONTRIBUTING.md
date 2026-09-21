@@ -55,6 +55,8 @@ src/
       format.rs        — rate/duration parsing + formatting helpers
       policy.rs        — apply / resolve / write / delete policy operations
       stats.rs         — status printing + map readers + identity accessors
+      reclaim.rs       — bucket/stats slot reclamation on unstrict/recover
+                         (the LTS budget, NIGHT-improve-10)
     identity/
       mod.rs           — cgroup ID → process name resolution + the canonical
                           /proc boundary helpers (pid_cgroup_id / pid_comm)
@@ -65,6 +67,8 @@ src/
     render.rs          — responsive render engine for observe/top (NIGHT-hunt-7)
       render/          — observe / top / detail frame renderers + bench fixture
     loader.rs          — observer BPF loader
+    embedded.rs        — aligned, build-validated embedding of both BPF
+                         objects (NIGHT-hunt-29/30)
     display.rs         — traffic table rendering
     bpf_syscall.rs     — raw bpf() syscall fallback
     lock.rs            — file lock (concurrency guard)
@@ -94,7 +98,7 @@ ebpf/                   — the pure-Rust BPF source (aya-ebpf; NIGHT-improve-1
 
 scripts/
   build.sh             — check-all orchestration
-  gate-keepers.sh      — pre-commit non-code gates (15 checks)
+  gate-keepers.sh      — pre-commit non-code gates (13 sections)
   check-permissions.sh — 644/755 permission guard
   check-loc.sh         — Rust file LOC cap (500, // LOC_EXEMPT: markers)
   check-headers.sh     — license header check (rs/c/h/py/sh/toml/yml/md)
@@ -165,8 +169,9 @@ cargo audit + cargo deny (both skip with a warning when not installed),
 the repository policy check (check-policy.py), and the version-string
 anti-pattern check.
 
-`gate-keepers.sh` runs the 15 non-code gates: bash -n + shellcheck + shfmt
-on shell scripts, yamllint + actionlint on workflows, TOML validation,
+`gate-keepers.sh` runs the 13 non-code gate sections — the shell triad
+(bash -n + shellcheck + shfmt) on shell scripts, yamllint + actionlint
+on workflows, TOML validation,
 codespell, SPDX license headers (check-headers.sh), file permission guard
 (644 files / 755 executables and directories), the repo-wide emoji sweep,
 the 500-line Rust LOC cap (check-loc.sh), the toolchain-pin sync check

@@ -42,6 +42,39 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Changed
 
+- **docs: source-of-truth cross audit — twelve stale spots eliminated
+  (NIGHT-hunt-15)** — every living-doc claim was re-verified against
+  the code it describes (source code is the truth; the doc is wrong
+  when they disagree). SAFETY_ANALYSIS: the "six audited unsafe
+  blocks" inventory had drifted as later hunts added sites — recounted
+  to the real ten blocks plus four aya::Pod marker impls (the missing
+  three: the diff engine's one-write-per-frame libc::write, the
+  doctor's two libc::statfs bpffs checks, and the second
+  TIOCGWINSZ probe in the render layer). USAGE: limitation #5 said
+  "both bounds overridable with --allow-dangerous (min)" —
+  contradictory; rates.rs bypasses validate_rate for BOTH bounds under
+  the flag, so the confusing "(min)" is gone. README: the "BSD/macOS
+  source support OK" bullet contradicted the never-list and the FAQ
+  two sections later — now "Linux-only at runtime, ebpf feature a
+  no-op elsewhere". DRAGON_ARCHITECTURE: the observer prose claimed
+  bpf_get_current_cgroup_id() (the task-context helper) where the
+  program reads bpf_skb_cgroup_id() (socket-owner attribution), and
+  described an egress-only observer where there are two programs and
+  two counter maps; three serve-child-era roadmap rows told the dead
+  child-process/watchdog-timeout story (reality: pinned maps +
+  bpf_links, watchdog dormant and never armed); the future-policer
+  rows pointed at bpf/policer.bpf.c, a path deleted with the C side —
+  now the pure-Rust ebpf/src/bin location. SECURITY: the audit scope
+  still listed the deleted `bpf/` directory. CONTRIBUTING: the project
+  tree was missing limiter/reclaim.rs (NIGHT-improve-10) and
+  ebpf/embedded.rs (NIGHT-hunt-29/30), and claimed "15 non-code
+  gates" where gate-keepers.sh carries 13 sections. Verified clean and
+  left alone: 57-name blocklist, 13 pin files, 1024/256 map
+  capacities, 10s/3s identity/connection TTLs, 1kb..1tb parser span,
+  7-deps/54-lockfile counts, brand color constants, NIGHT-label
+  history in dated audit sections, and the deliberate "former C twin"
+  provenance comments. Docs-only: no code, schema, or map changes.
+
 - **supermassive-test: the 1gb rung's floor tracks the min-RTO cushion
   model (NIGHT-improve-15)** — the last heavy failure after 1e9fa80
   (ladder 1gb at 53.9% of configured, six-flow aggregate) was the same

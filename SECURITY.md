@@ -46,8 +46,9 @@ In scope:
 
 - The Rust CLI and everything it executes (`src/`), including the
   curl-backed `--check-update` surface.
-- The eBPF loader and datapath (`src/ebpf/`, `bpf/`) — privilege
-  handling, map writes, pin lifecycle, raw-syscall wrappers.
+- The eBPF loader and datapath (`src/ebpf/` userspace + the `ebpf/`
+  pure-Rust BPF source) — privilege handling, map writes, pin
+  lifecycle, raw-syscall wrappers.
 - The release pipeline and artifacts: workflows (`.github/workflows/`),
   tarballs, checksums, install scripts.
 - The security-relevant UX contract: privilege guards, error surfaces,
