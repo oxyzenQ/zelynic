@@ -381,10 +381,13 @@ pub fn suggestion(msg: &str) -> String {
 }
 
 mod labeled;
+mod sanitize;
 
 pub use labeled::eprintln_error_labeled;
+
 #[cfg(feature = "ebpf")]
 pub use labeled::eprintln_warn_labeled;
+pub use sanitize::sanitize_comm;
 
 #[cfg(test)]
 mod tests {

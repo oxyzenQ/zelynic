@@ -1,27 +1,34 @@
 // Copyright (C) 2026 rezky_nightky
 // SPDX-License-Identifier: GPL-3.0-only
 
-//! Comm-label sanitization — the /proc display boundary
-//! (NIGHT-cybersecurity-1).
+//! Untrusted-string sanitization — the terminal display boundary
+//! (NIGHT-cybersecurity-1; relocated from src/ebpf/identity/ by
+//! NIGHT-cybersecurity-2 so the one canonical sanitizer is reachable
+//! from BOTH feature graphs).
 //!
-//! `prctl(PR_SET_NAME)` lets ANY unprivileged process set its own
-//! `/proc/<pid>/comm` to 15 bytes of near-arbitrary content — including
-//! ANSI/OSC escape sequences, newlines, and other control characters.
-//! Every surface that prints a comm (list-apps, observe/top tables,
-//! eagle-eyes detail lines, verbose traces) runs as root in the admin's
-//! terminal, so an unsanitized label is a terminal-injection vector:
-//! OSC 52 can rewrite the clipboard, newlines can forge lines that look
-//! like zelynic's own output (a fake cgroup-id row nudges an admin
-//! toward the wrong target), and escape sequences corrupt the
-//! alt-screen monitor.
+//! Two classes of untrusted string reach zelynic's printing surfaces:
 //!
-//! All three /proc comm read boundaries (the identity walk, the
-//! connection walk, and the resolve_target match walk) pass their
-//! labels through [`sanitize_comm`], making every downstream consumer
-//! — display, JSON, matching, majority-vote tally — safe by
-//! construction. The empty-label and fallback paths (`cg:{id}`,
-//! `pid {pid}`) are kernel- or program-generated and need no extra
-//! pass.
+//!  * `/proc` comm labels — `prctl(PR_SET_NAME)` lets ANY
+//!    unprivileged process set its own `/proc/<pid>/comm` to 15
+//!    bytes of near-arbitrary content.
+//!  * the `--check-update` release tag — a network string from the
+//!    GitHub API response, where curl inherits the invoking user's
+//!    proxy environment (a MITM'd or compromised proxy is in the
+//!    threat model even over TLS).
+//!
+//! Every surface that prints either runs as the admin's terminal, so
+//! an unsanitized string is a terminal-injection vector: OSC 52 can
+//! rewrite the clipboard, newlines can forge lines that look like
+//! zelynic's own output (a fake cgroup-id row nudges an admin toward
+//! the wrong target), and escape sequences corrupt the alt-screen
+//! monitor.
+//!
+//! All consumers — the identity walk's `pid_comm`, the update
+//! check's tag rendering, display, JSON, matching, majority-vote
+//! tally — pass their labels through [`sanitize_comm`], making every
+//! downstream consumer safe by construction. The empty-label and
+//! fallback paths (`cg:{id}`, `pid {pid}`) are kernel- or
+//! program-generated and need no extra pass.
 
 // NON_LATIN_FIXTURE: the CJK comm row in the tests below is
 // intentional Unicode passthrough coverage for the sanitizer
@@ -55,7 +62,7 @@ mod tests {
         let osc52 = "\u{1b}]52;p;SGVsbG8=\u{7}";
         assert_eq!(sanitize_comm(osc52), "?]52;p;SGVsbG8=?");
         // CSI color reset smuggled around a name.
-        assert_eq!(sanitize_comm("\u{1b}[0mbrave"), "?[0mbrave");
+        assert_eq!(sanitize_comm("\u{1b}brave"), "?brave");
         // Newline + CR: the forged-output-line family.
         assert_eq!(sanitize_comm("evil\nroot\tX11"), "evil?root?X11");
         assert_eq!(sanitize_comm("evil\r\n8066"), "evil??8066");

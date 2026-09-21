@@ -706,7 +706,15 @@ alone — the owner's NIGHT-hunt-18 call.
   `tag_name` reached `println_safe!` raw. The tag now passes
   `sanitize_comm` at the boundary (the same one-?-per-control-char
   contract, cross-module reuse), pinned by a forged-response unit
-  test (OSC 52 payload + forged newline verdict, one ? each).
+  test (OSC 52 payload + forged newline verdict, one ? each). The
+  sanitizer itself relocated from the ebpf-gated identity module to
+  the always-compiled output layer (src/output/sanitize.rs): the
+  first push of this fix broke the CI "Lint & Test" job — the
+  import resolved only under --features ebpf, and that job builds
+  the default graph (the exact feature-graph trap the hunt-15
+  terminal probe note warned about, caught by the runner minutes
+  after push, fixed by the follow-up commit). Both feature graphs
+  are now part of the local verification habit.
   The audit around it found the rest of the surfaces already
   closed, now verified and recorded in SECURITY.md's hardening
   posture: every /proc comm read flows through the single
