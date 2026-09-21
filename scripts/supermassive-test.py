@@ -87,6 +87,7 @@ What it verifies (verdicts PASS / FAIL / SKIP, exit 1 on any FAIL):
 
 import argparse
 import contextlib
+import inspect
 import io
 import json
 import os
@@ -1258,7 +1259,11 @@ def test_asymmetric(window, baseline):
     No accounting-agreement row here on purpose: the single status
     row's bytes_allowed spans BOTH buckets, so comparing it to one
     direction's client count is noise by construction; the two band
-    verdicts plus the drop proof carry this stage.
+    verdicts plus the drop proof carry this stage. The measured
+    windows see STEADY STATE (cushion drained first — see the
+    warm-up comment in the body); the first-window physics belongs
+    to the attach moment, not to the per-bucket rates this stage
+    pins.
     """
     name = "asymmetric (-d 100kb -u 1mb): both buckets enforced"
     if baseline and baseline < 2e6:
@@ -1275,8 +1280,22 @@ def test_asymmetric(window, baseline):
         clear_all()
         return record(name, "FAIL", f"policy row wrong: {entry}")
     time.sleep(0.5)
+    # Cushion drain (the 2026-09-22 approved fix): a freshly attached
+    # bucket starts FULL — default_burst is 1 s of rate — so the first
+    # window after attach measures rate * (1 + 1/window): 1.33x at
+    # light's 3.0 s, 1.25x at heavy's 4.0 s, straddling BAND_HI = 1.30
+    # exactly where the 2026-09-21 root run split (light "asymmetric
+    # upload 1mb 131.1%" FAIL, heavy the same stage 124.5% PASS, same
+    # engine, both under the bound — the cushion is engine contract,
+    # not over-delivery). Drain it into a discarded window so each
+    # measured window sees steady state: refill only, one band for
+    # both modes, and >30% is again a real over-delivery signal. The
+    # download row gets the same drain — it only stayed inside the
+    # band by AIMD luck, not by different physics.
+    py_download(0.5)
     got = py_download(window)
     dl_ok = band_check("asymmetric: download bucket at 100kb", got / window, 100_000)
+    py_upload(0.5)
     sent = py_upload(window)
     ul_ok = band_check("asymmetric: upload bucket at 1mb", sent / window, 1_000_000)
     entry = limit_entry(status_json(), CG.ids["a"])
@@ -1390,11 +1409,35 @@ def test_curl_upload(window, baseline):
 
 
 def test_overhead(window, baseline):
+    """A non-binding policy (3x what this machine can do) must not cost
+    real throughput. The comparison is PAIRED inside the stage (the
+    2026-09-22 approved fix): the harness-start baseline was measured
+    minutes earlier, and the 2026-09-21 heavy run filed +30.0% where
+    light measured +2.1% on the same policy class — machine-load drift
+    between harness start and the last-but-one stage, not policy
+    cost. Fresh baseline window, then policy, then the measured
+    window: seconds apart, same machine state. No policy is live at
+    entry — the preceding stage ends clear_all() in both modes.
+    """
     if baseline and baseline >= 300e9:
         return record(
             "overhead: non-binding policy cost", "SKIP", "baseline beyond the 1 TB/s policy ceiling"
         )
-    non_binding_gb = min(900, max(10, round((3 * baseline if baseline else 10e9) / 1e9)))
+    fresh = py_download(window)
+    fresh_rate = fresh / window
+    if fresh <= 0:
+        return record(
+            "overhead: non-binding policy cost",
+            "FAIL",
+            "fresh baseline measured 0 B/s with no policy live",
+        )
+    if fresh_rate >= 300e9:
+        return record(
+            "overhead: non-binding policy cost",
+            "SKIP",
+            "fresh baseline beyond the 1 TB/s policy ceiling",
+        )
+    non_binding_gb = min(900, max(10, round(3 * fresh_rate / 1e9)))
     non_binding = non_binding_gb * 1e9
     ok, payload = apply_single("a", f"{non_binding_gb}gb", int(non_binding), int(non_binding))
     if not ok:
@@ -1403,15 +1446,13 @@ def test_overhead(window, baseline):
     got = py_download(window)
     limited = got / window
     clear_all()
-    if not baseline:
-        return record("overhead: non-binding policy cost", "SKIP", "no baseline")
-    drop_pct = (baseline - limited) / baseline * 100 if baseline else 0.0
+    drop_pct = (fresh_rate - limited) / fresh_rate * 100
     verdict = "PASS" if drop_pct <= 30.0 else "FAIL"
     record(
         "overhead: non-binding policy cost",
         verdict,
-        f"baseline {fmt_bps(baseline)} vs {fmt_bps(limited)} "
-        f"({non_binding_gb} GB/s policy) — {drop_pct:+.1f}%",
+        f"fresh {fmt_bps(fresh_rate)} vs {fmt_bps(limited)} "
+        f"({non_binding_gb} GB/s policy) — {drop_pct:+.1f}% (paired in-stage)",
     )
     return verdict == "PASS"
 
@@ -1769,6 +1810,36 @@ def self_test():
         "engine: ladder floor model (sub-skb zero, band, min-RTO cushion)",
         "PASS" if ok_floors else "FAIL",
         "; ".join(f"{lib.fmt_bps(r)} -> {lib.loopback_rate_floor(r):.2f}" for r in floor_pins),
+    )
+
+    # 2026-09-22 approved-fix pins (rootless source pins, the
+    # improve-13 worker-row class): the asymmetric stage must drain
+    # the attach cushion before each measured window — a fresh bucket
+    # is FULL (default_burst = 1 s of rate), so a first window would
+    # measure rate * (1 + 1/window), 1.33x at light's 3.0 s vs 1.25x
+    # at heavy's 4.0 s, exactly straddling BAND_HI = 1.30 (the
+    # 2026-09-21 root run split 131.1% FAIL / 124.5% PASS on the same
+    # engine). The overhead stage must pair its baseline INSIDE the
+    # stage — the harness-start baseline was minutes stale when heavy
+    # filed +30.0% against light's +2.1% on the same policy class
+    # (machine-load drift, not policy cost). If a refactor drops
+    # either contract, these rows fail before the next root run
+    # trusts the stages.
+    asym_src = inspect.getsource(test_asymmetric)
+    drain_ok = asym_src.index("py_download(0.5)") < asym_src.index(
+        "got = py_download(window)"
+    ) and asym_src.index("py_upload(0.5)") < asym_src.index("sent = py_upload(window)")
+    record(
+        "harness: asymmetric drains the attach cushion before each window",
+        "PASS" if drain_ok else "FAIL",
+        "discarded warm-up windows precede both measured windows (bound 1+1/W straddles BAND_HI)",
+    )
+    ovh_src = inspect.getsource(test_overhead)
+    pair_ok = ovh_src.index("fresh = py_download(window)") < ovh_src.index("apply_single(")
+    record(
+        "harness: overhead baseline is paired inside the stage",
+        "PASS" if pair_ok else "FAIL",
+        "fresh baseline window precedes the non-binding policy window",
     )
 
     # NIGHT-improve-16 pins: the resolve GATE. The 2026-09-21 debian13

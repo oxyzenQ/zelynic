@@ -690,6 +690,39 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Fixed
 
+- **harness: the two 2026-09-21 root-run rows that were ours, not the
+  engine's — both fixed with the stage-measurement contracts they
+  needed (2026-09-22 approved follow-up)** — (1) the asymmetric
+  upload row tipped the band on bucket physics, not enforcement: a
+  freshly attached bucket starts FULL (default_burst = 1 s of rate),
+  so the first measured window after attach includes the whole
+  cushion — rate * (1 + 1/window) = 1.33x at light's 3.0 s window vs
+  1.25x at heavy's 4.0 s, straddling BAND_HI = 1.30 exactly where
+  the run split (light "asymmetric upload 1mb 131.1%" FAIL, heavy
+  the same stage 124.5% PASS — same engine, both under the bound;
+  the cushion is engine contract, not over-delivery). The stage now
+  drains the cushion into a discarded 0.5 s warm-up window before
+  EACH measured direction (upload was the row that tipped, but the
+  download row only stayed inside the band by AIMD luck — same
+  physics): the measured windows see steady state, refill only, one
+  band for both modes, and >30% is again a real over-delivery
+  signal. (2) the overhead stage compared its single sample against
+  the harness-START baseline measured minutes earlier — heavy filed
+  "+30.0%" where light measured +2.1% on the same policy class:
+  machine-load drift between harness start and the 20th stage, not
+  policy cost. The stage is now PAIRED inside itself: a fresh
+  baseline window (no policy live — the preceding stage ends
+  clear_all() in both modes), then the non-binding 3x policy, then
+  the measured window — seconds apart, same machine state; a 0 B/s
+  fresh baseline now FAILs loudly (the improve-13 no-silent-zero
+  rule) instead of dividing by silence, and the policy size follows
+  the fresh rate, not the stale one. Two new rootless self-test rows
+  pin both contracts by source (warm-up windows precede each
+  measured window; the fresh baseline precedes the policy
+  application — the improve-13 source-pin class), so a refactor
+  cannot quietly drop either. Engine, eBPF, schema, and kernel maps
+  untouched — harness-only, so no A/B benchmark (the
+  NIGHT-improve-15 call).
 - **harness + bootstrap: the one-click flow is real now — a checkout
   tests itself, never a stale distro install, and bootstrap ends
   ready to test (NIGHT-improve-16)** — the owner's 2026-09-21
