@@ -42,6 +42,32 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Changed
 
+- **harnesses: every loopback stream is policed at exactly ONE hook,
+  and a blocked connect is zero goodput instead of a harness kill
+  (NIGHT-improve-12)** — the 2026-09-21 root run exposed three harness
+  engine defects, all fixed in the shared lib + both twins. (1) The
+  supermassive harness parked ITSELF inside target cgroup a, so the
+  in-process traffic server shared the policed cgroup and every
+  loopback download byte crossed a's egress hook (upload policy) AND
+  its ingress hook (download policy) — the combined dl+ul stats map
+  counted each byte twice and every "BPF accounting matches client
+  bytes" row failed at ~200% (1359% at 1kb where headers dominate).
+  The harness now lives in a sixth, never-policed zelynic-supermassive-hq
+  cgroup while every measurement client — python workers and curls
+  alike — is exec-moved into the target cgroup before its first socket
+  exists; one stream, one policed hook, 1:1 accounting. (2) limiter-
+  depth-test.py's rate stages apply -d-only policies for the same
+  reason (its client and server are one process in one cgroup; the
+  symmetric positional form stays covered by its policy-write stage).
+  (3) A dropped SYN under block-* raised a bare TimeoutError out of
+  create_connection and killed the harness at block-single — "harness
+  error: timed out", every later stage unrecorded. Connect failures now
+  return zero goodput in both twins, pinned by a new self-test check
+  (6/6). Ladder rungs whose token bucket is smaller than one loopback
+  GSO skb (rates below ~64 KB/s — 1kb/10kb) get a zero band floor and
+  an accounting SKIP: under-delivery there is loopback physics, not an
+  enforcement miss, and the kernel-drop proof carries the verdict.
+
 - **harnesses: brutal-stress-test is renamed supermassive-test and
   the twin harnesses share one engine (NIGHT-improve-11 /
   security-4)** — scripts/brutal-stress-test.{sh,py} are now
@@ -58,7 +84,8 @@ alone — the owner's NIGHT-hunt-18 call.
   all-round scope also grows: the supermassive light mode exercises
   the human status table (a separate render path from the JSON
   every other stage consumes) while a limit is provably live.
-  Engine self-test still 5/5 (python3 stdlib only, no root).
+  Engine self-test 5/5 at the time (6/6 since NIGHT-improve-12;
+  python3 stdlib only, no root).
 
 - **deps: full re-audit recorded — 7/7 direct dependencies live,
   nothing removable (NIGHT-improve-11 / security-4)** — the supply

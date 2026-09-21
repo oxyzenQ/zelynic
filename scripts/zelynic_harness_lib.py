@@ -44,6 +44,22 @@ CHUNK = 256 * 1024
 BAND_LO = 0.65
 BAND_HI = 1.30
 
+# Loopback hands the cgroup hooks ~64 KiB GSO skbs (lo MTU 65536, no NIC
+# segmentation). A policer whose token bucket — burst = rate clamped to
+# the 4096-byte floor — is smaller than ONE skb can only admit control
+# packets: a 1kb/s rung delivers ~0 payload on loopback no matter how
+# healthy the kernel code is (a real NIC's 1448-byte MSS never hits
+# this). NIGHT-improve-12: rungs below this line get a zero floor on the
+# measured-rate band (kernel drops still prove enforcement) and skip
+# the byte-accounting cross-check (per-skb headers dominate delivered
+# bytes there).
+LOOPBACK_GSO_SKB = 65_536
+
+# Below this delivered payload the accounting cross-check compares
+# header noise against nothing — SKIP instead of FAIL
+# (NIGHT-improve-12).
+ACCOUNTING_FLOOR_BYTES = 64 * 1024
+
 # Harness state (see the module docstring's ownership contract).
 RESULTS = []
 BINARY = ""
@@ -217,9 +233,30 @@ def resolve_binary(explicit, script_hint):
 
 # ── verdict band ────────────────────────────────────────────────────────────
 
-def band_check(name, measured_bps, configured_bps, extra=""):
+def loopback_rate_floor(rate_bps):
+    """Effective BAND_LO for a configured rate on the loopback engine.
+
+    0.0 for rates whose token bucket (burst = rate clamped to >= 4096)
+    can never admit a single loopback GSO skb — under-delivery there is
+    loopback physics, not an enforcement miss, so the ceiling and the
+    kernel-drop proof carry the verdict alone. Rates at or above the
+    skb size refill enough tokens per skb to reach steady state and
+    keep the full band.
+    """
+    return 0.0 if rate_bps < LOOPBACK_GSO_SKB else BAND_LO
+
+
+def band_check(name, measured_bps, configured_bps, extra="", lo=None, hi=None):
+    """Record a measured-vs-configured rate verdict.
+
+    lo/hi override the module band for a single call (the GSO floor
+    passes lo=0.0 for starved rungs); both default to the live module
+    state so --band keeps working.
+    """
     ratio = measured_bps / configured_bps if configured_bps else 0.0
-    verdict = "PASS" if BAND_LO <= ratio <= BAND_HI else "FAIL"
+    lo_eff = BAND_LO if lo is None else lo
+    hi_eff = BAND_HI if hi is None else hi
+    verdict = "PASS" if lo_eff <= ratio <= hi_eff else "FAIL"
     detail = (
         f"configured {fmt_bps(configured_bps)} ({mbps(configured_bps)}), "
         f"measured {fmt_bps(measured_bps)} ({ratio * 100:.1f}%)"

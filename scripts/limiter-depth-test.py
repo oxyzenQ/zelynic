@@ -29,7 +29,9 @@ How it stays self-contained and honest:
     server socket), then cross-checked against zelynic's own BPF
     counters from `status --print-json` (bytes_allowed / packets
     dropped) — proving the enforcement actually ran in the kernel,
-    not just that a policy row exists.
+    not just that a policy row exists. Download stages apply -d-only
+    policies so each loopback stream is policed at exactly one hook
+    and the cross-check stays 1:1 (NIGHT-improve-12).
 
 Usage:
   sudo ./scripts/limiter-depth-test.sh               # full run (~2 min)
@@ -349,8 +351,17 @@ class TrafficServer:
 
 
 def download(window, port):
-    """Read from the server for `window` seconds; returns bytes received."""
-    with socket.create_connection(("127.0.0.1", port), timeout=10) as s:
+    """Read from the server for `window` seconds; returns bytes received.
+
+    Connect failures are ZERO GOODPUT, not a crash: a dropped SYN under
+    a starving or blocking policy must yield 0, never an uncaught
+    TimeoutError that kills the whole harness (NIGHT-improve-12).
+    """
+    try:
+        s = socket.create_connection(("127.0.0.1", port), timeout=10)
+    except (socket.timeout, OSError):
+        return 0
+    with s:
         s.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         s.sendall(b"GET\n")
         deadline = time.perf_counter() + window
@@ -378,8 +389,16 @@ def upload(window, port):
     Returns (client_bytes, server_bytes, elapsed): the server's reply
     line is the authoritative count, elapsed covers the full stream
     including the tail drain, so the rate is honest end to end.
+
+    Connect failures return (0, None, 1.0): zero goodput with the rate
+    math still defined (measured 0 → an honest band FAIL), never an
+    uncaught exception (NIGHT-improve-12).
     """
-    with socket.create_connection(("127.0.0.1", port), timeout=10) as s:
+    try:
+        s = socket.create_connection(("127.0.0.1", port), timeout=10)
+    except (socket.timeout, OSError):
+        return 0, None, 1.0
+    with s:
         s.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         start = time.perf_counter()
         s.sendall(b"PUT\n")
@@ -480,10 +499,22 @@ def test_baseline(window):
     return bps
 
 
-def apply_and_verify(rate_str, expect_dl, expect_ul):
-    """Apply strict-single to the test cgroup and verify the write."""
+def apply_and_verify(rate_str, expect_dl, expect_ul, flags=()):
+    """Apply strict-single to the test cgroup and verify the write.
+
+    `flags` selects the policy direction. The download rate stages pass
+    ("-d",) on purpose: this harness's client AND server are the same
+    process in the same policed cgroup, so with the symmetric
+    positional form every loopback download byte crossed the cgroup's
+    egress hook (upload policy) AND ingress hook (download policy) and
+    the combined dl+ul counter the accounting cross-check reads was
+    ~2x the client's bytes. Direction-specific policies police exactly
+    ONE hook per stream and keep the cross-check 1:1 honest
+    (NIGHT-improve-12). The symmetric positional form itself stays
+    covered by test_policy_write.
+    """
     target = str(CG.id)
-    rc, stdout, stderr = run_zel(["strict-single", target, rate_str])
+    rc, stdout, stderr = run_zel(["strict-single", target, *flags, rate_str])
     if rc != 0:
         return False, f"strict-single exit {rc}: {(stderr or stdout).strip()[:200]}"
     doc = status_json()
@@ -522,7 +553,9 @@ def test_rate(rate_bps, window, baseline, label):
             f"baseline {fmt_bps(baseline)} too close to {fmt_bps(rate_bps)}",
         )
     rate_str = bps_to_rate_str(rate_bps)
-    ok, payload = apply_and_verify(rate_str, rate_bps, rate_bps)
+    # -d only: one policed hook per stream, honest 1:1 accounting (see
+    # apply_and_verify — NIGHT-improve-12).
+    ok, payload = apply_and_verify(rate_str, rate_bps, None, flags=("-d",))
     if not ok:
         return record(f"rate {label}: enforced download", "FAIL", payload)
     time.sleep(0.5)  # let the bucket reach steady state
