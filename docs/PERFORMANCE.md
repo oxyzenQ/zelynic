@@ -370,6 +370,37 @@ UDP sockets, so the filters and the probe consolidation are invisible
 to the stream by construction; the fps delta sits in the same noise
 class as every previous A/B (-1.1%, -1.55%, +1.2%, +5.2%, +4.6%).
 
+### improve-13 A/B (flagship footer style audit, 2026-09-21)
+
+The monitoring style commit replaced observe's run-on footer line with
+a column-aligned TOTAL row plus a bullet-separated meta line (and the
+formatter gained tier-boundary promotion — "1000.0 KB" class values
+render as the next unit, which the fixed-seed fixture never generates,
+so the formatter change is invisible to the stream here). A = 3eda324
+(base capture), B = this commit, 10 s runs:
+
+| Metric | 3eda324 | improve-13 | Delta |
+|--------|---------|-----------|-------|
+| fps | 14175.5 | 14413.3 | +1.7% (noise class) |
+| bytes/frame | 1437.6 | 1421.2 | -1.1% |
+| emit bytes/frame | 1375.6 | 1358.9 | -1.2% |
+| emit ratio | 0.96 | 0.96 | -0.1% |
+| density gini | 0.1812 | 0.2001 | +10.4% |
+| frame entropy | 4.1912 | 4.1148 | -1.8% |
+| dirty cells/frame | 755.3 | 724.1 | -4.1% |
+| dirty ratio | 0.4146 | 0.3975 | -4.1% |
+
+Reading: the frame is CHEAPER to redraw — dirty cells and emitted
+bytes both fell (the totals sit in fixed column slots, so the
+changing digits cluster in fewer cells) and frames carry fewer bytes
+(the footer's two lines sum shorter than the old run-on line). The
+density gini rose because the new meta line ("N packets · N cgroups")
+is deliberately sparse — an annotation line, not a data row, the same
+visual class as "(+15 more cgroups hidden)" — which the row-mass gini
+counts as inequality. That is the cost of separating the totals grid
+from the scale annotation, and the alignment win is the point of the
+change: the sums now sit under the exact columns they total.
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.

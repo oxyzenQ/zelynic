@@ -61,9 +61,13 @@ use crate::output::brand_bold;
 pub(crate) const MAX_ROWS: usize = 20;
 
 /// Vertical budget consumed by everything that is not a data row:
-/// title, column header, separator, footer separator, totals line,
-/// and one line of breathing room top and bottom.
-pub(crate) const CHROME_LINES: usize = 7;
+/// title, column header, separator, footer separator, the TOTAL
+/// totals row, the packets/cgroups meta line, and one line of
+/// breathing room top and bottom (improve-13: the run-on single
+/// footer line became a column-aligned TOTAL row plus a meta line —
+/// one more chrome line buys numbers that sit under the columns they
+/// sum, the flagship-grid contract the data rows already follow).
+pub(crate) const CHROME_LINES: usize = 8;
 
 // ── Geometry ────────────────────────────────────────────────────────────────
 
@@ -181,7 +185,7 @@ mod tests {
     fn rows_for_height_ladder() {
         assert_eq!(rows_for_height(80), MAX_ROWS);
         assert_eq!(rows_for_height(24), 24 - CHROME_LINES);
-        assert_eq!(rows_for_height(10), 3);
+        assert_eq!(rows_for_height(10), 2);
         assert_eq!(rows_for_height(5), 1);
     }
 

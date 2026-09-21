@@ -27,6 +27,49 @@ fn stats(allowed: u64, dropped: u64) -> LimiterStatsRaw {
     }
 }
 
+/// improve-13 style pin: the human table's ALLOWED/DROPPED cells carry
+/// ONE metric (bytes) — the per-cell packing "421 (1.4 MB)" is
+/// retired; packet counts stay in `--print-json`. A missing direction
+/// policy renders the em dash, never a zero.
+#[test]
+fn status_cells_one_metric_per_cell() {
+    let d = DisplayData {
+        cgroup_id: 73386,
+        dl_bps: Some(100_000),
+        ul_bps: Some(0),
+        packets_allowed: 421,
+        packets_dropped: 3,
+        bytes_allowed: 1_400_000,
+        bytes_dropped: 5_200,
+    };
+    let (label, dl, ul, allowed, dropped) = status_cells(&d, &IdentityMap::new());
+    assert_eq!(label, "cg:73386");
+    assert_eq!(dl, "100.0 KB/s");
+    assert_eq!(ul, "BLOCKED");
+    assert_eq!(allowed, "1.4 MB");
+    assert_eq!(dropped, "5.2 KB");
+    assert!(
+        !allowed.contains('(') && !dropped.contains('('),
+        "one metric per cell: {allowed} / {dropped}"
+    );
+
+    // One-direction limit: the other side is an em dash, not a number.
+    let one_sided = DisplayData {
+        cgroup_id: 73390,
+        dl_bps: None,
+        ul_bps: Some(1_000_000),
+        packets_allowed: 0,
+        packets_dropped: 0,
+        bytes_allowed: 0,
+        bytes_dropped: 0,
+    };
+    let (_, dl, ul, allowed, dropped) = status_cells(&one_sided, &IdentityMap::new());
+    assert_eq!(dl, "—");
+    assert_eq!(ul, "1.0 MB/s");
+    assert_eq!(allowed, "0 B");
+    assert_eq!(dropped, "0 B");
+}
+
 /// `active_limits` counts CGROUPS, not direction entries: a cgroup
 /// with both dl and ul policies is ONE limit row. Scripts compare
 /// this number against strict's "(N policies...)" — which counts

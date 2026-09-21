@@ -208,6 +208,7 @@ fn frame_bench_observe() {
                 total_bytes: ul_total[i],
                 ingress_packets: dl_pkts,
                 ingress_bytes: dl_delta,
+                ingress_total_bytes: dl_total[i],
             });
         }
 
