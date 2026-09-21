@@ -55,7 +55,24 @@ pub const MAX_RATE: u64 = 1_000_000_000_000;
 /// v1: initial (no frac_rem in bucket, no schema_version map)
 /// v2: added frac_rem to bucket for fractional token tracking
 /// v3: rate_bps == 0 changed from "allow all" to "block all" (block-single)
-pub const SCHEMA_VERSION_EXPECTED: u32 = 3;
+/// v4: enforcement-boundary sanitization (NIGHT-improve-10 / security-3) —
+///     burst and tokens clamped before any refill math; no layout change.
+///     The bump forces pinned v3 programs to reload into the hardened
+///     object (active limits are dropped once — re-apply after upgrade).
+pub const SCHEMA_VERSION_EXPECTED: u32 = 4;
+
+/// Hard ceiling a stored `burst_bytes` may carry into the BPF refill
+/// math (NIGHT-improve-10 / security-3). Mirror of `MAX_ENFORCABLE_BURST`
+/// in `ebpf/src/bin/limiter.rs` — the exact mathematical ceiling under
+/// which every product the refill can form is representable in u64:
+/// `2 * burst * NS_PER_SEC` (the fill-detect threshold) and
+/// `tokens + 2 * burst` (worst pre-cap sum). Userspace writes are
+/// clamped to 100 MB by `default_burst`, far below this bound — the
+/// kernel-side clamp exists for the values no legit writer produces
+/// (map corruption, schema drift, raw pin writes). Both sides pin
+/// this value in tests; keep them textually in sync when either
+/// changes.
+pub const MAX_ENFORCABLE_BURST: u64 = u64::MAX / (2 * 1_000_000_000);
 
 // ━━ BPF map value structs (must match the ebpf crate's structs) ━━
 
@@ -73,12 +90,13 @@ unsafe impl aya::Pod for PolicyRaw {}
 #[repr(C)]
 #[derive(Debug, Clone, Copy, Default)]
 #[repr(align(8))]
-// Userspace mirror of the BPF token-bucket map value. The bucket maps
-// are kernel-internal after the serve-mode removal (userspace last read
-// them via the deleted clear_bucket_map), so this type is never
-// constructed in production — but it stays as the schema-layout contract:
-// the size/field assertions in the tests below guard drift against
-// `struct Bucket` in ebpf/src/bin/limiter.rs.
+// Userspace mirror of the BPF token-bucket map value. Production
+// never constructs a value (buckets are kernel-internal state), but
+// the type carries two contracts: the schema-layout pin (size/field
+// assertions below guard drift against `struct Bucket` in
+// ebpf/src/bin/limiter.rs) and the key type of the unstrict/recover
+// reclaim path (NIGHT-improve-10), which deletes stale per-cgroup
+// entries so the 1024-slot bucket maps never fill with dead state.
 #[allow(dead_code)]
 pub struct BucketRaw {
     pub tokens: u64,
@@ -261,6 +279,90 @@ mod tests {
     fn test_schema_version_constant() {
         // Must match SCHEMA_VERSION in ebpf/src/bin/limiter.rs.
         // When this changes, the BPF code must also change.
-        assert_eq!(SCHEMA_VERSION_EXPECTED, 3);
+        assert_eq!(SCHEMA_VERSION_EXPECTED, 4);
+    }
+
+    // ── NIGHT-improve-10 / security-3: overflow-bound pins ──────────
+
+    #[test]
+    fn test_max_enforcable_burst_exact_bound() {
+        // The bound is exact, not rounded: the fill-detect product
+        // at the bound stays representable, one past it overflows.
+        // This is the invariant the BPF-side clamp (MAX_ENFORCABLE_BURST
+        // in ebpf/src/bin/limiter.rs) derives its totality proof from —
+        // keep both constants textually in sync. Pinned as VALUES
+        // (clippy folds boolean asserts on constants, and a pinned
+        // number forces a conscious update when the bound moves).
+        assert_eq!(MAX_ENFORCABLE_BURST, 9_223_372_036);
+        assert_eq!(
+            2 * MAX_ENFORCABLE_BURST * 1_000_000_000,
+            18_446_744_072_000_000_000,
+            "2 * bound * NS_PER_SEC must be the largest representable multiple"
+        );
+        // Worst pre-cap token sum: sanitized seed + a full fill-detect
+        // refill plus the exact-multiply bound — 3 * bound, still far
+        // inside u64.
+        assert_eq!(
+            3 * MAX_ENFORCABLE_BURST,
+            27_670_116_108,
+            "worst-case tokens + 2*burst must stay representable (and pinned)"
+        );
+    }
+
+    #[test]
+    fn test_max_enforcable_burst_dwarfs_userspace_burst_ceiling() {
+        // default_burst clamps to 100 MB; the enforcement-boundary
+        // clamp is ~9.2 GB — every legit userspace write passes the
+        // kernel-side clamp untouched (invisible for healthy state).
+        use crate::ebpf::limiter::format::default_burst;
+        assert!(
+            default_burst(u64::MAX) <= MAX_ENFORCABLE_BURST,
+            "userspace burst clamp must never trip the enforcement bound"
+        );
+        assert_eq!(default_burst(u64::MAX), 100_000_000);
+    }
+
+    #[test]
+    fn test_enforce_math_total_for_corrupt_policy() {
+        // Mirror of the ebpf-side security-3 sanitize: ANY stored
+        // burst value must leave the refill math overflow-free after
+        // the trust-boundary clamp. This simulates the exact sequence
+        // ebpf enforce() runs — including the u64::MAX adversary —
+        // where the pre-fix math would wrap on the fill-detect
+        // multiply and produce garbage enforcement.
+        const NS_PER_SEC: u64 = 1_000_000_000;
+
+        for corrupt_burst in [u64::MAX, u64::MAX - 1, MAX_ENFORCABLE_BURST + 1] {
+            // The trust-boundary clamp (try_enforce side).
+            let burst = corrupt_burst.min(MAX_ENFORCABLE_BURST);
+            // Corrupt bucket seed: garbage tokens above the burst.
+            let stored_tokens = u64::MAX;
+
+            // The tokens clamp (enforce side).
+            let tokens = stored_tokens.min(burst);
+
+            // Refill math with elapsed capped at 1s, rate arbitrary.
+            for rate_bps in [1u64, 1_000, 1_000_000_000, u64::MAX] {
+                let elapsed = NS_PER_SEC; // worst case after the cap
+                let fill_ns = 2 * burst * NS_PER_SEC / rate_bps; // must not overflow
+                let refill_whole = if elapsed >= fill_ns {
+                    burst
+                } else {
+                    // Only reachable when product < 2 * burst * NS_PER_SEC.
+                    let product = elapsed
+                        .checked_mul(rate_bps)
+                        .expect("product must be representable inside the fill-detect bound");
+                    product / NS_PER_SEC
+                };
+                let new_tokens = tokens
+                    .checked_add(refill_whole)
+                    .expect("tokens + refill must be representable after both clamps");
+                let capped = new_tokens.min(burst);
+                assert_eq!(
+                    capped, burst,
+                    "a clamped adversary lands at burst, not garbage"
+                );
+            }
+        }
     }
 }

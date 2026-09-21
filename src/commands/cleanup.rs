@@ -308,26 +308,64 @@ pub fn handle_recover(verbose: bool) -> Result<()> {
         // count as if it were the removed-POLICY count, so a failed
         // delete was invisible and the number was wrong even on
         // success (each cgroup carries up to two policies, dl + ul).
+        //
+        // NIGHT-improve-10: a dead cgroup's bucket and stats entries
+        // are unreachable forever — reclaim them alongside the
+        // policies so the 1024-slot maps stay proportional to live
+        // cgroups (an orphan that keeps its slot is the same LTS leak
+        // a normal unstrict now reclaims).
         let mut orphans_removed = 0usize;
+        let mut state_reclaimed = 0usize;
         let mut failed: Vec<String> = Vec::new();
         for id in &orphan_ids {
+            // Both directions must be confirmed gone (deleted or
+            // ENOENT) before the state reclaim — an uncertain delete
+            // keeps the state, conservative like unstrict.
+            let mut dl_gone = false;
+            let mut ul_gone = false;
             for direction in [
                 crate::ebpf::limiter::Direction::Download,
                 crate::ebpf::limiter::Direction::Upload,
             ] {
+                let is_dl = matches!(direction, crate::ebpf::limiter::Direction::Download);
                 match limiter.delete_policy(*id, direction) {
-                    Ok(true) => orphans_removed += 1,
-                    Ok(false) => {}
+                    Ok(true) => {
+                        orphans_removed += 1;
+                        if is_dl {
+                            dl_gone = true;
+                        } else {
+                            ul_gone = true;
+                        }
+                    }
+                    Ok(false) => {
+                        if is_dl {
+                            dl_gone = true;
+                        } else {
+                            ul_gone = true;
+                        }
+                    }
                     Err(e) => failed.push(format!("cg:{id}: {e}")),
                 }
+            }
+            if dl_gone && ul_gone {
+                state_reclaimed += limiter.reclaim_cgroup_state(*id, true, true, true);
             }
         }
 
         if failed.is_empty() {
-            eprintln_safe!("  Result: removed {orphans_removed} orphan policy(ies)");
+            eprintln_safe!(
+                "  Result: removed {orphans_removed} orphan policy(ies), \
+                 reclaimed {state_reclaimed} stale state {}",
+                if state_reclaimed == 1 {
+                    "entry"
+                } else {
+                    "entries"
+                }
+            );
         } else {
             eprintln_safe!(
-                "  Result: removed {orphans_removed} orphan policy(ies); {} could not \
+                "  Result: removed {orphans_removed} orphan policy(ies), \
+                 reclaimed {state_reclaimed} stale state entries; {} could not \
                  be removed: {}",
                 failed.len(),
                 failed.join(", ")

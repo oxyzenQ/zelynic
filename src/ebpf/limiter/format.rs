@@ -45,7 +45,17 @@ pub fn parse_time_duration(s: &str) -> Result<u64> {
         anyhow::anyhow!(msg)
     })?;
 
-    Ok(n.saturating_mul(multiplier))
+    // NIGHT-improve-10: checked, not saturating. A duration that
+    // overflows 64-bit seconds is a meaningless input — silently
+    // returning u64::MAX seconds ("~585 billion years") would arm
+    // every future consumer of this parser with an effectively
+    // infinite value that looks legitimate. Same contract as
+    // parse_rate: error with the original input shown, never the
+    // wrapped or saturated value.
+    match n.checked_mul(multiplier) {
+        Some(result) => Ok(result),
+        None => bail!("Duration '{s}' is too large — the value overflows 64-bit math."),
+    }
 }
 
 /// Parse a monitor refresh interval (NIGHT-hunt-7): 1s to 60s.
@@ -414,5 +424,38 @@ mod tests {
         let rate = parse_rate("1mb").unwrap();
         assert_eq!(rate, 1_000_000);
         assert_eq!(format_rate(rate), "1.0 MB/s");
+    }
+
+    // ── NIGHT-improve-10: duration overflow pins ────────────────────
+
+    #[test]
+    fn test_parse_time_duration_plain_and_units() {
+        assert_eq!(parse_time_duration("30").unwrap(), 30);
+        assert_eq!(parse_time_duration("30s").unwrap(), 30);
+        assert_eq!(parse_time_duration("5m").unwrap(), 300);
+        assert_eq!(parse_time_duration("2h").unwrap(), 7200);
+    }
+
+    #[test]
+    fn test_parse_time_duration_overflow_errors_not_saturates() {
+        // 1e17 × 3600 (h) overflows u64 (max ~1.8e19). Must return Err
+        // naming the overflow with the original input — never a silent
+        // u64::MAX saturation that consumers would treat as "infinity".
+        let result = parse_time_duration("100000000000000000h");
+        assert!(result.is_err());
+
+        let err_msg = format!("{}", result.unwrap_err());
+        assert!(
+            err_msg.contains("100000000000000000h"),
+            "error should show original input, got: {err_msg}"
+        );
+        assert!(
+            err_msg.contains("overflows 64-bit math"),
+            "error should name the overflow, got: {err_msg}"
+        );
+        assert!(
+            !err_msg.contains("18446744073709551615"),
+            "error must not show a saturated u64::MAX value, got: {err_msg}"
+        );
     }
 }

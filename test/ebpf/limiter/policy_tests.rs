@@ -9,6 +9,10 @@
 //! ENOENT-vs-failure classification, and partial-removal honesty.
 
 use super::*;
+// The ENOENT classification pins construct map errors directly —
+// the type lives in aya, imported here since the definition moved to
+// reclaim.rs and policy.rs no longer re-exports it via glob.
+use aya::maps::MapError;
 
 /// NIGHT-hunt-9 drift pins: the verbose trace wording is part of the
 /// diagnostic contract owners debug against — exact strings, pinned.
