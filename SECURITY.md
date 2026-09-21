@@ -99,7 +99,18 @@ with every security pass.
 - CodeQL + dependency audit + policy gates run in CI on every change.
 - No config files, no daemons, no background network surface: the
   binary makes exactly one outbound connection, in `--check-update`,
-  time-boxed and root-refused.
+  time-boxed and root-refused. That one response is untrusted input
+  too: the release tag it prints passes the same control-character
+  sanitizer as `/proc` comm labels (NIGHT-cybersecurity-2) — a MITM'd
+  or compromised proxy response cannot reach the admin's terminal as
+  escape sequences (OSC 52 clipboard rewrites, output forging).
+- Every string that crosses a trust boundary into the terminal is
+  sanitized at the boundary: process names (the `pid_comm` boundary,
+  NIGHT-cybersecurity-1), the update-check release tag
+  (NIGHT-cybersecurity-2). Cgroup paths are resolved by inode and
+  never rendered. The eBPF map values are treated as untrusted input
+  on the kernel side (the burst/tokens/frac clamp triple, schema v6
+  — see SAFETY_ANALYSIS.md's overflow audit).
 
 ## Easy to use, by construction
 

@@ -690,6 +690,37 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Fixed
 
+- **security: the update check's release tag is sanitized at the
+  network boundary — the one terminal-injection surface the comm
+  sanitizer did not cover (NIGHT-cybersecurity-2)** —
+  `--check-update` prints the GitHub API's `tag_name` straight into
+  the admin's terminal, and that string is untrusted network input:
+  curl inherits the invoking user's proxy environment, so a MITM'd
+  or compromised proxy response is in the threat model even over
+  TLS (corporate proxies and stripped responses are real). The
+  terminal-injection class is the exact one the repo already treats
+  as a hard boundary on the /proc side (NIGHT-cybersecurity-1:
+  OSC 52 clipboard rewrites, ANSI corruption, newline-forged
+  output that impersonates zelynic's own verdict lines) — but the
+  network boundary never got the same treatment: a forged
+  `tag_name` reached `println_safe!` raw. The tag now passes
+  `sanitize_comm` at the boundary (the same one-?-per-control-char
+  contract, cross-module reuse), pinned by a forged-response unit
+  test (OSC 52 payload + forged newline verdict, one ? each).
+  The audit around it found the rest of the surfaces already
+  closed, now verified and recorded in SECURITY.md's hardening
+  posture: every /proc comm read flows through the single
+  canonical `pid_comm` sanitizer (identity walk, connection walk,
+  resolve_target match), /proc/net parsing is Option-based and
+  panic-safe on malformed rows, cgroup paths are resolved by inode
+  and never rendered (a hostile cgroup directory name cannot reach
+  the screen), the lock file lives in the root-only 0700 /run
+  directory with the world-writable-era /tmp path unlinked, the
+  update check refuses euid 0 before any network I/O, and the eBPF
+  map values are clamped at the kernel trust boundary
+  (burst/tokens/frac — the schema-v6 triple, landed earlier
+  tonight as depthbore-1's second half). 190 unit + 23 integration
+  green, clippy -D warnings clean, gate-keepers 17/17.
 - **limiter: the kernel-side enforcement math is now PROVABLE — and
   its last unclamped field is clamped (NIGHT-depthbore-1)** — two
   halves of one directive ("master peak high precision for limiter
