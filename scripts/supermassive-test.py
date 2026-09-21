@@ -30,20 +30,29 @@ Design:
     no external test server is ever needed. curl is the second traffic
     engine: real external processes pushed through the limiter, the same
     class of proof as the owner's manual browser tests.
-  * Five dedicated cgroups (zelynic-supermassive-a..e): the harness lives in
-    'a' (its own loopback traffic is the single-target test bed); curl
-    workers are exec-moved into b..e BEFORE their first socket exists
-    (deterministic cgroup attribution, no spawn race), so strict-multi /
-    block-multi group policies are measured across genuinely separate
-    cgroups. On loopback the download direction is policed at the
-    receiver's ingress (client cgroup) and the upload direction at the
-    sender's egress — one dl-map hit and one ul-map hit per stream, so
-    keeping the server cgroup unlimited makes multi-target measurement
-    exact.
+  * Six dedicated cgroups (zelynic-supermassive-a..e + -hq): the harness
+    itself (in-process server + CLI calls) lives in the never-policed hq
+    cgroup, while every measurement client — python workers and curls
+    alike — is exec-moved into the target cgroup BEFORE its first socket
+    exists (deterministic cgroup attribution, no spawn race), so
+    strict-multi / block-multi group policies are measured across
+    genuinely separate cgroups. On loopback the download direction is
+    policed at the receiver's ingress (client cgroup) and the upload
+    direction at the sender's egress — one dl-map hit and one ul-map hit
+    per stream, so keeping the server cgroup (hq) unlimited keeps the
+    byte accounting 1:1 with the client's count. The pre-NIGHT-improve-12
+    design parked the harness inside target 'a' itself: every loopback
+    download byte then crossed a's egress AND ingress hooks, the combined
+    dl+ul counter read ~2x the client bytes, and every accounting row
+    failed at ~200%.
   * Rate range: the ladder walks the parser's full span — 1kb (the
     minimum) through 10mb and 1gb, up to 1tb (the maximum) — skipping any
     rung the hardware cannot feed (baseline < 2x rung): "up to 1 TB/s if
-    hardware supports".
+    hardware supports". Rungs whose token bucket is smaller than ONE
+    loopback GSO skb (rates below ~64 KB/s) cannot reach steady state on
+    loopback — physics, not an enforcement miss — so their band floor is
+    zero and the ceiling plus kernel-drop proof carry the verdict
+    (NIGHT-improve-12).
   * Every rate verdict is MEASURED (client / curl byte counters), then
     proven in-kernel through the status JSON (bytes_allowed /
     packets_dropped) — exactly the NIGHT-master-1 contract.
@@ -116,6 +125,15 @@ from zelynic_harness_lib import (
 
 CG_NAMES = "abcde"
 TEST_CGROUPS = [f"{CGROUP_ROOT}/zelynic-supermassive-{n}" for n in CG_NAMES]
+# NIGHT-improve-12: the harness process (in-process HTTP server + every
+# run_zel control call) lives in a sixth, NEVER-policed hq cgroup, while
+# measurement clients run as workers inside the target fleet. When the
+# server shared target cgroup "a" (the pre-12 design), every loopback
+# download byte crossed cgroup a's egress hook (server sending, upload
+# policy) AND its ingress hook (client receiving, download policy), so
+# the combined dl+ul stats map counted each byte twice and every
+# "BPF accounting matches client bytes" row read ~200%.
+HQ_CGROUP = f"{CGROUP_ROOT}/zelynic-supermassive-hq"
 BLOCK_GOODPUT_CEIL = 64 * 1024  # bytes per window: "blocked" means ~zero
 # (rate string, expected bps) — explicit pairs, no inversion math to drift.
 LADDER_LIGHT = [
@@ -137,14 +155,21 @@ CURL = shutil.which("curl")
 # ── dedicated cgroup fleet ─────────────────────────────────────────────────
 
 class CgroupSet:
-    """Five dedicated cgroups; the harness process lives in the first.
+    """Five dedicated target cgroups plus one never-policed hq cgroup
+    for the harness process itself.
 
     Same isolation contract as NIGHT-master-1's single test cgroup —
     zelynic polices by cgroup ID at the root, so child cgroups give the
     harness five independent test beds without touching the owner's
-    session. When dedicated cgroups cannot be created, every name falls
-    back to the current session cgroup and the multi-cgroup stages SKIP
-    (single-cgroup stages still measure honestly).
+    session. The harness process itself (the in-process HTTP server and
+    every zelynic CLI call) lives in hq, OUTSIDE the fleet: if the
+    traffic server sits inside a policed cgroup, a loopback stream
+    crosses that cgroup's egress AND ingress hooks and the kernel's
+    combined dl+ul counter reads ~2x the client's bytes
+    (NIGHT-improve-12). When dedicated cgroups cannot be created, every
+    name falls back to the current session cgroup and the multi-cgroup
+    stages SKIP (single-cgroup stages still measure honestly; the
+    accounting cross-check is likewise gated on dedicated mode).
     """
 
     def __init__(self):
@@ -156,11 +181,18 @@ class CgroupSet:
         self._absorb_leftovers()
         try:
             os.mkdir(TEST_CGROUPS[0])
-            with open(f"{TEST_CGROUPS[0]}/cgroup.procs", "w") as f:
+            # hq first: the harness moves HERE, never into a target bed
+            # (see the class docstring for the accounting reason).
+            os.mkdir(HQ_CGROUP)
+            with open(f"{HQ_CGROUP}/cgroup.procs", "w") as f:
                 f.write(str(os.getpid()))
+            hq_id = self._read_id(HQ_CGROUP)
+            if hq_id is None:
+                raise OSError("cgroup id unresolvable (stat failed)")
+            self.paths["hq"] = HQ_CGROUP
+            self.ids["hq"] = hq_id
             cid = self._read_id(TEST_CGROUPS[0])
             if cid is None:
-                self._leave(TEST_CGROUPS[0])
                 raise OSError("cgroup id unresolvable (stat failed)")
             self.dedicated = True
             self.ids["a"] = cid
@@ -172,8 +204,9 @@ class CgroupSet:
                 if c2 is None:
                     raise OSError(f"cgroup id unresolvable for {path}")
                 self.ids[name] = c2
-            return f"dedicated fleet {TEST_CGROUPS[0]}..e"
+            return f"dedicated fleet {TEST_CGROUPS[0]}..e, harness in hq"
         except OSError:
+            self._leave(HQ_CGROUP)
             self._cleanup_dirs()
         # Fallback: every name maps to the current session cgroup.
         path = self._self_cgroup_path()
@@ -217,7 +250,7 @@ class CgroupSet:
         return None
 
     def _absorb_leftovers(self):
-        for path in TEST_CGROUPS:
+        for path in TEST_CGROUPS + [HQ_CGROUP]:
             if not os.path.isdir(path):
                 continue
             try:
@@ -246,7 +279,7 @@ class CgroupSet:
             pass
 
     def _cleanup_dirs(self):
-        for path in TEST_CGROUPS:
+        for path in TEST_CGROUPS + [HQ_CGROUP]:
             for _ in range(3):
                 if not os.path.isdir(path):
                     break
@@ -259,9 +292,9 @@ class CgroupSet:
     def cleanup(self):
         if not self.dedicated:
             return True
-        self._leave(TEST_CGROUPS[0])
+        self._leave(HQ_CGROUP)
         self._cleanup_dirs()
-        return not any(os.path.isdir(p) for p in TEST_CGROUPS)
+        return not any(os.path.isdir(p) for p in TEST_CGROUPS + [HQ_CGROUP])
 
 
 # ── loopback HTTP traffic engine ───────────────────────────────────────────
@@ -392,9 +425,86 @@ def http_get(url_path):
     return s
 
 
-def py_download(window):
-    """Read the /dl stream for `window` seconds; returns body bytes."""
-    with http_get("/dl") as s:
+# Measurement-client bodies for the worker processes (NIGHT-improve-12):
+# under a dedicated fleet the PYTHON client must run inside the target
+# cgroup exactly like the curl workers, or its traffic is attributed to
+# the harness's hq cgroup and never policed. Each worker prints exactly
+# one integer on the last stdout line — the spawn_in_cgroup contract.
+# Connect failures print 0: under a block-* policy the SYN itself is
+# dropped, and ZERO GOODPUT is the honest measurement, never a crash.
+_PY_DL_CLIENT = """import socket, sys, time
+port, window = int(sys.argv[1]), float(sys.argv[2])
+total = 0
+try:
+    s = socket.create_connection(("127.0.0.1", port), timeout=10)
+    s.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+    s.sendall(b"GET /dl HTTP/1.0\r\n\r\n")
+    deadline = time.perf_counter() + window
+    while True:
+        remaining = deadline - time.perf_counter()
+        if remaining <= 0:
+            break
+        s.settimeout(remaining)
+        try:
+            data = s.recv(65536)
+        except OSError:
+            break
+        if not data:
+            break
+        total += len(data)
+    s.close()
+except OSError:
+    pass
+print(total)
+"""
+
+_PY_UL_CLIENT = """import socket, sys, time
+port, window = int(sys.argv[1]), float(sys.argv[2])
+sent = 0
+try:
+    s = socket.create_connection(("127.0.0.1", port), timeout=10)
+    s.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+    s.sendall(b"PUT /ul HTTP/1.0\r\nContent-Length: 999999999\r\n\r\n")
+    blob = b"\x00" * 65536
+    deadline = time.perf_counter() + window
+    while time.perf_counter() < deadline:
+        try:
+            s.sendall(blob)
+            sent += 65536
+        except OSError:
+            break
+    s.close()
+except OSError:
+    pass
+print(sent)
+"""
+
+
+def py_download(window, name="a"):
+    """Read the /dl stream for `window` seconds; returns body bytes.
+
+    Under a dedicated fleet the client runs as a WORKER inside target
+    cgroup `name` (see _PY_DL_CLIENT) so its traffic is policed and
+    attributed there, while the server stays in the never-policed hq
+    cgroup — one stream, one policed hook, 1:1 accounting
+    (NIGHT-improve-12). In the session-cgroup fallback and the engine
+    self-test the client runs in-process instead: the harness shares the
+    target cgroup there by construction. A connect failure is ZERO
+    GOODPUT, not a crash — under a block-* policy the SYN is dropped
+    and create_connection raises (the 2026-09-21 "harness error: timed
+    out" crash at block-single).
+    """
+    if CG and CG.dedicated:
+        metric, _ = spawn_in_cgroup(
+            name, [sys.executable, "-c", _PY_DL_CLIENT, str(SERVER.port), str(window)],
+            window + 20,
+        )
+        return metric or 0
+    try:
+        s = http_get("/dl")
+    except (socket.timeout, OSError):
+        return 0
+    with s:
         deadline = time.perf_counter() + window
         total = 0
         while True:
@@ -412,9 +522,23 @@ def py_download(window):
     return total
 
 
-def py_upload(window):
-    """Stream zeros to /ul for `window` seconds; returns bytes written."""
-    with socket.create_connection(("127.0.0.1", SERVER.port), timeout=10) as s:
+def py_upload(window, name="a"):
+    """Stream zeros to /ul for `window` seconds; returns bytes written.
+
+    Same worker/fallback contract as py_download (NIGHT-improve-12);
+    connect failures are zero goodput, not a crash.
+    """
+    if CG and CG.dedicated:
+        metric, _ = spawn_in_cgroup(
+            name, [sys.executable, "-c", _PY_UL_CLIENT, str(SERVER.port), str(window)],
+            window + 20,
+        )
+        return metric or 0
+    try:
+        s = socket.create_connection(("127.0.0.1", SERVER.port), timeout=10)
+    except (socket.timeout, OSError):
+        return 0
+    with s:
         s.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         s.sendall(b"PUT /ul HTTP/1.0\r\nContent-Length: 999999999\r\n\r\n")
         blob = b"\x00" * CHUNK
@@ -451,20 +575,33 @@ def curl_run(cmd, timeout):
 
 
 def curl_download(window):
+    """Local curl download (engine self-test / fallback mode only —
+    root stages use curl_in_cgroup so the worker is policed)."""
     return curl_run(curl_cmd(window, "/dl"), window + 20)[0]
 
 
-def curl_upload(window):
+def curl_upload_cmd(window):
     # -T /dev/zero: an unsizeable character device forces a streaming
     # chunked upload — the classic curl upload-speed pattern. The URL
     # path is explicit so no filename gets appended. curl's 1s
     # Expect-100-continue pause is absorbed by the window.
-    cmd = [
+    return [
         CURL, "-s", "-o", "/dev/null", "-w", "%{size_upload}",
         "--max-time", f"{window}", "-T", "/dev/zero",
         f"http://127.0.0.1:{SERVER.port}/ul",
     ]
-    return curl_run(cmd, window + 20)[0]
+
+
+def curl_upload(window):
+    """Local curl upload (engine self-test / fallback mode only)."""
+    return curl_run(curl_upload_cmd(window), window + 20)[0]
+
+
+def curl_upload_in_cgroup(name, window):
+    """Curl upload as a worker inside cgroup `name` (NIGHT-improve-12):
+    the measurement client must be policed where the policy lives, not
+    in the harness's hq cgroup. Returns (bytes, err)."""
+    return spawn_in_cgroup(name, curl_upload_cmd(window), window + 25)
 
 
 def popen_in_cgroup(name, argv):
@@ -575,7 +712,14 @@ def clear_all():
 
 def enforcement_proofs(label, got_bytes, name="a"):
     """Kernel-side proof under a binding limit: packets dropped and the
-    BPF byte counter in agreement with the client's own count."""
+    BPF byte counter in agreement with the client's own count.
+
+    The accounting row only runs above the accounting floor
+    (lib.ACCOUNTING_FLOOR_BYTES): below it, loopback GSO starvation at
+    tiny rates leaves the allowed bytes dominated by per-skb headers
+    and control traffic, and the comparison would be noise
+    (NIGHT-improve-12).
+    """
     entry = limit_entry(status_json(), CG.ids[name])
     if not entry:
         record(f"{label}: kernel drops engaged", "FAIL", "no limit row to read counters from")
@@ -588,12 +732,21 @@ def enforcement_proofs(label, got_bytes, name="a"):
     )
     if CG.dedicated:
         allowed = entry.get("bytes_allowed", 0)
-        if allowed > 0 and got_bytes:
+        if allowed > 0 and got_bytes >= lib.ACCOUNTING_FLOOR_BYTES:
             ratio = allowed / got_bytes
             record(
                 f"{label}: BPF accounting matches client bytes",
                 "PASS" if 0.5 <= ratio <= 1.5 else "FAIL",
                 f"bpf {allowed} vs client {got_bytes} ({ratio * 100:.1f}%)",
+            )
+        elif allowed > 0:
+            record(
+                f"{label}: BPF accounting matches client bytes",
+                "SKIP",
+                f"payload {got_bytes} B under the "
+                f"{lib.ACCOUNTING_FLOOR_BYTES // 1024} KiB accounting floor — "
+                "loopback GSO granularity at this rate; the kernel drops "
+                "above are the enforcement proof",
             )
 
 
@@ -695,7 +848,18 @@ def test_rate_ladder(ladder, window, windows_per_rung, baseline):
         for _ in range(windows_per_rung):
             rates.append(py_download(window) / window)
         measured = sum(rates) / len(rates)
-        if not band_check(name, measured, bps):
+        # NIGHT-improve-12: rungs whose token bucket (burst = rate
+        # clamped to >= 4096) is smaller than ONE loopback GSO skb
+        # cannot reach steady state — the band floor drops to 0 there
+        # (under-delivery is physics), the ceiling and the kernel-drop
+        # proof below still carry the verdict.
+        floor = lib.loopback_rate_floor(bps)
+        extra = (
+            "loopback GSO granularity: a sub-skb bucket cannot reach "
+            "steady state — the ceiling and kernel drops carry the verdict"
+            if floor == 0.0 else ""
+        )
+        if not band_check(name, measured, bps, lo=floor, extra=extra):
             passed = False
         enforcement_proofs(f"ladder {rate_str}", int(measured * window * len(rates)))
         clear_all()
@@ -778,7 +942,10 @@ def test_curl_burst(window, clients, rate_bps, baseline):
     totals = [None] * clients
 
     def worker(i):
-        totals[i] = curl_download(window)
+        # NIGHT-improve-12: each curl runs INSIDE cgroup a via the
+        # worker path — the old local curl_download only happened to be
+        # policed because the whole harness shared the target cgroup.
+        totals[i] = curl_in_cgroup("a", window)[0]
 
     threads = [threading.Thread(target=worker, args=(i,)) for i in range(clients)]
     for t in threads:
@@ -808,9 +975,11 @@ def test_curl_upload(window, baseline):
     if not ok:
         return record("curl upload: external upload engine", "FAIL", payload)
     time.sleep(0.5)
-    sent = curl_upload(window)
+    # NIGHT-improve-12: the upload curl runs inside cgroup a (worker
+    # path) so the policy it measures is the one applied to a.
+    sent, err = curl_upload_in_cgroup("a", window)
     if sent is None:
-        record("curl upload: external upload engine", "FAIL", "curl produced no metric")
+        record("curl upload: external upload engine", "FAIL", f"curl produced no metric ({err})")
         clear_all()
         return False
     passed = band_check("curl upload: external upload engine", sent / window, 1_000_000)
@@ -992,8 +1161,10 @@ def test_limit_all(window, baseline):
     name = "limit-all --force: machine-wide sweep"
     if baseline and baseline < 2e6:
         return record(name, "SKIP", "baseline too low")
-    # Keep sleepers resident in b..e so the sweep has live cgroups to find.
-    sleepers = [spawn_bg_in_cgroup(n, ["sleep", "30"]) for n in "bcde"]
+    # Keep sleepers resident in a..e so the sweep has live cgroups to
+    # find — including "a" itself: since NIGHT-improve-12 the harness
+    # lives in hq, so the row check below needs a resident in a.
+    sleepers = [spawn_bg_in_cgroup(n, ["sleep", "30"]) for n in "abcde"]
     try:
         rc, stdout, stderr = run_zel(["limit-all", "--force", "2mb"])
         if rc != 0:
@@ -1001,7 +1172,7 @@ def test_limit_all(window, baseline):
         entry = limit_entry(status_json(), CG.ids["a"])
         if entry is None or entry.get("download_bps") != 2_000_000:
             clear_all()
-            return record(name, "FAIL", f"harness cgroup row wrong: {entry}")
+            return record(name, "FAIL", f"fleet cgroup a row wrong: {entry}")
         time.sleep(0.5)
         got = py_download(window)
         passed = band_check(name, got / window, 2_000_000)
@@ -1096,7 +1267,7 @@ def test_cleanup():
         "/tmp/zelynic.pid" if pid_left else "",
     ) == "PASS" and ok_all
     CG.cleanup()
-    cg_left = [p for p in TEST_CGROUPS if os.path.isdir(p)]
+    cg_left = [p for p in TEST_CGROUPS + [HQ_CGROUP] if os.path.isdir(p)]
     ok_all = record(
         "cleanup: test cgroups removed", "PASS" if not cg_left else "FAIL",
         ", ".join(cg_left) if cg_left else "",
@@ -1179,6 +1350,32 @@ def self_test():
         else:
             agree("engine: curl burst x4 counters agree", sum(totals), SERVER.peek()["dl"])
     SERVER.stop()
+    # NIGHT-improve-12 regression pin: a connect failure must surface
+    # as ZERO GOODPUT, never as an uncaught TimeoutError — the
+    # 2026-09-21 root run died at block-single with "harness error:
+    # timed out" and every later stage unrecorded. The dead listener is
+    # a socket bound but NEVER listen()-ing: connects are refused
+    # instantly and deterministically (SERVER.stop() alone does not
+    # qualify — a thread blocked in accept() keeps the kernel listener
+    # alive past close(), a classic python teardown gotcha).
+    guard = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    guard.bind(("127.0.0.1", 0))
+    dead_port = guard.getsockname()[1]
+    real_port = SERVER.port
+    try:
+        SERVER.port = dead_port
+        got = py_download(0.5)
+        sent = py_upload(0.5)
+        record(
+            "engine: blocked connect yields zero goodput, not a crash",
+            "PASS" if got == 0 and sent == 0 else "FAIL",
+            f"download {got} B, upload {sent} B against a dead listener",
+        )
+    except Exception as e:  # noqa: BLE001 - the whole point is not raising
+        record("engine: blocked connect yields zero goodput, not a crash", "FAIL", str(e))
+    finally:
+        SERVER.port = real_port
+        guard.close()
     counts = {v: sum(1 for r in RESULTS if r["verdict"] == v) for v in ("PASS", "FAIL", "SKIP")}
     out()
     out("━━━ self-test verdict ━━━")
@@ -1289,7 +1486,7 @@ def main():
                           "zelynic command surface: supermassive-verified on this machine.")
         exit_code = 0 if ok else 1
     except Exception as e:  # noqa: BLE001 - report, then still clean up
-        out(f"  harness error: {e}")
+        out(f"  harness error: {type(e).__name__}: {e}")
         try:
             clear_all()
             CG.cleanup()
