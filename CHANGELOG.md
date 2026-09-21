@@ -42,6 +42,22 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Changed
 
+- **schema: BPF schema version bumped v3 -> v4 (NIGHT-improve-10 /
+  security-3)** — the enforcement-boundary sanitization changes no
+  struct layout, but a pinned v3 program must not keep running the
+  pre-hardening math: the existing mismatch path (unpin, reload,
+  re-stamp) forces the swap on the first policy-writing command
+  after upgrade. One-time cost, same as every prior schema bump:
+  active limits are dropped — re-apply them once after upgrading
+  (pins never survive reboot, so hosts that reboot skip the step
+  entirely).
+
+- **limiter: unstrict/recover touch three more maps than before
+  (NIGHT-improve-10)** — cgroup_bucket_dl/ul and
+  cgroup_limiter_stats now carry userspace delete paths for state
+  reclamation (see the Fixed entry). The group bucket maps stay
+  kernel-internal: their entries are shared by every cgroup of a
+  strict-multi group.
 - **monitor: the Shift+click hole is closed — a 100 ms selection
   guard rewrites the whole frame, so no terminal-side selection
   outlives one beat (NIGHT-improve-8)** — improve-7's pointer
@@ -146,6 +162,58 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Fixed
 
+- **limiter: the enforcement math is now total for ANY bytes the
+  maps can hold — corrupt or drifted state can no longer overflow
+  the kernel arithmetic (NIGHT-improve-10 / security-3)** — the
+  refill math's overflow proofs (the NIGHT-cybersecurity-1
+  fill-detect shape) were conditional on a contract only userspace
+  enforced: burst <= 100 MB from `default_burst`. The maps are
+  persistent kernel state that outlives every writer (pins survive
+  process exit; the pin path is writable by any root process), so a
+  `burst_bytes` of u64::MAX would wrap the fill-detect multiply and
+  produce garbage enforcement — silent, verifier-invisible, and
+  unobservable until a limit "doesn't feel right". Fix: the BPF
+  program now clamps burst and tokens at the trust boundary to
+  MAX_ENFORCABLE_BURST (u64::MAX / (2 * NS_PER_SEC) = 9,223,372,036
+  — the exact mathematical ceiling under which every product the
+  refill can form is representable); userspace write_policy applies
+  the same mirror bound so the two halves can never disagree. The
+  bound is pinned by value on both sides; the corrupt-adversary
+  simulation test (u64::MAX burst + u64::MAX tokens + rates from 1
+  to u64::MAX) asserts the math lands at burst, never garbage.
+  Legitimate state is untouched: the userspace burst ceiling
+  (100 MB) sits ~92x below the clamp, invisible for healthy input.
+  Schema bumped v3 -> v4 (no layout change) so pinned v3 programs
+  reload into the hardened object.
+
+- **limiter: unstrict and recover now reclaim the per-cgroup bucket
+  and stats entries a removal leaves behind — the 1024-slot maps
+  stay proportional to live policies, not to history
+  (NIGHT-improve-10)** — deleting a policy never deleted its bucket:
+  on a long-lived host with container and session churn renumbering
+  cgroup ids, the individual bucket maps marched toward 1024
+  entries, at which point `get_bucket_ptr`'s insert starts failing
+  and BPF silently returns UNLIMITED (fail-open by design — a full
+  bookkeeping map must never brick the network, but that design
+  turned "map full" into "limits stop applying" on exactly the LTS
+  hosts that run longest). unstrict now deletes bucket entries per
+  confirmed-gone direction and the stats entry when both directions
+  are gone (ENOENT-only walks from crashed removals are reclaimed
+  too); recover does the same for dead-cgroup orphans. Shared group
+  buckets are deliberately untouched (no single removal may decide
+  a strict-multi group's lifecycle). Failures warn, never fail the
+  removal — reclamation is bookkeeping after the enforced contract
+  is already gone.
+
+- **CLI: `parse_time_duration` now rejects durations that overflow
+  64-bit math instead of silently saturating to u64::MAX seconds
+  (NIGHT-improve-10)** — `saturating_mul` returned ~585 billion
+  years as a legitimate-looking value; every future consumer of the
+  parser (watchdog arming, timeouts) would have treated overflow as
+  infinity. Now the same contract as `parse_rate`: a hard error
+  naming the overflow with the original input shown, never the
+  saturated value. The only current consumer (monitor interval)
+  already range-gated the value, so behavior there is unchanged.
 - **harnesses: the cgroup ID was always the kernfs inode — the
   "cgroup.id file" never existed, and the brutal stress test now
   survives its first real machine (NIGHT-hunt-31)** — the owner's

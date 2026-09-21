@@ -163,7 +163,12 @@ sudo zelynic unstrict-all              # emergency reset: removes everything
 
 Removes policies for the resolved cgroups and reports how many policies
 (dl + ul) it removed — the same counting strict uses, so "4 policies"
-in and "4 policies" out line up. `unstrict-all` also removes the pin
+in and "4 policies" out line up. Every removal also reclaims the
+cgroup's token-bucket and stats entries behind it (NIGHT-improve-10):
+the 1024-slot maps stay proportional to live limits, so a long-lived
+host with churny cgroups never reaches the point where new limits
+would silently stop applying (verbose mode traces each reclaim).
+`unstrict-all` also removes the pin
 directory itself: after it, `status` reports a clean state.
 
 ### recover — crash cleanup
@@ -173,7 +178,9 @@ sudo zelynic recover
 ```
 
 If zelynic was killed mid-operation (SIGKILL, OOM, power loss), pin
-files can be orphaned. `recover` detects and removes them. Safe to run
+files can be orphaned. `recover` detects and removes them, and
+reclaims the bucket/stats state of dead-cgroup orphans alongside
+their policies (the same LTS budget unstrict maintains). Safe to run
 anytime — it does nothing when state is clean. `status` tells you when
 you need it ("Stale BPF pin files detected").
 

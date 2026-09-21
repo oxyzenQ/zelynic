@@ -4,11 +4,12 @@
 //! Policy operations — apply, resolve, write, and delete token-bucket
 //! policies in the BPF maps (ephemeral and pinned modes).
 
-use anyhow::{anyhow, Context, Result};
-use aya::maps::{HashMap as BpfHashMap, MapData, MapError};
+use anyhow::{anyhow, Result};
+use aya::maps::{HashMap as BpfHashMap, MapData};
 
 use super::format::{default_burst, format_bytes, format_rate};
-use super::types::{Direction, PolicyRaw, RateSpec, Target};
+use super::reclaim::map_remove_means_absent;
+use super::types::{Direction, PolicyRaw, RateSpec, Target, MAX_ENFORCABLE_BURST};
 use crate::ebpf::pin::{PIN_MAP_POLICY_DL, PIN_MAP_POLICY_UL};
 
 /// Verbose trace line for one policy write (NIGHT-hunt-9): the exact
@@ -24,17 +25,7 @@ fn policy_write_line(cgroup_id: u32, direction: Direction, rate_bps: u64) -> Str
     )
 }
 
-/// NIGHT-hunt-20 (error-path audit): a failed map delete means
-/// "key absent" ONLY for ENOENT — every other errno means the delete
-/// did NOT happen and the policy is still enforced. Conflating the
-/// two is how a remove path reports "nothing to remove" while a
-/// limit stays active. Pure so it is unit-pinned below.
-fn map_remove_means_absent(err: &MapError) -> bool {
-    matches!(
-        err,
-        MapError::SyscallError(e) if e.io_error.kind() == std::io::ErrorKind::NotFound
-    )
-}
+// The hunt-20 ENOENT classification lives in reclaim.rs (imported above).
 
 /// One policy that survived a failed rollback or unstrict delete:
 /// cgroup + direction, still enforced (cg: trace style, pinned).
@@ -203,9 +194,11 @@ impl super::Limiter {
     ///
     /// NIGHT-hunt-20: removal is best-effort across cgroups and
     /// directions, but never silent — a delete that FAILS (as opposed
-    /// to ENOENT "absent") is recorded and reported. The old
-    /// `if let Ok` swallowed map-open failures as "removed 0" while
-    /// the policies stayed enforced.
+    /// to ENOENT "absent") is recorded and reported.
+    ///
+    /// NIGHT-improve-10: every direction confirmed gone (deleted or
+    /// ENOENT-absent) also reclaims the per-cgroup bucket and stats
+    /// entries — see [`Self::reclaim_cgroup_state`].
     pub fn unstrict(&mut self, target: &Target) -> Result<usize> {
         let cgroup_ids = self.resolve_target(target)?;
         let mut removed = 0usize;
@@ -214,6 +207,13 @@ impl super::Limiter {
         for cgroup_id in &cgroup_ids {
             let label = self.identity.label(*cgroup_id);
             let mut found = false;
+            // Per-direction gone tracking (NIGHT-improve-10): a
+            // direction is gone when its policy was deleted here OR
+            // was already ENOENT-absent — only a real failure leaves
+            // it uncertain, and an uncertain direction keeps its
+            // state (conservative: state may still be reachable).
+            let mut dl_gone = false;
+            let mut ul_gone = false;
 
             // Remove from dl + ul policy maps — each deleted direction
             // is one policy removed. A failed delete (not ENOENT) is
@@ -223,8 +223,15 @@ impl super::Limiter {
                     Ok(true) => {
                         found = true;
                         removed += 1;
+                        match direction {
+                            Direction::Download => dl_gone = true,
+                            Direction::Upload => ul_gone = true,
+                        }
                     }
-                    Ok(false) => {}
+                    Ok(false) => match direction {
+                        Direction::Download => dl_gone = true,
+                        Direction::Upload => ul_gone = true,
+                    },
                     Err(e) => {
                         eprintln_safe!(
                             "[limiter] Unstrict: cg:{cgroup_id} {} not removed: {e}",
@@ -233,6 +240,17 @@ impl super::Limiter {
                         failed.push(policy_survivor_line(*cgroup_id, direction));
                     }
                 }
+            }
+
+            // Reclaim the state the removal leaves behind: buckets
+            // for gone directions, stats when both are gone. Runs even
+            // when this invocation removed nothing — an ENOENT-only
+            // walk is exactly the crashed-removal case whose residue
+            // the LTS budget needs back.
+            if dl_gone || ul_gone {
+                let reclaimed =
+                    self.reclaim_cgroup_state(*cgroup_id, dl_gone, ul_gone, dl_gone && ul_gone);
+                self.print_reclaim_trace(*cgroup_id, reclaimed);
             }
 
             if found {
@@ -408,38 +426,26 @@ impl super::Limiter {
     }
 
     /// Access the policy map for `direction` in whichever mode is
-    /// live — the ephemeral Ebpf object, or the pinned map — and run
-    /// `op` on it. The ONE acquisition path for write and delete
-    /// (NIGHT-hunt-20 dedup); acquisition errors keep their per-mode
-    /// wording.
+    /// live and run `op` on it — delegates to `with_u32_map` in
+    /// reclaim.rs (the ONE acquisition path for every u32-keyed
+    /// limiter map; hunt-20 introduced it for policies, improve-10
+    /// widened it to bucket + stats).
     fn with_policy_map<R>(
         &mut self,
         direction: Direction,
         op: impl FnOnce(&mut BpfHashMap<&mut MapData, u32, PolicyRaw>) -> Result<R>,
     ) -> Result<R> {
-        if let Some(bpf) = self.bpf.as_mut() {
-            // Ephemeral mode: use Ebpf object.
-            let map_name = format!("cgroup_policy_{}", direction.suffix());
-            let map_ref = bpf
-                .map_mut(&map_name)
-                .context(format!("{map_name} not found"))?;
-            let mut map: BpfHashMap<&mut MapData, u32, PolicyRaw> =
-                BpfHashMap::try_from(map_ref).context(format!("Failed to access {map_name}"))?;
-            op(&mut map)
-        } else {
-            // Pin mode: open pinned map.
-            let pin_path = self.pinned_policy_path(direction);
-            let map_data =
-                MapData::from_pin(&pin_path).map_err(|e| anyhow!("pinned map {pin_path}: {e}"))?;
-            let mut map_obj = aya::maps::Map::HashMap(map_data);
-            let mut map: BpfHashMap<&mut MapData, u32, PolicyRaw> =
-                BpfHashMap::try_from(&mut map_obj)
-                    .context(format!("Failed to open pinned map {pin_path}"))?;
-            op(&mut map)
-        }
+        let map_name = format!("cgroup_policy_{}", direction.suffix());
+        let pin_path = self.pinned_policy_path(direction);
+        self.with_u32_map::<PolicyRaw, R>(&map_name, &pin_path, op)
     }
 
     /// Write a policy to the appropriate BPF map.
+    ///
+    /// Write-side half of the security-3 contract: `default_burst`
+    /// clamps to 100 MB today, but a future burst source must not be
+    /// able to write past the bound the BPF side clamps at — the
+    /// mirror constant is the one number both halves share.
     fn write_policy(
         &mut self,
         cgroup_id: u32,
@@ -447,7 +453,7 @@ impl super::Limiter {
         group_id: u32,
         direction: Direction,
     ) -> Result<()> {
-        let burst = default_burst(rate_bps);
+        let burst = default_burst(rate_bps).min(MAX_ENFORCABLE_BURST);
         let raw = PolicyRaw {
             rate_bps,
             burst_bytes: burst,

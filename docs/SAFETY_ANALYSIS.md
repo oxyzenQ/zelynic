@@ -123,6 +123,8 @@ guard: there root is the requirement, here root is the hazard.
 - No policy for cgroup → allow (return 1)
 - Bucket creation fails → allow (return 1)
 - Map lookup fails → allow (return 1)
+- Map full (bucket/stats insert fails) → allow (return 1) — the
+  reclamation below keeps this unreachable in practice
 - Watchdog expired → allow (return 1) — dormant mechanism, see below
 
 ### Pin mode (fire-and-forget):
@@ -140,6 +142,63 @@ guard: there root is the requirement, here root is the hazard.
 - If anything unexpected happens to the pins, `zelynic recover` repairs
   state and `unstrict-all` removes everything
 
+## Overflow & Long-Endurance Audit (NIGHT-improve-10 / security-3, 2026-09)
+
+### Enforcement-boundary sanitization
+
+The token-bucket refill math is overflow-proof by construction —
+but only for inputs inside a contract. The fill-detect guard
+(NIGHT-cybersecurity-1) bounds every product the multiply branch
+can form below `2 * burst * NS_PER_SEC`, which is representable
+for any burst up to `u64::MAX / (2 * NS_PER_SEC)`. Before this
+audit, only userspace enforced that ceiling (`default_burst`
+clamps to 100 MB) — while the maps holding burst and tokens are
+persistent kernel state that outlives every writer. The BPF
+program now treats the maps as untrusted input: `burst_bytes` and
+the stored `tokens` are clamped to `MAX_ENFORCABLE_BURST`
+(9,223,372,036 bytes) at the trust boundary, before any consumer
+derives math from them. A corrupt, drifted, or hand-written map
+entry can no longer make the kernel arithmetic wrap; it is clamped
+to the same value a healthy full bucket would carry. Userspace
+applies the mirror bound on write, and both sides pin the constant
+by value in tests. Schema v4 forces pinned v3 programs to reload
+into the hardened object.
+
+### Counter wrap horizons
+
+All enforcement counters are u64 and monotonically incremented by
+per-packet values (packet counts by 1, byte counts by ≤ 64 KiB),
+so a wrap is a pure function of sustained traffic, not of uptime:
+
+| Counter | Capacity | Sustained rate | Wrap after |
+|---------|----------|----------------|------------|
+| bytes_allowed / bytes_dropped | 18.4 EB | 1 TB/s (MAX_RATE) | ~213 days |
+| bytes_allowed / bytes_dropped | 18.4 EB | 1 GB/s | ~585 years |
+| bytes_allowed / bytes_dropped | 18.4 EB | 100 MB/s | ~5,849 years |
+| packets_allowed / packets_dropped | 1.8e19 | 1 M pps | ~584,942 years |
+
+No maintenance window exists below 1 TB/s sustained; userspace
+consumers already use saturating deltas, so even the theoretical
+wrap degrades one sample instead of corrupting history. The token
+bucket itself never accumulates: tokens are capped at burst every
+refill, `last_refill_ns` is ktime (wraps after ~584 years of
+uptime), and `frac_rem` is bounded below NS_PER_SEC by the carry.
+
+### Map slot reclamation (the LTS budget)
+
+The individual bucket and stats maps hold hard 1024 entries. BPF
+is deliberately fail-open on a full map (an insert failure allows
+the packet — a bookkeeping map must never brick the network), so
+map exhaustion would turn into silently unenforced limits. Every
+policy removal now reclaims what it can: unstrict deletes the
+cgroup's bucket entries per confirmed-gone direction and the stats
+entry once both directions are gone (including ENOENT-only walks,
+which are the residue of crashed removals); recover does the same
+for dead-cgroup orphans. The maps stay proportional to live
+policies, not to host history. Shared group buckets are exempt —
+their lifecycle belongs to the strict-multi group, not to any one
+member's removal.
+
 ## Memory Safety (Rust)
 
 zelynic is written in Rust, which provides:
@@ -151,10 +210,14 @@ zelynic is written in Rust, which provides:
   `libc::ioctl(TIOCGWINSZ)` for terminal width — all standard POSIX
   calls with well-defined semantics
 
-### BPF C code:
-- BPF verifier ensures memory safety at load time
+### BPF program code:
+- BPF verifier ensures memory safety at load time (the pure-Rust
+  aya-ebpf source compiles through the same verifier as the former
+  C twin — NIGHT-improve-1 phase 3)
 - All map accesses bounds-checked by verifier
 - No dynamic allocation (BPF programs can't allocate memory)
+- Arithmetic on map-resident values is sanitized at the trust
+  boundary before use (see the overflow audit above)
 
 ## Race Conditions
 

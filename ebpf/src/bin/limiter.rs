@@ -93,14 +93,34 @@ const _: () = assert!(core::mem::size_of::<LimiterStats>() == 32);
 /// Refill rate math: nanoseconds per second.
 const NS_PER_SEC: u64 = 1_000_000_000;
 
+/// Hard ceiling a stored `burst_bytes` may carry INTO the refill
+/// math (NIGHT-improve-10 / security-3). The maps are persistent
+/// kernel state that outlives any writer: pins survive process exit,
+/// and the pin path is writable by any root process. The userspace
+/// `default_burst` clamp (100 MB) is a contract, not a guarantee the
+/// kernel side may trust — the enforcement boundary sanitizes for
+/// itself. The value is the exact mathematical ceiling under which
+/// every product `enforce` can form is provably representable in
+/// u64: `2 * burst * NS_PER_SEC` (the fill-detect threshold) and
+/// `tokens + 2 * burst` (the worst pre-cap sum) both stay in range.
+/// A stored burst above the bound is corruption or drift; it is
+/// clamped, never honored. Mirrored in userspace as
+/// `MAX_ENFORCABLE_BURST` in src/ebpf/limiter/types.rs (layout
+/// contract sibling — both sides pin the value in tests).
+const MAX_ENFORCABLE_BURST: u64 = u64::MAX / (2 * NS_PER_SEC);
+
 /// Current schema version. Increment when struct layouts or
 /// semantics change. Kept in sync with SCHEMA_VERSION_EXPECTED in
 /// src/ebpf/limiter/types.rs (v3: rate_bps == 0 drops instead of
-/// allowing). The BPF program never writes it — userspace stamps
+/// allowing; v4: enforcement-boundary sanitization — burst and
+/// tokens are clamped before any refill math so no stored map value
+/// can overflow the kernel arithmetic. No layout change; the bump
+/// forces pinned v3 programs to reload into the hardened object).
+/// The BPF program never writes it — userspace stamps
 /// the pinned map after load — so the constant exists purely as the
 /// parity anchor for that three-way contract.
 #[allow(dead_code)]
-const SCHEMA_VERSION: u32 = 3;
+const SCHEMA_VERSION: u32 = 4;
 
 // ---------------------------------------------------------------------------
 // Maps. The static names ARE the userspace contract (limiter/mod.rs
@@ -183,7 +203,9 @@ static cgroup_limiter_stats: HashMap<u32, LimiterStats> = HashMap::pinned(1024, 
 ///    burst the userspace clamp admits.
 ///
 /// Callers guarantee rate_bps > 0 (rate 0 short-circuits to the
-/// block drop before enforce); the explicit guard keeps that
+/// block drop before enforce) and pass a policy whose burst_bytes
+/// is already clamped to [`MAX_ENFORCABLE_BURST`] (the security-3
+/// trust boundary in `try_enforce`); the explicit guard keeps that
 /// invariant local and protects the division.
 #[inline(always)]
 fn enforce(
@@ -229,8 +251,20 @@ fn enforce(
         }
     }
 
-    // New token count, capped at burst.
-    let mut new_tokens = bkt.tokens + refill_whole;
+    // New token count, capped at burst. The tokens seed is clamped
+    // first (security-3): the bucket map is persistent state like
+    // the policy map — a bucket written by an older schema, a
+    // shrunk-burst residue, or raw corruption can carry tokens
+    // above the current burst, and `tokens + refill_whole` would
+    // wrap on u64::MAX-seeded garbage. Clamping to burst treats the
+    // anomalous bucket as full — exactly the value the cap branch
+    // below would have produced for a healthy one.
+    let tokens = if bkt.tokens > pol.burst_bytes {
+        pol.burst_bytes
+    } else {
+        bkt.tokens
+    };
+    let mut new_tokens = tokens + refill_whole;
     if new_tokens > pol.burst_bytes {
         new_tokens = pol.burst_bytes;
         // Reset the fraction on cap — at burst, no accumulation is
@@ -354,22 +388,44 @@ fn try_enforce(
         return 0;
     }
 
+    // security-3 trust boundary: clamp the stored burst before ANY
+    // consumer sees it — the fill-detect threshold below and the
+    // bucket initializer both derive their overflow-safety proofs
+    // from this bound. Every legit userspace write carries
+    // burst <= 100 MB (default_burst), so the clamp is invisible
+    // for healthy state and total for hostile or drifted state.
+    let pol_sane = if pol.burst_bytes > MAX_ENFORCABLE_BURST {
+        Policy {
+            rate_bps: pol.rate_bps,
+            burst_bytes: MAX_ENFORCABLE_BURST,
+            group_id: pol.group_id,
+        }
+    } else {
+        *pol
+    };
+
     let stats = get_stats_ptr(&cgroup_id).map(|ptr| unsafe { &mut *ptr });
 
     // Individual or group bucket? group_id selects the shared
     // bucket keyed by the group; 0 falls back to the per-cgroup
-    // bucket keyed by cgroup_id.
-    let bkt_ptr = if pol.group_id != 0 {
-        get_bucket_ptr(group_bucket_map, &pol.group_id, pol.burst_bytes, now)
+    // bucket keyed by cgroup_id. Both paths see the sanitized
+    // burst so the initializer never seeds tokens above the bound.
+    let bkt_ptr = if pol_sane.group_id != 0 {
+        get_bucket_ptr(
+            group_bucket_map,
+            &pol_sane.group_id,
+            pol_sane.burst_bytes,
+            now,
+        )
     } else {
-        get_bucket_ptr(bucket_map, &cgroup_id, pol.burst_bytes, now)
+        get_bucket_ptr(bucket_map, &cgroup_id, pol_sane.burst_bytes, now)
     };
     let bkt = match bkt_ptr {
         Some(ptr) => unsafe { &mut *ptr },
         None => return 1,
     };
 
-    enforce(pol, bkt, pkt_len, now, stats)
+    enforce(&pol_sane, bkt, pkt_len, now, stats)
 }
 
 /// Download enforcement (ingress). Ported from enforce_dl.
