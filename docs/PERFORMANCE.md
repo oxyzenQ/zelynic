@@ -432,6 +432,17 @@ earlier), the same noise class the hunt-15 entries recorded. The
 render ceiling remains four orders of magnitude above terminal
 needs.
 
+### cybersecurity-2 A/B (update-check tag sanitization, 2026-09-22)
+
+A boundary fix in `--check-update` (the release tag now passes the
+comm sanitizer before printing) — a command path the frame harness
+never exercises, so the stream is expected byte-identical. A =
+f655b81, B = this commit, 10 s runs: every stream metric 0.0%
+(bytes/frame 1421.2 = 1421.2, gini 0.2001 = 0.2001, entropy
+4.1148 = 4.1148, dirty cells 724.1 = 724.1), fps -0.6% (noise
+class — the same wall-clock variance recorded across the 2026-09-22
+captures).
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.

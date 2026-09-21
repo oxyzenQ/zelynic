@@ -3,6 +3,7 @@
 
 use std::process::Command;
 
+use crate::ebpf::identity::sanitize_comm;
 use crate::output::{brand_bold, ok_bold, warn_bold};
 
 const GITHUB_API_URL: &str = "https://api.github.com/repos/oxyzenQ/zelynic/releases/latest";
@@ -156,6 +157,14 @@ pub fn check_update(current_version: &str) -> Result<(), String> {
 
     let latest_tag = extract_tag_name(body)
         .ok_or_else(|| "could not parse latest release tag from GitHub response".to_string())?;
+    // NIGHT-cybersecurity-2: the tag is an untrusted NETWORK string
+    // printed to the admin's terminal — the same terminal-injection
+    // contract the /proc comm boundary already enforces (sanitize_comm:
+    // OSC 52 clipboard rewrites, ANSI corruption, forged output lines).
+    // curl inherits the invoking user's proxy environment, so a MITM'd
+    // or compromised proxy response is in the threat model even over
+    // TLS; the tag never reaches the terminal raw.
+    let latest_tag = sanitize_comm(&latest_tag);
 
     // Branded report (NIGHT-hunt-5): header in brand purple like every
     // other zelynic banner; status verdict colored by semantic (green =
@@ -214,6 +223,32 @@ mod tests {
         assert_eq!(
             extract_tag_name(r#"{"tag_name":"v2.6.0"}"#),
             Some("v2.6.0".to_string())
+        );
+    }
+
+    /// NIGHT-cybersecurity-2: the release tag is an untrusted network
+    /// string (curl inherits the user's proxy environment; the threat
+    /// model includes a MITM'd or compromised proxy response even over
+    /// TLS). The check_update pipeline must print it through
+    /// sanitize_comm — the same terminal-injection contract as the
+    /// /proc comm boundary: OSC 52 clipboard rewrites, ANSI corruption,
+    /// and forged output lines all die at the boundary.
+    #[test]
+    fn release_tag_from_network_is_sanitized_before_printing() {
+        // Forged response: the "tag" carries an OSC 52 clipboard-write
+        // payload and a newline-forged verdict line. The body embeds
+        // REAL control bytes — extract_tag_name is a substring parser,
+        // it passes whatever sits between the quotes straight through.
+        let forged = "{\"tag_name\":\"\u{1b}]52;p;SGVsbG8=\u{7}\nv99.0.0\"}";
+        let raw = extract_tag_name(forged).expect("forged tag extracts");
+        assert!(
+            raw.chars().any(|c| c.is_control()),
+            "precondition: the raw forged tag carries control chars"
+        );
+        assert_eq!(
+            sanitize_comm(&raw),
+            "?]52;p;SGVsbG8=??v99.0.0",
+            "ESC, BEL, and the newline all die at the boundary (one ? each)"
         );
     }
 
