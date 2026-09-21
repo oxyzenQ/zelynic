@@ -386,10 +386,10 @@ working entirely.
 policy choice.
 
 **7. Kernel 5.13+ with cgroup v2.**
-zelynic pins links via bpf_link and resolves cgroup IDs from the kernfs
-inode (the same numbering `bpf_skb_cgroup_id()` keys on). Run `zelynic
-doctor` on a new machine. Old distributions booting cgroup v1 cannot
-host zelynic.
+Old distributions booting cgroup v1 cannot host zelynic. Run `zelynic
+doctor` on a new machine; the full feature-dependency and distro
+matrix lives once in
+[docs/KERNEL_COMPATIBILITY.md](KERNEL_COMPATIBILITY.md).
 
 **8. One enforcement-changing operation at a time.**
 A non-blocking file lock (`flock` on `/run/zelynic/zelynic.lock`, inside a
@@ -593,12 +593,10 @@ Where things live when a command changes (update these together):
 | Docs after any behavioral change | This file + README + CHANGELOG; `docs/SAFETY_ANALYSIS.md` for privilege changes |
 | Security-relevant change | `SECURITY.md` posture table + `docs/SAFETY_ANALYSIS.md` audit section — move them together |
 
-Quality gates before every commit (both must pass):
-
-```bash
-./scripts/build.sh check-all     # fmt + clippy + tests + policy (2-min local cap)
-./scripts/gate-keepers.sh        # 15 checks: lint, policy, versions, disclaimers
-```
+Quality gates before every commit: the two commands and what each one
+runs are documented once in
+[CONTRIBUTING.md](../CONTRIBUTING.md) (`build.sh check-all` +
+`gate-keepers.sh`).
 
 Frame-level render changes additionally get the 10s A/B benchmark:
 `scripts/frame-bench.py` before/after, reporting density gini, frame

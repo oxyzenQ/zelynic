@@ -95,11 +95,9 @@ Check: `stat -fc %T /sys/fs/cgroup` should return `cgroup2fs`.
 - [x] MUSL (static) — Ubuntu 21.10, CachyOS VM, Debian 13
 
 ### Test coverage
-- [x] 17/17 depth tests pass on all 6 distros
-- [x] 13/13 leak tests pass on all 6 distros
-- [x] Real enforcement verified on all 6 distros
-- [x] Crash recovery test suite (9 tests)
-- [x] Regression test runner (consolidated)
+Depth/leak/enforcement results per distro are recorded once in
+[CROSS_DISTRO_RESULTS.md](CROSS_DISTRO_RESULTS.md) — the harness
+commands to reproduce them are in the README's Test Results section.
 
 ## Known Limitations
 

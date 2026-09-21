@@ -42,6 +42,32 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Changed
 
+- **docs: the cross-*.md duplicate-info sweep — every fact told
+  once, in its canonical home (NIGHT-docs-8)** — the owner read the
+  README and found usage info told twice and more: sections
+  re-explaining what other sections (and other files) already said.
+  Canonical homes are now explicit: USAGE.md owns command semantics,
+  limitations, quit-key physics, troubleshooting; KERNEL_COMPATIBILITY
+  owns requirements; VERIFY_RELEASE owns checksum commands;
+  CROSS_DISTRO_RESULTS owns the validation record; CONTRIBUTING owns
+  build/gates/standards; TRADEMARK owns fork policy; README owns the
+  pitch, the feature table, the rate-format quick reference, the usage
+  cheat block, and the branch table. Collapsed duplicates: README's
+  limitations bullets (7 retold items -> one-breath summary +
+  pointer), Safety Features (4 of 10 bullets re-told the feature
+  table), Release Verification (three checksum commands -> one
+  universal command + pointer), the dependency-policy bullets and the
+  second Hinnant telling, Refresh Intervals + Inside-a-cgroup sections
+  (merged into two-line pointers), Contributing gate-command block,
+  and the fork-policy bullet list; CONTRIBUTING's build block and
+  branch line, USAGE's maintainer's-map gate block and kernel-limit
+  detail, KERNEL_COMPATIBILITY's test-coverage list,
+  CROSS_DISTRO's future-runs paragraph, and src/RULES.md's re-told
+  policy sections became pointers. Net -52 lines of retold prose (210
+  deleted, 158 written, most of the insertions being the pointers
+  themselves); line-level cross-file duplicate scan (excluding
+  script-injected disclaimers and CHANGELOG history) is clean.
+
 - **harnesses: every loopback stream is policed at exactly ONE hook,
   and a blocked connect is zero goodput instead of a harness kill
   (NIGHT-improve-12)** — the 2026-09-21 root run exposed three harness

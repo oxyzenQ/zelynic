@@ -45,30 +45,27 @@ same WiFi interface. No `tc`, no `nftables`, no `LD_PRELOAD`, no daemon.
 | Edge | Detail |
 |------|--------|
 | **Pure eBPF datapath** | Zero intermediaries. The kernel IS the rate limiter. |
-| **Pinned bpf_links** | Enforcement survives process exit. No daemon, no battery drain. |
-| **Fractional precision** | 0.00% rate error. Sub-byte token accumulation. Others lose ~0.7%. |
+| **Pinned bpf_links** | Enforcement survives process exit — no daemon, no battery drain. |
+| **Fractional precision** | 0.00% rate error, sub-byte token accumulation (benchmarks: docs/PERFORMANCE.md). |
 | **Schema migration** | BPF struct changes auto-detected + auto-cleaned on upgrade. |
-| **Crash recovery** | `zelynic recover` detects + removes orphaned BPF pins. File lock prevents corruption. |
-| **Discovery workflow** | `zelynic top` (live box) finds bandwidth hogs. Other limiters can't discover. |
-| **Box mode** | In-place refresh with a clean exit — zero scrollback pollution, no TUI. Responsive layout adapts to any terminal size (NIGHT-hunt-7). Pointer takeover while running: text selection and copy are disabled — terminal-side Shift+click selections die on a 100 ms whole-frame guard beat — fully restored on exit (NIGHT-improve-7, NIGHT-improve-8). |
-| **Always-live monitors** | `observe`/`top` run live until you press q — no timers, no snapshot mode (NIGHT-hunt-12). |
-| **Diff-based rendering** | Monitor frames go through a cosmic-dragon-style diff engine: only changed rows are emitted, one write syscall per frame, idle frames cost zero I/O, and the screen is never wiped mid-session (NIGHT-improve-2). |
-| **Refresh control** | `--interval 1s..60s` on `observe`/`top` — realtime cadence you choose, with a live RATE column computed from the interval. |
-| **Eagle-eyes detail** | Monitor rows name the processes and endpoints INSIDE a cgroup — `curl (4012) -> 142.250.191.78:443` under a row labeled alacritty (NIGHT-hunt-8). |
+| **Crash recovery** | `zelynic recover` detects + removes orphaned BPF pins. |
+| **Discovery workflow** | `zelynic top` (live box) finds bandwidth hogs — other limiters can't discover. |
+| **Box mode** | In-place refresh, clean exit, responsive layout; selection/copy physics documented in the [USAGE FAQ](docs/USAGE.md#faq) (NIGHT-hunt-7, improve-7/8). |
+| **Always-live monitors** | `observe`/`top` run live until you press `q` — no timers, no snapshot mode. |
+| **Diff-based rendering** | Only changed rows are emitted — one write syscall per frame, idle frames cost zero I/O (NIGHT-improve-2). |
+| **Refresh control** | `--interval 1s..60s` on `observe`/`top`, with a live RATE column. |
+| **Eagle-eyes detail** | Monitor rows name the processes and endpoints INSIDE a cgroup — `curl (4012) -> 142.250.191.78:443` (NIGHT-hunt-8). |
 | **Strict dependency diet** | 7 direct deps, 54 lockfile crates, every one justified in [docs/DEPENDENCY_AUDIT.md](docs/DEPENDENCY_AUDIT.md). |
 
 ### Dependency policy (supply chain)
 
-zelynic treats dependencies as attack surface (NIGHT-hunt-6). The rules:
-
-- Every direct dependency has live call sites, recorded in
-  [docs/DEPENDENCY_AUDIT.md](docs/DEPENDENCY_AUDIT.md).
-- No time crates: the `Build-time` stamp in `-V` is computed by Howard
-  Hinnant's civil-from-days algorithm in `build.rs` (chrono was removed
-  with zero call sites — it kept 27 crates in the lockfile for nothing,
-  and is now banned in `deny.toml`).
-- `cargo deny check all` runs over the full feature graph (including the
-  eBPF subtree) in CI; re-adding chrono fails the build.
+Dependencies are attack surface (NIGHT-hunt-6): every direct dependency
+needs live call sites recorded in
+[docs/DEPENDENCY_AUDIT.md](docs/DEPENDENCY_AUDIT.md), features are trimmed
+to what is actually used, and time crates are banned (`-V`'s build stamp
+is computed in `build.rs`). `cargo deny check all` runs over the full
+feature graph in CI — the rules and evidence live in the audit doc and
+[CONTRIBUTING.md](CONTRIBUTING.md), told once there.
 
 ### vs traditional tools
 
@@ -88,8 +85,8 @@ before relying on a limit.
 
 ### Requirements
 
-- Linux kernel 5.13+ (cgroup v2 + `bpf_link` support; the hard floor is 5.8, and 5.13 is the oldest verified kernel — docs/KERNEL_COMPATIBILITY.md)
-- Root access (BPF requires `CAP_BPF`)
+- Linux kernel 5.13+, cgroup v2, root — the full matrix and why each
+  piece is needed: [docs/KERNEL_COMPATIBILITY.md](docs/KERNEL_COMPATIBILITY.md)
 - Python 3 for the test/benchmark scripts (stdlib only)
 
 Unsure about your kernel? `zelynic doctor` says yes or no with the exact
@@ -109,10 +106,10 @@ cd zelynic-vX.Y.Z-linux-amd64-gnu
 # or: ./install.sh --system                        # /usr/bin (sudo internally)
 ```
 
-Every tarball carries **three** checksums — classical SHA-512 plus
-quantum-resistant BLAKE2b-512 and SHAKE256. Verify before installing;
-the one-liners are in [Release Verification](#release-verification) below
-and in [docs/VERIFY_RELEASE.md](docs/VERIFY_RELEASE.md).
+Each release tarball carries three checksums (SHA-512 + BLAKE2b-512 +
+SHAKE256). Verify before installing — the one-liners live in
+[Release Verification](#release-verification) below and in
+[docs/VERIFY_RELEASE.md](docs/VERIFY_RELEASE.md), told once there.
 
 ### Install from source
 
@@ -159,9 +156,9 @@ Build: local-native-gnu (<hash>)
 Build-time: 9/18/2026 01:30 (UTC)
 ```
 
-The `Build-time` line is stamped at compile time by the Hinnant
-civil-from-days algorithm in `build.rs` — UTC only, no time crate in
-the dependency tree (see the dependency policy above).
+The `Build-time` line is stamped at compile time in `build.rs` — UTC
+only, no time crate in the dependency tree (see the
+dependency policy above).
 
 A native build never clobbers `target/release/zelynic` — the separate
 profile names keep both binaries side by side. The `-C
@@ -212,16 +209,16 @@ sudo zelynic doctor
 sudo zelynic recover
 ```
 
-Monitors are always live (NIGHT-hunt-12): the former `--live`/`--duration`
-timers — and the `man`, `completions`, `unblock`, `-i/--info` surfaces —
-are removed. `--help` is the single reference; quit a monitor box with
-`q` — the only quit key (NIGHT-hunt-16).
+Monitors are always live; the CLI surface is frozen (v11) — the
+removed surfaces (`man`, `completions`, `unblock`, `-i/--info`,
+`--live`, `--duration`) exit with a usage error on purpose. Command
+semantics, quit keys, and recipes: [docs/USAGE.md](docs/USAGE.md);
+`--help` is the single flag reference.
 
 Global flags work on every command: `-v/--verbose` (diagnostic trace),
 `--print-json`, `--help`, `-V/--version`, and `--check-update` — which
-**refuses to run as root**: it is a plain network fetch, so re-run it
-without `sudo` (see docs/SAFETY_ANALYSIS.md for the full privilege
-matrix).
+**refuses to run as root** (a plain network fetch must not ride sudo;
+full privilege matrix: [docs/SAFETY_ANALYSIS.md](docs/SAFETY_ANALYSIS.md)).
 
 ## Rate Formats
 
@@ -236,67 +233,36 @@ Lowercase units only (decimal SI: 1 KB = 1000 bytes):
 | `100gb` | 100 gigabytes/second |
 | `1tb` | 1 terabyte/second |
 
-**Bounds**: minimum 1 KB/s, maximum 1 TB/s. Both overridable with `--allow-dangerous`.
+**Bounds**: minimum 1 KB/s, maximum 1 TB/s, both overridable with
+`--allow-dangerous` (told once — parsing details and error tips live
+in `--help` and [docs/USAGE.md](docs/USAGE.md)).
 
-## Refresh Intervals
-
-`--interval` (observe, top) accepts the same duration formats — plain
-seconds, `2s`, `1m` — but must land between 1s and 60s: below 1s spams
-refreshes well past what a human can read, above 60s stops being a
-live monitor. Out-of-range values fail fast with the bounds in the
-message.
-
-### Inside a cgroup (NIGHT-hunt-8)
-
-BPF counters are per-cgroup, and on systemd a whole terminal
-session shares one cgroup — a row labeled `alacritty` may be
-carrying `curl` traffic. Monitor rows therefore show what lives
-inside: a `+N` process-count suffix on the label, and per-process
-socket detail lines with remote endpoints (TCP/UDP, busy flags).
-`observe --cgroup <id>` zooms in with the uncapped view, and
-`list-apps` carries PROCS/SOCKETS columns so the multi-tenancy is
-visible at discovery time.
+Monitor `--interval` accepts the same duration formats, bounded to
+1s..60s (a live monitor is neither a spam flood nor a screenshot) —
+see [docs/USAGE.md](docs/USAGE.md) `observe`/`top`.
 
 ## Limitations (honest)
 
-zelynic is deliberately small and stateless. These are real behaviors,
-not bugs — the full eleven-item list with examples lives in
-[USAGE.md](docs/USAGE.md#honest-limitations--read-this):
-
-- **Rules are a snapshot, not a subscription.** Limits apply to the
-  cgroups that exist at command time; apps launched afterwards (with
-  fresh cgroups) are not limited — re-run to sweep them in. No daemon
-  watches for newcomers, by design.
-- **Limits do not survive reboot.** bpffs is wiped at boot and cgroup
-  IDs are re-assigned; re-apply after reboot.
-- **Name resolution needs the app running.** `strict-single` matches
-  live processes in `/proc`; a stopped app has no cgroup to resolve.
-- **A name can match more than one cgroup.** `strict-single brave`
-  limits every cgroup hosting a `brave` process, helpers included —
-  usually what you want; target a cgroup ID for surgical control.
-- **Rates are decimal SI and per direction.** `100kb` = 100,000 B/s
-  (0.8 Mbps on speed-test sites); a positional rate limits BOTH
-  directions.
-- **Monitoring surfaces need root too.** Map reads are kernel
-  territory: only `list-apps`, `doctor`, `--help`, `-V` are
-  unprivileged.
-- **Counters are cumulative evidence.** ALLOWED/DROPPED accumulate
-  since the maps were created — enforcement proof, not a live meter
-  (`observe` is the live one).
+zelynic is deliberately small and stateless — the full eleven-item
+list, with examples and the exact snapshot rule, lives in
+[USAGE.md](docs/USAGE.md#honest-limitations--read-this). In one
+breath: rules are a snapshot (new apps need a re-run), limits do not
+survive reboot, name resolution needs the app running, one name can
+match several cgroups, rates are decimal SI per direction, monitoring
+surfaces need root too, and status counters are cumulative evidence.
 
 ## Safety Features
 
-- **Rate bounds guard**: 1 KB/s to 1 TB/s enforced — see
-  [Rate Formats](#rate-formats); `--allow-dangerous` overrides
-- **Fire-and-forget**: `strict-single` exits 0, limit persists in background
-- **No residue**: `unstrict-all` removes all pin files + directory
+- **Rate bounds guard**: 1 KB/s..1 TB/s, `--allow-dangerous` overrides
 - **Fail-safe BPF**: returns "allow" on any error path (never blocks on failure)
 - **Dangerous target protection**: 57 system processes blocked by default
-- **Overflow detection**: absurd rates show friendly warning, not wrapped values
-- **Crash recovery**: `zelynic recover` detects + cleans orphaned BPF pins
+- **Overflow detection**: absurd rates show a friendly warning, not wrapped values
 - **File lock**: prevents concurrent operations from corrupting BPF state
-- **Schema migration**: BPF struct changes auto-detected + auto-cleaned on upgrade
 - **Kernel version detection**: graceful fallback for kernel < 5.7 (legacy bpf_prog_attach)
+
+(Fire-and-forget, crash recovery, and schema migration are already in
+the feature table above; the full audit trail is
+[docs/SAFETY_ANALYSIS.md](docs/SAFETY_ANALYSIS.md).)
 
 ## Architecture
 
@@ -375,28 +341,19 @@ CI rejects any other suffix and never marks a pre-release as "latest".
 
 ## Contributing
 
-PRs and issues are welcome. The bar is the gate suite — run it before
-submitting:
-
-```bash
-./scripts/gate-keepers.sh        # 15 checks: fmt, lints, headers, policy, sync
-./scripts/build.sh check-all     # fmt + clippy + tests + policy
-```
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the full guide (build, test
-suites, conventions, the script inventory) and
-[docs/RULES.md](docs/RULES.md) for project conventions.
+PRs and issues are welcome. The bar is the gate suite — build, test,
+conventions, and the full script inventory are documented once in
+[CONTRIBUTING.md](CONTRIBUTING.md); project conventions also live in
+[docs/RULES.md](docs/RULES.md).
 
 ## Security
 
 zelynic runs as root and programs the kernel datapath, so security is
-part of the product. Found something? **Report it privately** — see
-[SECURITY.md](SECURITY.md) for the policy, the supported versions, and
-what counts as a vulnerability. The audit trail (findings, verdicts,
-accepted risks) lives in
-[docs/SAFETY_ANALYSIS.md](docs/SAFETY_ANALYSIS.md), and the privilege
-matrix is documented there too: root is required only where the kernel
-demands it, and refused outright for `--check-update`.
+part of the product. Found something? **Report it privately** — the
+policy, supported versions, and what counts as a vulnerability live in
+[SECURITY.md](SECURITY.md); the audit trail and the privilege matrix
+(who needs root where, and the one surface that refuses it) live in
+[docs/SAFETY_ANALYSIS.md](docs/SAFETY_ANALYSIS.md).
 
 ## Documentation
 
@@ -412,7 +369,11 @@ demands it, and refused outright for `--check-update`.
 
 ## Test Results
 
-Verified on 6 distributions (all pass 17/17 depth + 13/13 leak tests):
+Verified on 6 distributions — every one passed the depth and leak
+suites, and real enforcement was measured against live browsers
+(the full record, per-distro details, and the accuracy table live in
+[docs/CROSS_DISTRO_RESULTS.md](docs/CROSS_DISTRO_RESULTS.md), told
+once there):
 
 | Distro | Kernel | Binary | Enforcement |
 |--------|--------|--------|-------------|
@@ -424,10 +385,9 @@ Verified on 6 distributions (all pass 17/17 depth + 13/13 leak tests):
 | Debian 13 | 6.12 | MUSL | firefox-esr 900kb → 7.0 Mbps |
 
 Want to depth-verify your own machine (or a VM, or a friend's distro)?
-One command, no external test server — the flagship harness generates
-loopback traffic in an isolated test cgroup and checks measured rate
-accuracy, kernel-drop proof, BPF accounting, sustained stability, and
-residue (NIGHT-master-1):
+One command, no external test server — loopback traffic in an isolated
+test cgroup, measured rate accuracy, kernel-drop proof, BPF accounting,
+sustained stability, residue (NIGHT-master-1):
 
 ```bash
 sudo ./scripts/limiter-depth-test.sh          # full run (~2 min)
@@ -447,22 +407,15 @@ sudo ./scripts/supermassive-test.sh --heavy        # supermassive (5+ min)
 
 ## Release Verification
 
-Each release ships **three** checksums: classical SHA-512 + quantum-resistant
-BLAKE2b-512 + SHAKE256. Full instructions in
-[docs/VERIFY_RELEASE.md](docs/VERIFY_RELEASE.md).
+Each release ships three checksums: classical SHA-512 + quantum-resistant
+BLAKE2b-512 + SHAKE256. The universal check is one command —
 
 ```bash
-# Classical (universal)
 sha512sum -c zelynic-vX.Y.Z-linux-amd64-gnu.tar.gz.sha512sum
-
-# Quantum-resistant — BLAKE2b (fastest, in coreutils)
-b2sum -c zelynic-vX.Y.Z-linux-amd64-gnu.tar.gz.b2sum
-
-# Quantum-resistant — SHAKE256 (NIST PQ standard, via Python)
-COMPUTED=$(python3 -c "import hashlib; print(hashlib.shake_256(open('zelynic-vX.Y.Z-linux-amd64-gnu.tar.gz','rb').read()).hexdigest(64))")
-EXPECTED=$(awk '{print $1}' zelynic-vX.Y.Z-linux-amd64-gnu.tar.gz.shake256)
-[ "$COMPUTED" = "$EXPECTED" ] && echo "OK" || echo "FAILED"
 ```
+
+— and the two quantum-resistant one-liners plus the algorithm rationale
+live in [docs/VERIFY_RELEASE.md](docs/VERIFY_RELEASE.md), told once there.
 
 ## Support
 
@@ -492,15 +445,13 @@ covered by the GPL, and are reserved by the owner. This project is
 **NOT for sale** — unauthorized rebranding, relicensing, or
 source-code theft is strictly prohibited.
 
-**Forking policy** (full text in [TRADEMARK.md](TRADEMARK.md),
-§3–§4):
-
-- **Unmodified redistribution and attribution**: allowed without
-  permission under the GPL — keep the license and notices intact.
-- **Forks and derivative works**: must rename to something that does
-  not include or resemble "Zelynic", drop the logo/artwork, and
-  attribute the original (a suggested attribution format is in the
-  policy). Open a GitHub issue before public release.
+The short version of the fork policy: unmodified redistribution with
+attribution is allowed under the GPL; forks and derivatives must
+rename away from "Zelynic", drop the logo/artwork, and attribute the
+original. The binding detail lives once in
+[TRADEMARK.md](TRADEMARK.md) (§2 permitted uses, §3–§4 approval +
+renaming rules), including the suggested attribution format and how to
+request permission.
 
 For trademark licensing or written permission, contact
 **rezky_nightky (oxyzenQ)** — <https://github.com/oxyzenQ>.
