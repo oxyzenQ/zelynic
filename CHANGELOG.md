@@ -42,6 +42,23 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Changed
 
+- **help: the --help reference tells each example exactly once
+  (NIGHT-hunt-15)** — the trailing Examples section repeated six of
+  its nine entries verbatim from the per-command example lines the
+  NIGHT-improve-5 grouping already carries (strict-single appeared
+  three times on one screen, strict-multi/observe/top twice). The
+  section now holds only the three workflows whose command blocks
+  carry no example lines — status + jq scripting, recover, and the
+  unstrict-all emergency reset — so the surface drops 143 -> 122
+  lines with zero information lost (section headers, all 15 commands,
+  verb grouping, and the pinned contracts untouched:
+  test_help_lists_every_command still passes as-is). One stale
+  example comment fixed in the same pass: "observe --interval 5s #
+  calmer cadence + rate column" claimed the interval flag controls
+  the RATE column — plan_observe_columns shows it is width-driven
+  (>= 50 cols, verified); the interval only sets the cadence (and the
+  RATE column's divisor).
+
 - **docs: source-of-truth cross audit — twelve stale spots eliminated
   (NIGHT-hunt-15)** — every living-doc claim was re-verified against
   the code it describes (source code is the truth; the doc is wrong
