@@ -63,11 +63,17 @@ pub const MAX_RATE: u64 = 1_000_000_000_000;
 ///     (NIGHT-improve-14) — verdict unchanged; pinned v4 programs otherwise
 ///     keep dropping blocked traffic with an empty, invisible drop counter.
 ///     Same one-time re-apply contract as the v3 -> v4 bump.
-pub const SCHEMA_VERSION_EXPECTED: u32 = 5;
+/// v6: frac_rem sanitized on read in the refill math (NIGHT-depthbore-1,
+///     ebpf/src/math.rs) — the third persistent stored field, missed by the
+///     v4 clamp family, is clamped to the healthy range (< 1s of rate
+///     remainder) so a drifted or hostile value can never wrap the
+///     fractional accumulation; no layout change, same one-time re-apply.
+pub const SCHEMA_VERSION_EXPECTED: u32 = 6;
 
 /// Hard ceiling a stored `burst_bytes` may carry into the BPF refill
 /// math (NIGHT-improve-10 / security-3). Mirror of `MAX_ENFORCABLE_BURST`
-/// in `ebpf/src/bin/limiter.rs` — the exact mathematical ceiling under
+/// in `ebpf/src/math.rs` (the enforcement arithmetic, depthbore-1) —
+/// the exact mathematical ceiling under
 /// which every product the refill can form is representable in u64:
 /// `2 * burst * NS_PER_SEC` (the fill-detect threshold) and
 /// `tokens + 2 * burst` (worst pre-cap sum). Userspace writes are
@@ -283,7 +289,7 @@ mod tests {
     fn test_schema_version_constant() {
         // Must match SCHEMA_VERSION in ebpf/src/bin/limiter.rs.
         // When this changes, the BPF code must also change.
-        assert_eq!(SCHEMA_VERSION_EXPECTED, 5);
+        assert_eq!(SCHEMA_VERSION_EXPECTED, 6);
     }
 
     // ── NIGHT-improve-10 / security-3: overflow-bound pins ──────────

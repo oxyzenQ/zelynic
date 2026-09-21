@@ -690,6 +690,49 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Fixed
 
+- **limiter: the kernel-side enforcement math is now PROVABLE — and
+  its last unclamped field is clamped (NIGHT-depthbore-1)** — two
+  halves of one directive ("master peak high precision for limiter
+  network"). (1) The refill arithmetic — fill-detect, fractional
+  carry, cap, verdicts — moved out of the BPF program into
+  ebpf/src/math.rs: pure `core`, zero aya dependencies, wired into
+  the BPF object AND the userspace test tree via #[path], so the
+  exact file the kernel runs is pinned by rootless unit tests
+  (test/ebpf/limiter/math_tests.rs, 12 pins): fill-detect threshold
+  equivalence (the branch is the overflow guard, not a behavior
+  change — proven identical below, at, and above the threshold),
+  the largest-legal-product corner at the MAX_ENFORCABLE_BURST
+  bound (runs the multiply that would wrap if the guard ever
+  regressed, under test overflow checks), long-run fractional
+  exactness (1000 seconds at 7 B/s admits exactly 7000 bytes; a
+  1,500,003 B/s second recovers every truncated byte — no 0.5-1%
+  drift, which is frac_rem's documented reason to exist),
+  steady-state exactness (one second at 1 MB/s admits exactly
+  1,000,000 bytes, zero drops), conservation under 20k-event
+  adversarial churn, drop-keeps-remainder (the silent-killer
+  precision: refilled tokens survive a drop for the next smaller
+  packet), and the elapsed cap's 1s bound. Before this, the
+  sharpest arithmetic in the repo was testable only by root-run
+  integration. (2) The extraction surfaced the real defect:
+  `frac_rem` — the third persistent stored field of the bucket —
+  was NEVER clamped. The v4 sanitization's own claim ("no stored
+  map value can overflow the kernel arithmetic") was incomplete:
+  burst and tokens were clamped, but a drifted or hostile
+  frac_rem (any u64) could wrap `frac_rem + refill_frac` — silent
+  garbage in the release BPF build, bounded to refill noise of ~1
+  byte per packet by the burst cap, but a panic under the new test
+  tree's overflow checks. Schema v6 sanitizes it on read (>= 1
+  second of remainder is treated as the empty remainder — the
+  same clamp-to-healthy-value contract), completing the
+  burst/tokens/frac triple. No layout change; pinned v5 programs
+  reload into the hardened object on the next policy write, the
+  same one-time limit re-apply as every prior bump. SAFETY_ANALYSIS
+  overflow audit extended; CONTRIBUTING module map updated;
+  PERFORMANCE.md A/B recorded (all stream metrics 0.0% — the
+  render path is untouched by construction; fps in the noise
+  class, coupling explained). 189 unit + 23 integration green,
+  clippy -D warnings clean, both-tree rustfmt exact, gate-keepers
+  17/17.
 - **harness: the two 2026-09-21 root-run rows that were ours, not the
   engine's — both fixed with the stage-measurement contracts they
   needed (2026-09-22 approved follow-up)** — (1) the asymmetric

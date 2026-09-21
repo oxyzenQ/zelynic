@@ -401,6 +401,37 @@ counts as inequality. That is the cost of separating the totals grid
 from the scale annotation, and the alignment win is the point of the
 change: the sums now sit under the exact columns they total.
 
+### depthbore-1 A/B (eBPF math extraction + schema v6, 2026-09-22)
+
+The enforcement arithmetic moved from the BPF program into
+ebpf/src/math.rs (pure `core`, #[path]-shared with the userspace
+test tree) and gained the frac_rem sanitization — schema v6. The
+render path is untouched by construction: the eBPF object is not
+exercised by the frame harness and no render source changed. A =
+2f098e8 (base capture), B = this commit, 10 s runs:
+
+| Metric | 2f098e8 | depthbore-1 | Delta |
+|--------|---------|-------------|-------|
+| fps | 14298.9 | 12481.6 | -12.7% (noise class, see below) |
+| bytes/frame | 1421.2 | 1421.2 | +0.0% |
+| emit bytes/frame | 1358.9 | 1358.8 | -0.0% |
+| emit ratio | 0.96 | 0.96 | -0.0% |
+| density gini | 0.2001 | 0.2001 | -0.0% |
+| frame entropy | 4.1148 | 4.1147 | -0.0% |
+| dirty cells/frame | 724.1 | 723.9 | -0.0% |
+| dirty ratio | 0.3974 | 0.3974 | -0.0% |
+
+Reading: every stream metric is 0.0% — the emitted frames are
+byte-identical, as the change-set predicts (no render source
+touched; the arithmetic runs inside the kernel, not the frame
+path). The fps and bytes/sec churn deltas are the same -12.7% —
+churn is defined as bytes/frame x fps, so the pair moves together
+and the shared cause is wall-clock throughput in the shared
+sandbox (busier now than during the improve-13 capture an hour
+earlier), the same noise class the hunt-15 entries recorded. The
+render ceiling remains four orders of magnitude above terminal
+needs.
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.
