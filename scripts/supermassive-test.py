@@ -145,19 +145,19 @@ LADDER_HEAVY = [
     ("1gb", 1_000_000_000), ("10gb", 10_000_000_000),
     ("100gb", 100_000_000_000), ("1tb", 1_000_000_000_000),
 ]
-# NIGHT-improve-14: rungs this close to the loopback ceiling are
-# measured as a PARALLEL aggregate, not one flow. A single TCP stream
-# through a dropper cannot CLAIM a bucket that large: default_burst
-# clamps at 100 MB, which at 100mb is a full SECOND of tokens but at
-# 1gb only 0.1 s — every post-drop cwnd recovery then dips below the
-# refill rate and single-flow goodput settles around half of
-# configured on a ~5 GB/s loopback without ever exceeding the cap
-# (the 2026-09-21 nightpc heavy run: 55.7% measured while kernel
-# drops AND byte accounting both held). AIMD physics, not an
-# enforcement miss. Six concurrent workers share the bucket the same
-# way curl burst and strict-multi do; their staggered dips let the
-# aggregate track the refill rate, so the band verdict keeps its
-# meaning. Below this line the single-flow instrument stays.
+# NIGHT-improve-14/15: rungs this close to the loopback ceiling are
+# measured as a PARALLEL aggregate, not one flow. The improve-14
+# theory was that six flows' staggered AIMD dips would let the
+# aggregate track the refill rate; the 1e9fa80 nightpc run disproved
+# the mechanism — single-flow 55.7%, six-flow 53.9% (flow count is
+# not the variable: see lib.DEFAULT_BURST_CAP's min-RTO cushion
+# physics). The aggregate STAYS because it is the stronger
+# instrument: six workers wanting ~4 GB/s and still landing at half
+# of 1gb proves the shortfall is AIMD-under-a-dropper, not demand
+# starvation — while the cap is never exceeded and drops +
+# accounting hold on the same rung. The band floor for those rungs
+# follows the cushion model (lib.loopback_rate_floor); below this
+# line the single-flow instrument stays.
 PARALLEL_FLOWS = 6
 PARALLEL_MIN_BPS = 500_000_000
 
@@ -982,12 +982,25 @@ def test_rate_ladder(ladder, window, windows_per_rung, baseline):
         # (under-delivery is physics), the ceiling and the kernel-drop
         # proof below still carry the verdict.
         floor = lib.loopback_rate_floor(bps)
-        extra = (
-            "loopback GSO granularity: a sub-skb bucket cannot reach "
-            "steady state — the ceiling and kernel drops carry the verdict"
-            if floor == 0.0 else ""
-        )
-        if flows > 1 and not extra:
+        if floor == 0.0:
+            extra = (
+                "loopback GSO granularity: a sub-skb bucket cannot reach "
+                "steady state — the ceiling and kernel drops carry the verdict"
+            )
+        elif floor < lib.BAND_LO:
+            # NIGHT-improve-15: the min-RTO cushion regime — the floor
+            # itself IS the model (see lib.DEFAULT_BURST_CAP).
+            extra = (
+                f"{flows}-flow aggregate; min-RTO cushion: the 100 MB "
+                "burst clamp holds "
+                f"{min(bps, lib.DEFAULT_BURST_CAP) / bps:.1f} s of tokens "
+                "at this rate and a policer drops rather than queues — "
+                "near-capacity AIMD re-banks one cushion per ~200 ms "
+                "stall, pinning the aggregate near the floor; the cap is "
+                "never exceeded, kernel drops + accounting carry the "
+                "verdict"
+            )
+        elif flows > 1:
             extra = (
                 f"{flows}-flow aggregate — a single AIMD flow cannot "
                 "claim a bucket this close to the ceiling"
@@ -1437,6 +1450,30 @@ def self_test():
         )
     finally:
         shutil.rmtree(probe, ignore_errors=True)
+
+    # NIGHT-improve-15 pin: the ladder's high-rung floor is a MODEL
+    # (cushion / min-RTO), anchored to constants that live on the
+    # engine side (format.rs default_burst clamp, Linux TCP_RTO_MIN).
+    # If either side drifts, this row catches it rootlessly before a
+    # root run files physics as an enforcement miss — or hides a real
+    # one behind a too-low floor.
+    floor_pins = {
+        1_000: 0.0,               # sub-skb regime: drops carry the verdict
+        100_000_000: lib.BAND_LO,  # clamp binds, cushion still 1 s: full band
+        1_000_000_000: 0.5,        # clamp leaves 0.1 s: cushion / min-RTO
+    }
+    ok_floors = all(
+        abs(lib.loopback_rate_floor(r) - want) < 1e-9
+        for r, want in floor_pins.items()
+    )
+    record(
+        "engine: ladder floor model (sub-skb zero, band, min-RTO cushion)",
+        "PASS" if ok_floors else "FAIL",
+        "; ".join(
+            f"{lib.fmt_bps(r)} -> {lib.loopback_rate_floor(r):.2f}"
+            for r in floor_pins
+        ),
+    )
 
     def agree(name, client_bytes, server_bytes):
         ratio = client_bytes / server_bytes if server_bytes else 0.0
