@@ -32,7 +32,6 @@ import os
 import re
 import shutil
 import subprocess
-import sys
 import time
 
 # ── shared constants ────────────────────────────────────────────────────────
@@ -80,7 +79,7 @@ ACCOUNTING_FLOOR_BYTES = 64 * 1024
 # follows the model; the cap, kernel drops, and byte accounting
 # still carry the enforcement verdict.
 DEFAULT_BURST_CAP = 100_000_000  # mirror of format.rs default_burst clamp
-TCP_MIN_RTO_S = 0.2              # Linux TCP_RTO_MIN floor
+TCP_MIN_RTO_S = 0.2  # Linux TCP_RTO_MIN floor
 
 # Harness state (see the module docstring's ownership contract).
 RESULTS = []
@@ -108,9 +107,7 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REPO_BINARY_CANDIDATES = [
     os.path.join(REPO_ROOT, "zelynic"),
     os.path.join(REPO_ROOT, "target", "pro-native-gnu", "zelynic"),
-    os.path.join(
-        REPO_ROOT, "target", "x86_64-unknown-linux-musl", "pro-native-musl", "zelynic"
-    ),
+    os.path.join(REPO_ROOT, "target", "x86_64-unknown-linux-musl", "pro-native-musl", "zelynic"),
     os.path.join(REPO_ROOT, "target", "release", "zelynic"),
 ]
 
@@ -122,6 +119,7 @@ _VERSION_TOKEN = re.compile(r"v?([0-9]+(?:\.[0-9]+)+(?:[-+][0-9A-Za-z.-]+)*)")
 
 
 # ── output + verdict recording ──────────────────────────────────────────────
+
 
 def out(msg=""):
     print(msg, flush=True)
@@ -148,15 +146,14 @@ def mbps(n):
 
 
 def record(name, verdict, detail="", metrics=None):
-    RESULTS.append(
-        {"test": name, "verdict": verdict, "detail": detail, "metrics": metrics or {}}
-    )
+    RESULTS.append({"test": name, "verdict": verdict, "detail": detail, "metrics": metrics or {}})
     mark = {"PASS": "  OK ", "FAIL": "  X  ", "SKIP": "  -- "}[verdict]
     out(f"{mark}{name}" + (f" — {detail}" if detail else ""))
     return verdict
 
 
 # ── zelynic subprocess control ──────────────────────────────────────────────
+
 
 def run_zel(args, timeout=30):
     try:
@@ -188,6 +185,7 @@ def limit_entry(doc, cgroup_id):
 
 
 # ── environment probes ──────────────────────────────────────────────────────
+
 
 def pretty_name():
     try:
@@ -295,6 +293,7 @@ def repo_version():
 
 # ── binary resolution ───────────────────────────────────────────────────────
 
+
 def resolve_binary(explicit, script_hint):
     """Resolve the zelynic binary under test into BINARY, then GATE it.
 
@@ -321,10 +320,7 @@ def resolve_binary(explicit, script_hint):
         harness tests THIS checkout, never a foreign one.
     """
     global BINARY
-    repo_hits = [
-        c for c in REPO_BINARY_CANDIDATES
-        if os.path.isfile(c) and os.access(c, os.X_OK)
-    ]
+    repo_hits = [c for c in REPO_BINARY_CANDIDATES if os.path.isfile(c) and os.access(c, os.X_OK)]
     repo_hits.sort(key=os.path.getmtime, reverse=True)
     candidates = []
     if explicit:
@@ -375,6 +371,7 @@ def resolve_binary(explicit, script_hint):
 
 # ── verdict band ────────────────────────────────────────────────────────────
 
+
 def loopback_rate_floor(rate_bps):
     """Effective BAND_LO for a configured rate on the loopback engine.
 
@@ -409,14 +406,14 @@ def band_check(name, measured_bps, configured_bps, extra="", lo=None, hi=None):
     verdict = "PASS" if lo_eff <= ratio <= hi_eff else "FAIL"
     detail = (
         f"configured {fmt_bps(configured_bps)} ({mbps(configured_bps)}), "
-        f"measured {fmt_bps(measured_bps)} ({ratio * 100:.1f}%)"
-        + (f"; {extra}" if extra else "")
+        f"measured {fmt_bps(measured_bps)} ({ratio * 100:.1f}%)" + (f"; {extra}" if extra else "")
     )
     record(name, verdict, detail, {"measured_bps": round(measured_bps), "ratio": round(ratio, 3)})
     return verdict
 
 
 # ── shared stages (identical in both twins) ─────────────────────────────────
+
 
 def doctor_check():
     rc, stdout, _ = run_zel(["doctor", "--print-json"])
@@ -428,27 +425,34 @@ def doctor_check():
         return record("doctor: eBPF support", "FAIL", "doctor JSON could not be parsed") == "PASS"
     supported = bool(doc.get("ebpf_supported"))
     warnings = "; ".join(doc.get("warnings", []))
-    return record(
-        "doctor: eBPF support", "PASS" if supported else "FAIL", warnings or "no warnings"
-    ) == "PASS"
+    return (
+        record("doctor: eBPF support", "PASS" if supported else "FAIL", warnings or "no warnings")
+        == "PASS"
+    )
 
 
 def dmesg_scan():
     try:
-        p = subprocess.run(["dmesg", "--color=never"], capture_output=True,
-                           text=True, timeout=15)
+        p = subprocess.run(["dmesg", "--color=never"], capture_output=True, text=True, timeout=15)
     except (OSError, subprocess.TimeoutExpired):
-        return record("dmesg: kernel log clean", "SKIP", "dmesg unavailable or restricted") == "PASS"
+        return (
+            record("dmesg: kernel log clean", "SKIP", "dmesg unavailable or restricted") == "PASS"
+        )
     lines = p.stdout.splitlines()[-200:]
     bad = [
-        line for line in lines
+        line
+        for line in lines
         if any(k in line.lower() for k in ("bpf", "zelynic"))
         and any(k in line.lower() for k in ("error", "fail", "warn", "bug", "oops"))
     ]
-    return record(
-        "dmesg: kernel log clean", "PASS" if not bad else "FAIL",
-        "; ".join(bad[:3]) if bad else "no BPF errors in the last 200 lines",
-    ) == "PASS"
+    return (
+        record(
+            "dmesg: kernel log clean",
+            "PASS" if not bad else "FAIL",
+            "; ".join(bad[:3]) if bad else "no BPF errors in the last 200 lines",
+        )
+        == "PASS"
+    )
 
 
 def final_report(start, mode, ok_line):

@@ -3,14 +3,56 @@
 # =============================================================================
 # CI Pipeline — runs on every push and PR to main
 # =============================================================================
+#
+# NIGHT-improve-13 (cosmostrix CI lineage): the `paths:` filter is
+# the single trigger gate — the former `changes` job (a full
+# fetch-depth: 0 clone plus a git-diff regex that re-implemented
+# what GitHub's native path filter already does) is gone. Builds
+# are Rust-surface-triggered; the non-code gates (codespell, shells,
+# headers, permissions, ruff, language, ...) live in
+# gate-keepers.yml, which runs on EVERY push unfiltered — a
+# docs-only change never skips the gates that police it.
 
 name: CI
 
 on:
   push:
     branches: ["main"]
+    paths:
+      # The Rust + tooling surface — the set the former `changes`
+      # job's CORE_PATTERN matched, expressed natively.
+      - '**/*.rs'
+      - '**/*.toml'
+      - '**/*.py'
+      - 'Cargo.lock'
+      - 'build.rs'
+      - 'rust-toolchain*'
+      - 'scripts/**'
+      - '.cargo/**'
+      - 'ebpf/**'
   pull_request:
     branches: ["main"]
+    paths:
+      - '**/*.rs'
+      - '**/*.toml'
+      - '**/*.py'
+      - 'Cargo.lock'
+      - 'build.rs'
+      - 'rust-toolchain*'
+      - 'scripts/**'
+      - '.cargo/**'
+      - 'ebpf/**'
+
+# Least privilege (cosmostrix contract): every job in this workflow
+# only reads the repository.
+permissions:
+  contents: read
+
+# Rapid pushes to the same ref cancel the superseded run instead of
+# queueing a duplicate full build (cosmostrix stability pattern).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
@@ -30,51 +72,10 @@ env:
   RUSTFLAGS: "-D warnings"
 
 jobs:
-  changes:
-    # Runner pinned to ubuntu-24.04, never a floating ubuntu-latest:
-    # the label migrates to Ubuntu 26 on 2026-10-19 and would silently
-    # move the build environment (actions/runner-images#14748); OS
-    # upgrades here are deliberate, matrix-tested changes.
-    runs-on: ubuntu-24.04
-    outputs:
-      core: ${{ steps.detect.outputs.core }}
-    steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5, NIGHT-hunt-20 SHA pin
-        with:
-          fetch-depth: 0
-      - name: Detect core file changes
-        id: detect
-        # NIGHT-hunt-14 hardening: event context reaches the script only
-        # through environment variables, never via direct ${{ }}
-        # interpolation inside run: — the canonical defense-in-depth
-        # against the script-injection class even though these fields
-        # are git-controlled SHAs today.
-        env:
-          EVENT_NAME: ${{ github.event_name }}
-          PR_BASE: ${{ github.event.pull_request.base.sha }}
-          PR_HEAD: ${{ github.event.pull_request.head.sha }}
-          HEAD_SHA: ${{ github.sha }}
-        run: |
-          if [ "$EVENT_NAME" = "pull_request" ]; then
-            BASE="$PR_BASE"
-            HEAD="$PR_HEAD"
-          else
-            BASE=$(git rev-parse HEAD~1 2>/dev/null || git rev-list --max-parents=0 HEAD)
-            HEAD="$HEAD_SHA"
-          fi
-          FILES=$(git diff --name-only "$BASE" "$HEAD" 2>/dev/null || git ls-files)
-          CORE_PATTERN='\.(rs|toml|py)$|Cargo\.lock$|^build\.rs$|^rust-toolchain|^scripts/|^\.cargo/|^ebpf/'
-          if echo "$FILES" | grep -qE "$CORE_PATTERN"; then
-            echo "core=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "core=false" >> "$GITHUB_OUTPUT"
-          fi
-
   check:
-    needs: changes
-    if: needs.changes.outputs.core == 'true'
     name: Lint & Test
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5, NIGHT-hunt-20 SHA pin
 
@@ -143,14 +144,13 @@ jobs:
         run: cargo build --release --locked
 
   ebpf-build:
-    needs: changes
-    if: needs.changes.outputs.core == 'true'
     name: eBPF Build (${{ matrix.os }})
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-22.04, ubuntu-24.04]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5, NIGHT-hunt-20 SHA pin
 
@@ -161,7 +161,8 @@ jobs:
 
       # NIGHT-improve-1 phase 3: the BPF objects are now built by the
       # pure-Rust ebpf/ crate (aya-ebpf, nightly + bpf-linker) — the
-      # clang/libbpf-dev toolchain is gone from this job.
+      # clang/libbpf-dev toolchain is gone from this job. rustfmt is
+      # installed with the pin for the fmt parity note below.
       - name: Install eBPF nightly toolchain (dated pin)
         uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # @stable, NIGHT-hunt-20 SHA pin
         with:
@@ -193,8 +194,13 @@ jobs:
             ${{ runner.os }}-ebpf-${{ matrix.os }}-cargo-
             ${{ runner.os }}-ebpf-cargo-
 
-      - name: Check eBPF Rust formatting (rustfmt, nightly pin)
-        run: cd ebpf && cargo fmt --all -- --check
+      # NIGHT-improve-13: the "Check eBPF Rust formatting" step that
+      # used to run here is a duplicate of gate-keepers.sh section 12
+      # (the exact same command, the same nightly pin) — one check,
+      # one place: the Gate-keepers workflow runs it wholesale on
+      # every push. This job keeps what only it can do: build the
+      # objects on both matrix OSes and compile/test the ebpf-feature
+      # graph against them.
 
       - name: Build pure-Rust eBPF objects (direct crate build)
         run: cargo build --release --locked
@@ -211,69 +217,3 @@ jobs:
 
       - name: Run tests with ebpf feature
         run: cargo test --features ebpf --locked
-
-  gatekeepers:
-    # NIGHT-hunt-23 class closure (owner-approved): run the ENTIRE
-    # gate-keepers script wholesale instead of mirroring individual
-    # sections CI-side. The incremental-mirror pattern is exactly what
-    # let gates rot silently: headers, permissions, LOC, disclaimer,
-    # version-sync, test-tree, TOML, emoji, bash -n, and shellcheck had
-    # no CI mirror at all — a gate that only runs where tools happen to
-    # be installed is not a gate (shellcheck had never executed
-    # anywhere until this job's local preflight, and it found real
-    # drift). One step here executes every current section AND every
-    # section yet to be added to the script, with the full tool set
-    # installed — the rot class stays closed permanently, no per-gate
-    # CI wiring ever again.
-    name: Gate-keepers (wholesale)
-    runs-on: ubuntu-24.04
-    steps:
-      - name: Checkout
-        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5, NIGHT-hunt-20 SHA pin
-
-      # Tool pins make findings meaningful: a red wholesale run means
-      # the tree drifted, never that a linter released overnight. The
-      # same pins ran the local preflight before this job landed
-      # (16/16 sections, first full execution in repo history).
-      - name: Install shellcheck (pinned v0.10.0)
-        run: |
-          curl -sL -o /tmp/shellcheck.tar.xz \
-            https://github.com/koalaman/shellcheck/releases/download/v0.10.0/shellcheck-v0.10.0.linux.x86_64.tar.xz
-          tar -xf /tmp/shellcheck.tar.xz -C /tmp
-          sudo install -m755 /tmp/shellcheck-v0.10.0/shellcheck /usr/local/bin/shellcheck
-          shellcheck --version | head -2
-
-      - name: Install shfmt (pinned v3.10.0)
-        run: |
-          curl -sSfL -o /tmp/shfmt \
-            https://github.com/mvdan/sh/releases/download/v3.10.0/shfmt_v3.10.0_linux_amd64
-          sudo install -m755 /tmp/shfmt /usr/local/bin/shfmt
-          shfmt --version
-
-      - name: Install yamllint, codespell, actionlint (pinned)
-        run: |
-          python3 -m pip install --user yamllint==1.38.0 codespell==2.4.3
-          curl -sL -o /tmp/actionlint.tgz \
-            https://github.com/rhysd/actionlint/releases/download/v1.7.7/actionlint_1.7.7_linux_amd64.tar.gz
-          tar -xzf /tmp/actionlint.tgz -C /tmp actionlint
-          sudo install -m755 /tmp/actionlint /usr/local/bin/actionlint
-          yamllint --version
-          codespell --version
-          actionlint --version
-
-      # Gate section 12 (ebpf rustfmt) resolves the dated nightly pin
-      # from ebpf/rust-toolchain.toml; installing the same pin up front
-      # keeps the wholesale run off the rustup auto-install path (exact
-      # parity with the ebpf-build job's toolchain step).
-      - name: Install eBPF nightly toolchain (dated pin)
-        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # @stable, NIGHT-hunt-20 SHA pin
-        with:
-          toolchain: nightly-2026-09-18
-          components: rust-src, rustfmt
-
-      # The wholesale run: all 16 sections (bash -n, shellcheck, shfmt,
-      # yamllint, actionlint, TOML, codespell, headers, permissions,
-      # emoji, LOC, version sync, disclaimer, ebpf rustfmt, test-tree,
-      # language) in one shot — exit code 0 or the push is blocked.
-      - name: Run gate-keepers.sh (wholesale)
-        run: bash scripts/gate-keepers.sh

@@ -35,6 +35,7 @@ jobs:
     runs-on: ubuntu-24.04
     permissions:
       contents: read
+    timeout-minutes: 45
     outputs:
       changed: ${{ steps.changes.outputs.changed }}
 
@@ -147,6 +148,7 @@ jobs:
     runs-on: ubuntu-24.04
     needs: validate
     if: needs.validate.outputs.changed == 'true'
+    timeout-minutes: 10
     permissions:
       contents: write
 

@@ -79,7 +79,9 @@ def get_cpu_percent(pid, duration=0.5):
 def get_bpf_map_sizes():
     sizes = {}
     try:
-        result = subprocess.run(["bpftool", "map", "show"], capture_output=True, text=True, timeout=5)
+        result = subprocess.run(
+            ["bpftool", "map", "show"], capture_output=True, text=True, timeout=5
+        )
         current_id = None
         for line in result.stdout.split("\n"):
             if line.strip().startswith(str(current_id or "")):
@@ -119,7 +121,7 @@ def bench_startup(iterations):
             rc, _, _, elapsed = run(f"{BINARY} strict-single {comm} 100kb", timeout=10)
             if rc == 0:
                 times.append(elapsed * 1000)
-                print(f"  [{i+1}/{iterations}] {elapsed*1000:.1f}ms")
+                print(f"  [{i + 1}/{iterations}] {elapsed * 1000:.1f}ms")
         finally:
             sleep_proc.kill()
             sleep_proc.wait()
@@ -154,7 +156,7 @@ def bench_block_latency(iterations):
             rc, _, _, elapsed = run(f"{BINARY} block-single {comm}", timeout=10)
             if rc == 0:
                 times.append(elapsed * 1000)
-                print(f"  [{i+1}/{iterations}] {elapsed*1000:.1f}ms")
+                print(f"  [{i + 1}/{iterations}] {elapsed * 1000:.1f}ms")
         finally:
             sleep_proc.kill()
             sleep_proc.wait()
@@ -182,7 +184,7 @@ def bench_status(iterations):
         rc, _, _, elapsed = run(f"{BINARY} status", timeout=5)
         if rc == 0:
             times.append(elapsed * 1000)
-            print(f"  [{i+1}/{iterations}] {elapsed*1000:.1f}ms")
+            print(f"  [{i + 1}/{iterations}] {elapsed * 1000:.1f}ms")
     sleep_proc.kill()
     cleanup()
     if not times:
@@ -207,9 +209,9 @@ def bench_memory():
     time.sleep(0.5)
     pin_bytes_active, pin_count_active = get_pin_dir_size()
     rc, bpftool_out, _, _ = run("bpftool prog show", timeout=5)
-    bpf_progs = [l for l in bpftool_out.split("\n") if "enforce" in l]
+    bpf_progs = [line for line in bpftool_out.split("\n") if "enforce" in line]
     rc, map_out, _, _ = run("bpftool map show", timeout=5)
-    bpf_maps = [l for l in map_out.split("\n") if "zelynic" in l.lower()]
+    bpf_maps = [line for line in map_out.split("\n") if "zelynic" in line.lower()]
     sleep_proc.kill()
     cleanup()
     result = {
@@ -233,18 +235,25 @@ def bench_concurrent(iterations):
     cleanup()
     times = []
     for round_num in range(iterations):
-        sleep_procs = [subprocess.Popen(["sleep", "60"], stdout=subprocess.DEVNULL) for _ in range(5)]
+        sleep_procs = [
+            subprocess.Popen(["sleep", "60"], stdout=subprocess.DEVNULL) for _ in range(5)
+        ]
         start = time.perf_counter()
         procs = []
         for p in sleep_procs:
             comm = open(f"/proc/{p.pid}/comm").read().strip()
-            procs.append(subprocess.Popen([BINARY, "strict-single", comm, "100kb"],
-                                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
+            procs.append(
+                subprocess.Popen(
+                    [BINARY, "strict-single", comm, "100kb"],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+            )
         for p in procs:
             p.wait()
         elapsed = time.perf_counter() - start
         times.append(elapsed * 1000)
-        print(f"  [Round {round_num+1}/{iterations}] {elapsed*1000:.1f}ms (5 ops)")
+        print(f"  [Round {round_num + 1}/{iterations}] {elapsed * 1000:.1f}ms (5 ops)")
         for p in sleep_procs:
             p.kill()
             p.wait()
@@ -277,7 +286,9 @@ def bench_stress(duration_sec):
         # Check if any zelynic process is running (shouldn't be — fire-and-forget)
         zelynic_pids = []
         try:
-            pgrep = subprocess.run(["pgrep", "-f", BINARY], capture_output=True, text=True, timeout=2)
+            pgrep = subprocess.run(
+                ["pgrep", "-f", BINARY], capture_output=True, text=True, timeout=2
+            )
             zelynic_pids = [int(p) for p in pgrep.stdout.strip().split("\n") if p.strip()]
         except Exception:
             pass
