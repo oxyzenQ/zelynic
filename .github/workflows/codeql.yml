@@ -13,7 +13,10 @@
 # eBPF Build CI jobs instead. Python tooling scripts are covered by
 # the codespell gate in ci.yml; shell scripts by shellcheck — now
 # running CI-side too via the wholesale gate-keepers job
-# (NIGHT-hunt-23).
+# (NIGHT-hunt-23). The paths filters are Rust-only for the same
+# reason (NIGHT-improve-11): the old scripts/** and root '*.py'/'*.sh'
+# push entries only woke a rust-language scan that had nothing new
+# to find on a tooling-only diff.
 #
 # Weekly scheduled scan Monday 00:00 UTC (07:00 WIB) for full
 # coverage — the owner's morning, one clock for every scheduled
@@ -33,10 +36,6 @@ name: "Dragon Guard - CodeQL"
       - 'build.rs'
       - 'rust-toolchain.toml'
       - '.cargo/**'
-      # Shell + Python tooling
-      - 'scripts/**'
-      - '*.py'
-      - '*.sh'
   pull_request:
     branches: ["main"]
     paths:
@@ -47,7 +46,6 @@ name: "Dragon Guard - CodeQL"
       - 'build.rs'
       - 'rust-toolchain.toml'
       - '.cargo/**'
-      - 'scripts/**'
   schedule:
     # Monday 00:00 UTC (07:00 WIB) — the owner's morning, one clock
     # for every scheduled workflow (NIGHT-improve-9).

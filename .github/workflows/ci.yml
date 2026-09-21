@@ -94,24 +94,24 @@ jobs:
           toolchain: nightly-2026-09-18
           components: rust-src
 
+      # NIGHT-improve-11: the pinned bpf-linker install is shared by
+      # four CI jobs (this one, ebpf-build below, release.yml, and
+      # maintenance.yml) — one script, one place to bump the pin.
       - name: Install bpf-linker 0.11.1 (prebuilt static musl)
-        run: |
-          if ! command -v zstd >/dev/null 2>&1; then
-            sudo apt-get update -q && sudo apt-get install -y -q zstd
-          fi
-          curl -sL -o /tmp/bpf-linker.tar.zst \
-            https://github.com/aya-rs/bpf-linker/releases/download/v0.11.1/bpf-linker-x86_64-unknown-linux-musl.tar.zst
-          tar --zstd -xf /tmp/bpf-linker.tar.zst -C /tmp
-          sudo install -m755 /tmp/bpf-linker /usr/local/bin/bpf-linker
-          bpf-linker --version
+        run: bash scripts/install-bpf-linker.sh
 
       - name: Cache cargo registry
         uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5, NIGHT-hunt-20 SHA pin
         with:
+          # ebpf/target included (NIGHT-improve-11): clippy
+          # --all-features drives the nested eBPF build, which compiles
+          # into the detached crate's own target tree — caching only
+          # the root target/ rebuilt it from scratch on every run.
           path: |
             ~/.cargo/registry
             ~/.cargo/git
             target
+            ebpf/target
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-
@@ -168,16 +168,30 @@ jobs:
           toolchain: nightly-2026-09-18
           components: rust-src, rustfmt
 
+      # NIGHT-improve-11: the pinned bpf-linker install is shared by
+      # four CI jobs (check, ebpf-build, release, maintenance) — one
+      # script, one place to bump the pin.
       - name: Install bpf-linker 0.11.1 (prebuilt static musl)
-        run: |
-          if ! command -v zstd >/dev/null 2>&1; then
-            sudo apt-get update -q && sudo apt-get install -y -q zstd
-          fi
-          curl -sL -o /tmp/bpf-linker.tar.zst \
-            https://github.com/aya-rs/bpf-linker/releases/download/v0.11.1/bpf-linker-x86_64-unknown-linux-musl.tar.zst
-          tar --zstd -xf /tmp/bpf-linker.tar.zst -C /tmp
-          sudo install -m755 /tmp/bpf-linker /usr/local/bin/bpf-linker
-          bpf-linker --version
+        run: bash scripts/install-bpf-linker.sh
+
+      # NIGHT-improve-11: this matrix job previously built the whole
+      # ebpf/ crate from scratch on every run — no cache step at all,
+      # even though it is the job that compiles the BPF objects twice
+      # per push (ubuntu-22.04 + ubuntu-24.04). Same cache contract
+      # as the check job, with the matrix OS in the key so the two
+      # runners never cross-restore each other's target trees.
+      - name: Cache cargo registry
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5, NIGHT-hunt-20 SHA pin
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+            ebpf/target
+          key: ${{ runner.os }}-ebpf-${{ matrix.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-ebpf-${{ matrix.os }}-cargo-
+            ${{ runner.os }}-ebpf-cargo-
 
       - name: Check eBPF Rust formatting (rustfmt, nightly pin)
         run: cd ebpf && cargo fmt --all -- --check

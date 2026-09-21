@@ -121,33 +121,37 @@ jobs:
           toolchain: nightly-2026-09-18
           components: rust-src
 
+      # NIGHT-improve-11: the pinned bpf-linker install is shared by
+      # four CI jobs (check, ebpf-build, maintenance, this one) — one
+      # script, one place to bump the pin.
       - name: Install bpf-linker 0.11.1 (prebuilt static musl)
-        run: |
-          if ! command -v zstd >/dev/null 2>&1; then
-            sudo apt-get update -q && sudo apt-get install -y -q zstd
-          fi
-          curl -sL -o /tmp/bpf-linker.tar.zst \
-            https://github.com/aya-rs/bpf-linker/releases/download/v0.11.1/bpf-linker-x86_64-unknown-linux-musl.tar.zst
-          tar --zstd -xf /tmp/bpf-linker.tar.zst -C /tmp
-          sudo install -m755 /tmp/bpf-linker /usr/local/bin/bpf-linker
-          bpf-linker --version
+        run: bash scripts/install-bpf-linker.sh
 
       - name: Cache cargo registry & build
         uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5, NIGHT-hunt-20 SHA pin
         with:
+          # ebpf/target included (NIGHT-improve-11): both release
+          # builds below run --features ebpf, whose build.rs drives
+          # the nested eBPF compile into the detached crate's own
+          # target tree.
           path: |
             ~/.cargo/registry
             ~/.cargo/git
             target
+            ebpf/target
           key: ${{ runner.os }}-x86_64-unknown-linux-gnu-cargo-release-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-x86_64-unknown-linux-gnu-cargo-release-
 
+      # --locked on both release builds (NIGHT-improve-11): a release
+      # must reproduce from the committed lockfile — never a fresh
+      # resolution at tag time. Every other CI build already carried
+      # the flag; the release job was the one outlier.
       - name: Build release binary (eBPF objects embedded)
-        run: cargo build --release --target x86_64-unknown-linux-gnu --features ebpf
+        run: cargo build --release --locked --target x86_64-unknown-linux-gnu --features ebpf
 
       - name: Build static binary (musl, for old glibc systems)
-        run: cargo build --release --target x86_64-unknown-linux-musl --features ebpf
+        run: cargo build --release --locked --target x86_64-unknown-linux-musl --features ebpf
 
       - name: Verify binaries
         run: |

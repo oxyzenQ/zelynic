@@ -16,6 +16,41 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Added
 
+- **ci/build: NIGHT-improve-11 audit — release builds now --locked,
+  ebpf-build gets a cache, the bpf-linker pin lives in one place**
+  — the peak-stable pass over every workflow, .gitignore, and
+  build.rs found the release pipeline carrying the repo's only two
+  unlocked cargo builds: both release.yml binary builds (gnu +
+  musl) resolved dependencies FRESH at tag time, silently
+  overriding the committed lockfile exactly where reproducibility
+  matters most — every other CI build already passed --locked.
+  Both now build `--release --locked`. Speed: the ebpf-build
+  matrix job (the one that compiles the BPF objects twice per
+  push) had NO cache step at all, and the check/release/maintenance
+  jobs cached only the root target/ while the nested eBPF build
+  compiles into the detached crate's own ebpf/target tree — so the
+  whole aya-ebpf chain rebuilt from scratch on every run of every
+  job that touches --features ebpf or --all-features. ebpf/target
+  is now in all four cache path lists (matrix key names the OS so
+  ubuntu-22.04 and ubuntu-24.04 never cross-restore), and the
+  ebpf-build job gained its own cache step. Consistency: the
+  pinned bpf-linker 0.11.1 install block was byte-identical in
+  four CI jobs — now one script (scripts/install-bpf-linker.sh,
+  shellcheck/shfmt-gated like every other script, functionally
+  tested locally: custom-prefix install, mkdir-on-demand, sudo
+  only when the destination is not writable) called from all four
+  call sites; scripts/bootstrap-ebpf.sh's richer local-user flow
+  is deliberately untouched. Also: docs-ci.yml now uses the repo
+  .codespellrc (its inline ignore list had silently diverged from
+  the gate's — a latent docs-only red), codeql.yml's push/PR path
+  filters dropped the scripts/** and root '*.py'/'*.sh' entries
+  that only woke a rust-language scan on tooling-only diffs, and
+  .gitignore learns dist/ (the release-artifact staging directory
+  that materializes when the release flow runs outside CI).
+  build.rs itself: audited, zero changes — the NIGHT-hunt-27/28/29
+  hardening (preflight, poison-flag stripping, ELF validation,
+  self-heal, 13-test standalone suite) is already peak-stable.
+
 - **security: NIGHT-hunt-20 expert supply-chain audit — crates clean,
   the real exposure was CI actions, now SHA-pinned** — the crate set
   survives an attack-surface audit untouched: every one of the 7
