@@ -95,16 +95,22 @@ matrix and troubleshooting).
 
 ### Install from a release (recommended)
 
-Each release ships a self-contained tarball — the pure-Rust eBPF objects
-are embedded in the binary, so no toolchain, no clang, no cargo is needed
-on the target machine:
+Each release is a flat three-file tarball — `zelynic`, `README.md`,
+`LICENSE`, nothing else (the cosmostrix release invariant): the
+pure-Rust eBPF objects are embedded in the binary, so no toolchain,
+no clang, no cargo, and no installer is needed on the target machine:
 
 ```bash
-tar -xzf zelynic-vX.Y.Z-linux-amd64-gnu.tar.gz   # or -musl for old glibc
-cd zelynic-vX.Y.Z-linux-amd64-gnu
-./install.sh --user                                # ~/.local/bin (default)
-# or: ./install.sh --system                        # /usr/bin (sudo internally)
+mkdir /tmp/zelynic-rel
+tar -xzf zelynic-vX.Y.Z-linux-amd64-gnu.tar.gz -C /tmp/zelynic-rel   # or -musl for old glibc
+install -Dm755 /tmp/zelynic-rel/zelynic ~/.local/bin/zelynic          # user install
+# or: sudo install -Dm755 /tmp/zelynic-rel/zelynic /usr/local/bin/zelynic
 ```
+
+Uninstall is `rm` on the binary — the release payload is that one
+file, so there is nothing else to clean (no /usr/lib payload, no
+service, no man page). Building from source keeps the richer
+`scripts/install.sh` / `uninstall.sh` flow in the repo.
 
 Each release tarball carries three checksums (SHA-512 + BLAKE2b-512 +
 SHAKE256). Verify before installing — the one-liners live in

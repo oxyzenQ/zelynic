@@ -1105,6 +1105,32 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Release Engineering
 
+- **release: the tarball is a flat three-file archive — the binary,
+  the LICENSE, the README, nothing else (2026-09-22 owner directive,
+  the cosmostrix release invariant)** — the v10-era tarball shipped a
+  nested directory with install.sh, uninstall.sh, and eleven test/
+  benchmark scripts alongside the binary. Two of those three groups
+  stopped making sense in the v11 line: the pure-Rust eBPF objects
+  are EMBEDDED in the binary (NIGHT-hunt-30's AlignedElf), so there
+  is no BPF payload to install and no installer logic to run — and
+  the harness scripts belong to the repo checkout they test (their
+  resolve gate anchors to the checkout's Cargo.toml; a copied
+  tarball copy can drift from the binary it validates). The
+  packaging step now stages exactly `zelynic` + `README.md` +
+  `LICENSE` at the archive root for BOTH variants (gnu and musl),
+  with an invariant tripwire that fails the release if the tarball
+  listing is not exactly those three entries — a future edit that
+  adds a file or nesting cannot slip through silently. The checksum
+  trio (SHA-512 + BLAKE2b-512 + SHAKE256) is unchanged and still
+  records bare filenames for `sha512sum -c` at the download
+  directory. README's install-from-release flow is now three lines
+  (mkdir, tar -C, install -Dm755) with `rm` as the whole uninstall
+  story; the source-build flow keeps scripts/install.sh +
+  uninstall.sh in the repo, told once here. The bpf-linker confusion
+  this directive answered: bpf-linker is a BUILD-time tool for
+  source builds (it links the aya-ebpf objects that build.rs then
+  embeds) — release users have never needed it and the flat tarball
+  makes that visually obvious.
 - **ci: all scheduled workflows run at the owner's morning — 00:00
   UTC (07:00 WIB), one clock for every cron (NIGHT-improve-9)** — the
   three scheduled triggers each kept their own clock: audit at
