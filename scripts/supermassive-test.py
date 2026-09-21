@@ -2062,8 +2062,10 @@ def main():
     try:
         MODE = CG.setup()
         SERVER = HttpServer()
+        # NIGHT-hunt-21: the fleet mode rides the environment block's
+        # "cgroups:" row only — this banner used to repeat it
+        # byte-for-byte two lines above the env table.
         out(f"zelynic supermassive test (NIGHT-improve-11, {mode} mode)")
-        out(f"  target cgroup fleet: {MODE}")
         out()
         env_ok = test_env()
         if not env_ok:

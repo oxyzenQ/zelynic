@@ -17,49 +17,10 @@
 
 set -euo pipefail
 
-# Colors
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[0;33m'
-NC='\033[0m'
-
-PASS=0
-FAIL=0
-TOTAL=0
-
-BINARY="${1:-./target/release/zelynic}"
-PIN_DIR="/sys/fs/bpf/zelynic"
-
-log_pass() {
-	echo -e "  ${GREEN}OK PASS${NC}: $1"
-	PASS=$((PASS + 1))
-}
-
-log_fail() {
-	echo -e "  ${RED}X FAIL${NC}: $1"
-	FAIL=$((FAIL + 1))
-}
-
-log_test() {
-	echo ""
-	echo -e "  ${YELLOW}TEST${NC}: $1"
-	TOTAL=$((TOTAL + 1))
-}
-
-check_root() {
-	if [ "$(id -u)" -ne 0 ]; then
-		echo -e "${RED}ERROR: This test requires root. Run with sudo.${NC}"
-		exit 1
-	fi
-}
-
-check_binary() {
-	if [ ! -f "$BINARY" ]; then
-		echo -e "${RED}ERROR: Binary not found: $BINARY${NC}"
-		echo "Build first: cargo build --release --features ebpf"
-		exit 1
-	fi
-}
+# Shared colored-harness helpers (NIGHT-hunt-21): log_* / check_* /
+# counters / BINARY resolution live in one sourced place.
+# shellcheck source=scripts/harness_lib.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/harness_lib.sh"
 
 cleanup() {
 	"$BINARY" unstrict-all 2>/dev/null || true

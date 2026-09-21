@@ -105,6 +105,10 @@ scripts/
   check-language.sh    — English-only language gate (non-Latin scripts +
                         Indonesian vocabulary detector; NIGHT-hunt-19)
   check-rust-version-sync.sh — toolchain pin == MSRV == CI pin
+  harness_lib.sh       — shared colored-harness helpers (log_* /
+                        check_* / counters; sourced by the three
+                        colored root-run harnesses, NIGHT-hunt-21 —
+                        the bash twin of zelynic_harness_lib.py)
   rust-version-to.sh   — one-command Rust toolchain bumper
   inject-disclaimer.sh — .md stale-data disclaimer (inject + --check)
   check-policy.py      — copyright + SPDX policy check
