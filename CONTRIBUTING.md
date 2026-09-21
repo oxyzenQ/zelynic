@@ -98,10 +98,12 @@ ebpf/                   — the pure-Rust BPF source (aya-ebpf; NIGHT-improve-1
 
 scripts/
   build.sh             — check-all orchestration
-  gate-keepers.sh      — pre-commit non-code gates (13 sections)
+  gate-keepers.sh      — pre-commit non-code gates (14 sections)
   check-permissions.sh — 644/755 permission guard
   check-loc.sh         — Rust file LOC cap (500, // LOC_EXEMPT: markers)
   check-headers.sh     — license header check (rs/c/h/py/sh/toml/yml/md)
+  check-language.sh    — English-only language gate (non-Latin scripts +
+                        Indonesian vocabulary detector; NIGHT-hunt-19)
   check-rust-version-sync.sh — toolchain pin == MSRV == CI pin
   rust-version-to.sh   — one-command Rust toolchain bumper
   inject-disclaimer.sh — .md stale-data disclaimer (inject + --check)
@@ -155,6 +157,12 @@ scripts/
    banned in `deny.toml`; re-adding it fails CI). `deny.toml` runs the
    full feature graph (`all-features = true`), so the eBPF subtree is
    inside every advisories/licenses/bans check.
+9. **English-only language**: comments, docs, script text, and string
+   literals are pure English (chat may be mixed-language; committed
+   artifacts never are). Non-Latin scripts appear only as
+   marker-declared Unicode fixtures (`// NON_LATIN_FIXTURE:`).
+   Enforced by `scripts/check-language.sh` (gate-keepers section 14,
+   mirrored in the CI workflow_quality job).
 
 ## Pre-commit
 
@@ -169,7 +177,7 @@ cargo audit + cargo deny (both skip with a warning when not installed),
 the repository policy check (check-policy.py), and the version-string
 anti-pattern check.
 
-`gate-keepers.sh` runs the 13 non-code gate sections — the shell triad
+`gate-keepers.sh` runs the 14 non-code gate sections — the shell triad
 (bash -n + shellcheck + shfmt) on shell scripts, yamllint + actionlint
 on workflows, TOML validation,
 codespell, SPDX license headers (check-headers.sh), file permission guard
@@ -178,7 +186,10 @@ the 500-line Rust LOC cap (check-loc.sh), the toolchain-pin sync check
 (check-rust-version-sync.sh), rustfmt on the ebpf/ crate (the exact
 eBPF Build CI command — the former clang-format gate retired with the
 C sources in NIGHT-improve-1 phase 3), and the documentation disclaimer
-check (inject-disclaimer.sh). Missing tools are skipped with a warning.
+check (inject-disclaimer.sh), the test-tree discipline (NIGHT-hunt-17:
+every .rs test file under the single `test/` tree), and the
+English-only language gate (check-language.sh). Missing tools are
+skipped with a warning.
 
 ## Branch Strategy
 

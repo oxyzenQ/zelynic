@@ -7,6 +7,10 @@
 //! itself under the 500-LOC cap (the check-loc policy; same split
 //! discipline as identity/).
 
+// NON_LATIN_FIXTURE: the CJK rows in the unicode diff test below are
+// intentional double-width glyph coverage, not prose
+// (scripts/check-language.sh exemption).
+
 use super::*;
 
 fn screen() -> DiffScreen {

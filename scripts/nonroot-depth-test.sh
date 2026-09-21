@@ -22,6 +22,10 @@
 # Usage: ./scripts/nonroot-depth-test.sh [path-to-zelynic]
 #
 # Output: PASS/FAIL per case with a summary; exit 0 only when all pass.
+#
+# NON_LATIN_FIXTURE: the Cyrillic rate string in the "unicode rate"
+# case below is intentional input data (invalid-rate rejection
+# coverage), not prose (scripts/check-language.sh exemption).
 
 set -euo pipefail
 

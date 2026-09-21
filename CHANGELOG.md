@@ -16,6 +16,45 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Added
 
+- **gates: language discipline — the English-only rule gets a checker
+  (NIGHT-hunt-19)** — the purge hunt itself came back clean: a
+  twelve-dimension sweep (informal and formal Indonesian vocabulary,
+  core particles, non-Latin scripts, fullwidth forms, Vietnamese
+  diacritics, accented Latin, emoji blocks, unicode escape sequences,
+  commit subjects and bodies) found zero non-English text in the
+  living tree — every hit was the Gini coefficient metric name, an
+  English idiom in quotes ("trust me bro", the documented "what the
+  hell bro" Debian run), or intentional Unicode fixtures. The only
+  real residue sits in the NIGHT-improve-1 commit body quoting the
+  owner's mixed-language directive verbatim — frozen history, never
+  rewritten (the same policy as the changelogs). What the hunt
+  exposed instead is the enforcement gap: the emoji sweep (gate 8)
+  blocks emoji codepoints, but nothing blocked non-Latin scripts or
+  Indonesian prose — the English-only house rule had no checker. New
+  scripts/check-language.sh (gate-keepers section 14, python3 stdlib
+  only): a non-Latin script detector (CJK, kana, Hangul, Cyrillic,
+  Greek, Arabic, Hebrew, Thai, Devanagari, Khmer, fullwidth forms,
+  the zero-width joiner) where intentional Unicode coverage data
+  self-declares via a `NON_LATIN_FIXTURE:` marker (the // LOC_EXEMPT
+  discipline — no hardcoded allowlist, the exemption lives with the
+  file), plus an Indonesian vocabulary detector: case-sensitive,
+  word-bounded, a 141-word informal-register list curated for zero
+  false positives on this tree (English-colliding words — gini the
+  metric, label, bro as idiom, two-letter particles — deliberately
+  excluded; no marker can exempt it, because fixtures are
+  CJK/Cyrillic, never Indonesian). The three fixture carriers are
+  now marked (identity sanitize CJK passthrough, terminal diff CJK
+  double-width rows, the nonroot-depth-test Cyrillic invalid-rate
+  case), and the gate is mirrored CI-side in the workflow_quality
+  job (the NIGHT-hunt-23 lesson: a gate that only runs where tools
+  are installed rots silently). Docs synced: RULES.md gains the
+  Language Discipline section, CONTRIBUTING's gate inventory moves
+  13 -> 14 sections plus a new coding standard. Verified: the gate
+  passes the whole tree, and a spiked temp file (Indonesian line +
+  unmarked CJK line) fails as designed before deletion. Gate/docs-
+  only: no engine, CLI, schema, or map changes — no A/B benchmark
+  (the same call as the other gates-only commits).
+
 - **scripts: the one-click brutal stress test (NIGHT-master-2)** — the
   owner wanted "fast simple elegant flagship one click to brutal
   stresstest" over the whole command surface. `scripts/brutal-stress-test.sh`
