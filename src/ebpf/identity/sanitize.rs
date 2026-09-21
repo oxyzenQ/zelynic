@@ -23,6 +23,10 @@
 //! `pid {pid}`) are kernel- or program-generated and need no extra
 //! pass.
 
+// NON_LATIN_FIXTURE: the CJK comm row in the tests below is
+// intentional Unicode passthrough coverage for the sanitizer
+// contract, not prose (scripts/check-language.sh exemption).
+
 /// Replace every control character (Rust `char::is_control` covers C0,
 /// DEL, and C1) with '?'. procps-ng applies the same substitution to
 /// comm for the same reason. Clean labels take an unchanged clone

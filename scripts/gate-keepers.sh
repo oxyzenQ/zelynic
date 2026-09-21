@@ -45,6 +45,11 @@
 #       autodiscovery directory, no *_tests.rs/*_test.rs under src/,
 #       every [[test]] target and src/ #[path] wiring resolves under
 #       test/)
+#  14.  Language discipline (owner rule, NIGHT-hunt-19 —
+#       scripts/check-language.sh: non-Latin scripts outside
+#       NON_LATIN_FIXTURE-marked coverage files plus an Indonesian
+#       vocabulary detector; the repo is English-only, the sibling of
+#       the emoji sweep for everything that sweep cannot see)
 #
 # Missing tools are skipped with a warning so the gate stays usable
 # on minimal development machines; CI enforces the full set.
@@ -454,6 +459,26 @@ fi
 if $DISC_OK; then
 	info "test-tree: disciplined (no tests/, no src/*_tests.rs, [[test]] and #[path] under test/)"
 	PASS=$((PASS + 1))
+fi
+
+# ── 14. Language Discipline (owner rule, NIGHT-hunt-19) ─────────────
+# The repo is English-only: comments, docs, script text, string
+# literals (chat may be mixed-language; committed artifacts never
+# are). Section 8 — the emoji sweep — blocks emoji codepoints; this
+# gate blocks the two paths the sweep cannot see: non-Latin scripts
+# (intentional Unicode coverage data self-declares via the
+# NON_LATIN_FIXTURE: marker, the // LOC_EXEMPT discipline) and
+# Indonesian vocabulary (the mixed-language directive quote leak).
+header "Language Discipline (check-language.sh)"
+if [ -f scripts/check-language.sh ]; then
+	if bash scripts/check-language.sh 2>&1; then
+		info "language: English-only discipline holds (no non-Latin prose, no Indonesian vocabulary)"
+		PASS=$((PASS + 1))
+	else
+		fail "language: non-English content found (review the file:line list above)"
+	fi
+else
+	warn "check-language.sh not found — skipping"
 fi
 
 # ── Summary ────────────────────────────────────────────────────────────────

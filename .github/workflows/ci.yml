@@ -230,6 +230,13 @@ jobs:
             codespell --skip './.git,./target,./assets,./dist,./node_modules' .
           fi
 
+      # NIGHT-hunt-19: the language gate (gate-keepers check 14) is
+      # mirrored CI-side for the same reason as shfmt below (the
+      # NIGHT-hunt-23 lesson): a gate that only runs where tools are
+      # installed rots silently. python3 stdlib only — no setup step.
+      - name: Run language gate (English-only discipline)
+        run: bash scripts/check-language.sh
+
       # NIGHT-hunt-23: the shfmt gate (gate-keepers check 1c) had never
       # executed anywhere before this — the tool was absent locally
       # (skipped with a warning) and no CI job ran it, so seven scripts

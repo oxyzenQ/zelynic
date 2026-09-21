@@ -64,6 +64,36 @@ sync every doc that references a number, path, or symbol. Chasing
 perfect sync has diminishing returns; the uniform disclaimer asks
 readers to cross-check the source instead.
 
+## Language Discipline
+
+- The repository is English-only: comments, docs, script text, and
+  string literals. Chat may be mixed-language; committed artifacts
+  never are.
+- Non-Latin scripts (CJK, Cyrillic, Arabic, ...) appear ONLY as
+  intentional Unicode coverage data, and the carrying file
+  self-declares with a marker comment (the same discipline as
+  `LOC_EXEMPT` — no hardcoded allowlist, the exemption lives with
+  the file, removing it means deleting the comment):
+
+  ```rust
+  // NON_LATIN_FIXTURE: <one-line justification>
+  ```
+
+- Indonesian vocabulary has no exemption path: fixtures are
+  CJK/Cyrillic, never Indonesian prose.
+- Frozen historical records (both CHANGELOG files, git history) are
+  never rewritten — a non-English quote inside them stays as history
+  (the NIGHT-improve-1 commit body quoting the owner's directive
+  verbatim is the known example).
+
+### Enforcement
+
+`scripts/check-language.sh` (wired into `scripts/gate-keepers.sh`
+section 14 and mirrored in the CI `workflow_quality` job) scans every
+text file for non-Latin scripts outside marker-declared fixtures and
+for a curated, case-sensitive Indonesian word list. The emoji sweep
+(gate-keepers section 8) is the sibling gate for emoji codepoints.
+
 ## Manual Workflow
 
 Use a test-first loop:
