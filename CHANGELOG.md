@@ -16,6 +16,34 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Added
 
+- **gates: wholesale CI mirror — the NIGHT-hunt-23 rot class closed
+  permanently (owner-approved)** — CI mirrored only a hand-picked
+  subset of gate-keepers sections as individually wired steps (shfmt,
+  codespell, language, plus yamllint/actionlint under workflow lint);
+  the rest (bash -n, shellcheck, TOML validation, SPDX headers,
+  permissions, emoji, LOC, version sync, disclaimer, test-tree) ran
+  nowhere on GitHub. That incremental-mirror pattern was itself the
+  bug: every new gate needed a manual CI wiring step nobody
+  remembered to add, so gates silently existed only on machines
+  where the tools happened to be installed. The workflow_quality job
+  is replaced by a single gatekeepers job that executes the ENTIRE
+  scripts/gate-keepers.sh with the full pinned tool set (shellcheck
+  v0.10.0, shfmt v3.10.0, yamllint 1.38.0, codespell 2.4.3,
+  actionlint 1.7.7, plus the dated eBPF nightly for the rustfmt
+  section): every current section — and every section added to the
+  script from now on — runs on every push, no per-gate CI wiring
+  ever again. Tool pins replace the unpinned `pip install` and
+  `go install @latest` steps, so a red run always means the tree
+  drifted, never that a linter released overnight. The local
+  preflight (the first full 16-section execution in repo history —
+  before it, shellcheck had never run anywhere) proved the class
+  point before the job landed: shellcheck and shfmt both found real
+  drift that every existing gate had missed, fixed in the same
+  commit (an SC2016 disable comment on bootstrap-ebpf.sh's
+  intentional literal .profile export line, plus the canonical
+  `>>"$file"` redirect spacing the NIGHT-improve-16 patch had
+  drifted).
+
 - **gates: language discipline — the English-only rule gets a checker
   (NIGHT-hunt-19)** — the purge hunt itself came back clean: a
   twelve-dimension sweep (informal and formal Indonesian vocabulary,

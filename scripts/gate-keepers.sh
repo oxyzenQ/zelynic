@@ -52,7 +52,11 @@
 #       the emoji sweep for everything that sweep cannot see)
 #
 # Missing tools are skipped with a warning so the gate stays usable
-# on minimal development machines; CI enforces the full set.
+# on minimal development machines; CI runs this script WHOLESALE
+# (the ci.yml gatekeepers job, full tool set installed, the
+# NIGHT-hunt-23 class closure): every section, current and
+# future, executes on every push — no gate can rot silently
+# behind a missing CI mirror step again.
 #
 # Exit codes:
 #   0 = all checks passed
@@ -170,7 +174,7 @@ fi
 header "Yamllint"
 if command -v yamllint >/dev/null 2>&1; then
 	# CI parity: .github/** must pass the repo .yamllint config — the
-	# same one the CI workflow_quality job enforces (line-length max
+	# same one the CI gatekeepers job enforces wholesale (line-length max
 	# 120 included).
 	GITHUB_YAML=$(find .github -name '*.yml' -o -name '*.yaml' 2>/dev/null)
 	YAML_OK=0

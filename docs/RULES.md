@@ -89,7 +89,8 @@ readers to cross-check the source instead.
 ### Enforcement
 
 `scripts/check-language.sh` (wired into `scripts/gate-keepers.sh`
-section 14 and mirrored in the CI `workflow_quality` job) scans every
+section 14; the CI `gatekeepers` job runs the whole script wholesale
+with the full tool set) scans every
 text file for non-Latin scripts outside marker-declared fixtures and
 for a curated, case-sensitive Indonesian word list. The emoji sweep
 (gate-keepers section 8) is the sibling gate for emoji codepoints.
