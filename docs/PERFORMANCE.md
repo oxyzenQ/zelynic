@@ -324,6 +324,52 @@ harness's ~19 MB/s render churn), one write(2) + one ioctl per
 beat. That is the entire, deliberate price of "no selection
 outlives one beat".
 
+### NIGHT-hunt-15 A/B (--help tidy, 2026-09-21)
+
+The help-surface commit (728d3b6) trimmed the trailing Examples
+section to the three workflows whose command blocks lack examples and
+fixed one stale example comment — a println-path change, not a
+render-path change. The A/B proves the monitor stream untouched
+(A = 801fb18 in a throwaway worktree, B = 728d3b6, 10 s runs):
+
+| Metric | 801fb18 | 728d3b6 | Delta |
+|--------|---------|---------|-------|
+| fps | 14027.2 | 14028.2 | +0.0% (noise) |
+| bytes/frame | 1437.6 | 1437.6 | +0.0% |
+| emit bytes/frame | 1375.6 | 1375.7 | +0.0% |
+| frame entropy | 4.1912 | 4.1912 | 0.00% |
+| density gini | 0.1812 | 0.1812 | 0.00% |
+| dirty cells/frame | 755.4 | 755.4 | +0.0% |
+
+Reading: every visual metric identical — the frame harness never
+renders the help surface, so identical columns were the expected
+result, now proven.
+
+### NIGHT-hunt-15 A/B (observer/connections audit, 2026-09-21)
+
+The monitor-path commit (cafae73) consolidated the three TIOCGWINSZ
+probes into one canonical terminal-layer call (geometry probe 2 -> 1
+ioctl), filtered unconnected UDP listeners from eagle-eyes detail,
+made top's packets footer sum all talkers, and dropped a dead
+local-endpoint parse — probe plumbing and filters, not frame layout.
+The A/B proves the emitted stream byte-identical (A = 728d3b6 in a
+throwaway worktree, B = cafae73, 10 s runs):
+
+| Metric | 728d3b6 | cafae73 | Delta |
+|--------|---------|---------|-------|
+| fps | 14333.4 | 14187.7 | -1.0% (machine noise) |
+| bytes/frame | 1437.6 | 1437.6 | +0.0% |
+| emit bytes/frame | 1375.6 | 1375.6 | -0.0% |
+| frame entropy | 4.1913 | 4.1912 | -0.0% |
+| density gini | 0.1812 | 0.1812 | -0.0% |
+| dirty cells/frame | 755.4 | 755.3 | -0.0% |
+
+Reading: identical visual columns — the harness drives emit_at with
+deterministic sizes, and its synthetic fixture carries no unconnected
+UDP sockets, so the filters and the probe consolidation are invisible
+to the stream by construction; the fps delta sits in the same noise
+class as every previous A/B (-1.1%, -1.55%, +1.2%, +5.2%, +4.6%).
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.
