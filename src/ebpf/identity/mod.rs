@@ -31,10 +31,13 @@ use std::fs;
 use std::os::unix::fs::MetadataExt;
 use std::time::{Duration, Instant};
 
-mod sanitize;
 mod tally;
 
-pub use sanitize::sanitize_comm;
+// NIGHT-cybersecurity-2: sanitize_comm moved up to the always-compiled
+// output layer (src/output/sanitize.rs) so the update check — which
+// runs in BOTH feature graphs — reuses the one canonical terminal
+// sanitizer instead of a copy.
+use crate::output::sanitize_comm;
 use tally::{pick_representative, CommStat};
 
 /// Default refresh interval: rebuild the identity map every 10 seconds.

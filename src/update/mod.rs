@@ -3,8 +3,7 @@
 
 use std::process::Command;
 
-use crate::ebpf::identity::sanitize_comm;
-use crate::output::{brand_bold, ok_bold, warn_bold};
+use crate::output::{brand_bold, ok_bold, sanitize_comm, warn_bold};
 
 const GITHUB_API_URL: &str = "https://api.github.com/repos/oxyzenQ/zelynic/releases/latest";
 const RELEASES_URL: &str = "https://github.com/oxyzenQ/zelynic/releases/latest";
