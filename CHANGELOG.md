@@ -42,6 +42,32 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Changed
 
+- **supermassive-test: the 1gb rung's floor tracks the min-RTO cushion
+  model (NIGHT-improve-15)** — the last heavy failure after 1e9fa80
+  (ladder 1gb at 53.9% of configured, six-flow aggregate) was the same
+  AIMD-under-a-dropper physics the improve-14 note mis-attributed to
+  flow count: single-flow 55.7% vs six-flow 53.9% on the same machine —
+  flow count is not the variable. default_burst banks "1 second of
+  traffic, clamped 4KB-100MB" (format.rs); at 1gb the clamp leaves 0.1 s
+  of tokens, and a cgroup policer DROPS instead of queueing —
+  near-capacity flows burst-drain the cushion, lose whole 64 KiB
+  loopback MSS at once (lo MTU 65536: one skb = one loss event), stall
+  on Linux's 200 ms min-RTO, and the aggregate bottoms at
+  cushion / min-RTO (~500 MB/s) while the cap is never exceeded and the
+  drops + byte-accounting rows PASS on the same rung.
+  `loopback_rate_floor` now returns that model — 0.0 below one GSO skb
+  (unchanged), full band up to 100 MB/s (cushion still a full second),
+  then cushion / min-RTO wherever the clamp binds (0.5 at 1gb) — the
+  1gb row's note explains the physics, and the self-test pins the floor
+  model rootlessly so a drift on either side (harness model or engine
+  burst clamp) fails fast. The six-flow aggregate stays: six workers
+  wanting ~4 GB/s yet landing at half of 1gb is the proof the shortfall
+  is physics, not demand starvation. Real links (RTT in milliseconds)
+  do not hit this regime; if near-capacity utilization ever matters on
+  a real deployment the owner-side remedy is a default_burst cap bump
+  (a schema-v6-sized change), not a harness fix. Harness-only: no eBPF,
+  schema, or kernel-map changes.
+
 - **supermassive-test: ladder rungs near the ceiling are measured as
   a 6-flow aggregate (NIGHT-improve-14)** — the heavy 1gb rung failed
   at 55.7% of configured on the 2026-09-21 nightpc run, but not from

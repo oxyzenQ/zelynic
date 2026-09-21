@@ -60,6 +60,27 @@ LOOPBACK_GSO_SKB = 65_536
 # (NIGHT-improve-12).
 ACCOUNTING_FLOOR_BYTES = 64 * 1024
 
+# NIGHT-improve-15: the second loopback physics regime. default_burst
+# (src/ebpf/limiter/format.rs) banks "1 second of traffic, clamped
+# 4KB-100MB": up to 100 MB/s the burst is a full second of tokens, but
+# at 1 GB/s the clamp leaves only 0.1 s. A cgroup policer DROPS, it
+# never queues — hungry flows burst-drain the cushion, lose whole
+# 64 KiB loopback MSS in one shot (lo MTU 65536: one skb = one loss
+# event), and stall on the 200 ms Linux min-RTO, during which the
+# bucket re-banks at most one cushion. The AIMD aggregate therefore
+# bottoms at cushion / min-RTO (~500 MB/s wherever the clamp binds),
+# regardless of flow count. The 2026-09-21 nightpc evidence: 1gb
+# measured 55.7% single-flow AND 53.9% six-flow (flow count is not
+# the variable — the improve-14 "staggered dips" theory died there)
+# while the cap was never exceeded and the drops + accounting rows
+# held. Real networks (RTT in milliseconds) do not hit this: on
+# loopback's 30 us RTT one +1-MSS probe is worth ~2 GB/s of
+# overshoot. Under-delivery there is physics, so the ladder's floor
+# follows the model; the cap, kernel drops, and byte accounting
+# still carry the enforcement verdict.
+DEFAULT_BURST_CAP = 100_000_000  # mirror of format.rs default_burst clamp
+TCP_MIN_RTO_S = 0.2              # Linux TCP_RTO_MIN floor
+
 # Harness state (see the module docstring's ownership contract).
 RESULTS = []
 BINARY = ""
@@ -240,10 +261,18 @@ def loopback_rate_floor(rate_bps):
     can never admit a single loopback GSO skb — under-delivery there is
     loopback physics, not an enforcement miss, so the ceiling and the
     kernel-drop proof carry the verdict alone. Rates at or above the
-    skb size refill enough tokens per skb to reach steady state and
-    keep the full band.
+    skb size refill enough tokens per skb to reach steady state — but
+    once default_burst's 100 MB clamp binds, the cushion shrinks below
+    one min-RTO of refill and a dropper's AIMD aggregate bottoms at
+    cushion / min-RTO: the floor follows that model instead of the
+    full band (NIGHT-improve-15; DEFAULT_BURST_CAP's comment carries
+    the physics and the nightpc evidence). Both regimes still cap at
+    BAND_HI — a policer must never over-deliver past the band.
     """
-    return 0.0 if rate_bps < LOOPBACK_GSO_SKB else BAND_LO
+    if rate_bps < LOOPBACK_GSO_SKB:
+        return 0.0
+    cushion = min(rate_bps, DEFAULT_BURST_CAP)
+    return min(BAND_LO, cushion / (TCP_MIN_RTO_S * rate_bps))
 
 
 def band_check(name, measured_bps, configured_bps, extra="", lo=None, hi=None):
