@@ -71,8 +71,11 @@ Usage:
 
 What it verifies (verdicts PASS / FAIL / SKIP, exit 1 on any FAIL):
   light: env + minimum specs, doctor, baseline, strict-single policy
-         write, status human + JSON surfaces, rate ladder
-         (1kb/100kb/1mb/10mb), upload-only (-u), block-single zero
+         write, status human + JSON surfaces, rate-guard functions
+         (bounds, typo tip, dangerous blocklist, plain-number,
+         --allow-dangerous override), rate ladder
+         (1kb/100kb/1mb/10mb), upload-only (-u), download-only
+         (-d), asymmetric -d/-u buckets, block-single zero
          goodput, unstrict-single (unlock) restores speed, curl burst
          download x4, curl upload, non-binding overhead, cleanup, dmesg
   heavy: + full ladder to 1tb (two windows per rung), strict-multi
@@ -936,6 +939,93 @@ def test_policy_write():
     return verdict == "PASS" and human == "PASS"
 
 
+def test_rate_guard():
+    """The limiter's input-validation functions as CLI round-trips
+    (NIGHT-improve-12): the rate bounds (MIN_RATE / MAX_RATE), the
+    near-miss typo rescue, the dangerous-target blocklist, the
+    below-minimum override, and the plain-number parser branch were
+    never driven by any stage — every documented rate-guard function
+    now runs and passes or the harness says so.
+
+    All refusals are fail-fast: they fire during argument validation,
+    before any privilege or BPF work, so this stage is safe even on a
+    machine where the datapath is half-attached.
+    """
+    ok_all = True
+    tid = str(CG.ids["a"])
+
+    def refuse(row, argv, needle):
+        rc, stdout, stderr = run_zel(argv)
+        text = (stderr or stdout).strip()
+        hit = rc != 0 and needle.lower() in text.lower()
+        return record(
+            row, "PASS" if hit else "FAIL",
+            f"exit {rc}: {text[:140]}",
+        ) == "PASS"
+
+    # MIN_RATE = 1000 (format.rs): 999 must be refused with the
+    # below-minimum error that names the override flag.
+    ok_all = refuse(
+        "rate guard: below-minimum refused (999 < 1kb)",
+        ["strict-single", tid, "999"], "below minimum",
+    ) and ok_all
+    # MAX_RATE = 1 TB/s: 2tb must be refused with the above-maximum
+    # error.
+    ok_all = refuse(
+        "rate guard: above-maximum refused (2tb > 1tb)",
+        ["strict-single", tid, "2tb"], "above maximum",
+    ) and ok_all
+    # The near-miss typo rescue (cli/ux.rs rate_tip): '1MB' fails
+    # parsing and the tip must suggest the lowercase twin '1mb'.
+    ok_all = refuse(
+        "rate guard: typo tip suggests lowercase twin (1MB -> 1mb)",
+        ["strict-single", tid, "1MB"], "1mb",
+    ) and ok_all
+    # The dangerous-target blocklist (commands/safety.rs): a system
+    # daemon name must be refused without --force. Only the REFUSAL is
+    # exercised — the forced variant would limit the live machine's
+    # actual systemd, which is exactly what the guard exists to stop.
+    ok_all = refuse(
+        "rate guard: dangerous name refused without --force (systemd)",
+        ["strict-single", "systemd", "1mb"], "system process",
+    ) and ok_all
+    # The plain-number parser branch (no unit suffix) round-trips
+    # through the status JSON at full value.
+    rc, stdout, stderr = run_zel(["strict-single", tid, "1000000"])
+    entry = limit_entry(status_json(), CG.ids["a"]) if rc == 0 else None
+    plain_ok = (
+        rc == 0
+        and entry is not None
+        and entry.get("download_bps") == 1_000_000
+        and entry.get("upload_bps") == 1_000_000
+    )
+    ok_all = record(
+        "rate guard: plain-number rate accepted (1000000 = 1mb)",
+        "PASS" if plain_ok else "FAIL",
+        f"exit {rc}, row {entry}" if not plain_ok else "row 1000000/1000000",
+    ) == "PASS" and ok_all
+    clear_all()
+    # The below-minimum override (--allow-dangerous): 500 B/s applies
+    # with the warning, visible at full value in the status row.
+    rc, stdout, stderr = run_zel(
+        ["strict-single", tid, "--allow-dangerous", "500"]
+    )
+    entry = limit_entry(status_json(), CG.ids["a"]) if rc == 0 else None
+    override_ok = (
+        rc == 0
+        and entry is not None
+        and entry.get("download_bps") == 500
+        and entry.get("upload_bps") == 500
+    )
+    ok_all = record(
+        "rate guard: below-minimum override applies (--allow-dangerous 500)",
+        "PASS" if override_ok else "FAIL",
+        f"exit {rc}, row {entry}" if not override_ok else "row 500/500",
+    ) == "PASS" and ok_all
+    clear_all()
+    return ok_all
+
+
 def test_rate_ladder(ladder, window, windows_per_rung, baseline):
     passed = True
     for rate_str, bps in ladder:
@@ -1036,6 +1126,75 @@ def test_upload(window, baseline):
     )
     clear_all()
     return passed
+
+
+def test_download_only(window, baseline):
+    """-d only: the download bucket is enforced while the upload
+    direction carries no policy (NIGHT-improve-12: the -u twin had a
+    stage, the -d flag had none)."""
+    name = "download (-d only): enforced"
+    if baseline and baseline < 1e6:
+        return record(name, "SKIP", "baseline too low")
+    rc, stdout, stderr = run_zel(["strict-single", str(CG.ids["a"]), "-d", "500kb"])
+    if rc != 0:
+        return record(name, "FAIL", f"exit {rc}: {(stderr or stdout).strip()[:200]}")
+    entry = limit_entry(status_json(), CG.ids["a"])
+    if entry is None or entry.get("download_bps") != 500_000 or entry.get("upload_bps") is not None:
+        return record(name, "FAIL", f"policy row wrong: {entry}")
+    time.sleep(0.5)
+    got = py_download(window)
+    entry = limit_entry(status_json(), CG.ids["a"])
+    truth = (entry or {}).get("bytes_allowed", 0)
+    passed = band_check(name, (truth or got) / window, 500_000)
+    record(
+        "download (-d only): kernel drops engaged",
+        "PASS" if (entry or {}).get("packets_dropped", 0) > 0 else "FAIL",
+        f"{(entry or {}).get('packets_dropped', 0)} packets dropped",
+    )
+    clear_all()
+    return passed
+
+
+def test_asymmetric(window, baseline):
+    """-d and -u together at different rates: the flagship example in
+    --help (`-d 1mb -u 500kb`) never had a stage — the two per-
+    direction buckets are now measured in their own bands under one
+    policy (NIGHT-improve-12).
+
+    No accounting-agreement row here on purpose: the single status
+    row's bytes_allowed spans BOTH buckets, so comparing it to one
+    direction's client count is noise by construction; the two band
+    verdicts plus the drop proof carry this stage.
+    """
+    name = "asymmetric (-d 100kb -u 1mb): both buckets enforced"
+    if baseline and baseline < 2e6:
+        return record(name, "SKIP", "baseline too low")
+    rc, stdout, stderr = run_zel(
+        ["strict-single", str(CG.ids["a"]), "-d", "100kb", "-u", "1mb"]
+    )
+    if rc != 0:
+        return record(name, "FAIL", f"exit {rc}: {(stderr or stdout).strip()[:200]}")
+    entry = limit_entry(status_json(), CG.ids["a"])
+    if (
+        entry is None
+        or entry.get("download_bps") != 100_000
+        or entry.get("upload_bps") != 1_000_000
+    ):
+        clear_all()
+        return record(name, "FAIL", f"policy row wrong: {entry}")
+    time.sleep(0.5)
+    got = py_download(window)
+    dl_ok = band_check("asymmetric: download bucket at 100kb", got / window, 100_000)
+    sent = py_upload(window)
+    ul_ok = band_check("asymmetric: upload bucket at 1mb", sent / window, 1_000_000)
+    entry = limit_entry(status_json(), CG.ids["a"])
+    record(
+        "asymmetric: kernel drops engaged",
+        "PASS" if (entry or {}).get("packets_dropped", 0) > 0 else "FAIL",
+        f"{(entry or {}).get('packets_dropped', 0)} packets dropped",
+    )
+    clear_all()
+    return dl_ok and ul_ok
 
 
 def test_block_single(window):
@@ -1453,6 +1612,24 @@ def self_test():
     finally:
         shutil.rmtree(probe, ignore_errors=True)
 
+    # NIGHT-improve-12 pin: every ladder rung must sit inside the
+    # limiter parser's bounds (types.rs MIN_RATE 1000, MAX_RATE
+    # 1e12). A rung below MIN_RATE would never apply (validate_rate
+    # refuses it); a rung above MAX_RATE likewise. If a future edit
+    # breaks that, the root run would fail stage after stage for a
+    # reason this rootless row names up front.
+    ladder_ok = all(
+        1_000 <= bps <= 1_000_000_000_000
+        for _, bps in LADDER_LIGHT + LADDER_HEAVY
+    )
+    record(
+        "engine: ladder rungs inside the parser bounds (1kb..1tb)",
+        "PASS" if ladder_ok else "FAIL",
+        f"{len(LADDER_LIGHT) + len(LADDER_HEAVY)} rungs, "
+        f"min {min(b for _, b in LADDER_LIGHT + LADDER_HEAVY)} bps, "
+        f"max {max(b for _, b in LADDER_LIGHT + LADDER_HEAVY)} bps",
+    )
+
     # NIGHT-improve-15 pin: the ladder's high-rung floor is a MODEL
     # (cushion / min-RTO), anchored to constants that live on the
     # engine side (format.rs default_burst clamp, Linux TCP_RTO_MIN).
@@ -1672,8 +1849,11 @@ def run_light(baseline_window):
     test_doctor()
     baseline = test_baseline(baseline_window)
     test_policy_write()
+    test_rate_guard()
     test_rate_ladder(LADDER_LIGHT, 4.0, 1, baseline)
     test_upload(4.0, baseline)
+    test_download_only(3.0, baseline)
+    test_asymmetric(3.0, baseline)
     test_block_single(3.0)
     test_unlock(3.0, baseline)
     test_curl_burst(5.0, 4, 1_000_000, baseline)
@@ -1688,8 +1868,11 @@ def run_heavy(baseline_window):
     test_list_apps()
     baseline = test_baseline(baseline_window)
     test_policy_write()
+    test_rate_guard()
     test_rate_ladder(LADDER_HEAVY, 5.5, 2, baseline)
     test_upload(5.0, baseline)
+    test_download_only(4.0, baseline)
+    test_asymmetric(4.0, baseline)
     test_block_single(4.0)
     test_unlock(4.0, baseline)
     test_curl_burst(6.0, 6, 1_000_000, baseline)
