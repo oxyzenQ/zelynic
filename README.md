@@ -434,15 +434,15 @@ sudo ./scripts/limiter-depth-test.sh          # full run (~2 min)
 sudo ./scripts/limiter-depth-test.sh --quick  # fast pass (~45s)
 ```
 
-Want to brutal-stress the whole command surface — single/multi targets,
+Want to supermassive-test the whole command surface — single/multi targets,
 strict/block/unstrict, curl burst download + upload, the full rate range
 1kb to 1tb (skipping rungs the hardware cannot feed)? One click
 (NIGHT-master-2):
 
 ```bash
-sudo ./scripts/brutal-stress-test.sh                # light (~2 min)
-sudo ./scripts/brutal-stress-test.sh --heavy        # brutal (5+ min)
-./scripts/brutal-stress-test.sh --self-test          # engine smoke, no root
+sudo ./scripts/supermassive-test.sh                # light (~2 min)
+sudo ./scripts/supermassive-test.sh --heavy        # supermassive (5+ min)
+./scripts/supermassive-test.sh --self-test          # engine smoke, no root
 ```
 
 ## Release Verification

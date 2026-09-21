@@ -42,6 +42,33 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Changed
 
+- **harnesses: brutal-stress-test is renamed supermassive-test and
+  the twin harnesses share one engine (NIGHT-improve-11 /
+  security-4)** — scripts/brutal-stress-test.{sh,py} are now
+  scripts/supermassive-test.{sh,py} (cgroup fleet renamed
+  zelynic-supermassive-a..e to match; docs, README, CONTRIBUTING and
+  both CI workflows swept). The fourteen engine helpers the two
+  harnesses had copy-pasted — verdict recording, subprocess control,
+  status-JSON reading, environment probes, binary resolution, band
+  checks, doctor/dmesg stages, the final report — live once in
+  scripts/zelynic_harness_lib.py and both import it. This is the
+  drift-trap closer: the kernfs-inode fix (hunt-31) and the
+  pro-native-gnu binary candidate each landed in one twin days
+  before the other; now one fix lands in both the same day. The
+  all-round scope also grows: the supermassive light mode exercises
+  the human status table (a separate render path from the JSON
+  every other stage consumes) while a limit is provably live.
+  Engine self-test still 5/5 (python3 stdlib only, no root).
+
+- **deps: full re-audit recorded — 7/7 direct dependencies live,
+  nothing removable (NIGHT-improve-11 / security-4)** — the supply
+  chain is already peak-lean after the 2026-09-18 hunt-6 audit
+  (chrono dropped, nix features trimmed). The re-verified evidence
+  per dependency, including a live check that clap's `suggestions`
+  feature renders the subcommand tips, is recorded in
+  docs/DEPENDENCY_AUDIT.md. Lockfile untouched; version policy stays
+  owner-only.
+
 - **schema: BPF schema version bumped v3 -> v4 (NIGHT-improve-10 /
   security-3)** — the enforcement-boundary sanitization changes no
   struct layout, but a pinned v3 program must not keep running the
@@ -161,6 +188,30 @@ alone — the owner's NIGHT-hunt-18 call.
   still quits (NIGHT-hunt-16 contract unchanged).
 
 ### Fixed
+
+- **harnesses: the environment gate now checks the bpf FILESYSTEM
+  MOUNT, not the zelynic pin directory — a fresh-but-healthy host
+  no longer fails at the first gate (NIGHT-improve-11 / security-4)** —
+  the check was labeled "BPF filesystem mounted" but tested
+  os.path.isdir(/sys/fs/bpf/zelynic), the pin directory that only
+  materializes after zelynic first attaches. On the owner's fresh
+  nightpc (bpffs mounted, zelynic never run) the supermassive test
+  died at "3 passed, 1 failed, 0s" having tested nothing — the
+  "what the hell bro" run of 2026-09-21. Both harnesses now probe
+  /proc/mounts for a bpf-type mount at /sys/fs/bpf (mirroring
+  zelynic's own attach preflight, NIGHT-hunt-28), and the FAIL
+  detail carries the one-line mount repair tip.
+
+- **harnesses: repo-local builds now outrank the system PATH when
+  resolving the zelynic binary (NIGHT-improve-11)** — the old order
+  put `which zelynic` first, so a harness run from a fresh checkout
+  tested the stale distro install (/usr/bin/zelynic) while the
+  just-built target/pro-native-gnu/zelynic sat unused — the owner's
+  2026-09-21 light run tested an old binary against a v11 working
+  tree without knowing. Order now: --binary flag, ZELYNIC_BINARY
+  env, repo-local candidates, PATH last; the env banner also prints
+  the resolved binary's version line so a stale pick is visible at
+  a glance.
 
 - **limiter: the enforcement math is now total for ANY bytes the
   maps can hold — corrupt or drifted state can no longer overflow
