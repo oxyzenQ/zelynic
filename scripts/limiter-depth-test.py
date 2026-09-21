@@ -64,11 +64,39 @@ import sys
 import threading
 import time
 
-CGROUP_ROOT = "/sys/fs/cgroup"
+import zelynic_harness_lib as lib
+# NIGHT-improve-11 / security-4: the engine helpers this harness used to
+# duplicate with supermassive-test.py live in the shared lib — one fix
+# (kernfs inode, binary order, bpffs probe) now lands in both twins the
+# same day. BINARY is accessed as lib.BINARY because resolve_binary
+# REBINDS it inside the lib module (a from-import would go stale);
+# RESULTS is mutation-only and safe to bind directly.
+from zelynic_harness_lib import (
+    BAND_HI,
+    BAND_LO,
+    CGROUP_ROOT,
+    CHUNK,
+    PIN_DIR,
+    RESULTS,
+    band_check,
+    binary_version,
+    bpffs_mounted_at,
+    cgroup2_mounted,
+    cpu_model,
+    doctor_check,
+    dmesg_scan,
+    final_report,
+    fmt_bps,
+    limit_entry,
+    out,
+    pretty_name,
+    record,
+    run_zel,
+    status_json,
+)
+
 TEST_CGROUP = os.path.join(CGROUP_ROOT, "zelynic-depth")
-PIN_DIR = "/sys/fs/bpf/zelynic"
 PID_FILE = "/tmp/zelynic.pid"
-CHUNK = 256 * 1024
 DOWNLOAD_WINDOW = 12.0   # seconds, full mode
 UPLOAD_WINDOW = 10.0
 MULTI_WINDOW = 8.0
@@ -81,31 +109,12 @@ MULTI_CLIENTS = 5
 # Verdict band: measured/configured must land in [lo, hi]. The floor
 # absorbs TCP back-off under drop-based enforcement; the ceiling
 # absorbs the token-bucket's initial burst amortized over the window.
-# Field data (CROSS_DISTRO_RESULTS.md) lands ~0.9.
-BAND_LO = 0.65
-BAND_HI = 1.30
+# Field data (CROSS_DISTRO_RESULTS.md) lands ~0.9. The bounds live in
+# the shared lib (overridable via --band through lib.BAND_LO/HI).
 
-RESULTS = []
 SERVER = None
 CG = None
-BINARY = ""
 MODE = ""
-
-
-# ── small helpers ───────────────────────────────────────────────────────────
-
-def out(msg=""):
-    print(msg, flush=True)
-
-
-def fmt_bps(n):
-    if n >= 1e9:
-        return f"{n / 1e9:.2f} GB/s"
-    if n >= 1e6:
-        return f"{n / 1e6:.2f} MB/s"
-    if n >= 1e3:
-        return f"{n / 1e3:.1f} KB/s"
-    return f"{n:.0f} B/s"
 
 
 def bps_to_rate_str(bps):
@@ -115,87 +124,6 @@ def bps_to_rate_str(bps):
     if bps >= 1e6:
         return f"{round(bps / 1e6)}mb"
     return f"{round(bps / 1e3)}kb"
-
-
-def record(name, verdict, detail="", metrics=None):
-    RESULTS.append(
-        {"test": name, "verdict": verdict, "detail": detail, "metrics": metrics or {}}
-    )
-    mark = {"PASS": "  OK ", "FAIL": "  X  ", "SKIP": "  -- "}[verdict]
-    out(f"{mark}{name}" + (f" — {detail}" if detail else ""))
-    return verdict
-
-
-def run_zel(args, timeout=30):
-    """Run the zelynic binary; returns (rc, stdout, stderr)."""
-    try:
-        p = subprocess.run(
-            [BINARY] + args,
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-        )
-        return p.returncode, p.stdout, p.stderr
-    except subprocess.TimeoutExpired:
-        return 124, "", f"timeout after {timeout}s"
-    except OSError as e:
-        return 127, "", str(e)
-
-
-def status_json():
-    rc, stdout, _ = run_zel(["status", "--print-json"])
-    if rc != 0:
-        return None
-    try:
-        return json.loads(stdout)
-    except json.JSONDecodeError:
-        return None
-
-
-def limit_entry(doc, cgroup_id):
-    if not doc:
-        return None
-    for entry in doc.get("limits", []):
-        if entry.get("cgroup_id") == cgroup_id:
-            return entry
-    return None
-
-
-# ── environment fingerprint ────────────────────────────────────────────────
-
-def pretty_name():
-    try:
-        with open("/etc/os-release", encoding="utf-8") as f:
-            for line in f:
-                if line.startswith("PRETTY_NAME="):
-                    return line.split("=", 1)[1].strip().strip('"')
-    except OSError:
-        pass
-    return "unknown distro"
-
-
-def cpu_model():
-    try:
-        with open("/proc/cpuinfo", encoding="utf-8") as f:
-            for line in f:
-                if line.startswith("model name"):
-                    return line.split(":", 1)[1].strip()
-    except OSError:
-        pass
-    return "unknown"
-
-
-def cgroup2_mounted():
-    # stat -fc %T equivalent without shelling out: read /proc/mounts.
-    try:
-        with open("/proc/mounts", encoding="utf-8") as f:
-            for line in f:
-                parts = line.split()
-                if len(parts) >= 3 and parts[1] == CGROUP_ROOT:
-                    return parts[2] == "cgroup2"
-    except OSError:
-        pass
-    return False
 
 
 # ── dedicated test cgroup (fallback: current session cgroup) ──────────────
@@ -507,7 +435,7 @@ def test_env():
     out(f"  kernel:   {kernel}  arch: {os.uname().machine}")
     out(f"  cpu:      {cpu_model()}")
     out(f"  python:   {sys.version.split()[0]}")
-    out(f"  binary:   {BINARY}")
+    out(f"  binary:   {lib.BINARY} ({binary_version()})")
     out(f"  cgroup:   {MODE}")
     ok = True
     ok = record(
@@ -519,9 +447,15 @@ def test_env():
         "PASS" if CG.id is not None else "FAIL",
         f"cgroup id {CG.id}",
     ) == "PASS" and ok
+    # NIGHT-improve-11 fix (shared lib): gate on the bpf filesystem
+    # MOUNT, not the zelynic pin directory — a fresh host has no pins
+    # until first attach, and isdir(PIN_DIR) failed it at this gate.
+    bpffs_ok = bpffs_mounted_at("/sys/fs/bpf")
     ok = record(
-        "BPF filesystem mounted", "PASS" if os.path.isdir(PIN_DIR) else "FAIL",
-        PIN_DIR,
+        "BPF filesystem mounted", "PASS" if bpffs_ok else "FAIL",
+        "/sys/fs/bpf (fstype bpf)" if bpffs_ok else
+        "/sys/fs/bpf is not a mounted bpf filesystem — the limiter pins "
+        "its maps there; tip: sudo mount -t bpf bpf /sys/fs/bpf",
     ) == "PASS" and ok
     if os.geteuid() != 0:
         record("root privilege", "FAIL", "re-run with sudo — BPF needs CAP_BPF")
@@ -531,20 +465,7 @@ def test_env():
 
 
 def test_doctor():
-    rc, stdout, _ = run_zel(["doctor", "--print-json"])
-    if rc != 0:
-        return record("doctor: eBPF support", "FAIL", f"exit {rc}")
-    try:
-        doc = json.loads(stdout)
-    except json.JSONDecodeError:
-        return record("doctor: eBPF support", "FAIL", "doctor JSON could not be parsed")
-    supported = bool(doc.get("ebpf_supported"))
-    warnings = "; ".join(doc.get("warnings", []))
-    return record(
-        "doctor: eBPF support",
-        "PASS" if supported else "FAIL",
-        warnings or "no warnings",
-    )
+    return doctor_check()
 
 
 def test_baseline(window):
@@ -590,17 +511,6 @@ def test_policy_write():
         "PASS" if ok else "FAIL",
         "" if ok else payload,
     )
-    return verdict == "PASS"
-
-
-def band_check(name, measured_bps, configured_bps, extra=""):
-    ratio = measured_bps / configured_bps if configured_bps else 0.0
-    verdict = "PASS" if BAND_LO <= ratio <= BAND_HI else "FAIL"
-    detail = (
-        f"configured {fmt_bps(configured_bps)}, measured {fmt_bps(measured_bps)} "
-        f"({ratio * 100:.1f}%)" + (f"; {extra}" if extra else "")
-    )
-    record(name, verdict, detail, {"measured_bps": round(measured_bps), "ratio": round(ratio, 3)})
     return verdict == "PASS"
 
 
@@ -703,7 +613,7 @@ def test_sustain(rate_bps, windows, window, baseline):
     for i in range(windows):
         got = download(window, SERVER.port)
         rates.append(got / window)
-    ok_band = all(BAND_LO <= r / rate_bps <= BAND_HI for r in rates)
+    ok_band = all(lib.BAND_LO <= r / rate_bps <= lib.BAND_HI for r in rates)
     drift = min(rates) / max(rates) if max(rates) else 0.0
     verdict = "PASS" if (ok_band and drift >= 0.5) else "FAIL"
     record(
@@ -801,67 +711,11 @@ def test_cleanup():
 
 
 def test_dmesg():
-    try:
-        p = subprocess.run(["dmesg", "--color=never"], capture_output=True,
-                           text=True, timeout=15)
-    except (OSError, subprocess.TimeoutExpired):
-        return record("dmesg: kernel log clean", "SKIP",
-                      "dmesg unavailable or restricted")
-    lines = p.stdout.splitlines()[-200:]
-    bad = [
-        line for line in lines
-        if any(k in line.lower() for k in ("bpf", "zelynic"))
-        and any(k in line.lower() for k in ("error", "fail", "warn", "bug", "oops"))
-    ]
-    return record(
-        "dmesg: kernel log clean",
-        "PASS" if not bad else "FAIL",
-        "; ".join(bad[:3]) if bad else "no BPF errors in the last 200 lines",
-    )
-
-
-# ── orchestration ───────────────────────────────────────────────────────────
-
-def resolve_binary(explicit):
-    global BINARY
-    candidates = []
-    if explicit:
-        candidates.append(explicit)
-    if os.environ.get("ZELYNIC_BINARY"):
-        candidates.append(os.environ["ZELYNIC_BINARY"])
-    found = shutil.which("zelynic")
-    if found:
-        candidates.append(found)
-    candidates += ["./zelynic", "./target/release/zelynic"]
-    for cand in candidates:
-        if cand and os.path.isfile(cand) and os.access(cand, os.X_OK):
-            BINARY = cand
-            return True
-    out("zelynic binary not found. Tried: " + ", ".join(candidates))
-    out("Build it first:  cargo build --release --features ebpf")
-    out("Or point at one: sudo ./scripts/limiter-depth-test.sh --binary ./zelynic")
-    return False
-
-
-def final_report(start):
-    elapsed = time.perf_counter() - start
-    counts = {v: sum(1 for r in RESULTS if r["verdict"] == v) for v in ("PASS", "FAIL", "SKIP")}
-    out()
-    out("━━━ verdict ━━━")
-    out(
-        f"  {counts['PASS']} passed, {counts['FAIL']} failed, "
-        f"{counts['SKIP']} skipped — {elapsed:.0f}s total"
-    )
-    if counts["FAIL"] == 0:
-        out("  zelynic limiter: depth-verified on this machine (peak, stable, clean).")
-    else:
-        out("  FAILURES present — see the marked rows above; run with --json for")
-        out("  machine-readable output and file the numbers in CROSS_DISTRO_RESULTS.")
-    return counts["FAIL"] == 0
+    return dmesg_scan()
 
 
 def main():
-    global SERVER, CG, MODE, BAND_LO, BAND_HI
+    global SERVER, CG, MODE
     ap = argparse.ArgumentParser(
         prog="limiter-depth-test",
         description="zelynic limiter depth stress test (NIGHT-master-1)",
@@ -875,7 +729,7 @@ def main():
 
     try:
         lo, hi = (float(x) for x in args.band.split(","))
-        BAND_LO, BAND_HI = lo, hi
+        lib.BAND_LO, lib.BAND_HI = lo, hi
     except ValueError:
         out("--band expects lo,hi (e.g. 0.65,1.30)")
         return 2
@@ -883,7 +737,7 @@ def main():
     if os.geteuid() != 0:
         out("This test programs the kernel datapath — run with sudo.")
         return 2
-    if not resolve_binary(args.binary):
+    if not lib.resolve_binary(args.binary, "sudo ./scripts/limiter-depth-test.sh"):
         return 2
 
     quick = args.quick
@@ -926,7 +780,7 @@ def main():
             test_cleanup()
             test_dmesg()
         CG.cleanup()
-        ok = final_report(start)
+        ok = final_report(start, "depth", "zelynic limiter: depth-verified on this machine (peak, stable, clean).")
         exit_code = 0 if ok else 1
     except Exception as e:  # noqa: BLE001 - report, then still clean up
         out(f"  harness error: {e}")
@@ -935,14 +789,14 @@ def main():
             CG.cleanup()
         except Exception:
             pass
-        final_report(start)
+        final_report(start, "depth", "zelynic limiter: depth-verified on this machine (peak, stable, clean).")
         exit_code = 1
     finally:
         if SERVER:
             SERVER.stop()
     if args.json:
         print(json.dumps({
-            "binary": BINARY,
+            "binary": lib.BINARY,
             "cgroup_mode": MODE,
             "results": RESULTS,
         }, indent=2))

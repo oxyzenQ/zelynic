@@ -110,8 +110,9 @@ scripts/
   rust-version-to.sh   — one-command Rust toolchain bumper
   inject-disclaimer.sh — .md stale-data disclaimer (inject + --check)
   check-policy.py      — copyright + SPDX policy check
-  brutal-stress-test.sh — one-click brutal stress test (NIGHT-master-2;
-                wraps brutal-stress-test.py: light ~2 min / --heavy 5+ min
+  supermassive-test.sh — one-click supermassive test (NIGHT-master-2,
+                renamed from brutal-stress-test in NIGHT-improve-11; wraps
+                supermassive-test.py: light ~2 min / --heavy 5+ min
                 modes sweeping the whole command surface — strict/block/
                 unstrict x single/multi/all, curl burst download + upload,
                 rate ladder 1kb..1tb adaptive to hardware, five dedicated

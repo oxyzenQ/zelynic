@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 # Copyright (C) 2026 rezky_nightky
 # SPDX-License-Identifier: GPL-3.0-only
-# LOC_EXEMPT: the brutal matrix is one self-contained harness by design — every stage shares the cgroup fleet, the traffic engine, and the verdict plumbing, so splitting it means a module package, not a script
-"""zelynic brutal stress test — the one-click flagship harness (NIGHT-master-2).
+# LOC_EXEMPT: the supermassive matrix is one self-contained harness by design — every stage shares the cgroup fleet, the traffic engine, and the verdict plumbing, so splitting it means a module package, not a script (the engine helpers it truly shares with limiter-depth-test.py ARE deduplicated into zelynic_harness_lib.py, NIGHT-improve-11)
+"""zelynic supermassive test — the one-click flagship harness (NIGHT-master-2; renamed from brutal-stress-test and engine-deduplicated in NIGHT-improve-11 / security-4).
 
 NIGHT-master-1 (limiter-depth-test.py) answers "is the limiter ACCURATE?"
 with measured rate bands. This harness answers the owner's next question:
-"does the WHOLE command surface survive brutal stress?" — one click sweeps
+"does the WHOLE command surface survive supermassive stress?" — one click sweeps
 every policy family (strict / block / unstrict, single / multi / all)
 across real target shapes with real traffic, real curl processes, and the
 full rate range the parser accepts.
@@ -14,16 +14,23 @@ full rate range the parser accepts.
 Design:
 
   * One click, two intensities: default light mode (~2 min, basic limiting
-    sweep) and --heavy (the complete brutal matrix, 5+ minutes, long
+    sweep) and --heavy (the complete supermassive matrix, 5+ minutes, long
     running until done). --self-test verifies the harness engine alone
     (no root, no zelynic, no BPF) so CI and containers can smoke it
     anywhere — the same cross-distro minimum as NIGHT-master-1: python3
     stdlib only, curl optional (its stages SKIP, the rest keeps working).
+  * Shared engine: the fourteen helpers this harness and limiter-depth-
+    test.py used to duplicate (verdict recording, subprocess control,
+    status-JSON reading, environment probes, binary resolution, the
+    final report) live in zelynic_harness_lib.py — one fix lands in both
+    harnesses the same day (NIGHT-improve-11; the hunt-31 kernfs-inode
+    and the target/pro-native-gnu binary candidate each drifted for days
+    between the twins before that).
   * Traffic is loopback HTTP served by an in-process python server, so
     no external test server is ever needed. curl is the second traffic
     engine: real external processes pushed through the limiter, the same
     class of proof as the owner's manual browser tests.
-  * Five dedicated cgroups (zelynic-brutal-a..e): the harness lives in
+  * Five dedicated cgroups (zelynic-supermassive-a..e): the harness lives in
     'a' (its own loopback traffic is the single-target test bed); curl
     workers are exec-moved into b..e BEFORE their first socket exists
     (deterministic cgroup attribution, no spawn race), so strict-multi /
@@ -47,18 +54,18 @@ Design:
     runs the test.
 
 Usage:
-  sudo ./scripts/brutal-stress-test.sh                # light (~2 min)
-  sudo ./scripts/brutal-stress-test.sh --heavy       # brutal (5+ min)
-  python3 scripts/brutal-stress-test.py --self-test   # engine smoke, no root
-  sudo ./scripts/brutal-stress-test.sh --binary ./zelynic
-  sudo ./scripts/brutal-stress-test.sh --json
+  sudo ./scripts/supermassive-test.sh                # light (~2 min)
+  sudo ./scripts/supermassive-test.sh --heavy       # supermassive (5+ min)
+  python3 scripts/supermassive-test.py --self-test   # engine smoke, no root
+  sudo ./scripts/supermassive-test.sh --binary ./zelynic
+  sudo ./scripts/supermassive-test.sh --json
 
 What it verifies (verdicts PASS / FAIL / SKIP, exit 1 on any FAIL):
   light: env + minimum specs, doctor, baseline, strict-single policy
-         write, rate ladder (1kb/100kb/1mb/10mb), upload-only (-u),
-         block-single zero goodput, unstrict-single (unlock) restores
-         speed, curl burst download x4, curl upload, non-binding
-         overhead, cleanup, dmesg
+         write, status human + JSON surfaces, rate ladder
+         (1kb/100kb/1mb/10mb), upload-only (-u), block-single zero
+         goodput, unstrict-single (unlock) restores speed, curl burst
+         download x4, curl upload, non-binding overhead, cleanup, dmesg
   heavy: + full ladder to 1tb (two windows per rung), strict-multi
          shared group bucket across cgroups, block-multi, unstrict-multi
          selective removal, mixed concurrent policies on five cgroups,
@@ -77,14 +84,39 @@ import tempfile
 import threading
 import time
 
-CGROUP_ROOT = "/sys/fs/cgroup"
+import zelynic_harness_lib as lib
+# NOTE: BINARY is deliberately NOT in this list — resolve_binary REBINDS it
+# inside the lib module, and a from-import would keep a stale empty string
+# here. Reference it as lib.BINARY; the mutation-only names (RESULTS) are
+# safe to bind directly.
+from zelynic_harness_lib import (
+    BAND_HI,
+    BAND_LO,
+    CGROUP_ROOT,
+    CHUNK,
+    PIN_DIR,
+    RESULTS,
+    band_check,
+    binary_version,
+    bpffs_mounted_at,
+    cgroup2_mounted,
+    cpu_model,
+    doctor_check,
+    dmesg_scan,
+    final_report,
+    fmt_bps,
+    limit_entry,
+    mbps,
+    out,
+    pretty_name,
+    record,
+    run_zel,
+    status_json,
+)
+
 CG_NAMES = "abcde"
-TEST_CGROUPS = [f"{CGROUP_ROOT}/zelynic-brutal-{n}" for n in CG_NAMES]
-PIN_DIR = "/sys/fs/bpf/zelynic"
-CHUNK = 256 * 1024
+TEST_CGROUPS = [f"{CGROUP_ROOT}/zelynic-supermassive-{n}" for n in CG_NAMES]
 BLOCK_GOODPUT_CEIL = 64 * 1024  # bytes per window: "blocked" means ~zero
-BAND_LO = 0.65
-BAND_HI = 1.30
 # (rate string, expected bps) — explicit pairs, no inversion math to drift.
 LADDER_LIGHT = [
     ("1kb", 1_000), ("100kb", 100_000), ("1mb", 1_000_000), ("10mb", 10_000_000),
@@ -96,104 +128,10 @@ LADDER_HEAVY = [
     ("100gb", 100_000_000_000), ("1tb", 1_000_000_000_000),
 ]
 
-RESULTS = []
 SERVER = None
 CG = None
-BINARY = ""
 MODE = ""
 CURL = shutil.which("curl")
-
-
-# ── small helpers ───────────────────────────────────────────────────────────
-
-def out(msg=""):
-    print(msg, flush=True)
-
-
-def fmt_bps(n):
-    if n >= 1e9:
-        return f"{n / 1e9:.2f} GB/s"
-    if n >= 1e6:
-        return f"{n / 1e6:.2f} MB/s"
-    if n >= 1e3:
-        return f"{n / 1e3:.1f} KB/s"
-    return f"{n:.0f} B/s"
-
-
-def mbps(n):
-    return f"{n * 8 / 1e6:.2f} Mbps"
-
-
-def record(name, verdict, detail="", metrics=None):
-    RESULTS.append(
-        {"test": name, "verdict": verdict, "detail": detail, "metrics": metrics or {}}
-    )
-    mark = {"PASS": "  OK ", "FAIL": "  X  ", "SKIP": "  -- "}[verdict]
-    out(f"{mark}{name}" + (f" — {detail}" if detail else ""))
-    return verdict
-
-
-def run_zel(args, timeout=30):
-    try:
-        p = subprocess.run([BINARY] + args, capture_output=True, text=True, timeout=timeout)
-        return p.returncode, p.stdout, p.stderr
-    except subprocess.TimeoutExpired:
-        return 124, "", f"timeout after {timeout}s"
-    except OSError as e:
-        return 127, "", str(e)
-
-
-def status_json():
-    rc, stdout, _ = run_zel(["status", "--print-json"])
-    if rc != 0:
-        return None
-    try:
-        return json.loads(stdout)
-    except json.JSONDecodeError:
-        return None
-
-
-def limit_entry(doc, cgroup_id):
-    if not doc:
-        return None
-    for entry in doc.get("limits", []):
-        if entry.get("cgroup_id") == cgroup_id:
-            return entry
-    return None
-
-
-def pretty_name():
-    try:
-        with open("/etc/os-release", encoding="utf-8") as f:
-            for line in f:
-                if line.startswith("PRETTY_NAME="):
-                    return line.split("=", 1)[1].strip().strip('"')
-    except OSError:
-        pass
-    return "unknown distro"
-
-
-def cpu_model():
-    try:
-        with open("/proc/cpuinfo", encoding="utf-8") as f:
-            for line in f:
-                if line.startswith("model name"):
-                    return line.split(":", 1)[1].strip()
-    except OSError:
-        pass
-    return "unknown"
-
-
-def cgroup2_mounted():
-    try:
-        with open("/proc/mounts", encoding="utf-8") as f:
-            for line in f:
-                parts = line.split()
-                if len(parts) >= 3 and parts[1] == CGROUP_ROOT:
-                    return parts[2] == "cgroup2"
-    except OSError:
-        pass
-    return False
 
 
 # ── dedicated cgroup fleet ─────────────────────────────────────────────────
@@ -635,18 +573,6 @@ def clear_all():
     return rc == 0
 
 
-def band_check(name, measured_bps, configured_bps, extra=""):
-    ratio = measured_bps / configured_bps if configured_bps else 0.0
-    verdict = "PASS" if BAND_LO <= ratio <= BAND_HI else "FAIL"
-    detail = (
-        f"configured {fmt_bps(configured_bps)} ({mbps(configured_bps)}), "
-        f"measured {fmt_bps(measured_bps)} ({ratio * 100:.1f}%)"
-        + (f"; {extra}" if extra else "")
-    )
-    record(name, verdict, detail, {"measured_bps": round(measured_bps), "ratio": round(ratio, 3)})
-    return verdict == "PASS"
-
-
 def enforcement_proofs(label, got_bytes, name="a"):
     """Kernel-side proof under a binding limit: packets dropped and the
     BPF byte counter in agreement with the client's own count."""
@@ -680,7 +606,7 @@ def test_env():
     out(f"  kernel:   {os.uname().release}  arch: {os.uname().machine}")
     out(f"  cpu:      {cpu_model()}")
     out(f"  python:   {sys.version.split()[0]}  curl: {CURL or 'not found (curl stages will SKIP)'}")
-    out(f"  binary:   {BINARY}")
+    out(f"  binary:   {lib.BINARY} ({binary_version()})")
     out(f"  cgroups:  {MODE}")
     ok = True
     ok = record(
@@ -692,9 +618,17 @@ def test_env():
         "PASS" if CG.ids.get("a") else "FAIL",
         f"cgroup id {CG.ids.get('a')}",
     ) == "PASS" and ok
+    # NIGHT-improve-11 fix: gate on the bpf FILESYSTEM MOUNT, not the
+    # zelynic pin directory — a fresh host (bpffs mounted, zelynic never
+    # run) is exactly the machine this harness exists to qualify, and the
+    # old isdir(PIN_DIR) check failed it at the first gate (the 2026-09-21
+    # run that died at "3 passed, 1 failed, 0s" having tested nothing).
+    bpffs_ok = bpffs_mounted_at("/sys/fs/bpf")
     ok = record(
-        "BPF filesystem mounted", "PASS" if os.path.isdir(PIN_DIR) else "FAIL",
-        PIN_DIR,
+        "BPF filesystem mounted", "PASS" if bpffs_ok else "FAIL",
+        "/sys/fs/bpf (fstype bpf)" if bpffs_ok else
+        "/sys/fs/bpf is not a mounted bpf filesystem — the limiter pins "
+        "its maps there; tip: sudo mount -t bpf bpf /sys/fs/bpf",
     ) == "PASS" and ok
     if os.geteuid() != 0:
         record("root privilege", "FAIL", "re-run with sudo — BPF needs CAP_BPF")
@@ -704,18 +638,7 @@ def test_env():
 
 
 def test_doctor():
-    rc, stdout, _ = run_zel(["doctor", "--print-json"])
-    if rc != 0:
-        return record("doctor: eBPF support", "FAIL", f"exit {rc}")
-    try:
-        doc = json.loads(stdout)
-    except json.JSONDecodeError:
-        return record("doctor: eBPF support", "FAIL", "doctor JSON could not be parsed")
-    supported = bool(doc.get("ebpf_supported"))
-    warnings = "; ".join(doc.get("warnings", []))
-    return record(
-        "doctor: eBPF support", "PASS" if supported else "FAIL", warnings or "no warnings"
-    )
+    return doctor_check()
 
 
 def test_baseline(window):
@@ -737,8 +660,18 @@ def test_policy_write():
         "strict-single 100kb: policy lands in the kernel maps",
         "PASS" if ok else "FAIL", "" if ok else payload,
     )
+    # NIGHT-improve-11 (all-round scope): the human table is a separate
+    # render path from the JSON every other stage consumes — exercise it
+    # while a limit is provably live.
+    rc, stdout, _ = run_zel(["status"])
+    rendered = "Active limits" in stdout and "zelynic Status" in stdout
+    human = record(
+        "status: human table renders with a live limit",
+        "PASS" if rc == 0 and rendered else "FAIL",
+        "table rendered" if rendered else f"exit {rc}, no table marker in output",
+    )
     clear_all()
-    return verdict == "PASS"
+    return verdict == "PASS" and human == "PASS"
 
 
 def test_rate_ladder(ladder, window, windows_per_rung, baseline):
@@ -1054,7 +987,7 @@ def test_mixed(window, baseline):
 
 
 def test_limit_all(window, baseline):
-    """The brutal sweep: every cgroup on the machine, briefly, --force so
+    """The supermassive sweep: every cgroup on the machine, briefly, --force so
     the harness's own root-owned cgroups are included."""
     name = "limit-all --force: machine-wide sweep"
     if baseline and baseline < 2e6:
@@ -1113,7 +1046,7 @@ def test_sustain(rate_bps, windows, window, baseline):
     for _ in range(windows):
         rates.append(py_download(window) / window)
     clear_all()
-    ok_band = all(BAND_LO <= r / rate_bps <= BAND_HI for r in rates)
+    ok_band = all(lib.BAND_LO <= r / rate_bps <= lib.BAND_HI for r in rates)
     drift = min(rates) / max(rates) if max(rates) else 0.0
     verdict = "PASS" if (ok_band and drift >= 0.5) else "FAIL"
     record(
@@ -1172,21 +1105,7 @@ def test_cleanup():
 
 
 def test_dmesg():
-    try:
-        p = subprocess.run(["dmesg", "--color=never"], capture_output=True,
-                           text=True, timeout=15)
-    except (OSError, subprocess.TimeoutExpired):
-        return record("dmesg: kernel log clean", "SKIP", "dmesg unavailable or restricted")
-    lines = p.stdout.splitlines()[-200:]
-    bad = [
-        line for line in lines
-        if any(k in line.lower() for k in ("bpf", "zelynic"))
-        and any(k in line.lower() for k in ("error", "fail", "warn", "bug", "oops"))
-    ]
-    return record(
-        "dmesg: kernel log clean", "PASS" if not bad else "FAIL",
-        "; ".join(bad[:3]) if bad else "no BPF errors in the last 200 lines",
-    )
+    return dmesg_scan()
 
 
 # ── engine self-test (no root, no zelynic, no BPF) ─────────────────────────
@@ -1195,13 +1114,13 @@ def self_test():
     """Verify the harness's own measurement engine anywhere — a CI runner,
     a container, or a friend's laptop — before trusting its verdicts."""
     global SERVER
-    out("zelynic brutal stress test — engine self-test (no root, no zelynic, no BPF)")
+    out("zelynic supermassive test — engine self-test (no root, no zelynic, no BPF)")
     start = time.perf_counter()
 
     # NIGHT-hunt-31 pin: IDs resolve by stat(2) inode. The original
     # engine read a phantom "cgroup.id" file and died on the first real
     # machine it met — a decoy file must never win again.
-    probe = tempfile.mkdtemp(prefix="zelynic-brutal-selftest-")
+    probe = tempfile.mkdtemp(prefix="zelynic-supermassive-selftest-")
     try:
         with open(os.path.join(probe, "cgroup.id"), "w") as f:
             f.write("999999999\n")
@@ -1270,44 +1189,6 @@ def self_test():
 
 # ── orchestration ───────────────────────────────────────────────────────────
 
-def resolve_binary(explicit):
-    global BINARY
-    candidates = []
-    if explicit:
-        candidates.append(explicit)
-    if os.environ.get("ZELYNIC_BINARY"):
-        candidates.append(os.environ["ZELYNIC_BINARY"])
-    found = shutil.which("zelynic")
-    if found:
-        candidates.append(found)
-    candidates += ["./zelynic", "./target/release/zelynic", "./target/pro-native-gnu/zelynic"]
-    for cand in candidates:
-        if cand and os.path.isfile(cand) and os.access(cand, os.X_OK):
-            BINARY = cand
-            return True
-    out("zelynic binary not found. Tried: " + ", ".join(candidates))
-    out("Build it first:  cargo build --release --features ebpf")
-    out("Or point at one: sudo ./scripts/brutal-stress-test.sh --binary ./zelynic")
-    return False
-
-
-def final_report(start, mode):
-    elapsed = time.perf_counter() - start
-    counts = {v: sum(1 for r in RESULTS if r["verdict"] == v) for v in ("PASS", "FAIL", "SKIP")}
-    out()
-    out("━━━ verdict ━━━")
-    out(
-        f"  {counts['PASS']} passed, {counts['FAIL']} failed, "
-        f"{counts['SKIP']} skipped — {mode} mode, {elapsed:.0f}s total"
-    )
-    if counts["FAIL"] == 0:
-        out("  zelynic command surface: brutal-verified on this machine.")
-    else:
-        out("  FAILURES present — see the marked rows above; run with --json for")
-        out("  machine-readable output and file the numbers in CROSS_DISTRO_RESULTS.")
-    return counts["FAIL"] == 0
-
-
 def run_light(baseline_window):
     test_doctor()
     baseline = test_baseline(baseline_window)
@@ -1348,13 +1229,13 @@ def run_heavy(baseline_window):
 
 
 def main():
-    global SERVER, CG, MODE, BAND_LO, BAND_HI
+    global SERVER, CG, MODE
     ap = argparse.ArgumentParser(
-        prog="brutal-stress-test",
-        description="zelynic one-click brutal stress test (NIGHT-master-2)",
+        prog="supermassive-test",
+        description="zelynic one-click supermassive test (NIGHT-master-2)",
     )
     ap.add_argument("--heavy", action="store_true",
-                    help="the complete brutal matrix (5+ min; default is light ~2 min)")
+                    help="the complete supermassive matrix (5+ min; default is light ~2 min)")
     ap.add_argument("--self-test", action="store_true",
                     help="verify the harness engine only — no root, no zelynic, no BPF")
     ap.add_argument("--binary", help="path to the zelynic binary")
@@ -1371,7 +1252,7 @@ def main():
 
     try:
         lo, hi = (float(x) for x in args.band.split(","))
-        BAND_LO, BAND_HI = lo, hi
+        lib.BAND_LO, lib.BAND_HI = lo, hi
     except ValueError:
         out("--band expects lo,hi (e.g. 0.65,1.30)")
         return 2
@@ -1379,7 +1260,10 @@ def main():
     if os.geteuid() != 0:
         out("This test programs the kernel datapath — run with sudo.")
         return 2
-    if not resolve_binary(args.binary):
+    # Binary resolution lives in the shared lib (NIGHT-improve-11):
+    # repo-local builds outrank the system PATH so a checkout always
+    # tests itself, never the stale distro install.
+    if not lib.resolve_binary(args.binary, "sudo ./scripts/supermassive-test.sh"):
         return 2
 
     mode = "heavy" if args.heavy else "light"
@@ -1389,7 +1273,7 @@ def main():
     try:
         MODE = CG.setup()
         SERVER = HttpServer()
-        out(f"zelynic brutal stress test (NIGHT-master-2, {mode} mode)")
+        out(f"zelynic supermassive test (NIGHT-improve-11, {mode} mode)")
         out(f"  target cgroup fleet: {MODE}")
         out()
         env_ok = test_env()
@@ -1401,7 +1285,8 @@ def main():
         else:
             run_light(2.5)
         CG.cleanup()
-        ok = final_report(start, mode)
+        ok = final_report(start, mode,
+                          "zelynic command surface: supermassive-verified on this machine.")
         exit_code = 0 if ok else 1
     except Exception as e:  # noqa: BLE001 - report, then still clean up
         out(f"  harness error: {e}")
@@ -1410,14 +1295,15 @@ def main():
             CG.cleanup()
         except Exception:
             pass
-        final_report(start, mode)
+        final_report(start, mode,
+                     "zelynic command surface: supermassive-verified on this machine.")
         exit_code = 1
     finally:
         if SERVER:
             SERVER.stop()
     if args.json:
         print(json.dumps({
-            "binary": BINARY,
+            "binary": lib.BINARY,
             "mode": mode,
             "cgroup_mode": MODE,
             "results": RESULTS,

@@ -28,6 +28,32 @@ audited on every build — shrank by one third. Binary size did not move
 because dead dependencies were never linked into the binary in the
 first place; the risk was in the build pipeline, not the artifact.
 
+## Re-audit (NIGHT-improve-11 / security-4, 2026-09-21)
+
+The owner mandate for the improve-11 pass: audit dependencies again,
+make the set peak-lean, remove anything unused even though the set is
+already minimal. Verdict: **nothing removable — 7/7 direct dependencies
+carry live call sites, the ebpf crate's 1 dependency is the program's
+own framework, and every pinned feature is load-bearing.** The audit
+itself is the deliverable this time; the standing record below is
+updated so the next re-audit starts from fresh evidence, not from the
+2026-09-18 snapshot.
+
+| Dependency | Live call sites (grep evidence) | Verdict |
+|------------|----------------------------------|---------|
+| clap | src/cli/ (derive + 8 ux/suggestion files); the `suggestions` feature provably renders "tip: some similar subcommands exist" (verified live) | keep, features exact |
+| anyhow | every module (`Result` + `Context` + `anyhow!`) | keep |
+| serde | derive on the status/doctor JSON surface (src/ebpf/display.rs) | keep |
+| serde_json | status/doctor/list-apps JSON output (src/ebpf/display.rs) | keep |
+| nix | features user/term/feature exactly as pinned (geteuid, termios, uname — update/mod.rs re-verified) | keep, features exact |
+| libc | clock_gettime, TIOCGWINSZ, flock, termios constants (format.rs, terminal/, lock.rs) | keep |
+| aya (optional) | the whole `ebpf` feature surface | keep |
+| zelynic-ebpf: aya-ebpf | both BPF programs compile against it | keep |
+
+Lockfile: untouched by this audit (nothing removed, nothing bumped —
+version policy stays owner-only). The deny.toml chrono ban stays the
+CI regression guard.
+
 ## Finding 1: chrono (removed) — zero call sites, 27 crates of baggage
 
 A repository-wide grep for `chrono::`, `DateTime`, `Utc`, `Local` and
