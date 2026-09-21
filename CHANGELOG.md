@@ -16,6 +16,49 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Added
 
+- **scripts: NIGHT-hunt-21 — the duplicate/hardcoded-verbose hunt**
+  — five real findings, all fixed: (1) bootstrap-ebpf.sh printed
+  its status report TWICE on a satisfied re-run (the install-mode
+  flow reported before installing and again after the unconditional
+  re-probe — "verify, then trust" had degenerated into duplicate
+  output when there was nothing to verify); the re-probe + report
+  now runs only when the run actually installed or repaired
+  something (CHANGED tracking), verified live in a satisfied
+  environment: one report, then sanity, then the build; (2) the
+  bpf-linker version pin was a twin constant ("must mirror"
+  comment, the documented drift class) between bootstrap-ebpf.sh
+  and install-bpf-linker.sh — the pin now lives in
+  install-bpf-linker.sh alone and bootstrap READS it (sed anchor
+  on the exact assignment line, dies loudly if unreadable), the
+  same read-from-source pattern the nightly pin already had;
+  (3) the supermassive banner repeated the cgroup fleet mode
+  byte-for-byte two lines above the environment block's
+  "cgroups:" row (visible in the owner's pasted run), and
+  limiter-depth's banner repeated its MODE the same way — the
+  banners now carry only their unique facts, the env block owns
+  the environment; (4) install-bpf-linker.sh hard-required the
+  zstd binary (dying on Arch/Fedora/Nix hosts without it) while
+  its sibling bootstrap-ebpf.sh has a three-way extraction ladder
+  — the ladder is now mirrored (GNU tar --zstd, then python3
+  zstandard, then explicit failure), and the apt install became
+  best-effort; (5) the three colored root-run harnesses
+  (crash-recovery, race-condition, reload) carried three drifting
+  copies of the same helper block — and every color variable in
+  all three was truncated to a bare ESC ('\033' with the CSI
+  parameters lost), so each "colored" line ever printed carried a
+  stray escape byte and no color, while check_root/check_binary
+  error wording had already diverged between copies; the helpers
+  (colors, counters, log_pass/log_fail/log_test, check_root,
+  check_binary, BINARY resolution) now live in
+  scripts/harness_lib.sh, sourced — the bash twin of
+  zelynic_harness_lib.py (no shebang, 644 rule), with proper full
+  color codes restored and the richest error wording unified;
+  cleanup() stays harness-owned (script-specific teardown). The
+  gate's shellcheck section now runs with -x so the sourced lib is
+  checked in the harnesses' context too. All 29 .sh files
+  bash -n + shellcheck -x + shfmt clean; bootstrap verified live;
+  ruff + py_compile green on both touched harnesses.
+
 - **ci: NIGHT-improve-13 — gate-keepers wholesale workflow split +
   python lint gate + CI consolidation (cosmostrix lineage)** — the
   reference project's strongest CI pattern applied end to end:

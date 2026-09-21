@@ -839,8 +839,10 @@ def main():
     try:
         MODE = CG.setup()
         SERVER = TrafficServer()
+        # NIGHT-hunt-21: "via {MODE}" duplicated the env block's
+        # "cgroup:" row — the ID is this banner's unique fact.
         out("zelynic limiter depth test (NIGHT-master-1)")
-        out(f"  target cgroup: {CG.id} via {MODE}")
+        out(f"  target cgroup: {CG.id}")
         out()
 
         env_ok = test_env()

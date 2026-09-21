@@ -25,10 +25,12 @@
 #   2. the bpf-linker 0.11.1 prebuilt static-musl binary, installed
 #      into ~/.local/bin (no sudo, no system LLVM, no clang)
 #
-# The nightly pin is READ from ebpf/rust-toolchain.toml, so bumping
-# the pin there re-targets this script automatically. Only the
-# bpf-linker version lives here: the pin and the linker are a
-# validated pair (rationale: docs/PURE_RUST_EVALUATION.md).
+# The nightly pin is READ from ebpf/rust-toolchain.toml and the
+# bpf-linker pin from scripts/install-bpf-linker.sh, so bumping
+# either pin in its own file re-targets this script automatically
+# (NIGHT-hunt-21: the linker pin used to be a twin constant here —
+# one source of truth now). The pin and the linker are a validated
+# pair (rationale: docs/PURE_RUST_EVALUATION.md).
 #
 # The tar.zst release archive is extracted with whichever
 # decompressor the host actually has: GNU tar with zstd support, a
@@ -64,8 +66,7 @@
 
 set -euo pipefail
 
-BPF_LINKER_VERSION="0.11.1"
-BPF_LINKER_URL_BASE="https://github.com/aya-rs/bpf-linker/releases/download/v${BPF_LINKER_VERSION}"
+BPF_LINKER_URL_BASE="https://github.com/aya-rs/bpf-linker/releases/download"
 CHECK_ONLY=false
 
 case "${1:-}" in
@@ -101,6 +102,15 @@ cleanup() {
 	fi
 }
 trap cleanup EXIT
+
+# ── Resolve the bpf-linker pin from its single source ─────────────────────
+# NIGHT-hunt-21: this script and install-bpf-linker.sh used to carry
+# twin VERSION constants with a "must mirror" comment — a documented
+# drift class. One place to bump now: install-bpf-linker.sh is the
+# CI/root twin, this script is the host twin, and the sed anchors on
+# its exact VERSION="..." assignment line.
+BPF_LINKER_VERSION="$(sed -n 's/^VERSION="\([^"]*\)"$/\1/p' "${SCRIPT_DIR}/install-bpf-linker.sh" | head -n 1)"
+[[ -n "${BPF_LINKER_VERSION}" ]] || die "could not read the bpf-linker pin from scripts/install-bpf-linker.sh (expected a VERSION=\"...\" assignment line)."
 
 # ── Resolve the dated nightly pin from the crate's own file ────────────────
 [[ -f "${TOOLCHAIN_FILE}" ]] || die "ebpf/rust-toolchain.toml not found (${TOOLCHAIN_FILE}) — run from inside the zelynic repo."
@@ -213,7 +223,7 @@ install_bpf_linker() {
 		die "no bpf-linker ${BPF_LINKER_VERSION} prebuilt for ${arch} — build it from source: https://github.com/aya-rs/bpf-linker"
 		;;
 	esac
-	url="${BPF_LINKER_URL_BASE}/${asset}"
+	url="${BPF_LINKER_URL_BASE}/v${BPF_LINKER_VERSION}/${asset}"
 
 	TMP_DIR="$(mktemp -d)"
 	archive="${TMP_DIR}/${asset}"
@@ -309,6 +319,14 @@ fi
 # ── Install mode ───────────────────────────────────────────────────────────
 report
 
+# CHANGED tracks whether this run actually installed or repaired
+# anything (NIGHT-hunt-21, the double-report fix): the
+# "verify, then trust" re-probe below exists to verify what an
+# install CHANGED — when a satisfied re-run changes nothing, the
+# second report printed the identical two lines the first one
+# already said (the exact duplicate the owner flagged).
+CHANGED=false
+
 # The broken-toolchain branch comes FIRST: a damaged pin is listed
 # (TOOLCHAIN_OK true) and fails the component probe (COMPONENTS_OK
 # false), so the component-add path below would die on rustup's raw
@@ -319,26 +337,34 @@ if [[ "${TOOLCHAIN_BROKEN}" == true ]]; then
 	rustup toolchain uninstall "${EBPF_TOOLCHAIN}"
 	ok "reinstalling nightly ${EBPF_TOOLCHAIN} from scratch (minimal profile, rust-src + rustfmt)..."
 	rustup toolchain install "${EBPF_TOOLCHAIN}" --profile minimal --component rust-src --component rustfmt
+	CHANGED=true
 elif [[ "${TOOLCHAIN_OK}" != true ]]; then
 	ok "installing nightly ${EBPF_TOOLCHAIN} (minimal profile, rust-src + rustfmt)..."
 	rustup toolchain install "${EBPF_TOOLCHAIN}" --profile minimal --component rust-src --component rustfmt
+	CHANGED=true
 elif [[ "${COMPONENTS_OK}" != true ]]; then
 	ok "adding missing components to ${EBPF_TOOLCHAIN}..."
 	rustup component add rust-src rustfmt --toolchain "${EBPF_TOOLCHAIN}"
+	CHANGED=true
 fi
 
 if [[ "${LINKER_OK}" != true ]]; then
 	install_bpf_linker
+	CHANGED=true
 fi
 
 # ── Re-probe: verify what changed, then trust it ──────────────────────────
-probe_all
-report
-if [[ "${TOOLCHAIN_OK}" != true || "${COMPONENTS_OK}" != true ]]; then
-	die "the nightly pin ${EBPF_TOOLCHAIN} is still not fully installed — see the rustup output above (a reinstall that fails midway leaves the pin damaged again; re-running this script repairs it)."
-fi
-if [[ "${LINKER_OK}" != true ]]; then
-	die "bpf-linker is still not resolvable at version ${BPF_LINKER_VERSION} — see the messages above."
+# Only when something changed — an unchanged run keeps its one
+# report (the first probe above already spoke).
+if [[ "${CHANGED}" == true ]]; then
+	probe_all
+	report
+	if [[ "${TOOLCHAIN_OK}" != true || "${COMPONENTS_OK}" != true ]]; then
+		die "the nightly pin ${EBPF_TOOLCHAIN} is still not fully installed — see the rustup output above (a reinstall that fails midway leaves the pin damaged again; re-running this script repairs it)."
+	fi
+	if [[ "${LINKER_OK}" != true ]]; then
+		die "bpf-linker is still not resolvable at version ${BPF_LINKER_VERSION} — see the messages above."
+	fi
 fi
 
 # Functional sanity: the pin must be able to run rustc at all (this is

@@ -791,9 +791,10 @@ dependency compile and then hit the generic prerequisite panic —
 two manual installs (a rustup command plus a bpf-linker tar.zst
 download/extract/place) with no automation. NIGHT-host-1 fixes the
 path: scripts/bootstrap-ebpf.sh reads the dated pin straight from
-ebpf/rust-toolchain.toml (bump the pin, the script follows — only
-the bpf-linker version lives in the script, pin and linker being a
-validated pair), installs the toolchain with the minimal profile +
+ebpf/rust-toolchain.toml and the bpf-linker pin from
+scripts/install-bpf-linker.sh (bump either pin in its own file, the
+script follows — pin and linker being a validated pair), installs
+the toolchain with the minimal profile +
 rust-src + rustfmt, downloads the bpf-linker 0.11.1 prebuilt for
 the host arch into ~/.local/bin (no sudo, no system LLVM), and
 extracts the tar.zst with whichever decompressor the host actually

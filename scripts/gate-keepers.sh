@@ -130,8 +130,12 @@ fi
 header "shellcheck"
 if command -v shellcheck >/dev/null 2>&1; then
 	if [ -n "$SHELL_FILES" ]; then
+		# -x follows `source` targets: shared libs (harness_lib.sh,
+		# NIGHT-hunt-21) are checked in the sourcing scripts' context
+		# too, not only standalone. Directives carry repo-root-relative
+		# paths, and the gate always runs from the repo root.
 		# shellcheck disable=SC2086 # word splitting is intentional for file list
-		if shellcheck ${SHELL_FILES} 2>&1; then
+		if shellcheck -x ${SHELL_FILES} 2>&1; then
 			info "shellcheck: all .sh files pass"
 			PASS=$((PASS + 1))
 		else
