@@ -5,9 +5,21 @@
 #
 # Host bootstrap for the pure-Rust eBPF build (NIGHT-host-1).
 #
-# One command installs the two prerequisites that
-# `cargo build --release --features ebpf` (and the pro-native-gnu /
-# pro-native-musl aliases) need on a host:
+# One command readies the WHOLE host for zelynic's one-click flow
+# (NIGHT-improve-16): the two prerequisites below, the PATH fix that
+# lets future shells (and this script's own build) see bpf-linker,
+# and the flagship binary itself, built with the canonical native
+# alias (cargo pro-native-gnu, lands in target/pro-native-gnu/zelynic).
+# The contract is three commands total, nothing in between:
+#   git clone ... && cd zelynic && ./scripts/bootstrap-ebpf.sh
+#   sudo ./scripts/supermassive-test.sh
+# The build step exists because "bootstrap done" must MEAN ready to
+# test: the 2026-09-21 debian13 run had prerequisites installed but
+# no binary (two failed builds, ~/.local/bin off PATH), so the
+# supermassive harness silently fell through to a stale /usr/bin/
+# zelynic v4.0.0-alpha and filed 12 decoy failures.
+#
+# The two prerequisites:
 #   1. the dated nightly toolchain pinned by ebpf/rust-toolchain.toml
 #      (minimal profile, with the rust-src + rustfmt components)
 #   2. the bpf-linker 0.11.1 prebuilt static-musl binary, installed
@@ -25,7 +37,9 @@
 #
 # Idempotent: re-running skips whatever is already satisfied, and
 # after any install the script re-probes everything it changed
-# (verify, then trust). A listed-but-DAMAGED pin — an interrupted
+# (verify, then trust); the build at the end is incremental, so an
+# up-to-date tree finishes it in seconds. A listed-but-DAMAGED pin —
+# an interrupted
 # install (Ctrl-C, power loss, full disk) leaves the directory
 # registered while its manifests are gone, and every rustup
 # component operation then dies with "missing manifest" — is
@@ -42,10 +56,11 @@
 # in CI logs. The final line reports total wall-clock elapsed.
 #
 # Usage:
-#   ./scripts/bootstrap-ebpf.sh          install whatever is missing
+#   ./scripts/bootstrap-ebpf.sh          install whatever is missing,
+#                                        fix PATH, build the flagship
 #   ./scripts/bootstrap-ebpf.sh --check  report status only, change
 #                                        nothing (exit 1 if something
-#                                        is missing)
+#                                        is missing; never builds)
 
 set -euo pipefail
 
@@ -332,17 +347,47 @@ RUSTC_VERSION_REPORTED="$(rustup run "${EBPF_TOOLCHAIN}" rustc --version 2>/dev/
 [[ "${RUSTC_VERSION_REPORTED}" != "unknown" ]] || die "rustup run ${EBPF_TOOLCHAIN} rustc --version failed — the toolchain is listed but broken."
 ok "sanity: ${RUSTC_VERSION_REPORTED}"
 
-# ── PATH visibility warning ────────────────────────────────────────────────
-# bpf-linker lives in ~/.local/bin; if that directory is not on PATH,
-# cargo will not find it even though it is installed (the exact trap
-# the build.rs preflight now catches at build time).
-case ":${PATH}:" in
-*":${LOCAL_BIN}:"*) ;;
-*)
-	warn "${LOCAL_BIN} is not on PATH — add it (e.g. export PATH=\"\${HOME}/.local/bin:\$PATH\" in ~/.profile), or cargo cannot see bpf-linker."
-	;;
-esac
+# ── PATH: persist for future shells, fix for this session ─────────────────
+# bpf-linker lives in ~/.local/bin; cargo needs it on PATH at build
+# time. The 2026-09-21 debian13 run hit exactly this: prerequisites
+# installed, PATH missing ~/.local/bin, two failed builds, a pointless
+# cargo clean — and still no binary at the end. The fix is now an
+# ACTION, not a warning (NIGHT-improve-16): persist for bash login
+# shells (~/.profile, idempotent), tell fish/zsh users the exact line
+# (their shells never read ~/.profile), and fix this session's PATH
+# regardless — the build below must not depend on the shell the user
+# happened to invoke.
+if [[ ":${PATH}:" != *":${LOCAL_BIN}:"* ]]; then
+	if grep -q '\.local/bin' "${HOME}/.profile" 2>/dev/null; then
+		ok "${HOME}/.profile already references ${LOCAL_BIN} — future login shells see bpf-linker."
+	else
+		printf '\n# added by zelynic scripts/bootstrap-ebpf.sh — bpf-linker lives here\nexport PATH="$HOME/.local/bin:$PATH"\n' >> "${HOME}/.profile"
+		ok "persisted 'export PATH=\"$HOME/.local/bin:$PATH\"' to ${HOME}/.profile (bash login shells)"
+		warn "fish/zsh login shells do not read ~/.profile — add that export line to your shell config yourself."
+	fi
+fi
+CARGO_BIN="${HOME}/.cargo/bin"
+[[ ":${PATH}:" == *":${CARGO_BIN}:"* ]] || PATH="${CARGO_BIN}:${PATH}"
+[[ ":${PATH}:" == *":${LOCAL_BIN}:"* ]] || PATH="${LOCAL_BIN}:${PATH}"
+export PATH
+command -v cargo >/dev/null 2>&1 || die "cargo is not on PATH (looked for ${CARGO_BIN}) — is rustup installed for this user?"
+
+# ── the flagship build (NIGHT-improve-16: bootstrap ends READY) ────────────
+# "bootstrap done" must mean "supermassive can run now". The canonical
+# native alias builds the full flagship binary with --features ebpf;
+# re-running is cheap (cargo is incremental, an up-to-date tree
+# finishes in seconds). build.rs preflights the nightly pin and
+# bpf-linker BEFORE any compile time is spent, so a prerequisite
+# regression dies with its one-command fix, not a raw link error.
+ok "building the flagship binary (cargo pro-native-gnu — first build ~1-3 min)..."
+if ! (cd "${REPO_ROOT}" && cargo pro-native-gnu); then
+	die "cargo pro-native-gnu failed — the prerequisites above are verified, so read the compiler output above it; this is a real compile error."
+fi
+BUILT_BIN="${REPO_ROOT}/target/pro-native-gnu/zelynic"
+[[ -x "${BUILT_BIN}" ]] || die "cargo reported success but ${BUILT_BIN} is missing — inspect the cargo output above."
+ok "flagship binary: $("${BUILT_BIN}" -V 2>/dev/null | head -n 1)"
 
 ok "all eBPF build prerequisites are satisfied."
 ok "bootstrap finished in ${SECONDS}s"
-ok "next: cargo build --release --features ebpf   (or: cargo pro-native-gnu)"
+ok "next: sudo ./scripts/supermassive-test.sh         # light (~2 min)"
+ok "      sudo ./scripts/supermassive-test.sh --heavy # supermassive (5+ min)"

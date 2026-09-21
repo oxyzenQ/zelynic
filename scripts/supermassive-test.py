@@ -83,6 +83,8 @@ What it verifies (verdicts PASS / FAIL / SKIP, exit 1 on any FAIL):
 """
 
 import argparse
+import contextlib
+import io
 import json
 import os
 import shutil
@@ -1474,6 +1476,83 @@ def self_test():
             for r in floor_pins
         ),
     )
+
+    # NIGHT-improve-16 pins: the resolve GATE. The 2026-09-21 debian13
+    # run tested a stale /usr/bin/zelynic v4.0.0-alpha (the repo build
+    # had never succeeded there) and filed 12 decoy failures — the
+    # banner SHOWED the version, nothing enforced it. These rows pin
+    # the gate rootlessly with STUB binaries: token parsing (both -V
+    # header shapes the wild has shown), the repo-anchored candidate
+    # list (absolute, musl alias included), and the accept/reject
+    # decision end-to-end through the real resolve_binary.
+    token_pins = (
+        ("zelynic: v11.0.0-dev.1", "11.0.0-dev.1"),   # current header shape
+        ("Version: v4.0.0-alpha", "4.0.0-alpha"),     # legacy distro install
+        ("zelynic: v99.0.0-x.7+meta", "99.0.0-x.7+meta"),
+        ("no version in this line", None),
+    )
+    ok_tokens = all(lib.version_token(s) == w for s, w in token_pins)
+    record(
+        "engine: version token parses both -V header shapes",
+        "PASS" if ok_tokens else "FAIL",
+        "; ".join(f"{s!r} -> {lib.version_token(s)}" for s, _ in token_pins),
+    )
+
+    ok_candidates = (
+        all(
+            os.path.isabs(c) and c.startswith(lib.REPO_ROOT + os.sep)
+            for c in lib.REPO_BINARY_CANDIDATES
+        )
+        and any("pro-native-musl" in c for c in lib.REPO_BINARY_CANDIDATES)
+    )
+    record(
+        "engine: binary candidates repo-anchored (gnu, musl, release)",
+        "PASS" if ok_candidates else "FAIL",
+        f"{len(lib.REPO_BINARY_CANDIDATES)} absolute candidates under {lib.REPO_ROOT}",
+    )
+
+    want = lib.repo_version()
+    if want is None:
+        record(
+            "engine: version gate accepts matching, rejects foreign builds",
+            "FAIL",
+            f"repo_version() could not read {lib.REPO_ROOT}/Cargo.toml [package] version",
+        )
+    else:
+        old_binary = lib.BINARY
+        stub_dir = tempfile.mkdtemp(prefix="zelynic-supermassive-gate-")
+        try:
+
+            def _stub(name, header):
+                path = os.path.join(stub_dir, name)
+                with open(path, "w", encoding="utf-8") as f:
+                    f.write(f"#!/bin/sh\necho '{header}'\n")
+                os.chmod(path, 0o755)
+                return path
+
+            right = _stub("matching", f"zelynic: v{want}")
+            wrong = _stub("v4-distro", "Version: v4.0.0-alpha")
+            verdicts = {}
+            headlines = {}
+            for label, path in (("accept", right), ("reject", wrong)):
+                captured = io.StringIO()
+                with contextlib.redirect_stdout(captured):
+                    verdicts[label] = lib.resolve_binary(path, "self-test")
+                headlines[label] = captured.getvalue()
+            ok_gate = (
+                verdicts["accept"] is True
+                and verdicts["reject"] is False
+                and "BINARY GATE" in headlines["reject"]
+                and f"v{want}" in headlines["reject"]
+            )
+            record(
+                "engine: version gate accepts matching, rejects foreign builds",
+                "PASS" if ok_gate else "FAIL",
+                f"checkout v{want}: matching stub accepted, v4.0.0-alpha distro stub rejected",
+            )
+        finally:
+            lib.BINARY = old_binary
+            shutil.rmtree(stub_dir, ignore_errors=True)
 
     def agree(name, client_bytes, server_bytes):
         ratio = client_bytes / server_bytes if server_bytes else 0.0

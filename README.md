@@ -114,20 +114,24 @@ SHAKE256). Verify before installing — the one-liners live in
 ### Install from source
 
 Building needs the pinned Rust toolchain (rustup installs the exact
-version from `rust-toolchain.toml`) plus the eBPF nightly pair —
-both land in one command:
+version from `rust-toolchain.toml`) plus the eBPF nightly pair — and
+one command readies the whole host: the prerequisites, the PATH fix,
+and the flagship binary itself (NIGHT-improve-16):
 
 ```bash
 git clone https://github.com/oxyzenQ/zelynic.git
 cd zelynic
 
-# One-time host setup: the dated nightly pin from
+# One-time host setup, COMPLETE: the dated nightly pin from
 # ebpf/rust-toolchain.toml + the bpf-linker 0.11.1 prebuilt into
-# ~/.local/bin (no sudo, no system LLVM):
+# ~/.local/bin (no sudo, no system LLVM) + the PATH fix persisted
+# to ~/.profile + the flagship build — bootstrap ends ready to test:
 ./scripts/bootstrap-ebpf.sh
+# (binary lands in target/pro-native-gnu/zelynic)
 
-# One command — the BPF objects are built pure-Rust (aya-ebpf, the
-# nested nightly build in build.rs) and embedded into the binary:
+# Plain release-profile build (the manual alternative — the BPF
+# objects are built pure-Rust, aya-ebpf nested nightly build in
+# build.rs, and embedded into the binary):
 cargo build --release --features ebpf
 ```
 
@@ -405,6 +409,12 @@ sudo ./scripts/supermassive-test.sh                # light (~2 min)
 sudo ./scripts/supermassive-test.sh --heavy        # supermassive (5+ min)
 ./scripts/supermassive-test.sh --self-test          # engine smoke, no root
 ```
+
+The harness always tests the checkout's own build: repo target
+outputs resolve first (newest build wins), and a version GATE
+refuses any binary whose `-V` doesn't match the checkout's
+Cargo.toml — a stale distro install can never masquerade as the
+build under test (NIGHT-improve-16).
 
 ## Release Verification
 

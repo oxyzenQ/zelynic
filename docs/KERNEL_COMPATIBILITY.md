@@ -123,7 +123,9 @@ stat -fc %T /sys/fs/cgroup
 The BPF objects build inside the binary now (NIGHT-improve-1 phase
 3); the build.rs preflight (NIGHT-host-1) names the exact missing
 prerequisite before any compile time is spent. One command fixes
-both:
+both — and finishes the whole host setup by also building the
+flagship binary (NIGHT-improve-16), so the next command is the
+test, not a build:
 ```bash
 ./scripts/bootstrap-ebpf.sh
 ```
