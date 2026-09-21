@@ -42,6 +42,22 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Changed
 
+- **supermassive-test: ladder rungs near the ceiling are measured as
+  a 6-flow aggregate (NIGHT-improve-14)** — the heavy 1gb rung failed
+  at 55.7% of configured on the 2026-09-21 nightpc run, but not from
+  an enforcement miss: default_burst clamps at 100 MB, which at 100mb
+  banks a full SECOND of tokens but at 1gb only 0.1 s, so every
+  post-drop cwnd recovery dips below the refill rate and a single TCP
+  flow through the dropper settles near half the configured rate
+  without ever exceeding the cap — the kernel-drops and byte-
+  accounting rows both PASSed on the same rung. Rungs at or above
+  500 MB/s now run six concurrent python workers per window (the
+  same one-worker-per-stream contract as curl burst and strict-multi)
+  and the AGGREGATE carries the band verdict — staggered AIMD dips
+  let it track the refill rate, restoring the row's meaning on any
+  host whose baseline can feed the rung. Lower rungs keep the
+  single-flow instrument.
+
 - **docs: the cross-*.md duplicate-info sweep — every fact told
   once, in its canonical home (NIGHT-docs-8)** — the owner read the
   README and found usage info told twice and more: sections
@@ -241,6 +257,25 @@ alone — the owner's NIGHT-hunt-18 call.
   still quits (NIGHT-hunt-16 contract unchanged).
 
 ### Fixed
+
+- **limiter: blocked packets are now BOOKED into the stats map —
+  block-* no longer kills every packet while reporting "0 packets
+  dropped" (NIGHT-improve-14)** — the schema-v3 rate-0 verdict
+  returned the drop BEFORE the stats lookup ever ran, so
+  cgroup_limiter_stats stayed empty under block-single and
+  block-multi: enforcement was total (zero goodput, the SYN never
+  completes) yet completely invisible — `zelynic rates` and the
+  supermassive "kernel drops engaged" proof both read zero. That row
+  was the only light-mode failure and one of heavy's three on the
+  2026-09-21 nightpc run (35P/1F light, 55P/3F heavy) after the
+  improve-13 worker fixes landed. The block branch now runs the same
+  packets_dropped/bytes_dropped accounting the enforce() drop branch
+  keeps. BPF schema bumped v4 -> v5: the verdict is unchanged, but
+  attach() reuses pinned programs while the pinned schema_version
+  matches, so a live v4 pin would keep running the unbooked block
+  path until unstrict — the bump forces the one-time reload (active
+  limits are dropped once and re-applied, the same upgrade contract
+  as the v3 -> v4 bump).
 
 - **supermassive-test: the python worker clients were embedded in
   non-raw strings, so every root-mode rate row measured 0 B/s and the

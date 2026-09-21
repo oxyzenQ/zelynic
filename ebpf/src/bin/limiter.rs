@@ -114,13 +114,16 @@ const MAX_ENFORCABLE_BURST: u64 = u64::MAX / (2 * NS_PER_SEC);
 /// src/ebpf/limiter/types.rs (v3: rate_bps == 0 drops instead of
 /// allowing; v4: enforcement-boundary sanitization — burst and
 /// tokens are clamped before any refill math so no stored map value
-/// can overflow the kernel arithmetic. No layout change; the bump
-/// forces pinned v3 programs to reload into the hardened object).
+/// can overflow the kernel arithmetic; v5: the rate-0 block verdict
+/// books its drops into cgroup_limiter_stats — verdict unchanged, but
+/// pinned v4 programs must reload or blocked traffic keeps dying
+/// with an empty drop counter). No layout change in v4/v5; each bump
+/// forces pinned older programs to reload into the hardened object.
 /// The BPF program never writes it — userspace stamps
 /// the pinned map after load — so the constant exists purely as the
 /// parity anchor for that three-way contract.
 #[allow(dead_code)]
-const SCHEMA_VERSION: u32 = 4;
+const SCHEMA_VERSION: u32 = 5;
 
 // ---------------------------------------------------------------------------
 // Maps. The static names ARE the userspace contract (limiter/mod.rs
@@ -384,7 +387,21 @@ fn try_enforce(
 
     // rate_bps == 0 means BLOCKED (drop all packets). Used by the
     // block-single command. Schema v3: changed from allow to drop.
+    // Schema v5 (NIGHT-improve-14): the drop is BOOKED here, the
+    // same packets_dropped/bytes_dropped accounting the enforce()
+    // drop branch keeps. The pre-v5 verdict returned before the
+    // stats lookup ever ran, so cgroup_limiter_stats stayed empty
+    // under block-* — enforcement was total (zero goodput) yet
+    // invisible: `zelynic rates` and the supermassive "kernel drops
+    // engaged" proof both read "0 packets dropped" (the only light
+    // failure on the 2026-09-21 nightpc run). An unbooked drop is
+    // invisible enforcement.
     if pol.rate_bps == 0 {
+        let stats = get_stats_ptr(&cgroup_id).map(|ptr| unsafe { &mut *ptr });
+        if let Some(s) = stats {
+            s.packets_dropped += 1;
+            s.bytes_dropped += u64::from(pkt_len);
+        }
         return 0;
     }
 
