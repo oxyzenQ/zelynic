@@ -174,21 +174,27 @@ jobs:
           VERSION=${GITHUB_REF_NAME#v}
 
           # --- GNU (glibc) tarball ---
+          # Flat archive layout: files at archive root (the 2026-09-22
+          # owner directive, the cosmostrix release invariant): the
+          # tarball carries ONLY zelynic + LICENSE + README.md. The
+          # eBPF objects are EMBEDDED in the binary, so there is
+          # nothing else to ship; the scripts and installers stay in
+          # the repo checkout where they belong. Do NOT add nesting
+          # or files — the tripwire below records the three entries.
           PKG_GNU="zelynic-v${VERSION}-linux-amd64-gnu"
-          mkdir -p "dist/${PKG_GNU}/scripts"
-          cp target/x86_64-unknown-linux-gnu/release/zelynic "dist/${PKG_GNU}/zelynic"
-          chmod +x "dist/${PKG_GNU}/zelynic"
-          cp README.md LICENSE "dist/${PKG_GNU}/"
-          cp scripts/install.sh scripts/uninstall.sh "dist/${PKG_GNU}/"
-          chmod +x "dist/${PKG_GNU}/install.sh" "dist/${PKG_GNU}/uninstall.sh"
-          cp scripts/distros-depth-test.sh scripts/leak-test.sh \
-             scripts/supermassive-test.sh scripts/supermassive-test.py \
-             scripts/benchmarking.sh scripts/benchmarking.py \
-             scripts/race-condition-test.sh scripts/reload-test.sh \
-             scripts/crash-recovery-test.sh scripts/limiter-depth-test.sh \
-             scripts/limiter-depth-test.py "dist/${PKG_GNU}/scripts/"
-          chmod +x "dist/${PKG_GNU}/scripts/"*.sh "dist/${PKG_GNU}/scripts/"*.py
-          cd dist && tar -czf "${PKG_GNU}.tar.gz" "${PKG_GNU}"
+          STAGE_GNU="dist/stage-gnu"
+          mkdir -p "${STAGE_GNU}"
+          cp target/x86_64-unknown-linux-gnu/release/zelynic "${STAGE_GNU}/"
+          chmod +x "${STAGE_GNU}/zelynic"
+          cp README.md LICENSE "${STAGE_GNU}/"
+          tar -czf "dist/${PKG_GNU}.tar.gz" -C "${STAGE_GNU}" zelynic LICENSE README.md
+          ACTUAL_GNU=$(tar -tzf "dist/${PKG_GNU}.tar.gz" | sort | tr '\n' ' ')
+          if [ "${ACTUAL_GNU}" != "LICENSE README.md zelynic " ]; then
+            echo "GNU tarball invariant violated: ${ACTUAL_GNU}"
+            exit 1
+          fi
+          rm -rf "${STAGE_GNU}"
+          cd dist
           # Checksums: SHA-512 (classical) + BLAKE2b-512 + SHAKE256 (quantum-resistant)
           sha512sum "${PKG_GNU}.tar.gz" > "${PKG_GNU}.tar.gz.sha512sum"
           b2sum "${PKG_GNU}.tar.gz" > "${PKG_GNU}.tar.gz.b2sum"
@@ -199,24 +205,24 @@ jobs:
           h = hashlib.shake_256(data).hexdigest(64)
           print(f'{h}  ${PKG_GNU}.tar.gz')
           " > "${PKG_GNU}.tar.gz.shake256"
-          rm -rf "${PKG_GNU}" && cd ..
+          cd ..
 
           # --- MUSL (static, for old glibc) tarball ---
+          # Same flat three-file invariant as the GNU tarball.
           PKG_MUSL="zelynic-v${VERSION}-linux-amd64-musl"
-          mkdir -p "dist/${PKG_MUSL}/scripts"
-          cp target/x86_64-unknown-linux-musl/release/zelynic "dist/${PKG_MUSL}/zelynic"
-          chmod +x "dist/${PKG_MUSL}/zelynic"
-          cp README.md LICENSE "dist/${PKG_MUSL}/"
-          cp scripts/install.sh scripts/uninstall.sh "dist/${PKG_MUSL}/"
-          chmod +x "dist/${PKG_MUSL}/install.sh" "dist/${PKG_MUSL}/uninstall.sh"
-          cp scripts/distros-depth-test.sh scripts/leak-test.sh \
-             scripts/supermassive-test.sh scripts/supermassive-test.py \
-             scripts/benchmarking.sh scripts/benchmarking.py \
-             scripts/race-condition-test.sh scripts/reload-test.sh \
-             scripts/crash-recovery-test.sh scripts/limiter-depth-test.sh \
-             scripts/limiter-depth-test.py "dist/${PKG_MUSL}/scripts/"
-          chmod +x "dist/${PKG_MUSL}/scripts/"*.sh "dist/${PKG_MUSL}/scripts/"*.py
-          cd dist && tar -czf "${PKG_MUSL}.tar.gz" "${PKG_MUSL}"
+          STAGE_MUSL="dist/stage-musl"
+          mkdir -p "${STAGE_MUSL}"
+          cp target/x86_64-unknown-linux-musl/release/zelynic "${STAGE_MUSL}/"
+          chmod +x "${STAGE_MUSL}/zelynic"
+          cp README.md LICENSE "${STAGE_MUSL}/"
+          tar -czf "dist/${PKG_MUSL}.tar.gz" -C "${STAGE_MUSL}" zelynic LICENSE README.md
+          ACTUAL_MUSL=$(tar -tzf "dist/${PKG_MUSL}.tar.gz" | sort | tr '\n' ' ')
+          if [ "${ACTUAL_MUSL}" != "LICENSE README.md zelynic " ]; then
+            echo "MUSL tarball invariant violated: ${ACTUAL_MUSL}"
+            exit 1
+          fi
+          rm -rf "${STAGE_MUSL}"
+          cd dist
           # Checksums: SHA-512 (classical) + BLAKE2b-512 + SHAKE256 (quantum-resistant)
           sha512sum "${PKG_MUSL}.tar.gz" > "${PKG_MUSL}.tar.gz.sha512sum"
           b2sum "${PKG_MUSL}.tar.gz" > "${PKG_MUSL}.tar.gz.b2sum"
@@ -227,7 +233,7 @@ jobs:
           h = hashlib.shake_256(data).hexdigest(64)
           print(f'{h}  ${PKG_MUSL}.tar.gz')
           " > "${PKG_MUSL}.tar.gz.shake256"
-          rm -rf "${PKG_MUSL}" && cd ..
+          cd ..
 
           echo ""
           echo "=== Release artifacts ==="
