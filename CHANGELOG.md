@@ -16,6 +16,41 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Added
 
+- **harness: NIGHT-improve-12 — the supermassive stress now drives
+  every limiter rate function: per-direction buckets, rate guards,
+  and the dangerous-target blocklist** — the rocket-engine audit of
+  the flagship harness asked one question per limiter function: is
+  there a stage that makes THIS function run to depth and pass?
+  Three families had no stage at all. New stages (both light and
+  heavy): (1) download-only (-d 500kb) — the -u twin had a stage
+  since the beginning, the -d flag never did: download bucket
+  enforced in band, upload direction carries no policy row, kernel
+  drop proof; (2) asymmetric -d 100kb -u 1mb — the exact flagship
+  example printed in --help (`-d 1mb -u 500kb`) never had a test:
+  both per-direction buckets measured in their own independent
+  bands under ONE policy, status row pinned at 100000/1000000
+  (no accounting row by design — the single status row's
+  bytes_allowed spans both buckets, so the two band verdicts plus
+  the drop proof carry the stage); (3) the rate-guard stage — five
+  functions the CLI documents but nothing exercised: MIN_RATE
+  refusal (999 -> "below minimum"), MAX_RATE refusal (2tb ->
+  "above maximum"), the near-miss typo rescue (1MB -> tip suggests
+  '1mb'), the dangerous-target blocklist (strict-single systemd
+  1mb refused as "system process" without --force; the forced
+  variant is deliberately NOT applied — it would limit the live
+  machine's actual systemd, which is what the guard exists to
+  stop), the plain-number parser branch (1000000 round-trips at
+  full value through the status JSON), and the --allow-dangerous
+  override (500 B/s applies with the warning, row 500/500). All
+  refusals are fail-fast (argument validation fires before any
+  privilege or BPF work). The rootless engine self-test gains the
+  ladder-bounds pin (15 rows now): all 14 ladder rungs must sit
+  inside the parser's MIN_RATE 1000 .. MAX_RATE 1e12 span, so a
+  bounds drift is named in CI before a root run fails stage after
+  stage for it. Engine self-test: 15/15 green locally; the new live
+  stages run on the owner's root machine on the next
+  supermassive-test invocation.
+
 - **ci/build: NIGHT-improve-11 audit — release builds now --locked,
   ebpf-build gets a cache, the bpf-linker pin lives in one place**
   — the peak-stable pass over every workflow, .gitignore, and

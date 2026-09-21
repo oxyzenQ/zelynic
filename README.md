@@ -401,8 +401,10 @@ sudo ./scripts/limiter-depth-test.sh --quick  # fast pass (~45s)
 
 Want to supermassive-test the whole command surface — single/multi targets,
 strict/block/unstrict, curl burst download + upload, the full rate range
-1kb to 1tb (skipping rungs the hardware cannot feed)? One click
-(NIGHT-master-2):
+1kb to 1tb (skipping rungs the hardware cannot feed), every rate-guard
+function (bounds, typo tip, dangerous blocklist, plain-number,
+--allow-dangerous override), and both per-direction buckets
+(-d / -u / asymmetric -d+-u)? One click (NIGHT-master-2):
 
 ```bash
 sudo ./scripts/supermassive-test.sh                # light (~2 min)
