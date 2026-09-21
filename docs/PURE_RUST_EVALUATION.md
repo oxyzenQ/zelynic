@@ -642,7 +642,8 @@ Object properties:
 
 ### Render-path A/B (owner benchmark protocol)
 
-10 s formal frame-bench at the pinned 80x40 harness geometry, A =
+10 s formal frame-bench at the pinned 80x40 harness geometry (same
+protocol as the port A/B above), A =
 392ee80 (pre-port, in a throwaway worktree), B = 9562cf6 (the
 branch tip after the three phase-2 commits; its src/ tree is
 byte-identical to the port commit's):

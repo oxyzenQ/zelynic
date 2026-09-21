@@ -14,15 +14,12 @@
 > Re-validation on the phase-3 tarballs belongs to the next release
 > cycle.
 
-> Future runs (NIGHT-master-1): `scripts/limiter-depth-test.sh` is the
-> flagship harness for exactly that re-validation — self-contained
-> loopback traffic (no external speedtest server), a dedicated test
-> cgroup so only test traffic is policed, measured rate accuracy at
-> 100kb/1mb/10mb plus upload, kernel-drop proof and BPF-accounting
-> cross-checks from `status --print-json`, a sustained drift guard,
-> reload cycles, and full residue checks. Run it on any new distro
-> (`sudo ./scripts/limiter-depth-test.sh --json`) and file the
-> measured ratios in this document.
+> Future runs (NIGHT-master-1 / NIGHT-master-2): the two flagship
+> harnesses — `limiter-depth-test.sh` (limiter accuracy) and
+> `supermassive-test.sh` (whole command surface) — are the
+> re-validation tools. Run them on any new distro (commands are in the
+> README's Test Results section; `--json` for machine-readable output)
+> and file the measured ratios in this document.
 
 ## Summary
 

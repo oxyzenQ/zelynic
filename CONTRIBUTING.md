@@ -11,28 +11,20 @@ the build process, project structure, and coding standards.
 - Rust 1.98+ (pinned to a concrete version in `rust-toolchain.toml`)
 - The eBPF nightly pin + bpf-linker 0.11.1 — one-time, one command:
   `./scripts/bootstrap-ebpf.sh` (idempotent, and it self-repairs a
-  damaged toolchain install; `--check` reports status only). The BPF
-  side is pure Rust and compiles on the dated
-  nightly pinned in `ebpf/rust-toolchain.toml`
-- Linux kernel 5.13+ (cgroup v2 + bpf_link; hard floor 5.8 — see
-  docs/KERNEL_COMPATIBILITY.md)
+  damaged toolchain install; `--check` reports status only)
+- A kernel that can run zelynic — the requirement line and the full
+  compatibility matrix live once in
+  [docs/KERNEL_COMPATIBILITY.md](docs/KERNEL_COMPATIBILITY.md)
 
 ## Build
 
-```bash
-# One command — the pure-Rust eBPF objects (aya-ebpf) are built by
-# build.rs's nested nightly build and embedded into the binary:
-cargo build --release --features ebpf
-
-# Native-CPU host builds (cosmostrix pro-native lineage; see README
-# "Native-CPU host builds" for the full contract). The alias-injected
-# `-C target-cpu=native` tunes the HOST binary only — build.rs strips
-# it (and any other host-CPU/linker rustflags) from the nested eBPF
-# build's environment, so a bpfel object never sees a host CPU name
-# (NIGHT-hunt-28).
-cargo pro-native-gnu    # host CPU, dynamic (glibc)
-cargo pro-native-musl   # host CPU, static (musl)
-```
+The build commands (plain release and the pro-native host aliases)
+live once in the README — [Install from source](README.md#install-from-source)
+and [Native-CPU host builds](README.md#native-cpu-host-builds) — the
+same commands apply for contributors. One contributor-specific note:
+the alias-injected `-C target-cpu=native` tunes the HOST binary only
+(build.rs strips it from the nested eBPF build, NIGHT-hunt-28), so
+bpfel objects stay identical no matter which alias built them.
 
 ## Project Structure
 
@@ -185,7 +177,10 @@ check (inject-disclaimer.sh). Missing tools are skipped with a warning.
 
 ## Branch Strategy
 
-- `main` — pure eBPF v11.x (Dragon Architecture). Maintenance mode.
+The branch table lives once in the
+[README](README.md#branches) — `main`, pure eBPF v11.x, maintenance
+mode (branch history and the retired `intergalaxion` note are in
+[docs/DRAGON_ARCHITECTURE.md](docs/DRAGON_ARCHITECTURE.md)).
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.
