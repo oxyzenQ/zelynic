@@ -1,0 +1,106 @@
+# Copyright (C) 2026 rezky_nightky
+# SPDX-License-Identifier: GPL-3.0-only
+#
+# Gate-keepers — the one wholesale gate workflow (NIGHT-hunt-23 class
+# closure, NIGHT-improve-13 split from ci.yml to mirror the cosmostrix
+# CI lineage: ci.yml carries the path-filtered build/test jobs, this
+# workflow runs scripts/gate-keepers.sh wholesale on EVERY push and
+# PR with NO paths filter — a docs-only or workflow-only change never
+# skips the gates that police it).
+#
+# Checks performed by gate-keepers.sh (15 numbered sections; the
+# shell triad's three sub-checks count separately, so the summary
+# line prints 17 gates):
+#   1.  Shell triad    - bash -n + shellcheck + shfmt -d on all .sh files
+#   2.  yamllint       - .github YAML (repo .yamllint config)
+#   3.  actionlint    - GitHub Actions workflow validation
+#   4.  TOML syntax    - python3 tomllib on all .toml files
+#   5.  codespell      - spelling across all text files (repo .codespellrc)
+#   6.  SPDX headers   - dual-line contract across rs/py/sh/toml/yml/md
+#   7.  Permissions    - tracked files 644, executables + dirs 755,
+#                        shebang parity
+#   8.  Emoji sweep    - repo-wide, owner rule
+#   9.  LOC guard      - .rs files <= 500 lines (// LOC_EXEMPT markers)
+#  10.  Rust version   - toolchain pin / MSRV / CI env in sync
+#  11.  Disclaimer     - all .md files carry the stale-data warning
+#  12.  ebpf rustfmt   - the pure-Rust eBPF crate (nightly pin)
+#  13.  Test-tree      - every .rs test file under the single test/ tree
+#  14.  Language       - English-only discipline (check-language.sh)
+#  15.  Python lint    - ruff check + format --check (scripts/ tree,
+#                        explicit .ruff.toml rule set)
+#
+# Every tool above is installed below, pinned — a check that silently
+# skips because its tool is missing is a check that does not exist
+# (the pre-split incident: shellcheck had never executed anywhere
+# until the wholesale job's first local preflight).
+
+name: Gate-keepers
+
+'on':
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+jobs:
+  gatekeepers:
+    name: Gate-keepers (wholesale)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5, NIGHT-hunt-20 SHA pin
+
+      # Tool pins make findings meaningful: a red wholesale run means
+      # the tree drifted, never that a linter released overnight.
+      - name: Install shellcheck (pinned v0.10.0)
+        run: |
+          curl -sL -o /tmp/shellcheck.tar.xz \
+            https://github.com/koalaman/shellcheck/releases/download/v0.10.0/shellcheck-v0.10.0.linux.x86_64.tar.xz
+          tar -xf /tmp/shellcheck.tar.xz -C /tmp
+          sudo install -m755 /tmp/shellcheck-v0.10.0/shellcheck /usr/local/bin/shellcheck
+          shellcheck --version | head -2
+
+      - name: Install shfmt (pinned v3.10.0)
+        run: |
+          curl -sSfL -o /tmp/shfmt \
+            https://github.com/mvdan/sh/releases/download/v3.10.0/shfmt_v3.10.0_linux_amd64
+          sudo install -m755 /tmp/shfmt /usr/local/bin/shfmt
+          shfmt --version
+
+      - name: Install yamllint, codespell, actionlint, ruff (pinned)
+        run: |
+          python3 -m pip install --user yamllint==1.38.0 codespell==2.4.3 ruff==0.16.8
+          curl -sL -o /tmp/actionlint.tgz \
+            https://github.com/rhysd/actionlint/releases/download/v1.7.7/actionlint_1.7.7_linux_amd64.tar.gz
+          tar -xzf /tmp/actionlint.tgz -C /tmp actionlint
+          sudo install -m755 /tmp/actionlint /usr/local/bin/actionlint
+          yamllint --version
+          codespell --version
+          actionlint --version
+          ruff --version
+
+      # Gate section 12 (ebpf rustfmt) resolves the dated nightly pin
+      # from ebpf/rust-toolchain.toml; installing the same pin up front
+      # keeps the wholesale run off the rustup auto-install path (exact
+      # parity with the ebpf-build job's toolchain step).
+      - name: Install eBPF nightly toolchain (dated pin)
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # @stable, NIGHT-hunt-20 SHA pin
+        with:
+          toolchain: nightly-2026-09-18
+          components: rust-src, rustfmt
+
+      # The wholesale run: all 17 sections in one shot — exit code 0
+      # or the push is blocked.
+      - name: Run gate-keepers.sh (wholesale)
+        run: bash scripts/gate-keepers.sh

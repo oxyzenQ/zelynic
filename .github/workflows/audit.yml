@@ -25,6 +25,9 @@ jobs:
     # move the build environment (actions/runner-images#14748); OS
     # upgrades here are deliberate, matrix-tested changes.
     runs-on: ubuntu-24.04
+    # NIGHT-improve-13 (cosmostrix stability): every job carries an
+    # explicit ceiling — a runaway job burns runner minutes silently.
+    timeout-minutes: 15
     continue-on-error: true
     steps:
       - name: Checkout repository

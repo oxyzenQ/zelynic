@@ -50,6 +50,13 @@
 #       NON_LATIN_FIXTURE-marked coverage files plus an Indonesian
 #       vocabulary detector; the repo is English-only, the sibling of
 #       the emoji sweep for everything that sweep cannot see)
+#  15.  Python lint + format (ruff, NIGHT-improve-13 — cosmostrix
+#       gate parity for the scripts/ tree: ruff check (explicit
+#       rule set E4/E7/E9/F/I, .ruff.toml) + ruff format --check
+#       (line-length 100, the scripts/ house style); --fix runs
+#       ruff check --fix + ruff format. The EXE001 shebang parity
+#       cosmostrix checks here is already owned by section 7, the
+#       permission guard — one contract, one place)
 #
 # Missing tools are skipped with a warning so the gate stays usable
 # on minimal development machines; CI runs this script WHOLESALE
@@ -483,6 +490,58 @@ if [ -f scripts/check-language.sh ]; then
 	fi
 else
 	warn "check-language.sh not found — skipping"
+fi
+
+# ── 15. Python lint + format (ruff, NIGHT-improve-13) ─────────────────────
+# cosmostrix gate parity ("lint python"): the scripts/ tree (six
+# python harnesses + helpers) gets the same lint+format gate the
+# shell tree has had since the beginning. Rule set and line-length
+# live in .ruff.toml — an EXPLICIT select (E4/E7/E9/F/I), never
+# ruff's implicit defaults (those expand between releases; pinned
+# findings only, the NIGHT-hunt-20 tool philosophy). The EXE001
+# shebang/executable parity cosmostrix checks in its ruff section is
+# deliberately NOT repeated here: section 7, the permission guard,
+# already owns that contract repo-wide.
+header "Python lint + format (ruff)"
+PY_FILES=$(find scripts -name '*.py' -not -path '*/target/*' 2>/dev/null)
+if [ -n "$PY_FILES" ]; then
+	if command -v ruff >/dev/null 2>&1; then
+		RUFF_OK=0
+		# shellcheck disable=SC2086 # word splitting is intentional for file list
+		if ! ruff check ${PY_FILES} 2>&1; then
+			if $FIX_MODE; then
+				# shellcheck disable=SC2086 # word splitting is intentional for file list
+				if ruff check --fix ${PY_FILES} 2>&1; then
+					info "ruff check: auto-fixed (review git diff)"
+				else
+					fail "ruff check: unfixable python lint errors remain (fix manually)"
+					RUFF_OK=1
+				fi
+			else
+				fail "ruff check: python lint errors found (auto-fixable via --fix)"
+				RUFF_OK=1
+			fi
+		fi
+		if $FIX_MODE; then
+			# shellcheck disable=SC2086 # word splitting is intentional for file list
+			ruff format ${PY_FILES} 2>&1
+		else
+			# shellcheck disable=SC2086 # word splitting is intentional for file list
+			if ! ruff format --check ${PY_FILES} 2>&1; then
+				fail "ruff format: python files not formatted (auto-fixable via --fix)"
+				RUFF_OK=1
+			fi
+		fi
+		if [ "$RUFF_OK" -eq 0 ]; then
+			info "ruff: all python files lint-clean and formatted (.ruff.toml contract)"
+			PASS=$((PASS + 1))
+		fi
+	else
+		warn "ruff not installed — skipping (pip install ruff, or fetch the static binary from https://github.com/astral-sh/ruff/releases)"
+	fi
+else
+	info "ruff: no .py files found"
+	PASS=$((PASS + 1))
 fi
 
 # ── Summary ────────────────────────────────────────────────────────────────

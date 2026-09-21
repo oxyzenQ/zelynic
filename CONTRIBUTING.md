@@ -98,7 +98,7 @@ ebpf/                   — the pure-Rust BPF source (aya-ebpf; NIGHT-improve-1
 
 scripts/
   build.sh             — check-all orchestration
-  gate-keepers.sh      — pre-commit non-code gates (14 sections)
+  gate-keepers.sh      — pre-commit non-code gates (15 sections)
   check-permissions.sh — 644/755 permission guard
   check-loc.sh         — Rust file LOC cap (500, // LOC_EXEMPT: markers)
   check-headers.sh     — license header check (rs/c/h/py/sh/toml/yml/md)
@@ -177,7 +177,7 @@ cargo audit + cargo deny (both skip with a warning when not installed),
 the repository policy check (check-policy.py), and the version-string
 anti-pattern check.
 
-`gate-keepers.sh` runs the 14 non-code gate sections — the shell triad
+`gate-keepers.sh` runs the 15 non-code gate sections — the shell triad
 (bash -n + shellcheck + shfmt) on shell scripts, yamllint + actionlint
 on workflows, TOML validation,
 codespell, SPDX license headers (check-headers.sh), file permission guard
@@ -185,13 +185,17 @@ codespell, SPDX license headers (check-headers.sh), file permission guard
 the 500-line Rust LOC cap (check-loc.sh), the toolchain-pin sync check
 (check-rust-version-sync.sh), rustfmt on the ebpf/ crate (the exact
 eBPF Build CI command — the former clang-format gate retired with the
-C sources in NIGHT-improve-1 phase 3), and the documentation disclaimer
+C sources in NIGHT-improve-1 phase 3), the documentation disclaimer
 check (inject-disclaimer.sh), the test-tree discipline (NIGHT-hunt-17:
-every .rs test file under the single `test/` tree), and the
-English-only language gate (check-language.sh). Missing tools are
-skipped with a warning locally; the CI `gatekeepers` job runs the
-entire script wholesale with every tool installed, so each section
-— current and future — is enforced on every push.
+every .rs test file under the single `test/` tree), the English-only
+language gate (check-language.sh), and the python lint + format gate
+(ruff, NIGHT-improve-13 cosmostrix parity: ruff check with the explicit
+.ruff.toml rule set + ruff format --check at the scripts/ house width,
+line 100). Missing tools are skipped with a warning locally; the
+Gate-keepers workflow (.github/workflows/gate-keepers.yml, unfiltered —
+every push, docs-only included) runs the entire script wholesale with
+every tool installed, so each section — current and future — is
+enforced on every push.
 
 ## Branch Strategy
 

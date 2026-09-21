@@ -1,0 +1,25 @@
+# Copyright (C) 2026 rezky_nightky
+# SPDX-License-Identifier: GPL-3.0-only
+
+# Python lint + format config for the gate-keepers ruff section
+# (NIGHT-improve-13, cosmostrix gate parity: "lint python").
+#
+# line-length 100 matches the scripts/ house style (hand-styled
+# harnesses; ruff's default 88 would rewrap ~800 lines for no
+# readability gain).
+#
+# The rule set is an EXPLICIT select, never ruff's implicit default:
+# ruff's defaults have expanded between releases (0.16 grew PLW/SIM/
+# BLE/S110 into the default set), and this repo's tool philosophy is
+# pinned versions with stable findings (NIGHT-hunt-20: a red gate
+# means the tree drifted, never that a linter released overnight).
+# E4/E7/E9 + F (pyflakes: unused imports/variables, undefined names)
+# + I (import order) — the correctness core. Style-level rules
+# (SIM/PLW/BLE/S) are deliberately not gated: the harnesses'
+# try-except-pass and manual returncode checks are intentional
+# patterns, not defects.
+
+line-length = 100
+
+[lint]
+select = ["E4", "E7", "E9", "F", "I"]

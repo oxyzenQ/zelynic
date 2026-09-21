@@ -68,19 +68,30 @@ DEFAULT_TIMEOUT_SECS = 600  # build + link + 10s render budget
 def run_harness(quick: bool, timeout: int):
     """Run the ignored Rust frame harness, return raw stdout text."""
     cmd = [
-        "cargo", "test", "--features", "ebpf", TEST_NAME,
-        "--", "--ignored", "--nocapture",
+        "cargo",
+        "test",
+        "--features",
+        "ebpf",
+        TEST_NAME,
+        "--",
+        "--ignored",
+        "--nocapture",
     ]
     env = dict(os.environ)
     env.setdefault("ZELYNIC_FRAME_BENCH_QUICK", "")
     if quick:
         env["ZELYNIC_FRAME_BENCH_QUICK"] = "1"
-    print(f"[frame-bench] running: {' '.join(cmd)}" + (" (quick)" if quick else ""),
-          file=sys.stderr)
+    print(
+        f"[frame-bench] running: {' '.join(cmd)}" + (" (quick)" if quick else ""), file=sys.stderr
+    )
     start = time.perf_counter()
     try:
         proc = subprocess.run(
-            cmd, cwd=REPO_ROOT, env=env, capture_output=True, text=True,
+            cmd,
+            cwd=REPO_ROOT,
+            env=env,
+            capture_output=True,
+            text=True,
             timeout=timeout,
         )
     except subprocess.TimeoutExpired:
@@ -134,8 +145,7 @@ def split_frames(stdout: str):
     if current is not None:
         frames.append("\n".join(current))
     if not frames:
-        print("[frame-bench] FATAL: no frames captured (delimiter not found)",
-              file=sys.stderr)
+        print("[frame-bench] FATAL: no frames captured (delimiter not found)", file=sys.stderr)
         sys.exit(1)
     return frames, emits, meta
 
@@ -179,8 +189,7 @@ def frame_metrics(frame):
 def dirty_cells(a, b):
     """Cells differing between two frames, grid-aligned + space-padded."""
     ra, rb = a.split("\n"), b.split("\n")
-    width = max(max((len(r) for r in ra), default=0),
-                max((len(r) for r in rb), default=0))
+    width = max(max((len(r) for r in ra), default=0), max((len(r) for r in rb), default=0))
     dirty = 0
     for i in range(max(len(ra), len(rb))):
         la = ra[i] if i < len(ra) else ""
@@ -206,8 +215,11 @@ def compute(frames, emits, meta):
     # markers (pre-diff captures) the renderer emitted everything it
     # printed — the full logical frame — so emit_bytes == bytes_frame
     # and the comparison across the protocol boundary stays honest.
-    emit_bytes = (sum(emits) / len(emits)) if emits else \
-        (sum(m["chars"] for m in per_frame) / len(per_frame))
+    emit_bytes = (
+        (sum(emits) / len(emits))
+        if emits
+        else (sum(m["chars"] for m in per_frame) / len(per_frame))
+    )
 
     result = {
         "frames_captured": len(per_frame),
@@ -220,7 +232,8 @@ def compute(frames, emits, meta):
         "dirty_ratio": (sum(dirty) / total_cells) if total_cells else 0.0,
         "emit_bytes": emit_bytes,
         "emit_ratio": (emit_bytes / (sum(m["chars"] for m in per_frame) / len(per_frame)))
-        if per_frame else 0.0,
+        if per_frame
+        else 0.0,
         "emit_protocol": bool(emits),
     }
 
@@ -230,8 +243,7 @@ def compute(frames, emits, meta):
         result["harness_elapsed_ms"] = meta["elapsed_ms"]
     else:
         result["fps"] = None
-        print("[frame-bench] WARNING: ###META### line not found; fps unknown",
-              file=sys.stderr)
+        print("[frame-bench] WARNING: ###META### line not found; fps unknown", file=sys.stderr)
 
     # bytes the terminal absorbs per second (redraw churn rate)
     if result["fps"]:
@@ -249,8 +261,10 @@ def report(result, label):
     print(f"  avg rows             {result['avg_rows']:>10.1f}")
     print(f"  avg width            {result['avg_width']:>10.1f}")
     print(f"  bytes/frame          {result['bytes_frame']:>10.1f}")
-    print(f"  emit bytes/frame     {result['emit_bytes']:>10.1f}"
-          + ("" if result.get("emit_protocol") else "  (no emit markers: = full redraw)"))
+    print(
+        f"  emit bytes/frame     {result['emit_bytes']:>10.1f}"
+        + ("" if result.get("emit_protocol") else "  (no emit markers: = full redraw)")
+    )
     print(f"  emit ratio           {result['emit_ratio']:>10.2f}")
     print(f"  density gini         {result['density_gini']:>10.4f}")
     print(f"  frame entropy        {result['frame_entropy']:>10.4f} bits/char")
@@ -290,22 +304,30 @@ def compare(before, after):
                 marker = "+" if delta > 0 else "-"
             elif better == "lower":
                 marker = "+" if delta < 0 else "-"
-        print(f"  {name:<22}{fmt.format(a):>12}{fmt.format(b):>12}"
-              f"   {delta:+.4f} ({pct:+.1f}%) {marker}")
+        print(
+            f"  {name:<22}{fmt.format(a):>12}{fmt.format(b):>12}"
+            f"   {delta:+.4f} ({pct:+.1f}%) {marker}"
+        )
 
 
 def main():
-    ap = argparse.ArgumentParser(description=__doc__,
-                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     ap.add_argument("--save", metavar="JSON", help="write metrics to this file")
-    ap.add_argument("--compare", metavar="JSON",
-                    help="compare against a saved metrics file")
-    ap.add_argument("--quick", action="store_true",
-                    help="1s render budget (smoke run)")
-    ap.add_argument("--frames", metavar="FILE",
-                    help="compute metrics from a raw capture instead of running cargo")
-    ap.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT_SECS,
-                    help=f"harness timeout in seconds (default {DEFAULT_TIMEOUT_SECS})")
+    ap.add_argument("--compare", metavar="JSON", help="compare against a saved metrics file")
+    ap.add_argument("--quick", action="store_true", help="1s render budget (smoke run)")
+    ap.add_argument(
+        "--frames",
+        metavar="FILE",
+        help="compute metrics from a raw capture instead of running cargo",
+    )
+    ap.add_argument(
+        "--timeout",
+        type=int,
+        default=DEFAULT_TIMEOUT_SECS,
+        help=f"harness timeout in seconds (default {DEFAULT_TIMEOUT_SECS})",
+    )
     ap.add_argument("--label", default=None, help="label for the report")
     args = ap.parse_args()
 

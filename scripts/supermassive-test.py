@@ -99,6 +99,7 @@ import threading
 import time
 
 import zelynic_harness_lib as lib
+
 # NOTE: BINARY is deliberately NOT in this list — resolve_binary REBINDS it
 # inside the lib module, and a from-import would keep a stale empty string
 # here. Reference it as lib.BINARY; the mutation-only names (RESULTS) are
@@ -115,8 +116,8 @@ from zelynic_harness_lib import (
     bpffs_mounted_at,
     cgroup2_mounted,
     cpu_model,
-    doctor_check,
     dmesg_scan,
+    doctor_check,
     final_report,
     fmt_bps,
     limit_entry,
@@ -142,13 +143,22 @@ HQ_CGROUP = f"{CGROUP_ROOT}/zelynic-supermassive-hq"
 BLOCK_GOODPUT_CEIL = 64 * 1024  # bytes per window: "blocked" means ~zero
 # (rate string, expected bps) — explicit pairs, no inversion math to drift.
 LADDER_LIGHT = [
-    ("1kb", 1_000), ("100kb", 100_000), ("1mb", 1_000_000), ("10mb", 10_000_000),
+    ("1kb", 1_000),
+    ("100kb", 100_000),
+    ("1mb", 1_000_000),
+    ("10mb", 10_000_000),
 ]
 LADDER_HEAVY = [
-    ("1kb", 1_000), ("10kb", 10_000), ("100kb", 100_000),
-    ("1mb", 1_000_000), ("10mb", 10_000_000), ("100mb", 100_000_000),
-    ("1gb", 1_000_000_000), ("10gb", 10_000_000_000),
-    ("100gb", 100_000_000_000), ("1tb", 1_000_000_000_000),
+    ("1kb", 1_000),
+    ("10kb", 10_000),
+    ("100kb", 100_000),
+    ("1mb", 1_000_000),
+    ("10mb", 10_000_000),
+    ("100mb", 100_000_000),
+    ("1gb", 1_000_000_000),
+    ("10gb", 10_000_000_000),
+    ("100gb", 100_000_000_000),
+    ("1tb", 1_000_000_000_000),
 ]
 # NIGHT-improve-14/15: rungs this close to the loopback ceiling are
 # measured as a PARALLEL aggregate, not one flow. The improve-14
@@ -177,6 +187,7 @@ WORKER_FAULTS = []
 
 
 # ── dedicated cgroup fleet ─────────────────────────────────────────────────
+
 
 class CgroupSet:
     """Five dedicated target cgroups plus one never-policed hq cgroup
@@ -323,6 +334,7 @@ class CgroupSet:
 
 # ── loopback HTTP traffic engine ───────────────────────────────────────────
 
+
 class HttpServer:
     """Minimal HTTP/1.0 server on 127.0.0.1 (curl- and python-compatible).
 
@@ -371,7 +383,7 @@ class HttpServer:
         idx = buf.find(b"\r\n\r\n")
         if idx < 0:
             return buf, b""
-        head, rest = buf[:idx], buf[idx + 4:]
+        head, rest = buf[:idx], buf[idx + 4 :]
         path = head.split(b"\r\n", 1)[0].split(b" ")[1] if b" " in head else b""
         return path, rest
 
@@ -522,7 +534,9 @@ def worker_smoke(code, port, window):
     try:
         r = subprocess.run(
             [sys.executable, "-c", code, str(port), str(window)],
-            capture_output=True, text=True, timeout=window + 20,
+            capture_output=True,
+            text=True,
+            timeout=window + 20,
         )
     except subprocess.TimeoutExpired:
         return None, "worker did not finish"
@@ -554,7 +568,8 @@ def py_download(window, name="a"):
     """
     if CG and CG.dedicated:
         metric, _ = spawn_in_cgroup(
-            name, [sys.executable, "-c", _PY_DL_CLIENT, str(SERVER.port), str(window)],
+            name,
+            [sys.executable, "-c", _PY_DL_CLIENT, str(SERVER.port), str(window)],
             window + 20,
         )
         return metric or 0
@@ -588,7 +603,8 @@ def py_upload(window, name="a"):
     """
     if CG and CG.dedicated:
         metric, _ = spawn_in_cgroup(
-            name, [sys.executable, "-c", _PY_UL_CLIENT, str(SERVER.port), str(window)],
+            name,
+            [sys.executable, "-c", _PY_UL_CLIENT, str(SERVER.port), str(window)],
             window + 20,
         )
         return metric or 0
@@ -613,8 +629,15 @@ def py_upload(window, name="a"):
 
 def curl_cmd(window, url_path, metric="size_download"):
     return [
-        CURL, "-s", "-o", "/dev/null", "-w", f"%{{{metric}}}",
-        "--max-time", f"{window}", f"http://127.0.0.1:{SERVER.port}{url_path}",
+        CURL,
+        "-s",
+        "-o",
+        "/dev/null",
+        "-w",
+        f"%{{{metric}}}",
+        "--max-time",
+        f"{window}",
+        f"http://127.0.0.1:{SERVER.port}{url_path}",
     ]
 
 
@@ -644,8 +667,16 @@ def curl_upload_cmd(window):
     # path is explicit so no filename gets appended. curl's 1s
     # Expect-100-continue pause is absorbed by the window.
     return [
-        CURL, "-s", "-o", "/dev/null", "-w", "%{size_upload}",
-        "--max-time", f"{window}", "-T", "/dev/zero",
+        CURL,
+        "-s",
+        "-o",
+        "/dev/null",
+        "-w",
+        "%{size_upload}",
+        "--max-time",
+        f"{window}",
+        "-T",
+        "/dev/zero",
         f"http://127.0.0.1:{SERVER.port}/ul",
     ]
 
@@ -671,7 +702,9 @@ def popen_in_cgroup(name, argv):
     script = f'echo $$ > "{CG.paths[name]}/cgroup.procs"\nexec "$@"'
     return subprocess.Popen(
         ["bash", "-c", script, "worker"] + argv,
-        stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        text=True,
     )
 
 
@@ -737,7 +770,8 @@ def spawn_bg_in_cgroup(name, argv):
     script = f'echo $$ > "{CG.paths[name]}/cgroup.procs"\nexec "$@"'
     return subprocess.Popen(
         ["bash", "-c", script, "worker"] + argv,
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
     )
 
 
@@ -747,6 +781,7 @@ def curl_in_cgroup(name, window):
 
 
 # ── policy helpers (single source for every apply / verify / clear) ────────
+
 
 def apply_single(name, rate_str, exp_dl, exp_ul, extra=()):
     rc, stdout, stderr = run_zel(["strict-single", str(CG.ids[name]), rate_str, *extra])
@@ -773,7 +808,10 @@ def apply_group(names, rate_str, exp):
         if entry is None:
             return False, f"no limit row for cgroup {CG.ids[n]}"
         if entry.get("download_bps") != exp or entry.get("upload_bps") != exp:
-            return False, f"row for {CG.ids[n]} is {entry.get('download_bps')}/{entry.get('upload_bps')}, want {exp}"
+            return (
+                False,
+                f"row for {CG.ids[n]} is {entry.get('download_bps')}/{entry.get('upload_bps')}, want {exp}",
+            )
     return True, target
 
 
@@ -849,37 +887,57 @@ def enforcement_proofs(label, got_bytes, name="a"):
 
 # ── environment ────────────────────────────────────────────────────────────
 
+
 def test_env():
     out()
-    out("━━━ environment (minimum specs: kernel 5.13+, cgroup v2, BPF fs, root — docs/KERNEL_COMPATIBILITY.md) ━━━")
+    out(
+        "━━━ environment (minimum specs: kernel 5.13+, cgroup v2, BPF fs, root — docs/KERNEL_COMPATIBILITY.md) ━━━"
+    )
     out(f"  distro:   {pretty_name()}")
     out(f"  kernel:   {os.uname().release}  arch: {os.uname().machine}")
     out(f"  cpu:      {cpu_model()}")
-    out(f"  python:   {sys.version.split()[0]}  curl: {CURL or 'not found (curl stages will SKIP)'}")
+    out(
+        f"  python:   {sys.version.split()[0]}  curl: {CURL or 'not found (curl stages will SKIP)'}"
+    )
     out(f"  binary:   {lib.BINARY} ({binary_version()})")
     out(f"  cgroups:  {MODE}")
     ok = True
-    ok = record(
-        "cgroup v2 unified hierarchy", "PASS" if cgroup2_mounted() else "FAIL",
-        CGROUP_ROOT if cgroup2_mounted() else f"{CGROUP_ROOT} is not cgroup2fs",
-    ) == "PASS" and ok
-    ok = record(
-        "cgroup ID resolution (kernfs inode)",
-        "PASS" if CG.ids.get("a") else "FAIL",
-        f"cgroup id {CG.ids.get('a')}",
-    ) == "PASS" and ok
+    ok = (
+        record(
+            "cgroup v2 unified hierarchy",
+            "PASS" if cgroup2_mounted() else "FAIL",
+            CGROUP_ROOT if cgroup2_mounted() else f"{CGROUP_ROOT} is not cgroup2fs",
+        )
+        == "PASS"
+        and ok
+    )
+    ok = (
+        record(
+            "cgroup ID resolution (kernfs inode)",
+            "PASS" if CG.ids.get("a") else "FAIL",
+            f"cgroup id {CG.ids.get('a')}",
+        )
+        == "PASS"
+        and ok
+    )
     # NIGHT-improve-11 fix: gate on the bpf FILESYSTEM MOUNT, not the
     # zelynic pin directory — a fresh host (bpffs mounted, zelynic never
     # run) is exactly the machine this harness exists to qualify, and the
     # old isdir(PIN_DIR) check failed it at the first gate (the 2026-09-21
     # run that died at "3 passed, 1 failed, 0s" having tested nothing).
     bpffs_ok = bpffs_mounted_at("/sys/fs/bpf")
-    ok = record(
-        "BPF filesystem mounted", "PASS" if bpffs_ok else "FAIL",
-        "/sys/fs/bpf (fstype bpf)" if bpffs_ok else
-        "/sys/fs/bpf is not a mounted bpf filesystem — the limiter pins "
-        "its maps there; tip: sudo mount -t bpf bpf /sys/fs/bpf",
-    ) == "PASS" and ok
+    ok = (
+        record(
+            "BPF filesystem mounted",
+            "PASS" if bpffs_ok else "FAIL",
+            "/sys/fs/bpf (fstype bpf)"
+            if bpffs_ok
+            else "/sys/fs/bpf is not a mounted bpf filesystem — the limiter pins "
+            "its maps there; tip: sudo mount -t bpf bpf /sys/fs/bpf",
+        )
+        == "PASS"
+        and ok
+    )
     if os.geteuid() != 0:
         record("root privilege", "FAIL", "re-run with sudo — BPF needs CAP_BPF")
         return False
@@ -902,7 +960,8 @@ def test_baseline(window):
     # SKIP guard downstream.
     if got <= 0:
         record(
-            "baseline: unlimited loopback throughput", "FAIL",
+            "baseline: unlimited loopback throughput",
+            "FAIL",
             "0 B/s with NO policy live — the measurement engine itself "
             "moved no bytes, so every rate verdict below is garbage; see "
             "worker faults at the end of the report",
@@ -910,7 +969,8 @@ def test_baseline(window):
         )
         return bps
     record(
-        "baseline: unlimited loopback throughput", "PASS",
+        "baseline: unlimited loopback throughput",
+        "PASS",
         f"{fmt_bps(bps)} ({mbps(bps)}) over {window:.1f}s — the measurement ceiling",
         {"bps": round(bps)},
     )
@@ -919,11 +979,13 @@ def test_baseline(window):
 
 # ── single-target stages ────────────────────────────────────────────────────
 
+
 def test_policy_write():
     ok, payload = apply_single("a", "100kb", 100_000, 100_000)
     verdict = record(
         "strict-single 100kb: policy lands in the kernel maps",
-        "PASS" if ok else "FAIL", "" if ok else payload,
+        "PASS" if ok else "FAIL",
+        "" if ok else payload,
     )
     # NIGHT-improve-11 (all-round scope): the human table is a separate
     # render path from the JSON every other stage consumes — exercise it
@@ -958,37 +1020,57 @@ def test_rate_guard():
         rc, stdout, stderr = run_zel(argv)
         text = (stderr or stdout).strip()
         hit = rc != 0 and needle.lower() in text.lower()
-        return record(
-            row, "PASS" if hit else "FAIL",
-            f"exit {rc}: {text[:140]}",
-        ) == "PASS"
+        return (
+            record(
+                row,
+                "PASS" if hit else "FAIL",
+                f"exit {rc}: {text[:140]}",
+            )
+            == "PASS"
+        )
 
     # MIN_RATE = 1000 (format.rs): 999 must be refused with the
     # below-minimum error that names the override flag.
-    ok_all = refuse(
-        "rate guard: below-minimum refused (999 < 1kb)",
-        ["strict-single", tid, "999"], "below minimum",
-    ) and ok_all
+    ok_all = (
+        refuse(
+            "rate guard: below-minimum refused (999 < 1kb)",
+            ["strict-single", tid, "999"],
+            "below minimum",
+        )
+        and ok_all
+    )
     # MAX_RATE = 1 TB/s: 2tb must be refused with the above-maximum
     # error.
-    ok_all = refuse(
-        "rate guard: above-maximum refused (2tb > 1tb)",
-        ["strict-single", tid, "2tb"], "above maximum",
-    ) and ok_all
+    ok_all = (
+        refuse(
+            "rate guard: above-maximum refused (2tb > 1tb)",
+            ["strict-single", tid, "2tb"],
+            "above maximum",
+        )
+        and ok_all
+    )
     # The near-miss typo rescue (cli/ux.rs rate_tip): '1MB' fails
     # parsing and the tip must suggest the lowercase twin '1mb'.
-    ok_all = refuse(
-        "rate guard: typo tip suggests lowercase twin (1MB -> 1mb)",
-        ["strict-single", tid, "1MB"], "1mb",
-    ) and ok_all
+    ok_all = (
+        refuse(
+            "rate guard: typo tip suggests lowercase twin (1MB -> 1mb)",
+            ["strict-single", tid, "1MB"],
+            "1mb",
+        )
+        and ok_all
+    )
     # The dangerous-target blocklist (commands/safety.rs): a system
     # daemon name must be refused without --force. Only the REFUSAL is
     # exercised — the forced variant would limit the live machine's
     # actual systemd, which is exactly what the guard exists to stop.
-    ok_all = refuse(
-        "rate guard: dangerous name refused without --force (systemd)",
-        ["strict-single", "systemd", "1mb"], "system process",
-    ) and ok_all
+    ok_all = (
+        refuse(
+            "rate guard: dangerous name refused without --force (systemd)",
+            ["strict-single", "systemd", "1mb"],
+            "system process",
+        )
+        and ok_all
+    )
     # The plain-number parser branch (no unit suffix) round-trips
     # through the status JSON at full value.
     rc, stdout, stderr = run_zel(["strict-single", tid, "1000000"])
@@ -999,17 +1081,19 @@ def test_rate_guard():
         and entry.get("download_bps") == 1_000_000
         and entry.get("upload_bps") == 1_000_000
     )
-    ok_all = record(
-        "rate guard: plain-number rate accepted (1000000 = 1mb)",
-        "PASS" if plain_ok else "FAIL",
-        f"exit {rc}, row {entry}" if not plain_ok else "row 1000000/1000000",
-    ) == "PASS" and ok_all
+    ok_all = (
+        record(
+            "rate guard: plain-number rate accepted (1000000 = 1mb)",
+            "PASS" if plain_ok else "FAIL",
+            f"exit {rc}, row {entry}" if not plain_ok else "row 1000000/1000000",
+        )
+        == "PASS"
+        and ok_all
+    )
     clear_all()
     # The below-minimum override (--allow-dangerous): 500 B/s applies
     # with the warning, visible at full value in the status row.
-    rc, stdout, stderr = run_zel(
-        ["strict-single", tid, "--allow-dangerous", "500"]
-    )
+    rc, stdout, stderr = run_zel(["strict-single", tid, "--allow-dangerous", "500"])
     entry = limit_entry(status_json(), CG.ids["a"]) if rc == 0 else None
     override_ok = (
         rc == 0
@@ -1017,11 +1101,15 @@ def test_rate_guard():
         and entry.get("download_bps") == 500
         and entry.get("upload_bps") == 500
     )
-    ok_all = record(
-        "rate guard: below-minimum override applies (--allow-dangerous 500)",
-        "PASS" if override_ok else "FAIL",
-        f"exit {rc}, row {entry}" if not override_ok else "row 500/500",
-    ) == "PASS" and ok_all
+    ok_all = (
+        record(
+            "rate guard: below-minimum override applies (--allow-dangerous 500)",
+            "PASS" if override_ok else "FAIL",
+            f"exit {rc}, row {entry}" if not override_ok else "row 500/500",
+        )
+        == "PASS"
+        and ok_all
+    )
     clear_all()
     return ok_all
 
@@ -1032,7 +1120,8 @@ def test_rate_ladder(ladder, window, windows_per_rung, baseline):
         name = f"ladder {rate_str}: enforced download"
         if baseline and baseline < 2 * bps:
             record(
-                name, "SKIP",
+                name,
+                "SKIP",
                 f"hardware ceiling — baseline {fmt_bps(baseline)} cannot feed {fmt_bps(bps)}",
             )
             continue
@@ -1109,10 +1198,15 @@ def test_upload(window, baseline):
         return record("upload (-u only): enforced", "SKIP", "baseline too low")
     rc, stdout, stderr = run_zel(["strict-single", str(CG.ids["a"]), "-u", "1mb"])
     if rc != 0:
-        return record("upload (-u only): enforced", "FAIL",
-                      f"exit {rc}: {(stderr or stdout).strip()[:200]}")
+        return record(
+            "upload (-u only): enforced", "FAIL", f"exit {rc}: {(stderr or stdout).strip()[:200]}"
+        )
     entry = limit_entry(status_json(), CG.ids["a"])
-    if entry is None or entry.get("upload_bps") != 1_000_000 or entry.get("download_bps") is not None:
+    if (
+        entry is None
+        or entry.get("upload_bps") != 1_000_000
+        or entry.get("download_bps") is not None
+    ):
         return record("upload (-u only): enforced", "FAIL", f"policy row wrong: {entry}")
     time.sleep(0.5)
     sent = py_upload(window)
@@ -1169,9 +1263,7 @@ def test_asymmetric(window, baseline):
     name = "asymmetric (-d 100kb -u 1mb): both buckets enforced"
     if baseline and baseline < 2e6:
         return record(name, "SKIP", "baseline too low")
-    rc, stdout, stderr = run_zel(
-        ["strict-single", str(CG.ids["a"]), "-d", "100kb", "-u", "1mb"]
-    )
+    rc, stdout, stderr = run_zel(["strict-single", str(CG.ids["a"]), "-d", "100kb", "-u", "1mb"])
     if rc != 0:
         return record(name, "FAIL", f"exit {rc}: {(stderr or stdout).strip()[:200]}")
     entry = limit_entry(status_json(), CG.ids["a"])
@@ -1205,7 +1297,8 @@ def test_block_single(window):
     got = py_download(window)
     verdict = "PASS" if got <= BLOCK_GOODPUT_CEIL else "FAIL"
     record(
-        "block-single: zero goodput", verdict,
+        "block-single: zero goodput",
+        verdict,
         f"{got} bytes over {window:.1f}s (ceiling {BLOCK_GOODPUT_CEIL})",
     )
     entry = limit_entry(status_json(), CG.ids["a"])
@@ -1266,7 +1359,8 @@ def test_curl_burst(window, clients, rate_bps, baseline):
     total = sum(totals)
     passed = band_check(
         f"curl burst: {clients} parallel curls, one shared limit",
-        total / window, rate_bps,
+        total / window,
+        rate_bps,
     )
     enforcement_proofs("curl burst", total)
     clear_all()
@@ -1297,8 +1391,9 @@ def test_curl_upload(window, baseline):
 
 def test_overhead(window, baseline):
     if baseline and baseline >= 300e9:
-        return record("overhead: non-binding policy cost", "SKIP",
-                      "baseline beyond the 1 TB/s policy ceiling")
+        return record(
+            "overhead: non-binding policy cost", "SKIP", "baseline beyond the 1 TB/s policy ceiling"
+        )
     non_binding_gb = min(900, max(10, round((3 * baseline if baseline else 10e9) / 1e9)))
     non_binding = non_binding_gb * 1e9
     ok, payload = apply_single("a", f"{non_binding_gb}gb", int(non_binding), int(non_binding))
@@ -1313,7 +1408,8 @@ def test_overhead(window, baseline):
     drop_pct = (baseline - limited) / baseline * 100 if baseline else 0.0
     verdict = "PASS" if drop_pct <= 30.0 else "FAIL"
     record(
-        "overhead: non-binding policy cost", verdict,
+        "overhead: non-binding policy cost",
+        verdict,
         f"baseline {fmt_bps(baseline)} vs {fmt_bps(limited)} "
         f"({non_binding_gb} GB/s policy) — {drop_pct:+.1f}%",
     )
@@ -1321,6 +1417,7 @@ def test_overhead(window, baseline):
 
 
 # ── multi-target stages (heavy) ─────────────────────────────────────────────
+
 
 def multi_guard(name):
     """Multi-cgroup stages need the dedicated fleet; the session-cgroup
@@ -1346,8 +1443,9 @@ def test_multi_group(window, baseline):
     if got_b is None:
         clear_all()
         return record(name, "FAIL", f"curl in b failed: {err}")
-    solo = band_check("strict-multi: member alone fills the shared bucket",
-                      got_b / window, 1_000_000)
+    solo = band_check(
+        "strict-multi: member alone fills the shared bucket", got_b / window, 1_000_000
+    )
     # Phase 2: two members together still only get ONE bucket.
     results = {}
 
@@ -1365,7 +1463,8 @@ def test_multi_group(window, baseline):
     total = sum(results[n][0] for n in ("b", "c"))
     joint = band_check(
         f"strict-multi: {len(results)} members joint, still one shared bucket",
-        total / window, 1_000_000,
+        total / window,
+        1_000_000,
     )
     record(
         "strict-multi: group rows visible in status",
@@ -1391,7 +1490,8 @@ def test_block_multi(window):
         return record(name, "FAIL", "a blocked-cgroup curl produced no metric")
     ok_both = got_d <= BLOCK_GOODPUT_CEIL and got_e <= BLOCK_GOODPUT_CEIL
     record(
-        name, "PASS" if ok_both else "FAIL",
+        name,
+        "PASS" if ok_both else "FAIL",
         f"d {got_d} bytes, e {got_e} bytes over {window:.1f}s (ceiling {BLOCK_GOODPUT_CEIL})",
     )
     entry = limit_entry(status_json(), CG.ids["d"])
@@ -1422,7 +1522,8 @@ def test_unstrict_multi():
     gone = all(limit_entry(doc, CG.ids[n]) is None for n in ("b", "c"))
     verdict = "PASS" if (entry is not None and gone) else "FAIL"
     record(
-        name, verdict,
+        name,
+        verdict,
         f"cgroup {CG.ids['a']} still limited at "
         f"{fmt_bps((entry or {}).get('download_bps') or 0)}, b/c rows removed",
     )
@@ -1449,14 +1550,16 @@ def test_mixed(window, baseline):
     got_e, _ = curl_in_cgroup("e", window)
     blocked = got_e is not None and got_e <= BLOCK_GOODPUT_CEIL
     record(
-        "mixed: blocked member stays dark", "PASS" if blocked else "FAIL",
+        "mixed: blocked member stays dark",
+        "PASS" if blocked else "FAIL",
         f"{got_e} bytes over {window:.1f}s",
     )
     doc = status_json()
     rows = len(doc.get("limits", [])) if doc else 0
     record(
         "mixed: five cgroups, three policies, one status view",
-        "PASS" if rows >= 4 else "FAIL", f"{rows} limit rows visible",
+        "PASS" if rows >= 4 else "FAIL",
+        f"{rows} limit rows visible",
     )
     clear_all()
     return solo and blocked and rows >= 4
@@ -1506,7 +1609,8 @@ def test_reload(cycles):
     verdict = "PASS" if mismatches == 0 else "FAIL"
     record(
         f"reload: {cycles} rate-change cycles through pinned maps",
-        verdict, f"{cycles - mismatches}/{cycles} cycles verified via status JSON",
+        verdict,
+        f"{cycles - mismatches}/{cycles} cycles verified via status JSON",
     )
     clear_all()
     return verdict == "PASS"
@@ -1528,7 +1632,8 @@ def test_sustain(rate_bps, windows, window, baseline):
     drift = min(rates) / max(rates) if max(rates) else 0.0
     verdict = "PASS" if (ok_band and drift >= 0.5) else "FAIL"
     record(
-        "sustain: steady state + drift guard", verdict,
+        "sustain: steady state + drift guard",
+        verdict,
         "; ".join(f"w{i + 1} {fmt_bps(r)}" for i, r in enumerate(rates))
         + f" — drift floor {drift * 100:.0f}%",
     )
@@ -1538,9 +1643,7 @@ def test_sustain(rate_bps, windows, window, baseline):
 def test_recover():
     rc, stdout, stderr = run_zel(["recover"])
     detail = (stderr or stdout).strip()[:120] or f"exit {rc}"
-    return record(
-        "recover: clean state after unstrict-all", "PASS" if rc == 0 else "FAIL", detail
-    )
+    return record("recover: clean state after unstrict-all", "PASS" if rc == 0 else "FAIL", detail)
 
 
 def test_list_apps():
@@ -1556,29 +1659,51 @@ def test_list_apps():
 
 # ── cleanup + kernel log ────────────────────────────────────────────────────
 
+
 def test_cleanup():
     ok_all = True
     rc, _, _ = run_zel(["unstrict-all"])
     time.sleep(0.5)
-    ok_all = record(
-        "cleanup: unstrict-all exits 0", "PASS" if rc == 0 else "FAIL", f"exit {rc}",
-    ) == "PASS" and ok_all
+    ok_all = (
+        record(
+            "cleanup: unstrict-all exits 0",
+            "PASS" if rc == 0 else "FAIL",
+            f"exit {rc}",
+        )
+        == "PASS"
+        and ok_all
+    )
     pins_left = len(os.listdir(PIN_DIR)) if os.path.isdir(PIN_DIR) else 0
-    ok_all = record(
-        "cleanup: zero BPF pins left",
-        "PASS" if pins_left == 0 else "FAIL", f"{pins_left} entries in {PIN_DIR}",
-    ) == "PASS" and ok_all
+    ok_all = (
+        record(
+            "cleanup: zero BPF pins left",
+            "PASS" if pins_left == 0 else "FAIL",
+            f"{pins_left} entries in {PIN_DIR}",
+        )
+        == "PASS"
+        and ok_all
+    )
     pid_left = os.path.exists("/tmp/zelynic.pid")
-    ok_all = record(
-        "cleanup: no pid file left", "PASS" if not pid_left else "FAIL",
-        "/tmp/zelynic.pid" if pid_left else "",
-    ) == "PASS" and ok_all
+    ok_all = (
+        record(
+            "cleanup: no pid file left",
+            "PASS" if not pid_left else "FAIL",
+            "/tmp/zelynic.pid" if pid_left else "",
+        )
+        == "PASS"
+        and ok_all
+    )
     CG.cleanup()
     cg_left = [p for p in TEST_CGROUPS + [HQ_CGROUP] if os.path.isdir(p)]
-    ok_all = record(
-        "cleanup: test cgroups removed", "PASS" if not cg_left else "FAIL",
-        ", ".join(cg_left) if cg_left else "",
-    ) == "PASS" and ok_all
+    ok_all = (
+        record(
+            "cleanup: test cgroups removed",
+            "PASS" if not cg_left else "FAIL",
+            ", ".join(cg_left) if cg_left else "",
+        )
+        == "PASS"
+        and ok_all
+    )
     return ok_all
 
 
@@ -1587,6 +1712,7 @@ def test_dmesg():
 
 
 # ── engine self-test (no root, no zelynic, no BPF) ─────────────────────────
+
 
 def self_test():
     """Verify the harness's own measurement engine anywhere — a CI runner,
@@ -1618,10 +1744,7 @@ def self_test():
     # refuses it); a rung above MAX_RATE likewise. If a future edit
     # breaks that, the root run would fail stage after stage for a
     # reason this rootless row names up front.
-    ladder_ok = all(
-        1_000 <= bps <= 1_000_000_000_000
-        for _, bps in LADDER_LIGHT + LADDER_HEAVY
-    )
+    ladder_ok = all(1_000 <= bps <= 1_000_000_000_000 for _, bps in LADDER_LIGHT + LADDER_HEAVY)
     record(
         "engine: ladder rungs inside the parser bounds (1kb..1tb)",
         "PASS" if ladder_ok else "FAIL",
@@ -1637,21 +1760,15 @@ def self_test():
     # root run files physics as an enforcement miss — or hides a real
     # one behind a too-low floor.
     floor_pins = {
-        1_000: 0.0,               # sub-skb regime: drops carry the verdict
+        1_000: 0.0,  # sub-skb regime: drops carry the verdict
         100_000_000: lib.BAND_LO,  # clamp binds, cushion still 1 s: full band
-        1_000_000_000: 0.5,        # clamp leaves 0.1 s: cushion / min-RTO
+        1_000_000_000: 0.5,  # clamp leaves 0.1 s: cushion / min-RTO
     }
-    ok_floors = all(
-        abs(lib.loopback_rate_floor(r) - want) < 1e-9
-        for r, want in floor_pins.items()
-    )
+    ok_floors = all(abs(lib.loopback_rate_floor(r) - want) < 1e-9 for r, want in floor_pins.items())
     record(
         "engine: ladder floor model (sub-skb zero, band, min-RTO cushion)",
         "PASS" if ok_floors else "FAIL",
-        "; ".join(
-            f"{lib.fmt_bps(r)} -> {lib.loopback_rate_floor(r):.2f}"
-            for r in floor_pins
-        ),
+        "; ".join(f"{lib.fmt_bps(r)} -> {lib.loopback_rate_floor(r):.2f}" for r in floor_pins),
     )
 
     # NIGHT-improve-16 pins: the resolve GATE. The 2026-09-21 debian13
@@ -1663,8 +1780,8 @@ def self_test():
     # list (absolute, musl alias included), and the accept/reject
     # decision end-to-end through the real resolve_binary.
     token_pins = (
-        ("zelynic: v11.0.0-dev.1", "11.0.0-dev.1"),   # current header shape
-        ("Version: v4.0.0-alpha", "4.0.0-alpha"),     # legacy distro install
+        ("zelynic: v11.0.0-dev.1", "11.0.0-dev.1"),  # current header shape
+        ("Version: v4.0.0-alpha", "4.0.0-alpha"),  # legacy distro install
         ("zelynic: v99.0.0-x.7+meta", "99.0.0-x.7+meta"),
         ("no version in this line", None),
     )
@@ -1675,13 +1792,10 @@ def self_test():
         "; ".join(f"{s!r} -> {lib.version_token(s)}" for s, _ in token_pins),
     )
 
-    ok_candidates = (
-        all(
-            os.path.isabs(c) and c.startswith(lib.REPO_ROOT + os.sep)
-            for c in lib.REPO_BINARY_CANDIDATES
-        )
-        and any("pro-native-musl" in c for c in lib.REPO_BINARY_CANDIDATES)
-    )
+    ok_candidates = all(
+        os.path.isabs(c) and c.startswith(lib.REPO_ROOT + os.sep)
+        for c in lib.REPO_BINARY_CANDIDATES
+    ) and any("pro-native-musl" in c for c in lib.REPO_BINARY_CANDIDATES)
     record(
         "engine: binary candidates repo-anchored (gnu, musl, release)",
         "PASS" if ok_candidates else "FAIL",
@@ -1734,7 +1848,8 @@ def self_test():
     def agree(name, client_bytes, server_bytes):
         ratio = client_bytes / server_bytes if server_bytes else 0.0
         return record(
-            name, "PASS" if 0.5 <= ratio <= 1.5 else "FAIL",
+            name,
+            "PASS" if 0.5 <= ratio <= 1.5 else "FAIL",
             f"client {client_bytes} vs server {server_bytes} ({ratio * 100:.1f}%)",
         )
 
@@ -1838,12 +1953,15 @@ def self_test():
     counts = {v: sum(1 for r in RESULTS if r["verdict"] == v) for v in ("PASS", "FAIL", "SKIP")}
     out()
     out("━━━ self-test verdict ━━━")
-    out(f"  {counts['PASS']} passed, {counts['FAIL']} failed, {counts['SKIP']} skipped"
-        f" — {time.perf_counter() - start:.1f}s")
+    out(
+        f"  {counts['PASS']} passed, {counts['FAIL']} failed, {counts['SKIP']} skipped"
+        f" — {time.perf_counter() - start:.1f}s"
+    )
     return counts["FAIL"] == 0
 
 
 # ── orchestration ───────────────────────────────────────────────────────────
+
 
 def run_light(baseline_window):
     test_doctor()
@@ -1896,14 +2014,23 @@ def main():
         prog="supermassive-test",
         description="zelynic one-click supermassive test (NIGHT-master-2)",
     )
-    ap.add_argument("--heavy", action="store_true",
-                    help="the complete supermassive matrix (5+ min; default is light ~2 min)")
-    ap.add_argument("--self-test", action="store_true",
-                    help="verify the harness engine only — no root, no zelynic, no BPF")
+    ap.add_argument(
+        "--heavy",
+        action="store_true",
+        help="the complete supermassive matrix (5+ min; default is light ~2 min)",
+    )
+    ap.add_argument(
+        "--self-test",
+        action="store_true",
+        help="verify the harness engine only — no root, no zelynic, no BPF",
+    )
     ap.add_argument("--binary", help="path to the zelynic binary")
     ap.add_argument("--json", action="store_true", help="machine-readable output")
-    ap.add_argument("--band", default=f"{BAND_LO},{BAND_HI}",
-                    help="verdict band as lo,hi ratios (default 0.65,1.30)")
+    ap.add_argument(
+        "--band",
+        default=f"{BAND_LO},{BAND_HI}",
+        help="verdict band as lo,hi ratios (default 0.65,1.30)",
+    )
     args = ap.parse_args()
 
     if args.self_test:
@@ -1948,8 +2075,9 @@ def main():
             run_light(2.5)
         CG.cleanup()
         report_worker_faults()
-        ok = final_report(start, mode,
-                          "zelynic command surface: supermassive-verified on this machine.")
+        ok = final_report(
+            start, mode, "zelynic command surface: supermassive-verified on this machine."
+        )
         exit_code = 0 if ok else 1
     except Exception as e:  # noqa: BLE001 - report, then still clean up
         out(f"  harness error: {type(e).__name__}: {e}")
@@ -1959,20 +2087,24 @@ def main():
         except Exception:
             pass
         report_worker_faults()
-        final_report(start, mode,
-                     "zelynic command surface: supermassive-verified on this machine.")
+        final_report(start, mode, "zelynic command surface: supermassive-verified on this machine.")
         exit_code = 1
     finally:
         if SERVER:
             SERVER.stop()
     if args.json:
-        print(json.dumps({
-            "binary": lib.BINARY,
-            "mode": mode,
-            "cgroup_mode": MODE,
-            "worker_faults": [{"error": msg, "count": n} for msg, n in WORKER_FAULTS],
-            "results": RESULTS,
-        }, indent=2))
+        print(
+            json.dumps(
+                {
+                    "binary": lib.BINARY,
+                    "mode": mode,
+                    "cgroup_mode": MODE,
+                    "worker_faults": [{"error": msg, "count": n} for msg, n in WORKER_FAULTS],
+                    "results": RESULTS,
+                },
+                indent=2,
+            )
+        )
     return exit_code
 
 

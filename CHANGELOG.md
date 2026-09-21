@@ -16,6 +16,47 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Added
 
+- **ci: NIGHT-improve-13 — gate-keepers wholesale workflow split +
+  python lint gate + CI consolidation (cosmostrix lineage)** — the
+  reference project's strongest CI pattern applied end to end:
+  (1) gate-keepers.sh gained section 15, python lint + format
+  (ruff): ruff check with an EXPLICIT rule set (E4/E7/E9/F/I in
+  .ruff.toml — never ruff's implicit defaults, which expand between
+  releases; pinned findings only, the NIGHT-hunt-20 tool
+  philosophy) plus ruff format --check at line-length 100, the
+  scripts/ house style; the tree was brought under the gate — 3
+  unused imports removed, a dead counter init removed, an
+  ambiguous `l` comprehension variable renamed, 3 import blocks
+  sorted, and 5 files canonicalized by ruff format (mechanical,
+  the shfmt -w precedent); the supermassive self-test re-verified
+  15/15 after the reformat; (2) the wholesale gatekeepers job
+  moved out of ci.yml into its own UNFILTERED workflow
+  (gate-keepers.yml, runs on every push and PR regardless of
+  paths): a docs-only or workflow-only change never skips the
+  gates that police it — the shell triad's section 12 (ebpf
+  rustfmt) CI mirror therefore runs on exactly the same trigger
+  set as before; (3) duplicated CI functions removed: docs-ci.yml
+  deleted (its codespell-on-docs run is a strict subset of
+  gate-keepers section 5, the cosmostrix "replaces the former
+  docs-ci.yml" precedent), the ci.yml `changes` job deleted
+  (fetch-depth: 0 full clone + a git-diff regex re-implementing
+  GitHub's native paths filter — the surviving build/test jobs now
+  carry the path filter directly, the cosmostrix
+  NIGHT-enhanced-hunt-E precedent), and ebpf-build's "Check eBPF
+  Rust formatting" step deleted (byte-identical duplicate of
+  gate-keepers section 12 — one check, one place); (4) stability
+  hardening across every workflow: workflow-level
+  permissions: contents: read defaults where missing (ci.yml,
+  release.yml, maintenance.yml), timeout-minutes on all ten jobs
+  (5-45 by job weight, previously zero — a runaway job burned
+  runner minutes silently), and concurrency cancel-in-progress on
+  ci.yml + gate-keepers.yml (rapid pushes cancel the superseded
+  run instead of queueing a duplicate full build). Docs synced:
+  CONTRIBUTING's gate list (14 -> 15 sections, ruff entry, the
+  wholesale workflow renamed), codeql.yml's gate reference.
+  actionlint + yamllint clean on all six workflows; gate-keepers
+  17/17 locally (first full ruff section execution).
+
 - **render: improve-13 — the monitoring/status flagship style audit
   (compact, simple, elegant, precision), second pass over the SpaceX
   dashboard bar** — the first audit (precision tier) harmonized the
