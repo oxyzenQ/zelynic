@@ -54,6 +54,69 @@ Lockfile: untouched by this audit (nothing removed, nothing bumped —
 version policy stays owner-only). The deny.toml chrono ban stays the
 CI regression guard.
 
+## Expert supply-chain audit (NIGHT-hunt-20, 2026-09-21)
+
+The owner mandate: expert audit for supply-chain attack risk; remove
+any dependency whose risk outweighs its gain; the project stays lean,
+small, silent but killer. This pass goes beyond call-site liveness
+(the improve-11 security-4 scope) into actual attack surface: what
+code runs, from whom, with which tokens.
+
+**Crates verdict: nothing removable.** All 7 direct dependencies
+carry live call sites (independently re-verified by grep this pass:
+clap 12 sites, anyhow 42, aya 19, nix 13, libc 14, serde 3,
+serde_json 8; aya-ebpf in both ebpf/ programs). `aya` 0.13.1 has an
+empty default feature set (its only optional feature is `async_std`,
+unused) — there is no compiled surface left to trim. `anyhow` and
+`libc` add zero transitive crates. The set is already at the floor
+the 2026-09-18 audit drove it to.
+
+**Advisory state (both lockfiles, 1258 RustSec entries loaded):**
+
+- `cargo audit` 0.22.2: root Cargo.lock (54 crates) and
+  ebpf/Cargo.lock (31 crates) both exit 0 — zero vulnerabilities.
+- `cargo deny` 0.20.2 `check all`: advisories ok, bans ok, licenses
+  ok, sources ok over the full all-features tree.
+- Root lockfile reachability verified: 48 crates reachable on Linux;
+  the 4 non-reachable entries (anstyle-wincon, once_cell_polyfill,
+  windows-link, windows-sys) are Windows-target-gated — resolved in
+  the platform-independent lockfile, never downloaded or compiled
+  for Linux builds. Not removable, not a Linux surface.
+
+**New documented risk: the aya-build build-time chain (ebpf/).**
+`aya-ebpf-bindings`, `aya-ebpf-cty`, and `aya-ebpf` itself declare
+`aya-build` as a build-dependency, which pulls a 10-crate
+build-time-execution surface (anyhow, cargo_metadata, camino,
+cargo-platform, semver, serde + serde_derive + serde_core,
+serde_json, which, rustc_version): third-party code that RUNS during
+every eBPF compile. This is upstream aya framework design, not a
+zelynic choice; it cannot be removed without leaving the framework.
+Accepted as risk with three mitigations already in place: the
+lockfile is committed (no fresh resolution), CI builds with
+`--locked`, and this audit's RustSec scan covers the chain. It is
+the surface to watch first when aya releases.
+
+**The real exposure was CI, not Cargo.toml — hardened this pass:**
+
+- Every workflow action is now SHA-pinned (NIGHT-hunt-20): all 11
+  `dtolnay/rust-toolchain@stable` references (a mutable branch on a
+  personal account, running in the maintenance job that holds a
+  `contents: write` token — a compromised tag could have pushed code
+  to main), `Swatinem/rust-cache`, `softprops/action-gh-release`,
+  and every `actions/checkout|cache|upload-artifact|download-artifact`
+  reference. The single exception, documented in codeql.yml:
+  `github/codeql-action` stays on its moving v4 tag because pinning
+  it would freeze the security scanner itself.
+- CI-installed scanner binaries are version-pinned
+  (`cargo install cargo-deny --version 0.20.2 --locked`,
+  cargo-audit 0.22.2, codespell 2.4.3): the RustSec advisory
+  database still refreshes on every run, so a red result always
+  means a new advisory, never a new scanner release overnight.
+- The weekly `cargo update` auto-commit (maintenance.yml) makes the
+  lockfile a living surface; the defense is that the update job
+  itself runs the full test + deny + policy matrix before the commit
+  job gets its write token — verified still wired that way.
+
 ## Finding 1: chrono (removed) — zero call sites, 27 crates of baggage
 
 A repository-wide grep for `chrono::`, `DateTime`, `Utc`, `Local` and
@@ -219,9 +282,11 @@ blocks. Keeping it is the lower-risk option.
   `indexmap`, `object` (upstream mix). Warn in `cargo deny check
   bans` (`multiple-versions = "warn"`). Resolves itself when aya's
   chain consolidates; not worth forking or patching.
-- `syn` 2.0.119 + 3.0.5 duplicate: `clap_derive` moved to syn 3 while
-  `serde_derive`/`thiserror-impl` remain on syn 2. Proc-macro only —
-  never linked into the release binary. Same warn policy.
+- `syn` 2.0.119 + 3.0.6 duplicate: `thiserror-impl` 1.0.69 (via
+  aya's thiserror 1) stays on syn 2 while `clap_derive` and
+  `serde_derive` use syn 3 (versions re-verified by the NIGHT-hunt-20
+  audit). Proc-macro only — never linked into the release binary.
+  Same warn policy.
 - Neither duplicate involves a crate with an open RustSec advisory
   (`cargo deny check advisories` passes clean over the full tree).
 
