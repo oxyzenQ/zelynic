@@ -370,6 +370,49 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Fixed
 
+- **harness + bootstrap: the one-click flow is real now — a checkout
+  tests itself, never a stale distro install, and bootstrap ends
+  ready to test (NIGHT-improve-16)** — the owner's 2026-09-21
+  debian13 cross-distro run exposed both holes at once. Fresh clone
+  there, build never succeeded (nightly pin missing, then bpf-linker
+  off PATH), so every repo-local candidate was missing and
+  resolve_binary fell through to `which zelynic` — a months-old
+  /usr/bin/zelynic v4.0.0-alpha. The env banner PRINTED the wrong
+  version and the harness ran anyway: 12 of 23 rows failed on decoy
+  mismatches (v4 has no `block-single` subcommand, its 1 KB/s and
+  1 GB/s rate guards reject v11 rungs, and the v4 status/doctor JSON
+  has no rows the v11 schema expects) while the machine itself was
+  perfectly healthy — every environment check green, cleanup clean,
+  kernel 6.12.95 fully compatible. Three fixes, source of truth =
+  the checkout: (1) resolve_binary's candidates are now ABSOLUTE and
+  anchored at the repo root (CWD-independent), cover all four build
+  outputs including the never-before-listed pro-native-musl path
+  (target/x86_64-unknown-linux-musl/pro-native-musl/zelynic), and
+  when several exist the NEWEST mtime wins — test what was just
+  built, not what was built longest ago; (2) a version GATE: the
+  resolved binary's `-V` token must equal the checkout's [package]
+  version (parsed from Cargo.toml, stdlib-only) or resolution aborts
+  BEFORE any test with the one-command fix — explicit
+  --binary / ZELYNIC_BINARY choices pass the same gate: the harness
+  tests THIS checkout, never a foreign one; (3) bootstrap-ebpf.sh now
+  finishes the job it used to point at: it fixes its own session PATH
+  (~/.cargo/bin + ~/.local/bin), persists the ~/.local/bin export to
+  ~/.profile idempotently (fish/zsh login shells get told the exact
+  line — they never read ~/.profile), and builds the flagship binary
+  with the canonical `cargo pro-native-gnu`, printing the -V header
+  as proof — re-running is incremental, seconds on an up-to-date
+  tree. The whole flow is three commands: clone,
+  `./scripts/bootstrap-ebpf.sh`, `sudo ./scripts/supermassive-test.sh`.
+  Three new `--self-test` rows pin the gate rootlessly (both -V
+  header shapes including the exact v4.0.0-alpha line, the
+  repo-anchored candidate list, and stub binaries accepted/rejected
+  end-to-end through the real resolve_binary — 14 rows total), plus
+  a seven-scenario integration pass (debian13 trap refused, gnu
+  over PATH, fresh musl over ancient gnu, CWD independence, env
+  override honored and gated, one-command not-found advice). Engine
+  and CLI untouched — harness/host-tooling only, so no A/B benchmark
+  (the same call as NIGHT-improve-15).
+
 - **limiter: blocked packets are now BOOKED into the stats map —
   block-* no longer kills every packet while reporting "0 packets
   dropped" (NIGHT-improve-14)** — the schema-v3 rate-0 verdict

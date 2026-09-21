@@ -29,6 +29,7 @@ Contract:
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -84,6 +85,40 @@ TCP_MIN_RTO_S = 0.2              # Linux TCP_RTO_MIN floor
 # Harness state (see the module docstring's ownership contract).
 RESULTS = []
 BINARY = ""
+
+# The checkout under test: the parent of scripts/ (the same anchor
+# bootstrap-ebpf.sh and build.sh resolve their repo root from).
+# Everything the harness resolves — build outputs, the expected
+# version — anchors HERE, never to the caller's CWD (NIGHT-improve-16).
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+# Repo-local build outputs of the canonical build commands, absolute
+# and therefore CWD-independent (.cargo/config.toml is the source of
+# truth for where each command lands):
+#   root copy          — ./zelynic (legacy dev convenience)
+#   pro-native-gnu     — cargo pro-native-gnu
+#   pro-native-musl    — cargo pro-native-musl (NEW in improve-16: the
+#                        musl alias output was never a candidate, so a
+#                        static build could only be tested via --binary)
+#   plain release      — cargo build --release --features ebpf
+# Among the candidates that exist, resolution picks the NEWEST mtime
+# ("test what was just built"): versions can match while code differs,
+# and a fresh musl build should outrank a stale gnu binary from an
+# older commit (NIGHT-improve-16).
+REPO_BINARY_CANDIDATES = [
+    os.path.join(REPO_ROOT, "zelynic"),
+    os.path.join(REPO_ROOT, "target", "pro-native-gnu", "zelynic"),
+    os.path.join(
+        REPO_ROOT, "target", "x86_64-unknown-linux-musl", "pro-native-musl", "zelynic"
+    ),
+    os.path.join(REPO_ROOT, "target", "release", "zelynic"),
+]
+
+# A version-shaped token inside a `-V` header line. Accepts both
+# shapes the wild has shown: the current "zelynic: v11.0.0-dev.1" and
+# the legacy "Version: v4.0.0-alpha" (the stale distro install that
+# slipped past the 2026-09-21 debian13 run).
+_VERSION_TOKEN = re.compile(r"v?([0-9]+(?:\.[0-9]+)+(?:[-+][0-9A-Za-z.-]+)*)")
 
 
 # ── output + verdict recording ──────────────────────────────────────────────
@@ -217,39 +252,119 @@ def binary_version():
     return "version unreadable"
 
 
+def version_token(first_line):
+    """Extract the version token from a `zelynic -V` header line, or
+    None when no version-shaped token is present. Feeds the resolve
+    gate; see _VERSION_TOKEN for the accepted shapes."""
+    m = _VERSION_TOKEN.search(first_line or "")
+    return m.group(1) if m else None
+
+
+def repo_version():
+    """The [package] version of the checkout under test, or None.
+
+    Stdlib-only scan (this module's no-dependency contract): track the
+    current [section] and take the first `version = "..."` under
+    [package], before any dependency table can shadow it. This is the
+    version resolve_binary demands from the binary it is about to
+    test — the checkout's own CARGO_PKG_VERSION.
+    """
+    path = os.path.join(REPO_ROOT, "Cargo.toml")
+    try:
+        section = ""
+        with open(path, encoding="utf-8") as f:
+            for line in f:
+                stripped = line.strip()
+                if stripped.startswith("[") and stripped.endswith("]"):
+                    section = stripped
+                    continue
+                if section == "[package]":
+                    m = re.match(r'version\s*=\s*"([^"]+)"', stripped)
+                    if m:
+                        return m.group(1)
+    except OSError:
+        pass
+    return None
+
+
 # ── binary resolution ───────────────────────────────────────────────────────
 
 def resolve_binary(explicit, script_hint):
-    """Resolve the zelynic binary under test into BINARY.
+    """Resolve the zelynic binary under test into BINARY, then GATE it.
 
-    NIGHT-improve-11 fix (both twins had it): repo-local builds now
-    OUTRANK the system PATH. The old order put `which zelynic` first,
-    so a harness run from a fresh checkout tested the STALE distro
-    install (/usr/bin/zelynic, months old) while the just-built
-    target/pro-native-gnu/zelynic sat unused — the owner's 2026-09-21
-    run tested v1.98-era code against a v11 working tree without
-    knowing. Order now: --binary flag, ZELYNIC_BINARY env, then the
-    repo-local candidates, then the PATH — an explicit choice always
-    wins, but nothing silent outranks the checkout being tested.
+    NIGHT-improve-11 made repo-local builds outrank the system PATH;
+    NIGHT-improve-16 closes the two holes that left in practice:
+
+      * The candidates were CWD-relative and missed the musl alias
+        output entirely. They are now absolute, anchored at REPO_ROOT
+        (CWD-independent), cover all four build outputs, and when
+        several exist the NEWEST mtime wins — test what was just
+        built, not what was built longest ago.
+      * The PATH fallback survived as a silent escape hatch: on the
+        2026-09-21 debian13 run every repo candidate was missing (the
+        build had never succeeded there), `which zelynic` found a
+        stale /usr/bin/zelynic v4.0.0-alpha, and the harness happily
+        tested a v4 CLI surface against the v11 schema — 12 of 23
+        rows failed on decoy mismatches (unrecognized subcommand,
+        old rate guards, no status-JSON rows). The banner SHOWED the
+        version but nothing enforced it. Now a version GATE runs
+        before any test: the binary's -V token must equal the
+        checkout's Cargo.toml version, or resolution aborts with the
+        one-command fix. Explicit choices (--binary / ZELYNIC_BINARY)
+        still win the selection, but they pass the same gate — the
+        harness tests THIS checkout, never a foreign one.
     """
     global BINARY
+    repo_hits = [
+        c for c in REPO_BINARY_CANDIDATES
+        if os.path.isfile(c) and os.access(c, os.X_OK)
+    ]
+    repo_hits.sort(key=os.path.getmtime, reverse=True)
     candidates = []
     if explicit:
         candidates.append(explicit)
     if os.environ.get("ZELYNIC_BINARY"):
         candidates.append(os.environ["ZELYNIC_BINARY"])
-    candidates += ["./zelynic", "./target/pro-native-gnu/zelynic", "./target/release/zelynic"]
+    candidates += repo_hits
     found = shutil.which("zelynic")
     if found:
         candidates.append(found)
     for cand in candidates:
         if cand and os.path.isfile(cand) and os.access(cand, os.X_OK):
             BINARY = cand
-            return True
-    out("zelynic binary not found. Tried: " + ", ".join(candidates))
-    out("Build it first:  cargo build --release --features ebpf")
-    out(f"Or point at one: sudo {script_hint} --binary ./zelynic")
-    return False
+            break
+    else:
+        out("zelynic binary not found. Tried (repo builds first):")
+        out("  " + (", ".join(candidates) or "no repo build, nothing on PATH"))
+        out("One command: ./scripts/bootstrap-ebpf.sh")
+        out("  (installs the eBPF toolchain pair AND builds the flagship")
+        out("   binary — clone, bootstrap, test, done)")
+        out(f"Or point at one: {script_hint} --binary ./target/pro-native-gnu/zelynic")
+        return False
+
+    # ── version gate: this harness tests THIS checkout ────────────────
+    rc, stdout, _ = run_zel(["-V"])
+    first = (stdout or "").strip().splitlines()
+    first = first[0] if rc == 0 and first else ""
+    got = version_token(first)
+    want = repo_version()
+    if want is None:
+        # A checkout without a parsable [package] version cannot happen
+        # in this repo; if the parser drifts, say so and stay out of the
+        # way rather than blocking every harness on a parser bug.
+        out(f"  warning: version gate unavailable — no parsable version in {REPO_ROOT}/Cargo.toml")
+        return True
+    if got != want:
+        out("BINARY GATE: refusing to test a zelynic that is not this checkout's build.")
+        out(f"  {BINARY} reports: {first or '(no version line)'}")
+        out(f"  this checkout is: v{want} (Cargo.toml) — a wrong version means a")
+        out("  wrong CLI surface and a wrong status schema: every verdict would")
+        out("  be decoy noise (the 2026-09-21 debian13 run lost 12 of 23 rows")
+        out("  to a stale /usr/bin/zelynic v4.0.0-alpha this way).")
+        out("One command: ./scripts/bootstrap-ebpf.sh   (prerequisites + flagship build)")
+        out(f"Or point at a matching build: {script_hint} --binary ./target/pro-native-gnu/zelynic")
+        return False
+    return True
 
 
 # ── verdict band ────────────────────────────────────────────────────────────
