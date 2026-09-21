@@ -16,7 +16,7 @@ use super::{
 use crate::ebpf::connections::ConnectionMap;
 use crate::ebpf::identity::IdentityMap;
 use crate::ebpf::limiter::format_bytes;
-use crate::output::{brand, warn_bold};
+use crate::output::{brand, suggestion, warn_bold};
 
 /// Top-talkers column layout derived from the frame width.
 ///
@@ -202,12 +202,51 @@ pub fn render_top_table(
     }
 
     lines.push(format!("  {}", "─".repeat(geo.width.saturating_sub(2))));
+    // improve-13 flagship footer: a column-aligned TOTAL row — the
+    // aggregate sits under the exact columns it sums (the rank cell
+    // stays blank), with the same footer-honesty contract as the
+    // packets line below: every talker counts, not just the rows the
+    // --limit/window budget could show.
+    let dl_sum: u64 = talkers.iter().map(|t| t.1).sum();
+    let ul_sum: u64 = talkers.iter().map(|t| t.2).sum();
+    if cols.show_total {
+        lines.push(format!(
+            "  {:>2}  {:<w0$} {:>w1$} {:>w2$} {:>w3$}",
+            "",
+            "TOTAL",
+            format_bytes(dl_sum),
+            format_bytes(ul_sum),
+            format_bytes(dl_sum + ul_sum),
+            w0 = cols.label_w,
+            w1 = cols.dl_w,
+            w2 = cols.ul_w,
+            w3 = cols.dl_w
+        ));
+    } else {
+        lines.push(format!(
+            "  {:>2}  {:<w0$} {:>w1$} {:>w2$}",
+            "",
+            "TOTAL",
+            format_bytes(dl_sum),
+            format_bytes(ul_sum),
+            w0 = cols.label_w,
+            w1 = cols.dl_w,
+            w2 = cols.ul_w
+        ));
+    }
     lines.push(format!("  {grand_total_pkt} packets total"));
 
     if let Some(proc_name) = top_proc_name {
         lines.push(format!("  {} Top consumer: {proc_name}", warn_bold("→")));
+        // The actionable tip renders in the documented suggestion
+        // tier (crystal white, the "tip:" contract) instead of plain
+        // body text — improve-13 color-precision: the yellow arrow
+        // flags, the white line tells you what to do.
         lines.push(format!(
-            "  Limit it: sudo zelynic strict-single {proc_name} 100kb"
+            "  {}",
+            suggestion(&format!(
+                "Limit it: sudo zelynic strict-single {proc_name} 100kb"
+            ))
         ));
     }
 }
@@ -294,5 +333,16 @@ mod tests {
             joined.contains("  150 packets total"),
             "footer counts ALL talkers (100 + 50), not just the shown row: {joined}"
         );
+        // improve-13: the TOTAL row sums every talker too — dl 1000 +
+        // 500 bytes ("1.5 KB"), ul "0 B" — and sits in the label column
+        // under the PROCESS header, same casing as the headers (its
+        // rank cell renders blank; the row is identified by TOTAL
+        // being its first word).
+        let total_row = lines
+            .iter()
+            .find(|l| l.split_whitespace().next() == Some("TOTAL"))
+            .unwrap_or_else(|| panic!("no TOTAL row in: {joined}"));
+        assert!(total_row.contains("1.5 KB"), "TOTAL dl sum: {total_row}");
+        assert!(total_row.contains("0 B"), "TOTAL ul sum: {total_row}");
     }
 }

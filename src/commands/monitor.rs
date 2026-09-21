@@ -94,24 +94,40 @@ pub fn handle_list_apps(json: bool) -> Result<()> {
         count,
         socket_cgroups
     );
+    // Column widths shared by header, rows, and separator — one
+    // table, one width source (improve-13: the separator was a
+    // hardcoded 70 while the columns sum to 69 — the rule line
+    // overhung the table by one).
+    let widths = [30usize, 7, 8, 10, 8];
+    let table_w: usize = 2 + widths.iter().sum::<usize>() + (widths.len() - 1);
     println_safe!(
-        "  {:<30} {:>7} {:>8} {:>10} {:>8}",
+        "  {:<w0$} {:>w1$} {:>w2$} {:>w3$} {:>w4$}",
         "PROCESS",
         "PROCS",
         "SOCKETS",
         "CGROUP ID",
-        "UID"
+        "UID",
+        w0 = widths[0],
+        w1 = widths[1],
+        w2 = widths[2],
+        w3 = widths[3],
+        w4 = widths[4]
     );
-    println_safe!("  {}", "─".repeat(70));
+    println_safe!("  {}", "─".repeat(table_w - 2));
 
     for id in entries {
         println_safe!(
-            "  {:<30} {:>7} {:>8} {:>10} {:>8}",
+            "  {:<w0$} {:>w1$} {:>w2$} {:>w3$} {:>w4$}",
             id.comm,
             conns.proc_count(id.cgroup_id),
             conns.socket_count(id.cgroup_id),
             format!("cg:{}", id.cgroup_id),
-            id.uid
+            id.uid,
+            w0 = widths[0],
+            w1 = widths[1],
+            w2 = widths[2],
+            w3 = widths[3],
+            w4 = widths[4]
         );
     }
 

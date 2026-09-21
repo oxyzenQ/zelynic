@@ -16,6 +16,44 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Added
 
+- **render: improve-13 — the monitoring/status flagship style audit
+  (compact, simple, elegant, precision), second pass over the SpaceX
+  dashboard bar** — the first audit (precision tier) harmonized the
+  formatter; this one audited the monitor/status surfaces as grids
+  and found five real defects, all fixed with pins: (1) observe's
+  footer was a run-on lowercase line ("total down X up Y N packets
+  N cgroups") whose numbers sat at arbitrary offsets under a grid
+  whose entire point is column alignment — it is now a
+  column-aligned TOTAL row (label cell TOTAL, sums under the exact
+  DOWNLOAD/UPLOAD/RATE slots they total, aggregate rate included)
+  plus one bullet-separated meta line ("N packets · N cgroups");
+  top gained the same TOTAL row over its existing packets line,
+  with the footer-honesty contract (sums count every talker, not
+  just the rows shown) preserved; (2) format_bytes tier-boundary
+  promotion — a value that rounds to 1000.0 of its unit now renders
+  in the next unit (999_950 B is "1.0 MB", never "1000.0 KB"): the
+  four-digit cell was raggedness, AND "1000.0 KB/s" is 11 columns,
+  which pushed the monitor's fixed 10-column RATE budget one column
+  right exactly at the tier edge (integer threshold, no float
+  boundary wobble); (3) the filtered monitor's "lifetime" row mixed
+  horizons — per-poll download delta + lifetime upload — so the
+  number shrank frame over frame on a 1s refresh; CgroupDelta
+  gained ingress_total_bytes (the ingress map's cumulative counter,
+  the exact twin of total_bytes) and lifetime now sums two lifetime
+  counters, one horizon; (4) the status table was the last surface
+  still packing two metrics per cell ("421 (1.4 MB)" in ALLOWED) —
+  the render engine's own module docs ban per-cell packing; cells
+  are now one metric (bytes; em dash for an absent direction
+  policy), packets remain in --print-json; (5) top's "Limit it:"
+  hint now renders in the documented suggestion tier (crystal
+  white) instead of plain body text — the yellow arrow flags, the
+  white line tells you what to do. list-apps' separator is computed
+  from the same column widths as the table (the hardcoded 70
+  overhung the 69-wide table by one). CHROME_LINES 7 -> 8 (one more
+  chrome line buys totals that sit under their columns). Display-
+  only plus one stats-field addition: no policy, enforcement, or
+  kernel-map change; schema and JSON contracts untouched.
+
 - **display: status/monitor style audit against the flagship bar —
   precision tier harmonized (one decimal everywhere, TB tier added,
   input-output unit symmetry)** — the audit walked every render

@@ -205,6 +205,7 @@ impl Observer {
                     total_bytes: stats.bytes,
                     ingress_packets: 0,
                     ingress_bytes: 0,
+                    ingress_total_bytes: 0,
                 });
             }
         }
@@ -230,6 +231,7 @@ impl Observer {
                 {
                     entry.ingress_packets = delta_packets;
                     entry.ingress_bytes = delta_bytes;
+                    entry.ingress_total_bytes = stats.bytes;
                 } else {
                     summary.cgroups.push(CgroupDelta {
                         cgroup_id: *cgroup_id,
@@ -238,6 +240,7 @@ impl Observer {
                         total_bytes: 0,
                         ingress_packets: delta_packets,
                         ingress_bytes: delta_bytes,
+                        ingress_total_bytes: stats.bytes,
                     });
                 }
             }
@@ -282,11 +285,24 @@ pub struct CounterSummary {
 #[derive(Debug, Clone)]
 pub struct CgroupDelta {
     pub cgroup_id: u32,
+    /// Upload packets since the previous poll.
     pub packets: u64,
+    /// Upload bytes since the previous poll.
     pub bytes: u64,
+    /// Lifetime upload bytes (the map counter since attach).
     pub total_bytes: u64,
+    /// Download packets since the previous poll.
     pub ingress_packets: u64,
+    /// Download bytes since the previous poll.
     pub ingress_bytes: u64,
+    /// Lifetime download bytes (the ingress map counter since
+    /// attach). improve-13 precision: the filtered monitor's
+    /// "lifetime" row previously summed `ingress_bytes` (a per-poll
+    /// delta) with `total_bytes` (a lifetime figure) — a mixed-
+    /// horizon number that shrank frame over frame on a 1s refresh;
+    /// the honest lifetime needs the ingress map's own cumulative
+    /// counter, the exact twin of `total_bytes`.
+    pub ingress_total_bytes: u64,
 }
 
 // NIGHT-improve-1 phase 3: the embedded-object pins live under the

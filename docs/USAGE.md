@@ -194,8 +194,10 @@ Reads the pinned maps and prints: watchdog state (normally "not set
 (enforcing)"), how many dl/ul policies are active, and a table of
 CGROUP / DOWNLOAD / UPLOAD / ALLOWED / DROPPED per cgroup, with labels
 resolved by majority vote over the live processes inside each cgroup.
-ALLOWED/DROPPED are cumulative packet/byte counters since the maps were
-created — they are evidence of enforcement, not a live rate meter.
+ALLOWED/DROPPED carry cumulative BYTE counters since the maps were
+created — one metric per cell, evidence of enforcement rather than a
+live rate meter; the packet counts ride `--print-json` where
+automation reads them.
 
 ### list-apps — discovery
 
@@ -222,9 +224,16 @@ the previous frame are written — one write syscall per frame, an
 unchanged frame costs zero I/O at every terminal height
 (NIGHT-improve-6), and the screen is never wiped or scrolled
 mid-session (no flicker, no drift, no alt-screen scrollback side
-effects).
+effects). Every frame closes with a column-aligned TOTAL row (the
+aggregate down/up/rate sums sit under the exact columns they total)
+and a one-line packets/cgroups count. Byte figures keep one decimal
+on every tier and promote at the rounding edge (999_950 B is
+"1.0 MB", never "1000.0 KB"), so columns never carry ragged
+four-digit values.
 `--cgroup` zooms into one cgroup
-with per-process and per-socket endpoint detail. Default refresh 1s;
+with per-process and per-socket endpoint detail — the lifetime row
+sums both lifetime counters (download and upload since attach),
+never a per-refresh delta. Default refresh 1s;
 `--interval` calms it down to at most 60s. **Quit with `q` — the only
 quit key** (NIGHT-hunt-16; ESC and Ctrl+C are drained, never treated
 as quit).
@@ -237,9 +246,12 @@ sudo zelynic top [--limit N] [--interval <1s-60s>]
 
 Always-live top-talkers table (NIGHT-hunt-12): rank, PROCESS, DOWNLOAD,
 UPLOAD, TOTAL, with per-cgroup detail lines naming the processes and
-remote endpoints inside. Default shows top 10, refreshed every 5s. The
+remote endpoints inside. Default shows top 10, refreshed every 5s.
+The frame closes with a column-aligned TOTAL row (aggregate sums over
+every talker, not just the rows shown) and the packets count. The
 "Top consumer" footer names the busiest process inside the #1 cgroup
-and suggests the exact `strict-single` command to limit it. Quit with
+and suggests the exact `strict-single` command to limit it (the tip
+line renders in the suggestion tier — crystal white). Quit with
 `q`.
 
 ### doctor — support check

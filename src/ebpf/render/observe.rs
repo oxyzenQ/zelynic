@@ -153,10 +153,43 @@ pub fn render_observe_frame(
     }
 
     lines.push(format!("  {}", "─".repeat(geo.width.saturating_sub(2))));
+    // improve-13 flagship footer: a column-aligned TOTAL row — the
+    // aggregate numbers sit under the exact columns they sum, in the
+    // same width slots the data rows use (the old run-on "total down
+    // X up Y" line put the sums at arbitrary offsets under a grid
+    // whose whole point is column alignment). The label cell carries
+    // TOTAL in the header's casing; the aggregate rate fills the RATE
+    // slot when that column exists, mirroring every data row.
+    if cols.show_rate {
+        lines.push(format!(
+            "  {:<w0$} {:>w1$} {:>w2$} {:>w3$}",
+            "TOTAL",
+            format_bytes(summary.total_ingress_bytes),
+            format_bytes(summary.total_bytes),
+            format_rate_or_dash(rate_bps(
+                summary.total_ingress_bytes + summary.total_bytes,
+                interval
+            )),
+            w0 = cols.label_w,
+            w1 = cols.dl_w,
+            w2 = cols.ul_w,
+            w3 = cols.dl_w
+        ));
+    } else {
+        lines.push(format!(
+            "  {:<w0$} {:>w1$} {:>w2$}",
+            "TOTAL",
+            format_bytes(summary.total_ingress_bytes),
+            format_bytes(summary.total_bytes),
+            w0 = cols.label_w,
+            w1 = cols.dl_w,
+            w2 = cols.ul_w
+        ));
+    }
+    // Meta line (compact): scale of the frame, one line, bullet-
+    // separated — never mixed into the numeric grid.
     lines.push(format!(
-        "  total  down {}  up {}  {} packets  {} cgroups",
-        format_bytes(summary.total_ingress_bytes),
-        format_bytes(summary.total_bytes),
+        "  {} packets · {} cgroups",
         summary.total_packets + summary.total_ingress_packets,
         sorted.len()
     ));
@@ -259,7 +292,12 @@ pub fn render_observe_filtered(
     ));
     lines.push(format!(
         "  lifetime  {}",
-        format_bytes(c.ingress_bytes + c.total_bytes)
+        // Both lifetime counters (improve-13 precision): the ingress
+        // map's cumulative download + the egress map's cumulative
+        // upload — one horizon, since attach. The old sum mixed a
+        // per-poll download delta in, so the row shrank frame over
+        // frame on a 1s refresh.
+        format_bytes(c.ingress_total_bytes + c.total_bytes)
     ));
 
     // Full eagle-eyes view for the filtered cgroup: every
@@ -319,5 +357,112 @@ mod tests {
         assert_eq!(lines.len(), 2, "idle frame = title + waiting note");
         assert!(lines[0].starts_with("─── zelynic observe — 1s refresh"));
         assert_eq!(lines[1], "  waiting for traffic…");
+    }
+
+    /// improve-13 footer pin: the run-on "total down X up Y" line is
+    /// gone, replaced by a column-aligned TOTAL row (same width slots
+    /// as the data rows — a single-cgroup frame's TOTAL cells equal
+    /// that row's cells, and both lines share the column-grid width)
+    /// plus a bullet-separated meta line.
+    #[test]
+    fn observe_footer_total_row_aligns_with_columns() {
+        let mut lines = Vec::new();
+        let summary = CounterSummary {
+            total_packets: 57,
+            total_bytes: 240_000,
+            total_ingress_packets: 421,
+            total_ingress_bytes: 1_400_000,
+            cgroups: vec![CgroupDelta {
+                cgroup_id: 7001,
+                packets: 57,
+                bytes: 240_000,
+                total_bytes: 240_000,
+                ingress_packets: 421,
+                ingress_bytes: 1_400_000,
+                ingress_total_bytes: 1_400_000,
+            }],
+        };
+        render_observe_frame(
+            &mut lines,
+            &summary,
+            &IdentityMap::new(),
+            None,
+            Duration::from_secs(1),
+        );
+        let joined = lines.join("\n");
+
+        // The old run-on footer wording is retired.
+        assert!(
+            !joined.contains("total  down"),
+            "run-on footer must be gone: {joined}"
+        );
+
+        // TOTAL row renders in the label column with the header's casing.
+        let total_row = lines
+            .iter()
+            .find(|l| l.split_whitespace().next() == Some("TOTAL"))
+            .unwrap_or_else(|| panic!("no TOTAL row in: {joined}"));
+        // Single cgroup: the TOTAL cells are exactly the row's values.
+        assert!(total_row.contains("1.4 MB"), "TOTAL dl sum: {total_row}");
+        assert!(total_row.contains("240.0 KB"), "TOTAL ul sum: {total_row}");
+        assert!(total_row.contains("1.6 MB/s"), "TOTAL rate: {total_row}");
+
+        // Column-grid integrity: the TOTAL row occupies the same
+        // width slots as a data row (identical line width, both in
+        // the 80-column piped layout: 2 + 42 label + 10 + 10 + 10 + gaps).
+        let data_row = lines
+            .iter()
+            .find(|l| l.starts_with("  cg:7001"))
+            .unwrap_or_else(|| panic!("no data row in: {joined}"));
+        assert_eq!(
+            total_row.chars().count(),
+            data_row.chars().count(),
+            "TOTAL row must share the column grid: {total_row} vs {data_row}"
+        );
+
+        // Meta line: scale of the frame, bullet-separated.
+        assert!(
+            joined.contains("478 packets · 1 cgroups"),
+            "meta line wording: {joined}"
+        );
+    }
+
+    /// Single-cgroup view (improve-13 precision): the lifetime row
+    /// sums the two LIFETIME counters, never a per-poll delta — with
+    /// delta 5 MB but lifetime ingress 900 MB, the row must read the
+    /// lifetime figure.
+    #[test]
+    fn observe_filtered_lifetime_uses_lifetime_counters() {
+        let mut lines = Vec::new();
+        let summary = CounterSummary {
+            total_packets: 5,
+            total_bytes: 10_000_000,
+            total_ingress_packets: 50,
+            total_ingress_bytes: 5_000_000,
+            cgroups: vec![CgroupDelta {
+                cgroup_id: 7001,
+                packets: 5,
+                bytes: 10_000_000,
+                total_bytes: 90_000_000,
+                ingress_packets: 50,
+                ingress_bytes: 5_000_000,
+                ingress_total_bytes: 900_000_000,
+            }],
+        };
+        render_observe_filtered(
+            &mut lines,
+            &summary,
+            &IdentityMap::new(),
+            None,
+            7001,
+            Duration::from_secs(1),
+        );
+        let joined = lines.join("\n");
+        // lifetime = 900 MB (dl lifetime) + 90 MB (ul lifetime) — the
+        // mixed-horizon "5 MB + 90 MB" figure must not appear.
+        assert!(
+            joined.contains("lifetime  990.0 MB"),
+            "lifetime sums both lifetime counters: {joined}"
+        );
     }
 }

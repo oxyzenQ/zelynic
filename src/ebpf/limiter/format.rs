@@ -181,19 +181,35 @@ pub fn monotonic_ns() -> u64 {
 /// and pre-audit a max-rate policy rendered "1000.00 GB/s" — the CLI
 /// said 1tb, the status row disagreed.
 ///
-/// Examples: 500 → "500 B", 1500 → "1.5 KB", 1_500_000 → "1.5 MB",
-///           1_500_000_000 → "1.5 GB", 1_500_000_000_000 → "1.5 TB"
+/// Tier-boundary promotion (improve-13 precision): a value that ROUNDS
+/// UP to 1000.0 of its unit renders in the next unit — 999_950 B is
+/// "1.0 MB", never "1000.0 KB": a four-digit cell is a ragged column
+/// ("999.9 KB" above "1000.0 KB"), and "1000.0 KB/s" (11 columns)
+/// pushed the monitor's fixed 10-column RATE budget right by one at
+/// exactly the tier edge. The B tier stays integer (no decimal to
+/// round up).
+///
+/// Examples: 500 → "500 B", 1500 → "1.5 KB", 999_949 → "999.9 KB",
+///           999_950 → "1.0 MB", 1_500_000_000_000 → "1.5 TB"
 pub fn format_bytes(bytes: u64) -> String {
-    if bytes < 1000 {
+    const DIVS: [u64; 5] = [1, 1_000, 1_000_000, 1_000_000_000, 1_000_000_000_000];
+    const UNITS: [&str; 5] = ["B", "KB", "MB", "GB", "TB"];
+
+    // Walk up while the one-decimal display of this tier would carry a
+    // thousands digit — exact integer threshold (999.95 of a unit,
+    // i.e. 1000*div - div/20, the smallest value whose one-decimal
+    // rounding reads 1000.0; every DIVS entry divides by 20 exactly,
+    // so no float-edge wobble). Tier 4 is the TB terminal: u64::MAX
+    // is ~18.4 TB, no fifth unit is reachable.
+    let mut tier = 0usize;
+    while tier < 4 && bytes >= 1000 * DIVS[tier] - DIVS[tier] / 20 {
+        tier += 1;
+    }
+
+    if tier == 0 {
         format!("{bytes} B")
-    } else if bytes < 1_000_000 {
-        format!("{:.1} KB", bytes as f64 / 1000.0)
-    } else if bytes < 1_000_000_000 {
-        format!("{:.1} MB", bytes as f64 / 1_000_000.0)
-    } else if bytes < 1_000_000_000_000 {
-        format!("{:.1} GB", bytes as f64 / 1_000_000_000.0)
     } else {
-        format!("{:.1} TB", bytes as f64 / 1_000_000_000_000.0)
+        format!("{:.1} {}", bytes as f64 / DIVS[tier] as f64, UNITS[tier])
     }
 }
 
@@ -383,18 +399,38 @@ mod tests {
         assert_eq!(format_bytes(1000), "1.0 KB");
         assert_eq!(format_bytes(1500), "1.5 KB");
         assert_eq!(format_bytes(100_000), "100.0 KB");
-        assert_eq!(format_bytes(999_999), "1000.0 KB");
+        // improve-13 promotion: 999_999 KB-rounds to 1000.0, so it
+        // renders as the next unit.
+        assert_eq!(format_bytes(999_999), "1.0 MB");
         assert_eq!(format_bytes(1_000_000), "1.0 MB");
         assert_eq!(format_bytes(1_500_000), "1.5 MB");
-        // Status-style audit pins: one decimal on every tier (was .2
-        // on GB), and the TB tier exists so terabyte magnitudes and
-        // max-rate policies render in the unit the CLI itself
-        // accepts.
+        // One decimal on every tier, TB tier included — and improve-13
+        // promotion: the threshold is inclusive (999_949 stays KB,
+        // 999_950 IS 1.0 MB), the forms never carry four digits.
         assert_eq!(format_bytes(1_000_000_000), "1.0 GB");
         assert_eq!(format_bytes(1_500_000_000), "1.5 GB");
-        assert_eq!(format_bytes(999_999_999_999), "1000.0 GB");
+        assert_eq!(format_bytes(999_949_999_999), "999.9 GB");
+        assert_eq!(format_bytes(999_950_000_000), "1.0 TB");
         assert_eq!(format_bytes(1_000_000_000_000), "1.0 TB");
         assert_eq!(format_bytes(1_500_000_000_000), "1.5 TB");
+    }
+
+    /// Tier-boundary promotion (improve-13): values that would round
+    /// to a thousands digit render in the next unit. Every tier edge
+    /// is pinned at its exact threshold.
+    #[test]
+    fn test_format_bytes_promotes_at_rounding_boundary() {
+        // Just under each edge: the three-digit form holds.
+        assert_eq!(format_bytes(999_949), "999.9 KB");
+        assert_eq!(format_bytes(999_949_999), "999.9 MB");
+        assert_eq!(format_bytes(999_949_999_999), "999.9 GB");
+        // At/over the edge (the value that ROUNDS to 1000.0): promoted.
+        assert_eq!(format_bytes(999_950), "1.0 MB");
+        assert_eq!(format_bytes(999_950_999), "1.0 GB");
+        assert_eq!(format_bytes(999_950_999_999), "1.0 TB");
+        // Rate cells fit the 10-column monitor budget after promotion.
+        assert_eq!(format_rate(999_949).chars().count(), 10);
+        assert_eq!(format_rate(999_950).chars().count(), 8);
     }
 
     #[test]

@@ -58,6 +58,32 @@ fn collect_display_data(
         .collect()
 }
 
+/// One status row's display cells (pure, improve-13: extracted for
+/// the same reason `status_json` was — the human table's contract is
+/// now unit-pinnable without capturing stdout).
+///
+/// ALLOWED and DROPPED carry BYTES only, one metric per cell: the
+/// render engine's own flagship rule (src/ebpf/render.rs module
+/// docs) bans per-cell packing ("89 (1.2 MB)") — the status table
+/// was the last surface still doing it. Packet counts stay in
+/// `--print-json` where automation reads them; the human eye scans
+/// magnitudes, and bytes carry the enforcement verdict.
+fn status_cells(
+    d: &DisplayData,
+    identity: &IdentityMap,
+) -> (String, String, String, String, String) {
+    let label = identity.label(d.cgroup_id);
+    let dl = d.dl_bps.map(format_rate).unwrap_or_else(|| "—".to_string());
+    let ul = d.ul_bps.map(format_rate).unwrap_or_else(|| "—".to_string());
+    (
+        label,
+        dl,
+        ul,
+        format_bytes(d.bytes_allowed),
+        format_bytes(d.bytes_dropped),
+    )
+}
+
 /// Print human-readable status table.
 pub fn print_status(
     dl_policies: &[(u32, PolicyRaw)],
@@ -100,17 +126,8 @@ pub fn print_status(
         return;
     }
 
-    let rows: Vec<(String, String, String, String, String)> = data
-        .iter()
-        .map(|d| {
-            let label = identity.label(d.cgroup_id);
-            let dl_str = d.dl_bps.map(format_rate).unwrap_or_else(|| "—".to_string());
-            let ul_str = d.ul_bps.map(format_rate).unwrap_or_else(|| "—".to_string());
-            let allowed_str = format!("{} ({})", d.packets_allowed, format_bytes(d.bytes_allowed));
-            let dropped_str = format!("{} ({})", d.packets_dropped, format_bytes(d.bytes_dropped));
-            (label, dl_str, ul_str, allowed_str, dropped_str)
-        })
-        .collect();
+    let rows: Vec<(String, String, String, String, String)> =
+        data.iter().map(|d| status_cells(d, identity)).collect();
 
     let term_w = terminal_width().saturating_sub(4);
     let headers = ["CGROUP", "DOWNLOAD", "UPLOAD", "ALLOWED", "DROPPED"];
