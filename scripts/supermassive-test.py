@@ -150,6 +150,10 @@ SERVER = None
 CG = None
 MODE = ""
 CURL = shutil.which("curl")
+# NIGHT-improve-13: every measurement-worker failure that would
+# otherwise read as a silent "0 B/s" rate row is filed here (see
+# _note_worker_fault / report_worker_faults).
+WORKER_FAULTS = []
 
 
 # ── dedicated cgroup fleet ─────────────────────────────────────────────────
@@ -432,7 +436,17 @@ def http_get(url_path):
 # one integer on the last stdout line — the spawn_in_cgroup contract.
 # Connect failures print 0: under a block-* policy the SYN itself is
 # dropped, and ZERO GOODPUT is the honest measurement, never a crash.
-_PY_DL_CLIENT = """import socket, sys, time
+#
+# NIGHT-improve-13: these MUST stay RAW strings (r"""). As plain
+# triple-quoted strings every backslash escape below was unescaped at
+# PARENT parse time and the child received corrupted source: \x00
+# became a literal NUL inside the argv (Popen raised "ValueError:
+# embedded null byte" and killed the whole run at the first py_upload
+# call), \r\n became real CR/LF inside the child's b"..." literal
+# (SyntaxError, empty stdout — which read as a clean 0 B/s in every
+# rate row). The self-test's parse + end-to-end worker rows pin both
+# layers rootlessly.
+_PY_DL_CLIENT = r"""import socket, sys, time
 port, window = int(sys.argv[1]), float(sys.argv[2])
 total = 0
 try:
@@ -458,7 +472,7 @@ except OSError:
 print(total)
 """
 
-_PY_UL_CLIENT = """import socket, sys, time
+_PY_UL_CLIENT = r"""import socket, sys, time
 port, window = int(sys.argv[1]), float(sys.argv[2])
 sent = 0
 try:
@@ -478,6 +492,30 @@ except OSError:
     pass
 print(sent)
 """
+
+
+def worker_smoke(code, port, window):
+    """Run one embedded worker EXACTLY the way root mode runs it — as a
+    real `python -c` argv element under the stdout integer contract —
+    minus only the cgroup move, so the self-test can pin the worker
+    path rootlessly (NIGHT-improve-13)."""
+    try:
+        r = subprocess.run(
+            [sys.executable, "-c", code, str(port), str(window)],
+            capture_output=True, text=True, timeout=window + 20,
+        )
+    except subprocess.TimeoutExpired:
+        return None, "worker did not finish"
+    except (ValueError, OSError) as e:
+        return None, f"spawn failed: {e}"
+    lines = r.stdout.strip().splitlines()
+    if r.returncode != 0 or not lines:
+        err = (r.stderr.strip().splitlines() or ["<no stderr>"])[-1]
+        return None, f"worker exit {r.returncode}: {err[:80]}"
+    try:
+        return int(lines[-1]), ""
+    except ValueError:
+        return None, f"no integer on stdout ({lines[-1][:60]})"
 
 
 def py_download(window, name="a"):
@@ -617,11 +655,47 @@ def popen_in_cgroup(name, argv):
     )
 
 
+def _note_worker_fault(err):
+    """File one distinct worker failure, counted (NIGHT-improve-13).
+
+    The improve-12 run hid its own broken workers: worker stderr went
+    to DEVNULL, the error half of every (metric, err) tuple was
+    discarded, and a dead worker measured as a clean 0 B/s in sixteen
+    rate rows while the only loud symptom was a bare ValueError at
+    the upload stage.
+    """
+    for i, (msg, count) in enumerate(WORKER_FAULTS):
+        if msg == err:
+            WORKER_FAULTS[i] = (msg, count + 1)
+            return
+    WORKER_FAULTS.append((err, 1))
+
+
+def report_worker_faults():
+    """Print the collected worker faults above the verdict so "FAILURES
+    present — see the marked rows above" points at a cause."""
+    if not WORKER_FAULTS:
+        return
+    out()
+    out("━━━ worker faults (measurement clients that never reported a metric) ━━━")
+    for msg, count in WORKER_FAULTS:
+        out(f"  {count}x {msg}")
+
+
 def spawn_in_cgroup(name, argv, timeout):
-    """Run argv to completion inside cgroup `name`; returns (metric, err)."""
+    """Run argv to completion inside cgroup `name`; returns (metric, err).
+
+    Worker faults are ALSO filed into WORKER_FAULTS (NIGHT-improve-13)
+    so a broken engine reads as "worker faults" in the final report,
+    not as a matrix of clean-looking 0 B/s rows. Unexpected spawn
+    exceptions — e.g. a null byte smuggled into an argv element —
+    still RAISE: unknown bugs crash loudly into main's handler instead
+    of silently zeroing the matrix.
+    """
     try:
         p = popen_in_cgroup(name, argv)
     except OSError as e:
+        _note_worker_fault(f"spawn {os.path.basename(argv[0])}: {e}")
         return None, str(e)
     try:
         stdout, _ = p.communicate(timeout=timeout)
@@ -629,9 +703,12 @@ def spawn_in_cgroup(name, argv, timeout):
         try:
             return int(metric), ""
         except ValueError:
-            return None, f"no metric ({metric[:60] or 'empty'})"
+            err = f"no metric ({metric[:60] or 'empty'})"
+            _note_worker_fault(f"{os.path.basename(argv[0])}: {err}")
+            return None, err
     except subprocess.TimeoutExpired:
         p.kill()
+        _note_worker_fault(f"{os.path.basename(argv[0])}: worker did not finish")
         return None, "worker did not finish"
 
 
@@ -797,6 +874,21 @@ def test_doctor():
 def test_baseline(window):
     got = py_download(window)
     bps = got / window
+    # NIGHT-improve-13: 0 B/s with no policy live is never a rate
+    # verdict — it means the measurement engine itself moved no bytes.
+    # The improve-12 run recorded this as "OK ... 0 B/s — the
+    # measurement ceiling" while every worker was already dead, and
+    # the falsy 0.0 then silently defeated every "hardware ceiling"
+    # SKIP guard downstream.
+    if got <= 0:
+        record(
+            "baseline: unlimited loopback throughput", "FAIL",
+            "0 B/s with NO policy live — the measurement engine itself "
+            "moved no bytes, so every rate verdict below is garbage; see "
+            "worker faults at the end of the report",
+            {"bps": 0},
+        )
+        return bps
     record(
         "baseline: unlimited loopback throughput", "PASS",
         f"{fmt_bps(bps)} ({mbps(bps)}) over {window:.1f}s — the measurement ceiling",
@@ -1349,6 +1441,39 @@ def self_test():
             record("engine: curl burst x4 counters agree", "FAIL", "a curl produced no metric")
         else:
             agree("engine: curl burst x4 counters agree", sum(totals), SERVER.peek()["dl"])
+    # NIGHT-improve-13 pins: the embedded worker sources must PARSE and
+    # RUN. The improve-12 rewrite shipped them inside NON-RAW
+    # triple-quoted strings, so \x00 and \r\n unescaped at parent
+    # parse time: every root-mode python worker died before printing a
+    # metric — the \x00 one could not even be exec'd (Popen raised
+    # "embedded null byte" and killed the run at the upload stage) —
+    # while this self-test stayed green, because with CG unset it only
+    # exercises the IN-PROCESS client. These rows close that blind
+    # spot rootlessly: compile catches source corruption, worker_smoke
+    # catches spawn/argv/contract breakage end-to-end.
+    for label, code in (("dl", _PY_DL_CLIENT), ("ul", _PY_UL_CLIENT)):
+        try:
+            compile(code, f"<{label}-worker>", "exec")
+            record(f"engine: {label} worker source parses", "PASS")
+        except (SyntaxError, ValueError) as e:
+            record(f"engine: {label} worker source parses", "FAIL", str(e))
+    # settle + reset first: drain the burst writers' tails out of the
+    # counters so the worker rows measure ONLY the worker's stream.
+    SERVER.settle()
+    SERVER.reset()
+    got, err = worker_smoke(_PY_DL_CLIENT, SERVER.port, 1.5)
+    SERVER.settle()
+    if got is None:
+        record("engine: dl worker measures end-to-end", "FAIL", err)
+    else:
+        agree("engine: dl worker measures end-to-end", got, SERVER.peek()["dl"])
+    SERVER.reset()
+    sent, err = worker_smoke(_PY_UL_CLIENT, SERVER.port, 1.5)
+    if sent is None:
+        record("engine: ul worker measures end-to-end", "FAIL", err)
+    else:
+        agree("engine: ul worker measures end-to-end", sent, SERVER.peek()["ul"])
+    SERVER.reset()
     SERVER.stop()
     # NIGHT-improve-12 regression pin: a connect failure must surface
     # as ZERO GOODPUT, never as an uncaught TimeoutError — the
@@ -1482,6 +1607,7 @@ def main():
         else:
             run_light(2.5)
         CG.cleanup()
+        report_worker_faults()
         ok = final_report(start, mode,
                           "zelynic command surface: supermassive-verified on this machine.")
         exit_code = 0 if ok else 1
@@ -1492,6 +1618,7 @@ def main():
             CG.cleanup()
         except Exception:
             pass
+        report_worker_faults()
         final_report(start, mode,
                      "zelynic command surface: supermassive-verified on this machine.")
         exit_code = 1
@@ -1503,6 +1630,7 @@ def main():
             "binary": lib.BINARY,
             "mode": mode,
             "cgroup_mode": MODE,
+            "worker_faults": [{"error": msg, "count": n} for msg, n in WORKER_FAULTS],
             "results": RESULTS,
         }, indent=2))
     return exit_code

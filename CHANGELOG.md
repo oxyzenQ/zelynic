@@ -242,6 +242,32 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Fixed
 
+- **supermassive-test: the python worker clients were embedded in
+  non-raw strings, so every root-mode rate row measured 0 B/s and the
+  run died with "ValueError: embedded null byte" (NIGHT-improve-13)** —
+  the NIGHT-improve-12 worker rewrite put its `python -c` client
+  sources inside plain triple-quoted strings, so Python unescaped them
+  at PARENT parse time and the children received corrupted source: the
+  upload client's `\x00` blob escape became a literal NUL inside the
+  argv — Popen refuses null bytes, which is the "harness error" that
+  killed both light and heavy runs at the first upload stage and left
+  every later stage unrecorded — and both clients' `\r\n` request-line
+  escapes became real CR/LF inside the child's `b"..."` literals
+  (SyntaxError, stderr on DEVNULL, stdout empty), which the discarded
+  error half of `spawn_in_cgroup`'s return silently reported as a clean
+  0 B/s in EVERY rate row — including a baseline "measurement ceiling"
+  of 0 B/s that recorded PASS and, being falsy, silently defeated every
+  "hardware ceiling" SKIP guard downstream (the owner's 2026-09-21
+  nightpc run: 9P/7F light, 11P/18F heavy, all zeros, 3s/8s, one
+  ValueError). Both constants are now RAW strings; worker failures are
+  filed into a WORKER_FAULTS list printed above the verdict and in
+  --json instead of reading as zero goodput; the baseline row FAILs
+  when the engine itself moves no bytes; and the self-test gained four
+  rootless pins — source-parse rows for both workers plus end-to-end
+  worker rows that exec the real `python -c` argv — closing the
+  rootless blind spot that let the improve-12 rewrite ship green.
+  Harness-only change: no eBPF, kernel-map, or schema impact.
+
 - **harnesses: the environment gate now checks the bpf FILESYSTEM
   MOUNT, not the zelynic pin directory — a fresh-but-healthy host
   no longer fails at the first gate (NIGHT-improve-11 / security-4)** —
