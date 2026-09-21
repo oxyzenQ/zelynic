@@ -39,7 +39,7 @@ jobs:
     outputs:
       core: ${{ steps.detect.outputs.core }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5, NIGHT-hunt-20 SHA pin
         with:
           fetch-depth: 0
       - name: Detect core file changes
@@ -76,10 +76,10 @@ jobs:
     name: Lint & Test
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5, NIGHT-hunt-20 SHA pin
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # @stable, NIGHT-hunt-20 SHA pin
         with:
           toolchain: ${{ env.RUST_VERSION }}
           components: clippy, rustfmt
@@ -89,7 +89,7 @@ jobs:
       # build in build.rs — the dated nightly pin (ebpf/
       # rust-toolchain.toml) and bpf-linker must be present.
       - name: Install eBPF nightly toolchain (dated pin)
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # @stable, NIGHT-hunt-20 SHA pin
         with:
           toolchain: nightly-2026-09-18
           components: rust-src
@@ -106,7 +106,7 @@ jobs:
           bpf-linker --version
 
       - name: Cache cargo registry
-        uses: actions/cache@v5
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5, NIGHT-hunt-20 SHA pin
         with:
           path: |
             ~/.cargo/registry
@@ -125,8 +125,10 @@ jobs:
       - name: Run tests
         run: cargo test --locked
 
-      - name: Install cargo-deny
-        run: cargo install cargo-deny --locked
+      # Scanner binary pinned, advisory DB still refreshes every run
+      # (NIGHT-hunt-20): red means a new advisory, never a new release.
+      - name: Install cargo-deny (pinned 0.20.2)
+        run: cargo install cargo-deny --version 0.20.2 --locked
 
       - name: Check dependency policies
         run: cargo deny check all
@@ -150,10 +152,10 @@ jobs:
         os: [ubuntu-22.04, ubuntu-24.04]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5, NIGHT-hunt-20 SHA pin
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # @stable, NIGHT-hunt-20 SHA pin
         with:
           toolchain: ${{ env.RUST_VERSION }}
 
@@ -161,7 +163,7 @@ jobs:
       # pure-Rust ebpf/ crate (aya-ebpf, nightly + bpf-linker) — the
       # clang/libbpf-dev toolchain is gone from this job.
       - name: Install eBPF nightly toolchain (dated pin)
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # @stable, NIGHT-hunt-20 SHA pin
         with:
           toolchain: nightly-2026-09-18
           components: rust-src, rustfmt
@@ -213,7 +215,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5, NIGHT-hunt-20 SHA pin
 
       # Tool pins make findings meaningful: a red wholesale run means
       # the tree drifted, never that a linter released overnight. The
@@ -250,7 +252,7 @@ jobs:
       # keeps the wholesale run off the rustup auto-install path (exact
       # parity with the ebpf-build job's toolchain step).
       - name: Install eBPF nightly toolchain (dated pin)
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # @stable, NIGHT-hunt-20 SHA pin
         with:
           toolchain: nightly-2026-09-18
           components: rust-src, rustfmt

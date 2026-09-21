@@ -28,19 +28,22 @@ jobs:
     continue-on-error: true
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5, NIGHT-hunt-20 SHA pin
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # @stable, NIGHT-hunt-20 SHA pin
 
-      - name: Install cargo-audit
-        run: cargo install cargo-audit --locked
+      # Scanner binaries pinned, advisory DB still refreshes every
+      # run (NIGHT-hunt-20): red means a new advisory, never a new
+      # release of the scanner itself.
+      - name: Install cargo-audit (pinned 0.22.2)
+        run: cargo install cargo-audit --version 0.22.2 --locked
 
       - name: Run cargo audit
         run: cargo audit
 
-      - name: Install cargo-deny
-        run: cargo install cargo-deny --locked
+      - name: Install cargo-deny (pinned 0.20.2)
+        run: cargo install cargo-deny --version 0.20.2 --locked
 
       - name: Run cargo deny
         if: hashFiles('deny.toml') != ''

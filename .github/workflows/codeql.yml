@@ -11,8 +11,9 @@
 # crate itself compiles on the nightly pin via the nested build —
 # outside CodeQL's stable-toolchain autobuild, and gated by the
 # eBPF Build CI jobs instead. Python tooling scripts are covered by
-# the codespell gate in ci.yml; shell scripts by the local
-# gate-keepers shellcheck (ci.yml has no shellcheck job).
+# the codespell gate in ci.yml; shell scripts by shellcheck — now
+# running CI-side too via the wholesale gate-keepers job
+# (NIGHT-hunt-23).
 #
 # Weekly scheduled scan Monday 00:00 UTC (07:00 WIB) for full
 # coverage — the owner's morning, one clock for every scheduled
@@ -74,15 +75,15 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5 (aligned), NIGHT-hunt-20 SHA pin
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # @stable, NIGHT-hunt-20 SHA pin
         with:
           toolchain: ${{ env.RUST_VERSION }}
 
       - name: Setup Rust cache
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@49a0bdc70d2e1b713ca9e2869b211fcce03d3c1c # v2, NIGHT-hunt-20 SHA pin
         with:
           cache-on-failure: true
 
@@ -90,6 +91,12 @@ jobs:
       # binary — the whole shipped code is Rust (phase 3). The ebpf/
       # BPF crate is compiled by the eBPF Build CI jobs on the
       # nightly pin (outside CodeQL's stable autobuild).
+      #
+      # codeql-action is the ONE action deliberately left on a moving
+      # tag (github-org official, NIGHT-hunt-20): its value is tracking
+      # the current analyzers and query packs — SHA-pinning it would
+      # freeze the security scanner itself. Every other action in this
+      # repo is SHA-pinned.
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v4
         with:

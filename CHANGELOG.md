@@ -16,6 +16,38 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Added
 
+- **security: NIGHT-hunt-20 expert supply-chain audit — crates clean,
+  the real exposure was CI actions, now SHA-pinned** — the crate set
+  survives an attack-surface audit untouched: every one of the 7
+  direct dependencies carries live call sites (independently
+  re-verified: clap 12 sites, anyhow 42, aya 19, nix 13, libc 14,
+  serde 3, serde_json 8), `cargo audit` 0.22.2 over both lockfiles
+  (root 54 crates, ebpf 31) exits zero against 1258 loaded RustSec
+  advisories, `cargo deny` reports advisories/bans/licenses/sources
+  all ok, aya's default feature set is empty (nothing left to trim),
+  and the 4 root-lock entries unreachable on Linux are
+  Windows-target-gated (never downloaded or compiled here). What the
+  audit exposed instead: (1) the ebpf crate carries a 10-crate
+  build-time-execution chain (aya-build, pulled as a
+  build-dependency by aya-ebpf-bindings/aya-ebpf-cty — upstream
+  framework design, now documented as the accepted risk to watch
+  first on every aya release), and (2) the actual attack vector with
+  repo write access was never Cargo.toml — it was the 11 references
+  to the mutable `dtolnay/rust-toolchain@stable` branch (a personal
+  account) including inside the maintenance job that holds a
+  `contents: write` token. Every workflow action is now SHA-pinned
+  (dtolnay, Swatinem/rust-cache, softprops/action-gh-release, and
+  all actions/checkout, cache, upload-artifact, download-artifact
+  references; codeql.yml's checkout aligned from the v6 outlier to
+  the v5 pin used everywhere else), with one deliberate documented
+  exception: github/codeql-action stays on its moving v4 tag because
+  pinning it would freeze the security scanner itself. CI-installed
+  scanner binaries are now version-pinned too (cargo-deny 0.20.2,
+  cargo-audit 0.22.2, codespell 2.4.3) — the RustSec database still
+  refreshes every run, so red always means a new advisory, never a
+  new scanner release. Full evidence trail recorded in
+  docs/DEPENDENCY_AUDIT.md.
+
 - **gates: wholesale CI mirror — the NIGHT-hunt-23 rot class closed
   permanently (owner-approved)** — CI mirrored only a hand-picked
   subset of gate-keepers sections as individually wired steps (shfmt,
