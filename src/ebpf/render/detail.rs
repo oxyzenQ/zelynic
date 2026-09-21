@@ -68,11 +68,18 @@ fn endpoint_text(socket: &SocketInfo) -> String {
 
 /// Is this socket worth a detail line? Established TCP and connected
 /// UDP carry traffic; LISTEN/TIME_WAIT rows are noise.
+///
+/// The UDP branch needs the remote guard (NIGHT-hunt-15):
+/// /proc/net/udp reports state 07 (CLOSE) for connected AND
+/// unconnected sockets alike, so a bound-only listener (chronyd,
+/// systemd-resolved, mDNS) would otherwise render as `udp 0.0.0.0:0`
+/// noise under its cgroup row. A real remote endpoint never carries
+/// port 0, and both `0.0.0.0:0` and `[::]:0` end in `:0`.
 fn is_displayable(socket: &SocketInfo) -> bool {
     match socket.proto {
         Proto::Tcp => socket.state == "ESTABLISHED",
         // /proc/net/udp uses state 07 for a connected UDP socket.
-        Proto::Udp => socket.state == "CLOSE",
+        Proto::Udp => socket.state == "CLOSE" && !socket.remote.ends_with(":0"),
     }
 }
 
@@ -277,6 +284,16 @@ mod tests {
                         pid: 7000,
                         comm: "vim".to_string(),
                         sockets: vec![socket(Proto::Tcp, "9.9.9.9:22", "ESTABLISHED", false)],
+                    },
+                    // NIGHT-hunt-15 pin: a bound-only UDP listener
+                    // (state 07, remote 0.0.0.0:0 — the chronyd /
+                    // systemd-resolved shape) is NOT traffic and must
+                    // not produce a detail line nor inflate the
+                    // "+N more" count.
+                    ProcessDetail {
+                        pid: 8000,
+                        comm: "chronyd".to_string(),
+                        sockets: vec![socket(Proto::Udp, "0.0.0.0:0", "CLOSE", false)],
                     },
                 ],
             },

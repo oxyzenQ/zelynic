@@ -205,19 +205,22 @@ zelynic is written in Rust, which provides:
 - **Memory safety**: no buffer overflows, no use-after-free, no null dereferences
 - **Thread safety**: no data races (Rust ownership model)
 - **No unsafe code** in userspace outside the audited `unsafe`
-  inventory (NIGHT-hunt-15 recount: 10 blocks + 4 marker impls — the
-  list had drifted to "six" as later hunts added write/statfs/probe
-  sites): `libc::flock` (lock.rs, operation guard); two raw `bpf()`
-  syscall wrappers plus `libc::close` (bpf_syscall.rs — link
-  create/pin/close); `libc::clock_gettime` (format.rs);
-  `libc::ioctl(TIOCGWINSZ)` twice (format.rs terminal size and
-  terminal/diff.rs render probe — the same size probe at two layers);
-  `libc::write` (terminal/diff.rs — the diff engine's one write
-  syscall per frame); and `libc::statfs` twice (capabilities/mod.rs —
-  the doctor's real-bpffs mount check, NIGHT-hunt-28). The four
-  `unsafe impl aya::Pod` markers (limiter/types.rs, loader.rs) are
-  zero-code layout attestations for map value types. All are standard
-  POSIX calls with well-defined semantics
+  inventory (NIGHT-hunt-15: recounted from the drifted "six" to the
+  real set, then consolidated in the same audit — the two separate
+  TIOCGWINSZ probes became one canonical terminal-layer probe,
+  leaving 9 blocks + 4 marker impls): `libc::flock` (lock.rs,
+  operation guard); two raw `bpf()` syscall wrappers plus
+  `libc::close` (bpf_syscall.rs — link create/pin/close);
+  `libc::clock_gettime` (format.rs); `libc::ioctl(TIOCGWINSZ)` ONCE
+  (terminal/diff.rs — the canonical probe: the limiter's
+  terminal_width and the render engine's per-frame geometry both
+  route through it); `libc::write` (terminal/diff.rs — the diff
+  engine's one write syscall per frame); and `libc::statfs` twice
+  (capabilities/mod.rs — the doctor's real-bpffs mount check,
+  NIGHT-hunt-28). The four `unsafe impl aya::Pod` markers
+  (limiter/types.rs, loader.rs) are zero-code layout attestations for
+  map value types. All are standard POSIX calls with well-defined
+  semantics
 
 ### BPF program code:
 - BPF verifier ensures memory safety at load time (the pure-Rust
@@ -529,10 +532,10 @@ complaint). One real terminal-safety hazard found and removed:
   (pipe closed mid-frame) ends the monitor quietly, never a panic.
 - **Syscall surface reduced:** one `write(2)` per frame (via a raw
   fd writer) where the former path issued one write+flush per line
-  plus the wipe; idle frames (nothing changed) write nothing. The
-  emission path performs no `ioctl` beyond one TIOCGWINSZ size probe
-  per frame (the resize check — the render layer already probed
-  twice per frame for layout).
+  plus the wipe; idle frames (nothing changed) write nothing. Two
+  TIOCGWINSZ probes per frame remain — the resize check plus the
+  render layer's layout probe, both through the one canonical helper
+  (NIGHT-hunt-15 collapsed the old three per frame into these two).
 - **Unicode safety by construction:** rows are written whole and the
   cursor is only positioned at row starts, so double-width glyphs
   never desync column math (a cell-grid renderer has to handle this

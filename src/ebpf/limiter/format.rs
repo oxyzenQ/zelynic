@@ -200,44 +200,18 @@ pub fn format_rate(bps: u64) -> String {
     }
 }
 
-/// Get terminal width in columns. Uses ioctl TIOCGWINSZ.
-/// Falls back to 80 if detection fails (piped output, no tty).
+/// Get terminal width in columns via the shared TIOCGWINSZ probe
+/// (the one canonical copy lives in the terminal layer,
+/// terminal/diff.rs — NIGHT-hunt-15). Falls back to 80 if detection
+/// fails (piped output, no tty).
 pub fn terminal_width() -> usize {
-    match terminal_winsize() {
-        Some((cols, _)) => cols as usize,
-        None => 80,
-    }
+    crate::terminal::winsize().map_or(80, |(cols, _)| cols as usize)
 }
 
-/// Get terminal height in rows (NIGHT-hunt-7). Uses ioctl
-/// TIOCGWINSZ; falls back to 24 if detection fails (piped output,
-/// no tty). The monitor render engine re-probes this on every frame
-/// so resize events are picked up at the next refresh.
-pub fn terminal_height() -> usize {
-    match terminal_winsize() {
-        Some((_, rows)) => rows as usize,
-        None => 24,
-    }
-}
-
-/// Shared TIOCGWINSZ probe for width/height. Returns (cols, rows)
-/// when the ioctl succeeds and reports a non-degenerate size.
-fn terminal_winsize() -> Option<(u16, u16)> {
-    use libc::{ioctl, winsize, STDOUT_FILENO, TIOCGWINSZ};
-    let mut ws: winsize = winsize {
-        ws_row: 0,
-        ws_col: 0,
-        ws_xpixel: 0,
-        ws_ypixel: 0,
-    };
-    // SAFETY: ioctl with TIOCGWINSZ writes to a valid winsize struct.
-    let ret = unsafe { ioctl(STDOUT_FILENO, TIOCGWINSZ, &mut ws) };
-    if ret == 0 && ws.ws_col > 0 && ws.ws_row > 0 {
-        Some((ws.ws_col, ws.ws_row))
-    } else {
-        None
-    }
-}
+// NIGHT-hunt-15: terminal_height() was deleted — after the render
+// engine's geometry probe switched to the one-call winsize(), no
+// caller remained (the status table renders width-only). A fresh
+// height consumer should call crate::terminal::winsize() directly.
 
 #[cfg(test)]
 mod tests {

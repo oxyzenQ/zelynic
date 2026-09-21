@@ -10,15 +10,16 @@
 //! purple and the column headers regular purple — the same #A855F7
 //! source of truth as the rest of the output layer.
 //!
-//! Dynamic screen size: width AND height are re-probed on every
-//! frame (two cheap TIOCGWINSZ ioctls — the same call
-//! `terminal_width()` already made per status print). Resizing the
-//! terminal adapts the layout on the next refresh: no SIGWINCH
-//! plumbing, no stale geometry, no caches to invalidate. Columns
-//! degrade gracefully on narrow terminals (RATE drops first, then
-//! TOTAL), the label column absorbs the remaining width, and the
-//! row count is capped by the available height so a frame never
-//! scrolls off the alt screen.
+//! Dynamic screen size: the terminal size is re-probed on every
+//! frame — ONE TIOCGWINSZ ioctl per frame through the canonical
+//! terminal-layer probe (NIGHT-hunt-15: the old path issued two,
+//! width and height separately, plus the diff engine's own resize
+//! check). Resizing the terminal adapts the layout on the next
+//! refresh: no SIGWINCH plumbing, no stale geometry, no caches to
+//! invalidate. Columns degrade gracefully on narrow terminals (RATE
+//! drops first, then TOTAL), the label column absorbs the remaining
+//! width, and the row count is capped by the available height so a
+//! frame never scrolls off the alt screen.
 //!
 //! Realtime interval: callers pass the poll interval so the RATE
 //! column converts per-frame deltas into bytes-per-second
@@ -51,7 +52,7 @@ pub use top::render_top_table;
 
 pub(crate) use detail::{comm_from_label, detail_lines, full_detail_lines, label_with_count};
 
-use crate::ebpf::limiter::{format_rate, terminal_height, terminal_width};
+use crate::ebpf::limiter::format_rate;
 use crate::output::brand_bold;
 
 /// Hard cap on table rows regardless of terminal height (matches the
@@ -74,16 +75,25 @@ pub struct FrameGeometry {
 }
 
 impl FrameGeometry {
-    /// Probe the current terminal size (columns and rows).
+    /// Probe the current terminal size (columns and rows) — one
+    /// TIOCGWINSZ call per frame (NIGHT-hunt-15: width and height
+    /// ride the same probe the limiter formatters and the diff
+    /// engine's resize check use).
     ///
     /// Falls back to 80x24 when stdout is not a TTY (piped output,
     /// tests, benchmark harnesses) — the same fallback contract as
     /// `terminal_width()`.
     #[must_use]
     pub fn probe() -> Self {
-        Self {
-            width: terminal_width(),
-            height: terminal_height(),
+        match crate::terminal::winsize() {
+            Some((cols, rows)) => Self {
+                width: cols as usize,
+                height: rows as usize,
+            },
+            None => Self {
+                width: 80,
+                height: 24,
+            },
         }
     }
 }

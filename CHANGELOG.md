@@ -42,6 +42,42 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Changed
 
+- **observer/connections: deep audit, four precision/harmony fixes
+  (NIGHT-hunt-15)** — the owner-approved sweep of the whole monitor
+  path (loader, connections, render, terminal loop, identity). (1)
+  eagle-eyes UDP filter: /proc/net/udp reports state 07 (CLOSE) for
+  connected AND unconnected sockets alike, so bound-only listeners
+  (chronyd, systemd-resolved, mDNS) rendered as `udp 0.0.0.0:0`
+  noise under their cgroup rows — displayable UDP now also requires
+  a real remote (port != 0; a real endpoint never carries 0). Pinned
+  by a chronyd-shape fixture whose expected detail output stays
+  byte-identical. (2) top's "N packets total" footer counted only the
+  rows the --limit/window budget could show — with 50 talkers at
+  limit 10 the footer silently meant "the 10 shown"; it now sums
+  every talker (unit-pinned: two talkers at limit 1 report both
+  rows' packets). (3) parse_proc_net_line dropped a dead
+  parse_endpoint(local) — the local endpoint was parsed, formatted,
+  and discarded on every socket row (~thousands of allocations per
+  3s refresh) with its Option ignored, so it never even validated the
+  row. (4) TIOCGWINSZ consolidated: the same unsafe ioctl probe
+  existed three times (limiter format.rs x2 through
+  terminal_width/terminal_height, diff.rs once) — now ONE canonical
+  probe in the ungated terminal layer (terminal/diff.rs::winsize)
+  serves the limiter's terminal_width, the render engine's per-frame
+  geometry (FrameGeometry::probe: 2 ioctls -> 1), and the diff
+  engine's resize check; per-frame probes drop 3 -> 2. The now-dead
+  terminal_height() was removed (zero call sites — the status table
+  renders width-only), and SAFETY_ANALYSIS's unsafe inventory was
+  re-synced to the new count (9 blocks + 4 aya::Pod markers).
+  Audited and deliberately kept: the loader's saturating delta math
+  and O(n<=1024) merge, the 3s/10s TTL refresh amortization, the
+  deterministic sort ladders, the majority-vote identity and its
+  canonical /proc boundary, the diff engine's run batching and
+  tall-regime clip (all pinned by existing suites — peak for their
+  scale; further change would be over-engineering). Verified: 174
+  unit + 23 integration green with --features ebpf, fmt + clippy
+  --all-targets --all-features -D warnings clean, gate-keepers 10/10.
+
 - **help: the --help reference tells each example exactly once
   (NIGHT-hunt-15)** — the trailing Examples section repeated six of
   its nine entries verbatim from the per-command example lines the
