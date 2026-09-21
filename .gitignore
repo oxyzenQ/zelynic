@@ -20,6 +20,10 @@ Thumbs.db
 *.log
 *~
 
+# Release artifact staging (release.yml "Prepare release artifacts"
+# builds dist/ locally when the flow runs outside CI; never tracked)
+dist/
+
 # AI workdirs
 worklog.md
 codex/
