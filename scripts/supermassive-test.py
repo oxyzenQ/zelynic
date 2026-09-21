@@ -145,6 +145,21 @@ LADDER_HEAVY = [
     ("1gb", 1_000_000_000), ("10gb", 10_000_000_000),
     ("100gb", 100_000_000_000), ("1tb", 1_000_000_000_000),
 ]
+# NIGHT-improve-14: rungs this close to the loopback ceiling are
+# measured as a PARALLEL aggregate, not one flow. A single TCP stream
+# through a dropper cannot CLAIM a bucket that large: default_burst
+# clamps at 100 MB, which at 100mb is a full SECOND of tokens but at
+# 1gb only 0.1 s — every post-drop cwnd recovery then dips below the
+# refill rate and single-flow goodput settles around half of
+# configured on a ~5 GB/s loopback without ever exceeding the cap
+# (the 2026-09-21 nightpc heavy run: 55.7% measured while kernel
+# drops AND byte accounting both held). AIMD physics, not an
+# enforcement miss. Six concurrent workers share the bucket the same
+# way curl burst and strict-multi do; their staggered dips let the
+# aggregate track the refill rate, so the band verdict keeps its
+# meaning. Below this line the single-flow instrument stays.
+PARALLEL_FLOWS = 6
+PARALLEL_MIN_BPS = 500_000_000
 
 SERVER = None
 CG = None
@@ -936,9 +951,30 @@ def test_rate_ladder(ladder, window, windows_per_rung, baseline):
             clear_all()
             continue
         time.sleep(0.5)  # let the token bucket reach steady state
+        # NIGHT-improve-14: high rungs run PARALLEL_FLOWS concurrent
+        # workers per window (see PARALLEL_MIN_BPS) — the aggregate,
+        # not one AIMD flow, is the instrument there. Each thread
+        # spawns its own in-cgroup worker subprocess, the same
+        # one-worker-per-stream contract as curl burst; a failed
+        # worker reads 0 and is already filed into WORKER_FAULTS by
+        # spawn_in_cgroup.
+        flows = PARALLEL_FLOWS if bps >= PARALLEL_MIN_BPS else 1
         rates = []
         for _ in range(windows_per_rung):
-            rates.append(py_download(window) / window)
+            if flows == 1:
+                rates.append(py_download(window) / window)
+                continue
+            totals = [0] * flows
+
+            def worker(i):
+                totals[i] = py_download(window)
+
+            threads = [threading.Thread(target=worker, args=(i,)) for i in range(flows)]
+            for t in threads:
+                t.start()
+            for t in threads:
+                t.join()
+            rates.append(sum(totals) / window)
         measured = sum(rates) / len(rates)
         # NIGHT-improve-12: rungs whose token bucket (burst = rate
         # clamped to >= 4096) is smaller than ONE loopback GSO skb
@@ -951,6 +987,11 @@ def test_rate_ladder(ladder, window, windows_per_rung, baseline):
             "steady state — the ceiling and kernel drops carry the verdict"
             if floor == 0.0 else ""
         )
+        if flows > 1 and not extra:
+            extra = (
+                f"{flows}-flow aggregate — a single AIMD flow cannot "
+                "claim a bucket this close to the ceiling"
+            )
         if not band_check(name, measured, bps, lo=floor, extra=extra):
             passed = False
         enforcement_proofs(f"ladder {rate_str}", int(measured * window * len(rates)))

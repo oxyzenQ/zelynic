@@ -59,7 +59,11 @@ pub const MAX_RATE: u64 = 1_000_000_000_000;
 ///     burst and tokens clamped before any refill math; no layout change.
 ///     The bump forces pinned v3 programs to reload into the hardened
 ///     object (active limits are dropped once — re-apply after upgrade).
-pub const SCHEMA_VERSION_EXPECTED: u32 = 4;
+/// v5: the rate-0 block verdict books its drops into cgroup_limiter_stats
+///     (NIGHT-improve-14) — verdict unchanged; pinned v4 programs otherwise
+///     keep dropping blocked traffic with an empty, invisible drop counter.
+///     Same one-time re-apply contract as the v3 -> v4 bump.
+pub const SCHEMA_VERSION_EXPECTED: u32 = 5;
 
 /// Hard ceiling a stored `burst_bytes` may carry into the BPF refill
 /// math (NIGHT-improve-10 / security-3). Mirror of `MAX_ENFORCABLE_BURST`
@@ -279,7 +283,7 @@ mod tests {
     fn test_schema_version_constant() {
         // Must match SCHEMA_VERSION in ebpf/src/bin/limiter.rs.
         // When this changes, the BPF code must also change.
-        assert_eq!(SCHEMA_VERSION_EXPECTED, 4);
+        assert_eq!(SCHEMA_VERSION_EXPECTED, 5);
     }
 
     // ── NIGHT-improve-10 / security-3: overflow-bound pins ──────────
