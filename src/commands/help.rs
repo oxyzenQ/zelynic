@@ -112,7 +112,7 @@ pub(crate) fn print_help() {
     println_safe!("    Exit with q (the only quit key).");
     println_safe!("    sudo zelynic observe                    # live box, q to quit");
     println_safe!("    sudo zelynic observe --cgroup 8066       # filter to one cgroup");
-    println_safe!("    sudo zelynic observe --interval 5s       # calmer cadence + rate column");
+    println_safe!("    sudo zelynic observe --interval 5s       # calmer cadence");
     println_safe!();
     println_safe!("  zelynic top [--limit N] [--interval <1s-60s>]");
     println_safe!("    Live top bandwidth consumers (box mode, top 10 by default).");
@@ -154,31 +154,14 @@ pub(crate) fn print_help() {
     println_safe!("  • Fail-safe: BPF returns allow on any error path");
     println_safe!();
     println_safe!("{}", brand_bold("Examples:"));
-    println_safe!("  # Limit brave to 100kb/s (both download + upload)");
-    println_safe!("  sudo zelynic strict-single brave 100kb");
-    println_safe!();
-    println_safe!("  # Limit brave download only to 100kb/s");
-    println_safe!("  sudo zelynic strict-single brave -d 100kb");
-    println_safe!();
-    println_safe!("  # Limit download tools to share 1mb/s total");
-    println_safe!("  sudo zelynic strict-multi curl:pacman:aria2c 1mb");
-    println_safe!();
-    println_safe!("  # Limit firefox both directions, different rates");
-    println_safe!("  sudo zelynic strict-single firefox -d 1mb -u 500kb");
-    println_safe!();
-    println_safe!("  # Check what's limited");
-    println_safe!("  sudo zelynic status");
-    println_safe!();
-    println_safe!("  # JSON output (for scripts)");
+    // NIGHT-hunt-15: the command blocks above each carry their own
+    // examples (NIGHT-improve-5) — this section holds ONLY the three
+    // workflows whose blocks have no example lines, so every example
+    // appears exactly once on the surface.
+    println_safe!("  # Check what's limited (JSON for scripts)");
     println_safe!("  sudo zelynic status --print-json | jq '.limits[]'");
     println_safe!();
-    println_safe!("  # Monitor live traffic in box mode (UL + DL) — q to quit");
-    println_safe!("  sudo zelynic observe");
-    println_safe!();
-    println_safe!("  # Find what's eating your bandwidth (live top talkers)");
-    println_safe!("  sudo zelynic top");
-    println_safe!();
-    println_safe!("  # Recover from crash (clean orphaned pins)");
+    println_safe!("  # Recover from a crash (clean orphaned pins)");
     println_safe!("  sudo zelynic recover");
     println_safe!();
     println_safe!("  # Emergency: remove all limits");
