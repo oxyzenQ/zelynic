@@ -128,10 +128,16 @@ def out(msg=""):
 
 
 def fmt_bps(n):
+    # One decimal on every tier + a TB tier, mirroring the Rust-side
+    # format_bytes contract (limiter/format.rs): the harness's verdict
+    # details are cross-read against `zelynic status` output, so the
+    # two surfaces must not disagree on digit counts or units.
+    if n >= 1e12:
+        return f"{n / 1e12:.1f} TB/s"
     if n >= 1e9:
-        return f"{n / 1e9:.2f} GB/s"
+        return f"{n / 1e9:.1f} GB/s"
     if n >= 1e6:
-        return f"{n / 1e6:.2f} MB/s"
+        return f"{n / 1e6:.1f} MB/s"
     if n >= 1e3:
         return f"{n / 1e3:.1f} KB/s"
     return f"{n:.0f} B/s"
