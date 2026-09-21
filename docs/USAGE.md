@@ -377,8 +377,8 @@ silent.
 `100kb` = 100,000 bytes/s = 0.8 Mbps on a speed-test site. A positional
 rate sets **both** directions — `strict-single brave 100kb` limits
 upload too, not just download. Minimum 1kb, maximum 1tb; both bounds
-overridable with `--allow-dangerous` (min) — below 1kb an app can stop
-working entirely.
+overridable with `--allow-dangerous` — below 1kb an app can stop
+working entirely (hence the flag's name).
 
 **6. Monitoring surfaces also need root.**
 `status`, `observe`, `top` read BPF maps; only `list-apps`, `doctor`,

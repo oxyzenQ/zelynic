@@ -83,14 +83,16 @@ userspace tool coordination, no format mismatches, no leaked state.
 │  cgroup_skb/egress observer → cgroup_counters map       │
 │  cgroup_skb ingress+egress limiter → token-bucket       │
 │  ebpf/ (aya-ebpf: observer + limiter, pure Rust)        │
-│  (future: policer.bpf.c)                                │
+│  (future: a policer program, same pure-Rust ebpf/)       │
 ```
 
 ### Layer 0 — BPF Programs (kernel)
 
-The BPF program is the **only** kernel-level component. It hooks
-`cgroup_skb/egress`, reads `bpf_get_current_cgroup_id()`, and updates a hash
-map keyed by cgroup ID. Per-cgroup stats: packet count, byte count.
+The BPF programs are the **only** kernel-level component. The observer
+hooks `cgroup_skb/egress` + `cgroup_skb/ingress` (two programs, two
+counter maps), reads `bpf_skb_cgroup_id()` — the cgroup of the
+**socket owner**, not the current task — and updates a hash map
+keyed by cgroup ID. Per-cgroup stats: packet count, byte count.
 
 Contract:
 - Program returns `1` (allow) on every path — never block.
@@ -173,10 +175,10 @@ line.
 - [x] Layer 4: `strict-single` / `strict-multi` / `unstrict` / `status` CLI
 - [x] Layer 4: Lowercase units (kb/mb/gb) + positional rate + per-direction (-d/-u)
 - [x] Fail-safe: BPF returns 1 (allow) on every error path
-- [x] Watchdog: BPF auto-disables if zelynic crashes (30s timeout)
+- [x] Watchdog hook in the enforcer (dormant by design — never armed, deadline 0 = enforcing forever; preserved for a future `--timeout`)
 - [x] Min-rate guard: rejects < 1 KB/s (prevents bricking apps)
-- [x] Fire-and-forget: strict commands exit 0, limit persists via child process
-- [x] No residue: `unstrict-all` kills child + removes all pin files
+- [x] Fire-and-forget: strict commands exit 0, limits persist via pinned maps + bpf_links (no child, no daemon)
+- [x] No residue: `unstrict-all` removes all pin files and reclaims map slots
 - [x] Override: re-running strict replaces old rate (no duplicates)
 - [x] Verified: real enforcement on Arch Linux, kernel 6.18, AMD Ryzen 7
 
@@ -188,7 +190,7 @@ line.
 - [x] Layer 4: `--print-json` output for tooling integration
 
 ### Future ideas (unscheduled — v11 is maintenance mode)
-- [ ] Layer 0: `bpf/policer.bpf.c` — DSCP marking via `sock_ops`
+- [ ] Layer 0: `ebpf/src/bin/policer.rs` — DSCP marking via `sock_ops` (pure Rust, like the other two programs)
 - [ ] Layer 0: XDP ingress counter (separate from cgroup_skb)
 - [ ] Layer 2: cgroup path → systemd unit name resolution
 - [ ] Layer 0: per-process (not just per-cgroup) enforcement

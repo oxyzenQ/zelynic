@@ -204,11 +204,20 @@ member's removal.
 zelynic is written in Rust, which provides:
 - **Memory safety**: no buffer overflows, no use-after-free, no null dereferences
 - **Thread safety**: no data races (Rust ownership model)
-- **No unsafe code** in userspace outside six audited `unsafe` blocks:
-  `libc::flock` (operation guard), three raw `bpf()` syscall wrappers
-  (bpf_syscall.rs — link create/pin/close), `libc::clock_gettime`, and
-  `libc::ioctl(TIOCGWINSZ)` for terminal width — all standard POSIX
-  calls with well-defined semantics
+- **No unsafe code** in userspace outside the audited `unsafe`
+  inventory (NIGHT-hunt-15 recount: 10 blocks + 4 marker impls — the
+  list had drifted to "six" as later hunts added write/statfs/probe
+  sites): `libc::flock` (lock.rs, operation guard); two raw `bpf()`
+  syscall wrappers plus `libc::close` (bpf_syscall.rs — link
+  create/pin/close); `libc::clock_gettime` (format.rs);
+  `libc::ioctl(TIOCGWINSZ)` twice (format.rs terminal size and
+  terminal/diff.rs render probe — the same size probe at two layers);
+  `libc::write` (terminal/diff.rs — the diff engine's one write
+  syscall per frame); and `libc::statfs` twice (capabilities/mod.rs —
+  the doctor's real-bpffs mount check, NIGHT-hunt-28). The four
+  `unsafe impl aya::Pod` markers (limiter/types.rs, loader.rs) are
+  zero-code layout attestations for map value types. All are standard
+  POSIX calls with well-defined semantics
 
 ### BPF program code:
 - BPF verifier ensures memory safety at load time (the pure-Rust
