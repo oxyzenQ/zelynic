@@ -164,6 +164,25 @@ applies the mirror bound on write, and both sides pin the constant
 by value in tests. Schema v4 forces pinned v3 programs to reload
 into the hardened object.
 
+The v4 clamp family had a third member missing until schema v6
+(NIGHT-depthbore-1): `frac_rem` is bounded below NS_PER_SEC by the
+carry in HEALTHY flow, but a drifted or hostile bucket could carry
+any u64 there, and `frac_rem + refill_frac` could wrap — silent
+garbage in the release BPF build (bounded by the burst cap, so the
+damage was refill noise of at most one byte per packet). v6
+sanitizes the stored remainder on read — a value >= NS_PER_SEC is
+treated as the empty remainder, the same clamp-to-healthy-value
+contract burst and tokens already follow — so no stored map value
+can make the kernel arithmetic wrap at all now: the triple
+(burst, tokens, frac) is complete. The refill math lives in
+ebpf/src/math.rs since depthbore-1: pure `core`, #[path]-shared
+between the BPF object and the userspace test tree, so the exact
+arithmetic the kernel runs is pinned by rootless unit tests —
+fill-detect threshold equivalence, fractional-carry long-run
+exactness (no 0.5-1% truncation drift), conservation under churn,
+the hostile-state clamps, and the largest-legal-product corner at
+the MAX_ENFORCABLE_BURST bound.
+
 ### Counter wrap horizons
 
 All enforcement counters are u64 and monotonically incremented by

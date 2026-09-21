@@ -93,6 +93,9 @@ ebpf/                   — the pure-Rust BPF source (aya-ebpf; NIGHT-improve-1
                           nested cross-build and embedded into the binary
   src/main.rs           — the observer programs (egress + ingress traffic
                           counters, throttle, events)
+  src/math.rs           — the enforcement arithmetic (refill, fill-detect,
+                          fractional carry, clamps): pure core, #[path]-
+                          shared with the userspace test tree (depthbore-1)
   src/bin/limiter.rs    — the token-bucket enforcer (enforce_dl ingress +
                           enforce_ul egress, nine PIN_BY_NAME maps)
 

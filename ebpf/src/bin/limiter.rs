@@ -39,75 +39,29 @@ use aya_ebpf::{
     programs::SkBuffContext,
 };
 
+// NIGHT-depthbore-1: the enforcement arithmetic lives in
+// ../math.rs — pure `core`, zero aya dependencies, wired here with
+// #[path] AND into the userspace test tree the same way, so the
+// kernel-side math is pinned by rootless unit tests
+// (test/ebpf/limiter/math_tests.rs) instead of root-run integration
+// alone. The structs and the refill math moved verbatim; the module
+// doc there records the one behavioral change (the schema-v6
+// frac_rem sanitization).
+#[path = "../math.rs"]
+mod math;
+
+use math::{Bucket, LimiterStats, MAX_ENFORCABLE_BURST, Policy, enforce};
+
 // ---------------------------------------------------------------------------
 // Shared layout contract with the userspace loader (src/ebpf/limiter/
 // types.rs: PolicyRaw, BucketRaw, LimiterStatsRaw) and the C twin. The
 // compile-time size pins guarantee the layouts can never drift
 // silently; the C side relies on kernel headers for the same
 // invariants, the userspace tests assert the third copy.
+// (NIGHT-depthbore-1: the struct definitions, the size pins,
+// NS_PER_SEC, MAX_ENFORCABLE_BURST, and the enforce math moved to
+// math.rs — this block keeps the contract statement.)
 // ---------------------------------------------------------------------------
-
-/// The BPF-side policy layout; the userspace mirror is `PolicyRaw`
-/// in src/ebpf/limiter/types.rs (layout contract). group_id == 0 means
-/// "individual" (use cgroup bucket); group_id != 0 means "shared
-/// group" (use the group bucket keyed by group_id).
-#[repr(C)]
-#[derive(Clone, Copy)]
-struct Policy {
-    rate_bps: u64,
-    burst_bytes: u64,
-    group_id: u32,
-}
-
-/// The BPF-side token-bucket layout, schema v2 (userspace mirror:
-/// `BucketRaw` in src/ebpf/limiter/types.rs — the layout contract).
-///
-/// `frac_rem` tracks the sub-byte fractional remainder from the
-/// refill calculation: `(elapsed_ns * rate_bps) % NS_PER_SEC`.
-/// Without this, integer division truncates up to ~1 byte per
-/// refill, causing 0.5-1% rate error at common rates.
-#[repr(C)]
-#[derive(Clone, Copy)]
-struct Bucket {
-    tokens: u64,
-    last_refill_ns: u64,
-    frac_rem: u64,
-}
-
-/// The BPF-side stats layout (userspace mirror: `LimiterStatsRaw`
-/// in src/ebpf/limiter/types.rs — the layout contract). Combined
-/// download + upload enforcement stats per cgroup.
-#[repr(C)]
-#[derive(Clone, Copy)]
-struct LimiterStats {
-    packets_allowed: u64,
-    packets_dropped: u64,
-    bytes_allowed: u64,
-    bytes_dropped: u64,
-}
-
-const _: () = assert!(core::mem::size_of::<Policy>() == 24);
-const _: () = assert!(core::mem::size_of::<Bucket>() == 24);
-const _: () = assert!(core::mem::size_of::<LimiterStats>() == 32);
-
-/// Refill rate math: nanoseconds per second.
-const NS_PER_SEC: u64 = 1_000_000_000;
-
-/// Hard ceiling a stored `burst_bytes` may carry INTO the refill
-/// math (NIGHT-improve-10 / security-3). The maps are persistent
-/// kernel state that outlives any writer: pins survive process exit,
-/// and the pin path is writable by any root process. The userspace
-/// `default_burst` clamp (100 MB) is a contract, not a guarantee the
-/// kernel side may trust — the enforcement boundary sanitizes for
-/// itself. The value is the exact mathematical ceiling under which
-/// every product `enforce` can form is provably representable in
-/// u64: `2 * burst * NS_PER_SEC` (the fill-detect threshold) and
-/// `tokens + 2 * burst` (the worst pre-cap sum) both stay in range.
-/// A stored burst above the bound is corruption or drift; it is
-/// clamped, never honored. Mirrored in userspace as
-/// `MAX_ENFORCABLE_BURST` in src/ebpf/limiter/types.rs (layout
-/// contract sibling — both sides pin the value in tests).
-const MAX_ENFORCABLE_BURST: u64 = u64::MAX / (2 * NS_PER_SEC);
 
 /// Current schema version. Increment when struct layouts or
 /// semantics change. Kept in sync with SCHEMA_VERSION_EXPECTED in
@@ -117,13 +71,18 @@ const MAX_ENFORCABLE_BURST: u64 = u64::MAX / (2 * NS_PER_SEC);
 /// can overflow the kernel arithmetic; v5: the rate-0 block verdict
 /// books its drops into cgroup_limiter_stats — verdict unchanged, but
 /// pinned v4 programs must reload or blocked traffic keeps dying
-/// with an empty drop counter). No layout change in v4/v5; each bump
-/// forces pinned older programs to reload into the hardened object.
+/// with an empty drop counter; v6 (NIGHT-depthbore-1): frac_rem —
+/// the third persistent stored field, missed by the v4 clamp family
+/// — is sanitized on read in the refill math (math.rs), completing
+/// the burst/tokens/frac clamp triple; no layout change). No layout
+/// change since v2; each bump forces pinned older programs to
+/// reload into the hardened object — a one-time limit re-apply,
+/// documented in CHANGELOG.
 /// The BPF program never writes it — userspace stamps
 /// the pinned map after load — so the constant exists purely as the
 /// parity anchor for that three-way contract.
 #[allow(dead_code)]
-const SCHEMA_VERSION: u32 = 5;
+const SCHEMA_VERSION: u32 = 6;
 
 // ---------------------------------------------------------------------------
 // Maps. The static names ARE the userspace contract (limiter/mod.rs
@@ -184,117 +143,11 @@ static schema_version: Array<u32> = Array::pinned(1, 0);
 static cgroup_limiter_stats: HashMap<u32, LimiterStats> = HashMap::pinned(1024, 0);
 
 // ---------------------------------------------------------------------------
-// Enforcement core. Ported from the C `enforce` helper: refill
-// tokens and return 1 (allow) or 0 (drop).
+// Enforcement program flow. The refill math (fill-detect, fractional
+// carry, cap, drop) lives in math.rs (NIGHT-depthbore-1); everything
+// here is map plumbing: stats/bucket lookup, the trust-boundary
+// clamp, and the schema-v3 rate-0 block verdict.
 // ---------------------------------------------------------------------------
-
-/// Refill tokens and enforce. `pol` is the policy, `bkt` the bucket
-/// (individual or group), `stats` an optional stats entry (the C
-/// twin passes NULL when the stats insert failed and keeps
-/// enforcing without bookkeeping).
-///
-/// Fractional remainder tracking keeps the rate precise (see the
-/// Bucket docs); the refill multiply is overflow-safe (the
-/// NIGHT-cybersecurity-1 fill-detect shape, ported verbatim):
-///
-///  * fill-detect: once elapsed is large enough that the true
-///    refill reaches 2x burst, the bucket caps at burst anyway —
-///    skip the multiply and credit burst directly (the fraction
-///    resets, matching the cap branch below).
-///  * exact multiply: below that threshold the product is
-///    < 2 * burst * NS_PER_SEC, safely representable in u64 for any
-///    burst the userspace clamp admits.
-///
-/// Callers guarantee rate_bps > 0 (rate 0 short-circuits to the
-/// block drop before enforce) and pass a policy whose burst_bytes
-/// is already clamped to [`MAX_ENFORCABLE_BURST`] (the security-3
-/// trust boundary in `try_enforce`); the explicit guard keeps that
-/// invariant local and protects the division.
-#[inline(always)]
-fn enforce(
-    pol: &Policy,
-    bkt: &mut Bucket,
-    pkt_len: u32,
-    now: u64,
-    stats: Option<&mut LimiterStats>,
-) -> i32 {
-    // Refill tokens based on elapsed time.
-    let mut elapsed = if now > bkt.last_refill_ns {
-        now - bkt.last_refill_ns
-    } else {
-        0
-    };
-
-    // Cap elapsed at 1 second to limit burst after idle.
-    if elapsed > NS_PER_SEC {
-        elapsed = NS_PER_SEC;
-    }
-
-    let mut refill_whole: u64 = 0;
-    let mut new_frac: u64 = bkt.frac_rem;
-    if elapsed > 0 && pol.rate_bps > 0 {
-        let fill_ns = (2 * pol.burst_bytes * NS_PER_SEC) / pol.rate_bps;
-        if elapsed >= fill_ns {
-            // Refill >= 2x burst: the cap below makes the exact value
-            // irrelevant — burst is the answer.
-            refill_whole = pol.burst_bytes;
-            new_frac = 0;
-        } else {
-            let product = elapsed * pol.rate_bps;
-            refill_whole = product / NS_PER_SEC;
-            let refill_frac = product % NS_PER_SEC;
-
-            // Accumulate the fractional remainder. If it overflows
-            // NS_PER_SEC, carry 1 byte into the integer tokens.
-            new_frac = bkt.frac_rem + refill_frac;
-            if new_frac >= NS_PER_SEC {
-                refill_whole += 1;
-                new_frac -= NS_PER_SEC;
-            }
-        }
-    }
-
-    // New token count, capped at burst. The tokens seed is clamped
-    // first (security-3): the bucket map is persistent state like
-    // the policy map — a bucket written by an older schema, a
-    // shrunk-burst residue, or raw corruption can carry tokens
-    // above the current burst, and `tokens + refill_whole` would
-    // wrap on u64::MAX-seeded garbage. Clamping to burst treats the
-    // anomalous bucket as full — exactly the value the cap branch
-    // below would have produced for a healthy one.
-    let tokens = if bkt.tokens > pol.burst_bytes {
-        pol.burst_bytes
-    } else {
-        bkt.tokens
-    };
-    let mut new_tokens = tokens + refill_whole;
-    if new_tokens > pol.burst_bytes {
-        new_tokens = pol.burst_bytes;
-        // Reset the fraction on cap — at burst, no accumulation is
-        // needed.
-        new_frac = 0;
-    }
-
-    bkt.last_refill_ns = now;
-    bkt.frac_rem = new_frac;
-
-    // Check if enough tokens for this packet.
-    if new_tokens >= u64::from(pkt_len) {
-        bkt.tokens = new_tokens - u64::from(pkt_len);
-        if let Some(s) = stats {
-            s.packets_allowed += 1;
-            s.bytes_allowed += u64::from(pkt_len);
-        }
-        1
-    } else {
-        bkt.tokens = new_tokens;
-        if let Some(s) = stats {
-            s.packets_dropped += 1;
-            s.bytes_dropped += u64::from(pkt_len);
-        }
-        0
-    }
-}
 
 /// Get or create the stats entry for a cgroup. Ported from the C
 /// `get_stats` helper: an init-then-relookup pair whose insert

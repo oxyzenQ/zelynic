@@ -17,6 +17,16 @@ mod reclaim;
 mod stats;
 mod types;
 
+// NIGHT-depthbore-1: the kernel-side enforcement arithmetic is now
+// pinned rootlessly by test/ebpf/limiter/math_tests.rs, which
+// compiles ebpf/src/math.rs — the same file the BPF object builds —
+// into the userspace test tree via its own #[path] wiring (the
+// production source stays owned by the ebpf crate; only the test
+// module reaches across trees).
+#[cfg(test)]
+#[path = "../../../test/ebpf/limiter/math_tests.rs"]
+mod math_tests;
+
 // Re-export public types/functions for external use.
 pub use format::{
     format_bytes, format_rate, monotonic_ns, parse_monitor_interval, parse_rate,
