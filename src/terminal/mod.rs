@@ -56,6 +56,11 @@
 mod diff;
 
 pub use diff::{DiffScreen, RawStdout};
+// NIGHT-hunt-15: the canonical TIOCGWINSZ probe lives in the diff
+// module (the terminal layer's raw-IO home); the limiter's
+// terminal_width/terminal_height and the render engine both route
+// through it, so the unsafe ioctl surface exists exactly once.
+pub(crate) use diff::winsize;
 
 use anyhow::Result;
 use std::io::{self, Read, Write};

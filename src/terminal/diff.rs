@@ -76,11 +76,15 @@ const HOME: &[u8] = b"\x1b[H"; // cursor to row 1, col 1 (3 bytes)
 const ERASE_BELOW: &[u8] = b"\x1b[J"; // erase cursor..end of screen (3 bytes)
 const ERASE_EOL: &[u8] = b"\x1b[K"; // erase cursor..end of line (3 bytes)
 
-/// Terminal size probe (TIOCGWINSZ on stdout). Mirrors the limiter
-/// format.rs probe: falls back to (80, 24) when stdout is not a TTY
-/// (piped output, tests, benchmark harnesses) or reports a
-/// degenerate zero size.
-fn probe_size() -> (usize, usize) {
+/// The one canonical TIOCGWINSZ probe (NIGHT-hunt-15: this used to
+/// exist three times — twice in the ebpf-gated limiter formatters,
+/// once here — so the unsafe ioctl surface and the fallback
+/// semantics could drift apart; now it lives once in the ungated
+/// terminal layer where every feature graph can reach it). Returns
+/// (cols, rows) when the ioctl succeeds and reports a non-degenerate
+/// size; None otherwise (not a TTY — piped output, tests, benchmark
+/// harnesses).
+pub(crate) fn winsize() -> Option<(u16, u16)> {
     use libc::{ioctl, winsize, STDOUT_FILENO, TIOCGWINSZ};
     let mut ws: winsize = winsize {
         ws_row: 0,
@@ -91,9 +95,19 @@ fn probe_size() -> (usize, usize) {
     // SAFETY: ioctl with TIOCGWINSZ writes to a valid winsize struct.
     let ret = unsafe { ioctl(STDOUT_FILENO, TIOCGWINSZ, &mut ws) };
     if ret == 0 && ws.ws_row > 0 && ws.ws_col > 0 {
-        (ws.ws_col as usize, ws.ws_row as usize)
+        Some((ws.ws_col, ws.ws_row))
     } else {
-        (80, 24)
+        None
+    }
+}
+
+/// The engine's own probe: the canonical winsize with the classic
+/// 80x24 fallback for non-TTY sinks (the benchmark harness and the
+/// diff tests pin deterministic sizes through emit_at instead).
+fn probe_size() -> (usize, usize) {
+    match winsize() {
+        Some((cols, rows)) => (cols as usize, rows as usize),
+        None => (80, 24),
     }
 }
 

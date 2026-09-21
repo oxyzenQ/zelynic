@@ -132,9 +132,13 @@ pub fn render_top_table(
     let mut used = 0usize;
     let mut emitted = 0usize;
     let mut top_proc_name: Option<String> = None;
-    let mut grand_total_pkt: u64 = 0;
+    // Footer honesty (NIGHT-hunt-15): "packets total" counts EVERY
+    // talker, not just the rows that fit the --limit/window budget —
+    // a "N packets total" under a top-10 table must not silently
+    // mean "the N of the 10 shown".
+    let grand_total_pkt: u64 = talkers.iter().map(|t| t.4).sum();
 
-    for (i, (cgroup_id, dl_bytes, ul_bytes, total, total_pkt)) in talkers.iter().enumerate() {
+    for (i, (cgroup_id, dl_bytes, ul_bytes, total, _total_pkt)) in talkers.iter().enumerate() {
         if emitted >= limit {
             break;
         }
@@ -145,7 +149,6 @@ pub fn render_top_table(
         }
 
         let label = truncate_label(&label_with_count(identity, conns, *cgroup_id), cols.label_w);
-        grand_total_pkt += total_pkt;
 
         if cols.show_total {
             lines.push(format!(
@@ -258,5 +261,38 @@ mod tests {
         assert_eq!(lines.len(), 2, "idle table = title + waiting note");
         assert!(lines[0].starts_with("─── zelynic top — live, 5s refresh"));
         assert_eq!(lines[1], "  waiting for traffic…");
+    }
+
+    /// Footer honesty (NIGHT-hunt-15): "packets total" counts every
+    /// talker, not just the rows the --limit/window budget could show
+    /// — two talkers at limit 1 still report both rows' packets.
+    #[test]
+    fn top_footer_counts_all_talkers_not_just_shown() {
+        let mut lines = Vec::new();
+        let mut cumulative: HashMap<u32, (u64, u64, u64)> = HashMap::new();
+        cumulative.insert(1, (1000, 0, 100)); // cg:1 — 100 packets
+        cumulative.insert(2, (500, 0, 50)); // cg:2 — 50 packets
+        render_top_table(
+            &mut lines,
+            &cumulative,
+            1, // only the #1 talker gets a row
+            &IdentityMap::new(),
+            None,
+            Duration::from_secs(5),
+        );
+        let joined = lines.join("\n");
+        assert!(joined.contains("cg:1"), "the top row renders: {joined}");
+        assert!(
+            !joined.contains("  2  cg:2"),
+            "limit 1 must hide the #2 row: {joined}"
+        );
+        assert!(
+            joined.contains("(+1 more talkers hidden"),
+            "the hidden talker is named: {joined}"
+        );
+        assert!(
+            joined.contains("  150 packets total"),
+            "footer counts ALL talkers (100 + 50), not just the shown row: {joined}"
+        );
     }
 }

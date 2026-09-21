@@ -19,7 +19,7 @@ use super::{Proto, SocketInfo};
 pub(crate) fn parse_proc_net_line(line: &str, proto: Proto) -> Option<(u64, SocketInfo)> {
     let mut fields = line.split_whitespace();
     let _sl = fields.next()?; // "0:" slot index
-    let local = fields.next()?;
+    let _ = fields.next()?; // local address (display uses the remote side)
     let remote = fields.next()?;
     let state = fields.next()?;
     let queues = fields.next()?;
@@ -34,7 +34,6 @@ pub(crate) fn parse_proc_net_line(line: &str, proto: Proto) -> Option<(u64, Sock
     let (tx_q, rx_q) = parse_queues(queues)?;
 
     let remote_addr = parse_endpoint(remote)?;
-    let _local_addr = parse_endpoint(local); // present, unused for display
 
     Some((
         inode,
