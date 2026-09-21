@@ -161,8 +161,8 @@ scripts/
    literals are pure English (chat may be mixed-language; committed
    artifacts never are). Non-Latin scripts appear only as
    marker-declared Unicode fixtures (`// NON_LATIN_FIXTURE:`).
-   Enforced by `scripts/check-language.sh` (gate-keepers section 14,
-   mirrored in the CI workflow_quality job).
+   Enforced by `scripts/check-language.sh` (gate-keepers section 14;
+   the CI `gatekeepers` job runs the whole script wholesale).
 
 ## Pre-commit
 
@@ -189,7 +189,9 @@ C sources in NIGHT-improve-1 phase 3), and the documentation disclaimer
 check (inject-disclaimer.sh), the test-tree discipline (NIGHT-hunt-17:
 every .rs test file under the single `test/` tree), and the
 English-only language gate (check-language.sh). Missing tools are
-skipped with a warning.
+skipped with a warning locally; the CI `gatekeepers` job runs the
+entire script wholesale with every tool installed, so each section
+— current and future — is enforced on every push.
 
 ## Branch Strategy
 

@@ -361,7 +361,8 @@ if [[ ":${PATH}:" != *":${LOCAL_BIN}:"* ]]; then
 	if grep -q '\.local/bin' "${HOME}/.profile" 2>/dev/null; then
 		ok "${HOME}/.profile already references ${LOCAL_BIN} — future login shells see bpf-linker."
 	else
-		printf '\n# added by zelynic scripts/bootstrap-ebpf.sh — bpf-linker lives here\nexport PATH="$HOME/.local/bin:$PATH"\n' >> "${HOME}/.profile"
+		# shellcheck disable=SC2016 # literal by design: $HOME/$PATH expand at the login shell that reads .profile, not here
+		printf '\n# added by zelynic scripts/bootstrap-ebpf.sh — bpf-linker lives here\nexport PATH="$HOME/.local/bin:$PATH"\n' >>"${HOME}/.profile"
 		ok "persisted 'export PATH=\"$HOME/.local/bin:$PATH\"' to ${HOME}/.profile (bash login shells)"
 		warn "fish/zsh login shells do not read ~/.profile — add that export line to your shell config yourself."
 	fi

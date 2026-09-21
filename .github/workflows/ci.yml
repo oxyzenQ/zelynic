@@ -196,52 +196,68 @@ jobs:
       - name: Run tests with ebpf feature
         run: cargo test --features ebpf --locked
 
-  workflow_quality:
-    name: Workflow lint + codespell
+  gatekeepers:
+    # NIGHT-hunt-23 class closure (owner-approved): run the ENTIRE
+    # gate-keepers script wholesale instead of mirroring individual
+    # sections CI-side. The incremental-mirror pattern is exactly what
+    # let gates rot silently: headers, permissions, LOC, disclaimer,
+    # version-sync, test-tree, TOML, emoji, bash -n, and shellcheck had
+    # no CI mirror at all — a gate that only runs where tools happen to
+    # be installed is not a gate (shellcheck had never executed
+    # anywhere until this job's local preflight, and it found real
+    # drift). One step here executes every current section AND every
+    # section yet to be added to the script, with the full tool set
+    # installed — the rot class stays closed permanently, no per-gate
+    # CI wiring ever again.
+    name: Gate-keepers (wholesale)
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v5
 
-      - name: Install workflow lint tools
+      # Tool pins make findings meaningful: a red wholesale run means
+      # the tree drifted, never that a linter released overnight. The
+      # same pins ran the local preflight before this job landed
+      # (16/16 sections, first full execution in repo history).
+      - name: Install shellcheck (pinned v0.10.0)
         run: |
-          python3 -m pip install --user yamllint codespell
-          go install github.com/rhysd/actionlint/cmd/actionlint@latest
-          echo "${HOME}/go/bin" >> "${GITHUB_PATH}"
+          curl -sL -o /tmp/shellcheck.tar.xz \
+            https://github.com/koalaman/shellcheck/releases/download/v0.10.0/shellcheck-v0.10.0.linux.x86_64.tar.xz
+          tar -xf /tmp/shellcheck.tar.xz -C /tmp
+          sudo install -m755 /tmp/shellcheck-v0.10.0/shellcheck /usr/local/bin/shellcheck
+          shellcheck --version | head -2
 
-      - name: Install shfmt (pinned, matches the local gate)
+      - name: Install shfmt (pinned v3.10.0)
         run: |
           curl -sSfL -o /tmp/shfmt \
             https://github.com/mvdan/sh/releases/download/v3.10.0/shfmt_v3.10.0_linux_amd64
           sudo install -m755 /tmp/shfmt /usr/local/bin/shfmt
           shfmt --version
 
-      - name: Run actionlint
-        run: actionlint .github/workflows/*.yml
-
-      - name: Run yamllint
-        run: yamllint .github/workflows
-
-      - name: Run codespell
+      - name: Install yamllint, codespell, actionlint (pinned)
         run: |
-          if [ -f .codespellrc ]; then
-            codespell --config .codespellrc .
-          else
-            codespell --skip './.git,./target,./assets,./dist,./node_modules' .
-          fi
+          python3 -m pip install --user yamllint==1.38.0 codespell==2.4.3
+          curl -sL -o /tmp/actionlint.tgz \
+            https://github.com/rhysd/actionlint/releases/download/v1.7.7/actionlint_1.7.7_linux_amd64.tar.gz
+          tar -xzf /tmp/actionlint.tgz -C /tmp actionlint
+          sudo install -m755 /tmp/actionlint /usr/local/bin/actionlint
+          yamllint --version
+          codespell --version
+          actionlint --version
 
-      # NIGHT-hunt-19: the language gate (gate-keepers check 14) is
-      # mirrored CI-side for the same reason as shfmt below (the
-      # NIGHT-hunt-23 lesson): a gate that only runs where tools are
-      # installed rots silently. python3 stdlib only — no setup step.
-      - name: Run language gate (English-only discipline)
-        run: bash scripts/check-language.sh
+      # Gate section 12 (ebpf rustfmt) resolves the dated nightly pin
+      # from ebpf/rust-toolchain.toml; installing the same pin up front
+      # keeps the wholesale run off the rustup auto-install path (exact
+      # parity with the ebpf-build job's toolchain step).
+      - name: Install eBPF nightly toolchain (dated pin)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: nightly-2026-09-18
+          components: rust-src, rustfmt
 
-      # NIGHT-hunt-23: the shfmt gate (gate-keepers check 1c) had never
-      # executed anywhere before this — the tool was absent locally
-      # (skipped with a warning) and no CI job ran it, so seven scripts
-      # had drifted to non-canonical formatting undetected. This step
-      # enforces the same canonical style CI-side; the file list mirrors
-      # gate-keepers 1c (build-output trees excluded).
-      - name: Run shfmt (canonical shell formatting)
-        run: find . -name '*.sh' -not -path './.git/*' -not -path './target/*' -exec shfmt -d {} +
+      # The wholesale run: all 16 sections (bash -n, shellcheck, shfmt,
+      # yamllint, actionlint, TOML, codespell, headers, permissions,
+      # emoji, LOC, version sync, disclaimer, ebpf rustfmt, test-tree,
+      # language) in one shot — exit code 0 or the push is blocked.
+      - name: Run gate-keepers.sh (wholesale)
+        run: bash scripts/gate-keepers.sh
