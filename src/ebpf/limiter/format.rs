@@ -174,8 +174,15 @@ pub fn monotonic_ns() -> u64 {
 /// This is consistent with `parse_rate` which uses decimal units (1kb = 1000).
 /// Network rates conventionally use SI units (1 Mbps = 1,000,000 bps).
 ///
+/// One decimal on EVERY tier (status-style audit, NIGHT-style flagship
+/// bar: compact/simple/elegant/precise): mixed digit counts read as
+/// raggedness inside one aligned column ("100.0 MB/s" above "1.00 GB/s").
+/// The TB tier exists because the parser accepts 1tb (MAX_RATE = 1e12)
+/// and pre-audit a max-rate policy rendered "1000.00 GB/s" — the CLI
+/// said 1tb, the status row disagreed.
+///
 /// Examples: 500 → "500 B", 1500 → "1.5 KB", 1_500_000 → "1.5 MB",
-///           1_500_000_000 → "1.50 GB"
+///           1_500_000_000 → "1.5 GB", 1_500_000_000_000 → "1.5 TB"
 pub fn format_bytes(bytes: u64) -> String {
     if bytes < 1000 {
         format!("{bytes} B")
@@ -183,8 +190,10 @@ pub fn format_bytes(bytes: u64) -> String {
         format!("{:.1} KB", bytes as f64 / 1000.0)
     } else if bytes < 1_000_000_000 {
         format!("{:.1} MB", bytes as f64 / 1_000_000.0)
+    } else if bytes < 1_000_000_000_000 {
+        format!("{:.1} GB", bytes as f64 / 1_000_000_000.0)
     } else {
-        format!("{:.2} GB", bytes as f64 / 1_000_000_000.0)
+        format!("{:.1} TB", bytes as f64 / 1_000_000_000_000.0)
     }
 }
 
@@ -377,7 +386,15 @@ mod tests {
         assert_eq!(format_bytes(999_999), "1000.0 KB");
         assert_eq!(format_bytes(1_000_000), "1.0 MB");
         assert_eq!(format_bytes(1_500_000), "1.5 MB");
-        assert_eq!(format_bytes(1_000_000_000), "1.00 GB");
+        // Status-style audit pins: one decimal on every tier (was .2
+        // on GB), and the TB tier exists so terabyte magnitudes and
+        // max-rate policies render in the unit the CLI itself
+        // accepts.
+        assert_eq!(format_bytes(1_000_000_000), "1.0 GB");
+        assert_eq!(format_bytes(1_500_000_000), "1.5 GB");
+        assert_eq!(format_bytes(999_999_999_999), "1000.0 GB");
+        assert_eq!(format_bytes(1_000_000_000_000), "1.0 TB");
+        assert_eq!(format_bytes(1_500_000_000_000), "1.5 TB");
     }
 
     #[test]
@@ -385,7 +402,10 @@ mod tests {
         assert_eq!(format_rate(0), "BLOCKED");
         assert_eq!(format_rate(100_000), "100.0 KB/s");
         assert_eq!(format_rate(1_000_000), "1.0 MB/s");
-        assert_eq!(format_rate(1_000_000_000), "1.00 GB/s");
+        assert_eq!(format_rate(1_000_000_000), "1.0 GB/s");
+        // The input-output symmetry pin: the CLI accepts "1tb" and
+        // the status row now answers in the same unit.
+        assert_eq!(format_rate(1_000_000_000_000), "1.0 TB/s");
     }
 
     #[test]
@@ -398,6 +418,13 @@ mod tests {
         let rate = parse_rate("1mb").unwrap();
         assert_eq!(rate, 1_000_000);
         assert_eq!(format_rate(rate), "1.0 MB/s");
+
+        // The max-rate twin (status-style audit): parse("1tb") is the
+        // parser's ceiling; the formatter must answer in TB, not in a
+        // four-digit GB figure.
+        let rate = parse_rate("1tb").unwrap();
+        assert_eq!(rate, 1_000_000_000_000);
+        assert_eq!(format_rate(rate), "1.0 TB/s");
     }
 
     // ── NIGHT-improve-10: duration overflow pins ────────────────────

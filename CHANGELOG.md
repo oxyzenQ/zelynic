@@ -16,6 +16,35 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Added
 
+- **display: status/monitor style audit against the flagship bar —
+  precision tier harmonized (one decimal everywhere, TB tier added,
+  input-output unit symmetry)** — the audit walked every render
+  surface (status table, observe, top) asking four questions:
+  compact? simple? elegant? precise? The architecture already holds
+  the owner's "boring but elegant flagship" contract — responsive
+  degradation ladders (RATE drops before TOTAL, label absorbs the
+  width), the 20-row firehose cap, honest footers (packets total
+  counts every talker, not just the rows shown), right-aligned
+  numerics, em-dash for absent policies, one TIOCGWINSZ probe per
+  frame. Two precision defects were real: (1) the GB tier formatted
+  with two decimals while KB/MB used one, so one aligned column
+  could show "100.0 MB/s" above "1.00 GB/s" — significant-digit
+  raggedness inside a single column; (2) there was no TB tier while
+  the parser accepts 1tb (MAX_RATE = 1e12), so a max-rate policy set
+  as `1tb` rendered back as "1000.00 GB/s" — the CLI spoke one unit
+  and the status row answered in another. format_bytes now carries
+  one decimal on every tier plus a TB tier; format_rate(1e12)
+  renders "1.0 TB/s", the exact language the CLI accepts. New pins:
+  the GB/GB-boundary/GB-exact/TB ladder, the input-output symmetry
+  round-trip (parse "1tb" -> format "1.0 TB/s"), and the same
+  contract mirrored in the harness engine's fmt_bps (its KB tier
+  used one decimal while MB/GB used two — the opposite of the Rust
+  side; verdict details are cross-read against status output, so
+  the two surfaces now agree on digits and units). Display-only
+  change: no policy, enforcement, or accounting path touched; the
+  full suite (29 unit + 24 integration, fmt, clippy
+  --all-features -D warnings with the nested eBPF build) is green.
+
 - **harness: NIGHT-improve-12 — the supermassive stress now drives
   every limiter rate function: per-direction buckets, rate guards,
   and the dangerous-target blocklist** — the rocket-engine audit of
