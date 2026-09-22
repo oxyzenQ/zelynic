@@ -120,6 +120,17 @@ published key. Verify before installing — the one-liners live in
 
 ### Install from source
 
+Lazy? Skip the manual order entirely — one command runs the WHOLE
+bring-up (bootstrap + pro-native-gnu build + engine self-test + the
+full supermassive matrix) and ends with a next-steps menu
+(NIGHT-improve-18):
+
+```bash
+./scripts/setup.sh               # everything
+./scripts/setup.sh --musl        # also build the static musl twin
+./scripts/setup.sh --skip-heavy  # bootstrap + build + self-test only
+```
+
 Building needs the pinned Rust toolchain (rustup installs the exact
 version from `rust-toolchain.toml`) plus the eBPF nightly pair — and
 one command readies the whole host: the prerequisites, the PATH fix,
