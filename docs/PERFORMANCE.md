@@ -503,6 +503,34 @@ shared runners); the per-frame byte and dirty-cell parity is the
 code-level proof that no render-path regression rode along with the
 CLI surface work.
 
+### NIGHT-boost-6 (verbose hardening) — 2026-09-23
+
+The verbose-infrastructure session (CI gate dedup, then -v
+hardened into loader-level eBPF debug) again touched no render-path
+code: the trace formatters live behind `-v`, the Instant captures
+are attach-time-only, and the render loop is byte-identical. A =
+8a39625 (post boost-7, worktree), B = fffe54b (boost-6 HEAD), 10 s
+runs:
+
+| Metric | 8a39625 | fffe54b | Delta |
+|--------|---------|---------|-------|
+| fps | 12959.9 | 13567.8 | +4.7% (noise class) |
+| avg rows | 24.4 | 24.4 | -0.0% |
+| bytes/frame | 1496.2 | 1496.1 | -0.0% |
+| emit bytes/frame | 1433.6 | 1433.7 | +0.0% |
+| density gini | 0.2069 | 0.2069 | -0.0% |
+| frame entropy | 4.2391 | 4.2391 | +0.0% |
+| dirty cells/frame | 772.7 | 772.8 | +0.0% |
+| dirty ratio | 0.3899 | 0.3900 | +0.0% |
+
+Reading: parity to the fourth decimal on every deterministic
+per-frame metric — same bytes emitted, same cells marked, same rows
+placed. The fps delta (+4.7%) mirrors the -2.3% of the previous
+capture pair in the opposite direction, both inside the shared-host
+wall-clock noise class; the deterministic metrics are the
+code-level proof that the verbose work added zero render-path
+cost.
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.
