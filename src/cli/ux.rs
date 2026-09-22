@@ -46,8 +46,16 @@ const HELP_FOOTER: &str = "For more information, try '--help'.";
 /// NIGHT-improve-3). Exact-match only: a fuzzy suggestion for a
 /// removed name is overridden, never supplemented — one tip, the
 /// right one.
-const REMOVED_SUBCOMMAND_REDIRECTS: &[(&str, &str)] =
-    &[("observe", "eagle-eyes"), ("top", "eagle-eyes")];
+///
+/// NIGHT-improve-25: the singular `eagle-eye` alias is removed with
+/// the short-alias surface (one canonical name, one short form 'ee')
+/// — it joins the redirect table so the old spelling lands on the
+/// successor tip, the exact contract observe/top carry.
+const REMOVED_SUBCOMMAND_REDIRECTS: &[(&str, &str)] = &[
+    ("observe", "eagle-eyes"),
+    ("top", "eagle-eyes"),
+    ("eagle-eye", "eagle-eyes"),
+];
 
 /// Inject the successor for a removed subcommand as clap's OWN
 /// SuggestedSubcommand context, so the tip renders in clap's

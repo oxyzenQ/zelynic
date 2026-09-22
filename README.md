@@ -274,6 +274,11 @@ sudo zelynic unstrict-single brave
 sudo zelynic unstrict-multi brave:curl
 sudo zelynic unstrict-all            # emergency reset
 
+# Short aliases (NIGHT-improve-25): every enforcement verb plus the
+# monitor in two keystrokes — ss sm la bs bm ba us um ua ee
+sudo zelynic ss brave 100kb         # = strict-single brave 100kb
+sudo zelynic ee brave --interval 1s # = eagle-eyes brave --interval 1s
+
 # State: active limits, apps with cgroup IDs, eBPF support
 sudo zelynic status --print-json | jq '.limits[]'
 sudo zelynic list-apps

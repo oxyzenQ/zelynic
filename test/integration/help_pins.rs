@@ -9,12 +9,15 @@
 use crate::zelynic_cmd;
 
 /// NIGHT-improve-3: --help is the single end-to-end reference (the
-/// former --help-all merged in). Every CLI surface command must appear
+/// former --help-all merged in). Every CLI surface name must appear
 /// in it — this is the drift pin between the Commands enum and the
 /// curated reference. Extend the list when the CLI surface grows.
+/// NIGHT-improve-25: the short aliases are part of the surface and
+/// ride the same pin; the retired singular 'eagle-eye' is gone (one
+/// canonical name, one short form).
 #[test]
 fn test_help_lists_every_command() {
-    const KNOWN_COMMANDS: [&str; 17] = [
+    const KNOWN_COMMANDS: [&str; 26] = [
         "strict-single",
         "strict-multi",
         "limit-all",
@@ -29,9 +32,19 @@ fn test_help_lists_every_command() {
         "status",
         "list-apps",
         "eagle-eyes",
-        "eagle-eye",
+        "ee",
         "doctor",
         "strict",
+        // NIGHT-improve-25: the ten two-letter aliases.
+        "ss",
+        "sm",
+        "la",
+        "bs",
+        "bm",
+        "ba",
+        "us",
+        "um",
+        "ua",
     ];
 
     let output = zelynic_cmd()
@@ -41,7 +54,13 @@ fn test_help_lists_every_command() {
 
     assert_eq!(output.status.code(), Some(0), "--help exits 0");
     let stdout = String::from_utf8_lossy(&output.stdout);
-    for section in ["Commands:", "Global flags:", "Rate formats:", "Examples:"] {
+    for section in [
+        "Commands:",
+        "Short aliases:",
+        "Global flags:",
+        "Rate formats:",
+        "Examples:",
+    ] {
         assert!(stdout.contains(section), "--help must carry {section}");
     }
     for cmd in KNOWN_COMMANDS {
@@ -61,6 +80,13 @@ fn test_help_lists_every_command() {
     assert!(
         !stdout.contains("zelynic observe") && !stdout.contains("zelynic top "),
         "--help must not document the merged observe/top commands, got:\n{stdout}"
+    );
+    // NIGHT-improve-25: the singular 'eagle-eye' alias is removed —
+    // its retired shorthand wording must not linger (a bare
+    // substring check cannot be used: 'eagle-eyes' contains it).
+    assert!(
+        !stdout.contains("'eagle-eye' is the shorthand"),
+        "--help must not present the removed 'eagle-eye' alias (NIGHT-improve-25), got:\n{stdout}"
     );
 }
 
