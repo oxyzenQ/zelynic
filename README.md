@@ -381,8 +381,8 @@ the feature table above; the full audit trail is
 
 **Boring and silent but killer.**
 
-zelynic is a Linux utility that is simple from the user's perspective,
-but powerful under the hood. The interface rarely changes. Features don't
+zelynic is a Linux utility that stays out of the user's way while
+doing serious work underneath. The interface rarely changes. Features don't
 explode. Every release makes it slightly more stable, slightly faster,
 slightly easier to maintain.
 
@@ -550,7 +550,8 @@ told once there.
 
 ## Support
 
-zelynic is an open-source project built and maintained independently by [rezky_nightky (oxyzenQ)](https://github.com/oxyzenQ).
+zelynic is an open-source project built and maintained independently —
+the [Author](#author) section below says who by.
 
 If this project helped you, or tamed your bandwidth, you can support future maintenance here:
 
@@ -558,7 +559,7 @@ If this project helped you, or tamed your bandwidth, you can support future main
 
 ### Crypto donations
 
-Owner-verified receive addresses (rezky_nightky / oxyzenQ). All three passed offline cryptographic verification (EIP-55 mixed-case checksum for Ethereum, bech32m witness-v1 for Taproot, base58-to-32-byte ed25519 key for Solana). Always double-check the address on screen before sending — network mismatches (e.g., sending USDT-ERC20 to a Solana address, or sending BTC to a non-Taproot address) will permanently lose funds.
+Owner-verified receive addresses. All three passed offline cryptographic verification (EIP-55 mixed-case checksum for Ethereum, bech32m witness-v1 for Taproot, base58-to-32-byte ed25519 key for Solana). Always double-check the address on screen before sending — network mismatches (e.g., sending USDT-ERC20 to a Solana address, or sending BTC to a non-Taproot address) will permanently lose funds.
 
 - **Solana** — `SOL` / `USDT` (SPL) on Solana mainnet: `88umzS7abaToaGQVgTVXt5SnuvcjTw2jPSM6Ha2JYmXM`
 - **Ethereum** — `ETH` / `USDT` (ERC-20) / `USDC` (ERC-20) on Ethereum mainnet: `0x1bCbA21c07B5636a942De27AA7Ee8283cEDb4C3D`
@@ -568,13 +569,11 @@ Support is optional. The project remains open-source.
 
 ## Intellectual Property & Trademark
 
-**zelynic** is the exclusive intellectual property of
-**rezky_nightky (oxyzenQ)**. Source code is licensed under
-**GPL-3.0-only** (see [LICENSE](LICENSE)); the name, logo, and branding
-(the Marks) are governed by [TRADEMARK.md](TRADEMARK.md), are NOT
-covered by the GPL, and are reserved by the owner. This project is
-**NOT for sale** — unauthorized rebranding, relicensing, or
-source-code theft is strictly prohibited.
+**zelynic** and its Marks (the name, logo, and branding) are governed by
+[TRADEMARK.md](TRADEMARK.md). The Marks are NOT covered by the source
+license and are reserved by the owner. This project is **NOT for sale** —
+unauthorized rebranding, relicensing, or source-code theft is strictly
+prohibited.
 
 **Forking policy** — two categories with different rules (full text in
 [TRADEMARK.md §4](TRADEMARK.md)):
@@ -582,10 +581,9 @@ source-code theft is strictly prohibited.
 - **Contribution forks** (bug fixes, features, PRs back to upstream): allowed without permission. Keep the zelynic name, logo, and branding unchanged — no rename or rebrand required. Just open a PR.
 - **Non-contribution forks** (rebrand, relaunch, derivative product, commercial offering): require owner discussion first. MUST use a different project name + different branding. Open a GitHub Issue before public release.
 
-For trademark licensing or written permission, contact
-**rezky_nightky (oxyzenQ)** — <https://github.com/oxyzenQ>.
-
-Copyright (C) 2026 rezky_nightky (oxyzenQ). All rights reserved.
+For trademark licensing or written permission, see
+[TRADEMARK.md §6](TRADEMARK.md) — the contact channels live there, told
+once.
 
 ## License
 
