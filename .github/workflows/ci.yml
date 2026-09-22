@@ -12,6 +12,14 @@
 # headers, permissions, ruff, language, ...) live in
 # gate-keepers.yml, which runs on EVERY push unfiltered — a
 # docs-only change never skips the gates that police it.
+#
+# NIGHT-improve-20: the musl static twin is a first-class citizen
+# now — a dedicated `musl` job runs the gnu `check` parity set
+# (clippy, tests, debug build, release build + -V execution gate)
+# on the oldest runner still carrying a 5.x kernel (ubuntu-22.04,
+# kernel 5.15) and the latest (ubuntu-24.04, kernel 6.8+), every
+# push. The old single musl compile buried inside the gnu `check`
+# job (release shape only, latest runner only) moved here whole.
 
 name: CI
 
@@ -84,10 +92,10 @@ jobs:
         with:
           toolchain: ${{ env.RUST_VERSION }}
           components: clippy, rustfmt
-          # NIGHT-improve-20: the musl release-shape gate below compiles
-          # the static twin on every push — the target must be installed
-          # here, not first at tag time.
-          targets: x86_64-unknown-linux-musl
+          # NIGHT-improve-20: the musl target install moved to the
+          # dedicated `musl` job below — this gnu job no longer
+          # compiles any musl shape, so it no longer carries the
+          # target (one shape, one job).
 
       # NIGHT-improve-1 phase 3: clippy --all-features compiles the
       # ebpf-feature build, which drives the nested pure-Rust eBPF
@@ -147,16 +155,100 @@ jobs:
       - name: Verify release build
         run: cargo build --release --locked
 
-      # NIGHT-improve-20: the v11.0.0-alpha.1 release run failed with
-      # E0308 because NO CI job had ever compiled the musl target —
-      # the release tag was the first musl compile in the project's
-      # CI history (statfs f_type is u64 on musl, i64 on glibc; fixed
-      # as NIGHT-hunt-33). This step compiles the EXACT release.yml
-      # musl invocation on every push, so a musl-only type error can
-      # never again surface first at tag time. The binary also runs
-      # its -V gate: a static musl executable executes natively on the
-      # glibc runner, proving the artifact, not just the compile.
-      - name: Verify release build (musl static twin)
+  # NIGHT-improve-20: musl CI parity — the owner directive. The gnu
+  # surface gets fmt + clippy + tests + debug build + release build
+  # on every push; the musl static twin deserved the same contract,
+  # not a single release-shape compile stapled to the gnu job. The
+  # matrix pins the kernel span the release page promises: 5.15
+  # (ubuntu-22.04, the oldest hosted runner with a 5.x kernel — the
+  # LTS floor) through 6.8+ (ubuntu-24.04). clippy runs with
+  # --target x86_64-unknown-linux-musl because lints are
+  # target-conditional (libc type layouts differ — the statfs f_type
+  # incident below was a clippy-visible shape). Tests run the musl
+  # binary natively on the glibc runner, proving the static
+  # artifact executes. The ebpf feature graph is compiled in the
+  # debug and release builds, so the nightly pin + bpf-linker
+  # mirror the other compile jobs.
+  musl:
+    name: Musl Static Twin (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        # ubuntu-22.04 = kernel 5.15 (the 5.x LTS floor),
+        # ubuntu-24.04 = kernel 6.8+ (latest hosted).
+        os: [ubuntu-22.04, ubuntu-24.04]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5, NIGHT-hunt-20 SHA pin
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # @stable, NIGHT-hunt-20 SHA pin
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          components: clippy
+          targets: x86_64-unknown-linux-musl
+
+      # The ebpf-feature builds below drive the nested pure-Rust
+      # eBPF build in build.rs — the dated nightly pin
+      # (ebpf/rust-toolchain.toml) and bpf-linker must be present,
+      # same contract as the check and ebpf-build jobs.
+      - name: Install eBPF nightly toolchain (dated pin)
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # @stable, NIGHT-hunt-20 SHA pin
+        with:
+          toolchain: nightly-2026-09-18
+          components: rust-src
+
+      - name: Install bpf-linker 0.11.1 (prebuilt static musl)
+        run: bash scripts/install-bpf-linker.sh
+
+      - name: Cache cargo registry
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5, NIGHT-hunt-20 SHA pin
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+            ebpf/target
+          key: ${{ runner.os }}-musl-${{ matrix.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-musl-${{ matrix.os }}-cargo-
+            ${{ runner.os }}-musl-cargo-
+
+      # Lint parity: the gnu check job's clippy step, aimed at the
+      # musl target — target-conditional code paths (libc structs,
+      # cfg(target_env = "musl") branches) get analyzed, not just
+      # compiled.
+      - name: Clippy (musl target)
+        run: cargo clippy --all-targets --all-features --target x86_64-unknown-linux-musl -- -D warnings
+
+      # Test parity: the musl test binaries are static executables,
+      # so they run natively on the glibc runner — the test suite
+      # executes inside the very artifact shape the release ships.
+      - name: Run tests (musl target)
+        run: cargo test --locked --target x86_64-unknown-linux-musl
+
+      # Debug-build parity (the ebpf-build job's gnu debug contract):
+      # the debug binary with the ebpf feature, then executed — a
+      # debug shape that compiles but cannot even print -V is not a
+      # build, it is a liability.
+      - name: Verify debug build (musl target)
+        run: |
+          cargo build --locked --target x86_64-unknown-linux-musl --features ebpf
+          ./target/x86_64-unknown-linux-musl/debug/zelynic -V
+
+      # Release parity: the EXACT release.yml musl invocation, moved
+      # here from the gnu check job (one shape, one place). The
+      # v11.0.0-alpha.1 release run failed with E0308 because NO CI
+      # job had ever compiled the musl target — the release tag was
+      # the first musl compile in the project's CI history (statfs
+      # f_type is u64 on musl, i64 on glibc; fixed as NIGHT-hunt-33).
+      # This step compiles the release shape on every push, so a
+      # musl-only type error can never again surface first at tag
+      # time. The binary also runs its -V gate: a static musl
+      # executable executes natively on the glibc runner, proving
+      # the artifact, not just the compile.
+      - name: Verify release build (musl target)
         run: |
           cargo build --release --locked --target x86_64-unknown-linux-musl --features ebpf
           ./target/x86_64-unknown-linux-musl/release/zelynic -V
