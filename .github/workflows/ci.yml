@@ -105,7 +105,12 @@ env:
 
 jobs:
   check:
-    name: Lint & Test
+    # NIGHT-boost-11: the display name says what the job runs — since
+    # NIGHT-boost-7 the whole gate IS `build.sh check-all -q`, so the
+    # run list names the invocation, not a description of it. A
+    # reader who wants the exact contract can copy the name straight
+    # into a terminal and get the same gate locally.
+    name: build.sh check-all -q
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     steps:

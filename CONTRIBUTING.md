@@ -199,7 +199,8 @@ cargo audit + cargo deny (both skip with a warning when not installed),
 the repository policy check (check-policy.py), and the version-string
 anti-pattern check. The `-q` / `--quiet` flag cuts the output down to
 the essentials — per-check OK lines, warnings, failures, no banners — and is
-the exact shape the CI "Lint & Test" job runs (NIGHT-boost-7): the gate
+the exact shape the CI "build.sh check-all -q" job runs (NIGHT-boost-7;
+renamed from "Lint & Test" in NIGHT-boost-11): the gate
 CI enforces and the gate the owner runs before a commit are one
 invocation, so the two can never drift apart.
 
