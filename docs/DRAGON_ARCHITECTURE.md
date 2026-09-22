@@ -77,7 +77,7 @@ userspace tool coordination, no format mismatches, no leaked state.
 ├─────────────────────────────────────────────────────────┤
 │  Layer 1 — Map Interface                                │
 │  typed access to BPF maps (HashMap, RingBuf, PerCpu)    │
-│  src/ebpf/loader.rs (read_counters, poll_events)        │
+│  src/ebpf/loader.rs (read_stats_map, poll_and_summarize)│
 ├─────────────────────────────────────────────────────────┤
 │  Layer 0 — BPF Programs (kernel)                        │
 │  cgroup_skb/egress observer → cgroup_counters map       │
