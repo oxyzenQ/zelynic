@@ -113,7 +113,9 @@ pub enum Commands {
     ///
     /// 'strict' is the shorthand for this command (NIGHT-hunt-10: the
     /// missing bare verb made owners type `zelynic strict brave` into
-    /// an unrecognized-subcommand error).
+    /// an unrecognized-subcommand error). 'ss' is the short alias
+    /// (NIGHT-improve-25 — the ten two-letter aliases cover every
+    /// enforcement verb).
     ///
     /// Examples:
     ///   zelynic strict-single brave 100kb              # both dl+ul = 100kb
@@ -121,7 +123,8 @@ pub enum Commands {
     ///   zelynic strict-single brave -u 500kb           # upload only
     ///   zelynic strict-single firefox -d 1mb -u 500kb  # both, different rates
     ///   zelynic strict brave -d 1mb                    # shorthand form
-    #[command(name = "strict-single", alias = "strict")]
+    ///   zelynic ss brave 100kb                         # short alias form
+    #[command(name = "strict-single", alias = "strict", alias = "ss")]
     StrictSingle {
         /// Target: process name (e.g., brave) or cgroup ID (e.g., 73386)
         target: String,
@@ -155,7 +158,8 @@ pub enum Commands {
     /// Examples:
     ///   zelynic strict-multi brave:curl:pacman 1mb              # both dl+ul = 1mb
     ///   zelynic strict-multi brave:curl -d 1mb -u 500kb         # per-direction
-    #[command(name = "strict-multi")]
+    ///   zelynic sm brave:curl:pacman 1mb                        # short alias form
+    #[command(name = "strict-multi", alias = "sm")]
     StrictMulti {
         /// Targets separated by colons (e.g., brave:curl:pacman)
         targets: String,
@@ -190,7 +194,8 @@ pub enum Commands {
     /// Examples:
     ///   zelynic limit-all 500kb              # limit all user apps
     ///   zelynic limit-all -d 1mb -u 500kb    # per-direction
-    #[command(name = "limit-all")]
+    ///   zelynic la 500kb                     # short alias form
+    #[command(name = "limit-all", alias = "la")]
     LimitAll {
         /// Rate for both download+upload (e.g., 500kb, 1mb)
         #[arg(value_name = "RATE")]
@@ -216,7 +221,7 @@ pub enum Commands {
     /// Block multiple apps from the internet entirely
     ///
     /// Example: zelynic block-multi brave:curl:pacman
-    #[command(name = "block-multi")]
+    #[command(name = "block-multi", alias = "bm")]
     BlockMulti {
         /// Targets separated by colons (e.g., brave:curl:pacman)
         targets: String,
@@ -229,7 +234,7 @@ pub enum Commands {
     /// Block ALL user apps from the internet
     ///
     /// System apps excluded by default. Use --force to include.
-    #[command(name = "block-all")]
+    #[command(name = "block-all", alias = "ba")]
     BlockAll {
         /// Include system/dangerous targets
         #[arg(long)]
@@ -239,7 +244,7 @@ pub enum Commands {
     /// Block an app from accessing the internet entirely
     ///
     /// Example: zelynic block-single brave
-    #[command(name = "block-single")]
+    #[command(name = "block-single", alias = "bs")]
     BlockSingle {
         /// Target: process name or cgroup ID
         target: String,
@@ -255,9 +260,10 @@ pub enum Commands {
     /// pair (NIGHT-hunt-10 introduced the alias; NIGHT-hunt-16 flipped the
     /// canonical to unstrict-single so the strict and unstrict families
     /// read symmetrically: canonical always carries the -single suffix).
+    /// 'us' is the short alias (NIGHT-improve-25).
     ///
     /// Example: zelynic unstrict-single brave
-    #[command(name = "unstrict-single", alias = "unstrict")]
+    #[command(name = "unstrict-single", alias = "unstrict", alias = "us")]
     Unstrict {
         /// Target: process name or cgroup ID
         target: String,
@@ -270,14 +276,14 @@ pub enum Commands {
     /// repeated single calls or the unstrict-all sledgehammer.
     ///
     /// Example: zelynic unstrict-multi brave:curl:pacman
-    #[command(name = "unstrict-multi")]
+    #[command(name = "unstrict-multi", alias = "um")]
     UnstrictMulti {
         /// Targets separated by colons (e.g., brave:curl:pacman)
         targets: String,
     },
 
     /// Remove ALL rate limits (emergency reset)
-    #[command(name = "unstrict-all")]
+    #[command(name = "unstrict-all", alias = "ua")]
     UnstrictAll,
 
     /// Recover from crash — clean orphaned BPF pins
@@ -321,12 +327,19 @@ pub enum Commands {
     /// `--interval` (NIGHT-hunt-7) is the refresh cadence, 1s..60s,
     /// default 1s — realtime precision.
     ///
+    /// 'ee' is the short alias (NIGHT-improve-25). The former
+    /// singular 'eagle-eye' alias is REMOVED — one canonical name,
+    /// one short form — and typing it lands on the redirect tip
+    /// pointing here (same contract observe/top got when they
+    /// merged in).
+    ///
     /// Examples:
     ///   zelynic eagle-eyes                        # all apps, ranked, q to quit
     ///   zelynic eagle-eyes brave                  # watch one app (deep view)
     ///   zelynic eagle-eyes 12345/brave/firefox    # watch specific targets
     ///   zelynic eagle-eyes --interval 3s          # calmer cadence
-    #[command(name = "eagle-eyes", alias = "eagle-eye")]
+    ///   zelynic ee brave --interval 1s            # short alias form
+    #[command(name = "eagle-eyes", alias = "ee")]
     EagleEyes {
         /// Targets: process names or cgroup IDs, slash-separated
         /// (e.g., brave, 73386, 12345/brave/firefox). Omit to watch all.

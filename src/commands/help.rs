@@ -67,6 +67,7 @@ pub(crate) fn print_help() {
         "sudo zelynic strict-single firefox -d 1mb -u 500kb",
     );
     example("shorthand form", "sudo zelynic strict brave 100kb");
+    example("short alias form", "sudo zelynic ss brave 100kb");
     println_safe!();
     println_safe!("  zelynic strict-multi <a:b:c> [rate] [-d <rate>] [-u <rate>]");
     println_safe!("    Limit multiple apps sharing ONE rate (group limit).");
@@ -140,7 +141,7 @@ pub(crate) fn print_help() {
     println_safe!();
     println_safe!("  zelynic eagle-eyes [targets] [--interval <1s-60s>]");
     println_safe!("    The unified live monitor (NIGHT-boost-1: observe + top merged;");
-    println_safe!("    'eagle-eye' is the shorthand).");
+    println_safe!("    'ee' is the short alias, NIGHT-improve-25).");
     println_safe!("    Apps ranked by consumption — rank 1 eats the internet right now.");
     println_safe!("    Rows follow the terminal height (no --limit): raise the window");
     println_safe!("    to see more, the list runs high to low.");
@@ -155,11 +156,23 @@ pub(crate) fn print_help() {
         "sudo zelynic eagle-eyes 12345/brave/firefox",
     );
     example("calmer cadence", "sudo zelynic eagle-eyes --interval 3s");
+    example("short alias form", "sudo zelynic ee brave --interval 1s");
     println_safe!();
     println_safe!("  {}", brand_bold("system — support"));
     println_safe!();
     println_safe!("  zelynic doctor");
     println_safe!("    Check if your machine supports eBPF.");
+    println_safe!();
+    // NIGHT-improve-25: the ten two-letter aliases — every
+    // enforcement verb plus the monitor in two keystrokes. Documented
+    // as a compact table after the command groups, so the canonical
+    // names stay the vocabulary of the reference and the short forms
+    // read as the typing shortcut they are.
+    println_safe!("{}", brand_bold("Short aliases:"));
+    println_safe!("  ss strict-single     sm strict-multi      la limit-all");
+    println_safe!("  bs block-single     bm block-multi       ba block-all");
+    println_safe!("  us unstrict-single  um unstrict-multi   ua unstrict-all");
+    println_safe!("  ee eagle-eyes");
     println_safe!();
     println_safe!("{}", brand_bold("Global flags:"));
     println_safe!("  -h, --help       This end-to-end reference (usage, commands, examples)");

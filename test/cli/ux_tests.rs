@@ -132,9 +132,11 @@ fn removed_help_all_flag_suggests_help() {
 /// The merged observe/top commands must land users on eagle-eyes:
 /// unrecognized subcommand (exit 2 family) with the successor
 /// named in clap's own suggestion slot — one tip, the right one.
+/// NIGHT-improve-25: the removed singular 'eagle-eye' alias rides
+/// the same contract (one canonical name, one short form 'ee').
 #[test]
 fn removed_observe_and_top_redirect_to_eagle_eyes() {
-    for gone in ["observe", "top"] {
+    for gone in ["observe", "top", "eagle-eye"] {
         let rendered = render_via_bridge(&["zelynic", gone]);
         assert!(
             rendered.contains(&format!("unrecognized subcommand '{gone}'")),

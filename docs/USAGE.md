@@ -83,7 +83,12 @@ target, `-multi` takes a colon-separated list, `-all` sweeps every user
 app. `strict` is the shorthand for `strict-single`; `unstrict` is the
 shorthand for `unstrict-single` (NIGHT-hunt-16 — the canonical always
 carries the `-single` suffix, so the two verb families read
-symmetrically).
+symmetrically). Every enforcement verb plus the monitor also has a
+two-letter short alias (NIGHT-improve-25): `ss` strict-single, `sm`
+strict-multi, `la` limit-all, `bs` block-single, `bm` block-multi,
+`ba` block-all, `us` unstrict-single, `um` unstrict-multi, `ua`
+unstrict-all, `ee` eagle-eyes — e.g. `zelynic ss brave 100kb` or
+`zelynic ee brave --interval 1s`.
 
 ### strict-single / strict — limit one app
 
@@ -217,7 +222,9 @@ sudo zelynic eagle-eyes [targets] [--interval <1s-60s>]
 ```
 
 One surface for the former `observe` + `top` pair (NIGHT-boost-1;
-`eagle-eye` is the shorthand). Apps are RANKED by current consumption,
+`ee` is the short alias, NIGHT-improve-25 — the singular `eagle-eye`
+alias is removed, and typing it lands on a redirect tip pointing
+here). Apps are RANKED by current consumption,
 rank 1 first, with per-cgroup detail lines naming the processes and
 remote endpoints inside. The row count follows the terminal height —
 there is no `--limit`: a short window shows the top few consumers, a

@@ -21,7 +21,7 @@ fn test_enforcement_commands_refuse_non_root_cleanly() {
     if euid_is_root() {
         return; // contract only observable as unprivileged user
     }
-    const ENFORCEMENT_ARGV: [&[&str]; 12] = [
+    const ENFORCEMENT_ARGV: [&[&str]; 11] = [
         &["strict-single", "brave", "100kb"],
         &["strict", "brave", "100kb"],
         &["strict-multi", "brave:curl", "1mb"],
@@ -33,7 +33,10 @@ fn test_enforcement_commands_refuse_non_root_cleanly() {
         &["recover"],
         &["status"],
         &["eagle-eyes"],
-        &["eagle-eye", "brave"],
+        // NIGHT-improve-25: 'eagle-eye' left this matrix with the
+        // alias removal — it is an unrecognized subcommand now (exit
+        // 2, redirect tip), not an enforcement refusal. The short
+        // aliases ride their own surface tests (surface_pins.rs).
     ];
     for argv in ENFORCEMENT_ARGV {
         let output = zelynic_cmd()

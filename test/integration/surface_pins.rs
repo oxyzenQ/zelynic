@@ -207,3 +207,121 @@ fn test_removed_monitor_filter_flags_are_rejected() {
         );
     }
 }
+
+// ── Short aliases (NIGHT-improve-25) ────────────────────────────────────────
+
+/// NIGHT-improve-25: the ten two-letter aliases route to their
+/// canonical commands. The routing discriminator is the
+/// unrecognized-subcommand error an unwired name would produce:
+/// every alias invocation must NOT end in "unrecognized subcommand"
+/// — the six positional verbs land in clap's required-argument usage
+/// error instead, and the proof below pins that stronger error per
+/// verb. Safe on any uid: a missing positional never reaches a
+/// handler.
+#[test]
+fn test_short_aliases_route_to_canonical_commands() {
+    for alias in ["ss", "sm", "la", "bs", "bm", "ba", "us", "um", "ua", "ee"] {
+        let output = zelynic_cmd()
+            .arg(alias)
+            .output()
+            .unwrap_or_else(|e| panic!("Failed to execute zelynic {alias}: {e}"));
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            !stderr.contains(&format!("unrecognized subcommand '{alias}'")),
+            "short alias '{alias}' must route to its canonical command, got: {stderr}"
+        );
+    }
+}
+
+/// NIGHT-improve-25: the six positional-carrying short aliases land in
+/// their canonical command's required-argument usage error (exit 2,
+/// naming the missing positional) — the exact ladder the bare-verb
+/// shorthands (strict, unstrict) ride in the tests above.
+#[test]
+fn test_short_aliases_with_positionals_hit_usage_errors() {
+    for (alias, positional) in [
+        ("ss", "<TARGET>"),
+        ("sm", "<TARGETS>"),
+        ("bs", "<TARGET>"),
+        ("bm", "<TARGETS>"),
+        ("us", "<TARGET>"),
+        ("um", "<TARGETS>"),
+    ] {
+        let output = zelynic_cmd()
+            .arg(alias)
+            .output()
+            .unwrap_or_else(|e| panic!("Failed to execute zelynic {alias}: {e}"));
+
+        assert_eq!(
+            output.status.code(),
+            Some(2),
+            "'{alias}' without its positional must be a usage error"
+        );
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            stderr.contains("required arguments were not provided") && stderr.contains(positional),
+            "'{alias}' must name its canonical positional {positional}, got: {stderr}"
+        );
+    }
+}
+
+/// NIGHT-improve-25: the owner's exact invocations must parse through
+/// to the handler ladder. ebpf-gated (the rate validation and the
+/// monitor ladder live in the feature-gated handlers) and skipped
+/// under root: past the root guard these would enforce for real —
+/// the same reason the strict-shorthand rate test above carries the
+/// same pair of gates.
+#[cfg(feature = "ebpf")]
+#[test]
+fn test_owner_short_alias_invocations_reach_handlers() {
+    if crate::euid_is_root() {
+        return; // past the root guard these would enforce for real
+    }
+    for argv in [
+        vec!["ss", "brave", "100kb"],
+        vec!["ee", "brave", "--interval", "1s"],
+    ] {
+        let output = zelynic_cmd()
+            .args(&argv)
+            .output()
+            .unwrap_or_else(|e| panic!("Failed to execute zelynic {argv:?}: {e}"));
+
+        assert_eq!(
+            output.status.code(),
+            Some(1),
+            "'{argv:?}' must reach the handler and stop at the root guard"
+        );
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            stderr.contains("root required"),
+            "'{argv:?}' must be inside its canonical handler (root guard), got: {stderr}"
+        );
+    }
+}
+
+/// NIGHT-improve-25: the singular 'eagle-eye' alias is removed (one
+/// canonical name, one short form 'ee') — it must fail as an
+/// unrecognized subcommand whose tip redirects to eagle-eyes, the
+/// exact contract observe/top carry.
+#[test]
+fn test_removed_eagle_eye_alias_redirects_to_eagle_eyes() {
+    let output = zelynic_cmd()
+        .arg("eagle-eye")
+        .output()
+        .expect("Failed to execute zelynic eagle-eye");
+
+    assert_eq!(
+        output.status.code(),
+        Some(2),
+        "removed 'eagle-eye' must be a usage error"
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("unrecognized subcommand 'eagle-eye'"),
+        "error must name the removed alias, got: {stderr}"
+    );
+    assert!(
+        stderr.contains("eagle-eyes"),
+        "removed 'eagle-eye' must redirect to eagle-eyes, got: {stderr}"
+    );
+}
