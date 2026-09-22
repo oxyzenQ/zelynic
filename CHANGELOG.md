@@ -931,6 +931,25 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Fixed
 
+- **capabilities: the release musl build compiles again —
+  `statfs.f_type` is a u64 on musl, an i64 on glibc
+  (NIGHT-hunt-33)** — the v11.0.0-alpha.1 release run died at the
+  musl compile step with E0308 (`expected i64, found u64`) at
+  `src/capabilities/mod.rs` while the gnu build was green on the
+  very same tree: the two libcs disagree on the Rust-side type of
+  the same kernel field (glibc types it `__fsword_t`, a signed
+  long; musl types it `unsigned long`). The kernel ABI is
+  identical either way — a full 64-bit filesystem magic on the
+  wire — and every magic in linux/magic.h (BPF_FS_MAGIC
+  0xcafe4a11 included) sits far below 2^63, so the fix widens the
+  field into the function's i64 contract with a single `as i64`:
+  a no-op on gnu, a lossless widening on musl, no panic path
+  (the compiler-suggested `try_into().unwrap()` would have
+  introduced one). The stale doc comment that caused the bug —
+  "stored as i64 to match statfs.f_type, signed" — recorded a
+  glibc-only assumption as if it were the libc contract; it now
+  documents the divergence it papered over.
+
 - **harness: the curl burst rate verdict now divides by the actual
   wall-clock span, not the nominal window (NIGHT-hunt-32)** — the
   2026-09-22 light run failed `curl burst: 4 parallel curls, one
