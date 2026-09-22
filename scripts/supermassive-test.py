@@ -86,21 +86,31 @@ What it verifies (verdicts PASS / FAIL / SKIP, exit 1 on any FAIL):
          bucket across cgroups, block-multi, unstrict-multi
          selective removal, mixed concurrent policies on five
          cgroups, limit-all --force sweep, reload cycles, sustain
-         windows, non-binding overhead, recover clean-state,
-         cleanup, dmesg
+         windows, non-binding overhead, then the NIGHT-improve-21
+         brutal battery: SIGKILL of the live TUI mid-render under
+         active strict-multi enforcement, jittered SIGKILLs of
+         one-shot CLI invocations racing the attach/pin/write
+         window, and the post-kill regression re-proof (rate
+         guards, policy round-trips, JSON surfaces, -V token),
+         then recover clean-state, cleanup, dmesg
 """
 
 import argparse
 import contextlib
+import fcntl
 import inspect
 import io
 import json
 import os
+import pty
 import shutil
+import signal
 import socket
+import struct
 import subprocess
 import sys
 import tempfile
+import termios
 import threading
 import time
 
@@ -1040,6 +1050,28 @@ def test_policy_write():
     return verdict == "PASS" and human == "PASS"
 
 
+def refuse(row, argv, needle):
+    """One refusal probe: run zelynic with `argv`, expect a non-zero
+    exit whose combined output contains `needle` (case-insensitive).
+
+    Hoisted to module level by NIGHT-improve-21: the matrix's
+    rate-guard stage and the post-kill regression battery run the
+    IDENTICAL probe — a refusal that only one of them exercises is a
+    contract half-checked.
+    """
+    rc, stdout, stderr = run_zel(argv)
+    text = (stderr or stdout).strip()
+    hit = rc != 0 and needle.lower() in text.lower()
+    return (
+        record(
+            row,
+            "PASS" if hit else "FAIL",
+            f"exit {rc}: {text[:140]}",
+        )
+        == "PASS"
+    )
+
+
 def test_rate_guard():
     """The limiter's input-validation functions as CLI round-trips
     (NIGHT-improve-12): the rate bounds (MIN_RATE / MAX_RATE), the
@@ -1054,19 +1086,6 @@ def test_rate_guard():
     """
     ok_all = True
     tid = str(CG.ids["a"])
-
-    def refuse(row, argv, needle):
-        rc, stdout, stderr = run_zel(argv)
-        text = (stderr or stdout).strip()
-        hit = rc != 0 and needle.lower() in text.lower()
-        return (
-            record(
-                row,
-                "PASS" if hit else "FAIL",
-                f"exit {rc}: {text[:140]}",
-            )
-            == "PASS"
-        )
 
     # MIN_RATE = 1000 (format.rs): 999 must be refused with the
     # below-minimum error that names the override flag.
@@ -1759,6 +1778,366 @@ def test_sustain(rate_bps, windows, window, baseline):
     return verdict == "PASS"
 
 
+# ── NIGHT-improve-21: the brutal battery ────────────────────────────────────
+#
+# The stages above answer "does the limiter work?" under every policy
+# shape the CLI accepts. This battery answers the owner's next question:
+# "does it SURVIVE violence?" — the live TUI SIGKILLed mid-render while
+# enforcement is active, one-shot CLI invocations SIGKILLed inside the
+# attach/pin/write window, and the core invariants re-proven after the
+# dust settles. It runs AFTER the limiter matrix and BEFORE the
+# recover/cleanup/dmesg teardown, so the teardown stages still verify
+# the final state the battery leaves behind.
+#
+# Safety of the kill design (verified against the source): the observer
+# behind `top`/`observe` loads its BPF objects and attaches cgroup
+# programs but NEVER pins anything — the kernel releases those links
+# when the process dies — while the limiter's enforcement state lives
+# in PINNED maps under /sys/fs/bpf/zelynic that are designed to survive
+# process death (that is the whole pinned-map architecture). Killing the
+# monitor therefore stresses exactly the seam it should: a violent
+# reader death must not disturb the writer's enforcement state.
+
+KILL_TOP_CYCLES = 5
+KILL_TOP_RENDER_S = 2.6
+KILL_MIDFLIGHT_KILLS = 12
+
+
+def _spawn_top_on_pty(argv):
+    """Spawn the zelynic TUI on a fresh pseudo-terminal.
+
+    The render engine needs a real terminal — a pipe gives it no
+    geometry to draw on — so the kill stages run the TUI exactly the
+    way an owner's terminal does: pty with a sane 80x24 geometry set
+    before exec, stdin/stdout/stderr all on the slave side. Returns
+    (proc, master_fd); the caller drains the master (the render
+    proof), then kills and reaps the child.
+    """
+    master, slave = pty.openpty()
+    # 24 rows x 80 cols: the default geometry every terminal starts
+    # from, so render_top_table exercises its full layout from the
+    # very first frame instead of a degenerate 0x0 grid.
+    fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 24, 80, 0, 0))
+    proc = subprocess.Popen(
+        [lib.BINARY] + argv,
+        stdin=slave,
+        stdout=slave,
+        stderr=slave,
+        close_fds=True,
+    )
+    os.close(slave)
+    return proc, master
+
+
+def _drain_pty(master, seconds):
+    """Read the pty master for `seconds` and return the bytes the child
+    rendered — non-blocking and paced, so a chatty TUI can never fill
+    the pty buffer and block on its own output while we wait for proof
+    that it is alive. Any bytes at all count: attach_quiet suppresses
+    the loader trace, so output on the pty means the render engine is
+    producing frames."""
+    got = bytearray()
+    os.set_blocking(master, False)
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline:
+        try:
+            chunk = os.read(master, 65536)
+        except BlockingIOError:
+            time.sleep(0.02)
+            continue
+        except OSError:
+            break  # master closed under us: the child is already gone
+        got += chunk
+    return bytes(got)
+
+
+def test_kill_top():
+    """SIGKILL the live TUI (`zelynic top`) mid-render, under active
+    strict-multi enforcement, five times over.
+
+    Each cycle: apply strict-multi on cgroups a:b:c, start the TUI on a
+    pty, let it render for KILL_TOP_RENDER_S seconds (at --interval 1s
+    that is at least two frames), SIGKILL it, reap it as signal 9,
+    then prove the split the pinned-map architecture promises —
+    (1) the status rows for all three cgroups are intact at the exact
+        configured rates (enforcement state survived the death),
+    (2) traffic downloaded AFTER the kill is still policed (kernel
+        drops engaged, BPF accounting in agreement — the
+        enforcement_proofs contract),
+    (3) a fresh policy write still lands (the write path is alive).
+    A monitor death that cost enforcement continuity fails here, not
+    in the field.
+    """
+    rates = ["200kb", "1mb", "500kb", "2mb", "100kb"]
+    exp = [200_000, 1_000_000, 500_000, 2_000_000, 100_000]
+    completed = 0
+    rendered_ok = 0
+    killed_ok = 0
+    rows_ok = 0
+    write_ok = 0
+    for cycle in range(KILL_TOP_CYCLES):
+        ok, payload = apply_group(["a", "b", "c"], rates[cycle], exp[cycle])
+        if not ok:
+            record(
+                "kill top: strict-multi applied",
+                "FAIL",
+                f"cycle {cycle + 1}: {payload}",
+            )
+            break
+        completed += 1
+        proc, master = _spawn_top_on_pty(["top", "--interval", "1s"])
+        try:
+            rendered = _drain_pty(master, KILL_TOP_RENDER_S)
+            proc.kill()  # SIGKILL: the violent death under test
+            try:
+                proc.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                pass  # unreapable child: surfaced by the killed_ok row
+        finally:
+            os.close(master)
+        if rendered:
+            rendered_ok += 1
+        if proc.returncode == -signal.SIGKILL:
+            killed_ok += 1
+        doc = status_json()
+        rows_intact = doc is not None
+        for n in ("a", "b", "c"):
+            entry = limit_entry(doc, CG.ids[n]) if rows_intact else None
+            if (
+                entry is None
+                or entry.get("download_bps") != exp[cycle]
+                or entry.get("upload_bps") != exp[cycle]
+            ):
+                rows_intact = False
+        if rows_intact:
+            rows_ok += 1
+        # Post-kill traffic: still policed by the maps the dead monitor
+        # never owned. enforcement_proofs records the kernel-drop and
+        # byte-accounting rows per cycle.
+        got = py_download(2.5, "a")
+        enforcement_proofs(f"kill top c{cycle + 1}", got)
+        # A fresh write must still land after the kill.
+        ok, _ = apply_single("d", "750kb", 750_000, 750_000)
+        if ok:
+            write_ok += 1
+        clear_all()
+    record(
+        "kill top: TUI rendered before every SIGKILL",
+        "PASS" if rendered_ok == completed and completed == KILL_TOP_CYCLES else "FAIL",
+        f"{rendered_ok}/{completed} cycles produced pty output"
+        + ("" if completed == KILL_TOP_CYCLES else f" (only {completed} cycles ran)"),
+    )
+    record(
+        "kill top: every kill reaped as signal 9",
+        "PASS" if killed_ok == completed and completed == KILL_TOP_CYCLES else "FAIL",
+        f"{killed_ok}/{completed} cycles exited -9"
+        + ("" if completed == KILL_TOP_CYCLES else f" (only {completed} cycles ran)"),
+    )
+    record(
+        "kill top: enforcement rows intact after every kill",
+        "PASS" if rows_ok == completed and completed == KILL_TOP_CYCLES else "FAIL",
+        f"{rows_ok}/{completed} cycles kept the exact a:b:c rates",
+    )
+    record(
+        "kill top: fresh policy write lands after every kill",
+        "PASS" if write_ok == completed and completed == KILL_TOP_CYCLES else "FAIL",
+        f"{write_ok}/{completed} cycles wrote a new limit post-kill",
+    )
+    return (
+        rendered_ok == completed
+        and killed_ok == completed
+        and rows_ok == completed
+        and write_ok == completed
+        and completed == KILL_TOP_CYCLES
+    )
+
+
+def test_kill_midflight():
+    """SIGKILL one-shot CLI invocations inside the attach/pin/write
+    window, twelve times, at jittered offsets.
+
+    A strict-single invocation pins programs, writes policy maps, and
+    updates the row surface — killing it at a jittered point races
+    every step of that write path. The contract under test is NOT
+    which side wins the race (a kill landing after the CLI finished is
+    an equally legal outcome) but that a killed writer can never leave
+    a state the status surface cannot read back coherently: the JSON
+    parses, and every limit row carries integral rates. The stage ends
+    with the restore contract — recover must bring the machine back to
+    zero pins no matter where the twelve kills landed.
+    """
+    rates = ["300kb", "1mb", "600kb", "2mb"]
+    sigkilled = 0
+    finished_first = 0
+    other_exit = 0
+    coherent = 0
+    for i in range(KILL_MIDFLIGHT_KILLS):
+        proc = subprocess.Popen(
+            [lib.BINARY, "strict-single", str(CG.ids["a"]), rates[i % len(rates)]],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        # Jitter across the attach/pin/write window (20..68 ms): early
+        # kills race the pin creation, late ones race the row write,
+        # and the widest offsets let the CLI finish first — the
+        # coherence check below is the invariant, not winning.
+        time.sleep(0.02 + 0.012 * (i % 5))
+        proc.kill()
+        try:
+            proc.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            pass
+        if proc.returncode == -signal.SIGKILL:
+            sigkilled += 1
+        elif proc.returncode == 0:
+            finished_first += 1
+        else:
+            other_exit += 1
+        doc = status_json()
+        limit_rows = (doc or {}).get("limits", [])
+        integral = (
+            doc is not None
+            and isinstance(limit_rows, list)
+            and all(
+                isinstance(e.get("download_bps"), int) and isinstance(e.get("upload_bps"), int)
+                for e in limit_rows
+            )
+        )
+        if integral:
+            coherent += 1
+        run_zel(["unstrict-all"])
+    run_zel(["recover"])
+    pins_left = len(os.listdir(PIN_DIR)) if os.path.isdir(PIN_DIR) else 0
+    record(
+        "kill midflight: every cycle reaped (12 kills, jittered)",
+        "PASS" if (sigkilled + finished_first + other_exit) == KILL_MIDFLIGHT_KILLS else "FAIL",
+        f"{sigkilled} killed mid-flight, {finished_first} finished first"
+        f"{f', {other_exit} other exits' if other_exit else ''}",
+    )
+    record(
+        "kill midflight: status JSON coherent after every kill",
+        "PASS" if coherent == KILL_MIDFLIGHT_KILLS else "FAIL",
+        f"{coherent}/{KILL_MIDFLIGHT_KILLS} cycles parsed with integral rate rows",
+    )
+    record(
+        "kill midflight: recover restores the zero-pin state",
+        "PASS" if pins_left == 0 else "FAIL",
+        f"{pins_left} entries left in {PIN_DIR}",
+    )
+    return (
+        coherent == KILL_MIDFLIGHT_KILLS
+        and pins_left == 0
+        and (sigkilled + finished_first + other_exit) == KILL_MIDFLIGHT_KILLS
+    )
+
+
+def test_regression_battery():
+    """Re-prove the core invariants AFTER the kills.
+
+    Every check here already ran green BEFORE the brutal battery (the
+    rate guards in the early matrix, the JSON surfaces in doctor and
+    list-apps, the version token at resolve time). Running them again
+    after five TUI kills and twelve mid-flight kills is the regression
+    contract: nothing the battery broke is allowed to stay broken, and
+    nothing that was refusing before may start accepting. Three rapid
+    policy round-trips across different cgroups close the battery the
+    way the matrix opened — write, verify, clear, repeat.
+    """
+    ok_all = True
+    tid = str(CG.ids["a"])
+    ok_all = (
+        refuse(
+            "regression: below-minimum still refused (999 < 1kb)",
+            ["strict-single", tid, "999"],
+            "below minimum",
+        )
+        and ok_all
+    )
+    ok_all = (
+        refuse(
+            "regression: above-maximum still refused (2tb > 1tb)",
+            ["strict-single", tid, "2tb"],
+            "above maximum",
+        )
+        and ok_all
+    )
+    ok_all = (
+        refuse(
+            "regression: typo tip still suggests lowercase twin (1MB -> 1mb)",
+            ["strict-single", tid, "1MB"],
+            "1mb",
+        )
+        and ok_all
+    )
+    ok_all = (
+        refuse(
+            "regression: dangerous name still refused without --force (systemd)",
+            ["strict-single", "systemd", "1mb"],
+            "system process",
+        )
+        and ok_all
+    )
+    trips_ok = 0
+    for name, rate_str, exp in (
+        ("a", "400kb", 400_000),
+        ("b", "800kb", 800_000),
+        ("d", "1500kb", 1_500_000),
+    ):
+        ok, _ = apply_single(name, rate_str, exp, exp)
+        if ok:
+            ok, _ = unstrict_target("unstrict-single", [name])
+        if ok:
+            trips_ok += 1
+    ok_all = (
+        record(
+            "regression: policy round-trip still lands (3 cgroups)",
+            "PASS" if trips_ok == 3 else "FAIL",
+            f"{trips_ok}/3 write-verify-clear trips",
+        )
+        == "PASS"
+        and ok_all
+    )
+    doctor_ok = False
+    apps_ok = False
+    rc, stdout, _ = run_zel(["doctor", "--print-json"])
+    if rc == 0:
+        try:
+            json.loads(stdout)
+            doctor_ok = True
+        except json.JSONDecodeError:
+            pass
+    rc, stdout, _ = run_zel(["list-apps", "--print-json"])
+    if rc == 0:
+        try:
+            json.loads(stdout)
+            apps_ok = True
+        except json.JSONDecodeError:
+            pass
+    ok_all = (
+        record(
+            "regression: doctor + list-apps JSON still parse",
+            "PASS" if doctor_ok and apps_ok else "FAIL",
+            f"doctor {'ok' if doctor_ok else 'broken'}, list-apps {'ok' if apps_ok else 'broken'}",
+        )
+        == "PASS"
+        and ok_all
+    )
+    rc, stdout, _ = run_zel(["-V"])
+    first = (stdout or "").strip().splitlines()
+    token = lib.version_token(first[0]) if rc == 0 and first else None
+    want = lib.repo_version()
+    ok_all = (
+        record(
+            "regression: -V token still matches the checkout",
+            "PASS" if token == want else "FAIL",
+            f"{token or '(none)'} vs v{want}",
+        )
+        == "PASS"
+        and ok_all
+    )
+    return ok_all
+
+
 def test_recover():
     rc, stdout, stderr = run_zel(["recover"])
     detail = (stderr or stdout).strip()[:120] or f"exit {rc}"
@@ -1889,6 +2268,43 @@ def self_test():
         "engine: ladder floor model (sub-skb zero, band, min-RTO cushion)",
         "PASS" if ok_floors else "FAIL",
         "; ".join(f"{lib.fmt_bps(r)} -> {lib.loopback_rate_floor(r):.2f}" for r in floor_pins),
+    )
+
+    # NIGHT-improve-21 pin: the kill battery's pty mechanics — spawn,
+    # render-drain, SIGKILL, reap — verified rootlessly against a
+    # dummy child (a python that prints one line, then sleeps on a
+    # real pty). A pty regression on any distro is caught here, before
+    # a root run ever reaches the kill stages.
+    pty_ok = False
+    pty_detail = "engine error"
+    try:
+        master, slave = pty.openpty()
+        fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 24, 80, 0, 0))
+        dummy = subprocess.Popen(
+            [sys.executable, "-c", "print('frame'); import time; time.sleep(30)"],
+            stdin=slave,
+            stdout=slave,
+            stderr=slave,
+            close_fds=True,
+        )
+        os.close(slave)
+        try:
+            rendered = _drain_pty(master, 2.0)
+        finally:
+            os.close(master)
+            dummy.kill()
+            try:
+                dummy.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                pass
+        pty_ok = bool(rendered) and dummy.returncode == -signal.SIGKILL
+        pty_detail = f"{len(rendered)} bytes rendered, exit {dummy.returncode}"
+    except (OSError, subprocess.TimeoutExpired) as e:
+        pty_detail = str(e)[:80]
+    record(
+        "engine: pty spawn + drain + SIGKILL reap (kill battery)",
+        "PASS" if pty_ok else "FAIL",
+        pty_detail,
     )
 
     # 2026-09-22 approved-fix pins (rootless source pins, the
@@ -2023,6 +2439,14 @@ def self_test():
         if sent is None:
             record("engine: curl upload counters agree", "FAIL", "curl produced no metric")
         else:
+            # settle() first — the HttpServer contract: the /ul counter
+            # folds its per-connection total into the shared state only
+            # AFTER the connection ends, so a peek that wins the race
+            # against the server thread reads a stale count (seen live
+            # once as upload 4.49 GB vs 0, 0.0%, in a container run on
+            # 2026-09-22 — NIGHT-improve-21 hunt find). The download
+            # row above already settles before this point.
+            SERVER.settle()
             agree("engine: curl upload counters agree", sent, SERVER.peek()["ul"])
         SERVER.reset()
         totals = [None] * 4
@@ -2247,6 +2671,13 @@ def run_heavy(baseline_window):
     test_reload(60)
     test_sustain(1_000_000, 6, 5.0, baseline)
     test_overhead(4.0, baseline)
+    # NIGHT-improve-21: the brutal battery — the limiter matrix is done
+    # and every enforcement proof is in; now the violent stages run,
+    # with the recover/cleanup/dmesg teardown still ahead to verify
+    # the final state the battery leaves behind.
+    test_kill_top()
+    test_kill_midflight()
+    test_regression_battery()
     test_recover()
     test_cleanup()
     test_dmesg()

@@ -20,6 +20,12 @@
 # (--self-tesss) gets a typo tip, --light gets its retirement
 # message.
 #
+# NIGHT-improve-21: the matrix now ends with the brutal battery —
+# SIGKILL of the live TUI under active enforcement, jittered
+# SIGKILLs of one-shot CLI invocations mid-flight, then the
+# post-kill regression re-proof — before the recover/cleanup/dmesg
+# teardown stages verify the state it leaves behind.
+#
 # Full design notes live in the .py header. This script replaced the
 # old stress-test.sh, which depended on an external speedtest server
 # and asserted on a status format that no longer exists.
