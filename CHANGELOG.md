@@ -819,6 +819,35 @@ alone — the owner's NIGHT-hunt-18 call.
   sequence can switch it off), and a paste whose first byte is `q`
   still quits (NIGHT-hunt-16 contract unchanged).
 
+### Removed
+
+- **scripts: NIGHT-cleanup-2 — distros-depth-test.sh and leak-test.sh
+  retired, their functions live in the supermassive matrix** — the
+  two old-generation depth tests whose contracts are fully covered
+  by the current harnesses. distros-depth-test.sh (483 lines:
+  detection, doctor, list-apps, basic/high limits, multi-connection,
+  start/stop 100x, 10+ app limits, SIGKILL scenarios, network
+  off/on, unload/reload, kernel log, orphan maps) predated the
+  supermassive matrix and duplicated it stage-for-stage with weaker
+  instruments (curl-speed eyeballing vs measured rate bands + BPF
+  accounting proofs); its SIGKILL scenarios remain covered by
+  crash-recovery-test.sh. leak-test.sh (200 lines: no orphan BPF
+  maps after strict/unstrict/crash/reload) is subsumed by the
+  matrix's end-of-run cleanup row — every op family in the surface
+  runs before the final "zero BPF pins left" check, so a leak
+  anywhere in the sweep fails that row — plus reload's 60 cycles
+  and crash-recovery's stale-pins paths. Deliberately KEPT (the
+  audit's surviving set, each holding an e2e contract nothing else
+  covers): crash-recovery-test.sh (recover on STALE pins — the
+  matrix's recover stage runs on clean state only), race-condition-
+  test.sh (cross-process file lock under concurrent CLI
+  invocations — lock.rs unit tests cover logic, not process-level
+  concurrency), reload-test.sh (rate change during ACTIVE traffic,
+  the no-gap combo the matrix's separate reload and sustain stages
+  never produce), nonroot-depth-test.sh (referenced by the Rust
+  test tree), benchmarking + frame-bench (docs and test tree
+  consumers). Net: 683 lines of burden gone, zero coverage lost.
+
 ### Fixed
 
 - **harness: the curl burst rate verdict now divides by the actual

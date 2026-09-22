@@ -126,9 +126,16 @@ scripts/
                 harness itself (one policed hook per stream,
                 NIGHT-improve-12), --self-test engine smoke for
                 CI/containers)
-  leak-test.sh         — orphan detection after every operation
-  distros-depth-test.sh — comprehensive distro suite
   nonroot-depth-test.sh — unprivileged contract matrix (NIGHT-hunt-13)
+  crash-recovery-test.sh — `recover` on stale pins + crash cycles
+                        (NIGHT-cleanup-2: kept — the recover-on-stale
+                        contract has no other e2e coverage)
+  race-condition-test.sh — cross-process lock contract under
+                        concurrent CLI invocations (NIGHT-cleanup-2:
+                        kept — Rust unit tests cover lock logic only)
+  reload-test.sh         — rate change during ACTIVE traffic (the
+                        no-gap combo supermassive's separate reload
+                        and sustain stages do not produce)
   limiter-depth-test.sh — flagship limiter depth stress test (NIGHT-master-1;
                 wraps limiter-depth-test.py: self-contained loopback traffic,
                 dedicated test cgroup, measured rate accuracy + kernel-drop
