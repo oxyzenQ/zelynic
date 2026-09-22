@@ -2358,12 +2358,22 @@ def self_test():
         "; ".join(f"{s!r} -> {lib.version_token(s)}" for s, _ in token_pins),
     )
 
-    ok_candidates = all(
-        os.path.isabs(c) and c.startswith(lib.REPO_ROOT + os.sep)
-        for c in lib.REPO_BINARY_CANDIDATES
-    ) and any("pro-native-musl" in c for c in lib.REPO_BINARY_CANDIDATES)
+    ok_candidates = (
+        all(
+            os.path.isabs(c) and c.startswith(lib.REPO_ROOT + os.sep)
+            for c in lib.REPO_BINARY_CANDIDATES
+        )
+        and any("pro-native-musl" in c for c in lib.REPO_BINARY_CANDIDATES)
+        # NIGHT-improve-22: all four arch-baseline alias outputs are
+        # candidates — one silently dropped means a freshly built
+        # release-shape binary stops outranking stale ones.
+        and all(
+            any(f"pro-linux-{kind}" in c for c in lib.REPO_BINARY_CANDIDATES)
+            for kind in ("gnu-v3", "gnu-v4", "musl-v3", "musl-v4")
+        )
+    )
     record(
-        "engine: binary candidates repo-anchored (gnu, musl, release)",
+        "engine: binary candidates repo-anchored (native + v3/v4, gnu/musl, release)",
         "PASS" if ok_candidates else "FAIL",
         f"{len(lib.REPO_BINARY_CANDIDATES)} absolute candidates under {lib.REPO_ROOT}",
     )

@@ -98,14 +98,30 @@ matrix and troubleshooting).
 Each release is a flat three-file tarball — `zelynic`, `README.md`,
 `LICENSE`, nothing else (the cosmostrix release invariant): the
 pure-Rust eBPF objects are embedded in the binary, so no toolchain,
-no clang, no cargo, and no installer is needed on the target machine:
+no clang, no cargo, and no installer is needed on the target machine.
+
+Releases are arch-baseline builds (NIGHT-improve-22, cosmostrix
+pro-linux lineage): every package is x86-64-v3 (AVX/AVX2/BMI1/BMI2/
+FMA — any x86_64 CPU from ~2013 Haswell onward) or x86-64-v4
+(AVX-512), in both libc flavors — four packages per tag, and only
+those four. The native v1 baseline is retired from releases: every
+CPU that can run a release at all can run v3, and v3's vector paths
+are what the limiter's hot loops actually use. Pick `gnu` normally,
+`musl` for old glibc systems (fully static):
 
 ```bash
 mkdir /tmp/zelynic-rel
-tar -xzf zelynic-vX.Y.Z-linux-amd64-gnu.tar.gz -C /tmp/zelynic-rel   # or -musl for old glibc
+# v3 runs on any x86_64 machine from ~2013 onward:
+tar -xzf zelynic-vX.Y.Z-linux-amd64-v3-gnu.tar.gz -C /tmp/zelynic-rel
+# AVX-512 machines (Zen 4/5, Ice Lake and newer): -v4-gnu
+# old glibc / fully static:                     -v3-musl / -v4-musl
 install -Dm755 /tmp/zelynic-rel/zelynic ~/.local/bin/zelynic          # user install
 # or: sudo install -Dm755 /tmp/zelynic-rel/zelynic /usr/local/bin/zelynic
 ```
+
+Not sure which baseline your CPU takes? `grep -o 'avx512f'
+/proc/cpuinfo` answers v4 eligibility — any hit means yes, everything
+else takes v3.
 
 Uninstall is `rm` on the binary — the release payload is that one
 file, so there is nothing else to clean (no /usr/lib payload, no
@@ -189,7 +205,32 @@ strips host-CPU and host-linker rustflags from the nested eBPF
 build's environment before invoking it (NIGHT-hunt-28), so the bpfel
 objects are identical no matter which alias built them. Note: a
 native binary only runs on the CPU family it was compiled for; ship
-the plain release build for distribution.
+the arch-baseline release packages for distribution.
+
+#### Arch-baseline release builds (v3 / v4)
+
+The release packages' exact shapes, locally (NIGHT-improve-22,
+cosmostrix pro-linux lineage) — full flagship binary (`--features
+ebpf`), same optimization tier as release, a `-V` build label that
+names the shape, and a separate profile per shape so nothing
+clobbers anything:
+
+```bash
+cargo pro-linux-gnu-v3    # lands in target/pro-linux-gnu-v3/zelynic
+cargo pro-linux-gnu-v4    # lands in target/pro-linux-gnu-v4/zelynic
+cargo pro-linux-musl-v3   # target/x86_64-unknown-linux-musl/pro-linux-musl-v3/zelynic
+cargo pro-linux-musl-v4   # target/x86_64-unknown-linux-musl/pro-linux-musl-v4/zelynic
+```
+
+Each alias injects `-C target-cpu=x86-64-v3` (or `-v4`) — plus
+`-C target-feature=+crt-static` on the musl pair — so a local build
+reproduces the release artifact's optimization tier bit-for-bit
+(same flags the release workflow composes). build.rs strips the
+baseline flags from the nested eBPF build (NIGHT-hunt-28), exactly
+as for the native aliases, so the bpfel objects stay identical
+across all six build shapes. A v3 build runs on any x86_64 CPU from
+~2013 onward; a v4 build needs AVX-512 (check with `grep -o
+'avx512f' /proc/cpuinfo`).
 
 `scripts/install.sh` builds through the same alias — default
 `cargo pro-native-gnu`, `--musl` for the static x86_64 build — and
@@ -476,7 +517,7 @@ gpg --keyserver keyserver.ubuntu.com \
   --recv-keys F5324E0967F104D58CE025F347A50AEF4B65AAC2
 
 # per download: prove the tarball came from the maintainer
-gpg --verify zelynic-vX.Y.Z-linux-amd64-gnu.tar.gz.asc
+gpg --verify zelynic-vX.Y.Z-linux-amd64-v3-gnu.tar.gz.asc
 ```
 
 — and the checksum one-liners, the key details, and the algorithm

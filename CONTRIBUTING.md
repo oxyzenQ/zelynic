@@ -18,13 +18,16 @@ the build process, project structure, and coding standards.
 
 ## Build
 
-The build commands (plain release and the pro-native host aliases)
-live once in the README — [Install from source](README.md#install-from-source)
-and [Native-CPU host builds](README.md#native-cpu-host-builds) — the
-same commands apply for contributors. One contributor-specific note:
-the alias-injected `-C target-cpu=native` tunes the HOST binary only
-(build.rs strips it from the nested eBPF build, NIGHT-hunt-28), so
-bpfel objects stay identical no matter which alias built them.
+The build commands (plain release, the pro-native host aliases, and
+the arch-baseline release aliases) live once in the README —
+[Install from source](README.md#install-from-source),
+[Native-CPU host builds](README.md#native-cpu-host-builds), and
+[Arch-baseline release builds](README.md#arch-baseline-release-builds-v3--v4) —
+the same commands apply for contributors. One contributor-specific
+note: the alias-injected `-C target-cpu=` flag (native or x86-64-v3/v4)
+tunes the HOST binary only (build.rs strips it from the nested eBPF
+build, NIGHT-hunt-28), so bpfel objects stay identical no matter
+which alias built them.
 
 ## Project Structure
 

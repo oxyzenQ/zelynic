@@ -100,6 +100,10 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 #                        musl alias output was never a candidate, so a
 #                        static build could only be tested via --binary)
 #   plain release      — cargo build --release --features ebpf
+# NIGHT-improve-22 adds the four arch-baseline alias outputs
+# (pro-linux-gnu-v3/v4, pro-linux-musl-v3/v4) so a freshly built
+# release-shape binary outranks a stale native build of older code —
+# the same newest-mtime rule below picks whatever was just built.
 # Among the candidates that exist, resolution picks the NEWEST mtime
 # ("test what was just built"): versions can match while code differs,
 # and a fresh musl build should outrank a stale gnu binary from an
@@ -108,6 +112,10 @@ REPO_BINARY_CANDIDATES = [
     os.path.join(REPO_ROOT, "zelynic"),
     os.path.join(REPO_ROOT, "target", "pro-native-gnu", "zelynic"),
     os.path.join(REPO_ROOT, "target", "x86_64-unknown-linux-musl", "pro-native-musl", "zelynic"),
+    os.path.join(REPO_ROOT, "target", "pro-linux-gnu-v3", "zelynic"),
+    os.path.join(REPO_ROOT, "target", "pro-linux-gnu-v4", "zelynic"),
+    os.path.join(REPO_ROOT, "target", "x86_64-unknown-linux-musl", "pro-linux-musl-v3", "zelynic"),
+    os.path.join(REPO_ROOT, "target", "x86_64-unknown-linux-musl", "pro-linux-musl-v4", "zelynic"),
     os.path.join(REPO_ROOT, "target", "release", "zelynic"),
 ]
 
