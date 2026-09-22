@@ -46,7 +46,7 @@ src/
                           renderer was removed in NIGHT-hunt-12)
     block.rs           — block-* handlers
     cleanup.rs         — unstrict / unstrict-all / recover handlers
-    monitor.rs         — status / list-apps / observe / top handlers
+    monitor.rs         — status / list-apps / eagle-eyes handlers
     safety.rs          — dangerous-target blocklist + guards
     strict.rs          — strict-single / strict-multi / limit-all handlers
     rates.rs           — CLI rate-string resolution
@@ -67,8 +67,8 @@ src/
       sanitize.rs      — comm control-char sanitize (terminal-injection guard)
     connections.rs     — per-cgroup process + socket detail (eagle eyes)
       connections/parse.rs — /proc/net + fd-symlink parsers
-    render.rs          — responsive render engine for observe/top (NIGHT-hunt-7)
-      render/          — observe / top / detail frame renderers + bench fixture
+    render.rs          — responsive render engine for eagle-eyes (NIGHT-hunt-7)
+      render/          — eagle / detail / focus frame renderers
     loader.rs          — observer BPF loader
     embedded.rs        — aligned, build-validated embedding of both BPF
                          objects (NIGHT-hunt-29/30)

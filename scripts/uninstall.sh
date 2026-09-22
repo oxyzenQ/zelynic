@@ -193,7 +193,7 @@ clear_enforcement() {
 }
 
 running_instances() {
-	# A running zelynic (observe/top) survives binary deletion — the
+	# A running zelynic (eagle-eyes) survives binary deletion — the
 	# process keeps its deleted inode. Informational only: it exits when
 	# its terminal closes; enforcement never depended on it.
 	local comm_path pid
