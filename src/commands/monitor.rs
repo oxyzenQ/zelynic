@@ -196,17 +196,30 @@ pub fn handle_eagle_eyes(
 
     super::ensure_root()?;
 
-    // quiet only when NOT verbose (NIGHT-hunt-9): -v surfaces the
-    // observer loader trace (object path, attach) on stderr before
-    // the alt screen takes over — the same diagnostic depth the
-    // limiter lifecycle gives strict/block handlers.
-    let mut observer = Observer::attach_quiet(!verbose)?;
+    // -v surfaces the observer loader trace (NIGHT-hunt-9): object
+    // size, kernel line, map inventory, and attach timing on stderr
+    // before the alt screen takes over — the same diagnostic depth
+    // the limiter lifecycle gives strict/block handlers (NIGHT-boost-6
+    // aligned the two attach paths onto one forward `attach(verbose)`
+    // contract; the old `attach_quiet(!verbose)` double negative is
+    // gone).
+    let mut observer = Observer::attach(verbose)?;
     observer.refresh_identity();
     if verbose {
         eprintln_safe!("[ebpf] {} cgroups resolved", observer.identity().len());
     }
 
-    let _ = observer.poll_and_summarize()?;
+    // The opening poll also feeds -v (NIGHT-boost-6): cgroups with
+    // traffic since attach proves the counters are live before the
+    // alt screen takes over — zero rows here means the observer
+    // attached but sees no packets (wrong cgroup, no traffic yet).
+    let first = observer.poll_and_summarize()?;
+    if verbose {
+        eprintln_safe!(
+            "[ebpf] first poll: {} cgroups with traffic since attach",
+            first.cgroups.len()
+        );
+    }
 
     // Eagle-eyes detail (NIGHT-hunt-8): per-cgroup process/socket
     // detail, TTL-cached inside the map so 1s frames reuse the scan.

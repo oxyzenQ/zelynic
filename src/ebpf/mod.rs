@@ -27,3 +27,5 @@ pub mod lock;
 pub mod pin;
 #[cfg(feature = "ebpf")]
 pub mod render;
+#[cfg(feature = "ebpf")]
+pub mod trace;

@@ -52,9 +52,11 @@ use std::os::fd::{AsFd, AsRawFd};
 use std::path::PathBuf;
 
 use crate::ebpf::bpf_syscall::{
-    create_and_pin_link, kernel_supports_bpf_link, BPF_CGROUP_INET_EGRESS, BPF_CGROUP_INET_INGRESS,
+    create_and_pin_link, kernel_release, kernel_supports_bpf_link, BPF_CGROUP_INET_EGRESS,
+    BPF_CGROUP_INET_INGRESS,
 };
 use crate::ebpf::identity::IdentityMap;
+use crate::ebpf::trace;
 use types::SCHEMA_VERSION_EXPECTED;
 
 /// NIGHT-hunt-19 (error-path audit): the single operational-pin
@@ -107,7 +109,13 @@ pub struct Limiter {
 impl Limiter {
     /// Load limiter BPF object and attach to cgroup v2 root (both ingress + egress).
     /// Programs AND links are pinned to /sys/fs/bpf/zelynic/ so they survive process exit.
+    ///
+    /// NIGHT-boost-6: `-v` traces the full attach anatomy — object
+    /// size, kernel release, load timing, the loaded map inventory
+    /// (id / type / key / value / max_entries, the bpftool facts),
+    /// and the total attach cost.
     pub fn attach(verbose: bool) -> Result<()> {
+        let started = std::time::Instant::now();
         let cgroup_path = "/sys/fs/cgroup";
         if !PathBuf::from(cgroup_path).exists() {
             bail!("cgroup v2 not found at {cgroup_path}");
@@ -159,7 +167,11 @@ impl Limiter {
 
         let obj_data = LIMITER_ELF;
         if verbose {
-            eprintln_safe!("[limiter] Loading embedded BPF limiter object");
+            eprintln_safe!(
+                "[limiter] Loading embedded BPF limiter object ({} bytes)",
+                obj_data.len()
+            );
+            eprintln_safe!("{}", trace::kernel_line("limiter", &kernel_release()));
         }
 
         // NIGHT-hunt-30: alignment preflight — structurally impossible
@@ -207,10 +219,50 @@ impl Limiter {
         // the Ebpf object is dropped and open_pinned() hits ENOENT.
         // (NIGHT-improve-1 phase 3: the object bytes are the embedded
         // pure-Rust aya-ebpf build — same map contract, same pinning.)
+        let load_started = std::time::Instant::now();
         let mut bpf = EbpfLoader::new()
             .map_pin_path(PIN_DIR)
             .load(obj_data)
             .context("Failed to load BPF object")?;
+
+        // NIGHT-boost-6: the loaded map inventory — one line per map
+        // in bpftool vocabulary (id, type, key/value size,
+        // max_entries). This is the -v surface a hacker needs when a
+        // policy map fills (max_entries 1024) or a pin disagrees with
+        // the object: the object's own view, printed at the moment it
+        // loaded. Scoped so the immutable `bpf.maps()` borrow ends
+        // before the map_mut section below takes the object over.
+        if verbose {
+            eprintln_safe!(
+                "{}",
+                trace::load_line(
+                    "limiter",
+                    bpf.programs().count(),
+                    bpf.maps().count(),
+                    load_started.elapsed()
+                )
+            );
+            for (name, map) in bpf.maps() {
+                if let Some(info) = trace::map_info(map) {
+                    let kind = info
+                        .map_type()
+                        .map(trace::map_type_name)
+                        .unwrap_or("unknown");
+                    eprintln_safe!(
+                        "{}",
+                        trace::map_line(
+                            "limiter",
+                            name,
+                            info.id(),
+                            kind,
+                            info.key_size(),
+                            info.value_size(),
+                            info.max_entries()
+                        )
+                    );
+                }
+            }
+        }
 
         // Write schema version to the pinned schema_version map.
         // This enables future migrations: if the pinned version doesn't match
@@ -315,7 +367,10 @@ impl Limiter {
         }
 
         if verbose {
-            eprintln_safe!("[limiter] Attached + pinned to {cgroup_path} (ingress + egress)");
+            eprintln_safe!(
+                "[limiter] Attached + pinned to {cgroup_path} (ingress + egress) in {}ms",
+                trace::ms(started.elapsed())
+            );
         }
 
         // Drop Ebpf object — programs stay loaded because pinned, links stay

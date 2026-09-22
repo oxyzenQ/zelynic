@@ -23,7 +23,9 @@ use aya::{
 use std::fs::File;
 use std::path::PathBuf;
 
+use crate::ebpf::bpf_syscall::kernel_release;
 use crate::ebpf::identity::IdentityMap;
+use crate::ebpf::trace;
 // Rendering of CounterSummary moved to ebpf/render.rs (NIGHT-hunt-7);
 // the loader is now I/O-only. Byte formatting lives in
 // limiter::format (unified decimal-SI, NIGHT-hunt-5).
@@ -69,16 +71,28 @@ pub struct Observer {
 }
 
 impl Observer {
-    /// Attach with optional quiet mode (suppresses eprintln messages).
-    /// Used by observe/top when running in alt-screen mode.
-    pub fn attach_quiet(quiet: bool) -> Result<Self> {
+    /// Attach with the verbose trace surfaced on stderr (NIGHT-boost-6
+    /// renamed `attach_quiet(!verbose)` — a double negative — into the
+    /// same forward contract `Limiter::attach(verbose)` carries).
+    ///
+    /// `-v` traces the full attach anatomy: object size, kernel
+    /// release, load timing, the loaded map inventory, and the total
+    /// attach cost — all before the alt screen takes over in the
+    /// eagle-eyes path, so the diagnostics are never swallowed by the
+    /// TUI. Silent by default; stdout JSON stays clean.
+    pub fn attach(verbose: bool) -> Result<Self> {
+        let started = std::time::Instant::now();
         let cgroup_path = "/sys/fs/cgroup";
         if !PathBuf::from(cgroup_path).exists() {
             bail!("cgroup v2 not found at {cgroup_path}");
         }
 
-        if !quiet {
-            eprintln_safe!("[ebpf] Loading embedded BPF observer object");
+        if verbose {
+            eprintln_safe!(
+                "[ebpf] Loading embedded BPF observer object ({} bytes)",
+                OBSERVER_ELF.len()
+            );
+            eprintln_safe!("{}", trace::kernel_line("ebpf", &kernel_release()));
         }
 
         // NIGHT-hunt-30: alignment preflight — structurally impossible
@@ -91,7 +105,46 @@ impl Observer {
             bail!("{violation}");
         }
 
+        let load_started = std::time::Instant::now();
         let mut bpf = Ebpf::load(OBSERVER_ELF).context("Failed to load BPF object")?;
+
+        // NIGHT-boost-6: the loaded map inventory in bpftool
+        // vocabulary — the observer's whole contract is its two
+        // counter maps, so -v shows exactly what loaded (ids, sizes,
+        // capacities) before any traffic flows through them. Scoped
+        // so the immutable borrows end before the program_mut
+        // section below takes the object over.
+        if verbose {
+            eprintln_safe!(
+                "{}",
+                trace::load_line(
+                    "ebpf",
+                    bpf.programs().count(),
+                    bpf.maps().count(),
+                    load_started.elapsed()
+                )
+            );
+            for (name, map) in bpf.maps() {
+                if let Some(info) = trace::map_info(map) {
+                    let kind = info
+                        .map_type()
+                        .map(trace::map_type_name)
+                        .unwrap_or("unknown");
+                    eprintln_safe!(
+                        "{}",
+                        trace::map_line(
+                            "ebpf",
+                            name,
+                            info.id(),
+                            kind,
+                            info.key_size(),
+                            info.value_size(),
+                            info.max_entries()
+                        )
+                    );
+                }
+            }
+        }
 
         let cgroup_file =
             File::open(cgroup_path).context("Failed to open cgroup root directory")?;
@@ -124,8 +177,11 @@ impl Observer {
             )
             .context("Failed to attach observe_ingress")?;
 
-        if !quiet {
-            eprintln_safe!("[ebpf] Observer attached to {cgroup_path} (egress + ingress)");
+        if verbose {
+            eprintln_safe!(
+                "[ebpf] Observer attached to {cgroup_path} (egress + ingress) in {}ms",
+                trace::ms(started.elapsed())
+            );
             eprintln_safe!("[ebpf] Monitoring traffic for all processes");
         }
 
