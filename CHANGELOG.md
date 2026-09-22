@@ -16,6 +16,47 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Added
 
+- **harness: NIGHT-improve-21 — the brutal battery: kill, race, and
+  re-prove** — supermassive-test now ends its limiter matrix with the
+  violent stages the owner asked for after the rate work is done.
+  (1) kill top: five cycles of strict-multi enforcement on cgroups
+  a:b:c with the live TUI (`zelynic top --interval 1s`) rendering on
+  a real pseudo-terminal, each cycle SIGKILLed mid-render, reaped as
+  signal 9, then proven to have left the pinned-map enforcement rows
+  intact at the exact configured rates, the post-kill traffic still
+  policed (kernel drops + byte accounting via the standard
+  enforcement proofs), and a fresh policy write still landing — the
+  pinned-map architecture's promise that a violent monitor death
+  never costs enforcement continuity, now regression-pinned five
+  times over with different rates. (2) kill mid-flight: twelve
+  jittered SIGKILLs of one-shot strict-single invocations racing the
+  attach/pin/write window (20-68 ms offsets, so early kills race the
+  pin creation, late ones the row write, and some land after the CLI
+  already finished — all legal outcomes); the invariant under test
+  is that a killed writer never leaves a state the status surface
+  cannot read back coherently (JSON parses, every limit row carries
+  integral rates), and the stage ends with recover restoring the
+  zero-pin state no matter where the kills landed. (3) the
+  regression battery: after the kills, the four rate-guard refusals,
+  three rapid policy round-trips across different cgroups, the
+  doctor + list-apps JSON surfaces, and the -V version token are
+  re-verified — nothing the battery broke may stay broken, and
+  nothing that was refusing before may start accepting. The pty
+  spawn/drain/reap mechanics are pinned rootlessly by --self-test
+  (a dummy child on a real pty), so CI and containers catch an
+  engine regression before any root run reaches the kill stages.
+  The refuse() guard probe was hoisted to module level so the
+  matrix's rate-guard stage and the battery run the IDENTICAL check.
+  Hunt find folded in: the self-test's curl upload agreement row read
+  the server counter without settle() — the HttpServer folds each
+  connection's byte total into the shared state only after the
+  connection ends, so a peek winning that race files a decoy FAIL
+  (seen live once: upload 4.49 GB client vs 0 server, 0.0%, a
+  container run on 2026-09-22; reproduced by timing shift, gone in
+  three consecutive re-runs) — the row now settles first, the same
+  contract the download row and peek()'s own docstring already
+  demanded.
+
 - **scripts: NIGHT-improve-18 — setup.sh, the lazy one-command
   bring-up** — for the owner who does not want to remember the
   order: `./scripts/setup.sh` runs the WHOLE pipeline —
