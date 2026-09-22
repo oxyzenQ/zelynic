@@ -16,6 +16,30 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Added
 
+- **scripts: NIGHT-improve-18 — setup.sh, the lazy one-command
+  bring-up** — for the owner who does not want to remember the
+  order: `./scripts/setup.sh` runs the WHOLE pipeline —
+  bootstrap-ebpf.sh (dated nightly pin + bpf-linker + the
+  pro-native-gnu flagship build), an opt-in static
+  pro-native-musl twin (`--musl`, x86_64 guard carried from
+  install.sh), the rootless engine self-test, and the full
+  supermassive matrix under sudo (elevating itself; `--skip-heavy`
+  stops after the smoke) — then ends with the next-steps menu:
+  install.sh for system-wide, uninstall.sh to remove it again,
+  the built binary's --help / doctor / top / a starter
+  strict-single, and the docs pointers. Every phase is idempotent
+  (re-runs skip satisfied work: bootstrap re-checks in seconds,
+  cargo rebuilds incrementally), each phase must pass before the
+  next starts, and the matrix FAILING is reported as harness
+  verdict rows, not swallowed — setup exits non-zero and tells
+  you how to re-run the matrix alone. Guards: refuses to run as
+  root (phases 1-3 install into $HOME; only the matrix phase
+  elevates), PATH fixed for the current shell. README's
+  Install-from-source section now opens with the lazy path
+  before the manual order. (Task filed by the owner as
+  NIGHT-improve-16; that ID was already taken by the 2026-09-21
+  binary version gate — this lands as improve-18, next free.)
+
 - **release: NIGHT-improve-14 — GPG-signed release artifacts (the
   cosmostrix lineage ported)** — every release tarball now ships a
   detached ASCII-armored signature (`.asc`) alongside its three

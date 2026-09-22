@@ -126,6 +126,10 @@ scripts/
                 harness itself (one policed hook per stream,
                 NIGHT-improve-12), --self-test engine smoke for
                 CI/containers)
+  setup.sh             — the lazy one-command pipeline (NIGHT-improve-18:
+                bootstrap + pro-native-gnu build, --musl twin opt-in,
+                rootless self-test, the sudo supermassive matrix, then
+                a next-steps menu; every phase idempotent)
   nonroot-depth-test.sh — unprivileged contract matrix (NIGHT-hunt-13)
   crash-recovery-test.sh — `recover` on stale pins + crash cycles
                         (NIGHT-cleanup-2: kept — the recover-on-stale
