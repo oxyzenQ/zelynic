@@ -16,6 +16,35 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Added
 
+- **release: NIGHT-improve-14 — GPG-signed release artifacts (the
+  cosmostrix lineage ported)** — every release tarball now ships a
+  detached ASCII-armored signature (`.asc`) alongside its three
+  checksums, proving authenticity, not just integrity. The port
+  from the cosmostrix reference pipeline, with two deliberate
+  zelynic deltas: (1) signing runs in the build job — which holds
+  no `contents: write` token — so the private key never enters the
+  environment of the job that publishes the release (least
+  privilege for the pipeline's most sensitive secret); (2) a
+  zelynic-style tripwire after signing: tarball count must equal
+  signature count AND every `.asc` must `gpg --verify` clean before
+  upload, so a release can never ship a broken or missing
+  signature. Sign-off is graceful — with the `GPG_PRIVATE_KEY`
+  secret unset both steps no-op and releases ship checksums-only
+  (the pre-GPG state); nothing is blocked on configuration. The
+  passphrase (when set) flows via `--passphrase-fd 0` from stdin,
+  never the command line. A weekly `gpg-key-check` job in
+  maintenance.yml fetches the maintainer's published master key
+  (`F5324E09...`, the same cosmic-dragon identity that signs
+  cosmostrix — one key, one identity, both projects) from the
+  keyservers and warns 30 days before any signing subkey lapses,
+  carrying the cosmostrix f7-field bugfix (creation-vs-expiry
+  epoch confusion). User-facing verification docs rewritten in
+  docs/VERIFY_RELEASE.md (import + verify + expiry policy) with
+  the README pointer updated. The sign-and-tripwire logic was
+  functionally verified locally: scratch key, both tarballs
+  signed, `Good signature` verified, idempotent re-run, tamper
+  detection; the expiry monitor was verified against the live
+  keyserver key (3 subkeys, correct dates, no false expiry).
 - **scripts: NIGHT-hunt-21 — the duplicate/hardcoded-verbose hunt**
   — five real findings, all fixed: (1) bootstrap-ebpf.sh printed
   its status report TWICE on a satisfied re-run (the install-mode

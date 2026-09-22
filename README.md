@@ -113,7 +113,8 @@ service, no man page). Building from source keeps the richer
 `scripts/install.sh` / `uninstall.sh` flow in the repo.
 
 Each release tarball carries three checksums (SHA-512 + BLAKE2b-512 +
-SHAKE256). Verify before installing — the one-liners live in
+SHAKE256) and a detached GPG signature from the maintainer's
+published key. Verify before installing — the one-liners live in
 [Release Verification](#release-verification) below and in
 [docs/VERIFY_RELEASE.md](docs/VERIFY_RELEASE.md), told once there.
 
@@ -398,7 +399,7 @@ policy, supported versions, and what counts as a vulnerability live in
 - [Performance Metrics](docs/PERFORMANCE.md) — deep benchmark results + targets
 - [Cross-Distro Results](docs/CROSS_DISTRO_RESULTS.md) — the 6-distro validation record
 - [Dependency Audit](docs/DEPENDENCY_AUDIT.md) — every direct dependency justified
-- [Release Verification](docs/VERIFY_RELEASE.md) — checksum verification
+- [Release Verification](docs/VERIFY_RELEASE.md) — GPG signature + checksum verification
 - [Contributing Guide](CONTRIBUTING.md) — gates, conventions, script inventory
 
 ## Test Results
@@ -449,15 +450,22 @@ build under test (NIGHT-improve-16).
 
 ## Release Verification
 
-Each release ships three checksums: classical SHA-512 + quantum-resistant
-BLAKE2b-512 + SHAKE256. The universal check is one command —
+Each release ships a **detached GPG signature** per archive plus three
+checksums: classical SHA-512 + quantum-resistant BLAKE2b-512 +
+SHAKE256. The authenticity check is one command —
 
 ```bash
-sha512sum -c zelynic-vX.Y.Z-linux-amd64-gnu.tar.gz.sha512sum
+# one-time: import the maintainer's published signing key
+gpg --keyserver keyserver.ubuntu.com \
+  --recv-keys F5324E0967F104D58CE025F347A50AEF4B65AAC2
+
+# per download: prove the tarball came from the maintainer
+gpg --verify zelynic-vX.Y.Z-linux-amd64-gnu.tar.gz.asc
 ```
 
-— and the two quantum-resistant one-liners plus the algorithm rationale
-live in [docs/VERIFY_RELEASE.md](docs/VERIFY_RELEASE.md), told once there.
+— and the checksum one-liners, the key details, and the algorithm
+rationale live in [docs/VERIFY_RELEASE.md](docs/VERIFY_RELEASE.md),
+told once there.
 
 ## Support
 
