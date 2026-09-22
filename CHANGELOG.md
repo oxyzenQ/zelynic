@@ -391,6 +391,49 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Changed
 
+- **core: NIGHT-optimized-2 — the redundancy master-audit for LTS**
+  — a full pass over the 7k-LOC src/ tree (profiles, dead code,
+  duplication, error-contract symmetry, hot paths). Findings and
+  outcomes: (1) release + pro-native profiles already optimal (fat
+  LTO, codegen-units 1, strip, documented panic-unwind constraint)
+  — no change; (2) zero dead functions (the prior hunts cleaned the
+  tree) — the cross-reference audit confirms it; (3) the map-reader
+  cluster was the real redundancy: `read_counters` and
+  `read_counters_ingress` were byte-identical except the map name —
+  merged into one `read_stats_map(map_name)` whose error messages
+  now name the failing map; the three limiter status readers
+  (policies/stats/watchdog) each carried twin live/pin branches
+  copy-paste modulo the MapData origin — each now has ONE typed
+  path; and the `MapData::from_pin` + error-mapping dance existed
+  at five call sites across three files — now one pair of helpers
+  in `ebpf/pin.rs` (`open_pinned_hash_map` /
+  `open_pinned_array_map`), adopted by the readers and the reclaim
+  path, with a pin path named in every error. (4) The observer's
+  ingress counter read swallowed errors (`unwrap_or_default`)
+  while the egress read directly above propagated them — the
+  hunt-22 "fabricated absence" anti-pattern, plus a hidden
+  cumulative accounting bug: a swallowed ingress failure cleared
+  `prev_stats_ingress` and re-inserted nothing, so the NEXT
+  successful frame's download delta included the counter's entire
+  lifetime total — in `top` mode that inflation persisted in the
+  cumulative table forever. Both counter families now share one
+  propagation contract; the unreachable-difference analysis (post-
+  detach both fail identically; the embedded object always defines
+  both maps) shows the lenient branch could only ever mask real
+  corruption. (5) The monitor loop's one-frame
+  `unwrap_or_default` (observe + top) is deliberate and correct —
+  the opening poll hard-fails on any broken map, prev_stats only
+  rewrites on success so a skipped frame's delta spans correctly —
+  now documented at both call sites so the next audit does not
+  re-flag it. (6) Hot paths audited: render/display/terminal carry
+  near-zero clones and no lock smells; the poll-loop's O(cgroups²)
+  ingress merge measured against a 1 Hz UI cadence stays
+  deliberately readable. (7) DRAGON_ARCHITECTURE.md's layer-1 box
+  named functions that no longer exist (`read_counters`, and
+  `poll_events` — dead since the ring-buffer removal) — corrected.
+  Verified in sandbox: all six project gates green, supermassive
+  self-test 17/17, brace/width/reference structural checks clean;
+  CI remains the compile authority for the Rust surface.
 - **scripts: install/uninstall build pro-native and verify their
   postconditions (NIGHT-improve-15)** — the owner-directed audit of
   the install/uninstall pair, upgraded to the peak-stable contract.

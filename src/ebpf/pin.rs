@@ -6,7 +6,7 @@
 
 use std::path::PathBuf;
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use aya::maps::{Array as BpfArray, MapData};
 
 /// Root pin directory on bpffs.
@@ -36,10 +36,29 @@ pub const PIN_MAP_WATCHDOG: &str = "/sys/fs/bpf/zelynic/watchdog_deadline";
 pub const PIN_MAP_STATS: &str = "/sys/fs/bpf/zelynic/cgroup_limiter_stats";
 pub const PIN_MAP_SCHEMA_VERSION: &str = "/sys/fs/bpf/zelynic/schema_version";
 
+/// Open a pinned hash map in read mode (NIGHT-optimized-2).
+/// Single source of the pin-open + error-mapping dance the status
+/// readers and the reclaim path share — the error names the pin
+/// path, so a missing pin reads as a diagnosis, not a generic
+/// failure. Owned `Map` because every caller converts it through
+/// `BpfHashMap::try_from(&map)` immediately.
+pub(crate) fn open_pinned_hash_map(pin_path: &str) -> Result<aya::maps::Map> {
+    let map_data =
+        MapData::from_pin(pin_path).map_err(|e| anyhow!("pinned map {pin_path}: {e}"))?;
+    Ok(aya::maps::Map::HashMap(map_data))
+}
+
+/// Open a pinned array map in read mode — the Array twin of
+/// [`open_pinned_hash_map`] (watchdog + schema-version readers).
+pub(crate) fn open_pinned_array_map(pin_path: &str) -> Result<aya::maps::Map> {
+    let map_data =
+        MapData::from_pin(pin_path).map_err(|e| anyhow!("pinned map {pin_path}: {e}"))?;
+    Ok(aya::maps::Map::Array(map_data))
+}
+
 /// Read the pinned schema version. Returns None if pin doesn't exist or read fails.
 pub fn read_pinned_schema_version() -> Option<u32> {
-    let map_data = MapData::from_pin(PIN_MAP_SCHEMA_VERSION).ok()?;
-    let map_obj = aya::maps::Map::Array(map_data);
+    let map_obj = open_pinned_array_map(PIN_MAP_SCHEMA_VERSION).ok()?;
     let map: BpfArray<_, u32> = BpfArray::try_from(&map_obj).ok()?;
     let key: u32 = 0;
     map.get(&key, 0).ok()

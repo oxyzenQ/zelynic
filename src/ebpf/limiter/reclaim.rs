@@ -14,7 +14,7 @@ use anyhow::{anyhow, Context, Result};
 use aya::maps::{HashMap as BpfHashMap, MapData, MapError};
 
 use super::types::{BucketRaw, LimiterStatsRaw};
-use crate::ebpf::pin::{PIN_MAP_BUCKET_DL, PIN_MAP_BUCKET_UL, PIN_MAP_STATS};
+use crate::ebpf::pin::{self, PIN_MAP_BUCKET_DL, PIN_MAP_BUCKET_UL, PIN_MAP_STATS};
 
 /// NIGHT-hunt-20 (error-path audit): a failed map delete means
 /// "key absent" ONLY for ENOENT — every other errno means the delete
@@ -65,9 +65,7 @@ impl super::Limiter {
                 BpfHashMap::try_from(map_ref).context(format!("Failed to access {map_name}"))?;
             op(&mut map)
         } else {
-            let map_data =
-                MapData::from_pin(pin_path).map_err(|e| anyhow!("pinned map {pin_path}: {e}"))?;
-            let mut map_obj = aya::maps::Map::HashMap(map_data);
+            let mut map_obj = pin::open_pinned_hash_map(pin_path)?;
             let mut map: BpfHashMap<&mut MapData, u32, V> = BpfHashMap::try_from(&mut map_obj)
                 .context(format!("Failed to open pinned map {pin_path}"))?;
             op(&mut map)

@@ -183,6 +183,14 @@ pub fn handle_observe(cgroup: Option<u32>, interval: Option<&str>, verbose: bool
     let mut conns = ConnectionMap::new();
     let interval = Duration::from_secs(interval_secs);
     terminal::run_alt(interval, |lines| {
+        // One-frame tolerance, not a swallow bug (NIGHT-optimized-2
+        // audit): the opening poll below hard-failed on any broken
+        // map, so an Err here is a transient read. unwrap_or_default
+        // renders one blank frame; prev_stats inside the observer is
+        // only rewritten on success, so the next good frame's delta
+        // spans the skipped interval — no data loss, no double count.
+        // Propagating here instead would kill the live TUI on a
+        // single hiccup.
         let summary = observer.poll_and_summarize().unwrap_or_default();
         conns.maybe_refresh();
         if let Some(cg) = cgroup {
@@ -245,6 +253,9 @@ pub fn handle_top(limit: usize, interval: Option<&str>, verbose: bool) -> Result
     // diff engine emits only the changed rows.
     let interval = Duration::from_secs(interval_secs);
     terminal::run_alt(interval, |lines| {
+        // One-frame tolerance — same contract as handle_observe
+        // (see the comment there; the opening poll hard-fails, this
+        // line only absorbs transient mid-session reads).
         let summary = observer.poll_and_summarize().unwrap_or_default();
         for c in &summary.cgroups {
             let entry = cumulative.entry(c.cgroup_id).or_insert((0, 0, 0));

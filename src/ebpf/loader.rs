@@ -153,28 +153,17 @@ impl Observer {
         self.identity.maybe_refresh()
     }
 
-    /// Read egress cgroup_counters map. Returns (cgroup_id, stats) pairs.
-    pub fn read_counters(&self) -> Result<Vec<(u32, CgroupStatsRaw)>> {
+    /// Read a cgroup stats map by name. Returns (cgroup_id, stats) pairs.
+    ///
+    /// NIGHT-optimized-2: `read_counters` and `read_counters_ingress`
+    /// were byte-identical except for the map name — one reader now
+    /// carries the one contract, and the error messages name the map
+    /// that failed (the old "map not found" told neither which one).
+    fn read_stats_map(&self, map_name: &str) -> Result<Vec<(u32, CgroupStatsRaw)>> {
         let bpf = self.bpf.as_ref().context("BPF not loaded")?;
         let map: BpfHashMap<_, u32, CgroupStatsRaw> =
-            BpfHashMap::try_from(bpf.map("cgroup_counters").context("map not found")?)
-                .context("Failed to access cgroup_counters map")?;
-
-        let mut results = Vec::new();
-        for (key, value) in map.iter().flatten() {
-            results.push((key, value));
-        }
-        Ok(results)
-    }
-
-    /// Read ingress cgroup_counters_ingress map. Returns (cgroup_id, stats) pairs.
-    pub fn read_counters_ingress(&self) -> Result<Vec<(u32, CgroupStatsRaw)>> {
-        let bpf = self.bpf.as_ref().context("BPF not loaded")?;
-        let map: BpfHashMap<_, u32, CgroupStatsRaw> = BpfHashMap::try_from(
-            bpf.map("cgroup_counters_ingress")
-                .context("map not found")?,
-        )
-        .context("Failed to access cgroup_counters_ingress map")?;
+            BpfHashMap::try_from(bpf.map(map_name).context("map not found")?)
+                .context(format!("Failed to access {map_name} map"))?;
 
         let mut results = Vec::new();
         for (key, value) in map.iter().flatten() {
@@ -185,8 +174,18 @@ impl Observer {
 
     /// Read counters (egress + ingress), compute deltas, return summary.
     pub fn poll_and_summarize(&mut self) -> Result<CounterSummary> {
-        let current_egress = self.read_counters()?;
-        let current_ingress = self.read_counters_ingress().unwrap_or_default();
+        let current_egress = self.read_stats_map("cgroup_counters")?;
+        // NIGHT-optimized-2: the ingress read used to swallow errors
+        // (`unwrap_or_default`) — asymmetric with the egress line
+        // directly above, and the exact "fabricated absence"
+        // anti-pattern the hunt-22 contract banned on the limiter
+        // surface: an unreadable ingress map rendered as
+        // "download: 0" while download flowed. Both counter families
+        // now share one propagation contract. (Unreachable-difference
+        // analysis: after detach() both reads fail identically, and
+        // the embedded object always defines both maps — the lenient
+        // branch could only ever mask real corruption.)
+        let current_ingress = self.read_stats_map("cgroup_counters_ingress")?;
         let mut summary = CounterSummary::default();
 
         // Process egress (upload) deltas
