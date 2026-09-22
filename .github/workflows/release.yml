@@ -239,6 +239,124 @@ jobs:
           echo "=== Release artifacts ==="
           ls -lh dist/
 
+      # =========================================================================
+      # NIGHT-improve-14 (cosmostrix GPG lineage): detached ASCII-armored
+      # signatures for every release tarball.
+      #
+      # Placement decision (delta vs the cosmostrix reference, which signs
+      # in the release-publishing job): signing runs HERE, in the build
+      # job, which holds no `contents: write` token (top-level default is
+      # read). The private key therefore never enters the environment of
+      # the job that publishes the GitHub release — least privilege for
+      # the most sensitive secret in the pipeline.
+      #
+      # Contract: when the GPG_PRIVATE_KEY secret is not configured, both
+      # steps no-op and the release ships checksums-only (the pre-GPG
+      # state) — no release is ever blocked on signing configuration.
+      # =========================================================================
+      - name: Import GPG signing key
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${GPG_PRIVATE_KEY}" ]; then
+            echo "GPG_PRIVATE_KEY secret not configured — skipping GPG signing"
+            exit 0
+          fi
+          # Import the armored private key. --batch + --yes prevents
+          # interactive prompts. --pinentry-mode loopback allows
+          # passwordless import for keys without passphrase protection.
+          # With a passphrase, it arrives via --passphrase-fd 0 (stdin)
+          # so it never appears in a process listing or command line.
+          if [ -n "${GPG_PASSPHRASE}" ]; then
+            echo "${GPG_PASSPHRASE}" | gpg --import --batch --yes \
+              --pinentry-mode loopback \
+              --passphrase-fd 0 \
+              <(echo "${GPG_PRIVATE_KEY}")
+          else
+            echo "${GPG_PRIVATE_KEY}" | gpg --import --batch --yes \
+              --pinentry-mode loopback
+          fi
+          # Debug: show what was imported (key IDs only, no secrets).
+          gpg --list-secret-keys --with-colons || true
+          # Extract the key ID. Try ssb: (subkey, usage S) first, then
+          # sec: (master key, usage SC). awk field $12 carries the key
+          # capability flags — 'S' means signing-capable.
+          KEY_ID="$(gpg --list-secret-keys --with-colons \
+            | awk -F: '/^(ssb|sec):/ && $12 ~ /S/ {print $5; exit}')"
+          if [ -z "${KEY_ID}" ]; then
+            # Fallback: some gpg versions populate field $12 differently;
+            # any imported secret (sub)key can produce a signature.
+            KEY_ID="$(gpg --list-secret-keys --with-colons \
+              | awk -F: '/^(ssb|sec):/ {print $5; exit}')"
+          fi
+          if [ -z "${KEY_ID}" ]; then
+            echo "::error::Failed to import GPG secret key (no signing-capable key found)"
+            echo "::error::gpg --list-secret-keys output:"
+            gpg --list-secret-keys 2>&1 || true
+            exit 1
+          fi
+          echo "GPG_KEY_ID=${KEY_ID}" >> "$GITHUB_ENV"
+          echo "GPG_PASSPHRASE=${GPG_PASSPHRASE}" >> "$GITHUB_ENV"
+          echo "Imported GPG signing key: ${KEY_ID}"
+
+      - name: Sign artifacts (detached GPG signatures)
+        if: env.GPG_KEY_ID != ''
+        env:
+          GPG_PASSPHRASE: ${{ env.GPG_PASSPHRASE }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd dist
+          # Sign every .tar.gz with a detached ASCII-armored signature.
+          # Idempotent: skip files that already have an .asc sibling so
+          # workflow re-runs never re-sign (stable artifact bytes).
+          # Passphrase (if any) flows via --passphrase-fd 0 from stdin —
+          # never via the command line.
+          find . -type f -name '*.tar.gz' ! -name '*.asc' -print0 \
+            | while IFS= read -r -d '' artifact; do
+                if [ -f "${artifact}.asc" ]; then
+                  echo "  (existing sig) ${artifact}.asc"
+                  continue
+                fi
+                echo "  signing ${artifact}"
+                if [ -n "${GPG_PASSPHRASE}" ]; then
+                  echo "${GPG_PASSPHRASE}" | gpg --batch --yes --detach-sign --armor \
+                      --local-user "${GPG_KEY_ID}" \
+                      --pinentry-mode loopback \
+                      --passphrase-fd 0 \
+                      --output "${artifact}.asc" "${artifact}"
+                else
+                  gpg --batch --yes --detach-sign --armor \
+                      --local-user "${GPG_KEY_ID}" \
+                      --pinentry-mode loopback \
+                      --output "${artifact}.asc" "${artifact}"
+                fi
+              done
+          # zelynic tripwire (same discipline as the tarball-contents
+          # invariant above): every tarball must have an .asc sibling,
+          # and every signature must verify against the imported key
+          # BEFORE upload. A release never ships a broken or missing
+          # signature once signing is configured.
+          TARBALLS=$(find . -type f -name '*.tar.gz' | wc -l)
+          SIGS=$(find . -type f -name '*.tar.gz.asc' | wc -l)
+          if [ "${TARBALLS}" -ne "${SIGS}" ]; then
+            echo "::error::Signature coverage broken: ${TARBALLS} tarballs, ${SIGS} signatures"
+            exit 1
+          fi
+          find . -type f -name '*.tar.gz' -print0 \
+            | while IFS= read -r -d '' artifact; do
+                echo "  verifying ${artifact}.asc"
+                gpg --batch --verify "${artifact}.asc" "${artifact}" 2>&1 \
+                  | grep -q "Good signature" \
+                  || { echo "::error::gpg --verify failed for ${artifact}"; exit 1; }
+              done
+          echo "--- Signed artifacts ---"
+          find . -name '*.asc' -print | sort
+          echo "--- All signatures verified ---"
+
       - name: Upload artifacts
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5, NIGHT-hunt-20 SHA pin
         with:

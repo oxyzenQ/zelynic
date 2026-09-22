@@ -26,6 +26,92 @@ env:
   RUSTFLAGS: "-D warnings"
 
 jobs:
+  # ===========================================================================
+  # NIGHT-improve-14 (cosmostrix GPG lineage): weekly expiry monitor for
+  # the release-signing key. Fails the check (error annotation) when a
+  # signing subkey is expired; warns 30 days ahead so the rotation
+  # happens before any release is blocked. Runs on the same Monday
+  # 00:00 UTC clock as the rest of this workflow.
+  #
+  # The fingerprint is the maintainer's published master key (cosmic
+  # dragon identity, shared with the cosmostrix release pipeline — one
+  # identity, one key users import, both projects). If zelynic later
+  # moves to a project-specific key, this constant is the single place
+  # to change.
+  # ===========================================================================
+  gpg-key-check:
+    name: GPG Signing Key Expiry Check
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      # Master key fingerprint (40 hex chars, no spaces).
+      GPG_KEY_FINGERPRINT: "F5324E0967F104D58CE025F347A50AEF4B65AAC2"
+      # Warn this many days before a signing subkey expires.
+      GPG_EXPIRY_WARN_DAYS: "30"
+    steps:
+      - name: Fetch public key and check expiry
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Import the signing key from a public keyserver (primary,
+          # then fallback).
+          gpg --batch --keyserver keys.openpgp.org \
+            --recv-keys "${GPG_KEY_FINGERPRINT}" 2>/dev/null || \
+          gpg --batch --keyserver keyserver.ubuntu.com \
+            --recv-keys "${GPG_KEY_FINGERPRINT}" 2>/dev/null || {
+            echo "::warning::Could not fetch GPG key ${GPG_KEY_FINGERPRINT} from keyservers"
+            exit 0  # non-fatal — a keyserver outage must not break the pipeline
+          }
+
+          # Extract signing subkey expiry dates (skip master + revoked).
+          # GPG colon format for a `sub:` record:
+          #   f1=sub  f2=validity  f3=keylen  f4=algo  f5=keyid
+          #   f6=CREATION epoch  f7=EXPIRY epoch
+          # (Bugfix lineage from cosmostrix 2026-08-23: reading f6 — the
+          # CREATION date — reported freshly-created subkeys as expired
+          # on their own birth date. f7 is the expiry; empty f7 = never.)
+          EXPIRY_LINES=$(gpg --batch --with-colons --list-keys "${GPG_KEY_FINGERPRINT}" \
+            | awk -F: '/^sub:/ && $2 != "r"')
+
+          if [[ -z "$EXPIRY_LINES" ]]; then
+            echo "No signing subkeys found (master key may have no subkeys)"
+            exit 0
+          fi
+
+          WARN=false
+          NOW=$(date +%s)
+
+          while IFS= read -r line; do
+            EXPIRY=$(echo "$line" | cut -d: -f7)
+            KEY_ID=$(echo "$line" | cut -d: -f5)
+
+            if [[ -z "$EXPIRY" ]]; then
+              echo "Subkey ${KEY_ID}: no expiry (never expires)"
+              continue
+            fi
+
+            EXPIRY_SEC=$(date -d "@${EXPIRY}" +%s 2>/dev/null || echo "0")
+            REMAINING=$(( (EXPIRY_SEC - NOW) / 86400 ))
+            EXPIRY_DATE=$(date -d "@${EXPIRY}" +%Y-%m-%d 2>/dev/null || echo "unknown")
+
+            if [[ "$REMAINING" -le 0 ]]; then
+              echo "::error::GPG signing subkey ${KEY_ID} EXPIRED on ${EXPIRY_DATE} (${REMAINING} days ago). Renew immediately."
+              WARN=true
+            elif [[ "$REMAINING" -le "$GPG_EXPIRY_WARN_DAYS" ]]; then
+              echo "::warning::GPG signing subkey ${KEY_ID} expires on ${EXPIRY_DATE} (${REMAINING} days remaining). Renew within ${GPG_EXPIRY_WARN_DAYS} days."
+              WARN=true
+            else
+              echo "GPG signing subkey ${KEY_ID}: expires ${EXPIRY_DATE} (${REMAINING} days remaining) — OK"
+            fi
+          done <<< "$EXPIRY_LINES"
+
+          if $WARN; then
+            echo ""
+            echo "Action required: rotate the signing subkey and update keyservers."
+            echo "See docs/VERIFY_RELEASE.md for the renewal procedure."
+          fi
+
   validate:
     name: Maintenance deps weekly validate
     # Runner pinned to ubuntu-24.04, never a floating ubuntu-latest:
