@@ -270,6 +270,20 @@ survive reboot, name resolution needs the app running, one name can
 match several cgroups, rates are decimal SI per direction, monitoring
 surfaces need root too, and status counters are cumulative evidence.
 
+### The nightly eBPF toolchain (honest)
+
+The eBPF build dependencies (`aya-ebpf` on a pinned nightly rustc,
+plus bpf-linker) are experimental — but they are quarantined at
+BUILD time. The BPF objects are cross-compiled, validated, and
+embedded inside the single release binary, so a deployment needs
+only a kernel and the one file: no rustup, no nightly, no LLVM.
+Production stability rests on the kernel's eBPF UAPI, the most
+stable ABI Linux maintains — not on the Rust nightly train.
+The full layering, the LTS isolation contract, and the residual
+limits (with their exact cost and first commands) live in
+[docs/STABILITY.md](docs/STABILITY.md): **99% production-useful,
+and the missing 1% fails closed and says so.**
+
 ## Safety Features
 
 - **Rate bounds guard**: 1 KB/s..1 TB/s, `--allow-dangerous` overrides
