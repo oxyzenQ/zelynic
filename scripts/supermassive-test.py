@@ -13,9 +13,13 @@ full rate range the parser accepts.
 
 Design:
 
-  * One click, two intensities: default light mode (~2 min, basic limiting
-    sweep) and --heavy (the complete supermassive matrix, 5+ minutes, long
-    running until done). --self-test verifies the harness engine alone
+  * One click, one intensity (NIGHT-improve-19): the complete
+    supermassive matrix (5+ minutes, long running until done) is the
+    default and ONLY root mode — the old light sweep was retired: it
+    ran a subset of the same stages with smaller windows, so a green
+    light run said nothing the matrix does not say more strongly,
+    while a red one usually just meant tighter timing margins.
+    --self-test verifies the harness engine alone
     (no root, no zelynic, no BPF) so CI and containers can smoke it
     anywhere — the same cross-distro minimum as NIGHT-master-1: python3
     stdlib only, curl optional (its stages SKIP, the rest keeps working).
@@ -56,33 +60,34 @@ Design:
   * Every rate verdict is MEASURED (client / curl byte counters), then
     proven in-kernel through the status JSON (bytes_allowed /
     packets_dropped) — exactly the NIGHT-master-1 contract.
-  * limit-all is exercised with --force in heavy mode only, briefly and
+  * limit-all is exercised with --force, briefly and
     at a generous rate: as root the harness's own cgroups are uid 0 and
     would otherwise be skipped as system apps. block-all is deliberately
     NOT exercised — blocking every app can sever the very session that
     runs the test.
 
 Usage:
-  sudo ./scripts/supermassive-test.sh                # light (~2 min)
-  sudo ./scripts/supermassive-test.sh --heavy       # supermassive (5+ min)
+  sudo ./scripts/supermassive-test.sh                # supermassive (5+ min)
+  sudo ./scripts/supermassive-test.sh --heavy       # the same, explicit
   python3 scripts/supermassive-test.py --self-test   # engine smoke, no root
   sudo ./scripts/supermassive-test.sh --binary ./zelynic
   sudo ./scripts/supermassive-test.sh --json
 
 What it verifies (verdicts PASS / FAIL / SKIP, exit 1 on any FAIL):
-  light: env + minimum specs, doctor, baseline, strict-single policy
-         write, status human + JSON surfaces, rate-guard functions
-         (bounds, typo tip, dangerous blocklist, plain-number,
-         --allow-dangerous override), rate ladder
-         (1kb/100kb/1mb/10mb), upload-only (-u), download-only
+  the matrix: env + minimum specs, doctor, list-apps JSON, baseline,
+         strict-single policy write, status human + JSON surfaces,
+         rate-guard functions (bounds, typo tip, dangerous blocklist,
+         plain-number, --allow-dangerous override), the full rate
+         ladder 1kb..1tb (two windows per rung, 1gb+ rungs as
+         six-flow aggregates), upload-only (-u), download-only
          (-d), asymmetric -d/-u buckets, block-single zero
          goodput, unstrict-single (unlock) restores speed, curl burst
-         download x4, curl upload, non-binding overhead, cleanup, dmesg
-  heavy: + full ladder to 1tb (two windows per rung), strict-multi
-         shared group bucket across cgroups, block-multi, unstrict-multi
-         selective removal, mixed concurrent policies on five cgroups,
-         limit-all --force sweep, reload cycles, sustain windows,
-         recover clean-state, list-apps JSON
+         parallel download, curl upload, strict-multi shared group
+         bucket across cgroups, block-multi, unstrict-multi
+         selective removal, mixed concurrent policies on five
+         cgroups, limit-all --force sweep, reload cycles, sustain
+         windows, non-binding overhead, recover clean-state,
+         cleanup, dmesg
 """
 
 import argparse
@@ -143,12 +148,8 @@ TEST_CGROUPS = [f"{CGROUP_ROOT}/zelynic-supermassive-{n}" for n in CG_NAMES]
 HQ_CGROUP = f"{CGROUP_ROOT}/zelynic-supermassive-hq"
 BLOCK_GOODPUT_CEIL = 64 * 1024  # bytes per window: "blocked" means ~zero
 # (rate string, expected bps) — explicit pairs, no inversion math to drift.
-LADDER_LIGHT = [
-    ("1kb", 1_000),
-    ("100kb", 100_000),
-    ("1mb", 1_000_000),
-    ("10mb", 10_000_000),
-]
+# NIGHT-improve-19: LADDER_LIGHT was retired with the light mode — the
+# matrix walks the full span in every root run.
 LADDER_HEAVY = [
     ("1kb", 1_000),
     ("10kb", 10_000),
@@ -1483,7 +1484,7 @@ def test_overhead(window, baseline):
     between harness start and the last-but-one stage, not policy
     cost. Fresh baseline window, then policy, then the measured
     window: seconds apart, same machine state. No policy is live at
-    entry — the preceding stage ends clear_all() in both modes.
+    entry — the preceding stage ends clear_all().
     """
     if baseline and baseline >= 300e9:
         return record(
@@ -1862,13 +1863,14 @@ def self_test():
     # refuses it); a rung above MAX_RATE likewise. If a future edit
     # breaks that, the root run would fail stage after stage for a
     # reason this rootless row names up front.
-    ladder_ok = all(1_000 <= bps <= 1_000_000_000_000 for _, bps in LADDER_LIGHT + LADDER_HEAVY)
+    ladder_ok = all(1_000 <= bps <= 1_000_000_000_000 for _, bps in LADDER_HEAVY)
     record(
         "engine: ladder rungs inside the parser bounds (1kb..1tb)",
         "PASS" if ladder_ok else "FAIL",
-        f"{len(LADDER_LIGHT) + len(LADDER_HEAVY)} rungs, "
-        f"min {min(b for _, b in LADDER_LIGHT + LADDER_HEAVY)} bps, "
-        f"max {max(b for _, b in LADDER_LIGHT + LADDER_HEAVY)} bps",
+        f"{len(LADDER_HEAVY)} rungs, "
+        f"min {min(b for _, b in LADDER_HEAVY)} bps, "
+        f"max {max(b for _, b in LADDER_HEAVY)} bps, "
+        "full ladder only (light retired, NIGHT-improve-19)",
     )
 
     # NIGHT-improve-15 pin: the ladder's high-rung floor is a MODEL
@@ -2098,6 +2100,38 @@ def self_test():
     finally:
         SERVER.port = real_port
         guard.close()
+    # NIGHT-improve-19 pins: the unknown-flag typo rescue must
+    # suggest the near-miss flag (the owner's 'self-tesss' case),
+    # stay silent for distant input (no noise), and the retired
+    # --light must name its replacement rather than render as a
+    # generic unknown flag with a misleading tip.
+    typo_pins = (
+        ("self-tesss", "self-test"),
+        ("hevy", "heavy"),
+        ("jsonn", "json"),
+    )
+    typo_ok = all(_closest_flag(t) == want for t, want in typo_pins)
+    record(
+        "engine: unknown-flag typo rescue suggests the near-miss flag",
+        "PASS" if typo_ok else "FAIL",
+        "; ".join(f"--{t} -> --{_closest_flag(t)}" for t, _ in typo_pins),
+    )
+    silent_ok = _closest_flag("zzzzqqqq") is None and _closest_flag("") is None
+    record(
+        "engine: distant unknown flags stay tip-less",
+        "PASS" if silent_ok else "FAIL",
+        "no suggestion below the 0.7 Jaro confidence threshold",
+    )
+    retire_lines = _unknown_arg_error("--light")
+    retire_ok = any("retired" in line for line in retire_lines) and not any(
+        "tip:" in line for line in retire_lines
+    )
+    record(
+        "engine: retired --light names its replacement, not a tip",
+        "PASS" if retire_ok else "FAIL",
+        retire_lines[0],
+    )
+
     counts = {v: sum(1 for r in RESULTS if r["verdict"] == v) for v in ("PASS", "FAIL", "SKIP")}
     out()
     out("━━━ self-test verdict ━━━")
@@ -2111,22 +2145,84 @@ def self_test():
 # ── orchestration ───────────────────────────────────────────────────────────
 
 
-def run_light(baseline_window):
-    test_doctor()
-    baseline = test_baseline(baseline_window)
-    test_policy_write()
-    test_rate_guard()
-    test_rate_ladder(LADDER_LIGHT, 4.0, 1, baseline)
-    test_upload(4.0, baseline)
-    test_download_only(3.0, baseline)
-    test_asymmetric(3.0, baseline)
-    test_block_single(3.0)
-    test_unlock(3.0, baseline)
-    test_curl_burst(5.0, 4, 1_000_000, baseline)
-    test_curl_upload(4.0, baseline)
-    test_overhead(3.5, baseline)
-    test_cleanup()
-    test_dmesg()
+# ── flag typo rescue (NIGHT-improve-19) ─────────────────────────────────────
+#
+# Mirrors the flagship CLI's suggestion engine (src/cli/suggestion.rs):
+# case-insensitive Jaro at clap's own > 0.7 confidence threshold, so
+# `--self-tesss` suggests `--self-test` under the SAME confidence rule
+# the zelynic binary applies to its own flags — one typo contract
+# across the product and its harnesses. The retired --light gets a
+# dedicated message naming its replacement instead of a generic
+# unknown-option error: muscle memory deserves a better answer than
+# "did you mean --band?".
+
+KNOWN_FLAGS = ("heavy", "self-test", "binary", "json", "band", "help")
+
+
+def _jaro_ci(a, b):
+    """Case-insensitive Jaro similarity (clap's flag-suggestion metric)."""
+    a = a.lower()
+    b = b.lower()
+    a_len, b_len = len(a), len(b)
+    if a_len == 0 and b_len == 0:
+        return 1.0
+    if a_len == 0 or b_len == 0:
+        return 0.0
+    if a_len == 1 and b_len == 1:
+        return 1.0 if a[0] == b[0] else 0.0
+    search_range = max(a_len, b_len) // 2 - 1
+    if search_range < 0:
+        search_range = 0
+    b_consumed = [False] * b_len
+    matches = 0
+    transpositions = 0
+    b_match_index = 0
+    for i, a_elem in enumerate(a):
+        lo = max(0, i - search_range)
+        hi = min(b_len - 1, i + search_range)
+        if lo > hi:
+            continue
+        for j, b_elem in enumerate(b):
+            if lo <= j <= hi and a_elem == b_elem and not b_consumed[j]:
+                b_consumed[j] = True
+                matches += 1
+                if j < b_match_index:
+                    transpositions += 1
+                b_match_index = j
+                break
+    if matches == 0:
+        return 0.0
+    return 1 / 3 * (matches / a_len + matches / b_len + (matches - transpositions) / matches)
+
+
+def _closest_flag(typed):
+    """Closest known flag by Jaro > 0.7, or None. Ties keep the FIRST
+    candidate — deterministic under a stable KNOWN_FLAGS order."""
+    best = None
+    best_score = 0.7
+    for flag in KNOWN_FLAGS:
+        score = _jaro_ci(typed, flag)
+        if score > best_score:
+            best = flag
+            best_score = score
+    return best
+
+
+def _unknown_arg_error(token):
+    """The error lines for one unknown argument: the retirement
+    message for --light, else unknown-option plus typo tip."""
+    bare = token.lstrip("-")
+    if bare == "light":
+        return [
+            "error: --light was retired (NIGHT-improve-19) — the supermassive matrix",
+            "is now the default and only root mode (5+ min). Just run:",
+            "  sudo ./scripts/supermassive-test.sh",
+        ]
+    lines = [f"error: unknown option '{token}'"]
+    suggestion = _closest_flag(bare)
+    if suggestion:
+        lines.append(f"  tip: a similar option exists: '--{suggestion}'")
+    return lines
 
 
 def run_heavy(baseline_window):
@@ -2165,7 +2261,8 @@ def main():
     ap.add_argument(
         "--heavy",
         action="store_true",
-        help="the complete supermassive matrix (5+ min; default is light ~2 min)",
+        help="explicitly request the supermassive matrix (the default mode; "
+        "kept for explicit invocations and muscle memory)",
     )
     ap.add_argument(
         "--self-test",
@@ -2179,7 +2276,15 @@ def main():
         default=f"{BAND_LO},{BAND_HI}",
         help="verdict band as lo,hi ratios (default 0.65,1.30)",
     )
-    args = ap.parse_args()
+    args, unknown = ap.parse_known_args()
+    # NIGHT-improve-19: unknown flags get the CLI-grade typo rescue
+    # BEFORE any mode decision — a mistyped --self-tesss must not fall
+    # through to the root-mode run path.
+    if unknown:
+        for token in unknown:
+            for line in _unknown_arg_error(token):
+                out(line)
+        return 2
 
     if args.self_test:
         ok = self_test()
@@ -2203,7 +2308,10 @@ def main():
     if not lib.resolve_binary(args.binary, "sudo ./scripts/supermassive-test.sh"):
         return 2
 
-    mode = "heavy" if args.heavy else "light"
+    # NIGHT-improve-19: light was retired — one root intensity. The
+    # mode name stays in the banner, JSON output, and CROSS_DISTRO_
+    # RESULTS rows, so downstream tooling keeps parsing "heavy".
+    mode = "heavy"
     start = time.perf_counter()
     CG = CgroupSet()
     exit_code = 1
@@ -2219,10 +2327,8 @@ def main():
         if not env_ok:
             out()
             out("  environment not suitable for zelynic — stopping here.")
-        elif mode == "heavy":
-            run_heavy(3.0)
         else:
-            run_light(2.5)
+            run_heavy(3.0)
         CG.cleanup()
         report_worker_faults()
         ok = final_report(

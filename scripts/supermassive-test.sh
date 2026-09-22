@@ -10,10 +10,15 @@
 # rationale as limiter-depth-test.sh wrapping limiter-depth-test.py).
 #
 # Usage:
-#   sudo ./scripts/supermassive-test.sh                # light (~2 min)
-#   sudo ./scripts/supermassive-test.sh --heavy        # supermassive (5+ min)
+#   sudo ./scripts/supermassive-test.sh                # supermassive (5+ min)
+#   sudo ./scripts/supermassive-test.sh --heavy        # the same, explicit
 #   ./scripts/supermassive-test.sh --self-test          # engine smoke, no root
 #   sudo ./scripts/supermassive-test.sh --json          # machine-readable
+#
+# One root intensity since NIGHT-improve-19: the light sweep was
+# retired — the matrix is the default, and a mistyped flag
+# (--self-tesss) gets a typo tip, --light gets its retirement
+# message.
 #
 # Full design notes live in the .py header. This script replaced the
 # old stress-test.sh, which depended on an external speedtest server

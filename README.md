@@ -437,10 +437,15 @@ function (bounds, typo tip, dangerous blocklist, plain-number,
 (-d / -u / asymmetric -d+-u)? One click (NIGHT-master-2):
 
 ```bash
-sudo ./scripts/supermassive-test.sh                # light (~2 min)
-sudo ./scripts/supermassive-test.sh --heavy        # supermassive (5+ min)
+sudo ./scripts/supermassive-test.sh                # supermassive (5+ min)
+sudo ./scripts/supermassive-test.sh --heavy        # the same, explicit
 ./scripts/supermassive-test.sh --self-test          # engine smoke, no root
 ```
+
+One root intensity (NIGHT-improve-19): the old light sweep was retired —
+the matrix is the default. A mistyped flag (`--self-tesss`) gets a typo
+tip suggesting `--self-test`, and `--light` gets a message naming its
+replacement.
 
 The harness always tests the checkout's own build: repo target
 outputs resolve first (newest build wins), and a version GATE
