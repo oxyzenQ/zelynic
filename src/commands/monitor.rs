@@ -144,15 +144,18 @@ pub fn handle_list_apps(json: bool) -> Result<()> {
 /// (NIGHT-hunt-7) is the refresh cadence, 1s..60s via
 /// `--interval` (default 1s — realtime precision); it drives both
 /// the render loop AND the BPF poll, so per-frame deltas divide by
-/// exactly the interval for the RATE column.
+/// exactly the interval for the DOWNLOAD/UPLOAD rate columns.
 ///
 /// The positional TARGETS spec is autodetected per Target::parse
 /// (digits = cgroup ID, else process name) and re-resolved against
 /// the live identity map every frame, so apps started mid-session
 /// appear on the next refresh. One token resolving to one cgroup
 /// takes the deep focus view; more take the filtered ranked table;
-/// none take the full consumption-ranked ranking with a row budget
-/// equal to the terminal height (no --limit, no cap).
+/// none take the full session leaderboard (NIGHT-boost-5): ranking
+/// and the TOTAL column ride the per-cgroup bytes accumulated since
+/// the monitor started, rows persist across quiet frames, and rank 1
+/// blinks champion red for 3s on a takeover — the row budget equals
+/// the terminal height (no --limit, no cap).
 #[cfg(feature = "ebpf")]
 pub fn handle_eagle_eyes(
     targets: Option<&str>,
@@ -162,7 +165,7 @@ pub fn handle_eagle_eyes(
     use crate::ebpf::connections::ConnectionMap;
     use crate::ebpf::limiter::Target;
     use crate::ebpf::loader::Observer;
-    use crate::ebpf::render::render_eagle_eyes;
+    use crate::ebpf::render::{render_eagle_eyes, SessionState};
     use crate::terminal;
     use std::time::Duration;
 
@@ -225,17 +228,26 @@ pub fn handle_eagle_eyes(
     // detail, TTL-cached inside the map so 1s frames reuse the scan.
     // NIGHT-improve-2: the closure builds the frame's logical lines;
     // run_alt's diff engine emits only what changed.
+    //
+    // The session leaderboard (NIGHT-boost-5) lives OUTSIDE the
+    // closure: each frame folds its deltas in, so the ranked table
+    // renders from what apps accumulated since the monitor started —
+    // rows persist across quiet frames (a one-second hush no longer
+    // wipes the board to "waiting for traffic…"), and a transient
+    // map-read error renders one em-dash frame, not a collapse.
     let mut conns = ConnectionMap::new();
+    let mut session = SessionState::new();
     let interval = Duration::from_secs(interval_secs);
     terminal::run_alt(interval, |lines| {
         // One-frame tolerance, not a swallow bug (NIGHT-optimized-2
         // audit): the opening poll below hard-failed on any broken
         // map, so an Err here is a transient read. unwrap_or_default
-        // renders one blank frame; prev_stats inside the observer is
-        // only rewritten on success, so the next good frame's delta
-        // spans the skipped interval — no data loss, no double count.
-        // Propagating here instead would kill the live TUI on a
-        // single hiccup.
+        // folds an EMPTY frame — the leaderboard keeps every row it
+        // ranked with em-dash rates; prev_stats inside the observer
+        // is only rewritten on success, so the next good frame's
+        // delta spans the skipped interval — no data loss, no double
+        // count. Propagating here instead would kill the live TUI on
+        // a single hiccup.
         let summary = observer.poll_and_summarize().unwrap_or_default();
         conns.maybe_refresh();
         render_eagle_eyes(
@@ -245,6 +257,7 @@ pub fn handle_eagle_eyes(
             observer.identity(),
             Some(&conns),
             interval,
+            &mut session,
         );
     });
 

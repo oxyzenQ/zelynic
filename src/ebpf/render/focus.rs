@@ -14,6 +14,7 @@ use crate::ebpf::connections::ConnectionMap;
 use crate::ebpf::identity::IdentityMap;
 use crate::ebpf::limiter::format_bytes;
 use crate::ebpf::loader::CounterSummary;
+use crate::output::signature_footer;
 
 /// Render the focus frame for one cgroup.
 ///
@@ -77,6 +78,12 @@ pub fn render_eagle_focus(
     for line in super::full_detail_lines(conns, cgroup_id) {
         lines.push(line);
     }
+
+    // Signature footer (NIGHT-boost-5): bottom-left identity stamp,
+    // one blank line of breathing room above it — every flagship
+    // frame signs its work.
+    lines.push(String::new());
+    lines.push(format!("  {}", signature_footer()));
 }
 
 #[cfg(test)]

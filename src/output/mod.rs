@@ -40,9 +40,9 @@ mod color;
 // The `*_open()` escape builders stay color-internal: the wrapper
 // functions below are the crate's entire color API surface (nothing
 // outside the output layer ever assembles its own escape bytes).
-#[cfg(feature = "ebpf")]
-pub use color::warn;
 pub use color::{brand, brand_bold, error, error_bold, ok, ok_bold, suggestion, warn_bold};
+#[cfg(feature = "ebpf")] // champion tier + warn wrapper live under the eagle-eyes graph
+pub use color::{hot, hot_blink, warn};
 
 // ── Broken-pipe-safe println/eprintln (cosmostrix contract) ────────────────
 //

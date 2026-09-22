@@ -45,6 +45,8 @@
 //! Module map (mirrors the limiter/ split, owner LOC cap):
 //! - [`eagle`] — the ranked eagle-eyes renderer (default + filtered)
 //! - [`focus`] — the deep single-target view (autodetected focus)
+//! - [`session`] — the session leaderboard: accumulated per-cgroup
+//!   totals, rank-1 takeover blink bookkeeping (NIGHT-boost-5)
 //! - `bench` (cfg(test)) — the frame A/B benchmark harness (wired in
 //!   from `test/ebpf/render/bench.rs`, NIGHT-hunt-17)
 //! - this root — geometry probing, column budgets, shared helpers,
@@ -54,6 +56,7 @@
 mod detail;
 mod eagle;
 mod focus;
+mod session;
 
 #[cfg(test)]
 // NIGHT-hunt-17: the A/B frame harness is a test file, so it lives
@@ -64,6 +67,8 @@ mod focus;
 mod bench;
 
 pub use eagle::render_eagle_eyes;
+
+pub(crate) use session::{SessionAcc, SessionState};
 
 pub(crate) use detail::{comm_from_label, detail_lines, full_detail_lines, label_with_count};
 
