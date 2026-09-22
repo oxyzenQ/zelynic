@@ -5,7 +5,11 @@
 
 This document governs the use of the **Zelynic** name, logo, and associated branding assets. It supplements, but does not replace, the GPL-3.0-only license that covers the source code.
 
-> **TL;DR** — You may fork, modify, and redistribute the code under the GPL-3.0-only license, but you may **not** use the "Zelynic" name or branding to represent a modified or competing product without permission.
+> **TL;DR** — Forking falls into two categories. **Contribution forks** (bug
+> fixes, features, PRs back to upstream) are allowed without permission and
+> may keep the "Zelynic" name and branding unchanged. **Non-contribution
+> forks** (rebrand, relaunch, derivative product, commercial offering) must be
+> discussed with the owner first and MUST rename away from "Zelynic".
 
 ---
 
@@ -33,7 +37,17 @@ You may use the Zelynic name and logo in a purely **attributive** manner to accu
 
 Distributing **unmodified** copies of the Zelynic binary or source code (including the original name, logo, and README) is permitted under the GPL-3.0-only license, provided that the license and copyright notices are preserved.
 
-### 2.3. Community and educational use
+### 2.4. Contribution forks (the cosmostrix lineage)
+
+Forking the source code under the terms of GPL-3.0-only for the purpose
+of contributing back to zelynic (bug fixes, features, PRs) is allowed
+without permission. Contribution forks may keep the Zelynic name, logo,
+and branding unchanged — no rename or rebrand required — as long as the
+fork is clearly labeled as a contribution fork (e.g. the fork description
+says "WIP: <feature> for zelynic upstream") and the owner is notified via
+a GitHub Issue or PR. The full contract lives in §4a.
+
+### 2.5. Community and educational use
 
 Using the name in community discussions, issue trackers, forums, educational materials, or presentations about the project is always welcome.
 
@@ -43,9 +57,13 @@ Using the name in community discussions, issue trackers, forums, educational mat
 
 You **must** obtain prior written permission before using the Marks in any of the following ways:
 
-### 3.1. Modified or derivative products
+### 3.1. Forks and derivatives that are NOT contributions
 
-If you create a modified version, fork, or derivative work of Zelynic, you may **not** use the Zelynic name or Marks to identify or market your derivative product unless explicitly approved. This includes but is not limited to:
+Forks intended for any purpose other than upstream contribution — rebrand,
+relaunch, derivative product, commercial offering, or redistribution under
+a different identity — require owner discussion BEFORE public release (see
+§4b). These forks may **not** use the Zelynic name or Marks to identify or
+market the derivative. This includes but is not limited to:
 
 - Distributing a modified build under the name "Zelynic" or a confusingly similar name (e.g., "Zelynic Pro", "Zelynic Plus", "ZelynicX").
 - Using the Zelynic logo or artwork on packaging, websites, or promotional materials for a derivative product.
@@ -56,20 +74,50 @@ Using the Zelynic name or Marks in any commercial context — including product 
 
 ---
 
-## 4. Renaming Requirements for Forks
+## 4. Forks & Derivatives
 
-Forks and derivative works **must** clearly distinguish themselves from the original project. Specifically:
+There are two fork categories with different rules (the cosmostrix
+fork-policy lineage — same owner, same two doors):
 
-1. The project name must be changed to something that does not include or closely resemble "Zelynic".
-2. Any references to the original project must clearly indicate that it is a fork or derivative work, and attribute the original creator(s).
-3. The Zelynic logo and artwork must be removed and replaced with the fork's own branding.
+### 4a. Contribution Forks (allowed without permission)
+
+Forks whose sole purpose is to contribute back to the upstream zelynic
+repository via Pull Requests. These forks:
+
+- MAY keep the zelynic name, logo, and branding unchanged.
+- MUST be clearly labeled as a contribution fork in the fork
+  description (e.g. "WIP: fix for rate parser edge case").
+- MUST NOT be published or distributed as a standalone product.
+- MUST be offered back to the upstream via a PR or Issue before any
+  external distribution.
+
+No rename, no rebrand, no permission needed — just open a PR.
+
+### 4b. Non-Contribution Forks (require owner discussion)
+
+Forks intended for any purpose other than upstream contribution —
+rebrand, relaunch, derivative product, commercial offering, or
+redistribution under a different identity. These forks:
+
+- MUST be discussed with the owner (rezky_nightky / oxyzenQ) BEFORE
+  public release. Open a GitHub Issue or contact via the repository.
+- MUST use a different project name (not "zelynic", and not a
+  confusingly similar name — "Zelynic Pro", "Zelynic Plus",
+  "ZelynicX" included).
+- MUST use different branding (logo, color scheme, artwork).
+- MUST preserve the GPL-3.0-only license and copyright notice.
+- MUST clearly state that the fork is derived from zelynic but is
+  NOT zelynic and is NOT endorsed by the owner.
 
 A suggested attribution format:
 
 ```
-This project is a fork of Zelynic by rezky_nightky (oxyzenQ).
+This project is a fork of zelynic by rezky_nightky (oxyzenQ).
 Original repository: https://github.com/oxyzenQ/zelynic
 ```
+
+The owner reserves the right to decline non-contribution forks that
+would compete with, dilute, or confuse the zelynic brand.
 
 ---
 

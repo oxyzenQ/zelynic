@@ -576,13 +576,11 @@ covered by the GPL, and are reserved by the owner. This project is
 **NOT for sale** — unauthorized rebranding, relicensing, or
 source-code theft is strictly prohibited.
 
-The short version of the fork policy: unmodified redistribution with
-attribution is allowed under the GPL; forks and derivatives must
-rename away from "Zelynic", drop the logo/artwork, and attribute the
-original. The binding detail lives once in
-[TRADEMARK.md](TRADEMARK.md) (§2 permitted uses, §3–§4 approval +
-renaming rules), including the suggested attribution format and how to
-request permission.
+**Forking policy** — two categories with different rules (full text in
+[TRADEMARK.md §4](TRADEMARK.md)):
+
+- **Contribution forks** (bug fixes, features, PRs back to upstream): allowed without permission. Keep the zelynic name, logo, and branding unchanged — no rename or rebrand required. Just open a PR.
+- **Non-contribution forks** (rebrand, relaunch, derivative product, commercial offering): require owner discussion first. MUST use a different project name + different branding. Open a GitHub Issue before public release.
 
 For trademark licensing or written permission, contact
 **rezky_nightky (oxyzenQ)** — <https://github.com/oxyzenQ>.
