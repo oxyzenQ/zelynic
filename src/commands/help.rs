@@ -12,16 +12,28 @@
 //! group headings (NIGHT-improve-5: strict / limit / block / unstrict,
 //! plus monitor and system), so adding a command or reshuffling a
 //! group without updating this module fails the suite.
+//!
+//! Example layout (NIGHT-boost-4, owner mandate): every runnable
+//! example is an annotated PAIR — the `#` note on its own line ABOVE
+//! the command, the command itself in status green. The old inline
+//! right-side comments drifted out of alignment across examples and
+//! read as visual noise. The [`example`] helper below is the one
+//! place that renders the pair, so the layout cannot drift per
+//! section.
 
-use crate::output::brand_bold;
+use crate::output::{brand_bold, ok};
 
 /// Print the end-to-end reference: usage, commands, flags, formats,
 /// safety guards, and examples.
 ///
-/// Brand identity (cosmostrix help format): the banner and every section
-/// heading render in brand purple #A855F7 (bold); all command syntax,
-/// examples, and body text stay in the terminal default color so the
+/// Brand identity (cosmostrix help format): the banner and every
+/// section heading render in brand purple #A855F7 (bold); command
+/// syntax and body text stay in the terminal default color so the
 /// reference remains readable and diff-friendly when piped.
+/// Runnable example lines are the one deliberate exception
+/// (NIGHT-boost-4): they render in status green #50FA7B — the
+/// affirmative "this is what you type" tier, one step below the
+/// headings in the visual hierarchy.
 pub(crate) fn print_help() {
     println_safe!(
         "{}",
@@ -38,59 +50,78 @@ pub(crate) fn print_help() {
     // surface (NIGHT-boost-1: observe + top merged into eagle-eyes)
     // scans as six chunks instead of one flat wall. Group
     // headings carry the same brand purple as section headings; each
-    // synopsis sits on its own line with the description and examples
-    // indented below — no more 120-char mixed lines.
+    // synopsis sits on its own line with the description and
+    // examples indented below — no more 120-char mixed lines.
     println_safe!("  {}", brand_bold("strict — apply rate limits"));
     println_safe!();
     println_safe!("  zelynic strict-single <target> [rate] [-d <rate>] [-u <rate>]");
     println_safe!("    Limit one app's network speed ('strict' is the shorthand).");
-    println_safe!("    sudo zelynic strict-single brave 100kb              # both dl+ul = 100kb");
-    println_safe!("    sudo zelynic strict-single brave -d 100kb           # download only");
-    println_safe!("    sudo zelynic strict-single brave -u 500kb           # upload only");
-    println_safe!(
-        "    sudo zelynic strict-single firefox -d 1mb -u 500kb  # both, different rates"
+    example(
+        "both dl+ul = 100kb",
+        "sudo zelynic strict-single brave 100kb",
     );
-    println_safe!("    sudo zelynic strict brave 100kb                     # shorthand form");
+    example("download only", "sudo zelynic strict-single brave -d 100kb");
+    example("upload only", "sudo zelynic strict-single brave -u 500kb");
+    example(
+        "both, different rates",
+        "sudo zelynic strict-single firefox -d 1mb -u 500kb",
+    );
+    example("shorthand form", "sudo zelynic strict brave 100kb");
     println_safe!();
     println_safe!("  zelynic strict-multi <a:b:c> [rate] [-d <rate>] [-u <rate>]");
     println_safe!("    Limit multiple apps sharing ONE rate (group limit).");
     println_safe!("    All apps collectively share the rate — if one downloads at full");
     println_safe!("    rate, the others get nothing.");
-    println_safe!("    sudo zelynic strict-multi brave:curl:pacman 1mb");
-    println_safe!("    sudo zelynic strict-multi brave:firefox -d 1mb -u 500kb");
+    example(
+        "both dl+ul = 1mb",
+        "sudo zelynic strict-multi brave:curl:pacman 1mb",
+    );
+    example(
+        "per-direction",
+        "sudo zelynic strict-multi brave:firefox -d 1mb -u 500kb",
+    );
     println_safe!();
     println_safe!("  {}", brand_bold("limit — bulk rate limits"));
     println_safe!();
     println_safe!("  zelynic limit-all [rate] [-d <rate>] [-u <rate>]");
     println_safe!("    Limit ALL user apps (system apps excluded; --force includes them).");
-    println_safe!("    sudo zelynic limit-all 500kb              # limit all user apps");
-    println_safe!("    sudo zelynic limit-all -d 1mb -u 500kb    # per-direction");
+    example("limit all user apps", "sudo zelynic limit-all 500kb");
+    example("per-direction", "sudo zelynic limit-all -d 1mb -u 500kb");
     println_safe!();
     println_safe!("  {}", brand_bold("block — cut internet access"));
     println_safe!();
     println_safe!("  zelynic block-single <target>");
     println_safe!("    Block one app from the internet entirely.");
-    println_safe!("    sudo zelynic block-single brave");
+    example("cut one app off", "sudo zelynic block-single brave");
     println_safe!();
     println_safe!("  zelynic block-multi <a:b:c>");
     println_safe!("    Block multiple apps from the internet.");
-    println_safe!("    sudo zelynic block-multi brave:curl:pacman");
+    example(
+        "cut a whole group",
+        "sudo zelynic block-multi brave:curl:pacman",
+    );
     println_safe!();
     println_safe!("  zelynic block-all");
     println_safe!("    Block ALL user apps (--force includes system apps).");
-    println_safe!("    sudo zelynic block-all                   # all user apps");
-    println_safe!("    sudo zelynic block-all --force            # include system apps");
+    example("all user apps", "sudo zelynic block-all");
+    example("include system apps", "sudo zelynic block-all --force");
     println_safe!();
     println_safe!("  {}", brand_bold("unstrict — remove limits & recover"));
     println_safe!();
     println_safe!("  zelynic unstrict-single <target>");
     println_safe!("    Remove the rate limit from one app ('unstrict' is the shorthand).");
-    println_safe!("    sudo zelynic unstrict-single brave");
-    println_safe!("    sudo zelynic unstrict brave                  # shorthand form");
+    example(
+        "remove one app's limit",
+        "sudo zelynic unstrict-single brave",
+    );
+    example("shorthand form", "sudo zelynic unstrict brave");
     println_safe!();
     println_safe!("  zelynic unstrict-multi <a:b:c>");
     println_safe!("    Remove rate limits from multiple apps at once.");
-    println_safe!("    sudo zelynic unstrict-multi brave:curl:pacman");
+    example(
+        "bulk removal",
+        "sudo zelynic unstrict-multi brave:curl:pacman",
+    );
     println_safe!();
     println_safe!("  zelynic unstrict-all");
     println_safe!("    Remove ALL limits (emergency reset).");
@@ -117,10 +148,13 @@ pub(crate) fn print_help() {
     println_safe!("    Targets are autodetected: digits = cgroup ID (see list-apps),");
     println_safe!("    a name = process — one target opens the deep focus view");
     println_safe!("    (per-direction deltas, rate, lifetime, socket endpoints).");
-    println_safe!("    sudo zelynic eagle-eyes                     # all apps, ranked");
-    println_safe!("    sudo zelynic eagle-eyes brave                # one app, deep view");
-    println_safe!("    sudo zelynic eagle-eyes 12345/brave/firefox  # watch specific targets");
-    println_safe!("    sudo zelynic eagle-eyes --interval 3s       # calmer cadence");
+    example("all apps, ranked", "sudo zelynic eagle-eyes");
+    example("one app, deep view", "sudo zelynic eagle-eyes brave");
+    example(
+        "watch specific targets",
+        "sudo zelynic eagle-eyes 12345/brave/firefox",
+    );
+    example("calmer cadence", "sudo zelynic eagle-eyes --interval 3s");
     println_safe!();
     println_safe!("  {}", brand_bold("system — support"));
     println_safe!();
@@ -159,13 +193,28 @@ pub(crate) fn print_help() {
     // NIGHT-hunt-15: the command blocks above each carry their own
     // examples (NIGHT-improve-5) — this section holds ONLY the three
     // workflows whose blocks have no example lines, so every example
-    // appears exactly once on the surface.
+    // appears exactly once on the surface. Same annotated-pair format
+    // as the group blocks (NIGHT-boost-4), at the section's own
+    // two-space indent.
     println_safe!("  # Check what's limited (JSON for scripts)");
-    println_safe!("  sudo zelynic status --print-json | jq '.limits[]'");
+    println_safe!(
+        "  {}",
+        ok("sudo zelynic status --print-json | jq '.limits[]'")
+    );
     println_safe!();
     println_safe!("  # Recover from a crash (clean orphaned pins)");
-    println_safe!("  sudo zelynic recover");
+    println_safe!("  {}", ok("sudo zelynic recover"));
     println_safe!();
     println_safe!("  # Emergency: remove all limits");
-    println_safe!("  sudo zelynic unstrict-all");
+    println_safe!("  {}", ok("sudo zelynic unstrict-all"));
+}
+
+/// One runnable example: the `#` annotation on its own line ABOVE,
+/// the command line in status green below (NIGHT-boost-4 owner
+/// mandate — the old right-side comments misaligned across examples
+/// and read as visual noise; the pair format is enforced here so it
+/// cannot drift per section).
+fn example(note: &str, cmd: &str) {
+    println_safe!("    # {note}");
+    println_safe!("    {}", ok(cmd));
 }
