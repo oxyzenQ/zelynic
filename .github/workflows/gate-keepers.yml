@@ -95,7 +95,7 @@ jobs:
       # Gate section 12 (ebpf rustfmt) resolves the dated nightly pin
       # from ebpf/rust-toolchain.toml; installing the same pin up front
       # keeps the wholesale run off the rustup auto-install path (exact
-      # parity with the ebpf-build job's toolchain step).
+      # parity with the gnu-dynamic job's toolchain step).
       - name: Install eBPF nightly toolchain (dated pin)
         uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # @stable, NIGHT-hunt-20 SHA pin
         with:

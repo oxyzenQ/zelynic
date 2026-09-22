@@ -37,9 +37,10 @@
 #       rust-toolchain.toml pin == Cargo.toml MSRV == workflow RUST_VERSION)
 #  11.  Documentation disclaimer (scripts/inject-disclaimer.sh --check —
 #       every living .md carries the stale-data warning; --fix injects)
-#  12.  rustfmt on ebpf/ (the pure-Rust eBPF crate — the exact
-#       eBPF Build CI command; NIGHT-improve-1 phase 3 replaced the
-#       clang-format gate on bpf/*.c when the C objects were deleted)
+#  12.  rustfmt on ebpf/ (the pure-Rust eBPF crate — CI parity with
+#       the Gate-keepers workflow, which runs this same command on
+#       every push; NIGHT-improve-1 phase 3 replaced the clang-format
+#       gate on bpf/*.c when the C objects were deleted)
 #  13.  Test-tree discipline (owner rule, NIGHT-hunt-17 — every .rs
 #       test file lives under test/, cosmostrix Pattern C: no tests/
 #       autodiscovery directory, no *_tests.rs/*_test.rs under src/,
@@ -420,12 +421,13 @@ else
 fi
 
 # ── 12. rustfmt (ebpf/ pure-Rust crate, exact CI parity) ──────────────────────
-# The eBPF Build jobs gate the ebpf/ crate with the pinned nightly's
-# rustfmt before any compile step runs (NIGHT-improve-1 phase 3: the
-# BPF source is now pure Rust; the old clang-format gate retired
-# with the C files). This check runs the exact CI command so a
-# formatting regression cannot slip locally. The crate resolves its
-# own toolchain from ebpf/rust-toolchain.toml.
+# The Gate-keepers workflow runs this exact command on every push
+# (NIGHT-improve-13 moved the check wholesale here — one check, one
+# place; the compile-carrying CI jobs build the crate with the same
+# pinned nightly, NIGHT-improve-1 phase 3 retired the old
+# clang-format gate with the C files). This check runs the CI
+# command so a formatting regression cannot slip locally. The crate
+# resolves its own toolchain from ebpf/rust-toolchain.toml.
 header "rustfmt (ebpf/ crate, CI parity)"
 if [ -d ebpf ]; then
 	# Subshell: the cd must not leak into the gates below.
