@@ -531,6 +531,34 @@ wall-clock noise class; the deterministic metrics are the
 code-level proof that the verbose work added zero render-path
 cost.
 
+### NIGHT-boost-12 (version-anywhere CLI fix) — 2026-09-23
+
+The `-V` is-version-everywhere session (global version flag +
+top-level-authority rescue table in the error bridge) is
+parse-path-only: no render, limiter, or loader code moved — only
+cli/mod.rs arg wiring, cli/ux.rs suggestion routing, and test pins.
+A = 9fa5e98 (docs-12 HEAD, worktree; its render path is identical
+to 887c1d7's — docs-12 moved comments only), B = 2b1237b
+(boost-12 HEAD), 10 s runs:
+
+| Metric | 9fa5e98 | 2b1237b | Delta |
+|--------|---------|---------|-------|
+| fps | 13164.7 | 13231.7 | +0.5% (noise class) |
+| avg rows | 24.4 | 24.4 | +0.0% |
+| bytes/frame | 1496.1 | 1496.1 | +0.0% |
+| emit bytes/frame | 1433.6 | 1433.6 | -0.0% |
+| density gini | 0.2069 | 0.2069 | -0.0% |
+| frame entropy | 4.2391 | 4.2391 | +0.0% |
+| dirty cells/frame | 772.7 | 772.7 | -0.0% |
+| dirty ratio | 0.3899 | 0.3899 | -0.0% |
+
+Reading: parity to the fourth decimal on every deterministic
+per-frame metric. The changed layer exits before any render call
+(a parsed `-V` prints the banner and returns; the rescue table only
+rewrites error contexts), and the deterministic metrics confirm
+exactly that; the +0.5% fps and bytes/sec churn deltas sit in the
+shared-host wall-clock noise class.
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.
