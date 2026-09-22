@@ -1,7 +1,7 @@
 // Copyright (C) 2026 rezky_nightky
 // SPDX-License-Identifier: GPL-3.0-only
 
-//! Command handlers for zelynic CLI (Dragon Architecture — pure eBPF).
+//! Command handlers for zelynic CLI (Cosmic Dragon Architecture — pure eBPF).
 
 #[cfg(feature = "ebpf")]
 pub(crate) mod block;

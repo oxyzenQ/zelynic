@@ -20,7 +20,7 @@
 <div align="center">
 
 > Run anything you like. Launch whatever you want.\
-> The dragon counts every byte that leaves the den —\
+> The cosmic dragon counts every byte that leaves the den —\
 > and the ledger never lies.
 
 </div>
@@ -311,7 +311,7 @@ the feature table above; the full audit trail is
 
 ## Architecture
 
-**Dragon Architecture** — pure eBPF, no intermediaries:
+**Cosmic Dragon Architecture** — pure eBPF, no intermediaries:
 
 ```
 ┌───────────────────────────────────────────────────┐
@@ -383,7 +383,7 @@ CI rejects any other suffix and never marks a pre-release as "latest".
 
 | Branch | Purpose | Status |
 |--------|---------|--------|
-| `main` | Pure eBPF v11.x (Dragon Architecture) | Maintenance mode |
+| `main` | Pure eBPF v11.x (Cosmic Dragon Architecture) | Maintenance mode |
 
 ## Contributing
 
@@ -405,7 +405,7 @@ policy, supported versions, and what counts as a vulnerability live in
 
 - [Complete Usage Guide](docs/USAGE.md) — every command, workflows, honest limitations, troubleshooting (the flagship reference)
 - [Security Policy](SECURITY.md) — reporting, scope, supported versions
-- [Dragon Architecture](docs/DRAGON_ARCHITECTURE.md) — design + principles
+- [Cosmic Dragon Architecture](docs/COSMIC_DRAGON_ARCHITECTURE.md) — design + principles
 - [Kernel Compatibility](docs/KERNEL_COMPATIBILITY.md) — requirements + distro matrix
 - [Performance Metrics](docs/PERFORMANCE.md) — deep benchmark results + targets
 - [Cross-Distro Results](docs/CROSS_DISTRO_RESULTS.md) — the 6-distro validation record

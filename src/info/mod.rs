@@ -82,7 +82,7 @@ fn build_time() -> &'static str {
 /// assert the full line set without capturing stdout.
 fn version_body() -> String {
     format!(
-        "Architecture: Dragon (pure eBPF)\n\
+        "Architecture: Cosmic Dragon (pure eBPF)\n\
          Build: {} ({})\n\
          Build-time: {}\n\
          Copyright: {COPYRIGHT}\n\
@@ -108,7 +108,7 @@ fn version_body() -> String {
 /// ```text
 /// zelynic: v11.0.0
 /// Per-app network rate limiter and traffic monitor for Linux. Pure eBPF. Silent but killer.
-/// Architecture: Dragon (pure eBPF)
+/// Architecture: Cosmic Dragon (pure eBPF)
 /// Build: linux-amd64-gnu (ad36a81)
 /// Build-time: 9/18/2026 01:30 (UTC)
 /// Copyright: (c) 2026 rezky_nightky (oxyzenQ)
@@ -167,7 +167,7 @@ mod tests {
     fn version_report_carries_build_time_line() {
         let body = version_body();
         for line in [
-            "Architecture: Dragon (pure eBPF)",
+            "Architecture: Cosmic Dragon (pure eBPF)",
             "Build-time: ",
             "Copyright: (c) 2026 rezky_nightky (oxyzenQ)",
             "License: GPL-3.0-only",

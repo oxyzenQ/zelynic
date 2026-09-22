@@ -415,6 +415,34 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Changed
 
+- **docs: NIGHT-improve-17 — Dragon Architecture renamed to Cosmic
+  Dragon Architecture, with the architecture audit recorded** — the
+  name was the last holdout from before the cosmic identity settled:
+  the GPG signing identity is the cosmic dragon, the render engine
+  lineage is the cosmic-dragon-engine (cosmostrix), the persona is
+  dragonzen — the architecture is now the Cosmic Dragon Architecture
+  too, one identity across everything. The rename is repo-wide and
+  lockstep: docs/DRAGON_ARCHITECTURE.md →
+  docs/COSMIC_DRAGON_ARCHITECTURE.md (git mv, history preserved),
+  every "Dragon Architecture" term in docs and module headers, the
+  README tagline ("The cosmic dragon counts every byte that leaves
+  the den"), and — the one PRODUCT string — `zelynic -vV`'s
+  "Architecture:" line now reads "Cosmic Dragon (pure eBPF)", with
+  its pins updated in the same commit (test/integration/smoke.rs,
+  scripts/nonroot-depth-test.sh's --version/-V expectations) so no
+  suite ever sees the two eras mixed. The render-engine comments
+  ("dragon engine" shorthand, cosmic-dragon-engine lineage) keep
+  their names — that engine was always cosmic. The audit half of
+  the task landed as a new Architecture audit section in the
+  renamed doc, every claim import-verified: layer discipline holds
+  (commands reach terminal only through its top-level surface; cli
+  touches eBPF only through ebpf::limiter's public re-exports; the
+  ebpf/ crate couples to userspace only via the #[path]-wired
+  math.rs twin), 363 functions cross-referenced with zero dead,
+  one acquisition path per resource class, symmetric error
+  contracts, known limits documented — and the 775 lines of
+  structure debt cleanup-2/3 retired this session.
+
 - **harness: NIGHT-improve-19 — the light mode retired; one root
   intensity, CLI-grade flag typo rescue** — supermassive-test now
   has exactly two modes: the 5+ minute supermassive matrix (the

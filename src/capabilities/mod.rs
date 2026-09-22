@@ -1,7 +1,7 @@
 // Copyright (C) 2026 rezky_nightky
 // SPDX-License-Identifier: GPL-3.0-only
 
-//! Capability detection (Dragon Architecture — eBPF only).
+//! Capability detection (Cosmic Dragon Architecture — eBPF only).
 //!
 //! Detects the eBPF facts that matter: cgroup v2, BPF filesystem,
 //! kernel version, root privileges.
