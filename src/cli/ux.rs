@@ -86,6 +86,40 @@ fn enrich_removed_subcommand_redirect(e: &mut clap::Error) {
     }
 }
 
+/// Top-level-authority flags (NIGHT-boost-12, generalizing the
+/// NIGHT-improve-3 help rescue): names whose subcommand-position or
+/// `--`-escaped appearance must tip the TOP-LEVEL spelling instead of
+/// the fuzzy rescue.
+///
+/// The `-V` incident that generalized this table: the fuzzy rescue
+/// scored jaro_ci("V", "verbose") = 0.714 — one matching char against
+/// a 7-char candidate clears the 0.7 bar, contradicting the old
+/// "single char never clears 0.7" note — and "version" ties at
+/// exactly 0.714, the tie broken toward `--verbose` by declaration
+/// order (later candidates win ties, mirroring clap). A lone `V` is
+/// intent-ambiguous to the fuzzy engine; this table is not.
+///
+/// `--check-update` rides the same contract: the fuzzy rescue would
+/// suggest the very flag the user already typed (a no-op tip), and
+/// the update check is deliberately a top-level-only action.
+const TOP_LEVEL_FLAG_RESCUES: &[(&str, &str)] = &[
+    ("help", "zelynic --help"),
+    ("h", "zelynic --help"),
+    ("version", "zelynic -V"),
+    ("V", "zelynic -V"),
+    ("check-update", "zelynic --check-update"),
+    ("check-updated", "zelynic --check-update"),
+];
+
+/// The top-level spelling a typed flag name must be redirected to,
+/// or `None` when it is not a top-level authority.
+fn top_level_flag_rescue(typed: &str) -> Option<&'static str> {
+    TOP_LEVEL_FLAG_RESCUES
+        .iter()
+        .find(|(name, _)| *name == typed)
+        .map(|(_, authority)| *authority)
+}
+
 /// Case-insensitive flag-suggestion fallback for clap UnknownArgument
 /// errors.
 ///
@@ -95,18 +129,20 @@ fn enrich_removed_subcommand_redirect(e: &mut clap::Error) {
 /// position and `valid` (white) style — no custom printing, no second
 /// tip, no render surgery.
 ///
-/// Help-position rescue (NIGHT-improve-3): `--help`/`-h` parse at the
-/// top level, so an UnknownArgument for them can only originate from
-/// a subcommand position (the custom help arg is not global). Instead
-/// of the generic rescue — which would suggest the very flag the user
-/// already typed — the tip points at the one help authority:
-/// `zelynic --help`.
+/// Top-level-authority rescue first (NIGHT-improve-3 for help,
+/// NIGHT-boost-12 for version and check-update): `--help`/`-h` and
+/// `--check-update` parse at the top level only, and a typed name in
+/// that set is redirected to the top-level spelling instead of the
+/// generic rescue — which would suggest the very flag the user
+/// already typed. `-V` is global since NIGHT-boost-12, so its rescue
+/// fires only for the `--`-escaped positional case.
 ///
 /// No-op for: every non-UnknownArgument error kind, errors that
 /// already carry a suggestion (clap's tip is never duplicated), and
-/// dashes-only inputs (short flags — Jaro of a single char never
-/// clears 0.7, matching clap's own silence; the `-h` rescue above is
-/// the deliberate exception).
+/// dashes-only inputs. Single-char inputs CAN clear the 0.7 bar —
+/// jaro_ci("V", "verbose") = 0.714, one matching char against a
+/// 7-char candidate (the NIGHT-boost-12 `-V` incident) — which is
+/// exactly why the authority rescues run before the fuzzy fallback.
 fn enrich_unknown_arg_suggestion(e: &mut clap::Error, cmd: &clap::builder::Command) {
     if e.kind() != clap::error::ErrorKind::UnknownArgument {
         return;
@@ -123,15 +159,19 @@ fn enrich_unknown_arg_suggestion(e: &mut clap::Error, cmd: &clap::builder::Comma
     if typed.is_empty() {
         return;
     }
-    if typed == "help" || typed == "h" {
+    if let Some(authority) = top_level_flag_rescue(&typed) {
         // Drop clap's trailing-value escape-hatch tip ("to pass '--help'
         // as a value, use '-- --help'") first: subcommands with optional
-        // positionals (strict-single, top, ...) get it injected
-        // automatically, and two tips dilute the one that matters.
+        // positionals (strict-single, eagle-eyes, ...) get it injected
+        // automatically, and two tips dilute the one that matters. The
+        // escape hatch is also a lie for fixed-positional subcommands —
+        // the owner's live repro followed it (`zelynic ss brave 550kb
+        // -- -V`) and hit "unexpected argument" a second time
+        // (NIGHT-boost-12).
         e.remove(ContextKind::Suggested);
         e.insert(
             ContextKind::SuggestedArg,
-            ContextValue::String("zelynic --help".to_string()),
+            ContextValue::String(authority.to_string()),
         );
         return;
     }
