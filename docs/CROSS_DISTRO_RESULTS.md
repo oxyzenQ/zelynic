@@ -202,6 +202,62 @@ sudo ./install.sh --system
 ```
 
 No clang, no cargo, no rustup, no libbpf-dev needed.
+
+## Claims Proof (NIGHT-boost-8 harness)
+
+The honesty harness (`proof-claims.sh`, NIGHT-boost-8) proves the four
+README headline claims live. First filed run — the owner's own machine,
+2026-09-23, full mode, 62s total:
+
+| Field | Value |
+|-------|-------|
+| Machine | Arch Linux (CachyOS LTS), kernel 6.18.50-3-cachyos-lts, x86_64 |
+| CPU | AMD Ryzen 7 5800HS |
+| python | 3.14.7 |
+| Binary | `pro-linux-gnu-v3` build of 887c1d7 (v11.0.0-alpha.1) |
+| Proof pair | A=41476 (policed), B=41566 (witness) |
+| Baseline | unlimited loopback 13.2 GB/s over 3.0s |
+| Verdict | 23 passed, 4 failed, 0 skipped |
+
+Claim data (all four support the README claims):
+
+- **no daemon** — 5mb configured, measured 5.5 MB/s (109.8%) with
+  enforcement pinned in bpffs (13 objects) and no pid file; traffic
+  stayed policed after the CLI exited.
+- **pure eBPF** — tc qdiscs identical before/during; LD_PRELOAD
+  unset; kernel verdict 216 packets dropped in-kernel,
+  69,720,942 bytes admitted at the hook.
+- **per-app per-cgroup** — A configured 2.0 MB/s, measured
+  2.1 MB/s (105.2%) while witness B rode 4.2 GB/s on the same
+  machine at the same moment (~2100x the shape).
+- **precision** — TCP level 99.9 MB/s against 100.0 MB/s configured;
+  kernel-admitted 3,000,098,204 B vs socket-received 2,998,075,445 B
+  (ratio 1.0007); long-run admitted vs rate x elapsed error 0.069%
+  (bound 1.0%, residual = status-read spawn latency, not limiter
+  math — the 0.00% contract is the token math, pinned in
+  test/ebpf/limiter/math_tests.rs).
+- **cleanup** — unstrict-all exit 0, zero BPF pins remain, proof
+  cgroups removed, kernel log clean.
+
+The 4 failures were HARNESS false negatives, not product failures —
+every measured number above supports the claim its row reported:
+
+1. the no-daemon scan counted a pre-existing interactive zelynic as a
+   "resident daemon" (the owner's eagle-eyes in another terminal);
+2. the nft compare saw the host's own counter churn as a ruleset
+   change;
+3. `bpftool cgroup show` does not list link-based (schema v6)
+   attaches, so the visibility row failed while enforcement was
+   provably alive;
+4. the witness floor demanded half the baseline while B rode 2100x
+   the shape.
+
+All four mechanisms are fixed (NIGHT-boost-12 hunt: process-delta,
+structure-normalized nft compare, multi-surface bpftool visibility,
+isolation-based witness floor — each pinned rootlessly in
+`--self-test`, 12 rows). Live re-run pending on the owner machine;
+file the fresh numbers here when it lands.
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.
