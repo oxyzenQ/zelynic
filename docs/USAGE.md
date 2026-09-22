@@ -195,14 +195,22 @@ you need it ("Stale BPF pin files detected").
 sudo zelynic status [--print-json]
 ```
 
-Reads the pinned maps and prints: watchdog state (normally "not set
-(enforcing)"), how many dl/ul policies are active, and a table of
-CGROUP / DOWNLOAD / UPLOAD / ALLOWED / DROPPED per cgroup, with labels
-resolved by majority vote over the live processes inside each cgroup.
-ALLOWED/DROPPED carry cumulative BYTE counters since the maps were
-created — one metric per cell, evidence of enforcement rather than a
-live rate meter; the packet counts ride `--print-json` where
-automation reads them.
+Reads the pinned maps and prints the active limits: how many dl/ul
+policies, and a table of CGROUP / DOWNLOAD / UPLOAD / ALLOWED /
+DROPPED per cgroup, with labels resolved by majority vote over the
+live processes inside each cgroup. ALLOWED/DROPPED carry cumulative
+BYTE counters since the maps were created — one metric per cell,
+evidence of enforcement rather than a live rate meter; the packet
+counts ride `--print-json` where automation reads them.
+
+The output opens with the purple flagship title bar (the same anchor
+the eagle-eyes monitor carries) and signs off with the signature
+footer — `zelynic v<version> by oxyzenQ (rezky_nightky)` — bottom-left
+(NIGHT-boost-5). The watchdog line appears only when the BPF
+auto-expiry deadline is actually ARMED; a dormant watchdog prints
+nothing ("Watchdog: not set (enforcing)" was retired as noise — it
+read like a state, but it was the absence of one). `--print-json`
+keeps the `"watchdog"` field unchanged for scripts.
 
 ### list-apps — discovery
 
