@@ -1,3 +1,7 @@
 [codespell]
 skip = ./.git,./target,./ebpf/target,./assets,./Cargo.lock
-ignore-words-list = ratatui,uptodate
+# hevy is a DELIBERATE misspelling fixture in the supermassive
+# self-test typo-rescue pins (NIGHT-improve-19) — the engine must
+# suggest --heavy for it, so the word itself has to survive the
+# spelling gate.
+ignore-words-list = ratatui,uptodate,hevy
