@@ -848,6 +848,35 @@ alone — the owner's NIGHT-hunt-18 call.
   test tree), benchmarking + frame-bench (docs and test tree
   consumers). Net: 683 lines of burden gone, zero coverage lost.
 
+- **build: NIGHT-cleanup-3 — build.sh's five dead build subcommands
+  retired; the whole-tree audit found the rest clean** — the
+  all-files pass (docs, assets, workflows, Rust surface, scripts,
+  root files) confirmed the tree tight: every doc is referenced,
+  the src/RULES.md + docs/RULES.md twins are a deliberate
+  colocated-reminder convention, the logo is used, no TODO/FIXME
+  markers survive, CI's clippy -D warnings plus the
+  NIGHT-optimized-2 dead-function cross-reference (0 dead of 363)
+  cover the Rust surface, and every script path the living docs
+  mention exists (the two grep hits — stress-test.sh and
+  verify-bpf-refill.c — are intentional: a retirement note and
+  an out-of-repo workspace harness SAFETY_ANALYSIS names
+  explicitly). The one real finding: build.sh — which every
+  consumer uses as the CHECK orchestrator (`build.sh check-all`)
+  — still carried the pre-pro-native generation's build modes:
+  release (plain `cargo build --profile release`, contradicting
+  the pro-native mandate), release-debug, ci (check-all + basic
+  release), all (fmt + clippy + debug + basic release + tests),
+  and bench (cargo bench with zero [[bench]] targets to run —
+  benchmarking lives in scripts/benchmarking.sh and frame-bench
+  .py). No doc, workflow, or script invoked any of them; the
+  real product builds were already two official entry points
+  (bootstrap-ebpf.sh for dev, install.sh for users, both
+  pro-native). All five subcommands and their functions are
+  gone; the help text now states the contract: build.sh is the
+  check orchestrator, product binaries come from the pro-native
+  entry points. Kept: debug (debugger-ready dev builds), test,
+  check, check-all, fmt, clean, update, stats, help.
+
 ### Fixed
 
 - **harness: the curl burst rate verdict now divides by the actual
