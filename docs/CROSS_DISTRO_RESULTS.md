@@ -19,7 +19,11 @@
 > `supermassive-test.sh` (whole command surface) — are the
 > re-validation tools. Run them on any new distro (commands are in the
 > README's Test Results section; `--json` for machine-readable output)
-> and file the measured ratios in this document.
+> and file the measured ratios in this document. A third harness joins
+> them (NIGHT-improve-23): `supermassive-test-v2.sh`, the end-to-end
+> daily-use simulation (strict / limit / block / unstrict, local AND
+> real internet) — its realnet rows are the ones worth filing here,
+> since they exercise the production traffic shape.
 
 ## Summary
 

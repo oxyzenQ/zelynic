@@ -499,6 +499,23 @@ the matrix is the default. A mistyped flag (`--self-tesss`) gets a typo
 tip suggesting `--self-test`, and `--light` gets a message naming its
 replacement.
 
+Want to simulate a real DAY of zelynic use before trusting it on the
+daily driver — the four policy families (strict, limit, block,
+unstrict) in daily-session order, each proven on the deterministic
+local lane AND against the real internet, with honest SKIPs when the
+machine has no egress? That is v2 (NIGHT-improve-23):
+
+```bash
+sudo ./scripts/supermassive-test-v2.sh               # e2e simulation (4+ min)
+./scripts/supermassive-test-v2.sh --self-test         # engine smoke, no root
+```
+
+The division of labor is deliberate: v1 keeps every
+"problems-use-zelynic" stage (kill, regression, crash, fatal CLI
+usage) — a machine green on v1 is qualified for a power outage; v2
+carries only what real use exercises — a machine green on v2 is
+qualified for the daily driver.
+
 The harness always tests the checkout's own build: repo target
 outputs resolve first (newest build wins), and a version GATE
 refuses any binary whose `-V` doesn't match the checkout's

@@ -16,6 +16,50 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Added
 
+- **test: NIGHT-improve-23 — supermassive-test-v2: the end-to-end
+  daily-use simulation, strict / limit / block / unstrict on the
+  local lane AND the real internet** — the owner's directive: v1
+  proves the whole command surface survives supermassive stress
+  (full parser span, kill/regression battery, fatal CLI-usage
+  refusals); v2 simulates a real day of zelynic use before it
+  lands on the daily driver, production grade. The four policy
+  families run in daily-session order — strict (policy write,
+  asymmetric -d/-u buckets, live rate change 1mb -> 2mb under an
+  active policy, strict-multi group bucket), limit (limit-all
+  --force sweep), block (block-single / block-multi zero goodput
+  + kernel drops), unstrict (unlock restore, selective removal,
+  unstrict-all teardown leaves no rows) — and each family is
+  proven TWICE: on the deterministic loopback lane (v1's own
+  stages) and against the real internet (curl workers inside the
+  policed cgroup, real external processes, the same class of proof
+  as the owner's manual browser tests). Zero engine duplication:
+  v2 imports v1 whole (importlib; the dash in the filename defeats
+  a plain import — v1's entrypoint is __main__-guarded) and drives
+  its CgroupSet fleet, HttpServer, policy helpers, spawn_in_cgroup
+  workers, band_check verdicts, and enforcement proofs, setting
+  v1's module globals the same way v1's own main() does. The
+  realnet lane is LTS-hard: a fallback chain of long-lived public
+  endpoints (Cloudflare speed, then OVH, then Tele2), first
+  reachable feeds the run, every miss reported; honest SKIP
+  verdicts (never silent, never false FAILs) for no-egress
+  machines, missing curl, slow baselines, and upload endpoints
+  that refuse streaming bodies (an UNLIMITED sanity upload runs
+  first — verify the instrument before measuring with it);
+  realnet rate rows use a wider band floor (0.45 vs loopback's
+  0.65 — slow-start and path-RTT patience) with the SAME 1.30
+  policer-tripwire ceiling; the unstrict restore floor derives
+  from a re-measured realnet baseline, not a configured number.
+  CLI mirrors v1: --self-test (no root, no zelynic, no BPF, no
+  network — engine import, endpoint registry, worker command
+  contract), --binary, --json (realnet endpoint names + worker
+  faults included), --band for the local lane; unknown flags exit
+  2 with the known-options list. CI runs the v2 self-test on
+  every push beside v1's, and ci.yml's consumer-scoped path filter
+  learned the new script. README's test section documents the
+  division of labor (green on v2 = qualified for the daily driver;
+  green on v1 = qualified for a power outage) and
+  CROSS_DISTRO_RESULTS invites the realnet rows for filing.
+
 - **ci: NIGHT-improve-20 — musl CI parity: a first-class static twin
   job on the kernel 5.x LTS floor and the latest runner, every
   push** — the musl surface now gets the same every-push contract
