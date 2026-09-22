@@ -362,6 +362,39 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Changed
 
+- **scripts: install/uninstall build pro-native and verify their
+  postconditions (NIGHT-improve-15)** — the owner-directed audit of
+  the install/uninstall pair, upgraded to the peak-stable contract.
+  (1) install.sh source mode now builds through the canonical native
+  alias (default `cargo pro-native-gnu --locked`; `--musl` opt-in for
+  the static x86_64 build) instead of the plain
+  `cargo build --release` — the binary lands at the profile's contract
+  path (target/pro-native-gnu/ or
+  target/x86_64-unknown-linux-musl/pro-native-musl/), never clobbers
+  target/release/, and carries its build label in `-V`; `--musl`
+  refuses on non-x86_64 hosts with the mirror-block pointer instead of
+  cross-compiling a binary onto the wrong machine. (2) "built" now
+  MEANS built: the post-build gate checks the binary exists at the
+  contract path and answers `-V` as `zelynic: v...` before anything is
+  installed; the pre-built path (a release-payload drop beside the
+  script) gets the same `-V` gate and announces its no-build mode, so
+  a damaged or foreign file fails at install time, not on the user's
+  first command. (3) uninstall.sh clears kernel enforcement BEFORE
+  removing files: when /sys/fs/bpf/zelynic still has pins it finds a
+  zelynic binary and runs `unstrict-all` through it (escalating only
+  in the sudo-sanctioned --system/--all modes; --user mode warns with
+  the exact command and touches nothing), verifies the pin directory
+  emptied, and prints the manual steps when no binary is left — the
+  old order could delete the binary first and strand live limits in
+  the kernel with no tool left to remove them. (4) every removal is
+  verified gone afterwards and failures are counted into the exit
+  status (a green run means clean); the legacy /tmp/zelynic.pid file
+  is cleaned too, running instances are reported (they survive binary
+  deletion and exit on their own), and the bootstrap host tools
+  (bpf-linker in ~/.local/bin, the dated nightly pin) are deliberately
+  left in place, named in the final note with their manual removal
+  commands.
+
 - **observer/connections: deep audit, four precision/harmony fixes
   (NIGHT-hunt-15)** — the owner-approved sweep of the whole monitor
   path (loader, connections, render, terminal loop, identity). (1)
