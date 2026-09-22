@@ -179,6 +179,15 @@ objects are identical no matter which alias built them. Note: a
 native binary only runs on the CPU family it was compiled for; ship
 the plain release build for distribution.
 
+`scripts/install.sh` builds through the same alias — default
+`cargo pro-native-gnu`, `--musl` for the static x86_64 build — and
+verifies the binary answers `-V` before anything is installed
+(NIGHT-improve-15). `scripts/uninstall.sh` clears kernel enforcement
+first: while BPF pins are still live under `/sys/fs/bpf/zelynic` it
+runs `unstrict-all` (or prints the exact manual steps when no binary
+is left) before deleting files, so active limits never outlive the
+tool that can remove them.
+
 ### Usage
 
 Every command, once — flags live in `--help`, formats in
