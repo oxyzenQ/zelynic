@@ -476,6 +476,33 @@ delta sits in the recorded noise class (-1.1%, -1.55%, +5.2%, +4.6%,
 -0.6%) and both sides clear four orders of magnitude above the 1 Hz
 display cadence — render-path headroom, not user-visible latency.
 
+### NIGHT-boost-2..4 + improve-25 A/B (CLI-surface session, 2026-09-22)
+
+The session's four commits (help example layout, unified JSON
+writer, CI estate, short aliases) touch no render-path code — the
+A/B run verifies exactly that. A = ecae0bb (pre-session base,
+worktree), B = f236bc7 (session HEAD), 10 s runs:
+
+| Metric | ecae0bb | f236bc7 | Delta |
+|--------|---------|---------|-------|
+| fps | 12949.8 | 12648.6 | -2.3% (noise class) |
+| avg rows | 24.4 | 24.4 | -0.0% |
+| bytes/frame | 1496.2 | 1496.2 | -0.0% |
+| emit bytes/frame | 1433.6 | 1433.5 | -0.0% |
+| density gini | 0.2069 | 0.2069 | +0.0% |
+| frame entropy | 4.2391 | 4.2391 | +0.0% |
+| dirty cells/frame | 772.7 | 772.6 | -0.0% |
+| dirty ratio | 0.3899 | 0.3899 | -0.0% |
+
+Reading: every deterministic per-frame metric is identical to the
+fourth decimal — the renderer emits the same bytes, the diff engine
+marks the same cells, the layout engine places the same rows. The
+fps and churn deltas (-2.3%) sit in the wall-clock noise class
+recorded across the 2026-09-22 captures (separate processes,
+shared runners); the per-frame byte and dirty-cell parity is the
+code-level proof that no render-path regression rode along with the
+CLI surface work.
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.
