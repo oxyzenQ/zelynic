@@ -795,6 +795,32 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Fixed
 
+- **harness: the curl burst rate verdict now divides by the actual
+  wall-clock span, not the nominal window (NIGHT-hunt-32)** — the
+  2026-09-22 light run failed `curl burst: 4 parallel curls, one
+  shared limit` at 135.0% against BAND_HI = 1.30 with a clean
+  kernel-side proof in the same stage (BPF allowed 6,633,475 B =
+  the 1 MB burst seed + 5.63 s of refill, and the accounting row
+  matched client bytes at 98.3%). Root cause: N parallel curls
+  each run `--max-time window` from their OWN exec moment, so
+  staggered spawns (bash cgroup join + exec + TCP connect,
+  magnified when the previous stage's teardown still loads the
+  box) stretch the bucket's drain span past the nominal window by
+  up to ~0.7 s — the nominal divisor charged that stagger, plus
+  the one-time burst bonus, to the configured rate. Single-curl
+  rows stay accurate because one curl's stagger is ~50 ms; only
+  the burst row compounds it across clients, which is why the
+  row passed the night before and flipped without any kernel or
+  harness change on the enforcement path — flaky by construction.
+  The verdict now divides the client total by the measured span
+  (first spawn to last join) with a sanity guard (span must land
+  in [window, window + 2.0 s] or the stage fails with a
+  spawn/teardown-pathology message instead of dividing garbage),
+  keeping BAND_HI a true policer tripwire: any over-delivery past
+  the burst amortization still trips it, while the physical
+  ceiling with the real divisor is ~1.2 for this stage shape.
+  The span is recorded in the row detail for diagnosability.
+
 - **repo: the two CI regressions from the last pushes closed at
   source** — the NIGHT-optimized-2 push landed with three
   map-reader chains in `src/ebpf/limiter/stats.rs` that rustfmt
