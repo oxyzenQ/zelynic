@@ -3,6 +3,7 @@
 
 //! Monitor command handlers — status, list-apps, eagle-eyes.
 
+use crate::output::print_json;
 use anyhow::Result;
 
 /// Handle `zelynic status` — show active limits + watchdog.
@@ -14,10 +15,9 @@ pub fn handle_status(verbose: bool, json: bool) -> Result<()> {
 
     if !pin_dir_has_files() {
         if json {
-            println_safe!(
-                "{}",
-                serde_json::json!({"watchdog": "clean", "active_limits": 0, "limits": []})
-            );
+            print_json(&serde_json::json!({
+                "watchdog": "clean", "active_limits": 0, "limits": []
+            }));
         } else {
             println_safe!("No active limits.");
         }
@@ -26,10 +26,9 @@ pub fn handle_status(verbose: bool, json: bool) -> Result<()> {
 
     if !Limiter::is_pinned() {
         if json {
-            println_safe!(
-                "{}",
-                serde_json::json!({"error": "stale pins detected", "hint": "run 'zelynic recover'"})
-            );
+            print_json(&serde_json::json!({
+                "error": "stale pins detected", "hint": "run 'zelynic recover'"
+            }));
         } else {
             println_safe!("Stale BPF pin files detected (partial enforcement state).");
             println_safe!("Run 'zelynic recover' to clean up, then re-apply limits.");
@@ -72,19 +71,22 @@ pub fn handle_list_apps(json: bool) -> Result<()> {
     entries.retain(|e| !e.comm.is_empty());
 
     if json {
-        let apps: Vec<_> = entries
+        // NIGHT-boost-3: typed structs serialize field-by-field straight
+        // through the unified print_json writer — no serde_json::Value
+        // tree (one allocation per node) for the biggest document the
+        // CLI emits. Field names and order are the pinned scripting
+        // contract (docs/USAGE.md JSON reference).
+        let apps: Vec<AppEntryJson> = entries
             .iter()
-            .map(|e| {
-                serde_json::json!({
-                    "process": e.comm,
-                    "cgroup_id": e.cgroup_id,
-                    "uid": e.uid,
-                    "processes": conns.proc_count(e.cgroup_id),
-                    "sockets": conns.socket_count(e.cgroup_id),
-                })
+            .map(|e| AppEntryJson {
+                process: e.comm.clone(),
+                cgroup_id: e.cgroup_id,
+                uid: e.uid,
+                processes: conns.proc_count(e.cgroup_id),
+                sockets: conns.socket_count(e.cgroup_id),
             })
             .collect();
-        println_safe!("{}", serde_json::json!({"total": count, "apps": apps}));
+        print_json(&ListAppsJson { total: count, apps });
         return Ok(());
     }
 
@@ -235,6 +237,33 @@ pub fn handle_eagle_eyes(
 
     observer.detach();
     Ok(())
+}
+
+// ── list-apps JSON document (NIGHT-boost-3) ─────────────────────────────────
+//
+// Typed serializers for the `list-apps --print-json` contract — the
+// same pattern display.rs uses for StatusJson/LimitEntry. Field names
+// and declaration order are the pinned scripting API (docs/USAGE.md
+// JSON reference); serialization rides the unified
+// [`crate::output::print_json`] writer.
+
+/// One `apps[]` row of the `list-apps --print-json` document.
+#[cfg(feature = "ebpf")]
+#[derive(serde::Serialize)]
+struct AppEntryJson {
+    process: String,
+    cgroup_id: u32,
+    uid: u32,
+    processes: usize,
+    sockets: usize,
+}
+
+/// The `list-apps --print-json` document: `{"total": N, "apps": []}`.
+#[cfg(feature = "ebpf")]
+#[derive(serde::Serialize)]
+struct ListAppsJson {
+    total: usize,
+    apps: Vec<AppEntryJson>,
 }
 
 #[cfg(test)]

@@ -156,7 +156,12 @@ fn find_cgroup2_mount() -> Option<String> {
 pub fn run_doctor(json: bool) -> Result<()> {
     let report = detect();
     if json {
-        println_safe!("{}", serde_json::to_string_pretty(&report)?);
+        // NIGHT-boost-3: the unified compact writer — same single-line
+        // contract as status and list-apps (the two sites that already
+        // printed compact via json! + Display; doctor and status were
+        // the pretty stragglers the owner's "optimize json print"
+        // mandate folded in).
+        crate::output::print_json(&report);
     } else {
         print_report(&report);
     }

@@ -118,6 +118,36 @@ macro_rules! println_safe {
         }};
 }
 
+// ── JSON print primitive (NIGHT-boost-3) ────────────────────────────────────
+//
+// The `--print-json` write path, unified. The five call sites
+// (status clean / status stale-pins / status proper / list-apps /
+// doctor) previously mixed two renderers: `to_string_pretty` +
+// `println_safe!` on two sites (a full pretty document allocated as
+// a String, then copied a second time through the format machinery)
+// and ad-hoc `json!` + Display on three. Every site now rides the
+// one primitive below.
+
+/// Print one JSON document to stdout as a single compact line.
+///
+/// Contract (NIGHT-boost-3, owner mandate "optimize json print"):
+/// - compact single line — the machine-first format. One document
+///   per invocation, `jq`-ready and NDJSON-friendly; pretty-printing
+///   belongs to the consumer (`... | jq '.'`), not the producer.
+/// - direct writer — `serde_json::to_writer` serializes field-by-field
+///   into the locked stdout: no intermediate String allocation, no
+///   second copy through the format machinery.
+/// - broken-pipe-safe — write errors are discarded exactly like
+///   [`println_safe!`], so a piped reader exiting early truncates
+///   the document instead of panicking the process.
+pub fn print_json<T: serde::Serialize + ?Sized>(value: &T) {
+    use std::io::Write as _;
+    let mut out = std::io::stdout().lock();
+    let _ = serde_json::to_writer(&mut out, value);
+    let _ = out.write_all(b"\n");
+    let _ = out.flush();
+}
+
 /// Terminal color capability, detected once and cached for the process.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ColorCapability {
