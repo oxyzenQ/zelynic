@@ -183,6 +183,13 @@ jobs:
       - name: Supermassive v2 harness engine self-test
         run: python3 scripts/supermassive-test-v2.py --self-test
 
+      # NIGHT-boost-8: the claims-proof harness (no daemon, pure
+      # eBPF, per-app, precision) self-tests the same engine-only
+      # lane — the live proof itself needs root and runs on the
+      # owner's machines (the supermassive realnet pattern).
+      - name: Claims-proof harness engine self-test
+        run: python3 scripts/proof-claims.py --self-test
+
       # NIGHT-boost-2: the plain `cargo build --release` verify is
       # retired — the release page never shipped a plain-release
       # gnu binary, so the shape it verified was one nobody
