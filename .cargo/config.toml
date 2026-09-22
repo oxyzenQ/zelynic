@@ -1,8 +1,21 @@
 # Copyright (C) 2026 rezky_nightky
 # SPDX-License-Identifier: GPL-3.0-only
 
+# NIGHT-boost-10: build.jobs is deliberately UNSET (the old `jobs = 4`
+# hardcode is gone). Cargo's default is machine detection — every
+# logical core the host reports (nproc): a 4-core GitHub runner gets 4
+# jobs, an 8-core workstation gets 8, maximum muscle per machine
+# (cosmostrix lineage: the reference config pins no jobs either).
+# A hardcoded number could only ever cap below the hardware — silent
+# waste on every host with more cores than the constant.
+#
+# The one place parallelism IS capped on purpose is scripts/build.sh:
+# its local heat cap (75% of cores, max 8) governs script-driven flows
+# via the CARGO_BUILD_JOBS env var (env beats config), and CI lifts
+# that cap with ZELYNIC_JOBS="$(nproc)" — the check job's boost-7
+# invocation. Direct cargo invocations (dev builds, the CI build
+# matrix, release builds) ride the machine-detected default above.
 [build]
-jobs = 4
 rustflags = ["-C", "codegen-units=1"]
 
 # Static binary configuration for musl target
