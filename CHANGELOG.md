@@ -795,6 +795,25 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Fixed
 
+- **repo: the two CI regressions from the last pushes closed at
+  source** — the NIGHT-optimized-2 push landed with three
+  map-reader chains in `src/ebpf/limiter/stats.rs` that rustfmt
+  re-flows differently than written (the sandbox has no cargo, so
+  CI was the compile authority and caught them in the Lint & Test
+  job's Check formatting step), and the NIGHT-improve-14 push
+  carried two GPG annotation lines in maintenance.yml past the
+  yamllint 120-character cap (128 and 160), failing the
+  Gate-keepers run. The chains now match the exact diff CI
+  printed (semantics unchanged — pure re-flow), and the expired
+  and expiring-subkey annotations are split into a short
+  annotation line plus a plain-echo detail line carrying the warn
+  window, so no information is lost and every line is under the
+  cap. Verified locally: yamllint clean on all workflows, YAML
+  parse OK, ruff and the 17-check self-test green, gate-keepers
+  15/15 minus the cargo-dependent rustfmt step (absent toolchain
+  in this sandbox; CI's eBPF Build jobs are the authority there
+  and were already green on the same tree).
+
 - **harness: the limit-all sleeper race closed with a residency
   barrier (NIGHT-improve-15 follow-up)** — the 2026-09-22 heavy run
   failed `limit-all --force: machine-wide sweep — fleet cgroup a row
