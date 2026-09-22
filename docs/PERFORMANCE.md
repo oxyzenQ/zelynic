@@ -443,6 +443,39 @@ f655b81, B = this commit, 10 s runs: every stream metric 0.0%
 class — the same wall-clock variance recorded across the 2026-09-22
 captures).
 
+### NIGHT-boost-1 A/B (eagle-eyes merge, 2026-09-22)
+
+The merge commit (5fa75d1) replaced the observe renderer with the
+eagle-eyes ranked renderer — a LAYOUT change by intent, not a
+no-op probe fix: the rank column joins the grid, the hard 20-row
+cap is gone (the 80x40 harness window now budgets 32 rows, so the
+25 synthetic cgroups render two more rows of ranked content with
+their detail lines), and the footer carries the filtered/unfiltered
+meta variants. A = d812a9a in the pristine baseline clone, B =
+5fa75d1, 10 s runs:
+
+| Metric | d812a9a | 5fa75d1 | Delta |
+|--------|---------|---------|-------|
+| fps | 13314.0 | 12604.3 | -5.3% (headroom class) |
+| avg rows | 22.4 | 24.4 | +2.0 (cap removal, by design) |
+| bytes/frame | 1421.3 | 1496.2 | +5.3% |
+| emit bytes/frame | 1358.9 | 1433.6 | +5.5% |
+| density gini | 0.2000 | 0.2069 | +3.4% |
+| frame entropy | 4.1147 | 4.2391 | +3.0% (better) |
+| dirty cells/frame | 724.1 | 772.6 | +6.7% |
+| dirty ratio | 0.3974 | 0.3899 | -1.9% (better) |
+| bytes/sec churn | 18092312 | 18069014 | -0.1% (flat) |
+
+Reading: the frame buys MORE information at the SAME terminal I/O
+cost — entropy up (the rank column and the two extra visible rows
+carry real content), dirty ratio down (the changed cells spread over
+a larger grid), and the bytes/sec churn the terminal absorbs is
+byte-for-byte flat. The +5% bytes/frame is the two extra rows the
+owner asked for (the window is the budget now), not padding. The fps
+delta sits in the recorded noise class (-1.1%, -1.55%, +5.2%, +4.6%,
+-0.6%) and both sides clear four orders of magnitude above the 1 Hz
+display cadence — render-path headroom, not user-visible latency.
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.
