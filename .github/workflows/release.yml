@@ -191,7 +191,7 @@ jobs:
           components: rust-src
 
       # NIGHT-improve-11: the pinned bpf-linker install is shared by
-      # four CI jobs (check, ebpf-build, maintenance, this one) — one
+      # four CI jobs (check, gnu-dynamic, maintenance, this one) — one
       # script, one place to bump the pin.
       - name: Install bpf-linker 0.11.1 (prebuilt static musl)
         run: bash scripts/install-bpf-linker.sh

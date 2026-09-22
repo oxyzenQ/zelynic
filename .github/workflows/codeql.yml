@@ -10,7 +10,7 @@
 # `rust`, which now covers the whole shipped surface. The ebpf/
 # crate itself compiles on the nightly pin via the nested build —
 # outside CodeQL's stable-toolchain autobuild, and gated by the
-# eBPF Build CI jobs instead. Python tooling scripts are covered by
+# Gnu Dynamic CI jobs instead. Python tooling scripts are covered by
 # the codespell gate in ci.yml; shell scripts by shellcheck — now
 # running CI-side too via the wholesale gate-keepers job
 # (NIGHT-hunt-23). The paths filters are Rust-only for the same
@@ -87,7 +87,7 @@ jobs:
 
       # Pinned to rust: the security surface users run is the Rust
       # binary — the whole shipped code is Rust (phase 3). The ebpf/
-      # BPF crate is compiled by the eBPF Build CI jobs on the
+      # BPF crate is compiled by the Gnu Dynamic CI jobs on the
       # nightly pin (outside CodeQL's stable autobuild).
       #
       # codeql-action is the ONE action deliberately left on a moving

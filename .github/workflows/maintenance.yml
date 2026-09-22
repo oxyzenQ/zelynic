@@ -153,7 +153,7 @@ jobs:
           components: rust-src
 
       # NIGHT-improve-11: the pinned bpf-linker install is shared by
-      # four CI jobs (check, ebpf-build, release, this one) — one
+      # four CI jobs (check, gnu-dynamic, release, this one) — one
       # script, one place to bump the pin.
       - name: Install bpf-linker 0.11.1 (prebuilt static musl)
         run: bash scripts/install-bpf-linker.sh
@@ -221,9 +221,22 @@ jobs:
         if: steps.changes.outputs.changed == 'true'
         run: python3 scripts/check-policy.py
 
-      - name: Verify release build
+      # NIGHT-boost-2: the sweep's verify rides the pro profile the
+      # release floor ships (linux gnu v3, via the .cargo/config.toml
+      # alias — ebpf feature and --locked included) instead of the
+      # retired plain `--release` build: dependency updates are
+      # proven against a tier someone actually distributes. One
+      # shape, not the ci.yml trio — this job validates lockfile
+      # health, not artifacts; ci.yml and release.yml own the full
+      # per-tier verification. RUSTFLAGS composed inline for the same
+      # env-shadow reason ci.yml documents (workflow-level -D
+      # warnings would eat the alias's target-cpu flag).
+      - name: 'Verify pro build (linux gnu v3)'
         if: steps.changes.outputs.changed == 'true'
-        run: cargo build --release --locked
+        run: |
+          set -euo pipefail
+          RUSTFLAGS="-D warnings -C target-cpu=x86-64-v3" cargo pro-linux-gnu-v3 --locked
+          ./target/pro-linux-gnu-v3/zelynic -V
 
       - name: Upload validated Cargo.lock
         if: steps.changes.outputs.changed == 'true'

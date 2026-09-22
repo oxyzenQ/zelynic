@@ -734,9 +734,10 @@ compiles against the wrong sysroot. The dated nightly pin moved
 from prose to a real file (`ebpf/rust-toolchain.toml`, with
 rust-src + rustfmt) — the risk-register mitigation made
 structural. CI followed: every build-carrying job installs the
-pin and bpf-linker 0.11.1; the eBPF Build matrix dropped
-clang/libbpf-dev and now gates the crate with rustfmt and builds
-it directly.
+pin and bpf-linker 0.11.1; the Gnu Dynamic matrix (then named
+eBPF Build, NIGHT-boost-2) dropped clang/libbpf-dev and builds
+the crate directly — its fmt gate moved wholesale to the
+Gate-keepers workflow (NIGHT-improve-13, one check, one place).
 
 ### Stage 2 — the embedded loaders (76b9547)
 

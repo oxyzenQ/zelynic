@@ -5,7 +5,7 @@
 #
 # Install the pinned bpf-linker binary (NIGHT-improve-11).
 #
-# The four CI jobs (ci.yml check + ebpf-build, release.yml build,
+# The four CI jobs (ci.yml check + gnu-dynamic, release.yml build,
 # maintenance.yml validate) each carried a byte-identical copy of
 # this block — the pin now lives in exactly one place. Local
 # non-root installs belong to scripts/bootstrap-ebpf.sh

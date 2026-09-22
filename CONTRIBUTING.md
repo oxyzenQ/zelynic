@@ -206,8 +206,9 @@ codespell, SPDX license headers (check-headers.sh), file permission guard
 (644 files / 755 executables and directories), the repo-wide emoji sweep,
 the 500-line Rust LOC cap (check-loc.sh), the toolchain-pin sync check
 (check-rust-version-sync.sh), rustfmt on the ebpf/ crate (the exact
-eBPF Build CI command — the former clang-format gate retired with the
-C sources in NIGHT-improve-1 phase 3), the documentation disclaimer
+CI-parity command the Gate-keepers workflow runs — the former
+clang-format gate retired with the C sources in NIGHT-improve-1
+phase 3), the documentation disclaimer
 check (inject-disclaimer.sh), the test-tree discipline (NIGHT-hunt-17:
 every .rs test file under the single `test/` tree), the English-only
 language gate (check-language.sh), and the python lint + format gate
