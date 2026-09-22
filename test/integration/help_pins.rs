@@ -95,6 +95,76 @@ fn test_help_groups_commands_by_verb() {
     }
 }
 
+/// NIGHT-boost-4: example annotations sit on their OWN line above the
+/// command — no example line may carry a trailing right-side comment
+/// (the misaligned inline notes the owner flagged as messy) — and
+/// every runnable example line renders in status green when color is
+/// on, staying plain when piped.
+#[test]
+fn test_help_examples_annotate_above_and_render_green() {
+    let output = zelynic_cmd()
+        .arg("--help")
+        .output()
+        .expect("Failed to execute zelynic --help");
+
+    assert_eq!(output.status.code(), Some(0));
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    // Layout pin: a command line never carries its '#' note on the
+    // right side — notes are standalone lines above the command.
+    for line in stdout.lines() {
+        assert!(
+            !(line.contains("zelynic") && line.contains(" # ")),
+            "example notes must sit on their own line above the command, got: {line}"
+        );
+    }
+    assert!(
+        stdout.lines().any(|l| l.trim_start().starts_with('#')),
+        "the reference must carry '#'-annotated examples"
+    );
+    // Pipe-safety pin: with NO_COLOR set the reference carries zero
+    // escape bytes — the green tier must ride the capability layer,
+    // never leak into piped output.
+    assert!(
+        !stdout.contains('\x1b'),
+        "NO_COLOR help must be escape-free, got: {stdout}"
+    );
+
+    // Color pin: with color forced at 256-color depth, the example
+    // command line under its note renders in the status-green tier
+    // (index 84, the documented cube match for #50FA7B).
+    let mut cmd = zelynic_cmd();
+    cmd.arg("--help")
+        .env_remove("NO_COLOR")
+        .env_remove("CLICOLOR")
+        .env("CLICOLOR_FORCE", "1")
+        .env("TERM", "xterm-256color");
+    let colored = cmd
+        .output()
+        .expect("Failed to execute zelynic --help (color run)");
+    assert_eq!(colored.status.code(), Some(0));
+    let colored_stdout = String::from_utf8_lossy(&colored.stdout);
+    let lines: Vec<&str> = colored_stdout.lines().collect();
+    let idx = lines
+        .iter()
+        .position(|l| l.trim() == "# download only")
+        .expect("the '# download only' note must exist");
+    let cmd_line = lines
+        .get(idx + 1)
+        .expect("the note must be followed by its command line");
+    assert!(
+        cmd_line.contains("\x1b[38;5;84m")
+            && cmd_line.contains("zelynic strict-single brave -d 100kb"),
+        "the example command line must render status green, got: {cmd_line}"
+    );
+    // The note line itself stays uncolored — green is the command
+    // tier only, the annotation rides the default color.
+    assert!(
+        !lines[idx].contains('\x1b'),
+        "the note line must stay uncolored, got: {}",
+        lines[idx]
+    );
+}
+
 /// NIGHT-hunt-16: the unstrict family reads symmetrically with the
 /// strict family — the CANONICAL single-target command is
 /// `unstrict-single` (synopsis line in --help) and `unstrict` is the

@@ -219,6 +219,17 @@ pub fn brand_bold_open() -> &'static str {
     }
 }
 
+/// Status green open sequence (regular weight), capability-aware.
+#[must_use]
+pub fn ok_open() -> &'static str {
+    match capability() {
+        ColorCapability::TrueColor => "\x1b[38;2;80;250;123m",
+        ColorCapability::Color256 => "\x1b[38;5;84m",
+        ColorCapability::Color16 => "\x1b[32m",
+        ColorCapability::Mono => "",
+    }
+}
+
 /// Bold status green open sequence, capability-aware.
 #[must_use]
 pub fn ok_bold_open() -> &'static str {
@@ -322,6 +333,20 @@ pub fn brand(msg: &str) -> String {
     match capability() {
         ColorCapability::Mono => msg.to_string(),
         _ => format!("{}{msg}{}", brand_open(), reset()),
+    }
+}
+
+/// Wrap `msg` in status green (regular weight). Plain text when color
+/// is off.
+///
+/// NIGHT-boost-4: the `--help` example tier — every runnable example
+/// line renders green (the "this is what you type" tier), one step
+/// below the bold purple section headings in the visual hierarchy.
+#[must_use]
+pub fn ok(msg: &str) -> String {
+    match capability() {
+        ColorCapability::Mono => msg.to_string(),
+        _ => format!("{}{msg}{}", ok_open(), reset()),
     }
 }
 
