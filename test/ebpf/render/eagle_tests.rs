@@ -172,6 +172,12 @@ fn footer_total_row_aligns_and_sums_all_candidates() {
 /// Target autodetect (NIGHT-boost-1): a name token expands to
 /// every matching cgroup; a numeric token is a cgroup ID
 /// verbatim; unmatched names surface as note lines.
+///
+/// The id SET is compared sorted: `identity.all()` walks a HashMap,
+/// so expansion order is per-process random (the renderer re-sorts
+/// rows by consumption, so nothing observable depends on it) — the
+/// CI catch on 5fa75d1 pinned exactly this; an order-sensitive
+/// assert here is flaky by construction.
 #[test]
 fn name_targets_expand_and_misses_note() {
     let identity = identity_with(&[("brave", 7001), ("brave", 7002), ("firefox", 7003)]);
@@ -183,8 +189,10 @@ fn name_targets_expand_and_misses_note() {
         ],
         &identity,
     );
+    let mut got = ids.clone();
+    got.sort_unstable();
     assert_eq!(
-        ids,
+        got,
         vec![7001, 7002, 73386],
         "name expands + numeric verbatim"
     );
