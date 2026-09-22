@@ -51,7 +51,7 @@ sudo ./scripts/benchmarking.sh --stress 1000  # 1000s sustained enforcement test
 |-----------|--------|----------|--------|
 | Pin files (13 files) | < 10KB | **0 bytes** | Yes |
 | BPF programs | kernel-managed | **2 active** | Yes |
-| BPF maps (8+) | < 100KB total | pinned via LIBBPF_PIN_BY_NAME | Yes |
+| BPF maps (9) | < 100KB total | pinned via aya `PinningType::ByName` (the LIBBPF_PIN_BY_NAME semantic the C twin used) | Yes |
 | Userspace RSS (during op) | < 5MB | process exits after apply | Yes |
 
 ### Sustained Enforcement (1000s)

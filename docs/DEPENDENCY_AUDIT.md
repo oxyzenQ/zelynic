@@ -98,12 +98,14 @@ the surface to watch first when aya releases.
 
 **The real exposure was CI, not Cargo.toml — hardened this pass:**
 
-- Every workflow action is now SHA-pinned (NIGHT-hunt-20): all 11
+- Every workflow action is now SHA-pinned (NIGHT-hunt-20): all 13
   `dtolnay/rust-toolchain@stable` references (a mutable branch on a
   personal account, running in the maintenance job that holds a
   `contents: write` token — a compromised tag could have pushed code
-  to main), `Swatinem/rust-cache`, `softprops/action-gh-release`,
-  and every `actions/checkout|cache|upload-artifact|download-artifact`
+  to main; the count grew from 11 to 13 when NIGHT-improve-20 gave
+  the musl job its own stable + nightly installs), `Swatinem/rust-cache`,
+  `softprops/action-gh-release`, and every
+  `actions/checkout|cache|upload-artifact|download-artifact`
   reference. The single exception, documented in codeql.yml:
   `github/codeql-action` stays on its moving v4 tag because pinning
   it would freeze the security scanner itself.

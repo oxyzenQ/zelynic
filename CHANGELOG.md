@@ -1817,6 +1817,35 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Docs
 
+- **docs: NIGHT-hunt-24 — stale-data sweep: every count, name, and
+  consumer list re-verified against the tree after the improve-20..23
+  landing** — the hunt the owner ordered, run with a verifier's eye
+  (nothing deleted on suspicion; everything deleted or renumbered on
+  evidence). DEPENDENCY_AUDIT's SHA-pinning claim said "all 11
+  dtolnay/rust-toolchain references" — the musl job of
+  NIGHT-improve-20 grew the real count to 13, and the claim now says
+  13 with the growth reason named. The shared harness engine's
+  contract still said "the two flagship harnesses" and "the single
+  engine both import" — the family is three since improve-23, and
+  both the zelynic_harness_lib.py docstring and v1's own header now
+  name the v2 consumer (v1's header also states the new invariant:
+  a stage fixed in v1 lands in v2's local lane with no second copy
+  to drift). USAGE.md's BINARY GATE troubleshooting row listed two
+  harness startups; v2 shares the same gate and is listed.
+  STABILITY.md's "covered by the supermassive test suite" now names
+  both suites and their division of labor. PERFORMANCE.md's map
+  row claimed "(8+) pinned via LIBBPF_PIN_BY_NAME" — the source
+  declares exactly nine maps on aya's PinningType::ByName (the C
+  semantic), and the row now says so. Verified NOT stale and left
+  alone: the 13-pin-file count (9 maps + 2 program pins + 2 link
+  pins, confirmed in src/ebpf/limiter/mod.rs), the gate-keepers
+  "15 numbered sections / 17 gates" arithmetic, the two intentional
+  retirement mentions (stress-test.sh, verify-bpf-refill.c) that a
+  prior hunt codified, and every "no longer" design note in src/
+  (all explain live behavior; zero TODO/FIXME markers exist in the
+  tree). ruff, codespell, the language gate, and both harness
+  self-tests re-run green after the sweep.
+
 - **docs: STABILITY.md — the nightly eBPF toolchain honestly
   documented as a quarantined limit (NIGHT-lts-1)** — the owner's
   question: the eBPF dependencies ride a nightly toolchain, which is
