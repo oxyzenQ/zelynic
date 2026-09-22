@@ -127,6 +127,80 @@ fn removed_help_all_flag_suggests_help() {
     );
 }
 
+// ── Version-anywhere + top-level-authority rescues (NIGHT-boost-12) ──
+
+/// The owner's live repro: `zelynic -v ss brave 550kb -V` must PARSE
+/// (the version flag is global) — before NIGHT-boost-12 it died on
+/// the misleading `--verbose` tip, the jaro_ci V-tie broken toward
+/// verbose. `main` intercepts `cli.version` before dispatch, so the
+/// command never runs.
+#[test]
+fn version_parses_after_subcommand_positionals() {
+    use clap::Parser;
+    let cli = Cli::try_parse_from(["zelynic", "-v", "ss", "brave", "550kb", "-V"])
+        .expect("-V must parse after subcommand positionals");
+    assert!(cli.version, "the -V flag must reach main for interception");
+    assert!(cli.verbose, "-v survives alongside");
+    assert!(
+        matches!(cli.command, Some(crate::cli::Commands::StrictSingle { .. })),
+        "the subcommand must still parse behind the flag"
+    );
+}
+
+/// The long form rides the same anywhere-contract.
+#[test]
+fn version_long_form_parses_after_subcommand() {
+    use clap::Parser;
+    let cli = Cli::try_parse_from(["zelynic", "ss", "brave", "550kb", "--version"])
+        .expect("--version must parse after subcommand positionals");
+    assert!(cli.version);
+}
+
+/// The escaped case clap's old tip lied about: `-- -V` is a positional
+/// overflow (strict-single takes two), so it errors — but the tip must
+/// name the top-level spelling `zelynic -V`, never `--verbose`, and
+/// the escape-hatch tip must be gone.
+#[test]
+fn escaped_version_value_tips_the_top_level_spelling() {
+    let rendered = render_via_bridge(&["zelynic", "ss", "brave", "550kb", "--", "-V"]);
+    assert!(
+        rendered.contains("unexpected argument '-V'"),
+        "must name the rejected value, got:\n{rendered}"
+    );
+    assert!(
+        rendered.contains("'zelynic -V'"),
+        "tip must point at the top-level version authority, got:\n{rendered}"
+    );
+    assert!(
+        !rendered.contains("'--verbose'"),
+        "the fuzzy rescue must not fire for V (the NIGHT-boost-12 lie), got:\n{rendered}"
+    );
+    assert!(
+        !rendered.contains("use '-- -V'"),
+        "the escape-hatch tip must be dropped, got:\n{rendered}"
+    );
+}
+
+/// `--check-update` is a top-level-only action; typed at a subcommand
+/// it must tip the top-level spelling instead of suggesting the very
+/// flag the user already typed.
+#[test]
+fn check_update_at_subcommand_tips_top_level_spelling() {
+    let rendered = render_via_bridge(&["zelynic", "status", "--check-update"]);
+    assert!(
+        rendered.contains("unexpected argument '--check-update'"),
+        "must name the rejected flag, got:\n{rendered}"
+    );
+    assert!(
+        rendered.contains("'zelynic --check-update'"),
+        "tip must point at the top-level spelling, got:\n{rendered}"
+    );
+    assert!(
+        !rendered.contains("use '-- --check-update'"),
+        "the escape-hatch tip must be dropped, got:\n{rendered}"
+    );
+}
+
 // ── Removed-subcommand redirects (NIGHT-boost-1) ───────────────────
 
 /// The merged observe/top commands must land users on eagle-eyes:

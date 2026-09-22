@@ -39,7 +39,15 @@ pub struct Cli {
     pub help: bool,
 
     /// Print complete version and build information
-    #[arg(short = 'V', long = "version", global = false)]
+    ///
+    /// Global since NIGHT-boost-12: `-V`/`--version` parse at every
+    /// level (`zelynic ss brave 550kb -V` prints the banner), closing
+    /// the ambiguous usage where a subcommand-position `-V` died on a
+    /// misleading `--verbose` tip — the rescue engine's jaro_ci ties
+    /// "V" to verbose and version at exactly 0.714 and broke the tie
+    /// wrong. Intercepted in `main` before any command dispatch, so
+    /// the command never runs.
+    #[arg(short = 'V', long = "version", global = true)]
     pub version: bool,
 
     /// Check the latest upstream GitHub release
