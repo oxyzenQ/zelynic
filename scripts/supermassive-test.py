@@ -1403,20 +1403,49 @@ def test_curl_burst(window, clients, rate_bps, baseline):
         # policed because the whole harness shared the target cgroup.
         totals[i] = curl_in_cgroup("a", window)[0]
 
+    # NIGHT-hunt-32: the burst's rate verdict divides by the ACTUAL
+    # wall-clock span (first spawn -> last join), not the nominal
+    # window. N parallel curls each run --max-time window from their
+    # OWN exec moment, so staggered spawns (bash join + exec + TCP
+    # connect, magnified when the previous stage's teardown is still
+    # loading the box) stretch the bucket's drain span past window by
+    # up to ~0.7 s — the 2026-09-22 light run measured 135.0% against
+    # BAND_HI = 1.30 while the kernel-side proof stayed clean (bpf
+    # allowed 6.63 MB = 1 MB burst + 5.63 s of refill, matching the
+    # true span). The nominal divisor charged the burst bonus and the
+    # spawn stagger to the configured rate; the actual span keeps the
+    # policer-tripwire meaning of BAND_HI intact (measured rate vs
+    # configured rate) instead of widening the band to hide it.
+    t0 = time.monotonic()
     threads = [threading.Thread(target=worker, args=(i,)) for i in range(clients)]
     for t in threads:
         t.start()
     for t in threads:
         t.join()
+    span = time.monotonic() - t0
     if any(v is None for v in totals):
         record("curl burst: parallel download under limit", "FAIL", "a curl produced no metric")
+        clear_all()
+        return False
+    # Span sanity: every curl runs --max-time window, so the span is
+    # at least window; a span beyond window + 2.0 s means spawn or
+    # teardown pathology (a hung worker would have tripped the
+    # communicate timeout first) — fail loudly rather than divide a
+    # garbage span into the total.
+    if span < window or span > window + 2.0:
+        record(
+            f"curl burst: {clients} parallel curls, one shared limit",
+            "FAIL",
+            f"stage span {span:.2f} s outside [{window:.1f}, {window + 2.0:.1f}] — spawn/teardown pathology",
+        )
         clear_all()
         return False
     total = sum(totals)
     passed = band_check(
         f"curl burst: {clients} parallel curls, one shared limit",
-        total / window,
+        total / span,
         rate_bps,
+        extra=f"span {span:.2f} s",
     )
     enforcement_proofs("curl burst", total)
     clear_all()
