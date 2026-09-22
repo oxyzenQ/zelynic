@@ -197,7 +197,11 @@ scripts/
 --check, cargo clippy --all-targets --all-features -D warnings, cargo test,
 cargo audit + cargo deny (both skip with a warning when not installed),
 the repository policy check (check-policy.py), and the version-string
-anti-pattern check.
+anti-pattern check. The `-q` / `--quiet` flag cuts the output down to
+the essentials — per-check OK lines, warnings, failures, no banners — and is
+the exact shape the CI "Lint & Test" job runs (NIGHT-boost-7): the gate
+CI enforces and the gate the owner runs before a commit are one
+invocation, so the two can never drift apart.
 
 `gate-keepers.sh` runs the 15 non-code gate sections — the shell triad
 (bash -n + shellcheck + shfmt) on shell scripts, yamllint + actionlint

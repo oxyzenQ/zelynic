@@ -65,8 +65,15 @@ export CARGO_TERM_COLOR=always
 # Logging Functions
 # =============================================================================
 
+# NIGHT-boost-7: log_info/log_step are the banners and step
+# headers — the lines -q suppresses. The verdict-bearing calls
+# (log_success, log_warning, log_error) always emit: a quiet run
+# still shows every per-check OK, every skip warning (a skipped
+# gate must never look like a passed one), and every failure.
 log_info() {
-	echo -e "${BLUE}[INFO]${NC} $1"
+	if [ "${QUIET:-0}" -eq 0 ]; then
+		echo -e "${BLUE}[INFO]${NC} $1"
+	fi
 }
 
 log_success() {
@@ -82,7 +89,9 @@ log_error() {
 }
 
 log_step() {
-	echo -e "${CYAN}[→]${NC} $1"
+	if [ "${QUIET:-0}" -eq 0 ]; then
+		echo -e "${CYAN}[→]${NC} $1"
+	fi
 }
 
 cargo_subcommand_available() {
@@ -223,15 +232,18 @@ build_debug() {
 run_tests() {
 	log_step "Running test suite..."
 
+	# --locked (NIGHT-boost-7): CI and the owner's gate must never
+	# drift — the lockfile is committed, so a test run that would
+	# rewrite it fails instead of silently regenerating it.
 	if [ "${NEXTEST_AVAILABLE:-0}" -eq 1 ]; then
-		if cargo nextest run --target "${TARGET}" --jobs "${MAX_JOBS}"; then
+		if cargo nextest run --locked --target "${TARGET}" --jobs "${MAX_JOBS}"; then
 			log_success "All tests passed (nextest)"
 		else
 			log_error "Tests failed"
 			return 1
 		fi
 	else
-		if cargo test --target "${TARGET}" --jobs "${MAX_JOBS}" -- --test-threads="${MAX_JOBS}"; then
+		if cargo test --locked --target "${TARGET}" --jobs "${MAX_JOBS}" -- --test-threads="${MAX_JOBS}"; then
 			log_success "All tests passed"
 		else
 			log_error "Tests failed"
@@ -243,7 +255,8 @@ run_tests() {
 run_clippy() {
 	log_step "Running Clippy linter..."
 
-	if cargo clippy --target "${TARGET}" --all-targets --all-features -- -D warnings; then
+	# --locked: same lockfile-freeze contract as run_tests above.
+	if cargo clippy --locked --target "${TARGET}" --all-targets --all-features -- -D warnings; then
 		log_success "Clippy checks passed"
 	else
 		log_error "Clippy found issues"
@@ -335,9 +348,11 @@ run_version_anti_pattern_check() {
 run_comprehensive_check() {
 	local failed=0
 
-	echo ""
-	log_info "=== Comprehensive Code Quality Check ==="
-	echo ""
+	if [ "${QUIET:-0}" -eq 0 ]; then
+		echo ""
+		log_info "=== Comprehensive Code Quality Check ==="
+		echo ""
+	fi
 
 	check_rust_toolchain || ((failed++))
 	run_fmt_check || ((failed++))
@@ -348,7 +363,9 @@ run_comprehensive_check() {
 	run_policy_check || ((failed++))
 	run_version_anti_pattern_check || ((failed++))
 
-	echo ""
+	if [ "${QUIET:-0}" -eq 0 ]; then
+		echo ""
+	fi
 	if [ $failed -eq 0 ]; then
 		log_success "All quality checks passed!"
 		return 0
@@ -405,7 +422,8 @@ COMMANDS:
     test            Run test suite
 
     check           Quick checks (fmt + clippy)
-    check-all       Recommended local quality gate (fmt + clippy + test + audit + deny + policy)
+    check-all       Recommended local quality gate (fmt + clippy + test
+                    + audit + deny + policy + version anti-pattern)
     fmt             Format code
     clean           Clean build artifacts
     update          Update dependencies and audit
@@ -425,6 +443,9 @@ the pro-native mandate.
 OPTIONS:
     --no-cache      Disable build caching
     --verbose       Enable verbose output
+    --quiet, -q     Essentials only: per-check OK / warning / failure
+                    lines, no banners or step headers (the CI shape;
+                    NIGHT-boost-7)
 
 ENVIRONMENT VARIABLES:
     ZELYNIC_JOBS     Override CPU core limit (default: auto)
@@ -433,6 +454,7 @@ ENVIRONMENT VARIABLES:
 
 EXAMPLES:
     ./scripts/build.sh check-all                # Recommended before commits/PRs
+    ./scripts/build.sh check-all -q             # Essentials only (CI shape)
     ./scripts/build.sh debug                    # Debugger-ready dev build
     ZELYNIC_JOBS=4 ./scripts/build.sh test      # Tests capped at 4 cores
 
@@ -453,6 +475,7 @@ EOF
 
 VERBOSE=0
 NO_CACHE=0
+QUIET=0
 COMMAND=""
 
 ARGS=()
@@ -466,6 +489,10 @@ while [ $# -gt 0 ]; do
 	--no-cache)
 		NO_CACHE=1
 		unset RUSTC_WRAPPER
+		shift
+		;;
+	--quiet | -q)
+		QUIET=1
 		shift
 		;;
 	help | -h | --help)
