@@ -463,44 +463,22 @@ it actually do?" questions in one run.
 
 ## JSON reference for scripting
 
-`--print-json` output is stable API (v11 contract). Shapes:
+`--print-json` output is stable API (v11 contract). Every command
+emits ONE compact single-line JSON document per invocation
+(NIGHT-boost-3, the machine-first contract — `jq`-ready and
+NDJSON-friendly; pretty-print on the consumer side with `| jq '.'`).
+Field shapes:
 
 `status --print-json`:
 
 ```json
-{
-  "watchdog": "enforcing",
-  "active_limits": 2,
-  "limits": [
-    {
-      "cgroup_id": 18571,
-      "label": "brave",
-      "download_bps": 100000,
-      "upload_bps": 100000,
-      "packets_allowed": 232,
-      "packets_dropped": 4718,
-      "bytes_allowed": 29520,
-      "bytes_dropped": 8031234
-    }
-  ]
-}
+{"watchdog":"enforcing","active_limits":2,"limits":[{"cgroup_id":18571,"label":"brave","download_bps":100000,"upload_bps":100000,"packets_allowed":232,"packets_dropped":4718,"bytes_allowed":29520,"bytes_dropped":8031234}]}
 ```
 
 `list-apps --print-json`:
 
 ```json
-{
-  "total": 142,
-  "apps": [
-    {
-      "process": "brave",
-      "cgroup_id": 18571,
-      "uid": 1000,
-      "processes": 4,
-      "sockets": 9
-    }
-  ]
-}
+{"total":142,"apps":[{"process":"brave","cgroup_id":18571,"uid":1000,"processes":4,"sockets":9}]}
 ```
 
 `doctor --print-json` reports the capability check fields (kernel,

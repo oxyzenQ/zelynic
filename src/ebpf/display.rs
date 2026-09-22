@@ -194,6 +194,15 @@ pub fn print_status(
 }
 
 /// Print JSON status (for --print-json / scripting).
+///
+/// NIGHT-boost-3: the write rides the unified
+/// [`crate::output::print_json`] primitive — one compact line,
+/// serialized field-by-field straight into the locked stdout (the old
+/// path allocated the full pretty document as a String, then copied
+/// it a second time through the format machinery). The document shape
+/// (field names, order) is unchanged; scripts that parsed the pretty
+/// layout with `jq` are unaffected, and the one-line contract is the
+/// machine-first format the scripting docs promise.
 pub fn print_status_json(
     dl_policies: &[(u32, PolicyRaw)],
     ul_policies: &[(u32, PolicyRaw)],
@@ -202,7 +211,7 @@ pub fn print_status_json(
     watchdog_deadline: Option<u64>,
 ) -> Result<()> {
     let status = status_json(dl_policies, ul_policies, stats, identity, watchdog_deadline);
-    println_safe!("{}", serde_json::to_string_pretty(&status)?);
+    crate::output::print_json(&status);
     Ok(())
 }
 

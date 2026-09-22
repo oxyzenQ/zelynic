@@ -29,6 +29,44 @@ fn test_doctor() {
     assert!(!stdout.is_empty(), "zelynic doctor produced no output");
 }
 
+/// NIGHT-boost-3: `--print-json` is the machine-first contract — one
+/// compact single-line JSON document per invocation. doctor runs
+/// unprivileged, so it pins the unified output::print_json writer
+/// end-to-end: no pretty-print indentation, exactly one line, and
+/// the line parses as one JSON document with the field contract
+/// intact.
+#[test]
+fn test_doctor_print_json_is_one_compact_line() {
+    let output = zelynic_cmd()
+        .args(["doctor", "--print-json"])
+        .output()
+        .expect("Failed to execute zelynic doctor --print-json");
+
+    assert!(
+        output.status.success(),
+        "zelynic doctor --print-json failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let lines: Vec<&str> = stdout.lines().collect();
+    assert_eq!(lines.len(), 1, "exactly one output line, got: {stdout}");
+    let doc = lines[0];
+    assert!(
+        doc.starts_with('{') && doc.ends_with('}'),
+        "a compact JSON object, got: {doc}"
+    );
+    assert!(
+        !doc.contains("  "),
+        "no pretty-print indentation, got: {doc}"
+    );
+    let parsed: serde_json::Value =
+        serde_json::from_str(doc).expect("the line must parse as one JSON document");
+    assert!(
+        parsed.get("system").is_some() && parsed.get("ebpf_supported").is_some(),
+        "field contract intact, got: {doc}"
+    );
+}
+
 /// Test that list-apps works (requires root + eBPF feature)
 #[test]
 #[ignore = "requires root + eBPF feature"]
