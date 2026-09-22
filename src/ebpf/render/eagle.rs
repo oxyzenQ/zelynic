@@ -27,10 +27,18 @@ use crate::output::{brand, suggestion, warn_bold};
 
 /// Eagle-eyes column layout derived from the frame width.
 ///
-/// Degradation ladder (2-column gaps, 6-column rank cell):
-/// - width >= 54: # | PROCESS | DOWNLOAD | UPLOAD | RATE
-/// - width >= 42: # | PROCESS | DOWNLOAD | UPLOAD      (RATE dropped)
-/// - width  < 42: # | PROCESS (min 12) | DOWNLOAD | UPLOAD at 9-wide numerics
+/// Degradation ladder (6-column rank cell, 1-column gaps):
+/// - width >= 51: (rank) | PROCESS | DOWNLOAD | UPLOAD | RATE
+/// - width >= 40: (rank) | PROCESS | DOWNLOAD | UPLOAD   (RATE dropped)
+/// - width  < 40: (rank) | PROCESS (min 12) | DOWNLOAD | UPLOAD at 9-wide
+///
+/// NIGHT-boost-5: the header rank cell is blank (the owner's "#"
+/// header retired) and the absorption math makes every data row end
+/// flush at the frame width — the label column absorbs exactly what
+/// the rank cell, the gaps, and the numeric columns leave, so the
+/// right border (title bar, separators, rows, TOTAL) is one straight
+/// edge mirroring the left. The old reserve formula over-allocated
+/// three spare columns, leaving every row 3 short of the separator.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct EagleColumns {
     label_w: usize,
@@ -42,15 +50,17 @@ struct EagleColumns {
 /// Plan the eagle-eyes column layout for a given terminal width.
 #[must_use]
 fn plan_eagle_columns(width: usize) -> EagleColumns {
-    const RANK_W: usize = 6; // "  N  " rank column incl. margins
+    const RANK_W: usize = 6; // 2 gutter + 2 rank digits + 2 gap
     const NUM_W: usize = 10;
     const NUM_W_TIGHT: usize = 9;
     const LABEL_MIN: usize = 12;
 
     // Full layout: rank + label + 3 numeric columns (dl, ul, rate).
-    if width >= RANK_W + LABEL_MIN + 3 * NUM_W + 3 * 2 {
+    // Reserve = rank cell + 3 x (gap + numeric): the label absorbs
+    // the rest, so a full row spans exactly the frame width.
+    if width >= RANK_W + LABEL_MIN + 3 * (1 + NUM_W) {
         return EagleColumns {
-            label_w: width - RANK_W - 3 * NUM_W - 3 * 2,
+            label_w: width - RANK_W - 3 * (1 + NUM_W),
             dl_w: NUM_W,
             ul_w: NUM_W,
             show_rate: true,
@@ -60,9 +70,9 @@ fn plan_eagle_columns(width: usize) -> EagleColumns {
     // RATE dropped (the realtime-precision column is also the widest
     // sacrifice on a narrow frame — dl/ul deltas survive): rank +
     // label + 2 numeric columns.
-    if width >= RANK_W + LABEL_MIN + 2 * NUM_W + 2 * 2 {
+    if width >= RANK_W + LABEL_MIN + 2 * (1 + NUM_W) {
         return EagleColumns {
-            label_w: width - RANK_W - 2 * NUM_W - 2 * 2,
+            label_w: width - RANK_W - 2 * (1 + NUM_W),
             dl_w: NUM_W,
             ul_w: NUM_W,
             show_rate: false,
@@ -195,29 +205,37 @@ pub fn render_eagle_eyes(
     // the live one, and the focus view carries the lifetime story).
     sorted.sort_by_key(|c| std::cmp::Reverse(c.bytes + c.ingress_bytes));
 
-    // Header row (regular purple — brand layer, NIGHT-hunt-5).
+    // Header row (regular purple — brand layer, NIGHT-hunt-5). The
+    // rank cell is BLANK (NIGHT-boost-5: the owner retired the "#"
+    // header — the digits below speak for themselves) and PROCESS is
+    // padded to the label width BEFORE coloring, so the header cells
+    // sit exactly over the columns they name — the old header left
+    // the label unpadded, cramming every column header to the left
+    // of the data grid (the "mismatch positions" the owner reported).
     if cols.show_rate {
-        lines.push(format!(
-            "  {:>2}  {} {:>w1$} {:>w2$} {:>w3$}",
-            "#",
-            brand(&truncate_label("PROCESS", cols.label_w)),
+        lines.push(brand(&format!(
+            "  {:>2}  {:<w0$} {:>w1$} {:>w2$} {:>w3$}",
+            "",
+            truncate_label("PROCESS", cols.label_w),
             "DOWNLOAD",
             "UPLOAD",
             "RATE",
+            w0 = cols.label_w,
             w1 = cols.dl_w,
             w2 = cols.ul_w,
             w3 = cols.dl_w
-        ));
+        )));
     } else {
-        lines.push(format!(
-            "  {:>2}  {} {:>w1$} {:>w2$}",
-            "#",
-            brand(&truncate_label("PROCESS", cols.label_w)),
+        lines.push(brand(&format!(
+            "  {:>2}  {:<w0$} {:>w1$} {:>w2$}",
+            "",
+            truncate_label("PROCESS", cols.label_w),
             "DOWNLOAD",
             "UPLOAD",
+            w0 = cols.label_w,
             w1 = cols.dl_w,
             w2 = cols.ul_w
-        ));
+        )));
     }
     lines.push(format!("  {}", "─".repeat(geo.width.saturating_sub(2))));
 
