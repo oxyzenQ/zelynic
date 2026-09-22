@@ -235,11 +235,19 @@ alias is removed, and typing it lands on a redirect tip pointing
 here). Apps are RANKED by current consumption,
 rank 1 first, with per-cgroup detail lines naming the processes and
 remote endpoints inside. The row count follows the terminal height —
-there is no `--limit`: a short window shows the top few consumers, a
-tall one spans the list down to the quiet apps. Always-live box mode
-(NIGHT-hunt-12): full-screen in-place refresh, no scrollback spam,
-adaptive layout (columns degrade on narrow terminals; the RATE column
-appears from width 54). Frames render through the diff-based engine
+there is no `--limit`: the autodetect ladder (NIGHT-boost-5) reserves
+12 chrome lines (title, header, separators, TOTAL row, meta line,
+discovery hints, signature footer, breathing room), so a windowed
+88x32 terminal shows a 20-row list, the classic 80x24 shows 12, and
+a 22-line window still gets the 10-row flagship density. Always-live
+box mode (NIGHT-hunt-12): full-screen in-place refresh, no scrollback
+spam, adaptive layout (columns degrade on narrow terminals; the RATE
+column appears from width 51). The frame's left border is one
+straight edge (NIGHT-boost-5): the title bar carries the same
+two-column gutter the rows use, and the label column absorbs the
+remaining width so every line closes flush at the frame's right
+edge. The column header's rank cell is blank — the digits speak for
+themselves. Frames render through the diff-based engine
 (NIGHT-improve-2): only the rows that changed since the previous
 frame are written — one write syscall per frame, an unchanged frame
 costs zero I/O at every terminal height (NIGHT-improve-6), and the

@@ -129,8 +129,8 @@ mod tests {
             "lifetime sums both lifetime counters: {joined}"
         );
         assert!(
-            joined.starts_with("─── zelynic eagle-eyes — cg:7001 (brave)"),
-            "title names the focused target: {joined}"
+            joined.starts_with("  ─── zelynic eagle-eyes — cg:7001 (brave)"),
+            "guttered title names the focused target: {joined}"
         );
     }
 
@@ -148,7 +148,7 @@ mod tests {
             Duration::from_secs(1),
         );
         assert_eq!(lines.len(), 2, "idle focus = title + no-traffic note");
-        assert!(lines[0].starts_with("─── zelynic eagle-eyes — cg:73386"));
+        assert!(lines[0].starts_with("  ─── zelynic eagle-eyes — cg:73386"));
         assert_eq!(lines[1], "  no traffic for cg:73386 since last check");
     }
 }

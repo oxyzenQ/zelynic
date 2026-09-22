@@ -23,21 +23,23 @@ fn identity_with(comms: &[(&str, u32)]) -> IdentityMap {
 }
 
 /// Full column set at a comfortable width, label absorbing the rest.
+/// NIGHT-boost-5: the reserve is rank(6) + 3 x (gap 1 + numeric 10),
+/// so a full row ends flush at the frame width.
 #[test]
 fn eagle_columns_full_width() {
     let cols = plan_eagle_columns(100);
     assert!(cols.show_rate);
     assert_eq!(cols.dl_w, 10);
-    assert_eq!(cols.label_w, 100 - 6 - 3 * 10 - 3 * 2);
+    assert_eq!(cols.label_w, 100 - 6 - 3 * 11);
 }
 
 /// RATE is the first column to go on narrow frames (full layout
-/// starts at width 54: 6 rank + 12 label + 30 numerics + 6 gaps).
+/// starts at width 51: 6 rank + 12 label + 3 x (gap + numeric)).
 #[test]
-fn eagle_columns_drop_rate_below_54() {
-    let cols = plan_eagle_columns(53);
+fn eagle_columns_drop_rate_below_51() {
+    let cols = plan_eagle_columns(50);
     assert!(!cols.show_rate);
-    assert_eq!(cols.label_w, 53 - 6 - 2 * 10 - 2 * 2);
+    assert_eq!(cols.label_w, 50 - 6 - 2 * 11);
 }
 
 /// Ultra-narrow frames pin the label to the minimum and tighten
@@ -65,7 +67,11 @@ fn eagle_frame_builds_lines() {
         Duration::from_secs(1),
     );
     assert_eq!(lines.len(), 2, "idle frame = title + waiting note");
-    assert!(lines[0].starts_with("─── zelynic eagle-eyes — 1s refresh"));
+    assert!(
+        lines[0].starts_with("  ─── zelynic eagle-eyes — 1s refresh"),
+        "title carries the frame gutter: {}",
+        lines[0]
+    );
     assert_eq!(lines[1], "  waiting for traffic…");
 }
 

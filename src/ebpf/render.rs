@@ -12,6 +12,13 @@
 //! purple and the column headers regular purple — the same #A855F7
 //! source of truth as the rest of the output layer.
 //!
+//! Left-edge contract (NIGHT-boost-5): the title bar carries the same
+//! two-column gutter every row, separator, and footer uses, so the
+//! frame's left border is one straight line — the old title started
+//! at column 0 while the table started at column 2, the "big gap on
+//! the left border" the owner reported. Every frame line now shares
+//! the 2-column gutter and closes flush at the frame width.
+//!
 //! Dynamic screen size: the terminal size is re-probed on every
 //! frame — ONE TIOCGWINSZ ioctl per frame through the canonical
 //! terminal-layer probe (NIGHT-hunt-15: the old path issued two,
@@ -23,7 +30,12 @@
 //! width, and the row count follows the terminal height
 //! (NIGHT-boost-1: the former --limit and the hard 20-row cap are
 //! gone — the window IS the budget) so a frame never scrolls off
-//! the alt screen.
+//! the alt screen. The autodetect ladder (NIGHT-boost-5): the
+//! chrome reserves 12 lines (title, header, separators, TOTAL row,
+//! meta line, discovery hints, signature footer, breathing room),
+//! so the owner's windowed 88x32 terminal shows a 20-row list, the
+//! classic 80x24 shows 12, and a 22-line window still gets the
+//! 10-row flagship floor.
 //!
 //! Realtime interval: callers pass the poll interval so the RATE
 //! column converts per-frame deltas into bytes-per-second
@@ -60,12 +72,17 @@ use crate::output::brand_bold;
 
 /// Vertical budget consumed by everything that is not a data row:
 /// title, column header, separator, footer separator, the TOTAL
-/// totals row, the packets/cgroups meta line, and one line of
-/// breathing room top and bottom (improve-13: the run-on single
-/// footer line became a column-aligned TOTAL row plus a meta line —
-/// one more chrome line buys numbers that sit under the columns they
-/// sum, the flagship-grid contract the data rows already follow).
-pub(crate) const CHROME_LINES: usize = 8;
+/// totals row, the packets/cgroups meta line, one blank line of
+/// breathing room, the two discovery-hint lines (top consumer + the
+/// strict-single tip, unfiltered frames), the signature footer, and
+/// one spare row so the footer never sits on the terminal's last
+/// line (improve-13: the run-on single footer line became a
+/// column-aligned TOTAL row plus a meta line — one more chrome line
+/// buys numbers that sit under the columns they sum, the flagship-grid
+/// contract the data rows already follow; NIGHT-boost-5 added the
+/// signature footer and the hints to the accounting, which pins the
+/// owner's windowed 88x32 example at exactly 20 data rows).
+pub(crate) const CHROME_LINES: usize = 12;
 
 // ── Geometry ────────────────────────────────────────────────────────────────
 
@@ -104,6 +121,11 @@ impl FrameGeometry {
 /// the ONLY budget (NIGHT-boost-1: the former --limit flag and the
 /// hard 20-row cap are gone) — a short window shows the top few
 /// consumers, a tall one spans the list down to the quiet apps.
+/// Autodetect ladder (NIGHT-boost-5, owner contract: "default set
+/// 10 if terminal height is enough ... if detect 32 cell 20 list"):
+/// chrome reserves 12 lines, so a windowed 88x32 terminal shows a
+/// 20-row list, the classic 80x24 shows 12, and a 22-line window
+/// still gets the 10-row flagship density.
 #[must_use]
 pub(crate) fn rows_for_height(height: usize) -> usize {
     height.saturating_sub(CHROME_LINES).max(1)
@@ -150,12 +172,16 @@ pub(crate) fn format_rate_or_dash(bps: u64) -> String {
 /// Render the title bar: bold purple brand text, em-dash filled to
 /// the full frame width, key hint right-aligned when there is room.
 ///
-/// Shape: `─── <core> ─────…──── <hint>` (hint omitted on narrow
-/// frames). The full-width fill is the flagship anchor: the eye
-/// locks onto the purple bar and instantly reads the frame width.
+/// Shape: `  ─── <core> ─────…──── <hint>` (hint omitted on narrow
+/// frames). The two-column gutter matches every row, separator, and
+/// footer line — the frame's left border is one straight edge
+/// (NIGHT-boost-5; the old bar started at column 0 while the table
+/// started at column 2, the big left-border gap the owner reported).
+/// The full-width fill is the flagship anchor: the eye locks onto the
+/// purple bar and instantly reads the frame width.
 #[must_use]
 pub(crate) fn title_bar(core: &str, hint: &str, width: usize) -> String {
-    const PREFIX: &str = "─── ";
+    const PREFIX: &str = "  ─── ";
     let prefix_len = PREFIX.chars().count();
     let core_len = core.chars().count();
 
@@ -183,11 +209,15 @@ mod tests {
 
     /// Row budget: chrome reserved, terminal height is the only cap
     /// (NIGHT-boost-1: no --limit, no hard 20-row ceiling).
+    /// NIGHT-boost-5 autodetect ladder: 88x32 window -> 20 rows,
+    /// classic 80x24 -> 12, the 10-row flagship floor at height 22.
     #[test]
     fn rows_for_height_ladder() {
         assert_eq!(rows_for_height(80), 80 - CHROME_LINES);
-        assert_eq!(rows_for_height(24), 24 - CHROME_LINES);
-        assert_eq!(rows_for_height(10), 2);
+        assert_eq!(rows_for_height(32), 20, "owner's windowed 88x32 example");
+        assert_eq!(rows_for_height(24), 12);
+        assert_eq!(rows_for_height(22), 10, "flagship floor");
+        assert_eq!(rows_for_height(12), 1);
         assert_eq!(rows_for_height(5), 1);
     }
 
@@ -224,18 +254,20 @@ mod tests {
     }
 
     /// Title bar: full-width fill, hint right-aligned, graceful
-    /// degradation on narrow frames.
+    /// degradation on narrow frames. NIGHT-boost-5: the bar carries
+    /// the two-column gutter every other frame line uses — the left
+    /// border is one straight edge.
     #[test]
     fn title_bar_fills_width() {
         let bar = title_bar("zelynic eagle-eyes — 1s refresh", "q quit", 80);
         // Mono mode (tests run piped): plain text, exact width.
         assert_eq!(bar.chars().count(), 80);
-        assert!(bar.starts_with("─── zelynic eagle-eyes — 1s refresh"));
+        assert!(bar.starts_with("  ─── zelynic eagle-eyes — 1s refresh"));
         assert!(bar.ends_with("q quit"));
 
-        // Narrow: core only, still starts with the brand prefix.
+        // Narrow: core only, still starts with the guttered brand prefix.
         let tiny = title_bar("zelynic eagle-eyes", "", 10);
-        assert!(tiny.starts_with("─── zelynic eagle-eyes"));
+        assert!(tiny.starts_with("  ─── zelynic eagle-eyes"));
 
         // Medium: hint suppressed before it would collide with core.
         let mid = title_bar("zelynic eagle-eyes — 1s refresh", "q quit", 40);
