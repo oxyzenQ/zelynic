@@ -25,7 +25,11 @@
 # every push anyway, so no change ever goes unpoliced, it just
 # stops buying forty minutes of compile time it cannot affect.
 
-name: CI
+# NIGHT-improve-22 (cosmostrix naming lineage): every workflow in
+# this repo carries its Dragon Guard name — the run list reads as
+# one guarded estate, not a pile of generic labels (codeql.yml set
+# the precedent; this file was the last plain "CI").
+name: Dragon Guard - CI
 
 on:
   push:

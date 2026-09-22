@@ -1,7 +1,10 @@
 # Copyright (C) 2026 rezky_nightky
 # SPDX-License-Identifier: GPL-3.0-only
 
-name: Release
+# NIGHT-improve-22 (cosmostrix naming lineage — its release twin is
+# "Cosmic Dragon Guard - Release"; codeql.yml set zelynic's
+# precedent): the Dragon Guard name replaces the plain "Release".
+name: Dragon Guard - Release
 
 on:
   push:
