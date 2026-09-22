@@ -120,8 +120,11 @@ and the missing 1% fails closed and says so.**
 
 Every runtime error prints its full cause chain (`caused by:` lines
 naming map, syscall, and errno), and every failure mode above is
-covered by the supermassive test suite — the command surface is
-verified end-to-end on real kernels, not asserted.
+covered by the supermassive test suites — v1 (the command-surface
+stress matrix) and v2 (the strict / limit / block / unstrict
+daily-use E2E, local and real internet, NIGHT-improve-23) — so the
+command surface is verified end-to-end on real kernels, not
+asserted.
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.

@@ -26,10 +26,15 @@ Design:
   * Shared engine: the fourteen helpers this harness and limiter-depth-
     test.py used to duplicate (verdict recording, subprocess control,
     status-JSON reading, environment probes, binary resolution, the
-    final report) live in zelynic_harness_lib.py — one fix lands in both
-    harnesses the same day (NIGHT-improve-11; the hunt-31 kernfs-inode
-    and the target/pro-native-gnu binary candidate each drifted for days
-    between the twins before that).
+    final report) live in zelynic_harness_lib.py — one fix lands in
+    every harness the same day (NIGHT-improve-11; the hunt-31
+    kernfs-inode and the target/pro-native-gnu binary candidate each
+    drifted for days between the twins before that). Since
+    NIGHT-improve-23 the family is three: supermassive-test-v2.py
+    (the daily-use E2E simulation) imports THIS module whole via
+    importlib and drives the fleet, server, and policy helpers below —
+    a stage added or fixed here lands in v2's local lane with no
+    second copy to drift.
   * Traffic is loopback HTTP served by an in-process python server, so
     no external test server is ever needed. curl is the second traffic
     engine: real external processes pushed through the limiter, the same

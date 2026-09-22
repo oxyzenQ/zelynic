@@ -2,20 +2,24 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """zelynic test-harness shared engine (NIGHT-improve-11 / security-4).
 
-The two flagship harnesses — supermassive-test.py (NIGHT-master-2,
-the command-surface matrix) and limiter-depth-test.py (NIGHT-master-1,
-the limiter accuracy depth test) — grew the SAME engine helpers by
-copy-paste: verdict recording, zelynic subprocess control, status-JSON
-reading, environment probes, binary resolution, and the final report.
-Fourteen near-identical functions across two 1000-line files is the
+The flagship harnesses — supermassive-test.py (NIGHT-master-2, the
+command-surface matrix), limiter-depth-test.py (NIGHT-master-1, the
+limiter accuracy depth test), and supermassive-test-v2.py
+(NIGHT-improve-23, the daily-use E2E simulation; imports the v1
+matrix whole and adds the real-internet lane) — grew the SAME
+engine helpers by copy-paste back when there were two: verdict
+recording, zelynic subprocess control, status-JSON reading,
+environment probes, binary resolution, and the final report.
+Fourteen near-identical functions across two 1000-line files was the
 classic drift trap: the brutal twin got the kernfs-inode fix
 (NIGHT-hunt-31) days before the depth twin, and the same week the
 brutal twin gained the target/pro-native-gnu binary candidate the
-depth twin never saw. This module is the single engine both import.
+depth twin never saw. This module is the single engine all three
+import.
 
 Contract:
-  * python3 stdlib only (the cross-distro minimum both harnesses
-    promise — no curl requirement, no pip requirement).
+  * python3 stdlib only (the cross-distro minimum every harness
+    promises — no curl requirement, no pip requirement).
   * Module-level state (RESULTS, BINARY, BAND_LO/HI) is owned HERE
     and lives in this module's namespace; each harness process
     imports this module exactly once, so per-process state is safe.
