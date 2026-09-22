@@ -16,6 +16,49 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Added
 
+- **release: NIGHT-improve-22 — arch-baseline packages only: v3 and
+  v4, gnu and musl, locally reproducible** — releases are now
+  x86-64-v3 (AVX/AVX2/BMI1/BMI2/FMA, any x86_64 CPU from ~2013
+  Haswell onward) and x86-64-v4 (AVX-512) builds in both libc
+  flavors; the native v1 baseline is retired from release packages
+  (cosmostrix pro-linux lineage, the owner directive). Four packages
+  per tag, and only those four: linux-amd64-v3-gnu, -v4-gnu,
+  -v3-musl, -v4-musl. The release workflow's build job is a
+  four-entry matrix now (fail-fast off, one bad platform never
+  cancels the other three): each entry carries its FULL RUSTFLAGS
+  ("-D warnings" first — the NIGHT-strict-2 contract moved off the
+  workflow env so a step-level env can never silently shadow it —
+  then the baseline -C target-cpu, plus +crt-static on the musl
+  pair), stamps ZELYNIC_BUILD with the package id so the binary's
+  Build: line names its own shape, and a cosmostrix-parity tripwire
+  step fails BEFORE any compile time when a platform's flag set
+  drifts from its documented baseline. Verification split by
+  executability: the v3 pair runs its own -V plus the Build: label
+  check (every x86_64 runner since Haswell executes AVX2), the musl
+  v3 twin keeps the improve-20 static proof (ldd must say "not a
+  dynamic executable"); the v4 pair is verified WITHOUT execution —
+  runners may lack AVX-512, so executing it could SIGILL — via the
+  embedded build label and version-report literals read out with
+  strings (grep -a fallback), the cosmostrix v4 contract. Packaging,
+  three-family checksums, and GPG signing run per platform in the
+  build-class jobs (the improve-14 least-privilege placement
+  unchanged); the release job merges the four artifacts by pattern
+  (download-artifact merge-multiple) and publishes. Local
+  reproduction: four new cargo aliases — pro-linux-gnu-v3,
+  pro-linux-gnu-v4, pro-linux-musl-v3, pro-linux-musl-v4 — each with
+  its own profile (artifacts never clobber each other or
+  target/release/zelynic) and a ZELYNIC_BUILD label naming the shape
+  ("local-linux-gnu-v3" etc.), mirroring the release flags exactly;
+  build.rs already strips the baseline flags from the nested eBPF
+  build (NIGHT-hunt-28), so the bpfel objects stay identical across
+  all six build shapes. The harness resolver learned the four alias
+  outputs as binary candidates (newest-mtime rule), and its
+  self-test pin now requires all four — one silently dropped means a
+  freshly built release-shape binary stops outranking stale ones.
+  Docs updated in step: README release + build sections (package
+  names, v3/v4 eligibility one-liner, the new alias table),
+  docs/VERIFY_RELEASE.md examples, CONTRIBUTING build pointers.
+
 - **harness: NIGHT-improve-21 — the brutal battery: kill, race, and
   re-prove** — supermassive-test now ends its limiter matrix with the
   violent stages the owner asked for after the rate work is done.

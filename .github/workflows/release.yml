@@ -19,11 +19,15 @@ env:
   # (enforced by scripts/check-rust-version-sync.sh; bump via
   # scripts/rust-version-to.sh).
   RUST_VERSION: "1.98.1"
-  # NIGHT-strict-2: strict CI build — warning = failure. Release
+  # NIGHT-strict-2 lives on inside each matrix rustflags entry
+  # ("-D warnings" leads every platform's flag set below): release
   # binaries must compile warning-free, same contract as ci.yml and
-  # maintenance.yml. Registry dependencies stay warning-capped
+  # maintenance.yml. It moved off the workflow env because each
+  # arch-baseline build composes its full RUSTFLAGS itself — a
+  # step-level env would silently shadow a workflow-level one, and
+  # the strict-warnings contract belongs to every build verbatim
+  # (NIGHT-improve-22). Registry dependencies stay warning-capped
   # (--cap-lints allow), so only workspace-local code can fail.
-  RUSTFLAGS: "-D warnings"
 
 # NIGHT-improve-20: re-pushing a MOVED tag supersedes the in-flight
 # run — the superseded build compiles a commit the tag no longer
@@ -108,11 +112,48 @@ jobs:
   # ===========================================================================
   # Build Release Binary (amd64 Linux only, with eBPF support)
   # ===========================================================================
+  # NIGHT-improve-22 (cosmostrix pro-linux lineage): releases are
+  # arch-baseline builds only — x86-64-v3 (AVX/AVX2/BMI1/BMI2/FMA,
+  # ~2013 Haswell and newer) and x86-64-v4 (AVX-512) for both libc
+  # flavors. The native v1 baseline is RETIRED from release packages:
+  # every CPU that can run a release at all can run v3, and v3's
+  # vector paths are what the limiter's hot loops actually use. The
+  # four packages, and only these four, come out of every tag:
+  #   zelynic-vX.Y.Z-linux-amd64-v3-gnu
+  #   zelynic-vX.Y.Z-linux-amd64-v4-gnu
+  #   zelynic-vX.Y.Z-linux-amd64-v3-musl
+  #   zelynic-vX.Y.Z-linux-amd64-v4-musl
+  # The full flag set rides each matrix entry (single source of
+  # truth): "-D warnings" first (NIGHT-strict-2), then the baseline
+  # -C target-cpu, plus -C target-feature=+crt-static on the musl
+  # pair (self-contained even though the musl target enables it by
+  # default — the alias contract in .cargo/config.toml mirrors this
+  # exactly, so a local `cargo pro-linux-gnu-v3` reproduces the
+  # v3-gnu package bit-for-bit in optimization tier).
   build:
-    name: Build Release Binary (eBPF)
+    name: Build Release Binary (${{ matrix.platform }})
     runs-on: ubuntu-24.04
     needs: validate
     timeout-minutes: 30
+    strategy:
+      # One bad platform must not cancel the other three — each
+      # matrix job reports its own failure (cosmostrix release
+      # matrix contract).
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux-amd64-v3-gnu
+            target: x86_64-unknown-linux-gnu
+            rustflags: "-D warnings -C target-cpu=x86-64-v3"
+          - platform: linux-amd64-v4-gnu
+            target: x86_64-unknown-linux-gnu
+            rustflags: "-D warnings -C target-cpu=x86-64-v4"
+          - platform: linux-amd64-v3-musl
+            target: x86_64-unknown-linux-musl
+            rustflags: "-D warnings -C target-cpu=x86-64-v3 -C target-feature=+crt-static"
+          - platform: linux-amd64-v4-musl
+            target: x86_64-unknown-linux-musl
+            rustflags: "-D warnings -C target-cpu=x86-64-v4 -C target-feature=+crt-static"
 
     steps:
       - name: Checkout repository
@@ -128,11 +169,13 @@ jobs:
           # sibling tags — the high-speed checkout.
           fetch-depth: 1
 
+      # NIGHT-improve-22: one target per matrix job (was both
+      # triples on one toolchain when this was a two-build job).
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # @stable, NIGHT-hunt-20 SHA pin
         with:
           toolchain: ${{ env.RUST_VERSION }}
-          targets: x86_64-unknown-linux-gnu,x86_64-unknown-linux-musl
+          targets: ${{ matrix.target }}
 
       # NIGHT-improve-1 phase 3: the BPF objects are built pure-Rust
       # (embedded in the binary) — the dated nightly pin and
@@ -150,48 +193,115 @@ jobs:
       - name: Install bpf-linker 0.11.1 (prebuilt static musl)
         run: bash scripts/install-bpf-linker.sh
 
+      # NIGHT-improve-22: cache keyed per target triple. The v3/v4
+      # builds of one triple share a key deliberately — cargo's
+      # fingerprints include RUSTFLAGS, so a shared cache is refingered
+      # (never mis-served), and the two baselines keep one warm cache
+      # instead of two cold ones. ebpf/target included
+      # (NIGHT-improve-11): the ebpf feature's build.rs drives the
+      # nested eBPF compile into the detached crate's own target tree.
       - name: Cache cargo registry & build
         uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5, NIGHT-hunt-20 SHA pin
         with:
-          # ebpf/target included (NIGHT-improve-11): both release
-          # builds below run --features ebpf, whose build.rs drives
-          # the nested eBPF compile into the detached crate's own
-          # target tree.
           path: |
             ~/.cargo/registry
             ~/.cargo/git
             target
             ebpf/target
-          key: ${{ runner.os }}-x86_64-unknown-linux-gnu-cargo-release-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-${{ matrix.target }}-cargo-release-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-x86_64-unknown-linux-gnu-cargo-release-
+            ${{ runner.os }}-${{ matrix.target }}-cargo-release-
 
-      # --locked on both release builds (NIGHT-improve-11): a release
+      # cosmostrix tripwire (NIGHT-improve-22 parity): the matrix
+      # rustflags ARE the build contract — a platform whose flag set
+      # drifted from its documented baseline fails HERE, before any
+      # compile time is spent, with the exact expected string.
+      - name: Verify arch-baseline inputs
+        run: |
+          set -euo pipefail
+          case "${{ matrix.platform }}" in
+            linux-amd64-v3-gnu) expected="-D warnings -C target-cpu=x86-64-v3" ;;
+            linux-amd64-v4-gnu) expected="-D warnings -C target-cpu=x86-64-v4" ;;
+            linux-amd64-v3-musl) expected="-D warnings -C target-cpu=x86-64-v3 -C target-feature=+crt-static" ;;
+            linux-amd64-v4-musl) expected="-D warnings -C target-cpu=x86-64-v4 -C target-feature=+crt-static" ;;
+            *) echo "::error::Unknown platform ${{ matrix.platform }}"; exit 1 ;;
+          esac
+          if [ "${{ matrix.rustflags }}" != "${expected}" ]; then
+            echo "::error::${{ matrix.platform }} must use RUSTFLAGS='${expected}', got '${{ matrix.rustflags }}'"
+            exit 1
+          fi
+          echo "arch-baseline inputs verified: ${{ matrix.platform }}"
+
+      # --locked on every release build (NIGHT-improve-11): a release
       # must reproduce from the committed lockfile — never a fresh
-      # resolution at tag time. Every other CI build already carried
-      # the flag; the release job was the one outlier.
+      # resolution at tag time. ZELYNIC_BUILD stamps the package id
+      # into the binary's Build: line (see the verify step).
       - name: Build release binary (eBPF objects embedded)
-        run: cargo build --release --locked --target x86_64-unknown-linux-gnu --features ebpf
+        env:
+          ZELYNIC_BUILD: ${{ matrix.platform }}
+          RUSTFLAGS: ${{ matrix.rustflags }}
+        run: cargo build --release --locked --target ${{ matrix.target }} --features ebpf
 
-      - name: Build static binary (musl, for old glibc systems)
-        run: cargo build --release --locked --target x86_64-unknown-linux-musl --features ebpf
-
-      - name: Verify binaries
+      - name: Verify binary
         run: |
-          echo "=== GNU binary ==="
-          ./target/x86_64-unknown-linux-gnu/release/zelynic -V
-          echo "=== MUSL binary ==="
-          ./target/x86_64-unknown-linux-musl/release/zelynic -V
-          echo "=== GNU ldd ==="
-          ldd ./target/x86_64-unknown-linux-gnu/release/zelynic || true
-          echo "=== MUSL ldd ==="
-          ldd ./target/x86_64-unknown-linux-musl/release/zelynic || true
+          set -euo pipefail
+          BIN="target/${{ matrix.target }}/release/zelynic"
+          PLATFORM="${{ matrix.platform }}"
+          echo "=== ${PLATFORM} ==="
+          case "${PLATFORM}" in
+            *-v4-*)
+              # AVX-512 baseline: the runner may lack AVX-512, so the
+              # artifact is verified WITHOUT executing it (the
+              # cosmostrix v4 contract — executing it could SIGILL):
+              # the embedded ZELYNIC_BUILD label plus the
+              # version-report literals prove the right variant was
+              # compiled and linked. strings (binutils) with a
+              # grep -a fallback for runner images without it.
+              if command -v strings >/dev/null 2>&1; then
+                TEXT="$(strings "${BIN}")"
+              else
+                TEXT="$(grep -aE 'linux-amd64|Architecture|License' "${BIN}" || true)"
+              fi
+              grep -Fq "${PLATFORM}" <<<"${TEXT}" \
+                || { echo "::error::Expected embedded build label ${PLATFORM}"; exit 1; }
+              grep -Fq "Architecture: Cosmic Dragon (pure eBPF)" <<<"${TEXT}" \
+                || { echo "::error::Expected embedded version-report literals"; exit 1; }
+              grep -Fq "License: GPL-3.0-only" <<<"${TEXT}" \
+                || { echo "::error::Expected embedded license literal"; exit 1; }
+              echo "embedded build metadata verified (execution skipped: AVX-512 baseline)"
+              ;;
+            *-v3-*)
+              # AVX2/BMI2/FMA baseline: every x86_64 runner since
+              # Haswell executes it — run the artifact itself, the
+              # same proof the pre-improve-22 musl twin ran on every
+              # push (NIGHT-improve-20), plus the Build: label check.
+              "${BIN}" -V
+              "${BIN}" -V | grep -F "Build: ${PLATFORM}" \
+                || { echo "::error::Expected 'Build: ${PLATFORM}' in -V"; exit 1; }
+              ;;
+          esac
+          if [[ "${PLATFORM}" == *-musl ]]; then
+            # Static proof (NIGHT-improve-20 contract kept): ldd must
+            # deny dynamic dependencies — it exits non-zero exactly
+            # then, so capture instead of fail. Both spellings are
+            # accepted: glibc ldd says "not a dynamic executable",
+            # musl ldd says "statically linked" (seen live on a
+            # musl-based container, 2026-09-22).
+            LDD_OUT="$(ldd "${BIN}" 2>&1 || true)"
+            grep -Eq "not a dynamic executable|statically linked" <<<"${LDD_OUT}" \
+              || { echo "::error::musl binary is not static: ${LDD_OUT}"; exit 1; }
+            echo "static: yes"
+          else
+            echo "=== ldd ==="
+            ldd "${BIN}" || true
+          fi
 
-      - name: Prepare release artifacts
+      - name: Prepare release artifact
         run: |
+          set -euo pipefail
           VERSION=${GITHUB_REF_NAME#v}
 
-          # --- GNU (glibc) tarball ---
+          # --- arch-baseline tarball (v3/v4, gnu/musl) ---
           # Flat archive layout: files at archive root (the 2026-09-22
           # owner directive, the cosmostrix release invariant): the
           # tarball carries ONLY zelynic + LICENSE + README.md. The
@@ -199,63 +309,34 @@ jobs:
           # nothing else to ship; the scripts and installers stay in
           # the repo checkout where they belong. Do NOT add nesting
           # or files — the tripwire below records the three entries.
-          PKG_GNU="zelynic-v${VERSION}-linux-amd64-gnu"
-          STAGE_GNU="dist/stage-gnu"
-          mkdir -p "${STAGE_GNU}"
-          cp target/x86_64-unknown-linux-gnu/release/zelynic "${STAGE_GNU}/"
-          chmod +x "${STAGE_GNU}/zelynic"
-          cp README.md LICENSE "${STAGE_GNU}/"
-          tar -czf "dist/${PKG_GNU}.tar.gz" -C "${STAGE_GNU}" zelynic LICENSE README.md
-          ACTUAL_GNU=$(tar -tzf "dist/${PKG_GNU}.tar.gz" | sort | tr '\n' ' ')
-          if [ "${ACTUAL_GNU}" != "LICENSE README.md zelynic " ]; then
-            echo "GNU tarball invariant violated: ${ACTUAL_GNU}"
+          PKG="zelynic-v${VERSION}-${{ matrix.platform }}"
+          STAGE="dist/stage"
+          mkdir -p "${STAGE}"
+          cp "target/${{ matrix.target }}/release/zelynic" "${STAGE}/"
+          chmod +x "${STAGE}/zelynic"
+          cp README.md LICENSE "${STAGE}/"
+          tar -czf "dist/${PKG}.tar.gz" -C "${STAGE}" zelynic LICENSE README.md
+          ACTUAL=$(tar -tzf "dist/${PKG}.tar.gz" | sort | tr '\n' ' ')
+          if [ "${ACTUAL}" != "LICENSE README.md zelynic " ]; then
+            echo "tarball invariant violated for ${PKG}: ${ACTUAL}"
             exit 1
           fi
-          rm -rf "${STAGE_GNU}"
+          rm -rf "${STAGE}"
           cd dist
           # Checksums: SHA-512 (classical) + BLAKE2b-512 + SHAKE256 (quantum-resistant)
-          sha512sum "${PKG_GNU}.tar.gz" > "${PKG_GNU}.tar.gz.sha512sum"
-          b2sum "${PKG_GNU}.tar.gz" > "${PKG_GNU}.tar.gz.b2sum"
+          sha512sum "${PKG}.tar.gz" > "${PKG}.tar.gz.sha512sum"
+          b2sum "${PKG}.tar.gz" > "${PKG}.tar.gz.b2sum"
           # SHAKE256 via Python (cross-platform, consistent 64-byte output)
           python3 -c "
           import hashlib
-          data = open('${PKG_GNU}.tar.gz', 'rb').read()
+          data = open('${PKG}.tar.gz', 'rb').read()
           h = hashlib.shake_256(data).hexdigest(64)
-          print(f'{h}  ${PKG_GNU}.tar.gz')
-          " > "${PKG_GNU}.tar.gz.shake256"
-          cd ..
-
-          # --- MUSL (static, for old glibc) tarball ---
-          # Same flat three-file invariant as the GNU tarball.
-          PKG_MUSL="zelynic-v${VERSION}-linux-amd64-musl"
-          STAGE_MUSL="dist/stage-musl"
-          mkdir -p "${STAGE_MUSL}"
-          cp target/x86_64-unknown-linux-musl/release/zelynic "${STAGE_MUSL}/"
-          chmod +x "${STAGE_MUSL}/zelynic"
-          cp README.md LICENSE "${STAGE_MUSL}/"
-          tar -czf "dist/${PKG_MUSL}.tar.gz" -C "${STAGE_MUSL}" zelynic LICENSE README.md
-          ACTUAL_MUSL=$(tar -tzf "dist/${PKG_MUSL}.tar.gz" | sort | tr '\n' ' ')
-          if [ "${ACTUAL_MUSL}" != "LICENSE README.md zelynic " ]; then
-            echo "MUSL tarball invariant violated: ${ACTUAL_MUSL}"
-            exit 1
-          fi
-          rm -rf "${STAGE_MUSL}"
-          cd dist
-          # Checksums: SHA-512 (classical) + BLAKE2b-512 + SHAKE256 (quantum-resistant)
-          sha512sum "${PKG_MUSL}.tar.gz" > "${PKG_MUSL}.tar.gz.sha512sum"
-          b2sum "${PKG_MUSL}.tar.gz" > "${PKG_MUSL}.tar.gz.b2sum"
-          # SHAKE256 via Python (cross-platform, consistent 64-byte output)
-          python3 -c "
-          import hashlib
-          data = open('${PKG_MUSL}.tar.gz', 'rb').read()
-          h = hashlib.shake_256(data).hexdigest(64)
-          print(f'{h}  ${PKG_MUSL}.tar.gz')
-          " > "${PKG_MUSL}.tar.gz.shake256"
-          cd ..
+          print(f'{h}  ${PKG}.tar.gz')
+          " > "${PKG}.tar.gz.shake256"
 
           echo ""
           echo "=== Release artifacts ==="
-          ls -lh dist/
+          ls -lh
 
       # =========================================================================
       # NIGHT-improve-14 (cosmostrix GPG lineage): detached ASCII-armored
@@ -378,7 +459,12 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5, NIGHT-hunt-20 SHA pin
         with:
-          name: release-artifacts
+          # NIGHT-improve-22: one artifact per platform; the release
+          # job merges the four by pattern (merge-multiple) so the
+          # GPG signing below stays in the build-class jobs (the
+          # improve-14 least-privilege placement) while the matrix
+          # scales without renaming anything downstream.
+          name: release-artifacts-${{ matrix.platform }}
           path: dist/*
 
   # ===========================================================================
@@ -404,7 +490,12 @@ jobs:
       - name: Download artifacts
         uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6, NIGHT-hunt-20 SHA pin
         with:
-          name: release-artifacts
+          # NIGHT-improve-22: the build job is a four-platform matrix
+          # now — pull every per-platform artifact and merge them into
+          # one dist/ so the release body and the published files see
+          # exactly the four packages and their checksums/signatures.
+          pattern: release-artifacts-*
+          merge-multiple: true
           path: dist
 
       - name: Generate release body
