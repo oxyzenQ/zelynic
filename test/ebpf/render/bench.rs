@@ -36,7 +36,7 @@
 
 use std::time::{Duration, Instant};
 
-use super::render_eagle_eyes;
+use super::{render_eagle_eyes, SessionState};
 use crate::ebpf::connections::{
     CgroupConnections, ConnectionMap, ProcessDetail, Proto, SocketInfo,
 };
@@ -173,6 +173,12 @@ fn frame_bench_eagle() {
         .ok();
     let mut mem_sink = Vec::new();
 
+    // NIGHT-boost-5: the session leaderboard rides the harness the
+    // same way monitor.rs wires it — every frame's deltas fold in, so
+    // the TOTAL column and the session ranking are part of the
+    // measured render path, not an unmeasured add-on.
+    let mut session = SessionState::new();
+
     let start = Instant::now();
     let mut frames: u64 = 0;
 
@@ -235,6 +241,7 @@ fn frame_bench_eagle() {
             &identity,
             Some(&conns),
             Duration::from_secs(1),
+            &mut session,
         );
         println_safe!("###FRAME###");
         for line in &lines {

@@ -321,7 +321,7 @@ pub enum Commands {
     /// One surface, three depths — the former `observe` and `top`
     /// pair was two views of the same observer; eagle-eyes is both,
     /// chosen automatically:
-    /// - no targets: every app RANKED by current consumption,
+    /// - no targets: every app RANKED by session accumulation
     ///   highest first. The row count follows the terminal height
     ///   (no --limit): a short window shows the top few, a tall one
     ///   spans the list low to high.

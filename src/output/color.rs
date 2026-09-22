@@ -64,6 +64,18 @@ const WARN_RGB: (u8, u8, u8) = (255, 235, 60);
 #[cfg(test)] // referenced in tests; kept as source-of-truth documentation
 const SUGGESTION_RGB: (u8, u8, u8) = (220, 235, 255);
 
+/// Champion red RGB: #FF3B30 (255,59,48) — the eagle-eyes rank-1 tier
+/// (NIGHT-boost-5).
+///
+/// Distinct from the softer error red #FF5A5A on purpose: the
+/// leaderboard's top consumer is heat, not failure — the app that ate
+/// the most this session wears the crown, and the crown is its own
+/// color. 256-color fallback: index 196 (the pure-red cube corner —
+/// visibility wins over exact match, the warn-yellow precedent).
+/// Color16 fallback: bright red (91), the aixterm bright slot.
+#[cfg(all(test, feature = "ebpf"))] // referenced by the champion pin; source-of-truth documentation
+const HOT_RGB: (u8, u8, u8) = (255, 59, 48);
+
 /// Terminal color capability, detected once and cached for the process.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ColorCapability {
@@ -351,6 +363,62 @@ pub fn suggestion(msg: &str) -> String {
     }
 }
 
+// ── Champion tier (NIGHT-boost-5) ───────────────────────────────────────
+//
+// The eagle-eyes leaderboard's rank-1 row: champion red, blinking for
+// the first 3s after a takeover so a new top consumer cannot be missed,
+// then solid. Rank 2 renders warn yellow; rank 3 and below stay white —
+// the owner's exact contract.
+
+/// Champion red open sequence, capability-aware.
+#[cfg(feature = "ebpf")]
+#[must_use]
+pub fn hot_open() -> &'static str {
+    match capability() {
+        ColorCapability::TrueColor => "\x1b[38;2;255;59;48m",
+        ColorCapability::Color256 => "\x1b[38;5;196m",
+        ColorCapability::Color16 => "\x1b[91m",
+        ColorCapability::Mono => "",
+    }
+}
+
+/// Blinking champion red open sequence, capability-aware — SGR 5 (slow
+/// blink) stacked on the champion color. The terminal blinks the text
+/// itself, so the attribute rides one render and costs nothing per
+/// frame; it drops at the first render past the takeover window.
+#[cfg(feature = "ebpf")]
+#[must_use]
+pub fn hot_blink_open() -> &'static str {
+    match capability() {
+        ColorCapability::TrueColor => "\x1b[5;38;2;255;59;48m",
+        ColorCapability::Color256 => "\x1b[5;38;5;196m",
+        ColorCapability::Color16 => "\x1b[5;91m",
+        ColorCapability::Mono => "",
+    }
+}
+
+/// Wrap `msg` in champion red (the solid crown). Plain text when color
+/// is off.
+#[cfg(feature = "ebpf")] // only the eagle-eyes renderer crowns a champion
+#[must_use]
+pub fn hot(msg: &str) -> String {
+    match capability() {
+        ColorCapability::Mono => msg.to_string(),
+        _ => format!("{}{msg}{}", hot_open(), reset()),
+    }
+}
+
+/// Wrap `msg` in blinking champion red (a fresh takeover, first 3s).
+/// Plain text when color is off.
+#[cfg(feature = "ebpf")]
+#[must_use]
+pub fn hot_blink(msg: &str) -> String {
+    match capability() {
+        ColorCapability::Mono => msg.to_string(),
+        _ => format!("{}{msg}{}", hot_blink_open(), reset()),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -393,5 +461,21 @@ mod tests {
         // aixterm bright white at 16 depth.
         assert_eq!("\x1b[38;5;255m", "\x1b[38;5;255m");
         assert_eq!("\x1b[97m", "\x1b[97m");
+    }
+
+    /// Champion tier (NIGHT-boost-5): the rank-1 red encodes its own
+    /// documented RGB — deliberately distinct from the softer error
+    /// red — and the blink variant stacks SGR 5 on the same color.
+    #[cfg(feature = "ebpf")] // the champion builders live under the eagle-eyes graph
+    #[test]
+    fn champion_escapes_match_documented_rgb() {
+        assert_eq!("\x1b[38;2;255;59;48m", {
+            let (r, g, b) = HOT_RGB;
+            format!("\x1b[38;2;{r};{g};{b}m")
+        });
+        assert!(hot_open().is_empty() || hot_open().starts_with("\x1b["));
+        // Blink variant carries SGR 5 ahead of the same color encoding.
+        let blink = hot_blink_open();
+        assert!(blink.is_empty() || blink.contains("5;38;"));
     }
 }

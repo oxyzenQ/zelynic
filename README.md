@@ -51,9 +51,9 @@ same WiFi interface. No `tc`, no `nftables`, no `LD_PRELOAD`, no daemon.
 | **Crash recovery** | `zelynic recover` detects + removes orphaned BPF pins. |
 | **Discovery workflow** | `zelynic eagle-eyes` (live box) finds bandwidth hogs — other limiters can't discover. |
 | **Box mode** | In-place refresh, clean exit, responsive layout; selection/copy physics documented in the [USAGE FAQ](docs/USAGE.md#faq) (NIGHT-hunt-7, improve-7/8). |
-| **Unified monitor** | `eagle-eyes` runs live until you press `q` — apps ranked by consumption, one command for the former observe/top pair (NIGHT-boost-1). |
+| **Unified monitor** | `eagle-eyes` runs live until you press `q` — apps ranked by session accumulation, rows persist through quiet frames, rank 1 wears champion red (NIGHT-boost-5). |
 | **Diff-based rendering** | Only changed rows are emitted — one write syscall per frame, idle frames cost zero I/O (NIGHT-improve-2). |
-| **Refresh control** | `--interval 1s..60s` on `eagle-eyes`, with a live RATE column. |
+| **Refresh control** | `--interval 1s..60s` on `eagle-eyes`, live DOWNLOAD/UPLOAD rate columns plus a session TOTAL. |
 | **Eagle-eyes detail** | Monitor rows name the processes and endpoints INSIDE a cgroup — `curl (4012) -> 142.250.191.78:443` (NIGHT-hunt-8). |
 | **Strict dependency diet** | 7 direct deps, 54 lockfile crates, every one justified in [docs/DEPENDENCY_AUDIT.md](docs/DEPENDENCY_AUDIT.md). |
 
