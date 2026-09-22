@@ -559,6 +559,49 @@ rewrites error contexts), and the deterministic metrics confirm
 exactly that; the +0.5% fps and bytes/sec churn deltas sit in the
 shared-host wall-clock noise class.
 
+### NIGHT-boost-5 (eagle-eyes session leaderboard engraving) — 2026-09-23
+
+The full NIGHT-boost-5 arc (ae4afaa status engraving + output layer
+split, c691715 geometry/ladder, ecfd9e6 session leaderboard with
+champion-red takeover blink and the TOTAL column). This is a
+SEMANTIC change, not a like-for-like layout tweak: the frame's
+content moved by design (rows render from the session accumulator
+— stable ranking, persistent rows — and the chrome grew to 12
+lines for the signature footer + hints), so the visual-density
+metrics are expected to move with the content, while the
+performance metrics carry the comparison weight. A = a2529d0
+(session start, pre-boost-5; worktree), B = ecfd9e6, 10 s runs:
+
+| Metric | a2529d0 | ecfd9e6 | Delta |
+|--------|---------|---------|-------|
+| fps | 13595.2 | 13312.7 | -2.1% (noise class) |
+| avg rows | 24.4 | 22.3 | -8.6% (12-line chrome ladder) |
+| bytes/frame | 1496.1 | 1378.4 | -7.9% |
+| emit bytes/frame | 1433.7 | 914.9 | -36.2% |
+| emit ratio | 0.96 | 0.66 | -30.7% |
+| density gini | 0.2069 | 0.2457 | +18.7% (content changed by design) |
+| frame entropy | 4.2391 | 4.1823 | -1.3% (content changed by design) |
+| dirty cells/frame | 772.8 | 101.7 | -86.8% |
+| dirty ratio | 0.3900 | 0.0570 | -85.4% |
+| bytes/sec churn | 19491190.2 | 12179403.8 | -37.5% |
+
+Reading: the headline is dirty cells -86.8% and emitted bytes
+-36.2% at fps parity, and the MECHANISM is the design itself — the
+old per-frame delta sort reshuffled ranks every interval (delta
+magnitudes jump frame to frame, so rows swapped wholesale and every
+label cell went dirty); the session accumulation ranking is stable
+(a cgroup's rank moves only on a genuine takeover), so consecutive
+frames differ only in the rate cells. The leaderboard is not just
+the owner-contract semantics, it is the diff engine's best friend.
+avg rows -8.6% is the NIGHT-boost-5 autodetect ladder (12 reserved
+chrome lines; the harness's piped 80x24 fallback shows 12 data rows,
+the owner's windowed 88x32 shows 20); the gini/entropy deltas track
+that content change (fewer rows, stable totals, rate columns doing
+the churning), not a rendering defect. Visual acceptance: verified
+frame-by-frame — header cells sit exactly over their columns, every
+grid line closes flush at the frame width, the left border is one
+straight edge, and the quiet-frame board holds intact.
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.
