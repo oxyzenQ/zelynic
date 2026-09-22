@@ -34,7 +34,9 @@
 # (the pre-split incident: shellcheck had never executed anywhere
 # until the wholesale job's first local preflight).
 
-name: Gate-keepers
+# NIGHT-improve-22 (cosmostrix naming lineage): the Dragon Guard
+# name matches the codeql.yml precedent and the renamed estate.
+name: Dragon Guard - Gate-keepers
 
 'on':
   push:

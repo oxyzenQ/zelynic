@@ -526,6 +526,35 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Changed
 
+- **ci: NIGHT-improve-22 — the Dragon Guard estate: every workflow
+  carries its masterclass name, and a warning is a failure
+  everywhere** — the cosmostrix naming lineage applied across the
+  run list, codeql.yml having set the precedent: CI becomes
+  "Dragon Guard - CI", Gate-keepers becomes "Dragon Guard -
+  Gate-keepers", Audit becomes "Dragon Guard - Security Audit",
+  "Maintenance deps weekly" becomes "Dragon Guard - Dependency
+  Maintenance" (its job rows renamed "Dependency sweep validate" /
+  "Dependency sweep commit" to match), Release becomes "Dragon
+  Guard - Release" (cosmostrix's twin is "Cosmic Dragon Guard -
+  Release"), and the CodeQL name sheds its quotes for estate-wide
+  consistency. The run list now reads as one guarded estate instead
+  of a pile of generic labels — at three in the morning, "Dragon
+  Guard - Security Audit" is a findable tab and "Audit" is a
+  search hit for the wrong thing. Job ids and job display names
+  (Lint & Test, eBPF Build, Musl Static Twin) are untouched, so
+  required-check references and branch protection keep resolving.
+  The warning-is-failure contract closed its last gap in the same
+  stroke: cargo audit now runs with --deny warnings (advisory-level
+  findings — unmaintained dependencies, yanked versions — exit
+  non-zero instead of scrolling past as yellow text; the
+  observation-only posture lives in the job's continue-on-error,
+  not in a silent exit code). Every other warning surface was
+  audited and already strict: rustc via RUSTFLAGS=-D warnings in
+  ci.yml and maintenance.yml, per-platform flag sets in release.yml,
+  clippy -D warnings in every job that runs clippy, and the
+  gate-keepers tooling (shellcheck, shfmt -d, yamllint, actionlint,
+  codespell, ruff) each already fail on their findings.
+
 - **ci: NIGHT-improve-21 — path filter scoped per consumer: docs,
   harness scripts, and lint configs stop buying the full Rust
   matrix** — the cosmostrix filter discipline, applied to the one

@@ -1,7 +1,10 @@
 # Copyright (C) 2026 rezky_nightky
 # SPDX-License-Identifier: GPL-3.0-only
 
-name: Maintenance deps weekly
+# NIGHT-improve-22 (cosmostrix naming lineage, codeql.yml
+# precedent): the Dragon Guard name replaces "Maintenance deps
+# weekly" — the job rows below keep their own descriptive names.
+name: Dragon Guard - Dependency Maintenance
 
 on:
   schedule:
@@ -114,7 +117,7 @@ jobs:
           fi
 
   validate:
-    name: Maintenance deps weekly validate
+    name: Dependency sweep validate
     # Runner pinned to ubuntu-24.04, never a floating ubuntu-latest:
     # the label migrates to Ubuntu 26 on 2026-10-19 and would silently
     # move the build environment (actions/runner-images#14748); OS
@@ -231,7 +234,7 @@ jobs:
           if-no-files-found: error
 
   commit:
-    name: Maintenance deps weekly commit
+    name: Dependency sweep commit
     runs-on: ubuntu-24.04
     needs: validate
     if: needs.validate.outputs.changed == 'true'

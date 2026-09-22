@@ -22,7 +22,7 @@
 # coverage — the owner's morning, one clock for every scheduled
 # workflow (NIGHT-improve-9).
 
-name: "Dragon Guard - CodeQL"
+name: Dragon Guard - CodeQL
 
 'on':
   push:
