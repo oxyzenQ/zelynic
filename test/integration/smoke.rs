@@ -115,7 +115,7 @@ fn test_version() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
         stdout.contains("zelynic: v")
-            && stdout.contains("Architecture: Dragon")
+            && stdout.contains("Architecture: Cosmic Dragon")
             && stdout.contains("Build: ")
             && stdout.contains("License: GPL-3.0-only")
             && stdout.contains("Source: https://github.com/oxyzenQ/zelynic"),

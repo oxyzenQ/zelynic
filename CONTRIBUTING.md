@@ -221,7 +221,7 @@ enforced on every push.
 The branch table lives once in the
 [README](README.md#branches) — `main`, pure eBPF v11.x, maintenance
 mode (branch history and the retired `intergalaxion` note are in
-[docs/DRAGON_ARCHITECTURE.md](docs/DRAGON_ARCHITECTURE.md)).
+[docs/COSMIC_DRAGON_ARCHITECTURE.md](docs/COSMIC_DRAGON_ARCHITECTURE.md)).
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.

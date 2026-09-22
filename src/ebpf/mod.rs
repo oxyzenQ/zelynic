@@ -3,7 +3,7 @@
 
 //! eBPF observer + limiter engine — real kernel-level traffic observation and enforcement.
 //!
-//! Dragon Architecture: pure eBPF, no userspace backend fallback.
+//! Cosmic Dragon Architecture: pure eBPF, no userspace backend fallback.
 //! Every command under this module compiles only with the `ebpf`
 //! feature enabled.
 

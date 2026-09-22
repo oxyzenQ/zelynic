@@ -158,8 +158,8 @@ echo "── informational surfaces ──"
 expect "bare invocation prints reference" 0 "Commands:" -- "$BINARY"
 expect "--help exits 0 with reference" 0 "Commands:" "Global flags:" -- "$BINARY" --help
 expect "-h short form matches --help" 0 "Commands:" -- "$BINARY" -h
-expect "--version report" 0 "Architecture: Dragon" "License: GPL-3.0-only" -- "$BINARY" --version
-expect "-V short form" 0 "Architecture: Dragon" -- "$BINARY" -V
+expect "--version report" 0 "Architecture: Cosmic Dragon" "License: GPL-3.0-only" -- "$BINARY" --version
+expect "-V short form" 0 "Architecture: Cosmic Dragon" -- "$BINARY" -V
 
 expect "doctor runs without root" 0 -- "$BINARY" doctor
 refute "doctor never mentions root" "root required" -- "$BINARY" doctor

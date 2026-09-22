@@ -1,7 +1,7 @@
 // Copyright (C) 2026 rezky_nightky
 // SPDX-License-Identifier: GPL-3.0-only
 
-//! Integration tests for zelynic (Dragon Architecture — pure eBPF).
+//! Integration tests for zelynic (Cosmic Dragon Architecture — pure eBPF).
 //!
 //! One test binary, split by surface (NIGHT-docs-4) so every file
 //! stays under the 500-LOC cap that `scripts/check-loc.sh` enforces

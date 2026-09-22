@@ -860,7 +860,8 @@ header.
    (f844038).
 4. Docs sync: this section, the toolchain contract table, and the
    repo-wide sweep (README, CONTRIBUTING, KERNEL_COMPATIBILITY,
-   SAFETY_ANALYSIS, DRAGON_ARCHITECTURE, CROSS_DISTRO historical
+   SAFETY_ANALYSIS, COSMIC_DRAGON_ARCHITECTURE (renamed from
+   DRAGON_ARCHITECTURE in NIGHT-improve-17), CROSS_DISTRO historical
    note, USAGE, the disclaimer source-of-truth paths).
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
