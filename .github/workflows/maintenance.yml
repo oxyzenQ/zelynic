@@ -96,10 +96,11 @@ jobs:
             EXPIRY_DATE=$(date -d "@${EXPIRY}" +%Y-%m-%d 2>/dev/null || echo "unknown")
 
             if [[ "$REMAINING" -le 0 ]]; then
-              echo "::error::GPG signing subkey ${KEY_ID} EXPIRED on ${EXPIRY_DATE} (${REMAINING} days ago). Renew immediately."
+              echo "::error::GPG subkey ${KEY_ID} EXPIRED on ${EXPIRY_DATE} (${REMAINING} days ago)."
               WARN=true
             elif [[ "$REMAINING" -le "$GPG_EXPIRY_WARN_DAYS" ]]; then
-              echo "::warning::GPG signing subkey ${KEY_ID} expires on ${EXPIRY_DATE} (${REMAINING} days remaining). Renew within ${GPG_EXPIRY_WARN_DAYS} days."
+              echo "::warning::GPG subkey ${KEY_ID} expires ${EXPIRY_DATE} (${REMAINING} days left) - rotate soon."
+              echo "warn window: ${GPG_EXPIRY_WARN_DAYS} days (docs/VERIFY_RELEASE.md)"
               WARN=true
             else
               echo "GPG signing subkey ${KEY_ID}: expires ${EXPIRY_DATE} (${REMAINING} days remaining) — OK"

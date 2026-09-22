@@ -46,7 +46,9 @@ impl super::Limiter {
         let map_name = format!("cgroup_policy_{}", direction.suffix());
         let pinned;
         let map_ref: &aya::maps::Map = match self.bpf.as_ref() {
-            Some(bpf) => bpf.map(&map_name).context(format!("{map_name} not found"))?,
+            Some(bpf) => bpf
+                .map(&map_name)
+                .context(format!("{map_name} not found"))?,
             None => {
                 pinned = pin::open_pinned_hash_map(&self.pinned_policy_path(direction))?;
                 &pinned
@@ -65,9 +67,9 @@ impl super::Limiter {
     fn read_stats(&self) -> Result<Vec<(u32, LimiterStatsRaw)>> {
         let pinned;
         let map_ref: &aya::maps::Map = match self.bpf.as_ref() {
-            Some(bpf) => {
-                bpf.map("cgroup_limiter_stats").context("cgroup_limiter_stats not found")?
-            }
+            Some(bpf) => bpf
+                .map("cgroup_limiter_stats")
+                .context("cgroup_limiter_stats not found")?,
             None => {
                 pinned = pin::open_pinned_hash_map(PIN_MAP_STATS)?;
                 &pinned
@@ -92,9 +94,9 @@ impl super::Limiter {
     pub fn read_watchdog(&self) -> Result<Option<u64>> {
         let pinned;
         let map_ref: &aya::maps::Map = match self.bpf.as_ref() {
-            Some(bpf) => {
-                bpf.map("watchdog_deadline").context("watchdog_deadline not found")?
-            }
+            Some(bpf) => bpf
+                .map("watchdog_deadline")
+                .context("watchdog_deadline not found")?,
             None => {
                 pinned = pin::open_pinned_array_map(PIN_MAP_WATCHDOG)?;
                 &pinned
