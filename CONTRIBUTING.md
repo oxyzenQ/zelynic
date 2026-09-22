@@ -148,6 +148,11 @@ scripts/
                 dedicated test cgroup, measured rate accuracy + kernel-drop
                 proof + BPF accounting cross-check + drift guard + reload
                 cycles; the tool for validating a new distro)
+  proof-claims.sh      — honesty harness (NIGHT-boost-8; wraps
+                proof-claims.py: proves the four README headline
+                claims live — no daemon, pure eBPF, per-app
+                per-cgroup, precision 0.00% with its honest live
+                residual; --self-test engine smoke for CI)
   benchmarking.sh      — CPU/memory overhead measurement (wraps benchmarking.py)
 ```
 

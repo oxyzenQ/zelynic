@@ -46,7 +46,7 @@ same WiFi interface. No `tc`, no `nftables`, no `LD_PRELOAD`, no daemon.
 |------|--------|
 | **Pure eBPF datapath** | Zero intermediaries. The kernel IS the rate limiter. |
 | **Pinned bpf_links** | Enforcement survives process exit — no daemon, no battery drain. |
-| **Fractional precision** | 0.00% rate error, sub-byte token accumulation (benchmarks: docs/PERFORMANCE.md). |
+| **Fractional precision** | 0.00% rate error, sub-byte token accumulation (live proof: `sudo ./scripts/proof-claims.sh`; math pins: test/ebpf/limiter/math_tests.rs). |
 | **Schema migration** | BPF struct changes auto-detected + auto-cleaned on upgrade. |
 | **Crash recovery** | `zelynic recover` detects + removes orphaned BPF pins. |
 | **Discovery workflow** | `zelynic eagle-eyes` (live box) finds bandwidth hogs — other limiters can't discover. |
@@ -522,6 +522,20 @@ The division of labor is deliberate: v1 keeps every
 usage) — a machine green on v1 is qualified for a power outage; v2
 carries only what real use exercises — a machine green on v2 is
 qualified for the daily driver.
+
+Want the four headline claims themselves PROVEN on your machine — no
+daemon (enforcement alive with zero zelynic processes), pure eBPF (tc
+and nftables snapshots unchanged while the kernel drops the excess),
+per-app per-cgroup (a policed cgroup and an unlimited witness measured
+side by side, same moment), and precision (kernel-admitted bytes vs
+configured rate over a long window, with the honest TCP-level number
+printed next to it)? One command (NIGHT-boost-8):
+
+```bash
+sudo ./scripts/proof-claims.sh                # claims audit (~1 min)
+sudo ./scripts/proof-claims.sh --quick        # faster windows (~30s)
+./scripts/proof-claims.sh --self-test          # engine smoke, no root
+```
 
 The harness always tests the checkout's own build: repo target
 outputs resolve first (newest build wins), and a version GATE
