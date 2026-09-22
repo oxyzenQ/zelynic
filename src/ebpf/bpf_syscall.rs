@@ -38,6 +38,16 @@ const BPF_OBJ_PIN: i32 = 6;
 pub const BPF_CGROUP_INET_INGRESS: u32 = 0;
 pub const BPF_CGROUP_INET_EGRESS: u32 = 1;
 
+/// Kernel release string ("6.8.0-45-generic") for the verbose trace
+/// surface (NIGHT-boost-6): the release decides bpf_link support,
+/// verifier features, and the cgroup v2 shape — a bug report that
+/// opens with it needs no follow-up uname.
+pub fn kernel_release() -> String {
+    nix::sys::utsname::uname()
+        .map(|u| u.release().to_string_lossy().into_owned())
+        .unwrap_or_else(|_| "unknown".to_string())
+}
+
 /// Check if the running kernel supports bpf_link (kernel >= 5.7).
 /// bpf_link_create was added in kernel 5.7 (2020). Virtually all modern
 /// systems have it, but we check for graceful degradation on older kernels.

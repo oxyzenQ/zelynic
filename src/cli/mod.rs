@@ -57,6 +57,12 @@ pub struct Cli {
     /// /proc target resolution (pids → cgroups), every policy write
     /// (rate + burst), BPF lifecycle (pin reuse, schema migration, link
     /// mode), and the monitor loader steps. JSON output stays clean.
+    ///
+    /// NIGHT-boost-6 hardened it into debugging infrastructure: both
+    /// loader paths also trace object size, kernel release, load and
+    /// attach timings, and the loaded map inventory (id, type,
+    /// key/value size, max_entries — the bpftool facts) — on the
+    /// stderr side, without leaving the command that failed.
     #[arg(short = 'v', long = "verbose", global = true)]
     pub verbose: bool,
 
