@@ -107,7 +107,7 @@ fn version_body() -> String {
 ///
 /// ```text
 /// zelynic: v11.0.0
-/// Per-app network rate limiter and traffic monitor for Linux. Pure eBPF. Silent but killer.
+/// Per-app network rate limiter and traffic monitor for Linux. Pure eBPF. Boring and silent but killer.
 /// Architecture: Cosmic Dragon (pure eBPF)
 /// Build: linux-amd64-gnu (ad36a81)
 /// Build-time: 9/18/2026 01:30 (UTC)
