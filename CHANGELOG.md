@@ -526,6 +526,28 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Changed
 
+- **ci: NIGHT-improve-21 — path filter scoped per consumer: docs,
+  harness scripts, and lint configs stop buying the full Rust
+  matrix** — the cosmostrix filter discipline, applied to the one
+  place zelynic's trigger set was still paying for surface it
+  cannot affect. The old ci.yml paths matched '**/*.py',
+  'scripts/**', and '**/*.toml', so a comment tweak in
+  benchmarking.py, a docstring in uninstall.sh, or a line in
+  .ruff.toml triggered check + ebpf-build + both musl twins —
+  forty-plus minutes of compile time per push with zero reachable
+  effect. The set is now exactly what this workflow's jobs compile
+  or execute: the Rust trees ('**/*.rs', build.rs), the cargo
+  manifests ('**/Cargo.toml', Cargo.lock, deny.toml for the
+  cargo-deny step), the toolchain pins (.cargo/**,
+  rust-toolchain*, ebpf/**), and the three scripts its steps run
+  (check-policy.py, supermassive-test.py, install-bpf-linker.sh).
+  The safety contract is unchanged and restated in the workflow
+  header: gate-keepers.yml still runs on EVERY push and PR with no
+  filter, so a docs-only or scripts-only change is fully policed —
+  it just stops renting four compilers to be told a docstring
+  parses. CONTRIBUTING's CI paragraph now documents the
+  consumer-scoped filter alongside the unfiltered gates contract.
+
 - **ci: NIGHT-improve-20 — the release pipeline hardened after the
   v11.0.0-alpha.1 failure: musl compiled on every push, lean
   single-commit clones, an API-rendered changelog, and a re-tag

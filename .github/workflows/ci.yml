@@ -13,13 +13,17 @@
 # gate-keepers.yml, which runs on EVERY push unfiltered — a
 # docs-only change never skips the gates that police it.
 #
-# NIGHT-improve-20: the musl static twin is a first-class citizen
-# now — a dedicated `musl` job runs the gnu `check` parity set
-# (clippy, tests, debug build, release build + -V execution gate)
-# on the oldest runner still carrying a 5.x kernel (ubuntu-22.04,
-# kernel 5.15) and the latest (ubuntu-24.04, kernel 6.8+), every
-# push. The old single musl compile buried inside the gnu `check`
-# job (release shape only, latest runner only) moved here whole.
+# NIGHT-improve-21 (cosmostrix filter discipline): the filter is now
+# scoped per CONSUMER, not per file-type glob. The old set matched
+# '**/*.py', 'scripts/**', and '**/*.toml' — so a comment tweak in
+# benchmarking.py, a docstring in uninstall.sh, or a line in
+# .ruff.toml bought the full Rust matrix (check + ebpf-build + the
+# musl twins). The set below is exactly what this workflow's jobs
+# compile or execute: the Rust trees, the cargo manifests, the
+# policy file the deny step reads, and the three scripts its steps
+# run. Everything else is gate-keepers territory — which runs on
+# every push anyway, so no change ever goes unpoliced, it just
+# stops buying forty minutes of compile time it cannot affect.
 
 name: CI
 
@@ -27,29 +31,34 @@ on:
   push:
     branches: ["main"]
     paths:
-      # The Rust + tooling surface — the set the former `changes`
-      # job's CORE_PATTERN matched, expressed natively.
+      # NIGHT-improve-21: the Rust + tooling surface this workflow
+      # COMPILES, plus the exact scripts its steps EXECUTE — scoped
+      # per consumer (cosmostrix filter discipline), see the header.
       - '**/*.rs'
-      - '**/*.toml'
-      - '**/*.py'
+      - '**/Cargo.toml'
       - 'Cargo.lock'
+      - 'deny.toml'
       - 'build.rs'
       - 'rust-toolchain*'
-      - 'scripts/**'
       - '.cargo/**'
       - 'ebpf/**'
+      - 'scripts/check-policy.py'
+      - 'scripts/supermassive-test.py'
+      - 'scripts/install-bpf-linker.sh'
   pull_request:
     branches: ["main"]
     paths:
       - '**/*.rs'
-      - '**/*.toml'
-      - '**/*.py'
+      - '**/Cargo.toml'
       - 'Cargo.lock'
+      - 'deny.toml'
       - 'build.rs'
       - 'rust-toolchain*'
-      - 'scripts/**'
       - '.cargo/**'
       - 'ebpf/**'
+      - 'scripts/check-policy.py'
+      - 'scripts/supermassive-test.py'
+      - 'scripts/install-bpf-linker.sh'
 
 # Least privilege (cosmostrix contract): every job in this workflow
 # only reads the repository.
