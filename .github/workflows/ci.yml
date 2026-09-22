@@ -13,20 +13,19 @@
 # gate-keepers.yml, which runs on EVERY push unfiltered — a
 # docs-only change never skips the gates that police it.
 #
-# NIGHT-improve-21 (cosmostrix filter discipline): the filter is now
-# scoped per CONSUMER, not per file-type glob. The old set matched
-# '**/*.py', 'scripts/**', and '**/*.toml' — so a comment tweak in
-# benchmarking.py, a docstring in uninstall.sh, or a line in
-# .ruff.toml bought the full Rust matrix (check + gnu-dynamic + the
-# musl twins). The set below is exactly what this workflow's jobs
-# compile or execute: the Rust trees, the cargo manifests, the
-# policy file the deny step reads, and the six scripts its steps
-# run (since NIGHT-boost-7 the check job's gate is scripts/build.sh
-# check-all itself, which executes
-# scripts/check-version-anti-patterns.sh in turn — both joined the
-# consumer set). Everything else is gate-keepers territory — which
-# runs on every push anyway, so no change ever goes unpoliced, it
-# just stops buying forty minutes of compile time it cannot affect.
+# NIGHT-boost-9 (owner mandate, cosmostrix filter lineage): the
+# scripts surface is ONE directory glob — 'scripts/**' — never a
+# list of filenames. The per-consumer list NIGHT-improve-21 built
+# (six exact script paths by the end) was precision with a drift
+# tax: every new script a CI step consumed needed a manual filter
+# edit, and a missed edit meant a silently skipped run — the change
+# compiled fine locally and CI simply never saw it. One glob covers
+# every current and future consumer, subdirectories included. The
+# trade is honest and accepted: a docstring tweak in benchmarking.py
+# now buys the full Rust matrix (check + gnu-dynamic + the musl
+# twins). The owner's rule prefers robustness over trigger economy
+# — gate-keepers.yml runs on every push unfiltered, and this
+# workflow errs toward running more, not less.
 
 # NIGHT-improve-22 (cosmostrix naming lineage): every workflow in
 # this repo carries its Dragon Guard name — the run list reads as
@@ -38,11 +37,9 @@ on:
   push:
     branches: ["main"]
     paths:
-      # NIGHT-improve-21: the Rust + tooling surface this workflow
-      # COMPILES, plus the exact scripts its steps EXECUTE — scoped
-      # per consumer (cosmostrix filter discipline), see the header.
-      # NIGHT-boost-7: build.sh and check-version-anti-patterns.sh
-      # joined — the check job's gate now runs through them.
+      # The Rust + tooling surface this workflow COMPILES, plus the
+      # whole scripts/ tree its steps EXECUTE — one directory glob,
+      # no hardcoded filenames (NIGHT-boost-9, see the header).
       - '**/*.rs'
       - '**/Cargo.toml'
       - 'Cargo.lock'
@@ -51,12 +48,7 @@ on:
       - 'rust-toolchain*'
       - '.cargo/**'
       - 'ebpf/**'
-      - 'scripts/check-policy.py'
-      - 'scripts/supermassive-test.py'
-      - 'scripts/supermassive-test-v2.py'
-      - 'scripts/install-bpf-linker.sh'
-      - 'scripts/build.sh'
-      - 'scripts/check-version-anti-patterns.sh'
+      - 'scripts/**'
   pull_request:
     branches: ["main"]
     paths:
@@ -68,12 +60,7 @@ on:
       - 'rust-toolchain*'
       - '.cargo/**'
       - 'ebpf/**'
-      - 'scripts/check-policy.py'
-      - 'scripts/supermassive-test.py'
-      - 'scripts/supermassive-test-v2.py'
-      - 'scripts/install-bpf-linker.sh'
-      - 'scripts/build.sh'
-      - 'scripts/check-version-anti-patterns.sh'
+      - 'scripts/**'
 
 # Least privilege (cosmostrix contract): every job in this workflow
 # only reads the repository.
