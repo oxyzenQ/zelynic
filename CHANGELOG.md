@@ -16,6 +16,33 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Added
 
+- **ci: NIGHT-improve-20 — musl CI parity: a first-class static twin
+  job on the kernel 5.x LTS floor and the latest runner, every
+  push** — the musl surface now gets the same every-push contract
+  the gnu surface always had: a dedicated `musl` job in ci.yml
+  running clippy (`--all-targets --all-features --target
+  x86_64-unknown-linux-musl -D warnings`), the full test suite
+  (`cargo test --locked --target x86_64-unknown-linux-musl` — the
+  static test binaries execute natively on the glibc runner, so
+  the suite runs inside the very artifact shape the release
+  ships), a debug build with the ebpf feature plus its own `-V`
+  execution gate, and the release build (the exact release.yml
+  invocation, moved here from the gnu check job — one shape, one
+  place). The matrix pins the kernel span the release page
+  promises: ubuntu-22.04 (kernel 5.15, the oldest hosted runner
+  still on a 5.x kernel — the LTS floor for the static packages)
+  and ubuntu-24.04 (kernel 6.8+), fail-fast off. clippy aims at
+  the musl target because lints are target-conditional — libc
+  type layouts differ between musl and gnu (the statfs f_type
+  E0308 that once escaped to a release tag is exactly the class
+  of defect a per-target clippy catches). The gnu `check` job
+  dropped its stapled-on musl release step and the musl target
+  install accordingly; cache keys carry the musl + matrix-OS
+  markers so the twin never cross-restores a gnu target tree.
+  The nightly eBPF pin and the shared bpf-linker installer mirror
+  the other compile jobs, since the ebpf feature graph compiles
+  in both musl build shapes.
+
 - **release: NIGHT-improve-22 — arch-baseline packages only: v3 and
   v4, gnu and musl, locally reproducible** — releases are now
   x86-64-v3 (AVX/AVX2/BMI1/BMI2/FMA, any x86_64 CPU from ~2013
