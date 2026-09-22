@@ -216,49 +216,6 @@ build_debug() {
 	fi
 }
 
-build_release() {
-	log_step "Building optimized release binary..."
-
-	if cargo build --profile release --target "${TARGET}" --jobs "${MAX_JOBS}"; then
-		local binary="target/${TARGET}/release/${PROJECT_NAME}"
-		local size
-		size=$(du -h "$binary" 2>/dev/null | cut -f1 || echo "unknown")
-		log_success "Release build complete (${size})"
-		echo "  └─ Binary: ${binary}"
-
-		# Strip binary for smaller size (optional - release profile already strips via Cargo.toml)
-		if command -v strip &>/dev/null && [ -f "$binary" ]; then
-			local before
-			local after
-			before=$(stat -f%z "$binary" 2>/dev/null || stat -c%s "$binary" 2>/dev/null)
-			strip "$binary" 2>/dev/null || true
-			after=$(stat -f%z "$binary" 2>/dev/null || stat -c%s "$binary" 2>/dev/null)
-			if [ -n "${before:-}" ] && [ -n "${after:-}" ] && [ "$before" -ge "$after" ]; then
-				local saved=$(((before - after) / 1024))
-				log_info "Stripped binary (saved ${saved}KB)"
-			fi
-		fi
-	else
-		log_error "Release build failed"
-		return 1
-	fi
-}
-
-build_release_with_debug() {
-	log_step "Building release with debug symbols..."
-
-	if cargo build --profile release-with-debug --target "${TARGET}" --jobs "${MAX_JOBS}"; then
-		local binary="target/${TARGET}/release-with-debug/${PROJECT_NAME}"
-		local size
-		size=$(du -h "$binary" 2>/dev/null | cut -f1 || echo "unknown")
-		log_success "Release-debug build complete (${size})"
-		echo "  └─ Binary: ${binary}"
-	else
-		log_error "Release-debug build failed"
-		return 1
-	fi
-}
-
 # =============================================================================
 # Quality & Lint Functions
 # =============================================================================
@@ -429,16 +386,6 @@ show_cache_stats() {
 	fi
 }
 
-run_benchmark() {
-	log_step "Running benchmarks..."
-	if cargo bench --no-fail-fast; then
-		log_success "Benchmarks complete"
-	else
-		log_error "Benchmarks failed"
-		return 1
-	fi
-}
-
 # =============================================================================
 # Help
 # =============================================================================
@@ -455,10 +402,7 @@ USAGE:
 
 COMMANDS:
     debug           Build debug version (default)
-    release         Build optimized release version
-    release-debug   Build release with debug symbols
     test            Run test suite
-    bench           Run benchmarks
 
     check           Quick checks (fmt + clippy)
     check-all       Recommended local quality gate (fmt + clippy + test + audit + deny + policy)
@@ -466,10 +410,17 @@ COMMANDS:
     clean           Clean build artifacts
     update          Update dependencies and audit
 
-    all             Full pipeline (check + debug + release + test)
-    ci              CI pipeline (check-all + release)
     stats           Show build cache statistics
     help            Show this help
+
+PRODUCT BUILDS (NIGHT-cleanup-3): this script is the CHECK
+orchestrator — release binaries do not come from here. Build with
+./scripts/bootstrap-ebpf.sh (dev, cargo pro-native-gnu) or
+./scripts/install.sh (user install, pro-native gnu/musl). The old
+basic-profile release/release-debug/ci/all/bench subcommands were
+retired: nobody called them, cargo bench had zero [[bench]]
+targets to run, and a plain --profile release path contradicts
+the pro-native mandate.
 
 OPTIONS:
     --no-cache      Disable build caching
@@ -481,11 +432,9 @@ ENVIRONMENT VARIABLES:
     RUST_BACKTRACE   Control backtrace verbosity (default: 1)
 
 EXAMPLES:
-    ./scripts/build.sh release                  # Build release version
     ./scripts/build.sh check-all                # Recommended before commits/PRs
-    ./scripts/build.sh ci                       # Run CI pipeline
-    ZELYNIC_JOBS=4 ./scripts/build.sh all       # Full build with 4 cores
-    ./scripts/build.sh --verbose release        # Verbose release build
+    ./scripts/build.sh debug                    # Debugger-ready dev build
+    ZELYNIC_JOBS=4 ./scripts/build.sh test      # Tests capped at 4 cores
 
 TOOLS INTEGRATION:
     sccache   - Build caching (install: cargo install sccache)
@@ -570,23 +519,9 @@ main() {
 		show_system_info
 		build_debug
 		;;
-	release)
-		check_rust_toolchain
-		show_system_info
-		build_release
-		;;
-	release-debug)
-		check_rust_toolchain
-		show_system_info
-		build_release_with_debug
-		;;
 	test)
 		check_rust_toolchain
 		run_tests
-		;;
-	bench | benchmark)
-		check_rust_toolchain
-		run_benchmark
 		;;
 	check)
 		check_rust_toolchain
@@ -594,10 +529,6 @@ main() {
 		;;
 	check-all | --check-all)
 		run_comprehensive_check
-		;;
-	ci)
-		run_comprehensive_check
-		build_release
 		;;
 	fmt | format)
 		run_fmt_fix
@@ -608,16 +539,6 @@ main() {
 	update)
 		check_rust_toolchain
 		update_dependencies
-		;;
-	all)
-		check_rust_toolchain
-		show_system_info
-		run_fmt_check
-		run_clippy
-		build_debug
-		build_release
-		run_tests
-		show_cache_stats
 		;;
 	stats)
 		show_cache_stats
