@@ -217,7 +217,13 @@ line 100). Missing tools are skipped with a warning locally; the
 Gate-keepers workflow (.github/workflows/gate-keepers.yml, unfiltered —
 every push, docs-only included) runs the entire script wholesale with
 every tool installed, so each section — current and future — is
-enforced on every push.
+enforced on every push. The build workflows carry the complementary
+contract (NIGHT-improve-21, cosmostrix filter discipline): ci.yml's
+`paths:` filter is scoped per consumer — only the files its jobs
+compile or execute (the Rust trees, the cargo manifests, deny.toml,
+and the three scripts its steps run) trigger the Rust matrix; every
+other change (docs, harness scripts, lint configs) rides the
+Gate-keepers workflow alone and skips the compilers it cannot affect.
 
 ## Branch Strategy
 
