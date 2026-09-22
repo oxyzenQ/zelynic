@@ -391,6 +391,32 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Changed
 
+- **harness: NIGHT-improve-19 — the light mode retired; one root
+  intensity, CLI-grade flag typo rescue** — supermassive-test now
+  has exactly two modes: the 5+ minute supermassive matrix (the
+  default, and the only root mode) and --self-test (rootless
+  engine smoke). The old light sweep ran a subset of the same
+  stages with smaller windows, so a green light run said nothing
+  the matrix does not say more strongly — while its tighter
+  windows were the flakiness engine behind two real verdict
+  failures: the 2026-09-21 asymmetric split (light 131.1% FAIL
+  where heavy measured 124.5% PASS on the same engine) and the
+  2026-09-22 curl burst 135% (hunt-32's divisor artifact,
+  amplified by the light window's larger burst-to-window ratio).
+  run_light, LADDER_LIGHT, and the mode branch are gone; --heavy
+  remains accepted as the explicit spelling of the default.
+  Unknown flags now get the SAME typo contract as the zelynic
+  binary: a case-insensitive Jaro matcher at clap's own > 0.7
+  confidence threshold (src/cli/suggestion.rs mirrored), so
+  `--self-tesss` prints `tip: a similar option exists:
+  '--self-test'` — and the retired `--light` gets a dedicated
+  message naming its replacement instead of a misleading generic
+  suggestion. Three new self-test rows pin the rescue rootlessly
+  (near-miss suggestion, distant-input silence, retirement
+  message); self-test is 20/20. Docs aligned: README,
+  CONTRIBUTING, the wrapper header, and the bootstrap-ebpf.sh
+  next-step hint.
+
 - **core: NIGHT-optimized-2 — the redundancy master-audit for LTS**
   — a full pass over the 7k-LOC src/ tree (profiles, dead code,
   duplication, error-contract symmetry, hot paths). Findings and

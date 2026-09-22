@@ -117,8 +117,9 @@ scripts/
   check-policy.py      — copyright + SPDX policy check
   supermassive-test.sh — one-click supermassive test (NIGHT-master-2,
                 renamed from brutal-stress-test in NIGHT-improve-11; wraps
-                supermassive-test.py: light ~2 min / --heavy 5+ min
-                modes sweeping the whole command surface — strict/block/
+                supermassive-test.py: one root mode, the 5+ min matrix
+                (light retired in NIGHT-improve-19; --self-test is
+                rootless) sweeping the whole command surface — strict/block/
                 unstrict x single/multi/all, curl burst download + upload,
                 rate ladder 1kb..1tb adaptive to hardware, five dedicated
                 target cgroups plus a never-policed hq cgroup for the
