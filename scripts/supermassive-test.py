@@ -1045,7 +1045,10 @@ def test_policy_write():
     # render path from the JSON every other stage consumes — exercise it
     # while a limit is provably live.
     rc, stdout, _ = run_zel(["status"])
-    rendered = "Active limits" in stdout and "zelynic Status" in stdout
+    # NIGHT-boost-5: the human table opens with the flagship title bar
+    # ("zelynic status") and signs off with the signature footer — pin
+    # the bar, not the old heavy-dash header it replaced.
+    rendered = "Active limits" in stdout and "zelynic status" in stdout
     human = record(
         "status: human table renders with a live limit",
         "PASS" if rc == 0 and rendered else "FAIL",

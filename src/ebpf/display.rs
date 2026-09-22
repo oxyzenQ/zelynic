@@ -12,6 +12,8 @@ use crate::ebpf::identity::IdentityMap;
 use crate::ebpf::limiter::{
     format_bytes, format_rate, monotonic_ns, terminal_width, LimiterStatsRaw, PolicyRaw,
 };
+use crate::ebpf::render::title_bar;
+use crate::output::signature_footer;
 
 /// Combined policy data for display.
 struct DisplayData {
@@ -85,6 +87,22 @@ fn status_cells(
 }
 
 /// Print human-readable status table.
+///
+/// Flagship engraving (NIGHT-boost-5): the surface opens with the
+/// same purple title bar the eagle-eyes monitor carries and signs
+/// off with the signature footer — status is not an afterthought
+/// table, it is the second flagship surface. The title bar spans
+/// the table's own width (content-width table + its gutter), not
+/// the full terminal — the status grid sizes to its rows, and a
+/// full-width bar would overhang it on wide screens.
+///
+/// Watchdog honesty (NIGHT-boost-5): the line appears only when a
+/// deadline is actually ARMED. The retired "not set (enforcing)"
+/// line read like a state but was the absence of one — a dormant
+/// auto-expiry timer printed on every check the owner actually
+/// runs, noise pretending to be information. `--print-json` keeps
+/// the `"watchdog"` field semantics unchanged (pinned scripting
+/// contract, test/ebpf/display_tests.rs).
 pub fn print_status(
     dl_policies: &[(u32, PolicyRaw)],
     ul_policies: &[(u32, PolicyRaw)],
@@ -92,40 +110,7 @@ pub fn print_status(
     identity: &IdentityMap,
     watchdog_deadline: Option<u64>,
 ) {
-    println_safe!("\n{}", crate::output::brand_bold("━━━ zelynic Status ━━━"));
-
-    match watchdog_deadline {
-        Some(0) | None => {
-            println_safe!("  Watchdog: not set (enforcing)");
-        }
-        Some(deadline) => {
-            let now = monotonic_ns();
-            if deadline > now {
-                let remaining = (deadline - now) / 1_000_000_000;
-                println_safe!("  Watchdog: {remaining}s remaining");
-            } else {
-                println_safe!("  Watchdog: EXPIRED (BPF is no-op)");
-            }
-        }
-    }
-
-    if dl_policies.is_empty() && ul_policies.is_empty() {
-        println_safe!("  Active limits: none");
-        return;
-    }
-
-    println_safe!(
-        "  Active limits: {} dl, {} ul",
-        dl_policies.len(),
-        ul_policies.len()
-    );
-    println_safe!();
-
     let data = collect_display_data(dl_policies, ul_policies, stats);
-    if data.is_empty() {
-        return;
-    }
-
     let rows: Vec<(String, String, String, String, String)> =
         data.iter().map(|d| status_cells(d, identity)).collect();
 
@@ -150,6 +135,37 @@ pub fn print_status(
         col_widths[0] = col_widths[0].saturating_sub(excess).max(10);
     }
 
+    let sep_len: usize = col_widths.iter().sum::<usize>() + 4;
+    println_safe!("\n{}", title_bar("zelynic status", "", sep_len + 2));
+
+    match watchdog_deadline {
+        Some(deadline) if deadline > 0 => {
+            let now = monotonic_ns();
+            if deadline > now {
+                let remaining = (deadline - now) / 1_000_000_000;
+                println_safe!("  Watchdog: {remaining}s remaining");
+            } else {
+                println_safe!("  Watchdog: EXPIRED (BPF is no-op)");
+            }
+        }
+        // Dormant (deadline 0 / None): no line at all — the function
+        // docs above hold the why.
+        _ => {}
+    }
+
+    if dl_policies.is_empty() && ul_policies.is_empty() {
+        println_safe!("  Active limits: none");
+        println_safe!("\n  {}", signature_footer());
+        return;
+    }
+
+    println_safe!(
+        "  Active limits: {} dl, {} ul",
+        dl_policies.len(),
+        ul_policies.len()
+    );
+    println_safe!();
+
     println_safe!(
         "  {:<w0$} {:>w1$} {:>w2$} {:>w3$} {:>w4$}",
         headers[0],
@@ -163,7 +179,6 @@ pub fn print_status(
         w3 = col_widths[3],
         w4 = col_widths[4]
     );
-    let sep_len: usize = col_widths.iter().sum::<usize>() + 4;
     println_safe!("  {}", "─".repeat(sep_len));
 
     for row in &rows {
@@ -191,6 +206,10 @@ pub fn print_status(
             w4 = col_widths[4]
         );
     }
+
+    // Signature footer (NIGHT-boost-5): bottom-left identity stamp,
+    // one blank line of breathing room above it.
+    println_safe!("\n  {}", signature_footer());
 }
 
 /// Print JSON status (for --print-json / scripting).
