@@ -1302,6 +1302,41 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Docs
 
+- **docs: STABILITY.md — the nightly eBPF toolchain honestly
+  documented as a quarantined limit (NIGHT-lts-1)** — the owner's
+  question: the eBPF dependencies ride a nightly toolchain, which is
+  unstable by nature; can zelynic still be production-stable, and can
+  the project say so honestly? The answer is a new flagship doc plus
+  a README section, both written to the "99% not perfect but useful"
+  bar: (1) the layering contract — runtime needs only kernel 5.13+,
+  cgroup v2, BPF fs, root, and the ONE self-contained binary (the
+  eBPF objects are embedded at build time); release tarballs carry
+  nothing else; building from source needs the stable 1.98.1 pin,
+  the dated nightly-2026-09-18 pin (the eBPF objects only — the
+  nested build in build.rs, fenced there precisely because aya-ebpf
+  requires nightly feature gates), and bpf-linker 0.11.1, all
+  installed by bootstrap-ebpf.sh. (2) Why the nightly is DATED, not
+  floating: reproducibility — a regression cannot break every
+  from-source build overnight, and the pin + linker form a validated,
+  owner-bumped pair. (3) The LTS isolation contract: shipped binaries
+  do not depend on any toolchain component continuing to exist —
+  rustup, bpf-linker, or aya disappearing changes nothing for
+  already-installed zelynic; the binary's lifetime is bounded by the
+  kernels it runs on, and the embedded objects are identical across
+  build profiles (NIGHT-hunt-28's rustflag stripping, now stated as
+  an isolation property). (4) The honest-limit section, ranked:
+  kernel verifier drift (mitigated by the cross-distro matrix +
+  doctor preflight + loud cause-chained errors; fails closed, never
+  silently), dated-nightly aging (bites from-source builds only,
+  loudly, with the one-command repair), aya API evolution (minimal
+  dependency surface, audited call sites), and measurement physics
+  (GSO granularity and the min-RTO cushion — documented model
+  limits, not toolchain). (5) A break-glass table: symptom → first
+  command (doctor, recover, unstrict-all, bootstrap-ebpf.sh,
+  uninstall's new enforcement-first guard). README's Limitations
+  section gains "The nightly eBPF toolchain (honest)" pointing at
+  the doc with the one-breath summary.
+
 - **readme: usage deduplicated (NIGHT-docs-7)** — the owner read the
   README and saw the same usage data told twice: an annotated `### Usage`
   example block plus a `## Commands` syntax block, each command listed
