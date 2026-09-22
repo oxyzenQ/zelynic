@@ -4,7 +4,7 @@
 """
 zelynic frame-level render benchmark (NIGHT-hunt-7 A/B protocol).
 
-Drives the in-Rust frame harness (the `frame_bench_observe` ignored
+Drives the in-Rust frame harness (the `frame_bench_eagle` ignored
 test in src/ebpf/render.rs) and computes the owner's visual and
 performance metrics over the captured frames:
 
@@ -33,7 +33,7 @@ The Rust harness renders synthetic traffic from a fixed-seed LCG, so a
 comparable: identical data, only the layout engine differs.
 
 Root/eBPF is NOT required — the harness runs in sandboxes where
-`observe` cannot attach (the same constraint the NIGHT-hunt-6 commit
+`eagle-eyes` cannot attach (the same constraint the NIGHT-hunt-6 commit
 documented for the system benchmark).
 
 Usage:
@@ -58,7 +58,7 @@ import time
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-TEST_NAME = "frame_bench_observe"
+TEST_NAME = "frame_bench_eagle"
 DELIM = "###FRAME###"
 EMIT_RE = re.compile(r"###EMIT### bytes=(\d+)")
 META_RE = re.compile(r"###META### frames=(\d+) elapsed_ms=(\d+)")

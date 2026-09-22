@@ -1,10 +1,11 @@
 // Copyright (C) 2026 rezky_nightky
 // SPDX-License-Identifier: GPL-3.0-only
 
-//! Frame benchmark harness (NIGHT-hunt-7 A/B protocol).
+//! Frame benchmark harness (NIGHT-hunt-7 A/B protocol; retargeted
+//! to the eagle-eyes renderer by NIGHT-boost-1).
 //!
-//! Renders synthetic observe frames through the REAL render path so
-//! scripts/frame-bench.py can compute the owner's visual and
+//! Renders synthetic eagle-eyes frames through the REAL render path
+//! so scripts/frame-bench.py can compute the owner's visual and
 //! performance metrics (density gini, frame entropy, fps, dirty
 //! cells, emit bytes). Synthetic traffic evolves from a fixed-seed
 //! LCG, so a run BEFORE a layout change and one AFTER see
@@ -13,7 +14,7 @@
 //!
 //! Root/eBPF is NOT required: the render layer is exercised with an
 //! in-memory CounterSummary, so the harness runs in sandboxes where
-//! `observe` cannot attach (the same constraint the NIGHT-hunt-6
+//! `eagle-eyes` cannot attach (the same constraint the NIGHT-hunt-6
 //! commit documented for the system benchmark).
 //!
 //! NIGHT-hunt-8: the harness also installs a synthetic ConnectionMap
@@ -35,7 +36,7 @@
 
 use std::time::{Duration, Instant};
 
-use super::render_observe_frame;
+use super::render_eagle_eyes;
 use crate::ebpf::connections::{
     CgroupConnections, ConnectionMap, ProcessDetail, Proto, SocketInfo,
 };
@@ -45,11 +46,13 @@ use crate::terminal::DiffScreen;
 
 #[test]
 #[ignore = "benchmark harness: run via scripts/frame-bench.py"]
-fn frame_bench_observe() {
+fn frame_bench_eagle() {
     /// Wall-clock render budget (owner rule: 10s A/B benchmark).
     const FRAME_BUDGET: Duration = Duration::from_secs(10);
-    /// Synthetic cgroup count (25 > the 20-row display cap, so the
-    /// harness exercises the row-truncation path too).
+    /// Synthetic cgroup count (25 cgroups + their eagle-eyes detail
+    /// lines overflow the 80x40 row budget, so the harness exercises
+    /// the truncation path too — NIGHT-boost-1 removed the hard row
+    /// cap, the window is the budget).
     const CGROUPS: usize = 25;
 
     // Quick mode: 1s budget for smoke runs (driven by
@@ -225,9 +228,10 @@ fn frame_bench_observe() {
         // engine's real emission (byte count reported, bytes written
         // to the sink). Pinned 80x40 — see the module docs.
         lines.clear();
-        render_observe_frame(
+        render_eagle_eyes(
             &mut lines,
             &summary,
+            &[],
             &identity,
             Some(&conns),
             Duration::from_secs(1),

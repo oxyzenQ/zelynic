@@ -1795,7 +1795,8 @@ def test_sustain(rate_bps, windows, window, baseline):
 # the final state the battery leaves behind.
 #
 # Safety of the kill design (verified against the source): the observer
-# behind `top`/`observe` loads its BPF objects and attaches cgroup
+# behind `eagle-eyes` (the NIGHT-boost-1 merge of the former top/observe)
+# loads its BPF objects and attaches cgroup
 # programs but NEVER pins anything — the kernel releases those links
 # when the process dies — while the limiter's enforcement state lives
 # in PINNED maps under /sys/fs/bpf/zelynic that are designed to survive
@@ -1803,12 +1804,12 @@ def test_sustain(rate_bps, windows, window, baseline):
 # monitor therefore stresses exactly the seam it should: a violent
 # reader death must not disturb the writer's enforcement state.
 
-KILL_TOP_CYCLES = 5
-KILL_TOP_RENDER_S = 2.6
+KILL_TUI_CYCLES = 5
+KILL_TUI_RENDER_S = 2.6
 KILL_MIDFLIGHT_KILLS = 12
 
 
-def _spawn_top_on_pty(argv):
+def _spawn_tui_on_pty(argv):
     """Spawn the zelynic TUI on a fresh pseudo-terminal.
 
     The render engine needs a real terminal — a pipe gives it no
@@ -1820,8 +1821,8 @@ def _spawn_top_on_pty(argv):
     """
     master, slave = pty.openpty()
     # 24 rows x 80 cols: the default geometry every terminal starts
-    # from, so render_top_table exercises its full layout from the
-    # very first frame instead of a degenerate 0x0 grid.
+    # from, so the eagle-eyes renderer exercises its full layout from
+    # the very first frame instead of a degenerate 0x0 grid.
     fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 24, 80, 0, 0))
     proc = subprocess.Popen(
         [lib.BINARY] + argv,
@@ -1856,12 +1857,13 @@ def _drain_pty(master, seconds):
     return bytes(got)
 
 
-def test_kill_top():
-    """SIGKILL the live TUI (`zelynic top`) mid-render, under active
+def test_kill_tui():
+    """SIGKILL the live TUI (`zelynic eagle-eyes`, the NIGHT-boost-1
+    merge of the former top/observe) mid-render, under active
     strict-multi enforcement, five times over.
 
     Each cycle: apply strict-multi on cgroups a:b:c, start the TUI on a
-    pty, let it render for KILL_TOP_RENDER_S seconds (at --interval 1s
+    pty, let it render for KILL_TUI_RENDER_S seconds (at --interval 1s
     that is at least two frames), SIGKILL it, reap it as signal 9,
     then prove the split the pinned-map architecture promises —
     (1) the status rows for all three cgroups are intact at the exact
@@ -1880,19 +1882,19 @@ def test_kill_top():
     killed_ok = 0
     rows_ok = 0
     write_ok = 0
-    for cycle in range(KILL_TOP_CYCLES):
+    for cycle in range(KILL_TUI_CYCLES):
         ok, payload = apply_group(["a", "b", "c"], rates[cycle], exp[cycle])
         if not ok:
             record(
-                "kill top: strict-multi applied",
+                "kill tui: strict-multi applied",
                 "FAIL",
                 f"cycle {cycle + 1}: {payload}",
             )
             break
         completed += 1
-        proc, master = _spawn_top_on_pty(["top", "--interval", "1s"])
+        proc, master = _spawn_tui_on_pty(["eagle-eyes", "--interval", "1s"])
         try:
-            rendered = _drain_pty(master, KILL_TOP_RENDER_S)
+            rendered = _drain_pty(master, KILL_TUI_RENDER_S)
             proc.kill()  # SIGKILL: the violent death under test
             try:
                 proc.wait(timeout=10)
@@ -1920,32 +1922,32 @@ def test_kill_top():
         # never owned. enforcement_proofs records the kernel-drop and
         # byte-accounting rows per cycle.
         got = py_download(2.5, "a")
-        enforcement_proofs(f"kill top c{cycle + 1}", got)
+        enforcement_proofs(f"kill tui c{cycle + 1}", got)
         # A fresh write must still land after the kill.
         ok, _ = apply_single("d", "750kb", 750_000, 750_000)
         if ok:
             write_ok += 1
         clear_all()
     record(
-        "kill top: TUI rendered before every SIGKILL",
-        "PASS" if rendered_ok == completed and completed == KILL_TOP_CYCLES else "FAIL",
+        "kill tui: TUI rendered before every SIGKILL",
+        "PASS" if rendered_ok == completed and completed == KILL_TUI_CYCLES else "FAIL",
         f"{rendered_ok}/{completed} cycles produced pty output"
-        + ("" if completed == KILL_TOP_CYCLES else f" (only {completed} cycles ran)"),
+        + ("" if completed == KILL_TUI_CYCLES else f" (only {completed} cycles ran)"),
     )
     record(
-        "kill top: every kill reaped as signal 9",
-        "PASS" if killed_ok == completed and completed == KILL_TOP_CYCLES else "FAIL",
+        "kill tui: every kill reaped as signal 9",
+        "PASS" if killed_ok == completed and completed == KILL_TUI_CYCLES else "FAIL",
         f"{killed_ok}/{completed} cycles exited -9"
-        + ("" if completed == KILL_TOP_CYCLES else f" (only {completed} cycles ran)"),
+        + ("" if completed == KILL_TUI_CYCLES else f" (only {completed} cycles ran)"),
     )
     record(
-        "kill top: enforcement rows intact after every kill",
-        "PASS" if rows_ok == completed and completed == KILL_TOP_CYCLES else "FAIL",
+        "kill tui: enforcement rows intact after every kill",
+        "PASS" if rows_ok == completed and completed == KILL_TUI_CYCLES else "FAIL",
         f"{rows_ok}/{completed} cycles kept the exact a:b:c rates",
     )
     record(
-        "kill top: fresh policy write lands after every kill",
-        "PASS" if write_ok == completed and completed == KILL_TOP_CYCLES else "FAIL",
+        "kill tui: fresh policy write lands after every kill",
+        "PASS" if write_ok == completed and completed == KILL_TUI_CYCLES else "FAIL",
         f"{write_ok}/{completed} cycles wrote a new limit post-kill",
     )
     return (
@@ -1953,7 +1955,7 @@ def test_kill_top():
         and killed_ok == completed
         and rows_ok == completed
         and write_ok == completed
-        and completed == KILL_TOP_CYCLES
+        and completed == KILL_TUI_CYCLES
     )
 
 
@@ -2690,7 +2692,7 @@ def run_heavy(baseline_window):
     # and every enforcement proof is in; now the violent stages run,
     # with the recover/cleanup/dmesg teardown still ahead to verify
     # the final state the battery leaves behind.
-    test_kill_top()
+    test_kill_tui()
     test_kill_midflight()
     test_regression_battery()
     test_recover()

@@ -49,11 +49,11 @@ same WiFi interface. No `tc`, no `nftables`, no `LD_PRELOAD`, no daemon.
 | **Fractional precision** | 0.00% rate error, sub-byte token accumulation (benchmarks: docs/PERFORMANCE.md). |
 | **Schema migration** | BPF struct changes auto-detected + auto-cleaned on upgrade. |
 | **Crash recovery** | `zelynic recover` detects + removes orphaned BPF pins. |
-| **Discovery workflow** | `zelynic top` (live box) finds bandwidth hogs — other limiters can't discover. |
+| **Discovery workflow** | `zelynic eagle-eyes` (live box) finds bandwidth hogs — other limiters can't discover. |
 | **Box mode** | In-place refresh, clean exit, responsive layout; selection/copy physics documented in the [USAGE FAQ](docs/USAGE.md#faq) (NIGHT-hunt-7, improve-7/8). |
-| **Always-live monitors** | `observe`/`top` run live until you press `q` — no timers, no snapshot mode. |
+| **Unified monitor** | `eagle-eyes` runs live until you press `q` — apps ranked by consumption, one command for the former observe/top pair (NIGHT-boost-1). |
 | **Diff-based rendering** | Only changed rows are emitted — one write syscall per frame, idle frames cost zero I/O (NIGHT-improve-2). |
-| **Refresh control** | `--interval 1s..60s` on `observe`/`top`, with a live RATE column. |
+| **Refresh control** | `--interval 1s..60s` on `eagle-eyes`, with a live RATE column. |
 | **Eagle-eyes detail** | Monitor rows name the processes and endpoints INSIDE a cgroup — `curl (4012) -> 142.250.191.78:443` (NIGHT-hunt-8). |
 | **Strict dependency diet** | 7 direct deps, 54 lockfile crates, every one justified in [docs/DEPENDENCY_AUDIT.md](docs/DEPENDENCY_AUDIT.md). |
 
@@ -263,9 +263,11 @@ sudo zelynic block-single brave
 sudo zelynic block-multi brave:curl
 sudo zelynic block-all
 
-# Live monitors (box mode, q to quit) — top talkers / all traffic
-sudo zelynic top --interval 2s
-sudo zelynic observe --cgroup 73386   # zoom into one cgroup
+# Live monitor (box mode, q to quit) — apps ranked by consumption,
+# one target opens the deep focus view
+sudo zelynic eagle-eyes --interval 2s
+sudo zelynic eagle-eyes 73386         # zoom into one cgroup
+sudo zelynic eagle-eyes brave         # watch one app, deep view
 
 # Unlock — one app / a group / everything
 sudo zelynic unstrict-single brave
@@ -311,7 +313,7 @@ in `--help` and [docs/USAGE.md](docs/USAGE.md)).
 
 Monitor `--interval` accepts the same duration formats, bounded to
 1s..60s (a live monitor is neither a spam flood nor a screenshot) —
-see [docs/USAGE.md](docs/USAGE.md) `observe`/`top`.
+see [docs/USAGE.md](docs/USAGE.md) `eagle-eyes`.
 
 ## Limitations (honest)
 
@@ -357,7 +359,7 @@ the feature table above; the full audit trail is
 ```
 ┌───────────────────────────────────────────────────┐
 │  Layer 4 — CLI                                    │
-│  strict-single / block / top / observe / status   │
+│  strict-single / block / eagle-eyes / status      │
 ├───────────────────────────────────────────────────┤
 │  Layer 3 — Aggregation (delta, sort, format)      │
 ├───────────────────────────────────────────────────┤

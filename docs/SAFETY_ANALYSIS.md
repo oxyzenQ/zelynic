@@ -78,7 +78,7 @@ privilege contract:
 | Surface | Root? | Contract |
 |---------|-------|----------|
 | `strict-single`/`strict-multi`/`limit-all`, `block-single`/`block-multi`/`block-all`, `unstrict`/`unstrict-all`/`recover` | required | load, attach, and pin BPF programs; write policy maps. Fail fast with a "re-run with sudo" tip before touching BPF state when run non-root |
-| `status`, `observe`, `top` | required | read pinned BPF maps (same fail-fast guard) |
+| `status`, `eagle-eyes` | required | read pinned BPF maps (same fail-fast guard) |
 | `list-apps`, `doctor` | either | pure `/proc` + `/sys` reads; `doctor` additionally reports pin state when root |
 | `--help`, `-h`, `-V`/`--version`, bare invocation | either | pure stdout, no side effects, no file or network access |
 | `--check-update` | **refused** | network fetch via curl — exits with a branded error when euid is 0, before any network I/O |
@@ -350,7 +350,7 @@ watchdog wordings, the one honest zero state).
   constant matches its BPF object name one-to-one — a wrong name would
   have ENOENT-ed into exactly the swallowed-empty display that was
   just fixed; the alignment removes that failure class.
-- **Live observe/top loops:** a transient poll failure renders a zero
+- **Live eagle-eyes loops (NIGHT-boost-1 merge of observe/top):** a transient poll failure renders a zero
   frame and retries on the next tick — the documented task-7
   soft-read decision for a live transient observer; the first poll
   before the loop is hard-fail (`?`), so a dead observer never enters
@@ -440,7 +440,7 @@ real findings fixed; the rest of the sweep verified clean.
 `/proc/<pid>/comm` to 15 bytes of near-arbitrary content — including
 ANSI/OSC escape sequences and newlines. zelynic printed those labels
 raw on every display surface that runs as root in the admin's
-terminal: the list-apps table, the observe/top monitor tables, the
+terminal: the list-apps table, the eagle-eyes monitor tables, the
 eagle-eyes per-process detail lines, and the verbose resolution
 trace. That is a terminal-injection primitive handed to an
 unprivileged attacker:

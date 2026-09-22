@@ -570,6 +570,58 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Changed
 
+- **feat!: NIGHT-boost-1 — eagle-eyes: the observe + top pair merged
+  into one unified live monitor** — the owner's read was blunt:
+  observe and top were two views of the same observer with four
+  flags between them (`--observe --cgroup --limit --interval`),
+  bloat where one surface should be. `zelynic eagle-eyes`
+  (`eagle-eye` shorthand) is that surface. No targets: every app
+  RANKED by current consumption, rank 1 = whoever is eating the
+  internet right now — the ranking IS the view, so `--top` is
+  unnecessary. The row budget is the terminal height (the former
+  `--limit` and the hard 20-row MAX_ROWS cap are gone): a short
+  window shows the top few, a tall one spans the list down to the
+  quiet apps, detail lines included in the budget. The positional
+  TARGETS spec is autodetected per token (digits = cgroup ID, a
+  name = process, same rule as strict/block) and re-resolved against
+  the live identity map EVERY frame, so an app started mid-session
+  appears on the next refresh: `eagle-eyes brave` watches one app
+  (deep focus view — per-direction deltas, rate, both lifetime
+  counters, uncapped socket endpoints; the old `observe --cgroup`
+  depth, now automatic), `eagle-eyes 12345/brave/firefox` filters
+  the ranked table to that set, `eagle-eyes --interval 3s` calms
+  the cadence (kept: the one flag realtime precision needs, 1s
+  default). Unresolved names render a note line (`no app named
+  'x' — see 'zelynic list-apps'`) instead of a silently empty
+  table. The render tree split honors the LOC cap: `render/eagle.rs`
+  (ranked) + `render/focus.rs` (deep view) replace `observe.rs` +
+  `top.rs`, sharing the existing detail.rs; the column ladder keeps
+  the flagship degradation (RATE drops first below width 54), the
+  improve-13 column-aligned TOTAL row (sums every candidate, not
+  just the rows shown) and the NIGHT-hunt-8 "Top consumer" hint +
+  strict-single suggestion ride the unfiltered frames, and the
+  focus view keeps the lifetime-counter precision pin. Old muscle
+  memory lands soft: `zelynic observe` / `zelynic top` fail as
+  unrecognized subcommands whose tip redirects to `eagle-eyes`
+  (clap's own SuggestedSubcommand slot, the --help-all redirect
+  contract), and `--cgroup`/`--limit`/`--live`/`--duration` all
+  fail as unexpected arguments. Tests follow the merge: help_pins
+  documents the 14-command surface with the eagle-eyes synopsis and
+  a no-stale-synopses pin, surface_pins rejects the removed
+  subcommands (redirect pinned) and removed flags, privilege's
+  matrix runs `eagle-eyes` + the `eagle-eye` alias, monitor's unit
+  tests gain the empty-target-spec fail-fast ladder case
+  (`eagle-eyes /` errors before the root guard), the frame bench
+  harness is retargeted (`frame_bench_eagle`, same fixed-seed LCG
+  data), and the supermassive kill stage spawns eagle-eyes on the
+  pty (renamed kill-tui — command-agnostic stage name). Docs
+  swept for the merge: README feature table + quick start +
+  architecture diagram, USAGE monitor section (one eagle-eyes
+  block), SAFETY_ANALYSIS command table, BRANDING monitor layout
+  (height-is-the-budget contract), doctor's ready tip, and the
+  nonroot-depth-test matrix rows. The removed-surfaces limitation
+  list now names the merge explicitly.
+
 - **ci: NIGHT-improve-22 — the Dragon Guard estate: every workflow
   carries its masterclass name, and a warning is a failure
   everywhere** — the cosmostrix naming lineage applied across the

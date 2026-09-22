@@ -28,8 +28,8 @@ fn test_help_lists_every_command() {
         "recover",
         "status",
         "list-apps",
-        "observe",
-        "top",
+        "eagle-eyes",
+        "eagle-eye",
         "doctor",
         "strict",
     ];
@@ -55,6 +55,12 @@ fn test_help_lists_every_command() {
     assert!(
         !stdout.contains("zelynic man"),
         "--help must not document the removed 'man' command, got:\n{stdout}"
+    );
+    // NIGHT-boost-1: the merged monitor is documented as ONE surface
+    // — the retired observe/top synopses must not linger.
+    assert!(
+        !stdout.contains("zelynic observe") && !stdout.contains("zelynic top "),
+        "--help must not document the merged observe/top commands, got:\n{stdout}"
     );
 }
 

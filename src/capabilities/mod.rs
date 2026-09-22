@@ -219,7 +219,7 @@ fn print_report(report: &CapabilityReport) {
     if report.ebpf_supported && report.system.is_root {
         println_safe!();
         println_safe!(
-            "  {} Run 'zelynic strict-single <target> <rate>' or 'zelynic observe'",
+            "  {} Run 'zelynic strict-single <target> <rate>' or 'zelynic eagle-eyes'",
             ok_bold("Ready:")
         );
     }
