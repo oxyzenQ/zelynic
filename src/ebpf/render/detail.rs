@@ -3,8 +3,9 @@
 
 //! Connection detail lines (NIGHT-hunt-8 eagle eyes): the per-cgroup
 //! process-count label suffix and the indented socket-endpoint lines
-//! rendered under monitor rows. Shared by the observe and top
-//! renderers; the single-cgroup view uses the uncapped variant.
+//! rendered under monitor rows. Shared by the eagle-eyes renderers
+//! (ranked table + focus view); the single-cgroup focus view uses
+//! the uncapped variant.
 
 use crate::ebpf::connections::{ConnectionMap, Proto, SocketInfo};
 use crate::ebpf::identity::IdentityMap;

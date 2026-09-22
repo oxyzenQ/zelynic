@@ -112,13 +112,13 @@ const _: () = assert!(core::mem::size_of::<PortsHeader>() == 4);
 /// NIGHT-improve-8 (server LTS): raised from the C twin's 256 to
 /// 1024, the limiter's policy-map capacity class. On hosts with more
 /// than 256 live cgroups — Kubernetes nodes, systemd-heavy servers,
-// container hosts — the 256-entry maps filled silently and every
-/// further cgroup's traffic went UNCOUNTED (observe/top showed
+/// container hosts — the 256-entry maps filled silently and every
+/// further cgroup's traffic went UNCOUNTED (the monitor showed
 /// nothing for it; the insert failure path returns allow-and-skip).
 /// The owner rule is "desktop Linux, even server use": a monitor
 /// that quietly under-reports on exactly the hosts with the most
 /// cgroups is a stability hole, not a footnote. These maps are
-/// unpinned and session-scoped (created fresh at every observe/top
+/// unpinned and session-scoped (created fresh at every eagle-eyes
 /// run), so the raise carries no pin or schema migration; kernel
 /// memory cost is 2 x 1024 x 24 B = 48 KiB for a session.
 const COUNTER_MAP_MAX_ENTRIES: u32 = 1024;
