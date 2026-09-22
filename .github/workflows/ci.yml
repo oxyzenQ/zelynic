@@ -84,6 +84,10 @@ jobs:
         with:
           toolchain: ${{ env.RUST_VERSION }}
           components: clippy, rustfmt
+          # NIGHT-improve-20: the musl release-shape gate below compiles
+          # the static twin on every push — the target must be installed
+          # here, not first at tag time.
+          targets: x86_64-unknown-linux-musl
 
       # NIGHT-improve-1 phase 3: clippy --all-features compiles the
       # ebpf-feature build, which drives the nested pure-Rust eBPF
@@ -142,6 +146,20 @@ jobs:
 
       - name: Verify release build
         run: cargo build --release --locked
+
+      # NIGHT-improve-20: the v11.0.0-alpha.1 release run failed with
+      # E0308 because NO CI job had ever compiled the musl target —
+      # the release tag was the first musl compile in the project's
+      # CI history (statfs f_type is u64 on musl, i64 on glibc; fixed
+      # as NIGHT-hunt-33). This step compiles the EXACT release.yml
+      # musl invocation on every push, so a musl-only type error can
+      # never again surface first at tag time. The binary also runs
+      # its -V gate: a static musl executable executes natively on the
+      # glibc runner, proving the artifact, not just the compile.
+      - name: Verify release build (musl static twin)
+        run: |
+          cargo build --release --locked --target x86_64-unknown-linux-musl --features ebpf
+          ./target/x86_64-unknown-linux-musl/release/zelynic -V
 
   ebpf-build:
     name: eBPF Build (${{ matrix.os }})

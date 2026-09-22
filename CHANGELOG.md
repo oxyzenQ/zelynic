@@ -415,6 +415,43 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Changed
 
+- **ci: NIGHT-improve-20 — the release pipeline hardened after the
+  v11.0.0-alpha.1 failure: musl compiled on every push, lean
+  single-commit clones, an API-rendered changelog, and a re-tag
+  concurrency guard** — four changes, one mission (a release tag
+  must never be where a new class of failure is discovered).
+  First, the fail-fast hole that let NIGHT-hunt-33 through: no CI
+  job had ever compiled the musl target, so the release tag was
+  the first musl compile in the project's CI history — the
+  `check` job now builds the EXACT release.yml musl invocation
+  (`--release --locked --target x86_64-unknown-linux-musl
+  --features ebpf`) and runs the static binary's `-V` gate on
+  every push (a static musl executable runs natively on the
+  glibc runner, proving the artifact, not just the compile).
+  Second, the clone bloat the 2026-09-22 owner audit called out:
+  both release jobs cloned with `fetch-depth: 0`, pulling every
+  branch (legacy, main, pure-rust-prototype) and all 23 tags plus
+  full history — the build job now fetches exactly one commit
+  (the tag's), and the release job drops its checkout entirely.
+  Third, the release body: `git tag` + `git log` on a full clone
+  is replaced by the GitHub REST API (tag list + compare), which
+  needs zero bytes of repository and is more stable than
+  `--sort=-creatordate` (that misorders re-pointed tags — the
+  alpha.1 re-tag was live proof; semver ordering is
+  deterministic), with merge commits filtered the same way and
+  the 250-commit compare ceiling handled by an explicit
+  truncation note. Fourth, a `concurrency` group per tag:
+  re-pushing a MOVED tag now cancels the superseded in-flight
+  run instead of racing it — the superseded build compiles a
+  commit the tag no longer points at, so its artifacts are wrong
+  by definition. Setup.sh stays a local bring-up tool and is
+  deliberately NOT run by CI: its sudo matrix and interactive
+  menu belong to a dev box, while the release job already
+  mirrors its build contract (pinned toolchains, bpf-linker pin,
+  `--locked`, pro-release profile) and adds gates a local box
+  cannot have (tarball invariant, three-family checksums, GPG
+  tripwires).
+
 - **docs: NIGHT-improve-17 — Dragon Architecture renamed to Cosmic
   Dragon Architecture, with the architecture audit recorded** — the
   name was the last holdout from before the cosmic identity settled:

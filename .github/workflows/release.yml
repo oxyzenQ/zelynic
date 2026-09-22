@@ -25,6 +25,16 @@ env:
   # (--cap-lints allow), so only workspace-local code can fail.
   RUSTFLAGS: "-D warnings"
 
+# NIGHT-improve-20: re-pushing a MOVED tag supersedes the in-flight
+# run — the superseded build compiles a commit the tag no longer
+# points at, so its artifacts are wrong by definition and canceling
+# them is the only correct outcome (the v11.0.0-alpha.1 re-tag
+# mid-flight made this live). Different tags land in different
+# groups (github.ref differs) and never interact.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   # ===========================================================================
   # Validate Release Tag (fail fast, before any build cost)
@@ -108,7 +118,15 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5, NIGHT-hunt-20 SHA pin
         with:
-          fetch-depth: 0
+          # NIGHT-improve-20: the release build needs exactly one
+          # commit — the one the tag points at. fetch-depth 0 pulled
+          # the full history plus every branch (legacy, main,
+          # pure-rust-prototype) and all 23 tags; nothing in this job
+          # reads git metadata (the shipped version comes from
+          # Cargo.toml via env!("CARGO_PKG_VERSION")), so the bloat
+          # was pure clone cost. Depth 1: one commit, no branches, no
+          # sibling tags — the high-speed checkout.
+          fetch-depth: 1
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # @stable, NIGHT-hunt-20 SHA pin
@@ -374,11 +392,15 @@ jobs:
     permissions:
       contents: write
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5, NIGHT-hunt-20 SHA pin
-        with:
-          fetch-depth: 0
-
+      # NIGHT-improve-20: this job carries NO repository checkout at
+      # all anymore. The old path cloned the whole repository
+      # (fetch-depth 0: every branch, every tag, full history) just to
+      # run `git tag` + `git log` once for the changelog — the release
+      # body is now rendered from the GitHub REST API (tag list +
+      # compare), which needs zero bytes of repository and is also
+      # more stable: `git tag --sort=-creatordate` misorders re-pointed
+      # / re-created tags (the v11.0.0-alpha.1 re-tag), while semver
+      # ordering is deterministic.
       - name: Download artifacts
         uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6, NIGHT-hunt-20 SHA pin
         with:
@@ -387,30 +409,59 @@ jobs:
 
       - name: Generate release body
         id: body
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           TAG="${{ needs.validate.outputs.tag }}"
           IS_PRERELEASE="${{ needs.validate.outputs.prerelease }}"
 
-          # Pre-release: prev = any previous tag (including pre-releases)
-          # — users testing pre-release builds want to see what changed
-          # since the last build.
-          # Stable: prev = nearest previous STABLE tag (skip pre-releases)
-          # — the stable changelog spans from the last stable release.
+          # All tag names via the API — no clone, no local refs.
+          TAGS=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/tags" --jq '.[].name')
+
+          # Previous changelog boundary:
+          # Pre-release: prev = any previous tag by semver (users
+          #   testing pre-release builds want the changes since the
+          #   last build of any channel).
+          # Stable: prev = nearest previous STABLE tag (skip
+          #   pre-releases) — the stable changelog spans from the
+          #   last stable release.
+          # awk (never grep) so a zero-match filter is not a failed
+          # pipeline under pipefail — "no previous tag" is a legal
+          # state, not an error.
           if [ "${IS_PRERELEASE}" = "true" ]; then
-            PREV_TAG=$(git tag --sort=-creatordate | grep -v "^${TAG}$" | head -1 || true)
+            PREV_TAG=$(printf '%s\n' "${TAGS}" \
+              | awk -v cur="${TAG}" '$0 != cur' \
+              | sort -V | tail -1)
           else
-            PREV_TAG=$(git tag --sort=-creatordate \
-              | grep -v "^${TAG}$" \
-              | grep -vE '^v[0-9]+\.[0-9]+\.[0-9]+-(dev|nightly|alpha|beta)[\.-]' \
-              | head -1 || true)
+            PREV_TAG=$(printf '%s\n' "${TAGS}" \
+              | awk -v cur="${TAG}" \
+                '$0 != cur && $0 !~ /^v[0-9]+\.[0-9]+\.[0-9]+-(dev|nightly|alpha|beta)[\.-]/' \
+              | sort -V | tail -1)
           fi
 
           {
             if [ -n "${PREV_TAG}" ]; then
               echo "## What's Changed"
               echo ""
-              git log --no-merges --pretty=format:'- %s (%h)' "${PREV_TAG}..${TAG}"
+              # Commits between the boundary and the tag, straight from
+              # the compare API. Same shape as the old
+              # `git log --no-merges --pretty=format:'- %s (%h)'`:
+              # merge commits (more than one parent) are skipped.
+              # The API caps the commit list at 250 — an honest
+              # truncation note is appended when total_commits exceeds
+              # the delivered list.
+              gh api "repos/${GITHUB_REPOSITORY}/compare/${PREV_TAG}...${TAG}" > compare.json
+              jq -r '.commits[]
+                | select((.parents | length) <= 1)
+                | "- \(.commit.message | split("\n")[0]) (\(.sha[0:7]))"' \
+                compare.json
+              TOTAL=$(jq -r '.total_commits' compare.json)
+              LISTED=$(jq -r '.commits | length' compare.json)
+              if [ "${TOTAL}" -gt "${LISTED}" ]; then
+                echo ""
+                echo "- (changelog truncated: ${TOTAL} commits total, ${LISTED} listed)"
+              fi
               echo ""
             else
               echo "Initial release."
