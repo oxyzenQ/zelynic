@@ -48,6 +48,7 @@ on:
       - 'ebpf/**'
       - 'scripts/check-policy.py'
       - 'scripts/supermassive-test.py'
+      - 'scripts/supermassive-test-v2.py'
       - 'scripts/install-bpf-linker.sh'
   pull_request:
     branches: ["main"]
@@ -62,6 +63,7 @@ on:
       - 'ebpf/**'
       - 'scripts/check-policy.py'
       - 'scripts/supermassive-test.py'
+      - 'scripts/supermassive-test-v2.py'
       - 'scripts/install-bpf-linker.sh'
 
 # Least privilege (cosmostrix contract): every job in this workflow
@@ -164,6 +166,14 @@ jobs:
 
       - name: Supermassive harness engine self-test
         run: python3 scripts/supermassive-test.py --self-test
+
+      # NIGHT-improve-23: the v2 harness (daily-use E2E simulation)
+      # self-tests the same way — engine import, endpoint registry,
+      # worker command contract — with no root and no network, so the
+      # realnet lane's plumbing is proven on every push even though
+      # the root matrix itself runs on the owner's machines.
+      - name: Supermassive v2 harness engine self-test
+        run: python3 scripts/supermassive-test-v2.py --self-test
 
       - name: Verify release build
         run: cargo build --release --locked
