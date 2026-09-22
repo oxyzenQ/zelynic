@@ -14,7 +14,7 @@ This document defines the visual identity and communication standards for the Ze
 - **Technical Precision** — enforced by a pure eBPF datapath on cgroup v2
 - **Reliability** — robust per-process network behavior control
 - **Professionalism** — clean CLI, detailed diagnostics, and thorough validation
-- **Clarity** — clean CLI output, box-mode monitoring (`observe` / `top`)
+- **Clarity** — clean CLI output, box-mode monitoring (`eagle-eyes`)
 
 ---
 
@@ -49,7 +49,7 @@ Usage surfaces:
   strict / limit / block / unstrict / monitor / system)
 - clap error rendering — headers and Usage in bold purple via
   `clap_styles()` (`src/cli/mod.rs`); error labels bold red, tips white
-- `status` / `observe` / `top` / `recover` / `list-apps` banners — bold
+- `status` / `eagle-eyes` / `recover` / `list-apps` banners — bold
 - `--check-update` report banner — bold
 
 Status colors use the same capability tiers (owner color contract,
@@ -73,23 +73,24 @@ Exit-code contract: clap usage errors exit 2; runtime failures exit 1.
 
 ### 2.1. Monitor layout (NIGHT-hunt-7)
 
-The `observe` / `top` monitors render "boring but elegant flagship"
+The `eagle-eyes` monitor renders "boring but elegant flagship"
 (owner contract): one bold-purple title bar filled to the full frame
 width, regular-purple column headers, thin separators, right-aligned
 numerics, and no per-cell noise (values are never packed as
 `89 (1.2 MB)` — that is what the RATE column is for).
 
-- Title bar: `─── zelynic observe — 1s refresh ────…── q quit`,
+- Title bar: `─── zelynic eagle-eyes — 1s refresh ────…── q quit`,
   bold purple, right-aligned key hint when width allows.
 - Column headers: `PROCESS  DOWNLOAD  UPLOAD  RATE`, regular purple.
 - Rows and totals: terminal default color — the purple frame carries
   the brand so data stays maximally readable.
 - The layout re-probes width AND height every frame (TIOCGWINSZ), so
   resizing the terminal adapts on the next refresh: columns degrade
-  (RATE first, then TOTAL), labels truncate with an ellipsis, and the
-  row count is height-capped so frames never scroll.
-- Refresh cadence: `--interval` (1s..60s, default 1s observe / 5s top);
-  the RATE column divides deltas by exactly that interval.
+  (RATE first), labels truncate with an ellipsis, and the
+  row count follows the height (NIGHT-boost-1: no --limit, no cap —
+  the window IS the budget) so frames never scroll.
+- Refresh cadence: `--interval` (1s..60s, default 1s — realtime
+  precision); the RATE column divides deltas by exactly that interval.
 - Eagle-eyes detail (NIGHT-hunt-8): multi-tenant cgroups carry a
   `+N` process suffix — `cg:73386 (alacritty +3)` — and up to three
   indented detail lines naming the socket-holding processes inside:

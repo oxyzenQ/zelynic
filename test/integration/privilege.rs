@@ -32,8 +32,8 @@ fn test_enforcement_commands_refuse_non_root_cleanly() {
         &["unstrict-all"],
         &["recover"],
         &["status"],
-        &["observe"],
-        &["top"],
+        &["eagle-eyes"],
+        &["eagle-eye", "brave"],
     ];
     for argv in ENFORCEMENT_ARGV {
         let output = zelynic_cmd()
@@ -100,7 +100,7 @@ fn test_input_validation_precedes_privilege_guard() {
         (&["strict-single", "brave", "1MB"], "Invalid rate '1MB'"),
         (&["strict-single", "brave", "1b"], "below minimum"),
         (&["strict-single", "brave", "2tb"], "above maximum"),
-        (&["observe", "--interval", "61s"], "between 1s and 60s"),
+        (&["eagle-eyes", "--interval", "61s"], "between 1s and 60s"),
     ];
     for (argv, expected) in CASES {
         let output = zelynic_cmd()

@@ -172,9 +172,9 @@ NIGHT-improve-8, all documented for the decision section:
    Kubernetes nodes, systemd-heavy servers, container hosts — the
    port-time maps filled silently and every further cgroup's traffic
    went uncounted (the insert-failure path returns allow-and-skip,
-   so observe/top showed nothing for it). The maps are unpinned and
+   so the monitor showed nothing for it). The maps are unpinned and
    session-scoped, so the raise carries no pin or schema migration;
-   kernel memory cost is 2 x 1024 x 24 B = 48 KiB per observe session.
+   kernel memory cost is 2 x 1024 x 24 B = 48 KiB per monitor session.
    The frozen bpftool dumps below still show the port-time 256 —
    they are verbatim records of the port verification.
 

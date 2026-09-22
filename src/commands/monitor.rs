@@ -1,7 +1,7 @@
 // Copyright (C) 2026 rezky_nightky
 // SPDX-License-Identifier: GPL-3.0-only
 
-//! Monitor command handlers — status, list-apps, observe, top.
+//! Monitor command handlers — status, list-apps, eagle-eyes.
 
 use anyhow::Result;
 
@@ -134,32 +134,62 @@ pub fn handle_list_apps(json: bool) -> Result<()> {
     Ok(())
 }
 
-/// Handle `zelynic observe` — real-time traffic monitor (alt screen).
+/// Handle `zelynic eagle-eyes` — the unified live monitor
+/// (NIGHT-boost-1: observe + top merged into one surface).
 ///
-/// Always live (NIGHT-hunt-12): the former `--live <dur>` timer is
-/// gone — the box refreshes until the user quits (q is the only quit
-/// key, NIGHT-hunt-16).
-/// `interval` (NIGHT-hunt-7) is the refresh cadence, 1s..60s via
-/// `--interval`; it drives both the render loop AND the BPF poll, so
-/// per-frame deltas divide by exactly the interval for the RATE
-/// column.
+/// Always live (NIGHT-hunt-12): the box refreshes until the user
+/// quits (q is the only quit key, NIGHT-hunt-16). `interval`
+/// (NIGHT-hunt-7) is the refresh cadence, 1s..60s via
+/// `--interval` (default 1s — realtime precision); it drives both
+/// the render loop AND the BPF poll, so per-frame deltas divide by
+/// exactly the interval for the RATE column.
+///
+/// The positional TARGETS spec is autodetected per Target::parse
+/// (digits = cgroup ID, else process name) and re-resolved against
+/// the live identity map every frame, so apps started mid-session
+/// appear on the next refresh. One token resolving to one cgroup
+/// takes the deep focus view; more take the filtered ranked table;
+/// none take the full consumption-ranked ranking with a row budget
+/// equal to the terminal height (no --limit, no cap).
 #[cfg(feature = "ebpf")]
-pub fn handle_observe(cgroup: Option<u32>, interval: Option<&str>, verbose: bool) -> Result<()> {
+pub fn handle_eagle_eyes(
+    targets: Option<&str>,
+    interval: Option<&str>,
+    verbose: bool,
+) -> Result<()> {
     use crate::ebpf::connections::ConnectionMap;
+    use crate::ebpf::limiter::Target;
     use crate::ebpf::loader::Observer;
-    use crate::ebpf::render::render_observe_filtered;
-    use crate::ebpf::render::render_observe_frame;
+    use crate::ebpf::render::render_eagle_eyes;
     use crate::terminal;
     use std::time::Duration;
 
     // Input validation first (fail-fast, no privileges needed): the
-    // refresh-interval string is pure parsing — a typo surfaces its
-    // did-you-mean tip before the root requirement, the same
-    // parse-before-execute ladder as the strict handlers (smoke-run
-    // find).
+    // refresh-interval string and the target spec are pure parsing —
+    // a typo surfaces its did-you-mean tip before the root
+    // requirement, the same parse-before-execute ladder as the
+    // strict handlers (smoke-run find).
     let interval_secs = match interval {
         Some(s) => crate::ebpf::limiter::parse_monitor_interval(s)?,
         None => 1,
+    };
+    let tokens: Vec<Target> = match targets {
+        Some(spec) => {
+            let tokens: Vec<Target> = spec
+                .split('/')
+                .map(str::trim)
+                .filter(|t| !t.is_empty())
+                .map(Target::parse)
+                .collect();
+            if tokens.is_empty() {
+                anyhow::bail!(
+                    "No targets in '{spec}' — pass process names or cgroup IDs \
+                     separated by '/' (e.g., 'zelynic eagle-eyes brave/firefox')"
+                );
+            }
+            tokens
+        }
+        None => Vec::new(),
     };
 
     super::ensure_root()?;
@@ -193,81 +223,10 @@ pub fn handle_observe(cgroup: Option<u32>, interval: Option<&str>, verbose: bool
         // single hiccup.
         let summary = observer.poll_and_summarize().unwrap_or_default();
         conns.maybe_refresh();
-        if let Some(cg) = cgroup {
-            render_observe_filtered(
-                lines,
-                &summary,
-                observer.identity(),
-                Some(&conns),
-                cg,
-                interval,
-            );
-        } else {
-            render_observe_frame(lines, &summary, observer.identity(), Some(&conns), interval);
-        }
-    });
-
-    observer.detach();
-    Ok(())
-}
-
-/// Handle `zelynic top` — live top talkers (box mode).
-///
-/// Always live (NIGHT-hunt-12): the former snapshot mode (`--duration`)
-/// and `--live` timer are gone — the table refreshes until the user
-/// quits (q is the only quit key, NIGHT-hunt-16). `interval` (NIGHT-hunt-7) is the refresh
-/// cadence, 1s..60s via `--interval` (default 5s).
-#[cfg(feature = "ebpf")]
-pub fn handle_top(limit: usize, interval: Option<&str>, verbose: bool) -> Result<()> {
-    use crate::ebpf::connections::ConnectionMap;
-    use crate::ebpf::loader::Observer;
-    use crate::ebpf::render::render_top_table;
-    use crate::terminal;
-    use std::collections::HashMap;
-    use std::time::Duration;
-
-    // Input validation first (fail-fast, no privileges needed): the
-    // refresh-interval string is pure parsing — a typo surfaces its
-    // did-you-mean tip before the root requirement (smoke-run find).
-    let interval_secs = match interval {
-        Some(s) => crate::ebpf::limiter::parse_monitor_interval(s)?,
-        None => 5,
-    };
-
-    super::ensure_root()?;
-
-    // Same verbose contract as observe (NIGHT-hunt-9): the loader trace
-    // prints before the live box takes over, so -v explains where the
-    // observer object came from and what it attached to.
-    let mut observer = Observer::attach_quiet(!verbose)?;
-    observer.refresh_identity();
-    if verbose {
-        eprintln_safe!("[ebpf] {} cgroups resolved", observer.identity().len());
-    }
-
-    let mut cumulative: HashMap<u32, (u64, u64, u64)> = HashMap::new();
-    let mut conns = ConnectionMap::new();
-    let _ = observer.poll_and_summarize()?;
-
-    // NIGHT-improve-2: same line-building contract as observe — the
-    // diff engine emits only the changed rows.
-    let interval = Duration::from_secs(interval_secs);
-    terminal::run_alt(interval, |lines| {
-        // One-frame tolerance — same contract as handle_observe
-        // (see the comment there; the opening poll hard-fails, this
-        // line only absorbs transient mid-session reads).
-        let summary = observer.poll_and_summarize().unwrap_or_default();
-        for c in &summary.cgroups {
-            let entry = cumulative.entry(c.cgroup_id).or_insert((0, 0, 0));
-            entry.0 += c.ingress_bytes;
-            entry.1 += c.bytes;
-            entry.2 += c.packets + c.ingress_packets;
-        }
-        conns.maybe_refresh();
-        render_top_table(
+        render_eagle_eyes(
             lines,
-            &cumulative,
-            limit,
+            &summary,
+            &tokens,
             observer.identity(),
             Some(&conns),
             interval,
@@ -292,7 +251,8 @@ mod tests {
     #[cfg(feature = "ebpf")]
     #[test]
     fn duration_typo_surfaces_before_root_guard() {
-        let err = handle_observe(None, Some("3min"), false).expect_err("typo'd interval must fail");
+        let err =
+            handle_eagle_eyes(None, Some("3min"), false).expect_err("typo'd interval must fail");
         let msg = format!("{err}");
         assert!(
             msg.contains("Invalid duration '3min'"),
@@ -316,7 +276,7 @@ mod tests {
     #[test]
     fn interval_bounds_surface_before_root_guard() {
         for bad in ["0", "61", "90s", "2m"] {
-            let err = handle_observe(None, Some(bad), false)
+            let err = handle_eagle_eyes(None, Some(bad), false)
                 .expect_err("out-of-range interval must fail");
             let msg = format!("{err}");
             assert!(
@@ -326,6 +286,28 @@ mod tests {
             assert!(
                 !msg.contains("root required"),
                 "interval error must precede the root guard, got: {msg}"
+            );
+        }
+    }
+
+    /// Target-spec validation (NIGHT-boost-1): a spec that reduces to
+    /// nothing ('/' or ' // ') is a usage error BEFORE the root guard
+    /// — same fail-fast ladder as the interval parsing above. Safe on
+    /// any uid: the bail returns before ensure_root().
+    #[cfg(feature = "ebpf")]
+    #[test]
+    fn empty_target_spec_surfaces_before_root_guard() {
+        for bad in ["/", " // "] {
+            let err =
+                handle_eagle_eyes(Some(bad), None, false).expect_err("empty target spec must fail");
+            let msg = format!("{err}");
+            assert!(
+                msg.contains("No targets in"),
+                "spec '{bad}' must name the problem, got: {msg}"
+            );
+            assert!(
+                !msg.contains("root required"),
+                "spec error must precede the root guard, got: {msg}"
             );
         }
     }

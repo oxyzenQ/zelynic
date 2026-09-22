@@ -1,7 +1,9 @@
 // Copyright (C) 2026 rezky_nightky
 // SPDX-License-Identifier: GPL-3.0-only
 
-//! Responsive render engine for the observe/top monitors (NIGHT-hunt-7).
+//! Responsive render engine for the eagle-eyes monitor
+//! (NIGHT-hunt-7; NIGHT-boost-1 merged the former observe/top pair
+//! into one surface).
 //!
 //! Owner contract: "boring but elegant flagship". One purple title
 //! bar, one thin header row, right-aligned numerics, no per-cell
@@ -17,9 +19,11 @@
 //! check). Resizing the terminal adapts the layout on the next
 //! refresh: no SIGWINCH plumbing, no stale geometry, no caches to
 //! invalidate. Columns degrade gracefully on narrow terminals (RATE
-//! drops first, then TOTAL), the label column absorbs the remaining
-//! width, and the row count is capped by the available height so a
-//! frame never scrolls off the alt screen.
+//! drops first), the label column absorbs the remaining
+//! width, and the row count follows the terminal height
+//! (NIGHT-boost-1: the former --limit and the hard 20-row cap are
+//! gone — the window IS the budget) so a frame never scrolls off
+//! the alt screen.
 //!
 //! Realtime interval: callers pass the poll interval so the RATE
 //! column converts per-frame deltas into bytes-per-second
@@ -27,38 +31,32 @@
 //! `parse_monitor_interval`).
 //!
 //! Module map (mirrors the limiter/ split, owner LOC cap):
-//! - [`observe`] — the aggregate + single-cgroup observe renderers
-//! - [`top`] — the top-talkers renderer (always live, NIGHT-hunt-12)
+//! - [`eagle`] — the ranked eagle-eyes renderer (default + filtered)
+//! - [`focus`] — the deep single-target view (autodetected focus)
 //! - `bench` (cfg(test)) — the frame A/B benchmark harness (wired in
 //!   from `test/ebpf/render/bench.rs`, NIGHT-hunt-17)
 //! - this root — geometry probing, column budgets, shared helpers,
 //!   and the NIGHT-hunt-8 connection-detail lines (label +N suffix,
-//!   per-process endpoint lines shared by observe and top)
+//!   per-process endpoint lines shared by eagle and focus)
 
 mod detail;
-mod observe;
-mod top;
+mod eagle;
+mod focus;
 
 #[cfg(test)]
 // NIGHT-hunt-17: the A/B frame harness is a test file, so it lives
 // under the repo's single test/ tree (cosmostrix Pattern C) and is
 // #[path]-wired back here. frame-bench.py still finds it by test
-// name (frame_bench_observe), not by path.
+// name (frame_bench_eagle), not by path.
 #[path = "../../test/ebpf/render/bench.rs"]
 mod bench;
 
-pub use observe::{render_observe_filtered, render_observe_frame};
-pub use top::render_top_table;
+pub use eagle::render_eagle_eyes;
 
 pub(crate) use detail::{comm_from_label, detail_lines, full_detail_lines, label_with_count};
 
 use crate::ebpf::limiter::format_rate;
 use crate::output::brand_bold;
-
-/// Hard cap on table rows regardless of terminal height (matches the
-/// pre-NIGHT-hunt-7 display cap of 20 — above that a monitor stops
-/// being a summary and starts being a firehose).
-pub(crate) const MAX_ROWS: usize = 20;
 
 /// Vertical budget consumed by everything that is not a data row:
 /// title, column header, separator, footer separator, the TOTAL
@@ -102,10 +100,13 @@ impl FrameGeometry {
     }
 }
 
-/// Data rows that fit between the chrome, clamped to [1, MAX_ROWS].
+/// Data rows that fit between the chrome. The terminal height is
+/// the ONLY budget (NIGHT-boost-1: the former --limit flag and the
+/// hard 20-row cap are gone) — a short window shows the top few
+/// consumers, a tall one spans the list down to the quiet apps.
 #[must_use]
 pub(crate) fn rows_for_height(height: usize) -> usize {
-    height.saturating_sub(CHROME_LINES).clamp(1, MAX_ROWS)
+    height.saturating_sub(CHROME_LINES).max(1)
 }
 
 /// Truncate a label to `w` display columns, appending an ellipsis
@@ -180,10 +181,11 @@ pub(crate) fn title_bar(core: &str, hint: &str, width: usize) -> String {
 mod tests {
     use super::*;
 
-    /// Row budget: chrome reserved, clamped to [1, MAX_ROWS].
+    /// Row budget: chrome reserved, terminal height is the only cap
+    /// (NIGHT-boost-1: no --limit, no hard 20-row ceiling).
     #[test]
     fn rows_for_height_ladder() {
-        assert_eq!(rows_for_height(80), MAX_ROWS);
+        assert_eq!(rows_for_height(80), 80 - CHROME_LINES);
         assert_eq!(rows_for_height(24), 24 - CHROME_LINES);
         assert_eq!(rows_for_height(10), 2);
         assert_eq!(rows_for_height(5), 1);
@@ -225,18 +227,18 @@ mod tests {
     /// degradation on narrow frames.
     #[test]
     fn title_bar_fills_width() {
-        let bar = title_bar("zelynic observe — 1s refresh", "q quit", 80);
+        let bar = title_bar("zelynic eagle-eyes — 1s refresh", "q quit", 80);
         // Mono mode (tests run piped): plain text, exact width.
         assert_eq!(bar.chars().count(), 80);
-        assert!(bar.starts_with("─── zelynic observe — 1s refresh"));
+        assert!(bar.starts_with("─── zelynic eagle-eyes — 1s refresh"));
         assert!(bar.ends_with("q quit"));
 
         // Narrow: core only, still starts with the brand prefix.
-        let tiny = title_bar("zelynic top", "", 10);
-        assert!(tiny.starts_with("─── zelynic top"));
+        let tiny = title_bar("zelynic eagle-eyes", "", 10);
+        assert!(tiny.starts_with("─── zelynic eagle-eyes"));
 
         // Medium: hint suppressed before it would collide with core.
-        let mid = title_bar("zelynic observe — 1s refresh", "q quit", 40);
+        let mid = title_bar("zelynic eagle-eyes — 1s refresh", "q quit", 40);
         assert!(!mid.contains("q quit"));
         assert_eq!(mid.chars().count(), 40);
     }

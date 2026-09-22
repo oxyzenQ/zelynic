@@ -15,7 +15,7 @@ loopback lane AND against the real internet, the shape production
 traffic actually has.
 
 What v2 deliberately does NOT carry (the owner's call, NIGHT-improve-23):
-every "problems-use-zelynic" stage stays in v1 — kill-top, kill-midflight,
+every "problems-use-zelynic" stage stays in v1 — kill-tui, kill-midflight,
 the regression battery, recover/cleanup/dmesg teardown, and the fatal
 CLI-usage refusals (typo rescue, dangerous-value guards). Those prove
 robustness under ABUSE; v2 proves correctness under USE. A machine green

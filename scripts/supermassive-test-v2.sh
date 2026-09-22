@@ -16,7 +16,7 @@
 #   sudo ./scripts/supermassive-test-v2.sh --json         # machine-readable
 #
 # Division of labor with v1 (the owner's call): v1 keeps every
-# "problems-use-zelynic" stage — kill-top, kill-midflight, the
+# "problems-use-zelynic" stage — kill-tui, kill-midflight, the
 # regression battery, recover/cleanup/dmesg teardown, and the fatal
 # CLI-usage refusals; v2 carries only what a real day of zelynic use
 # exercises. A machine green on v2 is qualified for the daily driver;

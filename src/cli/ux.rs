@@ -39,6 +39,45 @@ const HELP_FOOTER: &str = "For more information, try '--help'.";
 
 // ── Clap error bridge ──────────────────────────────────────────────────────
 
+/// Removed-subcommand redirects (NIGHT-boost-1): the observe/top
+/// pair merged into eagle-eyes — old muscle memory gets the
+/// successor named instead of a dead end (the same redirect
+/// contract --help-all got when the help tiers merged,
+/// NIGHT-improve-3). Exact-match only: a fuzzy suggestion for a
+/// removed name is overridden, never supplemented — one tip, the
+/// right one.
+const REMOVED_SUBCOMMAND_REDIRECTS: &[(&str, &str)] =
+    &[("observe", "eagle-eyes"), ("top", "eagle-eyes")];
+
+/// Inject the successor for a removed subcommand as clap's OWN
+/// SuggestedSubcommand context, so the tip renders in clap's
+/// canonical position and `valid` (white) style.
+///
+/// No-op for every error kind except InvalidSubcommand and every
+/// typed name outside the redirect table.
+fn enrich_removed_subcommand_redirect(e: &mut clap::Error) {
+    if e.kind() != clap::error::ErrorKind::InvalidSubcommand {
+        return;
+    }
+    let typed = match e.get(ContextKind::InvalidSubcommand) {
+        Some(ContextValue::String(s)) => s.as_str(),
+        _ => return,
+    };
+    for (gone, successor) in REMOVED_SUBCOMMAND_REDIRECTS {
+        if typed == *gone {
+            // Override any fuzzy suggestion clap already attached:
+            // for an exact removed name the redirect is strictly
+            // more correct than a near-miss candidate.
+            e.remove(ContextKind::Suggested);
+            e.insert(
+                ContextKind::SuggestedSubcommand,
+                ContextValue::String((*successor).to_string()),
+            );
+            return;
+        }
+    }
+}
+
 /// Case-insensitive flag-suggestion fallback for clap UnknownArgument
 /// errors.
 ///
@@ -120,6 +159,7 @@ pub(crate) fn exit_clap_error(e: clap::Error) -> ! {
     let mut e = e;
     let mut cmd = Cli::command();
     enrich_unknown_arg_suggestion(&mut e, &cmd);
+    enrich_removed_subcommand_redirect(&mut e);
 
     // Replace (or add) the usage context with the real full usage —
     // clap's RichFormatter renders the Usage context verbatim, and
@@ -220,233 +260,9 @@ pub(crate) fn duration_tip(input: &str) -> Option<String> {
     }
 }
 
+// The UX bridge pins live under the single test/ tree (cosmostrix
+// Pattern C), #[path]-wired across trees exactly like the render and
+// limiter test modules.
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    /// Canonical clap help-footer wording, matched as a literal so the
-    /// regression test below hunts the exact duplication the owner
-    /// reported (`zelynic backend` / `zelynic helpp` printed it twice).
-    const HELP_FOOTER: &str = "For more information, try '--help'.";
-
-    /// Footer wording is pinned to clap's canonical string byte-for-byte:
-    /// the manual append must never drift from what clap itself renders
-    /// for commands with a built-in help flag (cosmostrix lineage).
-    #[test]
-    fn help_footer_matches_clap_wording() {
-        assert_eq!(HELP_FOOTER, "For more information, try '--help'.");
-    }
-
-    /// Render an error exactly the way [`exit_clap_error`] does (minus
-    /// the process::exit), so render-level contracts are testable.
-    /// Mirrors the full stderr byte stream: the clap render (which ends
-    /// with a bare newline) followed by the bridge's manual footer
-    /// append — reproducing clap's canonical "\n\n<footer>\n" tail.
-    fn render_via_bridge(argv: &[&str]) -> String {
-        use clap::Parser;
-        let mut err = Cli::try_parse_from(argv).expect_err("argv must fail to parse");
-        let mut cmd = Cli::command();
-        enrich_unknown_arg_suggestion(&mut err, &cmd);
-        err.insert(
-            ContextKind::Usage,
-            ContextValue::StyledStr(cmd.render_usage()),
-        );
-        let rendered = err.format(&mut cmd).render().to_string();
-        format!("{rendered}\n{HELP_FOOTER}\n")
-    }
-
-    /// Regression (owner-reported, NIGHT-improve-1 session): every
-    /// fatal CLI error must end with EXACTLY ONE canonical help footer.
-    /// clap's formatter renders the footer from the help_flag context;
-    /// the bridge previously appended a second copy on top of clap's
-    /// own render. The matrix covers each error family: unknown
-    /// subcommand without a tip, unknown subcommand with clap's
-    /// did-you-mean tip, unknown flag with the case-insensitive rescue,
-    /// and a missing required argument.
-    #[test]
-    fn rendered_error_carries_exactly_one_help_footer() {
-        for argv in [
-            vec!["zelynic", "backend"],
-            vec!["zelynic", "helpp"],
-            vec!["zelynic", "--VERBOS", "doctor"],
-            vec!["zelynic", "strict-single"],
-        ] {
-            let rendered = render_via_bridge(&argv);
-            assert_eq!(
-                rendered.matches(HELP_FOOTER).count(),
-                1,
-                "exactly one help footer for {argv:?}, got:\n{rendered}"
-            );
-            assert!(
-                rendered.trim_end().ends_with(HELP_FOOTER),
-                "the single footer must terminate the render for {argv:?}, got:\n{rendered}"
-            );
-        }
-    }
-
-    // ── Single-tier help surface (NIGHT-improve-3) ─────────────────────
-
-    /// Subcommand-position --help must fail (exit 2 family) with the
-    /// error, the real usage line, a tip pointing at the one help
-    /// authority, and exactly one canonical footer. `--help` parses at
-    /// the top level, so this UnknownArgument can only mean the user
-    /// placed it after a subcommand.
-    #[test]
-    fn subcommand_help_position_points_at_top_level_help() {
-        let rendered = render_via_bridge(&["zelynic", "strict-single", "brave", "--help"]);
-        assert!(
-            rendered.contains("unexpected argument '--help'"),
-            "must name the rejected flag, got:\n{rendered}"
-        );
-        assert!(
-            rendered.contains("'zelynic --help'"),
-            "tip must point at the top-level help authority, got:\n{rendered}"
-        );
-        assert!(
-            rendered.contains("Usage: zelynic"),
-            "usage must be the real full usage, got:\n{rendered}"
-        );
-        assert_eq!(rendered.matches(HELP_FOOTER).count(), 1);
-    }
-
-    /// The -h short form gets the same rescue as --help when typed in a
-    /// subcommand position.
-    #[test]
-    fn subcommand_short_help_position_points_at_top_level_help() {
-        let rendered = render_via_bridge(&["zelynic", "status", "-h"]);
-        assert!(
-            rendered.contains("unexpected argument '-h'"),
-            "must name the rejected flag, got:\n{rendered}"
-        );
-        assert!(
-            rendered.contains("'zelynic --help'"),
-            "tip must point at the top-level help authority, got:\n{rendered}"
-        );
-    }
-
-    /// The removed --help-all flag must still guide the user: the
-    /// closest-match rescue suggests --help, so the old muscle memory
-    /// lands on the new single surface instead of a dead end.
-    #[test]
-    fn removed_help_all_flag_suggests_help() {
-        let rendered = render_via_bridge(&["zelynic", "--help-all"]);
-        assert!(
-            rendered.contains("unexpected argument '--help-all'"),
-            "must name the removed flag, got:\n{rendered}"
-        );
-        assert!(
-            rendered.contains("--help"),
-            "must suggest the merged --help flag, got:\n{rendered}"
-        );
-    }
-
-    #[cfg(feature = "ebpf")]
-    #[test]
-    fn value_tip_shape_is_two_space_indented_tip() {
-        assert_eq!(value_tip("1mb"), "\n  tip: a similar value exists: '1mb'");
-    }
-
-    // ── enrich_unknown_arg_suggestion (end-to-end against the real CLI) ─
-
-    /// The owner's case pattern: `--VERBOS` (uppercase prefix of
-    /// --verbose). clap's case-sensitive engine scores zero matches; the
-    /// fallback must inject `--verbose` as clap's OWN SuggestedArg
-    /// context so the canonical render carries exactly one tip.
-    #[cfg(feature = "ebpf")]
-    #[test]
-    fn case_insensitive_fallback_rescues_verbos() {
-        use clap::Parser;
-        let mut err = Cli::try_parse_from(["zelynic", "--VERBOS", "doctor"])
-            .expect_err("--VERBOS must be unknown");
-        assert!(
-            err.get(ContextKind::SuggestedArg).is_none(),
-            "precondition: clap's case-sensitive engine must miss --VERBOS"
-        );
-        let cmd = Cli::command();
-        enrich_unknown_arg_suggestion(&mut err, &cmd);
-        match err.get(ContextKind::SuggestedArg) {
-            Some(ContextValue::String(s)) => {
-                assert_eq!(s, "--verbose", "--VERBOS must rescue --verbose, got {s:?}")
-            }
-            other => panic!("expected a rescued SuggestedArg, got {other:?}"),
-        }
-    }
-
-    /// Full render contract: after enrichment the rendered error carries
-    /// exactly one tip, the suggested flag, and the real (never
-    /// narrowed) usage line.
-    #[cfg(feature = "ebpf")]
-    #[test]
-    fn rendered_error_carries_one_tip_and_real_usage() {
-        use clap::Parser;
-        let mut err = Cli::try_parse_from(["zelynic", "--VERBOS", "doctor"])
-            .expect_err("--VERBOS must be unknown");
-        let mut cmd = Cli::command();
-        enrich_unknown_arg_suggestion(&mut err, &cmd);
-        err.insert(
-            ContextKind::Usage,
-            ContextValue::StyledStr(cmd.render_usage()),
-        );
-        let formatted = err.format(&mut cmd);
-        let rendered = formatted.render().to_string();
-        assert_eq!(rendered.matches("tip:").count(), 1, "exactly one tip line");
-        assert!(rendered.contains("--verbose"));
-        assert!(
-            rendered.contains("Usage: zelynic"),
-            "usage must be the real full usage, got:\n{rendered}"
-        );
-    }
-
-    // ── rate/duration tips ──────────────────────────────────────────────
-
-    #[cfg(feature = "ebpf")]
-    #[test]
-    fn rate_tip_suggests_lowercase_twin() {
-        assert_eq!(
-            rate_tip("1MB").unwrap(),
-            "\n  tip: a similar value exists: '1mb'"
-        );
-        assert_eq!(
-            rate_tip("500KB").unwrap(),
-            "\n  tip: a similar value exists: '500kb'"
-        );
-    }
-
-    #[cfg(feature = "ebpf")]
-    #[test]
-    fn rate_tip_suggests_near_miss_units() {
-        assert_eq!(
-            rate_tip("1kib").unwrap(),
-            "\n  tip: a similar value exists: '1kb'"
-        );
-        assert_eq!(
-            rate_tip("10mbps").unwrap(),
-            "\n  tip: a similar value exists: '10mb'"
-        );
-    }
-
-    #[cfg(feature = "ebpf")]
-    #[test]
-    fn rate_tip_stays_silent_when_no_rescue_exists() {
-        assert!(rate_tip("abc").is_none());
-        assert!(rate_tip("1xyzzy").is_none());
-        assert!(rate_tip("").is_none());
-        // Near-miss units are rescued, not silenced — including the
-        // x-for-k fat-finger (edit distance 1 to `kb`).
-        assert!(rate_tip("1xb").is_some());
-    }
-
-    #[cfg(feature = "ebpf")]
-    #[test]
-    fn duration_tip_suggests_near_miss_units() {
-        assert_eq!(
-            duration_tip("3min").unwrap(),
-            "\n  tip: a similar value exists: '3m'"
-        );
-        assert_eq!(
-            duration_tip("10sec").unwrap(),
-            "\n  tip: a similar value exists: '10s'"
-        );
-        assert!(duration_tip("1fortnight").is_none());
-    }
-}
+#[path = "../../test/cli/ux_tests.rs"]
+mod ux_tests;

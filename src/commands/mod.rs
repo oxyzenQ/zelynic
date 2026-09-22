@@ -264,26 +264,14 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
             }
         }
 
-        Some(Commands::Observe { cgroup, interval }) => {
+        Some(Commands::EagleEyes { targets, interval }) => {
             #[cfg(feature = "ebpf")]
             {
-                monitor::handle_observe(cgroup, interval.as_deref(), cli.verbose)
+                monitor::handle_eagle_eyes(targets.as_deref(), interval.as_deref(), cli.verbose)
             }
             #[cfg(not(feature = "ebpf"))]
             {
-                let _ = (cgroup, interval, cli.verbose);
-                ebpf_disabled()
-            }
-        }
-
-        Some(Commands::Top { limit, interval }) => {
-            #[cfg(feature = "ebpf")]
-            {
-                monitor::handle_top(limit, interval.as_deref(), cli.verbose)
-            }
-            #[cfg(not(feature = "ebpf"))]
-            {
-                let _ = (limit, interval, cli.verbose);
+                let _ = (targets, interval, cli.verbose);
                 ebpf_disabled()
             }
         }

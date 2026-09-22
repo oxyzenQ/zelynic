@@ -34,7 +34,7 @@ read this one. Build instructions live in the
 sudo zelynic list-apps                 # find the app + its cgroup id
 sudo zelynic strict-single brave 100kb # limit it (download AND upload)
 sudo zelynic status                    # verify the limit is live
-sudo zelynic observe                   # watch traffic live (q to quit)
+sudo zelynic eagle-eyes                # watch traffic live, ranked (q to quit)
 sudo zelynic unstrict-single brave   # remove the limit
 ```
 
@@ -111,7 +111,7 @@ Name matching details worth knowing: it is case-insensitive and matches
 the kernel's `comm` name (max 15 chars). It matches **all** cgroups that
 contain at least one process with that name — a browser plus its
 crash-handler helper both match `brave`. Use `list-apps` /
-`observe --cgroup <id>` to inspect what actually carries the traffic,
+`eagle-eyes <id>` to inspect what actually carries the traffic,
 and target the cgroup ID directly when you want surgical precision.
 
 ### strict-multi — one shared rate for several apps
@@ -210,49 +210,48 @@ CGROUP ID, UID. The PROCS/SOCKETS columns expose multi-tenancy — a row
 labeled `alacritty` hosting 4 processes and 7 sockets is probably
 carrying your `curl`. Works without root; enforcement commands do not.
 
-### observe — live traffic monitor
+### eagle-eyes — the unified live monitor
 
 ```bash
-sudo zelynic observe [--cgroup <id>] [--interval <1s-60s>]
+sudo zelynic eagle-eyes [targets] [--interval <1s-60s>]
 ```
 
-Always-live box mode (NIGHT-hunt-12): full-screen in-place refresh, no
-scrollback spam, adaptive layout (columns degrade on narrow terminals;
-a RATE column appears from width 50). Frames render through the
-diff-based engine (NIGHT-improve-2): only the rows that changed since
-the previous frame are written — one write syscall per frame, an
-unchanged frame costs zero I/O at every terminal height
-(NIGHT-improve-6), and the screen is never wiped or scrolled
-mid-session (no flicker, no drift, no alt-screen scrollback side
-effects). Every frame closes with a column-aligned TOTAL row (the
-aggregate down/up/rate sums sit under the exact columns they total)
-and a one-line packets/cgroups count. Byte figures keep one decimal
-on every tier and promote at the rounding edge (999_950 B is
-"1.0 MB", never "1000.0 KB"), so columns never carry ragged
-four-digit values.
-`--cgroup` zooms into one cgroup
-with per-process and per-socket endpoint detail — the lifetime row
-sums both lifetime counters (download and upload since attach),
-never a per-refresh delta. Default refresh 1s;
-`--interval` calms it down to at most 60s. **Quit with `q` — the only
-quit key** (NIGHT-hunt-16; ESC and Ctrl+C are drained, never treated
-as quit).
+One surface for the former `observe` + `top` pair (NIGHT-boost-1;
+`eagle-eye` is the shorthand). Apps are RANKED by current consumption,
+rank 1 first, with per-cgroup detail lines naming the processes and
+remote endpoints inside. The row count follows the terminal height —
+there is no `--limit`: a short window shows the top few consumers, a
+tall one spans the list down to the quiet apps. Always-live box mode
+(NIGHT-hunt-12): full-screen in-place refresh, no scrollback spam,
+adaptive layout (columns degrade on narrow terminals; the RATE column
+appears from width 54). Frames render through the diff-based engine
+(NIGHT-improve-2): only the rows that changed since the previous
+frame are written — one write syscall per frame, an unchanged frame
+costs zero I/O at every terminal height (NIGHT-improve-6), and the
+screen is never wiped or scrolled mid-session (no flicker, no drift,
+no alt-screen scrollback side effects). Every frame closes with a
+column-aligned TOTAL row (aggregate down/up/rate sums over every
+candidate, not just the rows shown) and a one-line packets/cgroups
+count. The "Top consumer" footer names the busiest process inside
+the rank-1 cgroup and suggests the exact `strict-single` command to
+limit it (the tip line renders in the suggestion tier — crystal
+white). Byte figures keep one decimal on every tier and promote at
+the rounding edge (999_950 B is "1.0 MB", never "1000.0 KB").
 
-### top — live bandwidth ranking
-
-```bash
-sudo zelynic top [--limit N] [--interval <1s-60s>]
-```
-
-Always-live top-talkers table (NIGHT-hunt-12): rank, PROCESS, DOWNLOAD,
-UPLOAD, TOTAL, with per-cgroup detail lines naming the processes and
-remote endpoints inside. Default shows top 10, refreshed every 5s.
-The frame closes with a column-aligned TOTAL row (aggregate sums over
-every talker, not just the rows shown) and the packets count. The
-"Top consumer" footer names the busiest process inside the #1 cgroup
-and suggests the exact `strict-single` command to limit it (the tip
-line renders in the suggestion tier — crystal white). Quit with
-`q`.
+The positional `targets` filter is autodetected per token: all digits
+means a cgroup ID (find one with `list-apps`), anything else a
+process name — and names watch ALL matching cgroups, the same
+whole-app semantics as strict/block. One target that resolves to a
+single cgroup switches to the deep focus view: per-direction deltas,
+rate, lifetime totals (both lifetime counters summed — download and
+upload since attach, never a per-refresh delta), and every
+socket-holding process with its endpoints, uncapped. Multiple
+targets (`12345/brave/firefox`) keep the ranked table, filtered.
+Resolution re-runs every frame against the live identity map, so an
+app started mid-session appears on the next refresh. Default refresh
+1s — realtime precision; `--interval` calms it down to at most 60s.
+**Quit with `q` — the only quit key** (NIGHT-hunt-16; ESC and Ctrl+C
+are drained, never treated as quit).
 
 ### doctor — support check
 
@@ -280,8 +279,8 @@ on every system, so existence alone says nothing.
 | `--print-json` | Machine-readable output where applicable (`status`, `list-apps`, `doctor`). |
 
 Privilege matrix in short: enforcement and monitoring commands
-(`strict*`, `block*`, `unstrict*`, `recover`, `status`, `observe`,
-`top`) require root and fail fast with a sudo tip otherwise;
+(`strict*`, `block*`, `unstrict*`, `recover`, `status`, `eagle-eyes`)
+require root and fail fast with a sudo tip otherwise;
 `list-apps`, `doctor`, `--help`, `-V` run on any uid;
 `--check-update` is the one surface that refuses root.
 Full matrix: [docs/SAFETY_ANALYSIS.md](SAFETY_ANALYSIS.md).
@@ -293,7 +292,7 @@ Full matrix: [docs/SAFETY_ANALYSIS.md](SAFETY_ANALYSIS.md).
 **Discover, limit, verify, remove** (the core loop):
 
 ```bash
-sudo zelynic top                      # who is eating bandwidth? (q to quit)
+sudo zelynic eagle-eyes               # who is eating bandwidth? (q to quit)
 sudo zelynic list-apps                # confirm name + cgroup id
 sudo zelynic strict-single brave 100kb
 sudo zelynic status                   # see the policy + counters
@@ -317,8 +316,8 @@ sudo zelynic strict-single firefox -d 5mb -u 500kb
 **Focus a noisy background updater:**
 
 ```bash
-sudo zelynic top --limit 20           # wider ranking
-sudo zelynic observe --cgroup 8066    # zoom in, see endpoints (q to quit)
+sudo zelynic eagle-eyes               # ranked; raise the window for more
+sudo zelynic eagle-eyes 8066         # zoom in, see endpoints (q to quit)
 sudo zelynic strict-single 8066 50kb  # target the cgroup id directly
 ```
 
@@ -381,7 +380,7 @@ matches nothing prints `No cgroup found for '<name>'` plus a
 `brave` — including browser helpers (e.g., a crash-pad handler). That
 is usually what you want (the app's whole footprint), but for surgical
 control, target the cgroup ID directly and verify with
-`observe --cgroup`. Status labels show the majority-vote process name
+`eagle-eyes <id>`. Status labels show the majority-vote process name
 plus what lives inside, so mis-attribution is visible rather than
 silent.
 
@@ -393,7 +392,7 @@ overridable with `--allow-dangerous` — below 1kb an app can stop
 working entirely (hence the flag's name).
 
 **6. Monitoring surfaces also need root.**
-`status`, `observe`, `top` read BPF maps; only `list-apps`, `doctor`,
+`status`, `eagle-eyes` read BPF maps; only `list-apps`, `doctor`,
 `--help`, `-V` are unprivileged. This is kernel map access, not a
 policy choice.
 
@@ -415,15 +414,16 @@ reported with a `recover` tip.
 **9. Counters are cumulative evidence.**
 The ALLOWED/DROPPED columns in `status` accumulate since the maps were
 created — they prove enforcement is biting, but they are not a live
-throughput meter. Use `observe` for live rates.
+throughput meter. Use `eagle-eyes` for live rates.
 
 **10. The CLI surface is frozen (v11).**
 Commands, flags, and output formats are stable API from v11.0.0.
 Removed surfaces (`man`, `completions`, `unblock`, `-i/--info`,
-`--live`, `--duration`, `--help-all`) exit with a usage error on
+`--live`, `--duration`, `--help-all`, and the NIGHT-boost-1 merge
+`observe`/`top` -> `eagle-eyes`) exit with a usage error on
 purpose — `--help` is the single reference.
 
-**11. observe/top track at most 1024 distinct cgroups.**
+**11. eagle-eyes tracks at most 1024 distinct cgroups.**
 The monitor's counter maps hold 1024 entries per direction (raised
 from the port-time 256 in NIGHT-improve-8: Kubernetes nodes,
 systemd-heavy servers, and container hosts can exceed 256 live
@@ -445,14 +445,14 @@ in the monitor rows.
 | `Stale BPF pin files detected` | A previous run was killed mid-operation. Run `sudo zelynic recover`, then re-apply limits. |
 | `Failed to load BPF object` with `caused by:` lines under it | Every runtime error now prints its full cause chain (NIGHT-hunt-28) — read the `caused by:` lines: they name the exact map, syscall, and errno (e.g. `failed to create map 'X' with code -22`). If the chain ends in a pin/EINVAL shape instead, it is the mount below. |
 | `error parsing BPF object: error parsing ELF data` at startup (strict/limit) | Two distinct causes share this one error text, both fixed at the source. (1) Address misalignment (NIGHT-hunt-30, the 2026-09-20..21 occurrences): aya's ELF parser reads the embedded object straight out of the binary's `.rodata` and requires the buffer's address to be 8-byte aligned — the plain `include_bytes!` static had that only by linker luck, per host per build. Both objects are now embedded inside an `AlignedElf` wrapper, aligned by construction, with a load-path preflight that names any violation precisely ("address is N bytes past an 8-byte boundary"). (2) A bpfel object damaged on disk (NIGHT-hunt-29): cargo never re-verifies build outputs, so a truncated artifact stayed "fresh" and every rebuild re-embedded it; builds now structurally validate both objects and self-heal a damaged one, visible as a `cargo:warning` naming the exact violation (e.g. `truncated: section header table (10 x 64 at 4984) exceeds the 1000-byte file`) followed by one forced relink. A binary already showing this error only needs a rebuild from current source: `cargo pro-native-gnu`. |
-| `/sys/fs/bpf is not a mounted bpf filesystem` | The limiter pins its maps under `/sys/fs/bpf/zelynic`, and pinning needs a real bpffs mount — a directory merely existing there is not enough (the kernel always creates it; some distros never mount bpffs on it). Fix: `sudo mount -t bpf bpf /sys/fs/bpf`, made permanent via fstab or a systemd mount unit. Note `observe` needs no bpffs (its maps are unpinned) — if observe works but strict/limit fail, this is exactly it. |
+| `/sys/fs/bpf is not a mounted bpf filesystem` | The limiter pins its maps under `/sys/fs/bpf/zelynic`, and pinning needs a real bpffs mount — a directory merely existing there is not enough (the kernel always creates it; some distros never mount bpffs on it). Fix: `sudo mount -t bpf bpf /sys/fs/bpf`, made permanent via fstab or a systemd mount unit. Note `eagle-eyes` needs no bpffs (its maps are unpinned) — if the monitor works but strict/limit fail, this is exactly it. |
 | `invalid CPU znver3` (or any CPU name) from bpf-linker during `cargo pro-native-gnu` | Fixed (NIGHT-hunt-28): the alias's `-C target-cpu=native` used to leak into the nested eBPF build and reach bpf-linker as `--cpu <host-cpu>`, which it rejects. build.rs now strips host-CPU and host-linker rustflags from the nested build's environment; the aliases work on any host CPU. |
 | `the pinned nightly toolchain ... is not installed` / `bpf-linker is not on PATH` (build time) | One command fixes both — and since NIGHT-improve-16 it finishes the whole host setup: `./scripts/bootstrap-ebpf.sh` installs the pair, fixes its own PATH for the build, persists the `~/.local/bin` export to `~/.profile`, and builds the flagship binary (NIGHT-host-1). If bpf-linker already sits in `~/.local/bin`, put that directory on PATH. `the pure-Rust eBPF build failed with prerequisites present` is a real compile error — read the nested cargo output above it. The old "BPF object file not found" error class is gone (objects are embedded). |
 | `BINARY GATE: refusing to test a zelynic that is not this checkout's build` (supermassive-test / supermassive-test-v2 / limiter-depth-test startup) | Working as designed (NIGHT-improve-16): the harness resolves the checkout's own build first — repo target outputs, newest mtime wins — and hard-aborts when the resolved binary's `-V` version differs from the checkout's Cargo.toml. Before the gate, the 2026-09-21 debian13 run silently tested a stale `/usr/bin/zelynic` v4.0.0-alpha (repo build had never succeeded there) and filed 12 decoy failures: `unrecognized subcommand 'block-single'`, v4 rate guards rejecting v11 rungs, `no limit row ... in status JSON` (v4 schema). Fix: `./scripts/bootstrap-ebpf.sh` (prerequisites + flagship build, one command), or `--binary ./target/pro-native-gnu/zelynic` for an existing matching build. |
 | `bootstrap-ebpf.sh` looks stuck on the bpf-linker download | It is the one big fetch (~100 MB) and can take minutes on slow links. On a terminal the script shows a live progress bar for exactly this step (NIGHT-hunt-24); piped/logged runs stay quiet. Killing it mid-download is safe — re-running skips whatever already finished. |
 | `error: missing manifest in toolchain 'nightly-...'` from rustup, or a build dying inside rustup commands | The dated nightly install is damaged — an interrupted `rustup toolchain install` (Ctrl-C, power loss, full disk) leaves the toolchain listed while its manifests are gone, so every component operation fails even though `rustc` itself still runs (which is why it slips past naive checks). Fix: run `./scripts/bootstrap-ebpf.sh` again — it detects the damaged state, removes the toolchain, and reinstalls it from scratch, no manual rustup commands (NIGHT-hunt-27); the build.rs preflight names this exact state with the same one-command repair. |
 | Monitor won't exit | Press `q` — the only quit key (NIGHT-hunt-16). ESC and Ctrl+C are deliberately drained, never treated as quit. If a wedged terminal swallows the `q` byte: `pkill zelynic` from another shell, then `stty sane`. |
-| Limit seems not enforced | Check `sudo zelynic status` — is the cgroup listed? Verify the app's traffic is actually flowing through the limited cgroup (`observe --cgroup`). If the app was restarted after the limit was set, re-apply (see limitation #1). |
+| Limit seems not enforced | Check `sudo zelynic status` — is the cgroup listed? Verify the app's traffic is actually flowing through the limited cgroup (`eagle-eyes <id>`). If the app was restarted after the limit was set, re-apply (see limitation #1). |
 | Two zelynic commands interfered | The lock is deliberately non-blocking: the second command exited with "another zelynic operation is in progress". Wait for the first to finish, re-run it. If pins ended up inconsistent: `recover`. |
 
 When diagnosing, add `-v`: the verbose trace shows the exact pid-to-
@@ -534,7 +534,7 @@ A positional rate means both directions. Use `-d`/`-u` to split them.
 **I limited an app but a speed test shows full speed.**
 Three usual causes: (1) the app was restarted after you set the limit —
 re-apply; (2) the traffic flows through a different cgroup than the one
-you limited — check `observe`/`status` labels and target the cgroup ID;
+you limited — check `eagle-eyes`/`status` labels and target the cgroup ID;
 (3) unit conversion — 100kb is 0.8 Mbps, verify against
 [limitations #5](#honest-limitations--read-this).
 
@@ -552,7 +552,7 @@ not in your home directory.
 No. zelynic is Linux-only (cgroup v2 + eBPF). It is a Linux-native tool
 by design.
 
-**How do I quit observe/top?**
+**How do I quit eagle-eyes?**
 Press `q` — the only quit key (NIGHT-hunt-16). ESC was removed as a
 quit key in NIGHT-hunt-12 (escape sequences from arrows/mouse made
 accidental quits too easy); Ctrl+C quit was removed in NIGHT-hunt-16
@@ -600,7 +600,7 @@ Where things live when a command changes (update these together):
 | Change | Files to touch |
 |--------|----------------|
 | New/changed command or flag | `src/cli/mod.rs` (definition), `src/commands/mod.rs` (dispatch), handler in `src/commands/`, `src/commands/help.rs` (reference), `test/integration/help_pins.rs` (drift pins: `test_help_lists_every_command` + removal pins) + `test/integration/surface_pins.rs` (alias/removal wiring), README Commands block |
-| Monitor rendering | `src/ebpf/render/` (`observe.rs`, `top.rs`, `detail.rs` — line builders), `src/terminal/mod.rs` (monitor loop), `src/terminal/diff.rs` (diff engine + quit keys live in mod.rs), `docs/BRANDING.md` |
+| Monitor rendering | `src/ebpf/render/` (`eagle.rs`, `focus.rs`, `detail.rs` — line builders), `src/terminal/mod.rs` (monitor loop), `src/terminal/diff.rs` (diff engine + quit keys live in mod.rs), `docs/BRANDING.md` |
 | Rate/interval parsing | `src/ebpf/limiter/format.rs`, `src/cli/ux.rs` (typo tips) |
 | Status/JSON shapes | `src/ebpf/display.rs` — JSON is stable API, treat changes as breaking |
 | Docs after any behavioral change | This file + README + CHANGELOG; `docs/SAFETY_ANALYSIS.md` for privilege changes |

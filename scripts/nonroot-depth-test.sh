@@ -215,10 +215,10 @@ ROOT_ARGS=(
 	"unstrict-all"
 	"recover"
 	"status"
-	"observe"
-	"top"
-	"observe --interval 5s"
-	"top --limit 5"
+	"eagle-eyes"
+	"eagle-eye brave"
+	"eagle-eyes --interval 5s"
+	"eagle-eyes brave/firefox"
 )
 
 for arg_str in "${ROOT_ARGS[@]}"; do
@@ -238,9 +238,10 @@ refute "rate typo must not mention root" "root required" -- "$BINARY" strict-sin
 expect "missing rate surfaces before root guard" 1 "No rate specified" -- "$BINARY" strict-single brave
 refute "missing rate must not mention root" "root required" -- "$BINARY" strict-single brave
 expect "dangerous target guard precedes root guard" 1 "system process" -- "$BINARY" strict-single root 100kb
-expect "interval bounds precede root guard" 1 "between 1s and 60s" -- "$BINARY" observe --interval 61s
-refute "interval error must not mention root" "root required" -- "$BINARY" observe --interval 61s
-expect "interval typo carries did-you-mean tip" 1 "Invalid duration '3min'" "tip: a similar value exists: '3m'" -- "$BINARY" observe --interval 3min
+expect "interval bounds precede root guard" 1 "between 1s and 60s" -- "$BINARY" eagle-eyes --interval 61s
+refute "interval error must not mention root" "root required" -- "$BINARY" eagle-eyes --interval 61s
+expect "interval typo carries did-you-mean tip" 1 "Invalid duration '3min'" "tip: a similar value exists: '3m'" -- "$BINARY" eagle-eyes --interval 3min
+expect "empty target spec precedes root guard" 1 "No targets in" -- "$BINARY" eagle-eyes /
 # The colon-list routing tip is post-apply advice (it fires after the
 # /proc walk finds no match, which needs privileges); non-root users
 # correctly see the root guard first.
@@ -261,9 +262,16 @@ expect "case-variant flag rescued" 2 "--verbose" -- "$BINARY" --VERBOS doctor
 for gone in man unblock completions info; do
 	expect "removed subcommand '$gone' rejected" 2 "unrecognized subcommand" -- "$BINARY" "$gone"
 done
+# NIGHT-boost-1: observe and top merged into eagle-eyes — both fail
+# as unrecognized subcommands whose tip names the successor.
+for gone in observe top; do
+	expect "removed subcommand '$gone' redirects to eagle-eyes" 2 "unrecognized subcommand" "eagle-eyes" -- "$BINARY" "$gone"
+done
 expect "removed flag -i rejected" 2 "unexpected argument" -- "$BINARY" -i
-expect "removed --live rejected" 2 "unexpected argument" -- "$BINARY" observe --live 3m
-expect "removed --duration rejected" 2 "unexpected argument" -- "$BINARY" top --duration 30s
+expect "removed --live rejected" 2 "unexpected argument" -- "$BINARY" eagle-eyes --live 3m
+expect "removed --duration rejected" 2 "unexpected argument" -- "$BINARY" eagle-eyes --duration 30s
+expect "removed --cgroup rejected" 2 "unexpected argument" -- "$BINARY" eagle-eyes --cgroup 8066
+expect "removed --limit rejected" 2 "unexpected argument" -- "$BINARY" eagle-eyes --limit 20
 expect "removed --help-all rejected" 2 "unexpected argument" -- "$BINARY" --help-all
 expect "removed --no-color rejected" 2 "unexpected argument" -- "$BINARY" --no-color doctor
 

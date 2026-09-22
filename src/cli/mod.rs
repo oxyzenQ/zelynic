@@ -296,35 +296,44 @@ pub enum Commands {
     #[command(name = "list-apps")]
     ListApps,
 
-    /// Real-time traffic monitor (live box mode, in-place refresh)
+    /// The unified live monitor (NIGHT-boost-1: observe + top merged)
     ///
-    /// Always live (NIGHT-hunt-12): the former `--live <dur>` timer is
-    /// gone — the box refreshes until you quit. Exit with q (the only
-    /// quit key, NIGHT-hunt-16).
-    #[command(name = "observe")]
-    Observe {
-        /// Filter: only show this cgroup ID (e.g., 73386)
-        #[arg(long)]
-        cgroup: Option<u32>,
+    /// One surface, three depths — the former `observe` and `top`
+    /// pair was two views of the same observer; eagle-eyes is both,
+    /// chosen automatically:
+    /// - no targets: every app RANKED by current consumption,
+    ///   highest first. The row count follows the terminal height
+    ///   (no --limit): a short window shows the top few, a tall one
+    ///   spans the list low to high.
+    /// - one target: the deep focus view — per-direction deltas,
+    ///   rate, lifetime, and every socket endpoint inside the
+    ///   cgroup.
+    /// - slash-separated targets: the ranked table filtered to that
+    ///   set of apps/cgroups.
+    ///
+    /// Each target is autodetected (same rule as strict/block):
+    /// all digits = cgroup ID (find one with list-apps), anything
+    /// else = process name — `eagle-eyes 12345/brave/firefox`
+    /// watches all three at once.
+    ///
+    /// Always live (NIGHT-hunt-12): the box refreshes until you
+    /// quit. Exit with q (the only quit key, NIGHT-hunt-16).
+    /// `--interval` (NIGHT-hunt-7) is the refresh cadence, 1s..60s,
+    /// default 1s — realtime precision.
+    ///
+    /// Examples:
+    ///   zelynic eagle-eyes                        # all apps, ranked, q to quit
+    ///   zelynic eagle-eyes brave                  # watch one app (deep view)
+    ///   zelynic eagle-eyes 12345/brave/firefox    # watch specific targets
+    ///   zelynic eagle-eyes --interval 3s          # calmer cadence
+    #[command(name = "eagle-eyes", alias = "eagle-eye")]
+    EagleEyes {
+        /// Targets: process names or cgroup IDs, slash-separated
+        /// (e.g., brave, 73386, 12345/brave/firefox). Omit to watch all.
+        #[arg(value_name = "TARGETS")]
+        targets: Option<String>,
 
         /// Refresh interval: 1s to 60s (default: 1s)
-        #[arg(long)]
-        interval: Option<String>,
-    },
-
-    /// Live top bandwidth consumers (box mode)
-    ///
-    /// Always live (NIGHT-hunt-12): the former snapshot mode
-    /// (`--duration`) and `--live` timer are gone — the table
-    /// refreshes until you quit. Exit with q (the only quit key,
-    /// NIGHT-hunt-16).
-    #[command(name = "top")]
-    Top {
-        /// Number of top talkers to show
-        #[arg(long, default_value = "10")]
-        limit: usize,
-
-        /// Refresh interval: 1s to 60s (default: 5s)
         #[arg(long)]
         interval: Option<String>,
     },

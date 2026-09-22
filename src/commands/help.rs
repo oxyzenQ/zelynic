@@ -34,9 +34,9 @@ pub(crate) fn print_help() {
     println_safe!("{}", brand_bold("Commands:"));
     println_safe!();
     // NIGHT-improve-5: commands grouped by verb (strict / limit /
-    // block / unstrict, plus monitor and system) so the 15-command
-    // surface (NIGHT-hunt-12: man removed) scans as six chunks
-    // instead of one flat wall. Group
+    // block / unstrict, plus monitor and system) so the 14-command
+    // surface (NIGHT-boost-1: observe + top merged into eagle-eyes)
+    // scans as six chunks instead of one flat wall. Group
     // headings carry the same brand purple as section headings; each
     // synopsis sits on its own line with the description and examples
     // indented below — no more 120-char mixed lines.
@@ -107,18 +107,20 @@ pub(crate) fn print_help() {
     println_safe!("  zelynic list-apps");
     println_safe!("    List apps with their cgroup IDs.");
     println_safe!();
-    println_safe!("  zelynic observe [--cgroup <id>] [--interval <1s-60s>]");
-    println_safe!("    Live traffic monitor (box mode, in-place refresh).");
+    println_safe!("  zelynic eagle-eyes [targets] [--interval <1s-60s>]");
+    println_safe!("    The unified live monitor (NIGHT-boost-1: observe + top merged;");
+    println_safe!("    'eagle-eye' is the shorthand).");
+    println_safe!("    Apps ranked by consumption — rank 1 eats the internet right now.");
+    println_safe!("    Rows follow the terminal height (no --limit): raise the window");
+    println_safe!("    to see more, the list runs high to low.");
     println_safe!("    Exit with q (the only quit key).");
-    println_safe!("    sudo zelynic observe                    # live box, q to quit");
-    println_safe!("    sudo zelynic observe --cgroup 8066       # filter to one cgroup");
-    println_safe!("    sudo zelynic observe --interval 5s       # calmer cadence");
-    println_safe!();
-    println_safe!("  zelynic top [--limit N] [--interval <1s-60s>]");
-    println_safe!("    Live top bandwidth consumers (box mode, top 10 by default).");
-    println_safe!("    sudo zelynic top                        # live box, 5s refresh, q to quit");
-    println_safe!("    sudo zelynic top --limit 20             # show top 20 talkers");
-    println_safe!("    sudo zelynic top --interval 2s          # 2s refresh");
+    println_safe!("    Targets are autodetected: digits = cgroup ID (see list-apps),");
+    println_safe!("    a name = process — one target opens the deep focus view");
+    println_safe!("    (per-direction deltas, rate, lifetime, socket endpoints).");
+    println_safe!("    sudo zelynic eagle-eyes                     # all apps, ranked");
+    println_safe!("    sudo zelynic eagle-eyes brave                # one app, deep view");
+    println_safe!("    sudo zelynic eagle-eyes 12345/brave/firefox  # watch specific targets");
+    println_safe!("    sudo zelynic eagle-eyes --interval 3s       # calmer cadence");
     println_safe!();
     println_safe!("  {}", brand_bold("system — support"));
     println_safe!();
