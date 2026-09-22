@@ -723,6 +723,27 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Fixed
 
+- **harness: the limit-all sleeper race closed with a residency
+  barrier (NIGHT-improve-15 follow-up)** — the 2026-09-22 heavy run
+  failed `limit-all --force: machine-wide sweep — fleet cgroup a row
+  wrong: None`. Root cause: spawn_bg_in_cgroup was fire-and-forget,
+  and limit-all walks /proc twice — the identity tally first, then
+  the per-name resolution AFTER the BPF attach (a slow step: program
+  load + pin). A bash sleeper caught between its `echo $$ >
+  cgroup.procs` and its `exec` resolves as "bash" in the first walk
+  and as nothing in the second (the exec finished meanwhile), so the
+  fleet cgroups miss the machine-wide sweep entirely and the row
+  check reports a mystery None. spawn_bg_in_cgroup now returns only
+  once the child is provably resident (its pid appears in the
+  target's cgroup.procs) AND settled (its /proc/<pid>/comm equals the
+  final argv[0] basename, 15-char kernel truncation honored), with a
+  5-second settle timeout, a dead-child short-circuit, and a kill on
+  failure so nothing leaks. The sweep then refuses to run when any
+  sleeper never settled, failing with a barrier-specific message
+  instead of a mystery None row. Verified without root through a
+  mock-cgroup harness: settle path 11 ms, dead-child path 10 ms, no
+  leaks; the 17-check engine self-test stays green.
+
 - **security: the update check's release tag is sanitized at the
   network boundary — the one terminal-injection surface the comm
   sanitizer did not cover (NIGHT-cybersecurity-2)** —

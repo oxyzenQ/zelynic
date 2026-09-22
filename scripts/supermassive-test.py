@@ -766,14 +766,51 @@ def spawn_in_cgroup(name, argv, timeout):
         return None, "worker did not finish"
 
 
-def spawn_bg_in_cgroup(name, argv):
-    """Fire-and-forget resident process (sleepers) inside cgroup `name`."""
+def spawn_bg_in_cgroup(name, argv, settle_timeout=5.0):
+    """Resident process (sleepers) inside cgroup `name`, residency-guaranteed.
+
+    Returns the Popen handle once the child has (1) joined the target
+    cgroup (its pid appears in the cgroup's cgroup.procs) and (2) finished
+    exec (/proc/<pid>/comm equals the final argv[0] basename), or None when
+    the child died or never settled within settle_timeout seconds (killed
+    first, so a failed spawn leaks nothing). The barrier closes the
+    spawn/limit-all race the 2026-09-22 heavy run exposed: limit-all walks
+    /proc twice (the identity tally, then per-name resolution after the
+    BPF attach), and a bash child caught between its cgroup.procs echo and
+    its exec resolves as "bash" in the first walk and as nothing in the
+    second — the fleet cgroups then miss the machine-wide sweep entirely
+    and the row check reports a mystery None.
+    """
     script = f'echo $$ > "{CG.paths[name]}/cgroup.procs"\nexec "$@"'
-    return subprocess.Popen(
+    proc = subprocess.Popen(
         ["bash", "-c", script, "worker"] + argv,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
+    # The kernel truncates comm to TASK_COMM_LEN-1 = 15 characters.
+    want_comm = os.path.basename(argv[0])[:15]
+    procs_file = f"{CG.paths[name]}/cgroup.procs"
+    comm_file = f"/proc/{proc.pid}/comm"
+    deadline = time.monotonic() + settle_timeout
+    while time.monotonic() < deadline:
+        if proc.poll() is not None:
+            break  # child exited before settling
+        try:
+            with open(procs_file, encoding="utf-8") as fh:
+                resident = str(proc.pid) in fh.read().split()
+        except OSError:
+            resident = False
+        if resident:
+            try:
+                with open(comm_file, encoding="utf-8") as fh:
+                    if fh.read().strip() == want_comm:
+                        return proc
+            except OSError:
+                pass  # exec not finished yet; retry
+        time.sleep(0.01)
+    proc.kill()
+    proc.wait()
+    return None
 
 
 def curl_in_cgroup(name, window):
@@ -1614,9 +1651,20 @@ def test_limit_all(window, baseline):
         return record(name, "SKIP", "baseline too low")
     # Keep sleepers resident in a..e so the sweep has live cgroups to
     # find — including "a" itself: since NIGHT-improve-12 the harness
-    # lives in hq, so the row check below needs a resident in a.
-    sleepers = [spawn_bg_in_cgroup(n, ["sleep", "30"]) for n in "abcde"]
+    # lives in hq, so the row check below needs a resident in a. The
+    # residency barrier above makes "resident" a settled fact, not a
+    # spawn-time hope — the sweep only runs once every sleeper is
+    # provably in place (2026-09-22 fix for the mystery None row).
+    spawned = [spawn_bg_in_cgroup(n, ["sleep", "30"]) for n in "abcde"]
+    sleepers = [p for p in spawned if p is not None]
     try:
+        if len(sleepers) != len(spawned):
+            return record(
+                name,
+                "FAIL",
+                f"sleeper residency barrier failed: {len(spawned) - len(sleepers)}"
+                f"/{len(spawned)} cgroups never got a resident sleeper",
+            )
         rc, stdout, stderr = run_zel(["limit-all", "--force", "2mb"])
         if rc != 0:
             return record(name, "FAIL", f"exit {rc}: {(stderr or stdout).strip()[:200]}")
