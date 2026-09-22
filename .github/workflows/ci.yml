@@ -20,10 +20,13 @@
 # .ruff.toml bought the full Rust matrix (check + gnu-dynamic + the
 # musl twins). The set below is exactly what this workflow's jobs
 # compile or execute: the Rust trees, the cargo manifests, the
-# policy file the deny step reads, and the three scripts its steps
-# run. Everything else is gate-keepers territory — which runs on
-# every push anyway, so no change ever goes unpoliced, it just
-# stops buying forty minutes of compile time it cannot affect.
+# policy file the deny step reads, and the six scripts its steps
+# run (since NIGHT-boost-7 the check job's gate is scripts/build.sh
+# check-all itself, which executes
+# scripts/check-version-anti-patterns.sh in turn — both joined the
+# consumer set). Everything else is gate-keepers territory — which
+# runs on every push anyway, so no change ever goes unpoliced, it
+# just stops buying forty minutes of compile time it cannot affect.
 
 # NIGHT-improve-22 (cosmostrix naming lineage): every workflow in
 # this repo carries its Dragon Guard name — the run list reads as
@@ -38,6 +41,8 @@ on:
       # NIGHT-improve-21: the Rust + tooling surface this workflow
       # COMPILES, plus the exact scripts its steps EXECUTE — scoped
       # per consumer (cosmostrix filter discipline), see the header.
+      # NIGHT-boost-7: build.sh and check-version-anti-patterns.sh
+      # joined — the check job's gate now runs through them.
       - '**/*.rs'
       - '**/Cargo.toml'
       - 'Cargo.lock'
@@ -50,6 +55,8 @@ on:
       - 'scripts/supermassive-test.py'
       - 'scripts/supermassive-test-v2.py'
       - 'scripts/install-bpf-linker.sh'
+      - 'scripts/build.sh'
+      - 'scripts/check-version-anti-patterns.sh'
   pull_request:
     branches: ["main"]
     paths:
@@ -65,6 +72,8 @@ on:
       - 'scripts/supermassive-test.py'
       - 'scripts/supermassive-test-v2.py'
       - 'scripts/install-bpf-linker.sh'
+      - 'scripts/build.sh'
+      - 'scripts/check-version-anti-patterns.sh'
 
 # Least privilege (cosmostrix contract): every job in this workflow
 # only reads the repository.
@@ -144,25 +153,32 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-
 
-      - name: Check formatting
-        run: cargo fmt --all -- --check
-
-      - name: Clippy
-        run: cargo clippy --all-targets --all-features -- -D warnings
-
-      - name: Run tests
-        run: cargo test --locked
-
-      # Scanner binary pinned, advisory DB still refreshes every run
-      # (NIGHT-hunt-20): red means a new advisory, never a new release.
+      # cargo-deny must be on PATH before the quality gate below
+      # runs: build.sh skips the deny check with a warning when the
+      # subcommand is missing, so this pinned install is what keeps
+      # the dependency gate live on CI (NIGHT-hunt-20: red means a
+      # new advisory or policy violation, never a version drift).
       - name: Install cargo-deny (pinned 0.20.2)
         run: cargo install cargo-deny --version 0.20.2 --locked
 
-      - name: Check dependency policies
-        run: cargo deny check all
-
-      - name: Run repository policy check
-        run: python3 scripts/check-policy.py
+      # NIGHT-boost-7 (owner mandate): the five hand-rolled steps
+      # this job used to carry (Check formatting / Clippy / Run
+      # tests / Check dependency policies / Run repository policy
+      # check) were a line-by-line duplicate of scripts/build.sh
+      # check-all — the canonical local gate. One contract, one
+      # place: the job now runs the script itself, so the gate CI
+      # enforces is the same invocation the owner runs before every
+      # commit and the two can never drift apart (the
+      # NIGHT-improve-13 dedup discipline, applied to the Rust-side
+      # gate). -q is the essentials-only log shape: per-check OK
+      # lines, warnings, failures — no banners. The version-string
+      # anti-pattern check rides along (check-all runs it; the five
+      # hand-rolled steps never did). ZELYNIC_JOBS lifts the
+      # script's 75%-of-cores heat cap: an ephemeral runner has no
+      # thermal budget to protect, and full parallelism is cheaper
+      # runner-minutes.
+      - name: Run quality gate (build.sh check-all)
+        run: ZELYNIC_JOBS="$(nproc)" ./scripts/build.sh check-all -q
 
       - name: Supermassive harness engine self-test
         run: python3 scripts/supermassive-test.py --self-test
@@ -185,6 +201,21 @@ jobs:
       # build with the ebpf feature, --locked, and its own profile
       # dir (no clobbering target/release).
       #
+      # NIGHT-boost-7 (SIGILL closure): every line now passes
+      # --target x86_64-unknown-linux-gnu explicitly. Without it,
+      # cargo runs a host-oriented build and RUSTFLAGS leaks into
+      # the HOST artifacts — the proc-macro dylibs rustc itself
+      # loads and executes mid-compile. On the 2026-09-22 run the
+      # runner CPU had no AVX-512, so the v4-flagged thiserror-impl
+      # dylib hit an illegal instruction inside rustc ("could not
+      # compile aya-obj", signal 4) — while the musl v4 build
+      # never crashed, because its alias already targets
+      # x86_64-unknown-linux-musl. The explicit --target splits the
+      # two worlds: RUSTFLAGS governs the target artifacts only,
+      # proc-macros and build scripts compile flag-clean for the
+      # host on any runner CPU. Artifact paths gain the triple
+      # segment, mirroring the musl job's layout.
+      #
       # RUSTFLAGS composition: each line leads with -D warnings
       # (NIGHT-strict-2) and carries the full baseline set verbatim —
       # a set env RUSTFLAGS silently shadows every config rustflags
@@ -202,12 +233,16 @@ jobs:
       - name: 'Verify pro builds (gnu: native + v3 + v4)'
         run: |
           set -euo pipefail
-          RUSTFLAGS="-D warnings -C target-cpu=native" cargo pro-native-gnu --locked
-          ./target/pro-native-gnu/zelynic -V
-          RUSTFLAGS="-D warnings -C target-cpu=x86-64-v3" cargo pro-linux-gnu-v3 --locked
-          ./target/pro-linux-gnu-v3/zelynic -V | grep -F "Build: local-linux-gnu-v3"
-          RUSTFLAGS="-D warnings -C target-cpu=x86-64-v4" cargo pro-linux-gnu-v4 --locked
-          grep -aF "local-linux-gnu-v4" ./target/pro-linux-gnu-v4/zelynic
+          RUSTFLAGS="-D warnings -C target-cpu=native" \
+            cargo pro-native-gnu --locked --target x86_64-unknown-linux-gnu
+          ./target/x86_64-unknown-linux-gnu/pro-native-gnu/zelynic -V
+          RUSTFLAGS="-D warnings -C target-cpu=x86-64-v3" \
+            cargo pro-linux-gnu-v3 --locked --target x86_64-unknown-linux-gnu
+          ./target/x86_64-unknown-linux-gnu/pro-linux-gnu-v3/zelynic -V | grep -F "Build: local-linux-gnu-v3"
+          RUSTFLAGS="-D warnings -C target-cpu=x86-64-v4" \
+            cargo pro-linux-gnu-v4 --locked --target x86_64-unknown-linux-gnu
+          grep -aF "local-linux-gnu-v4" \
+            ./target/x86_64-unknown-linux-gnu/pro-linux-gnu-v4/zelynic
 
   # NIGHT-improve-20: musl CI parity — the owner directive. The gnu
   # surface gets fmt + clippy + tests + the pro build verification on

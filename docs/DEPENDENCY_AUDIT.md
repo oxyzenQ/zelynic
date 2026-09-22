@@ -266,8 +266,9 @@ blocks. Keeping it is the lower-risk option.
 ## Enforcement (how this stays true)
 
 1. `deny.toml [bans]` denies `chrono` — re-adding it fails
-   `cargo deny check all` in CI (`ci.yml` "Check dependency policies")
-   and the daily `audit.yml` observation run.
+   `cargo deny check all` in CI (the check job's `build.sh check-all`
+   gate runs the deny step; NIGHT-boost-7 folded the hand-rolled
+   steps into the script) and the daily `audit.yml` observation run.
 2. `deny.toml [graph] all-features = true` keeps the aya subtree
    inside every policy check (Finding 3).
 3. `Cargo.toml` carries the dependency contract comment: every direct
