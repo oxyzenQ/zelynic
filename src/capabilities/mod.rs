@@ -77,8 +77,11 @@ fn detect_system() -> SystemInfo {
 }
 
 /// `linux/magic.h` `BPF_FS_MAGIC` — the statfs type of a mounted bpf
-/// filesystem. Stored as i64 to match `statfs.f_type` (`__fsword_t`,
-/// signed) without a cast at every comparison site.
+/// filesystem. Stored as i64, the common denominator of the two libc
+/// `f_type` flavors: glibc types the field `__fsword_t` (signed long)
+/// while musl types it `unsigned long` — [`statfs_type`] bridges the
+/// divergence (NIGHT-hunt-33), so every comparison site stays cast-free
+/// against this signed constant.
 const BPF_FS_MAGIC: i64 = 0xcafe4a11;
 
 /// NIGHT-hunt-28: is `path` on an actually-mounted bpf filesystem?
@@ -100,6 +103,19 @@ pub fn bpffs_mounted_at(path: &str) -> bool {
 /// (no such path, permission, ...). A local helper over `libc::statfs`
 /// so the crate keeps its zero-new-dependency posture — `libc` is
 /// already a direct dependency.
+///
+/// NIGHT-hunt-33: `statfs.f_type` is NOT one type across libcs — glibc
+/// declares it `__fsword_t` (i64 on LP64) but musl declares it
+/// `unsigned long` (u64), so the v11.0.0-alpha.1 release musl build
+/// died with E0308 (expected i64, found u64) while the gnu build was
+/// green: the two libcs disagree on the Rust-side type of the same
+/// kernel field. The kernel ABI is identical either way — a full
+/// 64-bit magic on the wire — and every filesystem magic in
+/// linux/magic.h (BPF 0xcafe4a11 included) sits far below 2^63, so
+/// widening the musl u64 into this i64 contract is lossless for every
+/// real-world filesystem; a value with bit 63 set would not be a known
+/// magic anyway. The `as i64` is therefore a no-op on gnu and a
+/// lossless widening on musl.
 fn statfs_type(path: &str) -> Option<i64> {
     use std::ffi::CString;
 
@@ -109,7 +125,10 @@ fn statfs_type(path: &str) -> Option<i64> {
     // valid, properly-aligned statfs buffer of the expected size.
     let rc = unsafe { libc::statfs(c_path.as_ptr(), &mut buf) };
     if rc == 0 {
-        Some(buf.f_type)
+        // glibc: f_type is already i64 (no-op cast); musl: u64 -> i64
+        // lossless widening for every real filesystem magic (see the
+        // doc comment on this function).
+        Some(buf.f_type as i64)
     } else {
         None
     }
