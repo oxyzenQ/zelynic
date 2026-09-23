@@ -23,6 +23,18 @@
 //! frame sits on its foundation, visually anchored whatever the wave
 //! does above it.
 //!
+//! NIGHT-boost-23 (gradient enhance): the rail interpolation now
+//! runs in LINEAR LIGHT — the sRGB channels decode through the
+//! exact IEC 61966-2-1 transfer, blend, and encode back. The naive
+//! sRGB lerp darkened the perceptual midtones (the ramp spent its
+//! time near the dark anchor and rushed through bright), the
+//! classic gradient-banding artifact; the gamma-correct midpoint
+//! renders at the brightness the arithmetic claims. The anchors are
+//! unchanged (BRANDING.md carries sRGB numbers), the wave is
+//! unchanged (the BD-02 triangle is an LTS-stable contract in
+//! cosmostrix), and the cost is two powf per channel per row — the
+//! frame duty at the 1s cadence is unmoved.
+//!
 //! Capability ladder: TrueColor interpolates the brand RGB per row;
 //! xterm-256 quantizes each interpolated triple onto the 6x6x6 cube;
 //! 16-color terminals render the rails in the theme's flat brand SGR
@@ -76,13 +88,40 @@ fn wave(t: f32) -> f32 {
     }
 }
 
-/// Linear interpolation between two RGB triples, per channel, with
-/// round-half-away and clamp safety (the anchors are in range by
-/// construction; the clamp is LTS armor, not a live path).
+/// sRGB electro-optical decode, the exact IEC 61966-2-1 piecewise
+/// transfer (NIGHT-boost-23): a channel value becomes linear light.
+fn to_linear(c: u8) -> f32 {
+    let v = f32::from(c) / 255.0;
+    if v <= 0.040_45 {
+        v / 12.92
+    } else {
+        ((v + 0.055) / 1.055).powf(2.4)
+    }
+}
+
+/// sRGB electro-optical encode, the inverse transfer: linear light
+/// becomes a channel value, rounded half-away at the u8 boundary
+/// and clamped as LTS armor (the anchors are in range by
+/// construction).
+fn from_linear(l: f32) -> u8 {
+    let v = if l <= 0.003_130_8 {
+        l * 12.92
+    } else {
+        1.055 * l.powf(1.0 / 2.4) - 0.055
+    };
+    (v * 255.0).round().clamp(0.0, 255.0) as u8
+}
+
+/// Interpolate between two RGB triples in LINEAR LIGHT (NIGHT-boost-23
+/// gradient enhance), per channel: decode both endpoints, blend,
+/// encode. The naive sRGB lerp darkened perceptual midtones — the
+/// ramp banded near the dark anchor; the gamma-correct midpoint
+/// renders at the brightness the arithmetic claims.
 fn lerp(a: (u8, u8, u8), b: (u8, u8, u8), t: f32) -> (u8, u8, u8) {
     let mix = |x: u8, y: u8| {
-        let v = f32::from(x) + (f32::from(y) - f32::from(x)) * t;
-        v.round().clamp(0.0, 255.0) as u8
+        let lx = to_linear(x);
+        let ly = to_linear(y);
+        from_linear(lx + (ly - lx) * t)
     };
     (mix(a.0, b.0), mix(a.1, b.1), mix(a.2, b.2))
 }

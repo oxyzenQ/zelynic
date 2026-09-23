@@ -84,6 +84,21 @@ fn try_main() -> Result<()> {
         Err(e) => cli::ux::exit_clap_error(e),
     };
 
+    // NIGHT-boost-23: --color-mode seeds the forced capability before
+    // any output renders — help, errors, and the monitor all answer
+    // to one ladder depth. Invalid values die at the input boundary
+    // with the allowed grammar, the same exit-2 shape as clap usage
+    // errors.
+    if let Some(mode) = &cli.color_mode {
+        match output::parse_color_mode(mode) {
+            Ok(cap) => output::set_forced_capability(cap),
+            Err(reason) => {
+                output::eprintln_error_labeled(&reason);
+                std::process::exit(2);
+            }
+        }
+    }
+
     // --help: print the end-to-end reference and exit 0. Checked
     // before every other early return so `zelynic --help` works no
     // matter what follows it (parse errors still fire first — clap

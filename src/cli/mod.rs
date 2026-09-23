@@ -78,6 +78,22 @@ pub struct Cli {
     /// Output as JSON (where applicable)
     #[arg(long, global = true)]
     pub print_json: bool,
+
+    /// Force the terminal color depth (default: auto-detect)
+    ///
+    /// NIGHT-boost-23 (the cosmostrix --color-mode contract): the
+    /// capability ladder auto-falls-back per terminal — truecolor
+    /// where the environment reports it, the xterm-256 cube, the
+    /// classic 16 palette, or mono. Env probes cannot verify
+    /// RENDERING though: the classic liar is an inherited COLORTERM
+    /// (SSH SendEnv into a terminal that is not truecolor, tmux
+    /// passthrough without Tc) — the environment says truecolor, the
+    /// terminal garbles the RGB escapes. This flag forces the depth
+    /// the terminal actually honors; every surface (errors, help,
+    /// the monitor's frame and gradient rails) answers to it.
+    /// Allowed: 0 (mono), 16, 8/256 (xterm cube), 24/32 (truecolor).
+    #[arg(long = "color-mode", global = true, value_name = "MODE")]
+    pub color_mode: Option<String>,
 }
 
 // ── Clap brand styling (cosmostrix contract, NIGHT-hunt-5) ─────────────────

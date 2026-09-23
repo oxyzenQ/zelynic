@@ -287,12 +287,23 @@ as the top border, every content row wears gradient-colored side
 rails (the active theme's brand color sweeping dark to bright and
 back down the frame — the cosmostrix msg-border triangle-wave
 contract), and the frame closes on a full-width floor row in the
-bright anchor color. On 256-color terminals the gradient quantizes
-onto the xterm cube; on 16-color terminals the rails render the
-theme's flat brand color; piped output renders the plain glyphs. The
+bright anchor color. Since NIGHT-boost-23 the rail interpolation
+runs in LINEAR LIGHT (the exact IEC 61966-2-1 sRGB transfer): the
+naive sRGB lerp darkened perceptual midtones — the ramp banded near
+the dark anchor — while the gamma-correct midpoint renders at the
+brightness the arithmetic claims. On 256-color terminals the
+gradient quantizes onto the xterm cube; on 16-color terminals the
+rails render the theme's flat brand color; piped output renders the
+plain glyphs. The
 rails claim two columns and the closing row one line, budgeted
 BEFORE anything renders — the column ladder, the footer pin, and
-the detail trimming flow through the inset geometry unchanged.
+the detail trimming flow through the inset geometry unchanged. The
+theme fallbacks themselves carry the NIGHT-boost-23 audit contract
+(see docs/BRANDING.md section 2.2): nearest-cube brand/ok indices,
+visibility-corner warn/hot, pairwise-distinct 16-color SGRs within
+every theme, and the uniform grey ramp for subordinates — and when
+the terminal's truecolor claim cannot be trusted, `--color-mode`
+forces the legacy depth for the whole process.
 
 Theme cycling (NIGHT-boost-18, improve-27): `t` cycles the frame's
 palette forward (the uppercase `T` twin was retired by
@@ -396,6 +407,7 @@ on every system, so existence alone says nothing.
 | `--check-update` | Checks the latest GitHub release. **Refuses to run as root** — it is a plain network fetch and must not ride sudo. |
 | `-v, --verbose` | stderr diagnostic trace: target resolution (pids per cgroup), every policy write (rate + burst), BPF lifecycle (pin reuse, schema, link mode), plus loader-level eBPF debug — object size, kernel release, load/attach timings, and the loaded map inventory (id, type, key/value size, max_entries, the `bpftool` facts). JSON output stays clean. |
 | `--print-json` | Machine-readable output where applicable (`status`, `list-apps`, `doctor`). |
+| `--color-mode MODE` | Force the terminal color depth: `0` mono, `16` classic palette, `8`/`256` xterm cube, `24`/`32` truecolor (NIGHT-boost-23, the cosmostrix contract). Default is AUTO: the ladder falls back per terminal — truecolor where the environment reports it, the 256 cube, the 16 palette, mono under `NO_COLOR`/pipes. The flag is the escape hatch for the environment that LIES (COLORTERM inherited over SSH into a terminal that is not truecolor, tmux passthrough without Tc): forcing the depth the terminal actually honors makes every surface — errors, help, the monitor frame and its gradient rails — render correctly what truecolor escapes would garble. Invalid values exit 2 with the allowed grammar. |
 
 Privilege matrix in short: enforcement and monitoring commands
 (`strict*`, `block*`, `unstrict*`, `recover`, `status`, `eagle-eyes`)

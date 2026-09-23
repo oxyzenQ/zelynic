@@ -182,6 +182,10 @@ pub(crate) fn print_help() {
         "  -v, --verbose    Diagnostic trace: target resolution, policy writes, BPF lifecycle"
     );
     println_safe!("  --print-json     JSON output (where applicable)");
+    println_safe!("  --color-mode M   Force color depth: 0 mono, 16, 8/256 cube, 24/32 truecolor");
+    println_safe!(
+        "                   (default auto-fallback; for terminals whose truecolor claim lies)"
+    );
     println_safe!();
     println_safe!("{}", brand_bold("Rate formats:"));
     println_safe!("  500b    1kb    500kb    1mb    1gb    1tb    (lowercase only)");
