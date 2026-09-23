@@ -1325,6 +1325,28 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Fixed
 
+- **monitor: NIGHT-engrave-4 (first cut) — the symmetric rails: the
+  table's border gaps made consistent, the way the owner audited
+  them** — the TOTAL column's figures used to end flush against
+  the right rail (zero columns of air — "too near the border, hard
+  to see", the digits and the rail glyph fighting for the same
+  column) while the `top process` title floated six columns off
+  the left rail past the blank rank cell ("too distance from
+  border"). Both edges now carry the same two columns of air: the
+  column budget gains a RIGHT gutter that mirrors the left gutter
+  every frame line starts with (the label column absorbs it, so a
+  full row still composes to an exact width — two columns short of
+  the content inset, where the border's fit() pads), and the
+  header's process title now SPANS the identity region (rank cell
+  + gap + label column) so it starts at the frame's canonical text
+  column — the same line every footer and note row starts on.
+  Boundary moves with the air it buys: the full layout (with the
+  TOTAL column) starts at content width 53 (was 51), the
+  no-TOTAL layout at 42 (was 40), and the subprocess-detail hide
+  threshold now IS the column ladder (`cols.show_total`, one
+  source of truth — the parallel `DETAIL_HIDE_BELOW` constant is
+  retired before it could drift).
+
 - **monitor: NIGHT-engrave-3 depth audit — the footer's leanest
   readable block, the frame's horizontals joined to its border** —
   the owner's seven-bullet engraving pass, delivered as one cut:
