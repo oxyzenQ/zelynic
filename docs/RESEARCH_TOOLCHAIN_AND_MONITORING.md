@@ -205,17 +205,19 @@ the eye cannot tell which of the five is the eater. bandwhich and
 iftop both answer this (their attribution unit IS the connection),
 so on this single axis zelynic is behind the leaders, not ahead.
 
-**How it would close (candidate, not committed):** a per-socket byte
-map keyed by socket cookie (or a `sock_ops`/`socket_filter`
+**How it closes (owner-approved, NIGHT-ask-1, 2026-09-24):** a
+per-socket byte map keyed by socket cookie (or a `sock_ops`/`socket_filter`
 program), joined in userspace with the endpoint table the
 ConnectionMap already builds — the endpoint rows would then carry
 their own byte figures, and the focus view could rank endpoints
 within a cgroup. Effort: one new BPF program + one map + a join
 (the identity plumbing already exists). Risk profile: well-trodden
 aya territory, no new privileges, map sizing bounded like the
-existing counters. **This is the only improvement on the table that
-advances the consumption frontier; it is the answer to "jika belum
-bisa diimprove".**
+existing counters. The owner approved this design as **the only
+improvement on the table that advances the consumption frontier**:
+it is the sanctioned next work item, to be built as its own NIGHT
+task with its own micro-commit cycle — not folded into a drive-by,
+and not a widening of the declared class.
 
 ### 2.5 Improvements considered and rejected (scope discipline)
 
@@ -236,6 +238,13 @@ bisa diimprove".**
   `--by-uid` summary is a cheap userspace join — but it answers a
   multi-user-box question this single-user focus limiter does not
   have. Held as a known-cheap future, not a gap.
+- **Session minimum speed ("total low", rejected at NIGHT-ask-1,
+  2026-09-24)**: a minimum-speed statistic is structurally ~0 — any
+  idle interval drives it to the floor, so the figure carries no
+  information at rest and would render a permanent near-zero row.
+  The session statistics that DO carry information are the pair
+  already shipped (max and average per direction, NIGHT-engrave-6);
+  a minimum would be the third wheel. Rejected.
 
 ### 2.6 Verdict
 
@@ -247,6 +256,15 @@ per-endpoint byte attribution (2.4), and that is the one candidate
 improvement worth an owner decision. Everything else is either
 already superior here or correctly out of scope — and building any
 of it anyway would be over-engineering against the owner's rule.
+
+**Owner decision (NIGHT-ask-1, 2026-09-24): the verdict is
+accepted as the LTS scope statement.** The metric set is closed
+(live rates, session totals, session max/avg speed statistics,
+census, cgroup → process attribution — the rationale is documented
+where users read it, USAGE.md "Honest limitations" entry 12), and
+the 2.4 gap is approved to close on its own task cycle. The scope
+question is settled, not reopened: any future widening needs a new
+owner task, by design.
 
 ---
 
