@@ -19,7 +19,17 @@
 //! Top consumer: example                       <- grey + purple
 //! ──────────────────                           <- grey grip
 //! Limit it: sudo zelynic strict-single example 100kb  <- grey
+//!
+//! 1s realtime - theme netrunner - q quit - t theme  <- grey (NIGHT-engrave-2)
 //! ```
+//!
+//! NIGHT-engrave-2: the title-bar legend (the realtime cadence, the
+//! active theme's name, the two key hints) relocated to the footer,
+//! below the limit suggestions — the owner's exact line, riding
+//! EVERY tier like the census row and the copyright: it carries the
+//! quit key, and a frame that can teach how to leave is a frame that
+//! can always be left. The theme's NAME lives here now, so cycling
+//! with `t` repaints this one grey row through the diff engine.
 //!
 //! NIGHT-boost-17 (improve-27) added a session uptime line below
 //! the whole block; NIGHT-engrave-1 moved the uptime INTO the census
@@ -53,25 +63,28 @@ use crate::output::{brand, grey, signature_footer};
 pub(super) const TOP_CHROME: usize = 4;
 
 /// Compression tiers for the pinned footer (NIGHT-boost-14;
-/// NIGHT-engrave-1 merged the boost-17 uptime line into the census
-/// row, so each count dropped by one). The owner's grip layout in
-/// full is 11 lines; short terminals drop the breathing blanks
-/// first, then the grips, then the discovery hints and the second
-/// TOTAL grid — the census row, the census text, and the copyright
-/// are the last three survivors, in every tier.
+/// NIGHT-engrave-1 folded the boost-17 uptime into the census row
+/// and NIGHT-engrave-2 added the status line below the limit
+/// suggestions — one line out, one line in, so the counts stand at
+/// the pre-engrave 12/8/6/5). Short terminals drop the breathing
+/// blanks first, then the grips, then the discovery hints and the
+/// second grid — the census row, the census text, the status line,
+/// and the copyright are the last four survivors, in every tier.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum FooterTier {
     /// sep, total row, sep, blank, packets, grip, top, grip, limit,
-    /// blank, copyright — the owner's exact spec with the uptime
-    /// folded into the total row (NIGHT-engrave-1).
+    /// blank, status, copyright — the owner's exact spec with the
+    /// uptime folded into the total row (NIGHT-engrave-1) and the
+    /// legend relocated under the limit suggestion (engrave-2).
     Full,
     /// Blanks and grips gone: sep, total row, sep, packets, top,
-    /// limit, copyright.
+    /// limit, status, copyright.
     Compact,
     /// Discovery hints gone too: sep, total row, sep, packets,
-    /// copyright.
+    /// status, copyright.
     Minimal,
-    /// The survival floor: sep, total row, packets, copyright.
+    /// The survival floor: sep, total row, packets, status,
+    /// copyright.
     Tiny,
 }
 
@@ -81,10 +94,10 @@ impl FooterTier {
     /// which only adds middle padding; the pin stays exact).
     fn lines(self) -> usize {
         match self {
-            FooterTier::Full => 11,
-            FooterTier::Compact => 7,
-            FooterTier::Minimal => 5,
-            FooterTier::Tiny => 4,
+            FooterTier::Full => 12,
+            FooterTier::Compact => 8,
+            FooterTier::Minimal => 6,
+            FooterTier::Tiny => 5,
         }
     }
 }
@@ -152,6 +165,29 @@ pub(super) struct FooterCensus {
     /// `total usage internet in ...` line between the purple grids,
     /// in every tier.
     pub uptime: Duration,
+}
+
+/// The monitor's status line (NIGHT-engrave-2): the frame's legend,
+/// relocated from the title bar to the footer, below the limit
+/// suggestions — the owner's exact wording `1s realtime - theme
+/// netrunner - q quit - t theme`, grey like the rest of the
+/// subordinate block. Rides every tier: it carries the quit key and
+/// the active theme's name, and the theme slot makes every `t`
+/// press readable — one grey row repaints through the diff engine.
+#[must_use]
+pub(super) fn status_line(interval: Duration) -> String {
+    let realtime = if interval.as_secs() >= 1 {
+        format!("{}s realtime", interval.as_secs())
+    } else {
+        format!("{:.1}s realtime", interval.as_secs_f64())
+    };
+    format!(
+        "  {}",
+        grey(&format!(
+            "{realtime} - theme {} - q quit - t theme",
+            crate::output::theme::active().name()
+        ))
+    )
 }
 
 /// Assemble the grip footer (NIGHT-boost-14): the total row framed
@@ -222,6 +258,11 @@ pub(super) fn build_grip_footer(
     if tier == FooterTier::Full {
         footer.push(String::new());
     }
+    // The status line (NIGHT-engrave-2) rides EVERY tier, right
+    // below the limit suggestions (or where they would sit): the
+    // relocated title legend — realtime cadence, the active theme's
+    // name, and the two key hints.
+    footer.push(status_line(interval));
     footer.push(format!("  {}", signature_footer()));
     footer
 }

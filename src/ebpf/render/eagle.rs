@@ -120,7 +120,8 @@ fn resolve_targets(tokens: &[Target], identity: &IdentityMap) -> (Vec<u32>, Vec<
 /// quiet frames, and the TOTAL column carrying the accumulated
 /// figure. Since NIGHT-boost-14 the frame is pinned to the full
 /// terminal height with the grip footer near the bottom. `uptime`
-/// (NIGHT-boost-17): the session age, below the footer, every tier.
+/// (NIGHT-boost-17; folded into the census row by NIGHT-engrave-1):
+/// the session age, riding the total row in every tier.
 #[allow(clippy::too_many_arguments)]
 pub fn render_eagle_eyes(
     lines: &mut Vec<String>,
@@ -171,23 +172,18 @@ pub(super) fn render_eagle_eyes_at(
         return;
     }
 
-    let interval_str = if interval.as_secs() >= 1 {
-        format!("{}s realtime", interval.as_secs())
-    } else {
-        format!("{:.1}s realtime", interval.as_secs_f64())
-    };
+    // NIGHT-engrave-2: the title bar is just the frame's identity —
+    // the realtime cadence, the theme name, and the key hints moved
+    // to the footer's status line (below the limit suggestions); the
+    // top-right keeps only the quick hint pair.
     let title_core = if tokens.is_empty() {
-        format!("zelynic eagle-eyes — {interval_str}")
+        "zelynic eagle-eyes".to_string()
     } else {
         let n = ids.len();
         let plural = if n == 1 { "" } else { "s" };
-        format!("zelynic eagle-eyes — {n} target{plural} — {interval_str}")
+        format!("zelynic eagle-eyes — {n} target{plural}")
     };
-    // A cycled title names the theme; the hint teaches (engrave-1:
-    // t first, q last — the owner's exact order).
-    let suffix = crate::output::theme::active().title_suffix();
-    let themed_core = format!("{title_core}{suffix}");
-    lines.push(title_bar(&themed_core, "t theme - q quit", geo.width));
+    lines.push(title_bar(&title_core, "t theme - q quit", geo.width));
 
     // The breathing gap (NIGHT-boost-14): the column header used to
     // sit one row under the title bar — too near the brand, the

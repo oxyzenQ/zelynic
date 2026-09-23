@@ -251,8 +251,11 @@ table does — the flat total row (`total usage internet in 1h:3m
 the row, framed by two purple grid lines), the packets/cgroups
 census under its own-width grip, the "Top consumer" autodetect (the
 busiest process inside the rank-1 cgroup, its name brand purple)
-under its own grip, the exact `strict-single` command to cap it, and
-the signature copyright as the frame's last row. All footer text
+under its own grip, the exact `strict-single` command to cap it,
+the status line — the relocated title legend `1s realtime - theme
+netrunner - q quit - t theme` (NIGHT-engrave-2), grey, riding every
+compression tier — and the signature copyright as the frame's last
+row. All footer text
 renders calm grey except the purple copyright and the purple
 consumer name — subordinate information reads dimmer than the data
 it annotates. The tiers are a STATIC traffic light (the takeover
@@ -266,15 +269,18 @@ The census wording is `N packets + M cgroups` (a `+` join, never a
 dot).
 
 Theme cycling (NIGHT-boost-18, improve-27): `t` cycles the frame's
-palette forward, `T` cycles it back — six themes in total
-(`netrunner` the default, then `night_cyber`, `forest`,
-`spaceflight`, `carbon`, `atomic`), the cosmostrix cycle contract
-with modulo wraparound at both edges. A theme change repaints
-within the same 50ms wake and the title bar names the active theme
-(`… 1s realtime — atomic`) so the frame always says what it wears;
-the theme lives ONLY inside the monitor — every other zelynic
-surface (help, errors, status) keeps the default purple branding
-(see docs/BRANDING.md section 2.2 for the palette table).
+palette forward (the uppercase `T` twin was retired by
+NIGHT-engrave-2 — one simple key, modulo wraparound at the catalog
+edge) — six themes in total (`netrunner` the default, then
+`night_cyber`, `forest`, `spaceflight`, `carbon`, `atomic`), the
+cosmostrix cycle contract. A theme change repaints within the same
+50ms wake and the footer's status line names the active theme
+(`1s realtime - theme atomic - q quit - t theme`, NIGHT-engrave-2:
+the legend relocated below the limit suggestions — the title bar
+keeps only the quick hint pair `t theme - q quit`); the theme lives
+ONLY inside the monitor — every other zelynic surface (help,
+errors, status) keeps the default purple branding (see
+docs/BRANDING.md section 2.2 for the palette table).
 
 Dynamic screen size (NIGHT-boost-14): the loop probes the terminal
 geometry every 50ms wake and renders a change within one wake — not
@@ -611,8 +617,10 @@ Press `q` — the only quit key (NIGHT-hunt-16). ESC was removed as a
 quit key in NIGHT-hunt-12 (escape sequences from arrows/mouse made
 accidental quits too easy); Ctrl+C quit was removed in NIGHT-hunt-16
 for the same single-key contract as htop/vim — the title bar says
-"q quit" and nothing else quits. The `t`/`T` keys (NIGHT-boost-18)
-cycle the monitor's theme — action keys, never quit keys.
+"q quit" and nothing else quits. The `t` key (NIGHT-boost-18; the
+`T` twin was retired by NIGHT-engrave-2 at the owner's "better only
+simple 't'" call) cycles the monitor's theme — an action key, never
+a quit key.
 
 **Can I select and copy/paste text while the monitor runs?**
 No — box mode takes the pointer AND kills terminal-side selections on

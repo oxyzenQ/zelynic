@@ -58,29 +58,31 @@ fn frame(cg: u32, dl: u64, ul: u64) -> CounterSummary {
     }
 }
 
-/// Footer compression ladder (NIGHT-boost-14; re-counted by
-/// NIGHT-engrave-1 when the boost-17 uptime line merged into the
-/// census row): the classic 80x24 carries the full 11-line grip
-/// block; a 15-row window drops to Compact; 10 rows to Minimal; the
-/// survival floor holds from 9.
+/// Footer compression ladder (NIGHT-boost-14; NIGHT-engrave-1 folded
+/// the boost-17 uptime line into the census row and NIGHT-engrave-2
+/// added the status line below the limit suggestions — one line out,
+/// one line in, so the counts stand at the pre-engrave 12/8/6/5): the
+/// classic 80x24 carries the full 12-line grip block; a 16-row window
+/// drops to Compact; 10 rows to Minimal; the survival floor holds
+/// from 10.
 #[test]
 fn footer_tier_ladder() {
     assert_eq!(plan_footer_tier(24, 0), FooterTier::Full);
     assert_eq!(
-        plan_footer_tier(16, 0),
+        plan_footer_tier(17, 0),
         FooterTier::Full,
-        "16 = 4 chrome + 11 footer + 1 row"
+        "17 = 4 chrome + 12 footer + 1 row"
     );
-    assert_eq!(plan_footer_tier(15, 0), FooterTier::Compact);
-    assert_eq!(plan_footer_tier(12, 0), FooterTier::Compact);
+    assert_eq!(plan_footer_tier(16, 0), FooterTier::Compact);
+    assert_eq!(plan_footer_tier(13, 0), FooterTier::Compact);
+    assert_eq!(plan_footer_tier(12, 0), FooterTier::Minimal);
     assert_eq!(plan_footer_tier(11, 0), FooterTier::Minimal);
-    assert_eq!(plan_footer_tier(10, 0), FooterTier::Minimal);
-    assert_eq!(plan_footer_tier(9, 0), FooterTier::Tiny);
+    assert_eq!(plan_footer_tier(10, 0), FooterTier::Tiny);
     assert_eq!(plan_footer_tier(5, 0), FooterTier::Tiny, "survival floor");
     // The rare identities-unresolved note rides the footer and is
-    // accounted: it costs one line, so the Full boundary moves to 17.
-    assert_eq!(plan_footer_tier(17, 1), FooterTier::Full);
-    assert_eq!(plan_footer_tier(16, 1), FooterTier::Compact);
+    // accounted: it costs one line, so the Full boundary moves to 18.
+    assert_eq!(plan_footer_tier(18, 1), FooterTier::Full);
+    assert_eq!(plan_footer_tier(17, 1), FooterTier::Compact);
 }
 
 /// NIGHT-improve-2 line-building pin (NIGHT-boost-14 composition):
@@ -104,15 +106,16 @@ fn eagle_frame_builds_lines() {
     );
     assert_eq!(lines.len(), 24, "the frame is pinned to the height");
     assert!(
-        lines[0].starts_with("  ─── zelynic eagle-eyes — 1s realtime"),
-        "title carries the frame gutter + the realtime cadence: {}",
+        lines[0].starts_with("  ─── zelynic eagle-eyes"),
+        "title carries the frame gutter, identity only (NIGHT-engrave-2 —
+        the legend moved to the footer): {}",
         lines[0]
     );
     assert_eq!(lines[1], "", "breathing gap under the title (boost-14)");
     assert!(lines.contains(&"  waiting for traffic…".to_string()));
     // The pinned footer: the flat total row between two grid lines,
-    // the census, and the copyright as the frame's LAST row (the
-    // boost-17 uptime folded into the total row, NIGHT-engrave-1).
+    // the census, the status line (NIGHT-engrave-2), and the
+    // copyright as the frame's LAST row.
     let total_idx = lines
         .iter()
         .position(|l| l.split_whitespace().next() == Some("total"))
@@ -136,6 +139,11 @@ fn eagle_frame_builds_lines() {
         lines.iter().any(|l| l.contains("0 packets + 0 cgroups")),
         "census line renders the + join: {:?}",
         lines
+    );
+    assert_eq!(
+        lines[22], "  1s realtime - theme netrunner - q quit - t theme",
+        "status line below where the limit suggestions sit (NIGHT-engrave-2): {}",
+        lines[22]
     );
     assert!(
         lines[23].starts_with("  v") && lines[23].ends_with(") by oxyzenQ"),
@@ -223,9 +231,14 @@ fn footer_grip_layout_pins_to_the_bottom() {
         ),
         "the census grip is exactly the census text's own width"
     );
+    assert_eq!(
+        lines[22], "  1s realtime - theme netrunner - q quit - t theme",
+        "status line below the limit suggestion (NIGHT-engrave-2): {}",
+        lines[22]
+    );
     assert!(
         lines[23].starts_with("  v") && lines[23].ends_with(") by oxyzenQ"),
-        "copyright is the frame's last row (NIGHT-engrave-1): {}",
+        "copyright is the frame's last row: {}",
         lines[23]
     );
     assert_eq!(lines.len(), 24, "frame pinned to the terminal height");

@@ -103,14 +103,14 @@ numerics, and no per-cell noise (values are never packed as
 
 ### 2.2. Monitor themes (NIGHT-boost-18, improve-27)
 
-The eagle-eyes monitor cycles six palettes with `t` (next) / `T`
-(previous) — the cosmostrix cycle contract (lowercase forward,
-uppercase reverse, modulo wraparound at both edges). Themes are
-SCOPED to the live monitor: nothing outside the alt-screen key
-handler ever writes the theme state, so every other surface (help,
-errors, status, list-apps) always renders the default and the CLI's
-byte output is unchanged. The default is `netrunner`, whose
-encodings are byte-identical to the constants the color layer
+The eagle-eyes monitor cycles six palettes with `t` (forward,
+modulo wraparound — the uppercase `T` twin was retired by
+NIGHT-engrave-2 at the owner's "better only simple 't'" call).
+Themes are SCOPED to the live monitor: nothing outside the
+alt-screen key handler ever writes the theme state, so every other
+surface (help, errors, status, list-apps) always renders the default
+and the CLI's byte output is unchanged. The default is `netrunner`,
+whose encodings are byte-identical to the constants the color layer
 carried before themes existed.
 
 Cycle order and palettes (source of truth:
@@ -132,12 +132,13 @@ table and the docs cannot drift apart silently. The 256/16 fallbacks
 favor visibility over exact match (the warn-yellow precedent); the
 grey slot degrades to the neutral grey ramp (245 / bright black 90)
 in every theme — subordinate text stays subordinate whatever the
-accent becomes. A cycled frame names its theme in the title bar
-(`… 1s realtime — atomic`) and the key hint teaches the cycle
-(`t theme - q quit`); a theme change repaints within the same 50ms
-wake, never at the next refresh tick. Error red and suggestion white
-are hardwired: they belong to the CLI error surface, which never
-themes.
+accent becomes. A cycled frame names its theme in the footer's
+status line (`1s realtime - theme atomic - q quit - t theme`, the
+NIGHT-engrave-2 legend below the limit suggestions) and the title
+hint teaches the key (`t theme - q quit`); a theme change repaints
+within the same 50ms wake, never at the next refresh tick. Error red
+and suggestion white are hardwired: they belong to the CLI error
+surface, which never themes.
 
 ---
 

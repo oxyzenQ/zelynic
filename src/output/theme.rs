@@ -2,9 +2,10 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 //! Eagle-eyes theme catalog (NIGHT-boost-18, improve-27): six
-//! palettes the live monitor cycles with `t` (next) / `T` (previous)
-//! — the cosmostrix cycle contract (lowercase forward, uppercase
-//! reverse, modulo wraparound), one key pair, zero config.
+//! palettes the live monitor cycles with `t` — the cosmostrix
+//! cycle contract (modulo wraparound), one key, zero config
+//! (NIGHT-engrave-2 retired the uppercase `T` twin at the owner's
+//! "better only simple 't'" call: forward-only, wrapping).
 //!
 //! Scope (the owner's exact task wording): themes live INSIDE the
 //! eagle-eyes monitoring mode. The theme state is a process-global
@@ -77,8 +78,10 @@ impl Theme {
         }
     }
 
-    /// Catalog name (lowercase, the BRANDING.md spelling).
-    #[cfg(any(feature = "ebpf", test))] // titled frames + the catalog pins
+    /// Catalog name (lowercase, the BRANDING.md spelling) — rendered
+    /// by the footer's status line (`theme netrunner`, NIGHT-engrave-2)
+    /// so every `t` press names what the frame now wears.
+    #[cfg(any(feature = "ebpf", test))]
     pub(crate) const fn name(self) -> &'static str {
         match self {
             Theme::Netrunner => "netrunner",
@@ -87,17 +90,6 @@ impl Theme {
             Theme::Spaceflight => "spaceflight",
             Theme::Carbon => "carbon",
             Theme::Atomic => "atomic",
-        }
-    }
-
-    /// The title-bar suffix the eagle frame carries: empty for the
-    /// default (byte-identical frame), ` — <name>` when cycled —
-    /// the frame must say which palette it wears.
-    #[cfg(any(feature = "ebpf", test))] // titled frames + the suffix pins
-    pub(crate) fn title_suffix(self) -> String {
-        match self {
-            Theme::Netrunner => String::new(),
-            _ => format!(" — {}", self.name()),
         }
     }
 }
@@ -207,8 +199,8 @@ const fn table(theme: Theme, slot: Slot) -> SlotEncodings {
 }
 
 /// The active theme state. Written ONLY by the eagle-eyes key
-/// handler (`t`/`T` inside the alt screen); every other surface
-/// reads the default and never knows themes exist.
+/// handler (`t` inside the alt screen); every other surface reads
+/// the default and never knows themes exist.
 static ACTIVE: AtomicU8 = AtomicU8::new(0);
 
 /// The active theme.
@@ -231,7 +223,10 @@ pub(crate) fn set(theme: Theme) {
 
 /// Pure cycle (the cosmostrix `cycle_color_scheme` contract): step
 /// `dir` positions through the catalog with modulo wraparound in
-/// both directions. Isolated so the wraparound math pins on its own.
+/// both directions. Isolated so the wraparound math pins on its own;
+/// the monitor only ever steps +1 since NIGHT-engrave-2 (one key),
+/// and the negative direction stays available to the pins and any
+/// future surface that needs it.
 #[cfg(any(feature = "ebpf", test))]
 #[must_use]
 pub(crate) fn cycle_from(current: Theme, dir: i32) -> Theme {

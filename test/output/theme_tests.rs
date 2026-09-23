@@ -98,7 +98,8 @@ fn netrunner_default_is_byte_identical_to_the_pre_theme_constants() {
 }
 
 /// The cycle contract (cosmostrix modulo pattern): `t` steps
-/// forward, `T` steps back, both wrap at the catalog edges.
+/// forward with wraparound; the pure math keeps both directions
+/// (NIGHT-engrave-2 retired the `T` key, not the wraparound).
 #[test]
 fn cycle_wraps_in_both_directions() {
     // Forward walk over the whole catalog, wrapping to the default.
@@ -112,7 +113,7 @@ fn cycle_wraps_in_both_directions() {
         Theme::Netrunner,
         "forward wraps"
     );
-    // Reverse walk: the uppercase twin.
+    // Reverse walk: pinned math, unbound key (engrave-2).
     assert_eq!(
         cycle_from(Theme::Netrunner, -1),
         Theme::Atomic,
@@ -131,9 +132,10 @@ fn cycle_wraps_in_both_directions() {
 }
 
 /// Integrity walk: every theme x slot x capability produces a valid
-/// SGR sequence (or the documented Mono empty string), every theme
-/// differs from the default at TrueColor depth, and every theme's
-/// title suffix is empty only for the default.
+/// SGR sequence (or the documented Mono empty string) and every
+/// theme differs from the default at TrueColor depth. (The
+/// title-suffix pins retired with the suffix itself — NIGHT-engrave-2
+/// moved the theme name to the footer's status line.)
 #[test]
 fn catalog_integrity_walk() {
     let slots = [Slot::Brand, Slot::Ok, Slot::Warn, Slot::Hot, Slot::Grey];
@@ -170,14 +172,6 @@ fn catalog_integrity_walk() {
                 theme_brand, default_brand,
                 "{theme:?} brand must differ from the default"
             );
-        }
-        // Suffix honesty: only the default renders suffix-free; every
-        // cycled theme names itself in the title suffix.
-        if theme == Theme::Netrunner {
-            assert_eq!(theme.title_suffix(), "");
-        } else {
-            assert!(theme.title_suffix().starts_with(" — "));
-            assert!(theme.title_suffix().contains(theme.name()));
         }
     }
 }
