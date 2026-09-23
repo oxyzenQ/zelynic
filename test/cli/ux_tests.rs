@@ -438,4 +438,10 @@ fn duration_tip_suggests_near_miss_units() {
         "\n  tip: a similar value exists: '10s'"
     );
     assert!(duration_tip("1fortnight").is_none());
+    // NIGHT-hunt-31: the fractional-aware split keeps the number
+    // whole while the unit gets its near-miss match.
+    assert_eq!(
+        duration_tip("5.5min").unwrap(),
+        "\n  tip: a similar value exists: '5.5m'"
+    );
 }
