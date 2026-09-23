@@ -413,8 +413,8 @@ fn single_resolved_target_takes_focus_view() {
         "focus view is the key/value block, not the table: {joined}"
     );
     assert!(
-        joined.contains("zelynic v"),
-        "focus frame signs off too: {joined}"
+        joined.contains(" by oxyzenQ"),
+        "focus frame signs off with the build stamp too: {joined}"
     );
     assert_eq!(lines.len(), 24, "focus frame pinned to the height");
 }

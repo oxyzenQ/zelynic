@@ -231,8 +231,8 @@ mod tests {
         assert_eq!(lines[1], "", "breathing gap under the title");
         assert!(lines.contains(&"  no traffic for cg:73386 since last check".to_string()));
         assert!(
-            lines[22].starts_with("  zelynic v"),
-            "copyright second-to-last row: {}",
+            lines[22].starts_with("  v") && lines[22].ends_with(") by oxyzenQ"),
+            "copyright is the simplified build stamp (NIGHT-boost-19): {}",
             lines[22]
         );
         assert_eq!(

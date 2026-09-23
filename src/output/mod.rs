@@ -118,20 +118,25 @@ pub fn print_json<T: serde::Serialize + ?Sized>(value: &T) {
     let _ = out.flush();
 }
 
-/// The signature footer (NIGHT-boost-5): the identity line every
-/// flagship surface signs its work with — `zelynic status` prints it
-/// under the table, the eagle-eyes monitor carries it as the bottom
-/// line of every frame (bottom-left, the owner's contract). The
-/// version rides the crate manifest (`env!`), so the stamp can never
-/// go stale the way a hardcoded literal would; brand purple because
-/// the signature IS the brand mark (NIGHT-hunt-5: purple is
-/// branding, and this line is the engraving).
+/// The signature footer (NIGHT-boost-5; simplified by
+/// NIGHT-boost-19): the build stamp every flagship surface signs its
+/// work with — `zelynic status` prints it under the table, the
+/// eagle-eyes monitor carries it as the bottom line of every frame
+/// (bottom-left, the owner's contract). `v<version> (<commit>) by
+/// oxyzenQ` — the version rides the crate manifest and the commit
+/// hash rides the `GIT_HASH` env build.rs injects from
+/// `git rev-parse --short HEAD` (with rerun-if-changed on .git/HEAD,
+/// so the stamp can never go stale the way a hardcoded literal
+/// would); brand purple because the signature IS the brand mark
+/// (NIGHT-hunt-5: purple is branding, and this line is the
+/// engraving).
 #[must_use]
 #[cfg(feature = "ebpf")] // every flagship surface lives under the ebpf graph
 pub fn signature_footer() -> String {
     color::brand(&format!(
-        "zelynic v{} by oxyzenQ (rezky_nightky)",
-        env!("CARGO_PKG_VERSION")
+        "v{} ({}) by oxyzenQ",
+        env!("CARGO_PKG_VERSION"),
+        option_env!("GIT_HASH").unwrap_or("unknown")
     ))
 }
 

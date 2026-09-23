@@ -205,7 +205,9 @@ counts ride `--print-json` where automation reads them.
 
 The output opens with the purple flagship title bar (the same anchor
 the eagle-eyes monitor carries) and signs off with the signature
-footer — `zelynic v<version> by oxyzenQ (rezky_nightky)` — bottom-left
+footer — `v<version> (<commit>) by oxyzenQ`, the commit hash injected
+at build time from `git rev-parse --short HEAD` (never hardcoded, so
+the stamp always names the exact build) — bottom-left
 (NIGHT-boost-5). The watchdog line appears only when the BPF
 auto-expiry deadline is actually ARMED; a dormant watchdog prints
 nothing ("Watchdog: not set (enforcing)" was retired as noise — it

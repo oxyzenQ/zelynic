@@ -133,8 +133,18 @@ fn eagle_frame_builds_lines() {
         lines
     );
     assert!(
-        lines[22].starts_with("  zelynic v"),
-        "copyright second-to-last row: {}",
+        lines[22].starts_with("  v") && lines[22].contains(" ("),
+        "copyright carries the version + commit-hash build stamp: {}",
+        lines[22]
+    );
+    assert!(
+        lines[22].ends_with(") by oxyzenQ"),
+        "copyright names the owner, nothing else (NIGHT-boost-19): {}",
+        lines[22]
+    );
+    assert!(
+        !lines[22].contains("zelynic") && !lines[22].contains("rezky_nightky"),
+        "the retired duplicate names are gone: {}",
         lines[22]
     );
     assert_eq!(
@@ -218,8 +228,8 @@ fn footer_grip_layout_pins_to_the_bottom() {
         "the census grip is exactly the census text's own width"
     );
     assert!(
-        lines[22].starts_with("  zelynic v"),
-        "copyright is the second-to-last row: {}",
+        lines[22].starts_with("  v") && lines[22].ends_with(") by oxyzenQ"),
+        "copyright is the simplified build stamp (NIGHT-boost-19): {}",
         lines[22]
     );
     assert_eq!(
