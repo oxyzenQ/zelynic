@@ -60,11 +60,19 @@ pub(crate) fn loading_frame(interval: Duration, geo: FrameGeometry) -> Vec<Strin
     // terminal of this height earns (extra=0 — see the honesty
     // decisions in the module docs) and the census of nothing. The
     // rows are byte-identical to the first live frame's footer, so
-    // the morph never touches them.
+    // the morph never touches them. NIGHT-engrave-6: the speed pair
+    // rides the census-of-nothing as honest zeroes (`0 B/s`, never
+    // `BLOCKED` — the observer does not judge), and the sub-second
+    // uptime the first live frame carries divides the zero legs to
+    // the same zeroes — the morph contract holds with the new lines.
     let tier = plan_footer_tier(geo.height, 0);
     let census = FooterCensus {
         tier,
         grand: 0,
+        dl: 0,
+        ul: 0,
+        peak_dl: 0,
+        peak_ul: 0,
         packets: 0,
         cgroups: 0,
         top_proc_name: None,

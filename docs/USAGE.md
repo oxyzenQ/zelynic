@@ -305,6 +305,20 @@ session cgroup count), the flat total row
 (`total usage internet in 1h:20s = 10gb`, NIGHT-engrave-3: the
 session uptime and the grand total ALONE, the per-frame rates
 retired at the owner's "only total consume bandwidth" call), the
+session speed pair (NIGHT-engrave-6, directly below the total row —
+the owner's data-center spec: `total max dl | ul = 20.2 GB/s | 1.0
+GB/s`, the session's peak per-direction rates, tracked as running
+maxima of the per-frame watched-set deltas in the session state
+beside the totals; and `total avg dl | ul = 10.2 GB/s | 1.1 MB/s`,
+the per-direction session totals divided by the SAME uptime the
+total row renders — the three lines of the paragraph share their
+legs and their clock, so they can never disagree. Both render
+honest zeroes (`0 B/s`, never the limiter's BLOCKED verdict — the
+observer measures, it does not judge), both ride the same watched
+scope as the grand — a filtered frame's pair describes the watched
+set, one paragraph one story — and a saturated 400G peer reads
+`40.0 GB/s` through the same EB-capped SI ladder every figure
+uses), the
 actionable line (`limit target with 'sudo zelynic ss curl 100kb'` —
 the owner's engrave-4 wording: the quoted command in suggestion
 crystal white, the `ss` short alias the CLI already carries, and
@@ -385,9 +399,12 @@ used to drift) and every
 detail line is cut to the frame width, so a long process or endpoint
 string can never wrap the frame or shift the pinned footer. Short
 terminals compress the footer through a tier ladder (NIGHT-engrave-4
-re-cut it for the rebuilt block, 9/8/5/3) — the air above the status
+re-cut it for the rebuilt block; NIGHT-engrave-6 grew the top tiers
+with the speed pair — 11/10/5/3) — the air above the status
 line drops first (the owner's gap above the copyright survives to
-Compact), then the census and the limit suggestion, then the consumer
+Compact), then the census family and the limit suggestion (the speed
+pair drops with the census: survival outranks statistics, the total
+row alone carries the one-line story), then the consumer
 headline and the roof grid — before the table loses its rows; the
 total row, the status line, and the copyright survive at every
 height. The row count follows the terminal height

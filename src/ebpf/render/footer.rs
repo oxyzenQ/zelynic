@@ -9,19 +9,35 @@
 //!
 //! The owner's NIGHT-engrave-4 spec (the dashboard rebuild: the
 //! headline, the census, the story, the action, the legend, the
-//! stamp — in that exact order):
+//! stamp — in that exact order), extended by NIGHT-engrave-6 with
+//! the session speed pair directly below the story row:
 //!
 //! ```text
 //! ──────────────────────────────────────────  <- purple grid, flush to the rails (engrave-3)
 //!   top consumer is curl                     <- grey + brand purple name (engrave-4)
 //!   478 packets + 1 cgroups                  <- grey (engrave-4: session horizon)
 //!   total usage internet in 1h:20s = 10gb    <- grey (engrave-3: `= total`)
+//!   total max dl | ul = 20.2 GB/s | 1 GB/s   <- grey (engrave-6: the session peak)
+//!   total avg dl | ul = 10.2 GB/s | 1.1 MB/s <- grey (engrave-6: total / uptime)
 //!   limit target with 'sudo zelynic ss curl 100kb'  <- grey + white command (engrave-4)
 //!
 //!   1s realtime - theme netrunner - q quit - t theme  <- grey (engrave-2)
 //!
 //!   v11.0.0 (a1b2c3d) by oxyzenQ              <- the build stamp (engrave-3)
 //! ```
+//!
+//! The NIGHT-engrave-6 pair (the owner's data-center spec): the MAX
+//! line renders the session's peak watched-set rate — the running
+//! maximum of the per-frame aggregate deltas, tracked in the session
+//! state beside the totals, converted to a rate with the poll
+//! interval; the AVG line derives per direction as the session
+//! total divided by the session uptime — the same totals and the
+//! same clock the total row renders, so the three lines of the
+//! paragraph can never disagree. Both render through the honest-zero
+//! SI ladder (`0 B/s`, never `BLOCKED` — a policy verdict the
+//! observer does not make), both ride the same watched scope as the
+//! grand (one paragraph, one story), and both drop with the census
+//! family at Minimal — survival outranks statistics.
 //!
 //! The census composition moved here from the eagle renderer at
 //! NIGHT-engrave-4 (the census IS footer data — gathered where it
@@ -56,7 +72,9 @@
 
 use std::time::Duration;
 
-use super::{comm_from_label, format_uptime, label_with_count, FrameGeometry, SessionAcc};
+use super::{
+    comm_from_label, format_uptime, label_with_count, rate_bps, FrameGeometry, SessionAcc,
+};
 use crate::ebpf::connections::ConnectionMap;
 use crate::ebpf::identity::IdentityMap;
 use crate::ebpf::limiter::format_bytes;
@@ -79,25 +97,30 @@ pub(super) const TOP_CHROME: usize = 4;
 const SUGGESTED_LIMIT: &str = "100kb";
 
 /// Compression tiers for the pinned footer (NIGHT-boost-14;
-/// NIGHT-engrave-4 re-cut the ladder for the rebuilt block): short
+/// NIGHT-engrave-4 re-cut the ladder for the rebuilt block;
+/// NIGHT-engrave-6 grew Full and Compact by the speed pair): short
 /// terminals drop the breathing blanks first, then the census and
-/// the limit suggestion, then the consumer headline and the roof
-/// grid — the total row, the status line, and the copyright survive
-/// in every tier.
+/// the limit suggestion (with the speed pair), then the consumer
+/// headline and the roof grid — the total row, the status line, and
+/// the copyright survive in every tier.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum FooterTier {
-    /// grid, top consumer, census, total, limit, blank, status,
-    /// blank, copyright — the owner's engrave-4 spec: every line,
-    /// with the air that keeps the paragraphs.
+    /// grid, top consumer, census, total, max, avg, limit, blank,
+    /// status, blank, copyright — the owner's engrave-4 spec plus
+    /// the engrave-6 speed pair: every line, with the air that
+    /// keeps the paragraphs.
     Full,
     /// The blanks drop first — save the owner's gap above the
     /// copyright, which survives to Compact (the engrave-3
     /// paragraph call: the build stamp reads as its own quiet
     /// paragraph as long as there is room for one): grid, top
-    /// consumer, census, total, limit, status, blank, copyright.
+    /// consumer, census, total, max, avg, limit, status, blank,
+    /// copyright.
     Compact,
-    /// The census and the limit suggestion drop: grid, top
-    /// consumer, total, status, copyright.
+    /// The census family drops — the speed pair with it (survival
+    /// outranks statistics at this height; the total row carries
+    /// the one-line story): grid, top consumer, total, status,
+    /// copyright.
     Minimal,
     /// The survival floor: total row, status, copyright — the grid
     /// goes too, every row the frame can spare becomes a data row.
@@ -111,8 +134,8 @@ impl FooterTier {
     /// block).
     fn lines(self) -> usize {
         match self {
-            FooterTier::Full => 9,
-            FooterTier::Compact => 8,
+            FooterTier::Full => 11,
+            FooterTier::Compact => 10,
             FooterTier::Minimal => 5,
             FooterTier::Tiny => 3,
         }
@@ -160,15 +183,30 @@ pub(crate) fn grid_line(width: usize) -> String {
 
 /// The census data the footer renders (NIGHT-boost-14; slimmed by
 /// NIGHT-engrave-3, REBUILT by NIGHT-engrave-4 with the composition
-/// moved into the footer module — gathered where it renders): the
+/// moved into the footer module — gathered where it renders; the
+/// NIGHT-engrave-6 speed pair's figures joined the census): the
 /// consumer headline's name, the session census figures, the grand
-/// total, the rare identities note's flag, and the uptime horizon
-/// the total row annotates.
+/// total with its per-direction legs, the session peaks, the rare
+/// identities note's flag, and the uptime horizon the total row
+/// annotates.
 pub(super) struct FooterCensus {
     /// The compression tier the terminal earned.
     pub tier: FooterTier,
     /// The session leaderboard's grand accumulated total.
     pub grand: u64,
+    /// The session's accumulated download bytes (NIGHT-engrave-6:
+    /// the AVG line's dividend — the same board sum the grand
+    /// totals, split by direction).
+    pub dl: u64,
+    /// The session's accumulated upload bytes — the mirror leg.
+    pub ul: u64,
+    /// The session's peak per-frame download delta in bytes
+    /// (NIGHT-engrave-6: the MAX line's figure — the session
+    /// state's running maximum, converted to a rate with the poll
+    /// interval at render time).
+    pub peak_dl: u64,
+    /// The session's peak per-frame upload delta — the mirror leg.
+    pub peak_ul: u64,
     /// The session's accumulated packets (NIGHT-engrave-4: the same
     /// horizon as the bytes — one accumulator in the session state,
     /// both directions).
@@ -184,7 +222,8 @@ pub(super) struct FooterCensus {
     pub identities_unresolved: bool,
     /// The monitor's session uptime (NIGHT-boost-17; folded into the
     /// census row by NIGHT-engrave-1): rendered inside the
-    /// `total usage internet in ...` row, in every tier.
+    /// `total usage internet in ...` row, in every tier — and the
+    /// AVG line's divisor since NIGHT-engrave-6.
     pub uptime: Duration,
 }
 
@@ -194,6 +233,9 @@ impl FooterCensus {
     /// renders — the eagle renderer hands over the board and walks
     /// on). All sums SATURATING (NIGHT-boost-16 lineage): saturated
     /// counters read as their honest ceilings, never panic or wrap.
+    /// `peaks` is the session state's running maxima pair
+    /// (NIGHT-engrave-6) — raw interval bytes, converted to rates
+    /// by the builder that knows the poll interval.
     #[must_use]
     pub(super) fn gather(
         tier: FooterTier,
@@ -201,6 +243,7 @@ impl FooterCensus {
         identity: &IdentityMap,
         conns: Option<&ConnectionMap>,
         uptime: Duration,
+        peaks: (u64, u64),
     ) -> Self {
         // Top consumer (the NIGHT-hunt-8 autodetect, restored):
         // when socket detail is available, name the busiest process
@@ -229,9 +272,19 @@ impl FooterCensus {
             .iter()
             .map(|(_, a)| a.dl.saturating_add(a.ul))
             .fold(0, u64::saturating_add);
+        // The per-direction legs (NIGHT-engrave-6): the same board
+        // walk the grand totals, split — the AVG line divides these
+        // by the uptime, so the pair and the grand can never
+        // disagree (dl + ul saturates to the grand's ceiling).
+        let dl = board.iter().map(|(_, a)| a.dl).fold(0, u64::saturating_add);
+        let ul = board.iter().map(|(_, a)| a.ul).fold(0, u64::saturating_add);
         Self {
             tier,
             grand,
+            dl,
+            ul,
+            peak_dl: peaks.0,
+            peak_ul: peaks.1,
             packets,
             cgroups: board.len(),
             top_proc_name,
@@ -264,14 +317,25 @@ pub(super) fn status_line(interval: Duration) -> String {
     )
 }
 
+/// A session rate figure for the footer's census paragraph
+/// (NIGHT-engrave-6): the canonical SI ladder with the `/s` suffix
+/// and HONEST ZEROES — `0 B/s`, the idle census's discipline — never
+/// `format_rate`'s "BLOCKED": that is the limiter's policy verdict,
+/// and the observer does not judge, it measures (the table's rate
+/// cells render em dashes for the same reason).
+fn session_rate(bps: u64) -> String {
+    format!("{}/s", format_bytes(bps))
+}
+
 /// Assemble the engraved footer (NIGHT-boost-14; re-cut by
 /// NIGHT-engrave-3, REBUILT by NIGHT-engrave-4 to the owner's exact
-/// line order): the consumer headline and the census above the total
-/// row, the limit suggestion below it, one blank of air, the status
-/// line, the owner's gap, and the copyright — grey text, purple grid
-/// and stamp, brand-purple consumer name, suggestion-white command.
-/// The MEASURED length of the returned block is what the caller pins
-/// to the bottom.
+/// line order; the NIGHT-engrave-6 speed pair seated directly below
+/// the total row): the consumer headline and the census above the
+/// total row, the max/avg pair under it, the limit suggestion, one
+/// blank of air, the status line, the owner's gap, and the copyright
+/// — grey text, purple grid and stamp, brand-purple consumer name,
+/// suggestion-white command. The MEASURED length of the returned
+/// block is what the caller pins to the bottom.
 #[must_use]
 pub(super) fn build_grip_footer(
     census: &FooterCensus,
@@ -316,6 +380,31 @@ pub(super) fn build_grip_footer(
         format_uptime(census.uptime),
         format_bytes(census.grand)
     )));
+    // The NIGHT-engrave-6 speed pair (Full/Compact — the census
+    // family; Minimal is survival height, where the total row alone
+    // carries the story): the owner's data-center lines, directly
+    // below the title row they extend. MAX is the session's peak
+    // watched-set rate — the peaks are raw interval bytes, so the
+    // same `rate_bps` conversion the table's rate columns use turns
+    // them into figures. AVG derives per direction as the session
+    // leg divided by the session uptime — the same legs the grand
+    // totals and the same clock the total row renders, so the three
+    // lines of the paragraph can never disagree (a sub-second
+    // uptime renders honest zeroes via rate_bps's zero-interval
+    // guard — the loading frame and the first live frame agree
+    // byte-for-byte, the boost-25 morph contract).
+    if matches!(tier, FooterTier::Full | FooterTier::Compact) {
+        footer.push(grey(&format!(
+            "  total max dl | ul = {} | {}",
+            session_rate(rate_bps(census.peak_dl, interval)),
+            session_rate(rate_bps(census.peak_ul, interval))
+        )));
+        footer.push(grey(&format!(
+            "  total avg dl | ul = {} | {}",
+            session_rate(rate_bps(census.dl, census.uptime)),
+            session_rate(rate_bps(census.ul, census.uptime))
+        )));
+    }
     // The actionable line (Full/Compact): the owner's exact
     // engrave-4 wording — `limit target with 'sudo zelynic ss x
     // 100kb'` — the command in suggestion crystal white (the color
@@ -357,7 +446,9 @@ pub(super) fn build_grip_footer(
 // exactly like the eagle pins. The tier ladder and the rendered tier
 // degradation split into their own file at NIGHT-engrave-4 (one file
 // per contract, the same discipline that split these pins from the
-// eagle pins).
+// eagle pins); the saturation render pin took its own file at
+// NIGHT-engrave-6 when the speed-pair pins pushed the composition
+// file past the owner's LOC cap.
 #[cfg(test)]
 #[path = "../../../test/ebpf/render/footer_tests.rs"]
 mod footer_tests;
@@ -365,3 +456,7 @@ mod footer_tests;
 #[cfg(test)]
 #[path = "../../../test/ebpf/render/footer_tier_tests.rs"]
 mod footer_tier_tests;
+
+#[cfg(test)]
+#[path = "../../../test/ebpf/render/footer_safety_tests.rs"]
+mod footer_safety_tests;

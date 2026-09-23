@@ -243,7 +243,16 @@ the focus view's per-direction packet counts render as raw integers
 honest ceiling of a counter whose wrap horizon at 1 M pps is
 ~585,000 years — the footer census line that carries the aggregate
 count again since NIGHT-engrave-4 reads the SESSION accumulator,
-which saturates the same way and renders its full raw figure).
+which saturates the same way and renders its full raw figure). The
+footer's session speed pair (NIGHT-engrave-6) adds no new overflow
+surface: the MAX line's peaks are running `max` operations (max
+cannot overflow — it selects one of two existing values), and the
+AVG line is the saturating f64 division above over the session legs
+(a saturated leg over a 70s uptime renders "263.5 PB/s", the honest
+ceiling-over-horizon figure, pinned). The peaks ride the same
+admission bound as the byte fold (one `admits` rule, two callers),
+so the max line can never claim traffic the grand total cannot
+account for.
 
 ### Map slot reclamation (the LTS budget)
 

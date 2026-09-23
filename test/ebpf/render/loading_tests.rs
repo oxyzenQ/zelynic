@@ -93,10 +93,15 @@ fn the_footer_is_the_empty_session_footer() {
     let joined = frame.join("\n");
     // The census-of-nothing rows, pinned as text (the tier Full
     // carries at 24 rows): zero figures, no consumer headline, no
-    // limit suggestion — those need a champion the board lacks.
+    // limit suggestion — those need a champion the board lacks. The
+    // NIGHT-engrave-6 speed pair rides as honest zeroes (`0 B/s`,
+    // never the limiter's BLOCKED verdict) so the morph never
+    // touches these rows either.
     for fragment in [
         "0 packets + 0 cgroups",
         "total usage internet in 0s = 0 B",
+        "total max dl | ul = 0 B/s | 0 B/s",
+        "total avg dl | ul = 0 B/s | 0 B/s",
         "1s realtime - theme ",
         " - q quit - t theme",
         "by oxyzenQ",

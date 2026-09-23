@@ -129,7 +129,10 @@ fn resolve_targets(tokens: &[Target], identity: &IdentityMap) -> (Vec<u32>, Vec<
 /// figure. Since NIGHT-boost-14 the frame is pinned to the full
 /// terminal height with the grip footer near the bottom. `uptime`
 /// (NIGHT-boost-17; folded into the census row by NIGHT-engrave-1):
-/// the session age, riding the total row in every tier.
+/// the session age, riding the total row in every tier — and, since
+/// NIGHT-engrave-6, dividing the footer speed pair's AVG legs; the
+/// session's watched-set peaks (the pair's MAX figures) fold in with
+/// the same frame's deltas.
 #[allow(clippy::too_many_arguments)]
 pub fn render_eagle_eyes(
     lines: &mut Vec<String>,
@@ -172,6 +175,17 @@ pub(super) fn render_eagle_eyes_at(
     session.absorb(summary);
 
     let (ids, unresolved) = resolve_targets(tokens, identity);
+
+    // The session peaks (NIGHT-engrave-6): one more fold pass over
+    // the same summary, noting the watched set's aggregate into the
+    // running maxima the footer's `total max dl | ul` line renders.
+    // The scope matches the board filter exactly — `None` on an
+    // unfiltered frame (the machine-wide aggregate), `Some(ids)` on
+    // a filtered one — and it notes BEFORE the focus branch returns,
+    // so a focus episode's peaks track the focused cgroup too (the
+    // peaks persist across the view switch, like every session
+    // figure; the max line renders on the ranked frames).
+    session.note_frame(summary, if tokens.is_empty() { None } else { Some(&ids) });
 
     // Single token, single cgroup: the focus view (own border inset).
     if tokens.len() == 1 && ids.len() == 1 && unresolved.is_empty() {
@@ -250,9 +264,10 @@ pub(super) fn render_eagle_eyes_at(
     // consumer autodetect, the session packets, the cgroup count,
     // the grand (all saturating, the boost-16 discipline) — footer
     // data, gathered where it renders; the eagle renderer hands the
-    // board over and walks on.
+    // board over and walks on. The session peaks ride along since
+    // NIGHT-engrave-6 (the speed pair's maxima, noted above).
     let footer = build_grip_footer(
-        &FooterCensus::gather(tier, &board, identity, conns, uptime),
+        &FooterCensus::gather(tier, &board, identity, conns, uptime, session.peaks()),
         geo,
         interval,
     );
@@ -452,7 +467,14 @@ fn render_eagle_row(
 
 // NIGHT-boost-1: the renderer pins live under the single test/ tree
 // (cosmostrix Pattern C), #[path]-wired across trees exactly like the
-// limiter's math_tests and the diff engine's pins.
+// limiter's math_tests and the diff engine's pins. The target-filter
+// contract took its own file at NIGHT-engrave-6 when the speed-pair
+// pins pushed the eagle pin file past the owner's LOC cap — one file
+// per contract, the footer tree's own split.
 #[cfg(test)]
 #[path = "../../../test/ebpf/render/eagle_tests.rs"]
 mod eagle_tests;
+
+#[cfg(test)]
+#[path = "../../../test/ebpf/render/eagle_filter_tests.rs"]
+mod eagle_filter_tests;
