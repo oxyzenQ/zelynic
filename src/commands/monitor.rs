@@ -152,10 +152,11 @@ pub fn handle_list_apps(json: bool) -> Result<()> {
 /// appear on the next refresh. One token resolving to one cgroup
 /// takes the deep focus view; more take the filtered ranked table;
 /// none take the full session leaderboard (NIGHT-boost-5): ranking
-/// and the TOTAL column ride the per-cgroup bytes accumulated since
+/// and the total column ride the per-cgroup bytes accumulated since
 /// the monitor started, rows persist across quiet frames, and rank 1
-/// blinks champion red for 3s on a takeover — the row budget equals
-/// the terminal height (no --limit, no cap).
+/// wears the static champion red (NIGHT-boost-14 retired the
+/// takeover blink) — the row budget equals the terminal height
+/// (no --limit, no cap).
 #[cfg(feature = "ebpf")]
 pub fn handle_eagle_eyes(
     targets: Option<&str>,

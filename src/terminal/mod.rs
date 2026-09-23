@@ -40,7 +40,10 @@
 //! a single beat lands before the next rewrite; (c) pasted bytes
 //! that do reach stdin are drained like any other inert input
 //! (NIGHT-hunt-16 q-only quit contract unchanged; NIGHT-boost-18
-//! added the t/T theme keys — action keys, never quit keys). The
+//! added the t theme key — an action key, never a quit key; its
+//! uppercase twin T was retired by NIGHT-engrave-2 at the owner's
+//! "better only simple 't'" call: one key, one direction, modulo
+//! wraparound). The
 //! contract is
 //! pinned three ways in test/terminal/mouse_contract_tests.rs
 //! (byte-level pins over the sequences below, the beat value and
@@ -199,11 +202,11 @@ pub(crate) fn quit_from_chunk(buf: &[u8]) -> bool {
 }
 
 /// What one drained input chunk asks the monitor to do
-/// (NIGHT-boost-18): 'q' quits, 't' cycles the theme forward, 'T'
-/// cycles it back — the cosmostrix lowercase/uppercase cycle pair.
-/// Everything else is inert, on the same first-byte-only contract
-/// as the quit decision: a 't' riding inside a mouse SGR payload
-/// never cycles anything.
+/// (NIGHT-boost-18; the uppercase twin retired by NIGHT-engrave-2):
+/// 'q' quits, 't' cycles the theme forward — one key, one
+/// direction, modulo wraparound. Everything else is inert, on the
+/// same first-byte-only contract as the quit decision: a 't' riding
+/// inside a mouse SGR payload never cycles anything.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum InputAction {
     /// Nothing asked — drain and carry on.
@@ -212,8 +215,6 @@ pub(crate) enum InputAction {
     Quit,
     /// 't': cycle the theme one step forward.
     ThemeNext,
-    /// 'T': cycle the theme one step back.
-    ThemePrev,
 }
 
 /// Classify one drained input chunk by its leading byte. The quit
@@ -225,7 +226,6 @@ pub(crate) fn input_action_from_chunk(buf: &[u8]) -> InputAction {
     }
     match buf.first() {
         Some(b't') => InputAction::ThemeNext,
-        Some(b'T') => InputAction::ThemePrev,
         _ => InputAction::None,
     }
 }
@@ -242,8 +242,10 @@ pub(crate) fn input_action_from_chunk(buf: &[u8]) -> InputAction {
 /// hunt-12 interrupt clause): mainstream TUI tools (htop, vim, less)
 /// treat Ctrl+C as an interrupt, not an exit, and the single-key
 /// contract keeps the documented behavior unambiguous — the title bar
-/// says "q quit" and nothing else quits. NIGHT-boost-18 adds the t/T
-/// theme cycle (action keys, never quit keys). Ctrl+C, ESC, and every
+/// says "q quit" and nothing else quits. NIGHT-boost-18 adds the t
+/// theme cycle (an action key, never a quit key; its uppercase twin
+/// T was retired by NIGHT-engrave-2 — the owner wanted one simple
+/// key). Ctrl+C, ESC, and every
 /// multi-byte escape sequence are drained, never treated as actions.
 /// If a wedged terminal ever swallows the 'q' byte, recovery from
 /// another shell is `pkill zelynic` followed by `stty sane`.
@@ -270,8 +272,9 @@ pub(crate) fn read_input() -> InputAction {
 /// VTE scrollback hazard the cosmic dragon engine documented).
 ///
 /// Exits on q — the ONLY quit key (NIGHT-hunt-16: always live, no
-/// duration timer, no ESC quit, no Ctrl+C quit). The t/T theme keys
-/// (NIGHT-boost-18) cycle the monitor's palette and force a Render
+/// duration timer, no ESC quit, no Ctrl+C quit). The t theme key
+/// (NIGHT-boost-18; T retired by NIGHT-engrave-2) cycles the
+/// monitor's palette and forces a Render
 /// beat within the SAME 50ms wake — a theme change must repaint at
 /// once, not at the next refresh tick (up to 60s at `--interval 60`):
 /// every line's colors change, so the diff engine rewrites the whole
@@ -296,17 +299,14 @@ where
         // their own; this loop-level probe only decides WHEN.
         let mut last_geo = winsize();
         loop {
-            // NIGHT-boost-18: one drain, three recognized keys — q
-            // quits, t/T cycle the theme. The cycle result feeds the
-            // beat scheduler's force flag below: same-wake repaint.
+            // NIGHT-boost-18: one drain, two recognized keys — q
+            // quits, t cycles the theme (the uppercase twin retired
+            // by NIGHT-engrave-2). The cycle result feeds the beat
+            // scheduler's force flag below: same-wake repaint.
             let theme_switched = match read_input() {
                 InputAction::Quit => break,
                 InputAction::ThemeNext => {
                     crate::output::theme::cycle(1);
-                    true
-                }
-                InputAction::ThemePrev => {
-                    crate::output::theme::cycle(-1);
                     true
                 }
                 InputAction::None => false,

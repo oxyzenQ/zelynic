@@ -16,10 +16,12 @@
 //!
 //! NIGHT-boost-17 (improve-27): the session uptime rides below the
 //! footer exactly like the ranked view — one monitor, one clock, two
-//! views.
+//! views. NIGHT-engrave-2 adds the status line above it: the ranked
+//! frame's relocated legend, one composition shared by both views.
 
 use std::time::Duration;
 
+use super::footer::status_line;
 use super::{
     format_rate_or_dash, format_uptime, label_with_count, rate_bps, title_bar, FrameGeometry,
 };
@@ -53,25 +55,20 @@ pub fn render_eagle_focus(
     uptime: Duration,
     geo: FrameGeometry,
 ) {
-    // NIGHT-boost-18: the focus view carries the same theme title
-    // and cycle hint as the ranked frame — one monitor, one palette.
-    // NIGHT-engrave-1: the hint leads with the theme key (t first,
-    // q last — the owner's exact order).
-    let themed_core = format!(
-        "zelynic eagle-eyes — {}{}",
-        identity.label(cgroup_id),
-        crate::output::theme::active().title_suffix()
-    );
-    lines.push(title_bar(&themed_core, "t theme - q quit", geo.width));
+    // NIGHT-engrave-2: the focus title is just the frame's identity
+    // — the theme name and the legend moved to the footer's status
+    // line, same as the ranked view; the top-right keeps the hint.
+    let title_core = format!("zelynic eagle-eyes — {}", identity.label(cgroup_id));
+    lines.push(title_bar(&title_core, "t theme - q quit", geo.width));
 
     // The breathing gap (NIGHT-boost-14): same air under the title
     // as the ranked frame — one composition, two views.
     lines.push(String::new());
 
     // Overhead the fixed frame claims: title, gap, the five key/value
-    // rows, and the pinned footer (blank + copyright + uptime, the
-    // boost-17 line below the block).
-    const FOCUS_CHROME: usize = 9;
+    // rows, and the pinned footer (blank + status + copyright +
+    // uptime — the engrave-2 status line joined the block).
+    const FOCUS_CHROME: usize = 10;
 
     if let Some(c) = summary.cgroups.iter().find(|c| c.cgroup_id == cgroup_id) {
         lines.push(format!(
@@ -129,16 +126,17 @@ pub fn render_eagle_focus(
     }
 
     // The pin (NIGHT-boost-14): blank padding absorbs the middle, the
-    // signature footer sits near the bottom of the terminal — never
-    // floating up with the last detail line. The uptime line rides
-    // below it (NIGHT-boost-17): the footer block is three rows, the
-    // frame's last is the grey uptime.
-    let footer_len = 3;
+    // footer block sits near the bottom of the terminal — never
+    // floating up with the last detail line. NIGHT-engrave-2: the
+    // status line (the relocated legend) joins above the copyright;
+    // the uptime line (NIGHT-boost-17) stays the frame's last row.
+    let footer_len = 4;
     while lines.len() + footer_len < geo.height {
         lines.push(String::new());
     }
     if lines.len() + footer_len <= geo.height {
         lines.push(String::new());
+        lines.push(status_line(interval));
         lines.push(format!("  {}", signature_footer()));
         lines.push(format!(
             "  {}",
@@ -232,6 +230,11 @@ mod tests {
         assert!(lines[0].starts_with("  ─── zelynic eagle-eyes — cg:73386"));
         assert_eq!(lines[1], "", "breathing gap under the title");
         assert!(lines.contains(&"  no traffic for cg:73386 since last check".to_string()));
+        assert_eq!(
+            lines[21], "  1s realtime - theme netrunner - q quit - t theme",
+            "status line above the focus copyright (NIGHT-engrave-2): {}",
+            lines[21]
+        );
         assert!(
             lines[22].starts_with("  v") && lines[22].ends_with(") by oxyzenQ"),
             "copyright is the simplified build stamp (NIGHT-boost-19): {}",

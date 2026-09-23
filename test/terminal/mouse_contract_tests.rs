@@ -356,24 +356,26 @@ fn quit_is_q_first_byte_only() {
     assert!(!quit_from_chunk(b""));
 }
 
-/// The theme-key routing (NIGHT-boost-18): 't' cycles forward, 'T'
-/// cycles back, on the same first-byte-only contract as the quit
-/// decision — a 't' riding inside a mouse SGR payload or an escape
-/// body never cycles anything, and every other byte stays inert.
+/// The theme-key routing (NIGHT-boost-18; `T` retired by
+/// NIGHT-engrave-2): 't' cycles forward on the same first-byte-only
+/// contract as the quit decision — a 't' riding inside a mouse SGR
+/// payload or an escape body never cycles anything, and every other
+/// byte (the retired uppercase twin included) stays inert.
 /// 'q' still wins the routing (the quit decision delegates through
 /// the pinned quit_from_chunk primitive).
 #[test]
 fn theme_keys_route_first_byte_only() {
     use super::{input_action_from_chunk, InputAction};
 
-    // The two cycle keys.
+    // The one cycle key.
     assert_eq!(input_action_from_chunk(b"t"), InputAction::ThemeNext);
-    assert_eq!(input_action_from_chunk(b"T"), InputAction::ThemePrev);
     // The quit key still routes as quit.
     assert_eq!(input_action_from_chunk(b"q"), InputAction::Quit);
     assert_eq!(input_action_from_chunk(b"quit"), InputAction::Quit);
-    // Everything else is inert: uppercase-lowercase neighbors,
-    // Ctrl+C, standalone ESC, escape-sequence heads.
+    // Everything else is inert: the retired uppercase twin,
+    // uppercase-lowercase neighbors, Ctrl+C, standalone ESC,
+    // escape-sequence heads.
+    assert_eq!(input_action_from_chunk(b"T"), InputAction::None);
     assert_eq!(input_action_from_chunk(b"Q"), InputAction::None);
     assert_eq!(input_action_from_chunk(b"r"), InputAction::None);
     assert_eq!(input_action_from_chunk(&[0x03]), InputAction::None);
