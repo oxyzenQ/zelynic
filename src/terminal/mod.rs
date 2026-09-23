@@ -38,8 +38,10 @@
 //! re-accumulates after the last beat — terminal-side, beyond any
 //! Linux application's reach; (b) a Select All + Copy fired inside
 //! a single beat lands before the next rewrite; (c) pasted bytes
-//! that do reach stdin are drained like any other non-q input
-//! (NIGHT-hunt-16 q-only quit contract unchanged). The contract is
+//! that do reach stdin are drained like any other inert input
+//! (NIGHT-hunt-16 q-only quit contract unchanged; NIGHT-boost-18
+//! added the t/T theme keys — action keys, never quit keys). The
+//! contract is
 //! pinned three ways in test/terminal/mouse_contract_tests.rs
 //! (byte-level pins over the sequences below, the beat value and
 //! the loop scheduler, and a source-tree scan that fails if any
@@ -196,7 +198,41 @@ pub(crate) fn quit_from_chunk(buf: &[u8]) -> bool {
     matches!(buf.first(), Some(b'q'))
 }
 
-/// Check if q was pressed (non-blocking).
+/// What one drained input chunk asks the monitor to do
+/// (NIGHT-boost-18): 'q' quits, 't' cycles the theme forward, 'T'
+/// cycles it back — the cosmostrix lowercase/uppercase cycle pair.
+/// Everything else is inert, on the same first-byte-only contract
+/// as the quit decision: a 't' riding inside a mouse SGR payload
+/// never cycles anything.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum InputAction {
+    /// Nothing asked — drain and carry on.
+    None,
+    /// 'q' as the first byte: leave the monitor.
+    Quit,
+    /// 't': cycle the theme one step forward.
+    ThemeNext,
+    /// 'T': cycle the theme one step back.
+    ThemePrev,
+}
+
+/// Classify one drained input chunk by its leading byte. The quit
+/// decision delegates to the pinned [`quit_from_chunk`] primitive —
+/// one contract, one place, both pinned.
+pub(crate) fn input_action_from_chunk(buf: &[u8]) -> InputAction {
+    if quit_from_chunk(buf) {
+        return InputAction::Quit;
+    }
+    match buf.first() {
+        Some(b't') => InputAction::ThemeNext,
+        Some(b'T') => InputAction::ThemePrev,
+        _ => InputAction::None,
+    }
+}
+
+/// Drain pending input (non-blocking) and classify the leading
+/// byte. The generalization of the old `should_quit`: same read,
+/// same first-byte rule, three recognized keys instead of one.
 ///
 /// Exit contract (NIGHT-hunt-16): 'q' is THE quit key — the ONLY one.
 /// The former ESC quit is gone because a standalone ESC byte is
@@ -206,18 +242,19 @@ pub(crate) fn quit_from_chunk(buf: &[u8]) -> bool {
 /// hunt-12 interrupt clause): mainstream TUI tools (htop, vim, less)
 /// treat Ctrl+C as an interrupt, not an exit, and the single-key
 /// contract keeps the documented behavior unambiguous — the title bar
-/// says "q quit" and nothing else quits. Ctrl+C, ESC, and every
-/// multi-byte escape sequence are drained, never treated as quit. If
-/// a wedged terminal ever swallows the 'q' byte, recovery from
+/// says "q quit" and nothing else quits. NIGHT-boost-18 adds the t/T
+/// theme cycle (action keys, never quit keys). Ctrl+C, ESC, and every
+/// multi-byte escape sequence are drained, never treated as actions.
+/// If a wedged terminal ever swallows the 'q' byte, recovery from
 /// another shell is `pkill zelynic` followed by `stty sane`.
-pub fn should_quit() -> bool {
+pub(crate) fn read_input() -> InputAction {
     let mut buf = [0u8; 16];
     if let Ok(n) = io::stdin().read(&mut buf) {
         if n > 0 {
-            return quit_from_chunk(&buf[..n]);
+            return input_action_from_chunk(&buf[..n]);
         }
     }
-    false
+    InputAction::None
 }
 
 /// Run an alternate-screen loop with the diff-based render engine
@@ -233,7 +270,12 @@ pub fn should_quit() -> bool {
 /// VTE scrollback hazard the cosmic dragon engine documented).
 ///
 /// Exits on q — the ONLY quit key (NIGHT-hunt-16: always live, no
-/// duration timer, no ESC quit, no Ctrl+C quit).
+/// duration timer, no ESC quit, no Ctrl+C quit). The t/T theme keys
+/// (NIGHT-boost-18) cycle the monitor's palette and force a Render
+/// beat within the SAME 50ms wake — a theme change must repaint at
+/// once, not at the next refresh tick (up to 60s at `--interval 60`):
+/// every line's colors change, so the diff engine rewrites the whole
+/// frame through its normal dirty-row walk.
 /// On exit, the original terminal screen is restored — no trace in scrollback.
 pub fn run_alt<F>(refresh_interval: Duration, mut render: F)
 where
@@ -254,13 +296,25 @@ where
         // their own; this loop-level probe only decides WHEN.
         let mut last_geo = winsize();
         loop {
-            if should_quit() {
-                break;
-            }
+            // NIGHT-boost-18: one drain, three recognized keys — q
+            // quits, t/T cycle the theme. The cycle result feeds the
+            // beat scheduler's force flag below: same-wake repaint.
+            let theme_switched = match read_input() {
+                InputAction::Quit => break,
+                InputAction::ThemeNext => {
+                    crate::output::theme::cycle(1);
+                    true
+                }
+                InputAction::ThemePrev => {
+                    crate::output::theme::cycle(-1);
+                    true
+                }
+                InputAction::None => false,
+            };
 
             let geo = winsize();
-            let resized = geo != last_geo;
-            match next_beat(last_render, last_guard, refresh_interval, guard, resized) {
+            let force = geo != last_geo || theme_switched;
+            match next_beat(last_render, last_guard, refresh_interval, guard, force) {
                 Beat::Render => {
                     lines.clear();
                     render(lines);

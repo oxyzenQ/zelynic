@@ -118,10 +118,8 @@ fn resolve_targets(tokens: &[Target], identity: &IdentityMap) -> (Vec<u32>, Vec<
 /// leaderboard — ranking by session total, rows persisting across
 /// quiet frames, and the TOTAL column carrying the accumulated
 /// figure. Since NIGHT-boost-14 the frame is pinned to the full
-/// terminal height with the grip footer near the bottom.
-///
-/// `uptime` (NIGHT-boost-17): the session age, grey `uptime 1m:10s`
-/// below the footer block in every compression tier.
+/// terminal height with the grip footer near the bottom. `uptime`
+/// (NIGHT-boost-17): the session age, below the footer, every tier.
 #[allow(clippy::too_many_arguments)]
 pub fn render_eagle_eyes(
     lines: &mut Vec<String>,
@@ -184,7 +182,10 @@ pub(super) fn render_eagle_eyes_at(
         let plural = if n == 1 { "" } else { "s" };
         format!("zelynic eagle-eyes — {n} target{plural} — {interval_str}")
     };
-    lines.push(title_bar(&title_core, "q quit", geo.width));
+    // NIGHT-boost-18: a cycled title names the theme; the hint teaches.
+    let suffix = crate::output::theme::active().title_suffix();
+    let themed_core = format!("{title_core}{suffix}");
+    lines.push(title_bar(&themed_core, "q quit · t theme", geo.width));
 
     // The breathing gap (NIGHT-boost-14): the column header used to
     // sit one row under the title bar — too near the brand, the
