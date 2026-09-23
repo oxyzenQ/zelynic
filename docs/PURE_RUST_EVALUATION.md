@@ -55,7 +55,11 @@ stays a one-commit affair.
 
 All facts below were pulled from crates.io and the upstream repos on
 2026-09-19 and then verified empirically in the research sandbox
-(persisted under the session's `scripts/` area, outside this repo):
+(persisted under the session's `scripts/` area, outside this repo).
+The stable-vs-nightly question was re-audited 2026-09-23 with the
+same conclusion — the full analysis, upstream evidence, and the
+hold-the-dated-pin recommendation live in
+[RESEARCH_TOOLCHAIN_AND_MONITORING.md](RESEARCH_TOOLCHAIN_AND_MONITORING.md):
 
 | Crate | Version | Notes |
 |---|---|---|
