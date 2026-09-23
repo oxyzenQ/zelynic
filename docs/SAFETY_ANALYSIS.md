@@ -203,6 +203,45 @@ bucket itself never accumulates: tokens are capped at burst every
 refill, `last_refill_ns` is ktime (wraps after ~584 years of
 uptime), and `frac_rem` is bounded below NS_PER_SEC by the carry.
 
+### Display-format ceiling (NIGHT-boost-22, LTS audit)
+
+The monitor's byte formatter answers for the whole u64 domain: the
+SI ladder runs B -> KB -> MB -> GB -> TB -> PB -> EB. The old code
+stopped at TB on a wrong premise — its terminal-tier note claimed
+"u64::MAX is ~18.4 TB", but 2^64 is ~18.4 EXABYTES, and past
+999.95 TB the formatter rendered five-digit figures ("18446.7 TB"),
+breaking the promotion contract (never a thousands digit) at its own
+terminal tier. The extended ladder bounds every display at 8 columns
+("999.9 PB"), and the EB tier is the honest terminal: zettabytes
+(1e21) need 71 bits, so no eighth tier exists to lie about. The
+min/max answer for zelynic data: minimum the byte, maximum the
+exabyte.
+
+Two overflow surfaces were audited and hardened with it:
+
+- **Exact integer tenths.** The one-decimal rendering used to be
+  `bytes as f64 / div` — and f64 loses exactness above 2^53 (~9 PB),
+  the u64 domain's upper half. The nearest-double error (up to 64 at
+  the EB edge) could flip the displayed tenth ACROSS the promotion
+  boundary the integer tier-walk had just enforced:
+  999_949_999_999_999_999 walked to the PB tier, then rendered
+  "1000.0 PB". The rendering is now u128 integer tenths
+  (`(bytes*10 + div/2) / div`), the same round-half-away discipline
+  as the fractional rate parser — the tier walk and the display sit
+  on one exact contract, no float anywhere in the formatter.
+- **Walk-guard arithmetic.** The tier walk's largest evaluated
+  threshold is the PB edge (1e18 - 5e13); the guard stops at the EB
+  tier before the 1000x multiple of its divisor (1e21) could
+  overflow u64 — pinned by construction and by the u64::MAX pin.
+
+Display-only decisions that stay deliberately simple (no
+over-engineering): the rate conversion feeding the formatter is a
+saturating f64 division (Rust float-to-int `as` casts saturate — a
+saturated counter renders "18.4 EB/s", never a wrapped figure), and
+the census packet count renders as a raw integer (a free-form line,
+not a column cell; a saturated 20-digit count is the honest ceiling
+of a counter whose wrap horizon at 1 M pps is ~585,000 years).
+
 ### Map slot reclamation (the LTS budget)
 
 The individual bucket and stats maps hold hard 1024 entries. BPF

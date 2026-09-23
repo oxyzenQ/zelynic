@@ -339,6 +339,24 @@ rows shown) and the census. Byte figures keep one decimal on every
 tier and promote at the rounding edge (999_950 B is "1.0 MB",
 never "1000.0 KB").
 
+The data-format ladder is LTS-complete (NIGHT-boost-22): byte
+figures render B -> KB -> MB -> GB -> TB -> PB -> EB, the whole u64
+domain. The minimum is the byte, the maximum the exabyte — u64::MAX
+is ~18.4 EB, so the EB tier is the honest terminal (zettabytes,
+1e21, need 71 bits and stay unreachable; no eighth tier exists to
+lie about). A long-lived server's lifetime totals cross the TB
+ceiling in ~9.5 days of saturated 10G traffic, and the ladder keeps
+every cell at most 8 columns wide on the way up ("999.9 PB"), with
+the saturated ceiling rendering "18.4 EB" — never the five-digit
+"18446.7 TB" the old TB-terminal formatter drew. Rate parsing keeps
+its kb..tb unit grammar (MAX_RATE is 1 TB/s — no NIC on earth
+justifies a petabyte-per-second policy), while lifetime DISPLAY
+answers in the units the traffic actually earned. The formatter
+itself is exact integer math in u128, the same discipline as the
+fractional rate parser; the rate conversion feeding it is a
+saturating division (a saturated counter renders "18.4 EB/s",
+never a wrapped figure).
+
 The positional `targets` filter is autodetected per token: all digits
 means a cgroup ID (find one with `list-apps`), anything else a
 process name — and names watch ALL matching cgroups, the same

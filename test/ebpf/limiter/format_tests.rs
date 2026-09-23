@@ -183,6 +183,10 @@ fn test_format_bytes_decimal_si() {
     assert_eq!(format_bytes(999_950_000_000), "1.0 TB");
     assert_eq!(format_bytes(1_000_000_000_000), "1.0 TB");
     assert_eq!(format_bytes(1_500_000_000_000), "1.5 TB");
+    // NIGHT-boost-22 LTS ladder: PB and EB carry the same contract.
+    assert_eq!(format_bytes(1_000_000_000_000_000), "1.0 PB");
+    assert_eq!(format_bytes(1_500_000_000_000_000), "1.5 PB");
+    assert_eq!(format_bytes(1_000_000_000_000_000_000), "1.0 EB");
 }
 
 /// Tier-boundary promotion (improve-13): values that would round
@@ -201,6 +205,48 @@ fn test_format_bytes_promotes_at_rounding_boundary() {
     // Rate cells fit the 10-column monitor budget after promotion.
     assert_eq!(format_rate(999_949).chars().count(), 10);
     assert_eq!(format_rate(999_950).chars().count(), 8);
+}
+
+/// The LTS ceiling audit (NIGHT-boost-22): the ladder answers in PB
+/// and EB to the u64 edge — the old TB-terminal note claimed
+/// u64::MAX was ~18.4 TERABYTES, but 2^64 is ~18.4 EXABYTES, and a
+/// saturated 10G server crosses 999.95 TB in ~9.5 days. Past the TB
+/// edge the old formatter broke its own promotion contract
+/// ("18446.7 TB", five digits, 10 columns); the extended ladder
+/// holds the three-digit form on every tier it can reach.
+#[test]
+fn test_format_bytes_lts_ceiling_pb_eb() {
+    // The TB -> PB edge, pinned at its exact threshold like every
+    // other tier: 999.949e15 stays PB, 999.95e15 promotes to EB.
+    assert_eq!(format_bytes(999_949_999_999_999_999), "999.9 PB");
+    assert_eq!(format_bytes(999_950_000_000_000_000), "1.0 EB");
+    // The u64 ceiling: 18,446,744,073,709,551,615 B = ~18.4 EB —
+    // the honest saturated display of a saturated u64 accumulator
+    // (NIGHT-boost-16's saturating sums land here, never a wrap).
+    assert_eq!(format_bytes(u64::MAX), "18.4 EB");
+    // Zettabytes stay unreachable: 1e21 needs 71 bits; u64::MAX
+    // (~1.8e19) cannot express it — no eighth tier exists to lie
+    // about, and the ladder's terminal tier is honest.
+    assert!(u128::from(u64::MAX) < 1_000_000_000_000_000_000_000u128);
+    // Max-length mitigation (the owner's ask): every tier from KB to
+    // PB renders at most 8 columns across the whole u64 domain, and
+    // the saturated rate cell stays inside the monitor's fixed
+    // 10-column budget ("/s" + the two-character unit).
+    for &probe in &[
+        999_949u64,
+        999_949_999,
+        999_949_999_999,
+        999_949_999_999_999,
+        999_949_999_999_999_999,
+    ] {
+        assert!(
+            format_bytes(probe).chars().count() <= 8,
+            "byte cell must cap at 8 columns, got {} for {probe}",
+            format_bytes(probe)
+        );
+    }
+    assert_eq!(format_rate(u64::MAX), "18.4 EB/s");
+    assert!(format_rate(u64::MAX).chars().count() <= 10);
 }
 
 #[test]

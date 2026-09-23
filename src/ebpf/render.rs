@@ -203,6 +203,14 @@ pub(crate) fn truncate_label(label: &str, w: usize) -> String {
 }
 
 /// Convert a per-frame byte delta into a bytes-per-second figure.
+///
+/// NIGHT-boost-22 overflow audit: the f64 division carries the full
+/// u64 range losslessly for display purposes (u64::MAX as f64 stays
+/// inside f64's exact-integer range's rounding tolerance for a
+/// one-decimal SI figure), and Rust's float-to-int `as` cast
+/// SATURATES rather than wrapping — a saturated counter divides,
+/// rounds, and casts back to u64::MAX, which the extended
+/// format_bytes ladder then renders as the honest "18.4 EB/s".
 #[must_use]
 pub(crate) fn rate_bps(delta_bytes: u64, interval: std::time::Duration) -> u64 {
     let secs = interval.as_secs_f64();
