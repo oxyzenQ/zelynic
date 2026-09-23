@@ -86,6 +86,59 @@ fn enrich_removed_subcommand_redirect(e: &mut clap::Error) {
     }
 }
 
+/// Subcommand spellings whose successor is a top-level FLAG, not
+/// another subcommand (NIGHT-boost-13).
+///
+/// `help` is the muscle memory every clap tool trains — clap's own
+/// auto-generated `help` subcommand would answer it — but zelynic
+/// runs the single-tier help surface (NIGHT-improve-3: `--help` is
+/// the one reference, the auto-generated help subcommand is disabled
+/// at every level), so `zelynic help` died as an unrecognized
+/// subcommand with no tip: the owner's terminal showed a dead end
+/// for the most natural spelling in the vocabulary. The redirect
+/// lands that muscle memory on the flag that succeeds it — the same
+/// contract the removed-subcommand table above gives observe/top.
+const SUBCOMMAND_FLAG_REDIRECTS: &[(&str, &str)] = &[("help", "zelynic --help")];
+
+/// Inject the flag successor for a subcommand spelling in the table
+/// above as a canonical `tip:` line.
+///
+/// The plain `Suggested` context is the only render slot that can
+/// carry a non-subcommand successor: `SuggestedSubcommand` renders
+/// "a similar subcommand exists" (and there is no help subcommand to
+/// name), `SuggestedArg` renders "a similar argument exists" (and
+/// `help` was typed as a subcommand). The successor renders in the
+/// `valid` (white) style, matching every other tip's highlighted
+/// command.
+fn enrich_subcommand_flag_redirect(e: &mut clap::Error, cmd: &clap::builder::Command) {
+    use std::fmt::Write as _;
+    if e.kind() != clap::error::ErrorKind::InvalidSubcommand {
+        return;
+    }
+    let typed = match e.get(ContextKind::InvalidSubcommand) {
+        Some(ContextValue::String(s)) => s.as_str(),
+        _ => return,
+    };
+    let Some(&(_, successor)) = SUBCOMMAND_FLAG_REDIRECTS
+        .iter()
+        .find(|(name, _)| *name == typed)
+    else {
+        return;
+    };
+    // Override any fuzzy suggestion clap already attached — for an
+    // exact vocabulary spelling the redirect is strictly more
+    // correct than a near-miss candidate.
+    e.remove(ContextKind::SuggestedSubcommand);
+    e.remove(ContextKind::Suggested);
+    let valid = cmd.get_styles().get_valid();
+    let mut tip = clap::builder::StyledStr::new();
+    let _ = write!(
+        tip,
+        "to see the reference, run '{valid}{successor}{valid:#}'"
+    );
+    e.insert(ContextKind::Suggested, ContextValue::StyledStrs(vec![tip]));
+}
+
 /// Top-level-authority flags (NIGHT-boost-12, generalizing the
 /// NIGHT-improve-3 help rescue): names whose subcommand-position or
 /// `--`-escaped appearance must tip the TOP-LEVEL spelling instead of
@@ -208,6 +261,7 @@ pub(crate) fn exit_clap_error(e: clap::Error) -> ! {
     let mut cmd = Cli::command();
     enrich_unknown_arg_suggestion(&mut e, &cmd);
     enrich_removed_subcommand_redirect(&mut e);
+    enrich_subcommand_flag_redirect(&mut e, &cmd);
 
     // Replace (or add) the usage context with the real full usage —
     // clap's RichFormatter renders the Usage context verbatim, and
