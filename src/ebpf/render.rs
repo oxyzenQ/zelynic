@@ -24,18 +24,18 @@
 //! terminal-layer probe (NIGHT-hunt-15: the old path issued two,
 //! width and height separately, plus the diff engine's own resize
 //! check). Resizing the terminal adapts the layout on the next
-//! refresh: no SIGWINCH plumbing, no stale geometry, no caches to
-//! invalidate. Columns degrade gracefully on narrow terminals (RATE
-//! drops first), the label column absorbs the remaining
-//! width, and the row count follows the terminal height
-//! (NIGHT-boost-1: the former --limit and the hard 20-row cap are
-//! gone — the window IS the budget) so a frame never scrolls off
-//! the alt screen. The autodetect ladder (NIGHT-boost-5): the
-//! chrome reserves 12 lines (title, header, separators, TOTAL row,
-//! meta line, discovery hints, signature footer, breathing room),
-//! so the owner's windowed 88x32 terminal shows a 20-row list, the
-//! classic 80x24 shows 12, and a 22-line window still gets the
-//! 10-row flagship floor.
+//! refresh — and since NIGHT-boost-14 the loop probes the geometry
+//! every 50ms wake and renders the change within one wake, not the
+//! next refresh tick (up to 60s at `--interval 60`): no SIGWINCH
+//! plumbing, no stale geometry, no caches to invalidate. Columns
+//! degrade gracefully on narrow terminals (TOTAL drops first, the
+//! subprocess detail hides with it), the label column absorbs the
+//! remaining width, and the frame is pinned to the FULL terminal
+//! height (NIGHT-boost-14): the table floats under the header and
+//! the footer stays near the bottom — the grip block never follows
+//! the table's length. A short window compresses the footer through
+//! a compact ladder (blanks drop, then the grips, then the discovery
+//! hints) before the table loses its rows.
 //!
 //! Realtime interval: callers pass the poll interval so the RATE
 //! column converts per-frame deltas into bytes-per-second
@@ -44,9 +44,12 @@
 //!
 //! Module map (mirrors the limiter/ split, owner LOC cap):
 //! - [`eagle`] — the ranked eagle-eyes renderer (default + filtered)
+//! - [`footer`] — the pinned grip footer: tiers, grips, the build
+//!   (NIGHT-boost-14, split from eagle by the cohesion discipline)
 //! - [`focus`] — the deep single-target view (autodetected focus)
 //! - [`session`] — the session leaderboard: accumulated per-cgroup
-//!   totals, rank-1 takeover blink bookkeeping (NIGHT-boost-5)
+//!   totals (NIGHT-boost-5; the blink bookkeeping retired by
+//!   NIGHT-boost-14 — static tiers, no animation)
 //! - `bench` (cfg(test)) — the frame A/B benchmark harness (wired in
 //!   from `test/ebpf/render/bench.rs`, NIGHT-hunt-17)
 //! - this root — geometry probing, column budgets, shared helpers,
@@ -56,6 +59,7 @@
 mod detail;
 mod eagle;
 mod focus;
+mod footer;
 mod session;
 
 #[cfg(test)]
@@ -74,20 +78,6 @@ pub(crate) use detail::{comm_from_label, detail_lines, full_detail_lines, label_
 
 use crate::ebpf::limiter::format_rate;
 use crate::output::brand_bold;
-
-/// Vertical budget consumed by everything that is not a data row:
-/// title, column header, separator, footer separator, the TOTAL
-/// totals row, the packets/cgroups meta line, one blank line of
-/// breathing room, the two discovery-hint lines (top consumer + the
-/// strict-single tip, unfiltered frames), the signature footer, and
-/// one spare row so the footer never sits on the terminal's last
-/// line (improve-13: the run-on single footer line became a
-/// column-aligned TOTAL row plus a meta line — one more chrome line
-/// buys numbers that sit under the columns they sum, the flagship-grid
-/// contract the data rows already follow; NIGHT-boost-5 added the
-/// signature footer and the hints to the accounting, which pins the
-/// owner's windowed 88x32 example at exactly 20 data rows).
-pub(crate) const CHROME_LINES: usize = 12;
 
 // ── Geometry ────────────────────────────────────────────────────────────────
 
@@ -122,18 +112,73 @@ impl FrameGeometry {
     }
 }
 
-/// Data rows that fit between the chrome. The terminal height is
-/// the ONLY budget (NIGHT-boost-1: the former --limit flag and the
-/// hard 20-row cap are gone) — a short window shows the top few
-/// consumers, a tall one spans the list down to the quiet apps.
-/// Autodetect ladder (NIGHT-boost-5, owner contract: "default set
-/// 10 if terminal height is enough ... if detect 32 cell 20 list"):
-/// chrome reserves 12 lines, so a windowed 88x32 terminal shows a
-/// 20-row list, the classic 80x24 shows 12, and a 22-line window
-/// still gets the 10-row flagship density.
+/// Eagle-eyes column layout derived from the frame width.
+///
+/// Degradation ladder (6-column rank cell, 1-column gaps):
+/// - width >= 51: (rank) | PROCESS | DOWNLOAD | UPLOAD | TOTAL
+/// - width >= 40: (rank) | PROCESS | DOWNLOAD | UPLOAD   (TOTAL dropped)
+/// - width  < 40: (rank) | PROCESS (min 12) | DOWNLOAD | UPLOAD at 9-wide
+///
+/// DOWNLOAD and UPLOAD carry per-frame RATES (delta / interval —
+/// "what is moving right now"); TOTAL carries the session-accumulated
+/// bytes (NIGHT-boost-5: the v10 "total accumulated" function
+/// restored as the ranking key's own column). The old combined RATE
+/// column was dl+ul restated — the TOTAL column replaces it.
+///
+/// NIGHT-boost-5: the header rank cell is blank (the owner's "#"
+/// header retired) and the absorption math makes every data row end
+/// flush at the frame width — the label column absorbs exactly what
+/// the rank cell, the gaps, and the numeric columns leave, so the
+/// right border (title bar, separators, rows, TOTAL) is one straight
+/// edge mirroring the left. The old reserve formula over-allocated
+/// three spare columns, leaving every row 3 short of the separator.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct EagleColumns {
+    pub(crate) label_w: usize,
+    pub(crate) dl_w: usize,
+    pub(crate) ul_w: usize,
+    pub(crate) show_total: bool,
+}
+
+/// Plan the eagle-eyes column layout for a given terminal width.
 #[must_use]
-pub(crate) fn rows_for_height(height: usize) -> usize {
-    height.saturating_sub(CHROME_LINES).max(1)
+pub(crate) fn plan_eagle_columns(width: usize) -> EagleColumns {
+    const RANK_W: usize = 6; // 2 gutter + 2 rank digits + 2 gap
+    const NUM_W: usize = 10;
+    const NUM_W_TIGHT: usize = 9;
+    const LABEL_MIN: usize = 12;
+
+    // Full layout: rank + label + 3 numeric columns (dl, ul, total).
+    // Reserve = rank cell + 3 x (gap + numeric): the label absorbs
+    // the rest, so a full row spans exactly the frame width.
+    if width >= RANK_W + LABEL_MIN + 3 * (1 + NUM_W) {
+        return EagleColumns {
+            label_w: width - RANK_W - 3 * (1 + NUM_W),
+            dl_w: NUM_W,
+            ul_w: NUM_W,
+            show_total: true,
+        };
+    }
+
+    // TOTAL dropped (the session figure survives in the focus view;
+    // the live rates are the realtime sacrifice ladder's first cut):
+    // rank + label + 2 numeric columns.
+    if width >= RANK_W + LABEL_MIN + 2 * (1 + NUM_W) {
+        return EagleColumns {
+            label_w: width - RANK_W - 2 * (1 + NUM_W),
+            dl_w: NUM_W,
+            ul_w: NUM_W,
+            show_total: false,
+        };
+    }
+
+    // Narrow fallback: tighter numerics, label pinned to the minimum.
+    EagleColumns {
+        label_w: LABEL_MIN,
+        dl_w: NUM_W_TIGHT,
+        ul_w: NUM_W_TIGHT,
+        show_total: false,
+    }
 }
 
 /// Truncate a label to `w` display columns, appending an ellipsis
@@ -211,20 +256,6 @@ pub(crate) fn title_bar(core: &str, hint: &str, width: usize) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    /// Row budget: chrome reserved, terminal height is the only cap
-    /// (NIGHT-boost-1: no --limit, no hard 20-row ceiling).
-    /// NIGHT-boost-5 autodetect ladder: 88x32 window -> 20 rows,
-    /// classic 80x24 -> 12, the 10-row flagship floor at height 22.
-    #[test]
-    fn rows_for_height_ladder() {
-        assert_eq!(rows_for_height(80), 80 - CHROME_LINES);
-        assert_eq!(rows_for_height(32), 20, "owner's windowed 88x32 example");
-        assert_eq!(rows_for_height(24), 12);
-        assert_eq!(rows_for_height(22), 10, "flagship floor");
-        assert_eq!(rows_for_height(12), 1);
-        assert_eq!(rows_for_height(5), 1);
-    }
 
     /// Labels truncate with an ellipsis and respect the budget.
     #[test]

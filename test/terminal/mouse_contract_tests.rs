@@ -237,6 +237,10 @@ fn selection_guard_beat_pinned() {
 /// stay selectable, the hole the guard closes), and the non-TTY
 /// fallback never guards (a pipe has no selection machinery; the
 /// beats would only flood it).
+///
+/// NIGHT-boost-14 resize pin: a geometry change forces a Render
+/// beat mid-interval — the layout adapts within one 50ms wake,
+/// never at the next refresh tick (up to 60s at `--interval 60`).
 #[test]
 fn next_beat_orders_render_guard_sleep() {
     let refresh = Duration::from_secs(1);
@@ -244,7 +248,13 @@ fn next_beat_orders_render_guard_sleep() {
 
     // Fresh loop: the first frame is due immediately.
     assert!(matches!(
-        next_beat(now - refresh - Duration::from_millis(1), now, refresh, true),
+        next_beat(
+            now - refresh - Duration::from_millis(1),
+            now,
+            refresh,
+            true,
+            false
+        ),
         Beat::Render
     ));
 
@@ -254,7 +264,8 @@ fn next_beat_orders_render_guard_sleep() {
             now - Duration::from_millis(500),
             now - SELECTION_GUARD_BEAT + Duration::from_millis(20),
             refresh,
-            true
+            true,
+            false
         ),
         Beat::Sleep
     ));
@@ -265,7 +276,8 @@ fn next_beat_orders_render_guard_sleep() {
             now - Duration::from_millis(500),
             now - SELECTION_GUARD_BEAT,
             refresh,
-            true
+            true,
+            false
         ),
         Beat::Guard
     ));
@@ -276,7 +288,8 @@ fn next_beat_orders_render_guard_sleep() {
             now - refresh,
             now - SELECTION_GUARD_BEAT - Duration::from_millis(50),
             refresh,
-            true
+            true,
+            false
         ),
         Beat::Render
     ));
@@ -288,8 +301,57 @@ fn next_beat_orders_render_guard_sleep() {
             now - Duration::from_millis(500),
             now - Duration::from_secs(10),
             refresh,
+            false,
             false
         ),
         Beat::Sleep
     ));
+
+    // NIGHT-boost-14: a resize mid-interval renders IMMEDIATELY —
+    // both on the guarded TTY path and the non-TTY fallback (the
+    // geometry probe is loop-level; the fallback cannot actually
+    // resize, but the scheduler contract is size-blind).
+    assert!(matches!(
+        next_beat(
+            now - Duration::from_millis(500),
+            now - SELECTION_GUARD_BEAT + Duration::from_millis(20),
+            refresh,
+            true,
+            true
+        ),
+        Beat::Render
+    ));
+    assert!(matches!(
+        next_beat(now - Duration::from_millis(500), now, refresh, false, true),
+        Beat::Render
+    ));
+}
+
+/// The q-only quit contract (NIGHT-hunt-16, pinned as a byte-level
+/// decision by NIGHT-boost-14 at the owner's "make sure only shortkey
+/// 'q' for quit" directive): 'q' leading the drained chunk quits;
+/// uppercase, Ctrl+C, standalone ESC, every escape-sequence head
+/// (arrow, mouse SGR, scroll wheel), and 'q' buried inside a chunk
+/// do not.
+#[test]
+fn quit_is_q_first_byte_only() {
+    use super::quit_from_chunk;
+
+    // The one quit byte.
+    assert!(quit_from_chunk(b"q"));
+    assert!(quit_from_chunk(b"quit"));
+    // Uppercase is a different key.
+    assert!(!quit_from_chunk(b"Q"));
+    // Ctrl+C (0x03) and ESC (0x1b): drained, never quit.
+    assert!(!quit_from_chunk(&[0x03]));
+    assert!(!quit_from_chunk(&[0x1b]));
+    // Escape-sequence heads: arrows, SGR mouse, scroll.
+    assert!(!quit_from_chunk(b"\x1b[A"));
+    assert!(!quit_from_chunk(b"\x1b[<0;10;10M"));
+    assert!(!quit_from_chunk(b"\x1b[64;1;1;64;1;1"));
+    // 'q' inside an escape sequence body is not a quit — the head
+    // byte speaks, not the tail.
+    assert!(!quit_from_chunk(b"\x1bq"));
+    // Empty chunk: nothing drained, nothing quit.
+    assert!(!quit_from_chunk(b""));
 }

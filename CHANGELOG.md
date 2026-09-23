@@ -570,6 +570,64 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Changed
 
+- **feat!: NIGHT-boost-14 — eagle-eyes: the masterclass engraving of
+  the owner's style** — the ranked monitor becomes a PINNED
+  composition, every clause of the owner's spec engraved and pinned
+  by tests. (1) **Quit stays q-only** (the NIGHT-hunt-16 contract,
+  now pinned at the byte level: `quit_from_chunk` — 'q' as the first
+  drained byte quits; Ctrl+C, standalone ESC, every escape-sequence
+  head, and 'q' buried inside a sequence never do). (2) **The blink
+  is gone** — the takeover blink (hot_blink, the session state's
+  rank-1 timing bookkeeping, TAKEOVER_BLINK, and note_rank1) is
+  deleted entire: crowns read by color, never by animation, the
+  owner's eye-strain call. (3) **Static traffic-light tiers**:
+  rank 1 champion red, rank 2 warning yellow, rank 3 and below
+  status GREEN (the former white) — a calm gradient down the board.
+  (4) **Grey subordinates**: the subprocess usage lines under the
+  rows and every footer line except the copyright render a new calm
+  grey tier (#8B8B8B; 245 at 256 depth, bright black at 16) —
+  context, not content. (5) **Purple grid**: the border under the
+  PROCESS/DOWNLOAD/UPLOAD/TOTAL header and the two full-width lines
+  framing the TOTAL row render brand purple, same source as the
+  header text above them. (6) **A breathing blank line under the
+  title** — the header used to sit too near the brand. (7) **The
+  grip footer, the owner's exact spec**: the column-aligned TOTAL
+  row framed by the two purple grids, then a blank, the census
+  `N packets + M cgroups` (a `+` join, was a `·`) under its own
+  GREY grip exactly as wide as its text, `Top consumer: <name>`
+  (label grey, name GREEN) under its own grip, the
+  `Limit it: sudo zelynic strict-single <name> 100kb` suggestion
+  (grey, the suggestion-tier white retired on this surface), and
+  the copyright last — version from env!(CARGO_PKG_VERSION), never
+  hardcoded, purple as ever. (8) **The pin**: the frame spans the
+  terminal height, the table floats, and the footer sits NEAR THE
+  BOTTOM whatever the table does — measured blank padding absorbs
+  the middle, and the pin is exact because the footer is BUILT
+  first and its measured length fixes where content must stop.
+  (9) **Dynamic resize**: the monitor loop probes the terminal
+  geometry on every 50ms wake and forces a Render beat on change —
+  resizing lands within one wake, not the next refresh tick (up to
+  60s at `--interval 60`); next_beat grew a `resized` term, pinned.
+  (10) **Adaptive compact (dynamic WxH)**: on narrow frames the
+  subprocess detail hides entirely (below width 51, the same
+  boundary where the TOTAL column itself drops) and every shown
+  detail line is cut to the frame width with an ellipsis — a long
+  process or endpoint string can never wrap the frame or shift the
+  pinned footer; on short terminals the footer compresses through a
+  tier ladder (blanks drop first, then the grips, then the discovery
+  hints — census and copyright survive at every height; Full >= 16
+  rows, Compact >= 14, Minimal >= 10, Tiny below). The focus view
+  aligned too: the gap under its title, its process lines capped to
+  the height with an honest "+N more hidden" note, and its copyright
+  pinned. The render tree gained `render/footer.rs` (the tiers, the
+  grips, the build — split by the cohesion discipline when the
+  engraving pushed eagle.rs past the LOC cap) and
+  `test/ebpf/render/footer_tests.rs` (the composition pins);
+  EagleColumns + plan_eagle_columns moved to the render root, their
+  documented home. The renderer grew a size-injectable core
+  (`render_eagle_eyes_at`, the emit/emit_at discipline) so the
+  ladder and the pin are pinnable at every WxH.
+
 - **feat!: NIGHT-boost-1 — eagle-eyes: the observe + top pair merged
   into one unified live monitor** — the owner's read was blunt:
   observe and top were two views of the same observer with four

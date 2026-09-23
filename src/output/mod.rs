@@ -7,7 +7,8 @@
 //! owner's 500-line cap):
 //! - [`color`] — the brand tier: capability detection + every escape
 //!   builder and wrapper (purple brand, green ok, red error, yellow
-//!   warn, crystal-white suggestion, signature footer colors)
+//!   warn, crystal-white suggestion, calm grey, signature footer
+//!   colors)
 //! - [`labeled`] — labeled error/warning stderr lines
 //! - [`sanitize`] — comm sanitization
 //! - this root — the broken-pipe-safe print macros, the JSON print
@@ -41,8 +42,8 @@ mod color;
 // functions below are the crate's entire color API surface (nothing
 // outside the output layer ever assembles its own escape bytes).
 pub use color::{brand, brand_bold, error, error_bold, ok, ok_bold, suggestion, warn_bold};
-#[cfg(feature = "ebpf")] // champion tier + warn wrapper live under the eagle-eyes graph
-pub use color::{hot, hot_blink, warn};
+#[cfg(feature = "ebpf")] // champion + grey + warn tiers live under the eagle-eyes graph
+pub use color::{grey, hot, warn};
 
 // ── Broken-pipe-safe println/eprintln (cosmostrix contract) ────────────────
 //
