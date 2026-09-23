@@ -127,6 +127,21 @@ fn eagle_frame_builds_lines() {
         census_idx + 1,
         "the owner's order: census above the total row"
     );
+    // The NIGHT-engrave-6 speed pair rides directly below the total
+    // row — honest zeroes on an idle board (the idle census's
+    // discipline: `0 B/s`, never the limiter's BLOCKED verdict).
+    assert_eq!(
+        lines[total_idx + 1],
+        flanked("  total max dl | ul = 0 B/s | 0 B/s"),
+        "the idle max line renders honest zeroes: {}",
+        lines[total_idx + 1]
+    );
+    assert_eq!(
+        lines[total_idx + 2],
+        flanked("  total avg dl | ul = 0 B/s | 0 B/s"),
+        "the idle avg line divides zero legs by the uptime: {}",
+        lines[total_idx + 2]
+    );
     assert_eq!(
         lines[total_idx - 2],
         format!("│{}│", "─".repeat(78)),
@@ -134,9 +149,9 @@ fn eagle_frame_builds_lines() {
         lines[total_idx - 2]
     );
     assert_eq!(
-        lines[total_idx + 1],
+        lines[total_idx + 3],
         flanked("  (identities unresolved — labels show raw cgroup IDs)"),
-        "the rare note rides between the total row and the status line"
+        "the rare note rides below the speed pair, before the status line"
     );
     assert!(
         !lines.iter().any(|l| l.contains("top consumer is")),
@@ -244,6 +259,24 @@ fn footer_layout_pins_to_the_bottom() {
         .iter()
         .position(|l| l.contains("total usage internet in"))
         .unwrap_or_else(|| panic!("no total row in: {joined}"));
+    // The NIGHT-engrave-6 speed pair, seated directly below the
+    // story row: MAX is the peak of the single frame's deltas
+    // (interval 1s — the raw figures ARE the rates), AVG is the
+    // session legs divided by the 70s uptime (1.4 MB/70s = 20.0
+    // KB/s, 240.0 KB/70s = 3.4 KB/s) — the same legs the `= 1.6 MB`
+    // grand totals and the same clock the story row renders.
+    assert_eq!(
+        lines[total_row + 1],
+        flanked("  total max dl | ul = 1.4 MB/s | 240.0 KB/s"),
+        "the max line renders the session's peak per-direction rates: {}",
+        lines[total_row + 1]
+    );
+    assert_eq!(
+        lines[total_row + 2],
+        flanked("  total avg dl | ul = 20.0 KB/s | 3.4 KB/s"),
+        "the avg line divides the session legs by the uptime: {}",
+        lines[total_row + 2]
+    );
     let limit_idx = lines
         .iter()
         .position(|l| l.contains("limit target with"))
@@ -255,9 +288,9 @@ fn footer_layout_pins_to_the_bottom() {
     );
     assert_eq!(census_idx + 1, total_row, "census above the total row");
     assert_eq!(
-        total_row + 1,
+        total_row + 3,
         limit_idx,
-        "the limit suggestion below the story"
+        "the limit suggestion below the speed pair"
     );
     assert_eq!(
         lines[limit_idx],
@@ -385,72 +418,23 @@ fn footer_discovery_pair_renders_with_the_autodetect_name() {
         joined.contains("2 packets + 1 cgroups"),
         "the census rides too — the frame helper carries one packet per direction: {joined}"
     );
+    // The engrave-6 speed pair rides the live frame too: MAX is the
+    // frame's own deltas (500.0 KB/s | 5.0 KB/s at interval 1s), AVG
+    // divides the session legs by the 70s horizon (7.1 KB/s | 71
+    // B/s — the 71 truncates to the honest integer B tier).
+    assert!(
+        joined.contains("total max dl | ul = 500.0 KB/s | 5.0 KB/s"),
+        "the max line renders the session's peak rates: {joined}"
+    );
+    assert!(
+        joined.contains("total avg dl | ul = 7.1 KB/s | 71 B/s"),
+        "the avg line renders the session legs over the uptime: {joined}"
+    );
     assert_eq!(lines.len(), 24, "the pin is unchanged by the rebuild");
 }
 
-/// NIGHT-boost-16 / safety-security-1: the accumulate-explosion
-/// render pin. A frame whose deltas and session accumulator sit at
-/// u64::MAX must render WITHOUT panic in a debug build (the footer
-/// sums and the ranking key used to be plain `+` and `sum` — debug
-/// panicked, release wrapped to a tiny grand total) and the TOTAL
-/// row must carry the honest saturation figure (18.4 EB), not a
-/// wrapped number. NIGHT-engrave-4: the census line and the consumer
-/// headline ride the same saturated frame without panic — the packet
-/// counter saturates at its own honest ceiling.
-#[test]
-fn saturated_session_renders_without_panic() {
-    let identity = identity_with(&[("saturator", 9001)]);
-    let summary = CounterSummary {
-        total_packets: u64::MAX,
-        total_bytes: u64::MAX,
-        total_ingress_packets: u64::MAX,
-        total_ingress_bytes: u64::MAX,
-        cgroups: vec![CgroupDelta {
-            cgroup_id: 9001,
-            packets: u64::MAX,
-            bytes: u64::MAX,
-            total_bytes: u64::MAX,
-            ingress_packets: u64::MAX,
-            ingress_bytes: u64::MAX,
-            ingress_total_bytes: u64::MAX,
-        }],
-    };
-    let mut session = SessionState::new();
-    session.absorb(&summary);
-    let mut lines = Vec::new();
-    render_eagle_eyes_at(
-        &mut lines,
-        &summary,
-        &[],
-        &identity,
-        None,
-        Duration::from_secs(1),
-        &mut session,
-        Duration::from_secs(70),
-        classic(),
-    );
-    assert_eq!(lines.len(), 24, "the pin holds at saturation");
-    let joined = lines.join("\n");
-    // NIGHT-boost-22: the extended SI ladder answers in EB at the
-    // ceiling — u64::MAX renders as "18.4 EB" (the old TB-terminal
-    // formatter drew "18446744.1 TB", five digits, the ragged
-    // column the promotion contract forbids everywhere else).
-    assert!(
-        joined.contains("18.4 EB"),
-        "the saturated session total renders the u64 ceiling honestly: {joined}"
-    );
-    assert!(
-        lines.iter().any(|l| l.contains("total usage internet in")),
-        "the total row survives saturation"
-    );
-    // NIGHT-engrave-4: the census saturates at its own honest
-    // ceiling — the raw u64 packet count, no panic, no wrap.
-    assert!(
-        joined.contains("18446744073709551615 packets + 1 cgroups"),
-        "the saturated packet counter renders its full figure: {joined}"
-    );
-    assert!(
-        joined.contains("top consumer is saturator"),
-        "the consumer headline rides the saturated frame: {joined}"
-    );
-}
+// NIGHT-engrave-6: the saturation render pin lives in its own
+// contract file (footer_safety_tests.rs) — the speed-pair additions
+// pushed this file past the owner's LOC cap, and the safety contract
+// reads as its own file, the same one-file-per-contract split the
+// tier pins took at engrave-4.

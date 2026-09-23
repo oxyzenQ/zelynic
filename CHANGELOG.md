@@ -16,6 +16,32 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Added
 
+- **feat: NIGHT-engrave-6 — the session speed pair: `total max dl |
+  ul` and `total avg dl | ul` below the total row** — the owner's
+  data-center spec: two footer lines directly below `total usage
+  internet in ... = ...`, rendering the session's peak and average
+  per-direction rates. MAX is the running maximum of the per-frame
+  watched-set deltas, tracked in the session state beside the
+  totals (never reset — the session horizon; `max` cannot overflow);
+  AVG is the per-direction session totals divided by the SAME
+  uptime the total row renders, so the paragraph's three lines
+  share their legs and their clock and can never disagree. Both
+  render through the honest-zero SI ladder (`0 B/s` at rest, never
+  the limiter's BLOCKED verdict — the observer measures, it does
+  not judge), both ride the same watched scope as the grand
+  (filtered frames describe the watched set), and both respect the
+  1024-cgroup admission bound (the `admits` rule extracted to one
+  place, byte fold and peak note sharing it — the max line can
+  never claim traffic the grand total cannot account for). Tier
+  ladder grows 9/8/5/3 -> 11/10/5/3 (the pair rides Full/Compact,
+  drops with the census family at Minimal); the boost-25 loading
+  frame's census-of-nothing carries the pair as honest zeroes, so
+  the one-row morph contract still holds byte-for-byte. A session
+  *minimum* speed ("total low") was considered and rejected — see
+  the NIGHT-ask-1 scope statement above. 15 new pins across the
+  session, footer, tier, loading, and eagle trees (running maxima,
+  watched-scope, empty-watch-list edge, admission bound, exact line
+  wording, honest zeroes, saturated ceilings, morph stability).
 - **docs: NIGHT-ask-1 — the LTS scope statement: the metric set is
   closed, the one frontier gap is owner-approved** — the owner's
   question ("is the monitoring scope complete for LTS usage, and if

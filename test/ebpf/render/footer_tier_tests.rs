@@ -47,21 +47,23 @@ fn frame(cg: u32, dl: u64, ul: u64) -> CounterSummary {
 }
 
 /// Footer compression ladder (NIGHT-boost-14; NIGHT-engrave-4 re-cut
-/// it for the rebuilt block — 9/8/5/3): the classic 80x24 carries
-/// the full engraved block; a 13-row window drops to Compact (the
-/// air above the status line goes, the owner's copyright gap
-/// stays), 12 to Minimal, and the survival floor holds from 9 down.
-/// The rare identities-unresolved note costs one line and moves the
-/// Full boundary with it.
+/// it for the rebuilt block; NIGHT-engrave-6 grew Full and Compact
+/// by the speed pair — 11/10/5/3): the classic 80x24 carries the
+/// full engraved block; a 15-row window drops to Compact (the air
+/// above the status line goes, the owner's copyright gap stays), 14
+/// to Minimal, and the survival floor holds from 9 down. The rare
+/// identities-unresolved note costs one line and moves the Full
+/// boundary with it.
 #[test]
 fn footer_tier_ladder() {
     assert_eq!(plan_footer_tier(24, 0), FooterTier::Full);
     assert_eq!(
-        plan_footer_tier(14, 0),
+        plan_footer_tier(16, 0),
         FooterTier::Full,
-        "14 = 4 chrome + 9 footer + 1 row"
+        "16 = 4 chrome + 11 footer + 1 row"
     );
-    assert_eq!(plan_footer_tier(13, 0), FooterTier::Compact);
+    assert_eq!(plan_footer_tier(15, 0), FooterTier::Compact);
+    assert_eq!(plan_footer_tier(14, 0), FooterTier::Minimal);
     assert_eq!(plan_footer_tier(12, 0), FooterTier::Minimal);
     assert_eq!(plan_footer_tier(11, 0), FooterTier::Minimal);
     assert_eq!(plan_footer_tier(10, 0), FooterTier::Minimal);
@@ -69,19 +71,21 @@ fn footer_tier_ladder() {
     assert_eq!(plan_footer_tier(5, 0), FooterTier::Tiny, "survival floor");
     // The rare identities-unresolved note rides the footer and is
     // accounted: it costs one line, so every boundary moves up one.
-    assert_eq!(plan_footer_tier(15, 1), FooterTier::Full);
-    assert_eq!(plan_footer_tier(14, 1), FooterTier::Compact);
+    assert_eq!(plan_footer_tier(17, 1), FooterTier::Full);
+    assert_eq!(plan_footer_tier(16, 1), FooterTier::Compact);
     assert_eq!(plan_footer_tier(10, 1), FooterTier::Tiny);
 }
 
 /// The tier degradation ladder on rendered frames (NIGHT-engrave-4
-/// re-cut: 9/8/5/3): Compact drops the air above the status line
-/// (the owner's gap above the copyright survives), Minimal drops the
-/// census and the limit suggestion (the consumer headline survives —
-/// the owner's #1 ask), Tiny drops the grid and the headline too —
-/// the total row, the status line, and the copyright are the
-/// survivors, as they have been since engrave-3. Rendered heights
-/// carry the closing border row, so the ladder sees height-1.
+/// re-cut: 9/8/5/3; NIGHT-engrave-6 grew the top tiers to 11/10 with
+/// the speed pair): Compact drops the air above the status line (the
+/// owner's gap above the copyright survives), Minimal drops the
+/// census family — the speed pair WITH it (survival outranks
+/// statistics; the total row alone carries the story) — and the
+/// limit suggestion, Tiny drops the grid and the headline too — the
+/// total row, the status line, and the copyright are the survivors,
+/// as they have been since engrave-3. Rendered heights carry the
+/// closing border row, so the ladder sees height-1.
 #[test]
 fn footer_tiers_degrade_in_the_engraved_order() {
     let identity = identity_with(&[("alacritty", 7001)]);
@@ -102,13 +106,13 @@ fn footer_tiers_degrade_in_the_engraved_order() {
         lines
     };
 
-    // Compact (rendered height 14 — the closing border row eats
-    // one, so the ladder sees 13): every line, the air above the
+    // Compact (rendered height 16 — the closing border row eats
+    // one, so the ladder sees 15): every line, the air above the
     // status line gone — but the owner's gap above the copyright
     // survives (the engrave-3 paragraph call): one blank, and only
     // that one.
-    let compact = render(14);
-    assert_eq!(compact.len(), 14, "pinned to the terminal height");
+    let compact = render(16);
+    assert_eq!(compact.len(), 16, "pinned to the terminal height");
     assert!(compact
         .iter()
         .any(|l| l.contains("top consumer is alacritty")));
@@ -117,8 +121,15 @@ fn footer_tiers_degrade_in_the_engraved_order() {
     assert!(compact
         .iter()
         .any(|l| l.contains("total usage internet in")));
-    // Footer spans the block below the table territory: rows 5..13.
-    let footer_rows = &compact[5..13];
+    // The speed pair rides Compact (the census family's member).
+    assert!(compact
+        .iter()
+        .any(|l| l.contains("total max dl | ul = 500.0 KB/s | 5.0 KB/s")));
+    assert!(compact
+        .iter()
+        .any(|l| l.contains("total avg dl | ul = 7.1 KB/s | 71 B/s")));
+    // Footer spans the block below the table territory: rows 5..15.
+    let footer_rows = &compact[5..15];
     let blank_row = format!("│{}│", " ".repeat(78));
     assert_eq!(
         footer_rows.iter().filter(|l| **l == blank_row).count(),
@@ -127,14 +138,14 @@ fn footer_tiers_degrade_in_the_engraved_order() {
         footer_rows
     );
     assert!(
-        footer_rows[6] == blank_row && footer_rows[7].starts_with("│  v"),
+        footer_rows[8] == blank_row && footer_rows[9].starts_with("│  v"),
         "the one blank sits directly above the copyright: {:?}",
         footer_rows
     );
 
-    // Minimal (rendered height 11, ladder sees 10): the census and
-    // the limit suggestion drop, the consumer headline and the roof
-    // grid survive.
+    // Minimal (rendered height 11, ladder sees 10): the census
+    // family — the speed pair with it — and the limit suggestion
+    // drop; the consumer headline and the roof grid survive.
     let minimal = render(11);
     assert_eq!(minimal.len(), 11);
     assert!(minimal
@@ -142,6 +153,8 @@ fn footer_tiers_degrade_in_the_engraved_order() {
         .any(|l| l.contains("top consumer is alacritty")));
     assert!(!minimal.iter().any(|l| l.contains("packets +")));
     assert!(!minimal.iter().any(|l| l.contains("limit target")));
+    assert!(!minimal.iter().any(|l| l.contains("total max dl")));
+    assert!(!minimal.iter().any(|l| l.contains("total avg dl")));
     assert!(minimal
         .iter()
         .any(|l| l.contains("total usage internet in")));
@@ -153,6 +166,8 @@ fn footer_tiers_degrade_in_the_engraved_order() {
     assert_eq!(tiny.len(), 10);
     assert!(!tiny.iter().any(|l| l.contains("top consumer")));
     assert!(!tiny.iter().any(|l| l.contains("packets +")));
+    assert!(!tiny.iter().any(|l| l.contains("total max dl")));
+    assert!(!tiny.iter().any(|l| l.contains("total avg dl")));
     assert!(tiny.iter().any(|l| l.contains("total usage internet in")));
     assert!(tiny.iter().any(|l| l.contains("1s realtime")));
     assert!(tiny.iter().any(|l| l.contains(") by oxyzenQ")));

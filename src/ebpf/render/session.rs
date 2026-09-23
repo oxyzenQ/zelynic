@@ -38,6 +38,17 @@
 //! order moves), but rank 1 reads by its static champion red, never
 //! by animation; this struct is now pure bookkeeping, no timing
 //! state at all.
+//!
+//! NIGHT-engrave-6 (the footer's speed pair): the session state also
+//! carries the running PEAKS of the watched set's per-frame deltas —
+//! the max figure the footer's `total max dl | ul` line renders as a
+//! rate. The peaks ride the same session horizon as the totals (they
+//! never reset while the monitor lives), the same admission rule (a
+//! delta the leaderboard cannot fold cannot raise the peak — the max
+//! line can never claim traffic the grand total cannot account for),
+//! and the same watched scope the render filter applies that frame
+//! (a filtered frame's peaks are the watched set's own, matching the
+//! filtered grand the same footer paragraph renders).
 
 use std::collections::HashMap;
 
@@ -82,10 +93,19 @@ pub(crate) const MAX_TRACKED_CGROUPS: usize = 1024;
 
 /// The leaderboard: per-cgroup accumulated traffic. Pure data — the
 /// rank-1 takeover bookkeeping that drove the champion's blink window
-/// was removed by NIGHT-boost-14 (static colors, no animation).
+/// was removed by NIGHT-boost-14 (static colors, no animation), and
+/// the session peaks (NIGHT-engrave-6) are plain running maxima.
 #[derive(Debug, Default)]
 pub(crate) struct SessionState {
     acc: HashMap<u32, SessionAcc>,
+    /// The session's peak per-frame download delta (bytes in one
+    /// poll interval, the watched set's aggregate — NIGHT-engrave-6).
+    /// The footer converts it to a rate with the interval at render
+    /// time; the peak itself is scope- and horizon-honest by
+    /// construction (see `note_frame`).
+    peak_dl: u64,
+    /// The session's peak per-frame upload delta — the mirror leg.
+    peak_ul: u64,
 }
 
 impl SessionState {
@@ -93,17 +113,27 @@ impl SessionState {
         Self::default()
     }
 
+    /// Whether a delta row may fold into the leaderboard (the
+    /// bound mirror the userspace accumulator keeps of the kernel's
+    /// own map ceiling, NIGHT-boost-16): an existing entry always
+    /// updates, a fresh cgroup past [`MAX_TRACKED_CGROUPS`] cannot
+    /// join. One rule, two callers — the byte fold and the peak
+    /// note — so the two can never drift apart.
+    fn admits(&self, id: u32) -> bool {
+        self.acc.len() < MAX_TRACKED_CGROUPS || self.acc.contains_key(&id)
+    }
+
     /// Fold one poll's deltas into the leaderboard. An empty summary
     /// (a quiet frame, or the one-frame tolerance for a transient
     /// map-read error) folds nothing — the board holds its rows. The
     /// fold itself is saturating (an accumulator that reaches
     /// u64::MAX stays there — the SI formatter renders the ceiling
-    /// as 18446744.1 TB, saturation not a wrap), and the entry count is bounded by
+    /// as 18.4 EB, saturation not a wrap), and the entry count is bounded by
     /// [`MAX_TRACKED_CGROUPS`] (NIGHT-boost-16): a cgroup the kernel
     /// never counted cannot rank.
     pub(crate) fn absorb(&mut self, summary: &CounterSummary) {
         for c in &summary.cgroups {
-            if self.acc.len() >= MAX_TRACKED_CGROUPS && !self.acc.contains_key(&c.cgroup_id) {
+            if !self.admits(c.cgroup_id) {
                 continue;
             }
             let entry = self.acc.entry(c.cgroup_id).or_default();
@@ -117,6 +147,46 @@ impl SessionState {
                 .saturating_add(c.packets)
                 .saturating_add(c.ingress_packets);
         }
+    }
+
+    /// Note one frame's watched-set aggregate into the running
+    /// peaks (NIGHT-engrave-6 — the footer's `total max dl | ul`
+    /// line). `watched` is `None` on an unfiltered frame (every
+    /// cgroup aggregates — the default view's machine-wide scope)
+    /// and `Some(ids)` on a filtered one, the exact set the render
+    /// filter applies that frame, so the peaks and the filtered
+    /// grand the same paragraph renders tell ONE story. A `Some`
+    /// set that resolved to nothing (every name unmatched) notes
+    /// nothing — an empty watch list is a filter, not the absence
+    /// of one. The admission rule rides along (`admits`): a delta
+    /// the leaderboard cannot fold cannot raise the peak. Maxima
+    /// need no saturating arithmetic — `max` is already the honest
+    /// ceiling of the two operands — and like the totals, the
+    /// peaks never reset on a quiet frame: the session horizon.
+    pub(crate) fn note_frame(&mut self, summary: &CounterSummary, watched: Option<&[u32]>) {
+        let mut dl = 0u64;
+        let mut ul = 0u64;
+        for c in &summary.cgroups {
+            if watched.is_some_and(|ids| !ids.contains(&c.cgroup_id)) {
+                continue;
+            }
+            if !self.admits(c.cgroup_id) {
+                continue;
+            }
+            dl = dl.saturating_add(c.ingress_bytes);
+            ul = ul.saturating_add(c.bytes);
+        }
+        self.peak_dl = self.peak_dl.max(dl);
+        self.peak_ul = self.peak_ul.max(ul);
+    }
+
+    /// The session's peak per-frame deltas, per direction
+    /// (NIGHT-engrave-6): raw interval bytes — the footer converts
+    /// to a rate with the poll interval at render time, the same
+    /// `rate_bps` discipline the table's rate columns use.
+    #[must_use]
+    pub(crate) fn peaks(&self) -> (u64, u64) {
+        (self.peak_dl, self.peak_ul)
     }
 
     /// The ranked leaderboard: accumulated totals, heaviest first,
@@ -145,223 +215,11 @@ impl SessionState {
     }
 }
 
+// NIGHT-engrave-6: the session pins live under the single test/
+// tree (cosmostrix Pattern C), #[path]-wired exactly like the
+// footer, eagle, and loading pins — the speed-pair additions pushed
+// the inline module past the owner's LOC cap, and the split keeps
+// every render-module pin in the one tree.
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::ebpf::loader::CgroupDelta;
-
-    fn frame(cg: u32, dl: u64, ul: u64) -> CounterSummary {
-        CounterSummary {
-            total_packets: 1,
-            total_bytes: ul,
-            total_ingress_packets: 1,
-            total_ingress_bytes: dl,
-            cgroups: vec![CgroupDelta {
-                cgroup_id: cg,
-                packets: 1,
-                bytes: ul,
-                total_bytes: ul,
-                ingress_packets: 1,
-                ingress_bytes: dl,
-                ingress_total_bytes: dl,
-            }],
-        }
-    }
-
-    /// The owner's exact scenario: A accumulates 10 GB and stops; B
-    /// keeps eating; when B's session total passes A's, B takes rank 1
-    /// and A slides to rank 2 — ranking by accumulated total, never
-    /// by the last frame's delta.
-    #[test]
-    fn leaderboard_ranks_by_accumulated_total() {
-        let mut session = SessionState::new();
-        session.absorb(&frame(1, 10_000_000_000, 0)); // A eats 10 GB
-
-        // A goes quiet, B starts: B is the live eater but A holds
-        // rank 1 on the accumulated total.
-        session.absorb(&frame(2, 5_000_000_000, 0));
-        let board = session.ranked();
-        assert_eq!(board[0].0, 1, "A holds rank 1 while quiet");
-        assert_eq!(board[1].0, 2);
-
-        // B overtakes: 5 GB + 6 GB > A's 10 GB.
-        session.absorb(&frame(2, 6_000_000_000, 0));
-        let board = session.ranked();
-        assert_eq!(board[0].0, 2, "B takes rank 1 on 11 GB");
-        assert_eq!(board[1].0, 1, "A slides to rank 2");
-        assert_eq!(board[0].1.total(), 11_000_000_000);
-    }
-
-    /// A quiet frame folds nothing: the board holds every row it
-    /// ever ranked (no more collapsing to "waiting for traffic…").
-    #[test]
-    fn quiet_frame_keeps_the_board() {
-        let mut session = SessionState::new();
-        session.absorb(&frame(7, 100, 200));
-        session.absorb(&CounterSummary::default());
-        assert!(!session.is_empty());
-        // The frame() helper carries 1 packet per direction: the
-        // session packet counter holds BOTH through the quiet frame
-        // (NIGHT-engrave-4 — same persistence as the byte legs).
-        assert_eq!(
-            session.ranked(),
-            vec![(
-                7,
-                SessionAcc {
-                    dl: 100,
-                    ul: 200,
-                    pkt: 2,
-                }
-            )]
-        );
-    }
-
-    /// The session packet accumulator (NIGHT-engrave-4): every
-    /// frame's per-direction packets fold into ONE session figure —
-    /// the census line's horizon matches the byte legs' exactly,
-    /// where the pre-engrave-3 census mixed horizons.
-    #[test]
-    fn session_packets_accumulate_both_directions() {
-        let mut session = SessionState::new();
-        session.absorb(&frame(7, 100, 200));
-        session.absorb(&frame(7, 50, 25));
-        let board = session.ranked();
-        // (1 ul + 1 dl) + (1 + 1) = 4 — the counter never resets on
-        // a quiet second and never mixes in a per-frame figure.
-        assert_eq!(board[0].1.pkt, 4);
-        // Saturating, like every accumulation surface: a saturated
-        // packet counter stays saturated (no wrap, no panic).
-        let saturated = CounterSummary {
-            total_packets: u64::MAX,
-            total_bytes: 0,
-            total_ingress_packets: u64::MAX,
-            total_ingress_bytes: 0,
-            cgroups: vec![CgroupDelta {
-                cgroup_id: 7,
-                packets: u64::MAX,
-                bytes: 0,
-                total_bytes: 0,
-                ingress_packets: u64::MAX,
-                ingress_bytes: 0,
-                ingress_total_bytes: 0,
-            }],
-        };
-        session.absorb(&saturated);
-        session.absorb(&frame(7, 0, 0));
-        assert_eq!(session.ranked()[0].1.pkt, u64::MAX);
-    }
-
-    /// Census: empty session is empty; every talked cgroup counts.
-    /// (The TOTAL row sums its own filtered board — a grand-total
-    /// helper has no surface, so the pin stays on the census.)
-    #[test]
-    fn census_counts_every_talked_cgroup() {
-        let mut session = SessionState::new();
-        assert!(session.is_empty());
-        assert_eq!(session.len(), 0);
-        session.absorb(&frame(7, 100, 200));
-        session.absorb(&frame(8, 1, 2));
-        assert!(!session.is_empty());
-        assert_eq!(session.len(), 2);
-        let board = session.ranked();
-        assert_eq!(board.iter().map(|(_, a)| a.dl).sum::<u64>(), 101);
-        assert_eq!(board.iter().map(|(_, a)| a.ul).sum::<u64>(), 202);
-    }
-
-    /// Ties break by cgroup ID: the board must not reshuffle between
-    /// frames on equal accumulated totals.
-    #[test]
-    fn ties_break_by_cgroup_id() {
-        let mut session = SessionState::new();
-        session.absorb(&frame(30, 500, 500));
-        session.absorb(&frame(10, 500, 500));
-        session.absorb(&frame(20, 500, 500));
-        let board = session.ranked();
-        let ids: Vec<u32> = board.iter().map(|(id, _)| *id).collect();
-        assert_eq!(ids, vec![10, 20, 30]);
-    }
-
-    // ── NIGHT-boost-16 / safety-security-1: accumulate-explosion pins ──
-
-    /// Saturation, not panic or wrap: both legs at u64::MAX must
-    /// total to u64::MAX. A debug build used to panic here (`dl +
-    /// ul` overflows), a release build wrapped to a small number —
-    /// the leaderboard would have crowned a wrap-around winner.
-    #[test]
-    fn saturated_totals_read_as_maximum() {
-        let acc = SessionAcc {
-            dl: u64::MAX,
-            ul: u64::MAX,
-            pkt: u64::MAX,
-        };
-        assert_eq!(acc.total(), u64::MAX);
-        // One leg saturated, one leg free: the total still reads as
-        // the ceiling (18.4 EB this session is saturation).
-        assert_eq!(
-            SessionAcc {
-                dl: u64::MAX,
-                ul: 1,
-                pkt: 0,
-            }
-            .total(),
-            u64::MAX
-        );
-    }
-
-    /// The fold saturates and STAYS saturated: an accumulator at
-    /// u64::MAX absorbs further traffic without wrap — the honest
-    /// shape of a counter that has simply run out of bits.
-    #[test]
-    fn absorb_saturates_and_stays_saturated() {
-        let mut session = SessionState::new();
-        session.absorb(&frame(1, u64::MAX, 0));
-        session.absorb(&frame(1, 10_000_000, 0));
-        let board = session.ranked();
-        assert_eq!(
-            board[0].1.dl,
-            u64::MAX,
-            "saturated download stays saturated"
-        );
-        assert_eq!(board[0].1.ul, 0);
-        // The ranking key survives the saturation (no wrap panic).
-        assert_eq!(board[0].1.total(), u64::MAX);
-    }
-
-    /// Growth bound (MAX_TRACKED_CGROUPS): the board mirrors the
-    /// kernel's own 1024-entry counter-map ceiling — a 1025th
-    /// distinct cgroup cannot rank, while every tracked cgroup
-    /// keeps updating inside the bound.
-    #[test]
-    fn leaderboard_growth_is_bounded_at_the_map_ceiling() {
-        let mut session = SessionState::new();
-        for id in 1..=u32::try_from(MAX_TRACKED_CGROUPS).expect("cap fits u32") {
-            session.absorb(&frame(id, 1, 1));
-        }
-        assert_eq!(session.len(), MAX_TRACKED_CGROUPS);
-        // A fresh cgroup past the bound: not admitted.
-        session.absorb(&frame(u32::MAX, 100, 100));
-        assert_eq!(session.len(), MAX_TRACKED_CGROUPS, "no 1025th entry");
-        assert!(session.ranked().iter().all(|(id, _)| *id != u32::MAX));
-        // A tracked cgroup inside the bound: still updates.
-        session.absorb(&frame(1, 1000, 0));
-        let one = session.ranked().into_iter().find(|(id, _)| *id == 1);
-        assert_eq!(
-            one.map(|(_, a)| a.dl),
-            Some(1001),
-            "existing entries keep folding inside the bound"
-        );
-    }
-
-    /// The ranked walk over saturated values is panic-free in debug:
-    /// sort_by over u64::MAX totals with a tie broken by ID.
-    #[test]
-    fn ranked_walks_saturated_values_without_panic() {
-        let mut session = SessionState::new();
-        session.absorb(&frame(9, u64::MAX, u64::MAX));
-        session.absorb(&frame(2, u64::MAX, u64::MAX));
-        let board = session.ranked();
-        // Saturated tie: ID order decides, no arithmetic panic.
-        assert_eq!(board[0].0, 2);
-        assert_eq!(board[1].0, 9);
-    }
-}
+#[path = "../../../test/ebpf/render/session_tests.rs"]
+mod session_tests;

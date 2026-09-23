@@ -120,11 +120,16 @@ numerics, and no per-cell noise (values are never packed as
   (`udp 8.8.8.8:53`), busy sockets flagged `[busy]`; remaining
   holders collapse into `+N more socket-holding processes`. Detail
   lines count against the height budget so frames never scroll.
-- Footer block (NIGHT-engrave-4, the owner's dashboard rebuild): the
+- Footer block (NIGHT-engrave-4, the owner's dashboard rebuild; the
+  NIGHT-engrave-6 speed pair seated below the story row): the
   bottom block reads in the owner's exact line order — `top consumer
   is curl` (the name brand purple, the engrave-1 contract: the one
   living thing in the grey block), `478 packets + 1 cgroups` (grey,
   session horizon), `total usage internet in 1h:20s = 10gb` (grey),
+  `total max dl | ul = 20.2 GB/s | 1.0 GB/s` and `total avg dl | ul =
+  10.2 GB/s | 1.1 MB/s` (grey — the session speed pair: the peak
+  and the average per direction, same watched scope and same clock
+  as the total row above them, honest `0 B/s` zeroes at rest),
   `limit target with 'sudo zelynic ss curl 100kb'` (grey prefix,
   the quoted command in suggestion crystal white — the color
   layer's actionable hint), the status line, and the build stamp
