@@ -11,22 +11,23 @@
 //!
 //! ```text
 //! ──────────────────────────────────────────  <- purple grid
-//!       TOTAL          dl     ul     total    <- grey
+//!   total usage internet in 1h:3m 2kb/s 2kb/s 100mb   <- grey (NIGHT-engrave-1)
 //! ──────────────────────────────────────────  <- purple grid
 //!
 //! 12 packets + 1 cgroups                       <- grey
 //! ────────────────────────                     <- grey grip
-//! Top consumer: example                       <- grey + green
+//! Top consumer: example                       <- grey + purple
 //! ──────────────────                           <- grey grip
 //! Limit it: sudo zelynic strict-single example 100kb  <- grey
 //! ```
 //!
-//! NIGHT-boost-17 (improve-27): one more line below the whole block
-//! — the monitor's session uptime (`uptime 1m:10s`, grey, formatted
-//! by the render root's `format_uptime`). It rides EVERY tier: long
-//! endurance is survival information, not decoration, so the
-//! compression ladder budgets for it everywhere (each tier's line
-//! count grew by one).
+//! NIGHT-boost-17 (improve-27) added a session uptime line below
+//! the whole block; NIGHT-engrave-1 moved the uptime INTO the census
+//! row (`total usage internet in 1h:3m ...`) — the horizon the
+//! accumulated totals span, annotated next to the numbers it
+//! describes instead of riding its own row. The block keeps its
+//! compression ladder: every tier still carries the census row (with
+//! its uptime), the census text, and the copyright.
 //!
 //! Three contracts live here:
 //! - **The tiers**: the compression ladder short terminals walk down
@@ -42,35 +43,35 @@
 
 use std::time::Duration;
 
-use super::{format_rate_or_dash, format_uptime, rate_bps, EagleColumns, FrameGeometry};
+use super::{format_rate_or_dash, format_uptime, rate_bps, FrameGeometry};
 use crate::ebpf::limiter::format_bytes;
-use crate::output::{brand, grey, ok, signature_footer};
+use crate::output::{brand, grey, signature_footer};
 
 /// Top chrome above the table: the title bar, the NIGHT-boost-14
 /// breathing gap below it, the column header, and the purple grid
 /// line under the header.
 pub(super) const TOP_CHROME: usize = 4;
 
-/// Compression tiers for the pinned footer (NIGHT-boost-14; the
-/// NIGHT-boost-17 uptime line rides every tier, so each count grew
-/// by one). The owner's grip layout in full is 12 lines; short
-/// terminals drop the breathing blanks first, then the grips, then
-/// the discovery hints and the second TOTAL grid — the census, the
-/// copyright, and the uptime are the last three survivors, in every
-/// tier.
+/// Compression tiers for the pinned footer (NIGHT-boost-14;
+/// NIGHT-engrave-1 merged the boost-17 uptime line into the census
+/// row, so each count dropped by one). The owner's grip layout in
+/// full is 11 lines; short terminals drop the breathing blanks
+/// first, then the grips, then the discovery hints and the second
+/// TOTAL grid — the census row, the census text, and the copyright
+/// are the last three survivors, in every tier.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum FooterTier {
-    /// sep, TOTAL, sep, blank, packets, grip, top, grip, limit,
-    /// blank, copyright, uptime — the owner's exact spec plus the
-    /// boost-17 uptime line.
+    /// sep, total row, sep, blank, packets, grip, top, grip, limit,
+    /// blank, copyright — the owner's exact spec with the uptime
+    /// folded into the total row (NIGHT-engrave-1).
     Full,
-    /// Blanks and grips gone: sep, TOTAL, sep, packets, top, limit,
-    /// copyright, uptime.
+    /// Blanks and grips gone: sep, total row, sep, packets, top,
+    /// limit, copyright.
     Compact,
-    /// Discovery hints gone too: sep, TOTAL, sep, packets,
-    /// copyright, uptime.
+    /// Discovery hints gone too: sep, total row, sep, packets,
+    /// copyright.
     Minimal,
-    /// The survival floor: sep, TOTAL, packets, copyright, uptime.
+    /// The survival floor: sep, total row, packets, copyright.
     Tiny,
 }
 
@@ -80,10 +81,10 @@ impl FooterTier {
     /// which only adds middle padding; the pin stays exact).
     fn lines(self) -> usize {
         match self {
-            FooterTier::Full => 12,
-            FooterTier::Compact => 8,
-            FooterTier::Minimal => 6,
-            FooterTier::Tiny => 5,
+            FooterTier::Full => 11,
+            FooterTier::Compact => 7,
+            FooterTier::Minimal => 5,
+            FooterTier::Tiny => 4,
         }
     }
 }
@@ -146,53 +147,41 @@ pub(super) struct FooterCensus {
     pub top_proc_name: Option<String>,
     /// Whether the frame is unfiltered (hints render only there).
     pub unfiltered: bool,
-    /// The monitor's session uptime (NIGHT-boost-17) — rendered as
-    /// the line BELOW the whole footer block, in every tier.
+    /// The monitor's session uptime (NIGHT-boost-17; folded into the
+    /// census row by NIGHT-engrave-1): rendered inside the
+    /// `total usage internet in ...` line between the purple grids,
+    /// in every tier.
     pub uptime: Duration,
 }
 
-/// Assemble the grip footer (NIGHT-boost-14): TOTAL framed by purple
-/// grid lines, the census under its own-width grip, the top consumer
-/// under its own, the limit suggestion, and the purple copyright —
-/// grey text, purple grids, green consumer name. The MEASURED length
-/// of the returned block is what the caller pins to the bottom.
+/// Assemble the grip footer (NIGHT-boost-14): the total row framed
+/// by purple grid lines, the census under its own-width grip, the
+/// top consumer under its own, the limit suggestion, and the purple
+/// copyright — grey text, purple grids, purple consumer name
+/// (NIGHT-engrave-1). The MEASURED length of the returned block is
+/// what the caller pins to the bottom.
 #[must_use]
 pub(super) fn build_grip_footer(
     census: &FooterCensus,
-    cols: &EagleColumns,
     geo: FrameGeometry,
     interval: Duration,
 ) -> Vec<String> {
     let tier = census.tier;
     let mut footer: Vec<String> = Vec::with_capacity(tier.lines());
     footer.push(grid_line(geo.width));
-    // Column-aligned with the data rows, grey (NIGHT-boost-14 footer
-    // tier), blank rank cell.
-    if cols.show_total {
-        footer.push(grey(&format!(
-            "  {:>2}  {:<w0$} {:>w1$} {:>w2$} {:>w3$}",
-            "",
-            "TOTAL",
-            format_rate_or_dash(rate_bps(census.dl_sum, interval)),
-            format_rate_or_dash(rate_bps(census.ul_sum, interval)),
-            format_bytes(census.grand),
-            w0 = cols.label_w,
-            w1 = cols.dl_w,
-            w2 = cols.ul_w,
-            w3 = cols.dl_w
-        )));
-    } else {
-        footer.push(grey(&format!(
-            "  {:>2}  {:<w0$} {:>w1$} {:>w2$}",
-            "",
-            "TOTAL",
-            format_rate_or_dash(rate_bps(census.dl_sum, interval)),
-            format_rate_or_dash(rate_bps(census.ul_sum, interval)),
-            w0 = cols.label_w,
-            w1 = cols.dl_w,
-            w2 = cols.ul_w
-        )));
-    }
+    // The owner's NIGHT-engrave-1 census row: the session's whole
+    // story in one flat grey line between the purple grids — the
+    // usage horizon (the boost-17 uptime, now annotated next to the
+    // numbers it spans), this frame's download/upload rates, and
+    // the session grand total. The column-aligned TOTAL label it
+    // replaces could never have carried the phrase.
+    footer.push(grey(&format!(
+        "  total usage internet in {} {} {} {}",
+        format_uptime(census.uptime),
+        format_rate_or_dash(rate_bps(census.dl_sum, interval)),
+        format_rate_or_dash(rate_bps(census.ul_sum, interval)),
+        format_bytes(census.grand)
+    )));
     if tier != FooterTier::Tiny {
         footer.push(grid_line(geo.width));
     }
@@ -211,13 +200,14 @@ pub(super) fn build_grip_footer(
     }
     // The discovery hint (unfiltered frames only): the rank-1
     // cgroup's busiest process plus the exact strict-single command
-    // to cap it. The consumer's NAME renders green (the owner's
-    // spec) inside the grey footer — the one living thing in the
-    // block, and the hint to act on.
+    // to cap it. The consumer's NAME renders brand purple
+    // (NIGHT-engrave-1, the owner's call — the suggestion is brand,
+    // the one living thing in the block, and the hint to act on)
+    // inside the grey footer.
     if matches!(tier, FooterTier::Full | FooterTier::Compact) {
         if let Some(proc_name) = census.top_proc_name.clone().filter(|_| census.unfiltered) {
             let top_text = format!("Top consumer: {proc_name}");
-            footer.push(format!("  {} {}", grey("Top consumer:"), ok(&proc_name)));
+            footer.push(format!("  {} {}", grey("Top consumer:"), brand(&proc_name)));
             if tier == FooterTier::Full {
                 footer.push(grip(&top_text));
             }
@@ -233,14 +223,6 @@ pub(super) fn build_grip_footer(
         footer.push(String::new());
     }
     footer.push(format!("  {}", signature_footer()));
-    // The uptime line (NIGHT-boost-17, improve-27): BELOW the footer,
-    // the frame's final row, grey like the rest of the subordinate
-    // block. Long-endurance reading: how long this leaderboard's
-    // horizon spans. Rides every tier — see the module doc.
-    footer.push(format!(
-        "  {}",
-        grey(&format!("uptime {}", format_uptime(census.uptime)))
-    ));
     footer
 }
 

@@ -246,23 +246,24 @@ lines naming the processes and remote endpoints inside.
 The frame is a PINNED composition (NIGHT-boost-14, the owner's
 masterclass engraving): the table floats under the header and the
 grip footer stays near the bottom of the terminal whatever the
-table does — the TOTAL row framed by two purple grid lines, the
-packets/cgroups census under its own-width grip, the "Top consumer"
-autodetect (the busiest process inside the rank-1 cgroup, its name
-green) under its own grip, the exact `strict-single` command to cap
-it, and the signature copyright with the session uptime below it
-(NIGHT-boost-17: `uptime 1m:10s`, auto-scaled to the two most
-significant units — `45s`, `12m:34s`, `3h:7m`, `2d:5h` — grey like
-the rest of the subordinate block, riding EVERY compression tier:
-long endurance is survival information). All footer text renders calm
-grey except the purple copyright — subordinate information reads
-dimmer than the data it annotates. The tiers are a STATIC traffic
-light (the takeover blink is gone — eye strain): rank 1 champion
-red, rank 2 warning yellow, rank 3 and below status green; the
-subprocess usage lines render grey. A breathing blank line sits
-under the title bar, and the grid under the column header is brand
-purple, same source as the header text above it. The census wording
-is `N packets + M cgroups` (a `+` join, never a dot).
+table does — the flat total row (`total usage internet in 1h:3m
+2kb/s 2kb/s 100mb`, NIGHT-engrave-1: the session uptime folded into
+the row, framed by two purple grid lines), the packets/cgroups
+census under its own-width grip, the "Top consumer" autodetect (the
+busiest process inside the rank-1 cgroup, its name brand purple)
+under its own grip, the exact `strict-single` command to cap it, and
+the signature copyright as the frame's last row. All footer text
+renders calm grey except the purple copyright and the purple
+consumer name — subordinate information reads dimmer than the data
+it annotates. The tiers are a STATIC traffic light (the takeover
+blink is gone — eye strain): rank 1 champion red, rank 2 warning
+yellow, rank 3 and below status green; the subprocess usage lines
+render grey. A breathing blank line sits under the title bar, and
+the grid under the column header is brand purple, same source as
+the header text above it. The column headers are lowercase
+(NIGHT-engrave-1): `top process`, `download`, `upload`, `total`.
+The census wording is `N packets + M cgroups` (a `+` join, never a
+dot).
 
 Theme cycling (NIGHT-boost-18, improve-27): `t` cycles the frame's
 palette forward, `T` cycles it back — six themes in total
@@ -270,7 +271,7 @@ palette forward, `T` cycles it back — six themes in total
 `spaceflight`, `carbon`, `atomic`), the cosmostrix cycle contract
 with modulo wraparound at both edges. A theme change repaints
 within the same 50ms wake and the title bar names the active theme
-(`… 1s refresh — atomic`) so the frame always says what it wears;
+(`… 1s realtime — atomic`) so the frame always says what it wears;
 the theme lives ONLY inside the monitor — every other zelynic
 surface (help, errors, status) keeps the default purple branding
 (see docs/BRANDING.md section 2.2 for the palette table).

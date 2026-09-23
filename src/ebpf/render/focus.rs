@@ -55,12 +55,14 @@ pub fn render_eagle_focus(
 ) {
     // NIGHT-boost-18: the focus view carries the same theme title
     // and cycle hint as the ranked frame — one monitor, one palette.
+    // NIGHT-engrave-1: the hint leads with the theme key (t first,
+    // q last — the owner's exact order).
     let themed_core = format!(
         "zelynic eagle-eyes — {}{}",
         identity.label(cgroup_id),
         crate::output::theme::active().title_suffix()
     );
-    lines.push(title_bar(&themed_core, "q quit · t theme", geo.width));
+    lines.push(title_bar(&themed_core, "t theme - q quit", geo.width));
 
     // The breathing gap (NIGHT-boost-14): same air under the title
     // as the ranked frame — one composition, two views.

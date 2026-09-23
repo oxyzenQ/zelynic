@@ -10,9 +10,10 @@
 //! hard, accumulates 10 GB, stops — A keeps the crown until B's
 //! accumulated total passes it. Rows persist across quiet frames (the
 //! board renders from the session accumulator; a one-second hush no
-//! longer wipes the table), the per-frame DOWNLOAD/UPLOAD rates
-//! refresh every interval, and the TOTAL column carries the
-//! accumulated figure — the v10 function restored.
+//! longer wipes the table), the per-frame download/upload rates
+//! refresh every interval, and the total column carries the
+//! accumulated figure — the v10 function restored (engrave-1
+//! lowercased the titles: top process, download, upload, total).
 //!
 //! NIGHT-boost-14 (the owner's masterclass engraving) made the frame a
 //! PINNED composition; the footer half of that contract — the grip
@@ -171,9 +172,9 @@ pub(super) fn render_eagle_eyes_at(
     }
 
     let interval_str = if interval.as_secs() >= 1 {
-        format!("{}s refresh", interval.as_secs())
+        format!("{}s realtime", interval.as_secs())
     } else {
-        format!("{:.1}s refresh", interval.as_secs_f64())
+        format!("{:.1}s realtime", interval.as_secs_f64())
     };
     let title_core = if tokens.is_empty() {
         format!("zelynic eagle-eyes — {interval_str}")
@@ -182,10 +183,11 @@ pub(super) fn render_eagle_eyes_at(
         let plural = if n == 1 { "" } else { "s" };
         format!("zelynic eagle-eyes — {n} target{plural} — {interval_str}")
     };
-    // NIGHT-boost-18: a cycled title names the theme; the hint teaches.
+    // A cycled title names the theme; the hint teaches (engrave-1:
+    // t first, q last — the owner's exact order).
     let suffix = crate::output::theme::active().title_suffix();
     let themed_core = format!("{title_core}{suffix}");
-    lines.push(title_bar(&themed_core, "q quit · t theme", geo.width));
+    lines.push(title_bar(&themed_core, "t theme - q quit", geo.width));
 
     // The breathing gap (NIGHT-boost-14): the column header used to
     // sit one row under the title bar — too near the brand, the
@@ -304,7 +306,6 @@ pub(super) fn render_eagle_eyes_at(
             unfiltered: tokens.is_empty(),
             uptime,
         },
-        &cols,
         geo,
         interval,
     );
@@ -314,12 +315,11 @@ pub(super) fn render_eagle_eyes_at(
     let footer_start = geo.height.saturating_sub(footer.len());
 
     // Header row (regular purple — brand layer, NIGHT-hunt-5). The
-    // rank cell is BLANK (NIGHT-boost-5: the owner retired the "#"
-    // header — the digits below speak for themselves) and PROCESS is
-    // padded to the label width BEFORE coloring, so the header cells
-    // sit exactly over the columns they name. The grid line below
-    // the header renders purple too (NIGHT-boost-14: "same as
-    // above") — the border family shares the header's color.
+    // rank cell is BLANK (NIGHT-boost-5: "#" retired — the digits
+    // speak for themselves); the process header reads "top process"
+    // (NIGHT-engrave-1, lowercase), padded to the label width BEFORE
+    // coloring so the cells sit over their columns. The grid below
+    // renders purple too (NIGHT-boost-14) — one border family.
     let table_room = footer_start.saturating_sub(lines.len());
     let show_table = !session.is_empty() && (tokens.is_empty() || !board.is_empty());
     // The table needs room for its own chrome (header + grid) plus at
@@ -329,10 +329,10 @@ pub(super) fn render_eagle_eyes_at(
             lines.push(brand(&format!(
                 "  {:>2}  {:<w0$} {:>w1$} {:>w2$} {:>w3$}",
                 "",
-                truncate_label("PROCESS", cols.label_w),
-                "DOWNLOAD",
-                "UPLOAD",
-                "TOTAL",
+                truncate_label("top process", cols.label_w),
+                "download",
+                "upload",
+                "total",
                 w0 = cols.label_w,
                 w1 = cols.dl_w,
                 w2 = cols.ul_w,
@@ -342,9 +342,9 @@ pub(super) fn render_eagle_eyes_at(
             lines.push(brand(&format!(
                 "  {:>2}  {:<w0$} {:>w1$} {:>w2$}",
                 "",
-                truncate_label("PROCESS", cols.label_w),
-                "DOWNLOAD",
-                "UPLOAD",
+                truncate_label("top process", cols.label_w),
+                "download",
+                "upload",
                 w0 = cols.label_w,
                 w1 = cols.dl_w,
                 w2 = cols.ul_w

@@ -58,29 +58,29 @@ fn frame(cg: u32, dl: u64, ul: u64) -> CounterSummary {
     }
 }
 
-/// Footer compression ladder (NIGHT-boost-14): the classic 80x24
-/// carries the full 11-line grip block; a 14-row window drops to
-/// Compact; 12 rows to Minimal; the survival floor holds from 10.
-/// The NIGHT-boost-17 uptime line rides every tier, so each tier's
-/// budget grew by one row (Full is 12 lines now, was 11).
+/// Footer compression ladder (NIGHT-boost-14; re-counted by
+/// NIGHT-engrave-1 when the boost-17 uptime line merged into the
+/// census row): the classic 80x24 carries the full 11-line grip
+/// block; a 15-row window drops to Compact; 10 rows to Minimal; the
+/// survival floor holds from 9.
 #[test]
 fn footer_tier_ladder() {
     assert_eq!(plan_footer_tier(24, 0), FooterTier::Full);
     assert_eq!(
-        plan_footer_tier(17, 0),
+        plan_footer_tier(16, 0),
         FooterTier::Full,
-        "17 = 4 chrome + 12 footer + 1 row"
+        "16 = 4 chrome + 11 footer + 1 row"
     );
-    assert_eq!(plan_footer_tier(16, 0), FooterTier::Compact);
-    assert_eq!(plan_footer_tier(13, 0), FooterTier::Compact);
-    assert_eq!(plan_footer_tier(12, 0), FooterTier::Minimal);
+    assert_eq!(plan_footer_tier(15, 0), FooterTier::Compact);
+    assert_eq!(plan_footer_tier(12, 0), FooterTier::Compact);
     assert_eq!(plan_footer_tier(11, 0), FooterTier::Minimal);
-    assert_eq!(plan_footer_tier(10, 0), FooterTier::Tiny);
+    assert_eq!(plan_footer_tier(10, 0), FooterTier::Minimal);
+    assert_eq!(plan_footer_tier(9, 0), FooterTier::Tiny);
     assert_eq!(plan_footer_tier(5, 0), FooterTier::Tiny, "survival floor");
     // The rare identities-unresolved note rides the footer and is
-    // accounted: it costs one line, so the Full boundary moves to 18.
-    assert_eq!(plan_footer_tier(18, 1), FooterTier::Full);
-    assert_eq!(plan_footer_tier(17, 1), FooterTier::Compact);
+    // accounted: it costs one line, so the Full boundary moves to 17.
+    assert_eq!(plan_footer_tier(17, 1), FooterTier::Full);
+    assert_eq!(plan_footer_tier(16, 1), FooterTier::Compact);
 }
 
 /// NIGHT-improve-2 line-building pin (NIGHT-boost-14 composition):
@@ -104,28 +104,33 @@ fn eagle_frame_builds_lines() {
     );
     assert_eq!(lines.len(), 24, "the frame is pinned to the height");
     assert!(
-        lines[0].starts_with("  ─── zelynic eagle-eyes — 1s refresh"),
-        "title carries the frame gutter: {}",
+        lines[0].starts_with("  ─── zelynic eagle-eyes — 1s realtime"),
+        "title carries the frame gutter + the realtime cadence: {}",
         lines[0]
     );
     assert_eq!(lines[1], "", "breathing gap under the title (boost-14)");
     assert!(lines.contains(&"  waiting for traffic…".to_string()));
-    // The pinned footer: TOTAL row between two grid lines, the
-    // census, the copyright second-to-last, and the uptime line
-    // (NIGHT-boost-17) on the LAST row.
+    // The pinned footer: the flat total row between two grid lines,
+    // the census, and the copyright as the frame's LAST row (the
+    // boost-17 uptime folded into the total row, NIGHT-engrave-1).
     let total_idx = lines
         .iter()
-        .position(|l| l.split_whitespace().next() == Some("TOTAL"))
-        .expect("TOTAL row even when idle");
+        .position(|l| l.split_whitespace().next() == Some("total"))
+        .expect("total row even when idle");
     assert_eq!(
         lines[total_idx - 1],
         format!("  {}", "─".repeat(78)),
-        "grid above TOTAL"
+        "grid above the total row"
     );
     assert_eq!(
         lines[total_idx + 1],
         format!("  {}", "─".repeat(78)),
-        "grid below TOTAL"
+        "grid below the total row"
+    );
+    assert!(
+        lines[total_idx].contains("total usage internet in 1m:10s"),
+        "the total row carries the session uptime (NIGHT-engrave-1): {}",
+        lines[total_idx]
     );
     assert!(
         lines.iter().any(|l| l.contains("0 packets + 0 cgroups")),
@@ -133,34 +138,20 @@ fn eagle_frame_builds_lines() {
         lines
     );
     assert!(
-        lines[22].starts_with("  v") && lines[22].contains(" ("),
-        "copyright carries the version + commit-hash build stamp: {}",
-        lines[22]
-    );
-    assert!(
-        lines[22].ends_with(") by oxyzenQ"),
-        "copyright names the owner, nothing else (NIGHT-boost-19): {}",
-        lines[22]
-    );
-    assert!(
-        !lines[22].contains("zelynic") && !lines[22].contains("rezky_nightky"),
-        "the retired duplicate names are gone: {}",
-        lines[22]
-    );
-    assert_eq!(
-        lines[23], "  uptime 1m:10s",
-        "uptime line below the footer, the frame's last row (boost-17): {}",
+        lines[23].starts_with("  v") && lines[23].ends_with(") by oxyzenQ"),
+        "copyright is the frame's last row: {}",
         lines[23]
     );
 }
 
 /// Footer honesty + the grip layout (NIGHT-boost-14, the owner's
-/// exact spec): the TOTAL row sums EVERY candidate in the same width
-/// slots the data rows use, framed by two full-width grid lines;
-/// under it the census with its own-width grip, the top consumer
-/// with its grip, the limit suggestion, the copyright, and the
-/// uptime line (NIGHT-boost-17) below it all — pinned to the bottom
-/// of the terminal whatever the table does.
+/// exact spec; the total row re-shaped by NIGHT-engrave-1): the flat
+/// `total usage internet in <uptime>` row sums EVERY candidate —
+/// this frame's download/upload rates plus the session grand —
+/// framed by two full-width grid lines; under it the census with its
+/// own-width grip, the top consumer with its grip, the limit
+/// suggestion, and the copyright pinned to the bottom of the
+/// terminal whatever the table does.
 #[test]
 fn footer_grip_layout_pins_to_the_bottom() {
     let mut lines = Vec::new();
@@ -193,24 +184,29 @@ fn footer_grip_layout_pins_to_the_bottom() {
     let joined = lines.join("\n");
     let total_row = lines
         .iter()
-        .position(|l| l.split_whitespace().next() == Some("TOTAL"))
-        .unwrap_or_else(|| panic!("no TOTAL row in: {joined}"));
+        .position(|l| l.split_whitespace().next() == Some("total"))
+        .unwrap_or_else(|| panic!("no total row in: {joined}"));
+    assert!(
+        lines[total_row].contains("total usage internet in 1m:10s"),
+        "the uptime rides inside the total row (NIGHT-engrave-1): {}",
+        lines[total_row]
+    );
     assert!(
         lines[total_row].contains("1.4 MB/s"),
-        "TOTAL dl rate: {}",
+        "total row dl rate: {}",
         lines[total_row]
     );
     assert!(
         lines[total_row].contains("240.0 KB/s"),
-        "TOTAL ul rate: {}",
+        "total row ul rate: {}",
         lines[total_row]
     );
     assert!(
         lines[total_row].contains("1.6 MB"),
-        "TOTAL session sum: {}",
+        "total row session sum: {}",
         lines[total_row]
     );
-    // The grip layout: grid above and below the TOTAL row, census
+    // The grip layout: grid above and below the total row, census
     // "+"-joined with its own-width grip, copyright on the last row.
     assert_eq!(lines[total_row - 1], format!("  {}", "─".repeat(78)));
     assert_eq!(lines[total_row + 1], format!("  {}", "─".repeat(78)));
@@ -228,18 +224,13 @@ fn footer_grip_layout_pins_to_the_bottom() {
         "the census grip is exactly the census text's own width"
     );
     assert!(
-        lines[22].starts_with("  v") && lines[22].ends_with(") by oxyzenQ"),
-        "copyright is the simplified build stamp (NIGHT-boost-19): {}",
-        lines[22]
-    );
-    assert_eq!(
-        lines[23], "  uptime 1m:10s",
-        "uptime rides below the footer block (boost-17): {}",
+        lines[23].starts_with("  v") && lines[23].ends_with(") by oxyzenQ"),
+        "copyright is the frame's last row (NIGHT-engrave-1): {}",
         lines[23]
     );
     assert_eq!(lines.len(), 24, "frame pinned to the terminal height");
     // The footer does not follow the table: blank padding sits
-    // between the last table row and the grid above TOTAL.
+    // between the last table row and the grid above the total row.
     assert!(
         lines[total_row - 2].is_empty(),
         "blank padding above the footer grid: {:?}",
@@ -247,10 +238,11 @@ fn footer_grip_layout_pins_to_the_bottom() {
     );
 }
 
-/// The top-consumer hint (NIGHT-boost-14): the rank-1 cgroup's
-/// busiest socket holder names itself with a green name inside the
-/// grey footer, and the limit suggestion follows — the discovery
-/// pair renders only on unfiltered frames with live detail.
+/// The top-consumer hint (NIGHT-boost-14; the name re-colored by
+/// NIGHT-engrave-1): the rank-1 cgroup's busiest socket holder names
+/// itself with a brand-purple name inside the grey footer, and the
+/// limit suggestion follows — the discovery pair renders only on
+/// unfiltered frames with live detail.
 #[test]
 fn footer_top_consumer_and_limit_hint() {
     use crate::ebpf::connections::{
@@ -441,7 +433,7 @@ fn saturated_session_renders_without_panic() {
         "the saturated session total renders the u64 ceiling honestly: {joined}"
     );
     assert!(
-        lines.iter().any(|l| l.contains("TOTAL")),
-        "the TOTAL row survives saturation"
+        lines.iter().any(|l| l.contains("total usage internet in")),
+        "the total row survives saturation"
     );
 }
