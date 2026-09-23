@@ -25,6 +25,14 @@
 //! observer's prev-stats are only rewritten on success), so a
 //! transient map read never drops or double-counts bytes.
 //!
+//! NIGHT-boost-16 (safety-security-1, the accumulate-explosion
+//! audit): every arithmetic surface in the session path is now
+//! SATURATING. A debug build used to panic on `dl + ul` the
+//! moment both legs approached u64::MAX (and a release build
+//! wrapped to a small number — the leaderboard would crown a
+//! wrap-around winner); the growth bound below keeps the
+//! leaderboard's memory honest on long-uptime monitors.
+//!
 //! NIGHT-boost-14: the takeover-BLINK bookkeeping is gone — the
 //! owner's eye-strain call. A takeover still re-crowns (the rank
 //! order moves), but rank 1 reads by its static champion red, never
@@ -45,12 +53,26 @@ pub(crate) struct SessionAcc {
 }
 
 impl SessionAcc {
-    /// Combined accumulated bytes (the ranking key).
+    /// Combined accumulated bytes (the ranking key). Saturating
+    /// (NIGHT-boost-16): both legs near u64::MAX must read as
+    /// "saturated maximum", not panic in debug or wrap in release.
     #[must_use]
     fn total(self) -> u64 {
-        self.dl + self.ul
+        self.dl.saturating_add(self.ul)
     }
 }
+
+/// Session leaderboard growth bound (NIGHT-boost-16, the LTS
+/// endurance half of the audit): the observer's two counter maps
+/// hold `COUNTER_MAP_MAX_ENTRIES = 1024` slots each, and the kernel
+/// silently stops counting cgroups beyond a full map — so deltas
+/// can only ever name at most 1024 distinct cgroups. The userspace
+/// accumulator mirrors that bound as defense-in-depth: if a future
+/// kernel, map type, or bug ever produced more, the monitor's
+/// memory stays capped and the honest shape of the board (the
+/// kernel's own ceiling) is preserved instead of leaking one
+/// HashMap entry per cgroup churn on a months-long monitor.
+pub(crate) const MAX_TRACKED_CGROUPS: usize = 1024;
 
 /// The leaderboard: per-cgroup accumulated traffic. Pure data — the
 /// rank-1 takeover bookkeeping that drove the champion's blink window
@@ -67,9 +89,17 @@ impl SessionState {
 
     /// Fold one poll's deltas into the leaderboard. An empty summary
     /// (a quiet frame, or the one-frame tolerance for a transient
-    /// map-read error) folds nothing — the board holds its rows.
+    /// map-read error) folds nothing — the board holds its rows. The
+    /// fold itself is saturating (an accumulator that reaches
+    /// u64::MAX stays there — the SI formatter renders the ceiling
+    /// as 18446744.1 TB, saturation not a wrap), and the entry count is bounded by
+    /// [`MAX_TRACKED_CGROUPS`] (NIGHT-boost-16): a cgroup the kernel
+    /// never counted cannot rank.
     pub(crate) fn absorb(&mut self, summary: &CounterSummary) {
         for c in &summary.cgroups {
+            if self.acc.len() >= MAX_TRACKED_CGROUPS && !self.acc.contains_key(&c.cgroup_id) {
+                continue;
+            }
             let entry = self.acc.entry(c.cgroup_id).or_default();
             entry.dl = entry.dl.saturating_add(c.ingress_bytes);
             entry.ul = entry.ul.saturating_add(c.bytes);
@@ -186,5 +216,87 @@ mod tests {
         let board = session.ranked();
         let ids: Vec<u32> = board.iter().map(|(id, _)| *id).collect();
         assert_eq!(ids, vec![10, 20, 30]);
+    }
+
+    // ── NIGHT-boost-16 / safety-security-1: accumulate-explosion pins ──
+
+    /// Saturation, not panic or wrap: both legs at u64::MAX must
+    /// total to u64::MAX. A debug build used to panic here (`dl +
+    /// ul` overflows), a release build wrapped to a small number —
+    /// the leaderboard would have crowned a wrap-around winner.
+    #[test]
+    fn saturated_totals_read_as_maximum() {
+        let acc = SessionAcc {
+            dl: u64::MAX,
+            ul: u64::MAX,
+        };
+        assert_eq!(acc.total(), u64::MAX);
+        // One leg saturated, one leg free: the total still reads as
+        // the ceiling (18.4 EB this session is saturation).
+        assert_eq!(
+            SessionAcc {
+                dl: u64::MAX,
+                ul: 1
+            }
+            .total(),
+            u64::MAX
+        );
+    }
+
+    /// The fold saturates and STAYS saturated: an accumulator at
+    /// u64::MAX absorbs further traffic without wrap — the honest
+    /// shape of a counter that has simply run out of bits.
+    #[test]
+    fn absorb_saturates_and_stays_saturated() {
+        let mut session = SessionState::new();
+        session.absorb(&frame(1, u64::MAX, 0));
+        session.absorb(&frame(1, 10_000_000, 0));
+        let board = session.ranked();
+        assert_eq!(
+            board[0].1.dl,
+            u64::MAX,
+            "saturated download stays saturated"
+        );
+        assert_eq!(board[0].1.ul, 0);
+        // The ranking key survives the saturation (no wrap panic).
+        assert_eq!(board[0].1.total(), u64::MAX);
+    }
+
+    /// Growth bound (MAX_TRACKED_CGROUPS): the board mirrors the
+    /// kernel's own 1024-entry counter-map ceiling — a 1025th
+    /// distinct cgroup cannot rank, while every tracked cgroup
+    /// keeps updating inside the bound.
+    #[test]
+    fn leaderboard_growth_is_bounded_at_the_map_ceiling() {
+        let mut session = SessionState::new();
+        for id in 1..=u32::try_from(MAX_TRACKED_CGROUPS).expect("cap fits u32") {
+            session.absorb(&frame(id, 1, 1));
+        }
+        assert_eq!(session.len(), MAX_TRACKED_CGROUPS);
+        // A fresh cgroup past the bound: not admitted.
+        session.absorb(&frame(u32::MAX, 100, 100));
+        assert_eq!(session.len(), MAX_TRACKED_CGROUPS, "no 1025th entry");
+        assert!(session.ranked().iter().all(|(id, _)| *id != u32::MAX));
+        // A tracked cgroup inside the bound: still updates.
+        session.absorb(&frame(1, 1000, 0));
+        let one = session.ranked().into_iter().find(|(id, _)| *id == 1);
+        assert_eq!(
+            one.map(|(_, a)| a.dl),
+            Some(1001),
+            "existing entries keep folding inside the bound"
+        );
+    }
+
+    /// The ranked walk over saturated values is panic-free in debug:
+    /// sort_by over u64::MAX totals with a tie broken by ID.
+    #[test]
+    fn ranked_walks_saturated_values_without_panic() {
+        let mut session = SessionState::new();
+        session.absorb(&frame(9, u64::MAX, u64::MAX));
+        session.absorb(&frame(2, u64::MAX, u64::MAX));
+        let board = session.ranked();
+        // Saturated tie: ID order decides, no arithmetic panic.
+        assert_eq!(board[0].0, 2);
+        assert_eq!(board[1].0, 9);
     }
 }

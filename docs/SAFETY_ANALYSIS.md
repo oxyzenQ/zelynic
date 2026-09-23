@@ -575,6 +575,68 @@ complaint). One real terminal-safety hazard found and removed:
   clipped rows dirty, so a terminal that grows repaints exactly the
   rows it just revealed.
 
+## Eagle-Eyes Accumulate-Explosion Audit (NIGHT-boost-16 / safety-security-1, 2026-09)
+
+The owner's long-horizon question: what happens to the eagle-eyes
+monitor when session totals EXPLODE — months of uptime, saturated
+u64 counters, cgroup churn? Every arithmetic surface in the
+monitor's session path was audited; four real hazards were found
+and fixed, one purely as defense-in-depth:
+
+- **The ranking key panicked debug builds (fixed).**
+  `SessionAcc::total()` was a plain `dl + ul`. A monitor that
+  accumulated toward u64::MAX on both legs (an 18.4 EB session —
+  reachable in principle on a 40 GbE trunk over ~40 days of
+  sustained saturation, or instantly through a corrupted map read)
+  would PANIC a debug build the moment the sum crossed the boundary,
+  and a release build would WRAP to a small number — the
+  leaderboard crowning a wrap-around winner while the footer
+  reported a tiny grand total. The total is now `saturating_add`:
+  both legs at the ceiling read as the ceiling, and the pinned test
+  `saturated_totals_read_as_maximum` holds the contract.
+- **The footer's four sums had the same class of bug (fixed).**
+  The dl/ul rate sums, the grand session total, and the packet
+  census were `Iterator::sum()` over plain `+` — the same
+  debug-panic/release-wrap shape, one frame later. All four are now
+  `fold(0, u64::saturating_add)` over saturating legs; the render
+  pin `saturated_session_renders_without_panic` drives a fully
+  saturated frame (deltas AND accumulator at u64::MAX) through the
+  real render path and asserts the TOTAL row carries the honest
+  18446744.1 TB ceiling figure.
+- **The rank-row TOTAL cell (fixed, found by the pin itself).**
+  The first saturated-frame render exposed a fifth site the static
+  audit missed: `format_bytes(acc.dl + acc.ul)` in the row renderer.
+  Every `+` over u64 counters in the render tree is now saturating.
+- **The focus view's rate and lifetime rows (fixed).** The
+  per-frame rate (`ingress_bytes + bytes`) and the lifetime row
+  (`ingress_total_bytes + total_bytes`) summed kernel u64 counters
+  with plain `+` — the focus twin of the same hazard, now
+  saturating.
+- **Unbounded leaderboard growth (bounded, defense-in-depth).**
+  `SessionState` folds one HashMap entry per cgroup the counters
+  ever named. The observer's two BPF counter maps hold 1024 slots
+  each (`COUNTER_MAP_MAX_ENTRIES`), and the kernel silently stops
+  counting cgroups beyond a full map — so deltas can only ever name
+  at most 1024 distinct cgroups and the accumulator's growth was
+  ALREADY bounded by the data source. The userspace bound is now
+  explicit (`MAX_TRACKED_CGROUPS = 1024`, mirroring the kernel
+  constant): if a future kernel, map type, or bug ever produced
+  more, a months-long monitor's memory stays capped (~64 KiB of
+  accumulator) instead of leaking one entry per cgroup churn. The
+  honest shape of the board — the kernel's own ceiling — is
+  preserved: a cgroup the kernel never counted cannot rank.
+
+What remains intentionally NOT defended: the kernel-side counters
+themselves are u64 by schema (schema v7) — 18.4 EB per direction
+per cgroup is the ceiling of the whole architecture, and the
+monitor's saturating presentation is the honest rendering of that
+ceiling, not a repair of it. Long-endurance guidance: on a trunk
+that could genuinely move exabytes per cgroup per session, restart
+the monitor on a cadence (the session horizon resets), or read the
+lifetime figures from `status` — the limiter's pinned maps carry
+their own accumulator contracts documented in the overflow audit
+above.
+
 ## Verifying Safety Yourself
 
 ### Check network connections:

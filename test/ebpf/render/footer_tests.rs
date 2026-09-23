@@ -363,3 +363,55 @@ fn detail_hides_and_cuts_on_narrow_frames() {
     );
     assert!(detail.ends_with('…'), "truncation marks itself: {detail}");
 }
+
+/// NIGHT-boost-16 / safety-security-1: the accumulate-explosion
+/// render pin. A frame whose deltas and session accumulator sit at
+/// u64::MAX must render WITHOUT panic in a debug build (the four
+/// footer sums and the ranking key used to be plain `+` and `sum` —
+/// debug panicked, release wrapped to a tiny grand total) and the
+/// TOTAL row must carry the honest saturation figure (18.4 EB), not
+/// a wrapped number.
+#[test]
+fn saturated_session_renders_without_panic() {
+    let identity = identity_with(&[("saturator", 9001)]);
+    let summary = CounterSummary {
+        total_packets: u64::MAX,
+        total_bytes: u64::MAX,
+        total_ingress_packets: u64::MAX,
+        total_ingress_bytes: u64::MAX,
+        cgroups: vec![CgroupDelta {
+            cgroup_id: 9001,
+            packets: u64::MAX,
+            bytes: u64::MAX,
+            total_bytes: u64::MAX,
+            ingress_packets: u64::MAX,
+            ingress_bytes: u64::MAX,
+            ingress_total_bytes: u64::MAX,
+        }],
+    };
+    let mut session = SessionState::new();
+    session.absorb(&summary);
+    let mut lines = Vec::new();
+    render_eagle_eyes_at(
+        &mut lines,
+        &summary,
+        &[],
+        &identity,
+        None,
+        Duration::from_secs(1),
+        &mut session,
+        classic(),
+    );
+    assert_eq!(lines.len(), 24, "the pin holds at saturation");
+    let joined = lines.join("\n");
+    // The TB tier is the SI formatter's terminal (u64::MAX renders as
+    // 18446744.1 TB — a huge figure, never a wrapped-to-tiny one).
+    assert!(
+        joined.contains("18446744.1 TB"),
+        "the saturated session total renders the u64 ceiling honestly: {joined}"
+    );
+    assert!(
+        lines.iter().any(|l| l.contains("TOTAL")),
+        "the TOTAL row survives saturation"
+    );
+}
