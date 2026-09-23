@@ -6,6 +6,11 @@
 //! pre-theme constants — the CLI's output cannot change), the cycle
 //! wraparound in both directions (the cosmostrix modulo contract),
 //! and the integrity walk over every theme x slot x capability.
+//! The catalog's public face (names + brand RGBs) is pinned against
+//! the BRANDING.md 2.2 palette table — and those calls are what keep
+//! `name()`/`brand_rgb()` alive in the featureless test build (the
+//! CI dead-code fix: their only other callers sit behind the ebpf
+//! feature).
 
 use super::{active, cycle_from, escape_for, set, Slot, Theme, THEMES};
 use crate::output::color::ColorCapability;
@@ -201,6 +206,60 @@ fn global_state_round_trips_and_restores() {
     assert_eq!(active(), Theme::Netrunner);
     assert_eq!(super::cycle(-1), Theme::Atomic);
     assert_eq!(active(), Theme::Atomic);
+}
+
+/// The catalog's public face, pinned against BRANDING.md 2.2: every
+/// theme's name and brand RGB match the documented palette — the
+/// footer's status line renders the name (NIGHT-engrave-2) and the
+/// border gradient ramps the brand RGB (NIGHT-boost-20), so neither
+/// may drift from the docs. These calls also keep both methods alive
+/// in the plain (non-ebpf) test build, where their only other
+/// callers sit behind the monitor feature — the exact gap that
+/// reddened CI for six commits (`-D dead-code` on the default
+/// featureless test build after engrave-2 retired the title-suffix
+/// pin; a test-only gap, the shipped binary was never wrong).
+#[test]
+fn catalog_names_and_brand_rgbs_match_the_branding_docs() {
+    let pinned: [(Theme, &str, (u8, u8, u8)); 6] = [
+        (Theme::Netrunner, "netrunner", (168, 85, 247)),
+        (Theme::NightCyber, "night_cyber", (0, 229, 255)),
+        (Theme::Forest, "forest", (124, 179, 66)),
+        (Theme::Spaceflight, "spaceflight", (79, 195, 247)),
+        (Theme::Carbon, "carbon", (214, 214, 214)),
+        (Theme::Atomic, "atomic", (255, 109, 0)),
+    ];
+    assert_eq!(
+        THEMES.len(),
+        pinned.len(),
+        "the catalog and the documented palette stay in lockstep"
+    );
+    for (theme, name, rgb) in pinned {
+        assert_eq!(
+            theme.name(),
+            name,
+            "{theme:?} name matches the BRANDING.md 2.2 spelling"
+        );
+        assert_eq!(
+            theme.brand_rgb(),
+            rgb,
+            "{theme:?} brand RGB matches the BRANDING.md 2.2 hex"
+        );
+        // The slot! table and brand_rgb() derive from the same
+        // numbers: the TrueColor brand escape and the gradient's
+        // ramp source cannot drift apart.
+        let (r, g, b) = rgb;
+        assert_eq!(
+            escape_for(theme, Slot::Brand, false, ColorCapability::TrueColor),
+            format!("\x1b[38;2;{r};{g};{b}m"),
+            "{theme:?} truecolor brand escape derives from brand_rgb()"
+        );
+        // The engraved lowercase contract: the status line renders
+        // `theme {name}` in the all-lowercase frame.
+        assert!(
+            name.chars().all(|c| c.is_ascii_lowercase() || c == '_'),
+            "{theme:?} name is lowercase"
+        );
+    }
 }
 
 /// The NIGHT-boost-23 masterclass audit pins (the five non-default

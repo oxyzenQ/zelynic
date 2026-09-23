@@ -1325,6 +1325,29 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Fixed
 
+- **ci: the plain (featureless) test build compiles under
+  `-D warnings` again — the theme catalog's public face lost its
+  only non-ebpf callers when NIGHT-engrave-2 retired the
+  title-suffix pin** — three CI jobs (both Musl Static Twin
+  entries and `build.sh check-all -q`) went red for six commits
+  straight (d1cf883..bdfb961) on one root cause:
+  `Theme::name()` (boost-18) and `Theme::brand_rgb()` (boost-20)
+  carry `#[cfg(any(feature = "ebpf", test))]`, so the featureless
+  TEST build compiles them — but their only callers live inside
+  the monitor feature (the footer status line and the border
+  gradient), and the pin that had kept `name()` alive was the
+  title-suffix assertion engrave-2 deleted. Local gates never
+  saw it because the local environment does not export
+  `RUSTFLAGS: -D warnings` — the dead-code lint stayed a silent
+  warning here and an error in CI. The fix follows the file's own
+  idiom (`set`/`cycle`/`THEMES` are kept alive exactly the same
+  way): a new catalog pin walks all six themes asserting
+  `name()`/`brand_rgb()` against the BRANDING.md 2.2 palette
+  table, that the TrueColor brand escape derives from the same
+  RGB the gradient ramps, and that every name stays lowercase
+  (the engraved status-line contract). Test-only change — the
+  shipped binary is byte-identical — so no benchmark run.
+
 - **capabilities: the release musl build compiles again —
   `statfs.f_type` is a u64 on musl, an i64 on glibc
   (NIGHT-hunt-33)** — the v11.0.0-alpha.1 release run died at the
