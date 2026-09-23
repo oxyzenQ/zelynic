@@ -50,12 +50,15 @@
 //! - [`session`] — the session leaderboard: accumulated per-cgroup
 //!   totals (NIGHT-boost-5; the blink bookkeeping retired by
 //!   NIGHT-boost-14 — static tiers, no animation)
+//! - [`border`] — the frame's left-right rails, rounded corners, and
+//!   gradient (NIGHT-boost-20, the cosmostrix msg-border lineage)
 //! - `bench` (cfg(test)) — the frame A/B benchmark harness (wired in
 //!   from `test/ebpf/render/bench.rs`, NIGHT-hunt-17)
 //! - this root — geometry probing, column budgets, shared helpers,
 //!   and the NIGHT-hunt-8 connection-detail lines (label +N suffix,
 //!   per-process endpoint lines shared by eagle and focus)
 
+mod border;
 mod detail;
 mod eagle;
 mod focus;
@@ -246,39 +249,48 @@ pub(crate) fn format_uptime(elapsed: std::time::Duration) -> String {
     }
 }
 
-/// Render the title bar: bold purple brand text, em-dash filled to
-/// the full frame width, key hint right-aligned when there is room.
+/// Render the title bar — the frame's TOP BORDER (NIGHT-boost-20):
+/// bold purple brand text, filled to the full frame width, with
+/// rounded corners connecting to the bar's own fill (the cosmostrix
+/// msg-border look), key hint right-aligned when there is room.
 ///
-/// Shape: `  ─── <core> ─────…──── <hint>` (hint omitted on narrow
-/// frames). The two-column gutter matches every row, separator, and
-/// footer line — the frame's left border is one straight edge
-/// (NIGHT-boost-5; the old bar started at column 0 while the table
-/// started at column 2, the big left-border gap the owner reported).
-/// The full-width fill is the flagship anchor: the eye locks onto the
-/// purple bar and instantly reads the frame width.
+/// Shape: `╭─── <core> <fill> <hint> ─╮` (hint omitted on narrow
+/// frames, the corner cap degrading before it). The two-column
+/// gutter behind the core matches every row, separator, and footer
+/// line — the frame's left rail is one straight edge
+/// (NIGHT-boost-5); the full-width fill is the flagship anchor: the
+/// eye locks onto the purple bar and instantly reads the frame
+/// width, corners included.
 #[must_use]
 pub(crate) fn title_bar(core: &str, hint: &str, width: usize) -> String {
-    const PREFIX: &str = "  ─── ";
+    const PREFIX: &str = "╭─── ";
+    const CAP: &str = "─╮";
     let prefix_len = PREFIX.chars().count();
+    let cap_len = CAP.chars().count();
     let core_len = core.chars().count();
 
     if width <= prefix_len + core_len + 1 {
-        // Degenerate width: core only, no fill, no hint.
+        // Degenerate width: core only, no fill, no hint, no cap.
         return brand_bold(&format!("{PREFIX}{core}"));
     }
 
-    let hint_part = if !hint.is_empty() && width >= prefix_len + core_len + hint.chars().count() + 5
+    // The hint (with its separating space and connecting dash) drops
+    // out before the corner cap does — a cornerless bar on a medium
+    // frame, no border at all on a tiny one.
+    let tail = if !hint.is_empty()
+        && width >= prefix_len + core_len + hint.chars().count() + cap_len + 6
     {
-        format!(" {hint}")
+        format!(" {hint} {CAP}")
+    } else if width >= prefix_len + core_len + 1 + cap_len {
+        CAP.to_string()
     } else {
         String::new()
     };
 
-    // Rendered shape: PREFIX + core + ' ' + fill + hint_part.
-    let used = prefix_len + core_len + 1 + hint_part.chars().count();
-    let fill = "─".repeat(width.saturating_sub(used));
+    let used = prefix_len + core_len + 1;
+    let fill = "─".repeat(width.saturating_sub(used + tail.chars().count()));
 
-    brand_bold(&format!("{PREFIX}{core} {fill}{hint_part}"))
+    brand_bold(&format!("{PREFIX}{core} {fill}{tail}"))
 }
 #[cfg(test)]
 mod tests {
@@ -341,26 +353,29 @@ mod tests {
         assert_eq!(format_uptime(Duration::from_millis(1_250)), "1s");
     }
 
-    /// Title bar: full-width fill, hint right-aligned, graceful
-    /// degradation on narrow frames. NIGHT-boost-5: the bar carries
-    /// the two-column gutter every other frame line uses — the left
-    /// border is one straight edge. NIGHT-engrave-1: the cadence word
-    /// is "realtime" and the hint leads with the theme key.
+    /// Title bar (NIGHT-boost-20 shape): rounded top border, exact
+    /// width, hint right-aligned with its connecting dash, graceful
+    /// degradation on narrow frames. NIGHT-boost-5 lineage: the bar
+    /// carries the gutter every other frame line uses. NIGHT-engrave-1:
+    /// the hint leads with the theme key; NIGHT-engrave-2: identity
+    /// only (the legend moved to the footer's status line).
     #[test]
     fn title_bar_fills_width() {
-        let bar = title_bar("zelynic eagle-eyes — 1s realtime", "t theme - q quit", 80);
+        let bar = title_bar("zelynic eagle-eyes", "t theme - q quit", 80);
         // Mono mode (tests run piped): plain text, exact width.
         assert_eq!(bar.chars().count(), 80);
-        assert!(bar.starts_with("  ─── zelynic eagle-eyes — 1s realtime"));
-        assert!(bar.ends_with("t theme - q quit"));
+        assert!(bar.starts_with("╭─── zelynic eagle-eyes"));
+        assert!(bar.ends_with("t theme - q quit ─╮"));
 
-        // Narrow: core only, still starts with the guttered brand prefix.
+        // Narrow: core only, still starts with the cornered brand prefix.
         let tiny = title_bar("zelynic eagle-eyes", "", 10);
-        assert!(tiny.starts_with("  ─── zelynic eagle-eyes"));
+        assert!(tiny.starts_with("╭─── zelynic eagle-eyes"));
 
-        // Medium: hint suppressed before it would collide with core.
-        let mid = title_bar("zelynic eagle-eyes — 1s realtime", "t theme - q quit", 40);
-        assert!(!mid.contains("t theme - q quit"));
+        // Medium: hint suppressed before it would collide with core,
+        // the corner cap still closes the bar.
+        let mid = title_bar("zelynic eagle-eyes", "t theme - q quit", 40);
+        assert!(!mid.contains("t theme"));
+        assert!(mid.ends_with('╮'));
         assert_eq!(mid.chars().count(), 40);
     }
 }

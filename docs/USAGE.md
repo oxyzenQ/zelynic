@@ -268,6 +268,19 @@ the header text above it. The column headers are lowercase
 The census wording is `N packets + M cgroups` (a `+` join, never a
 dot).
 
+Frame borders (NIGHT-boost-20): the whole monitor reads as one
+rounded box — the title bar's corners connect to its own purple fill
+as the top border, every content row wears gradient-colored side
+rails (the active theme's brand color sweeping dark to bright and
+back down the frame — the cosmostrix msg-border triangle-wave
+contract), and the frame closes on a full-width floor row in the
+bright anchor color. On 256-color terminals the gradient quantizes
+onto the xterm cube; on 16-color terminals the rails render the
+theme's flat brand color; piped output renders the plain glyphs. The
+rails claim two columns and the closing row one line, budgeted
+BEFORE anything renders — the column ladder, the footer pin, and
+the detail trimming flow through the inset geometry unchanged.
+
 Theme cycling (NIGHT-boost-18, improve-27): `t` cycles the frame's
 palette forward (the uppercase `T` twin was retired by
 NIGHT-engrave-2 — one simple key, modulo wraparound at the catalog
@@ -286,7 +299,8 @@ Dynamic screen size (NIGHT-boost-14): the loop probes the terminal
 geometry every 50ms wake and renders a change within one wake — not
 at the next refresh tick, so even `--interval 60` resizes instantly.
 Adaptive compact mode on narrow frames: the subprocess detail hides
-(below width 51, where the TOTAL column itself drops) and every
+(below a 53-column frame, where the border inset drops under the
+51-column total-column boundary) and every
 detail line is cut to the frame width, so a long process or endpoint
 string can never wrap the frame or shift the pinned footer. Short
 terminals compress the footer through a tier ladder — breathing

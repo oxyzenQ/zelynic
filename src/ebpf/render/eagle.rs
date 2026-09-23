@@ -43,6 +43,7 @@
 
 use std::time::Duration;
 
+use super::border;
 use super::footer::{build_grip_footer, grid_line, plan_footer_tier, FooterCensus, TOP_CHROME};
 use super::{
     comm_from_label, detail_lines, focus::render_eagle_focus, format_rate_or_dash,
@@ -155,7 +156,8 @@ pub(super) fn render_eagle_eyes_at(
     uptime: Duration,
     geo: FrameGeometry,
 ) {
-    let cols = plan_eagle_columns(geo.width);
+    // NIGHT-boost-20: compose into the bordered inset (render/border.rs).
+    let full_width = geo.width;
 
     // The fold happens before anything renders: even an idle frame
     // (or the one-frame tolerance for a transient map-read error —
@@ -164,7 +166,7 @@ pub(super) fn render_eagle_eyes_at(
 
     let (ids, unresolved) = resolve_targets(tokens, identity);
 
-    // Single token, single cgroup: the deep focus view.
+    // Single token, single cgroup: the focus view (own border inset).
     if tokens.len() == 1 && ids.len() == 1 && unresolved.is_empty() {
         render_eagle_focus(
             lines, summary, identity, conns, ids[0], interval, uptime, geo,
@@ -172,10 +174,11 @@ pub(super) fn render_eagle_eyes_at(
         return;
     }
 
-    // NIGHT-engrave-2: the title bar is just the frame's identity —
-    // the realtime cadence, the theme name, and the key hints moved
-    // to the footer's status line (below the limit suggestions); the
-    // top-right keeps only the quick hint pair.
+    let geo = border::content_geo(geo);
+    let cols = plan_eagle_columns(geo.width);
+
+    // NIGHT-engrave-2: identity only — the legend moved to the
+    // footer's status line; the top-right keeps the hint pair.
     let title_core = if tokens.is_empty() {
         "zelynic eagle-eyes".to_string()
     } else {
@@ -183,7 +186,7 @@ pub(super) fn render_eagle_eyes_at(
         let plural = if n == 1 { "" } else { "s" };
         format!("zelynic eagle-eyes — {n} target{plural}")
     };
-    lines.push(title_bar(&title_core, "t theme - q quit", geo.width));
+    lines.push(title_bar(&title_core, "t theme - q quit", full_width));
 
     // The breathing gap (NIGHT-boost-14): the column header used to
     // sit one row under the title bar — too near the brand, the
@@ -433,6 +436,7 @@ pub(super) fn render_eagle_eyes_at(
         lines.push(String::new());
     }
     lines.extend(footer);
+    border::wrap(lines, full_width);
 }
 
 /// One ranked data row. The static traffic-light tiers

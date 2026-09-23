@@ -59,7 +59,11 @@ pub fn render_eagle_focus(
     // — the theme name and the legend moved to the footer's status
     // line, same as the ranked view; the top-right keeps the hint.
     let title_core = format!("zelynic eagle-eyes — {}", identity.label(cgroup_id));
-    lines.push(title_bar(&title_core, "t theme - q quit", geo.width));
+    // NIGHT-boost-20: the frame wears gradient rails with rounded
+    // corners — compose into the bordered inset, flank at the end.
+    let full_width = geo.width;
+    let geo = super::border::content_geo(geo);
+    lines.push(title_bar(&title_core, "t theme - q quit", full_width));
 
     // The breathing gap (NIGHT-boost-14): same air under the title
     // as the ranked frame — one composition, two views.
@@ -143,6 +147,7 @@ pub fn render_eagle_focus(
             grey(&format!("uptime {}", format_uptime(uptime)))
         ));
     }
+    super::border::wrap(lines, full_width);
 }
 
 #[cfg(test)]
@@ -200,8 +205,8 @@ mod tests {
             "lifetime sums both lifetime counters: {joined}"
         );
         assert!(
-            joined.starts_with("  ─── zelynic eagle-eyes — cg:7001 (brave)"),
-            "guttered title names the focused target: {joined}"
+            joined.starts_with("╭─── zelynic eagle-eyes — cg:7001 (brave)"),
+            "the rounded top border names the focused target: {joined}"
         );
     }
 
@@ -227,23 +232,36 @@ mod tests {
             },
         );
         assert_eq!(lines.len(), 24, "pinned frame spans the terminal height");
-        assert!(lines[0].starts_with("  ─── zelynic eagle-eyes — cg:73386"));
-        assert_eq!(lines[1], "", "breathing gap under the title");
-        assert!(lines.contains(&"  no traffic for cg:73386 since last check".to_string()));
+        assert!(lines[0].starts_with("╭─── zelynic eagle-eyes — cg:73386"));
         assert_eq!(
-            lines[21], "  1s realtime - theme netrunner - q quit - t theme",
+            lines[1],
+            format!("│{}│", " ".repeat(78)),
+            "breathing gap under the title, railed"
+        );
+        assert!(lines.iter().any(|l| l.contains("no traffic for cg:73386")));
+        assert_eq!(
+            lines[20],
+            format!(
+                "│  1s realtime - theme netrunner - q quit - t theme{}│",
+                " ".repeat(28)
+            ),
             "status line above the focus copyright (NIGHT-engrave-2): {}",
+            lines[20]
+        );
+        assert!(
+            lines[21].starts_with("│  v") && lines[21].contains(") by oxyzenQ"),
+            "copyright is the simplified build stamp (NIGHT-boost-19): {}",
             lines[21]
         );
         assert!(
-            lines[22].starts_with("  v") && lines[22].ends_with(") by oxyzenQ"),
-            "copyright is the simplified build stamp (NIGHT-boost-19): {}",
+            lines[22].starts_with("│  uptime 1m:10s"),
+            "uptime below the focus footer (boost-17): {}",
             lines[22]
         );
         assert_eq!(
-            lines[23], "  uptime 1m:10s",
-            "uptime below the focus footer (boost-17): {}",
-            lines[23]
+            lines[23],
+            format!("╰{}╯", "─".repeat(78)),
+            "the closing border row floors the focus frame (NIGHT-boost-20)"
         );
     }
 }

@@ -44,8 +44,12 @@ pub(crate) mod theme;
 
 // The `*_open()` escape builders stay color-internal: the wrapper
 // functions below are the crate's entire color API surface (nothing
-// outside the output layer ever assembles its own escape bytes).
+// outside the output layer ever assembles its own escape bytes) —
+// with one NIGHT-boost-20 exception: the eagle-eyes border gradient
+// interpolates the ACTIVE theme's brand RGB per row, so it borrows
+// the capability probe (never escapes: it builds its own ramp).
 pub use color::{brand, brand_bold, error, error_bold, ok, ok_bold, suggestion, warn_bold};
+pub(crate) use color::{capability, ColorCapability};
 #[cfg(feature = "ebpf")] // champion + grey + warn tiers live under the eagle-eyes graph
 pub use color::{grey, hot, warn};
 
