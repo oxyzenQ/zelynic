@@ -73,6 +73,7 @@ mod detail;
 mod eagle;
 mod focus;
 mod footer;
+mod loading;
 mod session;
 
 #[cfg(test)]
@@ -93,6 +94,10 @@ pub(crate) use detail::{comm_from_label, detail_lines, full_detail_lines, label_
 // family — the status and list-apps report tables borrow the monitor's
 // exact purple grid instead of growing their own separators.
 pub(crate) use footer::grid_line;
+
+// NIGHT-boost-25: the monitor's opening frame — the prelude the
+// smooth open paints while the BPF load runs.
+pub(crate) use loading::loading_frame;
 
 use crate::ebpf::limiter::format_rate;
 use crate::output::brand_bold;

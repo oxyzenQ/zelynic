@@ -258,6 +258,23 @@ rates and its accumulated TOTAL — no more collapsing to "waiting
 for traffic..." once traffic has been seen), with per-cgroup detail
 lines naming the processes and remote endpoints inside.
 
+The SMOOTH OPEN (NIGHT-boost-25, the owner's masterclass loading
+audit): the monitor used to run its whole eBPF load on the main
+screen — a blank frozen terminal for the verifier's duration, then
+a sudden full-frame flash when the dashboard appeared. Now the
+alt screen and a quiet loading frame (the full chrome: title bar,
+gradient rails, the pinned footer, and one grey
+`loading observer…` note) arrive the moment you press Enter; the
+BPF load, the identity walk, and the opening poll all run under
+that frame, and the first live frame rewrites it in place with no
+clear and no blank flash — the only visible change is the note row
+becoming `waiting for traffic…` (plus whatever traffic already
+exists). If the load fails, the terminal restores your shell and
+the branded error prints there, clean. `-v` keeps the trace-first
+sequence: the attach diagnostics print on the main screen before
+the TUI takes over (stderr writes during the live frame would
+garble it), so the trace itself is the loading feedback.
+
 Subprocess detail is a two-level TREE (NIGHT-boost-21): a process
 holding one live socket renders inline (`└ curl (4242) →
 10.90.170.143:443`); a multi-socket process expands its endpoints

@@ -311,8 +311,9 @@ proves the render path untouched (A = e564c20 at HEAD, B = efa64a7,
 Reading: every visual metric identical, and the fps delta is the
 same container-noise class as every previous A/B (-1.1%, -1.55%,
 +1.2%, +5.2%, +4.6%). The guard is invisible to this harness by
-construction: the frame harness never opens a TTY, so run_alt takes
-its non-TTY fallback where the guard is disabled by contract (a
+construction: the frame harness never opens a TTY, so the monitor
+session takes its
+non-TTY fallback where the guard is disabled by contract (a
 pipe has no selection machinery) — the identical columns prove the
 guard changed nothing in the poll/render/emit pipeline. The guard's
 OWN cost is measured where it lives, in the new

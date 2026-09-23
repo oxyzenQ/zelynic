@@ -160,6 +160,14 @@ pub fn handle_list_apps(json: bool) -> Result<()> {
 /// the render loop AND the BPF poll, so per-frame deltas divide by
 /// exactly the interval for the DOWNLOAD/UPLOAD rate columns.
 ///
+/// The smooth open (NIGHT-boost-25): the terminal session opens
+/// before the BPF load — the alt screen and a quiet loading frame
+/// arrive with the Enter key, the load runs under the frame, and
+/// the first live frame rewrites it in place (the one-row morph,
+/// see render/loading.rs). `-v` keeps the trace-first sequence (the
+/// attach diagnostics print on the main screen, where they survive
+/// the TUI).
+///
 /// The positional TARGETS spec is autodetected per Target::parse
 /// (digits = cgroup ID, else process name) and re-resolved against
 /// the live identity map every frame, so apps started mid-session
@@ -180,7 +188,7 @@ pub fn handle_eagle_eyes(
     use crate::ebpf::connections::ConnectionMap;
     use crate::ebpf::limiter::Target;
     use crate::ebpf::loader::Observer;
-    use crate::ebpf::render::{render_eagle_eyes, SessionState};
+    use crate::ebpf::render::{loading_frame, render_eagle_eyes, FrameGeometry, SessionState};
     use crate::terminal;
     use std::time::Duration;
 
@@ -214,35 +222,67 @@ pub fn handle_eagle_eyes(
 
     super::ensure_root()?;
 
-    // -v surfaces the observer loader trace (NIGHT-hunt-9): object
-    // size, kernel line, map inventory, and attach timing on stderr
-    // before the alt screen takes over — the same diagnostic depth
-    // the limiter lifecycle gives strict/block handlers (NIGHT-boost-6
-    // aligned the two attach paths onto one forward `attach(verbose)`
-    // contract; the old `attach_quiet(!verbose)` double negative is
-    // gone).
-    let mut observer = Observer::attach(verbose)?;
-    observer.refresh_identity();
-    if verbose {
-        eprintln_safe!("[ebpf] {} cgroups resolved", observer.identity().len());
-    }
+    // The cadence as a Duration, before the smooth open composes the
+    // loading frame's status line with it.
+    let interval = Duration::from_secs(interval_secs);
 
-    // The opening poll also feeds -v (NIGHT-boost-6): cgroups with
-    // traffic since attach proves the counters are live before the
-    // alt screen takes over — zero rows here means the observer
-    // attached but sees no packets (wrong cgroup, no traffic yet).
-    let first = observer.poll_and_summarize()?;
-    if verbose {
+    // ── The smooth open (NIGHT-boost-25) ──────────────────────────────
+    //
+    // The old sequence ran the whole BPF load on the MAIN screen:
+    // blank dead air for the verifier's duration, then the alt screen
+    // switched and the full bright frame painted in one burst — the
+    // flashy, eye-straining transition the owner audited. The default
+    // path now opens the terminal session FIRST (the alt screen and
+    // the loading frame arrive with the Enter key) and runs the load,
+    // the identity walk, and the opening poll UNDER that frame; the
+    // first live frame then rewrites the loading frame in place — no
+    // clear, no blank flash — with the note row (`loading observer…`
+    // -> `waiting for traffic…`) as the one visible change (see
+    // render/loading.rs, the morph pin). A load failure drops the
+    // session: ALT_EXIT restores the main screen and the branded
+    // error prints on it.
+    //
+    // -v keeps the trace-first sequence (the NIGHT-boost-6 contract):
+    // stderr writes during the alt screen would garble the live
+    // frame, so the attach trace prints on the main screen where it
+    // survives the TUI — the trace IS the loading feedback there, and
+    // the session opens with no prelude.
+    //
+    // The opening poll seeds the delta baseline on both paths; its
+    // summary is discarded on purpose (the pre-existing horizon
+    // contract: bytes between attach and the first frame stay out of
+    // the session ledger).
+    let mut observer;
+    let monitor = if verbose {
+        observer = Observer::attach(verbose)?;
+        observer.refresh_identity();
+        eprintln_safe!("[ebpf] {} cgroups resolved", observer.identity().len());
+        let first = observer.poll_and_summarize()?;
         eprintln_safe!(
             "[ebpf] first poll: {} cgroups with traffic since attach",
             first.cgroups.len()
         );
-    }
+        terminal::Monitor::open(|_, _| Vec::new())
+    } else {
+        let monitor = terminal::Monitor::open(|w, h| {
+            loading_frame(
+                interval,
+                FrameGeometry {
+                    width: w,
+                    height: h,
+                },
+            )
+        });
+        observer = Observer::attach(verbose)?;
+        observer.refresh_identity();
+        let _ = observer.poll_and_summarize()?;
+        monitor
+    };
 
     // Eagle-eyes detail (NIGHT-hunt-8): per-cgroup process/socket
     // detail, TTL-cached inside the map so 1s frames reuse the scan.
     // NIGHT-improve-2: the closure builds the frame's logical lines;
-    // run_alt's diff engine emits only what changed.
+    // the session loop's diff engine emits only what changed.
     //
     // The session leaderboard (NIGHT-boost-5) lives OUTSIDE the
     // closure: each frame folds its deltas in, so the ranked table
@@ -252,13 +292,12 @@ pub fn handle_eagle_eyes(
     // map-read error renders one em-dash frame, not a collapse.
     let mut conns = ConnectionMap::new();
     let mut session = SessionState::new();
-    let interval = Duration::from_secs(interval_secs);
     // The session clock (NIGHT-boost-17, improve-27): starts at
     // monitor launch, reads out as the grey `uptime 1m:10s` line
     // below the footer on every frame — the horizon the leaderboard's
     // accumulated totals span.
     let started = std::time::Instant::now();
-    terminal::run_alt(interval, |lines| {
+    monitor.run(interval, |lines| {
         // One-frame tolerance, not a swallow bug (NIGHT-optimized-2
         // audit): the opening poll below hard-failed on any broken
         // map, so an Err here is a transient read. unwrap_or_default
