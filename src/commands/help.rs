@@ -181,7 +181,7 @@ pub(crate) fn print_help() {
     println_safe!(
         "  -v, --verbose    Diagnostic trace: target resolution, policy writes, BPF lifecycle"
     );
-    println_safe!("  --print-json     JSON output (where applicable)");
+    println_safe!("  --print-json     JSON output for status, list-apps, doctor");
     println_safe!("  --color-mode M   Force color depth: 0 mono, 16, 8/256 cube, 24/32 truecolor");
     println_safe!(
         "                   (default auto-fallback; for terminals whose truecolor claim lies)"

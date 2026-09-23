@@ -64,6 +64,14 @@ fn ebpf_disabled() -> Result<()> {
 
 /// Top-level CLI dispatch.
 pub(crate) fn dispatch(cli: Cli) -> Result<()> {
+    // NIGHT-boost-24: --print-json riding a non-JSON surface is a
+    // silent no-op no more — one stderr note names the surfaces that
+    // honor it. Dispatch-level, so every arm (including the
+    // no-subcommand help fallback) is covered exactly once; the JSON
+    // surfaces themselves pass the gate silently.
+    if cli.print_json && !crate::cli::command_honors_print_json(cli.command.as_ref()) {
+        crate::cli::warn_print_json_ignored();
+    }
     match cli.command {
         Some(Commands::StrictSingle {
             target,

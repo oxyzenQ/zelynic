@@ -570,6 +570,35 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Changed
 
+- **ux: NIGHT-boost-24 — the --print-json honesty audit: the silent
+  no-op retired** — the owner's audit question: is the flag useless
+  because it only works with `zelynic status`? The answer the source
+  gives: it is NOT useless — THREE surfaces honor it (`status`,
+  `list-apps`, `doctor`), and it parses at every level (global flag).
+  But outside those three it was a SILENT no-op: the enforcement
+  verbs, `eagle-eyes`, `-h`, `-V`, `--check-update` all accepted the
+  flag and rendered text with no signal why — a user asking for
+  machine-readable output got prose and no diagnosis. The fix follows
+  the cosmostrix ignored-flag honesty contract (its
+  "--json ignored (--bench-frames emits the text BENCH: format)"
+  lineage): one stderr line, `--print-json ignored (JSON surface:
+  status, list-apps, doctor)`, fires exactly once per invocation when
+  the dispatched surface ignores the flag — warn yellow, stdout and
+  exit codes untouched, so `status --print-json | jq` scripts are
+  byte-identical to before. The surface list is per-build honest
+  (the featureless dormant build names `doctor` alone — `status` and
+  `list-apps` are eBPF surfaces that fail before output there). The
+  flag's help text (clap doc + `--help` reference line + USAGE.md
+  flag table) now names the surfaces instead of the vague "where
+  applicable". Pinned three ways: unit pins hold the note's wording
+  and the note/classification agreement (every surface the note
+  names classifies true, and the help fallback / recover / eagle-eyes
+  / strict-single classify false — the two tables cannot drift), and
+  the integration pin holds the end-to-end contract on `-V` (exactly
+  one note on stderr, version report and exit code unchanged) plus
+  the honored side (doctor emits JSON, no note). No JSON document
+  changed: the v11 scripting contract is untouched.
+
 - **feat!: NIGHT-boost-14 — eagle-eyes: the masterclass engraving of
   the owner's style** — the ranked monitor becomes a PINNED
   composition, every clause of the owner's spec engraved and pinned
