@@ -2,19 +2,20 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 //! Pinned footer composition pins (NIGHT-boost-14; re-cut by
-//! NIGHT-engrave-3): the tier ladder, the owner's engraved layout
-//! (the flush roof grid, the `= grand` total row, the status line,
-//! the gap above the copyright), the retirement of the census and
-//! the discovery pair, the pin itself (frame spanning the terminal
-//! height with the footer near the bottom, never following the
-//! table), and the adaptive subprocess-detail behavior. Split from
-//! the eagle renderer pins when the boost-14 composition work pushed
-//! the file past the owner's LOC cap - one file per contract, the
-//! same #[path] discipline as the diff engine's pins. `super::`
-//! reaches the footer module; the eagle renderer core is imported
-//! across the render tree (it is `pub(super)` there).
+//! NIGHT-engrave-3, REBUILT by NIGHT-engrave-4): the owner's
+//! engraved layout (the consumer headline, the session census, the
+//! `= grand` total row, the limit suggestion, the status line, the
+//! gap above the copyright), the pin itself (frame spanning the
+//! terminal height with the footer near the bottom, never following
+//! the table), and the saturated-session render. The tier ladder
+//! and the rendered tier degradation live in footer_tier_tests.rs
+//! (split when the engrave-4 rebuild pushed this file past the
+//! owner's LOC cap), and the adaptive subprocess-detail pins live
+//! with the detail tree's own pins. One file per contract, the same
+//! #[path] discipline as the diff engine's pins. `super::` reaches
+//! the footer module; the eagle renderer core is imported across
+//! the render tree (it is `pub(super)` there).
 
-use super::{plan_footer_tier, FooterTier};
 use crate::ebpf::identity::{IdentityMap, ProcessIdentity};
 use crate::ebpf::loader::{CgroupDelta, CounterSummary};
 use crate::ebpf::render::eagle::render_eagle_eyes_at;
@@ -68,30 +69,6 @@ fn frame(cg: u32, dl: u64, ul: u64) -> CounterSummary {
     }
 }
 
-/// Footer compression ladder (NIGHT-boost-14; NIGHT-engrave-3 re-cut
-/// it for the trimmed block — 6/5/4/3): the classic 80x24 carries the
-/// full engraved block; a 10-row window drops to Compact, 9 to
-/// Minimal, and the survival floor holds from 8 down. The rare
-/// identities-unresolved note costs one line and moves the Full
-/// boundary with it.
-#[test]
-fn footer_tier_ladder() {
-    assert_eq!(plan_footer_tier(24, 0), FooterTier::Full);
-    assert_eq!(
-        plan_footer_tier(11, 0),
-        FooterTier::Full,
-        "11 = 4 chrome + 6 footer + 1 row"
-    );
-    assert_eq!(plan_footer_tier(10, 0), FooterTier::Compact);
-    assert_eq!(plan_footer_tier(9, 0), FooterTier::Minimal);
-    assert_eq!(plan_footer_tier(8, 0), FooterTier::Tiny);
-    assert_eq!(plan_footer_tier(5, 0), FooterTier::Tiny, "survival floor");
-    // The rare identities-unresolved note rides the footer and is
-    // accounted: it costs one line, so the Full boundary moves to 12.
-    assert_eq!(plan_footer_tier(12, 1), FooterTier::Full);
-    assert_eq!(plan_footer_tier(11, 1), FooterTier::Compact);
-}
-
 /// NIGHT-improve-2 line-building pin (NIGHT-boost-14 composition):
 /// the renderer fills the caller's vector — title bar first, the
 /// breathing gap under it, the waiting note when idle, blank padding
@@ -123,24 +100,53 @@ fn eagle_frame_builds_lines() {
         "breathing gap under the title, flanked by the rails"
     );
     assert!(lines.contains(&flanked("  waiting for traffic…").to_string()));
-    // The pinned footer (NIGHT-engrave-3): the total row under its
-    // FLUSH roof grid, air, the status line, the owner's gap above
-    // the copyright, and the build stamp as the frame's LAST content
-    // row — the closing border row (NIGHT-boost-20) after it.
+    // The pinned footer (NIGHT-engrave-4): the census line joins the
+    // block under the FLUSH roof grid, the total row follows, the
+    // rare note rides, then air, the status line, the owner's gap
+    // above the copyright, and the build stamp as the frame's LAST
+    // content row — the closing border row (NIGHT-boost-20) after
+    // it. An idle frame carries no consumer headline and no limit
+    // suggestion (there is no champion yet) — the block is two
+    // lines shorter and the measured pin absorbs it.
+    let census_idx = lines
+        .iter()
+        .position(|l| l.contains("packets +"))
+        .expect("census line even when idle");
+    assert_eq!(
+        lines[census_idx],
+        flanked("  0 packets + 0 cgroups"),
+        "the idle census is honest zeroes: {}",
+        lines[census_idx]
+    );
     let total_idx = lines
         .iter()
         .position(|l| l.contains("total usage internet in"))
         .expect("total row even when idle");
     assert_eq!(
-        lines[total_idx - 1],
+        total_idx,
+        census_idx + 1,
+        "the owner's order: census above the total row"
+    );
+    assert_eq!(
+        lines[total_idx - 2],
         format!("│{}│", "─".repeat(78)),
-        "the roof grid JOINS the left rail — the owner's |---, never | ---: {:?}",
-        lines[total_idx - 1]
+        "the roof grid JOINS the left rail above the whole block — the owner's |---: {:?}",
+        lines[total_idx - 2]
     );
     assert_eq!(
         lines[total_idx + 1],
         flanked("  (identities unresolved — labels show raw cgroup IDs)"),
         "the rare note rides between the total row and the status line"
+    );
+    assert!(
+        !lines.iter().any(|l| l.contains("top consumer is")),
+        "no consumer headline on an idle board: {:?}",
+        lines
+    );
+    assert!(
+        !lines.iter().any(|l| l.contains("limit target")),
+        "no limit suggestion without a champion: {:?}",
+        lines
     );
     assert!(
         lines[total_idx].contains("total usage internet in 1m:10s"),
@@ -174,12 +180,14 @@ fn eagle_frame_builds_lines() {
     );
 }
 
-/// Footer layout (NIGHT-boost-14, re-cut by NIGHT-engrave-3): the
-/// flat `total usage internet in <uptime> = <grand>` row under its
-/// flush roof grid — the per-frame rates RETIRED at the owner's
-/// "only total consume bandwidth" call — then air, the status line,
-/// the owner's gap above the copyright, and the build stamp pinned
-/// to the bottom of the terminal whatever the table does.
+/// Footer layout (NIGHT-boost-14, rebuilt by NIGHT-engrave-4): the
+/// owner's exact line order — the consumer headline, the session
+/// census, the total row, the limit suggestion, then the air, the
+/// status line, the owner's gap above the copyright, and the build
+/// stamp pinned to the bottom of the terminal whatever the table
+/// does. The unresolved identity exercises the fallback chain: the
+/// champion's name is the raw label (`cg:7001`), the identity-honest
+/// name — the headline never goes dark over an identity miss.
 #[test]
 fn footer_layout_pins_to_the_bottom() {
     let mut lines = Vec::new();
@@ -210,10 +218,53 @@ fn footer_layout_pins_to_the_bottom() {
         classic(),
     );
     let joined = lines.join("\n");
+    // The owner's engrave-4 order, as positions: headline, census,
+    // total, limit — each found and compared to the next.
+    let consumer_idx = lines
+        .iter()
+        .position(|l| l.contains("top consumer is"))
+        .unwrap_or_else(|| panic!("no consumer headline in: {joined}"));
+    assert_eq!(
+        lines[consumer_idx],
+        flanked("  top consumer is cg:7001"),
+        "the unresolved identity falls back to the raw label — the identity-honest name: {}",
+        lines[consumer_idx]
+    );
+    let census_idx = lines
+        .iter()
+        .position(|l| l.contains("packets +"))
+        .unwrap_or_else(|| panic!("no census line in: {joined}"));
+    assert_eq!(
+        lines[census_idx],
+        flanked("  478 packets + 1 cgroups"),
+        "SESSION packets (57 ul + 421 dl) + the board count, one horizon: {}",
+        lines[census_idx]
+    );
     let total_row = lines
         .iter()
         .position(|l| l.contains("total usage internet in"))
         .unwrap_or_else(|| panic!("no total row in: {joined}"));
+    let limit_idx = lines
+        .iter()
+        .position(|l| l.contains("limit target with"))
+        .unwrap_or_else(|| panic!("no limit suggestion in: {joined}"));
+    assert_eq!(
+        consumer_idx + 1,
+        census_idx,
+        "the owner's order: headline above census"
+    );
+    assert_eq!(census_idx + 1, total_row, "census above the total row");
+    assert_eq!(
+        total_row + 1,
+        limit_idx,
+        "the limit suggestion below the story"
+    );
+    assert_eq!(
+        lines[limit_idx],
+        flanked("  limit target with 'sudo zelynic ss cg:7001 100kb'"),
+        "the owner's exact wording: quoted command, the ss short alias, the engraved default rate: {}",
+        lines[limit_idx]
+    );
     assert!(
         lines[total_row].contains("total usage internet in 1m:10s"),
         "the uptime rides inside the total row (NIGHT-engrave-1): {}",
@@ -229,16 +280,14 @@ fn footer_layout_pins_to_the_bottom() {
         "engrave-3: the rate tail is retired from the total row: {}",
         lines[total_row]
     );
-    // The engraved trim: census, discovery pair, second grid — all
-    // retired (the owner's leanest-footer call).
-    assert!(!joined.contains("packets +"), "census retired: {joined}");
-    assert!(
-        !joined.contains("Top consumer"),
-        "discovery retired: {joined}"
+    // The roof grid roofs the WHOLE block — the headline included.
+    assert_eq!(lines[consumer_idx - 1], format!("│{}│", "─".repeat(78)));
+    // The rare note rides after the limit line, end of the data
+    // paragraph.
+    assert_eq!(
+        lines[limit_idx + 1],
+        flanked("  (identities unresolved — labels show raw cgroup IDs)")
     );
-    assert!(!joined.contains("Limit it"), "limit hint retired: {joined}");
-    // The roof grid joins the left rail — the owner's |--- contract.
-    assert_eq!(lines[total_row - 1], format!("│{}│", "─".repeat(78)));
     assert_eq!(
         lines[20],
         flanked("  1s realtime - theme netrunner - q quit - t theme"),
@@ -261,27 +310,30 @@ fn footer_layout_pins_to_the_bottom() {
     );
     assert_eq!(lines.len(), 24, "frame pinned to the terminal height");
     // The footer does not follow the table: blank padding sits
-    // between the last table row and the roof grid above the total
-    // row.
+    // between the last table row and the roof grid above the
+    // headline.
     assert!(
-        lines[total_row - 2].starts_with('│')
-            && lines[total_row - 2].ends_with('│')
-            && lines[total_row - 2]
+        lines[consumer_idx - 2].starts_with('│')
+            && lines[consumer_idx - 2].ends_with('│')
+            && lines[consumer_idx - 2]
                 .chars()
                 .skip(1)
                 .take(76)
                 .all(|c| c == ' '),
         "blank (railed) padding above the footer grid: {:?}",
-        lines[total_row - 2]
+        lines[consumer_idx - 2]
     );
 }
 
-/// The NIGHT-engrave-3 retirement pin: the discovery pair (Top
-/// consumer + Limit it) and the census line no longer render on ANY
-/// frame — the owner's leanest-footer call. The same live-detail
-/// fixture that used to light the pair now proves its absence.
+/// The NIGHT-engrave-4 restoration pin (the engraved pair is BACK,
+/// re-cut to the owner's exact wording): the same live-detail
+/// fixture that proved the pair's absence at engrave-3 now proves
+/// the AUTODETECT — the rank-1 cgroup's busiest PROCESS (curl, the
+/// socket holder) headlines, not the cgroup's first-resolved comm
+/// (alacritty) — and the limit suggestion names the same process
+/// with the `ss` short alias and the engraved default rate.
 #[test]
-fn footer_discovery_pair_and_census_are_retired() {
+fn footer_discovery_pair_renders_with_the_autodetect_name() {
     use crate::ebpf::connections::{
         CgroupConnections, ConnectionMap, ProcessDetail, Proto, SocketInfo,
     };
@@ -318,115 +370,33 @@ fn footer_discovery_pair_and_census_are_retired() {
     );
     let joined = lines.join("\n");
     assert!(
-        !joined.contains("Top consumer"),
-        "retired at engrave-3: {joined}"
+        joined.contains("top consumer is curl"),
+        "the autodetect names the busiest process INSIDE the champion cgroup (NIGHT-hunt-8 lineage): {joined}"
     );
     assert!(
-        !joined.contains("Limit it"),
-        "retired with its pair: {joined}"
+        joined.contains("limit target with 'sudo zelynic ss curl 100kb'"),
+        "the suggestion follows the owner's engrave-4 wording — the quoted command and the ss alias: {joined}"
     );
     assert!(
-        !joined.contains("packets +"),
-        "the census is retired: {joined}"
-    );
-    assert_eq!(lines.len(), 24, "the pin is unchanged by the trim");
-}
-
-/// Adaptive compact (NIGHT-boost-14, dynamic WxH): the subprocess
-/// detail hides on frames too narrow for the TOTAL column, and
-/// above it every detail line is trimmed to the frame width — a
-/// long process/endpoint string can never wrap the frame.
-#[test]
-fn detail_hides_and_cuts_on_narrow_frames() {
-    use crate::ebpf::connections::{
-        CgroupConnections, ConnectionMap, ProcessDetail, Proto, SocketInfo,
-    };
-
-    let identity = identity_with(&[("alacritty", 7001)]);
-    let mut conns = ConnectionMap::new();
-    conns.insert(
-        7001,
-        CgroupConnections {
-            total_procs: 2,
-            socket_holders: vec![ProcessDetail {
-                pid: 4242,
-                comm: "curl".to_string(),
-                // The long-horizon IPv6 endpoint: the detail line runs
-                // past 51 columns naturally, so the trim path is the
-                // one under test at width 51.
-                sockets: vec![SocketInfo {
-                    proto: Proto::Tcp,
-                    remote: "2001:0db8:85a3:0000:0000:8a2e:0370:7334:443".to_string(),
-                    state: "ESTABLISHED",
-                    queued: false,
-                }],
-            }],
-        },
-    );
-
-    // Narrow frame (width 50 — border inset 48 < 53): no detail
-    // lines at all.
-    let mut narrow = Vec::new();
-    render_eagle_eyes_at(
-        &mut narrow,
-        &frame(7001, 500_000, 5_000),
-        &[],
-        &identity,
-        Some(&conns),
-        Duration::from_secs(1),
-        &mut SessionState::new(),
-        Duration::from_secs(70),
-        FrameGeometry {
-            width: 50,
-            height: 24,
-        },
+        !joined.contains("alacritty 100kb"),
+        "the cgroup's first-resolved comm is NOT the suggested target: {joined}"
     );
     assert!(
-        !narrow.iter().any(|l| l.contains("└")),
-        "subprocess detail hides below the TOTAL-column width: {:?}",
-        narrow
+        joined.contains("2 packets + 1 cgroups"),
+        "the census rides too — the frame helper carries one packet per direction: {joined}"
     );
-    assert_eq!(narrow.len(), 24, "the pin holds on narrow frames too");
-
-    // Comfortable width (NIGHT-boost-20: the rails claim two columns,
-    // so the frame needs 55 for a 53-column inset — the TOTAL-column
-    // boundary since NIGHT-engrave-4's right gutter moved it up from
-    // 51): the detail line shows, trimmed to the inset — a long
-    // process or endpoint string can never wrap the frame or shift
-    // the pinned footer.
-    let mut snug = Vec::new();
-    render_eagle_eyes_at(
-        &mut snug,
-        &frame(7001, 500_000, 5_000),
-        &[],
-        &identity,
-        Some(&conns),
-        Duration::from_secs(1),
-        &mut SessionState::new(),
-        Duration::from_secs(70),
-        FrameGeometry {
-            width: 55,
-            height: 24,
-        },
-    );
-    let detail = snug
-        .iter()
-        .find(|l| l.contains("curl ("))
-        .expect("detail line at width 55");
-    assert!(
-        detail.chars().count() <= 55,
-        "detail trimmed to the frame width (rails included): {detail}"
-    );
-    assert!(detail.contains('…'), "truncation marks itself: {detail}");
+    assert_eq!(lines.len(), 24, "the pin is unchanged by the rebuild");
 }
 
 /// NIGHT-boost-16 / safety-security-1: the accumulate-explosion
 /// render pin. A frame whose deltas and session accumulator sit at
-/// u64::MAX must render WITHOUT panic in a debug build (the four
-/// footer sums and the ranking key used to be plain `+` and `sum` —
-/// debug panicked, release wrapped to a tiny grand total) and the
-/// TOTAL row must carry the honest saturation figure (18.4 EB), not
-/// a wrapped number.
+/// u64::MAX must render WITHOUT panic in a debug build (the footer
+/// sums and the ranking key used to be plain `+` and `sum` — debug
+/// panicked, release wrapped to a tiny grand total) and the TOTAL
+/// row must carry the honest saturation figure (18.4 EB), not a
+/// wrapped number. NIGHT-engrave-4: the census line and the consumer
+/// headline ride the same saturated frame without panic — the packet
+/// counter saturates at its own honest ceiling.
 #[test]
 fn saturated_session_renders_without_panic() {
     let identity = identity_with(&[("saturator", 9001)]);
@@ -472,5 +442,15 @@ fn saturated_session_renders_without_panic() {
     assert!(
         lines.iter().any(|l| l.contains("total usage internet in")),
         "the total row survives saturation"
+    );
+    // NIGHT-engrave-4: the census saturates at its own honest
+    // ceiling — the raw u64 packet count, no panic, no wrap.
+    assert!(
+        joined.contains("18446744073709551615 packets + 1 cgroups"),
+        "the saturated packet counter renders its full figure: {joined}"
+    );
+    assert!(
+        joined.contains("top consumer is saturator"),
+        "the consumer headline rides the saturated frame: {joined}"
     );
 }

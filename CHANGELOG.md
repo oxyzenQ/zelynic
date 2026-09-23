@@ -1325,6 +1325,38 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Fixed
 
+- **monitor: NIGHT-engrave-4 (second cut) — the footer dashboard
+  rebuild: the missing lines restored in the owner's exact order** —
+  the owner's audit: the footer showed only the total row, the
+  status line, and the build stamp; the consumer headline, the
+  packets+cgroups census, and the limit suggestion were missing.
+  The block now reads in the owner's exact line order: `top consumer
+  is curl` (the rank-1 cgroup's busiest process — the NIGHT-hunt-8
+  autodetect restored: socket detail first, the label's comm second,
+  the raw label last, so the headline never goes dark over an
+  identity miss; the name brand purple, the engrave-1 contract),
+  `478 packets + 1 cgroups` (SESSION packets since this pass — one
+  accumulator in the session state, both directions, the same
+  horizon as the bytes, where the pre-engrave-3 census mixed a
+  per-frame packet count with a session cgroup count on adjacent
+  words of one line), the total row (unchanged, engrave-3's
+  `total usage internet in 1h:20s = 10gb`), `limit target with
+  'sudo zelynic ss curl 100kb'` (the owner's engrave-4 wording:
+  quoted command in suggestion crystal white, the `ss` short alias
+  the CLI already carries, the 100kb a named documented constant —
+  the one fixed suggestion value on a line whose every other fact
+  is derived live), the status line, and the copyright. The census
+  composition moved from the eagle renderer into the footer module
+  (gathered where it renders — footer data lives with the footer);
+  SessionAcc gains the saturating packet accumulator; the
+  compression ladder re-cuts to 9/8/5/3 (the air above the status
+  line drops first, the owner's copyright gap survives to Compact,
+  the census and limit suggestion next, the consumer headline and
+  the roof grid last — the total row, the status line, and the
+  copyright remain the survivors at every height). Filtered frames
+  carry their own census (the filtered board's story). The focus
+  view's composition is untouched.
+
 - **monitor: NIGHT-engrave-4 (first cut) — the symmetric rails: the
   table's border gaps made consistent, the way the owner audited
   them** — the TOTAL column's figures used to end flush against

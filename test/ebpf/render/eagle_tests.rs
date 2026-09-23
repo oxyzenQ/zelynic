@@ -432,11 +432,15 @@ fn name_targets_expand_and_misses_note() {
     );
     assert!(
         joined.contains("2 targets"),
-        "the title names the watched breadth, the census share line retired at NIGHT-engrave-3: {joined}"
+        "the title names the watched breadth: {joined}"
     );
     assert!(
-        !joined.contains("packets +"),
-        "census line retired on filtered frames too (NIGHT-engrave-3): {joined}"
+        joined.contains("11 packets + 1 cgroups"),
+        "engrave-4: filtered frames carry their OWN census — the filtered board's session packets (1 ul + 10 dl) and its one cgroup: {joined}"
+    );
+    assert!(
+        joined.contains("top consumer is brave"),
+        "engrave-4: the consumer headline names the filtered board's champion: {joined}"
     );
 }
 

@@ -87,7 +87,7 @@ pub use eagle::render_eagle_eyes;
 
 pub(crate) use session::{SessionAcc, SessionState};
 
-pub(crate) use detail::{detail_lines, full_detail_lines, label_with_count};
+pub(crate) use detail::{comm_from_label, detail_lines, full_detail_lines, label_with_count};
 
 use crate::ebpf::limiter::format_rate;
 use crate::output::brand_bold;

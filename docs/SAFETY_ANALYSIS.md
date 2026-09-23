@@ -241,8 +241,9 @@ saturated counter renders "18.4 EB/s", never a wrapped figure), and
 the focus view's per-direction packet counts render as raw integers
 (free-form rows, not column cells; a saturated 20-digit count is the
 honest ceiling of a counter whose wrap horizon at 1 M pps is
-~585,000 years — the footer census line that carried the aggregate
-count retired at NIGHT-engrave-3).
+~585,000 years — the footer census line that carries the aggregate
+count again since NIGHT-engrave-4 reads the SESSION accumulator,
+which saturates the same way and renders its full raw figure).
 
 ### Map slot reclamation (the LTS budget)
 

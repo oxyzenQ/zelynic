@@ -241,30 +241,18 @@ pub(super) fn render_eagle_eyes_at(
     let extra = usize::from(identity.is_empty());
     let tier = plan_footer_tier(geo.height, extra);
 
-    // The grand total (footer honesty, NIGHT-hunt-15 lineage): the
-    // session leaderboard's accumulated sum, SATURATING
-    // (NIGHT-boost-16) — a saturated sum reads as u64::MAX, the
-    // honest ceiling of the u64 accumulator, never a panic or wrap.
-    // NIGHT-engrave-3 retired the rest of the census math (the
-    // per-frame rates, the packets count, the discovery pair) with
-    // the lines that carried them.
-    let grand: u64 = board
-        .iter()
-        .map(|(_, a)| a.dl.saturating_add(a.ul))
-        .fold(0, u64::saturating_add);
-
-    // ── The engraved footer (NIGHT-boost-14 / NIGHT-engrave-3) ──
+    // ── The engraved footer (NIGHT-boost-14 / NIGHT-engrave-4) ──
     //
     // Built BEFORE the table renders (see render/footer.rs): the
     // MEASURED length of the block is what pins it to the bottom,
-    // and the table renders into whatever height remains.
+    // and the table renders into whatever height remains. The census
+    // gathers itself from the live board since NIGHT-engrave-4 — the
+    // consumer autodetect, the session packets, the cgroup count,
+    // the grand (all saturating, the boost-16 discipline) — footer
+    // data, gathered where it renders; the eagle renderer hands the
+    // board over and walks on.
     let footer = build_grip_footer(
-        &FooterCensus {
-            tier,
-            grand,
-            identities_unresolved: identity.is_empty(),
-            uptime,
-        },
+        &FooterCensus::gather(tier, &board, identity, conns, uptime),
         geo,
         interval,
     );

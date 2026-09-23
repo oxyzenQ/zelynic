@@ -58,6 +58,27 @@ fn label_with_count_shapes() {
     assert_eq!(label_with_count(&identity, Some(&conns), 9999), "cg:9999");
 }
 
+/// The comm extractor (NIGHT-engrave-4 restoration): the footer's
+/// top-consumer autodetect reads the champion's name out of the row
+/// label, tolerating the multi-tenant "+N" suffix; raw cgroup labels
+/// (unresolved identities) carry no comm to extract — the caller
+/// falls back to the whole label, the identity-honest name.
+#[test]
+fn comm_from_label_extracts_the_champion_comm() {
+    assert_eq!(
+        comm_from_label("cg:7001 (alacritty)"),
+        Some("alacritty".to_string())
+    );
+    // The multi-tenant suffix: the PRIMARY comm, not the count.
+    assert_eq!(comm_from_label("cg:7021 (git +3)"), Some("git".to_string()));
+    // Unresolved identity: no paren — nothing to extract.
+    assert_eq!(comm_from_label("cg:7001"), None);
+    // Defensive shapes: empty comm and the explicit unknown marker
+    // both read as no name (the caller falls back).
+    assert_eq!(comm_from_label("cg:7001 ()"), None);
+    assert_eq!(comm_from_label("cg:7001 (unknown)"), None);
+}
+
 /// Fixture builder: the owner's curl-inside-alacritty shape plus the
 /// listener noise the display filter must skip.
 fn fixture() -> (
@@ -328,4 +349,120 @@ fn detail_lines_three_endpoints() {
             "      └ 8.8.8.8:53".to_string(),
         ]
     );
+}
+
+/// Adaptive compact (NIGHT-boost-14, dynamic WxH — moved here from
+/// the footer pins when the engrave-4 rebuild outgrew that file):
+/// the subprocess detail hides on frames too narrow for the TOTAL
+/// column (the column ladder IS the threshold since NIGHT-engrave-4),
+/// and above it every detail line is trimmed to the frame width — a
+/// long process/endpoint string can never wrap the frame or shift
+/// the pinned footer.
+#[test]
+fn detail_hides_and_cuts_on_narrow_frames() {
+    use crate::ebpf::connections::{
+        CgroupConnections, ConnectionMap, ProcessDetail, Proto, SocketInfo,
+    };
+    use crate::ebpf::identity::{IdentityMap, ProcessIdentity};
+    use crate::ebpf::loader::{CgroupDelta, CounterSummary};
+    use crate::ebpf::render::eagle::render_eagle_eyes_at;
+    use crate::ebpf::render::{FrameGeometry, SessionState};
+    use std::time::Duration;
+
+    let mut identity = IdentityMap::new();
+    identity.insert(ProcessIdentity {
+        cgroup_id: 7001,
+        uid: 1000,
+        comm: "alacritty".to_string(),
+    });
+    let mut conns = ConnectionMap::new();
+    conns.insert(
+        7001,
+        CgroupConnections {
+            total_procs: 2,
+            socket_holders: vec![ProcessDetail {
+                pid: 4242,
+                comm: "curl".to_string(),
+                // The long-horizon IPv6 endpoint: the detail line runs
+                // well past the inset naturally, so the trim path is
+                // the one under test at the boundary width.
+                sockets: vec![SocketInfo {
+                    proto: Proto::Tcp,
+                    remote: "2001:0db8:85a3:0000:0000:8a2e:0370:7334:443".to_string(),
+                    state: "ESTABLISHED",
+                    queued: false,
+                }],
+            }],
+        },
+    );
+    let frame = |dl: u64, ul: u64| CounterSummary {
+        total_packets: 1,
+        total_bytes: ul,
+        total_ingress_packets: 1,
+        total_ingress_bytes: dl,
+        cgroups: vec![CgroupDelta {
+            cgroup_id: 7001,
+            packets: 1,
+            bytes: ul,
+            total_bytes: ul,
+            ingress_packets: 1,
+            ingress_bytes: dl,
+            ingress_total_bytes: dl,
+        }],
+    };
+
+    // Narrow frame (width 50 - border inset 48 < 53): no detail
+    // lines at all.
+    let mut narrow = Vec::new();
+    render_eagle_eyes_at(
+        &mut narrow,
+        &frame(500_000, 5_000),
+        &[],
+        &identity,
+        Some(&conns),
+        Duration::from_secs(1),
+        &mut SessionState::new(),
+        Duration::from_secs(70),
+        FrameGeometry {
+            width: 50,
+            height: 24,
+        },
+    );
+    assert!(
+        !narrow.iter().any(|l| l.contains("└")),
+        "subprocess detail hides below the TOTAL-column width: {:?}",
+        narrow
+    );
+    assert_eq!(narrow.len(), 24, "the pin holds on narrow frames too");
+
+    // Comfortable width (NIGHT-boost-20: the rails claim two columns,
+    // so the frame needs 55 for a 53-column inset - the TOTAL-column
+    // boundary since NIGHT-engrave-4's right gutter moved it up from
+    // 51): the detail line shows, trimmed to the inset - a long
+    // process or endpoint string can never wrap the frame or shift
+    // the pinned footer.
+    let mut snug = Vec::new();
+    render_eagle_eyes_at(
+        &mut snug,
+        &frame(500_000, 5_000),
+        &[],
+        &identity,
+        Some(&conns),
+        Duration::from_secs(1),
+        &mut SessionState::new(),
+        Duration::from_secs(70),
+        FrameGeometry {
+            width: 55,
+            height: 24,
+        },
+    );
+    let detail = snug
+        .iter()
+        .find(|l| l.contains("curl ("))
+        .expect("detail line at width 55");
+    assert!(
+        detail.chars().count() <= 55,
+        "detail trimmed to the frame width (rails included): {detail}"
+    );
+    assert!(detail.contains('…'), "truncation marks itself: {detail}");
 }

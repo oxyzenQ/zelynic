@@ -50,6 +50,12 @@ pub(crate) struct SessionAcc {
     pub dl: u64,
     /// Accumulated upload bytes.
     pub ul: u64,
+    /// Accumulated packets, both directions (NIGHT-engrave-4: the
+    /// footer's census line counts the SESSION's packets — the same
+    /// horizon as the bytes, one accumulator per frame delta, where
+    /// the pre-engrave-3 census mixed a per-frame packet count with
+    /// a session cgroup count on adjacent words of one line).
+    pub pkt: u64,
 }
 
 impl SessionAcc {
@@ -103,6 +109,13 @@ impl SessionState {
             let entry = self.acc.entry(c.cgroup_id).or_default();
             entry.dl = entry.dl.saturating_add(c.ingress_bytes);
             entry.ul = entry.ul.saturating_add(c.bytes);
+            // Both directions' packets fold into one session counter
+            // (NIGHT-engrave-4) — saturating like every accumulation
+            // surface in this path.
+            entry.pkt = entry
+                .pkt
+                .saturating_add(c.packets)
+                .saturating_add(c.ingress_packets);
         }
     }
 
@@ -187,7 +200,55 @@ mod tests {
         session.absorb(&frame(7, 100, 200));
         session.absorb(&CounterSummary::default());
         assert!(!session.is_empty());
-        assert_eq!(session.ranked(), vec![(7, SessionAcc { dl: 100, ul: 200 })]);
+        // The frame() helper carries 1 packet per direction: the
+        // session packet counter holds BOTH through the quiet frame
+        // (NIGHT-engrave-4 — same persistence as the byte legs).
+        assert_eq!(
+            session.ranked(),
+            vec![(
+                7,
+                SessionAcc {
+                    dl: 100,
+                    ul: 200,
+                    pkt: 2,
+                }
+            )]
+        );
+    }
+
+    /// The session packet accumulator (NIGHT-engrave-4): every
+    /// frame's per-direction packets fold into ONE session figure —
+    /// the census line's horizon matches the byte legs' exactly,
+    /// where the pre-engrave-3 census mixed horizons.
+    #[test]
+    fn session_packets_accumulate_both_directions() {
+        let mut session = SessionState::new();
+        session.absorb(&frame(7, 100, 200));
+        session.absorb(&frame(7, 50, 25));
+        let board = session.ranked();
+        // (1 ul + 1 dl) + (1 + 1) = 4 — the counter never resets on
+        // a quiet second and never mixes in a per-frame figure.
+        assert_eq!(board[0].1.pkt, 4);
+        // Saturating, like every accumulation surface: a saturated
+        // packet counter stays saturated (no wrap, no panic).
+        let saturated = CounterSummary {
+            total_packets: u64::MAX,
+            total_bytes: 0,
+            total_ingress_packets: u64::MAX,
+            total_ingress_bytes: 0,
+            cgroups: vec![CgroupDelta {
+                cgroup_id: 7,
+                packets: u64::MAX,
+                bytes: 0,
+                total_bytes: 0,
+                ingress_packets: u64::MAX,
+                ingress_bytes: 0,
+                ingress_total_bytes: 0,
+            }],
+        };
+        session.absorb(&saturated);
+        session.absorb(&frame(7, 0, 0));
+        assert_eq!(session.ranked()[0].1.pkt, u64::MAX);
     }
 
     /// Census: empty session is empty; every talked cgroup counts.
@@ -231,6 +292,7 @@ mod tests {
         let acc = SessionAcc {
             dl: u64::MAX,
             ul: u64::MAX,
+            pkt: u64::MAX,
         };
         assert_eq!(acc.total(), u64::MAX);
         // One leg saturated, one leg free: the total still reads as
@@ -238,7 +300,8 @@ mod tests {
         assert_eq!(
             SessionAcc {
                 dl: u64::MAX,
-                ul: 1
+                ul: 1,
+                pkt: 0,
             }
             .total(),
             u64::MAX

@@ -120,6 +120,17 @@ numerics, and no per-cell noise (values are never packed as
   (`udp 8.8.8.8:53`), busy sockets flagged `[busy]`; remaining
   holders collapse into `+N more socket-holding processes`. Detail
   lines count against the height budget so frames never scroll.
+- Footer block (NIGHT-engrave-4, the owner's dashboard rebuild): the
+  bottom block reads in the owner's exact line order — `top consumer
+  is curl` (the name brand purple, the engrave-1 contract: the one
+  living thing in the grey block), `478 packets + 1 cgroups` (grey,
+  session horizon), `total usage internet in 1h:20s = 10gb` (grey),
+  `limit target with 'sudo zelynic ss curl 100kb'` (grey prefix,
+  the quoted command in suggestion crystal white — the color
+  layer's actionable hint), the status line, and the build stamp
+  (purple). Purple grid and stamp, brand-purple consumer name,
+  white command, grey everything else: subordinate information
+  dimmer than the data it annotates, actionable accents brighter.
 
 ### 2.2. Monitor themes (NIGHT-boost-18, improve-27)
 
@@ -184,8 +195,9 @@ depth for terminals whose environment lies about truecolor — see
 USAGE.md. A cycled frame names its theme in the footer's
 status line (`1s realtime - theme atomic - q quit - t theme`, the
 NIGHT-engrave-2 legend) — and since NIGHT-engrave-3 that row is the
-key hints' only home (the title's top-right hint retired with the
-census); a theme change repaints within the same 50ms wake, never
+key hints' only home (the title's top-right hint retired then and
+stayed retired through the engrave-4 footer rebuild); a theme
+change repaints within the same 50ms wake, never
 at the next refresh tick. Error red
 and suggestion white are hardwired: they belong to the CLI error
 surface, which never themes.
