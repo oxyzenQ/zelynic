@@ -64,6 +64,22 @@ pub(crate) fn label_with_count(
     base
 }
 
+/// Extract the primary comm from a label, tolerating the "+N" suffix
+/// (used by the top-consumer autodetect, NIGHT-hunt-8 lineage,
+/// restored by NIGHT-engrave-4): `cg:73386 (alacritty +3)` yields
+/// `alacritty`. Labels without a parenthesized comm (the raw
+/// `cg:73386` of an unresolved identity) yield None — the caller
+/// falls back to the whole label, the identity-honest name.
+#[must_use]
+pub(crate) fn comm_from_label(label: &str) -> Option<String> {
+    let inner = label.split('(').nth(1)?.strip_suffix(')')?;
+    let comm = inner.split(" +").next().unwrap_or(inner);
+    if comm.is_empty() || comm == "unknown" {
+        return None;
+    }
+    Some(comm.to_string())
+}
+
 /// One detail line's endpoint text: UDP is tagged (QUIC-era traffic
 /// lives there), busy sockets are flagged.
 fn endpoint_text(socket: &SocketInfo) -> String {

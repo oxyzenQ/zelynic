@@ -257,31 +257,47 @@ focus view (one target, one cgroup) expands every endpoint — the
 deep answer to "who exactly is talking inside this cgroup".
 
 The frame is a PINNED composition (NIGHT-boost-14, the owner's
-masterclass engraving; trimmed to its leanest readable block by
-NIGHT-engrave-3): the table floats under the header and the footer
+masterclass engraving; REBUILT to the owner's dashboard spec by
+NIGHT-engrave-4): the table floats under the header and the footer
 stays near the bottom of the terminal whatever the table does —
-the flat total row (`total usage internet in 1h:20s = 10gb`,
-NIGHT-engrave-3: the session uptime and the grand total ALONE, the
-per-frame rates retired at the owner's "only total consume
-bandwidth" call) under its single purple roof grid, one blank of
-air, the status line — the frame's legend `1s realtime - theme
-netrunner - q quit - t theme` (NIGHT-engrave-2), grey, riding every
-compression tier — the owner's NIGHT-engrave-3 gap, and the
-signature copyright as the frame's last row. The NIGHT-engrave-3
-trim retired the packets/cgroups census line, the "Top consumer"
-autodetect, the `strict-single` suggestion, and the second grid
-(the footer's middle left at the owner's leanest-footer call); all
-footer text renders calm grey except the purple grid and the
-purple build stamp — subordinate information reads dimmer than the
-data it annotates. The grid lines JOIN the frame's rails edge to
-edge (NIGHT-engrave-3: the dashes begin at column 0 — the owner's
-`|---`, never `| ---` — so the left border reads as one integrated
-line). The tiers are a STATIC traffic light (the takeover blink is
-gone — eye strain): rank 1 champion red, rank 2 warning yellow,
-rank 3 and below status green; the subprocess usage lines render
-grey. A breathing blank line sits under the title bar, and the grid
-under the column header is brand purple, same source as the header
-text above it. The column headers are lowercase
+the footer block in the owner's exact line order: the consumer
+headline (`top consumer is curl` — the rank-1 cgroup's busiest
+process by the NIGHT-hunt-8 autodetect: socket detail first, the
+label's comm second, the raw label last, so the headline never goes
+dark over an identity miss; the name renders brand purple inside
+the grey block), the session census (`478 packets + 1 cgroups` —
+SESSION packets since NIGHT-engrave-4, the same horizon as the
+bytes: one accumulator in the session state, both directions, where
+the pre-engrave-3 census mixed a per-frame packet count with a
+session cgroup count), the flat total row
+(`total usage internet in 1h:20s = 10gb`, NIGHT-engrave-3: the
+session uptime and the grand total ALONE, the per-frame rates
+retired at the owner's "only total consume bandwidth" call), the
+actionable line (`limit target with 'sudo zelynic ss curl 100kb'` —
+the owner's engrave-4 wording: the quoted command in suggestion
+crystal white, the `ss` short alias the CLI already carries, and
+the engraved default rate — a named, documented constant, the one
+fixed suggestion value on a line whose every other fact is derived
+live), one blank of air, the status line — the frame's legend `1s
+realtime - theme netrunner - q quit - t theme` (NIGHT-engrave-2),
+grey, riding every compression tier — the owner's NIGHT-engrave-3
+gap, and the signature copyright as the frame's last row. The
+census, the consumer autodetect, and the limit suggestion retired
+at NIGHT-engrave-3 came BACK at the owner's engrave-4 call,
+re-cut to the exact new wording; the second grid stayed retired.
+All footer text renders calm grey except the purple grid, the
+purple build stamp, the brand-purple consumer name, and the
+white suggestion command — subordinate information reads dimmer
+than the data it annotates, actionable accents brighter. The grid
+lines JOIN the frame's rails edge to edge (NIGHT-engrave-3: the
+dashes begin at column 0 — the owner's `|---`, never `| ---` — so
+the left border reads as one integrated line). The tiers are a
+STATIC traffic light (the takeover blink is gone — eye strain):
+rank 1 champion red, rank 2 warning yellow, rank 3 and below
+status green; the subprocess usage lines render grey. A breathing
+blank line sits under the title bar, and the grid under the
+column header is brand purple, same source as the header text
+above it. The column headers are lowercase
 (NIGHT-engrave-1): `top process`, `download`, `upload`, `total`.
 Every text row in the monitor starts lowercase (NIGHT-engrave-3's
 call — the uppercase carriers retired with their lines).
@@ -336,11 +352,13 @@ the threshold now, one source of truth where a parallel constant
 used to drift) and every
 detail line is cut to the frame width, so a long process or endpoint
 string can never wrap the frame or shift the pinned footer. Short
-terminals compress the footer through a tier ladder (NIGHT-engrave-3
-re-cut it for the trimmed block, 6/5/4/3) — the total-status blank
-drops first, then the owner's gap above the copyright, then the
-roof grid — before the table loses its rows; the total row, the
-status line, and the copyright survive at every height. The row count follows the terminal height
+terminals compress the footer through a tier ladder (NIGHT-engrave-4
+re-cut it for the rebuilt block, 9/8/5/3) — the air above the status
+line drops first (the owner's gap above the copyright survives to
+Compact), then the census and the limit suggestion, then the consumer
+headline and the roof grid — before the table loses its rows; the
+total row, the status line, and the copyright survive at every
+height. The row count follows the terminal height
 — there is no `--limit`: the window IS the budget. DOWNLOAD and
 UPLOAD carry live per-direction RATES; TOTAL carries the
 session-accumulated bytes (the "total accumulated" function v10
