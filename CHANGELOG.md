@@ -570,6 +570,47 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Changed
 
+- **ux: NIGHT-engrave-5 — the report-table family: `sudo zelynic
+  status` restyled to the eagle-eyes contract (+
+  list-apps, the hunt find)** — the owner's audit: the eagle-eyes
+  style is finished, but the status output still did not match —
+  uppercase headers (`CGROUP / DOWNLOAD / UPLOAD / ALLOWED /
+  DROPPED`), a plain hyphen separator, bare sentence-case prose
+  lines, a bare `No active limits.` branch. The status surface now
+  renders the monitor's exact table family: lowercase purple column
+  headers (cgroup / download / upload / allowed / dropped) over the
+  monitor's own purple grid (render/footer.rs `grid_line`, promoted
+  pub(crate) and re-exported — one border family across every
+  zelynic table), full-width and flush with the left edge (the
+  `|---` shape); data rows in status green (the eagle table's calm
+  tier — every row is a live enforced limit, the affirmative
+  state); the watchdog and census prose in grey lowercase
+  (`watchdog: 30s remaining`, `active limits: N dl, N ul`, warn
+  yellow only for the expired verdict); a breathing gap under the
+  title bar; the leading blank line retired (the chrome opens the
+  output). The branch states carry the same chrome through new pure
+  builders (`status_clean_lines` / `status_stale_lines`): a clean
+  system renders the frame with one grey `no active limits` line, a
+  stale-pin state renders the warn-yellow finding with the recovery
+  command in suggestion white — the same actionable-accent contract
+  the monitor's limit suggestion carries. HUNT FIND: `zelynic
+  list-apps` carried the exact same defect class (the old "━━━"
+  pre-eagle banner, uppercase headers `PROCESS/PROCS/SOCKETS/
+  CGROUP ID/UID`, a plain separator) — the discovery table joins
+  the report family (flagship title bar, lowercase purple headers,
+  the purple grid, green rows, the grey census line). The
+  surface-class map is documented (BRANDING.md 2.1.1): flagship
+  frames + report tables carry the eagle table contract; action
+  prose (enforcement stderr) keeps sentence case; the reference
+  surfaces (help, doctor, errors) keep their own idioms. Every
+  builder is unit-pinned (6 new pins: lowercase headers on both
+  tables, header alignment, row shape, the watchdog/census wording,
+  the branch frames' chrome order); the `--print-json` documents
+  are byte-identical (the v11 scripting contract untouched).
+  Verified: 279 ebpf + 67 featureless unit tests, 32 + 29
+  integration, clippy and -D warnings clean both feature shapes,
+  gate-keepers 17/17, build.sh check-all -q under the 2-minute cap.
+
 - **ux: NIGHT-boost-24 — the --print-json honesty audit: the silent
   no-op retired** — the owner's audit question: is the flag useless
   because it only works with `zelynic status`? The answer the source

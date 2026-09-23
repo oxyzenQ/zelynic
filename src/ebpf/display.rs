@@ -12,8 +12,15 @@ use crate::ebpf::identity::IdentityMap;
 use crate::ebpf::limiter::{
     format_bytes, format_rate, monotonic_ns, terminal_width, LimiterStatsRaw, PolicyRaw,
 };
-use crate::ebpf::render::title_bar;
-use crate::output::signature_footer;
+use crate::ebpf::render::{grid_line, title_bar};
+use crate::output::{brand, grey, ok, signature_footer, suggestion, warn};
+
+/// The status table's column titles (NIGHT-engrave-5): lowercase —
+/// the eagle-eyes table contract (engrave-1 lowercased the monitor's
+/// titles; this surface was the last uppercase holdout the owner
+/// caught). Verdict VALUES keep their case (BLOCKED) — titles are
+/// furniture, verdicts are states.
+const STATUS_HEADERS: [&str; 5] = ["cgroup", "download", "upload", "allowed", "dropped"];
 
 /// Combined policy data for display.
 struct DisplayData {
@@ -86,6 +93,128 @@ fn status_cells(
     )
 }
 
+/// The status table's header row (pure, NIGHT-engrave-5): lowercase
+/// titles in regular purple — the exact contract the eagle-eyes
+/// header row carries (`top process` / `download` / `upload` /
+/// `total`, brand-wrapped) — so the two report tables read as one
+/// family. Extracted so the wording and alignment are unit-pinnable
+/// without capturing stdout.
+fn status_header_line(col_widths: &[usize; 5]) -> String {
+    brand(&format!(
+        "  {:<w0$} {:>w1$} {:>w2$} {:>w3$} {:>w4$}",
+        STATUS_HEADERS[0],
+        STATUS_HEADERS[1],
+        STATUS_HEADERS[2],
+        STATUS_HEADERS[3],
+        STATUS_HEADERS[4],
+        w0 = col_widths[0],
+        w1 = col_widths[1],
+        w2 = col_widths[2],
+        w3 = col_widths[3],
+        w4 = col_widths[4]
+    ))
+}
+
+/// One status data row (pure, NIGHT-engrave-5): the whole row in
+/// status green — the eagle table's calm tier (rank 3 and below
+/// render the same way). Every row here IS a live, enforced limit —
+/// the affirmative state — so the table reads like a calm monitor
+/// board, not a white wall of text.
+fn status_row_line(
+    label: &str,
+    row: &(String, String, String, String, String),
+    col_widths: &[usize; 5],
+) -> String {
+    ok(&format!(
+        "  {:<w0$} {:>w1$} {:>w2$} {:>w3$} {:>w4$}",
+        label,
+        row.1,
+        row.2,
+        row.3,
+        row.4,
+        w0 = col_widths[0],
+        w1 = col_widths[1],
+        w2 = col_widths[2],
+        w3 = col_widths[3],
+        w4 = col_widths[4]
+    ))
+}
+
+/// The list-apps table's header row (pure, NIGHT-engrave-5 hunt
+/// find): the same eagle-eyes contract as the status header —
+/// lowercase purple titles — so the two REPORT tables read as one
+/// family. Extracted here (the display module owns table style) so
+/// the wording is pinnable next to the status pins.
+#[must_use]
+pub(crate) fn list_apps_header_line(widths: &[usize; 5]) -> String {
+    brand(&format!(
+        "  {:<w0$} {:>w1$} {:>w2$} {:>w3$} {:>w4$}",
+        "process",
+        "procs",
+        "sockets",
+        "cgroup id",
+        "uid",
+        w0 = widths[0],
+        w1 = widths[1],
+        w2 = widths[2],
+        w3 = widths[3],
+        w4 = widths[4]
+    ))
+}
+
+/// The watchdog prose line (pure, NIGHT-engrave-5): grey while the
+/// deadline counts down (a subordinate fact — the census family),
+/// warn yellow once expired (the enforcement verdict went dark).
+fn watchdog_line(remaining_secs: Option<u64>) -> String {
+    match remaining_secs {
+        Some(secs) => grey(&format!("  watchdog: {secs}s remaining")),
+        None => warn("  watchdog: expired (bpf is no-op)"),
+    }
+}
+
+/// The enforcement census line (pure, NIGHT-engrave-5): grey,
+/// lowercase — the same subordinate family the monitor's footer
+/// census renders in.
+fn active_limits_line(dl: usize, ul: usize) -> String {
+    grey(&format!("  active limits: {dl} dl, {ul} ul"))
+}
+
+/// The clean-state frame (no pins, NIGHT-engrave-5): the flagship
+/// chrome and one grey line — "no active limits" is a verdict, not
+/// an absence of output. The title bar spans the terminal width
+/// (there is no table to size to).
+#[must_use]
+pub(crate) fn status_clean_lines(width: usize) -> Vec<String> {
+    vec![
+        title_bar("zelynic status", width),
+        String::new(),
+        grey("  no active limits"),
+        String::new(),
+        format!("  {}", signature_footer()),
+    ]
+}
+
+/// The stale-pins frame (NIGHT-engrave-5): the flagship chrome with
+/// the warning in warn yellow and the recovery command in suggestion
+/// white — the same actionable-accent contract the monitor's limit
+/// suggestion line carries.
+#[must_use]
+pub(crate) fn status_stale_lines(width: usize) -> Vec<String> {
+    vec![
+        title_bar("zelynic status", width),
+        String::new(),
+        warn("  stale bpf pin files detected (partial enforcement state)"),
+        format!(
+            "  {} {} {}",
+            grey("run"),
+            suggestion("'zelynic recover'"),
+            grey("to clean up, then re-apply limits")
+        ),
+        String::new(),
+        format!("  {}", signature_footer()),
+    ]
+}
+
 /// Print human-readable status table.
 ///
 /// Flagship engraving (NIGHT-boost-5): the surface opens with the
@@ -95,6 +224,15 @@ fn status_cells(
 /// the table's own width (content-width table + its gutter), not
 /// the full terminal — the status grid sizes to its rows, and a
 /// full-width bar would overhang it on wide screens.
+///
+/// NIGHT-engrave-5 (the eagle-eyes style match, the owner's audit):
+/// the table itself answers to the monitor's contract — lowercase
+/// purple column headers over a full-width purple grid flush with
+/// the left edge, data rows in status green (the calm tier), the
+/// watchdog/census prose in grey (warn yellow when the watchdog
+/// expires), and a breathing gap under the title bar. The uppercase
+/// headers and the plain separator were the last pre-eagle carriers
+/// on a flagship surface.
 ///
 /// Watchdog honesty (NIGHT-boost-5): the line appears only when a
 /// deadline is actually ARMED. The retired "not set (enforcing)"
@@ -115,10 +253,9 @@ pub fn print_status(
         data.iter().map(|d| status_cells(d, identity)).collect();
 
     let term_w = terminal_width().saturating_sub(4);
-    let headers = ["CGROUP", "DOWNLOAD", "UPLOAD", "ALLOWED", "DROPPED"];
 
     let mut col_widths = [0usize; 5];
-    for (i, h) in headers.iter().enumerate() {
+    for (i, h) in STATUS_HEADERS.iter().enumerate() {
         col_widths[i] = h.len();
     }
     for row in &rows {
@@ -136,17 +273,23 @@ pub fn print_status(
     }
 
     let sep_len: usize = col_widths.iter().sum::<usize>() + 4;
-    println_safe!("\n{}", title_bar("zelynic status", sep_len + 2));
+    // NIGHT-engrave-5: the eagle-eyes composition — the title bar
+    // opens the frame, one breathing gap under it (the monitor's
+    // top-chrome ladder), and the frame STARTS at the title: the old
+    // leading blank line is gone, the chrome is the first thing the
+    // eye meets.
+    println_safe!("{}", title_bar("zelynic status", sep_len + 2));
+    println_safe!();
 
     match watchdog_deadline {
         Some(deadline) if deadline > 0 => {
             let now = monotonic_ns();
-            if deadline > now {
-                let remaining = (deadline - now) / 1_000_000_000;
-                println_safe!("  Watchdog: {remaining}s remaining");
+            let line = if deadline > now {
+                watchdog_line(Some((deadline - now) / 1_000_000_000))
             } else {
-                println_safe!("  Watchdog: EXPIRED (BPF is no-op)");
-            }
+                watchdog_line(None)
+            };
+            println_safe!("{line}");
         }
         // Dormant (deadline 0 / None): no line at all — the function
         // docs above hold the why.
@@ -154,32 +297,24 @@ pub fn print_status(
     }
 
     if dl_policies.is_empty() && ul_policies.is_empty() {
-        println_safe!("  Active limits: none");
+        println_safe!("{}", grey("  active limits: none"));
         println_safe!("\n  {}", signature_footer());
         return;
     }
 
     println_safe!(
-        "  Active limits: {} dl, {} ul",
-        dl_policies.len(),
-        ul_policies.len()
+        "{}",
+        active_limits_line(dl_policies.len(), ul_policies.len())
     );
     println_safe!();
 
-    println_safe!(
-        "  {:<w0$} {:>w1$} {:>w2$} {:>w3$} {:>w4$}",
-        headers[0],
-        headers[1],
-        headers[2],
-        headers[3],
-        headers[4],
-        w0 = col_widths[0],
-        w1 = col_widths[1],
-        w2 = col_widths[2],
-        w3 = col_widths[3],
-        w4 = col_widths[4]
-    );
-    println_safe!("  {}", "─".repeat(sep_len));
+    // NIGHT-engrave-5: the header row and the grid under it are the
+    // eagle table contract — lowercase purple titles, then the
+    // monitor's own purple grid spanning the full title width and
+    // flush with the left edge (the `|---` shape, never `| ---`):
+    // one border family across every zelynic table.
+    println_safe!("{}", status_header_line(&col_widths));
+    println_safe!("{}", grid_line(sep_len + 2));
 
     for row in &rows {
         let label = if row.0.chars().count() > col_widths[0] {
@@ -192,19 +327,7 @@ pub fn print_status(
         } else {
             row.0.clone()
         };
-        println_safe!(
-            "  {:<w0$} {:>w1$} {:>w2$} {:>w3$} {:>w4$}",
-            label,
-            row.1,
-            row.2,
-            row.3,
-            row.4,
-            w0 = col_widths[0],
-            w1 = col_widths[1],
-            w2 = col_widths[2],
-            w3 = col_widths[3],
-            w4 = col_widths[4]
-        );
+        println_safe!("{}", status_row_line(&label, row, &col_widths));
     }
 
     // Signature footer (NIGHT-boost-5): bottom-left identity stamp,
