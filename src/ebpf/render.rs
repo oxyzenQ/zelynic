@@ -115,21 +115,21 @@ impl FrameGeometry {
 /// Eagle-eyes column layout derived from the frame width.
 ///
 /// Degradation ladder (6-column rank cell, 1-column gaps):
-/// - width >= 51: (rank) | PROCESS | DOWNLOAD | UPLOAD | TOTAL
-/// - width >= 40: (rank) | PROCESS | DOWNLOAD | UPLOAD   (TOTAL dropped)
-/// - width  < 40: (rank) | PROCESS (min 12) | DOWNLOAD | UPLOAD at 9-wide
+/// - width >= 51: (rank) | top process | download | upload | total
+/// - width >= 40: (rank) | top process | download | upload (total dropped)
+/// - width  < 40: (rank) | top process (min 12) | download | upload at 9-wide
 ///
-/// DOWNLOAD and UPLOAD carry per-frame RATES (delta / interval —
-/// "what is moving right now"); TOTAL carries the session-accumulated
+/// Download and upload carry per-frame RATES (delta / interval —
+/// "what is moving right now"); total carries the session-accumulated
 /// bytes (NIGHT-boost-5: the v10 "total accumulated" function
 /// restored as the ranking key's own column). The old combined RATE
-/// column was dl+ul restated — the TOTAL column replaces it.
+/// column was dl+ul restated — the total column replaces it.
 ///
 /// NIGHT-boost-5: the header rank cell is blank (the owner's "#"
 /// header retired) and the absorption math makes every data row end
 /// flush at the frame width — the label column absorbs exactly what
 /// the rank cell, the gaps, and the numeric columns leave, so the
-/// right border (title bar, separators, rows, TOTAL) is one straight
+/// right border (title bar, separators, rows, total) is one straight
 /// edge mirroring the left. The old reserve formula over-allocated
 /// three spare columns, leaving every row 3 short of the separator.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -344,22 +344,23 @@ mod tests {
     /// Title bar: full-width fill, hint right-aligned, graceful
     /// degradation on narrow frames. NIGHT-boost-5: the bar carries
     /// the two-column gutter every other frame line uses — the left
-    /// border is one straight edge.
+    /// border is one straight edge. NIGHT-engrave-1: the cadence word
+    /// is "realtime" and the hint leads with the theme key.
     #[test]
     fn title_bar_fills_width() {
-        let bar = title_bar("zelynic eagle-eyes — 1s refresh", "q quit", 80);
+        let bar = title_bar("zelynic eagle-eyes — 1s realtime", "t theme - q quit", 80);
         // Mono mode (tests run piped): plain text, exact width.
         assert_eq!(bar.chars().count(), 80);
-        assert!(bar.starts_with("  ─── zelynic eagle-eyes — 1s refresh"));
-        assert!(bar.ends_with("q quit"));
+        assert!(bar.starts_with("  ─── zelynic eagle-eyes — 1s realtime"));
+        assert!(bar.ends_with("t theme - q quit"));
 
         // Narrow: core only, still starts with the guttered brand prefix.
         let tiny = title_bar("zelynic eagle-eyes", "", 10);
         assert!(tiny.starts_with("  ─── zelynic eagle-eyes"));
 
         // Medium: hint suppressed before it would collide with core.
-        let mid = title_bar("zelynic eagle-eyes — 1s refresh", "q quit", 40);
-        assert!(!mid.contains("q quit"));
+        let mid = title_bar("zelynic eagle-eyes — 1s realtime", "t theme - q quit", 40);
+        assert!(!mid.contains("t theme - q quit"));
         assert_eq!(mid.chars().count(), 40);
     }
 }

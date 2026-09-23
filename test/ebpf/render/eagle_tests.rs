@@ -409,8 +409,8 @@ fn single_resolved_target_takes_focus_view() {
         "focus view carries the lifetime row: {joined}"
     );
     assert!(
-        !joined.contains("DOWNLOAD"),
-        "focus view is the key/value block, not the table: {joined}"
+        !joined.contains("top process"),
+        "focus view is the key/value block, not the ranked table: {joined}"
     );
     assert!(
         joined.contains(" by oxyzenQ"),

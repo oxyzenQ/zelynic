@@ -79,9 +79,11 @@ width, regular-purple column headers, thin separators, right-aligned
 numerics, and no per-cell noise (values are never packed as
 `89 (1.2 MB)` — that is what the RATE column is for).
 
-- Title bar: `─── zelynic eagle-eyes — 1s refresh ────…── q quit`,
-  bold purple, right-aligned key hint when width allows.
-- Column headers: `PROCESS  DOWNLOAD  UPLOAD  RATE`, regular purple.
+- Title bar: `─── zelynic eagle-eyes — 1s realtime ────…─ t theme - q quit`,
+  bold purple, right-aligned key hint when width allows (NIGHT-engrave-1:
+  the cadence word is "realtime" and the hint leads with the theme key).
+- Column headers: `top process  download  upload  total`, regular
+  purple (NIGHT-engrave-1: lowercase, the owner's exact titles).
 - Rows and totals: terminal default color — the purple frame carries
   the brand so data stays maximally readable.
 - The layout re-probes width AND height every frame (TIOCGWINSZ), so
@@ -131,8 +133,8 @@ favor visibility over exact match (the warn-yellow precedent); the
 grey slot degrades to the neutral grey ramp (245 / bright black 90)
 in every theme — subordinate text stays subordinate whatever the
 accent becomes. A cycled frame names its theme in the title bar
-(`… 1s refresh — atomic`) and the key hint teaches the cycle
-(`q quit · t theme`); a theme change repaints within the same 50ms
+(`… 1s realtime — atomic`) and the key hint teaches the cycle
+(`t theme - q quit`); a theme change repaints within the same 50ms
 wake, never at the next refresh tick. Error red and suggestion white
 are hardwired: they belong to the CLI error surface, which never
 themes.
