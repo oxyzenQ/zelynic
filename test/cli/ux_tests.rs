@@ -34,6 +34,7 @@ fn render_via_bridge(argv: &[&str]) -> String {
     let mut cmd = Cli::command();
     enrich_unknown_arg_suggestion(&mut err, &cmd);
     enrich_removed_subcommand_redirect(&mut err);
+    enrich_subcommand_flag_redirect(&mut err, &cmd);
     err.insert(
         ContextKind::Usage,
         ContextValue::StyledStr(cmd.render_usage()),
@@ -221,6 +222,32 @@ fn removed_observe_and_top_redirect_to_eagle_eyes() {
             "removed '{gone}' must redirect to eagle-eyes, got:\n{rendered}"
         );
     }
+}
+
+// ── Subcommand-flag redirects (NIGHT-boost-13) ────────────────────
+
+/// `zelynic help` is the muscle memory every clap tool trains, but
+/// zelynic runs the single-tier help surface (no auto-generated help
+/// subcommand): it must die as a usage error whose ONE tip names the
+/// flag successor `zelynic --help` — never the tip-less dead end the
+/// owner's terminal showed.
+#[test]
+fn help_subcommand_redirects_to_the_help_flag() {
+    let rendered = render_via_bridge(&["zelynic", "help"]);
+    assert!(
+        rendered.contains("unrecognized subcommand 'help'"),
+        "must name the rejected subcommand, got:\n{rendered}"
+    );
+    assert!(
+        rendered.contains("to see the reference, run '") && rendered.contains("zelynic --help"),
+        "tip must name the flag successor, got:\n{rendered}"
+    );
+    assert_eq!(
+        rendered.matches("tip:").count(),
+        1,
+        "exactly one tip line, got:\n{rendered}"
+    );
+    assert_eq!(rendered.matches(HELP_FOOTER).count(), 1);
 }
 
 #[cfg(feature = "ebpf")]
