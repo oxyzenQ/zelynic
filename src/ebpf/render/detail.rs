@@ -64,18 +64,6 @@ pub(crate) fn label_with_count(
     base
 }
 
-/// Extract the primary comm from a label, tolerating the "+N" suffix
-/// (used by the top-consumer hint).
-#[must_use]
-pub(crate) fn comm_from_label(label: &str) -> Option<String> {
-    let inner = label.split('(').nth(1)?.strip_suffix(')')?;
-    let comm = inner.split(" +").next().unwrap_or(inner);
-    if comm.is_empty() || comm == "unknown" {
-        return None;
-    }
-    Some(comm.to_string())
-}
-
 /// One detail line's endpoint text: UDP is tagged (QUIC-era traffic
 /// lives there), busy sockets are flagged.
 fn endpoint_text(socket: &SocketInfo) -> String {

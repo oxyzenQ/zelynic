@@ -78,7 +78,7 @@ pub use eagle::render_eagle_eyes;
 
 pub(crate) use session::{SessionAcc, SessionState};
 
-pub(crate) use detail::{comm_from_label, detail_lines, full_detail_lines, label_with_count};
+pub(crate) use detail::{detail_lines, full_detail_lines, label_with_count};
 
 use crate::ebpf::limiter::format_rate;
 use crate::output::brand_bold;
@@ -261,17 +261,19 @@ pub(crate) fn format_uptime(elapsed: std::time::Duration) -> String {
 /// Render the title bar — the frame's TOP BORDER (NIGHT-boost-20):
 /// bold purple brand text, filled to the full frame width, with
 /// rounded corners connecting to the bar's own fill (the cosmostrix
-/// msg-border look), key hint right-aligned when there is room.
+/// msg-border look). Identity only since NIGHT-engrave-3: the
+/// top-right key hint retired at the owner's call — the legend's
+/// only home is the footer's status line, which is why that row
+/// rides every compression tier.
 ///
-/// Shape: `╭─── <core> <fill> <hint> ─╮` (hint omitted on narrow
-/// frames, the corner cap degrading before it). The two-column
-/// gutter behind the core matches every row, separator, and footer
-/// line — the frame's left rail is one straight edge
-/// (NIGHT-boost-5); the full-width fill is the flagship anchor: the
-/// eye locks onto the purple bar and instantly reads the frame
-/// width, corners included.
+/// Shape: `╭─── <core> <fill> ─╮` (the corner cap degrades before the
+/// bar loses its fill on narrow frames). The two-column gutter
+/// behind the core matches every row, separator, and footer line —
+/// the frame's left rail is one straight edge (NIGHT-boost-5); the
+/// full-width fill is the flagship anchor: the eye locks onto the
+/// purple bar and instantly reads the frame width, corners included.
 #[must_use]
-pub(crate) fn title_bar(core: &str, hint: &str, width: usize) -> String {
+pub(crate) fn title_bar(core: &str, width: usize) -> String {
     const PREFIX: &str = "╭─── ";
     const CAP: &str = "─╮";
     let prefix_len = PREFIX.chars().count();
@@ -279,18 +281,13 @@ pub(crate) fn title_bar(core: &str, hint: &str, width: usize) -> String {
     let core_len = core.chars().count();
 
     if width <= prefix_len + core_len + 1 {
-        // Degenerate width: core only, no fill, no hint, no cap.
+        // Degenerate width: core only, no fill, no cap.
         return brand_bold(&format!("{PREFIX}{core}"));
     }
 
-    // The hint (with its separating space and connecting dash) drops
-    // out before the corner cap does — a cornerless bar on a medium
-    // frame, no border at all on a tiny one.
-    let tail = if !hint.is_empty()
-        && width >= prefix_len + core_len + hint.chars().count() + cap_len + 6
-    {
-        format!(" {hint} {CAP}")
-    } else if width >= prefix_len + core_len + 1 + cap_len {
+    // The corner cap closes the bar whenever the width can carry it;
+    // a tiny frame carries the fill alone, cornerless.
+    let tail = if width >= prefix_len + core_len + 1 + cap_len {
         CAP.to_string()
     } else {
         String::new()
@@ -363,26 +360,30 @@ mod tests {
     }
 
     /// Title bar (NIGHT-boost-20 shape): rounded top border, exact
-    /// width, hint right-aligned with its connecting dash, graceful
-    /// degradation on narrow frames. NIGHT-boost-5 lineage: the bar
-    /// carries the gutter every other frame line uses. NIGHT-engrave-1:
-    /// the hint leads with the theme key; NIGHT-engrave-2: identity
-    /// only (the legend moved to the footer's status line).
+    /// width, graceful degradation on narrow frames. NIGHT-boost-5
+    /// lineage: the bar carries the gutter every other frame line
+    /// uses. NIGHT-engrave-1: the hint led with the theme key;
+    /// NIGHT-engrave-2: identity only (the legend moved to the
+    /// footer's status line); NIGHT-engrave-3: the hint itself
+    /// retired — the top-right corner belongs to the fill alone.
     #[test]
     fn title_bar_fills_width() {
-        let bar = title_bar("zelynic eagle-eyes", "t theme - q quit", 80);
+        let bar = title_bar("zelynic eagle-eyes", 80);
         // Mono mode (tests run piped): plain text, exact width.
         assert_eq!(bar.chars().count(), 80);
         assert!(bar.starts_with("╭─── zelynic eagle-eyes"));
-        assert!(bar.ends_with("t theme - q quit ─╮"));
+        assert!(bar.ends_with("───╮"));
+        assert!(
+            !bar.contains("t theme") && !bar.contains("q quit"),
+            "engrave-3: the key hint is gone from the top-right, the\nlegend lives in the footer's status line alone: {bar}"
+        );
 
         // Narrow: core only, still starts with the cornered brand prefix.
-        let tiny = title_bar("zelynic eagle-eyes", "", 10);
+        let tiny = title_bar("zelynic eagle-eyes", 10);
         assert!(tiny.starts_with("╭─── zelynic eagle-eyes"));
 
-        // Medium: hint suppressed before it would collide with core,
-        // the corner cap still closes the bar.
-        let mid = title_bar("zelynic eagle-eyes", "t theme - q quit", 40);
+        // Medium: the fill carries to the corner cap, no hint.
+        let mid = title_bar("zelynic eagle-eyes", 40);
         assert!(!mid.contains("t theme"));
         assert!(mid.ends_with('╮'));
         assert_eq!(mid.chars().count(), 40);

@@ -257,29 +257,34 @@ focus view (one target, one cgroup) expands every endpoint — the
 deep answer to "who exactly is talking inside this cgroup".
 
 The frame is a PINNED composition (NIGHT-boost-14, the owner's
-masterclass engraving): the table floats under the header and the
-grip footer stays near the bottom of the terminal whatever the
-table does — the flat total row (`total usage internet in 1h:3m
-2kb/s 2kb/s 100mb`, NIGHT-engrave-1: the session uptime folded into
-the row, framed by two purple grid lines), the packets/cgroups
-census under its own-width grip, the "Top consumer" autodetect (the
-busiest process inside the rank-1 cgroup, its name brand purple)
-under its own grip, the exact `strict-single` command to cap it,
-the status line — the relocated title legend `1s realtime - theme
+masterclass engraving; trimmed to its leanest readable block by
+NIGHT-engrave-3): the table floats under the header and the footer
+stays near the bottom of the terminal whatever the table does —
+the flat total row (`total usage internet in 1h:20s = 10gb`,
+NIGHT-engrave-3: the session uptime and the grand total ALONE, the
+per-frame rates retired at the owner's "only total consume
+bandwidth" call) under its single purple roof grid, one blank of
+air, the status line — the frame's legend `1s realtime - theme
 netrunner - q quit - t theme` (NIGHT-engrave-2), grey, riding every
-compression tier — and the signature copyright as the frame's last
-row. All footer text
-renders calm grey except the purple copyright and the purple
-consumer name — subordinate information reads dimmer than the data
-it annotates. The tiers are a STATIC traffic light (the takeover
-blink is gone — eye strain): rank 1 champion red, rank 2 warning
-yellow, rank 3 and below status green; the subprocess usage lines
-render grey. A breathing blank line sits under the title bar, and
-the grid under the column header is brand purple, same source as
-the header text above it. The column headers are lowercase
+compression tier — the owner's NIGHT-engrave-3 gap, and the
+signature copyright as the frame's last row. The NIGHT-engrave-3
+trim retired the packets/cgroups census line, the "Top consumer"
+autodetect, the `strict-single` suggestion, and the second grid
+(the footer's middle left at the owner's leanest-footer call); all
+footer text renders calm grey except the purple grid and the
+purple build stamp — subordinate information reads dimmer than the
+data it annotates. The grid lines JOIN the frame's rails edge to
+edge (NIGHT-engrave-3: the dashes begin at column 0 — the owner's
+`|---`, never `| ---` — so the left border reads as one integrated
+line). The tiers are a STATIC traffic light (the takeover blink is
+gone — eye strain): rank 1 champion red, rank 2 warning yellow,
+rank 3 and below status green; the subprocess usage lines render
+grey. A breathing blank line sits under the title bar, and the grid
+under the column header is brand purple, same source as the header
+text above it. The column headers are lowercase
 (NIGHT-engrave-1): `top process`, `download`, `upload`, `total`.
-The census wording is `N packets + M cgroups` (a `+` join, never a
-dot).
+Every text row in the monitor starts lowercase (NIGHT-engrave-3's
+call — the uppercase carriers retired with their lines).
 
 Frame borders (NIGHT-boost-20): the whole monitor reads as one
 rounded box — the title bar's corners connect to its own purple fill
@@ -312,9 +317,10 @@ edge) — six themes in total (`netrunner` the default, then
 `night_cyber`, `forest`, `spaceflight`, `carbon`, `atomic`), the
 cosmostrix cycle contract. A theme change repaints within the same
 50ms wake and the footer's status line names the active theme
-(`1s realtime - theme atomic - q quit - t theme`, NIGHT-engrave-2:
-the legend relocated below the limit suggestions — the title bar
-keeps only the quick hint pair `t theme - q quit`); the theme lives
+(`1s realtime - theme atomic - q quit - t theme`, NIGHT-engrave-2's
+relocated legend — and since NIGHT-engrave-3 the title bar's
+top-right hint is retired, so the status line is the legend's ONLY
+home); the theme lives
 ONLY inside the monitor — every other zelynic surface (help,
 errors, status) keeps the default purple branding (see
 docs/BRANDING.md section 2.2 for the palette table).
@@ -327,10 +333,11 @@ Adaptive compact mode on narrow frames: the subprocess detail hides
 51-column total-column boundary) and every
 detail line is cut to the frame width, so a long process or endpoint
 string can never wrap the frame or shift the pinned footer. Short
-terminals compress the footer through a tier ladder — breathing
-blanks drop first, then the grips, then the discovery hints —
-before the table loses its rows; the census and the copyright
-survive at every height. The row count follows the terminal height
+terminals compress the footer through a tier ladder (NIGHT-engrave-3
+re-cut it for the trimmed block, 6/5/4/3) — the total-status blank
+drops first, then the owner's gap above the copyright, then the
+roof grid — before the table loses its rows; the total row, the
+status line, and the copyright survive at every height. The row count follows the terminal height
 — there is no `--limit`: the window IS the budget. DOWNLOAD and
 UPLOAD carry live per-direction RATES; TOTAL carries the
 session-accumulated bytes (the "total accumulated" function v10
@@ -344,11 +351,11 @@ since the previous frame are written — one write syscall per frame,
 an unchanged frame costs zero I/O at every terminal height
 (NIGHT-improve-6), and the screen is never wiped or scrolled
 mid-session (no flicker, no drift, no alt-screen scrollback side
-effects). Every frame closes with the column-aligned TOTAL row
-(aggregate down/up/rate sums over every candidate, not just the
-rows shown) and the census. Byte figures keep one decimal on every
-tier and promote at the rounding edge (999_950 B is "1.0 MB",
-never "1000.0 KB").
+effects). Every table row carries the session-accumulated TOTAL,
+and the footer's total row sums the whole leaderboard — every
+candidate, not just the rows shown. Byte figures keep one decimal
+on every tier and promote at the rounding edge (999_950 B is
+"1.0 MB", never "1000.0 KB").
 
 The data-format ladder is LTS-complete (NIGHT-boost-22): byte
 figures render B -> KB -> MB -> GB -> TB -> PB -> EB, the whole u64

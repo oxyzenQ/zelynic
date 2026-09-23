@@ -238,9 +238,11 @@ Display-only decisions that stay deliberately simple (no
 over-engineering): the rate conversion feeding the formatter is a
 saturating f64 division (Rust float-to-int `as` casts saturate — a
 saturated counter renders "18.4 EB/s", never a wrapped figure), and
-the census packet count renders as a raw integer (a free-form line,
-not a column cell; a saturated 20-digit count is the honest ceiling
-of a counter whose wrap horizon at 1 M pps is ~585,000 years).
+the focus view's per-direction packet counts render as raw integers
+(free-form rows, not column cells; a saturated 20-digit count is the
+honest ceiling of a counter whose wrap horizon at 1 M pps is
+~585,000 years — the footer census line that carried the aggregate
+count retired at NIGHT-engrave-3).
 
 ### Map slot reclamation (the LTS budget)
 

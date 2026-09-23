@@ -56,24 +56,27 @@ pub fn render_eagle_focus(
     uptime: Duration,
     geo: FrameGeometry,
 ) {
-    // NIGHT-engrave-2: the focus title is just the frame's identity
-    // — the theme name and the legend moved to the footer's status
-    // line, same as the ranked view; the top-right keeps the hint.
+    // NIGHT-engrave-3: the focus title is identity only — the
+    // legend's single home is the footer's status line, same as the
+    // ranked view (the top-right hint pair retired).
     let title_core = format!("zelynic eagle-eyes — {}", identity.label(cgroup_id));
     // NIGHT-boost-20: the frame wears gradient rails with rounded
     // corners — compose into the bordered inset, flank at the end.
     let full_width = geo.width;
     let geo = super::border::content_geo(geo);
-    lines.push(title_bar(&title_core, "t theme - q quit", full_width));
+    lines.push(title_bar(&title_core, full_width));
 
     // The breathing gap (NIGHT-boost-14): same air under the title
     // as the ranked frame — one composition, two views.
     lines.push(String::new());
 
     // Overhead the fixed frame claims: title, gap, the five key/value
-    // rows, and the pinned footer (blank + status + copyright +
-    // uptime — the engrave-2 status line joined the block).
-    const FOCUS_CHROME: usize = 10;
+    // rows, and the pinned footer (blank + status + the engrave-3
+    // gap + copyright + uptime). The budget counts every fixed row
+    // exactly (NIGHT-engrave-3 hunt find: the old constant sat one
+    // below the real overhead, so a detail-full frame skipped the
+    // footer and rendered short of the terminal height).
+    const FOCUS_CHROME: usize = 12;
 
     if let Some(c) = summary.cgroups.iter().find(|c| c.cgroup_id == cgroup_id) {
         lines.push(format!(
@@ -135,15 +138,18 @@ pub fn render_eagle_focus(
     // The pin (NIGHT-boost-14): blank padding absorbs the middle, the
     // footer block sits near the bottom of the terminal — never
     // floating up with the last detail line. NIGHT-engrave-2: the
-    // status line (the relocated legend) joins above the copyright;
-    // the uptime line (NIGHT-boost-17) stays the frame's last row.
-    let footer_len = 4;
+    // status line (the relocated legend) joins above the copyright.
+    // NIGHT-engrave-3: the owner's gap above the copyright — one
+    // blank line of air, the build stamp its own quiet paragraph —
+    // and the uptime line (NIGHT-boost-17) stays the frame's last row.
+    let footer_len = 5;
     while lines.len() + footer_len < geo.height {
         lines.push(String::new());
     }
     if lines.len() + footer_len <= geo.height {
         lines.push(String::new());
         lines.push(status_line(interval));
+        lines.push(String::new());
         lines.push(format!("  {}", signature_footer()));
         lines.push(format!(
             "  {}",
@@ -236,6 +242,11 @@ mod tests {
         );
         assert_eq!(lines.len(), 24, "pinned frame spans the terminal height");
         assert!(lines[0].starts_with("╭─── zelynic eagle-eyes — cg:73386"));
+        assert!(
+            !lines[0].contains("t theme"),
+            "engrave-3: the focus title carries no key hint: {}",
+            lines[0]
+        );
         assert_eq!(
             lines[1],
             format!("│{}│", " ".repeat(78)),
@@ -243,12 +254,18 @@ mod tests {
         );
         assert!(lines.iter().any(|l| l.contains("no traffic for cg:73386")));
         assert_eq!(
-            lines[20],
+            lines[19],
             format!(
                 "│  1s realtime - theme netrunner - q quit - t theme{}│",
                 " ".repeat(28)
             ),
             "status line above the focus copyright (NIGHT-engrave-2): {}",
+            lines[19]
+        );
+        assert_eq!(
+            lines[20],
+            format!("│{}│", " ".repeat(78)),
+            "the owner's engrave-3 gap above the copyright: {}",
             lines[20]
         );
         assert!(

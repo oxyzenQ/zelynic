@@ -122,8 +122,10 @@ impl SessionState {
         self.acc.is_empty()
     }
 
-    /// How many cgroups the leaderboard carries (the filtered meta
-    /// line's census denominator).
+    /// How many cgroups the leaderboard carries. Pins-only accessor
+    /// since NIGHT-engrave-3 (the census denominator was its last
+    /// production caller); the bound pins below still need it.
+    #[cfg(test)]
     #[must_use]
     pub(crate) fn len(&self) -> usize {
         self.acc.len()

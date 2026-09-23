@@ -17,6 +17,7 @@
 
 use super::*;
 use crate::ebpf::identity::ProcessIdentity;
+use crate::ebpf::loader::CgroupDelta;
 use std::time::Duration;
 
 fn identity_with(comms: &[(&str, u32)]) -> IdentityMap {
@@ -357,12 +358,12 @@ fn name_targets_expand_and_misses_note() {
         "unwatched cgroup is filtered out: {joined}"
     );
     assert!(
-        joined.contains("1 of 2 cgroups"),
-        "filtered meta names the share: {joined}"
+        joined.contains("2 targets"),
+        "the title names the watched breadth, the census share line retired at NIGHT-engrave-3: {joined}"
     );
     assert!(
-        !joined.contains("Top consumer"),
-        "discovery hint is unfiltered-only: {joined}"
+        !joined.contains("packets +"),
+        "census line retired on filtered frames too (NIGHT-engrave-3): {joined}"
     );
 }
 

@@ -7,53 +7,51 @@
 //! cap. One theme: everything the frame owes the bottom of the
 //! terminal.
 //!
-//! The owner's exact spec:
+//! The owner's NIGHT-engrave-3 spec (the depth-audit trim: the
+//! census text, the discovery pair, and the grid below the total row
+//! retired — the rates with them — and every gap re-audited for the
+//! leanest block that still reads as paragraphs):
 //!
 //! ```text
-//! ──────────────────────────────────────────  <- purple grid
-//!   total usage internet in 1h:3m 2kb/s 2kb/s 100mb   <- grey (NIGHT-engrave-1)
-//! ──────────────────────────────────────────  <- purple grid
+//! ──────────────────────────────────────────  <- purple grid, flush to the left rail (engrave-3)
+//!   total usage internet in 1h:20s = 10gb     <- grey (engrave-3: `= total`, the rates retired)
 //!
-//! 12 packets + 1 cgroups                       <- grey
-//! ────────────────────────                     <- grey grip
-//! Top consumer: example                       <- grey + purple
-//! ──────────────────                           <- grey grip
-//! Limit it: sudo zelynic strict-single example 100kb  <- grey
+//!   1s realtime - theme netrunner - q quit - t theme  <- grey (engrave-2)
 //!
-//! 1s realtime - theme netrunner - q quit - t theme  <- grey (NIGHT-engrave-2)
+//!   v11.0.0 (a1b2c3d) by oxyzenQ              <- the build stamp (engrave-3: its own paragraph)
 //! ```
 //!
 //! NIGHT-engrave-2: the title-bar legend (the realtime cadence, the
-//! active theme's name, the two key hints) relocated to the footer,
-//! below the limit suggestions — the owner's exact line, riding
-//! EVERY tier like the census row and the copyright: it carries the
-//! quit key, and a frame that can teach how to leave is a frame that
-//! can always be left. The theme's NAME lives here now, so cycling
-//! with `t` repaints this one grey row through the diff engine.
+//! active theme's name, the two key hints) relocated to the footer —
+//! the owner's exact line, riding EVERY tier like the total row and
+//! the copyright: it carries the quit key, and a frame that can teach
+//! how to leave is a frame that can always be left. The theme's NAME
+//! lives here now, and since engrave-3 this is the legend's ONLY
+//! home — the title's top-right hint retired with the census — so
+//! cycling with `t` repaints this one grey row through the diff
+//! engine.
 //!
-//! NIGHT-boost-17 (improve-27) added a session uptime line below
-//! the whole block; NIGHT-engrave-1 moved the uptime INTO the census
-//! row (`total usage internet in 1h:3m ...`) — the horizon the
-//! accumulated totals span, annotated next to the numbers it
-//! describes instead of riding its own row. The block keeps its
-//! compression ladder: every tier still carries the census row (with
-//! its uptime), the census text, and the copyright.
+//! NIGHT-engrave-3: the block lost its middle (the packets+cgroups
+//! census, the top-consumer discovery pair, the second grid, and the
+//! total row's per-frame rates — the owner's leanest-footer call)
+//! and gained air (one blank above the copyright — the build stamp
+//! reads as its own quiet paragraph, not the status line's
+//! continuation). The compression ladder shrank with it: the blanks
+//! drop outside-in first, then the roof grid — the total row, the
+//! status line, and the copyright are the survivors, in every tier.
 //!
-//! Three contracts live here:
+//! Two contracts live here:
 //! - **The tiers**: the compression ladder short terminals walk down
-//!   (blanks drop, then the grips, then the discovery hints) so the
-//!   census and the copyright survive at every height.
-//! - **The grips**: underlines exactly as wide as the text they hold —
-//!   the census grip and the consumer grip frame their own lines,
-//!   never the full frame.
+//!   (the total-status gap, then the copyright gap, then the grid) so
+//!   the total row and the copyright survive at every height.
 //! - **The build**: one pure function assembling the block from the
 //!   frame's census data — the MEASURED length of its output is what
-//!   pins the footer to the bottom (an absent discovery hint
-//!   shortens the block without shifting the pin).
+//!   pins the footer to the bottom (the rare identities note rides
+//!   along and shortens the table's room without shifting the pin).
 
 use std::time::Duration;
 
-use super::{format_rate_or_dash, format_uptime, rate_bps, FrameGeometry};
+use super::{format_uptime, FrameGeometry};
 use crate::ebpf::limiter::format_bytes;
 use crate::output::{brand, grey, signature_footer};
 
@@ -63,41 +61,36 @@ use crate::output::{brand, grey, signature_footer};
 pub(super) const TOP_CHROME: usize = 4;
 
 /// Compression tiers for the pinned footer (NIGHT-boost-14;
-/// NIGHT-engrave-1 folded the boost-17 uptime into the census row
-/// and NIGHT-engrave-2 added the status line below the limit
-/// suggestions — one line out, one line in, so the counts stand at
-/// the pre-engrave 12/8/6/5). Short terminals drop the breathing
-/// blanks first, then the grips, then the discovery hints and the
-/// second grid — the census row, the census text, the status line,
-/// and the copyright are the last four survivors, in every tier.
+/// NIGHT-engrave-3 re-cut the ladder for the trimmed block): short
+/// terminals drop the breathing blanks first (the total-status gap,
+/// then the owner's copyright gap), then the roof grid — the total
+/// row, the status line, and the copyright survive in every tier.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum FooterTier {
-    /// sep, total row, sep, blank, packets, grip, top, grip, limit,
-    /// blank, status, copyright — the owner's exact spec with the
-    /// uptime folded into the total row (NIGHT-engrave-1) and the
-    /// legend relocated under the limit suggestion (engrave-2).
+    /// grid, total row, blank, status, blank, copyright — the
+    /// owner's engrave-3 spec: every gap, the leanest block that
+    /// still reads as paragraphs.
     Full,
-    /// Blanks and grips gone: sep, total row, sep, packets, top,
-    /// limit, status, copyright.
+    /// The total-status gap drops first: grid, total row, status,
+    /// blank, copyright.
     Compact,
-    /// Discovery hints gone too: sep, total row, sep, packets,
-    /// status, copyright.
+    /// Blanks gone: grid, total row, status, copyright.
     Minimal,
-    /// The survival floor: sep, total row, packets, status,
-    /// copyright.
+    /// The survival floor: total row, status, copyright — the grid
+    /// goes too, every row the frame can spare becomes a data row.
     Tiny,
 }
 
 impl FooterTier {
-    /// Lines the tier occupies at most (the top-consumer block is
-    /// optional — an absent hint makes the actual footer SHORTER,
-    /// which only adds middle padding; the pin stays exact).
+    /// Lines the tier occupies at most (the rare identities note
+    /// rides unaccounted here — it shortens the table's room, never
+    /// the pin: the builder measures the real block).
     fn lines(self) -> usize {
         match self {
-            FooterTier::Full => 12,
-            FooterTier::Compact => 8,
-            FooterTier::Minimal => 6,
-            FooterTier::Tiny => 5,
+            FooterTier::Full => 6,
+            FooterTier::Compact => 5,
+            FooterTier::Minimal => 4,
+            FooterTier::Tiny => 3,
         }
     }
 }
@@ -122,48 +115,34 @@ pub(super) fn plan_footer_tier(height: usize, extra: usize) -> FooterTier {
     FooterTier::Tiny
 }
 
-/// A full-width purple grid line (NIGHT-boost-14): the table's border
-/// family — under the column header, and framing the pinned TOTAL
-/// row. Same purple as the header text above it, the owner's "same
-/// as above" contract.
+/// A full-width purple grid line (NIGHT-boost-14; flush to the rails
+/// since NIGHT-engrave-3): the table's border family — under the
+/// column header, and roofing the pinned TOTAL row. Same purple as
+/// the header text above it, the owner's "same as above" contract.
+/// The dashes begin at the content's column 0: the line JOINS the
+/// left rail with no gap (the owner's `|---`, never `| ---`) and
+/// ends flush against the right one — the frame's horizontals
+/// integrate with its border, edge to edge.
 #[must_use]
 pub(super) fn grid_line(width: usize) -> String {
-    format!("  {}", brand(&"─".repeat(width.saturating_sub(2))))
+    brand(&"─".repeat(width)).to_string()
 }
 
-/// A footer grip (NIGHT-boost-14): a grey underline exactly as wide
-/// as the text it grips — the owner's spec underlines each footer
-/// block with its own width, not the full frame.
-#[must_use]
-pub(super) fn grip(text: &str) -> String {
-    format!("  {}", grey(&"─".repeat(text.chars().count())))
-}
-
-/// The census data the grip footer renders (NIGHT-boost-14): the
-/// aggregate figures (footer honesty, NIGHT-hunt-15 — every candidate
-/// counts, not just the rows the window budget could show), the
-/// census line's own text, and the discovery pair's inputs.
+/// The census data the footer renders (NIGHT-boost-14; slimmed by
+/// NIGHT-engrave-3 — the per-frame rates, the packets text, and the
+/// discovery inputs retired with their lines): the session grand
+/// total the total row carries, the rare identities note's flag, and
+/// the uptime horizon the row annotates.
 pub(super) struct FooterCensus {
     /// The compression tier the terminal earned.
     pub tier: FooterTier,
-    /// This frame's summed download delta (all candidates).
-    pub dl_sum: u64,
-    /// This frame's summed upload delta (all candidates).
-    pub ul_sum: u64,
     /// The session leaderboard's grand accumulated total.
     pub grand: u64,
-    /// The ready-made census line ("N packets + M cgroups").
-    pub census_text: String,
     /// The rare identities-unresolved note rides along.
     pub identities_unresolved: bool,
-    /// The rank-1 cgroup's busiest process (the discovery hint).
-    pub top_proc_name: Option<String>,
-    /// Whether the frame is unfiltered (hints render only there).
-    pub unfiltered: bool,
     /// The monitor's session uptime (NIGHT-boost-17; folded into the
     /// census row by NIGHT-engrave-1): rendered inside the
-    /// `total usage internet in ...` line between the purple grids,
-    /// in every tier.
+    /// `total usage internet in ...` row, in every tier.
     pub uptime: Duration,
 }
 
@@ -190,12 +169,11 @@ pub(super) fn status_line(interval: Duration) -> String {
     )
 }
 
-/// Assemble the grip footer (NIGHT-boost-14): the total row framed
-/// by purple grid lines, the census under its own-width grip, the
-/// top consumer under its own, the limit suggestion, and the purple
-/// copyright — grey text, purple grids, purple consumer name
-/// (NIGHT-engrave-1). The MEASURED length of the returned block is
-/// what the caller pins to the bottom.
+/// Assemble the engraved footer (NIGHT-boost-14; re-cut by
+/// NIGHT-engrave-3): the total row under its flush roof grid, one
+/// blank of air, the status line, the owner's gap, and the purple
+/// copyright — grey text, purple grid and stamp. The MEASURED length
+/// of the returned block is what the caller pins to the bottom.
 #[must_use]
 pub(super) fn build_grip_footer(
     census: &FooterCensus,
@@ -204,65 +182,39 @@ pub(super) fn build_grip_footer(
 ) -> Vec<String> {
     let tier = census.tier;
     let mut footer: Vec<String> = Vec::with_capacity(tier.lines());
-    footer.push(grid_line(geo.width));
-    // The owner's NIGHT-engrave-1 census row: the session's whole
-    // story in one flat grey line between the purple grids — the
-    // usage horizon (the boost-17 uptime, now annotated next to the
-    // numbers it spans), this frame's download/upload rates, and
-    // the session grand total. The column-aligned TOTAL label it
-    // replaces could never have carried the phrase.
-    footer.push(grey(&format!(
-        "  total usage internet in {} {} {} {}",
-        format_uptime(census.uptime),
-        format_rate_or_dash(rate_bps(census.dl_sum, interval)),
-        format_rate_or_dash(rate_bps(census.ul_sum, interval)),
-        format_bytes(census.grand)
-    )));
+    // Tiny drops the roof: at survival height every row the frame
+    // can spare becomes a data row.
     if tier != FooterTier::Tiny {
         footer.push(grid_line(geo.width));
     }
-    if tier == FooterTier::Full {
-        footer.push(String::new());
-    }
-    footer.push(format!("  {}", grey(&census.census_text)));
-    if tier == FooterTier::Full {
-        footer.push(grip(&census.census_text));
-    }
+    // The owner's NIGHT-engrave-3 census row: the session's whole
+    // story in one flat grey line — the usage horizon and the grand
+    // total ALONE (the two per-frame rates retired at the owner's
+    // "only total consume bandwidth" call: `= 10gb`, never the old
+    // `2kb/s 2kb/s 100mb` tail).
+    footer.push(grey(&format!(
+        "  total usage internet in {} = {}",
+        format_uptime(census.uptime),
+        format_bytes(census.grand)
+    )));
     if census.identities_unresolved {
         footer.push(format!(
             "  {}",
             grey("(identities unresolved — labels show raw cgroup IDs)")
         ));
     }
-    // The discovery hint (unfiltered frames only): the rank-1
-    // cgroup's busiest process plus the exact strict-single command
-    // to cap it. The consumer's NAME renders brand purple
-    // (NIGHT-engrave-1, the owner's call — the suggestion is brand,
-    // the one living thing in the block, and the hint to act on)
-    // inside the grey footer.
-    if matches!(tier, FooterTier::Full | FooterTier::Compact) {
-        if let Some(proc_name) = census.top_proc_name.clone().filter(|_| census.unfiltered) {
-            let top_text = format!("Top consumer: {proc_name}");
-            footer.push(format!("  {} {}", grey("Top consumer:"), brand(&proc_name)));
-            if tier == FooterTier::Full {
-                footer.push(grip(&top_text));
-            }
-            footer.push(format!(
-                "  {}",
-                grey(&format!(
-                    "Limit it: sudo zelynic strict-single {proc_name} 100kb"
-                ))
-            ));
-        }
-    }
     if tier == FooterTier::Full {
         footer.push(String::new());
     }
-    // The status line (NIGHT-engrave-2) rides EVERY tier, right
-    // below the limit suggestions (or where they would sit): the
-    // relocated title legend — realtime cadence, the active theme's
-    // name, and the two key hints.
+    // The status line (NIGHT-engrave-2) rides EVERY tier — and since
+    // the engrave-3 title trim it is the legend's only home.
     footer.push(status_line(interval));
+    // The owner's NIGHT-engrave-3 gap: one blank line of air above
+    // the copyright — the build stamp lands as its own quiet
+    // paragraph, never the status line's continuation.
+    if matches!(tier, FooterTier::Full | FooterTier::Compact) {
+        footer.push(String::new());
+    }
     footer.push(format!("  {}", signature_footer()));
     footer
 }

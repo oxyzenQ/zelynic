@@ -79,11 +79,12 @@ width, regular-purple column headers, thin separators, right-aligned
 numerics, and no per-cell noise (values are never packed as
 `89 (1.2 MB)` — that is what the RATE column is for).
 
-- Title bar: `╭─── zelynic eagle-eyes ────…─ t theme - q quit ─╮`,
-  bold purple — the frame's TOP border (NIGHT-boost-20): rounded
-  corners connecting to the bar's own fill, right-aligned key hint
-  when width allows; identity only since NIGHT-engrave-2 (the legend
-  moved to the footer's status line).
+- Title bar: `╭─── zelynic eagle-eyes ────…───────╮`, bold purple —
+  the frame's TOP border (NIGHT-boost-20): rounded corners
+  connecting to the bar's own fill; identity only, the full-width
+  fill owning both corners since NIGHT-engrave-3 retired the
+  top-right key hint (the legend lives in the footer's status line
+  alone).
 - Column headers: `top process  download  upload  total`, regular
   purple (NIGHT-engrave-1: lowercase, the owner's exact titles).
 - Frame borders (NIGHT-boost-20): gradient side rails and a bright
@@ -175,9 +176,10 @@ The capability ladder itself auto-falls-back (truecolor -> 256 cube
 depth for terminals whose environment lies about truecolor — see
 USAGE.md. A cycled frame names its theme in the footer's
 status line (`1s realtime - theme atomic - q quit - t theme`, the
-NIGHT-engrave-2 legend below the limit suggestions) and the title
-hint teaches the key (`t theme - q quit`); a theme change repaints
-within the same 50ms wake, never at the next refresh tick. Error red
+NIGHT-engrave-2 legend) — and since NIGHT-engrave-3 that row is the
+key hints' only home (the title's top-right hint retired with the
+census); a theme change repaints within the same 50ms wake, never
+at the next refresh tick. Error red
 and suggestion white are hardwired: they belong to the CLI error
 surface, which never themes.
 
