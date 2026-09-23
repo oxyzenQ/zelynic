@@ -144,15 +144,15 @@ pub enum Commands {
         /// Target: process name (e.g., brave) or cgroup ID (e.g., 73386)
         target: String,
 
-        /// Rate for both download+upload (e.g., 100kb, 1mb). Use -d/-u for per-direction.
+        /// Rate for both download+upload (e.g., 100kb, 5.5mb). Use -d/-u for per-direction.
         #[arg(value_name = "RATE")]
         rate: Option<String>,
 
-        /// Download rate limit (e.g., 100kb, 1mb)
+        /// Download rate limit (e.g., 100kb, 5.5mb)
         #[arg(short = 'd', long = "download")]
         download: Option<String>,
 
-        /// Upload rate limit (e.g., 100kb, 1mb)
+        /// Upload rate limit (e.g., 100kb, 5.5mb)
         #[arg(short = 'u', long = "upload")]
         upload: Option<String>,
 
@@ -179,7 +179,7 @@ pub enum Commands {
         /// Targets separated by colons (e.g., brave:curl:pacman)
         targets: String,
 
-        /// Rate for both download+upload (e.g., 1mb). Use -d/-u for per-direction.
+        /// Rate for both download+upload (e.g., 5.5mb). Use -d/-u for per-direction.
         #[arg(value_name = "RATE")]
         rate: Option<String>,
 
@@ -212,7 +212,7 @@ pub enum Commands {
     ///   zelynic la 500kb                     # short alias form
     #[command(name = "limit-all", alias = "la")]
     LimitAll {
-        /// Rate for both download+upload (e.g., 500kb, 1mb)
+        /// Rate for both download+upload (e.g., 500kb, 5.5mb)
         #[arg(value_name = "RATE")]
         rate: Option<String>,
 

@@ -383,6 +383,10 @@ fn value_tip(suggestion: &str) -> String {
 /// 2. Near-miss unit suffix — the numeric prefix is valid and the unit
 ///    suffix is within edit distance 2 of a real unit (`1kib` -> `1kb`,
 ///    `10mbps` -> `10mb`).
+///
+/// NIGHT-boost-15: the numeric prefix includes the decimal point —
+/// the rate grammar is fractional now, so `5.5xb` must suggest
+/// `5.5kb`, not slice the number at the dot and suggest nonsense.
 #[cfg(feature = "ebpf")]
 pub(crate) fn rate_tip(input: &str) -> Option<String> {
     // Multi-char units first: on an edit-distance tie, `1xb` should
@@ -395,8 +399,11 @@ pub(crate) fn rate_tip(input: &str) -> Option<String> {
         return Some(value_tip(&lower));
     }
 
-    // Split into numeric prefix + unit suffix at the first non-digit.
-    let i = trimmed.find(|c: char| !c.is_ascii_digit())?;
+    // Split into numeric prefix + unit suffix at the first character
+    // that is neither a digit nor a decimal point (NIGHT-boost-15:
+    // the rate value grammar is fractional). The duration grammar
+    // below stays integer — its split keeps digits-only.
+    let i = trimmed.find(|c: char| !c.is_ascii_digit() && c != '.')?;
     let (prefix, suffix) = (&trimmed[..i], &trimmed[i..]);
     if prefix.is_empty() || suffix.is_empty() {
         return None;
