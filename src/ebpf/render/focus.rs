@@ -13,15 +13,21 @@
 //! note instead of a clipped frame — the uncapped view still shows
 //! everything on any sane terminal), and the signature footer pinned
 //! near the bottom, never floating after the last detail line.
+//!
+//! NIGHT-boost-17 (improve-27): the session uptime rides below the
+//! footer exactly like the ranked view — one monitor, one clock, two
+//! views.
 
 use std::time::Duration;
 
-use super::{format_rate_or_dash, label_with_count, rate_bps, title_bar, FrameGeometry};
+use super::{
+    format_rate_or_dash, format_uptime, label_with_count, rate_bps, title_bar, FrameGeometry,
+};
 use crate::ebpf::connections::ConnectionMap;
 use crate::ebpf::identity::IdentityMap;
 use crate::ebpf::limiter::format_bytes;
 use crate::ebpf::loader::CounterSummary;
-use crate::output::signature_footer;
+use crate::output::{grey, signature_footer};
 
 /// Render the focus frame for one cgroup.
 ///
@@ -34,6 +40,8 @@ use crate::output::signature_footer;
 /// `geo` is the frame geometry (NIGHT-boost-14: the focus view pins
 /// its footer the same way the ranked view does, so the layout is
 /// height-aware here too — the caller already probed it once).
+/// `uptime` (NIGHT-boost-17) is the monitor's session age, rendered
+/// as the grey uptime line below the footer, the frame's last row.
 #[allow(clippy::too_many_arguments)]
 pub fn render_eagle_focus(
     lines: &mut Vec<String>,
@@ -42,6 +50,7 @@ pub fn render_eagle_focus(
     conns: Option<&ConnectionMap>,
     cgroup_id: u32,
     interval: Duration,
+    uptime: Duration,
     geo: FrameGeometry,
 ) {
     lines.push(title_bar(
@@ -55,8 +64,9 @@ pub fn render_eagle_focus(
     lines.push(String::new());
 
     // Overhead the fixed frame claims: title, gap, the five key/value
-    // rows, and the pinned footer (blank + copyright).
-    const FOCUS_CHROME: usize = 8;
+    // rows, and the pinned footer (blank + copyright + uptime, the
+    // boost-17 line below the block).
+    const FOCUS_CHROME: usize = 9;
 
     if let Some(c) = summary.cgroups.iter().find(|c| c.cgroup_id == cgroup_id) {
         lines.push(format!(
@@ -115,14 +125,20 @@ pub fn render_eagle_focus(
 
     // The pin (NIGHT-boost-14): blank padding absorbs the middle, the
     // signature footer sits near the bottom of the terminal — never
-    // floating up with the last detail line.
-    let footer_len = 2;
+    // floating up with the last detail line. The uptime line rides
+    // below it (NIGHT-boost-17): the footer block is three rows, the
+    // frame's last is the grey uptime.
+    let footer_len = 3;
     while lines.len() + footer_len < geo.height {
         lines.push(String::new());
     }
     if lines.len() + footer_len <= geo.height {
         lines.push(String::new());
         lines.push(format!("  {}", signature_footer()));
+        lines.push(format!(
+            "  {}",
+            grey(&format!("uptime {}", format_uptime(uptime)))
+        ));
     }
 }
 
@@ -167,6 +183,7 @@ mod tests {
             None,
             7001,
             Duration::from_secs(1),
+            Duration::from_secs(70),
             FrameGeometry {
                 width: 80,
                 height: 24,
@@ -187,8 +204,9 @@ mod tests {
 
     /// Idle focus frame: a cgroup with no traffic yet renders the
     /// title + the honest no-traffic note, the pinned footer last
-    /// (NIGHT-boost-14: gap under the title, copyright at the
-    /// bottom, frame pinned to the probed height).
+    /// (NIGHT-boost-14: gap under the title, copyright near the
+    /// bottom, frame pinned to the probed height; NIGHT-boost-17:
+    /// the uptime line below the copyright, the frame's last row).
     #[test]
     fn focus_without_traffic_says_so() {
         let mut lines = Vec::new();
@@ -199,6 +217,7 @@ mod tests {
             None,
             73386,
             Duration::from_secs(1),
+            Duration::from_secs(70),
             FrameGeometry {
                 width: 80,
                 height: 24,
@@ -209,8 +228,13 @@ mod tests {
         assert_eq!(lines[1], "", "breathing gap under the title");
         assert!(lines.contains(&"  no traffic for cg:73386 since last check".to_string()));
         assert!(
-            lines[23].starts_with("  zelynic v"),
-            "copyright pinned to the last row: {}",
+            lines[22].starts_with("  zelynic v"),
+            "copyright second-to-last row: {}",
+            lines[22]
+        );
+        assert_eq!(
+            lines[23], "  uptime 1m:10s",
+            "uptime below the focus footer (boost-17): {}",
             lines[23]
         );
     }

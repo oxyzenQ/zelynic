@@ -60,25 +60,27 @@ fn frame(cg: u32, dl: u64, ul: u64) -> CounterSummary {
 
 /// Footer compression ladder (NIGHT-boost-14): the classic 80x24
 /// carries the full 11-line grip block; a 14-row window drops to
-/// Compact; 10 rows to Minimal; the survival floor holds from 9.
+/// Compact; 12 rows to Minimal; the survival floor holds from 10.
+/// The NIGHT-boost-17 uptime line rides every tier, so each tier's
+/// budget grew by one row (Full is 12 lines now, was 11).
 #[test]
 fn footer_tier_ladder() {
     assert_eq!(plan_footer_tier(24, 0), FooterTier::Full);
     assert_eq!(
-        plan_footer_tier(16, 0),
+        plan_footer_tier(17, 0),
         FooterTier::Full,
-        "16 = 4 chrome + 11 footer + 1 row"
+        "17 = 4 chrome + 12 footer + 1 row"
     );
-    assert_eq!(plan_footer_tier(15, 0), FooterTier::Compact);
-    assert_eq!(plan_footer_tier(12, 0), FooterTier::Compact);
+    assert_eq!(plan_footer_tier(16, 0), FooterTier::Compact);
+    assert_eq!(plan_footer_tier(13, 0), FooterTier::Compact);
+    assert_eq!(plan_footer_tier(12, 0), FooterTier::Minimal);
     assert_eq!(plan_footer_tier(11, 0), FooterTier::Minimal);
-    assert_eq!(plan_footer_tier(10, 0), FooterTier::Minimal);
-    assert_eq!(plan_footer_tier(9, 0), FooterTier::Tiny);
+    assert_eq!(plan_footer_tier(10, 0), FooterTier::Tiny);
     assert_eq!(plan_footer_tier(5, 0), FooterTier::Tiny, "survival floor");
     // The rare identities-unresolved note rides the footer and is
-    // accounted: it costs one line, so the Full boundary moves to 17.
-    assert_eq!(plan_footer_tier(17, 1), FooterTier::Full);
-    assert_eq!(plan_footer_tier(16, 1), FooterTier::Compact);
+    // accounted: it costs one line, so the Full boundary moves to 18.
+    assert_eq!(plan_footer_tier(18, 1), FooterTier::Full);
+    assert_eq!(plan_footer_tier(17, 1), FooterTier::Compact);
 }
 
 /// NIGHT-improve-2 line-building pin (NIGHT-boost-14 composition):
@@ -97,6 +99,7 @@ fn eagle_frame_builds_lines() {
         None,
         Duration::from_secs(1),
         &mut SessionState::new(),
+        Duration::from_secs(70),
         classic(),
     );
     assert_eq!(lines.len(), 24, "the frame is pinned to the height");
@@ -108,7 +111,8 @@ fn eagle_frame_builds_lines() {
     assert_eq!(lines[1], "", "breathing gap under the title (boost-14)");
     assert!(lines.contains(&"  waiting for traffic…".to_string()));
     // The pinned footer: TOTAL row between two grid lines, the
-    // census, and the copyright on the LAST row.
+    // census, the copyright second-to-last, and the uptime line
+    // (NIGHT-boost-17) on the LAST row.
     let total_idx = lines
         .iter()
         .position(|l| l.split_whitespace().next() == Some("TOTAL"))
@@ -129,8 +133,13 @@ fn eagle_frame_builds_lines() {
         lines
     );
     assert!(
-        lines[23].starts_with("  zelynic v"),
-        "copyright pinned to the last row: {}",
+        lines[22].starts_with("  zelynic v"),
+        "copyright second-to-last row: {}",
+        lines[22]
+    );
+    assert_eq!(
+        lines[23], "  uptime 1m:10s",
+        "uptime line below the footer, the frame's last row (boost-17): {}",
         lines[23]
     );
 }
@@ -139,8 +148,9 @@ fn eagle_frame_builds_lines() {
 /// exact spec): the TOTAL row sums EVERY candidate in the same width
 /// slots the data rows use, framed by two full-width grid lines;
 /// under it the census with its own-width grip, the top consumer
-/// with its grip, the limit suggestion, and the copyright last —
-/// all pinned to the bottom of the terminal whatever the table does.
+/// with its grip, the limit suggestion, the copyright, and the
+/// uptime line (NIGHT-boost-17) below it all — pinned to the bottom
+/// of the terminal whatever the table does.
 #[test]
 fn footer_grip_layout_pins_to_the_bottom() {
     let mut lines = Vec::new();
@@ -167,6 +177,7 @@ fn footer_grip_layout_pins_to_the_bottom() {
         None,
         Duration::from_secs(1),
         &mut SessionState::new(),
+        Duration::from_secs(70),
         classic(),
     );
     let joined = lines.join("\n");
@@ -207,8 +218,13 @@ fn footer_grip_layout_pins_to_the_bottom() {
         "the census grip is exactly the census text's own width"
     );
     assert!(
-        lines[23].starts_with("  zelynic v"),
-        "copyright is the last row: {}",
+        lines[22].starts_with("  zelynic v"),
+        "copyright is the second-to-last row: {}",
+        lines[22]
+    );
+    assert_eq!(
+        lines[23], "  uptime 1m:10s",
+        "uptime rides below the footer block (boost-17): {}",
         lines[23]
     );
     assert_eq!(lines.len(), 24, "frame pinned to the terminal height");
@@ -258,6 +274,7 @@ fn footer_top_consumer_and_limit_hint() {
         Some(&conns),
         Duration::from_secs(1),
         &mut SessionState::new(),
+        Duration::from_secs(70),
         classic(),
     );
     let joined = lines.join("\n");
@@ -324,6 +341,7 @@ fn detail_hides_and_cuts_on_narrow_frames() {
         Some(&conns),
         Duration::from_secs(1),
         &mut SessionState::new(),
+        Duration::from_secs(70),
         FrameGeometry {
             width: 50,
             height: 24,
@@ -348,6 +366,7 @@ fn detail_hides_and_cuts_on_narrow_frames() {
         Some(&conns),
         Duration::from_secs(1),
         &mut SessionState::new(),
+        Duration::from_secs(70),
         FrameGeometry {
             width: 51,
             height: 24,
@@ -400,6 +419,7 @@ fn saturated_session_renders_without_panic() {
         None,
         Duration::from_secs(1),
         &mut session,
+        Duration::from_secs(70),
         classic(),
     );
     assert_eq!(lines.len(), 24, "the pin holds at saturation");

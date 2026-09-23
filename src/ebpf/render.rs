@@ -219,6 +219,33 @@ pub(crate) fn format_rate_or_dash(bps: u64) -> String {
     }
 }
 
+/// Render a monitor uptime (NIGHT-boost-17, improve-27): the two most
+/// significant units, auto-scaled — the owner's exact examples
+/// `1m:10s`, `1h:1m`, `1d:1h`, no zero padding anywhere (the owner's
+/// samples carry natural digit counts, not clock padding).
+///
+/// Ladder: under a minute `45s`; under an hour `12m:34s`; under a day
+/// `3h:7m`; beyond `2d:5h`. The u64 seconds horizon (~585 billion
+/// years) cannot be reached by a monitor, so the day tier is the
+/// terminal one by construction.
+#[must_use]
+pub(crate) fn format_uptime(elapsed: std::time::Duration) -> String {
+    let secs = elapsed.as_secs();
+    let days = secs / 86_400;
+    let hours = (secs % 86_400) / 3_600;
+    let mins = (secs % 3_600) / 60;
+    let rem_secs = secs % 60;
+    if days > 0 {
+        format!("{days}d:{hours}h")
+    } else if hours > 0 {
+        format!("{hours}h:{mins}m")
+    } else if mins > 0 {
+        format!("{mins}m:{rem_secs}s")
+    } else {
+        format!("{rem_secs}s")
+    }
+}
+
 /// Render the title bar: bold purple brand text, em-dash filled to
 /// the full frame width, key hint right-aligned when there is room.
 ///
@@ -287,6 +314,31 @@ mod tests {
     fn zero_rate_renders_dash() {
         assert_eq!(format_rate_or_dash(0), "—");
         assert_eq!(format_rate_or_dash(1000), "1.0 KB/s");
+    }
+
+    /// Uptime ladder (NIGHT-boost-17): the owner's exact samples —
+    /// `1m:10s`, `1h:1m`, `1d:1h` — plus the tier edges, with NO
+    /// zero padding anywhere (natural digit counts, the owner's
+    /// wording, not clock formatting).
+    #[test]
+    fn uptime_ladder_matches_the_owner_samples() {
+        use std::time::Duration;
+        // The owner's three examples, verbatim.
+        assert_eq!(format_uptime(Duration::from_secs(70)), "1m:10s");
+        assert_eq!(format_uptime(Duration::from_secs(3_660)), "1h:1m");
+        assert_eq!(format_uptime(Duration::from_secs(90_000)), "1d:1h");
+        // Tier edges: under a minute, exact minute, exact hour, day.
+        assert_eq!(format_uptime(Duration::ZERO), "0s");
+        assert_eq!(format_uptime(Duration::from_secs(45)), "45s");
+        assert_eq!(format_uptime(Duration::from_secs(59)), "59s");
+        assert_eq!(format_uptime(Duration::from_secs(60)), "1m:0s");
+        assert_eq!(format_uptime(Duration::from_secs(3_599)), "59m:59s");
+        assert_eq!(format_uptime(Duration::from_secs(3_600)), "1h:0m");
+        assert_eq!(format_uptime(Duration::from_secs(86_399)), "23h:59m");
+        assert_eq!(format_uptime(Duration::from_secs(86_400)), "1d:0h");
+        // Sub-second precision truncates to whole seconds (the
+        // monitor's own wake granularity is 50ms).
+        assert_eq!(format_uptime(Duration::from_millis(1_250)), "1s");
     }
 
     /// Title bar: full-width fill, hint right-aligned, graceful
