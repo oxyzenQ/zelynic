@@ -635,7 +635,36 @@ frame-by-frame — header cells sit exactly over their columns, every
 grid line closes flush at the frame width, the left border is one
 straight edge, and the quiet-frame board holds intact.
 
-<!-- ZELYNIC-DISCLAIMER -->
+### NIGHT-boost-24 / NIGHT-engrave-5 / NIGHT-boost-25 A/B (CLI-surface + smooth-open batch, 2026-09-24)
+
+Baseline 514d595 (the engrave-4 end state) vs b2a9e1c, the 10s
+harness, three tasks in one batch:
+
+| metric | before | after | delta |
+|---|---|---|---|
+| fps (render path) | 8094.5 | 8142.9 | +0.6% |
+| bytes/frame | 1943.0 | 1943.0 | +0.0% |
+| emit bytes/frame | 687.0 | 687.9 | +0.1% |
+| density gini | 0.3717 | 0.3714 | -0.1% |
+| frame entropy | 2.9711 | 2.9717 | +0.0% |
+| dirty cells/frame | 53.9 | 54.0 | +0.2% |
+| bytes/sec churn | 5560980.9 | 5601894.2 | +0.7% |
+
+Reading: NEUTRAL by construction, and that is the finding. The
+batch touched the CLI surfaces (the --print-json honesty note, the
+status/list-apps restyle) and the monitor's STARTUP path (the
+NIGHT-boost-25 smooth open) — none of it runs inside the per-frame
+render loop the harness measures. The smooth open's prelude never
+renders on a pipe (the harness's own path: Monitor::open's
+non-TTY branch skips the prelude entirely), the first live frame
+is the composition the before-side rendered, and the loading
+frame's cost is one-time at startup on TTYs only. Every delta in
+the table is the container-noise class of every previous A/B
+(-1.1% .. +5.2%); bytes/frame is identical to the decimal. The
+visual gains (status/list-apps matching the eagle family, the
+loading frame, the one-row morph) cost the render loop nothing.
+
+
 <!--
   Documentation Disclaimer — read before relying on any data point.
 
