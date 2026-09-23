@@ -99,6 +99,14 @@ fn try_main() -> Result<()> {
         }
     }
 
+    // NIGHT-boost-24: the early-return surfaces (help, version,
+    // check-update) never render JSON — the flag's honesty note rides
+    // stderr BEFORE them, so `zelynic --print-json -V` says why the
+    // output is text. stdout and the exit code are untouched.
+    if cli.print_json && (cli.help || cli.version || cli.check_update) {
+        cli::warn_print_json_ignored();
+    }
+
     // --help: print the end-to-end reference and exit 0. Checked
     // before every other early return so `zelynic --help` works no
     // matter what follows it (parse errors still fire first — clap

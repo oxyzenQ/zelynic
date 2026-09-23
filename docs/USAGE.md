@@ -442,7 +442,7 @@ on every system, so existence alone says nothing.
 | `-V, --version` | Version + build report (architecture, build label, hash, timestamp). Parses at every level — after a subcommand's arguments too (NIGHT-boost-12). |
 | `--check-update` | Checks the latest GitHub release. **Refuses to run as root** — it is a plain network fetch and must not ride sudo. |
 | `-v, --verbose` | stderr diagnostic trace: target resolution (pids per cgroup), every policy write (rate + burst), BPF lifecycle (pin reuse, schema, link mode), plus loader-level eBPF debug — object size, kernel release, load/attach timings, and the loaded map inventory (id, type, key/value size, max_entries, the `bpftool` facts). JSON output stays clean. |
-| `--print-json` | Machine-readable output where applicable (`status`, `list-apps`, `doctor`). |
+| `--print-json` | Machine-readable output — the surface set is `status`, `list-apps`, `doctor`: one compact JSON line each, the stable v11 scripting API (see the JSON reference below). Every other surface renders text (enforcement verbs, `eagle-eyes`, `-h`, `-V`, `--check-update`), and the flag never silently no-ops (NIGHT-boost-24): on a surface that ignores it, exactly one stderr line notes `--print-json ignored (JSON surface: status, list-apps, doctor)` — stdout and exit codes are untouched, so scripts stay clean. |
 | `--color-mode MODE` | Force the terminal color depth: `0` mono, `16` classic palette, `8`/`256` xterm cube, `24`/`32` truecolor (NIGHT-boost-23, the cosmostrix contract). Default is AUTO: the ladder falls back per terminal — truecolor where the environment reports it, the 256 cube, the 16 palette, mono under `NO_COLOR`/pipes. The flag is the escape hatch for the environment that LIES (COLORTERM inherited over SSH into a terminal that is not truecolor, tmux passthrough without Tc): forcing the depth the terminal actually honors makes every surface — errors, help, the monitor frame and its gradient rails — render correctly what truecolor escapes would garble. Invalid values exit 2 with the allowed grammar. |
 
 Privilege matrix in short: enforcement and monitoring commands
@@ -644,6 +644,15 @@ it actually do?" questions in one run.
 emits ONE compact single-line JSON document per invocation
 (NIGHT-boost-3, the machine-first contract — `jq`-ready and
 NDJSON-friendly; pretty-print on the consumer side with `| jq '.'`).
+
+The scope is three commands (NIGHT-boost-24 honesty audit): `status`,
+`list-apps`, `doctor` — the report commands. The flag parses
+anywhere (it is global), but the enforcement verbs, the `eagle-eyes`
+monitor, and the early exits (`-h`, `-V`, `--check-update`) render
+text; when the flag rides one of those, a single stderr line names
+the honoring surfaces and the output itself is untouched. The
+featureless (dormant-mode) build answers with its honest smaller set
+(`doctor` only — `status` and `list-apps` are eBPF surfaces).
 Field shapes:
 
 `status --print-json`:

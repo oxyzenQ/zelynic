@@ -65,6 +65,52 @@ fn test_doctor_print_json_is_one_compact_line() {
         parsed.get("system").is_some() && parsed.get("ebpf_supported").is_some(),
         "field contract intact, got: {doc}"
     );
+    // The honoring side of the NIGHT-boost-24 contract: doctor is a
+    // JSON surface, so no ignored-note may ride stderr — the flag did
+    // its job, silence is the honest answer.
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        !stderr.contains("--print-json ignored"),
+        "a JSON surface must not warn about the flag, got: {stderr}"
+    );
+}
+
+/// NIGHT-boost-24: `--print-json` on a non-JSON surface answers with
+/// exactly one stderr note naming the honoring surfaces — stdout and
+/// the exit code are untouched. `-V` runs unprivileged and renders the
+/// version report, so this pins the honesty contract end-to-end on
+/// the default path: the note fires in `main` before the early
+/// return, and dispatch is never reached — one note, never two.
+#[test]
+fn test_print_json_ignored_note_rides_stderr_on_version() {
+    let output = zelynic_cmd()
+        .args(["--print-json", "--version"])
+        .output()
+        .expect("Failed to execute zelynic --print-json --version");
+
+    assert!(
+        output.status.success(),
+        "the ignored note must not change the exit code, stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("--print-json ignored (JSON surface: "),
+        "the note must name the surfaces, got: {stderr}"
+    );
+    assert_eq!(
+        stderr
+            .lines()
+            .filter(|l| l.contains("--print-json ignored"))
+            .count(),
+        1,
+        "exactly one ignored note per invocation, got: {stderr}"
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("zelynic: v"),
+        "the version report itself is unchanged, got: {stdout}"
+    );
 }
 
 /// Test that list-apps works (requires root + eBPF feature)
