@@ -56,7 +56,8 @@
 //!   from `test/ebpf/render/bench.rs`, NIGHT-hunt-17)
 //! - this root — geometry probing, column budgets, shared helpers,
 //!   and the NIGHT-hunt-8 connection-detail lines (label +N suffix,
-//!   per-process endpoint lines shared by eagle and focus)
+//!   the per-process endpoint tree of NIGHT-boost-21 shared by eagle
+//!   and focus)
 
 mod border;
 mod detail;

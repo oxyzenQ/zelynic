@@ -3,9 +3,10 @@
 
 //! Eagle-eyes focus renderer (NIGHT-boost-1): the deep single-target
 //! view — per-direction deltas, rate, lifetime totals, and every
-//! socket-holding process with its endpoints, uncapped. Reached
-//! automatically when the positional TARGETS spec is one token that
-//! resolves to one cgroup (the old `observe --cgroup <id>` depth).
+//! socket-holding process with its endpoints as a two-level tree
+//! (NIGHT-boost-21), uncapped. Reached automatically when the
+//! positional TARGETS spec is one token that resolves to one cgroup
+//! (the old `observe --cgroup <id>` depth).
 //!
 //! NIGHT-boost-14 aligned the focus view with the ranked frame's
 //! composition: the same breathing gap under the title, the process
@@ -106,11 +107,13 @@ pub fn render_eagle_focus(
         ));
 
         // Full eagle-eyes view for the focused cgroup: every
-        // socket-holding process with its endpoints, uncapped (the
-        // single-cgroup view exists precisely to answer "who exactly")
-        // — except when the terminal cannot hold them: the cap counts
-        // one honest "more hidden" note (NIGHT-boost-14 adaptive
-        // compact), and degenerate heights drop the block entirely.
+        // socket-holding process, each of its displayable endpoints
+        // an indented child line of a two-level tree (NIGHT-boost-21,
+        // uncapped — the single-cgroup view exists precisely to
+        // answer "who exactly") — except when the terminal cannot
+        // hold them: the cap counts one honest "more hidden" note
+        // (NIGHT-boost-14 adaptive compact), and degenerate heights
+        // drop the block entirely.
         let mut details = super::full_detail_lines(conns, cgroup_id);
         let room = geo.height.saturating_sub(FOCUS_CHROME);
         if details.len() > room {
