@@ -132,6 +132,45 @@ numerics, and no per-cell noise (values are never packed as
   white command, grey everything else: subordinate information
   dimmer than the data it annotates, actionable accents brighter.
 
+#### 2.1.1. The report-table family (NIGHT-engrave-5)
+
+The eagle-eyes table style is the ONE table style: `sudo zelynic
+status` and `zelynic list-apps` (the REPORT surfaces — command
+output that is a table) answer to the same contract the monitor's
+table carries, in the surface classes below. The owner's audit
+caught status as the last uppercase holdout: `CGROUP / DOWNLOAD /
+UPLOAD / ALLOWED / DROPPED` over a plain hyphen separator; both
+report tables now render the monitor's exact family.
+
+- Title bar: `╭─── zelynic status ─…─╮` / `╭─── zelynic list-apps ─…─╮`
+  — the flagship title bar, spanning the table's own width (the
+  status branch frames — clean, stale pins — span the terminal
+  width: no table to size to), followed by the breathing gap.
+- Column headers: lowercase, regular purple (`cgroup download
+  upload allowed dropped`; `process procs sockets cgroup id uid`).
+- Grid: the monitor's own purple grid (render/footer.rs
+  `grid_line`, one border family across every zelynic table),
+  full-width and flush with the left edge — the `|---` shape.
+- Data rows: status green (the eagle table's calm tier) — every
+  status row is a live enforced limit, the affirmative state.
+- Prose lines: grey, lowercase (`watchdog: 30s remaining`,
+  `active limits: N dl, N ul`, the list-apps census line); warn
+  yellow for the expired-watchdog verdict and the stale-pins
+  finding; suggestion white for the quoted recovery command. The
+  branch frames carry the same chrome: title, gap, story, gap,
+  stamp.
+- Verdict VALUES keep their case (BLOCKED, the `--print-json`
+  watchdog states) — titles are furniture, verdicts are states.
+
+Surface classes (the style map): flagship frames (eagle-eyes,
+status) and the discovery table (list-apps) carry the eagle table
+contract above; the signature stamp belongs to the flagship pair
+(NIGHT-boost-5's original list). Action prose — the enforcement
+verbs' stderr confirmations — keeps sentence case (an action log,
+not a report). The reference surfaces (help, doctor, errors) keep
+their own established idioms (the "━━━" banner family and the
+labeled error renderer).
+
 ### 2.2. Monitor themes (NIGHT-boost-18, improve-27)
 
 The eagle-eyes monitor cycles six palettes with `t` (forward,

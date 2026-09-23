@@ -148,8 +148,13 @@ pub(super) fn plan_footer_tier(height: usize, extra: usize) -> FooterTier {
 /// JOINS the left rail with no gap (the owner's `|---`, never
 /// `| ---`) and ends flush against the right one — the frame's
 /// horizontals integrate with its border, edge to edge.
+///
+/// NIGHT-engrave-5: promoted pub(crate) + re-exported from the
+/// render root — the status and list-apps tables (the report
+/// surfaces outside this module) borrow the exact same grid so
+/// every zelynic table answers to one border family.
 #[must_use]
-pub(super) fn grid_line(width: usize) -> String {
+pub(crate) fn grid_line(width: usize) -> String {
     brand(&"─".repeat(width)).to_string()
 }
 

@@ -3,13 +3,14 @@
 
 //! Monitor command handlers — status, list-apps, eagle-eyes.
 
-use crate::output::print_json;
+use crate::output::{grey, ok, print_json};
 use anyhow::Result;
 
 /// Handle `zelynic status` — show active limits + watchdog.
 #[cfg(feature = "ebpf")]
 pub fn handle_status(verbose: bool, json: bool) -> Result<()> {
-    use crate::ebpf::limiter::{pin_dir_has_files, Limiter};
+    use crate::ebpf::display::{status_clean_lines, status_stale_lines};
+    use crate::ebpf::limiter::{pin_dir_has_files, terminal_width, Limiter};
 
     super::ensure_root()?;
 
@@ -19,7 +20,13 @@ pub fn handle_status(verbose: bool, json: bool) -> Result<()> {
                 "watchdog": "clean", "active_limits": 0, "limits": []
             }));
         } else {
-            println_safe!("No active limits.");
+            // NIGHT-engrave-5: the clean verdict carries the flagship
+            // chrome (title bar, breathing gap, stamp) — one grey
+            // line inside the frame, not a bare sentence under the
+            // prompt.
+            for line in status_clean_lines(terminal_width()) {
+                println_safe!("{line}");
+            }
         }
         return Ok(());
     }
@@ -30,8 +37,12 @@ pub fn handle_status(verbose: bool, json: bool) -> Result<()> {
                 "error": "stale pins detected", "hint": "run 'zelynic recover'"
             }));
         } else {
-            println_safe!("Stale BPF pin files detected (partial enforcement state).");
-            println_safe!("Run 'zelynic recover' to clean up, then re-apply limits.");
+            // NIGHT-engrave-5: the warning state carries the same
+            // chrome — warn yellow for the finding, suggestion white
+            // for the recovery command.
+            for line in status_stale_lines(terminal_width()) {
+                println_safe!("{line}");
+            }
         }
         return Ok(());
     }
@@ -53,11 +64,19 @@ pub fn handle_status(verbose: bool, json: bool) -> Result<()> {
 /// NIGHT-hunt-8: the listing carries the cgroup's process and socket
 /// counts, because a row named "alacritty" that actually hosts curl,
 /// wget and ssh is exactly the discovery-stage lie the owner hit.
+///
+/// NIGHT-engrave-5 (the hunt find riding the owner's status audit):
+/// the table answers to the eagle-eyes contract like status does —
+/// the flagship title bar (the old "━━━" banner was the pre-eagle
+/// idiom), lowercase purple column headers, the monitor's purple
+/// grid, grey census line, green data rows. Discovery is a REPORT
+/// surface; the report family shares one table style.
 #[cfg(feature = "ebpf")]
 pub fn handle_list_apps(json: bool) -> Result<()> {
     use crate::ebpf::connections::ConnectionMap;
+    use crate::ebpf::display::list_apps_header_line;
     use crate::ebpf::identity::IdentityMap;
-    use crate::output::brand_bold;
+    use crate::ebpf::render::{grid_line, title_bar};
 
     let mut identity = IdentityMap::new();
     let count = identity.refresh();
@@ -90,46 +109,41 @@ pub fn handle_list_apps(json: bool) -> Result<()> {
         return Ok(());
     }
 
-    println_safe!("{}", brand_bold("━━━ Apps with cgroup IDs ━━━"));
-    println_safe!(
-        "  {} cgroups resolved, {} with live sockets\n",
-        count,
-        socket_cgroups
-    );
     // Column widths shared by header, rows, and separator — one
     // table, one width source (improve-13: the separator was a
     // hardcoded 70 while the columns sum to 69 — the rule line
     // overhung the table by one).
     let widths = [30usize, 7, 8, 10, 8];
     let table_w: usize = 2 + widths.iter().sum::<usize>() + (widths.len() - 1);
+    println_safe!("{}", title_bar("zelynic list-apps", table_w));
+    println_safe!();
     println_safe!(
-        "  {:<w0$} {:>w1$} {:>w2$} {:>w3$} {:>w4$}",
-        "PROCESS",
-        "PROCS",
-        "SOCKETS",
-        "CGROUP ID",
-        "UID",
-        w0 = widths[0],
-        w1 = widths[1],
-        w2 = widths[2],
-        w3 = widths[3],
-        w4 = widths[4]
+        "{}",
+        grey(&format!(
+            "  {} cgroups resolved, {} with live sockets",
+            count, socket_cgroups
+        ))
     );
-    println_safe!("  {}", "─".repeat(table_w - 2));
+    println_safe!();
+    println_safe!("{}", list_apps_header_line(&widths));
+    println_safe!("{}", grid_line(table_w));
 
     for id in entries {
         println_safe!(
-            "  {:<w0$} {:>w1$} {:>w2$} {:>w3$} {:>w4$}",
-            id.comm,
-            conns.proc_count(id.cgroup_id),
-            conns.socket_count(id.cgroup_id),
-            format!("cg:{}", id.cgroup_id),
-            id.uid,
-            w0 = widths[0],
-            w1 = widths[1],
-            w2 = widths[2],
-            w3 = widths[3],
-            w4 = widths[4]
+            "{}",
+            ok(&format!(
+                "  {:<w0$} {:>w1$} {:>w2$} {:>w3$} {:>w4$}",
+                id.comm,
+                conns.proc_count(id.cgroup_id),
+                conns.socket_count(id.cgroup_id),
+                format!("cg:{}", id.cgroup_id),
+                id.uid,
+                w0 = widths[0],
+                w1 = widths[1],
+                w2 = widths[2],
+                w3 = widths[3],
+                w4 = widths[4]
+            ))
         );
     }
 

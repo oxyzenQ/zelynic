@@ -187,7 +187,7 @@ files can be orphaned. `recover` detects and removes them, and
 reclaims the bucket/stats state of dead-cgroup orphans alongside
 their policies (the same LTS budget unstrict maintains). Safe to run
 anytime — it does nothing when state is clean. `status` tells you when
-you need it ("Stale BPF pin files detected").
+you need it ("stale bpf pin files detected").
 
 ### status — what is limited right now
 
@@ -196,23 +196,33 @@ sudo zelynic status [--print-json]
 ```
 
 Reads the pinned maps and prints the active limits: how many dl/ul
-policies, and a table of CGROUP / DOWNLOAD / UPLOAD / ALLOWED /
-DROPPED per cgroup, with labels resolved by majority vote over the
-live processes inside each cgroup. ALLOWED/DROPPED carry cumulative
+policies, and a table of cgroup / download / upload / allowed /
+dropped per cgroup, with labels resolved by majority vote over the
+live processes inside each cgroup. allowed/dropped carry cumulative
 BYTE counters since the maps were created — one metric per cell,
 evidence of enforcement rather than a live rate meter; the packet
 counts ride `--print-json` where automation reads them.
 
-The output opens with the purple flagship title bar (the same anchor
-the eagle-eyes monitor carries) and signs off with the signature
-footer — `v<version> (<commit>) by oxyzenQ`, the commit hash injected
-at build time from `git rev-parse --short HEAD` (never hardcoded, so
+The output IS the eagle-eyes style (NIGHT-engrave-5, the owner's
+audit — the surface was the last uppercase holdout): the purple
+flagship title bar (the same anchor the monitor carries), a
+breathing gap under it, lowercase purple column headers over the
+monitor's own full-width purple grid (flush with the left edge, the
+`|---` shape), data rows in status green (the calm tier — every row
+is a live, enforced limit), the watchdog and census prose in grey
+(`watchdog: 30s remaining`, `active limits: N dl, N ul`; warn yellow
+only when the watchdog is expired), and the signature footer —
+`v<version> (<commit>) by oxyzenQ`, the commit hash injected at
+build time from `git rev-parse --short HEAD` (never hardcoded, so
 the stamp always names the exact build) — bottom-left
-(NIGHT-boost-5). The watchdog line appears only when the BPF
-auto-expiry deadline is actually ARMED; a dormant watchdog prints
-nothing ("Watchdog: not set (enforcing)" was retired as noise — it
-read like a state, but it was the absence of one). `--print-json`
-keeps the `"watchdog"` field unchanged for scripts.
+(NIGHT-boost-5). The branch states carry the same chrome: a clean
+system renders the frame with one grey `no active limits` line, a
+stale-pin state renders the warn-yellow finding with the recovery
+command in suggestion white. The watchdog line appears only when
+the BPF auto-expiry deadline is actually ARMED; a dormant watchdog
+prints nothing ("Watchdog: not set (enforcing)" was retired as noise
+— it read like a state, but it was the absence of one).
+`--print-json` keeps the `"watchdog"` field unchanged for scripts.
 
 ### list-apps — discovery
 
@@ -220,10 +230,15 @@ keeps the `"watchdog"` field unchanged for scripts.
 zelynic list-apps [--print-json]
 ```
 
-Lists every cgroup with live processes: PROCESS, PROCS, SOCKETS,
-CGROUP ID, UID. The PROCS/SOCKETS columns expose multi-tenancy — a row
-labeled `alacritty` hosting 4 processes and 7 sockets is probably
-carrying your `curl`. Works without root; enforcement commands do not.
+Lists every cgroup with live processes: process, procs, sockets,
+cgroup id, uid — the report-table family's eagle-eyes style since
+NIGHT-engrave-5 (the flagship title bar, lowercase purple headers,
+the monitor's purple grid, green rows, the grey census line above
+the table; the old "━━━" banner and uppercase headers were the
+pre-eagle idiom). The procs/sockets columns expose multi-tenancy —
+a row labeled `alacritty` hosting 4 processes and 7 sockets is
+probably carrying your `curl`. Works without root; enforcement
+commands do not.
 
 ### eagle-eyes — the unified live monitor
 
@@ -497,7 +512,7 @@ sudo zelynic status --print-json | jq '.limits[] | select(.bytes_dropped > 0)'
 **After a crash or a weird state:**
 
 ```bash
-sudo zelynic status                   # "Stale BPF pin files detected"?
+sudo zelynic status                   # "stale bpf pin files detected"?
 sudo zelynic recover
 ```
 
@@ -619,7 +634,7 @@ in the monitor rows.
 | `No cgroup found for '<name>'` | The app is not running (or the name is wrong). Start it, check `zelynic list-apps`, or target a cgroup ID. |
 | `Invalid rate '1MB'` (with a tip) | Units are lowercase. The tip suggests the fix (`1mb`; fractional twins like `5.5MB` -> `5.5mb` work the same way). |
 | `Invalid interval '90s'` | Refresh interval must be 1s..60s. |
-| `Stale BPF pin files detected` | A previous run was killed mid-operation. Run `sudo zelynic recover`, then re-apply limits. |
+| `Stale BPF pin files detected` / `stale bpf pin files detected` | A previous run was killed mid-operation (the wording lowercased with the NIGHT-engrave-5 restyle). Run `sudo zelynic recover`, then re-apply limits. |
 | `Failed to load BPF object` with `caused by:` lines under it | Every runtime error now prints its full cause chain (NIGHT-hunt-28) — read the `caused by:` lines: they name the exact map, syscall, and errno (e.g. `failed to create map 'X' with code -22`). If the chain ends in a pin/EINVAL shape instead, it is the mount below. |
 | `error parsing BPF object: error parsing ELF data` at startup (strict/limit) | Two distinct causes share this one error text, both fixed at the source. (1) Address misalignment (NIGHT-hunt-30, the 2026-09-20..21 occurrences): aya's ELF parser reads the embedded object straight out of the binary's `.rodata` and requires the buffer's address to be 8-byte aligned — the plain `include_bytes!` static had that only by linker luck, per host per build. Both objects are now embedded inside an `AlignedElf` wrapper, aligned by construction, with a load-path preflight that names any violation precisely ("address is N bytes past an 8-byte boundary"). (2) A bpfel object damaged on disk (NIGHT-hunt-29): cargo never re-verifies build outputs, so a truncated artifact stayed "fresh" and every rebuild re-embedded it; builds now structurally validate both objects and self-heal a damaged one, visible as a `cargo:warning` naming the exact violation (e.g. `truncated: section header table (10 x 64 at 4984) exceeds the 1000-byte file`) followed by one forced relink. A binary already showing this error only needs a rebuild from current source: `cargo pro-native-gnu`. |
 | `/sys/fs/bpf is not a mounted bpf filesystem` | The limiter pins its maps under `/sys/fs/bpf/zelynic`, and pinning needs a real bpffs mount — a directory merely existing there is not enough (the kernel always creates it; some distros never mount bpffs on it). Fix: `sudo mount -t bpf bpf /sys/fs/bpf`, made permanent via fstab or a systemd mount unit. Note `eagle-eyes` needs no bpffs (its maps are unpinned) — if the monitor works but strict/limit fail, this is exactly it. |
