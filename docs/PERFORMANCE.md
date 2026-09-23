@@ -559,6 +559,38 @@ rewrites error contexts), and the deterministic metrics confirm
 exactly that; the +0.5% fps and bytes/sec churn deltas sit in the
 shared-host wall-clock noise class.
 
+### NIGHT-boost-13 (fatal-CLI-UX session) — 2026-09-23
+
+The error-bridge session (escape-hatch honesty probe,
+subcommand-scoped usage regeneration, the help-subcommand and
+--json rescues, split into the new cli/argv.rs forensics module) is
+parse-error-path-only: every change lives in the exit-2 flow —
+`exit_clap_error` and its enrich functions — and the frame harness
+renders without ever touching the bridge. A = bb78ce9
+(boost-5 A/B record HEAD, pre-boost-13; worktree), B = 0977872
+(boost-13 HEAD), 10 s runs:
+
+| Metric | bb78ce9 | 0977872 | Delta |
+|--------|---------|---------|-------|
+| fps | 13269.5 | 13436.4 | +1.3% (noise class) |
+| avg rows | 22.3 | 22.3 | -0.1% |
+| bytes/frame | 1378.6 | 1378.3 | -0.0% |
+| emit bytes/frame | 915.0 | 915.0 | -0.0% |
+| emit ratio | 0.66 | 0.66 | +0.0% |
+| density gini | 0.2457 | 0.2457 | +0.0% |
+| frame entropy | 4.1827 | 4.1814 | -0.0% |
+| dirty cells/frame | 101.7 | 101.7 | -0.0% |
+| dirty ratio | 0.0570 | 0.0570 | +0.0% |
+| bytes/sec churn | 12141834.1 | 12293927.1 | +1.3% (fps-driven) |
+
+Reading: parity on every deterministic per-frame metric — density
+gini identical to the fourth decimal, dirty cells and emit bytes
+identical to the frame. Three same-host runs of the two code states
+spread fps 12943..13436 (±3%), so the fps/churn deltas are
+wall-clock noise, not cost; the deterministic metrics are the
+code-level proof that the error-path work added zero render-path
+change, exactly as designed.
+
 ### NIGHT-boost-5 (eagle-eyes session leaderboard engraving) — 2026-09-23
 
 The full NIGHT-boost-5 arc (ae4afaa status engraving + output layer
