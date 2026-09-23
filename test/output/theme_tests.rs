@@ -202,3 +202,81 @@ fn global_state_round_trips_and_restores() {
     assert_eq!(super::cycle(-1), Theme::Atomic);
     assert_eq!(active(), Theme::Atomic);
 }
+
+/// The NIGHT-boost-23 masterclass audit pins (the five non-default
+/// themes): the corrected 256-depth indices — nearest-cube for the
+/// brand/ok slots (hue reads true), the documented visibility corners
+/// where hue holds — and the absolute 16-color distinctness contract
+/// (no two slots of one theme share an SGR; the brand takes the
+/// bright slot on the two themes whose brand collided with data).
+#[test]
+fn boost23_audit_fixes_the_fallback_table() {
+    let idx256 = |t: Theme, s: Slot| escape_for(t, s, false, ColorCapability::Color256);
+    let sgr16 = |t: Theme, s: Slot| escape_for(t, s, false, ColorCapability::Color16);
+
+    // Nearest-cube corrections (brand/ok slots — hue must read true):
+    // forest's leaf-green brand 71 (olive) -> 107; carbon's silver
+    // brand 250 (the 188 grey rung, BELOW its own 16-color fallback)
+    // -> 231; carbon's pale-mint ok 48 (saturated spring green, 28x
+    // the nearest error) -> 157; night_cyber's mint ok 48 -> 49;
+    // atomic's vivid-green ok 46 -> 42.
+    assert_eq!(idx256(Theme::Forest, Slot::Brand), "\x1b[38;5;107m");
+    assert_eq!(idx256(Theme::Carbon, Slot::Brand), "\x1b[38;5;231m");
+    assert_eq!(idx256(Theme::Carbon, Slot::Ok), "\x1b[38;5;157m");
+    assert_eq!(idx256(Theme::NightCyber, Slot::Ok), "\x1b[38;5;49m");
+    assert_eq!(idx256(Theme::Atomic, Slot::Ok), "\x1b[38;5;42m");
+
+    // Per-theme hue-truth corrections for warn/hot: night_cyber's
+    // soft-amber warn lands on the khaki rung 221 (not the pure gold
+    // 220 its b=87 does not earn); atomic's near-pure yellow warn
+    // joins the 220 family (226 retired); forest's burnt-orange hot
+    // renders its true 166 (202 was a brighter orange than the
+    // palette's own crown); carbon's soft red hot takes 203; atomic's
+    // pink-leaning hot takes 197.
+    assert_eq!(idx256(Theme::NightCyber, Slot::Warn), "\x1b[38;5;221m");
+    assert_eq!(idx256(Theme::Atomic, Slot::Warn), "\x1b[38;5;220m");
+    assert_eq!(idx256(Theme::Forest, Slot::Hot), "\x1b[38;5;166m");
+    assert_eq!(idx256(Theme::Carbon, Slot::Hot), "\x1b[38;5;203m");
+    assert_eq!(idx256(Theme::Atomic, Slot::Hot), "\x1b[38;5;197m");
+
+    // The 16-color collision fixes: forest brand shares no SGR with
+    // its ok (brand takes BRIGHT green 92, ok keeps green 32);
+    // atomic brand takes BRIGHT yellow 93, clear of warn's 33.
+    assert_eq!(sgr16(Theme::Forest, Slot::Brand), "\x1b[92m");
+    assert_eq!(sgr16(Theme::Forest, Slot::Ok), "\x1b[32m");
+    assert_eq!(sgr16(Theme::Atomic, Slot::Brand), "\x1b[93m");
+    assert_eq!(sgr16(Theme::Atomic, Slot::Warn), "\x1b[33m");
+}
+
+/// The audit's standing contract, walked live over the whole catalog:
+/// within every theme, the five slots' 16-color SGRs are pairwise
+/// DISTINCT (a legacy terminal must never merge the frame's identity,
+/// data tiers, warning, crown, and subordinates into one color), and
+/// every theme's grey slot rides the uniform ramp 245 / bright black
+/// 90 (subordination outranks nearest-match).
+#[test]
+fn sixteen_color_slots_stay_distinct_per_theme() {
+    for theme in THEMES {
+        let slots = [Slot::Brand, Slot::Ok, Slot::Warn, Slot::Hot, Slot::Grey];
+        let mut seen: Vec<&str> = Vec::new();
+        for slot in slots {
+            let esc = escape_for(theme, slot, false, ColorCapability::Color16);
+            assert!(
+                !seen.contains(&esc),
+                "{theme:?} slot {slot:?} repeats 16-color SGR {esc:?} — legacy terminals would merge slots"
+            );
+            seen.push(esc);
+        }
+        // The uniform grey tier (the documented contract).
+        assert_eq!(
+            escape_for(theme, Slot::Grey, false, ColorCapability::Color256),
+            "\x1b[38;5;245m",
+            "{theme:?} grey rides the neutral ramp"
+        );
+        assert_eq!(
+            escape_for(theme, Slot::Grey, false, ColorCapability::Color16),
+            "\x1b[90m",
+            "{theme:?} grey rides bright black at 16 depth"
+        );
+    }
+}

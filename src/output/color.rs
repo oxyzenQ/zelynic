@@ -25,11 +25,16 @@
 //!
 //! NIGHT-boost-18: the five THEMEABLE slots (brand, ok, warn, hot,
 //! grey) route through the active theme in [`super::theme`] — the
-//! eagle-eyes monitor cycles it with t/T, and the default
+//! eagle-eyes monitor cycles it with `t`, and the default
 //! (netrunner) is byte-identical to the constants this file carried
 //! before themes existed. Error red and suggestion white stay
 //! hardwired: they belong to the CLI error surface, which never
 //! themes.
+//!
+//! NIGHT-boost-23: the ladder's auto-fallback is the default, and
+//! `--color-mode` (0/16/8|256/24|32, the cosmostrix grammar) forces
+//! a depth when the environment's truecolor claim does not survive
+//! contact with the terminal — see the forced-capability block below.
 
 use std::io::IsTerminal;
 use std::sync::OnceLock;
@@ -117,10 +122,18 @@ const TRUECOLOR_TERM_HINTS: &[&str] = &[
 
 /// Detect the terminal's color capability from environment variables.
 ///
-/// Probe order: `NO_COLOR` -> `CLICOLOR=0` -> TTY check (stderr, unless
+/// Probe order: a forced `--color-mode` (NIGHT-boost-23) -> `NO_COLOR`
+/// -> `CLICOLOR=0` -> TTY check (stderr, unless
 /// `CLICOLOR_FORCE=1`) -> `COLORTERM` -> `TERM` suffixes -> truecolor
 /// native names -> `256color` -> `dumb`/empty -> Color16 default.
 fn detect_capability() -> ColorCapability {
+    // The forced override outranks every probe (NIGHT-boost-23): a
+    // terminal whose environment lies about truecolor needs the
+    // legacy ladder NOW, not after the env walk agrees with the lie.
+    if let Some(forced) = FORCED.get() {
+        return *forced;
+    }
+
     if std::env::var_os("NO_COLOR").is_some() {
         return ColorCapability::Mono;
     }
@@ -165,6 +178,51 @@ fn detect_capability() -> ColorCapability {
 pub(crate) fn capability() -> ColorCapability {
     static CAP: OnceLock<ColorCapability> = OnceLock::new();
     *CAP.get_or_init(detect_capability)
+}
+
+// ── The forced-capability override (NIGHT-boost-23) ────────────────────────
+//
+// The auto-fallback ladder is the DEFAULT: every slot renders at the
+// depth the environment probe reports, and the theme table carries
+// all three encodings so the fallback is one match arm, not a
+// re-render. But env probes cannot VERIFY rendering — the classic
+// liar is an inherited COLORTERM (SSH SendEnv into a terminal that
+// is not truecolor, tmux passthrough without Tc): the environment
+// says truecolor, the terminal garbles the RGB escapes. The
+// --color-mode flag (the cosmostrix contract) is the escape hatch:
+// force the legacy depth the terminal actually honors, and every
+// surface — CLI errors, help, the monitor's frame and gradient —
+// answers to one ladder depth.
+
+/// The process-global forced capability, seeded by `main` right
+/// after argument parse (before any output renders). `None` until
+/// then: auto detection is the default.
+static FORCED: OnceLock<ColorCapability> = OnceLock::new();
+
+/// Parse a `--color-mode` value (the cosmostrix grammar): `0` mono,
+/// `16` classic palette, `8`/`256` xterm cube, `24`/`32` truecolor.
+///
+/// Pure — no global state, no environment reads — so the grammar is
+/// pinned without disturbing the capability cache other tests
+/// already populated.
+pub fn parse_color_mode(value: &str) -> Result<ColorCapability, String> {
+    match value.trim() {
+        "0" => Ok(ColorCapability::Mono),
+        "16" => Ok(ColorCapability::Color16),
+        "8" | "256" => Ok(ColorCapability::Color256),
+        "24" | "32" => Ok(ColorCapability::TrueColor),
+        other => Err(format!(
+            "invalid --color-mode '{other}' (allowed: 0, 16, 8/256, 24/32)"
+        )),
+    }
+}
+
+/// Seed the forced capability. Called once by `main` after parsing
+/// `--color-mode`; the first set wins and later calls are ignored —
+/// the flag is parsed exactly once, and the capability cache stays a
+/// single-writer contract.
+pub fn set_forced_capability(cap: ColorCapability) {
+    let _ = FORCED.set(cap);
 }
 
 // ── Capability-aware escape sequences ──────────────────────────────────────
@@ -401,76 +459,10 @@ pub fn grey(msg: &str) -> String {
     }
 }
 
+// NIGHT-boost-23: the color pins live under the single test/ tree
+// (cosmostrix Pattern C), #[path]-wired across trees exactly like the
+// theme pins — the color-mode grammar pushed this file past the LOC
+// cap the same way boost-15 pushed format.rs.
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    /// The TrueColor brand escape must encode the documented RGB values
-    /// exactly — this is the pairing the branding docs (docs/BRANDING.md)
-    /// promise. If either side drifts, this test fails.
-    #[test]
-    fn brand_escape_matches_documented_rgb() {
-        let (r, g, b) = BRAND_PURPLE_RGB;
-        let expected = format!("\x1b[38;2;{r};{g};{b}m");
-        let truecolor_escape = "\x1b[38;2;168;85;247m";
-        assert_eq!(truecolor_escape, expected);
-        // 256-color fallback is the documented xterm cube match for the
-        // same RGB: 16 + 36*3 + 6*1 + 5 = 135.
-        assert_eq!("\x1b[38;5;135m", "\x1b[38;5;135m");
-    }
-
-    /// Status and suggestion escapes must encode their documented RGB
-    /// constants (owner color contract, NIGHT-hunt-5).
-    #[test]
-    fn status_and_suggestion_escapes_match_documented_rgb() {
-        assert_eq!("\x1b[38;2;80;250;123m", {
-            let (r, g, b) = OK_RGB;
-            format!("\x1b[38;2;{r};{g};{b}m")
-        });
-        assert_eq!("\x1b[38;2;255;90;90m", {
-            let (r, g, b) = ERROR_RGB;
-            format!("\x1b[38;2;{r};{g};{b}m")
-        });
-        assert_eq!("\x1b[38;2;255;235;60m", {
-            let (r, g, b) = WARN_RGB;
-            format!("\x1b[38;2;{r};{g};{b}m")
-        });
-        assert_eq!("\x1b[38;2;220;235;255m", {
-            let (r, g, b) = SUGGESTION_RGB;
-            format!("\x1b[38;2;{r};{g};{b}m")
-        });
-        // Suggestion tier fallbacks: nearest near-white at 256 depth,
-        // aixterm bright white at 16 depth.
-        assert_eq!("\x1b[38;5;255m", "\x1b[38;5;255m");
-        assert_eq!("\x1b[97m", "\x1b[97m");
-    }
-
-    /// Champion tier (NIGHT-boost-5): the rank-1 red encodes its own
-    /// documented RGB — distinct from the softer error red. The
-    /// blinking variant is gone entirely (NIGHT-boost-14, the owner's
-    /// eye-strain call): the crown is STATIC — no SGR 5 anywhere.
-    #[cfg(feature = "ebpf")] // the champion builders live under the eagle-eyes graph
-    #[test]
-    fn champion_escapes_match_documented_rgb() {
-        assert_eq!("\x1b[38;2;255;59;48m", {
-            let (r, g, b) = HOT_RGB;
-            format!("\x1b[38;2;{r};{g};{b}m")
-        });
-        assert!(hot_open().is_empty() || hot_open().starts_with("\x1b["));
-        assert!(!hot_open().contains(";5m") || hot_open().starts_with("\x1b[38;"));
-    }
-
-    /// Grey tier (NIGHT-boost-14): the subordinate escape encodes its
-    /// documented RGB — truecolor exact, 245 at 256, bright black 16.
-    #[cfg(feature = "ebpf")]
-    #[test]
-    fn grey_escapes_match_documented_rgb() {
-        assert_eq!("\x1b[38;2;139;139;139m", {
-            let (r, g, b) = GREY_RGB;
-            format!("\x1b[38;2;{r};{g};{b}m")
-        });
-        assert!(grey_open().is_empty() || grey_open().starts_with("\x1b[38;"));
-        // A color change only — no blink, no bold.
-        assert!(grey_open().is_empty() || !grey_open().starts_with("\x1b[5"));
-    }
-}
+#[path = "../../test/output/color_tests.rs"]
+mod color_tests;

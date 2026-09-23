@@ -24,12 +24,43 @@ fn wave_is_the_triangle() {
     assert_eq!(wave(1.0), 0.0);
 }
 
-/// Per-channel interpolation: midpoint, rounding, clamping.
+/// Per-channel interpolation in LINEAR LIGHT (NIGHT-boost-23): the
+/// endpoints are exact, and the perceptual midpoint renders brighter
+/// than the naive sRGB lerp's (50, 100, 128) — the gamma-correct
+/// correction is the enhancement itself (IEC 61966-2-1 decode, blend,
+/// encode, round-half-away at the u8 boundary).
 #[test]
-fn lerp_mixes_channels() {
-    assert_eq!(lerp((0, 0, 0), (100, 200, 255), 0.5), (50, 100, 128));
+fn lerp_mixes_channels_perceptually() {
+    assert_eq!(lerp((0, 0, 0), (100, 200, 255), 0.5), (71, 146, 188));
+    assert_eq!(lerp((0, 0, 0), (100, 200, 255), 0.25), (50, 106, 137));
     assert_eq!(lerp((10, 10, 10), (20, 20, 20), 0.0), (10, 10, 10));
     assert_eq!(lerp((10, 10, 10), (20, 20, 20), 1.0), (20, 20, 20));
+    // The monotonicity and brightness contracts: every channel of the
+    // perceptual midpoint is >= its naive-lerp value (never darker
+    // than the arithmetic it replaces), and the ramp stays monotone.
+    let naive = (50u8, 100u8, 128u8);
+    let perceptual = lerp((0, 0, 0), (100, 200, 255), 0.5);
+    for (p, n) in [perceptual.0, perceptual.1, perceptual.2]
+        .iter()
+        .zip([naive.0, naive.1, naive.2].iter())
+    {
+        assert!(
+            p >= n,
+            "gamma-correct midpoints never darken: {perceptual:?}"
+        );
+    }
+    let quarter = lerp((0, 0, 0), (100, 200, 255), 0.25);
+    let three_quarters = lerp((0, 0, 0), (100, 200, 255), 0.75);
+    for (q, h, t) in [
+        (quarter.0, perceptual.0, three_quarters.0),
+        (quarter.1, perceptual.1, three_quarters.1),
+        (quarter.2, perceptual.2, three_quarters.2),
+    ] {
+        assert!(
+            q <= h && h <= t,
+            "monotone ramp: {quarter:?} <= {perceptual:?} <= {three_quarters:?}"
+        );
+    }
 }
 
 /// The rail ramp (netrunner): a one-row frame renders the dark

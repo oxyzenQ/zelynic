@@ -49,9 +49,15 @@ pub(crate) mod theme;
 // interpolates the ACTIVE theme's brand RGB per row, so it borrows
 // the capability probe (never escapes: it builds its own ramp).
 pub use color::{brand, brand_bold, error, error_bold, ok, ok_bold, suggestion, warn_bold};
+// The capability re-export serves the eagle-eyes border gradient
+// (render/border.rs, ebpf-gated — NIGHT-boost-20): non-ebpf builds
+// have no external consumer and the import must not warn
+// (NIGHT-boost-23 hunt fix).
+#[cfg(feature = "ebpf")]
 pub(crate) use color::{capability, ColorCapability};
 #[cfg(feature = "ebpf")] // champion + grey + warn tiers live under the eagle-eyes graph
 pub use color::{grey, hot, warn};
+pub use color::{parse_color_mode, set_forced_capability};
 
 // ── Broken-pipe-safe println/eprintln (cosmostrix contract) ────────────────
 //
