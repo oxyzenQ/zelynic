@@ -6,8 +6,8 @@
 //! display.rs precedent for the owner's 500-line cap).
 //!
 //! Ported from the cosmostrix output contract (owner branding rule):
-//! the zelynic brand color is purple #A855F7 (168,85,247) and it is
-//! rendered in whatever color depth the terminal actually supports:
+//! the zelynic brand color is purple #A855F7 (168,85,247), rendered in
+//! whatever color depth the terminal actually supports:
 //!
 //! | Capability | Detection | Brand purple encoding |
 //! |---|---|---|
@@ -30,15 +30,14 @@ use std::sync::OnceLock;
 ///
 /// Source of truth for the brand color. The TrueColor escape in
 /// [`brand_open`] encodes these exact values; the 256-color fallback
-/// uses palette index 135 (the closest xterm-256 cube match:
-/// 16 + 36*3 + 6*1 + 5 = 135). The 16-color fallback is magenta (35).
+/// uses index 135 (16 + 36*3 + 6*1 + 5, the closest cube match); the
+/// 16-color fallback is magenta (35).
 #[cfg(test)] // referenced in tests; kept as source-of-truth documentation
 pub const BRAND_PURPLE_RGB: (u8, u8, u8) = (168, 85, 247);
 
-/// Status green RGB: #50FA7B (80,250,123).
-///
-/// Used for affirmative doctor results (YES, SUPPORTED, active pins).
-/// 256-color fallback: index 84 (cube match 16 + 36*1 + 6*5 + 2).
+/// Status green RGB: #50FA7B (80,250,123) — affirmative verdicts and
+/// the eagle-eyes rank-3+ tier (NIGHT-boost-14). 256-color fallback:
+/// index 84 (cube match 16 + 36*1 + 6*5 + 2).
 #[cfg(test)] // referenced in tests; kept as source-of-truth documentation
 const OK_RGB: (u8, u8, u8) = (80, 250, 123);
 
@@ -49,16 +48,14 @@ const OK_RGB: (u8, u8, u8) = (80, 250, 123);
 const ERROR_RGB: (u8, u8, u8) = (255, 90, 90);
 
 /// Warning yellow RGB: #FFEB3C (255,235,60) — cosmostrix warning format.
-///
 /// 256-color fallback: index 220 (brightest visible yellow — visibility
 /// wins over exact match at 256 depth).
 #[cfg(test)] // referenced in tests; kept as source-of-truth documentation
 const WARN_RGB: (u8, u8, u8) = (255, 235, 60);
 
 /// Suggestion crystal-white RGB: #DCEBFF (220,235,255) — cosmostrix
-/// suggestion format.
-///
-/// 256-color fallback: index 255 (nearest near-white). Color16 fallback:
+/// suggestion format. 256-color fallback: index 255 (nearest
+/// near-white). Color16 fallback:
 /// bright white (97) — the aixterm bright slot, universally supported;
 /// the normal 37 can render dim gray and blur suggestions into body text.
 #[cfg(test)] // referenced in tests; kept as source-of-truth documentation
@@ -75,6 +72,15 @@ const SUGGESTION_RGB: (u8, u8, u8) = (220, 235, 255);
 /// Color16 fallback: bright red (91), the aixterm bright slot.
 #[cfg(all(test, feature = "ebpf"))] // referenced by the champion pin; source-of-truth documentation
 const HOT_RGB: (u8, u8, u8) = (255, 59, 48);
+
+/// Calm grey RGB: #8B8B8B (139,139,139) — the eagle-eyes subordinate
+/// tier (NIGHT-boost-14): subprocess usage lines and every footer
+/// line except the copyright. Dimmer than the data it annotates; no
+/// eye strain. 256-color fallback: index 245 (the nearest grey-ramp
+/// rung). Color16 fallback: bright black (90), the palette's only
+/// honest grey.
+#[cfg(all(test, feature = "ebpf"))] // referenced by the grey pin; source-of-truth documentation
+const GREY_RGB: (u8, u8, u8) = (139, 139, 139);
 
 /// Terminal color capability, detected once and cached for the process.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -363,12 +369,11 @@ pub fn suggestion(msg: &str) -> String {
     }
 }
 
-// ── Champion tier (NIGHT-boost-5) ───────────────────────────────────────
+// ── Champion tier (NIGHT-boost-5; NIGHT-boost-14 calmed it) ─────────────
 //
-// The eagle-eyes leaderboard's rank-1 row: champion red, blinking for
-// the first 3s after a takeover so a new top consumer cannot be missed,
-// then solid. Rank 2 renders warn yellow; rank 3 and below stay white —
-// the owner's exact contract.
+// The eagle-eyes leaderboard's traffic-light tiers, all STATIC (the
+// owner's eye-strain call): rank 1 champion red, rank 2 warn yellow,
+// rank 3 and below status green — no animation anywhere.
 
 /// Champion red open sequence, capability-aware.
 #[cfg(feature = "ebpf")]
@@ -382,23 +387,7 @@ pub fn hot_open() -> &'static str {
     }
 }
 
-/// Blinking champion red open sequence, capability-aware — SGR 5 (slow
-/// blink) stacked on the champion color. The terminal blinks the text
-/// itself, so the attribute rides one render and costs nothing per
-/// frame; it drops at the first render past the takeover window.
-#[cfg(feature = "ebpf")]
-#[must_use]
-pub fn hot_blink_open() -> &'static str {
-    match capability() {
-        ColorCapability::TrueColor => "\x1b[5;38;2;255;59;48m",
-        ColorCapability::Color256 => "\x1b[5;38;5;196m",
-        ColorCapability::Color16 => "\x1b[5;91m",
-        ColorCapability::Mono => "",
-    }
-}
-
-/// Wrap `msg` in champion red (the solid crown). Plain text when color
-/// is off.
+/// Wrap `msg` in champion red (the solid crown). Plain text when off.
 #[cfg(feature = "ebpf")] // only the eagle-eyes renderer crowns a champion
 #[must_use]
 pub fn hot(msg: &str) -> String {
@@ -408,14 +397,31 @@ pub fn hot(msg: &str) -> String {
     }
 }
 
-/// Wrap `msg` in blinking champion red (a fresh takeover, first 3s).
-/// Plain text when color is off.
+// ── Grey tier (NIGHT-boost-14) ────────────────────────────────────────
+//
+// The eagle-eyes subordinate tier: subprocess usage lines and every
+// pinned-footer line except the purple copyright. Grey says
+// "context, not content".
+
+/// Calm grey open sequence, capability-aware.
+#[cfg(feature = "ebpf")] // only the eagle-eyes renderer paints the grey tier
+#[must_use]
+pub fn grey_open() -> &'static str {
+    match capability() {
+        ColorCapability::TrueColor => "\x1b[38;2;139;139;139m",
+        ColorCapability::Color256 => "\x1b[38;5;245m",
+        ColorCapability::Color16 => "\x1b[90m",
+        ColorCapability::Mono => "",
+    }
+}
+
+/// Wrap `msg` in calm grey. Plain text when off.
 #[cfg(feature = "ebpf")]
 #[must_use]
-pub fn hot_blink(msg: &str) -> String {
+pub fn grey(msg: &str) -> String {
     match capability() {
         ColorCapability::Mono => msg.to_string(),
-        _ => format!("{}{msg}{}", hot_blink_open(), reset()),
+        _ => format!("{}{msg}{}", grey_open(), reset()),
     }
 }
 
@@ -464,8 +470,9 @@ mod tests {
     }
 
     /// Champion tier (NIGHT-boost-5): the rank-1 red encodes its own
-    /// documented RGB — deliberately distinct from the softer error
-    /// red — and the blink variant stacks SGR 5 on the same color.
+    /// documented RGB — distinct from the softer error red. The
+    /// blinking variant is gone entirely (NIGHT-boost-14, the owner's
+    /// eye-strain call): the crown is STATIC — no SGR 5 anywhere.
     #[cfg(feature = "ebpf")] // the champion builders live under the eagle-eyes graph
     #[test]
     fn champion_escapes_match_documented_rgb() {
@@ -474,8 +481,20 @@ mod tests {
             format!("\x1b[38;2;{r};{g};{b}m")
         });
         assert!(hot_open().is_empty() || hot_open().starts_with("\x1b["));
-        // Blink variant carries SGR 5 ahead of the same color encoding.
-        let blink = hot_blink_open();
-        assert!(blink.is_empty() || blink.contains("5;38;"));
+        assert!(!hot_open().contains(";5m") || hot_open().starts_with("\x1b[38;"));
+    }
+
+    /// Grey tier (NIGHT-boost-14): the subordinate escape encodes its
+    /// documented RGB — truecolor exact, 245 at 256, bright black 16.
+    #[cfg(feature = "ebpf")]
+    #[test]
+    fn grey_escapes_match_documented_rgb() {
+        assert_eq!("\x1b[38;2;139;139;139m", {
+            let (r, g, b) = GREY_RGB;
+            format!("\x1b[38;2;{r};{g};{b}m")
+        });
+        assert!(grey_open().is_empty() || grey_open().starts_with("\x1b[38;"));
+        // A color change only — no blink, no bold.
+        assert!(grey_open().is_empty() || !grey_open().starts_with("\x1b[5"));
     }
 }

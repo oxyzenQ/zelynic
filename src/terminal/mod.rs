@@ -102,6 +102,10 @@ const SELECTION_GUARD_BEAT: Duration = Duration::from_millis(100);
 /// render never resets the guard clock: a diff-only frame leaves
 /// the unchanged rows untouched, and those rows must still die on
 /// the next beat (the exact hole the guard exists to close).
+/// NIGHT-boost-14 added the `resized` term: a geometry change is
+/// due immediately — the layout must not wait out the refresh
+/// interval (up to 60s at `--interval 60`) while the frame sits at
+/// a stale size.
 enum Beat {
     /// A fresh frame: poll + render closure + diff emit.
     Render,
@@ -115,9 +119,16 @@ enum Beat {
 /// hold it. `guard` is false on the non-TTY fallback path: a pipe
 /// has no selection machinery, and flooding it with whole-frame
 /// beats would only multiply the output volume (the benchmark
-/// harness and CI run exactly there).
-fn next_beat(last_render: Instant, last_guard: Instant, refresh: Duration, guard: bool) -> Beat {
-    if last_render.elapsed() >= refresh {
+/// harness and CI run exactly there). `resized` forces a Render
+/// beat regardless of the refresh clock (NIGHT-boost-14).
+fn next_beat(
+    last_render: Instant,
+    last_guard: Instant,
+    refresh: Duration,
+    guard: bool,
+    resized: bool,
+) -> Beat {
+    if last_render.elapsed() >= refresh || resized {
         Beat::Render
     } else if guard && last_guard.elapsed() >= SELECTION_GUARD_BEAT {
         Beat::Guard
@@ -174,6 +185,17 @@ impl Drop for AltScreen {
     }
 }
 
+/// The q-only quit decision for one drained input chunk
+/// (NIGHT-hunt-16, pinned by NIGHT-boost-14): 'q' as the FIRST byte
+/// quits; everything else — Ctrl+C (0x03), standalone ESC, the head
+/// of every multi-byte escape sequence (arrows, mouse SGR, scroll)
+/// — never quits. 'q' deeper inside a chunk does not count either:
+/// an escape sequence may legally carry any printable byte in its
+/// body, so only the leading byte speaks.
+pub(crate) fn quit_from_chunk(buf: &[u8]) -> bool {
+    matches!(buf.first(), Some(b'q'))
+}
+
 /// Check if q was pressed (non-blocking).
 ///
 /// Exit contract (NIGHT-hunt-16): 'q' is THE quit key — the ONLY one.
@@ -192,16 +214,7 @@ pub fn should_quit() -> bool {
     let mut buf = [0u8; 16];
     if let Ok(n) = io::stdin().read(&mut buf) {
         if n > 0 {
-            // Check first byte
-            let first = buf[0];
-
-            // 'q' — the only quit byte (NIGHT-hunt-16).
-            if first == b'q' {
-                return true;
-            }
-
-            // Everything else: drain (Ctrl+C, standalone ESC, and
-            // multi-byte escape sequences alike — none of them quit).
+            return quit_from_chunk(&buf[..n]);
         }
     }
     false
@@ -232,18 +245,29 @@ where
     let mut run = |screen: &mut DiffScreen, lines: &mut Vec<String>, guard: bool| {
         let mut last_render = Instant::now() - refresh_interval; // render immediately on first iteration
         let mut last_guard = Instant::now();
+        // NIGHT-boost-14 resize reactivity: the geometry the last
+        // render targeted. Every 50ms wake probes the terminal size
+        // (one ioctl — the canonical winsize) and a change forces a
+        // Render beat within one wake, so resizing is felt at once
+        // even at `--interval 60` instead of at the next refresh
+        // tick. The render closure and the diff engine re-probe on
+        // their own; this loop-level probe only decides WHEN.
+        let mut last_geo = winsize();
         loop {
             if should_quit() {
                 break;
             }
 
-            match next_beat(last_render, last_guard, refresh_interval, guard) {
+            let geo = winsize();
+            let resized = geo != last_geo;
+            match next_beat(last_render, last_guard, refresh_interval, guard, resized) {
                 Beat::Render => {
                     lines.clear();
                     render(lines);
                     let mut stdout = RawStdout;
                     screen.emit(lines, &mut stdout);
                     last_render = Instant::now();
+                    last_geo = geo;
                 }
                 // The copy guard: re-emit the last frame in full,
                 // so any terminal-side selection (Shift+click hands

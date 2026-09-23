@@ -24,17 +24,16 @@
 //! monitor attach), and a failed poll folds nothing in (the
 //! observer's prev-stats are only rewritten on success), so a
 //! transient map read never drops or double-counts bytes.
+//!
+//! NIGHT-boost-14: the takeover-BLINK bookkeeping is gone — the
+//! owner's eye-strain call. A takeover still re-crowns (the rank
+//! order moves), but rank 1 reads by its static champion red, never
+//! by animation; this struct is now pure bookkeeping, no timing
+//! state at all.
 
 use std::collections::HashMap;
-use std::time::{Duration, Instant};
 
 use crate::ebpf::loader::CounterSummary;
-
-/// How long a fresh rank-1 row blinks after taking the top spot
-/// (owner contract: "unique red color for top 1 blinking 3s"). The
-/// blink attribute rides the next render after the window closes —
-/// at the default 1s cadence that is the first frame past 3s.
-pub(crate) const TAKEOVER_BLINK: Duration = Duration::from_secs(3);
 
 /// Per-cgroup traffic accumulated since the monitor started.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
@@ -53,13 +52,12 @@ impl SessionAcc {
     }
 }
 
-/// The leaderboard: per-cgroup accumulated traffic plus the rank-1
-/// takeover bookkeeping that drives the champion's blink window.
+/// The leaderboard: per-cgroup accumulated traffic. Pure data — the
+/// rank-1 takeover bookkeeping that drove the champion's blink window
+/// was removed by NIGHT-boost-14 (static colors, no animation).
 #[derive(Debug, Default)]
 pub(crate) struct SessionState {
     acc: HashMap<u32, SessionAcc>,
-    rank1: Option<u32>,
-    rank1_since: Option<Instant>,
 }
 
 impl SessionState {
@@ -99,22 +97,6 @@ impl SessionState {
     #[must_use]
     pub(crate) fn len(&self) -> usize {
         self.acc.len()
-    }
-
-    /// Record the current rank-1 cgroup; returns whether its row
-    /// should still blink. A TAKEOVER (a different cgroup reaching
-    /// rank 1) restarts the window; the incumbent holding the spot
-    /// does not. `now` is a parameter so the window contract is
-    /// unit-pinnable without sleeping.
-    pub(crate) fn note_rank1(&mut self, cgroup_id: u32, now: Instant) -> bool {
-        if self.rank1 != Some(cgroup_id) {
-            self.rank1 = Some(cgroup_id);
-            self.rank1_since = Some(now);
-        }
-        match self.rank1_since {
-            Some(since) => now.duration_since(since) < TAKEOVER_BLINK,
-            None => false,
-        }
     }
 }
 
@@ -191,25 +173,6 @@ mod tests {
         let board = session.ranked();
         assert_eq!(board.iter().map(|(_, a)| a.dl).sum::<u64>(), 101);
         assert_eq!(board.iter().map(|(_, a)| a.ul).sum::<u64>(), 202);
-    }
-
-    /// Blink window: a takeover restarts the 3s window, the incumbent
-    /// holding rank 1 does not, and the window closes after 3s.
-    #[test]
-    fn blink_window_pins_takeover_semantics() {
-        let t0 = Instant::now();
-        let mut session = SessionState::new();
-
-        // First ever rank 1: blinks.
-        assert!(session.note_rank1(1, t0));
-        // Same cgroup one frame later: still inside the window.
-        assert!(session.note_rank1(1, t0 + Duration::from_secs(1)));
-        // Same cgroup past the window: solid red, no blink.
-        assert!(!session.note_rank1(1, t0 + Duration::from_secs(4)));
-        // Takeover: the window restarts for the new champion.
-        assert!(session.note_rank1(2, t0 + Duration::from_secs(5)));
-        assert!(session.note_rank1(2, t0 + Duration::from_secs(6)));
-        assert!(!session.note_rank1(2, t0 + Duration::from_secs(9)));
     }
 
     /// Ties break by cgroup ID: the board must not reshuffle between

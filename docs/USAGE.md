@@ -235,42 +235,58 @@ alias is removed, and typing it lands on a redirect tip pointing
 here). Apps are RANKED by session accumulation (NIGHT-boost-5):
 rank 1 is whoever has moved the most bytes since the monitor
 started — a heavy downloader that stops keeps its crown until
-another app's accumulated total passes it, and the takeover blinks.
-Rows persist across quiet frames (an app that goes idle stays on the
-board with em-dash rates and its accumulated TOTAL — no more
-collapsing to "waiting for traffic..." once traffic has been seen),
-with per-cgroup detail lines naming the processes and remote
-endpoints inside. The row count follows the terminal height —
-there is no `--limit`: the autodetect ladder (NIGHT-boost-5) reserves
-12 chrome lines (title, header, separators, TOTAL row, meta line,
-discovery hints, signature footer, breathing room), so a windowed
-88x32 terminal shows a 20-row list, the classic 80x24 shows 12, and
-a 22-line window still gets the 10-row flagship density. Always-live
-box mode (NIGHT-hunt-12): full-screen in-place refresh, no scrollback
-spam, adaptive layout (columns degrade on narrow terminals; the TOTAL
-column appears from width 51). DOWNLOAD and UPLOAD carry live
-per-direction RATES; TOTAL carries the session-accumulated bytes
-(the "total accumulated" function v10 had). Rank 1 renders champion
-red — blinking for the first 3s after a takeover — rank 2 warning
-yellow, and rank 3 and below white. Every frame signs off
-bottom-left with the signature footer. The frame's left border is one
-straight edge (NIGHT-boost-5): the title bar carries the same
-two-column gutter the rows use, and the label column absorbs the
-remaining width so every line closes flush at the frame's right
-edge. The column header's rank cell is blank — the digits speak for
-themselves. Frames render through the diff-based engine
-(NIGHT-improve-2): only the rows that changed since the previous
-frame are written — one write syscall per frame, an unchanged frame
-costs zero I/O at every terminal height (NIGHT-improve-6), and the
-screen is never wiped or scrolled mid-session (no flicker, no drift,
-no alt-screen scrollback side effects). Every frame closes with a
-column-aligned TOTAL row (aggregate down/up/rate sums over every
-candidate, not just the rows shown) and a one-line packets/cgroups
-count. The "Top consumer" footer names the busiest process inside
-the rank-1 cgroup and suggests the exact `strict-single` command to
-limit it (the tip line renders in the suggestion tier — crystal
-white). Byte figures keep one decimal on every tier and promote at
-the rounding edge (999_950 B is "1.0 MB", never "1000.0 KB").
+another app's accumulated total passes it. Rows persist across
+quiet frames (an app that goes idle stays on the board with em-dash
+rates and its accumulated TOTAL — no more collapsing to "waiting
+for traffic..." once traffic has been seen), with per-cgroup detail
+lines naming the processes and remote endpoints inside.
+
+The frame is a PINNED composition (NIGHT-boost-14, the owner's
+masterclass engraving): the table floats under the header and the
+grip footer stays near the bottom of the terminal whatever the
+table does — the TOTAL row framed by two purple grid lines, the
+packets/cgroups census under its own-width grip, the "Top consumer"
+autodetect (the busiest process inside the rank-1 cgroup, its name
+green) under its own grip, the exact `strict-single` command to cap
+it, and the signature copyright last. All footer text renders calm
+grey except the purple copyright — subordinate information reads
+dimmer than the data it annotates. The tiers are a STATIC traffic
+light (the takeover blink is gone — eye strain): rank 1 champion
+red, rank 2 warning yellow, rank 3 and below status green; the
+subprocess usage lines render grey. A breathing blank line sits
+under the title bar, and the grid under the column header is brand
+purple, same source as the header text above it. The census wording
+is `N packets + M cgroups` (a `+` join, never a dot).
+
+Dynamic screen size (NIGHT-boost-14): the loop probes the terminal
+geometry every 50ms wake and renders a change within one wake — not
+at the next refresh tick, so even `--interval 60` resizes instantly.
+Adaptive compact mode on narrow frames: the subprocess detail hides
+(below width 51, where the TOTAL column itself drops) and every
+detail line is cut to the frame width, so a long process or endpoint
+string can never wrap the frame or shift the pinned footer. Short
+terminals compress the footer through a tier ladder — breathing
+blanks drop first, then the grips, then the discovery hints —
+before the table loses its rows; the census and the copyright
+survive at every height. The row count follows the terminal height
+— there is no `--limit`: the window IS the budget. DOWNLOAD and
+UPLOAD carry live per-direction RATES; TOTAL carries the
+session-accumulated bytes (the "total accumulated" function v10
+had). The frame's left border is one straight edge (NIGHT-boost-5):
+the title bar carries the same two-column gutter the rows use, and
+the label column absorbs the remaining width so every line closes
+flush at the frame's right edge. The column header's rank cell is
+blank — the digits speak for themselves. Frames render through the
+diff-based engine (NIGHT-improve-2): only the rows that changed
+since the previous frame are written — one write syscall per frame,
+an unchanged frame costs zero I/O at every terminal height
+(NIGHT-improve-6), and the screen is never wiped or scrolled
+mid-session (no flicker, no drift, no alt-screen scrollback side
+effects). Every frame closes with the column-aligned TOTAL row
+(aggregate down/up/rate sums over every candidate, not just the
+rows shown) and the census. Byte figures keep one decimal on every
+tier and promote at the rounding edge (999_950 B is "1.0 MB",
+never "1000.0 KB").
 
 The positional `targets` filter is autodetected per token: all digits
 means a cgroup ID (find one with `list-apps`), anything else a
