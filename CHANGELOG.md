@@ -1166,6 +1166,47 @@ alone — the owner's NIGHT-hunt-18 call.
   sequence can switch it off), and a paste whose first byte is `q`
   still quits (NIGHT-hunt-16 contract unchanged).
 
+- **feat: NIGHT-boost-13 — the fatal-CLI-UX session: advice that
+  fails when followed must not print, and the error shows the
+  grammar of the command that failed** — the owner's live repro
+  (`zelynic -v ss brave 550kb -i`, `-x`, then following the printed
+  advice `-- -i`, `-- -x` into two more dead ends) exposed four
+  gaps in the error bridge, all fixed in `src/cli/ux.rs` + the new
+  `src/cli/argv.rs` forensics module (split from ux.rs per the LOC
+  cap cohesion rule): (1) the escape-hatch honesty probe — clap
+  injects "to pass '-i' as a value, use '-- -i'" whenever the
+  failing command merely HAS positionals and cannot see the slots
+  are full; the probe rebuilds argv with the advised splice and
+  re-parses, keeping the tip only where following it actually
+  parses (`ss brave -i` keeps it — the RATE slot is open; `ss brave
+  550kb -i` drops it), extending the NIGHT-boost-8
+  proof-before-printing discipline to every escape-hatch tip;
+  unprovable tokens (short clusters report one char) pass through
+  untouched — a tip is removed only when disproven. (2)
+  Subcommand-scoped usage — the bridge used to replace clap's
+  native usage context with the top-level render unconditionally,
+  flattening every subcommand error onto "zelynic [OPTIONS]
+  [COMMAND]"; the native line stays now (clap already renders the
+  failing subcommand's own grammar, which is what makes the
+  extra-positional dead ends self-explanatory), and only the
+  suggestion-narrowed usage is regenerated — from the failing
+  command, via an argv parser-descent walk that stops at the failing
+  token and never crosses a double dash, rendered under the
+  canonical bin name so regenerated and native lines agree
+  byte-for-byte. (3) `zelynic help` — the muscle memory every clap
+  tool trains — died tip-less as an unrecognized subcommand; the
+  SUBCOMMAND_FLAG_REDIRECTS table now lands it on "to see the
+  reference, run 'zelynic --help'". (4) `--json` — the convention
+  everywhere else — died tip-less (jaro_ci 0.394 is too far under
+  the 0.7 bar for the fuzzy engine); the FLAG_VOCABULARY_RESCUES
+  table tips `--print-json`, and the latent one-tip contract break
+  the hunt found (the fuzzy fallback injected SuggestedArg without
+  dropping clap's native escape hatch, rendering two tips at once
+  on `ss brave --VERBOS`) is fixed on every rescue path. Unit pins
+  in `test/cli/argv_tests.rs` + `test/cli/ux_tests.rs` (33 CLI
+  tests); USAGE.md troubleshooting/exit-codes/maintainer-map rows
+  updated.
+
 ### Removed
 
 - **scripts: NIGHT-cleanup-2 — distros-depth-test.sh and leak-test.sh

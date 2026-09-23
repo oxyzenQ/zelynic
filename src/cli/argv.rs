@@ -111,6 +111,28 @@ pub(crate) fn failing_subcommand(
     None
 }
 
+/// The full usage line of the command the error belongs to (the
+/// regenerated-usage arm of the bridge, NIGHT-boost-13).
+///
+/// The failing subcommand is found by the walk above; its usage
+/// renders under the canonical bin name `zelynic <name>` — the same
+/// shape clap itself renders for subcommand deaths — so the
+/// regenerated line and the native line agree byte-for-byte. A
+/// top-level death gets the root usage.
+pub(crate) fn failing_command_usage(
+    root: &mut clap::builder::Command,
+    argv: &[OsString],
+    failing_token: Option<&str>,
+) -> clap::builder::StyledStr {
+    match failing_subcommand(root, argv, failing_token) {
+        Some(sub) => {
+            let bin = format!("zelynic {}", sub.get_name());
+            sub.bin_name(bin).render_usage()
+        }
+        None => root.render_usage(),
+    }
+}
+
 /// Remove the escape-hatch tip the probe disproves.
 ///
 /// Fires only for UnknownArgument errors that still carry the
