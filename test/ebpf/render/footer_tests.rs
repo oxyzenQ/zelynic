@@ -473,10 +473,12 @@ fn saturated_session_renders_without_panic() {
     );
     assert_eq!(lines.len(), 24, "the pin holds at saturation");
     let joined = lines.join("\n");
-    // The TB tier is the SI formatter's terminal (u64::MAX renders as
-    // 18446744.1 TB — a huge figure, never a wrapped-to-tiny one).
+    // NIGHT-boost-22: the extended SI ladder answers in EB at the
+    // ceiling — u64::MAX renders as "18.4 EB" (the old TB-terminal
+    // formatter drew "18446744.1 TB", five digits, the ragged
+    // column the promotion contract forbids everywhere else).
     assert!(
-        joined.contains("18446744.1 TB"),
+        joined.contains("18.4 EB"),
         "the saturated session total renders the u64 ceiling honestly: {joined}"
     );
     assert!(

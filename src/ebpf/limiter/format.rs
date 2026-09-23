@@ -285,27 +285,63 @@ pub fn monotonic_ns() -> u64 {
 /// exactly the tier edge. The B tier stays integer (no decimal to
 /// round up).
 ///
+/// NIGHT-boost-22 (LTS audit): the ladder now runs B -> KB -> MB ->
+/// GB -> TB -> PB -> EB, to the u64 ceiling. The old code stopped at
+/// TB on a wrong premise — the note claimed "u64::MAX is ~18.4 TB",
+/// but 2^64 is ~18.4 EXABYTES (18,446 PB), and a long-lived server's
+/// lifetime totals cross the TB ceiling in days of saturated 10G
+/// traffic (1 PB per ~9.5 days). Past 999.95 TB the old formatter
+/// rendered five-digit figures ("18446.7 TB", 10 columns wide) — the
+/// promotion contract broken at its own terminal tier. The extended
+/// ladder caps every display at 8 columns ("999.9 PB"), the EB tier
+/// rendering u64::MAX as "18.4 EB" — the honest saturated ceiling.
+/// Zettabytes (1e21) sit past u64::MAX and stay unreachable: no
+/// eighth tier exists to lie about.
+///
 /// Examples: 500 → "500 B", 1500 → "1.5 KB", 999_949 → "999.9 KB",
-///           999_950 → "1.0 MB", 1_500_000_000_000 → "1.5 TB"
+///           999_950 → "1.0 MB", 1_500_000_000_000 → "1.5 TB",
+///           1e15 → "1.0 PB", 1e18 → "1.0 EB", u64::MAX → "18.4 EB"
 pub fn format_bytes(bytes: u64) -> String {
-    const DIVS: [u64; 5] = [1, 1_000, 1_000_000, 1_000_000_000, 1_000_000_000_000];
-    const UNITS: [&str; 5] = ["B", "KB", "MB", "GB", "TB"];
+    const DIVS: [u64; 7] = [
+        1,
+        1_000,
+        1_000_000,
+        1_000_000_000,
+        1_000_000_000_000,
+        1_000_000_000_000_000,
+        1_000_000_000_000_000_000,
+    ];
+    const UNITS: [&str; 7] = ["B", "KB", "MB", "GB", "TB", "PB", "EB"];
 
     // Walk up while the one-decimal display of this tier would carry a
     // thousands digit — exact integer threshold (999.95 of a unit,
     // i.e. 1000*div - div/20, the smallest value whose one-decimal
     // rounding reads 1000.0; every DIVS entry divides by 20 exactly,
-    // so no float-edge wobble). Tier 4 is the TB terminal: u64::MAX
-    // is ~18.4 TB, no fifth unit is reachable.
+    // so no float-edge wobble). Tier 6 is the EB terminal: u64::MAX is
+    // ~18.4 EB, no eighth unit is reachable, and the walk guard stops
+    // at tier 6 BEFORE the 1000x multiple of the EB divisor (1e21)
+    // could overflow u64 — the largest threshold the walk ever
+    // evaluates is the PB edge, 1e18 - 5e13, well inside the range.
     let mut tier = 0usize;
-    while tier < 4 && bytes >= 1000 * DIVS[tier] - DIVS[tier] / 20 {
+    while tier < 6 && bytes >= 1000 * DIVS[tier] - DIVS[tier] / 20 {
         tier += 1;
     }
 
     if tier == 0 {
         format!("{bytes} B")
     } else {
-        format!("{:.1} {}", bytes as f64 / DIVS[tier] as f64, UNITS[tier])
+        // Exact one-decimal rendering in u128 (NIGHT-boost-22): the
+        // old `bytes as f64` division loses exactness above 2^53
+        // (~9 PB) — the u64 domain's upper half — and the
+        // nearest-double error (up to 64 at the EB edge) can flip
+        // the displayed tenth across the promotion boundary the
+        // integer walk just enforced (999_949_999_999_999_999
+        // rendered "1000.0 PB"). Integer tenths keep the walk and
+        // the display on ONE exact contract; the half-up add is the
+        // same round-half-away discipline the rate parser uses.
+        let div = u128::from(DIVS[tier]);
+        let tenths = (u128::from(bytes) * 10 + div / 2) / div;
+        format!("{}.{} {}", tenths / 10, tenths % 10, UNITS[tier])
     }
 }
 
