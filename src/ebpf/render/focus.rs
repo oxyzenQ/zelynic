@@ -75,7 +75,7 @@ pub fn render_eagle_focus(
         ));
         lines.push(format!(
             "  rate      {}",
-            format_rate_or_dash(rate_bps(c.ingress_bytes + c.bytes, interval))
+            format_rate_or_dash(rate_bps(c.ingress_bytes.saturating_add(c.bytes), interval,))
         ));
         lines.push(format!(
             "  lifetime  {}",
@@ -83,8 +83,10 @@ pub fn render_eagle_focus(
             // map's cumulative download + the egress map's cumulative
             // upload — one horizon, since attach. The old sum mixed a
             // per-poll download delta in, so the row shrank frame over
-            // frame on a 1s refresh.
-            format_bytes(c.ingress_total_bytes + c.total_bytes)
+            // frame on a 1s refresh. Saturating (NIGHT-boost-16): the
+            // two lifetime legs are kernel u64 counters — their sum
+            // must read as saturation, not panic or wrap.
+            format_bytes(c.ingress_total_bytes.saturating_add(c.total_bytes))
         ));
 
         // Full eagle-eyes view for the focused cgroup: every

@@ -104,6 +104,20 @@ residual risks, ranked by how likely they are to matter:
    documented model limits of rate enforcement on Linux
    ([PERFORMANCE.md](PERFORMANCE.md)), not bugs, and no toolchain
    change can remove them.
+5. **Long-uptime monitor endurance (bounded by design, audited
+   2026-09).** An eagle-eyes session that runs for months accumulates
+   per-cgroup totals in u64; at the 18.4 EB-per-direction ceiling
+   the accumulator SATURATES (never wraps, never panics — every
+   arithmetic surface in the session path is saturating since the
+   NIGHT-boost-16 audit), and the leaderboard's entry count mirrors
+   the kernel's own 1024-slot counter-map ceiling
+   (`MAX_TRACKED_CGROUPS`), so cgroup churn cannot grow the monitor's
+   memory. The counter maps themselves are recreated at every
+   `eagle-eyes` start — the session horizon resets on restart, which
+   is the documented cadence for a trunk that could genuinely move
+   exabytes per cgroup. Full detail:
+   [SAFETY_ANALYSIS.md](SAFETY_ANALYSIS.md), the
+   accumulate-explosion audit.
 
 The honest summary the owner stands behind: **99% production-useful,
 and the missing 1% fails closed and says so.**
