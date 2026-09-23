@@ -10,6 +10,16 @@ use super::types::{MAX_RATE, MIN_RATE};
 
 /// Parse a time duration string. Formats: 1s, 3m, 10h, or plain number (seconds).
 /// Returns duration in seconds. 0 = infinity.
+///
+/// NIGHT-hunt-31 (owner-approved hunt, the NIGHT-boost-15 fractional
+/// rate's twin surface): the value layer accepts FRACTIONAL durations
+/// — `1.5h` parses to 5,400 seconds. Same strict grammar
+/// (`[0-9]+(\.[0-9]+)?` before the unit), same EXACT math (u128
+/// mantissa/scale, rounded half-away-from-zero at the final second
+/// only — no f64 anywhere), same overflow contract. A fractional
+/// input that rounds to zero is REJECTED: 0 means infinity here, the
+/// exact opposite of what `0.4s` meant, and that flip must never
+/// happen silently.
 pub fn parse_time_duration(s: &str) -> Result<u64> {
     let s = s.trim();
 
@@ -27,35 +37,52 @@ pub fn parse_time_duration(s: &str) -> Result<u64> {
         // Flagship typo rescue: suggest the near-miss duration the user
         // probably meant (`3min` -> `3m`, `10sec` -> `10s`, `5H` -> `5h`).
         // The tip line renders white via the line-aware error renderer.
-        let mut msg =
-            format!("Invalid duration '{s}'. Use format: 1s, 3m, 10h, or plain number (seconds)");
+        let mut msg = format!(
+            "Invalid duration '{s}'. Use format: 1s, 3m, 1.5h, 10h, or plain number (seconds)"
+        );
         if let Some(tip) = crate::cli::ux::duration_tip(s) {
             msg.push_str(&tip);
         }
         bail!("{msg}")
     };
 
-    let n: u64 = num_part.trim().parse().map_err(|e| {
+    let (mantissa, scale) = parse_decimal_scaled(num_part.trim()).map_err(|reason| {
         // Same typo rescue as the suffix branch: a near-miss unit
         // (`1kib` strips to number "1ki" + implied b) surfaces here.
-        let mut msg = format!("Invalid number in duration '{s}': {e}");
+        let mut msg = format!("Invalid number in duration '{s}': {reason}");
         if let Some(tip) = crate::cli::ux::duration_tip(s) {
             msg.push_str(&tip);
         }
         anyhow::anyhow!(msg)
     })?;
 
-    // NIGHT-improve-10: checked, not saturating. A duration that
-    // overflows 64-bit seconds is a meaningless input — silently
-    // returning u64::MAX seconds ("~585 billion years") would arm
-    // every future consumer of this parser with an effectively
-    // infinite value that looks legitimate. Same contract as
-    // parse_rate: error with the original input shown, never the
-    // wrapped or saturated value.
-    match n.checked_mul(multiplier) {
-        Some(result) => Ok(result),
-        None => bail!("Duration '{s}' is too large — the value overflows 64-bit math."),
+    // Exact evaluation (NIGHT-hunt-31): mantissa x multiplier /
+    // 10^scale in u128 — the only overflow point is the u64 boundary
+    // itself, and the rounding happens ONCE, at the final second,
+    // half-away-from-zero. NIGHT-improve-10's contract holds: a
+    // duration that overflows 64-bit seconds is a meaningless input,
+    // error with the original input shown, never the wrapped or
+    // saturated value.
+    let scaled = mantissa
+        .checked_mul(u128::from(multiplier))
+        .ok_or_else(|| {
+            anyhow::anyhow!("Duration '{s}' is too large — the value overflows 64-bit math.")
+        })?;
+    let divisor = 10_u128.checked_pow(scale).ok_or_else(|| {
+        anyhow::anyhow!("Duration '{s}' is too small to represent — more than 38 decimal places")
+    })?;
+    let result = scaled / divisor + u128::from((scaled % divisor) * 2 >= divisor);
+
+    if result > u64::MAX as u128 {
+        bail!("Duration '{s}' is too large — the value overflows 64-bit math.");
     }
+    if result == 0 && scale > 0 {
+        bail!(
+            "Duration '{s}' rounds to zero seconds — 0 means infinity (no limit). \
+             Pass '0' if you mean no limit, or at least 1s."
+        );
+    }
+    Ok(result as u64)
 }
 
 /// Parse a monitor refresh interval (NIGHT-hunt-7): 1s to 60s.

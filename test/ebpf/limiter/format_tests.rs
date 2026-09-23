@@ -378,14 +378,53 @@ fn test_parse_rate_fractional_typo_tips() {
     );
 }
 
-/// The duration grammar stays INTEGER (the task scoped the fractional
-/// layer to rates): `5.5h` is a usage error, not 5 hours 30 minutes.
+/// The duration grammar is FRACTIONAL (NIGHT-hunt-31, the
+/// owner-approved hunt extending boost-15's rate layer to its twin
+/// surface): `5.5h` parses to 19,800 seconds — exact u128
+/// mantissa/scale math, rounded half-away-from-zero at the final
+/// second; the integer inputs keep their byte-identical results.
 #[test]
-fn test_duration_grammar_stays_integer() {
-    let err_msg = format!("{}", parse_time_duration("5.5h").unwrap_err());
+fn test_duration_grammar_fractional() {
+    assert_eq!(parse_time_duration("5.5h").unwrap(), 19_800);
+    assert_eq!(parse_time_duration("1.5m").unwrap(), 90);
+    assert_eq!(parse_time_duration("2.25h").unwrap(), 8_100);
+    // Half-away-from-zero at the final second: 0.5s rounds up.
+    assert_eq!(parse_time_duration("0.5s").unwrap(), 1);
+    // The integers the strict CLI was built on keep their results.
+    assert_eq!(parse_time_duration("30").unwrap(), 30);
+    assert_eq!(parse_time_duration("2h").unwrap(), 7_200);
+}
+
+/// Fractional durations still keep the strict grammar and the two
+/// hard contracts: malformed numbers fail with the reason, overflow
+/// errors (never saturates, NIGHT-improve-10), and a fractional
+/// input that rounds to ZERO is rejected because 0 means infinity —
+/// the exact opposite of what `0.4s` meant, never a silent flip.
+#[test]
+fn test_fractional_duration_edges() {
+    for bad in ["1.s", ".5h", "5.5.5h", "-1.5h"] {
+        let err_msg = format!("{}", parse_time_duration(bad).unwrap_err());
+        assert!(
+            err_msg.contains("Invalid number in duration"),
+            "'{bad}' must fail as an invalid number, got: {err_msg}"
+        );
+    }
+    let overflow = format!(
+        "{}",
+        parse_time_duration("18446744073709551615.5h").unwrap_err()
+    );
     assert!(
-        err_msg.contains("Invalid number in duration"),
-        "fractional durations must fail as invalid numbers, got: {err_msg}"
+        overflow.contains("too large"),
+        "fractional overflow must error, got: {overflow}"
+    );
+    let zero = format!("{}", parse_time_duration("0.4s").unwrap_err());
+    assert!(
+        zero.contains("rounds to zero seconds"),
+        "zero-rounding must be named for what it would mean, got: {zero}"
+    );
+    assert!(
+        zero.contains("0 means infinity"),
+        "the infinity contract must be spelled out, got: {zero}"
     );
 }
 

@@ -478,8 +478,10 @@ silent.
 `[0-9]+(\.[0-9]+)?` before the lowercase unit — exact u128 integer
 math, rounded half-away-from-zero at the final byte; a fractional
 input that rounds to zero is rejected because `0` is the block
-verdict, and `5.5h` stays a duration error, fractions are rates
-only). A positional rate sets **both** directions — `strict-single
+verdict. NIGHT-hunt-31 extended the same fractional grammar to
+durations — `1.5h` parses to 5,400 seconds, with a fractional
+duration that rounds to zero rejected because `0` means infinity).
+A positional rate sets **both** directions — `strict-single
 brave 100kb` limits upload too, not just download. Minimum 1kb,
 maximum 1tb; both bounds overridable with `--allow-dangerous` —
 below 1kb an app can stop working entirely (hence the flag's name).

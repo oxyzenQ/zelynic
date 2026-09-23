@@ -401,8 +401,8 @@ pub(crate) fn rate_tip(input: &str) -> Option<String> {
 
     // Split into numeric prefix + unit suffix at the first character
     // that is neither a digit nor a decimal point (NIGHT-boost-15:
-    // the rate value grammar is fractional). The duration grammar
-    // below stays integer — its split keeps digits-only.
+    // the rate value grammar is fractional; NIGHT-hunt-31 extended
+    // the same to durations, so both tips split identically).
     let i = trimmed.find(|c: char| !c.is_ascii_digit() && c != '.')?;
     let (prefix, suffix) = (&trimmed[..i], &trimmed[i..]);
     if prefix.is_empty() || suffix.is_empty() {
@@ -421,7 +421,9 @@ pub(crate) fn rate_tip(input: &str) -> Option<String> {
 }
 
 /// Suggest a corrected duration string for a rejected duration input
-/// (`3min` -> `3m`, `10sec` -> `10s`, uppercase twins).
+/// (`3min` -> `3m`, `10sec` -> `10s`, `5.5min` -> `5.5m`, uppercase
+/// twins) — the fractional-aware split (NIGHT-hunt-31) keeps the
+/// number whole while the unit gets its near-miss match.
 #[cfg(feature = "ebpf")]
 pub(crate) fn duration_tip(input: &str) -> Option<String> {
     const UNITS: [&str; 3] = ["s", "m", "h"];
@@ -432,7 +434,7 @@ pub(crate) fn duration_tip(input: &str) -> Option<String> {
         return Some(value_tip(&lower));
     }
 
-    let i = trimmed.find(|c: char| !c.is_ascii_digit())?;
+    let i = trimmed.find(|c: char| !c.is_ascii_digit() && c != '.')?;
     let (prefix, suffix) = (&trimmed[..i], &trimmed[i..]);
     if prefix.is_empty() || suffix.is_empty() {
         return None;
