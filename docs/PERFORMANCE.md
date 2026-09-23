@@ -664,7 +664,7 @@ the table is the container-noise class of every previous A/B
 visual gains (status/list-apps matching the eagle family, the
 loading frame, the one-row morph) cost the render loop nothing.
 
-
+<!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.
 
