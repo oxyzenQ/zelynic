@@ -39,6 +39,14 @@ fn classic() -> FrameGeometry {
     }
 }
 
+/// One flanked row (mono, as tests run piped): rail + content padded
+/// to the 78-column inset + rail — the exact wrap contract for footer
+/// text rows (NIGHT-boost-20).
+fn flanked(content: &str) -> String {
+    let pad = " ".repeat(78 - content.chars().count());
+    format!("│{content}{pad}│")
+}
+
 /// A one-cgroup traffic frame.
 fn frame(cg: u32, dl: u64, ul: u64) -> CounterSummary {
     CounterSummary {
@@ -106,29 +114,33 @@ fn eagle_frame_builds_lines() {
     );
     assert_eq!(lines.len(), 24, "the frame is pinned to the height");
     assert!(
-        lines[0].starts_with("  ─── zelynic eagle-eyes"),
-        "title carries the frame gutter, identity only (NIGHT-engrave-2 —
-        the legend moved to the footer): {}",
+        lines[0].starts_with("╭─── zelynic eagle-eyes"),
+        "title carries the rounded top border (NIGHT-boost-20): {}",
         lines[0]
     );
-    assert_eq!(lines[1], "", "breathing gap under the title (boost-14)");
-    assert!(lines.contains(&"  waiting for traffic…".to_string()));
+    assert_eq!(
+        lines[1],
+        format!("│{}│", " ".repeat(78)),
+        "breathing gap under the title, flanked by the rails"
+    );
+    assert!(lines.contains(&flanked("  waiting for traffic…").to_string()));
     // The pinned footer: the flat total row between two grid lines,
     // the census, the status line (NIGHT-engrave-2), and the
-    // copyright as the frame's LAST row.
+    // copyright as the frame's LAST content row — the closing border
+    // row (NIGHT-boost-20) after it.
     let total_idx = lines
         .iter()
-        .position(|l| l.split_whitespace().next() == Some("total"))
+        .position(|l| l.contains("total usage internet in"))
         .expect("total row even when idle");
     assert_eq!(
         lines[total_idx - 1],
-        format!("  {}", "─".repeat(78)),
-        "grid above the total row"
+        format!("│  {}│", "─".repeat(76)),
+        "grid above the total row, inside the rails"
     );
     assert_eq!(
         lines[total_idx + 1],
-        format!("  {}", "─".repeat(78)),
-        "grid below the total row"
+        format!("│  {}│", "─".repeat(76)),
+        "grid below the total row, inside the rails"
     );
     assert!(
         lines[total_idx].contains("total usage internet in 1m:10s"),
@@ -141,14 +153,19 @@ fn eagle_frame_builds_lines() {
         lines
     );
     assert_eq!(
-        lines[22], "  1s realtime - theme netrunner - q quit - t theme",
-        "status line below where the limit suggestions sit (NIGHT-engrave-2): {}",
-        lines[22]
+        lines[21],
+        flanked("  1s realtime - theme netrunner - q quit - t theme"),
+        "status line below where the limit suggestions sit (NIGHT-engrave-2)"
     );
     assert!(
-        lines[23].starts_with("  v") && lines[23].ends_with(") by oxyzenQ"),
-        "copyright is the frame's last row: {}",
-        lines[23]
+        lines[22].starts_with("│  v") && lines[22].contains(") by oxyzenQ"),
+        "copyright is the frame's last content row: {}",
+        lines[22]
+    );
+    assert_eq!(
+        lines[23],
+        format!("╰{}╯", "─".repeat(78)),
+        "the closing border row floors the frame (NIGHT-boost-20)"
     );
 }
 
@@ -192,7 +209,7 @@ fn footer_grip_layout_pins_to_the_bottom() {
     let joined = lines.join("\n");
     let total_row = lines
         .iter()
-        .position(|l| l.split_whitespace().next() == Some("total"))
+        .position(|l| l.contains("total usage internet in"))
         .unwrap_or_else(|| panic!("no total row in: {joined}"));
     assert!(
         lines[total_row].contains("total usage internet in 1m:10s"),
@@ -214,10 +231,11 @@ fn footer_grip_layout_pins_to_the_bottom() {
         "total row session sum: {}",
         lines[total_row]
     );
-    // The grip layout: grid above and below the total row, census
-    // "+"-joined with its own-width grip, copyright on the last row.
-    assert_eq!(lines[total_row - 1], format!("  {}", "─".repeat(78)));
-    assert_eq!(lines[total_row + 1], format!("  {}", "─".repeat(78)));
+    // The grip layout: grid above and below the total row (inside
+    // the rails), census "+"-joined with its own-width grip,
+    // copyright on the last content row, closing border after it.
+    assert_eq!(lines[total_row - 1], format!("│  {}│", "─".repeat(76)));
+    assert_eq!(lines[total_row + 1], format!("│  {}│", "─".repeat(76)));
     let census = &lines[total_row + 3];
     assert!(
         census.contains("478 packets + 1 cgroups"),
@@ -225,28 +243,39 @@ fn footer_grip_layout_pins_to_the_bottom() {
     );
     assert_eq!(
         lines[total_row + 4],
-        format!(
+        flanked(&format!(
             "  {}",
             "─".repeat("478 packets + 1 cgroups".chars().count())
-        ),
+        )),
         "the census grip is exactly the census text's own width"
     );
     assert_eq!(
-        lines[22], "  1s realtime - theme netrunner - q quit - t theme",
-        "status line below the limit suggestion (NIGHT-engrave-2): {}",
-        lines[22]
+        lines[21],
+        flanked("  1s realtime - theme netrunner - q quit - t theme"),
+        "status line below the limit suggestion (NIGHT-engrave-2)"
     );
     assert!(
-        lines[23].starts_with("  v") && lines[23].ends_with(") by oxyzenQ"),
-        "copyright is the frame's last row: {}",
-        lines[23]
+        lines[22].starts_with("│  v") && lines[22].contains(") by oxyzenQ"),
+        "copyright is the frame's last content row: {}",
+        lines[22]
+    );
+    assert_eq!(
+        lines[23],
+        format!("╰{}╯", "─".repeat(78)),
+        "the closing border row floors the frame (NIGHT-boost-20)"
     );
     assert_eq!(lines.len(), 24, "frame pinned to the terminal height");
     // The footer does not follow the table: blank padding sits
     // between the last table row and the grid above the total row.
     assert!(
-        lines[total_row - 2].is_empty(),
-        "blank padding above the footer grid: {:?}",
+        lines[total_row - 2].starts_with('│')
+            && lines[total_row - 2].ends_with('│')
+            && lines[total_row - 2]
+                .chars()
+                .skip(1)
+                .take(76)
+                .all(|c| c == ' '),
+        "blank (railed) padding above the footer grid: {:?}",
         lines[total_row - 2]
     );
 }
@@ -305,11 +334,14 @@ fn footer_top_consumer_and_limit_hint() {
     // the layout; the color tiers are pinned in output/color.rs.
     let top_idx = lines
         .iter()
-        .position(|l| l.starts_with("  Top consumer:"))
+        .position(|l| l.starts_with("│  Top consumer:"))
         .expect("top consumer line");
     assert_eq!(
         lines[top_idx + 1],
-        format!("  {}", "─".repeat("Top consumer: curl".chars().count())),
+        flanked(&format!(
+            "  {}",
+            "─".repeat("Top consumer: curl".chars().count())
+        )),
         "the consumer grip matches its own line width"
     );
 }
@@ -346,7 +378,8 @@ fn detail_hides_and_cuts_on_narrow_frames() {
         },
     );
 
-    // Narrow frame (width 50 < 51): no detail lines at all.
+    // Narrow frame (width 50 — border inset 48 < 51): no detail
+    // lines at all.
     let mut narrow = Vec::new();
     render_eagle_eyes_at(
         &mut narrow,
@@ -369,9 +402,10 @@ fn detail_hides_and_cuts_on_narrow_frames() {
     );
     assert_eq!(narrow.len(), 24, "the pin holds on narrow frames too");
 
-    // Comfortable width: the detail line shows, trimmed to a frame
-    // narrower than the line's natural length (the IPv6 endpoint
-    // runs long — the adaptive trim must cut it to the frame width).
+    // Comfortable width (NIGHT-boost-20: the rails claim two columns,
+    // so the frame needs 53 for a 51-column inset): the detail line
+    // shows, trimmed to the inset — a long process or endpoint
+    // string can never wrap the frame or shift the pinned footer.
     let mut snug = Vec::new();
     render_eagle_eyes_at(
         &mut snug,
@@ -383,19 +417,19 @@ fn detail_hides_and_cuts_on_narrow_frames() {
         &mut SessionState::new(),
         Duration::from_secs(70),
         FrameGeometry {
-            width: 51,
+            width: 53,
             height: 24,
         },
     );
     let detail = snug
         .iter()
-        .find(|l| l.contains("curl"))
-        .expect("detail line at width 51");
+        .find(|l| l.contains("curl ("))
+        .expect("detail line at width 53");
     assert!(
-        detail.chars().count() <= 51,
-        "detail trimmed to the frame width: {detail}"
+        detail.chars().count() <= 53,
+        "detail trimmed to the frame width (rails included): {detail}"
     );
-    assert!(detail.ends_with('…'), "truncation marks itself: {detail}");
+    assert!(detail.contains('…'), "truncation marks itself: {detail}");
 }
 
 /// NIGHT-boost-16 / safety-security-1: the accumulate-explosion

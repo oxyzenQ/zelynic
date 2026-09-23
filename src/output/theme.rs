@@ -92,6 +92,22 @@ impl Theme {
             Theme::Atomic => "atomic",
         }
     }
+
+    /// The theme's brand RGB triple (the BRANDING.md numbers) — the
+    /// eagle-eyes border gradient's ramp source (NIGHT-boost-20):
+    /// the frame's side rails interpolate down the brand's own
+    /// dark-bright-dark wave.
+    #[cfg(any(feature = "ebpf", test))]
+    pub(crate) const fn brand_rgb(self) -> (u8, u8, u8) {
+        match self {
+            Theme::Netrunner => (168, 85, 247),
+            Theme::NightCyber => (0, 229, 255),
+            Theme::Forest => (124, 179, 66),
+            Theme::Spaceflight => (79, 195, 247),
+            Theme::Carbon => (214, 214, 214),
+            Theme::Atomic => (255, 109, 0),
+        }
+    }
 }
 
 /// The semantic slots a theme paints. Hot and Grey exist only in

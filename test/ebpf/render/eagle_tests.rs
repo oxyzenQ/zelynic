@@ -140,7 +140,7 @@ fn rank_is_the_session_accumulation() {
     // (a single frame: the accumulation IS the frame).
     let rank1 = lines
         .iter()
-        .find(|l| l.starts_with("   1  "))
+        .find(|l| l.starts_with("│   1  "))
         .unwrap_or_else(|| panic!("no rank-1 row in: {joined}"));
     assert!(
         rank1.contains("cg:7001"),
@@ -148,7 +148,7 @@ fn rank_is_the_session_accumulation() {
     );
     let rank2 = lines
         .iter()
-        .find(|l| l.starts_with("   2  "))
+        .find(|l| l.starts_with("│   2  "))
         .unwrap_or_else(|| panic!("no rank-2 row in: {joined}"));
     assert!(rank2.contains("cg:7002"), "rank 2 follows: {rank2}");
 }
@@ -204,7 +204,7 @@ fn quiet_frame_holds_the_board() {
     );
     let quiet_row = quiet
         .iter()
-        .find(|l| l.starts_with("   1  "))
+        .find(|l| l.starts_with("│   1  "))
         .expect("the board holds its rank-1 row through the quiet frame");
     assert!(
         quiet_row.contains("cg:7001"),
@@ -259,7 +259,7 @@ fn takeover_recrowns_rank1() {
     );
     let rank1 = lines
         .iter()
-        .find(|l| l.starts_with("   1  "))
+        .find(|l| l.starts_with("│   1  "))
         .expect("rank-1 row after the takeover");
     assert!(
         rank1.contains("cg:7002"),
@@ -267,7 +267,7 @@ fn takeover_recrowns_rank1() {
     );
     let rank2 = lines
         .iter()
-        .find(|l| l.starts_with("   2  "))
+        .find(|l| l.starts_with("│   2  "))
         .expect("rank-2 row after the takeover");
     assert!(
         rank2.contains("cg:7001"),

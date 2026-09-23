@@ -79,11 +79,17 @@ width, regular-purple column headers, thin separators, right-aligned
 numerics, and no per-cell noise (values are never packed as
 `89 (1.2 MB)` — that is what the RATE column is for).
 
-- Title bar: `─── zelynic eagle-eyes — 1s realtime ────…─ t theme - q quit`,
-  bold purple, right-aligned key hint when width allows (NIGHT-engrave-1:
-  the cadence word is "realtime" and the hint leads with the theme key).
+- Title bar: `╭─── zelynic eagle-eyes ────…─ t theme - q quit ─╮`,
+  bold purple — the frame's TOP border (NIGHT-boost-20): rounded
+  corners connecting to the bar's own fill, right-aligned key hint
+  when width allows; identity only since NIGHT-engrave-2 (the legend
+  moved to the footer's status line).
 - Column headers: `top process  download  upload  total`, regular
   purple (NIGHT-engrave-1: lowercase, the owner's exact titles).
+- Frame borders (NIGHT-boost-20): gradient side rails and a bright
+  closing floor row — the active theme's brand color sweeping
+  dark-bright-dark down the frame (the cosmostrix msg-border BD-02
+  triangle-wave contract, bright-anchored at the bottom).
 - Rows and totals: terminal default color — the purple frame carries
   the brand so data stays maximally readable.
 - The layout re-probes width AND height every frame (TIOCGWINSZ), so
