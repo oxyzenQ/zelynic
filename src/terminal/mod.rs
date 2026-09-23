@@ -259,109 +259,171 @@ pub(crate) fn read_input() -> InputAction {
     InputAction::None
 }
 
-/// Run an alternate-screen loop with the diff-based render engine
-/// (NIGHT-improve-2).
-///
-/// `render` fills a reusable line vector with the frame's logical
-/// content (title bar, header, rows, footer — exactly what the
-/// renderer used to println). The engine diffs that against the
-/// previous frame's shadow and writes the minimal ANSI stream: idle
-/// frames emit nothing, sparse changes reposition only dirty rows,
-/// dense diffs rewrite sequentially, and a resize resets fully.
-/// One write syscall per frame, zero screen wipes (no ESC[2J — the
-/// VTE scrollback hazard the cosmic dragon engine documented).
-///
-/// Exits on q — the ONLY quit key (NIGHT-hunt-16: always live, no
-/// duration timer, no ESC quit, no Ctrl+C quit). The t theme key
-/// (NIGHT-boost-18; T retired by NIGHT-engrave-2) cycles the
-/// monitor's palette and forces a Render
-/// beat within the SAME 50ms wake — a theme change must repaint at
-/// once, not at the next refresh tick (up to 60s at `--interval 60`):
-/// every line's colors change, so the diff engine rewrites the whole
-/// frame through its normal dirty-row walk.
-/// On exit, the original terminal screen is restored — no trace in scrollback.
-pub fn run_alt<F>(refresh_interval: Duration, mut render: F)
-where
-    F: FnMut(&mut Vec<String>),
-{
+/// The monitor loop shared by every session shape (NIGHT-boost-25
+/// lifted it out of `run_alt` when the [`Monitor`] session type
+/// arrived): q-only quit, t theme cycle, 50ms wakes with the
+/// resize-reactive force render, the selection-guard beats where a
+/// selection can exist, and the diff-based emission — one render
+/// closure, one screen, one reusable line vector.
+fn run_loop<F: FnMut(&mut Vec<String>)>(
+    screen: &mut DiffScreen,
+    lines: &mut Vec<String>,
+    guard: bool,
+    refresh_interval: Duration,
+    mut render: F,
+) {
     // NIGHT-improve-8: the guard runs only where a selection can
     // exist — the TTY path. The pipe fallback passes guard=false
     // (see next_beat).
-    let mut run = |screen: &mut DiffScreen, lines: &mut Vec<String>, guard: bool| {
-        let mut last_render = Instant::now() - refresh_interval; // render immediately on first iteration
-        let mut last_guard = Instant::now();
-        // NIGHT-boost-14 resize reactivity: the geometry the last
-        // render targeted. Every 50ms wake probes the terminal size
-        // (one ioctl — the canonical winsize) and a change forces a
-        // Render beat within one wake, so resizing is felt at once
-        // even at `--interval 60` instead of at the next refresh
-        // tick. The render closure and the diff engine re-probe on
-        // their own; this loop-level probe only decides WHEN.
-        let mut last_geo = winsize();
-        loop {
-            // NIGHT-boost-18: one drain, two recognized keys — q
-            // quits, t cycles the theme (the uppercase twin retired
-            // by NIGHT-engrave-2). The cycle result feeds the beat
-            // scheduler's force flag below: same-wake repaint.
-            let theme_switched = match read_input() {
-                InputAction::Quit => break,
-                InputAction::ThemeNext => {
-                    crate::output::theme::cycle(1);
-                    true
-                }
-                InputAction::None => false,
-            };
-
-            let geo = winsize();
-            let force = geo != last_geo || theme_switched;
-            match next_beat(last_render, last_guard, refresh_interval, guard, force) {
-                Beat::Render => {
-                    lines.clear();
-                    render(lines);
-                    let mut stdout = RawStdout;
-                    screen.emit(lines, &mut stdout);
-                    last_render = Instant::now();
-                    last_geo = geo;
-                }
-                // The copy guard: re-emit the last frame in full,
-                // so any terminal-side selection (Shift+click hands
-                // those clicks to the terminal, not to us) dies
-                // within one beat. Always whole-frame — a partial
-                // rewrite would leave the untouched rows
-                // selectable, the owner's exact complaint.
-                Beat::Guard => {
-                    let mut stdout = RawStdout;
-                    screen.force_repaint(lines, &mut stdout);
-                    last_guard = Instant::now();
-                }
-                Beat::Sleep => {}
+    let mut last_render = Instant::now() - refresh_interval; // render immediately on first iteration
+    let mut last_guard = Instant::now();
+    // NIGHT-boost-14 resize reactivity: the geometry the last
+    // render targeted. Every 50ms wake probes the terminal size
+    // (one ioctl — the canonical winsize) and a change forces a
+    // Render beat within one wake, so resizing is felt at once
+    // even at `--interval 60` instead of at the next refresh
+    // tick. The render closure and the diff engine re-probe on
+    // their own; this loop-level probe only decides WHEN.
+    let mut last_geo = winsize();
+    loop {
+        // NIGHT-boost-18: one drain, two recognized keys — q
+        // quits, t cycles the theme (the uppercase twin retired
+        // by NIGHT-engrave-2). The cycle result feeds the beat
+        // scheduler's force flag below: same-wake repaint.
+        let theme_switched = match read_input() {
+            InputAction::Quit => break,
+            InputAction::ThemeNext => {
+                crate::output::theme::cycle(1);
+                true
             }
+            InputAction::None => false,
+        };
 
-            std::thread::sleep(Duration::from_millis(50));
+        let geo = winsize();
+        let force = geo != last_geo || theme_switched;
+        match next_beat(last_render, last_guard, refresh_interval, guard, force) {
+            Beat::Render => {
+                lines.clear();
+                render(lines);
+                let mut stdout = RawStdout;
+                screen.emit(lines, &mut stdout);
+                last_render = Instant::now();
+                last_geo = geo;
+            }
+            // The copy guard: re-emit the last frame in full,
+            // so any terminal-side selection (Shift+click hands
+            // those clicks to the terminal, not to us) dies
+            // within one beat. Always whole-frame — a partial
+            // rewrite would leave the untouched rows
+            // selectable, the owner's exact complaint.
+            Beat::Guard => {
+                let mut stdout = RawStdout;
+                screen.force_repaint(lines, &mut stdout);
+                last_guard = Instant::now();
+            }
+            Beat::Sleep => {}
         }
-    };
 
-    let _screen = match AltScreen::enter() {
-        Ok(g) => g,
-        Err(_) => {
-            // Fallback: simple loop (no alt screen). Same diff
-            // engine, same key contract (NIGHT-hunt-16): 'q' must
-            // quit here too — the contract is q-only on BOTH paths.
-            // When stdout is not a TTY the ANSI stream is inert
-            // bytes in the pipe — the same class of output the
-            // pre-diff fallback produced with its screen clears.
-            // No selection guard here: a pipe has no selection
-            // machinery, and the beats would only flood it.
-            let mut screen = DiffScreen::new();
-            let mut lines: Vec<String> = Vec::with_capacity(48);
-            run(&mut screen, &mut lines, false);
-            return;
+        std::thread::sleep(Duration::from_millis(50));
+    }
+}
+
+/// A live-monitor terminal session opened with the smooth-loading
+/// prelude (NIGHT-boost-25, the owner's masterclass loading audit).
+///
+/// The problem the type exists to fix: `sudo zelynic ee` used to run
+/// the whole BPF load on the MAIN screen — the terminal sat frozen
+/// blank for the verifier's duration, then the alt screen switched
+/// and the full bright frame painted in one burst. Dead air, then a
+/// flash: the eye reads that transition as flashy and straining.
+///
+/// The fix inverts the order. [`Monitor::open`] enters the alt screen
+/// and paints the caller's prelude frame (the loading composition)
+/// the moment the command starts, and the BPF load then runs UNDER
+/// that frame — the load reads as the product loading, not the
+/// terminal freezing. The prelude rides the SAME DiffScreen the live
+/// loop uses, so it becomes the shadow's frame 0 and the first live
+/// frame diffs against it: because the monitor frame fills the
+/// terminal exactly, the emission rides the diff engine's sequential
+/// path — every row rewrites IN PLACE with no clear and no blank
+/// flash, the unchanged rows land their identical bytes (the same
+/// glyphs, invisible to the eye), and the one row that changed is
+/// the note (`loading observer…` becomes `waiting for traffic…`).
+/// A load failure simply drops the session — ALT_EXIT restores the
+/// main screen and the branded error prints on it.
+///
+/// On a pipe (`AltScreen::enter` fails) the session opens silent:
+/// the prelude is never composed (no chrome bytes into the pipe) and
+/// the loop runs the fallback contract (no selection guard) exactly
+/// as the pre-Monitor era did — the benchmark harness and CI live
+/// there.
+///
+/// The alt screen (and every mode ALT_ENTER touched) restores when
+/// the session drops: mouse modes off, main screen back, cursor
+/// visible — unchanged from the `run_alt` era.
+pub struct Monitor {
+    screen: DiffScreen,
+    lines: Vec<String>,
+    /// The alt-screen guard, held for its Drop (ALT_EXIT restores
+    /// the main screen when the session ends). Underscore-named: a
+    /// pure RAII field is never read, only dropped.
+    _alt: Option<AltScreen>,
+    guard: bool,
+}
+
+impl Monitor {
+    /// Open the session: enter the alt screen and paint the prelude
+    /// frame. `prelude(width, height)` composes at the open-time
+    /// probe's real terminal size and is invoked ONLY on the TTY path
+    /// — a pipe never sees chrome bytes. An empty prelude (the `-v`
+    /// trace-first sequence) paints nothing but still primes the
+    /// diff screen, so the first live frame owns the whole screen.
+    pub fn open<P: FnOnce(usize, usize) -> Vec<String>>(prelude: P) -> Self {
+        match AltScreen::enter() {
+            Ok(alt) => {
+                let (w, h) = match winsize() {
+                    Some((cols, rows)) => (cols as usize, rows as usize),
+                    None => (80, 24),
+                };
+                let mut session = Monitor {
+                    screen: DiffScreen::new(),
+                    lines: prelude(w, h),
+                    _alt: Some(alt),
+                    guard: true,
+                };
+                // The prelude IS frame 0: emit through the session's
+                // own diff screen so the first live frame diffs
+                // against it (the morph) instead of painting over a
+                // clear.
+                let mut stdout = RawStdout;
+                session.screen.emit(&mut session.lines, &mut stdout);
+                session
+            }
+            Err(_) => Monitor {
+                screen: DiffScreen::new(),
+                lines: Vec::with_capacity(48),
+                _alt: None,
+                guard: false,
+            },
         }
-    };
+    }
 
-    let mut screen = DiffScreen::new();
-    let mut lines: Vec<String> = Vec::with_capacity(48);
-    run(&mut screen, &mut lines, true);
+    /// Run the live loop. Consumes the session; the alt screen
+    /// restores when it drops. Same contract the monitor loop always
+    /// carried: exits on q (the ONLY quit key, NIGHT-hunt-16), t
+    /// cycles the theme, and the render closure refills the line
+    /// vector each beat — the diff engine emits only what changed.
+    pub fn run<F: FnMut(&mut Vec<String>)>(mut self, refresh_interval: Duration, render: F) {
+        run_loop(
+            &mut self.screen,
+            &mut self.lines,
+            self.guard,
+            refresh_interval,
+            render,
+        );
+        // self drops here: AltScreen::drop writes ALT_EXIT and
+        // restores the main screen.
+    }
 }
 
 // NIGHT-strict-1: the monitor terminal-contract pins live under the

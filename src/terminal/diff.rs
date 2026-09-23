@@ -197,7 +197,8 @@ impl DiffScreen {
     ///
     /// `lines` is swapped with the internal shadow: after the call
     /// the caller's vector holds the PREVIOUS frame's strings —
-    /// clear it and refill for the next frame (both `run_alt` and
+    /// clear it and refill for the next frame (both the `Monitor`
+    /// loop and
     /// the benchmark harness do exactly that). This keeps the two
     /// vectors' allocations warm with zero per-frame cloning.
     pub fn emit(&mut self, lines: &mut Vec<String>, sink: &mut dyn Write) -> usize {
@@ -376,7 +377,7 @@ impl DiffScreen {
     /// reset path (HOME + erase-below + every row — which also
     /// erases below a short frame, killing selections there too).
     /// The double swap is an involution: the caller's vector and
-    /// the shadow end where they started, so run_alt's
+    /// the shadow end where they started, so the monitor loop's
     /// clear-and-refill cycle is untouched. Returns the emitted
     /// byte count, 0 when no frame has been painted yet (nothing
     /// to protect).

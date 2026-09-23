@@ -570,6 +570,51 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Changed
 
+- **feat: NIGHT-boost-25 — the smooth open: eagle-eyes loading that
+  is elegant, not flashy** — the owner's audit: starting
+  `sudo zelynic ee` felt flashy and eye-straining, and the source
+  confirmed why — the whole eBPF load ran on the MAIN screen (a
+  blank frozen terminal for the verifier's duration), then the alt
+  screen switched and the full bright frame painted in one burst.
+  Dead air, then a flash. The fix inverts the order: a new
+  `terminal::Monitor` session type opens the alt screen and paints
+  a prelude frame the moment the command starts, and the BPF load,
+  the identity walk, and the opening poll run UNDER that frame. The
+  prelude (render/loading.rs `loading_frame`) is the live frame's
+  own composition at t=0 with one row swapped: the eagle title bar,
+  the breathing gap, a grey `loading observer…` note, and the
+  pinned empty-session footer (census of nothing: `0 packets +
+  0 cgroups`, `total usage internet in 0s = 0 B`, the status line,
+  the stamp) — wrapped in the gradient rails, exactly
+  terminal-height rows. When the observer comes up, the first live
+  frame rewrites the prelude in place through the same DiffScreen:
+  no clear, no blank flash, and the ONE visible change is the note
+  row becoming `waiting for traffic…` — pinned by the morph test
+  (the two frames are byte-identical except row 2). Honesty
+  decisions pinned: the note says loading (never the idle-state
+  line), the census claims no consumer and no limit suggestion (no
+  champion exists yet), identities_unresolved is false (the walk
+  has not RUN — not the same as having failed), and the title is
+  the plain core (the target count is only known after the identity
+  resolves). A load failure drops the session — ALT_EXIT restores
+  the main screen and the branded error prints on it. `-v` keeps
+  the trace-first sequence (the NIGHT-boost-6 contract: stderr
+  writes during the live frame would garble it, so the attach trace
+  prints on the main screen — the trace IS the loading feedback
+  there). The pipe fallback (bench harness, CI) is unchanged: no
+  prelude bytes into a pipe, the same loop, the same no-guard
+  contract. `run_alt` retired — its only caller migrated; the loop
+  lives on as the shared `run_loop` (the q-only quit, t theme, 50ms
+  wake, resize-reactivity, and selection-guard contracts unchanged,
+  still pinned by the mouse-contract and diff suites). 6 new pins
+  (frame fills every terminal size, the byte-identical title row
+  and floor, the loading note's honesty, the empty-session footer,
+  THE morph, short-terminal survival). Verified: 285 ebpf + 67
+  featureless unit tests, 32 + 29 integration, clippy and
+  RUSTFLAGS=-D warnings clean both shapes, gate-keepers 17/17,
+  build.sh check-all -q under the cap; benchmark A/B run per the
+  owner rule (see PERFORMANCE.md).
+
 - **ux: NIGHT-engrave-5 — the report-table family: `sudo zelynic
   status` restyled to the eagle-eyes contract (+
   list-apps, the hunt find)** — the owner's audit: the eagle-eyes
