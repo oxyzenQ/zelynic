@@ -1325,6 +1325,34 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Fixed
 
+- **monitor: NIGHT-engrave-3 depth audit — the footer's leanest
+  readable block, the frame's horizontals joined to its border** —
+  the owner's seven-bullet engraving pass, delivered as one cut:
+  the title bar's top-right hint pair (`t theme - q quit`) retired
+  (the footer's status line is the legend's only home now — which
+  is exactly why that row rides every compression tier); the
+  footer's total row re-cut to `total usage internet in 1h:20s =
+  10gb` (the two per-frame rates retired at the owner's "only
+  total consume bandwidth" call); the line below the total row
+  (the second grid), the `N packets + M cgroups` census, and the
+  `Top consumer` + `Limit it` discovery pair all retired with their
+  grips and their census math; one blank of air added above the
+  copyright (the build stamp reads as its own quiet paragraph);
+  and the grid lines now begin at column 0 — the owner's `|---`,
+  never `| ---` — so the left rail reads as one integrated line,
+  edge to edge with the right. The compression ladder re-cut for
+  the trimmed block (6/5/4/3: the total-status gap drops first,
+  then the copyright gap, then the roof grid; the total row, the
+  status line, and the copyright survive at every height). The
+  trim freed six Full-tier rows for the table on an 80x24 and
+  retired two dead helpers with it (`comm_from_label`, whose last
+  caller was the discovery autodetect, and `SessionState::len`,
+  kept test-gated for the bound pins). Hunt find along the way:
+  FOCUS_CHROME sat one below the focus view's real fixed overhead
+  (title + gap + five key/value rows + footer), so a detail-full
+  frame skipped the footer entirely and rendered short of the
+  terminal height — the budget now counts every fixed row exactly.
+
 - **ci: the plain (featureless) test build compiles under
   `-D warnings` again — the theme catalog's public face lost its
   only non-ebpf callers when NIGHT-engrave-2 retired the

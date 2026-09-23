@@ -46,15 +46,15 @@ use std::time::Duration;
 use super::border;
 use super::footer::{build_grip_footer, grid_line, plan_footer_tier, FooterCensus, TOP_CHROME};
 use super::{
-    comm_from_label, detail_lines, focus::render_eagle_focus, format_rate_or_dash,
-    label_with_count, plan_eagle_columns, rate_bps, title_bar, truncate_label, EagleColumns,
-    FrameGeometry, SessionAcc, SessionState,
+    detail_lines, focus::render_eagle_focus, format_rate_or_dash, label_with_count,
+    plan_eagle_columns, rate_bps, title_bar, truncate_label, EagleColumns, FrameGeometry,
+    SessionAcc, SessionState,
 };
 use crate::ebpf::connections::ConnectionMap;
 use crate::ebpf::identity::IdentityMap;
 use crate::ebpf::limiter::format_bytes;
 use crate::ebpf::limiter::Target;
-use crate::ebpf::loader::{CgroupDelta, CounterSummary};
+use crate::ebpf::loader::CounterSummary;
 use crate::output::{brand, grey, hot, ok, warn};
 
 /// Subprocess detail hide threshold (NIGHT-boost-14 adaptive
@@ -177,8 +177,9 @@ pub(super) fn render_eagle_eyes_at(
     let geo = border::content_geo(geo);
     let cols = plan_eagle_columns(geo.width);
 
-    // NIGHT-engrave-2: identity only — the legend moved to the
-    // footer's status line; the top-right keeps the hint pair.
+    // NIGHT-engrave-3: identity only — the top-right key hint
+    // retired with the census (the legend's only home is the
+    // footer's status line, which is why it rides every tier).
     let title_core = if tokens.is_empty() {
         "zelynic eagle-eyes".to_string()
     } else {
@@ -186,7 +187,7 @@ pub(super) fn render_eagle_eyes_at(
         let plural = if n == 1 { "" } else { "s" };
         format!("zelynic eagle-eyes — {n} target{plural}")
     };
-    lines.push(title_bar(&title_core, "t theme - q quit", full_width));
+    lines.push(title_bar(&title_core, full_width));
 
     // The breathing gap (NIGHT-boost-14): the column header used to
     // sit one row under the title bar — too near the brand, the
@@ -226,69 +227,26 @@ pub(super) fn render_eagle_eyes_at(
 
     // Footer planning FIRST (NIGHT-boost-14): the pinned footer is
     // BUILT before the table renders, so the pin's line count is the
-    // MEASURED footer length — the optional discovery hint shortens
-    // the block without shifting the pin off the bottom. The tier
-    // ladder picks the compression level; the table gets whatever
-    // height remains after the built block.
+    // MEASURED footer length — a shortened block adds middle padding
+    // without shifting the pin off the bottom. The tier ladder picks
+    // the compression level; the table gets whatever height remains
+    // after the built block.
     let extra = usize::from(identity.is_empty());
     let tier = plan_footer_tier(geo.height, extra);
 
-    // Top consumer (autodetect on the rank-1 cgroup, NIGHT-hunt-8):
-    // when socket detail is available, name the busiest process
-    // INSIDE the champion cgroup, not just its first-resolved comm —
-    // "Top consumer: curl" instead of "alacritty".
-    let top_proc_name = board.first().and_then(|(cgroup_id, _)| {
-        conns
-            .and_then(|cm| cm.get(*cgroup_id))
-            .and_then(|d| d.socket_holders.first())
-            .map(|p| p.comm.clone())
-            .or_else(|| comm_from_label(&label_with_count(identity, conns, *cgroup_id)))
-    });
-
-    // Footer honesty (NIGHT-hunt-15): every candidate counts, not
-    // just the rows the window budget could show. All four sums are
-    // SATURATING (NIGHT-boost-16): a debug build used to panic at
-    // u64::MAX and a release build wrapped — saturated sums read as
-    // u64::MAX, the honest ceiling of the u64 accumulator.
-    let candidates: Vec<&CgroupDelta> = if tokens.is_empty() {
-        summary.cgroups.iter().collect()
-    } else {
-        summary
-            .cgroups
-            .iter()
-            .filter(|c| ids.contains(&c.cgroup_id))
-            .collect()
-    };
-    let dl_sum: u64 = candidates
-        .iter()
-        .map(|c| c.ingress_bytes)
-        .fold(0, u64::saturating_add);
-    let ul_sum: u64 = candidates
-        .iter()
-        .map(|c| c.bytes)
-        .fold(0, u64::saturating_add);
+    // The grand total (footer honesty, NIGHT-hunt-15 lineage): the
+    // session leaderboard's accumulated sum, SATURATING
+    // (NIGHT-boost-16) — a saturated sum reads as u64::MAX, the
+    // honest ceiling of the u64 accumulator, never a panic or wrap.
+    // NIGHT-engrave-3 retired the rest of the census math (the
+    // per-frame rates, the packets count, the discovery pair) with
+    // the lines that carried them.
     let grand: u64 = board
         .iter()
         .map(|(_, a)| a.dl.saturating_add(a.ul))
         .fold(0, u64::saturating_add);
-    let packets = candidates
-        .iter()
-        .map(|c| c.packets.saturating_add(c.ingress_packets))
-        .fold(0, u64::saturating_add);
-    // The census: scale of the frame, one line, "+"-joined (the
-    // owner's NIGHT-boost-14 wording) — never mixed into the numeric
-    // grid. Filtered frames name their share of the session census.
-    let census_text = if tokens.is_empty() {
-        format!("{packets} packets + {} cgroups", board.len())
-    } else {
-        format!(
-            "{packets} packets + {} of {} cgroups",
-            board.len(),
-            session.len()
-        )
-    };
 
-    // ── The grip footer (NIGHT-boost-14), the owner's exact spec ──
+    // ── The engraved footer (NIGHT-boost-14 / NIGHT-engrave-3) ──
     //
     // Built BEFORE the table renders (see render/footer.rs): the
     // MEASURED length of the block is what pins it to the bottom,
@@ -296,13 +254,8 @@ pub(super) fn render_eagle_eyes_at(
     let footer = build_grip_footer(
         &FooterCensus {
             tier,
-            dl_sum,
-            ul_sum,
             grand,
-            census_text,
             identities_unresolved: identity.is_empty(),
-            top_proc_name,
-            unfiltered: tokens.is_empty(),
             uptime,
         },
         geo,

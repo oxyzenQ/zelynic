@@ -136,7 +136,7 @@ pub fn print_status(
     }
 
     let sep_len: usize = col_widths.iter().sum::<usize>() + 4;
-    println_safe!("\n{}", title_bar("zelynic status", "", sep_len + 2));
+    println_safe!("\n{}", title_bar("zelynic status", sep_len + 2));
 
     match watchdog_deadline {
         Some(deadline) if deadline > 0 => {

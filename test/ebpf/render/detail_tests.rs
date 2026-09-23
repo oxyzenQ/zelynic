@@ -58,20 +58,6 @@ fn label_with_count_shapes() {
     assert_eq!(label_with_count(&identity, Some(&conns), 9999), "cg:9999");
 }
 
-/// Comm extraction tolerates the "+N" suffix and rejects
-/// unknown/empty comms.
-#[test]
-fn comm_from_label_shapes() {
-    assert_eq!(
-        comm_from_label("cg:7001 (alacritty +3)").as_deref(),
-        Some("alacritty")
-    );
-    assert_eq!(comm_from_label("cg:7001 (curl)").as_deref(), Some("curl"));
-    assert_eq!(comm_from_label("cg:7001 (unknown)"), None);
-    assert_eq!(comm_from_label("cg:7001 ()"), None);
-    assert_eq!(comm_from_label("cg:7001"), None);
-}
-
 /// Fixture builder: the owner's curl-inside-alacritty shape plus the
 /// listener noise the display filter must skip.
 fn fixture() -> (

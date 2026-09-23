@@ -1,16 +1,18 @@
 // Copyright (C) 2026 rezky_nightky
 // SPDX-License-Identifier: GPL-3.0-only
 
-//! Pinned grip-footer composition pins (NIGHT-boost-14): the tier
-//! ladder, the owner's exact grip layout, the pin itself (frame
-//! spanning the terminal height with the footer near the bottom,
-//! never following the table), the discovery pair, and the adaptive
-//! subprocess-detail behavior. Split from the eagle renderer pins
-//! when the boost-14 composition work pushed the file past the
-//! owner's LOC cap - one file per contract, the same
-//! #[path] discipline as the diff engine's pins. `super::` reaches
-//! the footer module; the eagle renderer core is imported across the
-//! render tree (it is `pub(super)` there).
+//! Pinned footer composition pins (NIGHT-boost-14; re-cut by
+//! NIGHT-engrave-3): the tier ladder, the owner's engraved layout
+//! (the flush roof grid, the `= grand` total row, the status line,
+//! the gap above the copyright), the retirement of the census and
+//! the discovery pair, the pin itself (frame spanning the terminal
+//! height with the footer near the bottom, never following the
+//! table), and the adaptive subprocess-detail behavior. Split from
+//! the eagle renderer pins when the boost-14 composition work pushed
+//! the file past the owner's LOC cap - one file per contract, the
+//! same #[path] discipline as the diff engine's pins. `super::`
+//! reaches the footer module; the eagle renderer core is imported
+//! across the render tree (it is `pub(super)` there).
 
 use super::{plan_footer_tier, FooterTier};
 use crate::ebpf::identity::{IdentityMap, ProcessIdentity};
@@ -66,31 +68,28 @@ fn frame(cg: u32, dl: u64, ul: u64) -> CounterSummary {
     }
 }
 
-/// Footer compression ladder (NIGHT-boost-14; NIGHT-engrave-1 folded
-/// the boost-17 uptime line into the census row and NIGHT-engrave-2
-/// added the status line below the limit suggestions — one line out,
-/// one line in, so the counts stand at the pre-engrave 12/8/6/5): the
-/// classic 80x24 carries the full 12-line grip block; a 16-row window
-/// drops to Compact; 10 rows to Minimal; the survival floor holds
-/// from 10.
+/// Footer compression ladder (NIGHT-boost-14; NIGHT-engrave-3 re-cut
+/// it for the trimmed block — 6/5/4/3): the classic 80x24 carries the
+/// full engraved block; a 10-row window drops to Compact, 9 to
+/// Minimal, and the survival floor holds from 8 down. The rare
+/// identities-unresolved note costs one line and moves the Full
+/// boundary with it.
 #[test]
 fn footer_tier_ladder() {
     assert_eq!(plan_footer_tier(24, 0), FooterTier::Full);
     assert_eq!(
-        plan_footer_tier(17, 0),
+        plan_footer_tier(11, 0),
         FooterTier::Full,
-        "17 = 4 chrome + 12 footer + 1 row"
+        "11 = 4 chrome + 6 footer + 1 row"
     );
-    assert_eq!(plan_footer_tier(16, 0), FooterTier::Compact);
-    assert_eq!(plan_footer_tier(13, 0), FooterTier::Compact);
-    assert_eq!(plan_footer_tier(12, 0), FooterTier::Minimal);
-    assert_eq!(plan_footer_tier(11, 0), FooterTier::Minimal);
-    assert_eq!(plan_footer_tier(10, 0), FooterTier::Tiny);
+    assert_eq!(plan_footer_tier(10, 0), FooterTier::Compact);
+    assert_eq!(plan_footer_tier(9, 0), FooterTier::Minimal);
+    assert_eq!(plan_footer_tier(8, 0), FooterTier::Tiny);
     assert_eq!(plan_footer_tier(5, 0), FooterTier::Tiny, "survival floor");
     // The rare identities-unresolved note rides the footer and is
-    // accounted: it costs one line, so the Full boundary moves to 18.
-    assert_eq!(plan_footer_tier(18, 1), FooterTier::Full);
-    assert_eq!(plan_footer_tier(17, 1), FooterTier::Compact);
+    // accounted: it costs one line, so the Full boundary moves to 12.
+    assert_eq!(plan_footer_tier(12, 1), FooterTier::Full);
+    assert_eq!(plan_footer_tier(11, 1), FooterTier::Compact);
 }
 
 /// NIGHT-improve-2 line-building pin (NIGHT-boost-14 composition):
@@ -124,23 +123,24 @@ fn eagle_frame_builds_lines() {
         "breathing gap under the title, flanked by the rails"
     );
     assert!(lines.contains(&flanked("  waiting for traffic…").to_string()));
-    // The pinned footer: the flat total row between two grid lines,
-    // the census, the status line (NIGHT-engrave-2), and the
-    // copyright as the frame's LAST content row — the closing border
-    // row (NIGHT-boost-20) after it.
+    // The pinned footer (NIGHT-engrave-3): the total row under its
+    // FLUSH roof grid, air, the status line, the owner's gap above
+    // the copyright, and the build stamp as the frame's LAST content
+    // row — the closing border row (NIGHT-boost-20) after it.
     let total_idx = lines
         .iter()
         .position(|l| l.contains("total usage internet in"))
         .expect("total row even when idle");
     assert_eq!(
         lines[total_idx - 1],
-        format!("│  {}│", "─".repeat(76)),
-        "grid above the total row, inside the rails"
+        format!("│{}│", "─".repeat(78)),
+        "the roof grid JOINS the left rail — the owner's |---, never | ---: {:?}",
+        lines[total_idx - 1]
     );
     assert_eq!(
         lines[total_idx + 1],
-        format!("│  {}│", "─".repeat(76)),
-        "grid below the total row, inside the rails"
+        flanked("  (identities unresolved — labels show raw cgroup IDs)"),
+        "the rare note rides between the total row and the status line"
     );
     assert!(
         lines[total_idx].contains("total usage internet in 1m:10s"),
@@ -148,14 +148,19 @@ fn eagle_frame_builds_lines() {
         lines[total_idx]
     );
     assert!(
-        lines.iter().any(|l| l.contains("0 packets + 0 cgroups")),
-        "census line renders the + join: {:?}",
-        lines
+        lines[total_idx].contains("= 0 B"),
+        "engrave-3: the `=` grand total, the rates retired: {}",
+        lines[total_idx]
+    );
+    assert_eq!(
+        lines[20],
+        flanked("  1s realtime - theme netrunner - q quit - t theme"),
+        "status line (NIGHT-engrave-2), the legend's only home since the engrave-3 title trim"
     );
     assert_eq!(
         lines[21],
-        flanked("  1s realtime - theme netrunner - q quit - t theme"),
-        "status line below where the limit suggestions sit (NIGHT-engrave-2)"
+        format!("│{}│", " ".repeat(78)),
+        "the owner's engrave-3 gap above the copyright"
     );
     assert!(
         lines[22].starts_with("│  v") && lines[22].contains(") by oxyzenQ"),
@@ -169,16 +174,14 @@ fn eagle_frame_builds_lines() {
     );
 }
 
-/// Footer honesty + the grip layout (NIGHT-boost-14, the owner's
-/// exact spec; the total row re-shaped by NIGHT-engrave-1): the flat
-/// `total usage internet in <uptime>` row sums EVERY candidate —
-/// this frame's download/upload rates plus the session grand —
-/// framed by two full-width grid lines; under it the census with its
-/// own-width grip, the top consumer with its grip, the limit
-/// suggestion, and the copyright pinned to the bottom of the
-/// terminal whatever the table does.
+/// Footer layout (NIGHT-boost-14, re-cut by NIGHT-engrave-3): the
+/// flat `total usage internet in <uptime> = <grand>` row under its
+/// flush roof grid — the per-frame rates RETIRED at the owner's
+/// "only total consume bandwidth" call — then air, the status line,
+/// the owner's gap above the copyright, and the build stamp pinned
+/// to the bottom of the terminal whatever the table does.
 #[test]
-fn footer_grip_layout_pins_to_the_bottom() {
+fn footer_layout_pins_to_the_bottom() {
     let mut lines = Vec::new();
     let summary = CounterSummary {
         total_packets: 57,
@@ -217,42 +220,34 @@ fn footer_grip_layout_pins_to_the_bottom() {
         lines[total_row]
     );
     assert!(
-        lines[total_row].contains("1.4 MB/s"),
-        "total row dl rate: {}",
+        lines[total_row].contains("= 1.6 MB"),
+        "engrave-3: the row reads horizon = grand, nothing else: {}",
         lines[total_row]
     );
     assert!(
-        lines[total_row].contains("240.0 KB/s"),
-        "total row ul rate: {}",
+        !lines[total_row].contains("/s"),
+        "engrave-3: the rate tail is retired from the total row: {}",
         lines[total_row]
     );
+    // The engraved trim: census, discovery pair, second grid — all
+    // retired (the owner's leanest-footer call).
+    assert!(!joined.contains("packets +"), "census retired: {joined}");
     assert!(
-        lines[total_row].contains("1.6 MB"),
-        "total row session sum: {}",
-        lines[total_row]
+        !joined.contains("Top consumer"),
+        "discovery retired: {joined}"
     );
-    // The grip layout: grid above and below the total row (inside
-    // the rails), census "+"-joined with its own-width grip,
-    // copyright on the last content row, closing border after it.
-    assert_eq!(lines[total_row - 1], format!("│  {}│", "─".repeat(76)));
-    assert_eq!(lines[total_row + 1], format!("│  {}│", "─".repeat(76)));
-    let census = &lines[total_row + 3];
-    assert!(
-        census.contains("478 packets + 1 cgroups"),
-        "census wording: {census}"
-    );
+    assert!(!joined.contains("Limit it"), "limit hint retired: {joined}");
+    // The roof grid joins the left rail — the owner's |--- contract.
+    assert_eq!(lines[total_row - 1], format!("│{}│", "─".repeat(78)));
     assert_eq!(
-        lines[total_row + 4],
-        flanked(&format!(
-            "  {}",
-            "─".repeat("478 packets + 1 cgroups".chars().count())
-        )),
-        "the census grip is exactly the census text's own width"
+        lines[20],
+        flanked("  1s realtime - theme netrunner - q quit - t theme"),
+        "status line (NIGHT-engrave-2)"
     );
     assert_eq!(
         lines[21],
-        flanked("  1s realtime - theme netrunner - q quit - t theme"),
-        "status line below the limit suggestion (NIGHT-engrave-2)"
+        format!("│{}│", " ".repeat(78)),
+        "the owner's engrave-3 gap above the copyright"
     );
     assert!(
         lines[22].starts_with("│  v") && lines[22].contains(") by oxyzenQ"),
@@ -266,7 +261,8 @@ fn footer_grip_layout_pins_to_the_bottom() {
     );
     assert_eq!(lines.len(), 24, "frame pinned to the terminal height");
     // The footer does not follow the table: blank padding sits
-    // between the last table row and the grid above the total row.
+    // between the last table row and the roof grid above the total
+    // row.
     assert!(
         lines[total_row - 2].starts_with('│')
             && lines[total_row - 2].ends_with('│')
@@ -280,13 +276,12 @@ fn footer_grip_layout_pins_to_the_bottom() {
     );
 }
 
-/// The top-consumer hint (NIGHT-boost-14; the name re-colored by
-/// NIGHT-engrave-1): the rank-1 cgroup's busiest socket holder names
-/// itself with a brand-purple name inside the grey footer, and the
-/// limit suggestion follows — the discovery pair renders only on
-/// unfiltered frames with live detail.
+/// The NIGHT-engrave-3 retirement pin: the discovery pair (Top
+/// consumer + Limit it) and the census line no longer render on ANY
+/// frame — the owner's leanest-footer call. The same live-detail
+/// fixture that used to light the pair now proves its absence.
 #[test]
-fn footer_top_consumer_and_limit_hint() {
+fn footer_discovery_pair_and_census_are_retired() {
     use crate::ebpf::connections::{
         CgroupConnections, ConnectionMap, ProcessDetail, Proto, SocketInfo,
     };
@@ -323,27 +318,18 @@ fn footer_top_consumer_and_limit_hint() {
     );
     let joined = lines.join("\n");
     assert!(
-        joined.contains("Top consumer: curl"),
-        "the hint names the busiest process inside the champion: {joined}"
+        !joined.contains("Top consumer"),
+        "retired at engrave-3: {joined}"
     );
     assert!(
-        joined.contains("Limit it: sudo zelynic strict-single curl 100kb"),
-        "the actionable limit line rides along: {joined}"
+        !joined.contains("Limit it"),
+        "retired with its pair: {joined}"
     );
-    // Mono mode (tests run piped) strips color — the wording pins
-    // the layout; the color tiers are pinned in output/color.rs.
-    let top_idx = lines
-        .iter()
-        .position(|l| l.starts_with("│  Top consumer:"))
-        .expect("top consumer line");
-    assert_eq!(
-        lines[top_idx + 1],
-        flanked(&format!(
-            "  {}",
-            "─".repeat("Top consumer: curl".chars().count())
-        )),
-        "the consumer grip matches its own line width"
+    assert!(
+        !joined.contains("packets +"),
+        "the census is retired: {joined}"
     );
+    assert_eq!(lines.len(), 24, "the pin is unchanged by the trim");
 }
 
 /// Adaptive compact (NIGHT-boost-14, dynamic WxH): the subprocess
