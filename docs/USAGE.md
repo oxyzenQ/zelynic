@@ -329,8 +329,11 @@ Dynamic screen size (NIGHT-boost-14): the loop probes the terminal
 geometry every 50ms wake and renders a change within one wake — not
 at the next refresh tick, so even `--interval 60` resizes instantly.
 Adaptive compact mode on narrow frames: the subprocess detail hides
-(below a 53-column frame, where the border inset drops under the
-51-column total-column boundary) and every
+(below a 55-column frame, where the border inset drops under the
+53-column total-column boundary — NIGHT-engrave-4 moved the boundary
+up two columns with the right gutter; the column ladder itself is
+the threshold now, one source of truth where a parallel constant
+used to drift) and every
 detail line is cut to the frame width, so a long process or endpoint
 string can never wrap the frame or shift the pinned footer. Short
 terminals compress the footer through a tier ladder (NIGHT-engrave-3
@@ -341,11 +344,19 @@ status line, and the copyright survive at every height. The row count follows th
 — there is no `--limit`: the window IS the budget. DOWNLOAD and
 UPLOAD carry live per-direction RATES; TOTAL carries the
 session-accumulated bytes (the "total accumulated" function v10
-had). The frame's left border is one straight edge (NIGHT-boost-5):
-the title bar carries the same two-column gutter the rows use, and
-the label column absorbs the remaining width so every line closes
-flush at the frame's right edge. The column header's rank cell is
-blank — the digits speak for themselves. Frames render through the
+had). The frame's rails are SYMMETRIC (NIGHT-engrave-4): the title
+bar carries the same two-column gutter the rows use, the label
+column absorbs the remaining width, and every table row ends at
+the two-column RIGHT gutter — the TOTAL column's figures close two
+columns before the right rail with the same air the left gutter
+gives the rank, never flush against the border the way the owner
+spotted ("too near the border, hard to see"). The column header's
+rank cell is blank — the digits speak for themselves — and the
+`top process` title spans the whole identity region (rank cell +
+gap + label column), so it starts at the frame's canonical text
+column, the same line every footer and note row starts on, instead
+of floating past the blank rank cell (NIGHT-engrave-4: the owner's
+"too distance from border"). Frames render through the
 diff-based engine (NIGHT-improve-2): only the rows that changed
 since the previous frame are written — one write syscall per frame,
 an unchanged frame costs zero I/O at every terminal height

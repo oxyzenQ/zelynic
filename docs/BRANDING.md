@@ -87,6 +87,13 @@ numerics, and no per-cell noise (values are never packed as
   alone).
 - Column headers: `top process  download  upload  total`, regular
   purple (NIGHT-engrave-1: lowercase, the owner's exact titles).
+  NIGHT-engrave-4: the `top process` title spans the whole identity
+  region (rank cell + gap + label column) so it starts at the
+  frame's canonical text column — the same line every footer and
+  note row starts on — and the numeric titles close at the
+  two-column right gutter, the mirror of the left: the table's
+  figures end two columns before the right rail on BOTH edges,
+  symmetric air (the owner's border-gap audit).
 - Frame borders (NIGHT-boost-20): gradient side rails and a bright
   closing floor row — the active theme's brand color sweeping
   dark-bright-dark down the frame (the cosmostrix msg-border BD-02

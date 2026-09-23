@@ -13,7 +13,10 @@
 //! longer wipes the table), the per-frame download/upload rates
 //! refresh every interval, and the total column carries the
 //! accumulated figure — the v10 function restored (engrave-1
-//! lowercased the titles: top process, download, upload, total).
+//! lowercased the titles: top process, download, upload, total;
+//! engrave-4 re-seated them: the process title spans the identity
+//! region from the canonical text column, and every row ends on the
+//! two-column right gutter — symmetric air at both rails).
 //!
 //! NIGHT-boost-14 (the owner's masterclass engraving) made the frame a
 //! PINNED composition; the footer half of that contract — the grip
@@ -30,7 +33,10 @@
 //!   header used to sit too near the brand.
 //! - **Adaptive compact** (dynamic WxH): subprocess detail hides and
 //!   long text is cut down on narrow frames; the label column already
-//!   degraded, the detail lines are the next casualty.
+//!   degraded, the detail lines are the next casualty — and since
+//!   NIGHT-engrave-4 the column ladder itself is the threshold
+//!   (`cols.show_total`), one source of truth where a parallel
+//!   constant used to drift.
 //! - **The pin**: the frame spans the terminal height, the table
 //!   floats under the header, and the built footer pins to the bottom
 //!   through measured padding — it never follows the table's length.
@@ -57,13 +63,14 @@ use crate::ebpf::limiter::Target;
 use crate::ebpf::loader::CounterSummary;
 use crate::output::{brand, grey, hot, ok, warn};
 
-/// Subprocess detail hide threshold (NIGHT-boost-14 adaptive
-/// compact): below the width where the TOTAL column itself degrades
-/// away, the endpoint lines go too — a frame too narrow for the
-/// session figure is too narrow for endpoint text. Wider frames
-/// show them grey, each trimmed to the frame width so no row ever
-/// wraps and shifts the pinned composition.
-const DETAIL_HIDE_BELOW: usize = 51;
+/// Columns the rank furniture occupies between the shared gutter
+/// and the label column: the two-wide rank cell plus its two-wide
+/// gap (NIGHT-engrave-4). The header's process title spans this plus
+/// the label width — one identity region (rank + process), titled
+/// from the frame's canonical text column. Kept in step with
+/// render::plan_eagle_columns' rank reserve (the reserve's non-gutter
+/// half); the header-alignment pins catch any drift.
+const RANK_SPAN: usize = 4;
 
 /// Resolve target tokens against the identity map.
 ///
@@ -268,36 +275,42 @@ pub(super) fn render_eagle_eyes_at(
 
     // Header row (regular purple — brand layer, NIGHT-hunt-5). The
     // rank cell is BLANK (NIGHT-boost-5: "#" retired — the digits
-    // speak for themselves); the process header reads "top process"
-    // (NIGHT-engrave-1, lowercase), padded to the label width BEFORE
-    // coloring so the cells sit over their columns. The grid below
-    // renders purple too (NIGHT-boost-14) — one border family.
+    // speak for themselves); NIGHT-engrave-4: the process title
+    // SPANS the identity region — the rank cell plus its gap plus
+    // the label column — so "top process" starts at the frame's
+    // canonical text column (the same two-column gutter every
+    // footer and note line uses) instead of floating six columns
+    // off the left rail the way it did past the blank rank cell.
+    // The numeric titles stay right-aligned over their columns, and
+    // the row closes on the same two-column right gutter the data
+    // rows end on. The grid below renders purple too
+    // (NIGHT-boost-14) — one border family.
     let table_room = footer_start.saturating_sub(lines.len());
     let show_table = !session.is_empty() && (tokens.is_empty() || !board.is_empty());
     // The table needs room for its own chrome (header + grid) plus at
     // least one data row; below that the footer carries the story.
     if show_table && table_room >= TOP_CHROME - 1 {
+        // The identity span the header's title cell covers.
+        let title_w = cols.label_w + RANK_SPAN;
         if cols.show_total {
             lines.push(brand(&format!(
-                "  {:>2}  {:<w0$} {:>w1$} {:>w2$} {:>w3$}",
-                "",
-                truncate_label("top process", cols.label_w),
+                "  {:<w0$} {:>w1$} {:>w2$} {:>w3$}",
+                truncate_label("top process", title_w),
                 "download",
                 "upload",
                 "total",
-                w0 = cols.label_w,
+                w0 = title_w,
                 w1 = cols.dl_w,
                 w2 = cols.ul_w,
                 w3 = cols.dl_w
             )));
         } else {
             lines.push(brand(&format!(
-                "  {:>2}  {:<w0$} {:>w1$} {:>w2$}",
-                "",
-                truncate_label("top process", cols.label_w),
+                "  {:<w0$} {:>w1$} {:>w2$}",
+                truncate_label("top process", title_w),
                 "download",
                 "upload",
-                w0 = cols.label_w,
+                w0 = title_w,
                 w1 = cols.dl_w,
                 w2 = cols.ul_w
             )));
@@ -315,11 +328,15 @@ pub(super) fn render_eagle_eyes_at(
         let mut emitted = 0usize;
         for (i, (cgroup_id, acc)) in board.iter().enumerate() {
             // Adaptive subprocess detail (NIGHT-boost-14): grey, and
-            // width-aware — hidden below the TOTAL-column boundary,
-            // each line trimmed to the frame width above it, so a
-            // long process/endpoint string can never wrap the frame
-            // or shift the pinned footer.
-            let mut details = if geo.width >= DETAIL_HIDE_BELOW {
+            // width-aware — hidden below the TOTAL-column boundary
+            // (the column ladder IS the threshold since NIGHT-engrave-4:
+            // a frame too narrow for the session figure is too narrow
+            // for endpoint text — `cols.show_total`, one source of
+            // truth, where a parallel DETAIL_HIDE_BELOW constant used
+            // to drift), each line trimmed to the frame width above
+            // it, so a long process/endpoint string can never wrap
+            // the frame or shift the pinned footer.
+            let mut details = if cols.show_total {
                 detail_lines(conns, *cgroup_id)
             } else {
                 Vec::new()

@@ -29,13 +29,22 @@
 //! next refresh tick (up to 60s at `--interval 60`): no SIGWINCH
 //! plumbing, no stale geometry, no caches to invalidate. Columns
 //! degrade gracefully on narrow terminals (TOTAL drops first, the
-//! subprocess detail hides with it), the label column absorbs the
-//! remaining width, and the frame is pinned to the FULL terminal
-//! height (NIGHT-boost-14): the table floats under the header and
-//! the footer stays near the bottom — the grip block never follows
-//! the table's length. A short window compresses the footer through
-//! a compact ladder (blanks drop, then the grips, then the discovery
-//! hints) before the table loses its rows.
+//! subprocess detail hides with it — the column ladder IS that
+//! threshold since NIGHT-engrave-4, one source of truth), the label
+//! column absorbs the remaining width, and the frame is pinned to
+//! the FULL terminal height (NIGHT-boost-14): the table floats under
+//! the header and the footer stays near the bottom — the grip block
+//! never follows the table's length. A short window compresses the
+//! footer through a compact ladder (blanks drop, then the grips,
+//! then the discovery hints) before the table loses its rows.
+//!
+//! NIGHT-engrave-4 (symmetric rails): the table's rows end two
+//! columns short of the content inset — the RIGHT gutter, mirror of
+//! the left — so the TOTAL column's figures never fight the right
+//! rail for their column, and the header's process title spans the
+//! whole identity region (rank cell + gap + label), starting at the
+//! frame's canonical text column instead of floating past the blank
+//! rank cell.
 //!
 //! Realtime interval: callers pass the poll interval so the RATE
 //! column converts per-frame deltas into bytes-per-second
@@ -118,10 +127,11 @@ impl FrameGeometry {
 
 /// Eagle-eyes column layout derived from the frame width.
 ///
-/// Degradation ladder (6-column rank cell, 1-column gaps):
-/// - width >= 51: (rank) | top process | download | upload | total
-/// - width >= 40: (rank) | top process | download | upload (total dropped)
-/// - width  < 40: (rank) | top process (min 12) | download | upload at 9-wide
+/// Degradation ladder (6-column rank reserve, 1-column gaps, and
+/// the 2-column right gutter of NIGHT-engrave-4):
+/// - width >= 53: (rank) | top process | download | upload | total
+/// - width >= 42: (rank) | top process | download | upload (total dropped)
+/// - width  < 42: (rank) | top process (min 12) | download | upload at 9-wide
 ///
 /// Download and upload carry per-frame RATES (delta / interval —
 /// "what is moving right now"); total carries the session-accumulated
@@ -129,13 +139,24 @@ impl FrameGeometry {
 /// restored as the ranking key's own column). The old combined RATE
 /// column was dl+ul restated — the total column replaces it.
 ///
+/// NIGHT-engrave-4 (the symmetric-rails fix): the table's rows end
+/// two columns short of the frame width — the RIGHT gutter, the
+/// mirror of the left gutter every frame line starts with. The
+/// TOTAL column's figures used to end flush against the right rail
+/// (the owner's "too near the border, hard to see" — the digits and
+/// the rail glyph fought for the same column); now the rightmost
+/// numeric cell closes at the gutter's edge with the same two
+/// columns of air the rank enjoys on the left. The label column
+/// absorbs the gutter, so a full row still composes to an exact
+/// width — just two columns short of the content inset, and the
+/// border's fit() pads the rest.
+///
 /// NIGHT-boost-5: the header rank cell is blank (the owner's "#"
 /// header retired) and the absorption math makes every data row end
-/// flush at the frame width — the label column absorbs exactly what
-/// the rank cell, the gaps, and the numeric columns leave, so the
-/// right border (title bar, separators, rows, total) is one straight
-/// edge mirroring the left. The old reserve formula over-allocated
-/// three spare columns, leaving every row 3 short of the separator.
+/// at the right gutter's edge — the label column absorbs exactly what
+/// the rank cell, the gaps, the numeric columns, and the right
+/// gutter leave. The old reserve formula over-allocated three spare
+/// columns, leaving every row 3 short of the separator.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct EagleColumns {
     pub(crate) label_w: usize,
@@ -151,13 +172,19 @@ pub(crate) fn plan_eagle_columns(width: usize) -> EagleColumns {
     const NUM_W: usize = 10;
     const NUM_W_TIGHT: usize = 9;
     const LABEL_MIN: usize = 12;
+    // The symmetric right gutter (NIGHT-engrave-4): the two columns
+    // of air after the TOTAL column, mirroring the two the left
+    // gutter gives the rank. Narrow-floor frames drop it first —
+    // survival outranks harmony below the ladder.
+    const RIGHT_GUTTER: usize = 2;
 
     // Full layout: rank + label + 3 numeric columns (dl, ul, total).
-    // Reserve = rank cell + 3 x (gap + numeric): the label absorbs
-    // the rest, so a full row spans exactly the frame width.
-    if width >= RANK_W + LABEL_MIN + 3 * (1 + NUM_W) {
+    // Reserve = rank cell + 3 x (gap + numeric) + the right gutter:
+    // the label absorbs the rest, so a full row ends exactly at the
+    // right gutter's edge — never flush against the rail.
+    if width >= RANK_W + LABEL_MIN + 3 * (1 + NUM_W) + RIGHT_GUTTER {
         return EagleColumns {
-            label_w: width - RANK_W - 3 * (1 + NUM_W),
+            label_w: width - RANK_W - 3 * (1 + NUM_W) - RIGHT_GUTTER,
             dl_w: NUM_W,
             ul_w: NUM_W,
             show_total: true,
@@ -166,10 +193,11 @@ pub(crate) fn plan_eagle_columns(width: usize) -> EagleColumns {
 
     // TOTAL dropped (the session figure survives in the focus view;
     // the live rates are the realtime sacrifice ladder's first cut):
-    // rank + label + 2 numeric columns.
-    if width >= RANK_W + LABEL_MIN + 2 * (1 + NUM_W) {
+    // rank + label + 2 numeric columns — the right gutter rides
+    // along (the UPLOAD figures close at the gutter's edge too).
+    if width >= RANK_W + LABEL_MIN + 2 * (1 + NUM_W) + RIGHT_GUTTER {
         return EagleColumns {
-            label_w: width - RANK_W - 2 * (1 + NUM_W),
+            label_w: width - RANK_W - 2 * (1 + NUM_W) - RIGHT_GUTTER,
             dl_w: NUM_W,
             ul_w: NUM_W,
             show_total: false,

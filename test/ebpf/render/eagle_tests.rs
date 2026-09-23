@@ -62,24 +62,97 @@ fn classic() -> FrameGeometry {
 }
 
 /// Full column set at a comfortable width, label absorbing the rest.
-/// NIGHT-boost-5: the reserve is rank(6) + 3 x (gap 1 + numeric 10),
-/// so a full row ends flush at the frame width; the fourth column is
-/// TOTAL (session-accumulated), not the old combined RATE.
+/// NIGHT-boost-5: the reserve is rank(6) + 3 x (gap 1 + numeric 10);
+/// NIGHT-engrave-4 adds the symmetric right gutter(2) to the reserve
+/// — a full row ends two columns short of the content inset (the
+/// border's fit() pads them), the mirror of the left gutter; the
+/// fourth column is TOTAL (session-accumulated), not the old
+/// combined RATE.
 #[test]
 fn eagle_columns_full_width() {
     let cols = plan_eagle_columns(100);
     assert!(cols.show_total);
     assert_eq!(cols.dl_w, 10);
-    assert_eq!(cols.label_w, 100 - 6 - 3 * 11);
+    assert_eq!(cols.label_w, 100 - 6 - 3 * 11 - 2);
 }
 
 /// TOTAL is the first column to go on narrow frames (full layout
-/// starts at width 51: 6 rank + 12 label + 3 x (gap + numeric)).
+/// starts at width 53 since NIGHT-engrave-4: 6 rank + 12 label +
+/// 3 x (gap + numeric) + 2 right gutter; it was 51 before the
+/// gutter — the boundary moved with the air it buys).
 #[test]
-fn eagle_columns_drop_total_below_51() {
-    let cols = plan_eagle_columns(50);
+fn eagle_columns_drop_total_below_53() {
+    // The exact boundary: 53 carries the TOTAL column.
+    let cols = plan_eagle_columns(53);
+    assert!(cols.show_total);
+    assert_eq!(cols.label_w, 53 - 6 - 3 * 11 - 2);
+    // One column short: TOTAL drops, the label re-absorbs.
+    let cols = plan_eagle_columns(52);
     assert!(!cols.show_total);
-    assert_eq!(cols.label_w, 50 - 6 - 2 * 11);
+    assert_eq!(cols.label_w, 52 - 6 - 2 * 11 - 2);
+}
+
+/// NIGHT-engrave-4's symmetric-rails contract, pinned on a rendered
+/// frame: the header's `top process` title starts at the frame's
+/// CANONICAL text column — the same two-column gutter every footer
+/// and note line uses — instead of floating six columns past the
+/// blank rank cell; the TOTAL column's figures end with the same
+/// two columns of air before the right rail that the left gutter
+/// gives the rank; and the data rows keep the classic rank shape
+/// (rank digits over their cell, 2-gap, label over its column).
+#[test]
+fn header_and_total_column_carry_symmetric_air() {
+    let mut lines = Vec::new();
+    render_eagle_eyes_at(
+        &mut lines,
+        &frame(7001, 1_400_000, 240_000),
+        &[],
+        &IdentityMap::new(),
+        None,
+        Duration::from_secs(1),
+        &mut SessionState::new(),
+        Duration::from_secs(70),
+        classic(),
+    );
+    let joined = lines.join("\n");
+    // The header: title at the canonical text column (rail + the
+    // 2-column gutter), NOT floating past the blank rank cell.
+    let header = lines
+        .iter()
+        .find(|l| l.contains("top process"))
+        .unwrap_or_else(|| panic!("no header row in: {joined}"));
+    assert!(
+        header.starts_with("│  top process"),
+        "engrave-4: the title starts at the canonical text column: {header}"
+    );
+    // The header's TOTAL title closes at the right gutter's edge —
+    // exactly two columns of air before the rail, never flush.
+    assert!(
+        header.ends_with("total  │"),
+        "engrave-4: two columns of air after the total title: {header}"
+    );
+    // The data row: same right gutter (exactly two air columns —
+    // `  │` but never `   │`), and the classic rank shape unchanged.
+    let rank1 = lines
+        .iter()
+        .find(|l| l.starts_with("│   1  "))
+        .unwrap_or_else(|| panic!("no rank-1 row in: {joined}"));
+    assert!(
+        rank1.ends_with("  │") && !rank1.ends_with("   │"),
+        "engrave-4: the TOTAL figures end at the gutter's edge, exactly two columns of air: {rank1}"
+    );
+    assert!(
+        rank1.contains("1.6 MB"),
+        "the session total still rides the row: {rank1}"
+    );
+    // The download/upload titles carry the same right-aligned
+    // numeric family (span check: header and data row end at the
+    // same column — one straight right edge, two columns off the
+    // rail).
+    assert!(
+        header.contains("download") && header.contains("upload"),
+        "numeric titles ride the header: {header}"
+    );
 }
 
 /// Ultra-narrow frames pin the label to the minimum and tighten
