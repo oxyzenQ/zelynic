@@ -355,3 +355,37 @@ fn quit_is_q_first_byte_only() {
     // Empty chunk: nothing drained, nothing quit.
     assert!(!quit_from_chunk(b""));
 }
+
+/// The theme-key routing (NIGHT-boost-18): 't' cycles forward, 'T'
+/// cycles back, on the same first-byte-only contract as the quit
+/// decision — a 't' riding inside a mouse SGR payload or an escape
+/// body never cycles anything, and every other byte stays inert.
+/// 'q' still wins the routing (the quit decision delegates through
+/// the pinned quit_from_chunk primitive).
+#[test]
+fn theme_keys_route_first_byte_only() {
+    use super::{input_action_from_chunk, InputAction};
+
+    // The two cycle keys.
+    assert_eq!(input_action_from_chunk(b"t"), InputAction::ThemeNext);
+    assert_eq!(input_action_from_chunk(b"T"), InputAction::ThemePrev);
+    // The quit key still routes as quit.
+    assert_eq!(input_action_from_chunk(b"q"), InputAction::Quit);
+    assert_eq!(input_action_from_chunk(b"quit"), InputAction::Quit);
+    // Everything else is inert: uppercase-lowercase neighbors,
+    // Ctrl+C, standalone ESC, escape-sequence heads.
+    assert_eq!(input_action_from_chunk(b"Q"), InputAction::None);
+    assert_eq!(input_action_from_chunk(b"r"), InputAction::None);
+    assert_eq!(input_action_from_chunk(&[0x03]), InputAction::None);
+    assert_eq!(input_action_from_chunk(&[0x1b]), InputAction::None);
+    assert_eq!(input_action_from_chunk(b"\x1b[A"), InputAction::None);
+    assert_eq!(
+        input_action_from_chunk(b"\x1b[<0;10;10M"),
+        InputAction::None
+    );
+    // A 't' inside an escape body is not a cycle — the head byte
+    // speaks, not the tail.
+    assert_eq!(input_action_from_chunk(b"\x1bt"), InputAction::None);
+    // Empty chunk: nothing drained, nothing asked.
+    assert_eq!(input_action_from_chunk(b""), InputAction::None);
+}

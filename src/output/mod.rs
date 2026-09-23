@@ -9,6 +9,9 @@
 //!   builder and wrapper (purple brand, green ok, red error, yellow
 //!   warn, crystal-white suggestion, calm grey, signature footer
 //!   colors)
+//! - [`theme`] — the eagle-eyes theme catalog (NIGHT-boost-18): six
+//!   palettes cycled with t/T inside the live monitor; the default
+//!   (netrunner) is byte-identical to the pre-theme constants
 //! - [`labeled`] — labeled error/warning stderr lines
 //! - [`sanitize`] — comm sanitization
 //! - this root — the broken-pipe-safe print macros, the JSON print
@@ -37,6 +40,7 @@
 //! behavior for closed readers.
 
 mod color;
+pub(crate) mod theme;
 
 // The `*_open()` escape builders stay color-internal: the wrapper
 // functions below are the crate's entire color API surface (nothing

@@ -262,6 +262,17 @@ under the title bar, and the grid under the column header is brand
 purple, same source as the header text above it. The census wording
 is `N packets + M cgroups` (a `+` join, never a dot).
 
+Theme cycling (NIGHT-boost-18, improve-27): `t` cycles the frame's
+palette forward, `T` cycles it back — six themes in total
+(`netrunner` the default, then `night_cyber`, `forest`,
+`spaceflight`, `carbon`, `atomic`), the cosmostrix cycle contract
+with modulo wraparound at both edges. A theme change repaints
+within the same 50ms wake and the title bar names the active theme
+(`… 1s refresh — atomic`) so the frame always says what it wears;
+the theme lives ONLY inside the monitor — every other zelynic
+surface (help, errors, status) keeps the default purple branding
+(see docs/BRANDING.md section 2.2 for the palette table).
+
 Dynamic screen size (NIGHT-boost-14): the loop probes the terminal
 geometry every 50ms wake and renders a change within one wake — not
 at the next refresh tick, so even `--interval 60` resizes instantly.
@@ -597,7 +608,8 @@ Press `q` — the only quit key (NIGHT-hunt-16). ESC was removed as a
 quit key in NIGHT-hunt-12 (escape sequences from arrows/mouse made
 accidental quits too easy); Ctrl+C quit was removed in NIGHT-hunt-16
 for the same single-key contract as htop/vim — the title bar says
-"q quit" and nothing else quits.
+"q quit" and nothing else quits. The `t`/`T` keys (NIGHT-boost-18)
+cycle the monitor's theme — action keys, never quit keys.
 
 **Can I select and copy/paste text while the monitor runs?**
 No — box mode takes the pointer AND kills terminal-side selections on

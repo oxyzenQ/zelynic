@@ -22,6 +22,14 @@
 //! ("tip:", "hint:", did-you-mean, possible-value lists) render white —
 //! distinct from the error they are embedded in, so a typo tip never
 //! drowns in red. Status green (#50FA7B) stays for affirmative verdicts.
+//!
+//! NIGHT-boost-18: the five THEMEABLE slots (brand, ok, warn, hot,
+//! grey) route through the active theme in [`super::theme`] — the
+//! eagle-eyes monitor cycles it with t/T, and the default
+//! (netrunner) is byte-identical to the constants this file carried
+//! before themes existed. Error red and suggestion white stay
+//! hardwired: they belong to the CLI error surface, which never
+//! themes.
 
 use std::io::IsTerminal;
 use std::sync::OnceLock;
@@ -84,7 +92,7 @@ const GREY_RGB: (u8, u8, u8) = (139, 139, 139);
 
 /// Terminal color capability, detected once and cached for the process.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum ColorCapability {
+pub(crate) enum ColorCapability {
     /// No color support — plain text, no ANSI escapes.
     Mono,
     /// Basic 16-color ANSI palette (VT100 era).
@@ -154,55 +162,41 @@ fn detect_capability() -> ColorCapability {
 
 /// Get the cached color capability. The environment probe runs at most
 /// once per process (memoized in a `OnceLock`).
-fn capability() -> ColorCapability {
+pub(crate) fn capability() -> ColorCapability {
     static CAP: OnceLock<ColorCapability> = OnceLock::new();
     *CAP.get_or_init(detect_capability)
 }
 
 // ── Capability-aware escape sequences ──────────────────────────────────────
+//
+// The five themeable slots route through the ACTIVE theme
+// (NIGHT-boost-18); error red and suggestion white stay hardwired
+// below — the CLI error surface never themes.
 
-/// Brand purple open sequence, capability-aware.
+/// Brand open sequence for the active theme, capability-aware.
 #[must_use]
 pub fn brand_open() -> &'static str {
-    match capability() {
-        ColorCapability::TrueColor => "\x1b[38;2;168;85;247m",
-        ColorCapability::Color256 => "\x1b[38;5;135m",
-        ColorCapability::Color16 => "\x1b[35m",
-        ColorCapability::Mono => "",
-    }
+    super::theme::escape(super::theme::Slot::Brand, false)
 }
 
-/// Bold brand purple open sequence, capability-aware.
+/// Bold brand open sequence for the active theme, capability-aware.
 #[must_use]
 pub fn brand_bold_open() -> &'static str {
-    match capability() {
-        ColorCapability::TrueColor => "\x1b[1;38;2;168;85;247m",
-        ColorCapability::Color256 => "\x1b[1;38;5;135m",
-        ColorCapability::Color16 => "\x1b[1;35m",
-        ColorCapability::Mono => "",
-    }
+    super::theme::escape(super::theme::Slot::Brand, true)
 }
 
-/// Status green open sequence (regular weight), capability-aware.
+/// Status green open sequence for the active theme (regular weight),
+/// capability-aware.
 #[must_use]
 pub fn ok_open() -> &'static str {
-    match capability() {
-        ColorCapability::TrueColor => "\x1b[38;2;80;250;123m",
-        ColorCapability::Color256 => "\x1b[38;5;84m",
-        ColorCapability::Color16 => "\x1b[32m",
-        ColorCapability::Mono => "",
-    }
+    super::theme::escape(super::theme::Slot::Ok, false)
 }
 
-/// Bold status green open sequence, capability-aware.
+/// Bold status green open sequence for the active theme,
+/// capability-aware.
 #[must_use]
 pub fn ok_bold_open() -> &'static str {
-    match capability() {
-        ColorCapability::TrueColor => "\x1b[1;38;2;80;250;123m",
-        ColorCapability::Color256 => "\x1b[1;38;5;84m",
-        ColorCapability::Color16 => "\x1b[1;32m",
-        ColorCapability::Mono => "",
-    }
+    super::theme::escape(super::theme::Slot::Ok, true)
 }
 
 /// Error red open sequence (regular weight), capability-aware.
@@ -227,29 +221,21 @@ pub fn error_bold_open() -> &'static str {
     }
 }
 
-/// Warning yellow open sequence (regular weight), capability-aware.
+/// Warning yellow open sequence for the active theme (regular
+/// weight), capability-aware.
 ///
 /// Used by the labeled warning renderer (ebpf-gated call sites).
 #[cfg(feature = "ebpf")]
 #[must_use]
 pub fn warn_open() -> &'static str {
-    match capability() {
-        ColorCapability::TrueColor => "\x1b[38;2;255;235;60m",
-        ColorCapability::Color256 => "\x1b[38;5;220m",
-        ColorCapability::Color16 => "\x1b[33m",
-        ColorCapability::Mono => "",
-    }
+    super::theme::escape(super::theme::Slot::Warn, false)
 }
 
-/// Bold warning yellow open sequence, capability-aware.
+/// Bold warning yellow open sequence for the active theme,
+/// capability-aware.
 #[must_use]
 pub fn warn_bold_open() -> &'static str {
-    match capability() {
-        ColorCapability::TrueColor => "\x1b[1;38;2;255;235;60m",
-        ColorCapability::Color256 => "\x1b[1;38;5;220m",
-        ColorCapability::Color16 => "\x1b[1;33m",
-        ColorCapability::Mono => "",
-    }
+    super::theme::escape(super::theme::Slot::Warn, true)
 }
 
 /// Suggestion crystal-white open sequence, capability-aware.
@@ -375,16 +361,11 @@ pub fn suggestion(msg: &str) -> String {
 // owner's eye-strain call): rank 1 champion red, rank 2 warn yellow,
 // rank 3 and below status green — no animation anywhere.
 
-/// Champion red open sequence, capability-aware.
+/// Champion red open sequence for the active theme, capability-aware.
 #[cfg(feature = "ebpf")]
 #[must_use]
 pub fn hot_open() -> &'static str {
-    match capability() {
-        ColorCapability::TrueColor => "\x1b[38;2;255;59;48m",
-        ColorCapability::Color256 => "\x1b[38;5;196m",
-        ColorCapability::Color16 => "\x1b[91m",
-        ColorCapability::Mono => "",
-    }
+    super::theme::escape(super::theme::Slot::Hot, false)
 }
 
 /// Wrap `msg` in champion red (the solid crown). Plain text when off.
@@ -403,16 +384,11 @@ pub fn hot(msg: &str) -> String {
 // pinned-footer line except the purple copyright. Grey says
 // "context, not content".
 
-/// Calm grey open sequence, capability-aware.
+/// Calm grey open sequence for the active theme, capability-aware.
 #[cfg(feature = "ebpf")] // only the eagle-eyes renderer paints the grey tier
 #[must_use]
 pub fn grey_open() -> &'static str {
-    match capability() {
-        ColorCapability::TrueColor => "\x1b[38;2;139;139;139m",
-        ColorCapability::Color256 => "\x1b[38;5;245m",
-        ColorCapability::Color16 => "\x1b[90m",
-        ColorCapability::Mono => "",
-    }
+    super::theme::escape(super::theme::Slot::Grey, false)
 }
 
 /// Wrap `msg` in calm grey. Plain text when off.
