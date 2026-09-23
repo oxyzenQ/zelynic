@@ -242,6 +242,10 @@ fn frame_bench_eagle() {
             Some(&conns),
             Duration::from_secs(1),
             &mut session,
+            // Pinned uptime (NIGHT-boost-17): a FIXED 90s so A/B
+            // captures stay byte-comparable across layout changes —
+            // a live clock would drift the footer text between runs.
+            Duration::from_secs(90),
         );
         println_safe!("###FRAME###");
         for line in &lines {

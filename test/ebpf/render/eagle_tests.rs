@@ -132,6 +132,7 @@ fn rank_is_the_session_accumulation() {
         None,
         Duration::from_secs(1),
         &mut session,
+        Duration::from_secs(70),
         classic(),
     );
     let joined = lines.join("\n");
@@ -183,6 +184,7 @@ fn quiet_frame_holds_the_board() {
         None,
         Duration::from_secs(1),
         &mut session,
+        Duration::from_secs(70),
         classic(),
     );
     assert!(lines.iter().any(|l| l.contains("cg:7001")));
@@ -197,6 +199,7 @@ fn quiet_frame_holds_the_board() {
         None,
         Duration::from_secs(1),
         &mut session,
+        Duration::from_secs(70),
         classic(),
     );
     let quiet_row = quiet
@@ -238,6 +241,7 @@ fn takeover_recrowns_rank1() {
         None,
         Duration::from_secs(1),
         &mut session,
+        Duration::from_secs(70),
         classic(),
     );
     // B accumulates past A.
@@ -250,6 +254,7 @@ fn takeover_recrowns_rank1() {
         None,
         Duration::from_secs(1),
         &mut session,
+        Duration::from_secs(70),
         classic(),
     );
     let rank1 = lines
@@ -335,6 +340,7 @@ fn name_targets_expand_and_misses_note() {
         None,
         Duration::from_secs(1),
         &mut SessionState::new(),
+        Duration::from_secs(70),
         classic(),
     );
     let joined = lines.join("\n");
@@ -390,6 +396,7 @@ fn single_resolved_target_takes_focus_view() {
         None,
         Duration::from_secs(1),
         &mut SessionState::new(),
+        Duration::from_secs(70),
         classic(),
     );
     let joined = lines.join("\n");

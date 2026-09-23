@@ -119,6 +119,10 @@ fn resolve_targets(tokens: &[Target], identity: &IdentityMap) -> (Vec<u32>, Vec<
 /// quiet frames, and the TOTAL column carrying the accumulated
 /// figure. Since NIGHT-boost-14 the frame is pinned to the full
 /// terminal height with the grip footer near the bottom.
+///
+/// `uptime` (NIGHT-boost-17): the session age, grey `uptime 1m:10s`
+/// below the footer block in every compression tier.
+#[allow(clippy::too_many_arguments)]
 pub fn render_eagle_eyes(
     lines: &mut Vec<String>,
     summary: &CounterSummary,
@@ -127,10 +131,11 @@ pub fn render_eagle_eyes(
     conns: Option<&ConnectionMap>,
     interval: Duration,
     session: &mut SessionState,
+    uptime: Duration,
 ) {
     let geo = FrameGeometry::probe();
     render_eagle_eyes_at(
-        lines, summary, tokens, identity, conns, interval, session, geo,
+        lines, summary, tokens, identity, conns, interval, session, uptime, geo,
     );
 }
 
@@ -147,6 +152,7 @@ pub(super) fn render_eagle_eyes_at(
     conns: Option<&ConnectionMap>,
     interval: Duration,
     session: &mut SessionState,
+    uptime: Duration,
     geo: FrameGeometry,
 ) {
     let cols = plan_eagle_columns(geo.width);
@@ -160,7 +166,9 @@ pub(super) fn render_eagle_eyes_at(
 
     // Single token, single cgroup: the deep focus view.
     if tokens.len() == 1 && ids.len() == 1 && unresolved.is_empty() {
-        render_eagle_focus(lines, summary, identity, conns, ids[0], interval, geo);
+        render_eagle_focus(
+            lines, summary, identity, conns, ids[0], interval, uptime, geo,
+        );
         return;
     }
 
@@ -173,10 +181,8 @@ pub(super) fn render_eagle_eyes_at(
         format!("zelynic eagle-eyes — {interval_str}")
     } else {
         let n = ids.len();
-        format!(
-            "zelynic eagle-eyes — {n} target{} — {interval_str}",
-            if n == 1 { "" } else { "s" }
-        )
+        let plural = if n == 1 { "" } else { "s" };
+        format!("zelynic eagle-eyes — {n} target{plural} — {interval_str}")
     };
     lines.push(title_bar(&title_core, "q quit", geo.width));
 
@@ -238,15 +244,10 @@ pub(super) fn render_eagle_eyes_at(
     });
 
     // Footer honesty (NIGHT-hunt-15): every candidate counts, not
-    // just the rows the window budget could show — the rates sum
-    // this frame's deltas over the whole (filtered) summary, and the
-    // TOTAL sums the session leaderboard's grand total over the same
-    // set. All four sums are SATURATING (NIGHT-boost-16, the
-    // accumulate-explosion audit): a debug build used to panic the
-    // frame the moment any leg crossed u64::MAX, and a release build
-    // wrapped — the footer would report a tiny grand total over a
-    // saturated session. Saturated sums read as u64::MAX — the
-    // honest ceiling of the u64 accumulator.
+    // just the rows the window budget could show. All four sums are
+    // SATURATING (NIGHT-boost-16): a debug build used to panic at
+    // u64::MAX and a release build wrapped — saturated sums read as
+    // u64::MAX, the honest ceiling of the u64 accumulator.
     let candidates: Vec<&CgroupDelta> = if tokens.is_empty() {
         summary.cgroups.iter().collect()
     } else {
@@ -300,6 +301,7 @@ pub(super) fn render_eagle_eyes_at(
             identities_unresolved: identity.is_empty(),
             top_proc_name,
             unfiltered: tokens.is_empty(),
+            uptime,
         },
         &cols,
         geo,
@@ -453,9 +455,8 @@ fn render_eagle_row(
     rank: usize,
 ) {
     let label = truncate_label(&label_with_count(identity, conns, cgroup_id), cols.label_w);
-    // Saturating session sum (NIGHT-boost-16): the TOTAL cell used
-    // to be a plain `dl + ul` — a saturated session panicked debug
-    // builds and wrapped release builds' rank rows.
+    // Saturating session sum (NIGHT-boost-16): saturation, not
+    // panic or wrap, in the TOTAL cell.
     let session_total = acc.dl.saturating_add(acc.ul);
     let body = if cols.show_total {
         format!(

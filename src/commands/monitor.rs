@@ -238,6 +238,11 @@ pub fn handle_eagle_eyes(
     let mut conns = ConnectionMap::new();
     let mut session = SessionState::new();
     let interval = Duration::from_secs(interval_secs);
+    // The session clock (NIGHT-boost-17, improve-27): starts at
+    // monitor launch, reads out as the grey `uptime 1m:10s` line
+    // below the footer on every frame — the horizon the leaderboard's
+    // accumulated totals span.
+    let started = std::time::Instant::now();
     terminal::run_alt(interval, |lines| {
         // One-frame tolerance, not a swallow bug (NIGHT-optimized-2
         // audit): the opening poll below hard-failed on any broken
@@ -258,6 +263,7 @@ pub fn handle_eagle_eyes(
             Some(&conns),
             interval,
             &mut session,
+            started.elapsed(),
         );
     });
 

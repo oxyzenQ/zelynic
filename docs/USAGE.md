@@ -248,7 +248,11 @@ table does — the TOTAL row framed by two purple grid lines, the
 packets/cgroups census under its own-width grip, the "Top consumer"
 autodetect (the busiest process inside the rank-1 cgroup, its name
 green) under its own grip, the exact `strict-single` command to cap
-it, and the signature copyright last. All footer text renders calm
+it, and the signature copyright with the session uptime below it
+(NIGHT-boost-17: `uptime 1m:10s`, auto-scaled to the two most
+significant units — `45s`, `12m:34s`, `3h:7m`, `2d:5h` — grey like
+the rest of the subordinate block, riding EVERY compression tier:
+long endurance is survival information). All footer text renders calm
 grey except the purple copyright — subordinate information reads
 dimmer than the data it annotates. The tiers are a STATIC traffic
 light (the takeover blink is gone — eye strain): rank 1 champion

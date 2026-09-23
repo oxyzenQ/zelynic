@@ -21,6 +21,13 @@
 //! Limit it: sudo zelynic strict-single example 100kb  <- grey
 //! ```
 //!
+//! NIGHT-boost-17 (improve-27): one more line below the whole block
+//! — the monitor's session uptime (`uptime 1m:10s`, grey, formatted
+//! by the render root's `format_uptime`). It rides EVERY tier: long
+//! endurance is survival information, not decoration, so the
+//! compression ladder budgets for it everywhere (each tier's line
+//! count grew by one).
+//!
 //! Three contracts live here:
 //! - **The tiers**: the compression ladder short terminals walk down
 //!   (blanks drop, then the grips, then the discovery hints) so the
@@ -35,7 +42,7 @@
 
 use std::time::Duration;
 
-use super::{format_rate_or_dash, rate_bps, EagleColumns, FrameGeometry};
+use super::{format_rate_or_dash, format_uptime, rate_bps, EagleColumns, FrameGeometry};
 use crate::ebpf::limiter::format_bytes;
 use crate::output::{brand, grey, ok, signature_footer};
 
@@ -44,22 +51,26 @@ use crate::output::{brand, grey, ok, signature_footer};
 /// line under the header.
 pub(super) const TOP_CHROME: usize = 4;
 
-/// Compression tiers for the pinned footer (NIGHT-boost-14). The
-/// owner's grip layout in full is 11 lines; short terminals drop
-/// the breathing blanks first, then the grips, then the discovery
-/// hints and the second TOTAL grid — the census and the copyright
-/// are the last two survivors, in every tier.
+/// Compression tiers for the pinned footer (NIGHT-boost-14; the
+/// NIGHT-boost-17 uptime line rides every tier, so each count grew
+/// by one). The owner's grip layout in full is 12 lines; short
+/// terminals drop the breathing blanks first, then the grips, then
+/// the discovery hints and the second TOTAL grid — the census, the
+/// copyright, and the uptime are the last three survivors, in every
+/// tier.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum FooterTier {
     /// sep, TOTAL, sep, blank, packets, grip, top, grip, limit,
-    /// blank, copyright — the owner's exact spec.
+    /// blank, copyright, uptime — the owner's exact spec plus the
+    /// boost-17 uptime line.
     Full,
     /// Blanks and grips gone: sep, TOTAL, sep, packets, top, limit,
-    /// copyright.
+    /// copyright, uptime.
     Compact,
-    /// Discovery hints gone too: sep, TOTAL, sep, packets, copyright.
+    /// Discovery hints gone too: sep, TOTAL, sep, packets,
+    /// copyright, uptime.
     Minimal,
-    /// The survival floor: sep, TOTAL, packets, copyright.
+    /// The survival floor: sep, TOTAL, packets, copyright, uptime.
     Tiny,
 }
 
@@ -69,10 +80,10 @@ impl FooterTier {
     /// which only adds middle padding; the pin stays exact).
     fn lines(self) -> usize {
         match self {
-            FooterTier::Full => 11,
-            FooterTier::Compact => 7,
-            FooterTier::Minimal => 5,
-            FooterTier::Tiny => 4,
+            FooterTier::Full => 12,
+            FooterTier::Compact => 8,
+            FooterTier::Minimal => 6,
+            FooterTier::Tiny => 5,
         }
     }
 }
@@ -135,6 +146,9 @@ pub(super) struct FooterCensus {
     pub top_proc_name: Option<String>,
     /// Whether the frame is unfiltered (hints render only there).
     pub unfiltered: bool,
+    /// The monitor's session uptime (NIGHT-boost-17) — rendered as
+    /// the line BELOW the whole footer block, in every tier.
+    pub uptime: Duration,
 }
 
 /// Assemble the grip footer (NIGHT-boost-14): TOTAL framed by purple
@@ -219,6 +233,14 @@ pub(super) fn build_grip_footer(
         footer.push(String::new());
     }
     footer.push(format!("  {}", signature_footer()));
+    // The uptime line (NIGHT-boost-17, improve-27): BELOW the footer,
+    // the frame's final row, grey like the rest of the subordinate
+    // block. Long-endurance reading: how long this leaderboard's
+    // horizon spans. Rides every tier — see the module doc.
+    footer.push(format!(
+        "  {}",
+        grey(&format!("uptime {}", format_uptime(census.uptime)))
+    ));
     footer
 }
 
