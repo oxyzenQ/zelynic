@@ -69,6 +69,48 @@ fn escape_hatch_is_honest(argv: &[OsString], token: &str) -> bool {
     })
 }
 
+/// The subcommand the parser had descended into when it died, by
+/// walking argv the way the parser descends.
+///
+/// Every zelynic top-level flag is boolean (help, version,
+/// check-update, verbose, print-json — none takes a value), so the
+/// walk is exact for this tree: skip the leading flags, and the
+/// first bare token is either the subcommand the parser descended
+/// into or the unrecognized name it died on. The walk stops at the
+/// failing token's position — tokens after it never had a parser
+/// look at them, so `zelynic --verbos doctor` died at `--verbos`
+/// and never reached `doctor` — and at a `--`, because nothing after
+/// a double dash can start a subcommand.
+///
+/// Returns the matched subcommand cloned (name or alias —
+/// `find_subcommand` matches both), or `None` for a top-level
+/// death: the root usage is the right usage there.
+pub(crate) fn failing_subcommand(
+    root: &clap::builder::Command,
+    argv: &[OsString],
+    failing_token: Option<&str>,
+) -> Option<clap::builder::Command> {
+    let stop_at = failing_token.and_then(|token| token_positions(argv, token).first().copied());
+    for (i, arg) in argv.iter().enumerate().skip(1) {
+        if let Some(stop) = stop_at {
+            if i >= stop {
+                break;
+            }
+        }
+        let Some(word) = arg.to_str() else {
+            break; // non-UTF-8 cannot name a subcommand
+        };
+        if word == "--" {
+            break; // nothing after -- starts a subcommand
+        }
+        if word.starts_with('-') {
+            continue; // boolean top-level flag
+        }
+        return root.find_subcommand(word).cloned();
+    }
+    None
+}
+
 /// Remove the escape-hatch tip the probe disproves.
 ///
 /// Fires only for UnknownArgument errors that still carry the

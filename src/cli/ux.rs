@@ -320,16 +320,34 @@ pub(crate) fn exit_clap_error(e: clap::Error) -> ! {
     let mut e = e;
     let mut cmd = Cli::command();
     let argv: Vec<OsString> = std::env::args_os().collect();
+    // Captured BEFORE enrichment: only clap's OWN suggestion narrows
+    // the native usage (the parser adds the suggested flag to its
+    // matcher, and `create_usage_with_title(&used)` then renders it
+    // into the usage line as if it were required) — the suggestions
+    // this bridge injects afterwards never touch the matcher.
+    let native_usage_narrowed = e.get(ContextKind::SuggestedArg).is_some();
     enrich_unknown_arg_suggestion(&mut e, &cmd);
     enrich_removed_subcommand_redirect(&mut e);
     enrich_subcommand_flag_redirect(&mut e, &cmd);
     drop_dishonest_escape_hatch(&mut e, &argv);
 
-    // Replace (or add) the usage context with the real full usage —
-    // clap's RichFormatter renders the Usage context verbatim, and
-    // suggestion-carrying errors otherwise show the narrowed usage.
-    let real_usage = cmd.render_usage();
-    e.insert(ContextKind::Usage, ContextValue::StyledStr(real_usage));
+    // Usage context: the native usage is already the failing
+    // command's own (clap renders the subcommand's usage for
+    // subcommand-level deaths), so it stays — NIGHT-boost-13 ended
+    // the unconditional top-level replacement that flattened every
+    // subcommand error onto "zelynic [OPTIONS] [COMMAND]", a line
+    // that says nothing about the command that failed. Only the
+    // narrowed usage is regenerated (from the failing command, by
+    // walking argv the way the parser descends), and a missing
+    // usage context is filled the same way.
+    if native_usage_narrowed || e.get(ContextKind::Usage).is_none() {
+        let failing_token = match e.get(ContextKind::InvalidArg) {
+            Some(ContextValue::String(s)) => Some(s.clone()),
+            _ => None,
+        };
+        let usage = failing_command_usage(&mut cmd, &argv, failing_token.as_deref());
+        e.insert(ContextKind::Usage, ContextValue::StyledStr(usage));
+    }
 
     // Re-render with the command's styles applied, then print to the
     // error's own stream (stderr for error kinds). Broken pipe is
@@ -341,6 +359,29 @@ pub(crate) fn exit_clap_error(e: clap::Error) -> ! {
 
     eprintln_safe!("\n{HELP_FOOTER}");
     std::process::exit(2);
+}
+
+/// The full usage line of the command the error belongs to (the
+/// regenerated-usage arm of the bridge, NIGHT-boost-13).
+///
+/// The failing subcommand is found by walking argv the way the
+/// parser descends (see [`crate::cli::argv::failing_subcommand`]);
+/// its usage renders under the canonical bin name `zelynic <name>`
+/// — the same shape clap itself renders for subcommand deaths — so
+/// the regenerated line and the native line agree byte-for-byte. A
+/// top-level death gets the root usage.
+fn failing_command_usage(
+    root: &mut clap::builder::Command,
+    argv: &[OsString],
+    failing_token: Option<&str>,
+) -> clap::builder::StyledStr {
+    match super::argv::failing_subcommand(root, argv, failing_token) {
+        Some(sub) => {
+            let bin = format!("zelynic {}", sub.get_name());
+            sub.bin_name(bin).render_usage()
+        }
+        None => root.render_usage(),
+    }
 }
 
 // ── Value suggestion tips (rates + durations) ──────────────────────────────

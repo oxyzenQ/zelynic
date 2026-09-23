@@ -66,7 +66,64 @@ fn probe_declines_to_judge_tokens_argv_lacks() {
     );
 }
 
-// ── drop_dishonest_escape_hatch (against the real CLI) ────────────
+// ── failing_subcommand (the parser-descent walk) ───────────────────
+
+/// The walk matches subcommand ALIASES: 'ss' is strict-single's
+/// short form, and the failing command is the same command either
+/// way.
+#[test]
+fn walk_resolves_aliases_to_the_canonical_command() {
+    use clap::CommandFactory;
+    let root = crate::cli::Cli::command();
+    let sub = failing_subcommand(
+        &root,
+        &argv(&["zelynic", "-v", "ss", "brave", "550kb", "-i"]),
+        Some("-i"),
+    )
+    .expect("ss must resolve");
+    assert_eq!(sub.get_name(), "strict-single");
+}
+
+/// Tokens after the failing token never had a parser look at them:
+/// the walk must stop at the failure, not misattribute a top-level
+/// death to a subcommand named later.
+#[test]
+fn walk_stops_at_the_failing_token() {
+    use clap::CommandFactory;
+    let root = crate::cli::Cli::command();
+    assert!(
+        failing_subcommand(
+            &root,
+            &argv(&["zelynic", "--verbos", "doctor"]),
+            Some("--verbos")
+        )
+        .is_none(),
+        "a death before the subcommand token is a top-level death"
+    );
+}
+
+/// Nothing after a `--` can start a subcommand.
+#[test]
+fn walk_never_crosses_the_double_dash() {
+    use clap::CommandFactory;
+    let root = crate::cli::Cli::command();
+    assert!(
+        failing_subcommand(&root, &argv(&["zelynic", "--", "ss"]), None).is_none(),
+        "post-double-dash tokens are values, not subcommands"
+    );
+}
+
+/// An unrecognized subcommand name is a top-level death: the walk
+/// returns None and the root usage is the right usage.
+#[test]
+fn walk_returns_none_for_unrecognized_names() {
+    use clap::CommandFactory;
+    let root = crate::cli::Cli::command();
+    assert!(
+        failing_subcommand(&root, &argv(&["zelynic", "stat"]), Some("stat")).is_none(),
+        "the walk only resolves real subcommands"
+    );
+}
 
 /// The gate removes exactly the Suggested context the probe
 /// convicted — no SuggestedArg is invented, the error kind and the
