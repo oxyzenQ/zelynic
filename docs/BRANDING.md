@@ -99,10 +99,16 @@ numerics, and no per-cell noise (values are never packed as
   the window IS the budget) so frames never scroll.
 - Refresh cadence: `--interval` (1s..60s, default 1s — realtime
   precision); the RATE column divides deltas by exactly that interval.
-- Eagle-eyes detail (NIGHT-hunt-8): multi-tenant cgroups carry a
-  `+N` process suffix — `cg:73386 (alacritty +3)` — and up to three
-  indented detail lines naming the socket-holding processes inside:
-  `    └ curl (4242) → 142.250.191.78:443`. UDP endpoints are tagged
+- Eagle-eyes detail (NIGHT-hunt-8; the two-level tree of
+  NIGHT-boost-21): multi-tenant cgroups carry a
+  `+N` process suffix — `cg:73386 (alacritty +3)` — and up to four
+  detail lines naming the socket-holding processes inside. A
+  one-socket process renders inline:
+  `    └ curl (4242) → 142.250.191.78:443`; a multi-socket process
+  expands its endpoints as indented children under a count-carrying
+  header: `    └ firefox (4242) 3 sockets:` with `├`/`└` endpoint
+  children (two shown in the ranked table, all of them in the focus
+  view). UDP endpoints are tagged
   (`udp 8.8.8.8:53`), busy sockets flagged `[busy]`; remaining
   holders collapse into `+N more socket-holding processes`. Detail
   lines count against the height budget so frames never scroll.

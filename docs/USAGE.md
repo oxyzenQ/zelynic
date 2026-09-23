@@ -243,6 +243,19 @@ rates and its accumulated TOTAL — no more collapsing to "waiting
 for traffic..." once traffic has been seen), with per-cgroup detail
 lines naming the processes and remote endpoints inside.
 
+Subprocess detail is a two-level TREE (NIGHT-boost-21): a process
+holding one live socket renders inline (`└ curl (4242) →
+10.90.170.143:443`); a multi-socket process expands its endpoints
+as indented children under a header that carries the socket count
+(`└ firefox (4242) 3 sockets:` with `├`/`└` endpoint lines). The
+ranked table caps each expansion at two children — the socket walk
+sorts established-first, queued-first, so the two shown are the
+live ones, the header's count carries the scale, and the total
+detail budget stays at the flat list's four lines per row (overflow
+folds into the `+N more socket-holding processes` summary). The
+focus view (one target, one cgroup) expands every endpoint — the
+deep answer to "who exactly is talking inside this cgroup".
+
 The frame is a PINNED composition (NIGHT-boost-14, the owner's
 masterclass engraving): the table floats under the header and the
 grip footer stays near the bottom of the terminal whatever the

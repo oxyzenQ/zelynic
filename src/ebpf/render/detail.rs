@@ -6,13 +6,36 @@
 //! rendered under monitor rows. Shared by the eagle-eyes renderers
 //! (ranked table + focus view); the single-cgroup focus view uses
 //! the uncapped variant.
+//!
+//! NIGHT-boost-21 (the tree subprocess pass): the detail lines grew
+//! into a two-level TREE — process headers with their remote
+//! endpoints as indented children (`├` mid-list, `└` last), sharp
+//! and simple. One-socket processes stay inline (a child line that
+//! only restates its parent is waste); multi-socket processes
+//! expand. The eagle view caps each expansion at two children — the
+//! socket table sorts established-first, queued-first, so the two
+//! shown are the live ones and the header's socket count carries
+//! the scale — while the focus view expands every endpoint (the
+//! "who exactly" view). The eagle budget is unchanged: at most
+//! [`DETAIL_LINE_CAP`] lines per row, the same four the flat list
+//! spent (three process lines plus one summary).
 
-use crate::ebpf::connections::{ConnectionMap, Proto, SocketInfo};
+use crate::ebpf::connections::{ConnectionMap, ProcessDetail, Proto, SocketInfo};
 use crate::ebpf::identity::IdentityMap;
 
-/// Detail lines rendered under one monitor row per socket-holding
-/// process (NIGHT-hunt-8 eagle eyes).
-const DETAIL_PROC_CAP: usize = 3;
+/// Total detail lines one eagle-eyes row may grow (NIGHT-boost-21):
+/// the flat contract spent three process lines plus one summary; the
+/// tree spends the same four — a multi-socket process expanded
+/// (header + two endpoint children) plus an inline neighbor, or any
+/// mix that fits, overflow folded into the summary line.
+const DETAIL_LINE_CAP: usize = 4;
+
+/// Endpoint children one expanded process shows under its header in
+/// the eagle view (NIGHT-boost-21): two — the socket table sorts
+/// established first, queued first, so the two shown are the live
+/// ones; the header's socket count carries the rest, and the focus
+/// view names every endpoint when the detail matters.
+const ENDPOINT_SHOWN: usize = 2;
 
 /// Identity label enriched with the cgroup's process count:
 /// `cg:73386 (alacritty +3)` when more than one process lives there.
@@ -84,10 +107,38 @@ fn is_displayable(socket: &SocketInfo) -> bool {
     }
 }
 
-/// Detail lines for one cgroup row (NIGHT-hunt-8): the actual
-/// processes holding network sockets inside the cgroup, first
-/// endpoint inline, capped at DETAIL_PROC_CAP process lines plus one
-/// summary line.
+/// One process's eagle-eyes tree lines (NIGHT-boost-21): inline when
+/// it holds a single displayable endpoint, header plus capped
+/// children when more. The header carries the socket count, so a
+/// truncated expansion still says its scale.
+fn eagle_holder_lines(proc: &ProcessDetail, endpoints: &[&SocketInfo]) -> Vec<String> {
+    if endpoints.len() == 1 {
+        return vec![format!(
+            "    └ {} ({}) → {}",
+            proc.comm,
+            proc.pid,
+            endpoint_text(endpoints[0])
+        )];
+    }
+    let mut out = Vec::with_capacity(1 + ENDPOINT_SHOWN);
+    out.push(format!(
+        "    └ {} ({}) {} sockets:",
+        proc.comm,
+        proc.pid,
+        endpoints.len()
+    ));
+    let shown = endpoints.len().min(ENDPOINT_SHOWN);
+    for (i, socket) in endpoints.iter().take(shown).enumerate() {
+        let branch = if i + 1 == shown { "└" } else { "├" };
+        out.push(format!("        {branch} {}", endpoint_text(socket)));
+    }
+    out
+}
+
+/// Detail lines for one cgroup row (NIGHT-hunt-8, tree shape since
+/// NIGHT-boost-21): the processes holding network sockets inside the
+/// cgroup, multi-socket holders expanded into endpoint children,
+/// capped at [`DETAIL_LINE_CAP`] lines including the summary.
 #[must_use]
 pub(crate) fn detail_lines(conns: Option<&ConnectionMap>, cgroup_id: u32) -> Vec<String> {
     let mut lines = Vec::new();
@@ -98,34 +149,37 @@ pub(crate) fn detail_lines(conns: Option<&ConnectionMap>, cgroup_id: u32) -> Vec
         return lines;
     };
 
-    let mut holders_shown = 0;
-    for proc in &detail.socket_holders {
-        if holders_shown >= DETAIL_PROC_CAP {
-            break;
-        }
-        let endpoints: Vec<_> = proc.sockets.iter().filter(|s| is_displayable(s)).collect();
-        if endpoints.is_empty() {
-            continue; // listener-only process: not traffic, not news
-        }
-        let mut line = format!(
-            "    └ {} ({}) → {}",
-            proc.comm,
-            proc.pid,
-            endpoint_text(endpoints[0])
-        );
-        if endpoints.len() > 1 {
-            line.push_str(&format!(" +{} more", endpoints.len() - 1));
-        }
-        lines.push(line);
-        holders_shown += 1;
-    }
-
-    let remaining = detail
+    // Holders with at least one traffic-bearing socket, in the
+    // refresh sort order (most sockets, any-queued, pid).
+    let holders: Vec<(&ProcessDetail, Vec<&SocketInfo>)> = detail
         .socket_holders
         .iter()
-        .filter(|p| p.sockets.iter().any(is_displayable))
-        .count()
-        .saturating_sub(holders_shown);
+        .map(|p| {
+            let eps: Vec<&SocketInfo> = p.sockets.iter().filter(|s| is_displayable(s)).collect();
+            (p, eps)
+        })
+        .filter(|(_, eps)| !eps.is_empty())
+        .collect();
+
+    // Compose within DETAIL_LINE_CAP lines, summary included: the
+    // summary slot is reserved while unshown holders remain, so the
+    // overflow note can never push the block past the budget the
+    // flat list kept (three holders plus one summary line).
+    let mut shown = 0usize;
+    for (proc, endpoints) in &holders {
+        let cost = if endpoints.len() > 1 {
+            1 + endpoints.len().min(ENDPOINT_SHOWN)
+        } else {
+            1
+        };
+        let summary_slot = usize::from(shown + 1 < holders.len());
+        if lines.len() + cost + summary_slot > DETAIL_LINE_CAP {
+            break;
+        }
+        lines.extend(eagle_holder_lines(proc, endpoints));
+        shown += 1;
+    }
+    let remaining = holders.len().saturating_sub(shown);
     if remaining > 0 {
         lines.push(format!("    └ +{remaining} more socket-holding processes"));
     }
@@ -133,9 +187,10 @@ pub(crate) fn detail_lines(conns: Option<&ConnectionMap>, cgroup_id: u32) -> Vec
     lines
 }
 
-/// Uncapped detail view for the single-cgroup monitor (NIGHT-hunt-8):
-/// every socket-holding process, first two endpoints inline, the rest
-/// counted. Answers "who exactly is talking inside this cgroup".
+/// Uncapped detail view for the single-cgroup monitor (NIGHT-hunt-8,
+/// full tree since NIGHT-boost-21): every socket-holding process,
+/// each of its displayable endpoints an indented child line — the
+/// deep answer to "who exactly is talking inside this cgroup".
 #[must_use]
 pub(crate) fn full_detail_lines(conns: Option<&ConnectionMap>, cgroup_id: u32) -> Vec<String> {
     let mut lines = Vec::new();
@@ -158,162 +213,34 @@ pub(crate) fn full_detail_lines(conns: Option<&ConnectionMap>, cgroup_id: u32) -
         if endpoints.is_empty() {
             continue;
         }
-        let shown: Vec<String> = endpoints.iter().take(2).map(|s| endpoint_text(s)).collect();
-        let mut line = format!("  └ {} ({}) → {}", proc.comm, proc.pid, shown.join(", "));
-        if endpoints.len() > 2 {
-            line.push_str(&format!(" +{} more", endpoints.len() - 2));
+        if endpoints.len() == 1 {
+            lines.push(format!(
+                "  └ {} ({}) → {}",
+                proc.comm,
+                proc.pid,
+                endpoint_text(endpoints[0])
+            ));
+        } else {
+            lines.push(format!(
+                "  └ {} ({}) {} sockets:",
+                proc.comm,
+                proc.pid,
+                endpoints.len()
+            ));
+            let last = endpoints.len() - 1;
+            for (i, socket) in endpoints.iter().enumerate() {
+                let branch = if i == last { "└" } else { "├" };
+                lines.push(format!("      {branch} {}", endpoint_text(socket)));
+            }
         }
-        lines.push(line);
     }
     lines
 }
 
+// NIGHT-boost-21: the detail pins live under the single test/ tree
+// (cosmostrix Pattern C), #[path]-wired across trees exactly like the
+// eagle, footer, and border pins — the tree pass pushed this file
+// past the LOC cap the same way boost-15 pushed format.rs.
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    /// Label enrichment (NIGHT-hunt-8): multi-tenant cgroups say so.
-    #[test]
-    fn label_with_count_shapes() {
-        use crate::ebpf::connections::CgroupConnections;
-        use crate::ebpf::identity::ProcessIdentity;
-
-        let mut identity = IdentityMap::new();
-        identity.insert(ProcessIdentity {
-            cgroup_id: 7001,
-            uid: 1000,
-            comm: "alacritty".to_string(),
-        });
-
-        // No connection map: plain identity label.
-        assert_eq!(
-            label_with_count(&identity, None, 7001),
-            "cg:7001 (alacritty)"
-        );
-
-        // Single process: count adds nothing.
-        let mut conns = crate::ebpf::connections::ConnectionMap::new();
-        conns.insert(
-            7001,
-            CgroupConnections {
-                total_procs: 1,
-                socket_holders: Vec::new(),
-            },
-        );
-        assert_eq!(
-            label_with_count(&identity, Some(&conns), 7001),
-            "cg:7001 (alacritty)"
-        );
-
-        // Four processes: "(alacritty +3)" — the row stops lying.
-        conns.insert(
-            7001,
-            CgroupConnections {
-                total_procs: 4,
-                socket_holders: Vec::new(),
-            },
-        );
-        assert_eq!(
-            label_with_count(&identity, Some(&conns), 7001),
-            "cg:7001 (alacritty +3)"
-        );
-
-        // Unresolved identity: no paren to splice, label untouched.
-        assert_eq!(label_with_count(&identity, Some(&conns), 9999), "cg:9999");
-    }
-
-    /// Comm extraction tolerates the "+N" suffix and rejects
-    /// unknown/empty comms.
-    #[test]
-    fn comm_from_label_shapes() {
-        assert_eq!(
-            comm_from_label("cg:7001 (alacritty +3)").as_deref(),
-            Some("alacritty")
-        );
-        assert_eq!(comm_from_label("cg:7001 (curl)").as_deref(), Some("curl"));
-        assert_eq!(comm_from_label("cg:7001 (unknown)"), None);
-        assert_eq!(comm_from_label("cg:7001 ()"), None);
-        assert_eq!(comm_from_label("cg:7001"), None);
-    }
-
-    /// Detail lines: established endpoints named, listeners skipped,
-    /// cap plus summary respected (the owner's curl-inside-alacritty
-    /// case rendered exactly).
-    #[test]
-    fn detail_lines_eagle_eyes() {
-        use crate::ebpf::connections::{
-            CgroupConnections, ConnectionMap, ProcessDetail, Proto, SocketInfo,
-        };
-
-        let socket = |proto: Proto, remote: &str, state: &'static str, queued: bool| SocketInfo {
-            proto,
-            remote: remote.to_string(),
-            state,
-            queued,
-        };
-
-        let mut conns = ConnectionMap::new();
-        conns.insert(
-            7001,
-            CgroupConnections {
-                total_procs: 4,
-                socket_holders: vec![
-                    ProcessDetail {
-                        pid: 4242,
-                        comm: "curl".to_string(),
-                        sockets: vec![
-                            socket(Proto::Tcp, "10.90.170.143:443", "ESTABLISHED", true),
-                            socket(Proto::Tcp, "1.1.1.1:443", "ESTABLISHED", false),
-                        ],
-                    },
-                    ProcessDetail {
-                        pid: 4243,
-                        comm: "wget".to_string(),
-                        sockets: vec![socket(Proto::Tcp, "93.184.216.34:80", "ESTABLISHED", false)],
-                    },
-                    ProcessDetail {
-                        pid: 5000,
-                        comm: "nc".to_string(),
-                        sockets: vec![socket(Proto::Udp, "8.8.8.8:53", "CLOSE", false)],
-                    },
-                    ProcessDetail {
-                        pid: 6000,
-                        comm: "sshd".to_string(),
-                        sockets: vec![socket(Proto::Tcp, "0.0.0.0:22", "LISTEN", false)],
-                    },
-                    ProcessDetail {
-                        pid: 7000,
-                        comm: "vim".to_string(),
-                        sockets: vec![socket(Proto::Tcp, "9.9.9.9:22", "ESTABLISHED", false)],
-                    },
-                    // NIGHT-hunt-15 pin: a bound-only UDP listener
-                    // (state 07, remote 0.0.0.0:0 — the chronyd /
-                    // systemd-resolved shape) is NOT traffic and must
-                    // not produce a detail line nor inflate the
-                    // "+N more" count.
-                    ProcessDetail {
-                        pid: 8000,
-                        comm: "chronyd".to_string(),
-                        sockets: vec![socket(Proto::Udp, "0.0.0.0:0", "CLOSE", false)],
-                    },
-                ],
-            },
-        );
-
-        let lines = detail_lines(Some(&conns), 7001);
-        assert_eq!(
-            lines,
-            vec![
-                "    └ curl (4242) → 10.90.170.143:443 [busy] +1 more".to_string(),
-                "    └ wget (4243) → 93.184.216.34:80".to_string(),
-                "    └ nc (5000) → udp 8.8.8.8:53".to_string(),
-                "    └ +1 more socket-holding processes".to_string(),
-            ]
-        );
-
-        // No map, no detail — the monitor degrades to plain rows.
-        assert!(detail_lines(None, 7001).is_empty());
-        // Unknown cgroup: no detail.
-        assert!(detail_lines(Some(&conns), 1234).is_empty());
-    }
-}
+#[path = "../../../test/ebpf/render/detail_tests.rs"]
+mod detail_tests;
