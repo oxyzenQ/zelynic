@@ -434,12 +434,17 @@ control, target the cgroup ID directly and verify with
 plus what lives inside, so mis-attribution is visible rather than
 silent.
 
-**5. Rates are decimal SI and per direction.**
-`100kb` = 100,000 bytes/s = 0.8 Mbps on a speed-test site. A positional
-rate sets **both** directions — `strict-single brave 100kb` limits
-upload too, not just download. Minimum 1kb, maximum 1tb; both bounds
-overridable with `--allow-dangerous` — below 1kb an app can stop
-working entirely (hence the flag's name).
+**5. Rates are decimal SI and per direction — fractions included.**
+`100kb` = 100,000 bytes/s = 0.8 Mbps on a speed-test site, and
+`5.5mb` = 5,500,000 bytes/s (NIGHT-boost-15: the value grammar is
+`[0-9]+(\.[0-9]+)?` before the lowercase unit — exact u128 integer
+math, rounded half-away-from-zero at the final byte; a fractional
+input that rounds to zero is rejected because `0` is the block
+verdict, and `5.5h` stays a duration error, fractions are rates
+only). A positional rate sets **both** directions — `strict-single
+brave 100kb` limits upload too, not just download. Minimum 1kb,
+maximum 1tb; both bounds overridable with `--allow-dangerous` —
+below 1kb an app can stop working entirely (hence the flag's name).
 
 **6. Monitoring surfaces also need root.**
 `status`, `eagle-eyes` read BPF maps; only `list-apps`, `doctor`,
@@ -493,7 +498,7 @@ in the monitor rows.
 | Unknown flag after a full command shows NO "use `--`" tip (e.g. `ss brave 550kb -i`) | Honest silence: the escape-hatch tip prints only where following it actually parses (the NIGHT-boost-13 probe re-parses with the splice). No tip means the positional slots are full — the usage line under the error is the failing command's own grammar, and nothing more fits. |
 | `--json` (a habit from other tools) | The vocabulary rescue tips the zelynic spelling: `--print-json` (NIGHT-boost-13). |
 | `No cgroup found for '<name>'` | The app is not running (or the name is wrong). Start it, check `zelynic list-apps`, or target a cgroup ID. |
-| `Invalid rate '1MB'` (with a tip) | Units are lowercase. The tip suggests the fix (`1mb`). |
+| `Invalid rate '1MB'` (with a tip) | Units are lowercase. The tip suggests the fix (`1mb`; fractional twins like `5.5MB` -> `5.5mb` work the same way). |
 | `Invalid interval '90s'` | Refresh interval must be 1s..60s. |
 | `Stale BPF pin files detected` | A previous run was killed mid-operation. Run `sudo zelynic recover`, then re-apply limits. |
 | `Failed to load BPF object` with `caused by:` lines under it | Every runtime error now prints its full cause chain (NIGHT-hunt-28) — read the `caused by:` lines: they name the exact map, syscall, and errno (e.g. `failed to create map 'X' with code -22`). If the chain ends in a pin/EINVAL shape instead, it is the mount below. |

@@ -76,6 +76,15 @@ pub fn parse_monitor_interval(s: &str) -> Result<u64> {
 
 /// Parse a rate string. Lowercase units only: kb, mb, gb, tb, b.
 ///
+/// NIGHT-boost-15 (hunt-30, owner-approved): the value layer accepts
+/// FRACTIONAL rates — `5.5mb` parses to 5,500,000 bytes/s. The grammar
+/// is strict (`[0-9]+(.[0-9]+)?` before the unit): a leading dot, a
+/// trailing dot, a second dot, signs, and separators are usage errors.
+/// The math is EXACT — integer mantissa and decimal scale evaluated in
+/// u128, rounded half-away-from-zero at the final byte only — so no f64
+/// sits anywhere in the parse path and the integer inputs the strict CLI
+/// was built on keep their byte-identical results.
+///
 /// Returns the rate in bytes per second. On overflow (input too large for u64),
 /// returns an error with the original input shown — not the wrapped value.
 pub fn parse_rate(s: &str) -> Result<u64> {
@@ -98,33 +107,93 @@ pub fn parse_rate(s: &str) -> Result<u64> {
     } else {
         // Flagship typo rescue: suggest the near-miss rate the user
         // probably meant (`1MB` -> `1mb`, `1kib` -> `1kb`, `10mbps` ->
-        // `10mb`). The tip line renders white via the line-aware error
-        // renderer in the output layer.
-        let mut msg =
-            format!("Invalid rate '{s}'. Use lowercase: 1mb, 500kb, 1gb, 1tb, or plain number");
+        // `10mb`, `5.5XB` -> `5.5kb`). The tip line renders white via
+        // the line-aware error renderer in the output layer.
+        let mut msg = format!(
+            "Invalid rate '{s}'. Use lowercase: 1mb, 5.5mb, 500kb, 1gb, 1tb, or plain number"
+        );
         if let Some(tip) = crate::cli::ux::rate_tip(s) {
             msg.push_str(&tip);
         }
         bail!("{msg}")
     };
 
-    let n: u64 = num_part.trim().parse().map_err(|e| {
+    let (mantissa, scale) = parse_decimal_scaled(num_part.trim()).map_err(|reason| {
         // Same typo rescue as the suffix branch: a near-miss unit
         // like `1kib` strips its trailing 'b' and lands here with
         // the unparsable number "1ki".
-        let mut msg = format!("Invalid number in rate '{s}': {e}");
+        let mut msg = format!("Invalid number in rate '{s}': {reason}");
         if let Some(tip) = crate::cli::ux::rate_tip(s) {
             msg.push_str(&tip);
         }
         anyhow::anyhow!(msg)
     })?;
 
-    // Use checked_mul to detect overflow. saturating_mul would return u64::MAX
-    // which is misleading (user sees 18446744073709551615 instead of their input).
-    match n.checked_mul(multiplier) {
-        Some(result) => Ok(result),
-        None => bail!("Rate '{s}' is too large — the value overflows 64-bit math."),
+    // Exact evaluation (NIGHT-boost-15): mantissa x multiplier /
+    // 10^scale in u128 — u64 inputs can never overflow u128 here, so
+    // the only overflow point is the u64 boundary itself, and the
+    // rounding happens ONCE, at the final byte, half-away-from-zero
+    // (the rate_bps precedent in the render engine). A fractional
+    // input that rounds to zero is rejected below: 0 is the BPF
+    // schema's BLOCK verdict, and a user who typed `0.4b` meant a
+    // tiny rate, not a silent block.
+    let scaled = mantissa
+        .checked_mul(u128::from(multiplier))
+        .ok_or_else(|| {
+            anyhow::anyhow!("Rate '{s}' is too large — the value overflows 64-bit math.")
+        })?;
+    let divisor = 10_u128.checked_pow(scale).ok_or_else(|| {
+        anyhow::anyhow!("Rate '{s}' is too small to represent — more than 38 decimal places")
+    })?;
+    let result = scaled / divisor + u128::from((scaled % divisor) * 2 >= divisor);
+
+    if result > u64::MAX as u128 {
+        bail!("Rate '{s}' is too large — the value overflows 64-bit math.");
     }
+    if result == 0 && scale > 0 {
+        bail!(
+            "Rate '{s}' rounds to zero bytes/s — 0 is the block verdict. \
+             Pass '0' if you mean block, or at least 1 B/s."
+        );
+    }
+    Ok(result as u64)
+}
+
+/// Parse a plain decimal number into an exact (mantissa, scale) pair
+/// (NIGHT-boost-15): `"5"` -> `(5, 0)`, `"5.5"` -> `(55, 1)`,
+/// `"0.0005"` -> `(5, 4)`. The grammar is `[0-9]+(\.[0-9]+)?` — the
+/// whole part is required before the dot, digits are required after
+/// it, and at most one dot: `.5`, `5.`, `5.5.5`, and signed forms are
+/// all rejected with a reason the caller folds into its own error
+/// shape. The mantissa parses straight to u128 (not u64): a value
+/// like `18000000000000000000.5` carries a 21-digit mantissa yet a
+/// u64-fitting result, and the overflow contract belongs to the
+/// scaled evaluation above, not to the digit string.
+fn parse_decimal_scaled(s: &str) -> Result<(u128, u32)> {
+    let (int_part, frac_part) = match s.split_once('.') {
+        Some((int, frac)) => (int, Some(frac)),
+        None => (s, None),
+    };
+    if int_part.is_empty() || !int_part.bytes().all(|b| b.is_ascii_digit()) {
+        bail!("expected digits before the decimal point, got '{s}'");
+    }
+    let scale = match frac_part {
+        Some(frac) => {
+            if frac.is_empty() || !frac.bytes().all(|b| b.is_ascii_digit()) {
+                bail!("expected digits after the decimal point, got '{s}'");
+            }
+            frac.len() as u32
+        }
+        None => 0,
+    };
+    let digits = match frac_part {
+        Some(frac) => format!("{int_part}{frac}"),
+        None => int_part.to_string(),
+    };
+    let mantissa: u128 = digits.parse().map_err(|_| {
+        anyhow::anyhow!("the digits of '{s}' exceed 128-bit precision — not a rate")
+    })?;
+    Ok((mantissa, scale))
 }
 
 /// Validate rate is within bounds.
@@ -238,261 +307,10 @@ pub fn terminal_width() -> usize {
 // caller remained (the status table renders width-only). A fresh
 // height consumer should call crate::terminal::winsize() directly.
 
+// NIGHT-boost-15: the format pins live under the single test/ tree
+// (cosmostrix Pattern C), #[path]-wired across trees exactly like the
+// limiter's math/policy/reclaim pins — the inline `mod tests` moved
+// out when the fractional rate layer pushed this file past the LOC cap.
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_parse_rate_plain_number() {
-        assert_eq!(parse_rate("1000000").unwrap(), 1_000_000);
-    }
-
-    #[test]
-    fn test_parse_rate_kb() {
-        assert_eq!(parse_rate("1kb").unwrap(), 1_000);
-        assert_eq!(parse_rate("500kb").unwrap(), 500_000);
-    }
-
-    #[test]
-    fn test_parse_rate_mb() {
-        assert_eq!(parse_rate("1mb").unwrap(), 1_000_000);
-        assert_eq!(parse_rate("5mb").unwrap(), 5_000_000);
-    }
-
-    #[test]
-    fn test_parse_rate_gb() {
-        assert_eq!(parse_rate("1gb").unwrap(), 1_000_000_000);
-    }
-
-    #[test]
-    fn test_parse_rate_bytes() {
-        assert_eq!(parse_rate("500b").unwrap(), 500);
-    }
-
-    #[test]
-    fn test_parse_rate_rejects_uppercase() {
-        assert!(parse_rate("1KB").is_err());
-        assert!(parse_rate("1MB/s").is_err());
-        assert!(parse_rate("1GB").is_err());
-    }
-
-    #[test]
-    fn test_parse_rate_uppercase_error_suggests_lowercase_twin() {
-        // Flagship typo rescue: the error must carry a tip line pointing
-        // at the lowercase twin (NIGHT-hunt-5).
-        let err_msg = format!("{}", parse_rate("1MB").unwrap_err());
-        assert!(
-            err_msg.contains("tip: a similar value exists: '1mb'"),
-            "error must suggest the lowercase twin, got: {err_msg}"
-        );
-    }
-
-    #[test]
-    fn test_parse_rate_near_miss_unit_suggestion() {
-        let err_msg = format!("{}", parse_rate("1kib").unwrap_err());
-        assert!(
-            err_msg.contains("tip: a similar value exists: '1kb'"),
-            "error must suggest the near-miss unit, got: {err_msg}"
-        );
-    }
-
-    #[test]
-    fn test_parse_rate_invalid() {
-        assert!(parse_rate("abc").is_err());
-        assert!(parse_rate("1xb").is_err());
-        assert!(parse_rate("").is_err());
-    }
-
-    #[test]
-    fn test_parse_rate_overflow_detects_and_shows_input() {
-        // 1e17 × 1000 = 1e20, overflows u64 (max ~1.8e19).
-        // Must return Err, NOT saturate to u64::MAX.
-        let result = parse_rate("100000000000000000kb");
-        assert!(result.is_err());
-
-        let err_msg = format!("{}", result.unwrap_err());
-        // Error must show the original input, not the wrapped u64::MAX value.
-        assert!(
-            err_msg.contains("100000000000000000kb"),
-            "error should show original input, got: {err_msg}"
-        );
-        // Must name the overflow plainly. The old message carried a
-        // bogus "Maximum is 1gb" from a pre-100gb era and a misleading
-        // "Warning:" prefix on a hard error (NIGHT-hunt-5).
-        assert!(
-            err_msg.contains("overflows 64-bit math"),
-            "error should name the overflow, got: {err_msg}"
-        );
-        // Must NOT show the wrapped u64::MAX value.
-        assert!(
-            !err_msg.contains("18446744073709551615"),
-            "error must not show u64::MAX wrapped value, got: {err_msg}"
-        );
-    }
-
-    #[test]
-    fn test_parse_rate_max_gb_does_not_overflow() {
-        // 1gb = 1e9, should parse fine.
-        assert_eq!(parse_rate("1gb").unwrap(), 1_000_000_000);
-        // 1000gb = 1e12, still fits u64.
-        assert_eq!(parse_rate("1000gb").unwrap(), 1_000_000_000_000);
-    }
-
-    #[test]
-    fn test_parse_rate_tb_suffix_matches_new_ceiling() {
-        // NIGHT-research-1 option B: the 1 TB/s ceiling is expressible
-        // ergonomically; the old gb spelling parses identically.
-        assert_eq!(parse_rate("1tb").unwrap(), 1_000_000_000_000);
-        assert_eq!(parse_rate("500gb").unwrap(), 500_000_000_000);
-        assert_eq!(parse_rate("1000gb").unwrap(), parse_rate("1tb").unwrap());
-        assert!(validate_rate(parse_rate("1tb").unwrap()).is_ok());
-    }
-
-    #[test]
-    fn test_validate_rate_minimum() {
-        assert!(validate_rate(512).is_err());
-        assert!(validate_rate(1000).is_ok());
-        assert!(validate_rate(1024).is_ok());
-    }
-
-    #[test]
-    fn test_validate_rate_minimum_harmonized_with_parser() {
-        // NIGHT-hunt-5 harmonization: MIN_RATE is decimal SI (1000 B/s),
-        // matching parse_rate where 1kb = 1000. The documented minimum
-        // "1 KB/s" must accept the documented input "1kb" — before the
-        // fix, MIN_RATE was 1024 and `strict-single brave 1kb` was
-        // rejected as below-minimum, contradicting every doc.
-        let rate = parse_rate("1kb").unwrap();
-        assert_eq!(rate, 1000);
-        assert!(validate_rate(rate).is_ok());
-    }
-
-    #[test]
-    fn test_validate_rate_maximum() {
-        // Owner-approved option B (NIGHT-research-1): the ceiling is
-        // 1 TB/s; 100 GB/s remains valid far below it.
-        assert!(validate_rate(2_000_000_000_000).is_err());
-        assert!(validate_rate(1_000_000_000_000).is_ok());
-        assert!(validate_rate(200_000_000_000).is_ok());
-        assert!(validate_rate(100_000_000_000).is_ok());
-    }
-
-    #[test]
-    fn test_default_burst_normal() {
-        assert_eq!(default_burst(1_000_000), 1_000_000);
-    }
-
-    #[test]
-    fn test_default_burst_minimum() {
-        assert_eq!(default_burst(100), 4096);
-    }
-
-    #[test]
-    fn test_default_burst_maximum() {
-        assert_eq!(default_burst(1_000_000_000_000), 100_000_000);
-    }
-
-    #[test]
-    fn test_format_bytes_decimal_si() {
-        assert_eq!(format_bytes(0), "0 B");
-        assert_eq!(format_bytes(999), "999 B");
-        assert_eq!(format_bytes(1000), "1.0 KB");
-        assert_eq!(format_bytes(1500), "1.5 KB");
-        assert_eq!(format_bytes(100_000), "100.0 KB");
-        // improve-13 promotion: 999_999 KB-rounds to 1000.0, so it
-        // renders as the next unit.
-        assert_eq!(format_bytes(999_999), "1.0 MB");
-        assert_eq!(format_bytes(1_000_000), "1.0 MB");
-        assert_eq!(format_bytes(1_500_000), "1.5 MB");
-        // One decimal on every tier, TB tier included — and improve-13
-        // promotion: the threshold is inclusive (999_949 stays KB,
-        // 999_950 IS 1.0 MB), the forms never carry four digits.
-        assert_eq!(format_bytes(1_000_000_000), "1.0 GB");
-        assert_eq!(format_bytes(1_500_000_000), "1.5 GB");
-        assert_eq!(format_bytes(999_949_999_999), "999.9 GB");
-        assert_eq!(format_bytes(999_950_000_000), "1.0 TB");
-        assert_eq!(format_bytes(1_000_000_000_000), "1.0 TB");
-        assert_eq!(format_bytes(1_500_000_000_000), "1.5 TB");
-    }
-
-    /// Tier-boundary promotion (improve-13): values that would round
-    /// to a thousands digit render in the next unit. Every tier edge
-    /// is pinned at its exact threshold.
-    #[test]
-    fn test_format_bytes_promotes_at_rounding_boundary() {
-        // Just under each edge: the three-digit form holds.
-        assert_eq!(format_bytes(999_949), "999.9 KB");
-        assert_eq!(format_bytes(999_949_999), "999.9 MB");
-        assert_eq!(format_bytes(999_949_999_999), "999.9 GB");
-        // At/over the edge (the value that ROUNDS to 1000.0): promoted.
-        assert_eq!(format_bytes(999_950), "1.0 MB");
-        assert_eq!(format_bytes(999_950_999), "1.0 GB");
-        assert_eq!(format_bytes(999_950_999_999), "1.0 TB");
-        // Rate cells fit the 10-column monitor budget after promotion.
-        assert_eq!(format_rate(999_949).chars().count(), 10);
-        assert_eq!(format_rate(999_950).chars().count(), 8);
-    }
-
-    #[test]
-    fn test_format_rate_with_suffix() {
-        assert_eq!(format_rate(0), "BLOCKED");
-        assert_eq!(format_rate(100_000), "100.0 KB/s");
-        assert_eq!(format_rate(1_000_000), "1.0 MB/s");
-        assert_eq!(format_rate(1_000_000_000), "1.0 GB/s");
-        // The input-output symmetry pin: the CLI accepts "1tb" and
-        // the status row now answers in the same unit.
-        assert_eq!(format_rate(1_000_000_000_000), "1.0 TB/s");
-    }
-
-    #[test]
-    fn test_parse_rate_consistent_with_format() {
-        // Round-trip: parse("100kb") → 100000 → format → "100.0 KB/s"
-        let rate = parse_rate("100kb").unwrap();
-        assert_eq!(rate, 100_000);
-        assert_eq!(format_rate(rate), "100.0 KB/s");
-
-        let rate = parse_rate("1mb").unwrap();
-        assert_eq!(rate, 1_000_000);
-        assert_eq!(format_rate(rate), "1.0 MB/s");
-
-        // The max-rate twin (status-style audit): parse("1tb") is the
-        // parser's ceiling; the formatter must answer in TB, not in a
-        // four-digit GB figure.
-        let rate = parse_rate("1tb").unwrap();
-        assert_eq!(rate, 1_000_000_000_000);
-        assert_eq!(format_rate(rate), "1.0 TB/s");
-    }
-
-    // ── NIGHT-improve-10: duration overflow pins ────────────────────
-
-    #[test]
-    fn test_parse_time_duration_plain_and_units() {
-        assert_eq!(parse_time_duration("30").unwrap(), 30);
-        assert_eq!(parse_time_duration("30s").unwrap(), 30);
-        assert_eq!(parse_time_duration("5m").unwrap(), 300);
-        assert_eq!(parse_time_duration("2h").unwrap(), 7200);
-    }
-
-    #[test]
-    fn test_parse_time_duration_overflow_errors_not_saturates() {
-        // 1e17 × 3600 (h) overflows u64 (max ~1.8e19). Must return Err
-        // naming the overflow with the original input — never a silent
-        // u64::MAX saturation that consumers would treat as "infinity".
-        let result = parse_time_duration("100000000000000000h");
-        assert!(result.is_err());
-
-        let err_msg = format!("{}", result.unwrap_err());
-        assert!(
-            err_msg.contains("100000000000000000h"),
-            "error should show original input, got: {err_msg}"
-        );
-        assert!(
-            err_msg.contains("overflows 64-bit math"),
-            "error should name the overflow, got: {err_msg}"
-        );
-        assert!(
-            !err_msg.contains("18446744073709551615"),
-            "error must not show a saturated u64::MAX value, got: {err_msg}"
-        );
-    }
-}
+#[path = "../../../test/ebpf/limiter/format_tests.rs"]
+mod format_tests;
