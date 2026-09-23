@@ -345,7 +345,7 @@ pub(crate) fn exit_clap_error(e: clap::Error) -> ! {
             Some(ContextValue::String(s)) => Some(s.clone()),
             _ => None,
         };
-        let usage = failing_command_usage(&mut cmd, &argv, failing_token.as_deref());
+        let usage = super::argv::failing_command_usage(&mut cmd, &argv, failing_token.as_deref());
         e.insert(ContextKind::Usage, ContextValue::StyledStr(usage));
     }
 
@@ -359,29 +359,6 @@ pub(crate) fn exit_clap_error(e: clap::Error) -> ! {
 
     eprintln_safe!("\n{HELP_FOOTER}");
     std::process::exit(2);
-}
-
-/// The full usage line of the command the error belongs to (the
-/// regenerated-usage arm of the bridge, NIGHT-boost-13).
-///
-/// The failing subcommand is found by walking argv the way the
-/// parser descends (see [`crate::cli::argv::failing_subcommand`]);
-/// its usage renders under the canonical bin name `zelynic <name>`
-/// — the same shape clap itself renders for subcommand deaths — so
-/// the regenerated line and the native line agree byte-for-byte. A
-/// top-level death gets the root usage.
-fn failing_command_usage(
-    root: &mut clap::builder::Command,
-    argv: &[OsString],
-    failing_token: Option<&str>,
-) -> clap::builder::StyledStr {
-    match super::argv::failing_subcommand(root, argv, failing_token) {
-        Some(sub) => {
-            let bin = format!("zelynic {}", sub.get_name());
-            sub.bin_name(bin).render_usage()
-        }
-        None => root.render_usage(),
-    }
 }
 
 // ── Value suggestion tips (rates + durations) ──────────────────────────────
@@ -467,7 +444,45 @@ pub(crate) fn duration_tip(input: &str) -> Option<String> {
 
 // The UX bridge pins live under the single test/ tree (cosmostrix
 // Pattern C), #[path]-wired across trees exactly like the render and
-// limiter test modules.
+// limiter test modules. The usage-line pins split into their own
+// file when they pushed ux_tests past the 500-LOC cap (NIGHT-boost-13,
+// the diff_tests/guard_tests discipline); both files share the
+// module-level render harness below.
 #[cfg(test)]
 #[path = "../../test/cli/ux_tests.rs"]
 mod ux_tests;
+
+#[cfg(test)]
+#[path = "../../test/cli/usage_tests.rs"]
+mod usage_tests;
+
+/// Render an error exactly the way [`exit_clap_error`] does (minus
+/// the process::exit), so render-level contracts are testable.
+/// Mirrors the full stderr byte stream: the clap render (which ends
+/// with a bare newline) followed by the bridge's manual footer
+/// append — reproducing clap's canonical "\n\n<footer>\n" tail.
+/// Lives here (not in a test file) so both #[path]-wired test
+/// modules reach it through `super::` — one harness, one source of
+/// truth for what the bridge renders.
+#[cfg(test)]
+fn render_via_bridge(argv: &[&str]) -> String {
+    use clap::Parser;
+    let mut err = Cli::try_parse_from(argv).expect_err("argv must fail to parse");
+    let mut cmd = Cli::command();
+    let owned: Vec<std::ffi::OsString> = argv.iter().map(std::ffi::OsString::from).collect();
+    let native_usage_narrowed = err.get(ContextKind::SuggestedArg).is_some();
+    enrich_unknown_arg_suggestion(&mut err, &cmd);
+    enrich_removed_subcommand_redirect(&mut err);
+    enrich_subcommand_flag_redirect(&mut err, &cmd);
+    drop_dishonest_escape_hatch(&mut err, &owned);
+    if native_usage_narrowed || err.get(ContextKind::Usage).is_none() {
+        let failing_token = match err.get(ContextKind::InvalidArg) {
+            Some(ContextValue::String(s)) => Some(s.clone()),
+            _ => None,
+        };
+        let usage = super::argv::failing_command_usage(&mut cmd, &owned, failing_token.as_deref());
+        err.insert(ContextKind::Usage, ContextValue::StyledStr(usage));
+    }
+    let rendered = err.format(&mut cmd).render().to_string();
+    format!("{rendered}\n{HELP_FOOTER}\n")
+}

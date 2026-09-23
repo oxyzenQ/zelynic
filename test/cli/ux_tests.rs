@@ -6,7 +6,10 @@
 //! value tips, and the NIGHT-boost-1 removed-subcommand redirects.
 //! Lives under the single test/ tree (cosmostrix Pattern C) and is
 //! #[path]-wired from src/cli/ux.rs, so `super::` reaches the ux
-//! module exactly like inline tests did.
+//! module exactly like inline tests did. The render harness
+//! (`render_via_bridge`) is ux module-level test support — the
+//! usage-line pins split into usage_tests.rs share it (NIGHT-boost-13
+//! LOC cap split, the diff_tests/guard_tests discipline).
 
 use super::*;
 
@@ -21,33 +24,6 @@ const HELP_FOOTER: &str = "For more information, try '--help'.";
 #[test]
 fn help_footer_matches_clap_wording() {
     assert_eq!(HELP_FOOTER, "For more information, try '--help'.");
-}
-
-/// Render an error exactly the way [`exit_clap_error`] does (minus
-/// the process::exit), so render-level contracts are testable.
-/// Mirrors the full stderr byte stream: the clap render (which ends
-/// with a bare newline) followed by the bridge's manual footer
-/// append — reproducing clap's canonical "\n\n<footer>\n" tail.
-fn render_via_bridge(argv: &[&str]) -> String {
-    use clap::Parser;
-    let mut err = Cli::try_parse_from(argv).expect_err("argv must fail to parse");
-    let mut cmd = Cli::command();
-    let owned: Vec<std::ffi::OsString> = argv.iter().map(std::ffi::OsString::from).collect();
-    let native_usage_narrowed = err.get(ContextKind::SuggestedArg).is_some();
-    enrich_unknown_arg_suggestion(&mut err, &cmd);
-    enrich_removed_subcommand_redirect(&mut err);
-    enrich_subcommand_flag_redirect(&mut err, &cmd);
-    drop_dishonest_escape_hatch(&mut err, &owned);
-    if native_usage_narrowed || err.get(ContextKind::Usage).is_none() {
-        let failing_token = match err.get(ContextKind::InvalidArg) {
-            Some(ContextValue::String(s)) => Some(s.clone()),
-            _ => None,
-        };
-        let usage = failing_command_usage(&mut cmd, &owned, failing_token.as_deref());
-        err.insert(ContextKind::Usage, ContextValue::StyledStr(usage));
-    }
-    let rendered = err.format(&mut cmd).render().to_string();
-    format!("{rendered}\n{HELP_FOOTER}\n")
 }
 
 /// Regression (owner-reported, NIGHT-improve-1 session): every
@@ -352,76 +328,6 @@ fn escape_hatch_survives_where_the_advice_parses() {
         rendered.contains("as a value, use '-- -i'"),
         "the proven-honest escape-hatch tip must stay, got:\n{rendered}"
     );
-}
-
-// ── Subcommand-scoped usage (NIGHT-boost-13) ──────────────────────
-
-/// The owner's dead ends: an error inside a subcommand must show that
-/// subcommand's usage line — the exact grammar of the command that
-/// failed — not the top-level line that says nothing about it. This
-/// is what turns the `-- -x` and extra-positional dead ends
-/// self-explanatory: the usage names the two slots and nothing more
-/// fits.
-#[test]
-fn subcommand_errors_show_the_subcommand_usage() {
-    for argv in [
-        vec!["zelynic", "-v", "ss", "brave", "550kb", "-i"],
-        vec!["zelynic", "ss", "brave", "550kb", "--", "-x"],
-        vec!["zelynic", "ss", "brave", "550kb", "extra"],
-        vec!["zelynic", "ss", "brave", "550kb", "-h"],
-    ] {
-        let rendered = render_via_bridge(&argv);
-        assert!(
-            rendered.contains("Usage: zelynic strict-single [OPTIONS] <TARGET> [RATE]"),
-            "an error inside ss must show the strict-single usage for {argv:?}, got:\n{rendered}"
-        );
-    }
-}
-
-/// A missing required positional keeps its native subcommand usage
-/// too — clap already renders the failing command's line there.
-#[test]
-fn missing_positional_keeps_the_subcommand_usage() {
-    let rendered = render_via_bridge(&["zelynic", "unstrict"]);
-    assert!(
-        rendered.contains("Usage: zelynic unstrict-single <TARGET>"),
-        "the native unstrict-single usage must stay, got:\n{rendered}"
-    );
-}
-
-/// A clap-suggested typo narrows the native usage (the suggested
-/// flag renders as if required); the regenerated line must be the
-/// FAILING subcommand's full usage — same command, no narrowed flag.
-#[test]
-fn narrowed_usage_is_regenerated_from_the_failing_command() {
-    let rendered = render_via_bridge(&["zelynic", "ss", "brave", "--downlod", "1mb"]);
-    assert!(
-        rendered.contains("'--download'"),
-        "clap's own suggestion must survive, got:\n{rendered}"
-    );
-    assert!(
-        rendered.contains("Usage: zelynic strict-single [OPTIONS] <TARGET> [RATE]"),
-        "the narrowed usage must regenerate as the full strict-single line, got:\n{rendered}"
-    );
-}
-
-/// The walk must not misattribute a top-level death to a subcommand
-/// that appears AFTER the failing token: `zelynic --verbos doctor`
-/// died at `--verbos` and never reached `doctor` — the top-level
-/// usage is the right usage there.
-#[test]
-fn top_level_errors_keep_the_top_level_usage() {
-    for argv in [
-        vec!["zelynic", "--verbos", "doctor"],
-        vec!["zelynic", "--json", "status"],
-        vec!["zelynic", "-Q"],
-    ] {
-        let rendered = render_via_bridge(&argv);
-        assert!(
-            rendered.contains("Usage: zelynic [OPTIONS] [COMMAND]"),
-            "a top-level death keeps the top-level usage for {argv:?}, got:\n{rendered}"
-        );
-    }
 }
 
 #[cfg(feature = "ebpf")]
