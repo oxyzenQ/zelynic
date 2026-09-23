@@ -16,6 +16,24 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Added
 
+- **docs: NIGHT-ask-1 — the LTS scope statement: the metric set is
+  closed, the one frontier gap is owner-approved** — the owner's
+  question ("is the monitoring scope complete for LTS usage, and if
+  so, document why so users are not confused") is now answered where
+  users read it: USAGE.md "Honest limitations" entry 12 states the
+  closed metric set (per-direction live rates, session totals,
+  session max/avg speed statistics, the session census, kernel-named
+  cgroup → process attribution with endpoint trees) and names every
+  deliberate rejection with its reason — interface-level aggregates,
+  per-connection quality metrics, DNS/SNI enrichment, persistence,
+  and the session *minimum* speed ("total low": structurally ~0 at
+  rest, no information — rejected). The per-endpoint byte
+  attribution gap (the single axis where bandwhich/iftop lead) is
+  flipped from "candidate, not committed" to owner-approved in
+  docs/RESEARCH_TOOLCHAIN_AND_MONITORING.md 2.4: the socket-cookie
+  byte map joined with the existing ConnectionMap is the sanctioned
+  next frontier item, to be built as its own NIGHT task with its own
+  micro-commit cycle.
 - **test: NIGHT-improve-23 — supermassive-test-v2: the end-to-end
   daily-use simulation, strict / limit / block / unstrict on the
   local lane AND the real internet** — the owner's directive: v1

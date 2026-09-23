@@ -637,6 +637,33 @@ cgroups, and a full map silently stopped counting new cgroups).
 A host with more live cgroups than 1024 shows only the first 1024
 in the monitor rows.
 
+**12. The monitor's metric set is exactly this — and that is the
+point.**
+`eagle-eyes` answers one question class — *who is eating the
+network* — with a closed set of figures: per-direction live rates
+(the DOWNLOAD/UPLOAD columns), session-accumulated totals per app
+(the TOTAL column and the footer's grand row), the session speed
+statistics (max and average per direction, NIGHT-engrave-6), the
+session census (packets + cgroups), and kernel-named cgroup →
+process attribution with endpoint trees. Nothing else is missing
+from that class, and nothing else is coming: interface-level
+"how full is the pipe" totals (nload/bmon's lane), per-connection
+quality metrics such as RTT and retransmits (kyanos's lane),
+reverse-DNS/SNI enrichment, and history/persistence/daemon mode
+are all deliberate rejections — each would widen the class rather
+than master it, and the last would violate the one-shot
+architecture (see
+[docs/RESEARCH_TOOLCHAIN_AND_MONITORING.md](RESEARCH_TOOLCHAIN_AND_MONITORING.md)
+Part 2 for the full class comparison and the rejection log). A
+session *minimum* speed line ("total low") is rejected for a
+structural reason: any idle interval drives the minimum toward
+zero, so the figure is ~0 at rest and carries no information —
+max + average are the session pair that does. The single
+sanctioned frontier item is per-endpoint byte attribution (which
+socket is consuming, not just which sockets exist), owner-approved
+with its closing design already written — it ships as its own task
+when scheduled, not as a scope widening.
+
 ---
 
 ## Troubleshooting
