@@ -32,9 +32,11 @@ fn render_via_bridge(argv: &[&str]) -> String {
     use clap::Parser;
     let mut err = Cli::try_parse_from(argv).expect_err("argv must fail to parse");
     let mut cmd = Cli::command();
+    let owned: Vec<std::ffi::OsString> = argv.iter().map(std::ffi::OsString::from).collect();
     enrich_unknown_arg_suggestion(&mut err, &cmd);
     enrich_removed_subcommand_redirect(&mut err);
     enrich_subcommand_flag_redirect(&mut err, &cmd);
+    drop_dishonest_escape_hatch(&mut err, &owned);
     err.insert(
         ContextKind::Usage,
         ContextValue::StyledStr(cmd.render_usage()),
@@ -300,6 +302,50 @@ fn suggestion_replaces_the_escape_hatch_tip() {
     assert!(
         !rendered.contains("as a value, use"),
         "the escape-hatch tip must not survive a rescue, got:\n{rendered}"
+    );
+}
+
+// ── Escape-hatch honesty probe (NIGHT-boost-13) ───────────────────
+
+/// The owner's live cases: an unknown short flag AFTER the
+/// subcommand's positionals are full. clap injects the escape-hatch
+/// tip whenever the failing command merely HAS positionals — it
+/// cannot see the slots are taken — and following the advice
+/// (`-- -i`) died on "unexpected argument" a second time. The probe
+/// re-parses with the splice; a second death means the tip lies, and
+/// a lying tip must not print.
+#[test]
+fn escape_hatch_lie_is_dropped_when_positionals_are_full() {
+    for flag in ["-i", "-x"] {
+        let rendered = render_via_bridge(&["zelynic", "-v", "ss", "brave", "550kb", flag]);
+        assert!(
+            rendered.contains(&format!("unexpected argument '{flag}'")),
+            "must name the rejected flag, got:\n{rendered}"
+        );
+        assert!(
+            !rendered.contains("as a value, use"),
+            "the disproven escape-hatch tip must not print for {flag}, got:\n{rendered}"
+        );
+        assert_eq!(rendered.matches("tip:").count(), 0);
+    }
+}
+
+/// The probe keeps the tip where following it WORKS: strict-single's
+/// RATE slot is still open, so `ss brave -- -i` parses with `-i` as
+/// the rate value. Dropping the tip there would discard honest
+/// advice — the probe distinguishes by re-parsing, not by guesswork,
+/// and the unprovable token (not in argv verbatim) reports honest
+/// and passes clap's behavior through untouched.
+#[test]
+fn escape_hatch_survives_where_the_advice_parses() {
+    let rendered = render_via_bridge(&["zelynic", "ss", "brave", "-i"]);
+    assert!(
+        rendered.contains("unexpected argument '-i'"),
+        "must name the rejected flag, got:\n{rendered}"
+    );
+    assert!(
+        rendered.contains("as a value, use '-- -i'"),
+        "the proven-honest escape-hatch tip must stay, got:\n{rendered}"
     );
 }
 

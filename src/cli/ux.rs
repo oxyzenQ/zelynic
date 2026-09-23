@@ -21,11 +21,15 @@
 //! see [`crate::cli::clap_styles`]); rate/duration value suggestions
 //! are appended as canonical `tip:` lines which the line-aware
 //! [`crate::output::eprintln_error_labeled`] paints white. The
-//! closest-match machinery lives in `cli/suggestion.rs`.
+//! closest-match machinery lives in `cli/suggestion.rs`; the argv
+//! forensics — the escape-hatch honesty probe (NIGHT-boost-13) and
+//! the failing-command discovery — live in `cli/argv.rs`.
 
 use clap::error::{ContextKind, ContextValue};
 use clap::CommandFactory;
+use std::ffi::OsString;
 
+use super::argv::drop_dishonest_escape_hatch;
 use super::suggestion::closest_long_flag_ci;
 #[cfg(feature = "ebpf")]
 use super::suggestion::closest_value_match;
@@ -298,24 +302,28 @@ fn enrich_unknown_arg_suggestion(e: &mut clap::Error, cmd: &clap::builder::Comma
 /// Render a clap parse error in the canonical zelynic shape and exit.
 ///
 /// Every error kind: case-insensitive typo rescue first (including the
-/// help-position rescue), then the usage context is replaced with the
-/// real full usage (clap narrows the usage line to the suggested flag,
-/// which reads as if that flag were required), then the error is
-/// re-rendered with the command's brand styles. clap's DisplayHelp /
-/// DisplayVersion kinds can no longer occur: the built-in help flag,
-/// help subcommand, and version flag are all disabled and replaced by
-/// custom top-level args intercepted in `main` (NIGHT-improve-3). The
-/// canonical `For more information, try '--help'.` footer is appended
-/// by the bridge itself — clap's formatter skips it without an
-/// ArgAction::Help argument — so every fatal CLI error ends with
-/// exactly one footer (the NIGHT-improve-1 regression stays pinned by
-/// the tests below).
+/// help-position rescue), the subcommand-flag redirect, then the
+/// escape-hatch honesty probe (a "to pass as a value" tip that fails
+/// when followed is dropped, NIGHT-boost-13), then the usage context
+/// is replaced with the real full usage (clap narrows the usage line
+/// to the suggested flag, which reads as if that flag were required),
+/// then the error is re-rendered with the command's brand styles.
+/// clap's DisplayHelp / DisplayVersion kinds can no longer occur: the
+/// built-in help flag, help subcommand, and version flag are all
+/// disabled and replaced by custom top-level args intercepted in
+/// `main` (NIGHT-improve-3). The canonical `For more information,
+/// try '--help'.` footer is appended by the bridge itself — clap's
+/// formatter skips it without an ArgAction::Help argument — so every
+/// fatal CLI error ends with exactly one footer (the NIGHT-improve-1
+/// regression stays pinned by the tests below).
 pub(crate) fn exit_clap_error(e: clap::Error) -> ! {
     let mut e = e;
     let mut cmd = Cli::command();
+    let argv: Vec<OsString> = std::env::args_os().collect();
     enrich_unknown_arg_suggestion(&mut e, &cmd);
     enrich_removed_subcommand_redirect(&mut e);
     enrich_subcommand_flag_redirect(&mut e, &cmd);
+    drop_dishonest_escape_hatch(&mut e, &argv);
 
     // Replace (or add) the usage context with the real full usage —
     // clap's RichFormatter renders the Usage context verbatim, and

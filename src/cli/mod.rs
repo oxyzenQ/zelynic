@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 use clap::{Parser, Subcommand};
 
+pub(crate) mod argv;
 pub(crate) mod suggestion;
 pub(crate) mod ux;
 
