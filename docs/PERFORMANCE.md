@@ -664,6 +664,43 @@ the table is the container-noise class of every previous A/B
 visual gains (status/list-apps matching the eagle family, the
 loading frame, the one-row morph) cost the render loop nothing.
 
+
+### NIGHT-engrave-6 A/B (the session speed pair, 2026-09-24)
+
+Baseline 34d4f0c (the boost-25 batch end state) vs ecc3c8d, the
+10s harness. The footer grew two rows (Full 9 -> 11: the speed
+pair below the total row), and the two rows displaced two of the
+most volatile table rows the 80x24 frame carried — the synthetic
+traffic's rate cells:
+
+| metric | before | after | delta |
+|---|---|---|---|
+| fps (render path) | 8265.9 | 8416.8 | +1.8% |
+| bytes/frame | 1943.0 | 1943.0 | +0.0% |
+| emit bytes/frame | 689.9 | 588.4 | -14.7% |
+| emit ratio | 0.36 | 0.30 | -14.7% |
+| density gini | 0.3708 | 0.3549 | -4.3% |
+| frame entropy | 2.9753 | 3.0154 | +1.3% |
+| dirty cells/frame | 54.1 | 44.2 | -18.4% |
+| dirty ratio | 0.0282 | 0.0230 | -18.4% |
+| bytes/sec churn | 5702295.1 | 4952690.1 | -13.1% |
+
+Reading: NET WIN, the same mechanism as the NIGHT-engrave-4
+footer rebuild (footer rows displacing volatile table rows), on
+top of an already rebuilt footer. The pair is nearly static per
+frame — MAX moves only when a new session peak lands, AVG drifts
+one rounding step at a time — so the diff engine emits far less
+per frame than the two rate-cell rows it displaced (emit -14.7%,
+dirty cells -18.4%, churn -13.1%). Visual: gini -4.3% (calmer
+frame) with entropy +1.3% (richer per-cell information) — both
+in the wanted direction at once. fps +1.8% is the same
+container-noise class as every previous A/B on this host; the
+deterministic per-frame metrics (bytes/frame identical to the
+decimal) carry the comparison weight. The avg line's per-frame
+division and the peak note's extra summary walk cost nothing
+measurable at the 1s cadence the real monitor runs.
+
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.
