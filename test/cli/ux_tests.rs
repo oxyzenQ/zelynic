@@ -250,6 +250,59 @@ fn help_subcommand_redirects_to_the_help_flag() {
     assert_eq!(rendered.matches(HELP_FOOTER).count(), 1);
 }
 
+// ── Cross-tool vocabulary + one-tip contract (NIGHT-boost-13) ─────
+
+/// `--json` is the convention everywhere else; zelynic spells it
+/// `--print-json`. The fuzzy engine cannot bridge the distance
+/// (jaro_ci 0.394, under the 0.7 bar), so without the vocabulary
+/// table the owner's terminal showed a tip-less dead end. The rescue
+/// must inject `--print-json` as clap's own suggestion.
+#[test]
+fn json_vocabulary_rescues_print_json() {
+    let rendered = render_via_bridge(&["zelynic", "--json", "status"]);
+    assert!(
+        rendered.contains("unexpected argument '--json'"),
+        "must name the rejected flag, got:\n{rendered}"
+    );
+    assert!(
+        rendered.contains("'--print-json'"),
+        "tip must point at --print-json, got:\n{rendered}"
+    );
+    assert_eq!(
+        rendered.matches("tip:").count(),
+        1,
+        "exactly one tip line, got:\n{rendered}"
+    );
+}
+
+/// A suggestion must REPLACE the native escape-hatch tip, never ride
+/// beside it: before NIGHT-boost-13, `zelynic ss brave --VERBOS`
+/// rendered BOTH "a similar argument exists: '--verbose'" and "to
+/// pass '--VERBOS' as a value, use '-- --VERBOS'" — the one-tip
+/// contract broken by the fuzzy fallback inserting SuggestedArg
+/// without dropping the native Suggested context.
+#[test]
+fn suggestion_replaces_the_escape_hatch_tip() {
+    let rendered = render_via_bridge(&["zelynic", "ss", "brave", "--VERBOS"]);
+    assert!(
+        rendered.contains("unexpected argument '--VERBOS'"),
+        "must name the rejected flag, got:\n{rendered}"
+    );
+    assert!(
+        rendered.contains("'--verbose'"),
+        "the case-insensitive rescue must fire, got:\n{rendered}"
+    );
+    assert_eq!(
+        rendered.matches("tip:").count(),
+        1,
+        "exactly one tip line — the escape hatch must be dropped, got:\n{rendered}"
+    );
+    assert!(
+        !rendered.contains("as a value, use"),
+        "the escape-hatch tip must not survive a rescue, got:\n{rendered}"
+    );
+}
+
 #[cfg(feature = "ebpf")]
 #[test]
 fn value_tip_shape_is_two_space_indented_tip() {

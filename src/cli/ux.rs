@@ -173,6 +173,29 @@ fn top_level_flag_rescue(typed: &str) -> Option<&'static str> {
         .map(|(_, authority)| *authority)
 }
 
+/// Cross-tool flag vocabulary (NIGHT-boost-13): spellings users bring
+/// from other CLIs, mapped to the zelynic flag that answers them.
+///
+/// `--json` is the convention everywhere else — every modern tool
+/// answers it — so the owner typing it on zelynic is intent-clear,
+/// yet the fuzzy rescue cannot bridge it: jaro_ci("json",
+/// "print-json") scores 0.394 against the hyphenated 11-char name,
+/// far below the 0.7 bar, and the owner's terminal showed a tip-less
+/// dead end. These rescues run after the top-level authority table
+/// and before the fuzzy fallback; like every rescue that injects a
+/// suggestion they drop the native trailing escape-hatch tip first
+/// (one tip, the right one).
+const FLAG_VOCABULARY_RESCUES: &[(&str, &str)] = &[("json", "--print-json")];
+
+/// The zelynic flag a typed name answers to by cross-tool vocabulary,
+/// or `None` when it is not in the table.
+fn flag_vocabulary_rescue(typed: &str) -> Option<&'static str> {
+    FLAG_VOCABULARY_RESCUES
+        .iter()
+        .find(|(name, _)| *name == typed)
+        .map(|(_, flag)| *flag)
+}
+
 /// Case-insensitive flag-suggestion fallback for clap UnknownArgument
 /// errors.
 ///
@@ -189,6 +212,20 @@ fn top_level_flag_rescue(typed: &str) -> Option<&'static str> {
 /// generic rescue — which would suggest the very flag the user
 /// already typed. `-V` is global since NIGHT-boost-12, so its rescue
 /// fires only for the `--`-escaped positional case.
+///
+/// The cross-tool vocabulary rescue runs next (NIGHT-boost-13):
+/// intent-clear spellings from other CLIs (`--json`) that the fuzzy
+/// engine cannot bridge by distance alone.
+///
+/// Every rescue that injects a suggestion — authority, vocabulary,
+/// and the fuzzy fallback itself — drops the native trailing
+/// escape-hatch tip FIRST (NIGHT-boost-13): clap injects "to pass
+/// '--VERBOS' as a value, use '-- --VERBOS'" whenever the failing
+/// command merely HAS positionals, so `zelynic ss brave --VERBOS`
+/// rendered two tips at once, the suggestion and the escape hatch,
+/// violating the one-tip contract. A suggestion beats the escape
+/// hatch every time — the same priority clap's own engine uses
+/// ("did_you_mean ... should cause us to skip the -- suggestion").
 ///
 /// No-op for: every non-UnknownArgument error kind, errors that
 /// already carry a suggestion (clap's tip is never duplicated), and
@@ -228,12 +265,29 @@ fn enrich_unknown_arg_suggestion(e: &mut clap::Error, cmd: &clap::builder::Comma
         );
         return;
     }
+    if let Some(flag) = flag_vocabulary_rescue(&typed) {
+        // Same Suggested-drop contract as the authority rescue: a
+        // vocabulary hit is a suggestion, and a suggestion replaces
+        // the escape hatch rather than riding beside it.
+        e.remove(ContextKind::Suggested);
+        e.insert(
+            ContextKind::SuggestedArg,
+            ContextValue::String((*flag).to_string()),
+        );
+        return;
+    }
     let candidates: Vec<&str> = cmd
         .get_arguments()
         .filter(|arg| !arg.is_hide_set())
         .filter_map(|arg| arg.get_long())
         .collect();
     if let Some(best) = closest_long_flag_ci(&typed, &candidates) {
+        // The fallback rescue drops the escape-hatch tip too
+        // (NIGHT-boost-13): without this remove, a case-variant typo
+        // after a positional-bearing subcommand rendered BOTH tips —
+        // "a similar argument exists" beside "to pass as a value" —
+        // breaking the one-tip contract the bridge exists to keep.
+        e.remove(ContextKind::Suggested);
         e.insert(
             ContextKind::SuggestedArg,
             ContextValue::String(format!("--{best}")),
