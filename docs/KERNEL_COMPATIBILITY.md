@@ -104,7 +104,13 @@ commands to reproduce them are in the README's Test Results section.
 1. **cgroup v1 systems**: Not supported. zelynic will error on attach.
 2. **Kernel < 5.8**: no observer events ringbuf (5.8+) — and `bpf_link`
    itself needs 5.7+. Kernels below 5.13 are outside the verified matrix
-   (5.13 is the oldest kernel tested).
+   (5.13 is the oldest kernel tested). The depth harness reports the
+   span for you (NIGHT-boost-27): `limiter-depth-test.sh` now emits a
+   kernel-span verdict family — the 5.13+ floor gate (FAIL below it),
+   the capability rung the running kernel rides at (5.7 links, 5.8
+   ringbuf, the 5.13 verified floor, the 6.x LTS lines), and the LTS
+   placement — so a verdict from any machine, 5.13 hardware to the
+   latest release, names the kernel generation it rode on.
 3. **No BPF fs mounted**: Fire-and-forget mode (pin maps) will fail.
    Fix: `sudo mount -t bpf bpf /sys/fs/bpf`
 4. **Non-root**: BPF operations require root. Use `sudo`.

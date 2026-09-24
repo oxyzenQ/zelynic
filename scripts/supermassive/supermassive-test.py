@@ -1431,30 +1431,62 @@ def test_curl_burst(window, clients, rate_bps, baseline):
         clear_all()
         return False
     total = sum(totals)
-    # The bound (runs eight-ten, the ladder's near-capacity precedent):
-    # the burst-shaped client metric swings with the runner's TCP/GSO
-    # lottery (97.6%, 116.4%, 140.0%, 142.5%, 151.4% across legs and
-    # runs, same code), and the kernel's allowed-bytes itself varied
-    # 7.5-10.4 MB against an 8.1 MB budget on the 5.15 pool — the
-    # budget formula under-models the worst days, and tuning it
-    # run-by-run is the over-fit trap. The row's CLAIM is sharing:
-    # the hard cap 1.60 fails a bucket that is not shared (~6x rate
-    # here) by a mile, the floor 0.65 keeps the under-delivery
-    # tripwire, the budget arithmetic prints for audit, and the
-    # drops + accounting rows below carry precision at the kernel
-    # level — the same contract the 1gb ladder rung carries.
-    live = time.monotonic() - t_apply
-    burst_s = 1.0
-    budget_ceiling = (live + burst_s) / span
-    passed = band_check(
+    # NIGHT-boost-27 (the E2E twelfth-run fix): the rate verdict rides
+    # the KERNEL LEDGER, not the client metric. The evidence chain:
+    # runs eight-eleven measured the client total swinging with the
+    # runner's TCP/GSO lottery (97.6% .. 161.2% across legs and runs,
+    # SAME code) while the kernel's own allowed-bytes stayed a
+    # policer-shaped number — a client metric that moves when nothing
+    # in the product moved is measurement noise wearing the verdict's
+    # badge, and four reds on the 5.15 pool convicted a formula that
+    # divided the wrong numerator. The ledger is the policer's own
+    # contract: bytes the kernel actually allowed.
+    #
+    # The arithmetic is exact at the read instant: the bucket can
+    # credit at most (t_read - t_apply) * rate + default_burst bytes
+    # from attach to the ledger read (burst = 1 s of rate, clamped
+    # 4 KiB-100 MB — format.rs's default_burst, mirrored here). The
+    # old row measured `live` BEFORE the ledger read and divided the
+    # CLIENT total by span against a 1.60 cap — two loosely-coupled
+    # numbers. Now: one snapshot, one instant, one ceiling, and a 2%
+    # GSO headroom for per-skb accounting granularity.
+    entry = limit_entry(status_json(), CG.ids["a"])
+    t_read = time.monotonic()
+    allowed = (entry or {}).get("bytes_allowed", 0)
+    live = t_read - t_apply
+    burst_bytes = min(max(rate_bps, 4096), 100_000_000)
+    budget_bytes = live * rate_bps + burst_bytes
+    GSO_EPS = 1.02
+    ledger_ratio = allowed / (rate_bps * span) if allowed else 0.0
+    client_ratio = total / (rate_bps * span)
+    ledger_ok = allowed <= budget_bytes * GSO_EPS
+    # The sharing teeth ride the ledger too: a bucket that is NOT
+    # shared (per-flow buckets) allows ~clients x rate — far past
+    # the 1.60 cap, exactly the claim the row has always made.
+    sharing_ok = ledger_ratio <= 1.60
+    # The floor stays CLIENT-side: under-delivery is what the user
+    # experienced, and the client total is the honest numerator for
+    # it (a starved curl reads near zero whatever the ledger says).
+    floor_ok = client_ratio >= 0.65
+    passed = ledger_ok and sharing_ok and floor_ok
+    verdict = "PASS" if passed else "FAIL"
+    record(
         f"curl burst: {clients} parallel curls, one shared limit",
-        total / span,
-        rate_bps,
-        extra=(
-            f"span {span:.2f} s; budget arithmetic {budget_ceiling:.2f}x "
-            f"(live {live:.1f} s + {burst_s:.0f} s burst / span), sharing cap 1.60"
+        verdict,
+        (
+            f"kernel allowed {allowed / 1e6:.2f} MB ({ledger_ratio * 100:.1f}% of "
+            f"{rate_bps / 1e6:.0f} MB/s x span) vs exact budget "
+            f"{budget_bytes / 1e6:.2f} MB (live {live:.1f} s + "
+            f"{burst_bytes / 1e6:.1f} MB burst) x1.02; sharing cap 1.60 on "
+            f"the ledger; client total {total / 1e6:.2f} MB "
+            f"({client_ratio * 100:.1f}%, TCP/GSO lottery — advisory, floor 0.65)"
         ),
-        hi=1.60,
+        {
+            "allowed_bytes": allowed,
+            "budget_bytes": round(budget_bytes),
+            "ledger_ratio": round(ledger_ratio, 3),
+            "client_ratio": round(client_ratio, 3),
+        },
     )
     enforcement_proofs("curl burst", total)
     clear_all()

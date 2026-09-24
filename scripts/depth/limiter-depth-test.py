@@ -42,6 +42,11 @@ Usage:
 
 What it verifies (verdicts PASS / FAIL / SKIP, exit 1 on any FAIL):
   env      cgroup v2, cgroup ID resolution, BPF fs, binary, doctor eBPF support
+  span     kernel-span family (NIGHT-boost-27): the 5.13+ floor gate,
+           the capability rung the running kernel rides at, and the
+           LTS placement — the documented ladder from the minimum
+           supported kernel to the latest, so a verdict from any
+           machine names the kernel generation it rode on
   baseline unlimited loopback throughput (the measurement ceiling)
   policy   strict-single writes the exact policy (status JSON fields)
   rate     enforced download rate at 100kb / 1mb / 10mb (adaptive skip)
@@ -454,6 +459,82 @@ def parallel_download(window, clients, port):
 # ── test stages ─────────────────────────────────────────────────────────────
 
 
+def _kernel_version(release):
+    """Parse `uname -r` into a comparable (major, minor) tuple.
+
+    Handles the shapes real distros ship: `6.8.0-51-generic`,
+    `5.15.0-131-azure`, `6.12.27-2-cachyos`, `5.13.0-52`. Returns None
+    on an unparseable release (the verdicts then report SKIP, never
+    guess).
+    """
+    first = release.split("-", 1)[0].split(".")
+    if len(first) < 2 or not all(part.isdigit() for part in first[:2]):
+        return None
+    return (int(first[0]), int(first[1]))
+
+
+# The kernel-span ladder (docs/KERNEL_COMPATIBILITY.md is the owner):
+# the verified floor and the feature rungs zelynic's own attach path
+# rides on. The LTS lines are the enterprise kernels the release page
+# implicitly promises to survive.
+KERNEL_FLOOR = (5, 13)  # the oldest verified kernel in the matrix
+KERNEL_RUNGS = (
+    ((5, 7), "bpf_link_create + BPF_OBJ_PIN (raw bpf() syscalls)"),
+    ((5, 8), "observer events ring buffer"),
+    ((5, 13), "the verified matrix floor (Ubuntu 21.10)"),
+    ((6, 1), "LTS line - the enterprise floor"),
+    ((6, 8), "LTS line - the current hosted ceiling"),
+    ((6, 12), "LTS line - the newest LTS generation"),
+)
+KERNEL_LTS_LINES = ((5, 15), (6, 1), (6, 6), (6, 12), (6, 16))
+
+
+def kernel_span_verdicts(release, ok):
+    """NIGHT-boost-27: the kernel-span verdict family — floor gate,
+    rung placement, LTS classification. The point is the span: a
+    verdict from 5.13 hardware and one from 6.18 both place
+    themselves on the same documented ladder, so CROSS_DISTRO rows
+    and CI rows read in one glance."""
+    ver = _kernel_version(release)
+    if ver is None:
+        return (
+            record(
+                "kernel span: floor gate",
+                "SKIP",
+                f"release {release!r} unparseable - the floor gate cannot judge it",
+            )
+            == "PASS"
+            and ok
+        )
+    ok = (
+        record(
+            "kernel span: floor gate (5.13+)",
+            "PASS" if ver >= KERNEL_FLOOR else "FAIL",
+            f"{release} - {'meets the documented minimum' if ver >= KERNEL_FLOOR else 'BELOW the verified matrix floor; zelynic is unsupported here'}",
+        )
+        == "PASS"
+        and ok
+    )
+    rung = next(
+        (f"{major}.{minor} ({note})" for (major, minor), note in KERNEL_RUNGS if ver >= (major, minor)),
+        "4.18 base (bpf_skb_cgroup_id - the pre-link era)",
+    )
+    record(
+        "kernel span: capability rung",
+        "PASS",
+        f"{release} rides at or above {rung}",
+    )
+    lts = next((f"{major}.{minor}" for major, minor in KERNEL_LTS_LINES if ver >= (major, minor)), None)
+    record(
+        "kernel span: LTS placement",
+        "PASS" if lts else "SKIP",
+        f"{release} is on or above the {lts} LTS line"
+        if lts
+        else f"{release} sits between LTS lines (an interim kernel - fine for a desktop host, unverifiable as an enterprise target)",
+    )
+    return ok
+
+
 def test_env():
     out()
     out("━━━ environment ━━━")
@@ -465,6 +546,12 @@ def test_env():
     out(f"  binary:   {lib.BINARY} ({binary_version()})")
     out(f"  cgroup:   {MODE}")
     ok = True
+    # NIGHT-boost-27 (kernel span): the depth harness places the host
+    # on the documented ladder — floor gate, capability rung, and the
+    # LTS classification — so a verdict from ANY machine names the
+    # kernel generation it rode on (the docs promise 5.13+, docs/
+    # KERNEL_COMPATIBILITY.md owns the ladder).
+    ok = kernel_span_verdicts(kernel, ok)
     ok = (
         record(
             "cgroup v2 unified hierarchy",
