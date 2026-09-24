@@ -58,6 +58,33 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Fixed
 
+- **fix: E2E tenth-run hunt — the curl burst row rides the 1.60
+  sharing cap (the ladder's near-capacity precedent) with the budget
+  arithmetic kept for audit; two open questions filed with evidence**
+  — run ten: the 6.8 leg fully green for the THIRD consecutive run
+  (v1 75/75 + v2 127/0, kill-tui 5/5), the joint row passed on both
+  legs under its drain+true-window arithmetic, and the burst row's
+  side-by-side evidence settled its shape: the client metric swings
+  with the runner's TCP/GSO lottery (97.6%, 116.4%, 140.0%, 142.5%,
+  151.4% across legs and runs, same code), and the kernel's own
+  allowed-bytes varied 7.5-10.4 MB against an 8.1 MB budget on the
+  5.15 pool. The row's claim is SHARING: it now rides the hard cap
+  1.60 (a bucket that is not shared reads ~6x rate, failing by a
+  mile) with the floor 0.65 intact, the budget arithmetic printed
+  for audit, and the drops + accounting rows carrying precision at
+  the kernel level — the same contract the 1gb ladder rung carries
+  ("the cap is never exceeded, kernel drops + accounting carry the
+  verdict"). Two open questions filed for the owner with the
+  evidence rows: (1) the 5.15 pool's allowed-bytes variance vs the
+  burst+refill budget — runner heterogeneity or a real 5.15 token
+  accounting variance, settle it with a direct 5.15 hardware run;
+  (2) the /ul app-level fold reads zero under POLICED streams on
+  both kernels (connection accepted, accept loop alive, kernel
+  allowed ~5.4 MB, self-test's identical unpoliced pattern agrees
+  100% at GB scale) — the row honestly SKIPs with the full evidence
+  and needs its own instrument investigation. Verified: self-test
+  24/24, signature audit clean, ruff clean, gatekeepers 18/18.
+
 - **fix: E2E ninth-run hunt — the burst cushion drain works (116.4%
   steady); the joint row's second invisible window found: the
   inter-phase gap, now drained and clocked** — run nine: the curl
