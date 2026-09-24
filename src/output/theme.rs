@@ -55,7 +55,7 @@
 //! carbon -> atomic -> cafe -> server -> moonlight -> hacker ->
 //! depth_sea -> netrunner.
 
-use std::sync::atomic::{AtomicU8, Ordering};
+use std::sync::atomic::{AtomicU32, AtomicU8, Ordering};
 
 use super::color::{capability, ColorCapability};
 
@@ -392,37 +392,63 @@ pub(crate) fn escape(slot: Slot, bold: bool) -> &'static str {
     escape_for(active(), slot, bold, capability())
 }
 
-// ── The terminal-following background (NIGHT-boost-26) ────────────────────
+// ── The terminal-following background (NIGHT-boost-26, live since
+// NIGHT-boost-32) ──────────────────────────────────────────────────────────
 //
-// Owner contract: the eagle-eyes frame's BACKGROUND follows the
-// terminal, not the builtin themes — a grey-themed terminal renders
-// a grey frame, a dark one a dark frame. Only the grid lines, data,
-// and info keep the theme's FOREGROUND vocabulary (the rails, tier
-// rows, census lines — everything the slots above paint). The
-// value comes from the OSC 11 query at monitor open
-// (terminal::raw::query_terminal_bg); unpainted capability depths
-// (Color16, Mono) and a terminal that never answered keep the
-// pre-boost-26 rendering: no background escape at all, the
-// terminal's own default showing through every unpainted cell.
+// Owner contract: the frame's BACKGROUND follows the terminal, not
+// the builtin themes — a grey-themed terminal renders a grey frame.
+// The grid lines, data, and info keep the FOREGROUND vocabulary
+// (the slots above). The value comes from the OSC 11 query: once
+// at monitor open, then on the live ask's cadence (the loop
+// re-asks and absorbs the answer from its input drain) — a
+// mid-session background change (alacritty's live config reload)
+// is followed within one ask instead of frozen at the open-time
+// color, the "still fixed black" regression NIGHT-boost-32
+// closed. Unpainted depths (Color16, Mono) and a silent terminal
+// keep the pre-boost-26 rendering: no background escape at all.
 
-/// The queried background (NIGHT-boost-26): set ONCE by the
-/// monitor's open path, read by the frame compositor. `None` is the
-/// honest default — no query ran, or the terminal stayed silent.
-static TERMINAL_BG: std::sync::OnceLock<Option<(u8, u8, u8)>> = std::sync::OnceLock::new();
+/// The queried background (NIGHT-boost-26, live since 32): written
+/// by the open path, updated by the live ask, read by the frame
+/// compositor. One atomic word — bit 31 the present flag, bits
+/// 23..0 `0xRRGGBB` — so live updates are lock-free. `0` is the
+/// honest default: no ask answered.
+static TERMINAL_BG: AtomicU32 = AtomicU32::new(0);
 
-/// Record the queried terminal background (the monitor's open path,
-/// after the OSC 11 answer lands). One-shot like every OnceLock in
-/// the output layer: a second call is a no-op, and the tests that
-/// pin the escape shapes set it before the first frame composes.
-pub(crate) fn set_terminal_bg(bg: Option<(u8, u8, u8)>) {
-    let _ = TERMINAL_BG.set(bg);
+/// Record the queried terminal background. Returns whether the
+/// stored color CHANGED — the monitor loop forces the follow
+/// repaint on a change. Packing pinned by the pure cores below.
+pub(crate) fn set_terminal_bg(bg: Option<(u8, u8, u8)>) -> bool {
+    let packed = pack_bg(bg);
+    // The swap returns the word it replaced — the change verdict IS
+    // the comparison, with no second atomic round-trip.
+    TERMINAL_BG.swap(packed, Ordering::AcqRel) != packed
 }
 
 /// The queried terminal background, when a paint-capable depth and
 /// an answering terminal agree.
 #[must_use]
 pub(crate) fn terminal_bg() -> Option<(u8, u8, u8)> {
-    terminal_bg_at(*TERMINAL_BG.get().unwrap_or(&None), capability())
+    terminal_bg_at(unpack_bg(TERMINAL_BG.load(Ordering::Acquire)), capability())
+}
+
+/// Pack one background triple for the atomic word: bit 31 present,
+/// bits 23..0 `0xRRGGBB`. Pure — pinned.
+#[must_use]
+fn pack_bg(bg: Option<(u8, u8, u8)>) -> u32 {
+    match bg {
+        Some((r, g, b)) => 0x8000_0000 | (u32::from(r) << 16) | (u32::from(g) << 8) | u32::from(b),
+        None => 0,
+    }
+}
+
+/// Unpack the atomic word (None when the present flag is clear).
+#[must_use]
+fn unpack_bg(packed: u32) -> Option<(u8, u8, u8)> {
+    if packed & 0x8000_0000 == 0 {
+        return None;
+    }
+    let v = packed & 0x00FF_FFFF;
+    Some(((v >> 16) as u8, (v >> 8) as u8, v as u8))
 }
 
 /// Pure core of [`terminal_bg`] (the emit/emit_at discipline): the

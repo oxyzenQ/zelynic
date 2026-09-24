@@ -264,14 +264,15 @@ pub(super) fn wrap(lines: &mut Vec<String>, width: usize) {
     let cap = capability();
     let theme = theme::active();
     // NIGHT-boost-26: the frame's background follows the terminal —
-    // the OSC 11 triple the monitor's open path queried, painted on
-    // every row so the frame reads as part of the terminal's own
-    // theme (grey terminal, grey frame) instead of the alt screen's
-    // default. Empty at Mono/Color16 or when the terminal never
-    // answered: those frames render exactly as before. Inner color
-    // resets would kill it mid-row, so each one re-opens the
-    // background right after; the row's own trailing RESET then
-    // closes everything the row opened.
+    // the OSC 11 triple the monitor's open path queried and the
+    // live ask keeps current (NIGHT-boost-32), painted on every row
+    // so the frame reads as part of the terminal's own theme (grey
+    // terminal, grey frame) instead of the alt screen's default.
+    // Empty at Mono/Color16 or when the terminal never answered:
+    // those frames render exactly as before. Inner color resets
+    // would kill it mid-row, so each one re-opens the background
+    // right after; the row's own trailing RESET then closes
+    // everything the row opened.
     let bg = theme::terminal_bg_escape();
     // Row 0 (the title bar) passes through the flank loop below
     // untouched — it carries the top border. The inset column and
