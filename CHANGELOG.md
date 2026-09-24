@@ -16,6 +16,46 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Added
 
+- **feat: NIGHT-ultimate-3 (re-issued label) — the E2E workflow:
+  the full pre-release qualification runs on CI, no VirtualBox
+  needed** — the owner's ask: "before release, CI that runs testing
+  from setup.sh, bootstrap, to supermassive-test-v2 last, so I can
+  verify zelynic works, triggered automatically on push when core
+  files change — but it needs sudo; can we make an isolated
+  container with sudo for real testing?" The answer lands as
+  `.github/workflows/e2e.yml` (Dragon Guard - E2E): a push touching
+  the binary-shaping surface (src/, ebpf/, cargo manifests, toolchain
+  pins, setup/bootstrap/linker scripts, the supermassive tree, the
+  shared harness lib, and the workflow's own file) runs the
+  owner-facing path itself — `setup.sh --skip-heavy` (rustup
+  resolving the pin, bootstrap installing the dated nightly +
+  bpf-linker into $HOME, the pro-native-gnu flagship build, the
+  rootless engine self-test), then `sudo supermassive-test.sh` (the
+  limiter matrix, loopback + real internet), then `sudo
+  supermassive-test-v2.sh` (the survival battery) LAST — the exact
+  machine-qualification order, on a matrix of ubuntu-22.04 (kernel
+  5.15, the LTS floor) and ubuntu-24.04 (6.8+), fail-fast false so a
+  5.15 failure never hides the 6.8 verdict. The sudo question is
+  answered in the workflow header: NO container — a hosted runner
+  already is the isolated single-use VM with passwordless sudo and
+  its own kernel; a Docker layer would add failure modes (private
+  cgroup namespace re-rooting the fleet mkdir, bpffs/kmsg mounts, a
+  NAT hop on the realnet lane) while buying zero isolation, and eBPF
+  uses the runner kernel either way. setup.sh runs with --skip-heavy
+  because its phase 4 wrapper warns-not-dies by design (the verdict
+  is the harness rows) — the batteries are their own steps with
+  authoritative exit codes, same canonical invocations the docs
+  teach. The cargo cache holds the registry only, never target/: the
+  build is pro-native codegen, and executing a restored native
+  artifact on a different runner's silicon is the NIGHT-hunt-34
+  SIGILL lottery — this job builds fresh and runs what it built, on
+  the same CPU. `workflow_dispatch` fires the whole pipeline on
+  demand: the pre-release "works 99%" check is now one click on two
+  kernels. Docs synced: README (install-from-source and test-results
+  pointers), CONTRIBUTING (the third CI contract),
+  CROSS_DISTRO_RESULTS (the CI row note). CI + docs only, zero Rust
+  surface touched.
+
 - **fix: NIGHT-ultimate-2 — the forever-monitor killed: a dead
   output sink now ends the session quietly, and the LTS
   silent-killer inventory answers the owner's long-usage
