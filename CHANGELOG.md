@@ -58,6 +58,32 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Fixed
 
+- **fix: E2E seventh-run hunt — first fully-green pipeline leg
+  (ubuntu-24.04: v1 75/75 + v2 127/0 end to end); the strict-multi
+  joint row gets the hunt-32 span treatment the curl burst row
+  already carries** — run seven delivered the first complete green
+  leg in zelynic's CI history: setup.sh bring-up, the pro-native-gnu
+  build, the full v1 limiter matrix (75 passed, 0 failed), and the
+  whole v2 survival battery (127 passed, 0 failed — guards, kills,
+  regression, teardown) on kernel 6.8. The 5.15 leg flaked on a NEW
+  row: "strict-multi: 2 members joint, still one shared bucket"
+  read 162.5% on a leg that measured 115.3% the run before — same
+  code, different spawn stagger. The joint verdict divided by the
+  NOMINAL window while two concurrent curls each run --max-time from
+  their OWN exec moment: on a loaded runner the stagger stretches
+  the bucket's true drain span (the run-seven budget math closes at
+  ~7 s of wall time: 1 MB burst + 7 s refill = 8.1 MB = the exact
+  bytes measured). The divisor is now the ACTUAL first-spawn ->
+  last-join span with the same budget-aware burst ceiling the curl
+  burst row carries ((span + 1 s documented default burst) / span,
+  5% slop, hard-capped at 1.60 — two independent buckets read
+  ~200%+, far past the cap), plus a span-sanity guard against
+  spawn/teardown pathology. Audited the sibling stages: mixed and
+  limit_all are single-curl measurements (no cross-thread stagger),
+  so the joint row was the last concurrent-flow row with a nominal
+  divisor. Verified: self-test 24/24, signature audit clean, ruff
+  clean.
+
 - **fix: E2E sixth-run hunt — v1 fully green on both runner kernels;
   v2 ran on CI for the first time (fully green on 6.8); the one 5.15
   failure row now carries its evidence** — the E2E loop's sixth run
