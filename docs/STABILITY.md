@@ -179,6 +179,26 @@ other class already fenced:
   `Interrupted`, so only real deaths count. Five pins hold the
   mechanism (test/terminal/sink_death_tests.rs); the live re-proof
   is the owner-host battery's lane.
+- **The garbled-terminal pipe entry — PREVENTED (NIGHT-boost-28).**
+  The sink-death exit fenced the pipe monitor's RUN; the entry was
+  still open and worse: `sudo zelynic ee | grep` keeps stdin on the
+  real terminal while stdout is the pipe, so the enter path
+  raw-moded the REAL terminal (echo off, ISIG off — Ctrl+C dead)
+  while every alt-screen byte and frame painted into the pipe, and
+  the loop spun forever holding root — a garbled terminal plus a
+  hidden root process. eagle-eyes now refuses any non-interactive
+  stdio BEFORE root work, terminal state, or BPF load: the gate
+  (`terminal::require_interactive`) sits in the handler (teaching
+  `status --print-json` for scripts) and again inside
+  `AltScreen::enter` as the structural backstop; the stdin twin
+  covers redirected input (`ee < /dev/null`) whose frames used to
+  paint on the MAIN screen with keys that could never arrive; and
+  `Monitor::open` returns `Result` so no enter failure can degrade
+  into the old silent pipe session. Prevention at the door, the
+  sink-death containment still armed behind it (a pty can die
+  mid-run); unit pins (test/terminal/interactive_guard_tests.rs)
+  and the piped-subprocess integration pin
+  (test/integration/monitor_guard.rs) hold both layers.
 
 **Verdict: yes — LTS-ready for long usage.** Every silent-killer
 class the audit could name is either bounded by construction,

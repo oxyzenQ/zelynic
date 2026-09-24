@@ -58,6 +58,47 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Fixed
 
+- **fix: NIGHT-boost-28 — `sudo zelynic ee | grep` is fatal no more:
+  the monitor refuses non-interactive stdio before any terminal
+  state, root work, or BPF load, and the full audit found no other
+  interactive surface in the tree** — the owner's live find: with
+  stdout piped, stdin stays the REAL terminal, so the old enter
+  path (tcgetattr on stdin alone) SUCCEEDED — raw mode landed on
+  the real terminal (echo off, ISIG off, Ctrl+C dead) while every
+  alt-screen byte, mouse-tracking mode, and TUI frame painted into
+  the pipe, and the loop spun forever holding root, eBPF, and a
+  /proc cadence: a garbled terminal plus a hidden root process, the
+  worst failure shape a critical-infra tool can take. The fix is
+  one gate in two places: `terminal::require_interactive()` checks
+  BOTH streams — stdout (the pipe case, message teaching
+  `status --print-json` for scripts) and stdin (the
+  `ee < /dev/null` twin: keys can never arrive, and without the
+  twin the frames painted on the MAIN screen, no alt screen) —
+  called from the eagle-eyes handler after the root guard (the
+  unprivileged piped probe still teaches sudo first, the surface
+  pin's contract) and again inside `AltScreen::enter` as the
+  structural backstop for any future monitor surface.
+  `Monitor::open` returns `Result` now: the old silent pipe
+  fallback (a session that ran the monitor into whatever stdout
+  was) is GONE — an enter failure is an honest error, never a
+  degraded session; the sink-death exit (NIGHT-ultimate-2) stays
+  armed behind the gate for a pty that dies mid-run. The audit
+  swept every other surface: status, list-apps, the strict/limit/
+  block/unstrict verbs, doctor, recover, cleanup, help, and
+  version are one-shot writers — pipe-safe by design
+  (broken-pipe-safe writers, `--print-json` scripting, no terminal
+  state), `--check-update` already refuses sudo; eagle-eyes was
+  the tree's only interactive command. Pins hold both layers:
+  `require_interactive`/`AltScreen::enter` refusal unit pins
+  (test/terminal/interactive_guard_tests.rs) and the piped
+  subprocess integration pin — root branch asserts the refusal
+  message, non-root branch asserts the root teaching, and BOTH
+  assert zero escape bytes in the piped stdout
+  (test/integration/monitor_guard.rs). Docs synced: STABILITY.md's
+  silent-killer inventory gains the prevention entry, USAGE.md's
+  eagle-eyes section names the refusal and the scripted
+  alternative.
+
 - **fix: NIGHT-boost-30 — the arch-baseline cargo aliases and their
   build labels carry the arch, matching the release matrix platform
   ids verbatim: `pro-linux-amd64-v3-gnu` / `pro-linux-amd64-v4-gnu`
