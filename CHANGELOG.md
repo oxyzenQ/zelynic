@@ -1515,6 +1515,49 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Fixed
 
+- **fix: NIGHT-hunt-34 — the Musl ubuntu-22.04 SIGILL flake closed
+  at the root (and its gnu twin preempted)** — the hunt-find from the
+  refactor-2/ultimate-3 verification rounds: the Musl Static Twin
+  job on ubuntu-22.04 intermittently died with "Illegal instruction
+  (core dumped)" on `./pro-native-musl/zelynic -V`, while the same
+  job was green on other commits and the build itself finished in
+  ~21s. That 21s was the tell: three cold musl release profiles
+  cannot compile that fast — the cache step had restored target/
+  wholesale, cargo recompiled NOTHING, and the executed binary was
+  compiled on a PREVIOUS runner's CPU. target-cpu=native bakes the
+  build machine's exact ISA into the artifact (dependencies
+  included), and GitHub pools heterogeneous silicon generations —
+  executing a cache-restored native artifact is a lottery that
+  SIGILLs the moment the previous runner was the newer machine. The
+  considered alternatives, on the record: a step retry restores the
+  SAME cache and only wins if the fresh runner lands on
+  new-enough silicon (masking, not fixing, at runner-minute cost) —
+  rejected; container/QEMU verification of the native twin buys
+  minutes to prove a machine-specific binary runs on that machine —
+  rejected as signal-free. The fix is the contract the v4 line in
+  the same step already carries: the native pair (musl AND the gnu
+  check job's native, same cache mechanism, same hazard class,
+  fixed before it ever flakes) is now verified via its embedded
+  ZELYNIC_BUILD label (`grep -aF "local-native-musl"` /
+  `"local-native-gnu"`) with no execution. Nothing measurable was
+  lost: the musl shape still executes natively three ways in the
+  same job (test binaries, debug -V, v3 -V — all baseline-codegen,
+  portable by construction), and the one gate retired is the one
+  whose codegen target is a variable, so its execution never proved
+  anything about any other machine. v3 keeps its execution gate
+  (fixed baseline, pool-portable); v4 keeps its existing
+  label-verify. Both step comments document the root cause, the
+  evidence, and why retry was rejected, so the next SIGILL-shaped
+  flake gets diagnosed in seconds, not hours. Second closure in the
+  same commit: ci.yml's own `paths:` trigger now includes
+  `.github/workflows/ci.yml` itself — a workflow edit used to be
+  linted by gate-keepers but never EXECUTED by its own pipeline,
+  so this very fix would have gone live untested until the next
+  Rust-touching push tripped over it (the silently-skipped-run
+  hazard NIGHT-boost-9 closed for scripts/). The workflow that can
+  change its own contract owes itself a run; the push that carried
+  this fix was its first self-triggered exercise.
+
 - **fix: NIGHT-hunt-26 — the intermittent flicker on long-running
   eagle-eyes sessions** — two mechanisms, both structural:
   (1) the selection guard's 100ms whole-frame beat re-emitted

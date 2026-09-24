@@ -40,6 +40,15 @@ on:
       # The Rust + tooling surface this workflow COMPILES, plus the
       # whole scripts/ tree its steps EXECUTE — one directory glob,
       # no hardcoded filenames (NIGHT-boost-9, see the header).
+      #
+      # NIGHT-hunt-34: the workflow file itself is in the filter —
+      # an edit to the verify/build steps used to be linted by
+      # gate-keepers (yamllint + actionlint) but never EXECUTED by
+      # its own pipeline, going live untested until the next
+      # Rust-touching push tripped over it (the exact
+      # silently-skipped-run hazard NIGHT-boost-9 closed for
+      # scripts/). A workflow that can change its own contract owes
+      # itself a run; the same run-more-not-less rule applies.
       - '**/*.rs'
       - '**/Cargo.toml'
       - 'Cargo.lock'
@@ -49,6 +58,7 @@ on:
       - '.cargo/**'
       - 'ebpf/**'
       - 'scripts/**'
+      - '.github/workflows/ci.yml'
   pull_request:
     branches: ["main"]
     paths:
@@ -61,6 +71,7 @@ on:
       - '.cargo/**'
       - 'ebpf/**'
       - 'scripts/**'
+      - '.github/workflows/ci.yml'
 
 # Least privilege (cosmostrix contract): every job in this workflow
 # only reads the repository.
@@ -231,13 +242,22 @@ jobs:
       #
       # v4 executes nothing: AVX-512 runners are not guaranteed, so
       # the artifact is verified via its embedded build label — the
-      # same no-SIGILL contract release.yml carries for v4.
+      # same no-SIGILL contract release.yml carries for v4. Native
+      # executes nothing either (NIGHT-hunt-34, preemptive): this job
+      # caches target/ exactly like the musl twin, and a restored
+      # target-cpu=native artifact was compiled on a PREVIOUS
+      # runner's CPU — executing it on this run's silicon is the same
+      # lottery that SIGILLed the musl ubuntu-22.04 job. Same fix,
+      # same contract: the embedded build label. v3 keeps its
+      # execution gate — the fixed v3 baseline is pool-portable
+      # (every x86_64 runner since Haswell executes AVX2).
       - name: 'Verify pro builds (gnu: native + v3 + v4)'
         run: |
           set -euo pipefail
           RUSTFLAGS="-D warnings -C target-cpu=native" \
             cargo pro-native-gnu --locked --target x86_64-unknown-linux-gnu
-          ./target/x86_64-unknown-linux-gnu/pro-native-gnu/zelynic -V
+          grep -aF "local-native-gnu" \
+            ./target/x86_64-unknown-linux-gnu/pro-native-gnu/zelynic
           RUSTFLAGS="-D warnings -C target-cpu=x86-64-v3" \
             cargo pro-linux-gnu-v3 --locked --target x86_64-unknown-linux-gnu
           ./target/x86_64-unknown-linux-gnu/pro-linux-gnu-v3/zelynic -V | grep -F "Build: local-linux-gnu-v3"
@@ -347,11 +367,36 @@ jobs:
       # lesson (statfs f_type is u64 on musl, i64 on glibc — the
       # release tag was the first musl compile in CI history) applies
       # to every tier here: a musl-only type error must surface on
-      # push, never first at tag time. Every build executes its -V
-      # gate (a static musl executable runs natively on the glibc
-      # runner) except v4: AVX-512 runners are not guaranteed, so
-      # the artifact is verified via its embedded build label — the
-      # same no-SIGILL contract release.yml carries for v4.
+      # push, never first at tag time. v3 executes its -V gate (a
+      # static musl executable runs natively on the glibc runner, and
+      # the fixed v3 baseline is pool-portable). v4 and native do
+      # NOT execute:
+      #
+      # v4: AVX-512 runners are not guaranteed, so the artifact is
+      # verified via its embedded build label — the no-SIGILL
+      # contract release.yml carries.
+      #
+      # NIGHT-hunt-34 (the ubuntu-22.04 SIGILL closure): native now
+      # skips execution for the same class of reason PLUS a cache
+      # dimension the v4 shape does not have. target-cpu=native
+      # bakes the BUILD machine's exact ISA into the artifact (deps
+      # included), and the cache step above restores target/ across
+      # runs — a warm run recompiles nothing (the observed flake run
+      # "built" all three profiles in 21s flat), so the restored
+      # native binary was compiled on a PREVIOUS runner's CPU.
+      # GitHub pools heterogeneous silicon generations, so executing
+      # a cached native artifact is a lottery: SIGILL the moment the
+      # previous runner's CPU was newer than this one's. A retry
+      # cannot fix this — it restores the SAME cache and only wins
+      # if the fresh runner happens to land on new-enough silicon:
+      # masking, not fixing, at runner-minute cost. The fix is the
+      # v4 contract: verify via the embedded ZELYNIC_BUILD label.
+      # The musl shape itself still executes natively three ways in
+      # THIS job — the test binaries, the debug -V, and the v3 -V,
+      # all baseline-codegen builds that are portable by
+      # construction. The one gate retired is the one whose codegen
+      # target is a variable, so executing it never proved anything
+      # about any other machine anyway.
       #
       # RUSTFLAGS composition: each line leads with -D warnings
       # (NIGHT-strict-2) and carries the full baseline set verbatim —
@@ -366,7 +411,7 @@ jobs:
         run: |
           set -euo pipefail
           RUSTFLAGS="-D warnings -C target-cpu=native -C target-feature=+crt-static" cargo pro-native-musl --locked
-          ./target/x86_64-unknown-linux-musl/pro-native-musl/zelynic -V
+          grep -aF "local-native-musl" ./target/x86_64-unknown-linux-musl/pro-native-musl/zelynic
           RUSTFLAGS="-D warnings -C target-cpu=x86-64-v3 -C target-feature=+crt-static" cargo pro-linux-musl-v3 --locked
           ./target/x86_64-unknown-linux-musl/pro-linux-musl-v3/zelynic -V | grep -F "Build: local-linux-musl-v3"
           RUSTFLAGS="-D warnings -C target-cpu=x86-64-v4 -C target-feature=+crt-static" cargo pro-linux-musl-v4 --locked
