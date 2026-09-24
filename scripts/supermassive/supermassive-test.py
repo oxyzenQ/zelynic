@@ -1626,19 +1626,48 @@ def test_multi_group(window, baseline):
     def worker(n):
         results[n] = curl_in_cgroup(n, window)
 
+    # E2E-workflow hunt (run seven): the joint verdict used the NOMINAL
+    # window as its divisor — the hunt-32 lesson the curl burst row
+    # already carries, one stage over. Two concurrent curls each run
+    # --max-time window from their OWN exec moment; on a loaded runner
+    # the spawn stagger stretches the bucket's true drain span (run
+    # seven read 162.5% on a leg that measured 115.3% the run before —
+    # same code, different stagger). The divisor is now the ACTUAL
+    # first-spawn -> last-join span, with the same budget-aware burst
+    # ceiling the burst row carries ((span + 1 s documented default
+    # burst) / span, 5% slop, hard-capped at 1.60): the sharing claim
+    # keeps its teeth — two independent buckets read ~200%+,
+    # far past the cap.
+    t0 = time.monotonic()
     threads = [threading.Thread(target=worker, args=(n,)) for n in ("b", "c")]
     for t in threads:
         t.start()
     for t in threads:
         t.join()
+    joint_span = time.monotonic() - t0
     if any(results[n][0] is None for n in ("b", "c")):
         clear_all()
         return record(name, "FAIL", "a group-member curl produced no metric")
+    if joint_span < window or joint_span > window + 2.0:
+        clear_all()
+        return record(
+            f"strict-multi: {len(results)} members joint, still one shared bucket",
+            "FAIL",
+            f"joint span {joint_span:.2f} s outside [{window:.1f}, {window + 2.0:.1f}]"
+            " — spawn/teardown pathology",
+        )
     total = sum(results[n][0] for n in ("b", "c"))
+    burst_s = 1.0
+    budget_ceiling = (joint_span + burst_s) / joint_span
     joint = band_check(
         f"strict-multi: {len(results)} members joint, still one shared bucket",
-        total / window,
+        total / joint_span,
         1_000_000,
+        extra=(
+            f"span {joint_span:.2f} s; budget ceiling {budget_ceiling:.2f}x "
+            f"(live {joint_span:.1f} s + {burst_s:.0f} s burst / span), cap 1.60"
+        ),
+        hi=min(1.05 * budget_ceiling, 1.60),
     )
     record(
         "strict-multi: group rows visible in status",
