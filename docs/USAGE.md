@@ -386,6 +386,13 @@ above it. The column headers are lowercase
 Every text row in the monitor starts lowercase (NIGHT-engrave-3's
 call — the uppercase carriers retired with their lines).
 
+The frame's BACKGROUND follows the terminal (NIGHT-boost-26): the
+monitor asks the terminal for its background color at open (OSC 11,
+standard query) and paints the frame in that color — a grey-themed
+terminal gets a grey eagle-eyes. Grid lines, data, and info keep
+the active theme; only the canvas follows the terminal. A terminal
+that does not answer renders exactly as before.
+
 Frame borders (NIGHT-boost-20): the whole monitor reads as one
 rounded box — the title bar's corners connect to its own purple fill
 as the top border, every content row wears gradient-colored side
