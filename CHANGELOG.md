@@ -58,6 +58,34 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Fixed
 
+- **fix: E2E fourth-run hunt — the curl burst ceiling now derives
+  from the documented burst budget, and the curl upload counter waits
+  for quiescence instead of a blind 0.4s sleep** — the fourth E2E run
+  (first with the delivered-bytes fix) surfaced two more runner-side
+  truths. (1) The curl burst row read 140.0% on kernel 5.15 while the
+  kernel's own counter read the policer holding its contract exactly:
+  8.25 MB allowed = 1 MB initial burst + 7.25 s of live refill
+  (default_burst = one second of rate, format.rs) — the raw 1.30
+  ceiling charged the documented burst front-load and the pre-span
+  live time (apply + settle + spawn stagger) to the configured rate.
+  The ceiling is now budget-aware arithmetic — (live + 1s burst) /
+  span, 5% client-vs-kernel slop, hard-capped at 1.60 — printed in
+  the row for audit; the sharing claim keeps its teeth (a bucket NOT
+  shared reads ~6x rate, far past the cap) and the drops + accounting
+  rows still police precision at the kernel level. (2) The curl
+  upload row's server-side delta read 0 against curl's 7.7 MB while
+  the kernel allowed ~5 MB — the /ul counter folds its per-connection
+  total only at connection end (the improve-21 contract), and the
+  fixed 0.4s settle loses that fold race under the matrix's thread
+  load. The stage now quiescence-polls the counter (trusted only once
+  it stops moving, up to 5 s), and a still-zero delta FAILs with
+  every number the next hunt needs — before/after counters, curl's
+  write count, and the kernel rows (bytes_allowed convicts the liar:
+  ~5 MB means the wire moved and the fold lost; ~0 means the worker
+  never sent). Verified rootlessly: the local repro agrees 3/3 at
+  ~10 GB per trial under both settle patterns; signature audit clean;
+  self-test 24/24.
+
 - **fix: E2E third-run hunt — two dormant v1-matrix rows fixed: the
   status-table marker pinned the pre-engrave capital-A wording, and
   the curl upload verdict read socket writes instead of delivered

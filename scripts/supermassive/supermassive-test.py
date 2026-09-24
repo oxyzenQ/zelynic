@@ -1327,6 +1327,21 @@ def test_curl_burst(window, clients, rate_bps, baseline):
     if baseline and baseline < 2 * rate_bps:
         return record("curl burst: parallel download under limit", "SKIP", "baseline too low")
     rate_str = f"{round(rate_bps / 1e6)}mb" if rate_bps >= 1e6 else f"{round(rate_bps / 1e3)}kb"
+    # E2E-workflow hunt (the runner 140% run): the policy-live clock
+    # starts HERE, at apply — the bucket refills over the pre-span
+    # overhead (apply + the 0.5 s settle + spawn stagger) and carries
+    # the documented 1 s default-burst front-load (default_burst = one
+    # second of rate, format.rs), so the curl-span ratio the row
+    # divides honestly admits (live + burst) / span. The runner read
+    # 140.0% client-side while the kernel allowed 8.25 MB = exactly
+    # 1 MB burst + 7.25 s of live refill — the policer held its
+    # contract; the ceiling now derives from that contract instead of
+    # the raw 1.30, with the arithmetic printed in the row for audit.
+    # The sharing claim keeps its teeth: a bucket NOT shared reads
+    # ~clients x rate (600% here), far past the 1.60 hard cap, and the
+    # drops + accounting rows below still police precision at the
+    # kernel level.
+    t_apply = time.monotonic()
     ok, payload = apply_single("a", rate_str, rate_bps, rate_bps)
     if not ok:
         return record("curl burst: parallel download under limit", "FAIL", payload)
@@ -1377,11 +1392,22 @@ def test_curl_burst(window, clients, rate_bps, baseline):
         clear_all()
         return False
     total = sum(totals)
+    # The budget-aware ceiling: allowance = burst + rate x live, the
+    # 5% is client-vs-kernel measurement slop, 1.60 is the hard cap
+    # that still fails a shared-bucket collapse by a mile.
+    live = time.monotonic() - t_apply
+    burst_s = 1.0
+    budget_ceiling = (live + burst_s) / span
+    hi = min(1.05 * budget_ceiling, 1.60)
     passed = band_check(
         f"curl burst: {clients} parallel curls, one shared limit",
         total / span,
         rate_bps,
-        extra=f"span {span:.2f} s",
+        extra=(
+            f"span {span:.2f} s; budget ceiling {budget_ceiling:.2f}x "
+            f"(live {live:.1f} s + {burst_s:.0f} s burst / span), cap 1.60"
+        ),
+        hi=hi,
     )
     enforcement_proofs("curl burst", total)
     clear_all()
@@ -1420,14 +1446,44 @@ def test_curl_upload(window, baseline):
         record("curl upload: external upload engine", "FAIL", f"curl produced no metric ({err})")
         clear_all()
         return False
-    SERVER.settle()
-    delivered = SERVER.peek()["ul"] - before
+    # The fold-after-close race, one layer deeper than the self-test's
+    # fixed settle (the improve-21 contract: the /ul counter folds its
+    # per-connection total only at connection end). The runner's first
+    # policed run read delta 0 against curl's 7.7 MB while the kernel
+    # allowed ~5 MB — a peek that wins the race against the server
+    # thread reads stale state under the matrix's thread load (the
+    # burst stage's dead-socket writers + the accept loop + this
+    # handler all contend). Quiescence-poll instead of a blind sleep:
+    # the counter is trusted only once it stops moving, and if it
+    # STILL reads nothing, the failure message carries every number
+    # the next hunt needs.
+    last = SERVER.peek()["ul"]
+    quiet = 0
+    for _ in range(50):  # up to 5 s of 0.1 s polls
+        time.sleep(0.1)
+        now = SERVER.peek()["ul"]
+        if now == last:
+            quiet += 1
+        else:
+            quiet = 0
+        last = now
+        if quiet >= 5:  # 0.5 s of stillness = the fold has landed
+            break
+    delivered = last - before
     if delivered <= 0:
         record(
             "curl upload: external upload engine",
             "FAIL",
-            f"server received 0 bytes (curl reported {sent}) — the measurement engine moved no wire bytes",
+            f"server delta {delivered} B against curl's {sent} B "
+            f"(ul counter {before} -> {last}) — the measurement engine's "
+            "server side folded no bytes; the kernel rows below name "
+            "what actually crossed the wire",
         )
+        # The kernel-side rows are the evidence: if bytes_allowed is
+        # ~5 MB, the wire moved and the server-side fold is the liar;
+        # if it is ~0, the upload never left the worker. Either way
+        # the next hunt starts from the numbers, not a guess.
+        enforcement_proofs("curl upload", sent)
         clear_all()
         return False
     passed = band_check("curl upload: external upload engine", delivered / window, 1_000_000)
