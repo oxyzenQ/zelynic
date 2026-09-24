@@ -715,6 +715,42 @@ measurable at the 1s cadence the real monitor runs.
   relying on any specific number (target count, LOC, rate bound),
   file path, function name, or config key.
 
+### NIGHT-boost-26 A/B (per-endpoint byte attribution, 2026-09-24)
+
+The 2.4 frontier closure: the observer ELF gained two per-socket LRU
+cookie maps (bumped from both cgroup_skb hooks), the userspace join
+(pidfd_getfd + SO_COOKIE cookie discovery, loader point lookups)
+feeds the ConnectionMap, and the endpoint lines render `[dl X | ul
+Y]` figures with the focus view ranking endpoints by bytes. A BPF
+object change plus a render-path change — but the frame harness
+renders from synthetic fixtures whose sockets carry no cookies or
+bytes, so the A/B proves exactly what needs proving: the BYTELESS
+render path is identical to the old one (A = 582967d at HEAD, B =
+the boost-26 tree, 10 s formal runs):
+
+| Metric | 582967d | boost-26 | Delta |
+|--------|---------|----------|-------|
+| fps | 8,555.1 | 8,401.1 | -1.8% (machine noise) |
+| bytes/frame | 1,943.0 | 1,943.0 | +0.0% |
+| emit bytes/frame | 506.2 | 505.3 | -0.2% |
+| frame entropy | 3.0034 | 3.0022 | -0.0% |
+| density gini | 0.3579 | 0.3582 | +0.1% |
+| dirty cells/frame | 39.5 | 39.4 | -0.1% |
+
+Reading: bytes/frame identical to the byte — the suffix is a pure
+addition that renders only when the join produced figures, so every
+existing frame shape is untouched (the 338-test suite's render pins
+pass unchanged; three new pins carry the attribution contract: the
+suffix, the lean byteless row, and the focus ranking). The fps
+delta is inside the same container-noise class as the improve-8 run
+(-1.8% here vs +4.6% there, on identical render bytes). The
+attribution's own runtime cost lives OUTSIDE the render path: two
+extra BPF map lookups per packet in the observer hooks and ~200
+userspace point-lookups per 1s frame (tens of microseconds of
+syscall time), neither of which the frame harness measures — the
+live-machine proof of the join itself is the owner-run battery's
+lane (the proof-claims harness pattern).
+
   If you find a discrepancy, please open a PR — the doc is wrong, not
   the source.
 -->

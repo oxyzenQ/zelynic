@@ -134,6 +134,7 @@ fn frame_bench_eagle() {
                 remote: remotes[idx % remotes.len()].to_string(),
                 state: if idx == 2 { "CLOSE" } else { "ESTABLISHED" },
                 queued: false,
+                cookie: None,
             };
             conns.insert(
                 cg,

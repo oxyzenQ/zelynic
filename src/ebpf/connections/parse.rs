@@ -42,6 +42,10 @@ pub(crate) fn parse_proc_net_line(line: &str, proto: Proto) -> Option<(u64, Sock
             remote: remote_addr,
             state: state_name(state)?,
             queued: tx_q > 0 || rx_q > 0,
+            // The cookie is fd-side knowledge (pidfd_getfd + SO_COOKIE
+            // during the fd walk, NIGHT-boost-26) — the socket TABLE
+            // row cannot know it.
+            cookie: None,
         },
     ))
 }
@@ -53,6 +57,13 @@ fn parse_queues(field: &str) -> Option<(u64, u64)> {
         u64::from_str_radix(tx, 16).ok()?,
         u64::from_str_radix(rx, 16).ok()?,
     ))
+}
+
+/// Parse an fd directory-entry name ("/proc/<pid>/fd/<n>") into the
+/// fd number (NIGHT-boost-26: the cookie join needs the RAW fd for
+/// pidfd_getfd). Non-numeric names (impossible in fd/) yield None.
+pub(crate) fn parse_fd_number(name: &std::ffi::OsStr) -> Option<i32> {
+    name.to_str()?.parse().ok()
 }
 
 /// Parse "IPHEX:PORTHEX" into a display endpoint string.

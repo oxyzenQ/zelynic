@@ -22,7 +22,8 @@
 
 use crate::ebpf::connections::{ConnectionMap, ProcessDetail, Proto, SocketInfo};
 use crate::ebpf::identity::IdentityMap;
-use crate::ebpf::limiter::format_count;
+use crate::ebpf::limiter::{format_bytes, format_count};
+use crate::ebpf::loader::SocketBytes;
 
 /// Total detail lines one eagle-eyes row may grow (NIGHT-boost-21):
 /// the flat contract spent three process lines plus one summary; the
@@ -84,8 +85,16 @@ pub(crate) fn comm_from_label(label: &str) -> Option<String> {
 }
 
 /// One detail line's endpoint text: UDP is tagged (QUIC-era traffic
-/// lives there), busy sockets are flagged.
-fn endpoint_text(socket: &SocketInfo) -> String {
+/// lives there), busy sockets are flagged. NIGHT-boost-26: when the
+/// join resolved this socket's bytes, the endpoint carries its own
+/// byte figures — `[dl X | ul Y]`, the footer speed pair's dl/ul
+/// vocabulary — so a five-connection process finally answers WHICH
+/// endpoint is eating (the 2.4 frontier: "the socket that MAKAN, not
+/// just the ones that exist"). The suffix appears only when there
+/// ARE bytes: a displayable-but-silent socket keeps its lean row,
+/// and a cookie-less socket (pidfd_getfd refused) renders exactly as
+/// before — absence is the honest no-figures signal.
+fn endpoint_text(socket: &SocketInfo, conns: Option<&ConnectionMap>) -> String {
     let mut out = String::new();
     if socket.proto == Proto::Udp {
         out.push_str("udp ");
@@ -94,7 +103,26 @@ fn endpoint_text(socket: &SocketInfo) -> String {
     if socket.queued {
         out.push_str(" [busy]");
     }
+    if let Some(b) = socket_bytes_of(socket, conns) {
+        out.push_str(&format!(
+            " [dl {} | ul {}]",
+            format_bytes(b.dl),
+            format_bytes(b.ul)
+        ));
+    }
     out
+}
+
+/// The joined bytes for one socket, if any (NIGHT-boost-26): the
+/// cookie's entry in the ConnectionMap's per-frame join result — a
+/// socket without a cookie or without bytes renders no figures.
+fn socket_bytes_of<'a>(
+    socket: &SocketInfo,
+    conns: Option<&'a ConnectionMap>,
+) -> Option<&'a SocketBytes> {
+    socket
+        .cookie
+        .and_then(|cookie| conns?.socket_bytes().get(&cookie))
 }
 
 /// Is this socket worth a detail line? Established TCP and connected
@@ -117,14 +145,20 @@ fn is_displayable(socket: &SocketInfo) -> bool {
 /// One process's eagle-eyes tree lines (NIGHT-boost-21): inline when
 /// it holds a single displayable endpoint, header plus capped
 /// children when more. The header carries the socket count, so a
-/// truncated expansion still says its scale.
-fn eagle_holder_lines(proc: &ProcessDetail, endpoints: &[&SocketInfo]) -> Vec<String> {
+/// truncated expansion still says its scale. NIGHT-boost-26: each
+/// endpoint line carries its joined byte figures when the per-socket
+/// maps know them.
+fn eagle_holder_lines(
+    proc: &ProcessDetail,
+    endpoints: &[&SocketInfo],
+    conns: Option<&ConnectionMap>,
+) -> Vec<String> {
     if endpoints.len() == 1 {
         return vec![format!(
             "    └ {} ({}) → {}",
             proc.comm,
             proc.pid,
-            endpoint_text(endpoints[0])
+            endpoint_text(endpoints[0], conns)
         )];
     }
     let mut out = Vec::with_capacity(1 + ENDPOINT_SHOWN);
@@ -137,7 +171,7 @@ fn eagle_holder_lines(proc: &ProcessDetail, endpoints: &[&SocketInfo]) -> Vec<St
     let shown = endpoints.len().min(ENDPOINT_SHOWN);
     for (i, socket) in endpoints.iter().take(shown).enumerate() {
         let branch = if i + 1 == shown { "└" } else { "├" };
-        out.push(format!("        {branch} {}", endpoint_text(socket)));
+        out.push(format!("        {branch} {}", endpoint_text(socket, conns)));
     }
     out
 }
@@ -146,6 +180,8 @@ fn eagle_holder_lines(proc: &ProcessDetail, endpoints: &[&SocketInfo]) -> Vec<St
 /// NIGHT-boost-21): the processes holding network sockets inside the
 /// cgroup, multi-socket holders expanded into endpoint children,
 /// capped at [`DETAIL_LINE_CAP`] lines including the summary.
+/// NIGHT-boost-26: the endpoint figures ride the ConnectionMap's
+/// per-frame byte join (see [`ConnectionMap::socket_bytes`]).
 #[must_use]
 pub(crate) fn detail_lines(conns: Option<&ConnectionMap>, cgroup_id: u32) -> Vec<String> {
     let mut lines = Vec::new();
@@ -183,7 +219,7 @@ pub(crate) fn detail_lines(conns: Option<&ConnectionMap>, cgroup_id: u32) -> Vec
         if lines.len() + cost + summary_slot > DETAIL_LINE_CAP {
             break;
         }
-        lines.extend(eagle_holder_lines(proc, endpoints));
+        lines.extend(eagle_holder_lines(proc, endpoints, Some(conns)));
         shown += 1;
     }
     let remaining = holders.len().saturating_sub(shown);
@@ -201,6 +237,11 @@ pub(crate) fn detail_lines(conns: Option<&ConnectionMap>, cgroup_id: u32) -> Vec
 /// full tree since NIGHT-boost-21): every socket-holding process,
 /// each of its displayable endpoints an indented child line — the
 /// deep answer to "who exactly is talking inside this cgroup".
+/// NIGHT-boost-26: the join's byte figures ride every endpoint line,
+/// and each process's endpoints RANK by their bytes — the hungriest
+/// endpoint first (the 2.4 promise: "the focus view could rank
+/// endpoints within a cgroup"); byteless endpoints keep the walk's
+/// established-first order behind them.
 #[must_use]
 pub(crate) fn full_detail_lines(conns: Option<&ConnectionMap>, cgroup_id: u32) -> Vec<String> {
     let mut lines = Vec::new();
@@ -219,16 +260,24 @@ pub(crate) fn full_detail_lines(conns: Option<&ConnectionMap>, cgroup_id: u32) -
         format_count(detail.total_procs as u64)
     ));
     for proc in &detail.socket_holders {
-        let endpoints: Vec<_> = proc.sockets.iter().filter(|s| is_displayable(s)).collect();
+        let mut endpoints: Vec<&SocketInfo> =
+            proc.sockets.iter().filter(|s| is_displayable(s)).collect();
         if endpoints.is_empty() {
             continue;
         }
+        // Bytes-desc, stable within equals (Rust's sort_by is stable,
+        // so byteless endpoints keep the established-first walk order
+        // behind the traffic-carriers).
+        endpoints.sort_by_key(|s| {
+            let total = socket_bytes_of(s, Some(conns)).map_or(0, |b| b.dl.saturating_add(b.ul));
+            std::cmp::Reverse(total)
+        });
         if endpoints.len() == 1 {
             lines.push(format!(
                 "  └ {} ({}) → {}",
                 proc.comm,
                 proc.pid,
-                endpoint_text(endpoints[0])
+                endpoint_text(endpoints[0], Some(conns))
             ));
         } else {
             lines.push(format!(
@@ -240,7 +289,10 @@ pub(crate) fn full_detail_lines(conns: Option<&ConnectionMap>, cgroup_id: u32) -
             let last = endpoints.len() - 1;
             for (i, socket) in endpoints.iter().enumerate() {
                 let branch = if i == last { "└" } else { "├" };
-                lines.push(format!("      {branch} {}", endpoint_text(socket)));
+                lines.push(format!(
+                    "      {branch} {}",
+                    endpoint_text(socket, Some(conns))
+                ));
             }
         }
     }
@@ -254,3 +306,10 @@ pub(crate) fn full_detail_lines(conns: Option<&ConnectionMap>, cgroup_id: u32) -
 #[cfg(test)]
 #[path = "../../../test/ebpf/render/detail_tests.rs"]
 mod detail_tests;
+
+// NIGHT-boost-26: the byte-attribution pins took their own file when
+// they pushed detail_tests.rs past the owner's LOC cap — one file
+// per contract, the footer tree's own split discipline.
+#[cfg(test)]
+#[path = "../../../test/ebpf/render/detail_bytes_tests.rs"]
+mod detail_bytes_tests;

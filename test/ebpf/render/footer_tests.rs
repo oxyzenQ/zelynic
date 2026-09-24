@@ -385,6 +385,7 @@ fn footer_discovery_pair_renders_with_the_autodetect_name() {
                     remote: "10.90.170.143:443".to_string(),
                     state: "ESTABLISHED",
                     queued: false,
+                    cookie: None,
                 }],
             }],
         },

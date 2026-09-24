@@ -288,6 +288,28 @@ folds into the `+N more socket-holding processes` summary). The
 focus view (one target, one cgroup) expands every endpoint — the
 deep answer to "who exactly is talking inside this cgroup".
 
+Every endpoint line carries its own byte figures (NIGHT-boost-26,
+the 2.4 frontier closed): `└ curl (4242) → 142.250.185.78:443 [dl
+10.2 GB | ul 180.0 KB]` — the dl/ul vocabulary of the footer's
+speed pair, per-socket session totals with the same horizon as the
+table's TOTAL column. The kernel itself names the owning socket per
+packet (`bpf_get_socket_cookie` in both cgroup_skb hooks: the
+sender on upload, the receiver on download), the observer bumps a
+per-socket LRU byte map keyed by that cookie, and userspace joins
+the map onto the endpoint table the /proc walk builds
+(pidfd_getfd + `SO_COOKIE` resolves each held socket's cookie — a
+root-only syscall pair, degrading gracefully to figure-less rows
+when a host refuses it). The focus view also RANKS each process's
+endpoints by their bytes — the hungriest endpoint first, so a
+five-connection process answers WHICH connection is eating at a
+glance; the ranked table's capped expansions keep the walk order
+(the two shown children are still the live ones). Sockets that
+moved nothing since the monitor started render no suffix (a lean
+row, never a fabricated zero), and under extreme socket churn
+(4096+ warm sockets at once) the LRU may age a cold entry out —
+an evicted-then-resumed socket restarts its accumulator, the
+documented best-effort bound.
+
 The frame is a PINNED composition (NIGHT-boost-14, the owner's
 masterclass engraving; REBUILT to the owner's dashboard spec by
 NIGHT-engrave-4; the line-by-line lookup reference with the example
@@ -497,11 +519,11 @@ with what the renderer draws.
 │  top process                                 download     upload      total  │
 │──────────────────────────────────────────────────────────────────────────────│
 │   1  cg:7001 (brave)                         2.1 MB/s   180 KB/s    10.2 GB  │
-│    └ brave (4242) → 142.250.185.78:443                                       │
+│    └ brave (4242) → 142.250.185.78:443 [dl 9.8 GB | ul 466.0 MB]             │
 │   2  cg:73402 (firefox +1)                   3.4 MB/s   210 KB/s     901 MB  │
 │    └ firefox (4242) 3 sockets:                                               │
-│        ├ 104.18.32.7:443                                                     │
-│        └ 104.18.32.115:443                                                   │
+│        ├ 104.18.32.7:443 [dl 620.4 MB | ul 31.2 MB]                          │
+│        └ 104.18.32.115:443 [dl 190.1 MB | ul 14.8 MB]                        │
 │   3  cg:73511 (curl)                                —          —     4.2 MB  │
 │  (+19 more hidden — raise the window)                                       │
 │──────────────────────────────────────────────────────────────────────────────│
@@ -536,7 +558,7 @@ The ranked table:
 | `download` / `upload` | LIVE per-direction rates: this frame's delta divided by the interval. A quiet app renders an em dash (`—`) — the observer measures, it does not judge (never "BLOCKED", which is a limiter verdict). |
 | `total` | Session-accumulated bytes for that cgroup (download + upload since the monitor started) — the ranking key. |
 | Label | The cgroup's identity: `cg:<id> (<comm>)`, with a `+N` suffix when more than one process holds sockets inside. |
-| Detail tree | The socket-holding processes inside the cgroup, grey: one displayable endpoint renders inline (`└ brave (4242) → 142.250.185.78:443`); a multi-socket process gets a header carrying its count (`└ firefox (4242) 3 sockets:`) with the two most-established endpoints as children. UDP endpoints are tagged (`udp`), saturated sockets carry `[busy]`. Established TCP and connected UDP only — listeners and TIME_WAIT are noise, filtered. |
+| Detail tree | The socket-holding processes inside the cgroup, grey: one displayable endpoint renders inline (`└ brave (4242) → 142.250.185.78:443`); a multi-socket process gets a header carrying its count (`└ firefox (4242) 3 sockets:`) with the two most-established endpoints as children. UDP endpoints are tagged (`udp`), saturated sockets carry `[busy]`. Established TCP and connected UDP only — listeners and TIME_WAIT are noise, filtered. Each endpoint carries its own byte figures when the join resolved them (`[dl X | ul Y]`, per-socket session totals, NIGHT-boost-26) — a socket that moved nothing keeps its lean row. |
 | Hidden note | `(+N more hidden — raise the window)`: the window IS the budget (no `--limit`); the count rides the same SI compact ladder as the census. |
 
 The pinned footer — the frame's dashboard, in the owner's exact line
@@ -787,10 +809,13 @@ session *minimum* speed line ("total low") is rejected for a
 structural reason: any idle interval drives the minimum toward
 zero, so the figure is ~0 at rest and carries no information —
 max + average are the session pair that does. The single
-sanctioned frontier item is per-endpoint byte attribution (which
-socket is consuming, not just which sockets exist), owner-approved
-with its closing design already written — it ships as its own task
-when scheduled, not as a scope widening.
+sanctioned frontier item — per-endpoint byte attribution (which
+socket is consuming, not just which sockets exist) — shipped as
+NIGHT-boost-26: every endpoint line carries its own `[dl | ul]`
+byte figures, and the focus view ranks a process's endpoints by
+their bytes (the closing design is documented in
+[docs/RESEARCH_TOOLCHAIN_AND_MONITORING.md](RESEARCH_TOOLCHAIN_AND_MONITORING.md)
+2.4, with the kernel-side verification trail).
 
 ---
 

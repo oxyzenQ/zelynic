@@ -194,30 +194,42 @@ limiter's data source — Cosmic Dragon principle 5), and none of
 them carries a session-accumulated view that survives quiet
 periods.
 
-### 2.4 The one genuine gap: per-endpoint consumption
+### 2.4 The one genuine gap: per-endpoint consumption — CLOSED at NIGHT-boost-26
 
 The ranked table answers "which cgroup, which process, how much".
-The endpoint trees answer "which sockets exist". **Nothing today
-answers "which ENDPOINT is consuming"** — the per-cgroup byte
-counters are not broken down per socket, so a process holding five
-connections shows five endpoint rows and one aggregate number, and
-the eye cannot tell which of the five is the eater. bandwhich and
-iftop both answer this (their attribution unit IS the connection),
-so on this single axis zelynic is behind the leaders, not ahead.
+The endpoint trees answer "which sockets exist". **Nothing used to
+answer "which ENDPOINT is consuming"** — the per-cgroup byte
+counters were not broken down per socket, so a process holding five
+connections showed five endpoint rows and one aggregate number, and
+the eye could not tell which of the five was the eater. bandwhich and
+iftop both answered this (their attribution unit IS the connection),
+so on that single axis zelynic was behind the leaders, not ahead.
 
-**How it closes (owner-approved, NIGHT-ask-1, 2026-09-24):** a
-per-socket byte map keyed by socket cookie (or a `sock_ops`/`socket_filter`
-program), joined in userspace with the endpoint table the
-ConnectionMap already builds — the endpoint rows would then carry
-their own byte figures, and the focus view could rank endpoints
-within a cgroup. Effort: one new BPF program + one map + a join
-(the identity plumbing already exists). Risk profile: well-trodden
-aya territory, no new privileges, map sizing bounded like the
-existing counters. The owner approved this design as **the only
-improvement on the table that advances the consumption frontier**:
-it is the sanctioned next work item, to be built as its own NIGHT
-task with its own micro-commit cycle — not folded into a drive-by,
-and not a widening of the declared class.
+**How it closed (owner-approved at NIGHT-ask-1, 2026-09-24; shipped
+as NIGHT-boost-26, same day):** the observer's two existing cgroup_skb
+hooks now also bump per-socket LRU byte maps keyed by
+`bpf_get_socket_cookie` — the sender's cookie on egress, the
+RECEIVER's on ingress (the CGROUP_INET_INGRESS attach fires
+per-socket from `sk_filter_trim_cap`, and
+`__cgroup_bpf_run_filter_skb` assigns `skb->sk = sk` before the
+program runs, so the cookie names the download's true owner —
+verified against torvalds/linux net/core/filter.c and
+kernel/bpf/cgroup.c, and the helper's legality in cgroup_skb via the
+`cg_skb_func_proto` -> `sk_filter_func_proto` fallthrough). The
+userspace join rides the identity plumbing that already existed, as
+the design promised: the ConnectionMap's fd walk resolves each held
+socket's cookie with `pidfd_getfd` + `SO_COOKIE` (kernel 5.6+, under
+the 5.13 floor), the loader point-looks-up the cookie maps for
+exactly the walked set (tens of syscalls per frame, never a map
+iteration), and the endpoint rows render `[dl X | ul Y]` session
+totals — with the focus view ranking each process's endpoints by
+their bytes, the exact 2.4 promise. Zero new program types, zero new
+privileges, map sizing bounded (two 4096-entry LRU hashes,
+session-scoped, freed at detach); the honest bounds — cookie-less
+rows on hosts that refuse pidfd_getfd, and LRU eviction under
+4096+ warm-socket churn — are documented in USAGE.md. The gap is
+closed: on every axis of the declared class, zelynic is now at or
+ahead of the reference set.
 
 ### 2.5 Improvements considered and rejected (scope discipline)
 
@@ -248,23 +260,24 @@ and not a widening of the declared class.
 
 ### 2.6 Verdict
 
-**Yes — peak masterclass in class, with one named exception.** The
-cgroup-scoped, kernel-accurate, dual-direction, session-accumulated
-consumption view is ahead of every tool in the reference set on its
-own axes; the single axis where the class leaders are ahead is
-per-endpoint byte attribution (2.4), and that is the one candidate
-improvement worth an owner decision. Everything else is either
-already superior here or correctly out of scope — and building any
-of it anyway would be over-engineering against the owner's rule.
+**Yes — peak masterclass in class, with the one named exception
+now closed.** The cgroup-scoped, kernel-accurate, dual-direction,
+session-accumulated consumption view is ahead of every tool in the
+reference set on its own axes; the single axis where the class
+leaders were ahead — per-endpoint byte attribution (2.4) — closed
+at NIGHT-boost-26 with the cookie-map design above. Everything else
+is either already superior here or correctly out of scope — and
+building any of it anyway would be over-engineering against the
+owner's rule.
 
 **Owner decision (NIGHT-ask-1, 2026-09-24): the verdict is
 accepted as the LTS scope statement.** The metric set is closed
 (live rates, session totals, session max/avg speed statistics,
 census, cgroup → process attribution — the rationale is documented
 where users read it, USAGE.md "Honest limitations" entry 12), and
-the 2.4 gap is approved to close on its own task cycle. The scope
-question is settled, not reopened: any future widening needs a new
-owner task, by design.
+the 2.4 gap closed on its own task cycle (NIGHT-boost-26) exactly
+as approved. The scope question is settled, not reopened: any
+future widening needs a new owner task, by design.
 
 ---
 
