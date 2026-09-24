@@ -58,6 +58,26 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Fixed
 
+- **fix: E2E sixth-run hunt — v1 fully green on both runner kernels;
+  v2 ran on CI for the first time (fully green on 6.8); the one 5.15
+  failure row now carries its evidence** — the E2E loop's sixth run
+  is the milestone the owner asked for: the v1 limiter matrix passed
+  75/75 on BOTH runner kernels (kernel 5.15 and 6.8+), and the v2
+  survival battery executed on CI for the first time — 127 passed,
+  0 failed on ubuntu-24.04 (CLI guards, SIGKILL batteries,
+  regression re-proof, teardown — all proven on a hosted runner).
+  The one remaining red: the 5.15 leg's "kill tui: every kill
+  reaped as signal 9 — 0/5 cycles exited -9" while every
+  surrounding row passed (TUI rendered 5/5, enforcement rows intact
+  5/5, fresh writes landed 5/5) — the TUI exits on its own before
+  the SIGKILL lands, deterministically, only on 5.15. The row said
+  nothing about HOW it exited; it now does: per-cycle exit codes and
+  the pty tail ride the failure message (0 = the ultimate-2
+  sink-death quiet exit, 1 = a load/attach error with its branded
+  line, -N = another signal), so the next run convicts the exact
+  path instead of leaving the hunt to theory. Verified: v2 self-test
+  8/8, signature audit clean, ruff clean.
+
 - **fix: E2E fifth-run hunt — the harness HTTP server's accept loop
   no longer dies silently on a transient fault, and the curl-upload
   zero-fold now reads as an honest engine-fault SKIP with the kernel

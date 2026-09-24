@@ -794,6 +794,16 @@ def test_kill_tui():
     killed_ok = 0
     rows_ok = 0
     write_ok = 0
+    # E2E-workflow hunt (run six): the 5.15 runner reaped 0/5 as -9
+    # while the render proof passed — the TUI exited on its own before
+    # the SIGKILL landed, and the row said nothing about HOW it exited.
+    # Per-cycle evidence (exit code + the pty tail) now rides the
+    # failure message: an attach failure shows its branded error line,
+    # a quiet death shows the last frame, and the exit code names the
+    # path (0 = sink-death, 1 = load/attach error, -N = another
+    # signal). The next run convicts, this one only suspects.
+    exit_codes = []
+    pty_tails = []
     for cycle in range(KILL_TUI_CYCLES):
         ok, payload = sm1.apply_group(["a", "b", "c"], rates[cycle], exp[cycle])
         if not ok:
@@ -806,7 +816,7 @@ def test_kill_tui():
         completed += 1
         proc, master = _spawn_tui_on_pty(["eagle-eyes", "--interval", "1s"])
         try:
-            rendered = _drain_pty(master, KILL_TUI_RENDER_S)
+            pty_bytes = _drain_pty(master, KILL_TUI_RENDER_S)
             proc.kill()  # SIGKILL: the violent death under test
             try:
                 proc.wait(timeout=10)
@@ -814,7 +824,12 @@ def test_kill_tui():
                 pass  # unreapable child: surfaced by the killed_ok row
         finally:
             os.close(master)
-        if rendered:
+        exit_codes.append(proc.returncode)
+        # The last 240 bytes decode-safe: the tail is where an attach
+        # error prints its branded line (the alt screen restores
+        # before the error lands on the main screen).
+        pty_tails.append(pty_bytes[-240:].decode("utf-8", "replace").replace("\x1b", "ESC"))
+        if pty_bytes:
             rendered_ok += 1
         if proc.returncode == -signal.SIGKILL:
             killed_ok += 1
@@ -850,7 +865,17 @@ def test_kill_tui():
         "kill tui: every kill reaped as signal 9",
         "PASS" if killed_ok == completed and completed == KILL_TUI_CYCLES else "FAIL",
         f"{killed_ok}/{completed} cycles exited -9"
-        + ("" if completed == KILL_TUI_CYCLES else f" (only {completed} cycles ran)"),
+        + ("" if completed == KILL_TUI_CYCLES else f" (only {completed} cycles ran)")
+        + (
+            ""
+            if killed_ok == completed
+            else " — exits: "
+            + ", ".join(
+                f"c{i + 1}={code} tail='{tail[-120:]}'"
+                for i, (code, tail) in enumerate(zip(exit_codes, pty_tails))
+                if code != -signal.SIGKILL
+            )
+        ),
     )
     record(
         "kill tui: enforcement rows intact after every kill",
