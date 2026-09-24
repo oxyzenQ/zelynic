@@ -13,7 +13,8 @@
 //! feature).
 
 use super::{
-    active, cycle_from, escape_for, set, terminal_bg_at, terminal_bg_escape_at, Slot, Theme, THEMES,
+    active, cycle_from, escape_for, pack_bg, set, terminal_bg_at, terminal_bg_escape_at, unpack_bg,
+    Slot, Theme, THEMES,
 };
 use crate::output::color::ColorCapability;
 
@@ -473,4 +474,26 @@ fn terminal_bg_survives_only_at_paintable_depths() {
     assert_eq!(terminal_bg_at(grey, ColorCapability::Color16), None);
     assert_eq!(terminal_bg_at(grey, ColorCapability::Mono), None);
     assert_eq!(terminal_bg_at(None, ColorCapability::TrueColor), None);
+}
+
+// ── The live background word (NIGHT-boost-32) ──────────────────────────────
+
+/// The atomic word's packing round-trips every triple, and the
+/// absent triple is the distinct word 0 — the live ask's updates
+/// and the compositor's reads agree on one representation.
+#[test]
+fn bg_word_packing_round_trips() {
+    assert_eq!(pack_bg(None), 0);
+    assert_eq!(unpack_bg(0), None);
+    for (r, g, b) in [(46, 46, 46), (255, 0, 0), (0, 128, 255), (1, 2, 3)] {
+        let triple = Some((r, g, b));
+        assert_eq!(unpack_bg(pack_bg(triple)), triple);
+    }
+    // Distinct triples pack to distinct words (a change verdict can
+    // never collide), and the present flag never leaks into the
+    // payload bits.
+    let a = pack_bg(Some((0, 0, 46)));
+    let b = pack_bg(Some((0, 0, 47)));
+    assert_ne!(a, b);
+    assert_eq!(a & 0x00FF_FFFF, 46);
 }

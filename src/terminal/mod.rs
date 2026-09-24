@@ -124,9 +124,8 @@ use std::time::{Duration, Instant};
 /// fastest deliberate human select-then-copy round trip
 /// (double-click plus an immediate Ctrl+Shift+C lands around
 /// 200 ms). Cost: one whole-frame rewrite per beat (~1.4 KB on
-/// the classic 80x24 frame), pinned by the diff tests. The loop
-/// wakes at 50 ms granularity, so a beat lands within 100..150 ms
-/// wall time.
+/// the classic 80x24 frame), pinned by the diff tests; the loop
+/// wakes at 50 ms granularity, so a beat lands within 100..150 ms.
 const SELECTION_GUARD_BEAT: Duration = Duration::from_millis(100);
 
 /// What the monitor loop owes the terminal this iteration
@@ -213,9 +212,17 @@ pub(crate) fn input_action_from_chunk(buf: &[u8]) -> InputAction {
     }
 }
 
-/// Drain pending input (non-blocking) and classify the leading
-/// byte. The generalization of the old `should_quit`: same read,
-/// same first-byte rule, three recognized keys instead of one.
+/// Drain pending input (non-blocking) and classify the leading byte
+/// of what is NOT a background answer. The generalization of the
+/// old `should_quit`: same read, same first-byte rule, three
+/// recognized keys instead of one. NIGHT-boost-32: the live ask's
+/// tracker consumes an OSC 11 reply riding the chunk (across
+/// chunks, within its patience) and the LEFTOVER bytes classify
+/// under the same first-byte contract — a `q` behind a reply tail
+/// still quits, the swallow the old fixed-16-byte drain could
+/// take. A completed answer parks in the theme layer; the bool
+/// half of the return says the stored color CHANGED (the caller
+/// forces the follow repaint).
 ///
 /// Exit contract (NIGHT-hunt-16): 'q' is THE quit key — the ONLY one.
 /// The former ESC quit is gone because a standalone ESC byte is
@@ -232,26 +239,26 @@ pub(crate) fn input_action_from_chunk(buf: &[u8]) -> InputAction {
 /// multi-byte escape sequence are drained, never treated as actions.
 /// If a wedged terminal ever swallows the 'q' byte, recovery from
 /// another shell is `pkill zelynic` followed by `stty sane`.
-pub(crate) fn read_input() -> InputAction {
-    let mut buf = [0u8; 16];
-    if let Ok(n) = io::stdin().read(&mut buf) {
-        if n > 0 {
-            return input_action_from_chunk(&buf[..n]);
-        }
-    }
-    InputAction::None
+pub(crate) fn drain_input(ask: &mut raw::BgAsk) -> (InputAction, bool) {
+    let mut buf = [0u8; 64];
+    let n = io::stdin().read(&mut buf).unwrap_or(0);
+    let (action, reply) = ask.absorb(&buf[..n], Instant::now());
+    let changed = match reply {
+        Some(rgb) => crate::output::theme::set_terminal_bg(Some(rgb)),
+        None => false,
+    };
+    (action, changed)
 }
 
 /// The monitor loop shared by every session shape (NIGHT-boost-25
-/// lifted it out of `run_alt` when the [`Monitor`] session type
-/// arrived): q-only quit, t theme cycle, 50ms wakes with the
-/// resize-reactive force render, the selection-guard beats where a
-/// selection can exist, the diff-based emission — one render
-/// closure, one screen, one reusable line vector — and the quiet
-/// death on a dead sink (NIGHT-ultimate-2): a failed emission ends
-/// the session (the loop breaks, the alt screen restores via Drop),
-/// so a piped monitor whose reader left can never spin forever
-/// holding root, eBPF, and a /proc walk cadence.
+/// lifted it out of `run_alt`): q-only quit, t theme cycle, 50ms
+/// wakes with the resize-reactive force render, the guard beats,
+/// the diff-based emission, the live background follow
+/// (NIGHT-boost-32) — and the quiet death on a dead sink
+/// (NIGHT-ultimate-2): a failed emission ends the session (the
+/// loop breaks, the alt screen restores via Drop), so a piped
+/// monitor whose reader left can never spin forever holding root,
+/// eBPF, and a /proc walk cadence.
 fn run_loop<F: FnMut(&mut Vec<String>)>(
     screen: &mut DiffScreen,
     lines: &mut Vec<String>,
@@ -280,12 +287,22 @@ fn run_loop<F: FnMut(&mut Vec<String>)>(
     // A real resize still lands within one wake of the probe
     // reporting the new size.
     let mut last_geo = winsize();
+    // NIGHT-boost-32: the live background ask — one 8-byte query
+    // per BG_ASK_INTERVAL, the answer absorbed by the input drain
+    // (zero stall: a slow answer rides the stream, never a poll).
+    // A changed answer parks in the theme layer and forces the
+    // repaint below — a mid-session background change (alacritty's
+    // live config reload) is followed within one ask.
+    let mut bg_ask = raw::BgAsk::new();
+    let mut last_ask = Instant::now() - raw::BG_ASK_INTERVAL;
     loop {
         // NIGHT-boost-18: one drain, two recognized keys — q
         // quits, t cycles the theme (the uppercase twin retired
-        // by NIGHT-engrave-2). The cycle result feeds the beat
-        // scheduler's force flag below: same-wake repaint.
-        let theme_switched = match read_input() {
+        // by NIGHT-engrave-2). The cycle result and the live
+        // background answer both feed the beat scheduler's force
+        // flag below: same-wake repaint.
+        let (action, bg_switched) = drain_input(&mut bg_ask);
+        let theme_switched = match action {
             InputAction::Quit => break,
             InputAction::ThemeNext => {
                 crate::output::theme::cycle(1);
@@ -298,7 +315,7 @@ fn run_loop<F: FnMut(&mut Vec<String>)>(
         // for one wake — the screen holds its last frame until the
         // probe recovers, no forced wrong-size render.
         let geo = winsize().or(last_geo);
-        let force = geo != last_geo || theme_switched;
+        let force = geo != last_geo || theme_switched || bg_switched;
         match next_beat(last_render, last_guard, refresh_interval, guard, force) {
             Beat::Render => {
                 lines.clear();
@@ -336,6 +353,15 @@ fn run_loop<F: FnMut(&mut Vec<String>)>(
                 last_guard = Instant::now();
             }
             Beat::Sleep => {}
+        }
+
+        // NIGHT-boost-32: the live background ask rides after the
+        // beat — one best-effort 8-byte write; the answer, whenever
+        // it lands, is absorbed by the next wake's drain. A silent
+        // terminal costs only the write.
+        if last_ask.elapsed() >= raw::BG_ASK_INTERVAL {
+            bg_ask.send();
+            last_ask = Instant::now();
         }
 
         std::thread::sleep(Duration::from_millis(50));
@@ -416,6 +442,8 @@ impl Monitor {
         // silent keeps the pre-boost-26 rendering: no background
         // escape at all. The 100 ms ceiling bounds the wait for the
         // silent ones; local terminals answer in single digits.
+        // NIGHT-boost-32: this is the FIRST paint's ask — the live
+        // ask in run_loop keeps the follow current from here on.
         crate::output::theme::set_terminal_bg(raw::query_terminal_bg());
         let (w, h) = match winsize() {
             Some((cols, rows)) => (cols as usize, rows as usize),

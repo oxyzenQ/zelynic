@@ -58,6 +58,63 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Fixed
 
+- **fix: NIGHT-boost-32 — the eagle-eyes background FOLLOWS the
+  terminal live: the OSC 11 ask repeats on a fixed cadence and the
+  answer is absorbed from the input stream, so alacritty's live
+  config reload paints the frame purple instead of freezing it at
+  the open-time black** — the owner's repro after NIGHT-boost-26:
+  `sudo zelynic ee`, change alacritty's background to purple, and
+  the frame stayed black — while before 22702f0 it followed. Root
+  cause: boost-26 asked OSC 11 exactly ONCE at monitor open and
+  parked the answer in a write-once `OnceLock` — the first frame
+  painted the terminal's own color, but a mid-session background
+  change never reached the frame; before boost-26 nothing was
+  painted at all, so the terminal's live background showed through
+  natively (the follow the owner had). The fix keeps the paint and
+  restores the follow: the monitor loop sends the same 8-byte OSC
+  11 query every BG_ASK_INTERVAL (2 s, independent of the refresh
+  interval — a `--interval 60` session still follows within one
+  ask) and the ANSWER is absorbed from the input stream the loop
+  already drains. Zero blocking anywhere: a slow answer (SSH RTT)
+  rides the stream and costs no stall, where the alternative — a
+  blocking re-poll per tick — would have stalled the 50 ms wake
+  cadence 10-15% of every second on silent terminals. The tracker
+  (terminal::raw::BgAsk) bounds its own world: a 500 ms patience
+  for split answers, a 64-byte cap for unterminated garbage, a
+  fresh head-match re-parse so a LATE answer (past patience, or
+  the open query's own 100 ms miss on a slow link) still lands.
+  Keys are strictly SAFER than before: the leftover bytes after a
+  consumed reply classify under the same first-byte contract, so a
+  `q` riding a reply's tail now QUITS where the old fixed-16-byte
+  drain swallowed it (the pin holds the exact case). The theme
+  layer's storage moved from the write-once `OnceLock` to one
+  packed atomic word (bit 31 present, bits 23..0 `0xRRGGBB`) whose
+  `swap` return IS the change verdict — a changed color forces the
+  repaint through the existing force flag (the theme-cycle
+  mechanism, one wake later). The open path's blocking ask stays
+  (the first frame paints the terminal's real color; the 100 ms
+  ceiling only bounds the silent ones). Terminals that never
+  answer, and the 16-color/Mono depths, render byte-identically to
+  before — no background escape at all — and the CI pty lanes see
+  only the 8-byte query per 2 s on the drain side (any bytes count
+  as render proof). Pinned: reply_front (BEL/ST terminators, the
+  span-through-terminator, non-answer heads, garbled payload =
+  shape without color), the tracker state machine (split reply +
+  q-leftover quits, late stray answers parse, patience expiry,
+  the garbage cap, plain input untouched), and the atomic word's
+  packing round-trip (distinct triples never collide, the present
+  flag never leaks into the payload). The 10 s A/B frame benchmark
+  (A = c6c12fe, B = this tree): NEUTRAL by construction —
+  bytes/frame 1,919.0 -> 1,919.0 at +0.0%, emit -0.1%, gini +0.0%,
+  entropy -0.0%, dirty cells -0.1%, fps -0.7% inside the
+  container-noise class — the ask machinery lives in the monitor
+  loop, which the piped harness never runs, so the render path is
+  byte-exact (a first noisy B run at -16.9% fps was re-run to
+  -4.0% and then -0.7% on a quiet machine — the deterministic
+  per-frame metrics carried the verdict throughout). Docs synced:
+  BRANDING.md 2.2's background contract and USAGE.md's theming
+  section carry the live-follow paragraph.
+
 - **fix: NIGHT-boost-31 — the stale-data hunt: the supermassive
   engine pin followed the boost-30 alias rename, the
   PERFORMANCE.md disclaimer stopped swallowing the last A/B
