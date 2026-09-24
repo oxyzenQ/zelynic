@@ -106,10 +106,17 @@ residual risks, ranked by how likely they are to matter:
    change can remove them.
 5. **Long-uptime monitor endurance (bounded by design, audited
    2026-09).** An eagle-eyes session that runs for months accumulates
-   per-cgroup totals in u64; at the 18.4 EB-per-direction ceiling
-   the accumulator SATURATES (never wraps, never panics — every
-   arithmetic surface in the session path is saturating since the
-   NIGHT-boost-16 audit), and the leaderboard's entry count mirrors
+   per-cgroup totals in u64; at the 18.4 EB-per-direction ceiling the
+   accumulator the user SEES — the session ledger in userspace —
+   SATURATES (never wraps, never panics — every arithmetic surface in
+   the session path is saturating since the NIGHT-boost-16 audit).
+   The kernel maps' own lifetime counters keep the C twin's plain
+   adds (NIGHT-ultimate-1 precision: their wrap horizon is the same
+   18.4 EB, but it would take years of saturated line-rate traffic
+   through one cgroup inside one session-scoped map — the maps are
+   recreated at every eagle-eyes start — and a wrap there could never
+   reach the display: the session ledger, not the map counter, is
+   what renders). The leaderboard's entry count mirrors
    the kernel's own 1024-slot counter-map ceiling
    (`MAX_TRACKED_CGROUPS`), so cgroup churn cannot grow the monitor's
    memory. The counter maps themselves are recreated at every
