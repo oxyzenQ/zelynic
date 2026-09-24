@@ -93,10 +93,13 @@ fn saturated_session_renders_without_panic() {
         "the total row survives saturation"
     );
     // NIGHT-engrave-4: the census saturates at its own honest
-    // ceiling — the raw u64 packet count, no panic, no wrap.
+    // ceiling — no panic, no wrap. NIGHT-engrave-7: the count rides
+    // the SI compact ladder, so the u64 ceiling reads "18.4E" —
+    // the same honest figure the byte ladder's "18.4 EB" carries,
+    // one glance instead of twenty digits.
     assert!(
-        joined.contains("18446744073709551615 packets + 1 cgroups"),
-        "the saturated packet counter renders its full figure: {joined}"
+        joined.contains("18.4E packets + 1 cgroups"),
+        "the saturated packet counter renders the compact ceiling: {joined}"
     );
     assert!(
         joined.contains("top consumer is saturator"),

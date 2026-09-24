@@ -357,6 +357,63 @@ pub fn format_rate(bps: u64) -> String {
     }
 }
 
+/// Format a plain COUNT using decimal SI compact units
+/// (NIGHT-engrave-7, the counter-explosion hardening).
+///
+/// The owner's report: a monitor that opens on "24 packets" reads
+/// "2244843 packets" eight hours later — a raw u64 that explodes the
+/// line and the reader's trust together. Every session-scoped count
+/// the monitor renders (packets, hidden rows, process/socket
+/// suffixes) now rides THIS ladder, the count-mirror of
+/// [`format_bytes`]: the same decimal SI tiers (1 K = 1000, never
+/// 1024), the same one-decimal-everywhere display, the same exact
+/// u128 tenths math, and the same tier-boundary promotion (a value
+/// that rounds up to 1000.0 of its unit renders in the next unit —
+/// 999_949 → "999.9K", 999_950 → "1.0M", never a ragged four-digit
+/// cell). Small counts stay EXACT and unpunctuated: the fresh-start
+/// "24 packets" keeps reading "24 packets" — compacting begins only
+/// where the raw figure stops being readable at a glance (>= 1000).
+///
+/// The unit letters carry no "B" suffix (a packet is not a byte) and
+/// no locale separators (the SI ladder IS the punctuation): "2.2M",
+/// "1.0K", "18.4E" at the u64 ceiling.
+///
+/// Examples: 24 → "24", 999 → "999", 1000 → "1.0K",
+///           2_244_843 → "2.2M", u64::MAX → "18.4E"
+pub fn format_count(n: u64) -> String {
+    const DIVS: [u64; 7] = [
+        1,
+        1_000,
+        1_000_000,
+        1_000_000_000,
+        1_000_000_000_000,
+        1_000_000_000_000_000,
+        1_000_000_000_000_000_000,
+    ];
+    const UNITS: [&str; 7] = ["", "K", "M", "G", "T", "P", "E"];
+
+    // The format_bytes walk discipline: promote while the one-decimal
+    // display of this tier would carry a thousands digit (the exact
+    // 999.95-of-a-unit threshold; every DIVS entry divides by 20
+    // exactly). Tier 6 (E) is the terminal: u64::MAX is ~18.4E and
+    // the walk guard stops before the EB multiple (1e21) could
+    // overflow u64.
+    let mut tier = 0usize;
+    while tier < 6 && n >= 1000 * DIVS[tier] - DIVS[tier] / 20 {
+        tier += 1;
+    }
+
+    if tier == 0 {
+        format!("{n}")
+    } else {
+        // Exact one-decimal tenths in u128 — the same half-up
+        // rounding the byte ladder uses, no float anywhere.
+        let div = u128::from(DIVS[tier]);
+        let tenths = (u128::from(n) * 10 + div / 2) / div;
+        format!("{}.{}{}", tenths / 10, tenths % 10, UNITS[tier])
+    }
+}
+
 /// Get terminal width in columns via the shared TIOCGWINSZ probe
 /// (the one canonical copy lives in the terminal layer,
 /// terminal/diff.rs — NIGHT-hunt-15). Falls back to 80 if detection
@@ -374,6 +431,12 @@ pub fn terminal_width() -> usize {
 // (cosmostrix Pattern C), #[path]-wired across trees exactly like the
 // limiter's math/policy/reclaim pins — the inline `mod tests` moved
 // out when the fractional rate layer pushed this file past the LOC cap.
+// NIGHT-engrave-7: the format_count pins took their own file when the
+// counter-explosion pins pushed format_tests.rs past the cap again.
 #[cfg(test)]
 #[path = "../../../test/ebpf/limiter/format_tests.rs"]
 mod format_tests;
+
+#[cfg(test)]
+#[path = "../../../test/ebpf/limiter/format_count_tests.rs"]
+mod format_count_tests;

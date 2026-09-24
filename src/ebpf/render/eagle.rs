@@ -59,6 +59,7 @@ use super::{
 use crate::ebpf::connections::ConnectionMap;
 use crate::ebpf::identity::IdentityMap;
 use crate::ebpf::limiter::format_bytes;
+use crate::ebpf::limiter::format_count;
 use crate::ebpf::limiter::Target;
 use crate::ebpf::loader::CounterSummary;
 use crate::output::{brand, grey, hot, ok, warn};
@@ -389,7 +390,7 @@ pub(super) fn render_eagle_eyes_at(
                 "  {}",
                 grey(&format!(
                     "(+{} more hidden — raise the window)",
-                    board.len() - emitted
+                    format_count((board.len() - emitted) as u64)
                 ))
             ));
         }

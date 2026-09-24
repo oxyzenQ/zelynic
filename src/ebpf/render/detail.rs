@@ -22,6 +22,7 @@
 
 use crate::ebpf::connections::{ConnectionMap, ProcessDetail, Proto, SocketInfo};
 use crate::ebpf::identity::IdentityMap;
+use crate::ebpf::limiter::format_count;
 
 /// Total detail lines one eagle-eyes row may grow (NIGHT-boost-21):
 /// the flat contract spent three process lines plus one summary; the
@@ -43,7 +44,9 @@ const ENDPOINT_SHOWN: usize = 2;
 /// This is the direct fix for the owner's "alacritty1,2,3,4,5"
 /// complaint — a session cgroup whose row name is the first PID the
 /// identity walk saw now says out loud that it is multi-tenant, and
-/// the detail lines name the actual inhabitants.
+/// the detail lines name the actual inhabitants. The count rides
+/// the SI compact ladder (NIGHT-engrave-7): a long-lived cgroup
+/// hosting thousands of PIDs reads `+2.4K`, never a raw explosion.
 #[must_use]
 pub(crate) fn label_with_count(
     identity: &IdentityMap,
@@ -58,7 +61,7 @@ pub(crate) fn label_with_count(
     if procs > 1 {
         // Splice before the closing paren: "(alacritty)" -> "(alacritty +3)".
         if let Some(stripped) = base.strip_suffix(')') {
-            return format!("{stripped} +{})", procs - 1);
+            return format!("{stripped} +{})", format_count((procs - 1) as u64));
         }
     }
     base
@@ -129,7 +132,7 @@ fn eagle_holder_lines(proc: &ProcessDetail, endpoints: &[&SocketInfo]) -> Vec<St
         "    └ {} ({}) {} sockets:",
         proc.comm,
         proc.pid,
-        endpoints.len()
+        format_count(endpoints.len() as u64)
     ));
     let shown = endpoints.len().min(ENDPOINT_SHOWN);
     for (i, socket) in endpoints.iter().take(shown).enumerate() {
@@ -185,7 +188,10 @@ pub(crate) fn detail_lines(conns: Option<&ConnectionMap>, cgroup_id: u32) -> Vec
     }
     let remaining = holders.len().saturating_sub(shown);
     if remaining > 0 {
-        lines.push(format!("    └ +{remaining} more socket-holding processes"));
+        lines.push(format!(
+            "    └ +{} more socket-holding processes",
+            format_count(remaining as u64)
+        ));
     }
 
     lines
@@ -210,7 +216,7 @@ pub(crate) fn full_detail_lines(conns: Option<&ConnectionMap>, cgroup_id: u32) -
 
     lines.push(format!(
         "  processes with sockets ({} total processes):",
-        detail.total_procs
+        format_count(detail.total_procs as u64)
     ));
     for proc in &detail.socket_holders {
         let endpoints: Vec<_> = proc.sockets.iter().filter(|s| is_displayable(s)).collect();
@@ -229,7 +235,7 @@ pub(crate) fn full_detail_lines(conns: Option<&ConnectionMap>, cgroup_id: u32) -
                 "  └ {} ({}) {} sockets:",
                 proc.comm,
                 proc.pid,
-                endpoints.len()
+                format_count(endpoints.len() as u64)
             ));
             let last = endpoints.len() - 1;
             for (i, socket) in endpoints.iter().enumerate() {

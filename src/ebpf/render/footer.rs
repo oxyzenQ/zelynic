@@ -16,10 +16,10 @@
 //! ──────────────────────────────────────────  <- purple grid, flush to the rails (engrave-3)
 //!   top consumer is curl                     <- grey + brand purple name (engrave-4)
 //!   478 packets + 1 cgroups                  <- grey (engrave-4: session horizon)
-//!   total usage internet in 1h:20s = 10gb    <- grey (engrave-3: `= total`)
-//!   total max dl | ul = 20.2 GB/s | 1 GB/s   <- grey (engrave-6: the session peak)
+//!   total usage internet in 1h:20s = 10.2 GB <- grey (engrave-3: `= total`, SI)
+//!   total max dl | ul = 20.2 GB/s | 1.0 GB/s <- grey (engrave-6: the session peak)
 //!   total avg dl | ul = 10.2 GB/s | 1.1 MB/s <- grey (engrave-6: total / uptime)
-//!   limit target with 'sudo zelynic ss curl 100kb'  <- grey + white command (engrave-4)
+//!   limit target with 'sudo zelynic ss curl 100kb'  <- grey + brand command (engrave-7)
 //!
 //!   1s realtime - theme netrunner - q quit - t theme  <- grey (engrave-2)
 //!
@@ -77,8 +77,8 @@ use super::{
 };
 use crate::ebpf::connections::ConnectionMap;
 use crate::ebpf::identity::IdentityMap;
-use crate::ebpf::limiter::format_bytes;
-use crate::output::{brand, grey, signature_footer, suggestion};
+use crate::ebpf::limiter::{format_bytes, format_count};
+use crate::output::{brand, grey, signature_footer};
 
 /// Top chrome above the table: the title bar, the NIGHT-boost-14
 /// breathing gap below it, the column header, and the purple grid
@@ -361,12 +361,17 @@ pub(super) fn build_grip_footer(
     }
     // The census (Full/Compact): the session's packets and the
     // board's cgroup count, one flat grey line — the frame's scale.
+    // Both counts ride the SI compact ladder (NIGHT-engrave-7, the
+    // counter-explosion hardening): the fresh-start "24 packets"
+    // stays "24 packets", the eight-hour "2244843 packets" reads
+    // "2.2M packets" — no raw u64 ever explodes the line again.
     if matches!(tier, FooterTier::Full | FooterTier::Compact) {
         footer.push(format!(
             "  {}",
             grey(&format!(
                 "{} packets + {} cgroups",
-                census.packets, census.cgroups
+                format_count(census.packets),
+                format_count(census.cgroups as u64)
             ))
         ));
     }
@@ -407,15 +412,19 @@ pub(super) fn build_grip_footer(
     }
     // The actionable line (Full/Compact): the owner's exact
     // engrave-4 wording — `limit target with 'sudo zelynic ss x
-    // 100kb'` — the command in suggestion crystal white (the color
-    // layer's actionable hint), the `ss` short alias the CLI already
-    // carries, the name the headline just introduced.
+    // 100kb'` — the command riding the ACTIVE theme's brand color
+    // (NIGHT-engrave-7, the owner's call: purple under netrunner,
+    // each theme's own accent under itself) beside the grey lead,
+    // the `ss` short alias the CLI already carries, the name the
+    // headline just introduced. The command joins the consumer's
+    // name in the brand tier — the frame's two living accents, the
+    // thing to read and the thing to act on.
     if matches!(tier, FooterTier::Full | FooterTier::Compact) {
         if let Some(name) = census.top_proc_name.as_deref() {
             footer.push(format!(
                 "  {} {}",
                 grey("limit target with"),
-                suggestion(&format!("'sudo zelynic ss {name} {SUGGESTED_LIMIT}'"))
+                brand(&format!("'sudo zelynic ss {name} {SUGGESTED_LIMIT}'"))
             ));
         }
     }
@@ -460,3 +469,9 @@ mod footer_tier_tests;
 #[cfg(test)]
 #[path = "../../../test/ebpf/render/footer_safety_tests.rs"]
 mod footer_safety_tests;
+
+#[cfg(test)]
+// NIGHT-engrave-7: the census-ladder and brand-tier pins took their
+// own file when they pushed footer_tests.rs past the owner's LOC cap.
+#[path = "../../../test/ebpf/render/footer_census_tests.rs"]
+mod footer_census_tests;
