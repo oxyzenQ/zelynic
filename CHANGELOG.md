@@ -115,6 +115,42 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Fixed
 
+- **fix: NIGHT-boost-37 — the eagle-eyes suggestion round-trips:
+  `sudo zelynic ss cg:48181 100kb` works verbatim — `Target::parse`
+  accepts the canonical `cg:` display prefix** — the owner's fatal
+  find: eagle-eyes named the top consumer `cg:48181` (an unresolved
+  identity — the honest raw label) and its actionable footer line
+  suggested exactly `limit target with 'sudo zelynic ss cg:48181
+  100kb'`, but running that command died: `'cg:48181': no process
+  matched in /proc walk — try 'zelynic list-apps'` + `No cgroup
+  found`. The suggested command was a guaranteed no-op — the parser
+  fed the whole `cg:48181` string to the /proc walk as a process
+  NAME, which can never match. The fix is one rule in
+  `Target::parse`: a `cg:` prefix over a numeric remainder resolves
+  to the same direct cgroup ID as the bare form (no /proc walk) —
+  every output surface prints this prefix (the status table's rows,
+  the footer's top consumer, the policy trace lines, the
+  `Run 'zelynic unstrict cg:48181'` echo), and the input grammar
+  now accepts what the output surfaces print, so all of them
+  round-trip: strict-single, unstrict-single, block-single (each
+  via `Target::parse`), and eagle-eyes' slash-separated targets
+  (`ee cg:48181/brave` watches the cgroup by id). Precision
+  guard: a NON-numeric remainder keeps the whole string as a
+  process name (`cg:brave` stays the graceful no-match it always
+  was — the prefix never silently rewrites a name target), and a
+  beyond-u32 id stays the graceful no-op the CLI pins. The
+  strict-multi/block-multi grammar is unchanged (their separator
+  is the colon, so members stay names or bare ids). Pinned: three
+  new `Target::parse` unit tests (prefix-numeric round-trip,
+  non-numeric keeps the full name, overflow stays a name) beside
+  the existing bare-numeric pin, the
+  eagle resolve test now parses `cg:7003` alongside the bare id,
+  and the privilege matrix rides `ss cg:48181 100kb` through the
+  clean root refusal. Docs synced: USAGE (the target grammar in
+  all three places), the CLI help surfaces (strict-single,
+  block-single, unstrict-single, eagle-eyes long help + the help
+  command's autodetect line). Rust + docs, zero kernel surface.
+
 - **fix: NIGHT-boost-34 — the background follow is fast (250 ms
   cadence), the CI wall is green again, and eagle-eyes loads on
   kernel 6.8: the observer's dead events ringbuf is gone** — three

@@ -42,7 +42,8 @@ fn classic() -> FrameGeometry {
 
 /// Target autodetect (NIGHT-boost-1): a name token expands to
 /// every matching cgroup; a numeric token is a cgroup ID
-/// verbatim; unmatched names surface as note lines.
+/// verbatim — bare or `cg:`-prefixed (the boost-37 round-trip);
+/// unmatched names surface as note lines.
 ///
 /// The id SET is compared sorted: `identity.all()` walks a HashMap,
 /// so expansion order is per-process random (the renderer re-sorts
@@ -56,6 +57,7 @@ fn name_targets_expand_and_misses_note() {
         &[
             Target::parse("brave"),
             Target::parse("73386"),
+            Target::parse("cg:7003"),
             Target::parse("chromium"),
         ],
         &identity,
@@ -64,8 +66,8 @@ fn name_targets_expand_and_misses_note() {
     got.sort_unstable();
     assert_eq!(
         got,
-        vec![7001, 7002, 73386],
-        "name expands + numeric verbatim"
+        vec![7001, 7002, 7003, 73386],
+        "name expands + numeric verbatim + cg: prefix round-trips (NIGHT-boost-37)"
     );
     assert_eq!(unresolved, vec!["chromium".to_string()]);
 

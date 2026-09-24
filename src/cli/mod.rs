@@ -214,7 +214,8 @@ pub enum Commands {
     ///   zelynic ss brave 100kb                         # short alias form
     #[command(name = "strict-single", alias = "strict", alias = "ss")]
     StrictSingle {
-        /// Target: process name (e.g., brave) or cgroup ID (e.g., 73386)
+        /// Target: process name (e.g., brave) or cgroup ID (e.g., 73386,
+        /// or cg:73386 — the prefix every display surface prints round-trips)
         target: String,
 
         /// Rate for both download+upload (e.g., 100kb, 5.5mb). Use -d/-u for per-direction.
@@ -334,7 +335,7 @@ pub enum Commands {
     /// Example: zelynic block-single brave
     #[command(name = "block-single", alias = "bs")]
     BlockSingle {
-        /// Target: process name or cgroup ID
+        /// Target: process name or cgroup ID (cg: prefix accepted)
         target: String,
 
         /// Force block on dangerous/system targets
@@ -353,7 +354,7 @@ pub enum Commands {
     /// Example: zelynic unstrict-single brave
     #[command(name = "unstrict-single", alias = "unstrict", alias = "us")]
     Unstrict {
-        /// Target: process name or cgroup ID
+        /// Target: process name or cgroup ID (cg: prefix accepted)
         target: String,
     },
 
@@ -406,7 +407,8 @@ pub enum Commands {
     ///   set of apps/cgroups.
     ///
     /// Each target is autodetected (same rule as strict/block):
-    /// all digits = cgroup ID (find one with list-apps), anything
+    /// all digits = cgroup ID (find one with list-apps), the
+    /// display prefix cg:73386 round-trips, anything
     /// else = process name — `eagle-eyes 12345/brave/firefox`
     /// watches all three at once.
     ///
@@ -430,7 +432,8 @@ pub enum Commands {
     #[command(name = "eagle-eyes", alias = "ee")]
     EagleEyes {
         /// Targets: process names or cgroup IDs, slash-separated
-        /// (e.g., brave, 73386, 12345/brave/firefox). Omit to watch all.
+        /// (e.g., brave, 73386, cg:73386, 12345/brave/firefox).
+        /// Omit to watch all.
         #[arg(value_name = "TARGETS")]
         targets: Option<String>,
 

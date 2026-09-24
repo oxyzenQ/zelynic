@@ -176,7 +176,8 @@ pub fn handle_list_apps(json: bool) -> Result<()> {
 /// the TUI).
 ///
 /// The positional TARGETS spec is autodetected per Target::parse
-/// (digits = cgroup ID, else process name) and re-resolved against
+/// (digits = cgroup ID, the display prefix cg:73386 round-trips
+/// (NIGHT-boost-37), else process name) and re-resolved against
 /// the live identity map every frame, so apps started mid-session
 /// appear on the next refresh. One token resolving to one cgroup
 /// takes the deep focus view; more take the filtered ranked table;
