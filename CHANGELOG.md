@@ -58,6 +58,67 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Fixed
 
+- **fix: NIGHT-boost-33 — `kill -9` and `pkill zelynic` no longer
+  wreck the terminal: the monitor arms a forked violent-death guard
+  that parks on one pipe read and restores the terminal the instant
+  the parent dies, any way it dies** — the owner's high-risk ask:
+  a root-held monitor killed violently (kill -9, pkill, a crash)
+  used to leave the terminal raw — echo off, ISIG off, the alt
+  screen holding the frame — the machine fine, the enforcement fine
+  (the pinned maps survive by design, the architecture's
+  fail-safe), the USER typing into a box that answers nothing,
+  with `stty sane` as the only manual recovery. No user code can
+  run under SIGKILL — but the kernel's own fd teardown (the one
+  thing no signal can skip) closes the parent's pipe write end the
+  instant the process dies, and THAT is the sensor: the guard child
+  forks BEFORE the alt screen takes the terminal (its snapshot of
+  the termios is the shell's canonical state), parks in one
+  blocking read(2) — zero CPU, zero wakeups, no polling, nothing
+  scheduled — and on EOF restores the termios, writes the exact
+  ALT_EXIT bytes (screen.rs's pinned constant, one contract with
+  AltScreen::drop), and exits. Overhead is one forked child
+  blocked in a syscall (unschedulable, invisible to the load) plus
+  one pipe; no coredump path exists anywhere in the design
+  (SIGKILL never dumps core; the guard holds no state to dump).
+  The protocol's two verdicts can never collide: a CLEAN exit
+  writes a stand-down byte down the pipe after AltScreen::drop
+  already restored (the parent's restore stays authoritative — the
+  child exits without touching the tty, so the two restorations
+  never race the shell's prompt), and the open-failure path
+  (AltScreen::enter's error) drops the guard WITHOUT the byte —
+  the child restores, exactly the case where the parent never got
+  its own chance. The child survives the very act that killed its
+  parent: prctl PR_SET_NAME renames it `zny-tguard` (no "zelynic"
+  substring — `pkill zelynic` must never reach the one process
+  that exists to clean up), and setsid(2) leaves the process
+  group so a group kill cannot reach it either. It touches no BPF
+  state, no pins, no maps — enforcement continuity is the
+  architecture's own contract, never the guard's; the CI kill-tui
+  battery's post-kill rows (enforcement intact, fresh writes
+  landing) are exactly the split the guard must not disturb. The
+  parent side is pure RAII: Drop writes the byte (SIGPIPE is
+  already SIG_IGN process-wide in Rust), reaps the child, closes
+  the pipe — no zombie, no lingering fd. arm() fails OPEN (no tty
+  to probe, no fork to make → None): the guard is insurance, never
+  a precondition. Pinned pure: the restore bytes ARE the alt-exit
+  constant (a re-point fails the build before a user's terminal
+  does), the name is NUL-terminated, within the 15-char comm cap,
+  and pkill-proof, and the stand-down byte is distinct from EOF by
+  construction (test/terminal/termguard_tests.rs — named to sit
+  beside the selection-guard's guard_tests.rs, one file per
+  contract). The fork/EOF mechanics are the live proof's lane: the
+  CI kill-tui battery SIGKILLs a real monitor on a real pty five
+  times per run. The 10 s A/B frame benchmark (A = the pre-32
+  tree, B = this tree): NEUTRAL by construction — bytes/frame
+  1,919.0 -> 1,919.0 at +0.0%, gini -0.2%, entropy +0.0%, dirty
+  cells +0.1%, fps inside the machine's noise band (two
+  consecutive same-tree runs spread 7,895..8,527 fps) — the guard
+  arms in Monitor::open, which the piped frame harness never runs.
+  Docs synced: STABILITY.md's silent-killer inventory gains the
+  violent-death entry; USAGE.md's recovery row now names the guard
+  (stty sane demoted to the manual fallback); the drain contract's
+  doc line follows.
+
 - **fix: NIGHT-boost-32 — the eagle-eyes background FOLLOWS the
   terminal live: the OSC 11 ask repeats on a fixed cadence and the
   answer is absorbed from the input stream, so alacritty's live

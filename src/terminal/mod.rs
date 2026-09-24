@@ -35,26 +35,24 @@
 //! rewrite carries NO screen erase — the rewrite itself is the
 //! selection killer, and an erase between renders opened the blank
 //! window the owner read as an intermittent flash on long-running
-//! monitors (see diff.rs for the mechanism).
-//! Honest physics boundaries, documented not hidden: (a) an
-//! X11-style terminal that mirrors a COMPLETED selection into the
-//! PRIMARY clipboard at button release can still catch what
-//! re-accumulates after the last beat — terminal-side, beyond any
-//! Linux application's reach; (b) a Select All + Copy fired inside
-//! a single beat lands before the next rewrite; (c) pasted bytes
-//! that do reach stdin are drained like any other inert input
-//! (NIGHT-hunt-16 q-only quit contract unchanged; NIGHT-boost-18
-//! added the t theme key — an action key, never a quit key; its
-//! uppercase twin T was retired by NIGHT-engrave-2 at the owner's
-//! "better only simple 't'" call: one key, one direction, modulo
-//! wraparound). The
-//! contract is
-//! pinned three ways in test/terminal/mouse_contract_tests.rs
-//! (byte-level pins over the sequences below, the beat value and
-//! the loop scheduler, and a source-tree scan that fails if any
-//! `\x1b[?` mode outside {1049, 25, 1000, 1002, 1006} ever appears
-//! in src/), plus the whole-frame repaint pins in
-//! test/terminal/diff_tests.rs.
+//! monitors (see diff.rs for the mechanism). Honest physics
+//! boundaries, documented not hidden: (a) an X11-style terminal
+//! that mirrors a COMPLETED selection into the PRIMARY clipboard
+//! at button release can still catch what re-accumulates after
+//! the last beat — terminal-side, beyond any Linux application's
+//! reach; (b) a Select All + Copy fired inside a single beat lands
+//! before the next rewrite; (c) pasted bytes that do reach stdin
+//! are drained like any other inert input (NIGHT-hunt-16 q-only
+//! quit contract unchanged; NIGHT-boost-18 added the t theme key —
+//! an action key, never a quit key; its uppercase twin T was
+//! retired by NIGHT-engrave-2 at the owner's "better only simple
+//! 't'" call: one key, one direction, modulo wraparound). The
+//! contract is pinned three ways in
+//! test/terminal/mouse_contract_tests.rs (byte-level pins over the
+//! sequences below, the beat value and the loop scheduler, and a
+//! source-tree scan that fails if any `\x1b[?` mode outside
+//! {1049, 25, 1000, 1002, 1006} ever appears in src/), plus the
+//! whole-frame repaint pins in test/terminal/diff_tests.rs.
 //!
 //! NIGHT-improve-2: the monitor loop renders through the diff-based
 //! engine ([`DiffScreen`], see `diff.rs`) — only rows that changed
@@ -85,8 +83,12 @@
 //! surface in the tree.
 
 mod diff;
+mod guard;
 mod raw;
 mod screen;
+
+// NIGHT-boost-33: the violent-death terminal guard (kill -9, pkill)
+// lives in guard.rs — the screen.rs one-file-per-contract precedent.
 
 // NIGHT-boost-28 (the 500-LOC cap split): the alt-screen contract —
 // enter/exit bytes, the termios guard, the interactive-stdio gate —
@@ -238,7 +240,8 @@ pub(crate) fn input_action_from_chunk(buf: &[u8]) -> InputAction {
 /// key). Ctrl+C, ESC, and every
 /// multi-byte escape sequence are drained, never treated as actions.
 /// If a wedged terminal ever swallows the 'q' byte, recovery from
-/// another shell is `pkill zelynic` followed by `stty sane`.
+/// another shell is `pkill zelynic` — the guard (NIGHT-boost-33)
+/// restores the terminal itself; `stty sane` stays the fallback.
 pub(crate) fn drain_input(ask: &mut raw::BgAsk) -> (InputAction, bool) {
     let mut buf = [0u8; 64];
     let n = io::stdin().read(&mut buf).unwrap_or(0);
@@ -369,46 +372,26 @@ fn run_loop<F: FnMut(&mut Vec<String>)>(
 }
 
 /// A live-monitor terminal session opened with the smooth-loading
-/// prelude (NIGHT-boost-25, the owner's masterclass loading audit).
+/// prelude (NIGHT-boost-25, the owner's masterclass loading audit):
+/// `Monitor::open` enters the alt screen and paints the caller's
+/// prelude frame the moment the command starts, so the BPF load
+/// reads as the product loading, not the terminal freezing. The
+/// prelude rides the SAME DiffScreen the live loop uses (the first
+/// live frame diffs against it — every row rewrites in place, no
+/// clear, no blank flash), and a load failure drops the session
+/// with ALT_EXIT restoring the main screen for the branded error.
 ///
-/// The problem the type exists to fix: `sudo zelynic ee` used to run
-/// the whole BPF load on the MAIN screen — the terminal sat frozen
-/// blank for the verifier's duration, then the alt screen switched
-/// and the full bright frame painted in one burst. Dead air, then a
-/// flash: the eye reads that transition as flashy and straining.
-///
-/// The fix inverts the order. [`Monitor::open`] enters the alt screen
-/// and paints the caller's prelude frame (the loading composition)
-/// the moment the command starts, and the BPF load then runs UNDER
-/// that frame — the load reads as the product loading, not the
-/// terminal freezing. The prelude rides the SAME DiffScreen the live
-/// loop uses, so it becomes the shadow's frame 0 and the first live
-/// frame diffs against it: because the monitor frame fills the
-/// terminal exactly, the emission rides the diff engine's sequential
-/// path — every row rewrites IN PLACE with no clear and no blank
-/// flash, the unchanged rows land their identical bytes (the same
-/// glyphs, invisible to the eye), and the one row that changed is
-/// the note (`loading observer…` becomes `waiting for traffic…`).
-/// A load failure simply drops the session — ALT_EXIT restores the
-/// main screen and the branded error prints on it.
-///
-/// NIGHT-boost-28: the silent pipe fallback is GONE. The old
-/// contract opened a "silent" session when `AltScreen::enter`
-/// failed and ran the monitor loop into whatever stdout was — a
-/// pipe (the forever-monitor shape the sink-death exit already
-/// fenced) or, worse, a TTY whose stdin was redirected (frames
-/// painting on the MAIN screen with no alt screen and no keys).
-/// With `require_interactive()` gating both the handler and
-/// `enter()`, a non-interactive stdio now refuses loudly BEFORE any
-/// terminal state is taken, and a genuine termios failure inside
-/// `enter()` propagates as the honest error it is — the session
-/// type can no longer swallow an enter failure and degrade
-/// silently. Every monitor invocation is interactive, or it never
-/// starts.
+/// NIGHT-boost-28: the silent pipe fallback is GONE — with
+/// `require_interactive()` gating both the handler and `enter()`,
+/// a non-interactive stdio refuses loudly BEFORE any terminal
+/// state is taken, and a termios failure inside `enter()`
+/// propagates as the honest error it is. Every monitor invocation
+/// is interactive, or it never starts.
 ///
 /// The alt screen (and every mode ALT_ENTER touched) restores when
 /// the session drops: mouse modes off, main screen back, cursor
-/// visible — unchanged from the `run_alt` era.
+/// visible — and since NIGHT-boost-33 the violent-death guard holds
+/// the same contract for the deaths a Drop can never run for.
 pub struct Monitor {
     screen: DiffScreen,
     lines: Vec<String>,
@@ -416,6 +399,11 @@ pub struct Monitor {
     /// the main screen when the session ends). Underscore-named: a
     /// pure RAII field is never read, only dropped.
     _alt: AltScreen,
+    /// The violent-death terminal guard (NIGHT-boost-33): a forked
+    /// child parked on a pipe that restores the terminal when the
+    /// monitor dies without its own Drop (kill -9, pkill). Dropped
+    /// AFTER `_alt`, so the clean-exit byte stands the child down.
+    _term_guard: Option<guard::TerminalGuard>,
     /// The selection guard runs only where a selection can exist —
     /// always true now: `Monitor::open` only succeeds on a fully
     /// interactive stdio pair (NIGHT-boost-28).
@@ -434,7 +422,18 @@ impl Monitor {
     /// the branded message instead of degrading into the silent
     /// pipe session; no chrome byte ever reaches a non-terminal.
     pub fn open<P: FnOnce(usize, usize) -> Vec<String>>(prelude: P) -> Result<Self> {
+        // NIGHT-boost-33: arm the violent-death guard FIRST — the
+        // forked child must snapshot the SHELL's termios before raw
+        // mode lands. None (no tty, no fork) is fail-open:
+        // insurance, never a precondition.
+        let mut term_guard = guard::TerminalGuard::arm();
         let alt = AltScreen::enter()?;
+        // The alt screen is live: the monitor's Drop owns the restore
+        // now, so the guard's Drop sends the stand-down byte (the
+        // open-failure path keeps the guard in restore mode).
+        if let Some(g) = term_guard.as_mut() {
+            g.note_alt_live();
+        }
         // NIGHT-boost-26: the frame's background follows the
         // terminal — the OSC 11 query rides the raw mode enter()
         // just took (the answer is not newline-terminated) and the
@@ -453,6 +452,7 @@ impl Monitor {
             screen: DiffScreen::new(),
             lines: prelude(w, h),
             _alt: alt,
+            _term_guard: term_guard,
             guard: true,
         };
         // The prelude IS frame 0: emit through the session's
@@ -477,8 +477,8 @@ impl Monitor {
             refresh_interval,
             render,
         );
-        // self drops here: AltScreen::drop writes ALT_EXIT and
-        // restores the main screen.
+        // self drops here: AltScreen::drop restores the main screen,
+        // then the terminal guard stands its child down (boost-33).
     }
 }
 
