@@ -201,9 +201,19 @@ static events: RingBuf = RingBuf::with_byte_size(2 * 1024 * 1024, 0);
 /// Bump one per-socket cookie accumulator (NIGHT-boost-26). Cookie 0
 /// means the kernel had no owning socket on the skb (packet-level
 /// traffic not demuxed to a socket, e.g. some early loopback shapes)
-/// — nothing to attribute, skip honestly. Saturating add like every
-/// counter in the observer: a u64 byte accumulator's honest ceiling
-/// is u64::MAX, never a wrap.
+/// — nothing to attribute, skip honestly. Saturating add: a u64 byte
+/// accumulator's honest ceiling is u64::MAX, never a wrap — the same
+/// discipline the userspace session ledger guarantees (NIGHT-boost-16).
+/// The cgroup counters below deliberately keep the C twin's plain
+/// adds instead: their wrap horizon is the same unreachable 18.4 EB
+/// (years of line-rate traffic through ONE cgroup in ONE
+/// session-scoped map), and the saturating form would charge the
+/// per-packet hot path extra instructions to guard a state no real
+/// link can produce. The honest saturation contract users SEE is the
+/// userspace one — STABILITY.md's "the accumulator saturates" scoped
+/// to the session path. (NIGHT-ultimate-1 comment-truth fix: the
+/// previous wording claimed saturation parity with the cgroup
+/// counters that the code below never had.)
 fn bump_socket_counter(map: &LruHashMap<u64, u64>, cookie: u64, pkt_len: u64) {
     if cookie == 0 {
         return;

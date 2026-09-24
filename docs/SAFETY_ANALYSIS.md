@@ -678,7 +678,10 @@ and fixed, one purely as defense-in-depth:
   preserved: a cgroup the kernel never counted cannot rank.
 
 What remains intentionally NOT defended: the kernel-side counters
-themselves are u64 by schema (schema v7) — 18.4 EB per direction
+themselves are u64 by schema (schema v6, pinned by
+`SCHEMA_VERSION_EXPECTED`'s parity test — NIGHT-ultimate-1 truth
+fix: this paragraph previously said v7, a version that never
+shipped) — 18.4 EB per direction
 per cgroup is the ceiling of the whole architecture, and the
 monitor's saturating presentation is the honest rendering of that
 ceiling, not a repair of it. Long-endurance guidance: on a trunk
@@ -687,6 +690,88 @@ the monitor on a cadence (the session horizon resets), or read the
 lifetime figures from `status` — the limiter's pinned maps carry
 their own accumulator contracts documented in the overflow audit
 above.
+
+## Comprehensive Security/LTS Audit (NIGHT-ultimate-1, 2026-09-24)
+
+The owner-task: a full depth pass over security, mitigation, LTS,
+and every other comprehensive aspect — "should be complete peak,
+high potential gains for LTS investment". Method: line-by-line read
+of every privilege-bearing and kernel-boundary surface (the two BPF
+programs and their maps, the raw-syscall wrappers, the pin lifecycle,
+the operation lock, both /proc walks, the pidfd_getfd join, the
+untrusted-string boundaries, the update check, the privilege
+ladders in every mutating command, the terminal layer), the CI
+toolchain wiring (build.rs staging, bootstrap, the workflows'
+gatekeeper mirrors), and the docs' claims audited against the code
+they describe. Verdict per surface:
+
+- **Privilege ladders — peak.** Every mutating handler climbs the
+  same order: input parse (with typo tips) → dangerous-target
+  blocklist → `ensure_root()` → flock → attach → apply → final-state
+  validation, and the parse-first ladder is pinned by tests that
+  prove the error precedes the root guard
+  (`rate_typo_surfaces_before_root_guard` and siblings). The one
+  command where root is the hazard, not the requirement
+  (`--check-update`), refuses euid 0 before any network I/O
+  (hunt-11). No new gap found.
+- **Operation lock — peak.** `/run/zelynic` (root-only 0700,
+  defensively re-tightened), non-blocking flock, legacy /tmp lock
+  unlinked opportunistically, symlink-squatting both structurally
+  impossible (hunt-14, re-verified: `/run` is root-owned tmpfs).
+- **Untrusted strings — peak.** The one canonical sanitizer covers
+  both live injection classes (`/proc` comm via prctl, the network
+  release tag), every consumer routes through it
+  (cybersecurity-1/2), and the pins drive real OSC-52/newline
+  payloads through the boundary. The endpoint strings
+  (IP:port) are kernel-formatted hex parses — not attacker text.
+- **Map integrity — peak.** The kernel side clamps every stored
+  value it consumes (security-3 burst clamp, depthbore-1 frac_rem
+  triple), rate-0 drops are booked (v5), fail-safe is allow-on-any-
+  bookkeeping-failure, and the schema-version ladder reloads stale
+  pins instead of writing new layouts into old maps (hunt-21).
+- **pidfd_getfd join (boost-26) — sound.** The fd walk opens one
+  pidfd per PID lazily, marks failures sticky (no retry storm),
+  closes explicitly per PID; the Copy-enum redesign makes the
+  drop-recursion class structurally impossible, and the
+  known one-leaked-fd panic window is documented as best-effort
+  class. Cookie 0 is skipped honestly in-kernel.
+- **Toolchain quarantine — peak.** Dated nightly scoped to the ebpf
+  sidecar, host flags stripped from the nested build (hunt-28),
+  damaged-artifact self-heal (hunt-29), alignment preflight with a
+  one-line diagnosis, no C fallback anywhere.
+- **Panic surface — clean.** A repo-wide sweep for
+  `unwrap`/`expect`/`panic!`/`unreachable!` in production paths
+  found every instance in `#[cfg(test)]` blocks with guarded
+  preconditions; runtime failures are `Result`-propagated (with the
+  one documented one-frame-tolerance fold in the monitor loop,
+  optimized-2's audited exception).
+
+**The find (fixed in this task): comment/doc claims overstated
+kernel-side saturation.** `bump_socket_counter`'s doc claimed
+"Saturating add like every counter in the observer" — the cgroup
+counters it sits next to have NEVER been saturating (they keep the
+C twin's plain adds), RESEARCH_TOOLCHAIN_AND_MONITORING.md §2.2
+called the kernel counters "saturating u64", and STABILITY.md's
+long-endurance item read as if the kernel map counter itself
+saturates. The truth: kernel-side adds are plain (a wrap needs
+years of saturated line-rate through one cgroup inside one
+session-scoped map — physically unreachable, and the display
+renders the session ledger's saturating figures, never the raw map
+word), and making them saturating would charge the per-packet hot
+path instructions to guard an unreachable state — over-engineering
+against the owner's rule. All three claim sites now tell the truth;
+the socket-cookie counters (which DO saturate) keep their
+discipline, and the userspace session ledger remains the saturation
+contract users see.
+
+**Deliberately not changed (over-engineering guard):** converting
+the kernel cgroup-counter adds to saturating (unreachable state, hot
+path); a UID source swap from `/proc/<pid>/status` to directory
+stat (would silently change semantics for setuid processes);
+hardening beyond the documented threat model (attacker-already-root
+is out of scope by SECURITY.md). The security posture is peak for
+the declared class; the residual risks are the five documented
+honest limits in STABILITY.md, each failing closed and saying so.
 
 ## Verifying Safety Yourself
 

@@ -16,6 +16,41 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Added
 
+- **docs: NIGHT-ultimate-1 — the comprehensive security/LTS audit:
+  peak verdict per surface, and the kernel-saturation claim made
+  true everywhere it lived** — the owner's depth-audit task
+  (security/mitigate/LTS/comprehensive, "should be complete peak,
+  high potential gains for LTS investment") executed as a
+  line-by-line read of every privilege-bearing and kernel-boundary
+  surface: both BPF programs and their maps, the raw-syscall
+  wrappers, the pin lifecycle, the operation lock, both /proc walks,
+  the pidfd_getfd join, the untrusted-string boundaries, the update
+  check, every mutating command's privilege ladder, the terminal
+  layer, and the CI toolchain wiring — plus a docs-vs-code claim
+  audit and a repo-wide production panic-surface sweep (every
+  `unwrap`/`expect`/`panic!` found test-guarded). The verdict is
+  recorded in SAFETY_ANALYSIS.md's new "Comprehensive Security/LTS
+  Audit" section: every audited surface is peak for the declared
+  class (privilege ladders, lock, sanitizers, map-integrity clamps,
+  the boost-26 pidfd join, the toolchain quarantine), and the
+  deliberately-not-changed list names the over-engineering the
+  owner's rule forbids (saturating kernel cgroup-counter adds for a
+  physically-unreachable wrap, a UID-source swap that would change
+  setuid semantics). The find: THREE claim sites said the kernel
+  cgroup counters saturate — the code never did. The cgroup counters
+  keep the C twin's plain adds (wrap horizon: years of saturated
+  line-rate through one cgroup inside one session-scoped map; the
+  display renders the userspace session ledger's saturating figures,
+  never the raw map word), while the boost-26 socket-cookie counters
+  DO saturate — so `bump_socket_counter`'s "like every counter in the
+  observer" doc, RESEARCH_TOOLCHAIN_AND_MONITORING §2.2's "saturating
+  u64", and STABILITY.md's long-endurance item all told an
+  over-truth. All three now state the exact contract, and a bonus
+  stale claim fell out of the audit: SAFETY_ANALYSIS's
+  accumulate-explosion paragraph said "schema v7" — a version that
+  never shipped (the code and its parity test pin v6). Comment and
+  docs only; zero behavior change, so no A/B benchmark (the
+  owner's docs-change exemption).
 - **feat: NIGHT-boost-26 — per-endpoint byte attribution: the 2.4
   frontier closed, every endpoint line answers "how much did THIS
   socket eat"** — the owner-approved frontier item (NIGHT-ask-1,

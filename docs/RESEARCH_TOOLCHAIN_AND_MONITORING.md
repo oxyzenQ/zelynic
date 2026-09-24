@@ -159,7 +159,11 @@ What the observer stack measures today, from the BPF layer up:
 - **Per-cgroup accounting:** bytes and packets per direction, both
   per-frame deltas (the live rates) and lifetime totals (the
   since-attach accumulators) — four counters per cgroup per
-  direction, saturating u64 with an honest EB display ceiling.
+  direction, plain u64 in the kernel maps (the wrap horizon is the
+  unreachable 18.4 EB per cgroup per session; NIGHT-ultimate-1
+  precision: kernel-side adds are unchecked C-twin arithmetic, and
+  the saturation contract users see is the userspace session
+  ledger's, boost-16) with an honest EB display ceiling.
 - **Session intelligence:** a session leaderboard that ranks by
   ACCUMULATED total (not last-interval twitches), rows persisting
   across quiet frames — the exact owner scenario (A downloads 10 GB,
