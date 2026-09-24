@@ -143,34 +143,33 @@ jobs:
       # matrix job reports its own failure (cosmostrix release
       # matrix contract).
       fail-fast: false
-      # NIGHT-boost-35 (cosmostrix naming lineage, its release
-      # matrix contract): platform and build are TWO fields. platform
-      # names the PACKAGE — "zelynic-vX.Y.Z-linux-amd64-v3.tar.gz",
-      # the gnu flavors carrying no -gnu suffix, exactly the
-      # cosmostrix tarball shape ("cosmostrix-v100.0.3-
-      # linux-amd64-v3.tar.gz"); build names the EMBEDDED Build:
-      # label (ZELYNIC_BUILD), which keeps its libc leg — the
-      # boost-30 alignment ("labels carry the libc") and every CI
-      # grep ride that label, so the split changes what users
-      # download, not what the binary says about itself. musl
-      # packages carry -musl in both fields, the cosmostrix musl
-      # platform shape.
+      # NIGHT-boost-36 (the owner's audit: "release packages
+      # format name should like this: zelynic-v11.0.0-linux-
+      # amd64-v3-gnu.tar.gz"): ONE platform field is the single
+      # truth again — package name and embedded Build: label are
+      # the same id, every flavor carrying its libc leg
+      # (linux-amd64-v3-gnu, -v4-gnu, -v3-musl, -v4-musl). The
+      # boost-35 split (platform without the -gnu leg, build with
+      # it, the cosmostrix tarball shape) is retired: its two
+      # fields had already drifted once (the boost-35 correction
+      # commit — the v4 probe keyed the wrong field and every
+      # branch went silent no-op), and with the -gnu leg restored
+      # to the package name the pair carried identical values in
+      # all four entries, a drift class with nothing left to buy.
+      # One id, one grep surface: the tarball a user downloads and
+      # the Build: line the binary prints agree by construction.
       matrix:
         include:
-          - platform: linux-amd64-v3
-            build: linux-amd64-v3-gnu
+          - platform: linux-amd64-v3-gnu
             target: x86_64-unknown-linux-gnu
             rustflags: "-D warnings -C target-cpu=x86-64-v3"
-          - platform: linux-amd64-v4
-            build: linux-amd64-v4-gnu
+          - platform: linux-amd64-v4-gnu
             target: x86_64-unknown-linux-gnu
             rustflags: "-D warnings -C target-cpu=x86-64-v4"
           - platform: linux-amd64-v3-musl
-            build: linux-amd64-v3-musl
             target: x86_64-unknown-linux-musl
             rustflags: "-D warnings -C target-cpu=x86-64-v3 -C target-feature=+crt-static"
           - platform: linux-amd64-v4-musl
-            build: linux-amd64-v4-musl
             target: x86_64-unknown-linux-musl
             rustflags: "-D warnings -C target-cpu=x86-64-v4 -C target-feature=+crt-static"
 
@@ -238,18 +237,18 @@ jobs:
       - name: Verify arch-baseline inputs
         run: |
           set -euo pipefail
-          case "${{ matrix.build }}" in
+          case "${{ matrix.platform }}" in
             linux-amd64-v3-gnu) expected="-D warnings -C target-cpu=x86-64-v3" ;;
             linux-amd64-v4-gnu) expected="-D warnings -C target-cpu=x86-64-v4" ;;
             linux-amd64-v3-musl) expected="-D warnings -C target-cpu=x86-64-v3 -C target-feature=+crt-static" ;;
             linux-amd64-v4-musl) expected="-D warnings -C target-cpu=x86-64-v4 -C target-feature=+crt-static" ;;
-            *) echo "::error::Unknown build label ${{ matrix.build }}"; exit 1 ;;
+            *) echo "::error::Unknown platform id ${{ matrix.platform }}"; exit 1 ;;
           esac
           if [ "${{ matrix.rustflags }}" != "${expected}" ]; then
-            echo "::error::${{ matrix.build }} must use RUSTFLAGS='${expected}', got '${{ matrix.rustflags }}'"
+            echo "::error::${{ matrix.platform }} must use RUSTFLAGS='${expected}', got '${{ matrix.rustflags }}'"
             exit 1
           fi
-          echo "arch-baseline inputs verified: ${{ matrix.build }}"
+          echo "arch-baseline inputs verified: ${{ matrix.platform }}"
 
       # --locked on every release build (NIGHT-improve-11): a release
       # must reproduce from the committed lockfile — never a fresh
@@ -257,10 +256,10 @@ jobs:
       # into the binary's Build: line (see the verify step).
       - name: Build release binary (eBPF objects embedded)
         env:
-          # NIGHT-boost-35: the embedded label keeps its libc leg
-          # (build, not platform) — the tarball name changed, the
-          # binary's self-description did not.
-          ZELYNIC_BUILD: ${{ matrix.build }}
+          # NIGHT-boost-36: the platform id IS the build label — one
+          # field, one truth; the embedded Build: line and the
+          # tarball name agree by construction.
+          ZELYNIC_BUILD: ${{ matrix.platform }}
           RUSTFLAGS: ${{ matrix.rustflags }}
         run: cargo build --release --locked --target ${{ matrix.target }} --features ebpf
 
@@ -269,15 +268,14 @@ jobs:
           set -euo pipefail
           BIN="target/${{ matrix.target }}/release/zelynic"
           PLATFORM="${{ matrix.platform }}"
-          BUILD="${{ matrix.build }}"
-          echo "=== ${PLATFORM} (Build: ${BUILD}) ==="
-          # NIGHT-boost-35 correction: the baseline branch keys BUILD,
-          # not PLATFORM — the build label always carries its libc leg
-          # (linux-amd64-v4-gnu), so the *-v4-* / *-v3-* patterns keep
-          # matching; the renamed platform (linux-amd64-v4, no trailing
-          # leg) would have made BOTH branches a silent no-op and the
-          # whole verification a pass-through.
-          case "${BUILD}" in
+          echo "=== ${PLATFORM} (Build: ${PLATFORM}) ==="
+          # NIGHT-boost-36: one field keys everything — the platform
+          # id carries its libc leg (linux-amd64-v4-gnu), so the
+          # *-v4-* / *-v3-* patterns keep matching, and the
+          # package name and the embedded Build: label are the same
+          # string by construction (the boost-35 two-field drift
+          # class is gone with the field itself).
+          case "${PLATFORM}" in
             *-v4-*)
               # AVX-512 baseline: the runner may lack AVX-512, so the
               # artifact is verified WITHOUT executing it (the
@@ -291,8 +289,8 @@ jobs:
               else
                 TEXT="$(grep -aE 'linux-amd64|Architecture|License' "${BIN}" || true)"
               fi
-              grep -Fq "${BUILD}" <<<"${TEXT}" \
-                || { echo "::error::Expected embedded build label ${BUILD}"; exit 1; }
+              grep -Fq "${PLATFORM}" <<<"${TEXT}" \
+                || { echo "::error::Expected embedded build label ${PLATFORM}"; exit 1; }
               grep -Fq "Architecture: Cosmic Dragon (pure eBPF)" <<<"${TEXT}" \
                 || { echo "::error::Expected embedded version-report literals"; exit 1; }
               grep -Fq "License: GPL-3.0-only" <<<"${TEXT}" \
@@ -305,8 +303,8 @@ jobs:
               # same proof the pre-improve-22 musl twin ran on every
               # push (NIGHT-improve-20), plus the Build: label check.
               "${BIN}" -V
-              "${BIN}" -V | grep -F "Build: ${BUILD}" \
-                || { echo "::error::Expected 'Build: ${BUILD}' in -V"; exit 1; }
+              "${BIN}" -V | grep -F "Build: ${PLATFORM}" \
+                || { echo "::error::Expected 'Build: ${PLATFORM}' in -V"; exit 1; }
               ;;
           esac
           if [[ "${PLATFORM}" == *-musl ]]; then

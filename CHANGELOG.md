@@ -58,6 +58,36 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Changed
 
+- **change: NIGHT-boost-36 — release package names carry their libc
+  leg: `zelynic-v11.0.0-linux-amd64-v3-gnu.tar.gz`, one platform id
+  for the tarball and the embedded `Build:` label** — the owner's
+  audit: "release packages format name should like this:
+  zelynic-v11.0.0-linux-amd64-v3-gnu.tar.gz". The boost-35 split
+  (a `platform` field naming the package without the `-gnu` leg, a
+  `build` field naming the embedded label with it, the cosmostrix
+  tarball shape) is retired: the gnu packages regain `-gnu`, musl
+  keeps `-musl`, and with package name and build label now the same
+  string on all four entries the two matrix fields collapse into
+  one `platform` id — the drift class that already bit once (the
+  boost-35 correction commit: the v4 strings-probe keyed the wrong
+  field and both branches went silent no-op) is gone with the
+  field itself. One id, one grep surface: the tripwire, the
+  `ZELYNIC_BUILD` stamp, the `Build: ${PLATFORM}` probe, the PKG
+  name, and the artifact name all key the same value, so the
+  tarball a user downloads and the `Build:` line the binary prints
+  agree by construction. Binary behavior unchanged (`-V` still
+  prints `Build: linux-amd64-v3-gnu`; the local cargo aliases and
+  their `local-` labels are untouched). Hunted and fixed while
+  syncing: the README GPG example already said `-v3-gnu.tar.gz`
+  while the install block said `-v3.tar.gz` (the boost-35 rename
+  missed one of the two), and CROSS_DISTRO_RESULTS still taught
+  the pre-baseline `linux-amd64.tar.gz` name with the retired
+  nested-tree `cd` + `install.sh --system` flow — both now carry
+  the current flat-archive reality. Docs synced: README (install
+  block + naming note), VERIFY_RELEASE (every example name), and
+  CROSS_DISTRO_RESULTS (the installation method). Workflow + docs
+  only, zero Rust surface touched.
+
 - **change: NIGHT-boost-35 — release packages carry the cosmostrix
   name format: `zelynic-vX.Y.Z-linux-amd64-v3.tar.gz`, the gnu
   flavors dropping their `-gnu` suffix** — the owner's audit:
