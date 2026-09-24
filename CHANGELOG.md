@@ -2361,6 +2361,35 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Docs
 
+- **docs: NIGHT-docs-13 — the eagle-eyes frame, line by line: the
+  annotated reference in USAGE.md** — the owner's masterclass
+  documentation call: the eagle-eyes section carried every footer
+  fact, but as one 60-line parenthetical paragraph a reader could
+  not look anything up in. The new subsection ("The frame, line by
+  line — the annotated reference") gives the mode a reference-grade
+  anatomy instead: (1) an example frame that is byte-exact with the
+  renderer — built against the real geometry (the classic 80x24,
+  Full footer tier, plan_eagle_columns' 37-column label region, the
+  exact 24-line row budget: 3 of 22 watched cgroups shown, the
+  detail trees, the hidden note, the whole footer block), with
+  coherent arithmetic (the avg legs are the grand's legs over the
+  rendered uptime, the census counts every candidate not just the
+  shown rows); (2) four lookup tables — the header block, the
+  ranked table (rank semantics, the static traffic light, live
+  rates vs em dashes, the detail-tree shapes, the hidden note), the
+  pinned footer (every line the owner named — `top consumer is X`,
+  `1.2K packets + 22 cgroups`, the total row, the max/avg speed
+  pair, the limit suggestion, the status line, the build stamp, the
+  rare identities note — each with its horizon, scope, and source
+  of truth), and the compression tier ladder (11/10/5/3 with what
+  drops at each height); (3) the colors paragraph and the
+  five-second reading order (headline names the eater, census the
+  scale, total row the story, speed pair the intensity, suggestion
+  line the action). The design-rationale prose stays as the "why";
+  a pointer sentence now bridges the two. Every claim in the tables
+  was extracted from the render sources (footer.rs, eagle.rs,
+  detail.rs, render.rs) and the pinned tests, not from memory.
+
 - **docs: NIGHT-hunt-24 — stale-data sweep: every count, name, and
   consumer list re-verified against the tree after the improve-20..23
   landing** — the hunt the owner ordered, run with a verifier's eye
