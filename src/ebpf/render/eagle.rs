@@ -209,7 +209,10 @@ pub(super) fn render_eagle_eyes_at(
         let plural = if n == 1 { "" } else { "s" };
         format!("zelynic eagle-eyes — {n} target{plural}")
     };
-    lines.push(title_bar(&title_core, full_width));
+    // NIGHT-engrave-8: the bar composes at the FRAME's width —
+    // one column inside the terminal — so wrap's leading inset
+    // lands the corners one column from each edge.
+    lines.push(title_bar(&title_core, border::frame_width(full_width)));
 
     // The breathing gap (NIGHT-boost-14): the column header used to
     // sit one row under the title bar — too near the brand, the

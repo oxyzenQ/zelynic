@@ -58,6 +58,39 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Fixed
 
+- **fix: NIGHT-engrave-8 — the frame's borders sit at symmetric 1px
+  margins: a leading inset column before the left rail and an
+  unpainted final column after the right rail, both rails exactly
+  one column from the terminal's edges — and the last-column write
+  hazard is gone** — the owner's CSS-margin reading of the frame:
+  the left border read 1px in, the right 2px. The composed frame
+  was provably symmetric at exactly the terminal width (rails at
+  columns 0 and W-1), so the asymmetry was terminal-side: painting
+  INTO the final column leaves the cursor in pending-wrap state,
+  where the emission's trailing erase-to-EOL behaves differently
+  per terminal — on some it eats the just-written right rail, and
+  the right edge reads a column further in. The fix is both optics
+  and physics: the frame now composes one column short
+  (`frame_width = terminal - 1`) with a leading space column —
+  left rail at column 1, right rail at column W-2, the final column
+  NEVER painted, so the trailing EL always erases a guaranteed
+  blank cell and the right edge renders identically on every
+  terminal. Every row family moved in lockstep: the flank rows
+  (inset + rail + W-4 content + rail), the title bar (composes at
+  the frame width, inset prepended), the closing floor, the
+  `content_geo` inset (W-4 at an 80-column terminal), and the
+  detail/grid thresholds that ride the inset. The column ladder
+  adapts (two label columns narrower at the same terminal), and
+  the frame stays pinned to the full terminal height. Fifteen
+  pins updated to the inset geometry (border, eagle, footer,
+  footer-tier, loading, focus, detail) with the margin contract
+  asserted exactly (79-column rows at an 80-column terminal,
+  rails at columns 1 and W-2); the 10s A/B frame benchmark
+  verifies the visual density and dirty-cell profile hold (rows
+  79, one column of honest air on each side). docs/BRANDING.md
+  2.1's border bullet and render.rs's left-edge contract paragraph
+  carry the symmetric-margin contract.
+
 - **fix: NIGHT-boost-26 — the eagle-eyes background follows the
   terminal: the OSC 11 query paints the frame's canvas in the
   terminal's own color while the grid lines, data, and info keep

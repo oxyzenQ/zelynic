@@ -19,6 +19,17 @@
 //! the left border" the owner reported. Every frame line now shares
 //! the 2-column gutter and closes flush at the frame width.
 //!
+//! Symmetric-margin contract (NIGHT-engrave-8): the frame composes
+//! ONE column inside the terminal — a leading space before the left
+//! rail, an unpainted final column after the right rail, both rails
+//! exactly one column from the edges (the owner's "both 1px
+//! margins"). The unpainted last column is terminal physics, not
+//! just looks: painting into it leaves the cursor pending-wrap,
+//! where the emission's trailing erase-to-EOL behaves differently
+//! per terminal (some eat the just-written right rail) — the frame
+//! never touches it, so the right edge renders identically
+//! everywhere.
+//!
 //! Dynamic screen size: the terminal size is re-probed on every
 //! frame — ONE TIOCGWINSZ ioctl per frame through the canonical
 //! terminal-layer probe (NIGHT-hunt-15: the old path issued two,

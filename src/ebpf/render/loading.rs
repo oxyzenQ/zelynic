@@ -48,7 +48,13 @@ pub(crate) fn loading_frame(interval: Duration, geo: FrameGeometry) -> Vec<Strin
     let geo = border::content_geo(geo);
 
     let mut lines = Vec::with_capacity(geo.height + 1);
-    lines.push(title_bar("zelynic eagle-eyes", full_width));
+    // NIGHT-engrave-8: the bar composes at the FRAME's width —
+    // one column inside the terminal — so wrap's leading inset
+    // lands the corners one column from each edge.
+    lines.push(title_bar(
+        "zelynic eagle-eyes",
+        border::frame_width(full_width),
+    ));
     // The breathing gap (the live frame's top-chrome ladder — the
     // header never sat directly under the brand).
     lines.push(String::new());
