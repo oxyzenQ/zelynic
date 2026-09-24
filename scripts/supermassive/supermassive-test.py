@@ -1374,6 +1374,17 @@ def test_curl_burst(window, clients, rate_bps, baseline):
     if not ok:
         return record("curl burst: parallel download under limit", "FAIL", payload)
     time.sleep(0.5)
+    # Cushion drain (the asymmetric stage's 2026-09-22 approved fix,
+    # applied here after runs six through eight): a freshly attached
+    # bucket starts FULL — default_burst is 1 s of rate — and the
+    # measured span caught front-load + spawn-stagger in a different
+    # mix every run (120.2%, 140.0%, 142.5% on the same leg, same
+    # code, different stagger). Drain it into a discarded window so
+    # the measured span sees steady state: refill only, low variance.
+    # The budget ceiling below stays as the residual-stagger guard,
+    # and the sharing cap at 1.60 still fails a not-shared bucket by
+    # ~4x.
+    py_download(0.5)
     totals = [None] * clients
 
     def worker(i):

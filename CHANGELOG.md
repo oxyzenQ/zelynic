@@ -58,6 +58,28 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Fixed
 
+- **fix: E2E eighth-run hunt — the curl burst row gets the cushion
+  drain the asymmetric stage has carried since 2026-09-22; run eight
+  also confirmed the joint-row span fix and a second consecutive
+  fully-green 6.8 leg** — run eight: ubuntu-24.04 fully green END
+  TO END for the second consecutive run (v1 75/75 + v2 127/0 —
+  stability, not luck), the strict-multi joint row passed under its
+  new actual-span divisor, and the curl burst row flaked again at
+  142.5% against its budget ceiling of 1.25x — the front-load +
+  spawn-stagger mix shifts every run (120.2%, 140.0%, 142.5% on the
+  same leg, same code), and ~0.8 MB of the allowance sat beyond the
+  modeled budget (stale-bucket states, header bytes, ACK traffic in
+  the combined counter, read latency). The honest fix is not another
+  band tune but the asymmetric stage's approved cushion-drain
+  pattern: a freshly attached bucket starts FULL (default_burst = 1
+  s of rate), so the stage now drains it into a discarded 0.5 s
+  policed window before the measured span — the measurement sees
+  steady state (refill only, low variance) instead of the attach
+  moment's physics. The budget ceiling stays as the
+  residual-stagger guard and the 1.60 sharing cap keeps failing a
+  not-shared bucket by ~4x. Verified: self-test 24/24, signature
+  audit clean, ruff clean.
+
 - **fix: E2E seventh-run hunt — first fully-green pipeline leg
   (ubuntu-24.04: v1 75/75 + v2 127/0 end to end); the strict-multi
   joint row gets the hunt-32 span treatment the curl burst row
