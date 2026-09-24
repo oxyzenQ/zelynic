@@ -147,6 +147,15 @@ full supermassive matrix) and ends with a next-steps menu
 ./scripts/setup.sh --skip-heavy  # bootstrap + build + self-test only
 ```
 
+The whole bring-up-plus-batteries flow runs on CI too (NIGHT-ultimate-3,
+the re-issued label — the E2E workflow): a push touching core files
+triggers `.github/workflows/e2e.yml`, which runs this exact owner-facing
+path (`setup.sh` itself, not a CI-shaped shortcut) and then both
+supermassive batteries under sudo on real hosted-runner kernels
+(5.15 and 6.8+), so "does it work end to end?" is answered per push
+— no VirtualBox session needed; `workflow_dispatch` fires the same
+pipeline on demand as the pre-release qualification run.
+
 Building needs the pinned Rust toolchain (rustup installs the exact
 version from `rust-toolchain.toml`) plus the eBPF nightly pair — and
 one command readies the whole host: the prerequisites, the PATH fix,
@@ -526,6 +535,13 @@ rate change, the real-internet lane — a machine green on v1 has a
 limiter that holds everywhere it claims; v2 owns the abuse family
 (guards, kills, regression, crash teardown) — a machine green on v2
 survives the day nothing goes right.
+
+No machine handy? The whole qualification — bring-up plus v1 plus
+v2, in that order — runs on CI on every core-file push
+(NIGHT-ultimate-3, the re-issued label): the E2E workflow executes
+it on hosted runners (kernel 5.15 and 6.8+, real sudo, real BPF, no
+container), so a green Actions run is the same verdict these
+sections teach you to produce locally, on two kernels at once.
 
 Want the four headline claims themselves PROVEN on your machine — no
 daemon (enforcement alive with zero zelynic processes), pure eBPF (tc

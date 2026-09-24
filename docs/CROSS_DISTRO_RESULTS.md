@@ -27,6 +27,15 @@
 > post-kill regression, the crash teardown) — and v1's realnet rows
 > are the ones worth filing here, since they exercise the production
 > traffic shape.
+>
+> CI files two of those rows automatically now (NIGHT-ultimate-3, the
+> re-issued label): the E2E workflow
+> (.github/workflows/e2e.yml) runs the whole qualification —
+> setup.sh bring-up, v1, v2 — on hosted Ubuntu runners (kernel 5.15
+> and 6.8+) on every core-file push. A green Actions run is a
+> machine-qualification verdict for both ends of the promised kernel
+> span; the rows below stay the place for owner-machine results
+> (real desktop workloads, real browsers).
 
 ## Summary
 

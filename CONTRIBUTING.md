@@ -239,6 +239,23 @@ filter edit, and a missed edit would mean a silently skipped run);
 every other change (docs, lint configs) rides the Gate-keepers
 workflow alone and skips the compilers it cannot affect.
 
+The third contract is the E2E workflow
+(.github/workflows/e2e.yml, NIGHT-ultimate-3 — the re-issued label;
+see the file header for the label's first life): where the other
+workflows prove the CI-shaped surfaces with CI-shaped steps, e2e.yml
+proves the OWNER-FACING path — it runs `scripts/setup.sh` itself
+(rustup resolving the toolchain pin, bootstrap installing the dated
+nightly + bpf-linker into $HOME, the pro-native-gnu flagship build)
+and then both supermassive batteries under sudo on real hosted-runner
+kernels (5.15 and 6.8+, the release span), no container layer — the
+hosted runner already is the isolated single-use machine with
+passwordless sudo the flow needs. Its `paths:` filter is the
+binary-shaping surface plus the harness itself (src/, ebpf/, the
+cargo manifests, the toolchain pins, the setup/bootstrap/linker
+scripts, the supermassive tree, the shared lib, and the workflow's
+own file); `workflow_dispatch` fires the whole pipeline on demand —
+the pre-release machine-qualification run.
+
 ## Branch Strategy
 
 The branch table lives once in the
