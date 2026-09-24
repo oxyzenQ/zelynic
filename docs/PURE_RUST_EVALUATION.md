@@ -181,6 +181,16 @@ NIGHT-improve-8, all documented for the decision section:
    kernel memory cost is 2 x 1024 x 24 B = 48 KiB per monitor session.
    The frozen bpftool dumps below still show the port-time 256 —
    they are verbatim records of the port verification.
+4. (NIGHT-perf-1, 2026-09-24) The egress event payload's tgid/uid
+   helper calls moved from the per-packet function top into the
+   1-in-100 throttled event branch — the C twin paid two BPF
+   helper calls on every packet for values only the hundredth
+   packet's event reads. Same current task, same invocation:
+   byte-identical events, a cheaper hot path. (Two later
+   ADDITIONS, not deltas of existing behavior — the boost-26
+   per-socket cookie maps and the ultimate-2 sink-death flag —
+   are documented where they live, the observer's file header and
+   the terminal layer.)
 
 A hunt finding recorded while porting, independent of Rust vs C: the
 `events` ringbuf is **written by the BPF side but never read by

@@ -282,10 +282,11 @@ zelynic is written in Rust, which provides:
   operation guard); two raw `bpf()` syscall wrappers plus
   `libc::close` (bpf_syscall.rs — link create/pin/close);
   `libc::clock_gettime` (format.rs); `libc::ioctl(TIOCGWINSZ)` ONCE
-  (terminal/diff.rs — the canonical probe: the limiter's
+  (terminal/raw.rs — the canonical probe since the NIGHT-ultimate-2
+  cap split of diff.rs: the limiter's
   terminal_width and the render engine's per-frame geometry both
-  route through it); `libc::write` (terminal/diff.rs — the diff
-  engine's one write syscall per frame); and `libc::statfs` twice
+  route through it); `libc::write` (terminal/raw.rs — the diff
+  engine's one write syscall per frame, the RawStdout writer); and `libc::statfs` twice
   (capabilities/mod.rs — the doctor's real-bpffs mount check,
   NIGHT-hunt-28). The four `unsafe impl aya::Pod` markers
   (limiter/types.rs, loader.rs) are zero-code layout attestations for

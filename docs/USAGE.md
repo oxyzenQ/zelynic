@@ -942,7 +942,9 @@ for the same single-key contract as htop/vim — the title bar says
 "q quit" and nothing else quits. The `t` key (NIGHT-boost-18; the
 `T` twin was retired by NIGHT-engrave-2 at the owner's "better only
 simple 't'" call) cycles the monitor's theme — an action key, never
-a quit key.
+a quit key. One non-key exit exists (NIGHT-ultimate-2): a dead
+output sink — a piped reader that closed — ends the session quietly
+by itself; no key can trigger it and no live reader can.
 
 **Can I select and copy/paste text while the monitor runs?**
 No — box mode takes the pointer AND kills terminal-side selections on
