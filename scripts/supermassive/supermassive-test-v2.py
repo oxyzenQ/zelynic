@@ -33,6 +33,17 @@ Design:
     v2 sets v1's module globals (CG / SERVER / MODE) exactly the way
     v1's own main() does, then calls its stages. One fix to the fleet
     lands in both harnesses the same day.
+  * The CLI depth stresstest (NIGHT-ultimate-3): every flag surface
+    end to end against hostile input — typos, wrong values, ambiguous
+    argument orders, shell-injection payloads in every value
+    position, and fatal usage shapes. The hardening invariants, not
+    any single message, are the contract: every case must ANSWER
+    (never hang), exit with the right class (0 info / non-zero
+    refusal), carry its expected wording, and never leak a Rust
+    panic. Safety by construction: every case is a refusal or an
+    info surface — no case executes a policy or starts the monitor
+    (valid executions are v1's matrix). The cosmostrix
+    cli_config/suggestion stresstest lineage is the pattern.
   * The guard battery (moved from v1, NIGHT-refactor-2): the limiter's
     input-validation functions as CLI round-trips — rate bounds, the
     near-miss typo rescue, the dangerous-target blocklist, the
@@ -62,9 +73,19 @@ Usage:
 What it verifies (verdicts PASS / FAIL / SKIP, exit 1 on any FAIL):
   preflight: env + minimum specs, doctor, list-apps, loopback baseline
          (the engine sanity the kill stages' traffic depends on);
-  guards: below-minimum refused, above-maximum refused, the typo tip
-         suggesting the lowercase twin, the dangerous-name refusal,
-         plain-number acceptance, the --allow-dangerous override;
+  guards: the NIGHT-ultimate-3 depth sweep — 70+ cases: info surfaces
+         (bare invocation, --help/-h, --version/-V, global -V at
+         subcommand level, --color-mode, --, doctor --print-json, the
+         root-refusing --check-update pair), flag typos with their
+         suggestion tips, subcommand typos and removed-name redirects,
+         wrong rates/durations/intervals/color-modes, ambiguous
+         argument orders, shell-injection payloads as data (never
+         executed), 5000-char targets, u32-overflow cgroup ids, fatal
+         usage shapes, and every alias resolving; then the rate
+         guards: below-minimum refused, above-maximum refused, the
+         typo tip suggesting the lowercase twin, the dangerous-name
+         refusal, plain-number acceptance, the --allow-dangerous
+         override;
   kills: the TUI renders before every SIGKILL and dies as signal 9,
          enforcement rows stay intact after every kill, post-kill
          traffic is still policed, fresh writes still land; jittered
@@ -255,6 +276,422 @@ def test_rate_guard():
     )
     sm1.clear_all()
     return ok_all
+
+
+# ── the CLI depth stresstest (NIGHT-ultimate-3) ─────────────────────────────
+#
+# The guard battery proves the documented refusals; this stresstest
+# proves the UNDOCUMENTED ones — every flag surface end to end against
+# hostile input: typos, wrong values, ambiguous argument orders,
+# shell-injection payloads in every value position, and fatal usage
+# shapes (missing values, stray positionals, removed spellings). The
+# contract under test is the hardening invariant, not any single
+# message: every case must ANSWER (never hang), exit with the right
+# class (0 for info surfaces, non-zero for refusals), carry its
+# expected wording, and never leak a Rust panic — no "panicked", no
+# backtrace, no abort — on ANY input a hostile shell can type.
+#
+# Safety by construction: every case is a REFUSAL, an INFO surface,
+# or a GRACEFUL NO-OP — no case writes a policy or starts the monitor
+# (valid executions are v1's matrix; the guard battery owns the
+# override round-trips). A hostile target that matches nothing exits
+# 0 with the payload echoed VERBATIM as data ("No cgroup found for
+# '$(reboot)'") — the strongest no-execution proof there is: the
+# payload in the output is the literal string, never a shell's
+# interpretation of it. The eagle-eyes cases all fail parse or
+# interval validation, so the live TUI never starts. stdin is
+# /dev/null and the environment carries NO_COLOR=1 so needles match
+# plain output deterministically.
+#
+# The cosmostrix lineage (cli_config_stresstest.sh /
+# cli_suggestion_stresstest.sh) is the pattern: a data-driven case
+# table, one verdict per case, a summary row at the end.
+
+CLI_CASE_TIMEOUT = 10.0
+# A panic on hostile input is the one failure this stage exists to
+# catch — the markers cover the rust runtime's three panic shapes
+# (panic hook text, the backtrace hint, and the stack-overflow abort).
+PANIC_MARKERS = ("panicked", "RUST_BACKTRACE", "stack overflow", "SIGABRT")
+
+# (label, argv, exit_class, needle)
+#   exit_class: "zero" (info surface, exit 0) | "nonzero" (refused) |
+#               None (any exit — the invariants alone carry the case)
+#   needle:     substring expected in the COMBINED output,
+#               case-insensitive; None for invariant-only cases
+#               (wordings the owner may retune without notice).
+CLI_DEPTH_CASES = [
+    # ── info surfaces (exit 0) ─────────────────────────────────────────
+    ("bare invocation prints the reference", [], "zero", "zelynic"),
+    ("--help prints the end-to-end reference", ["--help"], "zero", "strict-single"),
+    ("-h short help", ["-h"], "zero", "zelynic"),
+    ("--version banner", ["--version"], "zero", "zelynic"),
+    ("-V short version", ["-V"], "zero", "zelynic"),
+    ("-V stays global at subcommand level", ["status", "-V"], "zero", "zelynic"),
+    ("-v rides the help surface without breaking it", ["-v", "--help"], "zero", "zelynic"),
+    (
+        "--color-mode 16 parses, help still answers",
+        ["--color-mode", "16", "--help"],
+        "zero",
+        "zelynic",
+    ),
+    (
+        "--verbose rides a refusal without changing it",
+        ["strict-single", "brave", "--verbose"],
+        "nonzero",
+        "no rate specified",
+    ),
+    (
+        "--allow-dangerous with no rate still needs a rate",
+        ["strict-single", "brave", "--allow-dangerous"],
+        "nonzero",
+        "no rate specified",
+    ),
+    ("bare -- terminator falls back to the reference", ["--"], "zero", "zelynic"),
+    ("doctor --print-json emits a JSON document", ["doctor", "--print-json"], "zero", "{"),
+    # ── the network surface refuses root (the harness IS root) ────────
+    (
+        "--check-update refuses root with the sudo tip",
+        ["--check-update"],
+        "nonzero",
+        "re-run without sudo",
+    ),
+    (
+        "--check-updated alias refuses root too",
+        ["--check-updated"],
+        "nonzero",
+        "re-run without sudo",
+    ),
+    # ── flag typos: the suggestion engine answers (exit 2) ────────────
+    ("--json gets the cross-tool vocabulary tip", ["--json"], "nonzero", "--print-json"),
+    ("--verbos gets the fuzzy flag tip", ["--verbos"], "nonzero", "--verbose"),
+    ("--print-jso gets the near-miss tip", ["--print-jso"], "nonzero", "--print-json"),
+    ("--color-mod gets the near-miss tip", ["--color-mod", "16"], "nonzero", "--color-mode"),
+    (
+        "--allow-dangerou typo after a valid target",
+        ["strict-single", "brave", "1mb", "--allow-dangerou"],
+        "nonzero",
+        "--allow-dangerous",
+    ),
+    ("unknown short flag -x dies as a usage error", ["-x"], "nonzero", "error"),
+    ("--interva typo on the monitor", ["eagle-eyes", "--interva", "3s"], "nonzero", "--interval"),
+    # ── subcommand typos + removed-name redirects (exit 2) ────────────
+    ("statu near-miss suggests status", ["statu"], "nonzero", "status"),
+    ("removed observe redirects to eagle-eyes", ["observe"], "nonzero", "eagle-eyes"),
+    ("removed top redirects to eagle-eyes", ["top"], "nonzero", "eagle-eyes"),
+    ("removed singular eagle-eye redirects", ["eagle-eye"], "nonzero", "eagle-eyes"),
+    ("help subcommand redirects to the flag", ["help"], "nonzero", "zelynic --help"),
+    # ── wrong values (exit 1: runtime validation) ─────────────────────
+    (
+        "strict-single with no rate names the fix",
+        ["strict-single", "brave"],
+        "nonzero",
+        "no rate specified",
+    ),
+    ("non-numeric rate is quoted back", ["strict-single", "brave", "mb"], "nonzero", "rate"),
+    ("1kb/s slash unit is refused", ["strict-single", "brave", "1kb/s"], "nonzero", "rate"),
+    (
+        "double-dot rate 5.5.5mb is refused",
+        ["strict-single", "brave", "5.5.5mb"],
+        "nonzero",
+        "rate",
+    ),
+    ("leading-dot rate .5mb is refused", ["strict-single", "brave", ".5mb"], "nonzero", "rate"),
+    ("scientific notation 1e6 is not a rate", ["strict-single", "brave", "1e6"], "nonzero", "rate"),
+    (
+        "fullwidth unicode rate is refused",
+        ["strict-single", "brave", "\uff11mb"],
+        "nonzero",
+        "rate",
+    ),
+    ("negative rate reads as a flag error", ["strict-single", "brave", "-1mb"], "nonzero", "error"),
+    ("interval 0s is out of range", ["eagle-eyes", "--interval", "0s"], "nonzero", "interval"),
+    ("interval 61s is out of range", ["eagle-eyes", "--interval", "61s"], "nonzero", "interval"),
+    (
+        "plain-number interval 100 is out of range",
+        ["eagle-eyes", "--interval", "100"],
+        "nonzero",
+        "interval",
+    ),
+    (
+        "non-duration interval 'abc' is refused",
+        ["eagle-eyes", "--interval", "abc"],
+        "nonzero",
+        "duration",
+    ),
+    ("invalid --color-mode names the allowed set", ["--color-mode", "99"], "nonzero", "color-mode"),
+    # ── ambiguous input ────────────────────────────────────────────────
+    (
+        "swapped (target, rate) order fails on the rate",
+        ["strict-single", "100kb", "brave"],
+        "nonzero",
+        "rate",
+    ),
+    ("-d with no value is a usage error", ["strict-single", "brave", "-d"], "nonzero", "required"),
+    (
+        "--download with no value is a usage error",
+        ["strict-single", "brave", "--download"],
+        "nonzero",
+        "required",
+    ),
+    ("-u with no value is a usage error", ["strict-single", "brave", "-u"], "nonzero", "required"),
+    (
+        "--upload with no value is a usage error",
+        ["strict-single", "brave", "--upload"],
+        "nonzero",
+        "required",
+    ),
+    (
+        "--force with no rate reaches the rate guard",
+        ["strict-single", "--force", "brave"],
+        "nonzero",
+        "no rate specified",
+    ),
+    (
+        "strict-multi without a rate names the fix",
+        ["strict-multi", "brave:curl:pacman"],
+        "nonzero",
+        "no rate specified",
+    ),
+    ("limit-all without a rate names the fix", ["limit-all"], "nonzero", "no rate specified"),
+    ("limit-all -d with no value is a usage error", ["limit-all", "-d"], "nonzero", "required"),
+    # ── security injection: values are DATA, never executed ───────
+    # Unknown-name targets are graceful no-ops (exit 0, "No cgroup
+    # found"): the needle is the PAYLOAD ITSELF, echoed verbatim — the
+    # literal string in the output is the no-execution proof.
+    (
+        "shell semicolon in the target is echoed as data",
+        ["strict-single", "brave;rm -rf /", "1mb"],
+        "zero",
+        "brave;rm -rf /",
+    ),
+    (
+        "command substitution in the target is echoed as data",
+        ["strict-single", "$(reboot)", "1mb"],
+        "zero",
+        "$(reboot)",
+    ),
+    (
+        "backtick substitution in the target is echoed as data",
+        ["strict-single", "`id`", "1mb"],
+        "zero",
+        "`id`",
+    ),
+    (
+        "path traversal as a target is echoed as data",
+        ["strict-single", "../../etc/passwd", "1mb"],
+        "zero",
+        "../../etc/passwd",
+    ),
+    (
+        "newline injection in the target is echoed as data",
+        ["strict-single", "brave\nrm -rf /", "1mb"],
+        "zero",
+        "rm -rf",
+    ),
+    (
+        "shell metacharacters in the rate are refused as a rate",
+        ["strict-single", "brave", "1mb;$(id)"],
+        "nonzero",
+        "rate",
+    ),
+    (
+        "shell chain in the rate is refused as a rate",
+        ["strict-single", "brave", "1mb && rm -rf /"],
+        "nonzero",
+        "rate",
+    ),
+    (
+        "injection inside the interval is refused as a duration",
+        ["eagle-eyes", "--interval", "1s;reboot"],
+        "nonzero",
+        None,
+    ),
+    (
+        "injection inside --color-mode is refused",
+        ["--color-mode", "16;rm -rf /"],
+        "nonzero",
+        "color-mode",
+    ),
+    (
+        "a 5000-char target is a graceful no-op, not a hang",
+        ["strict-single", "a" * 5000, "1mb"],
+        "zero",
+        "no cgroup found",
+    ),
+    (
+        "cgroup id beyond u32 range is a graceful no-op",
+        ["strict-single", "99999999999999999999", "1mb"],
+        "zero",
+        "no cgroup found",
+    ),
+    # ── fatal usage shapes (exit 2: clap) ─────────────────────────────
+    ("strict-single with no target is a usage error", ["strict-single"], "nonzero", "error"),
+    (
+        "colon target in strict-single tips strict-multi",
+        ["strict-single", ":", "1mb"],
+        "zero",
+        "strict-multi",
+    ),
+    ("unstrict-single with no target is a usage error", ["unstrict-single"], "nonzero", "error"),
+    ("unstrict-multi with no targets is a usage error", ["unstrict-multi"], "nonzero", "error"),
+    ("block-single with no target is a usage error", ["block-single"], "nonzero", "error"),
+    ("block-multi with no targets is a usage error", ["block-multi"], "nonzero", "error"),
+    ("stray positional after status is refused", ["status", "extra"], "nonzero", "unexpected"),
+    ("stray positional after recover is refused", ["recover", "extra"], "nonzero", "unexpected"),
+    ("stray positional after doctor is refused", ["doctor", "extra"], "nonzero", "unexpected"),
+    (
+        "stray positional after list-apps is refused",
+        ["list-apps", "extra"],
+        "nonzero",
+        "unexpected",
+    ),
+    (
+        "stray positional after unstrict-all is refused",
+        ["unstrict-all", "extra"],
+        "nonzero",
+        "unexpected",
+    ),
+    # ── every alias: the short forms resolve (and refuse safely) ──────
+    ("ss alias resolves (missing target refuses)", ["ss"], "nonzero", "error"),
+    ("strict alias resolves (missing target refuses)", ["strict"], "nonzero", "error"),
+    ("sm alias resolves (missing targets refuse)", ["sm"], "nonzero", "error"),
+    ("la alias resolves (missing rate refuses)", ["la"], "nonzero", "no rate specified"),
+    ("bs alias resolves (missing target refuses)", ["bs"], "nonzero", "error"),
+    ("bm alias resolves (missing targets refuse)", ["bm"], "nonzero", "error"),
+    ("block-all typo refuses before any block", ["block-all", "--forse"], "nonzero", "--force"),
+    ("ba alias typo refuses before any block", ["ba", "--forse"], "nonzero", "--force"),
+    ("us alias resolves (missing target refuses)", ["us"], "nonzero", "error"),
+    ("unstrict alias resolves (missing target refuses)", ["unstrict"], "nonzero", "error"),
+    ("um alias resolves (missing targets refuse)", ["um"], "nonzero", "error"),
+    ("ua alias refuses a stray positional", ["ua", "extra"], "nonzero", "unexpected"),
+    ("ee alias resolves (bad interval refuses)", ["ee", "--interval", "0s"], "nonzero", "interval"),
+]
+
+# The flag-and-command surface this table is CONTRACTED to touch: every
+# documented command, alias, and flag string must appear in at least one
+# case argv. The self-test pins this rootlessly — a flag added to the
+# CLI without a stresstest case shows up as a FAILING PIN on the next
+# push, not as an untested surface discovered by an attacker.
+CLI_DOCUMENTED_SURFACE = [
+    # commands
+    "strict-single",
+    "strict-multi",
+    "limit-all",
+    "block-single",
+    "block-multi",
+    "block-all",
+    "unstrict-single",
+    "unstrict-multi",
+    "unstrict-all",
+    "recover",
+    "status",
+    "list-apps",
+    "eagle-eyes",
+    "doctor",
+    # aliases
+    "strict",
+    "ss",
+    "sm",
+    "la",
+    "bs",
+    "bm",
+    "ba",
+    "us",
+    "um",
+    "ua",
+    "ee",
+    "unstrict",
+    # flags
+    "--help",
+    "-h",
+    "--version",
+    "-V",
+    "-v",
+    "--verbose",
+    "--print-json",
+    "--color-mode",
+    "--check-update",
+    "--check-updated",
+    "--allow-dangerous",
+    "--force",
+    "--interval",
+    "-d",
+    "-u",
+    "--download",
+    "--upload",
+]
+
+
+def _run_cli_case(argv):
+    """Run one stresstest case against the real binary.
+
+    stdin is /dev/null and the env carries NO_COLOR=1, so output is
+    plain-text deterministic regardless of the harness's own terminal.
+    Returns (returncode, combined-output); returncode None means the
+    case never answered inside the timeout — a hang, the loudest
+    failure a CLI can produce.
+    """
+    env = dict(os.environ)
+    env["NO_COLOR"] = "1"
+    try:
+        p = subprocess.run(
+            [lib.BINARY] + argv,
+            capture_output=True,
+            text=True,
+            timeout=CLI_CASE_TIMEOUT,
+            stdin=subprocess.DEVNULL,
+            env=env,
+        )
+    except subprocess.TimeoutExpired:
+        return None, ""
+    return p.returncode, f"{p.stdout}\n{p.stderr}"
+
+
+def test_cli_depth():
+    """The NIGHT-ultimate-3 depth sweep: every flag surface end to end
+    against typo / wrong / ambiguous / injection / fatal input.
+
+    Per-case verdicts plus the two global invariants this stage exists
+    to enforce: (1) NO case may hang — fatal usage must answer within
+    the timeout; (2) NO case may leak a panic marker — the binary is
+    expected to refuse hostile input like a product, not crash like a
+    prototype.
+    """
+    fails = 0
+    for label, argv, exit_class, needle in CLI_DEPTH_CASES:
+        rc, text = _run_cli_case(argv)
+        problems = []
+        if rc is None:
+            problems.append(f"no answer within {CLI_CASE_TIMEOUT:.0f}s — a hang")
+        else:
+            if exit_class == "zero" and rc != 0:
+                problems.append(f"exit {rc}, want 0")
+            if exit_class == "nonzero" and rc == 0:
+                problems.append("exit 0, want non-zero")
+            if needle and needle.lower() not in text.lower():
+                problems.append(f"expected wording '{needle}' missing")
+        low = text.lower()
+        for marker in PANIC_MARKERS:
+            if marker.lower() in low:
+                problems.append(f"panic marker '{marker}' in the output")
+                break
+        verdict = record(
+            f"cli depth: {label}",
+            "PASS" if not problems else "FAIL",
+            "; ".join(problems)
+            if problems
+            else f"exit {rc}"
+            + (f": {(text.strip().splitlines() or [''])[0][:90]}" if text.strip() else ""),
+        )
+        if verdict != "PASS":
+            fails += 1
+    total = len(CLI_DEPTH_CASES)
+    record(
+        f"cli depth: full-sweep invariant ({total} cases, zero hangs, zero panics)",
+        "PASS" if fails == 0 else "FAIL",
+        f"{total - fails}/{total} cases answered, exited right, and stayed panic-free",
+    )
+    return fails == 0
 
 
 # ── the brutal battery (NIGHT-improve-21; moved to v2, NIGHT-refactor-2) ────
@@ -731,6 +1168,44 @@ def self_test():
         == "PASS"
         and ok
     )
+    # NIGHT-ultimate-3 pins: the depth table's own machinery, verified
+    # rootlessly with no binary. (1) Well-formedness: every case is a
+    # 4-tuple with a legal exit class and a unique label — a malformed
+    # row would crash the battery mid-run on a distro. (2) Surface
+    # completeness: every documented command, alias, and flag token
+    # appears in at least one case argv — a flag added to the CLI
+    # without a stresstest case fails this pin on the next push, not in
+    # the field. (3) The timeout and panic-marker bounds stay sane.
+    well_formed = all(
+        isinstance(case, tuple)
+        and len(case) == 4
+        and case[2] in ("zero", "nonzero", None)
+        and isinstance(case[0], str)
+        and isinstance(case[1], list)
+        for case in CLI_DEPTH_CASES
+    )
+    labels = [case[0] for case in CLI_DEPTH_CASES]
+    well_formed = well_formed and len(labels) == len(set(labels))
+    record(
+        "engine: cli depth table well-formed (4-tuples, unique labels)",
+        "PASS" if well_formed else "FAIL",
+        f"{len(CLI_DEPTH_CASES)} cases",
+    )
+    touched = {tok for _, argv, _, _ in CLI_DEPTH_CASES for tok in argv}
+    missing = [entry for entry in CLI_DOCUMENTED_SURFACE if entry not in touched]
+    record(
+        "engine: cli depth table covers the documented surface",
+        "PASS" if not missing else "FAIL",
+        f"{len(CLI_DOCUMENTED_SURFACE)} commands/aliases/flags touched"
+        if not missing
+        else f"never exercised: {', '.join(missing)}",
+    )
+    bounds_ok = 5.0 <= CLI_CASE_TIMEOUT <= 30.0 and len(PANIC_MARKERS) >= 3
+    record(
+        "engine: cli depth invariants configured (timeout bound, panic markers)",
+        "PASS" if bounds_ok else "FAIL",
+        f"timeout {CLI_CASE_TIMEOUT:.0f}s, {len(PANIC_MARKERS)} panic markers",
+    )
     record("self-test: verdict plumbing", "PASS", "this row IS the plumbing")
     out()
     out("━━━ self-test verdict ━━━")
@@ -773,6 +1248,7 @@ def run_survival():
     # phase 1/4: the CLI input guards
     out()
     out("━━━ phase 1/4: guards (bad input must be refused, never fatal) ━━━")
+    test_cli_depth()
     test_rate_guard()
 
     # phase 2/4: the brutal battery

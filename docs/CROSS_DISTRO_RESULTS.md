@@ -21,10 +21,12 @@
 > (commands are in the README's Test Results section; `--json` for
 > machine-readable output) and file the measured ratios in this
 > document. A third harness joins them (NIGHT-improve-23, refocused
-> NIGHT-refactor-2): `supermassive-test-v2.sh`, the survival battery
-> (CLI guards, SIGKILL batteries, post-kill regression, crash
-> teardown) — and v1's realnet rows are the ones worth filing here,
-> since they exercise the production traffic shape.
+> NIGHT-refactor-2, hardened NIGHT-ultimate-3):
+> `supermassive-test-v2.sh`, the survival battery (the 83-case CLI
+> depth stresstest, the CLI guards, the SIGKILL batteries, the
+> post-kill regression, the crash teardown) — and v1's realnet rows
+> are the ones worth filing here, since they exercise the production
+> traffic shape.
 
 ## Summary
 

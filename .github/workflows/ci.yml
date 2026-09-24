@@ -175,10 +175,12 @@ jobs:
       - name: Supermassive harness engine self-test
         run: python3 scripts/supermassive/supermassive-test.py --self-test
 
-      # NIGHT-improve-23 (refocused NIGHT-refactor-2): the v2 harness
-      # (the survival battery) self-tests the same way — engine
-      # import, stage surface, pty mechanics — with no root and no
-      # network, so the kill batteries' plumbing is proven on every
+      # NIGHT-improve-23 (refocused NIGHT-refactor-2, hardened
+      # NIGHT-ultimate-3): the v2 harness (the survival battery)
+      # self-tests the same way — engine import, stage surface, pty
+      # mechanics, and the 83-case CLI depth table (well-formed,
+      # every documented command/alias/flag touched) — with no root
+      # and no network, so the batteries' plumbing is proven on every
       # push even though the root battery itself runs on the owner's
       # machines.
       - name: Supermassive v2 harness engine self-test

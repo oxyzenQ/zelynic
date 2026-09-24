@@ -507,11 +507,13 @@ tip suggesting `--self-test`, and `--light` gets a message naming its
 replacement.
 
 Want to know the machine survives the day nothing goes right — the
-CLI input guards under hostile input, the live TUI SIGKILLed
-mid-render under active enforcement, one-shot writers SIGKILLed
-inside the attach/pin/write window, then everything re-proven after
-the dust settles? That is v2 (NIGHT-improve-23, refocused
-NIGHT-refactor-2):
+83-case CLI depth stresstest (typos, wrong values, ambiguous orders,
+shell-injection payloads, fatal usage — every flag and alias end to
+end, zero hangs, zero panics), the CLI input guards, the live TUI
+SIGKILLed mid-render under active enforcement, one-shot writers
+SIGKILLed inside the attach/pin/write window, then everything
+re-proven after the dust settles? That is v2 (NIGHT-improve-23,
+refocused NIGHT-refactor-2, hardened NIGHT-ultimate-3):
 
 ```bash
 sudo ./scripts/supermassive/supermassive-test-v2.sh               # survival battery (4+ min)
