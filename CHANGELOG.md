@@ -58,6 +58,44 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Fixed
 
+- **fix: NIGHT-boost-27 — the E2E 5.15 red turns honest green: the
+  curl-burst verdict rides the kernel ledger at an exact read
+  instant, and the depth stress test gains the kernel-span family
+  (5.13 floor → latest, LTS placement)** — two halves of the same
+  ask. First: the eleventh run kept the burst row red as a
+  release signal, but four consecutive data points (140.0% ..
+  161.2% on 5.15, 97.6%..116.4% on 6.8, same code) proved the
+  CLIENT metric swings with the pool's TCP/GSO lottery — a
+  numerator that moves when nothing in the product moved is
+  measurement noise wearing the verdict's badge. The row now reads
+  the policer's OWN ledger: one `status --print-json` snapshot at a
+  measured instant, the exact budget ceiling derived from the same
+  instant (`(t_read - t_apply) * rate + default_burst`, the burst
+  clamp mirrored from format.rs), a 2% GSO headroom for per-skb
+  accounting granularity, the 1.60 sharing cap on the LEDGER ratio
+  (a non-shared bucket allows ~6x and still fails by a mile), and
+  the 0.65 floor staying CLIENT-side (under-delivery is what the
+  user experienced). The client total prints as advisory evidence
+  with its lottery named. Genuine over-delivery still fails — with
+  exact arithmetic in the row — so the release teeth survive the
+  noise filter; the 6.8 leg's four-green streak and the 5.15 pool
+  both stay inside the honest budget at the read instant. Second:
+  `scripts/depth/limiter-depth-test.py` gains the kernel-span
+  verdict family (NIGHT-boost-27): a 5.13+ FLOOR gate (FAIL below
+  the documented minimum), a capability-rung row naming where the
+  running kernel sits on the documented ladder (5.7 bpf_link, 5.8
+  ringbuf, the 5.13 verified floor, the 6.1/6.8/6.12 LTS lines),
+  and an LTS placement row — the peak-strengthening ask: one
+  harness, any machine from the minimum kernel to the latest, the
+  verdict names the generation it rode on. The `uname -r` parser
+  handles the shapes real distros ship (`6.8.0-51-generic`,
+  `5.15.0-131-azure`, `6.12.27-2-cachyos`) and reports SKIP on
+  garbage rather than guessing. docs/KERNEL_COMPATIBILITY.md and
+  the harness docstring carry the span contract; both Python
+  trees compile clean and the rung logic is sanity-verified
+  standalone (the root-run re-proof is CI's e2e lane and the
+  owner-host battery).
+
 - **fix: NIGHT-engrave-8 — the frame's borders sit at symmetric 1px
   margins: a leading inset column before the left rail and an
   unpainted final column after the right rail, both rails exactly
