@@ -102,6 +102,78 @@ refreshes identity. Write operations ~50-100ms faster.
 Added `kernel_supports_bpf_link()` check. On kernel < 5.7, falls back to
 legacy `bpf_prog_attach` instead of crashing on `bpf_link_create`.
 
+## Performance Engine Audit (NIGHT-perf-1, 2026-09-24)
+
+The owner's depth-audit task: "avoid high overhead, bottleneck, etc
+downgrade/problems performance engine" — a full pass over every
+hot path, kernel and userspace, with the over-engineering guard
+applied to every candidate. Findings, fixed and held:
+
+**Fixed — the egress observer paid two BPF helper calls per packet
+for a 1-in-100 event.** The C-twin port computed `ctx.tgid()` and
+`ctx.uid()` at the top of `try_observe_egress`, but their only
+consumer is the ring-buffer Event the throttle emits once per
+hundred packets (and which zelynic userspace never reads — the
+documented dead-ringbuf parity). The calls moved into the event
+branch (NIGHT-perf-1, behavioral delta #5 in the observer's file
+header): same current task, same invocation, byte-identical events;
+the 99% fast path now runs the cookie bump + counter update + throttle
+compare only. At 100 kpps that is 200 k helper calls per second
+removed from the observer's hot path; at line rate it is a full
+helper-call pair per packet. The `ctx.command()` call had already
+established the lazy pattern (it lives in the event branch) — the
+port artifact simply predated the discipline. Verified: the object
+rebuilds under the pinned nightly pair, the embedded-object layout
+tests pass on the new ELF, and the 10s frame A/B below proves the
+render path is untouched (the kernel verifier re-proof is the
+CI matrix + owner-host supermassive lane, the boost-26 precedent).
+
+| Metric | bb4b310 (A) | perf-1 (B) | Delta |
+|--------|------------|------------|-------|
+| fps | 8,058.3 | 8,155.7 | +1.2% (machine noise) |
+| bytes/frame | 1,943.0 | 1,943.0 | +0.0% |
+| emit bytes/frame | 504.8 | 504.0 | -0.2% |
+| frame entropy | 3.0000 | 2.9992 | -0.0% |
+| density gini | 0.3584 | 0.3587 | +0.1% |
+| dirty cells/frame | 39.4 | 39.4 | -0.1% |
+
+Reading: PARITY, by construction — the change is kernel-side only
+and the frame harness renders from synthetic fixtures without
+touching BPF, so bytes/frame identical to the decimal is the proof
+the render path is byte-exact the old one. The gini/entropy/dirty
+deltas sit inside the harness's own run-to-run class (the boost-26
+record showed the same ±0.1% on identical render bytes); fps +1.2%
+is the same container-noise class as every previous A/B on this
+host. The win itself lives outside the harness's reach: it is
+dynamic helper-call frequency in the kernel hot path, 2 per packet
+down to 2 per 100 packets.
+
+**Audited and deliberately held (over-engineering guard):**
+
+- `ConnectionMap::socket_cookies()` dedups the cookie set with a
+  linear `Vec::contains` (O(n^2) over the walked socket count, per
+  frame). Held: at a realistic few hundred sockets the dedup costs
+  microseconds while the join's own syscalls (two point-lookups per
+  cookie) cost milliseconds — the quadratic term is under 5% of the
+  feature's own budget at any n the /proc walk can produce, and a
+  HashSet would grow the structure the renderers read for nothing
+  measurable.
+- `poll_and_summarize()` merges the ingress delta list into the
+  egress list with a linear `find` per cgroup (O(n*m), worst case
+  1024x1024 u32 comparisons per poll). Held: sub-millisecond at the
+  absolute ceiling, one poll per second, zero allocations to remove.
+- `read_stats_map()` iterates both counter maps fully per poll
+  (~4 k syscalls/s at the 1024-cgroup ceiling; ~120/s on a desktop).
+  Held: the documented Layer-1 design; batch lookup APIs would be a
+  rearchitecture for 0.4% of one core at the worst case.
+- The selection-guard beat rewrites the whole frame every 100 ms on
+  TTY sessions (~1.4 KB on 80x24). Held: it IS the copy-protection
+  feature (NIGHT-improve-8), the documented owner contract — a
+  perf "regression" that is the product.
+- Identity/connection /proc walks: already TTL-memoized (10s/3s);
+  the fd scan is lazy per matched socket; the pidfd open is lazy
+  per PID with sticky failure. Peak for the design.
+
 ## BPF Instruction Budget
 
 ```bash

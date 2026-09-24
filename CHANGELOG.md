@@ -16,6 +16,37 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Added
 
+- **perf: NIGHT-perf-1 — the egress observer's per-packet helper
+  calls retired to the 1-in-100 event path: two BPF helper calls
+  per packet off the hot path, byte-identical events** — the
+  owner's depth audit ("avoid high overhead, bottleneck, etc
+  downgrade/problems performance engine") swept every hot path,
+  kernel and userspace. The find: the C-twin port computed
+  `ctx.tgid()` + `ctx.uid()` at the top of `try_observe_egress`,
+  but their only consumer is the ring-buffer Event the throttle
+  emits once per HUNDRED packets — 99% of the observer's egress
+  fast path funded two helper calls nobody read (and the events
+  ringbuf is the documented never-read parity surface anyway). The
+  calls now resolve inside the event branch (behavioral delta #5
+  in the observer file header, call timing not values: same
+  current task, same invocation, byte-identical Event fields — the
+  lazy pattern `ctx.command()` in that same branch already
+  established). At 100 kpps that is 200k helper calls/sec removed;
+  at line rate one full pair per packet. Verified: the object
+  rebuilds under the pinned nightly pair, the embedded-object
+  layout tests pass on the new ELF, and the 10s frame A/B (A =
+  bb4b310, B = the perf-1 tree) proves render parity — bytes/frame
+  1,943.0 -> 1,943.0 at +0.0%, fps +1.2% inside the container-noise
+  class, the deterministic per-frame metrics carrying the comparison
+  (PERFORMANCE.md's new Performance Engine Audit section carries
+  the table). The audit also records what was deliberately HELD
+  under the over-engineering guard: the socket_cookies O(n^2)
+  dedup (microseconds vs the join's own syscall milliseconds), the
+  poll_and_summarize O(n*m) merge (sub-ms at the absolute ceiling),
+  the full-map-read poll design (Layer 1's documented contract), and
+  the selection-guard beat (it IS the copy-protection product).
+  The kernel-verifier re-proof rides CI's cross-distro matrix and
+  the owner-host supermassive battery, the boost-26 precedent.
 - **docs: NIGHT-ultimate-1 — the comprehensive security/LTS audit:
   peak verdict per surface, and the kernel-saturation claim made
   true everywhere it lived** — the owner's depth-audit task

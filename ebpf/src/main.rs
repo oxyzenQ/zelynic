@@ -28,6 +28,12 @@
 // program runs), so a cookie read in either hook names exactly the
 // socket the traffic belongs to. Verified against torvalds/linux
 // net/core/filter.c + kernel/bpf/cgroup.c at implementation time.
+// A fifth delta (NIGHT-perf-1, call timing not values): the egress
+// event payload's tgid/uid helper calls moved from the per-packet
+// function top into the 1-in-100 throttled event branch -- the C
+// twin paid two BPF helper calls on every packet for values only
+// the hundredth packet's event reads. Same current task, same
+// invocation: byte-identical events, a cheaper hot path.
 //
 // Build: cd ebpf && cargo +nightly build --release
 
@@ -248,8 +254,6 @@ fn observe_egress(ctx: SkBuffContext) -> i32 {
 
 fn try_observe_egress(ctx: SkBuffContext) -> Result<i32, i32> {
     let cgroup_id = unsafe { bpf_skb_cgroup_id(ctx.skb.skb) } as u32;
-    let pid = ctx.tgid();
-    let uid = ctx.uid();
     let pkt_len = ctx.len();
 
     // Per-socket attribution (NIGHT-boost-26): the cookie of the
@@ -290,6 +294,20 @@ fn try_observe_egress(ctx: SkBuffContext) -> Result<i32, i32> {
         return Ok(1);
     }
     stats.last_event_packet = stats.packets;
+
+    // The event payload's per-task facts resolve HERE, on the 1-in-100
+    // path only (NIGHT-perf-1): the C twin computed tgid/uid per
+    // packet at the function top, paying two BPF helper calls on
+    // every packet for an event the throttle emits once per hundred —
+    // 99% of the hot path funded a value nobody read. The helpers
+    // read the CURRENT task, which cannot change between the function
+    // top and this point in the same invocation, so the event carries
+    // byte-identical fields; only WHEN the calls happen moved. This
+    // is the lazy pattern ctx.command() two blocks below already
+    // established. At line rate the saving is one full helper-call
+    // pair per packet off the observer's egress hot path.
+    let pid = ctx.tgid();
+    let uid = ctx.uid();
 
     // Parse the IP header. cgroup_skb frames carry no Ethernet header.
     // The C twin uses direct data/data_end access; ctx.load performs
