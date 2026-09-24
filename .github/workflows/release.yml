@@ -271,7 +271,13 @@ jobs:
           PLATFORM="${{ matrix.platform }}"
           BUILD="${{ matrix.build }}"
           echo "=== ${PLATFORM} (Build: ${BUILD}) ==="
-          case "${PLATFORM}" in
+          # NIGHT-boost-35 correction: the baseline branch keys BUILD,
+          # not PLATFORM — the build label always carries its libc leg
+          # (linux-amd64-v4-gnu), so the *-v4-* / *-v3-* patterns keep
+          # matching; the renamed platform (linux-amd64-v4, no trailing
+          # leg) would have made BOTH branches a silent no-op and the
+          # whole verification a pass-through.
+          case "${BUILD}" in
             *-v4-*)
               # AVX-512 baseline: the runner may lack AVX-512, so the
               # artifact is verified WITHOUT executing it (the
