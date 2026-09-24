@@ -52,13 +52,22 @@
 //!   re-emits the last frame in full — the engine half of the
 //!   monitor's copy guard. Terminals clear a selection the moment
 //!   its cells are rewritten, so the loop's guard beat rides the
-//!   reset emission (HOME + erase-below + every row) to kill
-//!   terminal-side selections — Shift+click hands those clicks to
-//!   the terminal, not to the application. A partial rewrite
-//!   would leave the untouched rows selectable, so the beat is
-//!   always whole-frame; implemented as the shadow flipped back
-//!   out plus `ever_drawn = false`, the beat travels the exact
-//!   same tested emission path a resize takes.
+//!   whole-frame rewrite to kill terminal-side selections —
+//!   Shift+click hands those clicks to the terminal, not to the
+//!   application. The beat is always whole-frame; a partial rewrite
+//!   would leave the untouched rows selectable. Implemented as the
+//!   shadow flipped back out plus a repaint flag, the beat travels
+//!   the same tested emission path a render takes.
+//!
+//! - **Guard repaint never erases (NIGHT-hunt-26)**: the selection
+//!   guard's rewrite carries NO screen erase — the REWRITE itself is
+//!   the selection killer. The old reset-route repaint (HOME +
+//!   erase-below + every row) opened a blank window between the
+//!   erase and the rewrite whenever the terminal's frame clock
+//!   caught the pty write split: the intermittent flash the owner
+//!   reported on long-running monitors, where grown frames cross
+//!   the write-chunking boundary. True resets (first frame, width
+//!   change) keep their erase — an unknown screen needs it.
 //!
 //! Line granularity (vs their cell grid) is the honest adaptation:
 //! zelynic's monitors are styled text tables, not per-cell scenes. A
@@ -157,10 +166,19 @@ pub struct DiffScreen {
     /// Terminal width the shadow was rendered for. A mismatch (the
     /// resize case) forces a full reset emit.
     width: usize,
+    /// Terminal height the shadow was rendered for (NIGHT-hunt-26):
+    /// the sticky geometry a transient probe failure reuses instead
+    /// of the 80x24 fallback — see [`DiffScreen::emit`].
+    height: usize,
     /// False until the first emit — the physical screen state is
     /// unknown, so the first frame must paint everything (the
     /// dragon engine's force_full_emit invariant).
     ever_drawn: bool,
+    /// A whole-frame rewrite is pending WITHOUT the screen erase
+    /// (NIGHT-hunt-26 — the selection guard's beat): every row goes
+    /// out dirty, no erase-below between renders. Consumed by the
+    /// [`DiffScreen::emit_at`] that clears it.
+    repaint: bool,
     /// Number of leading frame rows physically on screen. Equals the
     /// visible row count of the last emission — in the tall regime
     /// that is clipped to the viewport (NIGHT-improve-6), so rows at
@@ -183,7 +201,9 @@ impl DiffScreen {
         DiffScreen {
             prev: Vec::new(),
             width: 0,
+            height: 0,
             ever_drawn: false,
+            repaint: false,
             painted: 0,
             buf: Vec::with_capacity(8 * 1024),
         }
@@ -202,7 +222,17 @@ impl DiffScreen {
     /// the benchmark harness do exactly that). This keeps the two
     /// vectors' allocations warm with zero per-frame cloning.
     pub fn emit(&mut self, lines: &mut Vec<String>, sink: &mut dyn Write) -> usize {
-        let (w, h) = probe_size();
+        // NIGHT-hunt-26: a transient probe failure (a mid-resize 0x0
+        // report, an ioctl hiccup) must NOT fall back to 80x24 on a
+        // painted screen — that forced a width-mismatch reset plus a
+        // second one on recovery: the two-beat flash. The pipe path
+        // (probe always None) keeps its stable 80x24 via the
+        // first-frame fallback, so harness behavior is unchanged.
+        let (w, h) = match winsize() {
+            Some((cols, rows)) => (cols as usize, rows as usize),
+            None if self.ever_drawn && self.width != 0 => (self.width, self.height),
+            None => (80, 24),
+        };
         self.emit_at(w, h, lines, sink)
     }
 
@@ -216,9 +246,14 @@ impl DiffScreen {
         lines: &mut Vec<String>,
         sink: &mut dyn Write,
     ) -> usize {
+        // NIGHT-hunt-26: repaint is consumed HERE — whole-frame dirty,
+        // never the reset's erase.
+        let repaint = self.repaint;
         let reset = !self.ever_drawn || width != self.width;
         self.width = width;
+        self.height = height;
         self.ever_drawn = true;
+        self.repaint = false;
 
         let n = lines.len();
         let shrunk = n < self.prev.len();
@@ -244,7 +279,13 @@ impl DiffScreen {
         // the previous frame's full row count there) but forces a
         // repaint of exactly the rows a taller terminal just revealed.
         let dirty: Vec<bool> = (0..visible)
-            .map(|i| reset || i >= self.prev.len() || i >= self.painted || lines[i] != self.prev[i])
+            .map(|i| {
+                reset
+                    || repaint
+                    || i >= self.prev.len()
+                    || i >= self.painted
+                    || lines[i] != self.prev[i]
+            })
             .collect();
         let dirty_count = dirty.iter().filter(|d| **d).count();
 
@@ -254,7 +295,7 @@ impl DiffScreen {
         // opened the tall regime: the frame is on screen and stable,
         // so holding it costs nothing; the old engine repainted the
         // full frame on every refresh there).
-        if dirty_count == 0 && !reset && !shrunk {
+        if dirty_count == 0 && !reset && !repaint && !shrunk {
             mem::swap(&mut self.prev, lines);
             return 0;
         }
@@ -372,12 +413,15 @@ impl DiffScreen {
     /// leave the unrewritten rows selectable — the owner's exact
     /// complaint.
     ///
-    /// Mechanism: flip the shadow back into the caller's buffer,
-    /// clear `ever_drawn`, and let [`DiffScreen::emit_at`] take its
-    /// reset path (HOME + erase-below + every row — which also
-    /// erases below a short frame, killing selections there too).
-    /// The double swap is an involution: the caller's vector and
-    /// the shadow end where they started, so the monitor loop's
+    /// Mechanism (NIGHT-hunt-26): flip the shadow back into the
+    /// caller's buffer and raise the REPAINT flag — every row goes
+    /// out dirty through the sequential path with NO screen erase
+    /// (HOME + every row). The rewrite itself is the selection
+    /// killer; the old ever_drawn=false route rode the RESET path,
+    /// whose erase-below opened the blank flash window when the
+    /// terminal's frame clock caught a split pty write (long-running
+    /// monitors grow frames past the write-chunking boundary). The
+    /// double swap is an involution, so the monitor loop's
     /// clear-and-refill cycle is untouched. Returns the emitted
     /// byte count, 0 when no frame has been painted yet (nothing
     /// to protect).
@@ -409,7 +453,9 @@ impl DiffScreen {
             return 0; // nothing painted, nothing to protect
         }
         mem::swap(&mut self.prev, lines);
-        self.ever_drawn = false; // the reset path IS the whole-frame repaint
+        // NIGHT-hunt-26: the whole-frame rewrite flag, not the reset
+        // route — every row dirty, no erase-below.
+        self.repaint = true;
         self.emit_at(width, height, lines, sink)
     }
 }

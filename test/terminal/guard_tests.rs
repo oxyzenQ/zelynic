@@ -43,35 +43,44 @@ fn guard_repaint_beats_the_idle_fast_path() {
     assert_eq!(n, 0, "idle frame must stay free");
     assert!(out.is_empty());
 
-    // Guard beat: the whole frame goes back out, reset shape.
+    // Guard beat: the whole frame goes back out — every row, no
+    // screen erase (NIGHT-hunt-26: the rewrite is the selection
+    // killer; the erase only opened the blank flash window).
     let mut stale = lines_of(&rows); // swap scratch (receives the stale shadow)
     let g = s.force_repaint_at(80, 24, &mut stale, &mut out);
     assert!(g > 0, "the guard must re-emit a painted frame");
     let text = String::from_utf8_lossy(&out).to_string();
+    assert!(text.starts_with("\x1b[H"), "home prefix, got {text:?}");
     assert!(
-        text.starts_with("\x1b[H\x1b[J"),
-        "reset prefix, got {text:?}"
+        !text.contains("\u{1b}[J"),
+        "NIGHT-hunt-26: a guard beat never erases the screen, got {text:?}"
     );
     assert!(text.contains("one\x1b[K\ntwo\x1b[K\nthree\x1b[K\n"));
     assert!(
-        !text[6..].contains(";1H"),
+        !text[3..].contains(";1H"),
         "no per-row MoveTo in the guard repaint"
     );
 }
 
-/// The guard's repaint is byte-for-byte the reset emission: a fresh
-/// screen's first paint of the same lines and a guard beat over an
-/// already-painted identical frame produce the same stream (the
-/// beat rides the resize path, it invents nothing of its own).
+/// The guard's repaint is the reset stream MINUS the screen erase
+/// (NIGHT-hunt-26): a fresh screen's first paint of the same lines
+/// and a guard beat over an already-painted identical frame produce
+/// the same stream except the first-frame's 3-byte erase-below —
+/// the beat rewrites every row in place and never blanks the
+/// screen, while a true reset (unknown screen state) still erases.
 /// Pinned on a non-shrinking frame — the guard's variant can also
 /// carry the below-frame tail erase when the frame shrank, which a
 /// virgin first paint never has.
 #[test]
-fn guard_repaint_is_the_reset_stream() {
+fn guard_repaint_is_the_reset_stream_minus_the_erase() {
     let mut fresh = screen();
     let mut flines = lines_of(&["x1", "x2"]);
     let mut fout = sink();
     let fresh_bytes = fresh.emit_at(80, 24, &mut flines, &mut fout);
+    assert!(
+        fout.starts_with(b"\x1b[H\x1b[J"),
+        "a true reset still erases (unknown screen state)"
+    );
 
     let mut guarded = screen();
     let mut glines = lines_of(&["x1", "x2"]);
@@ -82,8 +91,55 @@ fn guard_repaint_is_the_reset_stream() {
     let mut scratch = lines_of(&["old"]); // non-empty: exercises the swap
     let guard_bytes = guarded.force_repaint_at(80, 24, &mut scratch, &mut gout);
 
-    assert_eq!(fout, gout, "guard beat == first-frame reset stream");
-    assert_eq!(fresh_bytes, guard_bytes);
+    // The guard stream is the reset stream with exactly the
+    // 3-byte ERASE_BELOW removed: HOME + every row, byte-for-byte.
+    let mut expected: Vec<u8> = fout[..3].to_vec();
+    expected.extend_from_slice(&fout[6..]);
+    assert_eq!(gout, expected, "guard beat == reset stream minus the erase");
+    assert_eq!(fresh_bytes, guard_bytes + ERASE_BELOW.len());
+}
+
+/// NIGHT-hunt-26 regression pin: the guard repaint NEVER emits the
+/// screen erase — the blank window between an erase and the
+/// rewrite is the intermittent flash the owner reported on
+/// long-running monitors (grown frames cross the pty write-chunking
+/// boundary, letting the terminal's frame clock catch the split).
+/// Pinned across both regimes; the below-frame tail clear (a
+/// shrunk frame's below-screen hygiene, blank rows only) remains
+/// the reset family's own tool and is out of this pin's scope.
+#[test]
+fn guard_repaint_never_blanks_the_screen() {
+    // Normal regime.
+    let mut s = screen();
+    let mut lines = lines_of(&["hold", "still"]);
+    let mut out = sink();
+    s.emit_at(80, 24, &mut lines, &mut out);
+    out.clear();
+    let mut scratch = Vec::new();
+    s.force_repaint_at(80, 24, &mut scratch, &mut out);
+    let text = String::from_utf8_lossy(&out).to_string();
+    assert!(
+        !text.contains("\u{1b}[J"),
+        "normal regime: no erase in the guard stream, got {text:?}"
+    );
+
+    // Tall regime.
+    let mut t = screen();
+    let mut tlines: Vec<String> = (0..12).map(|i| format!("r{i}")).collect();
+    let mut tout = sink();
+    t.emit_at(80, 12, &mut tlines, &mut tout);
+    tout.clear();
+    let mut tscratch = Vec::new();
+    t.force_repaint_at(80, 12, &mut tscratch, &mut tout);
+    let ttext = String::from_utf8_lossy(&tout).to_string();
+    assert!(
+        !ttext.contains("\u{1b}[J"),
+        "tall regime: no erase in the guard stream, got {ttext:?}"
+    );
+    assert!(
+        ttext.contains("r11\x1b[K"),
+        "every visible row still rewrites"
+    );
 }
 
 /// The guard leaves the shadow contract intact: after a beat, the
