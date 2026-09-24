@@ -4,13 +4,15 @@
 #
 # Wrapper for supermassive-test.py (NIGHT-master-2; renamed from
 # brutal-stress-test.sh in NIGHT-improve-11 / security-4) — the
-# one-click supermassive test for the whole zelynic command surface.
-# Python is the engine: subprocess control, /proc parsing, threaded
-# traffic, and precise timing are things bash cannot do well (same
-# rationale as limiter-depth-test.sh wrapping limiter-depth-test.py).
+# one-click limiter-scope supermassive test: every policy shape on
+# the local loopback lane AND against the real internet
+# (NIGHT-refactor-2). Python is the engine: subprocess control,
+# /proc parsing, threaded traffic, and precise timing are things bash
+# cannot do well (same rationale as limiter-depth-test.sh wrapping
+# limiter-depth-test.py).
 #
 # Usage:
-#   sudo ./scripts/supermassive/supermassive-test.sh                # supermassive (5+ min)
+#   sudo ./scripts/supermassive/supermassive-test.sh                # supermassive (6+ min)
 #   sudo ./scripts/supermassive/supermassive-test.sh --heavy        # the same, explicit
 #   ./scripts/supermassive/supermassive-test.sh --self-test          # engine smoke, no root
 #   sudo ./scripts/supermassive/supermassive-test.sh --json          # machine-readable
@@ -20,11 +22,12 @@
 # (--self-tesss) gets a typo tip, --light gets its retirement
 # message.
 #
-# NIGHT-improve-21: the matrix now ends with the brutal battery —
-# SIGKILL of the live TUI under active enforcement, jittered
-# SIGKILLs of one-shot CLI invocations mid-flight, then the
-# post-kill regression re-proof — before the recover/cleanup/dmesg
-# teardown stages verify the state it leaves behind.
+# NIGHT-refactor-2 scope split: the abuse family (rate guards, the
+# SIGKILL batteries, the regression re-proof, the recover/dmesg
+# teardown) moved to supermassive-test-v2.sh — this harness measures
+# limits; that one survives violence. The internet lane moved the
+# other way, from v2 to here: policing real traffic is limiter scope
+# by definition.
 #
 # Full design notes live in the .py header. This script replaced the
 # old stress-test.sh, which depended on an external speedtest server

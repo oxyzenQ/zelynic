@@ -1,98 +1,94 @@
 #!/usr/bin/env python3
 # Copyright (C) 2026 rezky_nightky
 # SPDX-License-Identifier: GPL-3.0-only
-# LOC_EXEMPT: like supermassive-test.py, one self-contained harness by design — v2 is a thin orchestrator over the v1 engine (imported whole via importlib, zero duplication of the fleet/server/worker machinery) plus the one genuinely new engine it owns: the real-internet lane
-"""zelynic supermassive test v2 — the end-to-end daily-use simulation (NIGHT-improve-23).
+# LOC_EXEMPT: like supermassive-test.py, one self-contained harness by design — v2 is a thin orchestrator over the v1 engine (imported whole via importlib, zero duplication of the fleet/server/worker machinery) plus the abuse-family stages it owns outright (NIGHT-refactor-2: the CLI guards, the SIGKILL batteries, the regression re-proof, and the crash-family teardown moved here from v1)
+"""zelynic supermassive test v2 — the survival battery (NIGHT-improve-23; scope refocused in NIGHT-refactor-2).
 
-supermassive-test.py (v1) answers "does the WHOLE command surface
-survive supermassive stress?" — full parser span, brutal battery,
-kill/regression/recover teardown. This v2 harness answers the owner's
-next question: "can I SIMULATE a real day of zelynic use, end to end,
-before trusting it on my daily driver?" — the four policy families in
-the exact order a daily session touches them (strict -> limit ->
-block -> unstrict), each proven twice: on the deterministic local
-loopback lane AND against the real internet, the shape production
-traffic actually has.
+supermassive-test.py (v1) answers "does the limiter HOLD, locally and
+against the real internet?" — the full policy matrix, the rate-change
+move, the internet lane. This v2 harness answers the owner's next
+question: "does everything that is NOT a limit measurement SURVIVE the
+day nothing goes right?" — the CLI input guards under hostile input,
+the live TUI SIGKILLed mid-render under active enforcement, one-shot
+writers SIGKILLed inside the attach/pin/write window, the core
+invariants re-proven after the dust settles, and the crash-family
+teardown (recover, cleanup, kernel log) verifying the state the
+violence leaves behind.
 
-What v2 deliberately does NOT carry (the owner's call, NIGHT-improve-23):
-every "problems-use-zelynic" stage stays in v1 — kill-tui, kill-midflight,
-the regression battery, recover/cleanup/dmesg teardown, and the fatal
-CLI-usage refusals (typo rescue, dangerous-value guards). Those prove
-robustness under ABUSE; v2 proves correctness under USE. A machine green
-on v2 is qualified for the daily driver; a machine green on v1 is
-qualified for a power outage.
+Division of labor with v1 (NIGHT-refactor-2, the owner's call): v1 owns
+every stage that measures a LIMIT; v2 owns the abuse family — the
+rate-guard refusals (bounds, typo rescue, dangerous blocklist,
+override), the kill batteries, the regression battery, and the
+recover/cleanup/dmesg teardown. A machine green on v1 has a limiter
+that holds everywhere it claims; a machine green on v2 survives the
+day nothing goes right.
 
 Design:
 
   * Zero engine duplication: v1 is imported whole (importlib, the dash
     in its filename defeats a plain import) and its machinery drives
-    every local stage — the CgroupSet fleet (a..e + never-policed hq),
+    every stage here — the CgroupSet fleet (a..e + never-policed hq),
     the in-process HttpServer, apply/block/unstrict policy helpers,
-    spawn_in_cgroup workers, band_check verdicts, enforcement proofs.
+    py_download traffic, band_check verdicts, enforcement proofs.
     v2 sets v1's module globals (CG / SERVER / MODE) exactly the way
     v1's own main() does, then calls its stages. One fix to the fleet
     lands in both harnesses the same day.
-  * Local lane (deterministic, the measurement instrument): policy
-    write + status surfaces, strict-single asymmetric -d/-u buckets,
-    live rate change (1mb -> 2mb under an active policy — the daily
-    "tighten it" move), strict-multi group bucket, limit-all --force
-    sweep, block-single / block-multi zero goodput, unstrict-single
-    unlock restore, unstrict-multi selective removal.
-  * Real-internet lane (the production shape): a reachability probe
-    walks a fallback chain of long-lived public endpoints (Cloudflare
-    speed first, then OVH, then Tele2) and the FIRST reachable one
-    feeds every realnet stage — cross-distro and cross-year robustness
-    by construction, with honest SKIP verdicts (never silent, never
-    false FAILs) when the machine has no egress or every endpoint is
-    down: the local lane still carries the verdict. Downloads run as
-    curl workers inside the policed cgroup (spawn_in_cgroup — real
-    external processes, deterministic cgroup attribution, same class
-    of proof as the owner's manual browser tests); uploads stream
-    chunked from /dev/zero to the Cloudflare discard endpoint, and an
-    UNLIMITED sanity upload runs first so an endpoint that refuses
-    streaming bodies reads as SKIP, not as a limiter defect.
-  * Realnet band honesty: real TCP pays slow start and path RTT that
-    loopback never sees, so realnet rate rows use a wider floor
-    (0.45 vs 0.65) with the SAME 1.30 ceiling — the policer
-    tripwire meaning of the ceiling (never allow materially more than
-    configured) stays intact; only the patience for slow start grows.
-  * LTS / cross-distro posture: python3 stdlib only, curl optional
-    (realnet stages SKIP without it), dedicated-cgroup fleet optional
-    (multi-cgroup stages SKIP in session-cgroup fallback — single
-    targets still measure honestly), no external test server REQUIRED
-    (the fallback chain is opportunistic), root required only for the
-    root mode. --self-test verifies the engine with no root, no
-    zelynic, no BPF, and no network.
+  * The guard battery (moved from v1, NIGHT-refactor-2): the limiter's
+    input-validation functions as CLI round-trips — rate bounds, the
+    near-miss typo rescue, the dangerous-target blocklist, the
+    plain-number parser branch, the below-minimum override. All
+    refusals are fail-fast: they fire during argument validation,
+    before any privilege or BPF work, so this stage is safe even on a
+    machine where the datapath is half-attached.
+  * The brutal battery (NIGHT-improve-21, moved to v2 in
+    NIGHT-refactor-2): SIGKILL of the live TUI (`eagle-eyes`)
+    mid-render under active strict-multi enforcement, five times over;
+    jittered SIGKILLs of one-shot CLI invocations racing the
+    attach/pin/write window, twelve times; then the post-kill
+    regression re-proof. Killing a monitor stresses exactly the seam
+    it should: the observer never pins anything (the kernel releases
+    its links when it dies), while the limiter's enforcement state
+    lives in PINNED maps designed to survive process death.
+  * LTS / cross-distro posture: python3 stdlib only, root required
+    only for the root mode. --self-test verifies the engine with no
+    root, no zelynic, no BPF, and no network.
 
 Usage:
-  sudo ./scripts/supermassive/supermassive-test-v2.sh               # e2e simulation (4+ min)
+  sudo ./scripts/supermassive/supermassive-test-v2.sh               # survival battery (4+ min)
   python3 scripts/supermassive/supermassive-test-v2.py --self-test  # engine smoke, no root
   sudo ./scripts/supermassive/supermassive-test-v2.sh --binary ./zelynic
   sudo ./scripts/supermassive/supermassive-test-v2.sh --json        # machine-readable
 
 What it verifies (verdicts PASS / FAIL / SKIP, exit 1 on any FAIL):
-  preflight: env + minimum specs, doctor, list-apps, loopback baseline,
-         real-internet reachability + realnet baseline + upload sanity;
-  strict: policy lands in kernel maps, status human + JSON surfaces,
-         asymmetric -d/-u buckets (local), live rate change 1mb -> 2mb,
-         strict-multi shared group bucket (local), real-internet
-         download at 2mb, real-internet upload at 1mb;
-  limit: limit-all --force machine-wide sweep (local), the same sweep
-         policing a real-internet download;
-  block: block-single / block-multi zero goodput + kernel drops (local),
-         block-single against the real internet (~zero bytes);
-  unstrict: unstrict-single unlock restores speed (local), unstrict-multi
-         selective removal leaves other limits standing, unstrict-all
-         teardown leaves no limit rows, real-internet speed restored
-         after the sweep.
+  preflight: env + minimum specs, doctor, list-apps, loopback baseline
+         (the engine sanity the kill stages' traffic depends on);
+  guards: below-minimum refused, above-maximum refused, the typo tip
+         suggesting the lowercase twin, the dangerous-name refusal,
+         plain-number acceptance, the --allow-dangerous override;
+  kills: the TUI renders before every SIGKILL and dies as signal 9,
+         enforcement rows stay intact after every kill, post-kill
+         traffic is still policed, fresh writes still land; jittered
+         mid-flight kills of one-shot writers leave the status JSON
+         coherent and recover restores the zero-pin state;
+  regression: the guards still refuse after the kills, policy
+         round-trips still land on three cgroups, doctor + list-apps
+         JSON still parse, the -V token still matches the checkout;
+  teardown: recover exits clean, unstrict-all leaves no limit rows,
+         zero BPF pins, no pid file, the fleet is removed, and the
+         kernel log stayed clean of BPF errors during the run.
 """
 
 import argparse
+import fcntl
 import importlib.util
 import json
 import os
+import pty
+import signal
+import struct
 import subprocess
 import sys
+import termios
 import time
 
 # The v1 engine lives one dash-named file over; make it importable
@@ -108,11 +104,13 @@ if _LIB_DIR not in sys.path:
 
 import zelynic_harness_lib as lib  # noqa: E402
 from zelynic_harness_lib import (  # noqa: E402
+    PIN_DIR,
     RESULTS,
-    band_check,
-    fmt_bps,
+    limit_entry,
     out,
     record,
+    run_zel,
+    status_json,
 )
 
 # ── the v1 engine, imported whole ───────────────────────────────────────────
@@ -121,7 +119,7 @@ from zelynic_harness_lib import (  # noqa: E402
 # binds its classes, helpers, and stage functions without running the
 # matrix. v2 drives v1's module globals (CG / SERVER / MODE) the same
 # way v1's own main() does — every stage below resolves fleet paths and
-# server ports through v1's namespace, so one setup serves both lanes.
+# server ports through v1's namespace, so one setup serves the battery.
 _SPEC = importlib.util.spec_from_file_location(
     "supermassive_test_v1", os.path.join(_HERE, "supermassive-test.py")
 )
@@ -129,516 +127,510 @@ sm1 = importlib.util.module_from_spec(_SPEC)
 sys.modules["supermassive_test_v1"] = sm1
 _SPEC.loader.exec_module(sm1)
 
-CURL = sm1.CURL
-
-# ── windows and rates ───────────────────────────────────────────────────────
-
+# The loopback baseline window: the kill stages' post-kill traffic
+# proofs need a working measurement engine, and the baseline row is
+# that sanity check (0 B/s with no policy live would make every later
+# row garbage — the same NIGHT-improve-13 contract v1 honors).
 LOCAL_WINDOW = 4.0
-# Real-internet windows are longer than loopback ones: a real path pays
-# DNS, TCP handshake, TLS, and slow start before the first policed byte
-# arrives — a 4 s window would spend most of itself on handshake and
-# the measured average would undershoot the configured rate for reasons
-# that have nothing to do with the policer.
-REALNET_RATE_WINDOW = 15.0
-REALNET_BASE_WINDOW = 10.0
-REALNET_BLOCK_WINDOW = 12.0
-REALNET_UL_SANITY_WINDOW = 5.0
 
-REALNET_DL_RATE_STR = "2mb"
-REALNET_DL_RATE_BPS = 2_000_000
-REALNET_UL_RATE_STR = "1mb"
-REALNET_UL_RATE_BPS = 1_000_000
-RATE_CHANGE_FROM_STR = "1mb"
-RATE_CHANGE_FROM_BPS = 1_000_000
-RATE_CHANGE_TO_STR = "2mb"
-RATE_CHANGE_TO_BPS = 2_000_000
 
-# Real TCP slow start + path RTT variance: same 1.30 ceiling (the
-# policer tripwire — never materially more than configured), wider
-# floor (patience for ramp-up). Loopback stages keep lib's 0.65.
-REALNET_BAND_LO = 0.45
-REALNET_BAND_HI = 1.30
+# ── the CLI input guards (moved from v1, NIGHT-refactor-2) ──────────────────
 
-# The restore floor after unstrict: a fraction of the MEASURED realnet
-# baseline, not of the configured rate — "speed is back" is a statement
-# about the machine's own real-internet throughput.
-RESTORE_FLOOR_RATIO = 0.3
 
-# ── the real-internet endpoint chain ────────────────────────────────────────
+def refuse(row, argv, needle):
+    """One refusal probe: run zelynic with `argv`, expect a non-zero
+    exit whose combined output contains `needle` (case-insensitive).
+
+    Hoisted to module level by NIGHT-improve-21 inside v1, moved to v2
+    with the guard family in NIGHT-refactor-2: the guard stage and the
+    post-kill regression battery run the IDENTICAL probe — a refusal
+    that only one of them exercises is a contract half-checked.
+    """
+    rc, stdout, stderr = run_zel(argv)
+    text = (stderr or stdout).strip()
+    hit = rc != 0 and needle.lower() in text.lower()
+    return (
+        record(
+            row,
+            "PASS" if hit else "FAIL",
+            f"exit {rc}: {text[:140]}",
+        )
+        == "PASS"
+    )
+
+
+def test_rate_guard():
+    """The limiter's input-validation functions as CLI round-trips
+    (NIGHT-improve-12): the rate bounds (MIN_RATE / MAX_RATE), the
+    near-miss typo rescue, the dangerous-target blocklist, the
+    below-minimum override, and the plain-number parser branch.
+
+    All refusals are fail-fast: they fire during argument validation,
+    before any privilege or BPF work, so this stage is safe even on a
+    machine where the datapath is half-attached.
+    """
+    ok_all = True
+    tid = str(sm1.CG.ids["a"])
+
+    # MIN_RATE = 1000 (format.rs): 999 must be refused with the
+    # below-minimum error that names the override flag.
+    ok_all = (
+        refuse(
+            "rate guard: below-minimum refused (999 < 1kb)",
+            ["strict-single", tid, "999"],
+            "below minimum",
+        )
+        and ok_all
+    )
+    # MAX_RATE = 1 TB/s: 2tb must be refused with the above-maximum
+    # error.
+    ok_all = (
+        refuse(
+            "rate guard: above-maximum refused (2tb > 1tb)",
+            ["strict-single", tid, "2tb"],
+            "above maximum",
+        )
+        and ok_all
+    )
+    # The near-miss typo rescue (cli/ux.rs rate_tip): '1MB' fails
+    # parsing and the tip must suggest the lowercase twin '1mb'.
+    ok_all = (
+        refuse(
+            "rate guard: typo tip suggests lowercase twin (1MB -> 1mb)",
+            ["strict-single", tid, "1MB"],
+            "1mb",
+        )
+        and ok_all
+    )
+    # The dangerous-target blocklist (commands/safety.rs): a system
+    # daemon name must be refused without --force. Only the REFUSAL is
+    # exercised — the forced variant would limit the live machine's
+    # actual systemd, which is exactly what the guard exists to stop.
+    ok_all = (
+        refuse(
+            "rate guard: dangerous name refused without --force (systemd)",
+            ["strict-single", "systemd", "1mb"],
+            "system process",
+        )
+        and ok_all
+    )
+    # The plain-number parser branch (no unit suffix) round-trips
+    # through the status JSON at full value.
+    rc, stdout, stderr = run_zel(["strict-single", tid, "1000000"])
+    entry = limit_entry(status_json(), sm1.CG.ids["a"]) if rc == 0 else None
+    plain_ok = (
+        rc == 0
+        and entry is not None
+        and entry.get("download_bps") == 1_000_000
+        and entry.get("upload_bps") == 1_000_000
+    )
+    ok_all = (
+        record(
+            "rate guard: plain-number rate accepted (1000000 = 1mb)",
+            "PASS" if plain_ok else "FAIL",
+            f"exit {rc}, row {entry}" if not plain_ok else "row 1000000/1000000",
+        )
+        == "PASS"
+        and ok_all
+    )
+    sm1.clear_all()
+    # The below-minimum override (--allow-dangerous): 500 B/s applies
+    # with the warning, visible at full value in the status row.
+    rc, stdout, stderr = run_zel(["strict-single", tid, "--allow-dangerous", "500"])
+    entry = limit_entry(status_json(), sm1.CG.ids["a"]) if rc == 0 else None
+    override_ok = (
+        rc == 0
+        and entry is not None
+        and entry.get("download_bps") == 500
+        and entry.get("upload_bps") == 500
+    )
+    ok_all = (
+        record(
+            "rate guard: below-minimum override applies (--allow-dangerous 500)",
+            "PASS" if override_ok else "FAIL",
+            f"exit {rc}, row {entry}" if not override_ok else "row 500/500",
+        )
+        == "PASS"
+        and ok_all
+    )
+    sm1.clear_all()
+    return ok_all
+
+
+# ── the brutal battery (NIGHT-improve-21; moved to v2, NIGHT-refactor-2) ────
 #
-# LTS posture: long-lived public endpoints, ordered by programmatic
-# stability. Cloudflare's speed endpoints are the backing store of
-# speed.cloudflare.com itself (the bytes= form caps the transfer by
-# construction — the probe asks for 1 KiB, the stage asks for 50 MB);
-# OVH's proof files and Tele2's zip have served ranged requests for
-# over a decade. The FIRST endpoint whose probe completes feeds every
-# download stage — one endpoint per run keeps every realnet row
-# attributable to a name in the report.
-REALNET_DL_ENDPOINTS = [
-    (
-        "cloudflare",
-        "https://speed.cloudflare.com/__down?bytes=1024",
-        "https://speed.cloudflare.com/__down?bytes=50000000",
-    ),
-    (
-        "ovh",
-        "https://proof.ovh.net/files/10Mb.dat",
-        "https://proof.ovh.net/files/10Mb.dat",
-    ),
-    (
-        "tele2",
-        "http://speedtest.tele2.net/10MB.zip",
-        "http://speedtest.tele2.net/10MB.zip",
-    ),
-]
-# The upload discard endpoint: Cloudflare's __up accepts streamed POST
-# bodies and throws them away — the upload mirror of __down.
-REALNET_UL_ENDPOINT = ("cloudflare", "https://speed.cloudflare.com/__up")
+# The stages above answer "does the input behave?" The battery answers
+# "does it SURVIVE violence?" — the live TUI SIGKILLed mid-render while
+# enforcement is active, one-shot CLI invocations SIGKILLed inside the
+# attach/pin/write window, and the core invariants re-proven after the
+# dust settles. It runs BEFORE the recover/cleanup/dmesg teardown, so
+# the teardown stages still verify the final state the battery leaves
+# behind.
+#
+# Safety of the kill design (verified against the source): the observer
+# behind `eagle-eyes` (the NIGHT-boost-1 merge of the former top/observe)
+# loads its BPF objects and attaches cgroup
+# programs but NEVER pins anything — the kernel releases those links
+# when the process dies — while the limiter's enforcement state lives
+# in PINNED maps under /sys/fs/bpf/zelynic that are designed to survive
+# process death (that is the whole pinned-map architecture). Killing the
+# monitor therefore stresses exactly the seam it should: a violent
+# reader death must not disturb the writer's enforcement state.
 
-# (name, download_url) once the probe chain has spoken; None until then.
-DL_ENDPOINT = None
-UL_ENDPOINT = None
-# Preflight findings the realnet stages gate on (a slow uplink or a
-# refused streaming body must read as SKIP, never as a limiter FAIL).
-REALNET_BASELINE_BPS = 0
-REALNET_UL_USABLE = False
+KILL_TUI_CYCLES = 5
+KILL_TUI_RENDER_S = 2.6
+KILL_MIDFLIGHT_KILLS = 12
 
 
-# ── realnet probe + worker commands ─────────────────────────────────────────
+def _spawn_tui_on_pty(argv):
+    """Spawn the zelynic TUI on a fresh pseudo-terminal.
 
-
-def realnet_probe_cmd(url):
-    """A ranged 1 KiB GET: cheap, harmless, and a complete handshake
-    (DNS + TCP + TLS where present). Exit 0 with an HTTP 200/206 means
-    the endpoint feeds; anything else falls through to the next name."""
-    return [
-        CURL,
-        "-s",
-        "-L",
-        "-o",
-        "/dev/null",
-        "-w",
-        "%{http_code}",
-        "--max-time",
-        "8",
-        "--range",
-        "0-1023",
-        url,
-    ]
-
-
-def realnet_ul_probe_cmd(url):
-    """One small POST: the upload endpoint is alive when it accepts a
-    body and answers, not when a GET of it happens to return anything."""
-    return [
-        CURL,
-        "-s",
-        "-o",
-        "/dev/null",
-        "-w",
-        "%{http_code}",
-        "--max-time",
-        "8",
-        "-X",
-        "POST",
-        "--data-binary",
-        "zelynic-v2-reachability-probe",
-        url,
-    ]
-
-
-def realnet_dl_cmd(window, url):
-    """Download worker: size_download is the verdict, --max-time cuts
-    the window (a non-zero curl exit is EXPECTED — the metric line is
-    the measurement, not the exit code, same contract as v1)."""
-    return [
-        CURL,
-        "-s",
-        "-o",
-        "/dev/null",
-        "-w",
-        "%{size_download}",
-        "--max-time",
-        f"{window}",
-        url,
-    ]
-
-
-def realnet_ul_cmd(window, url):
-    # -T /dev/zero: an unsizeable character device forces a streaming
-    # chunked upload — the classic curl upload-speed pattern (v1's
-    # local twin uses the same trick against the in-process server).
-    return [
-        CURL,
-        "-s",
-        "-o",
-        "/dev/null",
-        "-w",
-        "%{size_upload}",
-        "--max-time",
-        f"{window}",
-        "-T",
-        "/dev/zero",
-        url,
-    ]
-
-
-def _probe(cmd):
-    """Run one probe command; True when curl exited 0 with a 2xx code."""
-    try:
-        p = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
-    except (subprocess.TimeoutExpired, OSError):
-        return False
-    code = p.stdout.strip().splitlines()[-1] if p.stdout.strip() else ""
-    return p.returncode == 0 and code in ("200", "206")
-
-
-def realnet_download(name, window):
-    """One real-internet download inside cgroup `name`; (bytes, err)."""
-    return sm1.spawn_in_cgroup(name, realnet_dl_cmd(window, DL_ENDPOINT[1]), window + 25)
-
-
-def realnet_upload(name, window):
-    """One real-internet upload inside cgroup `name`; (bytes, err)."""
-    return sm1.spawn_in_cgroup(name, realnet_ul_cmd(window, UL_ENDPOINT[1]), window + 25)
-
-
-# ── preflight: reachability, realnet baseline, upload sanity ────────────────
-
-
-def stage_realnet_probe():
-    """Walk the fallback chain; the first endpoint that feeds wins.
-    Every miss is reported (a silent chain would hide a dead network
-    behind a SKIP that looks like a choice)."""
-    global DL_ENDPOINT, UL_ENDPOINT
-    if not CURL:
-        for label in (
-            "real internet: download endpoint reachability",
-            "real internet: upload endpoint reachability",
-        ):
-            record(label, "SKIP", "curl not found")
-        return False
-    out()
-    out("━━━ real-internet endpoint chain (first reachable feeds the lane) ━━━")
-    for name, probe_url, dl_url in REALNET_DL_ENDPOINTS:
-        if _probe(realnet_probe_cmd(probe_url)):
-            DL_ENDPOINT = (name, dl_url)
-            out(f"  download: {name} — reachable")
-            break
-        out(f"  download: {name} — no answer")
-    ul_name, ul_url = REALNET_UL_ENDPOINT
-    if _probe(realnet_ul_probe_cmd(ul_url)):
-        UL_ENDPOINT = (ul_name, ul_url)
-        out(f"  upload:   {ul_name} — reachable")
-    else:
-        out("  upload:   no answer")
-    dl_ok = record(
-        "real internet: download endpoint reachability",
-        "PASS" if DL_ENDPOINT else "SKIP",
-        f"{DL_ENDPOINT[0]} feeds the realnet lane"
-        if DL_ENDPOINT
-        else "no egress or every endpoint down — local lane carries the verdict",
+    The render engine needs a real terminal — a pipe gives it no
+    geometry to draw on — so the kill stages run the TUI exactly the
+    way an owner's terminal does: pty with a sane 80x24 geometry set
+    before exec, stdin/stdout/stderr all on the slave side. Returns
+    (proc, master_fd); the caller drains the master (the render
+    proof), then kills and reaps the child.
+    """
+    master, slave = pty.openpty()
+    # 24 rows x 80 cols: the default geometry every terminal starts
+    # from, so the eagle-eyes renderer exercises its full layout from
+    # the very first frame instead of a degenerate 0x0 grid.
+    fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 24, 80, 0, 0))
+    proc = subprocess.Popen(
+        [lib.BINARY] + argv,
+        stdin=slave,
+        stdout=slave,
+        stderr=slave,
+        close_fds=True,
     )
-    ul_ok = record(
-        "real internet: upload endpoint reachability",
-        "PASS" if UL_ENDPOINT else "SKIP",
-        f"{UL_ENDPOINT[0]} accepts upload bodies"
-        if UL_ENDPOINT
-        else "upload endpoint unreachable — realnet upload stages SKIP",
-    )
-    return dl_ok == "PASS" and ul_ok == "PASS"
+    os.close(slave)
+    return proc, master
 
 
-def stage_realnet_baseline():
-    """Unlimited real-internet throughput: the restore floor for the
-    unstrict phase, and the instrument check that the endpoint can
-    actually feed the rates the strict phase will assert against."""
-    global REALNET_BASELINE_BPS
-    if not DL_ENDPOINT:
-        return record(
-            "real internet: unlimited baseline throughput", "SKIP", "no download endpoint"
-        )
-    got, err = realnet_download("a", REALNET_BASE_WINDOW)
-    if got is None:
-        return record(
-            "real internet: unlimited baseline throughput",
-            "FAIL",
-            f"worker failed: {err}",
-        )
-    bps = got / REALNET_BASE_WINDOW
-    REALNET_BASELINE_BPS = bps
-    return record(
-        "real internet: unlimited baseline throughput",
-        "PASS" if bps > 0 else "FAIL",
-        f"{fmt_bps(bps)} over {REALNET_BASE_WINDOW:.0f}s via {DL_ENDPOINT[0]}"
-        if bps > 0
-        else "0 B/s — the endpoint answered the probe but fed no bytes",
-    )
+def _drain_pty(master, seconds):
+    """Read the pty master for `seconds` and return the bytes the child
+    rendered — non-blocking and paced, so a chatty TUI can never fill
+    the pty buffer and block on its own output while we wait for proof
+    that it is alive. Any bytes at all count: attach_quiet suppresses
+    the loader trace, so output on the pty means the render engine is
+    producing frames."""
+    got = bytearray()
+    os.set_blocking(master, False)
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline:
+        try:
+            chunk = os.read(master, 65536)
+        except BlockingIOError:
+            time.sleep(0.02)
+            continue
+        except OSError:
+            break  # master closed under us: the child is already gone
+        got += chunk
+    return bytes(got)
 
 
-def stage_realnet_upload_sanity():
-    """An UNLIMITED upload first: an endpoint that refuses streaming
-    bodies (proxy 4xx, chunked rejection) must read as SKIP, not as a
-    limiter defect — verify the instrument before measuring with it."""
-    global REALNET_UL_USABLE
-    if not UL_ENDPOINT:
-        return record(
-            "real internet: upload engine sanity (unlimited)", "SKIP", "no upload endpoint"
-        )
-    got, err = realnet_upload("a", REALNET_UL_SANITY_WINDOW)
-    if got is None:
-        return record(
-            "real internet: upload engine sanity (unlimited)",
-            "SKIP",
-            f"endpoint refused the streaming worker: {err}",
-        )
-    bps = got / REALNET_UL_SANITY_WINDOW
-    usable = bps > 100_000
-    REALNET_UL_USABLE = usable
-    return record(
-        "real internet: upload engine sanity (unlimited)",
-        "PASS" if usable else "SKIP",
-        f"{fmt_bps(bps)} — streaming uploads work"
-        if usable
-        else f"only {fmt_bps(bps)} unlimited — endpoint caps uploads, "
-        "realnet rate rows would be noise",
-    )
+def test_kill_tui():
+    """SIGKILL the live TUI (`zelynic eagle-eyes`, the NIGHT-boost-1
+    merge of the former top/observe) mid-render, under active
+    strict-multi enforcement, five times over.
 
+    Each cycle: apply strict-multi on cgroups a:b:c, start the TUI on a
+    pty, let it render for KILL_TUI_RENDER_S seconds (at --interval 1s
+    that is at least two frames), SIGKILL it, reap it as signal 9,
+    then prove the split the pinned-map architecture promises —
 
-# ── strict phase ────────────────────────────────────────────────────────────
+    (1) the status rows for all three cgroups are intact at the exact
+        configured rates (enforcement state survived the death),
+    (2) traffic downloaded AFTER the kill is still policed (kernel
+        drops engaged, BPF accounting in agreement — the
+        enforcement_proofs contract),
+    (3) a fresh policy write still lands (the write path is alive).
 
-
-def stage_rate_change():
-    """The daily move v1's reload cycle proves under stress and v2
-    proves under use: tighten a live policy 1mb -> 2mb and measure
-    BOTH rungs — a rate change that only updates the status row is a
-    display bug, not a limit change."""
-    name = "rate change: strict-single 1mb -> 2mb under live policy"
-    ok, payload = sm1.apply_single("a", RATE_CHANGE_FROM_STR, RATE_CHANGE_FROM_BPS, None)
-    if not ok:
-        return record(name, "FAIL", payload)
-    got_lo = sm1.py_download(LOCAL_WINDOW)
-    ok, payload = sm1.apply_single("a", RATE_CHANGE_TO_STR, RATE_CHANGE_TO_BPS, None)
-    if not ok:
-        sm1.clear_all()
-        return record(name, "FAIL", payload)
-    got_hi = sm1.py_download(LOCAL_WINDOW)
-    if got_lo is None or got_hi is None:
-        sm1.clear_all()
-        return record(name, "FAIL", "a measurement worker produced no bytes")
-    lo_ok = band_check(
-        "rate change: first rung at 1mb", got_lo / LOCAL_WINDOW, RATE_CHANGE_FROM_BPS
-    )
-    hi_ok = band_check("rate change: second rung at 2mb", got_hi / LOCAL_WINDOW, RATE_CHANGE_TO_BPS)
-    record(
-        name,
-        "PASS" if (lo_ok and hi_ok) else "FAIL",
-        f"{fmt_bps(got_lo / LOCAL_WINDOW)} then {fmt_bps(got_hi / LOCAL_WINDOW)}",
-    )
-    sm1.clear_all()
-    return lo_ok and hi_ok
-
-
-def stage_realnet_strict_download():
-    name = "real internet: strict-single download at 2mb"
-    if not DL_ENDPOINT:
-        return record(name, "SKIP", "no download endpoint")
-    if REALNET_BASELINE_BPS < 2 * REALNET_DL_RATE_BPS:
-        return record(
-            name,
-            "SKIP",
-            f"realnet baseline {fmt_bps(REALNET_BASELINE_BPS)} too low to prove "
-            f"a {REALNET_DL_RATE_STR} band",
-        )
-    ok, payload = sm1.apply_single("a", REALNET_DL_RATE_STR, REALNET_DL_RATE_BPS, None)
-    if not ok:
-        return record(name, "FAIL", payload)
-    time.sleep(0.5)
-    got, err = realnet_download("a", REALNET_RATE_WINDOW)
-    if got is None:
-        sm1.clear_all()
-        return record(name, "FAIL", f"worker failed: {err}")
-    passed = band_check(
-        name,
-        got / REALNET_RATE_WINDOW,
-        REALNET_DL_RATE_BPS,
-        extra=f"via {DL_ENDPOINT[0]}",
-        lo=REALNET_BAND_LO,
-        hi=REALNET_BAND_HI,
-    )
-    sm1.enforcement_proofs("real internet strict", got)
-    sm1.clear_all()
-    return passed
-
-
-def stage_realnet_strict_upload():
-    name = "real internet: strict-single upload at 1mb"
-    if not UL_ENDPOINT:
-        return record(name, "SKIP", "no upload endpoint")
-    if not REALNET_UL_USABLE:
-        return record(name, "SKIP", "upload engine sanity did not pass")
-    ok, payload = sm1.apply_single("a", REALNET_UL_RATE_STR, None, REALNET_UL_RATE_BPS)
-    if not ok:
-        return record(name, "FAIL", payload)
-    time.sleep(0.5)
-    got, err = realnet_upload("a", REALNET_RATE_WINDOW)
-    if got is None:
-        sm1.clear_all()
-        return record(name, "FAIL", f"worker failed: {err}")
-    passed = band_check(
-        name,
-        got / REALNET_RATE_WINDOW,
-        REALNET_UL_RATE_BPS,
-        extra=f"via {UL_ENDPOINT[0]}",
-        lo=REALNET_BAND_LO,
-        hi=REALNET_BAND_HI,
-    )
-    sm1.clear_all()
-    return passed
-
-
-# ── limit phase (realnet half; the local half is v1's test_limit_all) ──────
-
-
-def stage_realnet_limit_all():
-    """The machine-wide sweep policing REAL traffic: same sleeper fleet
-    and --force sweep as v1's local stage, but the measured worker is a
-    real-internet download — proving the sweep reached the cgroup the
-    production traffic will actually live in."""
-    name = "real internet: limit-all --force sweep at 2mb"
-    if not DL_ENDPOINT:
-        return record(name, "SKIP", "no download endpoint")
-    if REALNET_BASELINE_BPS < 2 * 2_000_000:
-        return record(
-            name,
-            "SKIP",
-            f"realnet baseline {fmt_bps(REALNET_BASELINE_BPS)} too low to prove a 2mb band",
-        )
-    spawned = [sm1.spawn_bg_in_cgroup(n, ["sleep", "30"]) for n in "abcde"]
-    sleepers = [p for p in spawned if p is not None]
-    try:
-        if len(sleepers) != len(spawned):
-            return record(
-                name,
+    A monitor death that cost enforcement continuity fails here, not
+    in the field.
+    """
+    rates = ["200kb", "1mb", "500kb", "2mb", "100kb"]
+    exp = [200_000, 1_000_000, 500_000, 2_000_000, 100_000]
+    completed = 0
+    rendered_ok = 0
+    killed_ok = 0
+    rows_ok = 0
+    write_ok = 0
+    for cycle in range(KILL_TUI_CYCLES):
+        ok, payload = sm1.apply_group(["a", "b", "c"], rates[cycle], exp[cycle])
+        if not ok:
+            record(
+                "kill tui: strict-multi applied",
                 "FAIL",
-                f"sleeper residency barrier failed: "
-                f"{len(spawned) - len(sleepers)}/{len(spawned)} cgroups "
-                "never got a resident sleeper",
+                f"cycle {cycle + 1}: {payload}",
             )
-        rc, stdout, stderr = lib.run_zel(["limit-all", "--force", "2mb"])
-        if rc != 0:
-            return record(name, "FAIL", f"exit {rc}: {(stderr or stdout).strip()[:200]}")
-        time.sleep(0.5)
-        got, err = realnet_download("a", REALNET_RATE_WINDOW)
-        if got is None:
-            return record(name, "FAIL", f"worker failed: {err}")
-        return band_check(
-            name,
-            got / REALNET_RATE_WINDOW,
-            2_000_000,
-            extra=f"via {DL_ENDPOINT[0]}",
-            lo=REALNET_BAND_LO,
-            hi=REALNET_BAND_HI,
-        )
-    finally:
-        sm1.clear_all()
-        for p in sleepers:
-            p.kill()
-        for p in sleepers:
+            break
+        completed += 1
+        proc, master = _spawn_tui_on_pty(["eagle-eyes", "--interval", "1s"])
+        try:
+            rendered = _drain_pty(master, KILL_TUI_RENDER_S)
+            proc.kill()  # SIGKILL: the violent death under test
             try:
-                p.wait(timeout=5)
+                proc.wait(timeout=10)
             except subprocess.TimeoutExpired:
-                pass
-
-
-# ── block phase (realnet half) ─────────────────────────────────────────────
-
-
-def stage_realnet_block():
-    """block-single against the real internet: the connection must
-    carry ~zero payload bytes. The kernel-drop proof rides the same
-    status row v1's local block stages read."""
-    name = "real internet: block-single zero goodput"
-    if not DL_ENDPOINT:
-        return record(name, "SKIP", "no download endpoint")
-    ok, payload = sm1.block_target("block-single", ["a"])
-    if not ok:
-        return record(name, "FAIL", payload)
-    time.sleep(0.3)
-    got, err = realnet_download("a", REALNET_BLOCK_WINDOW)
-    if got is None:
+                pass  # unreapable child: surfaced by the killed_ok row
+        finally:
+            os.close(master)
+        if rendered:
+            rendered_ok += 1
+        if proc.returncode == -signal.SIGKILL:
+            killed_ok += 1
+        doc = status_json()
+        rows_intact = doc is not None
+        for n in ("a", "b", "c"):
+            entry = limit_entry(doc, sm1.CG.ids[n]) if rows_intact else None
+            if (
+                entry is None
+                or entry.get("download_bps") != exp[cycle]
+                or entry.get("upload_bps") != exp[cycle]
+            ):
+                rows_intact = False
+        if rows_intact:
+            rows_ok += 1
+        # Post-kill traffic: still policed by the maps the dead monitor
+        # never owned. enforcement_proofs records the kernel-drop and
+        # byte-accounting rows per cycle.
+        got = sm1.py_download(2.5, "a")
+        sm1.enforcement_proofs(f"kill tui c{cycle + 1}", got)
+        # A fresh write must still land after the kill.
+        ok, _ = sm1.apply_single("d", "750kb", 750_000, 750_000)
+        if ok:
+            write_ok += 1
         sm1.clear_all()
-        return record(name, "FAIL", f"worker failed: {err}")
-    verdict = "PASS" if got <= sm1.BLOCK_GOODPUT_CEIL else "FAIL"
     record(
-        name,
-        verdict,
-        f"{got} bytes over {REALNET_BLOCK_WINDOW:.0f}s via {DL_ENDPOINT[0]} "
-        f"(ceiling {sm1.BLOCK_GOODPUT_CEIL})",
+        "kill tui: TUI rendered before every SIGKILL",
+        "PASS" if rendered_ok == completed and completed == KILL_TUI_CYCLES else "FAIL",
+        f"{rendered_ok}/{completed} cycles produced pty output"
+        + ("" if completed == KILL_TUI_CYCLES else f" (only {completed} cycles ran)"),
     )
-    sm1.enforcement_proofs("real internet block", got)
-    sm1.clear_all()
-    return verdict == "PASS"
-
-
-# ── unstrict phase (realnet half + teardown) ───────────────────────────────
-
-
-def stage_realnet_restore():
-    """After the whole simulation, unstrict-all must give the machine
-    its real-internet speed back — measured against the machine's own
-    re-measured baseline, not a configured number."""
-    name = "real internet: unstrict-all restores speed"
-    if not DL_ENDPOINT:
-        return record(name, "SKIP", "no download endpoint")
-    # Leave a limit standing so the restore has something to undo.
-    ok, payload = sm1.apply_single("a", REALNET_DL_RATE_STR, REALNET_DL_RATE_BPS, None)
-    if not ok:
-        return record(name, "FAIL", payload)
-    if not sm1.clear_all():
-        return record(name, "FAIL", "unstrict-all exited non-zero")
-    got, err = realnet_download("a", REALNET_BASE_WINDOW)
-    if got is None:
-        return record(name, "FAIL", f"worker failed: {err}")
-    baseline = _remeasure_realnet_baseline()
-    floor = RESTORE_FLOOR_RATIO * baseline if baseline else 1e6
-    bps = got / REALNET_BASE_WINDOW
-    return record(
-        name,
-        "PASS" if bps >= floor else "FAIL",
-        f"{fmt_bps(bps)} after unstrict-all (floor {fmt_bps(floor)}, "
-        f"re-measured baseline {fmt_bps(baseline)})",
-    )
-
-
-def _remeasure_realnet_baseline():
-    """The restore floor derives from the machine's CURRENT realnet
-    throughput (re-measured, not cached: it moves between stages)."""
-    if not DL_ENDPOINT:
-        return 0
-    got, _ = realnet_download("a", REALNET_BASE_WINDOW)
-    return got / REALNET_BASE_WINDOW if got else 0
-
-
-def stage_teardown():
-    """The unstrict phase's own proof: after unstrict-all the status
-    carries no limit rows and the cgroup fleet cleans up. This is the
-    E2E end state, not a crash-recovery stage — v1 owns those."""
-    sm1.clear_all()
-    doc = sm1.status_json()
-    rows = len(doc.get("limits", [])) if doc else 0
-    ok_rows = record(
-        "teardown: unstrict-all leaves no limit rows",
-        "PASS" if rows == 0 else "FAIL",
-        f"{rows} rows remain" if rows else "status clean",
-    )
-    cleaned = sm1.CG.cleanup()
     record(
-        "teardown: cgroup fleet cleanup",
-        "PASS" if cleaned else "FAIL",
-        "fleet directories removed" if cleaned else "fleet directories still present",
+        "kill tui: every kill reaped as signal 9",
+        "PASS" if killed_ok == completed and completed == KILL_TUI_CYCLES else "FAIL",
+        f"{killed_ok}/{completed} cycles exited -9"
+        + ("" if completed == KILL_TUI_CYCLES else f" (only {completed} cycles ran)"),
     )
-    return ok_rows == "PASS" and cleaned
+    record(
+        "kill tui: enforcement rows intact after every kill",
+        "PASS" if rows_ok == completed and completed == KILL_TUI_CYCLES else "FAIL",
+        f"{rows_ok}/{completed} cycles kept the exact a:b:c rates",
+    )
+    record(
+        "kill tui: fresh policy write lands after every kill",
+        "PASS" if write_ok == completed and completed == KILL_TUI_CYCLES else "FAIL",
+        f"{write_ok}/{completed} cycles wrote a new limit post-kill",
+    )
+    return (
+        rendered_ok == completed
+        and killed_ok == completed
+        and rows_ok == completed
+        and write_ok == completed
+        and completed == KILL_TUI_CYCLES
+    )
+
+
+def test_kill_midflight():
+    """SIGKILL one-shot CLI invocations inside the attach/pin/write
+    window, twelve times, at jittered offsets.
+
+    A strict-single invocation pins programs, writes policy maps, and
+    updates the row surface — killing it at a jittered point races
+    every step of that write path. The contract under test is NOT
+    which side wins the race (a kill landing after the CLI finished is
+    an equally legal outcome) but that a killed writer can never leave
+    a state the status surface cannot read back coherently: the JSON
+    parses, and every limit row carries integral rates. The stage ends
+    with the restore contract — recover must bring the machine back to
+    zero pins no matter where the twelve kills landed.
+    """
+    rates = ["300kb", "1mb", "600kb", "2mb"]
+    sigkilled = 0
+    finished_first = 0
+    other_exit = 0
+    coherent = 0
+    for i in range(KILL_MIDFLIGHT_KILLS):
+        proc = subprocess.Popen(
+            [lib.BINARY, "strict-single", str(sm1.CG.ids["a"]), rates[i % len(rates)]],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        # Jitter across the attach/pin/write window (20..68 ms): early
+        # kills race the pin creation, late ones race the row write,
+        # and the widest offsets let the CLI finish first — the
+        # coherence check below is the invariant, not winning.
+        time.sleep(0.02 + 0.012 * (i % 5))
+        proc.kill()
+        try:
+            proc.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            pass
+        if proc.returncode == -signal.SIGKILL:
+            sigkilled += 1
+        elif proc.returncode == 0:
+            finished_first += 1
+        else:
+            other_exit += 1
+        doc = status_json()
+        limit_rows = (doc or {}).get("limits", [])
+        integral = (
+            doc is not None
+            and isinstance(limit_rows, list)
+            and all(
+                isinstance(e.get("download_bps"), int) and isinstance(e.get("upload_bps"), int)
+                for e in limit_rows
+            )
+        )
+        if integral:
+            coherent += 1
+        run_zel(["unstrict-all"])
+    run_zel(["recover"])
+    pins_left = len(os.listdir(PIN_DIR)) if os.path.isdir(PIN_DIR) else 0
+    record(
+        "kill midflight: every cycle reaped (12 kills, jittered)",
+        "PASS" if (sigkilled + finished_first + other_exit) == KILL_MIDFLIGHT_KILLS else "FAIL",
+        f"{sigkilled} killed mid-flight, {finished_first} finished first"
+        f"{f', {other_exit} other exits' if other_exit else ''}",
+    )
+    record(
+        "kill midflight: status JSON coherent after every kill",
+        "PASS" if coherent == KILL_MIDFLIGHT_KILLS else "FAIL",
+        f"{coherent}/{KILL_MIDFLIGHT_KILLS} cycles parsed with integral rate rows",
+    )
+    record(
+        "kill midflight: recover restores the zero-pin state",
+        "PASS" if pins_left == 0 else "FAIL",
+        f"{pins_left} entries left in {PIN_DIR}",
+    )
+    return (
+        coherent == KILL_MIDFLIGHT_KILLS
+        and pins_left == 0
+        and (sigkilled + finished_first + other_exit) == KILL_MIDFLIGHT_KILLS
+    )
+
+
+def test_regression_battery():
+    """Re-prove the core invariants AFTER the kills.
+
+    Every check here already ran green BEFORE the brutal battery (the
+    rate guards in the guard phase, the JSON surfaces in doctor and
+    list-apps, the version token at resolve time). Running them again
+    after five TUI kills and twelve mid-flight kills is the regression
+    contract: nothing the battery broke is allowed to stay broken, and
+    nothing that was refusing before may start accepting. Three rapid
+    policy round-trips across different cgroups close the battery the
+    way the guard phase opened — write, verify, clear, repeat.
+    """
+    ok_all = True
+    tid = str(sm1.CG.ids["a"])
+    ok_all = (
+        refuse(
+            "regression: below-minimum still refused (999 < 1kb)",
+            ["strict-single", tid, "999"],
+            "below minimum",
+        )
+        and ok_all
+    )
+    ok_all = (
+        refuse(
+            "regression: above-maximum still refused (2tb > 1tb)",
+            ["strict-single", tid, "2tb"],
+            "above maximum",
+        )
+        and ok_all
+    )
+    ok_all = (
+        refuse(
+            "regression: typo tip still suggests lowercase twin (1MB -> 1mb)",
+            ["strict-single", tid, "1MB"],
+            "1mb",
+        )
+        and ok_all
+    )
+    ok_all = (
+        refuse(
+            "regression: dangerous name still refused without --force (systemd)",
+            ["strict-single", "systemd", "1mb"],
+            "system process",
+        )
+        and ok_all
+    )
+    trips_ok = 0
+    for name, rate_str, exp in (
+        ("a", "400kb", 400_000),
+        ("b", "800kb", 800_000),
+        ("d", "1500kb", 1_500_000),
+    ):
+        ok, _ = sm1.apply_single(name, rate_str, exp, exp)
+        if ok:
+            ok, _ = sm1.unstrict_target("unstrict-single", [name])
+        if ok:
+            trips_ok += 1
+    ok_all = (
+        record(
+            "regression: policy round-trip still lands (3 cgroups)",
+            "PASS" if trips_ok == 3 else "FAIL",
+            f"{trips_ok}/3 write-verify-clear trips",
+        )
+        == "PASS"
+        and ok_all
+    )
+    doctor_ok = False
+    apps_ok = False
+    rc, stdout, _ = run_zel(["doctor", "--print-json"])
+    if rc == 0:
+        try:
+            json.loads(stdout)
+            doctor_ok = True
+        except json.JSONDecodeError:
+            pass
+    rc, stdout, _ = run_zel(["list-apps", "--print-json"])
+    if rc == 0:
+        try:
+            json.loads(stdout)
+            apps_ok = True
+        except json.JSONDecodeError:
+            pass
+    ok_all = (
+        record(
+            "regression: doctor + list-apps JSON still parse",
+            "PASS" if doctor_ok and apps_ok else "FAIL",
+            f"doctor {'ok' if doctor_ok else 'broken'}, list-apps {'ok' if apps_ok else 'broken'}",
+        )
+        == "PASS"
+        and ok_all
+    )
+    rc, stdout, _ = run_zel(["-V"])
+    first = (stdout or "").strip().splitlines()
+    token = lib.version_token(first[0]) if rc == 0 and first else None
+    want = lib.repo_version()
+    ok_all = (
+        record(
+            "regression: -V token still matches the checkout",
+            "PASS" if token == want else "FAIL",
+            f"{token or '(none)'} vs v{want}",
+        )
+        == "PASS"
+        and ok_all
+    )
+    return ok_all
+
+
+# ── the crash-family teardown (v2's own half; v1 keeps its light one) ──────
+
+
+def test_recover():
+    rc, stdout, stderr = run_zel(["recover"])
+    detail = (stderr or stdout).strip()[:120] or f"exit {rc}"
+    return record("recover: clean state after the battery", "PASS" if rc == 0 else "FAIL", detail)
+
+
+def test_dmesg():
+    return lib.dmesg_scan()
 
 
 # ── engine self-test (no root, no zelynic, no BPF, no network) ─────────────
@@ -653,6 +645,10 @@ def self_test():
         "PASS" if os.path.isfile(probe) and hasattr(sm1, "CgroupSet") else "FAIL",
         f"{probe} bound as supermassive_test_v1",
     )
+    # NIGHT-refactor-2: the surface v2 drives changed with the scope —
+    # the five preflight/teardown stages plus the policy helpers the
+    # guard and kill batteries lean on. A missing attr means the
+    # battery crashes mid-run on a distro, so it is pinned rootless.
     ok = (
         record(
             "engine: v1 stage surface present",
@@ -660,75 +656,66 @@ def self_test():
             if all(
                 hasattr(sm1, attr)
                 for attr in (
-                    "test_policy_write",
-                    "test_asymmetric",
-                    "test_multi_group",
-                    "test_limit_all",
-                    "test_block_single",
-                    "test_block_multi",
-                    "test_unlock",
-                    "test_unstrict_multi",
+                    "test_env",
+                    "test_doctor",
+                    "test_list_apps",
+                    "test_baseline",
+                    "test_cleanup",
+                    "apply_single",
+                    "apply_group",
+                    "unstrict_target",
+                    "clear_all",
+                    "py_download",
+                    "enforcement_proofs",
+                    "CgroupSet",
+                    "HttpServer",
+                    "run_zel",
+                    "status_json",
+                    "limit_entry",
                 )
             )
             else "FAIL",
-            "the eight reused local stages resolve",
+            "the preflight/teardown stages and policy helpers resolve",
         )
         == "PASS"
         and ok
     )
-    ok = (
-        record(
-            "realnet: download endpoint registry well-formed",
-            "PASS"
-            if all(
-                len(entry) == 3
-                and (entry[2].startswith("https://") or entry[2].startswith("http://"))
-                for entry in REALNET_DL_ENDPOINTS
-            )
-            else "FAIL",
-            f"{len(REALNET_DL_ENDPOINTS)} candidates: "
-            + ", ".join(name for name, _, _ in REALNET_DL_ENDPOINTS),
+    # NIGHT-improve-21 pin (moved from v1, NIGHT-refactor-2): the kill
+    # battery's pty mechanics — spawn, render-drain, SIGKILL, reap —
+    # verified rootlessly against a dummy child (a python that prints
+    # one line, then sleeps on a real pty). A pty regression on any
+    # distro is caught here, before a root run ever reaches the kill
+    # stages.
+    pty_ok = False
+    pty_detail = "engine error"
+    try:
+        master, slave = pty.openpty()
+        fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 24, 80, 0, 0))
+        dummy = subprocess.Popen(
+            [sys.executable, "-c", "print('frame'); import time; time.sleep(30)"],
+            stdin=slave,
+            stdout=slave,
+            stderr=slave,
+            close_fds=True,
         )
-        == "PASS"
-        and ok
-    )
-    ok = (
-        record(
-            "realnet: upload endpoint well-formed",
-            "PASS" if REALNET_UL_ENDPOINT[1].startswith("https://") else "FAIL",
-            REALNET_UL_ENDPOINT[1],
-        )
-        == "PASS"
-        and ok
-    )
-    dl = realnet_dl_cmd(10, "https://self.test/__down")
-    ul = realnet_ul_cmd(10, "https://self.test/__up")
-    ok = (
-        record(
-            "realnet: worker commands carry the measurement contract",
-            "PASS"
-            if dl[-1] == "https://self.test/__down"
-            and "%{size_download}" in dl
-            and "--max-time" in dl
-            and "10" in dl
-            and "-T" in ul
-            and "/dev/zero" in ul
-            and "%{size_upload}" in ul
-            else "FAIL",
-            "size metric, max-time, and the /dev/zero streaming source",
-        )
-        == "PASS"
-        and ok
-    )
-    ok = (
-        record(
-            "realnet: band overrides are honest",
-            "PASS" if 0 < REALNET_BAND_LO < REALNET_BAND_HI else "FAIL",
-            f"floor {REALNET_BAND_LO}, ceiling {REALNET_BAND_HI} "
-            "(slow-start patience, same tripwire)",
-        )
-        == "PASS"
-        and ok
+        os.close(slave)
+        try:
+            rendered = _drain_pty(master, 2.0)
+        finally:
+            os.close(master)
+            dummy.kill()
+            try:
+                dummy.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                pass
+        pty_ok = bool(rendered) and dummy.returncode == -signal.SIGKILL
+        pty_detail = f"{len(rendered)} bytes rendered, exit {dummy.returncode}"
+    except (OSError, subprocess.TimeoutExpired) as e:
+        pty_detail = str(e)[:80]
+    record(
+        "engine: pty spawn + drain + SIGKILL reap (kill battery)",
+        "PASS" if pty_ok else "FAIL",
+        pty_detail,
     )
     try:
         lo, hi = (float(x) for x in "0.5,1.5".split(","))
@@ -764,12 +751,13 @@ def _unknown_arg_error(token):
     ]
 
 
-def run_e2e():
-    """The four policy families in daily-session order, each proven on
-    the local lane first (deterministic instrument) and the realnet
-    lane second (production shape). v1's stages carry the local proofs;
-    the v2-native stages carry the realnet ones."""
-    out("zelynic supermassive test v2 (NIGHT-improve-23, e2e mode)")
+def run_survival():
+    """The abuse family in escalation order: guards (does bad input
+    behave?), kills (does violence break anything?), regression (is
+    everything that passed before still passing?), teardown (is the
+    machine returned clean?). v1's stages carry the preflight; the
+    batteries below are v2's own."""
+    out("zelynic supermassive test v2 (NIGHT-refactor-2, survival mode)")
     out()
     env_ok = sm1.test_env()
     if not env_ok:
@@ -777,44 +765,33 @@ def run_e2e():
         out("  environment not suitable for zelynic — stopping here.")
         return False
 
-    # preflight
+    # preflight: the engine sanity the kill stages' traffic depends on.
     sm1.test_doctor()
     sm1.test_list_apps()
-    baseline = sm1.test_baseline(LOCAL_WINDOW)
-    stage_realnet_probe()
-    stage_realnet_baseline()
-    stage_realnet_upload_sanity()
+    sm1.test_baseline(LOCAL_WINDOW)
 
-    # strict
+    # phase 1/4: the CLI input guards
     out()
-    out("━━━ phase 1/4: strict (limit an app, tight and measured) ━━━")
-    sm1.test_policy_write()
-    sm1.test_asymmetric(LOCAL_WINDOW, baseline)
-    stage_rate_change()
-    sm1.test_multi_group(LOCAL_WINDOW, baseline)
-    stage_realnet_strict_download()
-    stage_realnet_strict_upload()
+    out("━━━ phase 1/4: guards (bad input must be refused, never fatal) ━━━")
+    test_rate_guard()
 
-    # limit
+    # phase 2/4: the brutal battery
     out()
-    out("━━━ phase 2/4: limit (cap the whole machine) ━━━")
-    sm1.test_limit_all(LOCAL_WINDOW, baseline)
-    stage_realnet_limit_all()
+    out("━━━ phase 2/4: kills (SIGKILL the TUI and the mid-flight writers) ━━━")
+    test_kill_tui()
+    test_kill_midflight()
 
-    # block
+    # phase 3/4: the regression re-proof
     out()
-    out("━━━ phase 3/4: block (an app goes dark) ━━━")
-    sm1.test_block_single(LOCAL_WINDOW)
-    sm1.test_block_multi(LOCAL_WINDOW)
-    stage_realnet_block()
+    out("━━━ phase 3/4: regression (nothing broken stays broken) ━━━")
+    test_regression_battery()
 
-    # unstrict
+    # phase 4/4: the crash-family teardown
     out()
-    out("━━━ phase 4/4: unstrict (give it all back) ━━━")
-    sm1.test_unlock(LOCAL_WINDOW, baseline)
-    sm1.test_unstrict_multi()
-    stage_realnet_restore()
-    stage_teardown()
+    out("━━━ phase 4/4: teardown (recover, cleanup, kernel log) ━━━")
+    test_recover()
+    sm1.test_cleanup()
+    test_dmesg()
 
     return True
 
@@ -823,7 +800,7 @@ def main():
     global MODE
     ap = argparse.ArgumentParser(
         prog="supermassive-test-v2",
-        description="zelynic end-to-end daily-use simulation (NIGHT-improve-23)",
+        description="zelynic survival battery (NIGHT-improve-23, refocused NIGHT-refactor-2)",
     )
     ap.add_argument(
         "--self-test",
@@ -835,7 +812,7 @@ def main():
     ap.add_argument(
         "--band",
         default=f"{lib.BAND_LO},{lib.BAND_HI}",
-        help="verdict band as lo,hi ratios for the LOCAL lane (default 0.65,1.30)",
+        help="verdict band as lo,hi ratios (default 0.65,1.30)",
     )
     args, unknown = ap.parse_known_args()
     if unknown:
@@ -870,14 +847,14 @@ def main():
         MODE = sm1.CG.setup()
         sm1.MODE = MODE
         sm1.SERVER = sm1.HttpServer()
-        ran = run_e2e()
+        ran = run_survival()
         sm1.report_worker_faults()
         ok = (
             lib.final_report(
                 start,
-                "e2e",
-                "daily-use simulation green: strict, limit, block, unstrict — "
-                "local and real internet — all proven",
+                "survival",
+                "survival battery green: CLI guards, SIGKILL batteries, "
+                "regression re-proof, teardown — all proven",
             )
             if ran
             else False
@@ -893,12 +870,8 @@ def main():
             json.dumps(
                 {
                     "binary": lib.BINARY,
-                    "mode": "e2e",
+                    "mode": "survival",
                     "cgroup_mode": MODE,
-                    "realnet": {
-                        "download_endpoint": DL_ENDPOINT[0] if DL_ENDPOINT else None,
-                        "upload_endpoint": UL_ENDPOINT[0] if UL_ENDPOINT else None,
-                    },
                     "worker_faults": [{"error": msg, "count": n} for msg, n in sm1.WORKER_FAULTS],
                     "results": RESULTS,
                 },

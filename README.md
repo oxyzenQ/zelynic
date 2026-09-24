@@ -506,22 +506,24 @@ the matrix is the default. A mistyped flag (`--self-tesss`) gets a typo
 tip suggesting `--self-test`, and `--light` gets a message naming its
 replacement.
 
-Want to simulate a real DAY of zelynic use before trusting it on the
-daily driver — the four policy families (strict, limit, block,
-unstrict) in daily-session order, each proven on the deterministic
-local lane AND against the real internet, with honest SKIPs when the
-machine has no egress? That is v2 (NIGHT-improve-23):
+Want to know the machine survives the day nothing goes right — the
+CLI input guards under hostile input, the live TUI SIGKILLed
+mid-render under active enforcement, one-shot writers SIGKILLed
+inside the attach/pin/write window, then everything re-proven after
+the dust settles? That is v2 (NIGHT-improve-23, refocused
+NIGHT-refactor-2):
 
 ```bash
-sudo ./scripts/supermassive/supermassive-test-v2.sh               # e2e simulation (4+ min)
+sudo ./scripts/supermassive/supermassive-test-v2.sh               # survival battery (4+ min)
 ./scripts/supermassive/supermassive-test-v2.sh --self-test         # engine smoke, no root
 ```
 
-The division of labor is deliberate: v1 keeps every
-"problems-use-zelynic" stage (kill, regression, crash, fatal CLI
-usage) — a machine green on v1 is qualified for a power outage; v2
-carries only what real use exercises — a machine green on v2 is
-qualified for the daily driver.
+The division of labor is deliberate (NIGHT-refactor-2): v1 owns
+every stage that measures a LIMIT — the loopback matrix, the measured
+rate change, the real-internet lane — a machine green on v1 has a
+limiter that holds everywhere it claims; v2 owns the abuse family
+(guards, kills, regression, crash teardown) — a machine green on v2
+survives the day nothing goes right.
 
 Want the four headline claims themselves PROVEN on your machine — no
 daemon (enforcement alive with zero zelynic processes), pure eBPF (tc
