@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Copyright (C) 2026 rezky_nightky
 # SPDX-License-Identifier: GPL-3.0-only
-# LOC_EXEMPT: the supermassive matrix is one self-contained harness by design — every stage shares the cgroup fleet, the traffic engine, and the verdict plumbing, so splitting it means a module package, not a script (the engine helpers it truly shares with limiter-depth-test.py ARE deduplicated into zelynic_harness_lib.py, NIGHT-improve-11)
+# LOC_EXEMPT: the supermassive matrix is one self-contained harness by design — every stage shares the cgroup fleet, the traffic engine, and the verdict plumbing, so splitting it means a module package, not a script (the engine helpers it truly shares with limiter-depth-test.py ARE deduplicated into zelynic_harness_lib.py, NIGHT-improve-11; over the 1000 scripts cap under NIGHT-lts-2 — the module-package split is the tracked follow-up, its own NIGHT task)
 """zelynic supermassive test — the limiter-scope flagship harness (NIGHT-master-2; renamed from brutal-stress-test and engine-deduplicated in NIGHT-improve-11 / security-4; scope refocused in NIGHT-refactor-2).
 
 NIGHT-master-1 (limiter-depth-test.py) answers "is the limiter ACCURATE?"

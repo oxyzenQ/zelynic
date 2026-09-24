@@ -8,7 +8,7 @@
 # splitting the proof across modules would scatter the told-once
 # claim narrative the harness exists to carry (the engine helpers it
 # truly shares with the depth/supermassive twins already live in
-# zelynic_harness_lib.py, NIGHT-improve-11)
+# zelynic_harness_lib.py, NIGHT-improve-11; over the 1000 scripts cap under NIGHT-lts-2 — tracked debt, the split is its own NIGHT task)
 """zelynic claims proof harness (NIGHT-boost-8) — honesty, enforced.
 
 The README makes four headline claims. This harness proves every one

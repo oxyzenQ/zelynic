@@ -16,6 +16,36 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Added
 
+- **feat: NIGHT-lts-2 — the scripts LOC cap: a 1000-line hard limit
+  for every .sh/.py under scripts/, enforced on every push** — the
+  owner's LTS hardening directive, landed as the scripts twin of
+  the Rust 500 cap (gate-keepers section 9): new gate section 16
+  runs `scripts/gates/check-scripts-loc.sh`, which scans every
+  .sh/.py under scripts/ recursively, prints each file's count, and
+  fails on any file over 1000 lines without a `# LOC_EXEMPT:`
+  marker (hash syntax — the sh/py comment convention; the same
+  no-allowlist, exemption-lives-with-the-file discipline as the
+  Rust contract). The budget is doubled on purpose: a one-shot
+  harness legitimately bundles its constants, its stage table, and
+  its verdict plumbing in one self-contained file — but no script
+  grows unbounded. The three flagship harnesses (supermassive v1 at
+  2858, v2 at 1361, proof-claims at 1159) carried self-declared
+  LOC_EXEMPT markers from earlier eras, written in anticipation of
+  a checker that never existed — this gate is what turned those
+  declarations from prose into a live, every-push audit; each
+  marker now also names the cap and the debt it carries, and the
+  honest framing is written down in docs/RULES.md ("Scripts (hard
+  cap 1000)"): a marker is an IOU, not a license — retiring one
+  means an actual module-package split, and splitting a flagship is
+  its own NIGHT task with its own micro-commit cycle, never a
+  drive-by. Arithmetic kept honest everywhere it is stated live:
+  gate-keepers.sh and gate-keepers.yml headers (16 numbered
+  sections, 18 summary gates), CONTRIBUTING.md's gate list (the
+  frozen 17/17 rows in CROSS_DISTRO_RESULTS.md are measured run
+  records, untouched by policy). Audit at landing: 35 script
+  files, 32 within policy, 3 exempt — zero new violations, and the
+  next file to cross 1000 fails the gate before it can land.
+
 - **feat: NIGHT-engrave-7 — the frontier-five theme catalog, the
   counter-explosion hardening, and the kernel-cap name enrichment**
   — the owner's top-frontier monitoring call, four surfaces:

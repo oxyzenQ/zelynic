@@ -58,6 +58,13 @@
 #       ruff check --fix + ruff format. The EXE001 shebang parity
 #       cosmostrix checks here is already owned by section 7, the
 #       permission guard — one contract, one place)
+#  16.  Scripts LOC cap (owner rule, NIGHT-lts-2 —
+#       scripts/gates/check-scripts-loc.sh, hard limit 1000 lines
+#       for every .sh/.py under scripts/; # LOC_EXEMPT: marker =
+#       tracked migration debt — the scripts twin of section 9's
+#       500-line Rust cap, doubled because a one-shot harness
+#       legitimately bundles constants + stage table + verdict
+#       plumbing, but no script grows unbounded)
 #
 # Missing tools are skipped with a warning so the gate stays usable
 # on minimal development machines; CI runs this script WHOLESALE
@@ -548,6 +555,26 @@ if [ -n "$PY_FILES" ]; then
 else
 	info "ruff: no .py files found"
 	PASS=$((PASS + 1))
+fi
+
+# ── 16. Scripts LOC Cap (owner rule: 1000, NIGHT-lts-2) ───────────────────
+# The scripts twin of section 9: every .sh/.py under scripts/
+# (recursive) stays under the hard cap; a file over the cap passes
+# ONLY with a self-declared `# LOC_EXEMPT:` marker plus a one-line
+# justification (tracked migration debt, not silent rot). The three
+# flagship harnesses carried their markers before this checker
+# existed — this section is what turned those declarations into a
+# live, every-push audit.
+header "Scripts LOC Cap (check-scripts-loc.sh, limit 1000)"
+if [ -f scripts/gates/check-scripts-loc.sh ]; then
+	if bash scripts/gates/check-scripts-loc.sh 2>&1 | tail -25; then
+		info "scripts LOC cap: all .sh/.py under scripts/ within policy (limit 1000)"
+		PASS=$((PASS + 1))
+	else
+		fail "scripts LOC cap: script file(s) over 1000 lines without an exemption marker (split them or add # LOC_EXEMPT:)"
+	fi
+else
+	warn "check-scripts-loc.sh not found — skipping"
 fi
 
 # ── Summary ────────────────────────────────────────────────────────────────

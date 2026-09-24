@@ -5,6 +5,8 @@
 
 ## File Size
 
+### Rust sources (hard cap 500)
+
 - Rust source files must stay under `500` lines (hard cap, owner rule).
 - This applies to every `.rs` file under `src/` AND `test/` (both
   recursive) plus `build.rs` (NIGHT-docs-4 — the test tree is code
@@ -34,6 +36,37 @@
 `scripts/gates/check-loc.sh` (wired into `scripts/gate-keepers.sh`) scans the
 policy scope, prints every file's count, and fails on any file over the
 cap without an exemption marker.
+
+### Scripts (hard cap 1000, NIGHT-lts-2)
+
+- Every `.sh` and `.py` file under `scripts/` (recursive) must stay
+  under `1000` lines (hard cap, owner rule). The budget is doubled
+  relative to Rust on purpose: a one-shot harness legitimately
+  bundles its constants, its stage table, and its verdict plumbing
+  in one self-contained file — but no script grows unbounded.
+- The exemption mechanism is the marker twin of the Rust contract
+  (hash syntax — the sh/py comment convention):
+
+  ```bash
+  # LOC_EXEMPT: <one-line justification>
+  ```
+
+  Same discipline: tracked migration debt, no hardcoded allowlist,
+  the exemption lives with the file it exempts.
+- The three flagship harnesses (supermassive v1 at 2858, v2 at 1361,
+  proof-claims at 1159) carried their markers BEFORE the checker
+  existed; the gate is what turned those declarations from prose
+  into a live, every-push audit. A marker is an honest IOU, not a
+  license: retiring one means an actual split (module package) or
+  an actual shrink, and the split of any flagship is its own NIGHT
+  task with its own micro-commit cycle, never a drive-by.
+
+### Enforcement
+
+`scripts/gates/check-scripts-loc.sh` (wired into `scripts/gate-keepers.sh`
+section 16) scans every `.sh`/`.py` under `scripts/`, prints each
+file's count, and fails on any file over the cap without an exemption
+marker.
 
 ## Rust Toolchain Pin
 
