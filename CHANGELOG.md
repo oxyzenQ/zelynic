@@ -16,6 +16,48 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Added
 
+- **fix: NIGHT-ultimate-2 — the forever-monitor killed: a dead
+  output sink now ends the session quietly, and the LTS
+  silent-killer inventory answers the owner's long-usage
+  question** — "is zelynic already for LTS long usage? strong,
+  killers but silent?" The audit walked every failure class that
+  could end or drain a months-long deployment quietly; one genuine
+  silent killer existed and is now dead. The find: Rust ignores
+  SIGPIPE, and the diff engine discarded emission errors with no
+  consequence — so `zelynic eagle-eyes | head -3` left a root
+  process running FOREVER (eBPF attached, /proc walks on cadence,
+  every write discarded, invisible except in ps), and the engine's
+  own comment claimed "a short-reader kills the monitor quietly"
+  while the code never implemented it. Now it does: a failed
+  emission (EPIPE from a closed reader, ENOSPC from a filled sink)
+  sets a sticky sink-death flag on the DiffScreen, the monitor loop
+  reads it after every render and guard beat and leaves quietly —
+  alt screen restored via Drop, observer detached, exit 0. The
+  false-positive classes are structurally excluded: a slow-but-open
+  reader never trips it (a full pipe BLOCKS, it does not error),
+  std's write_all retries Interrupted, and idle zero-byte frames
+  write nothing to fail. Five pins hold the mechanism
+  (test/terminal/sink_death_tests.rs: the failing emission sets the
+  flag, the guard beat detects it too, healthy sinks never trip it,
+  idle frames cannot, and the verdict is sticky); the loop-level
+  wiring is the two beat-checks whose live re-proof rides the
+  owner-host battery (a run_loop unit pin would need a real stdin —
+  the guard_tests discipline documents why the deterministic core
+  is the pinning surface). The verdict and the full inventory —
+  memory growth, FD leaks, arithmetic endurance, kernel resource
+  leaks, time — live in STABILITY.md's new silent-killer inventory
+  section: every class bounded by construction or self-healing,
+  "yes, LTS-ready for long usage". USAGE.md's quit contract now
+  names the one non-key exit path. A/B frame benchmark: parity by
+  construction (the happy path gains one bool load per beat; the
+  error branch is new code only a dead sink reaches) — table in
+  PERFORMANCE.md's ultimate-2 note. The 500-line cap forced one
+  structural rider: diff.rs sat AT the cap, so the raw-fd IO
+  helpers (the canonical winsize probe of NIGHT-hunt-15 + the
+  RawStdout writer) moved to src/terminal/raw.rs, their own
+  contract — every consumer still routes through the terminal
+  layer's re-export surface, zero call-site churn (the guard_tests
+  one-file-per-contract precedent).
 - **perf: NIGHT-perf-1 — the egress observer's per-packet helper
   calls retired to the 1-in-100 event path: two BPF helper calls
   per packet off the hot path, byte-identical events** — the

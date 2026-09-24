@@ -63,13 +63,16 @@
 //! flush per line) is gone.
 
 mod diff;
+mod raw;
 
-pub use diff::{DiffScreen, RawStdout};
-// NIGHT-hunt-15: the canonical TIOCGWINSZ probe lives in the diff
-// module (the terminal layer's raw-IO home); the limiter's
-// terminal_width/terminal_height and the render engine both route
-// through it, so the unsafe ioctl surface exists exactly once.
-pub(crate) use diff::winsize;
+pub use diff::DiffScreen;
+pub use raw::RawStdout;
+// NIGHT-hunt-15: the canonical TIOCGWINSZ probe lives in the
+// terminal layer's raw-IO home (raw.rs since NIGHT-ultimate-2, the
+// diff.rs cap split); the limiter's terminal_width/terminal_height
+// and the render engine both route through it, so the unsafe ioctl
+// surface exists exactly once.
+pub(crate) use raw::winsize;
 
 use anyhow::Result;
 use std::io::{self, Read, Write};
@@ -267,8 +270,12 @@ pub(crate) fn read_input() -> InputAction {
 /// lifted it out of `run_alt` when the [`Monitor`] session type
 /// arrived): q-only quit, t theme cycle, 50ms wakes with the
 /// resize-reactive force render, the selection-guard beats where a
-/// selection can exist, and the diff-based emission — one render
-/// closure, one screen, one reusable line vector.
+/// selection can exist, the diff-based emission — one render
+/// closure, one screen, one reusable line vector — and the quiet
+/// death on a dead sink (NIGHT-ultimate-2): a failed emission ends
+/// the session (the loop breaks, the alt screen restores via Drop),
+/// so a piped monitor whose reader left can never spin forever
+/// holding root, eBPF, and a /proc walk cadence.
 fn run_loop<F: FnMut(&mut Vec<String>)>(
     screen: &mut DiffScreen,
     lines: &mut Vec<String>,
@@ -320,6 +327,16 @@ fn run_loop<F: FnMut(&mut Vec<String>)>(
                 render(lines);
                 let mut stdout = RawStdout;
                 screen.emit(lines, &mut stdout);
+                // The quiet death (NIGHT-ultimate-2): a failed
+                // emission — the reader of a piped monitor closed,
+                // the sink filled — ends the session instead of
+                // spinning forever on discarded writes. The check
+                // sits AFTER the beat bookkeeping-independent emit so
+                // one bad frame is enough; a healthy write costs
+                // one bool load.
+                if screen.sink_dead() {
+                    break;
+                }
                 last_render = Instant::now();
                 last_geo = geo;
             }
@@ -332,6 +349,12 @@ fn run_loop<F: FnMut(&mut Vec<String>)>(
             Beat::Guard => {
                 let mut stdout = RawStdout;
                 screen.force_repaint(lines, &mut stdout);
+                // Same quiet-death check as the render beat: a
+                // guard rewrite into a dead sink is a dead
+                // monitor (NIGHT-ultimate-2).
+                if screen.sink_dead() {
+                    break;
+                }
                 last_guard = Instant::now();
             }
             Beat::Sleep => {}
@@ -445,3 +468,13 @@ impl Monitor {
 #[cfg(test)]
 #[path = "../../test/terminal/mouse_contract_tests.rs"]
 mod mouse_contract_tests;
+
+#[cfg(test)]
+// NIGHT-ultimate-2: the quiet-death pins — a failed emission marks
+// the screen dead (sticky), the guard beat detects it too, idle
+// frames cannot trip it, and a healthy sink never does. The
+// run_loop beat-checks are the loop-level wiring whose live proof
+// is the owner-host battery (the harness owns stdin, so the loop
+// itself is not unit-pinnable — the guard_tests discipline).
+#[path = "../../test/terminal/sink_death_tests.rs"]
+mod sink_death_tests;

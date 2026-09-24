@@ -59,6 +59,16 @@
 //!   shadow flipped back out plus a repaint flag, the beat travels
 //!   the same tested emission path a render takes.
 //!
+//! - **Sink-death detection (NIGHT-ultimate-2)**: a failed
+//!   emission (EPIPE from a dead reader, ENOSPC from a full sink)
+//!   marks the screen's sink dead — a sticky flag the monitor loop
+//!   reads after every beat to leave quietly. The forever-monitor
+//!   was a real silent killer: Rust ignores SIGPIPE, so a piped
+//!   monitor whose reader left spun forever on discarded writes.
+//!   Only REAL deaths set it — write_all retries Interrupted, and a
+//!   full-but-open pipe blocks rather than errors. Full story:
+//!   STABILITY.md's silent-killer inventory.
+//!
 //! - **Guard repaint never erases (NIGHT-hunt-26)**: the selection
 //!   guard's rewrite carries NO screen erase — the REWRITE itself is
 //!   the selection killer. The old reset-route repaint (HOME +
@@ -80,45 +90,18 @@
 use std::io::Write;
 use std::mem;
 
+use super::raw::{probe_size, winsize};
+
 /// Escape prefixes/bodies used by the emission paths.
 const HOME: &[u8] = b"\x1b[H"; // cursor to row 1, col 1 (3 bytes)
 const ERASE_BELOW: &[u8] = b"\x1b[J"; // erase cursor..end of screen (3 bytes)
 const ERASE_EOL: &[u8] = b"\x1b[K"; // erase cursor..end of line (3 bytes)
 
-/// The one canonical TIOCGWINSZ probe (NIGHT-hunt-15: this used to
-/// exist three times — twice in the ebpf-gated limiter formatters,
-/// once here — so the unsafe ioctl surface and the fallback
-/// semantics could drift apart; now it lives once in the ungated
-/// terminal layer where every feature graph can reach it). Returns
-/// (cols, rows) when the ioctl succeeds and reports a non-degenerate
-/// size; None otherwise (not a TTY — piped output, tests, benchmark
-/// harnesses).
-pub(crate) fn winsize() -> Option<(u16, u16)> {
-    use libc::{ioctl, winsize, STDOUT_FILENO, TIOCGWINSZ};
-    let mut ws: winsize = winsize {
-        ws_row: 0,
-        ws_col: 0,
-        ws_xpixel: 0,
-        ws_ypixel: 0,
-    };
-    // SAFETY: ioctl with TIOCGWINSZ writes to a valid winsize struct.
-    let ret = unsafe { ioctl(STDOUT_FILENO, TIOCGWINSZ, &mut ws) };
-    if ret == 0 && ws.ws_row > 0 && ws.ws_col > 0 {
-        Some((ws.ws_col, ws.ws_row))
-    } else {
-        None
-    }
-}
-
-/// The engine's own probe: the canonical winsize with the classic
-/// 80x24 fallback for non-TTY sinks (the benchmark harness and the
-/// diff tests pin deterministic sizes through emit_at instead).
-fn probe_size() -> (usize, usize) {
-    match winsize() {
-        Some((cols, rows)) => (cols as usize, rows as usize),
-        None => (80, 24),
-    }
-}
+// The canonical TIOCGWINSZ probe (winsize) and the RawStdout
+// writer live in super::raw since NIGHT-ultimate-2 (diff.rs hit
+// the owner's 500-line cap; raw-fd IO is its own contract — the
+// hunt-15 one-canonical-probe rule is unchanged, only the home
+// moved one module over).
 
 /// Decimal digit count of `n` (>= 1 for n == 0).
 fn dec_len(n: usize) -> usize {
@@ -188,6 +171,11 @@ pub struct DiffScreen {
     painted: usize,
     /// Emission buffer, one `write(2)` per frame.
     buf: Vec<u8>,
+    /// Sticky sink-death verdict (NIGHT-ultimate-2): set the first
+    /// time `write_all` fails, never cleared — only a dead or
+    /// unwritable sink can set it (a full-but-open pipe blocks,
+    /// it does not error).
+    sink_dead: bool,
 }
 
 impl Default for DiffScreen {
@@ -206,6 +194,7 @@ impl DiffScreen {
             repaint: false,
             painted: 0,
             buf: Vec::with_capacity(8 * 1024),
+            sink_dead: false,
         }
     }
 
@@ -391,14 +380,26 @@ impl DiffScreen {
 
         let emitted = self.buf.len();
         if emitted > 0 {
-            // Broken-pipe contract (println_safe parity): emission
-            // errors are discarded — a short-reader kills the
-            // monitor quietly, never a panic.
-            let _ = sink.write_all(&self.buf);
+            // Broken-pipe contract, made true at NIGHT-ultimate-2:
+            // emission errors never panic, and a dead sink now
+            // marks the screen so the monitor loop's next beat-check
+            // leaves quietly — no more forever-monitor spinning on
+            // discarded writes.
+            if sink.write_all(&self.buf).is_err() {
+                self.sink_dead = true;
+            }
         }
         self.painted = visible;
         mem::swap(&mut self.prev, lines);
         emitted
+    }
+
+    /// The sticky sink-death verdict (NIGHT-ultimate-2): true once
+    /// an emission's `write_all` has failed, never reset — the flag
+    /// the monitor loop reads after every render and guard beat.
+    #[must_use]
+    pub fn sink_dead(&self) -> bool {
+        self.sink_dead
     }
 
     /// Copy-guard repaint (NIGHT-improve-8): re-emit the last
@@ -460,30 +461,9 @@ impl DiffScreen {
     }
 }
 
-/// Stdout as a raw fd writer: ONE `write(2)` per frame, bypassing
-/// the std LineWriter (which would split the batch at every
-/// embedded newline — the exact per-line syscall churn this engine
-/// exists to remove).
-pub struct RawStdout;
-
-impl Write for RawStdout {
-    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        // SAFETY: write(2) on fd 1 with a valid buffer + length; the
-        // return value is the transferred count. EPIPE surfaces as
-        // an io error and is discarded by the caller, matching the
-        // println_safe broken-pipe contract.
-        let n = unsafe { libc::write(1, buf.as_ptr().cast(), buf.len()) };
-        if n < 0 {
-            Err(std::io::Error::last_os_error())
-        } else {
-            Ok(n as usize)
-        }
-    }
-
-    fn flush(&mut self) -> std::io::Result<()> {
-        Ok(()) // raw fd: nothing is buffered
-    }
-}
+// RawStdout (the raw-fd writer this engine's emissions ride) lives
+// in super::raw since NIGHT-ultimate-2 — same split rationale as
+// winsize above.
 
 #[cfg(test)]
 // NIGHT-hunt-17: test files live under the repo's single test/ tree
