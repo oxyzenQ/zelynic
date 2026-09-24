@@ -16,6 +16,18 @@
 // here so a swallow audit finds the rationale in place), and the
 // counter map capacity is 1024 entries instead of the C twin's 256
 // (NIGHT-improve-8: server LTS — see COUNTER_MAP_MAX_ENTRIES below).
+// A fourth addition (NIGHT-boost-26, no C twin ever had it): the two
+// per-socket cookie maps below — per-endpoint byte attribution, the
+// 2.4 frontier item. bpf_get_socket_cookie is legal in cgroup_skb
+// programs (cg_skb_func_proto falls through to sk_filter_func_proto,
+// which owns the helper) and the kernel sets skb->sk to the OWNING
+// socket before running both hooks (egress: the sender, via the cgroup
+// egress run in the output path; ingress: the receiver — the
+// CGROUP_INET_INGRESS attach fires per-socket from sk_filter_trim_cap,
+// and __cgroup_bpf_run_filter_skb assigns skb->sk = sk before the
+// program runs), so a cookie read in either hook names exactly the
+// socket the traffic belongs to. Verified against torvalds/linux
+// net/core/filter.c + kernel/bpf/cgroup.c at implementation time.
 //
 // Build: cd ebpf && cargo +nightly build --release
 
@@ -23,8 +35,9 @@
 #![no_main]
 
 use aya_ebpf::{
-    EbpfContext as _, helpers::bpf_skb_cgroup_id, macros::cgroup_skb, macros::map, maps::HashMap,
-    maps::RingBuf, programs::SkBuffContext,
+    EbpfContext as _, helpers::bpf_get_socket_cookie, helpers::bpf_skb_cgroup_id,
+    macros::cgroup_skb, macros::map, maps::HashMap, maps::LruHashMap, maps::RingBuf,
+    programs::SkBuffContext,
 };
 
 // ---------------------------------------------------------------------------
@@ -133,6 +146,46 @@ static cgroup_counters: HashMap<u32, CgroupStats> =
 static cgroup_counters_ingress: HashMap<u32, CgroupStats> =
     HashMap::with_max_entries(COUNTER_MAP_MAX_ENTRIES, 0);
 
+/// Per-socket map capacity (NIGHT-boost-26). Sockets churn far faster
+/// than cgroups — a browsing session can cycle hundreds of
+/// connections an hour — and socket cookies are NEVER reused (a
+/// kernel-global generation counter), so a plain hash map would
+/// monotonically fill with dead sockets' stale entries and silently
+/// kill attribution mid-session. The maps are therefore LRU: a cold
+/// entry (a socket whose traffic stopped, usually because the socket
+/// died) ages out on its own, and a new socket always finds room.
+/// The honest trade, documented: under EXTREME churn (4096+ warm
+/// sockets at once) an evicted-then-resumed socket restarts its
+/// accumulator — endpoint figures are best-effort per-socket session
+/// totals, the "map sizing bounded like the existing counters"
+/// promise of the 2.4 design
+/// (docs/RESEARCH_TOOLCHAIN_AND_MONITORING.md). Kernel memory: two
+/// LRU hashes of 4096 entries at 8-byte key + 8-byte value payload
+/// (plus the per-entry node overhead the kernel charges) — bounded,
+/// session-scoped, freed at detach.
+const SOCKET_MAP_MAX_ENTRIES: u32 = 4096;
+
+/// Per-socket egress (upload) bytes, keyed by socket cookie
+/// (NIGHT-boost-26): the sender's cookie, read in the egress hook
+/// where skb->sk is the sending socket. Userspace joins this with the
+/// ConnectionMap's /proc endpoint table via pidfd_getfd + SO_COOKIE
+/// (src/ebpf/connections.rs — the identity plumbing the 2.4 design
+/// said already exists).
+#[allow(non_upper_case_globals)]
+#[map]
+static socket_counters: LruHashMap<u64, u64> =
+    LruHashMap::with_max_entries(SOCKET_MAP_MAX_ENTRIES, 0);
+
+/// Per-socket ingress (download) bytes, keyed by the RECEIVING
+/// socket's cookie (NIGHT-boost-26): at the CGROUP_INET_INGRESS
+/// attach the kernel has already demuxed the packet to its socket
+/// (the hook fires per-socket from sk_filter_trim_cap), so the cookie
+/// names the receiver — the download's true owner.
+#[allow(non_upper_case_globals)]
+#[map]
+static socket_counters_ingress: LruHashMap<u64, u64> =
+    LruHashMap::with_max_entries(SOCKET_MAP_MAX_ENTRIES, 0);
+
 /// Ring buffer, 2 MB for high traffic bursts. Written by this program,
 /// never read by zelynic userspace (see the hunt finding in
 /// docs/PURE_RUST_EVALUATION.md); kept for exact parity with the C twin.
@@ -144,6 +197,36 @@ static events: RingBuf = RingBuf::with_byte_size(2 * 1024 * 1024, 0);
 // Egress observer: counter update, 1-in-100 event throttle, IPv4/TCP/UDP
 // header parse, ring buffer emission. Ported from observe_egress.
 // ---------------------------------------------------------------------------
+
+/// Bump one per-socket cookie accumulator (NIGHT-boost-26). Cookie 0
+/// means the kernel had no owning socket on the skb (packet-level
+/// traffic not demuxed to a socket, e.g. some early loopback shapes)
+/// — nothing to attribute, skip honestly. Saturating add like every
+/// counter in the observer: a u64 byte accumulator's honest ceiling
+/// is u64::MAX, never a wrap.
+fn bump_socket_counter(map: &LruHashMap<u64, u64>, cookie: u64, pkt_len: u64) {
+    if cookie == 0 {
+        return;
+    }
+    match map.get_ptr_mut(&cookie) {
+        Some(ptr) => {
+            // SAFETY: the pointer comes from the map's own lookup and
+            // lives until the map is freed (kernel map memory); the
+            // write is a plain u64 store, the same access pattern the
+            // cgroup counter updates below use.
+            let cur = unsafe { *ptr };
+            unsafe { *ptr = cur.saturating_add(pkt_len) };
+        }
+        None => {
+            // Insert result ignored: a full-LRU miss is an honest
+            // "not attributed" (the map evicts cold entries to make
+            // room, so this only fails transiently under extreme
+            // churn), never a dropped packet — the same
+            // allow-and-skip contract the cgroup counter maps carry.
+            let _ = map.insert(&cookie, pkt_len, 0);
+        }
+    }
+}
 
 #[cgroup_skb(egress)]
 fn observe_egress(ctx: SkBuffContext) -> i32 {
@@ -158,6 +241,12 @@ fn try_observe_egress(ctx: SkBuffContext) -> Result<i32, i32> {
     let pid = ctx.tgid();
     let uid = ctx.uid();
     let pkt_len = ctx.len();
+
+    // Per-socket attribution (NIGHT-boost-26): the cookie of the
+    // SENDING socket, bumped before any early return below — this is
+    // per-packet accounting, not throttled event plumbing.
+    let cookie = unsafe { bpf_get_socket_cookie(ctx.skb.skb.cast()) };
+    bump_socket_counter(&socket_counters, cookie, u64::from(pkt_len));
 
     // Counter update: in-place increment on an existing entry, or
     // init-then-relookup exactly like the C twin (BPF_ANY insert; the
@@ -256,6 +345,13 @@ fn try_observe_egress(ctx: SkBuffContext) -> Result<i32, i32> {
 fn observe_ingress(ctx: SkBuffContext) -> i32 {
     let cgroup_id = unsafe { bpf_skb_cgroup_id(ctx.skb.skb) } as u32;
     let pkt_len = ctx.len() as u64;
+
+    // Per-socket attribution (NIGHT-boost-26): the cookie of the
+    // RECEIVING socket — at this attach the kernel has already
+    // demuxed the packet (the hook fires per-socket), so the cookie
+    // names the download's true owner.
+    let cookie = unsafe { bpf_get_socket_cookie(ctx.skb.skb.cast()) };
+    bump_socket_counter(&socket_counters_ingress, cookie, pkt_len);
 
     match cgroup_counters_ingress.get_ptr_mut(&cgroup_id) {
         Some(ptr) => {

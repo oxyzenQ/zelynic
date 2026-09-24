@@ -316,6 +316,21 @@ pub fn handle_eagle_eyes(
         // a single hiccup.
         let summary = observer.poll_and_summarize().unwrap_or_default();
         conns.maybe_refresh();
+        // NIGHT-boost-26 (per-endpoint byte attribution, the 2.4
+        // frontier): the join. The ConnectionMap's /proc walk resolved
+        // each held socket's kernel cookie (pidfd_getfd + SO_COOKIE);
+        // the loader point-looks-up the BPF cookie maps for exactly
+        // that set (tens of syscalls, not a map iteration) and the
+        // result parks on the map the renderers already read. An Err
+        // keeps the previous join — lifetime totals stale by one
+        // frame, never fabricated-absent, the leaderboard's own
+        // one-frame tolerance.
+        let cookies = conns.socket_cookies();
+        if !cookies.is_empty() {
+            if let Ok(bytes) = observer.socket_bytes(&cookies) {
+                conns.apply_socket_bytes(bytes);
+            }
+        }
         render_eagle_eyes(
             lines,
             &summary,

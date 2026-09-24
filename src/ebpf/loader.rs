@@ -16,7 +16,7 @@
 
 use anyhow::{bail, Context, Result};
 use aya::{
-    maps::HashMap as BpfHashMap,
+    maps::{HashMap as BpfHashMap, MapError},
     programs::{CgroupAttachMode, CgroupSkb, CgroupSkbAttachType},
     Ebpf,
 };
@@ -228,6 +228,65 @@ impl Observer {
         Ok(results)
     }
 
+    /// Per-socket lifetime bytes for exactly the cookies the
+    /// ConnectionMap resolved (NIGHT-boost-26): POINT lookups, not a
+    /// map iteration — the /proc walk knows the live socket set (tens
+    /// to low hundreds), the LRU maps can hold thousands including
+    /// stale entries, so a join keyed on the known set costs a few
+    /// hundred syscalls where an iteration would cost thousands per
+    /// frame. Sockets whose maps hold no entry (or zero bytes) are
+    /// simply absent from the result — absence is the renderer's
+    /// "no figures" signal, never a fabricated zero the hunt-22
+    /// contract bans.
+    ///
+    /// The typed [`BpfHashMap`] handle opens LRU maps fine (aya's
+    /// own try_from contract covers the LRU variant); the error
+    /// contract mirrors the cgroup reads — a broken map propagates
+    /// (the one-frame-tolerance caller folds an empty join, the
+    /// leaderboard keeps its rows), a missing KEY is Ok(None).
+    pub fn socket_bytes(
+        &self,
+        cookies: &[u64],
+    ) -> Result<std::collections::HashMap<u64, SocketBytes>> {
+        let bpf = self.bpf.as_ref().context("BPF not loaded")?;
+        let ul_map: BpfHashMap<_, u64, u64> =
+            BpfHashMap::try_from(bpf.map("socket_counters").context("map not found")?)
+                .context("Failed to access socket_counters map")?;
+        let dl_map: BpfHashMap<_, u64, u64> = BpfHashMap::try_from(
+            bpf.map("socket_counters_ingress")
+                .context("map not found")?,
+        )
+        .context("Failed to access socket_counters_ingress map")?;
+
+        let mut out = std::collections::HashMap::with_capacity(cookies.len());
+        for &cookie in cookies {
+            // KeyNotFound is the honest "no entry yet" (the socket has
+            // moved nothing since attach); any other error propagates
+            // with the map named — the optimized-2 contract.
+            let ul = match ul_map.get(&cookie, 0) {
+                Ok(v) => v,
+                Err(MapError::KeyNotFound) => 0,
+                Err(e) => {
+                    return Err(anyhow::Error::new(e)
+                        .context(format!("socket_counters lookup for cookie {cookie} failed")))
+                }
+            };
+            let dl = match dl_map.get(&cookie, 0) {
+                Ok(v) => v,
+                Err(MapError::KeyNotFound) => 0,
+                Err(e) => {
+                    return Err(anyhow::Error::new(e).context(format!(
+                        "socket_counters_ingress lookup for cookie {cookie} failed"
+                    )))
+                }
+            };
+            if dl != 0 || ul != 0 {
+                out.insert(cookie, SocketBytes { dl, ul });
+            }
+        }
+        Ok(out)
+    }
+
     /// Read counters (egress + ingress), compute deltas, return summary.
     pub fn poll_and_summarize(&mut self) -> Result<CounterSummary> {
         let current_egress = self.read_stats_map("cgroup_counters")?;
@@ -335,6 +394,20 @@ pub struct CounterSummary {
     pub total_ingress_packets: u64,
     pub total_ingress_bytes: u64,
     pub cgroups: Vec<CgroupDelta>,
+}
+
+/// Per-socket lifetime bytes joined onto one endpoint row
+/// (NIGHT-boost-26, the 2.4 frontier item): `dl` reads the ingress
+/// (download) cookie map, `ul` the egress (upload) one — both since
+/// monitor attach, the same session horizon the table's TOTAL column
+/// and the footer's census carry. Absence (no entry in the join
+/// result) means "no figures", never zero-as-fact.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct SocketBytes {
+    /// Lifetime download bytes (the receiving socket's ingress map).
+    pub dl: u64,
+    /// Lifetime upload bytes (the sending socket's egress map).
+    pub ul: u64,
 }
 
 #[derive(Debug, Clone)]

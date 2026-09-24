@@ -95,6 +95,7 @@ fn fixture() -> (
         remote: remote.to_string(),
         state,
         queued,
+        cookie: None,
     };
 
     let mut identity = IdentityMap::new();
@@ -194,6 +195,7 @@ fn detail_lines_tree_budget() {
         remote: remote.to_string(),
         state: "ESTABLISHED",
         queued: false,
+        cookie: None,
     };
     let holder = |pid: u32, comm: &str, socks: Vec<SocketInfo>| ProcessDetail {
         pid,
@@ -313,6 +315,7 @@ fn detail_lines_three_endpoints() {
         remote: remote.to_string(),
         state: "ESTABLISHED",
         queued: false,
+        cookie: None,
     };
     let mut conns = ConnectionMap::new();
     conns.insert(
@@ -391,6 +394,7 @@ fn detail_hides_and_cuts_on_narrow_frames() {
                     remote: "2001:0db8:85a3:0000:0000:8a2e:0370:7334:443".to_string(),
                     state: "ESTABLISHED",
                     queued: false,
+                    cookie: None,
                 }],
             }],
         },

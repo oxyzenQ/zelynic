@@ -16,6 +16,62 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Added
 
+- **feat: NIGHT-boost-26 — per-endpoint byte attribution: the 2.4
+  frontier closed, every endpoint line answers "how much did THIS
+  socket eat"** — the owner-approved frontier item (NIGHT-ask-1,
+  "the socket that MAKAN, not just the ones that exist"), built as
+  its own task exactly as sanctioned. The kernel side: the
+  observer's two existing cgroup_skb hooks now also bump per-socket
+  LRU byte maps keyed by `bpf_get_socket_cookie` — the sender's
+  cookie on egress, the RECEIVER's on ingress, where the
+  CGROUP_INET_INGRESS attach fires per-socket from
+  `sk_filter_trim_cap` and `__cgroup_bpf_run_filter_skb` assigns
+  `skb->sk = sk` before the program runs (verified against
+  torvalds/linux net/core/filter.c + kernel/bpf/cgroup.c, plus the
+  helper's cgroup_skb legality via the cg_skb_func_proto ->
+  sk_filter_func_proto fallthrough — the design's "or a sock_ops
+  program" alternative was unnecessary: the cookie is directly
+  reachable from both hooks, so zero new program types). The maps
+  are LRU (4096 entries each, session-scoped, unpinned) because
+  socket cookies are never reused — a plain hash would monotonically
+  fill with dead sockets' stale entries and silently kill
+  attribution mid-session; the documented honest bound is LRU
+  eviction under 4096+ warm-socket churn. The userspace join rides
+  the identity plumbing the design said already exists: the
+  ConnectionMap's fd walk resolves each held socket's cookie with
+  `pidfd_open` + `pidfd_getfd` + `getsockopt(SO_COOKIE)` (kernel
+  5.6+, under the 5.13 floor; root's CAP_SYS_PTRACE covers foreign
+  fds; a refused pidfd marks the PID cookie-less for the whole scan
+  — no per-fd retry storm, graceful figure-less rows), the loader
+  POINT-looks-up both cookie maps for exactly the walked set (tens
+  of syscalls per frame, never an iteration of the LRU's thousands;
+  KeyNotFound is the honest "moved nothing", real errors propagate
+  with the map named), and the join parks on the ConnectionMap the
+  renderers already read — zero signature churn through the render
+  tree, zero test-fixture churn beyond the new cookie field. The
+  display: every endpoint line carries `[dl X | ul Y]` per-socket
+  session totals (the footer speed pair's dl/ul vocabulary, the
+  same SI ladder and horizon as the table's TOTAL column) — shown
+  only when there ARE bytes, absence never a fabricated zero — and
+  the focus view RANKS each process's endpoints by their bytes, the
+  hungriest first (the 2.4 promise verbatim), byteless endpoints
+  keeping the walk's established-first order behind. Pins: the
+  suffix on the tree lines, the lean byteless row, the cookie-less
+  inline neighbor, the focus ranking order, and the deduped
+  socket_cookies join-key set (338 tests total, every pre-existing
+  render pin passing unchanged — the byteless path is byte-exact
+  the old render, proven again by the 10s frame-bench A/B:
+  bytes/frame 1,943.0 -> 1,943.0 at +0.0%, fps -1.8% inside the
+  container-noise class). Docs updated in step: USAGE.md (the
+  attribution paragraph, the annotated frame's endpoint lines now
+  carrying their figures, the anatomy table row, the Honest
+  limitations entry — the frontier item now "shipped", not
+  "sanctioned"), RESEARCH_TOOLCHAIN_AND_MONITORING.md (2.4 marked
+  CLOSED with the full kernel-verification trail, the 2.6 verdict
+  and the owner-decision paragraph updated: the metric set is closed
+  on every axis of the declared class), PERFORMANCE.md (the A/B
+  section).
+
 - **feat: NIGHT-lts-2 — the scripts LOC cap: a 1000-line hard limit
   for every .sh/.py under scripts/, enforced on every push** — the
   owner's LTS hardening directive, landed as the scripts twin of

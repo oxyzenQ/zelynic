@@ -20,6 +20,19 @@
 //! - every process holding a network socket, with its remote
 //!   endpoints and states (the "eagle eyes" detail lines)
 //!
+//! NIGHT-boost-26 (per-endpoint byte attribution, the 2.4 frontier):
+//! the walk now also resolves each held socket's kernel COOKIE —
+//! pidfd_open(pid) + pidfd_getfd(pidfd, fd) + getsockopt(SO_COOKIE)
+//! — so the monitor can join the BPF per-socket byte maps onto the
+//! endpoint rows. The cookie is a kernel-generated u64, unique for
+//! the socket's lifetime and never reused; the BPF observer keys its
+//! per-socket counters by exactly that value. Discovery is
+//! best-effort (a locked-down host or a kernel without pidfd_getfd
+//! yields None and the endpoint rows simply carry no byte figures —
+//! the /proc detail itself is unchanged), needs the same root the
+//! monitor already runs under (CAP_SYS_PTRACE for foreign fds), and
+//! rides the same 3s refresh TTL as the rest of the walk.
+//!
 //! Refresh cost is one /proc walk with an fd scan per PID — the same
 //! class of work ss/netstat do — memoized behind a short TTL (3s) so
 //! 1s monitor frames reuse the previous scan. All /proc failures are
@@ -33,6 +46,7 @@ use std::fs;
 use std::time::{Duration, Instant};
 
 use crate::ebpf::identity::{pid_cgroup_id, pid_comm};
+use crate::ebpf::loader::SocketBytes;
 
 /// Default refresh TTL: detail lines tolerate 3s staleness — socket
 /// churn is slower than the 1s byte counters, and the /proc+fd walk
@@ -57,6 +71,11 @@ pub struct SocketInfo {
     /// True when the socket had bytes sitting in tx/rx queues at scan
     /// time — the closest /proc gets to "this socket is moving".
     pub queued: bool,
+    /// The socket's kernel cookie (NIGHT-boost-26): the join key for
+    /// the BPF per-socket byte maps. None when discovery failed
+    /// (pidfd_getfd refused, kernel without the syscall, or the
+    /// socket table row was matched without an fd-side lookup).
+    pub cookie: Option<u64>,
 }
 
 /// One process inside a cgroup that holds network sockets.
@@ -82,6 +101,14 @@ pub struct ConnectionMap {
     cache: HashMap<u32, CgroupConnections>,
     last_refresh: Option<Instant>,
     refresh_ttl: Duration,
+    /// The per-frame per-socket byte join (NIGHT-boost-26): the
+    /// monitor loop point-looks-up the BPF cookie maps for exactly
+    /// the cookies the walk resolved and parks the result here —
+    /// the renderers read it through [`ConnectionMap::socket_bytes`],
+    /// so the join rides the SAME "everything known about one
+    /// cgroup's inhabitants" structure the endpoint rows render
+    /// from. Empty until the monitor's first successful join.
+    socket_bytes: HashMap<u64, SocketBytes>,
 }
 
 impl Default for ConnectionMap {
@@ -98,7 +125,27 @@ impl ConnectionMap {
             cache: HashMap::new(),
             last_refresh: None,
             refresh_ttl: Duration::from_secs(DEFAULT_REFRESH_TTL_SECS),
+            socket_bytes: HashMap::new(),
         }
+    }
+
+    /// Install the per-frame per-socket byte join (NIGHT-boost-26):
+    /// called by the monitor loop after every poll — the figures are
+    /// live counters, refreshed each frame even when the /proc walk
+    /// itself is TTL-cached. An Err from the loader side simply skips
+    /// the install: the previous join's lifetime totals stay (stale
+    /// by one frame, never fabricated-absent) — the same
+    /// one-frame-tolerance contract the leaderboard's rows carry.
+    pub fn apply_socket_bytes(&mut self, bytes: HashMap<u64, SocketBytes>) {
+        self.socket_bytes = bytes;
+    }
+
+    /// The per-socket byte join (NIGHT-boost-26), keyed by socket
+    /// cookie — the renderers' lookup table for endpoint figures.
+    /// Absent cookie = no figures, never a fabricated zero.
+    #[must_use]
+    pub fn socket_bytes(&self) -> &HashMap<u64, SocketBytes> {
+        &self.socket_bytes
     }
 
     /// Force a full refresh: read the socket tables, walk /proc, and
@@ -136,8 +183,16 @@ impl ConnectionMap {
             entry.total_procs += 1;
 
             // fd scan: collect this PID's socket inodes, join with
-            // the kernel socket table.
+            // the kernel socket table. NIGHT-boost-26: each MATCHED
+            // socket also gets its kernel cookie resolved (pidfd_getfd
+            // + SO_COOKIE) so the monitor's render pass can join the
+            // BPF per-socket byte maps onto the endpoint rows. The
+            // pidfd is opened lazily per PID — a process with no
+            // matched socket never pays for it — and a failed open
+            // (locked-down host, exotic kernel) marks the PID
+            // cookie-less for the whole scan: no per-fd retry storm.
             let mut held: Vec<SocketInfo> = Vec::new();
+            let mut pidfd: PidFd = PidFd::Untried;
             if let Ok(fds) = fs::read_dir(format!("/proc/{pid}/fd")) {
                 for fd in fds.flatten() {
                     let Ok(target) = fs::read_link(fd.path()) else {
@@ -146,11 +201,15 @@ impl ConnectionMap {
                     let Some(inode) = parse::parse_socket_fd(&target.to_string_lossy()) else {
                         continue;
                     };
-                    if let Some(info) = sockets.get(&inode) {
-                        held.push(info.clone());
+                    if let Some(mut info) = sockets.get(&inode).cloned() {
+                        if let Some(fd_num) = parse::parse_fd_number(&fd.file_name()) {
+                            info.cookie = pidfd.cookie_for(pid, fd_num);
+                        }
+                        held.push(info);
                     }
                 }
             }
+            pidfd.close();
 
             if !held.is_empty() {
                 // Endpoint order: established first, queued first.
@@ -226,6 +285,29 @@ impl ConnectionMap {
         })
     }
 
+    /// Every distinct cookie the walk resolved (NIGHT-boost-26): the
+    /// exact lookup set the monitor feeds to the loader's per-socket
+    /// byte point-lookups — one entry per socket the /proc side
+    /// knows, deduped (a shared socket table row can match several
+    /// fds). Empty when no cookie resolved (graceful degradation,
+    /// see [`PidFd`]).
+    #[must_use]
+    pub fn socket_cookies(&self) -> Vec<u64> {
+        let mut out: Vec<u64> = Vec::new();
+        for detail in self.cache.values() {
+            for proc in &detail.socket_holders {
+                for socket in &proc.sockets {
+                    if let Some(cookie) = socket.cookie {
+                        if !out.contains(&cookie) {
+                            out.push(cookie);
+                        }
+                    }
+                }
+            }
+        }
+        out
+    }
+
     /// Test seam: install synthetic per-cgroup detail (cross-module
     /// render tests and the frame benchmark build fixture maps
     /// without walking /proc).
@@ -249,6 +331,73 @@ impl ConnectionMap {
 // canonical /proc boundary (NIGHT-optimized-1): this walk, the
 // identity walk, and the resolve_target match walk all route
 // through them, so boundary fixes land once, not three times.
+
+/// Per-PID pidfd state for cookie discovery (NIGHT-boost-26): a
+/// tri-state so one failed `pidfd_open` (locked-down host, kernel
+/// without the syscall) never re-triggers per fd — the PID is
+/// cookie-less for the whole scan, the honest graceful degradation.
+enum PidFd {
+    Untried,
+    Open(i32),
+    Failed,
+}
+
+impl PidFd {
+    /// Resolve one fd's socket cookie, opening the pidfd on first
+    /// use. Returns None on any failure — cookie-less rows simply
+    /// render without byte figures.
+    fn cookie_for(&mut self, pid: u32, fd_num: i32) -> Option<u64> {
+        // Open (or remember the failure) exactly once per PID.
+        if matches!(self, PidFd::Untried) {
+            *self = match unsafe { libc::syscall(libc::SYS_pidfd_open, pid as libc::pid_t, 0u32) } {
+                fd if fd >= 0 => PidFd::Open(fd as i32),
+                _ => PidFd::Failed,
+            };
+        }
+        let PidFd::Open(pidfd) = *self else {
+            return None;
+        };
+        // Duplicate the foreign fd into this process, read its
+        // cookie, close the local copy — three syscalls, the price of
+        // the join (there is no other userspace path from an inode or
+        // a /proc row to a socket cookie).
+        let local = unsafe { libc::syscall(libc::SYS_pidfd_getfd, pidfd, fd_num, 0u32) };
+        if local < 0 {
+            return None;
+        }
+        let mut cookie: u64 = 0;
+        let mut len = std::mem::size_of::<u64>() as libc::socklen_t;
+        let rc = unsafe {
+            libc::getsockopt(
+                local as i32,
+                libc::SOL_SOCKET,
+                libc::SO_COOKIE,
+                std::ptr::addr_of_mut!(cookie).cast(),
+                &mut len,
+            )
+        };
+        unsafe { libc::close(local as i32) };
+        if rc == 0 && len as usize == std::mem::size_of::<u64>() {
+            Some(cookie)
+        } else {
+            None
+        }
+    }
+
+    /// Release the pidfd, if one was opened.
+    fn close(&mut self) {
+        if let PidFd::Open(fd) = *self {
+            unsafe { libc::close(fd) };
+        }
+        *self = PidFd::Untried;
+    }
+}
+
+impl Drop for PidFd {
+    fn drop(&mut self) {
+        self.close();
+    }
+}
 
 /// Read all four kernel socket tables into one inode-keyed map.
 fn read_socket_tables() -> HashMap<u64, SocketInfo> {
