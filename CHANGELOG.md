@@ -58,6 +58,32 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Fixed
 
+- **fix: NIGHT-boost-30 — the arch-baseline cargo aliases and their
+  build labels carry the arch, matching the release matrix platform
+  ids verbatim: `pro-linux-amd64-v3-gnu` / `pro-linux-amd64-v4-gnu`
+  / `pro-linux-amd64-v3-musl` / `pro-linux-amd64-v4-musl`** — the
+  owner's audit: release.yml's platform ids (`linux-amd64-v3-gnu`
+  …) named the shape with the arch, but the local aliases
+  (`pro-linux-gnu-v3` …) and their `ZELYNIC_BUILD` labels
+  (`local-linux-gnu-v3` …) hid the arch entirely and scrambled the
+  token order, so a local `-V` report and a release `-V` report
+  described the SAME binary shape with two different dialects —
+  and an amd64/musl matrix reading the label had to guess the arch.
+  The four aliases, their profiles (`[profile.pro-linux-amd64-*]`),
+  the CI verification greps (ci.yml, maintenance.yml), the release
+  comment, the harness binary-resolution paths
+  (zelynic_harness_lib.py), README's build matrix, and
+  info/mod.rs's label documentation now all speak the one dialect:
+  the label is the release platform id VERBATIM under the `local-`
+  marker (`local-linux-amd64-v3-gnu`), so `Build:` names the arch,
+  the v-level, and the libc in every shape a user can build —
+  alias, CI, or release. The release workflow's own labels were
+  already correct and stay untouched; the plain-build fallback
+  (`linux-amd64-gnu`) carries the arch unchanged. CROSS_DISTRO's
+  historical row keeps its facts with the rename annotated. No
+  version or dependency surface touched (owner rule: the owner
+  decides bumps).
+
 - **fix: NIGHT-boost-29 — the Short aliases block on `-h/--help`
   renders tidy data: one `alias = canonical` pair per line, and the
   hunt found no other separator-less pairing surface left** — the

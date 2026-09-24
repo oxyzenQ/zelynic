@@ -234,7 +234,7 @@ README headline claims live. First filed run — the owner's own machine,
 | Machine | Arch Linux (CachyOS LTS), kernel 6.18.50-3-cachyos-lts, x86_64 |
 | CPU | AMD Ryzen 7 5800HS |
 | python | 3.14.7 |
-| Binary | `pro-linux-gnu-v3` build of 887c1d7 (v11.0.0-alpha.1) |
+| Binary | `pro-linux-amd64-v3-gnu` build of 887c1d7 (v11.0.0-alpha.1; alias name pre-NIGHT-boost-30: `pro-linux-gnu-v3`, same v3-gnu shape) |
 | Proof pair | A=41476 (policed), B=41566 (witness) |
 | Baseline | unlimited loopback 13.2 GB/s over 3.0s |
 | Verdict | 23 passed, 4 failed, 0 skipped |

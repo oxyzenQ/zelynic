@@ -225,10 +225,10 @@ names the shape, and a separate profile per shape so nothing
 clobbers anything:
 
 ```bash
-cargo pro-linux-gnu-v3    # lands in target/pro-linux-gnu-v3/zelynic
-cargo pro-linux-gnu-v4    # lands in target/pro-linux-gnu-v4/zelynic
-cargo pro-linux-musl-v3   # target/x86_64-unknown-linux-musl/pro-linux-musl-v3/zelynic
-cargo pro-linux-musl-v4   # target/x86_64-unknown-linux-musl/pro-linux-musl-v4/zelynic
+cargo pro-linux-amd64-v3-gnu  # target/pro-linux-amd64-v3-gnu/zelynic
+cargo pro-linux-amd64-v4-gnu  # target/pro-linux-amd64-v4-gnu/zelynic
+cargo pro-linux-amd64-v3-musl # target/x86_64-unknown-linux-musl/pro-linux-amd64-v3-musl/zelynic
+cargo pro-linux-amd64-v4-musl # target/x86_64-unknown-linux-musl/pro-linux-amd64-v4-musl/zelynic
 ```
 
 Each alias injects `-C target-cpu=x86-64-v3` (or `-v4`) — plus

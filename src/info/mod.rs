@@ -51,9 +51,14 @@ fn build_string() -> String {
 /// Source of truth: the `ZELYNIC_BUILD` env var forwarded at compile
 /// time by build.rs — set by the cargo aliases `pro-native-gnu` /
 /// `pro-native-musl` (labels `local-native-gnu` / `local-native-musl`,
-/// see .cargo/config.toml) or by CI/release scripts. When unset
-/// (plain `cargo build`), it falls back to the compile-time arch+libc
-/// detection, e.g. `linux-amd64-gnu`.
+/// see .cargo/config.toml), the arch-baseline aliases
+/// `pro-linux-amd64-v3-gnu` / `pro-linux-amd64-v4-gnu` /
+/// `pro-linux-amd64-v3-musl` / `pro-linux-amd64-v4-musl` (labels
+/// `local-linux-amd64-v3-gnu` etc., the release matrix platform id
+/// under the `local-` marker, NIGHT-boost-30), or by CI/release
+/// scripts (the platform id verbatim, e.g. `linux-amd64-v3-gnu`).
+/// When unset (plain `cargo build`), it falls back to the
+/// compile-time arch+libc detection, e.g. `linux-amd64-gnu`.
 fn build_label() -> String {
     match option_env!("ZELYNIC_BUILD") {
         Some(label) if !label.is_empty() => label.to_string(),

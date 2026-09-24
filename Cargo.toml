@@ -111,25 +111,28 @@ inherits = "release"
 inherits = "release"
 
 # Arch-baseline release profiles for the cargo aliases
-# pro-linux-gnu-v3 / pro-linux-gnu-v4 / pro-linux-musl-v3 /
-# pro-linux-musl-v4 (NIGHT-improve-22, see .cargo/config.toml
-# [alias]). They inherit release unchanged — the only delta is the
-# alias-injected -C target-cpu=x86-64-v3/v4 (plus +crt-static on the
-# musl pair, mirroring the file's [target] block) — so alias binaries
-# are bit-for-bit the same optimization tier as the release packages
+# pro-linux-amd64-v3-gnu / pro-linux-amd64-v4-gnu /
+# pro-linux-amd64-v3-musl / pro-linux-amd64-v4-musl
+# (NIGHT-improve-22; NIGHT-boost-30 renamed both the aliases and the
+# profiles to carry the arch, matching the release matrix platform
+# ids; see .cargo/config.toml [alias]). They inherit release
+# unchanged — the only delta is the alias-injected
+# -C target-cpu=x86-64-v3/v4 (plus +crt-static on the musl pair,
+# mirroring the file's [target] block) — so alias binaries are
+# bit-for-bit the same optimization tier as the release packages
 # they reproduce. Separate profile names exist so the four artifacts
 # land in target/<profile>/ (gnu) and
 # target/x86_64-unknown-linux-musl/<profile>/ (musl) and never
 # clobber each other or target/release/zelynic (cosmostrix
 # pro-linux contract).
-[profile.pro-linux-gnu-v3]
+[profile.pro-linux-amd64-v3-gnu]
 inherits = "release"
 
-[profile.pro-linux-gnu-v4]
+[profile.pro-linux-amd64-v4-gnu]
 inherits = "release"
 
-[profile.pro-linux-musl-v3]
+[profile.pro-linux-amd64-v3-musl]
 inherits = "release"
 
-[profile.pro-linux-musl-v4]
+[profile.pro-linux-amd64-v4-musl]
 inherits = "release"

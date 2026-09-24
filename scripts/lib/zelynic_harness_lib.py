@@ -107,7 +107,7 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__fi
 #                        static build could only be tested via --binary)
 #   plain release      — cargo build --release --features ebpf
 # NIGHT-improve-22 adds the four arch-baseline alias outputs
-# (pro-linux-gnu-v3/v4, pro-linux-musl-v3/v4) so a freshly built
+# (pro-linux-amd64-v3/v4-gnu, pro-linux-amd64-v3/v4-musl) so a freshly built
 # release-shape binary outranks a stale native build of older code —
 # the same newest-mtime rule below picks whatever was just built.
 # Among the candidates that exist, resolution picks the NEWEST mtime
@@ -118,10 +118,10 @@ REPO_BINARY_CANDIDATES = [
     os.path.join(REPO_ROOT, "zelynic"),
     os.path.join(REPO_ROOT, "target", "pro-native-gnu", "zelynic"),
     os.path.join(REPO_ROOT, "target", "x86_64-unknown-linux-musl", "pro-native-musl", "zelynic"),
-    os.path.join(REPO_ROOT, "target", "pro-linux-gnu-v3", "zelynic"),
-    os.path.join(REPO_ROOT, "target", "pro-linux-gnu-v4", "zelynic"),
-    os.path.join(REPO_ROOT, "target", "x86_64-unknown-linux-musl", "pro-linux-musl-v3", "zelynic"),
-    os.path.join(REPO_ROOT, "target", "x86_64-unknown-linux-musl", "pro-linux-musl-v4", "zelynic"),
+    os.path.join(REPO_ROOT, "target", "pro-linux-amd64-v3-gnu", "zelynic"),
+    os.path.join(REPO_ROOT, "target", "pro-linux-amd64-v4-gnu", "zelynic"),
+    os.path.join(REPO_ROOT, "target", "x86_64-unknown-linux-musl", "pro-linux-amd64-v3-musl", "zelynic"),
+    os.path.join(REPO_ROOT, "target", "x86_64-unknown-linux-musl", "pro-linux-amd64-v4-musl", "zelynic"),
     os.path.join(REPO_ROOT, "target", "release", "zelynic"),
 ]
 
