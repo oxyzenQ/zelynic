@@ -199,6 +199,31 @@ other class already fenced:
   mid-run); unit pins (test/terminal/interactive_guard_tests.rs)
   and the piped-subprocess integration pin
   (test/integration/monitor_guard.rs) hold both layers.
+- **The violent-death terminal wreck — MITIGATED (NIGHT-boost-33).**
+  Every clean exit path restores the terminal (AltScreen's Drop),
+  but `kill -9` and `pkill zelynic` run no user code: the process
+  vanished, the terminal stayed raw (echo off, ISIG off, alt screen
+  holding the frame) — for a root-held monitor the worst residual
+  shape after boost-28: the machine fine, enforcement fine (the
+  pinned maps survive by design), the USER blind. The monitor now
+  arms a forked guard child BEFORE the alt screen takes the
+  terminal: the child parks in one blocking `read(2)` on a pipe —
+  zero CPU, zero wakeups, no polling — and the kernel's own fd
+  teardown (the one thing no signal can skip) closes the parent's
+  write end the instant the parent dies, any way it dies. EOF wakes
+  the child: it restores the shell's termios, writes the exact
+  ALT_EXIT bytes, exits. A clean exit sends a stand-down byte first
+  (the parent's own restore is the authoritative one — the two can
+  never race), and the open-failure path leaves the guard in
+  restore mode. The child survives the killing itself: its name
+  (`zny-tguard`) does not match `pkill zelynic`, and it leaves the
+  process group (setsid) so a group kill cannot reach it either.
+  It touches no BPF state, no pins — enforcement continuity is the
+  architecture's contract, never the guard's. The pure pins
+  (restore-bytes lockstep, the name shape) live in
+  test/terminal/termguard_tests.rs; the fork/EOF mechanics are the
+  CI kill-tui battery's lane (it SIGKILLs a real monitor on a real
+  pty five times per run).
 
 **Verdict: yes — LTS-ready for long usage.** Every silent-killer
 class the audit could name is either bounded by construction,
