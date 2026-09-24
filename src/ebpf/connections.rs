@@ -336,6 +336,22 @@ impl ConnectionMap {
 /// tri-state so one failed `pidfd_open` (locked-down host, kernel
 /// without the syscall) never re-triggers per fd — the PID is
 /// cookie-less for the whole scan, the honest graceful degradation.
+///
+/// Deliberately `Copy` with NO Drop impl, the fd released by the
+/// explicit `close()` after each PID's fd scan. The first cut had a
+/// Drop impl calling a close() that ASSIGNED `*self = Untried` —
+/// the assignment dropped the still-Open old value, whose Drop
+/// called close() again: re-entrant drop recursion that overflowed
+/// a 2MB test stack in 22ms on the CI runners (invisible locally —
+/// no process in the dev container holds a matched socket, so the
+/// pidfd never left Untried; the regression pin
+/// `pidfd_close_on_open_fd_terminates` reproduces the overflow on
+/// the broken shape and holds the fixed contract). A Copy enum with
+/// no destructor makes every assignment in close() a plain store —
+/// recursion is structurally impossible; the one leaked-fd window
+/// (a panic mid-scan unwinding past the explicit close) is the
+/// walk's best-effort class, an fd reclaimed at process exit.
+#[derive(Clone, Copy)]
 enum PidFd {
     Untried,
     Open(i32),
@@ -393,12 +409,6 @@ impl PidFd {
     }
 }
 
-impl Drop for PidFd {
-    fn drop(&mut self) {
-        self.close();
-    }
-}
-
 /// Read all four kernel socket tables into one inode-keyed map.
 fn read_socket_tables() -> HashMap<u64, SocketInfo> {
     let mut out = HashMap::new();
@@ -424,6 +434,27 @@ fn read_socket_tables() -> HashMap<u64, SocketInfo> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    /// Regression pin for the CI stack overflow (the 02284dd
+    /// incident): closing a pidfd that holds an OPEN fd must
+    /// terminate. The first cut's close() assigned `*self =
+    /// PidFd::Untried` while Drop called close() — the assignment
+    /// dropped the still-Open old value, whose Drop called close()
+    /// again: re-entrant drop recursion, a 2MB stack gone in 22ms on
+    /// the CI runners (locally invisible — no process here holds a
+    /// matched socket, so the pidfd never left Untried). The Copy
+    /// redesign makes the assignment drop nothing; this pin holds
+    /// that contract by EXERCISING the close path on an Open fd.
+    #[test]
+    fn pidfd_close_on_open_fd_terminates() {
+        let devnull = unsafe { libc::open(c"/dev/null".as_ptr().cast(), libc::O_RDONLY) };
+        assert!(devnull >= 0, "the pin needs a real fd");
+        let mut pidfd = PidFd::Open(devnull);
+        pidfd.close();
+        assert!(matches!(pidfd, PidFd::Untried));
+        // Idempotent: a second close is a no-op.
+        pidfd.close();
+    }
+
     /// The map degrades gracefully when /proc is unreadable (returns
     /// empty, sets the refresh stamp — never panics).
     #[test]
