@@ -58,6 +58,29 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Fixed
 
+- **fix: E2E second-run hunt — the v1 rate-change stage crashed the
+  whole supermassive matrix with a TypeError, invisible to every CI
+  push since the NIGHT-refactor-2 move** — the E2E workflow's second
+  run got through bring-up, build, self-test, preflight, and the
+  realnet probe (cloudflare reachable), then died mid-matrix:
+  "harness error: stage_rate_change() missing 1 required positional
+  argument: 'window'" — 12 rows passed, then the harness aborted. The
+  stage moved from v2 to v1 in NIGHT-refactor-2 and the call site in
+  run_heavy() was never updated: v2's original body measured both
+  rungs with its LOCAL_WINDOW constant (4.0 s), v1's port takes the
+  window as a parameter, and the mechanical move dropped it. Why no
+  push ever caught it: the engine self-test that runs on every push
+  proves the harness plumbing but never executes the matrix — a
+  call-signature bug in a matrix stage is dead code to every gate
+  except a REAL root run, which is exactly what the E2E workflow now
+  provides per push. Fix: stage_rate_change(4.0) — the original
+  contract, the same window the sibling local measurement stages use
+  (asymmetric / mixed / limit_all). Verified: a static AST call
+  signature audit across all four harness files (v1, v2, lib,
+  depth) now reports ZERO mismatches; the engine self-test stays
+  24/24; the E2E re-run exercises the full matrix on both runner
+  kernels.
+
 - **fix: E2E first-run hunt — bootstrap-ebpf.sh's REPO_ROOT anchor
   was still scripts/-depth after the scripts/dev/ reorg, breaking
   the one-command bootstrap on every fresh clone** — the E2E
