@@ -29,6 +29,7 @@ use super::{
 use crate::ebpf::connections::ConnectionMap;
 use crate::ebpf::identity::IdentityMap;
 use crate::ebpf::limiter::format_bytes;
+use crate::ebpf::limiter::format_count;
 use crate::ebpf::loader::CounterSummary;
 use crate::output::{grey, signature_footer};
 
@@ -125,7 +126,10 @@ pub fn render_eagle_focus(
             } else {
                 let hidden = details.len() - (room - 1);
                 details.truncate(room - 1);
-                details.push(format!("  └ +{hidden} more hidden — raise the window"));
+                details.push(format!(
+                    "  └ +{} more hidden — raise the window",
+                    format_count(hidden as u64)
+                ));
             }
         }
         for line in details {

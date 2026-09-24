@@ -301,10 +301,14 @@ the grey block), the session census (`478 packets + 1 cgroups` —
 SESSION packets since NIGHT-engrave-4, the same horizon as the
 bytes: one accumulator in the session state, both directions, where
 the pre-engrave-3 census mixed a per-frame packet count with a
-session cgroup count), the flat total row
-(`total usage internet in 1h:20s = 10gb`, NIGHT-engrave-3: the
-session uptime and the grand total ALONE, the per-frame rates
-retired at the owner's "only total consume bandwidth" call), the
+session cgroup count; the counts ride the SI compact ladder since
+NIGHT-engrave-7 — small figures stay verbatim, an eight-hour
+`2244843` reads `2.2M`, the counter-explosion hardening), the flat
+total row
+(`total usage internet in 1h:20s = 10.2 GB`, NIGHT-engrave-3: the
+session uptime and the grand total ALONE — SI decimal, the same
+ladder every byte figure rides — with the per-frame rates retired
+at the owner's "only total consume bandwidth" call), the
 session speed pair (NIGHT-engrave-6, directly below the total row —
 the owner's data-center spec: `total max dl | ul = 20.2 GB/s | 1.0
 GB/s`, the session's peak per-direction rates, tracked as running
@@ -320,8 +324,10 @@ set, one paragraph one story — and a saturated 400G peer reads
 `40.0 GB/s` through the same EB-capped SI ladder every figure
 uses), the
 actionable line (`limit target with 'sudo zelynic ss curl 100kb'` —
-the owner's engrave-4 wording: the quoted command in suggestion
-crystal white, the `ss` short alias the CLI already carries, and
+the owner's engrave-4 wording: since NIGHT-engrave-7 the quoted
+command rides the ACTIVE theme's brand tier (purple under
+netrunner, each theme's own accent under itself — the owner's call),
+the `ss` short alias the CLI already carries, and
 the engraved default rate — a named, documented constant, the one
 fixed suggestion value on a line whose every other fact is derived
 live), one blank of air, the status line — the frame's legend `1s
@@ -375,8 +381,10 @@ forces the legacy depth for the whole process.
 Theme cycling (NIGHT-boost-18, improve-27): `t` cycles the frame's
 palette forward (the uppercase `T` twin was retired by
 NIGHT-engrave-2 — one simple key, modulo wraparound at the catalog
-edge) — six themes in total (`netrunner` the default, then
-`night_cyber`, `forest`, `spaceflight`, `carbon`, `atomic`), the
+edge) — eleven themes in total (`netrunner` the default, then
+`night_cyber`, `forest`, `spaceflight`, `carbon`, `atomic`, and the
+NIGHT-engrave-7 frontier five: `cafe`, `server`, `moonlight`,
+`hacker`, `depth_sea`), the
 cosmostrix cycle contract. A theme change repaints within the same
 50ms wake and the footer's status line names the active theme
 (`1s realtime - theme atomic - q quit - t theme`, NIGHT-engrave-2's

@@ -1,11 +1,16 @@
 // Copyright (C) 2026 rezky_nightky
 // SPDX-License-Identifier: GPL-3.0-only
 
-//! Eagle-eyes theme catalog (NIGHT-boost-18, improve-27): six
+//! Eagle-eyes theme catalog (NIGHT-boost-18, improve-27): the
 //! palettes the live monitor cycles with `t` — the cosmostrix
 //! cycle contract (modulo wraparound), one key, zero config
 //! (NIGHT-engrave-2 retired the uppercase `T` twin at the owner's
 //! "better only simple 't'" call: forward-only, wrapping).
+//!
+//! NIGHT-engrave-7 grew the catalog from six to eleven at the
+//! owner's frontier call — cafe, server, moonlight, hacker,
+//! depth_sea — five realism-grade palettes (documented in
+//! BRANDING.md 2.2 with the same slot table discipline).
 //!
 //! Scope (the owner's exact task wording): themes live INSIDE the
 //! eagle-eyes monitoring mode. The theme state is a process-global
@@ -47,7 +52,8 @@
 //!
 //! Catalog order is the cycle order:
 //! netrunner (default) -> night_cyber -> forest -> spaceflight ->
-//! carbon -> atomic -> netrunner.
+//! carbon -> atomic -> cafe -> server -> moonlight -> hacker ->
+//! depth_sea -> netrunner.
 
 use std::sync::atomic::{AtomicU8, Ordering};
 
@@ -68,19 +74,39 @@ pub(crate) enum Theme {
     Carbon,
     /// Retro lab bench: atomic orange #FF6D00, vivid status green.
     Atomic,
+    /// Warm coffee-house: caramel brand #C68B59, honey amber,
+    /// burnt-sienna heat (NIGHT-engrave-7).
+    Cafe,
+    /// Datacenter rack: steel-blue brand #6E9BC5, LED green,
+    /// amber warn, alarm-red heat (NIGHT-engrave-7).
+    Server,
+    /// Pale cool night: moonlit-blue brand #B8CCE8, mist green,
+    /// dusk-rose heat (NIGHT-engrave-7).
+    Moonlight,
+    /// Phosphor terminal: P1-green brand #33FF33, mint status,
+    /// alert-red heat (NIGHT-engrave-7).
+    Hacker,
+    /// Deep ocean: bioluminescent teal brand #1FBFAD, kelp green,
+    /// coral heat (NIGHT-engrave-7).
+    DepthSea,
 }
 
 /// The whole catalog, in cycle order. The cycle surface is
 /// monitor-only (ebpf) plus the catalog pins (test): a build without
 /// the monitoring feature renders the default and never cycles.
 #[cfg(any(feature = "ebpf", test))]
-pub(crate) const THEMES: [Theme; 6] = [
+pub(crate) const THEMES: [Theme; 11] = [
     Theme::Netrunner,
     Theme::NightCyber,
     Theme::Forest,
     Theme::Spaceflight,
     Theme::Carbon,
     Theme::Atomic,
+    Theme::Cafe,
+    Theme::Server,
+    Theme::Moonlight,
+    Theme::Hacker,
+    Theme::DepthSea,
 ];
 
 impl Theme {
@@ -94,6 +120,11 @@ impl Theme {
             Theme::Spaceflight => 3,
             Theme::Carbon => 4,
             Theme::Atomic => 5,
+            Theme::Cafe => 6,
+            Theme::Server => 7,
+            Theme::Moonlight => 8,
+            Theme::Hacker => 9,
+            Theme::DepthSea => 10,
         }
     }
 
@@ -109,6 +140,11 @@ impl Theme {
             Theme::Spaceflight => "spaceflight",
             Theme::Carbon => "carbon",
             Theme::Atomic => "atomic",
+            Theme::Cafe => "cafe",
+            Theme::Server => "server",
+            Theme::Moonlight => "moonlight",
+            Theme::Hacker => "hacker",
+            Theme::DepthSea => "depth_sea",
         }
     }
 
@@ -125,6 +161,11 @@ impl Theme {
             Theme::Spaceflight => (79, 195, 247),
             Theme::Carbon => (214, 214, 214),
             Theme::Atomic => (255, 109, 0),
+            Theme::Cafe => (198, 139, 89),
+            Theme::Server => (110, 155, 197),
+            Theme::Moonlight => (184, 204, 232),
+            Theme::Hacker => (51, 255, 51),
+            Theme::DepthSea => (31, 191, 173),
         }
     }
 }
@@ -230,6 +271,46 @@ const fn table(theme: Theme, slot: Slot) -> SlotEncodings {
         (Theme::Atomic, Slot::Hot) => slot!(255, 23, 68, 197, 91),
         #[cfg(any(feature = "ebpf", test))]
         (Theme::Atomic, Slot::Grey) => slot!(176, 190, 197, 245, 90),
+        // NIGHT-engrave-7 additions — brand/ok take the NEAREST cube
+        // match (hue must read true); warn/hot follow the documented
+        // visibility precedents (the saturated corner where the hue
+        // family holds, per-theme hue-truth rungs where the palette
+        // earns them); grey rides the uniform neutral ramp.
+        (Theme::Cafe, Slot::Brand) => slot!(198, 139, 89, 173, 93),
+        (Theme::Cafe, Slot::Ok) => slot!(168, 198, 134, 150, 32),
+        (Theme::Cafe, Slot::Warn) => slot!(232, 181, 77, 221, 33),
+        #[cfg(any(feature = "ebpf", test))]
+        (Theme::Cafe, Slot::Hot) => slot!(192, 57, 43, 196, 31),
+        #[cfg(any(feature = "ebpf", test))]
+        (Theme::Cafe, Slot::Grey) => slot!(181, 168, 156, 245, 90),
+        (Theme::Server, Slot::Brand) => slot!(110, 155, 197, 68, 94),
+        (Theme::Server, Slot::Ok) => slot!(51, 209, 122, 78, 92),
+        (Theme::Server, Slot::Warn) => slot!(242, 163, 60, 215, 33),
+        #[cfg(any(feature = "ebpf", test))]
+        (Theme::Server, Slot::Hot) => slot!(229, 72, 77, 167, 91),
+        #[cfg(any(feature = "ebpf", test))]
+        (Theme::Server, Slot::Grey) => slot!(154, 165, 177, 245, 90),
+        (Theme::Moonlight, Slot::Brand) => slot!(184, 204, 232, 152, 94),
+        (Theme::Moonlight, Slot::Ok) => slot!(159, 216, 181, 151, 32),
+        (Theme::Moonlight, Slot::Warn) => slot!(232, 212, 139, 186, 33),
+        #[cfg(any(feature = "ebpf", test))]
+        (Theme::Moonlight, Slot::Hot) => slot!(217, 138, 138, 174, 31),
+        #[cfg(any(feature = "ebpf", test))]
+        (Theme::Moonlight, Slot::Grey) => slot!(166, 176, 194, 245, 90),
+        (Theme::Hacker, Slot::Brand) => slot!(51, 255, 51, 83, 92),
+        (Theme::Hacker, Slot::Ok) => slot!(0, 229, 168, 43, 36),
+        (Theme::Hacker, Slot::Warn) => slot!(255, 225, 77, 220, 33),
+        #[cfg(any(feature = "ebpf", test))]
+        (Theme::Hacker, Slot::Hot) => slot!(255, 71, 87, 197, 91),
+        #[cfg(any(feature = "ebpf", test))]
+        (Theme::Hacker, Slot::Grey) => slot!(143, 168, 143, 245, 90),
+        (Theme::DepthSea, Slot::Brand) => slot!(31, 191, 173, 37, 36),
+        (Theme::DepthSea, Slot::Ok) => slot!(95, 215, 138, 78, 32),
+        (Theme::DepthSea, Slot::Warn) => slot!(232, 197, 106, 185, 33),
+        #[cfg(any(feature = "ebpf", test))]
+        (Theme::DepthSea, Slot::Hot) => slot!(255, 107, 107, 203, 31),
+        #[cfg(any(feature = "ebpf", test))]
+        (Theme::DepthSea, Slot::Grey) => slot!(126, 154, 166, 245, 90),
     }
 }
 
@@ -246,6 +327,11 @@ pub(crate) fn active() -> Theme {
         3 => Theme::Spaceflight,
         4 => Theme::Carbon,
         5 => Theme::Atomic,
+        6 => Theme::Cafe,
+        7 => Theme::Server,
+        8 => Theme::Moonlight,
+        9 => Theme::Hacker,
+        10 => Theme::DepthSea,
         _ => Theme::Netrunner,
     }
 }

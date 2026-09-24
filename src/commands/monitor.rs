@@ -76,6 +76,7 @@ pub fn handle_list_apps(json: bool) -> Result<()> {
     use crate::ebpf::connections::ConnectionMap;
     use crate::ebpf::display::list_apps_header_line;
     use crate::ebpf::identity::IdentityMap;
+    use crate::ebpf::limiter::format_count;
     use crate::ebpf::render::{grid_line, title_bar};
 
     let mut identity = IdentityMap::new();
@@ -113,6 +114,11 @@ pub fn handle_list_apps(json: bool) -> Result<()> {
     // table, one width source (improve-13: the separator was a
     // hardcoded 70 while the columns sum to 69 — the rule line
     // overhung the table by one).
+    //
+    // The process/socket counts ride the SI compact ladder
+    // (NIGHT-engrave-7): a busy system's cgroup hosting 4-digit
+    // process counts reads "1.2K" inside the same 7-column cell —
+    // no raw counter ever pushes the row past its width.
     let widths = [30usize, 7, 8, 10, 8];
     let table_w: usize = 2 + widths.iter().sum::<usize>() + (widths.len() - 1);
     println_safe!("{}", title_bar("zelynic list-apps", table_w));
@@ -121,7 +127,8 @@ pub fn handle_list_apps(json: bool) -> Result<()> {
         "{}",
         grey(&format!(
             "  {} cgroups resolved, {} with live sockets",
-            count, socket_cgroups
+            format_count(count as u64),
+            format_count(socket_cgroups as u64)
         ))
     );
     println_safe!();
@@ -134,8 +141,8 @@ pub fn handle_list_apps(json: bool) -> Result<()> {
             ok(&format!(
                 "  {:<w0$} {:>w1$} {:>w2$} {:>w3$} {:>w4$}",
                 id.comm,
-                conns.proc_count(id.cgroup_id),
-                conns.socket_count(id.cgroup_id),
+                format_count(conns.proc_count(id.cgroup_id) as u64),
+                format_count(conns.socket_count(id.cgroup_id) as u64),
                 format!("cg:{}", id.cgroup_id),
                 id.uid,
                 w0 = widths[0],

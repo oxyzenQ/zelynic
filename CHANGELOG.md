@@ -16,6 +16,37 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Added
 
+- **feat: NIGHT-engrave-7 — the frontier-five theme catalog, the
+  counter-explosion hardening, and the kernel-cap name enrichment**
+  — the owner's top-frontier monitoring call, four surfaces:
+  (1) the monitor's theme catalog grew from six to eleven
+  (`cafe`, `server`, `moonlight`, `hacker`, `depth_sea` — the
+  realism mandate: scene-accurate palettes, computed nearest-cube
+  256 fallbacks, the documented visibility precedents for warn/hot,
+  pairwise-distinct 16-color SGRs, the uniform grey ramp; the cycle
+  ring, catalog pins, and BRANDING.md 2.2 table all grew together);
+  (2) every session-scoped count the monitor renders (packets,
+  hidden rows, `+N` process/socket suffixes, the list-apps census
+  and columns) rides the new `format_count` SI compact ladder —
+  small figures stay verbatim ("24 packets"), the eight-hour
+  "2244843 packets" reads "2.2M packets", the u64 ceiling reads
+  "18.4E" — the count-mirror of format_bytes: decimal SI, one
+  decimal above 1000, exact u128 tenths, the 999.95 promotion edge;
+  (3) the kernel-cap name enrichment: /proc comm is hard-capped at
+  15 bytes, so `WebKitNetworkProcess` walked in as
+  `WebKitNetworkPr` — pid_comm now enriches a capped comm from
+  /proc/<pid>/cmdline argv[0]'s basename under the prefix-continuity
+  guard, capped at 24 display columns (the footer's actionable-line
+  budget: 37 + name + 7 = 68 columns on the classic 80 — the
+  frame-harmony answer to the owner's 24-vs-64 question); (4) the
+  footer's `limit target with ...` command rides the ACTIVE theme's
+  brand tier (purple under netrunner, the theme's own accent under
+  itself) instead of the CLI's hardwired suggestion white — the
+  frame's two living accents, the consumer's name and the command
+  to act on it. SI audit: every speed/byte surface already routes
+  through the one decimal-SI formatter (verified, no stragglers);
+  the stale doc samples (`= 10gb`) now read the real renders
+  (`= 10.2 GB`).
 - **feat: NIGHT-engrave-6 — the session speed pair: `total max dl |
   ul` and `total avg dl | ul` below the total row** — the owner's
   data-center spec: two footer lines directly below `total usage
@@ -1483,6 +1514,31 @@ alone — the owner's NIGHT-hunt-18 call.
   check, check-all, fmt, clean, update, stats, help.
 
 ### Fixed
+
+- **fix: NIGHT-hunt-26 — the intermittent flicker on long-running
+  eagle-eyes sessions** — two mechanisms, both structural:
+  (1) the selection guard's 100ms whole-frame beat re-emitted
+  through the RESET route (HOME + erase-below + every row) ten
+  times per second; when a grown frame (full board, detail trees,
+  widened counters after ~90s) crossed the pty write-chunking
+  boundary, the terminal's frame clock could catch the erase before
+  the rewrite — a one-frame blank window, the flash the owner
+  reported. The guard now raises a REPAINT flag: every row goes out
+  dirty through the sequential path with NO screen erase (the
+  rewrite itself is the selection killer; identical content
+  rewritten in place cannot flash). True resets (first frame, width
+  change) keep their erase — an unknown or resized screen genuinely
+  needs it. (2) a transient winsize probe failure (a mid-resize 0x0
+  report) fell back to 80x24 on a painted screen, forcing a
+  wrong-geometry reset plus a second one on recovery — the
+  two-beat flash. DiffScreen::emit now reuses the last emitted
+  geometry (sticky height field) and the monitor loop's force
+  decision holds the last known geometry through a None probe; the
+  pipe path keeps its stable 80x24, so harnesses and CI are
+  unchanged. Pins: guard_repaint_is_the_reset_stream_minus_the_erase,
+  guard_repaint_never_blanks_the_screen (both regimes),
+  transient_probe_failure_reuses_last_geometry; the resize reset
+  keeps its erase and stays pinned.
 
 - **monitor: NIGHT-engrave-4 (second cut) — the footer dashboard
   rebuild: the missing lines restored in the owner's exact order** —

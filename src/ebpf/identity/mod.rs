@@ -294,10 +294,99 @@ pub fn pid_cgroup_id(pid: u32) -> Option<u32> {
 /// treats a failed read as an empty label, the connection walk shows
 /// `pid {n}`, and the match walk lowercases for case-insensitive
 /// comparison.
+///
+/// NIGHT-engrave-7 (the owner's `WebKitNetworkPro` find): the
+/// kernel hard-caps comm at 15 bytes (TASK_COMM_LEN minus NUL), so
+/// `WebKitNetworkProcess` walks in as `WebKitNetworkPr` — a name
+/// that looks zelynic-trimmed but is the kernel's own ceiling. When
+/// the comm sits AT the cap, this boundary enriches it from
+/// `/proc/<pid>/cmdline` argv[0]'s basename (the exec-time name,
+/// uncapped) under two guards: the basename must START WITH the
+/// capped comm (prefix continuity — same process, fuller name; a
+/// 7-char `python3` never triggers this, its own name is honest),
+/// and the result is capped at [`DISPLAY_NAME_MAX`] columns with an
+/// ellipsis — the footer's actionable line budgets 37 + name + 7
+/// columns, and a 64-char name would wrap the pinned footer off an
+/// 80-column frame (the frame-harmony reason 24 is the ceiling).
 pub fn pid_comm(pid: u32) -> Option<String> {
-    fs::read_to_string(format!("/proc/{pid}/comm"))
+    let comm = fs::read_to_string(format!("/proc/{pid}/comm"))
         .ok()
-        .map(|s| sanitize_comm(s.trim()))
+        .map(|s| sanitize_comm(s.trim()))?;
+    // The common case — a comm UNDER the kernel's 15-byte cap is
+    // the process's own honest name: no second read, no enrichment
+    // possible, no cap needed (nothing under 15 exceeds 24).
+    if comm.len() != 15 {
+        return Some(comm);
+    }
+    // At the cap: enrich opportunistically. A vanished cmdline (the
+    // process exiting between the two reads, a kernel thread's empty
+    // argv) keeps the capped comm — enrichment never demotes a name
+    // the walk already resolved.
+    let cmdline = fs::read(format!("/proc/{pid}/cmdline"))
+        .ok()
+        .unwrap_or_default();
+    Some(display_name(&comm, &cmdline))
+}
+
+/// The display-name budget (NIGHT-engrave-7): process names cap at
+/// 24 columns, ellipsis included. Real offenders fit whole —
+/// `WebKitNetworkProcess` (20), `systemd-resolved` (16),
+/// `google-chrome-stable` (20) — while pathological argv[0] basenames
+/// (JVM classpath launchers, hashed AppImage paths) degrade to 23
+/// chars plus `…` instead of exploding the label column, the footer
+/// headline, or the `limit target with 'sudo zelynic ss <name> …'`
+/// line the frame suggests (37 + 24 + 7 = 68 columns on the classic
+/// 80 — the frame keeps its rails).
+const DISPLAY_NAME_MAX: usize = 24;
+
+/// The kernel-cap enrichment + display cap as one pure rule (split
+/// out of [`pid_comm`] so the pins can drive it without a live
+/// `/proc`): a comm at the 15-byte cap tries argv[0]'s basename,
+/// takes it only when the prefix holds, and caps the winner at
+/// [`DISPLAY_NAME_MAX`] columns with an ellipsis. A short comm
+/// returns unchanged — only the cap can hide a name.
+fn display_name(comm: &str, cmdline: &[u8]) -> String {
+    let mut name = comm.to_string();
+    if let Some(full) = argv0_basename(cmdline) {
+        // Prefix continuity: argv[0]'s basename must extend the
+        // capped comm — same process, fuller name. A basename that
+        // does not start with the comm (a rewritten argv, a `(`
+        // launcher) is a different string, and the cap's ambiguity
+        // is not worth the swap.
+        if full.starts_with(comm) && full.chars().count() > 15 {
+            name = full;
+        }
+    }
+    // The display cap: 24 columns, ellipsis occupying the last.
+    let chars: Vec<char> = name.chars().collect();
+    if chars.len() > DISPLAY_NAME_MAX {
+        let mut capped: String = chars[..DISPLAY_NAME_MAX - 1].iter().collect();
+        capped.push('…');
+        return capped;
+    }
+    name
+}
+
+/// argv[0]'s basename from a raw `/proc/<pid>/cmdline` buffer
+/// (NUL-separated argv): everything before the first NUL, then the
+/// final path component — `WebKitNetworkProcess`. Kernel threads
+/// (empty cmdline) and degenerate basenames yield None; the caller
+/// keeps the capped comm.
+fn argv0_basename(cmdline: &[u8]) -> Option<String> {
+    let end = cmdline
+        .iter()
+        .position(|&b| b == 0)
+        .unwrap_or(cmdline.len());
+    if end == 0 {
+        return None; // kernel thread or zombie: no argv at all
+    }
+    let argv0 = &cmdline[..end];
+    let path = std::str::from_utf8(argv0).ok()?;
+    let base = path.rsplit('/').next()?;
+    if base.is_empty() {
+        return None;
+    }
+    Some(sanitize_comm(base))
 }
 
 /// Resolve a 64-bit cgroup ID from a cgroup v2 path.
@@ -314,153 +403,10 @@ fn cgroup_id_from_path(path: &str) -> Option<u64> {
     fs::metadata(path).ok().map(|meta| meta.ino())
 }
 
+// NIGHT-engrave-7: the identity pins moved to the single test/ tree
+// (cosmostrix Pattern C) when the name enrichment pushed this file
+// past the owner's LOC cap — #[path]-wired across trees exactly like
+// the render and limiter pins.
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use std::time::Duration;
-
-    #[test]
-    fn test_identity_map_new_is_empty() {
-        let map = IdentityMap::new();
-        assert!(map.is_empty());
-        assert_eq!(map.len(), 0);
-    }
-
-    #[test]
-    fn test_label_for_unknown_cgroup() {
-        let map = IdentityMap::new();
-        // No refresh — cache is empty.
-        assert_eq!(map.label(99999), "cg:99999");
-    }
-
-    #[test]
-    fn test_get_returns_none_when_empty() {
-        let map = IdentityMap::new();
-        assert!(map.get(1).is_none());
-    }
-
-    #[test]
-    fn test_with_ttl_constructor() {
-        let map = IdentityMap::with_ttl(Duration::from_millis(1));
-        assert!(map.is_empty());
-        assert_eq!(map.refresh_ttl, Duration::from_millis(1));
-    }
-
-    #[test]
-    fn test_maybe_refresh_when_no_last_refresh() {
-        // When last_refresh is None, maybe_refresh should trigger.
-        // We can't easily test the actual refresh without /proc access,
-        // but we can verify the contract: maybe_refresh returns true and
-        // sets last_refresh.
-        let mut map = IdentityMap::with_ttl(Duration::from_secs(60));
-        let refreshed = map.maybe_refresh();
-        assert!(refreshed);
-        assert!(map.last_refresh.is_some());
-    }
-
-    #[test]
-    fn test_maybe_refresh_skips_when_within_ttl() {
-        let mut map = IdentityMap::with_ttl(Duration::from_secs(60));
-        // Prime the cache.
-        let _ = map.maybe_refresh();
-        let first_refresh = map.last_refresh.unwrap();
-
-        // Second call should NOT refresh (within TTL).
-        let refreshed = map.maybe_refresh();
-        assert!(!refreshed);
-        assert_eq!(map.last_refresh.unwrap(), first_refresh);
-    }
-
-    #[test]
-    fn test_label_with_manually_inserted_identity() {
-        // Test the label() formatting directly by inserting a fake entry.
-        let mut map = IdentityMap::new();
-        map.cache.insert(
-            12345,
-            ProcessIdentity {
-                cgroup_id: 12345,
-                uid: 1000,
-                comm: "firefox".to_string(),
-            },
-        );
-
-        assert_eq!(map.label(12345), "cg:12345 (firefox)");
-    }
-
-    #[test]
-    fn test_label_with_empty_comm_falls_back() {
-        let mut map = IdentityMap::new();
-        map.cache.insert(
-            12345,
-            ProcessIdentity {
-                cgroup_id: 12345,
-                uid: 1000,
-                comm: String::new(),
-            },
-        );
-
-        // Empty comm → fall back to raw label.
-        assert_eq!(map.label(12345), "cg:12345");
-    }
-
-    #[test]
-    fn test_refresh_runs_without_panic() {
-        // Refresh should always succeed (even if /proc has 0 entries or
-        // permissions block some reads). Must not panic.
-        let mut map = IdentityMap::new();
-        let _count = map.refresh();
-        // last_refresh must be set after a refresh.
-        assert!(map.last_refresh.is_some());
-    }
-
-    #[test]
-    fn test_all_returns_cached_values() {
-        let mut map = IdentityMap::new();
-        map.cache.insert(
-            1,
-            ProcessIdentity {
-                cgroup_id: 1,
-                uid: 0,
-                comm: "init".to_string(),
-            },
-        );
-        map.cache.insert(
-            2,
-            ProcessIdentity {
-                cgroup_id: 2,
-                uid: 1000,
-                comm: "shell".to_string(),
-            },
-        );
-
-        let all = map.all();
-        assert_eq!(all.len(), 2);
-    }
-
-    #[test]
-    fn test_cgroup_id_from_path_is_the_inode() {
-        // NIGHT-hunt-31: the resolver is stat(2), nothing else.
-        let dir = std::env::temp_dir().join("zelynic-h31-inode");
-        fs::create_dir_all(&dir).unwrap();
-        let ino = fs::metadata(&dir).unwrap().ino();
-        assert_eq!(cgroup_id_from_path(dir.to_str().unwrap()), Some(ino));
-        let _ = fs::remove_dir_all(&dir);
-    }
-
-    #[test]
-    fn test_cgroup_id_from_path_ignores_decoy_cgroup_id_file() {
-        // NIGHT-hunt-31 pin: a decoy cgroup.id file must never override
-        // the kernel's numbering — the file does not exist in mainline.
-        let dir = std::env::temp_dir().join("zelynic-h31-decoy");
-        fs::create_dir_all(&dir).unwrap();
-        fs::write(dir.join("cgroup.id"), "999999999\n").unwrap();
-        let ino = fs::metadata(&dir).unwrap().ino();
-        assert_eq!(cgroup_id_from_path(dir.to_str().unwrap()), Some(ino));
-        let _ = fs::remove_dir_all(&dir);
-    }
-
-    #[test]
-    fn test_cgroup_id_from_path_missing_dir_is_none() {
-        assert_eq!(cgroup_id_from_path("/nonexistent-zelynic-h31"), None);
-    }
-}
+#[path = "../../../test/ebpf/identity/identity_tests.rs"]
+mod tests;
