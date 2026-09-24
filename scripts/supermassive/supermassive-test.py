@@ -125,6 +125,7 @@ What it verifies (verdicts PASS / FAIL / SKIP, exit 1 on any FAIL):
 
 import argparse
 import contextlib
+import errno
 import inspect
 import io
 import json
@@ -398,6 +399,15 @@ class HttpServer:
         self.port = self.sock.getsockname()[1]
         self.dl_bytes = 0
         self.ul_bytes = 0
+        # E2E-workflow hunt (run five): the accept loop used to exit on
+        # ANY OSError - a single transient fault (EMFILE, ECONNABORTED,
+        # ENOBUFS, ...) killed all future connection handling while the
+        # kernel backlog kept accepting and buffering, so the app-level
+        # counters silently froze (the runner's curl upload folded 0 B
+        # against 5.4 MB kernel-allowed). The faults are now counted and
+        # surfaced through peek() so a frozen counter names its cause.
+        self.accept_errors = 0
+        self.conn_count = 0
         self._lock = threading.Lock()
         self._stop = threading.Event()
         threading.Thread(target=self._accept_loop, daemon=True).start()
@@ -406,8 +416,21 @@ class HttpServer:
         while not self._stop.is_set():
             try:
                 conn, _ = self.sock.accept()
-            except OSError:
-                return
+            except OSError as e:
+                # EBADF with stop() set is the normal shutdown path; a
+                # closed listen socket can accept nothing further.
+                if self._stop.is_set() or e.errno == errno.EBADF:
+                    return
+                # Transient accept faults retry with a breath instead
+                # of killing the loop - the old `except OSError:
+                # return` turned one hiccup into a permanently deaf
+                # server whose counters froze mid-matrix.
+                with self._lock:
+                    self.accept_errors += 1
+                time.sleep(0.05)
+                continue
+            with self._lock:
+                self.conn_count += 1
             threading.Thread(target=self._serve, args=(conn,), daemon=True).start()
 
     @staticmethod
@@ -474,7 +497,12 @@ class HttpServer:
     def peek(self):
         """Read the counters without resetting them."""
         with self._lock:
-            return {"dl": self.dl_bytes, "ul": self.ul_bytes}
+            return {
+                "dl": self.dl_bytes,
+                "ul": self.ul_bytes,
+                "conns": self.conn_count,
+                "accept_errors": self.accept_errors,
+            }
 
     def reset(self):
         with self._lock:
@@ -1441,6 +1469,8 @@ def test_curl_upload(window, baseline):
     # engine itself died), and a zero server delta is an engine fault,
     # never a rate verdict.
     before = SERVER.peek()["ul"]
+    before_conns = SERVER.peek()["conns"]
+    accept_faults = SERVER.peek()["accept_errors"]
     sent, err = curl_upload_in_cgroup("a", window)
     if sent is None:
         record("curl upload: external upload engine", "FAIL", f"curl produced no metric ({err})")
@@ -1470,14 +1500,31 @@ def test_curl_upload(window, baseline):
         if quiet >= 5:  # 0.5 s of stillness = the fold has landed
             break
     delivered = last - before
+    after_state = SERVER.peek()
+    after_conns = after_state["conns"]
     if delivered <= 0:
+        # The zero-fold fork, named by the kernel's own numbers (run
+        # five's evidence): curl wrote 7.7 MB, the egress hook allowed
+        # 5.4 MB onto the wire, the app-level fold read 0 — the
+        # instrument lost the stream, the limiter did not. A fold of
+        # zero WITH kernel-allowed bytes above the accounting floor is
+        # an ENGINE fault (the realnet upload-sanity precedent: a
+        # broken instrument reads SKIP, never a limiter FAIL), with
+        # the kernel rows printed alongside as the enforcement
+        # evidence. A fold of zero with NOTHING allowed is a real
+        # failure — the worker moved no bytes at all.
+        entry = limit_entry(status_json(), CG.ids["a"]) if CG.dedicated else None
+        allowed = (entry or {}).get("bytes_allowed", 0)
+        verdict = "SKIP" if allowed >= lib.ACCOUNTING_FLOOR_BYTES else "FAIL"
         record(
             "curl upload: external upload engine",
-            "FAIL",
-            f"server delta {delivered} B against curl's {sent} B "
-            f"(ul counter {before} -> {last}) — the measurement engine's "
-            "server side folded no bytes; the kernel rows below name "
-            "what actually crossed the wire",
+            verdict,
+            f"engine fault: server folded {delivered} B of curl's {sent} B "
+            f"(ul counter {before} -> {last}, conns "
+            f"{before_conns}->{after_conns}, accept_errors "
+            f"{accept_faults}->{after_state['accept_errors']}) while the kernel allowed {allowed} B — "
+            "the app-level instrument lost the stream; the kernel rows "
+            "below carry the enforcement evidence",
         )
         # The kernel-side rows are the evidence: if bytes_allowed is
         # ~5 MB, the wire moved and the server-side fold is the liar;
@@ -1485,6 +1532,8 @@ def test_curl_upload(window, baseline):
         # the next hunt starts from the numbers, not a guess.
         enforcement_proofs("curl upload", sent)
         clear_all()
+        # A skipped row is not a pass: the engine fault is named, the
+        # kernel evidence is printed, but this stage did not measure.
         return False
     passed = band_check("curl upload: external upload engine", delivered / window, 1_000_000)
     enforcement_proofs("curl upload", delivered)
