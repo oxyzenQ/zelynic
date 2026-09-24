@@ -416,3 +416,46 @@ fn tall_to_short_transition_stream_is_self_contained() {
 fn shadow_len(s: &DiffScreen) -> usize {
     s.prev.len()
 }
+
+/// NIGHT-hunt-26: a transient winsize probe failure (a mid-resize
+/// 0x0 report, an ioctl hiccup) must reuse the last emitted geometry
+/// on an already-painted screen — the old 80x24 fallback forced a
+/// width-mismatch reset (HOME + erase-below + the full frame) on the
+/// failing wake and a SECOND reset when the probe recovered: the
+/// two-beat flash the owner reported on long-running monitors. The
+/// pipe path (probe always None in tests) rides the sticky geometry
+/// after the first frame, so identical content stays idle at the
+/// injected size instead of resetting to the fallback.
+#[test]
+fn transient_probe_failure_reuses_last_geometry() {
+    let mut s = DiffScreen::new();
+    let mut out = Vec::new();
+    let mut lines = lines_of(&["alpha", "beta"]);
+    s.emit_at(100, 40, &mut lines, &mut out); // paint at an injected size
+
+    // Same content through the PROBE path: winsize() returns None
+    // (piped test stdout) — the sticky (100, 40) geometry must hold,
+    // the frame stays idle, and no reset fires.
+    out.clear();
+    let mut same = lines_of(&["alpha", "beta"]);
+    let n = s.emit(&mut same, &mut out);
+    assert_eq!(
+        n, 0,
+        "probe failure must reuse the last geometry, not reset to 80x24"
+    );
+    assert!(
+        out.is_empty(),
+        "no emission for identical content at the sticky size"
+    );
+
+    // A real size change still resets: once the probe reports a new
+    // width, the mismatch is honored (the resize contract is intact).
+    out.clear();
+    let mut moved = lines_of(&["alpha", "beta"]);
+    let r = s.emit_at(120, 40, &mut moved, &mut out);
+    assert!(r > 0, "a genuine width change still repaints in full");
+    assert!(
+        out.starts_with(b"\x1b[H\x1b[J"),
+        "the resize reset keeps its erase"
+    );
+}

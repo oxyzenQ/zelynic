@@ -29,9 +29,13 @@
 //! outlive one beat, and every copy path that needs a live
 //! selection — Ctrl+Shift+C, right-click Copy — finds nothing to
 //! copy. The beat is always whole-frame
-//! (`DiffScreen::force_repaint`, the reset emission path): a
-//! partial rewrite would leave the unrewritten rows selectable,
-//! exactly the "still can copy some text" the owner reported.
+//! (`DiffScreen::force_repaint`): a partial rewrite would leave the
+//! unrewritten rows selectable, exactly the "still can copy some
+//! text" the owner reported. Since NIGHT-hunt-26 the beat's
+//! rewrite carries NO screen erase — the rewrite itself is the
+//! selection killer, and an erase between renders opened the blank
+//! window the owner read as an intermittent flash on long-running
+//! monitors (see diff.rs for the mechanism).
 //! Honest physics boundaries, documented not hidden: (a) an
 //! X11-style terminal that mirrors a COMPLETED selection into the
 //! PRIMARY clipboard at button release can still catch what
@@ -284,6 +288,12 @@ fn run_loop<F: FnMut(&mut Vec<String>)>(
     // even at `--interval 60` instead of at the next refresh
     // tick. The render closure and the diff engine re-probe on
     // their own; this loop-level probe only decides WHEN.
+    // NIGHT-hunt-26: a TRANSIENT probe failure (a mid-resize 0x0
+    // report, an ioctl hiccup) holds the last known geometry for
+    // the force decision — a None-vs-Some flip used to force a
+    // wrong-geometry render whose reset flash the next wake undid.
+    // A real resize still lands within one wake of the probe
+    // reporting the new size.
     let mut last_geo = winsize();
     loop {
         // NIGHT-boost-18: one drain, two recognized keys — q
@@ -299,7 +309,10 @@ fn run_loop<F: FnMut(&mut Vec<String>)>(
             InputAction::None => false,
         };
 
-        let geo = winsize();
+        // Sticky geometry (NIGHT-hunt-26): a None probe stands down
+        // for one wake — the screen holds its last frame until the
+        // probe recovers, no forced wrong-size render.
+        let geo = winsize().or(last_geo);
         let force = geo != last_geo || theme_switched;
         match next_beat(last_render, last_guard, refresh_interval, guard, force) {
             Beat::Render => {
