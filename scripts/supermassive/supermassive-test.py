@@ -1637,18 +1637,26 @@ def test_multi_group(window, baseline):
     def worker(n):
         results[n] = curl_in_cgroup(n, window)
 
-    # E2E-workflow hunt (run seven): the joint verdict used the NOMINAL
-    # window as its divisor — the hunt-32 lesson the curl burst row
-    # already carries, one stage over. Two concurrent curls each run
-    # --max-time window from their OWN exec moment; on a loaded runner
-    # the spawn stagger stretches the bucket's true drain span (run
-    # seven read 162.5% on a leg that measured 115.3% the run before —
-    # same code, different stagger). The divisor is now the ACTUAL
-    # first-spawn -> last-join span, with the same budget-aware burst
-    # ceiling the burst row carries ((span + 1 s documented default
-    # burst) / span, 5% slop, hard-capped at 1.60): the sharing claim
-    # keeps its teeth — two independent buckets read ~200%+,
-    # far past the cap.
+    # E2E-workflow hunt (runs eight-nine): the joint verdict used the
+    # NOMINAL window as its divisor — the hunt-32 lesson the curl burst
+    # row already carries, one stage over. Two concurrent curls each
+    # run --max-time window from their OWN exec moment; on a loaded
+    # runner the spawn stagger stretches the bucket's true drain span
+    # (run seven read 162.5% on a leg that measured 115.3% the run
+    # before — same code, different stagger). The divisor is now the
+    # ACTUAL first-spawn -> last-join span.
+    #
+    # Runs eight-nine found the SECOND invisible window: the inter-phase
+    # gap — solo-end -> joint-spawn — refills the shared bucket out of
+    # the joint span's sight (run eight: ~0.2 s gap, joint 115.3% PASS;
+    # run nine: ~1.7 s gap, joint 134.6% FAIL; same code, loaded box).
+    # The cushion drain (the asymmetric/burst precedent) resets the
+    # bucket to a known-empty state between phases, and the budget's
+    # live clock starts at the drain's end so every refill second is
+    # inside the formula. The sharing claim keeps its teeth — two
+    # independent buckets read ~200%+, far past the 1.60 hard cap.
+    py_download(0.5, "b")
+    t_drain_end = time.monotonic()
     t0 = time.monotonic()
     threads = [threading.Thread(target=worker, args=(n,)) for n in ("b", "c")]
     for t in threads:
@@ -1656,6 +1664,7 @@ def test_multi_group(window, baseline):
     for t in threads:
         t.join()
     joint_span = time.monotonic() - t0
+    live = time.monotonic() - t_drain_end
     if any(results[n][0] is None for n in ("b", "c")):
         clear_all()
         return record(name, "FAIL", "a group-member curl produced no metric")
@@ -1669,14 +1678,14 @@ def test_multi_group(window, baseline):
         )
     total = sum(results[n][0] for n in ("b", "c"))
     burst_s = 1.0
-    budget_ceiling = (joint_span + burst_s) / joint_span
+    budget_ceiling = (live + burst_s) / joint_span
     joint = band_check(
         f"strict-multi: {len(results)} members joint, still one shared bucket",
         total / joint_span,
         1_000_000,
         extra=(
             f"span {joint_span:.2f} s; budget ceiling {budget_ceiling:.2f}x "
-            f"(live {joint_span:.1f} s + {burst_s:.0f} s burst / span), cap 1.60"
+            f"(live {live:.1f} s + {burst_s:.0f} s burst / span), cap 1.60"
         ),
         hi=min(1.05 * budget_ceiling, 1.60),
     )
