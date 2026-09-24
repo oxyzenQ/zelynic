@@ -498,7 +498,13 @@ Resolution re-runs every frame against the live identity map, so an
 app started mid-session appears on the next refresh. Default refresh
 1s — realtime precision; `--interval` calms it down to at most 60s.
 **Quit with `q` — the only quit key** (NIGHT-hunt-16; ESC and Ctrl+C
-are drained, never treated as quit).
+are drained, never treated as quit). One exit path exists besides
+`q`, and it cannot be triggered by any key: a dead output sink
+(NIGHT-ultimate-2) — a piped monitor whose reader closed, a sink
+that filled — ends the session quietly on the next frame instead of
+spinning forever on discarded writes; the alt screen restores, the
+eBPF observer detaches, exit 0. A slow-but-open reader never trips
+it (a full pipe blocks, it does not error).
 
 #### The frame, line by line — the annotated reference
 

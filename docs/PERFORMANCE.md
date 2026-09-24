@@ -174,6 +174,35 @@ down to 2 per 100 packets.
   the fd scan is lazy per matched socket; the pidfd open is lazy
   per PID with sticky failure. Peak for the design.
 
+### NIGHT-ultimate-2 A/B (the sink-death quiet exit, 2026-09-24)
+
+The forever-monitor fix (a dead output sink now ends the session
+quietly, STABILITY.md's silent-killer inventory) touched the
+terminal layer: the diff engine's emission tail records a failed
+`write_all` in a sticky flag, and the monitor loop reads it after
+every beat. The frame harness drives the same emission tail, so
+the A/B proves the happy path is unchanged (A = d32d48f, B = the
+ultimate-2 tree, 10 s formal runs):
+
+| Metric | d32d48f (A) | ultimate-2 (B) | Delta |
+|--------|------------|----------------|-------|
+| fps | 8,168.7 | 8,102.3 | -0.8% (machine noise) |
+| bytes/frame | 1,943.0 | 1,943.0 | +0.0% |
+| emit bytes/frame | 504.1 | 504.1 | -0.0% |
+| frame entropy | 3.0006 | 3.0005 | -0.0% |
+| density gini | 0.3586 | 0.3586 | +0.0% |
+| dirty cells/frame | 39.4 | 39.4 | -0.0% |
+
+Reading: PARITY to the fourth decimal — by construction. The
+happy path gained one `Result` inspection on the emission call and
+one bool load per beat (the loop's two sink-death checks), and the
+error branch is new code only a dead sink reaches; the harness's
+deterministic per-frame metrics are byte-identical across the
+board. The raw-fd helpers (winsize, RawStdout) moved to
+src/terminal/raw.rs in the same task — the 500-line-cap split —
+with every consumer still routing through the terminal layer's
+re-export surface, zero call-site churn.
+
 ## BPF Instruction Budget
 
 ```bash

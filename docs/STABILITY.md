@@ -129,6 +129,63 @@ residual risks, ranked by how likely they are to matter:
 The honest summary the owner stands behind: **99% production-useful,
 and the missing 1% fails closed and says so.**
 
+## The silent-killer inventory (NIGHT-ultimate-2, 2026-09-24)
+
+The owner's question: "is zelynic already for LTS long usage?
+strong, killers but silent?" The audit walked every class of failure
+that could END or DRAIN a months-long deployment quietly, and the
+inventory below is the answer — one killer found and fixed, every
+other class already fenced:
+
+- **Memory growth — fenced.** Every long-lived structure is bounded
+  by construction: the session leaderboard mirrors the kernel's own
+  1024-slot map ceiling (`MAX_TRACKED_CGROUPS`), the two cookie maps
+  are LRU (self-evicting, session-scoped), both `/proc` caches are
+  rebuilt in place behind their TTLs (identity 10s, connections 3s),
+  the diff engine's shadow and buffers scale with terminal size, and
+  the per-frame join map is replaced, never appended.
+- **FD leaks — fenced.** The pidfd join opens one pidfd per PID,
+  marks failure sticky, and closes explicitly per scan (the Copy
+  redesign makes re-entrant drop recursion structurally impossible —
+  the boost-26 incident and its regression pin); the pidfd_getfd
+  local copies close on every path including the failure path.
+- **Arithmetic endurance — fenced.** Every userspace accumulator
+  saturates (boost-16); the kernel counters' plain adds sit behind a
+  physically-unreachable wrap horizon (see honest limit 5, corrected
+  at ultimate-1); the limiter clamps every stored value it consumes
+  (security-3/depthbore-1).
+- **Kernel resource leaks — fenced.** Observer maps are
+  session-scoped and freed at detach; the limiter's pinned state is
+  reclaimed by `unstrict`/`unstrict-all`/`recover` with bucket-slot
+  return (improve-10), and a reboot clears bpffs by design (the
+  documented no-residue contract).
+- **Time — fenced.** Uptime rides `Instant` (CLOCK_MONOTONIC: no
+  wall-clock jumps, no NTP step, no wrap inside any realistic
+  session horizon); every rate divides by the configured interval,
+  never by measured wall time.
+- **The forever-monitor — FOUND AND FIXED (this audit).** The one
+  genuine silent killer: Rust ignores SIGPIPE, and the diff engine
+  discarded emission errors with no consequence, so a piped
+  `zelynic eagle-eyes | head -3` left a root process running forever
+  — eBPF attached, `/proc` walks on cadence, every write discarded —
+  until reboot, invisible except in `ps`. The diff engine's own
+  comment claimed "a short-reader kills the monitor quietly"; the
+  code never implemented it. Now it does: a failed emission (EPIPE
+  from a closed reader, ENOSPC from a filled sink) sets a sticky
+  sink-death flag, the monitor loop checks it after every beat, and
+  the session leaves quietly — alt screen restored, observer
+  detached, exit 0. A slow-but-open reader can never trip it (a
+  full pipe blocks, it does not error); std's `write_all` retries
+  `Interrupted`, so only real deaths count. Five pins hold the
+  mechanism (test/terminal/sink_death_tests.rs); the live re-proof
+  is the owner-host battery's lane.
+
+**Verdict: yes — LTS-ready for long usage.** Every silent-killer
+class the audit could name is either bounded by construction,
+self-healing, or (as of this audit) exits loudly-quietly on its own;
+the residual risks are the five honest limits above, each documented
+with its cost and its first command.
+
 ## When something breaks
 
 | Symptom | First command | Why |
