@@ -12,7 +12,9 @@
 //! CI dead-code fix: their only other callers sit behind the ebpf
 //! feature).
 
-use super::{active, cycle_from, escape_for, set, Slot, Theme, THEMES};
+use super::{
+    active, cycle_from, escape_for, set, terminal_bg_at, terminal_bg_escape_at, Slot, Theme, THEMES,
+};
 use crate::output::color::ColorCapability;
 
 /// The netrunner regression row: every cell of the default table is
@@ -426,4 +428,49 @@ fn engrave7_frontier_five_follow_the_fallback_contract() {
     assert_eq!(sgr16(Theme::Moonlight, Slot::Brand), "\x1b[94m");
     assert_eq!(sgr16(Theme::Hacker, Slot::Brand), "\x1b[92m");
     assert_eq!(sgr16(Theme::DepthSea, Slot::Brand), "\x1b[36m");
+}
+
+// ── The terminal-following background (NIGHT-boost-26) ────────────────────
+
+/// The pure escape cores: TrueColor paints the exact OSC 11 triple;
+/// Color256 quantizes onto the 6x6x6 cube (46,46,46 -> 59, the same
+/// nearest-match arithmetic the rails ride); the shallow depths and
+/// the absent triple paint NOTHING — the terminal default is the
+/// honest background there, never an invented hue.
+#[test]
+fn terminal_bg_escape_shapes_by_depth() {
+    let grey = Some((46, 46, 46));
+    assert_eq!(
+        terminal_bg_escape_at(grey, ColorCapability::TrueColor),
+        "\x1b[48;2;46;46;46m"
+    );
+    assert_eq!(
+        terminal_bg_escape_at(grey, ColorCapability::Color256),
+        "\x1b[48;5;59m"
+    );
+    assert_eq!(
+        terminal_bg_escape_at(grey, ColorCapability::Color16),
+        String::new()
+    );
+    assert_eq!(
+        terminal_bg_escape_at(grey, ColorCapability::Mono),
+        String::new()
+    );
+    assert_eq!(
+        terminal_bg_escape_at(None, ColorCapability::TrueColor),
+        String::new()
+    );
+}
+
+/// The stored triple survives only at the paint-capable depths
+/// (the pure filter core): a Color16/Mono frame never paints a
+/// background whatever the query answered.
+#[test]
+fn terminal_bg_survives_only_at_paintable_depths() {
+    let grey = Some((46, 46, 46));
+    assert_eq!(terminal_bg_at(grey, ColorCapability::TrueColor), grey);
+    assert_eq!(terminal_bg_at(grey, ColorCapability::Color256), grey);
+    assert_eq!(terminal_bg_at(grey, ColorCapability::Color16), None);
+    assert_eq!(terminal_bg_at(grey, ColorCapability::Mono), None);
+    assert_eq!(terminal_bg_at(None, ColorCapability::TrueColor), None);
 }

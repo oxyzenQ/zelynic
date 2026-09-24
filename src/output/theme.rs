@@ -392,6 +392,80 @@ pub(crate) fn escape(slot: Slot, bold: bool) -> &'static str {
     escape_for(active(), slot, bold, capability())
 }
 
+// ── The terminal-following background (NIGHT-boost-26) ────────────────────
+//
+// Owner contract: the eagle-eyes frame's BACKGROUND follows the
+// terminal, not the builtin themes — a grey-themed terminal renders
+// a grey frame, a dark one a dark frame. Only the grid lines, data,
+// and info keep the theme's FOREGROUND vocabulary (the rails, tier
+// rows, census lines — everything the slots above paint). The
+// value comes from the OSC 11 query at monitor open
+// (terminal::raw::query_terminal_bg); unpainted capability depths
+// (Color16, Mono) and a terminal that never answered keep the
+// pre-boost-26 rendering: no background escape at all, the
+// terminal's own default showing through every unpainted cell.
+
+/// The queried background (NIGHT-boost-26): set ONCE by the
+/// monitor's open path, read by the frame compositor. `None` is the
+/// honest default — no query ran, or the terminal stayed silent.
+static TERMINAL_BG: std::sync::OnceLock<Option<(u8, u8, u8)>> = std::sync::OnceLock::new();
+
+/// Record the queried terminal background (the monitor's open path,
+/// after the OSC 11 answer lands). One-shot like every OnceLock in
+/// the output layer: a second call is a no-op, and the tests that
+/// pin the escape shapes set it before the first frame composes.
+pub(crate) fn set_terminal_bg(bg: Option<(u8, u8, u8)>) {
+    let _ = TERMINAL_BG.set(bg);
+}
+
+/// The queried terminal background, when a paint-capable depth and
+/// an answering terminal agree.
+#[must_use]
+pub(crate) fn terminal_bg() -> Option<(u8, u8, u8)> {
+    terminal_bg_at(*TERMINAL_BG.get().unwrap_or(&None), capability())
+}
+
+/// Pure core of [`terminal_bg`] (the emit/emit_at discipline): the
+/// stored triple survives only at the paint-capable depths — the
+/// shallow tiers render the terminal default, which is the honest
+/// background there.
+#[must_use]
+fn terminal_bg_at(stored: Option<(u8, u8, u8)>, cap: ColorCapability) -> Option<(u8, u8, u8)> {
+    match cap {
+        ColorCapability::TrueColor | ColorCapability::Color256 => stored,
+        ColorCapability::Color16 | ColorCapability::Mono => None,
+    }
+}
+
+/// The background escape the frame's rows open with (NIGHT-boost-26):
+/// TrueColor paints the exact triple; Color256 quantizes onto the
+/// 6x6x6 cube (the same nearest-match the rails ride); the shallow
+/// depths paint nothing (the terminal default IS the honest
+/// background there — a 16-color slot cannot represent an arbitrary
+/// grey without inventing a hue).
+#[must_use]
+pub(crate) fn terminal_bg_escape() -> String {
+    terminal_bg_escape_at(terminal_bg(), capability())
+}
+
+/// Pure core of [`terminal_bg_escape`] (the emit/emit_at discipline):
+/// the escape for one triple at one depth, pinned without touching
+/// the process-global caches.
+#[must_use]
+fn terminal_bg_escape_at(bg: Option<(u8, u8, u8)>, cap: ColorCapability) -> String {
+    match bg {
+        Some((r, g, b)) => match cap {
+            ColorCapability::TrueColor => format!("\x1b[48;2;{r};{g};{b}m"),
+            ColorCapability::Color256 => {
+                let q = |c: u8| (usize::from(c) * 6 / 256).min(5);
+                format!("\x1b[48;5;{}m", 16 + 36 * q(r) + 6 * q(g) + q(b))
+            }
+            _ => String::new(),
+        },
+        None => String::new(),
+    }
+}
+
 // NIGHT-boost-18: the theme pins live under the single test/ tree
 // (cosmostrix Pattern C), #[path]-wired across trees exactly like
 // the eagle and footer pins.

@@ -181,6 +181,18 @@ labeled error renderer).
 
 ### 2.2. Monitor themes (NIGHT-boost-18, improve-27; NIGHT-engrave-7)
 
+**Background contract (NIGHT-boost-26)**: the frame's BACKGROUND
+follows the TERMINAL, never the builtin palettes — a grey-themed
+terminal renders a grey eagle-eyes frame, a dark one a dark frame.
+At monitor open the terminal is asked for its background (the
+standard OSC 11 query, a 100 ms bounded ask) and every frame row
+paints that exact triple at TrueColor depth (the nearest xterm-cube
+cell at 256). Only the grid lines, data, and info keep the theme's
+FOREGROUND vocabulary — the table above governs glyphs, not the
+canvas they sit on. Terminals that do not answer (or the shallow
+16-color/Mono depths) render exactly as before: no background
+escape, the terminal's own default showing through.
+
 The eagle-eyes monitor cycles eleven palettes with `t` (forward,
 modulo wraparound — the uppercase `T` twin was retired by
 NIGHT-engrave-2 at the owner's "better only simple 't'" call).

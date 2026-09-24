@@ -213,13 +213,37 @@ pub(super) fn wrap(lines: &mut Vec<String>, width: usize) {
     let content_w = width.saturating_sub(BORDER_W);
     let cap = capability();
     let theme = theme::active();
+    // NIGHT-boost-26: the frame's background follows the terminal —
+    // the OSC 11 triple the monitor's open path queried, painted on
+    // every row so the frame reads as part of the terminal's own
+    // theme (grey terminal, grey frame) instead of the alt screen's
+    // default. Empty at Mono/Color16 or when the terminal never
+    // answered: those frames render exactly as before. Inner color
+    // resets would kill it mid-row, so each one re-opens the
+    // background right after; the row's own trailing RESET then
+    // closes everything the row opened.
+    let bg = theme::terminal_bg_escape();
+    // Row 0 (the title bar) passes through the flank loop below
+    // untouched — it carries the top border. The background still
+    // belongs to it: prepended here, closed by the bar's own RESET.
+    if !bg.is_empty() {
+        lines[0].insert_str(0, &bg);
+    }
     for (i, line) in lines.iter_mut().enumerate().skip(1) {
-        let content = fit(line, content_w);
+        let mut content = fit(line, content_w);
+        // Re-open the background after every inner reset so the
+        // paint survives a mid-row tier change (a grey detail line,
+        // a red champion row) — the reset stays honest for the
+        // glyphs it closed; the background simply rides on.
+        if !bg.is_empty() && content.contains('\x1b') {
+            content = content.replace(RESET, &format!("{RESET}{bg}"));
+        }
         let esc = rail_escape(rail_rgb(theme, i, rows), theme, cap);
         // A row that carried its own colors ends reset — the right
         // rail re-opens the gradient. A plain row never disturbed
         // the left rail's color: one escape carries both rails.
-        let mut row = String::with_capacity(esc.len() * 2 + content.len() + 8);
+        let mut row = String::with_capacity(bg.len() + esc.len() * 2 + content.len() + 8);
+        row.push_str(&bg);
         row.push_str(&esc);
         row.push('│');
         row.push_str(&content);
@@ -227,7 +251,7 @@ pub(super) fn wrap(lines: &mut Vec<String>, width: usize) {
             row.push_str(&esc);
         }
         row.push('│');
-        if !esc.is_empty() {
+        if !esc.is_empty() || !bg.is_empty() {
             row.push_str(RESET);
         }
         *line = row;
@@ -235,7 +259,11 @@ pub(super) fn wrap(lines: &mut Vec<String>, width: usize) {
     // The closing row (BD-02: the bright anchor): the frame's
     // foundation, visually anchored whatever the wave does above it.
     let bright = rail_escape(theme.brand_rgb(), theme, cap);
-    let mut closing = String::with_capacity(width + bright.len() + RESET.len());
+    let mut closing = String::with_capacity(width + bright.len() + bg.len() + RESET.len());
+    // The closing row opens with the terminal background like every
+    // other row (NIGHT-boost-26) — the foundation is bright, the
+    // floor it sits on is the terminal's own.
+    closing.push_str(&bg);
     closing.push_str(&bright);
     closing.push('╰');
     closing.push_str(&"─".repeat(width.saturating_sub(BORDER_W)));

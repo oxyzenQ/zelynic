@@ -58,6 +58,38 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Fixed
 
+- **fix: NIGHT-boost-26 — the eagle-eyes background follows the
+  terminal: the OSC 11 query paints the frame's canvas in the
+  terminal's own color while the grid lines, data, and info keep
+  the builtin themes** — the owner's contract: a grey-themed
+  terminal must see a grey eagle-eyes frame, not a fixed dark
+  canvas; the THEMES own the glyphs (rails, tier rows, census
+  lines), never the background they sit on. At monitor open (after
+  raw mode, inside the alt screen) the terminal is asked for its
+  background with the standard OSC 11 request — one write, one
+  100 ms-bounded poll, residual reply bytes drained so the key loop
+  never sees them — and the answer (rgb:/rgba:, 1-4 hex digits per
+  channel, each scaled by its own width) parks in the theme layer.
+  Every frame row then opens with the background escape: TrueColor
+  paints the exact triple, Color256 the nearest xterm-cube cell
+  (the rails' own quantization), and inner color resets RE-OPEN the
+  background so a mid-row tier change (grey detail line into red
+  champion row) never punches a hole in the canvas. Terminals that
+  do not answer (dumb, muxer without passthrough), and the shallow
+  16-color/Mono depths, render byte-identically to the pre-boost-26
+  frame: no background escape at all, the terminal's own default
+  showing through. The query rides the post-boost-28 interactive
+  gate, so it only ever runs on a real TTY pair. Pinned: the OSC 11
+  parser (16-bit BEL and ST forms, short channels, the rgba: alpha
+  leg, mixed digit widths, garbage to None —
+  test/terminal/raw_tests.rs) and the escape/depth cores (the
+  emit/emit_at discipline: the TrueColor/256 shapes and the
+  paint-depth filter, test/output/theme_tests.rs); the composed
+  frame's paint is the CI kill-tui pty lane (frames carry the
+  escape; a silent pty times out the ask and renders unchanged).
+  docs/BRANDING.md 2.2 gains the background contract paragraph;
+  USAGE.md's theming section names it.
+
 - **fix: NIGHT-boost-28 — `sudo zelynic ee | grep` is fatal no more:
   the monitor refuses non-interactive stdio before any terminal
   state, root work, or BPF load, and the full audit found no other

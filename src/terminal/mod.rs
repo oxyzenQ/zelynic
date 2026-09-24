@@ -409,6 +409,14 @@ impl Monitor {
     /// pipe session; no chrome byte ever reaches a non-terminal.
     pub fn open<P: FnOnce(usize, usize) -> Vec<String>>(prelude: P) -> Result<Self> {
         let alt = AltScreen::enter()?;
+        // NIGHT-boost-26: the frame's background follows the
+        // terminal — the OSC 11 query rides the raw mode enter()
+        // just took (the answer is not newline-terminated) and the
+        // alt screen it just switched to. A terminal that stays
+        // silent keeps the pre-boost-26 rendering: no background
+        // escape at all. The 100 ms ceiling bounds the wait for the
+        // silent ones; local terminals answer in single digits.
+        crate::output::theme::set_terminal_bg(raw::query_terminal_bg());
         let (w, h) = match winsize() {
             Some((cols, rows)) => (cols as usize, rows as usize),
             None => (80, 24),
