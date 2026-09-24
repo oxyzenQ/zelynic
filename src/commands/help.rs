@@ -147,7 +147,8 @@ pub(crate) fn print_help() {
     println_safe!("    to see more, the list runs high to low.");
     println_safe!("    Exit with q (the only quit key).");
     println_safe!("    Targets are autodetected: digits = cgroup ID (see list-apps),");
-    println_safe!("    a name = process — one target opens the deep focus view");
+    println_safe!("    the display prefix cg:73386 round-trips, a name = process —");
+    println_safe!("    one target opens the deep focus view");
     println_safe!("    (per-direction deltas, rate, lifetime, socket endpoints).");
     example("all apps, ranked", "sudo zelynic eagle-eyes");
     example("one app, deep view", "sudo zelynic eagle-eyes brave");

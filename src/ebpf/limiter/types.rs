@@ -143,8 +143,26 @@ pub enum Target {
 }
 
 impl Target {
+    /// Parse a target token: a bare numeric string (`73386`) is a
+    /// cgroup ID, anything else a process name for the /proc walk.
+    ///
+    /// NIGHT-boost-37: the canonical display prefix round-trips —
+    /// every output surface (the status table's rows, eagle-eyes'
+    /// footer, the policy trace lines, the `unstrict` echo) prints
+    /// cgroups as `cg:48181`, and the eagle-eyes footer's actionable
+    /// line suggests exactly `sudo zelynic ss cg:48181 100kb` when
+    /// the top consumer's identity is unresolved. `Target::parse`
+    /// must accept what those surfaces print: a `cg:` prefix over
+    /// a numeric remainder resolves to the same direct ID as the
+    /// bare form (no /proc walk — the suggestion could never match
+    /// a process named "cg:48181", which made the suggested command
+    /// a guaranteed no-op, the owner's fatal find). A non-numeric
+    /// remainder keeps the whole string as a process name, so a
+    /// typo like `cg:brave` stays the graceful no-match it always
+    /// was — the prefix never silently rewrites a name target.
     pub fn parse(s: &str) -> Self {
-        if let Ok(id) = s.parse::<u32>() {
+        let id_part = s.strip_prefix("cg:").unwrap_or(s);
+        if let Ok(id) = id_part.parse::<u32>() {
             Target::CgroupId(id)
         } else {
             Target::ProcessName(s.to_string())
@@ -194,6 +212,42 @@ mod tests {
         match Target::parse("firefox") {
             Target::ProcessName(name) => assert_eq!(name, "firefox"),
             _ => panic!("expected ProcessName"),
+        }
+    }
+
+    /// NIGHT-boost-37: the canonical display prefix parses to the
+    /// same direct cgroup ID as the bare numeric form — the output
+    /// surfaces print `cg:48181` and the suggested command
+    /// (`sudo zelynic ss cg:48181 100kb`) must work verbatim.
+    #[test]
+    fn test_target_parse_cg_prefix_numeric() {
+        match Target::parse("cg:48181") {
+            Target::CgroupId(id) => assert_eq!(id, 48181),
+            _ => panic!("expected CgroupId for cg:-prefixed numeric"),
+        }
+        // Prefix and bare forms resolve identically — one target.
+        assert!(matches!(Target::parse("cg:73386"), Target::CgroupId(id) if id == 73386));
+    }
+
+    /// A non-numeric remainder keeps the WHOLE string as a process
+    /// name (never the stripped part): a typo like `cg:brave` is the
+    /// graceful no-match it always was — the prefix never silently
+    /// rewrites a name target into a different process.
+    #[test]
+    fn test_target_parse_cg_prefix_non_numeric_keeps_full_name() {
+        match Target::parse("cg:brave") {
+            Target::ProcessName(name) => assert_eq!(name, "cg:brave"),
+            _ => panic!("expected ProcessName for cg:-prefixed non-numeric"),
+        }
+    }
+
+    /// A u32 overflow after the prefix stays a name (graceful no-op,
+    /// same contract as the bare beyond-u32 target the CLI pins).
+    #[test]
+    fn test_target_parse_cg_prefix_overflow_stays_name() {
+        match Target::parse("cg:99999999999999999999") {
+            Target::ProcessName(name) => assert_eq!(name, "cg:99999999999999999999"),
+            _ => panic!("expected ProcessName for cg:-prefixed overflow"),
         }
     }
 

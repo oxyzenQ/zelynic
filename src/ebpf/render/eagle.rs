@@ -75,8 +75,11 @@ const RANK_SPAN: usize = 4;
 
 /// Resolve target tokens against the identity map.
 ///
-/// Numeric tokens are cgroup IDs verbatim; name tokens expand to
-/// every cgroup whose comm matches (case-insensitive) — `brave`
+/// Numeric tokens (bare or `cg:`-prefixed — the display prefix
+/// round-trips since NIGHT-boost-37, so a label copied off the
+/// table watches the cgroup it names) are cgroup IDs verbatim;
+/// name tokens expand to every cgroup whose comm matches
+/// (case-insensitive) — `brave`
 /// watches ALL brave cgroups, the whole-app semantics the
 /// strict/block family's /proc resolution gives. Names that match
 /// nothing come back separately so the frame can say so (a typo'd

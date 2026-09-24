@@ -21,8 +21,13 @@ fn test_enforcement_commands_refuse_non_root_cleanly() {
     if euid_is_root() {
         return; // contract only observable as unprivileged user
     }
-    const ENFORCEMENT_ARGV: [&[&str]; 11] = [
+    const ENFORCEMENT_ARGV: [&[&str]; 12] = [
         &["strict-single", "brave", "100kb"],
+        // NIGHT-boost-37: the canonical display prefix (`cg:48181`,
+        // what the status table and the eagle-eyes footer suggest)
+        // rides the same clean refusal — the parse never panics on
+        // the prefixed form, the root gate still leads.
+        &["ss", "cg:48181", "100kb"],
         &["strict", "brave", "100kb"],
         &["strict-multi", "brave:curl", "1mb"],
         &["limit-all", "500kb"],

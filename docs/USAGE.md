@@ -64,7 +64,11 @@ each one lives in, and writes one policy per cgroup (per direction).
 That resolution is a **snapshot** — see
 [Honest limitations](#honest-limitations--read-this) for what that
 means when you launch new apps later. A numeric cgroup ID (from
-`list-apps`) targets one cgroup exactly, skipping name matching.
+`list-apps`) targets one cgroup exactly, skipping name matching —
+and the `cg:`-prefixed form every display surface prints
+(`cg:18571` in the `status` table, the eagle-eyes footer, and the
+suggested `ss` command) is the same direct target: the prefix
+round-trips (NIGHT-boost-37), so a copied label always works.
 
 **3. State lives in the kernel, pinned under `/sys/fs/bpf/zelynic/`.**
 Programs, links, and policy maps are pinned there, which is why
@@ -100,7 +104,8 @@ sudo zelynic strict brave 100kb        # shorthand form
 ```
 
 - `<target>`: a process name (`brave`) or a cgroup ID (`18571`, from
-  `list-apps`).
+  `list-apps`; the `cg:18571` display form round-trips verbatim —
+  paste what `status` or eagle-eyes shows you).
 - A positional `rate` sets **both** download and upload. `-d`/`-u` set
   them independently — and they take precedence: if either flag is
   present, the positional rate is ignored (no silent mixing), so
@@ -508,7 +513,9 @@ saturating division (a saturated counter renders "18.4 EB/s",
 never a wrapped figure).
 
 The positional `targets` filter is autodetected per token: all digits
-means a cgroup ID (find one with `list-apps`), anything else a
+means a cgroup ID (find one with `list-apps`), the `cg:18571`
+display prefix round-trips (NIGHT-boost-37 — a label copied off
+the table watches the cgroup it names), anything else a
 process name — and names watch ALL matching cgroups, the same
 whole-app semantics as strict/block. One target that resolves to a
 single cgroup switches to the deep focus view: per-direction deltas,
