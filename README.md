@@ -112,12 +112,20 @@ are what the limiter's hot loops actually use. Pick `gnu` normally,
 ```bash
 mkdir /tmp/zelynic-rel
 # v3 runs on any x86_64 machine from ~2013 onward:
-tar -xzf zelynic-vX.Y.Z-linux-amd64-v3-gnu.tar.gz -C /tmp/zelynic-rel
-# AVX-512 machines (Zen 4/5, Ice Lake and newer): -v4-gnu
-# old glibc / fully static:                     -v3-musl / -v4-musl
+tar -xzf zelynic-vX.Y.Z-linux-amd64-v3.tar.gz -C /tmp/zelynic-rel
+# AVX-512 machines (Zen 4/5, Ice Lake and newer): -v4
+# old glibc / fully static:                      -v3-musl / -v4-musl
 install -Dm755 /tmp/zelynic-rel/zelynic ~/.local/bin/zelynic          # user install
 # or: sudo install -Dm755 /tmp/zelynic-rel/zelynic /usr/local/bin/zelynic
 ```
+
+The package names follow the cosmostrix release lineage
+(NIGHT-boost-35): gnu flavors carry no `-gnu` suffix
+(`zelynic-vX.Y.Z-linux-amd64-v3.tar.gz` — the
+`cosmostrix-v100.0.3-linux-amd64-v3.tar.gz` shape), musl flavors
+keep their `-musl` leg. The binary inside still reports its libc in
+`Build:` (`linux-amd64-v3-gnu`) — the label names the binary, the
+tarball names the download.
 
 Not sure which baseline your CPU takes? `grep -o 'avx512f'
 /proc/cpuinfo` answers v4 eligibility — any hit means yes, everything

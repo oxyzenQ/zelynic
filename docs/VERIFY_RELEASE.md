@@ -36,10 +36,10 @@ UID: `Rezky Cahya Sahputra (cosmic dragon)
 
 ```bash
 # Download the archive + its .asc signature from the GitHub Release page
-# e.g. zelynic-vX.Y.Z-linux-amd64-v3-gnu.tar.gz
-#      zelynic-vX.Y.Z-linux-amd64-v3-gnu.tar.gz.asc
+# e.g. zelynic-vX.Y.Z-linux-amd64-v3.tar.gz
+#      zelynic-vX.Y.Z-linux-amd64-v3.tar.gz.asc
 
-gpg --verify zelynic-vX.Y.Z-linux-amd64-v3-gnu.tar.gz.asc
+gpg --verify zelynic-vX.Y.Z-linux-amd64-v3.tar.gz.asc
 ```
 
 Expected output contains:
@@ -82,26 +82,32 @@ mismatch). No manual hash comparison needed.
 
 ```bash
 # Classical (universal, every Linux has this)
-sha512sum -c project-vX.Y.Z-linux-amd64-v3-gnu.tar.gz.sha512sum
+sha512sum -c project-vX.Y.Z-linux-amd64-v3.tar.gz.sha512sum
 
 # Quantum-resistant — BLAKE2b (fastest, in coreutils)
-b2sum -c project-vX.Y.Z-linux-amd64-v3-gnu.tar.gz.b2sum
+b2sum -c project-vX.Y.Z-linux-amd64-v3.tar.gz.b2sum
 
 # Quantum-resistant — SHAKE256 (NIST PQ standard, via Python)
 # openssl's -shake256 default output length varies by version/distro;
 # Python hashlib.shake_256 is consistent (64 bytes = 128 hex chars)
-COMPUTED=$(python3 -c "import hashlib; print(hashlib.shake_256(open('project-vX.Y.Z-linux-amd64-v3-gnu.tar.gz','rb').read()).hexdigest(64))")
-EXPECTED=$(awk '{print $1}' project-vX.Y.Z-linux-amd64-v3-gnu.tar.gz.shake256)
-[ "$COMPUTED" = "$EXPECTED" ] && echo "project-vX.Y.Z-linux-amd64-v3-gnu.tar.gz: OK" || echo "FAILED"
+COMPUTED=$(python3 -c "import hashlib; print(hashlib.shake_256(open('project-vX.Y.Z-linux-amd64-v3.tar.gz','rb').read()).hexdigest(64))")
+EXPECTED=$(awk '{print $1}' project-vX.Y.Z-linux-amd64-v3.tar.gz.shake256)
+[ "$COMPUTED" = "$EXPECTED" ] && echo "project-vX.Y.Z-linux-amd64-v3.tar.gz: OK" || echo "FAILED"
 ```
 
-Replace `project-vX.Y.Z-linux-amd64-v3-gnu` with the actual archive
+Replace `project-vX.Y.Z-linux-amd64-v3` with the actual archive
 name. Releases are arch-baseline builds (NIGHT-improve-22): four
 packages per tag — `v3` (AVX2/BMI2/FMA, any x86_64 CPU from ~2013
 onward) and `v4` (AVX-512), each in `gnu` and `musl` (e.g.
-`zelynic-v11.0.0-linux-amd64-v3-gnu`,
-`zelynic-v11.0.0-linux-amd64-v4-musl`). The verification flow is
-identical for all four.
+`zelynic-v11.0.0-linux-amd64-v3`,
+`zelynic-v11.0.0-linux-amd64-v4-musl`). Package names carry the
+cosmostrix lineage (NIGHT-boost-35): the gnu flavors have no `-gnu`
+suffix — `zelynic-vX.Y.Z-linux-amd64-v3.tar.gz`, the
+`cosmostrix-v100.0.3-linux-amd64-v3.tar.gz` shape — while the
+musl flavors keep their `-musl` leg. The binary's embedded
+`Build:` label still carries the libc (`linux-amd64-v3-gnu`): the
+label names what the binary is, the tarball names what you
+downloaded. The verification flow is identical for all four.
 
 ## 3. Why both GPG + checksums
 

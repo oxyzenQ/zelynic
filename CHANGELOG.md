@@ -56,6 +56,33 @@ alone — the owner's NIGHT-hunt-18 call.
   CROSS_DISTRO_RESULTS (the CI row note). CI + docs only, zero Rust
   surface touched.
 
+### Changed
+
+- **change: NIGHT-boost-35 — release packages carry the cosmostrix
+  name format: `zelynic-vX.Y.Z-linux-amd64-v3.tar.gz`, the gnu
+  flavors dropping their `-gnu` suffix** — the owner's audit:
+  "release packages format name should like this:
+  cosmostrix-v100.0.3-linux-amd64-v3.tar.gz, see cosmostrix
+  reference". The cosmostrix release matrix carries TWO fields —
+  `platform` (the tarball name: `linux-amd64-v3`, gnu with no libc
+  leg, `linux-amd64-musl` for the static twin) and `build` (the
+  embedded `COSMOSTRIX_BUILD` label: `linux-amd64-v3-gnu`, libc
+  carried). zelynic's release.yml had collapsed both into one
+  `platform` field, so the `-gnu` leg leaked into every gnu tarball
+  name. The split lands exactly as the reference: `platform` now
+  names the package (`zelynic-vX.Y.Z-linux-amd64-v3.tar.gz`,
+  `-v4`, `-v3-musl`, `-v4-musl`) while `build` names the embedded
+  label, which keeps its libc — the boost-30 alignment ("labels
+  carry the libc") and every CI grep ride that label, so what users
+  download changed, not what the binary says about itself
+  (`Build: linux-amd64-v3-gnu` still, `-V` unchanged). The
+  arch-baseline tripwire and the v4 strings-probe / v3 `-V` probe
+  now key the build label; the packaging tripwire, checksums, GPG
+  signing, and artifact merge are glob-based and ride along
+  untouched. Docs synced: README (the install block's tarball
+  names + the naming note), VERIFY_RELEASE (every example name).
+  Workflow + docs only, zero Rust surface touched.
+
 ### Fixed
 
 - **fix: NIGHT-boost-34 — the background follow is fast (250 ms
