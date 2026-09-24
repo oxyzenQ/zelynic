@@ -290,7 +290,9 @@ deep answer to "who exactly is talking inside this cgroup".
 
 The frame is a PINNED composition (NIGHT-boost-14, the owner's
 masterclass engraving; REBUILT to the owner's dashboard spec by
-NIGHT-engrave-4): the table floats under the header and the footer
+NIGHT-engrave-4; the line-by-line lookup reference with the example
+frame lives in "The frame, line by line" below): the table floats
+under the header and the footer
 stays near the bottom of the terminal whatever the table does —
 the footer block in the owner's exact line order: the consumer
 headline (`top consumer is curl` — the rank-1 cgroup's busiest
@@ -475,6 +477,107 @@ app started mid-session appears on the next refresh. Default refresh
 1s — realtime precision; `--interval` calms it down to at most 60s.
 **Quit with `q` — the only quit key** (NIGHT-hunt-16; ESC and Ctrl+C
 are drained, never treated as quit).
+
+#### The frame, line by line — the annotated reference
+
+The prose above carries the design rationale; this subsection is the
+lookup reference (NIGHT-docs-13): one example frame, then every
+element with the facts it carries — the horizon each figure counts
+over, the scope it sums, and where the number comes from. The frame
+below is the classic 80x24 terminal at the Full footer tier: three
+of twenty-two watched cgroups fit the window budget, the rest fold
+into the hidden note (the census still counts all of them — a
+figure never lies about the board just because the window is small).
+Color annotations follow the frame; the text layout is byte-exact
+with what the renderer draws.
+
+```text
+╭─── zelynic eagle-eyes ───────────────────────────────────────────────────────╮
+│                                                                              │
+│  top process                                 download     upload      total  │
+│──────────────────────────────────────────────────────────────────────────────│
+│   1  cg:7001 (brave)                         2.1 MB/s   180 KB/s    10.2 GB  │
+│    └ brave (4242) → 142.250.185.78:443                                       │
+│   2  cg:73402 (firefox +1)                   3.4 MB/s   210 KB/s     901 MB  │
+│    └ firefox (4242) 3 sockets:                                               │
+│        ├ 104.18.32.7:443                                                     │
+│        └ 104.18.32.115:443                                                   │
+│   3  cg:73511 (curl)                                —          —     4.2 MB  │
+│  (+19 more hidden — raise the window)                                       │
+│──────────────────────────────────────────────────────────────────────────────│
+│  top consumer is brave                                                      │
+│  1.2K packets + 22 cgroups                                                  │
+│  total usage internet in 1h:20s = 11.1 GB                                   │
+│  total max dl | ul = 24.6 MB/s | 1.2 MB/s                                   │
+│  total avg dl | ul = 2.9 MB/s | 143.6 KB/s                                  │
+│  limit target with 'sudo zelynic ss brave 100kb'                            │
+│                                                                              │
+│  1s realtime - theme netrunner - q quit - t theme                           │
+│                                                                              │
+│  v11.0.0-beta.1 (a1b2c3d) by oxyzenQ                                        │
+╰──────────────────────────────────────────────────────────────────────────────╯
+```
+
+The header block:
+
+| Element | What it is |
+|---|---|
+| Title bar | The frame's own top border: bold brand purple, rounded corners, filled to the full width. Identity only — `zelynic eagle-eyes` unfiltered, `zelynic eagle-eyes — 2 targets` filtered, the focus view names the cgroup. No key hints live here (the footer's status line is the legend's only home). |
+| Breathing gap | One blank line under the title bar — the header never sits jammed against the brand. |
+| Column header | Lowercase `top process` spanning the whole identity region (rank cell + gap + label column), with `download` / `upload` / `total` right-aligned over their numeric columns — the figures below close under their titles, never flush against the right rail (two columns of air, the symmetric right gutter). |
+| Grid | Full-width brand-purple line under the header (and roofing the footer) — the dashes join the side rails edge to edge: `\|---`, never `\| ---`. |
+
+The ranked table:
+
+| Element | What it shows |
+|---|---|
+| Rank | Session-accumulated order: rank 1 has moved the most bytes since the monitor started. A heavy downloader keeps its crown after stopping; rows persist across quiet frames. |
+| Row colors | The static traffic light: rank 1 champion red, rank 2 warning yellow, rank 3+ status green — takeover never blinks (eye-strain call). |
+| `download` / `upload` | LIVE per-direction rates: this frame's delta divided by the interval. A quiet app renders an em dash (`—`) — the observer measures, it does not judge (never "BLOCKED", which is a limiter verdict). |
+| `total` | Session-accumulated bytes for that cgroup (download + upload since the monitor started) — the ranking key. |
+| Label | The cgroup's identity: `cg:<id> (<comm>)`, with a `+N` suffix when more than one process holds sockets inside. |
+| Detail tree | The socket-holding processes inside the cgroup, grey: one displayable endpoint renders inline (`└ brave (4242) → 142.250.185.78:443`); a multi-socket process gets a header carrying its count (`└ firefox (4242) 3 sockets:`) with the two most-established endpoints as children. UDP endpoints are tagged (`udp`), saturated sockets carry `[busy]`. Established TCP and connected UDP only — listeners and TIME_WAIT are noise, filtered. |
+| Hidden note | `(+N more hidden — raise the window)`: the window IS the budget (no `--limit`); the count rides the same SI compact ladder as the census. |
+
+The pinned footer — the frame's dashboard, in the owner's exact line
+order. Every figure names its horizon and scope:
+
+| Line | What it carries |
+|---|---|
+| `top consumer is brave` | WHO is eating the network: the rank-1 cgroup's busiest process by the autodetect chain — socket detail first, the label's comm second, the raw label last (`cg:7001` when identity is unresolved) — so the headline never goes dark. Brand purple inside the grey block: the one living thing in the footer. |
+| `1.2K packets + 22 cgroups` | The session census. Packets: SESSION packets since the monitor started, both directions, the same horizon as the bytes. Cgroups: the board the frame watches — a filtered frame counts its filtered board. Both counts ride the SI compact ladder: small figures stay verbatim (`24 packets`), an eight-hour `2244843` reads `2.2M` — no raw u64 ever explodes the line. Every candidate counts, not just the rows the window showed. |
+| `total usage internet in 1h:20s = 11.1 GB` | The story in one line: session uptime and the grand total ALONE (the per-frame rates retired at the owner's call — only totals consume bandwidth). The grand sums the whole leaderboard, every candidate. The uptime ladder reads `45s` / `12m:34s` / `3h:7m` / `2d:5h`. |
+| `total max dl | ul = 24.6 MB/s \| 1.2 MB/s` | The session's PEAK per-direction rate: running maxima of the per-frame watched-set deltas, tracked in the session state beside the totals — never reset, the session horizon. Honest zeroes at rest (`0 B/s`). |
+| `total avg dl | ul = 2.9 MB/s \| 143.6 KB/s` | The session's average per-direction rate: the same per-direction totals the grand sums, divided by the SAME uptime the total row renders — the three lines of the paragraph share their legs and their clock, so they can never disagree. |
+| `limit target with 'sudo zelynic ss brave 100kb'` | The action: a ready-to-paste command for the consumer the headline just named — the `ss` short alias, and the `100kb` engraved default (the one fixed suggestion value on a line whose every other fact is derived live). The command rides the ACTIVE theme's brand tier — the frame's two living accents, the thing to read and the thing to act on. |
+| status line | The legend: `1s realtime - theme netrunner - q quit - t theme` — the poll interval, the active theme's name, the quit key, the theme key. Rides every compression tier. |
+| Build stamp | `v11.0.0-beta.1 (a1b2c3d) by oxyzenQ` — version, git hash, author, brand purple: the frame's quiet closing paragraph. |
+| `(identities unresolved — labels show raw cgroup IDs)` | The rare honesty note: the /proc walk found no identities this frame, so labels render raw IDs. It rides only when true. |
+
+Colors, on a live terminal: the footer text renders calm grey except
+the purple grid, the purple build stamp, the brand-purple consumer
+name, and the theme-accented suggestion command — subordinate
+information reads dimmer than the data it annotates, actionable
+accents brighter. On 256-color terminals the gradient quantizes
+onto the xterm cube; 16-color terminals render the rails flat;
+piped output renders the plain glyphs you see above.
+
+Short terminals compress the footer through a tier ladder — the
+window never scrolls and the footer never detaches; lines drop in a
+fixed order before the table loses a single row:
+
+| Tier | Footer lines | What drops |
+|---|---|---|
+| Full | 11 | nothing — the whole dashboard, with its air |
+| Compact | 10 | the blank above the status line (the owner's gap above the copyright survives) |
+| Minimal | 5 | the census family and the limit suggestion — the speed pair drops with the census (survival outranks statistics; the total row alone carries the story) |
+| Tiny | 3 | the consumer headline and the roof grid — total row, status line, copyright only: the survival floor |
+
+Reading order, the five-second answer to "who is eating my
+network": the headline names the eater, the census says the scale,
+the total row says the session's story, the speed pair says how
+hard it ran, and the suggestion line is the action — copy it, paste
+it, the limiter takes over from the observer.
 
 ### doctor — support check
 
