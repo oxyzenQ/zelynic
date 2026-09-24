@@ -56,6 +56,28 @@ alone — the owner's NIGHT-hunt-18 call.
   CROSS_DISTRO_RESULTS (the CI row note). CI + docs only, zero Rust
   surface touched.
 
+### Fixed
+
+- **fix: E2E first-run hunt — bootstrap-ebpf.sh's REPO_ROOT anchor
+  was still scripts/-depth after the scripts/dev/ reorg, breaking
+  the one-command bootstrap on every fresh clone** — the E2E
+  workflow's very first run caught it in seconds: setup.sh phase 1
+  died at "ebpf/rust-toolchain.toml not found (.../scripts/ebpf/
+  rust-toolchain.toml)" before installing anything, because the
+  script resolved the repo root one level short (SCRIPT_DIR/.. =
+  scripts/, not the repo). The drift was invisible to every host
+  bootstrapped before the reorg — their toolchains were already
+  installed, and the idempotent re-runs never reach the pin check —
+  so only a FRESH machine (exactly what CI provides, exactly what a
+  new user clones into) ever hit it. The README's documented
+  quickstart (git clone && cd zelynic &&
+  ./scripts/dev/bootstrap-ebpf.sh) was broken for every such
+  machine. Fix: the ../.. anchor every other scripts/dev/ and
+  scripts/gates/ script already carries, with the hunt story in a
+  comment at the anchor. Verified: --check now resolves the pin and
+  reports the installed nightly; the E2E workflow re-fires on the
+  push and exercises the full bring-up on both runner kernels.
+
 - **fix: NIGHT-ultimate-2 — the forever-monitor killed: a dead
   output sink now ends the session quietly, and the LTS
   silent-killer inventory answers the owner's long-usage
