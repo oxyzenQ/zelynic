@@ -47,7 +47,7 @@ Build verification only:
 - `cargo fmt --check` → clean
 - `cargo test --features ebpf` → 41 passed
 - `cargo build --release --locked --features ebpf` → 1.7MB binary
-- `python3 scripts/check-policy.py` → PASS
+- `python3 scripts/gates/check-policy.py` → PASS
 - `codespell` → clean
 - BPF syntax check (gcc stubs) → exit 0
 

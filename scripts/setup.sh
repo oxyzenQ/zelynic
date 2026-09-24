@@ -95,7 +95,7 @@ PATH="${HOME}/.cargo/bin:${HOME}/.local/bin:${PATH}"
 SECONDS=0
 
 ok "phase 1/4: bootstrap (toolchain + bpf-linker + pro-native-gnu flagship build)"
-if ! "${SCRIPT_DIR}/bootstrap-ebpf.sh"; then
+if ! "${SCRIPT_DIR}/dev/bootstrap-ebpf.sh"; then
 	die "bootstrap failed — read its output above; fix and re-run ./scripts/setup.sh (idempotent)."
 fi
 ok "phase 1/4: bootstrap done (${SECONDS}s)"
@@ -114,8 +114,8 @@ else
 fi
 
 ok "phase 3/4: supermassive engine self-test (rootless)"
-if ! "${SCRIPT_DIR}/supermassive-test.sh" --self-test; then
-	die "self-test failed — the harness engine itself is broken; run scripts/supermassive-test.py --self-test for the failing rows."
+if ! "${SCRIPT_DIR}/supermassive/supermassive-test.sh" --self-test; then
+	die "self-test failed — the harness engine itself is broken; run scripts/supermassive/supermassive-test.py --self-test for the failing rows."
 fi
 ok "phase 3/4: self-test green"
 
@@ -123,9 +123,9 @@ if [ "${SKIP_HEAVY}" = true ]; then
 	ok "phase 4/4: matrix skipped (--skip-heavy)"
 else
 	ok "phase 4/4: the supermassive matrix (5+ min, sudo)"
-	if ! sudo "${SCRIPT_DIR}/supermassive-test.sh"; then
+	if ! sudo "${SCRIPT_DIR}/supermassive/supermassive-test.sh"; then
 		warn "the matrix reported FAILURES — read the marked rows above (they are the verdict, not this script)."
-		warn "re-run just the matrix: sudo ./scripts/supermassive-test.sh"
+		warn "re-run just the matrix: sudo ./scripts/supermassive/supermassive-test.sh"
 	fi
 fi
 

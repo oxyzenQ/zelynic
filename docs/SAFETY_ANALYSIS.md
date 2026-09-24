@@ -462,7 +462,7 @@ no secrets).
 - **Panic hunt:** every `unwrap`/`expect`/`panic!` outside
   `#[cfg(test)]` was audited — none reachable from user input; rate,
   interval, and JSON parsing all propagate errors. The 70-case
-  non-root matrix (scripts/nonroot-depth-test.sh) asserts exit 101 and
+  non-root matrix (scripts/depth/nonroot-depth-test.sh) asserts exit 101 and
   backtraces never occur.
 - **Path handling:** `/proc/<pid>/{comm,cgroup,status}` are read with
   error-tolerant matches; cgroup paths come from kernel-generated

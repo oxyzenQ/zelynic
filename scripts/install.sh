@@ -114,7 +114,7 @@ if [[ ! -f "${BINARY}" ]]; then
 	# phase 3): the dated nightly pin and bpf-linker. build.rs
 	# fails with the same pointers if these are missing; this
 	# pre-check gives the friendly version before any compile
-	# time is spent (NIGHT-host-1: scripts/bootstrap-ebpf.sh is
+	# time is spent (NIGHT-host-1: scripts/dev/bootstrap-ebpf.sh is
 	# the one-command fix for both).
 	if ! command -v rustup >/dev/null 2>&1; then
 		echo "ERROR: rustup is required to build zelynic (the eBPF objects"
@@ -124,13 +124,13 @@ if [[ ! -f "${BINARY}" ]]; then
 	fi
 	if ! rustup toolchain list 2>/dev/null | grep -q "${EBPF_TOOLCHAIN}"; then
 		echo "ERROR: the pinned nightly toolchain is not installed."
-		echo "  One-command fix: ./scripts/bootstrap-ebpf.sh"
+		echo "  One-command fix: ./scripts/dev/bootstrap-ebpf.sh"
 		echo "  (manual: rustup toolchain install ${EBPF_TOOLCHAIN} --component rust-src --component rustfmt)"
 		exit 1
 	fi
 	if ! command -v bpf-linker >/dev/null 2>&1; then
 		echo "ERROR: bpf-linker not found on PATH (the eBPF link step)."
-		echo "  One-command fix: ./scripts/bootstrap-ebpf.sh"
+		echo "  One-command fix: ./scripts/dev/bootstrap-ebpf.sh"
 		echo "  (manual: https://github.com/aya-rs/bpf-linker/releases — v0.11.1 prebuilt)"
 		exit 1
 	fi

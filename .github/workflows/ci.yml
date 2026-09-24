@@ -79,8 +79,8 @@ env:
   RUST_BACKTRACE: 1
   # Single source of truth for the Rust toolchain version.
   # Keep in sync with rust-toolchain.toml + Cargo.toml rust-version
-  # (enforced by scripts/check-rust-version-sync.sh; bump via
-  # scripts/rust-version-to.sh).
+  # (enforced by scripts/gates/check-rust-version-sync.sh; bump via
+  # scripts/dev/rust-version-to.sh).
   RUST_VERSION: "1.98.1"
   # NIGHT-strict-2: strict CI build — warning = failure. Every cargo
   # build / test / release build in this workflow denies rustc
@@ -127,7 +127,7 @@ jobs:
       # four CI jobs (this one, gnu-dynamic below, release.yml, and
       # maintenance.yml) — one script, one place to bump the pin.
       - name: Install bpf-linker 0.11.1 (prebuilt static musl)
-        run: bash scripts/install-bpf-linker.sh
+        run: bash scripts/dev/install-bpf-linker.sh
 
       - name: Cache cargo registry
         uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5, NIGHT-hunt-20 SHA pin
@@ -173,7 +173,7 @@ jobs:
         run: ZELYNIC_JOBS="$(nproc)" ./scripts/build.sh check-all -q
 
       - name: Supermassive harness engine self-test
-        run: python3 scripts/supermassive-test.py --self-test
+        run: python3 scripts/supermassive/supermassive-test.py --self-test
 
       # NIGHT-improve-23: the v2 harness (daily-use E2E simulation)
       # self-tests the same way — engine import, endpoint registry,
@@ -181,14 +181,14 @@ jobs:
       # realnet lane's plumbing is proven on every push even though
       # the root matrix itself runs on the owner's machines.
       - name: Supermassive v2 harness engine self-test
-        run: python3 scripts/supermassive-test-v2.py --self-test
+        run: python3 scripts/supermassive/supermassive-test-v2.py --self-test
 
       # NIGHT-boost-8: the claims-proof harness (no daemon, pure
       # eBPF, per-app, precision) self-tests the same engine-only
       # lane — the live proof itself needs root and runs on the
       # owner's machines (the supermassive realnet pattern).
       - name: Claims-proof harness engine self-test
-        run: python3 scripts/proof-claims.py --self-test
+        run: python3 scripts/bench/proof-claims.py --self-test
 
       # NIGHT-boost-2: the plain `cargo build --release` verify is
       # retired — the release page never shipped a plain-release
@@ -298,7 +298,7 @@ jobs:
           components: rust-src
 
       - name: Install bpf-linker 0.11.1 (prebuilt static musl)
-        run: bash scripts/install-bpf-linker.sh
+        run: bash scripts/dev/install-bpf-linker.sh
 
       - name: Cache cargo registry
         uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5, NIGHT-hunt-20 SHA pin
@@ -411,7 +411,7 @@ jobs:
       # four CI jobs (check, gnu-dynamic, release, maintenance) — one
       # script, one place to bump the pin.
       - name: Install bpf-linker 0.11.1 (prebuilt static musl)
-        run: bash scripts/install-bpf-linker.sh
+        run: bash scripts/dev/install-bpf-linker.sh
 
       # NIGHT-improve-11: this matrix job previously built the whole
       # ebpf/ crate from scratch on every run — no cache step at all,

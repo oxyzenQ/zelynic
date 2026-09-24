@@ -20,7 +20,7 @@
 # directory.
 #
 # Install once per machine — one command (NIGHT-host-1):
-#   ./scripts/bootstrap-ebpf.sh
+#   ./scripts/dev/bootstrap-ebpf.sh
 # (manual alternative: rustup toolchain install nightly-2026-09-18 \
 #   --component rust-src --component rustfmt, plus the bpf-linker
 #   0.11.1 prebuilt binary on PATH — see

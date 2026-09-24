@@ -3,7 +3,7 @@
 
 //! Status display logic — human-readable table + JSON output.
 //! Extracted from the limiter core to keep every module under the
-//! 500-line cap (scripts/check-loc.sh).
+//! 500-line cap (scripts/gates/check-loc.sh).
 
 use anyhow::Result;
 use std::collections::HashMap;

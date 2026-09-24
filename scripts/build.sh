@@ -321,7 +321,7 @@ run_deny_check() {
 run_policy_check() {
 	log_step "Running repository policy checks..."
 
-	if python3 scripts/check-policy.py; then
+	if python3 scripts/gates/check-policy.py; then
 		log_success "Repository policy checks passed"
 	else
 		log_error "Repository policy checks failed"
@@ -332,12 +332,12 @@ run_policy_check() {
 run_version_anti_pattern_check() {
 	log_step "Checking for hardcoded version-string anti-patterns..."
 
-	if [ ! -f "scripts/check-version-anti-patterns.sh" ]; then
-		log_error "scripts/check-version-anti-patterns.sh not found"
+	if [ ! -f "scripts/gates/check-version-anti-patterns.sh" ]; then
+		log_error "scripts/gates/check-version-anti-patterns.sh not found"
 		return 1
 	fi
 
-	if bash scripts/check-version-anti-patterns.sh; then
+	if bash scripts/gates/check-version-anti-patterns.sh; then
 		log_success "Version anti-pattern check passed"
 	else
 		log_error "Version anti-pattern check failed (use env!(\"CARGO_PKG_VERSION\") instead)"
@@ -433,7 +433,7 @@ COMMANDS:
 
 PRODUCT BUILDS (NIGHT-cleanup-3): this script is the CHECK
 orchestrator — release binaries do not come from here. Build with
-./scripts/bootstrap-ebpf.sh (dev, cargo pro-native-gnu) or
+./scripts/dev/bootstrap-ebpf.sh (dev, cargo pro-native-gnu) or
 ./scripts/install.sh (user install, pro-native gnu/musl). The old
 basic-profile release/release-debug/ci/all/bench subcommands were
 retired: nobody called them, cargo bench had zero [[bench]]

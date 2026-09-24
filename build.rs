@@ -65,7 +65,7 @@ fn main() {
 /// via include_bytes!
 ///
 /// Prerequisites (one-time per machine, one command —
-/// scripts/bootstrap-ebpf.sh; see ebpf/rust-toolchain.toml and
+/// scripts/dev/bootstrap-ebpf.sh; see ebpf/rust-toolchain.toml and
 /// docs/PURE_RUST_EVALUATION.md): the dated nightly with rust-src,
 /// and the bpf-linker 0.11.1 prebuilt binary on PATH. The preflight
 /// (NIGHT-host-1) below fails fast, naming the exact missing piece
@@ -78,7 +78,7 @@ fn main() {
 ///
 /// The dated nightly pin driving the nested cross-build — mirrors
 /// ebpf/rust-toolchain.toml (which the nested build resolves from its
-/// own directory) and the pin scripts/bootstrap-ebpf.sh installs on
+/// own directory) and the pin scripts/dev/bootstrap-ebpf.sh installs on
 /// hosts. Bump all three together (docs/PURE_RUST_EVALUATION.md
 /// records why a dated pin, never a floating channel).
 const EBPF_TOOLCHAIN: &str = "nightly-2026-09-18";
@@ -108,7 +108,7 @@ fn build_ebpf_objects() {
 
     // NIGHT-host-1: preflight the two host prerequisites BEFORE the
     // nested build, so a failure names the exact missing piece and
-    // the one-command fix (scripts/bootstrap-ebpf.sh) instead of
+    // the one-command fix (scripts/dev/bootstrap-ebpf.sh) instead of
     // surfacing rustup's or the linker's raw error text after the
     // dependency tree has already compiled — and so a missing
     // bpf-linker is caught even when ebpf/target is fully cached (a
@@ -168,7 +168,7 @@ fn build_ebpf_objects() {
                         "eBPF object {name} is damaged again immediately after a \
                          forced rebuild — before: {first_problem}; after: \
                          {second_problem}. Either bpf-linker is producing a broken \
-                         object (reinstall the pin: ./scripts/bootstrap-ebpf.sh), or \
+                         object (reinstall the pin: ./scripts/dev/bootstrap-ebpf.sh), or \
                          something on this host is modifying build outputs as they \
                          land (indexer, antivirus, full disk)"
                     )
@@ -588,7 +588,7 @@ fn preflight_ebpf_prerequisites(toolchain: &str) {
                  but the ebpf feature requires it (ebpf/rust-toolchain.toml \
                  pins it for the bpfel-unknown-none cross-build). \
                  One-command fix:\n  \
-                 ./scripts/bootstrap-ebpf.sh\n  \
+                 ./scripts/dev/bootstrap-ebpf.sh\n  \
                  (manual: rustup toolchain install {toolchain} --profile \
                  minimal --component rust-src --component rustfmt)"
             );
@@ -603,7 +603,7 @@ fn preflight_ebpf_prerequisites(toolchain: &str) {
                  damaged: its component manifests are missing (an \
                  interrupted install — Ctrl-C, power loss, or a full disk). \
                  One-command repair:\n  \
-                 ./scripts/bootstrap-ebpf.sh\n  \
+                 ./scripts/dev/bootstrap-ebpf.sh\n  \
                  (it detects this state, removes the damaged toolchain, and \
                  reinstalls it — no manual rustup commands needed)"
             );
@@ -619,7 +619,7 @@ fn preflight_ebpf_prerequisites(toolchain: &str) {
             "bpf-linker is not on PATH, but the ebpf feature requires it \
              to link the bpfel-unknown-none objects (pinned version: \
              0.11.1). One-command fix:\n  \
-             ./scripts/bootstrap-ebpf.sh\n  \
+             ./scripts/dev/bootstrap-ebpf.sh\n  \
              (already installed under ~/.local/bin? Put ~/.local/bin \
              on PATH — the bootstrap script warns about exactly this)"
         );

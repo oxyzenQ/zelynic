@@ -6,7 +6,7 @@
 # Dormant mode: pinned to a specific version instead of "stable" so that
 # a future `stable` release cannot silently break the build. When updating
 # to a newer Rust version, bump this channel + the MSRV in Cargo.toml via
-# `./scripts/rust-version-to.sh <X.Y.Z>` and run the full gatekeeper
+# `./scripts/dev/rust-version-to.sh <X.Y.Z>` and run the full gatekeeper
 # (`./scripts/build.sh check-all`) to verify.
 
 [toolchain]

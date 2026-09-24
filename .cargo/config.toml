@@ -57,7 +57,7 @@ rustflags = ["-C", "target-feature=+crt-static"]
 #
 # Prerequisites (one-time, NIGHT-host-1): both aliases carry
 # --features ebpf, so the host needs the dated nightly pin +
-# bpf-linker — ./scripts/bootstrap-ebpf.sh installs both (build.rs
+# bpf-linker — ./scripts/dev/bootstrap-ebpf.sh installs both (build.rs
 # preflights them before any compile time is spent).
 [alias]
 pro-native-gnu = [

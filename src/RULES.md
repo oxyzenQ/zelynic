@@ -50,8 +50,8 @@ lives once in [docs/RULES.md](../docs/RULES.md).
 - Every `.rs` file starts with the copyright + SPDX header
   (`// Copyright (C) 2026 rezky_nightky` /
   `// SPDX-License-Identifier: GPL-3.0-only`), enforced by
-  `scripts/check-headers.sh`; every living `.md` file carries the
-  stale-data disclaimer block (`scripts/inject-disclaimer.sh`).
+  `scripts/gates/check-headers.sh`; every living `.md` file carries the
+  stale-data disclaimer block (`scripts/gates/inject-disclaimer.sh`).
 
 ## When You Touch This Tree
 
@@ -59,7 +59,7 @@ Run the gates before committing — the two commands and what each runs
   live once in [CONTRIBUTING.md](../CONTRIBUTING.md)
   (`build.sh check-all` + `gate-keepers.sh`). Frame-level render
   changes additionally get the 10s A/B benchmark
-  (`scripts/frame-bench.py`) — protocol in the script header.
+  (`scripts/bench/frame-bench.py`) — protocol in the script header.
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.

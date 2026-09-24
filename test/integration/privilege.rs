@@ -11,7 +11,7 @@ use crate::{euid_is_root, zelynic_cmd};
 /// NIGHT-hunt-13: the unprivileged contract. Every enforcement
 /// surface must refuse cleanly as non-root: exit 1 (not a clap usage
 /// error, not a panic), the branded "root required" wording, and the
-/// actionable sudo tip. Pinned by scripts/nonroot-depth-test.sh for
+/// actionable sudo tip. Pinned by scripts/depth/nonroot-depth-test.sh for
 /// the full 70-case matrix; this test keeps the core of it inside
 /// `cargo test`. No-ops under root (sudo cargo test) where the
 /// contract cannot hold.

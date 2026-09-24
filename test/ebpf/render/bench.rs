@@ -5,7 +5,7 @@
 //! to the eagle-eyes renderer by NIGHT-boost-1).
 //!
 //! Renders synthetic eagle-eyes frames through the REAL render path
-//! so scripts/frame-bench.py can compute the owner's visual and
+//! so scripts/bench/frame-bench.py can compute the owner's visual and
 //! performance metrics (density gini, frame entropy, fps, dirty
 //! cells, emit bytes). Synthetic traffic evolves from a fixed-seed
 //! LCG, so a run BEFORE a layout change and one AFTER see
@@ -45,7 +45,7 @@ use crate::ebpf::loader::{CgroupDelta, CounterSummary};
 use crate::terminal::DiffScreen;
 
 #[test]
-#[ignore = "benchmark harness: run via scripts/frame-bench.py"]
+#[ignore = "benchmark harness: run via scripts/bench/frame-bench.py"]
 fn frame_bench_eagle() {
     /// Wall-clock render budget (owner rule: 10s A/B benchmark).
     const FRAME_BUDGET: Duration = Duration::from_secs(10);
@@ -56,7 +56,7 @@ fn frame_bench_eagle() {
     const CGROUPS: usize = 25;
 
     // Quick mode: 1s budget for smoke runs (driven by
-    // scripts/frame-bench.py --quick through the environment).
+    // scripts/bench/frame-bench.py --quick through the environment).
     let quick = std::env::var_os("ZELYNIC_FRAME_BENCH_QUICK").is_some_and(|v| v == "1");
     let budget = if quick {
         Duration::from_secs(1)

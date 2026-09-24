@@ -9,7 +9,7 @@
 
 // NON_LATIN_FIXTURE: the CJK rows in the unicode diff test below are
 // intentional double-width glyph coverage, not prose
-// (scripts/check-language.sh exemption).
+// (scripts/gates/check-language.sh exemption).
 
 use super::*;
 

@@ -4,7 +4,7 @@
 //! Integration tests for zelynic (Cosmic Dragon Architecture — pure eBPF).
 //!
 //! One test binary, split by surface (NIGHT-docs-4) so every file
-//! stays under the 500-LOC cap that `scripts/check-loc.sh` enforces
+//! stays under the 500-LOC cap that `scripts/gates/check-loc.sh` enforces
 //! over `src/**` AND `test/**` (the same navigability rationale as
 //! cosmostrix's `src/RULES.md` split policy). Since NIGHT-hunt-17 the
 //! whole tree lives under `test/` (cosmostrix Pattern C) and is the
