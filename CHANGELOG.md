@@ -58,6 +58,25 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Fixed
 
+- **fix: E2E ninth-run hunt — the burst cushion drain works (116.4%
+  steady); the joint row's second invisible window found: the
+  inter-phase gap, now drained and clocked** — run nine: the curl
+  burst row passed at a steady 116.4% under its new cushion drain
+  (the front-load variance is dead), and the strict-multi joint row
+  failed on BOTH legs with CLEAN 5.01 s spans — the expose: run
+  eight measured joint 115.3% (PASS) and run nine 130.0-134.6%
+  (FAIL) with the same code and same span, because the joint span
+  only covers spawn-to-join — the SOLO-END -> JOINT-SPAWN gap
+  refills the shared bucket out of the formula's sight (a ~0.2 s gap
+  on a quiet box vs ~1.7 s on a loaded one, invisible either way).
+  The stage now drains the shared bucket into a discarded 0.5 s
+  policed window between phases (the asymmetric/burst precedent)
+  AND starts the budget's live clock at the drain's end, so every
+  refill second — gap included — is inside the arithmetic. The
+  sharing claim keeps its teeth: two independent buckets read
+  ~200%+, far past the 1.60 hard cap. Verified: self-test 24/24,
+  signature audit clean, ruff clean, gatekeepers 18/18.
+
 - **fix: E2E eighth-run hunt — the curl burst row gets the cushion
   drain the asymmetric stage has carried since 2026-09-22; run eight
   also confirmed the joint-row span fix and a second consecutive
