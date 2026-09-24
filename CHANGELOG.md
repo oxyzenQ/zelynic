@@ -58,6 +58,40 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Fixed
 
+- **fix: NIGHT-boost-31 — the stale-data hunt: the supermassive
+  engine pin followed the boost-30 alias rename, the
+  PERFORMANCE.md disclaimer stopped swallowing the last A/B
+  section, and the cross-distro CI note carries the boost-27
+  verdict contract** — the long-horizon ask (cross docs and
+  commented code hold no stale data), hunted repo-wide. Three
+  finds, each verified live. First: the supermassive v1 self-test's
+  "binary candidates repo-anchored" row still pinned the
+  pre-boost-30 alias shapes (`pro-linux-gnu-v3` …) while the
+  candidate list itself carries the release platform ids
+  (`pro-linux-amd64-v3-gnu` …) — the substring never matched, the
+  row failed, and because setup.sh's bring-up runs the rootless
+  engine self-test, every E2E leg since the rename opened red on
+  it. The pin now asserts the four post-boost-30 shapes (with a
+  comment naming the lineage so the next rename moves both sides);
+  the self-test battery reads 24 passed, 0 failed locally. Second:
+  PERFORMANCE.md's disclaimer block was malformed — the injected
+  `<!-- ... -->` span wrapped the entire NIGHT-boost-26 (per-endpoint
+  attribution) A/B section inside the comment, so the heading,
+  prose, and metrics table rendered nowhere; the block now closes
+  after its canonical body and the A/B section renders after it
+  (a repo-wide scan proves every other disclaimer block is
+  canonical). Third: CROSS_DISTRO_RESULTS's CI note ended on the
+  run-eleven open question (the 5.15 burst row red); the note now
+  records that NIGHT-boost-27 moved the verdict onto the kernel
+  ledger (client total advisory, exact arithmetic kept) while the
+  run-eleven numbers stay as history. A bonus spelling drift fell
+  out of the sweep: two nonstandard spellings in the depth
+  harness's kernel-span rows (boost-27's own addition) now match
+  the codespell dictionary, keeping the spelling gate honest. Docs
+  + harness pins only — zero product, engine, CLI, or render
+  surface touched, so no A/B frame benchmark (the owner's
+  docs-change exemption).
+
 - **fix: NIGHT-boost-27 — the E2E 5.15 red turns honest green: the
   curl-burst verdict rides the kernel ledger at an exact read
   instant, and the depth stress test gains the kernel-span family
