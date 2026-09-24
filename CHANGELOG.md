@@ -58,6 +58,67 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Fixed
 
+- **fix: NIGHT-boost-34 — the background follow is fast (250 ms
+  cadence), the CI wall is green again, and eagle-eyes loads on
+  kernel 6.8: the observer's dead events ringbuf is gone** — three
+  legs, one commit. (1) The follow lag: NIGHT-boost-32's live OSC 11
+  ask ran on a 2 s cadence, so a terminal-side background change
+  (alacritty's live config reload, the owner's repro) landed up to
+  two seconds late — "the background color is change but slow, need
+  fast". The cadence is now 250 ms (BG_ASK_INTERVAL): the follow
+  budget is one cadence plus one 50 ms wake (~300 ms total), the
+  cost is 32 B/s of queries out with zero extra wakes — the answer
+  still rides the input drain the monitor loop already owns, never
+  a poll, and a silent terminal still pays only the writes.
+  (2) The five red CI checks, three root causes. The check-all and
+  musl-twin lanes failed on dead code: NIGHT-boost-26's theme
+  bg-follow block (TERMINAL_BG, set_terminal_bg, terminal_bg, the
+  escapes) lives in unconditionally-compiled `mod output` while
+  every caller sits behind the `ebpf` feature — a default-feature
+  build saw the block as dead and CI's `RUSTFLAGS=-D warnings`
+  turned it red (local gates run without that flag and never saw
+  it, the parity hole this closes). The stateful API is now
+  `#[cfg(feature = "ebpf")]`, the pure packing cores
+  `#[cfg(any(test, feature = "ebpf"))]` so every lane keeps the
+  pins, and the integration monitor-guard import rides the same
+  gate as its tests. The gate-keepers wholesale lane failed on ruff
+  format: two python files drifted (the boost-30 candidate lists,
+  the boost-27 kernel-rung comprehension) — formatted with CI's
+  pinned ruff 0.16.8, and ruff is now part of the local toolchain
+  so the parity hole stays closed. (3) The E2E ubuntu-22.04 lane,
+  red since run six: the observer BPF program failed to LOAD with
+  EINVAL on the runner's kernel — 6.8.0-1064-azure (the "5.15
+  pool" label was the assumption; the environment banner never
+  lied). Root cause, from the kernel sources: 6.8 moved
+  bpf_get_current_pid_tgid / bpf_get_current_uid_gid /
+  bpf_get_current_comm out of bpf_base_func_proto into the new
+  cgroup_current_func_proto, and the cgroup_skb dispatch never
+  calls the latter — so the old 1-in-100 event branch's helper
+  calls hit "program of this type cannot use helper" and the load
+  died with EINVAL plus a three-state verifier log (the pty tail's
+  `total_states 3 peak_states 3 mark_read 2`, unmasked by widening
+  the kill-tui evidence capture from 240 to 2400 bytes — the next
+  run convicts instead of suspects). 6.17 quietly restored the
+  helpers (the 24.04 lane's kernel — why it passed), and stock
+  5.13/5.15 never had the wall (the CROSS_DISTRO real-5.13 pass).
+  The event payload fed the events ringbuf no zelynic code ever
+  read — the phase-2 hunt finding PURE_RUST_EVALUATION.md left
+  open ("phase 2 should decide whether both objects drop the dead
+  ringbuf or a consumer arrives") — so the kernel cast the
+  deciding vote: the ringbuf, the throttle, the IPv4/TCP/UDP
+  parse, and every get_current/load_bytes/ringbuf helper call are
+  GONE. The egress program is 224 -> 60 instructions and its
+  helper set is now map ops + bpf_skb_cgroup_id +
+  bpf_get_socket_cookie — each cgroup_skb-legal on every kernel
+  from 5.13 through 6.17+, the limiter's proven set plus the
+  cookie. CgroupStats drops the throttle's last_event_packet leg
+  (24 -> 16 B, loader.rs CgroupStatsRaw synced, size pins updated).
+  Docs synced: KERNEL_COMPATIBILITY (the 6.8 helper-wall note, the
+  5.8 ringbuf floor retired), PURE_RUST_EVALUATION (delta 5, the
+  hunt finding marked RESOLVED, the contract table), the
+  architecture contract line, PERFORMANCE (perf-1 superseded),
+  USAGE (the 250 ms follow cadence).
+
 - **fix: NIGHT-boost-33 — `kill -9` and `pkill zelynic` no longer
   wreck the terminal: the monitor arms a forked violent-death guard
   that parks on one pipe read and restores the terminal the instant

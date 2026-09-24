@@ -825,10 +825,16 @@ def test_kill_tui():
         finally:
             os.close(master)
         exit_codes.append(proc.returncode)
-        # The last 240 bytes decode-safe: the tail is where an attach
+        # The last 2400 bytes decode-safe: the tail is where an attach
         # error prints its branded line (the alt screen restores
-        # before the error lands on the main screen).
-        pty_tails.append(pty_bytes[-240:].decode("utf-8", "replace").replace("\x1b", "ESC"))
+        # before the error lands on the main screen). 240, the old
+        # window, cropped the BPF verifier log to its last footer
+        # line when the 6.8-azure load failed (NIGHT-boost-34's
+        # hunt: 'total_states 3 peak_states 3 mark_read 2' with the
+        # actual rejection line cut off) — a verdict row that
+        # suspects but cannot convict. The full error chain, from
+        # branded line through every 'caused by:', now rides whole.
+        pty_tails.append(pty_bytes[-2400:].decode("utf-8", "replace").replace("\x1b", "ESC"))
         if pty_bytes:
             rendered_ok += 1
         if proc.returncode == -signal.SIGKILL:
@@ -871,7 +877,7 @@ def test_kill_tui():
             if killed_ok == completed
             else " — exits: "
             + ", ".join(
-                f"c{i + 1}={code} tail='{tail[-120:]}'"
+                f"c{i + 1}={code} tail='{tail[-800:]}'"
                 for i, (code, tail) in enumerate(zip(exit_codes, pty_tails))
                 if code != -signal.SIGKILL
             )

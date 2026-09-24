@@ -18,6 +18,12 @@
 //! enter, no mouse tracking, no frame — the pre-boost-28 build
 //! wrote escape sequences into exactly this pipe.
 
+// Feature-gated with the tests below (NIGHT-boost-34): in a
+// default-feature build every test in this file is compiled out,
+// and an ungated import of the two helpers became the unused-import
+// error that reddened the CI test lane (local gates run without
+// `-D warnings` and never saw it).
+#[cfg(feature = "ebpf")]
 use crate::{euid_is_root, zelynic_cmd};
 
 /// `eagle-eyes` piped: refuses (root) or teaches sudo (non-root),

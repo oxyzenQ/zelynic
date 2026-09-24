@@ -117,9 +117,9 @@ hundred packets (and which zelynic userspace never reads — the
 documented dead-ringbuf parity). The calls moved into the event
 branch (NIGHT-perf-1, behavioral delta #5 in the observer's file
 header): same current task, same invocation, byte-identical events;
-the 99% fast path now runs the cookie bump + counter update + throttle
-compare only. At 100 kpps that is 200 k helper calls per second
-removed from the observer's hot path; at line rate it is a full
+the 99% fast path then ran the cookie bump + counter update + throttle
+compare only. At 100 kpps that was 200 k helper calls per second
+removed from the observer's hot path; at line rate it was a full
 helper-call pair per packet. The `ctx.command()` call had already
 established the lazy pattern (it lives in the event branch) — the
 port artifact simply predated the discipline. Verified: the object
@@ -127,6 +127,19 @@ rebuilds under the pinned nightly pair, the embedded-object layout
 tests pass on the new ELF, and the 10s frame A/B below proves the
 render path is untouched (the kernel verifier re-proof is the
 CI matrix + owner-host supermassive lane, the boost-26 precedent).
+
+**Superseded by NIGHT-boost-34 (2026-09-25): the whole event branch
+is gone, so the lazy-call win is now moot — and bigger.** Kernel 6.8
+removed the get_current trio from `bpf_base_func_proto` and cgroup_skb
+never reaches the replacement, so the event branch failed program load
+with EINVAL on 6.8 hosts; the fix dropped the ringbuf, the throttle,
+the IP-header parse, and every helper call they carried
+(docs/PURE_RUST_EVALUATION.md delta 5). The egress program is 224 ->
+60 instructions; its hot path is now exactly the cookie bump + counter
+update — no throttle compare, no tgid/uid/comm calls on ANY path, no
+`bpf_skb_load_bytes` copies. The perf-1 saving (a pair of calls on
+the 99% path) became the whole pair plus the reserve/submit pair on
+the 1% path and 164 instructions of parse bookkeeping, permanently.
 
 | Metric | bb4b310 (A) | perf-1 (B) | Delta |
 |--------|------------|------------|-------|

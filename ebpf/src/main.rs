@@ -28,12 +28,22 @@
 // program runs), so a cookie read in either hook names exactly the
 // socket the traffic belongs to. Verified against torvalds/linux
 // net/core/filter.c + kernel/bpf/cgroup.c at implementation time.
-// A fifth delta (NIGHT-perf-1, call timing not values): the egress
-// event payload's tgid/uid helper calls moved from the per-packet
-// function top into the 1-in-100 throttled event branch -- the C
-// twin paid two BPF helper calls on every packet for values only
-// the hundredth packet's event reads. Same current task, same
-// invocation: byte-identical events, a cheaper hot path.
+// A fifth delta (NIGHT-boost-34), and the one that breaks with the C
+// twin: the events ringbuf is GONE. Kernel 6.8 removed
+// bpf_get_current_pid_tgid / bpf_get_current_uid_gid /
+// bpf_get_current_comm from bpf_base_func_proto, and cgroup_skb's
+// dispatch never reaches the new cgroup_current_func_proto, so the
+// old 1-in-100 event branch's helper calls failed program load with
+// EINVAL on every 6.8 host (an LTS inside the promised 5.13+ span;
+// 6.17 quietly restored the helpers, but the span must hold). The
+// event payload fed a ringbuf no zelynic code ever read — the
+// phase-2 hunt finding recorded in docs/PURE_RUST_EVALUATION.md
+// ("phase 2 should decide whether both objects drop the dead ringbuf
+// or a consumer arrives"); no consumer ever arrived, and kernel 6.8
+// cast the deciding vote. The egress program is now the ingress
+// shape: cgroup counters + per-socket attribution, no event branch,
+// no helper wall, and CgroupStats drops the throttle's
+// last_event_packet leg (userspace CgroupStatsRaw synced).
 //
 // Build: cd ebpf && cargo +nightly build --release
 
@@ -41,9 +51,8 @@
 #![no_main]
 
 use aya_ebpf::{
-    EbpfContext as _, helpers::bpf_get_socket_cookie, helpers::bpf_skb_cgroup_id,
-    macros::cgroup_skb, macros::map, maps::HashMap, maps::LruHashMap, maps::RingBuf,
-    programs::SkBuffContext,
+    helpers::bpf_get_socket_cookie, helpers::bpf_skb_cgroup_id, macros::cgroup_skb, macros::map,
+    maps::HashMap, maps::LruHashMap, programs::SkBuffContext,
 };
 
 // ---------------------------------------------------------------------------
@@ -52,72 +61,20 @@ use aya_ebpf::{
 // layouts can never drift silently; the C side carries the same shapes.
 // ---------------------------------------------------------------------------
 
-/// Event type tag for packet events (mirrors EVENT_PACKET).
-const EVENT_PACKET: u32 = 1;
-/// Ethernet protocol number for IPv4 (mirrors ETH_P_IP).
-const ETH_P_IP: u16 = 0x0800;
-/// IP protocol number for TCP (mirrors IPPROTO_TCP).
-const IPPROTO_TCP: u8 = 6;
-/// IP protocol number for UDP (mirrors IPPROTO_UDP).
-const IPPROTO_UDP: u8 = 17;
-
 /// The BPF-side stats layout; the userspace mirror is
-/// `CgroupStatsRaw` in src/ebpf/loader.rs (layout contract).
+/// `CgroupStatsRaw` in src/ebpf/loader.rs (layout contract). The
+/// pre-boost-34 shape carried a third leg, `last_event_packet`, the
+/// 1-in-100 event throttle's bookmark — both the throttle and its
+/// leg are gone with the events ringbuf, and the value is now
+/// exactly the two counters userspace reads.
 #[repr(C)]
 #[derive(Clone, Copy)]
 struct CgroupStats {
     packets: u64,
     bytes: u64,
-    last_event_packet: u64,
 }
 
-/// The packet-event layout (throttled to 1 per 100 packets per
-/// cgroup; written to the events ringbuf — the dead-ringbuf
-/// question is documented in docs/PURE_RUST_EVALUATION.md).
-#[repr(C)]
-struct Event {
-    event_type: u32,
-    cgroup_id: u32,
-    pid: u32,
-    uid: u32,
-    protocol: u16,
-    direction: u16,
-    pkt_len: u32,
-    src_ip: u32,
-    dst_ip: u32,
-    src_port: u16,
-    dst_port: u16,
-    comm: [u8; 16],
-}
-
-/// Minimal IPv4 header read model (20 fixed bytes; options are not
-/// decoded, exactly like the C twin's sizeof(struct iphdr) arithmetic).
-#[repr(C)]
-struct Ipv4Header {
-    _version_ihl: u8,
-    _tos: u8,
-    _tot_len: u16,
-    _id: u16,
-    _frag_off: u16,
-    _ttl: u8,
-    protocol: u8,
-    _check: u16,
-    saddr: u32,
-    daddr: u32,
-}
-
-/// First four bytes of a TCP or UDP header (source and dest sit at the
-/// same offsets in both).
-#[repr(C)]
-struct PortsHeader {
-    source: u16,
-    dest: u16,
-}
-
-const _: () = assert!(core::mem::size_of::<CgroupStats>() == 24);
-const _: () = assert!(core::mem::size_of::<Event>() == 52);
-const _: () = assert!(core::mem::size_of::<Ipv4Header>() == 20);
-const _: () = assert!(core::mem::size_of::<PortsHeader>() == 4);
+const _: () = assert!(core::mem::size_of::<CgroupStats>() == 16);
 
 // ---------------------------------------------------------------------------
 // Maps. The static names ARE the userspace contract (loader.rs opens each
@@ -192,16 +149,11 @@ static socket_counters: LruHashMap<u64, u64> =
 static socket_counters_ingress: LruHashMap<u64, u64> =
     LruHashMap::with_max_entries(SOCKET_MAP_MAX_ENTRIES, 0);
 
-/// Ring buffer, 2 MB for high traffic bursts. Written by this program,
-/// never read by zelynic userspace (see the hunt finding in
-/// docs/PURE_RUST_EVALUATION.md); kept for exact parity with the C twin.
-#[allow(non_upper_case_globals)]
-#[map]
-static events: RingBuf = RingBuf::with_byte_size(2 * 1024 * 1024, 0);
-
 // ---------------------------------------------------------------------------
-// Egress observer: counter update, 1-in-100 event throttle, IPv4/TCP/UDP
-// header parse, ring buffer emission. Ported from observe_egress.
+// Egress observer: per-cgroup and per-socket counter updates. Ported
+// from observe_egress, with the 1-in-100 event branch and the events
+// ringbuf retired at NIGHT-boost-34 (the kernel-6.8 cgroup_skb
+// helper wall — see the file header).
 // ---------------------------------------------------------------------------
 
 /// Bump one per-socket cookie accumulator (NIGHT-boost-26). Cookie 0
@@ -246,123 +198,39 @@ fn bump_socket_counter(map: &LruHashMap<u64, u64>, cookie: u64, pkt_len: u64) {
 
 #[cgroup_skb(egress)]
 fn observe_egress(ctx: SkBuffContext) -> i32 {
-    match try_observe_egress(ctx) {
-        Ok(ret) => ret,
-        Err(ret) => ret,
-    }
-}
-
-fn try_observe_egress(ctx: SkBuffContext) -> Result<i32, i32> {
     let cgroup_id = unsafe { bpf_skb_cgroup_id(ctx.skb.skb) } as u32;
     let pkt_len = ctx.len();
 
     // Per-socket attribution (NIGHT-boost-26): the cookie of the
-    // SENDING socket, bumped before any early return below — this is
-    // per-packet accounting, not throttled event plumbing.
+    // SENDING socket — per-packet accounting, never a dropped
+    // packet's worth of bookkeeping.
     let cookie = unsafe { bpf_get_socket_cookie(ctx.skb.skb.cast()) };
     bump_socket_counter(&socket_counters, cookie, u64::from(pkt_len));
 
-    // Counter update: in-place increment on an existing entry, or
-    // init-then-relookup exactly like the C twin (BPF_ANY insert; the
-    // fresh pointer is required for the throttle bookkeeping below).
-    let stats = match cgroup_counters.get_ptr_mut(&cgroup_id) {
+    // Counter update: in-place increment on an existing entry, or a
+    // first-packet insert (BPF_ANY). The insert result is ignored
+    // exactly like the ingress twin: a failed insert loses this one
+    // packet's count, never the packet itself — the C twin's
+    // init-then-relookup existed only to feed the event throttle's
+    // bookkeeping, which retired with the ringbuf (NIGHT-boost-34).
+    match cgroup_counters.get_ptr_mut(&cgroup_id) {
         Some(ptr) => {
+            // SAFETY: the pointer comes from the map's own lookup and
+            // lives until the map is freed (kernel map memory).
             let s = unsafe { &mut *ptr };
             s.packets += 1;
             s.bytes += pkt_len as u64;
-            s
         }
         None => {
             let init = CgroupStats {
                 packets: 1,
                 bytes: pkt_len as u64,
-                last_event_packet: 0,
             };
-            if cgroup_counters.insert(&cgroup_id, &init, 0).is_err() {
-                return Ok(1);
-            }
-            match cgroup_counters.get_ptr_mut(&cgroup_id) {
-                Some(ptr) => unsafe { &mut *ptr },
-                None => return Ok(1),
-            }
-        }
-    };
-
-    // Throttle: emit one event per 100 packets per cgroup, tracked via
-    // the packet count at the last emission.
-    if stats.packets - stats.last_event_packet < 100 {
-        return Ok(1);
-    }
-    stats.last_event_packet = stats.packets;
-
-    // The event payload's per-task facts resolve HERE, on the 1-in-100
-    // path only (NIGHT-perf-1): the C twin computed tgid/uid per
-    // packet at the function top, paying two BPF helper calls on
-    // every packet for an event the throttle emits once per hundred —
-    // 99% of the hot path funded a value nobody read. The helpers
-    // read the CURRENT task, which cannot change between the function
-    // top and this point in the same invocation, so the event carries
-    // byte-identical fields; only WHEN the calls happen moved. This
-    // is the lazy pattern ctx.command() two blocks below already
-    // established. At line rate the saving is one full helper-call
-    // pair per packet off the observer's egress hot path.
-    let pid = ctx.tgid();
-    let uid = ctx.uid();
-
-    // Parse the IP header. cgroup_skb frames carry no Ethernet header.
-    // The C twin uses direct data/data_end access; ctx.load performs
-    // the verifier-safe copy through bpf_skb_load_bytes instead (see
-    // the behavioral-delta note in the file header).
-    let mut protocol = 0u16;
-    let mut src_ip = 0u32;
-    let mut dst_ip = 0u32;
-    let mut src_port = 0u16;
-    let mut dst_port = 0u16;
-
-    if ctx.skb.protocol() == u32::from(ETH_P_IP.swap_bytes()) {
-        let iph = match ctx.load::<Ipv4Header>(0) {
-            Ok(h) => h,
-            Err(_) => return Ok(1),
-        };
-        protocol = u16::from(iph.protocol);
-        src_ip = iph.saddr;
-        dst_ip = iph.daddr;
-
-        if iph.protocol == IPPROTO_TCP || iph.protocol == IPPROTO_UDP {
-            // Fixed +20 offset (sizeof(struct iphdr)) like the C twin;
-            // IP options are not accounted for. A failed read leaves the
-            // ports at zero and still emits the event, matching the C
-            // bounds-check-skip behavior.
-            if let Ok(ports) = ctx.load::<PortsHeader>(20) {
-                src_port = u16::from_be(ports.source);
-                dst_port = u16::from_be(ports.dest);
-            }
+            let _ = cgroup_counters.insert(&cgroup_id, &init, 0);
         }
     }
 
-    // Emit the event. A failed reserve (ring buffer full) drops the
-    // event but never the packet, like the C twin.
-    let mut entry = match events.reserve::<Event>(0) {
-        Some(e) => e,
-        None => return Ok(1),
-    };
-    entry.write(Event {
-        event_type: EVENT_PACKET,
-        cgroup_id,
-        pid,
-        uid,
-        protocol,
-        direction: 0, // egress (upload)
-        pkt_len,
-        src_ip,
-        dst_ip,
-        src_port,
-        dst_port,
-        comm: ctx.command().unwrap_or([0u8; 16]),
-    });
-    entry.submit(0);
-
-    Ok(1)
+    1
 }
 
 // ---------------------------------------------------------------------------
@@ -391,7 +259,6 @@ fn observe_ingress(ctx: SkBuffContext) -> i32 {
             let init = CgroupStats {
                 packets: 1,
                 bytes: pkt_len,
-                last_event_packet: 0,
             };
             // Insert result ignored by design: the C twin does not check
             // the return value either; a failed insert loses this one

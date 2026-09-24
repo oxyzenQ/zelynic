@@ -120,8 +120,12 @@ REPO_BINARY_CANDIDATES = [
     os.path.join(REPO_ROOT, "target", "x86_64-unknown-linux-musl", "pro-native-musl", "zelynic"),
     os.path.join(REPO_ROOT, "target", "pro-linux-amd64-v3-gnu", "zelynic"),
     os.path.join(REPO_ROOT, "target", "pro-linux-amd64-v4-gnu", "zelynic"),
-    os.path.join(REPO_ROOT, "target", "x86_64-unknown-linux-musl", "pro-linux-amd64-v3-musl", "zelynic"),
-    os.path.join(REPO_ROOT, "target", "x86_64-unknown-linux-musl", "pro-linux-amd64-v4-musl", "zelynic"),
+    os.path.join(
+        REPO_ROOT, "target", "x86_64-unknown-linux-musl", "pro-linux-amd64-v3-musl", "zelynic"
+    ),
+    os.path.join(
+        REPO_ROOT, "target", "x86_64-unknown-linux-musl", "pro-linux-amd64-v4-musl", "zelynic"
+    ),
     os.path.join(REPO_ROOT, "target", "release", "zelynic"),
 ]
 

@@ -391,12 +391,14 @@ monitor asks the terminal for its background color at open (OSC 11,
 standard query) and paints the frame in that color — a grey-themed
 terminal gets a grey eagle-eyes. Grid lines, data, and info keep
 the active theme; only the canvas follows the terminal. The follow
-is LIVE (NIGHT-boost-32): the monitor re-asks on a fixed couple-
-second cadence and absorbs the answer from its input drain, so a
-mid-session terminal background change (alacritty's live config
-reload, the owner's repro: purple while the frame stayed black) is
-followed within one ask — no blocking, no stall, keys unaffected.
-A terminal that does not answer renders exactly as before.
+is LIVE and FAST (NIGHT-boost-32, cadence tightened to 250 ms at
+NIGHT-boost-34): the monitor re-asks on a quarter-second cadence
+and absorbs the answer from its input drain, so a mid-session
+terminal background change (alacritty's live config reload, the
+owner's repro: purple while the frame stayed black) is followed
+within roughly 300 ms — one cadence plus one 50 ms wake — no
+blocking, no stall, keys unaffected. A terminal that does not
+answer renders exactly as before.
 
 Frame borders (NIGHT-boost-20): the whole monitor reads as one
 rounded box — the title bar's corners connect to its own purple fill
