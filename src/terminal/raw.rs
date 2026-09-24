@@ -124,10 +124,21 @@ const OSC_REPLY_HEAD: &[u8] = b"\x1b]11;";
 /// classification (the first-byte contract resumes fresh).
 const BG_ASK_PATIENCE: std::time::Duration = std::time::Duration::from_millis(500);
 
-/// The live ask's cadence (NIGHT-boost-32): one 8-byte query per
-/// interval, independent of the refresh interval — a config
-/// reload follows within one ask whatever `--interval` runs.
-pub(crate) const BG_ASK_INTERVAL: std::time::Duration = std::time::Duration::from_millis(2000);
+/// The live ask's cadence (NIGHT-boost-32, fast since 34): one
+/// 8-byte query per interval, independent of the refresh interval
+/// — a config reload follows within one ask whatever `--interval`
+/// runs. 250 ms, the NIGHT-boost-34 answer to "the background color
+/// is changed but slow": the follow latency budget is one cadence
+/// plus one 50 ms wake, so a terminal-side live reload (itself
+/// 100-500 ms of editor + terminal work) lands inside the same
+/// eyeblink the repaint composes in. The cost is 4 asks/second
+/// tail-ward — 32 B/s of queries out, a reply only when the color
+/// actually sits in flight — and a silent terminal (dumb, muxer
+/// without passthrough) pays only the writes, never a stall: the
+/// answer rides the input drain the 50 ms wake already owns. A
+/// slower cadence would buy nothing measurable and cost the exact
+/// sluggishness the owner filed.
+pub(crate) const BG_ASK_INTERVAL: std::time::Duration = std::time::Duration::from_millis(250);
 
 /// The partial-answer cap: a real OSC 11 reply is at most ~32
 /// bytes; anything longer without a terminator is garbage, not a

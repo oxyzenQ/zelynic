@@ -516,7 +516,11 @@ def kernel_span_verdicts(release, ok):
         and ok
     )
     rung = next(
-        (f"{major}.{minor} ({note})" for (major, minor), note in KERNEL_RUNGS if ver >= (major, minor)),
+        (
+            f"{major}.{minor} ({note})"
+            for (major, minor), note in KERNEL_RUNGS
+            if ver >= (major, minor)
+        ),
         "4.18 base (bpf_skb_cgroup_id - the pre-link era)",
     )
     record(
@@ -524,7 +528,9 @@ def kernel_span_verdicts(release, ok):
         "PASS",
         f"{release} rides at or above {rung}",
     )
-    lts = next((f"{major}.{minor}" for major, minor in KERNEL_LTS_LINES if ver >= (major, minor)), None)
+    lts = next(
+        (f"{major}.{minor}" for major, minor in KERNEL_LTS_LINES if ver >= (major, minor)), None
+    )
     record(
         "kernel span: LTS placement",
         "PASS" if lts else "SKIP",

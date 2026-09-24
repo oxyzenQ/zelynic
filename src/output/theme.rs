@@ -55,7 +55,10 @@
 //! carbon -> atomic -> cafe -> server -> moonlight -> hacker ->
 //! depth_sea -> netrunner.
 
-use std::sync::atomic::{AtomicU32, AtomicU8, Ordering};
+// AtomicU32 exists only for the gated TERMINAL_BG word below.
+#[cfg(feature = "ebpf")]
+use std::sync::atomic::AtomicU32;
+use std::sync::atomic::{AtomicU8, Ordering};
 
 use super::color::{capability, ColorCapability};
 
@@ -396,44 +399,44 @@ pub(crate) fn escape(slot: Slot, bold: bool) -> &'static str {
 // NIGHT-boost-32) ──────────────────────────────────────────────────────────
 //
 // Owner contract: the frame's BACKGROUND follows the terminal, not
-// the builtin themes — a grey-themed terminal renders a grey frame.
-// The grid lines, data, and info keep the FOREGROUND vocabulary
-// (the slots above). The value comes from the OSC 11 query: once
-// at monitor open, then on the live ask's cadence (the loop
-// re-asks and absorbs the answer from its input drain) — a
-// mid-session background change (alacritty's live config reload)
-// is followed within one ask instead of frozen at the open-time
-// color, the "still fixed black" regression NIGHT-boost-32
-// closed. Unpainted depths (Color16, Mono) and a silent terminal
-// keep the pre-boost-26 rendering: no background escape at all.
+// the builtin themes — a grey-themed terminal renders a grey frame,
+// grid/data/info keeping the FOREGROUND slots above. The value comes
+// from the OSC 11 query (open path + the live ask's cadence), so a
+// mid-session change is followed within one ask, never frozen at
+// the open-time color (the boost-32 regression). Unpainted depths
+// (Color16, Mono) and a silent terminal paint no background escape.
 
-/// The queried background (NIGHT-boost-26, live since 32): written
-/// by the open path, updated by the live ask, read by the frame
-/// compositor. One atomic word — bit 31 the present flag, bits
-/// 23..0 `0xRRGGBB` — so live updates are lock-free. `0` is the
-/// honest default: no ask answered.
+/// The queried background (NIGHT-boost-26, live since 32): one
+/// atomic word — bit 31 the present flag, bits 23..0 `0xRRGGBB`,
+/// lock-free live updates, `0` the honest no-answer default.
+///
+/// Gated behind the `ebpf` feature (NIGHT-boost-34, the dead-code
+/// wall: the callers live in the ebpf tree, this module compiles
+/// unconditionally, and a default-feature build saw the block as
+/// dead code that CI's `-D warnings` reddened — green locally only
+/// because the local gate runs without that flag). The pure packing
+/// cores below stay `cfg(test)` so every lane keeps the pins.
+#[cfg(feature = "ebpf")]
 static TERMINAL_BG: AtomicU32 = AtomicU32::new(0);
 
-/// Record the queried terminal background. Returns whether the
-/// stored color CHANGED — the monitor loop forces the follow
-/// repaint on a change. Packing pinned by the pure cores below.
+/// Record the queried terminal background; the return IS the
+/// change verdict (the monitor loop forces the repaint on it).
+#[cfg(feature = "ebpf")]
 pub(crate) fn set_terminal_bg(bg: Option<(u8, u8, u8)>) -> bool {
     let packed = pack_bg(bg);
-    // The swap returns the word it replaced — the change verdict IS
-    // the comparison, with no second atomic round-trip.
     TERMINAL_BG.swap(packed, Ordering::AcqRel) != packed
 }
 
 /// The queried terminal background, when a paint-capable depth and
 /// an answering terminal agree.
-#[must_use]
+#[cfg(feature = "ebpf")]
 pub(crate) fn terminal_bg() -> Option<(u8, u8, u8)> {
     terminal_bg_at(unpack_bg(TERMINAL_BG.load(Ordering::Acquire)), capability())
 }
 
 /// Pack one background triple for the atomic word: bit 31 present,
 /// bits 23..0 `0xRRGGBB`. Pure — pinned.
-#[must_use]
+#[cfg(any(test, feature = "ebpf"))]
 fn pack_bg(bg: Option<(u8, u8, u8)>) -> u32 {
     match bg {
         Some((r, g, b)) => 0x8000_0000 | (u32::from(r) << 16) | (u32::from(g) << 8) | u32::from(b),
@@ -442,7 +445,7 @@ fn pack_bg(bg: Option<(u8, u8, u8)>) -> u32 {
 }
 
 /// Unpack the atomic word (None when the present flag is clear).
-#[must_use]
+#[cfg(any(test, feature = "ebpf"))]
 fn unpack_bg(packed: u32) -> Option<(u8, u8, u8)> {
     if packed & 0x8000_0000 == 0 {
         return None;
@@ -452,10 +455,9 @@ fn unpack_bg(packed: u32) -> Option<(u8, u8, u8)> {
 }
 
 /// Pure core of [`terminal_bg`] (the emit/emit_at discipline): the
-/// stored triple survives only at the paint-capable depths — the
-/// shallow tiers render the terminal default, which is the honest
-/// background there.
-#[must_use]
+/// triple survives only at paint-capable depths; shallow tiers
+/// render the terminal default, the honest background there.
+#[cfg(any(test, feature = "ebpf"))]
 fn terminal_bg_at(stored: Option<(u8, u8, u8)>, cap: ColorCapability) -> Option<(u8, u8, u8)> {
     match cap {
         ColorCapability::TrueColor | ColorCapability::Color256 => stored,
@@ -464,12 +466,10 @@ fn terminal_bg_at(stored: Option<(u8, u8, u8)>, cap: ColorCapability) -> Option<
 }
 
 /// The background escape the frame's rows open with (NIGHT-boost-26):
-/// TrueColor paints the exact triple; Color256 quantizes onto the
-/// 6x6x6 cube (the same nearest-match the rails ride); the shallow
-/// depths paint nothing (the terminal default IS the honest
-/// background there — a 16-color slot cannot represent an arbitrary
-/// grey without inventing a hue).
-#[must_use]
+/// TrueColor paints the exact triple, Color256 quantizes onto the
+/// 6x6x6 cube (the rails' nearest-match); shallow depths paint
+/// nothing — a 16-color slot cannot represent an arbitrary grey.
+#[cfg(feature = "ebpf")]
 pub(crate) fn terminal_bg_escape() -> String {
     terminal_bg_escape_at(terminal_bg(), capability())
 }
@@ -477,7 +477,7 @@ pub(crate) fn terminal_bg_escape() -> String {
 /// Pure core of [`terminal_bg_escape`] (the emit/emit_at discipline):
 /// the escape for one triple at one depth, pinned without touching
 /// the process-global caches.
-#[must_use]
+#[cfg(any(test, feature = "ebpf"))]
 fn terminal_bg_escape_at(bg: Option<(u8, u8, u8)>, cap: ColorCapability) -> String {
     match bg {
         Some((r, g, b)) => match cap {

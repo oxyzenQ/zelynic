@@ -97,7 +97,14 @@ keyed by cgroup ID. Per-cgroup stats: packet count, byte count.
 Contract:
 - Program returns `1` (allow) on every path — never block.
 - Map updates use `BPF_ANY` (create-or-update).
-- No ring buffer spam: events throttled to 1 per 100 packets per cgroup.
+- No ring buffer at all: the C-era events ringbuf (1 event per 100
+  packets per cgroup, never read by userspace) was dropped at
+  NIGHT-boost-34 — kernel 6.8's cgroup_skb helper wall rejected the
+  event branch's get_current_* calls, and the payload fed nothing
+  (docs/PURE_RUST_EVALUATION.md delta 5, the resolved hunt finding).
+  The observer's helper set is now map ops + `bpf_skb_cgroup_id` +
+  `bpf_get_socket_cookie`, all cgroup_skb-legal across the whole
+  5.13+ span.
 
 ### Layer 1 — Map Interface
 

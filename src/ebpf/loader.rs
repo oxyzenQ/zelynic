@@ -47,14 +47,16 @@ static OBSERVER_ELF: &[u8] = &crate::ebpf::embedded::AlignedElf::new(*include_by
 
 /// Per-cgroup stats from BPF map (must match the observer
 /// program's CgroupStats in ebpf/src/main.rs — layout contract).
-/// Must be Plain Old Data for aya's Pod trait.
+/// Must be Plain Old Data for aya's Pod trait. The pre-boost-34
+/// shape carried a third leg, `last_event_packet` — the event
+/// throttle's bookmark, retired with the events ringbuf (the
+/// kernel-6.8 cgroup_skb helper wall; see ebpf/src/main.rs header).
 #[repr(C)]
 #[derive(Debug, Clone, Copy, Default)]
 #[repr(align(8))]
 pub struct CgroupStatsRaw {
     pub packets: u64,
     pub bytes: u64,
-    pub last_event_packet: u64,
 }
 
 unsafe impl aya::Pod for CgroupStatsRaw {}

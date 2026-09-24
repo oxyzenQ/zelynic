@@ -117,9 +117,11 @@ section):
   `src/ebpf/loader.rs` attaches via `CgroupSkbAttachType::Egress` /
   `Ingress`.
 - The map contract resolves by name: `cgroup_counters` and
-  `cgroup_counters_ingress` (HASH, key 4, value 24, max 1024 since
-  NIGHT-improve-8 — the port-time value was 256, see deliberate
-  delta 3) and `events` (RINGBUF, 2 MB).
+  `cgroup_counters_ingress` (HASH, key 4, value 24 at port time —
+  16 since NIGHT-boost-34, see deliberate delta 5 — max 1024 since
+  NIGHT-improve-8, the port-time value was 256, see deliberate
+  delta 3) and, at port time, `events` (RINGBUF, 2 MB — dropped at
+  NIGHT-boost-34, delta 5).
 - The `license` section carries `GPL` exactly like the C object
   (required: `bpf_skb_cgroup_id` is a GPL-only helper).
 
@@ -150,13 +152,13 @@ Every name, section, layout and helper the C object exposes, because
 | Program `observe_ingress` | `SEC("cgroup_skb/ingress")` | `#[cgroup_skb(ingress)]` |
 | Map `cgroup_counters` | HASH u32 -> cgroup_stats (24 B), 256 | 1024 (NIGHT-improve-8, delta 3) |
 | Map `cgroup_counters_ingress` | HASH u32 -> cgroup_stats (24 B), 256 | 1024 (NIGHT-improve-8, delta 3) |
-| Map `events` | RINGBUF 2 MB | identical |
-| `struct event` layout | 52 B, `#[repr(C)]` mirror | compile-time size pin |
-| `struct cgroup_stats` layout | 24 B | compile-time size pin |
+| Map `events` | RINGBUF 2 MB | dropped at NIGHT-boost-34 (delta 5) |
+| `struct event` layout | 52 B, `#[repr(C)]` mirror | dropped at NIGHT-boost-34 (delta 5) |
+| `struct cgroup_stats` layout | 24 B | 16 B since NIGHT-boost-34 (size pin) |
 | License | `GPL` | `GPL` |
-| Counter semantics | in-place +=, init-then-relookup | line-for-line port |
-| Event throttle | 1 event / 100 packets / cgroup | line-for-line port |
-| IPv4/TCP/UDP parse | direct data/data_end access | `ctx.load` helper copies |
+| Counter semantics | in-place +=, init-then-relookup | in-place +=, first-packet insert (boost-34) |
+| Event throttle | 1 event / 100 packets / cgroup | dropped at NIGHT-boost-34 (delta 5) |
+| IPv4/TCP/UDP parse | direct data/data_end access | dropped at NIGHT-boost-34 (delta 5) |
 
 Two deliberate behavioral deltas at port time, plus one added by
 NIGHT-improve-8, all documented for the decision section:
@@ -181,16 +183,33 @@ NIGHT-improve-8, all documented for the decision section:
    kernel memory cost is 2 x 1024 x 24 B = 48 KiB per monitor session.
    The frozen bpftool dumps below still show the port-time 256 —
    they are verbatim records of the port verification.
-4. (NIGHT-perf-1, 2026-09-24) The egress event payload's tgid/uid
-   helper calls moved from the per-packet function top into the
-   1-in-100 throttled event branch — the C twin paid two BPF
-   helper calls on every packet for values only the hundredth
-   packet's event reads. Same current task, same invocation:
-   byte-identical events, a cheaper hot path. (Two later
-   ADDITIONS, not deltas of existing behavior — the boost-26
+4. (NIGHT-perf-1, 2026-09-24 — superseded by delta 5) The egress
+   event payload's tgid/uid helper calls moved from the per-packet
+   function top into the 1-in-100 throttled event branch — the C
+   twin paid two BPF helper calls on every packet for values only
+   the hundredth packet's event reads. Same current task, same
+   invocation: byte-identical events, a cheaper hot path. (Two
+   later ADDITIONS, not deltas of existing behavior — the boost-26
    per-socket cookie maps and the ultimate-2 sink-death flag —
    are documented where they live, the observer's file header and
-   the terminal layer.)
+   the terminal layer.) Superseded: the event branch itself is
+   gone (delta 5), so the lazy-call optimization retired with it.
+5. (NIGHT-boost-34, 2026-09-25) The events ringbuf, the 1-in-100
+   event throttle, the IPv4/TCP/UDP parse, and the
+   `last_event_packet` stats leg are GONE from the observer — and
+   with them every `bpf_get_current_pid_tgid` /
+   `bpf_get_current_uid_gid` / `bpf_get_current_comm` /
+   `bpf_skb_load_bytes` / `bpf_ringbuf_reserve` /
+   `bpf_ringbuf_submit` call. Kernel 6.8 removed the get_current
+   trio from `bpf_base_func_proto` and cgroup_skb never reaches
+   the new `cgroup_current_func_proto`, so the old shape failed
+   program load with EINVAL on every 6.8 host (an LTS inside the
+   promised 5.13+ span; 6.17 restored the helpers, but the span
+   must hold). The event payload fed a ringbuf no zelynic code
+   ever read — the hunt finding directly below — so the kernel
+   forced the phase-2 decision this doc left open. The egress
+   program is now the ingress shape: cgroup counters + per-socket
+   attribution.
 
 A hunt finding recorded while porting, independent of Rust vs C: the
 `events` ringbuf is **written by the BPF side but never read by
@@ -199,7 +218,12 @@ maps. The C object has been paying one `bpf_ringbuf_reserve` per 100
 packets per cgroup for output nobody consumes since the "no ring
 buffer" simplification. Phase 2 should decide whether BOTH objects
 drop the dead ringbuf or a consumer arrives; stage 1 keeps it for
-exact parity.
+exact parity. **RESOLVED at NIGHT-boost-34 (2026-09-25): no consumer
+arrived, kernel 6.8's cgroup_skb helper wall cast the deciding vote,
+and the Rust observer dropped the dead ringbuf** (delta 5 above and
+docs/KERNEL_COMPATIBILITY.md's 6.8 note carry the full story). The
+"both objects" phrasing narrowed to the Rust one when phase 3
+deleted the C side — the port is the production source.
 
 ## Stage 2: prototype setup (the detached crate)
 

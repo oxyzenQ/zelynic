@@ -9,7 +9,7 @@
 
 | Component | Minimum | Recommended | Why |
 |-----------|---------|-------------|-----|
-| **Kernel** | 5.13+ | 6.6 LTS+ | `bpf_skb_cgroup_id()` (4.18+), `bpf_link` (5.7+), observer events ringbuf (5.8+) — 5.13 is the oldest kernel in the verified matrix |
+| **Kernel** | 5.13+ | 6.6 LTS+ | `bpf_skb_cgroup_id()` (4.18+), `bpf_link` (5.7+) — 5.13 is the oldest kernel in the verified matrix. The observer's events ringbuf (previously the 5.8+ floor item) is gone since NIGHT-boost-34 — see the 6.8 helper wall below |
 | **cgroup** | v2 only | v2 only | zelynic uses `cgroup_skb/egress` + `ingress` hooks |
 | **BPF fs** | Mounted at `/sys/fs/bpf` | Mounted | Required for map + link pinning (fire-and-forget mode) |
 | **Root** | Required | Required | BPF program load + attach requires `CAP_BPF` or root |
@@ -102,15 +102,17 @@ commands to reproduce them are in the README's Test Results section.
 ## Known Limitations
 
 1. **cgroup v1 systems**: Not supported. zelynic will error on attach.
-2. **Kernel < 5.8**: no observer events ringbuf (5.8+) — and `bpf_link`
-   itself needs 5.7+. Kernels below 5.13 are outside the verified matrix
-   (5.13 is the oldest kernel tested). The depth harness reports the
-   span for you (NIGHT-boost-27): `limiter-depth-test.sh` now emits a
-   kernel-span verdict family — the 5.13+ floor gate (FAIL below it),
-   the capability rung the running kernel rides at (5.7 links, 5.8
-   ringbuf, the 5.13 verified floor, the 6.x LTS lines), and the LTS
+2. **Kernel < 5.7**: no `bpf_link` (5.7+), so neither object can
+   attach. Kernels below 5.13 are outside the verified matrix (5.13
+   is the oldest kernel tested). The depth harness reports the span
+   for you (NIGHT-boost-27): `limiter-depth-test.sh` emits a
+   kernel-span verdict family — the 5.13+ floor gate (FAIL below
+   it), the capability rung the running kernel rides at (5.7 links,
+   the 5.13 verified floor, the 6.x LTS lines), and the LTS
    placement — so a verdict from any machine, 5.13 hardware to the
-   latest release, names the kernel generation it rode on.
+   latest release, names the kernel generation it rode on. (The
+   observer's events ringbuf — the old 5.8 rung — was dropped at
+   NIGHT-boost-34; the 6.8 note below is the reason.)
 3. **No BPF fs mounted**: Fire-and-forget mode (pin maps) will fail.
    Fix: `sudo mount -t bpf bpf /sys/fs/bpf`
 4. **Non-root**: BPF operations require root. Use `sudo`.
@@ -156,6 +158,22 @@ sudo mount -t bpf bpf /sys/fs/bpf
 ### BPF verifier rejects program
 Check kernel version — `bpf_skb_cgroup_id()` requires 4.18+.
 Some older kernels have stricter verifier. Check dmesg for verifier log.
+
+### eagle-eyes load fails with EINVAL on kernel 6.8 (NIGHT-boost-34, closed)
+Kernel 6.8 moved `bpf_get_current_pid_tgid` / `bpf_get_current_uid_gid` /
+`bpf_get_current_comm` out of `bpf_base_func_proto` into the new
+`cgroup_current_func_proto`, and the cgroup_skb dispatch never calls
+the latter — so a cgroup_skb program using those helpers fails
+program load with EINVAL ("program of this type cannot use helper").
+The old observer's 1-in-100 event branch used all three (feeding the
+events ringbuf no zelynic code ever read); 6.8 hosts — including the
+6.8-azure CI pool — rejected the load, 6.17 restored the helpers
+quietly, and stock 5.13/5.15 never had the wall. The fix dropped the
+event branch and the ringbuf entirely (the phase-2 hunt decision,
+forced by the kernel): the observer's helper set is now
+`bpf_map_lookup_elem`, `bpf_map_update_elem`,
+`bpf_skb_cgroup_id`, `bpf_get_socket_cookie` — each allowed for
+cgroup_skb on every kernel from 5.13 through 6.17+.
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.
