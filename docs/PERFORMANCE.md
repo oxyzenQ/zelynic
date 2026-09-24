@@ -7,8 +7,8 @@
 
 ## Measurement Methodology
 
-All metrics measured using `scripts/benchmarking.sh` — a bash wrapper
-that calls `scripts/benchmarking.py` (Python deep benchmarking engine).
+All metrics measured using `scripts/bench/benchmarking.sh` — a bash wrapper
+that calls `scripts/bench/benchmarking.py` (Python deep benchmarking engine).
 
 Python is the beast engine because of:
 - Precise timing (`time.perf_counter()`)
@@ -18,10 +18,10 @@ Python is the beast engine because of:
 - BPF map size introspection via `bpftool`
 
 ```bash
-sudo ./scripts/benchmarking.sh                # full run (10 iterations)
-sudo ./scripts/benchmarking.sh --quick        # quick (3 iterations)
-sudo ./scripts/benchmarking.sh --json         # machine-readable output
-sudo ./scripts/benchmarking.sh --stress 1000  # 1000s sustained enforcement test
+sudo ./scripts/bench/benchmarking.sh                # full run (10 iterations)
+sudo ./scripts/bench/benchmarking.sh --quick        # quick (3 iterations)
+sudo ./scripts/bench/benchmarking.sh --json         # machine-readable output
+sudo ./scripts/bench/benchmarking.sh --stress 1000  # 1000s sustained enforcement test
 ```
 
 ## Benchmark Results
@@ -119,9 +119,9 @@ sudo bpftool prog profile id <ID> duration 10
 ## Regression Detection
 
 ```bash
-sudo ./scripts/benchmarking.sh --json > before.json
+sudo ./scripts/bench/benchmarking.sh --json > before.json
 # ... make changes ...
-sudo ./scripts/benchmarking.sh --json > after.json
+sudo ./scripts/bench/benchmarking.sh --json > after.json
 diff <(jq -S . before.json) <(jq -S . after.json)
 ```
 
@@ -137,9 +137,9 @@ before/after runs see byte-identical data and the only variable is
 the layout engine. Root is NOT required.
 
 ```bash
-./scripts/frame-bench.py --save before.json
+./scripts/bench/frame-bench.py --save before.json
 # ... change the layout ...
-./scripts/frame-bench.py --save after.json --compare before.json
+./scripts/bench/frame-bench.py --save after.json --compare before.json
 ```
 
 Metrics (owner's visual + performance contract):

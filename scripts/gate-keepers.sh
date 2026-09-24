@@ -22,20 +22,20 @@
 #   3.  actionlint on .github/workflows/*.yml
 #   4.  TOML syntax validation (python3 tomllib)
 #   5.  codespell on all text files (repo .codespellrc)
-#   6.  SPDX license header check (scripts/check-headers.sh — dual-line
+#   6.  SPDX license header check (scripts/gates/check-headers.sh — dual-line
 #       contract across rs/c/h/py/sh/toml/yml/yaml/md; untracked files
 #       included so new files fail BEFORE commit)
 #   7.  File permission guard (owner rule — git-tracked files 644,
 #       tracked executables and directories 755, shebang parity;
-#       scripts/check-permissions.sh, --fix chmods)
+#       scripts/gates/check-permissions.sh, --fix chmods)
 #   8.  Emoji sweep (owner rule — no emoji-class codepoints in ANY
 #       tracked text file; cosmostrix fail blocks, strict detector,
 #       exit 1 on hits)
-#   9.  Rust source LOC cap (owner rule — scripts/check-loc.sh, hard
+#   9.  Rust source LOC cap (owner rule — scripts/gates/check-loc.sh, hard
 #       limit 500 lines; // LOC_EXEMPT: marker = tracked migration debt)
-#  10.  Rust toolchain version sync (scripts/check-rust-version-sync.sh —
+#  10.  Rust toolchain version sync (scripts/gates/check-rust-version-sync.sh —
 #       rust-toolchain.toml pin == Cargo.toml MSRV == workflow RUST_VERSION)
-#  11.  Documentation disclaimer (scripts/inject-disclaimer.sh --check —
+#  11.  Documentation disclaimer (scripts/gates/inject-disclaimer.sh --check —
 #       every living .md carries the stale-data warning; --fix injects)
 #  12.  rustfmt on ebpf/ (the pure-Rust eBPF crate — CI parity with
 #       the Gate-keepers workflow, which runs this same command on
@@ -47,7 +47,7 @@
 #       every [[test]] target and src/ #[path] wiring resolves under
 #       test/)
 #  14.  Language discipline (owner rule, NIGHT-hunt-19 —
-#       scripts/check-language.sh: non-Latin scripts outside
+#       scripts/gates/check-language.sh: non-Latin scripts outside
 #       NON_LATIN_FIXTURE-marked coverage files plus an Indonesian
 #       vocabulary detector; the repo is English-only, the sibling of
 #       the emoji sweep for everything that sweep cannot see)
@@ -253,13 +253,13 @@ else
 	warn "codespell not installed — skipping"
 fi
 
-# ── 6. SPDX License Headers (scripts/check-headers.sh) ──────────────────
+# ── 6. SPDX License Headers (scripts/gates/check-headers.sh) ──────────────────
 # Dual-line contract (Copyright + SPDX-License-Identifier) across
 # rs/c/h/py/sh/toml/yml/yaml/md, including untracked-but-present files
 # (pre-commit proxy parity). CHANGELOG.md is excluded as frozen history.
 header "SPDX License Headers (check-headers.sh)"
-if [ -f scripts/check-headers.sh ]; then
-	if bash scripts/check-headers.sh 2>&1; then
+if [ -f scripts/gates/check-headers.sh ]; then
+	if bash scripts/gates/check-headers.sh 2>&1; then
 		info "license headers: all source, config, and doc files carry the header"
 		PASS=$((PASS + 1))
 	else
@@ -275,16 +275,16 @@ fi
 # 644/755 exec-bit flips are visible in git diff, the umask-level
 # 664/775 repairs are invisible because git records only the exec bit).
 header "Permission Guard (644/755)"
-if [ -f scripts/check-permissions.sh ]; then
+if [ -f scripts/gates/check-permissions.sh ]; then
 	if $FIX_MODE; then
-		if bash scripts/check-permissions.sh --fix 2>&1; then
+		if bash scripts/gates/check-permissions.sh --fix 2>&1; then
 			info "permissions: violations auto-fixed (review git diff for exec-bit changes)"
 			PASS=$((PASS + 1))
 		else
 			fail "permissions: violations not fully auto-fixable (review output above)"
 		fi
 	else
-		if bash scripts/check-permissions.sh 2>&1; then
+		if bash scripts/gates/check-permissions.sh 2>&1; then
 			info "permissions: files 644, executables and directories 755"
 			PASS=$((PASS + 1))
 		else
@@ -369,8 +369,8 @@ fi
 # cap passes ONLY with a self-declared `// LOC_EXEMPT:` marker plus a
 # one-line justification (tracked migration debt, not silent rot).
 header "Rust LOC Cap (check-loc.sh, limit 500)"
-if [ -f scripts/check-loc.sh ]; then
-	if bash scripts/check-loc.sh 2>&1 | tail -20; then
+if [ -f scripts/gates/check-loc.sh ]; then
+	if bash scripts/gates/check-loc.sh 2>&1 | tail -20; then
 		info "LOC cap: all Rust files within policy (limit 500)"
 		PASS=$((PASS + 1))
 	else
@@ -385,12 +385,12 @@ fi
 # Cargo.toml MSRV and every workflow RUST_VERSION env. Channel aliases
 # (stable/beta/nightly) are rejected under the dormant-mode policy.
 header "Rust Version Sync (check-rust-version-sync.sh)"
-if [ -f scripts/check-rust-version-sync.sh ]; then
-	if bash scripts/check-rust-version-sync.sh 2>&1; then
+if [ -f scripts/gates/check-rust-version-sync.sh ]; then
+	if bash scripts/gates/check-rust-version-sync.sh 2>&1; then
 		info "rust version: toolchain pin, MSRV, and CI pins in sync"
 		PASS=$((PASS + 1))
 	else
-		fail "rust version: sources out of sync (fix with ./scripts/rust-version-to.sh <X.Y.Z>)"
+		fail "rust version: sources out of sync (fix with ./scripts/dev/rust-version-to.sh <X.Y.Z>)"
 	fi
 else
 	warn "check-rust-version-sync.sh not found — skipping"
@@ -400,13 +400,13 @@ fi
 # Every living .md file carries the stale-data disclaimer at the bottom
 # (CHANGELOG.md excluded as frozen history). --fix auto-injects.
 header "Documentation Disclaimer (inject-disclaimer.sh)"
-if [ -f scripts/inject-disclaimer.sh ]; then
-	if bash scripts/inject-disclaimer.sh --check 2>&1; then
+if [ -f scripts/gates/inject-disclaimer.sh ]; then
+	if bash scripts/gates/inject-disclaimer.sh --check 2>&1; then
 		info "disclaimer: all living .md files carry the stale-data warning"
 		PASS=$((PASS + 1))
 	else
 		if $FIX_MODE; then
-			if bash scripts/inject-disclaimer.sh >/dev/null 2>&1; then
+			if bash scripts/gates/inject-disclaimer.sh >/dev/null 2>&1; then
 				info "disclaimer: auto-injected (review git diff)"
 				PASS=$((PASS + 1))
 			else
@@ -487,8 +487,8 @@ fi
 # NON_LATIN_FIXTURE: marker, the // LOC_EXEMPT discipline) and
 # Indonesian vocabulary (the mixed-language directive quote leak).
 header "Language Discipline (check-language.sh)"
-if [ -f scripts/check-language.sh ]; then
-	if bash scripts/check-language.sh 2>&1; then
+if [ -f scripts/gates/check-language.sh ]; then
+	if bash scripts/gates/check-language.sh 2>&1; then
 		info "language: English-only discipline holds (no non-Latin prose, no Indonesian vocabulary)"
 		PASS=$((PASS + 1))
 	else

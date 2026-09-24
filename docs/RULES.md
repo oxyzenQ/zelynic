@@ -31,7 +31,7 @@
 
 ### Enforcement
 
-`scripts/check-loc.sh` (wired into `scripts/gate-keepers.sh`) scans the
+`scripts/gates/check-loc.sh` (wired into `scripts/gate-keepers.sh`) scans the
 policy scope, prints every file's count, and fails on any file over the
 cap without an exemption marker.
 
@@ -42,10 +42,10 @@ cap without an exemption marker.
   break the build). This is the dormant-mode policy.
 - The pin must agree with `Cargo.toml` `rust-version` (MSRV, major.minor)
   and every workflow `RUST_VERSION` env that installs a toolchain.
-- Bump everything in one command: `./scripts/rust-version-to.sh <X.Y.Z>`
+- Bump everything in one command: `./scripts/dev/rust-version-to.sh <X.Y.Z>`
   (idempotent, refuses dirty trees, audits docs for stale references,
   verifies sync as its final gate).
-- `scripts/check-rust-version-sync.sh` (wired into `gate-keepers.sh`)
+- `scripts/gates/check-rust-version-sync.sh` (wired into `gate-keepers.sh`)
   fails the gate on any disagreement or on a channel alias.
 
 ## Documentation Disclaimer
@@ -55,8 +55,8 @@ cap without an exemption marker.
 - `CHANGELOG.md` and `CHANGELOG-V11-ERA.md` are excluded — frozen
   historical records, never rewritten (the same exclusion policy as
   every other gate).
-- Inject with `./scripts/inject-disclaimer.sh`; verify with
-  `./scripts/inject-disclaimer.sh --check` (wired into
+- Inject with `./scripts/gates/inject-disclaimer.sh`; verify with
+  `./scripts/gates/inject-disclaimer.sh --check` (wired into
   `gate-keepers.sh`; the gatekeeper's `--fix` auto-injects).
 
 Rationale: maintainers (and AI agents) update source code but forget to
@@ -88,7 +88,7 @@ readers to cross-check the source instead.
 
 ### Enforcement
 
-`scripts/check-language.sh` (wired into `scripts/gate-keepers.sh`
+`scripts/gates/check-language.sh` (wired into `scripts/gate-keepers.sh`
 section 14; the CI `gatekeepers` job runs the whole script wholesale
 with the full tool set) scans every
 text file for non-Latin scripts outside marker-declared fixtures and
@@ -163,7 +163,7 @@ assert!(changelog.contains("## v3.0.1"));
 
 ### Enforcement
 
-`scripts/check-version-anti-patterns.sh` (run by `build.sh check-all`)
+`scripts/gates/check-version-anti-patterns.sh` (run by `build.sh check-all`)
 scans `src/**/*.rs` for forbidden patterns and fails the build if any
 are detected. The guard catches:
 

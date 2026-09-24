@@ -20,8 +20,8 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
   # Single source of truth for the Rust toolchain version.
   # Keep in sync with rust-toolchain.toml + Cargo.toml rust-version
-  # (enforced by scripts/check-rust-version-sync.sh; bump via
-  # scripts/rust-version-to.sh).
+  # (enforced by scripts/gates/check-rust-version-sync.sh; bump via
+  # scripts/dev/rust-version-to.sh).
   RUST_VERSION: "1.98.1"
   # NIGHT-strict-2: strict CI build — warning = failure, matching
   # ci.yml and release.yml. Registry dependencies stay warning-capped
@@ -156,7 +156,7 @@ jobs:
       # four CI jobs (check, gnu-dynamic, release, this one) — one
       # script, one place to bump the pin.
       - name: Install bpf-linker 0.11.1 (prebuilt static musl)
-        run: bash scripts/install-bpf-linker.sh
+        run: bash scripts/dev/install-bpf-linker.sh
 
       - name: Cache cargo registry
         uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5, NIGHT-hunt-20 SHA pin
@@ -219,7 +219,7 @@ jobs:
 
       - name: Run repository policy check
         if: steps.changes.outputs.changed == 'true'
-        run: python3 scripts/check-policy.py
+        run: python3 scripts/gates/check-policy.py
 
       # NIGHT-boost-2: the sweep's verify rides the pro profile the
       # release floor ships (linux gnu v3, via the .cargo/config.toml

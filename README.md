@@ -46,7 +46,7 @@ same WiFi interface. No `tc`, no `nftables`, no `LD_PRELOAD`, no daemon.
 |------|--------|
 | **Pure eBPF datapath** | Zero intermediaries. The kernel IS the rate limiter. |
 | **Pinned bpf_links** | Enforcement survives process exit — no daemon, no battery drain. |
-| **Fractional precision** | 0.00% rate error, sub-byte token accumulation (live proof: `sudo ./scripts/proof-claims.sh`; math pins: test/ebpf/limiter/math_tests.rs). |
+| **Fractional precision** | 0.00% rate error, sub-byte token accumulation (live proof: `sudo ./scripts/bench/proof-claims.sh`; math pins: test/ebpf/limiter/math_tests.rs). |
 | **Schema migration** | BPF struct changes auto-detected + auto-cleaned on upgrade. |
 | **Crash recovery** | `zelynic recover` detects + removes orphaned BPF pins. |
 | **Discovery workflow** | `zelynic eagle-eyes` (live box) finds bandwidth hogs — other limiters can't discover. |
@@ -160,7 +160,7 @@ cd zelynic
 # ebpf/rust-toolchain.toml + the bpf-linker 0.11.1 prebuilt into
 # ~/.local/bin (no sudo, no system LLVM) + the PATH fix persisted
 # to ~/.profile + the flagship build — bootstrap ends ready to test:
-./scripts/bootstrap-ebpf.sh
+./scripts/dev/bootstrap-ebpf.sh
 # (binary lands in target/pro-native-gnu/zelynic)
 
 # Plain release-profile build (the manual alternative — the BPF
@@ -484,8 +484,8 @@ test cgroup, measured rate accuracy, kernel-drop proof, BPF accounting,
 sustained stability, residue (NIGHT-master-1):
 
 ```bash
-sudo ./scripts/limiter-depth-test.sh          # full run (~2 min)
-sudo ./scripts/limiter-depth-test.sh --quick  # fast pass (~45s)
+sudo ./scripts/depth/limiter-depth-test.sh          # full run (~2 min)
+sudo ./scripts/depth/limiter-depth-test.sh --quick  # fast pass (~45s)
 ```
 
 Want to supermassive-test the whole command surface — single/multi targets,
@@ -496,9 +496,9 @@ function (bounds, typo tip, dangerous blocklist, plain-number,
 (-d / -u / asymmetric -d+-u)? One click (NIGHT-master-2):
 
 ```bash
-sudo ./scripts/supermassive-test.sh                # supermassive (5+ min)
-sudo ./scripts/supermassive-test.sh --heavy        # the same, explicit
-./scripts/supermassive-test.sh --self-test          # engine smoke, no root
+sudo ./scripts/supermassive/supermassive-test.sh                # supermassive (5+ min)
+sudo ./scripts/supermassive/supermassive-test.sh --heavy        # the same, explicit
+./scripts/supermassive/supermassive-test.sh --self-test          # engine smoke, no root
 ```
 
 One root intensity (NIGHT-improve-19): the old light sweep was retired —
@@ -513,8 +513,8 @@ local lane AND against the real internet, with honest SKIPs when the
 machine has no egress? That is v2 (NIGHT-improve-23):
 
 ```bash
-sudo ./scripts/supermassive-test-v2.sh               # e2e simulation (4+ min)
-./scripts/supermassive-test-v2.sh --self-test         # engine smoke, no root
+sudo ./scripts/supermassive/supermassive-test-v2.sh               # e2e simulation (4+ min)
+./scripts/supermassive/supermassive-test-v2.sh --self-test         # engine smoke, no root
 ```
 
 The division of labor is deliberate: v1 keeps every
@@ -532,9 +532,9 @@ configured rate over a long window, with the honest TCP-level number
 printed next to it)? One command (NIGHT-boost-8):
 
 ```bash
-sudo ./scripts/proof-claims.sh                # claims audit (~1 min)
-sudo ./scripts/proof-claims.sh --quick        # faster windows (~30s)
-./scripts/proof-claims.sh --self-test          # engine smoke, no root
+sudo ./scripts/bench/proof-claims.sh                # claims audit (~1 min)
+sudo ./scripts/bench/proof-claims.sh --quick        # faster windows (~30s)
+./scripts/bench/proof-claims.sh --self-test          # engine smoke, no root
 ```
 
 The harness always tests the checkout's own build: repo target

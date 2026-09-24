@@ -780,7 +780,7 @@ point at their in-tree counterparts.
 | Default (`cargo build` / check-all / tests) | stable 1.98.1 pin | the dormant-mode contract, unchanged |
 | ebpf-feature builds (incl. clippy --all-features) | stable root + nested dated nightly | nightly entered only through build.rs, never the default path |
 | Direct ebpf work (`cd ebpf && cargo build`) | dated nightly pin | resolves from ebpf/rust-toolchain.toml |
-| Prerequisites | rustup + bpf-linker 0.11.1 prebuilt | host install: ./scripts/bootstrap-ebpf.sh (NIGHT-host-1); no clang, no system LLVM, no libbpf headers |
+| Prerequisites | rustup + bpf-linker 0.11.1 prebuilt | host install: ./scripts/dev/bootstrap-ebpf.sh (NIGHT-host-1); no clang, no system LLVM, no libbpf headers |
 
 The runtime A/B on a privileged host (swap objects, run the
 observe/limit loop against real traffic) is the owner's own next
@@ -795,9 +795,9 @@ The owner's first host build after the merge spent the whole
 dependency compile and then hit the generic prerequisite panic —
 two manual installs (a rustup command plus a bpf-linker tar.zst
 download/extract/place) with no automation. NIGHT-host-1 fixes the
-path: scripts/bootstrap-ebpf.sh reads the dated pin straight from
+path: scripts/dev/bootstrap-ebpf.sh reads the dated pin straight from
 ebpf/rust-toolchain.toml and the bpf-linker pin from
-scripts/install-bpf-linker.sh (bump either pin in its own file, the
+scripts/dev/install-bpf-linker.sh (bump either pin in its own file, the
 script follows — pin and linker being a validated pair), installs
 the toolchain with the minimal profile +
 rust-src + rustfmt, downloads the bpf-linker 0.11.1 prebuilt for

@@ -10,7 +10,7 @@ the build process, project structure, and coding standards.
 
 - Rust 1.98+ (pinned to a concrete version in `rust-toolchain.toml`)
 - The eBPF nightly pin + bpf-linker 0.11.1 — one-time, one command:
-  `./scripts/bootstrap-ebpf.sh` (idempotent, and it self-repairs a
+  `./scripts/dev/bootstrap-ebpf.sh` (idempotent, and it self-repairs a
   damaged toolchain install; `--check` reports status only)
 - A kernel that can run zelynic — the requirement line and the full
   compatibility matrix live once in
@@ -158,19 +158,19 @@ scripts/
 
 ## Coding Standards
 
-1. **LOC limit**: < 500 lines per `.rs` file (enforced by `scripts/check-loc.sh`, wired into `gate-keepers.sh`; a file that cannot be split self-declares `// LOC_EXEMPT: <reason>`)
+1. **LOC limit**: < 500 lines per `.rs` file (enforced by `scripts/gates/check-loc.sh`, wired into `gate-keepers.sh`; a file that cannot be split self-declares `// LOC_EXEMPT: <reason>`)
 2. **Copyright + SPDX**: every source, config, and doc file must have:
    ```
    Copyright (C) 2026 rezky_nightky
    SPDX-License-Identifier: GPL-3.0-only
    ```
    (comments prefixed per language; `.md` uses HTML comments. Enforced by
-   `scripts/check-headers.sh`.)
+   `scripts/gates/check-headers.sh`.)
 3. **License**: GPL-3.0-only
 4. **Rust toolchain**: pinned to a concrete X.Y.Z in `rust-toolchain.toml`
    (never `stable` — dormant-mode policy). Bump with
-   `./scripts/rust-version-to.sh <X.Y.Z>`; sync enforced by
-   `scripts/check-rust-version-sync.sh`.
+   `./scripts/dev/rust-version-to.sh <X.Y.Z>`; sync enforced by
+   `scripts/gates/check-rust-version-sync.sh`.
 5. **No tc/nft/systemd-wrapper**: pure eBPF only on `main`
 6. **Fail-safe**: BPF programs return 1 (allow) on every error path
 7. **Lowercase units**: rate formats use `kb`, `mb`, `gb` (no uppercase, no `/s`)
@@ -188,7 +188,7 @@ scripts/
    literals are pure English (chat may be mixed-language; committed
    artifacts never are). Non-Latin scripts appear only as
    marker-declared Unicode fixtures (`// NON_LATIN_FIXTURE:`).
-   Enforced by `scripts/check-language.sh` (gate-keepers section 14;
+   Enforced by `scripts/gates/check-language.sh` (gate-keepers section 14;
    the CI `gatekeepers` job runs the whole script wholesale).
 
 ## Pre-commit

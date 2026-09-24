@@ -23,7 +23,7 @@
 |---|---|---|
 | **Runtime (every install)** | kernel 5.13+, cgroup v2 unified hierarchy, BPF filesystem, root. One self-contained binary. | The kernel's eBPF UAPI — stable ABI, verified matrix in [KERNEL_COMPATIBILITY.md](KERNEL_COMPATIBILITY.md) |
 | **Release artifacts** | Nothing else. Each tarball is `zelynic` + `LICENSE` + `README.md`; the eBPF objects ride inside the binary (`include_bytes!`, aligned + structurally validated at build time). | Built by CI on ephemeral runners; consumer machines never see any toolchain |
-| **Build from source** | rustup with the stable `1.98.1` pin (userspace), the dated `nightly-2026-09-18` pin (eBPF objects only, nested build in `build.rs`), bpf-linker `0.11.1` prebuilt. | All three installed by one command: `scripts/bootstrap-ebpf.sh` |
+| **Build from source** | rustup with the stable `1.98.1` pin (userspace), the dated `nightly-2026-09-18` pin (eBPF objects only, nested build in `build.rs`), bpf-linker `0.11.1` prebuilt. | All three installed by one command: `scripts/dev/bootstrap-ebpf.sh` |
 
 The split is deliberate. The userspace binary — the CLI, output
 rendering, rate parsing, all 15 commands' plumbing — builds on the
@@ -90,7 +90,7 @@ residual risks, ranked by how likely they are to matter:
    Release binaries are unaffected — this limit only bites people
    building new binaries from source, and it bites loudly: build.rs's
    preflight names the exact broken prerequisite with its one-command
-   repair (`scripts/bootstrap-ebpf.sh`, which also detects and
+   repair (`scripts/dev/bootstrap-ebpf.sh`, which also detects and
    reinstalls a DAMAGED pin).
 3. **aya upstream evolution.** The `aya`/`aya-ebpf` APIs move fast;
    a re-pin (limit 2) may require code changes on the zelynic side.
@@ -129,7 +129,7 @@ and the missing 1% fails closed and says so.**
 | A strict/limit command errors at BPF load | `zelynic doctor` | Preflights kernel eBPF support, cgroup v2, and BPF fs; names the missing piece |
 | Limits behave oddly after a crash / old binary | `zelynic recover` | Repairs or clears pinned state via the schema version |
 | Machine-wide sweep misbehaving | `sudo zelynic unstrict-all` | Full unpin: every limit, link, and map removed in one shot |
-| A from-source build dies on toolchain errors | `./scripts/bootstrap-ebpf.sh` | Installs/repairs the dated nightly + bpf-linker pair, then builds |
+| A from-source build dies on toolchain errors | `./scripts/dev/bootstrap-ebpf.sh` | Installs/repairs the dated nightly + bpf-linker pair, then builds |
 | Uninstalling while limits are live | `./scripts/uninstall.sh` | Clears kernel enforcement BEFORE removing the binary (NIGHT-improve-15) |
 
 Every runtime error prints its full cause chain (`caused by:` lines
