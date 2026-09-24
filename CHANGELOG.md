@@ -58,6 +58,34 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Fixed
 
+- **fix: E2E third-run hunt — two dormant v1-matrix rows fixed: the
+  status-table marker pinned the pre-engrave capital-A wording, and
+  the curl upload verdict read socket writes instead of delivered
+  bytes** — the E2E workflow's third run executed the FULL matrix for
+  the first time (74 passed, 2 failed, 5 skipped, 270s, both runner
+  kernels failing the SAME two rows — deterministic, not flaky).
+  Row 1: "status: human table renders with a live limit" expected
+  "Active limits" in the output, but NIGHT-engrave-5 lowercased the
+  whole flagship surface — the binary says "active limits: N dl, M
+  ul" — so the row has failed on every machine since that rebrand
+  and nothing ran the full matrix to notice. The marker now pins the
+  current surface (title bar + lowercase census line, the colon
+  separating it from the clean state's "no active limits"). Row 2:
+  "curl upload: external upload engine" measured 153% of configured
+  on the runners while the kernel's own allowed-bytes counter read
+  99.7% — enforcement was PERFECT; the metric was wrong. curl's
+  %{size_upload} counts socket WRITES, and on loopback the unpoliced
+  eager receiver keeps advertising large windows, so curl writes
+  ~1.5x the policer's drain rate and the undelivered excess sits in
+  kernel buffers when --max-time kills the worker. The verdict now
+  rides the harness server's delivered-byte counter (the honest twin
+  of the download lane's received bytes), curl's metric stays as the
+  worker-alive guard, a zero server delta is an explicit engine
+  fault, and the BPF accounting cross-check now compares like-for-
+  like wire bytes (the 65% match becomes ~100%). Harness-side only —
+  the limiter needed no change; its kernel numbers were the evidence
+  that convicted the metric. Signature audit clean, self-test 24/24.
+
 - **fix: E2E second-run hunt — the v1 rate-change stage crashed the
   whole supermassive matrix with a TypeError, invisible to every CI
   push since the NIGHT-refactor-2 move** — the E2E workflow's second

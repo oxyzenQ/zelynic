@@ -1069,10 +1069,16 @@ def test_policy_write():
     # render path from the JSON every other stage consumes — exercise it
     # while a limit is provably live.
     rc, stdout, _ = run_zel(["status"])
-    # NIGHT-boost-5: the human table opens with the flagship title bar
-    # ("zelynic status") and signs off with the signature footer — pin
-    # the bar, not the old heavy-dash header it replaced.
-    rendered = "Active limits" in stdout and "zelynic status" in stdout
+    # NIGHT-boost-5 pinned the bar; the E2E workflow's first full-matrix
+    # CI run caught the census marker drifting: NIGHT-engrave-5
+    # lowercased the whole flagship surface (column headers included),
+    # and the binary says "active limits: N dl, M ul" — this row had
+    # pinned the pre-engrave capital-A "Active limits" and failed on
+    # every machine since, but nothing ran the full matrix to see it.
+    # The marker now pins the CURRENT surface: the title bar plus the
+    # lowercase census line (the colon separates it from the clean
+    # state's "no active limits" wording).
+    rendered = "active limits:" in stdout and "zelynic status" in stdout
     human = record(
         "status: human table renders with a live limit",
         "PASS" if rc == 0 and rendered else "FAIL",
@@ -1393,13 +1399,39 @@ def test_curl_upload(window, baseline):
     time.sleep(0.5)
     # NIGHT-improve-12: the upload curl runs inside cgroup a (worker
     # path) so the policy it measures is the one applied to a.
+    #
+    # E2E-workflow hunt (first full-matrix CI run): the rate verdict now
+    # rides the SERVER-side delivered bytes, not curl's %{size_upload}.
+    # curl counts socket WRITES; on loopback the unpoliced eager
+    # receiver (the harness server in hq) keeps advertising large
+    # windows, so curl writes ~1.5x the policer's drain rate and the
+    # undelivered excess sits in kernel buffers when --max-time kills
+    # the worker — the runner measured 153% of configured while the
+    # kernel's own allowed-bytes read 99.7% (enforcement perfect, the
+    # METRIC was reading the write-ahead). Delivered bytes are the
+    # honest twin of the download lane's received bytes, and they make
+    # the BPF accounting cross-check compare like-for-like wire bytes.
+    # curl's own metric stays as the worker-alive guard (None = the
+    # engine itself died), and a zero server delta is an engine fault,
+    # never a rate verdict.
+    before = SERVER.peek()["ul"]
     sent, err = curl_upload_in_cgroup("a", window)
     if sent is None:
         record("curl upload: external upload engine", "FAIL", f"curl produced no metric ({err})")
         clear_all()
         return False
-    passed = band_check("curl upload: external upload engine", sent / window, 1_000_000)
-    enforcement_proofs("curl upload", sent)
+    SERVER.settle()
+    delivered = SERVER.peek()["ul"] - before
+    if delivered <= 0:
+        record(
+            "curl upload: external upload engine",
+            "FAIL",
+            f"server received 0 bytes (curl reported {sent}) — the measurement engine moved no wire bytes",
+        )
+        clear_all()
+        return False
+    passed = band_check("curl upload: external upload engine", delivered / window, 1_000_000)
+    enforcement_proofs("curl upload", delivered)
     clear_all()
     return passed
 
