@@ -62,8 +62,45 @@
 //! former per-refresh full redraw (screen wipe + every line + one
 //! flush per line) is gone.
 
+//! NIGHT-boost-28 (the interactive-stdio guard): the monitor is a
+//! TTY application — raw mode, alt screen, mouse tracking, 50ms
+//! key drains — and it now REFUSES to start when either stdio
+//! stream is not a terminal. The hazard the owner hit live:
+//! `sudo zelynic ee | grep` — stdin stays the real terminal while
+//! stdout is the pipe, so the old enter path put the REAL terminal
+//! into raw mode (echo off, ISIG off — Ctrl+C dead) while every
+//! alt-screen byte and frame painted into the pipe, and the loop
+//! spun forever holding root, eBPF, and a /proc cadence: a garbled
+//! terminal plus a hidden root process, the worst failure shape a
+//! critical-infra tool can take. `require_interactive()` is the one
+//! gate both the CLI handler and [`AltScreen::enter`] call (the
+//! handler refuses BEFORE root/BPF work; enter is the structural
+//! backstop for any future monitor surface), and the stdin twin
+//! covers redirected input (`ee < /dev/null`): keys can never
+//! arrive, and without it the frames would paint on the MAIN screen
+//! (no alt screen could be entered). One-shot report surfaces
+//! (status, list-apps, the enforcement verbs, doctor) stay pipe-safe
+//! by design: broken-pipe-safe writers, `--print-json` scripting,
+//! no terminal state — the audit found no other interactive
+//! surface in the tree.
+
 mod diff;
 mod raw;
+mod screen;
+
+// NIGHT-boost-28 (the 500-LOC cap split): the alt-screen contract —
+// enter/exit bytes, the termios guard, the interactive-stdio gate —
+// lives in screen.rs; the private use keeps the names resolvable
+// from the path-wired pins (they import from `super::`, this
+// module).
+// require_interactive re-exports pub(crate): the eagle-eyes handler
+// calls it by the terminal:: path (NIGHT-boost-28).
+pub(crate) use screen::require_interactive;
+// The ALT byte contracts stay name-reachable for the path-wired
+// mouse pins (they import from `super::` — this module).
+use screen::AltScreen;
+#[cfg(test)]
+use screen::{ALT_ENTER, ALT_EXIT};
 
 pub use diff::DiffScreen;
 pub use raw::RawStdout;
@@ -75,24 +112,8 @@ pub use raw::RawStdout;
 pub(crate) use raw::winsize;
 
 use anyhow::Result;
-use std::io::{self, Read, Write};
+use std::io::{self, Read};
 use std::time::{Duration, Instant};
-
-/// Alt-screen enter sequence — the exact bytes `AltScreen::enter()`
-/// writes (NIGHT-strict-1 pinned the plumbing; NIGHT-improve-7 added
-/// the mouse modes). A named constant so the byte-level pin in
-/// `test/terminal/mouse_contract_tests.rs` can hold the contract:
-/// alternate screen on, cursor hidden, mouse tracking on (press/release
-/// 1000 + button-drag 1002 + SGR encoding 1006) — and NOTHING ELSE
-/// (no any-motion 1003 flood, no focus 1004, no bracketed paste
-/// 2004).
-const ALT_ENTER: &[u8] = b"\x1b[?1049h\x1b[?25l\x1b[?1000h\x1b[?1002h\x1b[?1006h";
-
-/// Alt-screen exit sequence — the exact bytes `Drop for AltScreen`
-/// writes: mouse tracking off (reverse order of the enter), back to
-/// the main screen, cursor visible again. A full restore of every
-/// mode `ALT_ENTER` touched, and nothing more.
-const ALT_EXIT: &[u8] = b"\x1b[?1006l\x1b[?1002l\x1b[?1000l\x1b[?1049l\x1b[?25h";
 
 /// Selection-guard beat (NIGHT-improve-8): the cadence on which the
 /// monitor loop re-emits the whole frame while the box runs, so no
@@ -128,11 +149,14 @@ enum Beat {
 }
 
 /// The monitor loop's scheduler, pure so the contract pins can
-/// hold it. `guard` is false on the non-TTY fallback path: a pipe
-/// has no selection machinery, and flooding it with whole-frame
-/// beats would only multiply the output volume (the benchmark
-/// harness and CI run exactly there). `resized` forces a Render
-/// beat regardless of the refresh clock (NIGHT-boost-14).
+/// hold it. `guard` is false on the retired pipe-fallback's
+/// scheduler shape — the arm stays part of the pure function's
+/// domain (the pins exercise it) even though NIGHT-boost-28 made
+/// the monitor refuse non-interactive stdio before the loop can
+/// ever run there: a pipe has no selection machinery, and flooding
+/// one with whole-frame beats would only multiply the output
+/// volume. `resized` forces a Render beat regardless of the refresh
+/// clock (NIGHT-boost-14).
 fn next_beat(
     last_render: Instant,
     last_guard: Instant,
@@ -146,54 +170,6 @@ fn next_beat(
         Beat::Guard
     } else {
         Beat::Sleep
-    }
-}
-
-/// Terminal guard — enters alt screen + raw mode, restores on drop.
-pub struct AltScreen {
-    original: nix::sys::termios::Termios,
-}
-
-impl AltScreen {
-    pub fn enter() -> Result<Self> {
-        use nix::sys::termios::*;
-        let stdin = io::stdin();
-        let original = tcgetattr(&stdin)?;
-
-        let mut raw = original.clone();
-        raw.local_flags &= !(LocalFlags::ICANON | LocalFlags::ECHO | LocalFlags::ISIG);
-        raw.control_chars[SpecialCharacterIndices::VMIN as usize] = 0;
-        raw.control_chars[SpecialCharacterIndices::VTIME as usize] = 0;
-
-        tcsetattr(&stdin, SetArg::TCSANOW, &raw)?;
-
-        // Enter alternate screen + hide cursor + take the pointer,
-        // exactly the pinned ALT_ENTER bytes: ESC[?1049h (save cursor
-        // + switch to alt screen + clear it), ESC[?25l (hide cursor),
-        // then mouse tracking 1000/1002/1006 so click-drag selects
-        // nothing and no paste lands in stdin (NIGHT-improve-7; the
-        // drained SGR mouse events are inert input — see the module
-        // contract above).
-        io::stdout().write_all(ALT_ENTER)?;
-        io::stdout().flush()?;
-
-        Ok(AltScreen { original })
-    }
-}
-
-impl Drop for AltScreen {
-    fn drop(&mut self) {
-        use nix::sys::termios::*;
-        let stdin = io::stdin();
-        let _ = tcsetattr(&stdin, SetArg::TCSANOW, &self.original);
-
-        // Leave the monitor state, exactly the pinned ALT_EXIT bytes:
-        // mouse tracking off first (1006/1002/1000, reverse of the
-        // enter), then ESC[?1049l (back to main screen + restore
-        // cursor) and ESC[?25h (show cursor) — selection and paste
-        // are the terminal's again the moment the box is gone.
-        let _ = io::stdout().write_all(ALT_EXIT);
-        let _ = io::stdout().flush();
     }
 }
 
@@ -284,8 +260,10 @@ fn run_loop<F: FnMut(&mut Vec<String>)>(
     mut render: F,
 ) {
     // NIGHT-improve-8: the guard runs only where a selection can
-    // exist — the TTY path. The pipe fallback passes guard=false
-    // (see next_beat).
+    // exist — the TTY path. Always true from the session since
+    // NIGHT-boost-28 (Monitor::open succeeds only on an interactive
+    // stdio pair); the false arm remains the pure function's
+    // pin-only domain (see next_beat).
     let mut last_render = Instant::now() - refresh_interval; // render immediately on first iteration
     let mut last_guard = Instant::now();
     // NIGHT-boost-14 resize reactivity: the geometry the last
@@ -388,11 +366,19 @@ fn run_loop<F: FnMut(&mut Vec<String>)>(
 /// A load failure simply drops the session — ALT_EXIT restores the
 /// main screen and the branded error prints on it.
 ///
-/// On a pipe (`AltScreen::enter` fails) the session opens silent:
-/// the prelude is never composed (no chrome bytes into the pipe) and
-/// the loop runs the fallback contract (no selection guard) exactly
-/// as the pre-Monitor era did — the benchmark harness and CI live
-/// there.
+/// NIGHT-boost-28: the silent pipe fallback is GONE. The old
+/// contract opened a "silent" session when `AltScreen::enter`
+/// failed and ran the monitor loop into whatever stdout was — a
+/// pipe (the forever-monitor shape the sink-death exit already
+/// fenced) or, worse, a TTY whose stdin was redirected (frames
+/// painting on the MAIN screen with no alt screen and no keys).
+/// With `require_interactive()` gating both the handler and
+/// `enter()`, a non-interactive stdio now refuses loudly BEFORE any
+/// terminal state is taken, and a genuine termios failure inside
+/// `enter()` propagates as the honest error it is — the session
+/// type can no longer swallow an enter failure and degrade
+/// silently. Every monitor invocation is interactive, or it never
+/// starts.
 ///
 /// The alt screen (and every mode ALT_ENTER touched) restores when
 /// the session drops: mouse modes off, main screen back, cursor
@@ -403,45 +389,43 @@ pub struct Monitor {
     /// The alt-screen guard, held for its Drop (ALT_EXIT restores
     /// the main screen when the session ends). Underscore-named: a
     /// pure RAII field is never read, only dropped.
-    _alt: Option<AltScreen>,
+    _alt: AltScreen,
+    /// The selection guard runs only where a selection can exist —
+    /// always true now: `Monitor::open` only succeeds on a fully
+    /// interactive stdio pair (NIGHT-boost-28).
     guard: bool,
 }
 
 impl Monitor {
     /// Open the session: enter the alt screen and paint the prelude
     /// frame. `prelude(width, height)` composes at the open-time
-    /// probe's real terminal size and is invoked ONLY on the TTY path
-    /// — a pipe never sees chrome bytes. An empty prelude (the `-v`
+    /// probe's real terminal size. An empty prelude (the `-v`
     /// trace-first sequence) paints nothing but still primes the
     /// diff screen, so the first live frame owns the whole screen.
-    pub fn open<P: FnOnce(usize, usize) -> Vec<String>>(prelude: P) -> Self {
-        match AltScreen::enter() {
-            Ok(alt) => {
-                let (w, h) = match winsize() {
-                    Some((cols, rows)) => (cols as usize, rows as usize),
-                    None => (80, 24),
-                };
-                let mut session = Monitor {
-                    screen: DiffScreen::new(),
-                    lines: prelude(w, h),
-                    _alt: Some(alt),
-                    guard: true,
-                };
-                // The prelude IS frame 0: emit through the session's
-                // own diff screen so the first live frame diffs
-                // against it (the morph) instead of painting over a
-                // clear.
-                let mut stdout = RawStdout;
-                session.screen.emit(&mut session.lines, &mut stdout);
-                session
-            }
-            Err(_) => Monitor {
-                screen: DiffScreen::new(),
-                lines: Vec::with_capacity(48),
-                _alt: None,
-                guard: false,
-            },
-        }
+    ///
+    /// NIGHT-boost-28: returns `Result` — a non-interactive stdio
+    /// (piped or redirected) or a termios failure refuses here with
+    /// the branded message instead of degrading into the silent
+    /// pipe session; no chrome byte ever reaches a non-terminal.
+    pub fn open<P: FnOnce(usize, usize) -> Vec<String>>(prelude: P) -> Result<Self> {
+        let alt = AltScreen::enter()?;
+        let (w, h) = match winsize() {
+            Some((cols, rows)) => (cols as usize, rows as usize),
+            None => (80, 24),
+        };
+        let mut session = Monitor {
+            screen: DiffScreen::new(),
+            lines: prelude(w, h),
+            _alt: alt,
+            guard: true,
+        };
+        // The prelude IS frame 0: emit through the session's
+        // own diff screen so the first live frame diffs
+        // against it (the morph) instead of painting over a
+        // clear.
+        let mut stdout = RawStdout;
+        session.screen.emit(&mut session.lines, &mut stdout);
+        Ok(session)
     }
 
     /// Run the live loop. Consumes the session; the alt screen

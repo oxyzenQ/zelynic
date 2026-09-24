@@ -34,8 +34,9 @@
 //!    the terminal's Shift+click bypass, so the loop re-emits the
 //!    whole frame on the beat and no selection can outlive it; the
 //!    scheduler pins hold the ordering (render outranks guard, the
-//!    guard clock never resets on a render, the non-TTY fallback
-//!    never guards).
+//!    guard clock never resets on a render, the disabled-guard arm
+//!    never guards — the retired pipe fallback's scheduler shape,
+//!    kept as the pure function's false domain).
 //!
 //! Why this matters: dropping the mouse modes would re-expose the
 //! monitor's private rows to plain click-drag selection; adding an
@@ -308,9 +309,9 @@ fn next_beat_orders_render_guard_sleep() {
     ));
 
     // NIGHT-boost-14: a resize mid-interval renders IMMEDIATELY —
-    // both on the guarded TTY path and the non-TTY fallback (the
-    // geometry probe is loop-level; the fallback cannot actually
-    // resize, but the scheduler contract is size-blind).
+    // at every guard value (the geometry probe is loop-level and
+    // size-blind; the false arm is the retired pipe fallback's
+    // scheduler shape the pure function still owns).
     assert!(matches!(
         next_beat(
             now - Duration::from_millis(500),

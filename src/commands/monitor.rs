@@ -186,6 +186,16 @@ pub fn handle_list_apps(json: bool) -> Result<()> {
 /// wears the static champion red (NIGHT-boost-14 retired the
 /// takeover blink) — the row budget equals the terminal height
 /// (no --limit, no cap).
+/// Smooth open (NIGHT-boost-25) + the interactive-stdio gate
+/// (NIGHT-boost-28): the session opens only on a fully interactive
+/// stdio pair — piped/redirected stdout refuses before any terminal
+/// state or BPF work, the branded error teaching the scripted-
+/// output alternative (`status --print-json`).
+/// Smooth open (NIGHT-boost-25) + the interactive-stdio gate
+/// (NIGHT-boost-28): the session opens only on a fully interactive
+/// stdio pair — piped/redirected stdout refuses before any terminal
+/// state or BPF work, the branded error teaching the scripted-output
+/// alternative (`status --print-json`).
 #[cfg(feature = "ebpf")]
 pub fn handle_eagle_eyes(
     targets: Option<&str>,
@@ -229,6 +239,14 @@ pub fn handle_eagle_eyes(
 
     super::ensure_root()?;
 
+    // NIGHT-boost-28: the interactive-stdio gate, before any terminal
+    // state or BPF work — `sudo zelynic ee | grep` is the owner's
+    // fatal (stdin TTY + stdout pipe raw-moded the real terminal and
+    // spun forever as root; see terminal::require_interactive).
+    // Placed after the root guard so the unprivileged piped probe
+    // still teaches sudo first (the surface pin's contract).
+    terminal::require_interactive()?;
+
     // The cadence as a Duration, before the smooth open composes the
     // loading frame's status line with it.
     let interval = Duration::from_secs(interval_secs);
@@ -269,7 +287,7 @@ pub fn handle_eagle_eyes(
             "[ebpf] first poll: {} cgroups with traffic since attach",
             first.cgroups.len()
         );
-        terminal::Monitor::open(|_, _| Vec::new())
+        terminal::Monitor::open(|_, _| Vec::new())?
     } else {
         let monitor = terminal::Monitor::open(|w, h| {
             loading_frame(
@@ -279,7 +297,7 @@ pub fn handle_eagle_eyes(
                     height: h,
                 },
             )
-        });
+        })?;
         observer = Observer::attach(verbose)?;
         observer.refresh_identity();
         let _ = observer.poll_and_summarize()?;

@@ -251,7 +251,13 @@ sudo zelynic eagle-eyes [targets] [--interval <1s-60s>]
 One surface for the former `observe` + `top` pair (NIGHT-boost-1;
 `ee` is the short alias, NIGHT-improve-25 — the singular `eagle-eye`
 alias is removed, and typing it lands on a redirect tip pointing
-here). Apps are RANKED by session accumulation (NIGHT-boost-5):
+here). It is an INTERACTIVE monitor and refuses non-terminal stdio
+(NIGHT-boost-28): piped or redirected output (`sudo zelynic ee |
+grep`) exits with a branded error before any terminal state or BPF
+load — the scripted-output surface is `status --print-json`; a
+redirected stdin refuses the same way, because the `q`/`t` keys
+would never arrive. Apps are RANKED by session accumulation
+(NIGHT-boost-5):
 rank 1 is whoever has moved the most bytes since the monitor
 started — a heavy downloader that stops keeps its crown until
 another app's accumulated total passes it. Rows persist across
