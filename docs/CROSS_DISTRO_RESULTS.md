@@ -16,13 +16,14 @@
 
 > Future runs (NIGHT-master-1 / NIGHT-master-2): the two flagship
 > harnesses — `limiter-depth-test.sh` (limiter accuracy) and
-> `supermassive-test.sh` (whole command surface) — are the
-> re-validation tools. Run them on any new distro (commands are in the
-> README's Test Results section; `--json` for machine-readable output)
-> and file the measured ratios in this document. A third harness joins
-> them (NIGHT-improve-23): `supermassive-test-v2.sh`, the end-to-end
-> daily-use simulation (strict / limit / block / unstrict, local AND
-> real internet) — its realnet rows are the ones worth filing here,
+> `supermassive-test.sh` (limiter scope: policy matrix, local AND real
+> internet) — are the re-validation tools. Run them on any new distro
+> (commands are in the README's Test Results section; `--json` for
+> machine-readable output) and file the measured ratios in this
+> document. A third harness joins them (NIGHT-improve-23, refocused
+> NIGHT-refactor-2): `supermassive-test-v2.sh`, the survival battery
+> (CLI guards, SIGKILL batteries, post-kill regression, crash
+> teardown) — and v1's realnet rows are the ones worth filing here,
 > since they exercise the production traffic shape.
 
 ## Summary

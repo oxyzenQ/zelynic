@@ -175,11 +175,12 @@ jobs:
       - name: Supermassive harness engine self-test
         run: python3 scripts/supermassive/supermassive-test.py --self-test
 
-      # NIGHT-improve-23: the v2 harness (daily-use E2E simulation)
-      # self-tests the same way — engine import, endpoint registry,
-      # worker command contract — with no root and no network, so the
-      # realnet lane's plumbing is proven on every push even though
-      # the root matrix itself runs on the owner's machines.
+      # NIGHT-improve-23 (refocused NIGHT-refactor-2): the v2 harness
+      # (the survival battery) self-tests the same way — engine
+      # import, stage surface, pty mechanics — with no root and no
+      # network, so the kill batteries' plumbing is proven on every
+      # push even though the root battery itself runs on the owner's
+      # machines.
       - name: Supermassive v2 harness engine self-test
         run: python3 scripts/supermassive/supermassive-test-v2.py --self-test
 
