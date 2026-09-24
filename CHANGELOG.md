@@ -58,6 +58,31 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Fixed
 
+- **fix: E2E fifth-run hunt — the harness HTTP server's accept loop
+  no longer dies silently on a transient fault, and the curl-upload
+  zero-fold now reads as an honest engine-fault SKIP with the kernel
+  evidence printed** — run five's evidence message did its job: the
+  /ul counter read 16,121,856 -> 16,121,856 (a full 5 s of
+  quiescence, zero bytes folded — NOT a settle race) while the
+  kernel rows showed 5,413,292 bytes allowed and 169 packets dropped:
+  the wire moved 5.4 MB, the app-level instrument never saw it. The
+  prime suspect is the accept loop's old `except OSError: return` —
+  one transient fault (EMFILE, ECONNABORTED, ENOBUFS, ...) killed
+  all future connection handling while the kernel backlog kept
+  accepting and buffering, freezing every app counter from that
+  moment (python-worker uploads folded fine minutes earlier; the curl
+  upload was the next /ul connection). The loop now retries transient
+  faults with a 50 ms breath, exits only on stop()/EBADF, and counts
+  accept_errors + conn_count, both surfaced through peek() so a
+  frozen counter names its cause in the row itself. The zero-fold
+  verdict fork follows the realnet upload-sanity precedent: a fold
+  of zero WITH kernel-allowed bytes above the accounting floor is an
+  ENGINE fault — SKIP, with the kernel rows printed as the
+  enforcement evidence; a fold of zero with nothing allowed is a real
+  FAIL (the worker moved nothing). Verified: self-test 24/24 on the
+  hardened server (peek()'s new keys break nothing), local repro
+  3/3 agreement at ~10 GB/trial, signature audit clean, ruff clean.
+
 - **fix: E2E fourth-run hunt — the curl burst ceiling now derives
   from the documented burst budget, and the curl upload counter waits
   for quiescence instead of a blind 0.4s sleep** — the fourth E2E run
