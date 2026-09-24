@@ -65,7 +65,13 @@ pub fn render_eagle_focus(
     // corners — compose into the bordered inset, flank at the end.
     let full_width = geo.width;
     let geo = super::border::content_geo(geo);
-    lines.push(title_bar(&title_core, full_width));
+    // NIGHT-engrave-8: the bar composes at the FRAME's width —
+    // one column inside the terminal — so wrap's leading inset
+    // lands the corners one column from each edge.
+    lines.push(title_bar(
+        &title_core,
+        super::border::frame_width(full_width),
+    ));
 
     // The breathing gap (NIGHT-boost-14): same air under the title
     // as the ranked frame — one composition, two views.
@@ -218,8 +224,9 @@ mod tests {
             "lifetime sums both lifetime counters: {joined}"
         );
         assert!(
-            joined.starts_with("╭─── zelynic eagle-eyes — cg:7001 (brave)"),
-            "the rounded top border names the focused target: {joined}"
+            joined.starts_with(" ╭─── zelynic eagle-eyes — cg:7001 (brave)"),
+            "the rounded top border names the focused target, inset \
+             column first (NIGHT-engrave-8): {joined}"
         );
     }
 
@@ -245,7 +252,7 @@ mod tests {
             },
         );
         assert_eq!(lines.len(), 24, "pinned frame spans the terminal height");
-        assert!(lines[0].starts_with("╭─── zelynic eagle-eyes — cg:73386"));
+        assert!(lines[0].starts_with(" ╭─── zelynic eagle-eyes — cg:73386"));
         assert!(
             !lines[0].contains("t theme"),
             "engrave-3: the focus title carries no key hint: {}",
@@ -253,39 +260,42 @@ mod tests {
         );
         assert_eq!(
             lines[1],
-            format!("│{}│", " ".repeat(78)),
-            "breathing gap under the title, railed"
+            format!(" │{}│", " ".repeat(76)),
+            "breathing gap under the title, railed (engrave-8 inset)"
         );
         assert!(lines.iter().any(|l| l.contains("no traffic for cg:73386")));
         assert_eq!(
             lines[19],
             format!(
-                "│  1s realtime - theme netrunner - q quit - t theme{}│",
-                " ".repeat(28)
+                " │  1s realtime - theme netrunner - q quit - t theme{}│",
+                " ".repeat(26)
             ),
-            "status line above the focus copyright (NIGHT-engrave-2): {}",
+            "status line above the focus copyright (NIGHT-engrave-2, \
+             engrave-8 inset): {}",
             lines[19]
         );
         assert_eq!(
             lines[20],
-            format!("│{}│", " ".repeat(78)),
-            "the owner's engrave-3 gap above the copyright: {}",
+            format!(" │{}│", " ".repeat(76)),
+            "the owner's engrave-3 gap above the copyright (engrave-8 \
+             inset): {}",
             lines[20]
         );
         assert!(
-            lines[21].starts_with("│  v") && lines[21].contains(") by oxyzenQ"),
+            lines[21].starts_with(" │  v") && lines[21].contains(") by oxyzenQ"),
             "copyright is the simplified build stamp (NIGHT-boost-19): {}",
             lines[21]
         );
         assert!(
-            lines[22].starts_with("│  uptime 1m:10s"),
+            lines[22].starts_with(" │  uptime 1m:10s"),
             "uptime below the focus footer (boost-17): {}",
             lines[22]
         );
         assert_eq!(
             lines[23],
-            format!("╰{}╯", "─".repeat(78)),
-            "the closing border row floors the focus frame (NIGHT-boost-20)"
+            format!(" ╰{}╯", "─".repeat(76)),
+            "the closing border row floors the focus frame (NIGHT-boost-20, \
+             engrave-8 inset)"
         );
     }
 }

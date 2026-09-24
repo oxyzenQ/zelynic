@@ -130,7 +130,7 @@ fn footer_tiers_degrade_in_the_engraved_order() {
         .any(|l| l.contains("total avg dl | ul = 7.1 KB/s | 71 B/s")));
     // Footer spans the block below the table territory: rows 5..15.
     let footer_rows = &compact[5..15];
-    let blank_row = format!("│{}│", " ".repeat(78));
+    let blank_row = format!(" │{}│", " ".repeat(76));
     assert_eq!(
         footer_rows.iter().filter(|l| **l == blank_row).count(),
         1,
@@ -138,7 +138,7 @@ fn footer_tiers_degrade_in_the_engraved_order() {
         footer_rows
     );
     assert!(
-        footer_rows[8] == blank_row && footer_rows[9].starts_with("│  v"),
+        footer_rows[8] == blank_row && footer_rows[9].starts_with(" │  v"),
         "the one blank sits directly above the copyright: {:?}",
         footer_rows
     );

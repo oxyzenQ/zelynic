@@ -35,6 +35,20 @@
 //! cosmostrix), and the cost is two powf per channel per row — the
 //! frame duty at the 1s cadence is unmoved.
 //!
+//! NIGHT-engrave-8 (symmetric margins): the frame composes ONE
+//! column inside the terminal — a leading space column before the
+//! left rail and an unpainted final column after the right rail,
+//! both rails exactly one column from the terminal's edges (the
+//! owner's "both should have a 1px margin" contract, the CSS-margin
+//! reading of the border). The unpainted last column is the
+//! terminal-physics half of the fix: painting INTO the final column
+//! leaves the cursor in pending-wrap state where the emission's
+//! trailing erase-to-EOL behaves differently per terminal (some eat
+//! the just-written rail) — the composed frame never touches it,
+//! so the trailing ESC[K always erases a guaranteed-blank cell and
+//! the right rail renders identically everywhere. The content
+//! width absorbs the two columns (W-4 at an 80-column terminal).
+//!
 //! Capability ladder: TrueColor interpolates the brand RGB per row;
 //! xterm-256 quantizes each interpolated triple onto the 6x6x6 cube;
 //! 16-color terminals render the rails in the theme's flat brand SGR
@@ -52,6 +66,42 @@ pub(super) const BORDER_W: usize = 2;
 
 /// Rows the border claims: the dedicated closing row.
 pub(super) const BORDER_ROWS: usize = 1;
+
+/// NIGHT-engrave-8: the frame's leading space column — the left
+/// rail sits one column in from the terminal's left edge, the
+/// mirror of the final column the frame never paints (the right
+/// rail one column in from the right edge). Both margins are the
+/// owner's "1px each side" contract.
+const LEFT_INSET: usize = 1;
+
+/// NIGHT-engrave-8: the terminal columns the composed row leaves
+/// untouched on the right — the frame's own width is the terminal
+/// width minus this margin, so no row ever paints the final column
+/// (the pending-wrap hazard the trailing erase-to-EOL makes
+/// terminal-dependent).
+const RIGHT_MARGIN: usize = 1;
+
+/// The width the frame's PASS-THROUGH row composes at
+/// (NIGHT-engrave-8): the title bar builds its `╭...╮` line at this
+/// width, and wrap's leading inset column brings the rendered row
+/// to `term_width - 1` — one column short of the terminal's right
+/// edge, the final column never painted.
+#[must_use]
+pub(super) fn frame_width(term_width: usize) -> usize {
+    term_width
+        .saturating_sub(RIGHT_MARGIN)
+        .saturating_sub(LEFT_INSET)
+}
+
+/// The content width inside the rails (NIGHT-engrave-8): the frame
+/// width minus both rails and the leading inset — what [`fit`]
+/// pads and truncates to.
+fn content_width(term_width: usize) -> usize {
+    term_width
+        .saturating_sub(RIGHT_MARGIN)
+        .saturating_sub(BORDER_W)
+        .saturating_sub(LEFT_INSET)
+}
 
 /// The SGR reset the flanked rows close with (the same constant the
 /// color layer's wrappers append — spelled here because the color
@@ -72,7 +122,7 @@ const DARK_FACTOR: f32 = 0.42;
 #[must_use]
 pub(super) fn content_geo(geo: FrameGeometry) -> FrameGeometry {
     FrameGeometry {
-        width: geo.width.saturating_sub(BORDER_W),
+        width: content_width(geo.width),
         height: geo.height.saturating_sub(BORDER_ROWS),
     }
 }
@@ -210,7 +260,7 @@ pub(super) fn wrap(lines: &mut Vec<String>, width: usize) {
         return;
     }
     let rows = lines.len() + BORDER_ROWS;
-    let content_w = width.saturating_sub(BORDER_W);
+    let content_w = content_width(width);
     let cap = capability();
     let theme = theme::active();
     // NIGHT-boost-26: the frame's background follows the terminal —
@@ -224,11 +274,16 @@ pub(super) fn wrap(lines: &mut Vec<String>, width: usize) {
     // closes everything the row opened.
     let bg = theme::terminal_bg_escape();
     // Row 0 (the title bar) passes through the flank loop below
-    // untouched — it carries the top border. The background still
-    // belongs to it: prepended here, closed by the bar's own RESET.
-    if !bg.is_empty() {
-        lines[0].insert_str(0, &bg);
-    }
+    // untouched — it carries the top border. The inset column and
+    // the background still belong to it: the space leads
+    // (NIGHT-engrave-8, outside the paint), the background follows
+    // (NIGHT-boost-26, closed by the bar's own RESET).
+    let lead = if bg.is_empty() {
+        " ".to_string()
+    } else {
+        format!(" {bg}")
+    };
+    lines[0].insert_str(0, &lead);
     for (i, line) in lines.iter_mut().enumerate().skip(1) {
         let mut content = fit(line, content_w);
         // Re-open the background after every inner reset so the
@@ -242,7 +297,12 @@ pub(super) fn wrap(lines: &mut Vec<String>, width: usize) {
         // A row that carried its own colors ends reset — the right
         // rail re-opens the gradient. A plain row never disturbed
         // the left rail's color: one escape carries both rails.
-        let mut row = String::with_capacity(bg.len() + esc.len() * 2 + content.len() + 8);
+        let mut row =
+            String::with_capacity(LEFT_INSET + bg.len() + esc.len() * 2 + content.len() + 8);
+        // NIGHT-engrave-8: the leading space column rides OUTSIDE
+        // the paint (the margin the terminal owns), the background
+        // opens the canvas at the rail.
+        row.push(' ');
         row.push_str(&bg);
         row.push_str(&esc);
         row.push('│');
@@ -259,14 +319,17 @@ pub(super) fn wrap(lines: &mut Vec<String>, width: usize) {
     // The closing row (BD-02: the bright anchor): the frame's
     // foundation, visually anchored whatever the wave does above it.
     let bright = rail_escape(theme.brand_rgb(), theme, cap);
-    let mut closing = String::with_capacity(width + bright.len() + bg.len() + RESET.len());
-    // The closing row opens with the terminal background like every
-    // other row (NIGHT-boost-26) — the foundation is bright, the
-    // floor it sits on is the terminal's own.
+    let mut closing =
+        String::with_capacity(LEFT_INSET + width + bright.len() + bg.len() + RESET.len());
+    // The closing row opens with the inset column like every other
+    // row (NIGHT-engrave-8) and the terminal background
+    // (NIGHT-boost-26) — the foundation is bright, the floor it
+    // sits on is the terminal's own.
+    closing.push(' ');
     closing.push_str(&bg);
     closing.push_str(&bright);
     closing.push('╰');
-    closing.push_str(&"─".repeat(width.saturating_sub(BORDER_W)));
+    closing.push_str(&"─".repeat(content_w));
     closing.push('╯');
     if !bright.is_empty() {
         closing.push_str(RESET);

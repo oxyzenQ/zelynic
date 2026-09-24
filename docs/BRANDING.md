@@ -94,10 +94,16 @@ numerics, and no per-cell noise (values are never packed as
   two-column right gutter, the mirror of the left: the table's
   figures end two columns before the right rail on BOTH edges,
   symmetric air (the owner's border-gap audit).
-- Frame borders (NIGHT-boost-20): gradient side rails and a bright
-  closing floor row — the active theme's brand color sweeping
-  dark-bright-dark down the frame (the cosmostrix msg-border BD-02
-  triangle-wave contract, bright-anchored at the bottom).
+- Frame borders (NIGHT-boost-20; margins NIGHT-engrave-8): gradient
+  side rails and a bright closing floor row — the active theme's
+  brand color sweeping dark-bright-dark down the frame (the
+  cosmostrix msg-border BD-02 triangle-wave contract,
+  bright-anchored at the bottom). The box sits ONE column inside the
+  terminal on each side — both rails exactly one column from the
+  edges, the final terminal column never painted (terminal physics:
+  a row that paints the last column leaves the cursor pending-wrap,
+  where the trailing erase-to-EOL eats the right rail on some
+  terminals) — so the frame renders identically everywhere.
 - Rows and totals: terminal default color — the purple frame carries
   the brand so data stays maximally readable.
 - The layout re-probes width AND height every frame (TIOCGWINSZ), so

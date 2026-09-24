@@ -42,12 +42,13 @@ fn classic() -> FrameGeometry {
     }
 }
 
-/// One flanked row (mono, as tests run piped): rail + content padded
-/// to the 78-column inset + rail — the exact wrap contract for footer
-/// text rows (NIGHT-boost-20).
+/// One flanked row (mono, as tests run piped): inset column + rail +
+/// content padded to the 76-column inset + rail — the exact wrap
+/// contract for footer text rows (NIGHT-boost-20; NIGHT-engrave-8
+/// added the leading inset and the one-column-shorter frame).
 fn flanked(content: &str) -> String {
-    let pad = " ".repeat(78 - content.chars().count());
-    format!("│{content}{pad}│")
+    let pad = " ".repeat(76 - content.chars().count());
+    format!(" │{content}{pad}│")
 }
 
 /// A one-cgroup traffic frame.
@@ -90,13 +91,13 @@ fn eagle_frame_builds_lines() {
     );
     assert_eq!(lines.len(), 24, "the frame is pinned to the height");
     assert!(
-        lines[0].starts_with("╭─── zelynic eagle-eyes"),
-        "title carries the rounded top border (NIGHT-boost-20): {}",
+        lines[0].starts_with(" ╭─── zelynic eagle-eyes"),
+        "title carries the rounded top border, inset column first          (NIGHT-boost-20 + engrave-8): {}",
         lines[0]
     );
     assert_eq!(
         lines[1],
-        format!("│{}│", " ".repeat(78)),
+        format!(" │{}│", " ".repeat(76)),
         "breathing gap under the title, flanked by the rails"
     );
     assert!(lines.contains(&flanked("  waiting for traffic…").to_string()));
@@ -144,7 +145,7 @@ fn eagle_frame_builds_lines() {
     );
     assert_eq!(
         lines[total_idx - 2],
-        format!("│{}│", "─".repeat(78)),
+        format!(" │{}│", "─".repeat(76)),
         "the roof grid JOINS the left rail above the whole block — the owner's |---: {:?}",
         lines[total_idx - 2]
     );
@@ -180,18 +181,18 @@ fn eagle_frame_builds_lines() {
     );
     assert_eq!(
         lines[21],
-        format!("│{}│", " ".repeat(78)),
+        format!(" │{}│", " ".repeat(76)),
         "the owner's engrave-3 gap above the copyright"
     );
     assert!(
-        lines[22].starts_with("│  v") && lines[22].contains(") by oxyzenQ"),
+        lines[22].starts_with(" │  v") && lines[22].contains(") by oxyzenQ"),
         "copyright is the frame's last content row: {}",
         lines[22]
     );
     assert_eq!(
         lines[23],
-        format!("╰{}╯", "─".repeat(78)),
-        "the closing border row floors the frame (NIGHT-boost-20)"
+        format!(" ╰{}╯", "─".repeat(76)),
+        "the closing border row floors the frame (NIGHT-boost-20,          engrave-8 inset)"
     );
 }
 
@@ -314,7 +315,7 @@ fn footer_layout_pins_to_the_bottom() {
         lines[total_row]
     );
     // The roof grid roofs the WHOLE block — the headline included.
-    assert_eq!(lines[consumer_idx - 1], format!("│{}│", "─".repeat(78)));
+    assert_eq!(lines[consumer_idx - 1], format!(" │{}│", "─".repeat(76)));
     // The rare note rides after the limit line, end of the data
     // paragraph.
     assert_eq!(
@@ -328,29 +329,29 @@ fn footer_layout_pins_to_the_bottom() {
     );
     assert_eq!(
         lines[21],
-        format!("│{}│", " ".repeat(78)),
+        format!(" │{}│", " ".repeat(76)),
         "the owner's engrave-3 gap above the copyright"
     );
     assert!(
-        lines[22].starts_with("│  v") && lines[22].contains(") by oxyzenQ"),
+        lines[22].starts_with(" │  v") && lines[22].contains(") by oxyzenQ"),
         "copyright is the frame's last content row: {}",
         lines[22]
     );
     assert_eq!(
         lines[23],
-        format!("╰{}╯", "─".repeat(78)),
-        "the closing border row floors the frame (NIGHT-boost-20)"
+        format!(" ╰{}╯", "─".repeat(76)),
+        "the closing border row floors the frame (NIGHT-boost-20,          engrave-8 inset)"
     );
     assert_eq!(lines.len(), 24, "frame pinned to the terminal height");
     // The footer does not follow the table: blank padding sits
     // between the last table row and the roof grid above the
     // headline.
     assert!(
-        lines[consumer_idx - 2].starts_with('│')
+        lines[consumer_idx - 2].starts_with(" │")
             && lines[consumer_idx - 2].ends_with('│')
             && lines[consumer_idx - 2]
                 .chars()
-                .skip(1)
+                .skip(2)
                 .take(76)
                 .all(|c| c == ' '),
         "blank (railed) padding above the footer grid: {:?}",

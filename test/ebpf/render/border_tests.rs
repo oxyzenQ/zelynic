@@ -141,8 +141,10 @@ fn fit_budgets_escapes_and_pads() {
     assert_eq!(fit("\x1b[35mab\x1b[0m", 4), "\x1b[35mab\x1b[0m  ");
 }
 
-/// The inset geometry: two columns of rails and one closing row are
-/// budgeted before anything renders; degenerate sizes saturate.
+/// The inset geometry (NIGHT-engrave-8): two rail columns, the
+/// leading inset, and the never-painted right margin are budgeted
+/// before anything renders (80 - 2 rails - 1 lead - 1 margin = 76);
+/// degenerate sizes saturate.
 #[test]
 fn content_geo_insets_the_frame() {
     let geo = content_geo(FrameGeometry {
@@ -151,8 +153,8 @@ fn content_geo_insets_the_frame() {
     });
     assert_eq!(
         (geo.width, geo.height),
-        (78, 23),
-        "two rail columns, one closing row"
+        (76, 23),
+        "two rails, the leading inset, the unpainted right margin, one closing row"
     );
     let tiny = content_geo(FrameGeometry {
         width: 1,
@@ -174,13 +176,15 @@ fn wrap_flanks_and_closes() {
     ];
     wrap(&mut lines, 20);
     assert_eq!(lines.len(), 4, "the closing row joins the frame");
+    // NIGHT-engrave-8: every row gains the leading inset column and
+    // the frame composes one column short of the terminal (20 -> 19).
     assert_eq!(
-        lines[0], "╭─── title ─╮",
-        "row 0 is the title bar's own top border — untouched"
+        lines[0], " ╭─── title ─╮",
+        "row 0 carries the inset before its own top border"
     );
-    assert_eq!(lines[1], format!("│  hello{}│", " ".repeat(11)));
-    assert_eq!(lines[2], format!("│{}│", " ".repeat(18)));
-    assert_eq!(lines[3], format!("╰{}╯", "─".repeat(18)));
+    assert_eq!(lines[1], format!(" │  hello{}│", " ".repeat(9)));
+    assert_eq!(lines[2], format!(" │{}│", " ".repeat(16)));
+    assert_eq!(lines[3], format!(" ╰{}╯", "─".repeat(16)));
 }
 
 /// An empty frame stays empty — nothing to flank, nothing to close.
@@ -218,21 +222,28 @@ fn full_frame_wears_the_border() {
         "border included, still pinned to the height"
     );
     assert!(
-        lines[0].starts_with('╭') && lines[0].ends_with('╮'),
-        "the title bar closes the top border: {}",
+        lines[0].starts_with(" ╭") && lines[0].ends_with('╮'),
+        "the title bar closes the top border one column in: {}",
         lines[0]
     );
     for row in &lines[1..23] {
         assert!(
-            row.starts_with('│') && row.ends_with('│'),
-            "every content row wears the rails: {row:?}"
+            row.starts_with(" │") && row.ends_with('│'),
+            "every content row wears the rails one column in: {row:?}"
         );
-        assert_eq!(row.chars().count(), 80, "one straight right edge");
+        // NIGHT-engrave-8: the frame composes at terminal-1 — both
+        // rails one column from the edges, the final column never
+        // painted (no pending-wrap hazard for the trailing EL).
+        assert_eq!(
+            row.chars().count(),
+            79,
+            "one straight right edge, one column short of the terminal"
+        );
     }
     assert_eq!(
         lines[23],
-        format!("╰{}╯", "─".repeat(78)),
-        "the closing row is the full-width floor"
+        format!(" ╰{}╯", "─".repeat(76)),
+        "the closing row is the frame-width floor"
     );
     // The rails follow the ACTIVE theme: cycling leaves the glyph
     // geometry untouched (mono pins hold whatever the palette does).
@@ -265,7 +276,7 @@ fn full_frame_wears_the_border() {
             plain.chars().count(),
             "row width is theme-independent"
         );
-        assert!(cycled.starts_with('│') && cycled.ends_with('│'));
+        assert!(cycled.starts_with(" │") && cycled.ends_with('│'));
     }
     assert!(
         themed.join("\n").contains("theme atomic"),

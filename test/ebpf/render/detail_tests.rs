@@ -439,12 +439,14 @@ fn detail_hides_and_cuts_on_narrow_frames() {
     );
     assert_eq!(narrow.len(), 24, "the pin holds on narrow frames too");
 
-    // Comfortable width (NIGHT-boost-20: the rails claim two columns,
-    // so the frame needs 55 for a 53-column inset - the TOTAL-column
-    // boundary since NIGHT-engrave-4's right gutter moved it up from
-    // 51): the detail line shows, trimmed to the inset - a long
-    // process or endpoint string can never wrap the frame or shift
-    // the pinned footer.
+    // Comfortable width (NIGHT-boost-20 + engrave-8: the rails,
+    // the leading inset, and the never-painted margin claim four
+    // terminal columns, so the frame needs 57 for the 53-column
+    // content inset - the TOTAL-column boundary since
+    // NIGHT-engrave-4's right gutter moved it up from 51): the
+    // detail line shows, trimmed to the inset - a long process or
+    // endpoint string can never wrap the frame or shift the pinned
+    // footer.
     let mut snug = Vec::new();
     render_eagle_eyes_at(
         &mut snug,
@@ -456,17 +458,20 @@ fn detail_hides_and_cuts_on_narrow_frames() {
         &mut SessionState::new(),
         Duration::from_secs(70),
         FrameGeometry {
-            width: 55,
+            width: 57,
             height: 24,
         },
     );
     let detail = snug
         .iter()
         .find(|l| l.contains("curl ("))
-        .expect("detail line at width 55");
+        .expect("detail line at width 57");
     assert!(
-        detail.chars().count() <= 55,
-        "detail trimmed to the frame width (rails included): {detail}"
+        // NIGHT-engrave-8: the frame composes one column short of the
+        // terminal — 56 at a width-57 terminal, inset and rails
+        // included.
+        detail.chars().count() <= 56,
+        "detail trimmed to the frame width (inset and rails included): {detail}"
     );
     assert!(detail.contains('…'), "truncation marks itself: {detail}");
 }

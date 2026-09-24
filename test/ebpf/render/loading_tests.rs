@@ -49,16 +49,19 @@ fn loading_frame_carries_the_live_title_and_floor() {
     };
     let frame = loading_frame(Duration::from_secs(1), geo);
     // Byte-identical to the live frame's title row — the morph never
-    // repaints it.
+    // repaints it. NIGHT-engrave-8: the bar composes at the frame
+    // width (terminal minus the inset pair), wrap adds the leading
+    // column — the rendered row matches the live frame's exactly.
     assert_eq!(
         frame[0],
-        title_bar("zelynic eagle-eyes", 80),
+        format!(" {}", title_bar("zelynic eagle-eyes", 78)),
         "the title row must match the live frame's exactly"
     );
     // The closing border row (BD-02 bright anchor floor).
     assert!(
-        frame[23].starts_with('╰') && frame[23].ends_with('╯'),
-        "the frame closes on its floor row, got: {}",
+        frame[23].starts_with(" ╰") && frame[23].ends_with('╯'),
+        "the frame closes on its floor row, inset first (engrave-8), \
+         got: {}",
         frame[23]
     );
 }
@@ -194,7 +197,7 @@ fn short_terminals_keep_the_note_and_the_fill() {
     };
     let frame = loading_frame(Duration::from_secs(5), geo);
     assert_eq!(frame.len(), geo.height, "the frame fills a 10-row window");
-    assert!(frame[0].starts_with("╭─── zelynic eagle-eyes"));
+    assert!(frame[0].starts_with(" ╭─── zelynic eagle-eyes"));
     assert!(frame[2].contains("loading observer…"));
     let joined = frame.join("\n");
     assert!(
