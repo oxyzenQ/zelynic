@@ -90,6 +90,47 @@ fn test_help_lists_every_command() {
     );
 }
 
+/// NIGHT-boost-29 (tidy data): the Short aliases block renders one
+/// pair per line in the explicit `alias = canonical` form. The old
+/// three-column packing carried no separator — the eye had to count
+/// alignment gaps to bind a short form to its verb (the owner's
+/// "asymmetric tidy data" audit). The pin holds the form so a future
+/// edit cannot pack the pairs back into separator-less columns.
+#[test]
+fn test_help_short_aliases_use_equals_pairing() {
+    let output = zelynic_cmd()
+        .arg("--help")
+        .output()
+        .expect("Failed to execute zelynic --help");
+
+    assert_eq!(output.status.code(), Some(0));
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    const PAIRS: [&str; 10] = [
+        "ss = strict-single",
+        "sm = strict-multi",
+        "la = limit-all",
+        "bs = block-single",
+        "bm = block-multi",
+        "ba = block-all",
+        "us = unstrict-single",
+        "um = unstrict-multi",
+        "ua = unstrict-all",
+        "ee = eagle-eyes",
+    ];
+    for pair in PAIRS {
+        assert!(
+            stdout.contains(pair),
+            "--help must render the tidy '{pair}' alias pairing, got:\n{stdout}"
+        );
+    }
+    // The retired separator-less packing must not come back: a packed
+    // row would put two pairs on one line with bare-space separation.
+    assert!(
+        !stdout.contains("ss strict-single"),
+        "--help must not regress to the separator-less alias packing, got:\n{stdout}"
+    );
+}
+
 /// NIGHT-improve-5: the reference groups commands by verb — strict,
 /// limit, block, unstrict (owner's grouping), plus monitor and system —
 /// so the command surface scans as six chunks. Pins the group

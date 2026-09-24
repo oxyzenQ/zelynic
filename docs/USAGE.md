@@ -84,10 +84,12 @@ app. `strict` is the shorthand for `strict-single`; `unstrict` is the
 shorthand for `unstrict-single` (NIGHT-hunt-16 — the canonical always
 carries the `-single` suffix, so the two verb families read
 symmetrically). Every enforcement verb plus the monitor also has a
-two-letter short alias (NIGHT-improve-25): `ss` strict-single, `sm`
-strict-multi, `la` limit-all, `bs` block-single, `bm` block-multi,
-`ba` block-all, `us` unstrict-single, `um` unstrict-multi, `ua`
-unstrict-all, `ee` eagle-eyes — e.g. `zelynic ss brave 100kb` or
+two-letter short alias (NIGHT-improve-25): `ss` = strict-single, `sm`
+= strict-multi, `la` = limit-all, `bs` = block-single, `bm`
+= block-multi, `ba` = block-all, `us` = unstrict-single, `um`
+= unstrict-multi, `ua` = unstrict-all, `ee` = eagle-eyes (the `alias
+= canonical` pairing is the same one-glance form `--help` prints,
+NIGHT-boost-29) — e.g. `zelynic ss brave 100kb` or
 `zelynic ee brave --interval 1s`.
 
 ### strict-single / strict — limit one app
