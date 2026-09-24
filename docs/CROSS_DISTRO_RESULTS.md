@@ -222,15 +222,18 @@ verified across all tested distros.
 
 ## Installation Method
 
-All distros tested with release tarball (no source build):
+All distros tested with the release tarball (no source build):
 ```bash
-curl -LO https://github.com/oxyzenQ/zelynic/releases/download/vX.Y.Z/zelynic-vX.Y.Z-linux-amd64.tar.gz
-tar xzf zelynic-vX.Y.Z-linux-amd64.tar.gz
-cd zelynic-vX.Y.Z-linux-amd64
-sudo ./install.sh --system
+curl -LO https://github.com/oxyzenQ/zelynic/releases/download/vX.Y.Z/zelynic-vX.Y.Z-linux-amd64-v3-gnu.tar.gz
+tar xzf zelynic-vX.Y.Z-linux-amd64-v3-gnu.tar.gz
+sudo install -Dm755 zelynic /usr/local/bin/zelynic
 ```
 
-No clang, no cargo, no rustup, no libbpf-dev needed.
+Flat archive layout: the tarball carries only `zelynic`, `LICENSE`,
+and `README.md` (the eBPF objects are embedded in the binary), so
+there is no `cd` into a nested tree and no `install.sh` inside the
+package — the one file is the whole payload. No clang, no cargo, no
+rustup, no libbpf-dev needed.
 
 ## Claims Proof (NIGHT-boost-8 harness)
 
