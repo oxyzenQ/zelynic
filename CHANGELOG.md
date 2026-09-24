@@ -58,6 +58,27 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Fixed
 
+- **fix: E2E eleventh run — the 5.15 burst over-delivery is real and
+  stays red: four consecutive data points (140.0%, 142.5%, 151.4%,
+  161.2%) against the 8.1 MB burst+refill budget on the 5.15 pool,
+  while the 6.8 leg passed its FOURTH consecutive fully-green
+  pipeline** — run eleven breached the 1.60 sharing cap the tenth run
+  installed (161.2%), confirming the pattern is not band noise: the
+  5.15 hosted pool's kernel reproducibly over-delivers 20-35% versus
+  the documented default_burst + refill budget in 6-flow burst
+  windows, while the same code on 6.8 stays inside the budget every
+  run (97.6%-116.4%). The row deliberately keeps its red: this is a
+  release-relevant signal the owner must see, not a band to tune —
+  the release page promises kernel 5.15+, and the 5.15 POOL
+  (Azure-tuned kernels, not stock 5.15) either exposes a genuine
+  token-bucket over-delivery on that kernel generation or a pool
+  artifact (GSO/TCP tuning); a direct supermassive run on real 5.1x
+  hardware settles it (the CROSS_DISTRO 5.13 row predates the
+  current schema). The 6.8 leg is CI-stable: v1 green, v2 green
+  (127 rows, kill-tui 5/5), four runs in a row — the E2E pipeline
+  the owner asked for exists, runs per push and per dispatch, and
+  has already caught ten distinct defects in eleven runs.
+
 - **fix: E2E tenth-run hunt — the curl burst row rides the 1.60
   sharing cap (the ladder's near-capacity precedent) with the budget
   arithmetic kept for audit; two open questions filed with evidence**

@@ -32,10 +32,18 @@
 > re-issued label): the E2E workflow
 > (.github/workflows/e2e.yml) runs the whole qualification —
 > setup.sh bring-up, v1, v2 — on hosted Ubuntu runners (kernel 5.15
-> and 6.8+) on every core-file push. A green Actions run is a
-> machine-qualification verdict for both ends of the promised kernel
-> span; the rows below stay the place for owner-machine results
-> (real desktop workloads, real browsers).
+> and 6.8+) on every core-file push. Honest status after the first
+> eleven runs (2026-09-24): the 6.8 leg is fully green END TO END
+> (v1 matrix + v2 survival battery, four consecutive runs); the 5.15
+> leg is green except the curl-burst row, which reproducibly
+> over-delivers 20-35% versus the default_burst + refill budget in
+> 6-flow windows (140.0%, 142.5%, 151.4%, 161.2% across runs) —
+> filed as an open question for the owner: the 5.15 HOSTED pool
+> (Azure-tuned, not stock 5.15) either exposes a token-bucket
+> behavior on that kernel generation or a pool artifact, and a
+> direct run on real 5.1x hardware settles it (the 5.13 row above
+> predates the current schema). The rows below stay the place for
+> owner-machine results (real desktop workloads, real browsers).
 
 ## Summary
 
