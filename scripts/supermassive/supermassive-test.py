@@ -2693,7 +2693,16 @@ def run_heavy(baseline_window):
     stage_realnet_baseline()
     stage_realnet_upload_sanity()
     test_policy_write()
-    stage_rate_change()
+    # E2E-workflow hunt (first full-matrix CI run): this call moved from
+    # v2 in NIGHT-refactor-2 and landed WITHOUT its window — the engine
+    # self-test never executes the matrix, so a TypeError at this line
+    # was invisible on every push until a real root run reached it
+    # (12 passed, then "harness error: stage_rate_change() missing 1
+    # required positional argument: 'window'"). 4.0 s is the ORIGINAL
+    # contract: the stage's pre-refactor v2 body measured both rungs
+    # with LOCAL_WINDOW = 4.0, the same window the sibling local
+    # measurement stages here use (asymmetric / mixed / limit_all).
+    stage_rate_change(4.0)
     test_rate_ladder(LADDER_HEAVY, 5.5, 2, baseline)
     test_upload(5.0, baseline)
     test_download_only(4.0, baseline)
