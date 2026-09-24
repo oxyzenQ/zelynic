@@ -259,12 +259,12 @@ jobs:
           grep -aF "local-native-gnu" \
             ./target/x86_64-unknown-linux-gnu/pro-native-gnu/zelynic
           RUSTFLAGS="-D warnings -C target-cpu=x86-64-v3" \
-            cargo pro-linux-gnu-v3 --locked --target x86_64-unknown-linux-gnu
-          ./target/x86_64-unknown-linux-gnu/pro-linux-gnu-v3/zelynic -V | grep -F "Build: local-linux-gnu-v3"
+            cargo pro-linux-amd64-v3-gnu --locked --target x86_64-unknown-linux-gnu
+          ./target/x86_64-unknown-linux-gnu/pro-linux-amd64-v3-gnu/zelynic -V | grep -F "Build: local-linux-amd64-v3-gnu"
           RUSTFLAGS="-D warnings -C target-cpu=x86-64-v4" \
-            cargo pro-linux-gnu-v4 --locked --target x86_64-unknown-linux-gnu
-          grep -aF "local-linux-gnu-v4" \
-            ./target/x86_64-unknown-linux-gnu/pro-linux-gnu-v4/zelynic
+            cargo pro-linux-amd64-v4-gnu --locked --target x86_64-unknown-linux-gnu
+          grep -aF "local-linux-amd64-v4-gnu" \
+            ./target/x86_64-unknown-linux-gnu/pro-linux-amd64-v4-gnu/zelynic
 
   # NIGHT-improve-20: musl CI parity — the owner directive. The gnu
   # surface gets fmt + clippy + tests + the pro build verification on
@@ -412,10 +412,14 @@ jobs:
           set -euo pipefail
           RUSTFLAGS="-D warnings -C target-cpu=native -C target-feature=+crt-static" cargo pro-native-musl --locked
           grep -aF "local-native-musl" ./target/x86_64-unknown-linux-musl/pro-native-musl/zelynic
-          RUSTFLAGS="-D warnings -C target-cpu=x86-64-v3 -C target-feature=+crt-static" cargo pro-linux-musl-v3 --locked
-          ./target/x86_64-unknown-linux-musl/pro-linux-musl-v3/zelynic -V | grep -F "Build: local-linux-musl-v3"
-          RUSTFLAGS="-D warnings -C target-cpu=x86-64-v4 -C target-feature=+crt-static" cargo pro-linux-musl-v4 --locked
-          grep -aF "local-linux-musl-v4" ./target/x86_64-unknown-linux-musl/pro-linux-musl-v4/zelynic
+          RUSTFLAGS="-D warnings -C target-cpu=x86-64-v3 -C target-feature=+crt-static" \
+            cargo pro-linux-amd64-v3-musl --locked
+          ./target/x86_64-unknown-linux-musl/pro-linux-amd64-v3-musl/zelynic -V \
+            | grep -F "Build: local-linux-amd64-v3-musl"
+          RUSTFLAGS="-D warnings -C target-cpu=x86-64-v4 -C target-feature=+crt-static" \
+            cargo pro-linux-amd64-v4-musl --locked
+          grep -aF "local-linux-amd64-v4-musl" \
+            ./target/x86_64-unknown-linux-musl/pro-linux-amd64-v4-musl/zelynic
 
   # NIGHT-boost-2: the job id and display name renamed — the surface
   # this matrix compiles is the GNU DYNAMIC host build (the musl

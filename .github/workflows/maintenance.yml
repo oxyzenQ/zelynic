@@ -235,8 +235,8 @@ jobs:
         if: steps.changes.outputs.changed == 'true'
         run: |
           set -euo pipefail
-          RUSTFLAGS="-D warnings -C target-cpu=x86-64-v3" cargo pro-linux-gnu-v3 --locked
-          ./target/pro-linux-gnu-v3/zelynic -V
+          RUSTFLAGS="-D warnings -C target-cpu=x86-64-v3" cargo pro-linux-amd64-v3-gnu --locked
+          ./target/pro-linux-amd64-v3-gnu/zelynic -V
 
       - name: Upload validated Cargo.lock
         if: steps.changes.outputs.changed == 'true'

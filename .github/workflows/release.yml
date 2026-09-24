@@ -131,7 +131,7 @@ jobs:
   # -C target-cpu, plus -C target-feature=+crt-static on the musl
   # pair (self-contained even though the musl target enables it by
   # default — the alias contract in .cargo/config.toml mirrors this
-  # exactly, so a local `cargo pro-linux-gnu-v3` reproduces the
+  # exactly, so a local `cargo pro-linux-amd64-v3-gnu` reproduces the
   # v3-gnu package bit-for-bit in optimization tier).
   build:
     name: Build Release Binary (${{ matrix.platform }})
