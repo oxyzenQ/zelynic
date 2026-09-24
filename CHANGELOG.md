@@ -58,6 +58,29 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Fixed
 
+- **fix: NIGHT-boost-29 — the Short aliases block on `-h/--help`
+  renders tidy data: one `alias = canonical` pair per line, and the
+  hunt found no other separator-less pairing surface left** — the
+  owner's audit: the block packed ten two-letter aliases into three
+  separator-less columns (`ss strict-single     sm strict-multi
+  la limit-all`), so binding a short form to its verb was a
+  column-counting exercise — asymmetric whitespace standing in for a
+  relation sign. Every pair now carries the explicit `=` (`ss =
+  strict-single`), one pair per line: the one-glance form README's
+  alias examples already taught (`# = strict-single brave 100kb`),
+  so the reference and the docs read identically. The hunt
+  (boost-29's "find more until no remainings") swept every
+  pairing-shaped surface the CLI prints: docs/USAGE.md's alias prose
+  list carried the same bare-pair form and now reads `ss =
+  strict-single` (same commit); the Global flags block, Rate/Target
+  formats, Safety bullets, the ux.rs redirect tips, and the monitor's
+  status line all already carry explicit separators or
+  one-fact-per-line shapes — no remainings. The pin
+  `test_help_short_aliases_use_equals_pairing` holds the contract:
+  all ten `=` pairs asserted present, and the old separator-less
+  packing (`ss strict-single`) asserted absent, so the block cannot
+  quietly repack.
+
 - **fix: E2E eleventh run — the 5.15 burst over-delivery is real and
   stays red: four consecutive data points (140.0%, 142.5%, 151.4%,
   161.2%) against the 8.1 MB burst+refill budget on the 5.15 pool,

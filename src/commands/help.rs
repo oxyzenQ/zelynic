@@ -168,11 +168,26 @@ pub(crate) fn print_help() {
     // as a compact table after the command groups, so the canonical
     // names stay the vocabulary of the reference and the short forms
     // read as the typing shortcut they are.
+    // NIGHT-boost-29 (tidy data): one alias per line in the explicit
+    // `alias = canonical` form. The old three-column packing leaned
+    // on column alignment alone — no separator between the pair, so
+    // the eye had to count gaps to tell which short form belonged to
+    // which verb (the owner's "asymmetric tidy data" audit). The
+    // equals sign is the one-glance contract every row now carries,
+    // and a wide label column needs no alignment guesswork. The same
+    // `=` pairing is the format README and docs/USAGE.md already
+    // teach, so the reference and the docs read identically.
     println_safe!("{}", brand_bold("Short aliases:"));
-    println_safe!("  ss strict-single     sm strict-multi      la limit-all");
-    println_safe!("  bs block-single     bm block-multi       ba block-all");
-    println_safe!("  us unstrict-single  um unstrict-multi   ua unstrict-all");
-    println_safe!("  ee eagle-eyes");
+    println_safe!("  ss = strict-single");
+    println_safe!("  sm = strict-multi");
+    println_safe!("  la = limit-all");
+    println_safe!("  bs = block-single");
+    println_safe!("  bm = block-multi");
+    println_safe!("  ba = block-all");
+    println_safe!("  us = unstrict-single");
+    println_safe!("  um = unstrict-multi");
+    println_safe!("  ua = unstrict-all");
+    println_safe!("  ee = eagle-eyes");
     println_safe!();
     println_safe!("{}", brand_bold("Global flags:"));
     println_safe!("  -h, --help       This end-to-end reference (usage, commands, examples)");
