@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Copyright (C) 2026 rezky_nightky
 # SPDX-License-Identifier: GPL-3.0-only
-# LOC_EXEMPT: like supermassive-test.py, one self-contained harness by design — v2 is a thin orchestrator over the v1 engine (imported whole via importlib, zero duplication of the fleet/server/worker machinery) plus the abuse-family stages it owns outright (NIGHT-refactor-2: the CLI guards, the SIGKILL batteries, the regression re-proof, and the crash-family teardown moved here from v1)
+# LOC_EXEMPT: like supermassive-test.py, one self-contained harness by design — v2 is a thin orchestrator over the v1 engine (imported whole via importlib, zero duplication of the fleet/server/worker machinery) plus the abuse-family stages it owns outright (NIGHT-refactor-2: the CLI guards, the SIGKILL batteries, the regression re-proof, and the crash-family teardown moved here from v1; over the 1000 scripts cap under NIGHT-lts-2 — tracked debt, the split is its own NIGHT task)
 """zelynic supermassive test v2 — the survival battery (NIGHT-improve-23; scope refocused in NIGHT-refactor-2).
 
 supermassive-test.py (v1) answers "does the limiter HOLD, locally and

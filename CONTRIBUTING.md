@@ -104,9 +104,10 @@ ebpf/                   — the pure-Rust BPF source (aya-ebpf; NIGHT-improve-1
 
 scripts/
   build.sh             — check-all orchestration
-  gate-keepers.sh      — pre-commit non-code gates (15 sections)
+  gate-keepers.sh      — pre-commit non-code gates (16 sections)
   check-permissions.sh — 644/755 permission guard
   check-loc.sh         — Rust file LOC cap (500, // LOC_EXEMPT: markers)
+  check-scripts-loc.sh — scripts LOC cap (1000, # LOC_EXEMPT: markers)
   check-headers.sh     — license header check (rs/c/h/py/sh/toml/yml/md)
   check-language.sh    — English-only language gate (non-Latin scripts +
                         Indonesian vocabulary detector; NIGHT-hunt-19)
