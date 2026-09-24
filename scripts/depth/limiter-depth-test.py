@@ -464,7 +464,7 @@ def _kernel_version(release):
 
     Handles the shapes real distros ship: `6.8.0-51-generic`,
     `5.15.0-131-azure`, `6.12.27-2-cachyos`, `5.13.0-52`. Returns None
-    on an unparseable release (the verdicts then report SKIP, never
+    on an unparsable release (the verdicts then report SKIP, never
     guess).
     """
     first = release.split("-", 1)[0].split(".")
@@ -501,7 +501,7 @@ def kernel_span_verdicts(release, ok):
             record(
                 "kernel span: floor gate",
                 "SKIP",
-                f"release {release!r} unparseable - the floor gate cannot judge it",
+                f"release {release!r} unparsable - the floor gate cannot judge it",
             )
             == "PASS"
             and ok

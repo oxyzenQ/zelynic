@@ -2571,10 +2571,20 @@ def self_test():
         and any("pro-native-musl" in c for c in lib.REPO_BINARY_CANDIDATES)
         # NIGHT-improve-22: all four arch-baseline alias outputs are
         # candidates — one silently dropped means a freshly built
-        # release-shape binary stops outranking stale ones.
+        # release-shape binary stops outranking stale ones. The shapes
+        # are the release platform ids the aliases have carried since
+        # NIGHT-boost-30 (pro-linux-amd64-vX-libc: the arch and the
+        # libc in the label, order matching release.yml) — the pin
+        # followed the rename so it can never silently accept the
+        # pre-boost-30 shapes back.
         and all(
             any(f"pro-linux-{kind}" in c for c in lib.REPO_BINARY_CANDIDATES)
-            for kind in ("gnu-v3", "gnu-v4", "musl-v3", "musl-v4")
+            for kind in (
+                "amd64-v3-gnu",
+                "amd64-v4-gnu",
+                "amd64-v3-musl",
+                "amd64-v4-musl",
+            )
         )
     )
     record(

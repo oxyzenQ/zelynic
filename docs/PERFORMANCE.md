@@ -816,6 +816,10 @@ measurable at the 1s cadence the real monitor runs.
   relying on any specific number (target count, LOC, rate bound),
   file path, function name, or config key.
 
+  If you find a discrepancy, please open a PR — the doc is wrong, not
+  the source.
+-->
+
 ### NIGHT-boost-26 A/B (per-endpoint byte attribution, 2026-09-24)
 
 The 2.4 frontier closure: the observer ELF gained two per-socket LRU
@@ -851,7 +855,3 @@ userspace point-lookups per 1s frame (tens of microseconds of
 syscall time), neither of which the frame harness measures — the
 live-machine proof of the join itself is the owner-run battery's
 lane (the proof-claims harness pattern).
-
-  If you find a discrepancy, please open a PR — the doc is wrong, not
-  the source.
--->

@@ -42,7 +42,16 @@
 > (Azure-tuned, not stock 5.15) either exposes a token-bucket
 > behavior on that kernel generation or a pool artifact, and a
 > direct run on real 5.1x hardware settles it (the 5.13 row above
-> predates the current schema). The rows below stay the place for
+> predates the current schema). NIGHT-boost-27 closed the open
+> question's verdict half: the curl-burst row now reads the
+> policer's OWN kernel ledger at the exact read instant (budget
+> ceiling derived from the same instant, 2% GSO headroom, the
+> sharing cap on the LEDGER ratio) while the client total prints
+> as advisory evidence with its TCP/GSO lottery named — so the
+> noise class that kept the row red is filtered and genuine
+> over-delivery still fails with exact arithmetic. The runs after
+> that change are the current status; the numbers above stay the
+> run-eleven record. The rows below stay the place for
 > owner-machine results (real desktop workloads, real browsers).
 
 ## Summary
