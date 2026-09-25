@@ -163,6 +163,61 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Changed
 
+- **change: NIGHT-improve-32 — the combined-push hardening: a
+  commit push, its tag, and a release landing together can no
+  longer collide, warn, or fail a build** — the owner's ask, born
+  from a live push-commit-then-immediately-push-tag incident ("make
+  sure the CI can handle it"). The estate audit that answered it
+  found four real collision classes and closed each where it lived:
+  - **The concurrent matrix cache save** (release.yml): the v3-gnu
+    and v4-gnu legs — and the v3-musl/v4-musl pair — run
+    concurrently on every tag push, and their shared exact cache
+    key had both legs saving the same entry at exit; one won, the
+    other logged actions/cache's "failed to reserve cache key"
+    warning. Benign in truth, but collision-shaped noise printed
+    on the very combined push the owner asked to harden. The exact
+    key now carries the platform id (baseline AND libc in the one
+    improve-22 single-source field), so all four saves are disjoint
+    by construction while the restore prefix stays inside one
+    platform — never crossing a triple; the re-key costs four cold
+    caches once, on the first tag after this change, and cargo's
+    RUSTFLAGS fingerprinting keeps every restored entry refingered
+    (never mis-served).
+  - **The cross-workflow cache save** (maintenance.yml): the
+    weekly dependency sweep shared ci.yml's `Linux-cargo-*` key
+    verbatim, so a Monday push landing while the sweep ran produced
+    the same reserve warning from a second angle. The maintenance
+    leg now carries its own `Linux-cargo-maintenance-*` prefix —
+    every workflow's saves in the estate are disjoint by
+    construction; the trade is one colder ci build after a
+    dependency sweep (the registry contents are lock-hash-keyed
+    either way, so nothing stale can ever be served).
+  - **The schedule/dispatch double-fire** (audit.yml, codeql.yml,
+    maintenance.yml): the three workflows that carry both a
+    schedule and a manual dispatch trigger had no concurrency
+    group at all — a manual click while the scheduled run was
+    mid-flight raced a duplicate. All three now carry the standard
+    per-ref group (`${{ github.workflow }}-${{ github.ref }}`,
+    cancel-in-progress) every push workflow in the estate already
+    had; codeql's group also makes the push/PR/schedule/dispatch
+    quadruple-trigger explicit as one-scan-per-ref.
+  - **The transient 5xx on a fresh ref** (release.yml): the
+    release-body step's tag-list and compare API calls now ride a
+    bounded retry (three attempts, five seconds apart) — a
+    just-pushed tag occasionally answers its first requests with a
+    transient 5xx, and on this step one flaky response is the
+    difference between a published release and a red pipeline the
+    owner has to heal by re-pushing a tag. After the third attempt
+    the real error surfaces unchanged.
+  Plus one recovery lane: release.yml gains `workflow_dispatch`,
+  so a mid-flight red heals with one click on the tag ref —
+  validate, all four builds, publish — without delete-and-re-push,
+  which is itself the moved-tag class the improve-20 concurrency
+  group cancels. The combined-push contract itself is now written
+  into the release.yml header as five enumerable properties (no
+  double-fires, disjoint runners, disjoint cache saves, upsert
+  publish with asset overwrite, retried API reads), so the next
+  audit can verify the whole flow in one read.
 - **change: NIGHT-improve-30 — the unified `--force-this` safety
   override, the verbose remainings retired end to end, the
   `--reset-terminal` rescue grown the termios layer it owed, and the

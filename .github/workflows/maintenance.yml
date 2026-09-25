@@ -16,6 +16,16 @@ on:
 permissions:
   contents: read
 
+# NIGHT-improve-32 (the combined-push estate pass): schedule and
+# dispatch share one per-ref group — a manual click while the weekly
+# sweep is mid-flight supersedes it instead of racing a second
+# dependency-update run against the same branch protection surface
+# (the cosmostrix stability shape every push workflow already
+# carries; the two triggers are the same work on the same ref).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
   # Single source of truth for the Rust toolchain version.
@@ -164,14 +174,28 @@ jobs:
           # ebpf/target included (NIGHT-improve-11): clippy
           # --all-features in this job drives the nested eBPF build
           # into the detached crate's own target tree.
+          #
+          # NIGHT-improve-32: this job's key carries the maintenance
+          # leg — it USED to share ci.yml's `Linux-cargo-*` key
+          # verbatim, and a Monday push landing while the weekly sweep
+          # ran had both jobs saving the same key at once: actions/cache
+          # resolves that with a "failed to reserve cache key" warning,
+          # benign but exactly the collision-shaped noise a combined
+          # commit+tag push multiplies across the estate. The split
+          # keeps every workflow's saves disjoint by construction; the
+          # trade is that ci.yml no longer warm-reads this job's
+          # post-update saves — one colder ci build after a dependency
+          # sweep lands, a fair price for a warning-clean estate
+          # (registry contents are lock-hash-keyed either way, so
+          # nothing stale can ever be served).
           path: |
             ~/.cargo/registry
             ~/.cargo/git
             target
             ebpf/target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-maintenance-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-
+            ${{ runner.os }}-cargo-maintenance-
 
       - name: Update dependencies
         run: cargo update --verbose

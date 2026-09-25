@@ -10,6 +10,17 @@ on:
   push:
     tags:
       - 'v*'
+  # NIGHT-improve-32 (the combined-push hardening): the recovery
+  # lane. A dispatch on the tag ref re-runs the whole pipeline —
+  # validate, all four builds, publish — WITHOUT re-pushing anything,
+  # so a mid-flight red (a transient API 5xx, a runner hiccup) heals
+  # with one click instead of the only alternative the push trigger
+  # offers: delete + re-push the tag, which is itself the moved-tag
+  # class the concurrency group below cancels. In the Run workflow
+  # dialog pick the tag under "Use workflow from"; GITHUB_REF_NAME
+  # is then the tag and every step reads it exactly as the push
+  # trigger would.
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -41,6 +52,42 @@ env:
 concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: true
+
+# NIGHT-improve-32 — the combined-push contract (the owner's ask:
+# "push commit, release, and tag together must not collide / break
+# / fail a build", born from a live push-commit-then-tag incident).
+# What actually happens when a commit push and its tag land seconds
+# apart, and why each leg is now safe:
+# 1. No workflow double-fires. Every push-triggered workflow in the
+#    estate filters on branches: [main]; a tag push matches none of
+#    them, and this workflow fires on the tag alone. One push event
+#    per ref, per workflow — the commit's CI and the tag's release
+#    start as strangers on separate runners.
+# 2. Runners are disjoint. Hosted runners are per-job single-use
+#    VMs: no shared filesystem, no shared bpffs, no shared rustup
+#    or bpf-linker state — the release build cannot collide with
+#    the in-flight branch CI machines because they never meet.
+# 3. Caches are prefix-disjoint (this pass): ci / musl /
+#    gnu-dynamic / release / maintenance each carry their own key
+#    prefix, and within THIS workflow the four matrix legs key on
+#    the platform id (below), so no two concurrently-running jobs
+#    anywhere in the estate ever save the same cache key — the
+#    "failed to reserve cache key" warning class is closed, not
+#    silenced.
+# 4. The publish is an upsert. softprops/action-gh-release updates
+#    an existing release for the tag and (overwrite_files default
+#    on the pinned SHA) replaces same-named assets, so a GitHub
+#    release the owner created by hand (or a partially-failed
+#    earlier publish that a re-run retries) cannot 422 the upload.
+# 5. The tag-list / compare API calls in the body step retry —
+#    a just-pushed ref occasionally answers a first request with
+#    a transient 5xx (the "immediately" in the owner's incident),
+#    and a 3-attempt bounded retry turns that from a red pipeline
+#    into a log line.
+# The one thing this workflow deliberately does NOT do is wait for
+# the branch CI of the same commit: the tag is the owner's verdict
+# that the commit ships, and serializing a release behind a 40-minute
+# check run would trade a non-race for a real delay.
 
 jobs:
   # ===========================================================================
@@ -218,6 +265,21 @@ jobs:
       # instead of two cold ones. ebpf/target included
       # (NIGHT-improve-11): the ebpf feature's build.rs drives the
       # nested eBPF compile into the detached crate's own target tree.
+      #
+      # NIGHT-improve-32: the exact key now carries the platform id,
+      # and the platform id alone keys the whole scheme. The two
+      # same-triple legs (v3-gnu + v4-gnu, v3-musl + v4-musl) run
+      # CONCURRENTLY on a tag push, and with a shared exact key both
+      # tried to save the same entry at exit — one won, the other
+      # logged the "failed to reserve cache key" warning (benign, but
+      # collision-shaped noise on the very combined push this pass
+      # hardens). The platform id encodes baseline AND libc in one
+      # field (the improve-22 single-source rule), so keying on it
+      # alone keeps the four legs' saves disjoint while the restore
+      # prefix stays inside one platform — never crossing a triple.
+      # The re-key costs four cold caches once, on the first tag
+      # after this change; cargo's RUSTFLAGS fingerprinting keeps
+      # every restored entry refingered — never mis-served.
       - name: Cache cargo registry & build
         uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5, NIGHT-hunt-20 SHA pin
         with:
@@ -226,9 +288,9 @@ jobs:
             ~/.cargo/git
             target
             ebpf/target
-          key: ${{ runner.os }}-${{ matrix.target }}-cargo-release-${{ hashFiles('**/Cargo.lock') }}
+          key: release-${{ matrix.platform }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-${{ matrix.target }}-cargo-release-
+            release-${{ matrix.platform }}-
 
       # cosmostrix tripwire (NIGHT-improve-22 parity): the matrix
       # rustflags ARE the build contract — a platform whose flag set
@@ -534,8 +596,29 @@ jobs:
           TAG="${{ needs.validate.outputs.tag }}"
           IS_PRERELEASE="${{ needs.validate.outputs.prerelease }}"
 
+          # NIGHT-improve-32: bounded retry for the API reads below.
+          # A just-pushed tag occasionally answers its first requests
+          # with a transient 5xx (the same-repository API is
+          # eventually consistent on fresh refs), and on this step a
+          # single flaky response is the difference between a
+          # published release and a red pipeline the owner has to
+          # re-push a tag to heal. Three attempts, five seconds
+          # apart, then the real error surfaces unchanged.
+          gh_api() {
+            local attempt out
+            for attempt in 1 2 3; do
+              if out=$(gh api "$@"); then
+                printf '%s\n' "$out"
+                return 0
+              fi
+              echo "gh api attempt ${attempt} failed — retrying in 5s" >&2
+              sleep 5
+            done
+            return 1
+          }
+
           # All tag names via the API — no clone, no local refs.
-          TAGS=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/tags" --jq '.[].name')
+          TAGS=$(gh_api --paginate "repos/${GITHUB_REPOSITORY}/tags" --jq '.[].name')
 
           # Previous changelog boundary:
           # Pre-release: prev = any previous tag by semver (users
@@ -569,7 +652,7 @@ jobs:
               # The API caps the commit list at 250 — an honest
               # truncation note is appended when total_commits exceeds
               # the delivered list.
-              gh api "repos/${GITHUB_REPOSITORY}/compare/${PREV_TAG}...${TAG}" > compare.json
+              gh_api "repos/${GITHUB_REPOSITORY}/compare/${PREV_TAG}...${TAG}" > compare.json
               jq -r '.commits[]
                 | select((.parents | length) <= 1)
                 | "- \(.commit.message | split("\n")[0]) (\(.sha[0:7]))"' \
