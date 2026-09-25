@@ -44,7 +44,7 @@ pub const MIN_RATE: u64 = 1000;
 /// cybersecurity-1 fill-detect fix is rate-agnostic: at this ceiling
 /// it engages after 200us of idle, and the product bound stays
 /// 2 * burst * NS_PER_SEC <= 2e17 at the 100 MB burst clamp).
-/// zelynic can enforce up to infinity; use `--allow-dangerous` to
+/// zelynic can enforce up to infinity; use `--force-this` to
 /// override.
 pub const MAX_RATE: u64 = 1_000_000_000_000;
 

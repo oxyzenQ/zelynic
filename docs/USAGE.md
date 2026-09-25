@@ -115,10 +115,12 @@ sudo zelynic strict brave 100kb        # shorthand form
   used to silently keep the old upload leg — the documented
   "download only" contract now holds in the map itself; re-specify
   `-u` when you want to keep both legs under one apply).
-- `--allow-dangerous`: permits rates below 1kb (can effectively brick
-  an app — hence the name).
-- `--force`: permits limiting the protected system blocklist (root,
-  systemd, kthreadd, ... — 57 names; see `--help`).
+- `--force-this`: the ONE safety override (NIGHT-improve-30 — the
+  former `--allow-dangerous` and `--force` pair, unified): permits
+  rates below 1kb (can effectively brick an app) AND limiting the
+  protected system blocklist (root, systemd, kthreadd, ... — 57
+  names; see `--help`). The retired spellings are refused with a
+  redirect tip.
 
 The command answers with the affirmative epilogue (NIGHT-improve-28):
 a green `OK.` and the follow-up commands in the same green tier —
@@ -154,7 +156,7 @@ sudo zelynic limit-all -d 1mb -u 500kb
 
 Snapshots the current app list (same resolution as above) and applies
 the rate to every non-system app. System/dangerous targets are excluded
-unless `--force`. This is the command where the snapshot semantics
+unless `--force-this`. This is the command where the snapshot semantics
 matter most — newly launched apps afterwards are **not** covered; re-run
 it after starting new apps.
 
@@ -163,12 +165,12 @@ it after starting new apps.
 ```bash
 sudo zelynic block-single brave
 sudo zelynic block-multi brave:curl:pacman
-sudo zelynic block-all [--force]
+sudo zelynic block-all [--force-this]
 ```
 
 Cut internet access entirely — packets are dropped at the cgroup
-boundary in both directions. Same target grammar and `--force` contract
-as strict. `unstrict-single` removes a block exactly like it removes
+boundary in both directions. Same target grammar and `--force-this`
+contract as strict. `unstrict-single` removes a block exactly like it removes
 a rate limit (blocks and limits live in the same policy maps; a
 blocked cgroup shows a 0-rate policy in `status`).
 
@@ -795,8 +797,9 @@ durations — `1.5h` parses to 5,400 seconds, with a fractional
 duration that rounds to zero rejected because `0` means infinity).
 A positional rate sets **both** directions — `strict-single
 brave 100kb` limits upload too, not just download. Minimum 1kb,
-maximum 1tb; both bounds overridable with `--allow-dangerous` —
-below 1kb an app can stop working entirely (hence the flag's name).
+maximum 1tb; both bounds overridable with `--force-this` — below
+1kb an app can stop working entirely (that is the dangerous the flag
+asks you to own).
 
 **6. Monitoring surfaces also need root.**
 `status`, `eagle-eyes` read BPF maps; only `list-apps`, `doctor`,
@@ -968,7 +971,7 @@ you limited — check `eagle-eyes`/`status` labels and target the cgroup ID;
 
 **Can I limit myself out of SSH?**
 The dangerous-target blocklist guards `sshd` and friends by default;
-`--force` is the explicit override. If you do brick connectivity,
+`--force-this` is the explicit override. If you do brick connectivity,
 recovery is a reboot away (limits do not survive it) or
 `sudo zelynic unstrict-all` from any working session.
 

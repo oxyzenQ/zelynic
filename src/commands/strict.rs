@@ -9,14 +9,12 @@ use crate::commands::rates::resolve_rates;
 use crate::commands::safety::{check_dangerous_target, is_dangerous_target};
 
 #[cfg(feature = "ebpf")]
-#[allow(clippy::too_many_arguments)]
 pub(crate) fn handle_strict_single(
     target_str: &str,
     rate: Option<&str>,
     download: Option<&str>,
     upload: Option<&str>,
-    allow_dangerous: bool,
-    force: bool,
+    force_this: bool,
     verbose: bool,
 ) -> Result<()> {
     use crate::ebpf::limiter::{Limiter, Target};
@@ -26,7 +24,11 @@ pub(crate) fn handle_strict_single(
     // a typo surfaces its did-you-mean tip before the root requirement
     // — the same parse-before-execute contract clap applies to its own
     // arguments (live root-machine smoke-run find).
-    let rates = resolve_rates(rate, download, upload, allow_dangerous)?;
+    //
+    // NIGHT-improve-30: ONE flag carries both overrides — the former
+    // `--allow-dangerous` (rate bounds) and `--force` (blocklist) are
+    // the same "I know, force this" decision, so they parse as one.
+    let rates = resolve_rates(rate, download, upload, force_this)?;
 
     if rates.download.is_none() && rates.upload.is_none() {
         return Err(anyhow::anyhow!(
@@ -35,7 +37,7 @@ pub(crate) fn handle_strict_single(
         ));
     }
 
-    check_dangerous_target(target_str, force)?;
+    check_dangerous_target(target_str, force_this)?;
 
     super::ensure_root()?;
 
@@ -69,21 +71,20 @@ pub(crate) fn handle_strict_single(
 }
 
 #[cfg(feature = "ebpf")]
-#[allow(clippy::too_many_arguments)]
 pub(crate) fn handle_strict_multi(
     targets_str: &str,
     rate: Option<&str>,
     download: Option<&str>,
     upload: Option<&str>,
-    allow_dangerous: bool,
-    force: bool,
+    force_this: bool,
     verbose: bool,
 ) -> Result<()> {
     use crate::ebpf::limiter::{Limiter, Target};
 
     // Input validation first (fail-fast, no privileges needed) — same
-    // parse-before-execute ladder as handle_strict_single.
-    let rates = resolve_rates(rate, download, upload, allow_dangerous)?;
+    // parse-before-execute ladder as handle_strict_single. NIGHT-improve-30:
+    // the unified --force-this override (rate bounds + blocklist).
+    let rates = resolve_rates(rate, download, upload, force_this)?;
 
     if rates.download.is_none() && rates.upload.is_none() {
         return Err(anyhow::anyhow!(
@@ -110,7 +111,7 @@ pub(crate) fn handle_strict_multi(
     for t in targets_str.split(':') {
         let t = t.trim();
         if !t.is_empty() {
-            check_dangerous_target(t, force)?;
+            check_dangerous_target(t, force_this)?;
         }
     }
 
@@ -155,15 +156,13 @@ pub(crate) fn handle_strict_multi(
 }
 
 /// Handle `zelynic limit-all` — limit ALL user apps.
-/// System/dangerous apps are excluded unless --force.
+/// System/dangerous apps are excluded unless --force-this.
 #[cfg(feature = "ebpf")]
-#[allow(clippy::too_many_arguments)]
 pub(crate) fn handle_limit_all(
     rate: Option<&str>,
     download: Option<&str>,
     upload: Option<&str>,
-    allow_dangerous: bool,
-    force: bool,
+    force_this: bool,
     verbose: bool,
 ) -> Result<()> {
     use crate::ebpf::identity::IdentityMap;
@@ -171,7 +170,9 @@ pub(crate) fn handle_limit_all(
 
     // Input validation first (fail-fast, no privileges needed) — same
     // parse-before-execute ladder as the other strict handlers.
-    let rates = resolve_rates(rate, download, upload, allow_dangerous)?;
+    // NIGHT-improve-30: the unified --force-this override (rate bounds
+    // + blocklist inclusion in one flag).
+    let rates = resolve_rates(rate, download, upload, force_this)?;
 
     if rates.download.is_none() && rates.upload.is_none() {
         return Err(anyhow::anyhow!(
@@ -197,7 +198,7 @@ pub(crate) fn handle_limit_all(
             continue;
         }
         if is_dangerous_target(&app.comm) {
-            if force {
+            if force_this {
                 user_apps.push(app.comm.clone());
             } else {
                 skipped.push(app.comm.clone());
@@ -218,17 +219,17 @@ pub(crate) fn handle_limit_all(
 
     // The pre-apply "Limiting N app(s) to X" echo is gone with
     // NIGHT-improve-28 (the request lives in the shell history; the
-    // enforced facts live in 'zelynic status'); the skipped list
-    // stays — it is the safety surface, not noise: it names every
-    // system app the command deliberately did NOT touch.
+    // enforced facts live in 'zelynic status'). NIGHT-improve-30
+    // collapses the skipped surface to ONE warn line — the count and
+    // the flag that includes them: the old bulleted roster re-printed
+    // the safety blocklist on every sweep (a server lists dozens of
+    // system apps), while the names are one 'zelynic list-apps' away
+    // for the rare case the count itself is the surprise.
     if !skipped.is_empty() {
-        eprintln_safe!(
-            "Skipped {} system app(s) (use --force to include):",
+        crate::output::eprintln_warn_labeled(&format!(
+            "Skipped {} system app(s) — re-run with --force-this to include.",
             skipped.len()
-        );
-        for s in &skipped {
-            eprintln_safe!("  - {s}");
-        }
+        ));
     }
 
     // Build targets list.
@@ -277,7 +278,7 @@ mod tests {
     #[cfg(feature = "ebpf")]
     #[test]
     fn rate_typo_surfaces_before_root_guard() {
-        let err = handle_strict_single("bash", Some("1MB"), None, None, false, false, false)
+        let err = handle_strict_single("bash", Some("1MB"), None, None, false, false)
             .expect_err("typo'd rate must fail");
         let msg = format!("{err}");
         assert!(
@@ -299,7 +300,7 @@ mod tests {
     #[cfg(feature = "ebpf")]
     #[test]
     fn dangerous_target_refusal_surfaces_before_root_guard() {
-        let err = handle_strict_single("sshd", Some("1mb"), None, None, false, false, false)
+        let err = handle_strict_single("sshd", Some("1mb"), None, None, false, false)
             .expect_err("dangerous target must be refused");
         let msg = format!("{err}");
         assert!(

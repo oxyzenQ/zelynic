@@ -178,18 +178,21 @@ fn top_level_flag_rescue(typed: &str) -> Option<&'static str> {
 }
 
 /// Cross-tool flag vocabulary (NIGHT-boost-13): spellings users bring
-/// from other CLIs, mapped to the zelynic flag that answers them.
+/// from other CLIs, mapped to the zelynic flag that answers them —
+/// intent-clear names whose jaro distance to the real flag sits far
+/// under the 0.7 fuzzy bar, which would otherwise leave a tip-less
+/// dead end (`--json` scores 0.394 against `--print-json`). These
+/// rescues run after the top-level authority table and before the
+/// fuzzy fallback; like every rescue that injects a suggestion they
+/// drop the native trailing escape-hatch tip first (one tip, the
+/// right one).
 ///
-/// `--json` is the convention everywhere else — every modern tool
-/// answers it — so the owner typing it on zelynic is intent-clear,
-/// yet the fuzzy rescue cannot bridge it: jaro_ci("json",
-/// "print-json") scores 0.394 against the hyphenated 11-char name,
-/// far below the 0.7 bar, and the owner's terminal showed a tip-less
-/// dead end. These rescues run after the top-level authority table
-/// and before the fuzzy fallback; like every rescue that injects a
-/// suggestion they drop the native trailing escape-hatch tip first
-/// (one tip, the right one).
-const FLAG_VOCABULARY_RESCUES: &[(&str, &str)] = &[("json", "--print-json")];
+/// `allow-dangerous` (NIGHT-improve-30): the retired safety-override
+/// spelling, redirected to the unified `--force-this`.
+const FLAG_VOCABULARY_RESCUES: &[(&str, &str)] = &[
+    ("json", "--print-json"),
+    ("allow-dangerous", "--force-this"),
+];
 
 /// The zelynic flag a typed name answers to by cross-tool vocabulary,
 /// or `None` when it is not in the table.

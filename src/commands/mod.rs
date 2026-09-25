@@ -128,8 +128,7 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
             rate,
             download,
             upload,
-            allow_dangerous,
-            force,
+            force_this,
         }) => {
             #[cfg(feature = "ebpf")]
             {
@@ -138,22 +137,13 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
                     rate.as_deref(),
                     download.as_deref(),
                     upload.as_deref(),
-                    allow_dangerous,
-                    force,
+                    force_this,
                     cli.verbose,
                 )
             }
             #[cfg(not(feature = "ebpf"))]
             {
-                let _ = (
-                    target,
-                    rate,
-                    download,
-                    upload,
-                    allow_dangerous,
-                    force,
-                    cli.verbose,
-                );
+                let _ = (target, rate, download, upload, force_this, cli.verbose);
                 ebpf_disabled()
             }
         }
@@ -163,8 +153,7 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
             rate,
             download,
             upload,
-            allow_dangerous,
-            force,
+            force_this,
         }) => {
             #[cfg(feature = "ebpf")]
             {
@@ -173,22 +162,13 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
                     rate.as_deref(),
                     download.as_deref(),
                     upload.as_deref(),
-                    allow_dangerous,
-                    force,
+                    force_this,
                     cli.verbose,
                 )
             }
             #[cfg(not(feature = "ebpf"))]
             {
-                let _ = (
-                    targets,
-                    rate,
-                    download,
-                    upload,
-                    allow_dangerous,
-                    force,
-                    cli.verbose,
-                );
+                let _ = (targets, rate, download, upload, force_this, cli.verbose);
                 ebpf_disabled()
             }
         }
@@ -197,8 +177,7 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
             rate,
             download,
             upload,
-            allow_dangerous,
-            force,
+            force_this,
         }) => {
             #[cfg(feature = "ebpf")]
             {
@@ -206,50 +185,52 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
                     rate.as_deref(),
                     download.as_deref(),
                     upload.as_deref(),
-                    allow_dangerous,
-                    force,
+                    force_this,
                     cli.verbose,
                 )
             }
             #[cfg(not(feature = "ebpf"))]
             {
-                let _ = (rate, download, upload, allow_dangerous, force, cli.verbose);
+                let _ = (rate, download, upload, force_this, cli.verbose);
                 ebpf_disabled()
             }
         }
 
-        Some(Commands::BlockSingle { target, force }) => {
+        Some(Commands::BlockSingle { target, force_this }) => {
             #[cfg(feature = "ebpf")]
             {
-                block::handle_block_single(&target, force, cli.verbose)
+                block::handle_block_single(&target, force_this, cli.verbose)
             }
             #[cfg(not(feature = "ebpf"))]
             {
-                let _ = (target, force, cli.verbose);
+                let _ = (target, force_this, cli.verbose);
                 ebpf_disabled()
             }
         }
 
-        Some(Commands::BlockMulti { targets, force }) => {
+        Some(Commands::BlockMulti {
+            targets,
+            force_this,
+        }) => {
             #[cfg(feature = "ebpf")]
             {
-                block::handle_block_multi(&targets, force, cli.verbose)
+                block::handle_block_multi(&targets, force_this, cli.verbose)
             }
             #[cfg(not(feature = "ebpf"))]
             {
-                let _ = (targets, force, cli.verbose);
+                let _ = (targets, force_this, cli.verbose);
                 ebpf_disabled()
             }
         }
 
-        Some(Commands::BlockAll { force }) => {
+        Some(Commands::BlockAll { force_this }) => {
             #[cfg(feature = "ebpf")]
             {
-                block::handle_block_all(force, cli.verbose)
+                block::handle_block_all(force_this, cli.verbose)
             }
             #[cfg(not(feature = "ebpf"))]
             {
-                let _ = (force, cli.verbose);
+                let _ = (force_this, cli.verbose);
                 ebpf_disabled()
             }
         }

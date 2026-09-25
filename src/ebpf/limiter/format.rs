@@ -230,7 +230,7 @@ pub fn validate_rate(rate_bps: u64) -> Result<()> {
     if rate_bps > 0 && rate_bps < MIN_RATE {
         bail!(
             "Rate {} is below minimum ({} B/s = 1 KB/s, decimal SI).\n\
-             Use --allow-dangerous to override. Use 0 for block.",
+             Use --force-this to override. Use 0 for block.",
             rate_bps,
             MIN_RATE
         );
@@ -238,7 +238,7 @@ pub fn validate_rate(rate_bps: u64) -> Result<()> {
     if rate_bps > MAX_RATE {
         bail!(
             "Rate {} is above maximum ({} B/s = 1 TB/s).\n\
-             Use --allow-dangerous to override.",
+             Use --force-this to override.",
             rate_bps,
             MAX_RATE
         );

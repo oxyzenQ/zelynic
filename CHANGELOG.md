@@ -163,6 +163,64 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Changed
 
+- **change: NIGHT-improve-30 — the unified `--force-this` safety
+  override, the verbose remainings retired end to end, the
+  `--reset-terminal` rescue grown the termios layer it owed, and the
+  Kernel Floor workflow push-gated on Rust changes** — four owner
+  findings, one commit each surface:
+  - **The unified flag** (the `-h/--help` safety section): the former
+    `--allow-dangerous` (rate bounds) and `--force` (blocklist) pair
+    is ONE flag, same function — `--force-this`, on every enforcement
+    verb (strict-single/multi, limit-all, block-single/multi/all).
+    The help Safety section now closes with the one-line contract
+    "One flag lifts every guard: --force-this"; the retired
+    spellings are refused loudly (the supermassive depth battery
+    pins both refusals), and the muscle-memory user gets a redirect:
+    `--allow-dangerous` rides the cross-tool vocabulary rescue table
+    (its jaro distance to the new name sits far under the 0.7 bar —
+    the same tip-less dead end `--json` had), while `--force` gets
+    clap's own fuzzy suggestion. Every error tip, doc surface, and
+    harness argv is renamed in lockstep.
+  - **The verbose remainings** (the end-to-end depth audit the
+    improve-28 de-noise owed): the rate-bounds override no longer
+    echoes "[limiter] WARNING: ... overriding with --allow-dangerous"
+    up to three times per invocation — the flag IS the
+    acknowledgment, the enforced rate is visible in `zelynic status`;
+    the limit-all/block-all skipped lists collapse from a bulleted
+    blocklist roster (unbounded on servers, capped at 20 on block)
+    to ONE warn line — the count plus the flag that includes them
+    (the names are one `zelynic list-apps` away); and the
+    dangerous-target forcing warning is one line instead of three
+    (the destabilization prose and the unstrict removal form are the
+    error path's and the success epilogue's words, not repeated on
+    the success lane).
+  - **The `--reset-terminal` maturity debt** (the owner's report:
+    "still not clean fully like not 99% recover"): the first port of
+    the cosmostrix five-layer rescue shipped the ANSI layers but NOT
+    the reference's layer-1 `disable_raw_mode()` — the in-process
+    termios restore. The rescue now opens with exactly that: a
+    `tcsetattr` of a sane cooked state on fd 0 (or `/dev/tty` when
+    stdin is redirected — the crossterm shape), FIRST because an
+    ioctl always completes (the guard's own hardening lesson), echo
+    returns so the user SEES the later layers work, and TCSAFLUSH
+    drops the stuck-mode input flood before it can land in the shell
+    as garbage commands. The ANSI bytes ride fd 1 under a temporary
+    O_NONBLOCK — the Termux lesson, shared with the guard through
+    ONE set of raw-fd helpers (a jammed PTY can no longer wedge the
+    rescue on a blocking write). And `reset`/`tput reset` run only
+    with a TERM set: without one, ncurses' tset prompts "Terminal
+    type?" on the tty and waits — a rescue that hangs is worse than
+    one that skips its two optional layers. Verified end-to-end on a
+    real pty (raw-broken by the harness, TERM-less): the restore
+    bytes and a cooked termios both come back; the kernel-floor
+    observer probe grew this rescue leg as its third 5.15 proof
+    (FLOOR-OBSERVER now carries rescue-bytes/rescue-termios).
+  - **The Kernel Floor push gate** (the owner's call): the 5.15
+    micro-VM workflow now triggers on every push to main that
+    touches `**/*.rs` (plus the existing weekly schedule and the
+    dispatch click) — the floor is proven per Rust change, not just
+    weekly; docs-only pushes skip the runner. The e2e.yml drift note
+    points at the new trigger.
 - **change: NIGHT-improve-28 — the apply verbs answer with the
   affirmative epilogue: a green `OK.` and green follow-up commands,
   the request-echo restatement retired** — the owner's audit:

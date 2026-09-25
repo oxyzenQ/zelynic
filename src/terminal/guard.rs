@@ -46,6 +46,12 @@ use std::os::unix::io::RawFd;
 // exit leaves it (mouse modes off, main screen, cursor visible).
 use super::screen::ALT_EXIT as RESTORE;
 
+// The raw-fd helpers (set O_NONBLOCK, best-effort write) live in
+// crate::term_reset since NIGHT-improve-30 — ONE implementation
+// shared by the guard child and the --reset-terminal rescue (both
+// write to fd 1 from the wrong side of a possibly-jammed PTY).
+use crate::term_reset::{set_fd_nonblocking, write_fd_best_effort};
+
 /// The guard child's process name (prctl `PR_SET_NAME`): does NOT
 /// contain "zelynic" on purpose — `pkill zelynic` is the owner's
 /// own reflex and must never reach the guard (it would kill the
@@ -81,7 +87,7 @@ pub(crate) struct TerminalGuard {
     alt_live: bool,
 }
 
-// ── The child-side raw-fd helpers (NIGHT-hunt-31, the cosmostrix ──
+// ── The child-side restore path (NIGHT-hunt-31, the cosmostrix ──
 //    terminal_tty lineage) ──
 //
 // The Termux screen-lock lesson, ported: when a PTY's reader stops
@@ -94,55 +100,9 @@ pub(crate) struct TerminalGuard {
 // child flips fd 1 to O_NONBLOCK first: the restore becomes
 // best-effort bytes (EAGAIN drops the remainder — a dropped escape
 // is cosmetic, a hung restore child is a terminal that never
-// recovers). All raw syscalls, async-signal-safe after fork.
-
-/// Flip `fd` to O_NONBLOCK; returns the previous status flags (-1 on
-/// failure, which the caller treats as "nothing was changed").
-///
-/// # Safety
-/// `fd` must be an open descriptor the process owns.
-unsafe fn set_fd_nonblocking(fd: RawFd) -> libc::c_int {
-    unsafe {
-        let flags = libc::fcntl(fd, libc::F_GETFL);
-        if flags < 0 {
-            return -1;
-        }
-        if libc::fcntl(fd, libc::F_SETFL, flags | libc::O_NONBLOCK) < 0 {
-            return -1;
-        }
-        flags
-    }
-}
-
-/// Best-effort raw-fd write — never blocks, never retries past the
-/// first refusal. EAGAIN/EPIPE/EBADF drop the remainder silently: the
-/// caller (the guard child, moments from `_exit`) prefers a partial
-/// restore over a hung one, and the `--reset-terminal` rescue exists
-/// for whatever bytes a jammed PTY refused.
-///
-/// # Safety
-/// `fd` must be an open descriptor the process owns, and the caller
-/// is expected to have set O_NONBLOCK first (without it this is just
-/// a plain blocking write loop).
-unsafe fn write_fd_best_effort(fd: RawFd, bytes: &[u8]) {
-    let mut off = 0usize;
-    while off < bytes.len() {
-        // SAFETY: write(2) on a numeric fd the process owns; n == 0
-        // breaks like an error — retrying a zero-byte progress loop
-        // would spin.
-        let n = unsafe {
-            libc::write(
-                fd,
-                bytes[off..].as_ptr().cast::<libc::c_void>(),
-                bytes.len() - off,
-            )
-        };
-        if n <= 0 {
-            return;
-        }
-        off += n as usize;
-    }
-}
+// recovers). All raw syscalls, async-signal-safe after fork (the
+// helpers themselves are crate::term_reset's, shared with the
+// --reset-terminal rescue since NIGHT-improve-30).
 
 impl TerminalGuard {
     /// Arm the guard. MUST be called BEFORE `AltScreen::enter` —

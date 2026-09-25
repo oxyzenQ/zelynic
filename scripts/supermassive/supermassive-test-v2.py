@@ -84,7 +84,7 @@ What it verifies (verdicts PASS / FAIL / SKIP, exit 1 on any FAIL):
          usage shapes, and every alias resolving; then the rate
          guards: below-minimum refused, above-maximum refused, the
          typo tip suggesting the lowercase twin, the dangerous-name
-         refusal, plain-number acceptance, the --allow-dangerous
+         refusal, plain-number acceptance, the --force-this
          override;
   kills: the TUI renders before every SIGKILL and dies as signal 9,
          enforcement rows stay intact after every kill, post-kill
@@ -224,12 +224,13 @@ def test_rate_guard():
         and ok_all
     )
     # The dangerous-target blocklist (commands/safety.rs): a system
-    # daemon name must be refused without --force. Only the REFUSAL is
-    # exercised — the forced variant would limit the live machine's
-    # actual systemd, which is exactly what the guard exists to stop.
+    # daemon name must be refused without --force-this. Only the
+    # REFUSAL is exercised — the forced variant would limit the live
+    # machine's actual systemd, which is exactly what the guard
+    # exists to stop.
     ok_all = (
         refuse(
-            "rate guard: dangerous name refused without --force (systemd)",
+            "rate guard: dangerous name refused without --force-this (systemd)",
             ["strict-single", "systemd", "1mb"],
             "system process",
         )
@@ -255,9 +256,11 @@ def test_rate_guard():
         and ok_all
     )
     sm1.clear_all()
-    # The below-minimum override (--allow-dangerous): 500 B/s applies
-    # with the warning, visible at full value in the status row.
-    rc, stdout, stderr = run_zel(["strict-single", tid, "--allow-dangerous", "500"])
+    # The below-minimum override (--force-this, NIGHT-improve-30's
+    # unified spelling): 500 B/s applies silently at full value in
+    # the status row — the override no longer echoes its own
+    # request back.
+    rc, stdout, stderr = run_zel(["strict-single", tid, "--force-this", "500"])
     entry = limit_entry(status_json(), sm1.CG.ids["a"]) if rc == 0 else None
     override_ok = (
         rc == 0
@@ -267,7 +270,7 @@ def test_rate_guard():
     )
     ok_all = (
         record(
-            "rate guard: below-minimum override applies (--allow-dangerous 500)",
+            "rate guard: below-minimum override applies (--force-this 500)",
             "PASS" if override_ok else "FAIL",
             f"exit {rc}, row {entry}" if not override_ok else "row 500/500",
         )
@@ -341,8 +344,8 @@ CLI_DEPTH_CASES = [
         "no rate specified",
     ),
     (
-        "--allow-dangerous with no rate still needs a rate",
-        ["strict-single", "brave", "--allow-dangerous"],
+        "--force-this with no rate still needs a rate",
+        ["strict-single", "brave", "--force-this"],
         "nonzero",
         "no rate specified",
     ),
@@ -367,10 +370,22 @@ CLI_DEPTH_CASES = [
     ("--print-jso gets the near-miss tip", ["--print-jso"], "nonzero", "--print-json"),
     ("--color-mod gets the near-miss tip", ["--color-mod", "16"], "nonzero", "--color-mode"),
     (
-        "--allow-dangerou typo after a valid target",
-        ["strict-single", "brave", "1mb", "--allow-dangerou"],
+        "--force-thi typo after a valid target",
+        ["strict-single", "brave", "1mb", "--force-thi"],
         "nonzero",
-        "--allow-dangerous",
+        "--force-this",
+    ),
+    (
+        "removed --allow-dangerous spelling is refused",
+        ["strict-single", "brave", "--allow-dangerous"],
+        "nonzero",
+        "unexpected argument",
+    ),
+    (
+        "removed --force spelling is refused",
+        ["block-all", "--force"],
+        "nonzero",
+        "unexpected argument",
     ),
     ("unknown short flag -x dies as a usage error", ["-x"], "nonzero", "error"),
     ("--interva typo on the monitor", ["eagle-eyes", "--interva", "3s"], "nonzero", "--interval"),
@@ -441,8 +456,8 @@ CLI_DEPTH_CASES = [
         "required",
     ),
     (
-        "--force with no rate reaches the rate guard",
-        ["strict-single", "--force", "brave"],
+        "--force-this with no rate reaches the rate guard",
+        ["strict-single", "--force-this", "brave"],
         "nonzero",
         "no rate specified",
     ),
@@ -560,6 +575,9 @@ CLI_DEPTH_CASES = [
     ("bm alias resolves (missing targets refuse)", ["bm"], "nonzero", "error"),
     ("block-all typo refuses before any block", ["block-all", "--forse"], "nonzero", "--force"),
     ("ba alias typo refuses before any block", ["ba", "--forse"], "nonzero", "--force"),
+    # NOTE: the --forse needles still say "--force" because the
+    # suggestion is now "--force-this" (NIGHT-improve-30) and the
+    # old needle remains a substring of it.
     ("us alias resolves (missing target refuses)", ["us"], "nonzero", "error"),
     ("unstrict alias resolves (missing target refuses)", ["unstrict"], "nonzero", "error"),
     ("um alias resolves (missing targets refuse)", ["um"], "nonzero", "error"),
@@ -612,8 +630,7 @@ CLI_DOCUMENTED_SURFACE = [
     "--color-mode",
     "--check-update",
     "--check-updated",
-    "--allow-dangerous",
-    "--force",
+    "--force-this",
     "--interval",
     "-d",
     "-u",
@@ -1062,7 +1079,7 @@ def test_regression_battery():
     )
     ok_all = (
         refuse(
-            "regression: dangerous name still refused without --force (systemd)",
+            "regression: dangerous name still refused without --force-this (systemd)",
             ["strict-single", "systemd", "1mb"],
             "system process",
         )

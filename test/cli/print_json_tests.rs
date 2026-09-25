@@ -90,8 +90,7 @@ fn enforcement_verbs_do_not_honor_the_flag() {
         rate: None,
         download: None,
         upload: None,
-        allow_dangerous: false,
-        force: false,
+        force_this: false,
     };
     assert!(
         !command_honors_print_json(Some(&strict)),
