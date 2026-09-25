@@ -217,22 +217,22 @@ fn try_enforce(
     bucket_map: &HashMap<u32, Bucket>,
     group_bucket_map: &HashMap<u32, Bucket>,
 ) -> i32 {
-    // Watchdog check. deadline == 0 means "no deadline set" —
-    // always enforce. deadline != 0 means "fail-safe timeout" —
-    // allow all if expired. (Preserved for the future --timeout
-    // feature; the serve child refresh was removed.) Array entries
-    // are pre-created by the kernel, so a None here is unreachable
-    // in practice; the C twin checks for NULL regardless and so
-    // does the port.
-    let deadline = match watchdog_deadline.get_ptr(0) {
-        Some(ptr) => unsafe { *ptr },
-        None => return 1,
-    };
-    let now = unsafe { bpf_ktime_get_ns() };
-    if deadline != 0 && now > deadline {
-        return 1;
-    }
-
+    // The unlimited fast path FIRST (NIGHT-lts-2): cgroup identity +
+    // the direction's policy are the only two lookups a packet with
+    // no policy ever needs — and on any real host that is the
+    // overwhelming majority of packets, because both hooks are
+    // attached at the cgroup root and see EVERY packet the machine
+    // moves, while the policy maps hold only the handful of cgroups
+    // zelynic was asked to police. The C twin's order (ported
+    // verbatim through the Rust port) read the watchdog array and
+    // took a bpf_ktime_get_ns timestamp before ever consulting the
+    // policy — two operations per packet whose results could not
+    // change the verdict: no policy means allow under every possible
+    // watchdog state (deadline unset, active, or expired), so the
+    // unlimited packet paid for a dormancy check it could never
+    // fail. The reorder keeps every policed-packet semantics
+    // bit-identical: when a policy exists, the watchdog read and the
+    // timestamp run exactly as before, just after the policy lookup.
     let cgroup_id = unsafe { bpf_skb_cgroup_id(ctx.skb.skb) } as u32;
     let pkt_len = ctx.len();
 
@@ -241,6 +241,24 @@ fn try_enforce(
         Some(ptr) => unsafe { &*ptr },
         None => return 1,
     };
+
+    // Watchdog check (only policed packets reach here). deadline == 0
+    // means "no deadline set" — always enforce. deadline != 0 means
+    // "fail-safe timeout" — allow all if expired. (Preserved for the
+    // future --timeout feature; the serve child refresh was removed;
+    // no userspace writer arms it today, so the check is dormant —
+    // which is exactly why the unlimited path must not pay for it.)
+    // Array entries are pre-created by the kernel, so a None here is
+    // unreachable in practice; the C twin checks for NULL regardless
+    // and so does the port.
+    let deadline = match watchdog_deadline.get_ptr(0) {
+        Some(ptr) => unsafe { *ptr },
+        None => return 1,
+    };
+    let now = unsafe { bpf_ktime_get_ns() };
+    if deadline != 0 && now > deadline {
+        return 1;
+    }
 
     // rate_bps == 0 means BLOCKED (drop all packets). Used by the
     // block-single command. Schema v3: changed from allow to drop.
