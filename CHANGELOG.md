@@ -163,6 +163,51 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Changed
 
+- **change: NIGHT-improve-31 (CI half) — the E2E estate
+  consolidates into the two Supermassive jobs: the full pipeline,
+  setup start to stresstest finish, on the KVM 5.15 floor under
+  two resource envelopes — "supermassive test - minimum specs"
+  and "supermassive test - best specs"** — the owner's ask,
+  translated: "all CI with E2E and kernel floor 5.15, now changed
+  to only 2 new CI functions, the same as the E2E from setup start
+  to stresstest finish, but using KVM like the CI kernel floor
+  5.15." The retired pair and where each half of their coverage
+  lives now: e2e.yml (the hosted-runner pipeline whose ubuntu
+  images the boost-38 drift note had already documented as moved
+  onto 6.x HWE kernels — no hosted leg touched the floor at all)
+  contributes the pipeline SHAPE: scripts/setup.sh bring-up runs
+  on the runner (the exact owner-facing phase one, outside the VM
+  because a minimum-specs guest cannot host a Rust toolchain
+  build), and BOTH full batteries run INSIDE the micro-VM on the
+  real jammy 5.15 kernel — strictly more kernel truth than the
+  hosted matrix ever had. e2e-kernel-floor.yml (the probe-only
+  micro-VM) contributes the boot skeleton, kept verbatim (the
+  jammy kernel fetch resolver, the container-supplied userland,
+  the isa-debug-exit verdict relay), and is subsumed: v1's full
+  limiter matrix covers the depth battery's enforcement lane,
+  v2's pty batteries cover the observer + guard, and the lean
+  prelude keeps uname/-V/doctor plus the new
+  `--reset-terminal` exit-0 smoke. The two profiles are the point
+  of the split (the dense-host question): minimum specs boots
+  1 vCPU / 1536 MB — the tightest envelope the full battery fits
+  with headroom (the rootfs is RAM-resident; six concurrent
+  traffic workers plus engine plus binary leave ~800 MB slack),
+  its budget at 1800 s because one vCPU serializes everything —
+  and best specs boots 4 vCPU / 8192 MB at 1200 s. One workflow
+  file, one job definition, a two-entry matrix
+  (fail-fast: false — each envelope reports its own verdict), the
+  e2e.yml path surface plus the CI init scripts it executes, the
+  weekly kernel-floor clock kept (jammy archive drift between
+  pushes), and the standard per-ref concurrency group (the
+  improve-32 combined-push contract: a tag push lands in a
+  different group and never cancels a battery). The engines run
+  with `--binary` pinned (the canonical invocation rule), the
+  realnet lane self-skips as documented (loopback-only guest),
+  and curl joins the rootfs alongside python3 + iproute2 for the
+  loopback lanes. README, CONTRIBUTING (the third CI contract),
+  and CROSS_DISTRO_RESULTS (the CI row note, with the hosted-era
+  history kept) now point at the one workflow; the retired
+  headers live in git history.
 - **change: NIGHT-improve-31 (terminal half) — `--reset-terminal`
   under sudo finally reaches the terminal the user is actually
   staring at: the sudo `use_pty` interposition gap, closed with a

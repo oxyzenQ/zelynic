@@ -28,15 +28,21 @@
 > are the ones worth filing here, since they exercise the production
 > traffic shape.
 >
-> CI files two of those rows automatically now (NIGHT-ultimate-3, the
-> re-issued label): the E2E workflow
-> (.github/workflows/e2e.yml) runs the whole qualification —
-> setup.sh bring-up, v1, v2 — on hosted Ubuntu runners (kernel 5.15
-> and 6.8+) on every core-file push. Honest status after the first
-> eleven runs (2026-09-24): the 6.8 leg is fully green END TO END
-> (v1 matrix + v2 survival battery, four consecutive runs); the 5.15
-> leg is green except the curl-burst row, which reproducibly
-> over-delivers 20-35% versus the default_burst + refill budget in
+> CI files those rows automatically now (NIGHT-ultimate-3, the
+> re-issued label; consolidated into the Supermassive workflow in
+> NIGHT-improve-31): .github/workflows/supermassive.yml runs the
+> whole qualification — setup.sh bring-up, v1, v2 — inside a KVM
+> micro-VM on a real jammy 5.15 kernel, under two resource
+> envelopes (minimum specs: 1 vCPU / 1536 MB; best specs: 4 vCPU /
+> 8 GB), on every core-file push. History note for the rows below:
+> the pre-consolidation E2E workflow ran the same batteries on
+> hosted Ubuntu runners whose images have since moved onto 6.x HWE
+> kernels (the hosted 5.15-era rows predate that drift — the 5.15
+> HOSTED pool was Azure-tuned, not stock 5.15). Honest status after
+> the first eleven runs (2026-09-24): the 6.8 leg was fully green
+> END TO END (v1 matrix + v2 survival battery, four consecutive runs);
+> the 5.15 leg was green except the curl-burst row, which reproducibly
+> over-delivered 20-35% versus the default_burst + refill budget in
 > 6-flow windows (140.0%, 142.5%, 151.4%, 161.2% across runs) —
 > filed as an open question for the owner: the 5.15 HOSTED pool
 > (Azure-tuned, not stock 5.15) either exposes a token-bucket

@@ -1,0 +1,305 @@
+# Copyright (C) 2026 rezky_nightky
+# SPDX-License-Identifier: GPL-3.0-only
+# =============================================================================
+# Supermassive — the whole E2E on the 5.15 micro-VM floor, two envelopes
+# =============================================================================
+#
+# NIGHT-improve-31 (the CI half, the owner's ask translated: "all CI
+# with E2E and kernel floor 5.15, now changed to only 2 new CI
+# functions, the same as the E2E from setup start to stresstest
+# finish, but using KVM like the CI kernel floor 5.15, titled
+# 'supermassive test - minimum specs' and 'supermassive test - best
+# specs'"): the E2E estate consolidates from two workflows into one
+# job definition with two profiles. The retired pair, and where each
+# half of their coverage lives now:
+#
+# - e2e.yml (Dragon Guard - E2E) ran the owner-facing pipeline —
+#   setup.sh bring-up, supermassive v1 (the limiter matrix), v2 (the
+#   survival battery) — on hosted ubuntu-22.04/24.04 runners. The
+#   boost-38 drift note already documented why that matrix stopped
+#   proving the floor: GitHub moved BOTH hosted images onto HWE
+#   kernels (6.8 / 6.17), so no hosted leg touches 5.15 at all. The
+#   pipeline's shape survives here intact — bring-up on the runner
+#   (the exact setup.sh phase one, outside the VM because a
+#   minimum-specs guest cannot host a Rust toolchain build), then
+#   BOTH full batteries INSIDE the micro-VM on the real jammy 5.15
+#   kernel (scripts/ci/supermassive-init.sh as PID 1): strictly more
+#   kernel truth than the hosted matrix ever had.
+# - e2e-kernel-floor.yml (Dragon Guard - Kernel Floor) proved the
+#   5.15 floor with probe-shaped smoke (a --quick depth battery, a
+#   single observer probe). Its KVM machinery is this workflow's
+#   boot skeleton (kept verbatim: the jammy kernel fetch, the
+#   container-supplied userland, the isa-debug-exit verdict relay),
+#   and its probe surface is subsumed — v1's full matrix covers the
+#   depth battery's enforcement lane, v2's pty batteries cover the
+#   observer + guard, and the lean prelude keeps uname/-V/doctor.
+#
+# The two profiles (the point of the split, the owner's "host server
+# padat" — the dense-host question): the SAME battery on the two
+# ends of the machines zelynic promises to run on. "minimum specs"
+# boots 1 vCPU / 1536 MB — a small-slice server, the tightest
+# envelope the full battery fits with headroom (the rootfs is
+# RAM-resident; six concurrent traffic workers plus the engine plus
+# the binary leave ~800 MB of slack), and 1 vCPU serializes the
+# whole battery, so the timeout rides at 1800 s. "best specs" boots
+# 4 vCPU / 8192 MB — the hosted runner's full width, the
+# dense-host best case. A tool that holds its rates on the minimum
+# envelope has no excuse on the best one; a green pair is the
+# kernel-floor proof AND the resource-envelope proof in one estate.
+#
+# Trigger paths = the E2E surface (the e2e.yml union, plus this
+# workflow's own file and the CI init scripts it executes — the
+# NIGHT-hunt-34 rule: a workflow that can change its own contract
+# owes itself a run) + workflow_dispatch (the pre-release click)
+# + the weekly Monday 03:00 UTC schedule (the kernel-floor clock:
+# a docs-only push skips the runner, but the jammy archive can
+# still move under the fetch between pushes).
+#
+# Cost: two standard hosted runners for ~15-30 min per qualifying
+# push (public-repo standard runners are free); the push pipeline
+# stays decoupled from ci.yml's own failure modes — this workflow
+# can only redden itself.
+
+name: Dragon Guard - Supermassive
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - 'src/**'
+      - 'ebpf/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'build.rs'
+      - 'rust-toolchain.toml'
+      - '.cargo/**'
+      - 'scripts/setup.sh'
+      - 'scripts/dev/bootstrap-ebpf.sh'
+      - 'scripts/dev/install-bpf-linker.sh'
+      - 'scripts/supermassive/**'
+      - 'scripts/lib/**'
+      - 'scripts/ci/**'
+      - '.github/workflows/supermassive.yml'
+  workflow_dispatch: {}
+  schedule:
+    # Weekly, Monday 03:00 UTC (owner timezone +8: 11:00 local) —
+    # the kernel-floor clock, catching jammy kernel-archive drift
+    # between pushes (a docs-only push does not run this workflow,
+    # but the archive the kernel fetch resolves from can move).
+    - cron: "0 3 * * 1"
+
+# Least privilege (cosmostrix contract): this workflow only reads
+# the repository. The sudo inside is host-level (mount, the KVM
+# boot, the root test batteries), never a GitHub permission.
+permissions:
+  contents: read
+
+# The most expensive workflow in the estate (the e2e.yml
+# inheritance): a superseded push cancels its in-flight
+# supermassive runs instead of queueing duplicate 30-minute
+# batteries (the cosmostrix stability pattern; a tag push lands in
+# a different group by construction and never interacts — the
+# NIGHT-improve-32 combined-push contract).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  # If a panic ever leaks past v2's zero-panic contract, the CI log
+  # should carry the backtrace for the debugging session that follows.
+  RUST_BACKTRACE: 1
+
+jobs:
+  supermassive:
+    name: ${{ matrix.title }}
+    strategy:
+      # A minimum-specs failure must not hide the best-specs result
+      # (and vice versa) — the envelope pair is the point of the
+      # split, each leg reports its own verdict.
+      fail-fast: false
+      matrix:
+        include:
+          # The two ends of the machines zelynic promises to run on
+          # (see the header): the dense-little-host slice and the
+          # big-host width. smp/mem ride the qemu command line; the
+          # vm budget scales with the envelope (1 vCPU serializes
+          # the whole battery, so it rides at 1800 s).
+          - title: supermassive test - minimum specs
+            smp: "1"
+            mem: "1536"
+            vm_timeout: "1800"
+          - title: supermassive test - best specs
+            smp: "4"
+            mem: "8192"
+            vm_timeout: "1200"
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5, NIGHT-hunt-20 SHA pin
+
+      # The kernel can change; /dev/kvm is a GitHub runner guarantee
+      # (nested virt is enabled on every current Linux hosted image) —
+      # but the node ships 0660 root:kvm and the runner user is not in
+      # the kvm group, so the job opens it up itself. Failing LOUDLY
+      # here beats a confusing TCG fallback: the pro-native binary is
+      # native codegen and would SIGILL under TCG's -cpu qemu64 —
+      # KVM's -cpu host passthrough is what makes "native" honest
+      # inside the VM.
+      - name: Verify KVM
+        run: |
+          test -e /dev/kvm || {
+            echo "FAIL: /dev/kvm is absent — this runner image cannot boot the 5.15 micro-VM"
+            echo "(nested virt is expected on every current GitHub Linux runner image)"
+            exit 1
+          }
+          test -w /dev/kvm || sudo chmod 666 /dev/kvm
+          test -w /dev/kvm || {
+            echo "FAIL: /dev/kvm is not usable by the runner user even after chmod"
+            ls -l /dev/kvm
+            exit 1
+          }
+          echo "OK: /dev/kvm present and usable"
+
+      - name: Install qemu + cpio
+        run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends qemu-system-x86 cpio
+
+      # The E2E pipeline's phase one, the owner-facing bring-up on the
+      # RUNNER (outside the VM — a minimum-specs guest cannot host a
+      # toolchain build, and the envelope's point is the STRESSTEST,
+      # not the compile): the canonical path from e2e.yml — bootstrap,
+      # the static musl flagship twin, and the rootless engine
+      # self-test. The musl twin is the VM's payload: glibc-free, the
+      # exact binary the cross-distro instrument runs on foreign
+      # distros, executing under KVM's -cpu host on the SAME silicon
+      # that built it.
+      - name: Bring-up (setup.sh --skip-heavy --musl)
+        run: |
+          rustup target add x86_64-unknown-linux-musl
+          ./scripts/setup.sh --skip-heavy --musl
+
+      # The 5.15 kernel itself: the jammy (22.04) GA kernel, fetched
+      # from the Ubuntu archive (the kernel-floor resolver, kept
+      # verbatim): jammy main + jammy-updates, names-only search,
+      # highest ABI, apt resolves the latest so no URL rot.
+      - name: Fetch the jammy 5.15 kernel
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/kfloor && cd /tmp/kfloor
+          {
+            echo "deb http://archive.ubuntu.com/ubuntu/ jammy main"
+            echo "deb http://archive.ubuntu.com/ubuntu/ jammy-updates main"
+          } | sudo tee /etc/apt/sources.list.d/jammy-floor.list >/dev/null
+          sudo apt-get update \
+            -o Dir::Etc::sourcelist=/etc/apt/sources.list.d/jammy-floor.list \
+            -o Dir::Etc::sourceparts=/dev/null \
+            -o APT::Get::List-Cleanup=0
+          IMG=$(apt-cache search --names-only \
+            'linux-image-unsigned-5\.15\.0-.*-generic' 2>/dev/null \
+            | grep -oE 'linux-image-unsigned-5\.15\.0-[0-9]+-generic' \
+            | sort -V | tail -1 || true)
+          if test -z "$IMG"; then
+            echo "FAIL: no linux-image-unsigned-5.15.0-*-generic in the jammy pockets — resolver evidence:"
+            apt-cache search --names-only 'linux-image-unsigned-5\.15' || true
+            exit 1
+          fi
+          echo "resolved: $IMG"
+          apt-get download "$IMG"
+          dpkg -x "${IMG}"*_amd64.deb pkg
+          VMLINUZ=$(find pkg/boot -name 'vmlinuz-5.15.*' | head -1)
+          if test -z "$VMLINUZ"; then
+            echo "FAIL: no vmlinuz inside the deb — pkg/boot contents:"
+            ls -la pkg/boot || true
+            exit 1
+          fi
+          cp "$VMLINUZ" /tmp/kfloor/vmlinuz-5.15
+          echo "kernel: $(du -h /tmp/kfloor/vmlinuz-5.15 | cut -f1) at /tmp/kfloor/vmlinuz-5.15"
+
+      # The userland: the ubuntu:22.04 CONTAINER supplies the rootfs
+      # (glibc-matched to jammy), python3 + iproute2 ride along (the
+      # engine + `ip link set lo up`), and curl joins the set for the
+      # consolidated battery (the v1 limiter matrix drives its lanes
+      # with it; the realnet lane self-skips, the documented row, so
+      # curl is for the loopback lanes). The checkout (tracked files
+      # only) and the static musl binary land at /opt/zelynic,
+      # scripts/ci/supermassive-init.sh becomes /init (PID 1) — then
+      # the whole tree packs into ONE newc cpio (the initramfs IS the
+      # rootfs; no disk, no modules).
+      - name: Assemble the micro-VM rootfs
+        run: |
+          set -euo pipefail
+          cd /tmp/kfloor
+          docker pull -q ubuntu:22.04
+          docker rm -f floor-rootfs >/dev/null 2>&1 || true
+          docker run --name floor-rootfs -d ubuntu:22.04 sleep infinity
+          docker exec floor-rootfs apt-get update -qq
+          docker exec floor-rootfs apt-get install -y --no-install-recommends python3 iproute2 curl
+          docker export floor-rootfs -o rootfs.tar
+          mkdir -p rootfs
+          tar -xf rootfs.tar -C rootfs
+          mkdir -p rootfs/opt/zelynic
+          git -C "$GITHUB_WORKSPACE" archive HEAD | tar -x -C rootfs/opt/zelynic
+          cp "$GITHUB_WORKSPACE/target/x86_64-unknown-linux-musl/pro-native-musl/zelynic" rootfs/opt/zelynic/zelynic
+          cp "$GITHUB_WORKSPACE/scripts/ci/supermassive-init.sh" rootfs/init
+          chmod +x rootfs/init
+          # PID 1 needs a console to exec onto before devtmpfs lands
+          # (the kernel opens the initramfs's static /dev/console for
+          # it; the init's devtmpfs mount takes over from there). The
+          # docker export ships a /dev/console entry tar could not
+          # restore as a device (a non-root extract degrades it to a
+          # placeholder file) — remove whatever landed, mknod the real
+          # char device fresh.
+          sudo rm -f rootfs/dev/console
+          sudo mknod -m 600 rootfs/dev/console c 5 1
+          ( cd rootfs && sudo find . -print0 | sudo cpio --null -o -H newc ) | gzip -1 > initrd.gz
+          echo "initramfs: $(du -h initrd.gz | cut -f1)"
+
+      # Boot the micro-VM: direct kernel boot, KVM host-passthrough
+      # CPU, no disk, serial console to stdout, panic=-1 + -no-reboot
+      # so a kernel panic ends qemu instead of hanging the job, an
+      # outer timeout (per profile: the minimum envelope serializes
+      # the battery on one vCPU, so its budget rides at 1800 s) so a
+      # wedged guest can never burn the 45-minute job budget, and the
+      # isa-debug-exit device — the guest ends the VM deterministically
+      # by writing one byte to port 0xf4 (qemu exits with status 1),
+      # the kernel-CI standard for initramfs guests whose direct-boot
+      # path never reaches an ACPI S5 poweroff.
+      - name: Boot the 5.15 micro-VM and run the supermassive batteries
+        run: |
+          set -euo pipefail
+          cd /tmp/kfloor
+          set +e
+          timeout ${{ matrix.vm_timeout }} qemu-system-x86_64 \
+            -machine q35,accel=kvm -cpu host \
+            -m ${{ matrix.mem }} -smp ${{ matrix.smp }} \
+            -device isa-debug-exit,iobase=0xf4,iosize=0x04 \
+            -kernel vmlinuz-5.15 \
+            -initrd initrd.gz \
+            -append "console=ttyS0 panic=-1" \
+            -nographic -no-reboot 2>&1 | tee vm.log
+          QEMU_RC=${PIPESTATUS[0]}
+          set -e
+          # rc 0 = a natural poweroff; rc 1 = the guest's deliberate
+          # isa-debug-exit (the verdict itself rides the MASS-* sentinel
+          # lines, so the Verdict step below stays the authority).
+          # Anything else — the profile's timeout (124), a KVM init
+          # failure — fails HERE with the tail attached.
+          if test "$QEMU_RC" -ne 0 && test "$QEMU_RC" -ne 1; then
+            echo "FAIL: qemu exited $QEMU_RC — log tail:"
+            tail -40 vm.log
+            exit 1
+          fi
+          exit 0
+
+      # The verdict lives in the log (the VM cannot relay exit codes
+      # through qemu; the MASS-* sentinel lines are the contract —
+      # scripts/ci/supermassive-init.sh owns them).
+      - name: Verdict
+        run: |
+          set -euo pipefail
+          cd /tmp/kfloor
+          echo "── supermassive verdicts (${{ matrix.title }}) ──"
+          grep -E '^MASS-(RESULT|VERDICT)' vm.log || true
+          grep -q '^MASS-VERDICT: PASS' vm.log
+          echo "OK: the 5.15 floor proven on the ${{ matrix.title }} envelope"
