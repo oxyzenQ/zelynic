@@ -937,3 +937,34 @@ userspace point-lookups per 1s frame (tens of microseconds of
 syscall time), neither of which the frame harness measures — the
 live-machine proof of the join itself is the owner-run battery's
 lane (the proof-claims harness pattern).
+
+### NIGHT-improve-31 A/B (the sudo-interposed terminal rescue, 2026-09-25)
+
+The layer-0 lane (src/term_reset/outer.rs: the outer-tty discovery,
+the by-path direct apply, the post-sudo orphan) is a one-shot
+early-return path — `--reset-terminal` runs it and exits before
+any monitor machinery exists. The frame harness measures the render
+loop, which the lane never touches (zero new calls anywhere in it),
+so the A/B proves exactly that non-interference (A = 28501e5 at
+HEAD, B = the improve-31 terminal tree, 10 s formal runs):
+
+| Metric | 28501e5 | improve-31 | Delta |
+|--------|---------|------------|-------|
+| fps | 7,678.6 | 7,739.9 | +0.8% (machine noise) |
+| bytes/frame | 1,919.0 | 1,919.0 | +0.0% |
+| emit bytes/frame | 504.7 | 503.5 | -0.2% |
+| frame entropy | 3.0214 | 3.0204 | -0.0% |
+| density gini | 0.3522 | 0.3526 | +0.1% |
+| dirty cells/frame | 39.6 | 39.6 | -0.2% |
+
+Reading: bytes/frame identical to the byte and every other delta
+inside the container-noise band — the rescue's cost lives entirely
+in its own invocation (one /proc readlink, one open, one termios
+pair, one fork per rescue run), paid only in the broken-terminal
+moment the rescue exists for. The correctness proof is the new
+pin family (test/terminal/outer_reset_tests.rs) plus the live
+interposition harness: break a real pty, run the rescue against a
+foreign pty with SUDO_PID pointing at a monitor holder, restore
+the broken snapshot as the monitor's exit would, and read the
+real terminal back cooked — the orphan's win, after the trap that
+undid every earlier fix.

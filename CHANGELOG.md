@@ -163,6 +163,55 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Changed
 
+- **change: NIGHT-improve-31 (terminal half) — `--reset-terminal`
+  under sudo finally reaches the terminal the user is actually
+  staring at: the sudo `use_pty` interposition gap, closed with a
+  discovery, a direct apply, and a bounded orphan that outlives
+  the monitor's exit-restore** — the owner's live report (after a
+  root TUI session died violently, `sudo zelynic --reset-terminal`
+  left the screen staircased while the same command without sudo
+  recovered it perfectly, and cosmostrix's identical five layers
+  passed) had a root cause that was never the layers: sudo 1.9.14+
+  enables `use_pty` by default, so the rescue runs on a throwaway
+  pseudo-terminal the sudo monitor allocated — layer 1's
+  `tcsetattr`, `stty sane`'s stdin, and `reset`'s termios fiddling
+  all repaired the pty nobody was looking at, while only the
+  escape bytes survived the monitor's relay (why the screen looked
+  half-fixed: emulator modes reset, kernel termios still raw —
+  the LF-without-CR staircase in the owner's screenshot). The
+  deepest trap: the monitor saves the real terminal's termios when
+  IT starts — on the already-broken terminal — and restores that
+  broken snapshot when the command exits, so even a correct
+  in-flight fix was undone the instant the rescue finished. The
+  new lane (src/term_reset/outer.rs, the layer-0 move) makes the
+  rescue whole in three steps: DISCOVER the real terminal through
+  `/proc/$SUDO_PID/fd/0` (accepted only when it opens, answers
+  isatty, and differs from the rescue's own tty — the
+  non-use_pty sudo and every non-sudo context keep today's
+  behavior exactly; an euid-gated parent fallback covers a
+  stripped-SUDO_PID policy), APPLY the termios restore + both ANSI
+  sequences directly by path with the externals' stdin redirected
+  onto it, and RE-APPLY after sudo: a bounded orphan child (the
+  guard's boost-33 discipline — renamed `zny-tresc` so
+  `pkill zelynic` cannot kill it, syscalls only after fork, 5 ms
+  poll slices, a hard 10 s budget, `O_NOCTTY` so it never adopts
+  the user's terminal) waits out the monitor's exit and lands the
+  termios fix AFTER the broken-snapshot restore, using only the
+  non-destructive bytes (the shell prompt has drawn by then — the
+  destructive clear would trade a readable screen for an empty
+  one); a settle-gap second pass catches the nested-sudo chain.
+  Six new pins (test/terminal/outer_reset_tests.rs: the discovery
+  discrimination incl. the same-tty decline, the by-path apply
+  reversing a cfmakeraw-broken pty read through an independent fd,
+  the bounded budget) plus a live end-to-end harness simulating
+  the full interposition — break, rescue on a foreign pty with
+  SUDO_PID, monitor exit-restore, orphan re-apply — proved the
+  real terminal comes back cooked after the monitor's restore and
+  the orphan exits; the classic no-sudo path is pinned unchanged.
+  USAGE carries the new sudo story (the rescue row, the FAQ, the
+  eagle-eyes section) and SAFETY_ANALYSIS gains the full anatomy
+  with the safety ledger; the help text drops its "no sudo" line
+  for "sudo-safe, works blind-typed".
 - **change: NIGHT-improve-32 — the combined-push hardening: a
   commit push, its tag, and a release landing together can no
   longer collide, warn, or fail a build** — the owner's ask, born
