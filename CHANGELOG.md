@@ -163,6 +163,60 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Changed
 
+- **change: NIGHT-improve-33 — the supermassive re-shape: the TRUE
+  5.13 floor, the archive-latest head, and envelopes that scale
+  with the runner** — the owner's three-part ask, each answered in
+  the workflow it names:
+  - **The kernel span** (the owner's "minimum specs have old kernel
+    min 5.13 using ubuntu 21.10 impish indri or keep ubuntu jammy
+    jellyfish 22.04"): the minimum leg now boots the TRUE
+    documented floor — impish indri (21.10) 5.13.0-52, the oldest
+    kernel in the verified matrix (KERNEL_COMPATIBILITY), fetched
+    from the frozen old-releases archive (EOL July 2022, so the
+    floor can never drift — a stronger contract than
+    jammy-updates, whose weekly ABI bumps were the old
+    kernel-floor clock's whole reason; the trade, a frozen
+    mirror's availability, is what the weekly schedule watches
+    now). Jammy 5.15 needs no dedicated leg anymore: it sits
+    inside the proven span and remains in the hosted build matrix.
+    The best leg boots the archive's LATEST kernel, resolved
+    dynamically at run time with nothing pinned: the dists index
+    names every live base suite, each suite's Release carries
+    Date + Codename, the two newest DISTINCT codenames become the
+    apt sources (the dedupe is load-bearing — mid-cycle the index
+    lists the devel alias AND its target codename pointing at the
+    same content, which apt refuses as "Conflicting distribution",
+    the failure the live prototype caught here), and the newest
+    generic unsigned image across their main + -updates pockets
+    wins via sort -V (validated live against today's archive:
+    resolves 7.3.0-5-generic, the stonking devel series, with
+    resolute's 7.0.0-34 behind it; -proposed deliberately excluded
+    — pre-release is not "latest"). When Ubuntu ships 27.04 the
+    resolver walks onto it without a workflow edit.
+  - **The dynamic envelopes** (the owner's "cpu core, ram, etc
+    don't set fixed let dynamic"): the matrix no longer pins
+    smp/mem — the boot step derives each envelope from the runner
+    the job lands on (the retired constants, 1 vCPU / 1536 MB and
+    4 vCPU / 8192 MB, were exactly one era's ubuntu-24.04 runner).
+    Minimum specs: a quarter of the cores floored at 1 (a vCPU is
+    the indivisible minimum) + an eighth of the RAM floored at
+    1024 MB (the battery's own safety bound — the RAM-resident
+    rootfs plus the traffic workers need ~800 MB of slack). Best
+    specs: every core + three quarters of the RAM (the withheld
+    quarter pays for qemu's own footprint and the host-side build
+    tree).
+  - **The userland held constant** on purpose: both legs assemble
+    the rootfs from the SAME ubuntu:22.04 container (glibc 2.35's
+    kernel floor is 3.2, so the 5.13 kernel is safe), making the
+    pair's only variables the kernel and the envelope — a
+    kernel-span proof, not a distro matrix.
+  The init's floor check goes numeric (uname -r's major.minor must
+  sit at or above 5.13 — one check serving both ends of the span;
+  pinned against 5.13/5.15/6.x/7.x PASS and 5.10/4.19 FAIL), and
+  README, CONTRIBUTING (the third CI contract), and
+  CROSS_DISTRO_RESULTS carry the new contract. CI + docs only,
+  zero Rust surface, no binary delta: the frame benchmark is
+  skipped by the config-only rule.
 - **change: NIGHT-improve-31 (audit remainings) — the dense-host
   counter-capacity raise and the build.rs split plan: the two
   threads the owner approved carrying until no remainings** —

@@ -1,7 +1,7 @@
 # Copyright (C) 2026 rezky_nightky
 # SPDX-License-Identifier: GPL-3.0-only
 # =============================================================================
-# Supermassive — the whole E2E on the 5.15 micro-VM floor, two envelopes
+# Supermassive — the whole E2E on the micro-VM floor, two envelopes
 # =============================================================================
 #
 # NIGHT-improve-31 (the CI half, the owner's ask translated: "all CI
@@ -10,50 +10,78 @@
 # finish, but using KVM like the CI kernel floor 5.15, titled
 # 'supermassive test - minimum specs' and 'supermassive test - best
 # specs'"): the E2E estate consolidates from two workflows into one
-# job definition with two profiles. The retired pair, and where each
-# half of their coverage lives now:
+# job definition with two profiles. The retired pair — e2e.yml (the
+# hosted-runner pipeline whose images no longer boot a 5.x kernel)
+# and e2e-kernel-floor.yml (the probe-only micro-VM) — both live on
+# here: the bring-up half runs on the runner (scripts/setup.sh
+# --skip-heavy --musl, the exact owner-facing phase one, outside the
+# VM because a minimum-specs guest cannot host a Rust toolchain
+# build), and BOTH full batteries run INSIDE the micro-VM
+# (scripts/ci/supermassive-init.sh as PID 1).
 #
-# - e2e.yml (Dragon Guard - E2E) ran the owner-facing pipeline —
-#   setup.sh bring-up, supermassive v1 (the limiter matrix), v2 (the
-#   survival battery) — on hosted ubuntu-22.04/24.04 runners. The
-#   boost-38 drift note already documented why that matrix stopped
-#   proving the floor: GitHub moved BOTH hosted images onto HWE
-#   kernels (6.8 / 6.17), so no hosted leg touches 5.15 at all. The
-#   pipeline's shape survives here intact — bring-up on the runner
-#   (the exact setup.sh phase one, outside the VM because a
-#   minimum-specs guest cannot host a Rust toolchain build), then
-#   BOTH full batteries INSIDE the micro-VM on the real jammy 5.15
-#   kernel (scripts/ci/supermassive-init.sh as PID 1): strictly more
-#   kernel truth than the hosted matrix ever had.
-# - e2e-kernel-floor.yml (Dragon Guard - Kernel Floor) proved the
-#   5.15 floor with probe-shaped smoke (a --quick depth battery, a
-#   single observer probe). Its KVM machinery is this workflow's
-#   boot skeleton (kept verbatim: the jammy kernel fetch, the
-#   container-supplied userland, the isa-debug-exit verdict relay),
-#   and its probe surface is subsumed — v1's full matrix covers the
-#   depth battery's enforcement lane, v2's pty batteries cover the
-#   observer + guard, and the lean prelude keeps uname/-V/doctor.
+# NIGHT-improve-33 (the owner's re-shape: "for minimum specs have old
+# kernel min 5.13 using ubuntu 21.04 impish indri or keep ubuntu
+# jammy jellyfish 22.04; cpu core, ram, etc don't set fixed let
+# dynamic; and for best specs using latest kernel") — three moves:
 #
-# The two profiles (the point of the split, the owner's "host server
-# padat" — the dense-host question): the SAME battery on the two
-# ends of the machines zelynic promises to run on. "minimum specs"
-# boots 1 vCPU / 1536 MB — a small-slice server, the tightest
-# envelope the full battery fits with headroom (the rootfs is
-# RAM-resident; six concurrent traffic workers plus the engine plus
-# the binary leave ~800 MB of slack), and 1 vCPU serializes the
-# whole battery, so the timeout rides at 1800 s. "best specs" boots
-# 4 vCPU / 8192 MB — the hosted runner's full width, the
-# dense-host best case. A tool that holds its rates on the minimum
-# envelope has no excuse on the best one; a green pair is the
-# kernel-floor proof AND the resource-envelope proof in one estate.
+# 1. THE KERNEL SPAN, not a single floor. The minimum leg now boots
+#    the TRUE documented floor: impish indri (21.10) 5.13.0-52
+#    (docs/KERNEL_COMPATIBILITY.md — "5.13 is the oldest kernel in
+#    the verified matrix"; the owner's first choice, ahead of "keep
+#    jammy"). The impish archive lives frozen on
+#    old-releases.ubuntu.com — EOL since July 2022, so it can NEVER
+#    drift (a stronger floor contract than jammy-updates, whose
+#    weekly ABI bumps were the old kernel-floor clock's whole
+#    reason), at the trade of a frozen mirror's availability being
+#    the one thing the weekly clock now watches. Jammy 5.15 needed
+#    no dedicated leg anymore: it sits INSIDE the proven span
+#    (5.13 floor -> archive-latest head) and remains in the hosted
+#    build matrix (ci.yml builds on 22.04). The best leg boots the
+#    archive's LATEST kernel, resolved dynamically at run time: the
+#    dists index names every live suite, each Release's Date+Codename
+#    picks the two newest distinct codenames (the devel series and
+#    the newest release — the pair guards a mid-transition devel
+#    that is still a copy of the previous release's kernels; the
+#    alias dedupe matters because apt refuses two names for one
+#    archive, the "Conflicting distribution" refusal), and the
+#    newest `linux-image-unsigned-<ver>-generic` across those
+#    suites' main + -updates pockets wins via sort -V. Nothing is
+#    pinned: when Ubuntu 27.04 ships, the resolver walks onto it
+#    without a workflow edit. -proposed is deliberately excluded —
+#    pre-release pockets are not "latest kernel", they are
+#    next-maybe.
+# 2. DYNAMIC ENVELOPES (the owner's "cpu core, ram, etc don't set
+#    fixed let dynamic"): the matrix no longer pins smp/mem — the
+#    boot step derives each envelope from the runner the job lands
+#    on, so the pair scales with GitHub's hardware instead of
+#    pinning yesterday's runner shape (the retired constants — 1
+#    vCPU / 1536 MB and 4 vCPU / 8192 MB — were exactly the
+#    ubuntu-24.04 runner of one era). Minimum specs: one quarter of
+#    the cores (floored at 1 — a vCPU is the indivisible minimum)
+#    and one eighth of the RAM (floored at 1024 MB — the battery's
+#    own safety bound: the RAM-resident rootfs plus six concurrent
+#    traffic workers plus the engine need ~800 MB of slack; the
+#    floor is a safety bound, not an envelope choice). Best specs:
+#    every core and three quarters of the RAM (the withheld quarter
+#    pays for qemu's own footprint and the host-side build tree).
+#    What stays per-leg: the title (the owner's exact strings), the
+#    kernel lane, and the VM budget (the minimum envelope
+#    serializes the battery on its tight CPU slice, so it rides at
+#    1800 s; the best envelope runs it wide at 1200 s).
+# 3. THE USERLAND held constant on purpose: both legs assemble the
+#    rootfs from the SAME ubuntu:22.04 container (glibc 2.35 runs
+#    on any kernel >= 3.2, so the 5.13 floor is safe), so the
+#    pair's only variables are the kernel and the envelope — a
+#    kernel-span proof, not a distro matrix.
 #
 # Trigger paths = the E2E surface (the e2e.yml union, plus this
 # workflow's own file and the CI init scripts it executes — the
 # NIGHT-hunt-34 rule: a workflow that can change its own contract
 # owes itself a run) + workflow_dispatch (the pre-release click)
-# + the weekly Monday 03:00 UTC schedule (the kernel-floor clock:
-# a docs-only push skips the runner, but the jammy archive can
-# still move under the fetch between pushes).
+# + the weekly Monday 03:00 UTC schedule (the kernel-span clock:
+# a docs-only push skips the runner, but the old-releases mirror
+# can change availability and the archive the latest-kernel
+# resolver walks can restructure, both between pushes).
 #
 # Cost: two standard hosted runners for ~15-30 min per qualifying
 # push (public-repo standard runners are free); the push pipeline
@@ -83,9 +111,11 @@ on:
   workflow_dispatch: {}
   schedule:
     # Weekly, Monday 03:00 UTC (owner timezone +8: 11:00 local) —
-    # the kernel-floor clock, catching jammy kernel-archive drift
-    # between pushes (a docs-only push does not run this workflow,
-    # but the archive the kernel fetch resolves from can move).
+    # the kernel-span clock: the impish archive on old-releases is
+    # frozen (structurally drift-proof) but its AVAILABILITY can
+    # change, and the best leg's dynamic resolver depends on the
+    # archive's layout (a restructure fails loudly here, not on a
+    # release day).
     - cron: "0 3 * * 1"
 
 # Least privilege (cosmostrix contract): this workflow only reads
@@ -97,8 +127,8 @@ permissions:
 # The most expensive workflow in the estate (the e2e.yml
 # inheritance): a superseded push cancels its in-flight
 # supermassive runs instead of queueing duplicate 30-minute
-# batteries (the cosmostrix stability pattern; a tag push lands in
-# a different group by construction and never interacts — the
+# batteries (the cosmostrix stability pattern; a tag push lands in a
+# different group by construction and never interacts — the
 # NIGHT-improve-32 combined-push contract).
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -121,17 +151,17 @@ jobs:
       matrix:
         include:
           # The two ends of the machines zelynic promises to run on
-          # (see the header): the dense-little-host slice and the
-          # big-host width. smp/mem ride the qemu command line; the
-          # vm budget scales with the envelope (1 vCPU serializes
-          # the whole battery, so it rides at 1800 s).
+          # (see the header): resources are NOT pinned here anymore
+          # (NIGHT-improve-33) — the boot step derives each envelope
+          # from the runner at run time. What stays per-leg: the
+          # title (the owner's exact strings), the kernel lane, and
+          # the VM budget (the minimum envelope's tight CPU slice
+          # serializes the battery, so its budget rides at 1800 s).
           - title: supermassive test - minimum specs
-            smp: "1"
-            mem: "1536"
+            profile: minimum
             vm_timeout: "1800"
           - title: supermassive test - best specs
-            smp: "4"
-            mem: "8192"
+            profile: best
             vm_timeout: "1200"
     runs-on: ubuntu-24.04
     timeout-minutes: 45
@@ -150,7 +180,7 @@ jobs:
       - name: Verify KVM
         run: |
           test -e /dev/kvm || {
-            echo "FAIL: /dev/kvm is absent — this runner image cannot boot the 5.15 micro-VM"
+            echo "FAIL: /dev/kvm is absent — this runner image cannot boot the micro-VM"
             echo "(nested virt is expected on every current GitHub Linux runner image)"
             exit 1
           }
@@ -179,53 +209,133 @@ jobs:
           rustup target add x86_64-unknown-linux-musl
           ./scripts/setup.sh --skip-heavy --musl
 
-      # The 5.15 kernel itself: the jammy (22.04) GA kernel, fetched
-      # from the Ubuntu archive (the kernel-floor resolver, kept
-      # verbatim): jammy main + jammy-updates, names-only search,
-      # highest ABI, apt resolves the latest so no URL rot.
-      - name: Fetch the jammy 5.15 kernel
+      # The floor kernel (NIGHT-improve-33): impish indri (21.10)
+      # 5.13.0-52, the TRUE documented floor, fetched from the frozen
+      # old-releases archive (EOL July 2022 — it can never drift; the
+      # trade, a frozen mirror's availability, is what the weekly
+      # schedule clock watches). The resolver shape is the jammy
+      # floor's, retargeted: isolated sources, names-only search,
+      # highest ABI, apt resolves the last impish-updates kernel so
+      # no URL rot.
+      - name: Fetch the impish 5.13 floor kernel (minimum specs)
+        if: matrix.profile == 'minimum'
         run: |
           set -euo pipefail
           mkdir -p /tmp/kfloor && cd /tmp/kfloor
           {
-            echo "deb http://archive.ubuntu.com/ubuntu/ jammy main"
-            echo "deb http://archive.ubuntu.com/ubuntu/ jammy-updates main"
-          } | sudo tee /etc/apt/sources.list.d/jammy-floor.list >/dev/null
+            echo "deb http://old-releases.ubuntu.com/ubuntu/ impish main"
+            echo "deb http://old-releases.ubuntu.com/ubuntu/ impish-updates main"
+          } | sudo tee /etc/apt/sources.list.d/impish-floor.list >/dev/null
           sudo apt-get update \
-            -o Dir::Etc::sourcelist=/etc/apt/sources.list.d/jammy-floor.list \
+            -o Dir::Etc::sourcelist=/etc/apt/sources.list.d/impish-floor.list \
             -o Dir::Etc::sourceparts=/dev/null \
             -o APT::Get::List-Cleanup=0
           IMG=$(apt-cache search --names-only \
-            'linux-image-unsigned-5\.15\.0-.*-generic' 2>/dev/null \
-            | grep -oE 'linux-image-unsigned-5\.15\.0-[0-9]+-generic' \
+            'linux-image-unsigned-5\.13\.0-.*-generic' 2>/dev/null \
+            | grep -oE 'linux-image-unsigned-5\.13\.0-[0-9]+-generic' \
             | sort -V | tail -1 || true)
           if test -z "$IMG"; then
-            echo "FAIL: no linux-image-unsigned-5.15.0-*-generic in the jammy pockets — resolver evidence:"
-            apt-cache search --names-only 'linux-image-unsigned-5\.15' || true
+            echo "FAIL: no linux-image-unsigned-5.13.0-*-generic in the impish pockets — resolver evidence:"
+            apt-cache search --names-only 'linux-image-unsigned-5\.13' || true
             exit 1
           fi
           echo "resolved: $IMG"
           apt-get download "$IMG"
           dpkg -x "${IMG}"*_amd64.deb pkg
-          VMLINUZ=$(find pkg/boot -name 'vmlinuz-5.15.*' | head -1)
+          VMLINUZ=$(find pkg/boot -name 'vmlinuz-5.13.*' | head -1)
           if test -z "$VMLINUZ"; then
             echo "FAIL: no vmlinuz inside the deb — pkg/boot contents:"
             ls -la pkg/boot || true
             exit 1
           fi
-          cp "$VMLINUZ" /tmp/kfloor/vmlinuz-5.15
-          echo "kernel: $(du -h /tmp/kfloor/vmlinuz-5.15 | cut -f1) at /tmp/kfloor/vmlinuz-5.15"
+          cp "$VMLINUZ" /tmp/kfloor/vmlinuz-floor
+          echo "kernel: $(du -h /tmp/kfloor/vmlinuz-floor | cut -f1) at /tmp/kfloor/vmlinuz-floor"
 
-      # The userland: the ubuntu:22.04 CONTAINER supplies the rootfs
-      # (glibc-matched to jammy), python3 + iproute2 ride along (the
-      # engine + `ip link set lo up`), and curl joins the set for the
-      # consolidated battery (the v1 limiter matrix drives its lanes
-      # with it; the realnet lane self-skips, the documented row, so
-      # curl is for the loopback lanes). The checkout (tracked files
-      # only) and the static musl binary land at /opt/zelynic,
-      # scripts/ci/supermassive-init.sh becomes /init (PID 1) — then
-      # the whole tree packs into ONE newc cpio (the initramfs IS the
-      # rootfs; no disk, no modules).
+      # The latest kernel (NIGHT-improve-33, the best-specs lane):
+      # resolved DYNAMICALLY at run time, nothing pinned. The dists
+      # index names every live base suite; each suite's Release
+      # carries Date + Codename; the two newest DISTINCT codenames
+      # (the devel series plus the newest release — and the dedupe is
+      # load-bearing: mid-cycle the index lists the devel alias AND
+      # its target codename pointing at the same content, which apt
+      # refuses as "Conflicting distribution") become the apt
+      # sources, main + -updates pockets each (proposed deliberately
+      # excluded — pre-release is not "latest"), and the newest
+      # generic unsigned image across them wins via sort -V. When
+      # Ubuntu ships 27.04, this resolver walks onto it without an
+      # edit; if the archive ever restructures, it fails LOUDLY with
+      # the discovery evidence attached.
+      - name: Resolve the archive's latest kernel (best specs)
+        if: matrix.profile == 'best'
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/kfloor && cd /tmp/kfloor
+          SUITES=$(curl -fsSL http://archive.ubuntu.com/ubuntu/dists/ \
+            | grep -oE 'href="[a-z0-9]+/"' | cut -d'"' -f2 | tr -d '/' \
+            | grep -v -- '-' | sort -u)
+          if test -z "$SUITES"; then
+            echo "FAIL: the dists index resolved no base suites — archive restructure?"
+            curl -fsSL http://archive.ubuntu.com/ubuntu/dists/ | head -40 || true
+            exit 1
+          fi
+          echo "base suites: $(echo "$SUITES" | tr '\n' ' ')"
+          RELEASES=$(for s in $SUITES; do
+            rel=$(curl -fsSL "http://archive.ubuntu.com/ubuntu/dists/$s/Release")
+            d=$(echo "$rel" | sed -n 's/^Date: //p' | head -1)
+            c=$(echo "$rel" | sed -n 's/^Codename: //p' | head -1)
+            if test -n "$d" && test -n "$c"; then
+              echo "$(date -d "$d" +%s 2>/dev/null || echo 0) $c"
+            fi
+          done | sort -rn -k1,1 | awk '!seen[$2]++')
+          DATED=$(echo "$RELEASES" | head -2 | awk '{print $2}')
+          if test -z "$DATED"; then
+            echo "FAIL: no suite Release carried Date+Codename — resolver evidence above"
+            exit 1
+          fi
+          echo "newest distinct codenames: $(echo "$DATED" | tr '\n' ' ')"
+          {
+            for s in $DATED; do
+              echo "deb http://archive.ubuntu.com/ubuntu/ $s main"
+              echo "deb http://archive.ubuntu.com/ubuntu/ $s-updates main"
+            done
+          } | sudo tee /etc/apt/sources.list.d/latest-head.list >/dev/null
+          sudo apt-get update \
+            -o Dir::Etc::sourcelist=/etc/apt/sources.list.d/latest-head.list \
+            -o Dir::Etc::sourceparts=/dev/null \
+            -o APT::Get::List-Cleanup=0
+          IMG=$(apt-cache search --names-only 'linux-image-unsigned' 2>/dev/null \
+            | awk '{print $1}' \
+            | grep -E '^linux-image-unsigned-[0-9]+\.[0-9]+\.0-[0-9]+-generic$' \
+            | sort -V | tail -1 || true)
+          if test -z "$IMG"; then
+            echo "FAIL: no generic unsigned kernel image resolved across the newest suites — index evidence:"
+            apt-cache search --names-only 'linux-image-unsigned' | head -20 || true
+            exit 1
+          fi
+          echo "resolved: $IMG"
+          apt-get download "$IMG"
+          dpkg -x "${IMG}"*_amd64.deb pkg
+          VMLINUZ=$(find pkg/boot -type f -name 'vmlinuz-*' | head -1)
+          if test -z "$VMLINUZ"; then
+            echo "FAIL: no vmlinuz inside the deb — pkg/boot contents:"
+            ls -la pkg/boot || true
+            exit 1
+          fi
+          cp "$VMLINUZ" /tmp/kfloor/vmlinuz-floor
+          echo "kernel: $(du -h /tmp/kfloor/vmlinuz-floor | cut -f1) at /tmp/kfloor/vmlinuz-floor"
+
+      # The userland (BOTH legs, held constant on purpose — the pair's
+      # only variables are the kernel and the envelope): the
+      # ubuntu:22.04 CONTAINER supplies the rootfs (glibc 2.35's
+      # kernel floor is 3.2, so the 5.13 kernel is safe), python3 +
+      # iproute2 ride along (the engine + `ip link set lo up`), and
+      # curl joins the set for the consolidated battery (the v1
+      # limiter matrix drives its lanes with it; the realnet lane
+      # self-skips, the documented row, so curl is for the loopback
+      # lanes). The checkout (tracked files only) and the static musl
+      # binary land at /opt/zelynic, scripts/ci/supermassive-init.sh
+      # becomes /init (PID 1) — then the whole tree packs into ONE
+      # newc cpio (the initramfs IS the rootfs; no disk, no modules).
       - name: Assemble the micro-VM rootfs
         run: |
           set -euo pipefail
@@ -258,23 +368,45 @@ jobs:
       # Boot the micro-VM: direct kernel boot, KVM host-passthrough
       # CPU, no disk, serial console to stdout, panic=-1 + -no-reboot
       # so a kernel panic ends qemu instead of hanging the job, an
-      # outer timeout (per profile: the minimum envelope serializes
-      # the battery on one vCPU, so its budget rides at 1800 s) so a
-      # wedged guest can never burn the 45-minute job budget, and the
-      # isa-debug-exit device — the guest ends the VM deterministically
-      # by writing one byte to port 0xf4 (qemu exits with status 1),
-      # the kernel-CI standard for initramfs guests whose direct-boot
-      # path never reaches an ACPI S5 poweroff.
-      - name: Boot the 5.15 micro-VM and run the supermassive batteries
+      # outer timeout (per profile budget: the minimum envelope's
+      # tight CPU slice serializes the battery, so its budget rides
+      # at 1800 s) so a wedged guest can never burn the 45-minute job
+      # budget, and the isa-debug-exit device — the guest ends the VM
+      # deterministically by writing one byte to port 0xf4 (qemu exits
+      # with status 1), the kernel-CI standard for initramfs guests
+      # whose direct-boot path never reaches an ACPI S5 poweroff.
+      #
+      # The DYNAMIC envelope (NIGHT-improve-33, the owner's "cpu
+      # core, ram, etc don't set fixed let dynamic"): derived from
+      # the runner at boot time — minimum specs takes one quarter of
+      # the cores (floored at 1: a vCPU is the indivisible minimum)
+      # and one eighth of the RAM (floored at 1024 MB: the battery's
+      # own safety bound, the RAM-resident rootfs plus the traffic
+      # workers need ~800 MB of slack); best specs takes every core
+      # and three quarters of the RAM (the withheld quarter pays for
+      # qemu's own footprint and the host-side build tree). The pair
+      # scales with GitHub's hardware instead of pinning one era's
+      # runner shape.
+      - name: Boot the kernel-floor micro-VM and run the supermassive batteries
         run: |
           set -euo pipefail
           cd /tmp/kfloor
+          CORES=$(nproc)
+          TOTAL_MB=$(free -m | awk '/^Mem:/{print $2}')
+          if [ "${{ matrix.profile }}" = "minimum" ]; then
+            SMP=$(( CORES / 4 )); [ "$SMP" -lt 1 ] && SMP=1
+            MEM=$(( TOTAL_MB / 8 )); [ "$MEM" -lt 1024 ] && MEM=1024
+          else
+            SMP=$CORES
+            MEM=$(( TOTAL_MB * 3 / 4 ))
+          fi
+          echo "envelope: $SMP vCPU / $MEM MB (of $CORES cores / $TOTAL_MB MB on the runner)"
           set +e
           timeout ${{ matrix.vm_timeout }} qemu-system-x86_64 \
             -machine q35,accel=kvm -cpu host \
-            -m ${{ matrix.mem }} -smp ${{ matrix.smp }} \
+            -m "$MEM" -smp "$SMP" \
             -device isa-debug-exit,iobase=0xf4,iosize=0x04 \
-            -kernel vmlinuz-5.15 \
+            -kernel vmlinuz-floor \
             -initrd initrd.gz \
             -append "console=ttyS0 panic=-1" \
             -nographic -no-reboot 2>&1 | tee vm.log
@@ -302,4 +434,4 @@ jobs:
           echo "── supermassive verdicts (${{ matrix.title }}) ──"
           grep -E '^MASS-(RESULT|VERDICT)' vm.log || true
           grep -q '^MASS-VERDICT: PASS' vm.log
-          echo "OK: the 5.15 floor proven on the ${{ matrix.title }} envelope"
+          echo "OK: the kernel span proven on the ${{ matrix.title }} envelope"

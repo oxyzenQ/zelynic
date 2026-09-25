@@ -248,11 +248,19 @@ CI-shaped steps, supermassive.yml proves the OWNER-FACING path —
 it runs `scripts/setup.sh` itself (rustup resolving the toolchain
 pin, bootstrap installing the dated nightly + bpf-linker into
 $HOME, the static musl flagship twin) and then BOTH supermassive
-batteries inside a KVM micro-VM on a real jammy 5.15 kernel (the
-ubuntu:22.04 container as its userland), under two resource
-envelopes — minimum specs (1 vCPU / 1536 MB) and best specs
-(4 vCPU / 8 GB) — so the release floor and the machine span are
-proven per push. Its `paths:` filter is the
+batteries inside a KVM micro-VM (the ubuntu:22.04 container as its
+userland), under two resource envelopes DERIVED from the runner at
+boot time (NIGHT-improve-33, the owner's "cpu core, ram, etc don't
+set fixed let dynamic") — minimum specs (a quarter of the cores
+floored at 1 + an eighth of the RAM floored at 1024 MB, booting the
+TRUE documented floor kernel: impish indri 5.13 from the frozen
+old-releases archive) and best specs (every core + three quarters
+of the RAM, booting the archive's LATEST kernel, resolved
+dynamically at run time — the dists index, each Release's
+Date+Codename, the two newest distinct codenames, and the newest
+generic unsigned image across their main + -updates pockets wins
+via sort -V) — so the kernel span (5.13 floor to latest head) and
+the machine span are proven per push. Its `paths:` filter is the
 binary-shaping surface plus the harness itself (src/, ebpf/, the
 cargo manifests, the toolchain pins, the setup/bootstrap/linker
 scripts, the supermassive tree, the shared lib, the CI init

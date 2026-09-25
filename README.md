@@ -154,21 +154,28 @@ full supermassive matrix) and ends with a next-steps menu
 ```
 
 The whole bring-up-plus-batteries flow runs on CI too (NIGHT-ultimate-3,
-the re-issued label; consolidated in NIGHT-improve-31): a push touching
+the re-issued label; consolidated in NIGHT-improve-31; the kernel
+span + dynamic envelopes are NIGHT-improve-33): a push touching
 core files triggers `.github/workflows/supermassive.yml`, which runs
 this exact owner-facing path (`setup.sh` itself, not a CI-shaped
 shortcut) and then BOTH supermassive batteries inside a KVM micro-VM
-booting a real jammy 5.15 kernel on a hosted runner — the
-ubuntu:22.04 container as its userland — under two resource
-envelopes: "supermassive test - minimum specs" (1 vCPU / 1536 MB,
-the dense-little-host slice) and "supermassive test - best specs"
-(4 vCPU / 8 GB, the big-host width), so "does it work end to end?"
-is answered per push on the release floor AND across the machine
-span — no VirtualBox session needed; `workflow_dispatch` fires the
-same pair on demand as the pre-release qualification run, and a
-weekly run keeps the floor proven between pushes (a plain container
-cannot change the host kernel; the micro-VM is the honest
-container-shaped answer).
+on a hosted runner — the ubuntu:22.04 container as its userland —
+under two resource envelopes derived at boot time from whatever
+runner the job lands on (the owner's "don't set fixed, let dynamic"):
+"supermassive test - minimum specs" (a quarter of the cores floored
+at 1 + an eighth of the RAM floored at 1024 MB, the dense-little-host
+slice, booting the TRUE documented floor kernel — impish indri 5.13,
+the oldest kernel in the verified matrix, from the frozen
+old-releases archive) and "supermassive test - best specs" (every
+core + three quarters of the RAM, the big-host width, booting the
+Ubuntu archive's LATEST kernel, resolved dynamically at run time —
+nothing pinned, the resolver walks onto each new release by itself),
+so "does it work end to end?" is answered per push across the whole
+kernel span AND the machine span — no VirtualBox session needed;
+`workflow_dispatch` fires the same pair on demand as the pre-release
+qualification run, and a weekly run keeps the span proven between
+pushes (a plain container cannot change the host kernel; the
+micro-VM is the honest container-shaped answer).
 
 Building needs the pinned Rust toolchain (rustup installs the exact
 version from `rust-toolchain.toml`) plus the eBPF nightly pair — and

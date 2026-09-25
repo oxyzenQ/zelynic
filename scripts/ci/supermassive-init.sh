@@ -3,25 +3,29 @@
 # SPDX-License-Identifier: GPL-3.0-only
 # PLATFORM: UNIX-only (Linux). zelynic is a Linux-only tool.
 #
-# The supermassive init (NIGHT-improve-31, the CI half): PID 1
-# inside the 5.15 micro-VM booted by
-# .github/workflows/supermassive.yml — the consolidation of the
-# whole E2E estate (the owner's ask: "all CI with E2E and kernel
-# floor 5.15, now changed to only 2 new CI functions, the same as
-# the E2E from setup start to stresstest finish, but using KVM
-# like the CI kernel floor 5.15"). The retired pair — e2e.yml (the
-# hosted-runner pipeline whose images no longer boot a 5.x kernel)
-# and e2e-kernel-floor.yml (the probe-only micro-VM) — both live
-# on here: the bring-up half of the pipeline runs on the runner
+# The supermassive init (NIGHT-improve-31, the CI half; the kernel
+# span + dynamic envelopes are NIGHT-improve-33): PID 1 inside the
+# micro-VM booted by .github/workflows/supermassive.yml — the
+# consolidation of the whole E2E estate. The retired pair — e2e.yml
+# (the hosted-runner pipeline whose images no longer boot a 5.x
+# kernel) and e2e-kernel-floor.yml (the probe-only micro-VM) — both
+# live on here: the bring-up half of the pipeline runs on the runner
 # (scripts/setup.sh --skip-heavy --musl, the exact owner-facing
 # phase one, outside the VM because a minimum-specs guest cannot
 # host a Rust toolchain build), and THIS script is the other half —
 # the stresstest, from the lean prelude to the supermassive v1
-# limiter matrix and the v2 survival battery, on the REAL 5.15
-# kernel, inside the resource envelope the job's profile pins
-# (minimum specs: 1 vCPU / 1536 MB; best specs: 4 vCPU / 8192 MB —
-# the dense-little-host and the big-host ends of the machines
-# zelynic promises to run on).
+# limiter matrix and the v2 survival battery, inside the resource
+# envelope the job's profile DERIVES from the runner at boot time
+# (NIGHT-improve-33, the owner's "cpu core, ram, etc don't set fixed
+# let dynamic": minimum specs = a quarter of the cores floored at
+# 1 + an eighth of the RAM floored at 1024 MB; best specs = every
+# core + three quarters of the RAM — the dense-little-host and the
+# big-host ends of the machines zelynic promises to run on, scaling
+# with the runner era instead of pinning one). The kernel is the
+# pair's other variable: the minimum leg boots the TRUE documented
+# floor (impish 5.13, docs/KERNEL_COMPATIBILITY.md), the best leg
+# boots the archive's latest (resolved dynamically at run time),
+# and the same userland (the ubuntu:22.04 container) serves both.
 #
 # Contract: one MASS-RESULT line per probe plus a final
 # MASS-VERDICT line, all on the serial console (the workflow's
@@ -87,11 +91,20 @@ mount -t devtmpfs dev /dev
 exec >/dev/console 2>&1
 echo "MASS: init on $(uname -r)"
 
-# The floor itself — the whole reason this VM exists.
-case "$(uname -r)" in
-5.15.*) note "kernel $(uname -r) (the 5.15 floor)" PASS ;;
-*) note "kernel (uname -r = $(uname -r), wanted 5.15.*)" FAIL ;;
-esac
+# The floor itself — the whole reason this VM exists. Numeric since
+# NIGHT-improve-33: the minimum leg boots the TRUE documented floor
+# (impish 5.13.0-52) and the best leg boots the archive's latest
+# (whatever the dynamic resolver found), so one check serves both
+# ends of the span: uname -r's major.minor must sit at or above
+# 5.13, the verified matrix's floor (docs/KERNEL_COMPATIBILITY.md).
+kver=$(uname -r)
+major=${kver%%.*}
+minor=$(echo "$kver" | cut -d. -f2 | grep -oE '^[0-9]+' || echo 0)
+if [ "${major:-0}" -gt 5 ] || { [ "${major:-0}" -eq 5 ] && [ "${minor:-0}" -ge 13 ]; }; then
+	note "kernel $kver (the 5.13+ verified floor)" PASS
+else
+	note "kernel (uname -r = $kver, wanted >= 5.13)" FAIL
+fi
 
 # Everything the batteries need (PID 1 owns them all): tmpfs scratch
 # (the engines' work dirs AND the /run/zelynic lock), cgroup v2 (the
@@ -117,9 +130,9 @@ else
 	note "zelynic -V (static musl + CPU match)" FAIL
 fi
 if ./zelynic doctor; then
-	note "doctor (bpf syscall on 5.15)" PASS
+	note "doctor (bpf syscall on the floor)" PASS
 else
-	note "doctor (bpf syscall on 5.15)" FAIL
+	note "doctor (bpf syscall on the floor)" FAIL
 fi
 
 # The engine smoke (rootless, canonical) — the harness itself is
@@ -146,8 +159,8 @@ fi
 # shape on the loopback lane (the realnet lane self-skips without an
 # endpoint), the rate ladder, reload, sustain — attach, policy
 # writes, MEASURED rates, accounting. A green row here is the
-# "holds everywhere it claims" verdict, on the floor kernel, inside
-# the profile's resource envelope.
+# "holds everywhere it claims" verdict, on the leg's kernel, inside
+# the profile's derived resource envelope.
 if python3 scripts/supermassive/supermassive-test.py \
 	--binary /opt/zelynic/zelynic; then
 	note "supermassive v1 - limiter matrix (full)" PASS
@@ -161,8 +174,9 @@ fi
 # one-shot writers inside the attach/pin/write window), the post-kill
 # regression re-proof, and the crash-family teardown (recover,
 # cleanup, dmesg). A green row here is the "works under fire"
-# verdict — the observer AND the violent-death guard on 5.15, the
-# old kernel-floor probe's surface and more.
+# verdict — the observer AND the violent-death guard on the leg's
+# kernel (the floor or the latest head), the old kernel-floor
+# probe's surface and more.
 if python3 scripts/supermassive/supermassive-test-v2.py \
 	--binary /opt/zelynic/zelynic; then
 	note "supermassive v2 - survival battery (full)" PASS
