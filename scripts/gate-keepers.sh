@@ -65,6 +65,13 @@
 #       500-line Rust cap, doubled because a one-shot harness
 #       legitimately bundles constants + stage table + verdict
 #       plumbing, but no script grows unbounded)
+#  17.  Release parity (NIGHT-lts-9 —
+#       scripts/gates/check-release-parity.sh: the four arch-baseline
+#       platforms' -C codegen tokens in .cargo/config.toml's
+#       pro-linux-amd64-* aliases must equal the release workflow
+#       matrix's rustflags, so a local alias build reproduces the
+#       release optimization tier the README documents bit-for-bit;
+#       a one-file edit can no longer silently break that contract)
 #
 # Missing tools are skipped with a warning so the gate stays usable
 # on minimal development machines; CI runs this script WHOLESALE
@@ -575,6 +582,28 @@ if [ -f scripts/gates/check-scripts-loc.sh ]; then
 	fi
 else
 	warn "check-scripts-loc.sh not found — skipping"
+fi
+
+# ── 17. Release Parity (NIGHT-lts-9) ────────────────────────────────
+# The four release platforms' local build aliases must carry the
+# same -C codegen tokens as the release workflow's matrix rustflags
+# (the optimization-tier parity the README documents). The lint token
+# (-D warnings) is deliberately out of scope: the release build adds
+# it via matrix env, the local alias deliberately does not — parity
+# is about the codegen tier, not the lint posture. The workflow's own
+# "Verify arch-baseline inputs" tripwire holds the canonical constant
+# per platform at build time; this gate holds the cross-file equality
+# at every push, before any tag is pushed.
+header "Release Parity (check-release-parity.sh)"
+if [ -f scripts/gates/check-release-parity.sh ]; then
+	if bash scripts/gates/check-release-parity.sh 2>&1; then
+		info "release parity: all four platforms' local aliases match the release matrix -C tokens"
+		PASS=$((PASS + 1))
+	else
+		fail "release parity: platform -C token drift between .cargo/config.toml and release.yml (a local release-shape build would not be the release shape)"
+	fi
+else
+	warn "check-release-parity.sh not found — skipping"
 fi
 
 # ── Summary ────────────────────────────────────────────────────────────────

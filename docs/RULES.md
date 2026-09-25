@@ -75,11 +75,20 @@ marker.
   break the build). This is the dormant-mode policy.
 - The pin must agree with `Cargo.toml` `rust-version` (MSRV, major.minor)
   and every workflow `RUST_VERSION` env that installs a toolchain.
+- The eBPF nightly family (NIGHT-lts-9) is the SECOND pin:
+  `ebpf/rust-toolchain.toml`'s dated `nightly-YYYY-MM-DD` is the
+  authority, and every duplicate site must agree — the workflows'
+  `toolchain:` installs, `build.rs`'s `EBPF_TOOLCHAIN` const (what
+  the nested build invokes), `scripts/install.sh`, and
+  `scripts/uninstall.sh`'s hint. A bare `nightly` alias is rejected
+  for the same reason the stable gate rejects `stable`.
 - Bump everything in one command: `./scripts/dev/rust-version-to.sh <X.Y.Z>`
   (idempotent, refuses dirty trees, audits docs for stale references,
-  verifies sync as its final gate).
+  verifies sync as its final gate). The eBPF nightly family is bumped
+  by hand — the sync gate is what makes a half-bump loud.
 - `scripts/gates/check-rust-version-sync.sh` (wired into `gate-keepers.sh`)
-  fails the gate on any disagreement or on a channel alias.
+  fails the gate on any disagreement or on a channel alias, in either
+  pin family.
 
 ## Documentation Disclaimer
 
