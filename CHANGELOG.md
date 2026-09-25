@@ -1171,6 +1171,63 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Fixed
 
+- **fix: NIGHT-master-3 — the block/unstrict depth audit: the
+  block-drop ledger drift closed (schema v9, atomic booking), the
+  strict-multi group-id derivation un-banded, and the dead-group
+  trace's per-group count** — the owner's ask: "depth audit for
+  function block and unstrict. should peak hardened, strong, ready
+  lts. to avoid no leaks even micro packets/data, and other
+  problems." The audit walked the rate-0 verdict path end to end
+  (kernel hook -> policy lookup -> watchdog -> block branch ->
+  stats), the unstrict/remove family's full lifecycle (policy
+  deletes, per-cgroup bucket/stats reclaim, dead-group sweep, pin
+  teardown), and the group-id allocation. THE FIND (enforcement
+  clean, accounting soft): the drop itself is total and always was
+  — schema v3's hard `return 0` runs BEFORE any bucket logic, so no
+  burst floor, no token bucket, no window can leak a micro-packet
+  past a block — but the v5 BOOKING that made blocked drops visible
+  kept the plain `+=` on packets_dropped/bytes_dropped, the exact
+  read-modify-write the v7 SMP rewrite erased everywhere else. A
+  blocked cgroup with traffic on several CPUs (the typical block
+  target: a multi-threaded downloader) lost drop increments, so
+  `zelynic rates`, status, and the supermassive "kernel drops
+  engaged" proof under-reported enforcement that was in fact total
+  — a silent accounting leak of exactly the micro-data class the
+  owner asked about. Schema v9 routes the block verdict through the
+  same atomic fetch_add the enforce() path rides (math::book, now
+  pub), verdict unchanged, no layout change, same one-time
+  re-apply contract as v4..v8; the SMP-exactness pin holds 8
+  threads x 25,000 booked drops against an exact ledger
+  (math_tests.rs — the file math_smp_tests.rs would host it under
+  sits at the 500-line cap). TWO MORE CLOSES: (1) the strict-multi
+  group-id derivation — `pid*1000 + nanos%1000` since the first
+  group implementation — banded every same-pid invocation's ids
+  into one 1000-wide window, so a pid-space wrap back to a live
+  group's creator pid plus a 1/1000 residue match made two LIVE
+  groups share ONE bucket (both rates refilling the same tokens);
+  the NIGHT-master-3 mixer (types.rs, splitmix64 avalanche over
+  (pid, full-epoch nanos)) spreads pairs across the full u32
+  space, never returns the 0 individual-bucket sentinel, and carries
+  four pins (sentinel-free corner sweep, determinism, consecutive
+  separation, no-banding + distinctness across a 4096-sample
+  same-pid sweep). (2) the dead-group reclaim's verbose trace
+  printed the CUMULATIVE reclaimed count per group line — the
+  second dead group of a sweep reported the first's slots as its
+  own; the line now counts this group's returned slots (the
+  returned total was and stays the sum). AUDITED AND ACCEPTED,
+  with the rationale on record (STABILITY.md): the u32 cgroup-id
+  keys (kernel and userspace truncate identically; kernfs ids are
+  monotonic per boot and pins die at reboot — a low-32 collision
+  needs ~4 billion cgroup creations in ONE boot), the watchdog
+  fail-open for blocked cgroups (dormant: no writer arms the
+  deadline; any future armer must re-run this audit against the
+  block contract), and the lock/pin teardown semantics (flock
+  auto-release; link pins detach programs at unlink on every
+  supported kernel — the 5.13 floor is above 5.7 link support).
+  Docs synced: SAFETY_ANALYSIS (the rate-0 bullet now names the
+  atomic booking), STABILITY (the silent-killer inventory gains the
+  block-drop ledger drift row, found-and-fixed class).
+
 - **fix: NIGHT-blade-1 followup 3 (the hunt find) — the SMP
   budget-covers pin re-pinned after its first CI catch: the
   four-attempt consume retry makes a false drop a tail, not an

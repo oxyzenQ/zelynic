@@ -9,7 +9,7 @@ use aya::maps::{HashMap as BpfHashMap, MapData};
 
 use super::format::{default_burst, format_bytes, format_rate};
 use super::reclaim::map_remove_means_absent;
-use super::types::{Direction, PolicyRaw, RateSpec, Target, MAX_ENFORCABLE_BURST};
+use super::types::{group_id_from, Direction, PolicyRaw, RateSpec, Target, MAX_ENFORCABLE_BURST};
 use crate::ebpf::pin::{PIN_MAP_POLICY_DL, PIN_MAP_POLICY_UL};
 
 /// Verbose trace line for one policy write (NIGHT-hunt-9): the exact
@@ -137,13 +137,17 @@ impl super::Limiter {
             return Ok(0);
         }
 
-        // Generate group_id (use PID + timestamp for uniqueness).
-        let group_id = (std::process::id() as u32).wrapping_mul(1000).wrapping_add(
-            (std::time::SystemTime::now()
+        // Generate group_id: the NIGHT-master-3 mixer (types.rs —
+        // splitmix64 over (pid, nanos), unit-pinned; the old
+        // pid*1000+nanos%1000 banded same-pid ids into 1000 and
+        // collided on pid wrap: two groups then shared ONE bucket,
+        // and the mix never yields the 0 individual sentinel).
+        let group_id = group_id_from(
+            std::process::id(),
+            std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap_or_default()
-                .subsec_nanos())
-                % 1000,
+                .as_nanos() as u64,
         );
 
         // Same rollback ledger as apply_single (NIGHT-hunt-20): a

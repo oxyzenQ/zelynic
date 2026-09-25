@@ -130,7 +130,10 @@ guard: there root is the requirement, here root is the hazard.
 ### Pin mode (fire-and-forget):
 - The watchdog is never armed (deadline 0 = absent) — BPF always enforces
 - Rate = 0 is an explicit user request: `block-single`/`block-*` write a
-  zero rate and BPF blocks all traffic for that cgroup (schema v3)
+  zero rate and BPF blocks all traffic for that cgroup (schema v3); the
+  drop is booked through the same atomic fetch_add the rate path uses
+  (schema v9, NIGHT-master-3 — the v5 plain `+=` lost drop increments
+  when a blocked cgroup had traffic on several CPUs)
 - The operational check is link-aware (NIGHT-hunt-19): on bpf_link
   kernels (5.7+) a pinned state counts as active only when BOTH program
   pins AND BOTH link pins exist — the links are the cgroup attachment

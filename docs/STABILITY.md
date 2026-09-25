@@ -275,6 +275,37 @@ other class already fenced:
   CI kill-tui battery's lane (it SIGKILLs a real monitor on a real
   pty five times per run).
 
+- **The block-drop ledger drift — FOUND AND FIXED (NIGHT-master-3).**
+  The depth audit of the block and unstrict families (the owner's
+  "peak hardened, strong, ready lts; avoid leaks even micro
+  packets/data" ask) walked the rate-0 verdict path end to end and
+  found the block family's one soft spot — not in enforcement (the
+  drop itself was total since schema v3, the hard `return 0` before
+  any bucket logic) but in its BOOKING: the v5 code that made blocked
+  drops visible kept the plain `+=` on packets_dropped/bytes_dropped,
+  the exact read-modify-write the v7 SMP rewrite erased everywhere
+  else — so a blocked cgroup with traffic on several CPUs (the
+  typical shape: a multi-threaded app someone blocked for eating
+  the network) lost drop increments, and `zelynic rates`/status
+  under-reported the enforcement that was in fact total. Schema v9
+  routes the block verdict through the same atomic fetch_add
+  (`math::book`) the enforce() path rides, with the SMP-exactness
+  pin (math_tests.rs: 8 threads x 25k booked drops, ledger exact to
+  the packet and byte). Two more audit closes ride the same commit:
+  the strict-multi group-id derivation moved from
+  `pid*1000 + nanos%1000` (banded: same-pid ids lived inside one
+  1000-wide window, colliding on pid-space wrap — two live groups
+  then shared ONE bucket) to a splitmix64 mix over (pid, nanos)
+  that spreads pairs across the full u32 space and never yields the
+  0 individual-bucket sentinel; and the dead-group reclaim's
+  verbose trace now counts THIS group's returned slots instead of
+  the cumulative sum. Audited and accepted as-is, with rationale:
+  the u32 cgroup-id keys (kernel and userspace truncate identically;
+  kernfs ids are monotonic per boot and pins die at reboot, so a
+  low-32 collision needs ~4 billion cgroup creations in one boot)
+  and the watchdog fail-open (dormant — no writer exists; a future
+  armer must re-run this audit against the block contract).
+
 **Verdict: yes — LTS-ready for long usage.** Every silent-killer
 class the audit could name is either bounded by construction,
 self-healing, or (as of this audit) exits loudly-quietly on its own;
