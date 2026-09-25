@@ -166,8 +166,9 @@ this exact owner-facing path (`setup.sh` itself, not a CI-shaped
 shortcut) and then BOTH supermassive batteries inside a KVM micro-VM
 on a hosted runner — the ubuntu:22.04 container as its userland —
 under two resource envelopes derived at boot time from whatever
-runner the job lands on (the owner's "don't set fixed, let dynamic"):
-"supermassive test - minimum specs" (a quarter of the cores floored
+runner the job lands on (the owner's "don't set fixed, let dynamic";
+the small envelope is renamed low — NIGHT-blade-3):
+"supermassive test - low specs" (a quarter of the cores floored
 at 1 + an eighth of the RAM floored at 1024 MB, the dense-little-host
 slice, booting the TRUE documented floor kernel — impish indri 5.13,
 the oldest kernel in the verified matrix, from the frozen

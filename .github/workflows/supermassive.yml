@@ -1,6 +1,26 @@
 # Copyright (C) 2026 rezky_nightky
 # SPDX-License-Identifier: GPL-3.0-only
 # =============================================================================
+#
+# NIGHT-blade-3 (the owner's re-shape): the envelope pair's small
+# end is renamed minimum -> low, everywhere the name lives (the
+# matrix title, the profile key, the step names, the comments, and
+# the docs that name the leg) — "low specs" says what the envelope
+# IS (the little-host slice), not what it is the minimum OF. The
+# same directive retires the hosted-runner old-OS legs: every base
+# runner rides the latest LTS (ubuntu-24.04, pinned — never a
+# floating label, the estate's anti-lottery contract), and ci.yml's
+# ubuntu-22.04 matrix entries are gone (the hosted kernel-span
+# role moved here long ago: the VM pair proves the REAL floor,
+# impish 5.13, and the latest head, per push). The deliberate
+# old-OS surfaces INSIDE this workflow are the point of the test
+# and stay: the low-specs leg's impish 5.13 floor kernel and the
+# ubuntu:22.04 rootfs container are testing internals, not runner
+# choices. Historical quotes that name the old "minimum" title are
+# the owner's own words from their era and read as history.
+#
+# =============================================================================
+#
 # Supermassive — the whole E2E on the micro-VM floor, two envelopes
 # =============================================================================
 #
@@ -8,14 +28,14 @@
 # with E2E and kernel floor 5.15, now changed to only 2 new CI
 # functions, the same as the E2E from setup start to stresstest
 # finish, but using KVM like the CI kernel floor 5.15, titled
-# 'supermassive test - minimum specs' and 'supermassive test - best
+# 'supermassive test - low specs' and 'supermassive test - best
 # specs'"): the E2E estate consolidates from two workflows into one
 # job definition with two profiles. The retired pair — e2e.yml (the
 # hosted-runner pipeline whose images no longer boot a 5.x kernel)
 # and e2e-kernel-floor.yml (the probe-only micro-VM) — both live on
 # here: the bring-up half runs on the runner (scripts/setup.sh
 # --skip-heavy --musl, the exact owner-facing phase one, outside the
-# VM because a minimum-specs guest cannot host a Rust toolchain
+# VM because a low-specs guest cannot host a Rust toolchain
 # build), and BOTH full batteries run INSIDE the micro-VM
 # (scripts/ci/supermassive-init.sh as PID 1).
 #
@@ -24,7 +44,7 @@
 # jammy jellyfish 22.04; cpu core, ram, etc don't set fixed let
 # dynamic; and for best specs using latest kernel") — three moves:
 #
-# 1. THE KERNEL SPAN, not a single floor. The minimum leg now boots
+# 1. THE KERNEL SPAN, not a single floor. The low leg now boots
 #    the TRUE documented floor: impish indri (21.10) 5.13.0-52
 #    (docs/KERNEL_COMPATIBILITY.md — "5.13 is the oldest kernel in
 #    the verified matrix"; the owner's first choice, ahead of "keep
@@ -56,7 +76,7 @@
 #    on, so the pair scales with GitHub's hardware instead of
 #    pinning yesterday's runner shape (the retired constants — 1
 #    vCPU / 1536 MB and 4 vCPU / 8192 MB — were exactly the
-#    ubuntu-24.04 runner of one era). Minimum specs: one quarter of
+#    ubuntu-24.04 runner of one era). Low specs: one quarter of
 #    the cores (floored at 1 — a vCPU is the indivisible minimum)
 #    and one eighth of the RAM (floored at 1024 MB — the battery's
 #    own safety bound: the RAM-resident rootfs plus six concurrent
@@ -65,7 +85,7 @@
 #    every core and three quarters of the RAM (the withheld quarter
 #    pays for qemu's own footprint and the host-side build tree).
 #    What stays per-leg: the title (the owner's exact strings), the
-#    kernel lane, and the VM budget (the minimum envelope
+#    kernel lane, and the VM budget (the low envelope
 #    serializes the battery on its tight CPU slice, so it rides at
 #    1800 s; the best envelope runs it wide at 1200 s).
 # 3. THE USERLAND held constant on purpose: both legs assemble the
@@ -144,7 +164,7 @@ jobs:
   supermassive:
     name: ${{ matrix.title }}
     strategy:
-      # A minimum-specs failure must not hide the best-specs result
+      # A low-specs failure must not hide the best-specs result
       # (and vice versa) — the envelope pair is the point of the
       # split, each leg reports its own verdict.
       fail-fast: false
@@ -155,10 +175,10 @@ jobs:
           # (NIGHT-improve-33) — the boot step derives each envelope
           # from the runner at run time. What stays per-leg: the
           # title (the owner's exact strings), the kernel lane, and
-          # the VM budget (the minimum envelope's tight CPU slice
+          # the VM budget (the low envelope's tight CPU slice
           # serializes the battery, so its budget rides at 1800 s).
-          - title: supermassive test - minimum specs
-            profile: minimum
+          - title: supermassive test - low specs
+            profile: low
             vm_timeout: "1800"
           - title: supermassive test - best specs
             profile: best
@@ -196,7 +216,7 @@ jobs:
         run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends qemu-system-x86 cpio
 
       # The E2E pipeline's phase one, the owner-facing bring-up on the
-      # RUNNER (outside the VM — a minimum-specs guest cannot host a
+      # RUNNER (outside the VM — a low-specs guest cannot host a
       # toolchain build, and the envelope's point is the STRESSTEST,
       # not the compile): the canonical path from e2e.yml — bootstrap,
       # the static musl flagship twin, and the rootless engine
@@ -217,8 +237,8 @@ jobs:
       # floor's, retargeted: isolated sources, names-only search,
       # highest ABI, apt resolves the last impish-updates kernel so
       # no URL rot.
-      - name: Fetch the impish 5.13 floor kernel (minimum specs)
-        if: matrix.profile == 'minimum'
+      - name: Fetch the impish 5.13 floor kernel (low specs)
+        if: matrix.profile == 'low'
         run: |
           set -euo pipefail
           mkdir -p /tmp/kfloor && cd /tmp/kfloor
@@ -368,7 +388,7 @@ jobs:
       # Boot the micro-VM: direct kernel boot, KVM host-passthrough
       # CPU, no disk, serial console to stdout, panic=-1 + -no-reboot
       # so a kernel panic ends qemu instead of hanging the job, an
-      # outer timeout (per profile budget: the minimum envelope's
+      # outer timeout (per profile budget: the low envelope's
       # tight CPU slice serializes the battery, so its budget rides
       # at 1800 s) so a wedged guest can never burn the 45-minute job
       # budget, and the isa-debug-exit device — the guest ends the VM
@@ -378,7 +398,7 @@ jobs:
       #
       # The DYNAMIC envelope (NIGHT-improve-33, the owner's "cpu
       # core, ram, etc don't set fixed let dynamic"): derived from
-      # the runner at boot time — minimum specs takes one quarter of
+      # the runner at boot time — low specs takes one quarter of
       # the cores (floored at 1: a vCPU is the indivisible minimum)
       # and one eighth of the RAM (floored at 1024 MB: the battery's
       # own safety bound, the RAM-resident rootfs plus the traffic
@@ -393,7 +413,7 @@ jobs:
           cd /tmp/kfloor
           CORES=$(nproc)
           TOTAL_MB=$(free -m | awk '/^Mem:/{print $2}')
-          if [ "${{ matrix.profile }}" = "minimum" ]; then
+          if [ "${{ matrix.profile }}" = "low" ]; then
             SMP=$(( CORES / 4 )); [ "$SMP" -lt 1 ] && SMP=1
             MEM=$(( TOTAL_MB / 8 )); [ "$MEM" -lt 1024 ] && MEM=1024
           else

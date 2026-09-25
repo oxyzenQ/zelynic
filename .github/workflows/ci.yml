@@ -270,9 +270,12 @@ jobs:
   # surface gets fmt + clippy + tests + the pro build verification on
   # every push; the musl static twin deserved the same contract,
   # not a single release-shape compile stapled to the gnu job. The
-  # matrix pins the kernel span the release page promises: 5.15
-  # (ubuntu-22.04, the oldest hosted runner with a 5.x kernel — the
-  # LTS floor) through 6.8+ (ubuntu-24.04). clippy runs with
+  # matrix once pinned the hosted kernel span (5.15 through 6.8+);
+  # NIGHT-blade-3 retires the old-OS leg — the runner rides the
+  # latest LTS only (ubuntu-24.04), because the REAL kernel span
+  # (the 5.13 floor through the archive's latest head) is proven
+  # per push inside the supermassive VM pair, a stronger contract
+  # than a hosted 22.04 image ever was. clippy runs with
   # --target x86_64-unknown-linux-musl because lints are
   # target-conditional (libc type layouts differ — the statfs f_type
   # incident below was a clippy-visible shape). Tests run the musl
@@ -295,9 +298,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # ubuntu-22.04 = kernel 5.15 (the 5.x LTS floor),
-        # ubuntu-24.04 = kernel 6.8+ (latest hosted).
-        os: [ubuntu-22.04, ubuntu-24.04]
+        # NIGHT-blade-3: the old-OS leg is retired — every base
+        # runner uses the latest LTS (ubuntu-24.04). The kernel-span
+        # role moved to the supermassive VM pair (the 5.13 floor
+        # through the latest head, per push); the matrix shape stays
+        # so a future span leg is one line away.
+        os: [ubuntu-24.04]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 40
     steps:
@@ -434,7 +440,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-22.04, ubuntu-24.04]
+        # NIGHT-blade-3: same retirement as the musl twin — the
+        # latest LTS only; the kernel span is the supermassive
+        # pair's job now.
+        os: [ubuntu-24.04]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     steps:
@@ -467,10 +476,11 @@ jobs:
 
       # NIGHT-improve-11: this matrix job previously built the whole
       # ebpf/ crate from scratch on every run — no cache step at all,
-      # even though it is the job that compiles the BPF objects twice
-      # per push (ubuntu-22.04 + ubuntu-24.04). Same cache contract
-      # as the check job, with the matrix OS in the key so the two
-      # runners never cross-restore each other's target trees.
+      # even though it is the job that compiles the BPF objects on
+      # every push. Same cache contract
+      # as the check job, with the matrix OS in the key so two
+      # different runners would never cross-restore each other's
+      # target trees.
       - name: Cache cargo registry
         uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5, NIGHT-hunt-20 SHA pin
         with:

@@ -264,7 +264,8 @@ $HOME, the static musl flagship twin) and then BOTH supermassive
 batteries inside a KVM micro-VM (the ubuntu:22.04 container as its
 userland), under two resource envelopes DERIVED from the runner at
 boot time (NIGHT-improve-33, the owner's "cpu core, ram, etc don't
-set fixed let dynamic") — minimum specs (a quarter of the cores
+set fixed let dynamic"; the small envelope is renamed low —
+NIGHT-blade-3) — low specs (a quarter of the cores
 floored at 1 + an eighth of the RAM floored at 1024 MB, booting the
 TRUE documented floor kernel: impish indri 5.13 from the frozen
 old-releases archive) and best specs (every core + three quarters
