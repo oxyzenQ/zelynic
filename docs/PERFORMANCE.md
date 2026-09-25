@@ -49,7 +49,7 @@ sudo ./scripts/bench/benchmarking.sh --stress 1000  # 1000s sustained enforcemen
 
 | Component | Target | Measured | Status |
 |-----------|--------|----------|--------|
-| Pin files (13 files) | < 10KB | **0 bytes** | Yes |
+| Pin files (11 files) | < 10KB | **0 bytes** | Yes |
 | BPF programs | kernel-managed | **2 active** | Yes |
 | BPF maps (9) | < 100KB total | pinned via aya `PinningType::ByName` (the LIBBPF_PIN_BY_NAME semantic the C twin used) | Yes |
 | Userspace RSS (during op) | < 5MB | process exits after apply | Yes |
@@ -60,7 +60,7 @@ sudo ./scripts/bench/benchmarking.sh --stress 1000  # 1000s sustained enforcemen
 |--------|--------|----------|--------|
 | RSS (userspace) | < 1MB | **0 KB** | Yes |
 | CPU (userspace) | < 0.1% | **0%** | Yes |
-| Pin files | stable | 13 files (no growth) | Yes |
+| Pin files | stable | 11 files (no growth) | Yes |
 
 > Fire-and-forget architecture: zelynic exits after applying limits.
 > BPF enforces in kernel. Zero userspace process = zero CPU + zero RSS.
@@ -246,7 +246,7 @@ If mean latency increases by > 10%, investigate.
 The system benchmark above needs root eBPF, which sandboxes and CI
 runners often cannot provide. The frame benchmark closes that gap for
 the monitor render layer: it drives the REAL print path
-(`ebpf/render.rs`) with synthetic traffic from a fixed-seed LCG, so
+(`src/ebpf/render.rs`) with synthetic traffic from a fixed-seed LCG, so
 before/after runs see byte-identical data and the only variable is
 the layout engine. Root is NOT required.
 

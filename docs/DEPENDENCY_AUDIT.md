@@ -234,7 +234,7 @@ form. If a local run hits the CVSS parse error, update cargo-deny.
 | API | Call sites | Feature |
 |-----|-----------|---------|
 | `nix::unistd::geteuid()` | `capabilities/mod.rs`, `commands/mod.rs` | `user` (implies `feature`) |
-| `nix::sys::utsname::uname()` | `ebpf/bpf_syscall.rs` (kernel >= 5.7 check) | `feature` |
+| `nix::sys::utsname::uname()` | `src/ebpf/bpf_syscall.rs` (kernel >= 5.7 check) | `feature` |
 | `nix::sys::termios` (raw mode) | `terminal/mod.rs` (alt screen guard) | `term` |
 
 `process` (fork/exec/wait), `fs` (stat/at), and `signal` (kill) had
@@ -258,7 +258,7 @@ blocks. Keeping it is the lower-risk option.
 | `serde` 1 + derive | keep | JSON output structs (`--print-json`: capabilities, monitor, display) |
 | `serde_json` 1 | keep | JSON serialization for the same three modules |
 | `nix` 0.31 | keep, trimmed | safe geteuid/uname/termios wrappers; features `user`+`term`+`feature` only |
-| `libc` 0.2 | keep | flock (ebpf/lock.rs), raw BPF syscalls (ebpf/bpf_syscall.rs), termios constants |
+| `libc` 0.2 | keep | flock (src/ebpf/lock.rs), raw BPF syscalls (src/ebpf/bpf_syscall.rs), termios constants |
 | `aya` 0.13 (optional) | keep | the entire point of the project; gated behind the `ebpf` feature |
 | `chrono` 0.4 | **removed** | zero call sites; 27-crate transitive chain (Finding 1) |
 | `[dev-dependencies] serde` | **removed** | exact duplicate of the regular dependency entry; tests already see regular deps |

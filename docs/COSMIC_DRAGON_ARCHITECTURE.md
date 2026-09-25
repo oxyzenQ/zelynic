@@ -147,7 +147,7 @@ calculations, top-N sorting, and threshold detection live.
 
 ### Layer 4 — Presentation
 
-CLI output (`ebpf/render.rs`, the responsive monitor engine, NIGHT-hunt-7),
+CLI output (`src/ebpf/render.rs`, the responsive monitor engine, NIGHT-hunt-7),
 JSON output (`--print-json`).
 This layer never touches BPF directly — it consumes `CounterSummary` +
 `IdentityMap` and renders. Monitor frames flow through the diff-based

@@ -34,7 +34,8 @@ DeepSeek recommendation the owner adopted):
 - **Continue condition**: otherwise Phase 2 (limiter port behind a
   feature flag) and Phase 3 (drop C entirely) stay on the table.
 - **Never** degrade the v11 line's contract: stable-toolchain builds,
-  the 15 local gates, `build.sh check-all`, and the frozen
+  the 16 local gates (15 at evaluation time; the scripts LOC cap,
+  NIGHT-lts-2, is the sixteenth), `build.sh check-all`, and the frozen
   userspace API stay intact on `main` regardless of the outcome.
 
 ## Naming note
@@ -313,7 +314,9 @@ stage, so no benchmark was run (docs-and-skeleton only).
 
 ## Stage 3: the observer port
 
-`ebpf/src/main.rs` (269 lines including the contract comments and
+`ebpf/src/main.rs` (269 lines at port time — 303 today, grown by the
+deltas below: the map raises, the boost-34 event-path deletion, and
+the improve-29 atomic counters; including the contract comments and
 compile-time pins) is the line-for-line port of
 `bpf/observer.bpf.c` (172 lines). Both programs, all three maps,
 the event and stats layouts, the throttle, and the license section
@@ -557,7 +560,7 @@ map or a consumer finally reads it.
 
 | Risk | Likelihood | Impact | Mitigation |
 |---|---|---|---|
-| aya-ebpf 0.2.x API churn (crate is 3 months old) | medium | low (detached crate, locked file) | ebpf/Cargo.lock committed; ports are 269 + 396 lines across two binaries |
+| aya-ebpf 0.2.x API churn (crate is 3 months old) | medium | low (detached crate, locked file) | ebpf/Cargo.lock committed; ports were 269 + 396 lines at port time (303 + 328 today) across two binaries |
 | bpf-linker prebuilt lag behind new nightly LLVM | medium | build break until new prebuilt | pin the working nightly in docs; prebuilts ship per release |
 | aya 0.13 -> 0.14 userspace pairing changes | low | low | compatibility verified empirically, not assumed; re-verify per bump |
 | Nightly-only stalls forever | unknown | Phase 3 never happens | superseded: the owner accepted the nightly cost and phase 3 shipped; the dated pin caps the drift risk |
@@ -571,7 +574,8 @@ made it non-trivial, the verification output, and the measurements.
 
 ### The port
 
-`ebpf/src/bin/limiter.rs` (396 lines) is the line-for-line port of
+`ebpf/src/bin/limiter.rs` (396 lines at port time — 328 today) is the
+line-for-line port of
 `bpf/limiter.bpf.c` (364 lines), built as a second detached binary
 (`zelynic-limiter`) in the same crate. Both programs carry over:
 `enforce_dl` on `cgroup_skb/ingress` and `enforce_ul` on
