@@ -86,7 +86,13 @@ pub const MAX_RATE: u64 = 1_000_000_000_000;
 ///     fewer at four). No layout change; the bump forces pinned v7
 ///     programs to reload into the retry object, same one-time
 ///     re-apply contract as v4..v7.
-pub const SCHEMA_VERSION_EXPECTED: u32 = 8;
+/// v9 (NIGHT-master-3): the rate-0 BLOCK verdict books its drops
+///     through the same atomic fetch_add the enforce() path uses —
+///     the v5 booking kept the plain `+=` the v7 SMP rewrite erased
+///     everywhere else, so a blocked multi-CPU cgroup lost drop
+///     increments like the pre-v7 ledger lost allowed bytes. Verdict
+///     unchanged, no layout change; same one-time re-apply as v4..v8.
+pub const SCHEMA_VERSION_EXPECTED: u32 = 9;
 
 /// The burst floor (NIGHT-lts-8): the largest single packet the
 /// kernel hands a cgroup_skb hook by default — GSO egress
@@ -166,6 +172,31 @@ pub struct LimiterStatsRaw {
 unsafe impl aya::Pod for LimiterStatsRaw {}
 
 // ━━ High-level API types ━━
+
+/// The strict-multi group-id derivation (NIGHT-master-3 hardening).
+///
+/// The former derivation — `pid*1000 + nanos%1000` — had a
+/// STRUCTURED collision: two invocations collide exactly when pid
+/// space wraps back to a live group's creator pid AND the 1/1000
+/// nanos residue matches; a collision makes two groups share ONE
+/// bucket (over-admission against the lower group's intent), and
+/// the pid cycle on a long-lived host is hours-to-days. The fix
+/// mixes the same inputs through a splitmix64-style avalanche so
+/// input changes spread across the full u32 space (same-pid pairs
+/// now collide at ~2^-32, not 1/1000), and the one zero result maps
+/// away from the individual-bucket sentinel (group_id == 0, the
+/// math.rs layout contract). Pure so the spread contracts are pinned.
+pub(crate) fn group_id_from(pid: u32, nanos: u64) -> u32 {
+    let mut z = (u64::from(pid) << 32) ^ nanos;
+    z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+    z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+    let mixed = (z ^ (z >> 31)) as u32;
+    if mixed == 0 {
+        1
+    } else {
+        mixed
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct RateSpec {
@@ -380,7 +411,7 @@ mod tests {
     fn test_schema_version_constant() {
         // Must match SCHEMA_VERSION in ebpf/src/bin/limiter.rs.
         // When this changes, the BPF code must also change.
-        assert_eq!(SCHEMA_VERSION_EXPECTED, 8);
+        assert_eq!(SCHEMA_VERSION_EXPECTED, 9);
     }
 
     // ── NIGHT-improve-10 / security-3: overflow-bound pins ──────────

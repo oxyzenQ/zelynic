@@ -50,7 +50,7 @@ use aya_ebpf::{
 #[path = "../math.rs"]
 mod math;
 
-use math::{Bucket, LimiterStats, MAX_ENFORCABLE_BURST, Policy, enforce};
+use math::{Bucket, LimiterStats, MAX_ENFORCABLE_BURST, Policy, book, enforce};
 
 // ---------------------------------------------------------------------------
 // Shared layout contract with the userspace loader (src/ebpf/limiter/
@@ -84,7 +84,13 @@ use math::{Bucket, LimiterStats, MAX_ENFORCABLE_BURST, Policy, enforce};
 /// concurrent deduction between one packet's read and its CAS no
 /// longer falsely drops an affordable packet under many-CPU bursts
 /// (measured: 1.35% of packets at one attempt, 28x fewer at four);
-/// no layout change).
+/// no layout change; v9 (NIGHT-master-3): the rate-0 block verdict
+/// books its drops through the SAME atomic fetch_add the enforce
+/// path uses — the v5 booking kept the plain `+=` the v7 rewrite
+/// erased everywhere else, so a blocked cgroup with traffic on
+/// several CPUs lost drop-accounting increments exactly the way
+/// the pre-v7 ledger lost allowed bytes; verdict unchanged, no
+/// layout change, same one-time re-apply contract).
 /// No layout change since v2; each bump forces pinned older
 /// programs to reload into the hardened object — a one-time limit
 /// re-apply, documented in CHANGELOG.
@@ -92,7 +98,7 @@ use math::{Bucket, LimiterStats, MAX_ENFORCABLE_BURST, Policy, enforce};
 /// the pinned map after load — so the constant exists purely as the
 /// parity anchor for that three-way contract.
 #[allow(dead_code)]
-const SCHEMA_VERSION: u32 = 8;
+const SCHEMA_VERSION: u32 = 9;
 
 // ---------------------------------------------------------------------------
 // Maps. The static names ARE the userspace contract (limiter/mod.rs
@@ -277,11 +283,17 @@ fn try_enforce(
     // engaged" proof both read "0 packets dropped" (the only light
     // failure on the 2026-09-21 nightpc run). An unbooked drop is
     // invisible enforcement.
+    //
+    // Schema v9 (NIGHT-master-3): the booking rides the SAME atomic
+    // fetch_add (math::book) the enforce() path uses — the v5 `+=`
+    // was the last plain read-modify-write on a stats entry, and a
+    // blocked cgroup with traffic on several CPUs lost drop
+    // increments exactly the way the pre-v7 ledger lost allowed
+    // bytes. Verdict untouched: the drop itself was always total.
     if pol.rate_bps == 0 {
         let stats = get_stats_ptr(&cgroup_id).map(|ptr| unsafe { &mut *ptr });
         if let Some(s) = stats {
-            s.packets_dropped += 1;
-            s.bytes_dropped += u64::from(pkt_len);
+            book(s, false, pkt_len);
         }
         return 0;
     }

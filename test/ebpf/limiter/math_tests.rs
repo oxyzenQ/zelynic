@@ -342,3 +342,80 @@ fn hostile_frac_just_above_one_second_is_zeroed() {
         "product 1e9 at rate 1000 refills exactly 1 byte"
     );
 }
+
+// ── NIGHT-master-3: the block-booking atomicity pin ──────────────────────
+
+/// The rate-0 BLOCK verdict's drop ledger is EXACT under real thread
+/// contention (schema v9): `book` is the shared atomic path both
+/// verdicts ride, and this pin holds the property the v5 plain `+=`
+/// broke — a blocked cgroup with traffic on several CPUs lost
+/// packets_dropped/bytes_dropped increments exactly the way the
+/// pre-v7 ledger lost allowed bytes. Lives here (not in
+/// math_smp_tests.rs) because that file rides the 500-LOC cap; the
+/// concurrency model is the same one-CPU-per-`&mut`-on-one-map-value
+/// reality its SharedHandle reproduces.
+#[test]
+fn block_booking_is_exact_under_smp_contention() {
+    use self::ebpf_math::book;
+    use std::thread;
+
+    const THREADS: usize = 8;
+    const HITS: usize = 25_000;
+    const PKT: u32 = 1500;
+
+    // The same Send disclosure math_smp_tests carries: the raw
+    // pointer crosses threads only to reproduce the BPF runtime's
+    // many-CPUs-one-map-value reality; book touches the stats entry
+    // solely through addr_of_mut! projections and fetch_add. The
+    // method receiver is the whole struct — the 2021 precise-capture
+    // pass would otherwise capture the bare *mut field and lose the
+    // Send impl (the exact trap math_smp_tests' handle.hit sidesteps).
+    #[derive(Clone, Copy)]
+    struct StatsHandle(*mut LimiterStats);
+    // SAFETY: see the comment above — the join below outlives every
+    // spawned borrower of the pointed-to value.
+    unsafe impl Send for StatsHandle {}
+
+    impl StatsHandle {
+        // SAFETY: same disclosure as the Send impl; by-value self so
+        // the &self -> &mut shape never appears (clippy mut_from_ref).
+        unsafe fn stats(self) -> &'static mut LimiterStats {
+            unsafe { &mut *self.0 }
+        }
+    }
+
+    let stats = Box::into_raw(Box::new(fresh_stats()));
+    let handles: Vec<_> = (0..THREADS)
+        .map(|_| {
+            let h = StatsHandle(stats);
+            thread::spawn(move || {
+                // SAFETY: the pointer outlives every join below; each
+                // thread's `&mut` mirrors the BPF runtime's per-CPU
+                // aliases of one map value — the sharing `book` is
+                // built to tolerate (fetch_add RMW, no plain RMW).
+                let s = unsafe { h.stats() };
+                for _ in 0..HITS {
+                    book(s, false, PKT);
+                }
+            })
+        })
+        .collect();
+    for h in handles {
+        h.join().expect("booker thread must not panic");
+    }
+
+    let total_packets = (THREADS * HITS) as u64;
+    // SAFETY: every thread has joined; the value is owned again.
+    let final_stats = unsafe { Box::from_raw(stats) };
+    assert_eq!(
+        final_stats.packets_dropped, total_packets,
+        "no drop may vanish from the ledger under contention"
+    );
+    assert_eq!(
+        final_stats.bytes_dropped,
+        total_packets * u64::from(PKT),
+        "no dropped byte may vanish from the ledger under contention"
+    );
+    assert_eq!(final_stats.packets_allowed, 0);
+    assert_eq!(final_stats.bytes_allowed, 0);
+}

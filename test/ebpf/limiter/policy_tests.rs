@@ -139,3 +139,72 @@ fn policy_survivor_line_matches_the_trace_cg_style() {
     );
     assert_eq!(policy_survivor_line(1, Direction::Upload), "cg:1 upload");
 }
+
+// ── NIGHT-master-3: the group-id mixer pins ───────────────────────────────
+
+// group_id_from arrives through the `use super::*` glob above (the
+// parent policy.rs imports it from types.rs — the same path every
+// other pinned helper in this file rides).
+
+/// The mixer never hands back the individual-bucket sentinel: a
+/// deterministic sweep over the pid/nanos corner space (both zero,
+/// both small) must stay clear of 0 — a 0 group_id would silently
+/// turn every group member into an individually-bucketed policy.
+#[test]
+fn group_id_from_never_returns_the_individual_sentinel() {
+    for pid in [0u32, 1, 2, 42, 1000, u32::MAX] {
+        for nanos in [0u64, 1, 2, 999, 1000, 1_000_000, u64::MAX] {
+            assert_ne!(
+                group_id_from(pid, nanos),
+                0,
+                "sentinel leak at pid={pid} nanos={nanos}"
+            );
+        }
+    }
+    // The wider sweep (1000 x 1000 deterministic pairs) rides the
+    // same property — pure function, fixed inputs, zero flake.
+    for pid in 0u32..1000 {
+        for nanos in 0u64..1000 {
+            assert_ne!(group_id_from(pid, nanos), 0);
+        }
+    }
+}
+
+/// The old derivation's failure mode, closed: same pid (pid-space
+/// wrap), different nanos used to land inside one 1000-wide band —
+/// a 1/1000 residue match meant two live groups sharing ONE bucket.
+/// The mix must (a) stay deterministic, (b) separate consecutive
+/// nanos, (c) show no 1000-wide banding across a same-pid sweep, and
+/// (d) keep a 4096-sample sweep collision-free (deterministic
+/// inputs, so this is a fixed property, not a probability).
+#[test]
+fn group_id_from_spreads_same_pid_pairs_across_the_space() {
+    // (a) deterministic: same inputs, same id.
+    assert_eq!(
+        group_id_from(1234, 111_111_111),
+        group_id_from(1234, 111_111_111)
+    );
+    // (b) consecutive nanos separate.
+    assert_ne!(
+        group_id_from(1234, 111_111_111),
+        group_id_from(1234, 111_111_112)
+    );
+    // (c) no banding: the old scheme pinned every same-pid id inside
+    // [pid*1000, pid*1000+999]; the mix's min/max across a 4096-sample
+    // same-pid sweep must span far more than 1000.
+    let ids: Vec<u32> = (0..4096u64).map(|n| group_id_from(1234, n)).collect();
+    let max = ids.iter().copied().max().unwrap();
+    let min = ids.iter().copied().min().unwrap();
+    assert!(
+        u64::from(max) - u64::from(min) > 100_000,
+        "same-pid ids must not band into the old 1000-wide window: min={min} max={max}"
+    );
+    // (d) distinct across the sweep (the old scheme could only ever
+    // produce 1000 distinct values here; the mix's 4096 must be 4096).
+    let unique: std::collections::HashSet<u32> = ids.iter().copied().collect();
+    assert_eq!(
+        unique.len(),
+        ids.len(),
+        "mixer collision inside a same-pid sweep"
+    );
+}

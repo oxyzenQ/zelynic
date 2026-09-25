@@ -9,8 +9,8 @@
 // same way), where test/ebpf/limiter/math_tests.rs pins it
 // rootlessly. The functions are verbatim moves from the limiter
 // program; the depthbore-1 frac sanitization (v6), the boost-38 SMP
-// rewrite (v7), and the lts-8 extreme-burst consume retry (v8) are
-// marked in place.
+// rewrite (v7), the lts-8 consume retry (v8), and the master-3
+// atomic block booking (v9) are marked in place.
 //
 // This module must stay `core`-only: no std, no alloc, no aya — any
 // dependency added here reaches both trees at once. core::sync::
@@ -424,8 +424,10 @@ fn try_consume(tokens_ptr: *mut u64, want: u64) -> bool {
 /// "BPF accounting matches client bytes" rows kept swallowing).
 /// Layout-preserving: the u64 counters are mutated in place through
 /// the RMW view, the same fields at the same offsets.
+/// NIGHT-master-3 (schema v9): the rate-0 BLOCK verdict rides this
+/// too — its v5 `+=` under-counted SMP drops (v7's race class).
 #[inline(always)]
-fn book(stats: &mut LimiterStats, allowed: bool, pkt_len: u32) {
+pub fn book(stats: &mut LimiterStats, allowed: bool, pkt_len: u32) {
     // Field pointers (8-aligned repr(C) offsets: 0, 8, 16, 24 — the
     // size pin above).
     let packets_allowed_ptr = core::ptr::addr_of_mut!(stats.packets_allowed);

@@ -290,12 +290,21 @@ impl super::Limiter {
         let mut reclaimed = 0usize;
         for gid in dead_groups(captured, &live) {
             let mut failures: Vec<String> = Vec::new();
+            // NIGHT-master-3: the trace counts THIS group's slots, not
+            // the running total — the old line printed the cumulative
+            // sum, so the second dead group of a sweep reported the
+            // first group's slots as its own (verbose-only accounting
+            // drift; the returned total stays the sum).
+            let mut reclaimed_this_group = 0usize;
             for (map_name, pin_path) in [
                 ("group_bucket_dl", PIN_MAP_GROUP_BUCKET_DL),
                 ("group_bucket_ul", PIN_MAP_GROUP_BUCKET_UL),
             ] {
                 match self.remove_map_entry::<BucketRaw>(map_name, pin_path, gid) {
-                    Ok(true) => reclaimed += 1,
+                    Ok(true) => {
+                        reclaimed += 1;
+                        reclaimed_this_group += 1;
+                    }
                     Ok(false) => {}
                     Err(e) => failures.push(format!("group bucket: {e}")),
                 }
@@ -307,7 +316,7 @@ impl super::Limiter {
                 );
             }
             if self.verbose {
-                eprintln_safe!("{}", group_reclaim_trace_line(gid, reclaimed));
+                eprintln_safe!("{}", group_reclaim_trace_line(gid, reclaimed_this_group));
             }
         }
         reclaimed
