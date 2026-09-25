@@ -847,7 +847,8 @@ width).
   update check's argv-array curl, and the CI env-var isolation all
   re-verified at their documented state — peak.
 
-## Terminal Rescue Under Sudo Interposition (NIGHT-improve-31, 2026-09-25)
+## Terminal Rescue Under Sudo Interposition (NIGHT-improve-31,
+## re-shaped in NIGHT-improve-34, 2026-09-25)
 
 The owner's live report: after a root TUI session died violently,
 `sudo zelynic --reset-terminal` left the screen staircased (the
@@ -868,12 +869,20 @@ pseudo-terminal pair for the command. Under that interposition:
 2. The escape bytes alone survive — the monitor relays them — so
    the emulator-side modes reset and the screen LOOKS half-fixed,
    while the real terminal's kernel termios stays raw.
-3. The deepest trap: the monitor saves the real terminal's termios
-   when IT starts (on the already-broken terminal) and restores
-   that broken snapshot when the command exits — so even a correct
-   in-flight fix of the real terminal is undone the instant the
-   rescue finishes. A fix that must outlive sudo has to fire AFTER
-   the monitor exits.
+3. The monitor holds the real terminal RAW on purpose while the
+   command runs (`sudo_term_raw`: full cfmakeraw, OPOST off — the
+   relay's transparency), saving the pre-run state first and
+   restoring it at exit — with one guard NIGHT-improve-34 read in
+   the sudo source (lib/util/term.c): `sudo_term_restore` DECLINES
+   to restore when the terminal was "changed out from under us"
+   (its INPUT/OUTPUT flag masks no longer match the monitor's
+   raw), so any in-flight fix that touches OPOST — exactly what
+   move 2 does — makes the monitor leave the rescue's cooked
+   state in place. A post-exit fix is still owed for the shapes
+   where nothing tripped the guard (the in-flight apply failed) or
+   there was no restore at all (a monitor killed with its raw
+   still holding the terminal) — but it must be DISCRIMINATED,
+   never blanket.
 
 ### The mitigation (src/term_reset/outer.rs)
 
@@ -890,13 +899,34 @@ Three moves, all best-effort, none requiring any new privilege:
    the real terminal by path, and the external utilities
    (`stty sane`, `reset`, `tput reset`) with their stdin
    redirected onto it.
-3. **Re-apply after sudo**: a bounded orphan child (the guard's
-   boost-33 discipline: renamed away from "zelynic" so
-   `pkill zelynic` cannot kill it, syscalls only after fork,
-   5 ms poll slices, a hard 10 s budget) waits for the monitor to
-   exit and re-applies the termios layer plus the NON-destructive
-   restore bytes — never the destructive clear, because the user's
-   shell prompt has already drawn by then.
+3. **Re-apply after sudo, DISCRIMINATED** (NIGHT-improve-34): a
+   bounded orphan child (the guard's boost-33 discipline: renamed
+   away from "zelynic" so `pkill zelynic` cannot kill it,
+   syscalls only after fork, 5 ms poll slices, a hard 10 s budget)
+   waits for the monitor to exit, then READS the real terminal
+   before touching it. The output lane decides: OPOST|ONLCR not
+   both on (the staircase class — the monitor's raw residue, or a
+   restored broken snapshot) fires the OUTPUT-LANE CURE ONLY
+   (OPOST|ONLCR back on, every input/local/control flag and the
+   whole c_cc table preserved, TCSANOW — never a flush) plus the
+   NON-destructive restore bytes; the lane already whole (the
+   in-flight fix survived the guard, or the monitor restored a
+   healthy snapshot) touches NOTHING — zero ioctls, zero bytes —
+   because by then the user's shell may be mid-prompt in its own
+   raw mode. THE WHY: the improve-31 blanket re-apply (full cooked
+   + TCSAFLUSH) landed under that live line editor — the kernel's
+   echo doubled every typed character and the flush ate queued
+   keystrokes (the owner's fresh report: `sudo zelynic
+   --reset-terminal` on a HEALTHY terminal left typing garbled,
+   the typed line rendered twice, the prompt redrawn over it, the
+   right-side prompt arriving without its left half — and the
+   live harness below shows the old code eating the user's FIRST
+   TYPED CHARACTER in every scenario). The one residue,
+   documented: a NON-line-editor reader on a terminal whose input
+   flags a dead monitor left raw gets the output cure but keeps
+   blind typing — the plain `zelynic --reset-terminal` (no sudo:
+   no monitor, no orphan, the classic five layers own the whole
+   terminal) finishes that job.
 
 ### The safety ledger
 
@@ -912,13 +942,30 @@ Three moves, all best-effort, none requiring any new privilege:
 - **No lingering process**: the orphan exits unconditionally at
   the 10 s budget; two settle-gap passes catch the nested-sudo
   chain, then it is gone.
+- **No live-reader stomp** (NIGHT-improve-34): the post-exit pass
+  is discriminated by the output lane and the cure is
+  lane-pure — a healthy terminal receives zero ioctls and zero
+  bytes; a broken output lane receives exactly OPOST|ONLCR. A
+  live zle/readline reader's input contract (its own raw mode,
+  its own echo) is structurally unreachable by the orphan.
 - **Verified**: unit pins (the discovery discrimination, the
   by-path apply on a real cfmakeraw-broken pty, the bounded
-  budget — `test/terminal/outer_reset_tests.rs`) plus a live
-  end-to-end harness simulating the full interposition (break,
-  rescue on a foreign pty with `SUDO_PID`, monitor exit-restore,
-  orphan re-apply): the real terminal comes back cooked after the
-  monitor's restore, and the orphan exits.
+  budget, the re-apply discrimination matrix, and the cure's lane
+  purity — `test/terminal/outer_reset_tests.rs`, 16 pins green in
+  the terminal family) plus a live end-to-end harness simulating
+  the full interposition — a faithful sudo monitor (the save,
+  cfmakeraw raw, the pty relay, and sudo's REAL exit-restore
+  guard read from the source) around the REAL rescue, with a
+  zsh-style player that sets a line editor's raw, draws a prompt,
+  types, and echoes: three scenarios (healthy-at-start + guard,
+  broken-at-start + guard, broken-at-start + forced restore) all
+  green — single-echo typing, the guard leaving the in-flight fix
+  in place, the orphan silent when healthy, the belt curing only
+  the output lane when the broken snapshot lands. The SAME
+  harness against the improve-31 orphan PANICS in every scenario:
+  its TCSAFLUSH under the live reader eats the first typed
+  character before any doubling is even countable — the exact
+  "not yet 100% clean" residue the owner kept reporting.
 
 ## Verifying Safety Yourself
 

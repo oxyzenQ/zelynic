@@ -19,13 +19,23 @@
 //! the throwaway pty. The escape bytes alone survive — the monitor
 //! relays them — which is why the screen looks half-fixed: the
 //! emulator-side modes reset, the kernel-side termios of the real
-//! terminal stays raw (the classic LF-without-CR staircase). And
-//! the deepest trap: the monitor saves the real terminal's termios
-//! when IT starts — on the already-broken terminal — and restores
-//! that same broken snapshot when the command exits, so even a
-//! correct in-flight fix of the real terminal is undone the
-//! instant the rescue finishes. A fix that must outlive sudo has
-//! to fire AFTER the monitor exits.
+//! terminal stays raw (the classic LF-without-CR staircase).
+//!
+//! And the monitor holds the real terminal raw on PURPOSE while
+//! the command runs (`sudo_term_raw`, sudo's lib/util/term.c: full
+//! cfmakeraw, OPOST off — the relay's transparency), saving the
+//! pre-run state first and restoring it at exit — with one guard
+//! that NIGHT-improve-34 read in the source and the whole lane now
+//! leans on: `sudo_term_restore` DECLINES to restore when the
+//! terminal was "changed out from under us" (its INPUT/OUTPUT flag
+//! masks no longer match the monitor's raw), so any in-flight fix
+//! that touches OPOST — exactly what move 2 does — makes the
+//! monitor leave the rescue's cooked state in place at exit.
+//! A fix that must outlive sudo still has to fire AFTER the
+//! monitor exits — for the shapes where nothing tripped the guard
+//! (the in-flight apply failed) or there was no restore at all (a
+//! monitor killed with its raw still holding the terminal) — but
+//! it must fire DISCRIMINATED, never blanket: see move 3.
 //!
 //! Three moves close the gap, all root-best-effort (the sudo case
 //! is root by construction; a non-root rescue keeps today's
@@ -44,15 +54,48 @@
 //!    flush the stuck-mode flood needs), both ANSI sequences, and
 //!    the external layers with their stdin redirected onto the
 //!    real terminal (`stty sane <real>`, `reset <real>`).
-//! 3. RE-APPLY AFTER SUDO: a bounded orphan child that outlives
-//!    the rescue process, waits for the sudo monitor to exit (the
-//!    moment its broken-snapshot restore lands), and re-applies
-//!    the termios layer plus the NON-destructive restore bytes to
-//!    the real terminal — never the destructive clear, because by
-//!    then the user's shell prompt has already drawn and wiping it
-//!    would trade a readable staircase for an empty screen. A
-//!    settle-gap second pass catches the nested-sudo chain (the
-//!    inner monitor restores first, the outer one after).
+//! 3. RE-APPLY AFTER SUDO — DISCRIMINATED (NIGHT-improve-34, the
+//!    re-shape): a bounded orphan child outlives the rescue
+//!    process, waits for the sudo monitor to exit, and then READS
+//!    the real terminal before touching it. The re-apply fires
+//!    ONLY when the output lane is still broken
+//!    ([`output_lane_broken`]: OPOST|ONLCR not both set — the
+//!    staircase class), and the cure is the OUTPUT LANE ONLY
+//!    ([`cure_output_lane`]: OPOST|ONLCR back on, every input,
+//!    local, and control flag preserved) plus the non-destructive
+//!    restore bytes. The WHY is two findings:
+//!    - sudo's own exit-restore usually SKIPS: the monitor saves
+//!      the real terminal's termios at start and restores it at
+//!      exit, but `sudo_term_restore` (sudo's lib/util/term.c)
+//!      declines when the output flags were "changed out from
+//!      under us" — and move 2's in-flight apply sets OPOST, so
+//!      the guard trips and the rescue's cooked state simply
+//!      SURVIVES the monitor's exit. The orphan's cure is the belt
+//!      for the shapes where nothing tripped the guard (the
+//!      in-flight apply failed) or there was no restore at all (a
+//!      monitor killed with its raw still on the terminal).
+//!    - by the orphan's turn, the terminal's reader is the user's
+//!      SHELL, and an interactive shell's line editor (zsh ZLE,
+//!      bash readline) holds the terminal in ITS OWN raw mode —
+//!      ICANON|ECHO off with OPOST left ON — managing echo itself.
+//!      The improve-31 orphan re-applied the full cooked state
+//!      (ICANON|ECHO on, TCSAFLUSH) under that live reader: the
+//!      kernel's echo doubled every typed character and the flush
+//!      ate queued input — the owner's fresh report (`sudo zelynic
+//!      --reset-terminal` on a HEALTHY terminal left typing
+//!      garbled: the typed line rendered twice, the prompt
+//!      redrawed over it, the right-side prompt arrived without
+//!      its left half). The discriminated cure cannot do that by
+//!      construction: a healthy output lane means ZERO ioctls and
+//!      ZERO bytes (a zle/readline reader is never disturbed), and
+//!      a broken output lane gets exactly the two flags every
+//!      shell's display needs, never the input flags a live reader
+//!      owns. The one residue, documented: a NON-line-editor
+//!      reader on a terminal whose input flags a dead monitor left
+//!      raw gets the output cure but keeps blind typing — the
+//!      plain `zelynic --reset-terminal` (no sudo: no monitor, no
+//!      orphan, the classic five layers own the whole terminal)
+//!      finishes that job.
 //!
 //! The orphan is the guard's discipline transplanted (boost-33):
 //! forked after every other layer, renamed away from "zelynic" so
@@ -216,7 +259,39 @@ pub(crate) fn apply_rescue_to_path(path: &Path) {
     }
 }
 
-// ── move 3: the bounded orphan that outlives the monitor ──────────────
+// ── move 3: the discriminated re-apply after the monitor ────────────
+
+/// The output-lane breakage signature (NIGHT-improve-34): the
+/// terminal's output post-processing pair is not fully on. OPOST
+/// off is the LF-without-CR staircase — the one flag whose absence
+/// breaks EVERY shell's display (zle and readline raw both keep
+/// OPOST on; sudo's monitor raw and a cfmakeraw death both clear
+/// it), so it is the one honest discriminator between "the monitor
+/// left its raw / restored a broken snapshot" and "the rescue's
+/// fix survived / the snapshot was healthy": after the monitor
+/// exits, an interactive shell may already be mid-prompt in its own
+/// raw mode, and only the OUTPUT lane is both universally broken
+/// by the monitor's residue and universally safe to cure (no line
+/// editor's input contract touches OPOST|ONLCR). ONLCR rides the
+/// same mask for the half-cured shape (a `stty -onlcr` residue:
+/// OPOST on but newlines column-walk).
+pub(crate) fn output_lane_broken(t: &libc::termios) -> bool {
+    (t.c_oflag & (libc::OPOST | libc::ONLCR)) != (libc::OPOST | libc::ONLCR)
+}
+
+/// The output-lane cure (NIGHT-improve-34): OPOST|ONLCR back on —
+/// and NOTHING else. Pure over the struct, so the lane purity is
+/// unit-pinned: after the cure, c_iflag, c_lflag, c_cflag, and the
+/// c_cc table are byte-identical to before (a live zle/readline
+/// reader's input contract is never disturbed — the improve-31
+/// orphan's full-cooked re-apply under a live ZLE was the owner's
+/// fresh garbled-typing report, the exact regression this split
+/// exists to make impossible). The caller applies it TCSANOW — no
+/// TCSAFLUSH post-exit, never: the flush would eat whatever the
+/// user is typing at the very moment the cure lands.
+pub(crate) fn cure_output_lane(t: &mut libc::termios) {
+    t.c_oflag |= libc::OPOST | libc::ONLCR;
+}
 
 /// The poll slice (ms): fine enough that the re-apply lands within
 /// a breath of the monitor's exit, coarse enough that the orphan's
@@ -228,9 +303,9 @@ const POLL_SLICE_MS: libc::c_long = 5;
 /// milliseconds of the command, so ten seconds is two orders of
 /// magnitude of slack — and the one residue the budget accepts is
 /// documented: a monitor still alive at the cap gets one
-/// best-effort re-apply and the orphan exits anyway (a rescue must
-/// never leave a process behind; a wedged sudo is a bigger
-/// problem than a staircased prompt).
+/// discriminated best-effort pass and the orphan exits anyway (a
+/// rescue must never leave a process behind; a wedged sudo is a
+/// bigger problem than a staircased prompt).
 const POLL_BUDGET_MS: libc::c_long = 10_000;
 
 /// The settle gap (ms) between the orphan's two passes: the
@@ -247,11 +322,20 @@ const ORPHAN_NAME: &[u8; 11] = b"zny-tresc\0\0";
 /// Fork the post-sudo re-applier — the LAST move of the rescue,
 /// after every other layer, so the orphan inherits a quiet fd
 /// table (it closes stdio itself). The child waits for the sudo
-/// monitor to exit (the instant its broken-snapshot termios
-/// restore lands on the real terminal), then re-applies the
-/// termios layer plus the NON-destructive restore bytes — twice,
+/// monitor to exit, then runs the DISCRIMINATED re-apply — twice,
 /// settle-gap apart, for the nested-sudo chain — and exits
-/// unconditionally at the budget.
+/// unconditionally at the budget. Each pass READS the real
+/// terminal first: an output lane already healthy (the rescue's
+/// in-flight fix survived — sudo's exit-restore SKIPS when the
+/// output flags were changed out from under it — or the monitor
+/// restored a healthy snapshot) means ZERO ioctls and ZERO bytes,
+/// because by then the user's shell may be mid-prompt in its own
+/// raw mode and only the monitor's OWN residue justifies touching
+/// anything; an output lane still broken (the in-flight apply
+/// failed, or a killed monitor left its raw holding the terminal)
+/// gets the [`output_lane_broken`]/[`cure_output_lane`] pair: the
+/// two flags every shell's display needs, TCSANOW (never a flush),
+/// plus the non-destructive restore bytes.
 pub(crate) fn spawn_post_sudo_reapplier(outer: &OuterTty) {
     // Everything the child touches, prepared before the fork:
     // async-signal-safety after fork means no allocation, so the
@@ -308,13 +392,22 @@ pub(crate) fn spawn_post_sudo_reapplier(outer: &OuterTty) {
             waited += POLL_SLICE_MS;
         }
     }
-    // Two settle-gap passes: the monitor's exit-restore has landed
-    // (or the budget expired and one best-effort pass is owed);
-    // the second catches the outer link of a nested-sudo chain.
-    // Both passes are the NON-destructive shape only — termios +
-    // the restore bytes — because the user's shell prompt has
-    // drawn by now and the destructive clear would trade a
-    // readable screen for an empty one.
+    // Two settle-gap passes, each DISCRIMINATED (NIGHT-improve-34):
+    // read the real terminal's termios first, and let the output
+    // lane decide. Healthy (OPOST|ONLCR on — the in-flight fix
+    // survived, or the monitor restored a healthy snapshot): touch
+    // NOTHING, not one ioctl, not one byte — the user's shell may be
+    // mid-prompt in its own raw mode by now, and the improve-31
+    // blanket re-apply (full cooked + TCSAFLUSH under that live
+    // reader: the kernel's echo doubling every typed character) is
+    // the exact regression this discrimination exists to retire.
+    // Broken (the monitor's raw still holding, or a restored
+    // broken snapshot): the output-lane cure ONLY — the two flags
+    // every shell's display needs, never the input/local flags a
+    // live line editor owns — applied TCSANOW (a flush would eat
+    // the user's in-flight typing), plus the NON-destructive
+    // restore bytes (the mode belt, idempotent; never the
+    // destructive clear — the shell prompt has drawn by now).
     for pass in 0..2 {
         // SAFETY: open(2) the real terminal WITHOUT acquiring it
         // as a controlling terminal (O_NOCTTY — a setsid child
@@ -330,13 +423,13 @@ pub(crate) fn spawn_post_sudo_reapplier(outer: &OuterTty) {
             );
             if fd >= 0 {
                 let mut t: libc::termios = std::mem::zeroed();
-                if libc::tcgetattr(fd, &mut t) == 0 {
-                    sane_cooked(&mut t);
-                    libc::tcsetattr(fd, libc::TCSAFLUSH, &t);
+                if libc::tcgetattr(fd, &mut t) == 0 && output_lane_broken(&t) {
+                    cure_output_lane(&mut t);
+                    libc::tcsetattr(fd, libc::TCSANOW, &t);
+                    let prev = set_fd_nonblocking(fd);
+                    write_fd_best_effort(fd, super::TERMINAL_RESTORE_SEQUENCE.as_bytes());
+                    restore_fd_flags(fd, prev);
                 }
-                let prev = set_fd_nonblocking(fd);
-                write_fd_best_effort(fd, super::TERMINAL_RESTORE_SEQUENCE.as_bytes());
-                restore_fd_flags(fd, prev);
                 libc::close(fd);
             }
         }

@@ -551,13 +551,19 @@ app's stuck modes, a screen that survived it all), `zelynic
 --reset-terminal` (NIGHT-hunt-31) is the in-place rescue: five
 defense-in-depth layers (ANSI restore, ANSI clear, `stty sane`,
 `reset`, `tput reset`) plus the sudo-interposition lane
-(NIGHT-improve-31: under sudo's `use_pty` the command's fds are a
+(NIGHT-improve-31, its post-exit half re-shaped in
+NIGHT-improve-34: under sudo's `use_pty` the command's fds are a
 throwaway pty, so the rescue resolves the user's REAL terminal
-through the sudo monitor, repairs it directly, and leaves a
-bounded orphan that re-applies the fix after sudo exits — the
-moment the monitor's saved-snapshot restore would otherwise re-break
-it), works with or without sudo, blind-typed when the screen
-shows nothing.
+through the sudo monitor and repairs it directly — and after sudo
+exits, the bounded orphan READS the terminal before touching it:
+sudo's own exit-restore skips when the flags were changed under
+it, so the usual case needs no second touch at all, and when the
+monitor's raw residue IS still there the orphan cures ONLY the
+output lane (OPOST|ONLCR, the anti-staircase pair — never the
+input flags, so the shell's live line editor keeps its own echo:
+the blanket re-apply it replaces double-echoed and ate typed
+characters after a HEALTHY-terminal rescue), works with or
+without sudo, blind-typed when the screen shows nothing.
 
 #### The frame, line by line — the annotated reference
 
@@ -905,7 +911,7 @@ their bytes (the closing design is documented in
 | `bootstrap-ebpf.sh` looks stuck on the bpf-linker download | It is the one big fetch (~100 MB) and can take minutes on slow links. On a terminal the script shows a live progress bar for exactly this step (NIGHT-hunt-24); piped/logged runs stay quiet. Killing it mid-download is safe — re-running skips whatever already finished. |
 | `error: missing manifest in toolchain 'nightly-...'` from rustup, or a build dying inside rustup commands | The dated nightly install is damaged — an interrupted `rustup toolchain install` (Ctrl-C, power loss, full disk) leaves the toolchain listed while its manifests are gone, so every component operation fails even though `rustc` itself still runs (which is why it slips past naive checks). Fix: run `./scripts/dev/bootstrap-ebpf.sh` again — it detects the damaged state, removes the toolchain, and reinstalls it from scratch, no manual rustup commands (NIGHT-hunt-27); the build.rs preflight names this exact state with the same one-command repair. |
 | Monitor won't exit | Press `q` — the only quit key (NIGHT-hunt-16). ESC and Ctrl+C are deliberately drained, never treated as quit. If a wedged terminal swallows the `q` byte: `pkill zelynic` from another shell — the violent-death guard (NIGHT-boost-33) restores the terminal itself (termios, main screen, cursor). |
-| Screen broken after `kill -9` / terminal garbled | `zelynic --reset-terminal` (NIGHT-hunt-31) — the in-place five-layer rescue: ANSI restore + clear, `stty sane` (the kernel-side raw mode no escape byte reaches), `reset`, `tput reset` (when run as root, the three externals resolve through the pinned system PATH, `/usr/sbin:/usr/bin:/sbin:/bin` — the NIGHT-lts-1 defense-in-depth belt; the common no-sudo rescue is unchanged). Works with or without sudo, blind-typed: type it and press Enter even if the screen shows nothing. Under sudo the rescue additionally targets the REAL terminal (NIGHT-improve-31): sudo 1.9.14+ interposes a pty by default, so the rescue's own fds are a throwaway pseudo-terminal — it discovers the user's terminal through the sudo monitor (`SUDO_PID`), repairs it directly, redirects `stty sane`/`reset` onto it, and leaves a bounded orphan that re-applies the fix after sudo exits (the monitor's exit would otherwise restore the broken snapshot it saved at start). The guard (NIGHT-boost-33) restores the terminal automatically on violent deaths; the flag is the explicit recovery for the residual cases (guard could not arm, foreign app's stuck modes, SGR pen linger). |
+| Screen broken after `kill -9` / terminal garbled | `zelynic --reset-terminal` (NIGHT-hunt-31) — the in-place five-layer rescue: ANSI restore + clear, `stty sane` (the kernel-side raw mode no escape byte reaches), `reset`, `tput reset` (when run as root, the three externals resolve through the pinned system PATH, `/usr/sbin:/usr/bin:/sbin:/bin` — the NIGHT-lts-1 defense-in-depth belt; the common no-sudo rescue is unchanged). Works with or without sudo, blind-typed: type it and press Enter even if the screen shows nothing. Under sudo the rescue additionally targets the REAL terminal (NIGHT-improve-31, the post-exit half re-shaped in NIGHT-improve-34): sudo 1.9.14+ interposes a pty by default, so the rescue's own fds are a throwaway pseudo-terminal — it discovers the user's terminal through the sudo monitor (`SUDO_PID`), repairs it directly, and redirects `stty sane`/`reset` onto it. After sudo exits, a bounded orphan re-applies ONLY what is still broken, and only the output lane: sudo's own exit-restore skips when the flags were changed under it (which the direct repair does on purpose), so the healthy case gets zero post-exit touches, and the monitor-raw-residue case gets exactly OPOST|ONLCR back — never the input flags a live shell line editor owns (the blanket re-apply it replaces double-echoed typing and ate the first typed character after a rescue on a HEALTHY terminal). The guard (NIGHT-boost-33) restores the terminal automatically on violent deaths; the flag is the explicit recovery for the residual cases (guard could not arm, foreign app's stuck modes, SGR pen linger). |
 | Limit seems not enforced | Check `sudo zelynic status` — is the cgroup listed? Verify the app's traffic is actually flowing through the limited cgroup (`eagle-eyes <id>`). If the app was restarted after the limit was set, re-apply (see limitation #1). |
 | Two zelynic commands interfered | The lock is deliberately non-blocking: the second command exited with "another zelynic operation is in progress". Wait for the first to finish, re-run it. If pins ended up inconsistent: `recover`. |
 

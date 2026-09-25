@@ -968,3 +968,23 @@ foreign pty with SUDO_PID pointing at a monitor holder, restore
 the broken snapshot as the monitor's exit would, and read the
 real terminal back cooked — the orphan's win, after the trap that
 undid every earlier fix.
+
+NIGHT-improve-34 (the discriminated re-apply, same day) touched
+only that lane's post-exit half: the orphan's two passes gained a
+tcgetattr read and an OPOST|ONLCR conditional (and LOST a
+TCSAFLUSH + a full cooked write in the healthy branch) — still a
+one-shot early-return path, still zero render-loop call sites, so
+the frame parity above holds by construction and the benchmark is
+not re-run (the config-equivalent argument, the same reasoning the
+improve-31 A/B itself certified). The re-verified proofs: 16 pins
+green in the terminal family (the four new ones pin the
+discrimination matrix and the cure's lane purity), plus the
+re-built live harness — now a faithful sudo monitor (save,
+cfmakeraw raw, the pty relay, and sudo's REAL changed-out-from-
+under-us exit guard) around the real rescue with a zsh-style
+player: healthy-at-start, broken-at-start, and forced-restore
+scenarios all green (single-echo typing, silent orphan when
+healthy, output-lane-only cure when broken), while the SAME
+harness against the improve-31 orphan panics in every scenario —
+its TCSAFLUSH under the live reader eats the first typed
+character, the exact residue the owner kept reporting.

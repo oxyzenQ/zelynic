@@ -163,6 +163,72 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Changed
 
+- **change: NIGHT-improve-34 — the sudo rescue's post-exit
+  re-apply goes discriminated: the orphan stops fighting the
+  user's shell** — the owner's fresh live report closed the
+  improve-31 loop: `sudo zelynic --reset-terminal` on a HEALTHY
+  terminal still left typing garbled (the typed line rendered
+  twice, the prompt redrawn over it, the right-side prompt arrived
+  without its left half), while the same command without sudo was
+  clean. Two findings drive the re-shape, both read from sudo's
+  own source (lib/util/term.c, fetched and verified):
+  - **sudo's exit-restore usually SKIPS**: the monitor saves the
+    real terminal's termios at start and restores it at exit, but
+    `sudo_term_restore` declines when the terminal was "changed
+    out from under us" (its INPUT/OUTPUT flag masks no longer
+    match the monitor's cfmakeraw raw) — and the rescue's
+    in-flight direct apply sets OPOST, so the guard trips and the
+    cooked fix simply SURVIVES the monitor's exit. The orphan's
+    blanket re-apply was fighting a battle that was already won.
+  - **the blanket re-apply was the garbling**: by the orphan's
+    turn, the user's shell is mid-prompt in its own raw mode
+    (zle/readline: ICANON|ECHO off, OPOST kept on, echo managed
+    by the editor itself), and the improve-31 orphan's full
+    cooked write (ICANON|ECHO on) + TCSAFLUSH landed under that
+    live reader — the kernel's echo doubled every typed character
+    and the flush ate queued keystrokes.
+  The fix, all in src/term_reset/outer.rs: the orphan's two
+  settle passes first READ the real terminal and let the output
+  lane decide (`output_lane_broken`: OPOST|ONLCR not both set —
+  the staircase class; OPOST off is the one flag whose absence
+  breaks every shell's display, and zle/readline raw never clear
+  it, so it is the one honest discriminator between the monitor's
+  residue and a live reader's own state). Healthy: zero ioctls,
+  zero bytes — a healthy terminal after sudo exits is
+  byte-identical to the no-sudo rescue by construction. Broken
+  (the in-flight apply failed, or a killed monitor left its raw
+  holding the terminal): `cure_output_lane` — OPOST|ONLCR back on
+  and NOTHING else (TCSANOW, never a flush), plus the
+  non-destructive restore bytes. The lane purity is pinned: after
+  the cure, c_iflag, c_lflag, c_cflag, and the c_cc table are
+  byte-identical. The one documented residue: a NON-line-editor
+  reader on a terminal whose input flags a dead monitor left raw
+  gets the output cure but keeps blind typing — the plain
+  no-sudo rescue (no monitor, no orphan, the classic five layers
+  own the whole terminal) finishes that job. Four new pins (the
+  discrimination matrix: cfmakeraw and the staircase shape fire;
+  healthy cooked, zle-raw, and nothing else — the OPOST-without-
+  ONLCR half-cure still fires; and the cure's lane purity), the
+  terminal family at 16 pins green. The live end-to-end harness
+  was rebuilt as a FAITHFUL sudo monitor (the save, the
+  cfmakeraw raw, the pty relay, and sudo's real
+  changed-out-from-under-us exit guard) around the real rescue
+  module, with a zsh-style player that sets a line editor's raw,
+  draws a prompt, types, and echoes: healthy-at-start (the
+  owner's exact fresh shape), broken-at-start (the original
+  improve-31 report), and forced-restore (the belt's no-guard
+  shape) all green — single-echo typing, the orphan silent when
+  healthy, the output-lane-only cure when the broken snapshot
+  lands. The SAME harness against the improve-31 orphan PANICS in
+  every scenario: its TCSAFLUSH under the live reader eats the
+  first typed character before any doubling is even countable —
+  the exact "not yet 100% clean" residue the owner kept
+  reporting. Frame A/B skipped by construction (the lane is still
+  a one-shot early-return path with zero render-loop call sites;
+  PERFORMANCE.md carries the parity argument). SAFETY_ANALYSIS's
+  sudo anatomy corrected (the guard finding) and its ledger gains
+  the no-live-reader-stomp row; USAGE carries the re-shaped sudo
+  story in both the rescue prose and the troubleshooting row.
 - **change: NIGHT-improve-33 — the supermassive re-shape: the TRUE
   5.13 floor, the archive-latest head, and envelopes that scale
   with the runner** — the owner's three-part ask, each answered in
