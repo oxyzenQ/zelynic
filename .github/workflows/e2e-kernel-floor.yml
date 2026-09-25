@@ -192,7 +192,12 @@ jobs:
           chmod +x rootfs/init
           # PID 1 needs a console to exec onto before devtmpfs lands
           # (the kernel opens the initramfs's static /dev/console for
-          # it; the init's devtmpfs mount takes over from there).
+          # it; the init's devtmpfs mount takes over from there). The
+          # docker export ships a /dev/console entry tar could not
+          # restore as a device (a non-root extract degrades it to a
+          # placeholder file) — remove whatever landed, mknod the real
+          # char device fresh.
+          sudo rm -f rootfs/dev/console
           sudo mknod -m 600 rootfs/dev/console c 5 1
           ( cd rootfs && sudo find . -print0 | sudo cpio --null -o -H newc ) | gzip -1 > initrd.gz
           echo "initramfs: $(du -h initrd.gz | cut -f1)"
