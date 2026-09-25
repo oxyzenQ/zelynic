@@ -9,9 +9,11 @@
 //!
 //! The integration tests pin this module: every subcommand the CLI
 //! exposes must appear in the output, and it must carry the verb
-//! group headings (NIGHT-improve-5: strict / limit / block / unstrict,
-//! plus monitor and system), so adding a command or reshuffling a
-//! group without updating this module fails the suite.
+//! group headings (NIGHT-improve-5: strict / block / unstrict, plus
+//! monitor and system — NIGHT-blade-2 dissolved the one-command
+//! "limit" group when limit-all joined the strict family), so adding
+//! a command or reshuffling a group without updating this module
+//! fails the suite.
 //!
 //! Example layout (NIGHT-boost-4, owner mandate): every runnable
 //! example is an annotated PAIR — the `#` note on its own line ABOVE
@@ -45,13 +47,17 @@ pub(crate) fn print_help() {
     println_safe!();
     println_safe!("{}", brand_bold("Commands:"));
     println_safe!();
-    // NIGHT-improve-5: commands grouped by verb (strict / limit /
-    // block / unstrict, plus monitor and system) so the 14-command
-    // surface (NIGHT-boost-1: observe + top merged into eagle-eyes)
-    // scans as six chunks instead of one flat wall. Group
+    // NIGHT-improve-5: commands grouped by verb (strict / block /
+    // unstrict, plus monitor and system) so the 14-command surface
+    // (NIGHT-boost-1: observe + top merged into eagle-eyes)
+    // scans as chunks instead of one flat wall. Group
     // headings carry the same brand purple as section headings; each
     // synopsis sits on its own line with the description and
     // examples indented below — no more 120-char mixed lines.
+    // NIGHT-blade-2: strict-all rides the strict group (the former
+    // one-command "limit" group dissolved with the rename — the
+    // strict family now reads single/multi/all like block and
+    // unstrict already did).
     println_safe!("  {}", brand_bold("strict — apply rate limits"));
     println_safe!();
     println_safe!("  zelynic strict-single <target> [rate] [-d <rate>] [-u <rate>]");
@@ -82,12 +88,10 @@ pub(crate) fn print_help() {
         "sudo zelynic strict-multi brave:firefox -d 1mb -u 500kb",
     );
     println_safe!();
-    println_safe!("  {}", brand_bold("limit — bulk rate limits"));
-    println_safe!();
-    println_safe!("  zelynic limit-all [rate] [-d <rate>] [-u <rate>]");
+    println_safe!("  zelynic strict-all [rate] [-d <rate>] [-u <rate>]");
     println_safe!("    Limit ALL user apps (system apps excluded; --force-this includes them).");
-    example("limit all user apps", "sudo zelynic limit-all 500kb");
-    example("per-direction", "sudo zelynic limit-all -d 1mb -u 500kb");
+    example("limit all user apps", "sudo zelynic strict-all 500kb");
+    example("per-direction", "sudo zelynic strict-all -d 1mb -u 500kb");
     println_safe!();
     println_safe!("  {}", brand_bold("block — cut internet access"));
     println_safe!();
@@ -181,7 +185,7 @@ pub(crate) fn print_help() {
     println_safe!("{}", brand_bold("Short aliases:"));
     println_safe!("  ss = strict-single");
     println_safe!("  sm = strict-multi");
-    println_safe!("  la = limit-all");
+    println_safe!("  sa = strict-all");
     println_safe!("  bs = block-single");
     println_safe!("  bm = block-multi");
     println_safe!("  ba = block-all");

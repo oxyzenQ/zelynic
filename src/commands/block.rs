@@ -112,11 +112,12 @@ pub fn handle_block_all(force_this: bool, verbose: bool) -> Result<()> {
     let mut identity = IdentityMap::new();
     identity.refresh();
 
-    // Same "system app" definition as limit-all: uid 0 OR on the
+    // Same "system app" definition as strict-all: uid 0 OR on the
     // dangerous-target blocklist. The old filter (uid == 0 only) would
     // have blocked user-session processes like gnome-shell, pipewire,
     // and the display manager — a desktop-killer inconsistency with
-    // limit-all's guard.
+    // strict-all's guard (NIGHT-blade-2: the limit-all name is gone
+    // with the strict-family rename).
     let user_apps: Vec<_> = identity
         .all()
         .into_iter()

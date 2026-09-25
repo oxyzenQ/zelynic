@@ -77,7 +77,7 @@ privilege contract:
 
 | Surface | Root? | Contract |
 |---------|-------|----------|
-| `strict-single`/`strict-multi`/`limit-all`, `block-single`/`block-multi`/`block-all`, `unstrict`/`unstrict-all`/`recover` | required | load, attach, and pin BPF programs; write policy maps. Fail fast with a "re-run with sudo" tip before touching BPF state when run non-root |
+| `strict-single`/`strict-multi`/`strict-all`, `block-single`/`block-multi`/`block-all`, `unstrict`/`unstrict-all`/`recover` | required | load, attach, and pin BPF programs; write policy maps. Fail fast with a "re-run with sudo" tip before touching BPF state when run non-root |
 | `status`, `eagle-eyes` | required | read pinned BPF maps (same fail-fast guard) |
 | `list-apps`, `doctor` | either | pure `/proc` + `/sys` reads; `doctor` additionally reports pin state when root |
 | `--help`, `-h`, `-V`/`--version`, bare invocation | either | pure stdout, no side effects, no file or network access |
@@ -328,7 +328,7 @@ closed; the rest of the surface evaluated and kept by design.
 
 `apply_single`/`apply_group` write per-cgroup policies in a loop; a
 mid-flight write failure (map full at 1024 entries — reachable via
-`limit-all`/`block-all` on cgroup-dense systemd desktops, ENOMEM, or a
+`strict-all`/`block-all` on cgroup-dense systemd desktops, ENOMEM, or a
 map-open failure) propagated the error while the already-written prefix
 stayed ENFORCED with no mention — the inverse of the hunt-19 trap: a
 command that "failed" while silently limiting. Fix: strict

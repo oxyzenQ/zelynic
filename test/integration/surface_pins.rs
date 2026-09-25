@@ -220,7 +220,7 @@ fn test_removed_monitor_filter_flags_are_rejected() {
 /// handler.
 #[test]
 fn test_short_aliases_route_to_canonical_commands() {
-    for alias in ["ss", "sm", "la", "bs", "bm", "ba", "us", "um", "ua", "ee"] {
+    for alias in ["ss", "sm", "sa", "bs", "bm", "ba", "us", "um", "ua", "ee"] {
         let output = zelynic_cmd()
             .arg(alias)
             .output()
@@ -295,6 +295,35 @@ fn test_owner_short_alias_invocations_reach_handlers() {
         assert!(
             stderr.contains("root required"),
             "'{argv:?}' must be inside its canonical handler (root guard), got: {stderr}"
+        );
+    }
+}
+
+/// NIGHT-blade-2: the removed limit-all/la spellings (renamed
+/// strict-all/sa, the strict-family symmetry) must land users on the
+/// successor — unrecognized subcommand (exit 2) whose tip redirects
+/// to strict-all, the exact contract observe/top/eagle-eye carry.
+#[test]
+fn test_removed_limit_all_redirects_to_strict_all() {
+    for gone in ["limit-all", "la"] {
+        let output = zelynic_cmd()
+            .arg(gone)
+            .output()
+            .unwrap_or_else(|e| panic!("Failed to execute zelynic {gone}: {e}"));
+
+        assert_eq!(
+            output.status.code(),
+            Some(2),
+            "removed '{gone}' must be a usage error"
+        );
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            stderr.contains(&format!("unrecognized subcommand '{gone}'")),
+            "error must name the removed spelling, got: {stderr}"
+        );
+        assert!(
+            stderr.contains("strict-all"),
+            "removed '{gone}' must redirect to strict-all, got: {stderr}"
         );
     }
 }

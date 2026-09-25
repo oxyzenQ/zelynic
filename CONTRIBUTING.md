@@ -48,7 +48,7 @@ src/
     cleanup.rs         — unstrict / unstrict-all / recover handlers
     monitor.rs         — status / list-apps / eagle-eyes handlers
     safety.rs          — dangerous-target blocklist + guards
-    strict.rs          — strict-single / strict-multi / limit-all handlers
+    strict.rs          — strict-single / strict-multi / strict-all handlers
     rates.rs           — CLI rate-string resolution
   ebpf/
     mod.rs             — module exports

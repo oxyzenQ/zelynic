@@ -303,12 +303,18 @@ pub enum Commands {
     /// System apps (root, systemd, kthreadd, etc.) are excluded by default.
     /// Use --force-this to include system apps.
     ///
+    /// NIGHT-blade-2: renamed from limit-all/la — the strict family now
+    /// reads symmetrically end to end (strict-single/ss,
+    /// strict-multi/sm, strict-all/sa), the same single/multi/all
+    /// triple block-all/ba and unstrict-all/ua already carry. The old
+    /// spellings redirect here (cli::ux removed-subcommand table).
+    ///
     /// Examples:
-    ///   zelynic limit-all 500kb              # limit all user apps
-    ///   zelynic limit-all -d 1mb -u 500kb    # per-direction
-    ///   zelynic la 500kb                     # short alias form
-    #[command(name = "limit-all", alias = "la")]
-    LimitAll {
+    ///   zelynic strict-all 500kb              # limit all user apps
+    ///   zelynic strict-all -d 1mb -u 500kb    # per-direction
+    ///   zelynic sa 500kb                      # short alias form
+    #[command(name = "strict-all", alias = "sa")]
+    StrictAll {
         /// Rate for both download+upload (e.g., 500kb, 5.5mb)
         #[arg(value_name = "RATE")]
         rate: Option<String>,

@@ -55,10 +55,15 @@ const HELP_FOOTER: &str = "For more information, try '--help'.";
 /// the short-alias surface (one canonical name, one short form 'ee')
 /// — it joins the redirect table so the old spelling lands on the
 /// successor tip, the exact contract observe/top carry.
+///
+/// NIGHT-blade-2: limit-all/la renamed strict-all/sa (strict-family
+/// symmetry) — both old spellings join the redirect table's contract.
 const REMOVED_SUBCOMMAND_REDIRECTS: &[(&str, &str)] = &[
     ("observe", "eagle-eyes"),
     ("top", "eagle-eyes"),
     ("eagle-eye", "eagle-eyes"),
+    ("limit-all", "strict-all"),
+    ("la", "strict-all"),
 ];
 
 /// Inject the successor for a removed subcommand as clap's OWN
@@ -150,15 +155,13 @@ fn enrich_subcommand_flag_redirect(e: &mut clap::Error, cmd: &clap::builder::Com
 ///
 /// The `-V` incident that generalized this table: the fuzzy rescue
 /// scored jaro_ci("V", "verbose") = 0.714 — one matching char against
-/// a 7-char candidate clears the 0.7 bar, contradicting the old
-/// "single char never clears 0.7" note — and "version" ties at
-/// exactly 0.714, the tie broken toward `--verbose` by declaration
-/// order (later candidates win ties, mirroring clap). A lone `V` is
-/// intent-ambiguous to the fuzzy engine; this table is not.
+/// a 7-char candidate clears the 0.7 bar — and "version" tied at
+/// 0.714, declaration order breaking the tie toward `--verbose`. A
+/// lone `V` is intent-ambiguous to the fuzzy engine; this table is not.
 ///
 /// `--check-update` rides the same contract: the fuzzy rescue would
-/// suggest the very flag the user already typed (a no-op tip), and
-/// the update check is deliberately a top-level-only action.
+/// suggest the very flag the user typed (a no-op tip), and the update
+/// check is deliberately top-level-only.
 const TOP_LEVEL_FLAG_RESCUES: &[(&str, &str)] = &[
     ("help", "zelynic --help"),
     ("h", "zelynic --help"),
@@ -187,8 +190,7 @@ fn top_level_flag_rescue(typed: &str) -> Option<&'static str> {
 /// drop the native trailing escape-hatch tip first (one tip, the
 /// right one).
 ///
-/// `allow-dangerous` (NIGHT-improve-30): the retired safety-override
-/// spelling, redirected to the unified `--force-this`.
+/// `allow-dangerous` (NIGHT-improve-30): the retired spelling, redirected to the unified `--force-this`.
 const FLAG_VOCABULARY_RESCUES: &[(&str, &str)] = &[
     ("json", "--print-json"),
     ("allow-dangerous", "--force-this"),
@@ -215,10 +217,9 @@ fn flag_vocabulary_rescue(typed: &str) -> Option<&'static str> {
 /// Top-level-authority rescue first (NIGHT-improve-3 for help,
 /// NIGHT-boost-12 for version and check-update): `--help`/`-h` and
 /// `--check-update` parse at the top level only, and a typed name in
-/// that set is redirected to the top-level spelling instead of the
-/// generic rescue — which would suggest the very flag the user
-/// already typed. `-V` is global since NIGHT-boost-12, so its rescue
-/// fires only for the `--`-escaped positional case.
+/// that set is redirected to the top-level spelling — the generic
+/// rescue would suggest the very flag the user already typed. `-V` is
+/// global since NIGHT-boost-12, firing only for `--`-escaped values.
 ///
 /// The cross-tool vocabulary rescue runs next (NIGHT-boost-13):
 /// intent-clear spellings from other CLIs (`--json`) that the fuzzy
@@ -229,17 +230,16 @@ fn flag_vocabulary_rescue(typed: &str) -> Option<&'static str> {
 /// escape-hatch tip FIRST (NIGHT-boost-13): clap injects "to pass
 /// '--VERBOS' as a value, use '-- --VERBOS'" whenever the failing
 /// command merely HAS positionals, so `zelynic ss brave --VERBOS`
-/// rendered two tips at once, the suggestion and the escape hatch,
-/// violating the one-tip contract. A suggestion beats the escape
-/// hatch every time — the same priority clap's own engine uses
-/// ("did_you_mean ... should cause us to skip the -- suggestion").
+/// rendered two tips at once, violating the one-tip contract — a
+/// suggestion beats the escape hatch every time, the same priority
+/// clap's own engine uses.
 ///
 /// No-op for: every non-UnknownArgument error kind, errors that
 /// already carry a suggestion (clap's tip is never duplicated), and
 /// dashes-only inputs. Single-char inputs CAN clear the 0.7 bar —
-/// jaro_ci("V", "verbose") = 0.714, one matching char against a
-/// 7-char candidate (the NIGHT-boost-12 `-V` incident) — which is
-/// exactly why the authority rescues run before the fuzzy fallback.
+/// jaro_ci("V", "verbose") = 0.714 (the NIGHT-boost-12 `-V`
+/// incident) — which is exactly why the authority rescues run before
+/// the fuzzy fallback.
 fn enrich_unknown_arg_suggestion(e: &mut clap::Error, cmd: &clap::builder::Command) {
     if e.kind() != clap::error::ErrorKind::UnknownArgument {
         return;

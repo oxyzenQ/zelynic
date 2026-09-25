@@ -14,13 +14,15 @@ use crate::zelynic_cmd;
 /// curated reference. Extend the list when the CLI surface grows.
 /// NIGHT-improve-25: the short aliases are part of the surface and
 /// ride the same pin; the retired singular 'eagle-eye' is gone (one
-/// canonical name, one short form).
+/// canonical name, one short form). NIGHT-blade-2: limit-all/la is
+/// renamed strict-all/sa — the retired spellings must NOT appear
+/// (the redirect table owns them now, exit 2 with the successor tip).
 #[test]
 fn test_help_lists_every_command() {
     const KNOWN_COMMANDS: [&str; 26] = [
         "strict-single",
         "strict-multi",
-        "limit-all",
+        "strict-all",
         "block-single",
         "block-multi",
         "block-all",
@@ -35,10 +37,11 @@ fn test_help_lists_every_command() {
         "ee",
         "doctor",
         "strict",
-        // NIGHT-improve-25: the ten two-letter aliases.
+        // NIGHT-improve-25: the ten two-letter aliases (NIGHT-blade-2:
+        // 'sa' replaces 'la' in the strict-family rename).
         "ss",
         "sm",
-        "la",
+        "sa",
         "bs",
         "bm",
         "ba",
@@ -81,6 +84,12 @@ fn test_help_lists_every_command() {
         !stdout.contains("zelynic observe") && !stdout.contains("zelynic top "),
         "--help must not document the merged observe/top commands, got:\n{stdout}"
     );
+    // NIGHT-blade-2: the retired limit-all/la spellings must not
+    // linger on the reference — the redirect table owns them now.
+    assert!(
+        !stdout.contains("limit-all"),
+        "--help must not document the removed 'limit-all' command (NIGHT-blade-2), got:\n{stdout}"
+    );
     // NIGHT-improve-25: the singular 'eagle-eye' alias is removed —
     // its retired shorthand wording must not linger (a bare
     // substring check cannot be used: 'eagle-eyes' contains it).
@@ -108,7 +117,7 @@ fn test_help_short_aliases_use_equals_pairing() {
     const PAIRS: [&str; 10] = [
         "ss = strict-single",
         "sm = strict-multi",
-        "la = limit-all",
+        "sa = strict-all",
         "bs = block-single",
         "bm = block-multi",
         "ba = block-all",
@@ -132,15 +141,17 @@ fn test_help_short_aliases_use_equals_pairing() {
 }
 
 /// NIGHT-improve-5: the reference groups commands by verb — strict,
-/// limit, block, unstrict (owner's grouping), plus monitor and system —
-/// so the command surface scans as six chunks. Pins the group
-/// headings in --help (NIGHT-hunt-12: the man page renderer is gone,
-/// so --help is the only pinned surface).
+/// block, unstrict (owner's grouping), plus monitor and system — so
+/// the command surface scans as chunks. Pins the group headings in
+/// --help (NIGHT-hunt-12: the man page renderer is gone, so --help is
+/// the only pinned surface). NIGHT-blade-2: the one-command "limit"
+/// group is dissolved — limit-all joined the strict family as
+/// strict-all, so the strict group now carries single/multi/all and
+/// the retired heading must not linger.
 #[test]
 fn test_help_groups_commands_by_verb() {
-    const GROUPS: [&str; 6] = [
+    const GROUPS: [&str; 5] = [
         "strict — apply rate limits",
-        "limit — bulk rate limits",
         "block — cut internet access",
         "unstrict — remove limits & recover",
         "monitor — traffic visibility",
@@ -160,6 +171,10 @@ fn test_help_groups_commands_by_verb() {
             "--help must carry the '{g}' group heading"
         );
     }
+    assert!(
+        !stdout.contains("limit — bulk rate limits"),
+        "--help must not carry the dissolved 'limit' group heading (NIGHT-blade-2), got:\n{stdout}"
+    );
 }
 
 /// NIGHT-boost-4: example annotations sit on their OWN line above the
