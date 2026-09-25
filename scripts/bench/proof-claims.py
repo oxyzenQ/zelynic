@@ -66,6 +66,20 @@ root required for the live run, --self-test for CI without root):
       and the row prints the actual number — nothing is rounded
       into honesty.
 
+  claim 5 — resource honesty (NIGHT-lts-6: the owner's "verify ram,
+    cpu, io, etc usage — this project is critical infra not a
+    toy" ask). The one-shot CLI's OWN footprint is measured with
+    the kernel's own accounting: wait4(2) rusage of a canonical
+    strict-single attach — peak RSS (ru_maxrss), CPU seconds
+    (ru_utime + ru_stime), block IO (ru_inblock + ru_oublock)
+    against generous bounds, the real numbers printed. The
+    kernel-side cost is measured where it lives: bpftool's
+    run_time_ns / run_cnt on the attached programs (average
+    nanoseconds per run after a saturating window) — the "no
+    daemon, no battery drain" claim's quantitative half. Rootless
+    pins: the verdict math (self-test) and the claims ledger
+    (docs/CLAIMS_VERIFICATION.md).
+
 Usage:
   sudo ./scripts/bench/proof-claims.sh               # full claims audit (~1 min)
   sudo ./scripts/bench/proof-claims.sh --quick        # faster windows (~30s)
@@ -120,6 +134,15 @@ PRECISION_RATE_FALLBACK = 20_000_000
 ACCOUNTING_ERR_MAX_FULL = 0.01  # 1.0% over a 30s window
 ACCOUNTING_ERR_MAX_QUICK = 0.02  # 2.0% over a 10s window
 
+# NIGHT-lts-6 claim 5 bounds: the one-shot CLI's own footprint. The
+# bounds are deliberately generous — the rows PRINT the real numbers
+# (nothing rounded into honesty); a bound exists only to fail a
+# REGRESSION loudly (a leak, a pathological load path).
+FOOTPRINT_RSS_MAX_MIB = 64.0  # static musl binary + embedded eBPF objects
+FOOTPRINT_CPU_MAX_S = 5.0  # the attach window: load + pin + policy write
+FOOTPRINT_BLOCK_IO_MAX = 256  # ru_inblock+oublock: no data-plane IO belongs here
+FOOTPRINT_KRUN_MAX_NS = 20_000  # avg ns per attached-prog run (bpftool)
+
 SERVER = None
 CG = None
 # zelynic-named processes alive when the proof started (the no-daemon
@@ -139,6 +162,7 @@ CLAIM_STAGES = (
     ("pure-eBPF", "no tc, no nft, no LD_PRELOAD, kernel drops"),
     ("per-app", "one cgroup shaped, its neighbor free"),
     ("precision", "kernel-admitted bytes vs configured rate"),
+    ("footprint", "the CLI's own RAM/CPU/IO + kernel run time"),
 )
 
 
@@ -183,6 +207,28 @@ def nft_normalize(text):
     for pattern, repl in NFT_VOLATILE:
         text = pattern.sub(repl, text)
     return text
+
+
+def footprint_verdict(maxrss_kib, cpu_s, block_io):
+    """(ok, detail) for the one-shot CLI's own footprint (claim 5).
+
+    Pure over its inputs so the self-test pins the bounds' shape:
+    each dimension fails alone, and the detail prints the real
+    numbers — the verdict's job is to fail a regression loudly, not
+    to round anything into honesty.
+    """
+    rss_mib = maxrss_kib / 1024.0
+    ok = (
+        rss_mib <= FOOTPRINT_RSS_MAX_MIB
+        and cpu_s <= FOOTPRINT_CPU_MAX_S
+        and block_io <= FOOTPRINT_BLOCK_IO_MAX
+    )
+    detail = (
+        f"peak RSS {rss_mib:.1f} MiB (bound {FOOTPRINT_RSS_MAX_MIB:.0f}), "
+        f"CPU {cpu_s:.2f}s (bound {FOOTPRINT_CPU_MAX_S:.0f}), "
+        f"block IO {block_io} (bound {FOOTPRINT_BLOCK_IO_MAX})"
+    )
+    return ok, detail
 
 
 def witness_floor(baseline, rate_bps):
@@ -871,6 +917,81 @@ def stage_precision(baseline, quick):
     )
 
 
+def stage_footprint(quick):
+    """Claim 5 — resource honesty (NIGHT-lts-6): the one-shot CLI's
+    own RAM/CPU/IO and the attached programs' kernel run time.
+
+    The userspace half rides the kernel's own accounting: wait4(2)
+    hands the finished child's rusage — peak RSS, CPU seconds, block
+    IO — with no sampling races and no /proc parsing. The kernel
+    half reads bpftool's per-program run_time_ns / run_cnt after a
+    saturating window: the average nanoseconds one attached enforce
+    invocation costs, the number the "no daemon, no battery drain"
+    claim quietly stands on (enforcement is kernel-resident; the
+    CLI exited long before the measurement).
+    """
+    window = 2.5 if quick else 5.0
+    rate_str = bps_to_rate_str(PURE_RATE)
+
+    # The measured attach: fork the canonical strict-single, reap
+    # with wait4 for the rusage (Popen's own wait is bypassed — the
+    # pid is reaped here, the returncode handed back so Popen's
+    # destructor never double-reaps).
+    argv = [lib.BINARY, "strict-single", str(CG.ids["a"]), "-d", rate_str]
+    try:
+        child = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        _, status, ru = os.wait4(child.pid, 0)
+        child.returncode = os.waitstatus_to_exitcode(status)
+    except OSError as e:
+        lib.record("footprint: attach", "FAIL", f"spawn failed: {e}")
+        return
+    if child.returncode != 0:
+        lib.record("footprint: attach", "FAIL", f"exit {child.returncode}")
+        return
+    cpu_s = ru.ru_utime + ru.ru_stime
+    block_io = ru.ru_inblock + ru.ru_oublock
+    ok, detail = footprint_verdict(ru.ru_maxrss, cpu_s, block_io)
+    lib.record("footprint: the one-shot CLI's own cost", "PASS" if ok else "FAIL", detail)
+
+    # The kernel half: traffic through the policed hook, then the
+    # attached programs' own average run time.
+    tracked_download(window, SERVER.port)
+    ran, out = tool_snapshot(["bpftool", "-j", "prog", "show"])
+    kruns = []
+    if ran:
+        try:
+            for prog in json.loads(out or ""):
+                name = prog.get("name", "")
+                if name.startswith("enforce_"):
+                    run_ns = prog.get("run_time_ns")
+                    run_cnt = prog.get("run_cnt")
+                    if run_ns and run_cnt:
+                        kruns.append((name, run_ns / run_cnt, run_cnt))
+        except (ValueError, AttributeError, TypeError):
+            kruns = []
+    if kruns:
+        worst = max(avg_ns for _, avg_ns, _ in kruns)
+        detail = "; ".join(
+            f"{name} {avg_ns:.0f}ns/run x{cnt:,}" for name, avg_ns, cnt in sorted(kruns)
+        )
+        lib.record(
+            "footprint: kernel enforcement cost",
+            "PASS" if worst <= FOOTPRINT_KRUN_MAX_NS else "FAIL",
+            f"avg per attached-prog run {worst:.0f}ns "
+            f"(bound {FOOTPRINT_KRUN_MAX_NS:,}ns) — {detail}",
+        )
+    else:
+        lib.record(
+            "footprint: kernel enforcement cost",
+            "SKIP",
+            "bpftool absent or no run_time_ns (kernel < 5.1) — "
+            "the CLI footprint row above still stands",
+        )
+
+    # Leave the maps as the other stages found them.
+    lib.run_zel(["unstrict-all"])
+
+
 def stage_cleanup():
     out = lib.out
     out()
@@ -1045,13 +1166,42 @@ def self_test():
     ok = (
         lib.record(
             "selftest: claim registry complete",
-            "PASS" if len(CLAIM_STAGES) == 4 else "FAIL",
+            "PASS" if len(CLAIM_STAGES) == 5 else "FAIL",
             f"{len(CLAIM_STAGES)} claims registered: "
             + ", ".join(name for name, _ in CLAIM_STAGES),
         )
         == "PASS"
         and ok
     )
+    # NIGHT-lts-6 claim 5 pins: the footprint verdict's shape — the
+    # healthy attach passes, each dimension fails alone (a bound that
+    # cannot fail is a rubber stamp), and the detail prints the real
+    # numbers it was handed.
+    ok5, detail5 = footprint_verdict(8_192, 0.42, 7)
+    ok = (
+        lib.record(
+            "selftest: footprint verdict passes a healthy attach",
+            "PASS" if ok5 else "FAIL",
+            detail5,
+        )
+        == "PASS"
+        and ok
+    )
+    for label, rss, cpu, io in (
+        ("RSS", 512 * 1024, 0.4, 5),
+        ("CPU", 8_192, 30.0, 5),
+        ("block IO", 8_192, 0.4, 9_999),
+    ):
+        bad, detail_bad = footprint_verdict(rss, cpu, io)
+        ok = (
+            lib.record(
+                f"selftest: footprint verdict fails on {label} alone",
+                "PASS" if not bad else "FAIL",
+                detail_bad,
+            )
+            == "PASS"
+            and ok
+        )
     return lib.final_report(time.perf_counter(), "self-test", "the claims-proof engine is sound.")
 
 
@@ -1127,11 +1277,12 @@ def main():
             stage_pure_ebpf()
             stage_per_app(baseline)
             stage_precision(baseline, quick)
+            stage_footprint(quick)
             stage_cleanup()
         ok = lib.final_report(
             start,
             "quick" if quick else "full",
-            "zelynic's four headline claims: proven on this machine, live.",
+            "zelynic's five headline claims: proven on this machine, live.",
         )
         exit_code = 0 if ok else 1
     except Exception as e:  # noqa: BLE001 - report, then still clean up
@@ -1144,7 +1295,7 @@ def main():
         lib.final_report(
             start,
             "quick" if quick else "full",
-            "zelynic's four headline claims: proven on this machine, live.",
+            "zelynic's five headline claims: proven on this machine, live.",
         )
         exit_code = 1
     finally:
