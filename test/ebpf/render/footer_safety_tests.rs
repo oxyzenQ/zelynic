@@ -74,6 +74,7 @@ fn saturated_session_renders_without_panic() {
         &identity,
         None,
         Duration::from_secs(1),
+        Duration::from_secs(1),
         &mut session,
         Duration::from_secs(70),
         classic(),

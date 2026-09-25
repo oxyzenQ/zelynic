@@ -46,6 +46,10 @@ use crate::output::{grey, signature_footer};
 /// height-aware here too — the caller already probed it once).
 /// `uptime` (NIGHT-boost-17) is the monitor's session age, rendered
 /// as the grey uptime line below the footer, the frame's last row.
+/// `interval` is the configured cadence (the status line's identity)
+/// and `span` the MEASURED poll-to-poll span (NIGHT-lts-3) the rate
+/// row divides this frame's deltas by — the same honest denominator
+/// the ranked table's rate columns use.
 #[allow(clippy::too_many_arguments)]
 pub fn render_eagle_focus(
     lines: &mut Vec<String>,
@@ -54,6 +58,7 @@ pub fn render_eagle_focus(
     conns: Option<&ConnectionMap>,
     cgroup_id: u32,
     interval: Duration,
+    span: Duration,
     uptime: Duration,
     geo: FrameGeometry,
 ) {
@@ -102,7 +107,7 @@ pub fn render_eagle_focus(
         ));
         lines.push(format!(
             "  rate      {}",
-            format_rate_or_dash(rate_bps(c.ingress_bytes.saturating_add(c.bytes), interval,))
+            format_rate_or_dash(rate_bps(c.ingress_bytes.saturating_add(c.bytes), span,))
         ));
         lines.push(format!(
             "  lifetime  {}",
@@ -210,6 +215,7 @@ mod tests {
             None,
             7001,
             Duration::from_secs(1),
+            Duration::from_secs(1),
             Duration::from_secs(70),
             FrameGeometry {
                 width: 80,
@@ -244,6 +250,7 @@ mod tests {
             &IdentityMap::new(),
             None,
             73386,
+            Duration::from_secs(1),
             Duration::from_secs(1),
             Duration::from_secs(70),
             FrameGeometry {

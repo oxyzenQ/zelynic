@@ -209,6 +209,7 @@ fn full_frame_wears_the_border() {
         &crate::ebpf::identity::IdentityMap::new(),
         None,
         Duration::from_secs(1),
+        Duration::from_secs(1),
         &mut SessionState::new(),
         Duration::from_secs(70),
         FrameGeometry {
@@ -255,6 +256,7 @@ fn full_frame_wears_the_border() {
         &[],
         &crate::ebpf::identity::IdentityMap::new(),
         None,
+        Duration::from_secs(1),
         Duration::from_secs(1),
         &mut SessionState::new(),
         Duration::from_secs(70),

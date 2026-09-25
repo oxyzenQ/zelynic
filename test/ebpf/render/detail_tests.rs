@@ -425,6 +425,7 @@ fn detail_hides_and_cuts_on_narrow_frames() {
         &identity,
         Some(&conns),
         Duration::from_secs(1),
+        Duration::from_secs(1),
         &mut SessionState::new(),
         Duration::from_secs(70),
         FrameGeometry {
@@ -454,6 +455,7 @@ fn detail_hides_and_cuts_on_narrow_frames() {
         &[],
         &identity,
         Some(&conns),
+        Duration::from_secs(1),
         Duration::from_secs(1),
         &mut SessionState::new(),
         Duration::from_secs(70),

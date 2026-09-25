@@ -57,10 +57,13 @@
 //! frame's canonical text column instead of floating past the blank
 //! rank cell.
 //!
-//! Realtime interval: callers pass the poll interval so the RATE
-//! column converts per-frame deltas into bytes-per-second
-//! (`--interval`, clamped 1s..60s at parse time in
-//! `parse_monitor_interval`).
+//! Realtime interval: callers pass the configured poll cadence (the
+//! status line's identity, clamped 1s..60s at parse time in
+//! `parse_monitor_interval`) AND the MEASURED poll-to-poll span
+//! (NIGHT-lts-3) the RATE columns divide per-frame deltas by — the
+//! counters accumulated over the measured span, so bytes-per-second
+//! reads exact, not cadence-approximate (the beat scheduler fires on
+//! the first 50ms wake past the cadence).
 //!
 //! Module map (mirrors the limiter/ split, owner LOC cap):
 //! - [`eagle`] — the ranked eagle-eyes renderer (default + filtered)
