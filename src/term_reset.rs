@@ -21,7 +21,14 @@
 //!
 //! The recovery is defense-in-depth, five layers (the cosmostrix
 //! contract, ported to this crate's crossterm-free stack — raw ANSI
-//! bytes + termios ioctls + the classic external utilities):
+//! bytes + termios ioctls + the classic external utilities) — plus
+//! the layer-0 interposed-terminal lane (NIGHT-improve-31, the
+//! `outer` child module): under sudo's `use_pty` interposition fd 0
+//! is a throwaway pty, so the rescue ALSO discovers the user's real
+//! terminal through the sudo monitor, applies every layer to it
+//! directly, and leaves a bounded orphan that re-applies the fix
+//! AFTER the monitor's exit-restore — the one moment the broken
+//! snapshot lands. See `term_reset/outer.rs` for the anatomy.
 //!
 //! 1. The termios restore, in-process and FIRST (NIGHT-improve-30,
 //!    the maturity the first port owed): `tcsetattr` of a sane cooked
@@ -86,6 +93,12 @@
 
 use std::io::IsTerminal;
 use std::os::unix::io::AsRawFd;
+
+// The interposed-terminal lane (NIGHT-improve-31): a src/term_reset/
+// child module — the discovery, the direct apply, and the post-sudo
+// orphan — kept a sibling so this file stays the five-layer contract
+// it is pinned as (the LOC cap discipline).
+mod outer;
 
 // ── The raw-fd helpers (shared with the violent-death guard) ─────────
 //
@@ -326,11 +339,20 @@ const RESCUE_SYSTEM_PATH: &str = "/usr/sbin:/usr/bin:/sbin:/bin";
 
 /// Spawn one rescue utility, best-effort. When the rescue runs as
 /// root, the spawn pins [`RESCUE_SYSTEM_PATH`] — see the const's
-/// docs for the boundary and the trade.
-fn spawn_rescue_util(name: &str, arg: Option<&str>) {
+/// docs for the boundary and the trade. Under interposition
+/// (NIGHT-improve-31) `stdin_tty` redirects the utility's stdin onto
+/// the user's REAL terminal: `stty sane`, `reset`, and `tput reset`
+/// all operate on their standard input, and the inherited fd 0 is
+/// the throwaway sudo pty they would otherwise repair.
+fn spawn_rescue_util(name: &str, arg: Option<&str>, stdin_tty: Option<&std::path::Path>) {
     let mut cmd = std::process::Command::new(name);
     if let Some(a) = arg {
         cmd.arg(a);
+    }
+    if let Some(tty) = stdin_tty {
+        if let Ok(f) = std::fs::File::open(tty) {
+            cmd.stdin(f);
+        }
     }
     if nix::unistd::geteuid().is_root() {
         cmd.env("PATH", RESCUE_SYSTEM_PATH);
@@ -348,6 +370,16 @@ fn spawn_rescue_util(name: &str, arg: Option<&str>) {
 /// could — and a line printed after `tput reset` would land on the
 /// fresh screen as residue the user did not ask for).
 pub(crate) fn reset_terminal_emergency() {
+    // Layer 0 (NIGHT-improve-31): discover the REAL terminal when the
+    // rescue runs interposed (sudo use_pty). Everything below keeps
+    // its classic behavior — the layers still run against fd 0 and
+    // fd 1 first (right for every non-interposed context, harmless
+    // under the interposer, whose relay carries the escape bytes to
+    // the real terminal anyway) — while the outer lane ALSO carries
+    // the termios-class layers to the terminal the user is actually
+    // staring at, which no fd-0/fd-1 operation can reach.
+    let outer = outer::discover();
+
     // Layer 1: the termios restore — FIRST, before any byte. The
     // ioctl always completes (the guard's lesson), echo comes back so
     // the user sees the later layers work, and TCSAFLUSH drops the
@@ -368,16 +400,30 @@ pub(crate) fn reset_terminal_emergency() {
         restore_fd_flags(1, prev_flags);
     }
 
+    // The interposed lane's direct apply (NIGHT-improve-31 move 2):
+    // the same termios + ANSI layers, on the real terminal by path.
+    // The belt for the monitors that do not mirror pty changes to
+    // the real tty, and the in-flight fix for the ones that do —
+    // until their exit-restore undoes it, which is what the orphan
+    // below exists to outlive.
+    if let Some(real) = &outer {
+        outer::apply_rescue_to_path(&real.path);
+    }
+
     // Layers 4-5: the external utilities, only where a terminal can
     // receive them, and — when the rescue runs as root — resolved
     // through the pinned system PATH (see [`RESCUE_SYSTEM_PATH`]).
     // `stty sane` is the canonical belt over layer 1 (the full sane
     // set, exotic flags included); `reset` and `tput reset` carry the
-    // terminal's own init strings. All best-effort — a minimal
-    // container without ncurses still leaves layers 1-3 done, which
-    // is the state the shell needs.
+    // terminal's own init strings. Under interposition their stdin
+    // is redirected onto the real terminal (NIGHT-improve-31) — all
+    // three operate on stdin, which under use_pty is the throwaway
+    // pty. All best-effort — a minimal container without ncurses
+    // still leaves layers 1-3 done, which is the state the shell
+    // needs.
     if std::io::stdin().is_terminal() || std::io::stdout().is_terminal() {
-        spawn_rescue_util("stty", Some("sane"));
+        let stdin_tty = outer.as_ref().map(|real| real.path.as_path());
+        spawn_rescue_util("stty", Some("sane"), stdin_tty);
         // `reset`/`tput reset` run only with a TERM set: without one,
         // ncurses' tset prompts "Terminal type?" on the tty and WAITS
         // for an answer — a rescue that hangs is worse than one that
@@ -386,9 +432,18 @@ pub(crate) fn reset_terminal_emergency() {
         // TERM-less, exactly where the musl twin ships).
         let term = std::env::var_os("TERM");
         if term.is_some_and(|t| !t.is_empty()) {
-            spawn_rescue_util("reset", None);
-            spawn_rescue_util("tput", Some("reset"));
+            spawn_rescue_util("reset", None, stdin_tty);
+            spawn_rescue_util("tput", Some("reset"), stdin_tty);
         }
+    }
+
+    // The interposed lane's last move (NIGHT-improve-31 move 3): the
+    // bounded orphan that waits out the sudo monitor and re-applies
+    // the fix AFTER its broken-snapshot restore lands. Forked LAST —
+    // after every other layer — so the child inherits a quiet fd
+    // table; never reaped, because it must outlive this process.
+    if let Some(real) = &outer {
+        outer::spawn_post_sudo_reapplier(real);
     }
 }
 

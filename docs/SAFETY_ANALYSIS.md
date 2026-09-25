@@ -847,6 +847,79 @@ width).
   update check's argv-array curl, and the CI env-var isolation all
   re-verified at their documented state — peak.
 
+## Terminal Rescue Under Sudo Interposition (NIGHT-improve-31, 2026-09-25)
+
+The owner's live report: after a root TUI session died violently,
+`sudo zelynic --reset-terminal` left the screen staircased (the
+`%` marker at the wrong column, the prompt drawn mid-line), while
+the same command WITHOUT sudo recovered it perfectly and
+cosmostrix's identical five layers also passed. The gap was never
+the layers — it was WHICH terminal they reached.
+
+### The finding
+
+sudo 1.9.14+ enables `use_pty` by default: sudo forks a monitor
+that keeps the user's real terminal and allocates a NEW
+pseudo-terminal pair for the command. Under that interposition:
+
+1. The rescue's fd 0 is the throwaway pty. Layer 1's `tcsetattr`,
+   `stty sane`'s stdin, and `reset`'s termios fiddling all repair
+   the pty nobody is looking at.
+2. The escape bytes alone survive — the monitor relays them — so
+   the emulator-side modes reset and the screen LOOKS half-fixed,
+   while the real terminal's kernel termios stays raw.
+3. The deepest trap: the monitor saves the real terminal's termios
+   when IT starts (on the already-broken terminal) and restores
+   that broken snapshot when the command exits — so even a correct
+   in-flight fix of the real terminal is undone the instant the
+   rescue finishes. A fix that must outlive sudo has to fire AFTER
+   the monitor exits.
+
+### The mitigation (src/term_reset/outer.rs)
+
+Three moves, all best-effort, none requiring any new privilege:
+
+1. **Discover**: the real terminal is the tty held by the sudo
+   monitor — resolved through `/proc/$SUDO_PID/fd/0`, accepted only
+   when it opens, answers `isatty`, and names a DIFFERENT terminal
+   than the rescue's own (the non-`use_pty` sudo and every
+   non-sudo context fail that check and keep the classic behavior
+   exactly). An euid-gated parent fallback covers a
+   stripped-`SUDO_PID` policy.
+2. **Apply direct**: the termios restore + both ANSI sequences on
+   the real terminal by path, and the external utilities
+   (`stty sane`, `reset`, `tput reset`) with their stdin
+   redirected onto it.
+3. **Re-apply after sudo**: a bounded orphan child (the guard's
+   boost-33 discipline: renamed away from "zelynic" so
+   `pkill zelynic` cannot kill it, syscalls only after fork,
+   5 ms poll slices, a hard 10 s budget) waits for the monitor to
+   exit and re-applies the termios layer plus the NON-destructive
+   restore bytes — never the destructive clear, because the user's
+   shell prompt has already drawn by then.
+
+### The safety ledger
+
+- **No new attack surface**: the discovery opens
+  `/proc/<sudo-pid>/fd/0` and one tty by path — both operations
+  the rescue's privilege already covered. The root-run external
+  PATH pin (`/usr/sbin:/usr/bin:/sbin:/bin`, NIGHT-lts-1) is
+  unchanged and covers the redirected-stdin spawns.
+- **No terminal takeover**: the orphan opens the real terminal
+  `O_NOCTTY` (a setsid child must never adopt the user's
+  terminal) and only ever restores modes toward their defaults —
+  the mouse-contract direction rule, unchanged.
+- **No lingering process**: the orphan exits unconditionally at
+  the 10 s budget; two settle-gap passes catch the nested-sudo
+  chain, then it is gone.
+- **Verified**: unit pins (the discovery discrimination, the
+  by-path apply on a real cfmakeraw-broken pty, the bounded
+  budget — `test/terminal/outer_reset_tests.rs`) plus a live
+  end-to-end harness simulating the full interposition (break,
+  rescue on a foreign pty with `SUDO_PID`, monitor exit-restore,
+  orphan re-apply): the real terminal comes back cooked after the
+  monitor's restore, and the orphan exits.
+
 ## Verifying Safety Yourself
 
 ### Check network connections:

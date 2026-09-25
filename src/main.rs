@@ -134,12 +134,15 @@ fn try_main() -> Result<()> {
     // terminal is the one state where the user cannot read anything
     // else this binary might print, and the rescue must not ask for
     // privileges, parse targets, or touch BPF — it touches only the
-    // caller's own terminal (see src/term_reset.rs for the
-    // layer-by-layer contract: the in-process termios restore FIRST —
-    // NIGHT-improve-30, the maturity the first port owed — then the
-    // ANSI restore, the ANSI reset, `stty sane`, `reset`/`tput
-    // reset`). Silent by design: the shell prompt returning on a
-    // clean screen is the feedback.
+    // caller's own terminal (ANSI bytes out, termios via ioctl; and
+    // under sudo's interposed pty, NIGHT-improve-31, the user's real
+    // terminal discovered through the sudo monitor — see
+    // src/term_reset.rs for the layer-by-layer contract: the
+    // in-process termios restore FIRST — NIGHT-improve-30, the
+    // maturity the first port owed — then the ANSI restore, the
+    // ANSI reset, `stty sane`, `reset`/`tput reset`). Silent by
+    // design: the shell prompt returning on a clean screen is the
+    // feedback.
     if cli.reset_terminal {
         term_reset::reset_terminal_emergency();
         return Ok(());
