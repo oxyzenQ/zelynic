@@ -154,20 +154,21 @@ full supermassive matrix) and ends with a next-steps menu
 ```
 
 The whole bring-up-plus-batteries flow runs on CI too (NIGHT-ultimate-3,
-the re-issued label — the E2E workflow): a push touching core files
-triggers `.github/workflows/e2e.yml`, which runs this exact owner-facing
-path (`setup.sh` itself, not a CI-shaped shortcut) and then both
-supermassive batteries under sudo on real hosted-runner kernels, so
-"does it work end to end?" is answered per push
-— no VirtualBox session needed; `workflow_dispatch` fires the same
-pipeline on demand as the pre-release qualification run. The hosted
-images have all moved onto 6.x HWE kernels, so the 5.15 floor has its
-own proof: the Kernel Floor workflow (NIGHT-improve-29) boots a KVM
-micro-VM on a hosted runner — a real jammy 5.15 kernel, the
-ubuntu:22.04 container as its userland — and runs the depth battery
-plus the observer/guard probe inside, weekly and on demand, with no
-self-hosted runner (a plain container cannot change the host kernel;
-the micro-VM is the honest container-shaped answer).
+the re-issued label; consolidated in NIGHT-improve-31): a push touching
+core files triggers `.github/workflows/supermassive.yml`, which runs
+this exact owner-facing path (`setup.sh` itself, not a CI-shaped
+shortcut) and then BOTH supermassive batteries inside a KVM micro-VM
+booting a real jammy 5.15 kernel on a hosted runner — the
+ubuntu:22.04 container as its userland — under two resource
+envelopes: "supermassive test - minimum specs" (1 vCPU / 1536 MB,
+the dense-little-host slice) and "supermassive test - best specs"
+(4 vCPU / 8 GB, the big-host width), so "does it work end to end?"
+is answered per push on the release floor AND across the machine
+span — no VirtualBox session needed; `workflow_dispatch` fires the
+same pair on demand as the pre-release qualification run, and a
+weekly run keeps the floor proven between pushes (a plain container
+cannot change the host kernel; the micro-VM is the honest
+container-shaped answer).
 
 Building needs the pinned Rust toolchain (rustup installs the exact
 version from `rust-toolchain.toml`) plus the eBPF nightly pair — and
