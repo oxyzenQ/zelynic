@@ -163,6 +163,52 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Changed
 
+- **change: NIGHT-improve-31 (audit remainings) — the dense-host
+  counter-capacity raise and the build.rs split plan: the two
+  threads the owner approved carrying until no remainings** —
+  the exploration pair, each answered at its honest depth:
+  - **The map capacity (the "host server padat" thread)**: the
+    counter maps' 1024 was itself a raise (improve-8, from the
+    port-time 256 — Kubernetes nodes and container hosts filled
+    the 256 maps silently, every further cgroup uncounted), and
+    the dense-host question re-opens the SAME hole at 4x: a big
+    Kubernetes node or a CI runner with per-job systemd scopes
+    pushes past 1024 live cgroups WITH traffic, and the 1025th
+    cgroup's packets fall into the same silent allow-and-skip.
+    The raise: COUNTER_MAP_MAX_ENTRIES 1024 → 4096, joining the
+    socket cookie maps' capacity class (SOCKET_MAP_MAX_ENTRIES),
+    mirrored by the userspace leaderboard bound
+    (MAX_TRACKED_CGROUPS, the boost-16 defense-in-depth) —
+    session-scoped and unpinned, so no pin or schema migration,
+    192 KiB of kernel memory per session, and the capacity is a
+    map-creation attribute: zero verifier-cost movement, zero
+    codegen change (the growth-bound pins are constant-driven and
+    ride along; the "no 1025th entry" strings read 4097th now).
+    The POLICY map deliberately stays at 1024: it is pinned and
+    owner-curated (limits are hand-applied per app, not per
+    pod), the all-or-nothing rollback + recover machinery already
+    own its full-map path (SAFETY_ANALYSIS finding 1), and a
+    capacity change there forces pin recreation — an honest
+    asymmetry, not an oversight. USAGE limitation 11, STABILITY's
+    two growth fences, and PURE_RUST_EVALUATION's map contract
+    table + delta 3 all carry the new number with the history.
+  - **The build.rs split (the long-term candidate thread)**: the
+    1239-line LOC_EXEMPT is real debt, but the exemption's
+    supply-chain argument (a build script is one self-contained
+    file; a split means a build-dependencies crate) exempts a
+    CRATE split, not a FILE split — a build script is also a
+    plain crate root, so `#[path]`-included modules split it with
+    zero new dependencies. The plan now lives AT the marker: a
+    three-phase mechanical map (validate.rs: the ELF validators
+    + endian readers; flags.rs: the RUSTFLAGS surgery; preflight
+    .rs: the toolchain probes — the orchestration spine stays in
+    build.rs), each phase a pure move, gates green in between,
+    triggered by the next build.rs change that would grow the
+    file instead of fitting it. The refactor itself is NOT done
+    tonight by the owner's own framing (long-term candidate) and
+    the no-overengineering rule: build.rs is the highest
+    blast-radius file in the repo, and a document-plus-trigger is
+    the correct size for the ask.
 - **change: NIGHT-improve-31 (CI half) — the E2E estate
   consolidates into the two Supermassive jobs: the full pipeline,
   setup start to stresstest finish, on the KVM 5.15 floor under

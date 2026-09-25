@@ -81,15 +81,16 @@ impl SessionAcc {
 
 /// Session leaderboard growth bound (NIGHT-boost-16, the LTS
 /// endurance half of the audit): the observer's two counter maps
-/// hold `COUNTER_MAP_MAX_ENTRIES = 1024` slots each, and the kernel
+/// hold `COUNTER_MAP_MAX_ENTRIES = 4096` slots each (NIGHT-improve-31,
+/// the dense-host raise), and the kernel
 /// silently stops counting cgroups beyond a full map — so deltas
-/// can only ever name at most 1024 distinct cgroups. The userspace
+/// can only ever name at most 4096 distinct cgroups. The userspace
 /// accumulator mirrors that bound as defense-in-depth: if a future
 /// kernel, map type, or bug ever produced more, the monitor's
 /// memory stays capped and the honest shape of the board (the
 /// kernel's own ceiling) is preserved instead of leaking one
 /// HashMap entry per cgroup churn on a months-long monitor.
-pub(crate) const MAX_TRACKED_CGROUPS: usize = 1024;
+pub(crate) const MAX_TRACKED_CGROUPS: usize = 4096;
 
 /// The leaderboard: per-cgroup accumulated traffic. Pure data — the
 /// rank-1 takeover bookkeeping that drove the champion's blink window

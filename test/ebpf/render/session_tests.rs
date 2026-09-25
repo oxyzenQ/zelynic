@@ -196,7 +196,8 @@ fn absorb_saturates_and_stays_saturated() {
 }
 
 /// Growth bound (MAX_TRACKED_CGROUPS): the board mirrors the
-/// kernel's own 1024-entry counter-map ceiling — a 1025th
+/// kernel's own 4096-entry counter-map ceiling (NIGHT-improve-31,
+/// the dense-host raise) — a 4097th
 /// distinct cgroup cannot rank, while every tracked cgroup
 /// keeps updating inside the bound.
 #[test]
@@ -208,7 +209,7 @@ fn leaderboard_growth_is_bounded_at_the_map_ceiling() {
     assert_eq!(session.len(), MAX_TRACKED_CGROUPS);
     // A fresh cgroup past the bound: not admitted.
     session.absorb(&frame(u32::MAX, 100, 100));
-    assert_eq!(session.len(), MAX_TRACKED_CGROUPS, "no 1025th entry");
+    assert_eq!(session.len(), MAX_TRACKED_CGROUPS, "no 4097th entry");
     assert!(session.ranked().iter().all(|(id, _)| *id != u32::MAX));
     // A tracked cgroup inside the bound: still updates.
     session.absorb(&frame(1, 1000, 0));

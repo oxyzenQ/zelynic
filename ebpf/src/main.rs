@@ -14,8 +14,9 @@
 // non-linear skbs the C direct-access path silently skips, the
 // ingress insert result is ignored exactly like the C twin (commented
 // here so a swallow audit finds the rationale in place), and the
-// counter map capacity is 1024 entries instead of the C twin's 256
-// (NIGHT-improve-8: server LTS — see COUNTER_MAP_MAX_ENTRIES below).
+// counter map capacity is 4096 entries instead of the C twin's 256
+// (NIGHT-improve-8 raised it to 1024, NIGHT-improve-31 to 4096 —
+// see COUNTER_MAP_MAX_ENTRIES below).
 // A fourth addition (NIGHT-boost-26, no C twin ever had it): the two
 // per-socket cookie maps below — per-endpoint byte attribution, the
 // 2.4 frontier item. bpf_get_socket_cookie is legal in cgroup_skb
@@ -97,11 +98,23 @@ use stats::{CgroupStats, book_packet, bump_socket_bytes};
 /// nothing for it; the insert failure path returns allow-and-skip).
 /// The owner rule is "desktop Linux, even server use": a monitor
 /// that quietly under-reports on exactly the hosts with the most
-/// cgroups is a stability hole, not a footnote. These maps are
+/// cgroups is a stability hole, not a footnote.
+///
+/// NIGHT-improve-31 (the dense-host exploration, the audit
+/// remainings): 1024 → 4096, joining the socket cookie maps'
+/// capacity class (SOCKET_MAP_MAX_ENTRIES below). The improve-8
+/// hole was scale-dependent, and the dense-host question the owner
+/// asked ("host server padat") re-opens it at 4x: a big Kubernetes
+/// node or a CI runner with per-job systemd scopes pushes past
+/// 1024 live cgroups WITH traffic, and the 1025th cgroup's packets
+/// fall into the same silent allow-and-skip. The maps stay
 /// unpinned and session-scoped (created fresh at every eagle-eyes
-/// run), so the raise carries no pin or schema migration; kernel
-/// memory cost is 2 x 1024 x 24 B = 48 KiB for a session.
-const COUNTER_MAP_MAX_ENTRIES: u32 = 1024;
+/// run), so the raise carries no pin or schema migration;
+/// kernel memory cost is 2 x 4096 x 24 B = 192 KiB for a session
+/// (a rounding error on any host dense enough to need it), and the
+/// capacity is a map-creation attribute — zero verifier-cost
+/// movement, zero codegen change.
+const COUNTER_MAP_MAX_ENTRIES: u32 = 4096;
 
 #[allow(non_upper_case_globals)]
 #[map]
