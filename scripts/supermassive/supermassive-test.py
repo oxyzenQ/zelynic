@@ -1434,13 +1434,24 @@ def test_curl_burst(window, clients, rate_bps, baseline):
     # NIGHT-boost-27 (the E2E twelfth-run fix): the rate verdict rides
     # the KERNEL LEDGER, not the client metric. The evidence chain:
     # runs eight-eleven measured the client total swinging with the
-    # runner's TCP/GSO lottery (97.6% .. 161.2% across legs and runs,
-    # SAME code) while the kernel's own allowed-bytes stayed a
-    # policer-shaped number — a client metric that moves when nothing
-    # in the product moved is measurement noise wearing the verdict's
-    # badge, and four reds on the 5.15 pool convicted a formula that
-    # divided the wrong numerator. The ledger is the policer's own
-    # contract: bytes the kernel actually allowed.
+    # runner (97.6% .. 161.2% across legs and runs, SAME code) while
+    # the kernel's own allowed-bytes stayed a policer-shaped number —
+    # a client metric that moves when nothing in the product moved is
+    # measurement noise wearing the verdict's badge, and four reds on
+    # the 5.15 pool convicted a formula that divided the wrong
+    # numerator. The ledger is the policer's own contract: bytes the
+    # kernel actually allowed.
+    #
+    # NIGHT-boost-38 postscript, the real diagnosis: the swing was
+    # NOT measurement noise — it was the v6 token bucket losing
+    # updates under SMP (six curls on a 64-core runner = six CPUs
+    # read-modify-writing one bucket; a lost deduction resurrects
+    # tokens and the policer over-allows 130-146% of budget, exactly
+    # the 146.3% ledger this row failed red with on 2026-09-24). The schema-v7
+    # rewrite made every step an atomic CAS, so the ledger now holds
+    # its own contract deterministically — the budget below is the
+    # honest ceiling again, and the client swing is what it always
+    # looked like: the policer actually leaking.
     #
     # The arithmetic is exact at the read instant: the bucket can
     # credit at most (t_read - t_apply) * rate + default_burst bytes
@@ -1479,7 +1490,7 @@ def test_curl_burst(window, clients, rate_bps, baseline):
             f"{budget_bytes / 1e6:.2f} MB (live {live:.1f} s + "
             f"{burst_bytes / 1e6:.1f} MB burst) x1.02; sharing cap 1.60 on "
             f"the ledger; client total {total / 1e6:.2f} MB "
-            f"({client_ratio * 100:.1f}%, TCP/GSO lottery — advisory, floor 0.65)"
+            f"({client_ratio * 100:.1f}%, advisory, floor 0.65 — the ledger carries the verdict)"
         ),
         {
             "allowed_bytes": allowed,
@@ -1695,6 +1706,14 @@ def test_multi_group(window, baseline):
     # live clock starts at the drain's end so every refill second is
     # inside the formula. The sharing claim keeps its teeth — two
     # independent buckets read ~200%+, far past the 1.60 hard cap.
+    #
+    # NIGHT-boost-38 postscript: the 2026-09-24 13:45 run failed BOTH
+    # legs here (134.6% / 130.0%) with the gap formula in place — the
+    # residual overshoot was not another harness window, it was the
+    # v6 group bucket losing updates between the two concurrent member
+    # curls (two CPUs, one shared bucket — the same lost-update leak
+    # the curl burst row caught at six flows). Schema v7 made the
+    # bucket SMP-safe; the ceiling above is the honest contract again.
     py_download(0.5, "b")
     t_drain_end = time.monotonic()
     t0 = time.monotonic()

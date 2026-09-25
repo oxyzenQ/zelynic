@@ -20,10 +20,13 @@
 
 // The production arithmetic itself, compiled into this test module:
 // the SAME file the BPF object builds (ebpf/src/bin/limiter.rs wires
-// it with its own #[path]). Only this test module reaches across
+// it with its own #[path]). Only the test tree reaches across
 // trees — src/ wirings stay under test/ (the gate-tree discipline).
+// NIGHT-boost-38: pub(super) so the sibling math_smp_tests reuses
+// THIS copy — one inclusion of math.rs per test binary (the
+// duplicate-mod lint clippy -D warnings rightly rejects two).
 #[path = "../../../ebpf/src/math.rs"]
-mod ebpf_math;
+pub(super) mod ebpf_math;
 
 use self::ebpf_math::{enforce, Bucket, LimiterStats, Policy, MAX_ENFORCABLE_BURST, NS_PER_SEC};
 

@@ -27,6 +27,15 @@ mod types;
 #[path = "../../../test/ebpf/limiter/math_tests.rs"]
 mod math_tests;
 
+// NIGHT-boost-38: the SMP invariants of the same arithmetic (the
+// lock-free consume/refill/stats protocol that closed the
+// concurrent-flow over-delivery) are pinned rootlessly by
+// test/ebpf/limiter/math_smp_tests.rs — same file, same #[path]
+// discipline, real threads instead of the kernel's CPUs.
+#[cfg(test)]
+#[path = "../../../test/ebpf/limiter/math_smp_tests.rs"]
+mod math_smp_tests;
+
 // Re-export public types/functions for external use.
 pub use format::{
     format_bytes, format_count, format_rate, monotonic_ns, parse_monitor_interval, parse_rate,

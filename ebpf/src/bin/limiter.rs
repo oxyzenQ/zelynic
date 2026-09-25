@@ -74,15 +74,19 @@ use math::{Bucket, LimiterStats, MAX_ENFORCABLE_BURST, Policy, enforce};
 /// with an empty drop counter; v6 (NIGHT-depthbore-1): frac_rem —
 /// the third persistent stored field, missed by the v4 clamp family
 /// — is sanitized on read in the refill math (math.rs), completing
-/// the burst/tokens/frac clamp triple; no layout change). No layout
-/// change since v2; each bump forces pinned older programs to
-/// reload into the hardened object — a one-time limit re-apply,
-/// documented in CHANGELOG.
+/// the burst/tokens/frac clamp triple; no layout change; v7
+/// (NIGHT-boost-38): SMP-safe enforcement — the bucket/stat
+/// read-modify-writes in math.rs move to lock-free atomics so two
+/// CPUs on one bucket can no longer lose updates and over-allow
+/// 130-146% of budget under concurrent flows; no layout change).
+/// No layout change since v2; each bump forces pinned older
+/// programs to reload into the hardened object — a one-time limit
+/// re-apply, documented in CHANGELOG.
 /// The BPF program never writes it — userspace stamps
 /// the pinned map after load — so the constant exists purely as the
 /// parity anchor for that three-way contract.
 #[allow(dead_code)]
-const SCHEMA_VERSION: u32 = 6;
+const SCHEMA_VERSION: u32 = 7;
 
 // ---------------------------------------------------------------------------
 // Maps. The static names ARE the userspace contract (limiter/mod.rs

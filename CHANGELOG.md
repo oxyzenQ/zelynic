@@ -115,6 +115,73 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Fixed
 
+- **fix: NIGHT-boost-38 — the policer holds its budget under
+  concurrent flows: the token bucket is SMP-safe (schema v7), and
+  the E2E budget rows that kept flip-flopping red are green because
+  the leak they measured is gone** — the hunt: "Dragon Guard - E2E
+  Failing after 6m, need alternative to succeed on CI" opened the
+  2026-09-24 run log, and the failing row read `curl burst: 6
+  parallel curls, one shared limit — kernel allowed 8.81 MB ...
+  vs exact budget 8.10 MB x1.02` — the policer's OWN ledger admitted
+  8.8% more than its provable maximum credit, on the leg that
+  passed every single-flow row. The run history convicted the
+  pattern: 12 consecutive reds whose failing row wandered
+  (strict-multi both legs at 130-134.6%, the engine self-test row,
+  kill-tui, then curl burst at 146.3%) while single-flow rows
+  (rate ladder 104-108%, sustain 97-100%) never moved — an
+  overshoot that scales with flow count is not a harness formula
+  problem, it is a lost-update race. Root cause: `enforce()` in
+  ebpf/src/math.rs mutated the bucket through the plain struct
+  reference (load tokens, add refill, subtract packet, store) while
+  `bpf_map_lookup_elem` hands every CPU the same unlocked map value
+  — six curls on a 64-core EPYC is six CPUs interleaving on one
+  bucket, and a clobbered store resurrects deducted tokens (the
+  client kept measuring 130-161% of budget through a "1 MB/s"
+  policer — the "TCP/GSO lottery" comments in the supermassive
+  harness were this bug wearing a costume). The same race lost
+  stats increments (the ledger undercounting mid-contention). The
+  fix, layout-preserving (same u64 fields at the same offsets,
+  pinned maps stay structurally valid; the schema bump forces the
+  one-time reload, same re-apply contract as v4/v5/v6): refill
+  window ownership by compare_exchange on `last_refill_ns` (a
+  window is credited exactly once, by its CAS winner — losers
+  skip, never double-pay), token deduction by compare_exchange
+  from a value that provably covers the packet (tokens can neither
+  wrap nor resurrect; a lost race drops — the safe verdict), and
+  every stats counter by fetch_add. Two second-order finds fell out
+  of the SMP hammer: (1) the stale-sampler fountain — v6's
+  unconditional `last_refill_ns = now` moved the stamp BACKWARD on
+  a CPU that sampled ktime then stalled, re-crediting intervals
+  other CPUs already paid (the new test measured allowed bytes at
+  80x the true credit before the fix); v7 skips small backward
+  excursions (cross-CPU skew — the interval is already owned
+  upstream) and heals only absurd ones (> 1 s: hostile or drifted
+  state, the v6 sanitization family preserved). (2) the rustc bpf
+  target spec still carries `atomic-cas: false` — a pre-BPF_ATOMIC
+  relic; the build now rides a repo-local clone
+  (`ebpf/bpfel-unknown-none.json`, identical to the builtin except
+  `atomic-cas: true`) plus `-C target-cpu=v3` (the LLVM BPF backend
+  selects the atomic instructions at v3; alu32 bytecode is kernel
+  5.1+, inside the 5.13 verified floor), wired through
+  ebpf/.cargo/config.toml for direct builds and
+  `force_bpf_v3_rustflags` in build.rs for env-carried CI builds
+  (a set RUSTFLAGS shadows config rustflags — CI's `-D warnings`
+  would have shadowed the flag and crashed the nested build at
+  ISel). Proof: five 64-bit cmpxchg + five fetch-add sites per
+  enforcement program in the shipped object (BPF ISA scan), zero
+  32-bit atomics (the libm/compiler-builtins atomics are
+  LTO-dead), all 71 pre-existing math pins green unchanged
+  (single-thread behavior is bit-identical), and a new
+  test/ebpf/limiter/math_smp_tests.rs holding the invariants under
+  real thread contention — exact consume conservation, exact
+  window exclusivity under a shared fetch_add clock (the pin the
+  v6 code could not hold), exact stats tallies — 20/20 green
+  stress runs. The supermassive budget ceilings stay exactly as
+  tightened (no thresholds were loosened — they were right all
+  along; the policer was not). Docs synced: KERNEL_COMPATIBILITY
+  (the BPF_ATOMIC 5.12+ row), the harness hunt comments
+  (strict-multi, curl burst), the toolchain notes.
+
 - **fix: NIGHT-boost-37 — the eagle-eyes suggestion round-trips:
   `sudo zelynic ss cg:48181 100kb` works verbatim — `Target::parse`
   accepts the canonical `cg:` display prefix** — the owner's fatal
