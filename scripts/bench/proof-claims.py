@@ -1235,8 +1235,7 @@ def self_test():
         lib.record(
             "selftest: an aborted proof never claims proven",
             "PASS"
-            if main_src.count("proven on this machine") == 1
-            and "ABORTED mid-run" in main_src
+            if main_src.count("proven on this machine") == 1 and "ABORTED mid-run" in main_src
             else "FAIL",
             "the success path alone says proven; the except path names the abort",
         )
