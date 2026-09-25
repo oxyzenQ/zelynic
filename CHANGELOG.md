@@ -330,6 +330,27 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Fixed
 
+- **fix: NIGHT-lts-1 (bench half) — the display-width discipline's
+  render-path cost measured, the recoverable share recovered, and
+  the output parity proven byte-hard** — the frame A/B against the
+  pre-lts-1 tree (worktree capture): 300/300 frames byte-identical
+  modulo the build-embedded git hash, so the width work changes
+  nothing for the ASCII frames that dominate every host; the
+  metric deltas that remain (emit +1.4%, dirty +3.1%) are the
+  harness's own capture-prefix artifact (deterministic sequence,
+  different frame counts inside the fixed budget). The fps cost is
+  real and documented honestly: single-digit percent at the
+  harness's synthetic 8k fps cadence (three-run medians overlap
+  inside the container's ±7% noise), ~1 µs per frame against the
+  product's 1 fps cadence and a 16-19k fps release-build capacity —
+  three orders of magnitude of headroom. Recovered in the same
+  pass: char_width's inlineable ASCII fast return (everything
+  below U+0300 is width 1 — one compare for the dominant glyph
+  class, inlined at the two hot call sites), pad_to_width as a
+  single measuring scan for the already-fits case, and the eagle
+  row's label cell collapsing its separate truncate step into the
+  one pad call. PERFORMANCE.md carries the full A/B record with the
+  protocol note.
 - **fix: NIGHT-lts-1 + safety-1 — the comprehensive security pass:
   two residual classes fixed (the root-run rescue's PATH surface,
   the CJK display-width family), every prior audit's surface

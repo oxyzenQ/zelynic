@@ -217,6 +217,45 @@ construction — the change is kernel-side only) reads parity.
   the fd scan is lazy per matched socket; the pidfd open is lazy
   per PID with sticky failure. Peak for the design.
 
+### NIGHT-lts-1 A/B (the display-width discipline, 2026-09-25)
+
+The CJK width fix (five budget surfaces routed through the
+display-width module) touched the render path itself, so the frame
+harness owns its A/B. Protocol note first: the harness renders
+8,000+ frames per second, and this shared container's run-to-run
+spread is ±7% (three-run medians overlap between trees — the
+single-run deltas of -8..-13% overstate precision); the honest
+figure is a single-digit-percent render-throughput cost, and the
+byte-identity proof below is the primary evidence the change is
+otherwise invisible.
+
+| Metric | pre-lts-1 | lts-1 | Delta |
+|--------|-----------|-------|-------|
+| fps (render path, dev harness) | 8,332 | 7,434 | -10.8% (single run; 3-run medians 171k vs 159k over overlap) |
+| bytes/frame | 1,919.0 | 1,919.0 | +0.0% |
+| emit bytes/frame | 616.3 | 624.7 | +1.4% (capture-prefix artifact) |
+| dirty cells/frame | 54.1 | 55.8 | +3.1% (capture-prefix artifact) |
+
+Reading: PARITY OF OUTPUT, proven harder than the metric table — a
+worktree capture of the pre-lts-1 tree against the current one
+shows the first 300 frames byte-identical except the build-embedded
+git hash in the copyright stamp (300/300 frames, hash-normalized
+zero diffs). The emit/dirty deltas are the metric's own
+prefix-length artifact: the frames are a deterministic sequence
+whose per-frame churn drifts as session totals grow, and the two
+trees capture different frame counts inside the fixed budget
+(the slower tree's shorter prefix averages a dirtier stretch).
+The fps cost is real — the width machinery measures every visible
+glyph, and at the harness's synthetic cadence that shows — but the
+product renders at 1 fps (the interval clamp's floor) against a
+16-19k fps release-build capacity: three orders of magnitude of
+headroom, ~1 µs per frame. The recoverable share was recovered in
+the same task: char_width gained an inlineable ASCII fast return
+(everything below U+0300 is width 1 — one compare for the glyphs
+that dominate every frame), pad_to_width became a single measuring
+scan for the already-fits case, and the eagle row's label cell
+collapsed its separate truncate step into the one pad call.
+
 ### NIGHT-ultimate-2 A/B (the sink-death quiet exit, 2026-09-24)
 
 The forever-monitor fix (a dead output sink now ends the session

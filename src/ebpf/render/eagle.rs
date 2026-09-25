@@ -442,13 +442,14 @@ fn render_eagle_row(
     cols: &EagleColumns,
     rank: usize,
 ) {
-    let label = truncate_label(&label_with_count(identity, conns, cgroup_id), cols.label_w);
-    // Saturating session sum (NIGHT-boost-16): saturation, not
-    // panic or wrap, in the TOTAL cell.
+    // Saturating session sum (NIGHT-boost-16): the TOTAL cell.
     let session_total = acc.dl.saturating_add(acc.ul);
-    // NIGHT-lts-1: the label cell pads by RENDERED width (a CJK
-    // label padded by chars would shift the row's numeric cells).
-    let label = crate::output::pad_to_width(&label, cols.label_w);
+    // NIGHT-lts-1: the label cell is fit AND padded by RENDERED
+    // width in one pass (a CJK label padded by chars would shift
+    // the row's numeric cells; one call spares the double
+    // measurement a separate truncate step would pay).
+    let label =
+        crate::output::pad_to_width(&label_with_count(identity, conns, cgroup_id), cols.label_w);
     let body = if cols.show_total {
         format!(
             "  {:>2}  {} {:>w1$} {:>w2$} {:>w3$}",
