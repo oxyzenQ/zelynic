@@ -1223,6 +1223,26 @@ def self_test():
         == "PASS"
         and ok
     )
+    # NIGHT-blade-1: the first live VM failure printed a lying
+    # verdict — a harness error aborted the footprint stage before
+    # its rows, the counts read "0 failed", and final_report's
+    # success line claimed the five claims proven while the CI
+    # verdict said FAIL. The abort path now speaks its own honest
+    # line; this pin holds it: the "proven" line belongs to the
+    # success path alone, and the except path must name the abort.
+    main_src = inspect.getsource(main)
+    ok = (
+        lib.record(
+            "selftest: an aborted proof never claims proven",
+            "PASS"
+            if main_src.count("proven on this machine") == 1
+            and "ABORTED mid-run" in main_src
+            else "FAIL",
+            "the success path alone says proven; the except path names the abort",
+        )
+        == "PASS"
+        and ok
+    )
     return lib.final_report(time.perf_counter(), "self-test", "the claims-proof engine is sound.")
 
 
@@ -1316,7 +1336,10 @@ def main():
         lib.final_report(
             start,
             "quick" if quick else "full",
-            "zelynic's five headline claims: proven on this machine, live.",
+            "the proof ABORTED mid-run on a harness error — the row "
+            "counts above are the completed rows only; the interrupted "
+            "claim never reached its verdict rows, so the exit is FAIL "
+            "regardless of the counts.",
         )
         exit_code = 1
     finally:
