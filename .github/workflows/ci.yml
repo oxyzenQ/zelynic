@@ -492,8 +492,16 @@ jobs:
       # objects on both matrix OSes and compile/test the ebpf-feature
       # graph against them.
 
+      # NIGHT-boost-38: the v3 codegen flag is composed inline because
+      # the workflow-level RUSTFLAGS env ("-D warnings") shadows the
+      # [build] rustflags in ebpf/.cargo/config.toml — the same
+      # env-beats-config rule the pro-build lines below already
+      # document and handle the same way. Without it the LLVM BPF
+      # backend cannot select the BPF_ATOMIC instructions the
+      # SMP-safe token bucket (ebpf/src/math.rs) compiles down to,
+      # and the build dies inside bpf-linker's instruction selection.
       - name: Build pure-Rust eBPF objects (direct crate build)
-        run: cargo build --release --locked
+        run: RUSTFLAGS="-D warnings -C target-cpu=v3" cargo build --release --locked
         working-directory: ebpf
 
       - name: Verify eBPF objects exist
