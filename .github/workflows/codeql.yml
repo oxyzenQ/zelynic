@@ -57,6 +57,17 @@ permissions:
   contents: read
   security-events: write
 
+# NIGHT-improve-32 (the combined-push estate pass): push, PR,
+# schedule, and dispatch all land in one per-ref group — the four
+# triggers are the same scan on the same ref, and a tag push next to
+# a branch push lands in a DIFFERENT group by construction
+# (github.ref differs), so a commit+tag combined push can never
+# cancel or duplicate the other's analysis (the cosmostrix
+# stability shape every push workflow already carries).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
   RUST_VERSION: "1.98.1"

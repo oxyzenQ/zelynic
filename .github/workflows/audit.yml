@@ -15,6 +15,17 @@ on:
 permissions:
   contents: read
 
+# NIGHT-improve-32 (the combined-push estate pass): schedule and
+# dispatch share one per-ref group — a manual click while the daily
+# run is mid-flight supersedes it instead of racing a duplicate
+# scanner install against the same advisory DB fetch (the cosmostrix
+# stability shape every push workflow already carries; a scheduled
+# and a dispatched run are the same work on the same ref, so there
+# is no scenario where both must run).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
   CARGO_TERM_COLOR: always
