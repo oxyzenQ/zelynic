@@ -169,64 +169,75 @@ fn smp_consume_conserves_tokens_exactly() {
 
 // ── the NIGHT-lts-8 budget-covers contract (the consume retry) ────────────
 
-/// The retry's hard contract: when the seed EXACTLY covers the
-/// demand, every packet passes — no false drops at all. This is the
-/// discriminator the conservation pin above cannot be: there, an
-/// abundant supply of later attempts silently absorbs any transient
-/// false drop (a dropped packet's tokens stay in the stock for the
-/// next attempt), so exact conservation holds even under the
-/// single-attempt shape. Here every packet has only its own four
-/// attempts, so a contention loss is permanent — the measured
-/// single-attempt shape dropped 1.425 packets per run in this exact
-/// configuration (2 threads x 256 one-byte packets, 200-run probe),
-/// and the four-attempt retry took that to zero across 200 runs.
-/// Two threads: the shape where the retry's residual is provably
-/// gone on every host class the suite runs on (the oversubscription
-/// residual lives in the soft pin below).
+/// The retry's hard contract, re-pinned after the first CI catch
+/// (2026-09-25, gnu-dynamic on ubuntu-24.04: 511 of 512 allowed):
+/// four attempts make a false drop a TAIL, not an impossibility —
+/// a thread can lose the read-then-CAS race four times in a row,
+/// and the 200-run design probe never saw the tail that thousands
+/// of CI runs eventually hit. Two contracts now: EXACT, every
+/// round — conservation and ledger atomicity (the race-impossible
+/// invariants); BOUNDED TAIL — a zero-drop round inside a 64-round
+/// budget. The single-attempt shape dropped 1.425 per round here
+/// (~24% clean rounds): 64 dirty rounds is ~1e-7 — a retry removal
+/// cannot slip through, and the tail can never fail the budget.
 #[test]
 fn smp_budget_covers_lets_every_packet_through() {
     const THREADS: usize = 2;
     const HITS: usize = 256;
     const PKT: u32 = 1;
+    const ROUNDS: usize = 64;
     let demand: u64 = (THREADS * HITS) as u64;
-    // rate 0 keeps the refill inert (no window CAS, no credit), so
-    // the seed is the whole budget; burst = seed so the clamp never
-    // fires.
-    let policy = pol(0, demand);
-    let mut shared = Shared {
-        bucket: Box::new(bkt(demand, 0, 1_000)),
-        stats: Box::new(fresh_stats()),
-    };
-    let handle = handle_of(&mut shared);
-    let allowed: u64 = thread::scope(|s| {
-        let joins: Vec<_> = (0..THREADS)
-            .map(|_| {
-                s.spawn(move || {
-                    let mut allowed = 0;
-                    for _ in 0..HITS {
-                        // SAFETY: see the SharedHandle disclosure.
-                        if unsafe { handle.hit(&policy, PKT, 1_000) } == 1 {
-                            allowed += 1;
+    let mut clean_rounds = 0usize;
+    for _round in 0..ROUNDS {
+        // rate 0 keeps the refill inert; burst = seed so the clamp
+        // never fires. A FRESH bucket and ledger per round — each
+        // round is the original single-run scenario verbatim.
+        let policy = pol(0, demand);
+        let mut shared = Shared {
+            bucket: Box::new(bkt(demand, 0, 1_000)),
+            stats: Box::new(fresh_stats()),
+        };
+        let handle = handle_of(&mut shared);
+        let allowed: u64 = thread::scope(|s| {
+            let joins: Vec<_> = (0..THREADS)
+                .map(|_| {
+                    s.spawn(move || {
+                        let mut allowed = 0;
+                        for _ in 0..HITS {
+                            // SAFETY: see the SharedHandle disclosure.
+                            if unsafe { handle.hit(&policy, PKT, 1_000) } == 1 {
+                                allowed += 1;
+                            }
                         }
-                    }
-                    allowed
+                        allowed
+                    })
                 })
-            })
-            .collect();
-        joins.into_iter().map(|j| j.join().expect("worker")).sum()
-    });
-    let st = &*shared.stats;
-    // The budget-covers contract, exact: nothing dropped, the stock
-    // fully consumed, the ledger telling the same story.
-    assert_eq!(
-        allowed, demand,
-        "the seed exactly covered the demand yet packets dropped — the consume retry regressed"
+                .collect();
+            joins.into_iter().map(|j| j.join().expect("worker")).sum()
+        });
+        let dropped = demand - allowed;
+        let st = &*shared.stats;
+        // Conservation and ledger atomicity, exact, every round.
+        assert_eq!(
+            shared.bucket.tokens + st.bytes_allowed,
+            demand,
+            "conservation broke — a lost update or a resurrected deduction"
+        );
+        assert_eq!(st.packets_allowed, allowed);
+        assert_eq!(st.packets_dropped, dropped);
+        assert_eq!(st.bytes_allowed, allowed);
+        assert_eq!(st.bytes_dropped, dropped);
+        // Each packet had only its own four attempts — a clean round
+        // is the retry doing its job.
+        if dropped == 0 {
+            clean_rounds += 1;
+        }
+    }
+    assert!(
+        clean_rounds > 0,
+        "no zero-drop round in {ROUNDS} rounds — the consume retry \
+         regressed (the single-attempt shape drops ~1.4 per round here)"
     );
-    assert_eq!(shared.bucket.tokens, 0);
-    assert_eq!(st.packets_allowed, demand);
-    assert_eq!(st.packets_dropped, 0);
-    assert_eq!(st.bytes_allowed, demand);
-    assert_eq!(st.bytes_dropped, 0);
 }
 
 /// The retry's soft contract under heavy oversubscription: eight

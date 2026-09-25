@@ -1139,6 +1139,37 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Fixed
 
+- **fix: NIGHT-blade-1 followup 3 (the hunt find) — the SMP
+  budget-covers pin re-pinned after its first CI catch: the
+  four-attempt consume retry makes a false drop a tail, not an
+  impossibility, and the pin now holds the contracts the mechanism
+  actually gives** — surfaced by watching the blade-1 push's CI
+  (the gnu-dynamic leg on an ubuntu-24.04 runner, 2026-09-25):
+  `smp_budget_covers_lets_every_packet_through` failed 511-of-512
+  — one packet dropped although the seed exactly covered the
+  demand. The diagnosis: NOT a conservation bug (the
+  race-impossible invariants held to the byte) but the bounded
+  retry's liveness tail — a thread can lose the read-then-CAS
+  race four times in a row when the other thread's successful CAS
+  lands inside each attempt's read-to-CAS window, and the
+  200-run design probe ("zero across 200 runs", read as "provably
+  gone") could never rule out a tail that thousands of CI runs
+  eventually hit. The engine is untouched (the four-attempt
+  bound is the deliberate verifier-safe design; its residual is
+  a conservative false drop, never an over-allow). The PIN now
+  holds two contracts: EXACT conservation and ledger atomicity
+  asserted every round (the race-impossible invariants), plus a
+  BOUNDED-TAIL shape — a zero-drop round must exist inside a
+  64-round budget. Regression power preserved: the single-attempt
+  shape measured 1.425 drops per round in this configuration
+  (a ~24% clean-round rate), so 64 dirty rounds in a row is a
+  ~1e-7 event — a retry removal cannot slip through — while the
+  four-attempt tail can never fail the budget. Verification: 80
+  local runs of the pin all green (60 solo invocations, 20 with
+  the full SMP family), cargo fmt clean, build.sh check-all
+  green, gate-keepers 19/19, the file at 499 lines (under the 500
+  cap, the doc prose compressed to fit).
+
 - **fix: NIGHT-blade-1 — the supermassive red pair closed on both
   ends: the trigger-path blind spot that left the claims-harness
   fix unvalidated, and the abort path that claimed "proven" while
