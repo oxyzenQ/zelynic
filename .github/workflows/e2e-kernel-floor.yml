@@ -120,35 +120,49 @@ jobs:
         run: ./scripts/setup.sh --skip-heavy
 
       # The 5.15 kernel itself: the jammy (22.04) GA kernel, fetched
-      # from the Ubuntu archive. The metapackage is resolved through
-      # its dependency chain to the versioned unsigned image, which
-      # carries boot/vmlinuz-5.15.0-*-generic. The jammy pocket keeps
-      # the current 5.15.x for as long as jammy standard support runs
-      # (April 2027+) — apt resolves the latest, so no URL rot.
+      # from the Ubuntu archive. jammy main + jammy-updates (the
+      # updates pocket carries the current point release — main alone
+      # would resolve the frozen 2022 GA image); the resolver is
+      # apt-cache search over the NAMES (the depends --recurse walk
+      # of the metapackage proved unreliable — the meta is not
+      # resolvable from every pocket snapshot), picking the highest
+      # ABI. The jammy pockets keep the current 5.15.x for as long as
+      # jammy standard support runs (April 2027+) — apt resolves the
+      # latest, so no URL rot.
       - name: Fetch the jammy 5.15 kernel
         run: |
           set -euo pipefail
           mkdir -p /tmp/kfloor && cd /tmp/kfloor
-          echo "deb http://archive.ubuntu.com/ubuntu/ jammy main" |
-            sudo tee /etc/apt/sources.list.d/jammy-floor.list >/dev/null
-          sudo apt-get update -qq \
+          {
+            echo "deb http://archive.ubuntu.com/ubuntu/ jammy main"
+            echo "deb http://archive.ubuntu.com/ubuntu/ jammy-updates main"
+          } | sudo tee /etc/apt/sources.list.d/jammy-floor.list >/dev/null
+          sudo apt-get update \
             -o Dir::Etc::sourcelist=/etc/apt/sources.list.d/jammy-floor.list \
             -o Dir::Etc::sourceparts=/dev/null \
             -o APT::Get::List-Cleanup=0
-          IMG=$(apt-cache depends --recurse linux-image-5.15.0-generic 2>/dev/null \
-            | grep -oE 'linux-image-unsigned-5\.15\.0-[0-9]+-generic' | head -1)
-          test -n "$IMG" || {
-            echo "FAIL: could not resolve the jammy 5.15 image package"
+          # The resolver: names-only search, extract, pick the highest
+          # ABI. Every stage prints its evidence — the silent
+          # depends-walk failure is what reddened run 1 of this
+          # workflow.
+          IMG=$(apt-cache search --names-only \
+            'linux-image-unsigned-5\.15\.0-.*-generic' 2>/dev/null \
+            | grep -oE 'linux-image-unsigned-5\.15\.0-[0-9]+-generic' \
+            | sort -V | tail -1 || true)
+          if test -z "$IMG"; then
+            echo "FAIL: no linux-image-unsigned-5.15.0-*-generic in the jammy pockets — resolver evidence:"
+            apt-cache search --names-only 'linux-image-unsigned-5\.15' || true
             exit 1
-          }
+          fi
           echo "resolved: $IMG"
           apt-get download "$IMG"
           dpkg -x "${IMG}"*_amd64.deb pkg
           VMLINUZ=$(find pkg/boot -name 'vmlinuz-5.15.*' | head -1)
-          test -n "$VMLINUZ" || {
-            echo "FAIL: no vmlinuz inside the deb"
+          if test -z "$VMLINUZ"; then
+            echo "FAIL: no vmlinuz inside the deb — pkg/boot contents:"
+            ls -la pkg/boot || true
             exit 1
-          }
+          fi
           cp "$VMLINUZ" /tmp/kfloor/vmlinuz-5.15
           echo "kernel: $(du -h /tmp/kfloor/vmlinuz-5.15 | cut -f1) at /tmp/kfloor/vmlinuz-5.15"
 
