@@ -30,11 +30,17 @@
 >
 > CI files those rows automatically now (NIGHT-ultimate-3, the
 > re-issued label; consolidated into the Supermassive workflow in
-> NIGHT-improve-31): .github/workflows/supermassive.yml runs the
+> NIGHT-improve-31; the kernel span + dynamic envelopes are
+> NIGHT-improve-33): .github/workflows/supermassive.yml runs the
 > whole qualification — setup.sh bring-up, v1, v2 — inside a KVM
-> micro-VM on a real jammy 5.15 kernel, under two resource
-> envelopes (minimum specs: 1 vCPU / 1536 MB; best specs: 4 vCPU /
-> 8 GB), on every core-file push. History note for the rows below:
+> micro-VM, under two resource envelopes derived from the runner at
+> boot time (minimum specs: a quarter of the cores floored at 1 +
+> an eighth of the RAM floored at 1024 MB, booting the TRUE
+> documented floor kernel — impish indri 5.13 from the frozen
+> old-releases archive; best specs: every core + three quarters of
+> the RAM, booting the archive's LATEST kernel, resolved dynamically
+> at run time), on every core-file push. History note for the rows
+> below:
 > the pre-consolidation E2E workflow ran the same batteries on
 > hosted Ubuntu runners whose images have since moved onto 6.x HWE
 > kernels (the hosted 5.15-era rows predate that drift — the 5.15
