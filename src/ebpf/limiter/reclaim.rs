@@ -1,19 +1,25 @@
 // Copyright (C) 2026 rezky_nightky
 // SPDX-License-Identifier: GPL-3.0-only
 
-//! State reclamation — the generic u32-keyed map plumbing and the
+//! State reclamation — the generic u32-keyed map plumbing, the
 //! bucket/stats reclaim path that keeps the 1024-slot maps
 //! proportional to live policies (NIGHT-improve-10, the LTS
-//! endurance budget).
+//! endurance budget), and the REMOVE path itself: unstrict landed
+//! here with NIGHT-improve-29's 500-LOC split (the apply path grew
+//! the unset-direction removal that honors the -d/-u-only
+//! contract), so the whole removal family — delete, partial-
+//! failure honesty, reclamation — lives in one file.
 //!
-//! Split from policy.rs to hold the module under the 500-LOC cap
-//! (check-loc policy): apply/remove semantics stay in policy.rs,
-//! the map-access plumbing and reclamation they share live here.
+//! Split from policy.rs to hold the modules under the 500-LOC cap
+//! (check-loc policy): apply/write semantics stay in policy.rs,
+//! the map-access plumbing, the removal, and the reclamation they
+//! share live here.
 
 use anyhow::{anyhow, Context, Result};
 use aya::maps::{HashMap as BpfHashMap, MapData, MapError};
 
-use super::types::{BucketRaw, LimiterStatsRaw};
+use super::policy::policy_survivor_line;
+use super::types::{BucketRaw, Direction, LimiterStatsRaw, Target};
 use crate::ebpf::pin::{self, PIN_MAP_BUCKET_DL, PIN_MAP_BUCKET_UL, PIN_MAP_STATS};
 
 /// NIGHT-hunt-20 (error-path audit): a failed map delete means
@@ -39,6 +45,20 @@ fn reclaim_trace_line(cgroup_id: u32, reclaimed: usize) -> String {
     )
 }
 
+/// The error an unstrict returns when some deletes failed (NIGHT-
+/// hunt-20): removal is best-effort across cgroups and directions, but
+/// never silent — this reports what WAS removed and names what stayed
+/// enforced. Pure so the wording is unit-pinned.
+fn unstrict_partial_failure_line(removed: usize, failed: &[String]) -> String {
+    let n = failed.len();
+    let unit = if removed == 1 { "policy" } else { "policies" };
+    let verb = if n == 1 { "is" } else { "are" };
+    format!(
+        "removed {removed} {unit}, but {n} {verb} still enforced: {} — \
+         run 'zelynic recover' if this persists",
+        failed.join(", ")
+    )
+}
 impl super::Limiter {
     /// Generic u32-keyed limiter map access in whichever mode is live
     /// (NIGHT-improve-10). `op` runs against the ephemeral object's
@@ -174,6 +194,92 @@ impl super::Limiter {
 
 // NIGHT-hunt-17: pins live under the single test/ tree, #[path]-wired
 // across trees (cosmostrix Pattern C).
+impl super::Limiter {
+    /// Remove policy for a target (unstrict).
+    ///
+    /// Returns the number of POLICIES removed — each direction (dl/ul)
+    /// counts separately, the same unit `apply_single`/`apply_group`
+    /// report as "(N policies, active in background)". NIGHT-hunt-10:
+    /// the old per-cgroup counting printed "Removed 1 limit" for the
+    /// same state strict-single had just described as "4 policies".
+    ///
+    /// NIGHT-hunt-20: removal is best-effort across cgroups and
+    /// directions, but never silent — a delete that FAILS (as opposed
+    /// to ENOENT "absent") is recorded and reported.
+    ///
+    /// NIGHT-improve-10: every direction confirmed gone (deleted or
+    /// ENOENT-absent) also reclaims the per-cgroup bucket and stats
+    /// entries — see [`Self::reclaim_cgroup_state`].
+    pub fn unstrict(&mut self, target: &Target) -> Result<usize> {
+        let cgroup_ids = self.resolve_target(target)?;
+        let mut removed = 0usize;
+        let mut failed: Vec<String> = Vec::new();
+
+        for cgroup_id in &cgroup_ids {
+            let label = self.identity.label(*cgroup_id);
+            let mut found = false;
+            // Per-direction gone tracking (NIGHT-improve-10): a
+            // direction is gone when its policy was deleted here OR
+            // was already ENOENT-absent — only a real failure leaves
+            // it uncertain, and an uncertain direction keeps its
+            // state (conservative: state may still be reachable).
+            let mut dl_gone = false;
+            let mut ul_gone = false;
+
+            // Remove from dl + ul policy maps — each deleted direction
+            // is one policy removed. A failed delete (not ENOENT) is
+            // reported per direction and summed into the final error.
+            for direction in [Direction::Download, Direction::Upload] {
+                match self.delete_policy(*cgroup_id, direction) {
+                    Ok(true) => {
+                        found = true;
+                        removed += 1;
+                        match direction {
+                            Direction::Download => dl_gone = true,
+                            Direction::Upload => ul_gone = true,
+                        }
+                    }
+                    Ok(false) => match direction {
+                        Direction::Download => dl_gone = true,
+                        Direction::Upload => ul_gone = true,
+                    },
+                    Err(e) => {
+                        eprintln_safe!(
+                            "[limiter] Unstrict: cg:{cgroup_id} {} not removed: {e}",
+                            direction.label()
+                        );
+                        failed.push(policy_survivor_line(*cgroup_id, direction));
+                    }
+                }
+            }
+
+            // Reclaim the state the removal leaves behind: buckets
+            // for gone directions, stats when both are gone. Runs even
+            // when this invocation removed nothing — an ENOENT-only
+            // walk is exactly the crashed-removal case whose residue
+            // the LTS budget needs back.
+            if dl_gone || ul_gone {
+                let reclaimed =
+                    self.reclaim_cgroup_state(*cgroup_id, dl_gone, ul_gone, dl_gone && ul_gone);
+                self.print_reclaim_trace(*cgroup_id, reclaimed);
+            }
+
+            if found {
+                eprintln_safe!("[limiter] Unstrict: {label} — limits removed");
+            }
+        }
+
+        if !failed.is_empty() {
+            return Err(anyhow!(
+                "{}",
+                unstrict_partial_failure_line(removed, &failed)
+            ));
+        }
+
+        Ok(removed)
+    }
+}
+
 #[cfg(test)]
 #[path = "../../../test/ebpf/limiter/reclaim_tests.rs"]
 mod reclaim_tests;
