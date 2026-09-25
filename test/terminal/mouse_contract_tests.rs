@@ -54,7 +54,9 @@
 //! The owner rule is exactly the five modes, no more, no less, and
 //! a beat no selection outlives.
 
-use super::{next_beat, Beat, ALT_ENTER, ALT_EXIT, SELECTION_GUARD_BEAT};
+use super::{
+    beat_epoch, beat_epoch_at, next_beat, Beat, ALT_ENTER, ALT_EXIT, SELECTION_GUARD_BEAT,
+};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
@@ -421,4 +423,34 @@ fn theme_keys_route_first_byte_only() {
     assert_eq!(input_action_from_chunk(b"\x1bt"), InputAction::None);
     // Empty chunk: nothing drained, nothing asked.
     assert_eq!(input_action_from_chunk(b""), InputAction::None);
+}
+
+// ── the NIGHT-lts-7 beat-epoch floor (the boot-edge panic) ─────────────────
+
+/// The first-render epoch's underflow floor: `now - refresh` panics
+/// when `now` is closer to the monotonic epoch than `refresh` — on
+/// Linux the monotonic clock starts at BOOT, so a monitor launched by
+/// a systemd unit or boot script within one refresh of boot died on
+/// line one of the loop. The floor returns `now` instead: the boot
+/// edge's first frame waits one refresh (bounded, honest) and the
+/// monitor lives. The impossible subtraction is reproducible on any
+/// host with a huge refresh — no clock control needed.
+#[test]
+fn beat_epoch_floors_instead_of_panicking_at_the_monotonic_epoch() {
+    let now = Instant::now();
+    // The boot-edge shape: a refresh larger than the whole monotonic
+    // clock's value cannot be subtracted on ANY host — the old
+    // `now - refresh` panicked here.
+    assert_eq!(beat_epoch_at(now, Duration::from_secs(u64::MAX)), now);
+    // Zero refresh: identity, no floor.
+    assert_eq!(beat_epoch_at(now, Duration::ZERO), now);
+    // The normal shape: a full refresh behind now, so the first
+    // `next_beat` reads a due Render (the render-immediately
+    // contract the loop's first frame depends on).
+    let epoch = beat_epoch_at(now, Duration::from_secs(1));
+    assert!(epoch <= now);
+    assert!(epoch.elapsed() >= Duration::from_secs(1));
+    // The production wrapper floors on the live clock too (the same
+    // contract through the real Instant::now()).
+    assert!(beat_epoch(Duration::from_secs(1)) <= Instant::now());
 }

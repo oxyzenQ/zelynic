@@ -25,13 +25,18 @@ pub const PIN_LINK_UL: &str = "/sys/fs/bpf/zelynic/enforce_ul_link";
 /// reclaim path deletes from (NIGHT-improve-10: bucket slots are the
 /// 1024-entry LTS budget — a removed policy must return its bucket,
 /// or eventually-full maps make new limits silently unenforced).
-/// The group bucket maps (cgroup_group_bucket_dl/ul) stay
-/// kernel-internal: their entries are shared by every cgroup in a
-/// strict-multi group, so no single removal may delete one.
+/// The group bucket maps (group_bucket_dl/ul) joined the reclaim
+/// family in NIGHT-lts-7: the dead-group sweep deletes a group's
+/// shared slots when the LAST policy referencing it is gone (the
+/// improve-10 "no single removal may decide" rule now decides at
+/// the last reference — 256 slots, one fresh quasi-random group id
+/// per strict-multi invocation, previously never reclaimed).
 pub const PIN_MAP_POLICY_DL: &str = "/sys/fs/bpf/zelynic/cgroup_policy_dl";
 pub const PIN_MAP_POLICY_UL: &str = "/sys/fs/bpf/zelynic/cgroup_policy_ul";
 pub const PIN_MAP_BUCKET_DL: &str = "/sys/fs/bpf/zelynic/cgroup_bucket_dl";
 pub const PIN_MAP_BUCKET_UL: &str = "/sys/fs/bpf/zelynic/cgroup_bucket_ul";
+pub const PIN_MAP_GROUP_BUCKET_DL: &str = "/sys/fs/bpf/zelynic/group_bucket_dl";
+pub const PIN_MAP_GROUP_BUCKET_UL: &str = "/sys/fs/bpf/zelynic/group_bucket_ul";
 pub const PIN_MAP_WATCHDOG: &str = "/sys/fs/bpf/zelynic/watchdog_deadline";
 pub const PIN_MAP_STATS: &str = "/sys/fs/bpf/zelynic/cgroup_limiter_stats";
 pub const PIN_MAP_SCHEMA_VERSION: &str = "/sys/fs/bpf/zelynic/schema_version";

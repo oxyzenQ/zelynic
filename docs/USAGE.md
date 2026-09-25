@@ -165,6 +165,18 @@ it, the others starve. Use it for download tools you want to cap as a
 pool (`curl:pacman:aria2c 1mb`), not for apps that each need their own
 guaranteed slice — apply separate `strict-single` calls for that.
 
+The shared bucket's lifecycle (NIGHT-lts-7): every invocation banks a
+fresh group id, and the group maps hold 256 slots each — a group's
+slots are now returned when its LAST reference goes (an unstrict of
+the group's last member, or an apply that overwrites the old
+policies), so a long-lived host cycling strict-multi invocations
+cannot fill the maps. Before lts-7 the slots were never reclaimed:
+after ~256 invocations the next group's bucket could not materialize
+and its members silently enforced unlimited (the fail-open lookup).
+The kernel side now also degrades a failed group lookup to each
+member's own bucket at the group rate — over-admission against the
+shared intent, never unlimited (schema v8).
+
 ### limit-all — cap every user app
 
 ```bash

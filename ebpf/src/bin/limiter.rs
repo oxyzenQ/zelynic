@@ -308,13 +308,25 @@ fn try_enforce(
     // bucket keyed by the group; 0 falls back to the per-cgroup
     // bucket keyed by cgroup_id. Both paths see the sanitized
     // burst so the initializer never seeds tokens above the bound.
+    // NIGHT-lts-7 (folded into the unreleased v8): a group lookup
+    // that cannot materialize a bucket (the 256-slot group map
+    // full, or a corrupted pin) DEGRADES the member to its own
+    // individual bucket at the group's rate — over-admission
+    // against the shared-bucket intent, but never the unlimited
+    // fail-open the plain None return used to be. The userspace
+    // half of the fix (reclaiming dead groups on removal/apply,
+    // reclaim.rs) keeps the map from filling in the first place;
+    // this fallback is the belt for whatever still slips through.
     let bkt_ptr = if pol_sane.group_id != 0 {
-        get_bucket_ptr(
+        match get_bucket_ptr(
             group_bucket_map,
             &pol_sane.group_id,
             pol_sane.burst_bytes,
             now,
-        )
+        ) {
+            Some(ptr) => Some(ptr),
+            None => get_bucket_ptr(bucket_map, &cgroup_id, pol_sane.burst_bytes, now),
+        }
     } else {
         get_bucket_ptr(bucket_map, &cgroup_id, pol_sane.burst_bytes, now)
     };

@@ -375,6 +375,30 @@ retry's own cost is measured where it lives: the uncontended first
 attempt is the whole story (verdict-identical to v7), and the drop
 path's three extra volatile reads are ~3 cycles on a cached line.
 
+### NIGHT-lts-7 A/B (the endurance lifecycle fixes, 2026-09-26)
+
+The changes live in the limiter's policy lifecycle (the dead-group
+reclaim), the BPF group-bucket fallback, and the monitor loop's
+first-render epoch (the boot-edge floor) — none can reach the frame
+bytes, and the A/B is the parity proof (single runs, A = 9d520a0 in
+a worktree, B = the lts-7 tree, 10 s formal runs, the container's
+±7% noise band):
+
+| Metric | before | after | Delta |
+|--------|--------|-------|-------|
+| fps | 7,385.1 | 7,619.8 | +3.2% (noise band) |
+| bytes/frame | 1,919.0 | 1,919.0 | +0.0% |
+| emit bytes/frame | 510.0 | 505.9 | -0.8% |
+| frame entropy | 3.0264 | 3.0231 | -0.1% |
+| density gini | 0.3506 | 0.3519 | +0.4% |
+| dirty cells/frame | 40.0 | 39.7 | -0.6% |
+
+Reading: bytes/frame identical at 1,919.0 — the epoch floor changes
+only the loop's INITIALIZATION (one checked_sub on a path the frame
+renderer never sees), and the limiter-side changes are CLI/BPF
+lifecycle, not render. The small movements are the same run-to-run
+synthetic-traffic variation every row above documents.
+
 ## BPF Instruction Budget
 
 ```bash

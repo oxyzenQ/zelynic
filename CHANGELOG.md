@@ -16,6 +16,78 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Added
 
+- **feat: NIGHT-lts-7 — the ultra-long-endurance audit: the
+  group-bucket leak (the silent-unlimited killer) closed at both
+  layers, and the boot-edge monitor panic floored** — the owner's
+  ask: "depth audit focus for ultra long endurance/running zelynic
+  monitoring mode and limiter". The audit walked every surface a
+  months-long deployment touches — the monitor loop's clocks and
+  cadence, the /proc walks, the session ledger (fenced by lts-5),
+  the pinned-map lifecycle — and found the SECOND genuine silent
+  killer of the inventory, plus one boot-edge crash. THE GROUP
+  BUCKET LEAK: every strict-multi invocation banks a FRESH
+  quasi-random group id (pid-derived, never reused), the shared
+  bucket maps hold 256 slots each, and nothing ever deleted a
+  group entry — the improve-10 reclaim deliberately skipped them
+  ("no single removal may decide that lifecycle"), which was the
+  right call for a PARTIAL removal and the wrong shape for the
+  lifecycle itself. ~256 strict-multi invocations on a long-lived
+  host (days of scripted use, weeks of daily use — the maps are
+  PINNED, they survive reboots) filled them irreversibly, and the
+  257th invocation's bucket lookup failed into the fail-open
+  allow: every member of the new group silently enforced
+  UNLIMITED — the one failure a bandwidth manager must never
+  carry, and exactly the "silent killer" class the STABILITY
+  inventory exists to name. FIXED AT BOTH LAYERS. Userspace: the
+  dead-group reclaim — every apply and unstrict now CAPTURES the
+  group ids of the policies it overwrites or removes
+  (read_policy_group, read-before-write: after the write the old
+  group id is unrecoverable), and sweeps once after the operation
+  (reclaim_dead_groups: a captured group whose id no LIVE policy
+  in either direction references returns its dl+ul shared-bucket
+  slots; an unreadable policy map keeps every captured bucket —
+  fail-closed for reclamation, the conservative posture). The
+  lifecycle decision moved to the LAST reference, where it
+  belongs: the improve-10 rule survives for partial removals, and
+  the final removal retires the group. Kernel side (folded into
+  the unreleased schema v8): a group bucket lookup that cannot
+  materialize (map full, corrupted pin) DEGRADES the member to
+  its own individual bucket at the group's rate — over-admission
+  against the shared-bucket intent, never the unlimited fail-open
+  the plain None return carried; the userspace reclaim keeps the
+  map from filling in the first place, the fallback is the belt
+  for whatever still slips through. Pinned: the dead-group
+  decision core (sentinel-0 never counts, duplicates collapse,
+  live references survive — reclaim_tests.rs) and the verbose
+  trace wording that names the 256-entry budget; read_policy_group
+  lives in reclaim.rs beside its sweep (policy.rs held under the
+  500-LOC cap). THE BOOT-EDGE PANIC: the monitor loop's
+  first-render epoch was `Instant::now() - refresh_interval` — on
+  Linux the monotonic clock starts at BOOT, so a monitor launched
+  within one refresh of the monotonic epoch (a systemd unit, a
+  boot script: exactly how an ultra-long-endurance deployment
+  starts one) panicked on the underflow before rendering a frame.
+  beat_epoch_at floors at `now` instead (checked_sub): the boot
+  edge's first frame waits one refresh, bounded and honest, and
+  the monitor lives — pinned with the impossible-subtraction shape
+  (a huge refresh on any host reproduces the old panic input
+  deterministically). The audit's walk of the already-fenced
+  surfaces confirmed them in the process: the beat scheduler's
+  render cadence drifts late by (work + wake granularity) per
+  frame but every rate divides by the MEASURED poll-to-poll span
+  (lts-3), so no drift accumulates into the data; the
+  connections cache rebuilds wholesale behind its 3s TTL (no
+  growth, no stale-inode rows); the session ledger's u128/wrap-
+  coherent fences hold (lts-5); the fd discipline (sticky pidfd
+  failure, close-per-scan) holds. Docs synced: USAGE's
+  strict-multi section carries the shared-bucket lifecycle
+  paragraph, STABILITY's inventory gains the group-bucket
+  FOUND-AND-FIXED row, its kernel-resource-leak row now names the
+  group reclaim, and its Time row carries the boot-edge floor.
+  Frame A/B in PERFORMANCE.md (the loop-init change cannot reach
+  the frame bytes; the run is the parity proof). Tests: 432
+  passed 0 failed with the ebpf feature (3 new pins), cargo fmt
+  clean, clippy -D warnings clean, gate-keepers 19/19.
 - **feat: NIGHT-lts-8 — the extreme-burst audit: the consume
   retry that stops falsely dropping affordable packets, and the
   GSO super-packet burst floor** — the owner's ask: "depth audit

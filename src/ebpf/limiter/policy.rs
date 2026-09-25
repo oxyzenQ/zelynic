@@ -91,15 +91,28 @@ impl super::Limiter {
         // NIGHT-hunt-20: strict all-or-nothing — every write of THIS
         // invocation is recorded so a mid-flight failure (map full at
         // 1024 entries, ENOMEM, ...) rolls the whole apply back
-        // instead of leaving an enforced prefix behind.
+        // instead of leaving an enforced prefix behind. The
+        // superseded-group ledger (NIGHT-lts-7) rides the same
+        // lifecycle: captured by the writes, swept once after — a
+        // failed apply's rollback deletes the written policies, and
+        // the sweep's live-reference check keeps any group another
+        // policy still holds.
         let mut written: Vec<(u32, Direction)> = Vec::new();
+        let mut superseded: Vec<u32> = Vec::new();
         let mut applied = 0usize;
         for cgroup_id in &cgroup_ids {
-            match self.write_policies_for_cgroup(*cgroup_id, rates, 0, &mut written) {
+            match self.write_policies_for_cgroup(
+                *cgroup_id,
+                rates,
+                0,
+                &mut written,
+                &mut superseded,
+            ) {
                 Ok(n) => applied += n,
                 Err(cause) => return Err(self.rollback_partial_apply(&written, cause)),
             }
         }
+        self.reclaim_dead_groups(&superseded);
 
         Ok(applied)
     }
@@ -136,15 +149,28 @@ impl super::Limiter {
         // Same rollback ledger as apply_single (NIGHT-hunt-20): a
         // group with a partial member list would point at a bucket
         // some members never share, so a mid-flight failure must not
-        // leave group orphans behind.
+        // leave group orphans behind. The superseded-group ledger
+        // (NIGHT-lts-7) is why this path matters most: every
+        // strict-multi invocation banks a FRESH group id, so the
+        // overwritten members' OLD groups die here — without the
+        // sweep the 256-slot group maps filled irreversibly and the
+        // 257th invocation silently enforced unlimited.
         let mut written: Vec<(u32, Direction)> = Vec::new();
+        let mut superseded: Vec<u32> = Vec::new();
         let mut applied = 0usize;
         for cgroup_id in &all_cgroup_ids {
-            match self.write_policies_for_cgroup(*cgroup_id, rates, group_id, &mut written) {
+            match self.write_policies_for_cgroup(
+                *cgroup_id,
+                rates,
+                group_id,
+                &mut written,
+                &mut superseded,
+            ) {
                 Ok(n) => applied += n,
                 Err(cause) => return Err(self.rollback_partial_apply(&written, cause)),
             }
         }
+        self.reclaim_dead_groups(&superseded);
 
         let group_label = format!("group:{}", group_id);
         if self.verbose {
@@ -252,17 +278,25 @@ impl super::Limiter {
 
     /// Write the dl + ul policies for one cgroup, recording each
     /// successful write in `written` — the rollback ledger
-    /// (NIGHT-hunt-20). Returns how many policies this cgroup received.
+    /// (NIGHT-hunt-20) — and the group id of every policy this call
+    /// OVERWRITES or removes in `superseded` (NIGHT-lts-7: the
+    /// capture-before-write half of the dead-group reclaim — read
+    /// here, because after the write the old group id is
+    /// unrecoverable). Returns how many policies this cgroup received.
     fn write_policies_for_cgroup(
         &mut self,
         cgroup_id: u32,
         rates: &RateSpec,
         group_id: u32,
         written: &mut Vec<(u32, Direction)>,
+        superseded: &mut Vec<u32>,
     ) -> Result<usize> {
         let mut applied = 0usize;
 
         if let Some(dl_rate) = rates.download {
+            if let Ok(Some(old_group)) = self.read_policy_group(cgroup_id, Direction::Download) {
+                superseded.push(old_group);
+            }
             self.write_policy(cgroup_id, dl_rate, group_id, Direction::Download)?;
             written.push((cgroup_id, Direction::Download));
             if self.verbose {
@@ -275,6 +309,9 @@ impl super::Limiter {
         }
 
         if let Some(ul_rate) = rates.upload {
+            if let Ok(Some(old_group)) = self.read_policy_group(cgroup_id, Direction::Upload) {
+                superseded.push(old_group);
+            }
             self.write_policy(cgroup_id, ul_rate, group_id, Direction::Upload)?;
             written.push((cgroup_id, Direction::Upload));
             if self.verbose {
@@ -308,6 +345,12 @@ impl super::Limiter {
         ] {
             if !unset {
                 continue;
+            }
+            // The unset-leg removal is also a group supersession
+            // (NIGHT-lts-7): capture before the delete, the same
+            // read-before-write the fresh writes above carry.
+            if let Ok(Some(old_group)) = self.read_policy_group(cgroup_id, direction) {
+                superseded.push(old_group);
             }
             match self.delete_policy(cgroup_id, direction) {
                 Ok(_) => {

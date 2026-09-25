@@ -12,6 +12,25 @@
 
 use std::time::{Duration, Instant};
 
+/// The beat scheduler's first-render epoch (NIGHT-lts-7): `now -
+/// refresh`, floored at `now` when the subtraction would underflow —
+/// a monitor launched within one refresh of the monotonic epoch
+/// (the first seconds after boot: a systemd unit, a boot script)
+/// used to PANIC on `Instant::now() - refresh` there, because the
+/// Linux monotonic clock starts at boot. The floor's cost is honest
+/// and bounded: the boot edge's first frame waits one refresh
+/// instead of dying. Pure over its inputs so the fallback is
+/// unit-pinned (the impossible subtraction is reproducible with a
+/// huge refresh on any host).
+pub(crate) fn beat_epoch_at(now: Instant, refresh: Duration) -> Instant {
+    now.checked_sub(refresh).unwrap_or(now)
+}
+
+/// [`beat_epoch_at`] with the live clock — the production shape.
+pub(crate) fn beat_epoch(refresh: Duration) -> Instant {
+    beat_epoch_at(Instant::now(), refresh)
+}
+
 /// Selection-guard beat (NIGHT-improve-8): the cadence on which the
 /// monitor loop re-emits the whole frame while the box runs, so no
 /// terminal-side selection can outlive one beat. Mouse tracking

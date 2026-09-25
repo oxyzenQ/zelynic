@@ -55,3 +55,41 @@ fn unstrict_partial_failure_line_reports_removed_and_survivors() {
          cg:73390 upload — run 'zelynic recover' if this persists"
     );
 }
+
+// ── the NIGHT-lts-7 dead-group reclaim (the 256-slot budget) ───────────────
+
+/// The decision core: a captured group dies only when no live policy
+/// references it. The sentinel 0 (individual buckets) never counts;
+/// duplicates collapse (one old group overwritten across many member
+/// policies is ONE dead group); the result is sorted for
+/// deterministic verbose traces.
+#[test]
+fn dead_groups_keeps_referenced_groups_and_drops_the_rest() {
+    // Two dead groups, one survivor, one sentinel, one duplicate.
+    let captured = [500, 300, 0, 500];
+    let live = [400, 300, 0];
+    assert_eq!(dead_groups(&captured, &live), vec![500]);
+    // Nothing live: every real captured group dies, sorted, once.
+    assert_eq!(dead_groups(&[900, 100, 900, 0], &[]), vec![100, 900]);
+    // Everything still referenced: nothing dies.
+    assert_eq!(dead_groups(&[300, 400], &[400, 300]), Vec::<u32>::new());
+    // Empty capture: the sweep is a no-op.
+    assert_eq!(dead_groups(&[], &[42]), Vec::<u32>::new());
+}
+
+/// The group reclaim's verbose trace names the 256-slot budget — the
+/// diagnostic that tells an owner why an unstrict after a strict-multi
+/// touches the shared-bucket maps (NIGHT-lts-7).
+#[test]
+fn group_reclaim_trace_line_singular_and_plural() {
+    assert_eq!(
+        group_reclaim_trace_line(1234, 1),
+        "[limiter] group:1234 reclaimed 1 shared-bucket slot — \
+         the group's last reference is gone, slots returned to the 256-entry budget"
+    );
+    assert_eq!(
+        group_reclaim_trace_line(99, 2),
+        "[limiter] group:99 reclaimed 2 shared-bucket slots — \
+         the group's last reference is gone, slots returned to the 256-entry budget"
+    );
+}
