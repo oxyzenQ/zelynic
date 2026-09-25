@@ -96,12 +96,17 @@ mod screen;
 // Beat enum, next_beat — lives in beat.rs; the names stay
 // resolvable from this module (the path-wired mouse pins import
 // them from `super::`, and run_loop uses them below).
-pub(crate) use beat::{next_beat, Beat};
+pub(crate) use beat::{beat_epoch, next_beat, Beat};
 // The beat constant itself is beat.rs-internal on the runtime path
 // (only next_beat reads it); the mouse pins assert it, so the name
 // rides this module only in test builds.
 #[cfg(test)]
 pub(crate) use beat::SELECTION_GUARD_BEAT;
+// The pure epoch twin: production reaches it through beat_epoch;
+// only the boot-edge pins name it directly, so the re-export rides
+// test builds only (the -D warnings contract).
+#[cfg(test)]
+pub(crate) use beat::beat_epoch_at;
 
 // NIGHT-boost-33: the violent-death terminal guard (kill -9, pkill)
 // lives in guard.rs — the screen.rs one-file-per-contract precedent.
@@ -237,7 +242,7 @@ fn run_loop<F: FnMut(&mut Vec<String>)>(
     // NIGHT-boost-28 (Monitor::open succeeds only on an interactive
     // stdio pair); the false arm remains the pure function's
     // pin-only domain (see next_beat).
-    let mut last_render = Instant::now() - refresh_interval; // render immediately on first iteration
+    let mut last_render = crate::terminal::beat_epoch(refresh_interval); // render immediately on first iteration
     let mut last_guard = Instant::now();
     // NIGHT-boost-14 resize reactivity: the geometry the last
     // render targeted. Every 50ms wake probes the terminal size
@@ -260,7 +265,7 @@ fn run_loop<F: FnMut(&mut Vec<String>)>(
     // repaint below — a mid-session background change (alacritty's
     // live config reload) is followed within one ask.
     let mut bg_ask = raw::BgAsk::new();
-    let mut last_ask = Instant::now() - raw::BG_ASK_INTERVAL;
+    let mut last_ask = crate::terminal::beat_epoch(raw::BG_ASK_INTERVAL);
     loop {
         // NIGHT-boost-18: one drain, two recognized keys — q
         // quits, t cycles the theme (the uppercase twin retired

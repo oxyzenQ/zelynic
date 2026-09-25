@@ -181,12 +181,38 @@ other class already fenced:
 - **Kernel resource leaks — fenced.** Observer maps are
   session-scoped and freed at detach; the limiter's pinned state is
   reclaimed by `unstrict`/`unstrict-all`/`recover` with bucket-slot
-  return (improve-10), and a reboot clears bpffs by design (the
-  documented no-residue contract).
+  return (improve-10), and since NIGHT-lts-7 the return covers the
+  SHARED group buckets too (a group's slots go back when its last
+  reference does — see the found-and-fixed row below); a reboot
+  clears bpffs by design (the documented no-residue contract).
 - **Time — fenced.** Uptime rides `Instant` (CLOCK_MONOTONIC: no
   wall-clock jumps, no NTP step, no wrap inside any realistic
   session horizon); every rate divides by the configured interval,
-  never by measured wall time.
+  never by measured wall time; and since NIGHT-lts-7 the loop's
+  first-render epoch floors instead of panicking when the monitor
+  starts within one refresh of the monotonic epoch (the boot-edge
+  `Instant::now() - refresh` underflow a systemd-started monitor
+  died on — the boot edge now waits one refresh instead).
+- **The group-bucket leak — FOUND AND FIXED (NIGHT-lts-7).** The
+  second genuine silent killer, and the exact shape of this
+  audit's ask: every strict-multi invocation banks a fresh
+  quasi-random group id, the shared bucket maps hold 256 slots
+  each, and NOTHING ever deleted a group entry (the improve-10
+  reclaim deliberately skipped them — "no single removal may
+  decide that lifecycle"). ~256 invocations on a long-lived host —
+  days of scripted use, weeks of daily use — filled the maps
+  irreversibly, and the next group's bucket lookup failed into the
+  fail-open allow: every member silently enforced UNLIMITED, the
+  one failure a bandwidth manager must never have. Fixed at both
+  layers: userspace reclaims a group's shared slots when the LAST
+  policy referencing it goes (captured read-before-write on every
+  apply and unstrict, swept once after — the lifecycle decision
+  moved to the last reference, where it belongs), and the kernel
+  side degrades a failed group lookup to each member's own bucket
+  at the group rate — over-admission against the shared intent,
+  never unlimited. Pinned: the dead-group decision core and the
+  capture contract (reclaim_tests.rs); the verbose trace names the
+  256-entry budget.
 - **The forever-monitor — FOUND AND FIXED (this audit).** The one
   genuine silent killer: Rust ignores SIGPIPE, and the diff engine
   discarded emission errors with no consequence, so a piped

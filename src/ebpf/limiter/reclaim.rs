@@ -19,8 +19,11 @@ use anyhow::{anyhow, Context, Result};
 use aya::maps::{HashMap as BpfHashMap, MapData, MapError};
 
 use super::policy::policy_survivor_line;
-use super::types::{BucketRaw, Direction, LimiterStatsRaw, Target};
-use crate::ebpf::pin::{self, PIN_MAP_BUCKET_DL, PIN_MAP_BUCKET_UL, PIN_MAP_STATS};
+use super::types::{BucketRaw, Direction, LimiterStatsRaw, PolicyRaw, Target};
+use crate::ebpf::pin::{
+    self, PIN_MAP_BUCKET_DL, PIN_MAP_BUCKET_UL, PIN_MAP_GROUP_BUCKET_DL, PIN_MAP_GROUP_BUCKET_UL,
+    PIN_MAP_POLICY_DL, PIN_MAP_POLICY_UL, PIN_MAP_STATS,
+};
 
 /// NIGHT-hunt-20 (error-path audit): a failed map delete means
 /// "key absent" ONLY for ENOENT — every other errno means the delete
@@ -43,6 +46,33 @@ fn reclaim_trace_line(cgroup_id: u32, reclaimed: usize) -> String {
          bucket/stats slots returned to the 1024-entry LTS budget",
         if reclaimed == 1 { "entry" } else { "entries" }
     )
+}
+
+/// Verbose trace line for one dead-group reclaim (NIGHT-lts-7): the
+/// shared bucket slots a group's last reference handed back. Pure
+/// formatting so the wording is unit-pinned below.
+fn group_reclaim_trace_line(group_id: u32, reclaimed: usize) -> String {
+    format!(
+        "[limiter] group:{group_id} reclaimed {reclaimed} shared-bucket {} — \
+         the group's last reference is gone, slots returned to the 256-entry budget",
+        if reclaimed == 1 { "slot" } else { "slots" }
+    )
+}
+
+/// The dead-group decision core (NIGHT-lts-7, pure so it is
+/// unit-pinned): from the group ids CAPTURED at removal/overwrite
+/// time (read before the map write made them unrecoverable) minus
+/// the group ids every LIVE policy still references, the groups
+/// whose shared buckets have no reason to stay. `0` is the
+/// individual-bucket sentinel, never a group; duplicates collapse
+/// (an apply overwriting many members of one old group must not
+/// double-count it); the result is sorted for deterministic traces.
+fn dead_groups(captured: &[u32], live_group_refs: &[u32]) -> Vec<u32> {
+    let mut unique: Vec<u32> = captured.iter().copied().filter(|gid| *gid != 0).collect();
+    unique.sort_unstable();
+    unique.dedup();
+    unique.retain(|gid| !live_group_refs.contains(gid));
+    unique
 }
 
 /// The error an unstrict returns when some deletes failed (NIGHT-
@@ -190,6 +220,98 @@ impl super::Limiter {
             eprintln_safe!("{}", reclaim_trace_line(cgroup_id, reclaimed));
         }
     }
+
+    /// Read the group id of an existing policy (NIGHT-lts-7): the
+    /// capture-before-write half of the dead-group reclaim — the
+    /// write paths in policy.rs and the unstrict loop here call it
+    /// BEFORE the write/delete makes the old group id unrecoverable.
+    /// Returns Ok(None) when the cgroup has no policy in that
+    /// direction (fresh apply — nothing superseded) and Err only
+    /// when the map could not be read (the caller skips the capture:
+    /// a bucket may then outlive its group, the conservative
+    /// direction — a leaked slot never bricks enforcement).
+    pub(super) fn read_policy_group(
+        &mut self,
+        cgroup_id: u32,
+        direction: Direction,
+    ) -> Result<Option<u32>> {
+        let map_name = format!("cgroup_policy_{}", direction.suffix());
+        let pin_path = self.pinned_policy_path(direction);
+        self.with_u32_map::<PolicyRaw, Option<u32>>(&map_name, &pin_path, |map| {
+            match map.get(&cgroup_id, 0) {
+                Ok(raw) => Ok(Some(raw.group_id)),
+                Err(e) if map_remove_means_absent(&e) => Ok(None),
+                Err(e) => Err(anyhow!(
+                    "failed to read cg:{cgroup_id} {} policy: {e}",
+                    direction.label()
+                )),
+            }
+        })
+    }
+
+    /// Reclaim the shared buckets of DEAD groups (NIGHT-lts-7, the
+    /// ultra-long-endurance budget's missing half). The group maps
+    /// hold hard 256 slots, every strict-multi invocation banks a
+    /// FRESH quasi-random group id, and until now nothing ever
+    /// deleted a group entry — the improve-10 reclaim deliberately
+    /// skipped them ("no single removal may decide that
+    /// lifecycle"), so ~256 strict-multi invocations on a
+    /// long-lived host filled the maps and the 257th's members
+    /// silently enforced UNLIMITED (the fail-open bucket lookup).
+    /// The lifecycle decision now sits where it belongs: with the
+    /// LAST reference. `captured` carries the group ids read from
+    /// policies being removed or overwritten (read before the
+    /// write); a group whose id no LIVE policy references has its
+    /// dl+ul shared-bucket slots returned. Failures warn and never
+    /// fail the surrounding operation — the policies (the enforced
+    /// contract) are already gone or replaced.
+    pub(super) fn reclaim_dead_groups(&mut self, captured: &[u32]) -> usize {
+        // The live-reference sweep: the group ids every remaining
+        // policy still points at (both directions, both maps).
+        let mut live: Vec<u32> = Vec::new();
+        for (map_name, pin_path) in [
+            ("cgroup_policy_dl", PIN_MAP_POLICY_DL),
+            ("cgroup_policy_ul", PIN_MAP_POLICY_UL),
+        ] {
+            let Ok(refs) = self.with_u32_map::<PolicyRaw, Vec<u32>>(map_name, pin_path, |map| {
+                Ok(map
+                    .iter()
+                    .filter_map(|entry| entry.ok().map(|(_, p)| p.group_id))
+                    .collect())
+            }) else {
+                // An unreadable policy map cannot prove any group
+                // dead — keep every captured bucket (fail-closed
+                // for reclamation, the same conservative posture as
+                // the per-cgroup reclaim's uncertain directions).
+                return 0;
+            };
+            live.extend(refs);
+        }
+        let mut reclaimed = 0usize;
+        for gid in dead_groups(captured, &live) {
+            let mut failures: Vec<String> = Vec::new();
+            for (map_name, pin_path) in [
+                ("group_bucket_dl", PIN_MAP_GROUP_BUCKET_DL),
+                ("group_bucket_ul", PIN_MAP_GROUP_BUCKET_UL),
+            ] {
+                match self.remove_map_entry::<BucketRaw>(map_name, pin_path, gid) {
+                    Ok(true) => reclaimed += 1,
+                    Ok(false) => {}
+                    Err(e) => failures.push(format!("group bucket: {e}")),
+                }
+            }
+            if !failures.is_empty() {
+                eprintln_safe!(
+                    "[limiter] group:{gid} shared-bucket reclaim failed: {}",
+                    failures.join(", ")
+                );
+            }
+            if self.verbose {
+                eprintln_safe!("{}", group_reclaim_trace_line(gid, reclaimed));
+            }
+        }
+        reclaimed
+    }
 }
 
 // NIGHT-hunt-17: pins live under the single test/ tree, #[path]-wired
@@ -214,6 +336,11 @@ impl super::Limiter {
         let cgroup_ids = self.resolve_target(target)?;
         let mut removed = 0usize;
         let mut failed: Vec<String> = Vec::new();
+        // The groups whose policies this removal takes (NIGHT-lts-7):
+        // captured read-before-delete, swept once after the loop —
+        // the LAST reference hands the group's shared-bucket slots
+        // back (the 256-entry budget's previously-missing half).
+        let mut superseded: Vec<u32> = Vec::new();
 
         for cgroup_id in &cgroup_ids {
             let label = self.identity.label(*cgroup_id);
@@ -229,7 +356,12 @@ impl super::Limiter {
             // Remove from dl + ul policy maps — each deleted direction
             // is one policy removed. A failed delete (not ENOENT) is
             // reported per direction and summed into the final error.
+            // The group capture (NIGHT-lts-7) reads BEFORE the delete:
+            // after it the old group id is unrecoverable.
             for direction in [Direction::Download, Direction::Upload] {
+                if let Ok(Some(group)) = self.read_policy_group(*cgroup_id, direction) {
+                    superseded.push(group);
+                }
                 match self.delete_policy(*cgroup_id, direction) {
                     Ok(true) => {
                         found = true;
@@ -275,6 +407,13 @@ impl super::Limiter {
                 unstrict_partial_failure_line(removed, &failed)
             ));
         }
+
+        // The dead-group sweep (NIGHT-lts-7): once every requested
+        // removal has landed, a captured group no live policy
+        // references returns its shared-bucket slots. Runs after the
+        // per-cgroup state reclaim so one unstrict hands back both
+        // halves of the endurance budget.
+        self.reclaim_dead_groups(&superseded);
 
         Ok(removed)
     }
