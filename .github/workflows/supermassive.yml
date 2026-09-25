@@ -95,9 +95,14 @@
 #    kernel-span proof, not a distro matrix.
 #
 # Trigger paths = the E2E surface (the e2e.yml union, plus this
-# workflow's own file and the CI init scripts it executes — the
-# NIGHT-hunt-34 rule: a workflow that can change its own contract
-# owes itself a run) + workflow_dispatch (the pre-release click)
+# workflow's own file, the CI init scripts it executes, and the
+# claims harness the battery runs — scripts/bench/proof-claims.py,
+# the NIGHT-blade-1 lesson: the harness's API-fix push (fe9c59a)
+# never triggered this workflow because its path was absent from
+# this list, so the fix rode unvalidated while the last visible
+# run stayed red — the NIGHT-hunt-34 rule: a workflow that can
+# change its own contract owes itself a run) + workflow_dispatch
+# (the pre-release click)
 # + the weekly Monday 03:00 UTC schedule (the kernel-span clock:
 # a docs-only push skips the runner, but the old-releases mirror
 # can change availability and the archive the latest-kernel
@@ -125,6 +130,7 @@ on:
       - 'scripts/dev/bootstrap-ebpf.sh'
       - 'scripts/dev/install-bpf-linker.sh'
       - 'scripts/supermassive/**'
+      - 'scripts/bench/proof-claims.py'
       - 'scripts/lib/**'
       - 'scripts/ci/**'
       - '.github/workflows/supermassive.yml'

@@ -1114,6 +1114,43 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Fixed
 
+- **fix: NIGHT-blade-1 — the supermassive red pair closed on both
+  ends: the trigger-path blind spot that left the claims-harness
+  fix unvalidated, and the abort path that claimed "proven" while
+  the verdict said FAIL** — the owner's report: "CI 2 failed
+  supermassive-test best and minimum specs". The diagnosis from
+  the failed run's VM log: all eight stages green except the
+  claims proof, whose footprint stage crashed on
+  `'PairCgroups' object has no attribute 'ids'` — the supermassive
+  twin's dict shape, a name this harness never had — with the
+  harness still printing "20 passed, 0 failed, 2 skipped" and its
+  success line "zelynic's five headline claims: proven on this
+  machine, live" before exiting FAIL (the counts only ever saw the
+  rows that ran; the crashed claim recorded none). The API mixup
+  itself was already fixed at HEAD (fe9c59a: `str(CG.a_id)` plus a
+  self-test source pin) — but the fix never got its promised live
+  re-proof: the push only touched CHANGELOG.md and
+  scripts/bench/proof-claims.py, and the latter was ABSENT from
+  supermassive.yml's trigger paths, so the workflow never ran and
+  the last visible pair stayed red. Two fixes land. (1) THE
+  TRIGGER PATH: `scripts/bench/proof-claims.py` joins the paths
+  list (the battery executes it; the workflow's own NIGHT-hunt-34
+  rule — a workflow that can change its own contract owes itself
+  a run — was violated by omission), with the header comment
+  documenting the lesson; every future harness edit now owes the
+  VM pair a run. (2) THE HONEST ABORT LINE: main()'s except path
+  no longer borrows the success path's "proven" prose — it prints
+  its own line naming the abort ("the proof ABORTED mid-run on a
+  harness error — the row counts above are the completed rows
+  only... the exit is FAIL regardless of the counts"), and a new
+  self-test pin holds the vocabulary (the "proven" string belongs
+  to the success path alone; the except path must name the abort)
+  — the same rootless-mirror discipline the API pin introduced.
+  Verification: engine self-test green (18 passed, 0 failed — the
+  new abort-prose pin PASS), ruff clean, yamllint clean on the
+  workflow; the live re-proof is this push's supermassive pair,
+  now also the footprint stage's first live VM exercise.
+
 - **fix: NIGHT-lts-1 (bench half) — the display-width discipline's
   render-path cost measured, the recoverable share recovered, and
   the output parity proven byte-hard** — the frame A/B against the
