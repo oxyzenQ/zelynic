@@ -1152,8 +1152,15 @@ def test_rate_ladder(ladder, window, windows_per_rung, baseline):
         # measured windows see steady state. Mid and high rungs keep
         # the cushion in view deliberately (their cushion is one second
         # of their own rate — 104% at 100kb is the familiar shape).
+        # NIGHT-lts-6 followup (the first CI run after lts-8 caught
+        # it): the drain's bytes count in the BPF ledger like any
+        # other allowed traffic, so the accounting cross-check must
+        # carry them on the client side too — the drain's return
+        # value joins the comparison, or the 10kb rung reads a
+        # phantom ~2x (bpf drain+windows vs client windows only).
+        drained = 0
         if lib.default_burst(bps) > 0.3 * bps * window * windows_per_rung:
-            py_download(0.5)
+            drained = py_download(0.5)
         # NIGHT-improve-14: high rungs run PARALLEL_FLOWS concurrent
         # workers per window (see PARALLEL_MIN_BPS) — the aggregate,
         # not one AIMD flow, is the instrument there. Each thread
@@ -1210,7 +1217,11 @@ def test_rate_ladder(ladder, window, windows_per_rung, baseline):
             )
         if not band_check(name, measured, bps, lo=floor, extra=extra):
             passed = False
-        enforcement_proofs(f"ladder {rate_str}", int(measured * window * len(rates)))
+        # The client side of the accounting comparison: the measured
+        # windows' bytes PLUS the drain window's (lts-6 followup —
+        # both sides must span the same traffic or the ratio is a
+        # phantom).
+        enforcement_proofs(f"ladder {rate_str}", int(drained + measured * window * len(rates)))
         clear_all()
     return passed
 
@@ -2596,11 +2607,15 @@ def self_test():
         and ladder_src.index("py_download(0.5)")
         < ladder_src.index("for _ in range(windows_per_rung)")
         and 'extra = ""' in ladder_src
+        # lts-6 followup: the drain's bytes must join the accounting
+        # comparison's client side, or the ratio is a phantom 2x.
+        and "drained + measured" in ladder_src
     )
     record(
         "harness: ladder drains the attach cushion at over-delivery rungs",
         "PASS" if ladder_drain_ok else "FAIL",
-        "trickle rungs discard a warm-up window before the measured pair (lts-8 burst floor)",
+        "trickle rungs discard a warm-up window before the measured pair, and its "
+        "bytes join the accounting comparison (lts-8 burst floor, lts-6 followup)",
     )
     ovh_src = inspect.getsource(test_overhead)
     pair_ok = ovh_src.index("fresh = py_download(window)") < ovh_src.index("apply_single(")

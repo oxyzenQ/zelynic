@@ -80,7 +80,18 @@ alone — the owner's NIGHT-hunt-18 call.
   same PairCgroups/TrafficServer/tool_snapshot discipline the
   four existing stages ride), gate-keepers 19/19, and
   build.sh check-all -q green under the 2-minute local budget
-  (the last-task rule; CI owns the rest).
+  (the last-task rule; CI owns the rest). FOLLOWUP (the first
+  post-lts-6 CI run caught a live-harness miss in the lts-8
+  ladder drain): the 10kb rung's accounting cross-check read a
+  phantom 202.8% — the drain window's 65,536 B counted in the
+  BPF ledger but not on the client side of the comparison. The
+  drain's return value now joins the accounting client bytes
+  (both sides span the same traffic), the source pin asserts
+  the pairing, and the 1kb rung's accounting row — previously
+  SKIPped under the 64 KiB floor at 156 B of payload — now RUNS
+  for real (the drain lifts the comparable payload over the
+  floor: the trickle rungs get their first true
+  ledger-vs-client check).
 - **feat: NIGHT-lts-7 — the ultra-long-endurance audit: the
   group-bucket leak (the silent-unlimited killer) closed at both
   layers, and the boot-edge monitor panic floored** — the owner's
