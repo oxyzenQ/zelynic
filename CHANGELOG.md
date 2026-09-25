@@ -58,6 +58,42 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Changed
 
+- **change: NIGHT-improve-28 — the apply verbs answer with the
+  affirmative epilogue: a green `OK.` and green follow-up commands,
+  the request-echo restatement retired** — the owner's audit:
+  "owner see this like too verbose and noise:
+  `Limiting 'cg:48181' to 10.0 KB/s + 10.0 KB/s (2 policies, active
+  in background)` / `Run 'zelynic unstrict cg:48181' to remove,
+  'zelynic status' to check.` — pro master, every suggestion cli
+  should have green color: `OK.` / `Run 'zelynic unstrict cg:48181'
+  to remove, or 'zelynic status' to check.`" The shared
+  `apply_success_epilogue` (commands/mod.rs) renders exactly two
+  lines: the affirmative verdict in the status-green tier (#50FA7B,
+  the tier affirmative verdicts already own) and the follow-up with
+  both runnable commands in the same green the --help examples
+  render in (the NIGHT-boost-4 "this is what you type" tier) while
+  the prose stays plain — including the owner's `or`. The enforced
+  facts (rates, policy counts) live in `zelynic status`, not in the
+  success echo; the request itself lives in the shell history.
+  Hunted beyond the owner's example, all six apply verbs converge
+  on the one surface, and three follow-up suggestions that could
+  not round-trip are fixed: strict-multi suggested `zelynic
+  unstrict brave:curl` but unstrict-single does not split colon
+  lists (now `zelynic unstrict-multi <list>`), limit-all built
+  `zelynic unstrict 3 apps` — not a target at all (now
+  `zelynic unstrict-all`), and block-multi's `<target>` placeholder
+  had to be re-assembled by hand (now the actual `unstrict-multi`
+  list). The pre-apply `Limiting N app(s) to X` /
+  `Blocking N user app(s)` echoes are gone with it; the
+  skipped-system lists stay — they are the safety surface, naming
+  every system app the command deliberately did not touch. The
+  unstrict family keeps its counted verdict lines (the
+  NIGHT-hunt-20 verified-count honesty contract). Pinned in
+  test/cli/apply_epilogue_tests.rs (the exact wording, the
+  two-line shape, and the composition contract that the green
+  wrapper wraps exactly the runnable commands at every color
+  depth). Docs synced: USAGE strict-single output section.
+
 - **change: NIGHT-boost-36 — release package names carry their libc
   leg: `zelynic-v11.0.0-linux-amd64-v3-gnu.tar.gz`, one platform id
   for the tarball and the embedded `Build:` label** — the owner's

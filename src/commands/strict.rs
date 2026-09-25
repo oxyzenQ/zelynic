@@ -61,7 +61,10 @@ pub(crate) fn handle_strict_single(
         return Ok(());
     }
 
-    print_pin_summary(target_str, &rates, applied);
+    // NIGHT-improve-28: the de-noised success surface — green OK. +
+    // the round-tripping unstrict form (the owner's pro contract; the
+    // old two-line request-echo restatement lives in the history).
+    super::apply_success_epilogue(&format!("zelynic unstrict {target_str}"), "remove");
     Ok(())
 }
 
@@ -133,7 +136,10 @@ pub(crate) fn handle_strict_multi(
         return Ok(());
     }
 
-    print_pin_summary(targets_str, &rates, applied);
+    // NIGHT-improve-28: the multi form suggests the multi unstrict —
+    // 'zelynic unstrict brave:curl' does not split colon lists (the
+    // old suggestion was advice that could not round-trip).
+    super::apply_success_epilogue(&format!("zelynic unstrict-multi {targets_str}"), "remove");
 
     // Validate final state: pins must still be present after apply. A
     // concurrent operation (unstrict-all in another terminal) can tear
@@ -210,15 +216,11 @@ pub(crate) fn handle_limit_all(
     user_apps.sort();
     user_apps.dedup();
 
-    eprintln_safe!(
-        "Limiting {} app(s) to {}",
-        user_apps.len(),
-        rates
-            .download
-            .map(crate::ebpf::limiter::format_rate)
-            .unwrap_or_default()
-    );
-
+    // The pre-apply "Limiting N app(s) to X" echo is gone with
+    // NIGHT-improve-28 (the request lives in the shell history; the
+    // enforced facts live in 'zelynic status'); the skipped list
+    // stays — it is the safety surface, not noise: it names every
+    // system app the command deliberately did NOT touch.
     if !skipped.is_empty() {
         eprintln_safe!(
             "Skipped {} system app(s) (use --force to include):",
@@ -241,9 +243,12 @@ pub(crate) fn handle_limit_all(
     crate::ebpf::limiter::Limiter::attach(verbose)?;
 
     let mut limiter = Limiter::open_pinned(verbose)?;
-    let applied = limiter.apply_group(&targets, &rates)?;
+    limiter.apply_group(&targets, &rates)?;
 
-    print_pin_summary(&format!("{} apps", user_apps.len()), &rates, applied);
+    // NIGHT-improve-28: limit-all reverses with the sledgehammer, not
+    // a per-target unstrict — the old suggestion built
+    // 'zelynic unstrict 3 apps', which is not a target at all.
+    super::apply_success_epilogue("zelynic unstrict-all", "remove");
 
     // Validate final state: pins must still be present after apply (see
     // handle_strict_multi for the rationale).
@@ -254,41 +259,6 @@ pub(crate) fn handle_limit_all(
         ));
     }
     Ok(())
-}
-
-/// Print summary for pin mode (fire-and-forget).
-#[cfg(feature = "ebpf")]
-fn print_pin_summary(target_str: &str, rates: &crate::ebpf::limiter::RateSpec, applied: usize) {
-    let dl_str = rates
-        .download
-        .map(crate::ebpf::limiter::format_rate)
-        .unwrap_or_default();
-    let ul_str = rates
-        .upload
-        .map(crate::ebpf::limiter::format_rate)
-        .unwrap_or_default();
-    let parts: Vec<&str> = [
-        if !dl_str.is_empty() {
-            dl_str.as_str()
-        } else {
-            ""
-        },
-        if !ul_str.is_empty() {
-            ul_str.as_str()
-        } else {
-            ""
-        },
-    ]
-    .iter()
-    .filter(|s| !s.is_empty())
-    .copied()
-    .collect();
-
-    eprintln_safe!(
-        "Limiting '{target_str}' to {} ({applied} policies, active in background)",
-        parts.join(" + ")
-    );
-    eprintln_safe!("Run 'zelynic unstrict {target_str}' to remove, 'zelynic status' to check.");
 }
 
 #[cfg(test)]
