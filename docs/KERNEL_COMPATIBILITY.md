@@ -44,7 +44,16 @@ v7): every refill-window ownership, token deduction, and stats
 increment is an atomic read-modify-write, so two CPUs enforcing the
 same cgroup can no longer lose updates and over-allow 130-146% of
 budget under concurrent flows (the E2E strict-multi / curl-burst
-reds of 2026-09-24). The instructions are 64-bit `BPF_ATOMIC`
+reds of 2026-09-24). NIGHT-improve-29 brought the OBSERVER onto the
+same ISA for the same reason: its four counter maps (two per-cgroup,
+two per-socket) were plain `+=` on shared map values, so two CPUs
+carrying one cgroup's or one socket's traffic lost increments and
+the eagle-eyes rates read LOW under exactly the concurrent traffic
+the monitor exists to measure — every observer update is now a
+fetch_add, and first-packet inserts are `BPF_NOEXIST` so a
+concurrent initializer is never clobbered (ebpf/src/stats.rs, pinned
+by test/ebpf/stats_smp_tests.rs under real thread contention). The
+instructions are 64-bit `BPF_ATOMIC`
 fetch-add and compare-exchange — kernel 5.12+; the verified floor
 (5.13) sits above it, so the minimum moves nothing. The BPF build
 itself rides a repo-local clone of the `bpfel-unknown-none` target

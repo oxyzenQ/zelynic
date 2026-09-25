@@ -5,7 +5,7 @@
 //! cosmostrix --reset-terminal skill transfer): the restore and reset
 //! byte sequences and their mode-direction contract. Kept in the
 //! repo's single test/ tree (cosmostrix Pattern C) and #[path]-wired
-//! from src/terminal/reset.rs.
+//! from src/term_reset.rs.
 //!
 //! What is pinned, and why each pin earns its place:
 //! 1. The restore sequence restores every optional mode the monitor

@@ -227,6 +227,27 @@ NIGHT-improve-8, all documented for the decision section:
    forced the phase-2 decision this doc left open. The egress
    program is now the ingress shape: cgroup counters + per-socket
    attribution.
+6. (NIGHT-improve-29, 2026-09-25) The observer's counter updates
+   are ATOMIC — the C twin's plain `+=` on the shared map value
+   was the exact lost-update shape NIGHT-boost-38 closed in the
+   limiter (aya hands every CPU the same unlocked value; two CPUs
+   carrying one cgroup's or one socket's traffic each loaded the
+   same counter and stored their own increment, and the eagle-eyes
+   rates read LOW under exactly the concurrent traffic the monitor
+   exists to measure). Every update is a 64-bit `BPF_ATOMIC`
+   fetch-add (kernel 5.12+, under the verified 5.13 floor — the
+   same ISA and the same repo-local target-spec clone the v7 token
+   bucket rides), and first-packet inserts are `BPF_NOEXIST` so a
+   concurrent initializer is never clobbered by a `BPF_ANY`
+   overwrite (the loser re-looks-up and books onto the winner's
+   entry — one packet counted exactly once on every interleaving).
+   The booking primitives and the stats layout live in
+   ebpf/src/stats.rs (the NIGHT-depthbore-1 math.rs precedent:
+   pure `core`, #[path]-pinned into the userspace test tree), held
+   by test/ebpf/stats_smp_tests.rs under real thread contention.
+   The ISA is verified on the shipped object: exactly three atomic
+   RMWs per observer program (packets, bytes, the socket bump),
+   zero 32-bit atomics.
 
 A hunt finding recorded while porting, independent of Rust vs C: the
 `events` ringbuf is **written by the BPF side but never read by

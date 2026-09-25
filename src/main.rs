@@ -19,12 +19,10 @@ mod info;
 #[cfg(feature = "ebpf")]
 mod terminal;
 // NIGHT-hunt-31: the emergency terminal reset compiles in EVERY
-// build (#[path]-wired from the terminal domain — see the file's
-// module doc for why it is not a child of terminal/mod.rs: that
-// tree is ebpf-gated as the eagle-eyes session machinery, and the
-// rescue owns no BPF machinery — a featureless binary must still
-// rescue a terminal some other app broke).
-#[path = "terminal/reset.rs"]
+// build (a crate-root module, not a child of the ebpf-gated terminal
+// tree — the rescue owns no BPF machinery, and a featureless binary
+// must still rescue a terminal some other app broke; see
+// src/term_reset.rs for the placement rationale).
 mod term_reset;
 mod update;
 
@@ -136,7 +134,7 @@ fn try_main() -> Result<()> {
     // terminal is the one state where the user cannot read anything
     // else this binary might print, and the rescue must not ask for
     // privileges, parse targets, or touch BPF — it touches only the
-    // caller's own terminal (see src/terminal/reset.rs for the
+    // caller's own terminal (see src/term_reset.rs for the
     // layer-by-layer contract). Silent by design: the shell prompt
     // returning on a clean screen is the feedback.
     if cli.reset_terminal {

@@ -52,11 +52,10 @@
 //! sequences below, the beat value and the loop scheduler, and a
 //! source-tree scan that fails if any `\x1b[?` mode outside
 //! {1049, 25, 1000, 1002, 1006} ever appears in src/ — the ONE
-//! exception being the emergency reset contract
-//! src/terminal/reset.rs, the NIGHT-hunt-31 `--reset-terminal`
-//! rescue, whose default-restoring mode set {2026, 2004, 1004, 7,
-//! 1003, 1015} is honored only inside that file), plus the
-//! whole-frame repaint pins in test/terminal/diff_tests.rs.
+//! exception being the emergency reset contract src/term_reset.rs,
+//! whose default-restoring mode set {2026, 2004, 1004, 7, 1003,
+//! 1015} is honored only inside that file), plus the whole-frame
+//! repaint pins in test/terminal/diff_tests.rs.
 //!
 //! NIGHT-improve-2: the monitor loop renders through the diff-based
 //! engine ([`DiffScreen`], see `diff.rs`) — only rows that changed
@@ -86,10 +85,23 @@
 //! no terminal state — the audit found no other interactive
 //! surface in the tree.
 
+mod beat;
 mod diff;
 mod guard;
 mod raw;
 mod screen;
+
+// NIGHT-improve-29 (the 500-LOC cap split, the screen.rs precedent):
+// the beat scheduler contract — the selection-guard cadence, the
+// Beat enum, next_beat — lives in beat.rs; the names stay
+// resolvable from this module (the path-wired mouse pins import
+// them from `super::`, and run_loop uses them below).
+pub(crate) use beat::{next_beat, Beat};
+// The beat constant itself is beat.rs-internal on the runtime path
+// (only next_beat reads it); the mouse pins assert it, so the name
+// rides this module only in test builds.
+#[cfg(test)]
+pub(crate) use beat::SELECTION_GUARD_BEAT;
 
 // NIGHT-boost-33: the violent-death terminal guard (kill -9, pkill)
 // lives in guard.rs — the screen.rs one-file-per-contract precedent.
@@ -120,63 +132,6 @@ pub(crate) use raw::winsize;
 use anyhow::Result;
 use std::io::{self, Read};
 use std::time::{Duration, Instant};
-
-/// Selection-guard beat (NIGHT-improve-8): the cadence on which the
-/// monitor loop re-emits the whole frame while the box runs, so no
-/// terminal-side selection can outlive one beat. Mouse tracking
-/// cannot reach the terminal's Shift+click bypass (terminal-side,
-/// no escape sequence switches it off) — but a selection dies the
-/// moment its cells are rewritten, and 100 ms sits under the
-/// fastest deliberate human select-then-copy round trip
-/// (double-click plus an immediate Ctrl+Shift+C lands around
-/// 200 ms). Cost: one whole-frame rewrite per beat (~1.4 KB on
-/// the classic 80x24 frame), pinned by the diff tests; the loop
-/// wakes at 50 ms granularity, so a beat lands within 100..150 ms.
-const SELECTION_GUARD_BEAT: Duration = Duration::from_millis(100);
-
-/// What the monitor loop owes the terminal this iteration
-/// (NIGHT-improve-8). A due `Render` outranks a due `Guard` —
-/// fresh content is also the strongest selection killer — but a
-/// render never resets the guard clock: a diff-only frame leaves
-/// the unchanged rows untouched, and those rows must still die on
-/// the next beat (the exact hole the guard exists to close).
-/// NIGHT-boost-14 added the `resized` term: a geometry change is
-/// due immediately — the layout must not wait out the refresh
-/// interval (up to 60s at `--interval 60`) while the frame sits at
-/// a stale size.
-enum Beat {
-    /// A fresh frame: poll + render closure + diff emit.
-    Render,
-    /// A selection-guard repaint: re-emit the last frame in full.
-    Guard,
-    /// Nothing owed — sleep.
-    Sleep,
-}
-
-/// The monitor loop's scheduler, pure so the contract pins can
-/// hold it. `guard` is false on the retired pipe-fallback's
-/// scheduler shape — the arm stays part of the pure function's
-/// domain (the pins exercise it) even though NIGHT-boost-28 made
-/// the monitor refuse non-interactive stdio before the loop can
-/// ever run there: a pipe has no selection machinery, and flooding
-/// one with whole-frame beats would only multiply the output
-/// volume. `resized` forces a Render beat regardless of the refresh
-/// clock (NIGHT-boost-14).
-fn next_beat(
-    last_render: Instant,
-    last_guard: Instant,
-    refresh: Duration,
-    guard: bool,
-    resized: bool,
-) -> Beat {
-    if last_render.elapsed() >= refresh || resized {
-        Beat::Render
-    } else if guard && last_guard.elapsed() >= SELECTION_GUARD_BEAT {
-        Beat::Guard
-    } else {
-        Beat::Sleep
-    }
-}
 
 /// The q-only quit decision for one drained input chunk
 /// (NIGHT-hunt-16, pinned by NIGHT-boost-14): 'q' as the FIRST byte
@@ -247,8 +202,9 @@ pub(crate) fn input_action_from_chunk(buf: &[u8]) -> InputAction {
 /// another shell is `pkill zelynic` — the guard (NIGHT-boost-33)
 /// restores the terminal itself; and since NIGHT-hunt-31 the
 /// in-place recovery is `zelynic --reset-terminal` (the emergency
-/// five-layer reset, see terminal/reset.rs) — no second shell, no
-/// re-opened terminal. `stty sane` stays the manual fallback.
+/// five-layer reset, see term_reset at the crate root) — no second
+/// shell, no re-opened terminal. `stty sane` stays the manual
+/// fallback.
 pub(crate) fn drain_input(ask: &mut raw::BgAsk) -> (InputAction, bool) {
     let mut buf = [0u8; 64];
     let n = io::stdin().read(&mut buf).unwrap_or(0);

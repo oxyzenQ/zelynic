@@ -441,3 +441,12 @@ pub struct CgroupDelta {
 #[cfg(test)]
 #[path = "../../test/ebpf/embedded_object_tests.rs"]
 mod embedded_object_tests;
+
+// NIGHT-improve-29: the observer's atomic stats core (ebpf/src/
+// stats.rs — the same file the BPF object builds, the math.rs
+// discipline) is pinned rootlessly by test/ebpf/stats_smp_tests.rs:
+// real threads against ONE shared entry, the exact production
+// sharing shape aya's get_ptr_mut creates on every multi-CPU host.
+#[cfg(test)]
+#[path = "../../test/ebpf/stats_smp_tests.rs"]
+mod stats_smp_tests;
