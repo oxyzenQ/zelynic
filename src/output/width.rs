@@ -46,9 +46,20 @@
 /// Everything else measures 1, including `…` (the truncation
 /// ellipsis) and every ASCII printable — the dominant case, kept
 /// on the fast path.
+#[inline]
 #[must_use]
 pub fn char_width(c: char) -> usize {
     let cp = c as u32;
+    // The hot-path fast return: everything below the first
+    // zero-width class (combining diacritics, U+0300) is width 1 —
+    // ASCII and all the Latin/Greek/Cyrillic tables the monitor's
+    // own furniture (digits, SI units, box drawing) lives in. One
+    // compare for the glyphs that dominate every frame (the fit()
+    // loop calls this per visible char per row; the bench showed the
+    // per-call range checks as a measurable render-throughput cost).
+    if cp < 0x0300 {
+        return 1;
+    }
     if matches!(cp,
         0x0300..=0x036F       // combining diacriticals
         | 0x200B..=0x200F     // zero-width space, joiners, marks
@@ -82,6 +93,7 @@ pub fn char_width(c: char) -> usize {
 /// function's business: its callers measure already-composed
 /// content (the border's `fit` walks escapes separately, and the
 /// sanitizer guarantees no escape reaches a label).
+#[inline]
 #[must_use]
 pub fn display_width(s: &str) -> usize {
     s.chars().map(char_width).sum()
@@ -120,11 +132,34 @@ pub fn fit_to_width(s: &str, w: usize) -> String {
 /// `format!("{:<w$}")` whenever the cell holds untrusted text (a
 /// char-padded CJK label pads by the char shortfall while painting
 /// the full column width, pushing every following cell of the row
-/// out of column).
+/// out of column). The common already-fits case is ONE measuring
+/// scan (the row renderer's per-frame hot path — the bench showed
+/// the naive fit-then-measure pair as real render-throughput cost).
 #[must_use]
 pub fn pad_to_width(s: &str, w: usize) -> String {
-    let fitted = fit_to_width(s, w);
-    let mut out = fitted;
+    let mut width = 0usize;
+    let mut over = false;
+    for c in s.chars() {
+        // The ASCII fast path inline (the row renderer calls this
+        // per label per frame; char_width stays the authority for
+        // the ranges above the boundary).
+        width += if (c as u32) < 0x0300 {
+            1
+        } else {
+            char_width(c)
+        };
+        if width > w {
+            over = true;
+            break;
+        }
+    }
+    if !over {
+        let mut out = String::with_capacity(s.len() + (w - width));
+        out.push_str(s);
+        out.push_str(&" ".repeat(w - width));
+        return out;
+    }
+    let mut out = fit_to_width(s, w);
     let used = display_width(&out);
     if used < w {
         out.push_str(&" ".repeat(w - used));

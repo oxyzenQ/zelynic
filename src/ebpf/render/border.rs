@@ -238,7 +238,16 @@ fn fit(row: &str, width: usize) -> String {
             }
             continue;
         }
-        let cw = crate::output::char_width(c);
+        // The ASCII fast path inlined at the call site (the harness
+        // runs the dev profile, where a per-char cross-module call
+        // is a real frame — the bench showed it as measurable
+        // render-throughput cost; the boundary constant is
+        // char_width's own, kept in step by its pins).
+        let cw = if (c as u32) < 0x0300 {
+            1
+        } else {
+            crate::output::char_width(c)
+        };
         if visible + cw > width {
             break;
         }
