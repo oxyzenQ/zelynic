@@ -35,6 +35,7 @@ sudo zelynic list-apps                 # find the app + its cgroup id
 sudo zelynic strict-single brave 100kb # limit it (download AND upload)
 sudo zelynic status                    # verify the limit is live
 sudo zelynic eagle-eyes                # watch traffic live, ranked (q to quit)
+sudo zelynic ee cg:1234 --depth        # who/what IS this cgroup? (one shot)
 sudo zelynic unstrict-single brave   # remove the limit
 ```
 
@@ -292,6 +293,7 @@ commands do not.
 
 ```bash
 sudo zelynic eagle-eyes [targets] [--interval <1s-60s>]
+sudo zelynic eagle-eyes <target> --depth [--print-json]
 ```
 
 One surface for the former `observe` + `top` pair (NIGHT-boost-1;
@@ -300,10 +302,10 @@ alias is removed, and typing it lands on a redirect tip pointing
 here). It is an INTERACTIVE monitor and refuses non-terminal stdio
 (NIGHT-boost-28): piped or redirected output (`sudo zelynic ee |
 grep`) exits with a branded error before any terminal state or BPF
-load — the scripted-output surface is `status --print-json`; a
-redirected stdin refuses the same way, because the `q`/`t` keys
-would never arrive. Apps are RANKED by session accumulation
-(NIGHT-boost-5):
+load — the scripted-output surfaces are `status --print-json` and
+the `--depth` one-shot below; a redirected stdin refuses the same
+way, because the `q`/`t` keys would never arrive. Apps are RANKED
+by session accumulation (NIGHT-boost-5):
 rank 1 is whoever has moved the most bytes since the monitor
 started — a heavy downloader that stops keeps its crown until
 another app's accumulated total passes it. Rows persist across
@@ -311,6 +313,71 @@ quiet frames (an app that goes idle stays on the board with em-dash
 rates and its accumulated TOTAL — no more collapsing to "waiting
 for traffic..." once traffic has been seen), with per-cgroup detail
 lines naming the processes and remote endpoints inside.
+
+### eagle-eyes --depth — the one-shot deep inspection (NIGHT-master-1)
+
+The `--depth` flag (alias `--info`) turns the eagle into a report:
+`sudo zelynic ee cg:1234 --depth` prints everything zelynic knows
+about one target and exits. No TUI and no interactive-stdio gate —
+piped stdout is legal here (that refusal belongs to the live view
+above), so `zelynic ee 12345 --depth | less` works. The same
+'/'-separated target grammar and autodetection apply
+(`ee 12345/brave` prints one report per resolved cgroup; a name
+targeting several cgroups reports each), and the report answers the
+question a bare `cg:1234` row leaves open — WHAT is this:
+
+```text
+╭─── zelynic eagle-eyes --depth ─────────────────────────────────╮
+
+  cg:1234 — cat-test
+  3 processes · 2 socket holders · 5 sockets
+  ────────────────────────────────────────────────────────────────
+  package id:       cg:1234
+  package name:     cat-test
+  run from user:    uid 1000 (cat)
+  run from path:    /home/cat
+  cgroup path:      /sys/fs/cgroup/cat-test
+  enforcement:      limited — dl 100.0 KB/s · ul 100.0 KB/s
+  time:             since started at 10m:20s ago
+  command:          ./cat-test --serve
+  ────────────────────────────────────────────────────────────────
+  pid     name                     type     perm  started  exe
+  1234    cat-test                 binary   755   10m:20s  /home/cat/cat-test
+  ────────────────────────────────────────────────────────────────
+  sockets:
+   curl (4242) → 142.250.185.78:443 tcp ESTABLISHED
+```
+
+The package name is the identity ladder (majority-vote comm, else
+the cgroup path's basename — a systemd scope names itself — else
+honestly `unknown`). The per-process census carries the type
+(binary or script: a shebang-launched script is classified by
+probing the first argv arguments after argv[0] for a `#!` source,
+because /proc/<pid>/exe always names the interpreter), the
+executable's permission bits, the exe path, and the start age —
+all best-effort per process (a member that exits mid-walk renders
+partial facts, never an error). argv and every readlink result are
+sanitized at the boundary the same way comm is
+(NIGHT-cybersecurity-1) — a hostile process cannot forge report
+lines. `--print-json` emits the whole report as one compact JSON
+document (see the JSON reference below):
+
+```bash
+sudo zelynic ee 12345 --depth --print-json | jq '.targets[0].procs[0]'
+```
+
+Two honesty contracts ride the mode. The live-only `--interval`
+flag answers with exactly one stderr note (`--interval ignored
+(--depth prints one report and exits)`) — stdout and the exit code
+stay the report's own. And target resolution keeps the ladder: a
+name that resolves to no live cgroup is the actionable error with
+the `list-apps` tip, while a cgroup ID with no live processes
+REPORTS exactly that — the empty census ("no live processes — the
+cgroup is empty or its members exited") is the answer, not a
+failure. Enforcement state follows the status contract: nothing
+pinned is honestly `unlimited`, pins that exist but cannot be
+opened are the stale-pins error with its `recover` tip, and a
+failed policy read is an error — never a fabricated verdict.
 
 The SMOOTH OPEN (NIGHT-boost-25, the owner's masterclass loading
 audit): the monitor used to run its whole eBPF load on the main
@@ -744,7 +811,7 @@ on every system, so existence alone says nothing.
 | `-V, --version` | Version + build report (architecture, build label, hash, timestamp). Parses at every level — after a subcommand's arguments too (NIGHT-boost-12). |
 | `--check-update` | Checks the latest GitHub release. **Refuses to run as root** — it is a plain network fetch and must not ride sudo. |
 | `-v, --verbose` | stderr diagnostic trace: target resolution (pids per cgroup), every policy write (rate + burst), BPF lifecycle (pin reuse, schema, link mode), plus loader-level eBPF debug — object size, kernel release, load/attach timings, and the loaded map inventory (id, type, key/value size, max_entries, the `bpftool` facts). JSON output stays clean. |
-| `--print-json` | Machine-readable output — the surface set is `status`, `list-apps`, `doctor`: one compact JSON line each, the stable v11 scripting API (see the JSON reference below). Every other surface renders text (enforcement verbs, `eagle-eyes`, `-h`, `-V`, `--check-update`), and the flag never silently no-ops (NIGHT-boost-24): on a surface that ignores it, exactly one stderr line notes `--print-json ignored (JSON surface: status, list-apps, doctor)` — stdout and exit codes are untouched, so scripts stay clean. |
+| `--print-json` | Machine-readable output — the surface set is `status`, `list-apps`, `eagle-eyes --depth`, `doctor`: one compact JSON line each, the stable v11 scripting API (see the JSON reference below). Every other surface renders text (enforcement verbs, the live `eagle-eyes` monitor, `-h`, `-V`, `--check-update`), and the flag never silently no-ops (NIGHT-boost-24, the depth report joined the set at NIGHT-master-1): on a surface that ignores it, exactly one stderr line notes `--print-json ignored (JSON surface: status, list-apps, eagle-eyes --depth, doctor)` — stdout and exit codes are untouched, so scripts stay clean. |
 | `--color-mode MODE` | Force the terminal color depth: `0` mono, `16` classic palette, `8`/`256` xterm cube, `24`/`32` truecolor (NIGHT-boost-23, the cosmostrix contract). Default is AUTO: the ladder falls back per terminal — truecolor where the environment reports it, the 256 cube, the 16 palette, mono under `NO_COLOR`/pipes. The flag is the escape hatch for the environment that LIES (COLORTERM inherited over SSH into a terminal that is not truecolor, tmux passthrough without Tc): forcing the depth the terminal actually honors makes every surface — errors, help, the monitor frame and its gradient rails — render correctly what truecolor escapes would garble. Invalid values exit 2 with the allowed grammar. |
 
 Privilege matrix in short: enforcement and monitoring commands
@@ -787,6 +854,7 @@ sudo zelynic strict-single firefox -d 5mb -u 500kb
 ```bash
 sudo zelynic eagle-eyes               # ranked; raise the window for more
 sudo zelynic eagle-eyes 8066         # zoom in, see endpoints (q to quit)
+sudo zelynic ee 8066 --depth         # who runs it, from where, since when
 sudo zelynic strict-single 8066 50kb  # target the cgroup id directly
 ```
 
@@ -794,6 +862,7 @@ sudo zelynic strict-single 8066 50kb  # target the cgroup id directly
 
 ```bash
 sudo zelynic status --print-json | jq '.limits[] | select(.bytes_dropped > 0)'
+sudo zelynic ee 8066 --depth --print-json | jq '.targets[0].procs[0].exe'
 ```
 
 **After a crash or a weird state:**
@@ -895,10 +964,12 @@ throughput meter. Use `eagle-eyes` for live rates.
 
 **10. The CLI surface is frozen (v11).**
 Commands, flags, and output formats are stable API from v11.0.0.
-Removed surfaces (`man`, `completions`, `unblock`, `-i/--info`,
-`--live`, `--duration`, `--help-all`, and the NIGHT-boost-1 merge
+Removed surfaces (`man`, `completions`, `unblock`, `-i`, `--live`,
+`--duration`, `--help-all`, and the NIGHT-boost-1 merge
 `observe`/`top` -> `eagle-eyes`) exit with a usage error on
-purpose — `--help` is the single reference.
+purpose — `--help` is the single reference. (`--info` returned at
+NIGHT-master-1 as the `eagle-eyes --depth` alias; the short `-i`
+stays retired.)
 
 **11. eagle-eyes tracks at most 4096 distinct cgroups.**
 The monitor's counter maps hold 4096 entries per direction (raised
@@ -983,14 +1054,16 @@ emits ONE compact single-line JSON document per invocation
 (NIGHT-boost-3, the machine-first contract — `jq`-ready and
 NDJSON-friendly; pretty-print on the consumer side with `| jq '.'`).
 
-The scope is three commands (NIGHT-boost-24 honesty audit): `status`,
-`list-apps`, `doctor` — the report commands. The flag parses
-anywhere (it is global), but the enforcement verbs, the `eagle-eyes`
-monitor, and the early exits (`-h`, `-V`, `--check-update`) render
-text; when the flag rides one of those, a single stderr line names
-the honoring surfaces and the output itself is untouched. The
-featureless (dormant-mode) build answers with its honest smaller set
-(`doctor` only — `status` and `list-apps` are eBPF surfaces).
+The scope is the report surfaces (NIGHT-boost-24 honesty audit;
+NIGHT-master-1 added the fourth): `status`, `list-apps`, `doctor`,
+and the `eagle-eyes --depth` one-shot report. The flag parses
+anywhere (it is global), but the enforcement verbs, the live
+`eagle-eyes` monitor, and the early exits (`-h`, `-V`,
+`--check-update`) render text; when the flag rides one of those, a
+single stderr line names the honoring surfaces and the output itself
+is untouched. The featureless (dormant-mode) build answers with its
+honest smaller set (`doctor` only — the other three are eBPF
+surfaces).
 Field shapes:
 
 `status --print-json`:
@@ -1004,6 +1077,21 @@ Field shapes:
 ```json
 {"total":142,"apps":[{"process":"brave","cgroup_id":18571,"uid":1000,"processes":4,"sockets":9}]}
 ```
+
+`eagle-eyes <target> --depth --print-json` (NIGHT-master-1): one
+`targets[]` array — a report object per resolved cgroup, a
+`{"target":...,"error":...}` miss per name that resolved to nothing
+(multi-target specs only; a full miss exits 1 with the text error):
+
+```json
+{"targets":[{"target":"cg:1234","cgroup_id":1234,"name":"cat-test","cgroup_path":"/sys/fs/cgroup/cat-test","uid":1000,"user":"cat","enforcement":"limited","download_bps":100000,"upload_bps":100000,"group_id":0,"oldest_started_secs":620,"processes":1,"socket_holders":1,"sockets":2,"procs":[{"pid":1234,"comm":"cat-test","uid":1000,"user":"cat","ppid":1,"state":"S (sleeping)","threads":4,"rss_kb":1234,"exe":"/home/cat/cat-test","kind":"binary","script":null,"permission":"755","cwd":"/home/cat","cmdline":"./cat-test --serve","started_ago_secs":620,"started_epoch":1758900000}],"endpoints":[{"pid":4242,"comm":"curl","proto":"tcp","remote":"142.250.185.78:443","state":"ESTABLISHED"}]}]}
+```
+
+`enforcement` is `"unlimited"` | `"blocked"` | `"limited"`; an
+unlimited direction carries `null` bps, never a fabricated zero.
+`kind` is `"binary"` | `"script"` | `null` (unreadable), and a
+script row's `script` field carries the shebang source path the
+classifier found.
 
 `doctor --print-json` reports the capability check fields (kernel,
 cgroup v2, BPF fs, pins). Run it once to see the shape on your distro.

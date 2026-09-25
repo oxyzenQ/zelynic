@@ -3,6 +3,7 @@
 use clap::{Parser, Subcommand};
 
 pub(crate) mod argv;
+pub(crate) mod styles;
 pub(crate) mod suggestion;
 pub(crate) mod ux;
 
@@ -94,16 +95,17 @@ pub struct Cli {
     #[arg(short = 'v', long = "verbose", global = true)]
     pub verbose: bool,
 
-    /// Output as JSON: status, list-apps, doctor
+    /// Output as JSON: status, list-apps, eagle-eyes --depth, doctor
     ///
-    /// The scripting surface set (NIGHT-boost-24 audit): the three
-    /// report commands emit one compact JSON document each (the
-    /// stable v11 scripting API, docs/USAGE.md JSON reference). Every
-    /// other surface — the enforcement verbs, the eagle-eyes monitor,
-    /// this help, -V, --check-update — renders text, and the flag
-    /// answers that honestly: one stderr note names the honoring
-    /// surfaces whenever the dispatched command ignores it (stdout
-    /// and exit codes are untouched, so JSON scripts stay clean).
+    /// The scripting surface set (NIGHT-boost-24 audit, extended by
+    /// NIGHT-master-1): the report commands emit one compact JSON
+    /// document each (the stable v11 scripting API, docs/USAGE.md
+    /// JSON reference). Every other surface — the enforcement verbs,
+    /// the live eagle-eyes monitor, this help, -V, --check-update —
+    /// renders text, and the flag answers that honestly: one stderr
+    /// note names the honoring surfaces whenever the dispatched
+    /// command ignores it (stdout and exit codes are untouched, so
+    /// JSON scripts stay clean).
     #[arg(long, global = true)]
     pub print_json: bool,
 
@@ -139,11 +141,12 @@ pub struct Cli {
 // codes never move.
 
 /// The commands that honor `--print-json` in THIS build: the ebpf
-/// feature carries status and list-apps; doctor is always compiled
-/// (the capability probe needs no BPF). A featureless build answers
-/// with its honest smaller set.
+/// feature carries status, list-apps, and the eagle-eyes --depth
+/// one-shot report; doctor is always compiled (the capability probe
+/// needs no BPF). A featureless build answers with its honest
+/// smaller set.
 #[cfg(feature = "ebpf")]
-const JSON_SURFACE_COMMANDS: &str = "status, list-apps, doctor";
+const JSON_SURFACE_COMMANDS: &str = "status, list-apps, eagle-eyes --depth, doctor";
 #[cfg(not(feature = "ebpf"))]
 const JSON_SURFACE_COMMANDS: &str = "doctor";
 
@@ -155,6 +158,11 @@ pub(crate) fn command_honors_print_json(command: Option<&Commands>) -> bool {
         Some(Commands::Doctor) => true,
         #[cfg(feature = "ebpf")]
         Some(Commands::Status | Commands::ListApps) => true,
+        // NIGHT-master-1: only the one-shot depth report is a JSON
+        // surface — the live TUI monitor stays text (its interactive
+        // gate is the pipe's answer).
+        #[cfg(feature = "ebpf")]
+        Some(Commands::EagleEyes { depth: true, .. }) => true,
         _ => false,
     }
 }
@@ -172,47 +180,11 @@ pub(crate) fn warn_print_json_ignored() {
     eprintln_safe!("{}", crate::output::warn_bold(&print_json_ignored_note()));
 }
 
-// ── Clap brand styling (cosmostrix contract, NIGHT-hunt-5) ─────────────────
-//
-// Purple brand identity: section headings (Usage, Commands, Options)
-// render in bold truecolor purple #A855F7 — the same RGB as the
-// [`crate::output`] brand layer, so every purple element in --help,
-// -V, and errors uses the exact same value. Literals render bold;
-// placeholders stay in the terminal default color.
-//
-// Style harmony (owner mandate): clap's default styles leave error
-// labels plain red and tip/suggestion lines GREEN — hues that disagree
-// with the branded error path (error red #FF5A5A, suggestion white
-// #DCEBFF, warn yellow #FFEB3C). These entries align clap's error
-// rendering with the output-layer semantic palette so both surfaces
-// (clap-rendered and ux-rendered) look identical.
-
-use clap::builder::styling::{Color, Effects, RgbColor, Style};
-use clap::builder::Styles;
-
-#[must_use]
-pub(crate) fn clap_styles() -> Styles {
-    Styles::styled()
-        .header(
-            Style::new()
-                .effects(Effects::BOLD)
-                .fg_color(Some(Color::Rgb(RgbColor(168, 85, 247)))),
-        )
-        .usage(
-            Style::new()
-                .effects(Effects::BOLD)
-                .fg_color(Some(Color::Rgb(RgbColor(168, 85, 247)))),
-        )
-        .literal(Style::new().effects(Effects::BOLD))
-        .placeholder(Style::new())
-        .error(
-            Style::new()
-                .effects(Effects::BOLD)
-                .fg_color(Some(Color::Rgb(RgbColor(255, 90, 90)))),
-        )
-        .valid(Style::new().fg_color(Some(Color::Rgb(RgbColor(220, 235, 255)))))
-        .invalid(Style::new().fg_color(Some(Color::Rgb(RgbColor(255, 235, 60)))))
-}
+// The clap brand-styling block lives in cli/styles.rs since
+// NIGHT-master-1 (the depth surface's docs pushed this file past the
+// 500-line cap) — one theme, one concern, re-exported for the
+// `#[command(styles = ...)]` attribute below.
+pub(crate) use styles::clap_styles;
 
 #[derive(Subcommand, Debug)]
 pub enum Commands {
@@ -460,12 +432,22 @@ pub enum Commands {
     /// pointing here (same contract observe/top got when they
     /// merged in).
     ///
+    /// NIGHT-master-1 — `--depth` (alias `--info`): the one-shot deep
+    /// inspection. `zelynic ee cg:1234 --depth` prints the full
+    /// report — package id and name, the user it runs as, the cgroup
+    /// path, the enforcement verdict, the per-process census (type,
+    /// permissions, exe path, start time), and the live sockets —
+    /// then exits. No TUI, no interactive-stdio gate: pipe-friendly,
+    /// and `--print-json` emits the machine-readable document.
+    ///
     /// Examples:
     ///   zelynic eagle-eyes                        # all apps, ranked, q to quit
     ///   zelynic eagle-eyes brave                  # watch one app (deep view)
     ///   zelynic eagle-eyes 12345/brave/firefox    # watch specific targets
     ///   zelynic eagle-eyes --interval 3s          # calmer cadence
     ///   zelynic ee brave --interval 1s            # short alias form
+    ///   zelynic ee cg:1234 --depth                # one-shot deep report
+    ///   zelynic ee 12345 --depth --print-json     # the report as JSON
     #[command(name = "eagle-eyes", alias = "ee")]
     EagleEyes {
         /// Targets: process names or cgroup IDs, slash-separated
@@ -477,6 +459,15 @@ pub enum Commands {
         /// Refresh interval: 1s to 60s (default: 1s)
         #[arg(long)]
         interval: Option<String>,
+
+        /// One-shot deep inspection (NIGHT-master-1): print the full
+        /// report — package id/name, user, cgroup path, enforcement
+        /// state, the per-process census (type, permissions, exe
+        /// path, start time), live sockets — and exit. No TUI:
+        /// pipe-friendly, JSON-capable via --print-json.
+        /// '--info' is the alias spelling.
+        #[arg(long = "depth", alias = "info")]
+        depth: bool,
     },
 
     /// Check if your machine supports eBPF

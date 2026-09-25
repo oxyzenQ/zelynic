@@ -218,22 +218,11 @@ pub fn handle_eagle_eyes(
         Some(s) => crate::ebpf::limiter::parse_monitor_interval(s)?,
         None => 1,
     };
+    // Target parsing is owned by the depth handler's shared spec
+    // parser (NIGHT-master-1 extracted it there) — both eagle-eyes
+    // modes speak the same '/'-separated grammar.
     let tokens: Vec<Target> = match targets {
-        Some(spec) => {
-            let tokens: Vec<Target> = spec
-                .split('/')
-                .map(str::trim)
-                .filter(|t| !t.is_empty())
-                .map(Target::parse)
-                .collect();
-            if tokens.is_empty() {
-                anyhow::bail!(
-                    "No targets in '{spec}' — pass process names or cgroup IDs \
-                     separated by '/' (e.g., 'zelynic eagle-eyes brave/firefox')"
-                );
-            }
-            tokens
-        }
+        Some(spec) => super::eagle::parse_target_spec(spec)?,
         None => Vec::new(),
     };
 

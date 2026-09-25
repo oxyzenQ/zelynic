@@ -88,6 +88,7 @@ mod eagle;
 mod focus;
 mod footer;
 mod loading;
+mod report;
 mod session;
 
 #[cfg(test)]
@@ -99,6 +100,10 @@ mod session;
 mod bench;
 
 pub use eagle::render_eagle_eyes;
+
+// NIGHT-master-1: the eagle-eyes --depth report — composition only,
+// pure over assembled facts (fixture-pinned in report_tests.rs).
+pub use report::{depth_doc_json, depth_report_lines, package_name, DepthReport, Enforcement};
 
 pub(crate) use session::{SessionAcc, SessionState};
 

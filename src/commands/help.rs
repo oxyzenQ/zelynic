@@ -154,6 +154,11 @@ pub(crate) fn print_help() {
     println_safe!("    the display prefix cg:73386 round-trips, a name = process —");
     println_safe!("    one target opens the deep focus view");
     println_safe!("    (per-direction deltas, rate, lifetime, socket endpoints).");
+    println_safe!("    One-shot deep inspection (NIGHT-master-1): --depth prints the");
+    println_safe!("    full report — package id/name, user, cgroup path, enforcement,");
+    println_safe!("    per-process census (type, perms, path, start time), sockets —");
+    println_safe!("    then exits. Pipe-friendly, --info is the alias spelling,");
+    println_safe!("    --print-json emits the machine-readable document.");
     example("all apps, ranked", "sudo zelynic eagle-eyes");
     example("one app, deep view", "sudo zelynic eagle-eyes brave");
     example(
@@ -162,6 +167,11 @@ pub(crate) fn print_help() {
     );
     example("calmer cadence", "sudo zelynic eagle-eyes --interval 3s");
     example("short alias form", "sudo zelynic ee brave --interval 1s");
+    example("deep report, one shot", "sudo zelynic ee cg:1234 --depth");
+    example(
+        "the report as JSON",
+        "sudo zelynic ee 12345 --depth --print-json",
+    );
     println_safe!();
     println_safe!("  {}", brand_bold("system — support"));
     println_safe!();
@@ -203,7 +213,9 @@ pub(crate) fn print_help() {
     println_safe!(
         "  -v, --verbose    Diagnostic trace: target resolution, policy writes, BPF lifecycle"
     );
-    println_safe!("  --print-json     JSON output for status, list-apps, doctor");
+    println_safe!(
+        "  --print-json     JSON output for status, list-apps, eagle-eyes --depth, doctor"
+    );
     println_safe!("  --color-mode M   Force color depth: 0 mono, 16, 8/256 cube, 24/32 truecolor");
     println_safe!(
         "                   (default auto-fallback; for terminals whose truecolor claim lies)"
