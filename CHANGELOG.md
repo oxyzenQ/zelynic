@@ -91,7 +91,15 @@ alone — the owner's NIGHT-hunt-18 call.
   SKIPped under the 64 KiB floor at 156 B of payload — now RUNS
   for real (the drain lifts the comparable payload over the
   floor: the trickle rungs get their first true
-  ledger-vs-client check).
+  ledger-vs-client check). SECOND FOLLOWUP (the same CI run):
+  the claims harness's first live VM run proved all five claims
+  green (20 passed, 0 failed, 2 honest SKIPs — nft/bpftool are
+  not in the minimal VM userland) but crashed the new footprint
+  stage on an API mixup between the twin harnesses (the
+  supermassive CG ids-dict shape vs proof-claims' PairCgroups
+  a_id/b_id); fixed, and a self-test source pin now guards the
+  stage's vocabulary so the next API drift fails rootlessly
+  instead of in the VM.
 - **feat: NIGHT-lts-7 — the ultra-long-endurance audit: the
   group-bucket leak (the silent-unlimited killer) closed at both
   layers, and the boot-edge monitor panic floored** — the owner's
