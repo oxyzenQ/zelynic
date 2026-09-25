@@ -40,12 +40,10 @@ pub fn handle_block_single(target_str: &str, force: bool, verbose: bool) -> Resu
         return Ok(());
     }
 
-    eprintln_safe!(
-        "Blocked '{target_str}' from internet ({applied} policies, active in background)"
-    );
-    eprintln_safe!(
-        "Run 'zelynic unstrict {target_str}' to restore access, 'zelynic status' to check."
-    );
+    // NIGHT-improve-28: the de-noised success surface — green OK. +
+    // the round-tripping unstrict form (block reverses as unstrict,
+    // the rates were zero either way).
+    super::apply_success_epilogue(&format!("zelynic unstrict {target_str}"), "restore access");
     Ok(())
 }
 
@@ -92,10 +90,14 @@ pub fn handle_block_multi(targets_str: &str, force: bool, verbose: bool) -> Resu
         return Ok(());
     }
 
-    eprintln_safe!(
-        "Blocked '{targets_str}' from internet ({applied} policies, active in background)"
+    // NIGHT-improve-28: the multi form suggests the multi unstrict —
+    // the old '<target>' placeholder was advice the user had to
+    // re-assemble by hand, and unstrict-single does not split colon
+    // lists anyway.
+    super::apply_success_epilogue(
+        &format!("zelynic unstrict-multi {targets_str}"),
+        "restore access",
     );
-    eprintln_safe!("Run 'zelynic unstrict <target>' to restore access.");
     Ok(())
 }
 
@@ -130,7 +132,10 @@ pub fn handle_block_all(force: bool, verbose: bool) -> Result<()> {
         .collect();
 
     if !force && !system_apps.is_empty() {
-        eprintln_safe!("Blocking {} user app(s)", user_apps.len());
+        // The pre-apply "Blocking N user app(s)" echo is gone with
+        // NIGHT-improve-28 (the request lives in the shell history);
+        // the skipped list stays — it names every system app the
+        // command deliberately did NOT touch.
         eprintln_safe!(
             "Skipped {} system app(s) (use --force to include):",
             system_apps.len()
@@ -166,11 +171,10 @@ pub fn handle_block_all(force: bool, verbose: bool) -> Result<()> {
         download: Some(0),
         upload: Some(0),
     };
-    let applied = limiter.apply_group(&targets, &rates)?;
-    eprintln_safe!(
-        "Blocked {} app(s) from internet ({applied} policies, active in background)",
-        targets.len()
-    );
-    eprintln_safe!("Run 'zelynic unstrict-all' to restore all access.");
+    limiter.apply_group(&targets, &rates)?;
+    // NIGHT-improve-28: the whole-system block reverses with the
+    // sledgehammer — 'unstrict-all' (the epilogue carries the green
+    // OK. verdict and the follow-up commands).
+    super::apply_success_epilogue("zelynic unstrict-all", "restore access");
     Ok(())
 }

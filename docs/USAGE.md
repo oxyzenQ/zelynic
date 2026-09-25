@@ -115,9 +115,12 @@ sudo zelynic strict brave 100kb        # shorthand form
 - `--force`: permits limiting the protected system blocklist (root,
   systemd, kthreadd, ... — 57 names; see `--help`).
 
-The command prints what it did, e.g. `Limiting 'brave' to 100.0 KB/s +
-100.0 KB/s (2 policies, active in background)` — one policy per
-direction per cgroup, so a name resolving to two cgroups counts four.
+The command answers with the affirmative epilogue (NIGHT-improve-28):
+a green `OK.` and the follow-up commands in the same green tier —
+`Run 'zelynic unstrict brave' to remove, or 'zelynic status' to
+check.` The enforced facts (rates, policy counts — one policy per
+direction per cgroup, so a name resolving to two cgroups counts four)
+live in `zelynic status`, not in the success echo.
 
 Name matching details worth knowing: it is case-insensitive and matches
 the kernel's `comm` name (max 15 chars). It matches **all** cgroups that
