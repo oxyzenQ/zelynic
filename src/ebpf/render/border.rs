@@ -214,10 +214,13 @@ fn rail_escape(rgb: (u8, u8, u8), theme: Theme, cap: ColorCapability) -> String 
 
 /// Fit one composed row to the border's content width: escape
 /// sequences are invisible (copied through whole, never cut
-/// mid-sequence), visible glyphs count against the budget, an
-/// overlong row is cut at the boundary (a reset lands when a color
-/// was left open), and a short row pads with spaces — the right rail
-/// stays one straight edge whatever the content did.
+/// mid-sequence), visible glyphs count against the budget by their
+/// RENDERED width (NIGHT-lts-1: CJK/fullwidth glyphs paint two
+/// columns per char — counting chars let a five-ideograph comm
+/// paint twice its budget and dent the right rail), an overlong
+/// row is cut at the boundary (a reset lands when a color was left
+/// open), and a short row pads with spaces — the right rail stays
+/// one straight edge whatever the content did.
 fn fit(row: &str, width: usize) -> String {
     let mut out = String::with_capacity(row.len() + width);
     let mut visible = 0usize;
@@ -235,11 +238,12 @@ fn fit(row: &str, width: usize) -> String {
             }
             continue;
         }
-        if visible >= width {
+        let cw = crate::output::char_width(c);
+        if visible + cw > width {
             break;
         }
         out.push(c);
-        visible += 1;
+        visible += cw;
     }
     if seen_escape && !out.ends_with(RESET) {
         out.push_str(RESET);

@@ -330,6 +330,42 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Fixed
 
+- **fix: NIGHT-lts-1 + safety-1 — the comprehensive security pass:
+  two residual classes fixed (the root-run rescue's PATH surface,
+  the CJK display-width family), every prior audit's surface
+  re-verified at peak** — (1) `--reset-terminal` spawns
+  `stty`/`reset`/`tput` through PATH lookup, and the rescue is run
+  as root at exactly the broken-terminal moment an admin reaches
+  for it; sudo's `secure_path` was the only thing between that
+  spawn and a user-controlled PATH entry (`sudo -E`,
+  `env_keep+=PATH`, legacy sudoers). Not exploitable under defaults
+  — the defense-in-depth register the CI env-var isolation set
+  (SAFETY_ANALYSIS Finding 2, 2026-09). Fix: a root-run rescue pins
+  `PATH=/usr/sbin:/usr/bin:/sbin:/bin` for the three externals
+  (`RESCUE_SYSTEM_PATH`); the non-root rescue keeps the inherited
+  PATH (no boundary, NixOS unaffected — the documented trade is a
+  root rescue on NixOS skipping the best-effort belt layers after
+  layers 1-3 restored the critical state). (2) The cybersecurity-1
+  family's leftover: ideographs and fullwidth forms render TWO
+  terminal columns per char, and every width budget in the crate
+  counted chars — truncate_label, the eagle row's `{:<w0$}` pad,
+  title_bar's fill, the border fit()'s glyph counter, the list-apps
+  comm column. A CJK comm (prctl-set OR an honest CJK app name —
+  real on real desktops) sat inside every budget painting twice it:
+  jagged right rail, shifted numeric columns. Fix: the canonical
+  display-width module (src/output/width.rs — the pragmatic
+  wcwidth: wide East Asian ranges 2, combining marks 0, else 1, no
+  new dependency) with the five budget surfaces routed through it,
+  plus four new pin families (the width classes, the CJK truncation
+  ladder, the char-padding drift regression, and the end-to-end
+  `cjk_label_keeps_the_rails_straight` frame pin: a ten-column
+  label on the board, every composed row exactly the frame width).
+  Verified clean in the same pass: zero production panics (every
+  unwrap/expect test-scoped), every unsafe carrying its SAFETY
+  comment, the lock/comm-boundary/clamp-family/SMP-atomics/
+  saturating-display/update-check/CI-isolation surfaces all at
+  their documented peak. SAFETY_ANALYSIS gains the NIGHT-lts-1
+  section; USAGE's rescue row carries the PATH note.
 - **fix: NIGHT-lts-2 + perf-3 — the unlimited fast path: the
   enforcement program consults the policy map BEFORE the dormant
   watchdog read and the ktime stamp** — the performance-engine

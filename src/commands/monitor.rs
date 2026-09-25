@@ -139,13 +139,15 @@ pub fn handle_list_apps(json: bool) -> Result<()> {
         println_safe!(
             "{}",
             ok(&format!(
-                "  {:<w0$} {:>w1$} {:>w2$} {:>w3$} {:>w4$}",
-                id.comm,
+                // NIGHT-lts-1: the comm cell pads by RENDERED width —
+                // a CJK app name padded by chars shifts the row's
+                // numeric columns out of line with the ASCII rows.
+                "  {} {:>w1$} {:>w2$} {:>w3$} {:>w4$}",
+                crate::output::pad_to_width(&id.comm, widths[0]),
                 format_count(conns.proc_count(id.cgroup_id) as u64),
                 format_count(conns.socket_count(id.cgroup_id) as u64),
                 format!("cg:{}", id.cgroup_id),
                 id.uid,
-                w0 = widths[0],
                 w1 = widths[1],
                 w2 = widths[2],
                 w3 = widths[3],
