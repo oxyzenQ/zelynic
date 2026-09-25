@@ -123,8 +123,16 @@ fn resolve_targets(tokens: &[Target], identity: &IdentityMap) -> (Vec<u32>, Vec<
 /// monitor follows reality, no restart. A single token resolving to
 /// exactly one cgroup switches to the deep focus view (the old
 /// `observe --cgroup` depth, now autodetected). `interval` is the
-/// poll interval between frames; the DOWNLOAD and UPLOAD columns
-/// report `delta / interval` as bytes per second.
+/// configured cadence (the status line's identity); `span` is the
+/// MEASURED poll-to-poll span (NIGHT-lts-3): the DOWNLOAD and
+/// UPLOAD columns report `delta / span` as bytes per second — the
+/// beat scheduler fires a render on the first 50ms wake past the
+/// cadence, so the honest denominator is the span the counters
+/// actually accumulated over, never the nominal interval (which
+/// overstated every rate by up to a wake plus the frame's own work
+/// time; a transient map-read error's recovery frame — a double-wide
+/// delta — now divides by the double-wide span too, where nominal
+/// division doubled the very spike it was recovering from).
 ///
 /// `session` is the monitor's memory (NIGHT-boost-5): each frame's
 /// deltas fold in FIRST, then the table renders from the accumulated
@@ -145,12 +153,13 @@ pub fn render_eagle_eyes(
     identity: &IdentityMap,
     conns: Option<&ConnectionMap>,
     interval: Duration,
+    span: Duration,
     session: &mut SessionState,
     uptime: Duration,
 ) {
     let geo = FrameGeometry::probe();
     render_eagle_eyes_at(
-        lines, summary, tokens, identity, conns, interval, session, uptime, geo,
+        lines, summary, tokens, identity, conns, interval, span, session, uptime, geo,
     );
 }
 
@@ -166,6 +175,7 @@ pub(super) fn render_eagle_eyes_at(
     identity: &IdentityMap,
     conns: Option<&ConnectionMap>,
     interval: Duration,
+    span: Duration,
     session: &mut SessionState,
     uptime: Duration,
     geo: FrameGeometry,
@@ -194,7 +204,7 @@ pub(super) fn render_eagle_eyes_at(
     // Single token, single cgroup: the focus view (own border inset).
     if tokens.len() == 1 && ids.len() == 1 && unresolved.is_empty() {
         render_eagle_focus(
-            lines, summary, identity, conns, ids[0], interval, uptime, geo,
+            lines, summary, identity, conns, ids[0], interval, span, uptime, geo,
         );
         return;
     }
@@ -277,6 +287,7 @@ pub(super) fn render_eagle_eyes_at(
         &FooterCensus::gather(tier, &board, identity, conns, uptime, session.peaks()),
         geo,
         interval,
+        span,
     );
 
     // The pin line: the footer's measured length fixes where the
@@ -366,12 +377,12 @@ pub(super) fn render_eagle_eyes_at(
                 }
             }
             // This frame's deltas for the rates (a quiet app renders
-            // em dashes — it stays on the board with its totals).
+            // em dashes — it stays on the board with its totals). The
+            // denominator is the measured poll span (NIGHT-lts-3),
+            // not the configured cadence — see the render entry doc.
             let delta = summary.cgroups.iter().find(|c| c.cgroup_id == *cgroup_id);
-            let dl_rate = delta
-                .map(|c| rate_bps(c.ingress_bytes, interval))
-                .unwrap_or(0);
-            let ul_rate = delta.map(|c| rate_bps(c.bytes, interval)).unwrap_or(0);
+            let dl_rate = delta.map(|c| rate_bps(c.ingress_bytes, span)).unwrap_or(0);
+            let ul_rate = delta.map(|c| rate_bps(c.bytes, span)).unwrap_or(0);
 
             let shown_details = details.len();
             render_eagle_row(

@@ -242,6 +242,7 @@ fn frame_bench_eagle() {
             &identity,
             Some(&conns),
             Duration::from_secs(1),
+            Duration::from_secs(1),
             &mut session,
             // Pinned uptime (NIGHT-boost-17): a FIXED 90s so A/B
             // captures stay byte-comparable across layout changes —

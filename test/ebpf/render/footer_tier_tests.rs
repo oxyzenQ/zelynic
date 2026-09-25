@@ -99,6 +99,7 @@ fn footer_tiers_degrade_in_the_engraved_order() {
             &identity,
             None,
             Duration::from_secs(1),
+            Duration::from_secs(1),
             &mut SessionState::new(),
             Duration::from_secs(70),
             FrameGeometry { width: 80, height },

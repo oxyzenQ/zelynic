@@ -330,6 +330,54 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Fixed
 
+- **fix: NIGHT-lts-3 + boost-39 — the eagle-eyes rate math divides
+  by the MEASURED poll-to-poll span, not the configured cadence** —
+  the depth-precision audit's find: the beat scheduler fires a
+  render on the first 50ms wake past the cadence (terminal/mod.rs
+  next_beat), so the counters always accumulated over interval +
+  wake-jitter + frame work, while every rate surface divided by the
+  NOMINAL interval — a systematic overstatement of up to ~a wake
+  plus the frame's own work time on the flagship 1s cadence (and a
+  doubled spike on the recovery frame after a transient map-read
+  error, whose double-wide delta divided by a single interval —
+  the exact frame the one-frame tolerance exists to survive).
+  The BPF counters are cumulative monotonic, so the honest
+  denominator is measurable: the monitor loop now arms a clock at
+  each SUCCESSFUL poll and feeds the measured span to every
+  per-frame rate conversion — the ranked table's dl/ul columns, the
+  focus view's rate row, and the footer's `total max dl | ul`
+  peak pair (AVG was already uptime-honest). The status line keeps
+  the CONFIGURED cadence's `1s realtime` identity (the span is the
+  rate denominator, never the cadence identity), the loading
+  frame's zero-rate morph contract is untouched, and a failed poll
+  leaves the baseline clock armed so the recovery frame divides
+  its double-wide delta by a double-wide span. New pin
+  `rate_columns_divide_by_the_measured_span_not_the_cadence`
+  (eagle_tests.rs): one frame, two spans — 1.4 MB/s | 240.0 KB/s at
+  a 1s span reads exactly half at 2s while the status line holds
+  the cadence. All 21 render-tree call sites ride the new span
+  argument (span == interval in every pre-existing pin, so every
+  asserted figure stands byte-identical); the duplicated
+  smooth-open doc paragraph in monitor.rs (the improve-30-era
+  copy-paste leftover) retired in passing. Full suite green:
+  363 passed, clippy -D warnings clean, gates 18/18.
+- **fix: NIGHT-lts-4 + boost-40 — the stale-data sweep: five
+  cross-doc facts and one commented-code path that drifted from
+  reality** — PERFORMANCE.md's pin-file count read 13 where the pin
+  directory holds exactly 11 (2 program pins + 2 link pins + 7
+  ByName map pins; the group bucket maps are kernel-internal by
+  design, pin.rs's own contract); PURE_RUST_EVALUATION.md's frozen
+  contract list said "the 15 local gates" a session after
+  NIGHT-lts-2 added the sixteenth (the scripts LOC cap), and its
+  port-time line counts (269 observer / 396 limiter) read as
+  current facts in the risk register — now annotated at-port-time
+  vs today (303 + 328) so the historical record stays historical
+  and the current claims stay honest; four era-stripped file
+  paths (`ebpf/render.rs` in COSMIC_DRAGON + PERFORMANCE,
+  `ebpf/bpf_syscall.rs` + `ebpf/lock.rs` in DEPENDENCY_AUDIT, and
+  loader.rs's move note) regain their `src/` prefix so every
+  doc-to-code reference resolves again.
+
 - **fix: NIGHT-improve-29 (floor-run find) — an apply no longer
   leaves a stale direction leg behind: `-d`-only (or `-u`-only)
   REMOVES the other leg's previous policy, honoring the documented

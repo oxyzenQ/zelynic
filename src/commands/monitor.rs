@@ -163,9 +163,11 @@ pub fn handle_list_apps(json: bool) -> Result<()> {
 /// Always live (NIGHT-hunt-12): the box refreshes until the user
 /// quits (q is the only quit key, NIGHT-hunt-16). `interval`
 /// (NIGHT-hunt-7) is the refresh cadence, 1s..60s via
-/// `--interval` (default 1s — realtime precision); it drives both
-/// the render loop AND the BPF poll, so per-frame deltas divide by
-/// exactly the interval for the DOWNLOAD/UPLOAD rate columns.
+/// `--interval` (default 1s — realtime precision); it drives the
+/// render loop's beat scheduler AND the BPF poll, while the rate
+/// math divides each frame's deltas by the MEASURED poll-to-poll
+/// span (NIGHT-lts-3) — the honest denominator, not the nominal
+/// cadence the scheduler only approximates.
 ///
 /// The smooth open (NIGHT-boost-25): the terminal session opens
 /// before the BPF load — the alt screen and a quiet loading frame
@@ -187,11 +189,6 @@ pub fn handle_list_apps(json: bool) -> Result<()> {
 /// wears the static champion red (NIGHT-boost-14 retired the
 /// takeover blink) — the row budget equals the terminal height
 /// (no --limit, no cap).
-/// Smooth open (NIGHT-boost-25) + the interactive-stdio gate
-/// (NIGHT-boost-28): the session opens only on a fully interactive
-/// stdio pair — piped/redirected stdout refuses before any terminal
-/// state or BPF work, the branded error teaching the scripted-
-/// output alternative (`status --print-json`).
 /// Smooth open (NIGHT-boost-25) + the interactive-stdio gate
 /// (NIGHT-boost-28): the session opens only on a fully interactive
 /// stdio pair — piped/redirected stdout refuses before any terminal
@@ -323,6 +320,14 @@ pub fn handle_eagle_eyes(
     // below the footer on every frame — the horizon the leaderboard's
     // accumulated totals span.
     let started = std::time::Instant::now();
+    // The rate-math clock (NIGHT-lts-3): the measured poll-to-poll
+    // span — seeded after the opening poll, re-armed only on a
+    // SUCCESSFUL poll. A transient map-read error folds an empty
+    // frame (the one-frame tolerance below) and leaves the baseline
+    // untouched, so the recovery frame's double-wide delta divides
+    // by a double-wide span — the nominal-interval era doubled the
+    // very spike it was recovering from.
+    let mut last_poll = std::time::Instant::now();
     monitor.run(interval, |lines| {
         // One-frame tolerance, not a swallow bug (NIGHT-optimized-2
         // audit): the opening poll below hard-failed on any broken
@@ -333,7 +338,14 @@ pub fn handle_eagle_eyes(
         // delta spans the skipped interval — no data loss, no double
         // count. Propagating here instead would kill the live TUI on
         // a single hiccup.
-        let summary = observer.poll_and_summarize().unwrap_or_default();
+        let span = last_poll.elapsed();
+        let summary = match observer.poll_and_summarize() {
+            Ok(s) => {
+                last_poll = std::time::Instant::now();
+                s
+            }
+            Err(_) => Default::default(),
+        };
         conns.maybe_refresh();
         // NIGHT-boost-26 (per-endpoint byte attribution, the 2.4
         // frontier): the join. The ConnectionMap's /proc walk resolved
@@ -357,6 +369,7 @@ pub fn handle_eagle_eyes(
             observer.identity(),
             Some(&conns),
             interval,
+            span,
             &mut session,
             started.elapsed(),
         );

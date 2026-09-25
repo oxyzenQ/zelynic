@@ -336,11 +336,21 @@ fn session_rate(bps: u64) -> String {
 /// — grey text, purple grid and stamp, brand-purple consumer name,
 /// suggestion-white command. The MEASURED length of the returned
 /// block is what the caller pins to the bottom.
+///
+/// `interval` is the CONFIGURED cadence (the status line's "1s
+/// realtime" identity); `span` is the MEASURED poll-to-poll span
+/// (NIGHT-lts-3) the MAX figures convert with — the same honest
+/// denominator the table's rate columns divide by, not the nominal
+/// interval the beat scheduler only approximates (a render beat
+/// fires on the first 50ms wake past the cadence, so nominal-division
+/// overstated every rate by up to a wake plus the frame's own work
+/// time; the peaks were raw interval bytes in that era).
 #[must_use]
 pub(super) fn build_grip_footer(
     census: &FooterCensus,
     geo: FrameGeometry,
     interval: Duration,
+    span: Duration,
 ) -> Vec<String> {
     let tier = census.tier;
     let mut footer: Vec<String> = Vec::with_capacity(tier.lines());
@@ -389,20 +399,22 @@ pub(super) fn build_grip_footer(
     // family; Minimal is survival height, where the total row alone
     // carries the story): the owner's data-center lines, directly
     // below the title row they extend. MAX is the session's peak
-    // watched-set rate — the peaks are raw interval bytes, so the
-    // same `rate_bps` conversion the table's rate columns use turns
-    // them into figures. AVG derives per direction as the session
-    // leg divided by the session uptime — the same legs the grand
-    // totals and the same clock the total row renders, so the three
-    // lines of the paragraph can never disagree (a sub-second
-    // uptime renders honest zeroes via rate_bps's zero-interval
-    // guard — the loading frame and the first live frame agree
-    // byte-for-byte, the boost-25 morph contract).
+    // watched-set rate — the peaks are raw per-frame byte deltas, so
+    // the same `rate_bps` conversion the table's rate columns use
+    // turns them into figures, divided by the measured poll span
+    // (NIGHT-lts-3) instead of the nominal cadence. AVG derives per
+    // direction as the session leg divided by the session uptime —
+    // the same legs the grand totals and the same clock the total
+    // row renders, so the three lines of the paragraph can never
+    // disagree (a sub-second uptime renders honest zeroes via
+    // rate_bps's zero-interval guard — the loading frame and the
+    // first live frame agree byte-for-byte, the boost-25 morph
+    // contract).
     if matches!(tier, FooterTier::Full | FooterTier::Compact) {
         footer.push(grey(&format!(
             "  total max dl | ul = {} | {}",
-            session_rate(rate_bps(census.peak_dl, interval)),
-            session_rate(rate_bps(census.peak_ul, interval))
+            session_rate(rate_bps(census.peak_dl, span)),
+            session_rate(rate_bps(census.peak_ul, span))
         )));
         footer.push(grey(&format!(
             "  total avg dl | ul = {} | {}",

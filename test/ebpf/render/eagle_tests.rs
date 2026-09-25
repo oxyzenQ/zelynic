@@ -110,6 +110,7 @@ fn header_and_total_column_carry_symmetric_air() {
         &IdentityMap::new(),
         None,
         Duration::from_secs(1),
+        Duration::from_secs(1),
         &mut SessionState::new(),
         Duration::from_secs(70),
         classic(),
@@ -205,6 +206,7 @@ fn rank_is_the_session_accumulation() {
         &IdentityMap::new(),
         None,
         Duration::from_secs(1),
+        Duration::from_secs(1),
         &mut session,
         Duration::from_secs(70),
         classic(),
@@ -257,6 +259,7 @@ fn quiet_frame_holds_the_board() {
         &IdentityMap::new(),
         None,
         Duration::from_secs(1),
+        Duration::from_secs(1),
         &mut session,
         Duration::from_secs(70),
         classic(),
@@ -271,6 +274,7 @@ fn quiet_frame_holds_the_board() {
         &[],
         &IdentityMap::new(),
         None,
+        Duration::from_secs(1),
         Duration::from_secs(1),
         &mut session,
         Duration::from_secs(70),
@@ -314,6 +318,7 @@ fn takeover_recrowns_rank1() {
         &IdentityMap::new(),
         None,
         Duration::from_secs(1),
+        Duration::from_secs(1),
         &mut session,
         Duration::from_secs(70),
         classic(),
@@ -326,6 +331,7 @@ fn takeover_recrowns_rank1() {
         &[],
         &IdentityMap::new(),
         None,
+        Duration::from_secs(1),
         Duration::from_secs(1),
         &mut session,
         Duration::from_secs(70),
@@ -378,6 +384,7 @@ fn single_resolved_target_takes_focus_view() {
         &identity,
         None,
         Duration::from_secs(1),
+        Duration::from_secs(1),
         &mut SessionState::new(),
         Duration::from_secs(70),
         classic(),
@@ -407,3 +414,58 @@ fn single_resolved_target_takes_focus_view() {
 // its own file — the speed-pair pins pushed this file past the
 // owner's LOC cap, the same one-file-per-contract split the footer
 // tree already uses (cosmostrix Pattern C, #[path]-wired).
+
+/// NIGHT-lts-3 (the measured-span rate contract): the DOWNLOAD and
+/// UPLOAD columns and the footer's MAX line divide each frame's
+/// deltas by the MEASURED poll-to-poll span, not the configured
+/// cadence — the beat scheduler fires on the first 50ms wake past
+/// the cadence, so nominal division overstated every rate. Pin: one
+/// frame, two spans — the same 1,400,000/240,000 byte deltas render
+/// 1.4 MB/s | 240.0 KB/s at a 1s span and exactly half at a 2s
+/// span, while the status line keeps the CONFIGURED cadence's
+/// "1s realtime" identity on both frames.
+#[test]
+fn rate_columns_divide_by_the_measured_span_not_the_cadence() {
+    for (span, dl_rate, ul_rate) in [
+        (Duration::from_secs(1), "1.4 MB/s", "240.0 KB/s"),
+        (Duration::from_secs(2), "700.0 KB/s", "120.0 KB/s"),
+    ] {
+        let mut lines = Vec::new();
+        render_eagle_eyes_at(
+            &mut lines,
+            &frame(7001, 1_400_000, 240_000),
+            &[],
+            &IdentityMap::new(),
+            None,
+            Duration::from_secs(1),
+            span,
+            &mut SessionState::new(),
+            Duration::from_secs(70),
+            classic(),
+        );
+        let joined = lines.join("\n");
+        let rank1 = lines
+            .iter()
+            .find(|l| l.starts_with(" │   1  "))
+            .unwrap_or_else(|| panic!("no rank-1 row at span {span:?}: {joined}"));
+        assert!(
+            rank1.contains(dl_rate),
+            "span {span:?}: download rate reads {dl_rate}: {rank1}"
+        );
+        assert!(
+            rank1.contains(ul_rate),
+            "span {span:?}: upload rate reads {ul_rate}: {rank1}"
+        );
+        // The footer's MAX pair converts with the same measured span.
+        assert!(
+            joined.contains(&format!("total max dl | ul = {dl_rate} | {ul_rate}")),
+            "span {span:?}: the footer MAX pair reads the same figures: {joined}"
+        );
+        // The status line stays on the CONFIGURED cadence — the
+        // span is the rate denominator, never the cadence identity.
+        assert!(
+            joined.contains("1s realtime"),
+            "span {span:?}: the status line keeps the configured cadence: {joined}"
+        );
+    }
+}

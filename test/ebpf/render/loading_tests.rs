@@ -158,6 +158,7 @@ fn the_first_live_frame_morphs_only_the_note_row() {
             &identity,
             None,
             interval,
+            interval,
             &mut session_state,
             Duration::ZERO,
             geo,
