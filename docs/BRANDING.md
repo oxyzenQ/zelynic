@@ -282,6 +282,29 @@ the grey slot degrades to the neutral grey ramp (245 / bright black
 90) in every theme — subordinate text stays subordinate whatever the
 accent becomes.
 
+NIGHT-lts-9 made that contract COMPUTED (the "aim to high
+accurate" audit): the xterm cube is rebuilt inside the pin
+(`test/output/theme_palette_tests.rs`), every theme's brand/ok
+index is graded against the nearest cube cell of its own TrueColor
+RGB (parsed from the table's rendered escapes, never duplicated
+literals), and the whole 11 x 5 matrix was walked under both the
+RGB metric and a CIE Lab cross-check. The walk found exactly ONE
+wrong seat: night_cyber's brand #00E5FF had ridden the pure-cyan
+corner 51 (0,255,255) at 676 squared error — 3.4x its true nearest
+cell 45 (0,215,255) at 196, an oversaturated green-ward hue on
+every 256-color terminal; it rides 45 now (pinned, with the retired
+corner asserted strictly farther). Everything else is
+metric-nearest, a legal tie (spaceflight's brand has two
+equidistant cells), or a documented override: carbon's brand keeps
+the cube's white corner 231 — the ONE tier-hierarchy exception,
+pinned with its rationale (the metric-nearest 188 would render the
+256 tier dimmer than the theme's own 16-color white fallback); the
+grey slot keeps the uniform 245 ramp; and the warn/hot visibility
+corners keep their documented precedents (the Lab view disagrees
+with a few RGB-metric seats by small margins; the RGB cube metric
+is the documented contract and the pin enforces exactly that — one
+metric, one truth).
+
 The border gradient interpolates in LINEAR LIGHT since NIGHT-boost-23
 (the exact IEC 61966-2-1 sRGB transfer, decode-blend-encode): the
 naive sRGB lerp darkened perceptual midtones — the ramp banded near

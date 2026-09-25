@@ -319,6 +319,36 @@ wider add per fold and one wider divide per figure, against a
 render path that spends its budget in string building — invisible
 at the product's 1 fps cadence.
 
+### NIGHT-lts-9 A/B (the theme accuracy fix, 2026-09-26)
+
+The change is one 256-depth fallback index in a NON-default theme:
+night_cyber's brand moved from the pure-cyan corner 51 to its
+computed nearest cell 45. The frame harness renders the default
+(netrunner), so the default frame is untouched by construction and
+the A/B is the no-default-drift proof (single runs, A = b46e869 at
+HEAD, B = the lts-9 theme tree, 10 s formal runs, the container's
+±7% noise band):
+
+| Metric | before | after | Delta |
+|--------|--------|-------|-------|
+| fps | 7,666.7 | 7,443.5 | -2.9% (noise band) |
+| bytes/frame | 1,919.0 | 1,919.0 | +0.0% |
+| emit bytes/frame | 505.0 | 509.4 | +0.9% |
+| frame entropy | 3.0249 | 3.0287 | +0.1% |
+| density gini | 0.3522 | 0.3508 | -0.4% |
+| dirty cells/frame | 39.6 | 39.9 | +0.7% |
+
+Reading: bytes/frame identical at 1,919.0 — the default theme's
+encodings are byte-identical to the pre-fix constants (the
+netrunner regression pin), and the fix touches no code path, only
+one const table entry for a theme the harness never cycles. The
+small movement in the data-dependent metrics (entropy, gini,
+emit, dirty) is run-to-run synthetic-traffic variation — the
+frame count inside a 10 s window differs with fps, and the
+fixed-seed stream is at a different frame index in the aggregate —
+the same sub-noise class the lts-5 medians documented; fps -2.9%
+sits inside the band with no code-path change to carry it.
+
 ## BPF Instruction Budget
 
 ```bash

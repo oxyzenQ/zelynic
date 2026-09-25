@@ -16,6 +16,54 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Added
 
+- **feat: NIGHT-lts-9 (theme half) — the eleven-theme accuracy
+  audit, made computed: one real wrong seat fixed and the
+  nearest-match contract pinned forever** — the owner's ask:
+  "depth audit focus for 11 theme aim to high accurate". The
+  fallback contract (BRANDING.md 2.2: brand/ok slots take the
+  NEAREST xterm cube match so the hue reads true at 256 depth)
+  was until now pinned only as hand-asserted literals — a wrong
+  index could sit in the table with nothing to contradict it.
+  The audit rebuilt the xterm 6x6x6 cube (the 0/95/135/175/215/255
+  stair, 16+36r+6g+b encoding) and walked the whole 11 theme x 5
+  slot matrix under the documented RGB-Euclidean metric plus a
+  CIE Lab cross-check. Exactly ONE wrong seat found: night_cyber's
+  brand #00E5FF rode the pure-cyan corner 51 (0,255,255) at 676
+  squared error — 3.4x its true nearest cell 45 (0,215,255) at
+  196 — an oversaturated green-ward hue on every 256-color
+  terminal, the one brand the boost-23 masterclass corrected
+  around but never through (its ok and warn were fixed; the brand
+  stayed on the saturated corner). Fixed: the brand rides 45 now.
+  Everything else graded clean: metric-nearest (forest 107/85,
+  atomic 202/42, cafe 173/150, server 68/78, moonlight 152/151,
+  hacker 83/43, depth_sea 37/78, carbon ok 157, netrunner
+  135/84, night_cyber ok 49), a legal tie (spaceflight's brand
+  81 ties its equidistant 75), or a documented override (carbon's
+  brand on the cube's white corner 231 — the ONE tier-hierarchy
+  exception: the metric-nearest 188 would render the 256 tier
+  dimmer than the theme's own 16-color white fallback; grey's
+  uniform 245 ramp; the warn/hot visibility corners). The Lab
+  cross-check disagrees with a few RGB-metric seats by small
+  margins — the RGB cube metric stays the documented contract,
+  one metric, one truth. The pin
+  (test/output/theme_palette_tests.rs, wired from theme.rs): the
+  cube model itself is pinned (levels, encoding reversibility,
+  known cells), the brand/ok walk grades the REAL table by
+  parsing the rendered escapes (the RGB from the TrueColor
+  escape, the index from the 256 escape — never duplicated
+  literals), the carbon exception is pinned with its rationale
+  AND its honest arithmetic (the nearer cell asserted nearer —
+  the exception is real, not a nearest-match in disguise), and
+  the night_cyber correction is pinned against regression with
+  the retired corner asserted strictly farther. theme.rs's
+  module doc and BRANDING.md 2.2 carry the computed-audit
+  narrative. The default (netrunner) frame is untouched by
+  construction — the fix touches only a non-default theme's
+  256-depth fallback — and the frame A/B (10 s formal runs, b46e869
+  before vs after) is recorded in PERFORMANCE.md: bytes/frame
+  identical at 1,919.0 (+0.0%), every data-dependent metric
+  sub-noise, fps -2.9% inside the container's band with no
+  code-path change to carry it.
 - **feat: NIGHT-lts-9 (release CI half) — the release pipeline
   depth audit: four fail-closed invariants where the pipeline
   previously trusted the operator** — the owner's ask: "depth
