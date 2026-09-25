@@ -71,6 +71,16 @@
 # ubuntu-24.04 (kernel 6.8+, current hosted ceiling), fail-fast
 # false: a 5.15 failure must not hide the 6.8 result — the kernel
 # span picture is the point of running both.
+#
+# NIGHT-boost-38 drift note (2026-09-24 run logs): the hosted
+# ubuntu-22.04 image now boots 6.8.0-xxxx-azure and ubuntu-24.04
+# boots 6.17.0-xxxx-azure — GitHub moved both images onto HWE
+# kernels, so this matrix no longer proves the 5.15 floor on hosted
+# runners (the harness's environment header names the actual kernel
+# each run). The release-page 5.15 promise now rests on the
+# CROSS_DISTRO results and the 5.13+ floor gate; re-anchoring the
+# matrix (a 5.15 container, a self-hosted runner) is an owner
+# decision, not a silent edit.
 
 name: Dragon Guard - E2E
 

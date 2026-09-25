@@ -68,7 +68,16 @@ pub const MAX_RATE: u64 = 1_000_000_000_000;
 ///     v4 clamp family, is clamped to the healthy range (< 1s of rate
 ///     remainder) so a drifted or hostile value can never wrap the
 ///     fractional accumulation; no layout change, same one-time re-apply.
-pub const SCHEMA_VERSION_EXPECTED: u32 = 6;
+/// v7 (NIGHT-boost-38): SMP-safe enforcement — the token-bucket
+///     read-modify-write in ebpf/src/math.rs moves to lock-free atomics
+///     (window-ownership CAS + CAS consume + fetch_add stats). The v6
+///     plain loads/stores lost updates whenever two CPUs enforced the
+///     same cgroup concurrently, over-allowing 130-146% of budget under
+///     2-6 flows (the E2E strict-multi and curl-burst reds, 2026-09-24).
+///     No layout change — the pinned u64 fields are identical; the bump
+///     forces pinned v6 programs to reload into the race-free object,
+///     same one-time limit re-apply contract as v4/v5/v6.
+pub const SCHEMA_VERSION_EXPECTED: u32 = 7;
 
 /// Hard ceiling a stored `burst_bytes` may carry into the BPF refill
 /// math (NIGHT-improve-10 / security-3). Mirror of `MAX_ENFORCABLE_BURST`
@@ -343,7 +352,7 @@ mod tests {
     fn test_schema_version_constant() {
         // Must match SCHEMA_VERSION in ebpf/src/bin/limiter.rs.
         // When this changes, the BPF code must also change.
-        assert_eq!(SCHEMA_VERSION_EXPECTED, 6);
+        assert_eq!(SCHEMA_VERSION_EXPECTED, 7);
     }
 
     // ── NIGHT-improve-10 / security-3: overflow-bound pins ──────────

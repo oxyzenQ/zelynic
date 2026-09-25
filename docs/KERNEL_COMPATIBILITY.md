@@ -38,6 +38,22 @@ process exit. Aya 0.13's public API does not expose link pinning for
 `CgroupSkb`, so zelynic uses raw `bpf()` syscalls. Requires kernel 5.7+
 for `bpf_link_create`.
 
+### `BPF_ATOMIC` RMW (`fetch_add` / `cmpxchg`) — kernel 5.12+
+The limiter's token bucket is SMP-safe since NIGHT-boost-38 (schema
+v7): every refill-window ownership, token deduction, and stats
+increment is an atomic read-modify-write, so two CPUs enforcing the
+same cgroup can no longer lose updates and over-allow 130-146% of
+budget under concurrent flows (the E2E strict-multi / curl-burst
+reds of 2026-09-24). The instructions are 64-bit `BPF_ATOMIC`
+fetch-add and compare-exchange — kernel 5.12+; the verified floor
+(5.13) sits above it, so the minimum moves nothing. The BPF build
+itself rides a repo-local clone of the `bpfel-unknown-none` target
+spec (`ebpf/bpfel-unknown-none.json`) with `atomic-cas` enabled —
+the rustc builtin still carries the pre-5.12 `atomic-cas: false`
+legacy — plus `-C target-cpu=v3` (alu32, kernel 5.1+; see
+docs/PURE_RUST_EVALUATION.md and build.rs's
+`force_bpf_v3_rustflags`).
+
 ### `BPF_MAP_TYPE_ARRAY` + `BPF_MAP_TYPE_HASH` — kernel 4.18+
 Standard BPF map types. Used for:
 - `watchdog_deadline` (ARRAY, 1 entry)

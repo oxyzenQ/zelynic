@@ -17,7 +17,10 @@
 #
 # rust-src is required by build-std; rustfmt gives the crate a
 # formatting gate (gate-keepers check 12) without leaving this
-# directory.
+# directory. NIGHT-boost-38: the JSON target spec
+# (bpfel-unknown-none.json beside this file) additionally needs
+# cargo's -Z json-target-spec (already set in .cargo/config.toml and
+# passed explicitly by build.rs's nested invocation).
 #
 # Install once per machine — one command (NIGHT-host-1):
 #   ./scripts/dev/bootstrap-ebpf.sh

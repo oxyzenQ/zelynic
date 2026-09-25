@@ -218,9 +218,26 @@ fn run_nested_ebpf_build(ebpf_dir: &std::path::Path) {
             "--release",
             "--locked",
             "--target",
-            "bpfel-unknown-none",
+            // NIGHT-boost-38: the repo-local spec clone (ebpf/
+            // bpfel-unknown-none.json) — identical to the builtin
+            // bpfel-unknown-none except `atomic-cas: true`, which
+            // unblocks core's 64-bit atomic RMW (fetch_add /
+            // compare_exchange) so the SMP-safe token bucket in
+            // ebpf/src/math.rs compiles. The builtin spec still
+            // carries the pre-5.12 `atomic-cas: false` even though
+            // the ISA (BPF_ATOMIC, Linux 5.12+) and the verified
+            // floor (5.13) both support it. The file stem keeps the
+            // artifact directory at target/bpfel-unknown-none/, so
+            // every consumer of that path (this file, ci.yml
+            // artifact checks, cache keys) is untouched.
+            "bpfel-unknown-none.json",
         ])
         .args(["-Z", "build-std=core"])
+        // NIGHT-boost-38: a JSON target spec (ebpf/
+        // bpfel-unknown-none.json) needs this unstable cargo flag on
+        // the same invocation; the dated nightly pin makes it a
+        // constant, not a variable.
+        .args(["-Z", "json-target-spec"])
         // The aya-build upstream workaround: the parent cargo exports
         // RUSTC pointing at the ROOT build's (stable) rustc — without
         // removing it, the nightly sub-build would compile build-std
@@ -229,6 +246,7 @@ fn run_nested_ebpf_build(ebpf_dir: &std::path::Path) {
         .env_remove("RUSTC")
         .env_remove("RUSTC_WORKSPACE_WRAPPER");
     strip_host_poison_rustflags(&mut nested);
+    force_bpf_v3_rustflags(&mut nested);
     let status = nested.status().unwrap_or_else(|e| {
         panic!(
             "failed to launch `rustup run {EBPF_TOOLCHAIN} cargo` — rustup is a \
@@ -510,6 +528,66 @@ fn strip_host_poison_rustflags(cmd: &mut std::process::Command) {
             }
         }
     }
+}
+
+/// NIGHT-boost-38: force the v3 BPF codegen level onto the nested
+/// build, whatever survived the poison strip.
+///
+/// The SMP-safe token bucket (ebpf/src/math.rs) compiles its
+/// read-modify-write steps down to the BPF_ATOMIC ISA (fetch-add /
+/// cmpxchg, Linux 5.12+), and the LLVM BPF backend selects those
+/// instructions — and successfully lowers the whole atomic chain —
+/// only at cpu v3 or higher. bpf-linker takes its codegen level from
+/// rustc's `-C target-cpu`, so the flag must ride RUSTFLAGS.
+///
+/// Why not rely on ebpf/.cargo/config.toml's `[build] rustflags`
+/// alone: a set environment variable SHADOWS config rustflags
+/// entirely, and every CI workflow that drives a pro-* alias exports
+/// RUSTFLAGS ("-D warnings -C target-cpu=native" in ci.yml, the
+/// matrix baselines in release.yml, the v3/v4 legs of
+/// maintenance.yml). The strip above already removed the host-poison
+/// `target-cpu` tokens; this pass then appends the bpfel v3 flag to
+/// whichever rustflags variable remains on the command. With no env
+/// rustflags at all (the plain `cd ebpf && cargo build` route, or
+/// setup.sh's alias whose flags ride `--config`, not env) the
+/// command carries neither variable and the config file supplies the
+/// same flag — one value, two delivery routes, both documented.
+///
+/// v3 bytecode is alu32 (kernel 5.1+), far inside the 5.13 verified
+/// floor; the flag changes nothing for code that uses no atomics
+/// (the observer object is byte-identical either way).
+fn force_bpf_v3_rustflags(cmd: &mut std::process::Command) {
+    const FLAG: &str = "-Ctarget-cpu=v3";
+    // Snapshot the two rustflags channels the poison strip may have
+    // left on the command (explicit sets only — an inherited-but-
+    // untouched variable is not in get_envs, and that case needs no
+    // amendment: the config file supplies the flag).
+    let mut encoded: Option<std::ffi::OsString> = None;
+    let mut plain: Option<std::ffi::OsString> = None;
+    for (key, value) in cmd.get_envs() {
+        // None = an explicit env_remove from the poison strip: the
+        // variable is deliberately gone, leave it that way.
+        let Some(value) = value else { continue };
+        if key.to_str() == Some("CARGO_ENCODED_RUSTFLAGS") {
+            encoded = Some(value.to_os_string());
+        } else if key.to_str() == Some("RUSTFLAGS") {
+            plain = Some(value.to_os_string());
+        }
+    }
+    if let Some(mut value) = encoded {
+        // The encoded variable wins over RUSTFLAGS in cargo, so when
+        // both survived the strip this is the one to amend
+        // (separator: 0x1F).
+        value.push("\u{1f}");
+        value.push(FLAG);
+        cmd.env("CARGO_ENCODED_RUSTFLAGS", value);
+    } else if let Some(mut value) = plain {
+        value.push(" ");
+        value.push(FLAG);
+        cmd.env("RUSTFLAGS", value);
+    }
+    // Neither variable set: the nested cargo reads the v3 flag from
+    // ebpf/.cargo/config.toml — nothing to do.
 }
 
 /// Filter one rustflags value split on `sep` (the 0x1F separator for

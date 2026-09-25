@@ -17,7 +17,11 @@
 #     local gates) never enters the nightly path;
 #   - the nested build compiles into its OWN target directory with no
 #     lock contention with the root build;
-#   - the bpfel-unknown-none -Z build-std cross-build can only be
+#   - the bpfel -Z build-std cross-build (NIGHT-boost-38: the
+#     repo-local bpfel-unknown-none.json spec clone with atomic-cas
+#     enabled, plus -C target-cpu=v3 from .cargo/config.toml — the
+#     SMP-safe token bucket in ebpf/src/math.rs needs the BPF_ATOMIC
+#     RMW instructions; see docs/PURE_RUST_EVALUATION.md) can only be
 #     reached deliberately, never as a side effect.
 #
 # The toolchain comes from THIS directory's rust-toolchain.toml (the

@@ -83,6 +83,23 @@ Key upstream facts, verified against sources (not from memory):
    not found`. This also means cargo's `-v` output never shows the
    linker step (it runs inside rustc), which confused the first
    sandbox measurements until it was tested directly.
+   NIGHT-boost-38 addendum: the production build targets a
+   repo-local clone of this spec (`ebpf/bpfel-unknown-none.json`)
+   that flips `atomic-cas` to true — the builtin spec still carries
+   the pre-BPF_ATOMIC `atomic-cas: false` relic, which compiles
+   core without any RMW atomics (fetch_add / compare_exchange
+   simply do not exist on it). The SMP-safe token bucket in
+   ebpf/src/math.rs needs those; the clone is byte-identical to the
+   builtin otherwise, and its file stem keeps the artifact
+   directory at `target/bpfel-unknown-none/` so every consumer of
+   that path is untouched. The atomic selection additionally needs
+   `-C target-cpu=v3` (the LLVM BPF backend picks the atomic
+   patterns at v3; alu32 bytecode is kernel 5.1+, inside the 5.13
+   verified floor) — delivered via ebpf/.cargo/config.toml for
+   clean-env builds and `force_bpf_v3_rustflags` in build.rs for
+   env-carried CI builds (a set RUSTFLAGS shadows config
+   rustflags). Kernel requirement: BPF_ATOMIC RMW is Linux 5.12+
+   (docs/KERNEL_COMPATIBILITY.md).
 3. **bpf-linker prebuilts make the "no system LLVM" story real.** A
    104 MB static musl binary from the GitHub release ran flawlessly
    in the research sandbox (a container with no sudo, no LLVM, no

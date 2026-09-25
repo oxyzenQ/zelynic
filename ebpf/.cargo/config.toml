@@ -9,9 +9,19 @@
 #
 # How the pieces fit (verified empirically, see
 # docs/PURE_RUST_EVALUATION.md):
-#   - [build].target selects the tier-3 bpfel-unknown-none target.
+#   - [build].target selects the repo-local bpfel-unknown-none.json
+#     spec clone (NIGHT-boost-38): identical to the tier-3 builtin
+#     except `atomic-cas: true`, which unblocks core's 64-bit atomic
+#     RMW (fetch_add / compare_exchange) for the SMP-safe token
+#     bucket in ebpf/src/math.rs. The builtin spec still carries the
+#     pre-5.12 `atomic-cas: false` even though the ISA (BPF_ATOMIC,
+#     Linux 5.12+) and the verified floor (5.13) both support it.
+#     The file stem keeps the artifact directory at
+#     target/bpfel-unknown-none/, so every consumer of that path
+#     (build.rs artifact joins, ci.yml checks, cache keys) is
+#     untouched.
 #   - [unstable].build-std compiles core from source; nightly only.
-#   - The target spec itself pins linker-flavor "bpf", so rustc
+#   - The target spec pins linker-flavor "bpf", so rustc
 #     invokes bpf-linker from PATH as the default linker. Hiding
 #     bpf-linker from PATH fails the build with
 #     "error: linker 'bpf-linker' not found" -- no silent fallback.
@@ -24,7 +34,18 @@
 #   RUSTFLAGS='-Cdebuginfo=2 -Clink-arg=--btf' cargo +nightly build
 
 [build]
-target = "bpfel-unknown-none"
+target = "bpfel-unknown-none.json"
+# NIGHT-boost-38: the LLVM BPF backend selects the atomic RMW
+# instructions (BPF_ATOMIC fetch-add / cmpxchg, what the SMP-safe
+# token bucket in ebpf/src/math.rs needs) only at cpu v3 — and v3
+# bytecode (alu32, kernel 5.1+) sits well inside the 5.13 verified
+# floor. This applies to direct builds with a clean environment
+# (cd ebpf && cargo build); when the parent build.rs drives this
+# build with an inherited RUSTFLAGS env (CI's "-D warnings"), env
+# shadows config — that path force-merges the same flag in
+# build.rs (force_bpf_v3_rustflags), so both routes agree.
+rustflags = ["-C", "target-cpu=v3"]
 
 [unstable]
 build-std = ["core"]
+json-target-spec = true
