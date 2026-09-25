@@ -132,8 +132,8 @@ fn census_counts_every_talked_cgroup() {
     assert!(!session.is_empty());
     assert_eq!(session.len(), 2);
     let board = session.ranked();
-    assert_eq!(board.iter().map(|(_, a)| a.dl).sum::<u64>(), 101);
-    assert_eq!(board.iter().map(|(_, a)| a.ul).sum::<u64>(), 202);
+    assert_eq!(board.iter().map(|(_, a)| a.dl).sum::<u128>(), 101);
+    assert_eq!(board.iter().map(|(_, a)| a.ul).sum::<u128>(), 202);
 }
 
 /// Ties break by cgroup ID: the board must not reshuffle between
@@ -151,34 +151,52 @@ fn ties_break_by_cgroup_id() {
 
 // ── NIGHT-boost-16 / safety-security-1: accumulate-explosion pins ──
 
-/// Saturation, not panic or wrap: both legs at u64::MAX must
-/// total to u64::MAX. A debug build used to panic here (`dl +
-/// ul` overflows), a release build wrapped to a small number —
-/// the leaderboard would have crowned a wrap-around winner.
+/// Saturation, not panic or wrap (boost-16 semantics, carried to
+/// the u128 legs NIGHT-lts-5 widened): both legs at the ceiling
+/// must total to the ceiling — a debug build used to PANIC here
+/// (`dl + ul` overflows), a release build wrapped to a small
+/// number and crowned a wrap-around winner. The u64::MAX row below
+/// is the lts-5 widening proof: two u64-saturated legs now sum
+/// EXACTLY (2 x u64::MAX — the exabyte-plus total the widening
+/// exists to carry), while u128::MAX is the new honest ceiling.
 #[test]
 fn saturated_totals_read_as_maximum() {
+    // The widened legs carry the old saturation shape exactly:
+    // u64-saturated legs no longer clamp — they sum past the old
+    // ceiling, the whole point of NIGHT-lts-5.
     let acc = SessionAcc {
-        dl: u64::MAX,
-        ul: u64::MAX,
+        dl: u64::MAX.into(),
+        ul: u64::MAX.into(),
         pkt: u64::MAX,
     };
-    assert_eq!(acc.total(), u64::MAX);
-    // One leg saturated, one leg free: the total still reads as
-    // the ceiling (18.4 EB this session is saturation).
+    assert_eq!(acc.total(), 2 * u128::from(u64::MAX));
+    // The true ceiling is u128's now: both legs maxed saturate.
     assert_eq!(
         SessionAcc {
-            dl: u64::MAX,
+            dl: u128::MAX,
+            ul: u128::MAX,
+            pkt: 0,
+        }
+        .total(),
+        u128::MAX
+    );
+    // One leg at the ceiling, one leg free: the total reads as the
+    // ceiling (~3.4e38 bytes is saturation — past quettabyte).
+    assert_eq!(
+        SessionAcc {
+            dl: u128::MAX,
             ul: 1,
             pkt: 0,
         }
         .total(),
-        u64::MAX
+        u128::MAX
     );
 }
 
-/// The fold saturates and STAYS saturated: an accumulator at
-/// u64::MAX absorbs further traffic without wrap — the honest
-/// shape of a counter that has simply run out of bits.
+/// The fold saturates and STAYS saturated: an accumulator at the
+/// u128 ceiling absorbs further traffic without wrap — the honest
+/// shape of a counter that has simply run out of bits (the packet
+/// leg keeps its u64 ceiling: ~389,000 years of line rate).
 #[test]
 fn absorb_saturates_and_stays_saturated() {
     let mut session = SessionState::new();
@@ -187,12 +205,12 @@ fn absorb_saturates_and_stays_saturated() {
     let board = session.ranked();
     assert_eq!(
         board[0].1.dl,
-        u64::MAX,
-        "saturated download stays saturated"
+        u128::from(u64::MAX) + 10_000_000,
+        "the widened leg keeps counting past the old u64 ceiling"
     );
     assert_eq!(board[0].1.ul, 0);
-    // The ranking key survives the saturation (no wrap panic).
-    assert_eq!(board[0].1.total(), u64::MAX);
+    // The ranking key survives (no wrap panic, no clamp).
+    assert_eq!(board[0].1.total(), u128::from(u64::MAX) + 10_000_000);
 }
 
 /// Growth bound (MAX_TRACKED_CGROUPS): the board mirrors the
@@ -348,4 +366,50 @@ fn peaks_respect_the_admission_bound() {
     session.absorb(&insider);
     session.note_frame(&insider, None);
     assert_eq!(session.peaks(), (500, 1));
+}
+
+/// The zettabyte pin (NIGHT-lts-5, the server long-endurance ask:
+/// "harden and robust for future when reach limit of zelynic like
+/// possible 1 zettabyte ZB even quettabyte QB"): the kernel's
+/// per-cgroup counters are u64 and wrap at 18.4 EB, but the wrap
+/// deltas they hand the monitor are COHERENT (loader's modulo
+/// subtraction) — and the session accumulator, u128 since lts-5,
+/// folds them into a total past the exabyte. Fifty-five
+/// u64::MAX-scale frames (a ~4.7-years-at-1-Tbps cgroup's worth of
+/// wraps) cross 1 ZB, and the board's own figure renders it.
+#[test]
+fn the_session_counts_past_the_kernel_counters_wrap_into_zettabytes() {
+    use crate::ebpf::limiter::format_bytes_wide;
+    let mut session = SessionState::new();
+    // 55 x u64::MAX = ~1.0147e21 bytes — past 1 ZB (1e21).
+    for _ in 0..55 {
+        session.absorb(&frame(1, u64::MAX, 0));
+    }
+    let board = session.ranked();
+    assert_eq!(board.len(), 1);
+    let acc = board[0].1;
+    let total: u128 = acc.dl + acc.ul;
+    assert!(
+        total >= 10_u128.pow(21),
+        "the u128 accumulator must cross the zettabyte the u64 counters cannot (got {total})"
+    );
+    assert_eq!(format_bytes_wide(total), "1.0 ZB");
+    // And the ranking key rode along: the total IS the sort key.
+    assert_eq!(acc.total(), total);
+}
+
+/// The wrap-fed stream stays coherent end to end (NIGHT-lts-5): a
+/// kernel counter that wraps once mid-session (prev = u64::MAX -
+/// 500 polled at cur = 999: the loader's modulo delta = 1500) folds
+/// into the accumulator exactly like any other frame — no silent
+/// cgroup, no lost totals, the long-uptime corruption class retired.
+#[test]
+fn a_wrapped_counters_deltas_fold_like_any_other() {
+    let mut session = SessionState::new();
+    session.absorb(&frame(1, u64::MAX - 500, 0));
+    // The wrapped poll: the loader hands 1500 (the modulo delta),
+    // not the old saturating clamp's 0.
+    session.absorb(&frame(1, 1500, 0));
+    let acc = session.ranked()[0].1;
+    assert_eq!(acc.dl, u128::from(u64::MAX - 500) + 1500);
 }

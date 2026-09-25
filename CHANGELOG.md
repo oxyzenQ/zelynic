@@ -163,6 +163,80 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Changed
 
+- **change: NIGHT-lts-5 — the server long-endurance scale re-shape:
+  wrap-coherent deltas, the u128 session ledger, and the SI ladder
+  to quettabyte** — the owner's ask ("zelynic now support for server
+  usage... optimize, long endurance, mitigate explode data, harden
+  and robust for future when reach limit of zelynic like possible 1
+  zettabyte ZB even quettabyte QB. need documented"), answered as an
+  audit that found ONE real long-endurance bug and ONE honest
+  ceiling, then fixed both on exactly the surfaces that carry them:
+  - **The wrap-coherence bug (the hunt's find)**: the kernel side's
+    booking is `fetch_add` — BPF atomics WRAP at u64::MAX, 18.4 EB
+    (~4.7 years of 1-Tbps traffic through one cgroup: a REAL
+    server horizon), documented in ebpf/src/stats.rs since
+    improve-29 — but the userspace deltas were `saturating_sub`:
+    the moment a kernel counter wrapped, every subsequent poll
+    clamped to a ZERO delta and the cgroup went SILENT (rates
+    zero, totals frozen) for another full 18.4 EB. The fix:
+    `wrap_coherent_delta` (src/ebpf/loader.rs), modulo-2^64
+    subtraction — the exact inverse of the kernel's wrap, exact
+    across a wrap whenever the true per-interval delta stays
+    under 2^63 bytes (~9.2 EB per poll interval; a 1-Tbps link
+    needs 2.3 YEARS to produce that — nine orders of headroom),
+    and `prev > cur` cannot mean anything else (session-scoped
+    maps, kernfs ids never reused, prev-stats only move on
+    success). Pinned in test/ebpf/loader_wrap_tests.rs: the
+    straddling wrap reads its true 1500 bytes, the post-wrap
+    steady state stays alive, the coherence bound holds.
+  - **The u128 session ledger (the ZB/QB widening)**: SessionAcc's
+    byte legs and the footer census (grand/dl/ul) widen to u128 —
+    the session surface sums the kernel counters' wrap-coherent
+    deltas into totals whose honest ceiling is now ~340 million
+    QUETTABYTES (~8.7e21 years of 1-Tbps traffic, past the SI
+    prefix list's own end). The packet leg stays u64 (2^64
+    packets = ~389,000 years at 1.5 Mpps — the byte legs were the
+    only reachable ceiling, documented). The eagle TOTAL column
+    and the footer census render through `format_bytes_wide`
+    (src/ebpf/limiter/format.rs), the u128 twin of the SI ladder:
+    B, KB, MB, GB, TB, PB, EB, ZB, YB, RB, QB — the full 2019
+    prefix list, past 999.9 QB rendering the exact count
+    (u128::MAX is "340282366.9 QB"). The u64 ladder KEEPS its
+    7-tier honesty for every kernel-map surface (the limiter's
+    policy figures, the per-socket lifetime legs) — one integer
+    width, one ladder, one truth: a formatter never renders a
+    tier its integer cannot reach. The AVG speed pair divides
+    through `rate_bps_wide` (render.rs), the u128 twin of
+    rate_bps. The wide formatter's exactness discipline:
+    remainder-based integer tenths (u128 has no wider register
+    for the u64 twin's `bytes * 10` widening — and the carry
+    path the first cut missed was caught by its own pins: a
+    `10` tenth carries into the whole, the same 999.95 edge the
+    walk enforces).
+  - **The u128 widening exposed a masked double-absorb**: the
+    footer safety pin absorbed its summary explicitly AND through
+    the render call — masked for its whole life by the saturating
+    add clamping the second u64::MAX onto the first. The exact
+    fold made the doubling visible (an AVG twice the ceiling);
+    the pin now folds once, the way production does.
+  - **The data-explosion audit re-walked at server scale**: every
+    long-lived structure re-verified fenced — the maps capped
+    (4096 x 2), the leaderboard mirror-capped, the connections
+    cache TTL-cleared in place, both /proc caches rebuilt behind
+    their TTLs, the session maps recreated per run. No new growth
+    surface; nothing to fix.
+  Frame A/B (432c2fa vs this tree, three-run medians, 10 s formal
+  runs): bytes/frame byte-identical (1,919.0 — the wide ladder's
+  lower tiers ARE the u64 ladder, pinned), fps -2.4% and every
+  visual metric sub-noise inside the container's ±7% band (the
+  single first-run -11.6% was build warm-up, the exact reason the
+  protocol requires medians) — recorded in PERFORMANCE.md. 388 +
+  34 tests green (9 new pins: 4 wrap-coherence, 4 wide-ladder, and
+  the ZB census render); USAGE carries the scale-contract
+  paragraph, STABILITY's honest limit 5 and the killer inventory's
+  arithmetic-endurance row updated to the u128/wrap-coherent
+  truth, and the u64 ladder's doc comment now points at its wide
+  twin instead of claiming no eighth tier exists.
 - **change: NIGHT-improve-34 — the sudo rescue's post-exit
   re-apply goes discriminated: the orphan stops fighting the
   user's shell** — the owner's fresh live report closed the

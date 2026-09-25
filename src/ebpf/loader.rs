@@ -308,8 +308,8 @@ impl Observer {
         // Process egress (upload) deltas
         for (cgroup_id, stats) in &current_egress {
             let prev = self.prev_stats.get(cgroup_id).copied().unwrap_or_default();
-            let delta_packets = stats.packets.saturating_sub(prev.packets);
-            let delta_bytes = stats.bytes.saturating_sub(prev.bytes);
+            let delta_packets = wrap_coherent_delta(stats.packets, prev.packets);
+            let delta_bytes = wrap_coherent_delta(stats.bytes, prev.bytes);
 
             if delta_packets > 0 {
                 summary.total_packets += delta_packets;
@@ -333,8 +333,8 @@ impl Observer {
                 .get(cgroup_id)
                 .copied()
                 .unwrap_or_default();
-            let delta_packets = stats.packets.saturating_sub(prev.packets);
-            let delta_bytes = stats.bytes.saturating_sub(prev.bytes);
+            let delta_packets = wrap_coherent_delta(stats.packets, prev.packets);
+            let delta_bytes = wrap_coherent_delta(stats.bytes, prev.bytes);
 
             if delta_packets > 0 {
                 summary.total_ingress_packets += delta_packets;
@@ -450,3 +450,34 @@ mod embedded_object_tests;
 #[cfg(test)]
 #[path = "../../test/ebpf/stats_smp_tests.rs"]
 mod stats_smp_tests;
+
+// ── the wrap-coherent counter delta (NIGHT-lts-5) ────────────────────
+
+/// The server long-endurance coherence fix: modulo-2^64 subtraction,
+/// the exact inverse of the kernel side's `fetch_add` booking
+/// (ebpf/src/stats.rs — BPF atomics WRAP at u64::MAX, 18.4 EB, and a
+/// 1-Tbps-backed cgroup reaches the wrap in ~4.7 years of monitor
+/// uptime). The old `saturating_sub` clamped every post-wrap poll to
+/// a ZERO delta — the moment a kernel counter wrapped, its cgroup
+/// went SILENT on the board (rates zero, totals frozen) for another
+/// full 18.4 EB. Modulo subtraction stays exact across a wrap
+/// whenever the true per-interval delta stays under 2^63 bytes —
+/// ~9.2 EB per POLL interval, which a 1-Tbps link needs 2.3 YEARS to
+/// produce: every real interval is nine orders of magnitude inside
+/// the bound. And `prev > cur` cannot mean anything else here: the
+/// maps are session-scoped (no cross-session carryover), kernfs
+/// cgroup ids are never reused, and a failed poll rewrites nothing
+/// (the prev-stats only move on success) — a backwards step is a
+/// wrap, full stop. A free function (not an impl method) so the
+/// loader pins wire straight at it.
+#[inline]
+fn wrap_coherent_delta(cur: u64, prev: u64) -> u64 {
+    cur.wrapping_sub(prev)
+}
+
+// NIGHT-lts-5: the wrap-coherence pins — the delta arithmetic the
+// long-endurance server uptime leans on (the kernel counters wrap;
+// the userspace must wrap WITH them, never clamp).
+#[cfg(test)]
+#[path = "../../test/ebpf/loader_wrap_tests.rs"]
+mod loader_wrap_tests;

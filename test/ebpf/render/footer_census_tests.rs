@@ -126,3 +126,44 @@ fn limit_line_rides_the_brand_tier() {
          actionable line follows the theme"
     );
 }
+
+/// The zettabyte census (NIGHT-lts-5, the server long-endurance
+/// ask — "harden and robust for future when reach limit of zelynic
+/// like possible 1 zettabyte ZB even quettabyte QB"): the footer's
+/// grand total is the SESSION surface — u128 since lts-5, summing
+/// the wrap-coherent deltas the kernel's u64 counters hand up — so
+/// a monitor fed a ~4.7-years-at-1-Tbps stream renders a census
+/// the u64 ladder could never print: "1.0 ZB", meant.
+#[test]
+fn the_census_total_can_read_zettabytes() {
+    let mut session = SessionState::new();
+    // 55 x u64::MAX download legs: past 1 ZB (1e21) in the u128
+    // accumulator — the kernel counters wrapped 54 times on the way
+    // and the session kept counting every byte of it.
+    for _ in 0..55 {
+        session.absorb(&frame(7001, u64::MAX, 0));
+        session.note_frame(&frame(7001, u64::MAX, 0), None);
+    }
+    let mut lines = Vec::new();
+    render_eagle_eyes_at(
+        &mut lines,
+        &frame(7001, 0, 0),
+        &[],
+        &IdentityMap::new(),
+        None,
+        Duration::from_secs(1),
+        Duration::from_secs(1),
+        &mut session,
+        Duration::from_secs(20_113_100), // ~233 days: 1 ZB at 1 Tbps
+        classic(),
+    );
+    let joined = lines.join("\n");
+    assert!(
+        joined.contains("total usage internet in 232d:18h"),
+        "the uptime horizon rides the census row, got: {joined:?}"
+    );
+    assert!(
+        joined.contains("= 1.0 ZB"),
+        "the session grand total crosses the zettabyte and says so, got: {joined:?}"
+    );
+}

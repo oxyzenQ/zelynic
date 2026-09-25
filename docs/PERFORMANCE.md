@@ -285,6 +285,40 @@ src/terminal/raw.rs in the same task — the 500-line-cap split —
 with every consumer still routing through the terminal layer's
 re-export surface, zero call-site churn.
 
+### NIGHT-lts-5 A/B (the server long-endurance scale re-shape, 2026-09-25)
+
+The change touched the render path's figures, not its layout: the
+board's TOTAL column and the footer census render through
+`format_bytes_wide` (the u128 twin of the SI ladder), the AVG speed
+pair divides through `rate_bps_wide`, and the session accumulator
+behind them widened to u128; the loader's deltas went wrap-coherent
+(subtraction shape, zero cost). Three-run medians (A = 432c2fa at
+HEAD, B = the lts-5 tree, 10 s formal runs each side, the
+container's ±7% noise band the lts-1 record established):
+
+| Metric | before (median) | after (median) | Delta |
+|--------|---------------|---------------|-------|
+| fps | 7,814.3 | 7,623.8 | -2.4% (noise band) |
+| bytes/frame | 1,919.0 | 1,919.0 | +0.0% |
+| emit bytes/frame | 502.1 | 505.8 | +0.7% |
+| frame entropy | 3.0216 | 3.0244 | +0.1% |
+| density gini | 0.3513 | 0.3503 | -0.3% |
+| dirty cells/frame | 39.5 | 39.7 | +0.6% |
+
+Reading: bytes/frame identical to the byte — the wide ladder's
+lower tiers are the u64 ladder (pinned byte-identical in
+test/ebpf/limiter/format_wide_tests.rs), so every desktop-sized
+figure renders exactly as before; the small emit/dirty movement is
+the diff engine reacting to the first frame after the harness's
+fixed-seed traffic crosses a tier edge (one cell repaints), and
+every delta including fps sits inside the noise band (the single
+first-run pair showed -11.6% fps, which the three-run medians
+exposed as build-warm-up noise — the exact reason the lts-1
+protocol requires medians). The u128 arithmetic itself costs one
+wider add per fold and one wider divide per figure, against a
+render path that spends its budget in string building — invisible
+at the product's 1 fps cadence.
+
 ## BPF Instruction Budget
 
 ```bash
