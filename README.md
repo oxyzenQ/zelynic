@@ -496,6 +496,8 @@ policy, supported versions, and what counts as a vulnerability live in
 - [Dependency Audit](docs/DEPENDENCY_AUDIT.md) — every direct dependency justified
 - [Release Verification](docs/VERIFY_RELEASE.md) — GPG signature + checksum verification
 - [Contributing Guide](CONTRIBUTING.md) — gates, conventions, script inventory
+- [Licensing FAQ](docs/LICENSING_FAQ.md) — dual-licensing questions answered
+- [Commercial License](COMMERCIAL_LICENSE.md) — tiers, pricing, payment, verification
 
 ## Test Results
 
@@ -648,9 +650,38 @@ For trademark licensing or written permission, see
 [TRADEMARK.md §6](TRADEMARK.md) — the contact channels live there, told
 once.
 
+## Commercial Licensing
+
+Companies using this in production need a commercial license.
+
+zelynic is dual-licensed: **GPL-3.0-only** for open-source use, and a
+**Commercial License** for proprietary and commercial use (SaaS offerings,
+internal tools that cannot meet copyleft, redistribution under your own
+terms). Full details, payment instructions, and the verification process
+live in [COMMERCIAL_LICENSE.md](COMMERCIAL_LICENSE.md); the short version:
+
+| Tier       | Price          | Target                                           |
+| ---------- | -------------- | ------------------------------------------------ |
+| Personal   | Free (GPL-3.0) | Hobby, personal, non-commercial, contributions   |
+| Individual | $99/year       | Solo devs, freelancers, revenue < $100K/year     |
+| Business   | $1,000/year    | SMB, revenue $100K – $10M/year                   |
+| Company    | $9,900/year    | Enterprise (>$10M/year) OR redistribution rights |
+
+Tiers are self-declared in good faith. Payment is USD-pegged crypto
+(Solana / Ethereum / Bitcoin, owner-verified addresses with QR codes —
+see COMMERCIAL_LICENSE.md). Licensing contact:
+[with.rezky@gmail.com](mailto:with.rezky@gmail.com). Common questions are
+answered in [docs/LICENSING_FAQ.md](docs/LICENSING_FAQ.md).
+
+The voluntary [crypto donations](#crypto-donations) above are separate
+from commercial licensing — donations support the project; a commercial
+license buys rights.
+
 ## License
 
-GPL-3.0-only
+Dual-licensed: **GPL-3.0-only** for open-source use (see
+[LICENSE](LICENSE)), or the **Commercial License** for proprietary and
+commercial use (see [COMMERCIAL_LICENSE.md](COMMERCIAL_LICENSE.md)).
 
 ## Author
 
