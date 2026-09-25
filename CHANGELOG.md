@@ -16,6 +16,31 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Added
 
+- **feat: NIGHT-master-2 — Dual-licensing model: GPL-3.0-only +
+  Commercial License (Individual $99/yr, Business $1K/yr, Company
+  $9.9K/yr). See COMMERCIAL_LICENSE.md for details.** — the owner's
+  locked decision, shipped whole: COMMERCIAL_LICENSE.md (who needs a
+  license, who does not, the four-tier pricing table with
+  revenue thresholds and self-declared good-faith verification, what
+  each tier grants — copyleft exemption, priority support, and
+  Company-only redistribution rights, the USD-pegged crypto payment
+  instructions with inline QR codes, and the tx-hash verification
+  process that issues the license PDF within 48 hours); the LICENSE
+  header now names the dual track; README gains the Commercial
+  Licensing section (tier table + contact, with the voluntary crypto
+  donations kept explicitly separate); TRADEMARK.md gains the
+  cross-reference (commercial source licensing and trademark
+  licensing are separate grants); docs/LICENSING_FAQ.md answers
+  the licensing inbox's five real questions plus the contact
+  pointer; and .markdownlint.json codifies the doc standard (the
+  default rules with MD013 line-length off — the repo's prose style
+  is long lines; the new files pass it clean, legacy files carry
+  their historical violations untouched). The three payment QR codes
+  (Solana, Ethereum, Bitcoin Taproot) are generated at 205x205 px,
+  error-correction level M, under 1 KB each, and every one is
+  verified to decode back to the exact owner-verified address string
+  (pyzbar round-trip, byte-exact).
+
 - **feat: NIGHT-lts-6 — the claims ledger and the resource-honesty
   proof: every claim zelynic makes mapped to the mechanism that
   verifies it, and a fifth live claim measuring the CLI's own

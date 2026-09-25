@@ -5,6 +5,11 @@
 
 This document governs the use of the **Zelynic** name, logo, and associated branding assets. It supplements, but does not replace, the GPL-3.0-only license that covers the source code.
 
+Commercial licensing is separate from trademark licensing. A commercial
+source license (see [COMMERCIAL_LICENSE.md](COMMERCIAL_LICENSE.md)) does
+not grant rights to the Marks, and trademark permission does not grant a
+source license — the two are negotiated independently.
+
 > **TL;DR** — Forking falls into two categories. **Contribution forks** (bug
 > fixes, features, PRs back to upstream) are allowed without permission and
 > may keep the "Zelynic" name and branding unchanged. **Non-contribution
