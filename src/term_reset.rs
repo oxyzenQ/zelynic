@@ -23,12 +23,21 @@
 //! contract, ported to this crate's crossterm-free stack — raw ANSI
 //! bytes + termios ioctls + the classic external utilities) — plus
 //! the layer-0 interposed-terminal lane (NIGHT-improve-31, the
-//! `outer` child module): under sudo's `use_pty` interposition fd 0
+//! `outer` child module; its re-apply discriminated in
+//! NIGHT-improve-34): under sudo's `use_pty` interposition fd 0
 //! is a throwaway pty, so the rescue ALSO discovers the user's real
 //! terminal through the sudo monitor, applies every layer to it
-//! directly, and leaves a bounded orphan that re-applies the fix
-//! AFTER the monitor's exit-restore — the one moment the broken
-//! snapshot lands. See `term_reset/outer.rs` for the anatomy.
+//! directly, and leaves a bounded orphan that — AFTER the monitor
+//! exits — re-applies the fix ONLY when the terminal's output lane
+//! is still broken (OPOST|ONLCR not both on: the staircase class),
+//! and then only the output lane: the two flags every shell's
+//! display needs, never the input flags a live line editor owns.
+//! See `term_reset/outer.rs` for the full anatomy, including the
+//! sudo-source finding the discrimination leans on (the monitor's
+//! own exit-restore SKIPS when the output flags were changed out
+//! from under it — which the in-flight apply does on purpose — so
+//! the common case needs no post-exit touch at all, and a blanket
+//! re-apply would only fight the user's shell).
 //!
 //! 1. The termios restore, in-process and FIRST (NIGHT-improve-30,
 //!    the maturity the first port owed): `tcsetattr` of a sane cooked

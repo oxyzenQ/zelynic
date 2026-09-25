@@ -29,6 +29,19 @@
 //!    terminal hostage (the values are pinned, not just named, so
 //!    a future edit that stretches them fails a test instead of
 //!    shipping silently).
+//! 4. The re-apply discrimination matrix (NIGHT-improve-34): the
+//!    signature must fire on the monitor's residue and stay silent
+//!    on every live-reader state — sudo's cfmakeraw raw and the
+//!    broken-at-start snapshot fire; a healthy cooked shell, a
+//!    zle/readline raw (OPOST kept on, ICANON/ECHO off), and the
+//!    `stty -onlcr` half-cure are separated exactly (the last one
+//!    fires: OPOST without ONLCR still column-walks newlines).
+//! 5. The cure's lane purity (NIGHT-improve-34, the regression the
+//!    owner's fresh report filed): after the cure, ONLY c_oflag
+//!    moved — c_iflag, c_lflag, c_cflag, and the whole c_cc table
+//!    are byte-identical — so a live line editor's input contract
+//!    can never be disturbed by the one thing that runs after the
+//!    user's shell has taken the terminal back.
 //!
 //! The live sudo mechanics (the fork, the monitor wait, the
 //! post-exit re-apply) are the live proof's lane — the guard's
@@ -39,7 +52,10 @@
 //! skipping it (a check that silently skips is a check that does
 //! not exist).
 
-use super::{apply_rescue_to_path, outer_tty_from_proc, POLL_BUDGET_MS, POLL_SLICE_MS, SETTLE_MS};
+use super::{
+    apply_rescue_to_path, cure_output_lane, outer_tty_from_proc, output_lane_broken,
+    POLL_BUDGET_MS, POLL_SLICE_MS, SETTLE_MS,
+};
 
 /// One allocated pty pair: the master fd plus the slave's device
 /// path. The slave is opened separately by each pin (the apply
@@ -227,7 +243,138 @@ fn by_path_apply_cooks_a_cfmakeraw_tty() {
     unsafe { libc::close(slave) };
 }
 
-// ── pin 3: the orphan's bounded budget ────────────────────────────────
+// ── pin 4: the re-apply discrimination matrix (NIGHT-improve-34) ────
+
+/// A real pty's CURRENT termios, mutated by one closure and read
+/// back through the same fd — the pin's own probe, so every matrix
+/// row starts from a REAL terminal state, not a synthetic struct
+/// (the flags a live Linux pty actually carries are the ones the
+/// discrimination must separate).
+fn with_pty_termios(mutate: impl FnOnce(&mut libc::termios)) -> bool {
+    let pty = alloc_pty();
+    let slave = open_slave(&pty.slave_path);
+    let mut t: libc::termios = unsafe { std::mem::zeroed() };
+    assert_eq!(unsafe { libc::tcgetattr(slave, &mut t) }, 0);
+    mutate(&mut t);
+    assert_eq!(unsafe { libc::tcsetattr(slave, libc::TCSANOW, &t) }, 0);
+    let mut cur: libc::termios = unsafe { std::mem::zeroed() };
+    assert_eq!(unsafe { libc::tcgetattr(slave, &mut cur) }, 0);
+    // SAFETY: close(2) the pin's slave fd.
+    unsafe { libc::close(slave) };
+    output_lane_broken(&cur)
+}
+
+/// The signature fires on BOTH shapes of the monitor's residue —
+/// sudo's own cfmakeraw raw (what the monitor holds while the
+/// command runs, and what a killed monitor leaves behind) and the
+/// broken-at-start snapshot a restored-but-broken exit lands —
+/// because both clear OPOST (the staircase class).
+#[test]
+fn discrimination_fires_on_the_monitors_raw_residue() {
+    assert!(
+        with_pty_termios(|t| unsafe {
+            libc::cfmakeraw(t);
+        }),
+        "cfmakeraw (sudo's monitor raw, the violent-death residue) must fire the cure"
+    );
+    // The staircase shape specifically: OPOST|ONLCR off, the rest
+    // untouched — the restored-broken-snapshot class.
+    assert!(
+        with_pty_termios(|t| {
+            t.c_oflag &= !(libc::OPOST | libc::ONLCR);
+        }),
+        "OPOST|ONLCR off (the LF-without-CR staircase) must fire the cure"
+    );
+}
+
+/// The signature stays SILENT on every state a live reader owns:
+/// the healthy cooked shell, and the zle/readline raw (ICANON/ECHO
+/// off but OPOST kept ON — the exact state the improve-31 orphan
+/// used to stomp, doubling the owner's typed characters). Touching
+/// these is the regression this discrimination exists to retire.
+#[test]
+fn discrimination_stays_silent_on_live_reader_states() {
+    assert!(
+        !with_pty_termios(|_| {}),
+        "a healthy cooked terminal (any pty's default) must NOT fire the cure"
+    );
+    assert!(
+        !with_pty_termios(|t| {
+            t.c_lflag &= !(libc::ICANON | libc::ECHO | libc::IEXTEN);
+            t.c_iflag &= !(libc::IXON | libc::ICRNL);
+            t.c_cc[libc::VMIN] = 1;
+            t.c_cc[libc::VTIME] = 0;
+        }),
+        "zle/readline raw (ICANON/ECHO off, OPOST kept on) must NOT fire the cure"
+    );
+}
+
+/// The half-cured shape still fires: OPOST on but ONLCR off (a
+/// `stty -onlcr` residue) column-walks every newline the shell
+/// prints — the output lane is not whole until BOTH flags answer.
+#[test]
+fn discrimination_fires_on_the_half_cured_lane() {
+    assert!(
+        with_pty_termios(|t| {
+            t.c_oflag |= libc::OPOST;
+            t.c_oflag &= !libc::ONLCR;
+        }),
+        "OPOST without ONLCR (the column-walking half-cure) must fire the cure"
+    );
+}
+
+// ── pin 5: the cure's lane purity (NIGHT-improve-34) ──────────────────
+
+/// After the cure, ONLY c_oflag moved: the input, local, control
+/// flags and the whole c_cc table are byte-identical — pinned on a
+/// REAL pty carrying a zle-raw state, because the purity claim is
+/// exactly "a live line editor's input contract survives the cure".
+#[test]
+fn cure_moves_the_output_lane_and_nothing_else() {
+    let pty = alloc_pty();
+    let slave = open_slave(&pty.slave_path);
+
+    // A zle-raw reader's state: input flags and modes set to a
+    // distinctive, deliberately non-default shape.
+    let mut before: libc::termios = unsafe { std::mem::zeroed() };
+    assert_eq!(unsafe { libc::tcgetattr(slave, &mut before) }, 0);
+    before.c_lflag &= !(libc::ICANON | libc::ECHO | libc::IEXTEN);
+    before.c_lflag |= libc::ISIG;
+    before.c_iflag &= !(libc::IXON | libc::ICRNL);
+    before.c_iflag |= libc::IGNBRK;
+    before.c_cc[libc::VMIN] = 1;
+    before.c_cc[libc::VTIME] = 0;
+    assert_eq!(unsafe { libc::tcsetattr(slave, libc::TCSANOW, &before) }, 0);
+
+    // The cure.
+    let mut after = before;
+    cure_output_lane(&mut after);
+
+    // The output lane is whole.
+    assert_eq!(
+        after.c_oflag & (libc::OPOST | libc::ONLCR),
+        libc::OPOST | libc::ONLCR,
+        "the cure must set the anti-staircase pair"
+    );
+    // Every other lane is byte-identical.
+    assert_eq!(after.c_iflag, before.c_iflag, "c_iflag must not move");
+    assert_eq!(after.c_lflag, before.c_lflag, "c_lflag must not move");
+    assert_eq!(after.c_cflag, before.c_cflag, "c_cflag must not move");
+    assert_eq!(
+        after.c_cc, before.c_cc,
+        "the control-character table must not move (VMIN/VTIME are a live reader's contract)"
+    );
+    // And the discrimination retires on the cured state.
+    assert!(
+        !output_lane_broken(&after),
+        "the cured state must read healthy"
+    );
+
+    // SAFETY: close(2) the pin's slave fd.
+    unsafe { libc::close(slave) };
+}
+
+// ── pin 3: the orphan's bounded budget ────────────────────────
 
 /// The orphan must be small by construction: a poll slice at least
 /// coarse enough to round its CPU cost to zero, a hard budget that
