@@ -727,9 +727,7 @@ KILL_MIDFLIGHT_KILLS = 12
 # same night added — the pen state survives the alt-screen switch and
 # a mid-frame death would otherwise leave the shell prompt wearing
 # the dead monitor's last color.
-KILL_TUI_RESTORE_BYTES = (
-    b"\x1b[0m\x1b[?1006l\x1b[?1002l\x1b[?1000l\x1b[?1049l\x1b[?25h"
-)
+KILL_TUI_RESTORE_BYTES = b"\x1b[0m\x1b[?1006l\x1b[?1002l\x1b[?1000l\x1b[?1049l\x1b[?25h"
 # The settle window for the guard child's post-mortem write: the
 # child fires on the pipe EOF within microseconds of the parent's
 # death, but a loaded runner deserves a generous margin.
@@ -919,7 +917,11 @@ def test_kill_tui():
         "kill tui: terminal restored after every kill (guard bytes)",
         "PASS" if guard_ok == killed_ok and killed_ok == KILL_TUI_CYCLES else "FAIL",
         f"{guard_ok}/{killed_ok} signal-9 deaths received the ALT_EXIT restore bytes"
-        + ("" if killed_ok == KILL_TUI_CYCLES else " (not every cycle died by SIGKILL — see the signal-9 row)"),
+        + (
+            ""
+            if killed_ok == KILL_TUI_CYCLES
+            else " (not every cycle died by SIGKILL — see the signal-9 row)"
+        ),
     )
     record(
         "kill tui: enforcement rows intact after every kill",

@@ -77,10 +77,16 @@
 # boots 6.17.0-xxxx-azure — GitHub moved both images onto HWE
 # kernels, so this matrix no longer proves the 5.15 floor on hosted
 # runners (the harness's environment header names the actual kernel
-# each run). The release-page 5.15 promise now rests on the
-# CROSS_DISTRO results and the 5.13+ floor gate; re-anchoring the
-# matrix (a 5.15 container, a self-hosted runner) is an owner
-# decision, not a silent edit.
+# each run). NIGHT-improve-29 closes the gap the owner asked about
+# (translated from Indonesian: "how do I keep the 5.15 floor proven
+# without a self-hosted runner — can a container do it?"): a plain
+# container cannot help (containers share the host kernel), so the
+# 5.15 proof moved to .github/workflows/e2e-kernel-floor.yml — a KVM
+# micro-VM on a hosted runner that boots the real jammy 5.15 kernel
+# with the ubuntu:22.04 container as its userland (the libbpf/ci +
+# Cilium-vmtest pattern), dispatch + weekly, deliberately NOT a leg
+# of this push pipeline. This matrix keeps proving what hosted
+# runners actually boot; the floor workflow proves the floor.
 
 name: Dragon Guard - E2E
 

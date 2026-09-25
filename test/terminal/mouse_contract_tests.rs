@@ -30,7 +30,7 @@
 //!    reporting), or `ESC[?2004h` (bracketed paste) anywhere in the
 //!    shipped source fails this test with the file and mode listed.
 //!    NIGHT-hunt-31 extension: the emergency reset contract
-//!    (src/terminal/reset.rs, the `--reset-terminal` rescue) is the
+//!    (src/term_reset.rs, the `--reset-terminal` rescue) is the
 //!    ONE file granted a second mode set — {2026, 2004, 1004, 7,
 //!    1003, 1015}, all in the default-RESTORING direction (pinned
 //!    in test/terminal/reset_tests.rs: off-default modes only ever
@@ -146,7 +146,7 @@ fn monitor_takes_pointer_and_fully_restores() {
 /// may appear as a literal in any `src/**/*.rs` file. The MONITOR
 /// set is {1049, 25, 1000, 1002, 1006} everywhere; the
 /// NIGHT-hunt-31 RESET set {2026, 2004, 1004, 7, 1003, 1015} is
-/// honored only inside `src/terminal/reset.rs` — the `--reset-terminal`
+/// honored only inside `src/term_reset.rs` — the `--reset-terminal`
 /// rescue's default-restoring directions (see the module docs and
 /// test/terminal/reset_tests.rs for the direction pin).
 /// The scan looks for
@@ -188,7 +188,7 @@ fn source_tree_has_only_sanctioned_dec_modes() {
          exactly {{1049, 25, 1000, 1002, 1006}} — anything else grabs a \
          capability the monitor does not need, or re-exposes the box \
          to selection; the NIGHT-hunt-31 reset set {{2026, 2004, 1004, \
-         7, 1003, 1015}} is honored ONLY in src/terminal/reset.rs, and \
+         7, 1003, 1015}} is honored ONLY in src/term_reset.rs, and \
          only in the default-restoring direction):\n  {}",
         offenders.join("\n  ")
     );
@@ -198,7 +198,7 @@ fn source_tree_has_only_sanctioned_dec_modes() {
 /// outside the sanctioned sets as an offender string
 /// "file:line: mode NNNN". The monitor set applies everywhere; the
 /// reset set (default-restoring directions only) applies only to
-/// `src/terminal/reset.rs` (NIGHT-hunt-31).
+/// `src/term_reset.rs` (NIGHT-hunt-31).
 fn scan_source_file(path: &Path, offenders: &mut Vec<String>) {
     let text = match std::fs::read_to_string(path) {
         Ok(t) => t,
@@ -207,7 +207,7 @@ fn scan_source_file(path: &Path, offenders: &mut Vec<String>) {
     // The file-scoped reset exemption: the emergency reset contract
     // is the one place the extra modes may live (and its direction
     // contract is separately pinned in test/terminal/reset_tests.rs).
-    let is_reset_contract = path.ends_with("terminal/reset.rs");
+    let is_reset_contract = path.ends_with("term_reset.rs");
     let needle = "\\x1b[?";
     let bytes = text.as_bytes();
     let mut line = 1usize;

@@ -157,10 +157,17 @@ The whole bring-up-plus-batteries flow runs on CI too (NIGHT-ultimate-3,
 the re-issued label — the E2E workflow): a push touching core files
 triggers `.github/workflows/e2e.yml`, which runs this exact owner-facing
 path (`setup.sh` itself, not a CI-shaped shortcut) and then both
-supermassive batteries under sudo on real hosted-runner kernels
-(5.15 and 6.8+), so "does it work end to end?" is answered per push
+supermassive batteries under sudo on real hosted-runner kernels, so
+"does it work end to end?" is answered per push
 — no VirtualBox session needed; `workflow_dispatch` fires the same
-pipeline on demand as the pre-release qualification run.
+pipeline on demand as the pre-release qualification run. The hosted
+images have all moved onto 6.x HWE kernels, so the 5.15 floor has its
+own proof: the Kernel Floor workflow (NIGHT-improve-29) boots a KVM
+micro-VM on a hosted runner — a real jammy 5.15 kernel, the
+ubuntu:22.04 container as its userland — and runs the depth battery
+plus the observer/guard probe inside, weekly and on demand, with no
+self-hosted runner (a plain container cannot change the host kernel;
+the micro-VM is the honest container-shaped answer).
 
 Building needs the pinned Rust toolchain (rustup installs the exact
 version from `rust-toolchain.toml`) plus the eBPF nightly pair — and
@@ -545,9 +552,11 @@ survives the day nothing goes right.
 No machine handy? The whole qualification — bring-up plus v1 plus
 v2, in that order — runs on CI on every core-file push
 (NIGHT-ultimate-3, the re-issued label): the E2E workflow executes
-it on hosted runners (kernel 5.15 and 6.8+, real sudo, real BPF, no
+it on hosted runners (real sudo, real BPF, real runner kernels, no
 container), so a green Actions run is the same verdict these
-sections teach you to produce locally, on two kernels at once.
+sections teach you to produce locally. The 5.15 floor specifically
+is proven by the Kernel Floor workflow's KVM micro-VM
+(NIGHT-improve-29) — same verdict, one kernel leg, no self-hosting.
 
 Want the four headline claims themselves PROVEN on your machine — no
 daemon (enforcement alive with zero zelynic processes), pure eBPF (tc

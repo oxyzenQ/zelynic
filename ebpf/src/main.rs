@@ -45,6 +45,24 @@
 // no helper wall, and CgroupStats drops the throttle's
 // last_event_packet leg (userspace CgroupStatsRaw synced).
 //
+// A sixth delta (NIGHT-improve-29, the owner-approved observer race
+// hunt): the counter updates are ATOMIC. The C twin's plain
+// `s.packets += 1; s.bytes += pkt_len` on the shared map value was
+// the exact lost-update shape NIGHT-boost-38 closed in the limiter —
+// aya hands every CPU the same unlocked value, two CPUs enforcing
+// one cgroup each loaded the same counter and stored their own +1,
+// and the eagle-eyes rates read LOW under exactly the concurrent
+// traffic the monitor exists to measure. Every update now rides
+// 64-bit BPF_ATOMIC fetch-add (Linux 5.12+, under the verified 5.13
+// floor — the same ISA the v7 token bucket already requires), and
+// first-packet inserts use BPF_NOEXIST so a concurrent initializer
+// is never clobbered by a BPF_ANY overwrite (the loser re-looks-up
+// and books its packet onto the winner's entry — one packet counted
+// exactly once on every interleaving). The booking primitives and
+// the stats layout live in stats.rs (the NIGHT-depthbore-1 math.rs
+// precedent), pinned rootlessly by test/ebpf/stats_smp_tests.rs
+// under real thread contention.
+//
 // Build: cd ebpf && cargo +nightly build --release
 
 #![no_std]
@@ -55,26 +73,12 @@ use aya_ebpf::{
     maps::HashMap, maps::LruHashMap, programs::SkBuffContext,
 };
 
-// ---------------------------------------------------------------------------
-// Shared layout contract with the userspace loader (src/ebpf/loader.rs,
-// CgroupStatsRaw) and the C twin. The compile-time size pins guarantee the
-// layouts can never drift silently; the C side carries the same shapes.
-// ---------------------------------------------------------------------------
+// The observer's pure stats core (NIGHT-improve-29): the layout +
+// the atomic booking primitives, pure `core`, #[path]-pinned into
+// the userspace test tree the same way math.rs is (see stats.rs).
+mod stats;
 
-/// The BPF-side stats layout; the userspace mirror is
-/// `CgroupStatsRaw` in src/ebpf/loader.rs (layout contract). The
-/// pre-boost-34 shape carried a third leg, `last_event_packet`, the
-/// 1-in-100 event throttle's bookmark — both the throttle and its
-/// leg are gone with the events ringbuf, and the value is now
-/// exactly the two counters userspace reads.
-#[repr(C)]
-#[derive(Clone, Copy)]
-struct CgroupStats {
-    packets: u64,
-    bytes: u64,
-}
-
-const _: () = assert!(core::mem::size_of::<CgroupStats>() == 16);
+use stats::{CgroupStats, book_packet, bump_socket_bytes};
 
 // ---------------------------------------------------------------------------
 // Maps. The static names ARE the userspace contract (loader.rs opens each
@@ -149,6 +153,14 @@ static socket_counters: LruHashMap<u64, u64> =
 static socket_counters_ingress: LruHashMap<u64, u64> =
     LruHashMap::with_max_entries(SOCKET_MAP_MAX_ENTRIES, 0);
 
+/// `bpf_map_update_elem` flag: fail the insert if the key already
+/// exists (kernel uapi: BPF_ANY = 0, BPF_NOEXIST = 1, BPF_EXIST = 2).
+/// NIGHT-improve-29: the first-packet inserts use NOEXIST so a
+/// concurrent initializer's entry is never clobbered — the loser of
+/// the insert race re-looks-up and books its packet onto the
+/// winner's entry instead of overwriting it.
+const BPF_NOEXIST: u64 = 1;
+
 // ---------------------------------------------------------------------------
 // Egress observer: per-cgroup and per-socket counter updates. Ported
 // from observe_egress, with the 1-in-100 event branch and the events
@@ -156,42 +168,40 @@ static socket_counters_ingress: LruHashMap<u64, u64> =
 // helper wall — see the file header).
 // ---------------------------------------------------------------------------
 
-/// Bump one per-socket cookie accumulator (NIGHT-boost-26). Cookie 0
-/// means the kernel had no owning socket on the skb (packet-level
-/// traffic not demuxed to a socket, e.g. some early loopback shapes)
-/// — nothing to attribute, skip honestly. Saturating add: a u64 byte
-/// accumulator's honest ceiling is u64::MAX, never a wrap — the same
-/// discipline the userspace session ledger guarantees (NIGHT-boost-16).
-/// The cgroup counters below deliberately keep the C twin's plain
-/// adds instead: their wrap horizon is the same unreachable 18.4 EB
-/// (years of line-rate traffic through ONE cgroup in ONE
-/// session-scoped map), and the saturating form would charge the
-/// per-packet hot path extra instructions to guard a state no real
-/// link can produce. The honest saturation contract users SEE is the
-/// userspace one — STABILITY.md's "the accumulator saturates" scoped
-/// to the session path. (NIGHT-ultimate-1 comment-truth fix: the
-/// previous wording claimed saturation parity with the cgroup
-/// counters that the code below never had.)
+/// Bump one per-socket cookie accumulator (NIGHT-boost-26; atomic
+/// since NIGHT-improve-29). Cookie 0 means the kernel had no owning
+/// socket on the skb (packet-level traffic not demuxed to a socket,
+/// e.g. some early loopback shapes) — nothing to attribute, skip
+/// honestly. The update is a Relaxed fetch_add on the shared value —
+/// two CPUs attributing the same socket (multi-queue NIC steering,
+/// loopback) each land their bytes, no lost update. Overflow wraps
+/// at the unreachable u64::MAX session horizon (~18.4 EB through one
+/// socket) — the same position the cgroup counters hold; the old
+/// saturating form was a plain RMW whose race lost real bytes far
+/// below any horizon (see stats.rs, bump_socket_bytes).
 fn bump_socket_counter(map: &LruHashMap<u64, u64>, cookie: u64, pkt_len: u64) {
     if cookie == 0 {
         return;
     }
     match map.get_ptr_mut(&cookie) {
-        Some(ptr) => {
-            // SAFETY: the pointer comes from the map's own lookup and
-            // lives until the map is freed (kernel map memory); the
-            // write is a plain u64 store, the same access pattern the
-            // cgroup counter updates below use.
-            let cur = unsafe { *ptr };
-            unsafe { *ptr = cur.saturating_add(pkt_len) };
-        }
+        Some(ptr) => bump_socket_bytes(ptr, pkt_len),
         None => {
-            // Insert result ignored: a full-LRU miss is an honest
-            // "not attributed" (the map evicts cold entries to make
-            // room, so this only fails transiently under extreme
-            // churn), never a dropped packet — the same
-            // allow-and-skip contract the cgroup counter maps carry.
-            let _ = map.insert(&cookie, pkt_len, 0);
+            // First packet for this socket: NOEXIST so a concurrent
+            // first-packet on another CPU is never clobbered; the
+            // loser re-looks-up and books onto the winner's entry
+            // (NIGHT-improve-29). Any failure beyond the race (a
+            // full-LRU miss is an honest "not attributed" — the map
+            // evicts cold entries to make room, so this only fails
+            // transiently under extreme churn; a NOEXIST loser whose
+            // entry was LRU-evicted between insert and re-lookup)
+            // loses this one packet's ATTRIBUTION, never the packet —
+            // the same allow-and-skip contract the cgroup counter
+            // maps carry.
+            if map.insert(&cookie, &pkt_len, BPF_NOEXIST).is_err() {
+                if let Some(ptr) = map.get_ptr_mut(&cookie) {
+                    bump_socket_bytes(ptr, pkt_len);
+                }
+            }
         }
     }
 }
@@ -207,26 +217,29 @@ fn observe_egress(ctx: SkBuffContext) -> i32 {
     let cookie = unsafe { bpf_get_socket_cookie(ctx.skb.skb.cast()) };
     bump_socket_counter(&socket_counters, cookie, u64::from(pkt_len));
 
-    // Counter update: in-place increment on an existing entry, or a
-    // first-packet insert (BPF_ANY). The insert result is ignored
-    // exactly like the ingress twin: a failed insert loses this one
-    // packet's count, never the packet itself — the C twin's
-    // init-then-relookup existed only to feed the event throttle's
-    // bookkeeping, which retired with the ringbuf (NIGHT-boost-34).
+    // Counter update: atomic in-place booking on an existing entry
+    // (NIGHT-improve-29: the old `+=` on the shared value lost
+    // updates whenever two CPUs carried the same cgroup's traffic —
+    // the boost-38 limiter race's observer twin), or a first-packet
+    // NOEXIST insert whose loser re-looks-up and books onto the
+    // winner's entry (one packet counted exactly once on every
+    // interleaving; a full-map miss loses this one packet's COUNT,
+    // never the packet itself).
     match cgroup_counters.get_ptr_mut(&cgroup_id) {
-        Some(ptr) => {
-            // SAFETY: the pointer comes from the map's own lookup and
-            // lives until the map is freed (kernel map memory).
-            let s = unsafe { &mut *ptr };
-            s.packets += 1;
-            s.bytes += pkt_len as u64;
-        }
+        Some(ptr) => book_packet(ptr, u64::from(pkt_len)),
         None => {
             let init = CgroupStats {
                 packets: 1,
                 bytes: pkt_len as u64,
             };
-            let _ = cgroup_counters.insert(&cgroup_id, &init, 0);
+            if cgroup_counters
+                .insert(&cgroup_id, &init, BPF_NOEXIST)
+                .is_err()
+            {
+                if let Some(ptr) = cgroup_counters.get_ptr_mut(&cgroup_id) {
+                    book_packet(ptr, u64::from(pkt_len));
+                }
+            }
         }
     }
 
@@ -250,20 +263,26 @@ fn observe_ingress(ctx: SkBuffContext) -> i32 {
     bump_socket_counter(&socket_counters_ingress, cookie, pkt_len);
 
     match cgroup_counters_ingress.get_ptr_mut(&cgroup_id) {
-        Some(ptr) => {
-            let s = unsafe { &mut *ptr };
-            s.packets += 1;
-            s.bytes += pkt_len;
-        }
+        Some(ptr) => book_packet(ptr, pkt_len),
         None => {
             let init = CgroupStats {
                 packets: 1,
                 bytes: pkt_len,
             };
-            // Insert result ignored by design: the C twin does not check
-            // the return value either; a failed insert loses this one
-            // packet's count, never the packet itself.
-            let _ = cgroup_counters_ingress.insert(&cgroup_id, &init, 0);
+            // NOEXIST + loser re-lookup (NIGHT-improve-29, the
+            // egress twin's contract): a concurrent initializer is
+            // never clobbered, and one packet is counted exactly
+            // once on every interleaving. A failure beyond the race
+            // (full map) loses this one packet's count, never the
+            // packet itself — the C twin's allow-and-skip contract.
+            if cgroup_counters_ingress
+                .insert(&cgroup_id, &init, BPF_NOEXIST)
+                .is_err()
+            {
+                if let Some(ptr) = cgroup_counters_ingress.get_ptr_mut(&cgroup_id) {
+                    book_packet(ptr, pkt_len);
+                }
+            }
         }
     }
 

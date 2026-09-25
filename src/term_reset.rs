@@ -48,15 +48,15 @@
 //! is noise); the ANSI layers ride stdout unconditionally (bytes
 //! into a pipe are inert).
 //!
-//! Module wiring note: this file lives in the terminal domain
-//! (src/terminal/) but is compiled as the crate-root module
-//! `term_reset` — `#[path]`-wired from main.rs, NOT declared as a
-//! child of terminal/mod.rs. The terminal tree is ebpf-gated because
-//! its session machinery is the eagle-eyes graph; the rescue owns no
-//! BPF machinery (ANSI bytes + stty) and must exist in EVERY build —
-//! a featureless binary can still rescue a terminal some other app
-//! broke. The cross-tree `#[path]` wiring follows the repo's own
-//! test-tree precedent (cosmostrix Pattern C).
+//! Module placement: a crate-root module (src/term_reset.rs), not
+//! a child of the ebpf-gated terminal tree (whose session machinery
+//! is the eagle-eyes graph). The rescue owns no BPF machinery —
+//! ANSI bytes + stty — and must exist in EVERY build: a featureless
+//! binary can still rescue a terminal some other app broke. A plain
+//! module (no #[path] wiring) is also what the test-tree discipline
+//! gate expects: every #[path] wiring under src/ resolves into
+//! test/, and this file's own pins hang off it the ordinary way
+//! (test/terminal/reset_tests.rs).
 //!
 //! Mode-direction contract (pinned in test/terminal/reset_tests.rs
 //! and enforced by the mouse-contract source scan): every DEC
@@ -182,5 +182,5 @@ pub(crate) fn reset_terminal_emergency() {
 // (cosmostrix Pattern C), #[path]-wired across trees exactly like
 // the terminal tree's own pins.
 #[cfg(test)]
-#[path = "../../test/terminal/reset_tests.rs"]
+#[path = "../test/terminal/reset_tests.rs"]
 mod reset_tests;

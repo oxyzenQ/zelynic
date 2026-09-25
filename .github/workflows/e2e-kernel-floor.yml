@@ -1,0 +1,228 @@
+# Copyright (C) 2026 rezky_nightky
+# SPDX-License-Identifier: GPL-3.0-only
+# =============================================================================
+# Kernel Floor — the 5.15 proof on hosted runners, no self-hosting
+# =============================================================================
+#
+# NIGHT-improve-29 (the owner's ask, translated from Indonesian:
+# "the 5.15-dependent side needs a way to keep proving that floor —
+# how do I avoid paying for a self-hosted runner? can a container
+# do it?"): the physics first, because it decides the shape. A
+# CONTAINER cannot
+# change the kernel — containers share the host kernel by definition,
+# so `docker run ubuntu:22.04` on the 6.8-azure hosted image boots a
+# 6.8 kernel, and no runtime flag changes that (the boost-38 drift
+# note in e2e.yml: GitHub moved BOTH hosted images onto HWE kernels,
+# 22.04 -> 6.8, 24.04 -> 6.17, so the push matrix no longer touches
+# 5.15 at all). The one container-shaped thing that DOES work is the
+# libbpf/ci + Cilium-vmtest pattern, and it is what this workflow
+# implements: a KVM micro-VM inside the hosted runner that boots a
+# REAL 5.15 kernel. The container supplies the USERLAND (an
+# ubuntu:22.04 rootfs, glibc-matched for the gnu flagship binary,
+# exported into the VM's initramfs), QEMU+KVM supplies the KERNEL
+# (the jammy GA 5.15 vmlinuz, direct-kernel-booted with -cpu host),
+# and scripts/ci/kernel-floor-init.sh runs inside as PID 1 on the
+# real 5.15 — /proc parsing, cgroup v2 mkdirs, bpffs pins, BPF
+# program load, all of it kernel truth.
+#
+# Why direct kernel boot with no disk and no modules: the probe needs
+# no block device (the initramfs IS the rootfs, ~160 MB in RAM), the
+# 8250 serial console is built into the Ubuntu vmlinuz (console=
+# ttyS0 relays every byte to the CI log via -nographic), and every
+# filesystem the batteries need is a core kernel facility (cgroup2,
+# bpffs, proc, sysfs, devtmpfs, devpts). If a probe ever needs a
+# module, it fails loudly in the log instead of silently skipping.
+#
+# The probe inventory (owned by scripts/ci/kernel-floor-init.sh) is
+# canonical invocations only — the e2e house rule, no bespoke
+# assertions drift: uname -r (the floor itself), `zelynic -V` +
+# `doctor` (the binary runs; the bpf syscall answers on 5.15), the
+# supermassive engine self-test (rootless harness smoke),
+# `limiter-depth-test --quick` (the flagship cross-distro depth
+# battery — real BPF enforcement: attach, policy writes, MEASURED
+# rates, accounting, reload; the same script CROSS_DISTRO results
+# ride), and the v2 kill-tui pattern on a pty (the observer attaches
+# AND the violent-death guard restores on 5.15 — frames under a live
+# session, SIGKILL mid-render, the ALT_EXIT restore bytes on the pty;
+# scripts/ci/kernel-floor-observer-probe.py).
+#
+# Trigger: workflow_dispatch (the pre-release click, same as the E2E
+# pipeline) plus a weekly schedule — the floor stays continuously
+# proven without gating pushes. This is deliberately a SEPARATE
+# workflow, not a third matrix leg in e2e.yml: the push pipeline was
+# just made green again (boost-38), and experimental VM machinery
+# owes the main pipeline zero risk — this workflow can only redden
+# itself. When it has a track record, folding it into the e2e matrix
+# is a one-line owner call (add the leg, move the trigger).
+#
+# Cost: ~5 minutes of a standard hosted runner (kernel deb ~13 MB,
+# docker pull ubuntu:22.04, cpio ~160 MB, boot in seconds with KVM,
+# probes ~90 s). Public-repo standard runners are free; a weekly run
+# costs nothing and keeps the release-page promise honest.
+
+name: Dragon Guard - Kernel Floor
+
+on:
+  workflow_dispatch: {}
+  schedule:
+    # Weekly, Monday 03:00 UTC (owner timezone +8: 11:00 local) —
+    # often enough to catch a jammy kernel-archive change or a
+    # zelynic regression against the floor between releases.
+    - cron: "0 3 * * 1"
+
+# Least privilege (cosmostrix contract): this workflow only reads
+# the repository. The sudo inside is host-level package installs and
+# the KVM boot — never a GitHub permission.
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  RUST_BACKTRACE: 1
+
+jobs:
+  kernel-floor-5-15:
+    name: 5.15 micro-VM (KVM, jammy kernel)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5, NIGHT-hunt-20 SHA pin
+
+      # The kernel can change; /dev/kvm is a GitHub runner guarantee
+      # (nested virt is enabled on every current Linux hosted image).
+      # Failing LOUDLY here beats a confusing TCG fallback: the
+      # pro-native-gnu binary is native codegen and would SIGILL under
+      # TCG's -cpu qemu64 — KVM's -cpu host passthrough is what makes
+      # "native" honest inside the VM.
+      - name: Verify KVM
+        run: |
+          test -e /dev/kvm || {
+            echo "FAIL: /dev/kvm is absent — this runner image cannot boot the 5.15 micro-VM"
+            echo "(nested virt is expected on every current GitHub Linux runner image)"
+            exit 1
+          }
+          echo "OK: /dev/kvm present"
+
+      - name: Install qemu + cpio
+        run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends qemu-system-x86 cpio
+
+      # The owner-facing bring-up on the RUNNER (outside the VM): the
+      # canonical path from e2e.yml — bootstrap, the pro-native-gnu
+      # flagship build, and the rootless engine self-test. The binary
+      # is native codegen; inside the VM it executes under KVM's
+      # -cpu host on the SAME silicon that built it.
+      - name: Bring-up (setup.sh --skip-heavy)
+        run: ./scripts/setup.sh --skip-heavy
+
+      # The 5.15 kernel itself: the jammy (22.04) GA kernel, fetched
+      # from the Ubuntu archive. The metapackage is resolved through
+      # its dependency chain to the versioned unsigned image, which
+      # carries boot/vmlinuz-5.15.0-*-generic. The jammy pocket keeps
+      # the current 5.15.x for as long as jammy standard support runs
+      # (April 2027+) — apt resolves the latest, so no URL rot.
+      - name: Fetch the jammy 5.15 kernel
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/kfloor && cd /tmp/kfloor
+          echo "deb http://archive.ubuntu.com/ubuntu/ jammy main" |
+            sudo tee /etc/apt/sources.list.d/jammy-floor.list >/dev/null
+          sudo apt-get update -qq \
+            -o Dir::Etc::sourcelist=/etc/apt/sources.list.d/jammy-floor.list \
+            -o Dir::Etc::sourceparts=/dev/null \
+            -o APT::Get::List-Cleanup=0
+          IMG=$(apt-cache depends --recurse linux-image-5.15.0-generic 2>/dev/null \
+            | grep -oE 'linux-image-unsigned-5\.15\.0-[0-9]+-generic' | head -1)
+          test -n "$IMG" || {
+            echo "FAIL: could not resolve the jammy 5.15 image package"
+            exit 1
+          }
+          echo "resolved: $IMG"
+          apt-get download "$IMG"
+          dpkg -x "${IMG}"*_amd64.deb pkg
+          VMLINUZ=$(find pkg/boot -name 'vmlinuz-5.15.*' | head -1)
+          test -n "$VMLINUZ" || {
+            echo "FAIL: no vmlinuz inside the deb"
+            exit 1
+          }
+          cp "$VMLINUZ" /tmp/kfloor/vmlinuz-5.15
+          echo "kernel: $(du -h /tmp/kfloor/vmlinuz-5.15 | cut -f1) at /tmp/kfloor/vmlinuz-5.15"
+
+      # The userland: the ubuntu:22.04 CONTAINER supplies a glibc-2.35
+      # rootfs that matches the gnu flagship binary; python3 +
+      # iproute2 ride along (the harness engine + `ip link set lo
+      # up`). The checkout (tracked files only) and the built binary
+      # land at /opt/zelynic, scripts/ci/kernel-floor-init.sh becomes
+      # /init (PID 1) — then the whole tree packs into ONE newc cpio
+      # (the initramfs IS the rootfs; no disk, no modules).
+      - name: Assemble the micro-VM rootfs
+        run: |
+          set -euo pipefail
+          cd /tmp/kfloor
+          docker pull -q ubuntu:22.04
+          docker rm -f floor-rootfs >/dev/null 2>&1 || true
+          docker run --name floor-rootfs -d ubuntu:22.04 sleep infinity
+          docker exec floor-rootfs apt-get update -qq
+          docker exec floor-rootfs apt-get install -y --no-install-recommends python3 iproute2
+          docker export floor-rootfs -o rootfs.tar
+          mkdir -p rootfs
+          tar -xf rootfs.tar -C rootfs
+          mkdir -p rootfs/opt/zelynic
+          git -C "$GITHUB_WORKSPACE" archive HEAD | tar -x -C rootfs/opt/zelynic
+          cp "$GITHUB_WORKSPACE/target/pro-native-gnu/zelynic" rootfs/opt/zelynic/zelynic
+          cp "$GITHUB_WORKSPACE/scripts/ci/kernel-floor-init.sh" rootfs/init
+          chmod +x rootfs/init
+          # PID 1 needs a console to exec onto before devtmpfs lands
+          # (the kernel opens the initramfs's static /dev/console for
+          # it; the init's devtmpfs mount takes over from there).
+          sudo mknod -m 600 rootfs/dev/console c 5 1
+          ( cd rootfs && sudo find . -print0 | sudo cpio --null -o -H newc ) | gzip -1 > initrd.gz
+          echo "initramfs: $(du -h initrd.gz | cut -f1)"
+
+      # Boot the micro-VM: direct kernel boot, KVM host-passthrough
+      # CPU (the pro-native binary runs on the same silicon that
+      # built it), no disk, serial console to stdout, panic=-1 +
+      # -no-reboot so a kernel panic ends qemu instead of hanging the
+      # job, and an outer timeout so a wedged guest can never burn
+      # the 25-minute budget.
+      - name: Boot the 5.15 micro-VM and run the probes
+        run: |
+          set -euo pipefail
+          cd /tmp/kfloor
+          set +e
+          timeout 480 qemu-system-x86_64 \
+            -machine q35,accel=kvm -cpu host \
+            -m 3072 -smp 4 \
+            -kernel vmlinuz-5.15 \
+            -initrd initrd.gz \
+            -append "console=ttyS0 panic=-1" \
+            -nographic -no-reboot 2>&1 | tee vm.log
+          QEMU_RC=${PIPESTATUS[0]}
+          set -e
+          # A clean run ends with the guest's poweroff (qemu exit 0);
+          # the outer timeout (124) means the VM never finished and
+          # must fail the job with the tail visible. Any other rc is
+          # left to the Verdict step — the FLOOR-* sentinel lines in
+          # the log are the authority.
+          if test "$QEMU_RC" -eq 124; then
+            echo "FAIL: the micro-VM hit the 8-minute timeout — log tail:"
+            tail -40 vm.log
+            exit 1
+          fi
+          exit 0
+
+      # The verdict lives in the log (the VM cannot relay exit codes
+      # through qemu; the FLOOR-* sentinel lines are the contract —
+      # scripts/ci/kernel-floor-init.sh owns them).
+      - name: Verdict
+        run: |
+          set -euo pipefail
+          cd /tmp/kfloor
+          echo "── probe verdicts ──"
+          grep -E '^FLOOR-(RESULT|OBSERVER|VERDICT)' vm.log || true
+          grep -q '^FLOOR-VERDICT: PASS' vm.log
+          echo "OK: the 5.15 floor is proven — no self-hosted runner, no container kernel"

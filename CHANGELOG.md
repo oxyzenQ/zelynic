@@ -16,6 +16,52 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Added
 
+- **feat: NIGHT-improve-29 (CI half) — the Kernel Floor workflow:
+  the 5.15 proof on hosted runners via a KVM micro-VM, no
+  self-hosting** — the owner's ask (translated from Indonesian:
+  "the 5.15-dependent side needs a way to keep proving that floor —
+  how do I avoid a self-hosted runner? can a container do it?").
+  The physics decides the shape: a plain container
+  CANNOT change the kernel (containers share the host kernel, so
+  `docker run ubuntu:22.04` on the 6.8-azure hosted image boots a
+  6.8 kernel — the boost-38 drift note: GitHub moved BOTH hosted
+  images onto HWE kernels, so the push matrix no longer touches
+  5.15 at all). The one container-shaped thing that works is the
+  libbpf/ci + Cilium-vmtest pattern, now
+  `.github/workflows/e2e-kernel-floor.yml`: a KVM micro-VM inside
+  the hosted runner boots the REAL jammy GA 5.15 vmlinuz
+  (direct-kernel-boot, -cpu host passthrough — what makes the
+  pro-native-gnu binary's native codegen honest inside the guest)
+  with the ubuntu:22.04 container as its USERLAND (glibc-matched
+  rootfs + python3 + iproute2, exported into the initramfs — the
+  container supplies userspace, QEMU+KVM supplies the kernel). No
+  disk, no modules: the initramfs IS the rootfs, the serial console
+  relays every byte to the CI log, and every filesystem the
+  batteries need (cgroup2, bpffs, proc, sysfs, devtmpfs, devpts) is
+  core kernel facility. The probe init (scripts/ci/
+  kernel-floor-init.sh, PID 1) runs canonical invocations only —
+  uname -r (the floor itself), `zelynic -V` + `doctor`, the
+  supermassive engine self-test, `limiter-depth-test --quick` (the
+  flagship cross-distro depth battery: real BPF enforcement —
+  attach, policy writes, MEASURED rates, accounting, reload), and
+  the v2 kill-tui pattern on a pty
+  (scripts/ci/kernel-floor-observer-probe.py: the observer attaches
+  AND the violent-death guard restores on 5.15 — frames under a
+  live session, SIGKILL mid-render, the ALT_EXIT restore bytes on
+  the pty). One FLOOR-RESULT line per probe plus a final
+  FLOOR-VERDICT sentinel (the VM cannot relay exit codes through
+  qemu; the sentinel lines are the relay), poweroff via python's
+  os.reboot (a container rootfs carries no init-system poweroff
+  binary). Trigger: workflow_dispatch + weekly Monday 03:00 UTC —
+  deliberately NOT a leg of the push pipeline (the main pipeline
+  was just made green again; experimental VM machinery owes it
+  zero risk — this workflow can only redden itself; folding it
+  into the e2e matrix later is a one-line owner call). The kernel
+  comes from the jammy archive (apt-resolved latest 5.15.x — no
+  URL rot while jammy standard support runs, April 2027+). Docs
+  synced: the e2e.yml drift note now points at the answer, README
+  (both CI paragraphs), KERNEL_COMPATIBILITY (the floor's proof
+  route).
 - **feat: NIGHT-hunt-31 — `--reset-terminal`: the emergency five-layer
   terminal reset, and the violent-death guard's Termux-hang
   hardening** — the owner's report: "eagle eyes/monitoring mode still
@@ -208,7 +254,58 @@ alone — the owner's NIGHT-hunt-18 call.
   names + the naming note), VERIFY_RELEASE (every example name).
   Workflow + docs only, zero Rust surface touched.
 
+- **change: NIGHT-improve-29 (gates cleanup) — three gate findings
+  from the full local run, settled: terminal/mod.rs's beat scheduler
+  split to terminal/beat.rs** (the screen.rs one-file-per-contract
+  precedent — mod.rs sat at the 500-LOC cap and the hunt-31 reset
+  notes pushed it to 507; the scheduler contract
+  [SELECTION_GUARD_BEAT, Beat, next_beat] is now its own file at 70
+  lines, mod.rs back to 462, zero behavior change — the same
+  mouse-contract pins hold the same values), **reset.rs moved from
+  src/terminal/ to src/term_reset.rs** (the test-tree discipline
+  gate owns every #[path] wiring under src/: they must resolve into
+  test/, so the always-compiled rescue is a plain crate-root module
+  — the placement rationale lives in its module doc), and **six
+  664-mode files re-chmodded to 644** (the permission guard's
+  contract). Full gates green after: build.sh check-all and
+  gate-keepers 18/18.
+
 ### Fixed
+
+- **fix: NIGHT-improve-29 (observer half) — the observer's map
+  stats are SMP-safe: the boost-38 limiter race's observer twin,
+  closed at the root** — the owner-approved hunt (translated from
+  Indonesian: "audit the observer, ebpf/src/main.rs, for the same
+  race pattern in its map stats") found the exact pattern it suspected, live in all FOUR observer
+  counters: `get_ptr_mut` hands every CPU a pointer to the SAME
+  unlocked map value, and the old `s.packets += 1; s.bytes +=
+  pkt_len` (both cgroup maps) and the per-socket maps' plain
+  load-store pairs were unsynchronized read-modify-writes — two
+  CPUs carrying one cgroup's or one socket's traffic (any
+  multi-flow download, any multi-queue NIC) each loaded the same
+  counter and stored their own increment, so the eagle-eyes rates
+  and totals read LOW under exactly the concurrent traffic the
+  monitor exists to measure. Every update is now a 64-bit
+  BPF_ATOMIC fetch-add (kernel 5.12+, under the verified 5.13
+  floor — the same ISA the v7 token bucket already rides), and the
+  secondary insert race is closed too: first-packet inserts were
+  BPF_ANY (a concurrent initializer's entry clobbered by the
+  loser's overwrite, losing its contribution) and are now
+  BPF_NOEXIST with a loser re-lookup that books onto the winner's
+  entry — one packet counted exactly once on every interleaving.
+  The booking primitives and the stats layout live in
+  ebpf/src/stats.rs (the NIGHT-depthbore-1 math.rs precedent: pure
+  `core`, #[path]-wired into the BPF object AND pinned rootlessly
+  by test/ebpf/stats_smp_tests.rs under real thread contention —
+  booking conservation, socket-accumulator conservation,
+  single-thread equivalence, layout offset pins). ISA-verified on
+  the shipped object: exactly three atomic RMWs per observer
+  program (packets, bytes, the socket bump), zero 32-bit atomics;
+  the observer joins the limiter on the 5.12+ BPF_ATOMIC row
+  (docs/KERNEL_COMPATIBILITY.md) and carries its sixth documented
+  delta from the C twin (docs/PURE_RUST_EVALUATION.md). Full suite
+  359+34 green (the 5 new SMP pins included), clippy -D warnings
+  clean.
 
 - **fix: NIGHT-boost-38 — the policer holds its budget under
   concurrent flows: the token bucket is SMP-safe (schema v7), and
