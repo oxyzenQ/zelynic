@@ -49,14 +49,17 @@ BAND_LO = 0.65
 BAND_HI = 1.30
 
 # Loopback hands the cgroup hooks ~64 KiB GSO skbs (lo MTU 65536, no NIC
-# segmentation). A policer whose token bucket — burst = rate clamped to
-# the 4096-byte floor — is smaller than ONE skb can only admit control
-# packets: a 1kb/s rung delivers ~0 payload on loopback no matter how
-# healthy the kernel code is (a real NIC's 1448-byte MSS never hits
-# this). NIGHT-improve-12: rungs below this line get a zero floor on the
-# measured-rate band (kernel drops still prove enforcement) and skip
-# the byte-accounting cross-check (per-skb headers dominate delivered
-# bytes there).
+# segmentation). TWO regimes key off this constant. (1) NIGHT-lts-8
+# closed the sub-skb BUCKET regime: default_burst's floor is now one
+# full skb (BURST_FLOOR_BYTES, 64 KiB), so every rate's bucket can
+# admit a whole skb — no rung is barred from its own packet class
+# anymore (a real NIC's 1448-byte MSS never hit this; loopback did).
+# (2) The sub-skb WINDOW regime survives and is physics, not
+# enforcement: when one measurement window's refill cannot bank a
+# whole skb (rate x window < 64 KiB), delivery is bimodal (a skb
+# lands or nothing does), so the band floor drops to zero there and
+# the ceiling plus kernel-drop proof carry the verdict
+# (NIGHT-improve-12; window-aware since lts-8).
 LOOPBACK_GSO_SKB = 65_536
 
 # Below this delivered payload the accounting cross-check compares
@@ -66,7 +69,9 @@ ACCOUNTING_FLOOR_BYTES = 64 * 1024
 
 # NIGHT-improve-15: the second loopback physics regime. default_burst
 # (src/ebpf/limiter/format.rs) banks "1 second of traffic, clamped
-# 4KB-100MB": up to 100 MB/s the burst is a full second of tokens, but
+# 64KB-100MB" (the floor raised from 4 KB by NIGHT-lts-8, the GSO
+# super-packet admissibility fix): up to 100 MB/s the burst is a full
+# second of tokens, but
 # at 1 GB/s the clamp leaves only 0.1 s. A cgroup policer DROPS, it
 # never queues — hungry flows burst-drain the cushion, lose whole
 # 64 KiB loopback MSS in one shot (lo MTU 65536: one skb = one loss
@@ -82,8 +87,22 @@ ACCOUNTING_FLOOR_BYTES = 64 * 1024
 # overshoot. Under-delivery there is physics, so the ladder's floor
 # follows the model; the cap, kernel drops, and byte accounting
 # still carry the enforcement verdict.
-DEFAULT_BURST_CAP = 100_000_000  # mirror of format.rs default_burst clamp
+DEFAULT_BURST_CAP = 100_000_000  # mirror of the default_burst 100 MB ceiling
+DEFAULT_BURST_FLOOR = 65_536  # mirror of types.rs BURST_FLOOR_BYTES (NIGHT-lts-8)
 TCP_MIN_RTO_S = 0.2  # Linux TCP_RTO_MIN floor
+
+
+def default_burst(rate_bps):
+    """Mirror of format.rs default_burst — the burst the CLI writes.
+
+    One second of traffic (rate bytes read straight), clamped between
+    the 64 KiB GSO super-packet floor and the 100 MB ceiling. The
+    harness must predict the same burst the kernel bucket carries or
+    its budget/ratio models drift from reality (NIGHT-lts-8 made the
+    floor explicit here for exactly that reason).
+    """
+    return min(max(rate_bps, DEFAULT_BURST_FLOOR), DEFAULT_BURST_CAP)
+
 
 # Harness state (see the module docstring's ownership contract).
 RESULTS = []
@@ -390,14 +409,16 @@ def resolve_binary(explicit, script_hint):
 # ── verdict band ────────────────────────────────────────────────────────────
 
 
-def loopback_rate_floor(rate_bps):
+def loopback_rate_floor(rate_bps, window_s=1.0):
     """Effective BAND_LO for a configured rate on the loopback engine.
 
-    0.0 for rates whose token bucket (burst = rate clamped to >= 4096)
-    can never admit a single loopback GSO skb — under-delivery there is
-    loopback physics, not an enforcement miss, so the ceiling and the
-    kernel-drop proof carry the verdict alone. Rates at or above the
-    skb size refill enough tokens per skb to reach steady state — but
+    0.0 for rates whose ONE-WINDOW refill cannot bank a whole loopback
+    GSO skb (rate x window_s < 64 KiB — delivery is bimodal there:
+    a skb lands or nothing does, loopback physics, not an enforcement
+    miss, so the ceiling and the kernel-drop proof carry the verdict
+    alone). The sub-skb BUCKET regime retired with NIGHT-lts-8's floor
+    (burst >= 64 KiB for every rate now); the window regime survives.
+    Rates whose window refill covers a skb reach steady state — but
     once default_burst's 100 MB clamp binds, the cushion shrinks below
     one min-RTO of refill and a dropper's AIMD aggregate bottoms at
     cushion / min-RTO: the floor follows that model instead of the
@@ -405,9 +426,9 @@ def loopback_rate_floor(rate_bps):
     the physics and the nightpc evidence). Both regimes still cap at
     BAND_HI — a policer must never over-deliver past the band.
     """
-    if rate_bps < LOOPBACK_GSO_SKB:
+    if rate_bps * window_s < LOOPBACK_GSO_SKB:
         return 0.0
-    cushion = min(rate_bps, DEFAULT_BURST_CAP)
+    cushion = default_burst(rate_bps)
     return min(BAND_LO, cushion / (TCP_MIN_RTO_S * rate_bps))
 
 

@@ -349,6 +349,32 @@ fixed-seed stream is at a different frame index in the aggregate —
 the same sub-noise class the lts-5 medians documented; fps -2.9%
 sits inside the band with no code-path change to carry it.
 
+### NIGHT-lts-8 A/B (the extreme-burst consume retry, 2026-09-26)
+
+The change lives in the BPF enforcement path (the consume retry in
+ebpf/src/math.rs) and the userspace policy surface (default_burst's
+floor) — neither can reach the frame renderer, and the A/B is the
+parity proof (single runs, A = 645f4cb in a worktree, B = the lts-8
+tree, 10 s formal runs, the container's ±7% noise band):
+
+| Metric | before | after | Delta |
+|--------|--------|-------|-------|
+| fps | 7,490.4 | 7,665.9 | +2.3% (noise band) |
+| bytes/frame | 1,919.0 | 1,919.0 | +0.0% |
+| emit bytes/frame | 508.2 | 504.8 | -0.7% |
+| frame entropy | 3.0289 | 3.0260 | -0.1% |
+| density gini | 0.3512 | 0.3522 | +0.3% |
+| dirty cells/frame | 39.9 | 39.6 | -0.6% |
+
+Reading: bytes/frame identical at 1,919.0 and every data-dependent
+metric sub-noise — the render path is untouched by construction
+(the enforcement math runs in the kernel object, the floor is a
+policy constant), and the small movements are the same run-to-run
+synthetic-traffic variation the lts-5 and lts-9 rows document. The
+retry's own cost is measured where it lives: the uncontended first
+attempt is the whole story (verdict-identical to v7), and the drop
+path's three extra volatile reads are ~3 cycles on a cached line.
+
 ## BPF Instruction Budget
 
 ```bash

@@ -81,11 +81,16 @@ Design:
   * Rate range: the ladder walks the parser's full span — 1kb (the
     minimum) through 10mb and 1gb, up to 1tb (the maximum) — skipping any
     rung the hardware cannot feed (baseline < 2x rung): "up to 1 TB/s if
-    hardware supports". Rungs whose token bucket is smaller than ONE
-    loopback GSO skb (rates below ~64 KB/s) cannot reach steady state on
-    loopback — physics, not an enforcement miss — so their band floor is
-    zero and the ceiling plus kernel-drop proof carry the verdict
-    (NIGHT-improve-12).
+    hardware supports". Rungs whose ONE-WINDOW refill cannot bank a
+    whole loopback GSO skb (NIGHT-lts-8: rate x window < 64 KiB — the
+    sub-skb BUCKET regime is closed by the burst floor, the sub-skb
+    WINDOW regime is physics) cannot reach steady state on loopback —
+    so their band floor is zero and the ceiling plus kernel-drop proof
+    carry the verdict (NIGHT-improve-12). Trickle rungs also DRAIN the
+    attach cushion before the measured windows (the lts-8 floor hands
+    every fresh bucket a 64 KiB credit — without the drain a 1kb rung
+    would measure at ~7.5x configured, an attach-moment artifact, not
+    enforcement; the asymmetric stage's improve-13 pattern).
   * Every rate verdict is MEASURED (client / curl byte counters), then
     proven in-kernel through the status JSON (bytes_allowed /
     packets_dropped) — exactly the NIGHT-master-1 contract.
@@ -1133,7 +1138,22 @@ def test_rate_ladder(ladder, window, windows_per_rung, baseline):
             passed = False
             clear_all()
             continue
-        time.sleep(0.5)  # let the token bucket reach steady state
+        extra = ""  # stale-extra guard: the annotation is per-rung
+        time.sleep(0.5)  # let the refill settle
+        # NIGHT-lts-8: drain the attach cushion at over-delivery rungs.
+        # The burst floor hands every fresh bucket a 64 KiB credit; at a
+        # trickle rung that credit dwarfs the windows' own budget (the
+        # 1kb rung: 65,536 B against 2 x 5.5 s x 1,000 B/s = 11,000 B)
+        # and the measured pair would read ~7.5x configured — a
+        # BAND_HI fail that is attach-moment physics, not enforcement.
+        # The asymmetric stage's improve-13 approved pattern: a
+        # discarded warm-up window pays the cushion out at line rate
+        # (draining 64 KiB on loopback takes microseconds), and the
+        # measured windows see steady state. Mid and high rungs keep
+        # the cushion in view deliberately (their cushion is one second
+        # of their own rate — 104% at 100kb is the familiar shape).
+        if lib.default_burst(bps) > 0.3 * bps * window * windows_per_rung:
+            py_download(0.5)
         # NIGHT-improve-14: high rungs run PARALLEL_FLOWS concurrent
         # workers per window (see PARALLEL_MIN_BPS) — the aggregate,
         # not one AIMD flow, is the instrument there. Each thread
@@ -1159,16 +1179,16 @@ def test_rate_ladder(ladder, window, windows_per_rung, baseline):
                 t.join()
             rates.append(sum(totals) / window)
         measured = sum(rates) / len(rates)
-        # NIGHT-improve-12: rungs whose token bucket (burst = rate
-        # clamped to >= 4096) is smaller than ONE loopback GSO skb
-        # cannot reach steady state — the band floor drops to 0 there
+        # NIGHT-improve-12/lts-8: rungs whose one-window refill cannot
+        # bank a whole loopback GSO skb (rate x window < 64 KiB) cannot
+        # reach steady state — the band floor drops to 0 there
         # (under-delivery is physics), the ceiling and the kernel-drop
         # proof below still carry the verdict.
-        floor = lib.loopback_rate_floor(bps)
+        floor = lib.loopback_rate_floor(bps, window)
         if floor == 0.0:
             extra = (
-                "loopback GSO granularity: a sub-skb bucket cannot reach "
-                "steady state — the ceiling and kernel drops carry the verdict"
+                "loopback GSO granularity: one window's refill cannot bank "
+                "a whole 64 KiB skb — the ceiling and kernel drops carry the verdict"
             )
         elif floor < lib.BAND_LO:
             # NIGHT-improve-15: the min-RTO cushion regime — the floor
@@ -1465,7 +1485,7 @@ def test_curl_burst(window, clients, rate_bps, baseline):
     t_read = time.monotonic()
     allowed = (entry or {}).get("bytes_allowed", 0)
     live = t_read - t_apply
-    burst_bytes = min(max(rate_bps, 4096), 100_000_000)
+    burst_bytes = lib.default_burst(rate_bps)
     budget_bytes = live * rate_bps + burst_bytes
     GSO_EPS = 1.02
     ledger_ratio = allowed / (rate_bps * span) if allowed else 0.0
@@ -2520,15 +2540,26 @@ def self_test():
     # root run files physics as an enforcement miss — or hides a real
     # one behind a too-low floor.
     floor_pins = {
-        1_000: 0.0,  # sub-skb regime: drops carry the verdict
+        1_000: 0.0,  # windowed sub-skb regime: drops carry the verdict
         100_000_000: lib.BAND_LO,  # clamp binds, cushion still 1 s: full band
         1_000_000_000: 0.5,  # clamp leaves 0.1 s: cushion / min-RTO
     }
     ok_floors = all(abs(lib.loopback_rate_floor(r) - want) < 1e-9 for r, want in floor_pins.items())
+    # NIGHT-lts-8 pins the window awareness and the closed bucket
+    # regime: a 1 KB/s rate under a 100 s window banks a whole skb per
+    # window (no more zero floor — the floor's cushion is the 64 KiB
+    # clamp), and under a 5.5 s window (the ladder's own) it is the
+    # bimodal regime the live rungs carry.
+    ok_windows = (
+        abs(lib.loopback_rate_floor(1_000, 100.0) - lib.BAND_LO) < 1e-9
+        and lib.loopback_rate_floor(1_000, 5.5) == 0.0
+        and lib.default_burst(1_000) == 65_536
+    )
     record(
-        "engine: ladder floor model (sub-skb zero, band, min-RTO cushion)",
-        "PASS" if ok_floors else "FAIL",
-        "; ".join(f"{lib.fmt_bps(r)} -> {lib.loopback_rate_floor(r):.2f}" for r in floor_pins),
+        "engine: ladder floor model (windowed sub-skb zero, band, min-RTO cushion)",
+        "PASS" if ok_floors and ok_windows else "FAIL",
+        "; ".join(f"{lib.fmt_bps(r)} -> {lib.loopback_rate_floor(r):.2f}" for r in floor_pins)
+        + f"; windowed: 1.0 KB/s @100s -> {lib.loopback_rate_floor(1_000, 100.0):.2f}, @5.5s -> {lib.loopback_rate_floor(1_000, 5.5):.2f}; burst floor {lib.default_burst(1_000)} B",
     )
 
     # 2026-09-22 approved-fix pins (rootless source pins, the
@@ -2552,6 +2583,24 @@ def self_test():
         "harness: asymmetric drains the attach cushion before each window",
         "PASS" if drain_ok else "FAIL",
         "discarded warm-up windows precede both measured windows (bound 1+1/W straddles BAND_HI)",
+    )
+    # NIGHT-lts-8 pin: the ladder drains the attach cushion at
+    # over-delivery rungs — the burst floor's 64 KiB initial credit at
+    # a trickle rung would otherwise measure ~7.5x configured (a
+    # BAND_HI fail that is attach physics, not enforcement). If a
+    # refactor drops the drain, this row fails before the next root
+    # run trusts the trickle rungs.
+    ladder_src = inspect.getsource(test_rate_ladder)
+    ladder_drain_ok = (
+        "py_download(0.5)" in ladder_src
+        and ladder_src.index("py_download(0.5)")
+        < ladder_src.index("for _ in range(windows_per_rung)")
+        and 'extra = ""' in ladder_src
+    )
+    record(
+        "harness: ladder drains the attach cushion at over-delivery rungs",
+        "PASS" if ladder_drain_ok else "FAIL",
+        "trickle rungs discard a warm-up window before the measured pair (lts-8 burst floor)",
     )
     ovh_src = inspect.getsource(test_overhead)
     pair_ok = ovh_src.index("fresh = py_download(window)") < ovh_src.index("apply_single(")

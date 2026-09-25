@@ -16,6 +16,105 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Added
 
+- **feat: NIGHT-lts-8 — the extreme-burst audit: the consume
+  retry that stops falsely dropping affordable packets, and the
+  GSO super-packet burst floor** — the owner's ask: "depth audit
+  focus for mitigate, strengthening, to handle extreme burst
+  packets/data on input/output in nano seconds/near depends limit
+  kernel". The audit walked the whole per-packet hot path (the
+  unlimited fast path, the policy lookup, the watchdog, the
+  token-bucket math, the consume) asking one question: under a
+  many-CPU burst on one bucket — every core hammering the same
+  cgroup or shared group bucket at line rate — what does the
+  enforcement path get WRONG? The boost-38 SMP rewrite had closed
+  the correctness races (no resurrected deduction, no double
+  credit, no wrap), but its consume was a SINGLE CAS attempt, and
+  the audit's budget-covers probe measured what that costs under
+  contention: with 8 threads, 2048 one-byte packets, and a seed
+  exactly covering the demand, the single attempt dropped 27.55
+  packets per run — 1.35% of all packets, every one of them
+  affordable (the fresh post-race value still covered the packet;
+  the packet lost only because a concurrent deduction moved the
+  value between its read and its CAS). Worse, the EXISTING
+  conservation pin could never have caught it: with abundant
+  later attempts, a false drop's tokens stay in the stock for the
+  next packet, so exact conservation holds even under the racy
+  shape — the discriminator needed a seed that exactly covers the
+  demand, where every contention loss is permanent. THE FIX
+  (schema v8, no layout change): try_consume — a bounded
+  straight-line retry of FOUR attempts, each re-reading and
+  re-validating sufficiency against its own observation, so the
+  retry can only recover packets the budget truly covers (the
+  never-over-allow invariant is per-attempt, unchanged) and a
+  fully lost consume (four lost races in a row) still drops —
+  the safe verdict. Measured: 0.975 residual false drops per
+  2048-packet run at 8 threads (28x fewer; zero at 2-4 threads),
+  and the retry is written out, not looped — the boost-38
+  verifier posture (no loops, no spin locks) is preserved, and
+  uncontended behavior is verdict-identical to v7. Pinned in
+  test/ebpf/limiter/math_smp_tests.rs as the budget-covers PAIR:
+  the hard pin (2 threads x 256 one-byte packets, seed == demand:
+  every packet must pass — 0 drops across a 200-run probe, while
+  the single-attempt shape drops 1.425/run in this exact
+  configuration) and the soft pin (8 threads: under 1% false
+  drops, 20x above the retry's measured residual and 1.4x below
+  the single-attempt rate — the bound a retry removal breaks).
+  THE SECOND FINDING — the burst floor: default_burst clamped the
+  token bucket to rate bytes with a 4096-byte floor, but the
+  cgroup_skb hooks see GSO egress (segmentation happens after
+  the hook) and GRO ingress (merging happens before it)
+  super-packets up to 64 KiB — a bucket capped below the largest
+  packet can NEVER admit that packet class, so any rate below
+  ~65 KB/s under GSO/GRO traffic barred its own data packets
+  forever (the supermassive harness had been MODELING this
+  starvation since improve-12: the starved rungs' zero band
+  floor). The floor is now one maximal super-packet
+  (BURST_FLOOR_BYTES = 65,536 in the layout contract next to
+  MAX_ENFORCABLE_BURST, default_burst clamping 64KB-100MB): every
+  default-kernel packet is admissible once a burst window
+  accumulates; at trickle rates a fresh bucket's initial credit
+  is one super-packet (64 KiB — a one-off smaller than the
+  8-second credit any rate at or above ~65 KB/s earns), and the
+  BIG TCP residual (kernel 6.x opt-in per-link gro-max-size
+  above 64 KiB) is documented in STABILITY's honest limits as an
+  inherent property of any bounded bucket. THE HARNESS SYNC (the
+  models must predict the same physics the kernel now enforces):
+  zelynic_harness_lib.py gained the default_burst mirror (floor +
+  cap), and loopback_rate_floor became window-aware — the sub-skb
+  BUCKET regime is retired (burst >= 64 KiB for every rate now)
+  while the sub-skb WINDOW regime survives as physics (a
+  measurement window whose refill cannot bank a whole skb sees
+  bimodal delivery: rate x window < 64 KiB), so the 1kb/10kb
+  rungs keep their zero floor for the right reason. The ladder
+  now DRAINS the attach cushion at over-delivery rungs (the
+  asymmetric stage's improve-13 approved pattern): without the
+  drain the floor's 64 KiB initial credit would measure the 1kb
+  rung at ~7.5x configured — a BAND_HI fail that is attach
+  physics, not enforcement; mid and high rungs keep the cushion
+  in view deliberately (104% at 100kb is the familiar shape). Two
+  rootless self-test pins extend the engine battery: the windowed
+  floor model (1 KB/s at a 100 s window reads the full band — the
+  closed bucket regime — while the ladder's own 5.5 s window
+  stays bimodal) and the ladder-drain source pin (the warm-up
+  window must precede the measured pair). A third, smaller
+  harness bug fixed in passing: the ladder's verdict annotation
+  was a stale variable (the GSO extra text from a starved rung
+  leaked onto every later rung that set no extra of its own —
+  cosmetic, the verdicts were computed correctly; visible in the
+  2026-09-26 CI log where the 100kb-through-100mb rows all
+  carried the 10kb rung's annotation). Docs synced: USAGE's
+  strict-single section carries the burst contract paragraph (the
+  floor, the ceiling, the initial credit, the retry), STABILITY's
+  honest limit 4 splits the granularity limit into the closed
+  bucket regime and the surviving window regime, the schema
+  changelog in the layout contract documents v8's one-time
+  re-apply, and the math module doc carries the probe numbers.
+  Frame A/B recorded in PERFORMANCE.md (the BPF-side change
+  cannot reach the render path; the run is the parity proof).
+  Tests: 429 passed 0 failed with the ebpf feature (3 new pins:
+  the budget-covers pair and the burst floor boundary), cargo fmt
+  clean, clippy -D warnings clean, engine self-test green with
+  the new model pins, gate-keepers 19/19.
 - **feat: NIGHT-lts-9 (theme half) — the eleven-theme accuracy
   audit, made computed: one real wrong seat fixed and the
   nearest-match contract pinned forever** — the owner's ask:
