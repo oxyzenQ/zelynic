@@ -205,7 +205,7 @@ ROOT_ARGS=(
 	"strict-single brave 100kb"
 	"strict brave 100kb"
 	"strict-multi brave:curl 1mb"
-	"limit-all 500kb"
+	"strict-all 500kb"
 	"block-single brave"
 	"block-multi brave:curl"
 	"block-all"

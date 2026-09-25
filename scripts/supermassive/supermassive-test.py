@@ -94,7 +94,7 @@ Design:
   * Every rate verdict is MEASURED (client / curl byte counters), then
     proven in-kernel through the status JSON (bytes_allowed /
     packets_dropped) — exactly the NIGHT-master-1 contract.
-  * limit-all is exercised with --force-this, briefly and
+  * strict-all is exercised with --force-this, briefly and
     at a generous rate: as root the harness's own cgroups are uid 0 and
     would otherwise be skipped as system apps. block-all is deliberately
     NOT exercised — blocking every app can sever the very session that
@@ -118,11 +118,11 @@ What it verifies (verdicts PASS / FAIL / SKIP, exit 1 on any FAIL):
          unstrict-single (unlock) restores speed, curl burst parallel
          download, curl upload, strict-multi shared group bucket across
          cgroups, block-multi, unstrict-multi selective removal, mixed
-         concurrent policies on five cgroups, limit-all --force-this sweep,
+         concurrent policies on five cgroups, strict-all --force-this sweep,
          reload cycles, sustain windows, non-binding overhead — then
          the real-internet lane: endpoint reachability, unlimited
          realnet baseline, upload-engine sanity, strict download at
-         2mb, strict upload at 1mb, limit-all sweep at 2mb, block-single
+         2mb, strict upload at 1mb, strict-all sweep at 2mb, block-single
          zero goodput, unstrict-all restores the machine's own internet
          speed — and the cleanup teardown (no limit rows, no pins, no
          pid file, fleet removed).
@@ -847,7 +847,7 @@ def spawn_bg_in_cgroup(name, argv, settle_timeout=5.0):
     exec (/proc/<pid>/comm equals the final argv[0] basename), or None when
     the child died or never settled within settle_timeout seconds (killed
     first, so a failed spawn leaks nothing). The barrier closes the
-    spawn/limit-all race the 2026-09-22 heavy run exposed: limit-all walks
+    spawn/strict-all race the 2026-09-22 heavy run exposed: strict-all walks
     /proc twice (the identity tally, then per-name resolution after the
     BPF attach), and a bash child caught between its cgroup.procs echo and
     its exec resolves as "bash" in the first walk and as nothing in the
@@ -1878,10 +1878,10 @@ def test_mixed(window, baseline):
     return solo and blocked and rows >= 4
 
 
-def test_limit_all(window, baseline):
+def test_strict_all(window, baseline):
     """The supermassive sweep: every cgroup on the machine, briefly, --force-this so
     the harness's own root-owned cgroups are included."""
-    name = "limit-all --force-this: machine-wide sweep"
+    name = "strict-all --force-this: machine-wide sweep"
     if baseline and baseline < 2e6:
         return record(name, "SKIP", "baseline too low")
     # Keep sleepers resident in a..e so the sweep has live cgroups to
@@ -1900,7 +1900,7 @@ def test_limit_all(window, baseline):
                 f"sleeper residency barrier failed: {len(spawned) - len(sleepers)}"
                 f"/{len(spawned)} cgroups never got a resident sleeper",
             )
-        rc, stdout, stderr = run_zel(["limit-all", "--force-this", "2mb"])
+        rc, stdout, stderr = run_zel(["strict-all", "--force-this", "2mb"])
         if rc != 0:
             return record(name, "FAIL", f"exit {rc}: {(stderr or stdout).strip()[:200]}")
         entry = limit_entry(status_json(), CG.ids["a"])
@@ -2326,12 +2326,12 @@ def stage_realnet_strict_upload():
     return passed
 
 
-def stage_realnet_limit_all():
+def stage_realnet_strict_all():
     """The machine-wide sweep policing REAL traffic: same sleeper fleet
-    and --force-this sweep as the loopback limit-all stage, but the measured
+    and --force-this sweep as the loopback strict-all stage, but the measured
     worker is a real-internet download — proving the sweep reached the
     cgroup the production traffic will actually live in."""
-    name = "real internet: limit-all --force-this sweep at 2mb"
+    name = "real internet: strict-all --force-this sweep at 2mb"
     if not DL_ENDPOINT:
         return record(name, "SKIP", "no download endpoint")
     if REALNET_BASELINE_BPS < 2 * 2_000_000:
@@ -2351,7 +2351,7 @@ def stage_realnet_limit_all():
                 f"{len(spawned) - len(sleepers)}/{len(spawned)} cgroups "
                 "never got a resident sleeper",
             )
-        rc, stdout, stderr = run_zel(["limit-all", "--force-this", "2mb"])
+        rc, stdout, stderr = run_zel(["strict-all", "--force-this", "2mb"])
         if rc != 0:
             return record(name, "FAIL", f"exit {rc}: {(stderr or stdout).strip()[:200]}")
         time.sleep(0.5)
@@ -3020,7 +3020,7 @@ def run_heavy(baseline_window):
     # required positional argument: 'window'"). 4.0 s is the ORIGINAL
     # contract: the stage's pre-refactor v2 body measured both rungs
     # with LOCAL_WINDOW = 4.0, the same window the sibling local
-    # measurement stages here use (asymmetric / mixed / limit_all).
+    # measurement stages here use (asymmetric / mixed / strict_all).
     stage_rate_change(4.0)
     test_rate_ladder(LADDER_HEAVY, 5.5, 2, baseline)
     test_upload(5.0, baseline)
@@ -3034,12 +3034,12 @@ def run_heavy(baseline_window):
     test_block_multi(4.0)
     test_unstrict_multi()
     test_mixed(4.0, baseline)
-    test_limit_all(4.0, baseline)
+    test_strict_all(4.0, baseline)
     # NIGHT-refactor-2: the internet lane — the same flagship moves the
     # loopback matrix just proved, against the production traffic shape.
     stage_realnet_strict_download()
     stage_realnet_strict_upload()
-    stage_realnet_limit_all()
+    stage_realnet_strict_all()
     stage_realnet_block()
     test_reload(60)
     test_sustain(1_000_000, 6, 5.0, baseline)

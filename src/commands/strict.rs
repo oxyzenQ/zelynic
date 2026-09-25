@@ -1,7 +1,7 @@
 // Copyright (C) 2026 rezky_nightky
 // SPDX-License-Identifier: GPL-3.0-only
 
-//! Strict limiting handlers — strict-single, strict-multi, limit-all.
+//! Strict limiting handlers — strict-single, strict-multi, strict-all.
 
 use anyhow::Result;
 
@@ -155,10 +155,11 @@ pub(crate) fn handle_strict_multi(
     Ok(())
 }
 
-/// Handle `zelynic limit-all` — limit ALL user apps.
+/// Handle `zelynic strict-all` — limit ALL user apps.
 /// System/dangerous apps are excluded unless --force-this.
+/// NIGHT-blade-2: renamed from limit-all (the strict family symmetry).
 #[cfg(feature = "ebpf")]
-pub(crate) fn handle_limit_all(
+pub(crate) fn handle_strict_all(
     rate: Option<&str>,
     download: Option<&str>,
     upload: Option<&str>,
@@ -177,7 +178,7 @@ pub(crate) fn handle_limit_all(
     if rates.download.is_none() && rates.upload.is_none() {
         return Err(anyhow::anyhow!(
             "No rate specified. Use positional rate or -d/-u flags.\n\
-             Example: zelynic limit-all 500kb"
+             Example: zelynic strict-all 500kb"
         ));
     }
 
@@ -246,7 +247,7 @@ pub(crate) fn handle_limit_all(
     let mut limiter = Limiter::open_pinned(verbose)?;
     limiter.apply_group(&targets, &rates)?;
 
-    // NIGHT-improve-28: limit-all reverses with the sledgehammer, not
+    // NIGHT-improve-28: strict-all reverses with the sledgehammer, not
     // a per-target unstrict — the old suggestion built
     // 'zelynic unstrict 3 apps', which is not a target at all.
     super::apply_success_epilogue("zelynic unstrict-all", "remove");

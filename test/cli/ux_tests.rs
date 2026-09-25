@@ -207,6 +207,26 @@ fn removed_observe_and_top_redirect_to_eagle_eyes() {
     }
 }
 
+/// NIGHT-blade-2: limit-all/la is renamed strict-all/sa (the strict
+/// family now mirrors the block and unstrict single/multi/all
+/// triples) — both old spellings must land users on the successor
+/// in clap's own suggestion slot, the exact contract observe/top
+/// carry.
+#[test]
+fn removed_limit_all_redirects_to_strict_all() {
+    for gone in ["limit-all", "la"] {
+        let rendered = render_via_bridge(&["zelynic", gone]);
+        assert!(
+            rendered.contains(&format!("unrecognized subcommand '{gone}'")),
+            "must name the removed spelling, got:\n{rendered}"
+        );
+        assert!(
+            rendered.contains("strict-all"),
+            "removed '{gone}' must redirect to strict-all, got:\n{rendered}"
+        );
+    }
+}
+
 // ── Subcommand-flag redirects (NIGHT-boost-13) ────────────────────
 
 /// `zelynic help` is the muscle memory every clap tool trains, but

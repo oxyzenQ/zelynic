@@ -30,7 +30,7 @@ fn test_enforcement_commands_refuse_non_root_cleanly() {
         &["ss", "cg:48181", "100kb"],
         &["strict", "brave", "100kb"],
         &["strict-multi", "brave:curl", "1mb"],
-        &["limit-all", "500kb"],
+        &["strict-all", "500kb"],
         &["block-single", "brave"],
         &["block-all"],
         &["unstrict", "brave"],

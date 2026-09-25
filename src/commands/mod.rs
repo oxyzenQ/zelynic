@@ -173,7 +173,7 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
             }
         }
 
-        Some(Commands::LimitAll {
+        Some(Commands::StrictAll {
             rate,
             download,
             upload,
@@ -181,7 +181,7 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
         }) => {
             #[cfg(feature = "ebpf")]
             {
-                strict::handle_limit_all(
+                strict::handle_strict_all(
                     rate.as_deref(),
                     download.as_deref(),
                     upload.as_deref(),

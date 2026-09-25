@@ -394,6 +394,13 @@ CLI_DEPTH_CASES = [
     ("removed observe redirects to eagle-eyes", ["observe"], "nonzero", "eagle-eyes"),
     ("removed top redirects to eagle-eyes", ["top"], "nonzero", "eagle-eyes"),
     ("removed singular eagle-eye redirects", ["eagle-eye"], "nonzero", "eagle-eyes"),
+    (
+        "removed limit-all redirects to strict-all",
+        ["limit-all"],
+        "nonzero",
+        "strict-all",
+    ),
+    ("removed la alias redirects to strict-all", ["la"], "nonzero", "strict-all"),
     ("help subcommand redirects to the flag", ["help"], "nonzero", "zelynic --help"),
     # ── wrong values (exit 1: runtime validation) ─────────────────────
     (
@@ -467,8 +474,8 @@ CLI_DEPTH_CASES = [
         "nonzero",
         "no rate specified",
     ),
-    ("limit-all without a rate names the fix", ["limit-all"], "nonzero", "no rate specified"),
-    ("limit-all -d with no value is a usage error", ["limit-all", "-d"], "nonzero", "required"),
+    ("strict-all without a rate names the fix", ["strict-all"], "nonzero", "no rate specified"),
+    ("strict-all -d with no value is a usage error", ["strict-all", "-d"], "nonzero", "required"),
     # ── security injection: values are DATA, never executed ───────
     # Unknown-name targets are graceful no-ops (exit 0, "No cgroup
     # found"): the needle is the PAYLOAD ITSELF, echoed verbatim — the
@@ -570,7 +577,7 @@ CLI_DEPTH_CASES = [
     ("ss alias resolves (missing target refuses)", ["ss"], "nonzero", "error"),
     ("strict alias resolves (missing target refuses)", ["strict"], "nonzero", "error"),
     ("sm alias resolves (missing targets refuse)", ["sm"], "nonzero", "error"),
-    ("la alias resolves (missing rate refuses)", ["la"], "nonzero", "no rate specified"),
+    ("sa alias resolves (missing rate refuses)", ["sa"], "nonzero", "no rate specified"),
     ("bs alias resolves (missing target refuses)", ["bs"], "nonzero", "error"),
     ("bm alias resolves (missing targets refuse)", ["bm"], "nonzero", "error"),
     ("block-all typo refuses before any block", ["block-all", "--forse"], "nonzero", "--force"),
@@ -594,7 +601,7 @@ CLI_DOCUMENTED_SURFACE = [
     # commands
     "strict-single",
     "strict-multi",
-    "limit-all",
+    "strict-all",
     "block-single",
     "block-multi",
     "block-all",
@@ -610,7 +617,7 @@ CLI_DOCUMENTED_SURFACE = [
     "strict",
     "ss",
     "sm",
-    "la",
+    "sa",
     "bs",
     "bm",
     "ba",

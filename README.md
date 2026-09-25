@@ -292,7 +292,7 @@ sudo zelynic strict-single firefox -d 1mb -u 500kb   # per-direction
 sudo zelynic strict-multi brave:curl:pacman 1mb
 
 # Every user app at once (system apps excluded unless --force-this)
-sudo zelynic limit-all 500kb
+sudo zelynic strict-all 500kb
 
 # Block apps from the internet entirely
 sudo zelynic block-single brave
@@ -311,7 +311,7 @@ sudo zelynic unstrict-multi brave:curl
 sudo zelynic unstrict-all            # emergency reset
 
 # Short aliases (NIGHT-improve-25): every enforcement verb plus the
-# monitor in two keystrokes — ss sm la bs bm ba us um ua ee
+# monitor in two keystrokes — ss sm sa bs bm ba us um ua ee
 sudo zelynic ss brave 100kb         # = strict-single brave 100kb
 sudo zelynic ee brave --interval 1s # = eagle-eyes brave --interval 1s
 
@@ -325,8 +325,10 @@ sudo zelynic recover
 ```
 
 Monitors are always live; the CLI surface is frozen (v11) — the
-removed surfaces (`man`, `completions`, `unblock`, `-i/--info`,
-`--live`, `--duration`) exit with a usage error on purpose. Command
+removed surfaces (`man`, `completions`, `unblock`, `limit-all`/`la`,
+`-i/--info`, `--live`, `--duration`) exit with a usage error on
+purpose (the retired `limit-all` spelling redirects to `strict-all`,
+NIGHT-blade-2). Command
 semantics, quit keys, and recipes: [docs/USAGE.md](docs/USAGE.md);
 `--help` is the single flag reference.
 

@@ -557,6 +557,38 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Changed
 
+- **change: NIGHT-blade-2 — the flag inconsistency rename: limit-all/la
+  is now strict-all/sa, completing the single/multi/all symmetry
+  across all three verb families** — the owner's find ("inconsistency
+  flag and short alias for 'limit-all/la' now rename to consistency
+  'strict-all/sa' that same flag/alias name like 'block-all/ba, and
+  unstrict-all/ua'"). The strict family now reads exactly like its
+  siblings end to end: strict-single/ss, strict-multi/sm, strict-all/sa
+  beside block-single/bs, block-multi/bm, block-all/ba and
+  unstrict-single/us, unstrict-multi/um, unstrict-all/ua — the odd
+  verb out ("limit" in a strict/block/unstrict vocabulary, "la" in an
+  sa-shaped alias row) is gone. The rename follows the repo's
+  established rename contract (the eagle-eye removal, NIGHT-improve-25):
+  the old spellings are REMOVED, not deprecated alongside — `zelynic
+  limit-all` and `zelynic la` die as usage errors whose tip names
+  strict-all (both joined the cli::ux removed-subcommand redirect
+  table), so old muscle memory lands on the successor, never a dead
+  end. The surface updates ride the whole estate: the Commands enum
+  (StrictAll/sa) and handler (handle_strict_all), the --help reference
+  where the one-command "limit" group DISSOLVED into the strict group
+  (single/multi/all synopses in family order, the alias row now reads
+  ss/sm/sa), the drift pins (help surface, alias routing, verb
+  grouping — plus NEW pins: the retired spelling must not linger on
+  --help, and both old spellings must redirect), the privilege matrix,
+  the nonroot depth matrix, both supermassive stresstest surfaces
+  (live sweep invocations, the alias resolution cases, the
+  documented-surface self-test, and the new removed-name redirect
+  cases), and the docs (README usage block + frozen-surface note,
+  USAGE grammar and reference, SAFETY_ANALYSIS privilege table,
+  CONTRIBUTING layout). Historical changelog entries keep the old
+  name as history, the same contract NIGHT-blade-3 gave the retired
+  minimum-tier title.
+
 - **change: NIGHT-blade-3 — the envelope pair's small end renamed
   minimum -> low, and the hosted runners consolidated onto the
   latest LTS** — the owner's directive ("rename CI supermassive

@@ -89,12 +89,13 @@ shorthand for `unstrict-single` (NIGHT-hunt-16 — the canonical always
 carries the `-single` suffix, so the two verb families read
 symmetrically). Every enforcement verb plus the monitor also has a
 two-letter short alias (NIGHT-improve-25): `ss` = strict-single, `sm`
-= strict-multi, `la` = limit-all, `bs` = block-single, `bm`
-= block-multi, `ba` = block-all, `us` = unstrict-single, `um`
-= unstrict-multi, `ua` = unstrict-all, `ee` = eagle-eyes (the `alias
-= canonical` pairing is the same one-glance form `--help` prints,
-NIGHT-boost-29) — e.g. `zelynic ss brave 100kb` or
-`zelynic ee brave --interval 1s`.
+= strict-multi, `sa` = strict-all (NIGHT-blade-2 — formerly
+`limit-all`/`la`; the old spellings refuse with a redirect tip), `bs`
+= block-single, `bm` = block-multi, `ba` = block-all, `us` =
+unstrict-single, `um` = unstrict-multi, `ua` = unstrict-all, `ee` =
+eagle-eyes (the `alias = canonical` pairing is the same one-glance
+form `--help` prints, NIGHT-boost-29) — e.g. `zelynic ss brave 100kb`
+or `zelynic ee brave --interval 1s`.
 
 ### strict-single / strict — limit one app
 
@@ -177,11 +178,11 @@ The kernel side now also degrades a failed group lookup to each
 member's own bucket at the group rate — over-admission against the
 shared intent, never unlimited (schema v8).
 
-### limit-all — cap every user app
+### strict-all — cap every user app
 
 ```bash
-sudo zelynic limit-all 500kb
-sudo zelynic limit-all -d 1mb -u 500kb
+sudo zelynic strict-all 500kb
+sudo zelynic strict-all -d 1mb -u 500kb
 ```
 
 Snapshots the current app list (same resolution as above) and applies
@@ -810,7 +811,7 @@ zelynic is deliberately small and stateless. These are real behaviors,
 not bugs — knowing them makes the tool predictable.
 
 **1. Rules are a snapshot, not a subscription.**
-When you run `zelynic strict-single A 100kb` or `limit-all 100kb`,
+When you run `zelynic strict-single A 100kb` or `strict-all 100kb`,
 zelynic resolves the apps that exist **at that moment** and writes
 their cgroup rules. If you launch a new app (or a new instance of an
 already-limited app that gets a fresh cgroup) **after** the command,
@@ -819,7 +820,7 @@ processes — by design (no background cost, no config drift). Re-run
 zelynic after launching new apps:
 
 ```bash
-sudo zelynic limit-all 500kb          # run again to sweep in newcomers
+sudo zelynic strict-all 500kb          # run again to sweep in newcomers
 ```
 
 The precise rule: enforcement follows **cgroups**, not processes. A new
