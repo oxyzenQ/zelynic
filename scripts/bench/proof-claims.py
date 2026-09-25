@@ -93,6 +93,7 @@ or environment not suitable.
 
 import argparse
 import difflib
+import inspect
 import json
 import os
 import re
@@ -937,7 +938,11 @@ def stage_footprint(quick):
     # with wait4 for the rusage (Popen's own wait is bypassed — the
     # pid is reaped here, the returncode handed back so Popen's
     # destructor never double-reaps).
-    argv = [lib.BINARY, "strict-single", str(CG.ids["a"]), "-d", rate_str]
+    # CG.a_id (this harness's PairCgroups API — the supermassive
+    # twin's ids-DICT shape does not exist here; the first live VM
+    # run caught the mixup, and the self-test's source pin now
+    # guards the vocabulary).
+    argv = [lib.BINARY, "strict-single", str(CG.a_id), "-d", rate_str]
     try:
         child = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         _, status, ru = os.wait4(child.pid, 0)
@@ -1202,6 +1207,22 @@ def self_test():
             == "PASS"
             and ok
         )
+    # NIGHT-lts-6 followup 2: the first live VM run crashed the
+    # footprint stage on a supermassive-API mixup (CG.ids["a"] — a
+    # shape this harness's PairCgroups never had; the twin harness
+    # speaks it). A source pin: the stage must speak THIS harness's
+    # API, or the next API drift fails rootlessly instead of in the
+    # VM.
+    fp_src = inspect.getsource(stage_footprint)
+    ok = (
+        lib.record(
+            "selftest: footprint stage speaks this harness's cgroup API",
+            "PASS" if "CG.a_id" in fp_src and "CG.ids" not in fp_src else "FAIL",
+            "PairCgroups exposes a_id/b_id — the supermassive CG.ids shape does not exist here",
+        )
+        == "PASS"
+        and ok
+    )
     return lib.final_report(time.perf_counter(), "self-test", "the claims-proof engine is sound.")
 
 
