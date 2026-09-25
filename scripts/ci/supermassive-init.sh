@@ -11,18 +11,19 @@
 # kernel) and e2e-kernel-floor.yml (the probe-only micro-VM) — both
 # live on here: the bring-up half of the pipeline runs on the runner
 # (scripts/setup.sh --skip-heavy --musl, the exact owner-facing
-# phase one, outside the VM because a minimum-specs guest cannot
+# phase one, outside the VM because a low-specs guest cannot
 # host a Rust toolchain build), and THIS script is the other half —
 # the stresstest, from the lean prelude to the supermassive v1
 # limiter matrix and the v2 survival battery, inside the resource
 # envelope the job's profile DERIVES from the runner at boot time
 # (NIGHT-improve-33, the owner's "cpu core, ram, etc don't set fixed
-# let dynamic": minimum specs = a quarter of the cores floored at
-# 1 + an eighth of the RAM floored at 1024 MB; best specs = every
-# core + three quarters of the RAM — the dense-little-host and the
-# big-host ends of the machines zelynic promises to run on, scaling
+# let dynamic"; the minimum name itself is retired — NIGHT-blade-3
+# renames the small envelope low): low specs = a quarter of the
+# cores floored at 1 + an eighth of the RAM floored at 1024 MB;
+# best specs = every core + three quarters of the RAM — the two
+# ends of the machines zelynic promises to run on, scaling
 # with the runner era instead of pinning one). The kernel is the
-# pair's other variable: the minimum leg boots the TRUE documented
+# pair's other variable: the low leg boots the TRUE documented
 # floor (impish 5.13, docs/KERNEL_COMPATIBILITY.md), the best leg
 # boots the archive's latest (resolved dynamically at run time),
 # and the same userland (the ubuntu:22.04 container) serves both.
@@ -92,7 +93,7 @@ exec >/dev/console 2>&1
 echo "MASS: init on $(uname -r)"
 
 # The floor itself — the whole reason this VM exists. Numeric since
-# NIGHT-improve-33: the minimum leg boots the TRUE documented floor
+# NIGHT-improve-33: the low leg boots the TRUE documented floor
 # (impish 5.13.0-52) and the best leg boots the archive's latest
 # (whatever the dynamic resolver found), so one check serves both
 # ends of the span: uname -r's major.minor must sit at or above

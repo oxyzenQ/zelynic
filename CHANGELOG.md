@@ -532,6 +532,32 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Changed
 
+- **change: NIGHT-blade-3 — the envelope pair's small end renamed
+  minimum -> low, and the hosted runners consolidated onto the
+  latest LTS** — the owner's directive ("rename CI supermassive
+  test 'minimum' to 'low'; all CI base runner OS should use the
+  ubuntu latest LTS version; remove old OS except for testing,
+  like on CI supermassive test low specs"). The rename lands
+  everywhere the name lives: the matrix title ("supermassive
+  test - low specs"), the profile key (`low`), the step names
+  and comments in supermassive.yml and supermassive-init.sh, and
+  the docs that name the leg (README, CONTRIBUTING, CROSS_DISTRO
+  results) — "low specs" says what the envelope IS (the
+  little-host slice), not what it is the minimum OF. The
+  runner-OS consolidation: ci.yml's musl and gnu-dynamic matrices
+  drop their ubuntu-22.04 legs (the old-OS runners), every base
+  runner now rides ubuntu-24.04 — the latest LTS, pinned, never
+  a floating label (the estate's anti-lottery contract). The
+  hosted kernel-span rationale those 22.04 legs carried is
+  retired, not lost: the supermassive VM pair proves the REAL
+  span per push (the impish 5.13 floor through the archive's
+  latest head), a stronger contract than a hosted 22.04 image
+  ever was. The deliberate old-OS surfaces inside supermassive
+  stay on purpose — the low-specs leg's impish 5.13 floor kernel
+  and the ubuntu:22.04 rootfs container are testing internals,
+  not runner choices. Historical owner quotes and the SIGILL
+  incident notes that name the old title read as history.
+
 - **change: NIGHT-lts-5 — the server long-endurance scale re-shape:
   wrap-coherent deltas, the u128 session ledger, and the SI ladder
   to quettabyte** — the owner's ask ("zelynic now support for server
