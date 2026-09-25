@@ -109,7 +109,12 @@ sudo zelynic strict brave 100kb        # shorthand form
 - A positional `rate` sets **both** download and upload. `-d`/`-u` set
   them independently — and they take precedence: if either flag is
   present, the positional rate is ignored (no silent mixing), so
-  `strict-single brave 100kb -d 1mb` limits download only.
+  `strict-single brave 100kb -d 1mb` limits download only. The
+  unset direction is also REMOVED if a previous apply had enforced
+  it (NIGHT-improve-29: `ss brave 100kb` then `ss brave -d 1mb`
+  used to silently keep the old upload leg — the documented
+  "download only" contract now holds in the map itself; re-specify
+  `-u` when you want to keep both legs under one apply).
 - `--allow-dangerous`: permits rates below 1kb (can effectively brick
   an app — hence the name).
 - `--force`: permits limiting the protected system blocklist (root,

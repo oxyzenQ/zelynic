@@ -272,6 +272,37 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Fixed
 
+- **fix: NIGHT-improve-29 (floor-run find) — an apply no longer
+  leaves a stale direction leg behind: `-d`-only (or `-u`-only)
+  REMOVES the other leg's previous policy, honoring the documented
+  "limits download only" contract** — the first Kernel Floor run
+  (the 5.15 micro-VM) caught it live: the depth battery's first
+  accounting window read bpf 1381288 vs client 688128 (200.7%) —
+  the exact 2x signature of both hooks policing one loopback
+  stream. Root cause in write_policies_for_cgroup
+  (src/ebpf/limiter/policy.rs): directions the RateSpec leaves
+  unset were silently skipped, so `zelynic ss brave 100kb` followed
+  by `zelynic ss brave -d 1mb` updated the download leg while the
+  upload leg STAYED at the old 100kb — no indication, violating
+  the USAGE.md contract ("-d ... limits download only"), and the
+  sequence had never been exercised by any harness before (the E2E
+  batteries never re-apply -d over a symmetric policy; the depth
+  battery's policy-write stage followed by its first -d rate
+  window was the first rider). The fix: after the spec's writes
+  land (writes first, so a failed write rolls back exactly what
+  this invocation wrote — the NIGHT-hunt-20 all-or-nothing
+  contract keeps the pre-apply state whole), each unset direction
+  is deleted and its bucket/stats reclaimed through the same
+  NIGHT-improve-10 reclamation the unstrict path runs; a failed
+  removal is best-effort and never silent (the survivor named on
+  stderr, visible in status) while the freshly written legs stand.
+  All four apply verbs share the helper, so strict-single,
+  strict-multi, limit-all, and the block family (whose zero-rate
+  specs are always fully Some) are covered in one place. Docs
+  synced: USAGE's -d/-u precedence note now states the removal
+  contract. Verified on the floor run's rerun: the depth battery
+  goes 30/30 (the 100kb accounting row reads 1:1).
+
 - **fix: NIGHT-improve-29 (observer half) — the observer's map
   stats are SMP-safe: the boost-38 limiter race's observer twin,
   closed at the root** — the owner-approved hunt (translated from

@@ -29,7 +29,7 @@ fn policy_write_line(cgroup_id: u32, direction: Direction, rate_bps: u64) -> Str
 
 /// One policy that survived a failed rollback or unstrict delete:
 /// cgroup + direction, still enforced (cg: trace style, pinned).
-fn policy_survivor_line(cgroup_id: u32, direction: Direction) -> String {
+pub(super) fn policy_survivor_line(cgroup_id: u32, direction: Direction) -> String {
     format!("cg:{cgroup_id} {}", direction.label())
 }
 
@@ -55,21 +55,6 @@ fn partial_apply_failure_line(cause: &str, rolled_back: usize, survivors: &[Stri
             survivors.join(", ")
         )
     }
-}
-
-/// The error an unstrict returns when some deletes failed (NIGHT-
-/// hunt-20): removal is best-effort across cgroups and directions, but
-/// never silent — this reports what WAS removed and names what stayed
-/// enforced. Pure so the wording is unit-pinned.
-fn unstrict_partial_failure_line(removed: usize, failed: &[String]) -> String {
-    let n = failed.len();
-    let unit = if removed == 1 { "policy" } else { "policies" };
-    let verb = if n == 1 { "is" } else { "are" };
-    format!(
-        "removed {removed} {unit}, but {n} {verb} still enforced: {} — \
-         run 'zelynic recover' if this persists",
-        failed.join(", ")
-    )
 }
 
 /// Verbose trace line for a /proc target resolution (NIGHT-hunt-9):
@@ -184,97 +169,13 @@ impl super::Limiter {
         Ok(applied)
     }
 
-    /// Remove policy for a target (unstrict).
-    ///
-    /// Returns the number of POLICIES removed — each direction (dl/ul)
-    /// counts separately, the same unit `apply_single`/`apply_group`
-    /// report as "(N policies, active in background)". NIGHT-hunt-10:
-    /// the old per-cgroup counting printed "Removed 1 limit" for the
-    /// same state strict-single had just described as "4 policies".
-    ///
-    /// NIGHT-hunt-20: removal is best-effort across cgroups and
-    /// directions, but never silent — a delete that FAILS (as opposed
-    /// to ENOENT "absent") is recorded and reported.
-    ///
-    /// NIGHT-improve-10: every direction confirmed gone (deleted or
-    /// ENOENT-absent) also reclaims the per-cgroup bucket and stats
-    /// entries — see [`Self::reclaim_cgroup_state`].
-    pub fn unstrict(&mut self, target: &Target) -> Result<usize> {
-        let cgroup_ids = self.resolve_target(target)?;
-        let mut removed = 0usize;
-        let mut failed: Vec<String> = Vec::new();
-
-        for cgroup_id in &cgroup_ids {
-            let label = self.identity.label(*cgroup_id);
-            let mut found = false;
-            // Per-direction gone tracking (NIGHT-improve-10): a
-            // direction is gone when its policy was deleted here OR
-            // was already ENOENT-absent — only a real failure leaves
-            // it uncertain, and an uncertain direction keeps its
-            // state (conservative: state may still be reachable).
-            let mut dl_gone = false;
-            let mut ul_gone = false;
-
-            // Remove from dl + ul policy maps — each deleted direction
-            // is one policy removed. A failed delete (not ENOENT) is
-            // reported per direction and summed into the final error.
-            for direction in [Direction::Download, Direction::Upload] {
-                match self.delete_policy(*cgroup_id, direction) {
-                    Ok(true) => {
-                        found = true;
-                        removed += 1;
-                        match direction {
-                            Direction::Download => dl_gone = true,
-                            Direction::Upload => ul_gone = true,
-                        }
-                    }
-                    Ok(false) => match direction {
-                        Direction::Download => dl_gone = true,
-                        Direction::Upload => ul_gone = true,
-                    },
-                    Err(e) => {
-                        eprintln_safe!(
-                            "[limiter] Unstrict: cg:{cgroup_id} {} not removed: {e}",
-                            direction.label()
-                        );
-                        failed.push(policy_survivor_line(*cgroup_id, direction));
-                    }
-                }
-            }
-
-            // Reclaim the state the removal leaves behind: buckets
-            // for gone directions, stats when both are gone. Runs even
-            // when this invocation removed nothing — an ENOENT-only
-            // walk is exactly the crashed-removal case whose residue
-            // the LTS budget needs back.
-            if dl_gone || ul_gone {
-                let reclaimed =
-                    self.reclaim_cgroup_state(*cgroup_id, dl_gone, ul_gone, dl_gone && ul_gone);
-                self.print_reclaim_trace(*cgroup_id, reclaimed);
-            }
-
-            if found {
-                eprintln_safe!("[limiter] Unstrict: {label} — limits removed");
-            }
-        }
-
-        if !failed.is_empty() {
-            return Err(anyhow!(
-                "{}",
-                unstrict_partial_failure_line(removed, &failed)
-            ));
-        }
-
-        Ok(removed)
-    }
-
     /// Resolve a target to cgroup IDs.
     ///
     /// For process names, does a DIRECT /proc walk (not identity map cache)
     /// to find all PIDs matching the name, then resolves their cgroup IDs.
     /// This avoids the "first-pid-wins" issue where aria2c shares a cgroup
     /// with alacritty — direct lookup finds aria2c's PID directly.
-    fn resolve_target(&mut self, target: &Target) -> Result<Vec<u32>> {
+    pub(super) fn resolve_target(&mut self, target: &Target) -> Result<Vec<u32>> {
         match target {
             Target::CgroupId(id) => {
                 if self.verbose {
@@ -383,6 +284,58 @@ impl super::Limiter {
                 );
             }
             applied += 1;
+        }
+
+        // NIGHT-improve-29 (the floor run's hunt find): a direction
+        // the spec leaves unset is REMOVED, not left stale. The old
+        // shape silently kept whatever was already enforced —
+        // `zelynic ss brave 100kb` then `zelynic ss brave -d 1mb`
+        // left the upload leg at the old 100kb with no indication,
+        // violating the documented contract ("-d ... limits download
+        // only", USAGE.md) and doubling the first depth-battery
+        // accounting window on the 5.15 floor run (both hooks policed
+        // one loopback stream: bpf ledger 200.7% of the client bytes
+        // — the exact 2x signature). The removals run AFTER the
+        // writes on purpose: a failed write rolls back only what THIS
+        // invocation wrote, so the pre-apply state survives whole —
+        // the NIGHT-hunt-20 all-or-nothing contract. A failed removal
+        // is best-effort and never silent (the unstrict precedent):
+        // the survivor is named on stderr and visible in `status`,
+        // while the freshly written legs stand.
+        for (unset, direction) in [
+            (rates.download.is_none(), Direction::Download),
+            (rates.upload.is_none(), Direction::Upload),
+        ] {
+            if !unset {
+                continue;
+            }
+            match self.delete_policy(cgroup_id, direction) {
+                Ok(_) => {
+                    // Gone — deleted here or already ENOENT-absent.
+                    // Reclaim the bucket (and the stats entry when
+                    // both directions are gone — unreachable from
+                    // the CLI, which rejects no-rate applies, but
+                    // correct for any future caller): the same
+                    // NIGHT-improve-10 reclamation the unstrict path
+                    // runs, so an apply can never strand state the
+                    // remove path would have reclaimed.
+                    let (dl_gone, ul_gone) = match direction {
+                        Direction::Download => (true, rates.upload.is_none()),
+                        Direction::Upload => (rates.download.is_none(), true),
+                    };
+                    let reclaimed =
+                        self.reclaim_cgroup_state(cgroup_id, dl_gone, ul_gone, dl_gone && ul_gone);
+                    if reclaimed != 0 {
+                        self.print_reclaim_trace(cgroup_id, reclaimed);
+                    }
+                }
+                Err(e) => {
+                    eprintln_safe!(
+                        "[limiter] Apply: cg:{cgroup_id} stale {} leg not removed: {e}",
+                        direction.label()
+                    );
+                }
+            }
         }
 
         Ok(applied)

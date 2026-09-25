@@ -131,26 +131,6 @@ fn partial_apply_failure_line_pins_both_rollback_outcomes() {
 }
 
 #[test]
-fn unstrict_partial_failure_line_reports_removed_and_survivors() {
-    assert_eq!(
-        unstrict_partial_failure_line(3, &[policy_survivor_line(73386, Direction::Download)]),
-        "removed 3 policies, but 1 is still enforced: cg:73386 download — \
-         run 'zelynic recover' if this persists"
-    );
-    assert_eq!(
-        unstrict_partial_failure_line(
-            1,
-            &[
-                policy_survivor_line(73386, Direction::Download),
-                policy_survivor_line(73390, Direction::Upload),
-            ]
-        ),
-        "removed 1 policy, but 2 are still enforced: cg:73386 download, \
-         cg:73390 upload — run 'zelynic recover' if this persists"
-    );
-}
-
-#[test]
 fn policy_survivor_line_matches_the_trace_cg_style() {
     assert_eq!(
         policy_survivor_line(73386, Direction::Download),

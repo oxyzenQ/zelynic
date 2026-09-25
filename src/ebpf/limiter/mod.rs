@@ -6,7 +6,9 @@
 //! Module layout (NIGHT-hunt-3 restructure):
 //! - `types.rs`   — constants + BPF map structs + high-level API types
 //! - `format.rs`  — rate/duration parsing + formatting helpers
-//! - `policy.rs`  — apply / resolve / write / delete policy operations
+//! - `policy.rs`  — apply / resolve / write policy operations (the
+//!   unset-direction removal rides the apply, NIGHT-improve-29)
+//! - `reclaim.rs` — the remove path (unstrict) + state reclamation
 //! - `stats.rs`   — status printing + map readers + identity accessors
 //! - this file    — the `Limiter` struct, lifecycle (attach / open /
 //!   is_pinned / Drop), and the public re-export surface.

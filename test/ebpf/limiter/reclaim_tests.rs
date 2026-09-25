@@ -11,6 +11,12 @@
 //! them running against the moved definition).
 
 use super::*;
+// The unstrict partial-failure pin (moved with its subject from
+// policy_tests.rs, NIGHT-improve-29's 500-LOC split): the survivor
+// lines come from the policy module (pub(super) there), the
+// direction type from the shared types module.
+use super::super::policy::policy_survivor_line;
+use super::super::types::Direction;
 
 /// NIGHT-improve-10 drift pins: the reclaim trace wording names the
 /// LTS budget explicitly — it is the diagnostic surface that tells an
@@ -27,5 +33,25 @@ fn reclaim_trace_line_singular_and_plural() {
         reclaim_trace_line(7, 3),
         "[limiter] cg:7 reclaimed 3 stale state entries — \
          bucket/stats slots returned to the 1024-entry LTS budget"
+    );
+}
+
+#[test]
+fn unstrict_partial_failure_line_reports_removed_and_survivors() {
+    assert_eq!(
+        unstrict_partial_failure_line(3, &[policy_survivor_line(73386, Direction::Download)]),
+        "removed 3 policies, but 1 is still enforced: cg:73386 download — \
+         run 'zelynic recover' if this persists"
+    );
+    assert_eq!(
+        unstrict_partial_failure_line(
+            1,
+            &[
+                policy_survivor_line(73386, Direction::Download),
+                policy_survivor_line(73390, Direction::Upload),
+            ]
+        ),
+        "removed 1 policy, but 2 are still enforced: cg:73386 download, \
+         cg:73390 upload — run 'zelynic recover' if this persists"
     );
 }
