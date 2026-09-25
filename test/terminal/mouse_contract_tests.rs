@@ -29,6 +29,14 @@
 //!    `ESC[?1015h` (legacy mouse encodings), `ESC[?1004h` (focus
 //!    reporting), or `ESC[?2004h` (bracketed paste) anywhere in the
 //!    shipped source fails this test with the file and mode listed.
+//!    NIGHT-hunt-31 extension: the emergency reset contract
+//!    (src/terminal/reset.rs, the `--reset-terminal` rescue) is the
+//!    ONE file granted a second mode set — {2026, 2004, 1004, 7,
+//!    1003, 1015}, all in the default-RESTORING direction (pinned
+//!    in test/terminal/reset_tests.rs: off-default modes only ever
+//!    `l`, on-default only ever `h`). The rescue turns foreign apps'
+//!    stuck modes back off; the exemption is file-scoped so the
+//!    monitor itself can still never touch them.
 //! 3. NIGHT-improve-8 selection-guard pins: the guard beat value and
 //!    the loop scheduler (`next_beat`) — mouse tracking cannot reach
 //!    the terminal's Shift+click bypass, so the loop re-emits the
@@ -62,16 +70,19 @@ fn alt_enter_bytes_pinned() {
     );
 }
 
-/// The exact exit bytes: mouse tracking off (reverse of the enter),
-/// alternate screen off, cursor shown. The exit must restore EVERY
-/// mode the enter touched — a restore mismatch here is how TUIs leave
-/// terminals wedged (or, on this contract, leave the pointer captured
-/// after exit).
+/// The exact exit bytes: SGR reset (NIGHT-hunt-31 — the pen state
+/// survives the alt-screen switch; without it the user's shell
+/// renders in the monitor's last color), mouse tracking off (reverse
+/// of the enter), alternate screen off, cursor shown. The exit must
+/// restore EVERY mode the enter touched — and the pen the FRAMES
+/// touched — a restore mismatch here is how TUIs leave terminals
+/// wedged (or, on this contract, leave the pointer captured after
+/// exit).
 #[test]
 fn alt_exit_bytes_pinned() {
     assert_eq!(
         ALT_EXIT,
-        b"\x1b[?1006l\x1b[?1002l\x1b[?1000l\x1b[?1049l\x1b[?25h"
+        b"\x1b[0m\x1b[?1006l\x1b[?1002l\x1b[?1000l\x1b[?1049l\x1b[?25h"
     );
 }
 
@@ -103,7 +114,8 @@ fn dec_private_modes(seq: &[u8]) -> Vec<u32> {
 
 /// The strict mouse contract, byte level: the only DEC private
 /// modes in the monitor's enter/exit sequences are 1049, 25, and the
-/// mouse-tracking trio 1000/1002/1006. Any-motion 1003 (stdin flood,
+/// mouse-tracking trio 1000/1002/1006 (the NIGHT-hunt-31 SGR reset
+/// prefix is not a DEC private mode). Any-motion 1003 (stdin flood,
 /// no extra selection coverage), legacy encodings 1005/1015, focus
 /// 1004, and bracketed paste 2004 are all absent — the monitor takes
 /// EXACTLY the pointer, nothing more.
@@ -120,7 +132,9 @@ fn monitor_takes_pointer_and_fully_restores() {
              and 1006"
         );
     }
-    // And the full restore: every mode the enter enabled is undone.
+    // And the full restore: every mode the enter enabled is undone,
+    // and the SGR pen the frames touched is reset (NIGHT-hunt-31).
+    assert!(ALT_EXIT.starts_with(b"\x1b[0m"));
     assert!(ALT_EXIT.windows(8).any(|w| w == b"\x1b[?1049l"));
     assert!(ALT_EXIT.windows(6).any(|w| w == b"\x1b[?25h"));
     assert!(ALT_EXIT.windows(8).any(|w| w == b"\x1b[?1000l"));
@@ -128,9 +142,14 @@ fn monitor_takes_pointer_and_fully_restores() {
     assert!(ALT_EXIT.windows(8).any(|w| w == b"\x1b[?1006l"));
 }
 
-/// Source-tree scan: no DEC private mode outside
-/// {1049, 25, 1000, 1002, 1006} may
-/// appear as a literal in any `src/**/*.rs` file. The scan looks for
+/// Source-tree scan: no DEC private mode outside the sanctioned sets
+/// may appear as a literal in any `src/**/*.rs` file. The MONITOR
+/// set is {1049, 25, 1000, 1002, 1006} everywhere; the
+/// NIGHT-hunt-31 RESET set {2026, 2004, 1004, 7, 1003, 1015} is
+/// honored only inside `src/terminal/reset.rs` — the `--reset-terminal`
+/// rescue's default-restoring directions (see the module docs and
+/// test/terminal/reset_tests.rs for the direction pin).
+/// The scan looks for
 /// the six-character source text `\x1b[?` (backslash-x-1-b-lb-question
 /// — how a raw escape literal is spelled in Rust source), then reads
 /// the digits that follow. Comments that merely NAME a mode in prose
@@ -168,19 +187,27 @@ fn source_tree_has_only_sanctioned_dec_modes() {
          literal(s) found in src/ (the monitor's terminal takeover is \
          exactly {{1049, 25, 1000, 1002, 1006}} — anything else grabs a \
          capability the monitor does not need, or re-exposes the box \
-         to selection):\n  {}",
+         to selection; the NIGHT-hunt-31 reset set {{2026, 2004, 1004, \
+         7, 1003, 1015}} is honored ONLY in src/terminal/reset.rs, and \
+         only in the default-restoring direction):\n  {}",
         offenders.join("\n  ")
     );
 }
 
 /// Scan one source file for `\x1b[?NNNN` literals and record any mode
-/// outside {1049, 25, 1000, 1002, 1006} as an offender string
-/// "file:line: mode NNNN".
+/// outside the sanctioned sets as an offender string
+/// "file:line: mode NNNN". The monitor set applies everywhere; the
+/// reset set (default-restoring directions only) applies only to
+/// `src/terminal/reset.rs` (NIGHT-hunt-31).
 fn scan_source_file(path: &Path, offenders: &mut Vec<String>) {
     let text = match std::fs::read_to_string(path) {
         Ok(t) => t,
         Err(_) => return,
     };
+    // The file-scoped reset exemption: the emergency reset contract
+    // is the one place the extra modes may live (and its direction
+    // contract is separately pinned in test/terminal/reset_tests.rs).
+    let is_reset_contract = path.ends_with("terminal/reset.rs");
     let needle = "\\x1b[?";
     let bytes = text.as_bytes();
     let mut line = 1usize;
@@ -202,7 +229,10 @@ fn scan_source_file(path: &Path, offenders: &mut Vec<String>) {
             }
             if end > start {
                 let mode: u32 = text[start..end].parse().unwrap_or(0);
-                if !matches!(mode, 1049 | 25 | 1000 | 1002 | 1006) {
+                let monitor_ok = matches!(mode, 1049 | 25 | 1000 | 1002 | 1006);
+                let reset_ok =
+                    is_reset_contract && matches!(mode, 2026 | 2004 | 1004 | 7 | 1003 | 1015);
+                if !monitor_ok && !reset_ok {
                     offenders.push(format!(
                         "{}:{}: mode {}",
                         path.strip_prefix(env!("CARGO_MANIFEST_DIR"))

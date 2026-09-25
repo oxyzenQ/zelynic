@@ -60,6 +60,21 @@ pub struct Cli {
     #[arg(long = "check-update", alias = "check-updated", global = false)]
     pub check_update: bool,
 
+    /// Emergency terminal reset (rescue a broken terminal)
+    ///
+    /// NIGHT-hunt-31 (the cosmostrix skill transfer): a terminal left
+    /// broken by a violent TUI death (kill -9 outliving every restore
+    /// path, a stuck sync mode, a dead app's mouse/kitty modes) is
+    /// recovered in place — five defense-in-depth layers: the ANSI
+    /// restore sequence (every optional mode off), the ANSI reset
+    /// (clear screen + scrollback), `stty sane` (the kernel-side raw
+    /// mode no escape byte reaches), `reset`, and `tput reset`. No
+    /// privileges required: the rescue touches only the caller's own
+    /// terminal. Works blind-typed when the terminal shows nothing:
+    /// `zelynic --reset-terminal` + Enter.
+    #[arg(long = "reset-terminal", global = true)]
+    pub reset_terminal: bool,
+
     /// Diagnostic trace for enforcement internals
     ///
     /// stderr-only trace of what the engine actually decided (NIGHT-hunt-9):

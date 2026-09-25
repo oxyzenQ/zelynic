@@ -18,6 +18,14 @@ mod ebpf;
 mod info;
 #[cfg(feature = "ebpf")]
 mod terminal;
+// NIGHT-hunt-31: the emergency terminal reset compiles in EVERY
+// build (#[path]-wired from the terminal domain — see the file's
+// module doc for why it is not a child of terminal/mod.rs: that
+// tree is ebpf-gated as the eagle-eyes session machinery, and the
+// rescue owns no BPF machinery — a featureless binary must still
+// rescue a terminal some other app broke).
+#[path = "terminal/reset.rs"]
+mod term_reset;
 mod update;
 
 use anyhow::Result;
@@ -100,10 +108,11 @@ fn try_main() -> Result<()> {
     }
 
     // NIGHT-boost-24: the early-return surfaces (help, version,
-    // check-update) never render JSON — the flag's honesty note rides
-    // stderr BEFORE them, so `zelynic --print-json -V` says why the
-    // output is text. stdout and the exit code are untouched.
-    if cli.print_json && (cli.help || cli.version || cli.check_update) {
+    // check-update, reset-terminal) never render JSON — the flag's
+    // honesty note rides stderr BEFORE them, so `zelynic --print-json
+    // -V` says why the output is text. stdout and the exit code are
+    // untouched.
+    if cli.print_json && (cli.help || cli.version || cli.check_update || cli.reset_terminal) {
         cli::warn_print_json_ignored();
     }
 
@@ -118,6 +127,20 @@ fn try_main() -> Result<()> {
 
     if cli.version {
         info::print_version_report();
+        return Ok(());
+    }
+
+    // NIGHT-hunt-31: --reset-terminal — the emergency five-layer
+    // terminal reset (the cosmostrix skill transfer). Early return,
+    // before check-update and every command surface: a broken
+    // terminal is the one state where the user cannot read anything
+    // else this binary might print, and the rescue must not ask for
+    // privileges, parse targets, or touch BPF — it touches only the
+    // caller's own terminal (see src/terminal/reset.rs for the
+    // layer-by-layer contract). Silent by design: the shell prompt
+    // returning on a clean screen is the feedback.
+    if cli.reset_terminal {
+        term_reset::reset_terminal_emergency();
         return Ok(());
     }
 
