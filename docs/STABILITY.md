@@ -117,8 +117,9 @@ residual risks, ranked by how likely they are to matter:
    recreated at every eagle-eyes start — and a wrap there could never
    reach the display: the session ledger, not the map counter, is
    what renders). The leaderboard's entry count mirrors
-   the kernel's own 1024-slot counter-map ceiling
-   (`MAX_TRACKED_CGROUPS`), so cgroup churn cannot grow the monitor's
+   the kernel's own 4096-slot counter-map ceiling
+   (`MAX_TRACKED_CGROUPS`, raised 1024 → 4096 in NIGHT-improve-31
+   for dense hosts), so cgroup churn cannot grow the monitor's
    memory. The counter maps themselves are recreated at every
    `eagle-eyes` start — the session horizon resets on restart, which
    is the documented cadence for a trunk that could genuinely move
@@ -139,7 +140,8 @@ other class already fenced:
 
 - **Memory growth — fenced.** Every long-lived structure is bounded
   by construction: the session leaderboard mirrors the kernel's own
-  1024-slot map ceiling (`MAX_TRACKED_CGROUPS`), the two cookie maps
+  4096-slot map ceiling (`MAX_TRACKED_CGROUPS`, the NIGHT-improve-31
+  dense-host raise), the two cookie maps
   are LRU (self-evicting, session-scoped), both `/proc` caches are
   rebuilt in place behind their TTLs (identity 10s, connections 3s),
   the diff engine's shadow and buffers scale with terminal size, and

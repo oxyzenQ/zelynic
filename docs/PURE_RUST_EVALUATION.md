@@ -136,10 +136,10 @@ section):
   `Ingress`.
 - The map contract resolves by name: `cgroup_counters` and
   `cgroup_counters_ingress` (HASH, key 4, value 24 at port time —
-  16 since NIGHT-boost-34, see deliberate delta 5 — max 1024 since
-  NIGHT-improve-8, the port-time value was 256, see deliberate
-  delta 3) and, at port time, `events` (RINGBUF, 2 MB — dropped at
-  NIGHT-boost-34, delta 5).
+  16 since NIGHT-boost-34, see deliberate delta 5 — max 4096 since
+  NIGHT-improve-31 (1024 since NIGHT-improve-8, the port-time
+  value was 256, see deliberate delta 3) and, at port time,
+  `events` (RINGBUF, 2 MB — dropped at NIGHT-boost-34, delta 5).
 - The `license` section carries `GPL` exactly like the C object
   (required: `bpf_skb_cgroup_id` is a GPL-only helper).
 
@@ -168,8 +168,8 @@ Every name, section, layout and helper the C object exposes, because
 |---|---|---|
 | Program `observe_egress` | `SEC("cgroup_skb/egress")` | `#[cgroup_skb(egress)]` |
 | Program `observe_ingress` | `SEC("cgroup_skb/ingress")` | `#[cgroup_skb(ingress)]` |
-| Map `cgroup_counters` | HASH u32 -> cgroup_stats (24 B), 256 | 1024 (NIGHT-improve-8, delta 3) |
-| Map `cgroup_counters_ingress` | HASH u32 -> cgroup_stats (24 B), 256 | 1024 (NIGHT-improve-8, delta 3) |
+| Map `cgroup_counters` | HASH u32 -> cgroup_stats (24 B), 256 | 4096 (improve-8 256→1024, improve-31 1024→4096, delta 3) |
+| Map `cgroup_counters_ingress` | HASH u32 -> cgroup_stats (24 B), 256 | 4096 (improve-8 256→1024, improve-31 1024→4096, delta 3) |
 | Map `events` | RINGBUF 2 MB | dropped at NIGHT-boost-34 (delta 5) |
 | `struct event` layout | 52 B, `#[repr(C)]` mirror | dropped at NIGHT-boost-34 (delta 5) |
 | `struct cgroup_stats` layout | 24 B | 16 B since NIGHT-boost-34 (size pin) |
@@ -191,14 +191,18 @@ NIGHT-improve-8, all documented for the decision section:
 2. The C ingress program ignores the `bpf_map_update_elem` return
    value; the port keeps that exact behavior with a comment saying
    so (a swallow-audit would flag it otherwise).
-3. (NIGHT-improve-8) The counter maps' capacity is 1024 entries, not
-   the C twin's 256. On hosts with more than 256 live cgroups —
+3. (NIGHT-improve-8, raised again in NIGHT-improve-31) The counter
+   maps' capacity is 4096 entries, not the C twin's 256. On hosts
+   with more than 256 live cgroups —
    Kubernetes nodes, systemd-heavy servers, container hosts — the
    port-time maps filled silently and every further cgroup's traffic
    went uncounted (the insert-failure path returns allow-and-skip,
    so the monitor showed nothing for it). The maps are unpinned and
-   session-scoped, so the raise carries no pin or schema migration;
-   kernel memory cost is 2 x 1024 x 24 B = 48 KiB per monitor session.
+   session-scoped, so every raise carries no pin or schema migration;
+   kernel memory cost is 2 x 4096 x 24 B = 192 KiB per monitor
+   session (the improve-31 dense-host raise: the same hole re-opens
+   at 4x on big Kubernetes nodes and CI runners with per-job systemd
+   scopes, which push past 1024 live cgroups WITH traffic).
    The frozen bpftool dumps below still show the port-time 256 —
    they are verbatim records of the port verification.
 4. (NIGHT-perf-1, 2026-09-24 — superseded by delta 5) The egress

@@ -839,12 +839,16 @@ Removed surfaces (`man`, `completions`, `unblock`, `-i/--info`,
 `observe`/`top` -> `eagle-eyes`) exit with a usage error on
 purpose — `--help` is the single reference.
 
-**11. eagle-eyes tracks at most 1024 distinct cgroups.**
-The monitor's counter maps hold 1024 entries per direction (raised
-from the port-time 256 in NIGHT-improve-8: Kubernetes nodes,
-systemd-heavy servers, and container hosts can exceed 256 live
-cgroups, and a full map silently stopped counting new cgroups).
-A host with more live cgroups than 1024 shows only the first 1024
+**11. eagle-eyes tracks at most 4096 distinct cgroups.**
+The monitor's counter maps hold 4096 entries per direction (raised
+from the port-time 256 in NIGHT-improve-8, then 1024 → 4096 in
+NIGHT-improve-31 for dense hosts: Kubernetes nodes, CI runners with
+per-job systemd scopes, and container hosts can push past 1024 live
+cgroups, and a full map silently stops counting new cgroups — the
+same hole improve-8 closed, at 4x the scale; the raise is a
+session-scoped map-creation attribute, no pin or schema migration,
+192 KiB of kernel memory per session).
+A host with more live cgroups than 4096 shows only the first 4096
 in the monitor rows.
 
 **12. The monitor's metric set is exactly this — and that is the

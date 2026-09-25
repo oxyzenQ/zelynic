@@ -1,6 +1,31 @@
 // Copyright (C) 2026 rezky_nightky
 // SPDX-License-Identifier: GPL-3.0-only
 // LOC_EXEMPT: a cargo build script is one self-contained file by design — splitting it means a [build-dependencies] crate (supply-chain surface the repo keeps at zero)
+//
+// NIGHT-improve-31 (the audit remainings, the long-term split plan
+// the owner marked this file as a candidate for — written here so
+// the debt carries its own retirement plan): the supply-chain
+// argument exempts a CRATE split, not a FILE split. A build script
+// is also a plain crate root, so `#[path]`-included modules split
+// it with ZERO new dependencies — same supply chain, same review
+// surface, four files instead of one 1239-line file. The mechanical
+// phase map (each phase is a pure move, no behavior change, gates
+// green in between):
+//   phase 1  build/validate.rs   the ELF validators — read_validated_
+//            ebpf_object, validate_ebpf_object, the u16/u32/u64_le
+//            readers (lines ~289-509 today), plus the tests that pin
+//            them (~1/3 of the test module)
+//   phase 2  build/flags.rs      the RUSTFLAGS surgery — strip_host_
+//            poison_rustflags, force_bpf_v3_rustflags, strip_host_
+//            poison, is_host_poison_token (~510-654) + their tests
+//   phase 3  build/preflight.rs  the toolchain preflight — preflight_
+//            ebpf_prerequisites and the rustup/path probes (~655-792)
+//            + tests; main.rs keeps main + build_ebpf_objects +
+//            run_nested_ebpf_build + the build-time formatters (the
+//            orchestration spine, ~200 lines)
+// The trigger for executing it is the next build.rs change that
+// grows the file instead of fitting it — the plan makes that edit
+// a four-file move instead of a rewrite decision.
 fn main() {
     // Re-run build.rs whenever git HEAD changes so GIT_HASH stays fresh.
     println!("cargo:rerun-if-changed=.git/HEAD");
