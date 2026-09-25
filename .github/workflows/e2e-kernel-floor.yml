@@ -122,11 +122,19 @@ jobs:
 
       # The owner-facing bring-up on the RUNNER (outside the VM): the
       # canonical path from e2e.yml — bootstrap, the pro-native-gnu
-      # flagship build, and the rootless engine self-test. The binary
-      # is native codegen; inside the VM it executes under KVM's
-      # -cpu host on the SAME silicon that built it.
-      - name: Bring-up (setup.sh --skip-heavy)
-        run: ./scripts/setup.sh --skip-heavy
+      # flagship build, and the rootless engine self-test — plus the
+      # STATIC MUSL TWIN (--musl): the VM's userland is the
+      # ubuntu:22.04 container (glibc 2.35) while the runner builds
+      # on a newer glibc, so the dynamically-linked gnu flagship
+      # cannot run inside (run 4: GLIBC_2.39 not found). The static
+      # musl binary is glibc-free — the exact binary the
+      # CROSS_DISTRO instrument runs on foreign distros — and it is
+      # native codegen too, executing under KVM's -cpu host on the
+      # SAME silicon that built it.
+      - name: Bring-up (setup.sh --skip-heavy --musl)
+        run: |
+          rustup target add x86_64-unknown-linux-musl
+          ./scripts/setup.sh --skip-heavy --musl
 
       # The 5.15 kernel itself: the jammy (22.04) GA kernel, fetched
       # from the Ubuntu archive. jammy main + jammy-updates (the
@@ -175,10 +183,14 @@ jobs:
           cp "$VMLINUZ" /tmp/kfloor/vmlinuz-5.15
           echo "kernel: $(du -h /tmp/kfloor/vmlinuz-5.15 | cut -f1) at /tmp/kfloor/vmlinuz-5.15"
 
-      # The userland: the ubuntu:22.04 CONTAINER supplies a glibc-2.35
-      # rootfs that matches the gnu flagship binary; python3 +
-      # iproute2 ride along (the harness engine + `ip link set lo
-      # up`). The checkout (tracked files only) and the built binary
+      # The userland: the ubuntu:22.04 CONTAINER supplies the rootfs
+      # for the gnu world's files, and python3 + iproute2 ride along
+      # (the harness engine + `ip link set lo up`); the BINARY is the
+      # static musl twin (run 4's lesson: the gnu flagship is linked
+      # against the runner's newer glibc — GLIBC_2.39 vs the
+      # container's 2.35 — and a static binary carries no such
+      # dependency; the cross-distro runs use it for exactly this
+      # reason). The checkout (tracked files only) and the binary
       # land at /opt/zelynic, scripts/ci/kernel-floor-init.sh becomes
       # /init (PID 1) — then the whole tree packs into ONE newc cpio
       # (the initramfs IS the rootfs; no disk, no modules).
@@ -196,7 +208,7 @@ jobs:
           tar -xf rootfs.tar -C rootfs
           mkdir -p rootfs/opt/zelynic
           git -C "$GITHUB_WORKSPACE" archive HEAD | tar -x -C rootfs/opt/zelynic
-          cp "$GITHUB_WORKSPACE/target/pro-native-gnu/zelynic" rootfs/opt/zelynic/zelynic
+          cp "$GITHUB_WORKSPACE/target/x86_64-unknown-linux-musl/pro-native-musl/zelynic" rootfs/opt/zelynic/zelynic
           cp "$GITHUB_WORKSPACE/scripts/ci/kernel-floor-init.sh" rootfs/init
           chmod +x rootfs/init
           # PID 1 needs a console to exec onto before devtmpfs lands
@@ -215,8 +227,13 @@ jobs:
       # CPU (the pro-native binary runs on the same silicon that
       # built it), no disk, serial console to stdout, panic=-1 +
       # -no-reboot so a kernel panic ends qemu instead of hanging the
-      # job, and an outer timeout so a wedged guest can never burn
-      # the 25-minute budget.
+      # job, an outer timeout so a wedged guest can never burn the
+      # 25-minute budget, and the isa-debug-exit device — the guest
+      # ends the VM deterministically by writing one byte to port
+      # 0xf4 (qemu exits with status 1), the kernel-CI standard for
+      # initramfs guests whose direct-boot path never reaches an ACPI
+      # S5 poweroff (run 4's lesson: the reboot(2) poweroff silently
+      # no-oped and only the outer timeout reaped the job).
       - name: Boot the 5.15 micro-VM and run the probes
         run: |
           set -euo pipefail
@@ -225,18 +242,19 @@ jobs:
           timeout 480 qemu-system-x86_64 \
             -machine q35,accel=kvm -cpu host \
             -m 3072 -smp 4 \
+            -device isa-debug-exit,iobase=0xf4,iosize=0x04 \
             -kernel vmlinuz-5.15 \
             -initrd initrd.gz \
             -append "console=ttyS0 panic=-1" \
             -nographic -no-reboot 2>&1 | tee vm.log
           QEMU_RC=${PIPESTATUS[0]}
           set -e
-          # rc 0 = the guest powered off cleanly (the probes ran to
-          # their verdict). rc 124 = the 8-minute timeout. Anything
-          # else = qemu itself failed (KVM init, bad image) — fail
-          # HERE with the tail visible instead of deferring to the
-          # Verdict grep.
-          if test "$QEMU_RC" -ne 0; then
+          # rc 0 = a natural poweroff; rc 1 = the guest's deliberate
+          # isa-debug-exit (value 0 — the verdict itself rides the
+          # FLOOR-* sentinel lines, so the Verdict step below stays
+          # the authority). Anything else — the 480 s timeout (124),
+          # a KVM init failure — fails HERE with the tail attached.
+          if test "$QEMU_RC" -ne 0 && test "$QEMU_RC" -ne 1; then
             echo "FAIL: qemu exited $QEMU_RC — log tail:"
             tail -40 vm.log
             exit 1

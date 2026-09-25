@@ -21,11 +21,11 @@
 # pty for the observer + the violent-death guard.
 #
 # PID-1 rules: no systemd here — this script owns every mount; it
-# must NEVER exit without powering off (a PID 1 that exits wedges
-# the guest into a panic), and the poweroff uses python's os.reboot
-# because a container-derived rootfs carries no init-system
-# poweroff binary by definition (python3 is guaranteed: the VM
-# assembly installs it).
+# must NEVER exit without ending the VM (a PID 1 that plain-exits
+# panic-wedges the guest), and the exit rides qemu's isa-debug-exit
+# port device (see guest_exit) because a direct-boot guest has no
+# init-system poweroff binary and its reboot(2) poweroff path never
+# lands (python3 is guaranteed: the VM assembly installs it).
 
 set -u
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
@@ -39,23 +39,31 @@ note() {
 	fi
 }
 
-halt_now() {
-	# PID 1 powers off via the raw syscall (see the header): python3
-	# is guaranteed in this rootfs, init-system poweroff binaries are
-	# not. sync first — discipline, not need (everything is tmpfs).
-	python3 -c 'import os; os.sync(); os.reboot(os.LINUX_REBOOT_CMD_POWER_OFF)'
-	# Unreachable when the syscall works; a belt for a python that
-	# refuses (never spin the 25-minute CI budget).
+guest_exit() {
+	# The deterministic VM exit (run 4's lesson: the reboot(2)
+	# POWER_OFF silently no-oped in this direct-boot guest — no ACPI
+	# S5 handoff — and only the runner's 8-minute timeout reaped the
+	# job). qemu's isa-debug-exit device ends the VM the moment one
+	# byte lands on port 0xf4; /dev/port is the root-writable port-I/O
+	# window (seek = the port number), and the written value 0 makes
+	# qemu exit with status 1 — the rc the workflow's boot step
+	# accepts as the guest's deliberate exit, the FLOOR-* sentinel
+	# lines being the verdict the Verdict step greps.
+	printf '\x00' | dd of=/dev/port bs=1 seek=244 count=1 2>/dev/null || true
+	# Belts, in order: the raw poweroff syscall (if this guest ever
+	# grows an ACPI S5 path), then the sleep loop (never spin the
+	# runner's budget — the outer timeout owns the last resort).
+	python3 -c 'import os; os.sync(); os.reboot(os.LINUX_REBOOT_CMD_POWER_OFF)' 2>/dev/null || true
 	while true; do sleep 60; done
 }
 
 Z=/opt/zelynic
 if ! cd "$Z"; then
 	# A PID 1 must never plain-exit (the guest would panic-wedge):
-	# power off through the raw syscall with the verdict already
-	# naming the failure.
+	# exit through the port device with the verdict already naming
+	# the failure.
 	echo "FLOOR-VERDICT: FAIL (cannot cd $Z — rootfs assembly bug)"
-	halt_now
+	guest_exit
 fi
 
 # ── the kernel surfaces, before anything that needs them ──────────────
@@ -89,9 +97,9 @@ fi
 
 # ── the binary: runs at all, then the capability probe ───────────────
 if ./zelynic -V >/dev/null 2>&1; then
-	note "zelynic -V (glibc + CPU match)" PASS
+	note "zelynic -V (static musl + CPU match)" PASS
 else
-	note "zelynic -V (glibc + CPU match)" FAIL
+	note "zelynic -V (static musl + CPU match)" FAIL
 fi
 if ./zelynic doctor; then
 	note "doctor (bpf syscall on 5.15)" PASS
@@ -137,4 +145,4 @@ if [ "$FAILURES" -eq 0 ]; then
 else
 	echo "FLOOR-VERDICT: FAIL ($FAILURES probe(s) failed)"
 fi
-halt_now
+guest_exit
