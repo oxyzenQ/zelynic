@@ -94,11 +94,14 @@ jobs:
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5, NIGHT-hunt-20 SHA pin
 
       # The kernel can change; /dev/kvm is a GitHub runner guarantee
-      # (nested virt is enabled on every current Linux hosted image).
-      # Failing LOUDLY here beats a confusing TCG fallback: the
-      # pro-native-gnu binary is native codegen and would SIGILL under
-      # TCG's -cpu qemu64 — KVM's -cpu host passthrough is what makes
-      # "native" honest inside the VM.
+      # (nested virt is enabled on every current Linux hosted image) —
+      # but the node ships 0660 root:kvm and the runner user is not in
+      # the kvm group, so the job opens it up itself (the one-line
+      # fix every KVM-on-Actions rig uses). Failing LOUDLY here beats
+      # a confusing TCG fallback: the pro-native-gnu binary is native
+      # codegen and would SIGILL under TCG's -cpu qemu64 — KVM's
+      # -cpu host passthrough is what makes "native" honest inside
+      # the VM.
       - name: Verify KVM
         run: |
           test -e /dev/kvm || {
@@ -106,7 +109,13 @@ jobs:
             echo "(nested virt is expected on every current GitHub Linux runner image)"
             exit 1
           }
-          echo "OK: /dev/kvm present"
+          test -w /dev/kvm || sudo chmod 666 /dev/kvm
+          test -w /dev/kvm || {
+            echo "FAIL: /dev/kvm is not usable by the runner user even after chmod"
+            ls -l /dev/kvm
+            exit 1
+          }
+          echo "OK: /dev/kvm present and usable"
 
       - name: Install qemu + cpio
         run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends qemu-system-x86 cpio
@@ -222,13 +231,13 @@ jobs:
             -nographic -no-reboot 2>&1 | tee vm.log
           QEMU_RC=${PIPESTATUS[0]}
           set -e
-          # A clean run ends with the guest's poweroff (qemu exit 0);
-          # the outer timeout (124) means the VM never finished and
-          # must fail the job with the tail visible. Any other rc is
-          # left to the Verdict step — the FLOOR-* sentinel lines in
-          # the log are the authority.
-          if test "$QEMU_RC" -eq 124; then
-            echo "FAIL: the micro-VM hit the 8-minute timeout — log tail:"
+          # rc 0 = the guest powered off cleanly (the probes ran to
+          # their verdict). rc 124 = the 8-minute timeout. Anything
+          # else = qemu itself failed (KVM init, bad image) — fail
+          # HERE with the tail visible instead of deferring to the
+          # Verdict grep.
+          if test "$QEMU_RC" -ne 0; then
+            echo "FAIL: qemu exited $QEMU_RC — log tail:"
             tail -40 vm.log
             exit 1
           fi
