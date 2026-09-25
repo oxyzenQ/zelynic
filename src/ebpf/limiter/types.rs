@@ -77,7 +77,35 @@ pub const MAX_RATE: u64 = 1_000_000_000_000;
 ///     No layout change — the pinned u64 fields are identical; the bump
 ///     forces pinned v6 programs to reload into the race-free object,
 ///     same one-time limit re-apply contract as v4/v5/v6.
-pub const SCHEMA_VERSION_EXPECTED: u32 = 7;
+/// v8 (NIGHT-lts-8): the extreme-burst consume retry — the CAS
+///     consume in ebpf/src/math.rs re-observes and retries up to
+///     four attempts, so a concurrent deduction between one packet's
+///     read and its CAS no longer falsely drops an affordable packet
+///     under many-CPU bursts on one bucket (measured on the
+///     budget-covers probe: 1.35% of packets at one attempt, 28x
+///     fewer at four). No layout change; the bump forces pinned v7
+///     programs to reload into the retry object, same one-time
+///     re-apply contract as v4..v7.
+pub const SCHEMA_VERSION_EXPECTED: u32 = 8;
+
+/// The burst floor (NIGHT-lts-8): the largest single packet the
+/// kernel hands a cgroup_skb hook by default — GSO egress
+/// (segmentation happens after the hook) and GRO ingress (merging
+/// happens before it) both produce super-packets up to GSO_MAX_SIZE
+/// = 64 KiB. A token bucket capped below that can NEVER admit one
+/// (tokens never reach the packet's length), so a policed cgroup at
+/// a trickle rate under GSO/GRO traffic would bar an entire packet
+/// class forever; the floor guarantees every default-kernel packet
+/// is admissible once a burst window accumulates. The residual: BIG
+/// TCP links (kernel 6.x, opt-in per-link `gro-max-size` above
+/// 64 KiB) keep the old physics — an inherent property of any
+/// bounded bucket (STABILITY's honest limits), not chased here.
+pub const BURST_FLOOR_BYTES: u64 = 65_536;
+
+/// The burst ceiling: 100 MB, the documented policy contract
+/// (security-3's userspace half; the BPF side re-clamps at
+/// MAX_ENFORCABLE_BURST regardless).
+pub const BURST_CEIL_BYTES: u64 = 100_000_000;
 
 /// Hard ceiling a stored `burst_bytes` may carry into the BPF refill
 /// math (NIGHT-improve-10 / security-3). Mirror of `MAX_ENFORCABLE_BURST`
@@ -352,7 +380,7 @@ mod tests {
     fn test_schema_version_constant() {
         // Must match SCHEMA_VERSION in ebpf/src/bin/limiter.rs.
         // When this changes, the BPF code must also change.
-        assert_eq!(SCHEMA_VERSION_EXPECTED, 7);
+        assert_eq!(SCHEMA_VERSION_EXPECTED, 8);
     }
 
     // ── NIGHT-improve-10 / security-3: overflow-bound pins ──────────

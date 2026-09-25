@@ -154,7 +154,20 @@ fn test_default_burst_normal() {
 
 #[test]
 fn test_default_burst_minimum() {
-    assert_eq!(default_burst(100), 4096);
+    // NIGHT-lts-8: the floor is the GSO/GRO super-packet size — a
+    // bucket capped below the largest packet the kernel hands the
+    // hook could never admit that packet class at all.
+    assert_eq!(default_burst(100), 65_536);
+}
+
+#[test]
+fn test_default_burst_floor_boundary() {
+    // The clamp's exact edge: everything below the floor reads as
+    // the floor, the floor itself passes through untouched, and
+    // one byte above the floor rides its own value.
+    assert_eq!(default_burst(65_535), 65_536);
+    assert_eq!(default_burst(65_536), 65_536);
+    assert_eq!(default_burst(65_537), 65_537);
 }
 
 #[test]

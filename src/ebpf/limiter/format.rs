@@ -6,7 +6,7 @@
 
 use anyhow::{bail, Result};
 
-use super::types::{MAX_RATE, MIN_RATE};
+use super::types::{BURST_CEIL_BYTES, BURST_FLOOR_BYTES, MAX_RATE, MIN_RATE};
 
 /// Parse a time duration string. Formats: 1s, 3m, 10h, or plain number (seconds).
 /// Returns duration in seconds. 0 = infinity.
@@ -246,9 +246,12 @@ pub fn validate_rate(rate_bps: u64) -> Result<()> {
     Ok(())
 }
 
-/// Compute burst size: 1 second of traffic, clamped 4KB–100MB.
+/// Compute burst size: 1 second of traffic (rate_bps bits as bytes
+/// — an 8-second byte credit), clamped between the 64 KiB GSO
+/// super-packet floor and the 100 MB ceiling (NIGHT-lts-8 raised
+/// the floor from 4 KB — the bounds live in types.rs).
 pub fn default_burst(rate_bps: u64) -> u64 {
-    rate_bps.clamp(4096, 100_000_000)
+    rate_bps.clamp(BURST_FLOOR_BYTES, BURST_CEIL_BYTES)
 }
 
 /// Get monotonic time in nanoseconds (CLOCK_MONOTONIC).
@@ -267,34 +270,31 @@ pub fn monotonic_ns() -> u64 {
 
 /// Format a byte count using decimal SI units (1 KB = 1000 bytes).
 ///
-/// This is consistent with `parse_rate` which uses decimal units (1kb = 1000).
-/// Network rates conventionally use SI units (1 Mbps = 1,000,000 bps).
+/// Consistent with `parse_rate` (1kb = 1000): network rates
+/// conventionally use SI units (1 Mbps = 1,000,000 bps).
 ///
 /// One decimal on EVERY tier (status-style audit, NIGHT-style flagship
 /// bar: compact/simple/elegant/precise): mixed digit counts read as
 /// raggedness inside one aligned column ("100.0 MB/s" above "1.00 GB/s").
 /// The TB tier exists because the parser accepts 1tb (MAX_RATE = 1e12)
-/// and pre-audit a max-rate policy rendered "1000.00 GB/s" — the CLI
-/// said 1tb, the status row disagreed.
+/// — pre-audit a max-rate policy rendered "1000.00 GB/s" while the CLI
+/// said 1tb.
 ///
 /// Tier-boundary promotion (improve-13 precision): a value that ROUNDS
 /// UP to 1000.0 of its unit renders in the next unit — 999_950 B is
-/// "1.0 MB", never "1000.0 KB": a four-digit cell is a ragged column
-/// ("999.9 KB" above "1000.0 KB"), and "1000.0 KB/s" (11 columns)
-/// pushed the monitor's fixed 10-column RATE budget right by one at
-/// exactly the tier edge. The B tier stays integer (no decimal to
-/// round up).
+/// "1.0 MB", never "1000.0 KB": a four-digit cell is a ragged column,
+/// and "1000.0 KB/s" (11 columns) pushed the monitor's fixed
+/// 10-column RATE budget right by one at exactly the tier edge. The
+/// B tier stays integer (no decimal to round up).
 ///
 /// NIGHT-boost-22 (LTS audit): the ladder now runs B -> KB -> MB ->
-/// GB -> TB -> PB -> EB, to the u64 ceiling. The old code stopped at
-/// TB on a wrong premise — the note claimed "u64::MAX is ~18.4 TB",
-/// but 2^64 is ~18.4 EXABYTES (18,446 PB), and a long-lived server's
-/// lifetime totals cross the TB ceiling in days of saturated 10G
-/// traffic (1 PB per ~9.5 days). Past 999.95 TB the old formatter
-/// rendered five-digit figures ("18446.7 TB", 10 columns wide) — the
-/// promotion contract broken at its own terminal tier. The extended
-/// ladder caps every display at 8 columns ("999.9 PB"), the EB tier
-/// rendering u64::MAX as "18.4 EB" — the honest saturated ceiling.
+/// GB -> TB -> PB -> EB, to the u64 ceiling — the old code stopped at
+/// TB on a wrong premise (the note claimed "u64::MAX is ~18.4 TB";
+/// 2^64 is ~18.4 EXABYTES, and a saturated 10G server crosses the TB
+/// ceiling in days). Past 999.95 TB the old formatter rendered
+/// five-digit figures ("18446.7 TB") — the promotion contract broken
+/// at its own terminal tier. The extended ladder caps every display
+/// at 8 columns ("999.9 PB"), u64::MAX rendering "18.4 EB".
 /// Zettabytes sit past u64::MAX and stay unreachable IN u64: the
 /// zettabyte-and-beyond truth belongs to [`format_bytes_wide`], the
 /// u128 twin the session accounting renders through (NIGHT-lts-5).

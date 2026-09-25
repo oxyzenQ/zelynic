@@ -122,6 +122,24 @@ sudo zelynic strict brave 100kb        # shorthand form
   names; see `--help`). The retired spellings are refused with a
   redirect tip.
 
+The burst contract (no flag, by design): every policy banks a token
+bucket of one second of traffic — rate bytes read straight — clamped
+between a 64 KiB floor and a 100 MB ceiling (`BURST_FLOOR_BYTES` /
+`BURST_CEIL_BYTES` in the layout contract; NIGHT-lts-8 raised the
+floor from 4 KB). The floor is the largest single packet the kernel
+hands the hook (GSO egress / GRO ingress super-packets, 64 KiB): a
+bucket capped below it could NEVER admit that packet class, so a
+trickle-rate policy under GSO traffic would bar its own data
+packets forever — the floor guarantees every default-kernel packet
+is admissible once a burst window accumulates. At rates below
+~65 KB/s the floor dominates and a fresh bucket's initial credit is
+one maximal super-packet (64 KiB) — a one-off, still smaller than
+the 8-second credit any rate at or above ~65 KB/s earns. Under
+extreme many-CPU bursts on one bucket the consume path retries
+contention-lost deductions up to four times (schema v8), so a
+concurrent deduction between one packet's read and its CAS no
+longer falsely drops an affordable packet.
+
 The command answers with the affirmative epilogue (NIGHT-improve-28):
 a green `OK.` and the follow-up commands in the same green tier —
 `Run 'zelynic unstrict brave' to remove, or 'zelynic status' to

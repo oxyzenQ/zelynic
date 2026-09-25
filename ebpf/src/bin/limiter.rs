@@ -78,7 +78,13 @@ use math::{Bucket, LimiterStats, MAX_ENFORCABLE_BURST, Policy, enforce};
 /// (NIGHT-boost-38): SMP-safe enforcement — the bucket/stat
 /// read-modify-writes in math.rs move to lock-free atomics so two
 /// CPUs on one bucket can no longer lose updates and over-allow
-/// 130-146% of budget under concurrent flows; no layout change).
+/// 130-146% of budget under concurrent flows; no layout change;
+/// v8 (NIGHT-lts-8): the extreme-burst consume retry — the CAS
+/// consume re-observes and retries up to four attempts, so a
+/// concurrent deduction between one packet's read and its CAS no
+/// longer falsely drops an affordable packet under many-CPU bursts
+/// (measured: 1.35% of packets at one attempt, 28x fewer at four);
+/// no layout change).
 /// No layout change since v2; each bump forces pinned older
 /// programs to reload into the hardened object — a one-time limit
 /// re-apply, documented in CHANGELOG.
@@ -86,7 +92,7 @@ use math::{Bucket, LimiterStats, MAX_ENFORCABLE_BURST, Policy, enforce};
 /// the pinned map after load — so the constant exists purely as the
 /// parity anchor for that three-way contract.
 #[allow(dead_code)]
-const SCHEMA_VERSION: u32 = 7;
+const SCHEMA_VERSION: u32 = 8;
 
 // ---------------------------------------------------------------------------
 // Maps. The static names ARE the userspace contract (limiter/mod.rs

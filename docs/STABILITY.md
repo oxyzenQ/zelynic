@@ -103,7 +103,21 @@ residual risks, ranked by how likely they are to matter:
    aggregates, and a policer drops rather than queues — these are
    documented model limits of rate enforcement on Linux
    ([PERFORMANCE.md](PERFORMANCE.md)), not bugs, and no toolchain
-   change can remove them.
+   change can remove them. NIGHT-lts-8 split the granularity limit
+   in two and closed half of it: the sub-skb BUCKET regime (a burst
+   cap below the 64 KiB GSO/GRO super-packet could never admit that
+   packet class) is gone — `default_burst`'s floor is now one full
+   super-packet, so no rate is barred from its own packet class on a
+   default kernel; the sub-skb WINDOW regime (a measurement window
+   whose refill cannot bank a whole skb sees bimodal delivery on
+   loopback) survives as physics, window-aware in the supermassive
+   model. The residual: BIG TCP links (kernel 6.x, opt-in per-link
+   `gro-max-size` above 64 KiB) keep the old bucket physics — an
+   inherent property of any bounded bucket. Under extreme many-CPU
+   bursts on one bucket, the consume path's four-attempt retry
+   (schema v8) cuts contention-lost false drops of affordable
+   packets by 28x; the residue still errs to the safe verdict
+   (drop, never over-allow).
 5. **Long-uptime monitor endurance (bounded by design, audited
    2026-09; the scale widened NIGHT-lts-5).** An eagle-eyes session
    that runs for months accumulates per-cgroup totals in u128

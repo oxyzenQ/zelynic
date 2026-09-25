@@ -167,6 +167,123 @@ fn smp_consume_conserves_tokens_exactly() {
     assert_eq!(allowed_packets, seed / u64::from(PKT));
 }
 
+// ── the NIGHT-lts-8 budget-covers contract (the consume retry) ────────────
+
+/// The retry's hard contract: when the seed EXACTLY covers the
+/// demand, every packet passes — no false drops at all. This is the
+/// discriminator the conservation pin above cannot be: there, an
+/// abundant supply of later attempts silently absorbs any transient
+/// false drop (a dropped packet's tokens stay in the stock for the
+/// next attempt), so exact conservation holds even under the
+/// single-attempt shape. Here every packet has only its own four
+/// attempts, so a contention loss is permanent — the measured
+/// single-attempt shape dropped 1.425 packets per run in this exact
+/// configuration (2 threads x 256 one-byte packets, 200-run probe),
+/// and the four-attempt retry took that to zero across 200 runs.
+/// Two threads: the shape where the retry's residual is provably
+/// gone on every host class the suite runs on (the oversubscription
+/// residual lives in the soft pin below).
+#[test]
+fn smp_budget_covers_lets_every_packet_through() {
+    const THREADS: usize = 2;
+    const HITS: usize = 256;
+    const PKT: u32 = 1;
+    let demand: u64 = (THREADS * HITS) as u64;
+    // rate 0 keeps the refill inert (no window CAS, no credit), so
+    // the seed is the whole budget; burst = seed so the clamp never
+    // fires.
+    let policy = pol(0, demand);
+    let mut shared = Shared {
+        bucket: Box::new(bkt(demand, 0, 1_000)),
+        stats: Box::new(fresh_stats()),
+    };
+    let handle = handle_of(&mut shared);
+    let allowed: u64 = thread::scope(|s| {
+        let joins: Vec<_> = (0..THREADS)
+            .map(|_| {
+                s.spawn(move || {
+                    let mut allowed = 0;
+                    for _ in 0..HITS {
+                        // SAFETY: see the SharedHandle disclosure.
+                        if unsafe { handle.hit(&policy, PKT, 1_000) } == 1 {
+                            allowed += 1;
+                        }
+                    }
+                    allowed
+                })
+            })
+            .collect();
+        joins.into_iter().map(|j| j.join().expect("worker")).sum()
+    });
+    let st = &*shared.stats;
+    // The budget-covers contract, exact: nothing dropped, the stock
+    // fully consumed, the ledger telling the same story.
+    assert_eq!(
+        allowed, demand,
+        "the seed exactly covered the demand yet packets dropped — the consume retry regressed"
+    );
+    assert_eq!(shared.bucket.tokens, 0);
+    assert_eq!(st.packets_allowed, demand);
+    assert_eq!(st.packets_dropped, 0);
+    assert_eq!(st.bytes_allowed, demand);
+    assert_eq!(st.bytes_dropped, 0);
+}
+
+/// The retry's soft contract under heavy oversubscription: eight
+/// threads on one bucket (the many-CPU burst shape the lts-8 audit
+/// named), seed exactly covering demand. The single-attempt shape
+/// measured 27.55 false drops per 2048-packet run here (1.35%); the
+/// four-attempt retry measured 0.975 (0.048%). The pin bounds the
+/// drop rate at 1% — 20x above the measured retry residual, 1.4x
+/// below the single-attempt rate — so a retry removal fails it with
+/// near-certainty while no healthy host class can flake it. Exact
+/// conservation holds regardless (the hard invariant).
+#[test]
+fn smp_retry_reduces_false_drops_under_oversubscription() {
+    const THREADS: usize = 8;
+    const HITS: usize = 256;
+    const PKT: u32 = 1;
+    let demand: u64 = (THREADS * HITS) as u64;
+    let policy = pol(0, demand);
+    let mut shared = Shared {
+        bucket: Box::new(bkt(demand, 0, 1_000)),
+        stats: Box::new(fresh_stats()),
+    };
+    let handle = handle_of(&mut shared);
+    let allowed: u64 = thread::scope(|s| {
+        let joins: Vec<_> = (0..THREADS)
+            .map(|_| {
+                s.spawn(move || {
+                    let mut allowed = 0;
+                    for _ in 0..HITS {
+                        // SAFETY: see the SharedHandle disclosure.
+                        if unsafe { handle.hit(&policy, PKT, 1_000) } == 1 {
+                            allowed += 1;
+                        }
+                    }
+                    allowed
+                })
+            })
+            .collect();
+        joins.into_iter().map(|j| j.join().expect("worker")).sum()
+    });
+    let dropped = demand - allowed;
+    let st = &*shared.stats;
+    // Conservation, exact (the never-over-allow / never-resurrect
+    // invariants — absolute under any contention).
+    assert_eq!(shared.bucket.tokens + st.bytes_allowed, demand);
+    assert_eq!(st.packets_allowed, allowed);
+    assert_eq!(st.packets_dropped, dropped);
+    // The retry's quantitative contract: under 1% false drops. The
+    // single-attempt shape measured 1.35% — this bound is what a
+    // retry removal breaks.
+    assert!(
+        (dropped * 100) < demand,
+        "{dropped} of {demand} affordable packets dropped ({}%) — the consume retry regressed",
+        dropped * 100 / demand
+    );
+}
+
 // ── refill window exclusivity under contention ─────────────────────────────
 
 /// Eight threads hammer the bucket through a SHARED fetch_add clock —

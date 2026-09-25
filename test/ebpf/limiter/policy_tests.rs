@@ -32,10 +32,11 @@ fn policy_write_line_names_cgroup_direction_rate_and_burst() {
 #[test]
 fn policy_write_line_blocks_show_blocked_rate_and_floor_burst() {
     // Block commands write rate 0: the trace must say BLOCKED and
-    // show the 4 KB burst floor (default_burst clamps to 4096).
+    // show the 64 KiB GSO super-packet floor (NIGHT-lts-8:
+    // default_burst clamps to BURST_FLOOR_BYTES = 65,536).
     assert_eq!(
         policy_write_line(73386, Direction::Download, 0),
-        "[limiter] cg:73386 download → BLOCKED (burst 4.1 KB)"
+        "[limiter] cg:73386 download → BLOCKED (burst 65.5 KB)"
     );
 }
 
