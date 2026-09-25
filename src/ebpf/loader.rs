@@ -26,7 +26,7 @@ use std::path::PathBuf;
 use crate::ebpf::bpf_syscall::kernel_release;
 use crate::ebpf::identity::IdentityMap;
 use crate::ebpf::trace;
-// Rendering of CounterSummary moved to ebpf/render.rs (NIGHT-hunt-7);
+// Rendering of CounterSummary moved to src/ebpf/render.rs (NIGHT-hunt-7);
 // the loader is now I/O-only. Byte formatting lives in
 // limiter::format (unified decimal-SI, NIGHT-hunt-5).
 
