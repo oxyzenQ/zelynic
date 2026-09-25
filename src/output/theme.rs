@@ -4,22 +4,19 @@
 //! Eagle-eyes theme catalog (NIGHT-boost-18, improve-27): the
 //! palettes the live monitor cycles with `t` — the cosmostrix
 //! cycle contract (modulo wraparound), one key, zero config
-//! (NIGHT-engrave-2 retired the uppercase `T` twin at the owner's
-//! "better only simple 't'" call: forward-only, wrapping).
+//! (NIGHT-engrave-2 retired the uppercase `T` twin: forward-only).
 //!
-//! NIGHT-engrave-7 grew the catalog from six to eleven at the
-//! owner's frontier call — cafe, server, moonlight, hacker,
-//! depth_sea — five realism-grade palettes (documented in
-//! BRANDING.md 2.2 with the same slot table discipline).
+//! NIGHT-engrave-7 grew the catalog from six to eleven — cafe,
+//! server, moonlight, hacker, depth_sea — five realism-grade
+//! palettes (documented in BRANDING.md 2.2).
 //!
-//! Scope (the owner's exact task wording): themes live INSIDE the
-//! eagle-eyes monitoring mode. The theme state is a process-global
-//! atomic that NOTHING outside the monitor's key handler ever
-//! writes — so every other surface (help, errors, status, list-apps)
-//! always renders the default and the CLI's byte output is
-//! unchanged. `netrunner` IS that default, and its encodings are
-//! byte-identical to the pre-theme constants (the regression pin in
-//! test/output/theme_tests.rs holds this).
+//! Scope: themes live INSIDE the eagle-eyes monitoring mode — the
+//! theme state is a process-global atomic NOTHING outside the
+//! monitor's key handler ever writes, so every other surface (help,
+//! errors, status, list-apps) always renders the default and the
+//! CLI's byte output is unchanged. `netrunner` IS that default, its
+//! encodings byte-identical to the pre-theme constants (pinned in
+//! test/output/theme_tests.rs).
 //!
 //! Each theme defines five semantic slots — brand, ok, warn, hot,
 //! grey — and each slot carries all three capability encodings
@@ -28,27 +25,27 @@
 //! docs/BRANDING.md documents.
 //!
 //! NIGHT-boost-23 (the masterclass audit of the five non-default
-//! themes) pinned the fallback contract the table now follows:
+//! themes) pinned the fallback contract the table follows, and
+//! NIGHT-lts-9 audited it COMPUTED across all eleven palettes (the
+//! nearest-match pin: test/output/theme_palette_tests.rs):
 //!
 //! - **Nearest-match where hue must read true**: the 256-depth
 //!   indices for brand/ok slots are the nearest xterm cube matches
-//!   (forest's leaf-green brand had rendered olive, carbon's pale
+//!   (forest's leaf-green brand had rendered olive; carbon's pale
 //!   mint ok had rendered saturated spring green at 28x the error;
-//!   carbon's silver brand had dimmed to the grey-ramp's 188 —
-//!   below its own 16-color fallback's hierarchy). Warn/hot slots
-//!   keep the documented visibility precedent: the saturated corner
-//!   wins over the exact match when the hue family holds
-//!   (netrunner warn 220 / hot 196 unchanged).
-//! - **The grey slot degrades to the neutral grey ramp (245 / bright
-//!   black 90) in every theme** — subordinate text stays subordinate
-//!   whatever the accent becomes, a uniform-tier contract that
-//!   outranks nearest-match.
+//!   carbon's silver brand had dimmed below its own 16-color
+//!   fallback's hierarchy — the one documented tier override;
+//!   night_cyber's brand sat on the pure-cyan corner 51 at 3.4x
+//!   the nearest error until lts-9 moved it to its true 45).
+//!   Warn/hot keep the visibility precedent: the saturated corner
+//!   wins over the exact match when the hue family holds.
+//! - **The grey slot rides the neutral ramp (245 / bright black 90)
+//!   in every theme** — subordinate text stays subordinate whatever
+//!   the accent becomes, a uniform tier that outranks nearest.
 //! - **16-color distinctness within a theme is absolute**: no two
-//!   slots share an SGR (forest brand/ok both drew 32 — the brand
-//!   now takes bright green 92; atomic brand/warn both drew 33 — the
-//!   brand now takes bright yellow 93). The brand takes the bright
-//!   slot so the frame's identity outranks its data on every
-//!   legacy terminal.
+//!   slots share an SGR (forest and atomic brands take the bright
+//!   slot so the frame's identity outranks its data on legacy
+//!   terminals).
 //!
 //! Catalog order is the cycle order:
 //! netrunner (default) -> night_cyber -> forest -> spaceflight ->
@@ -239,7 +236,7 @@ const fn table(theme: Theme, slot: Slot) -> SlotEncodings {
         (Theme::Netrunner, Slot::Hot) => slot!(255, 59, 48, 196, 91),
         #[cfg(any(feature = "ebpf", test))]
         (Theme::Netrunner, Slot::Grey) => slot!(139, 139, 139, 245, 90),
-        (Theme::NightCyber, Slot::Brand) => slot!(0, 229, 255, 51, 36),
+        (Theme::NightCyber, Slot::Brand) => slot!(0, 229, 255, 45, 36),
         (Theme::NightCyber, Slot::Ok) => slot!(0, 255, 159, 49, 32),
         (Theme::NightCyber, Slot::Warn) => slot!(255, 200, 87, 221, 33),
         #[cfg(any(feature = "ebpf", test))]
@@ -274,11 +271,10 @@ const fn table(theme: Theme, slot: Slot) -> SlotEncodings {
         (Theme::Atomic, Slot::Hot) => slot!(255, 23, 68, 197, 91),
         #[cfg(any(feature = "ebpf", test))]
         (Theme::Atomic, Slot::Grey) => slot!(176, 190, 197, 245, 90),
-        // NIGHT-engrave-7 additions — brand/ok take the NEAREST cube
-        // match (hue must read true); warn/hot follow the documented
-        // visibility precedents (the saturated corner where the hue
-        // family holds, per-theme hue-truth rungs where the palette
-        // earns them); grey rides the uniform neutral ramp.
+        // NIGHT-engrave-7 additions — brand/ok on their NEAREST cube
+        // match; warn/hot on the documented visibility precedents
+        // (corner where the hue family holds, hue-truth rung where
+        // earned); grey rides the uniform neutral ramp.
         (Theme::Cafe, Slot::Brand) => slot!(198, 139, 89, 173, 93),
         (Theme::Cafe, Slot::Ok) => slot!(168, 198, 134, 150, 32),
         (Theme::Cafe, Slot::Warn) => slot!(232, 181, 77, 221, 33),
@@ -492,9 +488,12 @@ fn terminal_bg_escape_at(bg: Option<(u8, u8, u8)>, cap: ColorCapability) -> Stri
     }
 }
 
-// NIGHT-boost-18: the theme pins live under the single test/ tree
-// (cosmostrix Pattern C), #[path]-wired across trees exactly like
-// the eagle and footer pins.
+// Theme pins live under the single test/ tree (cosmostrix Pattern
+// C), #[path]-wired like the eagle/footer pins: the catalog pins
+// (boost-18) and the lts-9 computed accuracy pin.
+#[cfg(test)]
+#[path = "../../test/output/theme_palette_tests.rs"]
+mod theme_palette_tests;
 #[cfg(test)]
 #[path = "../../test/output/theme_tests.rs"]
 mod theme_tests;
