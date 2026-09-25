@@ -41,6 +41,59 @@ alone — the owner's NIGHT-hunt-18 call.
   verified to decode back to the exact owner-verified address string
   (pyzbar round-trip, byte-exact).
 
+- **feat: NIGHT-master-1 — eagle-eyes --depth: the one-shot deep
+  inspection, the "what IS this cg:1234" answer** — the owner's ask:
+  a cgroup id in `list-apps` or the leaderboard is just a number;
+  the depth report opens it — package id and name (the identity
+  ladder: majority comm, else the cgroup path's basename, else
+  honestly `unknown`), the user it runs as (uid + /etc/passwd name),
+  run-from path, the cgroup path, the enforcement verdict (the
+  status contract: nothing pinned is honestly `unlimited`, a failed
+  policy read is an error, never a fabricated verdict), "since
+  started at 10m:20s ago", the representative command line, and a
+  per-process census table (pid, name, binary/script type,
+  permission bits, exe path, start age) plus the live socket list.
+  `--depth` (alias `--info`, the owner's first spelling; the short
+  `-i` stays retired) rides the existing eagle-eyes surface: same
+  '/'-separated target grammar (extracted into the shared
+  `parse_target_spec`, both monitor modes speak it), same
+  autodetection (digits = cgroup ID, `cg:` round-trips, else process
+  name) — but NO TUI and no interactive-stdio gate: piped stdout is
+  legal (`zelynic ee 12345 --depth | less` works; that refusal
+  belongs to the live view), and the live-only `--interval` flag
+  answers with the honest one-stderr-note contract the --print-json
+  ignored-note established. `--print-json` joins the scripting
+  surface set (status, list-apps, eagle-eyes --depth, doctor): one
+  compact `{"targets":[...]}` document — a report object per
+  resolved cgroup (typed structs, the NIGHT-boost-3 lineage), a miss
+  object per name that resolved to nothing; a full miss exits 1 with
+  the list-apps tip, an empty cgroup REPORTS the honest empty census.
+  Implementation in three cohesion pieces under the 500-line cap:
+  `ebpf/identity/depth.rs` (the per-pid /proc facts walk — exe
+  type/mode/cwd/cmdline/start-time via CLK_TCK + btime math, all
+  best-effort, argv and readlink results sanitized at the
+  cybersecurity-1 boundary; a shebang-launched script is classified
+  by probing the first argv arguments for a `#!` source because
+  /proc/<pid>/exe always names the interpreter), `ebpf/render/
+  report.rs` (the pure report composition — text lines in the
+  report-table family's eagle-eyes chrome, the typed JSON document,
+  fixture-pinned), and `commands/eagle.rs` (the handler: the shared
+  target grammar, the name-resolution walk on the canonical
+  pid_comm/pid_cgroup_id boundaries, the enforcement reader, the
+  parse-before-root ladder). `--print-json`'s ignored-note and the
+  CLI docs updated across the board; the clap brand-styling block
+  split into `cli/styles.rs` when the depth docs pushed cli/mod.rs
+  past the LOC cap (same theme, re-exported, call sites unchanged).
+  Pins: the pure helpers (magic predicates, time math, the
+  paren-hostile /proc/pid/stat parser, passwd lookup, script
+  classification with temp-file fixtures), the report composition
+  (field spine, width budget, socket cap, JSON contract), the
+  handler ladders (missing target and empty spec surface BEFORE the
+  root guard, any uid), the print-json classification split (depth
+  honors, live TUI does not), and the integration surface pins
+  (flag acceptance, the --info alias, the interval note, root vs
+  non-root verdicts, piped stdout legal for the one-shot).
+
 - **feat: NIGHT-lts-6 — the claims ledger and the resource-honesty
   proof: every claim zelynic makes mapped to the mechanism that
   verifies it, and a fifth live claim measuring the CLI's own

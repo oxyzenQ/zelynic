@@ -354,3 +354,79 @@ fn test_removed_eagle_eye_alias_redirects_to_eagle_eyes() {
         "removed 'eagle-eye' must redirect to eagle-eyes, got: {stderr}"
     );
 }
+
+/// NIGHT-master-1: the eagle-eyes depth surface — the missing-target
+/// error teaches the invocation (BEFORE the root guard, deterministic
+/// on any uid), the --info alias spelling routes to the same error,
+/// and the live-only --interval flag answers with the honest
+/// one-stderr-line note the --print-json ignored-note established.
+#[cfg(feature = "ebpf")]
+#[test]
+fn test_eagle_eyes_depth_surface_pins() {
+    use crate::euid_is_root;
+
+    // --depth with no target: the actionable usage error, before the
+    // privilege guard (the parse-before-execute ladder).
+    let output = zelynic_cmd()
+        .args(["ee", "--depth"])
+        .output()
+        .expect("Failed to execute zelynic ee --depth");
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("--depth needs a TARGET"),
+        "the no-target error must teach the invocation, got:\n{stderr}"
+    );
+    assert!(
+        !stderr.contains("root required"),
+        "the usage error must precede the root guard, got:\n{stderr}"
+    );
+
+    // --info is the alias spelling: the same ladder, the same error.
+    let output = zelynic_cmd()
+        .args(["eagle-eyes", "--info"])
+        .output()
+        .expect("Failed to execute zelynic eagle-eyes --info");
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("--depth needs a TARGET"),
+        "the alias must route to the identical error, got:\n{stderr}"
+    );
+
+    // --depth --interval: the cadence flag is live-only, and the
+    // one-shot mode says so on stderr exactly once — stdout and the
+    // exit code carry the depth run's own verdict.
+    let output = zelynic_cmd()
+        .args(["eagle-eyes", "12345", "--depth", "--interval", "5s"])
+        .output()
+        .expect("Failed to execute zelynic eagle-eyes 12345 --depth --interval 5s");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert_eq!(
+        stderr.matches("--interval ignored").count(),
+        1,
+        "exactly one honest note, got:\n{stderr}"
+    );
+    if euid_is_root() {
+        // Root: the one-shot report RUNS piped (no interactive gate —
+        // that refusal belongs to the live TUI only) and names the
+        // target it inspected.
+        assert_eq!(
+            output.status.code(),
+            Some(0),
+            "root: the one-shot report runs even piped, got:\n{stderr}"
+        );
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        assert!(
+            stdout.contains("cg:12345"),
+            "the report names the inspected target, got:\n{stdout}"
+        );
+    } else {
+        // Non-root: the root guard fires after the note, exit 1.
+        assert_eq!(output.status.code(), Some(1));
+        assert!(
+            stderr.contains("root required"),
+            "non-root: the root guard teaches sudo, got:\n{stderr}"
+        );
+    }
+}

@@ -324,6 +324,33 @@ fn test_bare_invocation_prints_reference() {
     );
 }
 
+/// NIGHT-master-1: the reference documents the depth mode — the
+/// one-shot inspection flag on the monitor surface, its alias
+/// spelling, and a runnable example (the depth report is also a
+/// --print-json surface, so the global-flags line names it).
+#[test]
+fn test_help_documents_the_depth_mode() {
+    let output = zelynic_cmd()
+        .arg("--help")
+        .output()
+        .expect("Failed to execute zelynic --help");
+
+    assert_eq!(output.status.code(), Some(0));
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    for needle in [
+        "One-shot deep inspection (NIGHT-master-1): --depth",
+        "--info is the alias spelling",
+        "sudo zelynic ee cg:1234 --depth",
+        "sudo zelynic ee 12345 --depth --print-json",
+        "--print-json     JSON output for status, list-apps, eagle-eyes --depth, doctor",
+    ] {
+        assert!(
+            stdout.contains(needle),
+            "--help must document the depth mode ('{needle}'), got:\n{stdout}"
+        );
+    }
+}
+
 /// NIGHT-improve-3 owner contract: --help typed after a subcommand is a
 /// usage error (exit 2) whose tip points at the one help authority —
 /// `zelynic --help` — with the real usage line and exactly one

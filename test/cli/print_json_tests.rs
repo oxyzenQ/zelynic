@@ -53,6 +53,14 @@ fn note_and_classification_agree_both_ways() {
         let honors = match surface {
             "status" => command_honors_print_json(Some(&Commands::Status)),
             "list-apps" => command_honors_print_json(Some(&Commands::ListApps)),
+            // NIGHT-master-1: the one-shot depth report is a JSON
+            // surface; the live TUI monitor is not (one command,
+            // two modes, split on the depth flag).
+            "eagle-eyes --depth" => command_honors_print_json(Some(&Commands::EagleEyes {
+                targets: Some("12345".to_string()),
+                interval: None,
+                depth: true,
+            })),
             "doctor" => command_honors_print_json(Some(&Commands::Doctor)),
             other => panic!("unknown surface named in the note: {other}"),
         };
@@ -74,10 +82,29 @@ fn note_and_classification_agree_both_ways() {
     assert!(
         !command_honors_print_json(Some(&Commands::EagleEyes {
             targets: None,
-            interval: None
+            interval: None,
+            depth: false
         })),
         "the live monitor renders a TUI, not a JSON document"
     );
+}
+
+/// NIGHT-master-1: the eagle-eyes command splits on its mode — the
+/// one-shot --depth report honors --print-json, the live TUI monitor
+/// does not. One command, two surfaces, one honest classification.
+#[cfg(feature = "ebpf")]
+#[test]
+fn depth_report_honors_the_flag_live_monitor_does_not() {
+    assert!(command_honors_print_json(Some(&Commands::EagleEyes {
+        targets: Some("12345".to_string()),
+        interval: None,
+        depth: true
+    })));
+    assert!(!command_honors_print_json(Some(&Commands::EagleEyes {
+        targets: Some("12345".to_string()),
+        interval: None,
+        depth: false
+    })));
 }
 
 /// The enforcement verbs parse `--print-json` (it is global) and then

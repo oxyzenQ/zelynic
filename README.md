@@ -305,6 +305,11 @@ sudo zelynic eagle-eyes --interval 2s
 sudo zelynic eagle-eyes 73386         # zoom into one cgroup
 sudo zelynic eagle-eyes brave         # watch one app, deep view
 
+# One-shot deep inspection (NIGHT-master-1): what IS this cgroup —
+# user, binary/script, permissions, path, start time, enforcement
+sudo zelynic ee cg:1234 --depth
+sudo zelynic ee 12345 --depth --print-json | jq '.targets[0]'
+
 # Unlock — one app / a group / everything
 sudo zelynic unstrict-single brave
 sudo zelynic unstrict-multi brave:curl
@@ -326,9 +331,10 @@ sudo zelynic recover
 
 Monitors are always live; the CLI surface is frozen (v11) — the
 removed surfaces (`man`, `completions`, `unblock`, `limit-all`/`la`,
-`-i/--info`, `--live`, `--duration`) exit with a usage error on
+`-i`, `--live`, `--duration`) exit with a usage error on
 purpose (the retired `limit-all` spelling redirects to `strict-all`,
-NIGHT-blade-2). Command
+NIGHT-blade-2; `--info` returned at NIGHT-master-1 as the
+`eagle-eyes --depth` alias — the short `-i` stays retired). Command
 semantics, quit keys, and recipes: [docs/USAGE.md](docs/USAGE.md);
 `--help` is the single flag reference.
 

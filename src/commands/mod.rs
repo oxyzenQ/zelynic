@@ -10,6 +10,8 @@ pub(crate) mod block;
 // strict handler modules are eBPF-only surfaces.
 #[cfg(feature = "ebpf")]
 pub(crate) mod cleanup;
+#[cfg(feature = "ebpf")]
+pub(crate) mod eagle;
 pub(crate) mod help;
 #[cfg(feature = "ebpf")]
 pub(crate) mod monitor;
@@ -303,14 +305,35 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
             }
         }
 
-        Some(Commands::EagleEyes { targets, interval }) => {
+        Some(Commands::EagleEyes {
+            targets,
+            interval,
+            depth,
+        }) => {
             #[cfg(feature = "ebpf")]
             {
-                monitor::handle_eagle_eyes(targets.as_deref(), interval.as_deref(), cli.verbose)
+                if depth {
+                    // The one-shot mode has no refresh loop: the
+                    // live-only cadence flag answers with the same
+                    // honesty the --print-json ignored-note carries —
+                    // one stderr line, stdout and exit codes
+                    // untouched (NIGHT-master-1).
+                    if interval.is_some() {
+                        eprintln_safe!(
+                            "{}",
+                            crate::output::warn_bold(
+                                "--interval ignored (--depth prints one report and exits)"
+                            )
+                        );
+                    }
+                    eagle::handle_eagle_eyes_depth(targets.as_deref(), cli.print_json, cli.verbose)
+                } else {
+                    monitor::handle_eagle_eyes(targets.as_deref(), interval.as_deref(), cli.verbose)
+                }
             }
             #[cfg(not(feature = "ebpf"))]
             {
-                let _ = (targets, interval, cli.verbose);
+                let _ = (targets, interval, depth, cli.verbose);
                 ebpf_disabled()
             }
         }
