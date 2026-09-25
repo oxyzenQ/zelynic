@@ -33,6 +33,23 @@
 //! wrap-around winner); the growth bound below keeps the
 //! leaderboard's memory honest on long-uptime monitors.
 //!
+//! NIGHT-lts-5 (the server long-endurance ask: "harden and robust
+//! for future when reach limit of zelynic like possible 1 zettabyte
+//! ZB even quettabyte QB"): the byte legs widen to u128. The
+//! kernel's per-cgroup counters are u64 by BPF-map contract and
+//! WRAP at 18.4 EB (ebpf/src/stats.rs — and the userspace deltas
+//! went wrap-coherent with them the same night, loader.rs), so a
+//! 1-Tbps-backed cgroup feeding the monitor for ~4.7 years hands
+//! the accumulator wrapping deltas forever; the u128 accumulator
+//! folds them into a session total whose honest ceiling is now
+//! u128's — 3.4e38 bytes, ~340 million QB, ~8.7e21 years of
+//! 1-Tbps traffic — past quettabyte, the SI prefix list's end.
+//! The packet leg stays u64 (2^64 packets is ~389,000 years at
+//! 1.5 Mpps line rate — the byte legs were the only reachable
+//! ceiling). The renders run through format_bytes_wide, the u128
+//! twin of the SI ladder, so the board and the footer census can
+//! SAY "1.0 ZB" — and mean it.
+//!
 //! NIGHT-boost-14: the takeover-BLINK bookkeeping is gone — the
 //! owner's eye-strain call. A takeover still re-crowns (the rank
 //! order moves), but rank 1 reads by its static champion red, never
@@ -57,24 +74,33 @@ use crate::ebpf::loader::CounterSummary;
 /// Per-cgroup traffic accumulated since the monitor started.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct SessionAcc {
-    /// Accumulated download bytes.
-    pub dl: u64,
-    /// Accumulated upload bytes.
-    pub ul: u64,
+    /// Accumulated download bytes (u128 since NIGHT-lts-5 — the
+    /// session surface folds the kernel counters' wrap-coherent
+    /// deltas into a total that can honestly pass the exabyte;
+    /// saturating add per the boost-16 discipline, though u128
+    /// saturation needs ~8.7e21 years of 1-Tbps traffic).
+    pub dl: u128,
+    /// Accumulated upload bytes — the mirror leg, u128 for the
+    /// same reason.
+    pub ul: u128,
     /// Accumulated packets, both directions (NIGHT-engrave-4: the
     /// footer's census line counts the SESSION's packets — the same
     /// horizon as the bytes, one accumulator per frame delta, where
     /// the pre-engrave-3 census mixed a per-frame packet count with
-    /// a session cgroup count on adjacent words of one line).
+    /// a session cgroup count on adjacent words of one line). Stays
+    /// u64 (NIGHT-lts-5): 2^64 packets is ~389,000 years at 1.5 Mpps
+    /// — the byte legs were the only reachable ceiling.
     pub pkt: u64,
 }
 
 impl SessionAcc {
     /// Combined accumulated bytes (the ranking key). Saturating
-    /// (NIGHT-boost-16): both legs near u64::MAX must read as
-    /// "saturated maximum", not panic in debug or wrap in release.
+    /// (NIGHT-boost-16): the legs near the ceiling must read as
+    /// "saturated maximum", never panic in debug. The u128 widening
+    /// (NIGHT-lts-5) moves that ceiling past the quettabyte —
+    /// unreachable by ~22 orders of magnitude.
     #[must_use]
-    fn total(self) -> u64 {
+    fn total(self) -> u128 {
         self.dl.saturating_add(self.ul)
     }
 }
@@ -127,19 +153,23 @@ impl SessionState {
     /// Fold one poll's deltas into the leaderboard. An empty summary
     /// (a quiet frame, or the one-frame tolerance for a transient
     /// map-read error) folds nothing — the board holds its rows. The
-    /// fold itself is saturating (an accumulator that reaches
-    /// u64::MAX stays there — the SI formatter renders the ceiling
-    /// as 18.4 EB, saturation not a wrap), and the entry count is bounded by
-    /// [`MAX_TRACKED_CGROUPS`] (NIGHT-boost-16): a cgroup the kernel
-    /// never counted cannot rank.
+    /// fold itself is saturating (the byte legs' u128 saturation
+    /// ceiling is past the quettabyte — NIGHT-lts-5; the packet leg's
+    /// u64 ceiling is ~389,000 years of line rate), and the entry
+    /// count is bounded by [`MAX_TRACKED_CGROUPS`] (NIGHT-boost-16):
+    /// a cgroup the kernel never counted cannot rank.
     pub(crate) fn absorb(&mut self, summary: &CounterSummary) {
         for c in &summary.cgroups {
             if !self.admits(c.cgroup_id) {
                 continue;
             }
             let entry = self.acc.entry(c.cgroup_id).or_default();
-            entry.dl = entry.dl.saturating_add(c.ingress_bytes);
-            entry.ul = entry.ul.saturating_add(c.bytes);
+            // The u128 folds (NIGHT-lts-5): the deltas arrive as u64
+            // (the kernel counters' width) and widen at the fold —
+            // wrap-coherent deltas summed into a total that can
+            // pass the exabyte the kernel counters cannot.
+            entry.dl = entry.dl.saturating_add(u128::from(c.ingress_bytes));
+            entry.ul = entry.ul.saturating_add(u128::from(c.bytes));
             // Both directions' packets fold into one session counter
             // (NIGHT-engrave-4) — saturating like every accumulation
             // surface in this path.

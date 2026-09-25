@@ -40,8 +40,8 @@ mod math_smp_tests;
 
 // Re-export public types/functions for external use.
 pub use format::{
-    format_bytes, format_count, format_rate, monotonic_ns, parse_monitor_interval, parse_rate,
-    parse_time_duration, terminal_width, validate_rate,
+    format_bytes, format_bytes_wide, format_count, format_rate, monotonic_ns,
+    parse_monitor_interval, parse_rate, parse_time_duration, terminal_width, validate_rate,
 };
 pub use types::{Direction, LimiterStatsRaw, PolicyRaw, RateSpec, Target, LIMITER_ELF};
 

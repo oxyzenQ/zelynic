@@ -105,27 +105,33 @@ residual risks, ranked by how likely they are to matter:
    ([PERFORMANCE.md](PERFORMANCE.md)), not bugs, and no toolchain
    change can remove them.
 5. **Long-uptime monitor endurance (bounded by design, audited
-   2026-09).** An eagle-eyes session that runs for months accumulates
-   per-cgroup totals in u64; at the 18.4 EB-per-direction ceiling the
-   accumulator the user SEES — the session ledger in userspace —
-   SATURATES (never wraps, never panics — every arithmetic surface in
-   the session path is saturating since the NIGHT-boost-16 audit).
-   The kernel maps' own lifetime counters keep the C twin's plain
-   adds (NIGHT-ultimate-1 precision: their wrap horizon is the same
-   18.4 EB, but it would take years of saturated line-rate traffic
-   through one cgroup inside one session-scoped map — the maps are
-   recreated at every eagle-eyes start — and a wrap there could never
-   reach the display: the session ledger, not the map counter, is
-   what renders). The leaderboard's entry count mirrors
-   the kernel's own 4096-slot counter-map ceiling
+   2026-09; the scale widened NIGHT-lts-5).** An eagle-eyes session
+   that runs for months accumulates per-cgroup totals in u128
+   (widened from u64 in NIGHT-lts-5, the server long-endurance
+   ask): the session ledger's honest ceiling is now ~340 million
+   QUETTABYTES (~8.7e21 years of 1-Tbps traffic — past the SI
+   prefix list's end), saturating and never wrapping, never
+   panicking (every arithmetic surface in the session path stays
+   saturating since the NIGHT-boost-16 audit). The kernel maps'
+   own lifetime counters keep the C twin's plain adds (u64, wrap
+   horizon 18.4 EB — ~4.7 years of 1-Tbps traffic through one
+   cgroup, a real long-endurance server horizon since lts-5 took
+   the ask seriously): the userspace deltas are WRAP-COHERENT with
+   them (modulo-2^64 subtraction, the loader's lts-5 fix — the old
+   saturating clamp zeroed every post-wrap poll and froze the
+   wrapped cgroup's rates and totals for another full 18.4 EB), so
+   the wrap itself is invisible on the board: the deltas stay
+   true, the session ledger keeps counting, and the map counter's
+   own lifetime figure (the per-socket [dl | ul] legs) renders its
+   modulo value through the u64 ladder. The leaderboard's entry
+   count mirrors the kernel's own 4096-slot counter-map ceiling
    (`MAX_TRACKED_CGROUPS`, raised 1024 → 4096 in NIGHT-improve-31
    for dense hosts), so cgroup churn cannot grow the monitor's
    memory. The counter maps themselves are recreated at every
-   `eagle-eyes` start — the session horizon resets on restart, which
-   is the documented cadence for a trunk that could genuinely move
-   exabytes per cgroup. Full detail:
-   [SAFETY_ANALYSIS.md](SAFETY_ANALYSIS.md), the
-   accumulate-explosion audit.
+   `eagle-eyes` start — the session horizon resets on restart.
+   Full detail: [SAFETY_ANALYSIS.md](SAFETY_ANALYSIS.md), the
+   accumulate-explosion audit; the scale contract:
+   [USAGE.md](USAGE.md), the zettabyte paragraph.
 
 The honest summary the owner stands behind: **99% production-useful,
 and the missing 1% fails closed and says so.**
@@ -152,10 +158,12 @@ other class already fenced:
   the boost-26 incident and its regression pin); the pidfd_getfd
   local copies close on every path including the failure path.
 - **Arithmetic endurance — fenced.** Every userspace accumulator
-  saturates (boost-16); the kernel counters' plain adds sit behind a
-  physically-unreachable wrap horizon (see honest limit 5, corrected
-  at ultimate-1); the limiter clamps every stored value it consumes
-  (security-3/depthbore-1).
+  saturates (boost-16), and since NIGHT-lts-5 the session ledger is
+  u128 (ceiling ~340 million QB) while the kernel counters' u64
+  wrap is COHERENT end to end (the loader's modulo deltas keep a
+  wrapped counter's rates and totals true — the saturating clamp
+  it replaced froze the cgroup silent); the limiter clamps every
+  stored value it consumes (security-3/depthbore-1).
 - **Kernel resource leaks — fenced.** Observer maps are
   session-scoped and freed at detach; the limiter's pinned state is
   reclaimed by `unstrict`/`unstrict-all`/`recover` with bucket-slot

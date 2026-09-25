@@ -267,6 +267,22 @@ pub(crate) fn rate_bps(delta_bytes: u64, interval: std::time::Duration) -> u64 {
     ((delta_bytes as f64) / secs).round() as u64
 }
 
+/// The u128 twin of [`rate_bps`] (NIGHT-lts-5): the AVG speed pair
+/// divides the SESSION legs — u128 since lts-5, honestly summable
+/// past the exabyte into zettabyte territory — by the session
+/// uptime. The quotient is cast back to u64 (saturating, Rust's
+/// `as` discipline): a session AVERAGING above 18.4 EB/s is not a
+/// figure any real link produces, and the rate display's own
+/// ladder tops out at the u64 domain regardless — the wide
+/// integer's job is the dividend's exactness, not a wider rate.
+pub(crate) fn rate_bps_wide(delta_bytes: u128, interval: std::time::Duration) -> u64 {
+    let secs = interval.as_secs_f64();
+    if secs <= 0.0 {
+        return 0;
+    }
+    ((delta_bytes as f64) / secs).round() as u64
+}
+
 /// Like [`format_rate`] but renders an em dash for zero — "BLOCKED"
 /// is a policy verdict, not a traffic observation.
 #[must_use]

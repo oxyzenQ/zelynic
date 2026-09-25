@@ -507,9 +507,10 @@ on every tier and promote at the rounding edge (999_950 B is
 The data-format ladder is LTS-complete (NIGHT-boost-22): byte
 figures render B -> KB -> MB -> GB -> TB -> PB -> EB, the whole u64
 domain. The minimum is the byte, the maximum the exabyte — u64::MAX
-is ~18.4 EB, so the EB tier is the honest terminal (zettabytes,
-1e21, need 71 bits and stay unreachable; no eighth tier exists to
-lie about). A long-lived server's lifetime totals cross the TB
+is ~18.4 EB, so the EB tier is the honest terminal for every figure
+whose integer IS u64 (zettabytes, 1e21, need 71 bits and stay
+unreachable in u64: the u64 ladder never renders a tier its integer
+cannot reach). A long-lived server's lifetime totals cross the TB
 ceiling in ~9.5 days of saturated 10G traffic, and the ladder keeps
 every cell at most 8 columns wide on the way up ("999.9 PB"), with
 the saturated ceiling rendering "18.4 EB" — never the five-digit
@@ -521,6 +522,29 @@ itself is exact integer math in u128, the same discipline as the
 fractional rate parser; the rate conversion feeding it is a
 saturating division (a saturated counter renders "18.4 EB/s",
 never a wrapped figure).
+
+The zettabyte-and-beyond half of the ladder is real since
+NIGHT-lts-5 (the server long-endurance contract: "harden and robust
+for future when reach limit of zelynic like possible 1 zettabyte ZB
+even quettabyte QB"), and it lives on exactly the surface that can
+honestly carry it — the SESSION accounting. The scale architecture,
+one paragraph: the kernel's per-cgroup counters are u64 by BPF-map
+contract and WRAP at 18.4 EB (~4.7 years of 1-Tbps traffic through
+one cgroup — a real long-endurance server horizon); the userspace
+deltas went WRAP-COHERENT with them the same night (modulo-2^64
+subtraction in the loader — the old saturating clamp turned every
+post-wrap poll into a zero delta, sending the wrapped cgroup
+silent: frozen rates, frozen totals, for another full 18.4 EB); and
+the session accumulator widened to u128, folding those wrap-coherent
+deltas into totals whose honest ceiling is ~340 million QUETTABYTES
+(~8.7e21 years of 1-Tbps traffic — past the SI prefix list's own
+end). The board's TOTAL column and the footer census render through
+the u128 ladder — B, KB, MB, GB, TB, PB, EB, ZB, YB, RB, QB — so a
+months-long monitor on a fat pipe says "1.0 ZB" and means it, while
+every kernel-map surface (the limiter's policy figures, the
+per-socket lifetime columns) keeps the u64 ladder whose truth those
+maps actually hold. One width, one ladder, one truth: a formatter
+never renders a tier its integer cannot reach.
 
 The positional `targets` filter is autodetected per token: all digits
 means a cgroup ID (find one with `list-apps`), the `cg:18571`

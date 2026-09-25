@@ -73,11 +73,12 @@
 use std::time::Duration;
 
 use super::{
-    comm_from_label, format_uptime, label_with_count, rate_bps, FrameGeometry, SessionAcc,
+    comm_from_label, format_uptime, label_with_count, rate_bps, rate_bps_wide, FrameGeometry,
+    SessionAcc,
 };
 use crate::ebpf::connections::ConnectionMap;
 use crate::ebpf::identity::IdentityMap;
-use crate::ebpf::limiter::{format_bytes, format_count};
+use crate::ebpf::limiter::{format_bytes, format_bytes_wide, format_count};
 use crate::output::{brand, grey, signature_footer};
 
 /// Top chrome above the table: the title bar, the NIGHT-boost-14
@@ -192,14 +193,16 @@ pub(crate) fn grid_line(width: usize) -> String {
 pub(super) struct FooterCensus {
     /// The compression tier the terminal earned.
     pub tier: FooterTier,
-    /// The session leaderboard's grand accumulated total.
-    pub grand: u64,
+    /// The session leaderboard's grand accumulated total (u128
+    /// since NIGHT-lts-5 — the server long-endurance widening: the
+    /// session surface sums wrap-coherent deltas past the exabyte).
+    pub grand: u128,
     /// The session's accumulated download bytes (NIGHT-engrave-6:
     /// the AVG line's dividend — the same board sum the grand
     /// totals, split by direction).
-    pub dl: u64,
+    pub dl: u128,
     /// The session's accumulated upload bytes — the mirror leg.
-    pub ul: u64,
+    pub ul: u128,
     /// The session's peak per-frame download delta in bytes
     /// (NIGHT-engrave-6: the MAX line's figure — the session
     /// state's running maximum, converted to a rate with the poll
@@ -271,13 +274,20 @@ impl FooterCensus {
         let grand = board
             .iter()
             .map(|(_, a)| a.dl.saturating_add(a.ul))
-            .fold(0, u64::saturating_add);
+            .fold(0, u128::saturating_add);
         // The per-direction legs (NIGHT-engrave-6): the same board
         // walk the grand totals, split — the AVG line divides these
         // by the uptime, so the pair and the grand can never
-        // disagree (dl + ul saturates to the grand's ceiling).
-        let dl = board.iter().map(|(_, a)| a.dl).fold(0, u64::saturating_add);
-        let ul = board.iter().map(|(_, a)| a.ul).fold(0, u64::saturating_add);
+        // disagree (dl + ul saturates to the grand's ceiling — past
+        // the quettabyte since NIGHT-lts-5's u128 widening).
+        let dl = board
+            .iter()
+            .map(|(_, a)| a.dl)
+            .fold(0, u128::saturating_add);
+        let ul = board
+            .iter()
+            .map(|(_, a)| a.ul)
+            .fold(0, u128::saturating_add);
         Self {
             tier,
             grand,
@@ -393,7 +403,7 @@ pub(super) fn build_grip_footer(
     footer.push(grey(&format!(
         "  total usage internet in {} = {}",
         format_uptime(census.uptime),
-        format_bytes(census.grand)
+        format_bytes_wide(census.grand)
     )));
     // The NIGHT-engrave-6 speed pair (Full/Compact — the census
     // family; Minimal is survival height, where the total row alone
@@ -418,8 +428,8 @@ pub(super) fn build_grip_footer(
         )));
         footer.push(grey(&format!(
             "  total avg dl | ul = {} | {}",
-            session_rate(rate_bps(census.dl, census.uptime)),
-            session_rate(rate_bps(census.ul, census.uptime))
+            session_rate(rate_bps_wide(census.dl, census.uptime)),
+            session_rate(rate_bps_wide(census.ul, census.uptime))
         )));
     }
     // The actionable line (Full/Compact): the owner's exact

@@ -295,8 +295,9 @@ pub fn monotonic_ns() -> u64 {
 /// promotion contract broken at its own terminal tier. The extended
 /// ladder caps every display at 8 columns ("999.9 PB"), the EB tier
 /// rendering u64::MAX as "18.4 EB" — the honest saturated ceiling.
-/// Zettabytes (1e21) sit past u64::MAX and stay unreachable: no
-/// eighth tier exists to lie about.
+/// Zettabytes sit past u64::MAX and stay unreachable IN u64: the
+/// zettabyte-and-beyond truth belongs to [`format_bytes_wide`], the
+/// u128 twin the session accounting renders through (NIGHT-lts-5).
 ///
 /// Examples: 500 → "500 B", 1500 → "1.5 KB", 999_949 → "999.9 KB",
 ///           999_950 → "1.0 MB", 1_500_000_000_000 → "1.5 TB",
@@ -345,15 +346,67 @@ pub fn format_bytes(bytes: u64) -> String {
     }
 }
 
-/// Format a rate (bytes per second) with "/s" suffix.
-/// Uses decimal SI units, consistent with `parse_rate` and `format_bytes`.
-///
+/// Format a rate (bytes per second) with "/s" suffix, decimal SI
+/// units consistent with `parse_rate` and `format_bytes`.
 /// Examples: 100_000 → "100.0 KB/s", 1_000_000 → "1.0 MB/s"
 pub fn format_rate(bps: u64) -> String {
     if bps == 0 {
         "BLOCKED".to_string()
     } else {
         format!("{}/s", format_bytes(bps))
+    }
+}
+
+/// The wide session-surface byte formatter (NIGHT-lts-5, the server
+/// long-endurance ask — "harden and robust for future when reach
+/// limit of zelynic like possible 1 zettabyte ZB even quettabyte
+/// QB"): the u128 twin of [`format_bytes`], for the monitor's
+/// SESSION accounting — the ONE surface whose integer genuinely
+/// reaches past the exabyte (u64 wraps at 18.4 EB; the u128 session
+/// accumulator sums the wrap-coherent deltas; 1 ZB is ~233 days at
+/// 1 Tbps). The ladder runs the full 2019 SI list to quetta-; past
+/// 999.9 QB the exact count renders uncapped (u128::MAX is
+/// "340282366.9 QB"). Every OTHER surface keeps [`format_bytes`]:
+/// u64 IS the kernel map figures' truth. Examples: 1e21 → "1.0 ZB".
+pub fn format_bytes_wide(bytes: u128) -> String {
+    const DIVS: [u128; 11] = [
+        1,
+        1_000,
+        1_000_000,
+        1_000_000_000,
+        1_000_000_000_000,
+        1_000_000_000_000_000,
+        1_000_000_000_000_000_000,
+        10_u128.pow(21),
+        10_u128.pow(24),
+        10_u128.pow(27),
+        10_u128.pow(30),
+    ];
+    const UNITS: [&str; 11] = [
+        "B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB", "RB", "QB",
+    ];
+
+    // The u64 ladder's walk discipline (the exact 999.95 thresholds,
+    // none overflowable in u128), stopping at the QB terminal.
+    let mut tier = 0usize;
+    while tier < 10 && bytes >= 1000 * DIVS[tier] - DIVS[tier] / 20 {
+        tier += 1;
+    }
+
+    if tier == 0 {
+        format!("{bytes} B")
+    } else {
+        // Exact tenths without a widening multiply (u128 has none):
+        // the REMAINDER's tenth (10*rem + div/2 < 11*div, so 0..=10)
+        // carries into the whole on a 10 — the walk's own edge.
+        let div = DIVS[tier];
+        let mut whole = bytes / div;
+        let mut tenths = (bytes % div * 10 + div / 2) / div;
+        if tenths == 10 {
+            whole += 1;
+            tenths = 0;
+        }
+        format!("{}.{} {}", whole, tenths, UNITS[tier])
     }
 }
 
@@ -430,9 +483,9 @@ pub fn terminal_width() -> usize {
 // NIGHT-boost-15: the format pins live under the single test/ tree
 // (cosmostrix Pattern C), #[path]-wired across trees exactly like the
 // limiter's math/policy/reclaim pins — the inline `mod tests` moved
-// out when the fractional rate layer pushed this file past the LOC cap.
-// NIGHT-engrave-7: the format_count pins took their own file when the
-// counter-explosion pins pushed format_tests.rs past the cap again.
+// out when the fractional rate layer pushed this file past the LOC
+// cap. NIGHT-engrave-7: the format_count pins took their own file
+// when the counter-explosion pins pushed format_tests.rs past again.
 #[cfg(test)]
 #[path = "../../../test/ebpf/limiter/format_tests.rs"]
 mod format_tests;
@@ -440,3 +493,8 @@ mod format_tests;
 #[cfg(test)]
 #[path = "../../../test/ebpf/limiter/format_count_tests.rs"]
 mod format_count_tests;
+
+// NIGHT-lts-5: the wide-ladder pins (one contract, one file).
+#[cfg(test)]
+#[path = "../../../test/ebpf/limiter/format_wide_tests.rs"]
+mod format_wide_tests;

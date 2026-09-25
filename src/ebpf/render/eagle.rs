@@ -58,7 +58,7 @@ use super::{
 };
 use crate::ebpf::connections::ConnectionMap;
 use crate::ebpf::identity::IdentityMap;
-use crate::ebpf::limiter::format_bytes;
+use crate::ebpf::limiter::format_bytes_wide;
 use crate::ebpf::limiter::format_count;
 use crate::ebpf::limiter::Target;
 use crate::ebpf::loader::CounterSummary;
@@ -442,7 +442,7 @@ fn render_eagle_row(
     cols: &EagleColumns,
     rank: usize,
 ) {
-    // Saturating session sum (NIGHT-boost-16): the TOTAL cell.
+    // Saturating session sum (NIGHT-boost-16; u128 since NIGHT-lts-5).
     let session_total = acc.dl.saturating_add(acc.ul);
     // NIGHT-lts-1: the label cell is fit AND padded by RENDERED
     // width in one pass (a CJK label padded by chars would shift
@@ -457,7 +457,7 @@ fn render_eagle_row(
             label,
             format_rate_or_dash(dl_rate),
             format_rate_or_dash(ul_rate),
-            format_bytes(session_total),
+            format_bytes_wide(session_total),
             w1 = cols.dl_w,
             w2 = cols.ul_w,
             w3 = cols.dl_w

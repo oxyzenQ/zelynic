@@ -65,7 +65,11 @@ fn saturated_session_renders_without_panic() {
         }],
     };
     let mut session = SessionState::new();
-    session.absorb(&summary);
+    // NIGHT-lts-5: the explicit absorb is GONE — render_eagle_eyes_at
+    // folds the frame itself (eagle.rs), and the old double-absorb
+    // was masked for years by the saturating add clamping the second
+    // u64::MAX to the first. The u128 widening made the fold exact
+    // and the doubling visible; one absorb, one truth.
     let mut lines = Vec::new();
     render_eagle_eyes_at(
         &mut lines,
