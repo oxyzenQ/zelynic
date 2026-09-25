@@ -277,7 +277,7 @@ sudo zelynic strict-single firefox -d 1mb -u 500kb   # per-direction
 # Group limit — several apps share ONE rate
 sudo zelynic strict-multi brave:curl:pacman 1mb
 
-# Every user app at once (system apps excluded unless --force)
+# Every user app at once (system apps excluded unless --force-this)
 sudo zelynic limit-all 500kb
 
 # Block apps from the internet entirely
@@ -335,7 +335,7 @@ Lowercase units only (decimal SI: 1 KB = 1000 bytes):
 | `1tb` | 1 terabyte/second |
 
 **Bounds**: minimum 1 KB/s, maximum 1 TB/s, both overridable with
-`--allow-dangerous` (told once — parsing details and error tips live
+`--force-this` (told once — parsing details and error tips live
 in `--help` and [docs/USAGE.md](docs/USAGE.md)).
 
 Monitor `--interval` accepts the same duration formats, bounded to
@@ -368,7 +368,7 @@ and the missing 1% fails closed and says so.**
 
 ## Safety Features
 
-- **Rate bounds guard**: 1 KB/s..1 TB/s, `--allow-dangerous` overrides
+- **Rate bounds guard**: 1 KB/s..1 TB/s, `--force-this` overrides
 - **Fail-safe BPF**: returns "allow" on any error path (never blocks on failure)
 - **Dangerous target protection**: 57 system processes blocked by default
 - **Overflow detection**: absurd rates show a friendly warning, not wrapped values
@@ -514,7 +514,7 @@ Want to supermassive-test the whole command surface — single/multi targets,
 strict/block/unstrict, curl burst download + upload, the full rate range
 1kb to 1tb (skipping rungs the hardware cannot feed), every rate-guard
 function (bounds, typo tip, dangerous blocklist, plain-number,
---allow-dangerous override), and both per-direction buckets
+--force-this override), and both per-direction buckets
 (-d / -u / asymmetric -d+-u)? One click (NIGHT-master-2):
 
 ```bash

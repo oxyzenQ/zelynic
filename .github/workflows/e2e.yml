@@ -84,9 +84,11 @@
 # 5.15 proof moved to .github/workflows/e2e-kernel-floor.yml — a KVM
 # micro-VM on a hosted runner that boots the real jammy 5.15 kernel
 # with the ubuntu:22.04 container as its userland (the libbpf/ci +
-# Cilium-vmtest pattern), dispatch + weekly, deliberately NOT a leg
-# of this push pipeline. This matrix keeps proving what hosted
-# runners actually boot; the floor workflow proves the floor.
+# Cilium-vmtest pattern). NIGHT-improve-30 made it push-gated: the
+# floor workflow runs on every push to main touching **/*.rs, plus
+# dispatch + weekly, deliberately NOT a leg of this push pipeline.
+# This matrix keeps proving what hosted runners actually boot; the
+# floor workflow proves the floor.
 
 name: Dragon Guard - E2E
 

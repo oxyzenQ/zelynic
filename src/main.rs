@@ -135,8 +135,11 @@ fn try_main() -> Result<()> {
     // else this binary might print, and the rescue must not ask for
     // privileges, parse targets, or touch BPF — it touches only the
     // caller's own terminal (see src/term_reset.rs for the
-    // layer-by-layer contract). Silent by design: the shell prompt
-    // returning on a clean screen is the feedback.
+    // layer-by-layer contract: the in-process termios restore FIRST —
+    // NIGHT-improve-30, the maturity the first port owed — then the
+    // ANSI restore, the ANSI reset, `stty sane`, `reset`/`tput
+    // reset`). Silent by design: the shell prompt returning on a
+    // clean screen is the feedback.
     if cli.reset_terminal {
         term_reset::reset_terminal_emergency();
         return Ok(());

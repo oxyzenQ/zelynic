@@ -8,13 +8,13 @@ use anyhow::Result;
 use crate::ebpf::limiter::{Limiter, RateSpec, Target};
 
 /// Block a single app from the internet.
-pub fn handle_block_single(target_str: &str, force: bool, verbose: bool) -> Result<()> {
+pub fn handle_block_single(target_str: &str, force_this: bool, verbose: bool) -> Result<()> {
     // Input validation first (fail-fast, no privileges needed): the
     // dangerous-target blocklist is pure string matching — a policy
     // refusal surfaces before the root requirement, the same
     // parse-before-execute ladder as the strict handlers (smoke-run
     // find).
-    super::safety::check_dangerous_target(target_str, force)?;
+    super::safety::check_dangerous_target(target_str, force_this)?;
 
     super::ensure_root()?;
 
@@ -48,7 +48,7 @@ pub fn handle_block_single(target_str: &str, force: bool, verbose: bool) -> Resu
 }
 
 /// Block multiple apps from the internet.
-pub fn handle_block_multi(targets_str: &str, force: bool, verbose: bool) -> Result<()> {
+pub fn handle_block_multi(targets_str: &str, force_this: bool, verbose: bool) -> Result<()> {
     // Input validation first (fail-fast, no privileges needed) — same
     // parse-before-execute ladder as the strict-multi handler.
     //
@@ -69,7 +69,7 @@ pub fn handle_block_multi(targets_str: &str, force: bool, verbose: bool) -> Resu
     }
     for t in &targets {
         if let Target::ProcessName(name) = t {
-            super::safety::check_dangerous_target(name, force)?;
+            super::safety::check_dangerous_target(name, force_this)?;
         }
     }
 
@@ -102,7 +102,7 @@ pub fn handle_block_multi(targets_str: &str, force: bool, verbose: bool) -> Resu
 }
 
 /// Block ALL user apps from the internet.
-pub fn handle_block_all(force: bool, verbose: bool) -> Result<()> {
+pub fn handle_block_all(force_this: bool, verbose: bool) -> Result<()> {
     use crate::ebpf::identity::IdentityMap;
 
     super::ensure_root()?;
@@ -131,21 +131,21 @@ pub fn handle_block_all(force: bool, verbose: bool) -> Result<()> {
         })
         .collect();
 
-    if !force && !system_apps.is_empty() {
+    if !force_this && !system_apps.is_empty() {
         // The pre-apply "Blocking N user app(s)" echo is gone with
-        // NIGHT-improve-28 (the request lives in the shell history);
-        // the skipped list stays — it names every system app the
-        // command deliberately did NOT touch.
-        eprintln_safe!(
-            "Skipped {} system app(s) (use --force to include):",
+        // NIGHT-improve-28 (the request lives in the shell history).
+        // NIGHT-improve-30 collapses the skipped surface to ONE warn
+        // line — the count and the flag that includes them; the old
+        // bulleted roster (capped at 20) re-printed the safety
+        // blocklist on every whole-system block, while the names are
+        // one 'zelynic list-apps' away.
+        crate::output::eprintln_warn_labeled(&format!(
+            "Skipped {} system app(s) — re-run with --force-this to include.",
             system_apps.len()
-        );
-        for app in system_apps.iter().take(20) {
-            eprintln_safe!("  - {}", app.comm);
-        }
+        ));
     }
 
-    let targets: Vec<Target> = if force {
+    let targets: Vec<Target> = if force_this {
         identity
             .all()
             .into_iter()

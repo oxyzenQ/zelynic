@@ -1,8 +1,10 @@
 // Copyright (C) 2026 rezky_nightky
 // SPDX-License-Identifier: GPL-3.0-only
 
-//! Dangerous-target guard — the blocklist of system processes that must
-//! not be limited without an explicit `--force`.
+//! Dangerous-target guard — the blocklist of system processes that
+//! must not be limited without the unified `--force-this` override
+//! (NIGHT-improve-30: the former `--allow-dangerous`/`--force` pair
+//! is one flag, same function).
 
 #[cfg(feature = "ebpf")]
 use anyhow::Result;
@@ -11,7 +13,7 @@ use anyhow::Result;
 use crate::output::eprintln_warn_labeled;
 
 /// List of dangerous/system process names that should not be limited
-/// without --force flag. Limiting these can destabilize the system.
+/// without the --force-this flag. Limiting these can destabilize the system.
 pub(crate) const DANGEROUS_TARGETS: &[&str] = &[
     "root",
     "init",
@@ -83,23 +85,29 @@ pub(crate) fn is_dangerous_target(name: &str) -> bool {
 
 /// Validate target against dangerous list. Returns Ok if safe, Err if dangerous.
 #[cfg(feature = "ebpf")]
-pub(crate) fn check_dangerous_target(target_str: &str, force: bool) -> Result<()> {
+pub(crate) fn check_dangerous_target(target_str: &str, force_this: bool) -> Result<()> {
     // Numeric cgroup IDs are always allowed (user knows what they're doing).
     if target_str.parse::<u32>().is_ok() {
         return Ok(());
     }
 
     if is_dangerous_target(target_str) {
-        if force {
+        if force_this {
+            // NIGHT-improve-30: ONE warn line, the concise-safety
+            // contract. The override names itself — the user typed
+            // --force-this — and this line names which guard lifted
+            // (the blocklist fired). The destabilization prose and
+            // the 'unstrict' removal form are the error path's and
+            // the success epilogue's words respectively; repeating
+            // them here was the verbosity this task retired.
             eprintln_warn_labeled(&format!(
-                "'{target_str}' is a system process. Forcing with --force.\n  \
-                 This may destabilize your system. Use 'zelynic unstrict {target_str}' to remove."
+                "'{target_str}' is a system process — forcing with --force-this."
             ));
             Ok(())
         } else {
             Err(anyhow::anyhow!(
                 "'{target_str}' is a system process. Limiting it may destabilize your system.\n  \
-                 tip: re-run with --force if you really want this"
+                 tip: re-run with --force-this if you really want this"
             ))
         }
     } else {

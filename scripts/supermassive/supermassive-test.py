@@ -89,7 +89,7 @@ Design:
   * Every rate verdict is MEASURED (client / curl byte counters), then
     proven in-kernel through the status JSON (bytes_allowed /
     packets_dropped) — exactly the NIGHT-master-1 contract.
-  * limit-all is exercised with --force, briefly and
+  * limit-all is exercised with --force-this, briefly and
     at a generous rate: as root the harness's own cgroups are uid 0 and
     would otherwise be skipped as system apps. block-all is deliberately
     NOT exercised — blocking every app can sever the very session that
@@ -113,7 +113,7 @@ What it verifies (verdicts PASS / FAIL / SKIP, exit 1 on any FAIL):
          unstrict-single (unlock) restores speed, curl burst parallel
          download, curl upload, strict-multi shared group bucket across
          cgroups, block-multi, unstrict-multi selective removal, mixed
-         concurrent policies on five cgroups, limit-all --force sweep,
+         concurrent policies on five cgroups, limit-all --force-this sweep,
          reload cycles, sustain windows, non-binding overhead — then
          the real-internet lane: endpoint reachability, unlimited
          realnet baseline, upload-engine sanity, strict download at
@@ -1848,9 +1848,9 @@ def test_mixed(window, baseline):
 
 
 def test_limit_all(window, baseline):
-    """The supermassive sweep: every cgroup on the machine, briefly, --force so
+    """The supermassive sweep: every cgroup on the machine, briefly, --force-this so
     the harness's own root-owned cgroups are included."""
-    name = "limit-all --force: machine-wide sweep"
+    name = "limit-all --force-this: machine-wide sweep"
     if baseline and baseline < 2e6:
         return record(name, "SKIP", "baseline too low")
     # Keep sleepers resident in a..e so the sweep has live cgroups to
@@ -1869,7 +1869,7 @@ def test_limit_all(window, baseline):
                 f"sleeper residency barrier failed: {len(spawned) - len(sleepers)}"
                 f"/{len(spawned)} cgroups never got a resident sleeper",
             )
-        rc, stdout, stderr = run_zel(["limit-all", "--force", "2mb"])
+        rc, stdout, stderr = run_zel(["limit-all", "--force-this", "2mb"])
         if rc != 0:
             return record(name, "FAIL", f"exit {rc}: {(stderr or stdout).strip()[:200]}")
         entry = limit_entry(status_json(), CG.ids["a"])
@@ -2297,10 +2297,10 @@ def stage_realnet_strict_upload():
 
 def stage_realnet_limit_all():
     """The machine-wide sweep policing REAL traffic: same sleeper fleet
-    and --force sweep as the loopback limit-all stage, but the measured
+    and --force-this sweep as the loopback limit-all stage, but the measured
     worker is a real-internet download — proving the sweep reached the
     cgroup the production traffic will actually live in."""
-    name = "real internet: limit-all --force sweep at 2mb"
+    name = "real internet: limit-all --force-this sweep at 2mb"
     if not DL_ENDPOINT:
         return record(name, "SKIP", "no download endpoint")
     if REALNET_BASELINE_BPS < 2 * 2_000_000:
@@ -2320,7 +2320,7 @@ def stage_realnet_limit_all():
                 f"{len(spawned) - len(sleepers)}/{len(spawned)} cgroups "
                 "never got a resident sleeper",
             )
-        rc, stdout, stderr = run_zel(["limit-all", "--force", "2mb"])
+        rc, stdout, stderr = run_zel(["limit-all", "--force-this", "2mb"])
         if rc != 0:
             return record(name, "FAIL", f"exit {rc}: {(stderr or stdout).strip()[:200]}")
         time.sleep(0.5)

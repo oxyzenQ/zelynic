@@ -43,9 +43,7 @@ pub use format::{
     format_bytes, format_count, format_rate, monotonic_ns, parse_monitor_interval, parse_rate,
     parse_time_duration, terminal_width, validate_rate,
 };
-pub use types::{
-    Direction, LimiterStatsRaw, PolicyRaw, RateSpec, Target, LIMITER_ELF, MAX_RATE, MIN_RATE,
-};
+pub use types::{Direction, LimiterStatsRaw, PolicyRaw, RateSpec, Target, LIMITER_ELF};
 
 pub use crate::ebpf::pin::{
     pin_dir_has_files, read_pinned_schema_version, unpin_all, PIN_DIR, PIN_LINK_DL, PIN_LINK_UL,

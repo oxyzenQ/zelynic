@@ -62,16 +62,20 @@ pub struct Cli {
 
     /// Emergency terminal reset (rescue a broken terminal)
     ///
-    /// NIGHT-hunt-31 (the cosmostrix skill transfer): a terminal left
-    /// broken by a violent TUI death (kill -9 outliving every restore
-    /// path, a stuck sync mode, a dead app's mouse/kitty modes) is
-    /// recovered in place — five defense-in-depth layers: the ANSI
-    /// restore sequence (every optional mode off), the ANSI reset
-    /// (clear screen + scrollback), `stty sane` (the kernel-side raw
-    /// mode no escape byte reaches), `reset`, and `tput reset`. No
-    /// privileges required: the rescue touches only the caller's own
-    /// terminal. Works blind-typed when the terminal shows nothing:
-    /// `zelynic --reset-terminal` + Enter.
+    /// NIGHT-hunt-31 (the cosmostrix skill transfer, hardened in
+    /// NIGHT-improve-30): a terminal left broken by a violent TUI
+    /// death (kill -9 outliving every restore path, a stuck sync
+    /// mode, a dead app's mouse/kitty modes) is recovered in place —
+    /// five defense-in-depth layers: the in-process termios restore
+    /// FIRST (the kernel-side raw mode no escape byte reaches, an
+    /// ioctl that always completes, applied to /dev/tty when stdin
+    /// is redirected), the ANSI restore sequence (every optional
+    /// mode off), the ANSI reset (clear screen + scrollback),
+    /// `stty sane`, and `reset`/`tput reset` — the ANSI bytes riding
+    /// a non-blocking best-effort write so a jammed PTY cannot wedge
+    /// the rescue. No privileges required: the rescue touches only
+    /// the caller's own terminal. Works blind-typed when the
+    /// terminal shows nothing: `zelynic --reset-terminal` + Enter.
     #[arg(long = "reset-terminal", global = true)]
     pub reset_terminal: bool,
 
@@ -245,13 +249,15 @@ pub enum Commands {
         #[arg(short = 'u', long = "upload")]
         upload: Option<String>,
 
-        /// Allow rates below 1kb (dangerous)
-        #[arg(long)]
-        allow_dangerous: bool,
-
-        /// Force limit on dangerous/system targets (root, systemd, kthreadd, etc.)
-        #[arg(long)]
-        force: bool,
+        /// Override every safety guard: rates below 1kb and the
+        /// dangerous/system target blocklist (root, systemd, kthreadd, etc.)
+        ///
+        /// NIGHT-improve-30 (the unified safety override): the former
+        /// `--allow-dangerous` (rate bounds) and `--force` (blocklist)
+        /// pair is ONE flag with the same function — one spelling for
+        /// "I know, force this".
+        #[arg(long = "force-this")]
+        force_this: bool,
     },
 
     /// Limit multiple apps sharing one rate (group limit)
@@ -280,20 +286,22 @@ pub enum Commands {
         #[arg(short = 'u', long = "upload")]
         upload: Option<String>,
 
-        /// Allow rates below 1kb (dangerous)
-        #[arg(long)]
-        allow_dangerous: bool,
-
-        /// Force limit on dangerous/system targets (root, systemd, kthreadd, etc.)
-        #[arg(long)]
-        force: bool,
+        /// Override every safety guard: rates below 1kb and the
+        /// dangerous/system target blocklist (root, systemd, kthreadd, etc.)
+        ///
+        /// NIGHT-improve-30 (the unified safety override): the former
+        /// `--allow-dangerous` (rate bounds) and `--force` (blocklist)
+        /// pair is ONE flag with the same function — one spelling for
+        /// "I know, force this".
+        #[arg(long = "force-this")]
+        force_this: bool,
     },
 
     /// Limit ALL user apps from list-apps
     ///
     /// Applies the same rate to all non-system apps.
     /// System apps (root, systemd, kthreadd, etc.) are excluded by default.
-    /// Use --force to include system apps.
+    /// Use --force-this to include system apps.
     ///
     /// Examples:
     ///   zelynic limit-all 500kb              # limit all user apps
@@ -313,13 +321,15 @@ pub enum Commands {
         #[arg(short = 'u', long = "upload")]
         upload: Option<String>,
 
-        /// Allow rates below 1 kb (dangerous)
-        #[arg(long)]
-        allow_dangerous: bool,
-
-        /// Include system/dangerous targets (root, systemd, kthreadd, etc.)
-        #[arg(long)]
-        force: bool,
+        /// Override every safety guard: rates below 1kb and the
+        /// dangerous/system target blocklist (root, systemd, kthreadd, etc.)
+        ///
+        /// NIGHT-improve-30 (the unified safety override): the former
+        /// `--allow-dangerous` (rate bounds) and `--force` (blocklist)
+        /// pair is ONE flag with the same function — one spelling for
+        /// "I know, force this".
+        #[arg(long = "force-this")]
+        force_this: bool,
     },
 
     /// Block multiple apps from the internet entirely
@@ -330,19 +340,23 @@ pub enum Commands {
         /// Targets separated by colons (e.g., brave:curl:pacman)
         targets: String,
 
-        /// Force block on dangerous/system targets
-        #[arg(long)]
-        force: bool,
+        /// Force block on dangerous/system targets (root, systemd,
+        /// kthreadd, etc.) — the NIGHT-improve-30 unified override
+        /// spelling (the former `--force`).
+        #[arg(long = "force-this")]
+        force_this: bool,
     },
 
     /// Block ALL user apps from the internet
     ///
-    /// System apps excluded by default. Use --force to include.
+    /// System apps excluded by default. Use --force-this to include.
     #[command(name = "block-all", alias = "ba")]
     BlockAll {
-        /// Include system/dangerous targets
-        #[arg(long)]
-        force: bool,
+        /// Include system/dangerous targets (root, systemd,
+        /// kthreadd, etc.) — the NIGHT-improve-30 unified override
+        /// spelling (the former `--force`).
+        #[arg(long = "force-this")]
+        force_this: bool,
     },
 
     /// Block an app from accessing the internet entirely
@@ -353,9 +367,11 @@ pub enum Commands {
         /// Target: process name or cgroup ID (cg: prefix accepted)
         target: String,
 
-        /// Force block on dangerous/system targets
-        #[arg(long)]
-        force: bool,
+        /// Force block on dangerous/system targets (root, systemd,
+        /// kthreadd, etc.) — the NIGHT-improve-30 unified override
+        /// spelling (the former `--force`).
+        #[arg(long = "force-this")]
+        force_this: bool,
     },
 
     /// Remove rate limit(s) from a target

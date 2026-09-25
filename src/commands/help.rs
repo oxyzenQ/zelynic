@@ -85,7 +85,7 @@ pub(crate) fn print_help() {
     println_safe!("  {}", brand_bold("limit — bulk rate limits"));
     println_safe!();
     println_safe!("  zelynic limit-all [rate] [-d <rate>] [-u <rate>]");
-    println_safe!("    Limit ALL user apps (system apps excluded; --force includes them).");
+    println_safe!("    Limit ALL user apps (system apps excluded; --force-this includes them).");
     example("limit all user apps", "sudo zelynic limit-all 500kb");
     example("per-direction", "sudo zelynic limit-all -d 1mb -u 500kb");
     println_safe!();
@@ -103,9 +103,9 @@ pub(crate) fn print_help() {
     );
     println_safe!();
     println_safe!("  zelynic block-all");
-    println_safe!("    Block ALL user apps (--force includes system apps).");
+    println_safe!("    Block ALL user apps (--force-this includes system apps).");
     example("all user apps", "sudo zelynic block-all");
-    example("include system apps", "sudo zelynic block-all --force");
+    example("include system apps", "sudo zelynic block-all --force-this");
     println_safe!();
     println_safe!("  {}", brand_bold("unstrict — remove limits & recover"));
     println_safe!();
@@ -208,7 +208,12 @@ pub(crate) fn print_help() {
     println_safe!("{}", brand_bold("Rate formats:"));
     println_safe!("  500b    1kb    500kb    1mb    1gb    1tb    (lowercase only)");
     println_safe!("  Min: 1kb (1000 b/s, decimal SI)    Max: 1tb (1,000,000,000,000 b/s)");
-    println_safe!("  Both bounds overridable with --allow-dangerous");
+    // NIGHT-improve-30: the unified safety override. The section
+    // used to name the two retired spellings (--allow-dangerous for
+    // the min-rate guard, --force for the blocklist); the owner
+    // mandate is ONE flag, same function, one line at the end of the
+    // section that says exactly that.
+    println_safe!("  Both bounds overridable with --force-this");
     println_safe!("  Color output is always on — set NO_COLOR=1 to disable");
     println_safe!();
     println_safe!("{}", brand_bold("Target formats:"));
@@ -216,13 +221,13 @@ pub(crate) fn print_help() {
     println_safe!("  <cgroup_id>     e.g., 73386 (use 'zelynic list-apps' to find)");
     println_safe!();
     println_safe!("{}", brand_bold("Safety:"));
-    println_safe!("  • Min-rate guard: rejects < 1kb (use --allow-dangerous)");
+    println_safe!("  • Min-rate guard: rejects < 1kb");
     println_safe!(
         "  • Dangerous target warning: {} system processes blocked by default",
         crate::commands::safety::DANGEROUS_TARGETS.len()
     );
-    println_safe!("    (use --force to override)");
     println_safe!("  • Fail-safe: BPF returns allow on any error path");
+    println_safe!("  • One flag lifts every guard: --force-this");
     println_safe!();
     println_safe!("{}", brand_bold("Examples:"));
     // NIGHT-hunt-15: the command blocks above each carry their own
