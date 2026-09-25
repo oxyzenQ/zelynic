@@ -104,14 +104,22 @@ ebpf/                   — the pure-Rust BPF source (aya-ebpf; NIGHT-improve-1
 
 scripts/
   build.sh             — check-all orchestration
-  gate-keepers.sh      — pre-commit non-code gates (16 sections)
+  gate-keepers.sh      — pre-commit non-code gates (17 sections)
   check-permissions.sh — 644/755 permission guard
   check-loc.sh         — Rust file LOC cap (500, // LOC_EXEMPT: markers)
   check-scripts-loc.sh — scripts LOC cap (1000, # LOC_EXEMPT: markers)
   check-headers.sh     — license header check (rs/c/h/py/sh/toml/yml/md)
   check-language.sh    — English-only language gate (non-Latin scripts +
                         Indonesian vocabulary detector; NIGHT-hunt-19)
-  check-rust-version-sync.sh — toolchain pin == MSRV == CI pin
+  check-rust-version-sync.sh — toolchain pin == MSRV == CI pin, plus
+                        the eBPF nightly pin family (ebpf/rust-toolchain.toml
+                        == workflow installs == build.rs == install/uninstall;
+                        NIGHT-lts-9)
+  check-release-parity.sh — release -C codegen token parity: the four
+                        pro-linux-amd64-* aliases in .cargo/config.toml
+                        match the release workflow matrix rustflags
+                        (NIGHT-lts-9 — a local release-shape build IS
+                        the release shape)
   harness_lib.sh       — shared colored-harness helpers (log_* /
                         check_* / counters; sourced by the three
                         colored root-run harnesses, NIGHT-hunt-21 —
@@ -210,22 +218,27 @@ renamed from "Lint & Test" in NIGHT-boost-11): the gate
 CI enforces and the gate the owner runs before a commit are one
 invocation, so the two can never drift apart.
 
-`gate-keepers.sh` runs the 15 non-code gate sections — the shell triad
+`gate-keepers.sh` runs the 17 non-code gate sections — the shell triad
 (bash -n + shellcheck + shfmt) on shell scripts, yamllint + actionlint
 on workflows, TOML validation,
 codespell, SPDX license headers (check-headers.sh), file permission guard
 (644 files / 755 executables and directories), the repo-wide emoji sweep,
 the 500-line Rust LOC cap (check-loc.sh), the toolchain-pin sync check
-(check-rust-version-sync.sh), rustfmt on the ebpf/ crate (the exact
+(check-rust-version-sync.sh — both pin families, the stable toolchain and
+the eBPF nightly, NIGHT-lts-9), rustfmt on the ebpf/ crate (the exact
 CI-parity command the Gate-keepers workflow runs — the former
 clang-format gate retired with the C sources in NIGHT-improve-1
 phase 3), the documentation disclaimer
 check (inject-disclaimer.sh), the test-tree discipline (NIGHT-hunt-17:
 every .rs test file under the single `test/` tree), the English-only
-language gate (check-language.sh), and the python lint + format gate
+language gate (check-language.sh), the python lint + format gate
 (ruff, NIGHT-improve-13 cosmostrix parity: ruff check with the explicit
 .ruff.toml rule set + ruff format --check at the scripts/ house width,
-line 100). Missing tools are skipped with a warning locally; the
+line 100), the 1000-line scripts LOC cap (check-scripts-loc.sh,
+NIGHT-lts-2), and the release -C parity gate
+(check-release-parity.sh, NIGHT-lts-9: the local pro-linux-amd64-*
+aliases match the release matrix's codegen tokens). Missing tools
+are skipped with a warning locally; the
 Gate-keepers workflow (.github/workflows/gate-keepers.yml, unfiltered —
 every push, docs-only included) runs the entire script wholesale with
 every tool installed, so each section — current and future — is
@@ -267,6 +280,33 @@ scripts, the supermassive tree, the shared lib, the CI init
 scripts, and the workflow's own file); `workflow_dispatch` fires
 the whole pair on demand — the pre-release machine-qualification
 run.
+
+The fourth contract is the release pipeline itself
+(.github/workflows/release.yml, hardened in NIGHT-lts-9): a tag
+push builds the four arch-baseline packages under invariants the
+workflow enforces by itself, fail-closed. The version contract
+holds at TWO levels — Cargo.toml's package version must equal the
+tag BEFORE any compile cost is spent (the pre-build check), and
+the built artifact must name the tag's version in its own self
+report AFTER the build (the v3 legs execute `-V` and grep the
+`zelynic: vX.Y.Z` header; the AVX-512 v4 legs, which a runner may
+be unable to execute, grep the embedded version literal in the
+bytes). The toolchain contract covers BOTH pin families: the
+stable toolchain via RUST_VERSION (checked by
+check-rust-version-sync.sh) and the dated eBPF nightly across all
+nine of its sites — the workflow installs, build.rs's
+EBPF_TOOLCHAIN const, install.sh, uninstall.sh, and
+ebpf/rust-toolchain.toml as the authority (a half-bumped pin means
+CI installs one nightly while build.rs invokes another). The
+signing contract confines the GPG passphrase to the two steps that
+use it — it never enters GITHUB_ENV, so no later step (including
+the third-party upload-artifact action) ever sees it; only the
+public key id crosses steps. And the parity contract
+(check-release-parity.sh, gate 17) keeps the local
+`cargo pro-linux-amd64-*` aliases' -C codegen tokens equal to the
+release matrix's rustflags, so the README's "a local build
+reproduces the release artifact's optimization tier" is enforced,
+not asserted.
 
 ## Branch Strategy
 

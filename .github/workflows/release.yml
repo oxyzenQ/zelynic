@@ -312,6 +312,32 @@ jobs:
           fi
           echo "arch-baseline inputs verified: ${{ matrix.platform }}"
 
+      # NIGHT-lts-9 (the release depth audit): the tag and Cargo.toml
+      # must name the SAME version before any compile time is spent.
+      # Nothing downstream ever compared the two: a tag pushed while
+      # Cargo.toml still carries the previous version would ship a
+      # tarball named vX.Y.Z whose binary answers -V with the older
+      # number — the package name and the artifact's own self-report
+      # disagreeing, silently. The artifact-level check in the verify
+      # step below is the belt; this is the fail-fast suspender (zero
+      # build cost, the validate job's own fail-fast design applied
+      # one job later where the checkout first exists).
+      - name: Verify Cargo.toml version matches the tag
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          CARGO_VER="$(grep '^version = ' Cargo.toml | head -1 | sed 's/version = "\(.*\)".*/\1/')"
+          if [ -z "${CARGO_VER}" ]; then
+            echo "::error::could not parse version from Cargo.toml"
+            exit 1
+          fi
+          if [ "${CARGO_VER}" != "${VERSION}" ]; then
+            echo "::error::Cargo.toml version '${CARGO_VER}' != tag '${VERSION}'"
+            echo "Bump the package version before tagging: ./scripts/dev/version-to.sh ${VERSION}"
+            exit 1
+          fi
+          echo "version contract holds: Cargo.toml == tag == ${VERSION}"
+
       # --locked on every release build (NIGHT-improve-11): a release
       # must reproduce from the committed lockfile — never a fresh
       # resolution at tag time. ZELYNIC_BUILD stamps the package id
@@ -330,6 +356,7 @@ jobs:
           set -euo pipefail
           BIN="target/${{ matrix.target }}/release/zelynic"
           PLATFORM="${{ matrix.platform }}"
+          VERSION="${GITHUB_REF_NAME#v}"
           echo "=== ${PLATFORM} (Build: ${PLATFORM}) ==="
           # NIGHT-boost-36: one field keys everything — the platform
           # id carries its libc leg (linux-amd64-v4-gnu), so the
@@ -357,6 +384,16 @@ jobs:
                 || { echo "::error::Expected embedded version-report literals"; exit 1; }
               grep -Fq "License: GPL-3.0-only" <<<"${TEXT}" \
                 || { echo "::error::Expected embedded license literal"; exit 1; }
+              # NIGHT-lts-9: the version literal (env!(CARGO_PKG_VERSION)
+              # is a plain &str in the rodata) must match the tag — the
+              # same contract the v3 legs prove by execution, proven here
+              # on the bytes because executing an AVX-512 baseline on a
+              # runner that may lack it would SIGILL. A weaker proof than
+              # running -V (a coincidental literal could satisfy a bare
+              # grep), but the source-level pre-build check already holds
+              # the hard equality; this closes the artifact-level loop.
+              grep -aFq "${VERSION}" "${BIN}" \
+                || { echo "::error::Binary does not embed tag version '${VERSION}' (Cargo.toml/tag drift)"; exit 1; }
               echo "embedded build metadata verified (execution skipped: AVX-512 baseline)"
               ;;
             *-v3-*)
@@ -367,6 +404,11 @@ jobs:
               "${BIN}" -V
               "${BIN}" -V | grep -F "Build: ${PLATFORM}" \
                 || { echo "::error::Expected 'Build: ${PLATFORM}' in -V"; exit 1; }
+              # NIGHT-lts-9: the live self-report names the tag's version
+              # (the brand header line 'zelynic: v<VERSION>') — the
+              # artifact-level twin of the pre-build Cargo.toml check.
+              "${BIN}" -V | grep -F "zelynic: v${VERSION}" \
+                || { echo "::error::Expected 'zelynic: v${VERSION}' in -V (Cargo.toml/tag drift)"; exit 1; }
               ;;
           esac
           if [[ "${PLATFORM}" == *-musl ]]; then
@@ -441,6 +483,18 @@ jobs:
       # Contract: when the GPG_PRIVATE_KEY secret is not configured, both
       # steps no-op and the release ships checksums-only (the pre-GPG
       # state) — no release is ever blocked on signing configuration.
+      #
+      # NIGHT-lts-9 (passphrase confinement): the passphrase NEVER
+      # enters GITHUB_ENV. The pre-lts-9 shape exported it to the job
+      # environment, which persists into EVERY later step of this job
+      # — including the third-party upload-artifact action that runs
+      # after signing. Least privilege for the pipeline's second-most
+      # sensitive secret mirrors the key placement decision above:
+      # the Import step keeps it in step-scoped env + stdin
+      # (--passphrase-fd 0, never a command line), the Sign step
+      # re-reads it from secrets directly in its own step env, and the
+      # only value that crosses steps is GPG_KEY_ID — a public key id,
+      # not a secret.
       # =========================================================================
       - name: Import GPG signing key
         env:
@@ -487,13 +541,18 @@ jobs:
             exit 1
           fi
           echo "GPG_KEY_ID=${KEY_ID}" >> "$GITHUB_ENV"
-          echo "GPG_PASSPHRASE=${GPG_PASSPHRASE}" >> "$GITHUB_ENV"
+          # NIGHT-lts-9: no GPG_PASSPHRASE export — see the confinement
+          # note above. The Sign step reads the secret directly; the
+          # passphrase never outlives the step that uses it.
           echo "Imported GPG signing key: ${KEY_ID}"
 
       - name: Sign artifacts (detached GPG signatures)
         if: env.GPG_KEY_ID != ''
         env:
-          GPG_PASSPHRASE: ${{ env.GPG_PASSPHRASE }}
+          # NIGHT-lts-9: step-scoped straight from secrets — the
+          # passphrase no longer transits GITHUB_ENV (see the
+          # confinement note above Import).
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
         shell: bash
         run: |
           set -euo pipefail

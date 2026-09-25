@@ -16,6 +16,72 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Added
 
+- **feat: NIGHT-lts-9 (release CI half) — the release pipeline
+  depth audit: four fail-closed invariants where the pipeline
+  previously trusted the operator** — the owner's ask: "depth
+  audit release CI for stability, hardened, robustness". The
+  audit walked the whole release workflow (validate, the four-leg
+  arch-baseline build matrix, the publish job), its gate mirrors,
+  and the live run history — including the one red release on
+  record (v11.0.0-alpha.1, 2026-09-22: the musl leg died with
+  E0308 because `statfs.f_type` is i64 on glibc but u64 on musl —
+  that incident class is already closed: the fix is
+  NIGHT-hunt-33's lossless widening, and ci.yml's musl leg has
+  compiled the static twin on every push since). What the audit
+  found OPEN, it closed with four invariants, each fail-closed
+  at the exact place it protects. (1) The version contract: a
+  tag pushed while Cargo.toml still carries the previous version
+  would have shipped a tarball named vX.Y.Z whose binary
+  answers `-V` with the older number — nothing downstream ever
+  compared the two. Now the build job fails BEFORE any compile
+  cost is spent (Cargo.toml version == tag, the validate job's
+  fail-fast design applied one job later where the checkout
+  first exists), and the verify step proves it again on the
+  ARTIFACT — the v3 legs execute `-V` and grep the
+  `zelynic: vX.Y.Z` brand header; the AVX-512 v4 legs, which a
+  runner may be unable to execute without SIGILL, grep the
+  embedded `CARGO_PKG_VERSION` literal in the bytes. (2) The
+  eBPF nightly pin family: the dated `nightly-2026-09-18` pin is
+  duplicated across NINE sites (six workflow installs, build.rs's
+  EBPF_TOOLCHAIN const, scripts/install.sh, and
+  scripts/uninstall.sh's hint) with ebpf/rust-toolchain.toml as
+  the authority — and until now, NOTHING checked their agreement
+  (a half-bumped pin means CI pre-installs one nightly while
+  build.rs invokes another, and the nested eBPF build silently
+  downloads an unverified toolchain at compile time).
+  check-rust-version-sync.sh now verifies the whole family
+  (negative-tested: a one-day drift reddens all nine sites), and
+  rejects a bare `nightly` alias with the same verdict the
+  stable family rejects `stable`. (3) The GPG passphrase
+  confinement: the import step used to export the passphrase via
+  GITHUB_ENV, which persists into EVERY later step of the build
+  job — including the third-party upload-artifact action that
+  runs after signing. The passphrase now never crosses a step
+  boundary: the import step keeps it in step-scoped env + stdin
+  (`--passphrase-fd 0`, never a command line), the sign step
+  re-reads it from secrets directly, and only GPG_KEY_ID — a
+  public key id, not a secret — transits GITHUB_ENV. (4) The
+  release -C parity gate (new gate-keepers section 17,
+  scripts/gates/check-release-parity.sh): the README tells
+  owners a local `cargo pro-linux-amd64-<platform>` reproduces
+  the release artifact's optimization tier bit-for-bit, but the
+  aliases live in .cargo/config.toml while the matrix lives in
+  release.yml — a one-file edit would have silently broken the
+  documented parity. The gate walks all four platforms and
+  asserts the alias rustflags' -C codegen tokens equal the
+  matrix rustflags' -C tokens (the `-D warnings` lint token is
+  deliberately out of scope: the release build adds it via
+  matrix env, the local alias deliberately does not — parity is
+  about the codegen tier, not the lint posture;
+  negative-tested: drifting one alias to v2 reddens exactly that
+  platform). Docs synced: CONTRIBUTING carries the release
+  pipeline as the FOURTH CI contract (the whole invariant set,
+  told once), its gate list at the real section count (17, both
+  stale counts corrected), and the scripts tree gained both new
+  gate entries; docs/RULES.md's toolchain-pin section documents
+  the nightly family and its authority chain. CI + gates +
+  docs only, zero Rust surface, no binary delta: the frame
+  benchmark is skipped by the config-only rule.
 - **feat: NIGHT-improve-29 (CI half) — the Kernel Floor workflow:
   the 5.15 proof on hosted runners via a KVM micro-VM, no
   self-hosting** — the owner's ask (translated from Indonesian:
