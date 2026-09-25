@@ -774,6 +774,79 @@ is out of scope by SECURITY.md). The security posture is peak for
 the declared class; the residual risks are the five documented
 honest limits in STABILITY.md, each failing closed and saying so.
 
+## Security/LTS Audit (NIGHT-lts-1 / safety-1, 2026-09-25)
+
+The owner's comprehensive depth-audit task: security, safety,
+mitigation, complete peak. The pass re-walked every prior audit's
+surface plus the newest code (the hunt-31/improve-30 rescue lineage),
+hunting the residual classes. Two findings, both fixed; everything
+else verified at peak.
+
+### Finding 1 (fixed, defense-in-depth): root-run rescue externals
+resolved through the inherited PATH
+
+`--reset-terminal` spawns `stty` / `reset` / `tput` through PATH
+lookup (`Command::new("stty")`). The rescue is designed to need no
+privileges — but the broken-terminal moment is exactly when an admin
+runs it as root (`sudo zelynic --reset-terminal` over a wedged TUI
+session), and sudo's `secure_path` is the ONLY thing standing between
+that spawn and a user-controlled PATH entry (`sudo -E`,
+`env_keep+=PATH`, legacy sudoers configs): a planted `stty` higher in
+the PATH than /usr/bin executes as root. Not exploitable under any
+default configuration — the same register as the CI
+script-injection class (Finding 2, 2026-09): defense-in-depth is the
+doctrine.
+
+Fix: when the rescue runs as root, the three spawns pin
+`PATH=/usr/sbin:/usr/bin:/sbin:/bin` (`RESCUE_SYSTEM_PATH`,
+src/term_reset.rs) — the four canonical system directories every
+mainstream distro packages the trio into (usrmerge and pre-merge
+layouts both covered, Alpine's busybox symlinks included). A non-root
+rescue keeps the inherited PATH (same user, same privilege, no
+boundary to cross — and NixOS's /run/current-system/sw/bin lookup
+keeps working). The documented trade: a root rescue on NixOS skips
+the two best-effort belt layers, layers 1-3 having already restored
+the critical terminal state.
+
+### Finding 2 (fixed): CJK/fullwidth glyphs counted one column wide
+across the render budget system
+
+The residual untrusted-input class of the cybersecurity-1 family:
+the sanitizer closed escape-byte injection, but ideographs and
+fullwidth forms render TWO terminal columns per char, and every
+width decision in the crate counted CHARS — `truncate_label`'s
+budget, the eagle row's `{:<w0$}` padding, `title_bar`'s fill math,
+the border's `fit()` glyph counter, and the list-apps comm column. A
+prctl-set five-ideograph comm (15 bytes — the kernel cap) sits inside
+every char budget while painting twice it: the row runs past the
+content width, the right rail jags, the numeric columns shift. And
+this is not just an attacker class — CJK app names are real on real
+desktops (the sanitizer's own pass-through pin uses one).
+
+Fix: a canonical display-width module
+(src/output/width.rs — the pragmatic wcwidth subset: wide East Asian
+ranges 2, combining marks 0, else 1, no new dependency) and the five
+budget surfaces routed through it (`fit_to_width` /
+`pad_to_width` / `char_width`), following the one-acquisition-path
+doctrine. Pins: the width classes, the CJK truncation ladder, the
+char-padding drift regression, and the end-to-end frame pin
+(`cjk_label_keeps_the_rails_straight`: with a ten-column label on
+the board, every composed row still renders exactly the frame
+width).
+
+### Verified clean (no change needed)
+
+- **Panic surface**: every `unwrap`/`expect`/`panic!` in the crate
+  lives inside `#[cfg(test)]` modules — zero production panics.
+- **Unsafe blocks**: every production `unsafe` carries its SAFETY
+  comment; the guard child's fork path is async-signal-safe by
+  construction (syscalls only after fork, the hunt-31 discipline).
+- **The lock** (/run/zelynic, root-owned 0700), the /proc comm
+  boundary, the burst/frac/tokens clamp family, the SMP atomics
+  (boost-38/improve-29), the saturating display math (boost-16), the
+  update check's argv-array curl, and the CI env-var isolation all
+  re-verified at their documented state — peak.
+
 ## Verifying Safety Yourself
 
 ### Check network connections:

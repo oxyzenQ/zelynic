@@ -125,14 +125,11 @@ fn resolve_targets(tokens: &[Target], identity: &IdentityMap) -> (Vec<u32>, Vec<
 /// `observe --cgroup` depth, now autodetected). `interval` is the
 /// configured cadence (the status line's identity); `span` is the
 /// MEASURED poll-to-poll span (NIGHT-lts-3): the DOWNLOAD and
-/// UPLOAD columns report `delta / span` as bytes per second — the
-/// beat scheduler fires a render on the first 50ms wake past the
-/// cadence, so the honest denominator is the span the counters
-/// actually accumulated over, never the nominal interval (which
-/// overstated every rate by up to a wake plus the frame's own work
-/// time; a transient map-read error's recovery frame — a double-wide
-/// delta — now divides by the double-wide span too, where nominal
-/// division doubled the very spike it was recovering from).
+/// UPLOAD columns report `delta / span` — the beat scheduler fires
+/// on the first 50ms wake past the cadence, so the honest
+/// denominator is the span the counters actually accumulated over
+/// (nominal division overstated every rate, and doubled the
+/// recovery spike after a transient map-read error).
 ///
 /// `session` is the monitor's memory (NIGHT-boost-5): each frame's
 /// deltas fold in FIRST, then the table renders from the accumulated
@@ -289,7 +286,6 @@ pub(super) fn render_eagle_eyes_at(
         interval,
         span,
     );
-
     // The pin line: the footer's measured length fixes where the
     // frame's content must stop.
     let footer_start = geo.height.saturating_sub(footer.len());
@@ -377,9 +373,9 @@ pub(super) fn render_eagle_eyes_at(
                 }
             }
             // This frame's deltas for the rates (a quiet app renders
-            // em dashes — it stays on the board with its totals). The
-            // denominator is the measured poll span (NIGHT-lts-3),
-            // not the configured cadence — see the render entry doc.
+            // em dashes — it stays on the board with its totals).
+            // The denominator is the MEASURED span (NIGHT-lts-3),
+            // not the nominal cadence — see the render entry doc.
             let delta = summary.cgroups.iter().find(|c| c.cgroup_id == *cgroup_id);
             let dl_rate = delta.map(|c| rate_bps(c.ingress_bytes, span)).unwrap_or(0);
             let ul_rate = delta.map(|c| rate_bps(c.bytes, span)).unwrap_or(0);
@@ -450,27 +446,28 @@ fn render_eagle_row(
     // Saturating session sum (NIGHT-boost-16): saturation, not
     // panic or wrap, in the TOTAL cell.
     let session_total = acc.dl.saturating_add(acc.ul);
+    // NIGHT-lts-1: the label cell pads by RENDERED width (a CJK
+    // label padded by chars would shift the row's numeric cells).
+    let label = crate::output::pad_to_width(&label, cols.label_w);
     let body = if cols.show_total {
         format!(
-            "  {:>2}  {:<w0$} {:>w1$} {:>w2$} {:>w3$}",
+            "  {:>2}  {} {:>w1$} {:>w2$} {:>w3$}",
             rank,
             label,
             format_rate_or_dash(dl_rate),
             format_rate_or_dash(ul_rate),
             format_bytes(session_total),
-            w0 = cols.label_w,
             w1 = cols.dl_w,
             w2 = cols.ul_w,
             w3 = cols.dl_w
         )
     } else {
         format!(
-            "  {:>2}  {:<w0$} {:>w1$} {:>w2$}",
+            "  {:>2}  {} {:>w1$} {:>w2$}",
             rank,
             label,
             format_rate_or_dash(dl_rate),
             format_rate_or_dash(ul_rate),
-            w0 = cols.label_w,
             w1 = cols.dl_w,
             w2 = cols.ul_w
         )
@@ -485,10 +482,10 @@ fn render_eagle_row(
 
 // NIGHT-boost-1: the renderer pins live under the single test/ tree
 // (cosmostrix Pattern C), #[path]-wired across trees exactly like the
-// limiter's math_tests and the diff engine's pins. The target-filter
-// contract took its own file at NIGHT-engrave-6 when the speed-pair
-// pins pushed the eagle pin file past the owner's LOC cap — one file
-// per contract, the footer tree's own split.
+// limiter's math_tests and the diff engine's pins. One file per
+// contract when a family grows past the owner's LOC cap: the target
+// filter (engrave-6) and the display-width CJK family (lts-1) each
+// took their own.
 #[cfg(test)]
 #[path = "../../../test/ebpf/render/eagle_tests.rs"]
 mod eagle_tests;
@@ -496,3 +493,7 @@ mod eagle_tests;
 #[cfg(test)]
 #[path = "../../../test/ebpf/render/eagle_filter_tests.rs"]
 mod eagle_filter_tests;
+
+#[cfg(test)]
+#[path = "../../../test/ebpf/render/eagle_width_tests.rs"]
+mod eagle_width_tests;

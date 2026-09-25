@@ -304,10 +304,45 @@ pub(crate) const TERMINAL_RESET_SEQUENCE: &str = concat!(
     "\x1b[0m",
 );
 
+// ── Layers 4-5: the external utilities ───────────────────────────
+
+/// The rescue's fixed external-layer lookup path when running as
+/// root (NIGHT-lts-1): the four canonical system directories every
+/// mainstream distro packages stty/reset/tput into — usrmerge
+/// layouts (/usr/bin) and pre-merge ones (/bin, /sbin) both covered,
+/// Alpine's busybox symlinks included. sudo's secure_path normally
+/// sanitizes the environment already; this is the defense-in-depth
+/// belt for the configurations that do not (`sudo -E`,
+/// `env_keep+=PATH`, legacy sudoers): a user-controlled directory
+/// can never slide a binary under a root-run rescue — the same
+/// class the CI env-var isolation closed for workflow scripts
+/// (SAFETY_ANALYSIS Finding 2). A NON-root rescue keeps the
+/// inherited PATH: same user, same privilege, no boundary to cross
+/// (and NixOS's /run/current-system/sw/bin lookup keeps working —
+/// the documented trade is that a root rescue on NixOS skips these
+/// best-effort belts, layers 1-3 having already restored the
+/// critical state).
+const RESCUE_SYSTEM_PATH: &str = "/usr/sbin:/usr/bin:/sbin:/bin";
+
+/// Spawn one rescue utility, best-effort. When the rescue runs as
+/// root, the spawn pins [`RESCUE_SYSTEM_PATH`] — see the const's
+/// docs for the boundary and the trade.
+fn spawn_rescue_util(name: &str, arg: Option<&str>) {
+    let mut cmd = std::process::Command::new(name);
+    if let Some(a) = arg {
+        cmd.arg(a);
+    }
+    if nix::unistd::geteuid().is_root() {
+        cmd.env("PATH", RESCUE_SYSTEM_PATH);
+    }
+    let _ = cmd.status();
+}
+
 /// Emergency terminal reset — the five-layer recovery behind
 /// `zelynic --reset-terminal` (NIGHT-hunt-31; the layer-1 termios
 /// restore and the non-blocking write hardening are NIGHT-improve-30,
-/// the maturity debt the first port owed the cosmostrix reference).
+/// the maturity debt the first port owed the cosmostrix reference;
+/// the root-context PATH pin on the external layers is NIGHT-lts-1).
 /// Silent by contract: the fixed terminal IS the feedback (the shell
 /// prompt returning on a clean screen says more than any status line
 /// could — and a line printed after `tput reset` would land on the
@@ -334,13 +369,15 @@ pub(crate) fn reset_terminal_emergency() {
     }
 
     // Layers 4-5: the external utilities, only where a terminal can
-    // receive them. `stty sane` is the canonical belt over layer 1
-    // (the full sane set, exotic flags included); `reset` and `tput
-    // reset` carry the terminal's own init strings. All best-effort —
-    // a minimal container without ncurses still leaves layers 1-3
-    // done, which is the state the shell needs.
+    // receive them, and — when the rescue runs as root — resolved
+    // through the pinned system PATH (see [`RESCUE_SYSTEM_PATH`]).
+    // `stty sane` is the canonical belt over layer 1 (the full sane
+    // set, exotic flags included); `reset` and `tput reset` carry the
+    // terminal's own init strings. All best-effort — a minimal
+    // container without ncurses still leaves layers 1-3 done, which
+    // is the state the shell needs.
     if std::io::stdin().is_terminal() || std::io::stdout().is_terminal() {
-        let _ = std::process::Command::new("stty").arg("sane").status();
+        spawn_rescue_util("stty", Some("sane"));
         // `reset`/`tput reset` run only with a TERM set: without one,
         // ncurses' tset prompts "Terminal type?" on the tty and WAITS
         // for an answer — a rescue that hangs is worse than one that
@@ -349,8 +386,8 @@ pub(crate) fn reset_terminal_emergency() {
         // TERM-less, exactly where the musl twin ships).
         let term = std::env::var_os("TERM");
         if term.is_some_and(|t| !t.is_empty()) {
-            let _ = std::process::Command::new("reset").status();
-            let _ = std::process::Command::new("tput").arg("reset").status();
+            spawn_rescue_util("reset", None);
+            spawn_rescue_util("tput", Some("reset"));
         }
     }
 }

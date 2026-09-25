@@ -115,6 +115,7 @@ pub(crate) use loading::loading_frame;
 
 use crate::ebpf::limiter::format_rate;
 use crate::output::brand_bold;
+use crate::output::display_width;
 
 // ── Geometry ────────────────────────────────────────────────────────────────
 
@@ -237,21 +238,15 @@ pub(crate) fn plan_eagle_columns(width: usize) -> EagleColumns {
     }
 }
 
-/// Truncate a label to `w` display columns, appending an ellipsis
-/// when truncation happens. Handles the ellipsis itself taking a
-/// column (same approach as display.rs).
+/// Truncate a label to `w` DISPLAY columns, appending an ellipsis
+/// when truncation happens. NIGHT-lts-1: the budget counts rendered
+/// columns (the CJK/fullwidth glyph class paints two per char),
+/// routed through the output layer's canonical [`fit_to_width`] —
+/// the pre-lts-1 form counted chars, so a five-ideograph name sat
+/// inside every budget while painting twice it.
 #[must_use]
 pub(crate) fn truncate_label(label: &str, w: usize) -> String {
-    if label.chars().count() <= w {
-        return label.to_string();
-    }
-    if w == 0 {
-        return String::new();
-    }
-    let take = w.saturating_sub(1);
-    let mut out: String = label.chars().take(take).collect();
-    out.push('…');
-    out
+    crate::output::fit_to_width(label, w)
 }
 
 /// Convert a per-frame byte delta into a bytes-per-second figure.
@@ -328,9 +323,14 @@ pub(crate) fn format_uptime(elapsed: std::time::Duration) -> String {
 pub(crate) fn title_bar(core: &str, width: usize) -> String {
     const PREFIX: &str = "╭─── ";
     const CAP: &str = "─╮";
-    let prefix_len = PREFIX.chars().count();
-    let cap_len = CAP.chars().count();
-    let core_len = core.chars().count();
+    // NIGHT-lts-1: the core's budget is its RENDERED width — the
+    // focus title carries a cgroup's comm, and a CJK name paints
+    // two columns per char (the fill math below follows the same
+    // measurement; the rails depend on the bar landing exactly on
+    // `width` columns).
+    let prefix_len = display_width(PREFIX);
+    let cap_len = display_width(CAP);
+    let core_len = display_width(core);
 
     if width <= prefix_len + core_len + 1 {
         // Degenerate width: core only, no fill, no cap.
@@ -350,11 +350,16 @@ pub(crate) fn title_bar(core: &str, width: usize) -> String {
 
     brand_bold(&format!("{PREFIX}{core} {fill}{tail}"))
 }
+// NON_LATIN_FIXTURE: the CJK literal in the truncation pin below is
+// runtime width-measurement coverage, not prose (the same exemption
+// sanitize.rs carries for its passthrough pin).
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    /// Labels truncate with an ellipsis and respect the budget.
+    /// Labels truncate with an ellipsis and respect the budget —
+    /// the RENDERED budget (NIGHT-lts-1): a CJK name degrades to
+    /// whole ideographs plus the ellipsis inside the column.
     #[test]
     fn truncate_label_shapes() {
         assert_eq!(truncate_label("firefox", 10), "firefox");
@@ -364,6 +369,10 @@ mod tests {
         );
         assert_eq!(truncate_label("ab", 2), "ab");
         assert_eq!(truncate_label("abc", 2), "a…");
+        // The width class the char-counting form missed: five
+        // ideographs paint ten columns; a 6-column budget holds two
+        // ideographs and the ellipsis (5 rendered columns).
+        assert_eq!(truncate_label("谷歌浏览器", 6), "谷歌…");
     }
 
     /// Rate conversion: interval-scaling and rounding.

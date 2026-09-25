@@ -14,6 +14,9 @@
 //!   (netrunner) is byte-identical to the pre-theme constants
 //! - [`labeled`] — labeled error/warning stderr lines
 //! - [`sanitize`] — comm sanitization
+//! - [`width`] — display-width measurement and budgeting (NIGHT-lts-1:
+//!   the CJK/fullwidth glyph class renders two columns per char —
+//!   every budget that renders untrusted text routes through it)
 //! - this root — the broken-pipe-safe print macros, the JSON print
 //!   primitive, and the signature footer text
 //!
@@ -152,9 +155,16 @@ pub fn signature_footer() -> String {
 
 mod labeled;
 mod sanitize;
+// The width discipline's consumers (render tree, border, list-apps)
+// all live under the ebpf feature graph — the same gate the grey/
+// hot/warn wrappers carry (a featureless binary renders no tables).
+#[cfg(feature = "ebpf")]
+mod width;
 
 pub use labeled::eprintln_error_labeled;
 
 #[cfg(feature = "ebpf")]
 pub use labeled::eprintln_warn_labeled;
 pub use sanitize::sanitize_comm;
+#[cfg(feature = "ebpf")]
+pub use width::{char_width, display_width, fit_to_width, pad_to_width};
