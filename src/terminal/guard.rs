@@ -81,6 +81,69 @@ pub(crate) struct TerminalGuard {
     alt_live: bool,
 }
 
+// ── The child-side raw-fd helpers (NIGHT-hunt-31, the cosmostrix ──
+//    terminal_tty lineage) ──
+//
+// The Termux screen-lock lesson, ported: when a PTY's reader stops
+// draining (screen lock, a frozen SSH client, a jammed terminal
+// multiplexer), the slave buffer fills and every further write(2)
+// BLOCKS. The old guard child did exactly that — a plain blocking
+// `write(1, RESTORE)` — so the one process that exists to clean the
+// terminal up could wedge forever on a full PTY, and the terminal
+// stayed broken with the guard technically "working". The hardened
+// child flips fd 1 to O_NONBLOCK first: the restore becomes
+// best-effort bytes (EAGAIN drops the remainder — a dropped escape
+// is cosmetic, a hung restore child is a terminal that never
+// recovers). All raw syscalls, async-signal-safe after fork.
+
+/// Flip `fd` to O_NONBLOCK; returns the previous status flags (-1 on
+/// failure, which the caller treats as "nothing was changed").
+///
+/// # Safety
+/// `fd` must be an open descriptor the process owns.
+unsafe fn set_fd_nonblocking(fd: RawFd) -> libc::c_int {
+    unsafe {
+        let flags = libc::fcntl(fd, libc::F_GETFL);
+        if flags < 0 {
+            return -1;
+        }
+        if libc::fcntl(fd, libc::F_SETFL, flags | libc::O_NONBLOCK) < 0 {
+            return -1;
+        }
+        flags
+    }
+}
+
+/// Best-effort raw-fd write — never blocks, never retries past the
+/// first refusal. EAGAIN/EPIPE/EBADF drop the remainder silently: the
+/// caller (the guard child, moments from `_exit`) prefers a partial
+/// restore over a hung one, and the `--reset-terminal` rescue exists
+/// for whatever bytes a jammed PTY refused.
+///
+/// # Safety
+/// `fd` must be an open descriptor the process owns, and the caller
+/// is expected to have set O_NONBLOCK first (without it this is just
+/// a plain blocking write loop).
+unsafe fn write_fd_best_effort(fd: RawFd, bytes: &[u8]) {
+    let mut off = 0usize;
+    while off < bytes.len() {
+        // SAFETY: write(2) on a numeric fd the process owns; n == 0
+        // breaks like an error — retrying a zero-byte progress loop
+        // would spin.
+        let n = unsafe {
+            libc::write(
+                fd,
+                bytes[off..].as_ptr().cast::<libc::c_void>(),
+                bytes.len() - off,
+            )
+        };
+        if n <= 0 {
+            return;
+        }
+        off += n as usize;
+    }
+}
+
 impl TerminalGuard {
     /// Arm the guard. MUST be called BEFORE `AltScreen::enter` —
     /// the forked child snapshots the shell's termios, which stops
@@ -147,12 +210,24 @@ impl TerminalGuard {
                     // shell's termios, then the exit bytes. Errors
                     // (a tty already gone) are the parent-of-none's
                     // problem: ignored, straight to exit.
-                    // SAFETY: tcsetattr(2) fd 0 TCSANOW; write(2)
-                    // the restore bytes to fd 1; _exit(2) — never
-                    // return from a forked child.
+                    // NIGHT-hunt-31 hardening (the Termux lesson):
+                    // the termios ioctl FIRST — it is a write-free
+                    // syscall that always completes and it is the one
+                    // restore step the user's shell cannot live
+                    // without — then the restore bytes through the
+                    // non-blocking best-effort path: a jammed PTY
+                    // must not wedge the guard's exit, and the
+                    // O_NONBLOCK flip on fd 1 dies with this child
+                    // an instant later (the parent is already gone;
+                    // nothing shares the flags anymore).
+                    // SAFETY: tcsetattr(2) fd 0 TCSANOW;
+                    // set_fd_nonblocking + write_fd_best_effort on
+                    // fd 1; _exit(2) — never return from a forked
+                    // child.
                     unsafe {
                         libc::tcsetattr(0, libc::TCSANOW, &original);
-                        libc::write(1, RESTORE.as_ptr().cast(), RESTORE.len());
+                        set_fd_nonblocking(1);
+                        write_fd_best_effort(1, RESTORE);
                         libc::_exit(0);
                     }
                 }

@@ -718,6 +718,23 @@ KILL_TUI_CYCLES = 5
 KILL_TUI_RENDER_S = 2.6
 KILL_MIDFLIGHT_KILLS = 12
 
+# NIGHT-hunt-31: the violent-death guard's restore bytes — the exact
+# ALT_EXIT contract (src/terminal/screen.rs) the forked guard child
+# writes to the pty the instant the SIGKILLed parent's pipe write-end
+# closes. The kill battery now proves the TERMINAL restore too, not
+# just enforcement survival: every signal-9 death must be followed by
+# these bytes on the pty. The leading ESC[0m is the SGR pen reset the
+# same night added — the pen state survives the alt-screen switch and
+# a mid-frame death would otherwise leave the shell prompt wearing
+# the dead monitor's last color.
+KILL_TUI_RESTORE_BYTES = (
+    b"\x1b[0m\x1b[?1006l\x1b[?1002l\x1b[?1000l\x1b[?1049l\x1b[?25h"
+)
+# The settle window for the guard child's post-mortem write: the
+# child fires on the pipe EOF within microseconds of the parent's
+# death, but a loaded runner deserves a generous margin.
+KILL_TUI_GUARD_SETTLE_S = 1.5
+
 
 def _spawn_tui_on_pty(argv):
     """Spawn the zelynic TUI on a fresh pseudo-terminal.
@@ -794,6 +811,7 @@ def test_kill_tui():
     killed_ok = 0
     rows_ok = 0
     write_ok = 0
+    guard_ok = 0
     # E2E-workflow hunt (run six): the 5.15 runner reaped 0/5 as -9
     # while the render proof passed — the TUI exited on its own before
     # the SIGKILL landed, and the row said nothing about HOW it exited.
@@ -822,6 +840,13 @@ def test_kill_tui():
                 proc.wait(timeout=10)
             except subprocess.TimeoutExpired:
                 pass  # unreapable child: surfaced by the killed_ok row
+            # NIGHT-hunt-31: the restore proof — the forked guard child
+            # sees the pipe EOF the instant the parent died and writes
+            # the ALT_EXIT contract to the pty. This closes the coverage
+            # gap the owner's "still breaks screen" report lived in:
+            # the battery proved the enforcement rows survived every
+            # kill but never asserted the terminal itself was restored.
+            post_kill = _drain_pty(master, KILL_TUI_GUARD_SETTLE_S)
         finally:
             os.close(master)
         exit_codes.append(proc.returncode)
@@ -839,6 +864,13 @@ def test_kill_tui():
             rendered_ok += 1
         if proc.returncode == -signal.SIGKILL:
             killed_ok += 1
+            # The guard proof rides only the true violent deaths — a
+            # cycle where the TUI died on its own (convicted by the
+            # killed_ok row with its pty tail) may never have taken
+            # the terminal at all, and "no restore bytes" there is
+            # correct behavior, not a guard failure.
+            if KILL_TUI_RESTORE_BYTES in post_kill:
+                guard_ok += 1
         doc = status_json()
         rows_intact = doc is not None
         for n in ("a", "b", "c"):
@@ -884,6 +916,12 @@ def test_kill_tui():
         ),
     )
     record(
+        "kill tui: terminal restored after every kill (guard bytes)",
+        "PASS" if guard_ok == killed_ok and killed_ok == KILL_TUI_CYCLES else "FAIL",
+        f"{guard_ok}/{killed_ok} signal-9 deaths received the ALT_EXIT restore bytes"
+        + ("" if killed_ok == KILL_TUI_CYCLES else " (not every cycle died by SIGKILL — see the signal-9 row)"),
+    )
+    record(
         "kill tui: enforcement rows intact after every kill",
         "PASS" if rows_ok == completed and completed == KILL_TUI_CYCLES else "FAIL",
         f"{rows_ok}/{completed} cycles kept the exact a:b:c rates",
@@ -898,6 +936,7 @@ def test_kill_tui():
         and killed_ok == completed
         and rows_ok == completed
         and write_ok == completed
+        and guard_ok == killed_ok
         and completed == KILL_TUI_CYCLES
     )
 

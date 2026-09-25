@@ -193,6 +193,8 @@ pub(crate) fn print_help() {
     println_safe!("{}", brand_bold("Global flags:"));
     println_safe!("  -h, --help       This end-to-end reference (usage, commands, examples)");
     println_safe!("  -V, --version    Version and build information");
+    println_safe!("  --reset-terminal Emergency terminal reset: recover a screen broken by");
+    println_safe!("                   a kill -9 TUI death (no sudo, works blind-typed)");
     println_safe!("  --check-update   Check the latest upstream GitHub release (refuses sudo)");
     println_safe!(
         "  -v, --verbose    Diagnostic trace: target resolution, policy writes, BPF lifecycle"
@@ -240,6 +242,9 @@ pub(crate) fn print_help() {
     println_safe!();
     println_safe!("  # Emergency: remove all limits");
     println_safe!("  {}", ok("sudo zelynic unstrict-all"));
+    println_safe!();
+    println_safe!("  # Rescue a terminal broken by a kill -9 TUI death");
+    println_safe!("  {}", ok("zelynic --reset-terminal"));
 }
 
 /// One runnable example: the `#` annotation on its own line ABOVE,

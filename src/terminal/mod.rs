@@ -51,7 +51,11 @@
 //! test/terminal/mouse_contract_tests.rs (byte-level pins over the
 //! sequences below, the beat value and the loop scheduler, and a
 //! source-tree scan that fails if any `\x1b[?` mode outside
-//! {1049, 25, 1000, 1002, 1006} ever appears in src/), plus the
+//! {1049, 25, 1000, 1002, 1006} ever appears in src/ — the ONE
+//! exception being the emergency reset contract
+//! src/terminal/reset.rs, the NIGHT-hunt-31 `--reset-terminal`
+//! rescue, whose default-restoring mode set {2026, 2004, 1004, 7,
+//! 1003, 1015} is honored only inside that file), plus the
 //! whole-frame repaint pins in test/terminal/diff_tests.rs.
 //!
 //! NIGHT-improve-2: the monitor loop renders through the diff-based
@@ -241,7 +245,10 @@ pub(crate) fn input_action_from_chunk(buf: &[u8]) -> InputAction {
 /// multi-byte escape sequence are drained, never treated as actions.
 /// If a wedged terminal ever swallows the 'q' byte, recovery from
 /// another shell is `pkill zelynic` — the guard (NIGHT-boost-33)
-/// restores the terminal itself; `stty sane` stays the fallback.
+/// restores the terminal itself; and since NIGHT-hunt-31 the
+/// in-place recovery is `zelynic --reset-terminal` (the emergency
+/// five-layer reset, see terminal/reset.rs) — no second shell, no
+/// re-opened terminal. `stty sane` stays the manual fallback.
 pub(crate) fn drain_input(ask: &mut raw::BgAsk) -> (InputAction, bool) {
     let mut buf = [0u8; 64];
     let n = io::stdin().read(&mut buf).unwrap_or(0);

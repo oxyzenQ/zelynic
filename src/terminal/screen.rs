@@ -22,10 +22,15 @@ use std::io::{self, Write};
 pub(super) const ALT_ENTER: &[u8] = b"\x1b[?1049h\x1b[?25l\x1b[?1000h\x1b[?1002h\x1b[?1006h";
 
 /// Alt-screen exit sequence — the exact bytes `Drop for AltScreen`
-/// writes: mouse tracking off (reverse order of the enter), back to
-/// the main screen, cursor visible again. A full restore of every
-/// mode `ALT_ENTER` touched, and nothing more.
-pub(super) const ALT_EXIT: &[u8] = b"\x1b[?1006l\x1b[?1002l\x1b[?1000l\x1b[?1049l\x1b[?25h";
+/// writes: SGR reset, mouse tracking off (reverse order of the
+/// enter), back to the main screen, cursor visible again. A full
+/// restore of every mode `ALT_ENTER` touched, and nothing more.
+/// The NIGHT-hunt-31 leading `ESC[0m` resets the SGR pen state:
+/// the pen is terminal-global and survives the alt-screen switch,
+/// so a death mid-frame (or a clean exit right after a styled row)
+/// would otherwise leave the user's shell prompt rendering in the
+/// monitor's last color until something else reset it.
+pub(super) const ALT_EXIT: &[u8] = b"\x1b[0m\x1b[?1006l\x1b[?1002l\x1b[?1000l\x1b[?1049l\x1b[?25h";
 
 /// The interactive-stdio gate (NIGHT-boost-28): the monitor is a
 /// TTY application — raw mode, alt screen, mouse tracking, 50ms key

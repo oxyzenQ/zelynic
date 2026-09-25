@@ -16,6 +16,65 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Added
 
+- **feat: NIGHT-hunt-31 — `--reset-terminal`: the emergency five-layer
+  terminal reset, and the violent-death guard's Termux-hang
+  hardening** — the owner's report: "eagle eyes/monitoring mode still
+  break screen when kill using kill -9/etc. so that is can mitigate
+  for recovery without reopen the terminal using new
+  flag/function '--reset-terminal' see cosmostrix reference. not
+  just that how screen mode mature on cosmostrix to transfer skill
+  from cosmostrix to zelynic on scope monitoring/screen mode." The
+  rescue lands as src/terminal/reset.rs (the cosmostrix restore.rs
+  contract, ported to this crate's crossterm-free stack): ANSI
+  restore (every optional mode off — sync 2026, paste 2004, focus
+  1004, the FULL mouse family incl. the 1003/1015 legacy encodings,
+  alt screen 1049, the kitty pop, plus SGR/scroll-region/charset/
+  autowrap/cursor sane-defaults), ANSI reset (clear screen +
+  scrollback), `stty sane` (the kernel-side raw mode no escape byte
+  reaches), `reset`, and `tput reset` — best-effort layers, externals
+  gated on a TTY stdio stream, no privileges (a rescue that demanded
+  sudo would fail in the one moment it is needed), silent by
+  contract (the shell prompt returning on a clean screen is the
+  feedback). Wired as a global flag intercepted in main before every
+  command surface (the cosmostrix early-return ladder), documented
+  in --help's Global flags + a runnable example, and compiled in
+  EVERY build — the file lives in the terminal domain but is
+  #[path]-wired at the crate root as `term_reset`, because the
+  terminal tree is ebpf-gated session machinery while the rescue
+  owns no BPF machinery and a featureless binary must still rescue a
+  terminal some other app broke. The maturity transfer beyond the
+  flag: (1) the guard child's restore write (guard.rs) was a plain
+  BLOCKING `write(1, ...)` — the exact Termux screen-lock hang
+  cosmostrix fixed (a jammed PTY wedges the write forever, the one
+  process that exists to clean the terminal up hangs, the terminal
+  stays broken with the guard "working"); the child now flips fd 1
+  to O_NONBLOCK first and writes best-effort (EAGAIN drops bytes —
+  a dropped escape is cosmetic, a hung restore child is a terminal
+  that never recovers), termios FIRST (the one restore step the
+  shell cannot live without, a write-free ioctl). (2) ALT_EXIT
+  gains a leading ESC[0m: the SGR pen state is terminal-global and
+  survives the alt-screen switch, so a mid-frame death left the
+  user's shell prompt rendering in the dead monitor's last color —
+  the exact "screen still breaks" residue; the pin and the
+  monitor-contract docs carry the change. (3) The E2E kill-tui
+  battery now proves the TERMINAL restore too: it never asserted
+  the guard's bytes before (only enforcement rows survived every
+  kill) — each signal-9 death is followed by a post-kill pty drain
+  that must contain the ALT_EXIT contract bytes (a new row, riding
+  only true -9 deaths so an early TUI exit is never a false
+  guard-alarm). Contracts: the mouse-contract source scan grants
+  the reset's default-restoring mode set {2026, 2004, 1004, 7,
+  1003, 1015} ONLY inside src/terminal/reset.rs (the monitor's
+  five-mode takeover set stands everywhere else);
+  test/terminal/reset_tests.rs pins the restore/reset byte
+  inventory, the reset-is-restore-plus-clear-tail prefix identity,
+  and the direction contract (off-default modes only ever `l`,
+  on-default only ever `h` — the rescue never ENABLES an optional
+  mode). Docs synced: USAGE (eagle-eyes quit paragraph, the
+  troubleshooting table's new "Screen broken after kill -9" row,
+  the FAQ), --help, terminal/mod.rs module contract. Full suite
+  green; clippy -D warnings clean.
+
 - **feat: NIGHT-ultimate-3 (re-issued label) — the E2E workflow:
   the full pre-release qualification runs on CI, no VirtualBox
   needed** — the owner's ask: "before release, CI that runs testing
