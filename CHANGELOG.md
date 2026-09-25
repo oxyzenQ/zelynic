@@ -16,6 +16,71 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Added
 
+- **feat: NIGHT-lts-6 — the claims ledger and the resource-honesty
+  proof: every claim zelynic makes mapped to the mechanism that
+  verifies it, and a fifth live claim measuring the CLI's own
+  RAM/CPU/IO** — the owner's ask: "proof of '0.00% error rate' to
+  verify create a script. be honest this project is critical infra
+  not a toy/gimmick. verify ram, cpu, io, etc usage. not just that
+  about error rate should all claim on zelynic need verify and
+  report to docs". Three deliverables. (1) THE RESOURCE-HONESTY
+  CLAIM (claim 5, the proof harness's first new claim since
+  boost-8): the one-shot CLI's OWN footprint measured with the
+  kernel's own accounting — wait4(2) rusage of a canonical
+  strict-single attach: peak RSS (ru_maxrss), CPU seconds
+  (ru_utime + ru_stime), block IO (ru_inblock + ru_oublock),
+  against deliberately generous regression bounds with the REAL
+  numbers printed (nothing rounded into honesty) — plus the
+  kernel-side cost measured where it lives: bpftool's
+  run_time_ns / run_cnt on the attached programs after a
+  saturating window (the average nanoseconds one enforce
+  invocation costs — the quantitative half of the "no daemon, no
+  battery drain" claim; a bpftool-less or pre-5.1 host SKIPs that
+  row honestly, the CLI footprint row stands alone). Rootless
+  pins: the verdict math's shape — a healthy attach passes, each
+  dimension fails ALONE (a bound that cannot fail is a rubber
+  stamp), the detail prints the numbers it was handed — plus the
+  registry completeness pin extended to five claims (a claim
+  without a stage is an unproven promise). (2) THE LIVE CI MIRROR:
+  both supermassive legs (the impish 5.13 floor kernel AND the
+  dynamically resolved latest kernel) now run the claims harness
+  live with --quick windows after the survival battery — every
+  push is also a live claims audit on the exact kernel the leg
+  booted; the full owner-facing flow stays
+  `sudo ./scripts/bench/proof-claims.sh` on the host. (3) THE
+  LEDGER (docs/CLAIMS_VERIFICATION.md): the owner's "all claim
+  need verify and report to docs" — every claim walked and mapped
+  to its mechanism with the mechanism classes named (LIVE: the
+  harness row; PIN: the rootless test that fails on regression;
+  CI: the surface that enforces per push/tag), the five headline
+  claims in a table, then the full inventory — the sharp-table
+  rows, the dependency diet (COUNTED LIVE at audit time: 7 direct
+  deps anyhow/aya/clap/libc/nix/serde/serde_json, 54 lockfile
+  packages — the README's numbers verified true, with the
+  re-count recipe in the doc), the kernel floor (supermassive
+  boots the true 5.13 floor), the release invariants (checksums +
+  GPG + the lts-9 version/parity contracts), and the NIGHT-era
+  claims (the lts-5 scale contract, lts-8's burst guarantees,
+  lts-7's group lifecycle, lts-9's theme accuracy, the improve-34
+  sudo rescue). The 0.00% claim is told at its two honest levels
+  in the ledger: the CONTRACT is the token math (pinned
+  rootlessly), the LIVE row prints its actual residual (the
+  status-read spawn latency) instead of claiming a round zero.
+  The doc closes with the re-proving recipes (one command each)
+  and the honest residuals the project stands behind (BIG TCP's
+  >64 KiB corner, the loopback sub-skb window regime, the
+  printed-not-rounded precision residual, the
+  bounds-are-fences-not-brags footprint posture). README's sharp
+  table now carries the ledger pointer and the footprint claim
+  naming. Docs-only + harness code; zero Rust surface, no binary
+  delta: the frame benchmark is skipped by the config-only rule.
+  Verification: the extended engine self-test green (5-claim
+  registry, 4 new footprint pins), ruff clean, the harness's
+  live path reviewed against the stage contracts it reuses (the
+  same PairCgroups/TrafficServer/tool_snapshot discipline the
+  four existing stages ride), gate-keepers 19/19, and
+  build.sh check-all -q green under the 2-minute local budget
+  (the last-task rule; CI owns the rest).
 - **feat: NIGHT-lts-7 — the ultra-long-endurance audit: the
   group-bucket leak (the silent-unlimited killer) closed at both
   layers, and the boot-edge monitor panic floored** — the owner's

@@ -42,10 +42,15 @@ same WiFi interface. No `tc`, no `nftables`, no `LD_PRELOAD`, no daemon.
 
 ### What makes zelynic sharp
 
+Every claim below maps to a mechanism that verifies it — the full
+ledger (live proof harness, rootless pins, CI surfaces, and the
+honest residuals) lives in
+[docs/CLAIMS_VERIFICATION.md](docs/CLAIMS_VERIFICATION.md).
+
 | Edge | Detail |
 |------|--------|
 | **Pure eBPF datapath** | Zero intermediaries. The kernel IS the rate limiter. |
-| **Pinned bpf_links** | Enforcement survives process exit — no daemon, no battery drain. |
+| **Pinned bpf_links** | Enforcement survives process exit — no daemon, no battery drain (RAM/CPU/IO measured live, not asserted: the proof harness's footprint claim). |
 | **Fractional precision** | 0.00% rate error, sub-byte token accumulation (live proof: `sudo ./scripts/bench/proof-claims.sh`; math pins: test/ebpf/limiter/math_tests.rs). |
 | **Schema migration** | BPF struct changes auto-detected + auto-cleaned on upgrade. |
 | **Crash recovery** | `zelynic recover` detects + removes orphaned BPF pins. |

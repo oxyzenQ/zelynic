@@ -184,6 +184,21 @@ else
 	note "supermassive v2 - survival battery (full)" FAIL
 fi
 
+# ── the claims proof, LIVE on this leg's kernel (NIGHT-lts-6) ─────────
+# The four-plus-one headline claims proven with root on the exact
+# kernel this leg booted (canonical invocation, --quick windows):
+# no-daemon, pure-eBPF, per-app, precision 0.00%, and the footprint
+# claim — the CLI's own RAM/CPU/IO plus the attached programs'
+# kernel run time. Every push's supermassive run is now also a
+# live claims audit; the full owner-facing flow stays
+# `sudo ./scripts/bench/proof-claims.sh` on the host.
+if python3 scripts/bench/proof-claims.py \
+	--quick --binary /opt/zelynic/zelynic; then
+	note "claims proof (live, quick)" PASS
+else
+	note "claims proof (live, quick)" FAIL
+fi
+
 # ── the verdict ───────────────────────────────────────────────────────
 if [ "$FAILURES" -eq 0 ]; then
 	echo "MASS-VERDICT: PASS"
