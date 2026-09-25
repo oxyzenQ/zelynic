@@ -330,6 +330,31 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Fixed
 
+- **fix: NIGHT-lts-2 + perf-3 — the unlimited fast path: the
+  enforcement program consults the policy map BEFORE the dormant
+  watchdog read and the ktime stamp** — the performance-engine
+  depth audit's find, the C-twin enforcement order ported verbatim
+  through the Rust port: both hooks attach at the cgroup root and
+  see every packet the machine moves, yet the pre-lts-2 order ran
+  the watchdog array lookup and a bpf_ktime_get_ns call before the
+  policy lookup — two of four operations that could never change
+  the unlimited verdict (no policy means allow under every watchdog
+  state; no userspace writer arms the watchdog today — display-only
+  state). The reorder keeps every policed-packet flow bit-identical
+  and the object size unchanged (268 instructions, 0x8d8 — zero
+  verifier-cost movement) while the disassembled unlimited path
+  drops from ~25 instructions and 3 helper calls to ~13 and 2 —
+  roughly half the per-packet cost for the packet class that
+  dominates every host. The observer was audited in the same pass
+  and is peak for its design (every per-packet operation feeds the
+  counters or the attribution join; nothing skippable), the
+  userspace held-list (socket_cookies dedup, the ingress merge
+  find, the map iteration cadence, the 100ms guard repaint) stands
+  as documented in PERFORMANCE.md's over-engineering guard, and the
+  math core is untouched (no behavioral delta, no schema bump, no
+  reload forced). Frame A/B: parity by construction (kernel-side
+  only); full rootless suite green; object rebuilds under the
+  pinned nightly pair.
 - **fix: NIGHT-lts-3 + boost-39 — the eagle-eyes rate math divides
   by the MEASURED poll-to-poll span, not the configured cadence** —
   the depth-precision audit's find: the beat scheduler fires a

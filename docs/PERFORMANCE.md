@@ -161,6 +161,36 @@ host. The win itself lives outside the harness's reach: it is
 dynamic helper-call frequency in the kernel hot path, 2 per packet
 down to 2 per 100 packets.
 
+**Fixed — NIGHT-lts-2 + perf-3 (2026-09-25): the unlimited fast path
+paid for a dormant watchdog.** The C-twin enforcement order (ported
+verbatim through the Rust port) ran the watchdog array read AND a
+`bpf_ktime_get_ns` timestamp before ever consulting the policy map —
+but both hooks attach at the cgroup root and see every packet the
+machine moves, while the policy maps hold only the handful of cgroups
+zelynic polices. For the unlimited majority, two of the four
+operations could never change the verdict: no policy means allow
+under every possible watchdog state (unset, active, expired), and no
+userspace writer arms the watchdog today (display-only state, the
+SAFETY_ANALYSIS dormancy note) — the unlimited packet paid one array
+lookup plus one helper call to check a dormancy timer it could never
+fail. The reorder (policy lookup first, watchdog + clock only on the
+policed path) keeps every policed-packet flow bit-identical and the
+object size unchanged (268 instructions per program, 0x8d8 — no
+verifier-cost movement), while the disassembled unlimited path drops
+from ~25 instructions and 3 helper calls to ~13 instructions and 2
+helper calls — roughly half the program's per-packet cost for the
+packet class that dominates every host. Verified the perf-1 way:
+the object rebuilds under the pinned nightly pair, the full rootless
+suite is green, and the frame A/B (render path untouched by
+construction — the change is kernel-side only) reads parity.
+
+| Metric | pre-lts-2 (A) | lts-2 (B) | Delta |
+|--------|---------------|-----------|-------|
+| program size (egress section) | 0x8d8 / 268 insn | 0x8d8 / 268 insn | +0 (verifier cost unchanged) |
+| unlimited-path insn before exit | ~25 | ~13 | ~-48% |
+| unlimited-path helper calls | 3 (watchdog lookup, ktime, cgroup_id) | 2 (cgroup_id, policy lookup) | -1/packet |
+| policed-path work | identical | identical | reordered only |
+
 **Audited and deliberately held (over-engineering guard):**
 
 - `ConnectionMap::socket_cookies()` dedups the cookie set with a
