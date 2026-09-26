@@ -278,6 +278,29 @@ fn json_vocabulary_rescues_print_json() {
     );
 }
 
+/// NIGHT-blade-4: the retired `--info` spelling (the eagle-eyes
+/// depth alias) must land on the vocabulary rescue — `--depth` is
+/// the one spelling now, and the jaro distance from "info" to every
+/// live flag sits under the 0.7 bar, so without the table the old
+/// muscle memory would die tip-less (the allow-dangerous contract).
+#[test]
+fn info_vocabulary_rescues_depth() {
+    let rendered = render_via_bridge(&["zelynic", "ee", "cg:1234", "--info"]);
+    assert!(
+        rendered.contains("unexpected argument '--info'"),
+        "must name the rejected flag, got:\n{rendered}"
+    );
+    assert!(
+        rendered.contains("'--depth'"),
+        "tip must point at --depth, got:\n{rendered}"
+    );
+    assert_eq!(
+        rendered.matches("tip:").count(),
+        1,
+        "exactly one tip line, got:\n{rendered}"
+    );
+}
+
 /// A suggestion must REPLACE the native escape-hatch tip, never ride
 /// beside it: before NIGHT-boost-13, `zelynic ss brave --VERBOS`
 /// rendered BOTH "a similar argument exists: '--verbose'" and "to

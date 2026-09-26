@@ -191,9 +191,19 @@ fn top_level_flag_rescue(typed: &str) -> Option<&'static str> {
 /// right one).
 ///
 /// `allow-dangerous` (NIGHT-improve-30): the retired spelling, redirected to the unified `--force-this`.
+///
+/// `info` (NIGHT-blade-4): the retired eagle-eyes `--depth` alias —
+/// one spelling, `--depth` (the single-spelling contract the
+/// subcommand surface carries). The rescue lands the old muscle
+/// memory on the flag that answers it: jaro_ci("info", "depth") is
+/// 0.0 and every other live flag sits under the 0.7 bar (interval
+/// 0.583, print-json 0.567), so without the table the old spelling
+/// died tip-less (the allow-dangerous contract, one tip, the right
+/// one).
 const FLAG_VOCABULARY_RESCUES: &[(&str, &str)] = &[
     ("json", "--print-json"),
     ("allow-dangerous", "--force-this"),
+    ("info", "--depth"),
 ];
 
 /// The zelynic flag a typed name answers to by cross-tool vocabulary,

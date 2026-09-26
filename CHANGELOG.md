@@ -14,6 +14,24 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ## [Unreleased]
 
+### Changed
+
+- **refactor: NIGHT-blade-4 — the eagle-eyes `--info` alias is
+  retired; `--depth` is the one spelling** — the owner's call after
+  the NIGHT-master-1 implementation settled: one canonical flag for
+  the one-shot deep inspection, the same single-spelling contract
+  the subcommand surface carries (the singular `eagle-eye` alias
+  removal, NIGHT-improve-25). Typing the old spelling lands on the
+  vocabulary-rescue tip pointing at `--depth` (the
+  `allow-dangerous` -> `--force-this` contract, NIGHT-improve-30)
+  instead of a dead end: every live flag sits under clap's 0.7 jaro
+  bar for "info", so the rescue table is the only bridge. The
+  reference (`--help`), the eagle-eyes docs, the frozen-surface
+  notes in README and docs/USAGE.md, and the integration pins all
+  speak the single spelling now (the former alias pin flipped: a
+  retired spelling is a usage error whose one tip names `--depth`,
+  not a second route into the depth report).
+
 ### Added
 
 - **feat: NIGHT-master-2 — Dual-licensing model: GPL-3.0-only +

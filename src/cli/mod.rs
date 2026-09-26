@@ -432,8 +432,10 @@ pub enum Commands {
     /// pointing here (same contract observe/top got when they
     /// merged in).
     ///
-    /// NIGHT-master-1 — `--depth` (alias `--info`): the one-shot deep
-    /// inspection. `zelynic ee cg:1234 --depth` prints the full
+    /// NIGHT-master-1 — `--depth`: the one-shot deep inspection
+    /// (the `--info` alias is retired in NIGHT-blade-4 — one
+    /// spelling; typing the old flag lands on the vocabulary tip
+    /// pointing here). `zelynic ee cg:1234 --depth` prints the full
     /// report — package id and name, the user it runs as, the cgroup
     /// path, the enforcement verdict, the per-process census (type,
     /// permissions, exe path, start time), and the live sockets —
@@ -465,8 +467,10 @@ pub enum Commands {
         /// state, the per-process census (type, permissions, exe
         /// path, start time), live sockets — and exit. No TUI:
         /// pipe-friendly, JSON-capable via --print-json.
-        /// '--info' is the alias spelling.
-        #[arg(long = "depth", alias = "info")]
+        /// NIGHT-blade-4: the '--info' alias is retired — '--depth'
+        /// is the only spelling (the vocabulary rescue redirects
+        /// the old one here).
+        #[arg(long = "depth")]
         depth: bool,
     },
 

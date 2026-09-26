@@ -357,9 +357,10 @@ fn test_removed_eagle_eye_alias_redirects_to_eagle_eyes() {
 
 /// NIGHT-master-1: the eagle-eyes depth surface — the missing-target
 /// error teaches the invocation (BEFORE the root guard, deterministic
-/// on any uid), the --info alias spelling routes to the same error,
-/// and the live-only --interval flag answers with the honest
-/// one-stderr-line note the --print-json ignored-note established.
+/// on any uid), the retired --info alias fails as a usage error whose
+/// tip names --depth (NIGHT-blade-4), and the live-only --interval
+/// flag answers with the honest one-stderr-line note the --print-json
+/// ignored-note established.
 #[cfg(feature = "ebpf")]
 #[test]
 fn test_eagle_eyes_depth_surface_pins() {
@@ -382,16 +383,29 @@ fn test_eagle_eyes_depth_surface_pins() {
         "the usage error must precede the root guard, got:\n{stderr}"
     );
 
-    // --info is the alias spelling: the same ladder, the same error.
+    // NIGHT-blade-4: the --info alias is retired (--depth is the
+    // only spelling) — it must fail as an unrecognized argument
+    // whose ONE tip points at --depth, the vocabulary-rescue
+    // contract allow-dangerous carries (every live flag sits under
+    // clap's 0.7 jaro bar for "info", so the rescue table is the
+    // only bridge — without it the old muscle memory dies tip-less).
     let output = zelynic_cmd()
         .args(["eagle-eyes", "--info"])
         .output()
         .expect("Failed to execute zelynic eagle-eyes --info");
-    assert_eq!(output.status.code(), Some(1));
+    assert_eq!(
+        output.status.code(),
+        Some(2),
+        "retired '--info' must be a usage error"
+    );
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
-        stderr.contains("--depth needs a TARGET"),
-        "the alias must route to the identical error, got:\n{stderr}"
+        stderr.contains("unexpected argument '--info'"),
+        "error must name the retired alias, got:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("'--depth'"),
+        "retired '--info' must redirect to --depth, got:\n{stderr}"
     );
 
     // --depth --interval: the cadence flag is live-only, and the

@@ -333,8 +333,9 @@ Monitors are always live; the CLI surface is frozen (v11) — the
 removed surfaces (`man`, `completions`, `unblock`, `limit-all`/`la`,
 `-i`, `--live`, `--duration`) exit with a usage error on
 purpose (the retired `limit-all` spelling redirects to `strict-all`,
-NIGHT-blade-2; `--info` returned at NIGHT-master-1 as the
-`eagle-eyes --depth` alias — the short `-i` stays retired). Command
+NIGHT-blade-2; the `--info` alias of `eagle-eyes --depth` returned
+at NIGHT-master-1 and is retired again in NIGHT-blade-4 — `--depth`
+is the one spelling, and the short `-i` stays retired). Command
 semantics, quit keys, and recipes: [docs/USAGE.md](docs/USAGE.md);
 `--help` is the single flag reference.
 

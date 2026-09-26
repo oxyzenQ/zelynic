@@ -325,9 +325,10 @@ fn test_bare_invocation_prints_reference() {
 }
 
 /// NIGHT-master-1: the reference documents the depth mode — the
-/// one-shot inspection flag on the monitor surface, its alias
-/// spelling, and a runnable example (the depth report is also a
-/// --print-json surface, so the global-flags line names it).
+/// one-shot inspection flag on the monitor surface, its single
+/// spelling (the --info alias retired in NIGHT-blade-4), and a
+/// runnable example (the depth report is also a --print-json
+/// surface, so the global-flags line names it).
 #[test]
 fn test_help_documents_the_depth_mode() {
     let output = zelynic_cmd()
@@ -339,7 +340,7 @@ fn test_help_documents_the_depth_mode() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     for needle in [
         "One-shot deep inspection (NIGHT-master-1): --depth",
-        "--info is the alias spelling",
+        "--depth is the only spelling",
         "sudo zelynic ee cg:1234 --depth",
         "sudo zelynic ee 12345 --depth --print-json",
         "--print-json     JSON output for status, list-apps, eagle-eyes --depth, doctor",
