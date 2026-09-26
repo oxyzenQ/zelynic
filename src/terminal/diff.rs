@@ -138,9 +138,12 @@ fn push_decimal(buf: &mut Vec<u8>, n: usize) {
     buf.extend_from_slice(&digits[i..]);
 }
 
-/// The diff-based screen: shadow + emission buffer, reused frame to
-/// frame (the dragon engine's allocation-reuse discipline — the
-/// Vec capacities survive the whole session, only lengths churn).
+/// The diff-based screen: shadow + emission buffer + dirty flags +
+/// run table, all reused frame to frame (the dragon engine's
+/// allocation-reuse discipline — the Vec capacities survive the
+/// whole session, only lengths churn; NIGHT-blade-16 closed the
+/// last two per-frame allocations, the dirty flags and the run
+/// table, making the claim true end to end).
 pub struct DiffScreen {
     /// Previous frame's lines (the shadow). Swapped with the
     /// caller's line vector on every emit, so both buffers stay warm
@@ -171,6 +174,16 @@ pub struct DiffScreen {
     painted: usize,
     /// Emission buffer, one `write(2)` per frame.
     buf: Vec<u8>,
+    /// Per-row dirty flags, reused frame to frame (NIGHT-blade-16):
+    /// clear-and-refill, the capacity survives the session — the
+    /// dragon engine's audited-allocation discipline (cosmostrix's
+    /// `LastFrame::reuse_or_new`, ported to row granularity). The
+    /// old per-frame `Vec::collect()` was the pipeline's only heap
+    /// churn: two alloc/free pairs every refresh, for a monitor
+    /// that runs for days.
+    dirty: Vec<bool>,
+    /// Maximal dirty runs, same reuse contract as `dirty`.
+    runs: Vec<(usize, usize)>,
     /// Sticky sink-death verdict (NIGHT-ultimate-2): set the first
     /// time `write_all` fails, never cleared — only a dead or
     /// unwritable sink can set it (a full-but-open pipe blocks,
@@ -194,6 +207,8 @@ impl DiffScreen {
             repaint: false,
             painted: 0,
             buf: Vec::with_capacity(8 * 1024),
+            dirty: Vec::new(),
+            runs: Vec::new(),
             sink_dead: false,
         }
     }
@@ -267,16 +282,17 @@ impl DiffScreen {
         // term is inert in the normal regime (painted always equals
         // the previous frame's full row count there) but forces a
         // repaint of exactly the rows a taller terminal just revealed.
-        let dirty: Vec<bool> = (0..visible)
-            .map(|i| {
-                reset
-                    || repaint
-                    || i >= self.prev.len()
-                    || i >= self.painted
-                    || lines[i] != self.prev[i]
-            })
-            .collect();
-        let dirty_count = dirty.iter().filter(|d| **d).count();
+        // NIGHT-blade-16: the flags live in the screen, clear-and-
+        // refill — the capacity survives the whole session.
+        self.dirty.clear();
+        self.dirty.extend((0..visible).map(|i| {
+            reset
+                || repaint
+                || i >= self.prev.len()
+                || i >= self.painted
+                || lines[i] != self.prev[i]
+        }));
+        let dirty_count = self.dirty.iter().filter(|d| **d).count();
 
         // Idle fast path: nothing changed, no reset, no shrink. Zero
         // bytes, zero syscalls — the "waiting for traffic" monitor
@@ -298,16 +314,17 @@ impl DiffScreen {
 
         // Maximal runs of consecutive dirty rows (row-major, so a
         // run is emitted with ONE MoveTo and LF-separated rows —
-        // the dragon engine's contiguous-run batching).
-        let mut runs: Vec<(usize, usize)> = Vec::new();
+        // the dragon engine's contiguous-run batching). Same
+        // clear-and-refill reuse as the flags (NIGHT-blade-16).
+        self.runs.clear();
         let mut i = 0;
         while i < visible {
-            if dirty[i] {
+            if self.dirty[i] {
                 let start = i;
-                while i < visible && dirty[i] {
+                while i < visible && self.dirty[i] {
                     i += 1;
                 }
-                runs.push((start, i));
+                self.runs.push((start, i));
             } else {
                 i += 1;
             }
@@ -333,7 +350,8 @@ impl DiffScreen {
             + if reset { ERASE_BELOW.len() } else { 0 }
             + rows_cost((0, visible))
             + tail_cost;
-        let sparse_cost = runs
+        let sparse_cost = self
+            .runs
             .iter()
             .map(|&r| 5 + dec_len(r.0 + 1) + rows_cost(r))
             .sum::<usize>()
@@ -343,7 +361,7 @@ impl DiffScreen {
         if !reset && !seq_forced && sparse_cost < seq_cost {
             // Sparse path: skip every clean row; position once per
             // dirty run.
-            for &(start, end) in &runs {
+            for &(start, end) in &self.runs {
                 push_move_to(&mut self.buf, start + 1);
                 for line in lines.iter().take(end).skip(start) {
                     self.buf.extend_from_slice(line.as_bytes());
