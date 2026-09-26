@@ -246,6 +246,20 @@ expect "empty target spec precedes root guard" 1 "No targets in" -- "$BINARY" ea
 # correctly see the root guard first.
 expect "colon list in single slot still root-gated" 1 "root required" -- "$BINARY" strict-single brave:curl 100kb
 
+# NIGHT-blade-18: the colon-list grammar + the numeric-target guard,
+# pinned rootless — every refusal fires BEFORE the root guard, and the
+# fine list passes the grammar through to it.
+expect "multi grammar: path segment precedes root guard" 1 "not a valid app name" -- "$BINARY" strict-multi "a:a/;/:1" 1mb
+refute "multi grammar: path error must not mention root" "root required" -- "$BINARY" strict-multi "a:a/;/:1" 1mb
+expect "multi grammar: empty segment precedes root guard" 1 "empty target" -- "$BINARY" strict-multi a::b 1mb
+expect "multi grammar: punctuation-only segment is refused" 1 "not a valid app name" -- "$BINARY" strict-multi "x:;;:y" 1mb
+expect "multi grammar: block-multi path segment is refused" 1 "not a valid app name" -- "$BINARY" block-multi "a:a/"
+expect "multi grammar: unstrict-multi path segment is refused" 1 "not a valid app name" -- "$BINARY" unstrict-multi "a:a/"
+expect "multi grammar: unstrict-multi empty segment is refused" 1 "empty target" -- "$BINARY" unstrict-multi a::b
+expect "multi grammar: colon-only keeps the no-targets error" 1 "No targets specified" -- "$BINARY" strict-multi ":" 1mb
+expect "multi grammar: fine list passes the grammar to the root guard" 1 "root required" -- "$BINARY" strict-multi a:b:c 1mb
+expect "numeric target: cg form flows to the root guard when unresolvable" 1 "root required" -- "$BINARY" strict-single cg:1 100kb
+
 # ━━ 4. Usage errors: exit 2 with canonical shape ━━
 
 echo "── usage errors (exit 2) ──"

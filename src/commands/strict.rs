@@ -6,7 +6,9 @@
 use anyhow::Result;
 
 use crate::commands::rates::resolve_rates;
-use crate::commands::safety::{check_dangerous_target, is_dangerous_target};
+use crate::commands::safety::{
+    check_dangerous_target, is_dangerous_target, validate_multi_targets,
+};
 
 #[cfg(feature = "ebpf")]
 pub(crate) fn handle_strict_single(
@@ -93,27 +95,26 @@ pub(crate) fn handle_strict_multi(
         ));
     }
 
-    let targets: Vec<Target> = targets_str
-        .split(':')
-        .map(|s| s.trim())
-        .filter(|s| !s.is_empty())
-        .map(Target::parse)
-        .collect();
-
-    if targets.is_empty() {
-        return Err(anyhow::anyhow!(
-            "No targets specified. Use colon-separated list.\n\
-             Example: zelynic strict-multi brave:curl:pacman 1mb"
-        ));
-    }
+    // NIGHT-blade-18: the colon list is a grammar now, not a best-effort
+    // scan — validate_multi_targets refuses the shapes that can only be
+    // mistakes (empty segments hid a dropped app; '/' or punctuation-only
+    // segments can never be a comm), and the danger loop runs on the
+    // validated segments, so a numeric or cg:<id> segment reaches the
+    // cgroup-id guard through check_dangerous_target's numeric path
+    // (the numeric blocklist bypass, closed the same task).
+    let segments =
+        validate_multi_targets(targets_str, "zelynic strict-multi brave:curl:pacman 1mb")?;
 
     // Check each target for dangerous names.
-    for t in targets_str.split(':') {
-        let t = t.trim();
-        if !t.is_empty() {
-            check_dangerous_target(t, force_this)?;
-        }
+    for t in &segments {
+        check_dangerous_target(t, force_this)?;
     }
+
+    let targets: Vec<Target> = segments
+        .iter()
+        .map(|s| s.as_str())
+        .map(Target::parse)
+        .collect();
 
     super::ensure_root()?;
 

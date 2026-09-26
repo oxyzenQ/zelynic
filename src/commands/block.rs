@@ -52,26 +52,28 @@ pub fn handle_block_multi(targets_str: &str, force_this: bool, verbose: bool) ->
     // Input validation first (fail-fast, no privileges needed) — same
     // parse-before-execute ladder as the strict-multi handler.
     //
-    // Same parsing contract as strict-multi: trim each part, drop
-    // empties, and fail with an example instead of silently limiting
-    // an empty-name cgroup.
-    let targets: Vec<Target> = targets_str
-        .split(':')
-        .map(|s| s.trim())
-        .filter(|s| !s.is_empty())
+    // NIGHT-blade-18: the colon grammar (validate_multi_targets —
+    // same refusals as strict-multi), and the danger loop runs on the
+    // STRING tokens, not the parsed Targets: the old typed loop only
+    // checked `Target::ProcessName` arms, so a numeric segment parsed
+    // into `Target::CgroupId` and skipped the guard entirely — `bm
+    // x:1` walked the same numeric blocklist bypass `ss 1` did. The
+    // string loop closes it; check_dangerous_target's numeric path
+    // resolves the id to its live members and runs the blocklist.
+    let segments = super::safety::validate_multi_targets(
+        targets_str,
+        "zelynic block-multi brave:curl:pacman",
+    )?;
+
+    for t in &segments {
+        super::safety::check_dangerous_target(t, force_this)?;
+    }
+
+    let targets: Vec<Target> = segments
+        .iter()
+        .map(|s| s.as_str())
         .map(Target::parse)
         .collect();
-    if targets.is_empty() {
-        return Err(anyhow::anyhow!(
-            "No targets specified. Use colon-separated list.\n\
-             Example: zelynic block-multi brave:curl:pacman"
-        ));
-    }
-    for t in &targets {
-        if let Target::ProcessName(name) = t {
-            super::safety::check_dangerous_target(name, force_this)?;
-        }
-    }
 
     super::ensure_root()?;
 

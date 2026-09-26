@@ -1067,9 +1067,87 @@ recover orphan ladder (propagated reads, verified counts, incomplete
 removal (improve-29), the group reclaim (lts-7), the rate grammar
 (exact u128 fractional math, overflow errors, typo rescue), the
 observer teardown, and the monitor loop (blade-6's endurance bounds)
-all held under the end-to-end pass. The non-root battery runs 78/78;
+all held under the end-to-end pass. The non-root battery runs 88/88;
 the root+eBPF smoke battery rides CI (the sandbox micro-VM needs
 kvm/qemu unavailable in the auditing session).
+
+## Micro-Bug Depth Audit (NIGHT-blade-18, 2026-09-26)
+
+The owner's future-bug brief: give the supermassive harness the skill
+to see tomorrow's bugs today, seeded with the exact probes
+`sm a:a/;/:1` (fatal), `sm a:b:c` (fine), and the block/unstrict
+multi family. The audit walked the target grammar end to end —
+`Target::parse`, `check_dangerous_target`, every multi handler's
+split loop, the resolve/apply pipeline, and the batteries that pin
+them. One high-severity find and one consistency find, both fixed;
+the rest of the walk verified clean.
+
+### Finding 1 (fixed, high severity): the numeric blocklist bypass
+
+`check_dangerous_target` short-circuited every numeric spelling with
+"Numeric cgroup IDs are always allowed (user knows what they're
+doing)" — and `block-multi`'s typed loop never even reached the
+check for `Target::CgroupId` arms. Every numeric door was unguarded:
+
+- eagle-eyes prints `cg:<id>` for EVERY cgroup with traffic —
+  including system daemons — and its footer suggests exactly
+  `sudo zelynic ss cg:<id>`; the suggestion routed AROUND the
+  blocklist the name door enforces. The numeric form of
+  "limit myself out of SSH" needed no `--force-this` at all.
+- `cg:1` (the root cgroup, home of every kthread) and any daemon
+  cgroup id were one typo away from an unguarded policy write.
+
+Fix: the id resolves to its live member processes (the same
+`pid_cgroup_id` / `pid_comm` canonical boundaries the limiter's own
+name resolution uses) and runs the SAME family-aware blocklist on
+their names — `ss cg:<sshd's cgroup>` now refuses exactly like
+`ss sshd`, with the same wording and the same `--force-this` lift.
+Fail-safe in both directions: any blocklisted member refuses the id
+(kthreadd lives in the root cgroup, so `cg:1` refuses on a stock
+distro); an id with no live members (dead id, or a container view
+that resolves nothing) stays allowed — the policy against it can
+never match a socket.
+
+### Finding 2 (fixed, consistency): the multi lists were a best-effort scan
+
+The colon lists trimmed, DROPPED empty segments, and let everything
+else through as a name lookup — so `sm a::b` silently limited two
+apps when three were meant, and every path-shaped or
+punctuation-only segment (`a/`, `;` — the exact bytes of the owner's
+fatal example) flowed through as a guaranteed no-match that hid the
+mistake. The multi families now share one grammar
+(`validate_multi_targets`): empty segments, `/`-bearing segments,
+and punctuation-only segments are refused with the offending segment
+named, before the root guard, in strict-multi, block-multi, and
+unstrict-multi alike. What stays legal on purpose: numeric and
+`cg:<id>` segments (their semantics are the blocklist arm's), and
+alnum-bearing unknown names — the single-target no-execution proof
+(payloads echoed verbatim as data) survives in the multi form
+untouched.
+
+### The foresight battery (the harness skill, permanent)
+
+The verdicts above are pinned in three layers, so any future change
+that drifts them fails loudly: 4 unit pins (the parse table, the
+verdict core, the own-cgroup friction-free round-trip, the grammar
+table), 10 nonroot-battery cases (rootless, pre-root-guard
+refusals with the root wording refuted), and 10 static + 5 dynamic
+supermassive-v2 CLI cases (the owner's exact strings; the dynamic
+family resolves kthreadd's home id and the live fleet id at runtime,
+so the machine-state cases cannot rot in a static table). The v2
+table's size is now a self-test PIN (97 cases) — the count could
+drift silently twice before (master-4 found both header citations
+stale, and missed a third in the .py body, healed here); it cannot
+drift a third time.
+
+### Verified clean in the same walk
+
+Rate parsing and bounds, the resolve pipeline's dedup ledger
+(depthbore-1), the blocklist family rule against the new numeric
+arm, the `cg:` display round-trip on live user cgroups, the
+below-u32 graceful no-op (pinned in the battery, unchanged), and
+every existing injection pin (all 489 unit tests green, battery
+88/88 rootless).
 
 ## License
 

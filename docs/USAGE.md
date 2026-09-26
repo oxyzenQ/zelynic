@@ -131,7 +131,27 @@ sudo zelynic strict brave 100kb        # shorthand form
   `strict-all`/`block-all` sweeps, which match the same comms the
   display enriches, used to sweep those daemons INTO the user-app
   set. Fail-safe by design: an innocent app that merely shares a
-  prefix costs one `--force-this`.
+  prefix costs one `--force-this`. The numeric door enforces the same
+  contract (NIGHT-blade-18): a bare id (`48181`) or the display form
+  (`cg:48181`) resolves to its live member processes and runs the
+  same family-aware blocklist on their names, so `ss cg:<sshd's
+  cgroup>` refuses exactly like `ss sshd` — the old bypass, where
+  every numeric spelling skipped the guard entirely, is closed. An id
+  with no live members (a dead id, or a container view that resolves
+  nothing) stays allowed: the policy against it can never match a
+  socket.
+
+The multi-list grammar (NIGHT-blade-18): the colon lists of
+`strict-multi`/`block-multi`/`unstrict-multi` are validated as a
+whole before anything runs. Empty segments (`a::b` — a dropped app
+is a named mistake, not a silent skip), segments containing `/` (`a/`
+— comm can never carry a path separator), and punctuation-only
+segments (`;` — and unquoted in a shell this exact byte splits
+commands) are all refused with the offending segment named. What
+stays legal on purpose: numeric and `cg:<id>` segments (their safety
+rides the blocklist arm above), and alnum-bearing unknown names —
+`sm '$(reboot):b' 1mb` stays the graceful no-op that echoes the
+payload verbatim as data, never executes it.
 
 The burst contract (no flag, by design): every policy banks a token
 bucket of one second of traffic — rate bytes read straight — clamped

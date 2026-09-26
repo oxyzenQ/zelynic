@@ -87,7 +87,7 @@ What it verifies (verdicts PASS / FAIL / SKIP, exit 1 on any FAIL):
          survival battery:
   preflight: env + minimum specs, doctor, list-apps, loopback baseline
          (the engine sanity the kill stages' traffic depends on);
-  guards: the NIGHT-ultimate-3 depth sweep — 87 cases: info surfaces
+  guards: the NIGHT-ultimate-3 depth sweep — 97 cases (size pinned by --self-test): info surfaces
          (bare invocation, --help/-h, --version/-V, global -V at
          subcommand level, --color-mode, --, doctor --print-json, the
          root-refusing --check-update pair), flag typos with their
@@ -604,6 +604,69 @@ CLI_DEPTH_CASES = [
     ("um alias resolves (missing targets refuse)", ["um"], "nonzero", "error"),
     ("ua alias refuses a stray positional", ["ua", "extra"], "nonzero", "unexpected"),
     ("ee alias resolves (bad interval refuses)", ["ee", "--interval", "0s"], "nonzero", "interval"),
+    # ── NIGHT-blade-18: the colon-list grammar + the numeric guard ──
+    # The owner's future-bug probes, pinned. The multi lists are a
+    # grammar now (empty / path / punctuation-only segments are named
+    # mistakes, refused BEFORE the root guard), and a numeric or cg:
+    # segment runs the cgroup-id blocklist arm. The dynamic id cases
+    # (kthreadd's home, the live fleet round-trip) are built at
+    # runtime in test_cli_depth — machine-resolved ids cannot live in
+    # a static table.
+    ("strict-multi fine list is clean usage", ["sm", "a:b:c", "1mb"], "zero", None),
+    (
+        "strict-multi with the owner's fatal shape is refused",
+        ["sm", "a:a/;/:1", "1mb"],
+        "nonzero",
+        "not a valid app name",
+    ),
+    (
+        "strict-multi empty segment is a named mistake",
+        ["sm", "a::b", "1mb"],
+        "nonzero",
+        "empty target",
+    ),
+    (
+        "strict-multi punctuation-only segment is refused",
+        ["sm", "x:;;:y", "1mb"],
+        "nonzero",
+        "not a valid app name",
+    ),
+    (
+        "block-multi fatal shape is refused with the same grammar",
+        ["bm", "a:a/;/:1"],
+        "nonzero",
+        "not a valid app name",
+    ),
+    (
+        "unstrict-multi fatal shape is refused with the same grammar",
+        ["um", "a:a/"],
+        "nonzero",
+        "not a valid app name",
+    ),
+    (
+        "unstrict-multi empty segment is refused",
+        ["um", "a::b"],
+        "nonzero",
+        "empty target",
+    ),
+    (
+        "strict-multi colon-only list keeps the no-targets error",
+        ["sm", ":", "1mb"],
+        "nonzero",
+        "No targets specified",
+    ),
+    (
+        "shell substitution in a multi segment stays the no-exec no-op",
+        ["sm", "$(reboot):b", "1mb"],
+        "zero",
+        "$(reboot)",
+    ),
+    (
+        "cg prefix with a non-numeric remainder keeps the no-op contract",
+        ["sm", "cg:brave:b", "1mb"],
+        "zero",
+        "No cgroup found",
+    ),
 ]
 
 # The flag-and-command surface this table is CONTRACTED to touch: every
@@ -687,8 +750,8 @@ def _run_cli_case(argv):
 
 # ── NIGHT-blade-4: the server depth phase (the survival family's half) ─────
 #
-# The 83-case CLI depth stresstest runs the guards under the
-# INHERITED environment; a production server carries none of it (no
+# The CLI depth stresstest (97 static cases, size pinned by
+# --self-test) runs the guards under the INHERITED environment; a production server carries none of it (no
 # DISPLAY, no DBUS session bus, no XDG desktop variables, TERM=dumb
 # at best), so a representative guard subset re-runs under the
 # stripped headless environment from v1's engine (one env definition,
@@ -801,6 +864,90 @@ def run_server_phase():
     return ok
 
 
+def _blade18_dynamic_cases():
+    """NIGHT-blade-18: the cgroup-id guard's dynamic probes.
+
+    The ids this family needs are MACHINE state (kthreadd's home
+    cgroup, the live fleet), so they cannot live in the static table.
+    Returns (cases, skip_reason) — an empty kthreadd set records a
+    SKIP row with the reason (a container view without kthreadd
+    cannot pin the refuse direction here; the unit pins own it
+    rootlessly), and the fleet round-trip rides the CgroupSet the
+    battery already stands up.
+    """
+    cases = []
+    reason = ""
+
+    # The refuse direction: kthreadd lives in the root cgroup, so its
+    # home id is the blocklist's own reason to exist, arriving through
+    # the numeric door the old guard left open.
+    kid = None
+    try:
+        for entry in os.listdir("/proc"):
+            if not entry.isdigit():
+                continue
+            try:
+                with open(f"/proc/{entry}/comm") as fh:
+                    if fh.read().strip() != "kthreadd":
+                        continue
+                with open(f"/proc/{entry}/cgroup") as fh:
+                    path = fh.read().split("::")[-1].strip()
+                kid = os.stat(f"/sys/fs/cgroup{path}").st_ino
+                break
+            except OSError:
+                continue
+    except OSError:
+        pass
+    if kid is not None:
+        cases += [
+            (
+                "strict-multi numeric segment of kthreadd's home is refused",
+                ["sm", f"x:{kid}", "1mb"],
+                "nonzero",
+                "system process",
+            ),
+            (
+                "strict-single cg: form of kthreadd's home is refused",
+                ["ss", f"cg:{kid}", "100kb"],
+                "nonzero",
+                "system process",
+            ),
+            (
+                "the id guard lifts with --force-this (warn, then the rate guard)",
+                ["ss", f"cg:{kid}", "999", "--force-this"],
+                "nonzero",
+                "forcing with --force-this",
+            ),
+        ]
+    else:
+        reason = "kthreadd not visible (container view) — the refuse direction rides the unit pins"
+
+    # The friction-free direction: a live fleet cgroup's numeric form
+    # applies and removes cleanly (the boost-37 round-trip, kept). The
+    # apply/remove pair runs adjacently so the 100kb window on the
+    # harness's own lane is one case wide, and no stage after this
+    # measures rates (v1 owns the measurements).
+    try:
+        fid = sm1.CG.ids["hq"]
+        cases += [
+            (
+                "a live fleet cgroup's numeric form flows friction-free",
+                ["ss", str(fid), "100kb"],
+                "zero",
+                None,
+            ),
+            (
+                "the numeric round-trip removes cleanly",
+                ["um", f"cg:{fid}"],
+                "zero",
+                None,
+            ),
+        ]
+    except (KeyError, AttributeError):
+        reason = (reason + "; " if reason else "") + "fleet not up"
+    return cases, reason
+
+
 def test_cli_depth():
     """The NIGHT-ultimate-3 depth sweep: every flag surface end to end
     against typo / wrong / ambiguous / injection / fatal input.
@@ -812,7 +959,14 @@ def test_cli_depth():
     prototype.
     """
     fails = 0
-    for label, argv, exit_class, needle in CLI_DEPTH_CASES:
+    dynamic, skip_reason = _blade18_dynamic_cases()
+    if skip_reason:
+        record(
+            "cli depth: blade-18 dynamic id probes skipped",
+            "SKIP",
+            skip_reason,
+        )
+    for label, argv, exit_class, needle in CLI_DEPTH_CASES + dynamic:
         rc, text = _run_cli_case(argv)
         problems = []
         if rc is None:
@@ -839,7 +993,9 @@ def test_cli_depth():
         )
         if verdict != "PASS":
             fails += 1
-    total = len(CLI_DEPTH_CASES)
+    # NIGHT-blade-18: the live count includes the dynamic probes —
+    # machine state the static table cannot carry.
+    total = len(CLI_DEPTH_CASES) + len(dynamic)
     record(
         f"cli depth: full-sweep invariant ({total} cases, zero hangs, zero panics)",
         "PASS" if fails == 0 else "FAIL",
@@ -1434,6 +1590,18 @@ def self_test():
         "engine: cli depth table well-formed (4-tuples, unique labels)",
         "PASS" if well_formed else "FAIL",
         f"{len(CLI_DEPTH_CASES)} cases",
+    )
+    # NIGHT-blade-18: the table size is a PIN, not a factoid. The
+    # count is load-bearing (two headers quote it; master-4's sweep
+    # found BOTH stale citations — and missed a third in this file's
+    # own body, healed by the same task). Any case added or removed
+    # without touching this pin and the headers fails the self-test
+    # rootlessly, on the next push, not in the field.
+    count_ok = len(CLI_DEPTH_CASES) == 97
+    record(
+        "engine: cli depth table size pinned (97 cases)",
+        "PASS" if count_ok else "FAIL",
+        f"{len(CLI_DEPTH_CASES)} rows",
     )
     touched = {tok for _, argv, _, _ in CLI_DEPTH_CASES for tok in argv}
     missing = [entry for entry in CLI_DOCUMENTED_SURFACE if entry not in touched]
