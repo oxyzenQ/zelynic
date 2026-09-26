@@ -86,6 +86,19 @@ pub fn handle_list_apps(json: bool) -> Result<()> {
     let mut conns = ConnectionMap::new();
     let socket_cgroups = conns.refresh();
 
+    // NIGHT-master-4 (the partial-census honesty note): list-apps
+    // runs on any uid by design (the privilege matrix), but the
+    // socket census is privilege-gated per pid — another user's
+    // /proc/<pid>/fd answers EACCES, so their cgroups count
+    // processes correctly and sockets as ZERO, silently. The note
+    // rides stderr in BOTH output modes (the --print-json
+    // ignored-note pattern): stdout stays byte-clean for scripts,
+    // the exit code stays 0, and the human learns why the socket
+    // column under-reads before concluding "nobody is connected".
+    if !nix::unistd::geteuid().is_root() {
+        eprintln_safe!("{}", crate::output::warn_bold(&unprivileged_census_note()));
+    }
+
     let mut entries: Vec<_> = identity.all().into_iter().collect();
     entries.sort_by(|a, b| a.comm.cmp(&b.comm));
     entries.retain(|e| !e.comm.is_empty());
@@ -396,6 +409,24 @@ struct ListAppsJson {
     total: usize,
     apps: Vec<AppEntryJson>,
 }
+
+/// The partial-census note's wording (pure, NIGHT-master-4) — the
+/// exact sentence a doc reader greps for, pinned so the contract
+/// is a decision, not an accident.
+#[cfg(feature = "ebpf")]
+#[must_use]
+pub(crate) fn unprivileged_census_note() -> String {
+    "unprivileged: other users' socket counts read as zero — run with sudo for the full census"
+        .to_string()
+}
+
+// NIGHT-master-4: the census-note pins live under the single test/
+// tree (cosmostrix Pattern C), #[path]-wired exactly like the eagle
+// depth pins.
+#[cfg(test)]
+#[cfg(feature = "ebpf")]
+#[path = "../../test/commands/list_apps_census_tests.rs"]
+mod census_tests;
 
 #[cfg(test)]
 mod tests {
