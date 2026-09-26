@@ -8,9 +8,24 @@
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 pub const NAME: &str = "zelynic";
 pub const COPYRIGHT: &str = "(c) 2026 rezky_nightky (oxyzenQ)";
-pub const LICENSE: &str = "GPL-3.0-only";
 pub const REPOSITORY: &str = "https://github.com/oxyzenQ/zelynic";
 pub const DESCRIPTION: &str = env!("CARGO_PKG_DESCRIPTION");
+
+/// The `License:` line as ONE contiguous literal (NIGHT-blade-4).
+///
+/// release.yml's AVX-512 (v4) legs verify the artifact WITHOUT
+/// executing it — the runner may lack the baseline, so `strings`
+/// must find "License: GPL-3.0-only" as contiguous bytes in the
+/// rodata. A format! inline capture (`{LICENSE}`) splits the line:
+/// the template keeps "License: " and the bare id "GPL-3.0-only"
+/// lands elsewhere in rodata, and the strings probe failed on both
+/// v4 legs (the v11.0.0-beta.2 release incident). This const IS the
+/// whole line, so the bytes stay contiguous by construction; the
+/// unit tests below pin the exact bytes the pipeline greps. (The
+/// pre-blade-4 `pub const LICENSE` — the bare id, consumed only by
+/// the old inline capture — was removed with the capture: zero
+/// call sites left, the dependency-audit discipline.)
+const LICENSE_LINE: &str = "License: GPL-3.0-only";
 
 pub fn build_target() -> &'static str {
     // Dynamic build target label: detects arch + libc env at compile time.
@@ -91,7 +106,7 @@ fn version_body() -> String {
          Build: {} ({})\n\
          Build-time: {}\n\
          Copyright: {COPYRIGHT}\n\
-         License: {LICENSE}\n\
+         {LICENSE_LINE}\n\
          Source: {REPOSITORY}",
         build_label(),
         build_hash(),
@@ -163,6 +178,17 @@ mod tests {
             "label must be a single token: {label}"
         );
         assert_eq!(label, label.to_lowercase());
+    }
+
+    /// NIGHT-blade-4 contract: the license line exists as ONE
+    /// contiguous literal (LICENSE_LINE) — the release pipeline's
+    /// AVX-512 legs grep exactly those bytes out of `strings` on
+    /// artifacts whose baseline the runner cannot execute. The
+    /// literal is pinned verbatim here so a drifted line fails in
+    /// the unit run, not on a release day.
+    #[test]
+    fn license_line_is_the_contiguous_bytes_the_release_probe_greps() {
+        assert_eq!(LICENSE_LINE, "License: GPL-3.0-only");
     }
 
     /// NIGHT-hunt-6 contract: the version report carries the Build-time
