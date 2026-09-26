@@ -588,8 +588,12 @@ No root on your box (an agent sandbox, a locked-down laptop)? The
 zelynic sandbox (NIGHT-think-1) boots the same micro-VM CI uses,
 locally: root inside a throwaway kernel, no docker, no host changes,
 ~20 s rebuilds from a cache — `scripts/sandbox/zelynic-sandbox.sh
---battery` runs both engines in it, `--run` takes any root-requiring
-command, `--shell` drops into a root bash. The design, requirements,
+--smoke` is the one-click CLI depth battery (every verb, every guard,
+JSON surfaces, real policing, leak and security probes), `--battery`
+runs both supermassive engines in it, `--run` takes any
+root-requiring command, `--shell` drops into a root bash, and the
+kernel lane defaults to the newest Ubuntu LTS suite's kernel
+(NIGHT-blade-10). The design, requirements,
 and the verdict contract live in
 [docs/SANDBOX.md](docs/SANDBOX.md).
 

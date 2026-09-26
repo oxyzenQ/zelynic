@@ -15,11 +15,21 @@ runs (`.github/workflows/supermassive.yml`), but locally, from a
 cache, in seconds.
 
 ```bash
+scripts/sandbox/zelynic-sandbox.sh --smoke     # ONE CLICK: the full CLI depth battery, as root, in the VM
 scripts/sandbox/zelynic-sandbox.sh --battery   # both supermassive engines, as root, in the VM
 scripts/sandbox/zelynic-sandbox.sh --run <cmd> # any root-requiring command, in the VM
 scripts/sandbox/zelynic-sandbox.sh --shell     # interactive root bash on the VM console
 scripts/sandbox/zelynic-sandbox.sh --self-test # rootless preflight, no VM boot
 ```
+
+The `--smoke` battery (NIGHT-blade-10) is the one-command depth
+audit: every surface verb, the strict/block/unstrict matrix, the
+guards, the JSON documents, real policing on loopback (a 500kb cap
+vs the unlimited baseline), the leak probes (zero pins, zero
+`/run/zelynic` state, zero lingering processes after teardown) and
+the security probes (an unprivileged uid-65534 invocation must be
+refused cleanly, with zero partial application). One `SANDBOX-RESULT`
+row per surface, one verdict.
 
 ## What it is
 
@@ -27,12 +37,20 @@ scripts/sandbox/zelynic-sandbox.sh --self-test # rootless preflight, no VM boot
   no disk, serial console, `panic=-1 -no-reboot`, the
   `isa-debug-exit` device for deterministic shutdown — the CI VM's
   exact boot contract.
-- **The kernel lane**: `--kernel floor` (default) boots impish
-  5.13.0-52 — the documented minimum, the same lane as CI's
-  low-specs leg, resolved live from the frozen old-releases archive;
-  `--kernel latest` resolves the archive's newest generic kernel
-  (two newest suites, `-updates` included, `-proposed` excluded);
-  `--kernel PATH` boots your own vmlinuz.
+- **The kernel lane** (NIGHT-blade-10): `--kernel lts` (the default)
+  resolves the newest **Ubuntu LTS suite**'s kernel across its
+  `main` / `-updates` / `-security` pockets straight off the
+  archive's own `Version:` field (YY.04 with an even YY — the LTS
+  cadence, no hardcoded codename list to rot); `--kernel floor`
+  boots impish 5.13.0-* — the documented minimum, the same lane as
+  CI's low-specs leg, resolved live from the frozen old-releases
+  archive; `--kernel latest` resolves the archive's newest generic
+  kernel across the two newest suites by REAL release date (the
+  former string sort ranked "Thu, 23 Apr" above "Sat, 26 Sep", and
+  the former codename-based fetch 404'd on the devel suite — both
+  fixed); `--kernel PATH` boots your own vmlinuz. A cached
+  `vmlinuz-*` wins until the cache is cleared — delete
+  `~/.cache/zelynic-sandbox` to re-resolve a lane.
 - **The userland**: the ubuntu:22.04 base tarball (glibc 2.35 boots
   on any kernel >= 3.2 — the CI VM holds it constant on purpose so
   the kernel is the only variable), plus `python3` / `iproute2` /
@@ -46,7 +64,11 @@ scripts/sandbox/zelynic-sandbox.sh --self-test # rootless preflight, no VM boot
   binary beside it, `scripts/sandbox/sandbox-init.sh` becomes `/init`
   (PID 1: mounts `proc` / `sysfs` / `devtmpfs` / `cgroup2` / `bpffs`
   / `devpts`, brings up loopback, runs the packed payload, relays
-  the verdict).
+  the verdict). `--smoke` packs a one-liner payload that invokes the
+  tracked battery `scripts/sandbox/smoke-cli.sh`; `--run` packs the
+  rest of argv as ONE command line and refuses an empty one
+  (NIGHT-blade-10: the old empty `--run` packed a payload that ran
+  nothing and still reported PASS).
 - **The verdict contract**: `SANDBOX-RESULT` rows for the bring-up
   probes plus one final `SANDBOX-VERDICT: PASS|FAIL` line on the
   serial console — the exit code cannot cross qemu, the sentinel

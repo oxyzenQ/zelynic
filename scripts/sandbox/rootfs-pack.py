@@ -11,9 +11,10 @@ curl, python3, and git — no docker, no host root:
 
   * kernel: resolved dynamically from the archives (floor = the
     impish 5.13.0-* kernel on the frozen old-releases mirror, the
-    documented minimum; latest = the archive's newest generic
-    kernel across the two newest suites), extracted from the .deb
-    with a pure-python ar reader — no binutils needed.
+    documented minimum; lts = the newest Ubuntu LTS suite's kernel
+    across its main/updates/security pockets; latest = the archive's
+    newest generic kernel across the two newest suites), extracted
+    from the .deb with a pure-python ar reader — no binutils needed.
   * rootfs: the ubuntu:22.04 base tarball (glibc 2.35 boots on any
     kernel >= 3.2, the same userland the CI VM holds constant on
     purpose) plus python3 / iproute2 / curl provisioned by REAL
@@ -49,6 +50,7 @@ import sys
 import tarfile
 import tempfile
 import urllib.request
+from email.utils import parsedate_to_datetime
 
 UBUNTU_BASE_URL = "http://cdimage.ubuntu.com/ubuntu-base/releases/22.04/release/"
 UBUNTU_BASE_PINNED = "ubuntu-base-22.04.5-base-amd64.tar.gz"
@@ -77,7 +79,13 @@ def http_get_gz_text(url, timeout=120):
 
 
 def say(msg):
-    print(f"[sandbox-pack] {msg}", flush=True)
+    # Progress notes ride STDERR (NIGHT-blade-10): the entrypoint
+    # captures this script's stdout in a command substitution to get
+    # the vmlinuz/initrd PATH — a note on stdout pollutes the capture
+    # and the [ -f "$path" ] check dies on a multi-line string (the
+    # first-ever, uncached kernel resolution could never boot through
+    # the entrypoint; only warm caches hid it).
+    print(f"[sandbox-pack] {msg}", file=sys.stderr, flush=True)
 
 
 # ── ar archive reader (an ar file is a flat sequence of 60-byte ─────────────
@@ -199,11 +207,24 @@ def _newc_header(ino, mode, filesize, rdevmajor, rdevminor, namesize):
 
 
 def _newc_entry(out, ino, name, mode, data, rdevmajor=0, rdevminor=0):
-    """name is the archive path WITHOUT leading slash ('dev/console')."""
+    """name is the archive path WITHOUT leading slash ('dev/console').
+
+    NIGHT-blade-10 alignment fix: the newc spec pads the (header +
+    name) span to a 4-byte boundary — and the header is 110 bytes,
+    110 % 4 == 2, so the name padding must absorb the header's own
+    2-byte remainder. The former `(-len(raw)) % 4` pad aligned the
+    name alone; every entry whose name length left the true offset
+    misaligned shipped broken padding. Old kernels (the 5.13 floor
+    lane) tolerated it — the initramfs scanner just skips bad bytes
+    — but modern kernels (6.12+ strictness, the 7.0 LTS lane
+    included) FAIL the unpack: "Initramfs unpacking failed: broken
+    padding", PID 1 never runs, VFS panics on the missing root.
+    The data padding is correct as-is: with the span aligned, the
+    data starts 4-aligned."""
     raw = name.encode() + b"\x00"
     out.write(_newc_header(ino, mode, len(data), rdevmajor, rdevminor, len(raw)))
     out.write(raw)
-    out.write(b"\x00" * ((-len(raw)) % 4))
+    out.write(b"\x00" * ((-(110 + len(raw))) % 4))
     if data:
         out.write(data)
         out.write(b"\x00" * ((-len(data)) % 4))
@@ -240,7 +261,23 @@ def pack_initramfs(rootfs, out_path):
         rel_dir = os.path.relpath(dirpath, rootfs)
         for name in sorted(dirnames):
             rel = name if rel_dir == "." else f"{rel_dir}/{name}"
-            _newc_entry(buffer, ino, rel, 0o040755, b"")
+            full = os.path.join(dirpath, name)
+            if os.path.islink(full):
+                # NIGHT-blade-10: os.walk classifies a
+                # symlink-TO-A-DIRECTORY as a dirname (entry.is_dir()
+                # follows links), and emitting it as 040755 shipped
+                # an EMPTY directory — the usr-merge layout
+                # (/bin -> usr/bin, /lib -> usr/lib, /lib64 ->
+                # usr/lib64 in every modern ubuntu base) was deleted
+                # from the image, the dynamic linker vanished with
+                # /lib64, and PID 1 died "Failed to execute /init
+                # (error -2)" before a single line of init ran. The
+                # link itself is the entry; followlinks=False already
+                # guarantees the target tree is walked exactly once
+                # through its real parent.
+                _newc_entry(buffer, ino, rel, 0o120777, os.readlink(full).encode())
+            else:
+                _newc_entry(buffer, ino, rel, 0o040755, b"")
             emitted.add(rel)
             ino += 1
         for name in sorted(filenames):
@@ -337,13 +374,100 @@ def resolve_closure(index, roots):
     return ordered
 
 
-# ── kernel resolution ───────────────────────────────────────────────────────
+# ── kernel resolution (NIGHT-blade-10: archive-native end to end) ───────────
+#
+# The dists/ index names the pocket directories that actually exist,
+# and every Release file carries a Version: field — the LTS cadence
+# reads straight off it (YY.04 with an even YY, every time, by the
+# published cadence; the unreleased 'devel' alias is excluded by
+# name until release day). The former codename-based 'latest' path
+# 404'd whenever the devel suite led the date sort — its codename
+# has no dists/ directory until release — and the date sort itself
+# compared RFC-2822 strings, where the weekday prefix outranks the
+# calendar ("Thu, 23 Apr" sorts above "Sat, 26 Sep"). Both fixed.
+
+LTS_VERSION_RE = re.compile(r"^([0-9]{2})\.04$")
+DEVEL_ALIAS = "devel"
+
+
+def dists_suite_dirs():
+    """Every suite directory the archive exposes (base suites and
+    pockets alike — the directories are the fetchable truth)."""
+    dist = http_get_text(ARCHIVE_DIST, timeout=120)
+    return sorted({m for m in re.findall(r'href="([a-z0-9-]+)/"', dist)})
+
+
+def suite_meta(suite_dir):
+    """Version/Date from a suite's Release file; None when the suite
+    carries no Version field or the fetch fails (a dead pocket is a
+    skip, not a stop)."""
+    try:
+        rel = http_get_text(f"{ARCHIVE_DIST}{suite_dir}/Release", timeout=60)
+    except Exception:  # noqa: BLE001
+        return None
+    version = re.search(r"^Version: (.+)$", rel, re.M)
+    date = re.search(r"^Date: (.+)$", rel, re.M)
+    if not (version and date):
+        return None
+    try:
+        when = parsedate_to_datetime(date.group(1).strip())
+    except Exception:  # noqa: BLE001 - a malformed date is a skip
+        return None
+    return {"version": version.group(1).strip(), "date": when}
+
+
+def version_key(version):
+    """'26.04' -> (26, 4) for cadence-safe ordering; None when the
+    field is not a numeric YY.MM."""
+    try:
+        return tuple(int(x) for x in version.split("."))
+    except ValueError:
+        return None
+
+
+def kernel_candidates(text):
+    """(version_tuple, pool_filename) for every generic unsigned
+    kernel image in a Packages index stanza set."""
+    out = []
+    for stanza in re.split(r"\n\n+", text):
+        name = re.search(r"^Package: (.+)$", stanza, re.M)
+        if not name:
+            continue
+        match = LATEST_KERNEL_PKG_RE.match(name.group(1).strip())
+        if not match:
+            continue
+        filename = re.search(r"^Filename: (.+)$", stanza, re.M)
+        if not filename:
+            continue
+        out.append((tuple(int(x) for x in match.groups()), filename.group(1).strip()))
+    return out
+
+
+def resolve_kernel(suite_dir):
+    """The newest generic kernel across a suite's main, -updates and
+    -security pockets (-proposed excluded): the documented 'newest
+    kernel, updates included' contract, finally true in code."""
+    best = None
+    for pocket in (suite_dir, f"{suite_dir}-updates", f"{suite_dir}-security"):
+        try:
+            text = http_get_gz_text(
+                f"{ARCHIVE_DIST}{pocket}/main/binary-amd64/Packages.gz", timeout=300
+            )
+        except Exception as e:  # noqa: BLE001
+            say(f"  pocket {pocket} unreachable ({e}) — skipped")
+            continue
+        for cand in kernel_candidates(text):
+            if best is None or cand[0] > best[0]:
+                best = cand
+    return best
 
 
 def fetch_kernel(suite, cache):
     """Resolve + download + extract the vmlinuz for the suite; returns
     the cached path. floor = impish 5.13.0-* (the documented minimum,
-    a frozen archive); latest = the archive's newest generic kernel."""
+    a frozen archive); lts = the newest Ubuntu LTS suite's kernel
+    across its main/updates/security pockets; latest = the archive's
+    newest generic kernel across the two newest suites."""
     out = os.path.join(cache, f"vmlinuz-{suite}")
     if os.path.exists(out):
         return out
@@ -355,50 +479,60 @@ def fetch_kernel(suite, cache):
             raise SystemExit("no linux-image-unsigned-5.13.0-*-generic amd64 deb in the pool")
         deb_name = cands[-1]
         deb_url = OLD_RELEASES_LINUX_POOL + deb_name
-    elif suite == "latest":
-        say("resolving the archive's latest kernel (two newest suites)...")
-        dist = http_get_text(ARCHIVE_DIST)
-        suites = sorted({m for m in re.findall(r'href="([a-z0-9]+)/"', dist) if "-" not in m})
-        dated = []
-        for s in suites:
-            rel = http_get_text(f"{ARCHIVE_DIST}{s}/Release", timeout=60)
-            date = re.search(r"^Date: (.+)$", rel, re.M)
-            codename = re.search(r"^Codename: (.+)$", rel, re.M)
-            if date and codename:
-                dated.append((date.group(1), codename.group(1).strip()))
-        dated.sort(reverse=True)
-        newest = []
-        for _, codename in dated:
-            if codename not in newest:
-                newest.append(codename)
-            if len(newest) == 2:
-                break
-        if not newest:
-            raise SystemExit("no suite Release carried Date+Codename — archive restructure?")
-        say(f"newest suites: {', '.join(newest)}")
-        best = None
-        for codename in newest:
-            text = http_get_gz_text(
-                f"{ARCHIVE_DIST}{codename}/main/binary-amd64/Packages.gz", timeout=300
-            )
-            for stanza in re.split(r"\n\n+", text):
-                name = re.search(r"^Package: (.+)$", stanza, re.M)
-                if not name or not LATEST_KERNEL_PKG_RE.match(name.group(1).strip()):
+    elif suite in ("lts", "latest"):
+        dirs = dists_suite_dirs()
+        if suite == "lts":
+            lts = []
+            for d in dirs:
+                if "-" in d or d == DEVEL_ALIAS:
                     continue
-                version = re.search(r"^Version: (.+)$", stanza, re.M)
-                filename = re.search(r"^Filename: (.+)$", stanza, re.M)
-                if not (version and filename):
+                meta = suite_meta(d)
+                if not meta or not LTS_VERSION_RE.match(meta["version"]):
                     continue
-                key = tuple(
-                    int(x) for x in LATEST_KERNEL_PKG_RE.match(name.group(1).strip()).groups()
+                if int(LTS_VERSION_RE.match(meta["version"]).group(1)) % 2 != 0:
+                    continue
+                key = version_key(meta["version"])
+                if key:
+                    lts.append((key, d))
+            if not lts:
+                raise SystemExit(
+                    "no released Ubuntu LTS suite found (Version YY.04 with an even YY)"
                 )
-                if best is None or key > best[0]:
-                    best = (key, filename.group(1).strip())
-        if best is None:
-            raise SystemExit("no generic unsigned kernel image resolved across the newest suites")
+            lts.sort()
+            lts_dir = lts[-1][1]
+            say(f"lts lane: {lts_dir} (Ubuntu {suite_meta(lts_dir)['version']} LTS)")
+            best = resolve_kernel(lts_dir)
+            if best is None:
+                raise SystemExit(f"no generic unsigned kernel resolved for {lts_dir}")
+        else:
+            say("resolving the archive's latest kernel (two newest suites)...")
+            dated = []
+            for d in dirs:
+                if "-" in d:
+                    continue  # pockets ride along inside resolve_kernel
+                meta = suite_meta(d)
+                if meta:
+                    dated.append((meta["date"], d))
+            dated.sort(key=lambda x: x[0], reverse=True)
+            newest = []
+            for _, d in dated:
+                if d not in newest:
+                    newest.append(d)
+                if len(newest) == 2:
+                    break
+            if not newest:
+                raise SystemExit("no suite Release carried Date+Version — archive restructure?")
+            say(f"newest suites: {', '.join(newest)}")
+            best = None
+            for d in newest:
+                cand = resolve_kernel(d)
+                if cand is not None and (best is None or cand[0] > best[0]):
+                    best = cand
+            if best is None:
+                raise SystemExit("no generic unsigned kernel resolved across the newest suites")
         deb_url = ARCHIVE_POOL + best[1]
     else:
-        raise SystemExit(f"unknown suite: {suite} (floor|latest)")
+        raise SystemExit(f"unknown suite: {suite} (floor|lts|latest)")
     return _kernel_from_deb(deb_url, cache, out)
 
 
@@ -535,6 +669,11 @@ def parse_newc_for_test(data):
     """A minimal newc reader for the self-test round-trip."""
     entries, off = [], 0
     while off < len(data):
+        if off % 4:
+            # NIGHT-blade-10: the kernel's strict unpacker (6.12+)
+            # rejects exactly this — the round-trip parser must too,
+            # or a padding regression hides behind tolerant parsing.
+            raise ValueError(f"entry at offset {off} is not 4-aligned")
         hdr = data[off : off + 110]
         if hdr[:6] != b"070701":
             raise ValueError("bad magic")
@@ -543,7 +682,7 @@ def parse_newc_for_test(data):
         rdevmajor, rdevminor = fields[9], fields[10]
         namesize = fields[11]
         name = data[off + 110 : off + 110 + namesize - 1].decode()
-        off += 110 + namesize + ((-namesize) % 4)
+        off += 110 + namesize + ((-(110 + namesize)) % 4)
         filedata = data[off : off + filesize]
         off += filesize + ((-filesize) % 4)
         if name == "TRAILER!!!":
@@ -628,6 +767,14 @@ def self_test():
     try:
         os.makedirs(os.path.join(tree, "dir"))
         os.makedirs(os.path.join(tree, "emptydev"), exist_ok=True)
+        # A usr-merge-shaped pair: mergedbin is a symlink TO a
+        # directory (NIGHT-blade-10 — os.walk files link-dirs under
+        # dirnames; the walker must emit the SYMLINK, never an empty
+        # directory, or the image loses its dynamic-linker path).
+        os.makedirs(os.path.join(tree, "usrbin"), exist_ok=True)
+        with open(os.path.join(tree, "usrbin", "prog"), "w") as fh:
+            fh.write("x")
+        os.symlink("usrbin", os.path.join(tree, "mergedbin"))
         with open(os.path.join(tree, "file.txt"), "w") as fh:
             fh.write("payload")
         os.symlink("file.txt", os.path.join(tree, "link"))
@@ -636,7 +783,15 @@ def self_test():
         with gzip.open(out_gz, "rb") as fh:
             entries = parse_newc_for_test(fh.read())
         names = {e[0] for e in entries}
+        by_name = {e[0]: e for e in entries}
         dev = {e[0]: e for e in entries if e[0].startswith("dev/")}
+        check(
+            "symlinked directory rides as a symlink (usr-merge)",
+            by_name.get("mergedbin", (None, None, None))[1] == 0o120777
+            and by_name["mergedbin"][2] == b"usrbin"
+            and "usrbin/prog" in names,
+            "an empty dir here deleted /lib64 from real images",
+        )
         check(
             "pack_initramfs walks the tree into the archive",
             {"dir", "file.txt", "link"} <= names,
@@ -669,7 +824,7 @@ def main():
     ap = argparse.ArgumentParser(prog="rootfs-pack", description="the zelynic sandbox provisioner")
     sub = ap.add_subparsers(dest="cmd", required=True)
     k = sub.add_parser("kernel", help="resolve + fetch a vmlinuz into the cache")
-    k.add_argument("--suite", choices=["floor", "latest"], default="floor")
+    k.add_argument("--suite", choices=["floor", "lts", "latest"], default="lts")
     k.add_argument("--cache", required=True)
     i = sub.add_parser("initrd", help="build the gzipped newc initramfs")
     i.add_argument("--cache", required=True)
