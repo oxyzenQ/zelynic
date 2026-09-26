@@ -332,7 +332,7 @@ into a measured proof.
 | Policy/bucket/stats maps (pinned, weeks) | 1024 slots each, 256 group slots — reclaim on unstrict/recover keeps them proportional to LIVE policies | reclaim.rs (improve-10/lts-7); the endurance harness churns 300 cycles through the caps |
 | The userspace session ledger (a days-long ee session) | MAX_TRACKED_CGROUPS — the mirror of the kernel map ceiling; a cgroup the kernel never counted cannot rank | session.rs (boost-16), pinned in the render tests |
 | Identity/connection walks (TTL caches) | Rebuild-per-TTL — cache.clear() then a fresh /proc walk; dead cgroups cannot accumulate | identity/mod.rs, connections.rs refresh |
-| The diff engine's buffers | Swap-based, clear-and-refill per frame — allocation-stable, zero per-frame cloning | terminal/diff.rs |
+| The diff engine's buffers | Swap-based, clear-and-refill per frame — allocation-stable, zero per-frame cloning (NIGHT-blade-16 audited the whole pipeline against the cosmostrix reference and closed the last two per-frame allocations: the dirty flags and the run table now live in the screen, clear-and-refill like everything else) | terminal/diff.rs |
 | Raw fds (pidfd, pidfd_getfd) | Explicit close() with the re-entrancy-safe state machine; the local fd closed after each cookie read | connections.rs PidFd |
 | Child processes (terminal guard, rescue utils, update curl) | status()/output()/waitpid — no zombie can outlive its purpose | terminal/guard.rs, term_reset/mod.rs, update/mod.rs |
 | The monitor loop itself | Quiet death on a dead sink — a piped reader leaving ends the session instead of spinning forever holding root | run_loop (ultimate-2) |
