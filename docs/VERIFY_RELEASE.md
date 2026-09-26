@@ -119,6 +119,90 @@ The verification flow is identical for all four.
 depth — a future cryptanalytic break of any single family does not
 invalidate verification via the other two.
 
+## 4. crates.io channel (`cargo install zelynic`)
+
+NIGHT-ask-1 opened the crates.io distribution lane (cosmostrix
+crates-io.yml lineage). This section documents what the channel
+installs, how to verify it, and the owner's manual for the first
+publish — zelynic is a NEW crate on the registry, so the first upload
+creates the name and cannot be automated from a cold start.
+
+### What the channel installs — the dormant lane
+
+`cargo install zelynic` builds and installs the **dormant binary**:
+the stable-toolchain build without the `ebpf` feature. This is a
+structural fact of cargo, not a choice: the package walk auto-excludes
+nested packages — any directory carrying its own `Cargo.toml` — so the
+detached `ebpf/` workspace cannot ride a registry tarball (verified
+live on this manifest, including with `ebpf/*` entries in the
+manifest's `include` list; `include` does not override the rule).
+
+- The dormant binary answers `-V`, `--help`, and the non-eBPF
+  surfaces; every eBPF command exits with the honest guidance
+  (`eBPF not compiled into this build — tip: rebuild with 'cargo
+  build --features ebpf'`).
+- Requesting the ebpf lane from a registry source
+  (`cargo install zelynic --features ebpf`) fails fast in build.rs's
+  NIGHT-ask-1 preflight with the two real remedies: build from a git
+  checkout, or install the prebuilt flagship binary from GitHub
+  Releases (sections 1-2 above verify those).
+- The published ship set is curated by the manifest's `include`:
+  sources, the test tree, the full docs tree, the governance docs
+  (CLA / COMMERCIAL_LICENSE / TRADEMARK), and the one-command eBPF
+  bootstrap pair. CI, gates, harnesses, and assets stay repo-only.
+
+### Verifying a crates.io install
+
+- **Tarball integrity**: cargo itself verifies the crate tarball's
+  SHA-256 against the crates.io index before extraction — a swapped
+  mirror file fails before any code runs.
+- **Dependency tree**: the publish is `cargo publish --locked`, so
+  the published dependency set is exactly the tagged `Cargo.lock` —
+  the same tree every other CI job validated, and the registry
+  channel can never lag behind the GitHub Release (both trigger on
+  the same `v*` tag).
+- **Source revision**: build.rs's commit-sha chain (NIGHT-ask-1,
+  cosmostrix lineage) reads `.cargo_vcs_info.json` when no `.git`
+  directory exists, so a registry build's `zelynic -V` reports the
+  exact short sha the crate was packed from — not `unknown`.
+  Cross-check it against the tag on the GitHub Release page.
+
+### Owner manual — first publish (one-time)
+
+The crate name `zelynic` was unregistered at 2026-09-27 (verified
+against the live registry API). The first publish creates it.
+
+1. **Account**: sign in at <https://crates.io> with the GitHub
+   account (oxyzenQ), confirm the email address, and enable 2FA —
+   crates.io requires both before generating tokens.
+2. **API token**: Account Settings → API Tokens → Generate, scope
+   **publish-new** (enough to create the crate and upload versions;
+   not delete-existing).
+3. **CI lane (ongoing)**: add the token as the `CRATES_IO_TOKEN`
+   repository secret (repo Settings → Secrets and variables →
+   Actions). From then on every owner-pushed `v*` tag publishes via
+   `.github/workflows/crates-io.yml` — gated on the branch CI of the
+   exact SHA, idempotent against re-pushed tags.
+4. **Manual first publish** (do this once, from the tagged commit —
+   the workflow's own probe then reports "already published"):
+
+   ```bash
+   git checkout v11.0.0-beta.2            # the tag to publish
+   cargo login                            # paste the API token
+   cargo publish --locked --dry-run       # packs + verifies, no upload
+   cargo publish --locked                 # the irreversible upload
+   ```
+
+5. **Verify**: `curl -A "zelynic-release-check"
+   https://crates.io/api/v1/crates/zelynic` answers 200;
+   `cargo install zelynic --locked` in a clean environment succeeds;
+   `zelynic -V` reports the tagged short sha.
+6. **Recovery**: a bad version is `cargo yank --vers X.Y.Z` — yanked
+   versions stay resolvable for existing lockfiles but vanish from
+   new ones. crates.io never deletes a version; there is no re-upload
+   for the same number, which is why the tag/version match check and
+   the CI gate run before every upload.
+
 ## Verification tools required
 
 - `sha512sum` — GNU coreutils (preinstalled on every Linux)
