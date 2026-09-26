@@ -34,6 +34,49 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Added
 
+- **feat: NIGHT-blade-4 — the supermassive server depth phase: both
+  engines lead with the server shape, then the desktop matrix** —
+  the owner's ask: "support server depth stresstest, first server
+  mode, after passed continue to desktop/pc normal mode". A
+  production server carries a machine shape the desktop matrix
+  never probed, and both harnesses now pin it FIRST with a hard
+  gate: a server-stage FAIL skips the desktop leg entirely (SKIP
+  stays an honest environment verdict, never a gate failure). v1
+  (limiter scope) proves the limiter HOLDS under the server shape:
+  the report surfaces under the stripped headless environment
+  (PATH + TERM=dumb — no DISPLAY, no DBUS session, no XDG; doctor,
+  list-apps/status/eagle-eyes --depth JSON all answer identically),
+  a DENSE fleet (64 cgroups with residency-guaranteed sleepers —
+  list-apps censuses every member, ONE strict-multi write with a
+  512+-byte colon target polices all 64, every status row verified,
+  the band MEASURED on a sampled member, kernel drops proven),
+  DAEMONIZED traffic (setsid, no controlling terminal, stdin from
+  /dev/null, metrics to a file — the systemd-service stdio shape,
+  policed and measured), CONCURRENT report readers (8 parallel
+  status/list-apps JSON polls under active enforcement — the
+  monitoring-agent shape), and an orderly teardown (zero rows, zero
+  fleet cgroups). v2 (survival scope) proves the GUARDS survive the
+  same shape: a representative case subset re-runs under the
+  stripped env with every fd a pipe — the info surfaces, the
+  retired --info tipping --depth (the blade-4 removal, proven
+  headless), the removed eagle-eye redirect, the root-refusing
+  --check-update, the live TUI's piped-stdio refusal, and the ee
+  --depth error ladder — every invariant identical to the
+  inherited-env sweep. New flags on both engines: --server-only /
+  --desktop-only select one leg of the phase pair; the JSON output
+  gains a "phases" field while "mode" stays compatible
+  ("heavy"/"survival"). Engine plumbing: the cgroup-spawn helpers
+  grew path-based twins (spawn_in_cgroup_path /
+  spawn_bg_in_cgroup_path — the dense fleet's members are paths,
+  not named slots; the name-keyed wrappers delegate, the orphaned
+  popen_in_cgroup deleted per the zero-call-sites discipline), and
+  the self-tests pin the new pure helpers rootless (the headless
+  env's exact key set, the fleet path shape, the server case
+  list's 4-tuple contract). The CI micro-VM batteries
+  (supermassive-init.sh) pick the server-first order up
+  automatically — every push's low-specs and best-specs legs now
+  prove the server shape on the 5.13 floor and the latest head.
+
 - **feat: NIGHT-master-2 — Dual-licensing model: GPL-3.0-only +
   Commercial License (Individual $99/yr, Business $1K/yr, Company
   $9.9K/yr). See COMMERCIAL_LICENSE.md for details.** — the owner's
