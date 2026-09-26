@@ -115,6 +115,15 @@ impl super::Limiter {
         self.read_policies(direction)
     }
 
+    /// Read enforcement stats (public for the eagle-eyes --depth
+    /// accounting verdict, NIGHT-blade-5): the per-cgroup ledger the
+    /// kernel books under enforcement — packets/bytes allowed and
+    /// dropped. Same honest-read contract as every public reader
+    /// here: a failed map read propagates, never a fabricated zero.
+    pub fn read_stats_public(&self) -> Result<Vec<(u32, LimiterStatsRaw)>> {
+        self.read_stats()
+    }
+
     /// Borrow identity map.
     pub fn identity(&self) -> &crate::ebpf::identity::IdentityMap {
         &self.identity

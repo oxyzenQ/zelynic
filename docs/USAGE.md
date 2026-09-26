@@ -359,14 +359,22 @@ question a bare `cg:1234` row leaves open — WHAT is this:
   run from path:    /home/cat
   cgroup path:      /sys/fs/cgroup/cat-test
   enforcement:      limited — dl 100.0 KB/s · ul 100.0 KB/s
+  accounting:       1.4 GB let through, 6.2 MB dropped (0.44% of what arrived)
+  cgroup memory:    12.5 MB
+  cgroup cpu:       1m:2s
   time:             since started at 10m:20s ago
   command:          ./cat-test --serve
   ────────────────────────────────────────────────────────────────
-  pid     name                     type     perm  started  exe
-  1234    cat-test                 binary   755   10m:20s  /home/cat/cat-test
+  pid     name                 type    perm  thr  rss      started  exe
+  1234    cat-test             binary  755   4    1.3 MB   10m:20s  /home/cat/cat-test
   ────────────────────────────────────────────────────────────────
   sockets:
    curl (4242) → 142.250.185.78:443 tcp ESTABLISHED
+  ────────────────────────────────────────────────────────────────
+  act on this:
+   limit:  zelynic strict-single cg:1234 500kb
+   block:  zelynic block-single cg:1234
+   watch:  zelynic ee cg:1234
 ```
 
 The package name is the identity ladder (majority-vote comm, else
@@ -375,17 +383,38 @@ honestly `unknown`). The per-process census carries the type
 (binary or script: a shebang-launched script is classified by
 probing the first argv arguments after argv[0] for a `#!` source,
 because /proc/<pid>/exe always names the interpreter), the
-executable's permission bits, the exe path, and the start age —
-all best-effort per process (a member that exits mid-walk renders
-partial facts, never an error). argv and every readlink result are
-sanitized at the boundary the same way comm is
-(NIGHT-cybersecurity-1) — a hostile process cannot forge report
-lines. `--print-json` emits the whole report as one compact JSON
-document (see the JSON reference below):
+executable's permission bits, the thread count, the resident memory,
+the exe path, and the start age — all best-effort per process (a
+member that exits mid-walk renders partial facts, never an error).
+argv and every readlink result are sanitized at the boundary the
+same way comm is (NIGHT-cybersecurity-1) — a hostile process
+cannot forge report lines. `--print-json` emits the whole report as
+one compact JSON document (see the JSON reference below):
 
 ```bash
 sudo zelynic ee 12345 --depth --print-json | jq '.targets[0].procs[0]'
 ```
+
+NIGHT-blade-5 (the depth peak upgrade) sharpened the report three
+ways. A limited target now carries its enforcement ACCOUNTING — the
+kernel's own ledger (the cgroup_limiter_stats row), rendered as what
+got through versus what the limit killed, with the drop share of
+everything that arrived ("1.4 GB let through, 6.2 MB dropped (0.44%
+of what arrived)"); an enforced cgroup with no booked traffic yet
+says "enforced, nothing booked yet" instead of inventing zeroes. The
+cgroup CONTROLLER's own resource view rides the summary: resident
+memory from `memory.current` and accumulated CPU time from
+`cpu.stat`'s `usage_usec` — the two counters no /proc walk can
+reconstruct (memory.current includes page-cache and kernel-side
+charges; cpu.stat is the scheduler's accounting across every task
+that ever ran in the cgroup, the exited ones included). Both are
+best-effort: a cgroupv1-only host or an unresolvable path simply
+omits the rows. And every report block ends with the ACT-ON-THIS
+tail — three copy-paste commands (limit, block, watch) keyed to the
+exact `cg:` id the report just dissected, so the natural next step
+is one paste away for a newcomer while staying precise for an expert
+(the id round-trips through the same autodetection that resolved the
+target; the friendly name sits one line above for reading).
 
 Two honesty contracts ride the mode. The live-only `--interval`
 flag answers with exactly one stderr note (`--interval ignored

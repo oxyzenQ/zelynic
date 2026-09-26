@@ -73,8 +73,34 @@ pub struct CgroupDepth {
     /// The cgroup's v2 path relative to the mount ("/cat-test"), from
     /// the first member whose /proc/<pid>/cgroup line parsed.
     pub rel_path: Option<String>,
+    /// The cgroup controller's own resource facts (NIGHT-blade-5):
+    /// the two counters the v2 filesystem owns that no /proc walk
+    /// can give — resident memory and accumulated CPU time. Read
+    /// from the cgroup's own directory, best-effort (None when the
+    /// controller file is absent or unreadable — a cgroupv1-only
+    /// host, or a path the walker could not resolve).
+    pub resources: CgroupResources,
     /// Deep facts for every live member, ascending pid.
     pub procs: Vec<ProcessFacts>,
+}
+
+/// The cgroup v2 controller's own view of one cgroup (NIGHT-blade-5,
+/// the depth upgrade's resource layer). The per-process census
+/// answers "who runs here"; these two answer "what it costs the
+/// machine" — the controller's aggregated truth, not a sum the
+/// walker re-derives from members (a cgroup's memory.current
+/// includes page-cache and kernel-side charges no /proc read can
+/// reconstruct, and cpu.stat's usage_usec is the scheduler's own
+/// accounting across every task that ever ran in the cgroup,
+/// including the ones that already exited).
+#[derive(Debug, Clone, Default)]
+pub struct CgroupResources {
+    /// Resident memory in bytes from the controller's `memory.current`
+    /// (None when the file is absent or unreadable).
+    pub memory_current_bytes: Option<u64>,
+    /// Accumulated CPU time in microseconds from the controller's
+    /// `cpu.stat` `usage_usec` line (None unreadable).
+    pub cpu_usage_usec: Option<u64>,
 }
 
 /// Walk /proc once and collect deep facts for every process living in
@@ -103,7 +129,50 @@ pub fn deep_collect(cgroup_id: u32) -> CgroupDepth {
         }
         out.procs.push(process_facts(pid, hz, uptime, btime));
     }
+    // The controller's own resource view (NIGHT-blade-5) needs only
+    // the resolved path — a cgroup with live members but an
+    // unresolvable path still reports the census, just without the
+    // controller layer (best-effort, the family contract).
+    out.resources = cgroup_resources(out.rel_path.as_deref());
     out
+}
+
+/// Read the cgroup controller's own resource facts for one resolved
+/// v2 path (NIGHT-blade-5). Pure plumbing over two best-effort file
+/// reads; the parsers are pure and pinned separately.
+pub fn cgroup_resources(rel_path: Option<&str>) -> CgroupResources {
+    let Some(rel) = rel_path else {
+        return CgroupResources::default();
+    };
+    let dir = format!("/sys/fs/cgroup{rel}");
+    CgroupResources {
+        memory_current_bytes: fs::read_to_string(format!("{dir}/memory.current"))
+            .ok()
+            .and_then(|c| parse_memory_current(&c)),
+        cpu_usage_usec: fs::read_to_string(format!("{dir}/cpu.stat"))
+            .ok()
+            .and_then(|c| parse_cpu_usage_usec(&c)),
+    }
+}
+
+/// The controller's `memory.current` payload: one number, optional
+/// newline (pure).
+pub fn parse_memory_current(content: &str) -> Option<u64> {
+    content.trim().parse().ok()
+}
+
+/// The controller's `cpu.stat` payload: the `usage_usec <n>` line
+/// wins (pure). The file's exact shape is `usage_usec N` possibly
+/// followed by `user_usec`/`system_usec`/`nr_periods`/`nr_throttled`
+/// lines depending on kernel config — a `usage_usec` prefix match is
+/// the one stable contract across them all.
+pub fn parse_cpu_usage_usec(content: &str) -> Option<u64> {
+    for line in content.lines() {
+        if let Some(rest) = line.strip_prefix("usage_usec ") {
+            return rest.trim().parse().ok();
+        }
+    }
+    None
 }
 
 /// Resolve a user id to its account name from /etc/passwd content

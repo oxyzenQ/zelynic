@@ -439,9 +439,19 @@ pub enum Commands {
     /// pointing here). `zelynic ee cg:1234 --depth` prints the full
     /// report — package id and name, the user it runs as, the cgroup
     /// path, the enforcement verdict, the per-process census (type,
-    /// permissions, exe path, start time), and the live sockets —
-    /// then exits. No TUI, no interactive-stdio gate: pipe-friendly,
-    /// and `--print-json` emits the machine-readable document.
+    /// permissions, threads, memory, exe path, start time), and the
+    /// live sockets — then exits. No TUI, no interactive-stdio gate:
+    /// pipe-friendly, and `--print-json` emits the machine-readable
+    /// document.
+    ///
+    /// NIGHT-blade-5 (the depth peak upgrade): a limited target
+    /// carries its enforcement ACCOUNTING — what the kernel let
+    /// through and dropped, with the drop share; the cgroup
+    /// controller's own resource view (resident memory, accumulated
+    /// CPU time) rides the summary; the census shows per-process
+    /// thread counts and resident memory; and every block ends with
+    /// the act-on-this tail — copy-paste limit/block/watch commands
+    /// keyed to the exact cgroup the report just dissected.
     ///
     /// Examples:
     ///   zelynic eagle-eyes                        # all apps, ranked, q to quit
@@ -465,9 +475,11 @@ pub enum Commands {
 
         /// One-shot deep inspection (NIGHT-master-1): print the full
         /// report — package id/name, user, cgroup path, enforcement
-        /// state, the per-process census (type, permissions, exe
-        /// path, start time), live sockets — and exit. No TUI:
-        /// pipe-friendly, JSON-capable via --print-json.
+        /// state and its accounting ledger, the cgroup controller's
+        /// resource view, the per-process census (type, permissions,
+        /// threads, memory, exe path, start time), live sockets, and
+        /// the act-on-this tail — then exit. No TUI: pipe-friendly,
+        /// JSON-capable via --print-json.
         /// NIGHT-blade-4: the '--info' alias is retired — '--depth'
         /// is the only spelling (the vocabulary rescue redirects
         /// the old one here).
