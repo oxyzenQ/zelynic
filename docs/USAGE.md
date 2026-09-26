@@ -335,11 +335,13 @@ lines naming the processes and remote endpoints inside.
 
 ### eagle-eyes --depth — the one-shot deep inspection (NIGHT-master-1)
 
-The `--depth` flag (alias `--info`) turns the eagle into a report:
-`sudo zelynic ee cg:1234 --depth` prints everything zelynic knows
-about one target and exits. No TUI and no interactive-stdio gate —
-piped stdout is legal here (that refusal belongs to the live view
-above), so `zelynic ee 12345 --depth | less` works. The same
+The `--depth` flag turns the eagle into a report (the `--info`
+alias is retired in NIGHT-blade-4 — one spelling; typing the old
+flag lands on the `--depth` tip): `sudo zelynic ee cg:1234 --depth`
+prints everything zelynic knows about one target and exits. No TUI
+and no interactive-stdio gate — piped stdout is legal here (that
+refusal belongs to the live view above), so
+`zelynic ee 12345 --depth | less` works. The same
 '/'-separated target grammar and autodetection apply
 (`ee 12345/brave` prints one report per resolved cgroup; a name
 targeting several cgroups reports each), and the report answers the
@@ -987,8 +989,9 @@ Removed surfaces (`man`, `completions`, `unblock`, `-i`, `--live`,
 `--duration`, `--help-all`, and the NIGHT-boost-1 merge
 `observe`/`top` -> `eagle-eyes`) exit with a usage error on
 purpose — `--help` is the single reference. (`--info` returned at
-NIGHT-master-1 as the `eagle-eyes --depth` alias; the short `-i`
-stays retired.)
+NIGHT-master-1 as the `eagle-eyes --depth` alias and is retired
+again in NIGHT-blade-4 — `--depth` is the one spelling; the short
+`-i` stays retired.)
 
 **11. eagle-eyes tracks at most 4096 distinct cgroups.**
 The monitor's counter maps hold 4096 entries per direction (raised

@@ -157,7 +157,8 @@ pub(crate) fn print_help() {
     println_safe!("    One-shot deep inspection (NIGHT-master-1): --depth prints the");
     println_safe!("    full report — package id/name, user, cgroup path, enforcement,");
     println_safe!("    per-process census (type, perms, path, start time), sockets —");
-    println_safe!("    then exits. Pipe-friendly, --info is the alias spelling,");
+    println_safe!("    then exits. Pipe-friendly — --depth is the only spelling");
+    println_safe!("    (the --info alias is retired, NIGHT-blade-4);");
     println_safe!("    --print-json emits the machine-readable document.");
     example("all apps, ranked", "sudo zelynic eagle-eyes");
     example("one app, deep view", "sudo zelynic eagle-eyes brave");
