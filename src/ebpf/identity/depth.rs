@@ -22,6 +22,16 @@
 //! attacker-controlled exactly the way comm is, and /proc readlink
 //! results can carry control bytes in hostile filenames).
 //!
+//! NIGHT-blade-7 (the sharpness audit) tightened three boundaries
+//! here: the perm column now carries the special bits (a setuid-root
+//! binary renders "4755", not the anonymous "755" the 0o777 mask
+//! left); the exe readlink's " (deleted)" suffix is CAPTURED instead
+//! of stripped (a running binary whose on-disk file was replaced or
+//! removed is a first-class triage fact, not noise); and the argv
+//! shebang probe opens with O_NONBLOCK — a root-invoked report must
+//! never block on an attacker-controlled path (a FIFO planted in the
+//! target's cwd used to hang the whole one-shot walk).
+//!
 //! Time math (std-only, the build-stamp discipline): process start is
 //! /proc/<pid>/stat field 22 (clock ticks since boot) converted with
 //! the host's CLK_TCK; the elapsed age subtracts it from
@@ -49,8 +59,15 @@ pub struct ProcessFacts {
     pub state: String,
     pub threads: usize,
     pub rss_kb: u64,
-    /// Executable path from /proc/<pid>/exe (" (deleted)" stripped).
+    /// Executable path from /proc/<pid>/exe (clean of the kernel's
+    /// " (deleted)" suffix — the suffix itself rides `exe_deleted`).
     pub exe: Option<String>,
+    /// NIGHT-blade-7: the kernel appended " (deleted)" to the exe
+    /// readlink — the on-disk binary was replaced or removed after
+    /// the process started (a package upgrade mid-run, or a loader
+    /// that deleted itself). The suffix is stripped from `exe` for
+    /// path hygiene and surfaced here as the triage fact it is.
+    pub exe_deleted: bool,
     /// "binary" (ELF) or "script" (shebang probe) — None unreadable.
     pub kind: Option<&'static str>,
     /// The script source when kind is "script" via an interpreter.
@@ -189,6 +206,36 @@ pub fn user_name_from(passwd: &str, uid: u32) -> Option<String> {
     None
 }
 
+/// The display permission string for a st_mode value (pure,
+/// NIGHT-blade-7): three octal digits for the plain rwx bits, FOUR
+/// when any special bit is set — setuid 4755, setgid 2751, sticky
+/// 1755 — the same convention `stat`/`ls` use, because the special
+/// bits are exactly what a triage eye scans for and the old 0o777
+/// mask rendered a setuid-root binary as an anonymous "755".
+#[must_use]
+pub fn perm_string(mode: u32) -> String {
+    if mode & 0o7000 != 0 {
+        format!("{:o}", mode & 0o7777)
+    } else {
+        format!("{:o}", mode & 0o777)
+    }
+}
+
+/// Split a sanitized readlink result from its possible
+/// " (deleted)" suffix (pure, NIGHT-blade-7): the kernel appends the
+/// marker when the linked file was replaced or removed after the
+/// process started, so the marker is a FACT to carry, not formatting
+/// to discard. A path that legitimately ends in " (deleted)"
+/// indistinguishably reports true — the same ambiguity stat(2)
+/// carries, accepted and documented.
+#[must_use]
+pub fn split_deleted_suffix(link: &str) -> (String, bool) {
+    match link.strip_suffix(" (deleted)") {
+        Some(clean) => (clean.to_string(), true),
+        None => (link.to_string(), false),
+    }
+}
+
 /// The ELF magic test (pure slice predicate over a read magic head).
 fn is_elf(magic: &[u8]) -> bool {
     magic.starts_with(&[0x7f, b'E', b'L', b'F'])
@@ -291,20 +338,33 @@ pub fn classify_exe(
 
 /// A path's first bytes (at most 4) — the magic head for the ELF and
 /// shebang predicates. Best-effort: unreadable yields None.
+/// NIGHT-blade-7: the probe opens with O_NONBLOCK. The argv shebang
+/// classification feeds this function paths derived from
+/// ATTACKER-CONTROLLED argv while zelynic runs as root — a planted
+/// FIFO made the plain open block forever (open blocks until a
+/// writer appears), hanging the one-shot report. Nonblocking turns
+/// that into an immediate EAGAIN read miss: the FIFO is skipped, the
+/// walk never stalls. Regular files ignore O_NONBLOCK entirely, so
+/// the ELF/shebang probes are unchanged.
 fn read_magic(path: &str) -> Option<Vec<u8>> {
-    let mut file = fs::File::open(path).ok()?;
+    use std::os::unix::fs::OpenOptionsExt;
+    let mut file = fs::OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_NONBLOCK)
+        .open(path)
+        .ok()?;
     let mut head = [0u8; 4];
     let n = file.read(&mut head).ok()?;
     Some(head[..n].to_vec())
 }
 
-/// A sanitized readlink result (control bytes in hostile filenames
-/// never reach the report lines), " (deleted)" stripped.
-fn read_link_trimmed(path: &str) -> Option<String> {
+/// A sanitized readlink result with its " (deleted)" suffix split
+/// off (control bytes in hostile filenames never reach the report
+/// lines; the deletion marker rides the boolean, NIGHT-blade-7).
+fn read_link_split_deleted(path: &str) -> Option<(String, bool)> {
     let linked = fs::read_link(path).ok()?;
     let text = sanitize_comm(&linked.to_string_lossy());
-    let trimmed = text.strip_suffix(" (deleted)").unwrap_or(&text);
-    Some(trimmed.to_string())
+    Some(split_deleted_suffix(&text))
 }
 
 /// The host clock-tick rate (CLK_TCK). The sysconf fallback of 100
@@ -404,10 +464,18 @@ fn process_facts(pid: u32, hz: f64, uptime: Option<f64>, btime: Option<u64>) -> 
 
     let exe_link = format!("/proc/{pid}/exe");
     if let Ok(meta) = fs::metadata(&exe_link) {
-        facts.mode = Some(format!("{:o}", meta.mode() & 0o777));
+        // NIGHT-blade-7: the special bits ride along (setuid 4755,
+        // setgid 2751, sticky 1755) — a privilege-elevation binary
+        // must not hide behind the plain 0o777 mask.
+        facts.mode = Some(perm_string(meta.mode()));
     }
-    facts.exe = read_link_trimmed(&exe_link);
-    facts.cwd = read_link_trimmed(&format!("/proc/{pid}/cwd"));
+    let (exe, exe_deleted) =
+        read_link_split_deleted(&exe_link).map_or((None, false), |(p, d)| (Some(p), d));
+    facts.exe = exe;
+    facts.exe_deleted = exe_deleted;
+    // cwd's deletion marker carries no triage weight (a deleted cwd
+    // is common under /tmp launchers) — the path alone rides the facts.
+    facts.cwd = read_link_split_deleted(&format!("/proc/{pid}/cwd")).map(|(p, _)| p);
 
     if let Ok(raw) = fs::read(format!("/proc/{pid}/cmdline")) {
         let argv = cmdline_argv(&raw);

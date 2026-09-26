@@ -477,9 +477,10 @@ pub enum Commands {
         /// report — package id/name, user, cgroup path, enforcement
         /// state and its accounting ledger, the cgroup controller's
         /// resource view, the per-process census (type, permissions,
-        /// threads, memory, exe path, start time), live sockets, and
-        /// the act-on-this tail — then exit. No TUI: pipe-friendly,
-        /// JSON-capable via --print-json.
+        /// state, threads, memory, exe path — with the deleted-on-disk
+        /// marker and the special permission bits a triage eye scans
+        /// for), live sockets, and the act-on-this tail — then exit.
+        /// No TUI: pipe-friendly, JSON-capable via --print-json.
         /// NIGHT-blade-4: the '--info' alias is retired — '--depth'
         /// is the only spelling (the vocabulary rescue redirects
         /// the old one here).

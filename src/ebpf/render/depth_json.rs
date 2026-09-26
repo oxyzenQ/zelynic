@@ -19,6 +19,12 @@
 //! the document beside the policy verdict, so a script can answer
 //! "what did enforcement actually do to this cgroup" and "what does
 //! it cost the machine" without re-deriving either from /proc.
+//!
+//! NIGHT-blade-7 addition: each process row carries `exe_deleted`
+//! (additive, script-safe) — true when the kernel marked the exe
+//! readlink " (deleted)", the replaced-by-upgrade / self-deleting
+//! indicator a scripted triage pipeline wants as a boolean instead
+//! of parsing the text report's marker.
 
 use crate::ebpf::identity::depth::ProcessFacts;
 use crate::ebpf::limiter::LimiterStatsRaw;
@@ -38,6 +44,9 @@ pub struct ProcJson {
     pub threads: usize,
     pub rss_kb: u64,
     pub exe: Option<String>,
+    /// NIGHT-blade-7: the kernel marked this member's exe " (deleted)"
+    /// — the on-disk binary was replaced or removed after start.
+    pub exe_deleted: bool,
     pub kind: Option<&'static str>,
     pub script: Option<String>,
     pub permission: Option<String>,
@@ -183,6 +192,7 @@ pub fn depth_doc_json(reports: &[DepthReport], misses: &[(String, String)]) -> D
                     threads: p.threads,
                     rss_kb: p.rss_kb,
                     exe: p.exe.clone(),
+                    exe_deleted: p.exe_deleted,
                     kind: p.kind,
                     script: p.script.clone(),
                     permission: p.mode.clone(),

@@ -365,8 +365,8 @@ question a bare `cg:1234` row leaves open — WHAT is this:
   time:             since started at 10m:20s ago
   command:          ./cat-test --serve
   ────────────────────────────────────────────────────────────────
-  pid     name                 type    perm  thr  rss      started  exe
-  1234    cat-test             binary  755   4    1.3 MB   10m:20s  /home/cat/cat-test
+  pid     name                 type    perm  st  thr  rss      started  exe
+  1234    cat-test             binary  755   S   4    1.3 MB   10m:20s  /home/cat/cat-test
   ────────────────────────────────────────────────────────────────
   sockets:
    curl (4242) → 142.250.185.78:443 tcp ESTABLISHED
@@ -383,13 +383,14 @@ honestly `unknown`). The per-process census carries the type
 (binary or script: a shebang-launched script is classified by
 probing the first argv arguments after argv[0] for a `#!` source,
 because /proc/<pid>/exe always names the interpreter), the
-executable's permission bits, the thread count, the resident memory,
-the exe path, and the start age — all best-effort per process (a
-member that exits mid-walk renders partial facts, never an error).
-argv and every readlink result are sanitized at the boundary the
-same way comm is (NIGHT-cybersecurity-1) — a hostile process
-cannot forge report lines. `--print-json` emits the whole report as
-one compact JSON document (see the JSON reference below):
+executable's permission bits, the state letter, the thread count,
+the resident memory, the exe path, and the start age — all
+best-effort per process (a member that exits mid-walk renders
+partial facts, never an error). argv and every readlink result are
+sanitized at the boundary the same way comm is
+(NIGHT-cybersecurity-1) — a hostile process cannot forge report
+lines. `--print-json` emits the whole report as one compact JSON
+document (see the JSON reference below):
 
 ```bash
 sudo zelynic ee 12345 --depth --print-json | jq '.targets[0].procs[0]'
@@ -415,6 +416,24 @@ exact `cg:` id the report just dissected, so the natural next step
 is one paste away for a newcomer while staying precise for an expert
 (the id round-trips through the same autodetection that resolved the
 target; the friendly name sits one line above for reading).
+
+NIGHT-blade-7 (the sharpness audit) tightened what the census
+itself can tell a triage eye. The `perm` column carries the special
+bits — a setuid-root binary renders `4755`, not the anonymous `755`
+the plain-rwx mask left (the same four-digit convention `stat`
+uses). The new `st` column carries the /proc state letter (S
+sleeping, R running, D uninterruptible, Z zombie, T stopped) — a
+D-state or zombie member is a first-glance signal the readable table
+previously dropped while the JSON carried it. And a member whose
+on-disk binary was replaced or removed after it started (a package
+upgrade mid-run, a loader that deleted itself) keeps its exe path
+and gains the kernel's own ` (deleted)` marker, on the text cell and
+as the `exe_deleted` boolean in the JSON document — the marker is
+the triage fact, not formatting noise. Under the hood the same audit
+closed a hang: the argv shebang classification probe now opens with
+O_NONBLOCK, so a FIFO planted in a target's cwd can no longer stall
+the root-invoked report forever (an attacker-controlled argv path is
+probed, never trusted).
 
 Two honesty contracts ride the mode. The live-only `--interval`
 flag answers with exactly one stderr note (`--interval ignored
@@ -1139,14 +1158,18 @@ are complete):
 (multi-target specs only; a full miss exits 1 with the text error):
 
 ```json
-{"targets":[{"target":"cg:1234","cgroup_id":1234,"name":"cat-test","cgroup_path":"/sys/fs/cgroup/cat-test","uid":1000,"user":"cat","enforcement":"limited","download_bps":100000,"upload_bps":100000,"group_id":0,"oldest_started_secs":620,"processes":1,"socket_holders":1,"sockets":2,"procs":[{"pid":1234,"comm":"cat-test","uid":1000,"user":"cat","ppid":1,"state":"S (sleeping)","threads":4,"rss_kb":1234,"exe":"/home/cat/cat-test","kind":"binary","script":null,"permission":"755","cwd":"/home/cat","cmdline":"./cat-test --serve","started_ago_secs":620,"started_epoch":1758900000}],"endpoints":[{"pid":4242,"comm":"curl","proto":"tcp","remote":"142.250.185.78:443","state":"ESTABLISHED"}]}]}
+{"targets":[{"target":"cg:1234","cgroup_id":1234,"name":"cat-test","cgroup_path":"/sys/fs/cgroup/cat-test","uid":1000,"user":"cat","enforcement":"limited","download_bps":100000,"upload_bps":100000,"group_id":0,"oldest_started_secs":620,"processes":1,"socket_holders":1,"sockets":2,"procs":[{"pid":1234,"comm":"cat-test","uid":1000,"user":"cat","ppid":1,"state":"S (sleeping)","threads":4,"rss_kb":1234,"exe":"/home/cat/cat-test","exe_deleted":false,"kind":"binary","script":null,"permission":"755","cwd":"/home/cat","cmdline":"./cat-test --serve","started_ago_secs":620,"started_epoch":1758900000}],"endpoints":[{"pid":4242,"comm":"curl","proto":"tcp","remote":"142.250.185.78:443","state":"ESTABLISHED"}]}]}
 ```
 
 `enforcement` is `"unlimited"` | `"blocked"` | `"limited"`; an
 unlimited direction carries `null` bps, never a fabricated zero.
 `kind` is `"binary"` | `"script"` | `null` (unreadable), and a
 script row's `script` field carries the shebang source path the
-classifier found.
+classifier found. `exe_deleted` (NIGHT-blade-7) is true when the
+kernel marked the member's exe readlink ` (deleted)` — the on-disk
+binary was replaced or removed after the process started. The
+`permission` string carries the special bits the same way the text
+report does (`4755` for a setuid binary).
 
 `doctor --print-json` reports the capability check fields (kernel,
 cgroup v2, BPF fs, pins). Run it once to see the shape on your distro.
