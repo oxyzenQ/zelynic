@@ -99,16 +99,41 @@ Design:
     would otherwise be skipped as system apps. block-all is deliberately
     NOT exercised — blocking every app can sever the very session that
     runs the test.
+  * NIGHT-blade-4 — the SERVER phase runs FIRST, then the desktop
+    matrix (the owner's phase order; a server-stage FAIL gates the
+    desktop leg off). The server depth phase pins the machine shape a
+    production server carries: the report surfaces under a stripped
+    headless environment (PATH + TERM=dumb, no DISPLAY/DBUS/XDG), a
+    DENSE fleet (64 cgroups with resident sleepers — censused by
+    list-apps, policed by ONE strict-multi write, measured on a
+    sampled member), DAEMONIZED traffic (setsid, no controlling
+    terminal, metrics to a file — the systemd-service stdio shape),
+    CONCURRENT report readers (8 parallel status/list-apps JSON
+    polls under active enforcement — the monitoring-agent shape),
+    and an orderly teardown (zero rows, zero fleet cgroups).
+    --server-only runs the server phase alone; --desktop-only skips
+    it (the pre-blade-4 battery).
 
 Usage:
-  sudo ./scripts/supermassive/supermassive-test.sh              # supermassive (6+ min)
-  sudo ./scripts/supermassive/supermassive-test.sh --heavy      # the same, explicit
+  sudo ./scripts/supermassive/supermassive-test.sh              # server phase, then the desktop matrix (6+ min)
+  sudo ./scripts/supermassive/supermassive-test.sh --server-only # the server depth phase alone
+  sudo ./scripts/supermassive/supermassive-test.sh --desktop-only # the desktop matrix alone
+  sudo ./scripts/supermassive/supermassive-test.sh --heavy      # the default pair, explicit
   python3 scripts/supermassive/supermassive-test.py --self-test # engine smoke, no root
   sudo ./scripts/supermassive/supermassive-test.sh --binary ./zelynic
   sudo ./scripts/supermassive/supermassive-test.sh --json
 
 What it verifies (verdicts PASS / FAIL / SKIP, exit 1 on any FAIL):
-  the matrix: env + minimum specs, doctor, list-apps JSON, baseline,
+  the server phase (NIGHT-blade-4, runs FIRST): headless report
+         surfaces (doctor, list-apps/status/eagle-eyes --depth JSON
+         under PATH + TERM=dumb only), dense fleet census (64
+         cgroups, every member a list-apps row), one strict-multi
+         write policing all 64 (rows verified, band MEASURED on a
+         sampled member, kernel drops engaged), daemonized traffic
+         policed (setsid, no ctty, metric to a file), 8 concurrent
+         report readers under enforcement, zero-row zero-cgroup
+         teardown — then, only on a green server phase, the desktop
+         matrix: env + minimum specs, doctor, list-apps JSON, baseline,
          strict-single policy write, status human + JSON surfaces,
          the live rate change 1mb -> 2mb under an active policy (both
          rungs MEASURED, not just re-read from the status row), the
@@ -142,6 +167,7 @@ import sys
 import tempfile
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 
 # The shared engine lib lives in scripts/lib/ — bound by ABSOLUTE path so
 # the harness works from any CWD, through the wrapper, or via importlib
@@ -767,21 +793,6 @@ def curl_upload_in_cgroup(name, window):
     return spawn_in_cgroup(name, curl_upload_cmd(window), window + 25)
 
 
-def popen_in_cgroup(name, argv):
-    """Popen argv through a helper bash that first moves ITSELF into
-    dedicated cgroup `name` and then execs — the exec keeps the same
-    PID, so the process (and every socket it creates afterwards) is
-    attributed to the target cgroup before any network happens.
-    """
-    script = f'echo $$ > "{CG.paths[name]}/cgroup.procs"\nexec "$@"'
-    return subprocess.Popen(
-        ["bash", "-c", script, "worker"] + argv,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL,
-        text=True,
-    )
-
-
 def _note_worker_fault(err):
     """File one distinct worker failure, counted (NIGHT-improve-13).
 
@@ -809,18 +820,18 @@ def report_worker_faults():
         out(f"  {count}x {msg}")
 
 
-def spawn_in_cgroup(name, argv, timeout):
-    """Run argv to completion inside cgroup `name`; returns (metric, err).
-
-    Worker faults are ALSO filed into WORKER_FAULTS (NIGHT-improve-13)
-    so a broken engine reads as "worker faults" in the final report,
-    not as a matrix of clean-looking 0 B/s rows. Unexpected spawn
-    exceptions — e.g. a null byte smuggled into an argv element —
-    still RAISE: unknown bugs crash loudly into main's handler instead
-    of silently zeroing the matrix.
-    """
+def spawn_in_cgroup_path(path, argv, timeout):
+    """spawn_in_cgroup's completion contract keyed by cgroup PATH
+    (NIGHT-blade-4: the server fleet's dense members are paths, not
+    named fleet slots)."""
+    script = f'echo $$ > "{path}/cgroup.procs"\nexec "$@"'
     try:
-        p = popen_in_cgroup(name, argv)
+        p = subprocess.Popen(
+            ["bash", "-c", script, "worker"] + argv,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+        )
     except OSError as e:
         _note_worker_fault(f"spawn {os.path.basename(argv[0])}: {e}")
         return None, str(e)
@@ -839,22 +850,25 @@ def spawn_in_cgroup(name, argv, timeout):
         return None, "worker did not finish"
 
 
-def spawn_bg_in_cgroup(name, argv, settle_timeout=5.0):
-    """Resident process (sleepers) inside cgroup `name`, residency-guaranteed.
+def spawn_in_cgroup(name, argv, timeout):
+    """Run argv to completion inside cgroup `name`; returns (metric, err).
 
-    Returns the Popen handle once the child has (1) joined the target
-    cgroup (its pid appears in the cgroup's cgroup.procs) and (2) finished
-    exec (/proc/<pid>/comm equals the final argv[0] basename), or None when
-    the child died or never settled within settle_timeout seconds (killed
-    first, so a failed spawn leaks nothing). The barrier closes the
-    spawn/strict-all race the 2026-09-22 heavy run exposed: strict-all walks
-    /proc twice (the identity tally, then per-name resolution after the
-    BPF attach), and a bash child caught between its cgroup.procs echo and
-    its exec resolves as "bash" in the first walk and as nothing in the
-    second — the fleet cgroups then miss the machine-wide sweep entirely
-    and the row check reports a mystery None.
+    Worker faults are ALSO filed into WORKER_FAULTS (NIGHT-improve-13)
+    so a broken engine reads as "worker faults" in the final report,
+    not as a matrix of clean-looking 0 B/s rows. Unexpected spawn
+    exceptions — e.g. a null byte smuggled into an argv element —
+    still RAISE: unknown bugs crash loudly into main's handler instead
+    of silently zeroing the matrix.
     """
-    script = f'echo $$ > "{CG.paths[name]}/cgroup.procs"\nexec "$@"'
+    return spawn_in_cgroup_path(CG.paths[name], argv, timeout)
+
+
+def spawn_bg_in_cgroup_path(path, argv, settle_timeout=5.0):
+    """spawn_bg_in_cgroup's residency barrier, keyed by cgroup PATH
+    instead of fleet name (NIGHT-blade-4: the server fleet's dense
+    members are paths, not named fleet slots — the same barrier, the
+    same guarantees, one lower-level entry point)."""
+    script = f'echo $$ > "{path}/cgroup.procs"\nexec "$@"'
     proc = subprocess.Popen(
         ["bash", "-c", script, "worker"] + argv,
         stdout=subprocess.DEVNULL,
@@ -862,7 +876,7 @@ def spawn_bg_in_cgroup(name, argv, settle_timeout=5.0):
     )
     # The kernel truncates comm to TASK_COMM_LEN-1 = 15 characters.
     want_comm = os.path.basename(argv[0])[:15]
-    procs_file = f"{CG.paths[name]}/cgroup.procs"
+    procs_file = f"{path}/cgroup.procs"
     comm_file = f"/proc/{proc.pid}/comm"
     deadline = time.monotonic() + settle_timeout
     while time.monotonic() < deadline:
@@ -884,6 +898,24 @@ def spawn_bg_in_cgroup(name, argv, settle_timeout=5.0):
     proc.kill()
     proc.wait()
     return None
+
+
+def spawn_bg_in_cgroup(name, argv, settle_timeout=5.0):
+    """Resident process (sleepers) inside cgroup `name`, residency-guaranteed.
+
+    Returns the Popen handle once the child has (1) joined the target
+    cgroup (its pid appears in the cgroup's cgroup.procs) and (2) finished
+    exec (/proc/<pid>/comm equals the final argv[0] basename), or None when
+    the child died or never settled within settle_timeout seconds (killed
+    first, so a failed spawn leaks nothing). The barrier closes the
+    spawn/strict-all race the 2026-09-22 heavy run exposed: strict-all walks
+    /proc twice (the identity tally, then per-name resolution after the
+    BPF attach), and a bash child caught between its cgroup.procs echo and
+    its exec resolves as "bash" in the first walk and as nothing in the
+    second — the fleet cgroups then miss the machine-wide sweep entirely
+    and the row check reports a mystery None.
+    """
+    return spawn_bg_in_cgroup_path(CG.paths[name], argv, settle_timeout)
 
 
 def curl_in_cgroup(name, window):
@@ -994,6 +1026,507 @@ def enforcement_proofs(label, got_bytes, name="a"):
                 "loopback GSO granularity at this rate; the kernel drops "
                 "above are the enforcement proof",
             )
+
+
+# ── NIGHT-blade-4: the server depth phase ──────────────────────────────────
+#
+# The owner's phase order: SERVER FIRST, then the desktop matrix. A
+# production server carries a shape the desktop matrix never probes:
+# no desktop session environment (no DISPLAY, no DBUS session bus, no
+# XDG variables — TERM=dumb at best, often no TERM at all), a DENSE
+# cgroup population (systemd services, container scopes, per-job
+# runners — dozens to hundreds of live cgroups, not the a..e five),
+# workloads that are DAEMONS (new session, no controlling terminal,
+# metrics to a file, not a tty), and monitoring agents POLLING the
+# report surfaces concurrently. Every stage below pins one of those
+# server facts; a machine that cannot hold the server shape never
+# reaches the desktop matrix (run_server_phase is the gate).
+
+
+SERVER_FLEET_N = 64
+SERVER_FLEET_PREFIX = "zelynic-server-fleet"
+
+
+def server_headless_env():
+    """The stripped environment a real server carries (NIGHT-blade-4):
+    PATH and TERM=dumb, nothing else — no DISPLAY, no DBUS session
+    bus, no XDG desktop variables, no locale. Pure so the self-test
+    pins the shape rootlessly; every surface that renders or reports
+    must behave identically under it."""
+    return {
+        "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
+        "TERM": "dumb",
+    }
+
+
+def run_zel_headless(args, timeout=30):
+    """run_zel under the stripped server environment — the report
+    surfaces must answer identically when the desktop is absent."""
+    try:
+        p = subprocess.run(
+            [lib.BINARY] + args,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            stdin=subprocess.DEVNULL,
+            env=server_headless_env(),
+        )
+        return p.returncode, p.stdout, p.stderr
+    except subprocess.TimeoutExpired:
+        return 124, "", f"timeout after {timeout}s"
+    except OSError as e:
+        return 127, "", str(e)
+
+
+class ServerFleet:
+    """The dense server population: SERVER_FLEET_N cgroups each holding
+    one resident sleeper — the machine shape a production server
+    carries (services, container scopes, per-job runners). list-apps
+    must census every member, ONE strict-multi write must police the
+    whole population at once, and the teardown must leave zero rows
+    and zero cgroups. Dedicated-cgroup only: the session-cgroup
+    fallback cannot create members, so the dense stages SKIP there
+    (honestly, never silently)."""
+
+    def __init__(self, count=SERVER_FLEET_N):
+        self.count = count
+        self.paths = []
+        self.ids = []
+        self.sleepers = []
+
+    def setup(self):
+        """Create the fleet with residency-guaranteed sleepers; every
+        member settles or the fleet reports how many did not (a
+        half-populated fleet would read as a census bug in zelynic,
+        not in the harness)."""
+        self.paths = [f"{CGROUP_ROOT}/{SERVER_FLEET_PREFIX}-{i:02d}" for i in range(self.count)]
+        for path in self.paths:
+            os.mkdir(path)
+        self.ids = [CgroupSet._read_id(p) for p in self.paths]
+        if any(i is None for i in self.ids):
+            return False
+        self.sleepers = [spawn_bg_in_cgroup_path(p, ["sleep", "600"]) for p in self.paths]
+        return all(s is not None for s in self.sleepers)
+
+    def teardown(self):
+        """Unstrict the fleet, kill the sleepers, remove the cgroups —
+        the server leaves no trace (the crash-family teardown in v2
+        owns the violence; this is the orderly exit)."""
+        if self.ids:
+            run_zel(["unstrict-multi", ":".join(str(i) for i in self.ids)])
+        for s in self.sleepers:
+            if s is not None:
+                s.kill()
+        for s in self.sleepers:
+            if s is not None:
+                try:
+                    s.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    pass
+        for path in self.paths:
+            for _ in range(3):
+                if not os.path.isdir(path):
+                    break
+                try:
+                    os.rmdir(path)
+                    break
+                except OSError:
+                    time.sleep(0.3)
+        return not any(os.path.isdir(p) for p in self.paths)
+
+
+FLEET = None
+
+
+def stage_server_headless():
+    """Server fact 1: the report surfaces answer identically under the
+    stripped headless environment — doctor, list-apps JSON, status
+    JSON, and the eagle-eyes one-shot depth report on a live cgroup,
+    none of them conditioned on a desktop session."""
+    out()
+    out("━━━ server depth: headless environment discipline ━━━")
+    ok = True
+    rc, stdout, stderr = run_zel_headless(["doctor"])
+    ok = (
+        record(
+            "server: doctor runs headless (PATH + TERM=dumb only)",
+            "PASS" if rc == 0 else "FAIL",
+            f"exit {rc}: {(stderr or stdout).strip()[:100]}",
+        )
+        == "PASS"
+        and ok
+    )
+    rc, stdout, _ = run_zel_headless(["list-apps", "--print-json"])
+    doc = None
+    if rc == 0:
+        try:
+            doc = json.loads(stdout)
+        except json.JSONDecodeError:
+            doc = None
+    ok = (
+        record(
+            "server: list-apps --print-json parses headless",
+            "PASS" if doc is not None else "FAIL",
+            f"exit {rc}, {doc.get('total', '-') if doc else 'no JSON'} apps",
+        )
+        == "PASS"
+        and ok
+    )
+    rc, stdout, _ = run_zel_headless(["status", "--print-json"])
+    doc = None
+    if rc == 0:
+        try:
+            doc = json.loads(stdout)
+        except json.JSONDecodeError:
+            doc = None
+    ok = (
+        record(
+            "server: status --print-json parses headless",
+            "PASS" if doc is not None else "FAIL",
+            f"exit {rc}",
+        )
+        == "PASS"
+        and ok
+    )
+    # The one-shot depth report on the harness's own hq cgroup (the
+    # python process is its resident, so the census always finds one).
+    if CG.dedicated:
+        rc, stdout, _ = run_zel_headless(
+            ["eagle-eyes", f"cg:{CG.ids['hq']}", "--depth", "--print-json"]
+        )
+        doc = None
+        if rc == 0:
+            try:
+                doc = json.loads(stdout)
+            except json.JSONDecodeError:
+                doc = None
+        ok = (
+            record(
+                "server: eagle-eyes --depth --print-json answers headless",
+                "PASS" if doc is not None else "FAIL",
+                f"exit {rc} on cg:{CG.ids['hq']}",
+            )
+            == "PASS"
+            and ok
+        )
+    else:
+        record(
+            "server: eagle-eyes --depth --print-json answers headless",
+            "SKIP",
+            "session-cgroup fallback — the hq cgroup id is not a target here",
+        )
+    return ok
+
+
+def stage_server_dense_fleet():
+    """Server fact 2: the dense population — 64 cgroups with resident
+    sleepers, and list-apps censuses EVERY one (the 4096 map cap is
+    the documented ceiling; 64 proves the density walk, not the cap)."""
+    global FLEET
+    out()
+    out(f"━━━ server depth: dense fleet ({SERVER_FLEET_N} cgroups) ━━━")
+    if not CG.dedicated:
+        record(
+            f"server: dense fleet census ({SERVER_FLEET_N} cgroups)",
+            "SKIP",
+            "session-cgroup fallback — dedicated cgroups not creatable",
+        )
+        return False
+    FLEET = ServerFleet()
+    if not FLEET.setup():
+        settled = sum(1 for s in FLEET.sleepers if s is not None)
+        record(
+            f"server: dense fleet census ({SERVER_FLEET_N} cgroups)",
+            "FAIL",
+            f"residency barrier failed: {settled}/{SERVER_FLEET_N} sleepers settled",
+        )
+        FLEET.teardown()
+        FLEET = None
+        return False
+    rc, stdout, _ = run_zel(["list-apps", "--print-json"])
+    census = None
+    if rc == 0:
+        try:
+            census = json.loads(stdout)
+        except json.JSONDecodeError:
+            census = None
+    if census is None:
+        record(
+            f"server: dense fleet census ({SERVER_FLEET_N} cgroups)",
+            "FAIL",
+            f"list-apps exit {rc}, no JSON",
+        )
+        return False
+    seen = {row.get("cgroup_id") for row in census.get("apps", [])}
+    missing = [i for i in FLEET.ids if i not in seen]
+    return (
+        record(
+            f"server: dense fleet census ({SERVER_FLEET_N} cgroups)",
+            "PASS" if not missing else "FAIL",
+            f"{SERVER_FLEET_N - len(missing)}/{SERVER_FLEET_N} fleet rows in list-apps"
+            + (f", missing: {missing[:5]}..." if missing else ""),
+        )
+        == "PASS"
+    )
+
+
+def stage_server_dense_policy():
+    """Server fact 3: ONE policy write polices the whole dense
+    population — strict-multi with a 64-target colon spec (the argv
+    scale alone is server-shaped: 512+ bytes of target string), every
+    member's status row verified, and the enforcement MEASURED on a
+    sampled member (a row on every cgroup is bookkeeping; a measured
+    band on one is physics)."""
+    if FLEET is None:
+        record(
+            "server: dense strict-multi policy (one write, 64 targets)",
+            "SKIP",
+            "fleet absent (census skipped)",
+        )
+        return False
+    out()
+    out("━━━ server depth: one strict-multi write across the fleet ━━━")
+    target = ":".join(str(i) for i in FLEET.ids)
+    rc, stdout, stderr = run_zel(["strict-multi", target, "2mb"], timeout=60)
+    if rc != 0:
+        record(
+            "server: dense strict-multi policy (one write, 64 targets)",
+            "FAIL",
+            f"exit {rc}: {(stderr or stdout).strip()[:200]}",
+        )
+        return False
+    doc = status_json()
+    if doc is None:
+        record(
+            "server: dense strict-multi policy (one write, 64 targets)",
+            "FAIL",
+            "status JSON unreadable after the write",
+        )
+        return False
+    wrong = [
+        FLEET.ids[i]
+        for i, entry in enumerate([limit_entry(doc, cid) for cid in FLEET.ids])
+        if entry is None
+        or entry.get("download_bps") != 2_000_000
+        or entry.get("upload_bps") != 2_000_000
+    ]
+    ok = (
+        record(
+            "server: dense strict-multi policy (one write, 64 targets)",
+            "PASS" if not wrong else "FAIL",
+            f"{SERVER_FLEET_N - len(wrong)}/{SERVER_FLEET_N} rows at 2mb/2mb"
+            + (f", wrong: {wrong[:5]}..." if wrong else ""),
+        )
+        == "PASS"
+    )
+    # The measured sample: one fleet member's download under the
+    # shared 2mb bucket, plus the kernel-side drop proof.
+    time.sleep(0.5)
+    metric, err = spawn_in_cgroup_path(
+        FLEET.paths[0],
+        [sys.executable, "-c", _PY_DL_CLIENT, str(SERVER.port), "4.0"],
+        24,
+    )
+    got = metric or 0
+    ok = (
+        band_check("server: dense policy enforced (sampled member)", got / 4.0, 2_000_000) == "PASS"
+        and ok
+    )
+    entry = limit_entry(status_json(), FLEET.ids[0])
+    dropped = entry.get("packets_dropped", 0) if entry else 0
+    ok = (
+        record(
+            "server: dense policy drops in kernel (sampled member)",
+            "PASS" if dropped > 0 else "FAIL",
+            f"{dropped} packets dropped under the shared bucket",
+        )
+        == "PASS"
+        and ok
+    )
+    return ok
+
+
+def stage_server_daemon_traffic():
+    """Server fact 4: a DAEMONIZED workload is policed — the worker
+    runs in its own session (setsid, no controlling terminal), stdin
+    from /dev/null, metrics to a FILE (not a tty): the exact stdio
+    shape a systemd service or container entrypoint carries. The
+    limit is applied BEFORE the daemon spawns, the daemon moves
+    itself into the member cgroup before its first socket, and the
+    measured band proves enforcement bites on session-less traffic."""
+    if FLEET is None:
+        record(
+            "server: daemon traffic policed (setsid, no ctty)",
+            "SKIP",
+            "fleet absent (census skipped)",
+        )
+        return False
+    out()
+    out("━━━ server depth: daemonized traffic under a limit ━━━")
+    rc, stdout, stderr = run_zel(["strict-single", str(FLEET.ids[1]), "1mb"])
+    if rc != 0:
+        record(
+            "server: daemon traffic policed (setsid, no ctty)",
+            "FAIL",
+            f"strict-single exit {rc}: {(stderr or stdout).strip()[:200]}",
+        )
+        return False
+    time.sleep(0.5)
+    # The daemon: new session, no tty on any fd, metric to a file.
+    script = f'echo $$ > "{FLEET.paths[1]}/cgroup.procs"\nexec "$@"'
+    metric_file = tempfile.NamedTemporaryFile(delete=False, suffix=".metric")
+    metric_file.close()
+    try:
+        with open(metric_file.name, "w") as sink:
+            daemon = subprocess.Popen(
+                ["bash", "-c", script, "daemon"]
+                + [sys.executable, "-c", _PY_DL_CLIENT, str(SERVER.port), "4.0"],
+                stdin=subprocess.DEVNULL,
+                stdout=sink,
+                stderr=subprocess.DEVNULL,
+                start_new_session=True,
+            )
+            try:
+                daemon.wait(timeout=24)
+            except subprocess.TimeoutExpired:
+                daemon.kill()
+                daemon.wait()
+                record(
+                    "server: daemon traffic policed (setsid, no ctty)",
+                    "FAIL",
+                    "daemon never finished (worker did not report)",
+                )
+                return False
+        with open(metric_file.name, encoding="utf-8") as fh:
+            lines = [ln for ln in fh.read().splitlines() if ln.strip()]
+        got = int(lines[-1]) if lines else 0
+    finally:
+        os.unlink(metric_file.name)
+    ok = (
+        band_check("server: daemon traffic policed (setsid, no ctty)", got / 4.0, 1_000_000)
+        == "PASS"
+    )
+    entry = limit_entry(status_json(), FLEET.ids[1])
+    dropped = entry.get("packets_dropped", 0) if entry else 0
+    ok = (
+        record(
+            "server: daemon traffic drops in kernel",
+            "PASS" if dropped > 0 else "FAIL",
+            f"{dropped} packets dropped, daemon session detached from any tty",
+        )
+        == "PASS"
+        and ok
+    )
+    run_zel(["unstrict-single", str(FLEET.ids[1])])
+    return ok
+
+
+def stage_server_parallel_readers():
+    """Server fact 5: monitoring agents POLL concurrently — the report
+    surfaces must stay coherent under parallel readers (the flock
+    guards enforcement verbs; the read surfaces must never block or
+    garble). Four members stay limited while eight concurrent
+    status/list-apps JSON readers all exit 0 and parse."""
+    if FLEET is None:
+        record(
+            "server: parallel report readers (8x concurrent)",
+            "SKIP",
+            "fleet absent (census skipped)",
+        )
+        return False
+    out()
+    out("━━━ server depth: concurrent report readers under load ━━━")
+    subset = FLEET.ids[:4]
+    rc, _, _ = run_zel(["strict-multi", ":".join(str(i) for i in subset), "2mb"])
+    if rc != 0:
+        record(
+            "server: parallel report readers (8x concurrent)",
+            "FAIL",
+            f"strict-multi on 4 members exit {rc}",
+        )
+        return False
+    readers = [
+        ["status", "--print-json"] if i % 2 else ["list-apps", "--print-json"] for i in range(8)
+    ]
+
+    def _reader_job(argv):
+        r, s, _ = run_zel(argv, timeout=30)
+        if r != 0:
+            return False
+        try:
+            json.loads(s)
+            return True
+        except json.JSONDecodeError:
+            return False
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        results = list(pool.map(_reader_job, readers))
+    good = sum(1 for r in results if r)
+    doc = status_json()
+    rows = sum(1 for i in subset if limit_entry(doc, i) is not None) if doc else 0
+    ok = (
+        record(
+            "server: parallel report readers (8x concurrent)",
+            "PASS" if good == 8 else "FAIL",
+            f"{good}/8 readers exited 0 with parseable JSON, {rows}/4 limit rows coherent",
+        )
+        == "PASS"
+    )
+    run_zel(["unstrict-multi", ":".join(str(i) for i in subset)])
+    return ok
+
+
+def stage_server_teardown():
+    """Server fact 6: the fleet leaves nothing — unstrict-multi drops
+    every row, the sleepers die, the cgroups vanish, and the pin
+    state is exactly what the desktop matrix expects to inherit."""
+    global FLEET
+    if FLEET is None:
+        record(
+            "server: dense fleet teardown (zero rows, zero cgroups)",
+            "SKIP",
+            "fleet absent (census skipped)",
+        )
+        return False
+    out()
+    out("━━━ server depth: teardown ━━━")
+    clean = FLEET.teardown()
+    doc = status_json()
+    rows = sum(1 for i in FLEET.ids if limit_entry(doc, i) is not None) if doc else len(FLEET.ids)
+    ok = (
+        record(
+            "server: dense fleet teardown (zero rows, zero cgroups)",
+            "PASS" if clean and rows == 0 else "FAIL",
+            f"cgroups removed: {clean}, limit rows left: {rows}",
+        )
+        == "PASS"
+    )
+    FLEET = None
+    return ok
+
+
+def run_server_phase():
+    """NIGHT-blade-4: the server depth phase — headless env, dense
+    population, daemonized traffic, concurrent readers, orderly
+    teardown — run BEFORE the desktop matrix (the owner's phase
+    order). Returns True when no server stage FAILED (SKIP is an
+    honest environment verdict, never a gate failure)."""
+    out()
+    out("━━━ phase 1/2: server depth (headless, dense, daemonized) ━━━")
+    stage_server_headless()
+    stage_server_dense_fleet()
+    stage_server_dense_policy()
+    stage_server_daemon_traffic()
+    stage_server_parallel_readers()
+    stage_server_teardown()
+    failed = [r for r in RESULTS if r["test"].startswith("server:") and r["verdict"] == "FAIL"]
+    if failed:
+        out()
+        out(f"  server phase FAILED ({len(failed)} stage(s)) — the desktop matrix is skipped.")
+    else:
+        out()
+        out("  server phase green — continuing to the desktop matrix.")
+    return not failed
 
 
 # ── environment ────────────────────────────────────────────────────────────
@@ -2544,6 +3077,33 @@ def self_test():
         "full ladder only (light retired, NIGHT-improve-19)",
     )
 
+    # NIGHT-blade-4 pins: the server phase's pure helpers, verified
+    # rootless so a CI container catches a broken engine before any
+    # root run reaches the stage. (1) The headless environment is
+    # EXACTLY PATH + TERM=dumb — a DISPLAY or DBUS session sneaking
+    # back in would quietly weaken every headless row instead of
+    # testing the stripped shape. (2) The dense fleet's member paths
+    # carry the zero-padded index shape the teardown's rmdir sweep
+    # and the census's cgroup-id set both depend on.
+    env = server_headless_env()
+    env_ok = set(env) == {"PATH", "TERM"} and env["TERM"] == "dumb"
+    record(
+        "engine: server headless env is PATH + TERM=dumb only",
+        "PASS" if env_ok else "FAIL",
+        f"keys: {sorted(env)}",
+    )
+    fleet_paths = [f"{CGROUP_ROOT}/{SERVER_FLEET_PREFIX}-{i:02d}" for i in range(3)]
+    fleet_ok = (
+        len({p.rsplit("-", 1)[1] for p in fleet_paths}) == 3
+        and all(p.startswith(f"{CGROUP_ROOT}/{SERVER_FLEET_PREFIX}-") for p in fleet_paths)
+        and SERVER_FLEET_N >= 16
+    )
+    record(
+        "engine: dense fleet path shape (zero-padded members, sane count)",
+        "PASS" if fleet_ok else "FAIL",
+        f"count {SERVER_FLEET_N}, sample {os.path.basename(fleet_paths[0])}",
+    )
+
     # NIGHT-improve-15 pin: the ladder's high-rung floor is a MODEL
     # (cushion / min-RTO), anchored to constants that live on the
     # engine side (format.rs default_burst clamp, Linux TCP_RTO_MIN).
@@ -3067,6 +3627,18 @@ def main():
         "kept for explicit invocations and muscle memory)",
     )
     ap.add_argument(
+        "--server-only",
+        action="store_true",
+        help="run only the NIGHT-blade-4 server depth phase (headless env, "
+        "dense fleet, daemon traffic, parallel readers) — the phase a "
+        "production server carries, without the desktop matrix",
+    )
+    ap.add_argument(
+        "--desktop-only",
+        action="store_true",
+        help="skip the server phase — run only the desktop/pc matrix (the pre-blade-4 battery)",
+    )
+    ap.add_argument(
         "--self-test",
         action="store_true",
         help="verify the harness engine only — no root, no zelynic, no BPF, no network",
@@ -3102,6 +3674,9 @@ def main():
     except ValueError:
         out("--band expects lo,hi (e.g. 0.65,1.30)")
         return 2
+    if args.server_only and args.desktop_only:
+        out("--server-only and --desktop-only are mutually exclusive — pick a phase pair leg.")
+        return 2
 
     if os.geteuid() != 0:
         out("This test programs the kernel datapath — run with sudo.")
@@ -3115,6 +3690,17 @@ def main():
     # NIGHT-improve-19: light was retired — one root intensity. The
     # mode name stays in the banner, JSON output, and CROSS_DISTRO_
     # RESULTS rows, so downstream tooling keeps parsing "heavy".
+    # NIGHT-blade-4: the PHASE pair rides beside the intensity —
+    # server depth first (the owner's order), the desktop matrix
+    # second, a server FAIL gating the desktop leg off. The JSON
+    # "mode" field stays "heavy" for tooling compatibility; the new
+    # "phases" list names what actually ran.
+    if args.desktop_only:
+        phases = ["desktop"]
+    elif args.server_only:
+        phases = ["server"]
+    else:
+        phases = ["server", "desktop"]
     mode = "heavy"
     start = time.perf_counter()
     CG = CgroupSet()
@@ -3126,7 +3712,8 @@ def main():
         # "cgroups:" row only — this banner used to repeat it
         # byte-for-byte two lines above the env table.
         out(
-            f"zelynic supermassive test (NIGHT-refactor-2, {mode} mode — limiter scope: local + real internet)"
+            f"zelynic supermassive test (NIGHT-refactor-2 + NIGHT-blade-4, {mode} mode — "
+            f"limiter scope: local + real internet; phases: {' + '.join(phases)})"
         )
         out()
         env_ok = test_env()
@@ -3134,7 +3721,14 @@ def main():
             out()
             out("  environment not suitable for zelynic — stopping here.")
         else:
-            run_heavy(3.0)
+            # NIGHT-blade-4: server depth FIRST — the owner's phase
+            # order; a server-stage FAIL never reaches the desktop
+            # matrix (SKIP is an environment verdict, not a gate).
+            server_ok = True
+            if "server" in phases:
+                server_ok = run_server_phase()
+            if "desktop" in phases and server_ok:
+                run_heavy(3.0)
         CG.cleanup()
         report_worker_faults()
         ok = final_report(
@@ -3147,6 +3741,8 @@ def main():
     except Exception as e:  # noqa: BLE001 - report, then still clean up
         out(f"  harness error: {type(e).__name__}: {e}")
         try:
+            if FLEET is not None:
+                FLEET.teardown()
             clear_all()
             CG.cleanup()
         except Exception:
@@ -3168,6 +3764,7 @@ def main():
                 {
                     "binary": lib.BINARY,
                     "mode": mode,
+                    "phases": phases,
                     "cgroup_mode": MODE,
                     "realnet": {
                         "download_endpoint": DL_ENDPOINT[0] if DL_ENDPOINT else None,

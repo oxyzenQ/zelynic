@@ -4,20 +4,25 @@
 #
 # Wrapper for supermassive-test-v2.py (NIGHT-improve-23; scope
 # refocused in NIGHT-refactor-2) — the survival battery: everything
-# that is NOT a limit measurement. The NIGHT-ultimate-3 CLI depth
-# stresstest (83 cases: typos, wrong values, ambiguous orders,
-# shell-injection payloads, fatal usage — every flag and alias end to
-# end, zero hangs, zero panics), the CLI input guards (bounds, typo
-# rescue, dangerous blocklist, override), the brutal battery (SIGKILL
-# of the live TUI mid-render, jittered SIGKILLs of one-shot writers
-# inside the attach/pin/write window), the post-kill regression
-# re-proof, and the crash-family teardown (recover, cleanup, dmesg).
-# Python is the engine for the same reasons as supermassive-test.sh:
-# subprocess control, pty mechanics, /proc parsing, and precise
-# timing are things bash cannot do well.
+# that is NOT a limit measurement. The NIGHT-blade-4 server depth
+# phase (the guard family under the stripped headless environment a
+# production server carries) leads, gating the four survival phases
+# on its verdict; then the NIGHT-ultimate-3 CLI depth stresstest (83
+# cases: typos, wrong values, ambiguous orders, shell-injection
+# payloads, fatal usage — every flag and alias end to end, zero
+# hangs, zero panics), the CLI input guards (bounds, typo rescue,
+# dangerous blocklist, override), the brutal battery (SIGKILL of the
+# live TUI mid-render, jittered SIGKILLs of one-shot writers inside
+# the attach/pin/write window), the post-kill regression re-proof,
+# and the crash-family teardown (recover, cleanup, dmesg). Python is
+# the engine for the same reasons as supermassive-test.sh: subprocess
+# control, pty mechanics, /proc parsing, and precise timing are
+# things bash cannot do well.
 #
 # Usage:
-#   sudo ./scripts/supermassive/supermassive-test-v2.sh               # survival battery (4+ min)
+#   sudo ./scripts/supermassive/supermassive-test-v2.sh               # server phase + survival battery (4+ min)
+#   sudo ./scripts/supermassive/supermassive-test-v2.sh --server-only  # the headless guard phase alone
+#   sudo ./scripts/supermassive/supermassive-test-v2.sh --desktop-only # the four survival phases alone
 #   ./scripts/supermassive/supermassive-test-v2.sh --self-test         # engine smoke, no root
 #   sudo ./scripts/supermassive/supermassive-test-v2.sh --json         # machine-readable
 #

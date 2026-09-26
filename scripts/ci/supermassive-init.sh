@@ -156,33 +156,39 @@ else
 fi
 
 # ── the stresstest: BOTH full engines, canonical invocations ─────────
-# v1, the limiter matrix (the e2e pipeline's phase two): every policy
-# shape on the loopback lane (the realnet lane self-skips without an
-# endpoint), the rate ladder, reload, sustain — attach, policy
-# writes, MEASURED rates, accounting. A green row here is the
-# "holds everywhere it claims" verdict, on the leg's kernel, inside
-# the profile's derived resource envelope.
+# v1, the limiter matrix (the e2e pipeline's phase two): the
+# NIGHT-blade-4 server phase FIRST (headless report surfaces under
+# PATH + TERM=dumb, the dense 64-cgroup fleet censused and policed
+# by one strict-multi write, daemonized traffic, concurrent report
+# readers) gating the desktop matrix — every policy shape on the
+# loopback lane (the realnet lane self-skips without an endpoint),
+# the rate ladder, reload, sustain — attach, policy writes, MEASURED
+# rates, accounting. A green row here is the "holds everywhere it
+# claims" verdict, server shape included, on the leg's kernel,
+# inside the profile's derived resource envelope.
 if python3 scripts/supermassive/supermassive-test.py \
 	--binary /opt/zelynic/zelynic; then
-	note "supermassive v1 - limiter matrix (full)" PASS
+	note "supermassive v1 - limiter matrix (full, server-first)" PASS
 else
-	note "supermassive v1 - limiter matrix (full)" FAIL
+	note "supermassive v1 - limiter matrix (full, server-first)" FAIL
 fi
 
 # v2, the survival battery (the e2e pipeline's phase three, LAST per
-# the qualification order): the 83-case CLI depth stresstest, the
-# input guards, the SIGKILL batteries (live TUI mid-render on a pty,
-# one-shot writers inside the attach/pin/write window), the post-kill
-# regression re-proof, and the crash-family teardown (recover,
-# cleanup, dmesg). A green row here is the "works under fire"
-# verdict — the observer AND the violent-death guard on the leg's
-# kernel (the floor or the latest head), the old kernel-floor
-# probe's surface and more.
+# the qualification order): the NIGHT-blade-4 server phase FIRST
+# (the guard family under the stripped headless environment — the
+# exact stdio shape this PID-1 guest itself presents), then the
+# 83-case CLI depth stresstest, the input guards, the SIGKILL
+# batteries (live TUI mid-render on a pty, one-shot writers inside
+# the attach/pin/write window), the post-kill regression re-proof,
+# and the crash-family teardown (recover, cleanup, dmesg). A green
+# row here is the "works under fire" verdict — the observer AND the
+# violent-death guard on the leg's kernel (the floor or the latest
+# head), the old kernel-floor probe's surface and more.
 if python3 scripts/supermassive/supermassive-test-v2.py \
 	--binary /opt/zelynic/zelynic; then
-	note "supermassive v2 - survival battery (full)" PASS
+	note "supermassive v2 - survival battery (full, server-first)" PASS
 else
-	note "supermassive v2 - survival battery (full)" FAIL
+	note "supermassive v2 - survival battery (full, server-first)" FAIL
 fi
 
 # ── the claims proof, LIVE on this leg's kernel (NIGHT-lts-6) ─────────

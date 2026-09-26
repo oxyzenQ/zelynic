@@ -19,9 +19,12 @@ Division of labor with v1 (NIGHT-refactor-2, the owner's call): v1 owns
 every stage that measures a LIMIT; v2 owns the abuse family — the
 rate-guard refusals (bounds, typo rescue, dangerous blocklist,
 override), the kill batteries, the regression battery, and the
-recover/cleanup/dmesg teardown. A machine green on v1 has a limiter
-that holds everywhere it claims; a machine green on v2 survives the
-day nothing goes right.
+recover/cleanup/dmesg teardown — plus, since NIGHT-blade-4, the
+SERVER phase both harnesses lead with: v1 proves the limiter holds
+under the server shape (headless env, dense fleet, daemon traffic,
+concurrent readers), v2 proves the guards survive it. A machine
+green on v1 has a limiter that holds everywhere it claims; a machine
+green on v2 survives the day nothing goes right.
 
 Design:
 
@@ -65,12 +68,23 @@ Design:
     root, no zelynic, no BPF, and no network.
 
 Usage:
-  sudo ./scripts/supermassive/supermassive-test-v2.sh               # survival battery (4+ min)
+  sudo ./scripts/supermassive/supermassive-test-v2.sh               # server phase + survival battery (4+ min)
+  sudo ./scripts/supermassive/supermassive-test-v2.sh --server-only  # the headless guard phase alone
+  sudo ./scripts/supermassive/supermassive-test-v2.sh --desktop-only # the four survival phases alone
   python3 scripts/supermassive/supermassive-test-v2.py --self-test  # engine smoke, no root
   sudo ./scripts/supermassive/supermassive-test-v2.sh --binary ./zelynic
   sudo ./scripts/supermassive/supermassive-test-v2.sh --json        # machine-readable
 
 What it verifies (verdicts PASS / FAIL / SKIP, exit 1 on any FAIL):
+  the server phase (NIGHT-blade-4, runs FIRST): the guard family under
+         the stripped headless environment a production server
+         carries (PATH + TERM=dumb, no DISPLAY/DBUS/XDG, every fd a
+         pipe) — the info surfaces, the retired --info tipping
+         --depth, the removed eagle-eye redirect, the root-refusing
+         --check-update, the live TUI's piped-stdio refusal, and the
+         ee --depth error ladder, every invariant identical to the
+         inherited-env sweep; then, on a green server phase, the
+         survival battery:
   preflight: env + minimum specs, doctor, list-apps, loopback baseline
          (the engine sanity the kill stages' traffic depends on);
   guards: the NIGHT-ultimate-3 depth sweep — 70+ cases: info surfaces
@@ -671,6 +685,122 @@ def _run_cli_case(argv):
     return p.returncode, f"{p.stdout}\n{p.stderr}"
 
 
+# ── NIGHT-blade-4: the server depth phase (the survival family's half) ─────
+#
+# The 83-case CLI depth stresstest runs the guards under the
+# INHERITED environment; a production server carries none of it (no
+# DISPLAY, no DBUS session bus, no XDG desktop variables, TERM=dumb
+# at best), so a representative guard subset re-runs under the
+# stripped headless environment from v1's engine (one env definition,
+# both harnesses). The invariants — every case answers, exits with
+# the right class, carries its expected wording, never leaks a panic
+# — must hold identically when the desktop is absent: a guard that
+# only behaves on a desktop session is a server outage waiting for
+# its first SSH session.
+
+
+def _run_cli_case_headless(argv):
+    """_run_cli_case's twin under the stripped server environment
+    (NIGHT-blade-4): PATH + TERM=dumb + NO_COLOR, nothing else. stdin
+    is /dev/null and every fd is a pipe — the exact stdio shape an
+    SSH session with a dead terminal, a cron job, or a container
+    entrypoint presents. Returns (returncode, combined-output);
+    returncode None means the case never answered (a hang)."""
+    env = sm1.server_headless_env()
+    env["NO_COLOR"] = "1"
+    try:
+        p = subprocess.run(
+            [lib.BINARY] + argv,
+            capture_output=True,
+            text=True,
+            timeout=CLI_CASE_TIMEOUT,
+            stdin=subprocess.DEVNULL,
+            env=env,
+        )
+    except subprocess.TimeoutExpired:
+        return None, ""
+    return p.returncode, f"{p.stdout}\n{p.stderr}"
+
+
+# (label, argv, exit class, needle) — the same tuple shape
+# CLI_DEPTH_CASES speaks, so the runner loop below is the depth
+# sweep's own verification logic, reused verbatim.
+SERVER_DEPTH_CASES = [
+    ("--help answers headless", ["--help"], "zero", "strict-single"),
+    ("-V banner headless", ["-V"], "zero", "Architecture: Cosmic Dragon"),
+    ("doctor --print-json parses headless", ["doctor", "--print-json"], "zero", '"system"'),
+    (
+        "retired --info tips --depth headless (NIGHT-blade-4)",
+        ["eagle-eyes", "--info"],
+        "nonzero",
+        "--depth",
+    ),
+    ("removed eagle-eye redirects headless", ["eagle-eye"], "nonzero", "eagle-eyes"),
+    (
+        "--check-update refuses root headless",
+        ["--check-update"],
+        "nonzero",
+        "root refused",
+    ),
+    (
+        "live TUI refuses piped stdio headless",
+        ["eagle-eyes"],
+        "nonzero",
+        "interactive monitor",
+    ),
+    (
+        "ee --depth missing-target error headless",
+        ["ee", "--depth"],
+        "nonzero",
+        "--depth needs a TARGET",
+    ),
+]
+
+
+def run_server_phase():
+    """NIGHT-blade-4: the server depth phase — the guard family under
+    the stripped headless environment a production server carries.
+    Every case must answer (never hang), exit with the right class,
+    carry its expected wording, and leak no panic marker — identical
+    contracts to the inherited-env sweep, proven where the desktop is
+    absent. Returns True when no case failed."""
+    out()
+    out("━━━ phase 1/5: server depth (guards under the headless environment) ━━━")
+    ok = True
+    for label, argv, exit_class, needle in SERVER_DEPTH_CASES:
+        rc, text = _run_cli_case_headless(argv)
+        problems = []
+        if rc is None:
+            problems.append(f"no answer within {CLI_CASE_TIMEOUT:.0f}s — a hang")
+        else:
+            if exit_class == "zero" and rc != 0:
+                problems.append(f"exit {rc}, want 0")
+            if exit_class == "nonzero" and rc == 0:
+                problems.append("exit 0, want non-zero")
+            if needle and needle.lower() not in text.lower():
+                problems.append(f"expected wording '{needle}' missing")
+        low = text.lower()
+        for marker in PANIC_MARKERS:
+            if marker.lower() in low:
+                problems.append(f"panic marker '{marker}' in the output")
+        ok = (
+            record(
+                f"server: {label}",
+                "PASS" if not problems else "FAIL",
+                f"exit {rc}: {text.strip()[:120]}" if problems else f"exit {rc}",
+            )
+            == "PASS"
+            and ok
+        )
+    if not ok:
+        out()
+        out("  server phase FAILED — the survival battery's four phases are skipped.")
+    else:
+        out()
+        out("  server phase green — continuing to the survival battery.")
+    return ok
+
+
 def test_cli_depth():
     """The NIGHT-ultimate-3 depth sweep: every flag surface end to end
     against typo / wrong / ambiguous / injection / fatal input.
@@ -1213,6 +1343,24 @@ def self_test():
         == "PASS"
         and ok
     )
+    # NIGHT-blade-4 pin: the server phase's case list speaks the same
+    # 4-tuple shape CLI_DEPTH_CASES speaks (label, argv, exit class,
+    # needle), every exit class is one of the two the runner knows,
+    # and v1's headless env helper is reachable — a malformed case
+    # would crash the runner mid-phase on a root run, so the shape is
+    # pinned rootless here.
+    cases_ok = all(
+        len(case) == 4 and case[2] in ("zero", "nonzero") and case[1] for case in SERVER_DEPTH_CASES
+    ) and callable(sm1.server_headless_env)
+    ok = (
+        record(
+            "engine: server depth case list shape (NIGHT-blade-4)",
+            "PASS" if cases_ok else "FAIL",
+            f"{len(SERVER_DEPTH_CASES)} headless cases, 4-tuple contract",
+        )
+        == "PASS"
+        and ok
+    )
     # NIGHT-improve-21 pin (moved from v1, NIGHT-refactor-2): the kill
     # battery's pty mechanics — spawn, render-drain, SIGKILL, reap —
     # verified rootlessly against a dummy child (a python that prints
@@ -1322,13 +1470,15 @@ def _unknown_arg_error(token):
     ]
 
 
-def run_survival():
-    """The abuse family in escalation order: guards (does bad input
+def run_survival(phases):
+    """The abuse family in escalation order: server depth first
+    (NIGHT-blade-4, the headless guard subset — the owner's phase
+    order; a FAIL gates the rest off), then guards (does bad input
     behave?), kills (does violence break anything?), regression (is
     everything that passed before still passing?), teardown (is the
     machine returned clean?). v1's stages carry the preflight; the
     batteries below are v2's own."""
-    out("zelynic supermassive test v2 (NIGHT-refactor-2, survival mode)")
+    out("zelynic supermassive test v2 (NIGHT-refactor-2 + NIGHT-blade-4, survival mode)")
     out()
     env_ok = sm1.test_env()
     if not env_ok:
@@ -1341,26 +1491,44 @@ def run_survival():
     sm1.test_list_apps()
     sm1.test_baseline(LOCAL_WINDOW)
 
-    # phase 1/4: the CLI input guards
+    # NIGHT-blade-4: the phase pair — server depth first (the owner's
+    # order), the four survival phases second; a server-phase FAIL
+    # skips them. --desktop-only drops the server phase (the
+    # pre-blade-4 battery), --server-only runs it alone.
+    total = 5 if "server" in phases else 4
+    base = 2 if "server" in phases else 1
+    server_ok = True
+    if "server" in phases:
+        server_ok = run_server_phase()
+    if "server" in phases and not server_ok:
+        # A server-phase FAIL gates the survival battery off — the
+        # owner's phase order cuts both ways.
+        return False
+    if "desktop" not in phases:
+        # --server-only: the server phase green is the verdict (the
+        # final report still computes from every recorded row).
+        return True
+
+    # phase base/total: the CLI input guards
     out()
-    out("━━━ phase 1/4: guards (bad input must be refused, never fatal) ━━━")
+    out(f"━━━ phase {base}/{total}: guards (bad input must be refused, never fatal) ━━━")
     test_cli_depth()
     test_rate_guard()
 
-    # phase 2/4: the brutal battery
+    # phase base+1/total: the brutal battery
     out()
-    out("━━━ phase 2/4: kills (SIGKILL the TUI and the mid-flight writers) ━━━")
+    out(f"━━━ phase {base + 1}/{total}: kills (SIGKILL the TUI and the mid-flight writers) ━━━")
     test_kill_tui()
     test_kill_midflight()
 
-    # phase 3/4: the regression re-proof
+    # phase base+2/total: the regression re-proof
     out()
-    out("━━━ phase 3/4: regression (nothing broken stays broken) ━━━")
+    out(f"━━━ phase {base + 2}/{total}: regression (nothing broken stays broken) ━━━")
     test_regression_battery()
 
-    # phase 4/4: the crash-family teardown
+    # phase base+3/total: the crash-family teardown
     out()
-    out("━━━ phase 4/4: teardown (recover, cleanup, kernel log) ━━━")
+    out(f"━━━ phase {base + 3}/{total}: teardown (recover, cleanup, kernel log) ━━━")
     test_recover()
     sm1.test_cleanup()
     test_dmesg()
@@ -1378,6 +1546,17 @@ def main():
         "--self-test",
         action="store_true",
         help="verify the harness engine only — no root, no zelynic, no BPF, no network",
+    )
+    ap.add_argument(
+        "--server-only",
+        action="store_true",
+        help="run only the NIGHT-blade-4 server depth phase (the guard "
+        "family under the stripped headless environment)",
+    )
+    ap.add_argument(
+        "--desktop-only",
+        action="store_true",
+        help="skip the server phase — run only the four survival phases (the pre-blade-4 battery)",
     )
     ap.add_argument("--binary", help="path to the zelynic binary")
     ap.add_argument("--json", action="store_true", help="machine-readable output")
@@ -1405,6 +1584,9 @@ def main():
     except ValueError:
         out("--band expects lo,hi (e.g. 0.65,1.30)")
         return 2
+    if args.server_only and args.desktop_only:
+        out("--server-only and --desktop-only are mutually exclusive — pick a phase pair leg.")
+        return 2
 
     if os.geteuid() != 0:
         out("This test programs the kernel datapath — run with sudo.")
@@ -1414,19 +1596,29 @@ def main():
 
     start = time.perf_counter()
     sm1.CG = sm1.CgroupSet()
+    # NIGHT-blade-4: the phase pair — server depth first (the owner's
+    # order), the four survival phases second. The JSON "mode" field
+    # stays "survival" for tooling compatibility; the new "phases"
+    # list names what actually ran.
+    if args.desktop_only:
+        phases = ["desktop"]
+    elif args.server_only:
+        phases = ["server"]
+    else:
+        phases = ["server", "desktop"]
     exit_code = 1
     try:
         MODE = sm1.CG.setup()
         sm1.MODE = MODE
         sm1.SERVER = sm1.HttpServer()
-        ran = run_survival()
+        ran = run_survival(phases)
         sm1.report_worker_faults()
         ok = (
             lib.final_report(
                 start,
                 "survival",
-                "survival battery green: CLI guards, SIGKILL batteries, "
-                "regression re-proof, teardown — all proven",
+                "survival battery green: server depth, CLI guards, SIGKILL "
+                "batteries, regression re-proof, teardown — all proven",
             )
             if ran
             else False
@@ -1434,6 +1626,9 @@ def main():
         exit_code = 0 if ok else 1
     finally:
         sm1.clear_all()
+        if sm1.FLEET is not None:
+            sm1.FLEET.teardown()
+            sm1.FLEET = None
         if sm1.SERVER:
             sm1.SERVER.stop()
         sm1.CG.cleanup()
@@ -1443,6 +1638,7 @@ def main():
                 {
                     "binary": lib.BINARY,
                     "mode": "survival",
+                    "phases": phases,
                     "cgroup_mode": MODE,
                     "worker_faults": [{"error": msg, "count": n} for msg, n in sm1.WORKER_FAULTS],
                     "results": RESULTS,

@@ -535,25 +535,33 @@ sudo ./scripts/depth/limiter-depth-test.sh          # full run (~2 min)
 sudo ./scripts/depth/limiter-depth-test.sh --quick  # fast pass (~45s)
 ```
 
-Want to supermassive-test the whole command surface — single/multi targets,
-strict/block/unstrict, curl burst download + upload, the full rate range
-1kb to 1tb (skipping rungs the hardware cannot feed), every rate-guard
-function (bounds, typo tip, dangerous blocklist, plain-number,
---force-this override), and both per-direction buckets
+Want to supermassive-test the whole command surface — the server
+phase first (headless report surfaces, a dense 64-cgroup fleet
+policed by one strict-multi write, daemonized traffic, concurrent
+report readers; NIGHT-blade-4), then single/multi targets,
+strict/block/unstrict, curl burst download + upload, the full rate
+range 1kb to 1tb (skipping rungs the hardware cannot feed), every
+rate-guard function (bounds, typo tip, dangerous blocklist,
+plain-number, --force-this override), and both per-direction buckets
 (-d / -u / asymmetric -d+-u)? One click (NIGHT-master-2):
 
 ```bash
-sudo ./scripts/supermassive/supermassive-test.sh                # supermassive (5+ min)
-sudo ./scripts/supermassive/supermassive-test.sh --heavy        # the same, explicit
+sudo ./scripts/supermassive/supermassive-test.sh                # server phase, then the desktop matrix (6+ min)
+sudo ./scripts/supermassive/supermassive-test.sh --server-only  # the server depth phase alone
+sudo ./scripts/supermassive/supermassive-test.sh --desktop-only # the desktop matrix alone
 ./scripts/supermassive/supermassive-test.sh --self-test          # engine smoke, no root
 ```
 
 One root intensity (NIGHT-improve-19): the old light sweep was retired —
 the matrix is the default. A mistyped flag (`--self-tesss`) gets a typo
 tip suggesting `--self-test`, and `--light` gets a message naming its
-replacement.
+replacement. The server phase runs FIRST and gates the desktop matrix
+(NIGHT-blade-4, the owner's phase order): a machine that cannot hold
+the server shape does not get to run the desktop matrix.
 
 Want to know the machine survives the day nothing goes right — the
+server phase first (the guard family under the stripped headless
+environment a production server carries; NIGHT-blade-4), then the
 83-case CLI depth stresstest (typos, wrong values, ambiguous orders,
 shell-injection payloads, fatal usage — every flag and alias end to
 end, zero hangs, zero panics), the CLI input guards, the live TUI
@@ -563,7 +571,9 @@ re-proven after the dust settles? That is v2 (NIGHT-improve-23,
 refocused NIGHT-refactor-2, hardened NIGHT-ultimate-3):
 
 ```bash
-sudo ./scripts/supermassive/supermassive-test-v2.sh               # survival battery (4+ min)
+sudo ./scripts/supermassive/supermassive-test-v2.sh               # server phase + survival battery (4+ min)
+sudo ./scripts/supermassive/supermassive-test-v2.sh --server-only  # the headless guard phase alone
+sudo ./scripts/supermassive/supermassive-test-v2.sh --desktop-only # the four survival phases alone
 ./scripts/supermassive/supermassive-test-v2.sh --self-test         # engine smoke, no root
 ```
 
