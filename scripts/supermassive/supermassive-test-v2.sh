@@ -7,7 +7,7 @@
 # that is NOT a limit measurement. The NIGHT-blade-4 server depth
 # phase (the guard family under the stripped headless environment a
 # production server carries) leads, gating the four survival phases
-# on its verdict; then the NIGHT-ultimate-3 CLI depth stresstest (83
+# on its verdict; then the NIGHT-ultimate-3 CLI depth stresstest (87
 # cases: typos, wrong values, ambiguous orders, shell-injection
 # payloads, fatal usage — every flag and alias end to end, zero
 # hangs, zero panics), the CLI input guards (bounds, typo rescue,

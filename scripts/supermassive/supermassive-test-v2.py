@@ -87,7 +87,7 @@ What it verifies (verdicts PASS / FAIL / SKIP, exit 1 on any FAIL):
          survival battery:
   preflight: env + minimum specs, doctor, list-apps, loopback baseline
          (the engine sanity the kill stages' traffic depends on);
-  guards: the NIGHT-ultimate-3 depth sweep — 70+ cases: info surfaces
+  guards: the NIGHT-ultimate-3 depth sweep — 87 cases: info surfaces
          (bare invocation, --help/-h, --version/-V, global -V at
          subcommand level, --color-mode, --, doctor --print-json, the
          root-refusing --check-update pair), flag typos with their
