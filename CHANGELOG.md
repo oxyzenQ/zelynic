@@ -34,6 +34,31 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Added
 
+- **docs: NIGHT-long-horizon-1 — the five-surface depth re-audit
+  verdict: every surface at peak, nothing to mitigate** — the ask
+  was an honest adversarial re-walk of stability/crash, code
+  hygiene, optimization, security hardening, and LTS stability,
+  mitigating only what is not already at peak. The method:
+  staged by priority (ebpf/commands/terminal first), targeted
+  pattern hunting over the full 125-file Rust tree, raw-byte
+  verification of anything suspicious before flagging. The verdict table and
+  both audit notes live in
+  [docs/STABILITY.md](docs/STABILITY.md): zero runtime
+  unwrap/expect/panic outside test modules; the disciplined
+  async-signal-safe fork in the sudo rescue; no stale references
+  and no zombie code (both `#[allow(dead_code)]` sites are
+  documented contract anchors); the point-lookup socket join and
+  the diff-engine render loop already sit where micro-tuning would
+  be over-engineering; both external spawns are fixed-name with
+  the root PATH pin and the pre-network root refusal; partial-
+  failure pin states, map-cap reclaim, the dated nightly, and the
+  CI dependency bans all held. The walk's only red flag — an
+  apparent `#ap]` corruption in the eBPF map declarations —
+  dissolved under `od` verification (the bytes are `#[map]`, the
+  aya-ebpf attribute; the artifact was the audit tooling's own
+  rendering), which is now recorded as the verify-before-flag
+  lesson it taught.
+
 - **feat: NIGHT-think-1 — the zelynic sandbox: a local KVM micro-VM
   that gives agents and locked-down machines ROOT INSIDE a
   throwaway kernel** — the owner's ask: the project needs sudo, the

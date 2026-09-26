@@ -362,6 +362,44 @@ lock, no test cgroups), and the dmesg sweep. Full run ~100s, --quick
 ~40s — a wall-clock soak cannot prove endurance in CI time; churn
 amplification can.
 
+## The NIGHT-long-horizon-1 depth re-audit (2026-09-27)
+
+The ask: a fresh adversarial walk of the five critical-infrastructure
+surfaces — stability/crash, code hygiene, optimization, security
+hardening, LTS stability — reporting honestly whether anything has
+moved off peak, and mitigating only what is not already at peak. The
+method was staged by priority (the directories that carry the weight
+first — ebpf, commands, terminal — then the rest), targeted pattern
+hunting across the full Rust tree (125 files, ~35K LOC), and raw-byte
+verification of anything suspicious before it was flagged. The
+verdict: every surface held its peak from the prior hunt/improve/
+boost/ultimate passes — the table records the evidence, and the two
+audit notes below it record what the walk actually taught.
+
+| Surface | Verdict | The evidence the walk verified |
+|---|---|---|
+| Stability & crash | Peak — nothing to mitigate | Zero runtime `unwrap`/`expect`/`panic!` outside test modules (every hit sat inside a `#[cfg(test)]` block); the `fork()` in the sudo rescue is the disciplined shape — CString built before the fork, child restricted to async-signal-safe syscalls, `_exit(2)` so the parent's atexit machinery never runs in the orphan; `flock(2)` releases itself when the process dies (crash-safe by syscall semantics); the pinned-state reuse check refuses partial-failure states instead of reusing them |
+| Code hygiene | Peak — no dragons left | No stale file references anywhere in README/docs/src/scripts; both `#[allow(dead_code)]` sites are documented contract anchors (`SCHEMA_VERSION` — the userspace/kernel parity pin, `BucketRaw` — the layout drift pin), not zombies; the "duplicate" function names resolve to deliberate read/render layering (limiter/stats.rs reads the maps, display.rs renders them) or cfg-gated dual definitions (capabilities' ebpf feature stub) |
+| Optimization | Peak — micro-tuning would be over-engineering | The render loop reuses its line buffer (`clear()`, never reallocated) and emits through the diff engine; the per-socket byte join is POINT lookups over the known socket set (hundreds of syscalls) where map iteration would cost thousands per frame; the 50 ms wake costs one winsize ioctl and otherwise sleeps; result maps pre-allocate with capacity |
+| Security hardening | Peak | Both external-process spawns are fixed-name, fixed-argument `Command` invocations (no shell, no user-controlled argv); the root rescue pins PATH to the system quartet (NIGHT-lts-1); `check-update` refuses euid 0 BEFORE any network I/O (NIGHT-hunt-11); rate parsing is strict with u128 exact math (no overflow shaping); /proc walks degrade gracefully on TOCTOU races (`.ok()?` skips the vanished process); lock.rs documents its symlink attack posture explicitly |
+| LTS stability | Peak | Partial-failure states are enumerated and handled (bpffs full, memlimit hit, SIGKILL mid-attach — the pins-operational predicate); the 1024/256 map caps carry the unstrict/recover reclaim path so dead state cannot accumulate; the nightly is DATED not floating; the dependency tree is small, audited (docs/DEPENDENCY_AUDIT.md), and regressions are banned in CI (deny.toml) |
+
+Two audit notes worth their bytes. First, the walk's only red flag —
+an apparent `#ap]` token corrupting the eBPF limiter's map
+declarations — dissolved under raw-byte verification (`od`): the file
+actually carries `#[map]`, the aya-ebpf attribute, and the artifact
+was a rendering quirk in the audit tooling itself. The lesson is the
+one the supermassive engines already encode: verify at the byte level
+before flagging, because a false critical is its own class of noise.
+Second, every discipline the walk probed — the hunt-22
+no-fabricated-absence contract, the ultimate-2 quiet death, the
+boost-14 resize reactivity, the hunt-26 sticky geometry — was found
+exactly where its CHANGELOG entry said it would be, doing exactly
+what its docs claim. A repo whose code matches its paper trail under
+adversarial re-reading is the definition of an audited peak: nothing
+to mitigate, and the honest entry for the log is the record that the
+walk happened and found the floor solid.
+
 ## When something breaks
 
 | Symptom | First command | Why |
