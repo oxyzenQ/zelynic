@@ -312,6 +312,56 @@ self-healing, or (as of this audit) exits loudly-quietly on its own;
 the residual risks are the five honest limits above, each documented
 with its cost and its first command.
 
+## The ultra-long-endurance audit (NIGHT-blade-6)
+
+The blade-6 ask: depth-audit the ultra-long horizon — no memory
+leaks, no overhead creep, no regressions, no fatal surprises across
+the weeks a pinned enforcement or a days-long monitor session can
+live. The audit walked every long-lived surface and asked one
+question of each: what bounds this when nothing exits? The table is
+the verdict — every collection is bounded or rebuilt, every raw
+resource is closed or reaped, every counter saturates or wraps by
+design, and the new endurance harness
+(`sudo ./scripts/depth/endurance-test.sh`, below) turns the review
+into a measured proof.
+
+| Long-lived surface | The bound that holds it | The pin or proof |
+|---|---|---|
+| Per-socket byte maps (cookie-keyed, never-reused keys) | LRU, 4096 entries, session-scoped — cold sockets age out, a new socket always finds room | ebpf/src/main.rs map defs; the design note in docs/RESEARCH_TOOLCHAIN_AND_MONITORING.md |
+| Per-cgroup observer counters | 4096-entry cap, unpinned, freed at detach; a full map loses one packet's COUNT, never the packet | ebpf/src/main.rs (the allow-and-skip contract) |
+| Policy/bucket/stats maps (pinned, weeks) | 1024 slots each, 256 group slots — reclaim on unstrict/recover keeps them proportional to LIVE policies | reclaim.rs (improve-10/lts-7); the endurance harness churns 300 cycles through the caps |
+| The userspace session ledger (a days-long ee session) | MAX_TRACKED_CGROUPS — the mirror of the kernel map ceiling; a cgroup the kernel never counted cannot rank | session.rs (boost-16), pinned in the render tests |
+| Identity/connection walks (TTL caches) | Rebuild-per-TTL — cache.clear() then a fresh /proc walk; dead cgroups cannot accumulate | identity/mod.rs, connections.rs refresh |
+| The diff engine's buffers | Swap-based, clear-and-refill per frame — allocation-stable, zero per-frame cloning | terminal/diff.rs |
+| Raw fds (pidfd, pidfd_getfd) | Explicit close() with the re-entrancy-safe state machine; the local fd closed after each cookie read | connections.rs PidFd |
+| Child processes (terminal guard, rescue utils, update curl) | status()/output()/waitpid — no zombie can outlive its purpose | terminal/guard.rs, term_reset.rs, update/mod.rs |
+| The monitor loop itself | Quiet death on a dead sink — a piped reader leaving ends the session instead of spinning forever holding root | run_loop (ultimate-2) |
+| Byte counters on the long horizon | u64 wraps at 18.4 EB per socket/cgroup (467+ years at line rate); packets at ~389,000 years; the limiter ledger is atomic (v7/v9) and the burst consume bounded-retry (v8) | math.rs + stats.rs pins; wrap_coherent_delta |
+
+Two audit notes worth their bytes. First, a suspected staleness bug
+during the walk — "the identity map never refreshes inside the live
+monitor, so a days-long ee session labels new apps raw cg:ids
+forever" — turned out to be false: `poll_and_summarize` refreshes
+the identity map on its own TTL at the end of every successful poll
+(loader.rs), so labels stay fresh within 10s of any frame. Second,
+the load-bearing subtlety for the harness: a slot leak of even ONE
+entry per apply/unstrict cycle is fatal on a long-lived host (the
+1024-entry maps fill, new applies fail), which is exactly why the
+harness's 300-cycle churn is a proof and not a smoke — any leak
+exhausts a cap mid-run and the next apply fails loudly, the maps'
+own fail-loud contract turned into the oracle.
+
+**The harness** (`scripts/depth/endurance-test.py`, the .sh wrapper
+is the family pattern): churn-amplified LTS-budget proof (300
+apply/unstrict cycles, half of them strict-multi GROUP rounds
+against the 256-slot group map, each round a full BPF
+load/pin/unpin/unload cycle), a pty monitor soak (a live `ee` TUI
+sampled at 1 Hz for resident memory, open fds, and thread count
+against a documented budget), zero-residue verification (no pins, no
+lock, no test cgroups), and the dmesg sweep. Full run ~100s, --quick
+~40s — a wall-clock soak cannot prove endurance in CI time; churn
+amplification can.
+
 ## When something breaks
 
 | Symptom | First command | Why |

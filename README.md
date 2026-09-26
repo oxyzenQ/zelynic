@@ -543,6 +543,20 @@ sudo ./scripts/depth/limiter-depth-test.sh          # full run (~2 min)
 sudo ./scripts/depth/limiter-depth-test.sh --quick  # fast pass (~45s)
 ```
 
+Want to prove the ultra-long horizon (NIGHT-blade-6) — the LTS map
+budget under 300 churn-amplified apply/unstrict cycles (a one-slot
+leap per cycle exhausts a cap mid-run and the next apply fails
+loudly), a live monitor soaked flat (an `ee` session on a pty,
+resident memory / open fds / threads sampled at 1 Hz against a
+documented budget), zero residue (no pins, no lock, no test
+cgroups), and a clean dmesg? The endurance harness (the audit
+trail is docs/STABILITY.md's blade-6 section):
+
+```bash
+sudo ./scripts/depth/endurance-test.sh            # full run (~100s)
+sudo ./scripts/depth/endurance-test.sh --quick    # fast pass (~40s)
+```
+
 Want to supermassive-test the whole command surface — the server
 phase first (headless report surfaces, a dense 64-cgroup fleet
 policed by one strict-multi write, daemonized traffic, concurrent
