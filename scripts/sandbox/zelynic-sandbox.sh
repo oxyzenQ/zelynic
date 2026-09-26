@@ -22,6 +22,8 @@
 #   scripts/sandbox/zelynic-sandbox.sh --smoke                # one click: the full CLI depth battery, root, in the VM
 #   scripts/sandbox/zelynic-sandbox.sh --battery             # both supermassive engines, root, in the VM
 #   scripts/sandbox/zelynic-sandbox.sh --run <cmd...>        # any root-requiring command, in the VM
+#   scripts/sandbox/zelynic-sandbox.sh --endurance           # one click: the map-cap exhaustion + monitor soak, in the VM
+#   scripts/sandbox/zelynic-sandbox.sh --limiter             # one click: the flagship limiter depth stress, in the VM
 #   scripts/sandbox/zelynic-sandbox.sh --shell               # interactive root bash on the VM console
 #   scripts/sandbox/zelynic-sandbox.sh --self-test           # rootless preflight + packer self-test
 #
@@ -91,6 +93,14 @@ while [ $# -gt 0 ]; do
 		;;
 	--smoke)
 		MODE="smoke"
+		shift
+		;;
+	--endurance)
+		MODE="endurance"
+		shift
+		;;
+	--limiter)
+		MODE="limiter"
 		shift
 		;;
 	--shell)
@@ -177,7 +187,7 @@ fi
 
 # ── preflight ───────────────────────────────────────────────────────────
 [ "$MODE" = "run" ] || [ "$MODE" = "shell" ] || [ "$MODE" = "battery" ] ||
-	[ "$MODE" = "smoke" ] || usage 2
+	[ "$MODE" = "smoke" ] || [ "$MODE" = "endurance" ] || [ "$MODE" = "limiter" ] || usage 2
 
 command -v qemu-system-x86_64 >/dev/null 2>&1 ||
 	die "qemu-system-x86_64 not found — install it (Debian/Ubuntu: apt install qemu-system-x86)"
@@ -280,6 +290,43 @@ smoke)
 set -u
 cd /opt/zelynic
 bash scripts/sandbox/smoke-cli.sh --binary /opt/zelynic/zelynic
+EOF
+	;;
+endurance)
+	cat >"${PAYLOAD}" <<'EOF'
+#!/usr/bin/env bash
+# The ultra-long-endurance audit as a one-click VM lane
+# (NIGHT-harness-1): the map-cap exhaustion proof (300
+# apply/unstrict cycles churning ~2100 map slots against the
+# 1024/256 caps — any per-cycle slot leak exhausts a cap and
+# the next apply fails loudly) plus the monitor pty soak
+# sampled at 1 Hz — the harness that had no local execution
+# lane until the sandbox could boot on agent boxes.
+set -u
+cd /opt/zelynic
+python3 scripts/depth/endurance-test.py --binary /opt/zelynic/zelynic
+rc=$?
+echo "SANDBOX-RESULT: endurance - LTS budget + monitor soak" \
+	$([ "$rc" -eq 0 ] && echo PASS || echo FAIL)
+[ "$rc" -eq 0 ]
+EOF
+	;;
+limiter)
+	cat >"${PAYLOAD}" <<'EOF'
+#!/usr/bin/env bash
+# The flagship limiter depth stress as a one-click VM lane
+# (NIGHT-harness-1): enforced rates cross-checked against the
+# BPF counters, kernel drops, steady-state sustain, reload
+# churn, overhead, and cleanup — the cross-distro harness that
+# had no local execution lane until the sandbox could boot on
+# agent boxes.
+set -u
+cd /opt/zelynic
+python3 scripts/depth/limiter-depth-test.py --binary /opt/zelynic/zelynic
+rc=$?
+echo "SANDBOX-RESULT: limiter depth - flagship stress" \
+	$([ "$rc" -eq 0 ] && echo PASS || echo FAIL)
+[ "$rc" -eq 0 ]
 EOF
 	;;
 shell)

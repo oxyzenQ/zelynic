@@ -77,7 +77,31 @@ FULL_ROUNDS = 300  # > 1024 slots / 5 per single round: any leak exhausts a cap
 QUICK_ROUNDS = 120
 FULL_SOAK_S = 30.0
 QUICK_SOAK_S = 10.0
-PIN_FAMILY = 9  # policy dl/ul, bucket dl/ul, group dl/ul, stats, watchdog, schema
+# The full attach surface pinned under /sys/fs/bpf/zelynic after the
+# first apply — as a NAME SET, not a count (NIGHT-harness-1: the old
+# count-only pin said 9 while the real family has been 13 — 9 maps
+# plus the 2 enforcement programs and their 2 bpf_links — and the
+# mismatch surfaced only on this harness's first-ever VM run; a set
+# pin now also catches a WRONG-member family, not just a count
+# drift, and the failure names the diff).
+PIN_FAMILY = {
+    # the 9 pinned maps (the LTS budget surfaces)
+    "cgroup_policy_dl",
+    "cgroup_policy_ul",
+    "cgroup_bucket_dl",
+    "cgroup_bucket_ul",
+    "group_bucket_dl",
+    "group_bucket_ul",
+    "watchdog_deadline",
+    "cgroup_limiter_stats",
+    "schema_version",
+    # the 2 enforcement programs + their 2 bpf_links (the 5.7+
+    # capability rung pins links beside the programs)
+    "enforce_dl",
+    "enforce_ul",
+    "enforce_dl_link",
+    "enforce_ul_link",
+}
 RSS_BUDGET_MB = 12.0  # post-warmup growth allowance for the TUI process
 FD_DRIFT = 3  # max open-fd drift across the soak window
 THREAD_DRIFT = 1  # max thread-count drift
@@ -86,6 +110,7 @@ BEAT_S = 0.05  # traffic cadence inside a round
 
 CG_A = os.path.join(lib.CGROUP_ROOT, "zelynic-endurance-a")
 CG_B = os.path.join(lib.CGROUP_ROOT, "zelynic-endurance-b")
+LOCK_DIR = "/run/zelynic"
 LOCK_FILE = "/run/zelynic/zelynic.lock"
 
 
@@ -270,19 +295,26 @@ def stage_pin_family(cg_id):
     if rc != 0:
         lib.record("pin-family: first apply", "FAIL", err.strip()[:120])
         return False
-    pins = []
+    pins = set()
     try:
-        pins = os.listdir(lib.PIN_DIR)
+        pins = set(os.listdir(lib.PIN_DIR))
     except OSError:
         pass
-    if len(pins) != PIN_FAMILY:
-        lib.record(
-            "pin-family: map pins",
-            "FAIL",
-            f"{len(pins)} pins after first apply, expected {PIN_FAMILY}",
-        )
+    if pins != PIN_FAMILY:
+        missing = sorted(PIN_FAMILY - pins)
+        extra = sorted(pins - PIN_FAMILY)
+        detail = f"{len(pins)} pins after first apply, expected {len(PIN_FAMILY)}"
+        if missing:
+            detail += f", missing: {','.join(missing)}"
+        if extra:
+            detail += f", extra: {','.join(extra)}"
+        lib.record("pin-family: pin set", "FAIL", detail)
         return False
-    lib.record("pin-family: map pins", "PASS", f"exactly {PIN_FAMILY} pinned maps")
+    lib.record(
+        "pin-family: pin set",
+        "PASS",
+        f"exactly the {len(PIN_FAMILY)}-member family (9 maps + 2 programs + 2 links)",
+    )
     return True
 
 
@@ -456,13 +488,27 @@ def stage_residue():
         "PASS" if ok_pins else "FAIL",
         "no pins left" if ok_pins else f"leftovers: {pins[:4]}",
     )
-    lock = os.path.exists(LOCK_FILE)
+    # NIGHT-harness-1: the lock anchor is PERSISTENT BY DESIGN — the
+    # flock guard lives in /run/zelynic/zelynic.lock inside the
+    # root-owned 0700 dir (SAFETY_ANALYSIS's access matrix; the smoke
+    # battery pins the same contract as "only the flock anchor"). The
+    # old pin demanded the anchor be gone and could only ever pass on
+    # a machine where nothing ever ran — this harness's first live VM
+    # run is where the contradiction surfaced. The endurance residue
+    # contract is now: the anchor may remain, and NOTHING else may —
+    # no pid files, no state, no strays.
+    strays = []
+    try:
+        strays = [n for n in os.listdir(LOCK_DIR) if n != os.path.basename(LOCK_FILE)]
+    except OSError:
+        pass
+    ok_lock = not strays
     lib.record(
-        "residue: lock file",
-        "PASS" if not lock else "FAIL",
-        "gone" if not lock else f"{LOCK_FILE} still present",
+        "residue: lock dir",
+        "PASS" if ok_lock else "FAIL",
+        "only the persistent flock anchor" if ok_lock else f"strays: {strays[:4]}",
     )
-    return ok_pins and not lock
+    return ok_pins and ok_lock
 
 
 # ── main ────────────────────────────────────────────────────────────────────

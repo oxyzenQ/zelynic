@@ -661,9 +661,21 @@ CLI_DEPTH_CASES = [
         "zero",
         "$(reboot)",
     ),
+    # NIGHT-harness-1: the born-broken pin, healed on its first-ever
+    # live execution. The case was authored rootless — where the sweep
+    # can never run (it rides the root battery) — and pinned the
+    # SINGLE form's wording under a multi argv. The multi grammar
+    # splits on every colon, so 'cg:brave:b' is three app names and
+    # the no-match line is the plural multi form ('No cgroups found
+    # for any target in ...'), so the wording pin could never hold.
+    # The argv now matches the title: the single form with a
+    # non-numeric cg: remainder keeps the whole string as a process
+    # name (boost-37's graceful no-match) and prints the singular
+    # wording pinned here. The multi no-op stays covered by the
+    # shell-substitution case above.
     (
         "cg prefix with a non-numeric remainder keeps the no-op contract",
-        ["sm", "cg:brave:b", "1mb"],
+        ["ss", "cg:brave", "1mb"],
         "zero",
         "No cgroup found",
     ),
@@ -912,10 +924,23 @@ def _blade18_dynamic_cases():
                 "nonzero",
                 "system process",
             ),
+            # NIGHT-harness-1: healed on its first live execution. The
+            # old pin expected a rate guard to refuse BEHIND the lift,
+            # but --force-this is also the rate-bounds override
+            # (improve-30's one-flag design), so no guard remains: the
+            # forced apply ran to exit 0 and wrote a real 999 B/s
+            # policy on kthreadd's home — the ROOT cgroup in a
+            # no-systemd guest — mid-battery, throttling the sweep's
+            # own lane by construction luck alone. The contract is now
+            # pinned honestly (the warn fires, the lift proceeds, exit
+            # 0) and the rate rides 1tb so the forced policy is
+            # harmless by construction: the apply is still REAL (the
+            # id resolves, the row lands, teardown sweeps it), but no
+            # lane the battery measures can ever notice it.
             (
-                "the id guard lifts with --force-this (warn, then the rate guard)",
-                ["ss", f"cg:{kid}", "999", "--force-this"],
-                "nonzero",
+                "the id guard lifts with --force-this (warn, then the forced apply)",
+                ["ss", f"cg:{kid}", "1tb", "--force-this"],
+                "zero",
                 "forcing with --force-this",
             ),
         ]

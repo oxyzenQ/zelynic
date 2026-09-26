@@ -16,6 +16,8 @@ cache, in seconds.
 
 ```bash
 scripts/sandbox/zelynic-sandbox.sh --smoke     # ONE CLICK: the full CLI depth battery, as root, in the VM
+scripts/sandbox/zelynic-sandbox.sh --endurance # ONE CLICK: the map-cap exhaustion + monitor soak, in the VM
+scripts/sandbox/zelynic-sandbox.sh --limiter   # ONE CLICK: the flagship limiter depth stress, in the VM
 scripts/sandbox/zelynic-sandbox.sh --battery   # both supermassive engines, as root, in the VM
 scripts/sandbox/zelynic-sandbox.sh --run <cmd> # any root-requiring command, in the VM
 scripts/sandbox/zelynic-sandbox.sh --shell     # interactive root bash on the VM console
@@ -30,6 +32,17 @@ vs the unlimited baseline), the leak probes (zero pins, zero
 the security probes (an unprivileged uid-65534 invocation must be
 refused cleanly, with zero partial application). One `SANDBOX-RESULT`
 row per surface, one verdict.
+
+The `--endurance` and `--limiter` lanes (NIGHT-harness-1) give the
+two flagship depth harnesses the same one-click shape: the map-cap
+exhaustion proof (300 apply/unstrict cycles churning ~2100 slots
+against the 1024/256 caps — any per-cycle slot leak exhausts a cap
+and the next apply fails loudly) plus the monitor pty soak sampled
+at 1 Hz, and the cross-distro limiter stress (enforced rates
+cross-checked against the BPF counters, kernel drops, steady-state
+sustain, reload churn, overhead, cleanup). Both harnesses had no
+local execution lane until the sandbox could boot on agent boxes —
+their first VM runs caught the endurance pin drift the same day.
 
 ## What it is
 
@@ -93,7 +106,12 @@ whichever is present, with a clear error naming the fix when none is.
 
 ## Requirements and performance
 
-- `qemu-system-x86_64`, `python3`, `curl`, `git` on the host.
+- `qemu-system-x86_64`, `python3`, `curl`, `git` on the host — and
+  even the qemu can be portable: a rootless extraction of the
+  distro archive's dependency closure works (NIGHT-harness-1 proved
+  the recipe: the Debian trixie closure — 97 .debs — extracted
+  under `~/.local/lib/qemu-vm` with a loader + data-dir wrapper in
+  `~/.local/bin`; TCG, no `/dev/kvm` required).
 - `/dev/kvm` is OPTIONAL: without it the VM boots under TCG software
   emulation (`-cpu max`) — slower, and arch-baseline v3/v4 binaries
   may SIGILL under emulation, which is why the default binary probe
