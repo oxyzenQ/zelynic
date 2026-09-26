@@ -32,23 +32,23 @@ set -euo pipefail
 # ━━ Setup ━━
 
 if [[ "$(id -u)" -eq 0 ]]; then
-        echo "refusing to run as root: this suite pins the unprivileged contract."
-        echo "re-run without sudo."
-        exit 1
+	echo "refusing to run as root: this suite pins the unprivileged contract."
+	echo "re-run without sudo."
+	exit 1
 fi
 
 BINARY="${1:-}"
 if [[ -z "$BINARY" ]]; then
-        if [[ -x "./target/debug/zelynic" ]]; then
-                BINARY="./target/debug/zelynic"
-        elif [[ -x "./target/release/zelynic" ]]; then
-                BINARY="./target/release/zelynic"
-        elif command -v zelynic >/dev/null 2>&1; then
-                BINARY="zelynic"
-        else
-                echo "no zelynic binary found (build first or pass a path)"
-                exit 1
-        fi
+	if [[ -x "./target/debug/zelynic" ]]; then
+		BINARY="./target/debug/zelynic"
+	elif [[ -x "./target/release/zelynic" ]]; then
+		BINARY="./target/release/zelynic"
+	elif command -v zelynic >/dev/null 2>&1; then
+		BINARY="zelynic"
+	else
+		echo "no zelynic binary found (build first or pass a path)"
+		exit 1
+	fi
 fi
 
 PASS=0
@@ -56,40 +56,40 @@ FAIL=0
 RESULTS=()
 
 pass() {
-        echo "  OK   $1"
-        PASS=$((PASS + 1))
-        RESULTS+=("PASS|$1")
+	echo "  OK   $1"
+	PASS=$((PASS + 1))
+	RESULTS+=("PASS|$1")
 }
 
 fail() {
-        echo "  X    $1"
-        FAIL=$((FAIL + 1))
-        RESULTS+=("FAIL|$1")
+	echo "  X    $1"
+	FAIL=$((FAIL + 1))
+	RESULTS+=("FAIL|$1")
 }
 
 # Run the binary, capture exit code + stderr, and enforce the
 # no-panic contract on every single case (NIGHT-hunt-13): a Rust panic
 # means exit 101 and a backtrace — neither may ever reach a user.
 run_case() {
-        local desc="$1"
-        shift
-        local out code
-        # The "&& code=0 || code=$?" idiom keeps set -e alive while
-        # capturing the real exit status of a deliberately failing
-        # command (a plain capture would kill the script).
-        out="$("$@" 2>&1)" && code=0 || code=$?
-        if [[ "$code" -eq 101 ]]; then
-                fail "$desc (panicked: exit 101)"
-                echo "$out" | head -3 | sed 's/^/       /'
-                return 1
-        fi
-        if echo "$out" | grep -q 'panicked at'; then
-                fail "$desc (panicked: backtrace in output)"
-                echo "$out" | grep -m1 'panicked at' | sed 's/^/       /'
-                return 1
-        fi
-        pass "$desc (no panic)"
-        return 0
+	local desc="$1"
+	shift
+	local out code
+	# The "&& code=0 || code=$?" idiom keeps set -e alive while
+	# capturing the real exit status of a deliberately failing
+	# command (a plain capture would kill the script).
+	out="$("$@" 2>&1)" && code=0 || code=$?
+	if [[ "$code" -eq 101 ]]; then
+		fail "$desc (panicked: exit 101)"
+		echo "$out" | head -3 | sed 's/^/       /'
+		return 1
+	fi
+	if echo "$out" | grep -q 'panicked at'; then
+		fail "$desc (panicked: backtrace in output)"
+		echo "$out" | grep -m1 'panicked at' | sed 's/^/       /'
+		return 1
+	fi
+	pass "$desc (no panic)"
+	return 0
 }
 
 # expect <desc> <exit-code> <must-contain...> -- <argv...>
@@ -97,54 +97,54 @@ run_case() {
 # fragment, and the no-panic contract. The fragments after the exit code
 # up to "--" are the required substrings.
 expect() {
-        local desc="$1" want_code="$2"
-        shift 2
-        local must=()
-        while [[ "$1" != "--" ]]; do
-                must+=("$1")
-                shift
-        done
-        shift # consume "--"
+	local desc="$1" want_code="$2"
+	shift 2
+	local must=()
+	while [[ "$1" != "--" ]]; do
+		must+=("$1")
+		shift
+	done
+	shift # consume "--"
 
-        local out code
-        # The "&& code=0 || code=$?" idiom keeps set -e alive while
-        # capturing the real exit status of a deliberately failing
-        # command (a plain capture would kill the script).
-        out="$("$@" 2>&1)" && code=0 || code=$?
+	local out code
+	# The "&& code=0 || code=$?" idiom keeps set -e alive while
+	# capturing the real exit status of a deliberately failing
+	# command (a plain capture would kill the script).
+	out="$("$@" 2>&1)" && code=0 || code=$?
 
-        if [[ "$code" -ne "$want_code" ]]; then
-                fail "$desc (want exit $want_code, got $code)"
-                echo "$out" | head -3 | sed 's/^/       /'
-                return 1
-        fi
-        if echo "$out" | grep -q 'panicked at' || [[ "$code" -eq 101 ]]; then
-                fail "$desc (panicked)"
-                return 1
-        fi
-        local frag
-        for frag in "${must[@]}"; do
-                if ! echo "$out" | grep -qF -- "$frag"; then
-                        fail "$desc (missing '$frag' in output)"
-                        echo "$out" | head -3 | sed 's/^/       /'
-                        return 1
-                fi
-        done
-        pass "$desc"
+	if [[ "$code" -ne "$want_code" ]]; then
+		fail "$desc (want exit $want_code, got $code)"
+		echo "$out" | head -3 | sed 's/^/       /'
+		return 1
+	fi
+	if echo "$out" | grep -q 'panicked at' || [[ "$code" -eq 101 ]]; then
+		fail "$desc (panicked)"
+		return 1
+	fi
+	local frag
+	for frag in "${must[@]}"; do
+		if ! echo "$out" | grep -qF -- "$frag"; then
+			fail "$desc (missing '$frag' in output)"
+			echo "$out" | head -3 | sed 's/^/       /'
+			return 1
+		fi
+	done
+	pass "$desc"
 }
 
 # refute <desc> <must-NOT-contain> -- <argv...>  (any exit code accepted)
 refute() {
-        local desc="$1" absent="$2"
-        shift 2
-        [[ "$1" == "--" ]] && shift
-        local out
-        out="$("$@" 2>&1 || true)"
-        if echo "$out" | grep -qF -- "$absent"; then
-                fail "$desc (forbidden '$absent' present)"
-                echo "$out" | head -3 | sed 's/^/       /'
-        else
-                pass "$desc"
-        fi
+	local desc="$1" absent="$2"
+	shift 2
+	[[ "$1" == "--" ]] && shift
+	local out
+	out="$("$@" 2>&1 || true)"
+	if echo "$out" | grep -qF -- "$absent"; then
+		fail "$desc (forbidden '$absent' present)"
+		echo "$out" | head -3 | sed 's/^/       /'
+	else
+		pass "$desc"
+	fi
 }
 
 echo "━━━ zelynic non-root depth test (NIGHT-hunt-13) ━━━"
@@ -169,32 +169,32 @@ refute "list-apps never mentions root" "root required" -- "$BINARY" list-apps
 
 # JSON surfaces: valid, parseable JSON for scripting.
 if command -v python3 >/dev/null 2>&1; then
-        if "$BINARY" doctor --print-json | python3 -m json.tool >/dev/null 2>&1; then
-                pass "doctor --print-json emits valid JSON"
-        else
-                fail "doctor --print-json emits valid JSON"
-        fi
-        if "$BINARY" list-apps --print-json | python3 -m json.tool >/dev/null 2>&1; then
-                pass "list-apps --print-json emits valid JSON"
-        else
-                fail "list-apps --print-json emits valid JSON"
-        fi
+	if "$BINARY" doctor --print-json | python3 -m json.tool >/dev/null 2>&1; then
+		pass "doctor --print-json emits valid JSON"
+	else
+		fail "doctor --print-json emits valid JSON"
+	fi
+	if "$BINARY" list-apps --print-json | python3 -m json.tool >/dev/null 2>&1; then
+		pass "list-apps --print-json emits valid JSON"
+	else
+		fail "list-apps --print-json emits valid JSON"
+	fi
 else
-        echo "  --   python3 absent: JSON validity checks skipped"
+	echo "  --   python3 absent: JSON validity checks skipped"
 fi
 
 # NO_COLOR degrades cleanly (env-only color control, no flag).
 if NO_COLOR=1 "$BINARY" --help >/dev/null 2>&1; then
-        pass "NO_COLOR=1 --help exits 0"
+	pass "NO_COLOR=1 --help exits 0"
 else
-        fail "NO_COLOR=1 --help exits 0"
+	fail "NO_COLOR=1 --help exits 0"
 fi
 
 # Broken pipe: short reader must truncate, not panic (exit 101).
 if "$BINARY" --help 2>/dev/null | head -2 >/dev/null; then
-        pass "--help | head -2 truncates without panic"
+	pass "--help | head -2 truncates without panic"
 else
-        fail "--help | head -2 truncates without panic"
+	fail "--help | head -2 truncates without panic"
 fi
 
 # ━━ 2. Enforcement surfaces: clean root refusal, exit 1 ━━
@@ -202,27 +202,27 @@ fi
 echo "── enforcement surfaces (root refusal) ──"
 
 ROOT_ARGS=(
-        "strict-single brave 100kb"
-        "strict brave 100kb"
-        "strict-multi brave:curl 1mb"
-        "strict-all 500kb"
-        "block-single brave"
-        "block-multi brave:curl"
-        "block-all"
-        "unstrict-single brave"
-        "unstrict brave"
-        "unstrict-multi brave:curl"
-        "unstrict-all"
-        "recover"
-        "status"
-        "eagle-eyes"
-        "eagle-eyes --interval 5s"
-        "eagle-eyes brave/firefox"
+	"strict-single brave 100kb"
+	"strict brave 100kb"
+	"strict-multi brave:curl 1mb"
+	"strict-all 500kb"
+	"block-single brave"
+	"block-multi brave:curl"
+	"block-all"
+	"unstrict-single brave"
+	"unstrict brave"
+	"unstrict-multi brave:curl"
+	"unstrict-all"
+	"recover"
+	"status"
+	"eagle-eyes"
+	"eagle-eyes --interval 5s"
+	"eagle-eyes brave/firefox"
 )
 
 for arg_str in "${ROOT_ARGS[@]}"; do
-        # shellcheck disable=SC2086 # intentional word splitting of the case table
-        expect "root refusal: $arg_str" 1 "root required" "tip: re-run with sudo" -- "$BINARY" $arg_str
+	# shellcheck disable=SC2086 # intentional word splitting of the case table
+	expect "root refusal: $arg_str" 1 "root required" "tip: re-run with sudo" -- "$BINARY" $arg_str
 done
 
 # The JSON flag must not change the refusal contract.
@@ -259,12 +259,12 @@ expect "case-variant flag rescued" 2 "--verbose" -- "$BINARY" --VERBOS doctor
 # Removed surfaces (NIGHT-hunt-12 plus earlier removals):
 # every one must be a usage error, never a silent success.
 for gone in man unblock completions info; do
-        expect "removed subcommand '$gone' rejected" 2 "unrecognized subcommand" -- "$BINARY" "$gone"
+	expect "removed subcommand '$gone' rejected" 2 "unrecognized subcommand" -- "$BINARY" "$gone"
 done
 # NIGHT-boost-1: observe and top merged into eagle-eyes — both fail
 # as unrecognized subcommands whose tip names the successor.
 for gone in observe top; do
-        expect "removed subcommand '$gone' redirects to eagle-eyes" 2 "unrecognized subcommand" "eagle-eyes" -- "$BINARY" "$gone"
+	expect "removed subcommand '$gone' redirects to eagle-eyes" 2 "unrecognized subcommand" "eagle-eyes" -- "$BINARY" "$gone"
 done
 # NIGHT-blade-7 (hunt find): the singular 'eagle-eye' alias was removed
 # with the same merge (one canonical name, one short form) — typing it
@@ -314,16 +314,16 @@ expect "verbose flag parses globally" 0 -- "$BINARY" -v doctor
 # or a panic is the only failure mode that matters.
 check_probe="$(timeout 25 "$BINARY" --check-update 2>&1)" && check_code=0 || check_code=$?
 if [[ "$check_code" -eq 101 ]] || echo "$check_probe" | grep -q 'panicked at'; then
-        fail "--check-update non-root probe (panic/hang)"
+	fail "--check-update non-root probe (panic/hang)"
 elif [[ "$check_code" -eq 124 ]]; then
-        fail "--check-update non-root probe (hung past 25s)"
+	fail "--check-update non-root probe (hung past 25s)"
 elif [[ "$check_code" -eq 0 ]]; then
-        pass "--check-update non-root probe (report rendered)"
+	pass "--check-update non-root probe (report rendered)"
 elif echo "$check_probe" | grep -qE 'network|DNS|connection|timed out|curl|rate-limited|forbidden|not valid UTF-8|malformed'; then
-        pass "--check-update non-root probe (clean mapped error, exit $check_code)"
+	pass "--check-update non-root probe (clean mapped error, exit $check_code)"
 else
-        fail "--check-update non-root probe (exit $check_code, unmapped error)"
-        echo "$check_probe" | head -3 | sed 's/^/       /'
+	fail "--check-update non-root probe (exit $check_code, unmapped error)"
+	echo "$check_probe" | head -3 | sed 's/^/       /'
 fi
 
 # ━━ comm-spoof terminal-injection guard (NIGHT-cybersecurity-1) ━━
@@ -345,9 +345,9 @@ SPOOF_DIR="$(mktemp -d)"
 SLEEP_BIN="$(command -v sleep || echo /bin/sleep)"
 spoof_pids=()
 cleanup_spoof() {
-        kill "${spoof_pids[@]}" 2>/dev/null || true
-        wait "${spoof_pids[@]}" 2>/dev/null || true
-        rm -rf "$SPOOF_DIR"
+	kill "${spoof_pids[@]}" 2>/dev/null || true
+	wait "${spoof_pids[@]}" 2>/dev/null || true
+	rm -rf "$SPOOF_DIR"
 }
 trap cleanup_spoof EXIT
 
@@ -369,14 +369,14 @@ spoof_pids+=($!)
 sleep 0.3
 
 if "$BINARY" list-apps 2>&1 | LC_ALL=C grep -qF "$(printf '\033')"; then
-        fail "list-apps output must never carry a raw ESC byte (comm-spoof guard)"
+	fail "list-apps output must never carry a raw ESC byte (comm-spoof guard)"
 else
-        pass "list-apps output carries no raw ESC byte (comm-spoof guard)"
+	pass "list-apps output carries no raw ESC byte (comm-spoof guard)"
 fi
 if "$BINARY" list-apps --print-json 2>&1 | LC_ALL=C grep -qF "$(printf '\033')"; then
-        fail "list-apps --print-json must never carry a raw ESC byte (comm-spoof guard)"
+	fail "list-apps --print-json must never carry a raw ESC byte (comm-spoof guard)"
 else
-        pass "list-apps --print-json carries no raw ESC byte (comm-spoof guard)"
+	pass "list-apps --print-json carries no raw ESC byte (comm-spoof guard)"
 fi
 
 cleanup_spoof
@@ -389,8 +389,8 @@ echo "━━━ results ━━━"
 echo "  passed: $PASS"
 echo "  failed: $FAIL"
 if [[ "$FAIL" -gt 0 ]]; then
-        echo
-        printf '  %s\n' "${RESULTS[@]}" | grep '^FAIL' || true
-        exit 1
+	echo
+	printf '  %s\n' "${RESULTS[@]}" | grep '^FAIL' || true
+	exit 1
 fi
 exit 0
