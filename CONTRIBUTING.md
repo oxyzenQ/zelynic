@@ -218,8 +218,8 @@ renamed from "Lint & Test" in NIGHT-boost-11): the gate
 CI enforces and the gate the owner runs before a commit are one
 invocation, so the two can never drift apart.
 
-`gate-keepers.sh` runs the 17 non-code gate sections — the shell triad
-(bash -n + shellcheck + shfmt) on shell scripts, yamllint + actionlint
+`gate-keepers.sh` runs the 17 non-code gate sections — the shell quad
+(bash -n + shellcheck + shfmt + source resolution) on shell scripts, yamllint + actionlint
 on workflows, TOML validation,
 codespell, SPDX license headers (check-headers.sh), file permission guard
 (644 files / 755 executables and directories), the repo-wide emoji sweep,

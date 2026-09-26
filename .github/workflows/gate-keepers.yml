@@ -8,10 +8,11 @@
 # PR with NO paths filter — a docs-only or workflow-only change never
 # skips the gates that police it).
 #
-# Checks performed by gate-keepers.sh (16 numbered sections; the
-# shell triad's three sub-checks count separately, so the summary
-# line prints 18 gates):
-#   1.  Shell triad    - bash -n + shellcheck + shfmt -d on all .sh files
+# Checks performed by gate-keepers.sh (17 numbered sections; the
+# shell quad's four sub-checks count separately, so the summary
+# line prints 20 gates):
+#   1.  Shell quad     - bash -n + shellcheck + shfmt -d + source
+#                        resolution on all .sh files
 #   2.  yamllint       - .github YAML (repo .yamllint config)
 #   3.  actionlint    - GitHub Actions workflow validation
 #   4.  TOML syntax    - python3 tomllib on all .toml files

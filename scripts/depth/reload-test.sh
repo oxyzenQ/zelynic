@@ -17,9 +17,10 @@
 set -uo pipefail
 
 # Shared colored-harness helpers (NIGHT-hunt-21): log_* / check_* /
-# counters / BINARY resolution live in one sourced place.
+# counters / BINARY resolution live in one sourced place (scripts/lib/
+# since NIGHT-refactor-1 — one directory up from this category dir).
 # shellcheck source=scripts/lib/harness_lib.sh
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/harness_lib.sh"
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/harness_lib.sh"
 
 cleanup() {
 	"$BINARY" unstrict-all 2>/dev/null || true

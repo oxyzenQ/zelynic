@@ -12,12 +12,14 @@
 #
 # Checks performed (exclude Rust core code — use `cargo clippy` via
 # ./scripts/build.sh check-all for that):
-#   1.  Shell scripts (strict triad):
+#   1.  Shell scripts (strict quad):
 #         1a. bash -n   — syntax check (fast fail-fast pre-filter)
 #         1b. shellcheck — static analysis (default rule set)
 #         1c. shfmt -d  — canonical formatting (tabs, function braces
 #             on own line, case branches expanded); --fix runs
 #             `shfmt -w` to auto-canonicalize
+#         1d. source resolution — every `source`/`.` target exists
+#             (the literal path, not the directive; NIGHT-blade-14)
 #   2.  yamllint on .github YAML (repo .yamllint config)
 #   3.  actionlint on .github/workflows/*.yml
 #   4.  TOML syntax validation (python3 tomllib)
@@ -113,7 +115,7 @@ header() {
 	echo "── $1 ──"
 }
 
-# ── 1. Shell scripts (strict triad: bash -n + shellcheck + shfmt -d) ───────
+# ── 1. Shell scripts (strict quad: bash -n + shellcheck + shfmt -d + source resolution) ───────
 # Resolve the .sh file list once and reuse across the three sub-checks.
 # Excludes .git and target/ trees; .git is repo metadata, target/ is
 # build output (vendor-generated scripts there are not our concern).
@@ -196,6 +198,53 @@ if command -v shfmt >/dev/null 2>&1; then
 	fi
 else
 	warn "shfmt not installed — skipping (https://github.com/mvdan/sh)"
+fi
+
+# ── 1d. source resolution (NIGHT-blade-14) ────────────────────
+# The one gap the triad left open: nothing ever EXECUTED a source
+# line. bash -n is syntax-only; shellcheck -x follows the source=
+# DIRECTIVE, which can point at the right file while the literal
+# path went stale — exactly how scripts/depth/reload-test.sh shipped
+# broken through the NIGHT-refactor-1 lib move (its directive said
+# scripts/lib/, its source line still said its own directory, and
+# the suite died on an unbound variable for root and non-root
+# alike). This check resolves every `source X` / `. X` line the way
+# bash would and verifies the target exists. No script-authored
+# code is evaluated: the repo's two idioms (the cd/pwd idiom
+# anchored at BASH_SOURCE[0], and a plain path relative to the
+# sourcing script's own directory — never the caller's CWD) are
+# resolved by construction; any other shape fails loudly, and a new
+# idiom must extend this translator (fail-closed, never fail-open).
+header "source resolution"
+SRC_BAD=0
+SRC_RE='^[[:space:]]*(source|\.)[[:space:]]+"\$\(cd[[:space:]]+"\$\(dirname[[:space:]]+"\$\{BASH_SOURCE\[0\]\}"\)(/(\.\.)+)*"[[:space:]]+&&[[:space:]]+pwd\)/([^"]+)"$'
+SRC_PLAIN='^[[:space:]]*(source|\.)[[:space:]]+([^"$][^[:space:]]*)[[:space:]]*$'
+# shellcheck disable=SC2086 # word splitting is intentional for file list
+for f in $SHELL_FILES; do
+	fdir="$(dirname "$f")"
+	while IFS= read -r line; do
+		if [[ $line =~ $SRC_RE ]]; then
+			climb="${BASH_REMATCH[2]}"
+			target="${BASH_REMATCH[4]}"
+			if [ ! -e "$fdir$climb/$target" ]; then
+				fail "source resolution: $f: target missing: $line"
+				SRC_BAD=$((SRC_BAD + 1))
+			fi
+		elif [[ $line =~ $SRC_PLAIN ]]; then
+			rel="${BASH_REMATCH[2]}"
+			if [ ! -e "$fdir/$rel" ]; then
+				fail "source resolution: $f: target missing: $line"
+				SRC_BAD=$((SRC_BAD + 1))
+			fi
+		else
+			fail "source resolution: $f: unsupported idiom (extend the 1d translator): $line"
+			SRC_BAD=$((SRC_BAD + 1))
+		fi
+	done < <(grep -E '^[[:space:]]*(source|\.)[[:space:]]' "$f" 2>/dev/null || true)
+done
+if [ "$SRC_BAD" -eq 0 ]; then
+	info "source resolution: every source target resolves"
+	PASS=$((PASS + 1))
 fi
 
 # ── 2. Yamllint ────────────────────────────────────────────────────────────
