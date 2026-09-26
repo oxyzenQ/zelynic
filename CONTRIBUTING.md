@@ -260,26 +260,33 @@ era): where the other workflows prove the CI-shaped surfaces with
 CI-shaped steps, supermassive.yml proves the OWNER-FACING path —
 it runs `scripts/setup.sh` itself (rustup resolving the toolchain
 pin, bootstrap installing the dated nightly + bpf-linker into
-$HOME, the static musl flagship twin) and then BOTH supermassive
-batteries inside a KVM micro-VM (the ubuntu:22.04 container as its
-userland), under two resource envelopes DERIVED from the runner at
-boot time (NIGHT-improve-33, the owner's "cpu core, ram, etc don't
-set fixed let dynamic"; the small envelope is renamed low —
-NIGHT-blade-3) — low specs (a quarter of the cores
-floored at 1 + an eighth of the RAM floored at 1024 MB, booting the
-TRUE documented floor kernel: impish indri 5.13 from the frozen
-old-releases archive) and best specs (every core + three quarters
-of the RAM, booting the archive's LATEST kernel, resolved
-dynamically at run time — the dists index, each Release's
+$HOME, then the payload build the leg's version names — the gnu
+flagship, or the static musl twin) and then BOTH supermassive
+batteries inside a KVM micro-VM, under two resource envelopes
+DERIVED from the runner at boot time (NIGHT-improve-33, the owner's
+"cpu core, ram, etc don't set fixed let dynamic"; the small
+envelope is renamed low — NIGHT-blade-3) — low specs (a quarter of
+the cores floored at 1 + an eighth of the RAM floored at 1024 MB,
+booting the TRUE documented floor kernel: impish indri 5.13 from
+the frozen old-releases archive) and best specs (every core +
+three quarters of the RAM, booting the archive's LATEST kernel,
+resolved dynamically at run time — the dists index, each Release's
 Date+Codename, the two newest distinct codenames, and the newest
 generic unsigned image across their main + -updates pockets wins
 via sort -V) — so the kernel span (5.13 floor to latest head) and
-the machine span are proven per push. Its `paths:` filter is the
+the machine span are proven per push. Each envelope is crossed
+with the payload's libc (NIGHT-blade-12): the matrix is
+{low, best} x {gnu, musl} — the musl legs keep the frozen
+ubuntu:22.04 userland, the gnu legs ride a ubuntu:24.04 rootfs
+(same-distro as the runner that built the dynamic flagship), and
+the gnu flagship — previously compiled and label-grepped but never
+once E2E'd — now runs the same full batteries the static twin has
+owned since NIGHT-improve-31. Its `paths:` filter is the
 binary-shaping surface plus the harness itself (src/, ebpf/, the
 cargo manifests, the toolchain pins, the setup/bootstrap/linker
 scripts, the supermassive tree, the shared lib, the CI init
 scripts, and the workflow's own file); `workflow_dispatch` fires
-the whole pair on demand — the pre-release machine-qualification
+all four legs on demand — the pre-release machine-qualification
 run.
 
 The fourth contract is the release pipeline itself
