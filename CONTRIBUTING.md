@@ -105,64 +105,115 @@ ebpf/                   — the pure-Rust BPF source (aya-ebpf; NIGHT-improve-1
 scripts/
   build.sh             — check-all orchestration
   gate-keepers.sh      — pre-commit non-code gates (17 sections)
-  check-permissions.sh — 644/755 permission guard
-  check-loc.sh         — Rust file LOC cap (500, // LOC_EXEMPT: markers)
-  check-scripts-loc.sh — scripts LOC cap (1000, # LOC_EXEMPT: markers)
-  check-headers.sh     — license header check (rs/c/h/py/sh/toml/yml/md)
-  check-language.sh    — English-only language gate (non-Latin scripts +
-                        Indonesian vocabulary detector; NIGHT-hunt-19)
-  check-rust-version-sync.sh — toolchain pin == MSRV == CI pin, plus
-                        the eBPF nightly pin family (ebpf/rust-toolchain.toml
-                        == workflow installs == build.rs == install/uninstall;
-                        NIGHT-lts-9)
-  check-release-parity.sh — release -C codegen token parity: the four
-                        pro-linux-amd64-* aliases in .cargo/config.toml
-                        match the release workflow matrix rustflags
-                        (NIGHT-lts-9 — a local release-shape build IS
-                        the release shape)
-  harness_lib.sh       — shared colored-harness helpers (log_* /
-                        check_* / counters; sourced by the three
-                        colored root-run harnesses, NIGHT-hunt-21 —
-                        the bash twin of zelynic_harness_lib.py)
-  rust-version-to.sh   — one-command Rust toolchain bumper
-  inject-disclaimer.sh — .md stale-data disclaimer (inject + --check)
-  check-policy.py      — copyright + SPDX policy check
-  supermassive-test.sh — one-click supermassive test (NIGHT-master-2,
-                renamed from brutal-stress-test in NIGHT-improve-11; wraps
-                supermassive-test.py: one root mode, the 5+ min matrix
-                (light retired in NIGHT-improve-19; --self-test is
-                rootless) sweeping the whole command surface — strict/block/
-                unstrict x single/multi/all, curl burst download + upload,
-                rate ladder 1kb..1tb adaptive to hardware, five dedicated
-                target cgroups plus a never-policed hq cgroup for the
-                harness itself (one policed hook per stream,
-                NIGHT-improve-12), --self-test engine smoke for
-                CI/containers)
+  install.sh           — user-space build, root-escalated install
   setup.sh             — the lazy one-command pipeline (NIGHT-improve-18:
                 bootstrap + pro-native-gnu build, --musl twin opt-in,
                 rootless self-test, the sudo supermassive matrix, then
                 a next-steps menu; every phase idempotent)
-  nonroot-depth-test.sh — unprivileged contract matrix (NIGHT-hunt-13)
-  crash-recovery-test.sh — `recover` on stale pins + crash cycles
-                        (NIGHT-cleanup-2: kept — the recover-on-stale
-                        contract has no other e2e coverage)
-  race-condition-test.sh — cross-process lock contract under
-                        concurrent CLI invocations (NIGHT-cleanup-2:
-                        kept — Rust unit tests cover lock logic only)
-  reload-test.sh         — rate change during ACTIVE traffic (the
-                        no-gap combo supermassive's separate reload
-                        and sustain stages do not produce)
-  limiter-depth-test.sh — flagship limiter depth stress test (NIGHT-master-1;
-                wraps limiter-depth-test.py: self-contained loopback traffic,
-                dedicated test cgroup, measured rate accuracy + kernel-drop
-                proof + BPF accounting cross-check + drift guard + reload
-                cycles; the tool for validating a new distro)
-  proof-claims.sh      — honesty harness (NIGHT-boost-8; wraps
+  uninstall.sh         — the install's exact inverse
+
+  bench/               — measurement harnesses
+    benchmarking.sh    — CPU/memory overhead measurement (wraps
+                benchmarking.py)
+    frame-bench.py     — the 10s A/B frame benchmark (density gini,
+                frame entropy, fps, dirty cells, emitted bytes; the
+                protocol in the script header)
+    proof-claims.sh    — honesty harness (NIGHT-boost-8; wraps
                 proof-claims.py: proves the four README headline
                 claims live — no daemon, pure eBPF, per-app
                 per-cgroup, precision 0.00% with its honest live
                 residual; --self-test engine smoke for CI)
-  benchmarking.sh      — CPU/memory overhead measurement (wraps benchmarking.py)
+
+  ci/                  — workflow-support scripts
+    supermassive-init.sh — the CI supermassive VM bring-up
+
+  depth/               — per-surface depth harnesses (root unless noted)
+    crash-recovery-test.sh — `recover` on stale pins + crash cycles
+                        (NIGHT-cleanup-2: kept — the recover-on-stale
+                        contract has no other e2e coverage)
+    endurance-test.sh  — the churn-amplified endurance battery (wraps
+                endurance-test.py; NIGHT-blade-6)
+    install-flow-test.sh — install/uninstall end-to-end flow
+    limiter-depth-test.sh — flagship limiter depth stress test
+                (NIGHT-master-1; wraps limiter-depth-test.py:
+                self-contained loopback traffic, dedicated test
+                cgroup, measured rate accuracy + kernel-drop proof +
+                BPF accounting cross-check + drift guard + reload
+                cycles; the tool for validating a new distro)
+    nonroot-depth-test.sh — unprivileged contract matrix
+                (NIGHT-hunt-13; rootless by design)
+    race-condition-test.sh — cross-process lock contract under
+                concurrent CLI invocations (NIGHT-cleanup-2: kept —
+                Rust unit tests cover lock logic only)
+    reload-test.sh     — rate change during ACTIVE traffic (the
+                no-gap combo supermassive's separate reload and
+                sustain stages do not produce)
+
+  dev/                 — developer tooling
+    bootstrap-ebpf.sh  — rootless eBPF toolchain bootstrap
+    install-bpf-linker.sh — the pinned static bpf-linker installer
+    rust-version-to.sh — one-command Rust toolchain bumper
+    version-to.sh      — Cargo.toml version bumper
+
+  gates/               — the gate-keepers sections, one file each
+    check-headers.sh   — license header check (rs/c/h/py/sh/toml/yml/md)
+    check-language.sh  — English-only language gate (non-Latin scripts +
+                        Indonesian vocabulary detector; NIGHT-hunt-19)
+    check-loc.sh       — Rust file LOC cap (500, // LOC_EXEMPT:
+                        markers) + the src/ root single-file policy
+                        (NIGHT-blade-15)
+    check-permissions.sh — 644/755 permission guard
+    check-policy.py    — copyright + SPDX policy check
+    check-release-parity.sh — release -C codegen token parity: the four
+                        pro-linux-amd64-* aliases in .cargo/config.toml
+                        match the release workflow matrix rustflags
+                        (NIGHT-lts-9 — a local release-shape build IS
+                        the release shape)
+    check-rust-version-sync.sh — toolchain pin == MSRV == CI pin, plus
+                        the eBPF nightly pin family
+                        (ebpf/rust-toolchain.toml == workflow installs
+                        == build.rs == install/uninstall; NIGHT-lts-9)
+    check-scripts-loc.sh — scripts LOC cap (1000, # LOC_EXEMPT: markers)
+    check-version-anti-patterns.sh — no hardcoded version strings
+    inject-disclaimer.sh — .md stale-data disclaimer (inject + --check)
+
+  lib/                 — shared harness libraries
+    harness_lib.sh     — shared colored-harness helpers (log_* /
+                        check_* / counters; sourced by the three
+                        colored root-run harnesses, NIGHT-hunt-21 —
+                        the bash twin of zelynic_harness_lib.py)
+    zelynic_harness_lib.py — the python harness twin (BAND_LO/HI,
+                        fleet/verdict plumbing, NIGHT-improve-11)
+
+  release/             — release-page machinery
+    generate-release-notes.sh — the release body generator (the
+                        cosmostrix release-page style, NIGHT-blade-11:
+                        stability callout, commit count, categorized
+                        collapsible changelog, compare link, GPG
+                        verification section; --self-test pins the
+                        classifier battery rootless; called by
+                        .github/workflows/release.yml)
+
+  sandbox/             — the local KVM micro-VM (NIGHT-think-1)
+    zelynic-sandbox.sh — entrypoint
+    rootfs-pack.py     — rootfs provisioner
+    sandbox-init.sh    — the VM's PID 1
+    smoke-cli.sh       — one-click rootless CLI smoke
+
+  supermassive/        — the two-root-harness pair
+    supermassive-test.sh — one-click supermassive test (NIGHT-master-2,
+                renamed from brutal-stress-test in NIGHT-improve-11;
+                wraps supermassive-test.py: one root mode, the 5+ min
+                matrix (light retired in NIGHT-improve-19;
+                --self-test is rootless) sweeping the whole command
+                surface — strict/block/unstrict x single/multi/all,
+                curl burst download + upload, rate ladder 1kb..1tb
+                adaptive to hardware, five dedicated target cgroups
+                plus a never-policed hq cgroup for the harness itself
+                (one policed hook per stream, NIGHT-improve-12))
+    supermassive-test-v2.sh — the survival battery (NIGHT-refactor-2:
+                the guards, the kills, the regression re-proof, the
+                crash teardown; --self-test rootless)
 ```
 
 ## Coding Standards

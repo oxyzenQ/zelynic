@@ -626,15 +626,17 @@ jobs:
     permissions:
       contents: write
     steps:
-      # NIGHT-improve-20: this job carries NO repository checkout at
-      # all anymore. The old path cloned the whole repository
+      # NIGHT-improve-20 / NIGHT-blade-11: this job carries NO
+      # repository HISTORY. The old path cloned the whole repository
       # (fetch-depth 0: every branch, every tag, full history) just to
-      # run `git tag` + `git log` once for the changelog — the release
-      # body is now rendered from the GitHub REST API (tag list +
-      # compare), which needs zero bytes of repository and is also
-      # more stable: `git tag --sort=-creatordate` misorders re-pointed
-      # / re-created tags (the v11.0.0-alpha.1 re-tag), while semver
-      # ordering is deterministic.
+      # run `git tag` + `git log` once for the changelog — boundaries
+      # and commits come from the GitHub REST API (tag list +
+      # compare), which is also more stable: `git tag
+      # --sort=-creatordate` misorders re-pointed / re-created tags
+      # (the v11.0.0-alpha.1 re-tag), while semver ordering is
+      # deterministic. blade-11 added a depth-1 sparse checkout below
+      # — a cone over scripts/release only, for the one generator
+      # script the body render calls; still zero bytes of history.
       - name: Download artifacts
         uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6, NIGHT-hunt-20 SHA pin
         with:
@@ -645,6 +647,19 @@ jobs:
           pattern: release-artifacts-*
           merge-multiple: true
           path: dist
+
+      - name: Checkout release tooling (sparse, depth 1)
+        # NIGHT-blade-11: the release body moved from the inline jq
+        # renderer to scripts/release/generate-release-notes.sh — the
+        # cosmostrix release-page style (stability callout, commit
+        # count, categorized collapsible changelog, compare link,
+        # verification section). Same action pin as the build job;
+        # cone over the one directory this job reads.
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5, NIGHT-hunt-20 SHA pin
+        with:
+          fetch-depth: 1
+          sparse-checkout: |
+            scripts/release
 
       - name: Generate release body
         id: body
@@ -700,42 +715,63 @@ jobs:
               | sort -V | tail -1)
           fi
 
-          {
-            if [ -n "${PREV_TAG}" ]; then
-              echo "## What's Changed"
-              echo ""
-              # Commits between the boundary and the tag, straight from
-              # the compare API. Same shape as the old
-              # `git log --no-merges --pretty=format:'- %s (%h)'`:
-              # merge commits (more than one parent) are skipped.
-              # The API caps the commit list at 250 — an honest
-              # truncation note is appended when total_commits exceeds
-              # the delivered list.
-              gh_api "repos/${GITHUB_REPOSITORY}/compare/${PREV_TAG}...${TAG}" > compare.json
-              jq -r '.commits[]
-                | select((.parents | length) <= 1)
-                | "- \(.commit.message | split("\n")[0]) (\(.sha[0:7]))"' \
-                compare.json
-              TOTAL=$(jq -r '.total_commits' compare.json)
-              LISTED=$(jq -r '.commits | length' compare.json)
-              if [ "${TOTAL}" -gt "${LISTED}" ]; then
-                echo ""
-                echo "- (changelog truncated: ${TOTAL} commits total, ${LISTED} listed)"
-              fi
-              echo ""
-            else
-              echo "Initial release."
-            fi
-          } > release-body.md
+          # NIGHT-blade-11: the last STABLE tag (the same filter the
+          # stable PREV_TAG branch uses above) — pre-release bodies
+          # render the cosmostrix dual range line with it: "N commits
+          # since previous build · M commits since last stable".
+          LAST_STABLE=$(printf '%s\n' "${TAGS}" \
+            | awk -v cur="${TAG}" \
+              '$0 != cur && $0 !~ /^v[0-9]+\.[0-9]+\.[0-9]+-(dev|nightly|alpha|beta)[\.-]/' \
+            | sort -V | tail -1)
 
-          # Release title: pre-releases carry an explicit "(Pre-Release)"
-          # suffix so users can distinguish them at a glance in the
-          # releases list; stable releases use the bare tag name.
-          if [ "${IS_PRERELEASE}" = "true" ]; then
-            echo "title=${TAG} (Pre-Release)" >> "$GITHUB_OUTPUT"
-          else
-            echo "title=${TAG}" >> "$GITHUB_OUTPUT"
+          # Commits between the boundary and the tag, straight from the
+          # compare API. Same contract as the old inline renderer:
+          # merge commits (more than one parent) are skipped inside the
+          # generator, and the API's 250-commit listing cap carries an
+          # honest truncation note. Zero previous tags = initial
+          # release (the generator renders the marker itself).
+          COMPARE_JSON=""
+          if [ -n "${PREV_TAG}" ]; then
+            gh_api "repos/${GITHUB_REPOSITORY}/compare/${PREV_TAG}...${TAG}" > compare.json
+            COMPARE_JSON=compare.json
           fi
+
+          # The distance from the last stable tag (one more
+          # retry-wrapped compare call; total_commits semantics —
+          # merge commits included). Only pre-release bodies need it,
+          # and only when the boundaries actually differ.
+          SINCE_STABLE=""
+          if [ -n "${COMPARE_JSON}" ] && [ -n "${LAST_STABLE}" ] \
+            && [ "${LAST_STABLE}" != "${PREV_TAG}" ]; then
+            SINCE_STABLE=$(gh_api \
+              "repos/${GITHUB_REPOSITORY}/compare/${LAST_STABLE}...${TAG}" \
+              --jq '.total_commits')
+          fi
+
+          # The cosmostrix release-page style, one implementation in
+          # the tree: scripts/release/generate-release-notes.sh (its
+          # header carries the design notes; --self-test pins the
+          # classifier battery and the body shape, rootless). The
+          # battery runs first — milliseconds, and a drifted
+          # classifier fails the pipeline BEFORE a broken body
+          # publishes, not after.
+          scripts/release/generate-release-notes.sh --self-test
+
+          scripts/release/generate-release-notes.sh \
+            --tag "${TAG}" \
+            --prerelease "${IS_PRERELEASE}" \
+            --compare-json "${COMPARE_JSON}" \
+            --prev-tag "${PREV_TAG}" \
+            --last-stable "${LAST_STABLE}" \
+            --since-stable "${SINCE_STABLE}" \
+            > release-body.md
+
+          # Release title: the bare tag name (NIGHT-blade-11, the
+          # cosmostrix convention) — GitHub's own Pre-release badge
+          # (the prerelease flag on the publish step below) marks the
+          # channel in the releases list, and the body's WARNING
+          # callout carries the expectation-setting text.
+          echo "title=${TAG}" >> "$GITHUB_OUTPUT"
 
           echo "=== Release body ==="
           cat release-body.md
