@@ -127,29 +127,63 @@ installs, how to verify it, and the owner's manual for the first
 publish — zelynic is a NEW crate on the registry, so the first upload
 creates the name and cannot be automated from a cold start.
 
-### What the channel installs — the dormant lane
+### What the channel installs — the full-featured lane
 
-`cargo install zelynic` builds and installs the **dormant binary**:
-the stable-toolchain build without the `ebpf` feature. This is a
-structural fact of cargo, not a choice: the package walk auto-excludes
-nested packages — any directory carrying its own `Cargo.toml` — so the
-detached `ebpf/` workspace cannot ride a registry tarball (verified
-live on this manifest, including with `ebpf/*` entries in the
-manifest's `include` list; `include` does not override the rule).
+`cargo install zelynic` builds and installs the **full-featured
+binary**: monitor and limiter, eBPF objects embedded, on a plain
+**stable toolchain — no nightly, no bpf-linker, no bootstrap ever
+touches the user's machine.** This is the NIGHT-ask-2 shape; the
+structural fact that forced the design is unchanged (cargo's package
+walk auto-excludes nested packages, so the detached `ebpf/` workspace
+cannot ride a registry tarball — verified live, and `include` does
+not override the rule), but the answer to it changed: **`ebpf-prebuilt/`**
+— a plain directory, not a nested package — rides the tarball with
+the two maintainer-built objects, and build.rs's registry lane stages
+them for the now-default `ebpf` feature.
 
-- The dormant binary answers `-V`, `--help`, and the non-eBPF
-  surfaces; every eBPF command exits with the honest guidance
-  (`eBPF not compiled into this build — tip: rebuild with 'cargo
-  build --features ebpf'`).
-- Requesting the ebpf lane from a registry source
-  (`cargo install zelynic --features ebpf`) fails fast in build.rs's
-  NIGHT-ask-1 preflight with the two real remedies: build from a git
-  checkout, or install the prebuilt flagship binary from GitHub
-  Releases (sections 1-2 above verify those).
+- The objects are the **same bytes the GitHub Release binaries embed**
+  (sections 1-2 above verify those), generated through the repo's own
+  validated build pipeline by `scripts/release/refresh-prebuilt.sh` —
+  kernel compatibility is identical by construction, and every object
+  re-passes the NIGHT-hunt-29 structural validation at the user's
+  build time before it may be embedded.
+- `zelynic -V` reports the lane — `eBPF objects: registry-prebuilt` —
+  plus the exact source sha from `.cargo_vcs_info.json`; the
+  provenance record (source-tree hash, toolchain, linker, per-object
+  sha256) rides the tarball as `ebpf-prebuilt/manifest.toml`.
+- The dormant lane (stable binary, eBPF surfaces answering their
+  honest refusal) survives as the explicit opt-out:
+  `cargo install zelynic --no-default-features`.
 - The published ship set is curated by the manifest's `include`:
-  sources, the test tree, the full docs tree, the governance docs
-  (CLA / COMMERCIAL_LICENSE / TRADEMARK), and the one-command eBPF
-  bootstrap pair. CI, gates, harnesses, and assets stay repo-only.
+  sources, the test tree, `ebpf-prebuilt/`, the full docs tree, the
+  governance docs (CLA / COMMERCIAL_LICENSE / TRADEMARK), and the
+  one-command eBPF bootstrap pair (downstream source builders). CI,
+  gates, harnesses, and assets stay repo-only.
+
+### Keeping the prebuilt objects fresh (owner procedure)
+
+The lane's freshness is enforced, not promised:
+`scripts/gates/check-prebuilt-parity.sh` (gate #18 in
+gate-keepers.sh) recomputes the sha256 over the sorted git-tracked
+`ebpf/` file hashes and fails every push where it differs from
+`ebpf-prebuilt/manifest.toml`'s pin — so after ANY change under
+`ebpf/`, run the refresh and commit the lane in the same task:
+
+```bash
+./scripts/release/refresh-prebuilt.sh   # rebuild + restage + manifest
+# review ebpf-prebuilt/ (git diff --stat ebpf-prebuilt) and commit it
+```
+
+The script builds through the repo's own validated pipeline (the
+nested nightly cross-compile, the NIGHT-hunt-29 validation), copies
+the two objects out of `ebpf/target/`, writes the provenance
+manifest, and ends by running the parity gate itself — the generator
+and the verifier must agree on every generation. A forced rebuild on
+2026-09-27 produced byte-identical objects (bpf-linker 0.11.1 under
+the dated pin is reproducible on this host), but the gate pins the
+source-tree hash, which is deterministic everywhere: the shipped
+objects can never silently fall behind the sources they claim to
+carry.
 
 ### Verifying a crates.io install
 
@@ -196,7 +230,10 @@ against the live registry API). The first publish creates it.
 5. **Verify**: `curl -A "zelynic-release-check"
    https://crates.io/api/v1/crates/zelynic` answers 200;
    `cargo install zelynic --locked` in a clean environment succeeds;
-   `zelynic -V` reports the tagged short sha.
+   `zelynic -V` reports the tagged short sha and `eBPF objects:
+   registry-prebuilt`, and an enforcement command under a non-root
+   account answers `root required` (not `eBPF not compiled`) — the
+   installed binary is the full build.
 6. **Recovery**: a bad version is `cargo yank --vers X.Y.Z` — yanked
    versions stay resolvable for existing lockfiles but vanish from
    new ones. crates.io never deletes a version; there is no re-upload

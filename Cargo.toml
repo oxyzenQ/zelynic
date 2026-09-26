@@ -13,23 +13,28 @@ readme = "README.md"
 keywords = ["bandwidth", "network", "rate-limiter", "linux", "ebpf"]
 categories = ["command-line-utilities", "network-programming"]
 rust-version = "1.98"
-# NIGHT-ask-1: crates.io ship set (cosmostrix include/exclude lineage).
-# Structural fact, verified live twice on this manifest: cargo's
-# package walk auto-excludes NESTED packages — any directory carrying
-# its own Cargo.toml — and `include` does NOT override that rule (the
-# default `cargo package --list` shipped src/ebpf/* but zero ebpf/*
-# files; re-running with ebpf/* patterns in `include` still shipped
-# zero). The published crate is therefore the DORMANT lane only: the
-# stable-toolchain binary plus everything a downstream reader and the
-# crates.io page need. The ebpf feature still compiles its objects
-# from the detached ebpf/ workspace, which only a git checkout or a
-# GitHub release source tarball carries — build.rs's NIGHT-ask-1
-# preflight fails fast with exactly that message when the feature is
-# requested from a tree without ebpf/. The set keeps the one-command
-# bootstrap pair the preflight panics name, the full docs tree the
-# README links into, and the governance docs of the dual-license
-# offer. Everything NOT listed stays repo-only: CI workflows, gates,
-# sandbox/bench/supermassive harnesses, assets, lint dotfiles.
+# NIGHT-ask-2: the crates.io ship set (cosmostrix include/exclude
+# lineage; NIGHT-ask-1 opened the lane, this task made it
+# full-featured). Structural fact, verified live twice on this
+# manifest: cargo's package walk auto-excludes NESTED packages — any
+# directory carrying its own Cargo.toml — and `include` does NOT
+# override that rule (the default `cargo package --list` shipped
+# src/ebpf/* but zero ebpf/* files; re-running with ebpf/* patterns
+# in `include` still shipped zero — so no ebpf/* entry appears here,
+# dead entries are not curated entries). The published crate is
+# therefore the FULL-FEATURED lane: ebpf-prebuilt/ — a plain
+# directory, NOT a nested package — rides the tarball with the two
+# maintainer-built objects (the same bytes the GitHub Release
+# binaries embed; provenance in ebpf-prebuilt/manifest.toml,
+# freshness pinned by scripts/gates/check-prebuilt-parity.sh), and
+# build.rs's registry lane stages them for the default `ebpf`
+# feature, so a plain `cargo install zelynic` lands the monitor and
+# the limiter on a stable toolchain with no nightly anywhere near
+# the user. The set keeps the one-command bootstrap pair (downstream
+# source builders), the full docs tree the README links into, and
+# the governance docs of the dual-license offer. Everything NOT
+# listed stays repo-only: CI workflows, gates, sandbox/bench/
+# supermassive harnesses, assets, lint dotfiles.
 include = [
     "src/**",
     "build.rs",
@@ -40,11 +45,7 @@ include = [
     "LICENSE",
     "deny.toml",
     "test/**",
-    "ebpf/src/**",
-    "ebpf/Cargo.toml",
-    "ebpf/Cargo.lock",
-    "ebpf/rust-toolchain.toml",
-    "ebpf/.cargo/config.toml",
+    "ebpf-prebuilt/**",
     "scripts/dev/bootstrap-ebpf.sh",
     "scripts/dev/install-bpf-linker.sh",
     "docs/**",
@@ -110,7 +111,21 @@ optional = true
 # bans section).
 
 [features]
-default = []
+# NIGHT-ask-2: `ebpf` is the DEFAULT — a plain `cargo install zelynic`
+# must land the full-featured binary (monitor + limiter), not a
+# dormant one. On a registry tarball the feature compiles against the
+# maintainer-built objects staged from ebpf-prebuilt/ (build.rs's
+# registry lane), so the install needs NO nightly toolchain: stable
+# 1.98 builds the userspace, the objects ride embedded — the same
+# bytes the GitHub Release binaries embed. The dormant lane (stable
+# binary, eBPF surfaces answering their honest refusal) is now the
+# OPT-IN: `cargo build/test --no-default-features`. A git checkout
+# with the feature on keeps the source-built contract: the nested
+# nightly cross-compile, with the NIGHT-host-1 preflight naming the
+# one-command bootstrap (./scripts/dev/bootstrap-ebpf.sh) when the
+# toolchain is missing — a tree that HAS the sources builds the
+# sources, never a silent prebuilt substitution.
+default = ["ebpf"]
 ebpf = ["aya"]
 
 # The one integration test target (NIGHT-hunt-17: the tree moved from

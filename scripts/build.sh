@@ -235,15 +235,26 @@ run_tests() {
 	# --locked (NIGHT-boost-7): CI and the owner's gate must never
 	# drift — the lockfile is committed, so a test run that would
 	# rewrite it fails instead of silently regenerating it.
+	#
+	# --no-default-features (NIGHT-ask-2): the LOCAL gate tests the
+	# dormant lane explicitly. The default became `ebpf` when the
+	# crates.io lane went full-featured, and testing it here would
+	# drag the nested nightly eBPF build into every check-all run —
+	# heavy work CI owns (the 2-minute check-all cap is an owner
+	# rule). The ebpf-feature test lane stays where it always ran:
+	# ci.yml's explicit `cargo test --features ebpf --locked`, and
+	# clippy --all-features below still compiles the full ebpf
+	# surface locally. The dormant contract (the honest-refusal
+	# wording test) is ONLY reachable through this leg.
 	if [ "${NEXTEST_AVAILABLE:-0}" -eq 1 ]; then
-		if cargo nextest run --locked --target "${TARGET}" --jobs "${MAX_JOBS}"; then
+		if cargo nextest run --locked --no-default-features --target "${TARGET}" --jobs "${MAX_JOBS}"; then
 			log_success "All tests passed (nextest)"
 		else
 			log_error "Tests failed"
 			return 1
 		fi
 	else
-		if cargo test --locked --target "${TARGET}" --jobs "${MAX_JOBS}" -- --test-threads="${MAX_JOBS}"; then
+		if cargo test --locked --no-default-features --target "${TARGET}" --jobs "${MAX_JOBS}" -- --test-threads="${MAX_JOBS}"; then
 			log_success "All tests passed"
 		else
 			log_error "Tests failed"

@@ -76,6 +76,15 @@
 #       matrix's rustflags, so a local alias build reproduces the
 #       release optimization tier the README documents bit-for-bit;
 #       a one-file edit can no longer silently break that contract)
+#  18.  Prebuilt eBPF parity (NIGHT-ask-2 —
+#       scripts/gates/check-prebuilt-parity.sh: the ebpf-prebuilt/
+#       objects that make `cargo install zelynic` full-featured stay
+#       sane ELFs, match their manifest.toml rows (sha256 + size),
+#       and pin the live ebpf/ tree hash — any change under ebpf/
+#       fails here until scripts/release/refresh-prebuilt.sh
+#       regenerates the lane, so the registry tarball can never ship
+#       objects that silently fell behind the sources they claim to
+#       carry)
 #
 # Missing tools are skipped with a warning so the gate stays usable
 # on minimal development machines; CI runs this script WHOLESALE
@@ -666,6 +675,24 @@ if [ -f scripts/gates/check-release-parity.sh ]; then
 	fi
 else
 	warn "check-release-parity.sh not found — skipping"
+fi
+
+# ── 18. Prebuilt eBPF Parity ─────────────────────────────────────────────────
+# The ebpf-prebuilt/ lane is what a plain `cargo install zelynic`
+# embeds (the full-featured registry build). The gate holds its three
+# contracts: sane ELF objects, manifest rows that match the disk, and
+# the ebpf/ tree-hash pin — the staleness killer that forces a
+# refresh-prebuilt.sh run after every ebpf/ change.
+header "Prebuilt eBPF Parity (check-prebuilt-parity.sh)"
+if [ -f scripts/gates/check-prebuilt-parity.sh ]; then
+	if bash scripts/gates/check-prebuilt-parity.sh 2>&1; then
+		info "prebuilt parity: ebpf-prebuilt/ objects + manifest + ebpf/ tree pin all agree"
+		PASS=$((PASS + 1))
+	else
+		fail "prebuilt parity: the registry lane is stale or inconsistent (run ./scripts/release/refresh-prebuilt.sh and commit ebpf-prebuilt/)"
+	fi
+else
+	warn "check-prebuilt-parity.sh not found — skipping"
 fi
 
 # ── Summary ────────────────────────────────────────────────────────────────

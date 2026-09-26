@@ -41,6 +41,17 @@ tunes the HOST binary only (build.rs strips it from the nested eBPF
 build, NIGHT-hunt-28), so bpfel objects stay identical no matter
 which alias built them.
 
+Since NIGHT-ask-2 the `ebpf` feature is the DEFAULT (a plain
+`cargo install zelynic` must land the full build), so a plain
+`cargo build` / `cargo test` in a git checkout needs the eBPF
+toolchain from Prerequisites above. The dormant quick lane — the
+stable-toolchain binary with the eBPF surfaces disabled — is the
+explicit opt-out: `cargo build --no-default-features` (that is also
+the lane `./scripts/build.sh check-all` tests locally; the
+feature-on test lane runs in CI). A tree that HAS the ebpf/ sources
+always builds them from source: the ebpf-prebuilt/ objects stage
+only for registry tarballs, never as a silent local substitute.
+
 ## Project Structure
 
 ```
