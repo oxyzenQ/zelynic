@@ -79,15 +79,102 @@ pub fn pin_dir_has_files() -> bool {
 }
 
 /// Remove ALL pin files + directory. Full cleanup.
-pub fn unpin_all() -> Result<()> {
-    let pin_dir = PathBuf::from(PIN_DIR);
-    if pin_dir.exists() {
-        if let Ok(entries) = std::fs::read_dir(&pin_dir) {
-            for entry in entries.flatten() {
-                let _ = std::fs::remove_file(entry.path());
+///
+/// NIGHT-master-4 (the honesty audit): the removal is VERIFIED, not
+/// assumed. The former implementation discarded every `remove_file`
+/// result and returned `Ok(())` unconditionally — so `unstrict-all`
+/// could print "All limits removed, no residue." and `recover`
+/// "Result: recovered" while pin files were still on disk (a busy
+/// pin, a read-only bpffs mount, or a foreign nested entry). The
+/// verdict now comes from the filesystem's after-state: the function
+/// returns the count of entries it actually unlinked, and any entry
+/// that survives the removal pass is an error naming the leftover
+/// count — the same never-fabricate contract the policy-map readers
+/// hold (`unpin_if_no_policies`, NIGHT-hunt-20).
+///
+/// A missing directory is `Ok(0)` (idempotent — every teardown path
+/// must be safe to re-run, which `recover` after `unstrict-all`
+/// exercises for real).
+///
+/// Returns the number of pin entries removed.
+pub fn unpin_all() -> Result<usize> {
+    unpin_dir(&PathBuf::from(PIN_DIR))
+}
+
+/// The verified removal core — split from [`unpin_all`] so the
+/// unit pins can drive the full remove/verify/fail cycle against a
+/// temp directory (the production path only ever runs as root
+/// against `/sys/fs/bpf/zelynic`).
+///
+/// Discipline: unlink every entry (an entry that raced away mid-pass
+/// counts as neither removed nor leftover), re-read the directory,
+/// and require it EMPTY — then remove the directory itself, whose
+/// failure is also residue. `remove_file` on a nested directory
+/// fails `EISDIR` and the verification pass catches the survivor,
+/// so a foreign nested entry cannot pass silently either.
+pub(crate) fn unpin_dir(dir: &std::path::Path) -> Result<usize> {
+    // Enumerate first: a missing directory is a clean Ok(0), an
+    // unreadable one is an honest error (we cannot even attempt the
+    // cleanup we are about to claim).
+    let entries = match std::fs::read_dir(dir) {
+        Ok(entries) => entries,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(0),
+        Err(e) => {
+            return Err(anyhow!("pin dir {}: {e}", dir.display()));
+        }
+    };
+
+    let mut removed = 0usize;
+    for entry in entries.flatten() {
+        match std::fs::remove_file(entry.path()) {
+            Ok(()) => removed += 1,
+            // Raced away mid-pass (a concurrent teardown won): not
+            // removed, not leftover — the verification pass below is
+            // the arbiter.
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            // A stubborn entry (busy pin, read-only fs, EISDIR on a
+            // nested dir): keep sweeping the rest, report after —
+            // a partial removal followed by an honest error beats a
+            // half-cleaned directory reported as clean.
+            Err(_) => {}
+        }
+    }
+
+    // The verification pass: the directory must be EMPTY. This is
+    // the verdict's source of truth, not the unlink return values.
+    match std::fs::read_dir(dir) {
+        Ok(mut survivors) => {
+            if survivors.next().is_some() {
+                let leftover = 1 + survivors.count();
+                return Err(anyhow!(
+                    "pin dir {} still holds {leftover} {} after cleanup — \
+                     a pin is busy or the bpf fs refused the removal; \
+                     the state is NOT clean",
+                    dir.display(),
+                    if leftover == 1 { "entry" } else { "entries" }
+                ));
             }
         }
-        let _ = std::fs::remove_dir(&pin_dir);
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(removed),
+        Err(e) => {
+            return Err(anyhow!(
+                "pin dir {} could not be re-read for verification: {e}",
+                dir.display()
+            ));
+        }
     }
-    Ok(())
+
+    // Empty and verified: drop the directory itself. Its failure is
+    // residue too (a non-empty race would have been caught above; a
+    // refused rmdir is an honest error).
+    std::fs::remove_dir(dir)
+        .map_err(|e| anyhow!("pin dir {} could not be removed: {e}", dir.display()))?;
+    Ok(removed)
 }
+
+// NIGHT-master-4: the verified-unpin pins live under the single
+// test/ tree (cosmostrix Pattern C), #[path]-wired exactly like the
+// lock and limiter pins.
+#[cfg(test)]
+#[path = "../../test/ebpf/pin_tests.rs"]
+mod tests;
