@@ -164,24 +164,32 @@ span + dynamic envelopes are NIGHT-improve-33): a push touching
 core files triggers `.github/workflows/supermassive.yml`, which runs
 this exact owner-facing path (`setup.sh` itself, not a CI-shaped
 shortcut) and then BOTH supermassive batteries inside a KVM micro-VM
-on a hosted runner — the ubuntu:22.04 container as its userland —
-under two resource envelopes derived at boot time from whatever
-runner the job lands on (the owner's "don't set fixed, let dynamic";
-the small envelope is renamed low — NIGHT-blade-3):
-"supermassive test - low specs" (a quarter of the cores floored
-at 1 + an eighth of the RAM floored at 1024 MB, the dense-little-host
-slice, booting the TRUE documented floor kernel — impish indri 5.13,
-the oldest kernel in the verified matrix, from the frozen
-old-releases archive) and "supermassive test - best specs" (every
-core + three quarters of the RAM, the big-host width, booting the
-Ubuntu archive's LATEST kernel, resolved dynamically at run time —
-nothing pinned, the resolver walks onto each new release by itself),
-so "does it work end to end?" is answered per push across the whole
-kernel span AND the machine span — no VirtualBox session needed;
-`workflow_dispatch` fires the same pair on demand as the pre-release
-qualification run, and a weekly run keeps the span proven between
-pushes (a plain container cannot change the host kernel; the
-micro-VM is the honest container-shaped answer).
+on a hosted runner, under two resource envelopes derived at boot
+time from whatever runner the job lands on (the owner's "don't set
+fixed, let dynamic"; the small envelope is renamed low —
+NIGHT-blade-3): "supermassive test - low specs" (a quarter of the
+cores floored at 1 + an eighth of the RAM floored at 1024 MB, the
+dense-little-host slice, booting the TRUE documented floor kernel —
+impish indri 5.13, the oldest kernel in the verified matrix, from
+the frozen old-releases archive) and "supermassive test - best
+specs" (every core + three quarters of the RAM, the big-host width,
+booting the Ubuntu archive's LATEST kernel, resolved dynamically at
+run time — nothing pinned, the resolver walks onto each new release
+by itself). Each envelope is crossed with the payload's libc
+(NIGHT-blade-12, the "low/best with musl version" ask): four legs
+total — the musl legs keep the static twin on the frozen
+ubuntu:22.04 userland it has always ridden, and the gnu legs boot
+the pro-native-gnu flagship on a ubuntu:24.04 rootfs (same-distro
+as the runner that built the dynamic binary), so the default
+source-build shape finally gets the live batteries — limiter
+matrix, survival, claims proof — that the static twin had alone.
+So "does it work end to end?" is answered per push across the whole
+kernel span AND the machine span AND both libc flavors — no
+VirtualBox session needed; `workflow_dispatch` fires the same four
+legs on demand as the pre-release qualification run, and a weekly
+run keeps the span proven between pushes (a plain container cannot
+change the host kernel; the micro-VM is the honest container-shaped
+answer).
 
 Building needs the pinned Rust toolchain (rustup installs the exact
 version from `rust-toolchain.toml`) plus the eBPF nightly pair — and

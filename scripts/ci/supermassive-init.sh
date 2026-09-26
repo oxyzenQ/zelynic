@@ -28,6 +28,18 @@
 # boots the archive's latest (resolved dynamically at run time),
 # and the same userland (the ubuntu:22.04 container) serves both.
 #
+# NIGHT-blade-12: the envelope pair crossed with the payload's
+# libc — the matrix is now {low, best} x {gnu, musl} and this init
+# runs once per leg with ITS payload at /opt/zelynic/zelynic. The
+# rootfs assembly writes /opt/zelynic/PAYLOAD-FLAVOR ("gnu" or
+# "musl") beside the binary, and the probe rows below name it, so
+# a four-leg matrix's serial log always says which libc it proved
+# (the gnu legs ride a ubuntu:24.04 rootfs — same-distro as the
+# runner that built the dynamic flagship; the musl legs keep the
+# frozen ubuntu:22.04 userland). A missing marker is a rootfs
+# assembly bug and shows as "unknown" — visible in the verdict
+# lines, never silent.
+#
 # Contract: one MASS-RESULT line per probe plus a final
 # MASS-VERDICT line, all on the serial console (the workflow's
 # Verdict step greps these sentinels; the VM cannot relay exit
@@ -125,10 +137,21 @@ else
 fi
 
 # ── the lean prelude: the binary runs, the bpf syscall answers ───────
+# The payload flavor names itself in the probe rows (NIGHT-blade-12):
+# the rootfs assembly wrote /opt/zelynic/PAYLOAD-FLAVOR beside the
+# binary this init is about to exercise. "unknown" means the marker
+# never landed — a rootfs assembly bug, visible in the log, never
+# silent; the probe's PASS/FAIL verdict rides the binary, not the
+# marker.
+FLAVOR="unknown"
+if [ -r "$Z/PAYLOAD-FLAVOR" ]; then
+	FLAVOR=$(tr -d '[:space:]' <"$Z/PAYLOAD-FLAVOR")
+fi
+echo "MASS: payload flavor: $FLAVOR"
 if ./zelynic -V >/dev/null 2>&1; then
-	note "zelynic -V (static musl + CPU match)" PASS
+	note "zelynic -V ($FLAVOR payload + CPU match)" PASS
 else
-	note "zelynic -V (static musl + CPU match)" FAIL
+	note "zelynic -V ($FLAVOR payload + CPU match)" FAIL
 fi
 if ./zelynic doctor; then
 	note "doctor (bpf syscall on the floor)" PASS

@@ -2,6 +2,38 @@
 # SPDX-License-Identifier: GPL-3.0-only
 # =============================================================================
 #
+# NIGHT-blade-12 (the owner's ask: "add support for CI supermassive
+# test low/best with musl version"): the envelope pair grows a version
+# dimension — {low, best} x {gnu, musl}, four legs. The musl legs are
+# the ask's own words made structural: the static twin the pair has
+# carried since NIGHT-improve-31 becomes a NAMED, titled matrix entry
+# ("supermassive test - low specs (musl)") instead of the unnamed
+# default it silently was. The gnu legs close a hole the blade-12 hunt
+# found while mapping the ask: the gnu flagship — the default
+# source-build shape (setup.sh phase 1), the binary install.sh
+# installs, and half the release matrix (v3-gnu, v4-gnu) — had ZERO
+# root E2E anywhere in the estate. ci.yml's gnu-dynamic job compiles
+# it and greps build labels; every runtime battery (the v1 limiter
+# matrix, the v2 survival pty work, the live claims proof) ran on the
+# musl twin alone. Each gnu leg now runs the FULL battery — the same
+# canonical invocations, the same verdict contract — on the
+# pro-native-gnu flagship.
+#
+# The version dimension carries one honest physics delta: a gnu
+# binary is dynamically linked against its BUILD host's glibc, so the
+# gnu legs assemble the rootfs from ubuntu:24.04 (the runner's own
+# distro — built on 24.04's glibc 2.39, running on 24.04's glibc
+# 2.39; the source-build deployment shape IS same-distro, and the
+# frozen 22.04 container's glibc 2.35 would be a weaker, untested
+# claim). The musl legs keep the ubuntu:22.04 userland unchanged
+# (a static binary owes no userland anything — the improve-31
+# contract, carried verbatim). The kernel span and the envelope
+# derivation are untouched: the pair's variables stay kernel +
+# envelope, now crossed with the libc the payload links. The rootfs
+# assembly writes /opt/zelynic/PAYLOAD-FLAVOR so the init's probe
+# rows name the payload they ran — a four-leg matrix's logs must say
+# which libc they proved.
+#
 # NIGHT-blade-3 (the owner's re-shape): the envelope pair's small
 # end is renamed minimum -> low, everywhere the name lives (the
 # matrix title, the profile key, the step names, the comments, and
@@ -108,10 +140,11 @@
 # can change availability and the archive the latest-kernel
 # resolver walks can restructure, both between pushes).
 #
-# Cost: two standard hosted runners for ~15-30 min per qualifying
-# push (public-repo standard runners are free); the push pipeline
-# stays decoupled from ci.yml's own failure modes — this workflow
-# can only redden itself.
+# Cost: four standard hosted runners for ~15-30 min per qualifying
+# push (public-repo standard runners are free; the blade-12 version
+# dimension doubled the pair 2 -> 4 legs, each its own job and VM);
+# the push pipeline stays decoupled from ci.yml's own failure modes —
+# this workflow can only redden itself.
 
 name: Dragon Guard - Supermassive
 
@@ -177,17 +210,31 @@ jobs:
       matrix:
         include:
           # The two ends of the machines zelynic promises to run on
-          # (see the header): resources are NOT pinned here anymore
-          # (NIGHT-improve-33) — the boot step derives each envelope
-          # from the runner at run time. What stays per-leg: the
-          # title (the owner's exact strings), the kernel lane, and
+          # (see the header), each crossed with the payload's libc
+          # (NIGHT-blade-12: {low, best} x {gnu, musl} — the version
+          # names the binary the leg boots, the title suffix carries
+          # it into the check run's name). Resources are NOT pinned
+          # here anymore (NIGHT-improve-33) — the boot step derives
+          # each envelope from the runner at run time. What stays
+          # per-leg: the title (the owner's exact base strings plus
+          # the version suffix), the kernel lane, the version, and
           # the VM budget (the low envelope's tight CPU slice
           # serializes the battery, so its budget rides at 1800 s).
-          - title: supermassive test - low specs
+          - title: supermassive test - low specs (gnu)
             profile: low
+            version: gnu
             vm_timeout: "1800"
-          - title: supermassive test - best specs
+          - title: supermassive test - low specs (musl)
+            profile: low
+            version: musl
+            vm_timeout: "1800"
+          - title: supermassive test - best specs (gnu)
             profile: best
+            version: gnu
+            vm_timeout: "1200"
+          - title: supermassive test - best specs (musl)
+            profile: best
+            version: musl
             vm_timeout: "1200"
     runs-on: ubuntu-24.04
     timeout-minutes: 45
@@ -225,15 +272,22 @@ jobs:
       # RUNNER (outside the VM — a low-specs guest cannot host a
       # toolchain build, and the envelope's point is the STRESSTEST,
       # not the compile): the canonical path from e2e.yml — bootstrap,
-      # the static musl flagship twin, and the rootless engine
-      # self-test. The musl twin is the VM's payload: glibc-free, the
+      # the payload build, and the rootless engine self-test. The
+      # payload follows the leg's version (NIGHT-blade-12): the gnu
+      # legs stop at the phase-1 flagship (pro-native-gnu — no musl
+      # toolchain to install, a leaner bring-up), the musl legs add
+      # the static twin (phase 2, exactly as before: glibc-free, the
       # exact binary the cross-distro instrument runs on foreign
       # distros, executing under KVM's -cpu host on the SAME silicon
-      # that built it.
-      - name: Bring-up (setup.sh --skip-heavy --musl)
+      # that built it).
+      - name: Bring-up (setup.sh --skip-heavy, payload per version)
         run: |
-          rustup target add x86_64-unknown-linux-musl
-          ./scripts/setup.sh --skip-heavy --musl
+          if [ "${{ matrix.version }}" = "musl" ]; then
+            rustup target add x86_64-unknown-linux-musl
+            ./scripts/setup.sh --skip-heavy --musl
+          else
+            ./scripts/setup.sh --skip-heavy
+          fi
 
       # The floor kernel (NIGHT-improve-33): impish indri (21.10)
       # 5.13.0-52, the TRUE documented floor, fetched from the frozen
@@ -350,25 +404,43 @@ jobs:
           cp "$VMLINUZ" /tmp/kfloor/vmlinuz-floor
           echo "kernel: $(du -h /tmp/kfloor/vmlinuz-floor | cut -f1) at /tmp/kfloor/vmlinuz-floor"
 
-      # The userland (BOTH legs, held constant on purpose — the pair's
-      # only variables are the kernel and the envelope): the
-      # ubuntu:22.04 CONTAINER supplies the rootfs (glibc 2.35's
-      # kernel floor is 3.2, so the 5.13 kernel is safe), python3 +
+      # The userland (BOTH profiles' legs, held constant per version on
+      # purpose — the leg's only variables are the kernel and the
+      # envelope; NIGHT-blade-12 adds the version's own pairing): the
+      # gnu legs draw the rootfs from the ubuntu:24.04 CONTAINER (the
+      # runner's own distro — the dynamically linked flagship was
+      # built against 24.04's glibc 2.39, and the source-build
+      # deployment shape IS same-distro; glibc 2.39's kernel floor is
+      # 3.2, so the 5.13 kernel is safe), the musl legs keep the
+      # ubuntu:22.04 container unchanged (a static binary owes no
+      # userland anything — the improve-31 contract). python3 +
       # iproute2 ride along (the engine + `ip link set lo up`), and
       # curl joins the set for the consolidated battery (the v1
       # limiter matrix drives its lanes with it; the realnet lane
       # self-skips, the documented row, so curl is for the loopback
-      # lanes). The checkout (tracked files only) and the static musl
+      # lanes). The checkout (tracked files only) and the payload
       # binary land at /opt/zelynic, scripts/ci/supermassive-init.sh
       # becomes /init (PID 1) — then the whole tree packs into ONE
       # newc cpio (the initramfs IS the rootfs; no disk, no modules).
+      # PAYLOAD-FLAVOR (NIGHT-blade-12) names the libc for the init's
+      # probe rows: a four-leg matrix's verdict lines must say which
+      # payload they proved, and the marker is written by the same
+      # step that copies the binary, one /opt/zelynic apart.
       - name: Assemble the micro-VM rootfs
         run: |
           set -euo pipefail
           cd /tmp/kfloor
-          docker pull -q ubuntu:22.04
+          if [ "${{ matrix.version }}" = "gnu" ]; then
+            SUITE=ubuntu:24.04
+            PAYLOAD="$GITHUB_WORKSPACE/target/pro-native-gnu/zelynic"
+          else
+            SUITE=ubuntu:22.04
+            PAYLOAD="$GITHUB_WORKSPACE/target/x86_64-unknown-linux-musl/pro-native-musl/zelynic"
+          fi
+          echo "rootfs suite: $SUITE (payload: ${{ matrix.version }})"
+          docker pull -q "$SUITE"
           docker rm -f floor-rootfs >/dev/null 2>&1 || true
-          docker run --name floor-rootfs -d ubuntu:22.04 sleep infinity
+          docker run --name floor-rootfs -d "$SUITE" sleep infinity
           docker exec floor-rootfs apt-get update -qq
           docker exec floor-rootfs apt-get install -y --no-install-recommends python3 iproute2 curl
           docker export floor-rootfs -o rootfs.tar
@@ -376,7 +448,8 @@ jobs:
           tar -xf rootfs.tar -C rootfs
           mkdir -p rootfs/opt/zelynic
           git -C "$GITHUB_WORKSPACE" archive HEAD | tar -x -C rootfs/opt/zelynic
-          cp "$GITHUB_WORKSPACE/target/x86_64-unknown-linux-musl/pro-native-musl/zelynic" rootfs/opt/zelynic/zelynic
+          cp "$PAYLOAD" rootfs/opt/zelynic/zelynic
+          printf '%s\n' '${{ matrix.version }}' > rootfs/opt/zelynic/PAYLOAD-FLAVOR
           cp "$GITHUB_WORKSPACE/scripts/ci/supermassive-init.sh" rootfs/init
           chmod +x rootfs/init
           # PID 1 needs a console to exec onto before devtmpfs lands

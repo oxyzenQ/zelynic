@@ -31,7 +31,9 @@
 > CI files those rows automatically now (NIGHT-ultimate-3, the
 > re-issued label; consolidated into the Supermassive workflow in
 > NIGHT-improve-31; the kernel span + dynamic envelopes are
-> NIGHT-improve-33; the minimum->low rename is NIGHT-blade-3):
+> NIGHT-improve-33; the minimum->low rename is NIGHT-blade-3; the
+> payload version dimension — {low, best} x {gnu, musl} — is
+> NIGHT-blade-12):
 > .github/workflows/supermassive.yml runs the
 > whole qualification — setup.sh bring-up, v1, v2 — inside a KVM
 > micro-VM, under two resource envelopes derived from the runner at
@@ -40,8 +42,11 @@
 > documented floor kernel — impish indri 5.13 from the frozen
 > old-releases archive; best specs: every core + three quarters of
 > the RAM, booting the archive's LATEST kernel, resolved dynamically
-> at run time), on every core-file push. History note for the rows
-> below:
+> at run time), each crossed with the payload's libc (the musl legs
+> on the frozen ubuntu:22.04 userland, the gnu legs on a
+> ubuntu:24.04 rootfs — same-distro as the runner that built the
+> dynamic flagship), on every core-file push. History note for the
+> rows below:
 > the pre-consolidation E2E workflow ran the same batteries on
 > hosted Ubuntu runners whose images have since moved onto 6.x HWE
 > kernels (the hosted 5.15-era rows predate that drift — the 5.15
