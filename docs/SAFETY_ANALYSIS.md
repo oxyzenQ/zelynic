@@ -1005,6 +1005,72 @@ ls /tmp/zelynic.pid 2>&1      # should not exist
 sudo bpftool prog show | grep enforce  # should be empty
 ```
 
+## End-to-End Depth Audit (NIGHT-depthbore-1 / blade-13, 2026-09-26)
+
+The server-and-desktop-LTS end-to-end pass: every CLI handler walked
+(update, safety, strict family, block family, cleanup/recover,
+monitor, eagle-eyes depth, rates, limiter attach/policy/reclaim,
+lock, pin), the full unit suite re-run, and the non-root CLI battery
+driven against the built binary. One high-severity find, one minor
+find, both fixed; the rest of the sweep verified clean.
+
+### Finding 1 (fixed, high severity): the blocklist missed its own daemons
+
+`is_dangerous_target` matched EXACTLY, but the blocklist's entries
+carry the kernel's 15-byte truncated comms (`systemd-resolve`,
+`systemd-journal`, `systemd-timesyn`, ...) while the display-name
+enrichment (NIGHT-engrave-7) restores the FULL names
+(`systemd-resolved`, `systemd-journald`, ...) — and the same enriched
+comms feed `strict-all`'s and `block-all`'s sweeps. Two live
+consequences on every current distro:
+
+- A copy-pasted `zelynic ss systemd-resolved 100kb` (the name
+  list-apps itself displays) sailed past the guard with no
+  `--force-this`.
+- `strict-all 500kb` — whose ONLY system-app filter is this
+  blocklist, no uid check — swept the enriched system-daemon comms
+  INTO the user-app set: DNS (resolved), logging (journald), NTP
+  (timesyncd) limited with no override asked at all.
+- The split-daemon era added a fresh shape: OpenSSH 9.8+ runs each
+  connection's process as `sshd-session` — an exact match for
+  nothing, so a strict-all sweep rate-limited every ACTIVE SSH
+  session: the exact "limit myself out of SSH" hazard the blocklist
+  exists to prevent.
+
+The fix is the family rule (fail-safe direction): a target is
+dangerous when it EXTENDS a blocklist entry (case-insensitive
+prefix). Both shapes above are entry+suffix; the truncated spelling
+a user might type from an old listing (`gnome-session-b`) is covered
+by the same rule. An innocent app that merely shares a prefix (a
+hypothetical `rootlesskit` under `root`) now costs one `--force-this`
+— the accepted trade, because the miss direction breaks systems. The
+contract is pinned by test/commands/safety_tests.rs (exact names,
+enriched twins, split siblings, clean apps, the verdict ladder, and
+the fail-safe direction itself).
+
+### Finding 2 (fixed, minor): apply_group double-wrote duplicate cgroups
+
+Two targets can name the SAME cgroup by different spellings
+(`sm brave:brave`, `sm cg:123/12345`): the group apply loop wrote
+every duplicate — same map key, so enforcement was correct, but the
+applied-policy count the success epilogue reports was inflated, the
+superseded-group ledger double-pushed, and the verbose trace
+double-printed. The fix dedups across targets (first-seen order):
+one cgroup, one write, one count.
+
+### Verified clean
+
+The update check (root refusal, sanitized network tag, 15s timeout),
+the lock (/run 0700, flock lifecycle), the verified unpin, the
+recover orphan ladder (propagated reads, verified counts, incomplete
+= exit 1), the policy rollback ledger (hunt-20), the unset-leg
+removal (improve-29), the group reclaim (lts-7), the rate grammar
+(exact u128 fractional math, overflow errors, typo rescue), the
+observer teardown, and the monitor loop (blade-6's endurance bounds)
+all held under the end-to-end pass. The non-root battery runs 78/78;
+the root+eBPF smoke battery rides CI (the sandbox micro-VM needs
+kvm/qemu unavailable in the auditing session).
+
 ## License
 
 GPL-3.0-only — source code is fully open. Anyone can audit, modify, and
