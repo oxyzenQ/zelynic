@@ -34,6 +34,30 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Added
 
+- **docs: NIGHT-blade-17 — the commercial-license contribution
+  infrastructure: the CLA lands at the repo root** — the dual-license
+  offer (GPL-3.0-only + Commercial) needs a Contributor License
+  Agreement underneath it: without an explicit relicensing grant from
+  each contributor, owner-side commercial licenses cannot lawfully
+  cover contributed code, and the whole commercial lane would rest on
+  contributions the owner has no right to sell. The new
+  [CLA.md](CLA.md) grants the perpetual, worldwide, non-exclusive,
+  royalty-free, irrevocable license INCLUDING relicensing under any
+  license the Owner chooses, while Section 2 keeps full copyright with
+  the contributor — ownership never transfers. Acceptance is DCO-style
+  (the same standard the Linux kernel, Docker, and Git run on): a
+  `Signed-off-by:` line produced by `git commit -s`, or an agreeing
+  comment on the pull request — no separate signature, no paperwork.
+  CONTRIBUTING.md gains the CLA section ahead of every build
+  instruction (the acceptance precedes the work), README's
+  Contributing section and Documentation index link the agreement,
+  and docs/LICENSING_FAQ.md answers the "do contributors need to sign
+  anything" question with the DCO explanation. Administrative
+  business documents (invoices, sales records) deliberately stay OUT
+  of the repository — they are private records, not product
+  documentation; the repo carries only what a contributor or buyer
+  legitimately needs to read.
+
 - **docs: NIGHT-long-horizon-1 — the five-surface depth re-audit
   verdict: every surface at peak, nothing to mitigate** — the ask
   was an honest adversarial re-walk of stability/crash, code

@@ -6,6 +6,18 @@
 Thank you for your interest in contributing to zelynic! This document covers
 the build process, project structure, and coding standards.
 
+## Contributor License Agreement
+
+zelynic is dual-licensed (GPL-3.0-only + Commercial), so contributions
+ride on the [Contributor License Agreement](CLA.md): it grants the
+Owner the right to relicense your Contribution — including into the
+commercial lane — while you keep full copyright of your own work.
+There is no separate document to sign: the DCO-style `Signed-off-by:`
+line is the acceptance. Sign every commit with `git commit -s` (the
+flag appends the line from your configured git identity), or comment
+`I have read the CLA and I agree` on the pull request. The full terms
+and the acceptance options live in [CLA.md](CLA.md).
+
 ## Prerequisites
 
 - Rust 1.98+ (pinned to a concrete version in `rust-toolchain.toml`)
