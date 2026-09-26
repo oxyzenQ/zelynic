@@ -32,6 +32,19 @@ Tiers follow your total annual revenue:
 Redistribution under your own terms is the Company tier regardless of
 revenue — it is the only tier that carries redistribution rights.
 
+## Do contributors need to sign anything?
+
+Yes, in the lightweight DCO sense: every commit carries a
+`Signed-off-by:` line (`git commit -s` appends it from your git
+identity), and that line is the acceptance of the
+[Contributor License Agreement](../CLA.md). The CLA grants the Owner
+the right to relicense contributions — the legal foundation the
+dual-license offer stands on, since a commercial license cannot
+lawfully cover code the contributor did not allow to relicense —
+while contributors keep full copyright of their own work. No separate
+document to sign, no paperwork to mail; an agreeing comment on the
+pull request works too.
+
 ## How do I pay?
 
 Crypto, USD-pegged: Solana (SOL / USDT-SPL), Ethereum (ETH / USDT /

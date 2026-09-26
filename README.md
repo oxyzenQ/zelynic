@@ -491,7 +491,10 @@ CI rejects any other suffix and never marks a pre-release as "latest".
 PRs and issues are welcome. The bar is the gate suite — build, test,
 conventions, and the full script inventory are documented once in
 [CONTRIBUTING.md](CONTRIBUTING.md); project conventions also live in
-[docs/RULES.md](docs/RULES.md).
+[docs/RULES.md](docs/RULES.md). Contributions land under the
+[Contributor License Agreement](CLA.md) — the dual-license offer needs
+the relicensing grant, and the DCO-style `Signed-off-by:` line on your
+commits (`git commit -s`) is the acceptance; no separate signature.
 
 ## Security
 
@@ -513,6 +516,7 @@ policy, supported versions, and what counts as a vulnerability live in
 - [Dependency Audit](docs/DEPENDENCY_AUDIT.md) — every direct dependency justified
 - [Release Verification](docs/VERIFY_RELEASE.md) — GPG signature + checksum verification
 - [Contributing Guide](CONTRIBUTING.md) — gates, conventions, script inventory
+- [Contributor License Agreement](CLA.md) — the CLA terms and the DCO sign-off acceptance
 - [Licensing FAQ](docs/LICENSING_FAQ.md) — dual-licensing questions answered
 - [Commercial License](COMMERCIAL_LICENSE.md) — tiers, pricing, payment, verification
 
