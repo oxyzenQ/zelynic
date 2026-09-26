@@ -34,6 +34,48 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Added
 
+- **docs+build: NIGHT-ask-1 — the ask-mode Q&A record lands at the
+  repo root, and with it the crates.io distribution lane opens
+  (cosmostrix crates-io lineage)** — QA.md is the new standing
+  surface for owner questions answered against the source before
+  being written down: the eagle-eyes footer census decoded (the
+  "2.5K packets + 16 cgroups" line is the session-horizon packet
+  sum over the watched board, humanized by `format_count`, plus the
+  board's own cgroup count), the crates.io suitability verdict, the
+  sharpness question answered from the datapath out, and the origin
+  and standards questions answered honestly (the park-record for
+  prebuilt-object distribution is in the crates.io answer, not
+  silently dropped). The release support that shipped beside it:
+  Cargo.toml's `publish = false` is retired for a curated `include`
+  ship set — the structural fact driving the whole design is that
+  cargo's package walk auto-excludes nested packages, so the
+  detached ebpf/ workspace cannot ride a registry tarball (verified
+  live twice, including with `ebpf/*` in `include`: the entries are
+  silently dropped) — making the published crate the DORMANT lane
+  (stable-toolchain binary, eBPF surfaces disabled with their honest
+  guidance). build.rs gains the commit-sha chain (git → `GITHUB_SHA`
+  → `.cargo_vcs_info.json`, the cosmostrix packaged_vcs_sha lineage,
+  std-only parser, four unit tests) so a registry build's `-V`
+  reports the exact source revision instead of `unknown`, plus the
+  registry-tarball preflight: `--features ebpf` from a source tree
+  without ebpf/ now fails fast with the two real remedies instead of
+  dying in the NIGHT-hunt-29 self-heal's "damaged again" panic.
+  `.github/workflows/crates-io.yml` publishes on owner-pushed `v*`
+  tags — SHA-pinned actions (the NIGHT-hunt-20 pins, zelynic's
+  stronger posture versus the reference's major-tag float), the
+  tag/version match check, an idempotency probe against the live
+  registry API, `cargo publish --locked` — serialized behind the
+  new `scripts/release/wait-for-ci.sh` gate (ported from cosmostrix:
+  a crates.io publish is irreversible, so it waits for the branch
+  CI's success verdict on the exact tagged SHA; docs-only tags pass
+  on the grace period, gate-keepers.yml still covered the push).
+  docs/VERIFY_RELEASE.md gains section 4: the channel contract plus
+  the owner's manual for the first publish (account, publish-new
+  token, CI secret or the manual `cargo login` → `--dry-run` →
+  `--locked` path, verification, yank recovery); README gains the
+  "Install from crates.io (source lane)" subsection and the QA.md
+  index entry. No version change — the owner decides releases.
+
 - **docs: NIGHT-blade-17 — the commercial-license contribution
   infrastructure: the CLA lands at the repo root** — the dual-license
   offer (GPL-3.0-only + Commercial) needs a Contributor License

@@ -13,12 +13,50 @@ readme = "README.md"
 keywords = ["bandwidth", "network", "rate-limiter", "linux", "ebpf"]
 categories = ["command-line-utilities", "network-programming"]
 rust-version = "1.98"
-# NIGHT-improve-1 phase 3: this package is not publishable to
-# crates.io — the ebpf feature builds BPF objects from the detached
-# ebpf/ crate beside this manifest (driven by build.rs), and a
-# package upload cannot carry that directory. Distribution is
-# git checkouts and GitHub release tarballs (release.yml).
-publish = false
+# NIGHT-ask-1: crates.io ship set (cosmostrix include/exclude lineage).
+# Structural fact, verified live twice on this manifest: cargo's
+# package walk auto-excludes NESTED packages — any directory carrying
+# its own Cargo.toml — and `include` does NOT override that rule (the
+# default `cargo package --list` shipped src/ebpf/* but zero ebpf/*
+# files; re-running with ebpf/* patterns in `include` still shipped
+# zero). The published crate is therefore the DORMANT lane only: the
+# stable-toolchain binary plus everything a downstream reader and the
+# crates.io page need. The ebpf feature still compiles its objects
+# from the detached ebpf/ workspace, which only a git checkout or a
+# GitHub release source tarball carries — build.rs's NIGHT-ask-1
+# preflight fails fast with exactly that message when the feature is
+# requested from a tree without ebpf/. The set keeps the one-command
+# bootstrap pair the preflight panics name, the full docs tree the
+# README links into, and the governance docs of the dual-license
+# offer. Everything NOT listed stays repo-only: CI workflows, gates,
+# sandbox/bench/supermassive harnesses, assets, lint dotfiles.
+include = [
+    "src/**",
+    "build.rs",
+    "Cargo.toml",
+    "Cargo.lock",
+    "rust-toolchain.toml",
+    "README.md",
+    "LICENSE",
+    "deny.toml",
+    "test/**",
+    "ebpf/src/**",
+    "ebpf/Cargo.toml",
+    "ebpf/Cargo.lock",
+    "ebpf/rust-toolchain.toml",
+    "ebpf/.cargo/config.toml",
+    "scripts/dev/bootstrap-ebpf.sh",
+    "scripts/dev/install-bpf-linker.sh",
+    "docs/**",
+    "CHANGELOG.md",
+    "CHANGELOG-V11-ERA.md",
+    "CLA.md",
+    "COMMERCIAL_LICENSE.md",
+    "CONTRIBUTING.md",
+    "SECURITY.md",
+    "TRADEMARK.md",
+    "QA.md",
+]
 # NIGHT-hunt-17 (cosmostrix Pattern C discipline): every .rs test file
 # lives under the single top-level test/ tree. Autodiscovery of a
 # Cargo tests/ directory is OFF, so the only test targets are the

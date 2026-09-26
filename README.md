@@ -145,6 +145,24 @@ published key. Verify before installing — the one-liners live in
 [Release Verification](#release-verification) below and in
 [docs/VERIFY_RELEASE.md](docs/VERIFY_RELEASE.md), told once there.
 
+### Install from crates.io (source lane)
+
+`cargo install zelynic --locked` builds from the published source
+tarball — the dormant lane (NIGHT-ask-1): a stable-toolchain binary
+with the eBPF commands disabled, answering `-V` and `--help` with an
+honest message on every eBPF surface. The flagship binary with
+monitoring and limiting stays the release tarball above or a git
+checkout build below — cargo's package walk cannot carry the detached
+`ebpf/` workspace (nested packages are auto-excluded from tarballs,
+verified live), so `--features ebpf` from a registry source fails
+fast in build.rs with exactly that guidance instead of a cryptic
+nested-build error. Cargo verifies the tarball SHA-256 against the
+registry index before extraction, the publish is `--locked` to the
+tagged `Cargo.lock`, and `-V` reports the exact source sha the crate
+was packed from — the full channel contract lives in
+[docs/VERIFY_RELEASE.md](docs/VERIFY_RELEASE.md) (section 4, with the
+owner's first-publish manual).
+
 ### Install from source
 
 Lazy? Skip the manual order entirely — one command runs the WHOLE
@@ -519,6 +537,7 @@ policy, supported versions, and what counts as a vulnerability live in
 - [Contributor License Agreement](CLA.md) — the CLA terms and the DCO sign-off acceptance
 - [Licensing FAQ](docs/LICENSING_FAQ.md) — dual-licensing questions answered
 - [Commercial License](COMMERCIAL_LICENSE.md) — tiers, pricing, payment, verification
+- [Q&A Record](QA.md) — owner questions answered against the source (ask-mode sessions)
 
 ## Test Results
 
