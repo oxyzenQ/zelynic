@@ -610,6 +610,77 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Changed
 
+- **change: NIGHT-master-4 — the recover/status/list-apps hardening
+  audit: verified verdicts everywhere, one fabricated-clean verdict
+  class retired, the partial-census disclosure** — the owner's depth
+  audit of `sudo zelynic recover` / `status` / `list-apps`, the
+  `--force-this` / `--interval` flag families, and the teardown
+  path. Seven finds, one class: verdicts printed from assumptions
+  instead of after-states. The critical pair sat in the shared
+  teardown: `unpin_all()` discarded every `remove_file` result and
+  returned `Ok(())` unconditionally, so `unstrict-all` could print
+  "All limits removed, no residue." and `recover` "Result:
+  recovered (N file(s) removed)" — with a pre-count that never
+  checked what actually unlinked — while a busy pin or a read-only
+  bpf fs refused the removal underneath (the `unpin_all_bpf()?`
+  call in the unstrict ladder was dead code: the error path was
+  unreachable). The removal is now VERIFIED (ebpf/pin.rs): unlink
+  every entry, re-read the directory, require it EMPTY, then remove
+  the directory itself; survivors surface as an error naming the
+  leftover count, the unlink count is returned for callers that
+  report it, a raced-away entry counts as neither removed nor
+  leftover (the verification pass is the arbiter), and a missing
+  directory stays `Ok(0)` so every teardown path remains safe to
+  re-run. Pinned by test/ebpf/pin_tests.rs (six pins, cosmostrix
+  Pattern C: the verified count, idempotence, the surviving-entry
+  error with a nested directory standing in for the busy pin, the
+  plural survivor count, rerun-after-success, the PIN_DIR drift
+  pin). recover's orphan scan folds into the same honesty contract
+  the rest of the CLI already holds (NIGHT-hunt-20/22): the policy
+  map reads PROPAGATE — the former `unwrap_or_default()` rendered
+  "Orphans: none" on a failed read, the exact fabricated verdict
+  those hunts removed from unstrict and status. An incomplete sweep
+  (orphan policies that could not be deleted) now EXITS 1 with the
+  retry tip instead of the quiet `Ok(())` a scripted recover trusted
+  — the exit-code contract's "stale state" wording, made real. When
+  the orphan sweep takes the LAST policies, the empty enforcement
+  skeleton is unpinned by the same verified zero-then-unpin ladder
+  the unstrict family runs (no residue over empty maps, no assumed
+  zeros). The stale-state branch prints no fabricated pin count (an
+  unreadable directory reports no count rather than "STALE (0
+  orphaned pin file(s))") and its "recovered (N file(s) removed)"
+  carries the teardown's verified count. list-apps closes the
+  partial-census gap (the any-uid privilege matrix's silent half):
+  another user's `/proc/<pid>/fd` answers EACCES to the
+  unprivileged scan, so their rows counted sockets as zero with no
+  disclosure — one warn-yellow stderr line now names the gap, the
+  honest value, and the repair (`unprivileged: other users' socket
+  counts read as zero — run with sudo for the full census`) in both
+  text and JSON modes, stdout byte-clean and the exit code 0 (the
+  --print-json ignored-note pattern, NIGHT-boost-24, applied for
+  the first time to degraded DATA rather than an ignored FLAG;
+  wording pinned by test/commands/list_apps_census_tests.rs). Docs
+  follow the code: USAGE.md's recover section states the verified
+  verdict contract and the exit-1-on-incomplete behavior, the
+  list-apps section states the partial-census disclosure, and the
+  JSON reference now words the `total` field's exact semantics
+  (every cgroup the scan resolved, including the unnamed few that
+  carry no row, while `apps[]` holds the named rows). Audited and
+  left as designed, documented in the audit trail: the root-only
+  `/run/zelynic` lock (NIGHT-hunt-14), the parse-before-root
+  ladders on every flag surface (`--force-this`, `--interval`
+  bounds 1s..60s, rate strings, target specs), the unified
+  `--force-this` override grammar, the blocklist's deliberate
+  numeric-target bypass (the comment's "user knows what they're
+  doing" contract), `--color-mode`'s exit-2 grammar, and the
+  `--print-json` scope contract. Internal return-type change:
+  `unpin_all() -> Result<usize>` (the count is the verified unlink
+  count; the attach-path callers discard it). Verification: cargo
+  test --features ebpf 428 unit pins (8 new across the three pin
+  files) + 37 integration pins green, clippy clean, fmt clean, the
+  unprivileged census note live-verified in both output modes
+  (stdout byte-identical with and without the note).
+
 - **change: NIGHT-blade-2 — the flag inconsistency rename: limit-all/la
   is now strict-all/sa, completing the single/multi/all symmetry
   across all three verb families** — the owner's find ("inconsistency

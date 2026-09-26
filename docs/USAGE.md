@@ -238,6 +238,17 @@ their policies (the same LTS budget unstrict maintains). Safe to run
 anytime — it does nothing when state is clean. `status` tells you when
 you need it ("stale bpf pin files detected").
 
+NIGHT-master-4 (the honesty hardening): every verdict recover prints
+is VERIFIED. A failed policy-map read errors out (never a fabricated
+"Orphans: none"), the removed-file counts come from the teardown's
+own results, and an incomplete sweep — orphan policies that could not
+be deleted — prints its result line but EXITS 1 with a retry tip, so
+`zelynic recover && next-step` scripts retry instead of trusting a
+success the filesystem did not grant. When the orphan sweep takes the
+last policies, the empty enforcement skeleton is unpinned too (the
+same no-residue ladder the unstrict family runs — a verified zero,
+never an assumed one).
+
 ### status — what is limited right now
 
 ```bash
@@ -288,6 +299,14 @@ pre-eagle idiom). The procs/sockets columns expose multi-tenancy —
 a row labeled `alacritty` hosting 4 processes and 7 sockets is
 probably carrying your `curl`. Works without root; enforcement
 commands do not.
+
+Without root the socket column under-reads (NIGHT-master-4): another
+user's `/proc/<pid>/fd` answers EACCES to an unprivileged scan, so
+their rows count processes correctly and sockets as zero. One
+warn-yellow stderr line discloses it (`unprivileged: other users'
+socket counts read as zero — run with sudo for the full census`) in
+both text and JSON modes — stdout stays byte-clean for scripts, the
+exit code stays 0.
 
 ### eagle-eyes — the unified live monitor
 
@@ -1072,7 +1091,11 @@ Field shapes:
 {"watchdog":"enforcing","active_limits":2,"limits":[{"cgroup_id":18571,"label":"brave","download_bps":100000,"upload_bps":100000,"packets_allowed":232,"packets_dropped":4718,"bytes_allowed":29520,"bytes_dropped":8031234}]}
 ```
 
-`list-apps --print-json`:
+`list-apps --print-json` (the `total` field counts every cgroup the
+scan resolved — including any whose comm was unreadable at scan
+time and therefore has no row — while `apps[]` carries the named
+rows, so the pair can differ by the unnamed few; every row's fields
+are complete):
 
 ```json
 {"total":142,"apps":[{"process":"brave","cgroup_id":18571,"uid":1000,"processes":4,"sockets":9}]}
