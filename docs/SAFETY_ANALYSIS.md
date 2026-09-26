@@ -802,7 +802,7 @@ doctrine.
 
 Fix: when the rescue runs as root, the three spawns pin
 `PATH=/usr/sbin:/usr/bin:/sbin:/bin` (`RESCUE_SYSTEM_PATH`,
-src/term_reset.rs) — the four canonical system directories every
+src/term_reset/mod.rs) — the four canonical system directories every
 mainstream distro packages the trio into (usrmerge and pre-merge
 layouts both covered, Alpine's busybox symlinks included). A non-root
 rescue keeps the inherited PATH (same user, same privilege, no

@@ -33,6 +33,8 @@
 #       exit 1 on hits)
 #   9.  Rust source LOC cap (owner rule — scripts/gates/check-loc.sh, hard
 #       limit 500 lines; // LOC_EXEMPT: marker = tracked migration debt)
+#       + src/ root single-file policy (NIGHT-blade-15: only main.rs at
+#       src/ root, every other module in a subsystem dir/mod.rs)
 #  10.  Rust toolchain version sync (scripts/gates/check-rust-version-sync.sh —
 #       rust-toolchain.toml pin == Cargo.toml MSRV == workflow RUST_VERSION)
 #  11.  Documentation disclaimer (scripts/gates/inject-disclaimer.sh --check —
@@ -382,10 +384,13 @@ fi
 # Hard limit from docs/RULES.md "Source file size cap". A file over the
 # cap passes ONLY with a self-declared `// LOC_EXEMPT:` marker plus a
 # one-line justification (tracked migration debt, not silent rot).
-header "Rust LOC Cap (check-loc.sh, limit 500)"
+# NIGHT-blade-15: the same gate now also enforces the src/ root
+# single-file policy (src/ root holds only main.rs; every other
+# module lives in its subsystem directory as dir/mod.rs).
+header "Rust LOC Cap + src Root Layout (check-loc.sh)"
 if [ -f scripts/gates/check-loc.sh ]; then
 	if bash scripts/gates/check-loc.sh 2>&1 | tail -20; then
-		info "LOC cap: all Rust files within policy (limit 500)"
+		info "LOC cap + src root layout: all Rust files within policy"
 		PASS=$((PASS + 1))
 	else
 		fail "LOC cap: file(s) over 500 lines without an exemption marker (split them or add // LOC_EXEMPT:)"

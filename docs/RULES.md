@@ -3,6 +3,33 @@
 
 # Zelynic Project Rules
 
+## Source Tree Layout
+
+### src/ root single-file policy (NIGHT-blade-15)
+
+- `src/` root contains exactly ONE `.rs` file: `main.rs` (plus the
+  colocated policy reminder, `src/RULES.md`). No new `.rs` file may
+  be placed directly at `src/` root — every module lives inside its
+  subsystem directory as `dir/mod.rs`.
+- Why: navigability (a contributor opening `src/` sees one entry
+  point plus grouped subsystems, not a flat pile of files) and
+  uniform module wiring (`mod.rs` owns declarations and re-exports).
+  The cosmostrix Single-File Policy convention, codified here after
+  `src/term_reset.rs` drifted to the root (moved to
+  `src/term_reset/mod.rs` — a file move, the module tree and every
+  `crate::term_reset` path unchanged). Convention alone did not
+  hold; the policy is now enforced.
+- `src/main.rs` stays bootstrap/wiring only — parse, dispatch, exit
+  (soft LOC target in the size section below).
+
+### Enforcement
+
+`scripts/gates/check-loc.sh` checks the root layout FIRST (a stray
+root module fails before any line is counted), then walks the LOC
+cap — one walk, two invariants, riding everywhere the size gate
+already does (`scripts/gate-keepers.sh` section 9, the CI
+gatekeepers job).
+
 ## File Size
 
 ### Rust sources (hard cap 500)

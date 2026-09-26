@@ -22,7 +22,7 @@ mod terminal;
 // build (a crate-root module, not a child of the ebpf-gated terminal
 // tree — the rescue owns no BPF machinery, and a featureless binary
 // must still rescue a terminal some other app broke; see
-// src/term_reset.rs for the placement rationale).
+// src/term_reset/mod.rs for the placement rationale).
 mod term_reset;
 mod update;
 
@@ -137,7 +137,7 @@ fn try_main() -> Result<()> {
     // caller's own terminal (ANSI bytes out, termios via ioctl; and
     // under sudo's interposed pty, NIGHT-improve-31, the user's real
     // terminal discovered through the sudo monitor — see
-    // src/term_reset.rs for the layer-by-layer contract: the
+    // src/term_reset/mod.rs for the layer-by-layer contract: the
     // in-process termios restore FIRST — NIGHT-improve-30, the
     // maturity the first port owed — then the ANSI restore, the
     // ANSI reset, `stty sane`, `reset`/`tput reset`). Silent by
