@@ -5,6 +5,7 @@ use clap::{Parser, Subcommand};
 pub(crate) mod argv;
 pub(crate) mod styles;
 pub(crate) mod suggestion;
+pub(crate) mod tips;
 pub(crate) mod ux;
 
 /// zelynic — Per-app network rate limiter and traffic monitor for Linux
