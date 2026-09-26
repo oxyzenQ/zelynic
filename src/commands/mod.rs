@@ -14,6 +14,8 @@ pub(crate) mod cleanup;
 pub(crate) mod eagle;
 pub(crate) mod help;
 #[cfg(feature = "ebpf")]
+pub(crate) mod list_apps;
+#[cfg(feature = "ebpf")]
 pub(crate) mod monitor;
 #[cfg(feature = "ebpf")]
 pub(crate) mod rates;
@@ -297,7 +299,7 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
         Some(Commands::ListApps) => {
             #[cfg(feature = "ebpf")]
             {
-                monitor::handle_list_apps(cli.print_json)
+                list_apps::handle_list_apps(cli.print_json)
             }
             #[cfg(not(feature = "ebpf"))]
             {
