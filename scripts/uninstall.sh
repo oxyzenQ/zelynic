@@ -47,13 +47,13 @@ usage() {
 Usage: $0 [--system|--user|--all]
 
   (default)  Auto-detect: clear kernel enforcement if active, then
-             scan /usr/bin, ~/.local/bin and remove every
-             ${PROJECT_NAME} artifact found. Sudo for system paths
-             and enforcement clearing.
+	     scan /usr/bin, ~/.local/bin and remove every
+	     ${PROJECT_NAME} artifact found. Sudo for system paths
+	     and enforcement clearing.
   --system   Remove only from /usr/bin and /usr/lib/${PROJECT_NAME} (uses sudo).
   --user     Remove only from ~/.local/bin and ~/.local/lib/${PROJECT_NAME} (no sudo;
-             active kernel limits are reported, not cleared — re-run
-             with --system or see the printed manual steps).
+	     active kernel limits are reported, not cleared — re-run
+	     with --system or see the printed manual steps).
   --all      Same as default.
 
 Sudo is used only for system paths and enforcement clearing
@@ -92,12 +92,24 @@ sudo_capable() {
 	[[ "${SUDO_MODES}" == *"${MODE}"* ]]
 }
 
+# Escalation prefix (NIGHT-blade-8): a root shell without a sudo
+# binary on PATH — containers, minimal VMs, the zelynic sandbox,
+# hardened servers — already IS the privilege the removal needs;
+# asking for sudo there failed uninstalls that had every right to
+# succeed. Non-root without sudo keeps the plain command (and the
+# postcondition check below reports the failure honestly).
+SUDO_CMD=()
+if [[ "$(id -u)" -ne 0 ]]; then
+	SUDO_CMD=(sudo)
+fi
+
 esc() {
-	# $1: yes -> prefix with sudo (when this mode may escalate), else plain
+	# $1: yes -> the escalation prefix (when this mode may
+	# escalate), else nothing
 	if [[ "$1" == "yes" ]]; then
-		echo "sudo"
+		printf '%s\n' "${SUDO_CMD[*]}"
 	else
-		echo ""
+		printf '%s\n' ""
 	fi
 }
 
@@ -119,8 +131,15 @@ pins_present() {
 remove_at() {
 	local target="$1"
 	local need_sudo="$2"
+	local pre
+	pre="$(esc "${need_sudo}")"
 	if [[ -e "${target}" ]]; then
-		if ! $(esc "${need_sudo}") rm -rf "${target}"; then
+		if [[ -n "${pre}" && "$(id -u)" -ne 0 ]] && ! command -v sudo >/dev/null 2>&1; then
+			echo "   FAILED: ${target} needs root and sudo is not on PATH" >&2
+			failures=$((failures + 1))
+			return 1
+		fi
+		if ! ${pre} rm -rf "${target}"; then
 			echo "   FAILED to remove: ${target} (see the error above)" >&2
 			failures=$((failures + 1))
 			return 1
@@ -180,7 +199,7 @@ clear_enforcement() {
 		return 0
 	fi
 	echo ">> Clearing kernel enforcement: ${bin} unstrict-all"
-	if ! sudo "${bin}" unstrict-all; then
+	if ! "${SUDO_CMD[@]}" "${bin}" unstrict-all; then
 		echo "   WARNING: 'unstrict-all' failed — kernel state may still be active." >&2
 	fi
 	if pins_present; then

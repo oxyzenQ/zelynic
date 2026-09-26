@@ -182,8 +182,23 @@ fi
 # Install — sudo used ONLY for --system mode install steps.
 # The BPF objects ride inside the binary (NIGHT-improve-1 phase 3):
 # nothing else to install, no /usr/lib/zelynic/ object directory.
+# The escalation prefix is resolved ONCE (NIGHT-blade-8): a root
+# shell without a sudo binary on PATH — containers, minimal VMs,
+# the zelynic sandbox, hardened servers — already IS the privilege
+# the step needs, and asking for sudo there failed installs that
+# had every right to succeed. Non-root without sudo gets the clear
+# error naming the two ways out.
+SUDO_CMD=()
+if [[ "$(id -u)" -ne 0 ]]; then
+	SUDO_CMD=(sudo)
+fi
 if [[ "${INSTALL_MODE}" == "--system" ]]; then
-	sudo install -Dm755 "${BINARY}" "/usr/bin/${PROJECT_NAME}"
+	if [[ ${#SUDO_CMD[@]} -gt 0 ]] && ! command -v sudo >/dev/null 2>&1; then
+		echo "ERROR: --system installs to /usr/bin and needs root, and sudo is not on PATH." >&2
+		echo "  Re-run with sudo, or install sudo first." >&2
+		exit 1
+	fi
+	"${SUDO_CMD[@]}" install -Dm755 "${BINARY}" "/usr/bin/${PROJECT_NAME}"
 	echo "${PROJECT_NAME} installed to /usr/bin/${PROJECT_NAME}"
 	echo "Run: ${PROJECT_NAME} doctor  (to verify eBPF support)"
 else
