@@ -584,8 +584,17 @@ limiter that holds everywhere it claims; v2 owns the abuse family
 (guards, kills, regression, crash teardown) — a machine green on v2
 survives the day nothing goes right.
 
-No machine handy? The whole qualification — bring-up plus v1 plus
-v2, in that order — runs on CI on every core-file push
+No root on your box (an agent sandbox, a locked-down laptop)? The
+zelynic sandbox (NIGHT-think-1) boots the same micro-VM CI uses,
+locally: root inside a throwaway kernel, no docker, no host changes,
+~20 s rebuilds from a cache — `scripts/sandbox/zelynic-sandbox.sh
+--battery` runs both engines in it, `--run` takes any root-requiring
+command, `--shell` drops into a root bash. The design, requirements,
+and the verdict contract live in
+[docs/SANDBOX.md](docs/SANDBOX.md).
+
+No machine handy at all? The whole qualification — bring-up plus v1
+plus v2, in that order — runs on CI on every core-file push
 (NIGHT-ultimate-3, the re-issued label): the E2E workflow executes
 it on hosted runners (real sudo, real BPF, real runner kernels, no
 container), so a green Actions run is the same verdict these

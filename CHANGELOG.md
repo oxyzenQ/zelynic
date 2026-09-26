@@ -34,6 +34,47 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Added
 
+- **feat: NIGHT-think-1 — the zelynic sandbox: a local KVM micro-VM
+  that gives agents and locked-down machines ROOT INSIDE a
+  throwaway kernel** — the owner's ask: the project needs sudo, the
+  agent sandbox cannot have it, and waiting for CI (or the owner's
+  hands) is the slow path; the sandbox is the fast one.
+  `scripts/sandbox/zelynic-sandbox.sh --battery` boots the SAME
+  micro-VM shape CI runs (direct kernel boot, serial console,
+  panic=-1 + -no-reboot, the isa-debug-exit deterministic shutdown,
+  the dynamic low/best envelopes, loopback-only by default) and
+  runs both supermassive engines inside it as root;
+  `--run <cmd>` takes any root-requiring command;
+  `--shell` drops into an interactive root bash;
+  `--self-test` verifies the whole chain rootlessly. The
+  provisioning needs NO docker and NO host root
+  (`scripts/sandbox/rootfs-pack.py`, python3 stdlib): the kernel is
+  resolved live from the archives (floor = impish 5.13.0-52 from
+  the frozen old-releases mirror, the documented minimum; latest =
+  the archive's newest generic kernel), the userland is the
+  ubuntu:22.04 base tarball plus python3/iproute2/curl provisioned
+  by REAL dependency resolution against the jammy Packages index
+  (every closure .deb cached and data.tar extracted rootless,
+  zstd debs through a layered stdlib/pip/CLI decompressor), and the
+  initramfs is packed by a pure-python newc writer that
+  synthesizes the device nodes a rootless packer cannot mknod
+  (console/null/tty/ttyS0) directly into the archive stream — the
+  644/755 permission discipline enforced at pack time, the repo
+  checkout + the static musl binary riding at /opt/zelynic, and
+  `sandbox-init.sh` as PID 1 (mounts, loopback, payload, verdict
+  relay). The SANDBOX-RESULT/SANDBOX-VERDICT sentinel lines are
+  the exit-code relay (the CI MASS-* contract). First run caches
+  ~100 MiB; later initramfs rebuilds take ~20 s. Verified live
+  end-to-end from this session's rootless sandbox: the floor kernel
+  resolved and extracted, the full deb closure resolved and
+  unpacked, the 44 MiB initramfs built and structurally audited
+  (5,000 entries: /init 0755, both engines + the harness lib,
+  python3/ip/curl/bash, char devices 5:1 and 1:3, every file
+  exactly 644/755) — plus the rootless packer self-test (ar
+  reader, dependency resolver, newc round-trip) and the entrypoint
+  self-test. docs/SANDBOX.md carries the design; README and the
+  maintainer's map point at it.
+
 - **feat: NIGHT-blade-4 — the supermassive server depth phase: both
   engines lead with the server shape, then the desktop matrix** —
   the owner's ask: "support server depth stresstest, first server
