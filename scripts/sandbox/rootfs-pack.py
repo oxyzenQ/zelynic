@@ -78,6 +78,31 @@ def http_get_gz_text(url, timeout=120):
     return gzip.decompress(http_get(url, timeout)).decode("utf-8", "replace")
 
 
+def download_atomic(url, dest, timeout=600):
+    """Fetch url into dest ATOMICALLY: the bytes land in a .part twin
+    and only a completed transfer renames over dest — an interrupted
+    run (Ctrl-C, a killed agent shell, a full disk) can never leave a
+    partial file behind (NIGHT-harness-1: a killed first run left a
+    0-byte deb that every warm-cache retry then treated as complete
+    and died on mid-extraction)."""
+    part = f"{dest}.part"
+    with open(part, "wb") as fh:
+        fh.write(http_get(url, timeout=timeout))
+    os.replace(part, dest)
+    return dest
+
+
+def _intact_deb(path):
+    """The ar magic is the cheapest possible integrity gate: a cached
+    .deb whose first 8 bytes are not the ar magic is a truncated or
+    empty leftover and gets re-fetched instead of trusted."""
+    try:
+        with open(path, "rb") as fh:
+            return fh.read(8) == b"!<arch>\n"
+    except OSError:
+        return False
+
+
 def say(msg):
     # Progress notes ride STDERR (NIGHT-blade-10): the entrypoint
     # captures this script's stdout in a command substitution to get
@@ -539,8 +564,7 @@ def fetch_kernel(suite, cache):
 def _kernel_from_deb(deb_url, cache, out):
     say(f"downloading {os.path.basename(deb_url)}...")
     deb_path = os.path.join(cache, os.path.basename(deb_url))
-    with open(deb_path, "wb") as fh:
-        fh.write(http_get(deb_url, timeout=900))
+    download_atomic(deb_url, deb_path, timeout=900)
     with open(deb_path, "rb") as fh:
         data = deb_data_tar(fh.read())
     with tarfile.open(fileobj=io.BytesIO(data)) as tar:
@@ -579,8 +603,7 @@ def ensure_ubuntu_base(cache):
     except Exception as e:  # noqa: BLE001 - pinned fallback on listing failure
         say(f"listing failed ({e}); falling back to the pinned {name}")
     say(f"downloading {name}...")
-    with open(out, "wb") as fh:
-        fh.write(http_get(UBUNTU_BASE_URL + name, timeout=900))
+    download_atomic(UBUNTU_BASE_URL + name, out, timeout=900)
     say(f"base tarball: {out} ({os.path.getsize(out) // (1024 * 1024)} MiB)")
     return out
 
@@ -624,10 +647,9 @@ def build_initrd(cache, repo, binary, init, payload):
         for name in resolve_closure(index, ROOT_PACKAGES):
             meta = index[name]
             deb_path = os.path.join(debs_dir, f"{name}.deb")
-            if not os.path.exists(deb_path):
-                url = f"{ARCHIVE_POOL}{meta['filename']}"
-                with open(deb_path, "wb") as fh:
-                    fh.write(http_get(url, timeout=600))
+            if not _intact_deb(deb_path):
+                say(f"  fetching {name}...")
+                download_atomic(f"{ARCHIVE_POOL}{meta['filename']}", deb_path, timeout=600)
             say(f"  {name} {meta['version']}")
             extract_deb_into(deb_path, rootfs)
         # dpkg alternatives do not run in a plain extraction — make the
@@ -693,10 +715,11 @@ def parse_newc_for_test(data):
 
 def self_test():
     """Unit-verify the pure pieces: the ar reader, the dependency
-    resolver, and the newc writer round-trip (a tree with a file, a
-    dir, a symlink, and a synthesized device node parses back with
-    the exact fields). Network reachability is NOT asserted — the
-    entrypoint reports it as a preflight note instead."""
+    resolver, the newc writer, and the atomic cache discipline (a
+    tree with a file, a dir, a symlink, and a synthesized device
+    node parses back with the exact fields). Network reachability is
+    NOT asserted — the entrypoint reports it as a preflight note
+    instead."""
     failures = 0
 
     def check(name, ok, detail=""):
@@ -715,6 +738,29 @@ def self_test():
     members = dict(ar_members(ar))
     check("ar reader parses members", set(members) == {"debian-binary", "data.tar.xz"})
     check("ar reader round-trips bytes", members["debian-binary"] == b"2.0\n")
+
+    # cache discipline (NIGHT-harness-1): an interrupted download must
+    # never poison the warm cache — bytes land in a .part twin that is
+    # renamed into place only on completion, and a cached deb that lost
+    # its ar magic is re-fetched instead of trusted.
+    with tempfile.TemporaryDirectory() as td:
+        empty = os.path.join(td, "empty.deb")
+        open(empty, "wb").close()
+        valid = os.path.join(td, "valid.deb")
+        with open(valid, "wb") as fh:
+            fh.write(b"!<arch>\n" + ar_member(b"debian-binary", b"2.0\n"))
+        check(
+            "ar magic gates the deb cache (empty fails, intact passes)",
+            _intact_deb(empty) is False and _intact_deb(valid) is True,
+        )
+        atomic = os.path.join(td, "atomic.deb")
+        download_atomic("data:application/octet-stream,hi", atomic, timeout=5)
+        with open(atomic, "rb") as fh:
+            landed = fh.read()
+        check(
+            "downloads land atomically (no .part twin survives)",
+            landed == b"hi" and not os.path.exists(atomic + ".part"),
+        )
 
     # resolver: a synthetic index walks a transitive chain and takes
     # the first alternative of every clause.
