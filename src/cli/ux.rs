@@ -31,9 +31,18 @@ use std::ffi::OsString;
 
 use super::argv::drop_dishonest_escape_hatch;
 use super::suggestion::closest_long_flag_ci;
-#[cfg(feature = "ebpf")]
-use super::suggestion::closest_value_match;
 use crate::cli::Cli;
+
+// NIGHT-blade-4: the value-suggestion tip family moved to cli/tips.rs
+// (the 500-LOC cap split — see that file's header); re-exported so
+// every caller's `crate::cli::ux::rate_tip` path and the test tree's
+// `super::` reach keep working unchanged. value_tip is tip-internal
+// (rate_tip/duration_tip compose it) — re-exported for the pin tests
+// only, so a normal build carries no unused-import surface.
+#[cfg(all(test, feature = "ebpf"))]
+pub(crate) use super::tips::value_tip;
+#[cfg(feature = "ebpf")]
+pub(crate) use super::tips::{duration_tip, rate_tip};
 
 /// Canonical clap help-footer wording — appended by the bridge because
 /// clap's own formatter only renders it when an ArgAction::Help argument
@@ -374,95 +383,13 @@ pub(crate) fn exit_clap_error(e: clap::Error) -> ! {
     std::process::exit(2);
 }
 
-// ── Value suggestion tips (rates + durations) ──────────────────────────────
-
-/// Canonical value-suggestion tip line.
-///
-/// `  tip: a similar value exists: '<value>'` — the same wording clap
-/// uses for its built-in ValueEnum suggestions, so the custom engine
-/// and clap's engine render identically. The leading `\n` + two-space
-/// indent matches clap's tip composition; the line-aware labeled
-/// renderer paints it white.
-#[cfg(feature = "ebpf")]
-fn value_tip(suggestion: &str) -> String {
-    format!("\n  tip: a similar value exists: '{suggestion}'")
-}
-
-/// Suggest a corrected rate string for a rejected rate input.
-///
-/// Two rescue rules, cheapest first:
-/// 1. Exact lowercase twin — `1MB` parses fine as `1mb` (the units are
-///    lowercase-only by contract, and uppercase is the classic typo).
-/// 2. Near-miss unit suffix — the numeric prefix is valid and the unit
-///    suffix is within edit distance 2 of a real unit (`1kib` -> `1kb`,
-///    `10mbps` -> `10mb`).
-///
-/// NIGHT-boost-15: the numeric prefix includes the decimal point —
-/// the rate grammar is fractional now, so `5.5xb` must suggest
-/// `5.5kb`, not slice the number at the dot and suggest nonsense.
-#[cfg(feature = "ebpf")]
-pub(crate) fn rate_tip(input: &str) -> Option<String> {
-    // Multi-char units first: on an edit-distance tie, `1xb` should
-    // suggest `1kb` (the common fat-finger), not `1b`.
-    const UNITS: [&str; 5] = ["kb", "mb", "gb", "tb", "b"];
-    let trimmed = input.trim();
-
-    let lower = trimmed.to_ascii_lowercase();
-    if lower != trimmed && crate::ebpf::limiter::parse_rate(&lower).is_ok() {
-        return Some(value_tip(&lower));
-    }
-
-    // Split into numeric prefix + unit suffix at the first character
-    // that is neither a digit nor a decimal point (NIGHT-boost-15:
-    // the rate value grammar is fractional; NIGHT-hunt-31 extended
-    // the same to durations, so both tips split identically).
-    let i = trimmed.find(|c: char| !c.is_ascii_digit() && c != '.')?;
-    let (prefix, suffix) = (&trimmed[..i], &trimmed[i..]);
-    if prefix.is_empty() || suffix.is_empty() {
-        return None;
-    }
-    let unit = closest_value_match(suffix, &UNITS)?;
-    if unit == suffix.to_ascii_lowercase() {
-        return None; // already a valid unit — the number itself is bad
-    }
-    let fixed = format!("{prefix}{unit}");
-    if crate::ebpf::limiter::parse_rate(&fixed).is_ok() {
-        Some(value_tip(&fixed))
-    } else {
-        None
-    }
-}
-
-/// Suggest a corrected duration string for a rejected duration input
-/// (`3min` -> `3m`, `10sec` -> `10s`, `5.5min` -> `5.5m`, uppercase
-/// twins) — the fractional-aware split (NIGHT-hunt-31) keeps the
-/// number whole while the unit gets its near-miss match.
-#[cfg(feature = "ebpf")]
-pub(crate) fn duration_tip(input: &str) -> Option<String> {
-    const UNITS: [&str; 3] = ["s", "m", "h"];
-    let trimmed = input.trim();
-
-    let lower = trimmed.to_ascii_lowercase();
-    if lower != trimmed && crate::ebpf::limiter::parse_time_duration(&lower).is_ok() {
-        return Some(value_tip(&lower));
-    }
-
-    let i = trimmed.find(|c: char| !c.is_ascii_digit() && c != '.')?;
-    let (prefix, suffix) = (&trimmed[..i], &trimmed[i..]);
-    if prefix.is_empty() || suffix.is_empty() {
-        return None;
-    }
-    let unit = closest_value_match(suffix, &UNITS)?;
-    if unit == suffix.to_ascii_lowercase() {
-        return None;
-    }
-    let fixed = format!("{prefix}{unit}");
-    if crate::ebpf::limiter::parse_time_duration(&fixed).is_ok() {
-        Some(value_tip(&fixed))
-    } else {
-        None
-    }
-}
+// The value-suggestion tip family (value_tip / rate_tip /
+// duration_tip) lives in `cli/tips.rs` since NIGHT-blade-4 — the
+// retired `--info` vocabulary entry pushed this file past the
+// 500-LOC cap, and the split keeps the ux bridge alone under it
+// (the same cap-pressure move that gave cli/styles.rs to
+// cli/mod.rs). The re-export above keeps every caller's path (and
+// the test module's `super::` reach) working unchanged.
 
 // The UX bridge pins live under the single test/ tree (cosmostrix
 // Pattern C), #[path]-wired across trees exactly like the render and
