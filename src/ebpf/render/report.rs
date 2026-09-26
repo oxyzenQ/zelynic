@@ -21,6 +21,14 @@
 //! columns (facts the walk already collected; the table now shows
 //! what the JSON always carried), and the act-on-this tail with
 //! copy-paste commands for the cgroup the report just named.
+//!
+//! NIGHT-blade-7 (the sharpness audit) sharpened the census table
+//! two ways: a `st` state column (the /proc state letter — a D-state
+//! or zombie member is a first-glance triage signal the JSON carried
+//! but the readable table dropped), and the exe cell marks a
+//! deleted-on-disk binary with the kernel's own " (deleted)"
+//! wording (replaced-by-upgrade or self-deleting loaders — the
+//! marker is the fact, not noise).
 
 use std::time::Duration;
 
@@ -319,15 +327,20 @@ pub fn depth_report_lines(reports: &[DepthReport], width: usize) -> Vec<String> 
         // showed everything EXCEPT the resource cost each member pays,
         // which is exactly what an expert triaging a fat cgroup wants
         // first). The name column pays for the space (24 -> 20).
+        // NIGHT-blade-7: the `st` state column joins (one letter, the
+        // /proc state — S/R/D/Z at a glance; the JSON always carried
+        // the full words) and the exe cell marks deleted-on-disk
+        // binaries with the kernel's own " (deleted)" suffix.
         lines.push(grid_line(width));
-        let widths = [7usize, 20, 6, 5, 4, 7, 8];
+        let widths = [7usize, 20, 6, 5, 2, 4, 7, 8];
         let lead = 2;
         let fixed = lead + widths.iter().sum::<usize>() + widths.len();
-        let header_cells: Vec<String> = ["pid", "name", "type", "perm", "thr", "rss", "started"]
-            .iter()
-            .zip(widths)
-            .map(|(h, w)| pad_to_width(h, w))
-            .collect();
+        let header_cells: Vec<String> =
+            ["pid", "name", "type", "perm", "st", "thr", "rss", "started"]
+                .iter()
+                .zip(widths)
+                .map(|(h, w)| pad_to_width(h, w))
+                .collect();
         lines.push(grey(&format!("  {}", header_cells.join(" "))));
         for proc in &report.depth.procs {
             let started = proc
@@ -336,6 +349,15 @@ pub fn depth_report_lines(reports: &[DepthReport], width: usize) -> Vec<String> 
                 .unwrap_or_else(|| "—".to_string());
             let kind = proc.kind.unwrap_or("unknown");
             let perm = proc.mode.clone().unwrap_or_else(|| "—".to_string());
+            // NIGHT-blade-7: the /proc state's first letter — S (sleeping),
+            // R (running), D (uninterruptible), Z (zombie), T (stopped).
+            // Unreadable state renders the em dash like every other
+            // unknown cell.
+            let state = proc
+                .state
+                .chars()
+                .next()
+                .map_or_else(|| "—".to_string(), |c| c.to_string());
             let thr = if proc.threads == 0 {
                 "—".to_string()
             } else {
@@ -346,19 +368,25 @@ pub fn depth_report_lines(reports: &[DepthReport], width: usize) -> Vec<String> 
             } else {
                 format_bytes(proc.rss_kb.saturating_mul(1024))
             };
-            let exe = fit_to_width(
-                proc.exe.as_deref().unwrap_or("—"),
-                width.saturating_sub(fixed + 1),
-            );
+            // NIGHT-blade-7: a binary the kernel knows is deleted from
+            // disk keeps its path and gains the marker — the update-
+            // replaced / self-deleting indicator stays visible.
+            let exe_display = match (&proc.exe, proc.exe_deleted) {
+                (Some(path), true) => format!("{path} (deleted)"),
+                (Some(path), false) => path.clone(),
+                (None, _) => "—".to_string(),
+            };
+            let exe = fit_to_width(&exe_display, width.saturating_sub(fixed + 1));
             lines.push(ok(&format!(
-                "  {} {} {} {} {} {} {} {}",
+                "  {} {} {} {} {} {} {} {} {}",
                 pad_to_width(&proc.pid.to_string(), widths[0]),
                 pad_to_width(&proc.comm, widths[1]),
                 pad_to_width(kind, widths[2]),
                 pad_to_width(&perm, widths[3]),
-                pad_to_width(&thr, widths[4]),
-                pad_to_width(&rss, widths[5]),
-                pad_to_width(&started, widths[6]),
+                pad_to_width(&state, widths[4]),
+                pad_to_width(&thr, widths[5]),
+                pad_to_width(&rss, widths[6]),
+                pad_to_width(&started, widths[7]),
                 exe
             )));
         }

@@ -34,6 +34,7 @@ fn member_fixture() -> ProcessFacts {
         threads: 4,
         rss_kb: 1234,
         exe: Some("/home/cat/cat-test".to_string()),
+        exe_deleted: false,
         kind: Some("binary"),
         script: None,
         mode: Some("755".to_string()),
@@ -97,6 +98,9 @@ fn json_document_shape_is_the_scripting_contract() {
         "\"started_ago_secs\":620",
         "\"target\":\"ghost\"",
         "\"error\":\"no live cgroup matches\"",
+        // NIGHT-blade-7: the deletion flag rides every process row
+        // (additive — a script that ignores it is untouched).
+        "\"exe_deleted\":false",
     ] {
         assert!(
             text.contains(field),
@@ -113,6 +117,21 @@ fn json_document_shape_is_the_scripting_contract() {
     assert!(text.contains("\"enforcement_stats\":null"));
     assert!(text.contains("\"cgroup_memory_bytes\":null"));
     assert!(text.contains("\"cgroup_cpu_usage_usec\":null"));
+}
+
+/// NIGHT-blade-7: the deleted-on-disk exe flag rides the scripting
+/// document as a boolean — a triage pipeline filters on it instead of
+/// parsing the text report's marker.
+#[test]
+fn json_carries_the_deleted_exe_flag() {
+    let mut report = report_fixture(Enforcement::Unlimited);
+    report.depth.procs[0].exe_deleted = true;
+    let doc = depth_doc_json(&[report], &[]);
+    let text = serde_json::to_string(&doc).expect("serializes");
+    assert!(
+        text.contains("\"exe_deleted\":true"),
+        "the deleted marker must serialize as true, got:\n{text}"
+    );
 }
 
 /// NIGHT-blade-5: the ledger and the controller's resource view ride

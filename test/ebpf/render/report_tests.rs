@@ -41,6 +41,7 @@ fn member_fixture() -> ProcessFacts {
         threads: 4,
         rss_kb: 1234,
         exe: Some("/home/cat/cat-test".to_string()),
+        exe_deleted: false,
         kind: Some("binary"),
         script: None,
         mode: Some("755".to_string()),
@@ -312,6 +313,12 @@ fn census_table_carries_threads_and_rss_columns() {
         text.contains(" rss "),
         "the census header must name the memory column, got:\n{text}"
     );
+    // NIGHT-blade-7: the state column joins the census — the /proc
+    // state letter (S/R/D/Z) the JSON carried as full words.
+    assert!(
+        text.contains(" st "),
+        "the census header must name the state column, got:\n{text}"
+    );
     // The fixture member: 4 threads, 1234 KiB RSS. The census row
     // (not the headline) carries the type column — "binary" pins it.
     let row = text
@@ -322,6 +329,38 @@ fn census_table_carries_threads_and_rss_columns() {
     assert!(
         row.contains("1.3 MB"),
         "1234 KiB is 1,263,616 bytes, one-decimal 1.3 MB, got: {row}"
+    );
+    // NIGHT-blade-7: the state letter rides the census row — the
+    // fixture member is "S (sleeping)", so "S" is the cell.
+    assert!(
+        row.contains(" S "),
+        "the sleeping state letter rides the census row, got: {row}"
+    );
+    for line in &lines {
+        assert!(
+            crate::output::display_width(line) <= 110,
+            "a report line escaped the width budget: {line}"
+        );
+    }
+}
+
+/// NIGHT-blade-7: a member whose on-disk binary was replaced or
+/// removed keeps its exe path and gains the kernel's own
+/// " (deleted)" marker — the update-mid-run / self-deleting loader
+/// indicator stays visible on the readable surface.
+#[test]
+fn census_marks_the_deleted_exe() {
+    let mut report = report_fixture(Enforcement::Unlimited);
+    report.depth.procs[0].exe_deleted = true;
+    let lines = depth_report_lines(&[report], 110);
+    let text = lines.join("\n");
+    let row = text
+        .lines()
+        .find(|l| l.contains("cat-test") && l.contains("binary"))
+        .expect("the census row renders");
+    assert!(
+        row.contains("/home/cat/cat-test (deleted)"),
+        "the deleted marker rides the exe cell, got: {row}"
     );
     for line in &lines {
         assert!(

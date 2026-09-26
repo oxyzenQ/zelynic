@@ -159,6 +159,86 @@ fn classify_exe_detects_scripts_riding_interpreters() {
     std::fs::remove_dir_all(&dir).ok();
 }
 
+/// NIGHT-blade-7: the permission string carries the special bits —
+/// setuid/setgid/sticky render the four-digit octal `stat` uses, so a
+/// privilege-elevation binary cannot hide behind the plain 0o777
+/// mask. The file-type bits (the S_IFREG 0o100000 family) never leak
+/// into the digits.
+#[test]
+fn perm_string_carries_the_special_bits() {
+    assert_eq!(perm_string(0o100_755), "755");
+    assert_eq!(
+        perm_string(0o104_755),
+        "4755",
+        "setuid rides the lead digit"
+    );
+    assert_eq!(
+        perm_string(0o102_751),
+        "2751",
+        "setgid rides the lead digit"
+    );
+    assert_eq!(
+        perm_string(0o101_755),
+        "1755",
+        "sticky rides the lead digit"
+    );
+    assert_eq!(
+        perm_string(0o107_644),
+        "7644",
+        "all three special bits at once"
+    );
+    assert_eq!(perm_string(0o100_000), "0");
+    assert_eq!(perm_string(0), "0");
+}
+
+/// NIGHT-blade-7: the " (deleted)" suffix splits off the exe readlink
+/// — the marker is a triage fact (replaced-by-update or self-deleting
+/// binary), carried as the boolean instead of discarded.
+#[test]
+fn deleted_suffix_splits_clean_and_stays_honest() {
+    assert_eq!(
+        split_deleted_suffix("/home/cat/cat-test (deleted)"),
+        ("/home/cat/cat-test".to_string(), true)
+    );
+    assert_eq!(
+        split_deleted_suffix("/home/cat/cat-test"),
+        ("/home/cat/cat-test".to_string(), false)
+    );
+    // A bare marker (degenerate but parseable) still splits honestly.
+    assert_eq!(split_deleted_suffix(" (deleted)"), (String::new(), true));
+}
+
+/// NIGHT-blade-7: the argv shebang probe must never BLOCK on a
+/// non-regular file — the probe paths derive from attacker-controlled
+/// argv while zelynic runs as root, and a FIFO planted in the
+/// target's cwd used to hang the plain open forever (a FIFO's open
+/// blocks until a writer appears). The O_NONBLOCK probe makes the
+/// same probe an immediate miss. This pin drives the real path: if
+/// the guard regresses, the test HANGS on the FIFO open and fails by
+/// timeout — the failure mode is the point.
+#[test]
+fn classify_probe_never_blocks_on_a_fifo() {
+    let dir = std::env::temp_dir().join(format!("zelynic-fifo-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).expect("temp fixture dir");
+    let fifo = dir.join("pipe");
+    let cpath =
+        std::ffi::CString::new(fifo.to_string_lossy().as_bytes()).expect("fifo path encodes");
+    let rc = unsafe { libc::mkfifo(cpath.as_ptr(), 0o644) };
+    assert_eq!(rc, 0, "the mkfifo fixture must exist");
+
+    let exe = std::env::current_exe()
+        .expect("test binary")
+        .to_string_lossy()
+        .to_string();
+    let cwd = dir.to_string_lossy().to_string();
+    // argv[1] points at the FIFO: pre-blade-7 this call never returns.
+    let (kind, script) = classify_exe(Some(&exe), Some(&cwd), &["runner".into(), "pipe".into()]);
+    assert_eq!(kind, Some("binary"), "the FIFO probe misses, not hangs");
+    assert_eq!(script, None);
+
+    std::fs::remove_dir_all(&dir).ok();
+}
+
 /// NIGHT-blade-5: the cgroup controller's resource parsers — the
 /// exact payloads `memory.current` and `cpu.stat` carry, plus the
 /// shapes that must degrade to None (the honest absence, never a

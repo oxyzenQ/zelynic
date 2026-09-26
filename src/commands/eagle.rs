@@ -21,6 +21,12 @@
 //! enforcement verdict, the status contract's honest-read discipline:
 //! nothing pinned is honestly "unlimited", a failed read is an error,
 //! never a fabricated verdict).
+//!
+//! NIGHT-blade-7 (the sharpness audit) tightened the walk the report
+//! stands on: the census's perm column carries the special bits
+//! (setuid 4755 no longer hides as 755), a deleted-on-disk exe is
+//! marked, and the argv shebang probe cannot block on a planted FIFO
+//! — a root-invoked report never stalls on attacker-controlled paths.
 
 use anyhow::Result;
 
