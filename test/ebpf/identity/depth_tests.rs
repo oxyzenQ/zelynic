@@ -158,3 +158,36 @@ fn classify_exe_detects_scripts_riding_interpreters() {
 
     std::fs::remove_dir_all(&dir).ok();
 }
+
+/// NIGHT-blade-5: the cgroup controller's resource parsers — the
+/// exact payloads `memory.current` and `cpu.stat` carry, plus the
+/// shapes that must degrade to None (the honest absence, never a
+/// fabricated zero).
+#[test]
+fn controller_resource_parsers_take_the_exact_payloads() {
+    assert_eq!(parse_memory_current("251658240\n"), Some(251_658_240));
+    assert_eq!(parse_memory_current("0"), Some(0));
+    assert_eq!(parse_memory_current(""), None);
+    assert_eq!(parse_memory_current("not-a-number\n"), None);
+
+    // cpu.stat: the usage_usec line wins regardless of what follows
+    // (user_usec/system_usec/nr_periods ride along on some kernels).
+    let full = "usage_usec 62000000\nuser_usec 31000000\nsystem_usec 31000000\n";
+    assert_eq!(parse_cpu_usage_usec(full), Some(62_000_000));
+    assert_eq!(parse_cpu_usage_usec("usage_usec 42\n"), Some(42));
+    assert_eq!(parse_cpu_usage_usec("nr_periods 0\n"), None);
+    assert_eq!(parse_cpu_usage_usec("usage_usec junk\n"), None);
+    // A prefix twin must not match: user_usec is NOT usage_usec.
+    assert_eq!(parse_cpu_usage_usec("user_usec 7\n"), None);
+}
+
+/// NIGHT-blade-5: the resource layer needs a resolved path — no
+/// path, no reads, all None (a cgroup whose members all exited
+/// mid-walk still reports its census, just without the controller
+/// view).
+#[test]
+fn controller_resources_without_a_path_are_all_none() {
+    let r = cgroup_resources(None);
+    assert_eq!(r.memory_current_bytes, None);
+    assert_eq!(r.cpu_usage_usec, None);
+}

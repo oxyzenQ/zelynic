@@ -10,15 +10,23 @@
 //! [`DepthReport`] from the identity depth walk, the connection walk,
 //! and the pinned policy maps; this module turns that struct into
 //! lines (the report-table family's eagle-eyes chrome: purple title
-//! bar, grey census, green data rows) or into the typed JSON document
-//! (`--print-json`, the stable v11 scripting API shape). No /proc or
+//! bar, grey census, green data rows); the typed JSON document
+//! (`--print-json`, the stable v11 scripting API shape) lives in the
+//! depth_json sibling since NIGHT-blade-5's split. No /proc or
 //! map access lives here — the pins drive fixtures, not the host.
+//! The blade-5 depth upgrade adds three layers to the text report:
+//! the enforcement ACCOUNTING line (the kernel's allowed/dropped
+//! ledger under a limit), the cgroup controller's resource view
+//! (memory, accumulated CPU), the census's per-process rss/thread
+//! columns (facts the walk already collected; the table now shows
+//! what the JSON always carried), and the act-on-this tail with
+//! copy-paste commands for the cgroup the report just named.
 
 use std::time::Duration;
 
 use crate::ebpf::connections::CgroupConnections;
 use crate::ebpf::identity::depth::{CgroupDepth, ProcessFacts};
-use crate::ebpf::limiter::{format_count, format_rate, PolicyRaw};
+use crate::ebpf::limiter::{format_bytes, format_count, format_rate, LimiterStatsRaw, PolicyRaw};
 use crate::output::{fit_to_width, grey, ok, pad_to_width};
 
 use super::{format_uptime, grid_line, title_bar};
@@ -46,9 +54,17 @@ pub struct DepthReport {
     /// The identity ladder's winner: majority comm, else the cgroup
     /// path's basename, else "unknown" (the owner's spec).
     pub name: String,
-    /// The /proc deep walk: cgroup path + per-process facts.
+    /// The /proc deep walk: cgroup path + the controller's resource
+    /// view + per-process facts.
     pub depth: CgroupDepth,
     pub enforcement: Enforcement,
+    /// The kernel's enforcement ledger for this cgroup
+    /// (NIGHT-blade-5): the cgroup_limiter_stats row — packets/bytes
+    /// allowed and dropped — when enforcement is pinned AND the
+    /// kernel has booked the cgroup. None = unlimited, or a fresh
+    /// pin with no traffic yet (the honest absence, never a
+    /// fabricated zero).
+    pub enforcement_stats: Option<LimiterStatsRaw>,
     /// The connection walk's census for this cgroup, when it saw one.
     pub conns: Option<CgroupConnections>,
 }
@@ -140,14 +156,14 @@ fn dirname(path: &str) -> String {
 /// The oldest member's age in seconds — "since started at" for the
 /// summary block (the cgroup's activity horizon).
 #[must_use]
-fn oldest_started_secs(depth: &CgroupDepth) -> Option<u64> {
+pub(super) fn oldest_started_secs(depth: &CgroupDepth) -> Option<u64> {
     depth.procs.iter().filter_map(|p| p.started_ago_secs).max()
 }
 
 /// The representative process for the run-from detail lines: the
 /// first member whose exe resolved (pid order — stable, and pid order
 /// is launch order inside a cgroup).
-fn representative(depth: &CgroupDepth) -> Option<&ProcessFacts> {
+pub(super) fn representative(depth: &CgroupDepth) -> Option<&ProcessFacts> {
     depth
         .procs
         .iter()
@@ -162,6 +178,25 @@ fn kv(label: &str, value: &str) -> String {
         "  {} {}",
         grey(&pad_to_width(&format!("{label}:"), 15)),
         value
+    )
+}
+
+/// The enforcement accounting sentence (pure, NIGHT-blade-5): the
+/// kernel's allowed/dropped ledger as one glance — what got through,
+/// what the limit killed, and the drop share of everything that
+/// arrived. A zero-traffic ledger stays honest ("nothing booked yet")
+/// rather than dividing by zero.
+#[must_use]
+fn accounting_sentence(stats: &LimiterStatsRaw) -> String {
+    let arrived = stats.bytes_allowed.saturating_add(stats.bytes_dropped);
+    if arrived == 0 {
+        return "enforced, nothing booked yet".to_string();
+    }
+    let drop_share = (stats.bytes_dropped as f64 / arrived as f64) * 100.0;
+    format!(
+        "{} let through, {} dropped ({drop_share:.2}% of what arrived)",
+        format_bytes(stats.bytes_allowed),
+        format_bytes(stats.bytes_dropped)
     )
 }
 
@@ -232,6 +267,28 @@ pub fn depth_report_lines(reports: &[DepthReport], width: usize) -> Vec<String> 
             "enforcement",
             &enforcement_sentence(&report.enforcement),
         ));
+        // NIGHT-blade-5: the accounting line — what the limit DID. The
+        // ledger is the kernel's own book (bytes/packets allowed and
+        // dropped, both directions combined), so "limited" comes with
+        // its consequences attached: "1.4 GB let through, 6.2 MB
+        // dropped (0.44% of what arrived)".
+        if let Some(stats) = &report.enforcement_stats {
+            lines.push(kv("accounting", &accounting_sentence(stats)));
+        }
+        // NIGHT-blade-5: the controller's own resource view — the two
+        // counters no /proc walk can reconstruct (memory.current
+        // includes page-cache and kernel charges; cpu.stat is the
+        // scheduler's accounting across every task that ever ran in
+        // the cgroup, the exited ones included).
+        if let Some(bytes) = report.depth.resources.memory_current_bytes {
+            lines.push(kv("cgroup memory", &format_bytes(bytes)));
+        }
+        if let Some(usec) = report.depth.resources.cpu_usage_usec {
+            lines.push(kv(
+                "cgroup cpu",
+                &format_uptime(Duration::from_micros(usec)),
+            ));
+        }
         match oldest_started_secs(&report.depth) {
             Some(secs) => lines.push(kv(
                 "time",
@@ -256,11 +313,17 @@ pub fn depth_report_lines(reports: &[DepthReport], width: usize) -> Vec<String> 
         }
 
         // The process census table: list-apps' column discipline.
+        // NIGHT-blade-5: the census grows two columns the walk already
+        // collected — thread count and resident memory (facts the JSON
+        // document has carried since NIGHT-master-1; the readable table
+        // showed everything EXCEPT the resource cost each member pays,
+        // which is exactly what an expert triaging a fat cgroup wants
+        // first). The name column pays for the space (24 -> 20).
         lines.push(grid_line(width));
-        let widths = [7usize, 24, 8, 5, 8];
+        let widths = [7usize, 20, 6, 5, 4, 7, 8];
         let lead = 2;
         let fixed = lead + widths.iter().sum::<usize>() + widths.len();
-        let header_cells: Vec<String> = ["pid", "name", "type", "perm", "started"]
+        let header_cells: Vec<String> = ["pid", "name", "type", "perm", "thr", "rss", "started"]
             .iter()
             .zip(widths)
             .map(|(h, w)| pad_to_width(h, w))
@@ -273,17 +336,29 @@ pub fn depth_report_lines(reports: &[DepthReport], width: usize) -> Vec<String> 
                 .unwrap_or_else(|| "—".to_string());
             let kind = proc.kind.unwrap_or("unknown");
             let perm = proc.mode.clone().unwrap_or_else(|| "—".to_string());
+            let thr = if proc.threads == 0 {
+                "—".to_string()
+            } else {
+                proc.threads.to_string()
+            };
+            let rss = if proc.rss_kb == 0 {
+                "—".to_string()
+            } else {
+                format_bytes(proc.rss_kb.saturating_mul(1024))
+            };
             let exe = fit_to_width(
                 proc.exe.as_deref().unwrap_or("—"),
                 width.saturating_sub(fixed + 1),
             );
             lines.push(ok(&format!(
-                "  {} {} {} {} {} {}",
+                "  {} {} {} {} {} {} {} {}",
                 pad_to_width(&proc.pid.to_string(), widths[0]),
                 pad_to_width(&proc.comm, widths[1]),
                 pad_to_width(kind, widths[2]),
                 pad_to_width(&perm, widths[3]),
-                pad_to_width(&started, widths[4]),
+                pad_to_width(&thr, widths[4]),
+                pad_to_width(&rss, widths[5]),
+                pad_to_width(&started, widths[6]),
                 exe
             )));
         }
@@ -323,169 +398,31 @@ pub fn depth_report_lines(reports: &[DepthReport], width: usize) -> Vec<String> 
                 }
             }
         }
+
+        // NIGHT-blade-5: the act-on-this tail — the user-friendly half
+        // of the depth upgrade. A report that names a cgroup and stops
+        // answers "what IS this"; these three copy-paste lines answer
+        // "and what can I do about it", with the cg: id (the exact
+        // cgroup the report just dissected — round-trips through the
+        // same autodetection that resolved the target) so the commands
+        // stay correct even when the friendly name is ambiguous or
+        // shared by several cgroups.
+        lines.push(grid_line(width));
+        lines.push(grey("  act on this:"));
+        lines.push(grey(&format!(
+            "   limit:  zelynic strict-single cg:{} 500kb",
+            report.cgroup_id
+        )));
+        lines.push(grey(&format!(
+            "   block:  zelynic block-single cg:{}",
+            report.cgroup_id
+        )));
+        lines.push(grey(&format!(
+            "   watch:  zelynic ee cg:{}",
+            report.cgroup_id
+        )));
     }
     lines
-}
-
-// ── The --print-json document (typed, NIGHT-boost-3 lineage) ──────
-
-/// One process row of the JSON document.
-#[derive(serde::Serialize)]
-pub struct ProcJson {
-    pub pid: u32,
-    pub comm: String,
-    pub uid: u32,
-    pub user: Option<String>,
-    pub ppid: u32,
-    pub state: String,
-    pub threads: usize,
-    pub rss_kb: u64,
-    pub exe: Option<String>,
-    pub kind: Option<&'static str>,
-    pub script: Option<String>,
-    pub permission: Option<String>,
-    pub cwd: Option<String>,
-    pub cmdline: Option<String>,
-    pub started_ago_secs: Option<u64>,
-    pub started_epoch: Option<u64>,
-}
-
-/// One endpoint row of the JSON document.
-#[derive(serde::Serialize)]
-pub struct EndpointJson {
-    pub pid: u32,
-    pub comm: String,
-    pub proto: &'static str,
-    pub remote: String,
-    pub state: &'static str,
-}
-
-/// One resolved target's JSON object.
-#[derive(serde::Serialize)]
-pub struct DepthTargetJson {
-    pub target: String,
-    pub cgroup_id: u32,
-    pub name: String,
-    pub cgroup_path: Option<String>,
-    pub uid: Option<u32>,
-    pub user: Option<String>,
-    pub enforcement: &'static str,
-    pub download_bps: Option<u64>,
-    pub upload_bps: Option<u64>,
-    pub group_id: Option<u32>,
-    pub oldest_started_secs: Option<u64>,
-    pub processes: usize,
-    pub socket_holders: usize,
-    pub sockets: usize,
-    pub procs: Vec<ProcJson>,
-    pub endpoints: Vec<EndpointJson>,
-}
-
-/// A target that resolved to nothing (multi-target partial miss).
-#[derive(serde::Serialize)]
-pub struct DepthMissJson {
-    pub target: String,
-    pub error: String,
-}
-
-/// One entry of the targets array: a report or a miss.
-#[derive(serde::Serialize)]
-#[serde(untagged)]
-pub enum DepthEntryJson {
-    Report(Box<DepthTargetJson>),
-    Miss(DepthMissJson),
-}
-
-/// The whole `--depth --print-json` document.
-#[derive(serde::Serialize)]
-pub struct DepthDocJson {
-    pub targets: Vec<DepthEntryJson>,
-}
-
-/// Build the typed JSON document from assembled reports plus the
-/// misses (pure — struct assembly only, no io).
-#[must_use]
-pub fn depth_doc_json(reports: &[DepthReport], misses: &[(String, String)]) -> DepthDocJson {
-    let mut targets = Vec::new();
-    for report in reports {
-        let holders = report.conns.as_ref().map_or(0, |c| c.socket_holders.len());
-        let sockets = report.conns.as_ref().map_or(0, |c| {
-            c.socket_holders.iter().map(|p| p.sockets.len()).sum()
-        });
-        let (download, upload, group_id) = match &report.enforcement {
-            Enforcement::Unlimited => (None, None, None),
-            Enforcement::Limited { download, upload } => (
-                download.as_ref().map(|p| p.rate_bps),
-                upload.as_ref().map(|p| p.rate_bps),
-                download.as_ref().or(upload.as_ref()).map(|p| p.group_id),
-            ),
-        };
-        let rep = representative(&report.depth);
-        targets.push(DepthEntryJson::Report(Box::new(DepthTargetJson {
-            target: report.target.clone(),
-            cgroup_id: report.cgroup_id,
-            name: report.name.clone(),
-            cgroup_path: cgroup_abs_path(report.depth.rel_path.as_deref()),
-            uid: rep.map(|p| p.uid),
-            user: rep.and_then(|p| p.user.clone()),
-            enforcement: enforcement_word(&report.enforcement),
-            download_bps: download,
-            upload_bps: upload,
-            group_id,
-            oldest_started_secs: oldest_started_secs(&report.depth),
-            processes: report.depth.procs.len(),
-            socket_holders: holders,
-            sockets,
-            procs: report
-                .depth
-                .procs
-                .iter()
-                .map(|p| ProcJson {
-                    pid: p.pid,
-                    comm: p.comm.clone(),
-                    uid: p.uid,
-                    user: p.user.clone(),
-                    ppid: p.ppid,
-                    state: p.state.clone(),
-                    threads: p.threads,
-                    rss_kb: p.rss_kb,
-                    exe: p.exe.clone(),
-                    kind: p.kind,
-                    script: p.script.clone(),
-                    permission: p.mode.clone(),
-                    cwd: p.cwd.clone(),
-                    cmdline: p.cmdline.clone(),
-                    started_ago_secs: p.started_ago_secs,
-                    started_epoch: p.started_epoch,
-                })
-                .collect(),
-            endpoints: report.conns.as_ref().map_or_else(Vec::new, |c| {
-                c.socket_holders
-                    .iter()
-                    .flat_map(|h| {
-                        h.sockets.iter().map(move |s| EndpointJson {
-                            pid: h.pid,
-                            comm: h.comm.clone(),
-                            proto: if s.proto == crate::ebpf::connections::Proto::Tcp {
-                                "tcp"
-                            } else {
-                                "udp"
-                            },
-                            remote: s.remote.clone(),
-                            state: s.state,
-                        })
-                    })
-                    .collect()
-            }),
-        })));
-    }
-    for (target, error) in misses {
-        targets.push(DepthEntryJson::Miss(DepthMissJson {
-            target: target.clone(),
-            error: error.clone(),
-        }));
-    }
-    DepthDocJson { targets }
 }
 
 // The depth report pins live under the single test/ tree (cosmostrix

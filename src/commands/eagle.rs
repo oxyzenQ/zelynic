@@ -148,12 +148,20 @@ pub(crate) fn handle_eagle_eyes_depth(
 
     // One walk each feeds every target: the majority-vote identity
     // map (the name ladder's first rung), the connection census, and
-    // the pinned policy maps.
+    // the pinned policy maps. NIGHT-blade-5: when enforcement is
+    // pinned, the per-cgroup LEDGER rides along — the kernel's own
+    // allowed/dropped accounting — so a limited target's report
+    // carries what enforcement actually did, not just what it was
+    // configured to do.
     let mut identity = IdentityMap::new();
     identity.refresh();
     let mut conns = ConnectionMap::new();
     conns.refresh();
     let limiter = open_enforcement(verbose)?;
+    let stats_rows = match &limiter {
+        Some(l) => Some(l.read_stats_public()?),
+        None => None,
+    };
 
     let mut reports: Vec<DepthReport> = Vec::new();
     let mut misses: Vec<(String, String)> = Vec::new();
@@ -189,6 +197,14 @@ pub(crate) fn handle_eagle_eyes_depth(
             let comm = identity.get(id).map(|entry| entry.comm.clone());
             let name = package_name(comm.as_deref(), facts.rel_path.as_deref());
             let enforcement = enforcement_for(limiter.as_ref(), id)?;
+            // The ledger row only exists for cgroups the kernel has
+            // booked (a limited cgroup with zero traffic on a fresh
+            // pin may not have one yet) — None renders no accounting
+            // line, the honest absence, never a fabricated zero.
+            let enforcement_stats = stats_rows
+                .as_ref()
+                .and_then(|rows| rows.iter().find(|(key, _)| *key == id))
+                .map(|(_, stats)| *stats);
             let conns_view = conns.get(id).cloned();
             reports.push(DepthReport {
                 target,
@@ -196,6 +212,7 @@ pub(crate) fn handle_eagle_eyes_depth(
                 name,
                 depth: facts,
                 enforcement,
+                enforcement_stats,
                 conns: conns_view,
             });
         }

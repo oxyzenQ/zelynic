@@ -83,6 +83,7 @@
 //!   and focus)
 
 mod border;
+mod depth_json;
 mod detail;
 mod eagle;
 mod focus;
@@ -103,7 +104,11 @@ pub use eagle::render_eagle_eyes;
 
 // NIGHT-master-1: the eagle-eyes --depth report — composition only,
 // pure over assembled facts (fixture-pinned in report_tests.rs).
-pub use report::{depth_doc_json, depth_report_lines, package_name, DepthReport, Enforcement};
+// NIGHT-blade-5: the JSON half lives in the depth_json sibling (the
+// split that holds both under the 500-LOC cap) and keeps its stable
+// scripting shape, plus the ledger and controller-resource fields.
+pub use depth_json::depth_doc_json;
+pub use report::{depth_report_lines, package_name, DepthReport, Enforcement};
 
 pub(crate) use session::{SessionAcc, SessionState};
 

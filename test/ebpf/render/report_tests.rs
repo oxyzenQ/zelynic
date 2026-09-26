@@ -4,10 +4,20 @@
 //! Pins for the eagle-eyes --depth report composition
 //! (NIGHT-master-1): the package-name ladder, the enforcement
 //! verdict vocabulary, the owner's field spine on the text report,
-//! the socket cap, and the JSON document's scripting contract — all
-//! driven by fixtures, never the host.
+//! the socket cap, and — since NIGHT-blade-5 — the accounting
+//! line's ledger math, the controller-resource rows, the census's
+//! thr/rss columns, and the act-on-this tail — all driven by
+//! fixtures, never the host. The JSON document's scripting contract
+//! pins live in depth_json_tests.rs (the split that followed the
+//! code).
 
 use super::*;
+
+// The blade-5 fixture family: the controller's resource view and
+// the kernel's enforcement ledger, the two layers the depth upgrade
+// added to the composition.
+use crate::ebpf::identity::depth::CgroupResources;
+use crate::ebpf::limiter::LimiterStatsRaw;
 
 /// A raw policy row for fixtures (rate, matching burst, group 0).
 fn policy(rate_bps: u64) -> Option<PolicyRaw> {
@@ -48,9 +58,11 @@ fn report_fixture(enforcement: Enforcement) -> DepthReport {
         name: "cat-test".to_string(),
         depth: CgroupDepth {
             rel_path: Some("/cat-test".to_string()),
+            resources: CgroupResources::default(),
             procs: vec![member_fixture()],
         },
         enforcement,
+        enforcement_stats: None,
         conns: None,
     }
 }
@@ -200,52 +212,142 @@ fn socket_section_lists_endpoints_and_caps_overflow() {
     assert!(text.contains("+3 more"), "12 shown, 3 folded, got: {text}");
 }
 
-/// The JSON document is the scripting contract: the targets array
-/// wraps per-target reports, a partial miss rides as its own entry,
-/// and the field names are the stable v11 API vocabulary.
+// The JSON document pins moved with the code: the scripting
+// contract lives in depth_json_tests.rs since the NIGHT-blade-5
+// split (same fixtures, same vocabulary, plus the ledger and
+// controller-resource fields).
+
+/// NIGHT-blade-5: the accounting line — the kernel's ledger as one
+/// glance. The drop share is of everything that ARRIVED (allowed +
+/// dropped), and a zero-traffic ledger says so instead of dividing
+/// by zero.
 #[test]
-fn json_document_shape_is_the_scripting_contract() {
-    let report = report_fixture(Enforcement::Limited {
+fn accounting_sentence_carries_the_ledger_math() {
+    let heavy = LimiterStatsRaw {
+        packets_allowed: 900,
+        packets_dropped: 100,
+        bytes_allowed: 900_000,
+        bytes_dropped: 100_000,
+    };
+    let sentence = accounting_sentence(&heavy);
+    assert!(
+        sentence.contains("dropped"),
+        "the sentence must carry the drop leg, got: {sentence}"
+    );
+    assert!(
+        sentence.ends_with("10.00% of what arrived)"),
+        "100 KiB of 1000 KiB is exactly 10 percent, got: {sentence}"
+    );
+
+    let quiet = LimiterStatsRaw {
+        packets_allowed: 0,
+        packets_dropped: 0,
+        bytes_allowed: 0,
+        bytes_dropped: 0,
+    };
+    assert_eq!(
+        accounting_sentence(&quiet),
+        "enforced, nothing booked yet",
+        "a zero ledger stays honest"
+    );
+}
+
+/// NIGHT-blade-5: the report renders the accounting and
+/// controller-resource rows only when the layers actually resolved —
+/// None is the honest absence, never a fabricated zero.
+#[test]
+fn ledger_and_resource_rows_render_only_when_present() {
+    let mut report = report_fixture(Enforcement::Limited {
         download: policy(100_000),
         upload: policy(100_000),
     });
-    let doc = depth_doc_json(
-        &[report],
-        &[("ghost".to_string(), "no live cgroup matches".to_string())],
+    let without = depth_report_lines(&[report.clone()], 100).join("\n");
+    assert!(
+        !without.contains("accounting:"),
+        "no ledger, no accounting row, got:\n{without}"
     );
-    let text = serde_json::to_string(&doc).expect("the document serializes");
-    assert!(text.starts_with("{\"targets\":[{"), "got: {text}");
-    for field in [
-        "\"target\":\"cg:1234\"",
-        "\"cgroup_id\":1234",
-        "\"name\":\"cat-test\"",
-        "\"cgroup_path\":\"/sys/fs/cgroup/cat-test\"",
-        "\"uid\":1000",
-        "\"user\":\"cat\"",
-        "\"enforcement\":\"limited\"",
-        "\"download_bps\":100000",
-        "\"upload_bps\":100000",
-        "\"group_id\":0",
-        "\"oldest_started_secs\":620",
-        "\"processes\":1",
-        "\"pid\":1234",
-        "\"comm\":\"cat-test\"",
-        "\"kind\":\"binary\"",
-        "\"permission\":\"755\"",
-        "\"cwd\":\"/home/cat\"",
-        "\"started_ago_secs\":620",
-        "\"target\":\"ghost\"",
-        "\"error\":\"no live cgroup matches\"",
-    ] {
+    assert!(
+        !without.contains("cgroup memory:"),
+        "no controller view, no memory row, got:\n{without}"
+    );
+
+    report.enforcement_stats = Some(LimiterStatsRaw {
+        packets_allowed: 900,
+        packets_dropped: 100,
+        bytes_allowed: 900_000,
+        bytes_dropped: 100_000,
+    });
+    report.depth.resources = CgroupResources {
+        memory_current_bytes: Some(2_500_000),
+        cpu_usage_usec: Some(62_000_000),
+    };
+    let with = depth_report_lines(&[report], 100).join("\n");
+    assert!(
+        with.contains("accounting:"),
+        "the ledger row must render, got:\n{with}"
+    );
+    assert!(
+        with.contains("cgroup memory:"),
+        "the memory row must render, got:\n{with}"
+    );
+    assert!(
+        with.contains("cgroup cpu:"),
+        "the cpu row must render, got:\n{with}"
+    );
+}
+
+/// NIGHT-blade-5: the census table shows the thread count and the
+/// resident memory per member — the resource cost the JSON always
+/// carried, now on the readable surface too.
+#[test]
+fn census_table_carries_threads_and_rss_columns() {
+    let report = report_fixture(Enforcement::Unlimited);
+    let lines = depth_report_lines(&[report], 110);
+    let text = lines.join("\n");
+    assert!(
+        text.contains(" thr "),
+        "the census header must name the thread column, got:\n{text}"
+    );
+    assert!(
+        text.contains(" rss "),
+        "the census header must name the memory column, got:\n{text}"
+    );
+    // The fixture member: 4 threads, 1234 KiB RSS. The census row
+    // (not the headline) carries the type column — "binary" pins it.
+    let row = text
+        .lines()
+        .find(|l| l.contains("cat-test") && l.contains("binary"))
+        .expect("the census row renders");
+    assert!(row.contains(" 4 "), "thread count 4, got: {row}");
+    assert!(
+        row.contains("1.3 MB"),
+        "1234 KiB is 1,263,616 bytes, one-decimal 1.3 MB, got: {row}"
+    );
+    for line in &lines {
         assert!(
-            text.contains(field),
-            "the JSON contract must carry {field}, got:\n{text}"
+            crate::output::display_width(line) <= 110,
+            "a report line escaped the width budget: {line}"
         );
     }
-    // The unlimited shape: nulls, never fabricated zeroes.
-    let doc = depth_doc_json(&[report_fixture(Enforcement::Unlimited)], &[]);
-    let text = serde_json::to_string(&doc).expect("serializes");
-    assert!(text.contains("\"enforcement\":\"unlimited\""));
-    assert!(text.contains("\"download_bps\":null"));
-    assert!(text.contains("\"upload_bps\":null"));
+}
+
+/// NIGHT-blade-5: the act-on-this tail — every report block ends
+/// with the three copy-paste commands, keyed to the exact cgroup the
+/// report just dissected (the cg: id round-trips through the same
+/// autodetection that resolved the target).
+#[test]
+fn report_ends_with_the_act_on_this_tail() {
+    let report = report_fixture(Enforcement::Unlimited);
+    let text = depth_report_lines(&[report], 100).join("\n");
+    for tip in [
+        "act on this:",
+        "zelynic strict-single cg:1234 500kb",
+        "zelynic block-single cg:1234",
+        "zelynic ee cg:1234",
+    ] {
+        assert!(
+            text.contains(tip),
+            "the report tail must carry '{tip}', got:\n{text}"
+        );
+    }
 }
