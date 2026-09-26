@@ -62,20 +62,16 @@ pub fn handle_unstrict(target_str: &str, verbose: bool) -> Result<()> {
 /// syntax; previously the unstrict family had no multi form).
 #[cfg(feature = "ebpf")]
 pub fn handle_unstrict_multi(targets_str: &str, verbose: bool) -> Result<()> {
-    // Same parsing contract as strict-multi: trim each part, drop
-    // empties, and fail with an example instead of silently resolving
-    // an empty-name target.
-    let targets: Vec<&str> = targets_str
-        .split(':')
-        .map(|s| s.trim())
-        .filter(|s| !s.is_empty())
-        .collect();
-    if targets.is_empty() {
-        return Err(anyhow::anyhow!(
-            "No targets specified. Use colon-separated list.\n\
-             Example: zelynic unstrict-multi brave:curl:pacman"
-        ));
-    }
+    // Same parsing contract as strict-multi — and NIGHT-blade-18: the
+    // colon grammar (validate_multi_targets), so a malformed removal
+    // list is refused with the same wording instead of silently
+    // dropping the broken segment. Removal is the safe direction, so
+    // there is no danger loop here — only the grammar.
+    let segments = super::safety::validate_multi_targets(
+        targets_str,
+        "zelynic unstrict-multi brave:curl:pacman",
+    )?;
+    let targets: Vec<&str> = segments.iter().map(|s| s.as_str()).collect();
 
     super::ensure_root()?;
 

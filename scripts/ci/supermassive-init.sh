@@ -200,7 +200,7 @@ fi
 # the qualification order): the NIGHT-blade-4 server phase FIRST
 # (the guard family under the stripped headless environment — the
 # exact stdio shape this PID-1 guest itself presents), then the
-# 83-case CLI depth stresstest, the input guards, the SIGKILL
+# 97-case CLI depth stresstest, the input guards, the SIGKILL
 # batteries (live TUI mid-render on a pty, one-shot writers inside
 # the attach/pin/write window), the post-kill regression re-proof,
 # and the crash-family teardown (recover, cleanup, dmesg). A green

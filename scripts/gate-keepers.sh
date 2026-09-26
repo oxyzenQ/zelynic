@@ -499,7 +499,15 @@ fi
 header "rustfmt (ebpf/ crate, CI parity)"
 if [ -d ebpf ]; then
 	# Subshell: the cd must not leak into the gates below.
-	if (cd ebpf && cargo fmt --all -- --check) 2>&1; then
+	# NIGHT-blade-18: cargo must EXIST before the verdict is rendered
+	# -- the old shape ran the subshell blind, and an absent cargo
+	# (exit 127, a PATH-stripped shell) failed into the same "needs
+	# formatting" line as a real fmt diff, sending the engineer to
+	# reformat a tree that was already canonical (caught live when a
+	# timed-out agent shell lost its cargo PATH mid-session).
+	if ! command -v cargo >/dev/null 2>&1; then
+		fail "rustfmt: cargo not on PATH -- fix the toolchain environment (the tree cannot be checked from here)"
+	elif (cd ebpf && cargo fmt --all -- --check) 2>&1; then
 		info "rustfmt: ebpf/ formatted (exact CI command)"
 		PASS=$((PASS + 1))
 	else

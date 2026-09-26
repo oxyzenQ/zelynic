@@ -584,7 +584,7 @@ the server shape does not get to run the desktop matrix.
 Want to know the machine survives the day nothing goes right — the
 server phase first (the guard family under the stripped headless
 environment a production server carries; NIGHT-blade-4), then the
-83-case CLI depth stresstest (typos, wrong values, ambiguous orders,
+97-case CLI depth stresstest (typos, wrong values, ambiguous orders,
 shell-injection payloads, fatal usage — every flag and alias end to
 end, zero hangs, zero panics), the CLI input guards, the live TUI
 SIGKILLed mid-render under active enforcement, one-shot writers
