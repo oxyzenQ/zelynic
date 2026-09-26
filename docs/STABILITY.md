@@ -334,7 +334,7 @@ into a measured proof.
 | Identity/connection walks (TTL caches) | Rebuild-per-TTL — cache.clear() then a fresh /proc walk; dead cgroups cannot accumulate | identity/mod.rs, connections.rs refresh |
 | The diff engine's buffers | Swap-based, clear-and-refill per frame — allocation-stable, zero per-frame cloning | terminal/diff.rs |
 | Raw fds (pidfd, pidfd_getfd) | Explicit close() with the re-entrancy-safe state machine; the local fd closed after each cookie read | connections.rs PidFd |
-| Child processes (terminal guard, rescue utils, update curl) | status()/output()/waitpid — no zombie can outlive its purpose | terminal/guard.rs, term_reset.rs, update/mod.rs |
+| Child processes (terminal guard, rescue utils, update curl) | status()/output()/waitpid — no zombie can outlive its purpose | terminal/guard.rs, term_reset/mod.rs, update/mod.rs |
 | The monitor loop itself | Quiet death on a dead sink — a piped reader leaving ends the session instead of spinning forever holding root | run_loop (ultimate-2) |
 | Byte counters on the long horizon | u64 wraps at 18.4 EB per socket/cgroup (467+ years at line rate); packets at ~389,000 years; the limiter ledger is atomic (v7/v9) and the burst consume bounded-retry (v8) | math.rs + stats.rs pins; wrap_coherent_delta |
 

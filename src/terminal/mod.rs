@@ -52,7 +52,7 @@
 //! sequences below, the beat value and the loop scheduler, and a
 //! source-tree scan that fails if any `\x1b[?` mode outside
 //! {1049, 25, 1000, 1002, 1006} ever appears in src/ — the ONE
-//! exception being the emergency reset contract src/term_reset.rs,
+//! exception being the emergency reset contract src/term_reset/mod.rs,
 //! whose default-restoring mode set {2026, 2004, 1004, 7, 1003,
 //! 1015} is honored only inside that file), plus the whole-frame
 //! repaint pins in test/terminal/diff_tests.rs.

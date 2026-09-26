@@ -11,11 +11,19 @@
 
 ## Directory Discipline
 
+- **Root single-file policy (NIGHT-blade-15)**: `src/` root holds
+  exactly ONE `.rs` file — `main.rs`. No new `.rs` file may be
+  placed directly at `src/` root; every module lives in its
+  subsystem directory as `dir/mod.rs` (the cosmostrix Single-File
+  Policy convention). `src/term_reset.rs` is the file that drifted —
+  moved to `src/term_reset/mod.rs`, module tree unchanged — and the
+  rule is enforced, not just written: `scripts/gates/check-loc.sh`
+  checks the root layout before it counts a single line.
 - `src/` is organized by subsystem directory, each with a `mod.rs`
   that owns module declarations and re-exports: `cli/`, `commands/`,
   `output/`, `ebpf/` (with `limiter/`, `identity/`, `render/`,
-  `connections/parse.rs`), `terminal/`, `capabilities/`, `info/`,
-  `update/`.
+  `connections/parse.rs`), `terminal/`, `term_reset/`,
+  `capabilities/`, `info/`, `update/`.
 - `src/main.rs` stays bootstrap/wiring only — parse, dispatch, exit.
 - New modules join an existing directory when they belong to that
   subsystem; a new directory is created only for a genuinely new

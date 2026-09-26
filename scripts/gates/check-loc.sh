@@ -9,6 +9,15 @@
 # Owner rule: the cap is 500 lines (see docs/RULES.md "Source file size
 # cap" and src/RULES.md for the full policy).
 #
+# NIGHT-blade-15 additionally enforces the src/ root single-file
+# policy here (the cosmostrix Single-File Policy convention):
+# src/ root holds exactly ONE .rs file, main.rs. Every other module
+# lives in its subsystem directory as dir/mod.rs. The policy was
+# prose-only until the layout drifted exactly this way once
+# (src/term_reset.rs at the root) — convention alone did not hold,
+# so the size gate now guards the layout too. Same scope, same walk,
+# one more invariant.
+#
 # Exemption mechanism: NO hardcoded file list. Instead, each file that
 # legitimately exceeds 500 LOC self-declares with a marker comment:
 #
@@ -43,6 +52,25 @@ EXEMPT_VIOLATIONS=0
 # Marker that a file uses to self-declare an LOC exemption.
 # Must be followed by a justification (one line, free-form text).
 EXEMPT_MARKER='// LOC_EXEMPT:'
+
+# ── src/ root single-file policy (NIGHT-blade-15) ──────────────────────────
+# Checked FIRST: a stray root module is a layout failure, not a size
+# one — it fails before any line is counted. src/RULES.md (the doc
+# standing in the tree) and docs/RULES.md (the canonical policy)
+# carry the full text.
+ROOT_STRAYS=$(find src -maxdepth 1 -name '*.rs' ! -name 'main.rs' 2>/dev/null || true)
+if [ -n "$ROOT_STRAYS" ]; then
+	echo "FAIL: src/ root must contain only main.rs (single-file policy)."
+	echo "Stray root module(s) found:"
+	while IFS= read -r stray; do
+		echo "    ${stray}"
+	done <<<"$ROOT_STRAYS"
+	echo ""
+	echo "Move each into its subsystem directory (dir/mod.rs style):"
+	echo "    git mv src/<module>.rs src/<module>/mod.rs"
+	echo "(a moved module's relative #[path] wirings gain one ../ level)"
+	exit 1
+fi
 
 echo "Rust source file line counts (max ${MAX_LINES}):"
 echo ""

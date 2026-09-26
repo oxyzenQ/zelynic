@@ -81,14 +81,18 @@
 //! needed (the broken-terminal user can barely type, let alone
 //! authenticate).
 //!
-//! Module placement: a crate-root module (src/term_reset.rs), not a
-//! child of the ebpf-gated terminal tree (whose session machinery is
-//! the eagle-eyes graph). The rescue owns no BPF machinery — ANSI
-//! bytes + termios — and must exist in EVERY build: a featureless
-//! binary can still rescue a terminal some other app broke. A plain
-//! module (no #[path] wiring) is also what the test-tree discipline
-//! gate expects: every #[path] wiring under src/ resolves into test/,
-//! and this file's own pins hang off it the ordinary way
+//! Module placement: a crate-root module — declared ungated in
+//! main.rs, its file at src/term_reset/mod.rs per the src/ root
+//! single-file policy (NIGHT-blade-15: src/ root holds only main.rs;
+//! the module TREE position is what this rationale defends, and the
+//! move changed the file path, not the tree) — not a child of the
+//! ebpf-gated terminal tree (whose session machinery is the
+//! eagle-eyes graph). The rescue owns no BPF machinery — ANSI bytes
+//! + termios — and must exist in EVERY build: a featureless binary
+//! can still rescue a terminal some other app broke. A plain module
+//! declaration is also what the test-tree discipline expects: every
+//! #[path] wiring under src/ resolves into test/, and this file's
+//! own pins hang off it the ordinary way
 //! (test/terminal/reset_tests.rs).
 //!
 //! Mode-direction contract (pinned in test/terminal/reset_tests.rs
@@ -103,10 +107,10 @@
 use std::io::IsTerminal;
 use std::os::unix::io::AsRawFd;
 
-// The interposed-terminal lane (NIGHT-improve-31): a src/term_reset/
-// child module — the discovery, the direct apply, and the post-sudo
-// orphan — kept a sibling so this file stays the five-layer contract
-// it is pinned as (the LOC cap discipline).
+// The interposed-terminal lane (NIGHT-improve-31): this module's
+// child (term_reset/outer.rs) — the discovery, the direct apply, and
+// the post-sudo orphan — kept in its own file so this one stays the
+// five-layer contract it is pinned as (the LOC cap discipline).
 mod outer;
 
 // ── The raw-fd helpers (shared with the violent-death guard) ─────────
@@ -460,5 +464,5 @@ pub(crate) fn reset_terminal_emergency() {
 // (cosmostrix Pattern C), #[path]-wired across trees exactly like
 // the terminal tree's own pins.
 #[cfg(test)]
-#[path = "../test/terminal/reset_tests.rs"]
+#[path = "../../test/terminal/reset_tests.rs"]
 mod reset_tests;
