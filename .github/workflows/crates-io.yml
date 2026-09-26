@@ -12,16 +12,20 @@
 # publish creates the crate — see docs/VERIFY_RELEASE.md for the
 # owner's one-time setup and the manual-first-publish instruction.
 #
-# What gets published — the dormant lane, by structural necessity
-# (verified live on this manifest): cargo's package walk auto-excludes
-# nested packages, so the detached ebpf/ workspace (its own
-# Cargo.toml) cannot ride a registry tarball — `include` does not
-# override that rule. The published crate is the stable-toolchain
-# dormant binary plus the curated ship set (Cargo.toml `include`):
-# full docs tree, governance docs, the bootstrap pair. build.rs's
-# NIGHT-ask-1 preflight turns `--features ebpf` from a cryptic nested
-# failure into the honest fail-fast message pointing at the git
-# checkout / GitHub Release channels.
+# What gets published — the FULL-FEATURED lane (NIGHT-ask-2): cargo's
+# package walk auto-excludes nested packages, so the detached ebpf/
+# workspace (its own Cargo.toml) cannot ride a registry tarball — the
+# crate ships ebpf-prebuilt/ instead (a plain directory, NOT a nested
+# package): the two maintainer-built objects, the same bytes the
+# GitHub Release binaries embed. The default became `ebpf`, so a
+# plain `cargo install zelynic` lands the monitor and the limiter on
+# a stable toolchain — no nightly anywhere near the user (this job's
+# own `cargo publish` verification build exercises exactly that
+# registry lane: build.rs stages the prebuilt objects and the tarball
+# compiles before any upload). Freshness is gated upstream by
+# gate-keepers.yml's check-prebuilt-parity.sh, which fails after any
+# ebpf/ change until scripts/release/refresh-prebuilt.sh regenerates
+# the lane.
 #
 # One-time setup (owner): create a crates.io API token
 # (crates.io -> Account Settings -> API Tokens, "publish-new" scope is

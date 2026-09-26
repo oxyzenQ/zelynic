@@ -16,6 +16,49 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Changed
 
+- **build+channel: NIGHT-ask-2 — the crates.io lane goes
+  full-featured: `cargo install zelynic` now lands the monitor AND
+  the limiter on a plain stable toolchain** — the owner's follow-up
+  demand after NIGHT-ask-1 opened the dormant lane ("a plain cargo
+  install must land the limiter, no next steps, no nightly") could
+  not be answered by a tarball without the ebpf/ tree, and a gimped
+  first landing on an append-only registry is forever. The design:
+  **ebpf-prebuilt/** — a plain directory, not a nested package, so
+  cargo's package walk carries it where the detached ebpf/ workspace
+  can never ride — ships the two maintainer-built objects (the same
+  bytes the GitHub Release binaries embed, so kernel compatibility is
+  identical by construction); `default = ["ebpf"]` makes the full
+  build the plain install; build.rs's new registry lane stages those
+  objects through the same NIGHT-hunt-29 structural validation and
+  the same OUT_DIR → include_bytes! embedding the source lane uses —
+  the user compiles the userspace on stable 1.98, and no nightly, no
+  bpf-linker, no bootstrap ever touches their machine. `zelynic -V`
+  gains the `eBPF objects:` line (source-built / registry-prebuilt /
+  dormant) so every binary answers which path produced its objects;
+  the dormant lane survives as the explicit opt-out
+  (`--no-default-features`), and its honest-refusal message now names
+  both ways out (the default crate, or the source rebuild) while
+  keeping the integration-pinned substrings. Freshness is enforced,
+  not promised: scripts/release/refresh-prebuilt.sh regenerates the
+  lane through the repo's own validated build (recording provenance
+  in ebpf-prebuilt/manifest.toml — source-tree hash, toolchain,
+  linker, per-object sha256), and the new gate #18
+  (check-prebuilt-parity.sh) recomputes the ebpf/ tree hash and fails
+  every push after an ebpf/ change until the refresh lands — the
+  shipped objects can never silently fall behind the sources they
+  claim to carry. build.sh check-all's test step became the explicit
+  dormant leg (--no-default-features; the ebpf-feature test lane
+  stays in ci.yml, keeping the 2-minute local cap), and CONTRIBUTING
+  / KERNEL_COMPATIBILITY / README / VERIFY_RELEASE / QA.md Q2 tell
+  the new channel truth. Every claim was verified live before
+  landing: cargo package's verification build (the registry lane
+  itself), a cargo install from the extracted tarball, `-V` answering
+  `eBPF objects: registry-prebuilt`, the non-root enforcement probe
+  answering "root required" (the limiter surfaces are compiled in),
+  both test lanes green, and the dead ebpf/* include entries
+  confirmed dead (zero ebpf/ files ship with or without them —
+  removed, because dead entries are not curated entries).
+
 - **refactor: NIGHT-blade-4 — the eagle-eyes `--info` alias is
   retired; `--depth` is the one spelling** — the owner's call after
   the NIGHT-master-1 implementation settled: one canonical flag for

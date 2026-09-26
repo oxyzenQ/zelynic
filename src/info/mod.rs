@@ -97,6 +97,30 @@ fn build_time() -> &'static str {
     option_env!("ZELYNIC_BUILD_TIME").unwrap_or("unknown")
 }
 
+/// The eBPF object lane this binary was built through (NIGHT-ask-2),
+/// stamped by build.rs as `ZELYNIC_EBPF_LANE`:
+///
+/// - `source-built` — a git checkout: the objects were cross-compiled
+///   from the local ebpf/ tree by the nested nightly build (the
+///   source-built contract; a tree that HAS the sources builds the
+///   sources).
+/// - `registry-prebuilt` — a crates.io source extract: cargo's
+///   package walk cannot carry the detached ebpf/ workspace (nested
+///   packages are auto-excluded), so build.rs staged the
+///   maintainer-built objects from ebpf-prebuilt/ — the same bytes the
+///   GitHub Release binaries embed, provenance in
+///   ebpf-prebuilt/manifest.toml.
+/// - `dormant (not compiled)` — a `--no-default-features` build: the
+///   eBPF surfaces answer their honest refusal.
+///
+/// The fallback matches the dormant stamp: every path that compiles
+/// eBPF code sets the env explicitly, so the fallback only guards a
+/// build script that crashed before stamping (which fails the build
+/// anyway) — it can never mislabel a full build as dormant.
+fn ebpf_lane() -> &'static str {
+    option_env!("ZELYNIC_EBPF_LANE").unwrap_or("dormant (not compiled)")
+}
+
 /// The plain-text body of the version report (everything after the
 /// brand header). Separated from [`print_version_report`] so tests can
 /// assert the full line set without capturing stdout.
@@ -105,12 +129,14 @@ fn version_body() -> String {
         "Architecture: Cosmic Dragon (pure eBPF)\n\
          Build: {} ({})\n\
          Build-time: {}\n\
+         eBPF objects: {}\n\
          Copyright: {COPYRIGHT}\n\
          {LICENSE_LINE}\n\
          Source: {REPOSITORY}",
         build_label(),
         build_hash(),
-        build_time()
+        build_time(),
+        ebpf_lane()
     )
 }
 
@@ -131,6 +157,7 @@ fn version_body() -> String {
 /// Architecture: Cosmic Dragon (pure eBPF)
 /// Build: linux-amd64-gnu (ad36a81)
 /// Build-time: 9/18/2026 01:30 (UTC)
+/// eBPF objects: source-built
 /// Copyright: (c) 2026 rezky_nightky (oxyzenQ)
 /// License: GPL-3.0-only
 /// Source: https://github.com/oxyzenQ/zelynic
@@ -142,7 +169,10 @@ fn version_body() -> String {
 /// `Build-time:` line (NIGHT-hunt-6, cosmostrix parity) is stamped by
 /// build.rs via the Hinnant civil-from-days algorithm — UTC-only, so
 /// no timezone database is pulled into the binary and the stamp is
-/// identical across build hosts.
+/// identical across build hosts. The `eBPF objects:` line
+/// (NIGHT-ask-2) reports the lane from [`ebpf_lane`] — source-built,
+/// registry-prebuilt, or dormant — so a user can tell exactly which
+/// path produced the objects inside the binary in front of them.
 pub fn print_version_report() {
     let header = format!("{NAME}: v{VERSION}\n{DESCRIPTION}");
     println_safe!("{}", crate::output::brand(&header));
@@ -217,6 +247,41 @@ mod tests {
             lines[build_idx + 1].starts_with("Build-time: "),
             "Build-time must follow Build, got: {}",
             lines[build_idx + 1]
+        );
+    }
+
+    /// NIGHT-ask-2 contract: the version report carries the eBPF
+    /// objects line exactly once, directly after Build-time, and its
+    /// value is one of the three documented lanes — so a registry
+    /// install can never masquerade as a source build, and a dormant
+    /// build cannot stay silent about being dormant.
+    #[test]
+    fn ebpf_objects_line_is_pinned_after_build_time() {
+        let body = version_body();
+        let count = body
+            .lines()
+            .filter(|l| l.starts_with("eBPF objects: "))
+            .count();
+        assert_eq!(count, 1, "the eBPF objects line must appear exactly once");
+        let lane = ebpf_lane();
+        assert!(
+            [
+                "source-built",
+                "registry-prebuilt",
+                "dormant (not compiled)"
+            ]
+            .contains(&lane),
+            "lane must be one of the documented values, got: {lane}"
+        );
+        let lines: Vec<&str> = body.lines().collect();
+        let time_idx = lines
+            .iter()
+            .position(|l| l.starts_with("Build-time: "))
+            .expect("Build-time line present");
+        assert_eq!(
+            lines[time_idx + 1],
+            format!("eBPF objects: {lane}"),
+            "the eBPF objects line must follow Build-time"
         );
     }
 

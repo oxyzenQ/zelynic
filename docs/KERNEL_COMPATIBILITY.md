@@ -13,8 +13,8 @@
 | **cgroup** | v2 only | v2 only | zelynic uses `cgroup_skb/egress` + `ingress` hooks |
 | **BPF fs** | Mounted at `/sys/fs/bpf` | Mounted | Required for map + link pinning (fire-and-forget mode) |
 | **Root** | Required | Required | BPF program load + attach requires `CAP_BPF` or root |
-| **rustup nightly pin** | `nightly-2026-09-18` | same | The BPF side is pure Rust (NIGHT-improve-1 phase 3): the aya-ebpf crate cross-builds on the dated nightly pin — host install: `./scripts/dev/bootstrap-ebpf.sh` |
-| **bpf-linker** | 0.11.1 | 0.11.1 | Links the bpfel-unknown-none objects (prebuilt static musl binary — no system LLVM) |
+| **rustup nightly pin** | `nightly-2026-09-18` | same | BUILD-time only (source builds): the aya-ebpf crate cross-builds on the dated nightly pin — host install: `./scripts/dev/bootstrap-ebpf.sh`. A crates.io install needs NO nightly: the registry tarball ships the maintainer-built objects (`ebpf-prebuilt/`, NIGHT-ask-2) and compiles the userspace on stable |
+| **bpf-linker** | 0.11.1 | 0.11.1 | Links the bpfel-unknown-none objects (prebuilt static musl binary — no system LLVM). Build-time only, same as the nightly pin above; the registry lane embeds already-linked objects |
 
 ## Kernel Feature Dependencies
 

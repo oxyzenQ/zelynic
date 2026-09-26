@@ -145,21 +145,27 @@ published key. Verify before installing — the one-liners live in
 [Release Verification](#release-verification) below and in
 [docs/VERIFY_RELEASE.md](docs/VERIFY_RELEASE.md), told once there.
 
-### Install from crates.io (source lane)
+### Install from crates.io
 
 `cargo install zelynic --locked` builds from the published source
-tarball — the dormant lane (NIGHT-ask-1): a stable-toolchain binary
-with the eBPF commands disabled, answering `-V` and `--help` with an
-honest message on every eBPF surface. The flagship binary with
-monitoring and limiting stays the release tarball above or a git
-checkout build below — cargo's package walk cannot carry the detached
-`ebpf/` workspace (nested packages are auto-excluded from tarballs,
-verified live), so `--features ebpf` from a registry source fails
-fast in build.rs with exactly that guidance instead of a cryptic
-nested-build error. Cargo verifies the tarball SHA-256 against the
-registry index before extraction, the publish is `--locked` to the
-tagged `Cargo.lock`, and `-V` reports the exact source sha the crate
-was packed from — the full channel contract lives in
+tarball and lands the **full-featured binary** — monitor and limiter,
+eBPF objects embedded — on a plain **stable toolchain: no nightly, no
+bpf-linker, no bootstrap** ever touches the installing machine
+(NIGHT-ask-2). The detached `ebpf/` workspace still cannot ride a
+registry tarball (cargo's package walk auto-excludes nested packages,
+verified live), so the crate ships **`ebpf-prebuilt/`** instead: the
+two maintainer-built objects — the same bytes the release tarballs
+above embed, so kernel compatibility is identical — which build.rs
+stages for the default `ebpf` feature. `zelynic -V` answers
+`eBPF objects: registry-prebuilt` with the exact source sha, and the
+provenance (source-tree hash, toolchain, linker, per-object sha256)
+rides the tarball as `ebpf-prebuilt/manifest.toml`. The dormant lane
+(stable binary, eBPF surfaces disabled) survives as the explicit
+opt-out: `--no-default-features`. Cargo verifies the tarball SHA-256
+against the registry index before extraction, the publish is
+`--locked` to the tagged `Cargo.lock`, and after any change under
+`ebpf/` the parity gate fails until the maintainer refreshes the
+prebuilt lane — the full channel contract lives in
 [docs/VERIFY_RELEASE.md](docs/VERIFY_RELEASE.md) (section 4, with the
 owner's first-publish manual).
 

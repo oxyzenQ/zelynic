@@ -107,12 +107,18 @@ pub(crate) fn ensure_root() -> Result<()> {
 
 /// Shared error for commands compiled without the `ebpf` feature:
 /// a single actionable message instead of the old eprintln + Err pair,
-/// which printed the failure twice.
+/// which printed the failure twice. Since NIGHT-ask-2 made `ebpf` the
+/// default, this path is the explicit opt-out (`--no-default-features`)
+/// — the message names both ways out: the default crate (full build)
+/// and the source rebuild. The wording keeps the two substrings the
+/// integration test pins (test/integration/privilege.rs: "eBPF not
+/// compiled" + "cargo build --features ebpf").
 #[cfg(not(feature = "ebpf"))]
 fn ebpf_disabled() -> Result<()> {
     Err(anyhow::anyhow!(
-        "eBPF not compiled into this build\n  \
-         tip: rebuild with 'cargo build --features ebpf'"
+        "eBPF not compiled into this build (built with --no-default-features)\n  \
+         tip: cargo install zelynic ships the full build, or rebuild from \
+         source with 'cargo build --features ebpf'"
     ))
 }
 
