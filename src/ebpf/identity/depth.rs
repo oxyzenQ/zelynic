@@ -64,9 +64,8 @@ pub struct ProcessFacts {
     pub exe: Option<String>,
     /// NIGHT-blade-7: the kernel appended " (deleted)" to the exe
     /// readlink — the on-disk binary was replaced or removed after
-    /// the process started (a package upgrade mid-run, or a loader
-    /// that deleted itself). The suffix is stripped from `exe` for
-    /// path hygiene and surfaced here as the triage fact it is.
+    /// the process started (an upgrade mid-run, or a self-deleting
+    /// loader). Stripped from `exe`, surfaced here.
     pub exe_deleted: bool,
     /// "binary" (ELF) or "script" (shebang probe) — None unreadable.
     pub kind: Option<&'static str>,
@@ -225,9 +224,8 @@ pub fn perm_string(mode: u32) -> String {
 /// " (deleted)" suffix (pure, NIGHT-blade-7): the kernel appends the
 /// marker when the linked file was replaced or removed after the
 /// process started, so the marker is a FACT to carry, not formatting
-/// to discard. A path that legitimately ends in " (deleted)"
-/// indistinguishably reports true — the same ambiguity stat(2)
-/// carries, accepted and documented.
+/// to discard. A path legitimately ending in " (deleted)"
+/// indistinguishably reports true — the same ambiguity stat(2) carries.
 #[must_use]
 pub fn split_deleted_suffix(link: &str) -> (String, bool) {
     match link.strip_suffix(" (deleted)") {

@@ -8,6 +8,9 @@
 //! - `format.rs`  — rate/duration parsing + formatting helpers
 //! - `policy.rs`  — apply / resolve / write policy operations (the
 //!   unset-direction removal rides the apply, NIGHT-improve-29)
+//! - `policy_lines.rs` — the policy surface's pure line formatters
+//!   (trace wording, the rollback error shape; NIGHT-depthbore-1's
+//!   split to hold policy.rs under the 500-LOC owner cap)
 //! - `reclaim.rs` — the remove path (unstrict) + state reclamation
 //! - `stats.rs`   — status printing + map readers + identity accessors
 //! - this file    — the `Limiter` struct, lifecycle (attach / open /
@@ -15,6 +18,7 @@
 
 mod format;
 mod policy;
+mod policy_lines;
 mod reclaim;
 mod stats;
 mod types;
