@@ -225,6 +225,12 @@ pub fn handle_unstrict_all(verbose: bool) -> Result<()> {
 /// Detects orphaned/stale BPF pin files and removes them.
 /// Differs from `unstrict-all` in that it's diagnostic: reports what
 /// it found before cleaning. Safe to run anytime.
+///
+/// NIGHT-master-4 hardening: every verdict this command prints is
+/// verified — map reads propagate (no fabricated "Orphans: none"),
+/// the removed counts come from the operations' own results, and an
+/// incomplete recovery exits 1 so scripts retry instead of trusting
+/// a success the filesystem did not grant.
 #[cfg(feature = "ebpf")]
 pub fn handle_recover(verbose: bool) -> Result<()> {
     use crate::ebpf::limiter::{pin_dir_has_files, unpin_all, Limiter};
@@ -253,12 +259,17 @@ pub fn handle_recover(verbose: bool) -> Result<()> {
         let mut limiter = Limiter::open_pinned(verbose)?;
         limiter.refresh_identity();
 
-        let dl_policies = limiter
-            .read_policies_public(crate::ebpf::limiter::Direction::Download)
-            .unwrap_or_default();
-        let ul_policies = limiter
-            .read_policies_public(crate::ebpf::limiter::Direction::Upload)
-            .unwrap_or_default();
+        // NIGHT-master-4 (the honesty audit): the orphan scan's reads
+        // PROPAGATE. The former unwrap_or_default() here folded a
+        // failed map read into zero policies — and zero policies
+        // renders "Orphans: none", the exact fabricated verdict the
+        // NIGHT-hunt-20/22 contract forbids everywhere else (the
+        // unstrict ladder, status). A transient read failure must
+        // error out of recover, never report a clean board it never
+        // saw.
+        let dl_policies =
+            limiter.read_policies_public(crate::ebpf::limiter::Direction::Download)?;
+        let ul_policies = limiter.read_policies_public(crate::ebpf::limiter::Direction::Upload)?;
 
         // Collect all cgroup IDs that have policies.
         use std::collections::HashSet;
@@ -362,6 +373,16 @@ pub fn handle_recover(verbose: bool) -> Result<()> {
                     "entries"
                 }
             );
+            // NIGHT-master-4: the no-residue ladder the unstrict
+            // family already owns. When the orphan sweep took the
+            // LAST policies, the enforcement skeleton (programs,
+            // links, maps) stays pinned over empty maps — the same
+            // residue unstrict refuses to leave behind. The verified
+            // zero unpins it; a read failure keeps it (the warning
+            // names the repair tool); a leftover survivor errors the
+            // command (the verified unpin's own contract).
+            unpin_if_no_policies(&limiter, verbose)?;
+            return Ok(());
         } else {
             eprintln_safe!(
                 "  Result: removed {orphans_removed} orphan policy(ies), \
@@ -370,18 +391,37 @@ pub fn handle_recover(verbose: bool) -> Result<()> {
                 failed.len(),
                 failed.join(", ")
             );
-            eprintln_safe!(
-                "  Next: retry 'zelynic recover', or 'zelynic unstrict-all' to force-clear"
-            );
+            // NIGHT-master-4: an incomplete recovery is a runtime
+            // failure, not a quiet success. The exit-code contract
+            // (docs/USAGE.md) words code 1 as "stale state" — a
+            // scripted recover that leaves orphans behind must say
+            // so through the exit code too, or the retry never
+            // happens and the next status honestly reports the
+            // orphans the script believes it removed.
+            return Err(anyhow::anyhow!(
+                "recover incomplete — {} orphan policy(ies) could not be removed\n  \
+                 tip: retry 'zelynic recover', or 'zelynic unstrict-all' to force-clear",
+                failed.len()
+            ));
         }
-        return Ok(());
     }
 
-    // Stale state detected — count orphaned pins.
+    // Stale state detected — count orphaned pins. NIGHT-master-4:
+    // an unreadable directory reports NO count (the former
+    // unwrap_or(0) printed "STALE (0 orphaned pin file(s))" — a
+    // fabricated zero on a state we just proved non-empty); the
+    // verified unpin below is the removal's source of truth either
+    // way.
     let pin_dir = std::path::Path::new(crate::ebpf::limiter::PIN_DIR);
-    let pin_count = std::fs::read_dir(pin_dir).map(|d| d.count()).unwrap_or(0);
-
-    eprintln_safe!("  State: STALE ({pin_count} orphaned pin file(s) detected)");
+    let detected = std::fs::read_dir(pin_dir).map(|d| d.count()).ok();
+    match detected {
+        Some(n) => {
+            eprintln_safe!("  State: STALE ({n} orphaned pin file(s) detected)");
+        }
+        None => {
+            eprintln_safe!("  State: STALE (orphaned pin files detected)");
+        }
+    }
     eprintln_safe!("  Cause: likely crash, SIGKILL, OOM, or partial upgrade");
     eprintln_safe!("  Action: removing all pin files...");
 
@@ -395,8 +435,13 @@ pub fn handle_recover(verbose: bool) -> Result<()> {
         }
     }
 
-    unpin_all()?;
-    eprintln_safe!("  Result: recovered ({pin_count} file(s) removed)");
+    let removed = unpin_all()?;
+    // NIGHT-master-4: the count is the VERIFIED unlink count from
+    // the teardown itself — the pre-scan's number only ever guessed,
+    // and a refused removal printed it anyway ("recovered (N
+    // file(s) removed)" while the files stood). Leftover survivors
+    // error out of unpin_all before this line can lie.
+    eprintln_safe!("  Result: recovered ({removed} file(s) removed)");
     eprintln_safe!("  Next: run 'zelynic strict-single <target> <rate>' to re-apply limits");
     Ok(())
 }
