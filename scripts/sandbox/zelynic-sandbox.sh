@@ -19,17 +19,22 @@
 # give it a kernel of its own.
 #
 # Usage:
+#   scripts/sandbox/zelynic-sandbox.sh --smoke                # one click: the full CLI depth battery, root, in the VM
 #   scripts/sandbox/zelynic-sandbox.sh --battery             # both supermassive engines, root, in the VM
 #   scripts/sandbox/zelynic-sandbox.sh --run <cmd...>        # any root-requiring command, in the VM
 #   scripts/sandbox/zelynic-sandbox.sh --shell               # interactive root bash on the VM console
 #   scripts/sandbox/zelynic-sandbox.sh --self-test           # rootless preflight + packer self-test
 #
 # Options:
-#   --kernel floor|latest|PATH   floor = impish 5.13 (the documented
-#                                minimum, the default — same lane as
-#                                CI's low-specs leg); latest = the
-#                                archive's newest kernel; PATH = a
-#                                local vmlinuz
+#   --kernel floor|lts|latest|PATH  lts = the newest Ubuntu LTS
+#                                suite's kernel across its
+#                                main/updates/security pockets —
+#                                the default (NIGHT-blade-10: the
+#                                lane LTS users actually run);
+#                                floor = impish 5.13 (the documented
+#                                minimum, the CI low-specs lane);
+#                                latest = the archive's newest
+#                                kernel; PATH = a local vmlinuz
 #   --binary PATH                the zelynic payload binary (default:
 #                                the repo's musl builds probed in
 #                                order — the v1-baseline static musl
@@ -55,7 +60,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 CACHE="${ZELYNIC_SANDBOX_CACHE:-${HOME}/.cache/zelynic-sandbox}"
 
-KERNEL="floor"
+KERNEL="lts"
 BINARY=""
 ENVELOPE="low"
 NET=0
@@ -70,7 +75,10 @@ die() {
 }
 
 usage() {
-	sed -n 's/^# //p' "${BASH_SOURCE[0]}" | sed '/^$/d' | head -40
+	# The usage block only — the copyright and design notes above
+	# it are not CLI help (NIGHT-blade-10: the old head-40 sliced
+	# the option table when the header grew).
+	sed -n 's/^# //p' "${BASH_SOURCE[0]}" | sed -n '/^Usage:/,$p' | sed '/^$/d' | head -45
 	exit "${1:-0}"
 }
 
@@ -79,6 +87,10 @@ while [ $# -gt 0 ]; do
 	case "$1" in
 	--battery)
 		MODE="battery"
+		shift
+		;;
+	--smoke)
+		MODE="smoke"
 		shift
 		;;
 	--shell)
@@ -126,6 +138,13 @@ while [ $# -gt 0 ]; do
 	esac
 done
 
+# --run owns the rest of argv as ONE command line (NIGHT-blade-10:
+# an empty --run used to pack a payload that ran nothing and still
+# reported PASS).
+if [ "${MODE}" = "run" ] && [ $# -eq 0 ]; then
+	die "--run needs a command (e.g. --run ./zelynic status)"
+fi
+
 # ── self-test: rootless, no VM, no boot ─────────────────────────────────
 if [ "$MODE" = "selftest" ]; then
 	note "self-test (rootless: syntax, packer units, tool presence — no VM boot)"
@@ -158,7 +177,7 @@ fi
 
 # ── preflight ───────────────────────────────────────────────────────────
 [ "$MODE" = "run" ] || [ "$MODE" = "shell" ] || [ "$MODE" = "battery" ] ||
-	usage 2
+	[ "$MODE" = "smoke" ] || usage 2
 
 command -v qemu-system-x86_64 >/dev/null 2>&1 ||
 	die "qemu-system-x86_64 not found — install it (Debian/Ubuntu: apt install qemu-system-x86)"
@@ -191,7 +210,23 @@ if [ -z "${BINARY}" ]; then
 	done
 fi
 if [ -n "${BINARY}" ] && [ -x "${BINARY}" ]; then
-	:
+	# Under TCG the v3/v4 arch-baseline glibc builds may SIGILL
+	# (-cpu max emulates the ISA, not the host's speed). The
+	# path-name heuristic stays, but a STATIC binary (the release
+	# musl tarball extracted anywhere) never draws the warning —
+	# ldd fails on static-pie, which is exactly the tell
+	# (NIGHT-blade-10: the v11 musl release extracted to a path
+	# without 'musl' tripped the old heuristic).
+	if [ ! -w /dev/kvm ]; then
+		case "${BINARY}" in
+		*musl*) ;;
+		*)
+			if ldd "${BINARY}" >/dev/null 2>&1; then
+				note "WARNING: ${BINARY} is a dynamic glibc build — under TCG the v3/v4 arch-baseline may SIGILL"
+			fi
+			;;
+		esac
+	fi
 else
 	die "no zelynic binary — build one (./scripts/setup.sh --skip-heavy --musl) or pass --binary PATH"
 fi
@@ -199,7 +234,7 @@ note "binary: ${BINARY}"
 
 # ── the kernel ──────────────────────────────────────────────────────────
 case "${KERNEL}" in
-floor | latest)
+floor | lts | latest)
 	VMLINUZ="$(python3 "${SCRIPT_DIR}/rootfs-pack.py" kernel --suite "${KERNEL}" --cache "${CACHE}")" ||
 		die "kernel resolution failed"
 	;;
@@ -227,10 +262,24 @@ v1=$?
 python3 scripts/supermassive/supermassive-test-v2.py --binary /opt/zelynic/zelynic
 v2=$?
 echo "SANDBOX-RESULT: supermassive v1 - limiter matrix" \
-        $([ "$v1" -eq 0 ] && echo PASS || echo FAIL)
+	$([ "$v1" -eq 0 ] && echo PASS || echo FAIL)
 echo "SANDBOX-RESULT: supermassive v2 - survival battery" \
-        $([ "$v2" -eq 0 ] && echo PASS || echo FAIL)
+	$([ "$v2" -eq 0 ] && echo PASS || echo FAIL)
 [ "$v1" -eq 0 ] && [ "$v2" -eq 0 ]
+EOF
+	;;
+smoke)
+	cat >"${PAYLOAD}" <<'EOF'
+#!/usr/bin/env bash
+# The one-click CLI depth battery (NIGHT-blade-10): every surface
+# verb, every guard, the JSON documents, real policing on loopback,
+# and the leak/security probes — one verdict. The battery itself is
+# the tracked script the image already carries at
+# scripts/sandbox/smoke-cli.sh (git archive HEAD); this payload only
+# invokes it so the mode stays a one-liner.
+set -u
+cd /opt/zelynic
+bash scripts/sandbox/smoke-cli.sh --binary /opt/zelynic/zelynic
 EOF
 	;;
 shell)
