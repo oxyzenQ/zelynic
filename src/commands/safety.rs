@@ -75,13 +75,49 @@ pub(crate) const DANGEROUS_TARGETS: &[&str] = &[
 ];
 
 /// Check if a target name is dangerous (system process).
+///
+/// NIGHT-depthbore-1 (the end-to-end depth audit): the match is
+/// family-aware, not exact. Two real-world name shapes defeat an
+/// exact-only list, and both are live on every current distro:
+///
+/// 1. THE TRUNCATED TWIN. The kernel caps comm at 15 bytes, and the
+///    display-name enrichment (NIGHT-engrave-7) restores the full
+///    name from argv[0] — list-apps shows "systemd-resolved" while
+///    the blocklist carried the kernel-truncated "systemd-resolve",
+///    so the copy-pasted target sailed past this guard with no
+///    --force-this. The same enriched comms feed strict-all's sweep
+///    and block-all's filters (identity walk -> is_dangerous_target),
+///    so system daemons whose true names exceed the cap (resolved,
+///    journald, timesyncd, hostnamed, machined) were swept INTO the
+///    user-app set — limited with no override asked at all.
+/// 2. THE SPLIT-DAEMON SUFFIX. OpenSSH 9.8+ runs the per-connection
+///    process as "sshd-session" — a fresh name the exact list never
+///    carried, so a strict-all sweep rate-limited every active SSH
+///    session on a modern server: the exact "limit myself out of
+///    SSH" hazard this list exists to prevent.
+///
+/// The rule: a name is dangerous when it EXTENDS a blocklist entry
+/// (case-insensitive prefix). Both shapes above are entry+suffix; the
+/// rule also covers the user typing a truncated spelling
+/// ("gnome-session-b" extends "gnome-session") and the split-era
+/// siblings of every listed daemon. Fail-safe by design: an innocent
+/// app that merely shares a prefix (a hypothetical "rootlesskit"
+/// under "root") costs one --force-this, while a missed system
+/// daemon costs the system.
 #[cfg(feature = "ebpf")]
 pub(crate) fn is_dangerous_target(name: &str) -> bool {
     let name_lower = name.to_lowercase();
     DANGEROUS_TARGETS
         .iter()
-        .any(|d| d.to_lowercase() == name_lower)
+        .any(|d| name_lower.starts_with(&d.to_lowercase()))
 }
+
+// NIGHT-depthbore-1: the family-aware blocklist contract pins live
+// under the single test/ tree (cosmostrix Pattern C), #[path]-wired
+// exactly like the eagle and strict pins.
+#[cfg(all(test, feature = "ebpf"))]
+#[path = "../../test/commands/safety_tests.rs"]
+mod tests;
 
 /// Validate target against dangerous list. Returns Ok if safe, Err if dangerous.
 #[cfg(feature = "ebpf")]

@@ -122,7 +122,16 @@ sudo zelynic strict brave 100kb        # shorthand form
   rates below 1kb (can effectively brick an app) AND limiting the
   protected system blocklist (root, systemd, kthreadd, ... — 57
   names; see `--help`). The retired spellings are refused with a
-  redirect tip.
+  redirect tip. The blocklist match is FAMILY-aware
+  (NIGHT-depthbore-1): a target that EXTENDS a listed name is guarded
+  too — `systemd-resolved` (the display-enriched full name of the
+  kernel-truncated `systemd-resolve` entry) and `sshd-session`
+  (OpenSSH 9.8+'s per-connection process) both refuse without the
+  override, where the old exact match let them through — and
+  `strict-all`/`block-all` sweeps, which match the same comms the
+  display enriches, used to sweep those daemons INTO the user-app
+  set. Fail-safe by design: an innocent app that merely shares a
+  prefix costs one `--force-this`.
 
 The burst contract (no flag, by design): every policy banks a token
 bucket of one second of traffic — rate bytes read straight — clamped

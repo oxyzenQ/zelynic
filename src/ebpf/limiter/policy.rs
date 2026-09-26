@@ -133,6 +133,18 @@ impl super::Limiter {
             all_cgroup_ids.extend(ids);
         }
 
+        // NIGHT-depthbore-1 (the end-to-end depth audit): dedup across
+        // targets, first-seen order. Two targets can name the SAME
+        // cgroup by different spellings (`sm brave:brave`, or
+        // `sm cg:123/12345` where brave lives in cg:123) — the old
+        // loop wrote every duplicate twice: the second write hit the
+        // same map key (harmless) but inflated the applied-policy
+        // count the success epilogue reports, double-pushed the
+        // superseded-group ledger, and double-printed the verbose
+        // trace. One cgroup, one write, one count.
+        let mut seen_cgroups = std::collections::HashSet::new();
+        all_cgroup_ids.retain(|id| seen_cgroups.insert(*id));
+
         if all_cgroup_ids.is_empty() {
             return Ok(0);
         }
