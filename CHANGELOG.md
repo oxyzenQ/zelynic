@@ -113,6 +113,91 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Added
 
+- **docs: NIGHT-dinner-2 — the maturity escalation to the
+  cosmostrix standard: a navigation index, an owner playbook, and
+  a dated-audit culture** — the owner's bar moved from "mature
+  enough" to cosmostrix-grade "very mature" (zelynic is critical
+  infrastructure, and the reference repository the owner holds up
+  is the one that ships navigation, playbook, and audit trail
+  together), and the fresh gap analysis against that reference
+  confirmed the governance, changelog, claims-ledger, and research
+  surfaces were already at par — the real gaps were navigation,
+  the owner playbook, and a dated-audit culture. Three additions.
+  docs/README.md: the master index — a quick-nav table over the
+  whole docs tree plus the audit convention itself, so a stranger
+  lands one hop from every surface. docs/MAINTENANCE.md: the
+  owner playbook — the secret inventory with rotation paths and
+  blast radii, the scheduled-guard matrix, the prebuilt-lane
+  refresh ritual, routine AND recovery release procedures
+  (including the asset-less re-tag class this same session
+  needed), the toolchain pin policy, and the cadence summary.
+  docs/audits/RELEASE_ASSET_REGRESSION_2026-09-27.md: the first
+  dated incident audit written to the new convention — and the
+  emoji-sweep gate correctly caught the quoted softprops log
+  emoji inside it (fixed in 3c00cf0), the gate discipline holding
+  even against its own author. Disclaimers auto-injected on the
+  new files; the docs tree now carries the navigation-and-playbook
+  surface the cosmostrix reference ships.
+
+- **feat: NIGHT-dinner-3 (doctor half) — `zelynic doctor` names
+  its own build flavor: full-life vs half-life, on text and
+  JSON** — the owner's ask — doctor must be able to detect which
+  eBPF build flavor a binary actually carries — lands as two
+  first-class fields on the CapabilityReport: build_flavor
+  (compile-time cfg! truth — "full-life" when the eBPF feature
+  compiled in, "half-life" when the binary shipped without it)
+  and ebpf_lane (the NIGHT-ask-2 ZELYNIC_EBPF_LANE stamp naming
+  which of the three object paths produced the embedded bytes,
+  now pub(crate) for the info surface). The Build: line LEADS the
+  doctor report; half-life reports carry the reinstall warning;
+  the old unconditional "Ready: run strict-single" hint —
+  misleading on a half-life binary — is gated on full-life with
+  an honest "Limited:" line in its place. JSON surface:
+  build_flavor and ebpf_lane first-class. Tests: in-unit contract
+  pins plus smoke text/JSON assertions; Help, README, and
+  VERIFY_RELEASE synced (doctor is now the direct full-build
+  probe). Verified live against the healed beta.4 binaries:
+  12/12 checksums (SHA-512, BLAKE2b-512, SHAKE256), 4/4 GPG good
+  signatures (fingerprint F532 4E09 67F1 04D5 8CE0 25F3 47A5
+  0AEF 4B65 AAC2), the v3-gnu AND v4-gnu legs executed (v4 live
+  on AVX-512 hardware — stronger than CI's strings-only v4
+  proof), musl static linkage confirmed, doctor's "Build:
+  FULL-LIFE (eBPF objects: source-built)" verdict read, and
+  crates.io 11.0.0-beta.4 confirmed published and not yanked.
+
+- **supply-chain: NIGHT-dinner-1 — prebuilt eBPF freshness is
+  enforced at commit time, publish time, and release time (three
+  arms)** — the owner asked where the prebuilt-freshness
+  automation belongs, GitHub CI or local, and the audit answered
+  BOTH layers because it found a hole beyond the ask:
+  wait-for-ci.sh only waited for ci.yml, whose Rust-surface jobs
+  rebuild the eBPF objects from source — a stale ebpf-prebuilt/
+  lane builds GREEN there, so a release commit and tag pushed
+  together with an unrefreshed ebpf/ change could publish STALE
+  objects through a green pipeline, and no commit-time
+  enforcement existed at all (core.hooksPath unset, no
+  .githooks/). The three arms, one per escape route. Commit
+  time: NEW scripts/gates/check-commit-gate.sh (the parity check
+  on the staged tree plus the ebpf/ <-> ebpf-prebuilt/ pairing
+  rule, both failures collected in one run) and a NEW
+  .githooks/pre-commit shim, with gate-keepers.sh section 0
+  self-installing core.hooksPath=.githooks (idempotent,
+  repo-local, never --global). Publish time: crates-io.yml now
+  waits for BOTH ci.yml AND the wholesale gate-keepers.yml run
+  on the tagged SHA (wait-for-ci.sh gained WORKFLOW_LABEL so
+  parameterized waits log honestly) and runs the parity check
+  directly in the publish job before the irreversible upload.
+  Release time: release.yml runs the parity check in every
+  build-matrix leg before compiling, preventing GitHub Release
+  vs registry-tarball object divergence. Docs synced: the
+  gate-keepers.yml header (the stale 16-item count corrected to
+  the live 18 sections / 21 gates), CONTRIBUTING's gate
+  inventory, README's registry-lane contract, QA.md Q2, and
+  VERIFY_RELEASE's three-arm owner procedure. Self-test battery
+  T1 through T8 — including the hook BLOCKING a bad commit,
+  proven against the main log; --no-verify only postpones the
+  verdict to CI.
+
 - **docs+build: NIGHT-ask-1 — the ask-mode Q&A record lands at the
   repo root, and with it the crates.io distribution lane opens
   (cosmostrix crates-io lineage)** — QA.md is the new standing
@@ -5103,6 +5188,44 @@ alone — the owner's NIGHT-hunt-18 call.
   render-path or runtime code touched.
 
 ### Release Engineering
+
+- **release: NIGHT-dinner-3 (release half) — the beta.3/beta.4
+  asset-less release regression: root-caused, fixed three ways,
+  and beta.4 healed to 20/20 assets** — the owner's bug report on
+  v11.0.0-beta.4 (no binary assets on the release; only the two
+  auto-generated source archives) was worse than reported: BOTH
+  beta.3 and beta.4 shipped zero assets while both Release
+  workflow runs stayed GREEN. Root cause from the live logs (run
+  36299494146, Create GitHub Release job): the step order —
+  Download artifacts, then Checkout release tooling — let the
+  NIGHT-blade-11 insertion of an actions/checkout@v5 clean:true
+  step wipe the freshly staged dist/ seconds after it arrived
+  ("Deleting the contents of
+  '/home/runner/work/zelynic/zelynic'"), and the
+  softprops/action-gh-release step then logged "Pattern 'dist/*'
+  does not match any files" as a mere WARNING and published
+  asset-less; beta.2 — the last healthy release, 20 assets —
+  pre-dates the checkout insertion. The fix closes every escape
+  route: (1) the checkout moves BEFORE the artifact download;
+  (2) a new "Assert release asset inventory" tripwire — exactly
+  4 tarballs, 3 checksum siblings each, and 0-or-4 GPG
+  signatures, with a precise ::error:: line per violation,
+  self-tested locally in four shapes including the exact
+  beta.3/beta.4 empty-dist case; (3) fail_on_unmatched_files:
+  true on the publish action, so that warning class can never
+  pass again. HEAL: the v11.0.0-beta.4 tag was re-pointed to the
+  fixed workflow commit (the alpha.1 re-tag precedent —
+  tag-triggered workflows read YAML at the tag commit, so
+  re-running the old run was useless); the Release workflow
+  re-ran GREEN and attached 20/20 assets via upsert, and the
+  crates.io lane re-triggered and held its idempotency probe
+  ("already published - nothing to do"). The new tag object is
+  unsigned (the signing key is owner-only): artifact .asc
+  authenticity rides on CI signatures, and the owner re-sign
+  procedure is documented in VERIFY_RELEASE.md. beta.3 stays
+  asset-less deliberately — superseded hours later; the same
+  re-tag procedure heals it if ever wanted. Full incident trail:
+  docs/audits/RELEASE_ASSET_REGRESSION_2026-09-27.md.
 
 - **release: the tarball is a flat three-file archive — the binary,
   the LICENSE, the README, nothing else (2026-09-22 owner directive,
