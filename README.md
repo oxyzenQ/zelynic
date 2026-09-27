@@ -98,7 +98,8 @@ Unsure about your kernel? `zelynic doctor` says yes or no with the exact
 reason — and since NIGHT-dinner-3 it answers the other half of the
 question too: the `Build:` line reports whether the binary itself is
 **full-life** (eBPF objects embedded, ready to enforce) or **half-life**
-(userspace-only build — monitoring works, limits refuse), so a
+(userspace-only build — every eBPF surface, the live monitor included,
+answers its honest refusal; only doctor and help run), so a
 downloaded or `cargo install`ed binary identifies itself in one command
 ([Kernel Compatibility](docs/KERNEL_COMPATIBILITY.md) has the full
 matrix and troubleshooting).

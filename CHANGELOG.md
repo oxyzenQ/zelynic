@@ -1678,6 +1678,47 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Fixed
 
+- **fix: NIGHT-dinner-6 — the limiter/eagle-eyes depth audit:
+  recover's dead-group gap closed and the footer's top consumer
+  re-ranked by bytes** — the owner's ask: is the limiter already
+  peak (the main killer feature), and is eagle-eyes peak too? The
+  audit walked both surfaces dimension by dimension against the
+  eBPF ceiling (rate math, SMP, trust boundaries, the endurance
+  budget; counting truth, attribution, ranking honesty, render
+  cost) — verdicts and evidence in
+  docs/audits/LIMITER_EAGLE_EYES_DEPTH_AUDIT_2026-09-27.md: the
+  limiter PEAK for its class, eagle-eyes architecture-peak. Two
+  real defects surfaced and closed here (userspace-only, the
+  ebpf/ tree untouched, prebuilt parity PASS): (1) `recover`
+  removed orphan policies and reclaimed per-cgroup state but
+  never swept the dead GROUP buckets — the lts-7 sweep existed
+  (reclaim.rs) and unstrict ran it, recover simply never called
+  it, so a container-churn recovery leaked the 256-slot group
+  maps exactly the way STABILITY.md claimed it did not; recover
+  now captures each orphan's group id read-before-delete and
+  returns dead groups' dl+ul shared-bucket slots (the result line
+  reports the count). (2) the footer's "top consumer is X" picked
+  `socket_holders.first()` — the /proc walk's socket-COUNT order,
+  so a three-socket idle daemon out-ranked a one-socket download;
+  the new rank module re-ranks by the boost-26 per-socket byte
+  join (dl+ul, saturating u128), first-in-walk-order on ties, and
+  the walk order stands whenever the join carries no figures (the
+  curl pin's contract preserved) — 8 ranking pins in
+  test/ebpf/render/rank_tests.rs. Seven stale doc truths corrected
+  against the source: STABILITY.md's recover claim (true only
+  after this fix), USAGE limitation 11 (the counter maps are plain
+  hashes, not LRU — no aging, first-4096-wins, count-loss not
+  packet-loss), README's half-life line (every eBPF surface
+  refuses, monitor included), QA.md's "exact u128" (the kernel
+  math is u64 nanosecond token-bucket; u128 is the render
+  horizon), PERFORMANCE.md's 1024-era costs (4096x4096 worst
+  case, ~16 k syscalls/s at the ceiling), SAFETY_ANALYSIS's
+  pre-boost-38 "stats += is NOT atomic" relic, and format.rs's
+  sysfs-helpers header. Benchmark skipped with justification:
+  no frame-composition or render-path change (the top-consumer
+  pick changes WHICH name a line can carry, not the frame's
+  geometry), recover is an error-path sweep.
+
 - **fix: NIGHT-master-3 — the block/unstrict depth audit: the
   block-drop ledger drift closed (schema v9, atomic booking), the
   strict-multi group-id derivation un-banded, and the dead-group

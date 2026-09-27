@@ -203,12 +203,14 @@ construction — the change is kernel-side only) reads parity.
   measurable.
 - `poll_and_summarize()` merges the ingress delta list into the
   egress list with a linear `find` per cgroup (O(n*m), worst case
-  1024x1024 u32 comparisons per poll). Held: sub-millisecond at the
-  absolute ceiling, one poll per second, zero allocations to remove.
+  4096x4096 u32 comparisons per poll since the improve-31 raise).
+  Held: single-digit milliseconds at the absolute ceiling, one poll
+  per second, zero allocations to remove.
 - `read_stats_map()` iterates both counter maps fully per poll
-  (~4 k syscalls/s at the 1024-cgroup ceiling; ~120/s on a desktop).
-  Held: the documented Layer-1 design; batch lookup APIs would be a
-  rearchitecture for 0.4% of one core at the worst case.
+  (~16 k syscalls/s at the 4096-cgroup ceiling the improve-31 raise
+  bought; ~120/s on a desktop). Held: the documented Layer-1
+  design; batch lookup APIs would be a rearchitecture for ~1.6% of
+  one core at the worst case.
 - The selection-guard beat rewrites the whole frame every 100 ms on
   TTY sessions (~1.4 KB on 80x24). Held: it IS the copy-protection
   feature (NIGHT-improve-8), the documented owner contract — a

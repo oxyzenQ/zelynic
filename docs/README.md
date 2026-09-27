@@ -78,6 +78,7 @@ project's institutional memory. The naming convention is
 | Audit | Covers |
 |-------|--------|
 | [audits/RELEASE_ASSET_REGRESSION_2026-09-27.md](audits/RELEASE_ASSET_REGRESSION_2026-09-27.md) | The beta.3/beta.4 asset-less release regression: root cause, three-arm fix, healing procedure |
+| [audits/LIMITER_EAGLE_EYES_DEPTH_AUDIT_2026-09-27.md](audits/LIMITER_EAGLE_EYES_DEPTH_AUDIT_2026-09-27.md) | The limiter and eagle-eyes depth audit: per-dimension verdicts against the eBPF ceiling, two userspace fixes (recover's dead-group sweep, the byte-ranked top consumer), seven doc truths corrected, the counter-map eviction gap deferred to the prebuilt-refresh cycle |
 
 ## Project Meta
 

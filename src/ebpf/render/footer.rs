@@ -251,14 +251,14 @@ impl FooterCensus {
         // Top consumer (the NIGHT-hunt-8 autodetect, restored):
         // when socket detail is available, name the busiest process
         // INSIDE the champion cgroup — "top consumer is curl"
-        // instead of "alacritty". Fallback chain: the label's comm,
-        // then the raw label itself (an unresolved identity's
-        // `cg:7001` is still the honest name of the champion — the
-        // headline never goes dark over an identity miss).
+        // instead of "alacritty". Since NIGHT-dinner-6 "busiest" is
+        // byte-ranked (rank::top_consumer over the per-socket join),
+        // the walk order standing when the join has no figures.
+        // Fallback chain: the label's comm, then the raw label itself
+        // (the headline never goes dark over an identity miss).
         let top_proc_name = board.first().map(|(cgroup_id, _)| {
             conns
-                .and_then(|cm| cm.get(*cgroup_id))
-                .and_then(|d| d.socket_holders.first())
+                .and_then(|cm| super::rank::top_consumer(cm, *cgroup_id))
                 .map(|p| p.comm.clone())
                 .or_else(|| comm_from_label(&label_with_count(identity, conns, *cgroup_id)))
                 .unwrap_or_else(|| label_with_count(identity, conns, *cgroup_id))

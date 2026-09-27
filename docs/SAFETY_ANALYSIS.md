@@ -310,10 +310,13 @@ zelynic is written in Rust, which provides:
 ### BPF map access:
 - BPF maps are kernel-managed, atomic operations
 - Multiple CPUs can access maps concurrently — kernel handles synchronization
-- `stats->packets += 1` is NOT atomic, but this is acceptable:
-  - Under-counting is possible (lost updates)
-  - Over-counting is not possible
-  - Stats are for display only, not for enforcement decisions
+- Since NIGHT-boost-38 the stats booking rides the same atomic
+  fetch_add the enforce path uses (math.rs `book`, the v7/v9
+  lineage) — the pre-boost-38 plain `+=` lost updates under
+  concurrent CPUs and is closed, pinned by the SMP batteries
+- Stats are for display and ledger honesty, not for enforcement
+  decisions (the token bucket's own math is the enforcement
+  boundary, SMP-safe since v7)
 
 ### Concurrent CLI invocations:
 - The flock guard (`lock.rs`) serializes mutating operations — two

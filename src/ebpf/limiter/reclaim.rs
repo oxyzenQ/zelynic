@@ -223,14 +223,15 @@ impl super::Limiter {
 
     /// Read the group id of an existing policy (NIGHT-lts-7): the
     /// capture-before-write half of the dead-group reclaim — the
-    /// write paths in policy.rs and the unstrict loop here call it
+    /// write paths in policy.rs, the unstrict loop here, and the
+    /// commands-side recover handler (NIGHT-dinner-6) call it
     /// BEFORE the write/delete makes the old group id unrecoverable.
     /// Returns Ok(None) when the cgroup has no policy in that
     /// direction (fresh apply — nothing superseded) and Err only
     /// when the map could not be read (the caller skips the capture:
     /// a bucket may then outlive its group, the conservative
     /// direction — a leaked slot never bricks enforcement).
-    pub(super) fn read_policy_group(
+    pub fn read_policy_group(
         &mut self,
         cgroup_id: u32,
         direction: Direction,
@@ -265,7 +266,12 @@ impl super::Limiter {
     /// dl+ul shared-bucket slots returned. Failures warn and never
     /// fail the surrounding operation — the policies (the enforced
     /// contract) are already gone or replaced.
-    pub(super) fn reclaim_dead_groups(&mut self, captured: &[u32]) -> usize {
+    ///
+    /// NIGHT-dinner-6: `pub` for the third caller — the commands-side
+    /// recover handler captures its orphans' group ids
+    /// read-before-delete and sweeps here too (the lts-7 contract's
+    /// recover half, previously missing).
+    pub fn reclaim_dead_groups(&mut self, captured: &[u32]) -> usize {
         // The live-reference sweep: the group ids every remaining
         // policy still points at (both directions, both maps).
         let mut live: Vec<u32> = Vec::new();

@@ -183,7 +183,8 @@ other class already fenced:
   reclaimed by `unstrict`/`unstrict-all`/`recover` with bucket-slot
   return (improve-10), and since NIGHT-lts-7 the return covers the
   SHARED group buckets too (a group's slots go back when its last
-  reference does — see the found-and-fixed row below); a reboot
+  reference does — unstrict from lts-7, recover closing the gap at
+  NIGHT-dinner-6; see the found-and-fixed row below); a reboot
   clears bpffs by design (the documented no-residue contract).
 - **Time — fenced.** Uptime rides `Instant` (CLOCK_MONOTONIC: no
   wall-clock jumps, no NTP step, no wrap inside any realistic
@@ -329,7 +330,7 @@ into a measured proof.
 |---|---|---|
 | Per-socket byte maps (cookie-keyed, never-reused keys) | LRU, 4096 entries, session-scoped — cold sockets age out, a new socket always finds room | ebpf/src/main.rs map defs; the design note in docs/RESEARCH_TOOLCHAIN_AND_MONITORING.md |
 | Per-cgroup observer counters | 4096-entry cap, unpinned, freed at detach; a full map loses one packet's COUNT, never the packet | ebpf/src/main.rs (the allow-and-skip contract) |
-| Policy/bucket/stats maps (pinned, weeks) | 1024 slots each, 256 group slots — reclaim on unstrict/recover keeps them proportional to LIVE policies | reclaim.rs (improve-10/lts-7); the endurance harness churns 300 cycles through the caps |
+| Policy/bucket/stats maps (pinned, weeks) | 1024 slots each, 256 group slots — reclaim on unstrict/recover (the recover group sweep since NIGHT-dinner-6) keeps them proportional to LIVE policies | reclaim.rs (improve-10/lts-7/dinner-6); the endurance harness churns 300 cycles through the caps |
 | The userspace session ledger (a days-long ee session) | MAX_TRACKED_CGROUPS — the mirror of the kernel map ceiling; a cgroup the kernel never counted cannot rank | session.rs (boost-16), pinned in the render tests |
 | Identity/connection walks (TTL caches) | Rebuild-per-TTL — cache.clear() then a fresh /proc walk; dead cgroups cannot accumulate | identity/mod.rs, connections.rs refresh |
 | The diff engine's buffers | Swap-based, clear-and-refill per frame — allocation-stable, zero per-frame cloning (NIGHT-blade-16 audited the whole pipeline against the cosmostrix reference and closed the last two per-frame allocations: the dirty flags and the run table now live in the screen, clear-and-refill like everything else) | terminal/diff.rs |
