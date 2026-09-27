@@ -131,11 +131,14 @@ exact point of truth** — not a userspace reconstruction of it:
   traffic can hide. What the footer reports is what the kernel
   charged, byte for byte and packet for packet.
 - **Enforcement**: the limiter is the datapath too — rate math in
-  exact u128 arithmetic, drops enforced by the kernel at the asked
-  rate. It is not userspace throttling after traffic already landed;
-  the ceiling holds while the process is idle and the numbers stay
-  consistent between what the BPF side charged and what the client
-  measured (the depth batteries pin that agreement).
+  exact u64 nanosecond token-bucket arithmetic (the sub-byte
+  fractional remainder keeps truncation at zero; u128 is the
+  userspace render horizon, not the kernel's math), drops enforced
+  by the kernel at the asked rate. It is not userspace throttling
+  after traffic already landed; the ceiling holds while the process
+  is idle and the numbers stay consistent between what the BPF side
+  charged and what the client measured (the depth batteries pin
+  that agreement).
 - **Attribution**: per-cgroup identity with per-socket resolution —
   the footer's "top consumer is curl" is the busiest process inside
   the champion cgroup, not a guess from a process list.

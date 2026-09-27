@@ -1079,8 +1079,12 @@ cgroups, and a full map silently stops counting new cgroups — the
 same hole improve-8 closed, at 4x the scale; the raise is a
 session-scoped map-creation attribute, no pin or schema migration,
 192 KiB of kernel memory per session).
-A host with more live cgroups than 4096 shows only the first 4096
-in the monitor rows.
+The maps are plain hashes, not LRU (the socket cookie maps' lane):
+slots do not age out, so the 4096 a long-lived session tracks are
+the FIRST 4096 to arrive — later cgroups on a denser host count
+nothing for that session's rows. The flow itself is never touched:
+a full observer map loses the COUNT, not the packet (the
+allow-and-skip contract).
 
 **12. The monitor's metric set is exactly this — and that is the
 point.**

@@ -69,6 +69,8 @@
 //! - [`eagle`] — the ranked eagle-eyes renderer (default + filtered)
 //! - [`footer`] — the pinned grip footer: tiers, grips, the build
 //!   (NIGHT-boost-14, split from eagle by the cohesion discipline)
+//! - [`rank`] — the footer's top-consumer ranking: the champion
+//!   cgroup's hungriest process by joined bytes (NIGHT-dinner-6)
 //! - [`focus`] — the deep single-target view (autodetected focus)
 //! - [`session`] — the session leaderboard: accumulated per-cgroup
 //!   totals (NIGHT-boost-5; the blink bookkeeping retired by
@@ -89,6 +91,7 @@ mod eagle;
 mod focus;
 mod footer;
 mod loading;
+mod rank;
 mod report;
 mod session;
 

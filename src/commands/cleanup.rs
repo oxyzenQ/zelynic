@@ -324,6 +324,12 @@ pub fn handle_recover(verbose: bool) -> Result<()> {
         let mut orphans_removed = 0usize;
         let mut state_reclaimed = 0usize;
         let mut failed: Vec<String> = Vec::new();
+        // The group capture (NIGHT-dinner-6, the unstrict lts-7
+        // pattern mirrored): each orphan's group id is read BEFORE
+        // the delete makes it unrecoverable, so the sweep below can
+        // return a dead group's shared-bucket slots once the last
+        // policy that referenced it is gone.
+        let mut captured_groups: Vec<u32> = Vec::new();
         for id in &orphan_ids {
             // Both directions must be confirmed gone (deleted or
             // ENOENT) before the state reclaim — an uncertain delete
@@ -335,6 +341,12 @@ pub fn handle_recover(verbose: bool) -> Result<()> {
                 crate::ebpf::limiter::Direction::Upload,
             ] {
                 let is_dl = matches!(direction, crate::ebpf::limiter::Direction::Download);
+                // Capture read-before-delete: an Err keeps the
+                // bucket (the conservative direction — a leaked
+                // slot never bricks enforcement).
+                if let Ok(Some(group)) = limiter.read_policy_group(*id, direction) {
+                    captured_groups.push(group);
+                }
                 match limiter.delete_policy(*id, direction) {
                     Ok(true) => {
                         orphans_removed += 1;
@@ -359,14 +371,31 @@ pub fn handle_recover(verbose: bool) -> Result<()> {
             }
         }
 
+        // The dead-group sweep (NIGHT-dinner-6): recover now owns the
+        // lts-7 contract's recover half — a captured group no live
+        // policy references returns its dl+ul shared-bucket slots,
+        // keeping the 256-slot group maps proportional to LIVE groups
+        // across container-churn recoveries. Runs before the
+        // failure check: the live-reference sweep reads the maps'
+        // CURRENT state, so a group whose delete failed simply stays
+        // live and keeps its buckets (fail-closed, same posture as
+        // the unstrict path's uncertain directions).
+        let groups_reclaimed = limiter.reclaim_dead_groups(&captured_groups);
+
         if failed.is_empty() {
             eprintln_safe!(
                 "  Result: removed {orphans_removed} orphan policy(ies), \
-                 reclaimed {state_reclaimed} stale state {}",
+                 reclaimed {state_reclaimed} stale state {} and \
+                 {groups_reclaimed} group bucket {}",
                 if state_reclaimed == 1 {
                     "entry"
                 } else {
                     "entries"
+                },
+                if groups_reclaimed == 1 {
+                    "slot"
+                } else {
+                    "slots"
                 }
             );
             // NIGHT-master-4: the no-residue ladder the unstrict
@@ -382,7 +411,8 @@ pub fn handle_recover(verbose: bool) -> Result<()> {
         } else {
             eprintln_safe!(
                 "  Result: removed {orphans_removed} orphan policy(ies), \
-                 reclaimed {state_reclaimed} stale state entries; {} could not \
+                 reclaimed {state_reclaimed} stale state entries and \
+                 {groups_reclaimed} group bucket slots; {} could not \
                  be removed: {}",
                 failed.len(),
                 failed.join(", ")

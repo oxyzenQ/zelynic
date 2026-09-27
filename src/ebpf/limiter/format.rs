@@ -1,7 +1,7 @@
 // Copyright (C) 2026 rezky_nightky
 // SPDX-License-Identifier: GPL-3.0-only
 
-//! Rate and duration parsing/formatting, and small terminal/sysfs
+//! Rate and duration parsing/formatting, and small terminal/time
 //! helpers for the limiter.
 
 use anyhow::{bail, Result};
