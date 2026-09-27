@@ -95,7 +95,7 @@ jobs:
   # ===========================================================================
   # Release channel contract (cosmostrix lineage): a tag is either a
   # stable release (plain vX.Y.Z) or a pre-release restricted to the
-  # dev / nightly / alpha / beta channels (vX.Y.Z-<channel>[.N]). Any
+  # dev / nightly / alpha / beta / rc channels (vX.Y.Z-<channel>[.N]). Any
   # other suffix fails validation here, so no binary is built and no
   # GitHub release is ever created for an unsupported channel.
   validate:
@@ -139,12 +139,12 @@ jobs:
             SUFFIX="${VERSION#*-}"
             CHANNEL="${SUFFIX%%.*}"
             case "${CHANNEL}" in
-              dev|nightly|alpha|beta)
+              dev|nightly|alpha|beta|rc)
                 PRE="true"
                 ;;
               *)
                 echo "::error::Unsupported pre-release channel: '${CHANNEL}'"
-                echo "Pre-releases are restricted to: dev, nightly, alpha, beta."
+                echo "Pre-releases are restricted to: dev, nightly, alpha, beta, rc."
                 echo "Stable releases use the plain vX.Y.Z format."
                 exit 1
                 ;;
@@ -778,7 +778,7 @@ jobs:
           else
             PREV_TAG=$(printf '%s\n' "${TAGS}" \
               | awk -v cur="${TAG}" \
-                '$0 != cur && $0 !~ /^v[0-9]+\.[0-9]+\.[0-9]+-(dev|nightly|alpha|beta)[\.-]/' \
+                '$0 != cur && $0 !~ /^v[0-9]+\.[0-9]+\.[0-9]+-(dev|nightly|alpha|beta|rc)[\.-]/' \
               | sort -V | tail -1)
           fi
 
@@ -788,7 +788,7 @@ jobs:
           # since previous build · M commits since last stable".
           LAST_STABLE=$(printf '%s\n' "${TAGS}" \
             | awk -v cur="${TAG}" \
-              '$0 != cur && $0 !~ /^v[0-9]+\.[0-9]+\.[0-9]+-(dev|nightly|alpha|beta)[\.-]/' \
+              '$0 != cur && $0 !~ /^v[0-9]+\.[0-9]+\.[0-9]+-(dev|nightly|alpha|beta|rc)[\.-]/' \
             | sort -V | tail -1)
 
           # Commits between the boundary and the tag, straight from the
@@ -857,7 +857,7 @@ jobs:
           # makes the third-party action itself refuse the silent path.
           fail_on_unmatched_files: true
           draft: false
-          # Pre-releases (dev/nightly/alpha/beta) are never marked
+          # Pre-releases (dev/nightly/alpha/beta/rc) are never marked
           # "latest" — the latest pointer only tracks stable releases.
           prerelease: ${{ needs.validate.outputs.prerelease }}
           make_latest: ${{ needs.validate.outputs.prerelease != 'true' }}
