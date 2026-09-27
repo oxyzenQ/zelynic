@@ -27,6 +27,22 @@
 # ebpf/ change until scripts/release/refresh-prebuilt.sh regenerates
 # the lane.
 #
+# NIGHT-dinner-1 — the publish is now TRIPLE-gated against a stale
+# prebuilt lane (the commit+tag race found in the audit: a commit
+# that changes ebpf/ without refreshing ebpf-prebuilt/ pushes green
+# through ci.yml — its Rust-surface jobs rebuild the eBPF objects
+# from source, so nothing there depends on the lane — while the run
+# that actually fails, the unfiltered wholesale gate-keepers.yml
+# check 18, was never waited for):
+#   1. ci_gate waits for the ci.yml push-run on the tagged SHA (the
+#      original serialization), AND
+#   2. ci_gate waits for the wholesale gate-keepers.yml push-run on
+#      the same SHA (WAIT_WORKFLOW_PATH override) — the run that
+#      carries the parity check, plus every other wholesale gate,
+#   3. the publish job itself runs check-prebuilt-parity.sh directly
+#      on the exact tree being packaged — the last line of defense
+#      before an IRREVERSIBLE upload, independent of any wait logic.
+#
 # One-time setup (owner): create a crates.io API token
 # (crates.io -> Account Settings -> API Tokens, "publish-new" scope is
 # enough) and add it as the CRATES_IO_TOKEN repository secret
@@ -87,6 +103,22 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: ./scripts/release/wait-for-ci.sh
 
+      # NIGHT-dinner-1: the wholesale gate must also be green on the
+      # tagged SHA. The wait above only serializes against ci.yml,
+      # whose Rust-surface jobs rebuild the eBPF objects from source —
+      # a stale ebpf-prebuilt/ lane builds green there. The run that
+      # actually fails on a stale lane is the unfiltered wholesale
+      # gate-keepers.yml (check 18), so the publish waits for it too
+      # (same script, WAIT_WORKFLOW_PATH override; its absence after
+      # the grace period is safe here because the publish job below
+      # runs the parity check directly on the packaged tree).
+      - name: Wait for the wholesale gate-keepers run on the tagged commit
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          WAIT_WORKFLOW_PATH: .github/workflows/gate-keepers.yml
+        run: ./scripts/release/wait-for-ci.sh
+
   publish-crates-io:
     name: Publish to crates.io (${{ github.ref_name }})
     runs-on: ubuntu-24.04
@@ -112,6 +144,14 @@ jobs:
             exit 1
           fi
           echo "Publishing zelynic ${CARGO_VERSION} to crates.io"
+
+      # NIGHT-dinner-1: last line of defense before an IRREVERSIBLE
+      # registry upload — the parity gate on the exact tree being
+      # packaged (pure hashing, seconds). Fails when ebpf/ drifted
+      # past ebpf-prebuilt/manifest.toml's pin, no matter what the
+      # waits above saw.
+      - name: Prebuilt eBPF parity gate
+        run: bash scripts/gates/check-prebuilt-parity.sh
 
       - name: Publish to crates.io
         env:

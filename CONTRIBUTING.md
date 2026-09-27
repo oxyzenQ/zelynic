@@ -127,7 +127,10 @@ ebpf/                   — the pure-Rust BPF source (aya-ebpf; NIGHT-improve-1
 
 scripts/
   build.sh             — check-all orchestration
-  gate-keepers.sh      — pre-commit non-code gates (17 sections)
+  gate-keepers.sh      — the wholesale non-code gates (18 sections,
+                run before every commit; the first run self-installs
+                .githooks/pre-commit — the commit-time prebuilt
+                gate, NIGHT-dinner-1)
   install.sh           — user-space build, root-escalated install
   setup.sh             — the lazy one-command pipeline (NIGHT-improve-18:
                 bootstrap + pro-native-gnu build, --musl twin opt-in,
@@ -292,7 +295,7 @@ renamed from "Lint & Test" in NIGHT-boost-11): the gate
 CI enforces and the gate the owner runs before a commit are one
 invocation, so the two can never drift apart.
 
-`gate-keepers.sh` runs the 17 non-code gate sections — the shell quad
+`gate-keepers.sh` runs the 18 non-code gate sections — the shell quad
 (bash -n + shellcheck + shfmt + source resolution) on shell scripts, yamllint + actionlint
 on workflows, TOML validation,
 codespell, SPDX license headers (check-headers.sh), file permission guard
@@ -311,7 +314,17 @@ language gate (check-language.sh), the python lint + format gate
 line 100), the 1000-line scripts LOC cap (check-scripts-loc.sh,
 NIGHT-lts-2), and the release -C parity gate
 (check-release-parity.sh, NIGHT-lts-9: the local pro-linux-amd64-*
-aliases match the release matrix's codegen tokens). Missing tools
+aliases match the release matrix's codegen tokens), and the prebuilt
+eBPF parity gate (check-prebuilt-parity.sh, NIGHT-ask-2: the
+ebpf-prebuilt/ objects match their manifest and pin the live ebpf/
+tree hash, so any ebpf/ change fails the gates until
+refresh-prebuilt.sh regenerates the lane). The script's first run on
+a clone also self-installs .githooks/pre-commit (NIGHT-dinner-1:
+git config core.hooksPath=.githooks, repo-local) — from then on
+every commit executes scripts/gates/check-commit-gate.sh (prebuilt
+parity on the staged tree + the ebpf/ <-> ebpf-prebuilt/ pairing
+rule), so an ebpf/ change cannot be committed without its refreshed
+lane even when the wholesale gates are forgotten. Missing tools
 are skipped with a warning locally; the
 Gate-keepers workflow (.github/workflows/gate-keepers.yml, unfiltered —
 every push, docs-only included) runs the entire script wholesale with

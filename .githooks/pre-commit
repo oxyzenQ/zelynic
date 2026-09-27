@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# Copyright (C) 2026 rezky_nightky
+# SPDX-License-Identifier: GPL-3.0-only
+# PLATFORM: UNIX-only (Linux). zelynic is a Linux-only tool.
+#
+# Git pre-commit hook shim (NIGHT-dinner-1).
+#
+# Deliberately a shim: the enforcement logic lives in
+# scripts/gates/check-commit-gate.sh so the shell quad (bash -n +
+# shellcheck + shfmt + source resolution) lints it like every other
+# gate script — git requires this file at .githooks/pre-commit with
+# no extension, below the quad's *.sh radar, so it stays trivial on
+# purpose. gate-keepers.sh self-installs the wiring
+# (core.hooksPath=.githooks) on its first wholesale run, after which
+# every commit on the clone executes the commit gate even when the
+# wholesale gates themselves are forgotten.
+set -euo pipefail
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+
+exec bash "${REPO_ROOT}/scripts/gates/check-commit-gate.sh"

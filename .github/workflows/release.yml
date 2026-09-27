@@ -338,6 +338,17 @@ jobs:
           fi
           echo "version contract holds: Cargo.toml == tag == ${VERSION}"
 
+      # NIGHT-dinner-1: the prebuilt lane must be in parity before any
+      # release build starts. The release binaries rebuild the eBPF
+      # objects from source (fresh by construction), but the crates.io
+      # lane ships ebpf-prebuilt/ — a stale lane at tag time means the
+      # GitHub Release and the registry tarball would carry different
+      # objects, silently breaking the manifest's "same bytes"
+      # provenance contract. Pure hashing, zero build cost, runs once
+      # per matrix leg before the compile.
+      - name: Prebuilt eBPF parity gate
+        run: bash scripts/gates/check-prebuilt-parity.sh
+
       # --locked on every release build (NIGHT-improve-11): a release
       # must reproduce from the committed lockfile — never a fresh
       # resolution at tag time. ZELYNIC_BUILD stamps the package id

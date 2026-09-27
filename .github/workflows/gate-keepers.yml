@@ -8,13 +8,13 @@
 # PR with NO paths filter — a docs-only or workflow-only change never
 # skips the gates that police it).
 #
-# Checks performed by gate-keepers.sh (17 numbered sections; the
+# Checks performed by gate-keepers.sh (18 numbered sections; the
 # shell quad's four sub-checks count separately, so the summary
-# line prints 20 gates):
+# line prints 21 gates):
 #   1.  Shell quad     - bash -n + shellcheck + shfmt -d + source
 #                        resolution on all .sh files
 #   2.  yamllint       - .github YAML (repo .yamllint config)
-#   3.  actionlint    - GitHub Actions workflow validation
+#   3.  actionlint     - GitHub Actions workflow validation
 #   4.  TOML syntax    - python3 tomllib on all .toml files
 #   5.  codespell      - spelling across all text files (repo .codespellrc)
 #   6.  SPDX headers   - dual-line contract across rs/py/sh/toml/yml/md
@@ -32,6 +32,22 @@
 #  16.  Scripts LOC    - .sh/.py under scripts/ <= 1000 lines
 #                        (# LOC_EXEMPT: markers, NIGHT-lts-2 — the
 #                        scripts twin of the Rust 500 cap)
+#  17.  Release parity - .cargo/config.toml pro-linux-amd64-* alias
+#                        -C tokens == the release matrix rustflags
+#                        (NIGHT-lts-9, check-release-parity.sh)
+#  18.  Prebuilt parity- ebpf-prebuilt/ objects match manifest.toml
+#                        and pin the live ebpf/ tree hash; fails after
+#                        any ebpf/ change until refresh-prebuilt.sh
+#                        regenerates the lane (NIGHT-ask-2,
+#                        check-prebuilt-parity.sh)
+#
+# NIGHT-dinner-1: the wholesale run also self-installs the local
+# pre-commit hook (section 0 in the script — git config
+# core.hooksPath=.githooks, repo-local), wiring
+# scripts/gates/check-commit-gate.sh into every future commit on any
+# clone that ran the gates once. In CI the checkout is disposable, so
+# the self-install there is a harmless no-op that never affects this
+# job's verdict.
 #
 # Every tool above is installed below, pinned — a check that silently
 # skips because its tool is missing is a check that does not exist
@@ -106,7 +122,7 @@ jobs:
           toolchain: nightly-2026-09-18
           components: rust-src, rustfmt
 
-      # The wholesale run: all 17 sections in one shot — exit code 0
+      # The wholesale run: all 18 sections in one shot — exit code 0
       # or the push is blocked.
       - name: Run gate-keepers.sh (wholesale)
         run: bash scripts/gate-keepers.sh

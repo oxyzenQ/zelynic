@@ -162,12 +162,34 @@ them for the now-default `ebpf` feature.
 
 ### Keeping the prebuilt objects fresh (owner procedure)
 
-The lane's freshness is enforced, not promised:
-`scripts/gates/check-prebuilt-parity.sh` (gate #18 in
-gate-keepers.sh) recomputes the sha256 over the sorted git-tracked
-`ebpf/` file hashes and fails every push where it differs from
-`ebpf-prebuilt/manifest.toml`'s pin — so after ANY change under
-`ebpf/`, run the refresh and commit the lane in the same task:
+The lane's freshness is enforced, not promised — at three separate
+moments (NIGHT-dinner-1):
+
+- **Commit time**: the first `./scripts/gate-keepers.sh` run on a
+  clone self-installs `.githooks/pre-commit` (repo-local
+  `core.hooksPath`), so every subsequent commit runs
+  `scripts/gates/check-commit-gate.sh`: the parity check on the
+  staged tree plus the pairing rule — a commit that stages `ebpf/`
+  must also stage `ebpf-prebuilt/`. The "edited ebpf/, forgot the
+  refresh" and "refreshed, forgot `git add ebpf-prebuilt`" mistakes
+  die at commit creation, not at push time. (`git commit --no-verify`
+  skips any local hook — that buys a WIP commit, never a shipment:
+  the CI arms below still block the push and the publish.)
+- **Push time**: `scripts/gates/check-prebuilt-parity.sh` (gate #18
+  in gate-keepers.sh) recomputes the sha256 over the sorted
+  git-tracked `ebpf/` file hashes and fails every push where it
+  differs from `ebpf-prebuilt/manifest.toml`'s pin — the wholesale
+  Dragon Guard workflow runs it unfiltered on every push and PR.
+- **Ship time**: the crates.io publish waits for BOTH the ci.yml run
+  AND the wholesale gate-keepers.yml run on the exact tagged SHA,
+  then runs the parity check directly in the publish job before the
+  irreversible upload; the release workflow runs the same check in
+  each build leg before compiling (a stale lane would otherwise ship
+  registry objects that differ from the release binaries' fresh
+  rebuild, silently breaking the "same bytes" provenance contract).
+
+So after ANY change under `ebpf/`, run the refresh and commit the
+lane in the same task:
 
 ```bash
 ./scripts/release/refresh-prebuilt.sh   # rebuild + restage + manifest
@@ -214,11 +236,19 @@ against the live registry API). The first publish creates it.
    not delete-existing).
 3. **CI lane (ongoing)**: add the token as the `CRATES_IO_TOKEN`
    repository secret (repo Settings → Secrets and variables →
-   Actions). From then on every owner-pushed `v*` tag publishes via
-   `.github/workflows/crates-io.yml` — gated on the branch CI of the
-   exact SHA, idempotent against re-pushed tags.
-4. **Manual first publish** (do this once, from the tagged commit —
-   the workflow's own probe then reports "already published"):
+   Actions). Scope note (NIGHT-dinner-1): the crate has existed on
+   the registry since 2026-09-27, so a **publish-update** scope
+   token is exactly right — publish-new is only needed for the very
+   first version, which already landed. From then on every
+   owner-pushed `v*` tag publishes via
+   `.github/workflows/crates-io.yml` — gated on the branch CI AND
+   the wholesale gate-keepers run of the exact SHA, plus the direct
+   prebuilt-parity check inside the publish job; idempotent against
+   re-pushed tags.
+4. **Manual first publish** (done once for v11.0.0-beta.3 on
+   2026-09-27; kept as the reference procedure for any future
+   manual publish, run from the tagged commit — the workflow's own
+   probe then reports "already published"):
 
    ```bash
    git checkout v11.0.0-beta.2            # the tag to publish
