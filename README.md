@@ -511,8 +511,9 @@ Release cadence slows to "when needed".
 ### Release channels
 
 Stable releases are tagged `vX.Y.Z`. Pre-release builds are restricted to
-four channels — `dev`, `nightly`, `alpha`, `beta` (e.g. `v11.0.0-dev.1`).
-CI rejects any other suffix and never marks a pre-release as "latest".
+five channels — `dev`, `nightly`, `alpha`, `beta`, `rc` (e.g. `v11.0.0-dev.1`,
+`v11.0.0-rc.1`). CI rejects any other suffix and never marks a pre-release
+as "latest".
 
 ## Branches
 
