@@ -5215,6 +5215,40 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Release Engineering
 
+- **release: v11.0.0-rc.1 — the rc channel joins the release lane,
+  and the first live Signature probe taught the lane a lesson about
+  strings(1) and em-dashes** — the owner-directed release-candidate
+  cut needed the validate job to know the channel at all: the
+  pre-release allowlist (dev|nightly|alpha|beta) would have rejected
+  v11.0.0-rc.1 fail-fast before any build cost, so rc joined the
+  case allowlist, its error text, the two stable-boundary awk filters
+  (an rc is not a stable boundary), and README's release-channel
+  section (five channels now, with an rc example). The bump itself
+  stayed the canonical two-file shape (Cargo.toml + Cargo.lock via
+  scripts/dev/version-to.sh). The first release run then failed BOTH
+  AVX-512 legs at the Verify-binary step — the NIGHT-dinner-4
+  Signature strings probe's first live fire (the healed beta.4
+  release still ran the old pure-ASCII Architecture probe):
+  strings(1) defaults to 7-bit ASCII printable runs, so the UTF-8
+  em-dash inside "Signature: Pure eBPF builtin — ..." ends the
+  printable sequence and the one-line grep can never match (reproduced
+  locally: two fragments out of strings, byte-grep matches). Fix: the
+  three embedded literals are now grepped as bytes straight against
+  the artifact (grep -aFq — the same contract the version-literal
+  check in the same step already uses), no strings indirection, no
+  encoding layer. The tag was re-pointed to the fix commit (the
+  beta.4 precedent) and the re-run shipped the full inventory: 20/20
+  assets (4 tarballs + 12 checksum siblings + 4 GPG signatures),
+  prerelease flagged, never marked latest, release notes rendering the
+  dual-range line ("8 commits since v11.0.0-beta.4 · 336 commits
+  since v10.0.0"). Verification battery on the shipped artifact:
+  sha512 + b2 + shake256 all OK, GPG Good signature (EDDSA, the same
+  identity every prior verified release carried), the v3-gnu binary
+  executed with the masterclass -V report, and the crates.io lane
+  published 11.0.0-rc.1 (first tag push) with the re-triggered run
+  holding the idempotency probe — the registry and the release page
+  agree.
+
 - **release: NIGHT-dinner-3 (release half) — the beta.3/beta.4
   asset-less release regression: root-caused, fixed three ways,
   and beta.4 healed to 20/20 assets** — the owner's bug report on
@@ -5313,6 +5347,41 @@ alone — the owner's NIGHT-hunt-18 call.
   runner-images issue link for the next maintainer.
 
 ### Docs
+
+- **docs: NIGHT-dinner-5 — the v10 vs v11 era comparison, answered
+  live: docs/research/ opens with the enforced-rate evidence** — the
+  owner's curiosity question ("which era is sharper and more
+  powerful — engine, limiter, monitoring?") is answered with a live
+  battery, not opinion: both release binaries ran as root inside the
+  zelynic sandbox micro-VM (kernel 7.0.0-34-generic, Ubuntu 26.04 LTS
+  lane, TCG — booted on an agent box with no sudo and no qemu package
+  through a rootless portable-qemu bootstrap: the jammy closure
+  extracted under ~/.local/lib/qemu-vm, run under its own loader with
+  --library-path, QEMU_MODULE_DIR override, SeaBIOS/iPXE ROMs
+  consolidated into the single -L data dir). The verdict in one line:
+  v11 is decisively sharper — correct where v10 was measurably wrong
+  (the pre-v7 token bucket lost updates and over-allowed 130-146 % of
+  budget under concurrent flows; the C observer fails to load on
+  6.8-6.16 kernels inside the promised 5.13+ span), complete where
+  v10 was gap-toothed (external .bpf.o objects — the bare v10 binary
+  cannot apply a limit until the objects are placed beside it; the
+  live error is captured in the doc, and the object search path
+  embeds a hardcoded CI runner path), and trusted where v10 was
+  unverified (8 unsigned assets vs 20 with GPG + three checksum
+  algorithms + the crates.io full-life registry lane). The honest
+  counterweight is recorded too: the limiter DNA (frac_rem precision,
+  pinned maps, watchdog, schema migration) is inherited, and the
+  apples-to-apples capped rate landed within 67 B/s (0.006 %) across
+  the era rewrite — 1,151,760 vs 1,151,827 B/s under the same 1mb
+  cap, the fractional-precision claim made visible cross-era. The
+  registry-lane verdict from the same session:
+  `cargo install zelynic --version 11.0.0-rc.1` lands a FULL-LIFE
+  binary (eBPF objects: registry-prebuilt), doctor text and JSON
+  agree. The doc closes with the evolved-thinking section
+  (helper-minimal programs age better; measured beats argued;
+  embedding beats adjacency for a single-binary tool; dead code is a
+  kernel-compat liability; claims discipline compounds) and the
+  reproduction method for every number in it.
 
 - **docs: NIGHT-docs-13 — the eagle-eyes frame, line by line: the
   annotated reference in USAGE.md** — the owner's masterclass
