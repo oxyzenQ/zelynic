@@ -23,6 +23,7 @@ question well, and this page says which.
 | Release a new version | [VERIFY_RELEASE.md](VERIFY_RELEASE.md) § owner procedures + [MAINTENANCE.md](MAINTENANCE.md) |
 | Keep the project healthy long-term | [MAINTENANCE.md](MAINTENANCE.md) |
 | Read the project rules | [RULES.md](RULES.md) |
+| See how the v11 era compares to v10 | [research/NIGHT_DINNER_5_V10_V11_ERA_COMPARISON.md](research/NIGHT_DINNER_5_V10_V11_ERA_COMPARISON.md) |
 
 ## Architecture & Design
 
@@ -50,6 +51,16 @@ question well, and this page says which.
 |-----|--------|
 | [PERFORMANCE.md](PERFORMANCE.md) | Measured overhead on real hardware, benchmark methodology |
 | [CROSS_DISTRO_RESULTS.md](CROSS_DISTRO_RESULTS.md) | Validation matrix across distributions and kernels |
+
+## Research
+
+Dated research and comparison records — questions answered with live
+evidence rather than opinion. The naming convention is
+`docs/research/<TASK>_<SUBJECT>.md`.
+
+| Research | Covers |
+|----------|--------|
+| [research/NIGHT_DINNER_5_V10_V11_ERA_COMPARISON.md](research/NIGHT_DINNER_5_V10_V11_ERA_COMPARISON.md) | The v10 vs v11 era comparison, answered live in the sandbox micro-VM: engine, limiter, monitoring, distribution — with the enforced-rate numbers from both eras |
 
 ## Release & Distribution
 
