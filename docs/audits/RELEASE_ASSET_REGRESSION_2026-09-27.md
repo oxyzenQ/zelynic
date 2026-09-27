@@ -34,9 +34,13 @@ The beta.4 Create GitHub Release job log (run 36299494146), in order:
 06:15:52.03  Total of 4 artifact(s) downloaded
 06:15:52.17  Deleting the contents of '/home/runner/work/zelynic/zelynic'
 06:15:56.95  (release body generated)
-06:15:57.06  🤔 Pattern 'dist/*' does not match any files.
-06:15:58.94  🤔 dist/* does not include a valid file.
+06:15:57.06  [thinking-face emoji] Pattern 'dist/*' does not match any files.
+06:15:58.94  [thinking-face emoji] dist/* does not include a valid file.
 ```
+
+(The original log lines carry softprops' thinking-face emoji prefix;
+the emoji is replaced here — the repo's emoji sweep gate applies to
+docs quoting logs too.)
 
 The step order in the release job was: **Download artifacts →
 Checkout release tooling → Generate body → Create Release**. The
@@ -50,7 +54,8 @@ each digest-verified by the download action seconds earlier, destroyed
 before the publish step could see them.
 
 `softprops/action-gh-release` then evaluated `files: dist/*`, matched
-nothing, and logged the 🤔 lines **as warnings** — the action's
+nothing, and logged its thinking-face warning lines **as warnings** —
+the action's
 documented behavior is to succeed without assets unless told
 otherwise. The release published. The pipeline stayed green. Nobody
 was told.
