@@ -147,10 +147,13 @@ them for the now-default `ebpf` feature.
   kernel compatibility is identical by construction, and every object
   re-passes the NIGHT-hunt-29 structural validation at the user's
   build time before it may be embedded.
-- `zelynic -V` reports the lane — `eBPF objects: registry-prebuilt` —
-  plus the exact source sha from `.cargo_vcs_info.json`; the
-  provenance record (source-tree hash, toolchain, linker, per-object
-  sha256) rides the tarball as `ebpf-prebuilt/manifest.toml`.
+- `zelynic -V` reports the exact source sha from
+  `.cargo_vcs_info.json` under the full-life Signature line ("Pure
+  eBPF builtin", NIGHT-dinner-4); which lane produced the objects —
+  `registry-prebuilt` — is `zelynic doctor`'s answer (Build line and
+  JSON `ebpf_lane`); the provenance record (source-tree hash,
+  toolchain, linker, per-object sha256) rides the tarball as
+  `ebpf-prebuilt/manifest.toml`.
 - The dormant lane (stable binary, eBPF surfaces answering their
   honest refusal) survives as the explicit opt-out:
   `cargo install zelynic --no-default-features`.
@@ -260,16 +263,18 @@ against the live registry API). The first publish creates it.
 5. **Verify**: `curl -A "zelynic-release-check"
    https://crates.io/api/v1/crates/zelynic` answers 200;
    `cargo install zelynic --locked` in a clean environment succeeds;
-   `zelynic -V` reports the tagged short sha and `eBPF objects:
-   registry-prebuilt`. The direct full-build probe is `zelynic doctor`
+   `zelynic -V` reports the tagged short sha under the full-life
+   Signature line. The direct full-build probe is `zelynic doctor`
    (NIGHT-dinner-3): the `Build:` line names the binary's own flavor —
    `FULL-LIFE (eBPF objects: registry-prebuilt)` for the install above,
    `HALF-LIFE (eBPF objects: dormant (not compiled))` for a
    `--no-default-features` build (`zelynic doctor --print-json` carries
-   the same verdict in the `build_flavor` / `ebpf_lane` fields). The
-   older behavioral check still works: an enforcement command under a
-   non-root account answers `root required` (not `eBPF not compiled`) —
-   the installed binary is the full build.
+   the same verdict in the `build_flavor` / `ebpf_lane` fields; the
+   version report itself answers only at brand level — "Pure eBPF
+   builtin" vs "eBPF dormant", NIGHT-dinner-4). The older behavioral
+   check still works: an enforcement command under a non-root account
+   answers `root required` (not `eBPF not compiled`) — the installed
+   binary is the full build.
 6. **Recovery**: a bad version is `cargo yank --vers X.Y.Z` — yanked
    versions stay resolvable for existing lockfiles but vanish from
    new ones. crates.io never deletes a version; there is no re-upload

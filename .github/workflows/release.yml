@@ -387,11 +387,11 @@ jobs:
               if command -v strings >/dev/null 2>&1; then
                 TEXT="$(strings "${BIN}")"
               else
-                TEXT="$(grep -aE 'linux-amd64|Architecture|License' "${BIN}" || true)"
+                TEXT="$(grep -aE 'linux-amd64|Signature|License' "${BIN}" || true)"
               fi
               grep -Fq "${PLATFORM}" <<<"${TEXT}" \
                 || { echo "::error::Expected embedded build label ${PLATFORM}"; exit 1; }
-              grep -Fq "Architecture: Cosmic Dragon (pure eBPF)" <<<"${TEXT}" \
+              grep -Fq "Signature: Pure eBPF builtin — Official Build by rezky_nightky (oxyzenQ)" <<<"${TEXT}" \
                 || { echo "::error::Expected embedded version-report literals"; exit 1; }
               grep -Fq "License: GPL-3.0-only" <<<"${TEXT}" \
                 || { echo "::error::Expected embedded license literal"; exit 1; }

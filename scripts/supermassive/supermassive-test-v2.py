@@ -802,7 +802,7 @@ def _run_cli_case_headless(argv):
 # sweep's own verification logic, reused verbatim.
 SERVER_DEPTH_CASES = [
     ("--help answers headless", ["--help"], "zero", "strict-single"),
-    ("-V banner headless", ["-V"], "zero", "Architecture: Cosmic Dragon"),
+    ("-V banner headless", ["-V"], "zero", "Signature: Pure eBPF builtin"),
     ("doctor --print-json parses headless", ["doctor", "--print-json"], "zero", '"system"'),
     (
         "retired --info tips --depth headless (NIGHT-blade-4)",

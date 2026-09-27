@@ -16,6 +16,42 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Changed
 
+- **ux+claims: NIGHT-dinner-4 — the `-V` version report carries the
+  masterclass Signature line; the zelynic-only Architecture and
+  eBPF-objects lines retire** — the owner's call ahead of the beta.5
+  tag: the cosmostrix report reads as one clean identity block
+  (Build, Build-time, Signature, Copyright, License, Source) while
+  zelynic's carried two lines the cosmostrix report never needed —
+  `Architecture: Cosmic Dragon (pure eBPF)` (the architecture story
+  already lives in the tagline's "Pure eBPF" and
+  docs/COSMIC_DRAGON_ARCHITECTURE.md) and the per-lane
+  `eBPF objects:` disclosure (NIGHT-ask-2). Both fold into ONE
+  Signature line in the cosmostrix `COSMIC_DRAGON_SIGNATURE` style —
+  `Signature: Pure eBPF builtin — Official Build by rezky_nightky
+  (oxyzenQ)` — built as a single contiguous rodata literal (the
+  NIGHT-blade-4 discipline), and release.yml's v4 strings probe was
+  retargeted from the retired Architecture literal to the Signature
+  literal in the same commit, so the AVX-512 legs keep proving the
+  version report compiled in. The claims discipline survives the
+  simplification: "Pure eBPF builtin" is true of BOTH full-life lanes
+  (source-built and registry-prebuilt objects ride inside the binary
+  either way), while a dormant `--no-default-features` build — which
+  embeds nothing — prints the honest variant `Signature: eBPF dormant
+  — Official Build by rezky_nightky (oxyzenQ)` instead of a claim it
+  cannot back; the forensic lane detail (which of the three paths
+  produced the objects) stays `zelynic doctor`'s answer on text and
+  JSON (NIGHT-dinner-3) — re-homed, not lost. Contract pins: the
+  in-unit suite pins the Signature line's position (directly after
+  Build-time), its lane honesty (the dormant stamp — and only it —
+  flips the claim), and the retirement itself (either retired line
+  returning fails the run); the integration smoke pin accepts exactly
+  the two documented variants (the suite also runs under the dormant
+  leg); the depth and supermassive harnesses pin the full-life
+  variant against full-life binaries. Docs synced: README's
+  registry-lane verification and native-build snippet, QA.md Q2's
+  two -V mentions, VERIFY_RELEASE's registry bullet and owner verify
+  step, USAGE's flag table.
+
 - **build+channel: NIGHT-ask-2 — the crates.io lane goes
   full-featured: `cargo install zelynic` now lands the monitor AND
   the limiter on a plain stable toolchain** — the owner's follow-up

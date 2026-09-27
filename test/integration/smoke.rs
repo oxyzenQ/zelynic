@@ -222,9 +222,23 @@ fn test_version() {
     assert!(output.status.success());
 
     let stdout = String::from_utf8_lossy(&output.stdout);
+    // NIGHT-dinner-4: the Signature line is lane-honest — "Pure eBPF
+    // builtin" on a full build, "eBPF dormant" on the
+    // --no-default-features leg this suite also runs under — so the
+    // pin accepts exactly the two documented variants and nothing
+    // else.
+    let full_life = "Signature: Pure eBPF builtin — Official Build by rezky_nightky (oxyzenQ)";
+    let dormant = "Signature: eBPF dormant — Official Build by rezky_nightky (oxyzenQ)";
+    let signature = stdout
+        .lines()
+        .find(|l| l.starts_with("Signature: "))
+        .expect("Signature line present");
+    assert!(
+        signature == full_life || signature == dormant,
+        "Signature line must be one of the two documented variants, got: {signature}"
+    );
     assert!(
         stdout.contains("zelynic: v")
-            && stdout.contains("Architecture: Cosmic Dragon")
             && stdout.contains("Build: ")
             && stdout.contains("License: GPL-3.0-only")
             && stdout.contains("Source: https://github.com/oxyzenQ/zelynic"),

@@ -161,8 +161,9 @@ registry tarball (cargo's package walk auto-excludes nested packages,
 verified live), so the crate ships **`ebpf-prebuilt/`** instead: the
 two maintainer-built objects — the same bytes the release tarballs
 above embed, so kernel compatibility is identical — which build.rs
-stages for the default `ebpf` feature. `zelynic -V` answers
-`eBPF objects: registry-prebuilt` with the exact source sha, and the
+stages for the default `ebpf` feature. `zelynic -V` answers with the
+exact source sha under the full-life Signature line, `zelynic doctor`
+names the lane — `registry-prebuilt` (text and JSON) — and the
 provenance (source-tree hash, toolchain, linker, per-object sha256)
 rides the tarball as `ebpf-prebuilt/manifest.toml`. The dormant lane
 (stable binary, eBPF surfaces disabled) survives as the explicit
@@ -268,6 +269,7 @@ report their build label in the version output:
 $ ./target/pro-native-gnu/zelynic -V
 Build: local-native-gnu (<hash>)
 Build-time: 9/18/2026 01:30 (UTC)
+Signature: Pure eBPF builtin — Official Build by rezky_nightky (oxyzenQ)
 ```
 
 The `Build-time` line is stamped at compile time in `build.rs` — UTC
