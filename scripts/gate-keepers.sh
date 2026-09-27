@@ -86,6 +86,15 @@
 #       objects that silently fell behind the sources they claim to
 #       carry)
 #
+# Pre-commit hook (NIGHT-dinner-1): the first wholesale run on a
+# clone self-installs .githooks/pre-commit (git config
+# core.hooksPath=.githooks — repo-local, never --global), so every
+# future commit on that clone executes the commit-time prebuilt
+# gate (scripts/gates/check-commit-gate.sh: parity + the
+# ebpf/ <-> ebpf-prebuilt/ pairing rule) even when this wholesale
+# script is forgotten. The hook enforces the same lane contract at
+# commit time that section 18 enforces at push time.
+#
 # Missing tools are skipped with a warning so the gate stays usable
 # on minimal development machines; CI runs this script WHOLESALE
 # (the ci.yml gatekeepers job, full tool set installed, the
@@ -123,6 +132,27 @@ header() {
 	echo ""
 	echo "── $1 ──"
 }
+
+# ── 0. Pre-commit hook self-install (NIGHT-dinner-1) ─────────────
+# The wholesale gates only run when remembered; the commit gate
+# must run even when they are not. The first wholesale run on a
+# clone therefore wires git to .githooks/pre-commit permanently:
+# every future commit executes check-commit-gate.sh (prebuilt
+# parity + the ebpf/ <-> ebpf-prebuilt/ pairing rule) with zero
+# further setup. Idempotent, repo-local only (never --global), and
+# harmless in CI where the checkout is disposable.
+header "pre-commit hook (self-install)"
+if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+	hook_path="$(git config --local core.hooksPath || true)"
+	if [ "${hook_path}" != ".githooks" ]; then
+		git config --local core.hooksPath .githooks
+		info "core.hooksPath=.githooks — every commit now runs the prebuilt commit gate"
+	else
+		info "core.hooksPath already .githooks — the commit gate is active"
+	fi
+else
+	warn "not inside a git work tree — hook self-install skipped"
+fi
 
 # ── 1. Shell scripts (strict quad: bash -n + shellcheck + shfmt -d + source resolution) ───────
 # Resolve the .sh file list once and reuse across the three sub-checks.

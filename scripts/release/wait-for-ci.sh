@@ -17,6 +17,17 @@
 # for the exact tagged SHA completes, then requires
 # conclusion=success before the caller proceeds.
 #
+# NIGHT-dinner-1: a second caller now reuses this gate against the
+# wholesale workflow — crates-io.yml also waits for the
+# gate-keepers.yml push-run on the tagged SHA (WAIT_WORKFLOW_PATH
+# override), because the run that actually fails on a stale
+# ebpf-prebuilt/ lane is the unfiltered wholesale gate (check 18),
+# not ci.yml, whose Rust-surface jobs rebuild the eBPF objects from
+# source and therefore build green next to a stale lane. The label
+# this script prints derives from the workflow path, so the default
+# caller keeps its exact historical log text and the second caller
+# gets honest labels.
+#
 # Semantics:
 #   - A ci.yml run for the SHA is queued/in_progress -> keep polling.
 #   - The newest completed run must have conclusion=success:
@@ -44,6 +55,7 @@
 #                                      event to register its CI run
 #   WAIT_POLL_SECS     (default  30)  poll interval
 #   WAIT_WORKFLOW_PATH (default .github/workflows/ci.yml)
+#   WAIT_WORKFLOW_LABEL (default: basename of WAIT_WORKFLOW_PATH)
 #
 # Usage (from a workflow job carrying permissions: actions: read):
 #   ./scripts/release/wait-for-ci.sh
@@ -53,6 +65,10 @@ TIMEOUT_SECS="${WAIT_TIMEOUT_SECS:-1800}"
 GRACE_SECS="${WAIT_GRACE_SECS:-90}"
 POLL_SECS="${WAIT_POLL_SECS:-30}"
 WORKFLOW_PATH="${WAIT_WORKFLOW_PATH:-.github/workflows/ci.yml}"
+# NIGHT-dinner-1: every human-facing line below prints this label —
+# derived from the path so the default caller's logs stay identical,
+# overridden when a caller wants a different display name.
+WORKFLOW_LABEL="${WAIT_WORKFLOW_LABEL:-$(basename "${WORKFLOW_PATH}")}"
 
 : "${GITHUB_API_URL:?GITHUB_API_URL is required}"
 : "${GITHUB_REPOSITORY:?GITHUB_REPOSITORY is required}"
@@ -73,9 +89,9 @@ newest_run() {
 		-H "Accept: application/vnd.github+json" \
 		"${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/actions/runs?event=push&branch=main&head_sha=${GITHUB_SHA}&per_page=50" |
 		jq -r '[.workflow_runs[] | select(.path == "'"${WORKFLOW_PATH}"'")]
-		        | sort_by(.run_number)
-		        | .[-1]
-		        | if . == null then "" else "\(.status)|\(.conclusion // "-")|\(.html_url)" end'
+                        | sort_by(.run_number)
+                        | .[-1]
+                        | if . == null then "" else "\(.status)|\(.conclusion // "-")|\(.html_url)" end'
 }
 
 echo "[ci-gate] workflow: ${WORKFLOW_PATH}"
@@ -87,20 +103,20 @@ while :; do
 
 	if [[ -z "${summary}" ]]; then
 		if (($(date +%s) >= grace_until)); then
-			echo "[ci-gate] PASS: no ci.yml push-run exists for this SHA after the grace period."
-			echo "[ci-gate] (ci.yml's paths filter skipped this commit — a docs-only release; the"
-			echo "[ci-gate]  unconditional gate-keepers.yml workflow still covered the push.)"
+			echo "[ci-gate] PASS: no ${WORKFLOW_LABEL} push-run exists for this SHA after the grace period."
+			echo "[ci-gate] (${WORKFLOW_LABEL}'s paths filter skipped this commit, or the tag points at a"
+			echo "[ci-gate]  commit that predates the workflow — the caller's own direct gates still apply.)"
 			exit 0
 		fi
-		echo "[ci-gate] no ci.yml run visible yet (commit+tag pushed together?); polling..."
+		echo "[ci-gate] no ${WORKFLOW_LABEL} run visible yet (commit+tag pushed together?); polling..."
 	elif [[ "${summary}" == completed\|* ]]; then
 		IFS='|' read -r status conclusion url <<<"${summary}"
 		if [[ "${conclusion}" == "success" ]]; then
-			echo "[ci-gate] PASS: ci.yml completed with conclusion=success."
+			echo "[ci-gate] PASS: ${WORKFLOW_LABEL} completed with conclusion=success."
 			echo "[ci-gate] run: ${url}"
 			exit 0
 		fi
-		echo "::error::ci.yml concluded '${conclusion}' for the tagged SHA — the publish pipeline is blocked."
+		echo "::error::${WORKFLOW_LABEL} concluded '${conclusion}' for the tagged SHA — the publish pipeline is blocked."
 		echo "::error::run: ${url}"
 		if [[ "${conclusion}" == "cancelled" ]]; then
 			echo "::error::A cancelled CI never verified this code (a newer main push likely"
@@ -111,11 +127,11 @@ while :; do
 		exit 1
 	else
 		IFS='|' read -r status conclusion url <<<"${summary}"
-		echo "[ci-gate] ci.yml run is ${status} (conclusion so far: ${conclusion}); waiting ${POLL_SECS}s..."
+		echo "[ci-gate] ${WORKFLOW_LABEL} run is ${status} (conclusion so far: ${conclusion}); waiting ${POLL_SECS}s..."
 	fi
 
 	if (($(date +%s) + POLL_SECS > deadline)); then
-		echo "::error::ci-gate timed out after ${TIMEOUT_SECS}s waiting for ci.yml on ${GITHUB_SHA}."
+		echo "::error::ci-gate timed out after ${TIMEOUT_SECS}s waiting for ${WORKFLOW_LABEL} on ${GITHUB_SHA}."
 		echo "::error::Re-run this gate job once CI finishes, or push the tag again."
 		exit 1
 	fi

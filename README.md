@@ -165,7 +165,10 @@ opt-out: `--no-default-features`. Cargo verifies the tarball SHA-256
 against the registry index before extraction, the publish is
 `--locked` to the tagged `Cargo.lock`, and after any change under
 `ebpf/` the parity gate fails until the maintainer refreshes the
-prebuilt lane — the full channel contract lives in
+prebuilt lane — enforced at commit time (a self-installing
+pre-commit hook), at push time (the wholesale Dragon Guard
+workflow), and at ship time (parity steps in the release and
+crates.io publish pipelines). The full channel contract lives in
 [docs/VERIFY_RELEASE.md](docs/VERIFY_RELEASE.md) (section 4, with the
 owner's first-publish manual).
 
