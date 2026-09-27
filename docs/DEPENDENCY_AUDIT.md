@@ -260,6 +260,7 @@ blocks. Keeping it is the lower-risk option.
 | `nix` 0.31 | keep, trimmed | safe geteuid/uname/termios wrappers; features `user`+`term`+`feature` only |
 | `libc` 0.2 | keep | flock (src/ebpf/lock.rs), raw BPF syscalls (src/ebpf/bpf_syscall.rs), termios constants |
 | `aya` 0.13 (optional) | keep | the entire point of the project; gated behind the `ebpf` feature |
+| `aya-obj` 0.2.1 (dev) | keep | test-tree parse lane (NIGHT-dinner-6 E1 rider): parse-only BPF ELF reader for the embedded-object pins — the exact parser crate compiled into aya 0.13.1, already in the locked graph as aya's own dependency, zero binary surface |
 | `chrono` 0.4 | **removed** | zero call sites; 27-crate transitive chain (Finding 1) |
 | `[dev-dependencies] serde` | **removed** | exact duplicate of the regular dependency entry; tests already see regular deps |
 

@@ -1070,21 +1070,27 @@ NIGHT-master-1 as the `eagle-eyes --depth` alias and is retired
 again in NIGHT-blade-4 — `--depth` is the one spelling; the short
 `-i` stays retired.)
 
-**11. eagle-eyes tracks at most 4096 distinct cgroups.**
+**11. eagle-eyes' counter maps hold 4096 entries per direction
+(LRU).**
 The monitor's counter maps hold 4096 entries per direction (raised
 from the port-time 256 in NIGHT-improve-8, then 1024 → 4096 in
 NIGHT-improve-31 for dense hosts: Kubernetes nodes, CI runners with
 per-job systemd scopes, and container hosts can push past 1024 live
-cgroups, and a full map silently stops counting new cgroups — the
-same hole improve-8 closed, at 4x the scale; the raise is a
-session-scoped map-creation attribute, no pin or schema migration,
-192 KiB of kernel memory per session).
-The maps are plain hashes, not LRU (the socket cookie maps' lane):
-slots do not age out, so the 4096 a long-lived session tracks are
-the FIRST 4096 to arrive — later cgroups on a denser host count
-nothing for that session's rows. The flow itself is never touched:
-a full observer map loses the COUNT, not the packet (the
-allow-and-skip contract).
+cgroups — the same hole improve-8 closed, at 4x the scale; the
+capacity is a session-scoped map-creation attribute, no pin or
+schema migration, 128 KiB of kernel payload memory per session plus
+the LRU's per-entry node overhead).
+Since the NIGHT-dinner-6 E1 rider (2026-09-28) the maps are LRU
+hashes, the lane the socket cookie maps have always ridden: an
+idle cgroup's entry ages out on its own, and a live cgroup always
+finds room — a long-lived session on a dense host no longer hands
+its first 4096 cgroups lifetime slots while later arrivals count
+nothing. The accepted trade: a cgroup evicted while idle and then
+returning restarts its accumulator, so session TOTALS under
+extreme churn (more than 4096 concurrent live cgroups in one
+session) are best-effort — exactly the posture the per-socket
+figures document. The flow itself is never touched: a full map
+loses the COUNT, not the packet (the allow-and-skip contract).
 
 **12. The monitor's metric set is exactly this — and that is the
 point.**
