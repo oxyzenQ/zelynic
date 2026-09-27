@@ -487,8 +487,7 @@ pub enum Commands {
         depth: bool,
     },
 
-    /// Check host eBPF support and this binary's build flavor (NIGHT-dinner-3:
-    /// full-life = eBPF objects embedded, half-life = userspace-only).
+    /// Check host eBPF support and this binary's build flavor (full-life / half-life).
     #[command(name = "doctor")]
     Doctor,
 }
