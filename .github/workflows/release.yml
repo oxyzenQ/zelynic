@@ -382,18 +382,23 @@ jobs:
               # cosmostrix v4 contract — executing it could SIGILL):
               # the embedded ZELYNIC_BUILD label plus the
               # version-report literals prove the right variant was
-              # compiled and linked. strings (binutils) with a
-              # grep -a fallback for runner images without it.
-              if command -v strings >/dev/null 2>&1; then
-                TEXT="$(strings "${BIN}")"
-              else
-                TEXT="$(grep -aE 'linux-amd64|Signature|License' "${BIN}" || true)"
-              fi
-              grep -Fq "${PLATFORM}" <<<"${TEXT}" \
+              # compiled and linked. The literals are grepped as BYTES
+              # straight against the artifact (grep -aFq, no encoding
+              # layer): the v11.0.0-rc.1 run first taught us that the
+              # retired strings(1) indirection silently split the
+              # Signature literal at its UTF-8 em-dash — strings
+              # defaults to 7-bit ASCII runs, so the multi-byte dash
+              # ended the printable sequence and the one-line literal
+              # never existed in TEXT ("Expected embedded version-
+              # report literals", run 36306378961, both v4 legs;
+              # reproduced locally: strings emits two fragments,
+              # grep -aFq matches the raw bytes). The same byte-grep
+              # contract the version literal check below already uses.
+              grep -aFq "${PLATFORM}" "${BIN}" \
                 || { echo "::error::Expected embedded build label ${PLATFORM}"; exit 1; }
-              grep -Fq "Signature: Pure eBPF builtin — Official Build by rezky_nightky (oxyzenQ)" <<<"${TEXT}" \
+              grep -aFq "Signature: Pure eBPF builtin — Official Build by rezky_nightky (oxyzenQ)" "${BIN}" \
                 || { echo "::error::Expected embedded version-report literals"; exit 1; }
-              grep -Fq "License: GPL-3.0-only" <<<"${TEXT}" \
+              grep -aFq "License: GPL-3.0-only" "${BIN}" \
                 || { echo "::error::Expected embedded license literal"; exit 1; }
               # NIGHT-lts-9: the version literal (env!(CARGO_PKG_VERSION)
               # is a plain &str in the rodata) must match the tag — the
