@@ -117,7 +117,12 @@ fn build_time() -> &'static str {
 /// eBPF code sets the env explicitly, so the fallback only guards a
 /// build script that crashed before stamping (which fails the build
 /// anyway) — it can never mislabel a full build as dormant.
-fn ebpf_lane() -> &'static str {
+///
+/// NIGHT-dinner-3: `pub(crate)` — the capability doctor reports this
+/// stamp alongside its full-life/half-life verdict (the same lane
+/// detail the version report prints under "eBPF objects:"), so a
+/// downloaded binary answers "which build path am I?" in one place.
+pub(crate) fn ebpf_lane() -> &'static str {
     option_env!("ZELYNIC_EBPF_LANE").unwrap_or("dormant (not compiled)")
 }
 

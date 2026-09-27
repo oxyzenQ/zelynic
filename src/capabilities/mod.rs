@@ -24,15 +24,69 @@ pub struct SystemInfo {
 pub struct CapabilityReport {
     pub system: SystemInfo,
     pub ebpf_supported: bool,
+    /// NIGHT-dinner-3: the binary's own build flavor — `full-life`
+    /// (the `ebpf` feature compiled in, objects embedded by build.rs)
+    /// or `half-life` (userspace-only build; every eBPF surface
+    /// answers its honest refusal). First-class in the report because
+    /// the host can be perfectly capable while the binary is not: on
+    /// a half-life build the pre-dinner-3 doctor printed "Ready: run
+    /// 'zelynic strict-single ...'" — a command that build cannot
+    /// execute. The verdict is compile-time truth (`cfg!`), not a
+    /// runtime probe, so it can never drift from what shipped.
+    pub build_flavor: String,
+    /// The lane behind the flavor — the NIGHT-ask-2
+    /// `ZELYNIC_EBPF_LANE` stamp: `source-built` (git checkout,
+    /// nested nightly cross-compile), `registry-prebuilt`
+    /// (crates.io extract, maintainer objects staged from
+    /// ebpf-prebuilt/), or `dormant (not compiled)`
+    /// (`--no-default-features`).
+    pub ebpf_lane: String,
     pub warnings: Vec<String>,
+}
+
+/// NIGHT-dinner-3: the full-life verdict — the `ebpf` feature is
+/// compiled in and build.rs embedded the objects.
+pub const BUILD_FLAVOR_FULL_LIFE: &str = "full-life";
+
+/// NIGHT-dinner-3: the half-life verdict — a `--no-default-features`
+/// build: userspace monitoring only, the eBPF surfaces refuse.
+pub const BUILD_FLAVOR_HALF_LIFE: &str = "half-life";
+
+/// The binary's own build flavor (NIGHT-dinner-3): full-life when the
+/// `ebpf` feature is compiled in, half-life otherwise. `cfg!` is
+/// evaluated at compile time — the answer is baked into the binary
+/// next to the objects it describes, so `zelynic doctor` can tell a
+/// downloaded full-life release binary from a half-life local build
+/// without guessing from behavior.
+///
+/// The lane detail (which of the three build paths produced the
+/// embedded objects) rides along via [`crate::info::ebpf_lane`] — the
+/// same stamp `zelynic -V` reports under "eBPF objects:".
+fn build_flavor() -> &'static str {
+    if cfg!(feature = "ebpf") {
+        BUILD_FLAVOR_FULL_LIFE
+    } else {
+        BUILD_FLAVOR_HALF_LIFE
+    }
 }
 
 /// Detect system capabilities for eBPF.
 pub fn detect() -> CapabilityReport {
     let system = detect_system();
     let ebpf_supported = system.cgroup_v2 && system.bpf_fs_mounted;
+    let build_flavor = build_flavor();
+    let ebpf_lane = crate::info::ebpf_lane().to_string();
 
     let mut warnings = Vec::new();
+    if build_flavor == BUILD_FLAVOR_HALF_LIFE {
+        warnings.push(
+            "This is a HALF-LIFE build (no --features ebpf): the eBPF objects are not \
+             embedded, so rate limiting and live enforcement are unavailable regardless \
+             of host capabilities. Install a full-life binary: 'cargo install zelynic' \
+             (default features) or a GitHub Release tarball."
+                .to_string(),
+        );
+    }
     if !system.cgroup_v2 {
         warnings.push("cgroup v2 not detected. eBPF observer requires cgroup v2.".to_string());
     }
@@ -50,6 +104,8 @@ pub fn detect() -> CapabilityReport {
     CapabilityReport {
         system,
         ebpf_supported,
+        build_flavor: build_flavor.to_string(),
+        ebpf_lane,
         warnings,
     }
 }
@@ -173,6 +229,18 @@ fn print_report(report: &CapabilityReport) {
 
     println_safe!("{}", brand_bold("━━━ zelynic eBPF Capability Doctor ━━━"));
     println_safe!();
+    // NIGHT-dinner-3: the build flavor leads the report — the binary's
+    // own full-life/half-life verdict is the first question an owner
+    // asks a downloaded binary, and on a half-life build every line
+    // below it reads differently (host facts stay true, but they are
+    // not actionable until the binary itself is full-life).
+    let flavor_line = if report.build_flavor == BUILD_FLAVOR_FULL_LIFE {
+        format!("{} (eBPF objects: {})", ok_bold("FULL-LIFE"), report.ebpf_lane)
+    } else {
+        format!("{} (eBPF objects: {})", warn_bold("HALF-LIFE"), report.ebpf_lane)
+    };
+    println_safe!("  Build:      {}", flavor_line);
+    println_safe!();
     println_safe!("  Kernel:     {}", report.system.kernel);
     println_safe!(
         "  cgroup v2:  {}",
@@ -223,10 +291,23 @@ fn print_report(report: &CapabilityReport) {
 
     if report.ebpf_supported && report.system.is_root {
         println_safe!();
-        println_safe!(
-            "  {} Run 'zelynic strict-single <target> <rate>' or 'zelynic eagle-eyes'",
-            ok_bold("Ready:")
-        );
+        if report.build_flavor == BUILD_FLAVOR_FULL_LIFE {
+            println_safe!(
+                "  {} Run 'zelynic strict-single <target> <rate>' or 'zelynic eagle-eyes'",
+                ok_bold("Ready:")
+            );
+        } else {
+            // NIGHT-dinner-3: the host is capable but this binary is
+            // not — the old report's unconditional Ready hint pointed
+            // at a command a half-life build refuses to run.
+            println_safe!(
+                "  {} host is eBPF-capable, but this HALF-LIFE build cannot use it —",
+                warn_bold("Limited:")
+            );
+            println_safe!(
+                "  reinstall with default features (or a release tarball) to enable limits."
+            );
+        }
     }
 }
 
@@ -287,6 +368,33 @@ mod tests {
         // We can't assert specific values (depends on environment), but
         // the report should be well-formed.
         assert!(!report.system.kernel.is_empty());
+        // NIGHT-dinner-3: the flavor and lane verdicts are always
+        // populated — no environment can produce an empty answer.
+        assert!(!report.build_flavor.is_empty());
+        assert!(!report.ebpf_lane.is_empty());
+    }
+
+    /// NIGHT-dinner-3: the flavor verdict is compile-time truth — it
+    /// must match the compiled feature set exactly, and the lane
+    /// stamp must be one of the three values build.rs can set (the
+    /// `option_env!` fallback matches the dormant stamp, so an
+    /// unstamped build is still in the set). This is the contract the
+    /// doctor's "Build:" line and the JSON surface both report.
+    #[test]
+    fn build_flavor_matches_the_compiled_feature_set() {
+        if cfg!(feature = "ebpf") {
+            assert_eq!(build_flavor(), BUILD_FLAVOR_FULL_LIFE);
+        } else {
+            assert_eq!(build_flavor(), BUILD_FLAVOR_HALF_LIFE);
+        }
+        assert!(
+            matches!(
+                crate::info::ebpf_lane(),
+                "source-built" | "registry-prebuilt" | "dormant (not compiled)"
+            ),
+            "unexpected ZELYNIC_EBPF_LANE stamp: {}",
+            crate::info::ebpf_lane()
+        );
     }
 
     /// NIGHT-hunt-28: the magic-number discrimination is the heart of
@@ -329,10 +437,40 @@ mod tests {
                 is_root: false,
             },
             ebpf_supported: true,
+            build_flavor: BUILD_FLAVOR_FULL_LIFE.to_string(),
+            ebpf_lane: "source-built".to_string(),
             warnings: vec![],
         };
         let json = serde_json::to_string(&report).unwrap();
         assert!(json.contains("cgroup_v2"));
         assert!(json.contains("ebpf_supported"));
+        // NIGHT-dinner-3: the flavor verdict is first-class JSON —
+        // machine consumers get the full-life/half-life answer and
+        // the lane detail without re-encoding feature semantics.
+        assert!(json.contains("build_flavor"));
+        assert!(json.contains("full-life"));
+        assert!(json.contains("ebpf_lane"));
+    }
+
+    /// NIGHT-dinner-3: a half-life report carries the install-path
+    /// warning — the diagnostic contract that makes the doctor's
+    /// verdict actionable instead of a bare label.
+    #[test]
+    fn half_life_report_carries_the_reinstall_warning() {
+        let report = CapabilityReport {
+            system: SystemInfo {
+                kernel: "6.18.0".to_string(),
+                cgroup_v2: true,
+                cgroup2_mount_path: Some("/sys/fs/cgroup".to_string()),
+                bpf_fs_mounted: true,
+                is_root: false,
+            },
+            ebpf_supported: true,
+            build_flavor: BUILD_FLAVOR_HALF_LIFE.to_string(),
+            ebpf_lane: "dormant (not compiled)".to_string(),
+            warnings: vec![],
+        };
+        let json = serde_json::to_string(&report).unwrap();
+        assert!(json.contains("half-life"));
     }
 }
