@@ -329,9 +329,9 @@ into a measured proof.
 | Long-lived surface | The bound that holds it | The pin or proof |
 |---|---|---|
 | Per-socket byte maps (cookie-keyed, never-reused keys) | LRU, 4096 entries, session-scoped — cold sockets age out, a new socket always finds room | ebpf/src/main.rs map defs; the design note in docs/RESEARCH_TOOLCHAIN_AND_MONITORING.md |
-| Per-cgroup observer counters | 4096-entry cap, unpinned, freed at detach; a full map loses one packet's COUNT, never the packet | ebpf/src/main.rs (the allow-and-skip contract) |
+| Per-cgroup observer counters | 4096-entry LRU hashes since the dinner-6 E1 rider, unpinned, freed at detach — an idle entry ages out and a live cgroup always finds room; a full map loses one packet's COUNT, never the packet | ebpf/src/main.rs (the allow-and-skip contract) |
 | Policy/bucket/stats maps (pinned, weeks) | 1024 slots each, 256 group slots — reclaim on unstrict/recover (the recover group sweep since NIGHT-dinner-6) keeps them proportional to LIVE policies | reclaim.rs (improve-10/lts-7/dinner-6); the endurance harness churns 300 cycles through the caps |
-| The userspace session ledger (a days-long ee session) | MAX_TRACKED_CGROUPS — the mirror of the kernel map ceiling; a cgroup the kernel never counted cannot rank | session.rs (boost-16), pinned in the render tests |
+| The userspace session ledger (a days-long ee session) | MAX_TRACKED_CGROUPS — a userspace memory bound (a kernel HASH-ceiling mirror until the E1 rider's LRU swap); a fresh cgroup past the cap carries no row, the documented dense-session bound | session.rs (boost-16), pinned in the render tests |
 | Identity/connection walks (TTL caches) | Rebuild-per-TTL — cache.clear() then a fresh /proc walk; dead cgroups cannot accumulate | identity/mod.rs, connections.rs refresh |
 | The diff engine's buffers | Swap-based, clear-and-refill per frame — allocation-stable, zero per-frame cloning (NIGHT-blade-16 audited the whole pipeline against the cosmostrix reference and closed the last two per-frame allocations: the dirty flags and the run table now live in the screen, clear-and-refill like everything else) | terminal/diff.rs |
 | Raw fds (pidfd, pidfd_getfd) | Explicit close() with the re-entrancy-safe state machine; the local fd closed after each cookie read | connections.rs PidFd |

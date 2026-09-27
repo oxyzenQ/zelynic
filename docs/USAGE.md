@@ -1089,7 +1089,12 @@ nothing. The accepted trade: a cgroup evicted while idle and then
 returning restarts its accumulator, so session TOTALS under
 extreme churn (more than 4096 concurrent live cgroups in one
 session) are best-effort — exactly the posture the per-socket
-figures document. The flow itself is never touched: a full map
+figures document. One userspace bound rides on top: the leaderboard
+carries at most 4096 distinct cgroups per session (a memory bound
+that predates the LRU lane) — past it, rows the session already
+has keep updating, while a fresh cgroup carries no row even though
+the kernel counts it (the footer census reports the board's
+count, the same bound). The flow itself is never touched: a full map
 loses the COUNT, not the packet (the allow-and-skip contract).
 
 **12. The monitor's metric set is exactly this — and that is the
