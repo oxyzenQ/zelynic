@@ -1,0 +1,26 @@
+zelynic
+Copyright (C) 2026 rezky_nightky (oxyzenQ)
+
+This software is licensed under GPL-3.0-only.
+See the LICENSE file in the repository root for the full text.
+A Commercial License is available for proprietary/commercial use —
+see COMMERCIAL_LICENSE.md for tiers and payment.
+
+The "zelynic" name, logo, and associated branding assets are trademarks
+of rezky_nightky (oxyzenQ) and are NOT covered by the GPL.
+See TRADEMARK.md for usage terms.
+
+Forking policy (summary — see TRADEMARK.md §2.4 and §3.1 for full text):
+- Contribution forks (PRs back to upstream): allowed without permission.
+  Keep the zelynic name/branding unchanged.
+- Non-contribution forks (rebrand, relaunch, derivative product): require
+  owner discussion first. Must use a different name + different branding.
+
+The eBPF objects embedded in zelynic binaries are built from this
+repository's ebpf/ tree (pure Rust, aya) and are distributed under the
+same GPL-3.0-only terms as the binary that carries them. The three
+distribution lanes — source builds, the crates.io registry lane, and
+GitHub Release binaries — ship identical object bytes by construction
+(see docs/VERIFY_RELEASE.md).
+
+Repository: https://github.com/oxyzenQ/zelynic

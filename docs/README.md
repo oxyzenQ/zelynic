@@ -12,7 +12,9 @@ question well, and this page says which.
 | I want to... | Go to |
 |-------------|-------|
 | Understand what zelynic is | [README.md](../README.md) |
+| Understand the design philosophy | [PHILOSOPHY.md](PHILOSOPHY.md) |
 | Install or use a command | [USAGE.md](USAGE.md) |
+| Get answers to common questions | [FAQ.md](FAQ.md) |
 | Check whether my kernel works | [KERNEL_COMPATIBILITY.md](KERNEL_COMPATIBILITY.md) + `zelynic doctor` |
 | Verify a downloaded release | [VERIFY_RELEASE.md](VERIFY_RELEASE.md) |
 | Know if zelynic is safe to run | [SAFETY_ANALYSIS.md](SAFETY_ANALYSIS.md) |
@@ -27,6 +29,7 @@ question well, and this page says which.
 | Doc | Covers |
 |-----|--------|
 | [COSMIC_DRAGON_ARCHITECTURE.md](COSMIC_DRAGON_ARCHITECTURE.md) | Pure-eBPF architecture: single hooking layer, cgroup v2, why Linux-only |
+| [PHILOSOPHY.md](PHILOSOPHY.md) | The design canon: cgroup as the unit, observation before enforcement, frozen CLI grammar, local-first |
 | [PURE_RUST_EVALUATION.md](PURE_RUST_EVALUATION.md) | The full C-to-Rust eBPF migration record (aya, no C toolchain) |
 | [RULES.md](RULES.md) | Source tree layout, naming, comment discipline, the frozen v11 CLI surface |
 | [RESEARCH_TOOLCHAIN_AND_MONITORING.md](RESEARCH_TOOLCHAIN_AND_MONITORING.md) | Toolchain dating rationale + monitoring-coverage research answers |
@@ -73,7 +76,7 @@ project's institutional memory. The naming convention is
 | [../QA.md](../QA.md) | Owner question ledger — questions asked and answered, with dates |
 | [../CHANGELOG.md](../CHANGELOG.md) + [../CHANGELOG-V11-ERA.md](../CHANGELOG-V11-ERA.md) | What shipped, per release and per era |
 | [../CONTRIBUTING.md](../CONTRIBUTING.md) | How to contribute: the gate battery, commit discipline |
-| [../CLA.md](../CLA.md), [../COMMERCIAL_LICENSE.md](../COMMERCIAL_LICENSE.md), [../TRADEMARK.md](../TRADEMARK.md) | Contribution licensing, commercial terms, trademark policy |
+| [../CLA.md](../CLA.md), [../COMMERCIAL_LICENSE.md](../COMMERCIAL_LICENSE.md), [../TRADEMARK.md](../TRADEMARK.md), [../NOTICE](../NOTICE) | Contribution licensing, commercial terms, trademark policy, root legal notice |
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.

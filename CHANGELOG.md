@@ -113,6 +113,32 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Added
 
+- **docs: NIGHT-private-research-1 — the remaining cosmostrix-parity
+  maturity gaps close: NOTICE, the design philosophy canon, and a
+  user-facing FAQ** — the owner rejected "mature enough" as the bar
+  (zelynic is critical infrastructure; the reference repository is
+  very mature, not sufficiently mature), so the gaps left open by
+  the NIGHT-dinner-2 analysis close here. NOTICE: the root legal
+  notice the cosmostrix lineage ships — license, the commercial
+  pointer, trademark, the fork policy summary (TRADEMARK.md §2.4 /
+  §3.1), and the three-lane identical-object-bytes statement, in
+  one file. docs/PHILOSOPHY.md: the design canon — the cgroup is
+  the unit (socket-owner attribution, apps stay black boxes), pure
+  eBPF pure Rust one binary with the supply chain as architecture,
+  observation before enforcement (verdicts from probes,
+  unlimited-when-unpinned honesty), the frozen CLI grammar,
+  local-first no-telemetry, boring capability-aware output, and
+  gates-as-culture — each section naming the doc or gate that
+  enforces it. docs/FAQ.md: the user-facing Q&A that the QA.md
+  ledger deliberately is not (QA.md is the owner ask-mode record) —
+  root, kernels and distros, the unlimited verdict, where the eBPF
+  objects come from, full-life vs half-life, privacy and telemetry,
+  the no-color mandate, and release verification, every answer
+  citing its doc or source file. docs/README.md quick-nav and
+  tables updated; disclaimers auto-injected; the docs tree now
+  answers both "how do I use it" and "why is it built this way"
+  one hop from the index.
+
 - **docs: NIGHT-dinner-2 — the maturity escalation to the
   cosmostrix standard: a navigation index, an owner playbook, and
   a dated-audit culture** — the owner's bar moved from "mature
