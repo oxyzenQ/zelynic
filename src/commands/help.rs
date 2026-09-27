@@ -177,7 +177,9 @@ pub(crate) fn print_help() {
     println_safe!("  {}", brand_bold("system — support"));
     println_safe!();
     println_safe!("  zelynic doctor");
-    println_safe!("    Check host eBPF support and this binary's build flavor (full-life / half-life).");
+    println_safe!(
+        "    Check host eBPF support and this binary's build flavor (full-life / half-life)."
+    );
     println_safe!();
     // NIGHT-improve-25: the ten two-letter aliases — every
     // enforcement verb plus the monitor in two keystrokes. Documented
