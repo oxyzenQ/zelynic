@@ -637,6 +637,23 @@ jobs:
     permissions:
       contents: write
     steps:
+      # NIGHT-dinner-3 STEP ORDER FIX: checkout runs BEFORE the
+      # artifact download. actions/checkout@v5 with its default
+      # `clean: true` DELETES the workspace contents before `git
+      # init` (live log line, v11.0.0-beta.4 run 36299494146: "Deleting
+      # the contents of '/home/runner/work/zelynic/zelynic'"). Under
+      # the blade-11 order (download → checkout → publish) that wipe
+      # landed exactly on the freshly downloaded dist/ — the build
+      # jobs' 4 artifacts were fetched, verified by digest, then
+      # destroyed seconds later, and softprops/action-gh-release
+      # logged "Pattern 'dist/*' does not match any files" as a mere
+      # warning and published v11.0.0-beta.3 and v11.0.0-beta.4 GREEN
+      # with zero binary assets (the owner-reported bug: the release
+      # page showed nothing but the two auto-generated source
+      # archives). Checkout first, download second: the checkout wipes
+      # an empty workspace, dist/ survives to the publish step, and
+      # the inventory tripwire below fails loudly if it ever doesn't.
+      #
       # NIGHT-improve-20 / NIGHT-blade-11: this job carries NO
       # repository HISTORY. The old path cloned the whole repository
       # (fetch-depth 0: every branch, every tag, full history) just to
@@ -645,9 +662,19 @@ jobs:
       # compare), which is also more stable: `git tag
       # --sort=-creatordate` misorders re-pointed / re-created tags
       # (the v11.0.0-alpha.1 re-tag), while semver ordering is
-      # deterministic. blade-11 added a depth-1 sparse checkout below
-      # — a cone over scripts/release only, for the one generator
+      # deterministic. blade-11 added the depth-1 sparse checkout
+      # below — a cone over scripts/release only, for the one generator
       # script the body render calls; still zero bytes of history.
+      - name: Checkout release tooling (sparse, depth 1)
+        # The checkout must precede Download artifacts — see the
+        # NIGHT-dinner-3 step-order note above. Same action pin as the
+        # build job; cone over the one directory this job reads.
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5, NIGHT-hunt-20 SHA pin
+        with:
+          fetch-depth: 1
+          sparse-checkout: |
+            scripts/release
+
       - name: Download artifacts
         uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6, NIGHT-hunt-20 SHA pin
         with:
@@ -659,18 +686,47 @@ jobs:
           merge-multiple: true
           path: dist
 
-      - name: Checkout release tooling (sparse, depth 1)
-        # NIGHT-blade-11: the release body moved from the inline jq
-        # renderer to scripts/release/generate-release-notes.sh — the
-        # cosmostrix release-page style (stability callout, commit
-        # count, categorized collapsible changelog, compare link,
-        # verification section). Same action pin as the build job;
-        # cone over the one directory this job reads.
-        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5, NIGHT-hunt-20 SHA pin
-        with:
-          fetch-depth: 1
-          sparse-checkout: |
-            scripts/release
+      # NIGHT-dinner-3 TRIPWIRE: assert the dist/ inventory BEFORE the
+      # publish step. softprops/action-gh-release treats an unmatched
+      # `files:` glob as a warning — the exact silence that shipped
+      # beta.3/beta.4 asset-less through a green pipeline — so the
+      # workflow, not a third-party action, decides what "assets
+      # present" means. The build matrix is four legs (v3/v4 ×
+      # gnu/musl); each Prepare step emits one tarball plus three
+      # checksum files, and the build job's signature-coverage
+      # tripwire makes GPG signing all-or-nothing — so the legal
+      # shapes here are exactly: 4 tarballs + 12 checksums + (0 or 4)
+      # signatures. Anything else is a red pipeline with the precise
+      # missing file named, never a silently asset-less release.
+      - name: Assert release asset inventory
+        run: |
+          set -euo pipefail
+          TARBALLS=$(find dist -maxdepth 1 -type f -name '*.tar.gz' | wc -l)
+          if [ "${TARBALLS}" -ne 4 ]; then
+            echo "::error::Expected 4 release tarballs in dist/ (the build matrix legs), found ${TARBALLS}"
+            find dist -maxdepth 1 -type f -print 2>/dev/null || true
+            exit 1
+          fi
+          BROKEN=0
+          for f in dist/*.tar.gz; do
+            for suffix in sha512sum b2sum shake256; do
+              if [ ! -f "${f}.${suffix}" ]; then
+                echo "::error::Missing checksum sibling ${f}.${suffix}"
+                BROKEN=1
+              fi
+            done
+          done
+          SIGS=$(find dist -maxdepth 1 -type f -name '*.tar.gz.asc' | wc -l)
+          if [ "${SIGS}" -ne 0 ] && [ "${SIGS}" -ne "${TARBALLS}" ]; then
+            echo "::error::Partial GPG coverage: ${SIGS} signatures for ${TARBALLS} tarballs \
+          (signing is all-or-nothing)"
+            BROKEN=1
+          fi
+          if [ "${BROKEN}" -ne 0 ]; then
+            exit 1
+          fi
+          echo "dist/ inventory verified: ${TARBALLS} tarballs, ${SIGS} GPG signatures, \
+          $(( TARBALLS * 3 )) checksum files"
 
       - name: Generate release body
         id: body
@@ -794,6 +850,12 @@ jobs:
           name: ${{ steps.body.outputs.title }}
           body_path: release-body.md
           files: dist/*
+          # NIGHT-dinner-3 seatbelt: an unmatched `files:` glob FAILS
+          # the release instead of logging the "does not match any
+          # files" warning that shipped beta.3/beta.4 asset-less. The
+          # inventory tripwire above gives the precise diagnosis; this
+          # makes the third-party action itself refuse the silent path.
+          fail_on_unmatched_files: true
           draft: false
           # Pre-releases (dev/nightly/alpha/beta) are never marked
           # "latest" — the latest pointer only tracks stable releases.
