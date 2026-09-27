@@ -27,6 +27,16 @@ fn test_doctor() {
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(!stdout.is_empty(), "zelynic doctor produced no output");
+    // NIGHT-dinner-3: the build flavor leads the report — a downloaded
+    // binary answers full-life vs half-life before any host fact.
+    assert!(
+        stdout.contains("Build:"),
+        "the doctor report must carry the Build: flavor line, got:\n{stdout}"
+    );
+    assert!(
+        stdout.contains("FULL-LIFE") || stdout.contains("HALF-LIFE"),
+        "the Build: line must name the flavor, got:\n{stdout}"
+    );
 }
 
 /// NIGHT-boost-3: `--print-json` is the machine-first contract — one
@@ -64,6 +74,21 @@ fn test_doctor_print_json_is_one_compact_line() {
     assert!(
         parsed.get("system").is_some() && parsed.get("ebpf_supported").is_some(),
         "field contract intact, got: {doc}"
+    );
+    // NIGHT-dinner-3: the flavor verdict is first-class JSON — machine
+    // consumers read full-life/half-life and the lane without
+    // re-encoding feature semantics.
+    let flavor = parsed
+        .get("build_flavor")
+        .and_then(|v| v.as_str())
+        .unwrap_or_default();
+    assert!(
+        flavor == "full-life" || flavor == "half-life",
+        "build_flavor must name the flavor, got: {doc}"
+    );
+    assert!(
+        parsed.get("ebpf_lane").is_some(),
+        "ebpf_lane must ride the JSON contract, got: {doc}"
     );
     // The honoring side of the NIGHT-boost-24 contract: doctor is a
     // JSON surface, so no ignored-note may ride stderr — the flag did

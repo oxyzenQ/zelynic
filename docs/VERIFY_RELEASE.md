@@ -261,9 +261,15 @@ against the live registry API). The first publish creates it.
    https://crates.io/api/v1/crates/zelynic` answers 200;
    `cargo install zelynic --locked` in a clean environment succeeds;
    `zelynic -V` reports the tagged short sha and `eBPF objects:
-   registry-prebuilt`, and an enforcement command under a non-root
-   account answers `root required` (not `eBPF not compiled`) — the
-   installed binary is the full build.
+   registry-prebuilt`. The direct full-build probe is `zelynic doctor`
+   (NIGHT-dinner-3): the `Build:` line names the binary's own flavor —
+   `FULL-LIFE (eBPF objects: registry-prebuilt)` for the install above,
+   `HALF-LIFE (eBPF objects: dormant (not compiled))` for a
+   `--no-default-features` build (`zelynic doctor --print-json` carries
+   the same verdict in the `build_flavor` / `ebpf_lane` fields). The
+   older behavioral check still works: an enforcement command under a
+   non-root account answers `root required` (not `eBPF not compiled`) —
+   the installed binary is the full build.
 6. **Recovery**: a bad version is `cargo yank --vers X.Y.Z` — yanked
    versions stay resolvable for existing lockfiles but vanish from
    new ones. crates.io never deletes a version; there is no re-upload
