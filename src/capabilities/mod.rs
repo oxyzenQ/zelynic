@@ -235,9 +235,17 @@ fn print_report(report: &CapabilityReport) {
     // below it reads differently (host facts stay true, but they are
     // not actionable until the binary itself is full-life).
     let flavor_line = if report.build_flavor == BUILD_FLAVOR_FULL_LIFE {
-        format!("{} (eBPF objects: {})", ok_bold("FULL-LIFE"), report.ebpf_lane)
+        format!(
+            "{} (eBPF objects: {})",
+            ok_bold("FULL-LIFE"),
+            report.ebpf_lane
+        )
     } else {
-        format!("{} (eBPF objects: {})", warn_bold("HALF-LIFE"), report.ebpf_lane)
+        format!(
+            "{} (eBPF objects: {})",
+            warn_bold("HALF-LIFE"),
+            report.ebpf_lane
+        )
     };
     println_safe!("  Build:      {}", flavor_line);
     println_safe!();
