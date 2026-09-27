@@ -106,16 +106,21 @@ impl SessionAcc {
 }
 
 /// Session leaderboard growth bound (NIGHT-boost-16, the LTS
-/// endurance half of the audit): the observer's two counter maps
-/// hold `COUNTER_MAP_MAX_ENTRIES = 4096` slots each (NIGHT-improve-31,
-/// the dense-host raise), and the kernel
-/// silently stops counting cgroups beyond a full map — so deltas
-/// can only ever name at most 4096 distinct cgroups. The userspace
-/// accumulator mirrors that bound as defense-in-depth: if a future
-/// kernel, map type, or bug ever produced more, the monitor's
-/// memory stays capped and the honest shape of the board (the
-/// kernel's own ceiling) is preserved instead of leaking one
-/// HashMap entry per cgroup churn on a months-long monitor.
+/// endurance half of the audit). At introduction it mirrored the
+/// observer maps' HASH ceiling — the kernel silently stopped
+/// counting beyond a full map, so deltas named at most 4096
+/// distinct cgroups and the accumulator kept the board honest to
+/// exactly that. The E1 rider (2026-09-28) moved the counter maps
+/// to the LRU lane, and the ceiling this bound mirrored is gone:
+/// the kernel now counts any LIVE cgroup (evicting idle entries),
+/// so a long churning session can name more than 4096 distinct
+/// cgroups while the board — a pure memory bound now, still
+/// defense-in-depth against unbounded HashMap growth on a
+/// months-long monitor — refuses a row to every fresh cgroup past
+/// the cap. The mismatch is documented (USAGE limitation 11) and
+/// the posture question (mirror the LRU and retire the
+/// least-recently-active row, or keep the freeze) is an owner
+/// decision; until it is made, the bound keeps the old freeze.
 pub(crate) const MAX_TRACKED_CGROUPS: usize = 4096;
 
 /// The leaderboard: per-cgroup accumulated traffic. Pure data — the
@@ -141,8 +146,9 @@ impl SessionState {
     }
 
     /// Whether a delta row may fold into the leaderboard (the
-    /// bound mirror the userspace accumulator keeps of the kernel's
-    /// own map ceiling, NIGHT-boost-16): an existing entry always
+    /// userspace memory bound, NIGHT-boost-16 — a HASH-ceiling
+    /// mirror at introduction, standing on its own since the E1
+    /// rider's LRU swap): an existing entry always
     /// updates, a fresh cgroup past [`MAX_TRACKED_CGROUPS`] cannot
     /// join. One rule, two callers — the byte fold and the peak
     /// note — so the two can never drift apart.
@@ -156,8 +162,11 @@ impl SessionState {
     /// fold itself is saturating (the byte legs' u128 saturation
     /// ceiling is past the quettabyte — NIGHT-lts-5; the packet leg's
     /// u64 ceiling is ~389,000 years of line rate), and the entry
-    /// count is bounded by [`MAX_TRACKED_CGROUPS`] (NIGHT-boost-16):
-    /// a cgroup the kernel never counted cannot rank.
+    /// count is bounded by [`MAX_TRACKED_CGROUPS`] (NIGHT-boost-16;
+    /// a userspace bound standing on its own since the E1 rider's
+    /// LRU lane — a fresh cgroup past the cap carries no row even
+    /// though the kernel counts it, the documented dense-session
+    /// bound).
     pub(crate) fn absorb(&mut self, summary: &CounterSummary) {
         for c in &summary.cgroups {
             if !self.admits(c.cgroup_id) {

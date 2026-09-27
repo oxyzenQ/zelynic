@@ -56,6 +56,25 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Fixed
 
+- **truth: the E1 rider's LRU swap left the leaderboard bound's
+  rationale stale — three comments, one stability row, and USAGE
+  limitation 11 re-derived** — `MAX_TRACKED_CGROUPS`
+  (src/ebpf/render/session.rs, NIGHT-boost-16) was introduced as
+  the mirror of the counter maps' HASH ceiling: the kernel stopped
+  counting beyond a full map, so the userspace freeze was honest
+  to exactly the kernel's own shape. The rider moved the maps to
+  the LRU lane, and that ceiling is gone — the kernel now counts
+  any live cgroup while the board still refuses a row to every
+  fresh cgroup past 4096 accumulated. The comments (the cap, the
+  admits rule, the fold doc), STABILITY.md's session-ledger row
+  (plus the counter row's own LRU note), and USAGE limitation 11's
+  new userspace-bound sentence now state the bound as what it is:
+  a userspace memory bound standing on its own, with the
+  dense-session mismatch documented and the posture question
+  (mirror the LRU and retire the least-recently-active row, or
+  keep the freeze) left to the owner. No behavior change; the
+  bound's render pins hold unchanged.
+
 - **ux+claims: NIGHT-dinner-4 — the `-V` version report carries the
   masterclass Signature line; the zelynic-only Architecture and
   eBPF-objects lines retire** — the owner's call ahead of the beta.5
