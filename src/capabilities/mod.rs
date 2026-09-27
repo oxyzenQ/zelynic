@@ -60,8 +60,11 @@ pub const BUILD_FLAVOR_HALF_LIFE: &str = "half-life";
 /// without guessing from behavior.
 ///
 /// The lane detail (which of the three build paths produced the
-/// embedded objects) rides along via [`crate::info::ebpf_lane`] — the
-/// same stamp `zelynic -V` reports under "eBPF objects:".
+/// embedded objects) rides along via [`crate::info::ebpf_lane`] —
+/// since NIGHT-dinner-4 this report is that stamp's one printing
+/// surface: the version report answers the same question at brand
+/// level ("Pure eBPF builtin" vs "eBPF dormant"), the doctor answers
+/// it forensically (which lane, exactly).
 fn build_flavor() -> &'static str {
     if cfg!(feature = "ebpf") {
         BUILD_FLAVOR_FULL_LIFE

@@ -27,6 +27,31 @@ pub const DESCRIPTION: &str = env!("CARGO_PKG_DESCRIPTION");
 /// call sites left, the dependency-audit discipline.)
 const LICENSE_LINE: &str = "License: GPL-3.0-only";
 
+/// The `Signature:` line for full-life builds as ONE contiguous
+/// literal (NIGHT-dinner-4) — the NIGHT-blade-4 discipline applied to
+/// the new line: release.yml's v4 legs prove an artifact through
+/// `strings`, so the bytes the pipeline greps stay contiguous by
+/// construction (never a format! join). The claim "Pure eBPF
+/// builtin" is true of BOTH full-life lanes — source-built objects
+/// cross-compiled from the local ebpf/ tree, registry-prebuilt
+/// objects staged from ebpf-prebuilt/ — because either way they ride
+/// inside the binary (`include_bytes!`): no toolchain, no clang, no
+/// separate object files ever touch the target machine. Which lane
+/// produced them is the doctor's answer, not the brand surface's
+/// (NIGHT-dinner-3: `zelynic doctor` reports build_flavor +
+/// ebpf_lane on text and JSON).
+const SIGNATURE_LINE: &str =
+    "Signature: Pure eBPF builtin — Official Build by rezky_nightky (oxyzenQ)";
+
+/// The dormant-lane Signature (NIGHT-dinner-4): a
+/// `--no-default-features` build embeds no eBPF objects at all, and
+/// the claims discipline (QA.md) does not let its version report
+/// claim "Pure eBPF builtin" about surfaces that answer their honest
+/// refusal. Same masterclass shape — prefix, attribution — with the
+/// honest claim swapped in.
+const SIGNATURE_DORMANT_LINE: &str =
+    "Signature: eBPF dormant — Official Build by rezky_nightky (oxyzenQ)";
+
 pub fn build_target() -> &'static str {
     // Dynamic build target label: detects arch + libc env at compile time.
     // Returns e.g. "amd64-gnu" (glibc, dynamic) or "amd64-musl" (static)
@@ -119,11 +144,36 @@ fn build_time() -> &'static str {
 /// anyway) — it can never mislabel a full build as dormant.
 ///
 /// NIGHT-dinner-3: `pub(crate)` — the capability doctor reports this
-/// stamp alongside its full-life/half-life verdict (the same lane
-/// detail the version report prints under "eBPF objects:"), so a
-/// downloaded binary answers "which build path am I?" in one place.
+/// stamp alongside its full-life/half-life verdict, so a downloaded
+/// binary answers "which build path am I?" in one place.
+/// NIGHT-dinner-4: that report is now the ONLY lane surface — the
+/// version report no longer prints an `eBPF objects:` line; it picks
+/// its lane-honest Signature line through [`signature_line`] instead
+/// (the claim collapses to "Pure eBPF builtin"; the forensic detail
+/// stays with the doctor).
 pub(crate) fn ebpf_lane() -> &'static str {
     option_env!("ZELYNIC_EBPF_LANE").unwrap_or("dormant (not compiled)")
+}
+
+/// The Signature line this binary's version report carries
+/// (NIGHT-dinner-4).
+///
+/// Full-life builds — source-built AND registry-prebuilt lanes
+/// alike, since the objects ride inside the binary either way —
+/// carry the masterclass signature (the cosmostrix
+/// `COSMIC_DRAGON_SIGNATURE` lineage). A dormant build carries no
+/// objects at all, and the claims discipline does not let its report
+/// say "Pure eBPF" about eBPF surfaces that answer their honest
+/// refusal, so it gets the honest variant: same prefix, same
+/// attribution, swapped claim. The dormant match keys on the exact
+/// stamp value [`ebpf_lane`] documents; every path that compiles
+/// eBPF code stamps a lane explicitly, so a full build can never
+/// fall into the dormant arm.
+fn signature_line() -> &'static str {
+    match ebpf_lane() {
+        "dormant (not compiled)" => SIGNATURE_DORMANT_LINE,
+        _ => SIGNATURE_LINE,
+    }
 }
 
 /// The plain-text body of the version report (everything after the
@@ -131,38 +181,36 @@ pub(crate) fn ebpf_lane() -> &'static str {
 /// assert the full line set without capturing stdout.
 fn version_body() -> String {
     format!(
-        "Architecture: Cosmic Dragon (pure eBPF)\n\
-         Build: {} ({})\n\
+        "Build: {} ({})\n\
          Build-time: {}\n\
-         eBPF objects: {}\n\
+         {}\n\
          Copyright: {COPYRIGHT}\n\
          {LICENSE_LINE}\n\
          Source: {REPOSITORY}",
         build_label(),
         build_hash(),
         build_time(),
-        ebpf_lane()
+        signature_line()
     )
 }
 
 /// Print the full version report for `-V` / `--version`.
 ///
-/// cosmostrix-style layout: brand header (name + version, then the
-/// one-line description), followed by plain build facts. The header is
-/// rendered in brand purple #A855F7 (regular weight, exactly as the
-/// cosmostrix `version_report()` does) on a TTY, degrading through
-/// 256-color/16-color tiers; when piped (non-TTY) everything is plain
-/// text so ANSI codes never leak into scripts or log files. The
-/// Architecture line stays on its own line so it is easy to grep from
-/// scripts (`zelynic -V | grep Architecture`).
+/// cosmostrix masterclass layout: brand header (name + version, then
+/// the one-line description), followed by plain build facts. The
+/// header is rendered in brand purple #A855F7 (regular weight,
+/// exactly as the cosmostrix `version_report()` does) on a TTY,
+/// degrading through 256-color/16-color tiers; when piped (non-TTY)
+/// everything is plain text so ANSI codes never leak into scripts or
+/// log files. The Signature line stays on its own line so it is easy
+/// to grep from scripts (`zelynic -V | grep Signature`).
 ///
 /// ```text
 /// zelynic: v11.0.0
 /// Per-app network rate limiter and traffic monitor for Linux. Pure eBPF. Boring and silent but killer.
-/// Architecture: Cosmic Dragon (pure eBPF)
 /// Build: linux-amd64-gnu (ad36a81)
 /// Build-time: 9/18/2026 01:30 (UTC)
-/// eBPF objects: source-built
+/// Signature: Pure eBPF builtin — Official Build by rezky_nightky (oxyzenQ)
 /// Copyright: (c) 2026 rezky_nightky (oxyzenQ)
 /// License: GPL-3.0-only
 /// Source: https://github.com/oxyzenQ/zelynic
@@ -174,10 +222,17 @@ fn version_body() -> String {
 /// `Build-time:` line (NIGHT-hunt-6, cosmostrix parity) is stamped by
 /// build.rs via the Hinnant civil-from-days algorithm — UTC-only, so
 /// no timezone database is pulled into the binary and the stamp is
-/// identical across build hosts. The `eBPF objects:` line
-/// (NIGHT-ask-2) reports the lane from [`ebpf_lane`] — source-built,
-/// registry-prebuilt, or dormant — so a user can tell exactly which
-/// path produced the objects inside the binary in front of them.
+/// identical across build hosts. The `Signature:` line
+/// (NIGHT-dinner-4) is the lane-honest one-line identity from
+/// [`signature_line`] — "Pure eBPF builtin" on every full-life build
+/// (the objects are embedded either way), "eBPF dormant" on a
+/// `--no-default-features` build that must not claim objects it does
+/// not carry — in the cosmostrix `COSMIC_DRAGON_SIGNATURE` style.
+/// The lines it replaced live on elsewhere: the per-lane forensic
+/// detail (`eBPF objects:`, NIGHT-ask-2) in `zelynic doctor`'s Build
+/// line and JSON (`build_flavor` / `ebpf_lane`, NIGHT-dinner-3), the
+/// architecture story in the tagline's "Pure eBPF" and
+/// docs/COSMIC_DRAGON_ARCHITECTURE.md.
 pub fn print_version_report() {
     let header = format!("{NAME}: v{VERSION}\n{DESCRIPTION}");
     println_safe!("{}", crate::output::brand(&header));
@@ -233,7 +288,6 @@ mod tests {
     fn version_report_carries_build_time_line() {
         let body = version_body();
         for line in [
-            "Architecture: Cosmic Dragon (pure eBPF)",
             "Build-time: ",
             "Copyright: (c) 2026 rezky_nightky (oxyzenQ)",
             "License: GPL-3.0-only",
@@ -255,19 +309,39 @@ mod tests {
         );
     }
 
-    /// NIGHT-ask-2 contract: the version report carries the eBPF
-    /// objects line exactly once, directly after Build-time, and its
-    /// value is one of the three documented lanes — so a registry
-    /// install can never masquerade as a source build, and a dormant
-    /// build cannot stay silent about being dormant.
+    /// NIGHT-dinner-4 contract: the Signature line appears exactly
+    /// once, directly after Build-time, and is the lane-honest one of
+    /// the two documented lines — a full-life build (source-built or
+    /// registry-prebuilt: the objects are embedded either way)
+    /// carries "Pure eBPF builtin", a dormant build carries "eBPF
+    /// dormant" and never the claim it cannot back. The lane detail
+    /// itself stays the doctor's answer (build_flavor / ebpf_lane).
     #[test]
-    fn ebpf_objects_line_is_pinned_after_build_time() {
+    fn signature_line_is_pinned_after_build_time_and_lane_honest() {
         let body = version_body();
         let count = body
             .lines()
-            .filter(|l| l.starts_with("eBPF objects: "))
+            .filter(|l| l.starts_with("Signature: "))
             .count();
-        assert_eq!(count, 1, "the eBPF objects line must appear exactly once");
+        assert_eq!(count, 1, "the Signature line must appear exactly once");
+        let expected = signature_line();
+        assert!(
+            [SIGNATURE_LINE, SIGNATURE_DORMANT_LINE].contains(&expected),
+            "signature must be one of the documented lines, got: {expected}"
+        );
+        let lines: Vec<&str> = body.lines().collect();
+        let time_idx = lines
+            .iter()
+            .position(|l| l.starts_with("Build-time: "))
+            .expect("Build-time line present");
+        assert_eq!(
+            lines[time_idx + 1],
+            expected,
+            "the Signature line must follow Build-time"
+        );
+        // Lane honesty: the dormant stamp — and only it — flips the
+        // claim. A full build saying "eBPF dormant", or a dormant
+        // build saying "Pure eBPF builtin", fails here.
         let lane = ebpf_lane();
         assert!(
             [
@@ -278,16 +352,30 @@ mod tests {
             .contains(&lane),
             "lane must be one of the documented values, got: {lane}"
         );
-        let lines: Vec<&str> = body.lines().collect();
-        let time_idx = lines
-            .iter()
-            .position(|l| l.starts_with("Build-time: "))
-            .expect("Build-time line present");
         assert_eq!(
-            lines[time_idx + 1],
-            format!("eBPF objects: {lane}"),
-            "the eBPF objects line must follow Build-time"
+            expected,
+            match lane {
+                "dormant (not compiled)" => SIGNATURE_DORMANT_LINE,
+                _ => SIGNATURE_LINE,
+            }
         );
+    }
+
+    /// NIGHT-dinner-4 contract: the two retired lines stay retired.
+    /// `Architecture:` moved its story into the Signature line and
+    /// docs/COSMIC_DRAGON_ARCHITECTURE.md; `eBPF objects:` moved its
+    /// lane disclosure into `zelynic doctor`. Either string coming
+    /// back is a silent revert of a deliberate owner call and fails
+    /// here, not in the wild.
+    #[test]
+    fn retired_architecture_and_ebpf_objects_lines_stay_retired() {
+        let body = version_body();
+        for retired in ["Architecture: ", "eBPF objects: "] {
+            assert!(
+                !body.lines().any(|l| l.starts_with(retired)),
+                "retired line must not return: {retired}"
+            );
+        }
     }
 
     /// NIGHT-hunt-6 contract: the stamped build time is either the
