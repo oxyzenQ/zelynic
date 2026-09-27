@@ -64,6 +64,22 @@
 // precedent), pinned rootlessly by test/ebpf/stats_smp_tests.rs
 // under real thread contention.
 //
+// A seventh delta (NIGHT-dinner-6's E1 rider, 2026-09-28): the two
+// cgroup counter maps ride the LRU lane -- BPF_MAP_TYPE_LRU_HASH,
+// the posture the socket cookie maps below have carried since
+// NIGHT-boost-26. The dinner-6 depth audit found the gap (finding
+// E1): plain HASH slots never age out, so on a host churning past
+// 4096 distinct cgroups inside one observe session the FIRST 4096
+// pinned their slots for the session's life and later cgroups
+// counted nothing -- the first-N-wins hole the socket maps' LRU
+// lane was chosen to prevent, one map family over. Under the cap
+// the swap changes nothing; over it, an idle cgroup's entry ages
+// out and a live one always finds room. The accepted trade is
+// documented beside the capacity constant below and as USAGE
+// limitation 11: an evicted-then-returning cgroup restarts its
+// accumulator -- best-effort session totals under extreme churn,
+// the socket maps' own documented posture.
+//
 // Build: cd ebpf && cargo +nightly build --release
 
 #![no_std]
@@ -71,7 +87,7 @@
 
 use aya_ebpf::{
     helpers::bpf_get_socket_cookie, helpers::bpf_skb_cgroup_id, macros::cgroup_skb, macros::map,
-    maps::HashMap, maps::LruHashMap, programs::SkBuffContext,
+    maps::LruHashMap, programs::SkBuffContext,
 };
 
 // The observer's pure stats core (NIGHT-improve-29): the layout +
@@ -110,21 +126,48 @@ use stats::{CgroupStats, book_packet, bump_socket_bytes};
 /// fall into the same silent allow-and-skip. The maps stay
 /// unpinned and session-scoped (created fresh at every eagle-eyes
 /// run), so the raise carries no pin or schema migration;
-/// kernel memory cost is 2 x 4096 x 24 B = 192 KiB for a session
-/// (a rounding error on any host dense enough to need it), and the
+/// kernel memory cost is 2 x 4096 x 16 B = 128 KiB for a session
+/// (boost-34's 16 B value — the 192 KiB the improve-31 note carried
+/// was the port-time 24 B struct nobody re-derived when the event
+/// leg died; the LRU pin re-derives it from the shipped bytes,
+/// test/ebpf/embedded_object_tests.rs), and the
 /// capacity is a map-creation attribute — zero verifier-cost
 /// movement, zero codegen change.
+///
+/// NIGHT-dinner-6's E1 rider (2026-09-28): the two maps riding this
+/// capacity are LRU hashes now, the socket cookie maps' lane. The
+/// audit's finding: plain HASH slots never age out, so past 4096
+/// distinct cgroups inside one observe session the FIRST 4096 pinned
+/// their slots for the session's life and later cgroups counted
+/// nothing (USAGE limitation 11's first-N-wins, one map family over
+/// the hole LRU was chosen to prevent). Under the cap the swap
+/// changes nothing; over it, an idle cgroup's entry ages out and a
+/// live one always finds room. The accepted trade: an
+/// evicted-then-returning cgroup restarts its accumulator —
+/// best-effort session totals under extreme churn, the same posture
+/// the socket maps carry — and the kernel charges the LRU's
+/// per-entry node overhead on top of the 128 KiB payload math (a
+/// cost the socket maps already pay in the same class). The
+/// eviction never touches the packet: a full map still loses one
+/// packet's COUNT, never the packet (the allow-and-skip contract).
 const COUNTER_MAP_MAX_ENTRIES: u32 = 4096;
 
+/// Per-cgroup egress (upload) counters, keyed by cgroup id — the
+/// cgroup_skb datapath's own accounting. LRU since the dinner-6 E1
+/// rider (the eviction posture the capacity constant above
+/// documents); session-scoped and unpinned, created fresh at every
+/// eagle-eyes run.
 #[allow(non_upper_case_globals)]
 #[map]
-static cgroup_counters: HashMap<u32, CgroupStats> =
-    HashMap::with_max_entries(COUNTER_MAP_MAX_ENTRIES, 0);
+static cgroup_counters: LruHashMap<u32, CgroupStats> =
+    LruHashMap::with_max_entries(COUNTER_MAP_MAX_ENTRIES, 0);
 
+/// Per-cgroup ingress (download) counters — the egress twin's lane
+/// and posture, one map per direction.
 #[allow(non_upper_case_globals)]
 #[map]
-static cgroup_counters_ingress: HashMap<u32, CgroupStats> =
-    HashMap::with_max_entries(COUNTER_MAP_MAX_ENTRIES, 0);
+static cgroup_counters_ingress: LruHashMap<u32, CgroupStats> =
+    LruHashMap::with_max_entries(COUNTER_MAP_MAX_ENTRIES, 0);
 
 /// Per-socket map capacity (NIGHT-boost-26). Sockets churn far faster
 /// than cgroups — a browsing session can cycle hundreds of

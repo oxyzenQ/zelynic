@@ -138,6 +138,17 @@ ebpf = ["aya"]
 name = "integration"
 path = "test/integration/main.rs"
 
+# Test-tree parse lane (NIGHT-dinner-6's E1 rider, 2026-09-28):
+# aya-obj is the parse-only BPF ELF reader — the exact parser crate
+# compiled into aya 0.13.1, already in the locked graph as aya's own
+# dependency (version-pinned there to 0.2.1). Dev-only: the embedded
+# object pins (test/ebpf/embedded_object_tests.rs) parse the shipped
+# bytes without a single syscall — the lane
+# docs/PURE_RUST_EVALUATION.md's phase-2 harness established. Nothing
+# ships in any binary; a --no-default-features build never compiles it.
+[dev-dependencies]
+aya-obj = "0.2.1"
+
 [profile.release]
 # Maximum optimization for production binary
 opt-level = 3

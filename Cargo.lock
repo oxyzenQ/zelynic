@@ -448,6 +448,7 @@ version = "11.0.0-rc.1"
 dependencies = [
  "anyhow",
  "aya",
+ "aya-obj",
  "clap",
  "libc",
  "nix",

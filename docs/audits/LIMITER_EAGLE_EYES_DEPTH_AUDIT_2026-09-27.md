@@ -18,10 +18,11 @@ verdicts first, the evidence after.
   (shaping/queueing), which the architecture deliberately rejects.
 - **Eagle-eyes: architecture-peak.** Counting truth, attribution,
   the per-socket join, and render cost are each at their ceiling.
-  One real gap remains and it is kernel-side (counter-map eviction,
-  finding E1 below) — deferred to the next prebuilt-refresh cycle
-  with the design sketched there. Everything userspace is now at
-  peak, including the top-consumer ranking this audit re-cut.
+  One real gap remained, kernel-side (counter-map eviction, finding
+  E1 below) — designed here, and landed by the E1 rider on
+  2026-09-28 in the prebuilt-refresh cycle this audit scheduled it
+  into. Everything userspace is now at peak, including the
+  top-consumer ranking this audit re-cut.
 
 Method note: every number and claim below was re-verified against
 the current tree (`git clone --depth=1`, HEAD = the NIGHT-dinner-5
@@ -176,24 +177,27 @@ geometry probe is one TIOCGWINSZ per frame, and the walks are
 TTL-memoized. The selection-guard beat is the documented
 copy-protection product, not a regression to chase.
 
-### 2.6 The remaining gap (deferred): counter-map eviction — E1
+### 2.6 The counter-map eviction gap — E1, landed by the rider
 
-The counter maps are plain HASH maps, not LRU (unlike the cookie
-maps): slots do not age out. On a host churning past 4096 distinct
-cgroups inside one observe session, the FIRST 4096 pin their slots
-for the session's life and later cgroups count nothing — the
-limitation USAGE.md number 11 documents, now sharpened to say
-exactly that (this commit). The fix is kernel-side — swap the two
-maps to `BPF_MAP_TYPE_LRU_HASH` in `ebpf/src/main.rs`, the same lane
-the cookie maps already ride; the accepted trade (an idle cgroup's
-entry ages out, its row leaves the frame until traffic returns)
-matches the socket maps' documented posture, and the 192 KiB
-session footprint is unchanged. It is deferred because the ebpf/
-tree is byte-frozen behind check-prebuilt-parity (rebuilding the
-embedded objects takes the pinned nightly + bpf-linker lane, an
-owner-run cycle) — the same cycle that owns the stale `zelynic
-rates` comment inside the frozen tree. Until then the bound is
-documented, bounded (one session), and costs counts, never packets.
+The counter maps were plain HASH maps, not LRU (unlike the cookie
+maps): slots did not age out. On a host churning past 4096 distinct
+cgroups inside one observe session, the FIRST 4096 pinned their
+slots for the session's life and later cgroups counted nothing —
+the limitation USAGE.md number 11 documents, sharpened to say
+exactly that by this commit. LANDED 2026-09-28 by the E1 rider
+(the sanctioned prebuilt-refresh cycle this audit scheduled it
+into): the two maps now declare `BPF_MAP_TYPE_LRU_HASH` in
+`ebpf/src/main.rs`, the same lane the cookie maps ride, and the
+same cycle retired the stale `zelynic rates` comments inside the
+frozen tree. The accepted trade (an idle cgroup's entry ages out,
+its row leaves the frame until traffic returns; an
+evicted-then-returning cgroup restarts its accumulator) matches
+the socket maps' documented posture, and the rider's parse pin
+(test/ebpf/embedded_object_tests.rs) holds the lane against the
+shipped bytes. One more truth the rider re-derived on the way:
+the session footprint is 2 x 4096 x 16 B = 128 KiB of payload, not
+the 192 KiB this section's sketch carried (the port-time 24 B
+struct again — the same stale-figure family this audit hunted).
 
 ## Part 3 — The findings ledger
 
@@ -208,7 +212,7 @@ byte rule):
 | L3 | SMP discipline: window CAS, 4-attempt consume, atomic booking | math.rs:259-341, :395-418, :430-444 | Verified PEAK |
 | L4 | Trust-boundary clamp family + MAX_ENFORCABLE_BURST proof | math.rs:188-202, :249-257, :472-473 | Verified PEAK |
 | L5 | Stale doc truths: QA.md "exact u128", SAFETY_ANALYSIS pre-boost-38 "stats += NOT atomic" relic, STABILITY recover claim | QA.md Q3, SAFETY_ANALYSIS.md race section, STABILITY.md leak fence | FIXED (this commit) |
-| E1 | Counter-map eviction: HASH not LRU, no aging, first-4096-wins | ebpf/src/main.rs:117 vs :146 | DEFERRED (kernel-side, prebuilt-refresh cycle) |
+| E1 | Counter-map eviction: HASH not LRU, no aging, first-4096-wins | ebpf/src/main.rs:117 vs :146 | LANDED (the E1 rider, 2026-09-28 — LRU swap + stale-comment fixes in the sanctioned refresh cycle) |
 | E2 | Per-socket attribution join (receiver's cookie, LRU maps, honest degradation) | connections.rs, loader.rs SocketBytes | Verified PEAK |
 | E3 | Footer top consumer ranked by socket count, not bytes | footer.rs gather (pre-fix) vs connections.rs sort | FIXED (this commit) |
 | E4 | Stale doc truths: README half-life "monitoring works", PERFORMANCE 1024-era costs, USAGE limitation 11 under-sharpened | README.md doctor paragraph, PERFORMANCE.md held-design list, USAGE.md limitation 11 | FIXED (this commit) |
@@ -280,9 +284,9 @@ whole removal family. Do not touch it; the next real movement is a
 product-class decision (shaping), not a code task. Eagle-eyes is
 architecture-peak: every userspace dimension is at its ceiling
 (including the two this audit closed), and the single remaining gap
-(counter-map eviction) is kernel-side, designed, bounded, documented,
-and scheduled for the prebuilt-refresh cycle where the ebpf/ tree
-thaws.
+(counter-map eviction) was designed, bounded, documented — and
+closed by the E1 rider on 2026-09-28, the first thaw of the ebpf/
+tree. Nothing remains.
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.

@@ -102,3 +102,49 @@ fn misalignment_detector_matches_the_pod_cast_law() {
         );
     }
 }
+
+/// NIGHT-dinner-6's E1 rider: the observer's four maps ride the LRU
+/// lane in the embedded bytes — BPF_MAP_TYPE_LRU_HASH, pinned by
+/// parse. aya-obj 0.2.1 is the exact parser crate compiled into
+/// aya 0.13.1 (the phase-2 harness lane,
+/// docs/PURE_RUST_EVALUATION.md), and `Object::parse` is
+/// syscall-free — the pin runs on any host, no privileges, no
+/// kernel. Before the rider the two counter maps were plain HASH:
+/// on a host churning past 4096 distinct cgroups in one observe
+/// session the FIRST 4096 pinned their slots and later cgroups
+/// counted nothing (USAGE limitation 11). The pin keeps the lane
+/// contract executable: a regression back to HASH — or a socket map
+/// losing its LRU — fails here, in the battery, not in the field
+/// where only a dense host would ever notice.
+#[test]
+fn embedded_observer_maps_ride_the_lru_lane() {
+    let parsed =
+        aya_obj::Object::parse(OBSERVER_ELF).expect("the embedded observer object must parse");
+    // BPF_MAP_TYPE_LRU_HASH (include/uapi/linux/bpf.h). The literal
+    // is deliberate: aya-obj's generated enum is arch-gated while
+    // the uapi value is stable ABI every arch agrees on.
+    const BPF_MAP_TYPE_LRU_HASH: u32 = 9;
+    // (name, key, value, capacity) — the geometry each family ships:
+    // cgroup counters 4-byte key / 16-byte CgroupStats (boost-34's
+    // size pin), socket counters 8/8, all at the 4096 lane.
+    let lru_geometry = [
+        ("cgroup_counters", 4u32, 16u32, 4096u32),
+        ("cgroup_counters_ingress", 4, 16, 4096),
+        ("socket_counters", 8, 8, 4096),
+        ("socket_counters_ingress", 8, 8, 4096),
+    ];
+    for (name, key, value, entries) in lru_geometry {
+        let map = parsed
+            .maps
+            .get(name)
+            .unwrap_or_else(|| panic!("map {name} missing from the observer object"));
+        assert_eq!(
+            map.map_type(),
+            BPF_MAP_TYPE_LRU_HASH,
+            "{name} must declare BPF_MAP_TYPE_LRU_HASH"
+        );
+        assert_eq!(map.key_size(), key, "{name} key size");
+        assert_eq!(map.value_size(), value, "{name} value size");
+        assert_eq!(map.max_entries(), entries, "{name} capacity");
+    }
+}

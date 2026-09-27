@@ -16,6 +16,46 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Changed
 
+- **eagle-eyes: NIGHT-dinner-6's E1 rider — the counter maps ride
+  the LRU lane, and the frozen tree's stale `zelynic rates`
+  comments die** — the one kernel-side move the dinner-6 depth
+  audit deferred, landed in the sanctioned prebuilt-refresh cycle
+  it was scheduled into (the first thaw of the ebpf/ tree since
+  the parity gate froze it). `cgroup_counters` and
+  `cgroup_counters_ingress` declare `BPF_MAP_TYPE_LRU_HASH` now
+  (`ebpf/src/main.rs`), the eviction lane the socket cookie maps
+  have ridden since NIGHT-boost-26: under the 4096 cap zero
+  behavior changes; over it, an idle cgroup's entry ages out and a
+  live one always finds room, closing the first-N-wins hole where
+  a long session's first 4096 cgroups pinned lifetime slots and
+  later arrivals counted nothing (USAGE limitation 11's final
+  wording). The accepted trade is the socket maps' own documented
+  posture: an evicted-then-returning cgroup restarts its
+  accumulator — best-effort session totals under extreme churn,
+  the packet itself never touched (the allow-and-skip contract).
+  The lane is PINNED against the shipped bytes by the new
+  embedded-object test (`aya-obj` 0.2.1, the exact parser compiled
+  into aya 0.13.1, syscall-free): all four observer maps must
+  declare LRU_HASH with the shipped geometry — a parse that also
+  re-derived one more stale figure on the way through: the session
+  footprint is 2 x 4096 x 16 B = 128 KiB of payload, not the
+  192 KiB the port-time 24 B struct implied (USAGE limitation 11,
+  the port evaluation's delta 3, the audit doc's section 2.6, and
+  the capacity comment in `ebpf/src/main.rs` all corrected). The
+  rider also fixes the frozen tree's two `zelynic rates`
+  comments — there is no rates command; the real reader of
+  `cgroup_limiter_stats` is `zelynic status` (text +
+  --print-json) — and the limiter object's bytes are IDENTICAL
+  through the comment fix (comment-only edit, proven by sha),
+  leaving the observer object as the cycle's single byte delta.
+  ebpf-prebuilt/ regenerated through the repo's validated
+  pipeline. Benchmark skipped with justification: no render-path
+  or frame-composition change — a map-creation attribute swap
+  with identical walk cost, owned by the test battery and the
+  sandbox live run instead.
+
+### Fixed
+
 - **ux+claims: NIGHT-dinner-4 — the `-V` version report carries the
   masterclass Signature line; the zelynic-only Architecture and
   eBPF-objects lines retire** — the owner's call ahead of the beta.5

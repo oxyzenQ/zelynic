@@ -153,7 +153,7 @@ static watchdog_deadline: Array<u64> = Array::pinned(1, 0);
 static schema_version: Array<u32> = Array::pinned(1, 0);
 
 /// Per-cgroup enforcement stats (combined dl + ul), read by the
-/// `zelynic rates` command surface.
+/// `zelynic status` command surface (text + --print-json).
 #[allow(non_upper_case_globals)]
 #[map]
 static cgroup_limiter_stats: HashMap<u32, LimiterStats> = HashMap::pinned(1024, 0);
@@ -279,7 +279,7 @@ fn try_enforce(
     // drop branch keeps. The pre-v5 verdict returned before the
     // stats lookup ever ran, so cgroup_limiter_stats stayed empty
     // under block-* — enforcement was total (zero goodput) yet
-    // invisible: `zelynic rates` and the supermassive "kernel drops
+    // invisible: `zelynic status` and the supermassive "kernel drops
     // engaged" proof both read "0 packets dropped" (the only light
     // failure on the 2026-09-21 nightpc run). An unbooked drop is
     // invisible enforcement.
