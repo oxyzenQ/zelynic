@@ -16,6 +16,9 @@
 //! - `surface_pins` — command-surface wiring pins (aliases, removals)
 //! - `privilege` — the unprivileged contract + validation ladder
 //! - `monitor_guard` — the eagle-eyes interactive-stdio refusal pins
+//! - `architecture_pins` — the Cosmic Dragon layer-discipline pins
+//!   (NIGHT-dinner-15: rootless source-contract pins over src/ —
+//!   the cli/terminal/pin/math/sanitizer/mutation single-path rules)
 //!
 //! These tests run on any Linux system; the enforcement cases that
 //! need root + eBPF are `#[ignore]`d or uid-gated inside. Run with:
@@ -23,6 +26,7 @@
 
 use std::process::Command;
 
+mod architecture_pins;
 mod cli_ux;
 mod help_pins;
 mod monitor_guard;

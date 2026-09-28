@@ -234,15 +234,26 @@ audits that touched every layer this session:
   `ebpf::limiter`'s public re-exports (the feature-gated typo-rescue
   validators), and the eBPF crate (ebpf/) shares layout with
   userspace only through the `#[path]`-wired math.rs twin (pure
-  core, no aya dependency). The NIGHT-optimized-2 pass
+  core, no aya dependency). Since NIGHT-dinner-15 these three rules
+  are not prose anymore: the rootless source-contract pins in
+  `test/integration/architecture_pins.rs` read the src/ tree and
+  fail the plain `cargo test` lane the day a violator lands (the
+  textual-tripwire caveat is documented in that file's header —
+  creative rewrites can slip past, the ordinary "just add one
+  direct call" regression cannot). The NIGHT-optimized-2 pass
   cross-referenced all 363 functions: zero dead,
   zero duplicate bodies in the map-reader family; the remaining
   intentional duplication (bash/python harness twins) is documented at
   both sites.
 - **One acquisition path per resource**: every u32-keyed limiter map
-  flows through `with_u32_map` (hunt-20), every pinned map open flows
-  through the pin.rs helpers (improve-10/optimized-2), every /proc comm
-  read flows through the canonical sanitizer (cybersecurity-1/2). One
+  mutation flows through `with_u32_map` (hunt-20; the sanctioned
+  `.map_mut(` sites are pinned by file in architecture_pins.rs —
+  with_u32_map's own implementation and attach's ephemeral
+  schema_version array write), every pinned map open flows
+  through the pin.rs helpers (improve-10/optimized-2 — aya's
+  from_pin/PinnedMapData may appear nowhere else, pinned), every
+  /proc comm read flows through the canonical sanitizer
+  (cybersecurity-1/2, pinned). One
   contract per resource class is the anti-spaghetti invariant.
 - **Error contracts are symmetric**: map reads propagate on both
   directions (hunt-22/optimized-2 closed the last swallow), deletes

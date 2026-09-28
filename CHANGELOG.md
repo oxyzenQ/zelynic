@@ -19,6 +19,42 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Changed
 
+- **test: NIGHT-dinner-15 (architecture half) — the cosmic dragon's
+  layer discipline leaves prose and becomes six rootless pins**
+  (the owner's strengthen-the-architecture call: stable for the
+  future). New file test/integration/architecture_pins.rs, wired as
+  the seventh module of the single integration target: six
+  source-contract pins, each reading the src/ tree as bytes and
+  failing the plain `cargo test` lane (no root, no eBPF, no kernel —
+  CI and --no-default-features included) the day a violator lands:
+  (1) cli touches the eBPF layer only through the limiter's
+  typo-rescue validators (parse_rate / parse_time_duration);
+  (2) the terminal layer is reached only by monitor.rs, and only
+  through its top-level module surface — CamelCase types and one-level
+  calls pass, a lowercase submodule path fails (the first draft of
+  the pin flagged terminal::Monitor::open and the refinement is the
+  documented rule: a submodule dip is `terminal::<lowercase>::`,
+  a surface type is CamelCase — the pin's first failure output WAS
+  the discipline being encoded precisely); (3) aya's from_pin /
+  PinnedMapData may appear nowhere outside src/ebpf/pin.rs —
+  the pinned-map single gate; (4) the ebpf math/stats twin stays
+  pure core (zero aya, zero std imports) and the userspace bridge
+  stays the #[path] wiring in the rootless math tests; (5) every
+  /proc/<pid>/comm read site references the canonical sanitizer;
+  (6) the limiter tree's only .map_mut( sites are with_u32_map's own
+  implementation (reclaim.rs) and attach's ephemeral schema_version
+  array write (mod.rs, pinned by the literal call). Hunt verification
+  before pinning: every claim re-checked live against the source
+  (all six invariants hold at HEAD), and the "/comm" grep taught the
+  census that the three command-file hits were #[path] test wirings,
+  not comm readers. COSMIC_DRAGON_ARCHITECTURE.md's two verdict
+  bullets ("Layer discipline holds", "One acquisition path per
+  resource") now name the pins and the mutation claim is corrected
+  to its precise shape (mutation flows through with_u32_map; the
+  read paths keep their dual-mode acquisition through the pin.rs
+  helpers). Benchmark: skipped — test and doc bytes only, no
+  render-path or runtime code touched.
+
 - **build: NIGHT-dinner-15 (crates.io half) — the ship set's docs
   entry narrows to the top-level tree, the research subdirs stay
   repo-only** (the owner's lean mandate: audit the manifest include
