@@ -23,14 +23,26 @@ fn spec_parse_accepts_names_ids_and_cg_prefix() {
     }
     assert!(matches!(tokens[1], Target::CgroupId(123)));
     assert!(matches!(tokens[2], Target::CgroupId(456)));
-    // Whitespace-only segments drop; nothing left is the usage error.
-    let trimmed = parse_target_spec(" brave // firefox ").expect("trim parses");
+    // NIGHT-dinner-16: the trim contract now REFUSES hollow specs.
+    // Whitespace around a slash is legal (trim), an empty segment is
+    // the usage error — the blade-18 colon contract mirrored onto the
+    // slash grammar: `brave//firefox` used to filter the hollow middle
+    // away and silently drop whatever the user meant by the third
+    // token.
+    let trimmed = parse_target_spec(" brave / firefox ").expect("trim parses");
     assert_eq!(trimmed.len(), 2);
     for empty in ["/", " // "] {
         let err = parse_target_spec(empty).expect_err("an empty spec must fail");
         assert!(
             format!("{err}").contains("No targets in"),
             "the error must name the spec, got: {err}"
+        );
+    }
+    for hollow in ["brave//firefox", "brave/", "/brave", " brave /  / firefox"] {
+        let err = parse_target_spec(hollow).expect_err("a hollow spec must fail");
+        assert!(
+            format!("{err}").contains("empty target in"),
+            "the error must name the empty segment, got: {err}"
         );
     }
 }

@@ -7,7 +7,7 @@ use anyhow::Result;
 
 use crate::commands::rates::resolve_rates;
 use crate::commands::safety::{
-    check_dangerous_target, is_dangerous_target, validate_multi_targets,
+    check_dangerous_target, is_dangerous_target, validate_multi_targets, validate_single_target,
 };
 
 #[cfg(feature = "ebpf")]
@@ -38,6 +38,11 @@ pub(crate) fn handle_strict_single(
              Example: zelynic strict-single brave 100kb"
         ));
     }
+
+    // NIGHT-dinner-16: the single-target input boundary — an empty
+    // target dies HERE, before the blocklist and the root ask, the
+    // same ladder rung the rate check owns.
+    validate_single_target(target_str, "zelynic strict-single brave 100kb")?;
 
     check_dangerous_target(target_str, force_this)?;
 
@@ -70,6 +75,17 @@ pub(crate) fn handle_strict_single(
         return Err(super::target_no_match_error(
             format!("No cgroup found for '{target_str}' — nothing was limited"),
             &tips,
+        ));
+    }
+
+    // NIGHT-dinner-16 (race-window parity with strict-multi/all): a
+    // concurrent unstrict-all can tear the pins down between apply
+    // and the success verdict — the verdict is verified BEFORE it
+    // prints, so a torn-down limit never reads as enforced.
+    if !crate::ebpf::limiter::Limiter::is_pinned() {
+        return Err(anyhow::anyhow!(
+            "BPF pins missing after apply — a concurrent operation may have interfered\n  \
+             tip: run 'zelynic recover' to repair state"
         ));
     }
 
@@ -153,18 +169,21 @@ pub(crate) fn handle_strict_multi(
     // NIGHT-improve-28: the multi form suggests the multi unstrict —
     // 'zelynic unstrict brave:curl' does not split colon lists (the
     // old suggestion was advice that could not round-trip).
-    super::apply_success_epilogue(&format!("zelynic unstrict-multi {targets_str}"), "remove");
-
-    // Validate final state: pins must still be present after apply. A
-    // concurrent operation (unstrict-all in another terminal) can tear
-    // them down mid-flight; the old code misattributed this to a
-    // "serve child" that no longer exists and read a stale log file.
+    // NIGHT-dinner-16: the race-window check moved BEFORE the
+    // success verdict — printing "OK." and then erroring on the
+    // torn-down state said both things at once.
     if !crate::ebpf::limiter::Limiter::is_pinned() {
         return Err(anyhow::anyhow!(
             "BPF pins missing after apply — a concurrent operation may have interfered\n  \
              tip: run 'zelynic recover' to repair state"
         ));
     }
+    super::apply_success_epilogue(&format!("zelynic unstrict-multi {targets_str}"), "remove");
+
+    // Validate final state: pins must still be present after apply. A
+    // concurrent operation (unstrict-all in another terminal) can tear
+    // them down mid-flight; the old code misattributed this to a
+    // "serve child" that no longer exists and read a stale log file.
     Ok(())
 }
 
@@ -271,16 +290,18 @@ pub(crate) fn handle_strict_all(
     // NIGHT-improve-28: strict-all reverses with the sledgehammer, not
     // a per-target unstrict — the old suggestion built
     // 'zelynic unstrict 3 apps', which is not a target at all.
-    super::apply_success_epilogue("zelynic unstrict-all", "remove");
-
-    // Validate final state: pins must still be present after apply (see
-    // handle_strict_multi for the rationale).
+    // NIGHT-dinner-16: the race-window check moved BEFORE the
+    // success verdict (the multi form's own ordering fix).
     if !crate::ebpf::limiter::Limiter::is_pinned() {
         return Err(anyhow::anyhow!(
             "BPF pins missing after apply — a concurrent operation may have interfered\n  \
              tip: run 'zelynic recover' to repair state"
         ));
     }
+    super::apply_success_epilogue("zelynic unstrict-all", "remove");
+
+    // Validate final state: pins must still be present after apply (see
+    // handle_strict_multi for the rationale).
     Ok(())
 }
 
@@ -332,6 +353,31 @@ mod tests {
         assert!(
             !msg.contains("root required"),
             "policy refusal must precede the root guard, got: {msg}"
+        );
+    }
+
+    /// NIGHT-dinner-16: an empty target dies at the input boundary —
+    /// before the blocklist and the privilege guard — instead of
+    /// flowing to the root ask as `Target::parse("")`'s invisible
+    /// `ProcessName("")` (the parse-before-execute ladder's missing
+    /// rung, closed by the verifier-lineage mandate).
+    #[cfg(feature = "ebpf")]
+    #[test]
+    fn empty_target_surfaces_before_root_guard() {
+        let err = handle_strict_single("", Some("1mb"), None, None, false, false)
+            .expect_err("an empty target must be refused");
+        let msg = format!("{err}");
+        assert!(
+            msg.contains("target is empty"),
+            "the empty-target verdict must lead, got: {msg}"
+        );
+        assert!(
+            msg.contains("zelynic strict-single brave 100kb"),
+            "the refusal must carry the example command, got: {msg}"
+        );
+        assert!(
+            !msg.contains("root required"),
+            "the input error must precede the root guard, got: {msg}"
         );
     }
 }

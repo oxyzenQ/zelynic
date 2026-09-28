@@ -46,20 +46,31 @@ use crate::output::{grey, print_json};
 /// anything else a process name. A spec that reduces to nothing is a
 /// usage error, surfaced BEFORE the root guard like every parse
 /// validation in this CLI.
+///
+/// NIGHT-dinner-16 (the verifier-lineage mandate): an EMPTY segment
+/// after the trim is refused, not dropped — the same blade-18
+/// contract the colon grammar owns ("empty segments hid a dropped
+/// app"). `brave//firefox` used to filter to [brave, firefox] and the
+/// hollow middle silently vanished; it can only be a typo, and a
+/// typo that hides a dropped watch target is the exact class this
+/// grammar now rejects. Whitespace around a slash stays legal
+/// (` brave / firefox `) — trim first, refuse only what remains
+/// empty.
 pub(crate) fn parse_target_spec(spec: &str) -> Result<Vec<Target>> {
-    let tokens: Vec<Target> = spec
-        .split('/')
-        .map(str::trim)
-        .filter(|t| !t.is_empty())
-        .map(Target::parse)
-        .collect();
-    if tokens.is_empty() {
+    let trimmed: Vec<&str> = spec.split('/').map(str::trim).collect();
+    if trimmed.iter().all(|t| t.is_empty()) {
         anyhow::bail!(
             "No targets in '{spec}' — pass process names or cgroup IDs \
              separated by '/' (e.g., 'zelynic eagle-eyes brave/firefox')"
         );
     }
-    Ok(tokens)
+    if trimmed.iter().any(|t| t.is_empty()) {
+        anyhow::bail!(
+            "empty target in '{spec}' (check the slashes) — pass names or \
+             cgroup IDs separated by '/'"
+        );
+    }
+    Ok(trimmed.into_iter().map(Target::parse).collect())
 }
 
 /// Resolve one name token to its live cgroup ids: the /proc walk the

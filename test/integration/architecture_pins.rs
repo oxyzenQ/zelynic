@@ -35,8 +35,7 @@ fn rs_files(dir: &str) -> Vec<(String, String)> {
     let mut out = Vec::new();
     let mut stack = vec![root.join(dir)];
     while let Some(d) = stack.pop() {
-        let entries = fs::read_dir(&d)
-            .unwrap_or_else(|e| panic!("read_dir {}: {e}", d.display()));
+        let entries = fs::read_dir(&d).unwrap_or_else(|e| panic!("read_dir {}: {e}", d.display()));
         for entry in entries {
             let path = entry.unwrap_or_else(|e| panic!("dir entry: {e}")).path();
             if path.is_dir() {
@@ -104,8 +103,10 @@ fn the_terminal_layer_is_reached_only_by_monitor_at_its_top_surface() {
     for line in monitor.lines() {
         if let Some(idx) = line.find("terminal::") {
             let tail = &line[idx + "terminal::".len()..];
-            let ident: String =
-                tail.chars().take_while(|c| c.is_ascii_alphanumeric() || *c == '_').collect();
+            let ident: String = tail
+                .chars()
+                .take_while(|c| c.is_ascii_alphanumeric() || *c == '_')
+                .collect();
             // The module surface speaks in two shapes: CamelCase types
             // (`terminal::Monitor::open` — the type and its associated
             // fn, both defined by terminal/mod.rs) and one-level fn
@@ -187,6 +188,51 @@ fn every_proc_comm_read_flows_through_the_sanitizer() {
     }
 }
 
+/// NIGHT-dinner-16: every apply-family handler verifies the pin state
+/// BEFORE printing its success verdict. The race is real: a concurrent
+/// `unstrict-all` in another terminal can tear the BPF pins down
+/// between apply and the epilogue — a success verdict printed on a
+/// torn-down limit reads as enforced while it is gone. The six
+/// handlers (strict-single/multi/all, block-single/multi/all) each
+/// carry the check; the textual tripwire counts the literal error
+/// sites per file so a handler that loses its check fails here, in
+/// the plain test lane, before it ships.
+#[test]
+fn every_apply_handler_verifies_pins_before_the_success_verdict() {
+    for (file, handlers) in [
+        ("src/commands/strict.rs", 3usize),
+        ("src/commands/block.rs", 3usize),
+    ] {
+        let text = src(file);
+        let checks = text.matches("BPF pins missing after apply").count();
+        assert_eq!(
+            checks, handlers,
+            "{file}: every apply handler (single/multi/all) must verify the \
+             post-apply pin state before the success verdict"
+        );
+        // And the verification precedes the verdict: walking the file
+        // line by line, every epilogue call must arrive AFTER the
+        // pins check of its own handler — the running count of checks
+        // never trails the running count of verdicts.
+        let mut checks_seen = 0usize;
+        let mut verdicts_seen = 0usize;
+        for line in text.lines() {
+            if line.contains("BPF pins missing after apply") {
+                checks_seen += 1;
+            }
+            if line.contains("apply_success_epilogue(") {
+                verdicts_seen += 1;
+                assert!(
+                    checks_seen >= verdicts_seen,
+                    "{file}: epilogue #{verdicts_seen} prints before its \
+                     handler's pins verification — the verdict must be \
+                     verified first"
+                );
+            }
+        }
+    }
+}
+
 /// NIGHT-dinner-15 (hunt-20 lineage): `with_u32_map`
 /// (src/ebpf/limiter/reclaim.rs) is the ONE acquisition path for
 /// u32-keyed limiter map mutation. The only sanctioned `.map_mut(`
@@ -200,8 +246,7 @@ fn limiter_map_mutation_has_one_acquisition_path() {
         for line in text.lines() {
             if line.contains(".map_mut(") {
                 assert!(
-                    name == "src/ebpf/limiter/reclaim.rs"
-                        || name == "src/ebpf/limiter/mod.rs",
+                    name == "src/ebpf/limiter/reclaim.rs" || name == "src/ebpf/limiter/mod.rs",
                     "{name}: map mutation outside the with_u32_map lane — {line}"
                 );
             }

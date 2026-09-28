@@ -13,7 +13,9 @@ pub fn handle_block_single(target_str: &str, force_this: bool, verbose: bool) ->
     // dangerous-target blocklist is pure string matching — a policy
     // refusal surfaces before the root requirement, the same
     // parse-before-execute ladder as the strict handlers (smoke-run
-    // find).
+    // find). NIGHT-dinner-16 adds the empty-target boundary at the
+    // same rung: `bs ""` dies HERE, not after the root ask.
+    super::safety::validate_single_target(target_str, "zelynic block-single brave")?;
     super::safety::check_dangerous_target(target_str, force_this)?;
 
     super::ensure_root()?;
@@ -43,6 +45,17 @@ pub fn handle_block_single(target_str: &str, force_this: bool, verbose: bool) ->
         return Err(super::target_no_match_error(
             format!("No cgroup found for '{target_str}' — nothing was blocked"),
             &tips,
+        ));
+    }
+
+    // NIGHT-dinner-16 (race-window parity with the strict family): a
+    // concurrent unstrict-all can tear the pins down between apply
+    // and the success verdict — the verdict is verified BEFORE it
+    // prints, so a torn-down block never reads as enforced.
+    if !crate::ebpf::limiter::Limiter::is_pinned() {
+        return Err(anyhow::anyhow!(
+            "BPF pins missing after apply — a concurrent operation may have interfered\n  \
+             tip: run 'zelynic recover' to repair state"
         ));
     }
 
@@ -99,6 +112,15 @@ pub fn handle_block_multi(targets_str: &str, force_this: bool, verbose: bool) ->
         return Err(super::target_no_match_error(
             format!("No cgroups found for any target in '{targets_str}' — nothing was blocked"),
             &[super::TIP_LIST_APPS.to_string()],
+        ));
+    }
+
+    // NIGHT-dinner-16 (race-window parity): verdict verified before
+    // it prints — the strict family's own ordering.
+    if !crate::ebpf::limiter::Limiter::is_pinned() {
+        return Err(anyhow::anyhow!(
+            "BPF pins missing after apply — a concurrent operation may have interfered\n  \
+             tip: run 'zelynic recover' to repair state"
         ));
     }
 
@@ -193,6 +215,16 @@ pub fn handle_block_all(force_this: bool, verbose: bool) -> Result<()> {
         upload: Some(0),
     };
     limiter.apply_group(&targets, &rates)?;
+
+    // NIGHT-dinner-16 (race-window parity): verdict verified before
+    // it prints.
+    if !crate::ebpf::limiter::Limiter::is_pinned() {
+        return Err(anyhow::anyhow!(
+            "BPF pins missing after apply — a concurrent operation may have interfered\n  \
+             tip: run 'zelynic recover' to repair state"
+        ));
+    }
+
     // NIGHT-improve-28: the whole-system block reverses with the
     // sledgehammer — 'unstrict-all' (the epilogue carries the green
     // OK. verdict and the follow-up commands).

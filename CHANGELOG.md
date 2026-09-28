@@ -19,6 +19,58 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Changed
 
+- **CLI: NIGHT-dinner-16 — the depth audit to peak: every input
+  value that can only be a mistake is now a hard error, and the
+  success verdicts verify the state they claim** (the owner's
+  verifier-lineage mandate: the eBPF kernel's verifier rejects a
+  program it cannot prove; the CLI holds the same line — after the
+  dinner-11 no-match fix at 9f7b0fd, this pass swept every input
+  surface again and closed the three gaps the sweep found). The
+  audit's starting verdict, for honesty: the tree was already near
+  peak — rate/duration parsing carries exact u128 math with
+  overflow contracts and typo tips, the colon grammar refuses its
+  hollow shapes (blade-18), the update lane refuses root before any
+  network I/O and sanitizes the untrusted tag, unwrap/expect/panic
+  live only inside test scopes, the .ok() swallows are the
+  documented best-effort /proc walks or the verified-count
+  contracts, and monotonic_ns's zero fallback is display-only.
+  The three gaps, closed: (1) the empty single target —
+  `Target::parse("")` flowed as an invisible `ProcessName("")`
+  past every input check, so `ss "" 100kb` died on "root required"
+  first (the parse-before-execute ladder violated at its first
+  rung) and `unstrict ""` read as a no-match with no target name
+  in it; validate_single_target now refuses empty and
+  whitespace-only targets at the boundary, wired into
+  strict-single, block-single, and unstrict-single, each carrying
+  the family's own example command. (2) the '/'-separated
+  eagle-eyes grammar FILTERED empty segments — `brave//firefox`
+  silently became [brave, firefox] and the hollow middle vanished,
+  exactly the class blade-18 closed for the colon grammar ("empty
+  segments hid a dropped app"); parse_target_spec now refuses any
+  empty-after-trim segment with its own wording (whitespace around
+  a slash stays legal), the old `" brave // firefox "` acceptance
+  pin is rewritten to the refusal contract, and USAGE.md documents
+  the rule. (3) the post-apply race check existed only in
+  strict-multi and strict-all — strict-single, block-single,
+  block-multi, and block-all printed their OK. verdict into a
+  window where a concurrent unstrict-all could already have torn
+  the pins down, so the user believed an enforcement that was gone;
+  all six apply handlers now verify `is_pinned()` before the
+  epilogue prints, and multi/all's old order (print success, then
+  error on the torn state — saying both things at once) is fixed
+  to verify-then-print too. New pins: the empty-target boundary
+  (strict.rs inline + safety_tests.rs), the hollow-spec refusals
+  (eagle_depth_tests.rs: `brave//firefox`, `brave/`, `/brave`,
+  `" brave /  / firefox "`), and a seventh architecture pin —
+  every_apply_handler_verifies_pins_before_the_success_verdict —
+  a textual tripwire counting the literal check sites per handler
+  file and walking the verdict order line by line, so a handler
+  that loses its race check or re-orders back to print-then-
+  verify fails the plain test lane. Benchmark: skipped — the
+  changed bytes are input-validation ordering and error paths,
+  cold-path only; the render engine, the monitor loop, and the
+  eBPF datapath are untouched (the no-delta contract).
+
 - **test: NIGHT-dinner-15 (architecture half) — the cosmic dragon's
   layer discipline leaves prose and becomes six rootless pins**
   (the owner's strengthen-the-architecture call: stable for the
