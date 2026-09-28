@@ -16,6 +16,51 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Changed
 
+- **docs: NIGHT-dinner-14 — the cost-saving story gets its evidence,
+  and the tier-pricing question gets its decision brief** (the
+  owner's two asks: can zelynic really save internet cost — WiFi and
+  mobile quota — without itself being a burden? And what does the
+  market say the top tiers should cost, before he decides any
+  move?). The cost answer lands as QA.md Q6, researched against the
+  tree like every ask-mode record: the cap IS the saving (a limit
+  converts unbounded background drain into a user-set budget —
+  `100kb` bounds an offender to ~8.6 GB/day worst case,
+  `block-single` to zero goodput, pinned by BLOCK_GOODPUT_CEIL; at
+  the global average ~$2.59/GB of mobile data, a 2 GB/day background
+  drain is ~$5/day of quota value); the tool itself costs nothing to
+  run (zero phone-home — src/ carries no network-client code at all,
+  the only self-initiated gesture being the explicit non-root
+  --check-update; no proxy detour — enforcement sits in-kernel at
+  the cgroup v2 hooks; datapath overhead pinned at 0.00% CPU); and
+  the honest limits are stated with it (no bandwidth creation, no
+  compression, root + cgroup v2 floor, per-cgroup rather than
+  per-remote-host scope, and a limit set too high saves nothing).
+  The pricing research lands as docs/research/
+  NIGHT_DINNER_14_PRICING_RESEARCH.md — the decision brief, not a
+  decision: consumer comparables (NetLimiter $29.95 one-time,
+  TripMode $11.99-$17.99/yr, Little Snitch $59 perpetual, GlassWire
+  $2.99-$15.99/mo — none of them on Linux), commercial anchors
+  (PRTG entry $2,149-$2,400/yr monitoring-only, mid $8,099-$8,904/yr,
+  field-reported ~$10K/yr after the 2025 increases), the Linux-lane
+  gap (no mainstream per-app limiter exists: monitor-only tools,
+  interface-level tc/htb CLI shaping, unmaintained trickle), and the
+  analysis the numbers support: Individual $99/yr already sits at
+  the TOP of its consumer band — its stronger play is the
+  cost-saving value story, not a raise — while Business ($1,000/yr)
+  is underpriced 2x+ against PRTG's monitoring-only entry and
+  Company ($9,900/yr with redistribution rights) sits mid-band, with
+  $1,990 and $14,900 the anchors support. Three options (hold
+  Individual and lift the business end / lift the whole ladder /
+  hold everything and sell the value first) with what-NOT-to-do
+  notes (no tier jumps past ~1.5x at zero sales friction, grand-
+  father existing buyers, keep the ladder legible) and the execution
+  checklist for whichever option the owner approves — including the
+  three-file sync the tier table lives in (README.md,
+  COMMERCIAL_LICENSE.md, LICENSING_FAQ.md) and the re-verification
+  of every sourced price at execution time. The research doc joins
+  the docs index. Docs-only: no code path touched, no benchmark run
+  (docs-only contract).
+
 - **supermassive-test: NIGHT-dinner-13 — the upload-direction
   verdicts ride the kernel ledger's own budget, retiring the
   write-ahead straddle** (the owner's determinism call: the matrix

@@ -214,6 +214,79 @@ honestly:
   refuse to inflate (see the "honest" sections across the docs and
   the peak-skip verdicts in the audit record). Different standards,
   yes — never lower ones where truth is involved.
+
+---
+
+## Q6 — Can zelynic really save internet cost (WiFi / mobile quota), without itself being a burden?
+
+The scenario behind the question, in the owner's words: a frustrated
+user watches a mobile hotspot or capped home connection die because a
+process they never chose to feed is eating it — an app they consider
+unworthy of their bandwidth, running wild in the background. The tools
+they could find only WATCH (monitoring dashboards that say "process
+A is eating your data" while it keeps eating), and the ones that can
+act demand tc, units, and a systems-engineering degree. That wall —
+from Linux newbie to every type of user — is the gap zelynic walks
+into, and the question is whether the tool actually converts that
+gap into saved money.
+
+**Yes — three mechanisms, each verifiable in the tree, with the honest
+limits stated after.**
+
+- **The cap IS the saving: control converts unbounded drain into a
+  budget the user sets.** A limit is a rate ceiling enforced at the
+  kernel's own cgroup hooks, so the arithmetic is public and exact:
+  `100kb` (decimal SI — 100 KB/s, the README's flagship example:
+  Brave capped while Firefox runs free) bounds an offender to at most
+  ~8.6 GB/day no matter how hungry it gets; `10kb` bounds it to
+  ~0.86 GB/day; `block-single` bounds it to zero goodput (pinned by
+  the harness's `BLOCK_GOODPUT_CEIL`, `scripts/supermassive/
+  supermassive-test.py`). The excess is DROPPED at the hook — the
+  status ledger's `packets_dropped` and `bytes_allowed` columns show
+  exactly what was refused and what passed (the dinner-11 semantics:
+  cumulative, uncapped counters, reclaimed on `unstrict`). On a
+  metered connection the ceiling is the invoice: at the global
+  average of roughly $2.59 per GB of mobile data (Cable.co.uk's
+  237-country survey; the US sits ~$5.62), a background drain of
+  2 GB/day is ~$5/day of quota — a 20 GB monthly hotspot plan gone in
+  ten days to processes the user never chose to feed, versus a
+  user-set budget that survives the month.
+- **The tool itself costs nothing to run — it cannot make the
+  problem worse.** Three facts, each checkable: (1) zero phone-home
+  — `src/` contains no network-client code at all (no reqwest, no
+  ureq, no TcpStream/UdpSocket dial-out; the only self-initiated
+  network gesture is the explicit, non-root `--check-update`,
+  `docs/FAQ.md` Privacy & telemetry); the binary talks to the kernel,
+  never to the internet. (2) no proxy detour — enforcement happens
+  in-kernel at the cgroup v2 egress/ingress hooks, so traffic is
+  never bounced through a userspace process: no double-copy, no MTU
+  games, no added latency path. (3) the datapath overhead is pinned
+  at 0.00% CPU (token-math pins, engine self-test, and the live
+  micro-VM proof — `docs/PERFORMANCE.md`,
+  `docs/CLAIMS_VERIFICATION.md`). A limiter that added traffic,
+  telemetry, or measurable CPU would be taxing the user to save them;
+  this one has no third mode — it passes bytes or drops them, and
+  adds none of its own.
+- **The honest limits** (the no-inflation contract, same as every
+  other claim in this record): zelynic cannot create bandwidth,
+  compress what the user lets through, or fix an ISP's metering — it
+  polices what the local machine sends and receives, per cgroup. It
+  needs root and cgroup v2 (kernel 5.13+, the documented floor —
+  `docs/KERNEL_COMPATIBILITY.md`). The unit of control is the local
+  cgroup (per app on this machine), not the remote host — the right
+  tool for "process A on my laptop is eating my hotspot", the wrong
+  one for "another device on my router". And a limit set too high
+  saves nothing: the saving comes from the user's decision; the tool
+  only makes the decision stick.
+
+The one-line verdict: **control without overhead** — the quota goes
+where the user decides, and nothing else takes a cut, not even the
+tool enforcing it. That is the entire cost story: not compression,
+not caching, just the budget the user set, held by a policer the
+kernel itself cannot be talked out of.
+
+---
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.
