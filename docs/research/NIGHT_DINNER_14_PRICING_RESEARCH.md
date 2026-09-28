@@ -10,6 +10,9 @@
 > on the table so HE decides what is worth approving. This document
 > is that research. It changes no price, edits no license, and
 > touches no user-facing file: it is the decision brief.
+>
+> Update 2026-09-28 (same day): the owner read the brief and made his
+> call — the executed decision is recorded in section 7.
 
 Research date: 2026-09-28. Prices are point-in-time snapshots from
 public sources, each named with its date; competitor pricing moves,
@@ -173,6 +176,24 @@ stronger Individual play is the cost-saving value story (QA.md Q6),
 not the price.** The choice between options A, B, and C is the
 owner's call alone; this brief exists so that call is made from
 evidence.
+
+## 7. The owner's decision (executed 2026-09-28)
+
+Option A, with one owner adjustment: **Business $1,990/year,
+Company $14,990/year.** Company lands $90 above the researched
+$14,900 anchor — still under the psychological $15K line the
+analysis drew, and the owner's number, not the research's.
+Individual holds at $99/year: section 3's read — it already sits
+at the top of its consumer band, and its stronger play is the
+cost-saving value story (QA.md Q6), not a raise. Effective from
+the first release tag after 2026-09-28, announced in the
+CHANGELOG rather than retroactively; buyers who paid before the
+move are grandfathered at the price they bought, for the term
+they bought (the what-NOT-to-do list honored). The three-file
+sync (section 5, item 1) — README.md, COMMERCIAL_LICENSE.md,
+LICENSING_FAQ.md — is the execution record. Same-day
+re-verification: every section 2 source was checked 2026-09-28,
+the same date as this execution — no source moved in between.
 
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
