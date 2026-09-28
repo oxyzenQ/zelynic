@@ -3,13 +3,14 @@
 
 # zelynic Q&A Record
 
-Ask-mode sessions (the NIGHT-ask series): the owner asks, the answer
-is researched against the source tree before it is written. Every
-claim below was verified against the code at the time of writing, and
-each answer names the file it came from — this record is evidence,
-not opinion. Questions arrive in the owner's own words (translated;
-the repo is English-only) and are kept focused: one question, one
-honest answer, no padding.
+Ask-mode sessions and owner QA rounds (the NIGHT-ask series, plus
+the NIGHT-dinner-17 deep-dive batch, Q7-Q13, 2026-09-28): the owner
+asks, the answer is researched against the source tree before it is
+written. Every claim below was verified against the code at the
+time of writing, and each answer names the file it came from — this
+record is evidence, not opinion. Questions arrive in the owner's
+own words (translated; the repo is English-only) and are kept
+focused: one question, one honest answer, no padding.
 
 ---
 
@@ -284,6 +285,287 @@ where the user decides, and nothing else takes a cut, not even the
 tool enforcing it. That is the entire cost story: not compression,
 not caching, just the budget the user set, held by a policer the
 kernel itself cannot be talked out of.
+
+---
+
+## Q7 — How does the technical architecture actually work, layer 0 to 4? How does the eBPF datapath achieve per-app attribution, and how do limits survive process exit?
+
+Five layers, one boundary each
+(docs/COSMIC_DRAGON_ARCHITECTURE.md, the canonical map; the module
+tree enforces the shape via test/integration/architecture_pins.rs):
+
+- **Layer 0 — BPF programs (kernel)**: two pure-Rust aya-ebpf
+  objects. The observer (`ebpf/src/main.rs`) hooks
+  `cgroup_skb/egress` + `cgroup_skb/ingress`; the limiter
+  (`ebpf/src/bin/limiter.rs`) hooks the same pair and enforces.
+- **Layer 1 — map interface** (`src/ebpf/loader.rs`): typed map
+  access — the only place that touches BPF maps directly.
+- **Layer 2 — identity resolution** (`src/ebpf/identity/`,
+  `src/ebpf/connections.rs`): cgroup id → process name/user/path,
+  plus the socket census. Userspace-only, best-effort.
+- **Layer 3 — aggregation** (`loader.rs::poll_and_summarize`):
+  deltas against the previous poll, wrap-coherent
+  (NIGHT-lts-5: modulo-2^64 subtraction, so a kernel counter that
+  wraps never silences a cgroup).
+- **Layer 4 — presentation** (`src/ebpf/render/`, `src/terminal/`):
+  CLI/JSON and the live monitor's diff-based frames.
+
+**Per-app attribution** is the cgroup trick, and it is exact
+(docs/PHILOSOPHY.md §1): every packet crossing the cgroup-v2 root
+carries `bpf_skb_cgroup_id(skb)` — the id of the SOCKET OWNER, not
+whatever task happens to be scheduled (TCP runs in softirq context,
+far from the sender; task-based attribution is structurally wrong at
+line rate). Both hooks are attached at `/sys/fs/cgroup` itself, so
+every cgroup on the machine is a potential key: the policy maps hold
+only the policed few (`try_enforce`'s unlimited fast path,
+NIGHT-lts-2 — an unpoliced packet costs two lookups and returns).
+An app "is" its cgroup: `strict-single brave` resolves the name to
+cgroup ids via the /proc walk and writes a token-bucket policy keyed
+by that id; the kernel does the rest with zero zelynic processes
+alive.
+
+**Surviving process exit** is pinning, and it is the whole design
+(`Limiter::attach`, src/ebpf/limiter/mod.rs): the two programs AND
+the two cgroup bpf_links are pinned under `/sys/fs/bpf/zelynic/`,
+and all nine maps ride `LIBBPF_PIN_BY_NAME`. A bpf_link is a kernel
+object — once created and pinned, the attachment it represents is
+kernel state, not process state. `zelynic ss brave 100kb` is a
+one-shot: load, pin, write policy, exit. The limit then runs for as
+long as the pins exist, through reboots of nothing except the
+machine itself (bpffs is wiped at boot — a documented non-goal of
+persistence-across-boot, README §Maintenance). The operational-pin
+predicate (`pins_operational`, NIGHT-hunt-19) refuses to "reuse" a
+half-attached state: on bpf_link kernels (5.7+), program pins
+without link pins enforce nothing, so the next attach reloads
+instead of silently trusting dead state.
+
+## Q8 — The owner's mature project has three engines — Cosmic Dragon, Chroma Dragon, Crystal Dragon. What is the difference, and why three?
+
+That engine family is **cosmostrix's** rendering architecture
+(github.com/oxyzenQ/cosmostrix, docs/THREE_DRAGON_ENGINES.md), and
+the split is a separation-of-concerns answer to one question: what
+does a frame COST, in cells, in color, in mood?
+
+- **Cosmic Dragon** (`src/engine/cosmic_dragon_engine/`) owns *what
+  cells changed*: the diff-based render loop — a persistent
+  back-buffer compared frame-to-frame, only dirty cells emitted as
+  ANSI with RLE batching. ~360 cell-writes instead of 4,800 on a
+  120×40 terminal (a 13× I/O reduction), which is what makes
+  cinematic effects affordable at 60–240 FPS on ~4–5 MiB and one
+  core.
+- **Chroma Dragon** (`src/engine/chroma_dragon_engine/`) owns *what
+  color a cell becomes*: palette construction in OKlab perceptual
+  space (no muddy mid-tones), hue-preserving polar gradients, the
+  per-cell shader pipeline — locked at Phase 9-D behind an invariant
+  lock suite.
+- **Crystal Dragon** (`src/engine/crystal_dragon_engine/`) owns
+  *what mood the rain has*: ambient palette drift driven by system
+  state, time-of-day scene scheduling, temperature grouping.
+
+Why three: they never share mutable state — they communicate only
+through the immutable `Cloud` snapshot each frame, so a color
+regression cannot corrupt a physics invariant and an ambient scene
+swap cannot touch the diff buffer. Each engine is independently
+testable and independently lockable.
+
+**What zelynic inherited**: the Cosmic Dragon's diff discipline,
+scaled down to a utility — `src/terminal/diff.rs` is the
+cosmic-dragon-engine adaptation (NIGHT-improve-2): the renderer
+builds logical lines, the engine diffs against the previous frame's
+shadow and emits only changed rows in ONE write syscall; idle
+frames emit nothing. The purple brand and the dragon register
+(docs/BRANDING.md, the GPG identity, the `dragonzen` persona) are
+the same lineage; the Chroma/Crystal concerns do not apply to a
+monitor whose palette is four semantic tiers, so zelynic carries
+one engine's worth of that architecture, not three.
+
+## Q9 — Why do the commits read "Internal research: ..." instead of conventional commits (feat:/fix:)?
+
+The git log IS the research record, and conventional commits would
+flatten it into a changelog grammar the project does not need
+(evidence: every commit message in the log; the CHANGELOG entries
+carry the same narrative shape).
+
+- **The prefix states the frame**: these are research-campaign
+  tasks (the NIGHT series) executed against a live tree — an
+  investigation with a hypothesis, a fix, and a verification, not a
+  feature ticket. "Internal research:" says exactly what the commit
+  is: knowledge produced inside the project, by the project.
+- **The narrative carries the WHY and the proof, not just the
+  WHAT**: a conventional `fix: hard-error on ee typo` would drop
+  the load-bearing parts — WHY the soft-enter violated the
+  eBPF-verifier lineage (the kernel rejects what it cannot prove;
+  the CLI holds the same line), WHAT was measured before the fix,
+  WHICH pins hold it after. In this repo the bug is half the
+  artifact; the reasoning is the other half (see any CHANGELOG.md
+  entry: claim, evidence, file, task id).
+- **Traceability is the task id, not the type**: `NIGHT-dinner-18`
+  names the campaign (NIGHT), the session (dinner), and the task
+  (18) — greppable across commits, changelog entries, and the
+  in-code comment markers at every fix site (the `NIGHT-*`
+  references that annotate src/). A `feat:` label could not do
+  that; a task id does it exactly.
+- **The sign-off closes the provenance**: every commit carries
+  `Signed-off-by` (DCO-style) — the audit trail states who
+  researched and applied the change, which matters for a
+  dual-licensed (GPL-3.0-only + commercial) tree where contribution
+  provenance is a legal fact, not a courtesy
+  (docs/LICENSING_FAQ.md).
+
+## Q10 — What is the bug-handling pattern, from finding to fix?
+
+Five steps, visible identically across every NIGHT-* incident
+record (examples cited from CHANGELOG.md and the in-code markers):
+
+1. **Reproduce or measure first** — the claim is never trusted
+   until it produces a number or a transcript: the SMP race was
+   measured at 130–146% of budget under 2–6 concurrent flows before
+   the v7 rewrite (NIGHT-boost-38); the consume retry was chosen
+   because a probe measured 1.35% falsely-dropped affordable
+   packets (NIGHT-lts-8); the dinner-11 fix started from the
+   owner's own transcript showing `ss cg8401` reading as calm
+   success.
+2. **Root-cause in the mechanism, not the symptom** — the lost
+   update was found as the exact interleaving (load/load/
+   store/store) in the bucket math, not "rates are wrong"; the
+   stack overflow was found as re-entrant drop recursion in the
+   pidfd close (the 02284dd incident, regression-pinned in
+   connections.rs).
+3. **Fix at the boundary, once** — one canonical implementation per
+   resource class (the `/proc` comm read is ONE function, the
+   pin-open surface is ONE helper pair, every u32-map mutation
+   flows through `with_u32_map`) so the fix lands everywhere by
+   construction.
+4. **Pin it** — every fix ships with a rootless regression test
+   that fails on the old shape (math_smp_tests, stats_smp_tests,
+   no_match_tests, the dinner-18 liveness-gate pins in
+   test/commands/eagle_depth_tests.rs). The pin is the fix's
+   permanent proof.
+5. **Document at the site and in the ledger** — a `NIGHT-*` comment
+   at the fix site explaining the mechanism (so a future editor
+   cannot unknowingly revert it), plus the CHANGELOG entry with the
+   full story. Frozen records are never rewritten; the history is
+   the audit trail.
+
+The pattern's invariant: a bug is not "closed" when the symptom
+disappears — it is closed when the mechanism is understood, the fix
+is pinned, and the reasoning is written where the next maintainer
+will trip over it.
+
+## Q11 — How is the documentation organized? (The 228-Markdown question)
+
+The honest split first: zelynic's own tree carries **34 .md files**
+today (root governance docs + docs/ + the test-tree rule files;
+counted live after NIGHT-dinner-19 removed the root changelog-era
+duplicate). The 228-file figure is the cross-project aggregate of
+the owner's documentation discipline at scale — cosmostrix's tree
+alone indexes dozens (its docs/README.md quick-nav + per-engine
+specs + benchmarking suite + workflow/ + archive/), and both
+projects share the same organization scheme. The scheme, which is
+the actual answer to "how is it all managed":
+
+- **One index, one map**: docs/README.md is the master navigation —
+  a "I want to... → go to" table plus per-category tables
+  (Architecture, Trust & Safety, Performance, Research, Release,
+  Audits, Archive). Every doc answers one question well; the index
+  says which.
+- **One home per concern**: root carries the governance/legal set
+  (README, CHANGELOG, CONTRIBUTING, SECURITY, CLA, LICENSE-side
+  docs, this QA ledger); docs/ carries the user/engineering set
+  (USAGE, FAQ, KERNEL_COMPATIBILITY, PERFORMANCE, PHILIOSOPHY,
+  RULES, BRANDING, ...); docs/research/ holds dated investigation
+  records (`<TASK>_<SUBJECT>.md`); docs/audits/ holds dated
+  immutable incident/audit records (`<SUBJECT>_<YYYY-MM-DD>.md`);
+  docs/archive/ holds frozen history that must stay readable in
+  every checkout but never changes.
+- **Naming conventions carry the category**: research and audit
+  files embed the task id and the date — the filename is the
+  provenance.
+- **The disclaimer contract absorbs staleness honestly**: every
+  living .md carries the ZELYNIC-DISCLAIMER block stating source
+  code is the single source of truth and docs may lag — injected
+  and verified by gate (scripts/gates/inject-disclaimer.sh, wired
+  into gate-keepers.sh), so the 34-file tree stays maintainable
+  without pretending perfection.
+- **Gates, not hope**: markdownlint + codespell + the
+  English-only language gate + the license-header gate all run over
+  .md files in CI; docs are code.
+
+## Q12 — Why eBPF, and not a kernel module or a userspace shaper?
+
+The legacy stack answered this by existing badly: zelynic v10 and
+earlier coordinated `tc` + `nft` + `systemd-run` — three config
+formats, three failure modes, three counters that never agreed
+(docs/COSMIC_DRAGON_ARCHITECTURE.md §Why). The rewrite chose eBPF
+against the two alternatives deliberately:
+
+- **vs. a kernel module**: a kmod is a portability and safety
+  contract a per-app shaper cannot afford. It must match the
+  running kernel's build (or ride DKMS — a build chain on every
+  user's machine), it can panic the kernel (eBPF verification
+  rejects the program instead: the verifier PROVES termination and
+  memory safety before load — the project's own hard-error
+  discipline is named after this, the "verifier lineage"), it
+  bypasses the kernel's network stack versioning (cgroup_skb is a
+  stable UAPI), and shipping it means out-of-tree binaries for
+  every distro. eBPF gives the same in-kernel enforcement point
+  with none of those liabilities; the cost is the verifier's
+  constraints (no loops without bounds, no arbitrary pointers) —
+  constraints this project treats as a feature.
+- **vs. a userspace shaper** (proxy/tc userspace/ld_preload): every
+  userspace point is either opt-in per app (LD_PRELOAD misses
+  static binaries, setuid, root daemons), a MITM proxy (cert
+  problems, protocol parsing, itself a dependency), or a
+  process-context trick that dies with the process and cannot see
+  softirq-context traffic correctly. The kernel is the only place
+  where EVERY packet, from EVERY app, is already attributed to its
+  owner — `bpf_skb_cgroup_id` gives per-app classification as a
+  kernel fact, not a heuristic.
+- **The trade-offs accepted, documented not hidden**: the 5.13+
+  kernel floor with cgroup v2 (docs/KERNEL_COMPATIBILITY.md), the
+  CAP_BPF/root requirement (with the fail-safe direction: on any
+  internal failure the programs ALLOW — availability trumps
+  enforcement, Principle 4), the verifier's finite map sizes
+  (1024-entry policy ceilings, LRU counters — USAGE limitation 11),
+  and the nightly-toolchain build cost quarantined from users
+  (docs/STABILITY.md: users install prebuilt objects on a stable
+  toolchain; only source builders meet the nightly pin).
+
+## Q13 — What is the future — v12? v100?
+
+v11 is maintenance mode, by recorded decision (README §Maintenance
+Mode: "future releases prioritize stability, compatibility,
+performance, and bug fixes over feature expansion" — no new
+features unless critical for security or compatibility; the release
+cadence is "when needed"). The honest answer has three parts:
+
+- **What v11.x will keep doing**: kernel-compatibility widening
+  (6.1/6.6 LTS verification is the one open roadmap row), the
+  nightly eBPF toolchain pin riding forward with its
+  bpf-linker pairing, and hardening passes like dinner-18 —
+  the tree is at "ready for server and desktop LTS" precisely
+  because the roadmap stopped growing and started deepening.
+- **What a v12 would have to be**: not a feature dump. The
+  architecture's own unscheduled ideas list
+  (COSMIC_DRAGON_ARCHITECTURE.md §Future ideas) names the honest
+  candidates — a DSCP policer program, an XDP ingress counter,
+  systemd-unit-name resolution — and each one would have to clear
+  the same bar v11 did: one hooking layer, fail-safe, verified
+  across the distro matrix. A version bump that cannot meet the
+  bar does not ship (the CHANGELOG's schema-version discipline —
+  nine schema versions inside v11, each a measured behavioral
+  change — is the precedent: behavior moves when it is proven,
+  versions are labels).
+- **What v100 means**: that number already exists in the family —
+  cosmostrix is at v100.0.0-beta.1 — and it stands for the same
+  thing there that v11 stands for here: a version number is the
+  campaign ledger's bookmark, not a promise of scope. zelynic's
+  future is bounded by its non-goals (no Windows, no macOS eBPF, no
+  daemon, no REST/MCP surface — all recorded as permanent), and
+  within those bounds the ceiling is the eBPF one the project
+  already audits against: every dimension measured against "what
+  the kernel can prove," which is exactly where the depth audits
+  keep finding the answer "already at peak."
 
 ---
 
