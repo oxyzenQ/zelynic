@@ -239,6 +239,14 @@ pub(crate) fn print_help() {
     println_safe!("{}", brand_bold("Target formats:"));
     println_safe!("  <process_name>  e.g., brave, firefox, curl");
     println_safe!("  <cgroup_id>     e.g., 73386 (use 'zelynic list-apps' to find)");
+    // NIGHT-dinner-10: the display prefix is a real third form, not a
+    // decoration — every output surface prints cgroups as `cg:73386`
+    // (the status table, the eagle-eyes footer, the unstrict echo),
+    // and the eagle-eyes footer's suggested command carries it
+    // verbatim. The grammar section must list what the tool itself
+    // tells users to paste (NIGHT-boost-37's round-trip contract).
+    println_safe!("  cg:<cgroup_id>  the display prefix every surface prints (cg:73386) —");
+    println_safe!("                  paste it back: the same direct target as the bare ID");
     println_safe!();
     println_safe!("{}", brand_bold("Safety:"));
     println_safe!("  • Min-rate guard: rejects < 1kb");

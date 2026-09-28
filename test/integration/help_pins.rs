@@ -307,6 +307,36 @@ fn test_help_monitor_quit_contract_is_q_only() {
     );
 }
 
+/// NIGHT-dinner-10: the Target formats section documents ALL THREE
+/// accepted forms. The `cg:` display prefix is a real targeting form
+/// (NIGHT-boost-37's round-trip contract: every output surface prints
+/// cgroups as `cg:73386`, and the eagle-eyes footer's suggested
+/// command carries it verbatim), so the grammar section must list
+/// what the tool itself tells users to paste — the owner hit exactly
+/// this ambiguity when the section named only two of the three forms.
+#[test]
+fn test_help_documents_every_target_form() {
+    let output = zelynic_cmd()
+        .arg("--help")
+        .output()
+        .expect("Failed to execute zelynic --help");
+
+    assert_eq!(output.status.code(), Some(0));
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    for needle in [
+        "Target formats:",
+        "  <process_name>  e.g., brave, firefox, curl",
+        "  <cgroup_id>     e.g., 73386 (use 'zelynic list-apps' to find)",
+        "  cg:<cgroup_id>  the display prefix every surface prints (cg:73386) —",
+        "                  paste it back: the same direct target as the bare ID",
+    ] {
+        assert!(
+            stdout.contains(needle),
+            "--help must document the target form ('{needle}'), got:\n{stdout}"
+        );
+    }
+}
+
 /// Bare invocation prints the same single reference as --help (exit 0,
 /// stdout) — the old clap auto-help path is gone with the single-tier
 /// help surface.

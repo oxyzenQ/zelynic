@@ -16,6 +16,29 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Changed
 
+- **help: NIGHT-dinner-10 — the Target formats section names the third
+  form** (the owner's ambiguity find: the section documented only
+  process names and bare cgroup IDs, while `cg:8401` — the display
+  prefix every output surface prints — silently worked as a direct
+  target, leaving the owner unsure which spellings actually lock a
+  target). Ruled from source, not by preference: `Target::parse`
+  (NIGHT-boost-37) accepts the `cg:` prefix over a numeric
+  remainder as the same direct cgroup ID as the bare form — the
+  round-trip contract that makes the eagle-eyes footer's suggested
+  command (`sudo zelynic ss cg:48181 100kb`) work verbatim instead
+  of being a guaranteed no-op, and it is pinned by the parse unit
+  tests (prefix + bare resolve identically; a non-numeric remainder
+  like `cg:brave` keeps the whole string as a graceful no-match
+  name). Removing the form would regress that fix; the gap was the
+  documentation, so the documentation closes: the section now lists
+  `cg:<cgroup_id>` with its one-line contract — the display prefix
+  every surface prints, paste it back, same direct target as the
+  bare ID. A new drift pin (help_pins' `documents_every_target_form`)
+  holds all three lines verbatim so the section cannot shrink
+  silently again. USAGE.md already told the round-trip story
+  (twice); README defers to --help and needs nothing. Help-only
+  change plus one test.
+
 - **docs: NIGHT-dinner-8 second rider — the README's Test Results
   section shrinks from five prose walls to one table** (the owner's
   approved follow-up to the tidying pass). The five harness
