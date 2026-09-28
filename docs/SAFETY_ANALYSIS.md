@@ -510,7 +510,7 @@ unprivileged attacker:
   unstricting/blocking the wrong target.
 - **Escape sequences** corrupt the alt-screen monitor mid-render.
 
-Fix: `sanitize_comm()` (src/ebpf/identity/sanitize.rs) replaces every
+Fix: `sanitize_comm()` (src/output/sanitize.rs) replaces every
 control character — Rust `char::is_control`, covering C0, DEL, and
 the C1 range — with `?` at all THREE /proc read boundaries (identity
 walk, connection walk, and the resolve_target match walk), so every

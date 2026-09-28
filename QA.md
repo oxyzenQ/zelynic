@@ -472,7 +472,7 @@ the actual answer to "how is it all managed":
 - **One home per concern**: root carries the governance/legal set
   (README, CHANGELOG, CONTRIBUTING, SECURITY, CLA, LICENSE-side
   docs, this QA ledger); docs/ carries the user/engineering set
-  (USAGE, FAQ, KERNEL_COMPATIBILITY, PERFORMANCE, PHILIOSOPHY,
+  (USAGE, FAQ, KERNEL_COMPATIBILITY, PERFORMANCE, PHILOSOPHY,
   RULES, BRANDING, ...); docs/research/ holds dated investigation
   records (`<TASK>_<SUBJECT>.md`); docs/audits/ holds dated
   immutable incident/audit records (`<SUBJECT>_<YYYY-MM-DD>.md`);

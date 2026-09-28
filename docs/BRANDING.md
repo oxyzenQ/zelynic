@@ -351,7 +351,7 @@ surface, which never themes.
 
 ### 4.1. Logo file
 
-The official logo is located at [`assets/zelynic-logo-master.png`](assets/zelynic-logo-master.png).
+The official logo is located at [`assets/zelynic-logo-master.png`](../assets/zelynic-logo-master.png).
 
 ### 4.2. Usage rules
 

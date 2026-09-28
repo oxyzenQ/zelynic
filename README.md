@@ -574,7 +574,7 @@ policy, supported versions, and what counts as a vulnerability live in
 - [Q&A Record](QA.md) — owner questions answered against the source (ask-mode sessions)
 
 The rest of the shelf — the [FAQ](docs/FAQ.md), the
-[philosophy](docs/PHILIOSOPHY.md) and [branding](docs/BRANDING.md)
+[philosophy](docs/PHILOSOPHY.md) and [branding](docs/BRANDING.md)
 records, the owner's [maintenance playbook](docs/MAINTENANCE.md),
 and the dated research set (the [pure-Rust eBPF
 evaluation](docs/PURE_RUST_EVALUATION.md), the [toolchain and
