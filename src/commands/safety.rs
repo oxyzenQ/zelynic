@@ -119,6 +119,27 @@ pub(crate) fn is_dangerous_target(name: &str) -> bool {
 #[path = "../../test/commands/safety_tests.rs"]
 mod tests;
 
+/// NIGHT-dinner-16 (the verifier-lineage mandate): the single-target
+/// input boundary. An empty or whitespace-only target can only be a
+/// mistake — a live process's comm is never empty, so the /proc walk
+/// can never match it — yet the old path let `Target::parse("")`
+/// flow as a `ProcessName("")` past every input check: the error a
+/// non-root user saw first was "root required" (the parse-before-
+/// execute ladder violated at its first rung), and `unstrict ""` read
+/// as a no-match with an invisible target name. Refused at the same
+/// boundary as the rate ladder and the blocklist, before any
+/// privilege ask.
+#[cfg(feature = "ebpf")]
+pub(crate) fn validate_single_target(target_str: &str, example: &str) -> Result<()> {
+    if target_str.trim().is_empty() {
+        return Err(anyhow::anyhow!(
+            "target is empty — pass a process name or cgroup ID\n  \
+             Example: {example}"
+        ));
+    }
+    Ok(())
+}
+
 /// Validate target against dangerous list. Returns Ok if safe, Err if dangerous.
 #[cfg(feature = "ebpf")]
 pub(crate) fn check_dangerous_target(target_str: &str, force_this: bool) -> Result<()> {

@@ -781,6 +781,11 @@ rate, lifetime totals (both lifetime counters summed — download and
 upload since attach, never a per-refresh delta), and every
 socket-holding process with its endpoints, uncapped. Multiple
 targets (`12345/brave/firefox`) keep the ranked table, filtered.
+An empty segment in the slash list is refused, not dropped
+(NIGHT-dinner-16, the blade-18 colon contract mirrored): `brave//`
+is a usage error naming the empty segment — a hollow spec can only
+be a typo, and a typo that silently drops a watch target is the
+exact mistake the grammar now refuses.
 Resolution re-runs every frame against the live identity map, so an
 app started mid-session appears on the next refresh. Default refresh
 1s — realtime precision; `--interval` calms it down to at most 60s.

@@ -275,3 +275,35 @@ fn multi_list_grammar_refuses_the_mistake_shapes() {
         "whitespace-only segments are empty after the contract trim"
     );
 }
+
+/// NIGHT-dinner-16 (the verifier-lineage mandate): the single-target
+/// input boundary — an empty or whitespace-only target can only be a
+/// mistake (a live comm is never empty, so the /proc walk can never
+/// match it), and it dies at the parse-before-execute rung, before the
+/// blocklist and the root ask. The error names the fix with the
+/// family's own example command.
+#[test]
+fn empty_single_target_is_refused_at_the_input_boundary() {
+    let ex = "zelynic strict-single brave 100kb";
+    for empty in ["", " ", "\t", "  \t "] {
+        let msg = validate_single_target(empty, ex)
+            .expect_err("an empty target must be refused")
+            .to_string();
+        assert!(
+            msg.contains("target is empty"),
+            "the verdict must lead, got: {msg}"
+        );
+        assert!(
+            msg.contains(ex),
+            "the refusal must carry the family's example command, got: {msg}"
+        );
+    }
+    assert!(
+        validate_single_target("brave", ex).is_ok(),
+        "a real target passes the boundary untouched"
+    );
+    assert!(
+        validate_single_target("cg:48181", ex).is_ok(),
+        "the canonical display prefix round-trips the boundary"
+    );
+}

@@ -10,6 +10,12 @@ use anyhow::Result;
 
 #[cfg(feature = "ebpf")]
 pub fn handle_unstrict(target_str: &str, verbose: bool) -> Result<()> {
+    // NIGHT-dinner-16: the single-target input boundary — an empty
+    // target dies before the root ask (the parse-before-execute
+    // ladder), instead of reading as a no-match with an invisible
+    // target name after privileges were already granted.
+    super::safety::validate_single_target(target_str, "zelynic unstrict-single brave")?;
+
     super::ensure_root()?;
 
     // Prevent concurrent operations (race condition elimination).
