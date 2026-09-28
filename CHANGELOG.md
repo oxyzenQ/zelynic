@@ -8,13 +8,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 The changelog is split into per-era files so this one stays navigable
 (NIGHT-docs-1): the NIGHT research campaign that built the v11 line
 moved verbatim to [CHANGELOG-V11-ERA.md](CHANGELOG-V11-ERA.md); this
-file carries only the entries newer than that campaign. The pre-v11
-release history (v2.0.0 through v10.0.0) is archived in git history
-alone — the owner's NIGHT-hunt-18 call.
+file carries only the entries newer than that campaign — the v11 era
+alone. The pre-v11 release history (entries [1.0.0] through [7.0.0])
+is archived in
+[docs/archive/CHANGELOG_PRE_V11.md](docs/archive/CHANGELOG_PRE_V11.md)
+— restored there by NIGHT-dinner-15 (2026-09-28), superseding
+NIGHT-hunt-18's git-history-only call.
 
 ## [Unreleased]
 
 ### Changed
+
+- **docs: NIGHT-dinner-15 (changelog half) — the pre-v11 era comes
+  home to docs/archive/ and the root changelog carries the v11 era
+  alone** (the owner's lean-and-clean cut: root CHANGELOG.md is the
+  v11 era only, the older history moves to a docs archive). Verified
+  state first: the pre-v11 release entries were ALREADY out of this
+  file — NIGHT-hunt-18 (2026-09-19, commit 53904a1) deleted
+  CHANGELOG-V10-ERA.md under the "git history is the only archive"
+  call, and this file's 6017 lines were all v11-era entries (the
+  [Unreleased] section plus the split pointers). What this task
+  changes: (1) the deleted blob is RESTORED byte-identical (the
+  243,002 entry bytes proven equal to the 53904a1^ parent blob) as
+  docs/archive/CHANGELOG_PRE_V11.md — the cosmostrix
+  docs/archive/CHANGELOG_PRE_V13.md lineage — so the pre-v11 line
+  (entries [1.0.0] 2026-01-01 through [7.0.0] 2026-07-11) is
+  readable in every checkout again, behind a new framing header that
+  records the provenance and the honest scope note (v8.0.0, v9.0.0,
+  v10.0.0 cut git tags without changelog entries — their record is
+  the tag and the git history between v7.0.0 and the v11 campaign);
+  (2) the root intro paragraph and the History section now point at
+  the archive file, superseding the git-history-only wording;
+  (3) docs/README.md gains the Archive section and the Project Meta
+  row names all three changelog surfaces (active v11 file, frozen
+  v11 campaign, pre-v11 archive). Benchmark: skipped — documentation
+  only, no render-path or runtime code touched.
 
 - **supermassive-test: NIGHT-dinner-13 second rider — the overhead
   row rides interleaved best-of-three windows and the kernel's
@@ -6014,4 +6042,12 @@ research campaign, 2026-09-17 to 2026-09-19, every entry from the
 v10.0.0 stable tag up to NIGHT-hunt-25 — lives in
 [CHANGELOG-V11-ERA.md](CHANGELOG-V11-ERA.md), split out in
 NIGHT-docs-1 to keep this file lean. Entries there are verbatim
+historical records and are never rewritten.
+
+The pre-v11 release history — entries [1.0.0] (2026-01-01) through
+[7.0.0] (2026-07-11), the deleted v10-era file — lives in
+[docs/archive/CHANGELOG_PRE_V11.md](docs/archive/CHANGELOG_PRE_V11.md):
+NIGHT-hunt-18 removed it to git history alone; NIGHT-dinner-15
+(2026-09-28) restored the byte-identical blob into docs/archive/ so
+the era is readable in every checkout. Entries there are verbatim
 historical records and are never rewritten.
