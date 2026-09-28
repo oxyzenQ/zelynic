@@ -42,8 +42,9 @@ pub(crate) fn print_help() {
         brand_bold("━━━ zelynic — Per-app Network Rate Limiter & Monitor ━━━")
     );
     println_safe!();
-    println_safe!("Limit and observe any app's download/upload speed using eBPF.");
-    println_safe!("Pure kernel enforcement — no tc, no nft. Requires kernel 5.13+ and root.");
+    println_safe!(
+        "Limit and observe any app's download/upload speed using eBPF — pure kernel enforcement."
+    );
     println_safe!();
     println_safe!("{}", brand_bold("Commands:"));
     println_safe!();

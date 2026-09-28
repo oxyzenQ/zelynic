@@ -51,7 +51,7 @@ honest residuals) lives in
 |------|--------|
 | **Pure eBPF datapath** | Zero intermediaries. The kernel IS the rate limiter. |
 | **Pinned bpf_links** | Enforcement survives process exit — no daemon, no battery drain (RAM/CPU/IO measured live, not asserted: the proof harness's footprint claim). |
-| **Fractional precision** | 0.00% rate error, sub-byte token accumulation (live proof: `sudo ./scripts/bench/proof-claims.sh`; math pins: test/ebpf/limiter/math_tests.rs). |
+| **Fractional precision** | 0.00% measured rate error, sub-byte token accumulation (reproduce: `sudo ./scripts/bench/proof-claims.sh`; math pins: test/ebpf/limiter/math_tests.rs). |
 | **Schema migration** | BPF struct changes auto-detected + auto-cleaned on upgrade. |
 | **Crash recovery** | `zelynic recover` detects + removes orphaned BPF pins. |
 | **Discovery workflow** | `zelynic eagle-eyes` (live box) finds bandwidth hogs — other limiters can't discover. |
@@ -80,7 +80,12 @@ feature graph in CI — the rules and evidence live in the audit doc and
 | `nftables` + `tc` | Mark + shape | Complex setup | No | Integer |
 | `wondershaper` | tc wrapper | Global only | No | Integer |
 | `trickle` | LD_PRELOAD | Dynamic only | No | Integer |
-| **zelynic** | **Pure eBPF** | **Per-cgroup** | **No** | **0.00%** |
+| **zelynic** | **Pure eBPF** | **Per-cgroup** | **No** | **0.00%*** |
+
+\* A measurement, not a promise — the proof harness's verdict on the
+tested kernels. Reproduce it: `sudo ./scripts/bench/proof-claims.sh`
+(the residual prints next to the verdict; the full ledger lives in
+[docs/CLAIMS_VERIFICATION.md](docs/CLAIMS_VERIFICATION.md)).
 
 ## Quick Start
 
@@ -437,6 +442,9 @@ and the missing 1% fails closed and says so.**
 - **Rate bounds guard**: 1 KB/s..1 TB/s, `--force-this` overrides
 - **Fail-safe BPF**: returns "allow" on any error path (never blocks on failure)
 - **Dangerous target protection**: 57 system processes blocked by default
+  — the list ships in source (`src/commands/safety.rs`,
+  `DANGEROUS_TARGETS`), and `--help` prints the count live from it, so
+  the number cannot drift
 - **Overflow detection**: absurd rates show a friendly warning, not wrapped values
 - **File lock**: prevents concurrent operations from corrupting BPF state
 - **Kernel version detection**: graceful fallback for kernel < 5.7 (legacy bpf_prog_attach)
@@ -560,10 +568,17 @@ policy, supported versions, and what counts as a vulnerability live in
 ## Test Results
 
 Verified on 6 distributions — every one passed the depth and leak
-suites, and real enforcement was measured against live browsers
-(the full record, per-distro details, and the accuracy table live in
+suites (Fedora's four leak rows were bpftool false positives, kept
+verbatim in the record), and real enforcement was measured against
+live browsers. Honest context for the rows: they are 2026 runs — the
+kernel 7.x and Ubuntu 26.04 entries are the current 2026 release
+lanes, not typos — one row on bare metal, one on a Live ISO, four in
+QEMU/KVM VMs, and all measured the pre-phase-3 tarball (the
+self-contained binary came after). Today the CI lane re-validates
+the current binary on every core push. The full record, per-distro
+details, and the accuracy table live in
 [docs/CROSS_DISTRO_RESULTS.md](docs/CROSS_DISTRO_RESULTS.md), told
-once there):
+once there:
 
 | Distro | Kernel | Binary | Enforcement |
 |--------|--------|--------|-------------|
