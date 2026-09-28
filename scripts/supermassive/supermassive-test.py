@@ -76,10 +76,21 @@ Design:
     lib.ledger_budget — exact because the span is measured, never
     assumed), so the band-edge straddle class is retired by
     construction; a real over-delivery (the lost-update class) still
-    blows the budget. The floor side rides lib.loopback_rate_floor,
+    blows the budget. The overhead row (a non-binding policy must not
+    cost throughput) rides the same rule through the runner-noise
+    lane (the second rider): interleaved fresh/policy windows judged
+    best-vs-best — contention can only LOWER a reading, so each
+    class's max is its cleanest window, and the strict alternation
+    makes any contiguous contention cover both classes together —
+    with the policy re-scaled to 3x the best fresh window before
+    every policy window and the binding proof read from the kernel's
+    own drop counter (zero drops is a count, not a throughput
+    inference). The floor side rides lib.loopback_rate_floor,
     where the remaining honest non-determinism lives and is
-    documented: the sub-skb window regime and the min-RTO cushion
-    regime, both modeled, both pinned rootlessly in the self-test.
+    documented: the sub-skb window regime, the min-RTO cushion
+    regime, and the overhead row's bursty class-synchronized
+    contention residual, all modeled or documented, all pinned
+    rootlessly in the self-test.
   * Six dedicated cgroups (zelynic-supermassive-a..e + -hq): the harness
     itself (in-process server + CLI calls) lives in the never-policed hq
     cgroup, while every measurement client — python workers and curls
@@ -2305,44 +2316,99 @@ def test_overhead(window, baseline):
     minutes earlier, and the 2026-09-21 heavy run filed +30.0% where
     light measured +2.1% on the same policy class — machine-load drift
     between harness start and the last-but-one stage, not policy
-    cost. Fresh baseline window, then policy, then the measured
-    window: seconds apart, same machine state. No policy is live at
-    entry — the preceding stage ends clear_all().
+    cost. No policy is live at entry — the preceding stage ends with
+    a full clear.
+
+    NIGHT-dinner-13 second rider (the 2026-09-28 four-leg evidence,
+    same mandate, same lineage): the pairing still read red on one of
+    four legs — fresh 4.9 GB/s vs 3.2 GB/s under a 15 GB/s policy
+    (+35.9%) while the SAME row read +2.8% / +4.1% / +5.3% on the
+    other three legs, all at HIGHER packet rates. Per-packet hook
+    cost scales WITH the packet rate, so the largest slowdown on the
+    slowest leg only cannot be datapath cost — it is machine-load
+    noise striking BETWEEN the two paired windows, the same class
+    the pairing was built to kill, one window further in. The
+    deterministic model, in the improve-15 lineage (a physics-derived
+    bound, never a widened band):
+
+    1. INTERLEAVED windows, best-of-three per class. Contention can
+       only LOWER a throughput reading (no window outruns the pipe),
+       so each class's max is its cleanest window, and the strict
+       fresh/policy alternation makes any CONTIGUOUS contention
+       cover both classes together — the maxes compare like against
+       like, run to run, leg to leg.
+    2. The policy re-scales to 3x the best fresh window observed so
+       far before every policy window: by construction above anything
+       the machine has shown, so the bucket cannot bind while the
+       arithmetic holds.
+    3. The non-binding verdict rides the kernel's own drop counter:
+       zero packets dropped across the policy windows is a COUNT,
+       not a throughput inference. A real policer arithmetic bug
+       (drops under a 3x policy) still fails the row
+       deterministically; a real hook cost still lowers every policy
+       window, maxes included, and blows the ratio — the tripwire
+       meaning survives.
+
+    Documented residual (honesty first): bursty contention striking
+    every fresh window while sparing every policy window — a
+    seconds-scale alternation synchronized with the class pattern —
+    is the one shape the max statistic cannot cover; it is recorded
+    here as runner-physics-implausible, not modeled away.
     """
     if baseline and baseline >= 300e9:
         return record(
             "overhead: non-binding policy cost", "SKIP", "baseline beyond the 1 TB/s policy ceiling"
         )
-    fresh = py_download(window)
-    fresh_rate = fresh / window
-    if fresh <= 0:
+    fresh_rates = []
+    policy_rates = []
+    drops_total = 0
+    final_gb = None
+    for _ in range(3):
+        fresh = py_download(window)
+        fresh_rates.append(fresh / window)
+        fresh_best = max(fresh_rates)
+        if fresh_best <= 0:
+            continue
+        if fresh_best >= 300e9:
+            return record(
+                "overhead: non-binding policy cost",
+                "SKIP",
+                "fresh baseline beyond the 1 TB/s policy ceiling",
+            )
+        # Re-scale before every policy window (item 2): 3x the best
+        # fresh rate observed so far, clamped to the parser's span.
+        non_binding_gb = min(900, max(10, round(3 * fresh_best / 1e9)))
+        final_gb = non_binding_gb
+        non_binding = non_binding_gb * 1e9
+        ok, payload = apply_single("a", f"{non_binding_gb}gb", int(non_binding), int(non_binding))
+        if not ok:
+            return record("overhead: non-binding policy cost", "FAIL", payload)
+        time.sleep(0.3)
+        got = py_download(window)
+        policy_rates.append(got / window)
+        # The kernel's own ledger, read while the policy is still
+        # live (item 3): the drop counter is the non-binding proof.
+        entry = limit_entry(status_json(), CG.ids["a"])
+        if entry:
+            drops_total += entry.get("packets_dropped", 0)
+        clear_all()
+        time.sleep(0.2)
+    fresh_best = max(fresh_rates)
+    if fresh_best <= 0:
         return record(
             "overhead: non-binding policy cost",
             "FAIL",
             "fresh baseline measured 0 B/s with no policy live",
         )
-    if fresh_rate >= 300e9:
-        return record(
-            "overhead: non-binding policy cost",
-            "SKIP",
-            "fresh baseline beyond the 1 TB/s policy ceiling",
-        )
-    non_binding_gb = min(900, max(10, round(3 * fresh_rate / 1e9)))
-    non_binding = non_binding_gb * 1e9
-    ok, payload = apply_single("a", f"{non_binding_gb}gb", int(non_binding), int(non_binding))
-    if not ok:
-        return record("overhead: non-binding policy cost", "FAIL", payload)
-    time.sleep(0.3)
-    got = py_download(window)
-    limited = got / window
-    clear_all()
-    drop_pct = (fresh_rate - limited) / fresh_rate * 100
-    verdict = "PASS" if drop_pct <= 30.0 else "FAIL"
+    policy_best = max(policy_rates) if policy_rates else 0.0
+    drop_pct = (fresh_best - policy_best) / fresh_best * 100
+    verdict = "PASS" if drop_pct <= 30.0 and drops_total == 0 else "FAIL"
     record(
         "overhead: non-binding policy cost",
         verdict,
-        f"fresh {fmt_bps(fresh_rate)} vs {fmt_bps(limited)} "
-        f"({non_binding_gb} GB/s policy) — {drop_pct:+.1f}% (paired in-stage)",
+        f"fresh best {fmt_bps(fresh_best)} vs policy best {fmt_bps(policy_best)} "
+        f"({final_gb} GB/s policy) — {drop_pct:+.1f}% (best-of-3 interleaved windows; "
+        f"{drops_total} packets dropped at the bucket — the kernel's own non-binding count)",
     )
     return verdict == "PASS"
 
@@ -3337,6 +3403,35 @@ def self_test():
             f"{span:.1f}s @ {lib.fmt_bps(rate)} -> {lib.ledger_budget(span, rate):,} B"
             for (span, rate) in budget_pins
         ),
+    )
+    # NIGHT-dinner-13 second rider pins: the overhead row rides
+    # interleaved best-of-three windows and the kernel's own drop
+    # counter. The 2026-09-28 four-leg evidence: +2.8% / +4.1% / +5.3%
+    # on three legs against +35.9% on the fourth — the slowest leg,
+    # where per-packet hook cost (which scales WITH packet rate) is
+    # smallest — machine-load noise between the two paired windows,
+    # not datapath cost. The interleave + max + zero-drops model
+    # retires the straddle by construction; these source pins hold
+    # the stage to it, and the budget pins above hold the model's
+    # lineage (the bucket's own arithmetic, never a widened band).
+    overhead_src = inspect.getsource(test_overhead)
+    overhead_loop_at = overhead_src.index("for _ in range(3)")
+    overhead_window_at = overhead_src.index("py_download(window)")
+    overhead_model_ok = (
+        overhead_loop_at < overhead_window_at
+        and "clear_all()" in overhead_src
+        and "max(fresh_rates)" in overhead_src
+        and "max(policy_rates)" in overhead_src
+        and "packets_dropped" in overhead_src
+        and "drops_total == 0" in overhead_src
+    )
+    record(
+        "harness: overhead verdict rides interleaved best-of-three + the zero-drop count",
+        "PASS" if overhead_model_ok else "FAIL",
+        "F P F P F P alternation — each class's max is its cleanest window "
+        "(contention only lowers a reading); the policy re-scales to 3x the "
+        "best fresh window before each policy window; zero packets dropped "
+        "is the non-binding proof, a count, not a throughput inference",
     )
     # NIGHT-lts-8 pin: the ladder drains the attach cushion at
     # over-delivery rungs — the burst floor's 64 KiB initial credit at
