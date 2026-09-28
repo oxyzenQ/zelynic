@@ -19,6 +19,33 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Changed
 
+- **docs: NIGHT-dinner-20 rider — the remaining-docs freshness
+  sweep, the owner's no-remainings approval: five fixes, then
+  zero** (the sweep the owner approved after dinner-20, run over
+  the 28 living docs only — CHANGELOG and the dated archive/,
+  audits/, research/ namespaces stay frozen by the repo's own
+  gate policy, so the living set IS the scope). Four checks per
+  doc: every source-ish path mention resolves, every markdown
+  link and anchor resolves, every zelynic verb and flag in fence
+  examples is real, and the known counts (7 direct deps, 54
+  lockfile crates, 57 dangerous targets, nine pinned maps) match
+  the tree live. The five real finds, fixed: the PHILOSOPHY
+  filename misspelled PHILIOSOPHY in three places — the README's
+  own day-old catalog line from dinner-20, its changelog entry,
+  and the QA.md Q11 doc-organization answer; BRANDING's logo link
+  pointed at assets/ from inside docs/, where the relative path
+  needs ../assets/; and SAFETY_ANALYSIS credited sanitize_comm()
+  to src/ebpf/identity/sanitize.rs — a layer mix-up: the callers
+  live in the identity walk, the definition lives in
+  src/output/sanitize.rs (which identity/depth.rs itself imports).
+  Everything else the sweep flagged was adjudicated against its
+  context and left alone: the CONTRIBUTING code tour's
+  ebpf/-relative tree, the cosmostrix engine paths in QA's Q8,
+  the retired stress-test.sh and verify-bpf-refill.c retirement
+  notes, the term_reset incident narration in the RULES pair, and
+  the two "nine maps" claims — both verified true against
+  limiter.rs's nine #[map] definitions. Final verdict, verified
+  before commit: 0 findings over 28 living docs.
 - **docs: NIGHT-dinner-20 — the README freshness audit against the
   source (the owner's source-is-truth mandate), and the
   comment-alignment symmetry pass over every commented code
@@ -36,7 +63,7 @@ NIGHT-hunt-18's git-history-only call.
   bpf-linker 0.11.1 pin, the build.rs stamp, and the GPG key id all
   match the source). One real gap surfaced and closed: the
   Documentation section never linked the master index
-  (docs/README.md), so the FAQ, PHILIOSOPHY, BRANDING, MAINTENANCE,
+  (docs/README.md), so the FAQ, PHILOSOPHY, BRANDING, MAINTENANCE,
   and the two dated research docs were unreachable from the front
   door — a closing catalog line now names them and the index that
   carries their rows. The symmetry half: a fence-aware audit over
