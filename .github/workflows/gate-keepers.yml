@@ -8,9 +8,9 @@
 # PR with NO paths filter — a docs-only or workflow-only change never
 # skips the gates that police it).
 #
-# Checks performed by gate-keepers.sh (18 numbered sections; the
+# Checks performed by gate-keepers.sh (19 numbered sections; the
 # shell quad's four sub-checks count separately, so the summary
-# line prints 21 gates):
+# line prints 22 gates):
 #   1.  Shell quad     - bash -n + shellcheck + shfmt -d + source
 #                        resolution on all .sh files
 #   2.  yamllint       - .github YAML (repo .yamllint config)
@@ -40,6 +40,10 @@
 #                        any ebpf/ change until refresh-prebuilt.sh
 #                        regenerates the lane (NIGHT-ask-2,
 #                        check-prebuilt-parity.sh)
+#  19.  Name-case rule - the project name is lowercase zelynic in
+#                        every tracked file and path (identifier
+#                        family + scripts/ banner titles excepted,
+#                        check-name-case.py, NIGHT-dinner-22)
 #
 # NIGHT-dinner-1: the wholesale run also self-installs the local
 # pre-commit hook (section 0 in the script — git config
@@ -134,7 +138,7 @@ jobs:
           toolchain: nightly-2026-09-18
           components: rust-src, rustfmt
 
-      # The wholesale run: all 18 sections in one shot — exit code 0
+      # The wholesale run: all 19 sections in one shot — exit code 0
       # or the push is blocked.
       - name: Run gate-keepers.sh (wholesale)
         run: bash scripts/gate-keepers.sh

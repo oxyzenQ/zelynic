@@ -19,11 +19,53 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Changed
 
+- **build: NIGHT-dinner-22 — the name-case gate: the lowercase
+  mandate becomes a machine-enforced tripwire on every push** (the
+  owner's instruction: a script on gate-keepers, strict rules —
+  when any file contains the name in anything but lowercase, the
+  gate fails; scan every file under the repo root, nothing
+  excluded). New scripts/gates/check-name-case.py, wired in as
+  gate-keepers section 19 (the count grows 21 to 22; the workflow
+  header's numbered catalog and CONTRIBUTING's section count ride
+  along): it walks every tracked file and every tracked path via
+  git ls-files — the .cargo/ and .github/ hidden trees included,
+  the blind spot dinner-21's plain-find survey had to correct for —
+  classifies each of the 2,212 name tokens across 248 tracked
+  files case by case, and fails with file:line:token on any casing
+  outside BRANDING 3.1's two legal families: lowercase everywhere,
+  plus the identifier family (the ZELYNIC_* environment variables
+  and the ZELYNIC-DISCLAIMER marker, attached with _ or -) and the
+  all-caps banner titles heading the scripts/ gate files. The
+  checker is self-clean by construction — the all-caps form is
+  built at runtime from the lowercase name, so the file carries no
+  literal it would flag itself on — and it was born test-first:
+  its maiden run flagged exactly the eight remainings dinner-21
+  had knowingly left, the negative drills (a mixed-case line in
+  README, one in a hidden .github workflow, all-caps prose in a
+  doc, a staged wrong-case filename) all fail with the right
+  file:line:token, and the legal drills (a ZELYNIC_* identifier, a
+  banner title line) pass. For the strict nothing-excluded rule to
+  land green, those eight are retired: BRANDING 3.2's
+  incorrect-forms list now describes the banned spellings instead
+  of spelling them (a wrong-forms list that displays the wrong
+  form is a loophole the owner's instruction closes), and the
+  dinner-21 entry's own quoted mentions are reworded to
+  descriptions — the recounting is unchanged, the literals are
+  gone. BRANDING 3.1 gains the machine-enforcement note,
+  docs/RULES.md gains the Project Name Casing section with the
+  enforcement pointer. Tooling: the four absent gate arms are now
+  real locally too (ruff 0.16.8, codespell 2.4.3, yamllint 1.38.0,
+  actionlint 1.7.7 — the exact CI pins), the full wholesale run
+  reports 22 passed, 0 failed with no skipped arm, and the real
+  shfmt arm caught one more plain-edit tab regression live (the
+  dinner-19 class — the edit layer re-indented all of
+  gate-keepers.sh to spaces; shfmt -w restored the canonical tabs,
+  leaving a pure-content 33-line diff). check-all -q green.
 - **docs: NIGHT-dinner-21 — the name is lowercase everywhere: the
   owner's casing mandate, the branding rule that codified the
   violation rewritten, and all 88 capitalized remainings swept**
   (the owner caught BRANDING's own Third-party Usage section telling
-  the world the correct project name is "Zelynic" — §3.1's
+  the world the correct project name is the capitalized form — §3.1's
   correct-forms table had codified the capitalized prose form, so
   every file that followed the rule spelled the name wrong). The
   rule is now the nginx/curl contract: `zelynic` in every context —
@@ -34,30 +76,32 @@ NIGHT-hunt-18's git-history-only call.
   `ZELYNIC_*` environment variables, the `ZELYNIC-DISCLAIMER`
   injection marker, and the all-caps banner comment titles heading
   the scripts/ gate files), and §3.2's incorrect-forms list gains
-  the newly banned ~~Zelynic~~. The sweep, byte-exact token
+  the newly banned capitalized form. The sweep, byte-exact token
   replacement across 12 files: 88 total — TRADEMARK.md's 20 (the
   mark itself, the fork-policy quotes, the "zelynic Pro / Plus /
   X" derivative examples), the frozen pre-v11 changelog archive's
   47 (a casing correction, not a freshness edit: the freeze
   protects historical facts, and the project was never named
-  "Zelynic" — the capitalized prose was the convention error being
+  anything but lowercase — the capitalized prose was the convention error being
   fixed), BRANDING.md's remaining prose, the RULES / LICENSING_FAQ
   / RESEARCH_TOOLCHAIN / COMMERCIAL_LICENSE titles, README's
   maintenance-mode callout, check-policy.py's verdict strings, and
   build.sh's help banner (same-width swap, box alignment
-  preserved) — plus the one sentence-case ZELYNIC pair: the
+  preserved) — plus the one sentence-case pair: the
   manifest.toml header comment and the generator line in
   refresh-prebuilt.sh that writes it, changed together so the
   generated file and its generator stay in lockstep (the parity
   gate parses data fields only, never header comments — verified
   green after the edit). Verdict, machine-audited: 0 violations
-  over 2,200 name tokens tree-wide; the 116 all-caps ZELYNIC
+  over 2,200 name tokens tree-wide; the 116 all-caps
   tokens classified one by one — 114 identifier/banner family
   kept, 2 fixed; every other form is lowercase. GitHub's own
   metadata needed nothing (repo name, description, and topics
-  already lowercase). The only "Zelynic" string left in the tree
-  is BRANDING §3.2's struck-through ban-list exhibit — the
-  wrong-forms list must be able to show the form it bans. Riders
+  already lowercase). At the time, the only remaining mixed-case
+  string was BRANDING §3.2's struck-through ban-list exhibit —
+  NIGHT-dinner-22's name-case gate has since retired even that
+  (the wrong-forms list now describes the spellings it bans).
+  Riders
   all green: the living-docs sweep still reports 0 findings over
   28 docs, comment alignment still 21/21, gate-keepers 17/0, and
   check-all prints its policy verdict in the project's own
