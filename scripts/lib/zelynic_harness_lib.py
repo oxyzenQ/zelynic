@@ -104,6 +104,41 @@ def default_burst(rate_bps):
     return min(max(rate_bps, DEFAULT_BURST_FLOOR), DEFAULT_BURST_CAP)
 
 
+# NIGHT-dinner-13: per-skb accounting headroom for ledger-budget verdicts —
+# loopback hands the hooks 64 KiB GSO skbs, so the last in-flight skb can
+# carry up to one skb past the byte-exact budget (the same 2% curl burst
+# rides; GSO_EPS there, LEDGER_EPS here — one contract, one name now that
+# a second stage joined the family).
+LEDGER_EPS = 1.02
+
+
+def ledger_budget(span_s, rate_bps):
+    """NIGHT-dinner-13: the exact byte ceiling a bucket can credit over a
+    measured span — the engine's own arithmetic, not an assumption.
+
+    A bucket refills at rate and its token content CAPS at one
+    default_burst (a freshly attached bucket starts full; a mid-policy
+    one holds at most the same cap), so over ANY span the credit is at
+    most span x rate + one burst. A verdict that divides the kernel
+    ledger's own delta by THIS budget is exact per run when the span is
+    measured — deterministic on every leg by construction, with no
+    band-edge straddle to luck into.
+
+    The client-meter trap it retires (the 2026-09-28 four-leg run, the
+    owner's determinism call): a socket-write count reads the loopback
+    write-ahead — the unpoliced eager receiver keeps advertising
+    windows, the sender writes PAST the policer's drain rate, and the
+    undelivered excess sits in kernel buffers when the worker exits —
+    so the asymmetric upload row read 134.3% of configured on one leg
+    (3/4 legs green, same row, same engine) while the policer held
+    this contract; the curl-upload hunt met the same class at 153%
+    client vs 99.7% ledger. Riding the ledger with this budget keeps
+    the tripwire meaning too: a lost-update leak (the 146.3% class,
+    schema-v6) blows the budget by the leak, not by timing luck.
+    """
+    return span_s * rate_bps + default_burst(rate_bps)
+
+
 # Harness state (see the module docstring's ownership contract).
 RESULTS = []
 BINARY = ""

@@ -63,6 +63,23 @@ Design:
     the Cloudflare discard endpoint, and an UNLIMITED sanity upload runs
     first so an endpoint that refuses streaming bodies reads as SKIP,
     not as a limiter defect.
+  * Verdict determinism (NIGHT-dinner-13, the owner's honesty rule: the
+    matrix must read the same on every leg, every run, unless a
+    documented kernel condition says otherwise): every loopback rate
+    verdict divides a POST-policer numerator — client-received bytes
+    on the download side, the kernel's own ledger on the upload side —
+    never a client socket-write count, which reads the loopback
+    write-ahead (undelivered bytes parked in kernel buffers when the
+    worker exits) and straddles any fixed band from run to run.
+    Upload-direction rows are bounded per run by the bucket's own
+    arithmetic (measured span x rate + one default_burst,
+    lib.ledger_budget — exact because the span is measured, never
+    assumed), so the band-edge straddle class is retired by
+    construction; a real over-delivery (the lost-update class) still
+    blows the budget. The floor side rides lib.loopback_rate_floor,
+    where the remaining honest non-determinism lives and is
+    documented: the sub-skb window regime and the min-RTO cushion
+    regime, both modeled, both pinned rootlessly in the self-test.
   * Six dedicated cgroups (zelynic-supermassive-a..e + -hq): the harness
     itself (in-process server + CLI calls) lives in the never-policed hq
     cgroup, while every measurement client — python workers and curls
@@ -1760,6 +1777,20 @@ def test_rate_ladder(ladder, window, windows_per_rung, baseline):
 
 
 def test_upload(window, baseline):
+    """-u only: the upload bucket enforced solo — the asymmetric twin's
+    single-bucket simplification (NIGHT-improve-12).
+
+    NIGHT-dinner-13 hunt finding: this row was the same latent straddle
+    the asymmetric stage's red exposed — the numerator was the
+    CUMULATIVE ledger (attach -> read, with the settle, the worker
+    spawn, and the read overhead inside) divided by the NOMINAL window,
+    so the contract bound sat at ~1.3-1.4 of configured and a slow leg
+    read past BAND_HI exactly like its twin did. The verdict now rides
+    the curl-burst budget arithmetic (boost-27 lineage): the ledger is
+    allowed at most (t_read - t_apply) x rate + one burst, exact per
+    run because the span is measured, never assumed. The floor keeps
+    the strangling check (lib.loopback_rate_floor).
+    """
     if baseline and baseline < 2e6:
         return record("upload (-u only): enforced", "SKIP", "baseline too low")
     rc, stdout, stderr = run_zel(["strict-single", str(CG.ids["a"]), "-u", "1mb"])
@@ -1767,6 +1798,7 @@ def test_upload(window, baseline):
         return record(
             "upload (-u only): enforced", "FAIL", f"exit {rc}: {(stderr or stdout).strip()[:200]}"
         )
+    t_apply = time.monotonic()
     entry = limit_entry(status_json(), CG.ids["a"])
     if (
         entry is None
@@ -1777,8 +1809,35 @@ def test_upload(window, baseline):
     time.sleep(0.5)
     sent = py_upload(window)
     entry = limit_entry(status_json(), CG.ids["a"])
+    t_read = time.monotonic()
     truth = (entry or {}).get("bytes_allowed", 0)
-    passed = band_check("upload (-u only): enforced", (truth or sent) / window, 1_000_000)
+    budget = lib.ledger_budget(t_read - t_apply, 1_000_000)
+    floor = lib.loopback_rate_floor(1_000_000, window)
+    passed = (
+        entry is not None
+        and truth <= budget * lib.LEDGER_EPS
+        and truth >= floor * 1_000_000 * window
+    )
+    if entry is None:
+        note = "status ledger unreadable — no verdict possible"
+    else:
+        note = (
+            f"kernel ledger {truth:,} B from attach over {t_read - t_apply:.2f} s vs "
+            f"budget {budget:,} B (live x 1mb + one burst; "
+            f"{truth / (1_000_000 * window) * 100:.1f}% of the nominal {window:.1f} s "
+            f"window; client wrote {sent:,} B — write-ahead, observability only)"
+        )
+    record(
+        "upload (-u only): enforced",
+        "PASS" if passed else "FAIL",
+        note,
+        {
+            "ledger_bytes": truth,
+            "budget_bytes": budget,
+            "span_s": round(t_read - t_apply, 3),
+            "client_bytes": sent,
+        },
+    )
     record(
         "upload (-u only): kernel drops engaged",
         "PASS" if (entry or {}).get("packets_dropped", 0) > 0 else "FAIL",
@@ -1823,12 +1882,27 @@ def test_asymmetric(window, baseline):
 
     No accounting-agreement row here on purpose: the single status
     row's bytes_allowed spans BOTH buckets, so comparing it to one
-    direction's client count is noise by construction; the two band
+    direction's client count is noise by construction; the two rate
     verdicts plus the drop proof carry this stage. The measured
     windows see STEADY STATE (cushion drained first — see the
     warm-up comment in the body); the first-window physics belongs
     to the attach moment, not to the per-bucket rates this stage
     pins.
+
+    NIGHT-dinner-13: the upload verdict rides the KERNEL LEDGER's
+    delta across the measured window, not the client's socket-write
+    count. The both-buckets objection dies at the delta — the
+    download stage is complete and its client gone before the
+    upload window opens, so bytes allowed during the window are
+    upload bytes; and the write-ahead the client meter reads (the
+    2026-09-28 four-leg run: 134.3% of configured on one leg, 3/4
+    legs green on the same row, policer contract held) is exactly
+    the trap the curl-upload hunt documented at 153% client vs
+    99.7% ledger. The delta is bounded per run by
+    lib.ledger_budget(span, rate) — measured span x rate + one
+    burst, the bucket's own arithmetic — so the row is deterministic
+    on every leg by construction, and a real leak (the 146.3%
+    lost-update class) still blows it.
     """
     name = "asymmetric (-d 100kb -u 1mb): both buckets enforced"
     if baseline and baseline < 2e6:
@@ -1861,13 +1935,70 @@ def test_asymmetric(window, baseline):
     got = py_download(window)
     dl_ok = band_check("asymmetric: download bucket at 100kb", got / window, 100_000)
     py_upload(0.5)
+    # NIGHT-dinner-13: the upload verdict rides the KERNEL LEDGER
+    # (boost-27 lineage), not the client's socket-write count. The
+    # drain above fixed the bucket STATE (the 2026-09-22 approved fix)
+    # but cannot fix the METER: _PY_UL_CLIENT counts sendall()
+    # successes — SOCKET WRITES — and on loopback the unpoliced eager
+    # receiver keeps advertising windows, so the sender writes PAST
+    # the policer's drain rate and the undelivered excess sits in
+    # kernel buffers when the worker exits — the 2026-09-28 four-leg
+    # run read 134.3% of configured on one leg (3/4 legs green, same
+    # row, same engine) while the policer held its contract, the same
+    # class the curl-upload hunt met at 153% client vs 99.7% ledger.
+    # The delta below is pure upload allowance: the download stage is
+    # complete and its client gone before this window opens, so the
+    # both-buckets objection dies at the DELTA, not the cumulative.
+    # t0 precedes the first read so the span covers every instant the
+    # delta can span (tau0..tau1 inside t0..t1 — the budget never
+    # under-covers).
+    t0 = time.monotonic()
+    led0 = (limit_entry(status_json(), CG.ids["a"]) or {}).get("bytes_allowed", 0)
     sent = py_upload(window)
-    ul_ok = band_check("asymmetric: upload bucket at 1mb", sent / window, 1_000_000)
-    entry = limit_entry(status_json(), CG.ids["a"])
+    entry_after = limit_entry(status_json(), CG.ids["a"])
+    t1 = time.monotonic()
+    if entry_after is None:
+        record(
+            "asymmetric: upload bucket at 1mb",
+            "FAIL",
+            "status ledger unreadable at the window's close — no verdict possible",
+        )
+        record(
+            "asymmetric: kernel drops engaged",
+            "FAIL",
+            "no limit row to read counters from",
+        )
+        clear_all()
+        return False
+    ul_delta = entry_after.get("bytes_allowed", 0) - led0
+    ul_span = t1 - t0
+    ul_budget = lib.ledger_budget(ul_span, 1_000_000)
+    ul_floor = lib.loopback_rate_floor(1_000_000, window)
+    # The contract verdict: the bucket's own arithmetic is span x rate
+    # + one burst, exact per run because the span is MEASURED — no
+    # band-edge straddle is possible on any leg. The floor keeps the
+    # strangling check (the demand proof: the sender's write-ahead and
+    # the drop counter below both testify it wanted far more than the
+    # bucket let through).
+    ul_ok = ul_delta <= ul_budget * lib.LEDGER_EPS and ul_delta >= ul_floor * 1_000_000 * window
+    record(
+        "asymmetric: upload bucket at 1mb",
+        "PASS" if ul_ok else "FAIL",
+        f"kernel ledger {ul_delta:,} B over {ul_span:.2f} s vs budget {ul_budget:,} B "
+        f"(span x 1mb + one burst; {ul_delta / (1_000_000 * window) * 100:.1f}% of the "
+        f"nominal {window:.1f} s window; client wrote {sent:,} B — write-ahead, "
+        "observability only)",
+        {
+            "ledger_bytes": ul_delta,
+            "budget_bytes": ul_budget,
+            "span_s": round(ul_span, 3),
+            "client_bytes": sent,
+        },
+    )
     record(
         "asymmetric: kernel drops engaged",
-        "PASS" if (entry or {}).get("packets_dropped", 0) > 0 else "FAIL",
-        f"{(entry or {}).get('packets_dropped', 0)} packets dropped",
+        "PASS" if entry_after.get("packets_dropped", 0) > 0 else "FAIL",
+        f"{entry_after.get('packets_dropped', 0)} packets dropped",
     )
     clear_all()
     return dl_ok and ul_ok
@@ -3154,6 +3285,58 @@ def self_test():
         "harness: asymmetric drains the attach cushion before each window",
         "PASS" if drain_ok else "FAIL",
         "discarded warm-up windows precede both measured windows (bound 1+1/W straddles BAND_HI)",
+    )
+    # NIGHT-dinner-13 pins: the upload-direction verdicts ride the
+    # kernel ledger budget (span x rate + one burst, lib.ledger_budget),
+    # never the client's socket-write count. The write-ahead trap: the
+    # 2026-09-28 four-leg run read the asymmetric upload row at 134.3%
+    # of configured on one leg (3/4 legs green, same row, same engine)
+    # while the policer held its contract — the same class the
+    # curl-upload hunt documented at 153% client vs 99.7% ledger. The
+    # -u only twin rode the CUMULATIVE ledger over the NOMINAL window
+    # (settle + spawn + read overhead inside), a latent straddle of
+    # the same shape. These source pins hold the stages to the budget
+    # model; the model's own arithmetic is pinned right below them.
+    asym_budget_ok = (
+        "lib.ledger_budget" in asym_src
+        and "ul_delta <= ul_budget" in asym_src
+        and asym_src.index("led0 = ") < asym_src.index("sent = py_upload(window)")
+    )
+    record(
+        "harness: asymmetric upload verdict rides the ledger budget, not the write-ahead",
+        "PASS" if asym_budget_ok else "FAIL",
+        "delta read before the window, budget = measured span x rate + one burst; "
+        "the client write count stays observability-only",
+    )
+    upload_src = inspect.getsource(test_upload)
+    upload_budget_ok = (
+        "lib.ledger_budget" in upload_src
+        and "truth <= budget" in upload_src
+        and upload_src.index("t_apply = time.monotonic()")
+        < upload_src.index("sent = py_upload(window)")
+    )
+    record(
+        "harness: upload (-u only) verdict rides the exact-span ledger budget",
+        "PASS" if upload_budget_ok else "FAIL",
+        "cumulative ledger vs (t_read - t_apply) x rate + one burst — the settle and "
+        "read overhead belong to the span, not the verdict",
+    )
+    budget_pins = {
+        (4.5, 1_000_000): 4_500_000 + 1_000_000,
+        (0.0, 1_000_000): 1_000_000,
+        (10.0, 500_000): 5_000_000 + 500_000,
+    }
+    ok_budgets = all(
+        abs(lib.ledger_budget(span, rate) - want) < 1e-9
+        for (span, rate), want in budget_pins.items()
+    )
+    record(
+        "engine: ledger budget model (span x rate + one default burst)",
+        "PASS" if ok_budgets else "FAIL",
+        "; ".join(
+            f"{span:.1f}s @ {lib.fmt_bps(rate)} -> {lib.ledger_budget(span, rate):,} B"
+            for (span, rate) in budget_pins
+        ),
     )
     # NIGHT-lts-8 pin: the ladder drains the attach cushion at
     # over-delivery rungs — the burst floor's 64 KiB initial credit at
