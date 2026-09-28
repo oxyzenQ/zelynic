@@ -19,6 +19,50 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Changed
 
+- **ux: NIGHT-dinner-23 — recover joins the diagnostic family's
+  render contract, and its verdicts go count-honest (the owner's
+  purple-banner find plus the hunt findings)**. The owner caught the
+  gap: `zelynic recover` printed its `━━━ zelynic Crash Recovery ━━━`
+  banner plain — every other banner in the `━━━` diagnostic family
+  (update check, doctor) and the flagship title bars rendered bold
+  brand purple, and BRANDING 2.1's surface list had always NAMED
+  this banner bold. The code simply never honored the doc; now it
+  does. The hunt then went deeper than the one line, the way the
+  task demanded, and the whole report joined the family's verdict
+  contract: State verdict words render in the doctor's bold semantic
+  tier (`clean` / `valid` in status green, `STALE` in warning
+  yellow), orphan findings in warning yellow (the status
+  stale-frame contract for a state the operator must act on),
+  affirmative Result values in status green, partial-failure
+  results in warning yellow ahead of the red error block that
+  completes them, and every quoted runnable command
+  (`'zelynic unstrict-all'`, `'zelynic strict-single <target>
+  <rate>'`) in suggestion white — the same actionable-accent tier
+  the status stale frame gives `'zelynic recover'` itself. All of
+  it degrades to plain text when piped, like every styled surface.
+  The data side sharpened in the same pass: the none-branch
+  verdict used to print the CGROUP count under the noun
+  "policies" — a box with two dl+ul policies on one cgroup read
+  "all 1 policies", wrong on the number and the noun at once — and
+  now reports both dimensions the maps just read
+  (`Orphans: none (2 policies across 1 cgroup, all live)`),
+  singular/plural aware on both axes (the entry/entries contract
+  the file already owned), with the empty skeleton named for what
+  it is (`no policies pinned`) instead of a vacuous zero count;
+  the removed-count Result lines went singular/plural aware too
+  (the old "removed 1 orphan policy(ies)" read like a typo while
+  counting 2). The wording is unit-pinned by the new
+  test/commands/recover_tests.rs (cosmostrix Pattern C,
+  #[path]-wired like the census pins): the mislabel case, both
+  singular axes, the mixed axis, and the empty-skeleton arm, all
+  asserted on plain content substrings so the pins hold under
+  every theme and color depth the process-global render state can
+  be in. Docs ride along: BRANDING 2.1's banner list documents the
+  closed gap and the verdict contract, USAGE.md's recover section
+  gains the count-honesty and style paragraph. Verification: full
+  ebpf-feature test lane local (479 + 46 pass), clippy
+  --all-targets clean, rustfmt clean, the 3 new pins green.
+
 - **build: NIGHT-dinner-22 — the name-case gate: the lowercase
   mandate becomes a machine-enforced tripwire on every push** (the
   owner's instruction: a script on gate-keepers, strict rules —

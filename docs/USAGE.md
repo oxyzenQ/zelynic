@@ -280,6 +280,21 @@ last policies, the empty enforcement skeleton is unpinned too (the
 same no-residue ladder the unstrict family runs — a verified zero,
 never an assumed one).
 
+NIGHT-dinner-23 (the count-honesty and style hardening): the
+none-branch verdict reports BOTH dimensions the maps just read —
+`Orphans: none (2 policies across 1 cgroup, all live)` — where the
+old line printed the cgroup count under the noun "policies" ("all 1
+policies" on a box carrying two dl+ul policies), and names the
+empty skeleton (`no policies pinned`) instead of a vacuous zero
+count. The report renders in the diagnostic family's verdict
+contract (the update-check / doctor idiom): banner in bold brand
+purple, State verdict words in the bold semantic tier (`clean` /
+`valid` in status green, `STALE` in warning yellow), orphan
+findings in warning yellow, affirmative Result values in status
+green with partial-failure results in warning yellow, and every
+quoted runnable command in suggestion white — all degrading to plain
+text when piped, like every styled surface.
+
 ### status — what is limited right now
 
 ```bash
