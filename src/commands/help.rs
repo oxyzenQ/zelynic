@@ -140,6 +140,13 @@ pub(crate) fn print_help() {
     println_safe!();
     println_safe!("  zelynic status");
     println_safe!("    Show active limits and watchdog status.");
+    // NIGHT-dinner-11: the owner read "allowed 3.4gb / dropped 4.4 mb"
+    // as a mystery — the pair's semantics belong ON the surface he
+    // was looking at, not only in docs/USAGE.md. Three lines, the
+    // full contract: units, window, reset.
+    println_safe!("    allowed / dropped: cumulative BYTES per cgroup since the limit");
+    println_safe!("    was set — allowed passed the budget, dropped exceeded it (the");
+    println_safe!("    sender retries); removing the limit clears both.");
     println_safe!();
     println_safe!("  zelynic list-apps");
     println_safe!("    List apps with their cgroup IDs.");
@@ -247,6 +254,12 @@ pub(crate) fn print_help() {
     // tells users to paste (NIGHT-boost-37's round-trip contract).
     println_safe!("  cg:<cgroup_id>  the display prefix every surface prints (cg:73386) —");
     println_safe!("                  paste it back: the same direct target as the bare ID");
+    // NIGHT-dinner-11: the no-match contract rides the grammar
+    // section — the forms above are what a target must resolve to,
+    // and one that resolves to nothing is rejected, not soft-exited
+    // (the eBPF-verifier lineage the owner specced for the CLI).
+    println_safe!("  A target that matches nothing is a hard error (exit 1) — never a");
+    println_safe!("  silent no-op; unstrict-all on an already-clean system exits 0.");
     println_safe!();
     println_safe!("{}", brand_bold("Safety:"));
     println_safe!("  • Min-rate guard: rejects < 1kb");

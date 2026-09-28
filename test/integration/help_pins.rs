@@ -337,6 +337,37 @@ fn test_help_documents_every_target_form() {
     }
 }
 
+/// NIGHT-dinner-11: the status section documents the allowed/dropped
+/// ledger pair (the owner read "allowed 3.4gb / dropped 4.4 mb" as a
+/// mystery — the columns' semantics belong on the surface he was
+/// looking at: cumulative bytes since the limit was set, cleared on
+/// removal), and Target formats names the no-match contract — a
+/// target that resolves to nothing is a hard error, exit 1, never a
+/// silent no-op (with the one documented carve-out: unstrict-all on
+/// an already-clean system).
+#[test]
+fn test_help_documents_status_ledger_and_no_match_contract() {
+    let output = zelynic_cmd()
+        .arg("--help")
+        .output()
+        .expect("Failed to execute zelynic --help");
+
+    assert_eq!(output.status.code(), Some(0));
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    for needle in [
+        "allowed / dropped: cumulative BYTES per cgroup since the limit",
+        "was set — allowed passed the budget, dropped exceeded it (the",
+        "sender retries); removing the limit clears both.",
+        "A target that matches nothing is a hard error (exit 1) — never a",
+        "silent no-op; unstrict-all on an already-clean system exits 0.",
+    ] {
+        assert!(
+            stdout.contains(needle),
+            "--help must document the contract line ('{needle}'), got:\n{stdout}"
+        );
+    }
+}
+
 /// Bare invocation prints the same single reference as --help (exit 0,
 /// stdout) — the old clap auto-help path is gone with the single-tier
 /// help surface.

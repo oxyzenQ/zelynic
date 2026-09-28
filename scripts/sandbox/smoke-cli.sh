@@ -232,15 +232,16 @@ guards() {
 	expect_ok "dangerous target + --force-this (override honored)" \
 		"$BIN" strict-single kthreadd 1mb --force-this
 	expect_ok "unstrict-all (drop the forced policy)" "$BIN" unstrict-all
-	# An empty target resolves to a clean no-op ("No cgroup found,
-	# nothing to limit", exit 0) — the idempotent-cleanup contract;
-	# a crash or a silent success without the miss line would fail.
+	# An empty target is a hard refusal now (NIGHT-dinner-11, the
+	# no-match contract — the eBPF-verifier lineage): "No cgroup
+	# found" on the branded error surface, exit 1 — never a crash,
+	# never a silent success.
 	run "$BIN" strict-single "" 1mb
 	if ! grep -q "panicked" <<<"$OUT" &&
-		{ [ "$RC" -ne 0 ] || grep -qi "No cgroup found" <<<"$OUT"; }; then
-		row "empty target (clean miss, not a crash)" 0
+		[ "$RC" -eq 1 ] && grep -qi "No cgroup found" <<<"$OUT"; then
+		row "empty target (hard miss, not a crash)" 0
 	else
-		row "empty target (clean miss, not a crash)" 1 "rc=${RC}: $(head -c 120 <<<"$OUT")"
+		row "empty target (hard miss, not a crash)" 1 "rc=${RC}: $(head -c 120 <<<"$OUT")"
 	fi
 	expect_refused_clean "unknown subcommand (redirect tip, not a crash)" \
 		"$BIN" limit-single brave 1mb

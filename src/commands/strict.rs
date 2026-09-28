@@ -55,14 +55,22 @@ pub(crate) fn handle_strict_single(
     let mut limiter = Limiter::open_pinned(verbose)?;
     let applied = limiter.apply_single(&target, &rates)?;
     if applied == 0 {
-        eprintln_safe!("No cgroup found for '{target_str}'. Nothing to limit.");
-        // NIGHT-hunt-10: a colon list in the single-target slot is the
-        // natural mistake now that 'strict' exists as a shorthand —
-        // route it to the multi form instead of a bare no-match.
-        if target_str.contains(':') {
-            eprintln_safe!("tip: colon-separated lists belong to strict-multi");
+        // NIGHT-dinner-11: the no-match hard error — branded red
+        // block + exit 1 (see commands::target_no_match_error), so
+        // a typo'd target can never read as calm success. The
+        // hunt-10 colon tip rides as a white tip line — now EXCLUDING
+        // the canonical cg: prefix: a miss on cg:<id> is a dead id,
+        // not a list mistake, and the routing tip would be noise
+        // there (the owner's honesty pass).
+        let mut tips = Vec::new();
+        if target_str.contains(':') && !target_str.starts_with("cg:") {
+            tips.push("colon-separated lists belong to strict-multi".to_string());
         }
-        return Ok(());
+        tips.push(super::TIP_LIST_APPS.to_string());
+        return Err(super::target_no_match_error(
+            format!("No cgroup found for '{target_str}' — nothing was limited"),
+            &tips,
+        ));
     }
 
     // NIGHT-improve-28: the de-noised success surface — green OK. +
@@ -134,8 +142,12 @@ pub(crate) fn handle_strict_multi(
     let mut limiter = Limiter::open_pinned(verbose)?;
     let applied = limiter.apply_group(&targets, &rates)?;
     if applied == 0 {
-        eprintln_safe!("No cgroups found for any target in '{targets_str}'. Nothing to limit.");
-        return Ok(());
+        // NIGHT-dinner-11: the no-match hard error (strict-single's
+        // contract, the multi's plural wording).
+        return Err(super::target_no_match_error(
+            format!("No cgroups found for any target in '{targets_str}' — nothing was limited"),
+            &[super::TIP_LIST_APPS.to_string()],
+        ));
     }
 
     // NIGHT-improve-28: the multi form suggests the multi unstrict —
@@ -210,15 +222,9 @@ pub(crate) fn handle_strict_all(
         }
     }
 
-    if user_apps.is_empty() {
-        eprintln_safe!("No apps found to limit.");
-        return Ok(());
-    }
-
     // Deduplicate (multiple cgroups may have same comm).
     user_apps.sort();
     user_apps.dedup();
-
     // The pre-apply "Limiting N app(s) to X" echo is gone with
     // NIGHT-improve-28 (the request lives in the shell history; the
     // enforced facts live in 'zelynic status'). NIGHT-improve-30
@@ -231,6 +237,20 @@ pub(crate) fn handle_strict_all(
         crate::output::eprintln_warn_labeled(&format!(
             "Skipped {} system app(s) — re-run with --force-this to include.",
             skipped.len()
+        ));
+    }
+
+    if user_apps.is_empty() {
+        // NIGHT-dinner-11: the no-match hard error, placed AFTER the
+        // skip warning so an all-system box explains itself first —
+        // the warn names the flag, the error names the verdict, and
+        // a vacuous sweep (nothing enforced) is never a success.
+        return Err(super::target_no_match_error(
+            "No apps found to limit".to_string(),
+            &[
+                super::TIP_LIST_APPS.to_string(),
+                "system apps need --force-this".to_string(),
+            ],
         ));
     }
 

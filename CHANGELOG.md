@@ -16,6 +16,52 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Changed
 
+- **CLI: NIGHT-dinner-11 — a target that matches nothing is a hard
+  error, not a soft no-op** (the owner's eBPF-verifier lineage
+  mandate, read straight off the ebpf.io verifier page: reject,
+  never half-load — the CLI now holds the same line for the
+  critical-infra futures the owner is building toward). Every
+  command that NAMES a target (`strict-single`/`strict-multi`,
+  `block-single`/`block-multi`, `unstrict`/`unstrict-multi`) used
+  to print one plain stderr line ("No cgroup found for 'cg8401'.
+  Nothing to limit.") and exit 0 — so the owner's own `ss cg8401`
+  typo read as calm success and no script could tell an enforced
+  limit from a miss. All six paths now return the branded hard
+  error — bold red `error:` label, red body, white `tip:` lines
+  (`list-apps` for the apply verbs, `status` for the removals, the
+  hunt-10 verified remaining-count note for the unstrict miss) —
+  and exit 1. The `-all` apply sweeps hold the same line when the
+  identity map offers nothing to enforce (placed after the skip
+  warning so an all-system box explains itself first);
+  `unstrict-all` on an already-clean system keeps its exit 0 — the
+  requested state already holds, the same clean-state precedent
+  `recover`'s clean path owns. The hunt-10 colon-routing tip now
+  excludes the canonical `cg:` prefix (a miss on `cg:<id>` is a
+  dead id, not a list mistake). The unstrict restructure moves the
+  no-residue unpin ladder BEFORE the verdict so a miss on emptied
+  maps still tears the pinned skeleton down. Harnesses moved to the
+  new contract: supermassive's two no-op pins flipped to the
+  nonzero class (the verbatim payload echo stays the no-execution
+  proof), sandbox smoke's empty-target row now requires exit 1 +
+  the miss line; the message shape itself is pinned rootlessly in
+  test/cli/no_match_tests.rs.
+
+- **help: NIGHT-dinner-11 — the status table's allowed/dropped pair
+  is documented on the surface it prints on** (the owner read
+  "allowed 3.4gb / dropped 4.4 mb" as a mystery and guessed
+  packets-allowed vs packets-rejected; the pair is cumulative BYTES
+  per cgroup since the limit was set — allowed passed the token
+  budget, dropped exceeded it and the sender's retransmit lands it
+  in allowed later — and `unstrict` clears both once the last
+  direction goes; docs/USAGE.md's status section already spelled
+  this out after the rc.2 long-run audit, but `--help` — the
+  surface the owner was actually looking at — never did). Three
+  lines under `zelynic status` carry the full contract (units,
+  window, reset), and Target formats names the no-match exit-1
+  contract with its one carve-out; both are pinned in help_pins so
+  they cannot silently regress, and README's usage prose carries
+  the same two facts in one paragraph.
+
 - **help: NIGHT-dinner-10 — the Target formats section names the third
   form** (the owner's ambiguity find: the section documented only
   process names and bare cgroup IDs, while `cg:8401` — the display

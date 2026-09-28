@@ -31,13 +31,19 @@ pub fn handle_block_single(target_str: &str, force_this: bool, verbose: bool) ->
     };
     let applied = limiter.apply_single(&target, &rates)?;
     if applied == 0 {
-        eprintln_safe!("No cgroup found for '{target_str}'. Nothing to block.");
-        // Same routing tip as strict-single (NIGHT-hunt-10): colon
-        // lists belong to the multi form.
-        if target_str.contains(':') {
-            eprintln_safe!("tip: colon-separated lists belong to block-multi");
+        // NIGHT-dinner-11: the no-match hard error (strict-single's
+        // contract, the block family's wording). The hunt-10 colon
+        // tip excludes the canonical cg: prefix — a miss on cg:<id>
+        // is a dead id, not a list mistake.
+        let mut tips = Vec::new();
+        if target_str.contains(':') && !target_str.starts_with("cg:") {
+            tips.push("colon-separated lists belong to block-multi".to_string());
         }
-        return Ok(());
+        tips.push(super::TIP_LIST_APPS.to_string());
+        return Err(super::target_no_match_error(
+            format!("No cgroup found for '{target_str}' — nothing was blocked"),
+            &tips,
+        ));
     }
 
     // NIGHT-improve-28: the de-noised success surface — green OK. +
@@ -88,8 +94,12 @@ pub fn handle_block_multi(targets_str: &str, force_this: bool, verbose: bool) ->
     };
     let applied = limiter.apply_group(&targets, &rates)?;
     if applied == 0 {
-        eprintln_safe!("No cgroups found for '{targets_str}'. Nothing to block.");
-        return Ok(());
+        // NIGHT-dinner-11: the no-match hard error (block-single's
+        // contract, the multi's plural wording).
+        return Err(super::target_no_match_error(
+            format!("No cgroups found for any target in '{targets_str}' — nothing was blocked"),
+            &[super::TIP_LIST_APPS.to_string()],
+        ));
     }
 
     // NIGHT-improve-28: the multi form suggests the multi unstrict —
@@ -163,8 +173,16 @@ pub fn handle_block_all(force_this: bool, verbose: bool) -> Result<()> {
     };
 
     if targets.is_empty() {
-        eprintln_safe!("No apps to block.");
-        return Ok(());
+        // NIGHT-dinner-11: the no-match hard error — a vacuous sweep
+        // blocked nothing, and the skip warning above already named
+        // the flag when system apps were the reason.
+        return Err(super::target_no_match_error(
+            "No apps to block".to_string(),
+            &[
+                super::TIP_LIST_APPS.to_string(),
+                "system apps need --force-this".to_string(),
+            ],
+        ));
     }
 
     Limiter::attach(verbose)?;
