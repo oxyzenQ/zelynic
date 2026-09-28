@@ -81,13 +81,22 @@ project's institutional memory. The naming convention is
 | [audits/RELEASE_ASSET_REGRESSION_2026-09-27.md](audits/RELEASE_ASSET_REGRESSION_2026-09-27.md) | The beta.3/beta.4 asset-less release regression: root cause, three-arm fix, healing procedure |
 | [audits/LIMITER_EAGLE_EYES_DEPTH_AUDIT_2026-09-27.md](audits/LIMITER_EAGLE_EYES_DEPTH_AUDIT_2026-09-27.md) | The limiter and eagle-eyes depth audit: per-dimension verdicts against the eBPF ceiling, two userspace fixes (recover's dead-group sweep, the byte-ranked top consumer), seven doc truths corrected, the counter-map eviction gap deferred to the prebuilt-refresh cycle |
 
+## Archive
+
+Frozen historical records relocated out of the living tree —
+readable in every checkout, never rewritten.
+
+| Archive | Covers |
+|---------|--------|
+| [archive/CHANGELOG_PRE_V11.md](archive/CHANGELOG_PRE_V11.md) | The pre-v11 release history: changelog entries [1.0.0] (2026-01-01) through [7.0.0] (2026-07-11) — the deleted v10-era file, restored byte-identical from git history into docs/archive/ by NIGHT-dinner-15 (2026-09-28), superseding NIGHT-hunt-18's git-history-only call |
+
 ## Project Meta
 
 | Doc | Covers |
 |-----|--------|
 | [BRANDING.md](BRANDING.md) | Visual identity: the purple, the dragon, the tone |
 | [../QA.md](../QA.md) | Owner question ledger — questions asked and answered, with dates |
-| [../CHANGELOG.md](../CHANGELOG.md) + [../CHANGELOG-V11-ERA.md](../CHANGELOG-V11-ERA.md) | What shipped, per release and per era |
+| [../CHANGELOG.md](../CHANGELOG.md) + [../CHANGELOG-V11-ERA.md](../CHANGELOG-V11-ERA.md) + [archive/CHANGELOG_PRE_V11.md](archive/CHANGELOG_PRE_V11.md) | What shipped: the v11-era active file, the frozen v11 campaign, and the pre-v11 archive |
 | [../CONTRIBUTING.md](../CONTRIBUTING.md) | How to contribute: the gate battery, commit discipline |
 | [../CLA.md](../CLA.md), [../COMMERCIAL_LICENSE.md](../COMMERCIAL_LICENSE.md), [../TRADEMARK.md](../TRADEMARK.md), [../NOTICE](../NOTICE) | Contribution licensing, commercial terms, trademark policy, root legal notice |
 <!-- ZELYNIC-DISCLAIMER -->
