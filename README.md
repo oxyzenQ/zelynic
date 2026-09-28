@@ -697,8 +697,8 @@ live in [COMMERCIAL_LICENSE.md](COMMERCIAL_LICENSE.md); the short version:
 | ---------- | -------------- | ------------------------------------------------ |
 | Personal   | Free (GPL-3.0) | Hobby, personal, non-commercial, contributions   |
 | Individual | $99/year       | Solo devs, freelancers, revenue < $100K/year     |
-| Business   | $1,000/year    | SMB, revenue $100K – $10M/year                   |
-| Company    | $9,900/year    | Enterprise (>$10M/year) OR redistribution rights |
+| Business   | $1,990/year    | SMB, revenue $100K – $10M/year                   |
+| Company    | $14,990/year   | Enterprise (>$10M/year) OR redistribution rights |
 
 Tiers are self-declared in good faith. Payment is USD-pegged crypto
 (Solana / Ethereum / Bitcoin, owner-verified addresses with QR codes —

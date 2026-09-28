@@ -16,6 +16,40 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Changed
 
+- **docs: NIGHT-dinner-15 — the business end of the ladder lifts:
+  Business $1,990/year, Company $14,990/year** (the owner's call on
+  the dinner-14 decision brief, executed the same day the research
+  landed — Option A, hold Individual and lift the tiers businesses
+  budget against, with one owner adjustment: Company at $14,990,
+  $90 above the researched $14,900 anchor, still under the $15K
+  psychological line). Business $1,000 → $1,990/year: was
+  underpriced 2x+ against PRTG's monitoring-only entry
+  ($2,149–$2,400/yr) while carrying the harder half of the problem —
+  enforcement plus monitoring, kernel-enforced, one static binary
+  to deploy. Company $9,900 → $14,990/year: redistribution rights
+  included, mid-band against PRTG 2500's $8,099–$8,904/yr
+  monitoring-only and field reports of ~$10K/yr after the 2025
+  increases. Individual holds at $99/year — it already sits at the
+  top of its consumer band (NetLimiter $29.95 one-time, TripMode
+  $11.99–$17.99/yr, Little Snitch $59 perpetual), and its stronger
+  play is the cost-saving value story (QA.md Q6), not a raise. The
+  execution follows the brief's checklist end to end: the three-file
+  table sync (README.md Commercial Licensing, COMMERCIAL_LICENSE.md
+  section 3, LICENSING_FAQ.md revenue-tier guide — one move, three
+  surfaces, zero desync); the multi-year discount (20% off 2 years,
+  30% off 3) re-read — it scales with the new prices automatically,
+  no edit needed; same-day re-verification — the brief's sources
+  were checked 2026-09-28, the same date as this execution, no
+  source moved in between; the announcement window — effective from
+  the first release tag after 2026-09-28, this entry and the
+  COMMERCIAL_LICENSE.md price-move note are the dated record,
+  nothing retroactive; and grandfathering — buyers who paid before
+  the move keep the price they paid for the term they bought, the
+  same good-faith contract in the other direction. The decision
+  record joins the research doc as its section 7, and the docs
+  index line follows it. Docs-only: no code path touched, no
+  benchmark run (docs-only contract).
+
 - **docs: NIGHT-dinner-14 — the cost-saving story gets its evidence,
   and the tier-pricing question gets its decision brief** (the
   owner's two asks: can zelynic really save internet cost — WiFi and

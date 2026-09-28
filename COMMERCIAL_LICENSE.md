@@ -68,8 +68,8 @@ license terms.
 | ---------- | -------------- | ------------------------------------------------------------ |
 | Personal   | Free (GPL-3.0) | Hobby, personal, non-commercial, open-source contributions   |
 | Individual | $99/year       | Solo devs, freelancers, revenue < $100K/year                 |
-| Business   | $1,000/year    | SMB, revenue $100K – $10M/year                               |
-| Company    | $9,900/year    | Enterprise (>$10M/year revenue) OR any redistribution rights |
+| Business   | $1,990/year    | SMB, revenue $100K – $10M/year                               |
+| Company    | $14,990/year   | Enterprise (>$10M/year revenue) OR any redistribution rights |
 
 Notes:
 
@@ -77,6 +77,13 @@ Notes:
   individual, whichever applies), not your zelynic-specific revenue.
 - **Multi-year discount** (owner discretion): 20% off a 2-year term,
   30% off a 3-year term.
+- **2026-09-28 price move** (effective from the first release tag
+  after that date): Business $1,000 → $1,990/year, Company
+  $9,900 → $14,990/year; Individual holds at $99/year. Buyers who
+  paid before the move are grandfathered — the price you paid
+  stands for the term you bought. Rationale record:
+  [docs/research/NIGHT_DINNER_14_PRICING_RESEARCH.md](docs/research/NIGHT_DINNER_14_PRICING_RESEARCH.md)
+  (section 7: the owner's executed decision).
 - **Redistribution rights** are granted at the Company tier only.
   Trademark licensing is separate — see
   [TRADEMARK.md](TRADEMARK.md).
