@@ -96,7 +96,7 @@ readable in every checkout, never rewritten.
 |-----|--------|
 | [BRANDING.md](BRANDING.md) | Visual identity: the purple, the dragon, the tone |
 | [../QA.md](../QA.md) | Owner question ledger — questions asked and answered, with dates |
-| [../CHANGELOG.md](../CHANGELOG.md) + [../CHANGELOG-V11-ERA.md](../CHANGELOG-V11-ERA.md) + [archive/CHANGELOG_PRE_V11.md](archive/CHANGELOG_PRE_V11.md) | What shipped: the v11-era active file, the frozen v11 campaign, and the pre-v11 archive |
+| [../CHANGELOG.md](../CHANGELOG.md) + [archive/CHANGELOG_PRE_V11.md](archive/CHANGELOG_PRE_V11.md) | What shipped: the v11-era active file and the pre-v11 archive (the frozen v11 campaign history lives in git history alone — NIGHT-dinner-19 removed the root duplicate) |
 | [../CONTRIBUTING.md](../CONTRIBUTING.md) | How to contribute: the gate battery, commit discipline |
 | [../CLA.md](../CLA.md), [../COMMERCIAL_LICENSE.md](../COMMERCIAL_LICENSE.md), [../TRADEMARK.md](../TRADEMARK.md), [../NOTICE](../NOTICE) | Contribution licensing, commercial terms, trademark policy, root legal notice |
 <!-- ZELYNIC-DISCLAIMER -->

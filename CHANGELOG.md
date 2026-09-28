@@ -5,12 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-The changelog is split into per-era files so this one stays navigable
-(NIGHT-docs-1): the NIGHT research campaign that built the v11 line
-moved verbatim to [CHANGELOG-V11-ERA.md](CHANGELOG-V11-ERA.md); this
-file carries only the entries newer than that campaign — the v11 era
-alone. The pre-v11 release history (entries [1.0.0] through [7.0.0])
-is archived in
+The changelog is split into per-era records so this one stays
+navigable (NIGHT-docs-1): this file carries the v11-line entries
+newer than the NIGHT research campaign. The frozen campaign history
+lives in git history alone (NIGHT-dinner-19 removed the root
+duplicate — see the History section below). The pre-v11 release
+history (entries [1.0.0] through [7.0.0]) is archived in
 [docs/archive/CHANGELOG_PRE_V11.md](docs/archive/CHANGELOG_PRE_V11.md)
 — restored there by NIGHT-dinner-15 (2026-09-28), superseding
 NIGHT-hunt-18's git-history-only call.
@@ -18,6 +18,31 @@ NIGHT-hunt-18's git-history-only call.
 ## [Unreleased]
 
 ### Changed
+
+- **docs: NIGHT-dinner-19 — the root-dir changelog-era duplicate is
+  gone** (the owner's audit: CHANGELOG-V11-ERA.md on the root dir was
+  a duplicate — its content is byte-identical to the pre-split
+  CHANGELOG.md blob at 1026c1f, verifiable in git history, so the
+  active tree carried the same 1135 lines twice). The file is
+  removed; every reference was updated in the same pass: the
+  Cargo.toml crates.io include set (the ship list no longer packs a
+  root file that does not exist), the header split-note and History
+  section of this file (both now point at git history —
+  `git log --follow -- CHANGELOG-V11-ERA.md` — mirroring the
+  hunt-18 precedent the owner set for the pre-v11 file before
+  dinner-15 restored that one into docs/archive/), the docs index
+  (docs/README.md Project Meta row), the frozen-record exclusions in
+  docs/RULES.md, the cross-link in docs/archive/
+  CHANGELOG_PRE_V11.md, and the gate scripts' skip lists
+  (check-headers.sh, check-language.sh, inject-disclaimer.sh,
+  gate-keepers.sh — a skip entry for a missing file is stale config,
+  removed with the file it named). The rest of the root-dir docs were
+  audited for the same duplicate class before this entry was
+  written: QA.md (owner question ledger), SECURITY.md, CONTRIBUTING,
+  CLA/COMMERCIAL_LICENSE/TRADEMARK/NOTICE are all unique single-home
+  documents — CHANGELOG-V11-ERA.md was the only duplicate. Benchmark:
+  skipped — documentation and packaging-list only, no render-path or
+  runtime code touched.
 
 - **CLI: NIGHT-dinner-16 — the depth audit to peak: every input
   value that can only be a mistake is now a hard error, and the
@@ -6158,10 +6183,14 @@ NIGHT-hunt-18's git-history-only call.
 
 The frozen campaign history of the v11 development line — the NIGHT
 research campaign, 2026-09-17 to 2026-09-19, every entry from the
-v10.0.0 stable tag up to NIGHT-hunt-25 — lives in
-[CHANGELOG-V11-ERA.md](CHANGELOG-V11-ERA.md), split out in
-NIGHT-docs-1 to keep this file lean. Entries there are verbatim
-historical records and are never rewritten.
+v10.0.0 stable tag up to NIGHT-hunt-25 — lives in git history alone.
+It was split out of this file verbatim in NIGHT-docs-1
+(`CHANGELOG-V11-ERA.md`, byte-identical to the pre-split blob at
+1026c1f); NIGHT-dinner-19 (2026-09-28) removed that root file — a
+duplicate of history the active tree did not need. Read it with
+`git log --follow -- CHANGELOG-V11-ERA.md` (the file's full span,
+NIGHT-docs-1 through NIGHT-dinner-19) or against the pre-split
+CHANGELOG.md blob at 1026c1f.
 
 The pre-v11 release history — entries [1.0.0] (2026-01-01) through
 [7.0.0] (2026-07-11), the deleted v10-era file — lives in

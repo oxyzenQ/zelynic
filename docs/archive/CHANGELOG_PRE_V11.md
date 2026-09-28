@@ -23,7 +23,8 @@ byte-identical to the deleted file.
 
 The active changelog — [Unreleased] and every v11-line entry — lives
 in [CHANGELOG.md](../../CHANGELOG.md). The frozen v11 campaign
-history lives in [CHANGELOG-V11-ERA.md](../../CHANGELOG-V11-ERA.md).
+history lives in git history alone (NIGHT-dinner-19 removed the root
+duplicate: `git log --follow -- CHANGELOG-V11-ERA.md`).
 
 The format is based on Keep a Changelog, and this project adheres to
 Semantic Versioning.

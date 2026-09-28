@@ -71,7 +71,6 @@ include = [
     "scripts/dev/install-bpf-linker.sh",
     "docs/*.md",
     "CHANGELOG.md",
-    "CHANGELOG-V11-ERA.md",
     "CLA.md",
     "COMMERCIAL_LICENSE.md",
     "CONTRIBUTING.md",
