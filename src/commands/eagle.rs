@@ -73,6 +73,81 @@ pub(crate) fn parse_target_spec(spec: &str) -> Result<Vec<Target>> {
     Ok(trimmed.into_iter().map(Target::parse).collect())
 }
 
+/// NIGHT-dinner-18 (the verifier-lineage mandate, the eagle-eyes
+/// half): resolve target tokens against a live identity snapshot and
+/// separate the matched cgroup ids from the misses — the launch-time
+/// existence gate both eagle-eyes modes now share. Before this, the
+/// live monitor opened its TUI for ANY target string (a typo'd name
+/// entered a fullscreen session that only said so in a frame note,
+/// and a dead cgroup id never said anything at all), and the depth
+/// report accepted a dead id verbatim and fabricated an empty report
+/// around it. The kernel's verifier rejects a program it cannot
+/// prove; the CLI holds the same line at the door: a target that
+/// names nothing is refused before any TUI or report exists.
+///
+/// Semantics, per token:
+/// - `CgroupId(id)` is LIVE when the identity map holds it. The map's
+///   walk inserts an entry for EVERY cgroup carrying a live process —
+///   empty-comm entries included, the crash-recovery contract — so
+///   `identity.get(id)` is exactly "a live process runs in this
+///   cgroup". A dead id misses with its display label (`cg:{id}`),
+///   never a fabricated report.
+/// - `ProcessName(name)` matches when any identity entry's comm
+///   equals the name case-insensitively — the same per-frame
+///   resolution the live renderer applies (`render::eagle`'s
+///   resolve_targets), so the launch gate can never accept a spec
+///   the frame could never show, nor reject one it would. (The depth
+///   report's name resolution deliberately keeps the strict-family
+///   /proc walk instead — see `resolve_name` — so a name resolves
+///   identically there and under `zelynic ss <name>`.)
+///
+/// Pure in its inputs, so the liveness contracts pin rootlessly with
+/// a seeded identity map (the cfg(test) insert seam) — pinned in
+/// test/commands/eagle_depth_tests.rs.
+pub(crate) fn resolve_live_targets(
+    tokens: &[Target],
+    identity: &IdentityMap,
+) -> (Vec<u32>, Vec<String>) {
+    let mut ids: Vec<u32> = Vec::new();
+    let mut misses: Vec<String> = Vec::new();
+    for token in tokens {
+        match token {
+            Target::CgroupId(id) => {
+                if identity.get(*id).is_some() {
+                    if !ids.contains(id) {
+                        ids.push(*id);
+                    }
+                } else {
+                    misses.push(format!("cg:{id}"));
+                }
+            }
+            Target::ProcessName(name) => {
+                let name_lower = name.to_lowercase();
+                let mut matched = false;
+                for entry in identity.all() {
+                    if entry.comm.to_lowercase() == name_lower {
+                        matched = true;
+                        // The match verdict and the id collection are
+                        // SEPARATE concerns: a duplicate token
+                        // ('brave/brave') must not flip to a miss just
+                        // because its cgroups are already collected
+                        // (NIGHT-dinner-18 — the render twin's
+                        // resolve_targets carried this exact false-miss
+                        // shape, fixed in the same pass).
+                        if !ids.contains(&entry.cgroup_id) {
+                            ids.push(entry.cgroup_id);
+                        }
+                    }
+                }
+                if !matched {
+                    misses.push(name.clone());
+                }
+            }
+        }
+    }
+    (ids, misses)
+}
+
 /// Resolve one name token to its live cgroup ids: the /proc walk the
 /// limiter's resolve_target owns, on the same canonical boundaries
 /// (NIGHT-optimized-1) — pid_comm + pid_cgroup_id — with the same
@@ -184,7 +259,16 @@ pub(crate) fn handle_eagle_eyes_depth(
     let mut misses: Vec<(String, String)> = Vec::new();
     for token in &tokens {
         let ids = match token {
-            Target::CgroupId(id) => vec![*id],
+            // NIGHT-dinner-18: a named cgroup id must be LIVE — the
+            // shared liveness gate (resolve_live_targets owns the
+            // semantics; from_ref borrows the single token without an
+            // allocation). A dead id is a miss, never the fabricated
+            // empty report the verbatim pass used to print around it.
+            Target::CgroupId(_) => resolve_live_targets(std::slice::from_ref(token), &identity).0,
+            // Names keep the strict-family /proc walk: a name resolves
+            // identically here and under `zelynic ss <name>` (the
+            // documented depth contract — per-process comm matching,
+            // not the identity map's majority-vote representative).
             Target::ProcessName(name) => resolve_name(name),
         };
         if ids.is_empty() {
@@ -237,12 +321,19 @@ pub(crate) fn handle_eagle_eyes_depth(
 
     // A spec that resolved to NOTHING is an error the owner can act
     // on; a partial miss (multi-target) renders alongside the hits.
+    // NIGHT-dinner-18: the refusal rides the shared no-match builder
+    // (commands::target_no_match_error) — the same labeled block, tip
+    // grammar, and exit 1 the strict family owns, so every
+    // names-a-target verb answers in one voice.
     if reports.is_empty() {
         let names: Vec<String> = misses.iter().map(|(t, _)| format!("'{t}'")).collect();
-        anyhow::bail!(
-            "no live cgroup matches {}\n  tip: find ids with 'zelynic list-apps'",
-            names.join(", ")
-        );
+        return Err(super::target_no_match_error(
+            format!(
+                "No live cgroup matches {} — nothing to inspect",
+                names.join(", ")
+            ),
+            &[super::TIP_LIST_APPS.to_string()],
+        ));
     }
 
     if json {

@@ -130,6 +130,50 @@ pub fn handle_eagle_eyes(
 
     super::ensure_root()?;
 
+    // ── NIGHT-dinner-18: the launch-time existence gate ───────────────
+    //
+    // The verifier-lineage mandate (the eBPF kernel's verifier rejects
+    // a program it cannot prove; the CLI holds the same line at the
+    // door): a spec that NAMES targets must find them, or fail. The
+    // owner's fatal find: `sudo zelynic ee typo` opened the fullscreen
+    // TUI for a target that never existed — the miss lived only in a
+    // frame note (and a dead cgroup id did not even get that), so a
+    // typo read as a calm session to every script and every skimming
+    // human. The strict family already refuses this shape
+    // (dinner-11); the depth report joined it above; the live monitor
+    // now completes the set.
+    //
+    // Placement is deliberate, three rungs deep in the ladder: parse
+    // validation stays first (a hollow spec or a typo'd interval
+    // surfaces before the privilege ask), the resolution runs AFTER
+    // the root guard (the /proc walk behind the identity map reads
+    // other users' /proc/<pid>/cgroup — a rootless walk would
+    // false-negative on exactly the multi-user hosts a server
+    // deployment targets), and BEFORE the interactive-stdio gate (a
+    // piped `sudo zelynic ee typo | grep` deserves the target error,
+    // not the TTY refusal — the command is wrong regardless of where
+    // its output would go).
+    //
+    // A PARTIAL miss still opens the session: the frame's per-frame
+    // re-resolution renders the unresolved names in place (the same
+    // partial-miss contract the depth report owns — the hits render,
+    // the misses are named), and apps started mid-session appear on
+    // the next refresh. Only a spec that resolved to NOTHING is
+    // refused — same builder, same tip grammar, same exit 1 as the
+    // strict family.
+    if !tokens.is_empty() {
+        let spec = targets.unwrap_or_default();
+        let mut identity = crate::ebpf::identity::IdentityMap::new();
+        identity.refresh();
+        let (_, misses) = super::eagle::resolve_live_targets(&tokens, &identity);
+        if misses.len() == tokens.len() {
+            return Err(super::target_no_match_error(
+                format!("No live cgroup matches '{spec}' — nothing to watch"),
+                &[super::TIP_LIST_APPS.to_string()],
+            ));
+        }
+    }
+
     // NIGHT-boost-28: the interactive-stdio gate, before any terminal
     // state or BPF work — `sudo zelynic ee | grep` is the owner's
     // fatal (stdin TTY + stdout pipe raw-moded the real terminal and

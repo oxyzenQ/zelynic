@@ -380,7 +380,16 @@ here). It is an INTERACTIVE monitor and refuses non-terminal stdio
 grep`) exits with a branded error before any terminal state or BPF
 load — the scripted-output surfaces are `status --print-json` and
 the `--depth` one-shot below; a redirected stdin refuses the same
-way, because the `q`/`t` keys would never arrive. Apps are RANKED
+way, because the `q`/`t` keys would never arrive. Since
+NIGHT-dinner-18 the monitor also holds the launch-time existence
+gate (the eBPF-verifier lineage the strict family carries): a
+TARGETS spec that resolves to nothing — `sudo zelynic ee typo`,
+or a cgroup ID whose processes are gone — exits 1 with the branded
+no-match error and the `list-apps` tip BEFORE the TUI opens,
+instead of entering a fullscreen session that only names the miss
+in a frame note (a partial miss still opens: the frame renders the
+unresolved names in place, and apps started mid-session appear on
+the next refresh). Apps are RANKED
 by session accumulation (NIGHT-boost-5):
 rank 1 is whoever has moved the most bytes since the monitor
 started — a heavy downloader that stops keeps its crown until
@@ -495,15 +504,19 @@ probed, never trusted).
 Two honesty contracts ride the mode. The live-only `--interval`
 flag answers with exactly one stderr note (`--interval ignored
 (--depth prints one report and exits)`) — stdout and the exit code
-stay the report's own. And target resolution keeps the ladder: a
-name that resolves to no live cgroup is the actionable error with
-the `list-apps` tip, while a cgroup ID with no live processes
-REPORTS exactly that — the empty census ("no live processes — the
-cgroup is empty or its members exited") is the answer, not a
-failure. Enforcement state follows the status contract: nothing
-pinned is honestly `unlimited`, pins that exist but cannot be
-opened are the stale-pins error with its `recover` tip, and a
-failed policy read is an error — never a fabricated verdict.
+stay the report's own. And target resolution keeps the ladder,
+hardened at NIGHT-dinner-18: a target that resolves to no live
+cgroup — a typo'd NAME or a cgroup ID whose processes are gone — is
+the actionable error with the `list-apps` tip (exit 1, the same
+no-match verdict the strict family owns; the old depth pass
+fabricated an empty report around a dead ID). The empty-census line
+("no live processes — the cgroup is empty or its members exited")
+now belongs to the exit race alone: the target was live at the
+launch gate and its members left before the walk ran. Enforcement
+state follows the status contract: nothing pinned is honestly
+`unlimited`, pins that exist but cannot be opened are the
+stale-pins error with its `recover` tip, and a failed policy read
+is an error — never a fabricated verdict.
 
 The SMOOTH OPEN (NIGHT-boost-25, the owner's masterclass loading
 audit): the monitor used to run its whole eBPF load on the main
