@@ -10,8 +10,8 @@ pub(crate) mod ux;
 
 /// zelynic — Per-app network rate limiter and traffic monitor for Linux
 ///
-/// Limit and observe any app's download/upload speed using eBPF. Pure
-/// kernel enforcement, no tc/nft. Requires kernel 5.13+ and root.
+/// Limit and observe any app's download/upload speed using eBPF —
+/// pure kernel enforcement.
 #[derive(Parser, Debug)]
 #[command(
     name = "zelynic",

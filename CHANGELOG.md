@@ -16,6 +16,32 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Changed
 
+- **docs: NIGHT-dinner-8 tidying — the help reference drops its
+  requirements line, and the README's three checkable numbers grow
+  their where-to-verify anchors** (the owner's "simple is fast to
+  learn" mandate, sharpened by an external review that flagged the
+  claims). `--help` no longer carries "no tc, no nft. Requires
+  kernel 5.13+ and root" — the intro line now ends at "pure kernel
+  enforcement", and the requirements stay where they are checkable:
+  the README's Requirements section, `zelynic doctor` (which answers
+  the kernel question with the exact reason), and
+  docs/KERNEL_COMPATIBILITY.md. The README fixes, one per review
+  finding: the 0.00% rate-error claim reads as a measurement
+  everywhere it appears — the feature table says "measured", the
+  comparison table's bare 0.00% cell grows a footnote naming the
+  reproduce command and where the residuals print
+  (CLAIMS_VERIFICATION.md); the "57 system processes blocked by
+  default" bullet now names where the list ships
+  (src/commands/safety.rs, `DANGEROUS_TARGETS` — `--help` renders
+  the count live from source, so it cannot drift); and the Test
+  Results table gains its honest context — 2026 runs (the kernel 7.x
+  and Ubuntu 26.04 rows are the current 2026 release lanes), one
+  bare-metal row, one Live ISO, four QEMU/KVM VMs, Fedora's four
+  leak rows were bpftool false positives kept verbatim in the
+  record, and the rows measured the pre-phase-3 tarball (the CI
+  lane re-validates the current binary on every core push). One
+  println merged in the help module; everything else is docs.
+
 - **eagle-eyes: NIGHT-dinner-6's E1 rider — the counter maps ride
   the LRU lane, and the frozen tree's stale `zelynic rates`
   comments die** — the one kernel-side move the dinner-6 depth
