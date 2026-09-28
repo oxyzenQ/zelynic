@@ -130,7 +130,7 @@ mkdir /tmp/zelynic-rel
 # v3 runs on any x86_64 machine from ~2013 onward:
 tar -xzf zelynic-vX.Y.Z-linux-amd64-v3-gnu.tar.gz -C /tmp/zelynic-rel
 # AVX-512 machines (Zen 4/5, Ice Lake and newer): -v4-gnu
-# old glibc / fully static:                      -v3-musl / -v4-musl
+# old glibc / fully static:                       -v3-musl / -v4-musl
 install -Dm755 /tmp/zelynic-rel/zelynic ~/.local/bin/zelynic          # user install
 # or: sudo install -Dm755 /tmp/zelynic-rel/zelynic /usr/local/bin/zelynic
 ```
@@ -333,8 +333,8 @@ Every command, once — flags live in `--help`, formats in
 
 ```bash
 # Limit one app — positional rate sets BOTH download + upload
-sudo zelynic strict-single brave 100kb        # 'strict' is the shorthand
-sudo zelynic strict-single firefox -d 1mb -u 500kb   # per-direction
+sudo zelynic strict-single brave 100kb              # 'strict' is the shorthand
+sudo zelynic strict-single firefox -d 1mb -u 500kb  # per-direction
 
 # Group limit — several apps share ONE rate
 sudo zelynic strict-multi brave:curl:pacman 1mb
@@ -572,6 +572,16 @@ policy, supported versions, and what counts as a vulnerability live in
 - [Licensing FAQ](docs/LICENSING_FAQ.md) — dual-licensing questions answered
 - [Commercial License](COMMERCIAL_LICENSE.md) — tiers, pricing, payment, verification
 - [Q&A Record](QA.md) — owner questions answered against the source (ask-mode sessions)
+
+The rest of the shelf — the [FAQ](docs/FAQ.md), the
+[philosophy](docs/PHILIOSOPHY.md) and [branding](docs/BRANDING.md)
+records, the owner's [maintenance playbook](docs/MAINTENANCE.md),
+and the dated research set (the [pure-Rust eBPF
+evaluation](docs/PURE_RUST_EVALUATION.md), the [toolchain and
+monitoring research](docs/RESEARCH_TOOLCHAIN_AND_MONITORING.md)) —
+is cataloged once in the master index,
+[docs/README.md](docs/README.md): one row per question, every doc
+named there.
 
 ## Test Results
 

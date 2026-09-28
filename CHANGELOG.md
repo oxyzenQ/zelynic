@@ -19,6 +19,36 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Changed
 
+- **docs: NIGHT-dinner-20 — the README freshness audit against the
+  source (the owner's source-is-truth mandate), and the
+  comment-alignment symmetry pass over every commented code
+  example** (two halves, one contract: the README may not claim
+  anything the source does not back up, and no bash/script example
+  may carry lopsided trailing comments). The freshness half's
+  honest verdict: the README was already at peak — every
+  machine-checkable claim verified green against the tree in one
+  sweep (the 7 direct deps and 54 lockfile crates counted live from
+  Cargo.toml and Cargo.lock; the 57 dangerous targets counted from
+  DANGEROUS_TARGETS in src/commands/safety.rs; all 30 asset, doc,
+  script, and test paths resolve; the six cargo build aliases exist
+  in .cargo/config.toml; the rate bounds, the interval bounds, the
+  retired-surface guards, the root-refusing --check-update, the
+  bpf-linker 0.11.1 pin, the build.rs stamp, and the GPG key id all
+  match the source). One real gap surfaced and closed: the
+  Documentation section never linked the master index
+  (docs/README.md), so the FAQ, PHILIOSOPHY, BRANDING, MAINTENANCE,
+  and the two dated research docs were unreachable from the front
+  door — a closing catalog line now names them and the index that
+  carries their rows. The symmetry half: a fence-aware audit over
+  all 34 .md files found 21 blocks of consecutive
+  trailing-comment examples — 17 already aligned, 4 lopsided (the
+  README strict-single pair, the SAFETY_ANALYSIS residue checks,
+  and the two USAGE eagle-eyes recipes), all four now aligned to
+  the house rule the setup.sh block set (every '#' at longest
+  command + 2); plus the release-package cheatsheet's
+  comment-internal value column, off by one on the -v3-musl /
+  -v4-musl row. Sixteen lines re-padded in total, pure whitespace
+  on the alignment half, comment text untouched verbatim.
 - **build: NIGHT-dinner-19 rider — the CI gate-keepers shfmt
   regression the owner caught: the three gate scripts dinner-19
   touched are re-canonicalized** (the failure CI reported on every

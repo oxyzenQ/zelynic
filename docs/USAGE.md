@@ -31,12 +31,12 @@ read this one. Build instructions live in the
 ## The 30-second version
 
 ```bash
-sudo zelynic list-apps                 # find the app + its cgroup id
-sudo zelynic strict-single brave 100kb # limit it (download AND upload)
-sudo zelynic status                    # verify the limit is live
-sudo zelynic eagle-eyes                # watch traffic live, ranked (q to quit)
-sudo zelynic ee cg:1234 --depth        # who/what IS this cgroup? (one shot)
-sudo zelynic unstrict-single brave   # remove the limit
+sudo zelynic list-apps                  # find the app + its cgroup id
+sudo zelynic strict-single brave 100kb  # limit it (download AND upload)
+sudo zelynic status                     # verify the limit is live
+sudo zelynic eagle-eyes                 # watch traffic live, ranked (q to quit)
+sudo zelynic ee cg:1234 --depth         # who/what IS this cgroup? (one shot)
+sudo zelynic unstrict-single brave      # remove the limit
 ```
 
 Limiting is **fire-and-forget**: the command writes rules into pinned
@@ -997,8 +997,8 @@ sudo zelynic strict-single firefox -d 5mb -u 500kb
 
 ```bash
 sudo zelynic eagle-eyes               # ranked; raise the window for more
-sudo zelynic eagle-eyes 8066         # zoom in, see endpoints (q to quit)
-sudo zelynic ee 8066 --depth         # who runs it, from where, since when
+sudo zelynic eagle-eyes 8066          # zoom in, see endpoints (q to quit)
+sudo zelynic ee 8066 --depth          # who runs it, from where, since when
 sudo zelynic strict-single 8066 50kb  # target the cgroup id directly
 ```
 
