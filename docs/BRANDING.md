@@ -1,15 +1,15 @@
 <!-- Copyright (C) 2026 rezky_nightky -->
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 
-# Zelynic Brand Guidelines
+# zelynic Brand Guidelines
 
-This document defines the visual identity and communication standards for the Zelynic project. It ensures consistent branding across all touchpoints — from the GitHub repository to the CLI output and documentation.
+This document defines the visual identity and communication standards for the zelynic project. It ensures consistent branding across all touchpoints — from the GitHub repository to the CLI output and documentation.
 
 ---
 
 ## 1. Brand Identity
 
-**Zelynic** is a serious Linux bandwidth control system for process-aware monitoring, shaping, and validation. The brand reflects:
+**zelynic** is a serious Linux bandwidth control system for process-aware monitoring, shaping, and validation. The brand reflects:
 
 - **Technical Precision** — enforced by a pure eBPF datapath on cgroup v2
 - **Reliability** — robust per-process network behavior control
@@ -20,7 +20,7 @@ This document defines the visual identity and communication standards for the Ze
 
 ## 2. Brand Color
 
-**Zelynic brand purple: `#A855F7` (RGB 168, 85, 247)** — the cosmostrix
+**zelynic brand purple: `#A855F7` (RGB 168, 85, 247)** — the cosmostrix
 branding color format, shared across the owner's projects.
 
 The color is rendered in whatever depth the terminal actually supports
@@ -331,19 +331,33 @@ surface, which never themes.
 
 ## 3. Name Usage
 
-### 3.1. Correct forms
+### 3.1. Correct form
+
+The name is **always lowercase** — `zelynic` — in every context,
+the nginx/curl convention (NIGHT-dinner-21 owner mandate): prose,
+titles, headings, code, CLI output, comments, commit subjects.
+There is no context where a capital `Z` is correct, including the
+start of a sentence.
 
 | Context | Format |
 |---|---|
-| Running text / prose | Zelynic |
-| Titles / headings | Zelynic |
+| Running text / prose | zelynic |
+| Titles / headings | zelynic |
 | Code / CLI | `zelynic` (lowercase) |
+
+The one uppercase family that survives is identifiers, never the
+name itself: the `ZELYNIC_*` environment variables
+(`ZELYNIC_BUILD`, `ZELYNIC_BINARY`, `ZELYNIC_SANDBOX_CACHE`, ...),
+the `<!-- ZELYNIC-DISCLAIMER -->` injection marker, and the
+all-caps banner comment titles heading the scripts/ gate files —
+shell and identifier conventions, not brand displays.
 
 ### 3.2. Incorrect forms
 
+- ~~Zelynic~~ (capitalized — the name is lowercase, even at the start of a sentence)
 - ~~ZeLynic~~ (no internal capitalization)
 - ~~Oxy~~ (legacy name, do not use for new mentions)
-- ~~ZelynicX~~ (derivative form)
+- ~~zelynicX~~ (derivative form)
 
 ---
 
@@ -362,7 +376,7 @@ The official logo is located at [`assets/zelynic-logo-master.png`](../assets/zel
 
 ## 5. Tone of Voice
 
-Zelynic's communication should be technical, authoritative, and direct.
+zelynic's communication should be technical, authoritative, and direct.
 
 - **Factual** — describe capabilities and validation status clearly (e.g., "Validated on Arch/CachyOS")
 - **Concise** — respect the user's time in CLI output and documentation
@@ -372,9 +386,9 @@ Zelynic's communication should be technical, authoritative, and direct.
 
 ## 6. Third-party Usage
 
-External projects or articles referencing Zelynic should:
+External projects or articles referencing zelynic should:
 
-- Use the correct project name: Zelynic
+- Use the correct project name: zelynic (always lowercase)
 - Link to the official repository: <https://github.com/oxyzenQ/zelynic>
 - Acknowledge it as a Rust-based CLI tool
 <!-- ZELYNIC-DISCLAIMER -->

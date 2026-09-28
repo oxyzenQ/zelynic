@@ -421,7 +421,7 @@ show_cache_stats() {
 show_help() {
 	cat <<EOF
 ╔════════════════════════════════════════════════════════════════╗
-║           Zelynic Build Script - v${ZELYNIC_VERSION}                  ║
+║           zelynic Build Script - v${ZELYNIC_VERSION}                  ║
 ║        Per-app network rate limiter for Linux                ║
 ╚════════════════════════════════════════════════════════════════╝
 

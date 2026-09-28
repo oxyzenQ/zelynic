@@ -1,9 +1,9 @@
 <!-- Copyright (C) 2026 rezky_nightky -->
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 
-# Zelynic Trademark Policy
+# zelynic Trademark Policy
 
-This document governs the use of the **Zelynic** name, logo, and associated branding assets. It supplements, but does not replace, the GPL-3.0-only license that covers the source code.
+This document governs the use of the **zelynic** name, logo, and associated branding assets. It supplements, but does not replace, the GPL-3.0-only license that covers the source code.
 
 Commercial licensing is separate from trademark licensing. A commercial
 source license (see [COMMERCIAL_LICENSE.md](COMMERCIAL_LICENSE.md)) does
@@ -12,15 +12,15 @@ source license — the two are negotiated independently.
 
 > **TL;DR** — Forking falls into two categories. **Contribution forks** (bug
 > fixes, features, PRs back to upstream) are allowed without permission and
-> may keep the "Zelynic" name and branding unchanged. **Non-contribution
+> may keep the "zelynic" name and branding unchanged. **Non-contribution
 > forks** (rebrand, relaunch, derivative product, commercial offering) must be
-> discussed with the owner first and MUST rename away from "Zelynic".
+> discussed with the owner first and MUST rename away from "zelynic".
 
 ---
 
 ## 1. Trademark Ownership
 
-The name **"Zelynic"** and all associated logos, icons, artwork, and visual identifiers (collectively, the **"Marks"**) are trademarks of the project creator (`rezky_nightky (oxyzenQ)`). These Marks are **not** covered by the GPL-3.0-only license granted to the source code.
+The name **"zelynic"** and all associated logos, icons, artwork, and visual identifiers (collectively, the **"Marks"**) are trademarks of the project creator (`rezky_nightky (oxyzenQ)`). These Marks are **not** covered by the GPL-3.0-only license granted to the source code.
 
 Use of the Marks is permitted only as described in this policy. All other uses require prior written consent.
 
@@ -32,21 +32,21 @@ The following uses are allowed without seeking explicit permission:
 
 ### 2.1. Attribution
 
-You may use the Zelynic name and logo in a purely **attributive** manner to accurately identify the origin of the unmodified software. Examples:
+You may use the zelynic name and logo in a purely **attributive** manner to accurately identify the origin of the unmodified software. Examples:
 
-- Crediting Zelynic in a "powered by" or "built with" section of your documentation or website.
+- Crediting zelynic in a "powered by" or "built with" section of your documentation or website.
 - Referencing the original project by name in articles, reviews, or academic papers.
 - Including the original name in source file headers as required by the GPL-3.0-only license attribution clause.
 
 ### 2.2. Non-commercial redistribution of unmodified copies
 
-Distributing **unmodified** copies of the Zelynic binary or source code (including the original name, logo, and README) is permitted under the GPL-3.0-only license, provided that the license and copyright notices are preserved.
+Distributing **unmodified** copies of the zelynic binary or source code (including the original name, logo, and README) is permitted under the GPL-3.0-only license, provided that the license and copyright notices are preserved.
 
 ### 2.4. Contribution forks (the cosmostrix lineage)
 
 Forking the source code under the terms of GPL-3.0-only for the purpose
 of contributing back to zelynic (bug fixes, features, PRs) is allowed
-without permission. Contribution forks may keep the Zelynic name, logo,
+without permission. Contribution forks may keep the zelynic name, logo,
 and branding unchanged — no rename or rebrand required — as long as the
 fork is clearly labeled as a contribution fork (e.g. the fork description
 says "WIP: <feature> for zelynic upstream") and the owner is notified via
@@ -67,15 +67,15 @@ You **must** obtain prior written permission before using the Marks in any of th
 Forks intended for any purpose other than upstream contribution — rebrand,
 relaunch, derivative product, commercial offering, or redistribution under
 a different identity — require owner discussion BEFORE public release (see
-§4b). These forks may **not** use the Zelynic name or Marks to identify or
+§4b). These forks may **not** use the zelynic name or Marks to identify or
 market the derivative. This includes but is not limited to:
 
-- Distributing a modified build under the name "Zelynic" or a confusingly similar name (e.g., "Zelynic Pro", "Zelynic Plus", "ZelynicX").
-- Using the Zelynic logo or artwork on packaging, websites, or promotional materials for a derivative product.
+- Distributing a modified build under the name "zelynic" or a confusingly similar name (e.g., "zelynic Pro", "zelynic Plus", "zelynicX").
+- Using the zelynic logo or artwork on packaging, websites, or promotional materials for a derivative product.
 
 ### 3.2. Commercial use
 
-Using the Zelynic name or Marks in any commercial context — including product names, company names, service names, domain names, social media handles, or advertising — requires prior written approval.
+Using the zelynic name or Marks in any commercial context — including product names, company names, service names, domain names, social media handles, or advertising — requires prior written approval.
 
 ---
 
@@ -107,8 +107,8 @@ redistribution under a different identity. These forks:
 - MUST be discussed with the owner (rezky_nightky / oxyzenQ) BEFORE
   public release. Open a GitHub Issue or contact via the repository.
 - MUST use a different project name (not "zelynic", and not a
-  confusingly similar name — "Zelynic Pro", "Zelynic Plus",
-  "ZelynicX" included).
+  confusingly similar name — "zelynic Pro", "zelynic Plus",
+  "zelynicX" included).
 - MUST use different branding (logo, color scheme, artwork).
 - MUST preserve the GPL-3.0-only license and copyright notice.
 - MUST clearly state that the fork is derived from zelynic but is
@@ -130,7 +130,7 @@ would compete with, dilute, or confuse the zelynic brand.
 
 The goal of this policy is to **prevent confusion**, not to restrict the open source community. The project creator reserves the right to:
 
-- Request that a fork or derivative stop using the Zelynic Marks.
+- Request that a fork or derivative stop using the zelynic Marks.
 - Require a renamed fork to update its branding if it causes user confusion or misattribution.
 
 Enforcement will always begin with a polite request before any formal action.
