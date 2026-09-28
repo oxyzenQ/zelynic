@@ -287,10 +287,36 @@ sudo zelynic status [--print-json]
 Reads the pinned maps and prints the active limits: how many dl/ul
 policies, and a table of cgroup / download / upload / allowed /
 dropped per cgroup, with labels resolved by majority vote over the
-live processes inside each cgroup. allowed/dropped carry cumulative
-BYTE counters since the maps were created — one metric per cell,
-evidence of enforcement rather than a live rate meter; the packet
-counts ride `--print-json` where automation reads them.
+live processes inside each cgroup.
+
+Reading the last two columns (spelled out after the rc.2 long-run
+audit showed the pair can read as a mystery):
+
+- **allowed** — the cumulative BYTES that passed enforcement for
+  the cgroup while its limit was active (download and upload are
+  booked into one row). This is the traffic that actually flowed,
+  not a rate: divide it by the time since the limit was applied
+  and you get the enforced average.
+- **dropped** — the cumulative BYTES the token bucket discarded:
+  the cgroup tried to burst above the configured rate, the bucket
+  was momentarily empty, and the packet took the drop branch (a
+  rate-0 `block-*` policy books everything here — an unbooked
+  drop would be invisible enforcement). Dropping is how the limit
+  teaches TCP to slow down: after a drop the sender backs off and
+  retransmits, so the retransmitted data reappears inside
+  `allowed` later — which is why a healthy limit shows `dropped`
+  as a tiny fraction of `allowed` (a 6h50m unattended rc.2 run
+  measured 4.4 MB dropped on 3.4 GB allowed, 0.13%).
+
+Both counters live for the lifetime of the limit: re-applying
+`strict` with a different rate keeps the accounting continuous
+(the long run re-tightened its target mid-run and the totals
+carried), and `unstrict` reclaims the stats row once both
+directions are gone, so the next `strict` starts from zero. The
+table shows the byte pair; `--print-json` carries all four
+counters (packets_allowed, packets_dropped, bytes_allowed,
+bytes_dropped) where automation reads them — one metric per
+cell, evidence of enforcement rather than a live rate meter.
 
 The output IS the eagle-eyes style (NIGHT-engrave-5, the owner's
 audit — the surface was the last uppercase holdout): the purple
@@ -1056,9 +1082,12 @@ map writes. A teardown racing an apply is detected after the fact and
 reported with a `recover` tip.
 
 **9. Counters are cumulative evidence.**
-The ALLOWED/DROPPED columns in `status` accumulate since the maps were
-created — they prove enforcement is biting, but they are not a live
-throughput meter. Use `eagle-eyes` for live rates.
+The ALLOWED/DROPPED columns in `status` are cumulative bytes for the
+lifetime of the limit — allowed passed, dropped discarded by the token
+bucket, the retransmits reappearing inside allowed — and they carry
+over rate changes, resetting only when the limit is removed. They
+prove enforcement is biting, but they are not a live throughput
+meter. Use `eagle-eyes` for live rates.
 
 **10. The CLI surface is frozen (v11).**
 Commands, flags, and output formats are stable API from v11.0.0.

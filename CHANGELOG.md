@@ -172,6 +172,30 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Added
 
+- **docs: the status table's allowed/dropped pair gets its plain
+  reading — spelled out after the rc.2 long-run audit showed the
+  pair can read as a mystery** — the columns were documented as
+  "cumulative BYTE counters" without ever saying what they mean.
+  USAGE.md's status section now reads them out: allowed is the
+  cumulative bytes that passed enforcement (download and upload
+  booked into one row, the enforced average when divided by the
+  limit's lifetime), dropped is the cumulative bytes the token
+  bucket discarded on a burst (a rate-0 block books everything
+  there — an unbooked drop would be invisible enforcement), and
+  the retransmitted data reappears inside allowed, which is why a
+  healthy limit shows dropped as a tiny fraction of allowed (the
+  6h50m unattended rc.2 run: 4.4 MB on 3.4 GB, 0.13%). The
+  lifetime semantics are stated where they live: a rate change
+  keeps the accounting continuous, `unstrict` reclaims the row
+  once both directions are gone, the next `strict` starts from
+  zero — correcting the old "since the maps were created"
+  phrasing in both the status section and limitation 9, which
+  overstated the epoch (the stats entry is born at the first
+  booked packet and reclaimed with the limit, not with the map).
+  No code change; the table renders the kernel's own four
+  counters (packets/bytes allowed/dropped, --print-json's full
+  set) exactly as it always did.
+
 - **docs: NIGHT-private-research-1 — the remaining cosmostrix-parity
   maturity gaps close: NOTICE, the design philosophy canon, and a
   user-facing FAQ** — the owner rejected "mature enough" as the bar
