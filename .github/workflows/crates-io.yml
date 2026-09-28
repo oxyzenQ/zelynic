@@ -90,8 +90,15 @@ jobs:
     name: CI gate (commit+tag push)
     runs-on: ubuntu-24.04
     timeout-minutes: 40
+    # NIGHT-dinner-12: actions: write (not read) — the gate's
+    # infra-failure carve-out re-runs the failed jobs of a run whose
+    # failures all carry GitHub-infra signatures (the observed class:
+    # a release-asset download answering 500). Read-only would make
+    # every such flake a human-attended publish blocker. The token is
+    # still THIS job's ephemeral github.token: it can re-run CI runs
+    # in this repository and nothing else.
     permissions:
-      actions: read
+      actions: write
       contents: read
     steps:
       - name: Checkout
@@ -168,7 +175,13 @@ jobs:
           # Idempotency probe: crates.io rejects duplicate versions, so a
           # re-pushed tag (or a re-run) must not attempt a second upload.
           # The API requires a custom User-Agent (plain curl gets 403).
-          if curl -fsSL -A "zelynic-ci-publish-check" \
+          # NIGHT-dinner-12: the probe carries the curl retry contract —
+          # a transient 5xx reading as "not published" would fall through
+          # to cargo publish and die as a duplicate-version error, the
+          # exact infra-flake-looks-like-code-failure trap this task
+          # exists to close.
+          if curl -fsSL --retry 6 --retry-all-errors --retry-delay 10 --retry-max-time 300 --connect-timeout 15 \
+              -A "zelynic-ci-publish-check" \
               "https://crates.io/api/v1/crates/zelynic/${VERSION}" >/dev/null 2>&1; then
             echo "zelynic ${VERSION} is already published on crates.io - nothing to do."
             exit 0

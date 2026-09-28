@@ -14,7 +14,9 @@
 //!    alone, so the shape is testable rootlessly at every color
 //!    depth (the renderer itself is pinned in test/output/).
 //! 2. Every tip rides its own indented `tip:` line, in order — the
-//!    line-aware renderer paints exactly those lines white; a tip
+//!    line-aware renderer paints exactly those lines (white for
+//!    passive tips, green when the tip quotes a command to run —
+//!    NIGHT-dinner-12); a tip
 //!    that lost its prefix would render red and the did-you-mean
 //!    grammar the CLI owns would break.
 //! 3. A tipless refusal is the bare head — no dangling decoration.
