@@ -19,6 +19,48 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Changed
 
+- **docs: NIGHT-dinner-17 — the owner's QA deep-dive batch lands in
+  the question ledger (Q7-Q13)** (the owner's list: architecture,
+  the dragon engines, the commit pattern, the bug pattern, the docs
+  organization, the eBPF choice, and the future — asked, and
+  answered against the source tree before writing, the QA.md
+  contract). Q7 walks the five layers with the two load-bearing
+  mechanisms named: per-app attribution as the socket-owner cgroup
+  id (PHILOSOPHY §1, the softirq-context argument) and
+  survive-process-exit as pinned bpf_links + LIBBPF_PIN_BY_NAME
+  maps (nine maps, the hunt-19 operational-pin predicate). Q8
+  documents the THREE dragon engines of cosmostrix — Cosmic
+  (diff-based cells), Chroma (OKlab color), Crystal (ambient
+  intelligence), grounded in cosmostrix's own
+  THREE_DRAGON_ENGINES.md — and what zelynic inherited from each
+  (the Cosmic diff discipline as terminal/diff.rs; the Chroma and
+  Crystal concerns do not apply to a four-tier utility palette). Q9
+  answers why the commits read "Internal research:" and not
+  conventional-commit types: the narrative carries the why, the
+  measurement, and the pin; the NIGHT task id is the traceability
+  key across commits, changelog, and in-code markers; the
+  Signed-off-by closes provenance on a dual-licensed tree. Q10
+  distills the five-step bug pattern (measure first, root-cause the
+  mechanism, fix at the boundary once, pin it, document at the
+  site) with the campaign's own incidents as exhibits (boost-38's
+  measured 130-146%, lts-8's 1.35%, the 02284dd pidfd recursion).
+  Q11 answers the 228-Markdown question honestly: zelynic carries
+  34 .md files counted live (post-dinner-19); the 228 figure is the
+  cross-project aggregate of the shared organization scheme — one
+  index, one home per concern, dated research/audit/archive
+  namespaces, the disclaimer gate, and lint gates over .md in CI.
+  Q12 lays out the eBPF-vs-kernel-module and
+  eBPF-vs-userspace-shaper trade-offs (verifier proof vs kernel
+  panic, stable UAPI vs DKMS, kernel-fact attribution vs
+  opt-in/MITM heuristics) with the accepted costs documented not
+  hidden. Q13 answers v12/v100 from the recorded maintenance-mode
+  decision and the architecture's own unscheduled-ideas list: the
+  version number is the campaign ledger's bookmark, not a scope
+  promise — cosmostrix's v100.0.0-beta.1 being the family's proof.
+  QA.md's header now names both question series (ask + dinner-17
+  batch). Benchmark: skipped — documentation only, no render-path
+  or runtime code touched.
+
 - **CLI: NIGHT-dinner-18 — the eagle-eyes depth audit to peak: the
   launch-time existence gate, the dead-ID verdict, and the
   duplicate-token false-miss** (the owner's verifier-lineage mandate
