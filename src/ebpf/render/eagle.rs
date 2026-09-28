@@ -73,45 +73,15 @@ use crate::output::{brand, grey, hot, ok, warn};
 /// half); the header-alignment pins catch any drift.
 const RANK_SPAN: usize = 4;
 
-/// Resolve target tokens against the identity map.
-///
-/// Numeric tokens (bare or `cg:`-prefixed — the display prefix
-/// round-trips since NIGHT-boost-37, so a label copied off the
-/// table watches the cgroup it names) are cgroup IDs verbatim;
-/// name tokens expand to every cgroup whose comm matches
-/// (case-insensitive) — `brave`
-/// watches ALL brave cgroups, the whole-app semantics the
-/// strict/block family's /proc resolution gives. Names that match
-/// nothing come back separately so the frame can say so (a typo'd
-/// app name must not silently render an empty table).
-#[must_use]
-fn resolve_targets(tokens: &[Target], identity: &IdentityMap) -> (Vec<u32>, Vec<String>) {
-    let mut ids: Vec<u32> = Vec::new();
-    let mut unresolved: Vec<String> = Vec::new();
-    for token in tokens {
-        match token {
-            Target::CgroupId(id) => {
-                if !ids.contains(id) {
-                    ids.push(*id);
-                }
-            }
-            Target::ProcessName(name) => {
-                let name_lower = name.to_lowercase();
-                let mut matched = false;
-                for entry in identity.all() {
-                    if entry.comm.to_lowercase() == name_lower && !ids.contains(&entry.cgroup_id) {
-                        ids.push(entry.cgroup_id);
-                        matched = true;
-                    }
-                }
-                if !matched {
-                    unresolved.push(name.clone());
-                }
-            }
-        }
-    }
-    (ids, unresolved)
-}
+/// Resolve target tokens against the identity map — the render
+/// family's per-frame resolver, its own module since NIGHT-dinner-18
+/// (the LOC-cap split this file's own history owns: focus, footer,
+/// detail, rank each took a contract; targets took the resolution
+/// grammar when the duplicate-token fix pushed past 500). The
+/// launch gate's twin (commands::eagle::resolve_live_targets) owns
+/// the door verdict — see render/targets.rs for the two-home
+/// contract.
+use super::targets::resolve_targets;
 
 /// Render one eagle-eyes frame (NIGHT-improve-2: line-building — the
 /// caller submits the vector to the diff-based screen engine, which

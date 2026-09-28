@@ -150,3 +150,23 @@ fn name_targets_expand_and_misses_note() {
         "engrave-4: the consumer headline names the filtered board's champion: {joined}"
     );
 }
+
+/// NIGHT-dinner-18 (the duplicate-token false-miss): a repeated name
+/// token ('brave/brave') must stay a HIT on both copies. The old
+/// combined condition — comm match AND id not already collected —
+/// flipped the second copy to a miss (every matching cgroup was
+/// already in `ids`, so `matched` never turned true), and the frame
+/// rendered "no app named 'brave'" under a live brave.
+#[test]
+fn duplicate_name_token_is_not_a_false_miss() {
+    let identity = identity_with(&[("brave", 7001), ("brave", 7002)]);
+    let (ids, unresolved) =
+        resolve_targets(&[Target::parse("brave"), Target::parse("brave")], &identity);
+    let mut got = ids.clone();
+    got.sort_unstable();
+    assert_eq!(got, vec![7001, 7002], "both copies match, ids dedup");
+    assert!(
+        unresolved.is_empty(),
+        "a repeated live name must never surface as unresolved, got: {unresolved:?}"
+    );
+}

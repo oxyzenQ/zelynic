@@ -94,6 +94,7 @@ mod loading;
 mod rank;
 mod report;
 mod session;
+mod targets;
 
 #[cfg(test)]
 // NIGHT-hunt-17: the A/B frame harness is a test file, so it lives

@@ -19,6 +19,70 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Changed
 
+- **CLI: NIGHT-dinner-18 — the eagle-eyes depth audit to peak: the
+  launch-time existence gate, the dead-ID verdict, and the
+  duplicate-token false-miss** (the owner's verifier-lineage mandate
+  completed on the watch surface: after the dinner-11/dinner-16
+  hard-error passes, the owner's own probe found `sudo zelynic ee
+  typo` still ENTERING the fullscreen monitor — the miss lived in a
+  frame note, and a typo read as a calm session to every script and
+  skimming human). Three fixes, one contract: a command that NAMES a
+  target must find it, or fail. (1) The live monitor now runs the
+  launch-time liveness gate — after the root guard (the /proc walk
+  reads other users' cgroup files; a rootless walk false-negatives
+  on multi-user hosts) and before the interactive-stdio gate (a
+  piped typo deserves the target error, not the TTY refusal) — and a
+  spec that resolves to NOTHING exits 1 with the strict family's
+  branded no-match block and the list-apps tip; a PARTIAL miss still
+  opens (the frame renders unresolved names in place, the depth
+  report's own partial-miss contract). (2) The `--depth` report no
+  longer fabricates an empty report around a dead cgroup ID: the
+  verbatim pass (`ids = vec![*id]`) is now the shared liveness gate,
+  so `ee cg:99999 --depth` is the actionable no-match error, and the
+  all-miss refusal rides the shared `target_no_match_error` builder
+  — one voice across every names-a-target verb. The empty-census
+  render line stays for the honest exit race (live at the gate,
+  gone before the walk). (3) The audit's own find, deeper than the
+  owner's: BOTH target resolvers — the frame's per-frame
+  `resolve_targets` and the new launch gate — carried a
+  duplicate-token false-miss: the match verdict and the id
+  collection shared one condition, so a repeated token
+  (`ee brave/brave`) flipped its second copy to a miss (every
+  matching cgroup was already collected) and the frame rendered "no
+  app named 'brave'" under a live brave. The verdict now keys on
+  the comm match alone; the collection keeps its dedup guard. The
+  shared resolver (`resolve_live_targets`, pure, seeded-identity
+  pinnable) owns the liveness semantics for both modes; the depth
+  mode's NAME resolution deliberately keeps the strict-family
+  /proc walk so a name resolves identically there and under
+  `zelynic ss <name>`. The duplicate-token fix pushed
+  render/eagle.rs past the 500-LOC owner cap, so the per-frame
+  resolver took its own module (render/targets.rs, the beat.rs
+  split precedent — eagle.rs back at 470). The depth audit itself (the mandate's second
+  half) swept the critical infra beyond the eagle: the observer and
+  limiter BPF objects (atomic booking, LRU lanes, trust-boundary
+  clamps), the token-bucket math (window-ownership CAS, retry
+  consume), the loader (wrap-coherent deltas, one-frame tolerance),
+  the lock (root-only /run placement), the limiter lifecycle
+  (hunt-19 operational-pin predicate, schema migration, bpffs
+  preflight), the terminal stack (forked violent-death guard,
+  interactive gate, quiet death), the connection walk (pidfd
+  Copy-no-Drop), and the update lane (root refusal before curl) —
+  no further critical or fatal finding; the unwrap/expect census
+  re-verified test-scopes-only. Pins: three liveness-gate tests and
+  one duplicate-token render pin, all rootless. Verified live
+  rootlessly via `unshare -Ur` on the four hard-error paths (ee
+  typo, ee typo --depth, dead cg id live + depth — all exit 1,
+  branded block, tip green); the valid-spec path is pinned by the
+  partial-miss test and carried by the CI supermassive battery (the
+  dev sandbox's own doctor reports cgroup v2: NO — hybrid v1
+  container, the documented out-of-contract host class). Docs:
+  USAGE.md's eagle-eyes sections updated (the old text documented
+  the fabricated-empty-report behavior as a feature). Benchmark:
+  skipped for the gate (error-path only, no frame changes) — the
+  duplicate-token fix is covered by the render pin; no
+  visual-density or perf surface moved.
+
 - **docs: NIGHT-dinner-19 — the root-dir changelog-era duplicate is
   gone** (the owner's audit: CHANGELOG-V11-ERA.md on the root dir was
   a duplicate — its content is byte-identical to the pre-split
