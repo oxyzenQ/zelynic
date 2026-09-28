@@ -23,6 +23,13 @@
 //! distinct from the error they are embedded in, so a typo tip never
 //! drowns in red. Status green (#50FA7B) stays for affirmative verdicts.
 //!
+//! NIGHT-dinner-12 (the owner's green-suggestion call): a tip that
+//! QUOTES a command to run (`'zelynic list-apps'`) renders in the
+//! status-green "this is what you type" tier instead of white — the
+//! classification lives in [`super::labeled`] (`is_runnable_tip_line`),
+//! the tier semantic is the same one NIGHT-boost-4 gave every
+//! `--help` example line.
+//!
 //! NIGHT-boost-18: the five THEMEABLE slots (brand, ok, warn, hot,
 //! grey) route through the active theme in [`super::theme`] — the
 //! eagle-eyes monitor cycles it with `t`, and the default
@@ -301,6 +308,9 @@ pub fn warn_bold_open() -> &'static str {
 /// Owner color contract (NIGHT-hunt-5): "tip:" / "hint:" / did-you-mean
 /// lines render white — distinct from the red or yellow of the block
 /// they are embedded in. See [`SUGGESTION_RGB`] for the tier rationale.
+/// NIGHT-dinner-12 carve-out: a tip that quotes a runnable command
+/// (`'zelynic ...`) renders green instead — classified in
+/// [`super::labeled::is_runnable_tip_line`].
 #[must_use]
 pub fn suggestion_open() -> &'static str {
     match capability() {

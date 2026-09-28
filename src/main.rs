@@ -36,7 +36,10 @@ fn main() {
         // Single branded render + explicit exit 1 (runtime failure —
         // distinct from clap usage errors, which exit 2 inside
         // cli::ux::exit_clap_error). The line-aware renderer paints the
-        // "error:" label bold red and embedded "tip:" lines white.
+        // "error:" label bold red and the body red; passive "tip:"
+        // lines render white, while tips that quote a command to run
+        // render green (NIGHT-dinner-12 — the "this is what you type"
+        // tier, so the way out of a red block reads as an action).
         // NIGHT-hunt-28: the render carries the FULL cause chain —
         // `format!("{e}")` shows only the outermost context, which
         // turned a load failure into a bare "Failed to load BPF

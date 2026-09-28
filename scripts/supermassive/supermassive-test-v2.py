@@ -614,7 +614,12 @@ CLI_DEPTH_CASES = [
     # (kthreadd's home, the live fleet round-trip) are built at
     # runtime in test_cli_depth — machine-resolved ids cannot live in
     # a static table.
-    ("strict-multi fine list is clean usage, hard miss on no such apps", ["sm", "a:b:c", "1mb"], "nonzero", None),
+    (
+        "strict-multi fine list is clean usage, hard miss on no such apps",
+        ["sm", "a:b:c", "1mb"],
+        "nonzero",
+        None,
+    ),
     (
         "strict-multi with the owner's fatal shape is refused",
         ["sm", "a:a/;/:1", "1mb"],

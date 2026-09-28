@@ -11,10 +11,17 @@
 //! suggestion white semantic so a typo tip never drowns in the error
 //! color it lives inside. In Mono mode everything is plain text.
 //!
+//! NIGHT-dinner-12 (the owner's green-suggestion call): a tip that
+//! carries a quoted command to RUN (`'zelynic ...`, `'cargo ...`) is
+//! not passive advice — it renders in the status-green "this is what
+//! you type" tier (the same semantic NIGHT-boost-4 gave every
+//! `--help` example line), so the way out of a red block reads as an
+//! action instead of more of the error.
+//!
 //! All emitters are broken-pipe-safe via the crate-wide
 //! `eprintln_safe!` macro (textual scope from the output module).
 
-use super::{error, error_bold, suggestion};
+use super::{error, error_bold, ok, suggestion};
 #[cfg(feature = "ebpf")]
 use super::{warn, warn_bold};
 
@@ -35,13 +42,35 @@ fn is_suggestion_line(line: &str) -> bool {
         || t.starts_with("did you mean")
 }
 
+/// Recognize a RUNNABLE tip: a suggestion line whose text carries a
+/// quoted command to type (`'zelynic ...`, `'cargo ...`).
+///
+/// NIGHT-dinner-12: the owner's call — after a hard refusal the line
+/// that matters is the way out (`tip: try 'zelynic list-apps'`), and
+/// it must read as an action, not as more of the red block it lives
+/// in. The status-green "this is what you type" tier (NIGHT-boost-4,
+/// the `--help` example tier) is exactly that semantic, so runnable
+/// tips join it. Passive suggestions — did-you-mean, possible-value
+/// lists, "re-run without sudo" advice — keep the crystal-white
+/// tier: they explain, they do not hand you a command. The quoting
+/// convention (`'zelynic list-apps'`) is the classifier's contract:
+/// every producer that names a command quotes it, so the split stays
+/// mechanical, never guessed from sentence shape.
+fn is_runnable_tip_line(line: &str) -> bool {
+    let t = line.trim_start();
+    (t.starts_with("tip:") || t.starts_with("hint:"))
+        && (t.contains("'zelynic ") || t.contains("'cargo "))
+}
+
 /// Render a labeled multi-line message with per-line semantic colors.
 ///
 /// The FIRST line gets `{label} {body}` with the label bold in the
 /// message semantic. Every subsequent line keeps the message color —
 /// EXCEPT suggestion lines (see [`is_suggestion_line`]), which render
-/// in the suggestion (white) semantic. In Mono mode everything is
-/// plain text.
+/// in the suggestion (white) semantic, and runnable tips among them
+/// (see [`is_runnable_tip_line`]), which render in the status-green
+/// "this is what you type" semantic. In Mono mode everything is plain
+/// text.
 fn render_labeled_block(
     label: &str,
     label_wrap: fn(&str) -> String,
@@ -54,10 +83,14 @@ fn render_labeled_block(
     if let Some(first) = lines.next() {
         out.push_str(&format!("{} {}", label_wrap(label), body_wrap(first)));
     }
-    // Subsequent lines: suggestion lines switch to the white semantic.
+    // Subsequent lines: runnable tips go green (this is what you
+    // type), the remaining suggestion lines white, the rest keeps
+    // the message semantic.
     for line in lines {
         out.push('\n');
-        let styled = if is_suggestion_line(line) {
+        let styled = if is_runnable_tip_line(line) {
+            ok(line)
+        } else if is_suggestion_line(line) {
             suggestion(line)
         } else {
             body_wrap(line)
@@ -72,7 +105,7 @@ fn render_labeled_block(
 /// The single exit-adjacent error renderer for runtime failures —
 /// every anyhow message that reaches `main()` flows through here, so
 /// all runtime errors share one branded shape (bold red label, red
-/// body, white tip lines).
+/// body, white tip lines, green runnable tips).
 pub fn eprintln_error_labeled(msg: &str) {
     eprintln_safe!("{}", render_labeled_block("error:", error_bold, error, msg));
 }
@@ -116,6 +149,36 @@ mod tests {
             "tips are not a prefix match here",
         ] {
             assert!(!is_suggestion_line(line), "must NOT classify: {line:?}");
+        }
+    }
+
+    /// NIGHT-dinner-12: a tip that carries a quoted runnable command
+    /// classifies into the green "this is what you type" tier; passive
+    /// tips stay in the white suggestion tier.
+    #[test]
+    fn classifies_runnable_tips_apart_from_passive_ones() {
+        for line in [
+            "  tip: try 'zelynic list-apps' to see live targets",
+            "  tip: try 'zelynic status' to see active limits",
+            "  tip: run 'zelynic recover'",
+            "  tip: find ids with 'zelynic list-apps'",
+            "  hint: run 'zelynic recover'",
+            "  tip: retry 'zelynic recover', or 'zelynic unstrict-all' to force-clear",
+            "  tip: rebuild with 'cargo build --features ebpf'",
+        ] {
+            assert!(is_runnable_tip_line(line), "runnable: {line:?}");
+            assert!(is_suggestion_line(line), "still a suggestion: {line:?}");
+        }
+        for line in [
+            "  tip: a similar value exists: '1mb'",
+            "  tip: re-run without sudo",
+            "  tip: use --allow-dangerous",
+            "  tip: system apps need --force-this",
+            "  tip: colon-separated lists belong to strict-multi",
+            "  did you mean 'strict-single'?",
+            "  error: not a tip at all",
+        ] {
+            assert!(!is_runnable_tip_line(line), "passive: {line:?}");
         }
     }
 

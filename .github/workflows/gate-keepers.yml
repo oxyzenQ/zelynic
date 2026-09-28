@@ -85,9 +85,19 @@ jobs:
 
       # Tool pins make findings meaningful: a red wholesale run means
       # the tree drifted, never that a linter released overnight.
+      #
+      # NIGHT-dinner-12: every tool download below carries the curl
+      # retry contract — --retry 6 --retry-all-errors --retry-delay 10
+      # --retry-max-time 300 --connect-timeout 15 — plus -f, after a
+      # real 500 on the shfmt pin step (run 36406606325, curl exit 22)
+      # killed a wholesale run before a single gate executed. Without
+      # -f a 5xx page lands in the tarball and dies later inside tar
+      # with a misleading error; without --retry-all-errors curl's
+      # --retry refuses to re-attempt exit-22 HTTP failures.
       - name: Install shellcheck (pinned v0.10.0)
         run: |
-          curl -sL -o /tmp/shellcheck.tar.xz \
+          curl -fsSL --retry 6 --retry-all-errors --retry-delay 10 --retry-max-time 300 --connect-timeout 15 \
+            -o /tmp/shellcheck.tar.xz \
             https://github.com/koalaman/shellcheck/releases/download/v0.10.0/shellcheck-v0.10.0.linux.x86_64.tar.xz
           tar -xf /tmp/shellcheck.tar.xz -C /tmp
           sudo install -m755 /tmp/shellcheck-v0.10.0/shellcheck /usr/local/bin/shellcheck
@@ -95,7 +105,8 @@ jobs:
 
       - name: Install shfmt (pinned v3.10.0)
         run: |
-          curl -sSfL -o /tmp/shfmt \
+          curl -fsSL --retry 6 --retry-all-errors --retry-delay 10 --retry-max-time 300 --connect-timeout 15 \
+            -o /tmp/shfmt \
             https://github.com/mvdan/sh/releases/download/v3.10.0/shfmt_v3.10.0_linux_amd64
           sudo install -m755 /tmp/shfmt /usr/local/bin/shfmt
           shfmt --version
@@ -103,7 +114,8 @@ jobs:
       - name: Install yamllint, codespell, actionlint, ruff (pinned)
         run: |
           python3 -m pip install --user yamllint==1.38.0 codespell==2.4.3 ruff==0.16.8
-          curl -sL -o /tmp/actionlint.tgz \
+          curl -fsSL --retry 6 --retry-all-errors --retry-delay 10 --retry-max-time 300 --connect-timeout 15 \
+            -o /tmp/actionlint.tgz \
             https://github.com/rhysd/actionlint/releases/download/v1.7.7/actionlint_1.7.7_linux_amd64.tar.gz
           tar -xzf /tmp/actionlint.tgz -C /tmp actionlint
           sudo install -m755 /tmp/actionlint /usr/local/bin/actionlint

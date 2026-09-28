@@ -124,7 +124,8 @@ pub(crate) fn ensure_root() -> Result<()> {
 //
 // Every conversion below returns `Err` on purpose — main's single
 // exit-adjacent renderer paints the branded block (bold red
-// `error:` label, red body, white `tip:` lines) and exits 1.
+// `error:` label, red body, white `tip:` lines — green when the tip
+// quotes a command to run, NIGHT-dinner-12) and exits 1.
 // The one carve-out: `unstrict-all` on an already-clean system
 // keeps its exit 0 — the requested state already holds, the same
 // clean-state precedent `recover`'s clean path owns.
@@ -142,7 +143,9 @@ pub(crate) const TIP_STATUS: &str = "try 'zelynic status' to see active limits";
 /// Build the anyhow payload for a no-match refusal (NIGHT-dinner-11):
 /// `head` carries the verdict, every tip rides its own indented
 /// `tip:` line — the shape the line-aware labeled renderer paints
-/// (bold red label, red body, white tips) before exit 1. Pure, so
+/// (bold red label, red body, white tips; a tip that quotes a command
+/// like 'zelynic list-apps' renders green — NIGHT-dinner-12, the
+/// "this is what you type" tier) before exit 1. Pure, so
 /// the exact contract is pinned rootlessly in
 /// test/cli/no_match_tests.rs.
 #[cfg(feature = "ebpf")]

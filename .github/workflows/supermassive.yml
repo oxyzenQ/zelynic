@@ -265,8 +265,15 @@ jobs:
           }
           echo "OK: /dev/kvm present and usable"
 
+      # NIGHT-dinner-12: apt's own retry knob rides both halves of
+      # every apt traffic below (the install here, the update + download
+      # steps in the kernel resolvers) — a flaky archive mirror is the
+      # same GitHub-infra class as the curl 500s, and apt's default is
+      # zero retries.
       - name: Install qemu + cpio
-        run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends qemu-system-x86 cpio
+        run: >-
+          sudo apt-get -o Acquire::Retries=5 update -qq &&
+          sudo apt-get -o Acquire::Retries=5 install -y --no-install-recommends qemu-system-x86 cpio
 
       # The E2E pipeline's phase one, the owner-facing bring-up on the
       # RUNNER (outside the VM — a low-specs guest cannot host a
@@ -306,7 +313,7 @@ jobs:
             echo "deb http://old-releases.ubuntu.com/ubuntu/ impish main"
             echo "deb http://old-releases.ubuntu.com/ubuntu/ impish-updates main"
           } | sudo tee /etc/apt/sources.list.d/impish-floor.list >/dev/null
-          sudo apt-get update \
+          sudo apt-get -o Acquire::Retries=5 update \
             -o Dir::Etc::sourcelist=/etc/apt/sources.list.d/impish-floor.list \
             -o Dir::Etc::sourceparts=/dev/null \
             -o APT::Get::List-Cleanup=0
@@ -320,7 +327,10 @@ jobs:
             exit 1
           fi
           echo "resolved: $IMG"
-          apt-get download "$IMG"
+          # NIGHT-dinner-12: the frozen-mirror download retry (apt's
+          # own knob; old-releases flakiness is the floor lane's known
+          # weak spot).
+          apt-get -o Acquire::Retries=5 download "$IMG"
           dpkg -x "${IMG}"*_amd64.deb pkg
           VMLINUZ=$(find pkg/boot -name 'vmlinuz-5.13.*' | head -1)
           if test -z "$VMLINUZ"; then
@@ -350,17 +360,22 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p /tmp/kfloor && cd /tmp/kfloor
-          SUITES=$(curl -fsSL http://archive.ubuntu.com/ubuntu/dists/ \
+          # NIGHT-dinner-12: the dists index + Release probes carry the
+          # curl retry contract (a plain-HTTP archive mirror 500s on
+          # its bad days; the resolver must not die on one bad poll).
+          SUITES=$(curl -fsSL --retry 6 --retry-all-errors --retry-delay 10 --retry-max-time 300 --connect-timeout 15 \
+            http://archive.ubuntu.com/ubuntu/dists/ \
             | grep -oE 'href="[a-z0-9]+/"' | cut -d'"' -f2 | tr -d '/' \
             | grep -v -- '-' | sort -u)
           if test -z "$SUITES"; then
             echo "FAIL: the dists index resolved no base suites — archive restructure?"
-            curl -fsSL http://archive.ubuntu.com/ubuntu/dists/ | head -40 || true
+            curl -fsSL --retry 6 --retry-all-errors http://archive.ubuntu.com/ubuntu/dists/ | head -40 || true
             exit 1
           fi
           echo "base suites: $(echo "$SUITES" | tr '\n' ' ')"
           RELEASES=$(for s in $SUITES; do
-            rel=$(curl -fsSL "http://archive.ubuntu.com/ubuntu/dists/$s/Release")
+            rel=$(curl -fsSL --retry 6 --retry-all-errors --retry-delay 10 --retry-max-time 300 --connect-timeout 15 \
+              "http://archive.ubuntu.com/ubuntu/dists/$s/Release")
             d=$(echo "$rel" | sed -n 's/^Date: //p' | head -1)
             c=$(echo "$rel" | sed -n 's/^Codename: //p' | head -1)
             if test -n "$d" && test -n "$c"; then
@@ -379,7 +394,7 @@ jobs:
               echo "deb http://archive.ubuntu.com/ubuntu/ $s-updates main"
             done
           } | sudo tee /etc/apt/sources.list.d/latest-head.list >/dev/null
-          sudo apt-get update \
+          sudo apt-get -o Acquire::Retries=5 update \
             -o Dir::Etc::sourcelist=/etc/apt/sources.list.d/latest-head.list \
             -o Dir::Etc::sourceparts=/dev/null \
             -o APT::Get::List-Cleanup=0
@@ -393,7 +408,9 @@ jobs:
             exit 1
           fi
           echo "resolved: $IMG"
-          apt-get download "$IMG"
+          # NIGHT-dinner-12: the live-archive download retry (apt's
+          # own knob, same as the frozen-mirror lane above).
+          apt-get -o Acquire::Retries=5 download "$IMG"
           dpkg -x "${IMG}"*_amd64.deb pkg
           VMLINUZ=$(find pkg/boot -type f -name 'vmlinuz-*' | head -1)
           if test -z "$VMLINUZ"; then

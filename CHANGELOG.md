@@ -16,6 +16,74 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Changed
 
+- **CLI color: NIGHT-dinner-12 — a tip that names a command renders
+  green** (the owner's call, straight from the dinner-11 no-match
+  block: after `error: No cgroup found for 'cg8401'`, the line that
+  matters is the way out — `tip: try 'zelynic list-apps'` — and it
+  must read as an action, not as more of the red it lives in). The
+  line-aware error renderer now splits its suggestion tier in two:
+  a tip that carries a QUOTED runnable command (`'zelynic ...`,
+  `'cargo ...` — the producers' universal quoting convention, so
+  the split is mechanical, never guessed from sentence shape)
+  renders in the status-green "this is what you type" tier — the
+  same semantic NIGHT-boost-4 gave every `--help` example line —
+  while passive suggestions (did-you-mean, possible-value lists,
+  "re-run without sudo" advice) keep the NIGHT-hunt-5 crystal
+  white. Every runnable tip in the tree rides the green tier on
+  both error and warning blocks (`list-apps`, `status`, `recover`,
+  the eagle-eyes id hint, the no-ebpf rebuild hint); the value
+  suggestions and flag advice stay white exactly as before. Mono
+  output is byte-identical to before; the classifier is pinned in
+  labeled's unit tests (runnable in, passive out, both tiers).
+
+- **CI: NIGHT-dinner-12 — GitHub's infra flakes can no longer read as
+  code failures, at any layer** (the owner's release-safety ask
+  after watching CI die on a curl download answering 500 — a
+  red gate that is GitHub's fault must never block, or worse
+  mislead, a release). Four layers, each aimed at an observed
+  failure class: (1) every tool download in the workflows now
+  carries the curl retry contract (`--retry 6 --retry-all-errors
+  --retry-delay 10 --retry-max-time 300 --connect-timeout 15`,
+  plus `-f` normalized where it was missing) — shellcheck, shfmt,
+  and actionlint in gate-keepers.yml (the observed case: run
+  36406606325 died at the shfmt pin step, `curl: (22) The
+  requested URL returned error: 500`, before a single gate
+  executed; without `-f` a 5xx page lands in the tarball and dies
+  inside tar with a misleading error), the archive.ubuntu.com
+  dists/Release probes in supermassive.yml, and the crates.io
+  idempotency probe in crates-io.yml (a flaky 5xx there would
+  fall through to `cargo publish` and die as a duplicate-version
+  error — an infra flake perfectly disguised as a code failure).
+  (2) apt traffic rides apt's own retry knob
+  (`-o Acquire::Retries=5`): the qemu install, both kernel
+  resolvers' updates, and the kernel deb downloads (the frozen
+  old-releases mirror is the floor lane's known weak spot). (3)
+  scripts/release/wait-for-ci.sh — the IRREVERSIBLE crates.io
+  publish's serializer — gained the infra-failure carve-out: on a
+  red waited run it fetches the failed jobs' logs and hunts known
+  infra signatures (curl transport errors, 5xx response texts,
+  download faults, DNS/route failures, runner eviction, apt fetch
+  faults); when EVERY failed job carries one it requests one
+  re-run of the failed jobs and keeps polling, up to
+  WAIT_INFRA_RETRIES (default 2) times. The safety property:
+  classification only ever BUYS A RE-RUN — a real code failure
+  fails the re-run too, burns the budget, and blocks exactly as
+  before; logs that cannot be fetched block (never auto-retry
+  what cannot be seen). The classifier was validated live against
+  both real classes: the shfmt-500 run classifies infra with the
+  `curl: (22) ... 500` evidence line attached, the ruff-format run
+  classifies real. ci_gate carries `actions: write` for the
+  re-run request — the job's ephemeral github.token can re-run
+  this repo's CI and nothing else. (4) The head-commit red that
+  started this: supermassive-test-v2's dinner-11 eleven-case flip
+  left one tuple one-line where ruff format 0.16.8 (the CI pin)
+  demands the exploded shape — the local gate had skipped check 15
+  entirely because ruff was never installed in the agent container
+  (a check whose tool is missing is a check that does not exist
+  — the exact hole the gate's own header warns about); the tuple
+  is now formatted and ruff 0.16.8 joins the container's toolkit
+  so the local wholesale run finally mirrors the CI lane.
+
 - **CLI: NIGHT-dinner-11 — a target that matches nothing is a hard
   error, not a soft no-op** (the owner's eBPF-verifier lineage
   mandate, read straight off the ebpf.io verifier page: reject,
