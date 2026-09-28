@@ -1003,8 +1003,8 @@ ls -la /sys/fs/bpf/zelynic/
 ### Check for residue after unstrict-all:
 ```bash
 sudo zelynic unstrict-all
-ls /sys/fs/bpf/zelynic/ 2>&1  # should not exist
-ls /tmp/zelynic.pid 2>&1      # should not exist
+ls /sys/fs/bpf/zelynic/ 2>&1           # should not exist
+ls /tmp/zelynic.pid 2>&1               # should not exist
 sudo bpftool prog show | grep enforce  # should be empty
 ```
 
