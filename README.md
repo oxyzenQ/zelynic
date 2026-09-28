@@ -518,7 +518,7 @@ to commands, flags, or output format. Future releases focus on:
 
 ### Maintenance Mode (from v11.0.0)
 
-> **Zelynic v11 marks the beginning of maintenance mode. Future releases
+> **zelynic v11 marks the beginning of maintenance mode. Future releases
 > prioritize stability, compatibility, performance, and bug fixes over
 > feature expansion.**
 

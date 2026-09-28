@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Copyright (C) 2026 rezky_nightky
 # SPDX-License-Identifier: GPL-3.0-only
-"""Check Zelynic source policy rules."""
+"""Check zelynic source policy rules."""
 
 from __future__ import annotations
 
@@ -96,13 +96,13 @@ def main() -> int:
             failures.append(f"FAIL HEADER {relative}: missing copyright/SPDX header")
 
     if failures:
-        print("Zelynic policy check: FAIL")
+        print("zelynic policy check: FAIL")
         for failure in failures:
             print(failure)
         print(f"Checked {len(files)} file(s).")
         return 1
 
-    print("Zelynic policy check: PASS")
+    print("zelynic policy check: PASS")
     print(f"Checked {len(files)} file(s).")
     print(f"LOC limit: <= {MAX_LOC} for checked core/code files.")
     if exempt_over_cap:

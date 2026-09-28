@@ -339,7 +339,7 @@ Real enforcement: Chromium 670 Kbps on 100kb target, Brave 730 Kbps on 100kb tar
 
 - **Legacy code removed**: ~17,000 LOC of `tc`/`nft`/`systemd-wrapper`/
   `accounting`/`monitor`/`profile`/`qos`/`tui`/`units`/`auto`/`watch` code
-  deleted from `dragon-architecture` branch. Zelynic is now **pure eBPF** on
+  deleted from `dragon-architecture` branch. zelynic is now **pure eBPF** on
   this branch — no combined tools, no wrapper coordination.
 - **Result**: 3,271 LOC Rust + 334 LOC BPF C = 3,605 total (79% reduction
   from ~17,000 LOC legacy).
@@ -529,7 +529,7 @@ Real enforcement: Chromium 670 Kbps on 100kb target, Brave 730 Kbps on 100kb tar
   write, no save, no persistence, no default ledger path read, no live
   /proc/sysfs read, no live resolver, no enforcement, no permission/block/
   allow, no quota, no eBPF, no daemon/watch, no nft/tc/cgroup/PID/
-  Zelynic mutation), release readiness checklist, next-step boundary
+  zelynic mutation), release readiness checklist, next-step boundary
   (Phase 22 may be v3.1 release prep only after Phase 21 is locked; v3.2
   must not begin until v3.1 release boundary is closed). 42 deterministic
   guard tests added in `src/commands/ledger_p21_tests.rs` (Section Z): doc
@@ -541,7 +541,7 @@ Real enforcement: Chromium 670 Kbps on 100kb target, Brave 730 Kbps on 100kb tar
   rejected --output, doc lists rejected --overwrite, doc says no save/
   write/persistence/default path, doc says no live resolver/enforcement/
   permission/block/allow, doc says no quota/eBPF/daemon-watch, doc says
-  no nft/tc/cgroup/PID/Zelynic mutation, doc says v3.0 usage JSON
+  no nft/tc/cgroup/PID/zelynic mutation, doc says v3.0 usage JSON
   unchanged, doc says ledger inspect JSON unchanged, doc says export JSON
   unchanged, README still links to Phase 14 inspect docs, README still
   links to Phase 18 export docs, Phase 20 doc exists and says release-
@@ -578,7 +578,7 @@ Real enforcement: Chromium 670 Kbps on 100kb target, Brave 730 Kbps on 100kb tar
   internal file write, no persistence/save/default path read, no live
   /proc/sysfs read, no live resolver, no enforcement, no permission/block/
   allow mode, no quota, no eBPF, no daemon/watch, no nft/tc/cgroup/PID/
-  Zelynic mutation). Includes release readiness checklist. Includes
+  zelynic mutation). Includes release readiness checklist. Includes
   explicit non-goals (no version bump, no tag, no release, no publish, no
   v3.2 permission mode, no v3.3 quota guard, no v4 eBPF backend).
   Includes next-step boundary (Phase 21 may be release prep only if
@@ -660,7 +660,7 @@ Real enforcement: Chromium 670 Kbps on 100kb target, Brave 730 Kbps on 100kb tar
   five ledger command variants. Includes minimal valid ledger JSON
   example with all required fields. Includes copy-paste examples:
   fixture creation, inspect file, inspect file JSON, export JSON, jq
-  pipe, shell redirect with warning about Zelynic having no --output.
+  pipe, shell redirect with warning about zelynic having no --output.
   Includes expected output snippets for success and error cases.
   Includes comprehensive safety wording. Includes schema boundary
   documentation. Includes troubleshooting section. 40 deterministic
@@ -1088,7 +1088,7 @@ Real enforcement: Chromium 670 Kbps on 100kb target, Brave 730 Kbps on 100kb tar
   eBPF/quota/daemon/watch/ledger/schema changes/version bump/tag/release/publish.
 
 - **strict-run-lab pre-launch cgroup wrapper experiment**: Hidden experimental
-  command that launches a child process inside a Zelynic-managed cgroup BEFORE
+  command that launches a child process inside a zelynic-managed cgroup BEFORE
   the child opens network sockets, then applies the same nft/tc policy and traffic
   proof diagnostics as the stable `strict` command. Tests the hypothesis that
   pre-launch cgroup placement improves nft `socket cgroupv2` counter matching
@@ -1565,7 +1565,7 @@ Real enforcement: Chromium 670 Kbps on 100kb target, Brave 730 Kbps on 100kb tar
   live_proc_net_dev, must not claim per-app attribution). Defines output honesty
   requirements (interface-level only, not per-app attribution, no quota enforcement
   active, no network blocking active, no limiter attach performed, no nft/tc
-  /Zelynic state mutation performed, no ledger persistence performed, no eBPF
+  /zelynic state mutation performed, no ledger persistence performed, no eBPF
   used, counters may reset after reboot). Defines future JSON output contract
   (schema_version, source, sampled_at if caller-provided, interfaces with
   rx_bytes/tx_bytes/combined_bytes/loopback, totals, honesty flags:
@@ -1595,7 +1595,7 @@ Real enforcement: Chromium 670 Kbps on 100kb target, Brave 730 Kbps on 100kb tar
   renders human-readable output with 13 honesty disclaimers (read-only
   /proc/net/dev seam, interface-level only/not per-app attribution, no quota
   enforcement active, no network blocking active, no limiter attach performed, no
-  nft/tc/Zelynic state mutation performed, no ledger persistence performed, no
+  nft/tc/zelynic state mutation performed, no ledger persistence performed, no
   eBPF used, no cgroup mutation, no PID movement, counters may reset after
   reboot/interface reset, filesystem write not performed, state mutation not
   performed). Source path is hardcoded — no arbitrary paths accepted. No live
@@ -1708,7 +1708,7 @@ Real enforcement: Chromium 670 Kbps on 100kb target, Brave 730 Kbps on 100kb tar
   path input accepted. Output includes all 13 honesty disclaimers: read-only
   /proc/net/dev seam, interface-level only (not per-app attribution), no quota
   enforcement active, no network blocking active, no limiter attach performed,
-  no nft/tc/Zelynic state mutation performed, no ledger persistence performed,
+  no nft/tc/zelynic state mutation performed, no ledger persistence performed,
   no eBPF used, no cgroup mutation, no PID movement, counters may reset after
   reboot/interface reset, filesystem write not performed, state mutation not
   performed. 25 new tests (3 CLI parse in `src/cli/tests.rs` + 22 handler
@@ -1957,7 +1957,7 @@ Real enforcement: Chromium 670 Kbps on 100kb target, Brave 730 Kbps on 100kb tar
   only, no CLI flag enabled yet, no live second sample was taken by this
   model, interface-level only/not per-app attribution, no quota enforcement
   active, no network blocking active, no limiter attach performed, no nft/tc
-  /Zelynic state mutation performed, no ledger persistence performed, no eBPF
+  /zelynic state mutation performed, no ledger persistence performed, no eBPF
   used, no cgroup mutation performed, no PID movement performed, filesystem
   write not performed, state mutation not performed, counters may reset after
   reboot or interface reset). Render also includes delta-specific counter
@@ -2473,7 +2473,7 @@ limiter path.
   totals; `render_session_delta()` renders human-readable output with 7 safety
   disclaimers (read-only session delta model, interface-level only, not per-app
   attribution, no quota enforcement active, no network blocking active, no limiter
-  attach performed, no nft/tc/Zelynic state mutation performed, no live /proc or
+  attach performed, no nft/tc/zelynic state mutation performed, no live /proc or
   sysfs read performed) and counter reset/decrease warnings if present. Tests in
   `src/accounting/tests/session_delta.rs` (33 tests): normal one-interface delta,
   multiple interfaces, totals correctness, zero delta, interface only in end,
@@ -2573,7 +2573,7 @@ limiter path.
   model only, no filesystem read performed, no filesystem write performed,
   no live /proc or sysfs read performed, interface-level only (not per-app
   attribution), quota enforcement inactive/not implemented, network blocking
-  inactive/not implemented, no limiter attach performed, no nft/tc/Zelynic
+  inactive/not implemented, no limiter attach performed, no nft/tc/zelynic
   state mutation performed. 30 tests in
   `src/accounting/tests/ledger_inspect.rs`: inspect empty ledger, inspect one
   snapshot entry, inspect one delta entry, inspect mixed entries, counts
@@ -2609,7 +2609,7 @@ limiter path.
   no filesystem read was performed, no filesystem write was performed, no
   ledger file was created, no ledger file was read, persistence is not enabled,
   no live /proc or sysfs read was performed, no quota enforcement or network
-  blocking is active, no nft/tc/Zelynic state mutation was performed). Path
+  blocking is active, no nft/tc/zelynic state mutation was performed). Path
   boundary: reject empty base, reject empty filename, reject absolute filename,
   reject parent traversal in filename/base, reject outside-namespace paths,
   reject suspicious filenames, allow deterministic default filename. 43 tests
@@ -2689,7 +2689,7 @@ limiter path.
   901 tests, integration 4 passed / 5 ignored, check-all passed, LOC policy
   passed, version still v2.8.0. Final v2.9 RC safety guarantees: no eBPF, no
   quota enforcement, no network blocking, no limiter attach, no nft/tc
-  mutation, no Zelynic runtime state mutation, no actual filesystem
+  mutation, no zelynic runtime state mutation, no actual filesystem
   persistence, no filesystem read/write, no directory/file creation/removal,
   no PID move, no cgroup.procs write, no live /proc or sysfs read, no CLI
   command for accounting/ledger, existing zelynic strict remains the only
@@ -2704,7 +2704,7 @@ limiter path.
 
 v2.8.0 is a **safety/research milestone** release. It does NOT implement live
 PID movement, does NOT write real `cgroup.procs`, does NOT attach a limiter
-from the Scope Runner, does NOT mutate nftables/tc/Zelynic state, does NOT
+from the Scope Runner, does NOT mutate nftables/tc/zelynic state, does NOT
 persist operation state, and does NOT enable any CLI path for live PID move.
 The `--attach-live` flag remains hard-blocked. `zelynic strict` remains the
 only validated active limiter path. All v2.8 experimental code is model-only,
@@ -2725,7 +2725,7 @@ movement).
   of claiming capture was not read.
 - **PID Safety Model**: Added read-only PID liveness and self-protection checks
   to the Attach Safety preflight output. The live probe now dynamically rejects
-  missing PIDs, already-managed PIDs, and the Zelynic process itself.
+  missing PIDs, already-managed PIDs, and the zelynic process itself.
 - **Experimental attach gate checklist**: Added `--experimental-single-pid-attach`,
   `--i-understand-this-moves-pids`, and `--rollback-required` as explicit
   future-consent flags for a single-PID move-only attach experiment. The gate is
@@ -2765,7 +2765,7 @@ movement).
   this build`.
 - **Mkdir-only experiment executor**: Added `src/systemd_wrapper/mkdir_executor.rs`
   with the first real-write experiment for v2.8 phase 2b. When `--mkdir-live`
-  is present with all existing gates, creates the Zelynic cgroup namespace
+  is present with all existing gates, creates the zelynic cgroup namespace
   directory and target cgroup, verifies existence, then cleans up the target
   cgroup if empty and operation-owned. New `--mkdir-live` CLI flag requires
   `--execute`, `--probe-live`, `--attach-live`,
@@ -2774,8 +2774,8 @@ movement).
   or state changes.
 - **Mkdir-live output honesty fix**: Fixed misleading canonical safety footer
   when `--mkdir-live` is active. The old footer claiming "No nftables, tc,
-  Zelynic cgroup, or state changes were made" is replaced with truthful
-  wording for the mkdir-live path: "No nftables, tc, or Zelynic state changes
+  zelynic cgroup, or state changes were made" is replaced with truthful
+  wording for the mkdir-live path: "No nftables, tc, or zelynic state changes
   were made." and "Mkdir-only cgroup preparation was performed." The mkdir
   experiment section now includes explicit honest lines: "No cgroup.procs
   write was performed." and "Parent namespace may remain: /sys/fs/cgroup/zelynic".
@@ -2824,7 +2824,7 @@ movement).
   present) and always returns blocked. Explicit disclaimers: phase 3c is
   executor-seam only, live PID move is not implemented, no cgroup.procs
   write was performed, no PID was moved, no limiter attach was performed,
-  no nftables/tc/Zelynic state changes were made, no persistent state
+  no nftables/tc/zelynic state changes were made, no persistent state
   write was performed. Wired the seam into the experimental attach gate
   output as a preview/report section. Added 22 seam tests covering all
   hard-gate blocking, output honesty, disclaimer presence, and gate
@@ -2886,7 +2886,7 @@ movement).
   loops, universal failure rules (9 rules from phase 4a), render structure
   verification, and determinism. Module wired into systemd_wrapper with no CLI
   path and no runtime behavior change. No live PID move, no real
-  cgroup.procs write, no limiter attach, no nftables/tc/Zelynic state
+  cgroup.procs write, no limiter attach, no nftables/tc/zelynic state
   mutation, no persistent state write. All simulation is pure model/fake-only.
 - **v2.8 phase 4c fake writer injection harness**: Added fake writer
   injection harness in `src/systemd_wrapper/failure_simulation/fake_writer/`
@@ -2903,12 +2903,12 @@ movement).
   Pure functions `simulate_fake_transaction()` and
   `render_fake_transaction_result()`. Canonical deny lines in every rendered
   output: no real cgroup.procs write, no live PID move, no limiter attach,
-  no nft/tc/Zelynic state mutation, no persistent state write. Tests
+  no nft/tc/zelynic state mutation, no persistent state write. Tests
   covering happy path, all failure modes, deny-line persistence, no retry
   loops, render structure, determinism, and cleanup-safety invariants.
   Submodule wired into failure_simulation/mod.rs, crate-private,
   test-focused, no CLI path, no runtime behavior change. No live PID move,
-  no real cgroup.procs write, no limiter attach, no nftables/tc/Zelynic
+  no real cgroup.procs write, no limiter attach, no nftables/tc/zelynic
   state mutation, no persistent state write. All writer simulation is pure
   fake/in-memory/test-only/model-only.
 - **v2.8 phase 4d fake writer render/output matrix**: Added canonical
@@ -2919,7 +2919,7 @@ movement).
   statement, failure mode label, fake errno, per-step operation status,
   PID location, rollback/recovery/cleanup flags. 7 canonical deny lines
   (no live PID move, no real cgroup.procs write, no limiter attach, no
-  nft/tc/Zelynic state changes, no persistent state write, no CLI path for
+  nft/tc/zelynic state changes, no persistent state write, no CLI path for
   live PID move, fake/model-only). Explicit forbidden claims (no real PID
   moved, no real rollback, no limiter attached, no bandwidth limiting active,
   no nft/tc/state mutation, no cleanup success when cleanup failed). Pure
@@ -2932,7 +2932,7 @@ movement).
   requires rollback, PID location in all modes, no retry loop, render
   structure, mode-specific correctness. Submodule wired into fake_writer.rs,
   crate-private, no CLI path, no runtime change. No live PID move, no real
-  cgroup.procs write, no limiter attach, no nft/tc/Zelynic state mutation,
+  cgroup.procs write, no limiter attach, no nft/tc/zelynic state mutation,
   no persistent state write. All output is pure fake/model-only/render-only.
 - **v2.8 phase 4e failure simulation freeze/validation report**: Produced
   freeze/validation report (`docs/v2.8-phase-4e-failure-simulation-freeze.md`)
@@ -2944,7 +2944,7 @@ movement).
   project 604 tests. Validation state: `./scripts/build.sh check-all` passed, CI green,
   security audit passed, policy check passed (80 files), version still v2.7.0.
   Explicit freeze guarantees: no live PID move, no real cgroup.procs write,
-  no limiter attach, no nft/tc/Zelynic state mutation, no persistent state
+  no limiter attach, no nft/tc/zelynic state mutation, no persistent state
   write, no CLI enablement for live PID move, all simulation fake/model-only.
   Phase 5 entry criteria defined: freeze report complete, CI green, all tests
   wired and passing, root smoke commands reviewed before execution, first real
@@ -2956,7 +2956,7 @@ movement).
   readiness document (`docs/v2.8-phase-5a-first-real-move-readiness.md`)
   defining the only acceptable future first real PID move smoke. 11 constraints:
   root-only, system-scope-only, single disposable sleep PID only, immediate
-  rollback required, no limiter attach, no nft/tc/Zelynic state mutation, no
+  rollback required, no limiter attach, no nft/tc/zelynic state mutation, no
   persistent state write, no browser/terminal/desktop process, no user app, no
   multi-PID tree, no bandwidth limiting claim. 14-step manual smoke command
   plan: create disposable sleep scope, capture PID, capture original cgroup,
@@ -2964,7 +2964,7 @@ movement).
   target cgroup.procs, verify PID in target, immediate rollback write, verify
   restored, cleanup empty target, verify no leftover, verify no nft/tc/state
   changes, stop sleep scope. 10 abort conditions: PID missing/stale, more than
-  one PID, original cgroup missing, original cgroup Zelynic-managed, target
+  one PID, original cgroup missing, original cgroup zelynic-managed, target
   outside zelynic namespace, target non-empty, cgroup mount read-only,
   permissions unexpected, rollback target unverifiable, ambiguous output.
   Expected output honesty requirements and manual recovery procedures defined.
@@ -2972,14 +2972,14 @@ movement).
 - **v2.8 phase 5b manual smoke operator checklist**: Produced operator
   checklist document (`docs/v2.8-phase-5b-manual-smoke-operator-checklist.md`)
   with exact review-only command tables for the future first real PID move smoke.
-  All commands are for review only; no current Zelynic command performs this
+  All commands are for review only; no current zelynic command performs this
   move; no limiter attach or nft/tc/state mutation is part of this smoke.
   Checklist sections: preflight environment checks (7), disposable sleep
   process creation (5), PID/cgroup capture (6), target path verification (5),
   target preparation (3), planned PID move (2), target verification (3),
   immediate rollback (2), rollback verification (3), cleanup (3), post-smoke
   audit (6). Explicit abort checklist (12 conditions): not root, not system
-  scope, PID missing/stale, multiple PIDs, original cgroup missing/Zelynic-
+  scope, PID missing/stale, multiple PIDs, original cgroup missing/zelynic-
   managed, target outside zelynic namespace, target non-empty, cgroup mount
   read-only, permissions unexpected, rollback unverifiable, ambiguous output.
   Expected observation table and manual recovery checklist (11 steps). Output
@@ -2990,7 +2990,7 @@ movement).
   (`docs/v2.8-phase-5c-guarded-real-move-implementation-design.md`) for the
   future guarded real PID move. Defines 11 allowed-target constraints
   (root-only, system-scope-only, single disposable sleep PID, operation-owned
-  Zelynic target, immediate rollback, no limiter, no nft/tc/state mutation,
+  zelynic target, immediate rollback, no limiter, no nft/tc/state mutation,
   no persistent state write, no browser/terminal/desktop/user app, no
   multi-PID tree). Proposed code architecture: `CgroupProcsWriter` trait with
   narrow live writer (cgroup.procs-only, no limiter/nft/tc/state knowledge)
@@ -3014,7 +3014,7 @@ movement).
   false), cgroup.procs writes performed (always false), limiter attach
   performed (always false), nft/tc/state mutation performed (always false).
   7 canonical deny lines: no live PID move, no real cgroup.procs write, no
-  limiter attach, no nft/tc/Zelynic state changes, no persistent state
+  limiter attach, no nft/tc/zelynic state changes, no persistent state
   write, no CLI path for live PID move, guarded real writer seam is
   hard-blocked. Pure functions only: `build_guarded_real_writer_plan()` and
   `render_guarded_real_writer_plan()`. No I/O, no filesystem access, no /proc
@@ -3030,7 +3030,7 @@ movement).
   attach, bandwidth limiting active, nft/tc/state mutation, hard-blocked/
   not implemented), negative-path comprehensive mutation sweep, determinism,
   gate ordering, helper correctness, phase label, render structure. No live
-  PID move, no real cgroup.procs write, no limiter attach, no nft/tc/Zelynic
+  PID move, no real cgroup.procs write, no limiter attach, no nft/tc/zelynic
   state mutation, no persistent state write, no CLI path for live PID move.
   The seam is always hard-blocked and non-mutating.
 - **v2.8 phase 5e guarded real writer seam freeze/non-exposure audit**: Produced
@@ -3047,7 +3047,7 @@ movement).
   binary version remains v2.7.0. Explicit seam freeze guarantees (11 items):
   always returns blocked/not implemented, no live PID move, no real cgroup.procs
   write, no rollback write, no cleanup mutation, no limiter attach, no nft/tc/
-  Zelynic state mutation, no persistent state write, no CLI path enabled, no
+  zelynic state mutation, no persistent state write, no CLI path enabled, no
   /proc access, no /sys access, no filesystem mutation. Non-exposure audit:
   module registered as internal only, no public CLI command uses it, attach-live
   remains hard-blocked, mkdir-live remains mkdir-only, failure_simulation and
@@ -3117,20 +3117,20 @@ movement).
   results and explicit disclaimers before any future live write path.
 - **Future Attach Preview**: Scope Runner attach preview now renders the
   Attach Safety Preflight section while continuing to perform no PID movement,
-  limiter attach, nftables/tc changes, Zelynic cgroup changes, or state writes.
+  limiter attach, nftables/tc changes, zelynic cgroup changes, or state writes.
 - **Attach Safety rendering**: The preflight now explicitly reports original
   cgroup capture from the live probe, displaying honest exact rollback targets
   or "original cgroup capture unavailable/stale" if the PID already exited.
 - **Attach-live path**: When the full experimental consent bundle is present,
   the future attach path can render a gate checklist after a successful probe,
   then still returns "Experimental PID move is not implemented yet" without PID
-  movement, limiter attach, nftables/tc changes, Zelynic cgroup changes, or
+  movement, limiter attach, nftables/tc changes, zelynic cgroup changes, or
   state writes.
 - **Experimental gate rendering**: The full experimental gate now includes the
   move-only executor skeleton so future write ordering is visible without
   duplicating the canonical no-mutation safety footer.
 - **Move-only executor output**: The skeleton now renders target cgroup
-  preflight details, including the future Zelynic target namespace and
+  preflight details, including the future zelynic target namespace and
   target/rollback `cgroup.procs` paths, while keeping execution blocked.
 - **Target preflight output**: The target cgroup preflight now includes
   model-only cgroup environment diagnostics and explicitly keeps
@@ -3176,10 +3176,10 @@ movement).
 - **Scope Runner live probe**: Added `--probe-live` flag to `zelynic run`
   for a controlled, root-only, system-scope live probe. When invoked as
   `sudo zelynic run --execute --scope-mode system --probe-live -- <command>`,
-  Zelynic launches a real transient systemd scope via `systemd-run --scope`,
+  zelynic launches a real transient systemd scope via `systemd-run --scope`,
   queries the scope unit properties via `systemctl show`, reads PID(s) from
   `cgroup.procs`, and reports findings. Does NOT apply bandwidth limits,
-  modify nftables, tc, Zelynic cgroups, or state.
+  modify nftables, tc, zelynic cgroups, or state.
 - **Scope Runner gating**: The `--probe-live` path requires all three:
   `--execute`, `--scope-mode system`, and root (euid == 0). Missing any
   requirement falls back to existing behavior (not-implemented or
@@ -3194,12 +3194,12 @@ movement).
   `zelynic-probe-v250-<sanitized_target>`.
 - **Probe output wording**: Scope Runner output honestly states "Scope
   Runner live probe", "No limiter attach was performed", "No nftables, tc,
-  Zelynic cgroup, or state changes were made", "Bandwidth limiting is not
+  zelynic cgroup, or state changes were made", "Bandwidth limiting is not
   active from this command yet", and documents cleanup command.
 - **Scope Runner tests**: Added unit tests for gate logic (missing flag
   blocked, user scope blocked, system non-root blocked, system root allowed
   by preflight model), output wording (no limiter claims, no nftables/tc
-  claims, no Zelynic cgroup/state claims, cleanup command present), plan
+  claims, no zelynic cgroup/state claims, cleanup command present), plan
   builder (v2.5 naming, target sanitization, empty command error), command
   rendering, and unit name sanitization safety.
 - **CLI tests**: Added tests for `--probe-live` parsing (with execute and
@@ -3278,7 +3278,7 @@ movement).
 - **Scope-aware discovery wording tests**: Added tests verifying user-scope dry-run renders `systemctl --user show` in discovery wording, system-scope dry-run renders `systemctl show` (without `--user`), and execute plans use matching scope-aware wording for both user and system modes.
 - **Launch/discover/attach contract tests**: Added tests for the contract model verifying user-scope uses user launch + user systemctl discovery, system-scope uses system launch + system systemctl discovery, discover phase is ControlGroup-first, attach requires root, live execution is always false, and contract has no mutation/execution side effects.
 - **Contract render integration tests**: Added tests verifying dry-run and execute output include the contract section, contract steps show correct privilege labels, and existing safety wording is preserved after the contract section.
-- **Manual probe recipe in dry-run**: Added a "Manual probe recipe" section to `zelynic run --dry-run` output that provides ready-to-copy/paste shell commands for manually testing the Scope Lab flow. User scope recipe uses `systemd-run --user --scope` with `systemctl --user` inspect/cleanup. System scope recipe includes a warning about root/sudo/Polkit and uses `sudo systemd-run --scope` with `sudo systemctl stop`. The recipe is clearly marked as manual-only and not executed by Zelynic. Omitted from `--execute` output to avoid noise.
+- **Manual probe recipe in dry-run**: Added a "Manual probe recipe" section to `zelynic run --dry-run` output that provides ready-to-copy/paste shell commands for manually testing the Scope Lab flow. User scope recipe uses `systemd-run --user --scope` with `systemctl --user` inspect/cleanup. System scope recipe includes a warning about root/sudo/Polkit and uses `sudo systemd-run --scope` with `sudo systemctl stop`. The recipe is clearly marked as manual-only and not executed by zelynic. Omitted from `--execute` output to avoid noise.
 - **Manual probe recipe tests**: Added tests verifying user-scope recipe includes backgrounded `systemd-run --user --scope` with trailing `&`, `systemctl --user show` for inspect, `systemctl --user stop` for cleanup, and `cgroup.procs` mention. System-scope tests verify root/sudo/Polkit warning presence, `sudo systemd-run --scope` usage, and `sudo systemctl stop` usage. Additional tests confirm safety wording is preserved after recipe and execute output omits the recipe.
 
 ### Docs
@@ -3302,7 +3302,7 @@ movement).
 - **Policy checker**: Added `scripts/check-policy.py` for automated policy enforcement as part of the `./scripts/build.sh check-all` quality gate.
 - **Dependency policy**: Added `deny.toml` for structured cargo-deny checks and `docs/supply-chain.md` documenting the supply-chain policy.
 - **Command module extraction**: Extracted command handlers from `src/main.rs` into `src/commands/` module (mod.rs, strict.rs, run.rs, profile.rs, monitor.rs, backend.rs, help.rs), slimming main.rs from 926 to 94 LOC.
-- **Distro support matrix**: Added `docs/distro-matrix.md` with distribution support status labels, required capabilities, and validation checklist for tracking which Linux distributions have been validated with Zelynic's strict limiter path.
+- **Distro support matrix**: Added `docs/distro-matrix.md` with distribution support status labels, required capabilities, and validation checklist for tracking which Linux distributions have been validated with zelynic's strict limiter path.
 - **Host fact collector**: Added `scripts/collect-host-facts.sh`, a non-mutating, no-sudo shell script that collects kernel, distro, cgroup, userspace tool, and default route information for host capability assessment.
 - **Distro validation flow**: Added a structured two-step validation flow to `docs/validation.md` covering non-root read-only capability checks and privileged strict limiter validation with documentation guidance.
 - **Validation report templates**: Added `docs/validation-reports/` with README, per-distro report template, and initial Arch/CachyOS validation report documenting the v2.0.0 strict limiter test results.
@@ -3335,8 +3335,8 @@ movement).
 
 ### Fixed
 
-- **Unstrict lifecycle cleanup**: Fixed a lifecycle bug where PIDs already inside Zelynic target cgroups could be recorded as their own original restore destination.
-- **Target cgroup removal**: After unstrict, Zelynic now avoids restoring PIDs back into `/sys/fs/cgroup/zelynic/target_<target>`, falls back to `/sys/fs/cgroup/zelynic` when needed, and can remove the emptied target cgroup.
+- **Unstrict lifecycle cleanup**: Fixed a lifecycle bug where PIDs already inside zelynic target cgroups could be recorded as their own original restore destination.
+- **Target cgroup removal**: After unstrict, zelynic now avoids restoring PIDs back into `/sys/fs/cgroup/zelynic/target_<target>`, falls back to `/sys/fs/cgroup/zelynic` when needed, and can remove the emptied target cgroup.
 
 ### Notes
 
@@ -3377,7 +3377,7 @@ movement).
 
 ### Renaissance Notes
 
-- **Rebrand**: Project renamed from Oxy to Zelynic.
+- **Rebrand**: Project renamed from Oxy to zelynic.
 - **Binary rename**: The command is now `zelynic`.
 - **License change**: Project license changed to `GPL-3.0-only`.
 - **Strict limiter breakthrough**: `zelynic strict` has been validated on tested modern cgroup v2 systems using the tc/nftables/cgroup backend.
@@ -3427,7 +3427,7 @@ movement).
 ### Changed
 
 - **Breaking**: Version bump from 1.0.0 to 2.0.0
-- **Branding**: Project, package, binary, docs, and public examples now use Zelynic/`zelynic`
+- **Branding**: Project, package, binary, docs, and public examples now use zelynic/`zelynic`
 - **License**: Project now uses GNU GPL v3 via `GPL-3.0-only`
 - **Monitoring**: Uses `ss -tuneiH` with per-socket byte counters (kernel 4.6+)
 - **Process resolution**: inode-based via `/proc/*/fd/` instead of `/proc/net/tcp`

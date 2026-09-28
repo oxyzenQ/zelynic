@@ -1,7 +1,7 @@
 <!-- Copyright (C) 2026 rezky_nightky -->
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 
-# Zelynic Licensing FAQ
+# zelynic Licensing FAQ
 
 Short answers to the questions that reach the licensing inbox most.
 The authoritative documents are [LICENSE](../LICENSE) (GPL-3.0-only),

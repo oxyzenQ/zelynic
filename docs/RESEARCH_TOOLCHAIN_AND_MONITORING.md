@@ -1,7 +1,7 @@
 <!-- Copyright (C) 2026 rezky_nightky -->
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 
-# Zelynic Toolchain & Monitoring-Coverage Research
+# zelynic Toolchain & Monitoring-Coverage Research
 
 This document answers two owner research questions, asked as a
 no-coding session ("docs for repo only research"). Every external
