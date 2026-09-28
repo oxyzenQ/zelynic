@@ -150,8 +150,10 @@ segments (`;` — and unquoted in a shell this exact byte splits
 commands) are all refused with the offending segment named. What
 stays legal on purpose: numeric and `cg:<id>` segments (their safety
 rides the blocklist arm above), and alnum-bearing unknown names —
-`sm '$(reboot):b' 1mb` stays the graceful no-op that echoes the
-payload verbatim as data, never executes it.
+`sm '$(reboot):b' 1mb` stays the graceful refusal that echoes the
+payload verbatim as data, never executes it (and since
+NIGHT-dinner-11 it exits 1 — the no-match contract in
+[Exit codes](#exit-codes)).
 
 The burst contract (no flag, by design): every policy banks a token
 bucket of one second of traffic — rate bytes read straight — clamped
@@ -1257,8 +1259,19 @@ means exactly that: nothing is limited right now.
 | Code | Meaning |
 |------|---------|
 | 0 | Success (including informational output like `--help`, `status`). |
-| 1 | Runtime failure — root missing, BPF object absent, stale state. The error carries a branded `error:` label and often a white `tip:` line. |
+| 1 | Runtime failure — root missing, BPF object absent, stale state, or a named target that resolved to nothing. The error carries a branded `error:` label and often a white `tip:` line. |
 | 2 | Usage error — unknown command/flag, missing arguments, invalid values. clap renders it with did-you-mean suggestions for typos, the usage line is the FAILING command's own grammar (NIGHT-boost-13), and every escape-hatch tip is verified before printing: a "use `--`" tip that fails when followed is dropped. |
+
+The no-match contract (NIGHT-dinner-11 — the eBPF-verifier lineage
+applied to the CLI surface: reject, never a soft no-op): a command
+that names a target — `strict-single`/`strict-multi`,
+`block-single`/`block-multi`, `unstrict`/`unstrict-multi` — whose
+target resolves to nothing prints the branded error and exits 1,
+so a script can tell the typo'd `ss cg8401` from an enforced
+limit. The `-all` apply sweeps (`strict-all`, `block-all`) exit 1
+when the identity map offers nothing to enforce; `unstrict-all` on
+an already-clean system stays exit 0 — the requested state already
+holds, the same clean-state precedent `recover`'s clean path owns.
 
 ---
 

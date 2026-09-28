@@ -377,6 +377,14 @@ sudo zelynic doctor
 sudo zelynic recover
 ```
 
+A target that matches nothing is a hard error — red `error:` block,
+exit 1 — so a typo'd `ss cg8401` can never read as success (the
+eBPF-verifier lineage: reject, never half-apply). The status table's
+`allowed` / `dropped` columns are cumulative bytes per cgroup since
+the limit was set — allowed passed the token budget, dropped exceeded
+it (the sender retransmits, so it reappears in allowed later);
+`unstrict` clears both.
+
 Monitors are always live; the CLI surface is frozen (v11) — the
 removed surfaces (`man`, `completions`, `unblock`, `limit-all`/`la`,
 `-i`, `--live`, `--duration`) exit with a usage error on

@@ -19,6 +19,10 @@ pub(crate) mod list_apps;
 pub(crate) mod monitor;
 #[cfg(feature = "ebpf")]
 pub(crate) mod rates;
+// NIGHT-dinner-11: recover split from cleanup (the LOC-cap push —
+// crash repair is a different concern from user-initiated removal).
+#[cfg(feature = "ebpf")]
+pub(crate) mod recover;
 pub(crate) mod safety;
 #[cfg(feature = "ebpf")]
 pub(crate) mod strict;
@@ -103,6 +107,52 @@ pub(crate) fn ensure_root() -> Result<()> {
              tip: re-run with sudo"
         ))
     }
+}
+
+// ── The no-match hard-error contract (NIGHT-dinner-11) ──────────────
+//
+// The owner's eBPF-verifier lineage mandate, applied to the CLI
+// surface: a target that resolves to nothing is REJECTED, never
+// soft-exited. The old paths printed a plain stderr line
+// ("No cgroup found for 'cg8401'. Nothing to limit.") and returned
+// Ok — exit 0 — so a typo'd target was indistinguishable from an
+// enforced limit to every script (and to a skimming human: the
+// owner's own transcript showed `ss cg8401` reading as calm
+// success). The kernel's verifier rejects a program it cannot
+// prove instead of loading it half-working; the CLI now holds the
+// same line: a command that NAMES a target must find it, or fail.
+//
+// Every conversion below returns `Err` on purpose — main's single
+// exit-adjacent renderer paints the branded block (bold red
+// `error:` label, red body, white `tip:` lines) and exits 1.
+// The one carve-out: `unstrict-all` on an already-clean system
+// keeps its exit 0 — the requested state already holds, the same
+// clean-state precedent `recover`'s clean path owns.
+
+/// The discovery tip every no-match error carries: the live-target
+/// surface (one command away from the correct spelling).
+#[cfg(feature = "ebpf")]
+pub(crate) const TIP_LIST_APPS: &str = "try 'zelynic list-apps' to see live targets";
+
+/// The state tip the unstrict family's no-match errors carry: the
+/// surface that lists what is actually limited.
+#[cfg(feature = "ebpf")]
+pub(crate) const TIP_STATUS: &str = "try 'zelynic status' to see active limits";
+
+/// Build the anyhow payload for a no-match refusal (NIGHT-dinner-11):
+/// `head` carries the verdict, every tip rides its own indented
+/// `tip:` line — the shape the line-aware labeled renderer paints
+/// (bold red label, red body, white tips) before exit 1. Pure, so
+/// the exact contract is pinned rootlessly in
+/// test/cli/no_match_tests.rs.
+#[cfg(feature = "ebpf")]
+pub(crate) fn target_no_match_error(head: String, tips: &[String]) -> anyhow::Error {
+    let mut msg = head;
+    for tip in tips {
+        msg.push_str("\n  tip: ");
+        msg.push_str(tip);
+    }
+    anyhow::anyhow!("{msg}")
 }
 
 /// Shared error for commands compiled without the `ebpf` feature:
@@ -283,7 +333,7 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
         Some(Commands::Recover) => {
             #[cfg(feature = "ebpf")]
             {
-                cleanup::handle_recover(cli.verbose)
+                recover::handle_recover(cli.verbose)
             }
             #[cfg(not(feature = "ebpf"))]
             {
@@ -379,3 +429,10 @@ pub(crate) fn unpin_all_bpf() -> Result<()> {
 #[cfg(feature = "ebpf")]
 #[path = "../../test/cli/apply_epilogue_tests.rs"]
 mod apply_epilogue_tests;
+
+// NIGHT-dinner-11: the no-match hard-error pins — same single-test-tree
+// wiring (the shape is a contract now, not a formatting accident).
+#[cfg(test)]
+#[cfg(feature = "ebpf")]
+#[path = "../../test/cli/no_match_tests.rs"]
+mod no_match_tests;

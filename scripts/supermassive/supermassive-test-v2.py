@@ -309,13 +309,14 @@ def test_rate_guard():
 # backtrace, no abort — on ANY input a hostile shell can type.
 #
 # Safety by construction: every case is a REFUSAL, an INFO surface,
-# or a GRACEFUL NO-OP — no case writes a policy or starts the monitor
+# or a GRACEFUL MISS — no case writes a policy or starts the monitor
 # (valid executions are v1's matrix; the guard battery owns the
-# override round-trips). A hostile target that matches nothing exits
-# 0 with the payload echoed VERBATIM as data ("No cgroup found for
-# '$(reboot)'") — the strongest no-execution proof there is: the
-# payload in the output is the literal string, never a shell's
-# interpretation of it. The eagle-eyes cases all fail parse or
+# override round-trips). A hostile target that matches nothing is
+# REFUSED with the payload echoed VERBATIM as data ("No cgroup found
+# for '$(reboot)'", exit 1 — the NIGHT-dinner-11 no-match contract)
+# — the strongest no-execution proof there is: the payload in the
+# output is the literal string, never a shell's interpretation of
+# it. The eagle-eyes cases all fail parse or
 # interval validation, so the live TUI never starts. stdin is
 # /dev/null and the environment carries NO_COLOR=1 so needles match
 # plain output deterministically.
@@ -491,37 +492,38 @@ CLI_DEPTH_CASES = [
     ("strict-all without a rate names the fix", ["strict-all"], "nonzero", "no rate specified"),
     ("strict-all -d with no value is a usage error", ["strict-all", "-d"], "nonzero", "required"),
     # ── security injection: values are DATA, never executed ───────
-    # Unknown-name targets are graceful no-ops (exit 0, "No cgroup
-    # found"): the needle is the PAYLOAD ITSELF, echoed verbatim — the
-    # literal string in the output is the no-execution proof.
+    # Unknown-name targets are hard refusals now (NIGHT-dinner-11,
+    # exit 1, "No cgroup found"): the needle is the PAYLOAD ITSELF,
+    # echoed verbatim — the literal string in the output is the
+    # no-execution proof.
     (
         "shell semicolon in the target is echoed as data",
         ["strict-single", "brave;rm -rf /", "1mb"],
-        "zero",
+        "nonzero",
         "brave;rm -rf /",
     ),
     (
         "command substitution in the target is echoed as data",
         ["strict-single", "$(reboot)", "1mb"],
-        "zero",
+        "nonzero",
         "$(reboot)",
     ),
     (
         "backtick substitution in the target is echoed as data",
         ["strict-single", "`id`", "1mb"],
-        "zero",
+        "nonzero",
         "`id`",
     ),
     (
         "path traversal as a target is echoed as data",
         ["strict-single", "../../etc/passwd", "1mb"],
-        "zero",
+        "nonzero",
         "../../etc/passwd",
     ),
     (
         "newline injection in the target is echoed as data",
         ["strict-single", "brave\nrm -rf /", "1mb"],
-        "zero",
+        "nonzero",
         "rm -rf",
     ),
     (
@@ -549,23 +551,23 @@ CLI_DEPTH_CASES = [
         "color-mode",
     ),
     (
-        "a 5000-char target is a graceful no-op, not a hang",
+        "a 5000-char target is a graceful refusal, not a hang",
         ["strict-single", "a" * 5000, "1mb"],
-        "zero",
+        "nonzero",
         "no cgroup found",
     ),
     (
-        "cgroup id beyond u32 range is a graceful no-op",
+        "cgroup id beyond u32 range is a graceful refusal",
         ["strict-single", "99999999999999999999", "1mb"],
-        "zero",
+        "nonzero",
         "no cgroup found",
     ),
     # ── fatal usage shapes (exit 2: clap) ─────────────────────────────
     ("strict-single with no target is a usage error", ["strict-single"], "nonzero", "error"),
     (
-        "colon target in strict-single tips strict-multi",
+        "colon target in strict-single tips strict-multi (hard miss)",
         ["strict-single", ":", "1mb"],
-        "zero",
+        "nonzero",
         "strict-multi",
     ),
     ("unstrict-single with no target is a usage error", ["unstrict-single"], "nonzero", "error"),
@@ -612,7 +614,7 @@ CLI_DEPTH_CASES = [
     # (kthreadd's home, the live fleet round-trip) are built at
     # runtime in test_cli_depth — machine-resolved ids cannot live in
     # a static table.
-    ("strict-multi fine list is clean usage", ["sm", "a:b:c", "1mb"], "zero", None),
+    ("strict-multi fine list is clean usage, hard miss on no such apps", ["sm", "a:b:c", "1mb"], "nonzero", None),
     (
         "strict-multi with the owner's fatal shape is refused",
         ["sm", "a:a/;/:1", "1mb"],
@@ -656,9 +658,9 @@ CLI_DEPTH_CASES = [
         "No targets specified",
     ),
     (
-        "shell substitution in a multi segment stays the no-exec no-op",
+        "shell substitution in a multi segment stays the no-exec refusal",
         ["sm", "$(reboot):b", "1mb"],
-        "zero",
+        "nonzero",
         "$(reboot)",
     ),
     # NIGHT-harness-1: the born-broken pin, healed on its first-ever
@@ -670,13 +672,15 @@ CLI_DEPTH_CASES = [
     # for any target in ...'), so the wording pin could never hold.
     # The argv now matches the title: the single form with a
     # non-numeric cg: remainder keeps the whole string as a process
-    # name (boost-37's graceful no-match) and prints the singular
-    # wording pinned here. The multi no-op stays covered by the
-    # shell-substitution case above.
+    # name (boost-37's graceful parse — never a silent rewrite) and
+    # prints the singular wording pinned here. NIGHT-dinner-11 moved
+    # every no-match to the hard-refusal class (exit 1, the branded
+    # error) — the multi miss stays covered by the shell-substitution
+    # case above.
     (
-        "cg prefix with a non-numeric remainder keeps the no-op contract",
+        "cg prefix with a non-numeric remainder keeps the no-match contract",
         ["ss", "cg:brave", "1mb"],
-        "zero",
+        "nonzero",
         "No cgroup found",
     ),
 ]
