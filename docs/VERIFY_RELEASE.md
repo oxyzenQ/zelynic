@@ -158,10 +158,12 @@ them for the now-default `ebpf` feature.
   honest refusal) survives as the explicit opt-out:
   `cargo install zelynic --no-default-features`.
 - The published ship set is curated by the manifest's `include`:
-  sources, the test tree, `ebpf-prebuilt/`, the full docs tree, the
-  governance docs (CLA / COMMERCIAL_LICENSE / TRADEMARK), and the
-  one-command eBPF bootstrap pair (downstream source builders). CI,
-  gates, harnesses, and assets stay repo-only.
+  sources, the test tree, `ebpf-prebuilt/`, the top-level docs tree
+  (NIGHT-dinner-15: `docs/*.md` — the research/audits/archive subdirs
+  stay repo-only, the cosmostrix exclude lineage), the governance
+  docs (CLA / COMMERCIAL_LICENSE / TRADEMARK), and the one-command
+  eBPF bootstrap pair (downstream source builders). CI, gates,
+  harnesses, and assets stay repo-only.
 
 ### Keeping the prebuilt objects fresh (owner procedure)
 

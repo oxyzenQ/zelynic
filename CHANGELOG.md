@@ -19,6 +19,37 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Changed
 
+- **build: NIGHT-dinner-15 (crates.io half) — the ship set's docs
+  entry narrows to the top-level tree, the research subdirs stay
+  repo-only** (the owner's lean mandate: audit the manifest include
+  for what can come out — but the silent-but-killer entries stay).
+  The move: `docs/**` becomes `docs/*.md`, mirroring the mature
+  sibling's Cargo.toml — cosmostrix's `exclude` list names exactly
+  these three directories (docs/research/, docs/audits/,
+  docs/archive/), so zelynic's curated `include` now excludes the
+  same set while keeping the include architecture NIGHT-ask-2
+  verified (cargo's nested-package auto-exclusion still holds). The
+  numbers, measured live with `cargo package --list` before and
+  after on this manifest: 5 files / 300,479 bytes out
+  (2,837,416 -> 2,538,199 total, net 10.5% lighter — the manifest
+  comment's own added bytes included), the single biggest item the
+  245,167-byte pre-v11 changelog archive restored the same day:
+  the repo keeps its history readable, the tarball does not carry
+  it. The silent-killer audit that guarded the cut: build.rs reads
+  no docs path (comments only), zero test files read docs paths,
+  README.md links no research/audits/archive file, and the three
+  shippers that DO link the subdirs (docs/README.md, docs/MAINTENANCE.md,
+  docs/PHILOSOPHY.md) keep their repo-navigation links — the
+  accepted cosmostrix pattern (their shipped CHANGELOG.md links
+  their excluded docs/archive/CHANGELOG_PRE_V13.md). Every other
+  include entry was re-verified against that reference and stays:
+  the test tree ships (cosmostrix ships its test tree too; the
+  [[test]] integration target is declared in the manifest), the
+  governance docs ship, the era changelogs ship, the bootstrap pair
+  ships. docs/VERIFY_RELEASE.md's ship-set bullet now names the
+  narrowed docs entry. Benchmark: skipped — packaging metadata
+  only, no render-path or runtime code touched.
+
 - **docs: NIGHT-dinner-15 (changelog half) — the pre-v11 era comes
   home to docs/archive/ and the root changelog carries the v11 era
   alone** (the owner's lean-and-clean cut: root CHANGELOG.md is the
