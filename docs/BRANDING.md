@@ -50,6 +50,12 @@ Usage surfaces:
 - clap error rendering — headers and Usage in bold purple via
   `clap_styles()` (`src/cli/mod.rs`); error labels bold red, tips white
 - `status` / `eagle-eyes` / `recover` / `list-apps` banners — bold
+  (NIGHT-dinner-23 closed the gap where recover's banner rendered
+  plain while this list had always named it bold; the recover report
+  also joined the diagnostic family's verdict contract — State words
+  in the bold semantic tier, orphan findings in warn, affirmative
+  Result values in status green, partial-failure results in warn,
+  quoted commands in suggestion white)
 - `--check-update` report banner — bold
 
 Status colors use the same capability tiers (owner color contract,

@@ -9,6 +9,21 @@
 //! user-initiated removal — it repairs crash residue (orphaned pin
 //! files, dead-cgroup policies), reports what it found before
 //! cleaning, and is safe to run anytime.
+//!
+//! NIGHT-dinner-23 (the style-consistency audit): the report joins
+//! the "━━━" diagnostic family's render contract — the banner in
+//! bold brand purple (the BRANDING 2.1 surface list always named
+//! this banner bold; the code never honored it), State verdict
+//! words in the doctor's bold semantic tier (ok_bold for clean /
+//! valid, warn_bold for STALE), orphan findings in warn yellow,
+//! affirmative Result values in status green with partial-failure
+//! results in warn, and every quoted runnable command in the
+//! suggestion white tier (the status stale-frame contract). The
+//! data side sharpened with it: the none-branch verdict now counts
+//! policies AND cgroups from the maps it just read — the old line
+//! printed the cgroup count under the noun "policies" ("all 1
+//! policies" on a box carrying two dl+ul policies), wrong on the
+//! number and the noun at once.
 
 use anyhow::Result;
 
@@ -36,10 +51,16 @@ pub fn handle_recover(verbose: bool) -> Result<()> {
     // Prevent concurrent operations (race condition elimination).
     let _lock = crate::ebpf::lock::acquire()?;
 
-    eprintln_safe!("━━━ zelynic Crash Recovery ━━━");
+    eprintln_safe!(
+        "{}",
+        crate::output::brand_bold("━━━ zelynic Crash Recovery ━━━")
+    );
 
     if !pin_dir_has_files() {
-        eprintln_safe!("  State: clean (no pin files found)");
+        eprintln_safe!(
+            "  State: {} (no pin files found)",
+            crate::output::ok_bold("clean")
+        );
         eprintln_safe!("  Action: nothing to recover");
         return Ok(());
     }
@@ -49,7 +70,10 @@ pub fn handle_recover(verbose: bool) -> Result<()> {
 
     if is_valid {
         // BPF is valid — check for orphan policies (cgroup dead, policy remains).
-        eprintln_safe!("  State: valid (enforcement pins intact)");
+        eprintln_safe!(
+            "  State: {} (enforcement pins intact)",
+            crate::output::ok_bold("valid")
+        );
         eprintln_safe!("  Checking for orphan policies...");
 
         let mut limiter = Limiter::open_pinned(verbose)?;
@@ -93,16 +117,33 @@ pub fn handle_recover(verbose: bool) -> Result<()> {
 
         if orphan_ids.is_empty() {
             eprintln_safe!(
-                "  Orphans: none (all {} policies have live cgroups)",
-                policy_cgroup_ids.len()
+                "{}",
+                orphans_none_line(
+                    dl_policies.len(),
+                    ul_policies.len(),
+                    policy_cgroup_ids.len(),
+                )
             );
-            eprintln_safe!("  Action: nothing to recover — use 'unstrict-all' to remove limits");
+            // The command suggestion rides the status stale-frame
+            // contract (suggestion white, quoted, runnable) — the
+            // same actionable-accent tier 'zelynic recover' gets
+            // from the status stale lines.
+            eprintln_safe!(
+                "  Action: nothing to recover — use {} to remove limits",
+                crate::output::suggestion("'zelynic unstrict-all'")
+            );
             return Ok(());
         }
 
+        // NIGHT-dinner-23: the finding renders in warn yellow — the
+        // status stale-frame contract for a state the operator must
+        // act on (plain "Orphans: " label, colored finding value).
         eprintln_safe!(
-            "  Orphans: {} policy cgroup(s) no longer exist:",
-            orphan_ids.len()
+            "  Orphans: {}",
+            crate::output::warn(&format!(
+                "{} policy cgroup(s) no longer exist:",
+                orphan_ids.len()
+            ))
         );
         for id in &orphan_ids {
             eprintln_safe!("    - cg:{id}");
@@ -183,20 +224,33 @@ pub fn handle_recover(verbose: bool) -> Result<()> {
         let groups_reclaimed = limiter.reclaim_dead_groups(&captured_groups);
 
         if failed.is_empty() {
+            // NIGHT-dinner-23: the affirmative Result value rides
+            // the status-green tier (the whole verdict, one glance),
+            // and the policy noun goes singular/plural aware — the
+            // entry/entries pattern two lines below always had it.
             eprintln_safe!(
-                "  Result: removed {orphans_removed} orphan policy(ies), \
-                 reclaimed {state_reclaimed} stale state {} and \
-                 {groups_reclaimed} group bucket {}",
-                if state_reclaimed == 1 {
-                    "entry"
-                } else {
-                    "entries"
-                },
-                if groups_reclaimed == 1 {
-                    "slot"
-                } else {
-                    "slots"
-                }
+                "  Result: {}",
+                crate::output::ok(&format!(
+                    "removed {} orphan {}, reclaimed {} stale state {} and {} group bucket {}",
+                    orphans_removed,
+                    if orphans_removed == 1 {
+                        "policy"
+                    } else {
+                        "policies"
+                    },
+                    state_reclaimed,
+                    if state_reclaimed == 1 {
+                        "entry"
+                    } else {
+                        "entries"
+                    },
+                    groups_reclaimed,
+                    if groups_reclaimed == 1 {
+                        "slot"
+                    } else {
+                        "slots"
+                    },
+                ))
             );
             // NIGHT-master-4: the no-residue ladder the unstrict
             // family already owns. When the orphan sweep took the
@@ -209,13 +263,26 @@ pub fn handle_recover(verbose: bool) -> Result<()> {
             unpin_if_no_policies(&limiter, verbose)?;
             return Ok(());
         } else {
+            // NIGHT-dinner-23: a partial-failure Result renders in
+            // warn yellow — the mixed verdict the red error block
+            // that follows completes (exit 1 carries the failure,
+            // the Result line carries what DID succeed).
             eprintln_safe!(
-                "  Result: removed {orphans_removed} orphan policy(ies), \
-                 reclaimed {state_reclaimed} stale state entries and \
-                 {groups_reclaimed} group bucket slots; {} could not \
-                 be removed: {}",
-                failed.len(),
-                failed.join(", ")
+                "  Result: {}",
+                crate::output::warn(&format!(
+                    "removed {} orphan {}, reclaimed {} stale state entries and {} \
+                     group bucket slots; {} could not be removed: {}",
+                    orphans_removed,
+                    if orphans_removed == 1 {
+                        "policy"
+                    } else {
+                        "policies"
+                    },
+                    state_reclaimed,
+                    groups_reclaimed,
+                    failed.len(),
+                    failed.join(", ")
+                ))
             );
             // NIGHT-master-4: an incomplete recovery is a runtime
             // failure, not a quiet success. The exit-code contract
@@ -242,10 +309,16 @@ pub fn handle_recover(verbose: bool) -> Result<()> {
     let detected = std::fs::read_dir(pin_dir).map(|d| d.count()).ok();
     match detected {
         Some(n) => {
-            eprintln_safe!("  State: STALE ({n} orphaned pin file(s) detected)");
+            eprintln_safe!(
+                "  State: {} ({n} orphaned pin file(s) detected)",
+                crate::output::warn_bold("STALE")
+            );
         }
         None => {
-            eprintln_safe!("  State: STALE (orphaned pin files detected)");
+            eprintln_safe!(
+                "  State: {} (orphaned pin files detected)",
+                crate::output::warn_bold("STALE")
+            );
         }
     }
     eprintln_safe!("  Cause: likely crash, SIGKILL, OOM, or partial upgrade");
@@ -267,7 +340,51 @@ pub fn handle_recover(verbose: bool) -> Result<()> {
     // and a refused removal printed it anyway ("recovered (N
     // file(s) removed)" while the files stood). Leftover survivors
     // error out of unpin_all before this line can lie.
-    eprintln_safe!("  Result: recovered ({removed} file(s) removed)");
-    eprintln_safe!("  Next: run 'zelynic strict-single <target> <rate>' to re-apply limits");
+    eprintln_safe!(
+        "  Result: {} ({removed} file(s) removed)",
+        crate::output::ok_bold("recovered")
+    );
+    eprintln_safe!(
+        "  Next: run {} to re-apply limits",
+        crate::output::suggestion("'zelynic strict-single <target> <rate>'")
+    );
     Ok(())
 }
+
+/// The none-branch verdict line (NIGHT-dinner-23, the count-honesty
+/// fix): the orphan-free board rendered with both dimensions the
+/// maps just reported. Pure so the wording is unit-pinnable (the
+/// `apply_success_lines` precedent) — the old line printed the
+/// cgroup count under the noun "policies" ("all 1 policies" on a
+/// box carrying two dl+ul policies on one cgroup), wrong on the
+/// number and the noun at once. Singular/plural aware on both axes,
+/// the entry/entries contract this file already owns; the
+/// zero-policies arm names the empty skeleton for what it is
+/// instead of the blunt "0 across 0, all live".
+#[cfg(feature = "ebpf")]
+#[must_use]
+pub(crate) fn orphans_none_line(dl_policies: usize, ul_policies: usize, cgroups: usize) -> String {
+    let total = dl_policies + ul_policies;
+    if total == 0 {
+        return format!(
+            "  Orphans: {} (no policies pinned)",
+            crate::output::ok_bold("none")
+        );
+    }
+    format!(
+        "  Orphans: {} ({} {} across {} cgroup{}, all live)",
+        crate::output::ok_bold("none"),
+        total,
+        if total == 1 { "policy" } else { "policies" },
+        cgroups,
+        if cgroups == 1 { "" } else { "s" },
+    )
+}
+
+// NIGHT-dinner-23: the count-honesty pins live under the single
+// test/ tree (cosmostrix Pattern C), #[path]-wired exactly like the
+// census and eagle depth pins.
+#[cfg(test)]
+#[cfg(feature = "ebpf")]
+#[path = "../../test/commands/recover_tests.rs"]
+mod recover_tests;
