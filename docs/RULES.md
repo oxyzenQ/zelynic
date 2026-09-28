@@ -165,6 +165,29 @@ text file for non-Latin scripts outside marker-declared fixtures and
 for a curated, case-sensitive Indonesian word list. The emoji sweep
 (gate-keepers section 8) is the sibling gate for emoji codepoints.
 
+## Project Name Casing
+
+- The project name is lowercase `zelynic` in every context — prose,
+  titles, headings, code, CLI output, comments, commit subjects, and
+  file paths — the nginx/curl convention (BRANDING 3.1, codified in
+  NIGHT-dinner-21). No context capitalizes it, including the start
+  of a sentence.
+- The one uppercase family that survives is identifiers, never the
+  name itself: the `ZELYNIC_*` environment variables, the
+  `<!-- ZELYNIC-DISCLAIMER -->` marker, and the all-caps banner
+  comment titles heading the `scripts/` gate files.
+- Nothing is excluded from the scan: every tracked file and every
+  tracked path is checked, hidden trees (`.github/`, `.cargo/`)
+  included.
+
+### Enforcement
+
+`scripts/gates/check-name-case.py` (wired into
+`scripts/gate-keepers.sh` section 19) classifies every name token
+case by case and fails the build on any casing outside the two
+legal families above — a capitalized first letter, internal
+capitals, or all-caps prose all fail with file:line:token.
+
 ## Manual Workflow
 
 Use a test-first loop:

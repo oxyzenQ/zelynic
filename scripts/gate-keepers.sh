@@ -85,6 +85,14 @@
 #       regenerates the lane, so the registry tarball can never ship
 #       objects that silently fell behind the sources they claim to
 #       carry)
+#  19.  Name-case rule (owner mandate, NIGHT-dinner-22 —
+#       scripts/gates/check-name-case.py: the project name is
+#       lowercase zelynic in every context, paths included; the one
+#       uppercase survivor is the identifier family BRANDING 3.1
+#       codified (ZELYNIC_* environment variables, the
+#       ZELYNIC-DISCLAIMER marker, the banner titles heading the
+#       scripts/ gate files). Every tracked file is scanned —
+#       nothing excluded — and any other casing fails the push)
 #
 # Pre-commit hook (NIGHT-dinner-1): the first wholesale run on a
 # clone self-installs .githooks/pre-commit (git config
@@ -734,6 +742,31 @@ if [ -f scripts/gates/check-prebuilt-parity.sh ]; then
 	fi
 else
 	warn "check-prebuilt-parity.sh not found — skipping"
+fi
+
+# ── 19. Name-Case Rule (owner mandate, NIGHT-dinner-22) ─────────────
+# The project name is lowercase zelynic in every context — the
+# nginx/curl convention BRANDING 3.1 codified in NIGHT-dinner-21.
+# check-name-case.py scans EVERY tracked file and every tracked
+# path (git ls-files — the .cargo/ and .github/ hidden trees
+# included), classifies each name token case by case, and fails on
+# any casing outside the two legal families: lowercase, and the
+# identifier family (ZELYNIC_* env vars, the ZELYNIC-DISCLAIMER
+# marker, the banner titles heading the scripts/ gate files). No
+# file is excluded from the scan — a wrong-case name anywhere
+# fails the push.
+header "Name-Case Rule (check-name-case.py)"
+if [ -f scripts/gates/check-name-case.py ] && command -v python3 >/dev/null 2>&1; then
+	if python3 scripts/gates/check-name-case.py 2>&1; then
+		info "name-case: the project name is lowercase everywhere (identifier family legal)"
+		PASS=$((PASS + 1))
+	else
+		fail "name-case: wrong-case project name found (see the file:line:token list above)"
+	fi
+elif [ ! -f scripts/gates/check-name-case.py ]; then
+	warn "check-name-case.py not found — skipping"
+else
+	warn "python3 not installed — skipping"
 fi
 
 # ── Summary ────────────────────────────────────────────────────────────────

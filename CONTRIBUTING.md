@@ -127,7 +127,7 @@ ebpf/                   — the pure-Rust BPF source (aya-ebpf; NIGHT-improve-1
 
 scripts/
   build.sh             — check-all orchestration
-  gate-keepers.sh      — the wholesale non-code gates (18 sections,
+  gate-keepers.sh      — the wholesale non-code gates (19 sections,
                 run before every commit; the first run self-installs
                 .githooks/pre-commit — the commit-time prebuilt
                 gate, NIGHT-dinner-1)

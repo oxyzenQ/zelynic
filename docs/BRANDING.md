@@ -352,10 +352,16 @@ the `<!-- ZELYNIC-DISCLAIMER -->` injection marker, and the
 all-caps banner comment titles heading the scripts/ gate files —
 shell and identifier conventions, not brand displays.
 
+Since NIGHT-dinner-22 the rule is machine-enforced:
+`scripts/gates/check-name-case.py` (gate-keepers section 19) scans
+every tracked file and path and fails the build on any casing
+outside these two families — nothing is excluded from the scan.
+
 ### 3.2. Incorrect forms
 
-- ~~Zelynic~~ (capitalized — the name is lowercase, even at the start of a sentence)
-- ~~ZeLynic~~ (no internal capitalization)
+- A capitalized first letter, or any internal capital, in any
+  context (every letter of the name is lowercase, even at the start
+  of a sentence — machine-enforced, see 3.1)
 - ~~Oxy~~ (legacy name, do not use for new mentions)
 - ~~zelynicX~~ (derivative form)
 
