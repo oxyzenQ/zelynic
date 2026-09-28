@@ -121,9 +121,10 @@ marker.
 
 - Every living `.md` file carries the stale-data disclaimer at the
   bottom (`<!-- ZELYNIC-DISCLAIMER -->` block).
-- `CHANGELOG.md` and `CHANGELOG-V11-ERA.md` are excluded — frozen
-  historical records, never rewritten (the same exclusion policy as
-  every other gate).
+- `CHANGELOG.md` is excluded — a frozen historical record, never
+  rewritten (the same exclusion policy as every other gate). The
+  former CHANGELOG-V11-ERA.md root duplicate was removed in
+  NIGHT-dinner-19; its frozen content lives in git history.
 - Inject with `./scripts/gates/inject-disclaimer.sh`; verify with
   `./scripts/gates/inject-disclaimer.sh --check` (wired into
   `gate-keepers.sh`; the gatekeeper's `--fix` auto-injects).

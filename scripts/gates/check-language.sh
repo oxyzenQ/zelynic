@@ -119,9 +119,12 @@ SKIP_DIRS = {
     "__pycache__",  # compiled bytecode embeds source string constants
 }
 SKIP_FILES = {
-    "CHANGELOG.md",          # frozen historical record
-    "CHANGELOG-V11-ERA.md",  # frozen historical record
-    "check-language.sh",     # this detector's own word set
+    "CHANGELOG.md",  # frozen historical record
+    # The former CHANGELOG-V11-ERA.md root duplicate was removed in
+    # NIGHT-dinner-19 (frozen content lives in git history); the
+    # entry stays so an old checkout running this gate still skips it.
+    "CHANGELOG-V11-ERA.md",
+    "check-language.sh",  # this detector's own word set
 }
 SKIP_SUFFIXES = (".png", ".lock")
 MARKER = "NON_LATIN_FIXTURE:"
