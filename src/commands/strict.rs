@@ -179,11 +179,6 @@ pub(crate) fn handle_strict_multi(
         ));
     }
     super::apply_success_epilogue(&format!("zelynic unstrict-multi {targets_str}"), "remove");
-
-    // Validate final state: pins must still be present after apply. A
-    // concurrent operation (unstrict-all in another terminal) can tear
-    // them down mid-flight; the old code misattributed this to a
-    // "serve child" that no longer exists and read a stale log file.
     Ok(())
 }
 
@@ -299,9 +294,6 @@ pub(crate) fn handle_strict_all(
         ));
     }
     super::apply_success_epilogue("zelynic unstrict-all", "remove");
-
-    // Validate final state: pins must still be present after apply (see
-    // handle_strict_multi for the rationale).
     Ok(())
 }
 

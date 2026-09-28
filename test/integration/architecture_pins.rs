@@ -2,16 +2,19 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 //! Cosmic Dragon Architecture discipline pins (NIGHT-dinner-15, the
-//! architecture half).
+//! architecture half; extended by NIGHT-dinner-16).
 //!
 //! Rootless source-contract pins: each test reads the src/ tree as
-//! bytes and asserts ONE layer-discipline invariant of the four-layer
-//! shape (docs/COSMIC_DRAGON_ARCHITECTURE.md, "Layer discipline
-//! holds"). Prose can rot; a pin fails the build the day a violator
-//! lands. Every check here is textual — no root, no eBPF, no kernel —
-//! so they run in the plain `cargo test --test integration` lane on
-//! any machine, CI included, and in the --no-default-features lane
-//! too (the discipline is feature-independent).
+//! bytes and asserts ONE architectural invariant — the six
+//! layer-discipline rules of the four-layer shape
+//! (docs/COSMIC_DRAGON_ARCHITECTURE.md, "Layer discipline holds") and
+//! the verdict-order rule dinner-16 added (every apply handler
+//! verifies the pin state before its success verdict prints). Prose
+//! can rot; a pin fails the build the day a violator lands. Every
+//! check here is textual — no root, no eBPF, no kernel — so they run
+//! in the plain `cargo test --test integration` lane on any machine,
+//! CI included, and in the --no-default-features lane too (the
+//! discipline is feature-independent).
 //!
 //! Textual pins are tripwires, not proofs: they catch the shapes the
 //! tree actually uses today (the literal `crate::ebpf::` path, the
