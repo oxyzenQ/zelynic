@@ -16,6 +16,30 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Changed
 
+- **docs: NIGHT-dinner-8 second rider — the README's Test Results
+  section shrinks from five prose walls to one table** (the owner's
+  approved follow-up to the tidying pass). The five harness
+  blocks — depth, endurance, supermassive v1 and its phase-order
+  paragraph, supermassive v2 and its division-of-labor paragraph,
+  and the claims proof with its version-gate footnote — each ran
+  8-15 lines of dense prose before the command. They are now one
+  row each in a compact three-column table (harness, what it
+  proves, the one command), with the per-harness design notes and
+  audit trails left where they already live once: CROSS_DISTRO
+  (depth, v1, v2), STABILITY's blade-6 (endurance),
+  CLAIMS_VERIFICATION (the claims proof), SANDBOX (the micro-VM
+  lane). Three facts survive as one short paragraph because they
+  change how a run is read: the server phase gates the desktop
+  matrix, the v1-limits/v2-abuse division of labor, and the claims
+  harness's version gate. The universal flags (`--quick`,
+  rootless `--self-test`) ride the lead-in paragraph instead of
+  being repeated per block; the `--server-only`/`--desktop-only`
+  phase selectors and the sandbox's `--battery`/`--run`/`--shell`
+  live in the linked docs and the scripts' own usage. Net: 114
+  lines of prose in, 29 lines out; the distro table and the honest
+  2026 context added by the first rider are untouched above it.
+  Docs only, no code change.
+
 - **docs: NIGHT-dinner-8 tidying — the help reference drops its
   requirements line, and the README's three checkable numbers grow
   their where-to-verify anchors** (the owner's "simple is fast to

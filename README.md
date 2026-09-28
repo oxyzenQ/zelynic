@@ -589,120 +589,35 @@ once there:
 | Ubuntu 21.10 | 5.13 | MUSL | GeckoMain 100kb → 770 Kbps |
 | Debian 13 | 6.12 | MUSL | firefox-esr 900kb → 7.0 Mbps |
 
-Want to depth-verify your own machine (or a VM, or a friend's distro)?
-One command, no external test server — loopback traffic in an isolated
-test cgroup, measured rate accuracy, kernel-drop proof, BPF accounting,
-sustained stability, residue (NIGHT-master-1):
+Every harness below is one command — stdlib-only Python, loopback
+traffic, no external test server — and every root-requiring one has a
+rootless `--self-test` engine smoke. Each also takes `--quick` for
+faster windows. The table is the map; the design notes and audit
+trails live in each row's doc, told once there:
 
-```bash
-sudo ./scripts/depth/limiter-depth-test.sh          # full run (~2 min)
-sudo ./scripts/depth/limiter-depth-test.sh --quick  # fast pass (~45s)
-```
+| Harness | What it proves | One command |
+|---------|----------------|-------------|
+| [depth](docs/CROSS_DISTRO_RESULTS.md) | Rate accuracy, kernel-drop proof, BPF accounting, residue — on your machine or any distro (~2 min) | `sudo ./scripts/depth/limiter-depth-test.sh` |
+| [endurance](docs/STABILITY.md) | The ultra-long horizon: the LTS map budget under 300 churn cycles, a monitor soaked flat, zero residue (~100s) | `sudo ./scripts/depth/endurance-test.sh` |
+| [supermassive v1](docs/CROSS_DISTRO_RESULTS.md) | Every stage that measures a LIMIT: the 64-cgroup server fleet, then the full desktop matrix (6+ min) | `sudo ./scripts/supermassive/supermassive-test.sh` |
+| [supermassive v2](docs/CROSS_DISTRO_RESULTS.md) | The abuse family: the 97-case CLI stresstest, guards, SIGKILL batteries, crash teardown (4+ min) | `sudo ./scripts/supermassive/supermassive-test-v2.sh` |
+| [claims proof](docs/CLAIMS_VERIFICATION.md) | The README's four headline claims plus the one-shot footprint, proven live (~1 min) | `sudo ./scripts/bench/proof-claims.sh` |
+| [sandbox](docs/SANDBOX.md) | No root on your box? The same micro-VM CI boots, locally — throwaway kernel, no docker, no host changes | `scripts/sandbox/zelynic-sandbox.sh --smoke` |
 
-Want to prove the ultra-long horizon (NIGHT-blade-6) — the LTS map
-budget under 300 churn-amplified apply/unstrict cycles (a one-slot
-leap per cycle exhausts a cap mid-run and the next apply fails
-loudly), a live monitor soaked flat (an `ee` session on a pty,
-resident memory / open fds / threads sampled at 1 Hz against a
-documented budget), zero residue (no pins, no lock, no test
-cgroups), and a clean dmesg? The endurance harness (the audit
-trail is docs/STABILITY.md's blade-6 section):
+Three facts that shape a run. The server phase always runs FIRST and
+gates the desktop matrix — a machine that cannot hold the server
+shape does not get to the desktop legs. The v1/v2 split is
+deliberate: v1 owns every stage that measures a limit, v2 owns the
+abuse family — green on both is the full verdict. And the claims
+harness runs a version gate: it refuses any binary whose `-V` doesn't
+match the checkout's Cargo.toml, so a stale distro install can never
+masquerade as the build under test.
 
-```bash
-sudo ./scripts/depth/endurance-test.sh            # full run (~100s)
-sudo ./scripts/depth/endurance-test.sh --quick    # fast pass (~40s)
-```
-
-Want to supermassive-test the whole command surface — the server
-phase first (headless report surfaces, a dense 64-cgroup fleet
-policed by one strict-multi write, daemonized traffic, concurrent
-report readers; NIGHT-blade-4), then single/multi targets,
-strict/block/unstrict, curl burst download + upload, the full rate
-range 1kb to 1tb (skipping rungs the hardware cannot feed), every
-rate-guard function (bounds, typo tip, dangerous blocklist,
-plain-number, --force-this override), and both per-direction buckets
-(-d / -u / asymmetric -d+-u)? One click (NIGHT-master-2):
-
-```bash
-sudo ./scripts/supermassive/supermassive-test.sh                # server phase, then the desktop matrix (6+ min)
-sudo ./scripts/supermassive/supermassive-test.sh --server-only  # the server depth phase alone
-sudo ./scripts/supermassive/supermassive-test.sh --desktop-only # the desktop matrix alone
-./scripts/supermassive/supermassive-test.sh --self-test          # engine smoke, no root
-```
-
-One root intensity (NIGHT-improve-19): the old light sweep was retired —
-the matrix is the default. A mistyped flag (`--self-tesss`) gets a typo
-tip suggesting `--self-test`, and `--light` gets a message naming its
-replacement. The server phase runs FIRST and gates the desktop matrix
-(NIGHT-blade-4, the owner's phase order): a machine that cannot hold
-the server shape does not get to run the desktop matrix.
-
-Want to know the machine survives the day nothing goes right — the
-server phase first (the guard family under the stripped headless
-environment a production server carries; NIGHT-blade-4), then the
-97-case CLI depth stresstest (typos, wrong values, ambiguous orders,
-shell-injection payloads, fatal usage — every flag and alias end to
-end, zero hangs, zero panics), the CLI input guards, the live TUI
-SIGKILLed mid-render under active enforcement, one-shot writers
-SIGKILLed inside the attach/pin/write window, then everything
-re-proven after the dust settles? That is v2 (NIGHT-improve-23,
-refocused NIGHT-refactor-2, hardened NIGHT-ultimate-3):
-
-```bash
-sudo ./scripts/supermassive/supermassive-test-v2.sh               # server phase + survival battery (4+ min)
-sudo ./scripts/supermassive/supermassive-test-v2.sh --server-only  # the headless guard phase alone
-sudo ./scripts/supermassive/supermassive-test-v2.sh --desktop-only # the four survival phases alone
-./scripts/supermassive/supermassive-test-v2.sh --self-test         # engine smoke, no root
-```
-
-The division of labor is deliberate (NIGHT-refactor-2): v1 owns
-every stage that measures a LIMIT — the loopback matrix, the measured
-rate change, the real-internet lane — a machine green on v1 has a
-limiter that holds everywhere it claims; v2 owns the abuse family
-(guards, kills, regression, crash teardown) — a machine green on v2
-survives the day nothing goes right.
-
-No root on your box (an agent sandbox, a locked-down laptop)? The
-zelynic sandbox (NIGHT-think-1) boots the same micro-VM CI uses,
-locally: root inside a throwaway kernel, no docker, no host changes,
-~20 s rebuilds from a cache — `scripts/sandbox/zelynic-sandbox.sh
---smoke` is the one-click CLI depth battery (every verb, every guard,
-JSON surfaces, real policing, leak and security probes), `--battery`
-runs both supermassive engines in it, `--run` takes any
-root-requiring command, `--shell` drops into a root bash, and the
-kernel lane defaults to the newest Ubuntu LTS suite's kernel
-(NIGHT-blade-10). The design, requirements,
-and the verdict contract live in
-[docs/SANDBOX.md](docs/SANDBOX.md).
-
-No machine handy at all? The whole qualification — bring-up plus v1
-plus v2, in that order — runs on CI on every core-file push
-(NIGHT-ultimate-3, the re-issued label): the E2E workflow executes
-it on hosted runners (real sudo, real BPF, real runner kernels, no
-container), so a green Actions run is the same verdict these
-sections teach you to produce locally. The 5.15 floor specifically
-is proven by the Kernel Floor workflow's KVM micro-VM
-(NIGHT-improve-29) — same verdict, one kernel leg, no self-hosting.
-
-Want the four headline claims themselves PROVEN on your machine — no
-daemon (enforcement alive with zero zelynic processes), pure eBPF (tc
-and nftables snapshots unchanged while the kernel drops the excess),
-per-app per-cgroup (a policed cgroup and an unlimited witness measured
-side by side, same moment), and precision (kernel-admitted bytes vs
-configured rate over a long window, with the honest TCP-level number
-printed next to it)? One command (NIGHT-boost-8):
-
-```bash
-sudo ./scripts/bench/proof-claims.sh                # claims audit (~1 min)
-sudo ./scripts/bench/proof-claims.sh --quick        # faster windows (~30s)
-./scripts/bench/proof-claims.sh --self-test          # engine smoke, no root
-```
-
-The harness always tests the checkout's own build: repo target
-outputs resolve first (newest build wins), and a version GATE
-refuses any binary whose `-V` doesn't match the checkout's
-Cargo.toml — a stale distro install can never masquerade as the
-build under test (NIGHT-improve-16).
+No machine handy at all? The whole qualification — bring-up, v1, v2,
+in that order — runs on CI on every core-file push (real sudo, real
+BPF, real runner kernels, no container), and the 5.15 floor lane is
+proven by its own KVM micro-VM workflow. A green Actions run is the
+same verdict these commands produce locally.
 
 ## Release Verification
 
