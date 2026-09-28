@@ -31,10 +31,31 @@ rust-version = "1.98"
 # feature, so a plain `cargo install zelynic` lands the monitor and
 # the limiter on a stable toolchain with no nightly anywhere near
 # the user. The set keeps the one-command bootstrap pair (downstream
-# source builders), the full docs tree the README links into, and
-# the governance docs of the dual-license offer. Everything NOT
-# listed stays repo-only: CI workflows, gates, sandbox/bench/
-# supermassive harnesses, assets, lint dotfiles.
+# source builders), the top-level docs tree the README links into
+# (NIGHT-dinner-15: narrowed from the full tree — see the lean-half
+# note below), and the governance docs of the dual-license offer.
+# Everything NOT listed stays repo-only: CI workflows, gates,
+# sandbox/bench/supermassive harnesses, assets, lint dotfiles.
+# NIGHT-dinner-15 (the lean half): the docs entry narrowed from
+# docs/** to docs/*.md — the top-level user docs ship, the three
+# research subdirs stay repo-only (docs/research/, docs/audits/,
+# docs/archive/; the cosmostrix exclude lineage — that project's
+# Cargo.toml names exactly these three). Numbers, measured live with
+# cargo package --list on this manifest: the cut drops 5 files /
+# 300,479 bytes from the tarball (2,837,416 -> 2,538,199 total, net
+# 10.5% lighter — this comment's own added bytes included), the
+# single biggest item being the 245,167-byte
+# pre-v11 changelog archive restored into docs/archive/ the same
+# day — the repo keeps its history readable, the tarball does not
+# carry it. Silent-killer audit before the cut: build.rs reads no
+# docs path (comments only), zero test files read docs paths, and
+# README.md links no research/audits/archive file. The three
+# shippers that DO link the subdirs (docs/README.md,
+# docs/MAINTENANCE.md, docs/PHILOSOPHY.md) keep their
+# repo-navigation links — the accepted cosmostrix pattern (their
+# shipped CHANGELOG.md links their excluded
+# docs/archive/CHANGELOG_PRE_V13.md): crates.io users land on the
+# repository for the research surface.
 include = [
     "src/**",
     "build.rs",
@@ -48,7 +69,7 @@ include = [
     "ebpf-prebuilt/**",
     "scripts/dev/bootstrap-ebpf.sh",
     "scripts/dev/install-bpf-linker.sh",
-    "docs/**",
+    "docs/*.md",
     "CHANGELOG.md",
     "CHANGELOG-V11-ERA.md",
     "CLA.md",
