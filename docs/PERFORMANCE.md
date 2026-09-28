@@ -1104,3 +1104,34 @@ healthy, output-lane-only cure when broken), while the SAME
 harness against the improve-31 orphan panics in every scenario —
 its TCSAFLUSH under the live reader eats the first typed
 character, the exact residue the owner kept reporting.
+
+### NIGHT-dinner-18/19/17 A/B (eagle-eyes hard-error session, 2026-09-28)
+
+The session's render-relevant change is dinner-18's resolver work:
+the per-frame `resolve_targets` moved to its own module
+(render/targets.rs) with the duplicate-token verdict fix, the launch
+gate (`resolve_live_targets`) lives outside the frame loop entirely,
+and dinner-19/17 touched no code. The harness therefore proves the
+frame path is untouched (A = b4d965b, the session's starting tree;
+B = d6395e3 at HEAD, formal 10 s runs, 76k+ frames per side):
+
+| Metric | b4d965b | HEAD | Delta |
+|--------|---------|------|-------|
+| fps | 7,637.5 | 7,650.7 | +0.2% (machine noise) |
+| bytes/frame | 1,919.0 | 1,919.0 | +0.0% |
+| emit bytes/frame | 505.5 | 505.3 | -0.0% |
+| frame entropy | 3.0206 | 3.0180 | -0.1% |
+| density gini | 0.3527 | 0.3528 | +0.0% |
+| dirty cells/frame | 39.7 | 39.7 | +0.0% |
+
+Reading: bytes/frame identical to the byte — the render output is
+byte-exact the pre-session shape, the strongest parity proof the
+harness can give. Every other delta sits at or under 0.1%, inside
+the run-to-run band every prior record on this host carries. The
+behavioral changes are verdict-surface only: the launch gate fires
+before the TUI exists (an error path the harness never renders),
+the dead-ID depth verdict replaces a fabricated report, and the
+duplicate-token fix changes per-frame output only for specs with
+repeated tokens — a shape the synthetic fixture set does not
+contain, by design (the fix's proof is the render pin
+`duplicate_name_token_is_not_a_false_miss`, not a visual delta).
