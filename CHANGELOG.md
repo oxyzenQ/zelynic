@@ -19,6 +19,30 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Changed
 
+- **build: NIGHT-dinner-19 rider — the CI gate-keepers shfmt
+  regression the owner caught: the three gate scripts dinner-19
+  touched are re-canonicalized** (the failure CI reported on every
+  push since 3f37319 — 20 passed, 1 failed, the one being
+  `shfmt: .sh files not formatted` — while the b4d965b baseline
+  stayed green, which named the culprit: the dinner-19
+  reference-site edits to gate-keepers.sh, gates/check-headers.sh,
+  and gates/inject-disclaimer.sh went through a plain-text editor
+  and reintroduced space indentation where shfmt's canonical form
+  is tabs — the exact tool-edit whitespace regression class
+  dinner-16 had just restored). Why it slipped the local gate:
+  shfmt was absent from the session PATH, so the arm skipped with
+  a warn instead of a fail — the run read 15/15 green over 15
+  runnable checks and the skip looked like a pass; CI pins
+  shfmt v3.10.0 and runs the arm for real on every push. The fix
+  is the gate's own `--fix` verb applied by the same binary CI
+  uses: `shfmt -w` v3.10.0 over the three files — 372 re-indented
+  lines, `git diff -w` empty (zero semantic change), bash -n and
+  shellcheck re-run green, and the executable bits stay at the
+  canonical 755. The lesson is pinned in the session log: a
+  skipped gate is not a green gate — shfmt v3.10.0 and shellcheck
+  0.11.0 now live on the working PATH, and the pre-push
+  gate-keepers run executes the shfmt arm for real: 17 passed,
+  0 failed.
 - **docs: NIGHT-dinner-17 — the owner's QA deep-dive batch lands in
   the question ledger (Q7-Q13)** (the owner's list: architecture,
   the dragon engines, the commit pattern, the bug pattern, the docs
