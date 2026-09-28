@@ -973,6 +973,121 @@ Three moves, all best-effort, none requiring any new privilege:
   character before any doubling is even countable — the exact
   "not yet 100% clean" residue the owner kept reporting.
 
+## AI-Agent-Swarm Threat Model (NIGHT-critical-infra-1, 2026-09-29)
+
+The scenario, as the owner framed it: an attacker — a human group
+or a prompt-injected agent fleet — marshals autonomous AI agents
+against a host where zelynic is installed (or against the project
+itself). Today's fleets run around ten thousand agents; the
+forecast this section answers for is a million and, extrapolating,
+billions. The question is not whether one agent can misuse zelynic
+(a user with a shell needs no tooling to harm their own session)
+but where AGENT SCALE changes the harm class — and it does, in
+exactly one place, which this audit found and fixed.
+
+### The structural answer first
+
+zelynic has no listening socket, no daemon, no auth surface, and
+no secrets. There is nothing for a remote swarm to CONNECT to:
+every attack must already run locally as some user, which puts it
+inside the trust model SECURITY.md scopes ("the operator running
+zelynic owns the machine"). An agent that can already execute
+arbitrary commands as the user does not need zelynic for anything
+— except in one deployment shape that changes the calculus: the
+permission-gated agent sandbox (allowlisted binaries, no raw
+shell), where `zelynic --check-update` may be the only
+network-capable binary the agent may invoke. That shape is why the
+outbound fetch below got a bound it never had.
+
+### Surface-by-surface verdicts
+
+| Swarm target | Verdict | Why scale does not change it |
+|---|---|---|
+| Mutating verbs (`strict*`, `block*`, `unstrict*`, `recover`) | Bounded | The `/run/zelynic` flock (0700, root-only, non-blocking) serializes every mutation: N agents collapse to a sequential queue of fail-fast attempts, never a race. Map caps (1024 policy slots, 256 group slots) bound the state; `write_policy` propagates the insert failure, so a full map is a clean command error, never corruption. Root-only: the operator's trust class. |
+| Kernel datapath | Bounded | The verifier bounds-checks every access; internal errors take the allow-and-skip contract (the packet itself is never dropped by a bookkeeping failure); traffic volume does not cross into policy logic — a swarm generating packets is just traffic. |
+| Read surfaces (`list-apps`, `status`, `doctor`) | Bounded | One `/proc` walk per invocation, no recursion, no amplification: a swarm looping them costs the same CPU class as any fork bomb the same privileges could run directly. zelynic adds no leverage. |
+| Terminal injection | Dead | Both trust boundaries (`/proc` comm labels, the update-check release tag) sanitize control bytes before rendering (NIGHT-cybersecurity-1/2, pinned by tests). A million attackers cannot inject what one cannot. |
+| Brute force of secrets | Empty class | There are no credentials, tokens, keys, or auth prompts anywhere in the binary to brute-force. `--check-update` sends no authentication at all. |
+| Supply chain (AI-authored malicious PRs) | CI-gated | CodeQL, `cargo audit` + `cargo deny`, and the full 22-arm gatekeeper suite run on every push; actionlint on workflow changes; the maintainer reviews what merges. An agent swarm cannot merge what CI refuses. |
+| The outbound update check | **Was unbounded — fixed below** | Before the cooldown, N agents looping `--check-update` spawned N curl processes (each up to 15 s) against `api.github.com` — a request storm the host's IP answers for, and the one surface where scale changes the class. |
+
+### Finding 1 (fixed): the update check had no swarm bound
+
+The one outbound surface did one thing right per invocation
+(argv-array curl, `--max-time 15`, root-refused, response
+sanitized) — but nothing BOUND the invocation rate. A single
+mis-prompted agent in a loop, or a fleet of them, turned the
+user's host into a GitHub-directed request source: the unauthenticated
+API budget (60/hour per IP) burns in the first minute, and every
+subsequent attempt still pays process spawn, DNS, and TLS from
+the host — while GitHub's edge answers 403 to the IP as a whole,
+poisoning the same budget legitimate CI on that IP needs.
+
+The fix (src/update/cooldown.rs): the check performs at most ONE
+COMPLETED NETWORK EXCHANGE PER HOUR PER USER. A per-user timestamp
+records when the last exchange completed; an invocation inside the
+window answers with a disclosed throttle verdict (banner, the
+remaining minutes, exit 0) and performs no network I/O; the window
+matches the GitHub API's own hourly rate-limit unit, so the
+throttle is sized to the remote's cadence. The stamp is written
+only after curl exits 0 — a real exchange, success or HTTP error —
+so a rate-limited (403) storm throttles itself after ONE round
+trip, while transient infra failures (DNS, timeout, curl missing)
+never suppress a retry. Every read failure fails OPEN: an absent,
+garbage, or unreadable stamp means the check proceeds.
+
+Trust analysis of the stamp itself: the primary lane is
+`XDG_RUNTIME_DIR` — the per-user 0700 tmpfs systemd provisions,
+which only the invoking user can write. The `/tmp` fallback
+(uid-suffixed filename, for hosts without a runtime dir) is
+accepted-risk and disclosed: a local user CAN pre-plant a future
+timestamp to suppress another user's update CHECKS for a bounded
+time — an informational-surface DoS in the same /tmp trust class
+SECURITY.md already scopes out, made VISIBLE by the throttle
+verdict printing the remaining window, and reversible by removing
+one file. Suppressed update checks cost nothing: enforcement,
+monitoring, and every other surface never read the stamp.
+
+### Kept by design (evaluated, no change)
+
+- **User-environment curl resolution.** Unprivileged
+  `--check-update` resolves `curl` from the invoking user's PATH;
+  a user-controlled PATH can substitute a fake curl. This is the
+  user's own environment (same class as LD_PRELOAD on any binary
+  they run) and out of scope by the SECURITY.md trust model; the
+  ROOT context where this class mattered is already pinned to the
+  system PATH (`/usr/sbin:/usr/bin:/sbin:/bin`, NIGHT-lts-1) — and
+  root never reaches this surface anyway (the root refusal).
+- **No daemonization "for monitoring".** A persistent daemon would
+  ADD a listening surface — the exact thing the swarm model says
+  not to build. The one-shot, exit-when-done architecture is the
+  hardening.
+- **No retry/timeout persistence on the cooldown file.** Runtime
+  throttle state is deliberately ephemeral (tmpfs-first): a reboot
+  clears it, which is correct for a network-cadence bound, and no
+  persistent config file joins the tree.
+
+### Verification
+
+- Unit pins: the window boundary (the exact-second boundary belongs
+  to the allowed side; `Some(0)` never escapes), the future-stamp
+  saturation, both stamp lanes (XDG and the uid-suffixed `/tmp`
+  fallback, which never collide across users), and the fail-open
+  read (absent / garbage / torn-stamp padding) —
+  `test/cli/update_cooldown_tests.rs`, 4 pins.
+- Live A/B (2026-09-29, this audit): first invocation performs the
+  real exchange (observed both a 403 rate-limit error with exit 1
+  and a clean 200 report with the Current/Latest/Status contract
+  intact); the second and third invocations render the throttled
+  verdict with the disclosed window and exit 0 with zero network
+  I/O; removing the stamp resumes fetching (fail-open verified
+  end-to-end); a garbage stamp also resumes fetching.
+- The lock's swarm behavior is the existing pinned contract
+  (test_acquire_lock_cycle, the /run path pin) — no change was
+  needed, so no new pin was added; the endurance battery for the
+  map-cap class is the supermassive harness
+  (`scripts/sandbox/zelynic-sandbox.sh --endurance`).
+
 ## Verifying Safety Yourself
 
 ### Check network connections:

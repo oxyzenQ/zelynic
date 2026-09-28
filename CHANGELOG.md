@@ -19,6 +19,60 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Changed
 
+- **security: NIGHT-critical-infra-1 — the AI-agent-swarm threat
+  model: audited at 10k-agent today and 1M-agent forecast scale,
+  the one unbounded surface got its bound**. The owner's framing:
+  what if people or hacker groups point agent fleets at zelynic
+  — now (~10k agents) and at forecast scale (1M+, extrapolating
+  to billions)? The audit's structural answer first: zelynic has
+  no listening socket, no daemon, no auth surface, and no secrets
+  — a remote swarm has nothing to connect to, and a local swarm
+  already sits inside SECURITY.md's operator trust class. The
+  surface-by-surface walk is documented in the new
+  AI-Agent-Swarm Threat Model section of docs/SAFETY_ANALYSIS.md:
+  mutations serialize behind the /run/zelynic flock with map caps
+  bounding state (a full map is a clean command error, never
+  corruption); the datapath keeps its allow-and-skip fail-safe;
+  read surfaces carry no amplification a fork bomb wouldn't;
+  terminal injection dies at the sanitizer boundaries a million
+  attackers deep; secrets-to-brute-force are an empty class; and
+  the supply chain (AI-authored malicious PRs) answers to the
+  existing CI wall (CodeQL, cargo audit/deny, all 22 gatekeeper
+  arms, actionlint, review). Exactly one surface changed class
+  under scale: the --check-update outbound fetch. Before, N
+  agents looping it spawned N curls (each up to 15s) against
+  api.github.com — burning the host's unauthenticated API budget
+  (60/hour per IP) and answering 403 to the whole IP; and in the
+  permission-gated agent sandbox (allowlisted binaries, no raw
+  shell) zelynic can be the only network-capable binary the
+  agent may run, which makes that loop the attacker's outbound
+  primitive. The fix (src/update/cooldown.rs, new module): the
+  check performs at most ONE completed network exchange per hour
+  per user — a per-user runtime stamp (XDG_RUNTIME_DIR tmpfs
+  lane, /tmp uid-suffixed fallback), disclosed in the throttled
+  verdict (banner, remaining minutes, exit 0), armed only after a
+  real exchange (curl exit 0: success or HTTP error, so a 403
+  storm throttles itself after one round trip, while DNS/timeout
+  failures never suppress a retry), and fail-open on every read
+  error (absent, garbage, or torn stamp = the check proceeds).
+  The /tmp lane's pre-plant class (a local user suppressing
+  another user's update checks) is evaluated and accepted with
+  disclosure: informational surface, visible remaining-window
+  verdict, reversible by removing one file, and in the trust
+  class SECURITY.md already scopes out. Unit-pinned by the new
+  test/cli/update_cooldown_tests.rs (4 pins: the exact-second
+  boundary belongs to the allowed side with Some(0) never
+  escaping, future-stamp saturation, both stamp lanes never
+  colliding across users, fail-open reads). Verified LIVE
+  end-to-end on this host: first run performs the real exchange
+  (both a 403 rate-limit error and a clean 200 report observed,
+  the Current/Latest/Status contract intact), second and third
+  runs render the throttled verdict with zero network I/O,
+  removing the stamp resumes fetching, and a garbage stamp also
+  resumes fetching. SECURITY.md gains the swarm row in the
+  vulnerability table plus the hardening-posture bullet;
+  USAGE.md's --check-update row documents the cooldown contract.
+
 - **ux: NIGHT-dinner-23 — recover joins the diagnostic family's
   render contract, and its verdicts go count-honest (the owner's
   purple-banner find plus the hunt findings)**. The owner caught the

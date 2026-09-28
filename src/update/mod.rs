@@ -5,6 +5,10 @@ use std::process::Command;
 
 use crate::output::{brand_bold, ok_bold, sanitize_comm, warn_bold};
 
+mod cooldown;
+
+use cooldown::{cooldown_remaining, read_stamp, stamp_path, write_stamp};
+
 const GITHUB_API_URL: &str = "https://api.github.com/repos/oxyzenQ/zelynic/releases/latest";
 const RELEASES_URL: &str = "https://github.com/oxyzenQ/zelynic/releases/latest";
 
@@ -118,6 +122,33 @@ pub fn check_update(current_version: &str) -> Result<(), String> {
         return Err(refusal.to_string());
     }
 
+    // The swarm bound (NIGHT-critical-infra-1): at most one
+    // completed network exchange per hour per user. An agent
+    // looped into this command — the allowlist-sandbox scenario
+    // where zelynic is the only network-capable binary it may
+    // run — gets one fetch, then disclosed throttles. Fail-open:
+    // a missing or broken stamp means the check proceeds.
+    let now_secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    let stamp = stamp_path(
+        std::env::var("XDG_RUNTIME_DIR").ok().as_deref(),
+        nix::unistd::geteuid().as_raw(),
+    );
+    if let Some(last_fetch) = read_stamp(&stamp) {
+        if let Some(remaining) = cooldown_remaining(now_secs, last_fetch) {
+            println_safe!("{}", brand_bold("━━━ zelynic Update Check ━━━"));
+            println_safe!(
+                "Status:  {} — the hourly window closes in {} minute(s)",
+                warn_bold("throttled"),
+                remaining.div_ceil(60)
+            );
+            println_safe!("Source:  {RELEASES_URL}");
+            return Ok(());
+        }
+    }
+
     let output = Command::new("curl")
         .args([
             "--silent",
@@ -141,8 +172,17 @@ pub fn check_update(current_version: &str) -> Result<(), String> {
         })?;
 
     if !output.status.success() {
+        // Infra failure (DNS, timeout, refused): no exchange
+        // completed, no stamp — a transient failure must not
+        // suppress the retry the throttled verdict would deny.
         return Err(curl_failure(output.status.code().unwrap_or(-1)).to_string());
     }
+
+    // A completed exchange (curl exit 0 — a real request reached
+    // the remote, success or HTTP error): the window starts here,
+    // so a rate-limited (403) storm throttles itself after one
+    // round trip.
+    write_stamp(&stamp, now_secs);
 
     let raw =
         String::from_utf8(output.stdout).map_err(|_| "response was not valid UTF-8".to_string())?;

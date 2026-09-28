@@ -83,6 +83,7 @@ Concrete classes we care about, with the current posture of each:
 | Panic surfaces reachable from user input | Pinned by the non-root depth suite (exit 101 asserted absent) |
 | Supply chain (dependency compromise) | 7 direct deps, `cargo audit` + `cargo deny` in CI, chrono banned, every dep justified in [docs/DEPENDENCY_AUDIT.md](docs/DEPENDENCY_AUDIT.md) |
 | Release artifact tampering | SHA-512 + BLAKE2b-512 + SHAKE256 checksums; verify per [docs/VERIFY_RELEASE.md](docs/VERIFY_RELEASE.md) |
+| AI-agent-swarm abuse (prompt-injected agent fleets looping zelynic surfaces; the ~10k-agent present scaling to 1M+) | Audited and bounded (NIGHT-critical-infra-1) — mutations serialize behind the operation lock with map caps; terminal injection dies at the sanitizer boundaries; the one unbounded surface (the `--check-update` outbound fetch) now runs at most one completed exchange per hour per user (the disclosed cooldown). Full analysis: the AI-Agent-Swarm Threat Model in [docs/SAFETY_ANALYSIS.md](docs/SAFETY_ANALYSIS.md) |
 
 The full audit trail — findings, verdicts, and accepted risks — lives
 in [docs/SAFETY_ANALYSIS.md](docs/SAFETY_ANALYSIS.md) and is updated
@@ -111,6 +112,14 @@ with every security pass.
   never rendered. The eBPF map values are treated as untrusted input
   on the kernel side (the burst/tokens/frac clamp triple, schema v6
   — see SAFETY_ANALYSIS.md's overflow audit).
+- The one outbound surface answers an agent-swarm bound
+  (NIGHT-critical-infra-1): `--check-update` performs at most one
+  completed network exchange per hour per user — a per-user
+  runtime stamp (XDG_RUNTIME_DIR tmpfs, `/tmp` fallback), disclosed
+  in the throttled verdict, failing open on every read error, and
+  armed only after a real exchange (so transient DNS/timeout
+  failures never suppress a retry). A prompt-injected agent loop
+  or a million-agent fleet gets one fetch, then fast local exits.
 
 ## Easy to use, by construction
 
