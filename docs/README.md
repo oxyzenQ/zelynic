@@ -61,6 +61,7 @@ evidence rather than opinion. The naming convention is
 | Research | Covers |
 |----------|--------|
 | [research/NIGHT_DINNER_5_V10_V11_ERA_COMPARISON.md](research/NIGHT_DINNER_5_V10_V11_ERA_COMPARISON.md) | The v10 vs v11 era comparison, answered live in the sandbox micro-VM: engine, limiter, monitoring, distribution — with the enforced-rate numbers from both eras |
+| [research/NIGHT_DINNER_14_PRICING_RESEARCH.md](research/NIGHT_DINNER_14_PRICING_RESEARCH.md) | The tier-pricing decision brief: consumer and commercial comparables with sourced prices, analysis against the current Individual/Business/Company tiers, and the owner's option matrix — research only, no price changed by it |
 
 ## Release & Distribution
 
