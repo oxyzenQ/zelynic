@@ -131,7 +131,8 @@ mkdir /tmp/zelynic-rel
 tar -xzf zelynic-vX.Y.Z-linux-amd64-v3-gnu.tar.gz -C /tmp/zelynic-rel
 # AVX-512 machines (Zen 4/5, Ice Lake and newer): -v4-gnu
 # old glibc / fully static:                       -v3-musl / -v4-musl
-install -Dm755 /tmp/zelynic-rel/zelynic ~/.local/bin/zelynic          # user install
+install -Dm755 /tmp/zelynic-rel/zelynic ~/.local/bin/zelynic
+# user install
 # or: sudo install -Dm755 /tmp/zelynic-rel/zelynic /usr/local/bin/zelynic
 ```
 
@@ -333,8 +334,10 @@ Every command, once — flags live in `--help`, formats in
 
 ```bash
 # Limit one app — positional rate sets BOTH download + upload
-sudo zelynic strict-single brave 100kb              # 'strict' is the shorthand
-sudo zelynic strict-single firefox -d 1mb -u 500kb  # per-direction
+# 'strict' is the shorthand
+sudo zelynic strict-single brave 100kb
+# per-direction
+sudo zelynic strict-single firefox -d 1mb -u 500kb
 
 # Group limit — several apps share ONE rate
 sudo zelynic strict-multi brave:curl:pacman 1mb
@@ -350,8 +353,10 @@ sudo zelynic block-all
 # Live monitor (box mode, q to quit) — apps ranked by consumption,
 # one target opens the deep focus view
 sudo zelynic eagle-eyes --interval 2s
-sudo zelynic eagle-eyes 73386         # zoom into one cgroup
-sudo zelynic eagle-eyes brave         # watch one app, deep view
+# zoom into one cgroup
+sudo zelynic eagle-eyes 73386
+# watch one app, deep view
+sudo zelynic eagle-eyes brave
 
 # One-shot deep inspection (NIGHT-master-1): what IS this cgroup —
 # user, binary/script, permissions, path, start time, enforcement
@@ -361,12 +366,15 @@ sudo zelynic ee 12345 --depth --print-json | jq '.targets[0]'
 # Unlock — one app / a group / everything
 sudo zelynic unstrict-single brave
 sudo zelynic unstrict-multi brave:curl
-sudo zelynic unstrict-all            # emergency reset
+# emergency reset
+sudo zelynic unstrict-all
 
 # Short aliases (NIGHT-improve-25): every enforcement verb plus the
 # monitor in two keystrokes — ss sm sa bs bm ba us um ua ee
-sudo zelynic ss brave 100kb         # = strict-single brave 100kb
-sudo zelynic ee brave --interval 1s # = eagle-eyes brave --interval 1s
+# = strict-single brave 100kb
+sudo zelynic ss brave 100kb
+# = eagle-eyes brave --interval 1s
+sudo zelynic ee brave --interval 1s
 
 # State: active limits, apps with cgroup IDs, eBPF support
 sudo zelynic status --print-json | jq '.limits[]'
