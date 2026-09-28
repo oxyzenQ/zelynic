@@ -16,6 +16,48 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Changed
 
+- **supermassive-test: NIGHT-dinner-13 second rider — the overhead
+  row rides interleaved best-of-three windows and the kernel's
+  zero-drop count** (the 2026-09-28 four-leg CI run, first push
+  after the variance model: the upload rows the model retired read
+  green on ALL FOUR legs — the asymmetric upload bucket at 103.0% of
+  its nominal window against the ledger budget, the -u only stage at
+  122.4% — and a DIFFERENT band-edge row went red on one of four:
+  "overhead: non-binding policy cost" read fresh 4.9 GB/s vs 3.2
+  GB/s under a 15 GB/s policy (+35.9%, threshold 30%) while the
+  SAME row read +2.8% / +4.1% / +5.3% on the other three legs, all
+  at HIGHER packet rates). The physics that names the liar:
+  per-packet hook cost scales WITH the packet rate, so the largest
+  slowdown on the SLOWEST leg only cannot be datapath cost —
+  machine-load noise striking between the two paired windows, the
+  same class the 2026-09-22 pairing was built to kill, one window
+  further in (the historical straddle +30.0% heavy vs +2.1% light
+  was the same signature across the stage boundary). The fix, in
+  the improve-15 lineage (a physics-derived bound, never a widened
+  band — the 30% threshold is untouched): (1) INTERLEAVED
+  fresh/policy windows, best-of-three per class — contention can
+  only LOWER a throughput reading, so each class's max is its
+  cleanest window, and the strict F P F P F P alternation makes any
+  CONTIGUOUS contention cover both classes together, so the maxes
+  compare like against like; (2) the policy re-scales to 3x the
+  best fresh window observed so far before every policy window — by
+  construction above anything the machine has shown, so the bucket
+  cannot bind while the arithmetic holds; (3) the non-binding verdict
+  rides the kernel's own drop counter — zero packets dropped across
+  the policy windows is a COUNT, not a throughput inference; a real
+  policer arithmetic bug (drops under a 3x policy) still fails
+  deterministically, and a real hook cost still lowers every policy
+  window, maxes included, and blows the ratio — the tripwire meaning
+  survives. The documented residual, stated in the module docstring
+  and the stage docstring: bursty contention striking every fresh
+  window while sparing every policy window — a seconds-scale
+  alternation synchronized with the class pattern — is the one shape
+  the max statistic cannot cover; runner-physics-implausible,
+  recorded, not modeled away. One new rootless self-test pin holds
+  the stage to the model (the battery now 31 passed / 0 failed);
+  ruff check + format clean (0.16.8, the CI pin). Harness-only:
+  zero src/ bytes changed, no benchmark run (the no-delta contract).
+
 - **docs: NIGHT-dinner-15 — the business end of the ladder lifts:
   Business $1,990/year, Company $14,990/year** (the owner's call on
   the dinner-14 decision brief, executed the same day the research
