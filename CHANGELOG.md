@@ -16,6 +16,54 @@ alone — the owner's NIGHT-hunt-18 call.
 
 ### Changed
 
+- **supermassive-test: NIGHT-dinner-13 — the upload-direction
+  verdicts ride the kernel ledger's own budget, retiring the
+  write-ahead straddle** (the owner's determinism call: the matrix
+  must read the same on every leg, every run, unless a documented
+  kernel condition says otherwise — honesty first). The evidence,
+  from the 2026-09-28 four-leg CI run: the asymmetric upload row
+  read 134.3% of configured on one leg while the SAME row went
+  green on the other three (historical straddle: 131.1% FAIL vs
+  124.5% PASS on 2026-09-21), and the owner's API re-run went
+  green — the signature of a meter reading noise, not a policer
+  misbehaving. The diagnosis is the write-ahead trap the
+  curl-upload hunt already documented (153% client vs 99.7%
+  kernel ledger): the python upload worker counts sendall()
+  successes — SOCKET WRITES — and on loopback the unpoliced eager
+  receiver keeps advertising windows, so the sender writes PAST
+  the policer's drain rate and the undelivered excess sits in
+  kernel buffers when the worker exits. The 2026-09-22 cushion
+  drain made the bucket STATE deterministic but cannot fix the
+  METER: a slow, contended leg simply parks more bytes in that
+  write-ahead. The variance model, in the improve-15 lineage (a
+  physics-derived bound, never a widened band): the asymmetric
+  upload verdict now divides the KERNEL LEDGER's delta across the
+  measured window — pure upload allowance, because the download
+  stage is complete and its client gone before the window opens,
+  so the both-buckets objection dies at the delta — against
+  `lib.ledger_budget(span, rate)`: measured span x rate + one
+  default_burst, the bucket's own arithmetic, exact per run
+  because the span is measured, never assumed. Deterministic on
+  every leg by construction; a real over-delivery (the 146.3%
+  lost-update class) still blows the budget by megabytes, so the
+  tripwire meaning survives; the demand floor keeps the
+  strangling check (lib.loopback_rate_floor, the improve-15 floor
+  model); the client write count stays in the row's note as
+  observability, never the verdict. The hunt's second finding,
+  fixed in the same stroke: the `-u only` stage rode the
+  CUMULATIVE ledger over the NOMINAL window (settle + spawn +
+  read overhead inside the numerator), a latent straddle of the
+  same shape — it now rides the exact-span budget, the same
+  curl-burst arithmetic. Three rootless self-test pins hold the
+  model (the budget's arithmetic at three spans, and both stages'
+  source contract: delta read before the window, budget from the
+  measured span), and the module docstring now states the verdict
+  determinism rule with its documented residual: the sub-skb
+  window regime and the min-RTO cushion regime are kernel physics,
+  modeled and pinned, not meter noise. Harness-only: no eBPF,
+  schema, or kernel-map changes; the product binary is untouched,
+  so no benchmark run (no-delta contract).
+
 - **CLI color: NIGHT-dinner-12 — a tip that names a command renders
   green** (the owner's call, straight from the dinner-11 no-match
   block: after `error: No cgroup found for 'cg8401'`, the line that
