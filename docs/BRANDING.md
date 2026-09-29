@@ -165,7 +165,11 @@ report tables now render the monitor's exact family.
 - Title bar: `╭─── zelynic status ─…─╮` / `╭─── zelynic list-apps ─…─╮`
   — the flagship title bar, spanning the table's own width (the
   status branch frames — clean, stale pins — span the terminal
-  width: no table to size to), followed by the breathing gap.
+  width: no table to size to). Since NIGHT-private-research-3 the
+  content stacks directly under it: the report surfaces carry zero
+  blank filler lines (the engrave-5 breathing gap retired by the
+  owner's compact-and-simple directive; the live monitor's frame
+  chrome keeps its own spacing — it is a different surface class).
 - Column headers: lowercase, regular purple (`cgroup download
   upload allowed dropped`; `process procs sockets cgroup id uid`).
 - Grid: the monitor's own purple grid (render/footer.rs

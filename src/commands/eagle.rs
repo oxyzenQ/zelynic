@@ -33,12 +33,16 @@ use anyhow::Result;
 use crate::ebpf::connections::ConnectionMap;
 use crate::ebpf::identity::{depth, pid_cgroup_id, pid_comm, IdentityMap};
 use crate::ebpf::limiter::{
-    pin_dir_has_files, terminal_width, Direction, Limiter, PolicyRaw, Target,
+    parse_focus_window, pin_dir_has_files, terminal_width, Direction, Limiter, PolicyRaw, Target,
 };
+use crate::ebpf::loader::{CgroupDelta, Observer, SocketBytes};
 use crate::ebpf::render::{
-    depth_doc_json, depth_report_lines, package_name, DepthReport, Enforcement,
+    depth_doc_json, depth_report_lines, package_name, traffic_focus, DepthReport, Enforcement,
 };
 use crate::output::{grey, print_json};
+
+use std::collections::HashMap;
+use std::time::Duration;
 
 /// Parse the '/'-separated TARGETS spec (the grammar both eagle-eyes
 /// modes share, NIGHT-boost-1): each token autodetects per
@@ -216,12 +220,93 @@ fn enforcement_for(limiter: Option<&Limiter>, cgroup_id: u32) -> Result<Enforcem
     })
 }
 
+/// The focus window's measured result (NIGHT-private-research-3):
+/// the closing poll's per-cgroup deltas (the kernel's window totals)
+/// plus the per-socket cookie join keyed by the closing census's
+/// cookies — the two inputs [`traffic_focus`] composes per target.
+struct FocusMeasure {
+    deltas: Vec<CgroupDelta>,
+    socket_bytes: HashMap<u64, SocketBytes>,
+}
+
+/// Run the network-traffic focus window (NIGHT-private-research-3,
+/// the think-like-light-years-3 ability): attach an observer, seed
+/// the delta baseline, let `focus_secs` pass, close the window with
+/// a second poll, and join the BPF per-socket cookie maps onto the
+/// post-window census — the exact machinery the live monitor runs
+/// per frame (NIGHT-boost-26), composed once for the one-shot
+/// report instead.
+///
+/// The `conns` census is refreshed at window END (the sockets alive
+/// NOW are the rows the report lists and the join keys on); a failed
+/// window leaves the caller's baseline census untouched.
+///
+/// Best-effort by contract, honest about every failure: the return
+/// carries the measurement OR the one-line reason it could not run
+/// (observer attach refused, a map read failed) — the report renders
+/// the basic socket census plus the reason, never a fabricated
+/// zero-traffic window (the hunt-22 honest-read discipline). A quiet
+/// window (zero deltas) is a MEASUREMENT, not a failure — it
+/// composes a zero-total focus that renders the no-traffic verdict.
+fn run_focus_window(
+    conns: &mut ConnectionMap,
+    focus_secs: u64,
+    verbose: bool,
+) -> (Option<FocusMeasure>, Option<String>) {
+    if verbose {
+        eprintln_safe!("[eagle-eyes] traffic focus: attaching observer for a {focus_secs}s window");
+    }
+    let mut observer = match Observer::attach(verbose) {
+        Ok(o) => o,
+        Err(e) => return (None, Some(format!("observer attach failed: {e}"))),
+    };
+    // The baseline poll seeds the per-cgroup delta baseline; its own
+    // summary is discarded on purpose (bytes between attach and the
+    // window start stay out of the ledger — the same horizon
+    // contract the live monitor's opening poll owns).
+    if let Err(e) = observer.poll_and_summarize() {
+        return (None, Some(format!("baseline poll failed: {e}")));
+    }
+    std::thread::sleep(Duration::from_secs(focus_secs));
+    let summary = match observer.poll_and_summarize() {
+        Ok(s) => s,
+        Err(e) => return (None, Some(format!("focus poll failed: {e}"))),
+    };
+    // Fresh census at window end: the closing join keys on exactly
+    // the sockets alive NOW (a socket that died mid-window keeps its
+    // bytes in the kernel totals but leaves the attribution — both
+    // numbers stay true, they answer different questions).
+    conns.refresh();
+    let cookies = conns.socket_cookies();
+    let mut socket_bytes = HashMap::new();
+    if !cookies.is_empty() {
+        // An Err folds an empty join: the window totals stay (kernel
+        // truth), the endpoint figures degrade to honest absence —
+        // the one-frame-tolerance contract the live join carries.
+        if let Ok(bytes) = observer.socket_bytes(&cookies) {
+            socket_bytes = bytes;
+        }
+    }
+    observer.detach();
+    (
+        Some(FocusMeasure {
+            deltas: summary.cgroups,
+            socket_bytes,
+        }),
+        None,
+    )
+}
+
 /// Handle `zelynic eagle-eyes <targets> --depth` — print the deep
 /// report and exit. `--print-json` emits the typed document; the
 /// interval flag never reaches here (the dispatcher notes and drops
-/// it for the one-shot mode).
+/// it for the one-shot mode). The `--focus` window
+/// (NIGHT-private-research-3) tunes the network-traffic focus
+/// (1s..30s, default 3s) — parsed BEFORE the root guard like every
+/// flag validation in this CLI.
 pub(crate) fn handle_eagle_eyes_depth(
     targets: Option<&str>,
+    focus: Option<&str>,
     json: bool,
     verbose: bool,
 ) -> Result<()> {
@@ -235,6 +320,14 @@ pub(crate) fn handle_eagle_eyes_depth(
         );
     };
     let tokens = parse_target_spec(spec)?;
+    // The focus window rides the same ladder: a typo'd or
+    // out-of-bounds window surfaces before the privilege ask (the
+    // duration grammar and its did-you-mean tips are shared with
+    // --interval, parse_focus_window's own contract).
+    let focus_secs = match focus {
+        Some(s) => parse_focus_window(s)?,
+        None => 3,
+    };
 
     super::ensure_root()?;
 
@@ -254,6 +347,23 @@ pub(crate) fn handle_eagle_eyes_depth(
         Some(l) => Some(l.read_stats_public()?),
         None => None,
     };
+
+    // NIGHT-private-research-3 (the think-like-light-years-3 ability):
+    // the network-traffic focus window. The one-shot report gains
+    // what the live monitor always had — per-endpoint byte
+    // attribution — by running the observer for one short measured
+    // window instead of a refresh loop. The pause is ANNOUNCED on
+    // stderr (a report that silently sleeps is a report that looks
+    // hung); stdout stays byte-clean for both output modes. A failed
+    // window degrades to the basic socket census with the reason on
+    // the report — never a fabricated zero-traffic window.
+    eprintln_safe!(
+        "{}",
+        grey(&format!(
+            "[eagle-eyes] traffic focus: measuring a {focus_secs}s window"
+        ))
+    );
+    let (focus_measure, traffic_note) = run_focus_window(&mut conns, focus_secs, verbose);
 
     let mut reports: Vec<DepthReport> = Vec::new();
     let mut misses: Vec<(String, String)> = Vec::new();
@@ -307,6 +417,13 @@ pub(crate) fn handle_eagle_eyes_depth(
                 .and_then(|rows| rows.iter().find(|(key, _)| *key == id))
                 .map(|(_, stats)| *stats);
             let conns_view = conns.get(id).cloned();
+            // The focus window's per-cgroup composition (pure): the
+            // kernel's window totals joined onto this report's census
+            // — traffic: None (with the shared note) only when the
+            // window could not run at all.
+            let traffic = focus_measure
+                .as_ref()
+                .map(|m| traffic_focus(id, focus_secs, &m.deltas, Some(&conns), &m.socket_bytes));
             reports.push(DepthReport {
                 target,
                 cgroup_id: id,
@@ -315,6 +432,8 @@ pub(crate) fn handle_eagle_eyes_depth(
                 enforcement,
                 enforcement_stats,
                 conns: conns_view,
+                traffic,
+                traffic_note: traffic_note.clone(),
             });
         }
     }

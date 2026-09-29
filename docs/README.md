@@ -78,6 +78,7 @@ project's institutional memory. The naming convention is
 
 | Audit | Covers |
 |-------|--------|
+| [audits/NIGHT_PRIVATE_RESEARCH_3_AUDIT_2026-09-30.md](audits/NIGHT_PRIVATE_RESEARCH_3_AUDIT_2026-09-30.md) | The depth-traffic focus and report-compaction audit: the depth report's basic-census gap closed with the observer focus window (`--focus 1s..30s`), the compact-and-simple pass over status/list-apps/depth, the honest bounds of kernel totals vs endpoint attribution, and the frame A/B parity proof |
 | [audits/RELEASE_ASSET_REGRESSION_2026-09-27.md](audits/RELEASE_ASSET_REGRESSION_2026-09-27.md) | The beta.3/beta.4 asset-less release regression: root cause, three-arm fix, healing procedure |
 | [audits/LIMITER_EAGLE_EYES_DEPTH_AUDIT_2026-09-27.md](audits/LIMITER_EAGLE_EYES_DEPTH_AUDIT_2026-09-27.md) | The limiter and eagle-eyes depth audit: per-dimension verdicts against the eBPF ceiling, two userspace fixes (recover's dead-group sweep, the byte-ranked top consumer), seven doc truths corrected, the counter-map eviction gap deferred to the prebuilt-refresh cycle |
 

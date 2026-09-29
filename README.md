@@ -75,6 +75,7 @@ honest residuals) lives in
 | **Diff-based rendering** | Only changed rows are emitted — one write syscall per frame, idle frames cost zero I/O (NIGHT-improve-2). |
 | **Refresh control** | `--interval 1s..60s` on `eagle-eyes`, live DOWNLOAD/UPLOAD rate columns plus a session TOTAL, and the footer's session speed pair — `total max dl | ul` / `total avg dl | ul` per direction (NIGHT-engrave-6). |
 | **Eagle-eyes detail** | Monitor rows name the processes and endpoints INSIDE a cgroup — `curl (4012) -> 142.250.191.78:443` (NIGHT-hunt-8). |
+| **Depth traffic focus** | `ee <target> --depth` MEASURES a focus window (default 3s, `--focus 1s-30s`) and prints what moved per endpoint with the kernel's own window totals — movers ranked first (NIGHT-private-research-3). |
 | **Strict dependency diet** | 7 direct deps, 54 lockfile crates, every one justified in [docs/DEPENDENCY_AUDIT.md](docs/DEPENDENCY_AUDIT.md). |
 
 ### Dependency policy (supply chain)
@@ -377,6 +378,9 @@ sudo zelynic eagle-eyes brave
 # One-shot deep inspection (NIGHT-master-1): what IS this cgroup —
 # user, binary/script, permissions, path, start time, enforcement
 sudo zelynic ee cg:1234 --depth
+# ...with the network-traffic focus window (NIGHT-private-research-3):
+# per-endpoint bytes + kernel window totals, movers ranked first
+sudo zelynic ee cg:1234 --depth --focus 5s
 sudo zelynic ee 12345 --depth --print-json | jq '.targets[0]'
 
 # Unlock — one app / a group / everything

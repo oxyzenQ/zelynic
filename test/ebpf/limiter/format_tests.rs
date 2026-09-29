@@ -7,10 +7,11 @@
 //! LOC cap. The #[path] wiring inside format.rs places this module
 //! back inside the format module, so `use super::*` reaches the same
 //! items the inline `mod tests` did — a pure move, zero behavioral
-//! drift, the same Pattern C discipline as the limiter's math,
-//! policy, and reclaim pins.
+//! drift (the Pattern C discipline of the limiter's math pins).
 
 use super::*;
+// NIGHT-private-research-3 (parse split): the import below bridges it.
+use crate::ebpf::limiter::{parse_rate, parse_time_duration, validate_rate};
 
 #[test]
 fn test_parse_rate_plain_number() {

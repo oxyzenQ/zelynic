@@ -219,6 +219,44 @@ construction — the change is kernel-side only) reads parity.
   the fd scan is lazy per matched socket; the pidfd open is lazy
   per PID with sticky failure. Peak for the design.
 
+### NIGHT-private-research-3 A/B (the depth traffic focus + report compaction, 2026-09-30)
+
+The private-research-3 pass is report-surface work: the eagle-eyes
+--depth network-traffic focus (the observer window, the traffic
+section, the JSON fields) and the compact-and-simple style pass
+over status, list-apps, and the depth report. None of it touches
+the live monitor's frame path — render/eagle, footer, border,
+session, and the diff engine are byte-identical — and the frame
+A/B is the proof (A = 6cb6f83, the dinner-26 release-fix tree; B =
+the private-research-3 tree; single runs, 10 s budget, the standard
+harness protocol).
+
+| Metric | 6cb6f83 (A) | private-research-3 (B) | Delta |
+|--------|-------------|------------------------|-------|
+| fps (render path) | 7,789.0 | 7,758.8 | -0.4% (machine noise) |
+| bytes/frame | 1,919.0 | 1,919.0 | +0.0% |
+| emit bytes/frame | 502.6 | 503.2 | +0.1% |
+| density gini | 0.3571 | 0.3569 | -0.1% |
+| frame entropy | 3.0025 | 3.0030 | +0.0% |
+| dirty cells/frame | 39.5 | 39.5 | +0.1% |
+
+Reading: PARITY, by construction — bytes/frame identical to the
+decimal is the proof the live frame content is byte-exact the old
+tree's (the same class of evidence the perf-1 and boost-26 records
+used for kernel-side and join-side changes). The gini/entropy/dirty
+deltas sit inside the harness's own run-to-run class; fps -0.4% is
+the container-noise class every previous A/B on this host recorded
+(the mid-pass capture read +0.5% on an intermediate tree — the
+spread is the noise, the byte-identity is the signal). The B side of
+this table is the final committed tree (the LOC-cap module splits
+included — pure code motion, rendering byte-identical).
+The depth report's own cost lives outside this harness (a one-shot
+stdout surface, not the frame loop): the focus window's wall-clock
+is the owner-chosen sleep (default 3 s) plus one observer
+attach/detach — the same verifier cost the live monitor pays on
+open — and its /proc work is the connection census the report
+already ran, refreshed once more at window close.
+
 ### NIGHT-lts-1 A/B (the display-width discipline, 2026-09-25)
 
 The CJK width fix (five budget surfaces routed through the

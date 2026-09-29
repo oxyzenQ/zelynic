@@ -37,6 +37,7 @@ use crate::ebpf::identity::depth::{CgroupDepth, ProcessFacts};
 use crate::ebpf::limiter::{format_bytes, format_count, format_rate, LimiterStatsRaw, PolicyRaw};
 use crate::output::{fit_to_width, grey, ok, pad_to_width};
 
+use super::depth_traffic::{traffic_section, TrafficFocus};
 use super::{format_uptime, grid_line, title_bar};
 
 /// The enforcement state of the target cgroup, as the pinned policy
@@ -75,6 +76,18 @@ pub struct DepthReport {
     pub enforcement_stats: Option<LimiterStatsRaw>,
     /// The connection walk's census for this cgroup, when it saw one.
     pub conns: Option<CgroupConnections>,
+    /// The network-traffic focus window (NIGHT-private-research-3,
+    /// the think-like-light-years-3 upgrade): the kernel's own
+    /// window totals plus every endpoint's joined bytes, measured
+    /// by the handler's short observer attach. None = the window
+    /// did not run (the note below says why, when it matters).
+    pub traffic: Option<TrafficFocus>,
+    /// Why the traffic focus did not run, when it did not
+    /// (attach/poll failure, one line): rendered under the socket
+    /// section so the honest absence explains itself. None whenever
+    /// the window was measured (and for the fixture-driven basic
+    /// census — no measurement, no note).
+    pub traffic_note: Option<String>,
 }
 
 /// The package-name ladder (pure, NIGHT-master-1): a resolved comm
@@ -210,19 +223,32 @@ fn accounting_sentence(stats: &LimiterStatsRaw) -> String {
 
 /// The socket section's cap: the endpoints a readable one-shot report
 /// lists before folding the rest into an honest overflow note (the
-/// JSON document carries every row).
-const SOCKET_LINES_CAP: usize = 12;
+/// JSON document carries every row). The traffic section (which
+/// replaced the basic listing when a focus window ran) shares the
+/// cap — the readable report's budget is the same whatever it lists.
+pub(super) const SOCKET_LINES_CAP: usize = 12;
 
-/// Render the full text report for one or more targets (pure): the
-/// title bar once, then a block per target — headline, census, the
-/// owner's summary fields, the process census table, the socket
-/// list. Width is the terminal budget the fixed columns leave the
-/// exe cell.
+/// Render the full text report for one or multiple targets (pure):
+/// the title bar once, then a block per target — headline, census,
+/// the compact owner's-fields block, the process census table, the
+/// network-traffic section (the focus window's totals + ranked
+/// endpoints, or the basic socket census when no window ran), and
+/// the act-on-this tail. Width is the terminal budget the fixed
+/// columns leave the exe cell.
+///
+/// NIGHT-private-research-3 (the compact-and-simple style pass):
+/// the report drops every filler blank line and every restatement
+/// — the headline IS the package id + name (the kv spine's twin
+/// `package id` / `package name` lines died as duplicates), user
+/// and exe directory merge into one `run from` line, the
+/// controller's memory/cpu pair merges into one `resources` line,
+/// and the act tail loses its header line (the commands name
+/// their own verbs). Same facts, denser block — one glance per
+/// section instead of a scroll.
 #[must_use]
 pub fn depth_report_lines(reports: &[DepthReport], width: usize) -> Vec<String> {
     let mut lines = Vec::new();
     lines.push(title_bar("zelynic eagle-eyes --depth", width));
-    lines.push(String::new());
 
     for (idx, report) in reports.iter().enumerate() {
         if idx > 0 {
@@ -240,7 +266,7 @@ pub fn depth_report_lines(reports: &[DepthReport], width: usize) -> Vec<String> 
             "no live processes — the cgroup is empty or its members exited".to_string()
         } else {
             format!(
-                "{} processes · {} socket holders · {} sockets",
+                "{} processes · {} holders · {} sockets",
                 format_count(procs as u64),
                 format_count(holders as u64),
                 format_count(sockets as u64)
@@ -249,27 +275,31 @@ pub fn depth_report_lines(reports: &[DepthReport], width: usize) -> Vec<String> 
         lines.push(grey(&format!("  {census}")));
         lines.push(grid_line(width));
 
-        // The summary block: the owner's field spine.
+        // The compact summary block (NIGHT-private-research-3): the
+        // owner's field spine with the duplications retired — the
+        // headline above already names the package id and name, so
+        // the kv block carries everything the headline cannot.
         let rep = representative(&report.depth);
-        lines.push(kv("package id", &format!("cg:{}", report.cgroup_id)));
-        lines.push(kv("package name", &report.name));
-        match rep.map(|p| p.uid) {
+        let run_from_user = match rep.map(|p| p.uid) {
             Some(uid) => {
                 let user = rep
                     .and_then(|p| p.user.clone())
                     .unwrap_or_else(|| "unknown".to_string());
-                lines.push(kv("run from user", &format!("uid {uid} ({user})")));
+                format!("uid {uid} ({user})")
             }
-            None => lines.push(kv("run from user", "unknown")),
-        }
-        match rep.and_then(|p| p.exe.clone()) {
-            Some(exe) => lines.push(kv("run from path", &dirname(&exe))),
-            None => lines.push(kv("run from path", "unknown")),
-        }
-        if let Some(abs) = cgroup_abs_path(report.depth.rel_path.as_deref()) {
-            lines.push(kv("cgroup path", &abs));
-        } else {
-            lines.push(kv("cgroup path", "unknown"));
+            None => "unknown".to_string(),
+        };
+        let run_from_path = match rep.and_then(|p| p.exe.clone()) {
+            Some(exe) => dirname(&exe),
+            None => "unknown".to_string(),
+        };
+        lines.push(kv(
+            "run from",
+            &format!("{run_from_user} · {run_from_path}"),
+        ));
+        match cgroup_abs_path(report.depth.rel_path.as_deref()) {
+            Some(abs) => lines.push(kv("cgroup", &abs)),
+            None => lines.push(kv("cgroup", "unknown")),
         }
         lines.push(kv(
             "enforcement",
@@ -283,29 +313,36 @@ pub fn depth_report_lines(reports: &[DepthReport], width: usize) -> Vec<String> 
         if let Some(stats) = &report.enforcement_stats {
             lines.push(kv("accounting", &accounting_sentence(stats)));
         }
-        // NIGHT-blade-5: the controller's own resource view — the two
-        // counters no /proc walk can reconstruct (memory.current
-        // includes page-cache and kernel charges; cpu.stat is the
-        // scheduler's accounting across every task that ever ran in
-        // the cgroup, the exited ones included).
-        if let Some(bytes) = report.depth.resources.memory_current_bytes {
-            lines.push(kv("cgroup memory", &format_bytes(bytes)));
-        }
-        if let Some(usec) = report.depth.resources.cpu_usage_usec {
-            lines.push(kv(
-                "cgroup cpu",
-                &format_uptime(Duration::from_micros(usec)),
-            ));
+        // NIGHT-blade-5 + private-research-3: the controller's own
+        // resource view — the two counters no /proc walk can
+        // reconstruct (memory.current includes page-cache and kernel
+        // charges; cpu.stat is the scheduler's accounting across every
+        // task that ever ran in the cgroup, the exited ones included)
+        // — now one line: same facts, same honesty, half the rows.
+        let memory = report
+            .depth
+            .resources
+            .memory_current_bytes
+            .map(format_bytes);
+        let cpu = report
+            .depth
+            .resources
+            .cpu_usage_usec
+            .map(|usec| format_uptime(Duration::from_micros(usec)));
+        match (memory, cpu) {
+            (Some(mem), Some(cpu)) => {
+                lines.push(kv("resources", &format!("{mem} memory · {cpu} cpu")));
+            }
+            (Some(mem), None) => lines.push(kv("resources", &format!("{mem} memory"))),
+            (None, Some(cpu)) => lines.push(kv("resources", &format!("{cpu} cpu"))),
+            (None, None) => {}
         }
         match oldest_started_secs(&report.depth) {
             Some(secs) => lines.push(kv(
-                "time",
-                &format!(
-                    "since started at {} ago",
-                    format_uptime(Duration::from_secs(secs))
-                ),
+                "started",
+                &format!("{} ago", format_uptime(Duration::from_secs(secs))),
             )),
-            None => lines.push(kv("time", "unknown")),
+            None => lines.push(kv("started", "unknown")),
         }
         if let Some(cmdline) = rep.and_then(|p| p.cmdline.clone()) {
             lines.push(kv(
@@ -391,39 +428,27 @@ pub fn depth_report_lines(reports: &[DepthReport], width: usize) -> Vec<String> 
             )));
         }
 
-        // The socket list: every holder's endpoints, capped.
-        if let Some(conns) = &report.conns {
-            if !conns.socket_holders.is_empty() {
+        // The network-traffic section (NIGHT-private-research-3, the
+        // think-like-light-years-3 upgrade): when a focus window ran,
+        // the section IS the window — the kernel's own totals plus
+        // every endpoint's joined bytes, movers ranked first (the
+        // same `[dl X | ul Y]` vocabulary the live view carries, so
+        // one family). When no window ran, the section is the BASIC
+        // CURRENT census the report always printed — endpoints and
+        // states, no figures — with the not-measured note saying why
+        // the focus could not run (the honest absence: a reader who
+        // knows the ability exists learns it was the observer that
+        // failed, not the report forgetting). Both arms live in the
+        // depth_traffic sibling (the section's one concern, one
+        // module).
+        if report.traffic.is_some() || report.conns.is_some() {
+            if let Some(section) = traffic_section(
+                report.traffic.as_ref(),
+                report.conns.as_ref(),
+                report.traffic_note.as_deref(),
+            ) {
                 lines.push(grid_line(width));
-                lines.push(grey("  sockets:"));
-                let mut shown = 0usize;
-                let mut hidden = 0usize;
-                for holder in &conns.socket_holders {
-                    for socket in &holder.sockets {
-                        if shown < SOCKET_LINES_CAP {
-                            lines.push(format!(
-                                "   {} ({}) → {} {} {}",
-                                holder.comm,
-                                holder.pid,
-                                socket.remote,
-                                if socket.proto == crate::ebpf::connections::Proto::Tcp {
-                                    "tcp"
-                                } else {
-                                    "udp"
-                                },
-                                socket.state
-                            ));
-                            shown += 1;
-                        } else {
-                            hidden += 1;
-                        }
-                    }
-                }
-                if hidden > 0 {
-                    lines.push(grey(&format!(
-                        "   +{hidden} more — every endpoint rides the --print-json document"
-                    )));
-                }
+                lines.extend(section);
             }
         }
 
@@ -434,21 +459,21 @@ pub fn depth_report_lines(reports: &[DepthReport], width: usize) -> Vec<String> 
         // cgroup the report just dissected — round-trips through the
         // same autodetection that resolved the target) so the commands
         // stay correct even when the friendly name is ambiguous or
-        // shared by several cgroups.
+        // shared by several cgroups. private-research-3 compacting:
+        // the header line is gone — the commands name their own verbs
+        // (strict-single, block-single, ee) and the `act:` label rides
+        // the first line, so the tail spends its lines on commands,
+        // not furniture.
         lines.push(grid_line(width));
-        lines.push(grey("  act on this:"));
         lines.push(grey(&format!(
-            "   limit:  zelynic strict-single cg:{} 500kb",
+            "  act:  zelynic strict-single cg:{} 500kb",
             report.cgroup_id
         )));
         lines.push(grey(&format!(
-            "   block:  zelynic block-single cg:{}",
+            "        zelynic block-single cg:{}",
             report.cgroup_id
         )));
-        lines.push(grey(&format!(
-            "   watch:  zelynic ee cg:{}",
-            report.cgroup_id
-        )));
+        lines.push(grey(&format!("        zelynic ee cg:{}", report.cgroup_id)));
     }
     lines
 }

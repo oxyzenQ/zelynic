@@ -337,8 +337,8 @@ cell, evidence of enforcement rather than a live rate meter.
 
 The output IS the eagle-eyes style (NIGHT-engrave-5, the owner's
 audit — the surface was the last uppercase holdout): the purple
-flagship title bar (the same anchor the monitor carries), a
-breathing gap under it, lowercase purple column headers over the
+flagship title bar (the same anchor the monitor carries), lowercase
+purple column headers over the
 monitor's own full-width purple grid (flush with the left edge, the
 `|---` shape), data rows in status green (the calm tier — every row
 is a live, enforced limit), the watchdog and census prose in grey
@@ -356,6 +356,15 @@ prints nothing ("Watchdog: not set (enforcing)" was retired as noise
 — it read like a state, but it was the absence of one).
 `--print-json` keeps the `"watchdog"` field unchanged for scripts.
 
+NIGHT-private-research-3 (the compact-and-simple pass, the owner's
+directive): the breathing-gap filler lines retired on every report
+surface — the title bar, the watchdog, the census, the header row,
+the grid, the data rows, and the signature stamp now stack with zero
+blank fillers between them. Same facts, same chrome, same table
+contract; two to three fewer lines per report and no vertical scroll
+for a one-limit status check. The pin family in
+test/ebpf/display_tests.rs holds the compact contract.
+
 ### list-apps — discovery
 
 ```bash
@@ -367,7 +376,9 @@ cgroup id, uid — the report-table family's eagle-eyes style since
 NIGHT-engrave-5 (the flagship title bar, lowercase purple headers,
 the monitor's purple grid, green rows, the grey census line above
 the table; the old "━━━" banner and uppercase headers were the
-pre-eagle idiom). The procs/sockets columns expose multi-tenancy —
+pre-eagle idiom). Since NIGHT-private-research-3 the census line
+sits directly on the header row — zero blank fillers between the
+title bar and the data (the same compact contract status owns). The procs/sockets columns expose multi-tenancy —
 a row labeled `alacritty` hosting 4 processes and 7 sockets is
 probably carrying your `curl`. Works without root; enforcement
 commands do not.
@@ -430,32 +441,27 @@ question a bare `cg:1234` row leaves open — WHAT is this:
 
 ```text
 ╭─── zelynic eagle-eyes --depth ─────────────────────────────────╮
-
   cg:1234 — cat-test
-  3 processes · 2 socket holders · 5 sockets
+  3 processes · 2 holders · 5 sockets
   ────────────────────────────────────────────────────────────────
-  package id:       cg:1234
-  package name:     cat-test
-  run from user:    uid 1000 (cat)
-  run from path:    /home/cat
-  cgroup path:      /sys/fs/cgroup/cat-test
+  run from:         uid 1000 (cat) · /home/cat
+  cgroup:           /sys/fs/cgroup/cat-test
   enforcement:      limited — dl 100.0 KB/s · ul 100.0 KB/s
   accounting:       1.4 GB let through, 6.2 MB dropped (0.44% of what arrived)
-  cgroup memory:    12.5 MB
-  cgroup cpu:       1m:2s
-  time:             since started at 10m:20s ago
+  resources:        12.5 MB memory · 1m:2s cpu
+  started:          10m:20s ago
   command:          ./cat-test --serve
   ────────────────────────────────────────────────────────────────
   pid     name                 type    perm  st  thr  rss      started  exe
   1234    cat-test             binary  755   S   4    1.3 MB   10m:20s  /home/cat/cat-test
   ────────────────────────────────────────────────────────────────
-  sockets:
-   curl (4242) → 142.250.185.78:443 tcp ESTABLISHED
+  network traffic (3s focus): dl 12.4 MB · ul 340.0 KB
+   curl (4242) → 142.250.185.78:443 tcp ESTABLISHED [dl 12.4 MB | ul 300.0 KB]
+   curl (4242) → 93.184.216.34:443 tcp ESTABLISHED
   ────────────────────────────────────────────────────────────────
-  act on this:
-   limit:  zelynic strict-single cg:1234 500kb
-   block:  zelynic block-single cg:1234
-   watch:  zelynic ee cg:1234
+  act:  zelynic strict-single cg:1234 500kb
+        zelynic block-single cg:1234
+        zelynic ee cg:1234
 ```
 
 The package name is the identity ladder (majority-vote comm, else
@@ -515,6 +521,44 @@ closed a hang: the argv shebang classification probe now opens with
 O_NONBLOCK, so a FIFO planted in a target's cwd can no longer stall
 the root-invoked report forever (an attacker-controlled argv path is
 probed, never trusted).
+
+NIGHT-private-research-3 & think-like-light-years-3 (the depth
+traffic focus): the report now answers "which connection is eating
+RIGHT NOW", not just which endpoints exist. `--depth` attaches the
+observer for a short FOCUS WINDOW (default 3s, `--focus 1s..30s`
+tunes it), announces the window on stderr (`[eagle-eyes] traffic
+focus: measuring a 3s window` — a report that silently sleeps looks
+hung; stdout stays byte-clean for both output modes), then prints
+the window's own section: the kernel's cgroup totals for the window
+(dl/ul) plus every endpoint's per-socket bytes, movers ranked first
+— the exact per-endpoint attribution the live monitor's frames
+carry (NIGHT-boost-26's cookie join), composed once for the
+one-shot report. A quiet window is a measurement ("no traffic in
+the window"), a failed window is the honest note
+("network traffic: not measured — <reason>") under the basic
+socket census, and `--print-json` carries the window as the
+`traffic` object (`window_secs` / `download_bytes` /
+`upload_bytes`, null when unmeasured — distinguishable from a
+zero-traffic window) with `download_bytes`/`upload_bytes` fields on
+each endpoint row. The same pass compacted the report itself (the
+owner's more-compact-and-simple directive): the kv spine dropped
+its twin `package id`/`package name` lines (the headline IS the
+package identity), user and exe directory merged into one `run
+from` line, the controller's memory/cpu pair merged into one
+`resources` line, every filler blank line retired, and the act tail
+lost its header (the commands name their own verbs).
+
+The same honesty contracts ride the focus window as every ledger
+in this document: the cgroup window totals are the KERNEL's own
+counters (they include traffic from sockets that died mid-window);
+the per-endpoint figures cover exactly the sockets the closing
+/proc walk resolved cookies for — their sum can sit below the
+totals, both numbers are true, they answer different questions.
+Sockets that moved nothing render no figures (never a fabricated
+zero), and the `--focus` flag on the LIVE monitor answers with one
+stderr note (`--focus ignored (the live monitor is already
+continuous — it owns --depth's traffic-window job)`) — the mirror
+image of the `--interval` note the one-shot mode owns.
 
 Two honesty contracts ride the mode. The live-only `--interval`
 flag answers with exactly one stderr note (`--interval ignored
@@ -1266,11 +1310,18 @@ are complete):
 (multi-target specs only; a full miss exits 1 with the text error):
 
 ```json
-{"targets":[{"target":"cg:1234","cgroup_id":1234,"name":"cat-test","cgroup_path":"/sys/fs/cgroup/cat-test","uid":1000,"user":"cat","enforcement":"limited","download_bps":100000,"upload_bps":100000,"group_id":0,"oldest_started_secs":620,"processes":1,"socket_holders":1,"sockets":2,"procs":[{"pid":1234,"comm":"cat-test","uid":1000,"user":"cat","ppid":1,"state":"S (sleeping)","threads":4,"rss_kb":1234,"exe":"/home/cat/cat-test","exe_deleted":false,"kind":"binary","script":null,"permission":"755","cwd":"/home/cat","cmdline":"./cat-test --serve","started_ago_secs":620,"started_epoch":1758900000}],"endpoints":[{"pid":4242,"comm":"curl","proto":"tcp","remote":"142.250.185.78:443","state":"ESTABLISHED"}]}]}
+{"targets":[{"target":"cg:1234","cgroup_id":1234,"name":"cat-test","cgroup_path":"/sys/fs/cgroup/cat-test","uid":1000,"user":"cat","enforcement":"limited","download_bps":100000,"upload_bps":100000,"group_id":0,"oldest_started_secs":620,"processes":1,"socket_holders":1,"sockets":2,"traffic":{"window_secs":3,"download_bytes":12400000,"upload_bytes":340000},"procs":[{"pid":1234,"comm":"cat-test","uid":1000,"user":"cat","ppid":1,"state":"S (sleeping)","threads":4,"rss_kb":1234,"exe":"/home/cat/cat-test","exe_deleted":false,"kind":"binary","script":null,"permission":"755","cwd":"/home/cat","cmdline":"./cat-test --serve","started_ago_secs":620,"started_epoch":1758900000}],"endpoints":[{"pid":4242,"comm":"curl","proto":"tcp","remote":"142.250.185.78:443","state":"ESTABLISHED","download_bytes":12400000,"upload_bytes":300000}]}]}
 ```
 
 `enforcement` is `"unlimited"` | `"blocked"` | `"limited"`; an
 unlimited direction carries `null` bps, never a fabricated zero.
+`traffic` (NIGHT-private-research-3) is the focus window's kernel
+totals — `{"window_secs":3,"download_bytes":...,"upload_bytes":...}`
+when a window ran, `null` when it could not (observer attach or
+poll failure — distinguishable from a zero-traffic window, which
+serializes with zero totals); each endpoint row's
+`download_bytes`/`upload_bytes` carry that socket's window bytes,
+`null` when the join resolved nothing for it.
 `kind` is `"binary"` | `"script"` | `null` (unreadable), and a
 script row's `script` field carries the shebang source path the
 classifier found. `exe_deleted` (NIGHT-blade-7) is true when the

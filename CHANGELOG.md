@@ -1126,6 +1126,70 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Added
 
+- **eagle-eyes: NIGHT-private-research-3 & think-like-light-years-3 —
+  the depth report's network-traffic focus (the one-shot report now
+  MEASURES what moved, per endpoint, not just which endpoints exist)
+  and the compact-and-simple style pass over the three report
+  surfaces** — the depth audit found the one-shot report's socket
+  section was the BASIC CURRENT census: endpoints and states, zero
+  byte figures, because the depth handler never loaded an observer —
+  the per-endpoint attribution the live monitor owns (NIGHT-boost-26's
+  cookie join) simply never ran there. The focus window closes that
+  gap: `--depth` attaches the observer, seeds the delta baseline,
+  lets a short window pass (default 3s, `--focus 1s..30s` tunes it —
+  the same duration grammar and typo tips `--interval` owns, parsed
+  before the root guard like every flag validation), closes the
+  window with a second poll, and joins the BPF per-socket cookie
+  maps onto the post-window census. The report's socket section
+  becomes the window itself: the kernel's own cgroup totals for the
+  window (`network traffic (3s focus): dl X · ul Y`) plus every
+  endpoint's per-endpoint bytes in the live view's exact
+  `[dl X | ul Y]` vocabulary, movers ranked first, the honest
+  overflow cap preserved, LISTEN/TIME_WAIT census noise filtered
+  (the live view's own displayability gate, now shared, not
+  duplicated). A quiet window is a measurement ("no traffic in the
+  window"), a failed window is the honest note under the basic
+  census ("network traffic: not measured — <reason>"), the pause is
+  announced on stderr (a report that silently sleeps looks hung;
+  stdout stays byte-clean for both output modes), and `--focus` on
+  the live monitor answers with one stderr note — the mirror image
+  of the `--interval` note the one-shot mode owns.
+  `--print-json` gains the additive `traffic` object
+  (`window_secs`/`download_bytes`/`upload_bytes`, null when
+  unmeasured — distinguishable from a zero-traffic window) and
+  per-endpoint `download_bytes`/`upload_bytes` fields; the kernel
+  totals and the endpoint attribution answer different questions
+  (mid-window-died sockets stay booked in the totals but leave the
+  /proc census — both numbers are true, and the honest bounds are
+  documented in the audit and the JSON reference).
+- **the compact-and-simple style pass (the owner's directive, riding
+  the same task)** — every report surface drops its filler: status
+  retires the engrave-5 breathing gaps (title, watchdog, census,
+  header, grid, rows, stamp stack with zero blanks — the clean and
+  stale branch frames too), list-apps lands the census directly on
+  the header row it counts, and the depth report compacts its kv
+  spine (the twin `package id`/`package name` lines die as
+  duplicates of the headline, user + exe directory merge into one
+  `run from` line, the controller's memory/cpu pair merges into one
+  `resources` line, `time` becomes `started`), loses every interior
+  blank line, and the act tail's header merges into its first line
+  (the commands name their own verbs). Same facts, same chrome, same
+  tables — the report family now answers in one glance per section
+  instead of a scroll. The pin family holds the new contract:
+  report_tests pins the compact spine (and the retired-duplicate
+  negatives), display_tests pins the zero-filler frames,
+  depth_traffic_tests pins the window composition (totals,
+  attribution, ranking, the noise gate, the cap, the quiet-window
+  verdict), depth_json_tests pins the additive JSON fields, and
+  eagle_depth_tests pins the focus window's parse-before-root
+  ladder (typo, bounds, and the legal-edge reaches-the-root-guard
+  proof). The 10s frame A/B (A = 6cb6f83, B = this tree, the
+  standard harness protocol): bytes/frame identical to the decimal
+  and gini/entropy/dirty flat within run noise — the live monitor's
+  frame path is untouched by construction, the record lives in
+  docs/PERFORMANCE.md. Full audit: docs/audits/
+  NIGHT_PRIVATE_RESEARCH_3_AUDIT_2026-09-30.md.
+
 - **docs: the status table's allowed/dropped pair gets its plain
   reading — spelled out after the rc.2 long-run audit showed the
   pair can read as a mystery** — the columns were documented as

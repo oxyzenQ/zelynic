@@ -86,6 +86,7 @@
 
 mod border;
 mod depth_json;
+mod depth_traffic;
 mod detail;
 mod eagle;
 mod focus;
@@ -113,6 +114,11 @@ pub use eagle::render_eagle_eyes;
 // scripting shape, plus the ledger and controller-resource fields.
 pub use depth_json::depth_doc_json;
 pub use report::{depth_report_lines, package_name, DepthReport, Enforcement};
+
+// NIGHT-private-research-3: the depth report's network-traffic
+// focus — the measured window value the handler assembles and the
+// report/JSON renderers consume (pure, fixture-pinned).
+pub(crate) use depth_traffic::traffic_focus;
 
 pub(crate) use session::{SessionAcc, SessionState};
 
