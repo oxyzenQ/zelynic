@@ -65,21 +65,25 @@ fn future_stamp_holds_the_full_window() {
 
 /// The stamp path: XDG_RUNTIME_DIR lane when set (per-user 0700
 /// tmpfs), /tmp uid-suffixed fallback when not. The lanes must
-/// never collide across users.
+/// never collide across users. The assert messages deliberately
+/// carry no interpolated value: a path formatted into a panic
+/// message is CodeQL's cleartext-logging-sensitive-information
+/// surface (NIGHT-dinner-24), and `assert_eq!` already dumps both
+/// operands on failure, so nothing is lost.
 #[test]
 fn stamp_path_resolves_both_lanes() {
     let xdg = stamp_path(Some("/run/user/1001"), 1001);
     assert_eq!(
         xdg,
         PathBuf::from("/run/user/1001/zelynic-update.stamp"),
-        "the XDG lane names the per-user runtime dir, got: {xdg:?}"
+        "the XDG lane names the per-user runtime dir"
     );
 
     let tmp = stamp_path(None, 1001);
     assert_eq!(
         tmp,
         PathBuf::from("/tmp/.zelynic-update-1001"),
-        "the fallback carries the uid, got: {tmp:?}"
+        "the fallback carries the uid"
     );
 
     // The empty-string XDG is treated as unset (login managers can
@@ -88,7 +92,7 @@ fn stamp_path_resolves_both_lanes() {
     assert_eq!(
         empty,
         PathBuf::from("/tmp/.zelynic-update-1001"),
-        "an empty XDG value must fall back, got: {empty:?}"
+        "an empty XDG value must fall back"
     );
 
     // Different users never share a /tmp stamp.
