@@ -326,6 +326,22 @@ impl Observer {
             }
         }
 
+        // Dense-host merge index (NIGHT-think-like-light-years-3): the
+        // ingress merge below used a linear find over the egress-built
+        // vector — O(egress x ingress) per poll, the one superlinear
+        // spot in the poll path (~8.4M comparisons at the 4096-entry
+        // map ceiling, both maps full). A u32 -> position map makes
+        // the merge O(n) with the vector's order byte-identical
+        // (egress walk order, ingress-only rows appended). Keys inside
+        // one direction's map iteration are unique, so a pushed row
+        // is never looked up again — no index write-back needed.
+        let position: std::collections::HashMap<u32, usize> = summary
+            .cgroups
+            .iter()
+            .enumerate()
+            .map(|(i, c)| (c.cgroup_id, i))
+            .collect();
+
         // Merge ingress (download) deltas into existing cgroups
         for (cgroup_id, stats) in &current_ingress {
             let prev = self
@@ -340,11 +356,8 @@ impl Observer {
                 summary.total_ingress_packets += delta_packets;
                 summary.total_ingress_bytes += delta_bytes;
 
-                if let Some(entry) = summary
-                    .cgroups
-                    .iter_mut()
-                    .find(|c| c.cgroup_id == *cgroup_id)
-                {
+                if let Some(&i) = position.get(cgroup_id) {
+                    let entry = &mut summary.cgroups[i];
                     entry.ingress_packets = delta_packets;
                     entry.ingress_bytes = delta_bytes;
                     entry.ingress_total_bytes = stats.bytes;
