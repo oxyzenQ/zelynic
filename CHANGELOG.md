@@ -1165,6 +1165,86 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Added
 
+- **limiter: NIGHT-private-research-2 & think-like-light-years-2 —
+  AMMSP (Aware Multi Micro Sub-Process), the intergalaxion-engine's
+  subtree-aware skill patch: a limit set on a cgroup now polices
+  every socket born under it, at any depth, sharing ONE budget —
+  no daemon, no config, no enumeration of children that do not
+  exist yet** (the owner's eagle-eyes finding, 2026-09-30: a
+  cgroup limited to 100kb showed a subprocess in a child cgroup
+  downloading at >1mbps). The verified root cause: the datapath
+  keyed its policy lookup by `bpf_skb_cgroup_id` — the SOCKET's
+  leaf cgroup — so a socket born in a fresh child cgroup missed
+  the policy map and hit the fail-open: UNLIMITED (worse than the
+  per-child-bucket theory — no bucket at all). The fix is the
+  kernel itself resolving what covers a socket: on a leaf miss
+  the datapath walks the socket's cgroup chain upward with
+  `bpf_skb_ancestor_cgroup_id` (absolute levels, ascending,
+  zero-break, last-match-wins = NEAREST root — every fact verified
+  against torvalds/linux master AND v5.13 source, not assumed),
+  enforces with bucket AND stats keyed at the ROOT (one shared
+  subtree budget; the ledger rolls up to the target's own status
+  row — the per-root aggregate stats the think-like-light-years
+  list wanted, arriving as a consequence), and memoizes the
+  resolution in a new pinned LRU map `ammsp_leaf_cache` (4096
+  entries, leaf -> root, 0 = resolved unlimited) so the unlimited
+  majority pays ONE extra lookup per packet and every leaf walks
+  once, not per packet. Stale memos are covered twice: the
+  datapath's stale-detect (a cached root whose policy is gone ->
+  delete + re-walk) covers removals, and every userspace policy
+  mutation — apply_single, apply_group, unstrict, success AND
+  error paths, inside the flock the mutation already holds —
+  flushes the whole memo (the only addition-side invalidation a
+  cached negative can get). Nested roots resolve nearest-first by
+  construction (a strict on A 100kb plus a strict on B under A
+  50kb: B's subtree draws 50kb, A's remaining subtree 100kb) —
+  the directive's "flat first, nested in v12" staging turned out
+  unnecessary: nearest-root is the walk's only natural semantics,
+  so it shipped correct now. The fentry-tracking design that
+  arrived with the directive was audited and rejected (fires at
+  cgroup_mkdir ENTRY before the new cgroup exists; reverse-index
+  cleanup is not a BPF primitive below 5.17; runtime overflow
+  cannot error loudly; a third kallsyms-resolved program object) —
+  the full trade-off record is the design brief
+  (docs/research/NIGHT_PRIVATE_RESEARCH_2_AMMSP_DESIGN.md) and the
+  implementation audit
+  (docs/audits/NIGHT_PRIVATE_RESEARCH_2_AMMSP_AUDIT_2026-09-30.md).
+  Splits ridden as the gates demanded: the pure resolution core
+  (ebpf/src/ammsp.rs, dual-tree like math.rs, rootlessly pinned by
+  test/ebpf/limiter/ammsp_tests.rs — walk state machine, exhaustive
+  cache verdict table, depth bound), the aya-touching half
+  (ebpf/src/ammsp_resolve.rs, the memo map + the walk driver), the
+  userspace flush (src/ebpf/limiter/ammsp.rs, riding a new
+  with_lru_u32_map acquisition-lane twin after the one-acquisition-
+  path architecture pin caught the first draft's direct open), and
+  the schema anchor's own file (src/ebpf/limiter/schema.rs) — the
+  version-history block is the one piece of types.rs that grows by
+  design and the 500-LOC cap was full. Schema v10: new pinned map,
+  new coverage, existing struct layouts — pinned v9 programs
+  reload once and active limits are re-applied after upgrade, the
+  same contract as every bump before it. The stale "bpf_skb_cgroup_id
+  is a GPL-only helper" comment was corrected in passing (verified
+  false against kernel master and 5.13; the GPL license section
+  itself stays — C-twin parity). The live proof is permanent:
+  supermassive gains test_ammsp_subtree — the child born AFTER the
+  apply (the exact owner scenario), the pre-apply poisoned memo
+  invalidated by the flush, the parent+child pair summing to ONE
+  budget, the grandchild resolving the nearest nested root, and
+  the aggregate-at-root stats row, each a measured band verdict
+  plus the kernel-drop proof. ebpf-prebuilt/ refreshed to the
+  subtree-aware object (parity gate's tree pin moved). Docs:
+  USAGE.md's how-it-works and honest-limitations rewritten around
+  the split that matters now (targets are a snapshot; SUBTREES are
+  a subscription), the strict-single section gains the subtree
+  contract, PERFORMANCE.md records the frame A/B (bytes/frame
+  byte-identical — no render surface touched), KERNEL_COMPATIBILITY
+  gains the helper row, README's sharp table gains the AMMSP row.
+  The one documented bound: a hierarchy deeper than 32 levels from
+  the cgroup root resolves unlimited — a ceiling, never a cost
+  (the zero-break makes a depth-6 socket pay ~8 queries), three
+  times deeper than any real deployment, stated in print because
+  "no exception" deserves its one exception in writing.
+
 - **eagle-eyes: NIGHT-private-research-3 & think-like-light-years-3 —
   the depth report's network-traffic focus (the one-shot report now
   MEASURES what moved, per endpoint, not just which endpoints exist)

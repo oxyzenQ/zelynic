@@ -35,7 +35,7 @@ pub fn kernel_line(tag: &str, release: &str) -> String {
     format!("[{tag}] kernel {release}")
 }
 
-/// The load summary: `[limiter] object loaded: 2 programs, 9 maps in 8.2ms`.
+/// The load summary: `[limiter] object loaded: 2 programs, 10 maps in 8.2ms`.
 ///
 /// Program and map counts come from the loader's own view of the
 /// object (`Ebpf::programs()` / `Ebpf::maps()`), so a mismatch with
@@ -151,9 +151,11 @@ mod tests {
     /// 1 map", never "1 programs".
     #[test]
     fn load_line_pins_counts_and_units() {
+        // NIGHT-private-research-2: ten maps — the ammsp_leaf_cache
+        // LRU memo joined the pinned inventory.
         assert_eq!(
-            load_line("limiter", 2, 9, Duration::from_millis(8)),
-            "[limiter] object loaded: 2 programs, 9 maps in 8.0ms"
+            load_line("limiter", 2, 10, Duration::from_millis(8)),
+            "[limiter] object loaded: 2 programs, 10 maps in 8.0ms"
         );
         assert_eq!(
             load_line("ebpf", 1, 1, Duration::from_micros(4_100)),

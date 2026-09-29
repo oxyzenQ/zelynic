@@ -58,7 +58,8 @@ cgroup boundary is classified by its cgroup ID and checked against a
 rate policy in a BPF map. Enforcement is pure kernel work: no proxy, no
 `tc`, no `LD_PRELOAD`, no userspace hop.
 
-**2. A "target" is resolved once, at command time.**
+**2. A "target" is resolved once, at command time — and the limit
+follows the whole subtree.**
 When you type `zelynic strict-single brave 100kb`, zelynic walks
 `/proc`, finds every process whose name is `brave`, resolves the cgroup
 each one lives in, and writes one policy per cgroup (per direction).
@@ -70,6 +71,17 @@ and the `cg:`-prefixed form every display surface prints
 (`cg:18571` in the `status` table, the eagle-eyes footer, and the
 suggested `ss` command) is the same direct target: the prefix
 round-trips (NIGHT-boost-37), so a copied label always works.
+
+The policy itself is **subtree-aware** (NIGHT-private-research-2,
+AMMSP): a limit set on a cgroup polices every process that spawns
+BENEATH it — child cgroups, grandchild cgroups, at any depth —
+sharing ONE budget. A subprocess that lands in a fresh scope under
+a limited target inherits the limit automatically; the kernel
+resolves the covering root per packet, so descendants born an hour
+after the strict are covered the moment their first packet moves.
+No daemon, no config, no re-run. The one bound: a hierarchy deeper
+than 32 levels from the cgroup root resolves unlimited (see the
+honest limitations).
 
 **3. State lives in the kernel, pinned under `/sys/fs/bpf/zelynic/`.**
 Programs, links, and policy maps are pinned there, which is why
@@ -108,6 +120,18 @@ sudo zelynic strict brave 100kb        # shorthand form
 - `<target>`: a process name (`brave`) or a cgroup ID (`18571`, from
   `list-apps`; the `cg:18571` display form round-trips verbatim —
   paste what `status` or eagle-eyes shows you).
+- The policy covers **the target's whole subtree** with ONE shared
+  budget (NIGHT-private-research-2, AMMSP): every process that
+  spawns under the target's cgroup — at any depth, born at any
+  time after the apply — inherits the limit automatically, and
+  all of them draw from the same token bucket. `status` shows the
+  subtree's traffic aggregated on the target's own row. Nested
+  targets resolve NEAREST-root-first: a strict on A (100kb) plus a
+  strict on B under A (50kb) gives B's subtree the 50kb budget
+  and A's remaining subtree the 100kb one. See
+  [How zelynic actually works](#how-zelynic-actually-works) and the
+  [honest limitations](#honest-limitations--read-this) for the
+  32-depth bound.
 - A positional `rate` sets **both** download and upload. `-d`/`-u` set
   them independently — and they take precedence: if either flag is
   present, the positional rate is ignored (no silent mixing), so
@@ -1082,25 +1106,37 @@ sudo zelynic recover
 zelynic is deliberately small and stateless. These are real behaviors,
 not bugs — knowing them makes the tool predictable.
 
-**1. Rules are a snapshot, not a subscription.**
+**1. Rules are a snapshot of TARGETS, not of subtrees.**
 When you run `zelynic strict-single A 100kb` or `strict-all 100kb`,
 zelynic resolves the apps that exist **at that moment** and writes
-their cgroup rules. If you launch a new app (or a new instance of an
-already-limited app that gets a fresh cgroup) **after** the command,
-that newcomer is **not** limited. There is no daemon watching for new
-processes — by design (no background cost, no config drift). Re-run
-zelynic after launching new apps:
+their cgroup rules. What happens next splits in two:
+
+- **Processes that spawn UNDER a limited target are covered.**
+  (NIGHT-private-research-2, AMMSP.) A subprocess that gets its own
+  child cgroup beneath a limited cgroup inherits the limit and
+  shares its budget — automatically, however deep the tree grows,
+  however late the spawn. The kernel resolves the covering root per
+  packet; nothing watches, nothing enumerates, no daemon.
+- **A NEW top-level app is still not covered.** If you launch an
+  app whose cgroup is not under any limited cgroup — the usual
+  case on systemd distros, where every fresh app launch gets its
+  own sibling scope — that newcomer is unlimited until you re-run:
 
 ```bash
 sudo zelynic strict-all 500kb          # run again to sweep in newcomers
 ```
 
-The precise rule: enforcement follows **cgroups**, not processes. A new
-process that *joins an already-limited cgroup* (e.g., you run `curl`
-inside the same terminal session that is already limited) **is**
-limited. A new process that gets a **new** cgroup is not. On systemd
-distros, GUI apps usually get their own cgroup per launch — so a
-restarted browser needs a re-run.
+The precise rule: enforcement follows **cgroups**, not processes,
+and each policy covers **its cgroup and every descendant**. A new
+process that *joins an already-limited cgroup* (e.g., you run
+`curl` inside the same terminal session that is already limited)
+**is** limited. A new process under a limited target's subtree
+**is** limited. A new process whose cgroup sits outside every
+limited subtree is not. One bound applies: a hierarchy nested
+deeper than **32 levels** below the cgroup root resolves unlimited —
+no real deployment reaches a third of that (systemd sessions sit
+around 6, container runtimes around 4); it is stated here because
+"no exception" deserves the one exception it has, in print.
 
 **2. Limits do not survive reboot.**
 Pins live on bpffs (`/sys/fs/bpf/zelynic/`), which is wiped at boot —

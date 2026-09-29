@@ -41,6 +41,14 @@ pub const PIN_MAP_WATCHDOG: &str = "/sys/fs/bpf/zelynic/watchdog_deadline";
 pub const PIN_MAP_STATS: &str = "/sys/fs/bpf/zelynic/cgroup_limiter_stats";
 pub const PIN_MAP_SCHEMA_VERSION: &str = "/sys/fs/bpf/zelynic/schema_version";
 
+/// The AMMSP leaf cache (NIGHT-private-research-2): leaf cgroup id
+/// -> resolved policy-root id, 0 = resolved unlimited. LRU hash map,
+/// written by the datapath only, flushed whole by every policy
+/// mutation (ammsp_cache_flush in limiter/ammsp.rs). The static map
+/// name in ebpf/src/bin/limiter.rs and this pin path are the same
+/// contract every other map here follows.
+pub const PIN_MAP_AMMSP_CACHE: &str = "/sys/fs/bpf/zelynic/ammsp_leaf_cache";
+
 /// Open a pinned hash map in read mode (NIGHT-optimized-2).
 /// Single source of the pin-open + error-mapping dance the status
 /// readers and the reclaim path share — the error names the pin
@@ -51,6 +59,18 @@ pub(crate) fn open_pinned_hash_map(pin_path: &str) -> Result<aya::maps::Map> {
     let map_data =
         MapData::from_pin(pin_path).map_err(|e| anyhow!("pinned map {pin_path}: {e}"))?;
     Ok(aya::maps::Map::HashMap(map_data))
+}
+
+/// Open a pinned LRU hash map in read mode — the LRU twin of
+/// [`open_pinned_hash_map`] (the AMMSP leaf cache). Wrapped in the
+/// matching enum variant so aya's map-type reporting stays honest;
+/// every syscall op (get / insert / remove / keys iteration) the
+/// flush and the status readers need works identically on LRU hash
+/// maps, and `BpfHashMap::try_from` accepts both variants.
+pub(crate) fn open_pinned_lru_hash_map(pin_path: &str) -> Result<aya::maps::Map> {
+    let map_data =
+        MapData::from_pin(pin_path).map_err(|e| anyhow!("pinned map {pin_path}: {e}"))?;
+    Ok(aya::maps::Map::LruHashMap(map_data))
 }
 
 /// Open a pinned array map in read mode — the Array twin of

@@ -65,6 +65,7 @@ honest residuals) lives in
 | Edge | Detail |
 |------|--------|
 | **Pure eBPF datapath** | Zero intermediaries. The kernel IS the rate limiter. |
+| **Subtree-aware limits** | A limit on a cgroup covers every process spawned beneath it — any depth, born any time, sharing ONE budget (AMMSP, NIGHT-private-research-2). tc/nftables can't see the cgroup tree; zelynic polices it. |
 | **Pinned bpf_links** | Enforcement survives process exit — no daemon, no battery drain (RAM/CPU/IO measured live, not asserted: the proof harness's footprint claim). |
 | **Fractional precision** | 0.00% measured rate error, sub-byte token accumulation (reproduce: `sudo ./scripts/bench/proof-claims.sh`; math pins: test/ebpf/limiter/math_tests.rs). |
 | **Schema migration** | BPF struct changes auto-detected + auto-cleaned on upgrade. |

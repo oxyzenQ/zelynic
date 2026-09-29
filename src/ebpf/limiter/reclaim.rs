@@ -122,6 +122,38 @@ impl super::Limiter {
         }
     }
 
+    /// The LRU twin of [`Self::with_u32_map`]
+    /// (NIGHT-private-research-2): the same ONE-acquisition-lane
+    /// contract — every mutation of a u32-keyed limiter map flows
+    /// through this file — extended to the map family whose pin opens
+    /// as `Map::LruHashMap` so aya's map-type reporting stays honest
+    /// (the ammsp_leaf_cache memo; the plain twin would work
+    /// operationally, the variant is the honesty). Only the ammsp
+    /// flush mutates an LRU map, so only it rides this lane.
+    pub(super) fn with_lru_u32_map<V, R>(
+        &mut self,
+        map_name: &str,
+        pin_path: &str,
+        op: impl FnOnce(&mut BpfHashMap<&mut MapData, u32, V>) -> Result<R>,
+    ) -> Result<R>
+    where
+        V: aya::Pod,
+    {
+        if let Some(bpf) = self.bpf.as_mut() {
+            let map_ref = bpf
+                .map_mut(map_name)
+                .context(format!("{map_name} not found"))?;
+            let mut map: BpfHashMap<&mut MapData, u32, V> =
+                BpfHashMap::try_from(map_ref).context(format!("Failed to access {map_name}"))?;
+            op(&mut map)
+        } else {
+            let mut map_obj = pin::open_pinned_lru_hash_map(pin_path)?;
+            let mut map: BpfHashMap<&mut MapData, u32, V> = BpfHashMap::try_from(&mut map_obj)
+                .context(format!("Failed to open pinned map {pin_path}"))?;
+            op(&mut map)
+        }
+    }
+
     /// Delete one u32 key from a limiter map in whichever mode is
     /// live. `Ok(true)` deleted, `Ok(false)` ENOENT (genuinely
     /// absent), `Err` when the delete could not be performed — the
@@ -417,6 +449,14 @@ impl super::Limiter {
         }
 
         if !failed.is_empty() {
+            // NIGHT-private-research-2: removals are the mutation the
+            // datapath's stale-detect already covers, but the flush
+            // still runs before the partial-failure error returns —
+            // the deletes that DID land are a mutation like any
+            // other, and the belt-and-suspenders pair (flush +
+            // stale-detect) is cheaper than reasoning about which
+            // half of it a given removal needed.
+            self.ammsp_cache_flush_best_effort();
             return Err(anyhow!(
                 "{}",
                 unstrict_partial_failure_line(removed, &failed)
@@ -429,6 +469,13 @@ impl super::Limiter {
         // per-cgroup state reclaim so one unstrict hands back both
         // halves of the endurance budget.
         self.reclaim_dead_groups(&superseded);
+
+        // AMMSP memo invalidation (NIGHT-private-research-2): a
+        // removed root leaves cached resolutions pointing at a policy
+        // that no longer exists — the datapath's stale-detect re-walks
+        // them per packet, and this flush retires them in one sweep
+        // so the re-walk cost is paid once, not per packet, per leaf.
+        self.ammsp_cache_flush_best_effort();
 
         Ok(removed)
     }

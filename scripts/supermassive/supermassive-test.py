@@ -2518,6 +2518,170 @@ def test_multi_group(window, baseline):
     return solo and joint
 
 
+def test_ammsp_subtree(window, baseline):
+    """NIGHT-private-research-2 (AMMSP): the subtree contract, measured
+    live — a strict on cgroup A polices every socket born under A/**,
+    sharing ONE budget, with no daemon and no enumeration.
+
+    This is the owner's eagle-eyes finding (2026-09-30) turned into a
+    permanent stage: a cgroup limited to 100kb showed a subprocess in
+    a child cgroup downloading at full line speed, because the
+    datapath keyed its policy lookup by the socket's LEAF cgroup and
+    a fresh child simply missed the map. Four verdicts, one stage:
+
+      1. dynamic coverage — a child cgroup created AFTER the apply is
+         policed (the pre-AMMSP shape: unlimited, line-rate FAIL);
+      2. stale-negative invalidation — a leaf that already cached
+         "unlimited" BEFORE the apply is policed after it (the
+         userspace flush's live proof);
+      3. shared budget — a parent worker and a child worker under one
+         100kb root sum to ONE budget, not two;
+      4. nested roots — a grandchild under two roots (A 100kb, its
+         child 50kb) resolves to the NEAREST root and its budget.
+
+    The stats proof rides the aggregate-at-root row: subtree traffic
+    books at the root's id in cgroup_limiter_stats, so one status row
+    carries the whole subtree's allowed/dropped ledger.
+    """
+    name = "ammsp: subtree enforcement under one budget"
+    if not CG.dedicated:
+        return record(
+            name,
+            "SKIP",
+            "no dedicated fleet — nested cgroups need a real cgroup lane",
+        )
+    if baseline and baseline < 2_000_000:
+        return record(name, "SKIP", f"baseline too low ({fmt_bps(baseline)})")
+
+    sub_path = f"{TEST_CGROUPS[0]}/ammsp-sub"
+    grand_path = f"{sub_path}/ammsp-grand"
+    late_path = f"{TEST_CGROUPS[0]}/ammsp-late"
+    made = []
+
+    def nested_mkdir(path):
+        try:
+            os.mkdir(path)
+            made.append(path)
+            return True
+        except OSError as e:
+            record(f"ammsp: create {os.path.basename(path)}", "FAIL", str(e))
+            return False
+
+    def child_bytes(path, win):
+        metric, err = spawn_in_cgroup_path(
+            path,
+            [sys.executable, "-c", _PY_DL_CLIENT, str(SERVER.port), str(win)],
+            win + 20,
+        )
+        if metric is None:
+            record("ammsp: worker", "FAIL", err)
+        return metric or 0
+
+    passed = True
+    try:
+        if not nested_mkdir(sub_path):
+            return False
+
+        # Verdict 2's setup, run FIRST: one short download from the
+        # child while NOTHING is policed — the datapath resolves it
+        # unlimited and memoizes the negative. The apply below must
+        # flush that memo (or the stale-detect must re-walk); the
+        # verdict after the apply is the live proof.
+        child_bytes(sub_path, 1.0)
+
+        ok, payload = apply_single("a", "100kb", 100_000, 100_000)
+        if not ok:
+            return record(name, "FAIL", payload)
+
+        # Cushion drain: a fresh bucket carries one second of rate;
+        # pay it out at line rate so the measured windows see steady
+        # state (the asymmetric stage's approved warm-up pattern).
+        child_bytes(sub_path, 0.5)
+
+        # Verdict 1 — dynamic coverage: the child is born AFTER the
+        # apply (the exact owner scenario: a subprocess appears once
+        # the limit is already enforced).
+        if nested_mkdir(late_path):
+            got = child_bytes(late_path, window)
+            passed = (
+                band_check(
+                    "ammsp: child born after apply is policed",
+                    got / window,
+                    100_000,
+                )
+                and passed
+            )
+
+        # Verdict 2 — the poisoned memo: the leaf that cached
+        # "unlimited" before the apply must now be policed.
+        got = child_bytes(sub_path, window)
+        passed = (
+            band_check(
+                "ammsp: pre-apply unlimited memo invalidated by the apply",
+                got / window,
+                100_000,
+            )
+            and passed
+        )
+
+        # The aggregate-at-root stats proof: subtree traffic books at
+        # the ROOT's row, so the kernel-drop evidence and the BPF
+        # byte ledger both live on cgroup a's status row.
+        enforcement_proofs("ammsp subtree", child_bytes(sub_path, 2.0) + 1, name="a")
+
+        # Verdict 3 — shared budget: one worker at the root, one in
+        # the child, concurrently; the SUM is one 100kb budget (the
+        # pre-AMMSP N x limit shape reads ~2x here).
+        child_bytes(sub_path, 0.5)  # steady-state re-drain
+        totals = {"root": 0, "child": 0}
+
+        def pair_worker(key, path):
+            totals[key] = child_bytes(path, window)
+
+        threads = [
+            threading.Thread(target=pair_worker, args=("root", CG.paths["a"])),
+            threading.Thread(target=pair_worker, args=("child", sub_path)),
+        ]
+        for th in threads:
+            th.start()
+        for th in threads:
+            th.join()
+        passed = (
+            band_check(
+                "ammsp: parent + child share ONE budget",
+                (totals["root"] + totals["child"]) / window,
+                100_000,
+                hi=1.45,
+            )
+            and passed
+        )
+
+        # Verdict 4 — nested roots: a 50kb policy on the sub cgroup
+        # itself; a grandchild under it resolves to the NEAREST root.
+        sub_id = os.stat(sub_path).st_ino
+        rc, stdout, stderr = run_zel(["strict-single", str(sub_id), "50kb"])
+        if rc != 0:
+            record("ammsp: nested root apply", "FAIL", f"exit {rc}: {(stderr or stdout)[:120]}")
+            passed = False
+        elif nested_mkdir(grand_path):
+            child_bytes(grand_path, 0.5)
+            got = child_bytes(grand_path, window)
+            passed = (
+                band_check(
+                    "ammsp: grandchild resolves to the NEAREST root (50kb, not 100kb)",
+                    got / window,
+                    50_000,
+                )
+                and passed
+            )
+    finally:
+        clear_all()
+        for path in reversed(made):
+            with contextlib.suppress(OSError):
+                os.rmdir(path)
+    return passed
+
+
 def test_block_multi(window):
     name = "block-multi: zero goodput on both cgroups"
     if not multi_guard(name):
@@ -3869,6 +4033,9 @@ def run_heavy(baseline_window):
     test_curl_burst(6.0, 6, 1_000_000, baseline)
     test_curl_upload(5.0, baseline)
     test_multi_group(5.0, baseline)
+    # NIGHT-private-research-2 (AMMSP): the subtree contract, measured
+    # live — the owner's eagle-eyes finding made permanent.
+    test_ammsp_subtree(4.0, baseline)
     test_block_multi(4.0)
     test_unstrict_multi()
     test_mixed(4.0, baseline)
