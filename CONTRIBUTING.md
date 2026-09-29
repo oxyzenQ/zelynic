@@ -217,7 +217,8 @@ scripts/
                         stability callout, commit count, categorized
                         collapsible changelog, compare link, GPG
                         verification section; --self-test pins the
-                        classifier battery rootless; called by
+                        classifier battery, the body shape, and the
+                        CLI parse contract rootless; called by
                         .github/workflows/release.yml)
 
   sandbox/             — the local KVM micro-VM (NIGHT-think-1)
