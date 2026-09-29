@@ -307,6 +307,33 @@ other class already fenced:
   and the watchdog fail-open (dormant — no writer exists; a future
   armer must re-run this audit against the block contract).
 
+- **The init-path wholesale reset — FOUND AND FIXED
+  (NIGHT-think-like-light-years-3, schema v11).** The extreme-burst
+  endurance re-audit walked the birth instant of a fresh bucket
+  under many-CPU fire and found the one plain wholesale write the
+  v7/v8/v9 field-level story had left standing: `get_stats_ptr`
+  and `get_bucket_ptr` (ebpf/src/bin/limiter.rs) inserted their
+  init values with BPF_ANY — the C-era flag NIGHT-improve-29 swept
+  out of the observer twin but never out of the limiter twin. A
+  racing first-packet initializer could wholesale-reset an entry
+  another CPU was already enforcing through: consumed tokens
+  resurrected to the full burst (an over-allow of up to one
+  burst), the window-ownership stamp rolled back to re-credit an
+  already-paid window (bounded by the 1s elapsed cap), and booked
+  stats increments vanished — no per-field atomic downstream can
+  defend against the reset itself. The fix is the improve-29
+  pattern verbatim: BPF_NOEXIST so the loser of the init race
+  re-looks up and rides the winner's entry (one bucket, one
+  birth, no resurrection); full-map inserts fail identically
+  (E2BIG then the same fail-open relookup), so the slot budgets
+  and the fail-open contract are unchanged. Landed through the
+  sanctioned prebuilt-refresh cycle with the observer object
+  reproduced byte-identically and parity green. The same audit
+  closed the userspace twin's scale cost: the poll's ingress
+  merge went from a linear find (O(egress x ingress) per poll,
+  ~8.4M comparisons at the map ceiling) to a position-indexed
+  O(n) merge with byte-identical output (loader.rs).
+
 **Verdict: yes — LTS-ready for long usage.** Every silent-killer
 class the audit could name is either bounded by construction,
 self-healing, or (as of this audit) exits loudly-quietly on its own;
@@ -337,7 +364,7 @@ into a measured proof.
 | Raw fds (pidfd, pidfd_getfd) | Explicit close() with the re-entrancy-safe state machine; the local fd closed after each cookie read | connections.rs PidFd |
 | Child processes (terminal guard, rescue utils, update curl) | status()/output()/waitpid — no zombie can outlive its purpose | terminal/guard.rs, term_reset/mod.rs, update/mod.rs |
 | The monitor loop itself | Quiet death on a dead sink — a piped reader leaving ends the session instead of spinning forever holding root | run_loop (ultimate-2) |
-| Byte counters on the long horizon | u64 wraps at 18.4 EB per socket/cgroup (467+ years at line rate); packets at ~389,000 years; the limiter ledger is atomic (v7/v9) and the burst consume bounded-retry (v8) | math.rs + stats.rs pins; wrap_coherent_delta |
+| Byte counters on the long horizon | u64 wraps at 18.4 EB per socket/cgroup (467+ years at line rate); packets at ~389,000 years; the limiter ledger is atomic (v7/v9) and the burst consume bounded-retry (v8), and since schema v11 the entry BIRTH itself is race-free (BPF_NOEXIST init — no token resurrection, no stamp rollback under a many-CPU first-packet burst) | math.rs + stats.rs pins; wrap_coherent_delta; limiter.rs init paths (think-like-light-years-3) |
 
 Two audit notes worth their bytes. First, a suspected staleness bug
 during the walk — "the identity map never refreshes inside the live
