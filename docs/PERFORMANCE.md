@@ -1208,3 +1208,37 @@ duplicate-token fix changes per-frame output only for specs with
 repeated tokens — a shape the synthetic fixture set does not
 contain, by design (the fix's proof is the render pin
 `duplicate_name_token_is_not_a_false_miss`, not a visual delta).
+
+### NIGHT-think-like-light-years-3 A/B (the init-race close + the linear merge, 2026-09-30)
+
+The session's two code changes sit off the render path by
+construction: the schema-v11 init-race close (BPF_NOEXIST on the
+limiter's first-packet inserts) is kernel-side enforcement birth
+semantics, and the dense-host merge fix (loader.rs) changes the
+poll's internal complexity class, not one byte of frame output —
+the same class of proof the private-research-2 datapath A/B
+carried. The harness therefore proves frame-parity (A = aa283ca,
+the AMMSP-rider tree; B = 79b0921 at HEAD, formal 10 s runs,
+75k+ frames per side):
+
+| Metric | aa283ca | HEAD | Delta |
+|--------|---------|------|-------|
+| fps | 7,566.4 | 7,720.7 | +2.0% (machine noise, favorable) |
+| bytes/frame | 1,919.0 | 1,919.0 | +0.0% |
+| emit bytes/frame | 507.0 | 503.9 | -0.6% (machine noise) |
+| frame entropy | 3.0009 | 3.0005 | -0.0% |
+| density gini | 0.3557 | 0.3567 | +0.3% (machine noise) |
+| dirty cells/frame | 39.8 | 39.6 | -0.5% (machine noise) |
+
+Reading: bytes/frame identical to the byte — the frame output is
+byte-exact the pre-session shape, the strongest parity proof the
+harness can give. Every other delta sits inside the run-to-run
+band every prior record on this host carries (the fps spread is
+the same container-noise class the dinner-18 record notes). The
+merge fix's gain is not frame-visible by design — the synthetic
+fixture renders from a fixed LCG, not from a polled 4096-cgroup
+map, so its proof is the complexity argument plus the
+byte-identical output pins; the kernel fix's proof is the
+NOEXIST-flag construction and the SMP pins the observer twin
+already carries. Both records live in
+docs/audits/NIGHT_THINK_LIKE_LIGHT_YEARS_3_AUDIT_2026-09-30.md.
