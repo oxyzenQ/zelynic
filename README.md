@@ -35,11 +35,17 @@
 ## Demo
 
 <p align="center">
-  <img src="assets/eagle-eyes.png" alt="zelynic eagle-eyes" width="800">
+  <img src="assets/eagle-eyes.png"
+       alt="zelynic eagle-eyes"
+       width="800"
+       style="border-radius:24px; box-shadow:0 4px 20px rgba(0,0,0,0.15);">
 </p>
 
 <p align="center">
-  <img src="assets/eagle-eyes-depth.png" alt="zelynic eagle-eyes depth" width="800">
+  <img src="assets/eagle-eyes-depth.png"
+       alt="zelynic eagle-eyes depth"
+       width="800"
+       style="border-radius:24px; box-shadow:0 4px 20px rgba(0,0,0,0.15);">
 </p>
 
 ## Why zelynic?
