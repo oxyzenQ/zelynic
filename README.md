@@ -31,7 +31,16 @@
   </a>
 </p>
 
----
+
+## Demo
+
+<p align="center">
+  <img src="assets/eagle-eyes.png" alt="zelynic eagle-eyes" width="800">
+</p>
+
+<p align="center">
+  <img src="assets/eagle-eyes-depth.png" alt="zelynic eagle-eyes depth" width="800">
+</p>
 
 ## Why zelynic?
 
