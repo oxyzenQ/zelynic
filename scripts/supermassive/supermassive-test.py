@@ -2626,8 +2626,40 @@ def test_ammsp_subtree(window, baseline):
 
         # The aggregate-at-root stats proof: subtree traffic books at
         # the ROOT's row, so the kernel-drop evidence and the BPF
-        # byte ledger both live on cgroup a's status row.
-        enforcement_proofs("ammsp subtree", child_bytes(sub_path, 2.0) + 1, name="a")
+        # byte ledger both live on cgroup a's status row. The
+        # accounting row rides the LEDGER DELTA across the proof
+        # window, not the cumulative row: this stage has already
+        # moved five windows of traffic through the subtree by now
+        # (the poisoned memo, the drains, the two measured verdicts),
+        # and the row carries all of them — the asymmetric stage's
+        # delta pattern, applied for the same reason (the first live
+        # run's 488% was this comparison done cumulatively).
+        before = (limit_entry(status_json(), CG.ids["a"]) or {}).get("bytes_allowed", 0)
+        got = child_bytes(sub_path, 2.0)
+        after_entry = limit_entry(status_json(), CG.ids["a"]) or {}
+        after = after_entry.get("bytes_allowed", 0)
+        dropped = after_entry.get("packets_dropped", 0)
+        record(
+            "ammsp subtree: kernel drops engaged",
+            "PASS" if dropped > 0 else "FAIL",
+            f"{dropped} packets dropped, {after} bytes allowed (cumulative)",
+        )
+        delta = after - before
+        if got >= lib.ACCOUNTING_FLOOR_BYTES and delta > 0:
+            ratio = delta / got
+            record(
+                "ammsp subtree: BPF accounting matches client bytes",
+                "PASS" if 0.5 <= ratio <= 1.5 else "FAIL",
+                f"ledger delta {delta} vs client {got} ({ratio * 100:.1f}%) "
+                f"across one window, booked at the ROOT row",
+            )
+        elif delta > 0:
+            record(
+                "ammsp subtree: BPF accounting matches client bytes",
+                "SKIP",
+                f"payload {got} B under the {lib.ACCOUNTING_FLOOR_BYTES // 1024} KiB "
+                "accounting floor — the kernel drops above are the enforcement proof",
+            )
 
         # Verdict 3 — shared budget: one worker at the root, one in
         # the child, concurrently; the SUM is one 100kb budget (the
