@@ -956,6 +956,36 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Fixed
 
+- **ci: NIGHT-dinner-25 — the rc.3 release wall, part two: the
+  supermassive survival battery demanded an atomicity two pinned
+  BPF maps cannot sell** — the best-specs musl leg of the
+  v11.0.0-rc.3 Dragon Guard failed exactly one probe row: "kill
+  midflight: status JSON coherent after every kill — 11/12 cycles
+  parsed with integral rate rows". Root cause, traced end to end:
+  a positional-rate strict-single writes BOTH legs as two
+  separate inserts into two separate pinned BPF maps
+  (write_policies_for_cgroup: download first, upload second — no
+  cross-map transaction exists), and a SIGKILL landing between
+  them leaves a one-leg row the status JSON surfaces as
+  download_bps=300000, upload_bps=null. That row is
+  byte-identical to the LEGITIMATE -d-only / -u-only apply the
+  CLI documents (USAGE.md; improve-29 even removes the unset leg),
+  so the status surface cannot and must not distinguish them.
+  The probe's predicate, however, demanded isinstance(int) on BOTH
+  legs of every row — an atomicity the kernel cannot provide
+  across two maps and the surface's own one-leg semantics forbid
+  promising; 11/12 was the race window's honest size. Fix
+  (harness-side, the only honest side): coherence is now "the
+  JSON parses, every PRESENT rate is integral, and no row is
+  legless" (_rate_leg_coherent) — the real invariants (parseable
+  JSON, no floats/strings/truncated values, no ghost rows) all
+  stay checked, and the torn-window shape is admitted as the
+  legal intermediate it is. Verified with an 11-case table
+  against the imported module: both torn shapes and the -d-only
+  shape pass; legless rows, float/string/truncated values,
+  unparsable documents, and non-list limits all still fail.
+  Production code is untouched — no zelynic behavior changed.
+
 - **ci: NIGHT-dinner-25 — the rc.3 release wall, part one: the
   crates.io gate dead-locked on a green CI (wait-for-ci.sh's
   completed branch was dead code)** — the owner's v11.0.0-rc.3 tag
