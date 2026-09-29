@@ -21,6 +21,16 @@
 // and aya 0.13.1 pins ByName maps on load — verified against the
 // pinned userspace source, not assumed).
 //
+// One deliberate behavioral delta from the C twin (schema v11,
+// NIGHT-think-like-light-years-3): the init-path inserts below use
+// BPF_NOEXIST, not the C twin's BPF_ANY. The C-era ANY let a racing
+// first-packet initializer wholesale-clobber an entry another CPU
+// had already booked onto or enforced through — the exact
+// lost-update shape NIGHT-improve-29 closed in the observer twin
+// (see the BPF_NOEXIST note at the constant); the limiter twin kept
+// the hole until this task. The loser of the init race now re-looks
+// up and rides the winner's entry.
+//
 // One map is deliberately never touched by this program:
 // schema_version is written by userspace after load (see
 // attach in src/ebpf/limiter/mod.rs) and exists in the BPF object
@@ -120,6 +130,16 @@ use math::{Bucket, LimiterStats, MAX_ENFORCABLE_BURST, Policy, book, enforce};
 /// userspace policy mutation flushes the cache. The bump forces
 /// pinned v9 programs to reload into the subtree-aware object —
 /// the same one-time re-apply contract as every bump before it.
+/// v11 (NIGHT-think-like-light-years-3): the init-path inserts
+/// (get_stats_ptr, get_bucket_ptr) switch from BPF_ANY to
+/// BPF_NOEXIST — under a many-CPU first-packet burst on a fresh
+/// bucket, the ANY flag let a racing initializer wholesale-reset an
+/// entry another CPU was already enforcing through: consumed tokens
+/// resurrected to full burst, the window-ownership stamp rolled back
+/// to re-credit an already-paid window, and booked stats increments
+/// vanished. No layout change, verdict math untouched; the bump
+/// forces pinned v10 programs to reload into the init-race-free
+/// object — the same one-time re-apply contract as v4..v10.
 /// No layout change since v2; each bump forces pinned older
 /// programs to reload into the hardened object — a one-time limit
 /// re-apply, documented in CHANGELOG.
@@ -127,7 +147,7 @@ use math::{Bucket, LimiterStats, MAX_ENFORCABLE_BURST, Policy, book, enforce};
 /// the pinned map after load — so the constant exists purely as the
 /// parity anchor for that three-way contract.
 #[allow(dead_code)]
-const SCHEMA_VERSION: u32 = 10;
+const SCHEMA_VERSION: u32 = 11;
 
 // ---------------------------------------------------------------------------
 // Maps. The static names ARE the userspace contract (limiter/mod.rs
@@ -195,9 +215,15 @@ static cgroup_limiter_stats: HashMap<u32, LimiterStats> = HashMap::pinned(1024, 
 // ---------------------------------------------------------------------------
 
 /// Get or create the stats entry for a cgroup. Ported from the C
-/// `get_stats` helper: an init-then-relookup pair whose insert
-/// result is ignored exactly like the C twin (a failed insert
-/// simply yields None and enforcement continues unbooked).
+/// `get_stats` helper, with the v11 init-flag delta: an
+/// init-then-relookup pair whose insert rides BPF_NOEXIST so a
+/// concurrent initializer's entry is never clobbered by a BPF_ANY
+/// overwrite — the loser of the insert race re-looks up and books
+/// its packet onto the winner's entry (the NIGHT-improve-29 observer
+/// pattern, applied to the limiter twin by think-like-light-years-3).
+/// A failed insert beyond the race (full map) leaves the relookup
+/// returning None and enforcement continues unbooked — the same
+/// fail-open bookkeeping contract the C twin carried.
 #[inline(always)]
 fn get_stats_ptr(cgroup_id: &u32) -> Option<*mut LimiterStats> {
     match cgroup_limiter_stats.get_ptr_mut(cgroup_id) {
@@ -209,17 +235,28 @@ fn get_stats_ptr(cgroup_id: &u32) -> Option<*mut LimiterStats> {
                 bytes_allowed: 0,
                 bytes_dropped: 0,
             };
-            let _ = cgroup_limiter_stats.insert(cgroup_id, &init, 0);
+            let _ = cgroup_limiter_stats.insert(cgroup_id, &init, BPF_NOEXIST);
             cgroup_limiter_stats.get_ptr_mut(cgroup_id)
         }
     }
 }
 
 /// Get or create a bucket in `map` (individual or group), keyed by
-/// cgroup_id or group_id. Ported from the C `get_bucket` helper:
-/// the insert result is ignored exactly like the C twin — a failed
-/// update makes the relookup return None and the caller allows the
-/// packet (never drops on bookkeeping failure).
+/// cgroup_id or group_id. Ported from the C `get_bucket` helper,
+/// with the v11 init-flag delta: the insert rides BPF_NOEXIST so a
+/// racing first-packet initializer can never wholesale-reset an
+/// entry another CPU is already enforcing through — the pre-v11
+/// BPF_ANY let the loser's insert rewind THREE things the winner had
+/// already advanced: consumed tokens resurrected to the full burst
+/// (an over-allow of up to one burst), last_refill_ns rolled back
+/// behind a window the ownership CAS had already credited (a
+/// double-credit bounded only by the 1s elapsed cap), and frac_rem
+/// zeroed. The loser of the init race now re-looks up and enforces
+/// against the winner's entry — one bucket, one birth, no
+/// resurrection. A failed insert beyond the race (the map full,
+/// or a corrupted pin) makes the relookup return None and the
+/// caller allows the packet (never drops on bookkeeping failure) —
+/// the same fail-open contract the C twin carried.
 #[inline(always)]
 fn get_bucket_ptr(
     map: &HashMap<u32, Bucket>,
@@ -235,7 +272,7 @@ fn get_bucket_ptr(
                 last_refill_ns: now,
                 frac_rem: 0,
             };
-            let _ = map.insert(key, &init, 0);
+            let _ = map.insert(key, &init, BPF_NOEXIST);
             map.get_ptr_mut(key)
         }
     }
@@ -247,6 +284,18 @@ fn get_bucket_ptr(
 // one #[inline(always)] helper — the verifier sees the same
 // instructions either way).
 // ---------------------------------------------------------------------------
+
+/// `bpf_map_update_elem` flag: fail the insert if the key already
+/// exists (kernel uapi: BPF_ANY = 0, BPF_NOEXIST = 1, BPF_EXIST = 2).
+/// Schema v11 (NIGHT-think-like-light-years-3): every init-path
+/// insert rides NOEXIST — the loser of a first-packet init race
+/// re-looks up and books onto the winner's entry, never clobbers
+/// it. The observer twin has carried the same flag since
+/// NIGHT-improve-29; the limiter twin's BPF_ANY was the C-era
+/// residue that fix never swept (the one place the SMP story still
+/// had a plain wholesale write: a reset no amount of per-field
+/// atomics downstream could defend against).
+const BPF_NOEXIST: u64 = 1;
 
 /// Shared enforcement flow for one direction. `policy_map` selects
 /// download vs upload; `bucket_map` / `group_bucket_map` are the

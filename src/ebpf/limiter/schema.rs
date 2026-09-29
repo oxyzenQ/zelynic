@@ -69,4 +69,18 @@
 ///     reload into the subtree-aware object — active limits are
 ///     dropped once, re-apply after upgrade, the same contract as
 ///     v4..v9.
-pub const SCHEMA_VERSION_EXPECTED: u32 = 10;
+/// v11 (NIGHT-think-like-light-years-3): the init-path inserts
+///     (get_stats_ptr, get_bucket_ptr in ebpf/src/bin/limiter.rs)
+///     switch from BPF_ANY to BPF_NOEXIST — under a many-CPU
+///     first-packet burst on a fresh bucket, the ANY flag let a
+///     racing initializer wholesale-reset an entry another CPU was
+///     already enforcing through: consumed tokens resurrected to
+///     full burst, the window-ownership stamp rolled back to
+///     re-credit an already-paid window (bounded by the 1s elapsed
+///     cap), and booked stats increments vanished. The loser of the
+///     init race now re-looks up and rides the winner's entry — the
+///     NIGHT-improve-29 observer pattern, applied to the limiter
+///     twin. No layout change, verdict math untouched; the bump
+///     forces pinned v10 programs to reload into the init-race-free
+///     object — the same one-time re-apply contract as v4..v10.
+pub const SCHEMA_VERSION_EXPECTED: u32 = 11;
