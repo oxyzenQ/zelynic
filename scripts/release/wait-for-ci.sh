@@ -220,6 +220,14 @@ echo "[ci-gate] budget:   ${TIMEOUT_SECS}s (grace ${GRACE_SECS}s, poll ${POLL_SE
 
 while :; do
 	summary="$(newest_run)"
+	# NIGHT-dinner-25 regression fix: dinner-12 prepended the run id
+	# to newest_run's output for its re-run targeting, which orphaned
+	# the `completed|*` prefix test this loop used to branch on — the
+	# summary now starts with the numeric run id, so the completed
+	# branch was dead code and a green run polled straight into the
+	# budget timeout (the rc.3 crates.io gate). The fields are parsed
+	# once here; the status FIELD is the branch, never the prefix.
+	IFS='|' read -r run_id status conclusion url <<<"${summary}"
 
 	if [[ -z "${summary}" ]]; then
 		if (($(date +%s) >= grace_until)); then
@@ -229,8 +237,7 @@ while :; do
 			exit 0
 		fi
 		echo "[ci-gate] no ${WORKFLOW_LABEL} run visible yet (commit+tag pushed together?); polling..."
-	elif [[ "${summary}" == completed\|* ]]; then
-		IFS='|' read -r run_id status conclusion url <<<"${summary}"
+	elif [[ "${status}" == "completed" ]]; then
 		if [[ "${conclusion}" == "success" ]]; then
 			echo "[ci-gate] PASS: ${WORKFLOW_LABEL} completed with conclusion=success."
 			echo "[ci-gate] run: ${url}"
@@ -274,7 +281,6 @@ while :; do
 		fi
 		exit 1
 	else
-		IFS='|' read -r run_id status conclusion url <<<"${summary}"
 		echo "[ci-gate] ${WORKFLOW_LABEL} run is ${status} (conclusion so far: ${conclusion}); waiting ${POLL_SECS}s..."
 	fi
 
