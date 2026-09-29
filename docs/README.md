@@ -61,6 +61,7 @@ evidence rather than opinion. The naming convention is
 | Research | Covers |
 |----------|--------|
 | [research/NIGHT_DINNER_5_V10_V11_ERA_COMPARISON.md](research/NIGHT_DINNER_5_V10_V11_ERA_COMPARISON.md) | The v10 vs v11 era comparison, answered live in the sandbox micro-VM: engine, limiter, monitoring, distribution — with the enforced-rate numbers from both eras |
+| [research/NIGHT_PRIVATE_RESEARCH_2_AMMSP_DESIGN.md](research/NIGHT_PRIVATE_RESEARCH_2_AMMSP_DESIGN.md) | The AMMSP design brief: the owner's subtree-coverage directive, the verified root cause (a child cgroup escapes the limit entirely — not separately bucketed), the four candidate designs with the fentry plan's rejection record, the chosen ancestor-walk + LRU memo, the risk register, and the 32-level bound stated plainly |
 | [research/NIGHT_DINNER_14_PRICING_RESEARCH.md](research/NIGHT_DINNER_14_PRICING_RESEARCH.md) | The tier-pricing decision brief: consumer and commercial comparables with sourced prices, analysis against the Individual/Business/Company tiers, and the owner's option matrix — with section 7 recording the executed decision (Business $1,990/yr, Company $14,990/yr, Individual holds), superseded 2026-09-30 by NIGHT-dinner-25's owner calibration: Business $2,199/yr, Company $20,199/yr, the masterpiece rationale — current list in COMMERCIAL_LICENSE.md |
 
 ## Release & Distribution
@@ -78,6 +79,7 @@ project's institutional memory. The naming convention is
 
 | Audit | Covers |
 |-------|--------|
+| [audits/NIGHT_PRIVATE_RESEARCH_2_AMMSP_AUDIT_2026-09-30.md](audits/NIGHT_PRIVATE_RESEARCH_2_AMMSP_AUDIT_2026-09-30.md) | The AMMSP implementation audit: what shipped (the walk, the memo, the flush, the LRU lane twin, the schema-v10 split), the decisions made in the building (nested roots shipped now, the stale GPL comment corrected), the local verification battery, and the honest residuals |
 | [audits/NIGHT_PRIVATE_RESEARCH_3_AUDIT_2026-09-30.md](audits/NIGHT_PRIVATE_RESEARCH_3_AUDIT_2026-09-30.md) | The depth-traffic focus and report-compaction audit: the depth report's basic-census gap closed with the observer focus window (`--focus 1s..30s`), the compact-and-simple pass over status/list-apps/depth, the honest bounds of kernel totals vs endpoint attribution, and the frame A/B parity proof |
 | [audits/RELEASE_ASSET_REGRESSION_2026-09-27.md](audits/RELEASE_ASSET_REGRESSION_2026-09-27.md) | The beta.3/beta.4 asset-less release regression: root cause, three-arm fix, healing procedure |
 | [audits/LIMITER_EAGLE_EYES_DEPTH_AUDIT_2026-09-27.md](audits/LIMITER_EAGLE_EYES_DEPTH_AUDIT_2026-09-27.md) | The limiter and eagle-eyes depth audit: per-dimension verdicts against the eBPF ceiling, two userspace fixes (recover's dead-group sweep, the byte-ranked top consumer), seven doc truths corrected, the counter-map eviction gap deferred to the prebuilt-refresh cycle |

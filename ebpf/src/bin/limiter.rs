@@ -14,7 +14,7 @@
 // ELF contract with src/ebpf/limiter/mod.rs is identical (names,
 // sections, map types, struct layouts, pinning, GPL license): the
 // userspace loader opens every map through EbpfLoader::map_pin_path,
-// so all nine maps declare PIN_BY_NAME exactly like the C twin's
+// so all ten maps declare PIN_BY_NAME exactly like the C twin's
 // LIBBPF_PIN_BY_NAME annotations (aya-ebpf exposes this as
 // HashMap::pinned / Array::pinned, which the map macro emits as the
 // pinning field of the legacy bpf_map_def; aya-obj parses that field
@@ -50,6 +50,24 @@ use aya_ebpf::{
 #[path = "../math.rs"]
 mod math;
 
+// NIGHT-private-research-2 (AMMSP): the resolution core lives in
+// ../ammsp.rs — same discipline as math.rs: pure `core`, zero aya
+// dependencies, wired here with #[path] AND into the userspace test
+// tree, pinned rootlessly by test/ebpf/limiter/ammsp_tests.rs. The
+// walk state machine, the cache decision table, and the depth
+// bound are the pinned surface; the helper calls and map plumbing
+// stay here because only this side can touch them.
+#[path = "../ammsp.rs"]
+mod ammsp;
+
+// The datapath wiring half of AMMSP (NIGHT-private-research-2): the
+// pinned LRU memo map + the ancestor-walk driver — the aya-touching
+// split that holds this file under the 500-LOC owner cap, the same
+// discipline the userspace tree's policy_lines/parse splits set.
+#[path = "../ammsp_resolve.rs"]
+mod ammsp_resolve;
+
+use ammsp_resolve::ammsp_resolve_root;
 use math::{Bucket, LimiterStats, MAX_ENFORCABLE_BURST, Policy, book, enforce};
 
 // ---------------------------------------------------------------------------
@@ -90,7 +108,18 @@ use math::{Bucket, LimiterStats, MAX_ENFORCABLE_BURST, Policy, book, enforce};
 /// erased everywhere else, so a blocked cgroup with traffic on
 /// several CPUs lost drop-accounting increments exactly the way
 /// the pre-v7 ledger lost allowed bytes; verdict unchanged, no
-/// layout change, same one-time re-apply contract).
+/// layout change, same one-time re-apply contract; v10
+/// (NIGHT-private-research-2, AMMSP): the leaf-anchored policy
+/// lookup becomes subtree-aware — a policy written for cgroup A now
+/// polices every socket born under A/** with ONE shared budget,
+/// resolved per packet through the new pinned ammsp_leaf_cache map
+/// (LRU, leaf cgroup id → resolved policy root, 0 = resolved
+/// unlimited) and enforced with bucket + stats keyed at the ROOT, so
+/// the subtree shares the budget and the ledger rolls up to the
+/// target. New map, new coverage, existing layouts; every
+/// userspace policy mutation flushes the cache. The bump forces
+/// pinned v9 programs to reload into the subtree-aware object —
+/// the same one-time re-apply contract as every bump before it.
 /// No layout change since v2; each bump forces pinned older
 /// programs to reload into the hardened object — a one-time limit
 /// re-apply, documented in CHANGELOG.
@@ -98,7 +127,7 @@ use math::{Bucket, LimiterStats, MAX_ENFORCABLE_BURST, Policy, book, enforce};
 /// the pinned map after load — so the constant exists purely as the
 /// parity anchor for that three-way contract.
 #[allow(dead_code)]
-const SCHEMA_VERSION: u32 = 9;
+const SCHEMA_VERSION: u32 = 10;
 
 // ---------------------------------------------------------------------------
 // Maps. The static names ARE the userspace contract (limiter/mod.rs
@@ -245,13 +274,38 @@ fn try_enforce(
     // fail. The reorder keeps every policed-packet semantics
     // bit-identical: when a policy exists, the watchdog read and the
     // timestamp run exactly as before, just after the policy lookup.
-    let cgroup_id = unsafe { bpf_skb_cgroup_id(ctx.skb.skb) } as u32;
+    //
+    // AMMSP (NIGHT-private-research-2) adds exactly ONE lookup to
+    // this fast path's miss branch: the LRU leaf cache, answered
+    // with a resolved 0 for every socket no root covers — the
+    // unlimited majority stays one-lookup-plus-memo, never a walk.
+    // A socket whose OWN cgroup carries the policy (every
+    // pre-AMMSP scenario) still takes the single direct lookup
+    // below — its cgroup IS the root, no resolution runs.
+    let leaf = unsafe { bpf_skb_cgroup_id(ctx.skb.skb) } as u32;
     let pkt_len = ctx.len();
 
-    // Look up the direction's policy. No policy means unlimited.
-    let pol = match policy_map.get_ptr(&cgroup_id) {
-        Some(ptr) => unsafe { &*ptr },
-        None => return 1,
+    // Look up the direction's policy at the socket's own cgroup
+    // first — the nearest possible root. No policy means the leaf
+    // itself is unpoliced, but AMMSP must still ask whether an
+    // ANCESTOR of it is: a strict on cgroup A covers every socket
+    // born under A/** (the subtree contract), resolved per packet.
+    let (cgroup_id, pol) = match policy_map.get_ptr(&leaf) {
+        Some(ptr) => (leaf, unsafe { &*ptr }),
+        None => {
+            let root = ammsp_resolve_root(&ctx, leaf, policy_map);
+            if root == 0 {
+                return 1;
+            }
+            match policy_map.get_ptr(&root) {
+                Some(ptr) => (root, unsafe { &*ptr }),
+                // TOCTOU belt: the policy vanished between the walk
+                // and this lookup (flush + remove raced the packet).
+                // Allow, the same fail-open every bookkeeping miss
+                // here takes — never drop on a map race.
+                None => return 1,
+            }
+        }
     };
 
     // Watchdog check (only policed packets reach here). deadline == 0
@@ -368,9 +422,14 @@ fn panic(_info: &core::panic::PanicInfo) -> ! {
     loop {}
 }
 
-// The license section must stay GPL: bpf_skb_cgroup_id is a
-// GPL-only helper, and the C twin declares GPL. A mismatch here
-// would fail the verifier at program load time on a real host.
+// The license section stays GPL for C-twin parity: the object's
+// declared license has been GPL since the bpf/limiter.bpf.c era and
+// the dual-license contract keeps it so. (Verified against
+// torvalds/linux master and v5.13, net/core/filter.c: bpf_skb_cgroup_id
+// and bpf_skb_ancestor_cgroup_id are both gpl_only = false — the old
+// "GPL-only helper" claim was stale; a mismatch would still fail the
+// verifier at load time on helpers that ARE gpl_only, so the section
+// is cheap insurance either way.)
 #[unsafe(no_mangle)]
 #[unsafe(link_section = "license")]
 static LICENSE: [u8; 4] = *b"GPL\0";

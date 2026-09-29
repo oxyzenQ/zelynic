@@ -219,6 +219,41 @@ construction — the change is kernel-side only) reads parity.
   the fd scan is lazy per matched socket; the pidfd open is lazy
   per PID with sticky failure. Peak for the design.
 
+### NIGHT-private-research-2 A/B (AMMSP — the subtree-aware datapath, 2026-09-30)
+
+The private-research-2 change is datapath work: the AMMSP resolution
+(the leaf's own policy lookup unchanged and first, the LRU memo on
+the miss branch, the ancestor walk on the memo miss, bucket and
+stats keyed at the resolved root). None of it touches the frame
+path — the render surface is byte-identical by construction, and
+the frame A/B is the same class of proof the previous datapath-side
+records used (A = 4223a50, the dinner-25 pricing tree; B = the
+AMMSP tree; single runs, 10 s budget, the standard harness
+protocol; the B side was captured on a container running a
+concurrent CI watch, the fps spread below is that load).
+
+| Metric | 4223a50 (A) | AMMSP (B) | Delta |
+|--------|-------------|-----------|-------|
+| fps (render path) | 7,670.8 | 7,361.5 | -4.0% (container load noise) |
+| bytes/frame | 1,919.0 | 1,919.0 | +0.0% |
+| emit bytes/frame | 504.9 | 510.2 | +1.1% |
+| density gini | 0.3564 | 0.3547 | -0.5% |
+| frame entropy | 2.9992 | 3.0033 | +0.1% |
+| dirty cells/frame | 39.6 | 40.0 | +0.8% |
+
+Reading: PARITY on the render path — bytes/frame identical to the
+decimal again. The datapath's own cost cannot be measured by this
+harness (rootless container, no cgroup v2): it is bounded by design
+and measured by CI — the unlimited majority pays ONE extra map
+lookup per packet (the memo hit), a policed-at-leaf packet pays
+exactly what it always did (one lookup), a new leaf pays one
+bounded walk (real-depth queries plus the break, ~8 at systemd
+depths, then memoized for its lifetime), and a policy mutation
+pays one memo flush (bounded by the 4096-entry cap) plus each live
+leaf one re-walk. The supermassive matrix's test_ammsp_subtree
+stage and its overhead stage own the live measurements on every
+push that touches the limiter.
+
 ### NIGHT-private-research-3 A/B (the depth traffic focus + report compaction, 2026-09-30)
 
 The private-research-3 pass is report-surface work: the eagle-eyes

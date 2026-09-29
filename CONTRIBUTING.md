@@ -78,11 +78,18 @@ src/
     limiter/
       mod.rs           — Limiter struct + lifecycle (attach / open_pinned) + re-exports
       types.rs         — constants + BPF map structs + high-level API types
+      schema.rs        — the BPF schema-version anchor + history (the
+                         NIGHT-private-research-2 split; re-exported
+                         through types.rs)
       format.rs        — rate/duration parsing + formatting helpers
+      parse.rs         — the value parsers (NIGHT-private-research-3 split)
       policy.rs        — apply / resolve / write / delete policy operations
       stats.rs         — status printing + map readers + identity accessors
       reclaim.rs       — bucket/stats slot reclamation on unstrict/recover
-                         (the LTS budget, NIGHT-improve-10)
+                         (the LTS budget, NIGHT-improve-10) + the
+                         u32-keyed map acquisition lanes
+      ammsp.rs         — the AMMSP leaf-cache flush every policy
+                         mutation runs (NIGHT-private-research-2)
     identity/
       mod.rs           — cgroup ID → process name resolution + the canonical
                           /proc boundary helpers (pid_cgroup_id / pid_comm)

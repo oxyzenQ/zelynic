@@ -5,7 +5,12 @@
 //!
 //! Module layout (NIGHT-hunt-3 restructure):
 //! - `types.rs`   — constants + BPF map structs + high-level API types
+//! - `schema.rs`  — the BPF schema-version anchor + its version
+//!   history (split from types.rs at the v10 bump — the one piece
+//!   that grows by design; re-exported through types.rs)
 //! - `format.rs`  — rate/duration parsing + formatting helpers
+//! - `parse.rs`   — the value parsers (the NIGHT-private-research-3
+//!   LOC-cap split from format.rs)
 //! - `policy.rs`  — apply / resolve / write policy operations (the
 //!   unset-direction removal rides the apply, NIGHT-improve-29)
 //! - `policy_lines.rs` — the policy surface's pure line formatters
@@ -13,41 +18,46 @@
 //!   split to hold policy.rs under the 500-LOC owner cap)
 //! - `reclaim.rs` — the remove path (unstrict) + state reclamation
 //! - `stats.rs`   — status printing + map readers + identity accessors
+//! - `ammsp.rs`   — the AMMSP userspace half: the leaf-cache flush
+//!   every policy mutation runs (NIGHT-private-research-2)
 //! - this file    — the `Limiter` struct, lifecycle (attach / open /
 //!   is_pinned / Drop), and the public re-export surface.
 
+mod ammsp;
 mod format;
 mod parse;
 mod policy;
 mod policy_lines;
 mod reclaim;
+mod schema;
 mod stats;
 mod types;
 
-// NIGHT-depthbore-1: the kernel-side enforcement arithmetic is now
-// pinned rootlessly by test/ebpf/limiter/math_tests.rs, which
-// compiles ebpf/src/math.rs — the same file the BPF object builds —
-// into the userspace test tree via its own #[path] wiring (the
-// production source stays owned by the ebpf crate; only the test
-// module reaches across trees).
+// NIGHT-depthbore-1: ebpf/src/math.rs — the same file the BPF
+// object builds — compiles into this test tree via #[path] wiring,
+// pinned rootlessly by test/ebpf/limiter/math_tests.rs.
 #[cfg(test)]
 #[path = "../../../test/ebpf/limiter/math_tests.rs"]
 mod math_tests;
 
-// NIGHT-boost-38: the SMP invariants of the same arithmetic (the
-// lock-free consume/refill/stats protocol that closed the
-// concurrent-flow over-delivery) are pinned rootlessly by
-// test/ebpf/limiter/math_smp_tests.rs — same file, same #[path]
-// discipline, real threads instead of the kernel's CPUs.
+// NIGHT-boost-38: the SMP invariants of the same arithmetic, pinned
+// by test/ebpf/limiter/math_smp_tests.rs (same #[path] discipline,
+// real threads instead of the kernel's CPUs).
 #[cfg(test)]
 #[path = "../../../test/ebpf/limiter/math_smp_tests.rs"]
 mod math_smp_tests;
 
-// Re-export public types/functions for external use.
-// NIGHT-private-research-3's LOC-cap split: the value parsers moved
-// to the parse sibling; the re-export surface here is unchanged in
-// CONTENT (every consumer import resolves identically) — only the
-// two modules behind it did.
+// NIGHT-private-research-2 (AMMSP): the resolution core (walk state
+// machine, cache decision table, depth bound) compiles from
+// ebpf/src/ammsp.rs the same way math.rs does, pinned rootlessly by
+// test/ebpf/limiter/ammsp_tests.rs.
+#[cfg(test)]
+#[path = "../../../test/ebpf/limiter/ammsp_tests.rs"]
+mod ammsp_tests;
+
+// Re-export public types/functions for external use. The
+// NIGHT-private-research-3 LOC-cap split moved the value parsers to
+// the parse sibling with the re-export surface unchanged in content.
 pub use format::{
     format_bytes, format_bytes_wide, format_count, format_rate, monotonic_ns, terminal_width,
 };
@@ -106,10 +116,8 @@ fn pins_operational(
     true
 }
 
-/// Verbose trace line for the attach strategy (NIGHT-hunt-9): the link
-/// mode decides whether limits survive process exit via pinned bpf_links
-/// or the legacy attach whose links leak by design. Pure so the wording
-/// is unit-pinned in the tests below.
+/// Verbose trace line for the attach strategy (NIGHT-hunt-9): pure
+/// so the wording is unit-pinned below.
 fn link_mode_line(supports_link: bool) -> String {
     if supports_link {
         "[limiter] bpf_link supported — programs + links pinned (survive exit)".to_string()
@@ -206,7 +214,7 @@ impl Limiter {
         }
 
         // NIGHT-hunt-28: preflight the pin filesystem BEFORE any pin
-        // attempt. The limiter pins all nine maps by name, and a
+        // attempt. The limiter pins all ten maps by name, and a
         // /sys/fs/bpf that exists but is not a mounted bpf filesystem
         // (the kernel always creates the directory; some distros never
         // mount bpffs on it) turns every BPF_OBJ_PIN into EINVAL deep

@@ -57,10 +57,26 @@ impl super::Limiter {
                 &mut superseded,
             ) {
                 Ok(n) => applied += n,
-                Err(cause) => return Err(self.rollback_partial_apply(&written, cause)),
+                Err(cause) => {
+                    // NIGHT-private-research-2: the rollback below
+                    // still MUTATED the maps (and the flush is the
+                    // AMMSP memo's only addition-side invalidation),
+                    // so the flush runs before the error returns —
+                    // best-effort by the same contract the reclaim
+                    // traces hold, never failing the rollback verdict.
+                    self.ammsp_cache_flush_best_effort();
+                    return Err(self.rollback_partial_apply(&written, cause));
+                }
             }
         }
         self.reclaim_dead_groups(&superseded);
+
+        // AMMSP memo invalidation (NIGHT-private-research-2): the
+        // policies this apply wrote may now cover leaves whose cached
+        // resolution is a stale negative or a stale farther root — the
+        // walk can only see the live map, so the flush is what makes
+        // the addition visible. Once per invocation, after the ledger.
+        self.ammsp_cache_flush_best_effort();
 
         Ok(applied)
     }
@@ -131,10 +147,20 @@ impl super::Limiter {
                 &mut superseded,
             ) {
                 Ok(n) => applied += n,
-                Err(cause) => return Err(self.rollback_partial_apply(&written, cause)),
+                Err(cause) => {
+                    // Same NIGHT-private-research-2 contract as
+                    // apply_single's error path: the rollback still
+                    // mutated, so the flush still runs.
+                    self.ammsp_cache_flush_best_effort();
+                    return Err(self.rollback_partial_apply(&written, cause));
+                }
             }
         }
         self.reclaim_dead_groups(&superseded);
+
+        // AMMSP memo invalidation (NIGHT-private-research-2) — same
+        // once-per-invocation tail as apply_single's.
+        self.ammsp_cache_flush_best_effort();
 
         let group_label = format!("group:{}", group_id);
         if self.verbose {
