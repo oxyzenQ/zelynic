@@ -956,6 +956,30 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Fixed
 
+- **ci: NIGHT-dinner-25 — the rc.3 release wall, part one: the
+  crates.io gate dead-locked on a green CI (wait-for-ci.sh's
+  completed branch was dead code)** — the owner's v11.0.0-rc.3 tag
+  push failed its publish pipeline with "ci-gate timed out after
+  1800s" while the gate's own log printed "ci.yml run is completed
+  (conclusion so far: success)" forty-five times: the run it was
+  waiting for had ALREADY passed. Root cause: NIGHT-dinner-12
+  prepended the run id to newest_run's summary output (the re-run
+  target for the infra carve-out), which orphaned the poll loop's
+  `completed|*` prefix test — the summary now starts with the
+  numeric run id, so the completed branch could never match, and
+  every completed run (green or red) fell into the waiting branch
+  until the budget killed the gate. rc.1, rc.2, and beta.4 passed
+  only because their tags predate that commit. Fix: the four fields
+  are parsed once at the top of the poll loop and the status FIELD
+  is the branch — `elif [[ "${status}" == "completed" ]]` — which
+  restores the success/failure/cancelled decision table and the
+  dinner-12 re-run machinery to reachable code. Verified live
+  against a local mock of the Actions API: the pre-fix script
+  reproduces the rc.3 hang byte-for-byte (a completed+success run
+  polling straight into the timeout), the fixed script passes
+  instantly, and an in_progress run still polls (no premature
+  pass).
+
 - **truth: the E1 rider's LRU swap left the leaderboard bound's
   rationale stale — three comments, one stability row, and USAGE
   limitation 11 re-derived** — `MAX_TRACKED_CGROUPS`
