@@ -19,6 +19,55 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Changed
 
+- **limiter+monitor: NIGHT-think-like-light-years-3 — the extreme-burst
+  endurance re-audit: the init-path wholesale reset closed (schema
+  v11) and the dense-host poll merge goes linear** (the owner's
+  mandate: depth-audit the limiter and monitoring until peak for LTS
+  usage, with the three questions — endurance under ultra loads and
+  bursts, ultra-scale on servers, adaptive flex to low hardware —
+  answered against the source, not the docs). The hunt's headline
+  finding: `get_stats_ptr` and `get_bucket_ptr`
+  (ebpf/src/bin/limiter.rs) still inserted their init values with
+  BPF_ANY — the C-era flag NIGHT-improve-29 swept out of the
+  observer twin but never out of the limiter twin, and the one
+  plain wholesale write the v7/v8/v9 field-level SMP story had left
+  standing. Under a many-CPU first-packet burst on a fresh bucket,
+  a racing initializer could wholesale-reset an entry another CPU
+  was already enforcing through: consumed tokens resurrected to
+  the full burst (an over-allow of up to one burst),
+  last_refill_ns rolled back behind a window the ownership CAS had
+  already credited (a double-credit bounded only by the 1s elapsed
+  cap), frac_rem zeroed, and on the stats twin every increment
+  booked before the reset vanished. The fix is the improve-29
+  pattern verbatim — BPF_NOEXIST, the loser of the init race
+  re-looks up and rides the winner's entry: one bucket, one birth,
+  no resurrection; full-map inserts fail identically (E2BIG then
+  the same fail-open relookup), so the 1024/256-slot endurance
+  budget and the fail-open contract are unchanged. Schema v11, no
+  layout change, verdict math untouched — pinned v10 programs
+  reload into the init-race-free object on the next strict
+  invocation, the same one-time limit re-apply contract as
+  v4..v10 (active limits are dropped once; re-apply after
+  upgrade). Landed through the sanctioned prebuilt-refresh cycle:
+  limiter object rebuilt (ed1c297a), observer object reproduced
+  byte-identically from untouched sources (5adb44ca), parity gate
+  green on the new tree pin. The same audit's userspace close: the
+  monitor's poll merge (src/ebpf/loader.rs) dropped its linear
+  `iter_mut().find()` — O(egress x ingress) per poll, ~8.4M
+  comparisons at the 4096-entry counter-map ceiling, the one
+  superlinear spot in the poll path on a dense host — for a
+  u32-to-position index that merges in O(n) with the vector's
+  order and every output byte identical. The three-question
+  verdicts, the closed suspects (prev_stats baselines, the u32
+  key contract, the dormant watchdog, the AMMSP depth bound), and
+  the declined investments (shaping as a different product class,
+  per-CPU maps, auto-resizing maps) are on the record in
+  docs/audits/NIGHT_THINK_LIKE_LIGHT_YEARS_3_AUDIT_2026-09-30.md;
+  STABILITY.md's silent-killer inventory and endurance table carry
+  the v11 rows. Verified: fmt + ebpf fmt clean, clippy
+  --all-targets --all-features -D warnings clean, 506 + 46 tests
+  green (schema pin now v11).
+
 - **docs: NIGHT-dinner-25 — the business end of the ladder lifts
   again: Business $2,199/year, Company $20,199/year, and the
   unauthorized-use warning gets its teeth** (the owner's
