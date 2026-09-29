@@ -10,7 +10,8 @@
 //! the flag must never trigger the note — this file pins both
 //! directions so the two tables cannot drift apart.
 
-use super::{command_honors_print_json, print_json_ignored_note, Commands};
+use super::scope::print_json_ignored_note;
+use super::{command_honors_print_json, Commands};
 
 /// The note's exact shape: the flag name, the word "ignored", the
 /// parenthesized surface list. A script owner reads this line once
@@ -59,6 +60,7 @@ fn note_and_classification_agree_both_ways() {
             "eagle-eyes --depth" => command_honors_print_json(Some(&Commands::EagleEyes {
                 targets: Some("12345".to_string()),
                 interval: None,
+                focus: None,
                 depth: true,
             })),
             "doctor" => command_honors_print_json(Some(&Commands::Doctor)),
@@ -83,6 +85,7 @@ fn note_and_classification_agree_both_ways() {
         !command_honors_print_json(Some(&Commands::EagleEyes {
             targets: None,
             interval: None,
+            focus: None,
             depth: false
         })),
         "the live monitor renders a TUI, not a JSON document"
@@ -98,11 +101,13 @@ fn depth_report_honors_the_flag_live_monitor_does_not() {
     assert!(command_honors_print_json(Some(&Commands::EagleEyes {
         targets: Some("12345".to_string()),
         interval: None,
+        focus: None,
         depth: true
     })));
     assert!(!command_honors_print_json(Some(&Commands::EagleEyes {
         targets: Some("12345".to_string()),
         interval: None,
+        focus: None,
         depth: false
     })));
 }

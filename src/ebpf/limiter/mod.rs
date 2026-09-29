@@ -17,6 +17,7 @@
 //!   is_pinned / Drop), and the public re-export surface.
 
 mod format;
+mod parse;
 mod policy;
 mod policy_lines;
 mod reclaim;
@@ -43,9 +44,15 @@ mod math_tests;
 mod math_smp_tests;
 
 // Re-export public types/functions for external use.
+// NIGHT-private-research-3's LOC-cap split: the value parsers moved
+// to the parse sibling; the re-export surface here is unchanged in
+// CONTENT (every consumer import resolves identically) — only the
+// two modules behind it did.
 pub use format::{
-    format_bytes, format_bytes_wide, format_count, format_rate, monotonic_ns,
-    parse_monitor_interval, parse_rate, parse_time_duration, terminal_width, validate_rate,
+    format_bytes, format_bytes_wide, format_count, format_rate, monotonic_ns, terminal_width,
+};
+pub use parse::{
+    parse_focus_window, parse_monitor_interval, parse_rate, parse_time_duration, validate_rate,
 };
 pub use types::{Direction, LimiterStatsRaw, PolicyRaw, RateSpec, Target, LIMITER_ELF};
 

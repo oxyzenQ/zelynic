@@ -305,10 +305,13 @@ fn active_limits_wording_is_lowercase() {
     );
 }
 
-/// The branch frames carry the flagship chrome in the owner's line
-/// order: title bar, breathing gap, the story line(s), gap, stamp.
-/// The clean state's single line names the verdict; the stale state
-/// carries the warn finding and the suggestion-white command.
+/// The branch frames carry the flagship chrome in the owner's
+/// NIGHT-private-research-3 compact order: title bar, the story
+/// line(s), stamp — the engrave-5 breathing gaps retired with the
+/// rest of the report-surface fillers (the more-compact-and-simple
+/// directive). The clean state's single line names the verdict; the
+/// stale state carries the warn finding and the suggestion-white
+/// command.
 #[test]
 fn status_branch_frames_carry_the_flagship_chrome() {
     for (name, lines, story_rows) in [
@@ -317,8 +320,8 @@ fn status_branch_frames_carry_the_flagship_chrome() {
     ] {
         assert_eq!(
             lines.len(),
-            story_rows + 4,
-            "{name}: title + gap + {story_rows} story + gap + stamp, got {} lines",
+            story_rows + 2,
+            "{name}: title + {story_rows} story + stamp, zero filler, got {} lines",
             lines.len()
         );
         assert!(
@@ -326,7 +329,10 @@ fn status_branch_frames_carry_the_flagship_chrome() {
             "{name}: the eagle title bar opens the frame, got: {}",
             lines[0]
         );
-        assert!(lines[1].is_empty(), "{name}: breathing gap under the title");
+        assert!(
+            !lines.iter().any(|l| l.is_empty()),
+            "{name}: the compact frame carries no blank filler lines"
+        );
         assert!(
             lines[lines.len() - 1].contains("by oxyzenQ"),
             "{name}: the signature stamp closes the frame, got: {}",
@@ -336,20 +342,20 @@ fn status_branch_frames_carry_the_flagship_chrome() {
 
     let clean = status_clean_lines(60);
     assert!(
-        clean[2].contains("no active limits"),
+        clean[1].contains("no active limits"),
         "the clean verdict, got: {}",
-        clean[2]
+        clean[1]
     );
 
     let stale = status_stale_lines(60);
     assert!(
-        stale[2].contains("stale bpf pin files detected"),
+        stale[1].contains("stale bpf pin files detected"),
         "the stale finding, got: {}",
-        stale[2]
+        stale[1]
     );
     assert!(
-        stale[3].contains("'zelynic recover'"),
+        stale[2].contains("'zelynic recover'"),
         "the recovery command, got: {}",
-        stale[3]
+        stale[2]
     );
 }

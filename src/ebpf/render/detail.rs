@@ -128,13 +128,19 @@ fn socket_bytes_of<'a>(
 /// Is this socket worth a detail line? Established TCP and connected
 /// UDP carry traffic; LISTEN/TIME_WAIT rows are noise.
 ///
+/// NIGHT-private-research-3: pub(crate) — the depth report's
+/// network-traffic focus applies the exact same census gate to its
+/// endpoint rows (the traffic question wants movers and candidates,
+/// not listener noise), so the gate is shared, not duplicated (a
+/// second copy is how the two surfaces drift).
+///
 /// The UDP branch needs the remote guard (NIGHT-hunt-15):
 /// /proc/net/udp reports state 07 (CLOSE) for connected AND
 /// unconnected sockets alike, so a bound-only listener (chronyd,
 /// systemd-resolved, mDNS) would otherwise render as `udp 0.0.0.0:0`
 /// noise under its cgroup row. A real remote endpoint never carries
 /// port 0, and both `0.0.0.0:0` and `[::]:0` end in `:0`.
-fn is_displayable(socket: &SocketInfo) -> bool {
+pub(crate) fn is_displayable(socket: &SocketInfo) -> bool {
     match socket.proto {
         Proto::Tcp => socket.state == "ESTABLISHED",
         // /proc/net/udp uses state 07 for a connected UDP socket.

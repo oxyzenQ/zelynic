@@ -13,6 +13,8 @@ use crate::ebpf::identity::depth::{CgroupDepth, CgroupResources, ProcessFacts};
 use crate::ebpf::limiter::{LimiterStatsRaw, PolicyRaw};
 use crate::ebpf::render::report::{DepthReport, Enforcement};
 
+use std::collections::HashMap;
+
 /// A raw policy row for fixtures (rate, matching burst, group 0).
 fn policy(rate_bps: u64) -> Option<PolicyRaw> {
     Some(PolicyRaw {
@@ -58,6 +60,8 @@ fn report_fixture(enforcement: Enforcement) -> DepthReport {
         enforcement,
         enforcement_stats: None,
         conns: None,
+        traffic: None,
+        traffic_note: None,
     }
 }
 
@@ -117,6 +121,9 @@ fn json_document_shape_is_the_scripting_contract() {
     assert!(text.contains("\"enforcement_stats\":null"));
     assert!(text.contains("\"cgroup_memory_bytes\":null"));
     assert!(text.contains("\"cgroup_cpu_usage_usec\":null"));
+    // NIGHT-private-research-3: an unmeasured window is null too — a
+    // script can tell "no window ran" from "zero traffic moved".
+    assert!(text.contains("\"traffic\":null"));
 }
 
 /// NIGHT-blade-7: the deleted-on-disk exe flag rides the scripting
@@ -132,6 +139,87 @@ fn json_carries_the_deleted_exe_flag() {
         text.contains("\"exe_deleted\":true"),
         "the deleted marker must serialize as true, got:\n{text}"
     );
+}
+
+/// NIGHT-private-research-3: the focus-window measurement rides the
+/// document — the kernel's own window totals under `traffic`, the
+/// per-endpoint attribution under each endpoint row's byte fields.
+/// A socket the join resolved carries figures; a cookie-less or
+/// silent socket carries nulls (the honest absence, never a
+/// fabricated zero); a window that never ran carries `traffic: null`
+/// (distinguishable from a zero-traffic window that DID run).
+#[test]
+fn json_carries_the_traffic_focus_window() {
+    use crate::ebpf::connections::{CgroupConnections, ProcessDetail, Proto, SocketInfo};
+    use crate::ebpf::loader::{CgroupDelta, SocketBytes};
+    use crate::ebpf::render::depth_traffic::{traffic_focus, TrafficFocus};
+
+    let mut conns = crate::ebpf::connections::ConnectionMap::new();
+    conns.insert(
+        1234,
+        CgroupConnections {
+            total_procs: 1,
+            socket_holders: vec![ProcessDetail {
+                pid: 4242,
+                comm: "curl".to_string(),
+                sockets: vec![
+                    SocketInfo {
+                        proto: Proto::Tcp,
+                        remote: "142.250.191.78:443".to_string(),
+                        state: "ESTABLISHED",
+                        queued: false,
+                        cookie: Some(1001),
+                    },
+                    SocketInfo {
+                        proto: Proto::Tcp,
+                        remote: "93.184.216.34:443".to_string(),
+                        state: "ESTABLISHED",
+                        queued: false,
+                        cookie: Some(1002),
+                    },
+                ],
+            }],
+        },
+    );
+    let mut socket_bytes = HashMap::new();
+    socket_bytes.insert(
+        1001,
+        SocketBytes {
+            dl: 10_000_000,
+            ul: 300_000,
+        },
+    );
+    // cookie 1002 stays unjoined: the honest-absence branch.
+    let deltas = vec![CgroupDelta {
+        cgroup_id: 1234,
+        packets: 3,
+        bytes: 300_000,
+        total_bytes: 0,
+        ingress_packets: 100,
+        ingress_bytes: 10_000_000,
+        ingress_total_bytes: 0,
+    }];
+    let focus: TrafficFocus = traffic_focus(1234, 3, &deltas, Some(&conns), &socket_bytes);
+
+    let mut report = report_fixture(Enforcement::Unlimited);
+    report.conns = conns.get(1234).cloned();
+    report.traffic = Some(focus);
+    let doc = depth_doc_json(&[report], &[]);
+    let text = serde_json::to_string(&doc).expect("serializes");
+    for field in [
+        "\"traffic\":{\"window_secs\":3,\"download_bytes\":10000000,\"upload_bytes\":300000}",
+        "\"remote\":\"142.250.191.78:443\"",
+        "\"download_bytes\":10000000",
+        "\"upload_bytes\":300000",
+        "\"remote\":\"93.184.216.34:443\"",
+        "\"download_bytes\":null",
+        "\"upload_bytes\":null",
+    ] {
+        assert!(
+            text.contains(field),
+            "the private-research-3 JSON contract must carry {field}, got:\n{text}"
+        );
+    }
 }
 
 /// NIGHT-blade-5: the ledger and the controller's resource view ride

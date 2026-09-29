@@ -65,6 +65,8 @@ fn report_fixture(enforcement: Enforcement) -> DepthReport {
         enforcement,
         enforcement_stats: None,
         conns: None,
+        traffic: None,
+        traffic_note: None,
     }
 }
 
@@ -113,8 +115,12 @@ fn enforcement_words_and_sentences_match_the_verdicts() {
     assert!(enforcement_sentence(&one_sided).contains("ul unlimited"));
 }
 
-/// The text report carries the owner's field spine verbatim — every
-/// field the depth spec named — and no line escapes the width budget.
+/// The text report carries the owner's field spine — every fact the
+/// depth spec named, in the NIGHT-private-research-3 compact shape:
+/// the headline IS the package id + name (the kv spine's twin
+/// `package id`/`package name` lines died as duplicates of it), the
+/// user and exe directory share one `run from` line, and no line
+/// escapes the width budget.
 #[test]
 fn report_lines_carry_the_owner_field_spine() {
     let report = report_fixture(Enforcement::Limited {
@@ -124,18 +130,15 @@ fn report_lines_carry_the_owner_field_spine() {
     let lines = depth_report_lines(&[report], 90);
     let text = lines.join("\n");
     // Label and value asserted separately: the labels ride a padded
-    // 15-column block, so a label+value single string would pin the
+    // column block, so a label+value single string would pin the
     // padding by accident.
     for label in [
         "zelynic eagle-eyes --depth",
         "cg:1234 — cat-test",
-        "package id:",
-        "package name:",
-        "run from user:",
-        "run from path:",
-        "cgroup path:",
+        "run from:",
+        "cgroup:",
         "enforcement:",
-        "time:",
+        "started:",
         "command:",
     ] {
         assert!(
@@ -148,7 +151,7 @@ fn report_lines_carry_the_owner_field_spine() {
         "uid 1000 (cat)",
         "/home/cat",
         "/sys/fs/cgroup/cat-test",
-        "since started at 10m:20s ago",
+        "10m:20s ago",
         "./cat-test --serve",
         "binary",
         "755",
@@ -159,6 +162,28 @@ fn report_lines_carry_the_owner_field_spine() {
             "the report must carry '{value}', got:\n{text}"
         );
     }
+    // The compact spine's retired duplicates: the headline carries
+    // the package identity, so the kv block must not restate it.
+    for retired in [
+        "package id:",
+        "package name:",
+        "run from user:",
+        "run from path:",
+        "cgroup path:",
+    ] {
+        assert!(
+            !text.contains(retired),
+            "the compact spine retired '{retired}' (the headline or a merged line carries it), got:\n{text}"
+        );
+    }
+    // The compact pass: zero filler blank lines inside a single
+    // target block (the title bar and the grid lines do the
+    // separating; only multi-target blocks keep one blank between
+    // them — a real separator between distinct objects).
+    assert!(
+        !lines.iter().any(|l| l.is_empty()),
+        "a one-target report carries no blank filler lines, got:\n{text}"
+    );
     for line in &lines {
         assert!(
             crate::output::display_width(line) <= 90,
@@ -176,8 +201,10 @@ fn empty_cgroup_renders_the_empty_census() {
     let lines = depth_report_lines(&[report], 90);
     let text = lines.join("\n");
     assert!(text.contains("no live processes"), "got: {text}");
-    assert!(text.contains("package name:"), "got: {text}");
-    assert!(text.contains("unknown"), "got: {text}");
+    assert!(
+        text.contains("unknown · unknown"),
+        "the compact spine's merged unknown line, got: {text}"
+    );
 }
 
 /// The socket section lists endpoints and folds the overflow into
@@ -268,8 +295,8 @@ fn ledger_and_resource_rows_render_only_when_present() {
         "no ledger, no accounting row, got:\n{without}"
     );
     assert!(
-        !without.contains("cgroup memory:"),
-        "no controller view, no memory row, got:\n{without}"
+        !without.contains("resources:"),
+        "no controller view, no resources row, got:\n{without}"
     );
 
     report.enforcement_stats = Some(LimiterStatsRaw {
@@ -288,12 +315,16 @@ fn ledger_and_resource_rows_render_only_when_present() {
         "the ledger row must render, got:\n{with}"
     );
     assert!(
-        with.contains("cgroup memory:"),
-        "the memory row must render, got:\n{with}"
+        with.contains("resources:"),
+        "the compact resources row must render, got:\n{with}"
     );
     assert!(
-        with.contains("cgroup cpu:"),
-        "the cpu row must render, got:\n{with}"
+        with.contains("memory"),
+        "the memory half of the resources row, got:\n{with}"
+    );
+    assert!(
+        with.contains("cpu"),
+        "the cpu half of the resources row, got:\n{with}"
     );
 }
 
@@ -370,16 +401,18 @@ fn census_marks_the_deleted_exe() {
     }
 }
 
-/// NIGHT-blade-5: the act-on-this tail — every report block ends
-/// with the three copy-paste commands, keyed to the exact cgroup the
-/// report just dissected (the cg: id round-trips through the same
-/// autodetection that resolved the target).
+/// NIGHT-blade-5 + private-research-3: the act tail — every report
+/// block ends with the three copy-paste commands, keyed to the exact
+/// cgroup the report just dissected (the cg: id round-trips through
+/// the same autodetection that resolved the target). The compact
+/// pass merged the header into the first line: `act:` rides it, the
+/// commands name their own verbs.
 #[test]
-fn report_ends_with_the_act_on_this_tail() {
+fn report_ends_with_the_act_tail() {
     let report = report_fixture(Enforcement::Unlimited);
     let text = depth_report_lines(&[report], 100).join("\n");
     for tip in [
-        "act on this:",
+        "act:",
         "zelynic strict-single cg:1234 500kb",
         "zelynic block-single cg:1234",
         "zelynic ee cg:1234",

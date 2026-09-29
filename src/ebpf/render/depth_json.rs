@@ -28,6 +28,7 @@
 
 use crate::ebpf::identity::depth::ProcessFacts;
 use crate::ebpf::limiter::LimiterStatsRaw;
+use crate::ebpf::render::depth_traffic::TrafficFocus;
 use crate::ebpf::render::report::{cgroup_abs_path, oldest_started_secs, representative};
 
 use super::report::{DepthReport, Enforcement};
@@ -56,7 +57,10 @@ pub struct ProcJson {
     pub started_epoch: Option<u64>,
 }
 
-/// One endpoint row of the JSON document.
+/// One endpoint row of the JSON document. The two byte fields
+/// (NIGHT-private-research-3) carry the endpoint's focus-window
+/// bytes when a window ran and the cookie join resolved this
+/// socket; null otherwise — absence, never zero-as-fact.
 #[derive(serde::Serialize)]
 pub struct EndpointJson {
     pub pid: u32,
@@ -64,6 +68,27 @@ pub struct EndpointJson {
     pub proto: &'static str,
     pub remote: String,
     pub state: &'static str,
+    /// Focus-window download bytes (null = no measured window, or
+    /// the join resolved no entry for this socket's cookie).
+    pub download_bytes: Option<u64>,
+    /// Focus-window upload bytes (null = the same absence).
+    pub upload_bytes: Option<u64>,
+}
+
+/// The focus-window measurement for one cgroup
+/// (NIGHT-private-research-3): the kernel's own window totals. The
+/// per-endpoint attribution rides each endpoint row — its sum can
+/// sit below these totals (sockets that died mid-window stay booked
+/// in the kernel maps but leave the /proc census), both numbers are
+/// true, they answer different questions.
+#[derive(serde::Serialize)]
+pub struct TrafficJson {
+    /// The measured focus window in seconds.
+    pub window_secs: u64,
+    /// Download bytes the cgroup moved in the window (kernel truth).
+    pub download_bytes: u64,
+    /// Upload bytes the cgroup moved in the window (kernel truth).
+    pub upload_bytes: u64,
 }
 
 /// The kernel's enforcement ledger for one cgroup (NIGHT-blade-5):
@@ -106,6 +131,11 @@ pub struct DepthTargetJson {
     pub processes: usize,
     pub socket_holders: usize,
     pub sockets: usize,
+    /// The focus-window measurement (NIGHT-private-research-3;
+    /// null = the window did not run — observer attach or poll
+    /// failed, the honest absence a script can distinguish from a
+    /// zero-traffic window).
+    pub traffic: Option<TrafficJson>,
     pub procs: Vec<ProcJson>,
     pub endpoints: Vec<EndpointJson>,
 }
@@ -138,6 +168,16 @@ fn stats_json(stats: &Option<LimiterStatsRaw>) -> Option<EnforcementStatsJson> {
         packets_dropped: s.packets_dropped,
         bytes_allowed: s.bytes_allowed,
         bytes_dropped: s.bytes_dropped,
+    })
+}
+
+/// The focus-window object as JSON (None stays null — the honest
+/// absence, never a fabricated zero-traffic window).
+fn traffic_json(focus: &Option<TrafficFocus>) -> Option<TrafficJson> {
+    focus.as_ref().map(|f| TrafficJson {
+        window_secs: f.window_secs,
+        download_bytes: f.dl_bytes,
+        upload_bytes: f.ul_bytes,
     })
 }
 
@@ -178,6 +218,7 @@ pub fn depth_doc_json(reports: &[DepthReport], misses: &[(String, String)]) -> D
             processes: report.depth.procs.len(),
             socket_holders: holders,
             sockets,
+            traffic: traffic_json(&report.traffic),
             procs: report
                 .depth
                 .procs
@@ -206,16 +247,28 @@ pub fn depth_doc_json(reports: &[DepthReport], misses: &[(String, String)]) -> D
                 c.socket_holders
                     .iter()
                     .flat_map(|h| {
-                        h.sockets.iter().map(move |s| EndpointJson {
-                            pid: h.pid,
-                            comm: h.comm.clone(),
-                            proto: if s.proto == crate::ebpf::connections::Proto::Tcp {
-                                "tcp"
-                            } else {
-                                "udp"
-                            },
-                            remote: s.remote.clone(),
-                            state: s.state,
+                        h.sockets.iter().map(move |s| {
+                            // The focus window's cookie join, exact
+                            // key: figures when the window ran and
+                            // resolved this socket's cookie, null
+                            // otherwise (the honest absence — the
+                            // same lookup the endpoint rows read).
+                            let joined = report.traffic.as_ref().and_then(|f| {
+                                s.cookie.and_then(|cookie| f.bytes.get(&cookie).copied())
+                            });
+                            EndpointJson {
+                                pid: h.pid,
+                                comm: h.comm.clone(),
+                                proto: if s.proto == crate::ebpf::connections::Proto::Tcp {
+                                    "tcp"
+                                } else {
+                                    "udp"
+                                },
+                                remote: s.remote.clone(),
+                                state: s.state,
+                                download_bytes: joined.map(|b| b.dl),
+                                upload_bytes: joined.map(|b| b.ul),
+                            }
                         })
                     })
                     .collect()

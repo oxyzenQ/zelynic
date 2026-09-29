@@ -3,10 +3,14 @@
 
 //! Pins for the eagle-eyes --depth handler (NIGHT-master-1): the
 //! shared '/'-separated target grammar both monitor modes speak, and
-//! the parse-before-execute ladder — a missing target and an empty
-//! spec both surface BEFORE the root guard, so the pins are
-//! deterministic on any uid (the same ladder the live monitor's
-//! interval/target pins hold).
+//! the parse-before-execute ladder — a missing target, an empty
+//! spec, and a bad focus window all surface BEFORE the root guard,
+//! so the pins are deterministic on any uid (the same ladder the
+//! live monitor's interval/target pins hold).
+//!
+//! NIGHT-private-research-3: the --focus window pins — the traffic
+//! window's grammar (the shared duration parser), its 1s..30s
+//! bounds, and the parse-before-root ordering.
 
 use super::*;
 
@@ -52,7 +56,7 @@ fn spec_parse_accepts_names_ids_and_cg_prefix() {
 /// invocation (`zelynic ee --depth`) teaches the target it needs.
 #[test]
 fn depth_without_target_surfaces_before_root_guard() {
-    let err = handle_eagle_eyes_depth(None, false, false).expect_err("no target must fail");
+    let err = handle_eagle_eyes_depth(None, None, false, false).expect_err("no target must fail");
     let msg = format!("{err}");
     assert!(
         msg.contains("--depth needs a TARGET"),
@@ -72,13 +76,68 @@ fn depth_without_target_surfaces_before_root_guard() {
 /// also before the root guard (the live monitor's own pin shape).
 #[test]
 fn empty_spec_under_depth_surfaces_before_root_guard() {
-    let err = handle_eagle_eyes_depth(Some("/"), false, false).expect_err("empty spec must fail");
+    let err =
+        handle_eagle_eyes_depth(Some("/"), None, false, false).expect_err("empty spec must fail");
     let msg = format!("{err}");
     assert!(msg.contains("No targets in"), "got: {msg}");
     assert!(
         !msg.contains("root required"),
         "the spec error must precede the root guard, got: {msg}"
     );
+}
+
+/// NIGHT-private-research-3: a typo'd focus window surfaces the
+/// duration grammar's error with its did-you-mean tip, BEFORE the
+/// root guard — the same fail-fast ladder every flag validation owns
+/// (safe on any uid: the parse returns before any observer work).
+#[test]
+fn focus_window_typo_surfaces_before_root_guard() {
+    let err = handle_eagle_eyes_depth(Some("brave"), Some("3min"), false, false)
+        .expect_err("a typo'd focus window must fail");
+    let msg = format!("{err}");
+    assert!(
+        msg.contains("Invalid duration '3min'"),
+        "the duration error must lead (the shared grammar), got: {msg}"
+    );
+    assert!(
+        msg.contains("tip: a similar value exists: '3m'"),
+        "the duration typo tip rides along, got: {msg}"
+    );
+    assert!(
+        !msg.contains("root required"),
+        "the focus error must precede the root guard, got: {msg}"
+    );
+}
+
+/// NIGHT-private-research-3: the focus window's 1s..30s bounds —
+/// the same bounds-spelled-out error shape the monitor interval
+/// owns, surfaced before the privilege ask.
+#[test]
+fn focus_window_bounds_surface_before_root_guard() {
+    for bad in ["0", "31", "60s", "1m"] {
+        let err = handle_eagle_eyes_depth(Some("brave"), Some(bad), false, false)
+            .expect_err("an out-of-bounds focus window must fail");
+        let msg = format!("{err}");
+        assert!(
+            msg.contains("must be between 1s and 30s"),
+            "focus '{bad}' must name the bounds, got: {msg}"
+        );
+        assert!(
+            !msg.contains("root required"),
+            "the bounds error must precede the root guard, got: {msg}"
+        );
+    }
+    // The legal edge values parse (and then fail on the root guard —
+    // the proof the bounds check PASSED for them).
+    for good in ["1", "1s", "30", "30s"] {
+        let err = handle_eagle_eyes_depth(Some("brave"), Some(good), false, false)
+            .expect_err("an in-bounds window proceeds to the root guard");
+        let msg = format!("{err}");
+        assert!(
+            msg.contains("root required"),
+            "focus '{good}' parses — the ladder reached the root guard, got: {msg}"
+        );
+    }
 }
 
 // ── NIGHT-dinner-18: the launch-time liveness gate pins ───────────

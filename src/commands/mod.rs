@@ -369,6 +369,7 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
         Some(Commands::EagleEyes {
             targets,
             interval,
+            focus,
             depth,
         }) => {
             #[cfg(feature = "ebpf")]
@@ -387,14 +388,33 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
                             )
                         );
                     }
-                    eagle::handle_eagle_eyes_depth(targets.as_deref(), cli.print_json, cli.verbose)
+                    eagle::handle_eagle_eyes_depth(
+                        targets.as_deref(),
+                        focus.as_deref(),
+                        cli.print_json,
+                        cli.verbose,
+                    )
                 } else {
+                    // NIGHT-private-research-3: the mirror image of
+                    // the --interval note above — --focus is the
+                    // one-shot report's traffic window, and the live
+                    // monitor needs no window (its frames ARE one).
+                    // One stderr note, stdout and exit codes
+                    // untouched (the ignored-note contract).
+                    if focus.is_some() {
+                        eprintln_safe!(
+                            "{}",
+                            crate::output::warn_bold(
+                                "--focus ignored (the live monitor is already continuous — it owns --depth's traffic-window job)"
+                            )
+                        );
+                    }
                     monitor::handle_eagle_eyes(targets.as_deref(), interval.as_deref(), cli.verbose)
                 }
             }
             #[cfg(not(feature = "ebpf"))]
             {
-                let _ = (targets, interval, depth, cli.verbose);
+                let _ = (targets, interval, focus, depth, cli.verbose);
                 ebpf_disabled()
             }
         }

@@ -179,30 +179,31 @@ fn active_limits_line(dl: usize, ul: usize) -> String {
     grey(&format!("  active limits: {dl} dl, {ul} ul"))
 }
 
-/// The clean-state frame (no pins, NIGHT-engrave-5): the flagship
-/// chrome and one grey line — "no active limits" is a verdict, not
-/// an absence of output. The title bar spans the terminal width
-/// (there is no table to size to).
+/// The clean-state frame (no pins, NIGHT-engrave-5; compacted in
+/// NIGHT-private-research-3): the flagship chrome and one grey line
+/// — "no active limits" is a verdict, not an absence of output.
+/// The title bar spans the terminal width (there is no table to
+/// size to). The compact pass retired the breathing-gap fillers on
+/// every report surface (the owner's more-compact-and-simple
+/// directive): title, verdict, stamp — zero filler lines.
 #[must_use]
 pub(crate) fn status_clean_lines(width: usize) -> Vec<String> {
     vec![
         title_bar("zelynic status", width),
-        String::new(),
         grey("  no active limits"),
-        String::new(),
         format!("  {}", signature_footer()),
     ]
 }
 
-/// The stale-pins frame (NIGHT-engrave-5): the flagship chrome with
-/// the warning in warn yellow and the recovery command in suggestion
-/// white — the same actionable-accent contract the monitor's limit
-/// suggestion line carries.
+/// The stale-pins frame (NIGHT-engrave-5; compacted in
+/// NIGHT-private-research-3): the flagship chrome with the warning
+/// in warn yellow and the recovery command in suggestion white —
+/// the same actionable-accent contract the monitor's limit
+/// suggestion line carries, zero filler lines.
 #[must_use]
 pub(crate) fn status_stale_lines(width: usize) -> Vec<String> {
     vec![
         title_bar("zelynic status", width),
-        String::new(),
         warn("  stale bpf pin files detected (partial enforcement state)"),
         format!(
             "  {} {} {}",
@@ -210,7 +211,6 @@ pub(crate) fn status_stale_lines(width: usize) -> Vec<String> {
             suggestion("'zelynic recover'"),
             grey("to clean up, then re-apply limits")
         ),
-        String::new(),
         format!("  {}", signature_footer()),
     ]
 }
@@ -273,13 +273,13 @@ pub fn print_status(
     }
 
     let sep_len: usize = col_widths.iter().sum::<usize>() + 4;
-    // NIGHT-engrave-5: the eagle-eyes composition — the title bar
-    // opens the frame, one breathing gap under it (the monitor's
-    // top-chrome ladder), and the frame STARTS at the title: the old
-    // leading blank line is gone, the chrome is the first thing the
-    // eye meets.
+    // NIGHT-engrave-5 opened the frame with the title bar and a
+    // breathing gap; NIGHT-private-research-3 (the owner's
+    // compact-and-simple directive) retired the gap on the report
+    // surfaces: the frame starts at the title and every following
+    // line is content — the watchdog, the census, and the table
+    // stack directly under the bar.
     println_safe!("{}", title_bar("zelynic status", sep_len + 2));
-    println_safe!();
 
     match watchdog_deadline {
         Some(deadline) if deadline > 0 => {
@@ -298,16 +298,17 @@ pub fn print_status(
 
     if dl_policies.is_empty() && ul_policies.is_empty() {
         println_safe!("{}", grey("  active limits: none"));
-        println_safe!("\n  {}", signature_footer());
+        println_safe!("  {}", signature_footer());
         return;
     }
 
+    // The census line lands directly above the header row it
+    // counts (NIGHT-private-research-3): one table cluster, zero
+    // filler between the summary and the columns it summarizes.
     println_safe!(
         "{}",
         active_limits_line(dl_policies.len(), ul_policies.len())
     );
-    println_safe!();
-
     // NIGHT-engrave-5: the header row and the grid under it are the
     // eagle table contract — lowercase purple titles, then the
     // monitor's own purple grid spanning the full title width and
@@ -331,8 +332,10 @@ pub fn print_status(
     }
 
     // Signature footer (NIGHT-boost-5): bottom-left identity stamp,
-    // one blank line of breathing room above it.
-    println_safe!("\n  {}", signature_footer());
+    // flush with the last row (NIGHT-private-research-3: the blank
+    // line of breathing room above it retired with the rest of the
+    // report-surface fillers).
+    println_safe!("  {}", signature_footer());
 }
 
 /// Print JSON status (for --print-json / scripting).

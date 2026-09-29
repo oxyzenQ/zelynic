@@ -127,65 +127,18 @@ pub struct Cli {
     pub color_mode: Option<String>,
 }
 
-// ── --print-json scope contract (NIGHT-boost-24) ───────────────────
-//
-// The owner audit question: "is --print-json useless because it only
-// works with status?" It is not — THREE surfaces honor it — but the
-// flag was a SILENT no-op everywhere else (strict, block, unstrict,
-// recover, eagle-eyes, -h, -V, --check-update): a user asking for
-// machine-readable output got text with no signal why. The cosmostrix
-// honesty contract (its ignored-flag warns, e.g. "--json ignored
-// (--bench-frames emits the text BENCH: format)") closes the gap: one
-// stderr line names the JSON surfaces whenever the flag rides a
-// surface that ignores it. stderr only, never stdout — scripts
-// parsing `status --print-json` output are untouched, and the exit
-// codes never move.
-
-/// The commands that honor `--print-json` in THIS build: the ebpf
-/// feature carries status, list-apps, and the eagle-eyes --depth
-/// one-shot report; doctor is always compiled (the capability probe
-/// needs no BPF). A featureless build answers with its honest
-/// smaller set.
-#[cfg(feature = "ebpf")]
-const JSON_SURFACE_COMMANDS: &str = "status, list-apps, eagle-eyes --depth, doctor";
-#[cfg(not(feature = "ebpf"))]
-const JSON_SURFACE_COMMANDS: &str = "doctor";
-
-/// Does the dispatched command honor `--print-json`? `None` is the
-/// no-subcommand help fallback — text, like every non-report surface.
-#[must_use]
-pub(crate) fn command_honors_print_json(command: Option<&Commands>) -> bool {
-    match command {
-        Some(Commands::Doctor) => true,
-        #[cfg(feature = "ebpf")]
-        Some(Commands::Status | Commands::ListApps) => true,
-        // NIGHT-master-1: only the one-shot depth report is a JSON
-        // surface — the live TUI monitor stays text (its interactive
-        // gate is the pipe's answer).
-        #[cfg(feature = "ebpf")]
-        Some(Commands::EagleEyes { depth: true, .. }) => true,
-        _ => false,
-    }
-}
-
-/// The ignored-flag note (pure, so the exact wording is unit-pinnable
-/// — it is the contract a script owner reads once and trusts).
-#[must_use]
-pub(crate) fn print_json_ignored_note() -> String {
-    format!("--print-json ignored (JSON surface: {JSON_SURFACE_COMMANDS})")
-}
-
-/// Emit the ignored-flag note on stderr: warn yellow, one line, the
-/// same broken-pipe-safe write path every diagnostic uses.
-pub(crate) fn warn_print_json_ignored() {
-    eprintln_safe!("{}", crate::output::warn_bold(&print_json_ignored_note()));
-}
-
 // The clap brand-styling block lives in cli/styles.rs since
 // NIGHT-master-1 (the depth surface's docs pushed this file past the
 // 500-line cap) — one theme, one concern, re-exported for the
 // `#[command(styles = ...)]` attribute below.
 pub(crate) use styles::clap_styles;
+
+// The --print-json scope contract lives in cli/scope.rs since
+// NIGHT-private-research-3 (the --focus field's docs pushed this file
+// past the cap again) — same split discipline, same re-export shape:
+// every consumer import resolves identically.
+mod scope;
+pub(crate) use scope::{command_honors_print_json, warn_print_json_ignored};
 
 #[derive(Subcommand, Debug)]
 pub enum Commands {
@@ -460,6 +413,7 @@ pub enum Commands {
     ///   zelynic eagle-eyes --interval 3s          # calmer cadence
     ///   zelynic ee brave --interval 1s            # short alias form
     ///   zelynic ee cg:1234 --depth                # one-shot deep report
+    ///   zelynic ee cg:1234 --depth --focus 5s     # deep report, 5s traffic window
     ///   zelynic ee 12345 --depth --print-json     # the report as JSON
     #[command(name = "eagle-eyes", alias = "ee")]
     EagleEyes {
@@ -473,12 +427,21 @@ pub enum Commands {
         #[arg(long)]
         interval: Option<String>,
 
+        /// The network-traffic focus window for --depth
+        /// (NIGHT-private-research-3): 1s to 30s, default 3s — the
+        /// report measures what moved per endpoint for this many
+        /// seconds. Ignored (one stderr note) on the live monitor.
+        /// Full contract: docs/USAGE.md, eagle-eyes --depth.
+        #[arg(long = "focus", value_name = "SECONDS")]
+        focus: Option<String>,
+
         /// One-shot deep inspection (NIGHT-master-1): print the full
         /// report — package id/name, user, cgroup path, enforcement
         /// state and its accounting ledger, the cgroup controller's
         /// resource view, the per-process census (type, permissions
         /// with the special bits, state, threads, memory, exe path
-        /// with the deleted-on-disk marker), live sockets, and the
+        /// with the deleted-on-disk marker), the network-traffic
+        /// focus section (NIGHT-private-research-3), and the
         /// act-on-this tail — then exit. No TUI: pipe-friendly,
         /// JSON-capable via --print-json.
         /// NIGHT-blade-4: the '--info' alias is retired — '--depth'

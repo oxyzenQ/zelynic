@@ -88,7 +88,11 @@ pub fn handle_list_apps(json: bool) -> Result<()> {
     let widths = [30usize, 7, 8, 10, 8];
     let table_w: usize = 2 + widths.iter().sum::<usize>() + (widths.len() - 1);
     println_safe!("{}", title_bar("zelynic list-apps", table_w));
-    println_safe!();
+    // NIGHT-private-research-3 (the compact-and-simple pass): the
+    // census line lands directly above the header row it counts —
+    // one table cluster under the title, zero filler lines between
+    // them (the engrave-5 breathing gaps retired on every report
+    // surface by the owner's directive).
     println_safe!(
         "{}",
         grey(&format!(
@@ -97,7 +101,6 @@ pub fn handle_list_apps(json: bool) -> Result<()> {
             format_count(socket_cgroups as u64)
         ))
     );
-    println_safe!();
     println_safe!("{}", list_apps_header_line(&widths));
     println_safe!("{}", grid_line(table_w));
 
