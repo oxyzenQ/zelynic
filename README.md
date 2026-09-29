@@ -130,9 +130,10 @@ mkdir /tmp/zelynic-rel
 # v3 runs on any x86_64 machine from ~2013 onward:
 tar -xzf zelynic-vX.Y.Z-linux-amd64-v3-gnu.tar.gz -C /tmp/zelynic-rel
 # AVX-512 machines (Zen 4/5, Ice Lake and newer): -v4-gnu
-# old glibc / fully static:                       -v3-musl / -v4-musl
-install -Dm755 /tmp/zelynic-rel/zelynic ~/.local/bin/zelynic
+# old glibc / fully static: -v3-musl / -v4-musl
+
 # user install
+install -Dm755 /tmp/zelynic-rel/zelynic ~/.local/bin/zelynic
 # or: sudo install -Dm755 /tmp/zelynic-rel/zelynic /usr/local/bin/zelynic
 ```
 
@@ -371,9 +372,9 @@ sudo zelynic unstrict-all
 
 # Short aliases (NIGHT-improve-25): every enforcement verb plus the
 # monitor in two keystrokes — ss sm sa bs bm ba us um ua ee
-# = strict-single brave 100kb
+# strict-single brave 100kb
 sudo zelynic ss brave 100kb
-# = eagle-eyes brave --interval 1s
+# eagle-eyes brave --interval 1s
 sudo zelynic ee brave --interval 1s
 
 # State: active limits, apps with cgroup IDs, eBPF support
