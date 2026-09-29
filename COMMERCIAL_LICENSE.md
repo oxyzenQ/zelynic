@@ -68,8 +68,8 @@ license terms.
 | ---------- | -------------- | ------------------------------------------------------------ |
 | Personal   | Free (GPL-3.0) | Hobby, personal, non-commercial, open-source contributions   |
 | Individual | $99/year       | Solo devs, freelancers, revenue < $100K/year                 |
-| Business   | $1,990/year    | SMB, revenue $100K – $10M/year                               |
-| Company    | $14,990/year   | Enterprise (>$10M/year revenue) OR any redistribution rights |
+| Business   | $2,199/year    | SMB, revenue $100K – $10M/year                               |
+| Company    | $20,199/year   | Enterprise (>$10M/year revenue) OR any redistribution rights |
 
 Notes:
 
@@ -77,6 +77,15 @@ Notes:
   individual, whichever applies), not your zelynic-specific revenue.
 - **Multi-year discount** (owner discretion): 20% off a 2-year term,
   30% off a 3-year term.
+- **2026-09-30 price move** (NIGHT-dinner-25, effective from the
+  first release tag after that date): Business $1,990 →
+  $2,199/year, Company $14,990 → $20,199/year; Individual holds
+  at $99/year. The rationale is the owner's, not the
+  comparables': zelynic is a masterpiece, and its value
+  increases year by year — the price follows the value, and the
+  business end of the ladder will keep rising as the work
+  compounds. Grandfathering unchanged: buyers who paid before
+  the move keep the price they paid, for the term they bought.
 - **2026-09-28 price move** (effective from the first release tag
   after that date): Business $1,000 → $1,990/year, Company
   $9,900 → $14,990/year; Individual holds at $99/year. Buyers who
@@ -89,6 +98,25 @@ Notes:
   [TRADEMARK.md](TRADEMARK.md).
 - No free tier above Personal is granted without explicit owner
   approval.
+
+### Unauthorized Use
+
+zelynic's code is open to read, learn from, and build on — under
+GPL-3.0-only's honest terms, or under a paid Commercial License.
+What is NOT open is taking it: stealing the code, forking it
+illegally, stripping or ignoring the license, or shipping it
+inside a closed-source commercial product — whether done by a
+company or by an individual — without contacting the owner
+(rezky_nightky / oxyzenQ,
+[with.rezky@gmail.com](mailto:with.rezky@gmail.com)) and paying
+for the license first. That is not a loophole, a gray area, or a
+clever business move. It is theft of one person's years of work,
+a breach of GPL-3.0-only and of this Commercial License, and —
+in the owner's own words — the mark of the worst kind of human:
+a rotten one. If closed source is what you need, the Company
+tier exists precisely for that; buy it. If you cannot or will
+not pay, the GPL path is complete and free — open-source what
+you build. There is no third path that leaves you clean.
 
 ## 4. What Each Tier Grants
 

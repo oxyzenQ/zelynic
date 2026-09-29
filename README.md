@@ -735,8 +735,25 @@ live in [COMMERCIAL_LICENSE.md](COMMERCIAL_LICENSE.md); the short version:
 | ---------- | -------------- | ------------------------------------------------ |
 | Personal   | Free (GPL-3.0) | Hobby, personal, non-commercial, contributions   |
 | Individual | $99/year       | Solo devs, freelancers, revenue < $100K/year     |
-| Business   | $1,990/year    | SMB, revenue $100K – $10M/year                   |
-| Company    | $14,990/year   | Enterprise (>$10M/year) OR redistribution rights |
+| Business   | $2,199/year    | SMB, revenue $100K – $10M/year                   |
+| Company    | $20,199/year   | Enterprise (>$10M/year) OR redistribution rights |
+
+The business end of the ladder follows the value upward
+(NIGHT-dinner-25): zelynic is a masterpiece, and its value
+increases year by year — the price tracks the value, and it will
+keep rising as the work compounds. Buyers who paid before the
+move are grandfathered at the price they bought, for the term
+they bought.
+
+**Unauthorized use is theft.** Taking this code — stealing it,
+forking it illegally, stripping the license, or building a
+closed-source commercial product on it — without first
+contacting the owner (rezky_nightky / oxyzenQ) and paying the
+license is, in the owner's own words, the mark of the worst
+kind of human — a rotten one. The honest paths are exactly two:
+comply with GPL-3.0-only (free, first-class, not a trial), or
+buy the tier your revenue honestly matches. There is no third
+path that leaves you clean.
 
 Tiers are self-declared in good faith. Payment is USD-pegged crypto
 (Solana / Ethereum / Bitcoin, owner-verified addresses with QR codes —

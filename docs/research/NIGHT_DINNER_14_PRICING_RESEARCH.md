@@ -195,6 +195,15 @@ LICENSING_FAQ.md — is the execution record. Same-day
 re-verification: every section 2 source was checked 2026-09-28,
 the same date as this execution — no source moved in between.
 
+**Superseded 2026-09-30 (NIGHT-dinner-25):** the owner lifted the
+business end of the ladder again — Business $2,199/year, Company
+$20,199/year; Individual still holds at $99/year. The rationale
+this time is the owner's, not the comparables': zelynic is a
+masterpiece, and its value increases year by year — the price
+follows the value. This section stays as the 2026-09-28 decision
+record; the current price list lives in
+[COMMERCIAL_LICENSE.md](../../COMMERCIAL_LICENSE.md).
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.
