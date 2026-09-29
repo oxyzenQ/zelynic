@@ -375,9 +375,11 @@ mod tests {
     fn test_schema_version_constant() {
         // Must match SCHEMA_VERSION in ebpf/src/bin/limiter.rs.
         // When this changes, the BPF code must also change.
-        // v10 (NIGHT-private-research-2, AMMSP): subtree-aware
-        // resolution + the ammsp_leaf_cache map.
-        assert_eq!(SCHEMA_VERSION_EXPECTED, 10);
+        // v11 (NIGHT-think-like-light-years-3): the init-path
+        // inserts ride BPF_NOEXIST — the first-packet init race
+        // can no longer resurrect tokens or roll the window stamp
+        // back under a many-CPU burst on a fresh bucket.
+        assert_eq!(SCHEMA_VERSION_EXPECTED, 11);
     }
 
     // ── NIGHT-improve-10 / security-3: overflow-bound pins ──────────
