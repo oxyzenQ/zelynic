@@ -65,9 +65,18 @@
 #                    build · M commits since last stable".
 #   --since-stable   commits in LAST_STABLE..TAG (the workflow counts
 #                    them via a second compare call; API total_commits
-#                    semantics, merge commits included).
-#   --self-test      run the pinned classifier + shape battery, no
-#                    network, no jq input, exit nonzero on any drift.
+#                    semantics, merge commits included). Legal-empty:
+#                    a stable release carries no distance (LAST_STABLE
+#                    == PREV_TAG by construction) and an initial
+#                    release has no stable tag yet.
+#   --self-test      run the pinned classifier + shape + parse
+#                    battery, no network, no jq input, exit nonzero on
+#                    any drift.
+#
+#   Value contract: --tag, --prerelease, and --repo-url must carry a
+#   non-empty value; the four boundary flags above accept an empty
+#   value (their "not applicable" states) while still requiring the
+#   argument to exist. The parser section below enforces both classes.
 #
 # Dependencies: bash 4+, jq (the GitHub runner image carries both;
 # the workflow step already depended on jq before this script existed).
@@ -89,6 +98,30 @@ usage() {
 	echo "            [--repo-url URL] [--self-test]" >&2
 }
 
+# ── CLI parsing (two value classes — a contract, not a style) ────────
+# Required-value flags (--tag, --prerelease, --repo-url) keep the
+# ${2:?} guard: no legal empty tag, channel, or repository URL
+# exists, and an empty one must stay a usage error. The four boundary
+# flags below are legal-empty instead: the USAGE block above says
+# "Absent or empty = initial release", and the workflow step passes
+# every flag unconditionally with quoted "${VAR}" values, so a
+# stable release arrives with --since-stable "" (LAST_STABLE ==
+# PREV_TAG by construction, no distance to render) exactly as an
+# initial release arrives with --compare-json "" and --prev-tag
+# "", and a pre-release cut before any stable tag arrives with
+# --last-stable "". ${2:?} rejected a present-but-empty value as
+# hard as a missing one, and that turned three legal states into red
+# pipelines: the v11.0.0 stable publish died on --since-stable
+# (Dragon Guard - Release run 36586939180, 11 seconds in; every rc
+# before it passed only because pre-releases DO carry a
+# since-stable distance), and the initial-release and
+# first-pre-release shapes die on --compare-json / --last-stable the
+# same way. The four flags now require the value to EXIST (an
+# argument follows the flag, [ $# -ge 2 ]), not to be non-empty; the
+# empty value flows on to the render layer, which already treats it
+# as "feature absent" (the render_body guard chain) — the same
+# philosophy as the workflow's own "no previous tag is a legal
+# state, not an error".
 while [ $# -gt 0 ]; do
 	case "$1" in
 	--tag)
@@ -99,20 +132,48 @@ while [ $# -gt 0 ]; do
 		IS_PRERELEASE="${2:?--prerelease needs a value}"
 		shift 2
 		;;
+	# Legal-empty: empty PATH = initial release (no compare API
+	# response exists).
 	--compare-json)
-		COMPARE_JSON="${2:?--compare-json needs a value}"
+		if [ $# -lt 2 ]; then
+			echo "--compare-json needs a value" >&2
+			usage
+			exit 1
+		fi
+		COMPARE_JSON="$2"
 		shift 2
 		;;
+	# Legal-empty: empty TAG = initial release (no previous tag of
+	# any channel).
 	--prev-tag)
-		PREV_TAG="${2:?--prev-tag needs a value}"
+		if [ $# -lt 2 ]; then
+			echo "--prev-tag needs a value" >&2
+			usage
+			exit 1
+		fi
+		PREV_TAG="$2"
 		shift 2
 		;;
+	# Legal-empty: empty TAG = no stable release exists yet.
 	--last-stable)
-		LAST_STABLE="${2:?--last-stable needs a value}"
+		if [ $# -lt 2 ]; then
+			echo "--last-stable needs a value" >&2
+			usage
+			exit 1
+		fi
+		LAST_STABLE="$2"
 		shift 2
 		;;
+	# Legal-empty: empty N = no distance to render (stable releases
+	# carry none: LAST_STABLE == PREV_TAG; initial releases have no
+	# stable tag yet).
 	--since-stable)
-		SINCE_STABLE="${2:?--since-stable needs a value}"
+		if [ $# -lt 2 ]; then
+			echo "--since-stable needs a value" >&2
+			usage
+			exit 1
+		fi
+		SINCE_STABLE="$2"
 		shift 2
 		;;
 	--repo-url)
@@ -264,7 +325,7 @@ display_text() {
 	printf '%s' "$subject"
 }
 
-# ── The self-test: pinned classifier battery + shape contract ────────
+# ── The self-test: pinned classifier + shape + parse contracts ───────
 # Every pinned subject below is a real shape from this repo's history
 # (or a boundary probe for the grammar). If a future edit to the tables
 # or the strip chain moves a verdict, this battery fails — the release
@@ -321,8 +382,30 @@ self_test() {
 		fi
 	done
 
+	# Parse contract (NIGHT-dinner-26, the v11.0.0 stable incident):
+	# the four legal-empty flags must accept present-but-empty values
+	# through the REAL CLI path — parser plus render, no fixture, no
+	# network. The shape probe above calls render_body directly and
+	# never touches the parser, which is exactly the gap the v11.0.0
+	# stable publish fell through (the workflow passes --since-stable
+	# "" for every stable release). One probe covers all four flags at
+	# once: every optional value empty, the exact initial-release
+	# shape, exit 0, and the initial-release marker rendered.
+	local parse_out parse_rc=0
+	parse_out="$("$0" \
+		--tag v0.0.0-self-test \
+		--prerelease false \
+		--compare-json "" \
+		--prev-tag "" \
+		--last-stable "" \
+		--since-stable "" 2>&1)" || parse_rc=$?
+	if [ "$parse_rc" -ne 0 ] || ! printf '%s' "$parse_out" | grep -qF "Initial release."; then
+		echo "  FAIL parse: legal-empty flag values rejected (rc=${parse_rc})" >&2
+		failures=$((failures + 1))
+	fi
+
 	if [ "$failures" -eq 0 ]; then
-		echo "  OK release-notes generator: classifier battery + shape contract"
+		echo "  OK release-notes generator: classifier battery + shape + parse contracts"
 		return 0
 	fi
 	echo "  self-test: ${failures} failure(s)" >&2
@@ -348,11 +431,11 @@ render_body() {
 		# subject may contain any byte except newline, including the
 		# pipes and tabs a naive delimiter would break on.
 		commits="$(jq -r '
-			.commits // []
-			| .[]
-			| select((.parents | length) <= 1)
-			| (.sha[0:7]) + "\u001f" + (.commit.message | split("\n")[0])
-		' "$compare_json")"
+                        .commits // []
+                        | .[]
+                        | select((.parents | length) <= 1)
+                        | (.sha[0:7]) + "\u001f" + (.commit.message | split("\n")[0])
+                ' "$compare_json")"
 		total="$(jq -r '.total_commits // 0' "$compare_json")"
 		listed="$(jq -r '(.commits // []) | length' "$compare_json")"
 	fi
