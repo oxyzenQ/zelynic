@@ -26,8 +26,8 @@ Tiers follow your total annual revenue:
 | ---------------------------------- | ------------------------ |
 | No commercial use (hobby/personal) | Personal (free, GPL-3.0) |
 | Solo dev / freelancer, < $100K     | Individual ($99/year)    |
-| $100K – $10M                       | Business ($1,990/year)   |
-| > $10M, or any redistribution      | Company ($14,990/year)   |
+| $100K – $10M                       | Business ($2,199/year)   |
+| > $10M, or any redistribution      | Company ($20,199/year)   |
 
 Redistribution under your own terms is the Company tier regardless of
 revenue — it is the only tier that carries redistribution rights.
@@ -74,6 +74,20 @@ No. Two separate locks apply:
 
 Both locks must be opened to rebrand and sell: Company tier **plus**
 trademark permission.
+
+## What if I just take it — fork it illegally, close the source, and sell it?
+
+Then you are the person the licensing docs warn about. Taking
+zelynic's code — stealing it, forking it illegally, stripping the
+license, or building a closed-source commercial product on it —
+without contacting the owner (rezky_nightky / oxyzenQ) and paying
+for the license is theft, not a gray area: a breach of GPL-3.0-only
+and the Commercial License alike, and — in the owner's own words —
+the mark of the worst kind of human, a rotten one. The honest
+options are exactly two: open-source what you build under
+GPL-3.0-only (free and first-class), or buy the tier your revenue
+honestly matches. Closed source without a license is not a third
+option — it is the one this warning exists for.
 
 ## More questions?
 

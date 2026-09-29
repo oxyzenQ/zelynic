@@ -19,6 +19,45 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Changed
 
+- **docs: NIGHT-dinner-25 — the business end of the ladder lifts
+  again: Business $2,199/year, Company $20,199/year, and the
+  unauthorized-use warning gets its teeth** (the owner's
+  directive, 2026-09-30: raise the tag prices for individual
+  business and company only — the reason is that zelynic is a
+  masterpiece and its value keeps increasing year by year).
+  Business $1,990 → $2,199/year and Company $14,990 →
+  $20,199/year; Individual holds at $99/year — the directive's
+  "only" honored, the consumer anchor untouched. The rationale
+  this time is the owner's, not the comparables': the price now
+  tracks the value of the work, and the business end will keep
+  rising as that value compounds — the honest framing the
+  dinner-14 brief never claimed (its anchors supported $1,990 /
+  $14,990; the new numbers are the owner's conviction, recorded
+  as exactly that). Effective from the first release tag after
+  2026-09-30, nothing retroactive; grandfathering unchanged —
+  buyers who paid before the move keep the price they paid, for
+  the term they bought. The same directive arms the warning the
+  licensing docs were missing teeth on: a company or user who
+  steals the code, forks it illegally, or otherwise uses it for
+  closed-source commercial purposes without contacting the owner
+  (rezky_nightky / oxyzenQ) and paying the license is named what
+  the owner names it — the worst kind of human, a rotten one.
+  Three surfaces carry it: README.md's Commercial Licensing
+  section (warning paragraph under the table),
+  COMMERCIAL_LICENSE.md section 3's new Unauthorized Use
+  subsection, and the FAQ's new question ("What if I just take
+  it — fork it illegally, close the source, and sell it?"). The
+  three-file table sync follows the dinner-14 checklist —
+  README.md, COMMERCIAL_LICENSE.md, LICENSING_FAQ.md — one move,
+  three surfaces, zero desync (LICENSE, NOTICE, TRADEMARK.md, and
+  Cargo.toml verified price-agnostic, no edit needed); the
+  multi-year discount re-reads against the new prices
+  automatically; the dinner-14 research doc's section 7 gains a
+  dated supersession note so history stays history while readers
+  stop mistaking it for the current price list, and the docs
+  index line follows it. Docs-only: no code path touched, no
+  benchmark run (docs-only contract).
+
 - **security: NIGHT-critical-infra-1 — the AI-agent-swarm threat
   model: audited at 10k-agent today and 1M-agent forecast scale,
   the one unbounded surface got its bound**. The owner's framing:
