@@ -1287,6 +1287,18 @@ def test_kill_tui():
     )
 
 
+def _rate_leg_coherent(value):
+    """One leg of a status row read back after a mid-write kill.
+
+    None is the legal one-leg state — the writer died between the two
+    policy-map inserts, or the operator applied -d/-u only (both
+    surface identically); an int is a rate the kernel map handed back
+    whole. Anything else — a float, a string, a truncated value — is
+    incoherent (NIGHT-dinner-25).
+    """
+    return value is None or isinstance(value, int)
+
+
 def test_kill_midflight():
     """SIGKILL one-shot CLI invocations inside the attach/pin/write
     window, twelve times, at jittered offsets.
@@ -1297,7 +1309,15 @@ def test_kill_midflight():
     which side wins the race (a kill landing after the CLI finished is
     an equally legal outcome) but that a killed writer can never leave
     a state the status surface cannot read back coherently: the JSON
-    parses, and every limit row carries integral rates. The stage ends
+    parses, every PRESENT rate is integral, and no row is legless.
+    NIGHT-dinner-25 corrected one clause here: a kill landing between
+    the two policy-map inserts (download first, upload second —
+    write_policies_for_cgroup, two pinned BPF maps, no cross-map
+    transaction) surfaces a one-leg row whose missing side is null,
+    byte-identical to the legitimate -d-only / -u-only apply the CLI
+    documents; "both legs always written" is an atomicity the kernel
+    cannot sell and the surface's own one-leg applies forbid
+    promising (see _rate_leg_coherent below). The stage ends
     with the restore contract — recover must bring the machine back to
     zero pins no matter where the twelve kills landed.
     """
@@ -1330,15 +1350,17 @@ def test_kill_midflight():
             other_exit += 1
         doc = status_json()
         limit_rows = (doc or {}).get("limits", [])
-        integral = (
+        coherent_cycle = (
             doc is not None
             and isinstance(limit_rows, list)
             and all(
-                isinstance(e.get("download_bps"), int) and isinstance(e.get("upload_bps"), int)
+                _rate_leg_coherent(e.get("download_bps"))
+                and _rate_leg_coherent(e.get("upload_bps"))
+                and (e.get("download_bps") is not None or e.get("upload_bps") is not None)
                 for e in limit_rows
             )
         )
-        if integral:
+        if coherent_cycle:
             coherent += 1
         run_zel(["unstrict-all"])
     run_zel(["recover"])
@@ -1352,7 +1374,7 @@ def test_kill_midflight():
     record(
         "kill midflight: status JSON coherent after every kill",
         "PASS" if coherent == KILL_MIDFLIGHT_KILLS else "FAIL",
-        f"{coherent}/{KILL_MIDFLIGHT_KILLS} cycles parsed with integral rate rows",
+        f"{coherent}/{KILL_MIDFLIGHT_KILLS} cycles parsed with coherent rate rows",
     )
     record(
         "kill midflight: recover restores the zero-pin state",
