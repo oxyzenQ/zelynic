@@ -1713,6 +1713,11 @@ def test_rate_ladder(ladder, window, windows_per_rung, baseline):
         # measured windows see steady state. Mid and high rungs keep
         # the cushion in view deliberately (their cushion is one second
         # of their own rate — 104% at 100kb is the familiar shape).
+        # The 0b0a8f5 best-gnu lesson hardened the shape: a single
+        # 0.5s drain is one sample on a noisy runner — its worker
+        # stalled, read a silent zero, and the cushion leaked into
+        # the measured pair at 299.3% of the 1kb rung. drain_cushion()
+        # retries until the cushion is provably paid instead.
         # NIGHT-lts-6 followup (the first CI run after lts-8 caught
         # it): the drain's bytes count in the BPF ledger like any
         # other allowed traffic, so the accounting cross-check must
@@ -1721,7 +1726,7 @@ def test_rate_ladder(ladder, window, windows_per_rung, baseline):
         # phantom ~2x (bpf drain+windows vs client windows only).
         drained = 0
         if lib.default_burst(bps) > 0.3 * bps * window * windows_per_rung:
-            drained = py_download(0.5)
+            drained = lib.drain_cushion(lambda w: py_download(w), lib.default_burst(bps))
         # NIGHT-improve-14: high rungs run PARALLEL_FLOWS concurrent
         # workers per window (see PARALLEL_MIN_BPS) — the aggregate,
         # not one AIMD flow, is the instrument there. Each thread
@@ -2696,7 +2701,13 @@ def test_ammsp_subtree(window, baseline):
             record("ammsp: nested root apply", "FAIL", f"exit {rc}: {(stderr or stdout)[:120]}")
             passed = False
         elif nested_mkdir(grand_path):
-            child_bytes(grand_path, 0.5)
+            # The retrying warm-up (the 0b0a8f5 lesson): a stalled
+            # single-shot drain reads a silent zero and the fresh
+            # 50kb bucket's 64 KiB GSO cushion leaks into the measured
+            # window — at this rate the leak straddles the band edge
+            # (128..133%) and the row flips policed/gray on GSO timing
+            # alone.
+            lib.drain_cushion(lambda w: child_bytes(grand_path, w), lib.default_burst(50_000))
             got = child_bytes(grand_path, window)
             passed = (
                 band_check(
@@ -3634,11 +3645,14 @@ def self_test():
     # a trickle rung would otherwise measure ~7.5x configured (a
     # BAND_HI fail that is attach physics, not enforcement). If a
     # refactor drops the drain, this row fails before the next root
-    # run trusts the trickle rungs.
+    # run trusts the trickle rungs. The 0b0a8f5 lesson made the pin's
+    # shape the retrying drain: the single 0.5s sample could stall
+    # silently and leave the cushion to leak into the measured pair
+    # (299.3% at the 1kb rung on a noisy shared runner).
     ladder_src = inspect.getsource(test_rate_ladder)
     ladder_drain_ok = (
-        "py_download(0.5)" in ladder_src
-        and ladder_src.index("py_download(0.5)")
+        "drain_cushion(" in ladder_src
+        and ladder_src.index("drain_cushion(")
         < ladder_src.index("for _ in range(windows_per_rung)")
         and 'extra = ""' in ladder_src
         # lts-6 followup: the drain's bytes must join the accounting
@@ -3648,8 +3662,10 @@ def self_test():
     record(
         "harness: ladder drains the attach cushion at over-delivery rungs",
         "PASS" if ladder_drain_ok else "FAIL",
-        "trickle rungs discard a warm-up window before the measured pair, and its "
-        "bytes join the accounting comparison (lts-8 burst floor, lts-6 followup)",
+        "trickle rungs discard a warm-up window before the measured pair, its "
+        "bytes join the accounting comparison, and the drain retries until the "
+        "cushion is provably paid (lts-8 burst floor, lts-6 followup, the "
+        "0b0a8f5 stall lesson)",
     )
     ovh_src = inspect.getsource(test_overhead)
     pair_ok = ovh_src.index("fresh = py_download(window)") < ovh_src.index("apply_single(")
