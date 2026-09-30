@@ -19,6 +19,54 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Changed
 
+- **ci+limiter: NIGHT-perf-1 — the AMMSP-vs-legacy depth test: the
+  subtree contract proven as a DELTA between two real binaries, the
+  >= 99% child-coverage verdict the owner asked for, wired into the
+  supermassive low AND best legs** (the directive: "create a script
+  to depth test zelynic AMMSP vs non AMMSP (using old v11 stable),
+  verify and proof the AMMSP works 99% or not. put script to
+  supermassive test low and best"). The new harness
+  (scripts/supermassive/ammsp-vs-legacy-test.py + .sh, engine
+  self-test rootless) runs the IDENTICAL battery under the current
+  AMMSP build and the last pre-AMMSP stable release — v11.0.0,
+  verified pre-AMMSP against its own tree (zero ammsp references in
+  its ebpf/src/bin/limiter.rs; the release tarball and its sha512sum
+  sidecar fetched and checksum-verified, the libc matching each leg's
+  payload) — same fleet, same in-process loopback server, same
+  cgroup-spawned workers, same bands, the only variable the binary.
+  The battery: a strict-single on the PARENT cgroup at 100kb, then
+  seven measured child leaves per side (a three-level depth chain,
+  three direct siblings, and one child created AFTER the apply — the
+  owner's eagle-eyes scenario), one leaf deliberately pre-poisoned
+  with an unlimited window before the apply (the memo the perf-0
+  generation stamp must retire), a two-leaf CONCURRENT shared-budget
+  probe, and a nested-root probe (50kb inside the 100kb subtree —
+  nearest-root resolution). Every leaf classifies policed / gray /
+  escaped against the configured band, and THE DELTA is the headline
+  verdict: AMMSP must police >= 99% of the leaves, the legacy side
+  none (every measured leaf lives in a CHILD cgroup — the pre-AMMSP
+  datapath never policed one), the gap >= 99 points; one escaped
+  leaf fails the proof, a policed legacy child fails it as a
+  measurement bug, an empty sweep fails it as zero evidence — the
+  verdict never rounds a single escape up to a pass. Each side
+  starts from a recovered pin-clean state (the two schemas never see
+  each other's pins) and ends with unstrict-all + recover; the
+  engine reuses v1 whole via importlib (the v2 precedent — zero
+  duplication of the fleet/server/worker machinery), with the side
+  under test switched by rebinding lib.BINARY between batteries.
+  CI wiring: the supermassive rootfs assembly step stages the
+  v11.0.0 binary at /opt/zelynic/legacy (fetch FAILS the leg on the
+  runner where retries are cheap, so the in-VM stage never silently
+  skips), and supermassive-init.sh runs the A/B between v1 and v2 —
+  the {low, best} x {gnu, musl} four-leg matrix now carries the
+  counterfactual on the kernel floor AND the latest head. Local runs
+  without the legacy binary SKIP loudly with the one-line staging
+  recipe. Docs: README's harness table gains the row. Verified:
+  engine self-test 7/7 green (classifier boundaries, the delta
+  verdict at its exact thresholds, the resolver SKIP shape, the
+  runner error shapes), ruff clean on the repo's pinned rule set,
+  bash -n on both shells, YAML parse on the workflow.
+
 - **limiter: NIGHT-perf-0 — the AMMSP memo becomes generation-stamped
   (schema v12): the insert race the whole-map delete flush could
   never close is closed, and a policy mutation's invalidation cost
