@@ -193,8 +193,10 @@ pub(super) fn representative(depth: &CgroupDepth) -> Option<&ProcessFacts> {
 }
 
 /// One key/value row of the summary block (grey label column, plain
-/// value), the shape the owner specced.
-fn kv(label: &str, value: &str) -> String {
+/// value), the shape the owner specced. Shared with the bypass
+/// section sibling (NIGHT-upgrade-charger-core-1-a) — one label
+/// column shape across the report's every section.
+pub(super) fn kv(label: &str, value: &str) -> String {
     format!(
         "  {} {}",
         grey(&pad_to_width(&format!("{label}:"), 15)),

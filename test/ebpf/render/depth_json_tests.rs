@@ -78,6 +78,7 @@ fn json_document_shape_is_the_scripting_contract() {
     let doc = depth_doc_json(
         &[report],
         &[("ghost".to_string(), "no live cgroup matches".to_string())],
+        None,
     );
     let text = serde_json::to_string(&doc).expect("the document serializes");
     assert!(text.starts_with("{\"targets\":[{"), "got: {text}");
@@ -112,7 +113,7 @@ fn json_document_shape_is_the_scripting_contract() {
         );
     }
     // The unlimited shape: nulls, never fabricated zeroes.
-    let doc = depth_doc_json(&[report_fixture(Enforcement::Unlimited)], &[]);
+    let doc = depth_doc_json(&[report_fixture(Enforcement::Unlimited)], &[], None);
     let text = serde_json::to_string(&doc).expect("serializes");
     assert!(text.contains("\"enforcement\":\"unlimited\""));
     assert!(text.contains("\"download_bps\":null"));
@@ -124,6 +125,112 @@ fn json_document_shape_is_the_scripting_contract() {
     // NIGHT-private-research-3: an unmeasured window is null too — a
     // script can tell "no window ran" from "zero traffic moved".
     assert!(text.contains("\"traffic\":null"));
+    // NIGHT-upgrade-charger-core-1-a: the audit is null when no
+    // window ran — absence, never a fabricated clean.
+    assert!(text.contains("\"bypass_audit\":null"));
+}
+
+/// NIGHT-upgrade-charger-core-1-a: the bypass-shadow audit rides the
+/// scripting document with the whole verdict vocabulary and the
+/// honest null — a triage script gates on "verdict" without parsing
+/// the text report's block.
+#[test]
+fn json_carries_the_bypass_audit() {
+    use crate::ebpf::bypass::{
+        shadow_audit, NicTotals, ShadowVerdict, SHADOW_RX_FLOOR_BYTES, SHADOW_TX_FLOOR_BYTES,
+    };
+
+    let clean = shadow_audit(
+        Some(NicTotals {
+            tx_bytes: 0,
+            rx_bytes: 0,
+        }),
+        Some(NicTotals {
+            tx_bytes: 10_000_000,
+            rx_bytes: 11_000_000,
+        }),
+        9_800_000,
+        10_700_000,
+        3,
+    );
+    let doc = depth_doc_json(&[report_fixture(Enforcement::Unlimited)], &[], Some(&clean));
+    let text = serde_json::to_string(&doc).expect("serializes");
+    assert!(
+        text.contains("\"bypass_audit\":{\"window_secs\":3"),
+        "the audit object carries the window, got: {text}"
+    );
+    assert!(
+        text.contains("\"nic_tx_bytes\":10000000"),
+        "the interface totals ride, got: {text}"
+    );
+    assert!(
+        text.contains("\"bpf_tx_bytes\":9800000"),
+        "the hook totals ride, got: {text}"
+    );
+    assert!(
+        text.contains("\"shadow_tx_bytes\":200000"),
+        "the shadow is the gap, got: {text}"
+    );
+    assert!(
+        text.contains("\"verdict\":\"clean\""),
+        "a healthy window is clean, got: {text}"
+    );
+
+    // The flagged shape: every side of the verdict vocabulary the
+    // constructor can produce.
+    let flagged = shadow_audit(
+        Some(NicTotals {
+            tx_bytes: 0,
+            rx_bytes: 0,
+        }),
+        Some(NicTotals {
+            tx_bytes: SHADOW_TX_FLOOR_BYTES + 10 * 1024 * 1024,
+            rx_bytes: 0,
+        }),
+        0,
+        0,
+        3,
+    );
+    assert_eq!(flagged.verdict, ShadowVerdict::BypassedTx);
+    let rx_flagged = shadow_audit(
+        Some(NicTotals {
+            tx_bytes: 0,
+            rx_bytes: 0,
+        }),
+        Some(NicTotals {
+            tx_bytes: 0,
+            rx_bytes: SHADOW_RX_FLOOR_BYTES + 10 * 1024 * 1024,
+        }),
+        0,
+        0,
+        3,
+    );
+    assert_eq!(rx_flagged.verdict, ShadowVerdict::BypassedRx);
+    let doc = depth_doc_json(
+        &[report_fixture(Enforcement::Unlimited)],
+        &[],
+        Some(&flagged),
+    );
+    let text = serde_json::to_string(&doc).expect("serializes");
+    assert!(
+        text.contains("\"verdict\":\"bypassed_tx\""),
+        "the flagged verdict names its side, got: {text}"
+    );
+
+    // The unavailable shape: a window that ran against unreadable
+    // counters is a named verdict, never a silent clean.
+    let unreadable = shadow_audit(None, None, 1000, 2000, 3);
+    assert_eq!(unreadable.verdict, ShadowVerdict::Unavailable);
+    let doc = depth_doc_json(
+        &[report_fixture(Enforcement::Unlimited)],
+        &[],
+        Some(&unreadable),
+    );
+    let text = serde_json::to_string(&doc).expect("serializes");
+    assert!(
+        text.contains("\"verdict\":\"unavailable\""),
+        "the sysfs failure is honest, got: {text}"
+    );
 }
 
 /// NIGHT-blade-7: the deleted-on-disk exe flag rides the scripting
@@ -133,7 +240,7 @@ fn json_document_shape_is_the_scripting_contract() {
 fn json_carries_the_deleted_exe_flag() {
     let mut report = report_fixture(Enforcement::Unlimited);
     report.depth.procs[0].exe_deleted = true;
-    let doc = depth_doc_json(&[report], &[]);
+    let doc = depth_doc_json(&[report], &[], None);
     let text = serde_json::to_string(&doc).expect("serializes");
     assert!(
         text.contains("\"exe_deleted\":true"),
@@ -204,7 +311,7 @@ fn json_carries_the_traffic_focus_window() {
     let mut report = report_fixture(Enforcement::Unlimited);
     report.conns = conns.get(1234).cloned();
     report.traffic = Some(focus);
-    let doc = depth_doc_json(&[report], &[]);
+    let doc = depth_doc_json(&[report], &[], None);
     let text = serde_json::to_string(&doc).expect("serializes");
     for field in [
         "\"traffic\":{\"window_secs\":3,\"download_bytes\":10000000,\"upload_bytes\":300000}",
@@ -241,7 +348,7 @@ fn json_carries_the_ledger_and_controller_resources() {
         memory_current_bytes: Some(2_500_000),
         cpu_usage_usec: Some(62_000_000),
     };
-    let doc = depth_doc_json(&[report], &[]);
+    let doc = depth_doc_json(&[report], &[], None);
     let text = serde_json::to_string(&doc).expect("serializes");
     for field in [
         "\"enforcement_stats\":{\"packets_allowed\":9001",

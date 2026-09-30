@@ -85,6 +85,7 @@
 //!   and focus)
 
 mod border;
+mod bypass;
 mod depth_json;
 mod depth_traffic;
 mod detail;
@@ -114,6 +115,11 @@ pub use eagle::render_eagle_eyes;
 // scripting shape, plus the ledger and controller-resource fields.
 pub use depth_json::depth_doc_json;
 pub use report::{depth_report_lines, package_name, DepthReport, Enforcement};
+
+// NIGHT-upgrade-charger-core-1-a: the bypass audit's report section
+// — the machine-scope shadow verdict the depth handler prints after
+// the per-target blocks (pure, fixture-pinned).
+pub use bypass::bypass_section;
 
 // NIGHT-private-research-3: the depth report's network-traffic
 // focus — the measured window value the handler assembles and the

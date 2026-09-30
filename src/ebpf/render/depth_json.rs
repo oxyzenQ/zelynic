@@ -26,6 +26,7 @@
 //! indicator a scripted triage pipeline wants as a boolean instead
 //! of parsing the text report's marker.
 
+use crate::ebpf::bypass::{ShadowAudit, ShadowVerdict};
 use crate::ebpf::identity::depth::ProcessFacts;
 use crate::ebpf::limiter::LimiterStatsRaw;
 use crate::ebpf::render::depth_traffic::TrafficFocus;
@@ -147,6 +148,44 @@ pub struct DepthMissJson {
     pub error: String,
 }
 
+/// The bypass-shadow audit over the report's focus window
+/// (NIGHT-upgrade-charger-core-1-a): the machine-scope comparison of
+/// interface counters against the cgroup_skb hooks' own totals —
+/// `shadow_*_bytes` is the gap, `verdict` one of "clean",
+/// "bypassed_tx", "bypassed_rx", "bypassed_both", "unavailable".
+#[derive(serde::Serialize)]
+pub struct BypassAuditJson {
+    pub window_secs: u64,
+    pub nic_tx_bytes: u64,
+    pub nic_rx_bytes: u64,
+    pub bpf_tx_bytes: u64,
+    pub bpf_rx_bytes: u64,
+    pub shadow_tx_bytes: u64,
+    pub shadow_rx_bytes: u64,
+    pub verdict: &'static str,
+}
+
+/// The audit as JSON (None stays null — the window did not run, the
+/// honest absence a script can distinguish from a clean verdict).
+fn bypass_audit_json(audit: Option<&ShadowAudit>) -> Option<BypassAuditJson> {
+    audit.map(|a| BypassAuditJson {
+        window_secs: a.window_secs,
+        nic_tx_bytes: a.nic_tx,
+        nic_rx_bytes: a.nic_rx,
+        bpf_tx_bytes: a.bpf_tx,
+        bpf_rx_bytes: a.bpf_rx,
+        shadow_tx_bytes: a.shadow_tx,
+        shadow_rx_bytes: a.shadow_rx,
+        verdict: match a.verdict {
+            ShadowVerdict::Clean => "clean",
+            ShadowVerdict::BypassedTx => "bypassed_tx",
+            ShadowVerdict::BypassedRx => "bypassed_rx",
+            ShadowVerdict::BypassedBoth => "bypassed_both",
+            ShadowVerdict::Unavailable => "unavailable",
+        },
+    })
+}
+
 /// One entry of the targets array: a report or a miss.
 #[derive(serde::Serialize)]
 #[serde(untagged)]
@@ -159,6 +198,10 @@ pub enum DepthEntryJson {
 #[derive(serde::Serialize)]
 pub struct DepthDocJson {
     pub targets: Vec<DepthEntryJson>,
+    /// The bypass-shadow audit (NIGHT-upgrade-charger-core-1-a;
+    /// null = the traffic focus window did not run — see the note
+    /// fields). Additive: scripts predating the field ignore it.
+    pub bypass_audit: Option<BypassAuditJson>,
 }
 
 /// The ledger row as JSON (None stays null — the honest absence).
@@ -182,9 +225,13 @@ fn traffic_json(focus: &Option<TrafficFocus>) -> Option<TrafficJson> {
 }
 
 /// Build the typed JSON document from assembled reports plus the
-/// misses (pure — struct assembly only, no io).
+/// misses and the bypass audit (pure — struct assembly only, no io).
 #[must_use]
-pub fn depth_doc_json(reports: &[DepthReport], misses: &[(String, String)]) -> DepthDocJson {
+pub fn depth_doc_json(
+    reports: &[DepthReport],
+    misses: &[(String, String)],
+    audit: Option<&ShadowAudit>,
+) -> DepthDocJson {
     let mut targets = Vec::new();
     for report in reports {
         let holders = report.conns.as_ref().map_or(0, |c| c.socket_holders.len());
@@ -281,7 +328,10 @@ pub fn depth_doc_json(reports: &[DepthReport], misses: &[(String, String)]) -> D
             error: error.clone(),
         }));
     }
-    DepthDocJson { targets }
+    DepthDocJson {
+        targets,
+        bypass_audit: bypass_audit_json(audit),
+    }
 }
 
 // The depth JSON pins live under the single test/ tree (cosmostrix

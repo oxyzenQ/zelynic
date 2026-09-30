@@ -17,6 +17,61 @@ NIGHT-hunt-18's git-history-only call.
 
 ## [Unreleased]
 
+### Added
+
+- **eagle-eyes --depth: the bypass-shadow audit (NIGHT-upgrade-charger-core-1-a,
+  the TIER S "bypass detection" ability) — the honesty check no other
+  rate limiter runs: the report now compares what the machine's
+  interfaces physically moved (/sys/class/net counters) against what
+  the cgroup_skb hooks saw over the same focus window, and prints the
+  gap instead of hiding it.** The threat shape: a process can move
+  bytes without ever traversing the hooks zelynic enforces through —
+  AF_XDP rings drive the NIC directly, RDMA/RoCE bypasses the IP
+  stack entirely, AF_PACKET raw injection enters below the hook —
+  and to that traffic a cgroup rate limit is decorative (the BPF
+  meter reads the limit while the interface meter reads the truth;
+  the motivating case was a 47x gap). The audit brackets the focus
+  window with interface snapshots and reads the observer's
+  machine-wide totals (both hooks the report already trusts), so it
+  costs zero new BPF programs, zero schema movement, zero daemon —
+  read-only sysfs arithmetic inside the window the report already
+  runs. Verdict bands are dual-thresholded to stay quiet on healthy
+  hosts: a side flags only above BOTH its relative share (25% of
+  interface tx; 40% of rx, the looser band every firewall-drop and
+  port-scan frame lands in without being a bypass) and its absolute
+  floor (1 MiB tx / 2 MiB rx per window, so quiet windows never flag
+  on rounding; header bias is under 2%). A clean window renders one
+  compact line with both sides' residual share; a flagged window
+  prints the full triage block — both sides' figures, the shadow's
+  share, the likely paths, and the `ss -etu` / `lsof -i` triage
+  commands (a flag without the "what now" just moves the anxiety).
+  `--print-json` carries the same audit as the additive top-level
+  `bypass_audit` object with the full verdict vocabulary
+  (`clean`/`bypassed_tx`/`bypassed_rx`/`bypassed_both`/`unavailable`,
+  null when no window ran — absence distinguishable from clean).
+  Honesty contracts, all unit-pinned rootlessly: the scope is
+  machine-wide and labeled so (interface counters have no
+  per-process attribution — that is exactly what a bypass means, so
+  the audit names the gap and hands over the triage tools instead of
+  guessing a culprit); an unreadable /sys/class/net is the named
+  `unavailable` verdict, never a fabricated clean (an undercounted
+  aggregate would fabricate exactly the clean verdict the honesty
+  contract bans, so ANY unreadable interface fails the whole
+  snapshot); interface counters are wrap-coherent (the NIGHT-lts-5
+  discipline, modulo deltas at the shared 18.4 EB horizon); and a
+  measurement skew where BPF counted more than the interfaces
+  saturates to zero gap, never a wrapped "negative" shadow. The
+  io_uring-zerocopy escape the feature brief hypothesized does NOT
+  exist (those sends still ride the socket sendmsg path — verified
+  against the io_uring source and stated in USAGE.md so the docs
+  never repeat the wrong guess); io_uring registered-buffer sends are
+  visible to enforcement, only the truly hook-skipping paths are not.
+  Docs: the depth section and the JSON reference carry the audit's
+  contract (docs/USAGE.md), 16 new pins (the sysfs aggregation seam
+  against a fixture, every verdict band, the threshold boundary
+  itself, the wrap and skew shapes, the section's three render
+  shapes, and the JSON vocabulary).
+
 ### Changed
 
 - **ci: the NIGHT-dinner repair rider series — the wholesale gate and
