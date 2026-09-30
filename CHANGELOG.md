@@ -19,6 +19,36 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Added
 
+- **the rider I close — the wrong-module toggle, the real reason the
+  A/B stayed red for six pushes (the 501ab20 find): rider C's fix
+  never worked, and the CI said so every time.** The symptom never
+  changed from ff8e73dc through 501ab20: the ammsp-vs-legacy
+  battery's legacy side exited 2 on `--no-probe` at the very first
+  apply (`strict-single on the parent`), even after rider E closed
+  the nested-root call site the previous read blamed. The hunt
+  found the module identity bug: the A/B runner flipped the toggle
+  as `lib.PROBE_FLAG_SUPPORTED` — a fresh attribute on
+  zelynic_harness_lib, a module that never defines the name and
+  that nothing reads — while `apply_single` resolves
+  `PROBE_FLAG_SUPPORTED` in supermassive-test's own module globals
+  (the importlib-loaded `sm1`), so the toggle never flipped, the
+  legacy v11.0.0 side kept receiving the flag, and every one of the
+  four legs failed identically while the tree's audit doc claimed
+  the fix at the source. The twin trap is now structural and
+  pinned: `rebind_side(binary, is_current)` lands BOTH globals the
+  side owns on the modules that read them (`lib.BINARY` for run_zel
+  — the run-253 lesson's target — and `sm1.PROBE_FLAG_SUPPORTED`
+  for apply_single), the A/B runner calls only the helper, and the
+  engine self-test pins the module identity (flip via the helper,
+  read back sm1's attribute, restore; plus the code-object check
+  that apply_single resolves the name in its own globals) — a
+  future side switch cannot write a toggle to the wrong module
+  silently. The audit doc's paragraph carries the full honest
+  history (two defects in rider C's fix: the missed call site
+  rider E closed, and the wrong-module write rider I closed). A/B
+  engine self-test 12/12 rootlessly (the new module-identity pin
+  beside the argv pin); ruff check + format green; no Rust surface
+  touched.
 - **the rider E close and the rider F hunt — the brutal CI red of the
   1c push, both halves: the deterministic blocker fixed at its missed
   call site, and the one flaky leg's physics found, verified, and

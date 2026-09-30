@@ -445,12 +445,12 @@ def nested_apply_argv(chain1_id, probe_supported):
 
     The probe flag rides the current side only: the legacy v11.0.0
     binary predates --no-probe and exits 2 on it. The ff8e73dc CI
-    find: rider C's toggle fix converted v1's apply_single (and the
-    A/B runner set lib.PROBE_FLAG_SUPPORTED) but missed this direct
-    run_side_binary call site, so every supermassive leg went red on
-    the legacy side's exit 2. Building the argv through one helper
-    makes the side-awareness structural — a future call site cannot
-    regress it silently.
+    find: rider C's toggle fix converted v1's apply_single (and
+    wrote the toggle to the wrong module — see rebind_side) but
+    missed this direct run_side_binary call site, so every
+    supermassive leg went red on the legacy side's exit 2. Building
+    the argv through one helper makes the side-awareness
+    structural — a future call site cannot regress it silently.
     """
     argv = ["strict-single", str(chain1_id), NESTED_STR]
     if probe_supported:
@@ -458,26 +458,50 @@ def nested_apply_argv(chain1_id, probe_supported):
     return argv
 
 
+def rebind_side(binary, is_current):
+    """Rebind the two module globals the side owns — the 501ab20
+    lesson (rider I's close): the toggle must land on the module
+    that READS it.
+
+    lib.BINARY is read by run_zel at call time (the zelynic_
+    harness_lib module — the run-253 lesson's rebind target).
+    PROBE_FLAG_SUPPORTED is a supermassive-test (sm1) module global
+    read by apply_single's own body. Rider C flipped it as
+    lib.PROBE_FLAG_SUPPORTED — a fresh attribute on a module that
+    never defines the name, read by nobody — so the toggle never
+    flipped, apply_single kept appending --no-probe for the legacy
+    v11.0.0 side, and every supermassive leg failed on its exit 2
+    for THREE pushes while the tree claimed the fix at the source.
+    One helper, both rebinds, the structural target: a future side
+    switch cannot write the toggle to the wrong module again.
+    """
+    lib.BINARY = binary
+    sm1.PROBE_FLAG_SUPPORTED = is_current
+
+
 def run_battery_side(label, binary, is_current=False):
     """One side of the A/B: the identical battery under `binary`.
 
     The fleet, server, and cgroup spawn engine are v1's; the side is
-    switched by rebinding lib.BINARY (run_zel resolves it at call
-    time, and v1's apply helpers ride run_zel). Each side starts from
-    a recovered pin-clean state — the two schemas never see each
-    other's pins — and ends with unstrict + recover so the next side
-    starts equally clean. Row verdicts are SIDE-AWARE (side_verdict):
-    the current side is judged, the legacy side is the control whose
-    escapes are the expected counterfactual.
+    switched by rebinding the two globals the side owns through
+    rebind_side — lib.BINARY (run_zel resolves it at call time, and
+    v1's apply helpers ride run_zel) and sm1.PROBE_FLAG_SUPPORTED
+    (apply_single's own module global, the 501ab20 wrong-module
+    lesson). Each side starts from a recovered pin-clean state —
+    the two schemas never see each other's pins — and ends with
+    unstrict + recover so the next side starts equally clean. Row
+    verdicts are SIDE-AWARE (side_verdict): the current side is
+    judged, the legacy side is the control whose escapes are the
+    expected counterfactual.
 
     Returns the leaf class counts for the coverage delta, or None
     when the side could not run at all (already recorded).
     """
     out(f"── side: {label} ({binary}) " + "─" * max(0, 44 - len(label) - len(binary)))
-    lib.BINARY = binary
-    # The probe flag rides the current side only (the legacy v11.0.0
-    # binary predates --no-probe and exits 2 on it).
-    lib.PROBE_FLAG_SUPPORTED = is_current
+    # Both globals the side owns, through the one structural helper:
+    # lib.BINARY for run_zel, sm1.PROBE_FLAG_SUPPORTED for
+    # apply_single (the 501ab20 wrong-module lesson).
+    rebind_side(binary, is_current)
 
     # Clean slate: recover tolerates an already-clean pin dir.
     rc, _, err = run_side_binary(binary, ["recover"])
@@ -701,6 +725,37 @@ def self_test():
         "self: nested-root argv rides the side-aware probe toggle",
         "PASS",
         "the legacy binary never sees --no-probe",
+    )
+
+    # The 501ab20 lesson, pinned as the module identity (rider I's
+    # close): rider C flipped the toggle on the WRONG MODULE —
+    # lib.PROBE_FLAG_SUPPORTED wrote a fresh attribute on
+    # zelynic_harness_lib that nothing reads, while apply_single
+    # resolves PROBE_FLAG_SUPPORTED in sm1's own globals — so the
+    # toggle never flipped, the legacy v11.0.0 side kept receiving
+    # --no-probe, and every supermassive leg failed on its exit 2
+    # for three pushes while the tree claimed the fix at the source.
+    # The rebind helper must land BOTH globals on the modules that
+    # read them: flip, read back, restore.
+    saved_binary = lib.BINARY
+    saved_toggle = sm1.PROBE_FLAG_SUPPORTED
+    try:
+        rebind_side("/opt/zelynic/legacy/zelynic", False)
+        assert sm1.PROBE_FLAG_SUPPORTED is False, "the legacy side must flip sm1's toggle"
+        assert lib.BINARY == "/opt/zelynic/legacy/zelynic", "run_zel's binary follows the side"
+        rebind_side("/opt/zelynic/zelynic", True)
+        assert sm1.PROBE_FLAG_SUPPORTED is True, "the current side must flip sm1's toggle"
+        assert lib.BINARY == "/opt/zelynic/zelynic"
+        assert "PROBE_FLAG_SUPPORTED" in sm1.apply_single.__code__.co_names, (
+            "apply_single must resolve the toggle in its own module's globals"
+        )
+    finally:
+        sm1.PROBE_FLAG_SUPPORTED = saved_toggle
+        lib.BINARY = saved_binary
+    record(
+        "self: side rebind lands on the module that reads each global",
+        "PASS",
+        "lib.BINARY for run_zel, sm1.PROBE_FLAG_SUPPORTED for apply_single",
     )
 
     # The 1a25f91 lesson, pinned as the verdict table: the legacy
