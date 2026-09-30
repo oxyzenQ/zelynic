@@ -79,7 +79,7 @@ fn get_leaf_ptr(leaf_map: &LruHashMap<u32, Bucket>, leaf: &u32) -> Option<*mut B
                 last_refill_ns: 0,
                 frac_rem: 0,
             };
-            if leaf_map.insert(leaf, &init, BPF_NOEXIST).is_err() {
+            if leaf_map.insert(leaf, init, BPF_NOEXIST).is_err() {
                 // Lost the init race (the v11 discipline): re-look-up
                 // and ride the winner's entry. A full LRU is the same
                 // honest miss the memo map takes — the packet drops.

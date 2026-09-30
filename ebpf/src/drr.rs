@@ -86,8 +86,12 @@ pub const GSO_ADMIT_FLOOR: u64 = 65_536;
 /// advantage to one window plus whatever the starved siblings leave.
 pub const DRR_WINDOW_MS: u64 = 100;
 
-/// The fair-share window, in nanoseconds — the datapath's elapsed
-/// clock (ktime) measures the spacing.
+/// The fair-share window, in nanoseconds — the unit the pins hold
+/// the window constant in (the datapath itself never converts: the
+/// pacing that consumed it was removed, the CI ebpf-clippy lane
+/// caught the orphan, and the const stays test-facing — the
+/// walk_queries precedent).
+#[cfg(test)]
 pub const DRR_WINDOW_NS: u64 = DRR_WINDOW_MS * 1_000_000;
 
 /// The draw admission (pure): the leaf's stamp holds its last draw
