@@ -1,3 +1,6 @@
+<!-- SPDX-License-Identifier: GPL-3.0-only -->
+<!-- Copyright (C) 2026 rezky_nightky (oxyzenQ) -->
+
 # NIGHT-upgrade-charger-core-1c: the probe's CI find — the open lane, on the record
 
 Date: 2026-09-30
@@ -12,12 +15,17 @@ root machine to debug.
 
 Two independent findings on the same run, one mundane and one deep:
 
-1. **The mundane one (fixed at the source):** the ammsp-vs-legacy
-   battery's `apply_single` and its nested-root row passed
-   `--no-probe` to the LEGACY v11.0.0 binary, which predates the
-   flag and exits 2 on it. The flag now rides the current side only
-   (v1's `PROBE_FLAG_SUPPORTED` toggle, flipped per side by the
-   A/B runner).
+1. **The mundane one (fixed at the source, completed one push
+   later):** the ammsp-vs-legacy battery's `apply_single` and its
+   nested-root row passed `--no-probe` to the LEGACY v11.0.0 binary,
+   which predates the flag and exits 2 on it. Rider C's toggle fix
+   converted `apply_single` (and set `lib.PROBE_FLAG_SUPPORTED` per
+   side) but missed the nested-root row's direct `run_side_binary`
+   call site — the ff8e73dc/bafc4ac CI caught the miss with every
+   supermassive leg red on the legacy side's exit 2. The flag now
+   rides the current side only through `nested_apply_argv` (the
+   side-aware argv builder, pinned in the engine self-test so a
+   future call site cannot regress it silently).
 
 2. **The deep one (the open lane):** the enforcement probe's own
    measurement escaped policing in the proof-claims stages. Four
@@ -125,3 +133,20 @@ debugged. The interactive surface keeps the probe on by default:
 an owner typing `sudo zelynic ss brave 100kb` gets the measurement,
 and if this find reproduces there, the red block is the starting
 point — exactly what it was built for.
+<!-- ZELYNIC-DISCLAIMER -->
+<!--
+  Documentation Disclaimer — read before relying on any data point.
+
+  This document may contain stale data, hardcoded counts, or outdated
+  file paths and symbol names. Maintainers update source code but may
+  forget to sync every doc — perfect sync across every .md file is a
+  known maintenance burden with diminishing returns.
+
+  Source code (`src/**/*.rs`, `ebpf/src/**/*.rs`) is the single source of
+  truth. Always cross-check against the actual source files before
+  relying on any specific number (target count, LOC, rate bound),
+  file path, function name, or config key.
+
+  If you find a discrepancy, please open a PR — the doc is wrong, not
+  the source.
+-->
