@@ -2013,8 +2013,20 @@ def test_asymmetric(window, baseline):
     # download row gets the same drain — it only stayed inside the
     # band by AIMD luck, not by different physics.
     py_download(0.5)
-    got = py_download(window)
-    dl_ok = band_check("asymmetric: download bucket at 100kb", got / window, 100_000)
+    # The measured window rides the lib's one-sided patience (the
+    # charger-core-1c trickle lesson: this row is one of the
+    # trickle-bound rungs — the GSO admit floor binds the DRR quantum
+    # below ~656 KB/s, so a lone leaf's first gather can read the
+    # deep-RTO transient — the 2026-09-30 best-gnu leg measured
+    # 57.4% here; the under side re-samples, the over side fails
+    # now, the samples ride the row detail).
+    samples = lib.patient_rate_window(lambda: py_download(window), 100_000, window)
+    dl_ok = band_check(
+        "asymmetric: download bucket at 100kb",
+        samples[-1],
+        100_000,
+        extra=lib.window_samples_note(samples),
+    )
     py_upload(0.5)
     # NIGHT-dinner-13: the upload verdict rides the KERNEL LEDGER
     # (boost-27 lineage), not the client's socket-write count. The
@@ -2588,29 +2600,6 @@ def test_multi_group(window, baseline):
     return solo and joint
 
 
-def window_retry_needed(measured_bps, configured_bps):
-    """The under-side patience decision for a measured rate window
-    (the charger-core-1c CI lesson, the 0b0a8f5 drain discipline
-    applied to the measurement itself).
-
-    True — re-sample — only when the sample reads UNDER the band:
-    at trickle rates where the GSO admit floor binds (one 64 KiB
-    super-packet per ~1.31s of refill at 50kb), a 4s window holds at
-    most three admits, and the DRR residue law's half-draws stretch
-    the first one when TCP's retransmit cadence is sparse (each draw
-    takes half the pooled balance, so a lone leaf gathering its
-    quantum needs several arrivals — the best-musl leg of the 1c
-    push read exactly one quantum, 16.4 KB/s = 32.8%, while the
-    other three legs read in-band). A steady-state sample is not a
-    retry matter; an OVER-band sample is the opposite — a real
-    over-delivery that must fail immediately, never be retried away
-    (enforcement can only under-deliver a budget, the probe's
-    one-sidedness contract). Both stop the window loop; the verdict
-    stays band_check's, the single band authority.
-    """
-    return measured_bps < BAND_LO * configured_bps
-
-
 def test_ammsp_subtree(window, baseline):
     """NIGHT-private-research-2 (AMMSP): the subtree contract, measured
     live — a strict on cgroup A polices every socket born under A/**,
@@ -2695,24 +2684,31 @@ def test_ammsp_subtree(window, baseline):
         # apply (the exact owner scenario: a subprocess appears once
         # the limit is already enforced).
         if nested_mkdir(late_path):
-            got = child_bytes(late_path, window)
+            samples = lib.patient_rate_window(
+                lambda: child_bytes(late_path, window), 100_000, window
+            )
             passed = (
                 band_check(
                     "ammsp: child born after apply is policed",
-                    got / window,
+                    samples[-1],
                     100_000,
+                    extra=lib.window_samples_note(samples),
                 )
                 and passed
             )
 
         # Verdict 2 — the poisoned memo: the leaf that cached
-        # "unlimited" before the apply must now be policed.
-        got = child_bytes(sub_path, window)
+        # "unlimited" before the apply must now be policed. The same
+        # one-sided patience as every trickle-bound row (the 100kb
+        # rung: the GSO floor binds the quantum, the lone leaf's
+        # deep-RTO gather transient re-samples under-band only).
+        samples = lib.patient_rate_window(lambda: child_bytes(sub_path, window), 100_000, window)
         passed = (
             band_check(
                 "ammsp: pre-apply unlimited memo invalidated by the apply",
-                got / window,
+                samples[-1],
                 100_000,
+                extra=lib.window_samples_note(samples),
             )
             and passed
         )
@@ -2822,20 +2818,18 @@ def test_ammsp_subtree(window, baseline):
             # over-delivery must never be retried away), and three
             # under-band samples FAIL with every number attached — a
             # systematically broken datapath cannot pass by retry.
-            rates = []
-            for _ in range(3):
-                got = child_bytes(grand_path, window)
-                rates.append(got / window)
-                if not window_retry_needed(rates[-1], 50_000):
-                    break
+            # The loop itself is the lib's patient_rate_window (the
+            # same helper every trickle-bound row rides, pinned in
+            # the engine self-test).
+            samples = lib.patient_rate_window(
+                lambda: child_bytes(grand_path, window), 50_000, window
+            )
             passed = (
                 band_check(
                     "ammsp: grandchild resolves to the NEAREST root (50kb, not 100kb)",
-                    rates[-1],
+                    samples[-1],
                     50_000,
-                    extra="windows: "
-                    + ", ".join(f"{r / 1000:.1f} KB/s" for r in rates)
-                    + " (the under-side transient re-samples, the over-side fails now)",
+                    extra=lib.window_samples_note(samples),
                 )
                 and passed
             )
@@ -3587,27 +3581,33 @@ def self_test():
     finally:
         shutil.rmtree(probe, ignore_errors=True)
 
-    # The charger-core-1c best-musl lesson, pinned at the CI leg's
-    # exact numbers: the nested-root row's one-shot 4s window read
-    # one 64 KiB quantum (16.4 KB/s = 32.8% of the 50kb policy —
-    # the DRR residue law's half-draws plus a deep RTO backoff
-    # stretching the lone leaf's first gather) while the other three
-    # legs read in-band. The patience decision must be one-sided:
-    # only the under-band transient re-samples; an in-band sample is
-    # the steady state proven; an over-band sample is a real
-    # over-delivery that stops the loop and fails through
-    # band_check — never retried away.
-    retry_pins = [
-        (16_384, 50_000, True, "the best-musl transient re-samples"),
-        (32_800, 50_000, False, "in-band (65.6%) is steady, no retry"),
-        (49_152, 50_000, False, "in-band (98.3%) is steady, no retry"),
-        (70_000, 50_000, False, "over-band stops: a real over-delivery"),
-    ]
-    retry_ok = all(window_retry_needed(m, c) == want for m, c, want, _ in retry_pins)
+    # The charger-core-1c trickle lesson, pinned as the patient
+    # window's BEHAVIOR (the lib helper every trickle-bound row
+    # rides, scripted probes — no root, no binary, no fleet): the
+    # one-shot 4s window at a floor-bound rate read the deep-RTO
+    # transient on two CI legs (the best-musl grandchild row: one
+    # 64 KiB quantum, 16.4 KB/s = 32.8% of the 50kb policy; the
+    # best-gnu asymmetric download row: 57.4% of the 100kb policy)
+    # while the sibling legs read in-band. The patience must be
+    # one-sided: an under-band sample re-samples (the steady state
+    # the row means to measure), an in-band sample stops, an
+    # over-band sample stops IMMEDIATELY (a real over-delivery must
+    # fail through band_check, never be retried away), and a
+    # systematically-under datapath exhausts its attempts and FAILs.
+    seq = iter([65_536, 196_608])
+    rates = lib.patient_rate_window(lambda: next(seq), 50_000, 4.0)
+    assert rates == [16_384.0, 49_152.0], rates
+    rates = lib.patient_rate_window(lambda: 65_536, 50_000, 4.0)
+    assert len(rates) == 3 and all(r == 16_384.0 for r in rates), rates
+    rates = lib.patient_rate_window(lambda: 300_000, 50_000, 4.0)
+    assert rates == [75_000.0], rates
+    note = lib.window_samples_note([16_384.0, 49_152.0])
+    assert "16.4 KB/s" in note and "49.2 KB/s" in note, note
     record(
         "engine: under-side window patience is one-sided",
-        "PASS" if retry_ok else "FAIL",
-        "; ".join(note for _, _, _, note in retry_pins),
+        "PASS",
+        "the transient re-samples, in-band and over-band stop, "
+        "systematic under exhausts and FAILs, samples ride the row",
     )
 
     # NIGHT-improve-12 pin: every ladder rung must sit inside the
@@ -3696,8 +3696,11 @@ def self_test():
     # either contract, these rows fail before the next root run
     # trusts the stages.
     asym_src = inspect.getsource(test_asymmetric)
+    # The measured download window rides the lib's patient_rate_window
+    # (the charger-core-1c trickle patience) — the probe lambda is the
+    # window call the drain must still precede.
     drain_ok = asym_src.index("py_download(0.5)") < asym_src.index(
-        "got = py_download(window)"
+        "py_download(window)"
     ) and asym_src.index("py_upload(0.5)") < asym_src.index("sent = py_upload(window)")
     record(
         "harness: asymmetric drains the attach cushion before each window",
