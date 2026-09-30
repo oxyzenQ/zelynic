@@ -57,53 +57,73 @@ pub(crate) fn handle_strict_single(
     super::ensure_root()?;
 
     // Prevent concurrent operations (race condition elimination).
-    let _lock = crate::ebpf::lock::acquire()?;
-
+    //
+    // dinner-28: the lock's scope is the APPLY, not the probe. The
+    // lock serializes every policy mutation and pin teardown, and
+    // holding it through the probe made the whole verification window
+    // atomic against the world — a concurrent unstrict could never
+    // land mid-window (the lock is non-blocking, so the concurrent
+    // command ERRORED with lock-held instead), which put the
+    // checklist's own scenario ("someone unstricts the target while
+    // the verification runs") structurally out of reach. The probe
+    // mutates no policy state — it reads the maps it was handed and
+    // spawns its own transient cgroups — so the lock drops before
+    // the window opens and the mid-window teardown becomes
+    // observable: the MEASUREMENT is the defense (a policy that
+    // vanishes mid-window reads FAILED by its own numbers), and the
+    // is_pinned re-check after the probe (the dinner-16 parity, moved
+    // to the new boundary) keeps the success verdict honest against
+    // a torn-down pin state.
     let target = Target::parse(target_str);
+    let mut limiter;
+    {
+        let _lock = crate::ebpf::lock::acquire()?;
 
-    // Attach BPF programs (pins to /sys/fs/bpf/zelynic/ — survives exit).
-    crate::ebpf::limiter::Limiter::attach(verbose)?;
+        // Attach BPF programs (pins to /sys/fs/bpf/zelynic/ — survives exit).
+        crate::ebpf::limiter::Limiter::attach(verbose)?;
 
-    // Open pinned maps and write policy.
-    let mut limiter = Limiter::open_pinned(verbose)?;
-    let applied = limiter.apply_single(&target, &rates, per_socket)?;
-    if applied == 0 {
-        // NIGHT-dinner-11: the no-match hard error — branded red
-        // block + exit 1 (see commands::target_no_match_error), so
-        // a typo'd target can never read as calm success. The
-        // hunt-10 colon tip rides as a white tip line — now EXCLUDING
-        // the canonical cg: prefix: a miss on cg:<id> is a dead id,
-        // not a list mistake, and the routing tip would be noise
-        // there (the owner's honesty pass).
-        let mut tips = Vec::new();
-        // charger-core-2: a '://'-shaped target that fell through to
-        // the no-match path is a malformed container URI (a
-        // well-formed one surfaces resolve's specific error instead)
-        // — the grammar tip beats the colon-list tip there.
-        if target_str.contains("://") {
-            tips.push(
-                "container target grammar: docker://<name> or k8s://<namespace>/<pod>".to_string(),
-            );
-        } else if target_str.contains(':') && !target_str.starts_with("cg:") {
-            tips.push("colon-separated lists belong to strict-multi".to_string());
+        // Open pinned maps and write policy.
+        limiter = Limiter::open_pinned(verbose)?;
+        let applied = limiter.apply_single(&target, &rates, per_socket)?;
+        if applied == 0 {
+            // NIGHT-dinner-11: the no-match hard error — branded red
+            // block + exit 1 (see commands::target_no_match_error), so
+            // a typo'd target can never read as calm success. The
+            // hunt-10 colon tip rides as a white tip line — now EXCLUDING
+            // the canonical cg: prefix: a miss on cg:<id> is a dead id,
+            // not a list mistake, and the routing tip would be noise
+            // there (the owner's honesty pass).
+            let mut tips = Vec::new();
+            // charger-core-2: a '://'-shaped target that fell through to
+            // the no-match path is a malformed container URI (a
+            // well-formed one surfaces resolve's specific error instead)
+            // — the grammar tip beats the colon-list tip there.
+            if target_str.contains("://") {
+                tips.push(
+                    "container target grammar: docker://<name> or k8s://<namespace>/<pod>"
+                        .to_string(),
+                );
+            } else if target_str.contains(':') && !target_str.starts_with("cg:") {
+                tips.push("colon-separated lists belong to strict-multi".to_string());
+            }
+            tips.push(super::TIP_LIST_APPS.to_string());
+            return Err(super::target_no_match_error(
+                format!("No cgroup found for '{target_str}' — nothing was limited"),
+                &tips,
+            ));
         }
-        tips.push(super::TIP_LIST_APPS.to_string());
-        return Err(super::target_no_match_error(
-            format!("No cgroup found for '{target_str}' — nothing was limited"),
-            &tips,
-        ));
-    }
 
-    // NIGHT-dinner-16 (race-window parity with strict-multi/all): a
-    // concurrent unstrict-all can tear the pins down between apply
-    // and the success verdict — the verdict is verified BEFORE it
-    // prints, so a torn-down limit never reads as enforced.
-    if !crate::ebpf::limiter::Limiter::is_pinned() {
-        return Err(anyhow::anyhow!(
-            "BPF pins missing after apply — a concurrent operation may have interfered\n  \
-             tip: run 'zelynic recover' to repair state"
-        ));
-    }
+        // NIGHT-dinner-16 (race-window parity with strict-multi/all): a
+        // concurrent unstrict-all can tear the pins down between apply
+        // and the success verdict — the verdict is verified BEFORE it
+        // prints, so a torn-down limit never reads as enforced.
+        if !crate::ebpf::limiter::Limiter::is_pinned() {
+            return Err(anyhow::anyhow!(
+                "BPF pins missing after apply — a concurrent operation may have interfered\n  \
+                 tip: run 'zelynic recover' to repair state"
+            ));
+        }
+    } // the lock drops here: the probe below runs unserialized
 
     // NIGHT-upgrade-charger-core-1-b (the self-proving enforcement):
     // "applied" is a claim, "VERIFIED" is a measurement. The probe
@@ -121,6 +141,15 @@ pub(crate) fn handle_strict_single(
             &limiter, &target, &rates, per_socket,
         ))
     };
+    // The dinner-16 parity at the NEW boundary: pins torn down DURING
+    // the window are caught here, before any success surface prints —
+    // the verdict never reads over a state that no longer exists.
+    if !crate::ebpf::limiter::Limiter::is_pinned() {
+        return Err(anyhow::anyhow!(
+            "BPF pins missing after the probe — a concurrent operation may have interfered\n  \
+             tip: run 'zelynic recover' to repair state"
+        ));
+    }
     if let Some(outcome) = &probe_outcome {
         if outcome.verdict == probe::ProbeVerdict::Failed {
             return Err(probe_report::failure_error(target_str, outcome));

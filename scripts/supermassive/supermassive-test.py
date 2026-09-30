@@ -3131,56 +3131,89 @@ def test_ammsp_fairshare(window, baseline):
 
 
 def test_probe_failed():
-    """NIGHT-improve-1b (the DeepSeek checklist, item 3 — the
-    self-proving enforcement's FAILING side, the one no stage had
-    ever driven): "applied" must never read as success when the
-    measurement says the limit is not being enforced.
+    """NIGHT-improve-1b, rebuilt in dinner-28 (the DeepSeek checklist,
+    item 3 — the self-proving enforcement's FAILING side, the one no
+    stage had ever driven): "applied" must never read as success when
+    the measurement says the limit is not being enforced.
 
-    The honest forcing condition: the probe window is 3s and the
-    verdict's budget is read at window open, so removing the policy
-    MID-WINDOW (the operational accident this catches: someone
-    unstricts while the verification runs) lets the client's socket
-    run at loopback line rate for the window's remainder — the
-    measured flow exceeds the budget by orders of magnitude, and
-    the command must exit 1 with the FAILED block, the numbers
-    attached (probe_report::failure_error's contract), never a
-    silent applied-OK.
+    THE CI FIND (the row failed 4/4 legs as "exit 0; missing
+    needles"): two walls, both now named. (1) THE LOCK — the
+    operation lock was held THROUGH the probe, so the mid-window
+    unstrict could never land while the window was live: the probe
+    process had already exited (a fast-exit UNVERIFIED, sub-2.5s)
+    before the unstrict ran, and the policy removal touched no live
+    window at all — the row read a completed apply (exit 0) instead
+    of the torn-down measurement (exit 1). dinner-28 releases the
+    lock before the probe (its scope is the APPLY, the mutation it
+    serializes), so the unstrict now lands inside the window and the
+    MEASUREMENT is the defense. (2) THE RTO LOTTERY — at the old
+    100kb forcing, the policed phase delivers the trickle in ~64 KiB
+    chunks hundreds of milliseconds apart, and the probe server's
+    TCP backs off into deep RTO with a full send window of dead
+    data: when the policy vanished, the recovery did not race in —
+    it waited on the RTO timer, and on every leg the remainder of
+    the window passed in silence, landing the client's count inside
+    the VERIFIED band. The forcing now runs at 1mb: the policed
+    phase delivers smoothly (a ~64 KiB admit every ~64 ms — no
+    silent window long enough to trigger the RTO backoff), so the
+    moment the policy is removed the flow ramps to loopback line
+    rate, and line rate over the remaining ~1.7s exceeds the 1mb
+    ceiling ((3 MB + burst) x 1.05 + 64 KiB) by orders of magnitude.
+    Every timing shape gives the same verdict: the unstrict inside
+    the window -> FAILED; a slow machine that opens the window after
+    2.5s -> the whole window unpoliced -> line rate over 3s ->
+    FAILED. The wrong-timing failure is still loud, never a silent
+    pass.
 
-    The timing margins, stated: strict-single on an already-attached
-    object spends its setup on the identity walk + policy write +
-    probe child/server spawns (~1s on the micro-VM), so the window
-    opens by ~1.5s and closes at ~4.5s; the unstrict fires at 2.5s
-    — a full second inside the window with ~2s of unbounded
-    remainder. A machine slow enough to miss the window entirely
-    FAILS this row visibly (UNVERIFIED exit 0 is not exit 1) — the
-    wrong-timing failure is loud, never a silent pass.
+    The timing margins, restated for the 1mb forcing: setup lands
+    the window by ~1.5s (identity walk + policy write + the two
+    300ms role graces + the residency barriers); the unstrict fires
+    at 2.5s — a full second inside with ~1.7-2s of unbounded
+    remainder. The row's needles are failure_error's whole block
+    (enforcement NOT verified / exceeded the budget / direction /
+    measured / budget) plus exit 1, and the detail carries the
+    verdict line and the note from the verify block so the next CI
+    run NAMES its lane if anything ever fast-exits again.
 
     The success and overhead sides ride the same stage (the
     checklist's other two rows): a clean apply must print VERIFIED
     exit 0, and the probe's own latency must be the 3s window plus
     bounded setup — the strict-single doc's whole-probe bound is
     "under five seconds", so the with-probe minus no-probe delta is
-    asserted inside [2.0, 8.0] and filed in the row's metrics.
+    asserted inside [2.0, 8.0] and filed in the row's metrics. The
+    overhead row rides the b target (the stage itself proves b live
+    one row earlier) and its detail carries both exit codes and
+    output tails — the old row measured 0.0s/0.0s legs with the
+    codes invisible, the exact shape that hides a fast-fail.
     """
     name = "probe: the self-proving FAILED path (mid-window teardown)"
     if not CG.dedicated:
         return record(name, "SKIP", "no dedicated fleet — the probe needs real cgroups")
 
+    def verdict_line(combined):
+        """The verify block's verdict line (enforced: VERIFIED /
+        UNVERIFIED), or absent — so a fast-exit names itself."""
+        for line in combined.splitlines():
+            if "enforced:" in line:
+                return line.strip()
+        return "no verdict line (the block never printed)"
+
     passed = True
     try:
-        # ── The FAILED path ────────────────────────────────────────
-        ok, payload = apply_single("a", "100kb", 100_000, 100_000)
+        # ── The FAILED path (the 1mb forcing, see the docstring) ──
+        ok, payload = apply_single("a", "1mb", 1_000_000, 1_000_000)
         if not ok:
             return record(name, "FAIL", payload)
-        probe_argv = [str(lib.BINARY), "strict-single", str(CG.ids["a"]), "100kb"]
+        probe_argv = [str(lib.BINARY), "strict-single", str(CG.ids["a"]), "1mb"]
         proc = subprocess.Popen(
             probe_argv,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
         )
-        # Mid-window: the teardown fires inside the probe's 3s
-        # measurement (see the docstring's margin math).
+        # Mid-window: with the lock released before the probe
+        # (dinner-28), this lands INSIDE the 3s window — the exact
+        # operational accident the probe exists to catch.
         time.sleep(2.5)
         rc, stdout, stderr = run_zel(["unstrict-single", str(CG.ids["a"])])
         if rc != 0:
@@ -3206,6 +3239,7 @@ def test_probe_failed():
                 "probe: FAILED exits 1 with the block attached",
                 "PASS" if proc.returncode == 1 and not missing else "FAIL",
                 f"exit {proc.returncode}; missing needles: {missing or 'none'}; "
+                f"verdict line: {verdict_line(combined)}; "
                 f"tail: {combined.strip()[:160]!r}",
             )
             and passed
@@ -3219,25 +3253,32 @@ def test_probe_failed():
                 "probe: a clean apply is VERIFIED exit 0",
                 "PASS" if rc == 0 and "VERIFIED" in combined else "FAIL",
                 f"exit {rc}; VERIFIED in output: {'VERIFIED' in combined}; "
+                f"verdict line: {verdict_line(combined)}; "
                 f"tail: {combined.strip()[:160]!r}",
             )
             and passed
         )
 
         # ── The probe overhead: the 3s window + bounded setup ──────
+        # The b target: this stage proves it live one row above; the
+        # detail carries both exit codes and tails so a fast-fail
+        # (the 0.0s/0.0s shape the CI caught) can never hide again.
         t0 = time.perf_counter()
-        rc, stdout, stderr = run_zel(["strict-single", str(CG.ids["c"]), "100kb", "--no-probe"])
+        rc_np, out_np, err_np = run_zel(["strict-single", str(CG.ids["b"]), "100kb", "--no-probe"])
         t_noprobe = time.perf_counter() - t0
-        ok_noprobe = rc == 0
+        ok_noprobe = rc_np == 0
         t0 = time.perf_counter()
-        rc, stdout, stderr = run_zel(["strict-single", str(CG.ids["c"]), "200kb"])
+        rc_p, out_p, err_p = run_zel(["strict-single", str(CG.ids["b"]), "200kb"])
         t_probe = time.perf_counter() - t0
         delta = t_probe - t_noprobe
         passed = (
             record(
                 "probe: overhead is the 3s window + bounded setup",
-                "PASS" if ok_noprobe and rc == 0 and 2.0 <= delta <= 8.0 else "FAIL",
-                f"no-probe {t_noprobe:.1f}s, with-probe {t_probe:.1f}s, "
+                "PASS" if ok_noprobe and rc_p == 0 and 2.0 <= delta <= 8.0 else "FAIL",
+                f"no-probe {t_noprobe:.1f}s (exit {rc_np}; tail "
+                f"{((out_np or '') + (err_np or '')).strip()[:80]!r}), "
+                f"with-probe {t_probe:.1f}s (exit {rc_p}; tail "
+                f"{((out_p or '') + (err_p or '')).strip()[:80]!r}), "
                 f"delta {delta:.1f}s (bounds [2.0, 8.0] — PROBE_SECS=3 "
                 "plus the under-five-seconds whole-probe doc bound)",
                 metrics={
