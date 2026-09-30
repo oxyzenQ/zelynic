@@ -47,9 +47,7 @@ use aya_ebpf::{macros::map, maps::LruHashMap};
 // compiles — reused from the root's own inclusion, ONE copy per
 // crate, the math.rs duplicate-mod discipline).
 use super::ammsp_resolve::current_generation;
-use super::math::{
-    Bucket, LimiterStats, Policy, book, refill_window, tokens_cas, try_consume,
-};
+use super::math::{Bucket, LimiterStats, Policy, book, refill_window, tokens_cas, try_consume};
 
 /// One per-socket bucket: the standard token bucket plus the
 /// generation stamp the stale-token belt reads. A NEW map value
@@ -90,10 +88,7 @@ const BPF_NOEXIST: u64 = 1;
 /// packet — a fresh bucket simply takes the zero-token start the
 /// legacy lane's first packet takes).
 #[inline(always)]
-fn get_socket_ptr(
-    map: &LruHashMap<u64, SocketBucket>,
-    cookie: &u64,
-) -> Option<*mut SocketBucket> {
+fn get_socket_ptr(map: &LruHashMap<u64, SocketBucket>, cookie: &u64) -> Option<*mut SocketBucket> {
     match map.get_ptr_mut(cookie) {
         Some(ptr) => Some(ptr),
         None => {

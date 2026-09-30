@@ -110,8 +110,7 @@ mod rate_ring;
 #[path = "../socket_flow.rs"]
 mod socket_flow;
 use math::{
-    Bucket, LimiterStats, MAX_ENFORCABLE_BURST, Policy, book, enforce,
-    POLICY_FLAG_PER_SOCKET,
+    Bucket, LimiterStats, MAX_ENFORCABLE_BURST, POLICY_FLAG_PER_SOCKET, Policy, book, enforce,
 };
 use rate_ring::{RateRing, RateSlot, ring_book};
 use socket_flow::socket_flow;
@@ -619,8 +618,7 @@ fn try_enforce(
     if pol_sane.flags & POLICY_FLAG_PER_SOCKET != 0 {
         let cookie = unsafe { bpf_get_socket_cookie(ctx.skb.skb.cast()) };
         if cookie != 0 {
-            let verdict =
-                socket_flow(&pol_sane, cookie, socket_bucket_map, now, pkt_len, stats);
+            let verdict = socket_flow(&pol_sane, cookie, socket_bucket_map, now, pkt_len, stats);
             return ring_verdict(verdict, rate_ring_map, &cgroup_id, now, pkt_len);
         }
     }
