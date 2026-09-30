@@ -253,6 +253,29 @@ def coverage_verdict(ammsp_counts, legacy_counts):
     return ok, detail, ammsp_cov, legacy_cov
 
 
+def side_verdict(cls, is_current):
+    """One row's verdict, side-aware (pure, self-test-pinned).
+
+    THE DELTA row owns the headline pass/fail — but the per-leaf rows
+    also carry verdicts, and the harness's EXIT rides any FAIL row.
+    The 1a25f91 CI lesson: a perfect proof (AMMSP 7/7 policed, legacy
+    0/7, THE DELTA row OK) still exited 1 because the legacy side's
+    ESCAPES were recorded as FAIL rows — nine of them — and the
+    supermassive legs went red on the counterfactual doing exactly
+    what it exists to do. The fix is the honest reading of a row's
+    verdict per side: the current side is JUDGED (policed is the only
+    pass — an escaped or gray leaf is a real finding against the 99%
+    claim and the DELTA row fails with it), while the legacy side is
+    the CONTROL (escaping is the expected pre-AMMSP shape; a POLICED
+    legacy child is the measurement bug the proof refuses). The row
+    detail keeps the class either way — nothing is hidden, only the
+    verdict column learns which side it is on.
+    """
+    if is_current:
+        return "PASS" if cls == "policed" else "FAIL"
+    return "FAIL" if cls == "policed" else "PASS"
+
+
 def run_side_binary(binary, args, timeout=30):
     """run_zel's shape for an EXPLICIT binary — the A/B needs two of
     them, so the side under test is always passed by path (the lib's
@@ -324,7 +347,8 @@ def resolve_legacy(explicit, download=True):
 
 
 def battery_order(current, legacy):
-    """The two sides as (label, binary) pairs, frozen by value.
+    """The two sides as (label, binary, is_current) triples, frozen by
+    value.
 
     Legacy first, current second — the counterfactual runs before the
     tree under test, and the teardown between sides leaves the fleet
@@ -334,12 +358,13 @@ def battery_order(current, legacy):
     binary instead of its own. That is the run-253 CI lesson — the
     current side executed the legacy binary, AMMSP coverage read
     0/7, and all four supermassive legs failed on a harness aliasing
-    bug, not an AMMSP regression. The self-test pins the discipline
+    bug, not an AMMSP regression. The third element names the side for
+    the side-aware row verdicts; the self-test pins the discipline
     rootlessly by rebinding the global between capture and use.
     """
     return (
-        ("legacy (pre-AMMSP)", legacy),
-        ("current (AMMSP)", current),
+        ("legacy (pre-AMMSP)", legacy, False),
+        ("current (AMMSP)", current, True),
     )
 
 
@@ -412,7 +437,7 @@ def measure_line_rate(win=2.0):
         rmdir_quiet(scratch)
 
 
-def run_battery_side(label, binary):
+def run_battery_side(label, binary, is_current=False):
     """One side of the A/B: the identical battery under `binary`.
 
     The fleet, server, and cgroup spawn engine are v1's; the side is
@@ -420,7 +445,9 @@ def run_battery_side(label, binary):
     time, and v1's apply helpers ride run_zel). Each side starts from
     a recovered pin-clean state — the two schemas never see each
     other's pins — and ends with unstrict + recover so the next side
-    starts equally clean.
+    starts equally clean. Row verdicts are SIDE-AWARE (side_verdict):
+    the current side is judged, the legacy side is the control whose
+    escapes are the expected counterfactual.
 
     Returns the leaf class counts for the coverage delta, or None
     when the side could not run at all (already recorded).
@@ -494,19 +521,20 @@ def run_battery_side(label, binary):
             details.append(f"{os.path.basename(p)}={cls}")
             record(
                 f"ammsp-vs-legacy: {label} leaf {os.path.basename(p)}",
-                "PASS" if cls == "policed" else "FAIL",
+                side_verdict(cls, is_current),
                 f"{fmt_bps(measured)} measured vs {RATE_STR} configured — {cls}",
             )
 
         # The shared-budget probe: two concurrent leaves must sum to
-        # ONE budget. Legacy escapes at 2x line rate — also a FAIL
-        # there, which is the point (the counterfactual).
+        # ONE budget. The legacy side escapes at ~2x line rate — the
+        # expected control shape, side_verdict keeps it a PASS there
+        # while the class stays in the row's detail.
         total = concurrent_leaves_sum([sibs[0], sibs[2]], WINDOW)
         shared_bps = total / WINDOW
         shared_cls = classify(shared_bps, RATE_BPS)
         record(
             f"ammsp-vs-legacy: {label} two concurrent leaves share ONE budget",
-            "PASS" if shared_cls == "policed" else "FAIL",
+            side_verdict(shared_cls, is_current),
             f"sum {fmt_bps(shared_bps)} across two child cgroups vs {RATE_STR} — {shared_cls}",
         )
 
@@ -533,7 +561,7 @@ def run_battery_side(label, binary):
                 nested_cls = classify(measured, NESTED_BPS)
                 record(
                     f"ammsp-vs-legacy: {label} grandchild resolves the NEAREST root",
-                    "PASS" if nested_cls == "policed" else "FAIL",
+                    side_verdict(nested_cls, is_current),
                     f"{fmt_bps(measured)} under a {NESTED_STR} root inside a "
                     f"{RATE_STR} subtree — {nested_cls}",
                 )
@@ -618,13 +646,33 @@ def self_test():
     order = battery_order(captured, "/opt/zelynic/legacy/zelynic")
     lib.BINARY = "/opt/zelynic/legacy/zelynic"  # what the first side leaves behind
     assert order[0][0] == "legacy (pre-AMMSP)" and order[0][1] == "/opt/zelynic/legacy/zelynic"
+    assert order[0][2] is False, "the legacy side names itself the control"
     assert order[1][0] == "current (AMMSP)" and order[1][1] == captured, (
         "the current side must be the captured path, never the post-rebind global"
     )
+    assert order[1][2] is True, "the current side names itself the judged side"
     record(
         "self: battery order — current side captured by value",
         "PASS",
         "the legacy rebind can never leak into the current side's invocation",
+    )
+
+    # The 1a25f91 lesson, pinned as the verdict table: the legacy
+    # side's escapes are the EXPECTED counterfactual (a FAIL row for
+    # one would make a perfect proof exit 1 — the exit contract rides
+    # any FAIL row, and nine expected escapes failed four CI legs),
+    # while a policed legacy child is the measurement bug the proof
+    # refuses. The current side stays judged: only policed passes.
+    assert side_verdict("policed", True) == "PASS"
+    assert side_verdict("escaped", True) == "FAIL"
+    assert side_verdict("gray", True) == "FAIL"
+    assert side_verdict("escaped", False) == "PASS", "the control's escape is the point"
+    assert side_verdict("gray", False) == "PASS", "the control's gray is still not-policed"
+    assert side_verdict("policed", False) == "FAIL", "a policed legacy child is a measurement bug"
+    record(
+        "self: side-aware row verdicts",
+        "PASS",
+        "the counterfactual's escapes pass, the judged side's misses fail, the delta owns the headline",
     )
 
     # The auto-download's verifier, pinned rootlessly: the streaming
@@ -756,9 +804,11 @@ def main():
         return 0
     record("ammsp-vs-legacy: loopback baseline", "PASS", f"{fmt_bps(baseline)} unpoliced floor")
 
-    (legacy_label, legacy_path), (current_label, current_path) = battery_order(current, legacy)
-    legacy_counts = run_battery_side(legacy_label, legacy_path)
-    ammsp_counts = run_battery_side(current_label, current_path)
+    (legacy_label, legacy_path, _), (current_label, current_path, _) = battery_order(
+        current, legacy
+    )
+    legacy_counts = run_battery_side(legacy_label, legacy_path, is_current=False)
+    ammsp_counts = run_battery_side(current_label, current_path, is_current=True)
 
     ok, detail, ammsp_cov, legacy_cov = coverage_verdict(ammsp_counts or {}, legacy_counts or {})
     record(
