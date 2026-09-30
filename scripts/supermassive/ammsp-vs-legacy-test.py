@@ -63,8 +63,11 @@ Engine reuse (the v2 precedent, zero duplication): v1 is imported
 whole via importlib — the CgroupSet fleet, the in-process HttpServer,
 the cgroup-spawned workers, the band machinery. The side under test
 is switched by rebinding lib.BINARY between sides (run_zel resolves
-it at call time), and each side starts from a recovered, pin-clean
-state so the two schemas never see each other's pins.
+it at call time), each side starts from a recovered, pin-clean state
+so the two schemas never see each other's pins — and the current
+side's path is captured BY VALUE before the first side runs, because
+the rebind is exactly the thing that must never leak into the second
+side's invocation (the run-253 CI lesson, pinned in the self-test).
 """
 
 import argparse
@@ -215,6 +218,26 @@ def resolve_legacy(explicit):
     )
 
 
+def battery_order(current, legacy):
+    """The two sides as (label, binary) pairs, frozen by value.
+
+    Legacy first, current second — the counterfactual runs before the
+    tree under test, and the teardown between sides leaves the fleet
+    clean either way. Both paths are PLAIN ARGUMENTS because
+    run_battery_side rebinds lib.BINARY as its first act: a caller
+    that reads the module global after a side has run gets that side's
+    binary instead of its own. That is the run-253 CI lesson — the
+    current side executed the legacy binary, AMMSP coverage read
+    0/7, and all four supermassive legs failed on a harness aliasing
+    bug, not an AMMSP regression. The self-test pins the discipline
+    rootlessly by rebinding the global between capture and use.
+    """
+    return (
+        ("legacy (pre-AMMSP)", legacy),
+        ("current (AMMSP)", current),
+    )
+
+
 def leaf_bytes(path, win):
     """One leaf's download through the shared engine: a worker
     exec-moved into the child cgroup BEFORE its first socket exists
@@ -343,8 +366,10 @@ def run_battery_side(label, binary):
 
         # Cushion drain: a fresh bucket banks one second of rate; pay
         # it out at line rate so the measured windows see steady state
-        # (v1's approved warm-up pattern).
-        leaf_bytes(sibs[1], 0.5)
+        # (v1's approved warm-up pattern — in the retrying shape now:
+        # a stalled warm-up worker reads a silent zero and the cushion
+        # leaks into the first measured leaf, the 0b0a8f5 lesson).
+        lib.drain_cushion(lambda w: leaf_bytes(sibs[1], w), lib.default_burst(RATE_BPS))
 
         # The late-born child: created AFTER the apply — the owner's
         # eagle-eyes scenario, the exact shape the legacy datapath
@@ -389,6 +414,15 @@ def run_battery_side(label, binary):
             if rc != 0:
                 record(f"ammsp-vs-legacy: {label} nested-root apply", "FAIL", err.strip()[:160])
             else:
+                # The fresh nested bucket starts FULL (the 64 KiB GSO
+                # burst floor binds at this rate). v1's own nested-root
+                # stage drains it first — the approved pattern; without
+                # the drain the 4s window straddles the band edge
+                # (128..133% of 50kb, cushion plus entitlement) and the
+                # row flips between policed and gray on GSO timing
+                # alone. The drain rides through the measured leaf so
+                # the tokens it pulls are the nested bucket's own.
+                lib.drain_cushion(lambda w: leaf_bytes(chain[1], w), lib.default_burst(NESTED_BPS))
                 got = leaf_bytes(chain[1], WINDOW)
                 measured = got / WINDOW
                 nested_cls = classify(measured, NESTED_BPS)
@@ -466,6 +500,26 @@ def self_test():
     assert rc == 127 and err, "a missing binary is exit 127 with the OS error"
     record("self: side-binary runner error shape", "PASS", f"exit {rc}: {err[:60]}")
 
+    # The run-253 CI lesson, pinned as a shape: the current side's
+    # binary is captured BEFORE the legacy side rebinds lib.BINARY —
+    # reading the module global after the first side returns would
+    # run the legacy binary on BOTH sides (AMMSP 0/7, THE DELTA
+    # failing as a harness bug). battery_order() takes both paths as
+    # plain arguments, so the rebind discipline is structural: the
+    # captured value survives a module-global mutation untouched.
+    captured = "/checkout/zelynic"
+    order = battery_order(captured, "/opt/zelynic/legacy/zelynic")
+    lib.BINARY = "/opt/zelynic/legacy/zelynic"  # what the first side leaves behind
+    assert order[0][0] == "legacy (pre-AMMSP)" and order[0][1] == "/opt/zelynic/legacy/zelynic"
+    assert order[1][0] == "current (AMMSP)" and order[1][1] == captured, (
+        "the current side must be the captured path, never the post-rebind global"
+    )
+    record(
+        "self: battery order — current side captured by value",
+        "PASS",
+        "the legacy rebind can never leak into the current side's invocation",
+    )
+
     final_report(
         t0,
         "self-test",
@@ -515,6 +569,14 @@ def main():
 
     if not lib.resolve_binary(args.binary, "ammsp-vs-legacy-test.sh"):
         return 1
+    # The current side is captured BY VALUE the moment resolution
+    # succeeds: run_battery_side rebinds lib.BINARY for every side it
+    # runs, so reading the module global after the legacy side returns
+    # would hand the harness the LEGACY binary for its "current
+    # (AMMSP)" side (the run-253 lesson — both sides pre-AMMSP, the
+    # delta failing as a harness bug). battery_order() freezes the
+    # pair; the self-test pins the discipline.
+    current = lib.BINARY
     legacy, legacy_note = resolve_legacy(args.legacy_binary)
     if legacy is None:
         # The pair cannot run — a loud SKIP, never a silent pass and
@@ -538,7 +600,7 @@ def main():
     sm1.SERVER = sm1.HttpServer()
 
     out(f"zelynic ammsp-vs-legacy depth test (NIGHT-perf-1) — AMMSP vs {LEGACY_VERSION}, {mode}")
-    out(f"  current: {lib.BINARY}")
+    out(f"  current: {current}")
     out(f"  legacy:  {legacy}")
     out()
 
@@ -560,8 +622,9 @@ def main():
         return 0
     record("ammsp-vs-legacy: loopback baseline", "PASS", f"{fmt_bps(baseline)} unpoliced floor")
 
-    legacy_counts = run_battery_side("legacy (pre-AMMSP)", legacy)
-    ammsp_counts = run_battery_side("current (AMMSP)", lib.BINARY)
+    (legacy_label, legacy_path), (current_label, current_path) = battery_order(current, legacy)
+    legacy_counts = run_battery_side(legacy_label, legacy_path)
+    ammsp_counts = run_battery_side(current_label, current_path)
 
     ok, detail, ammsp_cov, legacy_cov = coverage_verdict(ammsp_counts or {}, legacy_counts or {})
     record(
