@@ -299,12 +299,16 @@ header "Yamllint"
 if command -v yamllint >/dev/null 2>&1; then
 	# CI parity: .github/** must pass the repo .yamllint config — the
 	# same one the CI gatekeepers job enforces wholesale (line-length max
-	# 120 included).
+	# 120 included). dinner-28: --strict is on — yamllint's warning-level
+	# findings (line length, truthy key shapes) fail the gate instead of
+	# scrolling past as yellow text; every CI warning is a failure, none
+	# silently ignored (verified clean on the current tree: no finding
+	# needed fixing to turn strict on).
 	GITHUB_YAML=$(find .github -name '*.yml' -o -name '*.yaml' 2>/dev/null)
 	YAML_OK=0
 	if [ -n "$GITHUB_YAML" ]; then
 		# shellcheck disable=SC2086 # word splitting is intentional for file list
-		yamllint -c .yamllint ${GITHUB_YAML} 2>&1 || YAML_OK=1
+		yamllint -c .yamllint --strict ${GITHUB_YAML} 2>&1 || YAML_OK=1
 	fi
 	if [ "$YAML_OK" -eq 0 ]; then
 		info "yamllint: all .github YAML files pass (repo config)"
