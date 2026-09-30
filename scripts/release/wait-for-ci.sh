@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Copyright (C) 2026 rezky_nightky
 # SPDX-License-Identifier: GPL-3.0-only
-# PLATFORM: UNIX-only (Linux). Runs on GitHub-hosted ubuntu runners
+# OS: Linux only — zelynic is a Linux eBPF tool; no other OS is supported.
 #   (curl + jq are runner staples); not for Windows cmd.exe.
 #
 # NIGHT-ask-1: the CI gate for tag-triggered workflows

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Copyright (C) 2026 rezky_nightky
 # SPDX-License-Identifier: GPL-3.0-only
-# PLATFORM: UNIX-only (Linux). zelynic is a Linux-only tool.
+# OS: Linux only — zelynic is a Linux eBPF tool; no other OS is supported.
 #
 # zelynic sandbox (NIGHT-think-1) — the local KVM micro-VM that gives
 # an agent (or an owner) ROOT INSIDE A THROWAWAY KERNEL for depth

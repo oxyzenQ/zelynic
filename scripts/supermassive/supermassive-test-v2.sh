@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Copyright (C) 2026 rezky_nightky
 # SPDX-License-Identifier: GPL-3.0-only
+# OS: Linux only — zelynic is a Linux eBPF tool; no other OS is supported.
 #
 # Wrapper for supermassive-test-v2.py (NIGHT-improve-23; scope
 # refocused in NIGHT-refactor-2) — the survival battery: everything

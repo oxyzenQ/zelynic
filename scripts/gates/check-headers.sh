@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Copyright (C) 2026 rezky_nightky
 # SPDX-License-Identifier: GPL-3.0-only
-# PLATFORM: UNIX-only (Linux). zelynic is a Linux-only tool.
+# OS: Linux only — zelynic is a Linux eBPF tool; no other OS is supported.
 #
 # ZELYNIC SPDX HEADER CHECK
 #
@@ -14,6 +14,12 @@
 #   SPDX-License-Identifier: GPL-3.0-only
 # Rejected: any other SPDX-License-Identifier value (project is
 # GPL-3.0-only licensed).
+#
+# dinner-28: every *.sh ADDITIONALLY requires the OS line within the
+# first 10 lines — '# OS: Linux only' — the owner's rule, enforced as
+# a failure (never a warning): a .sh without it never reaches CI. The
+# pre-dinner-28 'PLATFORM: UNIX-only' wording is gone; the OS line is
+# the one convention.
 #
 # Included file types: *.rs, *.c, *.h, *.py, *.sh, *.toml, *.yml, *.yaml, *.md
 # Scope: git-tracked files PLUS untracked-but-present files (respecting
@@ -64,6 +70,16 @@ while IFS= read -r -d '' file; do
 	if ! head -10 "$file" | grep -q "${EXPECTED_COPYRIGHT}"; then
 		echo -e "${RED}MISSING copyright line: ${file}${NC}"
 		MISSING=$((MISSING + 1))
+	fi
+
+	# dinner-28: the OS line is a *.sh-only requirement — the
+	# owner's header rule. A .sh without it fails here, never a
+	# warning (all CI warnings are failures; none are ignored).
+	if [[ "$file" == *.sh ]]; then
+		if ! head -10 "$file" | grep -q '^# OS: Linux only'; then
+			echo -e "${RED}MISSING OS line (os linux only): ${file}${NC}"
+			MISSING=$((MISSING + 1))
+		fi
 	fi
 done < <(
 	# Only check git-tracked files plus untracked-but-present files —
