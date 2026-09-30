@@ -1438,6 +1438,21 @@ def test_bypass_audit():
     MB/s — orders above the 1 MiB tx floor at 4s = 262 KB/s), and
     with the fleet idle the shadow share reads ~100% of the
     window's interface traffic.
+
+    The resident sleeper (dinner-28, the CI find): the depth report
+    resolves a cg:<id> target through resolve_live_targets, whose
+    liveness gate is the identity map — a cgroup id is LIVE only
+    while a process runs inside it. The fleet cgroup sits EMPTY
+    between worker runs (the injector thread lives in hq, and the
+    negative lane's py_download worker spans the window only
+    marginally), so on every CI leg the report resolved the target
+    to a dead id and errored "No live cgroup matches 'cg:<id>'"
+    before any verdict could exist. The fix is a bare `sleep` in the
+    fleet cgroup for the whole stage: zero network traffic (the
+    positive lane's shadow share stays ~100%, the negative lane's
+    policed flow stays the only stack traffic), residency-guaranteed
+    by spawn_bg_in_cgroup's barrier, and killed in the finally so
+    the teardown sweep never races a resident.
     """
     name = "bypass: the shadow audit flags real bypass, spares honest traffic"
     if os.geteuid() != 0:
@@ -1445,6 +1460,11 @@ def test_bypass_audit():
 
     FOCUS = 4
     INJECT_SECS = 9
+    # The resident that keeps the depth target live: spans the
+    # positive lane (1s lead + attach + the 4s window + render), the
+    # negative lane behind it, and margin — killed in the finally
+    # regardless, so the number only needs to exceed the stage wall.
+    SLEEPER_SECS = 18
     FRAME = bytes([0xFF] * 6 + [0x02] * 6 + [0x08, 0x00]) + bytes(1400 - 14)
     state = {"bytes": 0, "err": None}
 
@@ -1507,12 +1527,26 @@ def test_bypass_audit():
         return audit.get("verdict")
 
     passed = True
+    sleeper = None
     try:
         # A live policy under the window: the NEGATIVE lane's traffic
         # must be policed stack traffic (hooks traversed), not idle.
         ok, payload = sm1.apply_single("a", "100kb", 100_000, 100_000)
         if not ok:
             return record(name, "FAIL", payload)
+
+        # The liveness precondition: without a resident in the fleet
+        # cgroup the depth report dead-ids the target (see the
+        # docstring). A failed settle FAILs the row loudly — a
+        # bypass audit that cannot focus its target measures nothing.
+        sleeper = sm1.spawn_bg_in_cgroup("a", ["sleep", str(SLEEPER_SECS)])
+        if sleeper is None:
+            return record(
+                name,
+                "FAIL",
+                "the depth target needs a resident in the fleet cgroup "
+                "(the cg:<id> liveness gate) — the sleeper never settled",
+            )
 
         positive = depth_bypass_verdict(with_traffic_worker=False)
         if positive is not None:
@@ -1541,6 +1575,11 @@ def test_bypass_audit():
         else:
             passed = False
     finally:
+        if sleeper is not None:
+            # The teardown sweep must never race a resident in the
+            # fleet cgroup — kill and reap before the stage returns.
+            sleeper.kill()
+            sleeper.wait()
         sm1.clear_all()
     return passed
 
