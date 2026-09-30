@@ -19,7 +19,66 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Added
 
-- **the NIGHT-upgrade-charger-core-3a in-kernel time-series ring
+- **the NIGHT-upgrade-charger-core-3b per-socket limiting (Tier B
+  #7) — `zelynic strict-single <target> <rate> --per-socket`: every
+  CONNECTION gets its own bucket at the rate, enforcement beyond the
+  cgroup.** The owner's list called this the hard one ("socket-level
+  attribution butuh tracepoint tambahan") and the audit found the
+  attribution already proven in-tree: the observer has named the
+  owning socket per packet in both cgroup_skb hooks since
+  NIGHT-boost-26 (`bpf_get_socket_cookie` — the sender on upload,
+  the receiver on download), so the limiter rides the same helper
+  and no tracepoint exists anywhere in the feature. The datapath
+  lane (ebpf/src/socket_flow.rs, the drr_flow precedent one feature
+  over): two new pinned LRU maps socket_bucket_dl/ul (socket cookie
+  u64 -> a 32-byte SocketBucket: the standard token bucket + the
+  AMMSP generation stamp), a get-or-create with the v11 BPF_NOEXIST
+  discipline, the stale-token belt (the DRR leaf belt, one lane
+  over — a policy mutation zeroes every socket's leftover tokens on
+  its next packet, so a lowered limit never leaks the old burst to
+  a live connection), and the legacy lane's exact refill + consume
+  arithmetic THROUGH a reference into the map value (never a
+  copy-out/write-back pair — that would hand two CPUs on one socket
+  the pre-v7 lost-update shape). A zero cookie (no attribution the
+  hook carries — rare early-ingress paths) degrades to the DRR
+  cgroup lane: still policed, honestly coarser, never an unlimited
+  pass. The stats ledger and the charger-core-3a ring both stay
+  keyed at the resolved policy root — the roll-up the AMMSP
+  contract already owns. Policy.flags (the four padding bytes at
+  offset 20 become contract, bit 0 = POLICY_FLAG_PER_SOCKET; the
+  struct stays 24 bytes) rides write_policies_for_cgroup, so the
+  charger-core-2 transactional snapshot/rollback carries the flag
+  verbatim and the atomic re-insert needs no change. The budget law
+  is stated everywhere the flag appears (USAGE, the CLI help, the
+  probe report): the cgroup total is bounded by rate x concurrent
+  sockets, NOT by rate — that is what per-socket MEANS. The CLI
+  surface is strict-single only (strict/ss aliases included; a
+  group policy IS the shared-budget answer, and block-* needs no
+  bucket lane — clap rejects the flag there, pinned). The
+  self-proving probe names the budget kind ("limit 500.0 KB/s per
+  socket") so a per-connection rate can never read as the cgroup
+  cap; `status` marks the rate cells ("500.0 KB/s /socket") and the
+  JSON carries download_per_socket / upload_per_socket (skip when
+  false — old scripts see the old shape for old semantics). Schema
+  bumps to v15: new maps plus a field that was padding is now
+  read; the sync pin (charger-core-3a) holds the anchors together,
+  and the one-time re-apply contract holds as ever. Splits the
+  charger-3 work demanded: types.rs's inline test module moved to
+  the test tree (test/ebpf/limiter/types_tests.rs — the pins
+  unchanged, the Pattern C doctrine the inline block predated) and
+  the status-JSON assembly moved to display_json.rs (the display
+  sibling-split lineage) with its pins (display_json_tests.rs).
+  Verified: cargo test --features ebpf green (593 lib + 46
+  integration — the new pins: the flags layout offsets, the
+  per-socket JSON serialization, the rate-cell marker, the probe
+  label, the CLI parse/reject), clippy --all-targets --all-features
+  -D warnings clean, fmt clean, the ebpf object cross-built with
+  both socket maps present, prebuilt lane refreshed. The benchmark
+  lane is skipped on purpose: frame-bench measures the eagle-eyes
+  render path and this change touches the datapath, the CLI, and
+  the one-shot status/probe surfaces — no frame the harness
+  renders moves. Version untouched (v11.0.0).**
+- **the NIGHT-upgrade-charger-core-3a in-kernel time-series ring- **the NIGHT-upgrade-charger-core-3a in-kernel time-series ring
   (Tier B #8, EAGLE EYES V1) — the kernel itself keeps the rolling
   window of delivered rates, so traffic SHAPE survives between
   userspace polls.** Two new pinned maps (`rate_ring_dl`/`ul`, keyed

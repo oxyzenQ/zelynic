@@ -43,7 +43,7 @@ impl super::Limiter {
         let stats = self.read_stats()?;
         let wd = self.read_watchdog()?;
         let rings = self.read_rate_rings();
-        crate::ebpf::display::print_status_json(&dl, &ul, &stats, &self.identity, wd, &rings)
+        crate::ebpf::display_json::print_status_json(&dl, &ul, &stats, &self.identity, wd, &rings)
     }
 
     /// Read all policies from a direction map.

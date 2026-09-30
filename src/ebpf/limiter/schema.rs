@@ -138,7 +138,21 @@
 ///     lied about which semantics the source carried). The sync pin
 ///     below (the include_str! equality test) makes that drift
 ///     class impossible to repeat.
-pub const SCHEMA_VERSION_EXPECTED: u32 = 14;
+/// v15 (NIGHT-upgrade-charger-core-3b, per-socket limiting —
+///     Tier B #7): Policy.flags — the four padding bytes at offset
+///     20 become contract (bit 0 = POLICY_FLAG_PER_SOCKET: enforce
+///     per SOCKET, every connection its own bucket at the policy
+///     rate, beyond the cgroup; the struct stays 24 bytes) — plus
+///     two new pinned LRU maps socket_bucket_dl/ul (socket cookie
+///     u64 -> 32-byte SocketBucket: the standard bucket + the
+///     AMM-generation stamp of the stale-token belt). Attribution
+///     rides bpf_get_socket_cookie, the observer's proven helper
+///     (NIGHT-boost-26) — no tracepoint needed; a zero cookie
+///     degrades to the DRR cgroup lane, still policed. The CLI
+///     surface is strict-single's --per-socket flag (the lane is
+///     deliberately individual: a group policy IS the shared-budget
+///     answer). One-time re-apply as ever.
+pub const SCHEMA_VERSION_EXPECTED: u32 = 15;
 
 #[cfg(test)]
 mod sync_pin {

@@ -16,6 +16,7 @@ fn raw(rate: u64, burst: u64, group: u32) -> PolicyRaw {
         rate_bps: rate,
         burst_bytes: burst,
         group_id: group,
+        flags: 0,
     }
 }
 

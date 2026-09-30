@@ -25,6 +25,7 @@ fn the_verified_block_carries_every_row() {
         client_bytes: 364_000,
         ledger_bytes: 364_912,
         note: None,
+        per_socket: false,
     };
     let lines = report_lines(&outcome);
     let text = lines.join("\n");
@@ -69,6 +70,7 @@ fn the_unverified_block_names_its_reason() {
         client_bytes: 0,
         ledger_bytes: 0,
         note: Some("blocked policy — the drop ledger carries the verdict".to_string()),
+        per_socket: false,
     };
     let lines = report_lines(&outcome);
     let text = lines.join("\n");
@@ -95,6 +97,7 @@ fn the_failed_error_carries_the_numbers_and_the_path() {
         client_bytes: 4_800_000,
         ledger_bytes: 4_800_512,
         note: None,
+        per_socket: false,
     };
     let err = failure_error("brave", &outcome);
     let msg = format!("{err}");
@@ -117,5 +120,28 @@ fn the_failed_error_carries_the_numbers_and_the_path() {
     assert!(
         msg.contains("probe's numbers above are the report"),
         "the report-by-value contract is stated, got: {msg}"
+    );
+}
+
+/// charger-core-3b: the report names WHICH budget it measured — a
+/// per-socket probe's direction line carries " per socket" so a
+/// 500kb-per-connection limit can never read as the cgroup cap.
+#[test]
+fn per_socket_probe_names_its_budget_kind() {
+    let outcome = ProbeOutcome {
+        verdict: ProbeVerdict::Verified,
+        direction: crate::ebpf::limiter::Direction::Download,
+        rate_bps: 500_000,
+        burst_bytes: 500_000,
+        window_secs: 3,
+        client_bytes: 1_500_000,
+        ledger_bytes: 1_502_000,
+        note: None,
+        per_socket: true,
+    };
+    let text = report_lines(&outcome).join("\n");
+    assert!(
+        text.contains("(limit 500.0 KB/s per socket)"),
+        "the per-socket budget is named, got: {text}"
     );
 }

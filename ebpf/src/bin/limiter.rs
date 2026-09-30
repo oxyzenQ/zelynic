@@ -43,7 +43,7 @@
 #![no_main]
 
 use aya_ebpf::{
-    helpers::{bpf_ktime_get_ns, bpf_skb_cgroup_id},
+    helpers::{bpf_get_socket_cookie, bpf_ktime_get_ns, bpf_skb_cgroup_id},
     macros::{cgroup_skb, map},
     maps::{Array, HashMap, LruHashMap},
     programs::SkBuffContext,
@@ -101,8 +101,20 @@ mod drr_flow;
 // test/ebpf/limiter/rate_ring_tests.rs.
 #[path = "../rate_ring.rs"]
 mod rate_ring;
-use math::{Bucket, LimiterStats, MAX_ENFORCABLE_BURST, Policy, book, enforce};
+
+// NIGHT-upgrade-charger-core-3b (per-socket limiting, Tier B #7):
+// the per-socket datapath wiring — the drr_flow precedent one
+// feature over (the aya-touching split; the cookie-keyed LRU bucket
+// maps + the belt/refill/consume lane try_enforce's per-socket
+// branch rides).
+#[path = "../socket_flow.rs"]
+mod socket_flow;
+use math::{
+    Bucket, LimiterStats, MAX_ENFORCABLE_BURST, Policy, book, enforce,
+    POLICY_FLAG_PER_SOCKET,
+};
 use rate_ring::{RateRing, RateSlot, ring_book};
+use socket_flow::socket_flow;
 
 // ---------------------------------------------------------------------------
 // Shared layout contract with the userspace loader (src/ebpf/limiter/
@@ -225,8 +237,24 @@ use rate_ring::{RateRing, RateSlot, ring_book};
 /// runtime, but the anchor lied about which semantics the source
 /// carried; the userspace sync pin added with this task makes the
 /// drift class impossible to repeat).
+/// v15 (NIGHT-upgrade-charger-core-3b, per-socket limiting —
+/// Tier B #7): Policy.flags — the four padding bytes at offset 20
+/// become CONTRACT (bit 0 = POLICY_FLAG_PER_SOCKET: enforce per
+/// SOCKET, every connection its own bucket at the policy rate,
+/// beyond the cgroup) — and two new pinned LRU maps
+/// socket_bucket_dl/ul (socket cookie u64 -> 32-byte SocketBucket:
+/// the standard bucket + the AMM-generation stamp of the
+/// stale-token belt). The attribution needs NO tracepoint: the
+/// kernel already names the owning socket per packet in both
+/// cgroup_skb hooks (bpf_get_socket_cookie, the observer's
+/// NIGHT-boost-26 cookie join). A zero cookie (no socket
+/// attribution available) degrades to the DRR cgroup lane — still
+/// policed, honestly coarser. Struct size stays 24 (the size pin
+/// unchanged); the bump is load-bearing for the usual reason (new
+/// maps, and a field that was padding is now read), and the
+/// one-time re-apply contract holds as ever.
 #[allow(dead_code)]
-const SCHEMA_VERSION: u32 = 14;
+const SCHEMA_VERSION: u32 = 15;
 
 // ---------------------------------------------------------------------------
 // Maps. The static names ARE the userspace contract (limiter/mod.rs
@@ -460,6 +488,7 @@ fn try_enforce(
     group_bucket_map: &HashMap<u32, Bucket>,
     leaf_bucket_map: &LruHashMap<u32, Bucket>,
     rate_ring_map: &HashMap<u32, RateRing>,
+    socket_bucket_map: &LruHashMap<u64, socket_flow::SocketBucket>,
 ) -> i32 {
     // The unlimited fast path FIRST (NIGHT-lts-2): cgroup identity +
     // the direction's policy are the only two lookups a packet with
@@ -566,12 +595,35 @@ fn try_enforce(
             rate_bps: pol.rate_bps,
             burst_bytes: MAX_ENFORCABLE_BURST,
             group_id: pol.group_id,
+            flags: pol.flags,
         }
     } else {
         *pol
     };
 
     let stats = get_stats_ptr(&cgroup_id).map(|ptr| unsafe { &mut *ptr });
+
+    // The per-socket lane (NIGHT-upgrade-charger-core-3b, Tier B
+    // #7): POLICY_FLAG_PER_SOCKET spends through a bucket keyed by
+    // the packet's own SOCKET — every connection its own budget at
+    // the policy rate (the server shape: the cgroup total is
+    // bounded by rate x concurrent sockets, not by rate). The
+    // attribution is the observer's own cookie join (no tracepoint):
+    // the kernel names the owning socket per packet in both hooks.
+    // cookie == 0 (no attribution the hook carries) falls through
+    // to the DRR cgroup lane below — the packet stays policed at
+    // the cgroup's shared budget, honestly coarser, never an
+    // unlimited pass. The stats ledger and the ring both stay keyed
+    // at the RESOLVED POLICY ROOT — the roll-up the AMMSP contract
+    // already owns.
+    if pol_sane.flags & POLICY_FLAG_PER_SOCKET != 0 {
+        let cookie = unsafe { bpf_get_socket_cookie(ctx.skb.skb.cast()) };
+        if cookie != 0 {
+            let verdict =
+                socket_flow(&pol_sane, cookie, socket_bucket_map, now, pkt_len, stats);
+            return ring_verdict(verdict, rate_ring_map, &cgroup_id, now, pkt_len);
+        }
+    }
 
     // Individual or group bucket? group_id selects the shared
     // bucket keyed by the group; 0 rides the DRR lane (charger-core-1c).
@@ -636,6 +688,7 @@ fn enforce_dl(ctx: SkBuffContext) -> i32 {
         &group_bucket_dl,
         &drr_flow::leaf_bucket_dl,
         &rate_ring_dl,
+        &socket_flow::socket_bucket_dl,
     )
 }
 
@@ -649,6 +702,7 @@ fn enforce_ul(ctx: SkBuffContext) -> i32 {
         &group_bucket_ul,
         &drr_flow::leaf_bucket_ul,
         &rate_ring_ul,
+        &socket_flow::socket_bucket_ul,
     )
 }
 

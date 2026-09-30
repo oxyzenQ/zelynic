@@ -199,6 +199,7 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
             upload,
             force_this,
             no_probe,
+            per_socket,
         }) => {
             #[cfg(feature = "ebpf")]
             {
@@ -209,6 +210,7 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
                     upload.as_deref(),
                     force_this,
                     no_probe,
+                    per_socket,
                     cli.verbose,
                 )
             }

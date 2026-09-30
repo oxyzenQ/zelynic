@@ -135,6 +135,7 @@ fn the_outcome_carries_the_measurement() {
         client_bytes: 364_000,
         ledger_bytes: 364_912,
         note: None,
+        per_socket: false,
     };
     assert_eq!(outcome.verdict, ProbeVerdict::Verified);
     assert_eq!(outcome.window_secs, 3);

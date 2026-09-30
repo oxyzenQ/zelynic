@@ -32,10 +32,10 @@ pub struct Cli {
 
     /// Print the end-to-end reference (usage, commands, examples)
     ///
-    /// Single-tier help surface (NIGHT-improve-3, cosmostrix v30-simplify
-    /// lineage): the former `--help-all` reference and the top-level help
-    /// are one flag. `disable_help_flag`/`disable_help_subcommand` above
-    /// stop clap from auto-generating its own `--help`/`-h`/`help`
+    /// Single-tier help surface (NIGHT-improve-3): the former
+    /// `--help-all` reference and the top-level help are one flag.
+    /// `disable_help_flag`/`disable_help_subcommand` above stop clap
+    /// from auto-generating its own `--help`/`-h`/`help`
     /// subcommand at every level — this field is the only help surface,
     /// intercepted in `main` to print the curated reference.
     #[arg(short = 'h', long = "help", global = false)]
@@ -144,11 +144,10 @@ pub(crate) use scope::{command_honors_print_json, warn_print_json_ignored};
 pub enum Commands {
     /// Limit a single app's network speed
     ///
-    /// 'strict' is the shorthand for this command (NIGHT-hunt-10: the
-    /// missing bare verb made owners type `zelynic strict brave` into
-    /// an unrecognized-subcommand error). 'ss' is the short alias
-    /// (NIGHT-improve-25 — the ten two-letter aliases cover every
-    /// enforcement verb).
+    /// 'strict' is the shorthand (NIGHT-hunt-10: the missing bare
+    /// verb made owners type `zelynic strict brave` into an error).
+    /// 'ss' is the short alias (NIGHT-improve-25 — the ten two-letter
+    /// aliases cover every enforcement verb).
     ///
     /// Examples:
     ///   zelynic strict-single brave 100kb              # both dl+ul = 100kb
@@ -156,6 +155,7 @@ pub enum Commands {
     ///   zelynic strict-single brave -u 500kb           # upload only
     ///   zelynic strict-single firefox -d 1mb -u 500kb  # both, different rates
     ///   zelynic ss docker://nginx 100kb                # container target
+    ///   zelynic strict-single nginx 500kb --per-socket # each connection 500kb
     ///   zelynic strict brave -d 1mb                    # shorthand form
     ///   zelynic ss brave 100kb                         # short alias form
     #[command(name = "strict-single", alias = "strict", alias = "ss")]
@@ -177,30 +177,35 @@ pub enum Commands {
         upload: Option<String>,
 
         /// Override every safety guard: rates below 1kb and the
-        /// dangerous/system target blocklist (root, systemd, kthreadd, etc.)
+        /// dangerous/system target blocklist (root, systemd, ...)
         ///
-        /// NIGHT-improve-30 (the unified safety override): the former
-        /// `--allow-dangerous` (rate bounds) and `--force` (blocklist)
-        /// pair is ONE flag with the same function — one spelling for
-        /// "I know, force this".
+        /// NIGHT-improve-30: the former `--allow-dangerous` (rate
+        /// bounds) and `--force` (blocklist) pair is ONE flag — one
+        /// spelling for "I know, force this".
         #[arg(long = "force-this")]
         force_this: bool,
 
         /// Skip the post-apply enforcement probe
         ///
-        /// NIGHT-upgrade-charger-core-1-b (the self-proving
-        /// enforcement): strict-single verifies the fresh limit with a
-        /// short measured loopback flow through the target's subtree
-        /// (~3s) and prints the VERIFIED verdict — this flag keeps the
+        /// charger-core-1-b (the self-proving enforcement): the
+        /// apply is verified with a short measured loopback flow
+        /// (~3s, the VERIFIED verdict) — this flag keeps the
         /// apply-only shape for scripted use.
         #[arg(long = "no-probe")]
         no_probe: bool,
+
+        /// Enforce per SOCKET, not per cgroup (charger-core-3b):
+        /// every connection gets its own bucket at the rate — the
+        /// server shape (one process, many sockets; the cgroup total
+        /// is rate x concurrent sockets, NOT rate).
+        #[arg(long = "per-socket")]
+        per_socket: bool,
     },
 
     /// Limit multiple apps sharing one rate (group limit)
     ///
-    /// All apps in the group collectively share the rate limit.
-    /// If one app downloads at full rate, others get nothing.
+    /// All apps collectively share the rate: if one downloads at
+    /// full rate, the others get nothing.
     ///
     /// Examples:
     ///   zelynic strict-multi brave:curl:pacman 1mb              # both dl+ul = 1mb
@@ -224,27 +229,25 @@ pub enum Commands {
         upload: Option<String>,
 
         /// Override every safety guard: rates below 1kb and the
-        /// dangerous/system target blocklist (root, systemd, kthreadd, etc.)
+        /// dangerous/system target blocklist (root, systemd, ...)
         ///
-        /// NIGHT-improve-30 (the unified safety override): the former
-        /// `--allow-dangerous` (rate bounds) and `--force` (blocklist)
-        /// pair is ONE flag with the same function — one spelling for
-        /// "I know, force this".
+        /// NIGHT-improve-30: `--allow-dangerous` + `--force` are ONE
+        /// flag — one spelling for "I know, force this".
         #[arg(long = "force-this")]
         force_this: bool,
     },
 
     /// Limit ALL user apps from list-apps
     ///
-    /// Applies the same rate to all non-system apps.
-    /// System apps (root, systemd, kthreadd, etc.) are excluded by default.
-    /// Use --force-this to include system apps.
+    /// Applies the same rate to all non-system apps. System apps
+    /// (root, systemd, ...) are excluded by default; --force-this
+    /// includes them.
     ///
-    /// NIGHT-blade-2: renamed from limit-all/la — the strict family now
+    /// NIGHT-blade-2: renamed from limit-all/la — the strict family
     /// reads symmetrically end to end (strict-single/ss,
-    /// strict-multi/sm, strict-all/sa), the same single/multi/all
-    /// triple block-all/ba and unstrict-all/ua already carry. The old
-    /// spellings redirect here (cli::ux removed-subcommand table).
+    /// strict-multi/sm, strict-all/sa), the same triple block-all/ba
+    /// and unstrict-all/ua carry; the old spellings redirect here
+    /// (cli::ux removed-subcommand table).
     ///
     /// Examples:
     ///   zelynic strict-all 500kb              # limit all user apps
@@ -265,12 +268,11 @@ pub enum Commands {
         upload: Option<String>,
 
         /// Override every safety guard: rates below 1kb and the
-        /// dangerous/system target blocklist (root, systemd, kthreadd, etc.)
+        /// dangerous/system target blocklist (root, systemd, ...)
         ///
-        /// NIGHT-improve-30 (the unified safety override): the former
-        /// `--allow-dangerous` (rate bounds) and `--force` (blocklist)
-        /// pair is ONE flag with the same function — one spelling for
-        /// "I know, force this".
+        /// NIGHT-improve-30: the former `--allow-dangerous` (rate
+        /// bounds) and `--force` (blocklist) pair is ONE flag — one
+        /// spelling for "I know, force this".
         #[arg(long = "force-this")]
         force_this: bool,
     },
@@ -284,8 +286,7 @@ pub enum Commands {
         targets: String,
 
         /// Force block on dangerous/system targets (root, systemd,
-        /// kthreadd, etc.) — the NIGHT-improve-30 unified override
-        /// spelling (the former `--force`).
+        /// ...) — the improve-30 unified override spelling.
         #[arg(long = "force-this")]
         force_this: bool,
     },
@@ -311,8 +312,7 @@ pub enum Commands {
         target: String,
 
         /// Force block on dangerous/system targets (root, systemd,
-        /// kthreadd, etc.) — the NIGHT-improve-30 unified override
-        /// spelling (the former `--force`).
+        /// ...) — the improve-30 unified override spelling.
         #[arg(long = "force-this")]
         force_this: bool,
     },

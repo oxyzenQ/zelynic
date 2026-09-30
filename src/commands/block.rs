@@ -31,7 +31,11 @@ pub fn handle_block_single(target_str: &str, force_this: bool, verbose: bool) ->
         download: Some(0),
         upload: Some(0),
     };
-    let applied = limiter.apply_single(&target, &rates)?;
+    // per-socket is deliberately not offered on block-*: a rate-0
+    // policy drops everything at the verdict layer, before any
+    // bucket lane is consulted — a per-socket bit would be dead
+    // weight on a total block (charger-core-3b's scope call).
+    let applied = limiter.apply_single(&target, &rates, false)?;
     if applied == 0 {
         // NIGHT-dinner-11: the no-match hard error (strict-single's
         // contract, the block family's wording). The hunt-10 colon

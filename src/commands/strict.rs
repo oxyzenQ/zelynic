@@ -13,6 +13,10 @@ use crate::commands::safety::{
 };
 
 #[cfg(feature = "ebpf")]
+// charger-core-3b: the strict-single surface grew one flag
+// (--per-socket); the arg list names the CLI contract one-to-one
+// (the render family's own precedent for the same growth).
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn handle_strict_single(
     target_str: &str,
     rate: Option<&str>,
@@ -20,6 +24,7 @@ pub(crate) fn handle_strict_single(
     upload: Option<&str>,
     force_this: bool,
     no_probe: bool,
+    per_socket: bool,
     verbose: bool,
 ) -> Result<()> {
     use crate::ebpf::limiter::{Limiter, Target};
@@ -61,7 +66,7 @@ pub(crate) fn handle_strict_single(
 
     // Open pinned maps and write policy.
     let mut limiter = Limiter::open_pinned(verbose)?;
-    let applied = limiter.apply_single(&target, &rates)?;
+    let applied = limiter.apply_single(&target, &rates, per_socket)?;
     if applied == 0 {
         // NIGHT-dinner-11: the no-match hard error — branded red
         // block + exit 1 (see commands::target_no_match_error), so
@@ -112,7 +117,9 @@ pub(crate) fn handle_strict_single(
     let probe_outcome = if no_probe {
         None
     } else {
-        Some(probe::run_enforcement_probe(&limiter, &target, &rates))
+        Some(probe::run_enforcement_probe(
+            &limiter, &target, &rates, per_socket,
+        ))
     };
     if let Some(outcome) = &probe_outcome {
         if outcome.verdict == probe::ProbeVerdict::Failed {
@@ -363,7 +370,7 @@ mod tests {
     #[cfg(feature = "ebpf")]
     #[test]
     fn rate_typo_surfaces_before_root_guard() {
-        let err = handle_strict_single("bash", Some("1MB"), None, None, false, false, false)
+        let err = handle_strict_single("bash", Some("1MB"), None, None, false, false, false, false)
             .expect_err("typo'd rate must fail");
         let msg = format!("{err}");
         assert!(
@@ -385,7 +392,7 @@ mod tests {
     #[cfg(feature = "ebpf")]
     #[test]
     fn dangerous_target_refusal_surfaces_before_root_guard() {
-        let err = handle_strict_single("sshd", Some("1mb"), None, None, false, false, false)
+        let err = handle_strict_single("sshd", Some("1mb"), None, None, false, false, false, false)
             .expect_err("dangerous target must be refused");
         let msg = format!("{err}");
         assert!(
@@ -406,7 +413,7 @@ mod tests {
     #[cfg(feature = "ebpf")]
     #[test]
     fn empty_target_surfaces_before_root_guard() {
-        let err = handle_strict_single("", Some("1mb"), None, None, false, false, false)
+        let err = handle_strict_single("", Some("1mb"), None, None, false, false, false, false)
             .expect_err("an empty target must be refused");
         let msg = format!("{err}");
         assert!(

@@ -113,7 +113,7 @@ or `zelynic ee brave --interval 1s`.
 ### strict-single / strict — limit one app
 
 ```bash
-sudo zelynic strict-single <target> [rate] [-d <rate>] [-u <rate>]
+sudo zelynic strict-single <target> [rate] [-d <rate>] [-u <rate>] [--per-socket]
 sudo zelynic strict brave 100kb        # shorthand form
 ```
 
@@ -132,6 +132,27 @@ sudo zelynic strict brave 100kb        # shorthand form
   [How zelynic actually works](#how-zelynic-actually-works) and the
   [honest limitations](#honest-limitations--read-this) for the
   32-depth bound.
+- `--per-socket` changes WHAT the rate caps
+  (NIGHT-upgrade-charger-core-3b, Tier B #7): every CONNECTION gets
+  its own bucket at the rate, enforced beyond the cgroup — the
+  server shape (one process, many sockets: a multi-client server
+  where no single connection can hog its siblings' budgets). The
+  attribution is the kernel's own per-packet socket naming
+  (`bpf_get_socket_cookie`, the same helper the observer's
+  per-endpoint byte join has ridden since NIGHT-boost-26 — no
+  tracepoint, no polling). The budget law is the honest one: the
+  cgroup's TOTAL is bounded by rate x concurrent sockets, NOT by
+  rate — that is what per-socket means (cap each connection at
+  500kb and 8 live connections can move 4mb together). Packets the
+  hook cannot attribute to a socket (cookie 0 — rare early-ingress
+  paths) fall back to the cgroup's shared DRR budget, still
+  policed. The lane rides strict-single only: a group policy
+  (strict-multi) IS the shared-budget answer, and block-* needs no
+  bucket lane at all. `status` marks the rate cells (`500.0 KB/s
+  /socket`) and the JSON carries `download_per_socket` /
+  `upload_per_socket`; a policy mutation zeroes every socket's
+  leftover tokens through the AMMSP generation belt, so a lowered
+  limit never leaks the old burst to a live connection.
 - The shared budget is **fair-shared** (NIGHT-upgrade-charger-core-1c,
   the DRR lane): a shared first-come-first-served bucket let ONE
   greedy subprocess consume every token the instant it refilled and
@@ -1526,6 +1547,17 @@ honestly absent (a fresh policy with no traffic yet, or a pinned
 object from before the v14 reload), never a fabricated empty
 series. The ring is a monitor, not a ledger: the exact cumulative
 truth stays the `packets_*`/`bytes_*` fields beside it.
+
+`download_per_socket` / `upload_per_socket`
+(NIGHT-upgrade-charger-core-3b) appear on a limit row only when that
+direction's policy was applied with `--per-socket` — the boolean that
+says the row's `download_bps`/`upload_bps` number names a
+PER-CONNECTION budget (the cgroup total is rate x concurrent
+sockets), never the cgroup cap:
+
+```json
+{"cgroup_id":18571,"label":"nginx","download_bps":500000,"download_per_socket":true,"packets_allowed":232}
+```
 
 `list-apps --print-json` (the `total` field counts every cgroup the
 scan resolved — including any whose comm was unreadable at scan

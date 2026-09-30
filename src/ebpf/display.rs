@@ -5,11 +5,10 @@
 //! Extracted from the limiter core to keep every module under the
 //! 500-line cap (scripts/gates/check-loc.sh).
 
-use anyhow::Result;
 use std::collections::HashMap;
 
 use crate::ebpf::identity::IdentityMap;
-use crate::ebpf::limiter::rate_ring::{ring_series, RateRingRaw, RingReads, RATE_RING_SLOTS};
+use crate::ebpf::limiter::types::POLICY_FLAG_PER_SOCKET;
 use crate::ebpf::limiter::{
     format_bytes, format_rate, monotonic_ns, terminal_width, LimiterStatsRaw, PolicyRaw,
 };
@@ -24,28 +23,34 @@ use crate::output::{brand, grey, ok, signature_footer, suggestion, warn};
 const STATUS_HEADERS: [&str; 5] = ["cgroup", "download", "upload", "allowed", "dropped"];
 
 /// Combined policy data for display.
-struct DisplayData {
-    cgroup_id: u32,
-    dl_bps: Option<u64>,
-    ul_bps: Option<u64>,
-    packets_allowed: u64,
-    packets_dropped: u64,
-    bytes_allowed: u64,
-    bytes_dropped: u64,
+pub(super) struct DisplayData {
+    pub(super) cgroup_id: u32,
+    pub(super) dl_bps: Option<u64>,
+    pub(super) ul_bps: Option<u64>,
+    pub(super) dl_per_socket: bool,
+    pub(super) ul_per_socket: bool,
+    pub(super) packets_allowed: u64,
+    pub(super) packets_dropped: u64,
+    pub(super) bytes_allowed: u64,
+    pub(super) bytes_dropped: u64,
 }
 
 /// Collect display data from policies + stats.
-fn collect_display_data(
+pub(super) fn collect_display_data(
     dl_policies: &[(u32, PolicyRaw)],
     ul_policies: &[(u32, PolicyRaw)],
     stats: &[(u32, LimiterStatsRaw)],
 ) -> Vec<DisplayData> {
-    let mut combined: HashMap<u32, (Option<u64>, Option<u64>)> = HashMap::new();
+    let mut combined: HashMap<u32, (Option<u64>, Option<u64>, bool, bool)> = HashMap::new();
     for (id, p) in dl_policies {
-        combined.entry(*id).or_default().0 = Some(p.rate_bps);
+        let e = combined.entry(*id).or_default();
+        e.0 = Some(p.rate_bps);
+        e.2 = p.flags & POLICY_FLAG_PER_SOCKET != 0;
     }
     for (id, p) in ul_policies {
-        combined.entry(*id).or_default().1 = Some(p.rate_bps);
+        let e = combined.entry(*id).or_default();
+        e.1 = Some(p.rate_bps);
+        e.3 = p.flags & POLICY_FLAG_PER_SOCKET != 0;
     }
 
     let mut sorted: Vec<_> = combined.into_iter().collect();
@@ -53,12 +58,14 @@ fn collect_display_data(
 
     sorted
         .iter()
-        .map(|(cgroup_id, (dl, ul))| {
+        .map(|(cgroup_id, (dl, ul, dl_ps, ul_ps))| {
             let s = stats.iter().find(|(id, _)| id == cgroup_id);
             DisplayData {
                 cgroup_id: *cgroup_id,
                 dl_bps: *dl,
                 ul_bps: *ul,
+                dl_per_socket: *dl_ps,
+                ul_per_socket: *ul_ps,
                 packets_allowed: s.map(|(_, s)| s.packets_allowed).unwrap_or(0),
                 packets_dropped: s.map(|(_, s)| s.packets_dropped).unwrap_or(0),
                 bytes_allowed: s.map(|(_, s)| s.bytes_allowed).unwrap_or(0),
@@ -66,6 +73,17 @@ fn collect_display_data(
             }
         })
         .collect()
+}
+
+/// One rate cell's text: the rate, plus " /socket" when the policy
+/// enforces per socket (charger-core-3b — the marker that keeps the
+/// table honest about WHICH budget the number names).
+fn cell_rate(bps: u64, per_socket: bool) -> String {
+    if per_socket {
+        format!("{} /socket", format_rate(bps))
+    } else {
+        format_rate(bps)
+    }
 }
 
 /// One status row's display cells (pure, improve-13: extracted for
@@ -83,8 +101,18 @@ fn status_cells(
     identity: &IdentityMap,
 ) -> (String, String, String, String, String) {
     let label = identity.label(d.cgroup_id);
-    let dl = d.dl_bps.map(format_rate).unwrap_or_else(|| "—".to_string());
-    let ul = d.ul_bps.map(format_rate).unwrap_or_else(|| "—".to_string());
+    // charger-core-3b: a per-socket policy's rate cell names its own
+    // unit — "500.0 KB/s /socket" — because the number IS per socket
+    // (the cgroup total is rate x concurrent sockets); an unmarked
+    // rate would read as the cgroup cap the policy does not carry.
+    let dl = d
+        .dl_bps
+        .map(|r| cell_rate(r, d.dl_per_socket))
+        .unwrap_or_else(|| "—".to_string());
+    let ul = d
+        .ul_bps
+        .map(|r| cell_rate(r, d.ul_per_socket))
+        .unwrap_or_else(|| "—".to_string());
     (
         label,
         dl,
@@ -337,163 +365,6 @@ pub fn print_status(
     // line of breathing room above it retired with the rest of the
     // report-surface fillers).
     println_safe!("  {}", signature_footer());
-}
-
-/// Print JSON status (for --print-json / scripting).
-///
-/// NIGHT-boost-3: the write rides the unified
-/// [`crate::output::print_json`] primitive — one compact line,
-/// serialized field-by-field straight into the locked stdout (the old
-/// path allocated the full pretty document as a String, then copied
-/// it a second time through the format machinery). The document shape
-/// (field names, order) is unchanged; scripts that parsed the pretty
-/// layout with `jq` are unaffected, and the one-line contract is the
-/// machine-first format the scripting docs promise.
-pub fn print_status_json(
-    dl_policies: &[(u32, PolicyRaw)],
-    ul_policies: &[(u32, PolicyRaw)],
-    stats: &[(u32, LimiterStatsRaw)],
-    identity: &IdentityMap,
-    watchdog_deadline: Option<u64>,
-    rings: &RingReads,
-) -> Result<()> {
-    let status = status_json(
-        dl_policies,
-        ul_policies,
-        stats,
-        identity,
-        watchdog_deadline,
-        rings,
-    );
-    crate::output::print_json(&status);
-    Ok(())
-}
-
-/// Assemble the status JSON document (pure, NIGHT-hunt-22: extracted
-/// so the scripting contract — field names, watchdog wording, count
-/// semantics — is unit-pinnable without capturing stdout). The shape
-/// is the `--print-json` contract scripts parse; changing a field
-/// name is a breaking change for automation. ADDITIVE fields ride
-/// the same rule: `rate_ring` (charger-core-3a) joins only when a
-/// ring was readable AND the limit's cgroup has one — absent is
-/// honestly absent (skip_serializing_if), never a fabricated empty
-/// series.
-fn status_json(
-    dl_policies: &[(u32, PolicyRaw)],
-    ul_policies: &[(u32, PolicyRaw)],
-    stats: &[(u32, LimiterStatsRaw)],
-    identity: &IdentityMap,
-    watchdog_deadline: Option<u64>,
-    rings: &RingReads,
-) -> StatusJson {
-    let watchdog = match watchdog_deadline {
-        Some(0) | None => "enforcing",
-        Some(d) if d > monotonic_ns() => "active",
-        Some(_) => "expired",
-    };
-
-    let now = monotonic_ns();
-    let data = collect_display_data(dl_policies, ul_policies, stats);
-
-    let limits: Vec<LimitEntry> = data
-        .iter()
-        .map(|d| {
-            let dl_ring = ring_dir_json(rings.dl.as_deref(), d.cgroup_id, now);
-            let ul_ring = ring_dir_json(rings.ul.as_deref(), d.cgroup_id, now);
-            let rate_ring = match (dl_ring, ul_ring) {
-                (None, None) => None,
-                (download, upload) => Some(RateRingJson {
-                    window_secs: 1,
-                    download,
-                    upload,
-                }),
-            };
-            LimitEntry {
-                cgroup_id: d.cgroup_id,
-                label: identity.label(d.cgroup_id),
-                download_bps: d.dl_bps,
-                upload_bps: d.ul_bps,
-                packets_allowed: d.packets_allowed,
-                packets_dropped: d.packets_dropped,
-                bytes_allowed: d.bytes_allowed,
-                bytes_dropped: d.bytes_dropped,
-                rate_ring,
-            }
-        })
-        .collect();
-
-    StatusJson {
-        watchdog,
-        active_limits: limits.len(),
-        limits,
-    }
-}
-
-/// One direction's derived series for one cgroup, or None when the
-/// direction's ring census is absent or holds no entry for the
-/// cgroup (a fresh policy with no traffic yet books nothing — the
-/// sockets-that-moved-nothing rule, a lean row over a fabricated
-/// zero).
-fn ring_dir_json(
-    dir_rings: Option<&[(u32, RateRingRaw)]>,
-    cgroup_id: u32,
-    now: u64,
-) -> Option<RateRingDirectionJson> {
-    let rings = dir_rings?;
-    let ring = rings.iter().find(|(id, _)| *id == cgroup_id)?;
-    let series = ring_series(&ring.1, now);
-    Some(RateRingDirectionJson {
-        bytes: series.bytes,
-        live: series.live,
-        peak_bytes: series.peak_bytes,
-    })
-}
-
-#[derive(serde::Serialize)]
-struct LimitEntry {
-    cgroup_id: u32,
-    label: String,
-    download_bps: Option<u64>,
-    upload_bps: Option<u64>,
-    packets_allowed: u64,
-    packets_dropped: u64,
-    bytes_allowed: u64,
-    bytes_dropped: u64,
-    /// The in-kernel time-series ring's derived window series
-    /// (charger-core-3a, EAGLE EYES V1): the last eight one-second
-    /// byte totals oldest-first, per direction. Absent when the
-    /// pinned object predates the ring or the cgroup booked no
-    /// traffic under the policy — the absent-lens contract.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    rate_ring: Option<RateRingJson>,
-}
-
-/// One direction's window series (see [`LimitEntry::rate_ring`]).
-#[derive(serde::Serialize)]
-struct RateRingDirectionJson {
-    /// The last eight one-second byte totals, OLDEST first; the last
-    /// entry is the current (still-filling) window.
-    bytes: [u64; RATE_RING_SLOTS],
-    /// How many of the eight windows hold live stamps (the honest
-    /// horizon: 3 means only the last three seconds had data).
-    live: u32,
-    /// The largest COMPLETED window (the current window never
-    /// qualifies — it can only grow).
-    peak_bytes: u64,
-}
-
-#[derive(serde::Serialize)]
-struct RateRingJson {
-    window_secs: u64,
-    download: Option<RateRingDirectionJson>,
-    upload: Option<RateRingDirectionJson>,
-}
-
-#[derive(serde::Serialize)]
-struct StatusJson {
-    watchdog: &'static str,
-    active_limits: usize,
-    limits: Vec<LimitEntry>,
 }
 
 // NIGHT-hunt-17: pins live under the single test/ tree, #[path]-wired
