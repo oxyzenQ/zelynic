@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Copyright (C) 2026 rezky_nightky
 # SPDX-License-Identifier: GPL-3.0-only
-# PLATFORM: UNIX-only (Linux). zelynic is a Linux-only tool.
+# OS: Linux only — zelynic is a Linux eBPF tool; no other OS is supported.
 #
 # The supermassive init (NIGHT-improve-31, the CI half; the kernel
 # span + dynamic envelopes are NIGHT-improve-33): PID 1 inside the

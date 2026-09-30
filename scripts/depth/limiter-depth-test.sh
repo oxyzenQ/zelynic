@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Copyright (C) 2026 rezky_nightky
 # SPDX-License-Identifier: GPL-3.0-only
+# OS: Linux only — zelynic is a Linux eBPF tool; no other OS is supported.
 #
 # Wrapper for limiter-depth-test.py (NIGHT-master-1) — the flagship
 # cross-distro depth stress test for the zelynic limiter. Python is the
