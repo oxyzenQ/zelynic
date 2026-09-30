@@ -236,20 +236,21 @@ fn every_apply_handler_verifies_pins_before_the_success_verdict() {
     }
 }
 
-/// NIGHT-dinner-15 (hunt-20 lineage): `with_u32_map`
-/// (src/ebpf/limiter/reclaim.rs) is the ONE acquisition path for
-/// u32-keyed limiter map mutation. The only sanctioned `.map_mut(`
-/// sites in the limiter tree: its own implementation (reclaim.rs)
-/// and attach's ephemeral schema_version array write (mod.rs) —
-/// pinned by name so a new direct mutation fails here, in the
-/// plain test lane, before it ships.
+/// NIGHT-dinner-15 (hunt-20 lineage, moved with its subject to
+/// lanes.rs by NIGHT-perf-0): `with_u32_map` (src/ebpf/limiter/
+/// lanes.rs) is the ONE acquisition path for u32-keyed limiter map
+/// mutation. The only sanctioned `.map_mut(` sites in the limiter
+/// tree: the lanes file itself (reclaim.rs until perf-0's Array
+/// twin split) and attach's ephemeral schema_version array write
+/// (mod.rs) — pinned by name so a new direct mutation fails here,
+/// in the plain test lane, before it ships.
 #[test]
 fn limiter_map_mutation_has_one_acquisition_path() {
     for (name, text) in rs_files("src/ebpf/limiter") {
         for line in text.lines() {
             if line.contains(".map_mut(") {
                 assert!(
-                    name == "src/ebpf/limiter/reclaim.rs" || name == "src/ebpf/limiter/mod.rs",
+                    name == "src/ebpf/limiter/lanes.rs" || name == "src/ebpf/limiter/mod.rs",
                     "{name}: map mutation outside the with_u32_map lane — {line}"
                 );
             }
@@ -260,14 +261,14 @@ fn limiter_map_mutation_has_one_acquisition_path() {
         mod_rs.contains(".map_mut(\"schema_version\")"),
         "the mod.rs map_mut site is exactly the attach-time schema_version write"
     );
-    let reclaim = src("src/ebpf/limiter/reclaim.rs");
+    let lanes = src("src/ebpf/limiter/lanes.rs");
     assert!(
-        reclaim.contains("pub(super) fn with_u32_map"),
-        "with_u32_map stays defined in the limiter tree (reclaim.rs)"
+        lanes.contains("pub(super) fn with_u32_map"),
+        "with_u32_map stays defined in the limiter tree (lanes.rs)"
     );
     // The helper's own file is the implementation, not a caller: the
-    // site inside reclaim.rs is the acquisition itself.
+    // site inside lanes.rs is the acquisition itself.
     assert!(Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("src/ebpf/limiter/reclaim.rs")
+        .join("src/ebpf/limiter/lanes.rs")
         .exists());
 }

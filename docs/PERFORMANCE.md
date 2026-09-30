@@ -245,14 +245,18 @@ Reading: PARITY on the render path — bytes/frame identical to the
 decimal again. The datapath's own cost cannot be measured by this
 harness (rootless container, no cgroup v2): it is bounded by design
 and measured by CI — the unlimited majority pays ONE extra map
-lookup per packet (the memo hit), a policed-at-leaf packet pays
+lookup per packet (the memo hit, whose word carries its own
+generation stamp since NIGHT-perf-0, so the staleness check rides
+the lookup instead of adding one), plus the single Array read the
+resolver takes on the miss branch, a policed-at-leaf packet pays
 exactly what it always did (one lookup), a new leaf pays one
 bounded walk (real-depth queries plus the break, ~8 at systemd
 depths, then memoized for its lifetime), and a policy mutation
-pays one memo flush (bounded by the 4096-entry cap) plus each live
-leaf one re-walk. The supermassive matrix's test_ammsp_subtree
-stage and its overhead stage own the live measurements on every
-push that touches the limiter.
+pays ONE Array store (the generation bump, NIGHT-perf-0 — the
+pre-perf-0 design paid a memo sweep bounded by the 4096-entry cap)
+plus each live leaf one re-walk. The supermassive matrix's
+test_ammsp_subtree stage and its overhead stage own the live
+measurements on every push that touches the limiter.
 
 ### NIGHT-private-research-3 A/B (the depth traffic focus + report compaction, 2026-09-30)
 

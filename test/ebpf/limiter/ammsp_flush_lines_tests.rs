@@ -1,21 +1,56 @@
 // Copyright (C) 2026 rezky_nightky
 // SPDX-License-Identifier: GPL-3.0-only
 
-//! NIGHT-private-research-2 (AMMSP): wording pins for the userspace
-//! flush surface (src/ebpf/limiter/ammsp.rs). The flush trace is the
+//! NIGHT-private-research-2 (AMMSP), re-stamped by NIGHT-perf-0:
+//! wording pins for the userspace memo-invalidation surface
+//! (src/ebpf/limiter/ammsp.rs). The generation-bump trace is the
 //! verbose diagnostic contract — exact strings, pinned — and the
 //! failure line is the never-silent-but-never-fatal contract the
-//! unstrict partial-failure line set the precedent for.
+//! unstrict partial-failure line set the precedent for. The legacy
+//! sweep's trace stays pinned too: the sweep is the bump's failure
+//! fallback, so its wording remains a live surface, not history.
 
-// The flush formatters live in the userspace module under test; this
-// file is wired INTO that module by its own #[path] include (the
-// gate-tree discipline: src/ wirings stay under test/), so `super`
-// is the ammsp module itself — the same `use super::*` shape the
-// policy pins use.
-use super::{flush_failed_line, flush_trace_line};
+// The invalidation formatters live in the userspace module under
+// test; this file is wired INTO that module by its own #[path]
+// include (the gate-tree discipline: src/ wirings stay under test/),
+// so `super` is the ammsp module itself — the same `use super::*`
+// shape the policy pins use.
+use super::{bump_trace_line, flush_trace_line, invalidate_failed_line};
 
-/// The zero-flush trace: the map was already clean — the wording
-/// names the count and the state, never a bare "done".
+/// The bump trace: the generation pair and the re-resolve-once cost
+/// statement (the owner-facing honest cost of the bump: every leaf
+/// pays ONE re-walk, on its next packet — the lazy retirement that
+/// makes a dead leaf never re-walk at all).
+#[test]
+fn bump_trace_pairs_generations_and_costs() {
+    assert_eq!(
+        bump_trace_line(3, 4),
+        "[limiter] ammsp memo generation 3 -> 4 — every leaf re-resolves \
+         once on its next packet"
+    );
+    assert_eq!(
+        bump_trace_line(0, 1),
+        "[limiter] ammsp memo generation 0 -> 1 — every leaf re-resolves \
+         once on its next packet"
+    );
+}
+
+/// The wraparound bump: the counter is total (wrapping, never
+/// saturating), and the trace wording carries the pair verbatim —
+/// u32::MAX -> 0 is one more ordinary bump, not a special case the
+/// wording hides.
+#[test]
+fn bump_trace_carries_the_wraparound_pair_verbatim() {
+    assert_eq!(
+        bump_trace_line(u32::MAX, 0),
+        "[limiter] ammsp memo generation 4294967295 -> 0 — every leaf \
+         re-resolves once on its next packet"
+    );
+}
+
+/// The zero-flush trace (the fallback sweep lane): the map was
+/// already clean — the wording names the count and the state, never
+/// a bare "done".
 #[test]
 fn flush_trace_zero_is_the_clean_state_line() {
     assert_eq!(
@@ -24,9 +59,9 @@ fn flush_trace_zero_is_the_clean_state_line() {
     );
 }
 
-/// The flushed trace: singular/plural agreement and the
-/// re-resolve-once cost statement (the owner-facing honest cost of
-/// the flush: each covered leaf pays ONE re-walk).
+/// The flushed trace (the fallback sweep lane): singular/plural
+/// agreement and the re-resolve-once cost statement (each covered
+/// leaf pays ONE re-walk).
 #[test]
 fn flush_trace_counts_and_costs_are_worded() {
     assert_eq!(
@@ -41,20 +76,33 @@ fn flush_trace_counts_and_costs_are_worded() {
     );
 }
 
-/// The failure line: names the cause, states the degradation
-/// (per-packet re-walks, never a wrong verdict), and offers the
-/// recover tip — the same three-part contract the unstrict
-/// partial-failure line holds.
+/// The failure line: names BOTH causes (the bump that failed first,
+/// the sweep that failed behind it), states the degradation honestly
+/// (removals self-heal per packet; an addition's stale verdict can
+/// outlive the apply — the exact half the stamp exists to cover,
+/// stated plainly), and offers the recover tip — the same three-part
+/// contract the unstrict partial-failure line holds.
 #[test]
-fn flush_failure_line_names_cause_degradation_and_tip() {
-    let line = flush_failed_line("pinned map /sys/fs/bpf/zelynic/ammsp_leaf_cache: gone");
-    assert!(
-        line.starts_with("ammsp leaf cache flush failed ("),
-        "names the surface: {line}"
+fn invalidate_failure_line_names_causes_degradation_and_tip() {
+    let line = invalidate_failed_line(
+        "pinned map /sys/fs/bpf/zelynic/ammsp_generation: gone",
+        "ammsp_leaf_cache not found in loaded object",
     );
     assert!(
-        line.contains("re-walk per packet until the next mutation"),
-        "states the degradation: {line}"
+        line.starts_with("ammsp memo invalidation failed (generation bump: "),
+        "names the primary surface: {line}"
+    );
+    assert!(
+        line.contains("; sweep: "),
+        "names the fallback surface: {line}"
+    );
+    assert!(
+        line.contains("removals still self-heal per packet"),
+        "states what still heals: {line}"
+    );
+    assert!(
+        line.contains("stale verdict can outlive this apply until the next mutation"),
+        "states the honest degradation: {line}"
     );
     assert!(
         line.contains("zelynic recover"),

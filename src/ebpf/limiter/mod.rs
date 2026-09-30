@@ -25,6 +25,7 @@
 
 mod ammsp;
 mod format;
+mod lanes;
 mod parse;
 mod policy;
 mod policy_lines;
@@ -33,9 +34,8 @@ mod schema;
 mod stats;
 mod types;
 
-// NIGHT-depthbore-1: ebpf/src/math.rs — the same file the BPF
-// object builds — compiles into this test tree via #[path] wiring,
-// pinned rootlessly by test/ebpf/limiter/math_tests.rs.
+// NIGHT-depthbore-1: ebpf/src/math.rs — the same file the BPF object
+// builds — #[path]-wired here, pinned by test/ebpf/limiter/math_tests.rs.
 #[cfg(test)]
 #[path = "../../../test/ebpf/limiter/math_tests.rs"]
 mod math_tests;
@@ -214,7 +214,7 @@ impl Limiter {
         }
 
         // NIGHT-hunt-28: preflight the pin filesystem BEFORE any pin
-        // attempt. The limiter pins all ten maps by name, and a
+        // attempt. The limiter pins all eleven maps by name, and a
         // /sys/fs/bpf that exists but is not a mounted bpf filesystem
         // (the kernel always creates the directory; some distros never
         // mount bpffs on it) turns every BPF_OBJ_PIN into EINVAL deep

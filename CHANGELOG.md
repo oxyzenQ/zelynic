@@ -19,6 +19,77 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Changed
 
+- **limiter: NIGHT-perf-0 — the AMMSP memo becomes generation-stamped
+  (schema v12): the insert race the whole-map delete flush could
+  never close is closed, and a policy mutation's invalidation cost
+  drops from O(memo-cap) syscalls to ONE Array store** (the owner's
+  mandate: depth-audit AMMSP until it is peak strong, stable, and
+  precision-ready for LTS). The hunt's finding: the v10
+  invalidation — every policy mutation sweeping the whole
+  ammsp_leaf_cache LRU, one syscall per memo, inside the flock —
+  held a TOCTOU the sweep could not cover by construction: a
+  kernel-side walk that read the policy map BEFORE the mutation's
+  writes could still be in flight (its tail stretched by an NMI or
+  IRQ storm — exactly the ultra-load shape the endurance audit
+  hunts) when the flush finished sweeping, and its insert then
+  landed a memo computed against PRE-mutation state AFTER the
+  flush: a stale negative (an unlimited subtree that should now be
+  policed) or a stale farther root, trusted until the NEXT
+  mutation, because the flock serializes mutations against
+  mutations, never against walks. The fix is the classic
+  generation-stamped memo: a new one-entry pinned
+  `ammsp_generation` counter array, bumped by userspace after
+  every mutation's writes land (apply_single, apply_group,
+  unstrict — success AND error paths, after the rollback's
+  deletions so one stamp covers every state change the invocation
+  made); the ammsp_leaf_cache value widens u32 -> u64, packing
+  `(generation << 32) | root` so the per-packet staleness check
+  rides the memo lookup that already runs instead of adding a
+  second one; the datapath reads the generation BEFORE any policy
+  read (the ordering half of the proof: a walk that observed the
+  post-bump generation necessarily reads post-write policies, a
+  walk that read pre-write policies can only carry a pre-bump
+  stamp — which the very next packet mismatches and re-walks, so
+  no insert can ever outlive the state it summarized). The verdict
+  table gains the generation row (mismatch = Walk, whatever the
+  memo names); the stale-detect (a cached root whose policy is
+  gone) stays as the belt behind the stamp; the delete sweep
+  survives as the bump's failure fallback with its wording pinned
+  (the failure line now names BOTH causes and states the honest
+  degradation — removals self-heal per packet, a stale verdict can
+  outlive the apply until the next mutation). The endurance win
+  rides along: one Array store per mutation replaces up to
+  4096 one-syscall removes (a burst of applies no longer pays
+  O(memo-cap) syscall work each; a dead leaf never re-walks at
+  all, which the sweep could never offer), and the unlimited
+  majority's fast path gains only the single Array read the
+  resolver takes on the policy-miss branch. Schema v12: map set +
+  value layout change — the bump forces pinned v11 programs to
+  reload into the generation-stamped object, active limits are
+  dropped once and re-applied after upgrade, the same one-time
+  contract as v4..v11. Splits ridden as the gates demanded: the
+  acquisition-lane family (with_u32_map, with_lru_u32_map, the new
+  with_array_u32_map, remove_map_entry) moved from reclaim.rs to
+  the new lanes.rs sibling — the Array twin pushed reclaim.rs past
+  the 500-LOC owner cap, and the architecture pin
+  (test/integration/architecture_pins.rs) now names lanes.rs as
+  the one sanctioned `.map_mut(` site beside attach's
+  schema_version stamp. ebpf-prebuilt/ refreshed to the
+  generation-stamped object (parity gate's tree pin moved; the
+  object carries ammsp_generation, verified). Pins: ammsp_tests
+  gains the generation row (mismatch walks regardless of root or
+  aliveness, wraparound neighbor does not alias), the pack/unpack
+  roundtrip family, and the only-current-generation-is-trusted
+  sweep; the wording pins move to the bump trace (plus the
+  wraparound pair) and the two-cause failure line; the schema pin
+  moves to 12. Docs: the AMMSP design brief's userspace half and
+  risk register rewritten around the stamp (the insert-race row
+  added), PERFORMANCE's mutation-cost paragraph now states the
+  O(1) bump. Verified: fmt + ebpf fmt clean, clippy --all-targets
+  --all-features -D warnings clean, 509 + 46 tests green, build.sh
+  check-all -q green, gate-keepers 16/16 green (schema pin now
+  v12).
+
 - **limiter+monitor: NIGHT-think-like-light-years-3 — the extreme-burst
   endurance re-audit: the init-path wholesale reset closed (schema
   v11) and the dense-host poll merge goes linear** (the owner's

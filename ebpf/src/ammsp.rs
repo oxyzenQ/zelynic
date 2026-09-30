@@ -38,6 +38,29 @@
 //      level > cgrp->level), so ascending level queries walk the
 //      socket's chain from the root downward and return 0 once past
 //      the leaf's own depth — the walk's break condition.
+//
+// The generation stamp (NIGHT-perf-0): every memo carries the
+// ammsp_generation counter value it was resolved under, and every
+// policy mutation bumps that counter AFTER its writes land. The
+// ordering proof that makes a stale memo self-invalidating:
+//
+//   * the walk reads the generation BEFORE it reads any policy, and
+//     stamps its insert with that value;
+//   * the mutation writes policies first, bumps the generation
+//     second — so a walk that observed the post-bump generation
+//     necessarily reads post-write policies (map updates are
+//     visible to other CPUs once the writing syscall returns),
+//     while a walk that read pre-write policies can only carry a
+//     pre-bump stamp, which the very next packet sees mismatch and
+//     re-walks.
+//
+// This closes the one hole the whole-map delete flush could not:
+// a walk whose tail was stretched by an NMI/IRQ storm past the
+// flush used to insert a memo computed against pre-mutation state
+// AFTER the flush finished sweeping — a stale verdict that then
+// lived until the NEXT mutation. A generation mismatch is detected
+// per packet by the memo reader, so no insert can ever outlive the
+// state it summarized.
 
 /// How deep the ancestor walk reaches: the loop queries absolute
 /// levels 0..AMMSP_MAX_DEPTH and stops early the moment the helper
@@ -113,60 +136,101 @@ impl Default for AmmspWalk {
 ///
 /// The cache is a memo, never an authority: a cached POSITIVE root
 /// is only trusted while the policy map still agrees it is alive
-/// (checked by the caller before enforcing), and any disagreement —
-/// or an absent entry — sends the packet through the walk, which
-/// re-reads the live policy map and rewrites the memo.
+/// (checked by the caller before enforcing), and only while the
+/// generation it was stamped with is still the current one (checked
+/// by the caller against ammsp_generation before anything else) —
+/// and any disagreement, or an absent entry, sends the packet
+/// through the walk, which re-reads the live policy map and
+/// rewrites the memo with the current generation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CacheVerdict {
     /// Cached resolution says no root covers this leaf: unlimited.
     /// (A cached negative stays valid across policy REMOVALS —
-    /// removing coverage cannot create coverage — and every policy
-    /// ADDITION flushes the whole map, so it can never outlive the
-    /// state it summarized.)
+    /// removing coverage cannot create coverage — and its
+    /// generation stamp was taken while that was already true: an
+    /// ADDITION bumps the generation, so the stale-negative case is
+    /// a generation mismatch, not this verdict.)
     Allow,
-    /// Cached root, confirmed alive by the policy map: enforce
+    /// Cached root, generation current and policy alive: enforce
     /// against this root.
     Enforce(u32),
     /// No usable memo: run the walk and rewrite the entry. Reached
-    /// when the entry is absent (first packet from this leaf) or
-    /// when the cached root's policy is gone (removed mid-flight —
-    /// the map flush missed it, or the pin was re-created empty).
+    /// when the entry is absent (first packet from this leaf), when
+    /// its generation stamp no longer matches (a mutation has
+    /// occurred since it was written — the insert race the delete
+    /// flush could not close, NIGHT-perf-0), or when the cached
+    /// root's policy is gone (removed mid-flight — the belt the
+    /// generation stamp makes near-impossible and the stale-detect
+    /// keeps anyway).
     Walk,
 }
 
-/// The cache decision table. `cached` is the memoized value for the
-/// leaf (None = absent, Some(0) = cached negative, Some(r) = cached
-/// root); `root_policy_alive` is whether the policy map currently
-/// contains the cached root (only meaningful for Some(r) != 0).
+/// The cache decision table. `cached` is the memoized packed value
+/// for the leaf (None = absent, Some(v) = the packed
+/// generation-and-root word); `current_gen` is the generation the
+/// caller just read from ammsp_generation; `root_policy_alive` is
+/// whether the policy map currently contains the cached root (only
+/// meaningful for a generation-current memo with a nonzero root).
 ///
-/// The stale-negative case — Some(0) while a policy was ADDED above
-/// this leaf — is deliberately NOT a verdict here: it cannot be
-/// detected from the cached value alone, which is exactly why every
-/// policy write flushes the entire cache (userspace,
-/// NIGHT-private-research-2) instead of trusting this table to
-/// self-heal. The table covers what the kernel can see on its own;
-/// the flush covers what only the mutation path knows.
+/// The generation row is the NIGHT-perf-0 close: a memo whose
+/// stamp mismatches the current generation is a Walk no matter
+/// what root it names — the memo may have been computed against
+/// pre-mutation policy state (the insert-after-flush race), so its
+/// content is untrusted even when it names a live root. The walk
+/// then re-reads the only authority, the live policy map, and
+/// rewrites the memo under the current generation.
 #[inline(always)]
-pub fn cache_verdict(cached: Option<u32>, root_policy_alive: bool) -> CacheVerdict {
+pub fn cache_verdict(
+    cached: Option<u64>,
+    current_gen: u32,
+    root_policy_alive: bool,
+) -> CacheVerdict {
     match cached {
         None => CacheVerdict::Walk,
-        Some(0) => CacheVerdict::Allow,
-        Some(root) => {
-            if root_policy_alive {
-                CacheVerdict::Enforce(root)
-            } else {
-                CacheVerdict::Walk
+        Some(v) if memo_gen(v) != current_gen => CacheVerdict::Walk,
+        Some(v) => match memo_root(v) {
+            0 => CacheVerdict::Allow,
+            root => {
+                if root_policy_alive {
+                    CacheVerdict::Enforce(root)
+                } else {
+                    CacheVerdict::Walk
+                }
             }
-        }
+        },
     }
 }
 
-/// The value to memoize after a walk resolves `root`: the root id
-/// itself, or 0 when nothing matched — the negative memo that keeps
-/// unlimited traffic at ONE cache lookup per packet forever after.
+/// The value to memoize after a walk resolves `root` under
+/// `generation`: the root id and the generation stamped into
+/// one u64 word — `(generation << 32) | root` — so the memo lookup
+/// that already runs per packet carries the staleness check with it
+/// (a separate generation read would be a second map lookup on the
+/// unlimited majority's fast path; packing keeps the memo at ONE
+/// lookup plus the single Array read the resolver takes anyway).
+/// `root` is the walk result verbatim: a root id when one matched,
+/// 0 when none did — the negative memo that keeps unlimited
+/// traffic at one cache lookup per packet forever after.
 #[inline(always)]
-pub const fn memo_value(root: u32) -> u32 {
-    root
+pub const fn memo_value(generation: u32, root: u32) -> u64 {
+    ((generation as u64) << 32) | (root as u64)
+}
+
+/// The generation stamp half of a packed memo value. The stamp is
+/// the ammsp_generation counter the walk read BEFORE its policy
+/// reads — the ordering that makes a mismatch provable staleness
+/// (see the module header's proof).
+#[inline(always)]
+pub const fn memo_gen(value: u64) -> u32 {
+    (value >> 32) as u32
+}
+
+/// The resolution half of a packed memo value: the root id the walk
+/// resolved (0 = resolved unlimited) — exactly the word the
+/// pre-generation design stored on its own.
+#[inline(always)]
+pub const fn memo_root(value: u64) -> u32 {
+    (value & 0xFFFF_FFFF) as u32
 }
 
 /// Depth bound honesty helper (unit-pinned): the number of helper

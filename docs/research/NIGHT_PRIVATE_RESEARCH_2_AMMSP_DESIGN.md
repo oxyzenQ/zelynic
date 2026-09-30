@@ -138,13 +138,32 @@ ebpf/src/ammsp.rs):
    consequence of the design rather than a feature of its own.
 
 **Userspace** (src/ebpf/limiter/ammsp.rs): every policy mutation —
-apply_single, apply_group, unstrict — flushes the whole memo once
+apply_single, apply_group, unstrict — invalidates the memo once
 per invocation, inside the flock the mutation already holds. The
-flush is the memo's only addition-side invalidation: a cached
-negative (or a cached farther root) cannot see a policy that was
-added after the walk ran, and the kernel-side stale-detect covers
-only removals. Belt and suspenders, each covering exactly the half
-the other cannot see. After a flush each live leaf re-walks ONCE.
+original invalidation (NIGHT-private-research-2) was a whole-map
+delete flush; NIGHT-perf-0 hardened it into the GENERATION BUMP:
+a one-entry pinned counter array (`ammsp_generation`) advances by
+one after every mutation's writes land, and every memo carries the
+counter value it was resolved under, packed into its own word
+(`(generation << 32) | root`). The datapath compares the stamp per
+packet — a mismatch is a Walk, whatever the memo names. The stamp
+closes the one addition-side hole the delete sweep could not: a
+walk whose tail an NMI/IRQ storm stretched past the sweep inserted
+a memo computed against PRE-mutation state AFTER the flush
+finished sweeping — the flock serializes mutations against
+mutations, never against kernel-side walks — and the stale verdict
+then lived until the NEXT mutation. The stamp ordering proof: the
+walk reads the generation BEFORE its policy reads and tags its
+insert with that value; the mutation writes policies first, bumps
+the generation second — so a walk that observed the post-bump
+generation necessarily reads post-write policies, while a walk
+that read pre-write policies can only carry a pre-bump stamp,
+which the very next packet sees mismatch and re-walks. The bump
+is also the endurance win: one Array store replaces up to 4096
+one-syscall removes per mutation (the sweep survives as the
+bump's failure fallback, and the datapath's stale-detect stays
+as the belt behind the stamp). After a bump each live leaf
+re-walks ONCE.
 
 **Nested roots arrive free**: a strict on A (100kb) and another on
 B (50kb), B a descendant of A — a socket under B resolves to B (the
@@ -177,8 +196,9 @@ USAGE.md.
 
 | Risk | Shape | Answer |
 |------|-------|--------|
-| Memo staleness after policy ADD | cached negative outlives a new policy | the mutation-side flush (userspace) + flock serialization |
-| Memo staleness after policy REMOVE | cached root outlives its policy | datapath stale-detect: delete + re-walk, per packet |
+| Memo staleness after policy ADD | cached negative outlives a new policy | the generation stamp (NIGHT-perf-0): every mutation bumps `ammsp_generation` after its writes; the per-packet stamp check walks any memo the addition outlived — closed for the insert race the delete flush could not cover |
+| Memo staleness after policy REMOVE | cached root outlives its policy | datapath stale-detect: delete + re-walk, per packet (the belt behind the stamp — the stamp covers removals too, since every mutation bumps) |
+| Walk-vs-mutation insert race | a stretched walk inserts pre-mutation state after the flush swept | the stamp again: the insert carries the walk's pre-read generation, the next packet mismatches it — self-healing per packet (NIGHT-perf-0; the shape that closed this row is the reason the bump replaced the sweep) |
 | Map growth from dead leaves | transient scopes fill the memo | LRU eviction is the map type; 4096 entries bound it |
 | LRU insert failure | never expected on LRU | costs a re-walk next packet, never a wrong verdict |
 | Walk cost on a new leaf | ~depth+2 helper calls once | memoized; the unlimited majority never walks twice |

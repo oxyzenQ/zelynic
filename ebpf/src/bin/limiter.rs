@@ -14,7 +14,7 @@
 // ELF contract with src/ebpf/limiter/mod.rs is identical (names,
 // sections, map types, struct layouts, pinning, GPL license): the
 // userspace loader opens every map through EbpfLoader::map_pin_path,
-// so all ten maps declare PIN_BY_NAME exactly like the C twin's
+// so all eleven maps declare PIN_BY_NAME exactly like the C twin's
 // LIBBPF_PIN_BY_NAME annotations (aya-ebpf exposes this as
 // HashMap::pinned / Array::pinned, which the map macro emits as the
 // pinning field of the legacy bpf_map_def; aya-obj parses that field
@@ -140,6 +140,22 @@ use math::{Bucket, LimiterStats, MAX_ENFORCABLE_BURST, Policy, book, enforce};
 /// vanished. No layout change, verdict math untouched; the bump
 /// forces pinned v10 programs to reload into the init-race-free
 /// object — the same one-time re-apply contract as v4..v10.
+/// v12 (NIGHT-perf-0): AMMSP memos become generation-stamped — the
+/// ammsp_leaf_cache value widens u32 -> u64, packing
+/// `(generation << 32) | root`, and a new one-entry pinned
+/// ammsp_generation counter array is bumped by every userspace
+/// policy mutation after its writes land (read by the datapath before
+/// every resolution). The stamp closes the one hole the whole-map
+/// delete flush could not: a walk whose tail an NMI/IRQ storm
+/// stretched past the flush inserted a memo computed against
+/// pre-mutation state AFTER the sweep finished — a stale verdict
+/// that lived until the next mutation. A stamp mismatch is detected
+/// per packet, so no insert can outlive the state it summarized; the
+/// O(4096)-syscall sweep becomes an O(1) counter store with the
+/// sweep kept only as its failure fallback. Map set + value layout
+/// change; the bump forces pinned v11 programs to reload into the
+/// generation-stamped object — active limits are dropped once,
+/// re-apply after upgrade, the same one-time contract as v4..v11.
 /// No layout change since v2; each bump forces pinned older
 /// programs to reload into the hardened object — a one-time limit
 /// re-apply, documented in CHANGELOG.
@@ -147,7 +163,7 @@ use math::{Bucket, LimiterStats, MAX_ENFORCABLE_BURST, Policy, book, enforce};
 /// the pinned map after load — so the constant exists purely as the
 /// parity anchor for that three-way contract.
 #[allow(dead_code)]
-const SCHEMA_VERSION: u32 = 11;
+const SCHEMA_VERSION: u32 = 12;
 
 // ---------------------------------------------------------------------------
 // Maps. The static names ARE the userspace contract (limiter/mod.rs

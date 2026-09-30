@@ -31,7 +31,8 @@
 pub(super) mod ebpf_ammsp;
 
 use self::ebpf_ammsp::{
-    cache_verdict, memo_value, walk_queries, AmmspWalk, CacheVerdict, AMMSP_MAX_DEPTH,
+    cache_verdict, memo_gen, memo_root, memo_value, walk_queries, AmmspWalk, CacheVerdict,
+    AMMSP_MAX_DEPTH,
 };
 
 /// The nearest-root contract, straight case: one policy on the chain
@@ -121,30 +122,118 @@ fn walk_keeps_last_match_through_trailing_misses() {
     assert_eq!(w.root(), 200);
 }
 
-/// The cache decision table, exhaustive: every (cached, alive) pair
-/// lands on its documented verdict.
+/// The cache decision table, exhaustive: every (cached, generation,
+/// alive) triple lands on its documented verdict — including the
+/// NIGHT-perf-0 generation row that closes the insert-after-flush
+/// race.
 #[test]
 fn cache_verdict_table_is_exhaustive() {
     // Absent memo: walk.
-    assert_eq!(cache_verdict(None, false), CacheVerdict::Walk);
-    assert_eq!(cache_verdict(None, true), CacheVerdict::Walk);
-    // Cached negative: allow, unconditionally (removals cannot
-    // create coverage; additions flush).
-    assert_eq!(cache_verdict(Some(0), false), CacheVerdict::Allow);
-    assert_eq!(cache_verdict(Some(0), true), CacheVerdict::Allow);
-    // Cached root, policy alive: enforce that root.
-    assert_eq!(cache_verdict(Some(7), true), CacheVerdict::Enforce(7));
-    // Cached root, policy gone: stale — walk.
-    assert_eq!(cache_verdict(Some(7), false), CacheVerdict::Walk);
+    assert_eq!(cache_verdict(None, 5, false), CacheVerdict::Walk);
+    assert_eq!(cache_verdict(None, 5, true), CacheVerdict::Walk);
+    // Cached negative, generation current: allow, unconditionally
+    // (removals cannot create coverage; an ADDITION would have
+    // bumped the generation — the mismatch row below).
+    assert_eq!(
+        cache_verdict(Some(memo_value(5, 0)), 5, false),
+        CacheVerdict::Allow
+    );
+    assert_eq!(
+        cache_verdict(Some(memo_value(5, 0)), 5, true),
+        CacheVerdict::Allow
+    );
+    // Cached root, generation current, policy alive: enforce that
+    // root.
+    assert_eq!(
+        cache_verdict(Some(memo_value(5, 7)), 5, true),
+        CacheVerdict::Enforce(7)
+    );
+    // Cached root, generation current, policy gone: stale — walk
+    // (the stale-detect belt behind the stamp).
+    assert_eq!(
+        cache_verdict(Some(memo_value(5, 7)), 5, false),
+        CacheVerdict::Walk
+    );
+    // Generation mismatch: Walk no matter what the memo names —
+    // the stale-negative and stale-farther-root cases the whole-map
+    // delete flush could not close (a walk whose tail an IRQ storm
+    // stretched past the sweep inserted pre-mutation state after
+    // it). The root may still be alive; the memo is untrusted
+    // wholesale.
+    assert_eq!(
+        cache_verdict(Some(memo_value(4, 0)), 5, false),
+        CacheVerdict::Walk
+    );
+    assert_eq!(
+        cache_verdict(Some(memo_value(4, 7)), 5, true),
+        CacheVerdict::Walk
+    );
+    // The wraparound neighbor does NOT alias: a memo stamped one
+    // full u32 generation behind (4.2 billion mutations ago) is
+    // stale against 5, and only a memo stamped exactly the current
+    // generation is current.
+    assert_eq!(
+        cache_verdict(Some(memo_value(u32::MAX, 7)), 0, true),
+        CacheVerdict::Walk
+    );
 }
 
-/// The negative-memo value contract: the memo stores the walk result
-/// verbatim — a root id when one matched, 0 (the same sentinel the
-/// walk returns) when none did.
+/// The memo value contract: the word packs the generation stamp
+/// with the walk result — root 0 when nothing matched (the negative
+/// memo), a root id when one did — and both halves unpack back
+/// verbatim.
 #[test]
-fn memo_value_is_the_walk_result_verbatim() {
-    assert_eq!(memo_value(0), 0, "unlimited memoizes as 0");
-    assert_eq!(memo_value(12345), 12345, "a root memoizes as itself");
+fn memo_value_packs_gen_and_root_and_roundtrips() {
+    assert_eq!(
+        memo_value(0, 0),
+        0,
+        "gen 0 + unlimited packs as the zero word"
+    );
+    assert_eq!(memo_gen(memo_value(0, 0)), 0);
+    assert_eq!(
+        memo_root(memo_value(0, 0)),
+        0,
+        "unlimited memoizes as root 0"
+    );
+    assert_eq!(
+        memo_root(memo_value(9, 12345)),
+        12345,
+        "a root memoizes as itself"
+    );
+    assert_eq!(memo_gen(memo_value(9, 12345)), 9, "the stamp rides along");
+    // The full-range pair: both halves survive their own maximum.
+    let packed = memo_value(u32::MAX, u32::MAX);
+    assert_eq!(memo_gen(packed), u32::MAX);
+    assert_eq!(memo_root(packed), u32::MAX);
+    // The packing is bit-exact: high word is the stamp, low word is
+    // the root, no overlap, no sign extension.
+    assert_eq!(memo_value(1, 2), (1u64 << 32) | 2);
+    assert_eq!(memo_value(0, u32::MAX), u32::MAX as u64);
+    assert_eq!(memo_value(u32::MAX, 0), (u32::MAX as u64) << 32);
+}
+
+/// The stamp ordering contract, stated as the decision the datapath
+/// makes: a memo is only ever trusted under the exact generation
+/// it was written with, so the walk that rewrites it re-reads the
+/// only authority (the live policy map). The stamp makes every
+/// insert race self-healing — the mismatch is detected per packet,
+/// on the memo's own word, with no sweep involved.
+#[test]
+fn only_the_current_generation_is_trusted() {
+    let root = 900u32;
+    for stale_gen in [0u32, 1, 41, u32::MAX] {
+        let cached = memo_value(stale_gen, root);
+        assert_eq!(
+            cache_verdict(Some(cached), 42, true),
+            CacheVerdict::Walk,
+            "stale stamp {stale_gen} against current 42 must walk"
+        );
+    }
+    // The one current stamp is the one trusted verdict.
+    assert_eq!(
+        cache_verdict(Some(memo_value(42, root)), 42, true),
+        CacheVerdict::Enforce(root)
+    );
 }
 
 /// The depth bound: 32 is the ceiling — deep enough to triple every

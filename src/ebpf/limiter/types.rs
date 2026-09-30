@@ -379,7 +379,11 @@ mod tests {
         // inserts ride BPF_NOEXIST — the first-packet init race
         // can no longer resurrect tokens or roll the window stamp
         // back under a many-CPU burst on a fresh bucket.
-        assert_eq!(SCHEMA_VERSION_EXPECTED, 11);
+        // v12 (NIGHT-perf-0): AMMSP memos are generation-stamped —
+        // the leaf-cache value packs (generation << 32) | root and
+        // the new ammsp_generation array invalidates every memo a
+        // mutation outlives, one O(1) bump per mutation.
+        assert_eq!(SCHEMA_VERSION_EXPECTED, 12);
     }
 
     // ── NIGHT-improve-10 / security-3: overflow-bound pins ──────────
