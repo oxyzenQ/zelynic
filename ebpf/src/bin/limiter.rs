@@ -253,7 +253,7 @@ use socket_flow::socket_flow;
 /// maps, and a field that was padding is now read), and the
 /// one-time re-apply contract holds as ever.
 #[allow(dead_code)]
-const SCHEMA_VERSION: u32 = 15;
+const SCHEMA_VERSION: u32 = 16;
 
 // ---------------------------------------------------------------------------
 // Maps. The static names ARE the userspace contract (limiter/mod.rs
@@ -477,8 +477,10 @@ const BPF_NOEXIST: u64 = 1;
 /// Shared enforcement flow for one direction. `policy_map` selects
 /// download vs upload; `bucket_map` / `group_bucket_map` are the
 /// matching individual/group bucket (pool) maps, `leaf_bucket_map`
-/// the direction's DRR leaf map (charger-core-1c), `rate_ring_map`
-/// the direction's time-series ring (charger-core-3a).
+/// the direction's DRR leaf map (charger-core-1c), `share_map` the
+/// direction's learned-share state map (dinner-28 — the fair-split
+/// cap on the draw), `rate_ring_map` the direction's time-series
+/// ring (charger-core-3a).
 #[inline(always)]
 fn try_enforce(
     ctx: SkBuffContext,
@@ -486,6 +488,7 @@ fn try_enforce(
     bucket_map: &HashMap<u32, Bucket>,
     group_bucket_map: &HashMap<u32, Bucket>,
     leaf_bucket_map: &LruHashMap<u32, Bucket>,
+    share_map: &LruHashMap<u32, u64>,
     rate_ring_map: &HashMap<u32, RateRing>,
     socket_bucket_map: &LruHashMap<u64, socket_flow::SocketBucket>,
 ) -> i32 {
@@ -672,7 +675,17 @@ fn try_enforce(
         None => return 1,
     };
     let pool = unsafe { &mut *pool_ptr };
-    let verdict = drr_flow(&pol_sane, pool, leaf_bucket_map, &leaf, pkt_len, now, stats);
+    let verdict = drr_flow(
+        &pol_sane,
+        pool,
+        leaf_bucket_map,
+        share_map,
+        &cgroup_id,
+        &leaf,
+        pkt_len,
+        now,
+        stats,
+    );
     ring_verdict(verdict, rate_ring_map, &cgroup_id, now, pkt_len)
 }
 
@@ -685,6 +698,7 @@ fn enforce_dl(ctx: SkBuffContext) -> i32 {
         &cgroup_bucket_dl,
         &group_bucket_dl,
         &drr_flow::leaf_bucket_dl,
+        &drr_flow::drr_pool_state_dl,
         &rate_ring_dl,
         &socket_flow::socket_bucket_dl,
     )
@@ -699,6 +713,7 @@ fn enforce_ul(ctx: SkBuffContext) -> i32 {
         &cgroup_bucket_ul,
         &group_bucket_ul,
         &drr_flow::leaf_bucket_ul,
+        &drr_flow::drr_pool_state_ul,
         &rate_ring_ul,
         &socket_flow::socket_bucket_ul,
     )

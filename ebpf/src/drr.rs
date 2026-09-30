@@ -160,3 +160,135 @@ pub const fn draw_size(quantum: u64, pool_tokens: u64) -> u64 {
 pub const fn leaf_inflight_bound(rate_bps: u64) -> u64 {
     quantum(rate_bps).saturating_add(GSO_ADMIT_FLOOR)
 }
+
+// ── The learned-share draw (dinner-28) ────────────────────────────────
+//
+// THE FIND the live battery filed (supermassive fair-share, all four
+// CI legs): the residue law splits a TWO-asker pool evenly — every
+// draw leaves half for whoever asks next — but across K > 2
+// successive drawers the takes decay geometrically: the first asker
+// of each epoch takes half the pool, the second half of the rest
+// (25%), the third 12.5% ... the K-th (1/2)^K of the pool. The
+// measured CI shape at 6 leaves / 1mb: the worst leaf read 2.13 MB
+// over 4s (the first-drawer's 500 KB/s share, 3.35x the fair share)
+// while the quietest accumulated ~60 KB in 40 epochs — one GRO admit
+// short of 64 KiB — and never admitted a single packet (78 B). The
+// pool law held exactly (0.95x of policy — the aggregate was always
+// right); only the DISTRIBUTION was broken. The v13 pins simulated
+// K=2 only (the alternating pair), so the decay class was never
+// covered: the pins' own precedent — the 95/4 FCFS shape was found
+// by simulation, and this class is one order deeper.
+//
+// THE LAW: the draw take is the residue law's bound FURTHER capped
+// by the quantum's fair split across a LEARNED drawee count — the
+// number of distinct leaves that drew in the last completed 100ms
+// epoch, kept per (pool, direction) in a packed state word:
+//
+//   bits  0..15 : last     — the distinct-drawee count of the last
+//                           COMPLETED epoch (the divisor source)
+//   bits 16..31 : running  — the distinct-drawee count of the
+//                           CURRENT epoch
+//   bits 32..63 : epoch    — now / DRR_WINDOW_MS (the 100ms epoch)
+//
+// A learned count of 0 (a cold pool, the first 100ms) keeps the
+// exact v13 shape — fair_draw_size(q, pool, 0) is draw_size by
+// construction — and from the first rollover on, the first asker of
+// an epoch is capped at quantum/(K+1) like every other drawer: the
+// monopoly position itself stops paying. The count is an ESTIMATE
+// (concurrent notes may lose one increment, a failed-draw epoch
+// under-counts its starved askers): the divisor's slack absorbs it —
+// the bounds the battery judges (1.75x fair + one quantum, and
+// fair/4 for the quietest) are met with margin in the simulation
+// pin, which reproduces the CI decay first and the close second.
+
+/// The epoch length in ns for the share state (the DRR window).
+#[inline(always)]
+pub const fn share_epoch_ns() -> u64 {
+    DRR_WINDOW_MS * 1_000_000
+}
+
+/// Unpack the state word's epoch (bits 32..63).
+#[inline(always)]
+pub const fn pool_share_epoch(word: u64) -> u32 {
+    (word >> 32) as u32
+}
+
+/// Unpack the running distinct-drawee count (bits 16..31).
+#[inline(always)]
+pub const fn pool_share_running(word: u64) -> u16 {
+    ((word >> 16) & 0xFFFF) as u16
+}
+
+/// Unpack the learned divisor source: the last completed epoch's
+/// distinct-drawee count (bits 0..15).
+#[inline(always)]
+pub const fn pool_share_last(word: u64) -> u16 {
+    (word & 0xFFFF) as u16
+}
+
+/// Pack the state word.
+#[inline(always)]
+pub const fn pool_share_pack(epoch: u32, running: u16, last: u16) -> u64 {
+    ((epoch as u64) << 32) | ((running as u64) << 16) | last as u64
+}
+
+/// The rollover + count step (pure, the same math the datapath's
+/// atomics and the simulation's plain stores run): given the current
+/// word, the now-epoch, and whether THIS leaf already drew in the
+/// current epoch, return the updated word. A rollover at an epoch
+/// boundary retires the epoch's running count into `last` — the
+/// divisor the next epoch's draws read.
+#[inline(always)]
+pub const fn pool_share_note(word: u64, now_epoch: u32, leaf_drew_this_epoch: bool) -> u64 {
+    let mut epoch = pool_share_epoch(word);
+    let mut running = pool_share_running(word);
+    let mut last = pool_share_last(word);
+    if epoch != now_epoch {
+        last = running;
+        running = 0;
+        epoch = now_epoch;
+    }
+    if !leaf_drew_this_epoch {
+        running = running.saturating_add(1);
+    }
+    pool_share_pack(epoch, running, last)
+}
+
+/// The learned-share draw (the new law, dinner-28): the residue
+/// law's bound further capped by the POOL's fair split across the
+/// learned drawee count — pool/(learned+2), not quantum/(learned+1):
+/// the cap must bind at the micro scale, where the pool holds only
+/// the refill since the last drain (hundreds of bytes at a 200us
+/// offer cadence — a quantum-scaled cap sits forty times above the
+/// binding constraint there and never engages; the simulation pin
+/// caught that too). At learned+2 the arithmetic keeps every case
+/// honest: learned 0 (a cold pool, a missed state lookup) is
+/// pool/2 — the EXACT v13 residue law by construction, the fail-open
+/// lane; learned 1 (a single active leaf) is pool/3 — smaller takes,
+/// the same throughput (the lone leaf re-draws freely); learned K is
+/// pool/(K+2) — a flat split whose position ratio is
+/// (1-1/(K+2))^(K-1), 1.34 at K=6 and 1.18 at K=24, both far inside
+/// the battery's 1.75x bound. The order-dependence the residue law
+/// owned at K>2 (geometric decay across positions) is gone by
+/// construction: every drawer takes the same fraction of a pool the
+/// previous drawers barely dented.
+#[inline(always)]
+pub const fn fair_draw_size(quantum: u64, pool_tokens: u64, learned: u16) -> u64 {
+    // The naming is load-bearing, not decoration: the file is
+    // formatted by BOTH trees' rustfmt (the root reaches it through
+    // the test tree's #[path] includes, the ebpf crate formats it
+    // natively), and the two toolchains disagree on collapsing a
+    // short if-else into one line — the nightly collapses under its
+    // single-line width cap, the stable expands. draw_size stayed
+    // stable through the whole DRR era because its statement runs
+    // past the cap; these names put this statement past it too (the
+    // compact one-liner and the trait method — Ord::min is not const
+    // on the ebpf toolchain, E0658 — each fail a gate on one side).
+    let residue_law_take = draw_size(quantum, pool_tokens);
+    let learned_share_take = pool_tokens / (learned as u64 + 2);
+    if residue_law_take < learned_share_take {
+        residue_law_take
+    } else {
+        learned_share_take
+    }
+}

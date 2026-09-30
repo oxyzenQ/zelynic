@@ -59,6 +59,29 @@ pub(super) static leaf_bucket_dl: LruHashMap<u32, Bucket> = LruHashMap::pinned(4
 #[map]
 pub(super) static leaf_bucket_ul: LruHashMap<u32, Bucket> = LruHashMap::pinned(4096, 0);
 
+/// The learned-share state, download pool (dinner-28): ROOT cgroup
+/// id -> the packed pool-share word (drr.rs's packing —
+/// `last:u16 | running:u16 | epoch:u32`). The draw take is the
+/// residue law's bound further capped by the quantum's fair split
+/// across the learned drawee count — the number of distinct leaves
+/// that drew in the last completed 100ms epoch. The CI find this
+/// closes: at K > 2 drawers the residue law's takes decay
+/// geometrically (50%/25%/12.5%... of the pool per epoch) — the
+/// worst leaf measured 3.35x its fair share while the quietest
+/// starved below one admit (78 B over 4s); with the learned cap the
+/// first-asker position itself stops paying. LRU + pinned like the
+/// leaf buckets; datapath-internal (userspace never opens it — the
+/// leaf_bucket family's contract), fail-open on a miss (the draw
+/// keeps the v13 residue law, never drops).
+#[allow(non_upper_case_globals)]
+#[map]
+pub(super) static drr_pool_state_dl: LruHashMap<u32, u64> = LruHashMap::pinned(4096, 0);
+
+/// The learned-share state, upload pool — the download twin's lane.
+#[allow(non_upper_case_globals)]
+#[map]
+pub(super) static drr_pool_state_ul: LruHashMap<u32, u64> = LruHashMap::pinned(4096, 0);
+
 /// `bpf_map_update_elem` flag: fail the insert if the key already
 /// exists (kernel uapi; the limiter's own BPF_NOEXIST note carries
 /// the race contract — the loser re-looks-up and rides the winner's
@@ -97,11 +120,16 @@ fn get_leaf_ptr(leaf_map: &LruHashMap<u32, Bucket>, leaf: &u32) -> Option<*mut B
 /// the socket's own cgroup id — the direct-hit path's leaf IS the
 /// root, so every packet on this lane takes the same shape, no mixed
 /// regime between a target's own sockets and its subtree's.
+/// `root` is the policy key (the pool's owner — the learned-share
+/// state map is keyed by it); `share_map` is the direction's state
+/// map (dinner-28 — the fair-split cap on the draw).
 #[inline(always)]
 pub(super) fn drr_flow(
     pol: &Policy,
     pool: &mut Bucket,
     leaf_map: &LruHashMap<u32, Bucket>,
+    share_map: &LruHashMap<u32, u64>,
+    root: &u32,
     leaf: &u32,
     pkt_len: u32,
     now: u64,
@@ -149,10 +177,12 @@ pub(super) fn drr_flow(
 
     // 4. The draw: one drawer per leaf per timestamp (the
     // window-ownership trick on the leaf's draw stamp), moving at
-    // most one quantum from the pool through a sufficiency-verified
-    // CAS. The draw stamps the leaf's generation as a side effect —
-    // the belt only ever re-fires after a mutation.
-    if try_draw(pol, pool, bkt, now) && try_consume(bkt, pkt_len) {
+    // most one learned-share take from the pool through a
+    // sufficiency-verified CAS. The draw stamps the leaf's
+    // generation as a side effect — the belt only ever re-fires
+    // after a mutation.
+    let stamp = unsafe { core::ptr::addr_of!(bkt.last_refill_ns).read_volatile() };
+    if try_draw(pol, pool, bkt, share_map, root, stamp, now) && try_consume(bkt, pkt_len) {
         if let Some(s) = stats {
             book(s, true, pkt_len);
         }
@@ -174,13 +204,34 @@ pub(super) fn drr_flow(
 /// this leaf is in flight: skip (its credit lands within
 /// nanoseconds; a packet dropped in that window is the same bounded
 /// contention the try_consume retries absorb).
+///
+/// dinner-28: the take is the learned-share draw — the residue
+/// law's bound further capped by the quantum's fair split across
+/// the learned drawee count (the state word in `share_map`, keyed
+/// by `root`). The note rides the ATTEMPT, not the success: a
+/// starving leaf's draws fail (the pool is empty at its instants),
+/// and it is exactly that asker the divisor must learn — the
+/// first design counted only succeeders and the learning never
+/// bootstrapped (the simulation pin caught it: worst 3.26x fair,
+/// barely better than the v13 law). A failed draw rolls the stamp
+/// back to the CURRENT EPOCH's start instead of the pre-attempt
+/// value: the leaf keeps its retry-every-packet admission for the
+/// rest of the epoch (now >= epoch-start always) while its
+/// once-per-epoch evidence survives the rollback — a leaf asking
+/// on every packet counts once per epoch, never once per packet.
+/// A state-map miss fails OPEN onto the v13 residue law — the
+/// fairness state never drops a packet.
 #[inline(always)]
-fn try_draw(pol: &Policy, pool: &mut Bucket, leaf: &mut Bucket, now: u64) -> bool {
-    let last_draw = unsafe { core::ptr::addr_of!(leaf.last_refill_ns).read_volatile() };
-    // The draw admission + lock: the stamp is the last draw time —
-    // one drawer per leaf per timestamp (NOT pacing: the CI daemon
-    // row proved paced draws TCP-hostile; the fairness work belongs
-    // to the residue law and the holding cap alone).
+fn try_draw(
+    pol: &Policy,
+    pool: &mut Bucket,
+    leaf: &mut Bucket,
+    share_map: &LruHashMap<u32, u64>,
+    root: &u32,
+    last_draw: u64,
+    now: u64,
+) -> bool {
+    // The draw admission + lock (the v13 sequence, unchanged).
     if !drr::draw_admitted(now, last_draw) {
         return false;
     }
@@ -188,32 +239,49 @@ fn try_draw(pol: &Policy, pool: &mut Bucket, leaf: &mut Bucket, now: u64) -> boo
         return false;
     }
 
-    // Owned the draw: move min(quantum, pool) pool -> leaf through
-    // the sufficiency-verified CAS, written out (not looped) for the
-    // same verifier posture try_consume carries — two attempts, each
-    // against its own fresh read.
+    // The note rides the attempt: the rollover at epoch boundaries,
+    // the distinct-asker count for the running epoch. The leaf's own
+    // epoch evidence is `last_draw` (the pre-CAS stamp — the draw
+    // that owned this one), so a leaf asking on every packet counts
+    // once per epoch. Concurrent notes may lose one increment — the
+    // estimate's documented slack.
+    let now_epoch = (now / drr::share_epoch_ns()) as u32;
+    let leaf_prev_epoch = (last_draw / drr::share_epoch_ns()) as u32;
+    let word = share_map.get_ptr(root).map(|p| unsafe { *p }).unwrap_or(0);
+    let noted = drr::pool_share_note(word, now_epoch, leaf_prev_epoch == now_epoch);
+    let _ = share_map.insert(root, &noted, 0);
+    let learned = drr::pool_share_last(noted);
+
+    // Owned the draw: move the take pool -> leaf through the
+    // sufficiency-verified CAS, written out (not looped) for the
+    // same verifier posture try_consume carries — two attempts,
+    // each against its own fresh read. The take is the learned-share
+    // cap (dinner-28); the residue law still binds inside it.
     let quantum = drr::quantum(pol.rate_bps);
     macro_rules! draw_attempt {
-        () => {
+        () => {{
             let observed = tokens_read(pool);
-            let d = drr::draw_size(quantum, observed);
+            let d = drr::fair_draw_size(quantum, observed, learned);
             if d > 0 && tokens_cas(pool, observed, observed - d) {
                 // The pool paid; the credit rides the atomic add —
                 // the pair can only under-deliver, never over-deliver.
                 let _ = tokens_fetch_add(leaf, d);
-                return true;
+                true
+            } else {
+                false
             }
-        };
+        }};
     }
-    draw_attempt!();
-    draw_attempt!();
-    // An empty (or contended-away) pool rolls the stamp back: a
-    // zero-token draw must not lock the leaf out of the refills that
-    // have not landed yet (the starved regime's fairness depends on
-    // the empty leaf retrying every packet while the stocked one
-    // waits out its window). The rollback is safe because the stamp
-    // is locked at `now` — no other drawer can be admitted against
-    // it, so the only writer is this one.
-    let _ = draw_stamp_take(leaf, now, last_draw);
+    if draw_attempt!() || draw_attempt!() {
+        return true;
+    }
+    // The failed draw: the stamp rolls to the CURRENT EPOCH's start
+    // (not the pre-attempt value) — the retry-every-packet admission
+    // stays for the rest of the epoch, and the epoch evidence the
+    // note above consumed survives for the next packet's check. The
+    // rollback is safe for the same reason it always was: the stamp
+    // was locked at `now`, so the only writer is this one.
+    let epoch_start = now_epoch as u64 * drr::share_epoch_ns();
+    let _ = draw_stamp_take(leaf, now, epoch_start);
     false
 }

@@ -170,9 +170,12 @@ fn test_schema_version_constant() {
     // v14 (charger-core-3a): the time-series rings. v15
     // (charger-core-3b): Policy.flags (offset-20 padding becomes
     // contract, bit 0 = per-socket) + the socket bucket maps.
+    // v16 (dinner-28): the learned-share draw — the DRR take
+    // capped by pool/(learned+2) through the two new
+    // drr_pool_state_dl/ul maps.
     // The full sync contract (this constant vs the BPF-side
     // anchor) lives in schema.rs's sync_pin — the v13 lesson.
-    assert_eq!(SCHEMA_VERSION_EXPECTED, 15);
+    assert_eq!(SCHEMA_VERSION_EXPECTED, 16);
 }
 
 // ── NIGHT-improve-10 / security-3: overflow-bound pins ──────────
