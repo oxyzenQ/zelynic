@@ -201,33 +201,19 @@ pub const NS_PER_SEC: u64 = 1_000_000_000;
 /// contract sibling — both sides pin the value in tests).
 pub const MAX_ENFORCABLE_BURST: u64 = u64::MAX / (2 * NS_PER_SEC);
 
-/// Refill tokens and enforce. `pol` is the policy, `bkt` the bucket
-/// (individual or group), `stats` an optional stats entry (None when
-/// the stats insert failed — keep enforcing without bookkeeping).
-/// The body is SMP-safe (the boost-38
-/// module docs); the refill arithmetic lives in [`refill_credits`],
-/// everything here is atomic orchestration: the security-3 seed
-/// clamp, the window-ownership CAS, the token credit and cap, and
-/// the lts-8 retry consume (`try_consume`). Fractional remainder
-/// tracking keeps the rate precise; the refill multiply is
-/// overflow-safe (the fill-detect shape, preserved verbatim in
-/// refill_credits).
+/// Refill the bucket's window and enforce the clamp family — the
+/// extracted half of `enforce` (NIGHT-upgrade-charger-core-1c lifted
+/// it out so the DRR datapath can refill the SHARED POOL with the
+/// exact arithmetic the legacy path uses; `enforce` now composes it
+/// with the consume, bit-identical to the pre-split flow).
 ///
-/// Schema v6 (NIGHT-depthbore-1): `frac_rem` is sanitized on read —
-/// the third persistent stored field, the one the v4 clamp family
-/// missed. A healthy remainder is always < NS_PER_SEC (the math
-/// maintains that invariant itself), so a larger value is drift or
-/// hostile writes; treating it as empty completes the clamp family
-/// (burst, tokens, frac — each clamped to the healthy value the
-/// math itself would have stored: invisible healthy, total hostile).
+/// Everything here is the SMP orchestration the boost-38 rewrite
+/// owns: the security-3 seed clamp, the window-ownership CAS
+/// (exactly one CPU credits [last, now]; losers skip — their window
+/// is a subset of the winner's), the token credit with the burst
+/// cap, and the absurd-excursion heal for a hostile future stamp.
 #[inline(always)]
-pub fn enforce(
-    pol: &Policy,
-    bkt: &mut Bucket,
-    pkt_len: u32,
-    now: u64,
-    stats: Option<&mut LimiterStats>,
-) -> i32 {
+pub fn refill_window(pol: &Policy, bkt: &mut Bucket, now: u64) {
     // Field pointers, taken once (the layout pins above guarantee
     // the 8-aligned repr(C) offsets: tokens 0, last_refill_ns 8,
     // frac_rem 16 — and every BPF hash map value the kernel hands
@@ -339,6 +325,38 @@ pub fn enforce(
             Ordering::Relaxed,
         );
     }
+}
+
+/// Refill tokens and enforce. `pol` is the policy, `bkt` the bucket
+/// (individual or group), `stats` an optional stats entry (None when
+/// the stats insert failed — keep enforcing without bookkeeping).
+/// The body is SMP-safe (the boost-38
+/// module docs); the refill arithmetic lives in [`refill_credits`],
+/// everything here is atomic orchestration: the security-3 seed
+/// clamp, the window-ownership CAS, the token credit and cap, and
+/// the lts-8 retry consume (`try_consume`). Fractional remainder
+/// tracking keeps the rate precise; the refill multiply is
+/// overflow-safe (the fill-detect shape, preserved verbatim in
+/// refill_credits).
+///
+/// Schema v6 (NIGHT-depthbore-1): `frac_rem` is sanitized on read —
+/// the third persistent stored field, the one the v4 clamp family
+/// missed. A healthy remainder is always < NS_PER_SEC (the math
+/// maintains that invariant itself), so a larger value is drift or
+/// hostile writes; treating it as empty completes the clamp family
+/// (burst, tokens, frac — each clamped to the healthy value the
+/// math itself would have stored: invisible healthy, total hostile).
+#[inline(always)]
+pub fn enforce(
+    pol: &Policy,
+    bkt: &mut Bucket,
+    pkt_len: u32,
+    now: u64,
+    stats: Option<&mut LimiterStats>,
+) -> i32 {
+    // The extracted refill (charger-core-1c): the window credit and
+    // the clamp family, shared verbatim with the DRR pool path.
+    refill_window(pol, bkt, now);
 
     // Atomic consume with the bounded contention retry (NIGHT-lts-8,
     // try_consume below): deduct only from a value that provably
@@ -348,7 +366,7 @@ pub fn enforce(
     // concurrent clamp a huge value to misread — the CAS never lets
     // tokens leave the valid range, and a fully lost consume drops
     // (the safe verdict) instead of allowing.
-    let allowed = try_consume(tokens_ptr, u64::from(pkt_len));
+    let allowed = try_consume(bkt, pkt_len);
     match stats {
         Some(s) if allowed => {
             book(s, true, pkt_len);
@@ -392,7 +410,9 @@ pub fn enforce(
 /// looped — the boost-38
 /// verifier posture holds; the SMP pins live in math_smp_tests.rs.
 #[inline(always)]
-fn try_consume(tokens_ptr: *mut u64, want: u64) -> bool {
+pub fn try_consume(bkt: &mut Bucket, pkt_len: u32) -> bool {
+    let tokens_ptr = core::ptr::addr_of_mut!(bkt.tokens);
+    let want = u64::from(pkt_len);
     macro_rules! consume_attempt {
         () => {
             let observed = read_once(tokens_ptr);
@@ -415,6 +435,78 @@ fn try_consume(tokens_ptr: *mut u64, want: u64) -> bool {
     consume_attempt!();
     consume_attempt!();
     false
+}
+
+// ── The DRR atomic primitive set (NIGHT-upgrade-charger-core-1c) ─────
+//
+// The access discipline above (volatile loads/stores, atomic RMW
+// views) exists to serve enforce()'s field pointers; the DRR
+// datapath (drr_flow) needs the same discipline over the SAME
+// fields, so the primitives are exported with one helper per
+// operation — the DRR pins hold their semantics rootlessly (the
+// userspace tree compiles this file).
+
+/// Read a bucket's token count (the volatile single-instruction
+/// load, the READ_ONCE discipline).
+#[inline(always)]
+pub fn tokens_read(bkt: &Bucket) -> u64 {
+    // SAFETY: the caller hands a live, 8-aligned field of a map value
+    // (or a test-tree struct) — the same contract read_once carries.
+    unsafe { core::ptr::addr_of!(bkt.tokens).read_volatile() }
+}
+
+/// Compare-and-swap a bucket's token count from `observed` to
+/// `new`: true when this caller's view won (the sufficiency-verified
+/// deduction and the stale-quantum zeroing both ride it).
+#[inline(always)]
+pub fn tokens_cas(bkt: &mut Bucket, observed: u64, new: u64) -> bool {
+    let ptr = core::ptr::addr_of_mut!(bkt.tokens);
+    // SAFETY: the same 8-aligned-field contract every rmw_view caller
+    // in this file carries.
+    rmw_view(ptr)
+        .compare_exchange(observed, new, Ordering::AcqRel, Ordering::Acquire)
+        .is_ok()
+}
+
+/// Atomically add `add` tokens to a bucket (the draw's credit half —
+/// the pool's deduction already landed through [`tokens_cas`], so the
+/// pair can only under-deliver, never over-deliver: the lost-CAS
+/// branch never adds).
+#[inline(always)]
+pub fn tokens_fetch_add(bkt: &mut Bucket, add: u64) -> u64 {
+    let ptr = core::ptr::addr_of_mut!(bkt.tokens);
+    // SAFETY: the same contract as tokens_cas.
+    rmw_view(ptr).fetch_add(add, Ordering::AcqRel)
+}
+
+/// Take the bucket's draw-stamp ownership: CAS the stamp (the
+/// last_refill_ns field) from `last` to `now`, true when won — the
+/// window-ownership trick re-applied to the DRR draw (one drawer per
+/// leaf per timestamp).
+#[inline(always)]
+pub fn draw_stamp_take(bkt: &mut Bucket, last: u64, now: u64) -> bool {
+    let ptr = core::ptr::addr_of_mut!(bkt.last_refill_ns);
+    // SAFETY: the same contract as tokens_cas.
+    rmw_view(ptr)
+        .compare_exchange(last, now, Ordering::AcqRel, Ordering::Acquire)
+        .is_ok()
+}
+
+/// Read the DRR generation stamp (the frac_rem field, unused by the
+/// leaf buckets' arithmetic — the DRR belt stores the AMMSP
+/// generation a leaf's quanta were drawn under).
+#[inline(always)]
+pub fn gen_stamp_read(bkt: &Bucket) -> u64 {
+    // SAFETY: the same contract as tokens_read.
+    unsafe { core::ptr::addr_of!(bkt.frac_rem).read_volatile() }
+}
+
+/// Write the DRR generation stamp.
+#[inline(always)]
+pub fn gen_stamp_write(bkt: &mut Bucket, generation: u64) {
+    let ptr = core::ptr::addr_of_mut!(bkt.frac_rem);
+    // SAFETY: the same contract as tokens_cas.
+    unsafe { ptr.write_volatile(generation) };
 }
 
 /// Book one verdict into a stats entry with atomic increments

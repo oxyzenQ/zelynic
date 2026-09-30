@@ -90,8 +90,11 @@ static ammsp_generation: Array<u32> = Array::pinned(1, 0);
 /// generation stamp from its own insert, so a bogus 0 mismatches it
 /// and forces the walk; a wrong verdict would require the map to
 /// hold a state it never held, which no read failure can arrange).
+/// Charger-core-1c: the generation the DRR stale-quantum belt
+/// reads (one Array word, one lookup per DRR-enforced packet —
+/// shared with the memo stamping above, the same counter).
 #[inline(always)]
-fn current_generation() -> u32 {
+pub(super) fn current_generation() -> u32 {
     ammsp_generation
         .get_ptr(0)
         .map(|p| unsafe { *p })

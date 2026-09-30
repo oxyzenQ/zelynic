@@ -132,6 +132,33 @@ sudo zelynic strict brave 100kb        # shorthand form
   [How zelynic actually works](#how-zelynic-actually-works) and the
   [honest limitations](#honest-limitations--read-this) for the
   32-depth bound.
+- The shared budget is **fair-shared** (NIGHT-upgrade-charger-core-1c,
+  the DRR lane): a shared first-come-first-served bucket let ONE
+  greedy subprocess consume every token the instant it refilled and
+  starve its siblings indefinitely — the cgroup /A at 100kb with
+  subprocess #1 greedy meant #2..#100 got ~nothing, forever. Now the
+  shared bucket is a POOL (its refill and aggregate are exactly the
+  policy it always had) and every leaf cgroup spends from its own
+  small bucket that draws from the pool in quanta: a leaf holds at
+  most one quantum (the rate's 100ms share, floored at the 64 KiB GSO
+  admit law) at a time, a draw takes at most half of what the pool
+  visibly holds (so an interleaved sibling always finds the other
+  half), and a draw's wait is proportional to its size (a full
+  quantum stocks a leaf for the window; a residual trickle costs a
+  trickle, so a starved leaf keeps collecting refills as they land).
+  Measured shapes: a single active leaf converges to the whole budget
+  (the pool's equilibrium sits where its half-draws equal its full
+  consumption); two equal-demand leaves split it — worst case 2:1
+  under adversarial always-first arrival, ~1:1 under real interleaved
+  traffic — where FCFS measured 100:0. The fairness is statistical,
+  not a formal round-robin guarantee (iteration over leaves is
+  impossible in a cgroup_skb hot path — the honest bound is one
+  quantum of slop); the stale-quantum belt zeroes any leaf's tokens
+  the moment a policy mutation outlives them (the AMMSP generation
+  stamp, applied to buckets), and the group lane (strict-multi)
+  keeps the FCFS shape by documented scope (its members are
+  enumerated by the apply itself, so the unknown-leaf starvation
+  problem does not exist there).
 - A positional `rate` sets **both** download and upload. `-d`/`-u` set
   them independently — and they take precedence: if either flag is
   present, the positional rate is ignored (no silent mixing), so
@@ -1198,6 +1225,21 @@ deeper than **32 levels** below the cgroup root resolves unlimited —
 no real deployment reaches a third of that (systemd sessions sit
 around 6, container runtimes around 4); it is stated here because
 "no exception" deserves the one exception it has, in print.
+
+The subtree share is **fair-shared, statistically**
+(NIGHT-upgrade-charger-core-1c, the DRR lane): no leaf can hold
+more than one quantum at a time, and the pool's refills flow to
+whichever leaf is empty and asking — but the split is bounded-share
+fair, not a formal round-robin guarantee (a cgroup_skb hot path
+cannot iterate leaves). The measured bounds: two equal-demand
+leaves split worst-case 2:1 under adversarial always-first
+arrival, ~1:1 under real interleaved traffic; below ~656 KB/s the
+fairness granularity coarsens (the quantum is floored at the
+64 KiB GSO admit law, so at a 100kb policy one quantum is 0.64
+seconds of budget — leaves alternate on quantum boundaries
+instead of never). A leaf that goes idle strands at most its one
+quantum until the LRU reaps it; the stale-quantum belt zeroes
+any leaf's tokens the moment a policy mutation outlives them.
 
 **2. Limits do not survive reboot.**
 Pins live on bpffs (`/sys/fs/bpf/zelynic/`), which is wiped at boot —
