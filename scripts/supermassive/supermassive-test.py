@@ -608,24 +608,46 @@ def http_get(url_path):
 # layers rootlessly.
 _PY_DL_CLIENT = r"""import socket, sys, time
 port, window = int(sys.argv[1]), float(sys.argv[2])
+idle = float(sys.argv[3]) if len(sys.argv) > 3 else 0.0
 total = 0
 try:
     s = socket.create_connection(("127.0.0.1", port), timeout=10)
     s.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
     s.sendall(b"GET /dl HTTP/1.0\r\n\r\n")
-    deadline = time.perf_counter() + window
-    while True:
-        remaining = deadline - time.perf_counter()
-        if remaining <= 0:
-            break
-        s.settimeout(remaining)
-        try:
-            data = s.recv(65536)
-        except OSError:
-            break
-        if not data:
-            break
-        total += len(data)
+    if idle > 0:
+        # The starve-limited shape (the cushion drain): read until the
+        # flow goes idle for `idle` seconds — the policer's own silence
+        # is the bucket-empty proof — with `window` as the hard cap.
+        # A wall-deadline reader can exit mid-blast with
+        # delivered-but-unread bytes in its socket (a late connect
+        # whose deadline lands mid-refill); the BPF side counts them,
+        # the client misses them, and the accounting row reads a
+        # phantom surplus (the 1a25f91 best-gnu lesson: bpf 116538
+        # vs client 65926).
+        cap = time.perf_counter() + window
+        s.settimeout(idle)
+        while time.perf_counter() < cap:
+            try:
+                data = s.recv(65536)
+            except OSError:
+                break
+            if not data:
+                break
+            total += len(data)
+    else:
+        deadline = time.perf_counter() + window
+        while True:
+            remaining = deadline - time.perf_counter()
+            if remaining <= 0:
+                break
+            s.settimeout(remaining)
+            try:
+                data = s.recv(65536)
+            except OSError:
+                break
+            if not data:
+                break
+            total += len(data)
     s.close()
 except OSError:
     pass
@@ -680,7 +702,7 @@ def worker_smoke(code, port, window):
         return None, f"no integer on stdout ({lines[-1][:60]})"
 
 
-def py_download(window, name="a"):
+def py_download(window, name="a", idle=0.0):
     """Read the /dl stream for `window` seconds; returns body bytes.
 
     Under a dedicated fleet the client runs as a WORKER inside target
@@ -692,12 +714,15 @@ def py_download(window, name="a"):
     target cgroup there by construction. A connect failure is ZERO
     GOODPUT, not a crash — under a block-* policy the SYN is dropped
     and create_connection raises (the 2026-09-21 "harness error: timed
-    out" crash at block-single).
+    out" crash at block-single). idle > 0 switches the worker to the
+    starve-limited drain shape (see _PY_DL_CLIENT) — the cushion
+    drains ride it so the client's count spans what the connection
+    delivered, keeping the BPF-vs-client accounting comparison honest.
     """
     if CG and CG.dedicated:
         metric, _ = spawn_in_cgroup(
             name,
-            [sys.executable, "-c", _PY_DL_CLIENT, str(SERVER.port), str(window)],
+            [sys.executable, "-c", _PY_DL_CLIENT, str(SERVER.port), str(window), str(idle)],
             window + 20,
         )
         return metric or 0
@@ -1717,7 +1742,12 @@ def test_rate_ladder(ladder, window, windows_per_rung, baseline):
         # 0.5s drain is one sample on a noisy runner — its worker
         # stalled, read a silent zero, and the cushion leaked into
         # the measured pair at 299.3% of the 1kb rung. drain_cushion()
-        # retries until the cushion is provably paid instead.
+        # retries until the cushion is provably paid instead, and its
+        # probe is the STARVE-LIMITED worker (idle=0.5, the 1a25f91
+        # lesson): a wall-deadline drain worker can exit mid-blast
+        # with delivered-but-unread bytes its socket never reported,
+        # and the accounting row below reads the phantom as a surplus
+        # (bpf 116538 vs client 65926 at the 10kb rung).
         # NIGHT-lts-6 followup (the first CI run after lts-8 caught
         # it): the drain's bytes count in the BPF ledger like any
         # other allowed traffic, so the accounting cross-check must
@@ -1726,7 +1756,9 @@ def test_rate_ladder(ladder, window, windows_per_rung, baseline):
         # phantom ~2x (bpf drain+windows vs client windows only).
         drained = 0
         if lib.default_burst(bps) > 0.3 * bps * window * windows_per_rung:
-            drained = lib.drain_cushion(lambda w: py_download(w), lib.default_burst(bps))
+            drained = lib.drain_cushion(
+                lambda: py_download(4.0, "a", idle=0.5), lib.default_burst(bps)
+            )
         # NIGHT-improve-14: high rungs run PARALLEL_FLOWS concurrent
         # workers per window (see PARALLEL_MIN_BPS) — the aggregate,
         # not one AIMD flow, is the instrument there. Each thread
@@ -2572,10 +2604,10 @@ def test_ammsp_subtree(window, baseline):
             record(f"ammsp: create {os.path.basename(path)}", "FAIL", str(e))
             return False
 
-    def child_bytes(path, win):
+    def child_bytes(path, win, idle=0.0):
         metric, err = spawn_in_cgroup_path(
             path,
-            [sys.executable, "-c", _PY_DL_CLIENT, str(SERVER.port), str(win)],
+            [sys.executable, "-c", _PY_DL_CLIENT, str(SERVER.port), str(win), str(idle)],
             win + 20,
         )
         if metric is None:
@@ -2706,8 +2738,13 @@ def test_ammsp_subtree(window, baseline):
             # 50kb bucket's 64 KiB GSO cushion leaks into the measured
             # window — at this rate the leak straddles the band edge
             # (128..133%) and the row flips policed/gray on GSO timing
-            # alone.
-            lib.drain_cushion(lambda w: child_bytes(grand_path, w), lib.default_burst(50_000))
+            # alone. The probe is the starve-limited shape (the
+            # 1a25f91 accounting lesson): it exits on the flow's own
+            # silence, so its count spans what its connection
+            # delivered.
+            lib.drain_cushion(
+                lambda: child_bytes(grand_path, 4.0, idle=0.5), lib.default_burst(50_000)
+            )
             got = child_bytes(grand_path, window)
             passed = (
                 band_check(
@@ -3654,6 +3691,10 @@ def self_test():
         "drain_cushion(" in ladder_src
         and ladder_src.index("drain_cushion(")
         < ladder_src.index("for _ in range(windows_per_rung)")
+        # the 1a25f91 lesson: the drain probe is starve-limited, or
+        # its client count can miss delivered bytes the BPF ledger
+        # saw and the accounting row reads a phantom surplus.
+        and "idle=0.5" in ladder_src
         and 'extra = ""' in ladder_src
         # lts-6 followup: the drain's bytes must join the accounting
         # comparison's client side, or the ratio is a phantom 2x.

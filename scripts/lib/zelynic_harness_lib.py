@@ -104,7 +104,7 @@ def default_burst(rate_bps):
     return min(max(rate_bps, DEFAULT_BURST_FLOOR), DEFAULT_BURST_CAP)
 
 
-def drain_cushion(probe, cushion, attempts=3, window=0.5):
+def drain_cushion(probe, cushion, attempts=3):
     """Pay out a fresh bucket's burst cushion before measuring it.
 
     A freshly attached bucket starts FULL (one default_burst of
@@ -115,26 +115,34 @@ def drain_cushion(probe, cushion, attempts=3, window=0.5):
     The approved warm-up pattern pays the cushion out at line rate:
     loopback moves it in microseconds once the flow is up.
 
-    A SINGLE short probe is one sample on a noisy runner, though —
-    the 0b0a8f5 best-gnu lesson: the 1kb rung measured 3.0 KB/s
-    (299.3% of configured) because the drain's worker never got its
-    flow up inside the 0.5s window (spawn stall or a hiccup on the
-    shared runner), read a silent zero, and left the cushion to leak
-    into the measured windows. So the drain retries until the cushion
-    is PROVABLY paid — cumulative probe bytes >= cushion — or the
-    attempt bound runs out: a warm probe moves gigabytes against a
-    cushion of at most kilobytes-to-megabytes, so the loop exits on
-    the first healthy call; only a stalled one iterates, and a
-    provably-empty bucket costs at most attempts-1 extra windows.
+    A single short probe is one sample on a noisy runner — the
+    0b0a8f5 best-gnu lesson: the 1kb rung measured 3.0 KB/s (299.3%
+    of configured) because the drain's worker never got its flow up
+    inside the window, read a silent zero, and left the cushion to
+    leak into the measured windows. So the drain retries until the
+    cushion is PROVABLY paid — cumulative probe bytes >= cushion —
+    or the attempt bound runs out: a warm probe moves the whole
+    cushion on its first call and exits, only a stalled one
+    iterates, and a provably-empty bucket costs at most
+    attempts-1 extra probes.
 
-    `probe(window_s) -> bytes` is any single-flow download callable
-    whose traffic lands inside the bucket being drained (py_download
-    with the target cgroup, leaf_bytes with the leaf path).
+    The probe must be the STARVE-LIMITED shape (idle-timed, not
+    wall-deadlined — the 1a25f91 best-gnu lesson): it returns when
+    the flow goes idle, which is the policer's own bucket-empty
+    proof, so its client-side count spans exactly what its
+    connection delivered. A wall-deadline probe can exit mid-blast
+    with delivered-but-unread bytes in its socket; the BPF ledger
+    counts them, the client misses them, and any accounting
+    comparison spanning the drain reads a phantom surplus (bpf
+    116538 vs client 65926 at the 10kb rung).
+
+    `probe() -> bytes` is any starve-limited download callable whose
+    traffic lands inside the bucket being drained (py_download with
+    idle=0.5 and the target cgroup, leaf_bytes with the leaf path).
     """
     drained = 0
     for _ in range(attempts):
-        chunk = probe(window)
-        drained += chunk or 0
+        drained += probe() or 0
         if drained >= cushion:
             break
     return drained

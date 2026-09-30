@@ -368,14 +368,17 @@ def battery_order(current, legacy):
     )
 
 
-def leaf_bytes(path, win):
+def leaf_bytes(path, win, idle=0.0):
     """One leaf's download through the shared engine: a worker
     exec-moved into the child cgroup BEFORE its first socket exists
     (deterministic attribution — v1's spawn contract), reading the
-    in-process loopback server for `win` seconds. Returns body bytes."""
+    in-process loopback server for `win` seconds. Returns body bytes.
+    idle > 0 switches the worker to v1's starve-limited drain shape
+    (see _PY_DL_CLIENT) — the cushion drains ride it so the client
+    count spans what the connection delivered."""
     metric, err = sm1.spawn_in_cgroup_path(
         path,
-        [sys.executable, "-c", sm1._PY_DL_CLIENT, str(sm1.SERVER.port), str(win)],
+        [sys.executable, "-c", sm1._PY_DL_CLIENT, str(sm1.SERVER.port), str(win), str(idle)],
         win + 20,
     )
     if metric is None:
@@ -498,10 +501,12 @@ def run_battery_side(label, binary, is_current=False):
 
         # Cushion drain: a fresh bucket banks one second of rate; pay
         # it out at line rate so the measured windows see steady state
-        # (v1's approved warm-up pattern — in the retrying shape now:
-        # a stalled warm-up worker reads a silent zero and the cushion
-        # leaks into the first measured leaf, the 0b0a8f5 lesson).
-        lib.drain_cushion(lambda w: leaf_bytes(sibs[1], w), lib.default_burst(RATE_BPS))
+        # (v1's approved warm-up pattern — retrying and starve-limited
+        # now: a stalled warm-up worker reads a silent zero and the
+        # cushion leaks into the first measured leaf, the 0b0a8f5
+        # lesson; a wall-deadlined one can exit mid-blast and skew the
+        # accounting, the 1a25f91 lesson).
+        lib.drain_cushion(lambda: leaf_bytes(sibs[1], 4.0, idle=0.5), lib.default_burst(RATE_BPS))
 
         # The late-born child: created AFTER the apply — the owner's
         # eagle-eyes scenario, the exact shape the legacy datapath
@@ -554,8 +559,12 @@ def run_battery_side(label, binary, is_current=False):
                 # (128..133% of 50kb, cushion plus entitlement) and the
                 # row flips between policed and gray on GSO timing
                 # alone. The drain rides through the measured leaf so
-                # the tokens it pulls are the nested bucket's own.
-                lib.drain_cushion(lambda w: leaf_bytes(chain[1], w), lib.default_burst(NESTED_BPS))
+                # the tokens it pulls are the nested bucket's own, in
+                # the starve-limited shape.
+                lib.drain_cushion(
+                    lambda: leaf_bytes(chain[1], 4.0, idle=0.5),
+                    lib.default_burst(NESTED_BPS),
+                )
                 got = leaf_bytes(chain[1], WINDOW)
                 measured = got / WINDOW
                 nested_cls = classify(measured, NESTED_BPS)
