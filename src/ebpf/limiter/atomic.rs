@@ -126,15 +126,6 @@ pub(super) fn multi_no_match_line(failed: &[String], resolvable: usize) -> Strin
     )
 }
 
-/// The display label for one target token (the pre-flight error and
-/// the verbose traces print the operator's own spelling).
-fn target_label(target: &Target) -> String {
-    match target {
-        Target::CgroupId(id) => format!("cg:{id}"),
-        Target::ProcessName(name) => name.clone(),
-    }
-}
-
 impl super::Limiter {
     /// Apply strict-multi atomically (charger-core-2, TIER A #6):
     /// pre-flight resolution, then the group write with the
@@ -149,7 +140,7 @@ impl super::Limiter {
         for target in targets {
             let ids = self.resolve_target(target)?;
             resolutions.push(SegmentResolution {
-                label: target_label(target),
+                label: target.label(),
                 ids,
             });
         }

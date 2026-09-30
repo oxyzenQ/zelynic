@@ -75,6 +75,13 @@ pub(crate) fn print_help() {
     );
     example("shorthand form", "sudo zelynic strict brave 100kb");
     example("short alias form", "sudo zelynic ss brave 100kb");
+    example("docker container", "sudo zelynic ss docker://nginx 100kb");
+    example("kubernetes pod", "sudo zelynic ss k8s://prod/web-abc 1mb");
+    println_safe!();
+    println_safe!("  Container targets resolve to the workload's cgroup (NIGHT-upgrade-");
+    println_safe!("  charger-core-2): docker://<name> (or id prefix) via the Engine API,");
+    println_safe!("  k8s://<namespace>/<pod> via the kubelet's pod log dirs.");
+    println_safe!("  unstrict accepts the same references.");
     println_safe!();
     println_safe!("  zelynic strict-multi <a:b:c> [rate] [-d <rate>] [-u <rate>]");
     println_safe!("    Limit multiple apps sharing ONE rate (group limit).");

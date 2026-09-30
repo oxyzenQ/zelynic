@@ -155,12 +155,13 @@ pub enum Commands {
     ///   zelynic strict-single brave -d 100kb           # download only
     ///   zelynic strict-single brave -u 500kb           # upload only
     ///   zelynic strict-single firefox -d 1mb -u 500kb  # both, different rates
+    ///   zelynic ss docker://nginx 100kb                # container target
     ///   zelynic strict brave -d 1mb                    # shorthand form
     ///   zelynic ss brave 100kb                         # short alias form
     #[command(name = "strict-single", alias = "strict", alias = "ss")]
     StrictSingle {
-        /// Target: process name (e.g., brave) or cgroup ID (e.g., 73386,
-        /// or cg:73386 — the prefix every display surface prints round-trips)
+        /// Target: process name (brave), cgroup ID (73386 or cg:73386 —
+        /// the display prefix round-trips), or container (docker://nginx)
         target: String,
 
         /// Rate for both download+upload (e.g., 100kb, 5.5mb). Use -d/-u for per-direction.
@@ -327,7 +328,8 @@ pub enum Commands {
     /// Example: zelynic unstrict-single brave
     #[command(name = "unstrict-single", alias = "unstrict", alias = "us")]
     Unstrict {
-        /// Target: process name or cgroup ID (cg: prefix accepted)
+        /// Target: process name, cgroup ID (cg: accepted), or container
+        /// reference (docker://nginx) — strict-single's grammar
         target: String,
     },
 

@@ -19,6 +19,50 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Added
 
+- **the NIGHT-upgrade-charger-core-2-b close — container-native
+  target resolution: `docker://<name>` and `k8s://<namespace>/<pod>`
+  name a cgroup the way `brave` and `cg:48181` always have.** The
+  contract is resolve-only (the owner's brief: "just resolve name
+  to cgroup, the rest is the same"): a well-formed URI becomes the
+  workload's cgroup id inside `resolve_target`, and the policy
+  write, the self-proving enforcement probe, the unstrict
+  round-trip, and the success epilogue's `zelynic unstrict
+  docker://nginx` suggestion are the strict-single machinery
+  byte-for-byte. The docker lane (identity/container/docker.rs,
+  split at the 500-LOC owner cap) matches a container by name or
+  id prefix through the Engine API over the unix socket (HTTP/1.0,
+  2s deadlines, 4 MiB reply cap — a hung daemon wedges nothing),
+  then finds the container's cgroup with a depth- and entry-bounded
+  `/sys/fs/cgroup` walk covering both cgroup-driver shapes
+  (`docker-<id>.scope` at any slice depth, `docker/<id>`); the
+  k8s lane resolves `<namespace>_<pod>_<uid>` from the kubelet's
+  `/var/log/pods` directory names and targets the POD cgroup
+  (both `kubepods[-qos]-pod<uid>.slice` and the cgroupfs
+  `pod<uid>` shape), with the live-pod cgroup tree as the stale-
+  log-dir disambiguator — a restarted pod's old dir cannot win
+  because only the live uid owns a `pod<uid>` directory. Every
+  failure is a specific, honest error ("docker socket not found",
+  "no container named 'x'", "no pod 'y' in namespace 'z'", each
+  with its discovery tip) — never the generic no-match, because
+  the input was a well-formed reference whose INFRASTRUCTURE
+  answered. Grammar decisions, all pinned rootlessly in
+  test/ebpf/identity/container_tests.rs (18/18): the URI parse and
+  its display round-trip through Target::parse (malformed shapes
+  fall back to the graceful no-match, with the grammar tip riding
+  the '://'-shaped miss); container targets are single-target
+  verbs — `validate_multi_targets` refuses a URI in the colon list
+  with the fix named (the two grammars fight over the same bytes);
+  the dangerous-target blocklist does not apply (it names HOST
+  system processes whose throttling can lock the operator out; a
+  container policy can starve only the workload — documented in
+  the module header and USAGE.md); and the eagle-eyes target
+  grammar stays name/cgroup-id by construction (its '/'
+  separator cannot carry a URI — the pure per-frame resolvers read
+  a Container token as the honest miss, never a fabricated row).
+  The walk, the cgroup-id stat() (the kernfs inode, the same
+  resolution pid_cgroup_id applies), the reply parser, and every
+  match verdict are pure cores driven by tempdir trees. No eBPF
+  surface touched; version untouched.
 - **the NIGHT-upgrade-charger-core-2-a close — atomic multi-target
   apply: `strict-multi` is a transaction now, never a half-way
   state.** The old contract was best-effort: a colon-list member

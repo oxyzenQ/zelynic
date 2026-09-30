@@ -213,7 +213,10 @@ rides the blocklist arm above), and alnum-bearing unknown names —
 `sm '$(reboot):b' 1mb` stays the graceful refusal that echoes the
 payload verbatim as data, never executes it (and since
 NIGHT-dinner-11 it exits 1 — the no-match contract in
-[Exit codes](#exit-codes)).
+[Exit codes](#exit-codes)). A container URI inside the list is
+refused with the fix named (charger-core-2: the URI's own `://`
+and `/` bytes cannot survive the colon split — container targets
+are single-target verbs; see the strict-single section above).
 
 The burst contract (no flag, by design): every policy banks a token
 bucket of one second of traffic — rate bytes read straight — clamped
@@ -277,6 +280,44 @@ contain at least one process with that name — a browser plus its
 crash-handler helper both match `brave`. Use `list-apps` /
 `eagle-eyes <id>` to inspect what actually carries the traffic,
 and target the cgroup ID directly when you want surgical precision.
+
+Container targets (NIGHT-upgrade-charger-core-2, TIER A):
+
+```bash
+sudo zelynic strict-single docker://nginx 100kb
+sudo zelynic strict-single k8s://prod/web-abc 1mb
+sudo zelynic unstrict-single docker://nginx
+```
+
+The reference resolves to the workload's cgroup id and everything
+after that is the strict-single machinery unchanged — policy write,
+self-probing enforcement probe, `unstrict` round-trip. `docker://`
+accepts a container name or an id prefix (the `docker ps` hex, at
+least 4 chars) and resolves through the Engine API over
+`/var/run/docker.sock` (or the rootless daemon's
+`$XDG_RUNTIME_DIR/docker.sock`); the container's cgroup is found
+under `/sys/fs/cgroup` in both cgroup-driver shapes
+(`docker-<id>.scope`, `docker/<id>`). `k8s://<namespace>/<pod>`
+resolves through the kubelet's `/var/log/pods` directory names
+(`<namespace>_<pod>_<uid>`) and targets the POD cgroup — every
+container in the pod plus the infra container shares the limit.
+A restarted pod leaves a stale log dir behind: only the live pod
+owns a `pod<uid>` cgroup, and that is the disambiguator; an
+unresolved tie names both uids and points at `list-apps`.
+
+Every failure is specific, never the generic no-match — the input
+was a well-formed reference whose infrastructure answered: "docker
+socket not found", "no container named 'x'", "no pod 'y' in
+namespace 'z'", each with its discovery tip. Container targets are
+single-target verbs: the colon list cannot carry them (its grammar
+and the URI grammar fight over the same bytes), so
+`strict-multi docker://a:nginx` is refused with the fix named.
+The dangerous-target blocklist does not apply to container
+targets: it names HOST system processes whose throttling can lock
+the operator out, while a container policy can starve only the
+workload. The eagle-eyes target grammar stays process-name /
+cgroup-id (its `/`-separator cannot carry a URI) — watch a
+container's cgroup by its `cg:<id>` from `list-apps`.
 
 ### strict-multi — one shared rate for several apps
 

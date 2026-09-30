@@ -57,6 +57,7 @@ pub const MAX_RATE: u64 = 1_000_000_000_000;
 /// one entry per bump by design); re-exported here so every existing
 /// `use types::SCHEMA_VERSION_EXPECTED` import resolves unchanged.
 pub use super::schema::SCHEMA_VERSION_EXPECTED;
+use crate::ebpf::identity::container::ContainerRef;
 
 /// The burst floor (NIGHT-lts-8): the largest single packet the
 /// kernel hands a cgroup_skb hook by default — GSO egress
@@ -172,6 +173,11 @@ pub struct RateSpec {
 pub enum Target {
     CgroupId(u32),
     ProcessName(String),
+    /// A container reference (charger-core-2, TIER A #5):
+    /// `docker://<name>` / `k8s://<ns>/<pod>` — resolved to the
+    /// workload's cgroup id by identity::container; every
+    /// downstream surface is the strict-single machinery.
+    Container(ContainerRef),
 }
 
 impl Target {
@@ -193,11 +199,25 @@ impl Target {
     /// typo like `cg:brave` stays the graceful no-match it always
     /// was — the prefix never silently rewrites a name target.
     pub fn parse(s: &str) -> Self {
+        if let Some(c) = crate::ebpf::identity::container::parse_container(s) {
+            return Target::Container(c);
+        }
         let id_part = s.strip_prefix("cg:").unwrap_or(s);
         if let Ok(id) = id_part.parse::<u32>() {
             Target::CgroupId(id)
         } else {
             Target::ProcessName(s.to_string())
+        }
+    }
+
+    /// The display label every surface prints for a target: the
+    /// canonical `cg:` prefix, the process name, or the container
+    /// URI (round-trips through parse, charger-core-2).
+    pub fn label(&self) -> String {
+        match self {
+            Target::CgroupId(id) => format!("cg:{id}"),
+            Target::ProcessName(name) => name.clone(),
+            Target::Container(c) => c.display(),
         }
     }
 }

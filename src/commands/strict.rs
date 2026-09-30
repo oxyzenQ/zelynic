@@ -71,7 +71,15 @@ pub(crate) fn handle_strict_single(
         // not a list mistake, and the routing tip would be noise
         // there (the owner's honesty pass).
         let mut tips = Vec::new();
-        if target_str.contains(':') && !target_str.starts_with("cg:") {
+        // charger-core-2: a '://'-shaped target that fell through to
+        // the no-match path is a malformed container URI (a
+        // well-formed one surfaces resolve's specific error instead)
+        // — the grammar tip beats the colon-list tip there.
+        if target_str.contains("://") {
+            tips.push(
+                "container target grammar: docker://<name> or k8s://<namespace>/<pod>".to_string(),
+            );
+        } else if target_str.contains(':') && !target_str.starts_with("cg:") {
             tips.push("colon-separated lists belong to strict-multi".to_string());
         }
         tips.push(super::TIP_LIST_APPS.to_string());
