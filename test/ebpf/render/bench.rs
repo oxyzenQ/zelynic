@@ -34,6 +34,7 @@
 //! sequential) is a property of the engine, not of the piped
 //! fallback probe.
 
+use super::BaselineLane;
 use std::time::{Duration, Instant};
 
 use super::{render_eagle_eyes, SessionState};
@@ -244,6 +245,7 @@ fn frame_bench_eagle() {
             Duration::from_secs(1),
             Duration::from_secs(1),
             &mut session,
+            &BaselineLane::new(),
             // Pinned uptime (NIGHT-boost-17): a FIXED 90s so A/B
             // captures stay byte-comparable across layout changes —
             // a live clock would drift the footer text between runs.

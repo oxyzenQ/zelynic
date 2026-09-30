@@ -84,6 +84,7 @@
 //!   the per-process endpoint tree of NIGHT-boost-21 shared by eagle
 //!   and focus)
 
+mod baseline;
 mod border;
 mod bypass;
 mod depth_json;
@@ -107,6 +108,10 @@ mod targets;
 mod bench;
 
 pub use eagle::render_eagle_eyes;
+
+// NIGHT-improve-1a (EAGLE EYES V2): the ring lens + learned state
+// the eagle renderer renders (pub(crate) like SessionState).
+pub(crate) use baseline::BaselineLane;
 
 // NIGHT-master-1: the eagle-eyes --depth report — composition only,
 // pure over assembled facts (fixture-pinned in report_tests.rs).

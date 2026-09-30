@@ -19,6 +19,7 @@
 use crate::ebpf::identity::{IdentityMap, ProcessIdentity};
 use crate::ebpf::loader::{CgroupDelta, CounterSummary};
 use crate::ebpf::render::eagle::render_eagle_eyes_at;
+use crate::ebpf::render::BaselineLane;
 use crate::ebpf::render::{FrameGeometry, SessionState};
 use std::time::Duration;
 
@@ -87,6 +88,7 @@ fn eagle_frame_builds_lines() {
         Duration::from_secs(1),
         Duration::from_secs(1),
         &mut SessionState::new(),
+        &BaselineLane::new(),
         Duration::from_secs(70),
         classic(),
     );
@@ -232,6 +234,7 @@ fn footer_layout_pins_to_the_bottom() {
         Duration::from_secs(1),
         Duration::from_secs(1),
         &mut SessionState::new(),
+        &BaselineLane::new(),
         Duration::from_secs(70),
         classic(),
     );
@@ -403,6 +406,7 @@ fn footer_discovery_pair_renders_with_the_autodetect_name() {
         Duration::from_secs(1),
         Duration::from_secs(1),
         &mut SessionState::new(),
+        &BaselineLane::new(),
         Duration::from_secs(70),
         classic(),
     );

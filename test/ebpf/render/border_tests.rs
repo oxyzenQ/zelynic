@@ -9,6 +9,7 @@
 
 use super::*;
 use crate::ebpf::render::eagle::render_eagle_eyes_at;
+use crate::ebpf::render::BaselineLane;
 use crate::ebpf::render::{FrameGeometry, SessionState};
 use crate::output::theme::Theme;
 use std::time::Duration;
@@ -211,6 +212,7 @@ fn full_frame_wears_the_border() {
         Duration::from_secs(1),
         Duration::from_secs(1),
         &mut SessionState::new(),
+        &BaselineLane::new(),
         Duration::from_secs(70),
         FrameGeometry {
             width: 80,
@@ -259,6 +261,7 @@ fn full_frame_wears_the_border() {
         Duration::from_secs(1),
         Duration::from_secs(1),
         &mut SessionState::new(),
+        &BaselineLane::new(),
         Duration::from_secs(70),
         FrameGeometry {
             width: 80,

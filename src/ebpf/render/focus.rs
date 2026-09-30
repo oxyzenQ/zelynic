@@ -22,6 +22,7 @@
 
 use std::time::Duration;
 
+use super::baseline::{render_focus_row, BaselineLane};
 use super::footer::status_line;
 use super::{
     format_rate_or_dash, format_uptime, label_with_count, rate_bps, title_bar, FrameGeometry,
@@ -50,12 +51,19 @@ use crate::output::{grey, signature_footer};
 /// and `span` the MEASURED poll-to-poll span (NIGHT-lts-3) the rate
 /// row divides this frame's deltas by — the same honest denominator
 /// the ranked table's rate columns use.
+///
+/// `baseline` (NIGHT-improve-1a, EAGLE EYES V2): the ring lens's
+/// learned verdicts. One row joins the key/value block when the
+/// focused cgroup is a policy ROOT (exact-id match — see
+/// render/baseline.rs for the aggregate law that keeps an
+/// ancestor's aggregate off a leaf it cannot be split back to).
 #[allow(clippy::too_many_arguments)]
 pub fn render_eagle_focus(
     lines: &mut Vec<String>,
     summary: &CounterSummary,
     identity: &IdentityMap,
     conns: Option<&ConnectionMap>,
+    baseline: &BaselineLane,
     cgroup_id: u32,
     interval: Duration,
     span: Duration,
@@ -82,13 +90,15 @@ pub fn render_eagle_focus(
     // as the ranked frame — one composition, two views.
     lines.push(String::new());
 
-    // Overhead the fixed frame claims: title, gap, the five key/value
-    // rows, and the pinned footer (blank + status + the engrave-3
-    // gap + copyright + uptime). The budget counts every fixed row
-    // exactly (NIGHT-engrave-3 hunt find: the old constant sat one
-    // below the real overhead, so a detail-full frame skipped the
-    // footer and rendered short of the terminal height).
-    const FOCUS_CHROME: usize = 12;
+    // Overhead the fixed frame claims: title, gap, the six key/value
+    // rows (the five observer rows plus the baseline row EAGLE EYES
+    // V2 adds when the lens holds the focused cgroup), and the
+    // pinned footer (blank + status + the engrave-3 gap + copyright
+    // + uptime). The budget counts every fixed row exactly
+    // (NIGHT-engrave-3 hunt find: the old constant sat one below the
+    // real overhead, so a detail-full frame skipped the footer and
+    // rendered short of the terminal height).
+    const FOCUS_CHROME: usize = 13;
 
     if let Some(c) = summary.cgroups.iter().find(|c| c.cgroup_id == cgroup_id) {
         lines.push(format!(
@@ -121,6 +131,15 @@ pub fn render_eagle_focus(
             format_bytes(c.ingress_total_bytes.saturating_add(c.total_bytes))
         ));
 
+        // EAGLE EYES V2 (NIGHT-improve-1a): the baseline row joins
+        // the key/value block after `lifetime`. Rendered from the
+        // LANE, not this frame's summary — a quiet frame (no observer
+        // delta this second) still renders the ring's last eight
+        // seconds of delivered shape, and a lens that holds no state
+        // for this cgroup renders nothing (the absent-lens contract,
+        // same as the status JSON's rate_ring field).
+        render_focus_row(lines, baseline, cgroup_id);
+
         // Full eagle-eyes view for the focused cgroup: every
         // socket-holding process, each of its displayable endpoints
         // an indented child line of a two-level tree (NIGHT-boost-21,
@@ -148,6 +167,11 @@ pub fn render_eagle_focus(
         }
     } else {
         lines.push(format!("  no traffic for cg:{cgroup_id} since last check"));
+        // The baseline row rides the quiet branch too (EAGLE EYES
+        // V2): the ring lens is independent of the observer poll —
+        // eight seconds of delivered shape survive a frame the
+        // observer saw nothing in.
+        render_focus_row(lines, baseline, cgroup_id);
     }
 
     // The pin (NIGHT-boost-14): blank padding absorbs the middle, the
@@ -213,6 +237,7 @@ mod tests {
             &summary,
             &identity,
             None,
+            &BaselineLane::new(),
             7001,
             Duration::from_secs(1),
             Duration::from_secs(1),
@@ -249,6 +274,7 @@ mod tests {
             &CounterSummary::default(),
             &IdentityMap::new(),
             None,
+            &BaselineLane::new(),
             73386,
             Duration::from_secs(1),
             Duration::from_secs(1),

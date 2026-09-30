@@ -160,6 +160,7 @@ fn the_first_live_frame_morphs_only_the_note_row() {
             interval,
             interval,
             &mut session_state,
+            &crate::ebpf::render::BaselineLane::new(),
             Duration::ZERO,
             geo,
         );

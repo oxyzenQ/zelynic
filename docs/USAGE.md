@@ -594,6 +594,39 @@ rates and its accumulated TOTAL — no more collapsing to "waiting
 for traffic..." once traffic has been seen), with per-cgroup detail
 lines naming the processes and remote endpoints inside.
 
+#### The baseline lane (NIGHT-improve-1a, EAGLE EYES V2)
+
+While the monitor runs it also reads the pinned time-series rings
+(the kernel's own last-eight-seconds window of DELIVERED bytes per
+policy root, charger-core-3a) once per frame, folds every completed
+window into a running baseline, and renders the verdict under the
+table: `learning n/8` while the horizon fills, then
+`steady <rate>` with the learned figure, and `above +N%` /
+`below -N%` (warn yellow) when delivered traffic departs from the
+baseline two windows in a row. A single focus target gets the same
+verdict as a `baseline` row inside its key/value block. The lane
+reads whatever is pinned, fail-soft: nothing policed, a stale
+pre-v15 object, or maps torn down mid-session renders no baseline
+(the honest absence, the same contract the status JSON's
+`rate_ring` field owns) — and a read that fails resets the learned
+state, so a re-applied policy starts learning fresh instead of
+serving a frozen verdict for a dead policy.
+
+The verdicts describe the POLICY's delivered aggregate (the ring is
+keyed at the resolved policy root — for a `--per-socket` policy the
+series is every connection's allowed bytes rolled up, the AMMSP
+contract), and the focus row joins by exact cgroup id only: a
+cgroup governed by an ANCESTOR's policy gets no row, because the
+ancestor's aggregate cannot be split back down to the leaf, and an
+unmarked aggregate would read as the leaf's own rate. The bands are
+conservative on purpose: a window deviates only beyond ±50% of the
+baseline AND 4 KiB absolute, and the flag renders after two
+consecutive deviating windows — one burst window is a hiccup. The
+flag self-clears when the EMA follows the traffic (a sustained step
+change flags for about three windows, then reads as the new
+steady): the baseline tracks what the target does now, it does not
+pin the past forever.
+
 ### eagle-eyes --depth — the one-shot deep inspection (NIGHT-master-1)
 
 The `--depth` flag turns the eagle into a report (the `--info`
@@ -1550,7 +1583,11 @@ truth stays the `packets_*`/`bytes_*` fields beside it. For a
 `--per-socket` policy the series is the cgroup's AGGREGATE (every
 connection's allowed bytes roll up to the same root key, the AMMSP
 contract) — the per-connection budget law is the one the
-`per_socket` fields below state.
+`per_socket` fields below state. The live monitor folds this same
+series into the per-policy baseline verdicts (EAGLE EYES V2, the
+eagle-eyes section above) — detection is temporal by nature, so
+the verdicts live only in the live TUI, never in this one-shot
+JSON; scripts that want to run their own detector read this field.
 
 `download_per_socket` / `upload_per_socket`
 (NIGHT-upgrade-charger-core-3b) appear on a limit row only when that

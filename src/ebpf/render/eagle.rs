@@ -49,6 +49,7 @@
 
 use std::time::Duration;
 
+use super::baseline::{render_panel, BaselineLane};
 use super::border;
 use super::footer::{build_grip_footer, grid_line, plan_footer_tier, FooterCensus, TOP_CHROME};
 use super::{
@@ -122,11 +123,12 @@ pub fn render_eagle_eyes(
     interval: Duration,
     span: Duration,
     session: &mut SessionState,
+    baseline: &BaselineLane,
     uptime: Duration,
 ) {
     let geo = FrameGeometry::probe();
     render_eagle_eyes_at(
-        lines, summary, tokens, identity, conns, interval, span, session, uptime, geo,
+        lines, summary, tokens, identity, conns, interval, span, session, baseline, uptime, geo,
     );
 }
 
@@ -144,6 +146,7 @@ pub(super) fn render_eagle_eyes_at(
     interval: Duration,
     span: Duration,
     session: &mut SessionState,
+    baseline: &BaselineLane,
     uptime: Duration,
     geo: FrameGeometry,
 ) {
@@ -171,7 +174,7 @@ pub(super) fn render_eagle_eyes_at(
     // Single token, single cgroup: the focus view (own border inset).
     if tokens.len() == 1 && ids.len() == 1 && unresolved.is_empty() {
         render_eagle_focus(
-            lines, summary, identity, conns, ids[0], interval, span, uptime, geo,
+            lines, summary, identity, conns, baseline, ids[0], interval, span, uptime, geo,
         );
         return;
     }
@@ -378,6 +381,26 @@ pub(super) fn render_eagle_eyes_at(
             ));
         }
     }
+
+    // ── EAGLE EYES V2 (NIGHT-improve-1a): the baseline panel ──────
+    //
+    // The policy-aggregate verdicts under the table: one line per
+    // policed target the ring lens holds, filtered to the watched
+    // set when targets narrow the frame (a filter is a filter).
+    // Rendered from the LANE, not the summary — a policy that has
+    // been quiet for a minute still shows its learned-zero baseline
+    // here while the observer's table waits for traffic. The panel
+    // is skipped below two rows of room (a header with nothing
+    // under it is noise), cut back with the honest hidden note, and
+    // the pin's pop loop below cuts its tail first — the table
+    // outranks it, the footer outranks everything.
+    let panel_room = footer_start.saturating_sub(lines.len());
+    let panel_filter = if tokens.is_empty() {
+        None
+    } else {
+        Some(&ids[..])
+    };
+    render_panel(lines, baseline, identity, panel_filter, panel_room);
 
     // ── The pin (NIGHT-boost-14) ──────────────────────────────────
     //

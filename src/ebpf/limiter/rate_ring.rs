@@ -130,6 +130,48 @@ pub fn ring_series(ring: &RateRingRaw, now: u64) -> RingSeries {
     out
 }
 
+// ── The pin-dir lens (no Limiter — the monitor TUI's reader) ──────
+
+/// Read both directions' rings straight from the pin dir, with no
+/// `Limiter` object and no loaded bpf instance — the lens the live
+/// monitor TUI opens every frame (NIGHT-improve-1a, EAGLE EYES V2).
+/// Fail-soft per direction under the absent-lens contract: a pin
+/// that cannot be opened (nothing pinned, a torn-down map, a stale
+/// pre-v15 object the schema guard refuses) reads as `None` for
+/// that direction, never as a fabricated empty series.
+///
+/// The schema guard is the same load-bearing rule the status
+/// surface owns: a stale pinned object must not silently serve
+/// no-ring state, and neither may this reader — a version mismatch
+/// reads as absent for BOTH directions (the object is one epoch,
+/// not a mix).
+pub fn read_pinned_rings() -> RingReads {
+    let version_ok = crate::ebpf::pin::read_pinned_schema_version()
+        .is_some_and(|v| v == super::schema::SCHEMA_VERSION_EXPECTED);
+    if !version_ok {
+        return RingReads::absent();
+    }
+    RingReads {
+        dl: read_pinned_ring_dir(PIN_MAP_RATE_RING_DL),
+        ul: read_pinned_ring_dir(PIN_MAP_RATE_RING_UL),
+    }
+}
+
+/// One direction's census through the pin path alone. The existing
+/// `Limiter::read_rate_ring_dir` opens through the live bpf instance
+/// when one is loaded and falls back to the pins; this twin only
+/// ever opens pins (the monitor TUI holds no limiter instance), the
+/// same iteration, the same `None` on any failure.
+fn read_pinned_ring_dir(pin_path: &str) -> Option<Vec<(u32, RateRingRaw)>> {
+    let pinned = crate::ebpf::pin::open_pinned_hash_map(pin_path).ok()?;
+    let map: BpfHashMap<_, u32, RateRingRaw> = BpfHashMap::try_from(&pinned).ok()?;
+    let mut results = Vec::new();
+    for (key, value) in map.iter().flatten() {
+        results.push((key, value));
+    }
+    Some(results)
+}
+
 // ── The reader ─────────────────────────────────────────────────────
 
 impl Limiter {

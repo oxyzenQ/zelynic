@@ -107,7 +107,9 @@ pub fn handle_eagle_eyes(
     use crate::ebpf::connections::ConnectionMap;
     use crate::ebpf::limiter::Target;
     use crate::ebpf::loader::Observer;
-    use crate::ebpf::render::{loading_frame, render_eagle_eyes, FrameGeometry, SessionState};
+    use crate::ebpf::render::{
+        loading_frame, render_eagle_eyes, BaselineLane, FrameGeometry, SessionState,
+    };
     use crate::terminal;
     use std::time::Duration;
 
@@ -252,6 +254,16 @@ pub fn handle_eagle_eyes(
     // map-read error renders one em-dash frame, not a collapse.
     let mut conns = ConnectionMap::new();
     let mut session = SessionState::new();
+    // EAGLE EYES V2 (NIGHT-improve-1a): the baseline lane — the
+    // ring lens + the learned state, the monitor's second memory.
+    // Refreshed once per frame beside the observer poll: it reads
+    // the pinned ring maps (fail-soft — nothing pinned renders no
+    // baseline, the absent-lens contract), folds each completed
+    // window into the per-policy-root EMA, and hands the renderers
+    // the verdicts. A read that fails clears the learned state
+    // (enforcement gone resets the baseline; see render/baseline.rs
+    // for the full lifecycle contracts).
+    let mut baseline = BaselineLane::new();
     // The session clock (NIGHT-boost-17, improve-27): starts at
     // monitor launch, reads out as the grey `uptime 1m:10s` line
     // below the footer on every frame — the horizon the leaderboard's
@@ -299,6 +311,11 @@ pub fn handle_eagle_eyes(
                 conns.apply_socket_bytes(bytes);
             }
         }
+        // The lane refresh rides the same frame as the observer
+        // poll: two pin opens and a schema check per frame, trivial
+        // next to the poll it joins (the lens lifecycle contracts
+        // live in render/baseline.rs's header).
+        baseline.refresh();
         render_eagle_eyes(
             lines,
             &summary,
@@ -308,6 +325,7 @@ pub fn handle_eagle_eyes(
             interval,
             span,
             &mut session,
+            &baseline,
             started.elapsed(),
         );
     });

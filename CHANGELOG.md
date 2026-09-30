@@ -19,6 +19,56 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Added
 
+- **the NIGHT-improve-1a baseline lane — EAGLE EYES V2, the
+  in-kernel time-series ring's purpose fulfilled.** The live
+  monitor TUI now reads the pinned rings (the kernel's own
+  last-eight-seconds window of DELIVERED bytes per policy root,
+  charger-core-3a) once per frame, folds every completed window
+  into a per-policy per-direction running baseline (an integer
+  EMA, judge-then-update so a spike cannot drag the baseline up
+  and then claim it never departed from it), and renders the
+  verdict: `learning n/8` while the horizon fills, `steady <rate>`
+  with the learned figure, `above +N%` / `below -N%` in warn
+  yellow when delivery departs from the baseline two consecutive
+  windows in a row (±50% AND a 4 KiB absolute floor — both legs
+  must clear; one burst window is a hiccup, two is a departure).
+  The flag self-clears as the EMA follows the traffic (a sustained
+  doubling flags ~3 windows, then reads as the new steady — the
+  baseline tracks what the target does now, it does not pin the
+  past forever; the convergence math is documented in
+  render/baseline.rs). Surfaces: a `baseline` panel under the
+  ranked table (one line per policy root, busiest first, the
+  honest `+N more hidden` trim, dropped below two rows of room)
+  and a `baseline` row in the focus view's key/value block. The
+  honest contracts, all pinned rootlessly (17 pins in
+  test/ebpf/render/baseline_tests.rs): the verdicts describe the
+  POLICY's delivered aggregate (the AMMSP contract — a
+  `--per-socket` policy's series is every connection's allowed
+  bytes rolled up), the focus row joins by EXACT cgroup id only
+  (an ancestor's aggregate is never attributed to a leaf it cannot
+  be split back down to), a read that fails resets the learned
+  state (enforcement gone means the baseline is gone — a re-applied
+  policy starts learning fresh, never a frozen verdict for a dead
+  policy), an idle second folds as a real zero sample (the baseline
+  learns quiet periods), pre-boot windows carry no sample, windows
+  dedupe by number across any poll cadence (a 30s `--interval`
+  folds the ring's whole 8s horizon once per half minute), and an
+  absent lens renders nothing (the same absent-lens contract the
+  status JSON's `rate_ring` field owns). The learned-quiet zero
+  renders `steady 0 B/s`, never the limiter's BLOCKED verdict
+  wording — the two contexts disagree about zero on purpose. No
+  BPF surface touched (the ring's write protocol is
+  charger-core-3a's, unchanged); the prebuilt lane is untouched
+  (the ebpf tree hash unchanged). The benchmark lane is skipped on
+  purpose: frame-bench measures the render path's frames, and the
+  panel/row add lines to a frame the harness's geometry pins
+  already account for at every size — no render decision the
+  harness measures moves. USAGE.md's eagle-eyes section carries
+  the full contract paragraph; the JSON reference's rate_ring
+  explanation names where the verdicts live (the live TUI only —
+  detection is temporal, scripts read the series field). Version
+  untouched (v11.0.0).
+
 - **the NIGHT-upgrade-charger-core-3c hunt rider — the eagle-eyes
   --depth report named a per-socket policy's rate without its unit.**
   The charger-core-3b close marked the STATUS table ("500.0 KB/s
