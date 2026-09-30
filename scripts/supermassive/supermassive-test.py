@@ -2020,7 +2020,19 @@ def test_asymmetric(window, baseline):
     # deep-RTO transient — the 2026-09-30 best-gnu leg measured
     # 57.4% here; the under side re-samples, the over side fails
     # now, the samples ride the row detail).
-    samples = lib.patient_rate_window(lambda: py_download(window), 100_000, window)
+    samples = lib.patient_rate_window(
+        lambda: py_download(window),
+        100_000,
+        window,
+        # charger-core-2 rider L: the re-sample boundary drain — a
+        # starved window banks up to one burst, and the immediate
+        # re-sample returns it as a phantom over-delivery; pay the
+        # bank at line rate between samples (the 1a25f91
+        # starve-limited drain shape).
+        redrain=lambda: lib.drain_cushion(
+            lambda: py_download(4.0, "a", idle=0.5), lib.default_burst(100_000)
+        ),
+    )
     dl_ok = band_check(
         "asymmetric: download bucket at 100kb",
         samples[-1],
@@ -2750,7 +2762,13 @@ def test_ammsp_subtree(window, baseline):
         # the limit is already enforced).
         if nested_mkdir(late_path):
             samples = lib.patient_rate_window(
-                lambda: child_bytes(late_path, window), 100_000, window
+                lambda: child_bytes(late_path, window),
+                100_000,
+                window,
+                redrain=lambda: lib.drain_cushion(
+                    lambda: child_bytes(late_path, 4.0, idle=0.5),
+                    lib.default_burst(100_000),
+                ),
             )
             passed = (
                 band_check(
@@ -2766,8 +2784,17 @@ def test_ammsp_subtree(window, baseline):
         # "unlimited" before the apply must now be policed. The same
         # one-sided patience as every trickle-bound row (the 100kb
         # rung: the GSO floor binds the quantum, the lone leaf's
-        # deep-RTO gather transient re-samples under-band only).
-        samples = lib.patient_rate_window(lambda: child_bytes(sub_path, window), 100_000, window)
+        # deep-RTO gather transient re-samples under-band only) with
+        # the rider-L re-sample boundary drain.
+        samples = lib.patient_rate_window(
+            lambda: child_bytes(sub_path, window),
+            100_000,
+            window,
+            redrain=lambda: lib.drain_cushion(
+                lambda: child_bytes(sub_path, 4.0, idle=0.5),
+                lib.default_burst(100_000),
+            ),
+        )
         passed = (
             band_check(
                 "ammsp: pre-apply unlimited memo invalidated by the apply",
@@ -2789,7 +2816,17 @@ def test_ammsp_subtree(window, baseline):
         # delta pattern, applied for the same reason (the first live
         # run's 488% was this comparison done cumulatively).
         before = (limit_entry(status_json(), CG.ids["a"]) or {}).get("bytes_allowed", 0)
-        got = child_bytes(sub_path, 2.0)
+        # charger-core-2 rider M (the same leg): the accounting
+        # probe is the STARVE-LIMITED shape now — the wall-deadline
+        # form can exit mid-blast with delivered-but-unread bytes in
+        # the socket (the 1a25f91 lesson's phantom surplus: the BPF
+        # ledger counts them at the hook, the client misses them;
+        # this leg read ledger 117339 vs client 65614 = 178.8%), and
+        # a client count 78 bytes above the 64 KiB floor is exactly
+        # the degenerate zone the floor guard means to skip. The
+        # idle-timed probe exits on the flow's own silence, so its
+        # count spans what its connection delivered.
+        got = child_bytes(sub_path, 2.0, idle=0.5)
         after_entry = limit_entry(status_json(), CG.ids["a"]) or {}
         after = after_entry.get("bytes_allowed", 0)
         dropped = after_entry.get("packets_dropped", 0)
@@ -2887,7 +2924,19 @@ def test_ammsp_subtree(window, baseline):
             # same helper every trickle-bound row rides, pinned in
             # the engine self-test).
             samples = lib.patient_rate_window(
-                lambda: child_bytes(grand_path, window), 50_000, window
+                lambda: child_bytes(grand_path, window),
+                50_000,
+                window,
+                # Rider L: the row's own pre-window drain discipline
+                # applied at the re-sample boundary — the 36748829788
+                # best-musl leg's window 2 inherited the starved
+                # window 1's banked burst and read 138.8% (FAIL);
+                # paying the bank first keeps the re-sample at steady
+                # state and the over-band verdict exact.
+                redrain=lambda: lib.drain_cushion(
+                    lambda: child_bytes(grand_path, 4.0, idle=0.5),
+                    lib.default_burst(50_000),
+                ),
             )
             passed = (
                 band_check(
@@ -3673,6 +3722,30 @@ def self_test():
         "PASS",
         "the transient re-samples, in-band and over-band stop, "
         "systematic under exhausts and FAILs, samples ride the row",
+    )
+
+    # charger-core-2 rider L, pinned: the re-sample boundary drain.
+    # After an under-band sample the redrain closure runs BEFORE the
+    # next probe (the call order is the contract — the starved
+    # window's banked burst is paid before it can leak into the
+    # re-sample as a phantom over-delivery), an in-band sample stops
+    # without it, and without a closure the loop is byte-identical
+    # to the rider-J shape above.
+    seq = iter([65_536, 65_536, 196_608])
+    drained = []
+    rates = lib.patient_rate_window(
+        lambda: next(seq),
+        50_000,
+        4.0,
+        redrain=lambda: drained.append(1),
+    )
+    assert rates == [16_384.0, 16_384.0, 49_152.0], rates
+    assert drained == [1, 1], drained
+    record(
+        "engine: the re-sample boundary pays the starved window's bank",
+        "PASS",
+        "an under-band sample triggers the redrain before the next probe, "
+        "in-band stops without it, the over-band verdict stays immediate",
     )
 
     # NIGHT-improve-12 pin: every ladder rung must sit inside the

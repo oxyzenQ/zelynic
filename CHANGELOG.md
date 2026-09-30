@@ -19,6 +19,38 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Added
 
+- **the NIGHT-upgrade-charger-core-2c close — riders L and M, the
+  36748829788 best-musl leg's two AMMSP rows hunted and closed at
+  their physics.** The leg failed both rows the FIRST green-tree
+  run's riders had not yet met in the wild: the grandchild
+  nearest-root row read window 1 at 16.4 KB/s (the rider-F
+  one-quantum transient, under-band) and window 2 at 69.4 KB/s
+  (138.8% of the 50kb policy, over-band, FAIL) — the RE-SAMPLE
+  BOUNDARY itself was the leak: a starved window BANKS its
+  un-admitted entitlement (the token content caps at one
+  default_burst), and the immediate re-sample RETURNS the bank as
+  a phantom over-delivery, the mirror image of the transient the
+  patience was built for. Rider L closes it at the cause: the
+  patient window's opt-in `redrain` closure pays the banked state
+  out at line rate between samples (the row's own pre-window drain
+  discipline, the 1a25f91 starve-limited shape), riding all four
+  trickle-bound rows — the over-band verdict stays byte-exact for
+  REAL over-delivery (a working policer can never beat the budget
+  law, span x rate + one burst), and the one-sidedness contract
+  holds without widening anything. The second row — the AMMSP
+  subtree ledger-vs-client accounting — read ledger 117339 vs
+  client 65614 (178.8%) from the wall-deadline probe's phantom
+  surplus (delivered-but-unread socket bytes at the window edge,
+  the 1a25f91 lesson's own shape, with the client count 78 bytes
+  above the 64 KiB floor guard meant to skip exactly that
+  degenerate zone); rider M makes the probe starve-limited
+  (idle=0.5) so its count spans what its connection delivered. The
+  re-drain call order is pinned in the engine self-test (an
+  under-band sample triggers the closure before the next probe,
+  in-band stops without it, no closure keeps the rider-J shape
+  byte-identical) — rootless self-test green, ruff check and
+  format clean. No Rust surface touched.
+
 - **the NIGHT-upgrade-charger-core-2-b close — container-native
   target resolution: `docker://<name>` and `k8s://<namespace>/<pod>`
   name a cgroup the way `brave` and `cg:48181` always have.** The
