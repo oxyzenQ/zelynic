@@ -289,6 +289,18 @@ it, the others starve. Use it for download tools you want to cap as a
 pool (`curl:pacman:aria2c 1mb`), not for apps that each need their own
 guaranteed slice — apply separate `strict-single` calls for that.
 
+The apply is **atomic** (NIGHT-upgrade-charger-core-2): every target
+resolves before the first policy write, and one unresolvable name
+aborts the whole invocation with `nothing was limited` — the error
+names the missed targets and how many were resolvable, so scripted
+fleet automation never lands in a half-configured state. A mid-flight
+write failure (a full map, an ENOMEM) rolls the transaction back to
+the exact pre-apply state: a target that already had a limit gets it
+restored at its own rate and group, a fresh target returns to
+unlimited. `strict-all` and `block-multi`/`block-all` deliberately keep
+the best-effort sweep — their target lists are snapshots of live
+state, and an app exiting mid-sweep must not abort the fleet's limits.
+
 The shared bucket's lifecycle (NIGHT-lts-7): every invocation banks a
 fresh group id, and the group maps hold 256 slots each — a group's
 slots are now returned when its LAST reference goes (an unstrict of

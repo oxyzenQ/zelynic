@@ -190,6 +190,32 @@ impl super::Limiter {
         })
     }
 
+    /// Read a cgroup's full policy raw — the charger-core-2
+    /// transactional snapshot's read half. Returns `None` when the
+    /// leg is absent (fresh apply) AND when the map cannot be read
+    /// (the conservative degrade: an unreadable map will refuse the
+    /// writes too, and a None snapshot rolls back to a delete — the
+    /// NIGHT-hunt-20 behavior, never a silent restore of invented
+    /// state). Split from `read_policy_group` because the atomic
+    /// snapshot needs the WHOLE raw (rate, burst, group id), not the
+    /// group id alone.
+    pub fn read_policy_raw(&mut self, cgroup_id: u32, direction: Direction) -> Option<PolicyRaw> {
+        let map_name = format!("cgroup_policy_{}", direction.suffix());
+        let pin_path = self.pinned_policy_path(direction);
+        self.with_u32_map::<PolicyRaw, Option<PolicyRaw>>(&map_name, &pin_path, |map| {
+            match map.get(&cgroup_id, 0) {
+                Ok(raw) => Ok(Some(raw)),
+                Err(e) if map_remove_means_absent(&e) => Ok(None),
+                Err(e) => Err(anyhow!(
+                    "failed to read cg:{cgroup_id} {} policy: {e}",
+                    direction.label()
+                )),
+            }
+        })
+        .ok()
+        .flatten()
+    }
+
     /// Reclaim the shared buckets of DEAD groups (NIGHT-lts-7, the
     /// ultra-long-endurance budget's missing half). The group maps
     /// hold hard 256 slots, every strict-multi invocation banks a

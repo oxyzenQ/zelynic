@@ -19,6 +19,35 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Added
 
+- **the NIGHT-upgrade-charger-core-2-a close — atomic multi-target
+  apply: `strict-multi` is a transaction now, never a half-way
+  state.** The old contract was best-effort: a colon-list member
+  that resolved to nothing was silently skipped, the rest were
+  enforced, and the epilogue read OK — a script had no way to see
+  it had just configured half the fleet. The new contract lands in
+  two phases: PRE-FLIGHT (every segment resolves BEFORE the first
+  map write; one miss aborts the whole invocation with an error
+  that names the missed targets, counts the resolvable remainder,
+  and states `nothing was limited`) and ROLLBACK (a mid-flight
+  write failure restores each mutated policy to its exact pre-apply
+  raw — rate, burst, group id verbatim — instead of the
+  NIGHT-hunt-20 delete-only rollback, which stripped an existing
+  limit it should have restored: a `sm brave:curl 1mb` failing
+  mid-flight used to leave brave unlimited, now brave returns to
+  its old rate). The mutation ledger (the both-directions snapshot
+  read in `write_policies_for_cgroup`) rides every apply path, so
+  `strict-single` and `strict-all` get the restore-grade rollback
+  too; the pre-flight gate itself belongs to the explicit colon
+  list alone — `strict-all`'s snapshot-sourced sweep keeps the
+  best-effort contract on purpose (an app exiting between
+  list-apps and write must not abort the fleet's limits). The pure
+  cores (the preflight verdict, the abort wording, the
+  restore-vs-remove decision) are pinned rootlessly in
+  test/ebpf/limiter/atomic_tests.rs (10/10); strict-multi's
+  success surface, exit codes, and the supermassive A/B lanes are
+  unchanged (their target lists are direct cgroup ids, which the
+  pre-flight never refuses — the direct-id lane's documented
+  contract).
 - **the rider K close — the curl upload accounting row, retired from
   the client-count comparison it could never hold (the 160.5%
   best-gnu leg of the first green-tree run): the ledger rides its

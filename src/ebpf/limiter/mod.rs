@@ -5,21 +5,21 @@
 //!
 //! Module layout (NIGHT-hunt-3 restructure):
 //! - `types.rs`   — constants + BPF map structs + high-level API types
-//! - `schema.rs`  — the schema-version anchor + history (the v10
-//!   split; grows one entry per bump by design)
+//! - `schema.rs`  — the schema-version anchor + history (grows per bump)
 //! - `format.rs`  — rate/duration parsing + formatting helpers
 //! - `parse.rs`   — the value parsers (the research-3 split)
 //! - `policy.rs`  — apply / resolve / write policy operations (the
 //!   unset-direction removal rides the apply, improve-29)
+//! - `atomic.rs`  — the transactional strict-multi (pre-flight +
+//!   the snapshot/restore mutation ledger, charger-core-2)
 //! - `policy_lines.rs` — the policy surface's pure line formatters
-//!   (the depthbore-1 split to hold policy.rs under the owner cap)
 //! - `reclaim.rs` — the remove path (unstrict) + state reclamation
 //! - `stats.rs`   — status printing + map readers + identity
 //! - `ammsp.rs`   — the AMMSP userspace half: the leaf-cache flush
 //!   every policy mutation runs (private-research-2)
-//! - this file    — the `Limiter` struct + lifecycle + re-exports.
 
 mod ammsp;
+mod atomic;
 mod format;
 mod lanes;
 mod parse;
