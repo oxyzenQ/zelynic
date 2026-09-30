@@ -19,6 +19,50 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Added
 
+- **the NIGHT-upgrade-charger-core-3a in-kernel time-series ring
+  (Tier B #8, EAGLE EYES V1) — the kernel itself keeps the rolling
+  window of delivered rates, so traffic SHAPE survives between
+  userspace polls.** Two new pinned maps (`rate_ring_dl`/`ul`, keyed
+  by the policy-root cgroup id — the stats ledger's own key) book
+  every ALLOWED packet's bytes into one-second windows, eight slots
+  deep; the booking rides a CAS-stamp + atomic-swap window protocol
+  (the math.rs SMP discipline, pinned rootlessly by the new
+  test/ebpf/limiter/rate_ring_tests.rs: same-window accumulation,
+  boundary rollover, slot cycling after eight windows, the hostile
+  future-stamp skip, and the end-to-end write/read agreement). The
+  honest bound is documented at the protocol: under many-CPU
+  contention a boundary crossing can lose one in-flight fetch_add
+  per contending CPU in the nanosecond gap between the stamp CAS and
+  the winner's swap — undercount-only, once per boundary, and the
+  LEDGER (cgroup_limiter_stats) stays the exact truth; the ring is
+  the monitor a future baseline detector reads, never a second
+  ledger. Drops never enter the ring (nothing was delivered). The
+  surface is `status --print-json`'s new per-limit `rate_ring` field
+  (eight one-second byte totals oldest-first, `live` window count,
+  `peak_bytes` over completed windows only) — omitted honestly when
+  the pinned object predates the ring or the cgroup booked nothing,
+  the absent-lens contract, deliberately NOT the hunt-22 propagation
+  rule (a missing lens on truth that stays true is not a failed read
+  of enforced state; USAGE.md's JSON reference documents the field).
+  The unlimited fast path is untouched (the ring books only policed,
+  allowed packets, after the verdict); the human status table is
+  unchanged. Schema bumps to v14 — monitor-only (no verdict change,
+  no existing layout change), but load-bearing: the status reader
+  opens the new pins, so a stale pinned object must reload instead
+  of silently serving no-ring state; active limits are dropped once,
+  re-apply after upgrade, the same one-time contract as v4..v13.**
+- **the v13 schema-anchor drift, hunted and closed: the
+  charger-core-1c bump raised the userspace
+  `SCHEMA_VERSION_EXPECTED` to 13 but missed the BPF-side
+  `SCHEMA_VERSION` parity anchor in ebpf/src/bin/limiter.rs (it
+  stayed 12 for a full era — dead code there, so nothing broke at
+  runtime, but the anchor lied about which semantics the source
+  carried, and no test could catch the class). The v14 bump restores
+  parity AND closes the class: schema.rs gains a sync pin that reads
+  the anchor out of the BPF source itself (include_str!) and fails
+  the build on any future drift — the layout-size-pin discipline
+  applied to the version contract.**
+
 - **the NIGHT-upgrade-charger-core-2d close — the stopped-container
   honest verdict: `docker://<name>` on a stopped container names the
   real cause instead of blaming the cgroup driver layout.** The

@@ -81,7 +81,14 @@ fn status_cells_one_metric_per_cell() {
 fn status_json_counts_cgroups_not_direction_policies() {
     let dl = vec![(73386, policy(100_000))];
     let ul = vec![(73386, policy(50_000))];
-    let json = status_json(&dl, &ul, &[], &IdentityMap::new(), Some(0));
+    let json = status_json(
+        &dl,
+        &ul,
+        &[],
+        &IdentityMap::new(),
+        Some(0),
+        &RingReads::absent(),
+    );
 
     assert_eq!(json.active_limits, 1);
     assert_eq!(json.limits.len(), 1);
@@ -99,7 +106,14 @@ fn status_json_counts_cgroups_not_direction_policies() {
 #[test]
 fn status_json_single_direction_limit_renders_null_other_side() {
     let dl = vec![(73390, policy(0))];
-    let json = status_json(&dl, &[], &[], &IdentityMap::new(), Some(0));
+    let json = status_json(
+        &dl,
+        &[],
+        &[],
+        &IdentityMap::new(),
+        Some(0),
+        &RingReads::absent(),
+    );
 
     assert_eq!(json.active_limits, 1);
     assert_eq!(json.limits[0].download_bps, Some(0));
@@ -114,7 +128,14 @@ fn status_json_single_direction_limit_renders_null_other_side() {
 fn status_json_joins_stats_and_zeroes_missing_entries() {
     let dl = vec![(1, policy(10)), (2, policy(20))];
     let stats_in = vec![(1, stats(7, 3))];
-    let json = status_json(&dl, &[], &stats_in, &IdentityMap::new(), None);
+    let json = status_json(
+        &dl,
+        &[],
+        &stats_in,
+        &IdentityMap::new(),
+        None,
+        &RingReads::absent(),
+    );
 
     let with_stats = json.limits.iter().find(|l| l.cgroup_id == 1).unwrap();
     assert_eq!(with_stats.packets_allowed, 7);
@@ -138,23 +159,26 @@ fn status_json_watchdog_wording_pins_all_three_states() {
 
     // Dormant: deadline 0, and the None display-contract variant.
     assert_eq!(
-        status_json(&[], &[], &[], &id, Some(0)).watchdog,
+        status_json(&[], &[], &[], &id, Some(0), &RingReads::absent()).watchdog,
         "enforcing"
     );
     assert_eq!(
-        status_json(&no_policies, &[], &[], &id, None).watchdog,
+        status_json(&no_policies, &[], &[], &id, None, &RingReads::absent()).watchdog,
         "enforcing"
     );
 
     // Armed and still in the future (u64::MAX is safely above any
     // monotonic clock).
     assert_eq!(
-        status_json(&[], &[], &[], &id, Some(u64::MAX)).watchdog,
+        status_json(&[], &[], &[], &id, Some(u64::MAX), &RingReads::absent()).watchdog,
         "active"
     );
 
     // Armed but past — monotonic_ns() is far beyond 1 by now.
-    assert_eq!(status_json(&[], &[], &[], &id, Some(1)).watchdog, "expired");
+    assert_eq!(
+        status_json(&[], &[], &[], &id, Some(1), &RingReads::absent()).watchdog,
+        "expired"
+    );
 }
 
 /// Empty policy maps (pins up, nothing limited — e.g. after recover
@@ -162,7 +186,14 @@ fn status_json_watchdog_wording_pins_all_three_states() {
 /// distinct from a failed read which now exits non-zero upstream.
 #[test]
 fn status_json_empty_policies_is_the_zero_state() {
-    let json = status_json(&[], &[], &[], &IdentityMap::new(), Some(0));
+    let json = status_json(
+        &[],
+        &[],
+        &[],
+        &IdentityMap::new(),
+        Some(0),
+        &RingReads::absent(),
+    );
     assert_eq!(json.active_limits, 0);
     assert!(json.limits.is_empty());
     assert_eq!(json.watchdog, "enforcing");
@@ -179,6 +210,7 @@ fn status_json_field_names_are_pinned() {
         &[(42, stats(1, 2))],
         &IdentityMap::new(),
         Some(0),
+        &RingReads::absent(),
     );
     let text = serde_json::to_string(&json).unwrap();
     for field in [
@@ -358,4 +390,96 @@ fn status_branch_frames_carry_the_flagship_chrome() {
         "the recovery command, got: {}",
         stale[2]
     );
+}
+
+// ── charger-core-3a: the rate_ring JSON contract pins ──────────────
+
+/// The absent-lens contract: with no ring readable (a pre-v14 pinned
+/// object, a torn-down map), the limit entries carry NO rate_ring
+/// field — absent is honestly absent, never a fabricated empty
+/// series. Automation sees exactly the pre-3a document shape.
+#[test]
+fn rate_ring_field_is_omitted_when_the_lens_is_absent() {
+    let dl = vec![(73386, policy(100_000))];
+    let json = status_json(
+        &dl,
+        &[],
+        &[],
+        &IdentityMap::new(),
+        Some(0),
+        &RingReads::absent(),
+    );
+    assert!(json.limits[0].rate_ring.is_none());
+}
+
+/// The joined contract: a readable ring for the limit's cgroup
+/// renders the derived series — oldest-first bytes, the live count,
+/// the completed-window peak — while a cgroup with no ring entry
+/// (fresh policy, no traffic yet) stays lean.
+#[test]
+fn rate_ring_field_joins_series_by_cgroup() {
+    use crate::ebpf::limiter::rate_ring::{RateRingRaw, RateSlotRaw, RATE_RING_SLOTS};
+    let dl = vec![(1, policy(10)), (2, policy(20))];
+
+    // Window math pinned to a fixed 'now': status_json samples its
+    // own monotonic now, so the ring is stamped for windows that are
+    // live under ANY now the builder samples (window 0 of a long-ago
+    // boot is always stale -> the derivation reads it as zero; the
+    // pin therefore asserts the join and the field's SHAPE, with the
+    // series math itself pinned in rate_ring_tests.rs against fixed
+    // clocks).
+    let mut ring = RateRingRaw {
+        slots: [RateSlotRaw {
+            window: 0,
+            bytes: 0,
+        }; RATE_RING_SLOTS],
+    };
+    ring.slots[0] = RateSlotRaw {
+        window: 0,
+        bytes: 1234,
+    };
+    let rings = RingReads {
+        dl: Some(vec![(1, ring)]),
+        ul: None,
+    };
+    let json = status_json(&dl, &[], &[], &IdentityMap::new(), Some(0), &rings);
+
+    // Cgroup 1: dl ring present (ul absent -> None), the dl series
+    // derived; cgroup 2: no ring entry -> no field.
+    let with = json.limits.iter().find(|l| l.cgroup_id == 1).unwrap();
+    let rr = with.rate_ring.as_ref().expect("cgroup 1 has a dl ring");
+    assert_eq!(rr.window_secs, 1);
+    assert!(rr.download.is_some());
+    assert!(rr.upload.is_none());
+    let dl_series = rr.download.as_ref().unwrap();
+    assert_eq!(dl_series.bytes.len(), RATE_RING_SLOTS);
+    assert_eq!(
+        dl_series.live, 0,
+        "window 0 stamps are stale under any real now"
+    );
+
+    let without = json.limits.iter().find(|l| l.cgroup_id == 2).unwrap();
+    assert!(without.rate_ring.is_none());
+}
+
+/// Both directions readable: the rate_ring object carries both series
+/// even when one direction's cgroup has no ring entry (that side is
+/// None INSIDE the object, not the object's absence).
+#[test]
+fn rate_ring_one_sided_entry_renders_null_direction() {
+    let dl = vec![(1, policy(10))];
+    let ul = vec![(1, policy(20))];
+    let mut ring = RateRingRaw::default();
+    ring.slots[0] = crate::ebpf::limiter::rate_ring::RateSlotRaw {
+        window: 0,
+        bytes: 42,
+    };
+    let rings = RingReads {
+        dl: None,
+        ul: Some(vec![(1, ring)]),
+    };
+    let json = status_json(&dl, &ul, &[], &IdentityMap::new(), Some(0), &rings);
+    let rr = json.limits[0].rate_ring.as_ref().unwrap();
+    assert!(rr.download.is_none());
+    assert!(rr.upload.is_some());
 }

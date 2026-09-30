@@ -1504,6 +1504,29 @@ Field shapes:
 {"watchdog":"enforcing","active_limits":2,"limits":[{"cgroup_id":18571,"label":"brave","download_bps":100000,"upload_bps":100000,"packets_allowed":232,"packets_dropped":4718,"bytes_allowed":29520,"bytes_dropped":8031234}]}
 ```
 
+`rate_ring` (NIGHT-upgrade-charger-core-3a, EAGLE EYES V1) joins a
+limit row when the pinned object keeps a time-series ring for its
+cgroup AND that cgroup has booked traffic under the policy — the
+kernel's own rolling window of delivered bytes, eight one-second
+slots, so the SHAPE of the last eight seconds survives between
+polls (a monitor sampling at `--interval 30s` reads the true peak
+and cadence, not a 30s mean):
+
+```json
+"rate_ring":{"window_secs":1,"download":{"bytes":[0,0,0,1048576,1048576,524288,1048576,655360],"live":5,"peak_bytes":1048576},"upload":null}
+```
+
+`bytes` is OLDEST-first (the last entry is the current, still-filling
+window — a window mid-second reads low); `live` counts how many of
+the eight windows hold data (the honest horizon); `peak_bytes` is
+the largest COMPLETED window (the current one never qualifies — it
+can only grow). A direction with no ring entry renders `null`, and a
+limit row with no ring at all omits the field entirely — absent is
+honestly absent (a fresh policy with no traffic yet, or a pinned
+object from before the v14 reload), never a fabricated empty
+series. The ring is a monitor, not a ledger: the exact cumulative
+truth stays the `packets_*`/`bytes_*` fields beside it.
+
 `list-apps --print-json` (the `total` field counts every cgroup the
 scan resolved — including any whose comm was unreadable at scan
 time and therefore has no row — while `apps[]` carries the named

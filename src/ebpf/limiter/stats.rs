@@ -32,13 +32,18 @@ impl super::Limiter {
     /// Same contract as `print_status` (NIGHT-hunt-22): the JSON
     /// surface feeds scripts, so a failed read must exit non-zero
     /// instead of emitting `{"active_limits": 0, "limits": []}` —
-    /// automation would read that as "nothing is limited".
+    /// automation would read that as "nothing is limited". The
+    /// RING read is the one deliberate exception (charger-core-3a):
+    /// it rides the absent-lens contract (rate_ring.rs) — an
+    /// unreadable ring is a missing lens on truth that stays true,
+    /// not a failed read of enforced state.
     pub fn print_status_json(&self) -> Result<()> {
         let dl = self.read_policies(Direction::Download)?;
         let ul = self.read_policies(Direction::Upload)?;
         let stats = self.read_stats()?;
         let wd = self.read_watchdog()?;
-        crate::ebpf::display::print_status_json(&dl, &ul, &stats, &self.identity, wd)
+        let rings = self.read_rate_rings();
+        crate::ebpf::display::print_status_json(&dl, &ul, &stats, &self.identity, wd, &rings)
     }
 
     /// Read all policies from a direction map.
