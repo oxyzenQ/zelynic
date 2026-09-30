@@ -7,6 +7,7 @@
 //! `src/ebpf/render/detail.rs` via #[path] (cosmostrix Pattern C).
 
 use super::*;
+use crate::ebpf::render::BaselineLane;
 
 /// Label enrichment (NIGHT-hunt-8): multi-tenant cgroups say so.
 #[test]
@@ -427,6 +428,7 @@ fn detail_hides_and_cuts_on_narrow_frames() {
         Duration::from_secs(1),
         Duration::from_secs(1),
         &mut SessionState::new(),
+        &BaselineLane::new(),
         Duration::from_secs(70),
         FrameGeometry {
             width: 50,
@@ -458,6 +460,7 @@ fn detail_hides_and_cuts_on_narrow_frames() {
         Duration::from_secs(1),
         Duration::from_secs(1),
         &mut SessionState::new(),
+        &BaselineLane::new(),
         Duration::from_secs(70),
         FrameGeometry {
             width: 57,

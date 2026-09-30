@@ -112,6 +112,7 @@ fn header_and_total_column_carry_symmetric_air() {
         Duration::from_secs(1),
         Duration::from_secs(1),
         &mut SessionState::new(),
+        &BaselineLane::new(),
         Duration::from_secs(70),
         classic(),
     );
@@ -208,6 +209,7 @@ fn rank_is_the_session_accumulation() {
         Duration::from_secs(1),
         Duration::from_secs(1),
         &mut session,
+        &BaselineLane::new(),
         Duration::from_secs(70),
         classic(),
     );
@@ -261,6 +263,7 @@ fn quiet_frame_holds_the_board() {
         Duration::from_secs(1),
         Duration::from_secs(1),
         &mut session,
+        &BaselineLane::new(),
         Duration::from_secs(70),
         classic(),
     );
@@ -277,6 +280,7 @@ fn quiet_frame_holds_the_board() {
         Duration::from_secs(1),
         Duration::from_secs(1),
         &mut session,
+        &BaselineLane::new(),
         Duration::from_secs(70),
         classic(),
     );
@@ -320,6 +324,7 @@ fn takeover_recrowns_rank1() {
         Duration::from_secs(1),
         Duration::from_secs(1),
         &mut session,
+        &BaselineLane::new(),
         Duration::from_secs(70),
         classic(),
     );
@@ -334,6 +339,7 @@ fn takeover_recrowns_rank1() {
         Duration::from_secs(1),
         Duration::from_secs(1),
         &mut session,
+        &BaselineLane::new(),
         Duration::from_secs(70),
         classic(),
     );
@@ -386,6 +392,7 @@ fn single_resolved_target_takes_focus_view() {
         Duration::from_secs(1),
         Duration::from_secs(1),
         &mut SessionState::new(),
+        &BaselineLane::new(),
         Duration::from_secs(70),
         classic(),
     );
@@ -440,6 +447,7 @@ fn rate_columns_divide_by_the_measured_span_not_the_cadence() {
             Duration::from_secs(1),
             span,
             &mut SessionState::new(),
+            &BaselineLane::new(),
             Duration::from_secs(70),
             classic(),
         );

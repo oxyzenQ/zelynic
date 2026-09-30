@@ -11,6 +11,7 @@
 use crate::ebpf::identity::IdentityMap;
 use crate::ebpf::loader::{CgroupDelta, CounterSummary};
 use crate::ebpf::render::eagle::render_eagle_eyes_at;
+use crate::ebpf::render::BaselineLane;
 use crate::ebpf::render::{FrameGeometry, SessionState};
 use std::time::Duration;
 
@@ -74,6 +75,7 @@ fn footer_census_packets_ride_the_si_compact_ladder() {
         Duration::from_secs(1),
         Duration::from_secs(1),
         &mut SessionState::new(),
+        &BaselineLane::new(),
         Duration::from_secs(3600),
         classic(),
     );
@@ -93,6 +95,7 @@ fn footer_census_packets_ride_the_si_compact_ladder() {
         Duration::from_secs(1),
         Duration::from_secs(1),
         &mut SessionState::new(),
+        &BaselineLane::new(),
         Duration::from_secs(2),
         classic(),
     );
@@ -154,6 +157,7 @@ fn the_census_total_can_read_zettabytes() {
         Duration::from_secs(1),
         Duration::from_secs(1),
         &mut session,
+        &BaselineLane::new(),
         Duration::from_secs(20_113_100), // ~233 days: 1 ZB at 1 Tbps
         classic(),
     );
