@@ -2955,6 +2955,304 @@ def test_ammsp_subtree(window, baseline):
     return passed
 
 
+def test_ammsp_fairshare(window, baseline):
+    """NIGHT-improve-1b (the owner's DeepSeek verification checklist,
+    item 2 — the starvation battery): does the fair-shared bucket
+    actually share fairly when many leaves contend, and does the
+    budget law survive leaf churn?
+
+    The DRR contract being measured (ebpf/src/drr.rs, pinned
+    rootlessly by drr_tests): the pool never creates budget (the
+    aggregate stays inside the policy), K equal-demand leaves share
+    the refill within one quantum of slop (the residue law's
+    half-draw: without it the simulation pinned 95/4), a single
+    active leaf is untouched in throughput (its half-draws pace at
+    the refill rate), and a fresh leaf under a live policy starts
+    at zero tokens — leaf churn (spawn/die during the limit) can
+    never leak a dead epoch's quantum forward (the stale belt fires
+    on the policy mutation each round's re-apply carries; a fresh
+    leaf starts at zero by construction regardless).
+
+    The scale, honestly: the owner's checklist sketch was "100
+    subprocesses under 100kb" — at that rate the quantum floor (the
+    64 KiB GSO admit floor, drr.rs's own trickle tradeoff) dominates:
+    the whole window's budget is a handful of quanta, so per-leaf
+    assertions there would measure the documented coarseness, not
+    the fairness. The battery runs where the claim applies: 6 leaves
+    at 1mb (quantum 100 KB, per-leaf share ~167 KB/s — the same
+    per-leaf regime the subtree rows proved at 100kb/2), then 24
+    leaves at 4mb for the owner's many-leaf shape, then the
+    single-active edge, then the churn window (fresh leaves spawned
+    MID-WINDOW under the live policy, the exact spawn-and-die race
+    the checklist asks to survive with the tokens un-leaked).
+
+    Every round re-applies its own rate (the rate-change move's
+    discipline): the re-apply is a policy mutation, which is what
+    fires the stale belt for the leaves the earlier rounds left
+    behind — the churn the battery carries WITH it, by design.
+    """
+    name = "ammsp: fair-share under contention (the starvation battery)"
+    if not CG.dedicated:
+        return record(
+            name,
+            "SKIP",
+            "no dedicated fleet — leaf cgroups need a real cgroup lane",
+        )
+    if baseline and baseline < 2_000_000:
+        return record(name, "SKIP", f"baseline too low ({fmt_bps(baseline)})")
+
+    fs_root = f"{TEST_CGROUPS[0]}/ammsp-fs"
+    made = []
+
+    def nested_mkdir(path):
+        try:
+            os.mkdir(path)
+            made.append(path)
+            return True
+        except OSError as e:
+            record("ammsp fair-share: create " + os.path.basename(path), "FAIL", str(e))
+            return False
+
+    def leaf_bytes(path, win, idle=0.0):
+        metric, err = spawn_in_cgroup_path(
+            path,
+            [sys.executable, "-c", _PY_DL_CLIENT, str(SERVER.port), str(win), str(idle)],
+            win + 20,
+        )
+        if metric is None:
+            record("ammsp fair-share: worker", "FAIL", err)
+        return metric or 0
+
+    def quantum(rate_bps):
+        # drr::quantum in python: the window share floored at the
+        # 64 KiB GSO admit floor (the same constants drr.rs pins).
+        return max(rate_bps // 10, 65_536)
+
+    def verdict_round(label, rate, rate_str, leaves, stagger=0.0, per_leaf=True):
+        """One round: (re-)apply the round's own rate, pay the fresh
+        pool's cushion out at line rate, run `leaves` fresh leaf
+        cgroups concurrently (`stagger` delays the later half
+        mid-window — the churn race), then judge the AGGREGATE band
+        (the pool never creates budget) and, when per_leaf, the
+        anti-starvation bounds. The staggered rounds divide by the
+        SPAN (window + stagger): the pool's budget covers the whole
+        wall time the leaves were drawing."""
+        ok, payload = apply_single("a", rate_str, rate, rate)
+        if not ok:
+            record(f"ammsp fair-share: {label} apply", "FAIL", payload)
+            return False
+        leaf_bytes(CG.paths["a"], 0.5)  # the cushion drain
+
+        paths = []
+        for i in range(leaves):
+            path = f"{fs_root}/{label}-{i}"
+            if not nested_mkdir(path):
+                return False
+            paths.append(path)
+        results = [None] * leaves
+
+        def worker(i, delay):
+            if delay:
+                time.sleep(delay)
+            results[i] = leaf_bytes(paths[i], window)
+
+        half = max(1, leaves // 2)
+        threads = [
+            threading.Thread(
+                target=worker,
+                args=(i, stagger if (stagger and i >= half) else 0.0),
+            )
+            for i in range(leaves)
+        ]
+        for th in threads:
+            th.start()
+        for th in threads:
+            th.join()
+        if any(r is None for r in results):
+            return False
+
+        span = window + stagger
+        total = sum(results)
+        fair = total / leaves
+        ok = band_check(
+            f"ammsp fair-share: {label} aggregate stays inside the policy",
+            total / span,
+            rate,
+            hi=1.45,
+            extra=f"{leaves} leaves over {span:.0f}s, fair share {fmt_bps(fair / window)}",
+        )
+        if per_leaf:
+            q = quantum(rate)
+            hi_leaf = fair * 1.75 + q
+            worst = max(results)
+            starved = min(results)
+            ok = (
+                record(
+                    f"ammsp fair-share: {label} no leaf monopolizes the refill",
+                    "PASS" if worst <= hi_leaf else "FAIL",
+                    f"worst leaf {worst:.0f} B vs bound {hi_leaf:.0f} "
+                    f"(fair {fair:.0f} + 1.75x slop + quantum {q})",
+                )
+                and ok
+            )
+            ok = (
+                record(
+                    f"ammsp fair-share: {label} no leaf starves to zero",
+                    "PASS" if starved >= fair / 4 else "FAIL",
+                    f"quietest leaf {starved:.0f} B vs fair/4 {fair / 4:.0f}",
+                )
+                and ok
+            )
+        return ok
+
+    passed = True
+    try:
+        if not nested_mkdir(fs_root):
+            return False
+        passed = verdict_round("equal6", 1_000_000, "1mb", 6) and passed
+        passed = verdict_round("many24", 4_000_000, "4mb", 24) and passed
+        # The single-active edge: one leaf alone must see the whole
+        # budget (the DRR doc's own edge: half-draws pace at the
+        # refill rate — the lo bound is on).
+        passed = verdict_round("single", 1_000_000, "1mb", 1, per_leaf=False) and passed
+        # The churn race: fresh leaves born MID-WINDOW under the live
+        # policy (the later half staggered in), aggregate judged over
+        # the span — a dead epoch's quantum never leaks forward.
+        passed = (
+            verdict_round("churn6", 1_000_000, "1mb", 6, stagger=window / 2, per_leaf=False)
+            and passed
+        )
+    finally:
+        clear_all()
+        for path in reversed(made):
+            with contextlib.suppress(OSError):
+                os.rmdir(path)
+    return passed
+
+
+def test_probe_failed():
+    """NIGHT-improve-1b (the DeepSeek checklist, item 3 — the
+    self-proving enforcement's FAILING side, the one no stage had
+    ever driven): "applied" must never read as success when the
+    measurement says the limit is not being enforced.
+
+    The honest forcing condition: the probe window is 3s and the
+    verdict's budget is read at window open, so removing the policy
+    MID-WINDOW (the operational accident this catches: someone
+    unstricts while the verification runs) lets the client's socket
+    run at loopback line rate for the window's remainder — the
+    measured flow exceeds the budget by orders of magnitude, and
+    the command must exit 1 with the FAILED block, the numbers
+    attached (probe_report::failure_error's contract), never a
+    silent applied-OK.
+
+    The timing margins, stated: strict-single on an already-attached
+    object spends its setup on the identity walk + policy write +
+    probe child/server spawns (~1s on the micro-VM), so the window
+    opens by ~1.5s and closes at ~4.5s; the unstrict fires at 2.5s
+    — a full second inside the window with ~2s of unbounded
+    remainder. A machine slow enough to miss the window entirely
+    FAILS this row visibly (UNVERIFIED exit 0 is not exit 1) — the
+    wrong-timing failure is loud, never a silent pass.
+
+    The success and overhead sides ride the same stage (the
+    checklist's other two rows): a clean apply must print VERIFIED
+    exit 0, and the probe's own latency must be the 3s window plus
+    bounded setup — the strict-single doc's whole-probe bound is
+    "under five seconds", so the with-probe minus no-probe delta is
+    asserted inside [2.0, 8.0] and filed in the row's metrics.
+    """
+    name = "probe: the self-proving FAILED path (mid-window teardown)"
+    if not CG.dedicated:
+        return record(name, "SKIP", "no dedicated fleet — the probe needs real cgroups")
+
+    passed = True
+    try:
+        # ── The FAILED path ────────────────────────────────────────
+        ok, payload = apply_single("a", "100kb", 100_000, 100_000)
+        if not ok:
+            return record(name, "FAIL", payload)
+        probe_argv = [str(lib.BINARY), "strict-single", str(CG.ids["a"]), "100kb"]
+        proc = subprocess.Popen(
+            probe_argv,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        # Mid-window: the teardown fires inside the probe's 3s
+        # measurement (see the docstring's margin math).
+        time.sleep(2.5)
+        rc, stdout, stderr = run_zel(["unstrict-single", str(CG.ids["a"])])
+        if rc != 0:
+            record(
+                "probe: mid-window unstrict",
+                "FAIL",
+                f"exit {rc}: {(stderr or stdout).strip()[:160]}",
+            )
+            proc.kill()
+            return False
+        out, err = proc.communicate(timeout=30)
+        combined = (out or "") + (err or "")
+        needles = (
+            "enforcement NOT verified",
+            "exceeded the budget",
+            "direction:",
+            "measured:",
+            "budget:",
+        )
+        missing = [n for n in needles if n not in combined]
+        passed = (
+            record(
+                "probe: FAILED exits 1 with the block attached",
+                "PASS" if proc.returncode == 1 and not missing else "FAIL",
+                f"exit {proc.returncode}; missing needles: {missing or 'none'}; "
+                f"tail: {combined.strip()[:160]!r}",
+            )
+            and passed
+        )
+
+        # ── The SUCCESS path: VERIFIED, exit 0 ─────────────────────
+        rc, stdout, stderr = run_zel(["strict-single", str(CG.ids["b"]), "100kb"])
+        combined = (stdout or "") + (stderr or "")
+        passed = (
+            record(
+                "probe: a clean apply is VERIFIED exit 0",
+                "PASS" if rc == 0 and "VERIFIED" in combined else "FAIL",
+                f"exit {rc}; VERIFIED in output: {'VERIFIED' in combined}; "
+                f"tail: {combined.strip()[:160]!r}",
+            )
+            and passed
+        )
+
+        # ── The probe overhead: the 3s window + bounded setup ──────
+        t0 = time.perf_counter()
+        rc, stdout, stderr = run_zel(["strict-single", str(CG.ids["c"]), "100kb", "--no-probe"])
+        t_noprobe = time.perf_counter() - t0
+        ok_noprobe = rc == 0
+        t0 = time.perf_counter()
+        rc, stdout, stderr = run_zel(["strict-single", str(CG.ids["c"]), "200kb"])
+        t_probe = time.perf_counter() - t0
+        delta = t_probe - t_noprobe
+        passed = (
+            record(
+                "probe: overhead is the 3s window + bounded setup",
+                "PASS" if ok_noprobe and rc == 0 and 2.0 <= delta <= 8.0 else "FAIL",
+                f"no-probe {t_noprobe:.1f}s, with-probe {t_probe:.1f}s, "
+                f"delta {delta:.1f}s (bounds [2.0, 8.0] — PROBE_SECS=3 "
+                "plus the under-five-seconds whole-probe doc bound)",
+                metrics={
+                    "probe_overhead_no_probe_s": round(t_noprobe, 2),
+                    "probe_overhead_with_probe_s": round(t_probe, 2),
+                    "probe_overhead_delta_s": round(delta, 2),
+                },
+            )
+            and passed
+        )
+    finally:
+        clear_all()
+    return passed
+
+
 def test_block_multi(window):
     name = "block-multi: zero goodput on both cgroups"
     if not multi_guard(name):
@@ -4400,6 +4698,10 @@ def run_heavy(baseline_window):
     # NIGHT-private-research-2 (AMMSP): the subtree contract, measured
     # live — the owner's eagle-eyes finding made permanent.
     test_ammsp_subtree(4.0, baseline)
+    # NIGHT-improve-1b (the owner's DeepSeek verification checklist):
+    # the starvation battery and the self-proving FAILED path.
+    test_ammsp_fairshare(4.0, baseline)
+    test_probe_failed()
     test_block_multi(4.0)
     test_unstrict_multi()
     test_mixed(4.0, baseline)

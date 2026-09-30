@@ -18,7 +18,9 @@ violence leaves behind.
 Division of labor with v1 (NIGHT-refactor-2, the owner's call): v1 owns
 every stage that measures a LIMIT; v2 owns the abuse family — the
 rate-guard refusals (bounds, typo rescue, dangerous blocklist,
-override), the kill batteries, the regression battery, and the
+override), the kill batteries, the bypass-shadow audit (both sides,
+NIGHT-improve-1b: an AF_PACKET stream must flag, honest policed
+traffic must read clean), the regression battery, and the
 recover/cleanup/dmesg teardown — plus, since NIGHT-blade-4, the
 SERVER phase both harnesses lead with: v1 proves the limiter holds
 under the server shape (headless env, dense fleet, daemon traffic,
@@ -120,10 +122,12 @@ import json
 import os
 import pty
 import signal
+import socket
 import struct
 import subprocess
 import sys
 import termios
+import threading
 import time
 
 # The v1 engine lives one dash-named file over; make it importable
@@ -1388,6 +1392,155 @@ def test_kill_midflight():
     )
 
 
+def test_bypass_audit():
+    """NIGHT-improve-1b (the owner's DeepSeek verification checklist,
+    item 1 — the bypass-shadow audit's both sides, the stage no
+    battery had ever driven): the one honesty check no other rate
+    limiter runs, proven live instead of only rootless-pinned.
+
+    The POSITIVE lane: an AF_PACKET raw injector (root, the VM's
+    own tooling) moves bytes through the loopback interface BELOW
+    the cgroup hooks — the interface counters grow, the hooks never
+    see a packet, so the machine's delivered aggregate says one
+    thing while the enforcement ledger says another. That gap is
+    exactly the shadow the audit exists to report: the depth
+    report's focus window must flag it (verdict bypassed_tx or
+    bypassed_both in the JSON), never render a clean verdict over
+    an unpoliced megabyte stream.
+
+    The NEGATIVE lane (the checklist's own kritikal row — the one
+    a false positive would destroy): the same depth window over
+    REAL stack traffic only (the fleet's workers under a live
+    policy, hooks traversed on both sides) must read CLEAN — the
+    thresholds (25%/1MiB tx, 40%/2MiB rx — an order of magnitude
+    above the headers/ARP noise the doc measures) hold on a busy
+    policed window, so the audit never cries bypass on honest
+    traffic.
+
+    The lane family, honestly (bypass.rs's own scope note): the
+    audit is interface-vs-hooks arithmetic — it does not care WHICH
+    lane moved the unhooked bytes, so AF_PACKET exercises the
+    physics for the whole family (AF_XDP rings, RDMA, driver-level
+    injection share the detection); io_uring rides the socket path
+    and traverses the egress hook like any other send (verified
+    against the io_uring source at implementation time — the doc
+    states it so no stage ever "tests" a bypass that cannot exist).
+    A real AF_XDP program in the harness is out of scope on
+    purpose: it needs an XDP setup and a umem the micro-VM does not
+    carry, and the detection lane it would feed is the one AF_PACKET
+    feeds here.
+
+    Timing, stated: the depth report spends ~1s on attach + the
+    opening poll, measures its --focus window (4s here), then
+    renders — so the injector runs 9s from before the spawn to past
+    the close, covering the window with margin on both ends. The
+    injector rate is uncapped python sendto on lo (hundreds of
+    MB/s — orders above the 1 MiB tx floor at 4s = 262 KB/s), and
+    with the fleet idle the shadow share reads ~100% of the
+    window's interface traffic.
+    """
+    name = "bypass: the shadow audit flags real bypass, spares honest traffic"
+    if os.geteuid() != 0:
+        return record(name, "SKIP", "the injector needs root (AF_PACKET)")
+
+    FOCUS = 4
+    INJECT_SECS = 9
+    FRAME = bytes([0xFF] * 6 + [0x02] * 6 + [0x08, 0x00]) + bytes(1400 - 14)
+    state = {"bytes": 0, "err": None}
+
+    def injector(stop_at):
+        try:
+            s = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.htons(3))
+        except OSError as e:  # pragma: no cover - the VM carries AF_PACKET
+            state["err"] = f"AF_PACKET socket: {e}"
+            return
+        try:
+            ifindex = socket.if_nametoindex("lo")
+            s.bind(("lo", 0))
+            sent = 0
+            while time.time() < stop_at and state["err"] is None:
+                s.sendto(FRAME, ("lo", ifindex))
+                sent += len(FRAME)
+            state["bytes"] = sent
+        except OSError as e:
+            state["err"] = f"injector: {e}"
+        finally:
+            s.close()
+
+    def depth_bypass_verdict(with_traffic_worker):
+        """Run one depth report over the live fleet target and return
+        its bypass verdict string (or None on a harness failure)."""
+        stop_at = time.time() + INJECT_SECS
+        inj = None
+        if with_traffic_worker is False:
+            inj = threading.Thread(target=injector, args=(stop_at,))
+            inj.start()
+            time.sleep(1.0)  # the stream is live before the window opens
+        worker = None
+        if with_traffic_worker is True:
+            worker = threading.Thread(target=lambda: sm1.py_download(FOCUS + 2, name="a"))
+            worker.start()
+        rc, stdout, stderr = run_zel(
+            ["ee", str(sm1.CG.ids["a"]), "--depth", "--print-json", "--focus", str(FOCUS)]
+        )
+        if inj is not None:
+            inj.join()
+        if worker is not None:
+            worker.join()
+        if rc != 0:
+            record(
+                "bypass: depth report",
+                "FAIL",
+                f"exit {rc}: {(stderr or stdout).strip()[:200]}",
+            )
+            return None
+        try:
+            doc = json.loads(stdout)
+        except ValueError as e:
+            record("bypass: depth JSON", "FAIL", f"unparseable: {e}")
+            return None
+        audit = doc.get("bypass") or {}
+        return audit.get("verdict")
+
+    passed = True
+    try:
+        # A live policy under the window: the NEGATIVE lane's traffic
+        # must be policed stack traffic (hooks traversed), not idle.
+        ok, payload = sm1.apply_single("a", "100kb", 100_000, 100_000)
+        if not ok:
+            return record(name, "FAIL", payload)
+
+        positive = depth_bypass_verdict(with_traffic_worker=False)
+        if positive is not None:
+            passed = (
+                record(
+                    "bypass: AF_PACKET stream flags the shadow (not clean)",
+                    "PASS" if positive in ("bypassed_tx", "bypassed_both") else "FAIL",
+                    f"verdict {positive!r} (injector: "
+                    f"{(state['err'] or f'{state["bytes"]} B in {INJECT_SECS}s')})",
+                )
+                and passed
+            )
+        else:
+            passed = False
+
+        negative = depth_bypass_verdict(with_traffic_worker=True)
+        if negative is not None:
+            passed = (
+                record(
+                    "bypass: honest policed traffic reads CLEAN (no false positive)",
+                    "PASS" if negative == "clean" else "FAIL",
+                    f"verdict {negative!r} — the checklist's kritikal row",
+                )
+                and passed
+            )
+        else:
+            passed = False
+    finally:
+        sm1.clear_all()
+    return passed
+
+
 def test_regression_battery():
     """Re-prove the core invariants AFTER the kills.
 
@@ -1547,6 +1700,8 @@ def self_test():
                     "run_zel",
                     "status_json",
                     "limit_entry",
+                    "test_ammsp_fairshare",
+                    "test_probe_failed",
                 )
             )
             else "FAIL",
@@ -1719,7 +1874,7 @@ def run_survival(phases):
     # order), the four survival phases second; a server-phase FAIL
     # skips them. --desktop-only drops the server phase (the
     # pre-blade-4 battery), --server-only runs it alone.
-    total = 5 if "server" in phases else 4
+    total = 6 if "server" in phases else 5
     base = 2 if "server" in phases else 1
     server_ok = True
     if "server" in phases:
@@ -1745,14 +1900,22 @@ def run_survival(phases):
     test_kill_tui()
     test_kill_midflight()
 
-    # phase base+2/total: the regression re-proof
+    # NIGHT-improve-1b (the DeepSeek checklist, item 1): the
+    # bypass-shadow audit's both sides — after the kills (the
+    # datapath is warm, the guards are proven), before the
+    # regression re-proof (a bypass row that fails gates it).
     out()
-    out(f"━━━ phase {base + 2}/{total}: regression (nothing broken stays broken) ━━━")
+    out(f"━━━ phase {base + 2}/{total}: bypass (the shadow audit, both sides) ━━━")
+    test_bypass_audit()
+
+    # phase base+3/total: the regression re-proof
+    out()
+    out(f"━━━ phase {base + 3}/{total}: regression (nothing broken stays broken) ━━━")
     test_regression_battery()
 
-    # phase base+3/total: the crash-family teardown
+    # phase base+4/total: the crash-family teardown
     out()
-    out(f"━━━ phase {base + 3}/{total}: teardown (recover, cleanup, kernel log) ━━━")
+    out(f"━━━ phase {base + 4}/{total}: teardown (recover, cleanup, kernel log) ━━━")
     test_recover()
     sm1.test_cleanup()
     test_dmesg()
