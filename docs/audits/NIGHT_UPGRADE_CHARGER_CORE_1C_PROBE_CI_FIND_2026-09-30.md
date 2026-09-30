@@ -15,17 +15,25 @@ root machine to debug.
 
 Two independent findings on the same run, one mundane and one deep:
 
-1. **The mundane one (fixed at the source, completed one push
-   later):** the ammsp-vs-legacy battery's `apply_single` and its
-   nested-root row passed `--no-probe` to the LEGACY v11.0.0 binary,
-   which predates the flag and exits 2 on it. Rider C's toggle fix
-   converted `apply_single` (and set `lib.PROBE_FLAG_SUPPORTED` per
-   side) but missed the nested-root row's direct `run_side_binary`
-   call site — the ff8e73dc/bafc4ac CI caught the miss with every
-   supermassive leg red on the legacy side's exit 2. The flag now
-   rides the current side only through `nested_apply_argv` (the
-   side-aware argv builder, pinned in the engine self-test so a
-   future call site cannot regress it silently).
+1. **The mundane one (fixed at the source — deeper than it looked,
+   closed by rider I after six red pushes):** the ammsp-vs-legacy
+   battery's `apply_single` and its nested-root row passed
+   `--no-probe` to the LEGACY v11.0.0 binary, which predates the
+   flag and exits 2 on it. Rider C's toggle fix had TWO defects: it
+   missed the nested-root row's direct `run_side_binary` call site
+   (caught and closed by rider E's `nested_apply_argv`), AND it
+   flipped the toggle on the WRONG MODULE — `lib.PROBE_FLAG_SUPPORTED`
+   wrote a fresh attribute on zelynic_harness_lib that nothing
+   reads, while `apply_single` resolves `PROBE_FLAG_SUPPORTED` in
+   supermassive-test's own globals — so the toggle never flipped,
+   the legacy side kept receiving the flag, and every supermassive
+   leg stayed red on the same exit 2 from ff8e73dc through 501ab20
+   while the tree claimed the fix at the source. The close is
+   structural: `rebind_side` lands BOTH globals on the modules that
+   read them (`lib.BINARY` for run_zel, `sm1.PROBE_FLAG_SUPPORTED`
+   for apply_single), and the module identity is pinned in the
+   engine self-test so a future side switch cannot write a toggle
+   to the wrong module silently.
 
 2. **The deep one (the open lane):** the enforcement probe's own
    measurement escaped policing in the proof-claims stages. Four
