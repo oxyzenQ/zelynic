@@ -19,6 +19,92 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Added
 
+- **dinner-28, the learned-share draw (schema v16) — the DRR
+  fair-share fix the live battery forced.** The residue law
+  (draw = min(quantum, pool/2)) splits a TWO-asker pool evenly,
+  but at K > 2 drawers the takes decay geometrically per position
+  and the position is stable across epochs on a real hook: the
+  fair-share battery measured the worst leaf at 3.35x its fair
+  share (2.13 MB over 4s at 6 leaves / 1mb) while the quietest
+  starved below a single admit (78 B — one 64 KiB GRO admit short
+  across the whole window), the aggregate staying exactly the
+  policy the entire time. The take is now further capped by
+  pool/(learned+2) — the learned drawee count of the last
+  completed 100ms epoch, kept per (pool, direction) in the two new
+  pinned LRU maps `drr_pool_state_dl/ul`. The note rides the
+  draw's ATTEMPT (a starving asker's draws fail — it is exactly
+  that asker the divisor must learn; the first design counted only
+  succeeders and the learning never bootstrapped, a bug the
+  simulation pin caught before it shipped), and a failed draw
+  rolls the stamp back to the current epoch's start so the leaf's
+  once-per-epoch evidence survives (a leaf asking on every packet
+  counts once per epoch, never once per packet). A cold pool
+  (learned 0) keeps the exact v13 residue law by construction —
+  the fail-open lane; the position ratio under the learned cap is
+  1.34 at 6 leaves and 1.18 at 24, both far inside the battery's
+  1.75x + one-quantum bound. Pinned rootlessly by the new
+  simulation battery (drr_share_tests: the decay reproduced
+  against the v13 law first, the close at K=6 and K=24, the
+  single-active edge, the collapse guard, the packing arithmetic);
+  the existing v13 pins untouched and green. drr.rs's module
+  header and both USAGE fair-share sections carry the updated
+  claims.
+
+- **dinner-28, the probe's verification window is no longer atomic
+  against the world, and its rows carry the diagnostics the CI
+  proved they lacked.** strict-single held the operation lock
+  THROUGH the probe — the lock is non-blocking, so the checklist's
+  own scenario ("someone unstricts the target while the
+  verification runs") was structurally unreachable: the probe
+  process had to have already exited before the unstrict could
+  land. The lock's scope is now the APPLY (it serializes policy
+  mutations; the probe mutates no policy state), the dinner-16
+  parity moved with the boundary (a second is_pinned re-check
+  after the probe), and the mid-window teardown is observable —
+  the MEASUREMENT is the defense. The stage's FAILED row forcing
+  moved from 100kb to 1mb: at 100kb the policed phase's chunky
+  delivery lets the probe server's TCP back off into deep RTO,
+  and when the policy vanished the recovery waited on the RTO
+  timer — the window's remainder passed in silence and the
+  client's count landed inside the VERIFIED band (the lottery,
+  named); at 1mb the flow stays hot and line rate beats the
+  ceiling in every timing shape. Every row's detail now carries
+  the verify block's verdict line and note line (the exact
+  unverified lane named in the CI log) and the overhead row's
+  legs print their exit codes and tails — the 0.0s/0.0s shape
+  that hid a fast-fail can never hide again.
+
+- **dinner-28, the bypass stage keeps its own depth target
+  alive.** The depth report resolves cg:<id> targets through the
+  identity map's liveness gate (a cgroup id is LIVE only while a
+  process runs inside it), and the fleet cgroup sits empty between
+  worker runs — the injector thread lives in hq, and the negative
+  lane's worker spans the window only marginally. Every leg
+  dead-id'd the target ("No live cgroup matches") before any
+  verdict could exist. The fix is a resident sleeper (a bare
+  sleep 18 in the fleet cgroup, residency-guaranteed, killed in
+  the finally so the teardown never races a resident); it moves
+  zero traffic, so the positive lane's shadow share stays ~100%
+  and the negative lane's policed flow stays the only stack
+  traffic. The CI run at 594d8cf confirmed the close: both bypass
+  rows gone from the failure list.
+
+- **dinner-28, the owner's asks: the OS header and the
+  warnings-as-failures audit.** Every *.sh (40 files) carries
+  '# OS: Linux only — zelynic is a Linux eBPF tool; no other OS
+  is supported.' — the 20 pre-existing 'PLATFORM: UNIX-only'
+  lines replaced (one convention), 20 inserted; the header gate
+  ENFORCES it (a .sh without it fails, never a warning). The
+  audit found one real silently-ignored class: yamllint ran
+  without --strict, so warning-level findings scrolled past while
+  the gate counted green — now --strict (verified clean on the
+  current tree); every || true site in the CI surface classified
+  and kept (evidence pipes feeding explicit checks, cleanup, and
+  grep-exit-on-empty where the emptiness IS the healthy case);
+  audit.yml's continue-on-error stays by design (its step already
+  runs cargo audit --deny warnings — the model; red in the run
+  list is the morning signal).
+
 - **the NIGHT-improve-1b supermassive stages — the owner's DeepSeek
   verification checklist, translated into the harnesses as
   batteries.** Three coverage holes the checklist found, closed as
