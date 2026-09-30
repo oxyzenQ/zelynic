@@ -1041,7 +1041,7 @@ def clear_all():
     return rc == 0
 
 
-def enforcement_proofs(label, got_bytes, name="a"):
+def enforcement_proofs(label, got_bytes, name="a", baseline_allowed=0):
     """Kernel-side proof under a binding limit: packets dropped and the
     BPF byte counter in agreement with the client's own count.
 
@@ -1050,6 +1050,16 @@ def enforcement_proofs(label, got_bytes, name="a"):
     tiny rates leaves the allowed bytes dominated by per-skb headers
     and control traffic, and the comparison would be noise
     (NIGHT-improve-12).
+
+    baseline_allowed (the ladder's shape): the ledger value read
+    right BEFORE the measured windows — the comparison uses the
+    DELTA, so the cushion drain never enters it on either side.
+    The 1a25f91 best-gnu lesson: a drain attempt can deliver bytes
+    its worker never reports (slow-start skb shapes, an idle exit
+    before a late retransmit, a dead worker the retry replaces),
+    and the BPF side counts every delivered skb — no client-side
+    drain count can ever be exact. Reading the baseline after the
+    drain makes the span EXACTLY the measured windows on both sides.
     """
     entry = limit_entry(status_json(), CG.ids[name])
     if not entry:
@@ -1063,6 +1073,8 @@ def enforcement_proofs(label, got_bytes, name="a"):
     )
     if CG.dedicated:
         allowed = entry.get("bytes_allowed", 0)
+        if baseline_allowed:
+            allowed = max(0, allowed - baseline_allowed)
         if allowed > 0 and got_bytes >= lib.ACCOUNTING_FLOOR_BYTES:
             ratio = allowed / got_bytes
             record(
@@ -1745,20 +1757,21 @@ def test_rate_ladder(ladder, window, windows_per_rung, baseline):
         # retries until the cushion is provably paid instead, and its
         # probe is the STARVE-LIMITED worker (idle=0.5, the 1a25f91
         # lesson): a wall-deadline drain worker can exit mid-blast
-        # with delivered-but-unread bytes its socket never reported,
-        # and the accounting row below reads the phantom as a surplus
+        # with delivered-but-unread bytes its socket never reported
         # (bpf 116538 vs client 65926 at the 10kb rung).
-        # NIGHT-lts-6 followup (the first CI run after lts-8 caught
-        # it): the drain's bytes count in the BPF ledger like any
-        # other allowed traffic, so the accounting cross-check must
-        # carry them on the client side too — the drain's return
-        # value joins the comparison, or the 10kb rung reads a
-        # phantom ~2x (bpf drain+windows vs client windows only).
-        drained = 0
+        # NIGHT-lts-6 followup, superseded by the span baseline below
+        # (the 1a25f91 best-gnu rerun: bpf 116474 vs client 65926 —
+        # the same phantom, because a drain attempt's unreported
+        # delivered bytes are beyond any client-side count): the
+        # accounting comparison now reads the ledger AFTER the drain
+        # and compares the DELTA over the measured windows only, so
+        # the drain — retries, tails, slow-start shapes and all —
+        # never enters the comparison on either side. The drain keeps
+        # its one job: the measured windows see steady state.
         if lib.default_burst(bps) > 0.3 * bps * window * windows_per_rung:
-            drained = lib.drain_cushion(
-                lambda: py_download(4.0, "a", idle=0.5), lib.default_burst(bps)
-            )
+            lib.drain_cushion(lambda: py_download(4.0, "a", idle=0.5), lib.default_burst(bps))
+        baseline_entry = limit_entry(status_json(), CG.ids["a"]) or {}
+        baseline_allowed = int(baseline_entry.get("bytes_allowed", 0) or 0)
         # NIGHT-improve-14: high rungs run PARALLEL_FLOWS concurrent
         # workers per window (see PARALLEL_MIN_BPS) — the aggregate,
         # not one AIMD flow, is the instrument there. Each thread
@@ -1816,10 +1829,14 @@ def test_rate_ladder(ladder, window, windows_per_rung, baseline):
         if not band_check(name, measured, bps, lo=floor, extra=extra):
             passed = False
         # The client side of the accounting comparison: the measured
-        # windows' bytes PLUS the drain window's (lts-6 followup —
-        # both sides must span the same traffic or the ratio is a
-        # phantom).
-        enforcement_proofs(f"ladder {rate_str}", int(drained + measured * window * len(rates)))
+        # windows' bytes against the ledger DELTA over exactly the
+        # same span (the baseline read after the drain — the 1a25f91
+        # best-gnu lesson closed by span exclusion, not estimation).
+        enforcement_proofs(
+            f"ladder {rate_str}",
+            int(measured * window * len(rates)),
+            baseline_allowed=baseline_allowed,
+        )
         clear_all()
     return passed
 
@@ -3696,17 +3713,21 @@ def self_test():
         # saw and the accounting row reads a phantom surplus.
         and "idle=0.5" in ladder_src
         and 'extra = ""' in ladder_src
-        # lts-6 followup: the drain's bytes must join the accounting
-        # comparison's client side, or the ratio is a phantom 2x.
-        and "drained + measured" in ladder_src
+        # the 1a25f91 best-gnu rerun: the accounting row spans ONLY
+        # the measured windows (the ledger baseline is read after
+        # the drain), so a drain attempt's unreported delivered
+        # bytes can never enter the comparison on either side.
+        and "baseline_allowed" in ladder_src
+        and "measured * window * len(rates)" in ladder_src
     )
     record(
         "harness: ladder drains the attach cushion at over-delivery rungs",
         "PASS" if ladder_drain_ok else "FAIL",
-        "trickle rungs discard a warm-up window before the measured pair, its "
-        "bytes join the accounting comparison, and the drain retries until the "
-        "cushion is provably paid (lts-8 burst floor, lts-6 followup, the "
-        "0b0a8f5 stall lesson)",
+        "trickle rungs discard a starve-limited warm-up before the measured "
+        "pair, the accounting row spans ONLY the windows (ledger baseline "
+        "read after the drain), and the drain retries until the cushion is "
+        "provably paid (lts-8 burst floor, the 0b0a8f5 stall and 1a25f91 "
+        "phantom lessons)",
     )
     ovh_src = inspect.getsource(test_overhead)
     pair_ok = ovh_src.index("fresh = py_download(window)") < ovh_src.index("apply_single(")
