@@ -20,10 +20,10 @@ NIGHT-hunt-18's git-history-only call.
 ### Changed
 
 - **ci: the NIGHT-dinner repair rider series — the wholesale gate and
-  all four supermassive legs green again, with the run-253 lesson on
-  the record** (the owner's terminal paste: gate-keepers red, every
-  supermassive leg red, and "should automatic download"). Five
-  findings, five fixes: (A) scripts/ci/supermassive-init.sh was
+  all four supermassive legs green again, with the run-253 and
+  1a25f91 lessons on the record** (the owner's terminal paste:
+  gate-keepers red, every supermassive leg red, and "should automatic
+  download"). Seven findings, seven fixes: (A) scripts/ci/supermassive-init.sh was
   shfmt-unformatted since f1eb095 (whitespace-only normalization, the
   one wholesale-gate red row); (B) the ammsp-vs-legacy harness ran the
   LEGACY binary on BOTH sides — main() read lib.BINARY for the
@@ -31,14 +31,14 @@ NIGHT-hunt-18's git-history-only call.
   coverage read 0/7 vs 0/7 and THE DELTA failed on all four legs as a
   harness aliasing bug — the current binary is now captured BY VALUE
   at resolution, battery_order() freezes the pair, and the self-test
-  pins the discipline (9/9); (C) the nested-root probes were missing
+  pins the discipline; (C) the nested-root probes were missing
   the approved warm-up drain (a fresh 50kb bucket starts with the full
   64 KiB GSO cushion; without the drain the 4s window straddles the
   band edge at 128..133% and flips policed/gray on GSO timing alone),
   and the ladder's trickle-rung drain is stall-proofed the same way —
   the 0b0a8f5 best-gnu leg proved a single 0.5s warm-up sample can
   silently read zero on a noisy runner and leak the cushion into the
-  measured pair at 299.3% of the 1kb rung, so the drains now retry
+  measured pair at 299.3% of the 1kb rung, so the drains retry
   until the cushion is provably paid (the new shared
   lib.drain_cushion()); (D) the legacy v11.0.0 side AUTO-DOWNLOADS
   from the canonical release when no local candidate exists —
@@ -48,8 +48,26 @@ NIGHT-hunt-18's git-history-only call.
   parity FAIL message names the local-churn triage (a local pro build
   rewriting the tracked ebpf/Cargo.lock trips the tree pin on the
   desk while the same commit passes clean in the cloud — git status
-  -- ebpf/ shows the churn). Engines green rootlessly: ammsp 9/9,
-  v1 31/31, v2 10/10; check-all and gate-keepers 22/22 locally.
+  -- ebpf/ shows the churn); (F) the harness's EXIT contract learns
+  which side it is on — the 1a25f91 logs show the perfect proof
+  (AMMSP 7/7 policed, legacy 0/7, THE DELTA row OK) still failing
+  every leg because the legacy side's nine EXPECTED escapes were
+  recorded as FAIL rows the exit rides: side_verdict() (pure,
+  self-test-pinned) makes the current side judged (only policed
+  passes) and the legacy side the control (escaping is the expected
+  pre-AMMSP shape, a policed legacy child the measurement bug), the
+  class staying in every row's detail; (G) the cushion drain becomes
+  STARVE-LIMITED — a wall-deadline drain worker can exit mid-blast
+  with delivered-but-unread bytes its socket never reported (the
+  1a25f91 10kb rung: bpf 116538 vs client 65926, 176.8%), so
+  _PY_DL_CLIENT gains the idle mode (read until the flow goes idle
+  0.5s — the policer's own bucket-empty proof — with the window as
+  the hard cap) and every drain rides it, restoring the lts-6
+  same-span accounting contract by construction. Engines green
+  rootlessly: ammsp 10/10, v1 31/31, v2 10/10; check-all and
+  gate-keepers 22/22 locally; the idle branch verified against a
+  blasting server (cap bounds, no hang) and a silent one (exits on
+  the flow's own silence, 0.53s against a 30s cap).
 - **repo: NIGHT-dinner-27 — the install family finds its home:
   scripts/install.sh and scripts/uninstall.sh move to
   scripts/package/** (the repo-root script clutter retired, the
