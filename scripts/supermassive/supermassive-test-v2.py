@@ -1497,7 +1497,11 @@ def test_bypass_audit():
         try:
             doc = json.loads(stdout)
         except ValueError as e:
-            record("bypass: depth JSON", "FAIL", f"unparseable: {e}")
+            # codespell's dictionary owns this spelling: "unparsable"
+            # is the form the gatekeeper accepts (its sibling form is
+            # on the never-auto-fixed list, so the word follows the
+            # gate — boring and silent).
+            record("bypass: depth JSON", "FAIL", f"unparsable: {e}")
             return None
         audit = doc.get("bypass") or {}
         return audit.get("verdict")
