@@ -176,15 +176,15 @@ pub(super) fn drr_flow(
 /// contention the try_consume retries absorb).
 #[inline(always)]
 fn try_draw(pol: &Policy, pool: &mut Bucket, leaf: &mut Bucket, now: u64) -> bool {
-    let next_eligible = unsafe { core::ptr::addr_of!(leaf.last_refill_ns).read_volatile() };
-    // The paced admission (charger-core-1c's fairness key): the stamp
-    // holds this leaf's next-eligible time — a full quantum stocks it
-    // for a window, a residual trickle costs a trickle of waiting, and
-    // the starved regime's refills flow to whichever leaf is empty.
-    if !drr::draw_admitted(now, next_eligible) {
+    let last_draw = unsafe { core::ptr::addr_of!(leaf.last_refill_ns).read_volatile() };
+    // The draw admission + lock: the stamp is the last draw time —
+    // one drawer per leaf per timestamp (NOT pacing: the CI daemon
+    // row proved paced draws TCP-hostile; the fairness work belongs
+    // to the residue law and the holding cap alone).
+    if !drr::draw_admitted(now, last_draw) {
         return false;
     }
-    if !draw_stamp_take(leaf, next_eligible, now) {
+    if !draw_stamp_take(leaf, last_draw, now) {
         return false;
     }
 
@@ -201,13 +201,6 @@ fn try_draw(pol: &Policy, pool: &mut Bucket, leaf: &mut Bucket, now: u64) -> boo
                 // The pool paid; the credit rides the atomic add —
                 // the pair can only under-deliver, never over-deliver.
                 let _ = tokens_fetch_add(leaf, d);
-                // The proportional stamp: a full quantum costs the
-                // window (the stockpile cap), a trickle costs a
-                // trickle (the starved leaf keeps collecting the
-                // refills as they land). The stamp is locked at
-                // `now` — this holder is its only writer.
-                let next = now.saturating_add(drr::draw_wait(d, quantum));
-                let _ = draw_stamp_take(leaf, now, next);
                 return true;
             }
         };
@@ -221,6 +214,6 @@ fn try_draw(pol: &Policy, pool: &mut Bucket, leaf: &mut Bucket, now: u64) -> boo
     // waits out its window). The rollback is safe because the stamp
     // is locked at `now` — no other drawer can be admitted against
     // it, so the only writer is this one.
-    let _ = draw_stamp_take(leaf, now, next_eligible);
+    let _ = draw_stamp_take(leaf, now, last_draw);
     false
 }

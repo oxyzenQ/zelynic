@@ -27,11 +27,17 @@
 // that spends only tokens it DREW from the pool, in quanta:
 //
 //   * a packet is admitted from the LEAF's bucket, never the pool;
-//   * an empty leaf draws min(quantum, pool) — one drawer per leaf
-//     per timestamp (the window-ownership trick, applied to draws);
+//   * an empty leaf draws min(quantum, HALF the pool) — the residue
+//     law below — under a one-drawer-per-timestamp lock (the
+//     window-ownership trick, applied to draws);
 //   * the draw is a bounded CAS sequence — a lost race retries
 //     against a fresh read, and a lost pool draw DROPS (the safe
 //     verdict), never over-allows;
+//   * the stamp is a DRAW LOCK, not pacing — paced draws (a quantum
+//     per window) proved TCP-hostile on the CI daemon row (the
+//     silent windows read as congestion and collapse the flow to
+//     46% of configured), so the anti-hog cap is the holding bound
+//     alone and a leaf re-draws the moment it empties;
 //   * the pool never hands out what it does not have, so the
 //     subtree's aggregate stays exactly the policy it had — DRR
 //     redistributes the budget, it cannot create one.
@@ -84,19 +90,18 @@ pub const DRR_WINDOW_MS: u64 = 100;
 /// clock (ktime) measures the spacing.
 pub const DRR_WINDOW_NS: u64 = DRR_WINDOW_MS * 1_000_000;
 
-/// The paced admission (pure): the leaf's stamp holds its
-/// NEXT-ELIGIBLE time (the last draw's time plus that draw's
-/// proportional wait, [`draw_wait`]) — a leaf may draw when the
-/// clock reaches it. The pacing is what keeps the starved regime
-/// fair: a full quantum stocks a leaf for a window (the anti-hog
-/// cap) while a residual trickle costs a trickle of waiting (the
-/// starved leaf keeps collecting the refills as they land), so a
-/// single active leaf still converges to the whole budget (the
-/// pool's equilibrium sits at twice the refill step, where half
-/// equals its full consumption) and interleaved leaves split it.
+/// The draw admission (pure): the leaf's stamp holds its last draw
+/// time — a reached-or-later clock admits. The stamp is the DRAW LOCK
+/// (one drawer per leaf per timestamp, the window-ownership trick),
+/// not a pacing mechanism: the CI daemon row proved paced draws hurt
+/// TCP (a quantum staircase with silent windows reads as congestion
+/// and collapses the flow — 46% of configured on the leg that
+/// caught it), so the fairness work belongs to the residue law and
+/// the holding cap alone, and a leaf re-draws the moment it empties
+/// (the single-flow shape stays the legacy trickle).
 #[inline(always)]
-pub const fn draw_admitted(now: u64, next_eligible: u64) -> bool {
-    now >= next_eligible
+pub const fn draw_admitted(now: u64, last_draw: u64) -> bool {
+    now >= last_draw
 }
 
 /// The per-draw quantum for a policy: the window's share of the
@@ -134,22 +139,6 @@ pub const fn draw_size(quantum: u64, pool_tokens: u64) -> u64 {
         quantum
     } else {
         pool_half
-    }
-}
-
-/// The proportional pacing (the stockpile bound's clock): a draw of
-/// `d` tokens costs `d / quantum` of a fair-share window of waiting
-/// — a full quantum stocks a leaf for a full window (the anti-hog
-/// cap), a residual trickle costs a trickle of waiting (the starved
-/// leaf retries essentially every packet, collecting the refills as
-/// they land). Saturating throughout; `quantum` is never zero (the
-/// GSO floor).
-#[inline(always)]
-pub const fn draw_wait(drawn: u64, quantum: u64) -> u64 {
-    if drawn >= quantum {
-        DRR_WINDOW_NS
-    } else {
-        DRR_WINDOW_NS * drawn / quantum
     }
 }
 
