@@ -4,7 +4,7 @@
 #
 # Install/uninstall flow depth test (NIGHT-blade-8).
 #
-# Runs the REAL scripts/install.sh and scripts/uninstall.sh end to
+# Runs the REAL scripts/package/install.sh and scripts/package/uninstall.sh end to
 # end as root — the exact privilege shape of a fresh server, a
 # container, or the zelynic sandbox micro-VM (where NO sudo binary
 # exists on PATH; the escalation fix is part of what this pins) —
@@ -103,7 +103,7 @@ trap cleanup EXIT
 
 # Stage the release-payload shape: install.sh + uninstall.sh + the
 # binary beside them (the pre-built mode's contract).
-cp "${REPO_ROOT}/scripts/install.sh" "${REPO_ROOT}/scripts/uninstall.sh" "${STAGE}/"
+cp "${REPO_ROOT}/scripts/package/install.sh" "${REPO_ROOT}/scripts/package/uninstall.sh" "${STAGE}/"
 cp "${BINARY}" "${STAGE}/zelynic"
 
 echo "── install/uninstall flow depth test (root, $(uname -r)) ──"

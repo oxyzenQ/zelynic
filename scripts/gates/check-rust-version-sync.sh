@@ -21,8 +21,8 @@
 #      == every `toolchain: nightly-*` install in the workflows
 #      == build.rs's EBPF_TOOLCHAIN const (what build.rs actually
 #         invokes for the nested build)
-#      == scripts/install.sh's EBPF_TOOLCHAIN (the from-source path)
-#      == scripts/uninstall.sh's uninstall hint (the cleanup path)
+#      == scripts/package/install.sh's EBPF_TOOLCHAIN (the from-source path)
+#      == scripts/package/uninstall.sh's uninstall hint (the cleanup path)
 #
 # Fails if any source disagrees with the others. The write counterpart is
 # `scripts/dev/rust-version-to.sh` (the owner-facing bumper, stable family).
@@ -154,25 +154,25 @@ if [ -f "$EBPF_TOOLCHAIN_FILE" ]; then
 			FAILED=$((FAILED + 1))
 		fi
 
-		# 4c. scripts/install.sh — the from-source install path.
-		if grep -q '^EBPF_TOOLCHAIN=' scripts/install.sh; then
-			INSTALL_TOOLCHAIN=$(grep '^EBPF_TOOLCHAIN=' scripts/install.sh | sed 's/EBPF_TOOLCHAIN= *"\(.*\)".*/\1/')
+		# 4c. scripts/package/install.sh — the from-source install path.
+		if grep -q '^EBPF_TOOLCHAIN=' scripts/package/install.sh; then
+			INSTALL_TOOLCHAIN=$(grep '^EBPF_TOOLCHAIN=' scripts/package/install.sh | sed 's/EBPF_TOOLCHAIN= *"\(.*\)".*/\1/')
 			if [ "$INSTALL_TOOLCHAIN" != "$EBPF_NIGHTLY" ]; then
-				echo "FAIL: scripts/install.sh EBPF_TOOLCHAIN = \"$INSTALL_TOOLCHAIN\" — expected \"$EBPF_NIGHTLY\""
+				echo "FAIL: scripts/package/install.sh EBPF_TOOLCHAIN = \"$INSTALL_TOOLCHAIN\" — expected \"$EBPF_NIGHTLY\""
 				FAILED=$((FAILED + 1))
 			else
-				echo "OK: scripts/install.sh EBPF_TOOLCHAIN = \"$INSTALL_TOOLCHAIN\""
+				echo "OK: scripts/package/install.sh EBPF_TOOLCHAIN = \"$INSTALL_TOOLCHAIN\""
 			fi
 		else
-			echo "FAIL: scripts/install.sh EBPF_TOOLCHAIN not found (renamed?)"
+			echo "FAIL: scripts/package/install.sh EBPF_TOOLCHAIN not found (renamed?)"
 			FAILED=$((FAILED + 1))
 		fi
 
-		# 4d. scripts/uninstall.sh — the cleanup hint names the pin.
-		if grep -q "rustup toolchain uninstall $EBPF_NIGHTLY" scripts/uninstall.sh; then
-			echo "OK: scripts/uninstall.sh hints the pinned nightly"
+		# 4d. scripts/package/uninstall.sh — the cleanup hint names the pin.
+		if grep -q "rustup toolchain uninstall $EBPF_NIGHTLY" scripts/package/uninstall.sh; then
+			echo "OK: scripts/package/uninstall.sh hints the pinned nightly"
 		else
-			echo "FAIL: scripts/uninstall.sh does not name $EBPF_NIGHTLY in its uninstall hint"
+			echo "FAIL: scripts/package/uninstall.sh does not name $EBPF_NIGHTLY in its uninstall hint"
 			FAILED=$((FAILED + 1))
 		fi
 	fi
@@ -188,7 +188,7 @@ if [ "$FAILED" -gt 0 ]; then
 	echo "To fix (stable family): ./scripts/dev/rust-version-to.sh <X.Y.Z>"
 	echo "To fix (eBPF nightly family): bump ebpf/rust-toolchain.toml AND every"
 	echo "duplicate site together — the workflows' toolchain: pins, build.rs's"
-	echo "EBPF_TOOLCHAIN const, scripts/install.sh, scripts/uninstall.sh."
+	echo "EBPF_TOOLCHAIN const, scripts/package/install.sh, scripts/package/uninstall.sh."
 	exit 1
 else
 	echo "OK: all Rust version sources in sync (stable family + eBPF nightly family)"

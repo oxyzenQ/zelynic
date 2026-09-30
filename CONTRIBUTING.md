@@ -138,12 +138,15 @@ scripts/
                 run before every commit; the first run self-installs
                 .githooks/pre-commit — the commit-time prebuilt
                 gate, NIGHT-dinner-1)
-  install.sh           — user-space build, root-escalated install
+  package/            — the install family (NIGHT-dinner-27:
+                scripts/install.sh + uninstall.sh moved here, the
+                repo-root clutter retired)
+    install.sh       — user-space build, root-escalated install
+    uninstall.sh     — the install's exact inverse
   setup.sh             — the lazy one-command pipeline (NIGHT-improve-18:
                 bootstrap + pro-native-gnu build, --musl twin opt-in,
                 rootless self-test, the sudo supermassive matrix, then
                 a next-steps menu; every phase idempotent)
-  uninstall.sh         — the install's exact inverse
 
   bench/               — measurement harnesses
     benchmarking.sh    — CPU/memory overhead measurement (wraps
@@ -398,7 +401,8 @@ bytes). The toolchain contract covers BOTH pin families: the
 stable toolchain via RUST_VERSION (checked by
 check-rust-version-sync.sh) and the dated eBPF nightly across all
 nine of its sites — the workflow installs, build.rs's
-EBPF_TOOLCHAIN const, install.sh, uninstall.sh, and
+EBPF_TOOLCHAIN const, scripts/package/install.sh,
+scripts/package/uninstall.sh, and
 ebpf/rust-toolchain.toml as the authority (a half-bumped pin means
 CI installs one nightly while build.rs invokes another). The
 signing contract confines the GPG passphrase to the two steps that
