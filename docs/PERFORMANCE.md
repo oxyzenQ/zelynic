@@ -296,6 +296,38 @@ attach/detach — the same verifier cost the live monitor pays on
 open — and its /proc work is the connection census the report
 already ran, refreshed once more at window close.
 
+### NIGHT-upgrade-charger-core-1-c A/B (the fair-shared bucket, 2026-09-30)
+
+The charger-core-1-c pass is kernel-datapath work: the DRR lane
+(ebpf/src/drr.rs + drr_flow.rs + the try_enforce wiring) changes
+what the LIMITER object enforces per packet, never anything the
+live monitor's frame loop renders — the frame A/B is the proof
+(A = c62c18f, the charger-core-1-b rider tree; B = 75e0f3f, the
+charger-core-1-c tree; single runs, 10 s budget, the standard
+harness protocol).
+
+| Metric | c62c18f (A) | 75e0f3f (B) | Delta |
+|--------|-------------|-------------|-------|
+| fps (render path) | 7,588.1 | 7,626.1 | +0.5% (machine noise) |
+| bytes/frame | 1,919.0 | 1,919.0 | +0.0% |
+| emit bytes/frame | 506.5 | 505.8 | -0.1% |
+| density gini | 0.3559 | 0.3561 | +0.1% |
+| frame entropy | 3.0036 | 3.0034 | -0.0% |
+| dirty cells/frame | 39.8 | 39.7 | -0.1% |
+
+Reading: PARITY — bytes/frame identical to the decimal, every other
+delta inside the harness's run-to-run noise class. The DRR lane's own
+cost is per POLICED packet (the unlimited majority never reaches it —
+the fast path's two lookups are unchanged, the memo still answers
+before any walk): one LRU leaf lookup, the generation stamp read, and
+on an empty leaf a stamp CAS plus at most two pool CAS attempts —
+bounded straight-line work inside the verifier budget, measured by
+the limiter object's growth (9920 -> 15176 bytes, ~52% more
+instructions for the whole enforcement path, of which the DRR lane
+is the additions and the shared refill extraction is neutral). The
+live-root proof of the lane is the CI supermassive battery's job
+(the four low/best x gnu/musl legs run it on every push).
+
 ### NIGHT-upgrade-charger-core-1-b A/B (the self-proving enforcement, 2026-09-30)
 
 The charger-core-1-b pass is command-path work: the enforcement
