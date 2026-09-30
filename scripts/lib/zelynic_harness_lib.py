@@ -104,6 +104,42 @@ def default_burst(rate_bps):
     return min(max(rate_bps, DEFAULT_BURST_FLOOR), DEFAULT_BURST_CAP)
 
 
+def drain_cushion(probe, cushion, attempts=3, window=0.5):
+    """Pay out a fresh bucket's burst cushion before measuring it.
+
+    A freshly attached bucket starts FULL (one default_burst of
+    tokens), so a measured window that starts right after an apply
+    reads cushion + entitlement — at the trickle rungs that is a
+    BAND_HI fail that is attach physics, not enforcement, and at a
+    nested-root probe it straddles the band edge (128..133% at 50kb).
+    The approved warm-up pattern pays the cushion out at line rate:
+    loopback moves it in microseconds once the flow is up.
+
+    A SINGLE short probe is one sample on a noisy runner, though —
+    the 0b0a8f5 best-gnu lesson: the 1kb rung measured 3.0 KB/s
+    (299.3% of configured) because the drain's worker never got its
+    flow up inside the 0.5s window (spawn stall or a hiccup on the
+    shared runner), read a silent zero, and left the cushion to leak
+    into the measured windows. So the drain retries until the cushion
+    is PROVABLY paid — cumulative probe bytes >= cushion — or the
+    attempt bound runs out: a warm probe moves gigabytes against a
+    cushion of at most kilobytes-to-megabytes, so the loop exits on
+    the first healthy call; only a stalled one iterates, and a
+    provably-empty bucket costs at most attempts-1 extra windows.
+
+    `probe(window_s) -> bytes` is any single-flow download callable
+    whose traffic lands inside the bucket being drained (py_download
+    with the target cgroup, leaf_bytes with the leaf path).
+    """
+    drained = 0
+    for _ in range(attempts):
+        chunk = probe(window)
+        drained += chunk or 0
+        if drained >= cushion:
+            break
+    return drained
+
+
 # NIGHT-dinner-13: per-skb accounting headroom for ledger-budget verdicts —
 # loopback hands the hooks 64 KiB GSO skbs, so the last in-flight skb can
 # carry up to one skb past the byte-exact budget (the same 2% curl burst
