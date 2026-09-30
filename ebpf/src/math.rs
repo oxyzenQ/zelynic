@@ -138,13 +138,37 @@ fn rmw_view<'a>(p: *mut u64) -> &'a AtomicU64 {
 /// in src/ebpf/limiter/types.rs (layout contract). group_id == 0 means
 /// "individual" (use cgroup bucket); group_id != 0 means "shared
 /// group" (use the group bucket keyed by group_id).
+///
+/// `flags` (charger-core-3b, schema v15) occupies the four bytes of
+/// padding the v2 layout always carried at offset 20 — the struct
+/// stays exactly 24 bytes, so the size pin below is unchanged, but a
+/// field that used to be unspecified padding is now CONTRACT: bit 0
+/// is `POLICY_FLAG_PER_SOCKET`. Every userspace write sets it
+/// explicitly (never trusts inherited padding), and the schema bump
+/// wipes pinned maps once (the one-time re-apply contract), so no
+/// pre-v15 entry can leak a garbage bit into the new lane.
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct Policy {
     pub rate_bps: u64,
     pub burst_bytes: u64,
     pub group_id: u32,
+    pub flags: u32,
 }
+
+/// Policy flag bit 0 (charger-core-3b): enforce per SOCKET, not per
+/// cgroup — the lane for one process with many sockets (a server:
+/// every connection gets its own bucket at the policy rate; the
+/// cgroup total is bounded by rate x concurrent sockets, not by
+/// rate). Rides the individual lane only; a policy carrying both a
+/// group_id and this bit is never written by userspace, and the
+/// datapath honors the flag first (the explicit newer intent).
+// allow(dead_code): the userspace test tree compiles this file
+// without the datapath that reads the bit (its mirror lives in
+// types.rs, pinned there); the BPF object's try_enforce is the
+// reader — the rate_ring.rs module-level twin of this rationale.
+#[allow(dead_code)]
+pub const POLICY_FLAG_PER_SOCKET: u32 = 1 << 0;
 
 /// The BPF-side token-bucket layout, schema v2 (userspace mirror:
 /// `BucketRaw` in src/ebpf/limiter/types.rs — the layout contract).

@@ -46,6 +46,7 @@ fn pol(rate: u64, burst: u64) -> Policy {
         rate_bps: rate,
         burst_bytes: burst,
         group_id: 0,
+        flags: 0,
     }
 }
 

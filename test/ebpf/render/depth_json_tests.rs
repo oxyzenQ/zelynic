@@ -21,6 +21,7 @@ fn policy(rate_bps: u64) -> Option<PolicyRaw> {
         rate_bps,
         burst_bytes: rate_bps,
         group_id: 0,
+        flags: 0,
     })
 }
 

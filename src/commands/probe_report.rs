@@ -42,8 +42,13 @@ pub(crate) fn report_lines(outcome: &ProbeOutcome) -> Vec<String> {
             outcome.window_secs
         ),
         format!(
-            "    direction:  {direction} (limit {})",
-            format_rate(outcome.rate_bps)
+            "    direction:  {direction} (limit {}{})",
+            format_rate(outcome.rate_bps),
+            if outcome.per_socket {
+                " per socket"
+            } else {
+                ""
+            }
         ),
         format!(
             "    measured:   {} vs {} target",

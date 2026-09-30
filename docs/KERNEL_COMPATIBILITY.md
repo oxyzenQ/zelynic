@@ -9,7 +9,7 @@
 
 | Component | Minimum | Recommended | Why |
 |-----------|---------|-------------|-----|
-| **Kernel** | 5.13+ | 6.6 LTS+ | `bpf_skb_cgroup_id()` (4.18+), `bpf_skb_ancestor_cgroup_id()` (present in the 5.13 floor, exposed to cgroup_skb via `cg_skb_func_proto` — the AMMSP walk's helper, verified against v5.13 and master source, NIGHT-private-research-2), `bpf_link` (5.7+) — 5.13 is the oldest kernel in the verified matrix. The observer's events ringbuf (previously the 5.8+ floor item) is gone since NIGHT-boost-34 — see the 6.8 helper wall below |
+| **Kernel** | 5.13+ | 6.6 LTS+ | `bpf_skb_cgroup_id()` (4.18+), `bpf_skb_ancestor_cgroup_id()` (present in the 5.13 floor, exposed to cgroup_skb via `cg_skb_func_proto` — the AMMSP walk's helper, verified against v5.13 and master source, NIGHT-private-research-2), `bpf_get_socket_cookie()` (cgroup_skb-legal across the whole verified matrix — the observer's per-endpoint join since NIGHT-boost-26; the LIMITER joined it at charger-core-3b for the `--per-socket` lane, so both objects ride the same proven helper), `bpf_link` (5.7+) — 5.13 is the oldest kernel in the verified matrix. The observer's events ringbuf (previously the 5.8+ floor item) is gone since NIGHT-boost-34 — see the 6.8 helper wall below |
 | **cgroup** | v2 only | v2 only | zelynic uses `cgroup_skb/egress` + `ingress` hooks |
 | **BPF fs** | Mounted at `/sys/fs/bpf` | Mounted | Required for map + link pinning (fire-and-forget mode) |
 | **Root** | Required | Required | BPF program load + attach requires `CAP_BPF` or root |

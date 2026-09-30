@@ -160,3 +160,33 @@ fn gate_keeps_the_proven_honest_tip() {
         "the honest tip must survive the gate"
     );
 }
+
+// ── charger-core-3b: the --per-socket flag's parse contract ───────
+
+/// The flag parses on strict-single (and its strict/ss aliases —
+/// they are the same command) and lands as per_socket: true; other
+/// verbs do not know the flag (clap rejects it with the unknown-
+/// argument error), so the lane cannot be requested where it does
+/// not ride.
+#[test]
+fn per_socket_flag_parses_on_strict_single_only() {
+    use crate::cli::Cli;
+
+    for verb in ["strict-single", "strict", "ss"] {
+        let cli = Cli::try_parse_from(["zelynic", verb, "nginx", "500kb", "--per-socket"])
+            .unwrap_or_else(|e| panic!("{verb} must parse --per-socket: {e}"));
+        match cli.command {
+            Some(crate::cli::Commands::StrictSingle { per_socket, .. }) => {
+                assert!(per_socket, "{verb} must carry per_socket: true");
+            }
+            other => panic!("{verb} must route to StrictSingle, got: {other:?}"),
+        }
+    }
+
+    let err = Cli::try_parse_from(["zelynic", "strict-multi", "a:b", "1mb", "--per-socket"])
+        .expect_err("strict-multi must reject --per-socket");
+    assert!(
+        err.to_string().contains("unexpected argument"),
+        "the rejection is clap's unknown-argument error, got: {err}"
+    );
+}

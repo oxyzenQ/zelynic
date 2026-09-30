@@ -15,6 +15,7 @@ pub mod bypass;
 pub mod connections;
 #[cfg(feature = "ebpf")]
 pub mod display;
+pub mod display_json;
 #[cfg(feature = "ebpf")]
 pub mod embedded;
 #[cfg(feature = "ebpf")]

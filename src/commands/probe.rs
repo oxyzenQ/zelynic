@@ -9,23 +9,23 @@
 //! prints is earned, not asserted (no other rate limiter verifies its
 //! own enforcement; they all print "applied" and hope).
 //!
-//! Shape: a fresh child cgroup under the target (the subtree contract
-//! covers it by construction — the same lane the supermassive CI
-//! battery proves), one sacrificial client inside it, one blast server
-//! OUTSIDE every policed subtree (a transient root-level cgroup), a
+//! Shape: a fresh child cgroup under the target (the subtree
+//! contract covers it by construction — the supermassive CI lane),
+//! one sacrificial client inside it, one blast server OUTSIDE every
+//! policed subtree (a transient root-level cgroup), a
 //! fixed 3s window over loopback, and verdict bands derived from the
 //! same physics the CI harness uses (BAND_HI 1.30's family). The
 //! kernel's own ledger brackets the window as the cross-check; the
 //! client's bytes are the measured truth.
 //!
 //! Honesty contracts: the probe is ONE-SIDED by nature (enforcement
-//! can only under-deliver the budget, never over-deliver it — a flow inside
-//! the ceiling is VERIFIED, above it is FAILED, never happened is UNVERIFIED); the child's
-//! residency in the target subtree is verified from /proc BEFORE the window
-//! opens (an unentered probe measures an unlimited path — a false FAILED); the
-//! server lives outside every policy for the window (zelynic's own chain
-//! is checked against BOTH policy maps — a capped server under-measures); teardown
-//! is best-effort and never fails the verdict (kill, reap, rmdir — no residue).
+//! can only under-deliver the budget — inside the ceiling VERIFIED,
+//! above FAILED, never-happened UNVERIFIED); the child's residency
+//! in the target subtree is verified from /proc BEFORE the window
+//! opens (an unentered probe measures an unlimited path); the
+//! server lives outside every policy for the window (checked
+//! against BOTH policy maps); teardown is best-effort and never
+//! fails the verdict.
 
 use anyhow::{anyhow, bail, Context, Result};
 use std::io::{BufRead, BufReader};
@@ -40,9 +40,8 @@ use crate::ebpf::limiter::{default_burst, Direction, Limiter, LimiterStatsRaw, R
 use super::eagle::resolve_name;
 
 /// The verdict ceiling: the client may exceed the exact budget by
-/// 5% plus one GSO super-packet (in-flight and accounting slack);
-/// anything above is FAILED — a working bucket mathematically cannot
-/// admit more (tokens cap at burst, refill caps at rate x window).
+/// 5% plus one GSO super-packet (in-flight/accounting slack); above
+/// is FAILED — a bucket cannot admit more than burst + rate x window.
 const CEILING_SLACK_PERCENT: u64 = 5;
 const CEILING_SLACK_BYTES: u64 = 65_536;
 
@@ -52,11 +51,10 @@ const CEILING_SLACK_BYTES: u64 = 65_536;
 /// vacuous pass.
 const FLOW_FLOOR_NUM_PERCENT: u64 = 20;
 
-/// The measured window (seconds). Long enough that the refill term
-/// dominates the burst (3s at 100kb = 300 KB of refill against the
-/// 64 KiB cushion), short enough that the whole probe — entry,
-/// window, teardown — stays under five seconds of an interactive
-/// command's time.
+/// The measured window (seconds): long enough that the refill term
+/// dominates the burst (3s at 100kb = 300 KB refill vs the 64 KiB
+/// cushion), short enough that the whole probe stays under five
+/// seconds of an interactive command.
 pub const PROBE_SECS: u64 = 3;
 
 // ── The verdict (pure, unit-pinned) ─────────────────────────────────
@@ -113,12 +111,15 @@ pub struct ProbeOutcome {
     pub window_secs: u64,
     /// The client's own transferred bytes — the measured truth.
     pub client_bytes: u64,
-    /// The ledger's bytes_allowed delta over the window (the kernel's
-    /// own count, target traffic included — the cross-check row).
+    /// The ledger's bytes_allowed delta over the window (the
+    /// kernel's count, target traffic included — the cross-check).
     pub ledger_bytes: u64,
     /// Why an UNVERIFIED probe could not measure, or the concurrent
     /// note when the target fed itself during the window.
     pub note: Option<String>,
+    /// charger-core-3b: the measured limit is per SOCKET — the
+    /// report names the budget kind, never as the cgroup cap.
+    pub per_socket: bool,
 }
 
 // ── The orchestrator ────────────────────────────────────────────────
@@ -193,9 +194,8 @@ fn our_chain_is_clean(limiter: &Limiter) -> bool {
     let Ok(text) = std::fs::read_to_string("/proc/self/cgroup") else {
         return false;
     };
-    // Each ancestor's cgroup id is the dir's inode (kernfs: st_ino);
-    // check every one against both policy maps. A failed read is
-    // "not clean" — never a guess.
+    // Each ancestor's cgroup id is the dir's inode (kernfs); check
+    // every one against both policy maps. A failed read is "not // clean" — never a guess.
     let dir_clean = |path: &Path| match std::fs::metadata(path) {
         Ok(meta) => {
             let id = u32::try_from(meta.ino()).unwrap_or(0);
@@ -222,13 +222,13 @@ fn our_chain_is_clean(limiter: &Limiter) -> bool {
 }
 
 /// Run the enforcement probe for one freshly applied target (the
-/// orchestrator; see the module header for the shape and the honesty
-/// contracts). Never panics on foreign tree shapes — every failure
-/// lane degrades to the UNVERIFIED verdict with its reason.
+/// orchestrator; module header for the shape). Never panics on
+/// foreign tree shapes — every failure lane degrades to UNVERIFIED.
 pub(crate) fn run_enforcement_probe(
     limiter: &Limiter,
     target: &Target,
     rates: &RateSpec,
+    per_socket: bool,
 ) -> ProbeOutcome {
     let unverified = |note: String| ProbeOutcome {
         verdict: ProbeVerdict::Unverified,
@@ -238,13 +238,13 @@ pub(crate) fn run_enforcement_probe(
         window_secs: PROBE_SECS,
         client_bytes: 0,
         ledger_bytes: 0,
+        per_socket,
         note: Some(note),
     };
 
-    // Direction: download preferred (the common limit), upload when only
-    // that side is policed. A blocked (rate-0) policy needs no probe —
-    // the drop ledger IS the verdict (zero goodput is ambiguous with a
-    // dead probe by design).
+    // Direction: download preferred (the common limit), upload when
+    // only that side is policed. A blocked (rate-0) policy needs no
+    // probe — the drop ledger IS the verdict.
     let (direction, rate_bps) = match (rates.download, rates.upload) {
         (Some(0), _) | (_, Some(0)) => {
             return unverified(
@@ -264,8 +264,7 @@ pub(crate) fn run_enforcement_probe(
     let burst = default_burst(rate_bps);
 
     // The target: first resolved cgroup id + its path (the probe
-    // child nests under it — the subtree the policy just covered).
-    // Container targets re-resolve through the container resolver —
+    // child nests under it). Container targets re-resolve through
     // the same lane the apply used.
     let ids = match target {
         Target::CgroupId(id) => vec![*id],
@@ -281,8 +280,8 @@ pub(crate) fn run_enforcement_probe(
         return unverified("target cgroup path unresolvable (its processes exited?)".to_string());
     };
 
-    // The server's home: a transient root-level cgroup, outside every
-    // policed subtree. Refused -> zelynic's own chain, checked clean.
+    // The server's home: a transient root-level cgroup, outside
+    // every policed subtree; refused -> own chain, checked clean.
     let srv_dir = PathBuf::from("/sys/fs/cgroup").join(probe_cgroup_name("srv"));
     let srv_placed = mkdir_quiet(&srv_dir);
     if !srv_placed && !our_chain_is_clean(limiter) {
@@ -319,8 +318,8 @@ pub(crate) fn run_enforcement_probe(
         }
     };
 
-    // The client's home: a fresh child UNDER the target — the subtree
-    // contract covers it by construction (the CI battery's own lane).
+    // The client's home: a fresh child UNDER the target — the
+    // subtree contract covers it by construction.
     let client_dir = PathBuf::from("/sys/fs/cgroup")
         .join(rel_path.trim_start_matches('/'))
         .join(probe_cgroup_name("cl"));
@@ -383,6 +382,7 @@ pub(crate) fn run_enforcement_probe(
                 client_bytes,
                 ledger_bytes: 0,
                 note: Some(format!("ledger close read failed: {e}")),
+                per_socket,
             };
         }
     };
@@ -395,11 +395,11 @@ pub(crate) fn run_enforcement_probe(
         client_bytes,
         ledger_bytes: ledger_delta,
         note: None,
+        per_socket,
     };
     // The concurrent-traffic note: the ledger counts the target's
-    // OWN traffic too; a ledger far above the client's bytes means
-    // the window was shared (the probe still valid — the client's
-    // ceiling is its own — but the reader deserves the context).
+    // OWN traffic too; a ledger far above the client's bytes means a
+    // shared window (still valid — the ceiling is the client's own).
     let gap = ledger_delta.saturating_sub(client_bytes);
     if gap > client_bytes.saturating_mul(3) / 2 + CEILING_SLACK_BYTES {
         outcome.note = Some(

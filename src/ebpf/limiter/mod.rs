@@ -30,7 +30,7 @@ pub mod rate_ring;
 mod reclaim;
 mod schema;
 mod stats;
-mod types;
+pub mod types;
 
 // NIGHT-depthbore-1: ebpf/src/math.rs — the same file the BPF object
 // builds — #[path]-wired here, pinned by test/ebpf/limiter/math_tests.rs.
@@ -215,8 +215,8 @@ impl Limiter {
         }
 
         // NIGHT-hunt-28: preflight the pin filesystem BEFORE any pin
-        // attempt. The limiter pins every map it declares by name (fifteen
-        // since the rings), and a /sys/fs/bpf that is not a mounted bpffs
+        // attempt. The limiter pins every map it declares by name (seventeen
+        // since the rings + socket buckets), and a /sys/fs/bpf that is not a mounted bpffs
         // (the kernel always creates the directory; some distros never
         // mount bpffs on it) turns every BPF_OBJ_PIN into EINVAL deep
         // inside EbpfLoader::load — a generic "Failed to load BPF
