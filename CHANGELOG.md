@@ -19,6 +19,55 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Added
 
+- **the rider E close and the rider F hunt — the brutal CI red of the
+  1c push, both halves: the deterministic blocker fixed at its missed
+  call site, and the one flaky leg's physics found, verified, and
+  given one-sided patience (the ff8e73dc/bafc4ac find).** Rider E:
+  rider C's toggle fix converted v1's apply_single and set the
+  lib-level PROBE_FLAG_SUPPORTED but missed the ammsp-vs-legacy
+  nested-root row's direct run_side_binary call site — the legacy
+  v11.0.0 side exited 2 on the unknown --no-probe flag and every one
+  of the four supermassive legs went red on the A/B probe (the
+  audit doc claimed both call sites fixed; the claim was stale at
+  its own push, gate-keepers also failed on that doc's missing SPDX
+  header and disclaimer — both closed in the same rider). The argv
+  now rides the side-aware builder nested_apply_argv, a single
+  shape pinned in the engine self-test (the current side carries
+  the flag, the legacy side never sees it, a future call site
+  cannot regress it silently). Rider F: the one leg that failed
+  beyond the A/B — v1's grandchild nearest-root row reading 16.4
+  KB/s (32.8%) against the 50kb nested policy, exactly one 64 KiB
+  quantum in the 4s window. The hunt (verified by a rootless
+  simulation of the DRR primitives at the leg's exact numbers):
+  at 50kb the GSO admit floor binds — one super-packet per ~1.31s
+  of refill, three admits per 4s window at most — and the DRR
+  residue law's half-draws (min(quantum, pool/2), the fairness
+  law that keeps an interleaved sibling's share) stretch a LONE
+  leaf's quantum gather when TCP's retransmit cadence is sparse
+  (deep RTO backoff: each draw takes half the pooled balance, so
+  the leaf needs several arrivals to gather its 64 KiB; the
+  simulation reproduces the leg's exact one-quantum shape under
+  a 400ms-start backoff, reads 98.3% under dense recovery, and
+  the other three CI legs read in-band). The transient converges
+  over longer windows (the design's equilibrium holds — its
+  arrival-cadence assumption is the honest caveat now in
+  USAGE.md's fair-share contract and its honest-limitations
+  entry); the harness row's answer is the 0b0a8f5 drain
+  discipline applied to the measurement itself: the measured
+  window re-samples the under-band side only, bounded at three
+  (the steady state it means to measure), an over-band sample
+  stops immediately (a real over-delivery must never be retried
+  away — enforcement can only under-deliver a budget, the
+  probe's one-sidedness contract), three under-band samples FAIL
+  with every number attached (a systematically broken datapath
+  cannot pass by retry), and every sample rides the row's
+  detail. The decision is pinned in the engine self-test at the
+  CI leg's exact numbers (16.4 KB/s re-samples, 65.6%/98.3%
+  in-band stop, over-band stops). Engines green rootlessly: 32
+  v1 self-test rows (the new patience pin), 11 A/B self-test
+  rows (the new argv pin), 0 failed; no Rust surface touched —
+  the datapath is unchanged, the physics is a documented bound
+  now, not an open question.
 - **the fair-shared bucket — DRR inside AMMSP
   (NIGHT-upgrade-charger-core-1c, the TIER S ability): the shared
   subtree budget stops being first-come-first-served; a greedy
