@@ -140,7 +140,7 @@ if [ -f "$MANIFEST" ]; then
 	if [ -z "$want_tree" ]; then
 		fail "manifest carries no ebpf_tree_sha256 — regenerate with ./scripts/release/refresh-prebuilt.sh"
 	elif [ "$want_tree" != "$got_tree" ]; then
-		fail "ebpf/ changed after the prebuilt lane was generated (tree ${got_tree} vs manifest ${want_tree}) — run ./scripts/release/refresh-prebuilt.sh and commit ebpf-prebuilt/"
+		fail "ebpf/ changed after the prebuilt lane was generated (tree ${got_tree} vs manifest ${want_tree}) — run ./scripts/release/refresh-prebuilt.sh and commit ebpf-prebuilt/. A locally MODIFIED tracked file under ebpf/ trips this too (a local pro build rewriting ebpf/Cargo.lock is the known shape): git status -- ebpf/ shows the churn — restore it before refreshing, or the refresh pins the churn"
 	else
 		pass "prebuilt objects pin the live ebpf/ tree (${got_tree:0:12}...)"
 	fi
