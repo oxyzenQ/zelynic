@@ -11,15 +11,20 @@
 # /proc parsing, threaded traffic, precise timing).
 #
 # Usage:
-#   sudo ./scripts/supermassive/ammsp-vs-legacy-test.sh \
-#        --legacy-binary /path/to/v11.0.0/zelynic
+#   sudo ./scripts/supermassive/ammsp-vs-legacy-test.sh
+#        (the legacy v11.0.0 side AUTO-DOWNLOADS from the canonical
+#         release when no local candidate exists — sha512-sidecar-
+#         verified, cached under TMPDIR; --legacy-binary overrides
+#         everything)
 #   ./scripts/supermassive/ammsp-vs-legacy-test.sh --self-test   # engine smoke, no root
 #   ./scripts/supermassive/ammsp-vs-legacy-test.sh --json        # machine-readable
+#   ./scripts/supermassive/ammsp-vs-legacy-test.sh --no-download # offline: local paths only
 #
 # The legacy side resolves from --legacy-binary, $ZELYNIC_LEGACY_BINARY,
-# or /opt/zelynic/legacy/zelynic (the path the supermassive CI legs
-# stage it at). Without it the pair verdict SKIPs loudly — the proof
-# never runs one-sided. The canonical source:
+# /opt/zelynic/legacy/zelynic (the path the supermassive CI legs
+# stage it at), or the canonical auto-download — in that order. Without
+# any of them the pair verdict SKIPs loudly — the proof never runs
+# one-sided. The canonical source:
 #   https://github.com/oxyzenQ/zelynic/releases/download/v11.0.0/
 #     zelynic-v11.0.0-linux-amd64-v3-gnu.tar.gz
 #
