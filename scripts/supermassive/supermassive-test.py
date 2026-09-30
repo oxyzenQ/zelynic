@@ -980,7 +980,9 @@ def curl_in_cgroup(name, window):
 
 
 def apply_single(name, rate_str, exp_dl, exp_ul, extra=()):
-    rc, stdout, stderr = run_zel(["strict-single", str(CG.ids[name]), rate_str, *extra])
+    rc, stdout, stderr = run_zel(
+        ["strict-single", str(CG.ids[name]), rate_str, "--no-probe", *extra]
+    )
     if rc != 0:
         return False, f"strict-single exit {rc}: {(stderr or stdout).strip()[:200]}"
     entry = limit_entry(status_json(), CG.ids[name])
@@ -1428,7 +1430,7 @@ def stage_server_daemon_traffic():
         return False
     out()
     out("━━━ server depth: daemonized traffic under a limit ━━━")
-    rc, stdout, stderr = run_zel(["strict-single", str(FLEET.ids[1]), "1mb"])
+    rc, stdout, stderr = run_zel(["strict-single", str(FLEET.ids[1]), "1mb", "--no-probe"])
     if rc != 0:
         record(
             "server: daemon traffic policed (setsid, no ctty)",
@@ -1858,7 +1860,7 @@ def test_upload(window, baseline):
     """
     if baseline and baseline < 2e6:
         return record("upload (-u only): enforced", "SKIP", "baseline too low")
-    rc, stdout, stderr = run_zel(["strict-single", str(CG.ids["a"]), "-u", "1mb"])
+    rc, stdout, stderr = run_zel(["strict-single", str(CG.ids["a"]), "-u", "1mb", "--no-probe"])
     if rc != 0:
         return record(
             "upload (-u only): enforced", "FAIL", f"exit {rc}: {(stderr or stdout).strip()[:200]}"
@@ -1919,7 +1921,7 @@ def test_download_only(window, baseline):
     name = "download (-d only): enforced"
     if baseline and baseline < 1e6:
         return record(name, "SKIP", "baseline too low")
-    rc, stdout, stderr = run_zel(["strict-single", str(CG.ids["a"]), "-d", "500kb"])
+    rc, stdout, stderr = run_zel(["strict-single", str(CG.ids["a"]), "-d", "500kb", "--no-probe"])
     if rc != 0:
         return record(name, "FAIL", f"exit {rc}: {(stderr or stdout).strip()[:200]}")
     entry = limit_entry(status_json(), CG.ids["a"])
@@ -1972,7 +1974,9 @@ def test_asymmetric(window, baseline):
     name = "asymmetric (-d 100kb -u 1mb): both buckets enforced"
     if baseline and baseline < 2e6:
         return record(name, "SKIP", "baseline too low")
-    rc, stdout, stderr = run_zel(["strict-single", str(CG.ids["a"]), "-d", "100kb", "-u", "1mb"])
+    rc, stdout, stderr = run_zel(
+        ["strict-single", str(CG.ids["a"]), "-d", "100kb", "-u", "1mb", "--no-probe"]
+    )
     if rc != 0:
         return record(name, "FAIL", f"exit {rc}: {(stderr or stdout).strip()[:200]}")
     entry = limit_entry(status_json(), CG.ids["a"])
@@ -2745,7 +2749,7 @@ def test_ammsp_subtree(window, baseline):
         # Verdict 4 — nested roots: a 50kb policy on the sub cgroup
         # itself; a grandchild under it resolves to the NEAREST root.
         sub_id = os.stat(sub_path).st_ino
-        rc, stdout, stderr = run_zel(["strict-single", str(sub_id), "50kb"])
+        rc, stdout, stderr = run_zel(["strict-single", str(sub_id), "50kb", "--no-probe"])
         if rc != 0:
             record("ammsp: nested root apply", "FAIL", f"exit {rc}: {(stderr or stdout)[:120]}")
             passed = False

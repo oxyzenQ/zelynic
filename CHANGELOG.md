@@ -19,6 +19,72 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Added
 
+- **strict-single: the self-proving enforcement probe
+  (NIGHT-upgrade-charger-core-1-b, the TIER S ability) — "applied" is
+  a claim, "VERIFIED" is a measurement: after the apply lands,
+  strict-single generates REAL traffic through the subtree it just
+  policed and measures what the kernel let through, so the success
+  the command prints is earned, not asserted (no other rate limiter
+  verifies its own enforcement; they all print "applied" and hope).**
+  The shape: a fresh child cgroup born under the target (inside the
+  subtree the policy covers by construction — the same lane the
+  supermassive CI battery proves), one sacrificial client moving a
+  3s loopback window of real bytes, one blast server OUTSIDE every
+  policed subtree (a transient root-level cgroup; when the platform
+  refuses it, zelynic's own chain is checked against BOTH policy maps
+  before the fallback placement may run — a policed server would
+  under-measure every probe), and the kernel's own ledger bracketing
+  the window as the cross-check row. The verify block prints after
+  the success epilogue: direction and limit, the measured flow
+  against the target, the budget it was measured against (3s of
+  refill plus the burst), the kernel count, the verdict. The verdict
+  bands share the CI harness's physics (BAND_HI 1.30's family plus
+  in-flight slack): a working bucket mathematically cannot admit
+  more than burst + rate x window, so a flow inside that ceiling is
+  VERIFIED, a flow above it is FAILED — exit 1, the red block with
+  every number attached, and the recover/re-apply path named (the
+  owner's contract, exactly). The probe is ONE-SIDED by nature —
+  enforcement can only under-deliver a budget — and every weak
+  measurement lane degrades to UNVERIFIED (exit 0, the honest
+  reason, never a vacuous pass, never a failed apply): server
+  unreachable, cgroup entry refused, a target too busy feeding its
+  own traffic (the ledger gap names it), a multi-cgroup target
+  (the note says which bucket was measured), a blocked rate-0
+  policy (the drop ledger IS the block's verdict — the probe skips
+  by design). Three correctness belts, each closing a lie a naive
+  prober would tell: the residency belt verifies the client's
+  cgroup from /proc BEFORE the window opens (an unentered probe
+  measures an unlimited path and reads a false FAILED — the worst
+  lie a verifier can tell); the server's grace sleep orders the
+  listener's creation after its cgroup entry (an accepted socket
+  inherits the LISTENER's cgroup, not the accepting task's — a
+  pre-migration bind would un-police the server silently); and
+  teardown kills, REAPS, and rmdirs with retries (an unreaped
+  zombie or a dying socket's css reference holds the transient
+  cgroup alive — no zelynic-probe-* residue is ever left behind).
+  `--no-probe` keeps the scripted apply-only shape, and every CI +
+  depth harness that measures enforcement with its own workers
+  (supermassive v1/v2, ammsp-vs-legacy, the depth endurance and
+  limiter batteries) rides it — their measurement is the probe's
+  job done deeper, and the probe's 4s window would only add
+  wall-clock and budget perturbation to their rungs. Surfaces:
+  src/commands/probe.rs (the orchestrator + the pure verdict
+  bands), probe_role.rs (the hidden __probe-server / __probe-client
+  children, hidden from help), probe_report.rs (the verify block +
+  the FAILED error, pure formatting), the strict-single wiring
+  (the probe runs BEFORE the success verdict prints — a FAILED
+  probe must never read as OK, the never-print-then-fail discipline
+  the race-window check already owns). Pins: 10 new (every verdict
+  band boundary incl. the strict-greater edges, the trickle case
+  where the burst term is the only thing that admits a GSO
+  super-packet, the saturation shapes at the 1 TB policy with the
+  unreachable u64 degenerate documented as opening, the report
+  block's rows, the FAILED error's contract, the mode validation,
+  and one live rootless loopback smoke of the role pair) — engines
+  green rootlessly: 536+46 tests, fmt/clippy -D warnings clean,
+  the supermassive self-tests 31+10+10, ruff clean. Docs synced in
+  the same commit: the USAGE.md strict-single section carries the
+  probe's full contract.
 - **eagle-eyes --depth: the bypass-shadow audit (NIGHT-upgrade-charger-core-1-a,
   the TIER S "bypass detection" ability) — the honesty check no other
   rate limiter runs: the report now compares what the machine's

@@ -204,6 +204,37 @@ check.` The enforced facts (rates, policy counts — one policy per
 direction per cgroup, so a name resolving to two cgroups counts four)
 live in `zelynic status`, not in the success echo.
 
+The SELF-PROVING ENFORCEMENT (NIGHT-upgrade-charger-core-1-b): after
+the apply lands, strict-single measures the limit it just wrote before
+it claims it. A fresh child cgroup is born under the target (inside
+the subtree the policy covers, by construction — the same lane the CI
+battery proves), one sacrificial client moves real traffic through it
+for a 3s loopback window against an unpoliced server (a transient
+root-level cgroup, outside every policy), and the kernel's own ledger
+brackets the window as the cross-check. The block that prints after
+the epilogue carries the direction, the measured flow against the
+target, the budget it was measured against (3s of refill plus the
+burst), the kernel count, and the verdict: `enforced: VERIFIED` when
+the flow stayed inside what a working bucket can admit. `VERIFIED`
+means measured, not hoped — no other rate limiter checks its own
+enforcement at all. The verdict bands share the CI harness's physics
+(BAND_HI 1.30's family plus the in-flight slack), and the probe is
+ONE-SIDED by nature: enforcement can only under-deliver a budget,
+so a flow inside the ceiling is verified and a flow above it is
+FAILED — `exit 1`, the red block with every number attached, and the
+recover/re-apply path named. A probe that could not measure (server
+unreachable, cgroup entry refused, a target too busy feeding its own
+traffic — the ledger note says so) is `UNVERIFIED`: exit 0 with the
+honest reason, never a vacuous pass and never a failed apply. The
+residency belt: the client's cgroup is verified from /proc before
+the window opens, because an unentered probe measures an unlimited
+path — the worst lie a verifier can tell. `--no-probe` keeps the
+scripted apply-only shape (CI lanes use it); a blocked (rate-0)
+policy skips the probe by design — the drop ledger IS the block's
+verdict. The probe costs ~4 seconds and one transient cgroup pair
+(kill, reap, rmdir — no residue); the target's own traffic during
+the window shares the budget and is named in the note when it does.
+
 Name matching details worth knowing: it is case-insensitive and matches
 the kernel's `comm` name (max 15 chars). It matches **all** cgroups that
 contain at least one process with that name — a browser plus its
