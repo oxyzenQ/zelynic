@@ -15,17 +15,18 @@ use aya::maps::{HashMap as BpfHashMap, MapData};
 // (use super::policy::policy_survivor_line) see the same paths as
 // before the split.
 pub(super) use super::policy_lines::{
-    partial_apply_failure_line, policy_survivor_line, policy_write_line, resolution_trace_line,
+    group_apply_lines, partial_apply_failure_line, policy_survivor_line, policy_write_line,
+    resolution_trace_line,
 };
 
-use super::format::{default_burst, format_rate};
+use super::atomic::PolicyMutation;
+use super::format::default_burst;
 use super::lanes::map_remove_means_absent;
 use super::types::{group_id_from, Direction, PolicyRaw, RateSpec, Target, MAX_ENFORCABLE_BURST};
 use crate::ebpf::pin::{PIN_MAP_POLICY_DL, PIN_MAP_POLICY_UL};
 
-// The hunt-20 ENOENT classification lives in reclaim.rs (imported above).
-// The hunt-9 trace/rollback line formatters live in policy_lines.rs
-// (re-exported above).
+// The hunt-20 ENOENT classification lives in reclaim.rs; the hunt-9
+// trace/rollback line formatters in policy_lines.rs (re-exported above).
 
 impl super::Limiter {
     /// Apply strict-single: individual policy per cgroup.
@@ -36,16 +37,19 @@ impl super::Limiter {
             return Ok(0);
         }
 
-        // NIGHT-hunt-20: strict all-or-nothing — every write of THIS
-        // invocation is recorded so a mid-flight failure (map full at
-        // 1024 entries, ENOMEM, ...) rolls the whole apply back
-        // instead of leaving an enforced prefix behind. The
+        // NIGHT-hunt-20: strict all-or-nothing — every mutation of
+        // THIS invocation is recorded so a mid-flight failure (map
+        // full at 1024 entries, ENOMEM, ...) rolls the whole apply
+        // back instead of leaving an enforced prefix behind. The
         // superseded-group ledger (NIGHT-lts-7) rides the same
         // lifecycle: captured by the writes, swept once after — a
         // failed apply's rollback deletes the written policies, and
         // the sweep's live-reference check keeps any group another
-        // policy still holds.
-        let mut written: Vec<(u32, Direction)> = Vec::new();
+        // policy still holds. charger-core-2: the ledger carries
+        // each leg's PRE-APPLY raw (the snapshot in
+        // write_policies_for_cgroup), so the rollback RESTORES an
+        // overwritten limit instead of stripping it.
+        let mut mutations: Vec<PolicyMutation> = Vec::new();
         let mut superseded: Vec<u32> = Vec::new();
         let mut applied = 0usize;
         for cgroup_id in &cgroup_ids {
@@ -53,7 +57,7 @@ impl super::Limiter {
                 *cgroup_id,
                 rates,
                 0,
-                &mut written,
+                &mut mutations,
                 &mut superseded,
             ) {
                 Ok(n) => applied += n,
@@ -62,11 +66,11 @@ impl super::Limiter {
                     // below still MUTATED the maps, and the
                     // generation bump is the AMMSP memo's only
                     // addition-side invalidation — so it runs AFTER
-                    // the rollback's deletions land, covering every
-                    // state change this invocation made (writes AND
-                    // their rollback) with one stamp, never failing
-                    // the rollback verdict.
-                    let rolled_back = self.rollback_partial_apply(&written, cause);
+                    // the rollback's restorations land, covering
+                    // every state change this invocation made
+                    // (writes AND their rollback) with one stamp,
+                    // never failing the rollback verdict.
+                    let rolled_back = self.rollback_mutations(&mutations, cause);
                     self.ammsp_memo_invalidate_best_effort();
                     return Err(rolled_back);
                 }
@@ -139,8 +143,10 @@ impl super::Limiter {
         // strict-multi invocation banks a FRESH group id, so the
         // overwritten members' OLD groups die here — without the
         // sweep the 256-slot group maps filled irreversibly and the
-        // 257th invocation silently enforced unlimited.
-        let mut written: Vec<(u32, Direction)> = Vec::new();
+        // 257th invocation silently enforced unlimited. The
+        // charger-core-2 mutation ledger upgrades the rollback to
+        // RESTORE each leg's pre-apply raw.
+        let mut mutations: Vec<PolicyMutation> = Vec::new();
         let mut superseded: Vec<u32> = Vec::new();
         let mut applied = 0usize;
         for cgroup_id in &all_cgroup_ids {
@@ -148,7 +154,7 @@ impl super::Limiter {
                 *cgroup_id,
                 rates,
                 group_id,
-                &mut written,
+                &mut mutations,
                 &mut superseded,
             ) {
                 Ok(n) => applied += n,
@@ -156,8 +162,8 @@ impl super::Limiter {
                     // Same NIGHT-private-research-2 / perf-0 contract
                     // as apply_single's error path: the rollback
                     // still mutated, so the bump runs after its
-                    // deletions.
-                    let rolled_back = self.rollback_partial_apply(&written, cause);
+                    // restorations.
+                    let rolled_back = self.rollback_mutations(&mutations, cause);
                     self.ammsp_memo_invalidate_best_effort();
                     return Err(rolled_back);
                 }
@@ -170,23 +176,9 @@ impl super::Limiter {
         // once-per-invocation tail as apply_single's.
         self.ammsp_memo_invalidate_best_effort();
 
-        let group_label = format!("group:{}", group_id);
         if self.verbose {
-            if let Some(dl_rate) = rates.download {
-                eprintln_safe!(
-                    "[limiter] {} download → {} (shared by {} cgroups)",
-                    group_label,
-                    format_rate(dl_rate),
-                    all_cgroup_ids.len()
-                );
-            }
-            if let Some(ul_rate) = rates.upload {
-                eprintln_safe!(
-                    "[limiter] {} upload → {} (shared by {} cgroups)",
-                    group_label,
-                    format_rate(ul_rate),
-                    all_cgroup_ids.len()
-                );
+            for line in group_apply_lines(group_id, rates, all_cgroup_ids.len()) {
+                eprintln_safe!("{line}");
             }
         }
 
@@ -281,22 +273,42 @@ impl super::Limiter {
     /// capture-before-write half of the dead-group reclaim — read
     /// here, because after the write the old group id is
     /// unrecoverable). Returns how many policies this cgroup received.
-    fn write_policies_for_cgroup(
+    pub(super) fn write_policies_for_cgroup(
         &mut self,
         cgroup_id: u32,
         rates: &RateSpec,
         group_id: u32,
-        written: &mut Vec<(u32, Direction)>,
+        mutations: &mut Vec<PolicyMutation>,
         superseded: &mut Vec<u32>,
     ) -> Result<usize> {
         let mut applied = 0usize;
 
+        // charger-core-2 (TIER A #6): the transactional snapshot —
+        // BOTH directions read before the first mutation of this
+        // cgroup, so a mid-flight failure can restore the exact
+        // pre-apply state (an overwritten limit comes back at its own
+        // rate and group, a removed stale leg comes back whole)
+        // instead of the hunt-20 delete-only rollback, which stripped
+        // limits the operator had set earlier. The superseded-group
+        // capture rides the same reads. A leg that is absent OR
+        // unreadable snapshots as None — the conservative degrade (an
+        // unreadable map refuses the writes too, and a None leg rolls
+        // back to a delete, the pre-2 behavior).
+        let previous = [
+            self.read_policy_raw(cgroup_id, Direction::Download),
+            self.read_policy_raw(cgroup_id, Direction::Upload),
+        ];
+
         if let Some(dl_rate) = rates.download {
-            if let Ok(Some(old_group)) = self.read_policy_group(cgroup_id, Direction::Download) {
-                superseded.push(old_group);
+            if let Some(old) = previous[0] {
+                superseded.push(old.group_id);
             }
             self.write_policy(cgroup_id, dl_rate, group_id, Direction::Download)?;
-            written.push((cgroup_id, Direction::Download));
+            mutations.push(PolicyMutation {
+                cgroup_id,
+                direction: Direction::Download,
+                previous: previous[0],
+            });
             if self.verbose {
                 eprintln_safe!(
                     "{}",
@@ -307,11 +319,15 @@ impl super::Limiter {
         }
 
         if let Some(ul_rate) = rates.upload {
-            if let Ok(Some(old_group)) = self.read_policy_group(cgroup_id, Direction::Upload) {
-                superseded.push(old_group);
+            if let Some(old) = previous[1] {
+                superseded.push(old.group_id);
             }
             self.write_policy(cgroup_id, ul_rate, group_id, Direction::Upload)?;
-            written.push((cgroup_id, Direction::Upload));
+            mutations.push(PolicyMutation {
+                cgroup_id,
+                direction: Direction::Upload,
+                previous: previous[1],
+            });
             if self.verbose {
                 eprintln_safe!(
                     "{}",
@@ -337,9 +353,9 @@ impl super::Limiter {
         // is best-effort and never silent (the unstrict precedent):
         // the survivor is named on stderr and visible in `status`,
         // while the freshly written legs stand.
-        for (unset, direction) in [
-            (rates.download.is_none(), Direction::Download),
-            (rates.upload.is_none(), Direction::Upload),
+        for (unset, (direction, prev)) in [
+            (rates.download.is_none(), (Direction::Download, previous[0])),
+            (rates.upload.is_none(), (Direction::Upload, previous[1])),
         ] {
             if !unset {
                 continue;
@@ -347,9 +363,17 @@ impl super::Limiter {
             // The unset-leg removal is also a group supersession
             // (NIGHT-lts-7): capture before the delete, the same
             // read-before-write the fresh writes above carry.
-            if let Ok(Some(old_group)) = self.read_policy_group(cgroup_id, direction) {
-                superseded.push(old_group);
+            if let Some(old) = prev {
+                superseded.push(old.group_id);
             }
+            // charger-core-2: the mutation is recorded BEFORE the
+            // delete — the delete destroys the pre-apply value the
+            // rollback restores.
+            mutations.push(PolicyMutation {
+                cgroup_id,
+                direction,
+                previous: prev,
+            });
             match self.delete_policy(cgroup_id, direction) {
                 Ok(_) => {
                     // Gone — deleted here or already ENOENT-absent.
@@ -382,41 +406,23 @@ impl super::Limiter {
         Ok(applied)
     }
 
-    /// Roll back every policy written by the failed invocation
-    /// (NIGHT-hunt-20). A delete that itself fails leaves that policy
-    /// enforced — its error is printed for the record and the policy
-    /// is named in the returned error instead of hidden behind a bare
-    /// cause.
-    fn rollback_partial_apply(
+    /// Re-insert one pre-apply policy VERBATIM — the atomic
+    /// rollback's restore half (charger-core-2). The raw came FROM
+    /// the map (rate, burst, group id — the exact enforced state the
+    /// snapshot read), so no re-derivation is honest: the restored
+    /// limit is byte-identical to the pre-apply state. The mutation
+    /// ledger and the rollback loop live in atomic.rs (the TIER A #6
+    /// split, holding this file under the owner cap).
+    pub(super) fn restore_policy(
         &mut self,
-        written: &[(u32, Direction)],
-        cause: anyhow::Error,
-    ) -> anyhow::Error {
-        let mut survivors: Vec<String> = Vec::new();
-        for (cgroup_id, direction) in written {
-            match self.delete_policy(*cgroup_id, *direction) {
-                Ok(_) => {
-                    if self.verbose {
-                        eprintln_safe!(
-                            "[limiter] rolled back cg:{cgroup_id} {}",
-                            direction.label()
-                        );
-                    }
-                }
-                Err(e) => {
-                    eprintln_safe!(
-                        "[limiter] rollback failed: cg:{cgroup_id} {}: {e}",
-                        direction.label()
-                    );
-                    survivors.push(policy_survivor_line(*cgroup_id, *direction));
-                }
-            }
-        }
-        let rolled_back = written.len().saturating_sub(survivors.len());
-        anyhow!(
-            "{}",
-            partial_apply_failure_line(&cause.to_string(), rolled_back, &survivors)
-        )
+        cgroup_id: u32,
+        direction: Direction,
+        raw: PolicyRaw,
+    ) -> Result<()> {
+        self.with_policy_map(direction, |map| {
+            map.insert(cgroup_id, raw, 0)
+                .map_err(|e| anyhow!("Failed to restore policy: {e}"))
+        })
     }
 
     /// Access the policy map for `direction` in whichever mode is

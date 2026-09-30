@@ -184,7 +184,15 @@ pub(crate) fn handle_strict_multi(
     crate::ebpf::limiter::Limiter::attach(verbose)?;
 
     let mut limiter = Limiter::open_pinned(verbose)?;
-    let applied = limiter.apply_group(&targets, &rates)?;
+    // NIGHT-upgrade-charger-core-2 (TIER A #6): the atomic apply —
+    // every segment resolves BEFORE the first map write (one miss
+    // aborts the whole invocation with nothing limited), and a
+    // mid-flight failure restores each mutated policy to its
+    // pre-apply state. The old best-effort shape skipped unresolved
+    // names silently and reported OK on a half-limited list — the
+    // exact trap for scripted fleet automation, which now sees the
+    // transaction fail whole or land whole.
+    let applied = limiter.apply_group_atomic(&targets, &rates)?;
     if applied == 0 {
         // NIGHT-dinner-11: the no-match hard error (strict-single's
         // contract, the multi's plural wording).
@@ -304,7 +312,13 @@ pub(crate) fn handle_strict_all(
 
     // Attach + pin BPF programs (fire-and-forget: pins survive process
     // exit, no daemon). Unconditional for the same schema-ladder parity
-    // as handle_strict_multi (NIGHT-hunt-21).
+    // as handle_strict_multi (NIGHT-hunt-21). The sweep keeps the
+    // best-effort apply_group (NOT apply_group_atomic) on purpose:
+    // the target list is a snapshot of list-apps, and an app that
+    // exits between snapshot and write must not abort the fleet's
+    // limits — the atomic contract belongs to the explicit colon
+    // list, where every segment is the operator's own claim
+    // (charger-core-2).
     crate::ebpf::limiter::Limiter::attach(verbose)?;
 
     let mut limiter = Limiter::open_pinned(verbose)?;

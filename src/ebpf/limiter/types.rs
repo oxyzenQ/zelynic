@@ -94,7 +94,7 @@ pub const MAX_ENFORCABLE_BURST: u64 = u64::MAX / (2 * 1_000_000_000);
 // ━━ BPF map value structs (must match the ebpf crate's structs) ━━
 
 #[repr(C)]
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 #[repr(align(8))]
 pub struct PolicyRaw {
     pub rate_bps: u64,

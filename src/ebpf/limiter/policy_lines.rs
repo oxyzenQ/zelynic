@@ -11,7 +11,7 @@
 //! re-export, exactly as before the split.
 
 use super::format::{default_burst, format_bytes, format_rate};
-use super::types::Direction;
+use super::types::{Direction, RateSpec};
 
 /// Verbose trace line for one policy write (NIGHT-hunt-9): the exact
 /// cgroup, direction, rate, and token-bucket burst handed to the BPF
@@ -58,6 +58,29 @@ pub(super) fn partial_apply_failure_line(
             survivors.join(", ")
         )
     }
+}
+
+/// Verbose trace lines for one group apply (NIGHT-hunt-9, deduped
+/// by charger-core-2 when apply_group_atomic grew the same block):
+/// the group label, the per-direction rate, and the member count —
+/// shared by both group-apply paths so the wording cannot drift.
+/// Pure formatting so the pins in policy_tests hold for both.
+pub(super) fn group_apply_lines(group_id: u32, rates: &RateSpec, members: usize) -> Vec<String> {
+    let group_label = format!("group:{group_id}");
+    let mut lines = Vec::new();
+    if let Some(dl_rate) = rates.download {
+        lines.push(format!(
+            "[limiter] {group_label} download → {} (shared by {members} cgroups)",
+            format_rate(dl_rate)
+        ));
+    }
+    if let Some(ul_rate) = rates.upload {
+        lines.push(format!(
+            "[limiter] {group_label} upload → {} (shared by {members} cgroups)",
+            format_rate(ul_rate)
+        ));
+    }
+    lines
 }
 
 /// Verbose trace line for a /proc target resolution (NIGHT-hunt-9):
