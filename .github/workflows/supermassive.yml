@@ -469,6 +469,29 @@ jobs:
           printf '%s\n' '${{ matrix.version }}' > rootfs/opt/zelynic/PAYLOAD-FLAVOR
           cp "$GITHUB_WORKSPACE/scripts/ci/supermassive-init.sh" rootfs/init
           chmod +x rootfs/init
+          # NIGHT-perf-1: the AMMSP-vs-legacy A/B needs the pre-AMMSP
+          # stable INSIDE the offline VM (the guest has loopback only).
+          # The v11.0.0 release — the last leaf-anchored datapath, the
+          # exact counterfactual the subtree contract is measured
+          # against — is staged with its own sha512sum sidecar so the
+          # legacy binary is checksum-verified exactly like the
+          # release's other consumers (VERIFY_RELEASE contract), the
+          # libc matching the leg's payload. A fetch failure FAILS the
+          # leg here on the runner, where retries are cheap — the
+          # in-VM stage must never silently skip the proof.
+          LEGACY_VER="v11.0.0"
+          LEGACY_ASSET="zelynic-v11.0.0-linux-amd64-v3-${{ matrix.version }}.tar.gz"
+          mkdir -p legacy-fetch rootfs/opt/zelynic/legacy
+          curl -fsSL --retry 6 --retry-all-errors --retry-delay 10 \
+            -o "legacy-fetch/$LEGACY_ASSET" \
+            "https://github.com/oxyzenQ/zelynic/releases/download/$LEGACY_VER/$LEGACY_ASSET"
+          curl -fsSL --retry 6 --retry-all-errors --retry-delay 10 \
+            -o "legacy-fetch/$LEGACY_ASSET.sha512sum" \
+            "https://github.com/oxyzenQ/zelynic/releases/download/$LEGACY_VER/$LEGACY_ASSET.sha512sum"
+          ( cd legacy-fetch && sha512sum -c "$LEGACY_ASSET.sha512sum" )
+          tar xzf "legacy-fetch/$LEGACY_ASSET" -C rootfs/opt/zelynic/legacy
+          test -x rootfs/opt/zelynic/legacy/zelynic
+          echo "legacy staged: $(rootfs/opt/zelynic/legacy/zelynic -V | head -1)"
           # PID 1 needs a console to exec onto before devtmpfs lands
           # (the kernel opens the initramfs's static /dev/console for
           # it; the init's devtmpfs mount takes over from there). The
