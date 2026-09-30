@@ -34,6 +34,7 @@ use std::time::Duration;
 
 use crate::ebpf::connections::CgroupConnections;
 use crate::ebpf::identity::depth::{CgroupDepth, ProcessFacts};
+use crate::ebpf::limiter::types::POLICY_FLAG_PER_SOCKET;
 use crate::ebpf::limiter::{format_bytes, format_count, format_rate, LimiterStatsRaw, PolicyRaw};
 use crate::output::{fit_to_width, grey, ok, pad_to_width};
 
@@ -143,8 +144,15 @@ pub fn enforcement_sentence(enforcement: &Enforcement) -> String {
     match enforcement {
         Enforcement::Unlimited => "unlimited".to_string(),
         Enforcement::Limited { download, upload } => {
+            // charger-core-3c: a per-socket policy's figure names its
+            // unit ("/socket") — an unmarked rate would read as the
+            // cgroup cap the policy does not carry (the status
+            // marker's twin, hunted on the depth surface).
             let render = |p: &Option<PolicyRaw>| match p {
                 Some(raw) if raw.rate_bps == 0 => "blocked".to_string(),
+                Some(raw) if raw.flags & POLICY_FLAG_PER_SOCKET != 0 => {
+                    format!("{} /socket", format_rate(raw.rate_bps))
+                }
                 Some(raw) => format_rate(raw.rate_bps),
                 None => "unlimited".to_string(),
             };

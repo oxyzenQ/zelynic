@@ -28,7 +28,8 @@
 
 use crate::ebpf::bypass::{ShadowAudit, ShadowVerdict};
 use crate::ebpf::identity::depth::ProcessFacts;
-use crate::ebpf::limiter::LimiterStatsRaw;
+use crate::ebpf::limiter::types::POLICY_FLAG_PER_SOCKET;
+use crate::ebpf::limiter::{LimiterStatsRaw, PolicyRaw};
 use crate::ebpf::render::depth_traffic::TrafficFocus;
 use crate::ebpf::render::report::{cgroup_abs_path, oldest_started_secs, representative};
 
@@ -117,6 +118,12 @@ pub struct DepthTargetJson {
     pub enforcement: &'static str,
     pub download_bps: Option<u64>,
     pub upload_bps: Option<u64>,
+    /// charger-core-3c: the bps figures above name per-CONNECTION
+    /// budgets when true (skip when false — the additive rule).
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub download_per_socket: bool,
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub upload_per_socket: bool,
     pub group_id: Option<u32>,
     /// The kernel's allowed/dropped ledger when this cgroup is
     /// enforced and booked (NIGHT-blade-5; null = unlimited, or a
@@ -238,12 +245,18 @@ pub fn depth_doc_json(
         let sockets = report.conns.as_ref().map_or(0, |c| {
             c.socket_holders.iter().map(|p| p.sockets.len()).sum()
         });
-        let (download, upload, group_id) = match &report.enforcement {
-            Enforcement::Unlimited => (None, None, None),
+        let per = |p: &Option<PolicyRaw>| {
+            p.map(|raw| raw.flags & POLICY_FLAG_PER_SOCKET != 0)
+                .unwrap_or(false)
+        };
+        let (download, upload, group_id, dl_ps, ul_ps) = match &report.enforcement {
+            Enforcement::Unlimited => (None, None, None, false, false),
             Enforcement::Limited { download, upload } => (
                 download.as_ref().map(|p| p.rate_bps),
                 upload.as_ref().map(|p| p.rate_bps),
                 download.as_ref().or(upload.as_ref()).map(|p| p.group_id),
+                per(download),
+                per(upload),
             ),
         };
         let rep = representative(&report.depth);
@@ -257,6 +270,8 @@ pub fn depth_doc_json(
             enforcement: super::report::enforcement_word(&report.enforcement),
             download_bps: download,
             upload_bps: upload,
+            download_per_socket: dl_ps,
+            upload_per_socket: ul_ps,
             group_id,
             enforcement_stats: stats_json(&report.enforcement_stats),
             cgroup_memory_bytes: report.depth.resources.memory_current_bytes,
