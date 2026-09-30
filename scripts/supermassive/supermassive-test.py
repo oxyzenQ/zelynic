@@ -979,10 +979,22 @@ def curl_in_cgroup(name, window):
 # ── policy helpers (single source for every apply / verify / clear) ────────
 
 
+# charger-core-1b: whether the CURRENT lib.BINARY knows --no-probe
+# (the standalone matrix and v2 always run the current build; the
+# ammsp-vs-legacy A/B rebinds lib.BINARY per side and flips this off
+# for the legacy half).
+PROBE_FLAG_SUPPORTED = True
+
+
 def apply_single(name, rate_str, exp_dl, exp_ul, extra=()):
-    rc, stdout, stderr = run_zel(
-        ["strict-single", str(CG.ids[name]), rate_str, "--no-probe", *extra]
-    )
+    # --no-probe rides the CURRENT binary only: the legacy v11.0.0
+    # side (run_battery_side rebinds lib.BINARY) predates the flag and
+    # exits 2 on it — the CI find on 75e0f3f. The lib-level toggle is
+    # set per side by ammsp-vs-legacy's runner.
+    argv = ["strict-single", str(CG.ids[name]), rate_str, *extra]
+    if PROBE_FLAG_SUPPORTED:
+        argv.append("--no-probe")
+    rc, stdout, stderr = run_zel(argv)
     if rc != 0:
         return False, f"strict-single exit {rc}: {(stderr or stdout).strip()[:200]}"
     entry = limit_entry(status_json(), CG.ids[name])

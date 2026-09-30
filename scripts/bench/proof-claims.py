@@ -459,7 +459,15 @@ def apply_and_verify(rate_bps, cgroup_id):
     -d only: one policed hook per stream keeps the accounting 1:1
     (the NIGHT-improve-12 discipline the depth harness pinned)."""
     rate_str = bps_to_rate_str(rate_bps)
-    rc, stdout, stderr = lib.run_zel(["strict-single", str(cgroup_id), "-d", rate_str])
+    # --no-probe (charger-core-1-b): this harness measures enforcement
+    # with its own e2e workers after the apply; the probe's own lane
+    # escaped policing in the CI proof stages on 12fb418 (see
+    # docs/audits/NIGHT_UPGRADE_CHARGER_CORE_1C_PROBE_CI_FIND) while
+    # the same run's battery policed 7/7 — the workers carry the
+    # proof here until the probe's lane is debugged on a root box.
+    rc, stdout, stderr = lib.run_zel(
+        ["strict-single", str(cgroup_id), "-d", rate_str, "--no-probe"]
+    )
     if rc != 0:
         return False, f"strict-single exit {rc}: {(stderr or stdout).strip()[:200]}"
     doc = lib.status_json()
@@ -942,7 +950,7 @@ def stage_footprint(quick):
     # twin's ids-DICT shape does not exist here; the first live VM
     # run caught the mixup, and the self-test's source pin now
     # guards the vocabulary).
-    argv = [lib.BINARY, "strict-single", str(CG.a_id), "-d", rate_str]
+    argv = [lib.BINARY, "strict-single", str(CG.a_id), "-d", rate_str, "--no-probe"]
     try:
         child = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         _, status, ru = os.wait4(child.pid, 0)
