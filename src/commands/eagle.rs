@@ -158,8 +158,10 @@ pub(crate) fn resolve_live_targets(
 /// limiter's resolve_target owns, on the same canonical boundaries
 /// (NIGHT-optimized-1) — pid_comm + pid_cgroup_id — with the same
 /// lowercase exact-match semantics, so a name resolves identically
-/// here and under `zelynic ss <name>`.
-fn resolve_name(name: &str) -> Vec<u32> {
+/// here and under `zelynic ss <name>`. Shared with the enforcement
+/// probe (NIGHT-upgrade-charger-core-1-b), which must resolve the
+/// target the same way the apply just did.
+pub(crate) fn resolve_name(name: &str) -> Vec<u32> {
     let name_lower = name.to_lowercase();
     let mut ids: Vec<u32> = Vec::new();
     let Ok(entries) = std::fs::read_dir("/proc") else {

@@ -291,7 +291,7 @@ def teardown_cgroups(original_cgroup):
 
 
 def stage_pin_family(cg_id):
-    rc, _, err = lib.run_zel(["strict-single", f"cg:{cg_id}", "10mb"])
+    rc, _, err = lib.run_zel(["strict-single", f"cg:{cg_id}", "10mb", "--no-probe"])
     if rc != 0:
         lib.record("pin-family: first apply", "FAIL", err.strip()[:120])
         return False
@@ -335,7 +335,7 @@ def stage_row_churn(cg_a, cg_b, rounds, group_ok):
     for i in range(rounds):
         kind = kinds[i % len(kinds)]
         if kind == "single":
-            rc, _, err = lib.run_zel(["strict-single", f"cg:{cg_a}", "5mb"])
+            rc, _, err = lib.run_zel(["strict-single", f"cg:{cg_a}", "5mb", "--no-probe"])
         else:
             rc, _, err = lib.run_zel(["strict-multi", f"cg:{cg_a}:cg:{cg_b}", "5mb"])
         if rc != 0:

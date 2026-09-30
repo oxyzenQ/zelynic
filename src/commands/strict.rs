@@ -5,6 +5,8 @@
 
 use anyhow::Result;
 
+#[cfg(feature = "ebpf")]
+use super::{probe, probe_report};
 use crate::commands::rates::resolve_rates;
 use crate::commands::safety::{
     check_dangerous_target, is_dangerous_target, validate_multi_targets, validate_single_target,
@@ -17,6 +19,7 @@ pub(crate) fn handle_strict_single(
     download: Option<&str>,
     upload: Option<&str>,
     force_this: bool,
+    no_probe: bool,
     verbose: bool,
 ) -> Result<()> {
     use crate::ebpf::limiter::{Limiter, Target};
@@ -89,10 +92,35 @@ pub(crate) fn handle_strict_single(
         ));
     }
 
+    // NIGHT-upgrade-charger-core-1-b (the self-proving enforcement):
+    // "applied" is a claim, "VERIFIED" is a measurement. The probe
+    // generates a real flow through the subtree the policy just
+    // covered and measures what the kernel let through — BEFORE the
+    // success verdict prints (a FAILED probe must never read as OK;
+    // the never-print-then-fail discipline the race-window check
+    // above already owns). --no-probe keeps the scripted apply-only
+    // shape; UNVERIFIED prints with the epilogue and never fails the
+    // apply — the measurement lane, not the enforcement, was weak.
+    let probe_outcome = if no_probe {
+        None
+    } else {
+        Some(probe::run_enforcement_probe(&limiter, &target, &rates))
+    };
+    if let Some(outcome) = &probe_outcome {
+        if outcome.verdict == probe::ProbeVerdict::Failed {
+            return Err(probe_report::failure_error(target_str, outcome));
+        }
+    }
+
     // NIGHT-improve-28: the de-noised success surface — green OK. +
     // the round-tripping unstrict form (the owner's pro contract; the
     // old two-line request-echo restatement lives in the history).
     super::apply_success_epilogue(&format!("zelynic unstrict {target_str}"), "remove");
+    if let Some(outcome) = &probe_outcome {
+        for line in probe_report::report_lines(outcome) {
+            eprintln_safe!("{line}");
+        }
+    }
     Ok(())
 }
 
@@ -313,7 +341,7 @@ mod tests {
     #[cfg(feature = "ebpf")]
     #[test]
     fn rate_typo_surfaces_before_root_guard() {
-        let err = handle_strict_single("bash", Some("1MB"), None, None, false, false)
+        let err = handle_strict_single("bash", Some("1MB"), None, None, false, false, false)
             .expect_err("typo'd rate must fail");
         let msg = format!("{err}");
         assert!(
@@ -335,7 +363,7 @@ mod tests {
     #[cfg(feature = "ebpf")]
     #[test]
     fn dangerous_target_refusal_surfaces_before_root_guard() {
-        let err = handle_strict_single("sshd", Some("1mb"), None, None, false, false)
+        let err = handle_strict_single("sshd", Some("1mb"), None, None, false, false, false)
             .expect_err("dangerous target must be refused");
         let msg = format!("{err}");
         assert!(
@@ -356,7 +384,7 @@ mod tests {
     #[cfg(feature = "ebpf")]
     #[test]
     fn empty_target_surfaces_before_root_guard() {
-        let err = handle_strict_single("", Some("1mb"), None, None, false, false)
+        let err = handle_strict_single("", Some("1mb"), None, None, false, false, false)
             .expect_err("an empty target must be refused");
         let msg = format!("{err}");
         assert!(

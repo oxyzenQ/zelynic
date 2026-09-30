@@ -18,6 +18,12 @@ pub(crate) mod list_apps;
 #[cfg(feature = "ebpf")]
 pub(crate) mod monitor;
 #[cfg(feature = "ebpf")]
+pub(crate) mod probe;
+#[cfg(feature = "ebpf")]
+pub(crate) mod probe_report;
+#[cfg(feature = "ebpf")]
+pub(crate) mod probe_role;
+#[cfg(feature = "ebpf")]
 pub(crate) mod rates;
 // NIGHT-dinner-11: recover split from cleanup (the LOC-cap push —
 // crash repair is a different concern from user-initiated removal).
@@ -192,6 +198,7 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
             download,
             upload,
             force_this,
+            no_probe,
         }) => {
             #[cfg(feature = "ebpf")]
             {
@@ -201,12 +208,21 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
                     download.as_deref(),
                     upload.as_deref(),
                     force_this,
+                    no_probe,
                     cli.verbose,
                 )
             }
             #[cfg(not(feature = "ebpf"))]
             {
-                let _ = (target, rate, download, upload, force_this, cli.verbose);
+                let _ = (
+                    target,
+                    rate,
+                    download,
+                    upload,
+                    force_this,
+                    no_probe,
+                    cli.verbose,
+                );
                 ebpf_disabled()
             }
         }
@@ -420,6 +436,19 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
         }
 
         Some(Commands::Doctor) => crate::capabilities::run_doctor(cli.print_json),
+
+        // NIGHT-upgrade-charger-core-1-b: the enforcement probe's hidden child
+        // roles — spawned by the probe orchestrator, never typed by hand.
+        #[cfg(feature = "ebpf")]
+        Some(Commands::ProbeServer { port }) => probe_role::run_server_role(port),
+        #[cfg(not(feature = "ebpf"))]
+        Some(Commands::ProbeServer { .. }) => ebpf_disabled(),
+        #[cfg(feature = "ebpf")]
+        Some(Commands::ProbeClient { addr, mode, secs }) => {
+            probe_role::run_client_role(&addr, &mode, secs)
+        }
+        #[cfg(not(feature = "ebpf"))]
+        Some(Commands::ProbeClient { .. }) => ebpf_disabled(),
 
         None => {
             // No subcommand: print the end-to-end reference — the same

@@ -184,6 +184,16 @@ pub enum Commands {
         /// "I know, force this".
         #[arg(long = "force-this")]
         force_this: bool,
+
+        /// Skip the post-apply enforcement probe
+        ///
+        /// NIGHT-upgrade-charger-core-1-b (the self-proving
+        /// enforcement): strict-single verifies the fresh limit with a
+        /// short measured loopback flow through the target's subtree
+        /// (~3s) and prints the VERIFIED verdict — this flag keeps the
+        /// apply-only shape for scripted use.
+        #[arg(long = "no-probe")]
+        no_probe: bool,
     },
 
     /// Limit multiple apps sharing one rate (group limit)
@@ -453,6 +463,31 @@ pub enum Commands {
     /// Check host eBPF support and this binary's build flavor (full-life / half-life).
     #[command(name = "doctor")]
     Doctor,
+
+    /// Internal: the enforcement-probe server role
+    /// (NIGHT-upgrade-charger-core-1-b). Hidden — spawned by
+    /// strict-single's verification window, never typed by hand.
+    #[command(name = "__probe-server", hide = true)]
+    ProbeServer {
+        /// Port to bind (0 = ephemeral; the chosen port is announced
+        /// on stdout for the orchestrator).
+        port: u16,
+    },
+
+    /// Internal: the enforcement-probe client role
+    /// (NIGHT-upgrade-charger-core-1-b). Hidden — spawned by
+    /// strict-single's verification window, never typed by hand.
+    #[command(name = "__probe-client", hide = true)]
+    ProbeClient {
+        /// The server to connect to (host:port).
+        addr: String,
+
+        /// Direction: "dl" (receive and count) or "ul" (send and count).
+        mode: String,
+
+        /// The window in seconds.
+        secs: u64,
+    },
 }
 
 // NIGHT-boost-24: the --print-json scope pins live under the single

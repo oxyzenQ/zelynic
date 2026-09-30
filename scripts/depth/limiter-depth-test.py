@@ -630,7 +630,7 @@ def apply_and_verify(rate_str, expect_dl, expect_ul, flags=()):
     covered by test_policy_write.
     """
     target = str(CG.id)
-    rc, stdout, stderr = run_zel(["strict-single", target, *flags, rate_str])
+    rc, stdout, stderr = run_zel(["strict-single", target, *flags, rate_str, "--no-probe"])
     if rc != 0:
         return False, f"strict-single exit {rc}: {(stderr or stdout).strip()[:200]}"
     doc = status_json()
@@ -708,7 +708,7 @@ def test_upload(rate_bps, window, baseline):
             "upload rate: enforced (-u only)", "SKIP", f"baseline {fmt_bps(baseline)} too close"
         )
     rate_str = bps_to_rate_str(rate_bps)
-    rc, stdout, stderr = run_zel(["strict-single", str(CG.id), "-u", rate_str])
+    rc, stdout, stderr = run_zel(["strict-single", str(CG.id), "-u", rate_str, "--no-probe"])
     if rc != 0:
         return record(
             "upload rate: enforced (-u only)",

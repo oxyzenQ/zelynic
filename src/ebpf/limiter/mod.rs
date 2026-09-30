@@ -41,8 +41,7 @@ mod types;
 mod math_tests;
 
 // NIGHT-boost-38: the SMP invariants of the same arithmetic, pinned
-// by test/ebpf/limiter/math_smp_tests.rs (same #[path] discipline,
-// real threads instead of the kernel's CPUs).
+// by test/ebpf/limiter/math_smp_tests.rs (same #[path] discipline).
 #[cfg(test)]
 #[path = "../../../test/ebpf/limiter/math_smp_tests.rs"]
 mod math_smp_tests;
@@ -59,7 +58,8 @@ mod ammsp_tests;
 // NIGHT-private-research-3 LOC-cap split moved the value parsers to
 // the parse sibling with the re-export surface unchanged in content.
 pub use format::{
-    format_bytes, format_bytes_wide, format_count, format_rate, monotonic_ns, terminal_width,
+    default_burst, format_bytes, format_bytes_wide, format_count, format_rate, monotonic_ns,
+    terminal_width,
 };
 pub use parse::{
     parse_focus_window, parse_monitor_interval, parse_rate, parse_time_duration, validate_rate,

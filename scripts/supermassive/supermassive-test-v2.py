@@ -252,7 +252,7 @@ def test_rate_guard():
     )
     # The plain-number parser branch (no unit suffix) round-trips
     # through the status JSON at full value.
-    rc, stdout, stderr = run_zel(["strict-single", tid, "1000000"])
+    rc, stdout, stderr = run_zel(["strict-single", tid, "1000000", "--no-probe"])
     entry = limit_entry(status_json(), sm1.CG.ids["a"]) if rc == 0 else None
     plain_ok = (
         rc == 0
@@ -274,7 +274,7 @@ def test_rate_guard():
     # unified spelling): 500 B/s applies silently at full value in
     # the status row — the override no longer echoes its own
     # request back.
-    rc, stdout, stderr = run_zel(["strict-single", tid, "--force-this", "500"])
+    rc, stdout, stderr = run_zel(["strict-single", tid, "--force-this", "500", "--no-probe"])
     entry = limit_entry(status_json(), sm1.CG.ids["a"]) if rc == 0 else None
     override_ok = (
         rc == 0

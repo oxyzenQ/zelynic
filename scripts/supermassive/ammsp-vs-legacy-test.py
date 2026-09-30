@@ -548,7 +548,9 @@ def run_battery_side(label, binary, is_current=False):
         # chain's second level reads the 50kb, not the parent's 100kb).
         chain1_id = sm1.CgroupSet._read_id(chain[0])
         if chain1_id is not None:
-            rc, _, err = run_side_binary(binary, ["strict-single", str(chain1_id), NESTED_STR])
+            rc, _, err = run_side_binary(
+                binary, ["strict-single", str(chain1_id), NESTED_STR, "--no-probe"]
+            )
             if rc != 0:
                 record(f"ammsp-vs-legacy: {label} nested-root apply", "FAIL", err.strip()[:160])
             else:
