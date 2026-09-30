@@ -56,6 +56,19 @@
 // draw-ownership stamp enforces it), so K equal-demand leaves share
 // the refill within one quantum of slop.
 //
+// dinner-28, THE ORDER DEEPER (the live fair-share battery's find,
+// every CI leg): the residue law above splits a TWO-asker pool
+// evenly, but at K > 2 drawers the takes decay geometrically per
+// position (50%/25%/12.5%... of the pool per ask), and the position
+// is stable across epochs on a real hook — the worst leaf read
+// 3.35x its fair share while the quietest starved below one admit,
+// the aggregate staying exactly the policy the whole time. The
+// close is the learned-share draw (below, v16): the take further
+// capped by pool/(learned+2), the learned count kept per pool in
+// the drr_pool_state maps. The v13 claims stand for K <= 2; the
+// K > 2 claim is the learned law's, and the simulation battery
+// (drr_share_tests) pins both sides of it.
+//
 // THE TRICKLE TRADEOFF (the GSO admit floor, on purpose): the
 // quantum is floored at the 64 KiB super-packet floor
 // (BURST_FLOOR_BYTES, NIGHT-lts-8's law) because a quantum below it

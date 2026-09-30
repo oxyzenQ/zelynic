@@ -168,6 +168,16 @@ sudo zelynic strict brave 100kb        # shorthand form
   empties, keeping the single-flow shape the legacy trickle it always
   was — paced draws proved TCP-hostile on the CI daemon row and were
   removed).
+  dinner-28, the K > 2 truth: the half-draw residue law splits a
+  TWO-asker pool evenly, but across MORE drawers the takes decay
+  geometrically per position (50%/25%/12.5%... of the pool) — the
+  live fair-share battery measured the worst leaf at 3.35x its fair
+  share while the quietest starved below a single admit, the
+  aggregate staying exactly the policy the whole time. The v16
+  close: the take is further capped by pool/(learned+2), the
+  learned drawee count kept per pool (the drr_pool_state maps);
+  a cold pool keeps the exact v13 law. The deep-dive section
+  below carries the updated measured bounds.
   Measured shapes: a single active leaf converges to the whole budget
   (the pool's equilibrium sits where its half-draws equal its full
   consumption — and the convergence rides the packet arrival cadence:
@@ -1365,6 +1375,19 @@ a CI leg; the flow converges to the budget over longer windows).
 A leaf that goes idle strands at most its one
 quantum until the LRU reaps it; the stale-quantum belt zeroes
 any leaf's tokens the moment a policy mutation outlives them.
+
+dinner-28 (the K > 2 close, v16): the 2:1 bound above is the
+TWO-asker shape; the live fair-share battery found that across
+more drawers the half-draw takes decay geometrically per position
+(the worst leaf at 3.35x its fair share, the quietest below one
+admit, the aggregate exactly the policy) — and the close is the
+learned-share draw: the take further capped by pool/(learned+2),
+the learned drawee count of the last completed 100ms epoch, kept
+per pool in the drr_pool_state maps. A cold pool (learned 0) keeps
+the exact v13 residue law; the position ratio under the learned
+cap is 1.34 at 6 leaves and 1.18 at 24 — both far inside the
+battery's 1.75x + one-quantum bound, which the simulation battery
+pins rootlessly alongside the decay it replaced.
 
 **2. Limits do not survive reboot.**
 Pins live on bpffs (`/sys/fs/bpf/zelynic/`), which is wiped at boot —
