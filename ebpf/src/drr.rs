@@ -66,6 +66,11 @@
 // This module must stay `core`-only: no std, no alloc, no aya — any
 // dependency added here reaches both trees at once.
 
+/// The GSO admit floor (the math.rs BURST_FLOOR_BYTES value, named
+/// locally so this core stays standalone): the largest super-packet
+/// the kernel hands a cgroup_skb hook by default.
+pub const GSO_ADMIT_FLOOR: u64 = 65_536;
+
 /// The fair-share window, in milliseconds: one quantum equals the
 /// policy's rate over this window — the share a single leaf may draw
 /// from the pool per draw. 100 ms is the owner's specced shape
@@ -105,10 +110,10 @@ pub const fn draw_admitted(now: u64, next_eligible: u64) -> bool {
 #[inline(always)]
 pub const fn quantum(rate_bps: u64) -> u64 {
     let share = rate_bps / (1000 / DRR_WINDOW_MS);
-    if share > 65_536 {
+    if share > GSO_ADMIT_FLOOR {
         share
     } else {
-        65_536
+        GSO_ADMIT_FLOOR
     }
 }
 
@@ -124,11 +129,11 @@ pub const fn quantum(rate_bps: u64) -> u64 {
 /// one step of latency apart.
 #[inline(always)]
 pub const fn draw_size(quantum: u64, pool_tokens: u64) -> u64 {
-    let half = pool_tokens / 2;
-    if quantum < half {
+    let pool_half = pool_tokens / 2;
+    if quantum < pool_half {
         quantum
     } else {
-        half
+        pool_half
     }
 }
 
@@ -160,5 +165,5 @@ pub const fn draw_wait(drawn: u64, quantum: u64) -> u64 {
 #[cfg(test)]
 #[inline(always)]
 pub const fn leaf_inflight_bound(rate_bps: u64) -> u64 {
-    quantum(rate_bps).saturating_add(65_536)
+    quantum(rate_bps).saturating_add(GSO_ADMIT_FLOOR)
 }

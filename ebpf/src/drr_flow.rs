@@ -41,8 +41,8 @@ use aya_ebpf::{macros::map, maps::LruHashMap};
 use super::ammsp_resolve::current_generation;
 use super::drr;
 use super::math::{
-    book, draw_stamp_take, gen_stamp_read, gen_stamp_write, refill_window, tokens_cas,
-    tokens_fetch_add, tokens_read, try_consume, Bucket, LimiterStats, Policy,
+    Bucket, LimiterStats, Policy, book, draw_stamp_take, gen_stamp_read, gen_stamp_write,
+    refill_window, tokens_cas, tokens_fetch_add, tokens_read, try_consume,
 };
 
 /// The per-leaf download bucket: LEAF cgroup id -> tokens the leaf
