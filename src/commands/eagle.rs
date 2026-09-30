@@ -30,6 +30,7 @@
 
 use anyhow::Result;
 
+use crate::ebpf::bypass::{self, ShadowAudit};
 use crate::ebpf::connections::ConnectionMap;
 use crate::ebpf::identity::{depth, pid_cgroup_id, pid_comm, IdentityMap};
 use crate::ebpf::limiter::{
@@ -37,7 +38,8 @@ use crate::ebpf::limiter::{
 };
 use crate::ebpf::loader::{CgroupDelta, Observer, SocketBytes};
 use crate::ebpf::render::{
-    depth_doc_json, depth_report_lines, package_name, traffic_focus, DepthReport, Enforcement,
+    bypass_section, depth_doc_json, depth_report_lines, package_name, traffic_focus, DepthReport,
+    Enforcement,
 };
 use crate::output::{grey, print_json};
 
@@ -224,9 +226,12 @@ fn enforcement_for(limiter: Option<&Limiter>, cgroup_id: u32) -> Result<Enforcem
 /// the closing poll's per-cgroup deltas (the kernel's window totals)
 /// plus the per-socket cookie join keyed by the closing census's
 /// cookies — the two inputs [`traffic_focus`] composes per target.
+/// The bypass audit (charger-core-1-a) rides along unconditionally:
+/// the window's interface-vs-hooks shadow verdict.
 struct FocusMeasure {
     deltas: Vec<CgroupDelta>,
     socket_bytes: HashMap<u64, SocketBytes>,
+    shadow: ShadowAudit,
 }
 
 /// Run the network-traffic focus window (NIGHT-private-research-3,
@@ -267,11 +272,15 @@ fn run_focus_window(
     if let Err(e) = observer.poll_and_summarize() {
         return (None, Some(format!("baseline poll failed: {e}")));
     }
+    // Bypass audit baseline (charger-core-1-a): the interface snapshot
+    // brackets the window the BPF polls measure — like spans compare.
+    let nic_start = bypass::nic_totals();
     std::thread::sleep(Duration::from_secs(focus_secs));
     let summary = match observer.poll_and_summarize() {
         Ok(s) => s,
         Err(e) => return (None, Some(format!("focus poll failed: {e}"))),
     };
+    let nic_end = bypass::nic_totals();
     // Fresh census at window end: the closing join keys on exactly
     // the sockets alive NOW (a socket that died mid-window keeps its
     // bytes in the kernel totals but leaves the attribution — both
@@ -288,8 +297,12 @@ fn run_focus_window(
         }
     }
     observer.detach();
+    let bpf_tx = summary.total_bytes;
+    let bpf_rx = summary.total_ingress_bytes;
+    let shadow = bypass::shadow_audit(nic_start, nic_end, bpf_tx, bpf_rx, focus_secs);
     (
         Some(FocusMeasure {
+            shadow,
             deltas: summary.cgroups,
             socket_bytes,
         }),
@@ -456,13 +469,23 @@ pub(crate) fn handle_eagle_eyes_depth(
     }
 
     if json {
-        print_json(&depth_doc_json(&reports, &misses));
+        print_json(&depth_doc_json(
+            &reports,
+            &misses,
+            focus_measure.as_ref().map(|m| &m.shadow),
+        ));
     } else {
         for line in depth_report_lines(&reports, terminal_width()) {
             println_safe!("{line}");
         }
         for (target, reason) in &misses {
             println_safe!("{}", grey(&format!("  {target}: {reason}")));
+        }
+        // The machine-scope bypass audit (charger-core-1-a), last.
+        if let Some(audit) = focus_measure.as_ref().map(|m| &m.shadow) {
+            for line in bypass_section(audit) {
+                println_safe!("{line}");
+            }
         }
     }
     Ok(())

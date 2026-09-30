@@ -584,6 +584,36 @@ stderr note (`--focus ignored (the live monitor is already
 continuous — it owns --depth's traffic-window job)`) — the mirror
 image of the `--interval` note the one-shot mode owns.
 
+The BYPASS AUDIT (NIGHT-upgrade-charger-core-1-a) rides the same
+window, and it is the honesty check no other rate limiter runs: the
+report compares what the interfaces physically moved
+(/sys/class/net counters) against what the cgroup_skb hooks saw (the
+observer's machine-wide totals) over the focus window, and prints
+the gap. A healthy machine renders one compact line (`bypass audit:
+clean — cgroup hooks and interfaces agree (tx shadow 0%, rx shadow
+2%)`). A window where the gap exceeds BOTH thresholds — 25% of
+interface tx or 40% of interface rx (the receive band is looser:
+every frame the stack dropped before socket demux — firewall drops,
+port scans — lands in that gap without being a bypass) plus an
+absolute floor (1 MiB tx / 2 MiB rx per window, so quiet windows do
+not flag on rounding) — prints the full block: both sides' figures,
+the shadow's share, the likely paths (AF_XDP, RDMA/RoCE, AF_PACKET
+raw injection — traffic that never traverses the cgroup_skb hooks
+zelynic enforces through, which NO cgroup rate limit can see or
+shape), and the triage commands (`ss -etu` / `lsof -i` — find the
+mover with no ordinary socket). `--print-json` carries the same
+audit as the top-level `bypass_audit` object (`verdict` one of
+`clean` / `bypassed_tx` / `bypassed_rx` / `bypassed_both` /
+`unavailable`; null when no window ran). The scope is deliberately
+MACHINE-wide and honestly labeled so: interface counters have no
+per-process attribution — that is exactly what a bypass means — so
+the audit names the gap and hands over the triage tools instead of
+guessing a culprit. An unreadable /sys/class/net is the named
+`unavailable` verdict, never a fabricated clean, and io_uring
+zerocopy sends do NOT trip it (those still ride the socket sendmsg
+path — verified against the io_uring source at implementation
+time, and stated here because the feature brief guessed otherwise).
+
 Two honesty contracts ride the mode. The live-only `--interval`
 flag answers with exactly one stderr note (`--interval ignored
 (--depth prints one report and exits)`) — stdout and the exit code
@@ -1346,7 +1376,7 @@ are complete):
 (multi-target specs only; a full miss exits 1 with the text error):
 
 ```json
-{"targets":[{"target":"cg:1234","cgroup_id":1234,"name":"cat-test","cgroup_path":"/sys/fs/cgroup/cat-test","uid":1000,"user":"cat","enforcement":"limited","download_bps":100000,"upload_bps":100000,"group_id":0,"oldest_started_secs":620,"processes":1,"socket_holders":1,"sockets":2,"traffic":{"window_secs":3,"download_bytes":12400000,"upload_bytes":340000},"procs":[{"pid":1234,"comm":"cat-test","uid":1000,"user":"cat","ppid":1,"state":"S (sleeping)","threads":4,"rss_kb":1234,"exe":"/home/cat/cat-test","exe_deleted":false,"kind":"binary","script":null,"permission":"755","cwd":"/home/cat","cmdline":"./cat-test --serve","started_ago_secs":620,"started_epoch":1758900000}],"endpoints":[{"pid":4242,"comm":"curl","proto":"tcp","remote":"142.250.185.78:443","state":"ESTABLISHED","download_bytes":12400000,"upload_bytes":300000}]}]}
+{"targets":[{"target":"cg:1234","cgroup_id":1234,"name":"cat-test","cgroup_path":"/sys/fs/cgroup/cat-test","uid":1000,"user":"cat","enforcement":"limited","download_bps":100000,"upload_bps":100000,"group_id":0,"oldest_started_secs":620,"processes":1,"socket_holders":1,"sockets":2,"traffic":{"window_secs":3,"download_bytes":12400000,"upload_bytes":340000},"procs":[{"pid":1234,"comm":"cat-test","uid":1000,"user":"cat","ppid":1,"state":"S (sleeping)","threads":4,"rss_kb":1234,"exe":"/home/cat/cat-test","exe_deleted":false,"kind":"binary","script":null,"permission":"755","cwd":"/home/cat","cmdline":"./cat-test --serve","started_ago_secs":620,"started_epoch":1758900000}],"endpoints":[{"pid":4242,"comm":"curl","proto":"tcp","remote":"142.250.185.78:443","state":"ESTABLISHED","download_bytes":12400000,"upload_bytes":300000}]}],"bypass_audit":{"window_secs":3,"nic_tx_bytes":12900000,"nic_rx_bytes":13000000,"bpf_tx_bytes":340000,"bpf_rx_bytes":12450000,"shadow_tx_bytes":12560000,"shadow_rx_bytes":550000,"verdict":"bypassed_tx"}}
 ```
 
 `enforcement` is `"unlimited"` | `"blocked"` | `"limited"`; an
@@ -1358,6 +1388,13 @@ poll failure — distinguishable from a zero-traffic window, which
 serializes with zero totals); each endpoint row's
 `download_bytes`/`upload_bytes` carry that socket's window bytes,
 `null` when the join resolved nothing for it.
+`bypass_audit` (NIGHT-upgrade-charger-core-1-a) is the focus
+window's interface-vs-hooks shadow verdict, machine-scope:
+`{"window_secs":3,"nic_tx_bytes":...,"nic_rx_bytes":...,"bpf_tx_bytes":...,"bpf_rx_bytes":...,"shadow_tx_bytes":...,"shadow_rx_bytes":...,"verdict":"clean"}`
+with `verdict` one of `"clean"` / `"bypassed_tx"` / `"bypassed_rx"`
+/ `"bypassed_both"` / `"unavailable"`, and `null` when no window
+ran — the same absence-vs-zero distinction every optional field
+carries.
 `kind` is `"binary"` | `"script"` | `null` (unreadable), and a
 script row's `script` field carries the shebang source path the
 classifier found. `exe_deleted` (NIGHT-blade-7) is true when the
