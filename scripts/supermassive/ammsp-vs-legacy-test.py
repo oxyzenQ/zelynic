@@ -440,6 +440,24 @@ def measure_line_rate(win=2.0):
         rmdir_quiet(scratch)
 
 
+def nested_apply_argv(chain1_id, probe_supported):
+    """The nested-root row's strict-single argv, built side-aware.
+
+    The probe flag rides the current side only: the legacy v11.0.0
+    binary predates --no-probe and exits 2 on it. The ff8e73dc CI
+    find: rider C's toggle fix converted v1's apply_single (and the
+    A/B runner set lib.PROBE_FLAG_SUPPORTED) but missed this direct
+    run_side_binary call site, so every supermassive leg went red on
+    the legacy side's exit 2. Building the argv through one helper
+    makes the side-awareness structural — a future call site cannot
+    regress it silently.
+    """
+    argv = ["strict-single", str(chain1_id), NESTED_STR]
+    if probe_supported:
+        argv.append("--no-probe")
+    return argv
+
+
 def run_battery_side(label, binary, is_current=False):
     """One side of the A/B: the identical battery under `binary`.
 
@@ -552,7 +570,7 @@ def run_battery_side(label, binary, is_current=False):
         chain1_id = sm1.CgroupSet._read_id(chain[0])
         if chain1_id is not None:
             rc, _, err = run_side_binary(
-                binary, ["strict-single", str(chain1_id), NESTED_STR, "--no-probe"]
+                binary, nested_apply_argv(chain1_id, is_current)
             )
             if rc != 0:
                 record(f"ammsp-vs-legacy: {label} nested-root apply", "FAIL", err.strip()[:160])
@@ -669,6 +687,22 @@ def self_test():
         "self: battery order — current side captured by value",
         "PASS",
         "the legacy rebind can never leak into the current side's invocation",
+    )
+
+    # The ff8e73dc lesson, pinned as a shape: the nested-root row
+    # passed --no-probe to the legacy v11.0.0 binary (exit 2, every
+    # supermassive leg red) because the toggle fix converted v1's
+    # apply_single but missed this direct run_side_binary call site.
+    # The argv must ride the toggle: the current side carries the
+    # flag, the legacy side never sees it.
+    argv_now = nested_apply_argv(4242, True)
+    assert argv_now == ["strict-single", "4242", NESTED_STR, "--no-probe"], argv_now
+    argv_old = nested_apply_argv(4242, False)
+    assert argv_old == ["strict-single", "4242", NESTED_STR], argv_old
+    record(
+        "self: nested-root argv rides the side-aware probe toggle",
+        "PASS",
+        "the legacy binary never sees --no-probe",
     )
 
     # The 1a25f91 lesson, pinned as the verdict table: the legacy
