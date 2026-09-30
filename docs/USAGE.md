@@ -308,7 +308,11 @@ unresolved tie names both uids and points at `list-apps`.
 Every failure is specific, never the generic no-match — the input
 was a well-formed reference whose infrastructure answered: "docker
 socket not found", "no container named 'x'", "no pod 'y' in
-namespace 'z'", each with its discovery tip. Container targets are
+namespace 'z'", each with its discovery tip. A stopped container
+is named as such: the daemon's own status word rides the error,
+because a stopped container's cgroup is torn down at exit — there
+is no live workload to target, and a policy left behind against
+its dead cgroup is a job for `zelynic recover`. Container targets are
 single-target verbs: the colon list cannot carry them (its grammar
 and the URI grammar fight over the same bytes), so
 `strict-multi docker://a:nginx` is refused with the fix named.

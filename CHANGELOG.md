@@ -19,6 +19,39 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Added
 
+- **the NIGHT-upgrade-charger-core-2d close — the stopped-container
+  honest verdict: `docker://<name>` on a stopped container names the
+  real cause instead of blaming the cgroup driver layout.** The
+  resolve lane asks the Engine API `?all=1`, so a stopped
+  container's NAME still resolves to its full id — but its cgroup
+  was torn down at exit, and the cgroup walk that followed could
+  only miss and answer "unrecognized cgroup driver layout", a false
+  claim (the layout is fine; the workload is gone) landing on all
+  three surfaces that re-resolve a container target: the apply, the
+  `unstrict` round-trip, and the enforcement probe. The fix reads
+  the daemon's own verdict off the same reply (State.Running plus
+  State.Status, parsed defensively — the modern object shape, the
+  ancient bare-string shape, and unknown shapes that stay None and
+  never guess), and refuses a not-running container BEFORE the
+  cgroup walk: the error carries the daemon's status word verbatim
+  ("docker status: exited"), states that a stopped container's
+  cgroup is torn down at exit so there is no live workload to
+  target, and tips the one tool for the leftover — a policy against
+  the dead cgroup is an orphan, and `zelynic recover` sweeps those.
+  The short-circuit also skips the whole bounded tree walk (up to
+  200,000 entries) for a container the daemon already knows is
+  gone. The k8s lane owned this distinction from birth ("the pod is
+  not running on this node"); this closes the docker lane's
+  asymmetry. DockerMatch::One now carries the matched entry's
+  liveness state; every pin updated and three new pins added (the
+  State parser's shapes, the refusal line's contract, the verdict's
+  state carriage), and the docker-lane pins split into
+  test/ebpf/identity/docker_tests.rs (#[path]-wired under docker.rs)
+  when the new pins grew container_tests.rs past the 500-LOC owner
+  cap — the same sibling-split lineage as docker.rs itself.
+  USAGE.md's specific-failure list carries the new verdict. No BPF
+  surface touched; the version is untouched.
+
 - **the NIGHT-upgrade-charger-core-2c close — riders L and M, the
   36748829788 best-musl leg's two AMMSP rows hunted and closed at
   their physics.** The leg failed both rows the FIRST green-tree
