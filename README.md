@@ -164,7 +164,7 @@ else takes v3.
 Uninstall is `rm` on the binary — the release payload is that one
 file, so there is nothing else to clean (no /usr/lib payload, no
 service, no man page). Building from source keeps the richer
-`scripts/install.sh` / `uninstall.sh` flow in the repo.
+`scripts/package/install.sh` / `uninstall.sh` flow in the repo.
 
 Each release tarball carries three checksums (SHA-512 + BLAKE2b-512 +
 SHAKE256) and a detached GPG signature from the maintainer's
@@ -332,10 +332,10 @@ across all six build shapes. A v3 build runs on any x86_64 CPU from
 ~2013 onward; a v4 build needs AVX-512 (check with `grep -o
 'avx512f' /proc/cpuinfo`).
 
-`scripts/install.sh` builds through the same alias — default
+`scripts/package/install.sh` builds through the same alias — default
 `cargo pro-native-gnu`, `--musl` for the static x86_64 build — and
 verifies the binary answers `-V` before anything is installed
-(NIGHT-improve-15). `scripts/uninstall.sh` clears kernel enforcement
+(NIGHT-improve-15). `scripts/package/uninstall.sh` clears kernel enforcement
 first: while BPF pins are still live under `/sys/fs/bpf/zelynic` it
 runs `unstrict-all` (or prints the exact manual steps when no binary
 is left) before deleting files, so active limits never outlive the

@@ -106,8 +106,8 @@ marker.
   `ebpf/rust-toolchain.toml`'s dated `nightly-YYYY-MM-DD` is the
   authority, and every duplicate site must agree — the workflows'
   `toolchain:` installs, `build.rs`'s `EBPF_TOOLCHAIN` const (what
-  the nested build invokes), `scripts/install.sh`, and
-  `scripts/uninstall.sh`'s hint. A bare `nightly` alias is rejected
+  the nested build invokes), `scripts/package/install.sh`, and
+  `scripts/package/uninstall.sh`'s hint. A bare `nightly` alias is rejected
   for the same reason the stable gate rejects `stable`.
 - Bump everything in one command: `./scripts/dev/rust-version-to.sh <X.Y.Z>`
   (idempotent, refuses dirty trees, audits docs for stale references,

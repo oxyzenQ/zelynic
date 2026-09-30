@@ -137,8 +137,8 @@ if [ "${BUILD_MUSL}" = true ]; then
 fi
 echo ""
 echo "next steps — the menu:"
-echo "  want it installed system-wide?   sudo ./scripts/install.sh"
-echo "  want it gone again?              sudo ./scripts/uninstall.sh"
+echo "  want it installed system-wide?   sudo ./scripts/package/install.sh"
+echo "  want it gone again?              sudo ./scripts/package/uninstall.sh"
 echo "  explore the CLI:                 ${BUILT} --help"
 echo "  check kernel support:            sudo ${BUILT} doctor"
 echo "  see live traffic:                sudo ${BUILT} top"

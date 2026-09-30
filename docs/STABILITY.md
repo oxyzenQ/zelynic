@@ -437,7 +437,7 @@ walk happened and found the floor solid.
 | Limits behave oddly after a crash / old binary | `zelynic recover` | Repairs or clears pinned state via the schema version |
 | Machine-wide sweep misbehaving | `sudo zelynic unstrict-all` | Full unpin: every limit, link, and map removed in one shot |
 | A from-source build dies on toolchain errors | `./scripts/dev/bootstrap-ebpf.sh` | Installs/repairs the dated nightly + bpf-linker pair, then builds |
-| Uninstalling while limits are live | `./scripts/uninstall.sh` | Clears kernel enforcement BEFORE removing the binary (NIGHT-improve-15) |
+| Uninstalling while limits are live | `./scripts/package/uninstall.sh` | Clears kernel enforcement BEFORE removing the binary (NIGHT-improve-15) |
 
 Every runtime error prints its full cause chain (`caused by:` lines
 naming map, syscall, and errno), and every failure mode above is
