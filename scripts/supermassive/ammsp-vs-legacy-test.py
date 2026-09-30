@@ -457,6 +457,9 @@ def run_battery_side(label, binary, is_current=False):
     """
     out(f"── side: {label} ({binary}) " + "─" * max(0, 44 - len(label) - len(binary)))
     lib.BINARY = binary
+    # The probe flag rides the current side only (the legacy v11.0.0
+    # binary predates --no-probe and exits 2 on it).
+    lib.PROBE_FLAG_SUPPORTED = is_current
 
     # Clean slate: recover tolerates an already-clean pin dir.
     rc, _, err = run_side_binary(binary, ["recover"])
