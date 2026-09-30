@@ -114,6 +114,24 @@ fn enforcement_words_and_sentences_match_the_verdicts() {
         upload: None,
     };
     assert!(enforcement_sentence(&one_sided).contains("ul unlimited"));
+
+    // charger-core-3c: a per-socket policy's figure names its unit —
+    // an unmarked rate would read as the cgroup cap the policy does
+    // not carry (the status marker's twin).
+    let per_socket = Enforcement::Limited {
+        download: Some(PolicyRaw {
+            rate_bps: 500_000,
+            burst_bytes: 500_000,
+            group_id: 0,
+            flags: 1,
+        }),
+        upload: None,
+    };
+    let sentence = enforcement_sentence(&per_socket);
+    assert!(
+        sentence.contains("dl 500.0 KB/s /socket"),
+        "the per-socket unit is named, got: {sentence}"
+    );
 }
 
 /// The text report carries the owner's field spine — every fact the

@@ -365,3 +365,34 @@ fn json_carries_the_ledger_and_controller_resources() {
         );
     }
 }
+
+// ── charger-core-3c: the depth JSON's per-socket honesty pins ────
+
+/// A per-socket policy's depth row carries the boolean markers (and
+/// the bps figures stay exactly the rates); a cgroup-lane row omits
+/// them — the additive rule, the same skip-when-false shape the
+/// status JSON owns.
+#[test]
+fn per_socket_fields_join_the_depth_row() {
+    let enforcement = Enforcement::Limited {
+        download: Some(PolicyRaw {
+            rate_bps: 500_000,
+            burst_bytes: 500_000,
+            group_id: 0,
+            flags: 1,
+        }),
+        upload: policy(200_000),
+    };
+    let report = report_fixture(enforcement);
+    let doc = depth_doc_json(&[report], &[], None);
+    let text = serde_json::to_string(&doc).unwrap();
+    assert!(
+        text.contains("\"download_per_socket\":true"),
+        "the dl marker serializes, got: {text}"
+    );
+    assert!(
+        !text.contains("\"upload_per_socket\""),
+        "the false ul marker is omitted, got: {text}"
+    );
+    assert!(text.contains("\"download_bps\":500000"));
+}

@@ -19,6 +19,22 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Added
 
+- **the NIGHT-upgrade-charger-core-3c hunt rider — the eagle-eyes
+  --depth report named a per-socket policy's rate without its unit.**
+  The charger-core-3b close marked the STATUS table ("500.0 KB/s
+  /socket") and the probe report, but the depth surfaces still
+  rendered the bare figure: `enforcement_sentence` printed "limited
+  — dl 500.0 KB/s · ul ..." and the depth JSON emitted
+  `download_bps: 500000` with no marker — on both, a per-connection
+  budget read as the cgroup cap the policy does not carry, the
+  exact dishonesty the marker exists to close, one surface over.
+  The rider marks both: the sentence figure gains " /socket" (the
+  status cell's exact wording) and the depth JSON gains
+  `download_per_socket` / `upload_per_socket` with the same
+  skip-when-false serialization the status JSON owns (old scripts
+  see the old shape for old semantics). Pinned both sides: the
+  sentence wording in report_tests, the field serialization in
+  depth_json_tests.**
 - **the NIGHT-upgrade-charger-core-3b per-socket limiting (Tier B
   #7) — `zelynic strict-single <target> <rate> --per-socket`: every
   CONNECTION gets its own bucket at the rate, enforcement beyond the

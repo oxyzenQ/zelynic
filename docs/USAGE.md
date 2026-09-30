@@ -1579,7 +1579,12 @@ are complete):
 ```
 
 `enforcement` is `"unlimited"` | `"blocked"` | `"limited"`; an
-unlimited direction carries `null` bps, never a fabricated zero.
+unlimited direction carries `null` bps, never a fabricated zero. A
+`--per-socket` policy's rate figures carry the ` /socket` unit in
+the text report and `download_per_socket` / `upload_per_socket` in
+the JSON (charger-core-3c, the same marker the status table owns —
+an unmarked rate would read as the cgroup cap the policy does not
+carry).
 `traffic` (NIGHT-private-research-3) is the focus window's kernel
 totals — `{"window_secs":3,"download_bytes":...,"upload_bytes":...}`
 when a window ran, `null` when it could not (observer attach or
