@@ -42,12 +42,25 @@ pub const PIN_MAP_STATS: &str = "/sys/fs/bpf/zelynic/cgroup_limiter_stats";
 pub const PIN_MAP_SCHEMA_VERSION: &str = "/sys/fs/bpf/zelynic/schema_version";
 
 /// The AMMSP leaf cache (NIGHT-private-research-2): leaf cgroup id
-/// -> resolved policy-root id, 0 = resolved unlimited. LRU hash map,
-/// written by the datapath only, flushed whole by every policy
-/// mutation (ammsp_cache_flush in limiter/ammsp.rs). The static map
+/// -> the packed u64 memo word (`(generation << 32) | root`, 0 root
+/// = resolved unlimited; the packing is the pure core's, ebpf/src/
+/// ammsp.rs). LRU hash map, written by the datapath only, retired
+/// generationally by every policy mutation (ammsp_memo_invalidate
+/// in limiter/ammsp.rs — the ammsp_generation bump, NIGHT-perf-0).
+/// The static map name in ebpf/src/bin/limiter.rs and this pin path
+/// are the same contract every other map here follows.
+pub const PIN_MAP_AMMSP_CACHE: &str = "/sys/fs/bpf/zelynic/ammsp_leaf_cache";
+
+/// The AMMSP memo generation counter (NIGHT-perf-0): a one-entry
+/// pinned array, read by the datapath before every resolution and
+/// bumped by userspace after every policy mutation's writes land
+/// (ammsp_memo_invalidate in limiter/ammsp.rs). The stamp every memo
+/// carries is compared against this word per packet — the O(1)
+/// replacement for the whole-map delete sweep, and the close for the
+/// insert-after-flush race no sweep could cover. The static map
 /// name in ebpf/src/bin/limiter.rs and this pin path are the same
 /// contract every other map here follows.
-pub const PIN_MAP_AMMSP_CACHE: &str = "/sys/fs/bpf/zelynic/ammsp_leaf_cache";
+pub const PIN_MAP_AMMSP_GEN: &str = "/sys/fs/bpf/zelynic/ammsp_generation";
 
 /// Open a pinned hash map in read mode (NIGHT-optimized-2).
 /// Single source of the pin-open + error-mapping dance the status

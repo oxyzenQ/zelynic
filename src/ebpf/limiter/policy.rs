@@ -19,7 +19,7 @@ pub(super) use super::policy_lines::{
 };
 
 use super::format::{default_burst, format_rate};
-use super::reclaim::map_remove_means_absent;
+use super::lanes::map_remove_means_absent;
 use super::types::{group_id_from, Direction, PolicyRaw, RateSpec, Target, MAX_ENFORCABLE_BURST};
 use crate::ebpf::pin::{PIN_MAP_POLICY_DL, PIN_MAP_POLICY_UL};
 
@@ -58,25 +58,30 @@ impl super::Limiter {
             ) {
                 Ok(n) => applied += n,
                 Err(cause) => {
-                    // NIGHT-private-research-2: the rollback below
-                    // still MUTATED the maps (and the flush is the
-                    // AMMSP memo's only addition-side invalidation),
-                    // so the flush runs before the error returns —
-                    // best-effort by the same contract the reclaim
-                    // traces hold, never failing the rollback verdict.
-                    self.ammsp_cache_flush_best_effort();
-                    return Err(self.rollback_partial_apply(&written, cause));
+                    // NIGHT-private-research-2 / perf-0: the rollback
+                    // below still MUTATED the maps, and the
+                    // generation bump is the AMMSP memo's only
+                    // addition-side invalidation — so it runs AFTER
+                    // the rollback's deletions land, covering every
+                    // state change this invocation made (writes AND
+                    // their rollback) with one stamp, never failing
+                    // the rollback verdict.
+                    let rolled_back = self.rollback_partial_apply(&written, cause);
+                    self.ammsp_memo_invalidate_best_effort();
+                    return Err(rolled_back);
                 }
             }
         }
         self.reclaim_dead_groups(&superseded);
 
-        // AMMSP memo invalidation (NIGHT-private-research-2): the
-        // policies this apply wrote may now cover leaves whose cached
-        // resolution is a stale negative or a stale farther root — the
-        // walk can only see the live map, so the flush is what makes
-        // the addition visible. Once per invocation, after the ledger.
-        self.ammsp_cache_flush_best_effort();
+        // AMMSP memo invalidation (NIGHT-private-research-2,
+        // generation-stamped by NIGHT-perf-0): the policies this
+        // apply wrote may now cover leaves whose cached resolution
+        // is a stale negative or a stale farther root — the walk can
+        // only see the live map, so the generation bump is what
+        // makes the addition visible. Once per invocation, after the
+        // ledger.
+        self.ammsp_memo_invalidate_best_effort();
 
         Ok(applied)
     }
@@ -148,19 +153,22 @@ impl super::Limiter {
             ) {
                 Ok(n) => applied += n,
                 Err(cause) => {
-                    // Same NIGHT-private-research-2 contract as
-                    // apply_single's error path: the rollback still
-                    // mutated, so the flush still runs.
-                    self.ammsp_cache_flush_best_effort();
-                    return Err(self.rollback_partial_apply(&written, cause));
+                    // Same NIGHT-private-research-2 / perf-0 contract
+                    // as apply_single's error path: the rollback
+                    // still mutated, so the bump runs after its
+                    // deletions.
+                    let rolled_back = self.rollback_partial_apply(&written, cause);
+                    self.ammsp_memo_invalidate_best_effort();
+                    return Err(rolled_back);
                 }
             }
         }
         self.reclaim_dead_groups(&superseded);
 
-        // AMMSP memo invalidation (NIGHT-private-research-2) — same
+        // AMMSP memo invalidation (NIGHT-private-research-2,
+        // generation-stamped by NIGHT-perf-0) — same
         // once-per-invocation tail as apply_single's.
-        self.ammsp_cache_flush_best_effort();
+        self.ammsp_memo_invalidate_best_effort();
 
         let group_label = format!("group:{}", group_id);
         if self.verbose {

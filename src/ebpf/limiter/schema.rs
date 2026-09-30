@@ -83,4 +83,20 @@
 ///     twin. No layout change, verdict math untouched; the bump
 ///     forces pinned v10 programs to reload into the init-race-free
 ///     object — the same one-time re-apply contract as v4..v10.
-pub const SCHEMA_VERSION_EXPECTED: u32 = 11;
+/// v12 (NIGHT-perf-0): AMMSP memos become generation-stamped —
+///     the ammsp_leaf_cache value widens u32 -> u64, packing
+///     `(generation << 32) | root`, and a new one-entry pinned
+///     ammsp_generation counter array is read by the datapath
+///     before every resolution and bumped by userspace after every
+///     policy mutation's writes land. The stamp closes the insert
+///     race the whole-map delete flush could not (a walk whose
+///     tail an NMI/IRQ storm stretched past the sweep inserted
+///     pre-mutation state after the flush finished — a stale
+///     verdict that lived until the next mutation), and the bump
+///     replaces the O(memo-cap) syscall sweep with one O(1) array
+///     store (the sweep stays only as the bump's failure
+///     fallback). Map set + value layout change; the bump forces
+///     pinned v11 programs to reload into the generation-stamped
+///     object — active limits are dropped once, re-apply after
+///     upgrade, the same one-time contract as v4..v11.
+pub const SCHEMA_VERSION_EXPECTED: u32 = 12;

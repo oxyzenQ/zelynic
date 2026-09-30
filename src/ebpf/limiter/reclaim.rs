@@ -1,41 +1,31 @@
 // Copyright (C) 2026 rezky_nightky
 // SPDX-License-Identifier: GPL-3.0-only
 
-//! State reclamation — the generic u32-keyed map plumbing, the
-//! bucket/stats reclaim path that keeps the 1024-slot maps
-//! proportional to live policies (NIGHT-improve-10, the LTS
-//! endurance budget), and the REMOVE path itself: unstrict landed
-//! here with NIGHT-improve-29's 500-LOC split (the apply path grew
-//! the unset-direction removal that honors the -d/-u-only
-//! contract), so the whole removal family — delete, partial-
-//! failure honesty, reclamation — lives in one file.
+//! State reclamation — the bucket/stats reclaim path that keeps
+//! the 1024-slot maps proportional to live policies
+//! (NIGHT-improve-10, the LTS endurance budget), and the REMOVE
+//! path itself: unstrict landed here with NIGHT-improve-29's 500-LOC
+//! split (the apply path grew the unset-direction removal that
+//! honors the -d/-u-only contract), so the whole removal family —
+//! delete, partial-failure honesty, reclamation — lives in one
+//! file.
 //!
 //! Split from policy.rs to hold the modules under the 500-LOC cap
 //! (check-loc policy): apply/write semantics stay in policy.rs,
-//! the map-access plumbing, the removal, and the reclamation they
-//! share live here.
+//! the map-access plumbing moved one split further to lanes.rs
+//! (NIGHT-perf-0 — the Array twin of the acquisition family pushed
+//! this file past the cap again), and the removal and reclamation
+//! semantics stay here.
 
-use anyhow::{anyhow, Context, Result};
-use aya::maps::{HashMap as BpfHashMap, MapData, MapError};
+use anyhow::{anyhow, Result};
 
+use super::lanes::map_remove_means_absent;
 use super::policy::policy_survivor_line;
 use super::types::{BucketRaw, Direction, LimiterStatsRaw, PolicyRaw, Target};
 use crate::ebpf::pin::{
-    self, PIN_MAP_BUCKET_DL, PIN_MAP_BUCKET_UL, PIN_MAP_GROUP_BUCKET_DL, PIN_MAP_GROUP_BUCKET_UL,
+    PIN_MAP_BUCKET_DL, PIN_MAP_BUCKET_UL, PIN_MAP_GROUP_BUCKET_DL, PIN_MAP_GROUP_BUCKET_UL,
     PIN_MAP_POLICY_DL, PIN_MAP_POLICY_UL, PIN_MAP_STATS,
 };
-
-/// NIGHT-hunt-20 (error-path audit): a failed map delete means
-/// "key absent" ONLY for ENOENT — every other errno means the delete
-/// did NOT happen and the entry is still live. Conflating the two is
-/// how a remove path reports "nothing to remove" while state stays
-/// behind. Pure so it is unit-pinned in the policy tests.
-pub(super) fn map_remove_means_absent(err: &MapError) -> bool {
-    matches!(
-        err,
-        MapError::SyscallError(e) if e.io_error.kind() == std::io::ErrorKind::NotFound
-    )
-}
 
 /// Verbose trace line for one state reclaim (NIGHT-improve-10): the
 /// per-cgroup bucket/stats slots an unstrict or recover handed back
@@ -90,88 +80,6 @@ fn unstrict_partial_failure_line(removed: usize, failed: &[String]) -> String {
     )
 }
 impl super::Limiter {
-    /// Generic u32-keyed limiter map access in whichever mode is live
-    /// (NIGHT-improve-10). `op` runs against the ephemeral object's
-    /// map when one is loaded, or the pinned map otherwise;
-    /// acquisition errors keep their per-mode wording exactly like
-    /// the former policy-only path. The ONE acquisition path for
-    /// every u32-keyed limiter map: NIGHT-hunt-20 introduced it for
-    /// policies, this widened it to the bucket and stats maps the
-    /// reclaim path touches.
-    pub(super) fn with_u32_map<V, R>(
-        &mut self,
-        map_name: &str,
-        pin_path: &str,
-        op: impl FnOnce(&mut BpfHashMap<&mut MapData, u32, V>) -> Result<R>,
-    ) -> Result<R>
-    where
-        V: aya::Pod,
-    {
-        if let Some(bpf) = self.bpf.as_mut() {
-            let map_ref = bpf
-                .map_mut(map_name)
-                .context(format!("{map_name} not found"))?;
-            let mut map: BpfHashMap<&mut MapData, u32, V> =
-                BpfHashMap::try_from(map_ref).context(format!("Failed to access {map_name}"))?;
-            op(&mut map)
-        } else {
-            let mut map_obj = pin::open_pinned_hash_map(pin_path)?;
-            let mut map: BpfHashMap<&mut MapData, u32, V> = BpfHashMap::try_from(&mut map_obj)
-                .context(format!("Failed to open pinned map {pin_path}"))?;
-            op(&mut map)
-        }
-    }
-
-    /// The LRU twin of [`Self::with_u32_map`]
-    /// (NIGHT-private-research-2): the same ONE-acquisition-lane
-    /// contract — every mutation of a u32-keyed limiter map flows
-    /// through this file — extended to the map family whose pin opens
-    /// as `Map::LruHashMap` so aya's map-type reporting stays honest
-    /// (the ammsp_leaf_cache memo; the plain twin would work
-    /// operationally, the variant is the honesty). Only the ammsp
-    /// flush mutates an LRU map, so only it rides this lane.
-    pub(super) fn with_lru_u32_map<V, R>(
-        &mut self,
-        map_name: &str,
-        pin_path: &str,
-        op: impl FnOnce(&mut BpfHashMap<&mut MapData, u32, V>) -> Result<R>,
-    ) -> Result<R>
-    where
-        V: aya::Pod,
-    {
-        if let Some(bpf) = self.bpf.as_mut() {
-            let map_ref = bpf
-                .map_mut(map_name)
-                .context(format!("{map_name} not found"))?;
-            let mut map: BpfHashMap<&mut MapData, u32, V> =
-                BpfHashMap::try_from(map_ref).context(format!("Failed to access {map_name}"))?;
-            op(&mut map)
-        } else {
-            let mut map_obj = pin::open_pinned_lru_hash_map(pin_path)?;
-            let mut map: BpfHashMap<&mut MapData, u32, V> = BpfHashMap::try_from(&mut map_obj)
-                .context(format!("Failed to open pinned map {pin_path}"))?;
-            op(&mut map)
-        }
-    }
-
-    /// Delete one u32 key from a limiter map in whichever mode is
-    /// live. `Ok(true)` deleted, `Ok(false)` ENOENT (genuinely
-    /// absent), `Err` when the delete could not be performed — the
-    /// tri-state contract `delete_policy` exposes, factored once so
-    /// the bucket/stats reclaim path shares it verbatim.
-    fn remove_map_entry<V: aya::Pod>(
-        &mut self,
-        map_name: &str,
-        pin_path: &str,
-        key: u32,
-    ) -> Result<bool> {
-        self.with_u32_map::<V, bool>(map_name, pin_path, |map| match map.remove(&key) {
-            Ok(()) => Ok(true),
-            Err(e) if map_remove_means_absent(&e) => Ok(false),
-            Err(e) => Err(anyhow!("failed to delete key {key} from {map_name}: {e}")),
-        })
-    }
-
     /// Reclaim the per-cgroup enforcement state a removal leaves
     /// behind (NIGHT-improve-10, the LTS endurance budget). The
     /// individual bucket and stats maps hold hard 1024 slots, and a
@@ -449,14 +357,15 @@ impl super::Limiter {
         }
 
         if !failed.is_empty() {
-            // NIGHT-private-research-2: removals are the mutation the
-            // datapath's stale-detect already covers, but the flush
-            // still runs before the partial-failure error returns —
-            // the deletes that DID land are a mutation like any
-            // other, and the belt-and-suspenders pair (flush +
-            // stale-detect) is cheaper than reasoning about which
-            // half of it a given removal needed.
-            self.ammsp_cache_flush_best_effort();
+            // NIGHT-private-research-2 / perf-0: removals are the
+            // mutation the datapath's stale-detect already covers,
+            // but the generation bump still runs before the
+            // partial-failure error returns — the deletes that DID
+            // land are a mutation like any other, and the
+            // belt-and-suspenders pair (stamp + stale-detect) is
+            // cheaper than reasoning about which half of it a given
+            // removal needed.
+            self.ammsp_memo_invalidate_best_effort();
             return Err(anyhow!(
                 "{}",
                 unstrict_partial_failure_line(removed, &failed)
@@ -470,12 +379,14 @@ impl super::Limiter {
         // halves of the endurance budget.
         self.reclaim_dead_groups(&superseded);
 
-        // AMMSP memo invalidation (NIGHT-private-research-2): a
-        // removed root leaves cached resolutions pointing at a policy
-        // that no longer exists — the datapath's stale-detect re-walks
-        // them per packet, and this flush retires them in one sweep
-        // so the re-walk cost is paid once, not per packet, per leaf.
-        self.ammsp_cache_flush_best_effort();
+        // AMMSP memo invalidation (NIGHT-private-research-2,
+        // generation-stamped by NIGHT-perf-0): a removed root leaves
+        // cached resolutions pointing at a policy that no longer
+        // exists — the datapath's stale-detect re-walks them per
+        // packet, and this bump retires the whole stale generation
+        // in one word so the re-walk cost is paid once, not per
+        // packet, per leaf.
+        self.ammsp_memo_invalidate_best_effort();
 
         Ok(removed)
     }
