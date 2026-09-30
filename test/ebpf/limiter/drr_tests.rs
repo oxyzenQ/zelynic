@@ -36,7 +36,7 @@ use super::math_tests::ebpf_math::{
 };
 
 use ebpf_drr::{
-    draw_admitted, draw_size, draw_wait, leaf_inflight_bound, quantum, DRR_WINDOW_MS, DRR_WINDOW_NS,
+    draw_admitted, draw_size, leaf_inflight_bound, quantum, DRR_WINDOW_MS, DRR_WINDOW_NS,
 };
 
 /// A zeroed leaf bucket (the datapath's init shape).
@@ -97,34 +97,6 @@ fn the_draw_is_bounded_by_quantum_and_half_the_pool() {
     assert_eq!(draw_size(0, 100_000), 0, "a zero quantum draws nothing");
 }
 
-/// The proportional pacing: a full quantum costs the window, a
-/// residual trickle costs its share of one — the stockpile cap and
-/// the starved leaf's fast retry, one arithmetic.
-#[test]
-fn the_pacing_is_proportional_to_the_draw() {
-    assert_eq!(
-        draw_wait(100_000, 100_000),
-        DRR_WINDOW_NS,
-        "a full quantum costs the window"
-    );
-    assert_eq!(
-        draw_wait(10_000, 100_000),
-        DRR_WINDOW_NS / 10,
-        "a tenth costs a tenth"
-    );
-    assert_eq!(
-        draw_wait(1_000, 100_000),
-        DRR_WINDOW_NS / 100,
-        "a trickle costs a trickle"
-    );
-    assert_eq!(draw_wait(0, 100_000), 0, "nothing costs nothing");
-    assert_eq!(
-        draw_wait(u64::MAX, 100_000),
-        DRR_WINDOW_NS,
-        "the saturating cap"
-    );
-}
-
 /// The draw-stamp ownership: the CAS race the stamp closes — two
 /// CPUs observed the same stamp and both attempt ownership, exactly
 /// one wins; the next timestamp admits again.
@@ -178,8 +150,10 @@ fn alternating_leaves_split_the_pool_where_fcfs_starved() {
 
     // One leaf's packet through the DRR primitive sequence (the
     // datapath's own order: the admission guard, the stamp lock, the
-    // residue-law draw, the spend, the paced restamp). The clock is
-    // ns at a past-boot base; one packet per ms at the 1 MB/s rate.
+    // residue-law draw, the spend). The clock is ns at a past-boot
+    // base; one packet per ms at the 1 MB/s rate. No pacing — the CI
+    // daemon row proved paced draws TCP-hostile; the stamp is the
+    // draw lock and the fairness rides the residue law alone.
     let step = |leaf: &mut Bucket, pool: &mut Bucket, now: u64, got: &mut u64| {
         let stamp = leaf.last_refill_ns;
         if tokens_read(leaf) < packet && now >= stamp && draw_stamp_take(leaf, stamp, now) {
@@ -187,12 +161,9 @@ fn alternating_leaves_split_the_pool_where_fcfs_starved() {
             let observed = tokens_read(pool);
             if d > 0 && observed >= d && tokens_cas(pool, observed, observed - d) {
                 let _ = tokens_fetch_add(leaf, d);
-                let next = now + draw_wait(d, q);
-                let _ = draw_stamp_take(leaf, now, next);
             } else {
                 // The rollback: an empty pool must not advance the
-                // leaf's stamp (the starved leaf retries every
-                // packet; the stocked one waits out its pacing).
+                // leaf's stamp (the starved leaf retries every packet).
                 let _ = draw_stamp_take(leaf, now, stamp);
             }
         }
@@ -237,14 +208,14 @@ fn alternating_leaves_split_the_pool_where_fcfs_starved() {
     );
 }
 
-/// The paced admission: the stamp holds the NEXT-ELIGIBLE time —
-/// the clock reaching it admits, a future stamp waits. This is the
-/// arithmetic that keeps the starved regime fair (a full quantum
-/// stocks a leaf for a window, a residual trickle costs a trickle of
-/// waiting, so the refills flow to whichever leaf is empty and
-/// asking).
+/// The draw lock's admission arithmetic: the stamp holds the LAST
+/// DRAW time — a reached-or-later clock admits (the CAS below the
+/// guard is the actual lock; this is its gate). NOT pacing: the CI
+/// daemon row proved paced draws TCP-hostile (46% of configured —
+/// the silent windows read as congestion), so the fairness rides the
+/// residue law and the holding cap alone.
 #[test]
-fn the_paced_admission_reads_the_stamp() {
+fn the_draw_lock_admits_on_a_later_clock() {
     assert!(
         draw_admitted(1_000, 0),
         "a fresh leaf (stamp 0) draws immediately"
