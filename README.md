@@ -8,7 +8,12 @@
 <h1 align="center">zelynic</h1>
 
 <p align="center">
-  <strong>Per-app network rate limiter and traffic monitor for Linux. Pure eBPF. Boring and silent but killer.</strong>
+  <strong>Per-app network rate limiter and traffic monitor for Linux. Pure eBPF.</strong>
+</p>
+
+<p align="center">
+  <strong>Run anything you like. Launch whatever you want.
+  The cosmic dragon counts every byte that leaves the den — and the ledger never lies.</strong>
 </p>
 
 <p align="center">
@@ -16,14 +21,6 @@
   with per-application rate limiting, live traffic monitoring, fractional precision, and
   zero-daemon enforcement.
 </p>
-
-<div align="center">
-
-> Run anything you like. Launch whatever you want.\
-> The cosmic dragon counts every byte that leaves the den —\
-> and the ledger never lies.
-
-</div>
 
 <p align="center">
   <a href="https://ko-fi.com/rezky">
