@@ -216,6 +216,12 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
             }
             #[cfg(not(feature = "ebpf"))]
             {
+                // per_socket joins the tuple with the other payload
+                // fields: the dormant-mode build destructures every
+                // strict-single flag here so -D warnings never sees an
+                // unused binding (the CI build leg's -D warnings ride
+                // the no-default-features leg; the field is read only
+                // on the ebpf side, so the dormant arm silences it).
                 let _ = (
                     target,
                     rate,
@@ -223,6 +229,7 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
                     upload,
                     force_this,
                     no_probe,
+                    per_socket,
                     cli.verbose,
                 );
                 ebpf_disabled()
