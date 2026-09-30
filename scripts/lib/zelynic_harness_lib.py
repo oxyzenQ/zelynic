@@ -148,7 +148,7 @@ def drain_cushion(probe, cushion, attempts=3):
     return drained
 
 
-def patient_rate_window(probe, configured_bps, window, attempts=3):
+def patient_rate_window(probe, configured_bps, window, attempts=3, redrain=None):
     """The under-side patient measured rate window (the
     charger-core-1c trickle lesson — the 0b0a8f5 drain discipline
     applied to the measurement itself).
@@ -175,6 +175,22 @@ def patient_rate_window(probe, configured_bps, window, attempts=3):
     the strict-single probe's one-sidedness contract). All samples
     under after `attempts` tries FAIL the same way: a
     systematically broken datapath cannot pass by retry.
+
+    charger-core-2 rider L (the 36748829788 best-musl leg): the
+    RE-SAMPLE BOUNDARY itself was the leak. A starved window BANKS
+    its un-admitted entitlement — the token content caps at one
+    default_burst — and the immediate re-sample RETURNS the bank
+    as a phantom over-delivery: window 1 read the rider-F transient
+    (16.4 KB/s, one quantum), window 2 inherited the bank and read
+    69.4 KB/s = 138.8% of the 50kb policy, over-band, FAIL — the
+    mirror image of the same physics the patience was built for.
+    `redrain` (opt-in, the row's own pre-window drain discipline
+    applied between samples) pays the banked state out at line
+    rate before the next probe, so the re-sample measures steady
+    state and the one-sidedness contract holds byte-true: a
+    working policer can never over-deliver the budget law
+    (span x rate + one burst), so the over-band FAIL stays
+    immediate and exact for REAL over-delivery.
     """
     rates = []
     for _ in range(attempts):
@@ -182,6 +198,8 @@ def patient_rate_window(probe, configured_bps, window, attempts=3):
         rates.append(got / window if window else 0.0)
         if rates[-1] >= BAND_LO * configured_bps:
             break
+        if redrain is not None:
+            redrain()
     return rates
 
 
