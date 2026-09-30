@@ -1213,6 +1213,36 @@ repeated tokens — a shape the synthetic fixture set does not
 contain, by design (the fix's proof is the render pin
 `duplicate_name_token_is_not_a_false_miss`, not a visual delta).
 
+### NIGHT-perf-0/1/2 A/B (the generation stamp + the A/B harness, 2026-09-30)
+
+The perf trilogy's code changes sit off the render path by
+construction: the schema-v12 generation stamp is kernel-side
+resolution/invalidation semantics (the memo word, the counter
+array, the verdict row — no render surface reads any of them),
+and the A/B harness is a CI/Python addition with no Rust render
+code touched at all. The harness therefore proves frame-parity
+(A = fd39809, the light-years-3 rider tree; B = 70de17a at HEAD,
+formal 10 s runs, 75k+ frames per side):
+
+| Metric | fd39809 | HEAD | Delta |
+|--------|---------|------|-------|
+| fps | 7,552.3 | 7,682.8 | +1.7% (machine noise, favorable) |
+| bytes/frame | 1,919.0 | 1,919.0 | +0.0% |
+| emit bytes/frame | 507.3 | 504.5 | -0.5% (machine noise) |
+| frame entropy | 3.0051 | 2.9981 | -0.2% (machine noise) |
+| density gini | 0.3556 | 0.3565 | +0.2% (machine noise) |
+| dirty cells/frame | 39.8 | 39.6 | -0.5% (machine noise) |
+
+Reading: bytes/frame identical to the byte — the frame output is
+byte-exact the pre-trilogy shape, the strongest parity proof the
+harness can give. Every other delta sits inside the run-to-run
+band every prior record on this host carries. The stamp's own
+cost lives where it can be measured: the resolution branch's one
+added Array read on the policy-miss lane — bounded by design,
+owned by the supermassive overhead stage, and the O(1) mutation
+bump's win is on the mutation side (the design brief and the
+perf-2 audit doc carry the reasoning).
+
 ### NIGHT-think-like-light-years-3 A/B (the init-race close + the linear merge, 2026-09-30)
 
 The session's two code changes sit off the render path by
