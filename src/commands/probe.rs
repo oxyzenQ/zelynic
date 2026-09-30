@@ -19,17 +19,13 @@
 //! client's bytes are the measured truth.
 //!
 //! Honesty contracts: the probe is ONE-SIDED by nature (enforcement
-//! can only under-deliver the budget, never over-deliver it — a flow
-//! inside the ceiling is VERIFIED, above it is FAILED, and a flow that
-//! never happened is UNVERIFIED, never a vacuous pass); the child's
-//! residency in the target subtree is verified from /proc BEFORE the
-//! window opens (an unentered probe measures an unlimited path and
-//! reads a false FAILED — the worst lie a verifier can tell); the
-//! server lives outside every policy for the window (zelynic's own
-//! chain is checked against BOTH policy maps before the fallback
-//! placement — a capped server would silently under-measure); teardown
-//! is best-effort and never fails the verdict (kill, reap, rmdir with
-//! retries — no zelynic-probe-* residue left behind).
+//! can only under-deliver the budget, never over-deliver it — a flow inside
+//! the ceiling is VERIFIED, above it is FAILED, never happened is UNVERIFIED); the child's
+//! residency in the target subtree is verified from /proc BEFORE the window
+//! opens (an unentered probe measures an unlimited path — a false FAILED); the
+//! server lives outside every policy for the window (zelynic's own chain
+//! is checked against BOTH policy maps — a capped server under-measures); teardown
+//! is best-effort and never fails the verdict (kill, reap, rmdir — no residue).
 
 use anyhow::{anyhow, bail, Context, Result};
 use std::io::{BufRead, BufReader};
@@ -245,10 +241,10 @@ pub(crate) fn run_enforcement_probe(
         note: Some(note),
     };
 
-    // Direction: download preferred (the common limit), upload when
-    // only that side is policed. A blocked (rate-0) policy needs no
-    // probe — the drop ledger IS the verdict, and a block's "zero
-    // goodput" is ambiguous with a dead probe by design.
+    // Direction: download preferred (the common limit), upload when only
+    // that side is policed. A blocked (rate-0) policy needs no probe —
+    // the drop ledger IS the verdict (zero goodput is ambiguous with a
+    // dead probe by design).
     let (direction, rate_bps) = match (rates.download, rates.upload) {
         (Some(0), _) | (_, Some(0)) => {
             return unverified(
@@ -269,9 +265,14 @@ pub(crate) fn run_enforcement_probe(
 
     // The target: first resolved cgroup id + its path (the probe
     // child nests under it — the subtree the policy just covered).
+    // Container targets re-resolve through the container resolver —
+    // the same lane the apply used.
     let ids = match target {
         Target::CgroupId(id) => vec![*id],
         Target::ProcessName(name) => resolve_name(name),
+        Target::Container(c) => {
+            crate::ebpf::identity::container::resolve(c, false).unwrap_or_default()
+        }
     };
     let Some(&target_id) = ids.first() else {
         return unverified("target resolved to nothing at probe time".to_string());
@@ -297,7 +298,6 @@ pub(crate) fn run_enforcement_probe(
         Ok(b) => b,
         Err(e) => return unverified(format!("ledger baseline read failed: {e}")),
     };
-
     // Spawn the server, enter its home, announce the port.
     let mut server = match spawn_role(&["__probe-server", "0"]) {
         Ok(child) => child,

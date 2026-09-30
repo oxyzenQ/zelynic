@@ -37,6 +37,11 @@ mod tally;
 // --depth — same family as the walk + tally pair, one more concern.
 pub mod depth;
 
+// NIGHT-upgrade-charger-core-2: the container-native target
+// resolution (docker://, k8s://) — same family, one more way to
+// NAME a cgroup.
+pub mod container;
+
 // NIGHT-cybersecurity-2: sanitize_comm moved up to the always-compiled
 // output layer (src/output/sanitize.rs) so the update check — which
 // runs in BOTH feature graphs — reuses the one canonical terminal

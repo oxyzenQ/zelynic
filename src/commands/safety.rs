@@ -299,6 +299,19 @@ pub(crate) fn check_dangerous_cgroup_id(id: u32, force_this: bool) -> Result<()>
 /// family's own example command.
 #[cfg(feature = "ebpf")]
 pub(crate) fn validate_multi_targets(targets_str: &str, example: &str) -> Result<Vec<String>> {
+    // charger-core-2: a container URI anywhere in the list is a named
+    // mistake — the colon grammar and the URI grammar fight over the
+    // same bytes ('docker://nginx:brave' splits into 'docker',
+    // '//nginx', 'brave'), so the refusal names the real fix
+    // instead of letting the '/' check complain about a fragment the
+    // URI never meant as a target.
+    if targets_str.contains("://") {
+        return Err(anyhow::anyhow!(
+            "container targets (docker://<name>, k8s://<namespace>/<pod>) are \
+             single-target verbs — apply each with strict-single"
+        ));
+    }
+
     let segments: Vec<String> = targets_str
         .split(':')
         .map(|s| s.trim().to_string())

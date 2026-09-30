@@ -149,6 +149,15 @@ pub(crate) fn resolve_live_targets(
                     misses.push(name.clone());
                 }
             }
+            // Container targets cannot arrive here — the '/'-separated
+            // target grammar splits a URI before Target::parse ever
+            // sees one — and this resolver is PURE over the identity
+            // map (it cannot walk docker/kubelet metadata), so the
+            // conservative miss is the honest bound: never a
+            // fabricated row (charger-core-2).
+            Target::Container(c) => {
+                misses.push(c.display());
+            }
         }
     }
     (ids, misses)
@@ -394,31 +403,22 @@ pub(crate) fn handle_eagle_eyes_depth(
             // identically here and under `zelynic ss <name>` (the
             // documented depth contract — per-process comm matching,
             // not the identity map's majority-vote representative).
+            // Container targets take the container resolver — the
+            // same lane the apply used (charger-core-2).
             Target::ProcessName(name) => resolve_name(name),
+            Target::Container(c) => {
+                crate::ebpf::identity::container::resolve(c, false).unwrap_or_default()
+            }
         };
         if ids.is_empty() {
-            let name = match token {
-                Target::CgroupId(id) => format!("cg:{id}"),
-                Target::ProcessName(name) => name.clone(),
-            };
-            misses.push((name, "no live cgroup matches".to_string()));
+            misses.push((token.label(), "no live cgroup matches".to_string()));
             continue;
         }
         if verbose {
-            eprintln_safe!(
-                "[eagle-eyes] {} -> {} cgroup(s)",
-                match token {
-                    Target::CgroupId(id) => format!("cg:{id}"),
-                    Target::ProcessName(name) => name.clone(),
-                },
-                ids.len()
-            );
+            eprintln_safe!("[eagle-eyes] {} -> {} cgroup(s)", token.label(), ids.len());
         }
         for id in ids {
-            let target = match token {
-                Target::CgroupId(_) => format!("cg:{id}"),
-                Target::ProcessName(name) => name.clone(),
-            };
+            let target = token.label();
             let facts = depth::deep_collect(id);
             let comm = identity.get(id).map(|entry| entry.comm.clone());
             let name = package_name(comm.as_deref(), facts.rel_path.as_deref());

@@ -42,11 +42,8 @@ impl super::Limiter {
         // full at 1024 entries, ENOMEM, ...) rolls the whole apply
         // back instead of leaving an enforced prefix behind. The
         // superseded-group ledger (NIGHT-lts-7) rides the same
-        // lifecycle: captured by the writes, swept once after — a
-        // failed apply's rollback deletes the written policies, and
-        // the sweep's live-reference check keeps any group another
-        // policy still holds. charger-core-2: the ledger carries
-        // each leg's PRE-APPLY raw (the snapshot in
+        // lifecycle, swept once after. charger-core-2: the ledger
+        // carries each leg's PRE-APPLY raw (the snapshot in
         // write_policies_for_cgroup), so the rollback RESTORES an
         // overwritten limit instead of stripping it.
         let mut mutations: Vec<PolicyMutation> = Vec::new();
@@ -110,11 +107,10 @@ impl super::Limiter {
         // targets, first-seen order. Two targets can name the SAME
         // cgroup by different spellings (`sm brave:brave`, or
         // `sm cg:123/12345` where brave lives in cg:123) — the old
-        // loop wrote every duplicate twice: the second write hit the
-        // same map key (harmless) but inflated the applied-policy
-        // count the success epilogue reports, double-pushed the
-        // superseded-group ledger, and double-printed the verbose
-        // trace. One cgroup, one write, one count.
+        // loop wrote every duplicate twice: harmless on the map key,
+        // but it inflated the applied-policy count, double-pushed the
+        // superseded-group ledger, and double-printed the trace.
+        // One cgroup, one write, one count.
         let mut seen_cgroups = std::collections::HashSet::new();
         all_cgroup_ids.retain(|id| seen_cgroups.insert(*id));
 
@@ -185,12 +181,10 @@ impl super::Limiter {
         Ok(applied)
     }
 
-    /// Resolve a target to cgroup IDs.
-    ///
-    /// For process names, does a DIRECT /proc walk (not identity map cache)
-    /// to find all PIDs matching the name, then resolves their cgroup IDs.
-    /// This avoids the "first-pid-wins" issue where aria2c shares a cgroup
-    /// with alacritty — direct lookup finds aria2c's PID directly.
+    /// Resolve a target to cgroup IDs. Process names do a DIRECT
+    /// /proc walk (not the identity cache) to find all PIDs matching
+    /// the name, then their cgroup IDs — the fix for aria2c sharing
+    /// a cgroup with alacritty (first-pid-wins lied).
     pub(super) fn resolve_target(&mut self, target: &Target) -> Result<Vec<u32>> {
         match target {
             Target::CgroupId(id) => {
@@ -199,15 +193,21 @@ impl super::Limiter {
                 }
                 Ok(vec![*id])
             }
+            Target::Container(c) => {
+                // charger-core-2 (TIER A #5): resolve-only — the URI
+                // becomes the workload's cgroup id, the rest is the
+                // strict-single machinery (specific infrastructure errors,
+                // never the generic no-match; the trace is resolve's own).
+                crate::ebpf::identity::container::resolve(c, self.verbose)
+            }
             Target::ProcessName(name) => {
                 // Direct /proc walk: find all PIDs whose comm matches.
                 let name_lower = name.to_lowercase();
                 let mut cgroup_ids = Vec::new();
                 let mut seen = std::collections::HashSet::new();
-                // Verbose evidence (NIGHT-hunt-9): every (pid, cgroup)
-                // pair the walk accepted, so the trace shows the
-                // decision — including multiple pids sharing one
-                // cgroup, the NIGHT-hunt-8 discovery-stage lie.
+                // Verbose evidence (NIGHT-hunt-9): every (pid,
+                // cgroup) pair the walk accepted, including multiple
+                // pids sharing one cgroup (NIGHT-hunt-8's lie).
                 let mut matched: Vec<(u32, u32)> = Vec::new();
 
                 let proc_entries = match std::fs::read_dir("/proc") {

@@ -80,6 +80,14 @@ pub(super) fn resolve_targets(
                     unresolved.push(name.clone());
                 }
             }
+            // Container targets read as unresolved here: this resolver
+            // is per-frame PURE over the identity map and cannot walk
+            // docker/kubelet metadata — and the '/'-separated target
+            // grammar splits a URI before it ever reaches the frame.
+            // The honest bound: never a fabricated row (charger-core-2).
+            Target::Container(c) => {
+                unresolved.push(c.display());
+            }
         }
     }
     (ids, unresolved)
