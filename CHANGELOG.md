@@ -19,6 +19,96 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Added
 
+- **the NIGHT-improve-1b supermassive stages — the owner's DeepSeek
+  verification checklist, translated into the harnesses as
+  batteries.** Three coverage holes the checklist found, closed as
+  stages that run on every leg (the four-leg CI matrix + any local
+  supermassive run):
+  `test_ammsp_fairshare` (v1, the starvation battery — the
+  checklist's item 2): the fair-shared bucket's fairness measured
+  LIVE instead of only rootless-pinned. Four rounds, each (re-)apply
+  its own rate (the re-apply is the policy mutation that fires the
+  stale belt for the leaves the earlier rounds left behind — the
+  churn the battery carries with it, by design): 6 equal-demand
+  leaves at 1mb judged on three laws (the aggregate band — the pool
+  never creates budget; the anti-monopoly bound — the worst leaf
+  within 1.75x the fair share plus one quantum, the drr.rs
+  "within one quantum of slop" contract with measurement slack
+  stated; the no-starve bound — the quietest leaf never at zero,
+  the residue law's alternation), then 24 leaves at 4mb (the
+  owner's many-leaf shape), then the single-active edge (one leaf
+  alone must see the whole budget — the DRR doc's own "half-draws
+  pace at the refill rate", the lo bound on), then the churn race:
+  fresh leaves born MID-WINDOW under the live policy (the later
+  half staggered in at window/2), the aggregate judged over the
+  SPAN — the exact spawn/hilang race the checklist asks to survive
+  with the tokens un-leaked. The scale, honestly stated in the
+  docstring: the checklist's sketch was "100 subprocesses at
+  100kb", where the 64 KiB quantum floor dominates (drr.rs's own
+  trickle tradeoff — the window's budget is a handful of quanta),
+  so the battery runs where the per-leaf claim applies and says
+  why.
+  `test_probe_failed` (v1, the checklist's item 3 — the self-proving
+  enforcement's FAILING side, the one no stage had ever driven):
+  the honest forcing condition is the operational accident this
+  catches — someone unstricts the target while the verification
+  window is measuring. strict-single runs with the probe (the
+  default), the unstrict fires at 2.5s (mid the 3s window — the
+  margin math stated in the docstring: setup lands the window by
+  ~1.5s, so 2.5s is a full second inside with ~2s of unbounded
+  remainder), and the client's socket runs at loopback line rate
+  for the window's remainder — the measured flow exceeds the
+  budget by orders of magnitude, and the command must EXIT 1 with
+  the FAILED block's every field attached (direction, measured,
+  budget — probe_report::failure_error's contract), never a silent
+  applied-OK; a machine slow enough to miss the window entirely
+  fails the row LOUDLY (UNVERIFIED's exit 0 is not exit 1). The
+  same stage carries the success side (a clean apply is VERIFIED
+  exit 0) and the overhead side (the with-probe minus no-probe
+  delta asserted inside [2.0, 8.0] — the 3s window plus the
+  under-five-seconds whole-probe doc bound, filed in the row's
+  metrics).
+  `test_bypass_audit` (v2, the checklist's item 1 — the
+  bypass-shadow audit's both sides, the stage no battery had ever
+  driven): the POSITIVE lane injects a real AF_PACKET raw stream
+  through loopback below the cgroup hooks (root, the VM's own
+  tooling — the interface counters grow, the hooks never see a
+  packet, so the machine's delivered aggregate says one thing
+  while the enforcement ledger says another), and the depth
+  report's focus window must flag it (verdict bypassed_tx /
+  bypassed_both in the JSON), never render a clean verdict over
+  an unpoliced stream; the NEGATIVE lane (the checklist's own
+  kritikal row — the one a false positive would destroy) runs the
+  same window over honest policed stack traffic only and must
+  read CLEAN — the 25%/1MiB and 40%/2MiB thresholds hold on a
+  busy window, so the audit never cries bypass on real traffic.
+  The lane family, honestly (bypass.rs's own scope note): the
+  audit is interface-vs-hooks arithmetic and does not care WHICH
+  lane moved the unhooked bytes, so AF_PACKET exercises the
+  physics for the whole family (AF_XDP rings, RDMA, driver
+  injection share the detection); io_uring rides the socket path
+  and traverses the egress hook (verified against source at
+  implementation time — stated so no stage ever "tests" a bypass
+  that cannot exist); a real AF_XDP program is out of the
+  micro-VM's scope on purpose and says why. v2's phase order grew
+  one rung (guards, kills, bypass, regression, teardown — a bypass
+  row that fails gates the regression re-proof), the module
+  docstring and run_survival's headers renumbered with it, and
+  v2's self-test pins the two new v1 stages in its v1-surface
+  list (a missing attr crashes mid-run on a distro — the
+  refactor-2 lesson). The checklist's covered-by-mapping rows
+  (container resolution, atomic rollback crash recovery, the
+  regression battery, v11 behavior) ride the existing stages and
+  the rootless pin trees — unchanged, named in the commit message
+  so the mapping is on record. Verified rootless: v1 --self-test
+  34 passed, v2 --self-test 10 passed (the new surface pins ride
+  it), py_compile clean, ruff check + format clean (the runner
+  name caught by ruff's F821 — run_zel, not the headless twin).
+  The live verdicts come from the CI micro-VM legs (the harnesses
+  program the kernel datapath — root). Version untouched
+  (v11.0.0); the checklist's "tag v11.1.0" suggestion is the
+  owner's call alone, never a harness's.
+
 - **the NIGHT-improve-1a baseline lane — EAGLE EYES V2, the
   in-kernel time-series ring's purpose fulfilled.** The live
   monitor TUI now reads the pinned rings (the kernel's own
@@ -59,11 +149,13 @@ NIGHT-hunt-18's git-history-only call.
   wording — the two contexts disagree about zero on purpose. No
   BPF surface touched (the ring's write protocol is
   charger-core-3a's, unchanged); the prebuilt lane is untouched
-  (the ebpf tree hash unchanged). The benchmark lane is skipped on
-  purpose: frame-bench measures the render path's frames, and the
-  panel/row add lines to a frame the harness's geometry pins
-  already account for at every size — no render decision the
-  harness measures moves. USAGE.md's eagle-eyes section carries
+  (the ebpf tree hash unchanged). The benchmark lane is RUN, not
+  skipped (the render path changed): fps -1.2%, inside the
+  same-tree run-to-run band (two identical-tree runs measured
+  +3.1% jitter); bytes/frame +0.0% (byte-identical frames — the
+  absent lane renders nothing, by the absent-lens contract);
+  gini/entropy/dirty within the same-tree noise. USAGE.md's
+  eagle-eyes section carries
   the full contract paragraph; the JSON reference's rate_ring
   explanation names where the verdicts live (the live TUI only —
   detection is temporal, scripts read the series field). Version
