@@ -18,10 +18,13 @@ The two sides are the two REAL builds, nothing simulated:
   * LEGACY — the last pre-AMMSP stable release, v11.0.0 (schema v9,
     leaf-anchored lookups: a socket born in a child cgroup simply
     missed the policy map and ran UNLIMITED). The legacy side comes
-    from --legacy-binary, $ZELYNIC_LEGACY_BINARY, or the canonical
-    release tarball name; CI stages it into the micro-VM. Without
-    it the pair verdict SKIPs loudly — never a silent pass, never a
-    false fail.
+    from --legacy-binary, $ZELYNIC_LEGACY_BINARY, the canonical
+    release tarball staged by CI (/opt/zelynic/legacy/zelynic), or
+    the canonical AUTO-DOWNLOAD (the owner's ask: the sha512-sidecar-
+    verified fetch into a TMPDIR cache, never the repo tree;
+    --no-download keeps resolution local). Without any of them the
+    pair verdict SKIPs loudly — never a silent pass, never a false
+    fail.
 
 Both sides run the IDENTICAL battery under the same fleet, the same
 server, the same traffic workers, the same bands — the only variable
@@ -71,12 +74,17 @@ side's invocation (the run-253 CI lesson, pinned in the self-test).
 """
 
 import argparse
+import hashlib
 import importlib.util
 import os
+import shutil
 import subprocess
 import sys
+import tarfile
+import tempfile
 import threading
 import time
+import urllib.request
 
 # The shared engine lib lives in scripts/lib/ — bound by ABSOLUTE path so
 # the harness works from any CWD, through the wrapper, or via importlib.
@@ -126,13 +134,85 @@ ESCAPED_FACTOR = 2.6
 
 # The legacy side's canonical provenance: the last pre-AMMSP stable
 # release (verified: the v11.0.0 tree's ebpf/src/bin/limiter.rs carries
-# zero ammsp references). The tarball's inner binary path, matching the
-# release packaging (bin/ at the archive root).
+# zero ammsp references). The tarball carries the binary at its ROOT
+# (verified against the release archive itself), with the sha512sum
+# sidecar beside it — the pair the auto-download fetches and the CI
+# rootfs step stages.
 LEGACY_VERSION = "v11.0.0"
 LEGACY_TARBALL = "zelynic-v11.0.0-linux-amd64-v3-gnu.tar.gz"
 LEGACY_URL = (
     f"https://github.com/oxyzenQ/zelynic/releases/download/{LEGACY_VERSION}/{LEGACY_TARBALL}"
 )
+LEGACY_SHA512_EXT = ".sha512sum"
+LEGACY_INNER = "zelynic"
+LEGACY_CACHE = os.path.join(
+    os.environ.get("TMPDIR") or "/tmp", "zelynic-ammsp-legacy", LEGACY_VERSION.lstrip("v")
+)
+
+
+def verify_sha512(path, expected_hex):
+    """Streaming sha512 over a file — the same arithmetic the CI rootfs
+    step's `sha512sum -c` runs, held by one implementation here so
+    the auto-download and the CI lane cannot drift apart. Pure and
+    rootless: the self-test pins it with matching and tampered shapes
+    on a local file, no network, no root.
+    """
+    digest = hashlib.sha512()
+    with open(path, "rb") as f:
+        for block in iter(lambda: f.read(1 << 16), b""):
+            digest.update(block)
+    return digest.hexdigest() == expected_hex.lower()
+
+
+def fetch_legacy():
+    """The canonical auto-download lane (the owner's ask: 'should
+    automatic download').
+
+    The CI rootfs assembly stages the v11.0.0 release tarball into
+    /opt/zelynic/legacy before the VM boots (a fetch failure fails
+    the leg), and local runs get the same provenance here: the
+    canonical tarball plus its sha512sum sidecar, verified, the one
+    binary member extracted into a per-version cache under TMPDIR
+    (never the repo tree — the checkout stays clean), the executable
+    bit restored (the tarfile data filter drops archive modes), and
+    the -V gate left to resolve_legacy's candidate loop — the same
+    validation every other candidate gets. A cached, executable
+    extraction is reused without a refetch: /tmp lives one boot and
+    the -V gate revalidates it every run anyway.
+
+    Returns (path, note) on success, or (None, reason) when the
+    network, the checksum, or the archive shape refuses — the
+    caller falls through to the loud SKIP with the reason attached.
+    """
+    os.makedirs(LEGACY_CACHE, exist_ok=True)
+    tarball = os.path.join(LEGACY_CACHE, LEGACY_TARBALL)
+    inner = os.path.join(LEGACY_CACHE, LEGACY_INNER)
+    if not (os.path.isfile(inner) and os.access(inner, os.X_OK)):
+        sidecar = tarball + LEGACY_SHA512_EXT
+        try:
+            for dest, url in (
+                (tarball, LEGACY_URL),
+                (sidecar, LEGACY_URL + LEGACY_SHA512_EXT),
+            ):
+                with urllib.request.urlopen(url, timeout=60) as r, open(dest, "wb") as f:
+                    shutil.copyfileobj(r, f)
+        except OSError as e:
+            return None, f"canonical fetch failed ({e})"
+        with open(sidecar, encoding="ascii") as f:
+            line = f.read().strip()
+        expected = line.split()[0] if line else ""
+        if not verify_sha512(tarball, expected):
+            return None, "canonical tarball failed its sha512sum sidecar"
+        try:
+            with tarfile.open(tarball) as tf:
+                # getmember by the literal inner name: the extraction
+                # cannot walk out of the cache dir by construction.
+                member = tf.getmember(LEGACY_INNER)
+                tf.extract(member, LEGACY_CACHE, filter="data")
+        except (tarfile.TarError, OSError) as e:
+            return None, f"canonical tarball extraction failed ({e})"
+        os.chmod(inner, 0o755)
+    return inner, f"{LEGACY_URL} — sha512 sidecar verified, cached at {inner}"
 
 
 def classify(measured_bps, configured_bps):
@@ -187,12 +267,28 @@ def run_side_binary(binary, args, timeout=30):
         return 127, "", str(e)
 
 
-def resolve_legacy(explicit):
+def _legacy_banner(cand):
+    """The -V usability gate: (banner, None) for a usable zelynic,
+    (None, reason) when it exists but does not answer like one."""
+    rc, stdout, _ = run_side_binary(cand, ["-V"])
+    if rc != 0:
+        return None, f"{cand}: -V exited {rc} — not a usable zelynic"
+    first = (stdout or "").strip().splitlines()
+    first = first[0] if first else ""
+    if "zelynic" not in first.lower() and "version" not in first.lower():
+        return None, f"{cand}: -V output not a zelynic banner ({first[:60]})"
+    return first, None
+
+
+def resolve_legacy(explicit, download=True):
     """The LEGACY side: --legacy-binary, then $ZELYNIC_LEGACY_BINARY,
     then the canonical release tarball staged by CI (/opt/zelynic/
-    legacy/zelynic — the rootfs assembly step fetches it). A file that
-    exists but does not execute is a hard FAIL, not a skip: a broken
-    legacy binary would turn the delta proof into a one-sided claim.
+    legacy/zelynic — the rootfs assembly step fetches it), then the
+    canonical AUTO-DOWNLOAD as the last lane (the owner's ask: the
+    sha512-verified fetch into a TMPDIR cache; --no-download keeps
+    resolution local). A file that exists but does not execute is a
+    hard FAIL, not a skip: a broken legacy binary would turn the
+    delta proof into a one-sided claim.
     Returns (path, note) or (None, reason) for the loud SKIP."""
     candidates = []
     if explicit:
@@ -203,18 +299,27 @@ def resolve_legacy(explicit):
     candidates.append("/opt/zelynic/legacy/zelynic")
     for cand in candidates:
         if cand and os.path.isfile(cand) and os.access(cand, os.X_OK):
-            rc, stdout, _ = run_side_binary(cand, ["-V"])
-            if rc != 0:
-                return None, f"{cand}: -V exited {rc} — not a usable zelynic"
-            first = (stdout or "").strip().splitlines()
-            first = first[0] if first else ""
-            if "zelynic" not in first.lower() and "version" not in first.lower():
-                return None, f"{cand}: -V output not a zelynic banner ({first[:60]})"
+            first, reason = _legacy_banner(cand)
+            if reason:
+                return None, reason
             return cand, first
+    # Nothing local — the auto-download is the last lane (CI never
+    # reaches it: the rootfs step stages the binary and the loop
+    # above already returned).
+    fetch_note = "auto-download disabled (--no-download)"
+    if download:
+        fetched, fetch_note = fetch_legacy()
+        if fetched:
+            first, reason = _legacy_banner(fetched)
+            if reason is None:
+                return fetched, first
+            fetch_note = reason
     hint = explicit or env or LEGACY_URL
     return (
         None,
-        f"no legacy binary (tried --legacy-binary / $ZELYNIC_LEGACY_BINARY / /opt/zelynic/legacy/zelynic; canonical source: {hint})",
+        f"no legacy binary (tried --legacy-binary / $ZELYNIC_LEGACY_BINARY / "
+        f"/opt/zelynic/legacy/zelynic / the canonical auto-download ({fetch_note}); "
+        f"canonical source: {hint})",
     )
 
 
@@ -489,9 +594,11 @@ def self_test():
     record("self: delta verdict — empty sweep fails", "PASS", "zero leaves is zero evidence")
 
     # The legacy resolver's SKIP shape (no legacy binary on this host
-    # path set): a missing explicit path must resolve to None with a
-    # reason that names the canonical source, never a crash.
-    path, note = resolve_legacy("/nonexistent/zelynic-legacy")
+    # path set, offline): a missing explicit path must resolve to None
+    # with a reason that names the canonical source, never a crash.
+    # download=False keeps the self-test hermetic — no network in the
+    # engine smoke, same as no root and no BPF.
+    path, note = resolve_legacy("/nonexistent/zelynic-legacy", download=False)
     assert path is None and "canonical source" in note, f"resolver shape: {note}"
     record("self: legacy resolver SKIP shape", "PASS", note[:100])
 
@@ -520,10 +627,24 @@ def self_test():
         "the legacy rebind can never leak into the current side's invocation",
     )
 
+    # The auto-download's verifier, pinned rootlessly: the streaming
+    # sha512 against a local file, the matching and the tampered
+    # shape. The network fetch itself is CI's lane (and any run with
+    # network); the arithmetic is the part a regression could
+    # silently weaken, so it is the part the self-test owns.
+    with tempfile.TemporaryDirectory() as td:
+        probe = os.path.join(td, "probe.bin")
+        with open(probe, "wb") as f:
+            f.write(b"zelynic legacy probe")
+        digest = hashlib.sha512(b"zelynic legacy probe").hexdigest()
+        assert verify_sha512(probe, digest), "a matching digest verifies"
+        assert not verify_sha512(probe, "0" * 128), "a tampered digest refuses"
+        record("self: canonical sha512 verifier", "PASS", "match + tamper shapes pinned")
+
     final_report(
         t0,
         "self-test",
-        "engine verified: classifier, delta verdict, resolver, runner",
+        "engine verified: classifier, delta verdict, resolver, runner, downloader",
     )
 
 
@@ -548,8 +669,15 @@ def main():
         "--legacy-binary",
         default="",
         help="the pre-AMMSP legacy zelynic (v11.0.0) for the counterfactual "
-        "side (also $ZELYNIC_LEGACY_BINARY, or /opt/zelynic/legacy/zelynic "
-        "as staged by the supermassive CI legs)",
+        "side (also $ZELYNIC_LEGACY_BINARY, /opt/zelynic/legacy/zelynic "
+        "as staged by the supermassive CI legs, or the canonical "
+        "auto-download — in that order)",
+    )
+    ap.add_argument(
+        "--no-download",
+        action="store_true",
+        help="never touch the network for the legacy side — resolution stays "
+        "local and the pair SKIPs loudly when no candidate exists",
     )
     ap.add_argument(
         "--json",
@@ -577,7 +705,7 @@ def main():
     # delta failing as a harness bug). battery_order() freezes the
     # pair; the self-test pins the discipline.
     current = lib.BINARY
-    legacy, legacy_note = resolve_legacy(args.legacy_binary)
+    legacy, legacy_note = resolve_legacy(args.legacy_binary, download=not args.no_download)
     if legacy is None:
         # The pair cannot run — a loud SKIP, never a silent pass and
         # never a false fail (the same honest-SKIP contract the realnet
@@ -585,9 +713,15 @@ def main():
         # massive legs this row is live, not skipped.
         record("ammsp-vs-legacy: legacy side resolved", "SKIP", legacy_note)
         out()
-        out("  The delta proof needs the legacy pair. Stage it with:")
+        out("  The delta proof needs the legacy pair. The auto-download")
+        out("  already tried the canonical release (or --no-download")
+        out("  held it back). Stage it by hand:")
         out(f"    curl -LO {LEGACY_URL}")
-        out(f"    tar xzf {LEGACY_TARBALL} -C <dir> && export ZELYNIC_LEGACY_BINARY=<dir>/zelynic")
+        out(f"    curl -LO {LEGACY_URL}{LEGACY_SHA512_EXT}")
+        out(
+            f"    tar xzf {LEGACY_TARBALL} -C <dir> && "
+            f"export ZELYNIC_LEGACY_BINARY=<dir>/{LEGACY_INNER}"
+        )
         final_report(time.perf_counter(), "root", "skipped — no legacy binary")
         return 0
     record("ammsp-vs-legacy: legacy side resolved", "PASS", legacy_note)
