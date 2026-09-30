@@ -296,6 +296,32 @@ attach/detach — the same verifier cost the live monitor pays on
 open — and its /proc work is the connection census the report
 already ran, refreshed once more at window close.
 
+### NIGHT-upgrade-charger-core-1-b A/B (the self-proving enforcement, 2026-09-30)
+
+The charger-core-1-b pass is command-path work: the enforcement
+probe (three new command modules, the strict-single wiring, the
+hidden probe roles) never touches the live monitor's frame path —
+the frame A/B is the proof (A = f703167, the charger-core-1-a tree;
+B = beb85f0, the charger-core-1-b tree; single runs, 10 s budget,
+the standard harness protocol).
+
+| Metric | f703167 (A) | beb85f0 (B) | Delta |
+|--------|-------------|-------------|-------|
+| fps (render path) | 7,573.2 | 7,602.5 | +0.4% (machine noise) |
+| bytes/frame | 1,919.0 | 1,919.0 | +0.0% |
+| emit bytes/frame | 506.8 | 506.2 | -0.1% |
+| density gini | 0.3558 | 0.3559 | +0.1% |
+| frame entropy | 3.0039 | 3.0043 | +0.0% |
+| dirty cells/frame | 39.8 | 39.7 | -0.1% |
+
+Reading: PARITY — bytes/frame identical to the decimal, every other
+delta inside the harness's own run-to-run noise class. The probe's
+own cost lives in the strict-single command's wall-clock, not any
+steady-state path: it runs once per apply (~4 s: two child spawns,
+one 3 s measured window, teardown), and the `--no-probe` escape
+plus the harness-side rides keep every scripted lane at apply-only
+cost.
+
 ### NIGHT-upgrade-charger-core-1-a A/B (the bypass-shadow audit, 2026-09-30)
 
 The charger-core-1-a pass is report-surface work of the same class
