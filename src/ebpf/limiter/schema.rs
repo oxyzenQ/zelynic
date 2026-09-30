@@ -152,7 +152,31 @@
 ///     surface is strict-single's --per-socket flag (the lane is
 ///     deliberately individual: a group policy IS the shared-budget
 ///     answer). One-time re-apply as ever.
-pub const SCHEMA_VERSION_EXPECTED: u32 = 15;
+/// v16 (NIGHT-dinner-28, the learned-share draw): the DRR draw's
+///     take is the residue law's bound FURTHER capped by the
+///     quantum's fair split across a LEARNED drawee count — the
+///     number of distinct leaves that drew in the last completed
+///     100ms epoch, kept per (pool, direction) in the two new pinned
+///     LRU maps drr_pool_state_dl/ul (ROOT cgroup id -> the packed
+///     word `last:u16 | running:u16 | epoch:u32`, drr.rs's packing).
+///     The find this closes is live, from the fair-share battery on
+///     every CI leg: the residue law splits a TWO-asker pool evenly
+///     but at K > 2 drawers the takes decay geometrically (50% /
+///     25% / 12.5% ... of the pool per epoch) — the worst leaf read
+///     3.35x its fair share while the quietest starved below one
+///     admit (78 B over the whole window), the aggregate staying
+///     exactly the policy the whole time. With the learned cap the
+///     first-asker position itself stops paying: every drawer's take
+///     is bounded by quantum/(K+1), a cold pool (learned 0) keeps
+///     the exact v13 shape, and a state-map miss fails OPEN onto
+///     the v13 law. The note rides the draw's success path; the
+///     state is an estimate (concurrent notes may lose one
+///     increment) whose slack the bounds absorb — pinned rootlessly
+///     by the simulation battery in drr_share_tests.rs, which
+///     reproduces the CI decay against the v13 law first. New maps,
+///     verdict math unchanged on every other lane; one-time re-apply
+///     as ever.
+pub const SCHEMA_VERSION_EXPECTED: u32 = 16;
 
 #[cfg(test)]
 mod sync_pin {

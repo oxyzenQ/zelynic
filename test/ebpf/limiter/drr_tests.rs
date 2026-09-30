@@ -274,3 +274,10 @@ fn the_belt_zeroing_is_safe_against_a_racing_consumer() {
     );
     assert_eq!(tokens_read(&leaf), 0);
 }
+
+// dinner-28: the learned-share simulation battery — the K-leaf decay
+// the live fair-share battery caught, and the law that closes it.
+// Wired as a child of this module so the ONE copy of the quantum
+// core (ebpf_drr above) serves both pin sets — the duplicate-mod law.
+#[path = "drr_share_tests.rs"]
+mod drr_share_tests;
