@@ -30,16 +30,76 @@ const DOCKER_SOCKETS: [&str; 2] = ["/var/run/docker.sock", "/run/docker.sock"];
 pub(super) struct DockerEntry {
     pub(super) id: String,
     pub(super) names: Vec<String>,
+    /// The daemon's own liveness verdict for this entry
+    /// (charger-core-2d): `State.Running` plus `State.Status` when
+    /// the reply carries them. `None` on ancient or odd replies
+    /// keeps the caller's old unrecognized-layout error wording —
+    /// an unknown state never guesses.
+    pub(super) state: Option<DockerState>,
+}
+
+/// The liveness half of the Engine API's State field — all the
+/// resolver needs to refuse a stopped container honestly.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct DockerState {
+    pub(super) running: bool,
+    /// The daemon's short status word ("running", "exited",
+    /// "created", ...) — the error's evidence, printed verbatim.
+    pub(super) status: String,
+}
+
+/// Pure: the liveness verdict from one entry's State value. Modern
+/// daemons (API 1.12+) carry an object with Running/Status; the
+/// ancient list shape carried a bare status string ("running" is
+/// the only live word). Anything else is unknown — None, so the
+/// caller keeps its old error instead of guessing.
+pub(super) fn docker_state_parse(state: &serde_json::Value) -> Option<DockerState> {
+    if let Some(running) = state.get("Running").and_then(|v| v.as_bool()) {
+        let status = state
+            .get("Status")
+            .and_then(|v| v.as_str())
+            .unwrap_or(if running { "running" } else { "stopped" })
+            .to_string();
+        return Some(DockerState { running, status });
+    }
+    if let Some(status) = state.as_str() {
+        return Some(DockerState {
+            running: status == "running",
+            status: status.to_string(),
+        });
+    }
+    None
+}
+
+/// Pure: the stopped-container refusal line (charger-core-2d). The
+/// list endpoint answers `?all=1` — a stopped container's NAME
+/// resolves to its full id, but its cgroup was torn down at exit,
+/// so the walk that follows can only miss and blame the LAYOUT —
+/// a false claim (the layout is fine; the workload is gone). The
+/// honest verdict names the daemon's own status word and points
+/// at the tool for the one thing left to do: a policy against the
+/// dead cgroup is an orphan, and `zelynic recover` sweeps those.
+pub(super) fn stopped_container_line(name: &str, status: &str) -> String {
+    format!(
+        "container '{name}' is not running (docker status: {status}) — the container's \
+         cgroup is torn down at exit, so there is no live workload to target\n  \
+         tip: if a policy against its dead cgroup lingers, 'zelynic recover' removes it"
+    )
 }
 
 /// Pure: the docker match verdict for one typed reference against
 /// the API list — no match, one full id, or ambiguity (two entries
 /// matched: a too-short id prefix, the only shape that can get
-/// here — docker enforces unique names).
+/// here — docker enforces unique names). The One verdict carries
+/// the matched entry's liveness state so the caller can refuse a
+/// stopped container before paying the cgroup-tree walk.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) enum DockerMatch {
     None,
-    One(String),
+    One {
+        id: String,
+        state: Option<DockerState>,
+    },
     Ambiguous(Vec<String>),
 }
 
@@ -66,7 +126,10 @@ pub(super) fn docker_match(entries: &[DockerEntry], typed: &str) -> DockerMatch 
         .collect();
     match matched.as_slice() {
         [] => DockerMatch::None,
-        [one] => DockerMatch::One(one.id.clone()),
+        [one] => DockerMatch::One {
+            id: one.id.clone(),
+            state: one.state.clone(),
+        },
         many => DockerMatch::Ambiguous(
             many.iter()
                 .map(|e| {
@@ -161,7 +224,10 @@ pub(super) fn parse_docker_reply(reply: Vec<u8>) -> Result<Vec<DockerEntry>> {
                     .collect()
             })
             .unwrap_or_default();
-        entries.push(DockerEntry { id, names });
+        // charger-core-2d: the liveness verdict rides the same reply
+        // — absent or odd shapes stay None (unknown, never a guess).
+        let state = item.get("State").and_then(docker_state_parse);
+        entries.push(DockerEntry { id, names, state });
     }
     Ok(entries)
 }
@@ -187,8 +253,8 @@ pub(super) fn resolve_docker(name: &str, verbose: bool) -> Result<Vec<u32>> {
             entries.len()
         );
     }
-    let full_id = match docker_match(&entries, name) {
-        DockerMatch::One(id) => id,
+    let (full_id, state) = match docker_match(&entries, name) {
+        DockerMatch::One { id, state } => (id, state),
         DockerMatch::None => {
             bail!("no container named '{name}' — checked running and stopped containers")
         }
@@ -200,6 +266,26 @@ pub(super) fn resolve_docker(name: &str, verbose: bool) -> Result<Vec<u32>> {
             )
         }
     };
+
+    // charger-core-2d: the stopped-container short-circuit. The list
+    // answers `?all=1`, so a stopped container's name still resolves
+    // to its full id — but its cgroup was torn down at exit, and the
+    // walk below could only miss and blame the layout ("unrecognized
+    // cgroup driver layout", a false claim: the layout is fine, the
+    // workload is gone). The daemon's own verdict refuses first,
+    // skipping the whole bounded walk; an unknown state (None) keeps
+    // the walk — a leaked cgroup on a stopped container still
+    // resolves, and the layout error stays the honest answer there.
+    // The k8s lane owns the same distinction one lane up ("the pod is
+    // not running on this node"); this closes the docker lane's
+    // asymmetry.
+    if let Some(DockerState {
+        running: false,
+        status,
+    }) = &state
+    {
+        bail!("{}", stopped_container_line(name, status));
+    }
 
     let dir = find_cgroup_dir(&PathBuf::from("/sys/fs/cgroup"), &|p| {
         docker_cgroup_matches(p, &full_id)
@@ -240,3 +326,11 @@ pub(super) fn docker_cgroup_matches(path: &Path, full_id: &str) -> bool {
             .and_then(|n| n.to_str())
             == Some("docker")
 }
+
+// NIGHT-hunt-17: pins live under the single test/ tree (cosmostrix
+// Pattern C), #[path]-wired exactly like the identity pins. The
+// docker-lane pins split here (charger-core-2d) when the 2d liveness
+// verdict grew container_tests.rs past the 500-LOC owner cap.
+#[cfg(test)]
+#[path = "../../../../test/ebpf/identity/docker_tests.rs"]
+mod docker_tests;
