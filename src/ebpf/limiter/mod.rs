@@ -1,7 +1,7 @@
 // Copyright (C) 2026 rezky_nightky
 // SPDX-License-Identifier: GPL-3.0-only
 
-//! eBPF limiter — token-bucket rate enforcement per cgroup or per group.
+//! eBPF limiter — token-bucket rate enforcement per cgroup or group.
 //!
 //! Module layout (NIGHT-hunt-3 restructure):
 //! - `types.rs`   — constants + BPF map structs + high-level API types
@@ -17,6 +17,7 @@
 //! - `stats.rs`   — status printing + map readers + identity
 //! - `ammsp.rs`   — the AMMSP userspace half: the leaf-cache flush
 //!   every policy mutation runs (private-research-2)
+//! - `rate_ring.rs` — the time-series ring's read half + mirror
 
 mod ammsp;
 mod atomic;
@@ -25,6 +26,7 @@ mod lanes;
 mod parse;
 mod policy;
 mod policy_lines;
+pub mod rate_ring;
 mod reclaim;
 mod schema;
 mod stats;
@@ -54,9 +56,8 @@ mod ammsp_tests;
 #[path = "../../../test/ebpf/limiter/drr_tests.rs"]
 mod drr_tests;
 
-// Re-export public types/functions for external use. The
-// NIGHT-private-research-3 LOC-cap split moved the value parsers to
-// the parse sibling with the re-export surface unchanged in content.
+// Re-export public types/functions for external use (the
+// parse/format LOC-cap splits kept this surface unchanged).
 pub use format::{
     default_burst, format_bytes, format_bytes_wide, format_count, format_rate, monotonic_ns,
     terminal_width,
@@ -89,8 +90,8 @@ use crate::ebpf::identity::IdentityMap;
 use crate::ebpf::trace;
 use types::SCHEMA_VERSION_EXPECTED;
 
-/// NIGHT-hunt-19 (error-path audit): the single operational-pin
-/// predicate. Pure so the partial-failure regression is unit-pinned.
+/// NIGHT-hunt-19 (error-path audit): the operational-pin predicate,
+/// pure so the partial-failure regression is unit-pinned.
 ///
 /// Program pins alone are NOT operational on kernels with bpf_link
 /// (5.7+ — the supported floor is 5.13): the attach sequence pins the
@@ -214,8 +215,8 @@ impl Limiter {
         }
 
         // NIGHT-hunt-28: preflight the pin filesystem BEFORE any pin
-        // attempt. The limiter pins all eleven maps by name, and a
-        // /sys/fs/bpf that exists but is not a mounted bpf filesystem
+        // attempt. The limiter pins every map it declares by name (fifteen
+        // since the rings), and a /sys/fs/bpf that is not a mounted bpffs
         // (the kernel always creates the directory; some distros never
         // mount bpffs on it) turns every BPF_OBJ_PIN into EINVAL deep
         // inside EbpfLoader::load — a generic "Failed to load BPF
@@ -475,12 +476,11 @@ mod tests {
         assert!(!pins_operational(true, true, true, false, false));
         assert!(!pins_operational(true, true, true, true, false));
         assert!(!pins_operational(true, true, true, false, true));
-        // Missing program pins: never operational.
+        // Missing program pins: never operational (either one, or all).
         assert!(!pins_operational(true, false, true, true, true));
         assert!(!pins_operational(true, true, false, true, true));
         assert!(!pins_operational(false, false, false, false, false));
-        // Pre-5.7 kernels: the legacy attach never pins links, so
-        // program pins alone are the operational contract there.
+        // Pre-5.7: legacy attach never pins links (program pins suffice).
         assert!(pins_operational(false, true, true, false, false));
     }
 

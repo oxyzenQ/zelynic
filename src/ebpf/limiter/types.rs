@@ -406,7 +406,13 @@ mod tests {
         // v13 (charger-core-1c): the individual lane becomes DRR —
         // the shared bucket a pool, every packet spending from a
         // per-leaf quantum bucket (leaf_bucket_dl/ul).
-        assert_eq!(SCHEMA_VERSION_EXPECTED, 13);
+        // v14 (charger-core-3a): the time-series rings — two new
+        // pinned maps rate_ring_dl/ul book allowed bytes into
+        // one-second windows (the status rate_ring surface); no
+        // existing layout changes. The full sync contract (this
+        // constant vs the BPF-side anchor) lives in schema.rs's
+        // sync_pin — the v13 drift lesson.
+        assert_eq!(SCHEMA_VERSION_EXPECTED, 14);
     }
 
     // ── NIGHT-improve-10 / security-3: overflow-bound pins ──────────

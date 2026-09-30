@@ -41,6 +41,13 @@ pub const PIN_MAP_WATCHDOG: &str = "/sys/fs/bpf/zelynic/watchdog_deadline";
 pub const PIN_MAP_STATS: &str = "/sys/fs/bpf/zelynic/cgroup_limiter_stats";
 pub const PIN_MAP_SCHEMA_VERSION: &str = "/sys/fs/bpf/zelynic/schema_version";
 
+// The time-series rings (NIGHT-upgrade-charger-core-3a): one pinned
+// map per direction, keyed by the policy-root cgroup id — the status
+// reader's absent-lens surface (rate_ring.rs documents why a missing
+// pin is None, not an error).
+pub const PIN_MAP_RATE_RING_DL: &str = "/sys/fs/bpf/zelynic/rate_ring_dl";
+pub const PIN_MAP_RATE_RING_UL: &str = "/sys/fs/bpf/zelynic/rate_ring_ul";
+
 /// The AMMSP leaf cache (NIGHT-private-research-2): leaf cgroup id
 /// -> the packed u64 memo word (`(generation << 32) | root`, 0 root
 /// = resolved unlimited; the packing is the pure core's, ebpf/src/

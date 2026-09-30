@@ -9,6 +9,7 @@ use anyhow::Result;
 use std::collections::HashMap;
 
 use crate::ebpf::identity::IdentityMap;
+use crate::ebpf::limiter::rate_ring::{ring_series, RateRingRaw, RingReads, RATE_RING_SLOTS};
 use crate::ebpf::limiter::{
     format_bytes, format_rate, monotonic_ns, terminal_width, LimiterStatsRaw, PolicyRaw,
 };
@@ -354,8 +355,16 @@ pub fn print_status_json(
     stats: &[(u32, LimiterStatsRaw)],
     identity: &IdentityMap,
     watchdog_deadline: Option<u64>,
+    rings: &RingReads,
 ) -> Result<()> {
-    let status = status_json(dl_policies, ul_policies, stats, identity, watchdog_deadline);
+    let status = status_json(
+        dl_policies,
+        ul_policies,
+        stats,
+        identity,
+        watchdog_deadline,
+        rings,
+    );
     crate::output::print_json(&status);
     Ok(())
 }
@@ -364,13 +373,18 @@ pub fn print_status_json(
 /// so the scripting contract — field names, watchdog wording, count
 /// semantics — is unit-pinnable without capturing stdout). The shape
 /// is the `--print-json` contract scripts parse; changing a field
-/// name is a breaking change for automation.
+/// name is a breaking change for automation. ADDITIVE fields ride
+/// the same rule: `rate_ring` (charger-core-3a) joins only when a
+/// ring was readable AND the limit's cgroup has one — absent is
+/// honestly absent (skip_serializing_if), never a fabricated empty
+/// series.
 fn status_json(
     dl_policies: &[(u32, PolicyRaw)],
     ul_policies: &[(u32, PolicyRaw)],
     stats: &[(u32, LimiterStatsRaw)],
     identity: &IdentityMap,
     watchdog_deadline: Option<u64>,
+    rings: &RingReads,
 ) -> StatusJson {
     let watchdog = match watchdog_deadline {
         Some(0) | None => "enforcing",
@@ -378,19 +392,33 @@ fn status_json(
         Some(_) => "expired",
     };
 
+    let now = monotonic_ns();
     let data = collect_display_data(dl_policies, ul_policies, stats);
 
     let limits: Vec<LimitEntry> = data
         .iter()
-        .map(|d| LimitEntry {
-            cgroup_id: d.cgroup_id,
-            label: identity.label(d.cgroup_id),
-            download_bps: d.dl_bps,
-            upload_bps: d.ul_bps,
-            packets_allowed: d.packets_allowed,
-            packets_dropped: d.packets_dropped,
-            bytes_allowed: d.bytes_allowed,
-            bytes_dropped: d.bytes_dropped,
+        .map(|d| {
+            let dl_ring = ring_dir_json(rings.dl.as_deref(), d.cgroup_id, now);
+            let ul_ring = ring_dir_json(rings.ul.as_deref(), d.cgroup_id, now);
+            let rate_ring = match (dl_ring, ul_ring) {
+                (None, None) => None,
+                (download, upload) => Some(RateRingJson {
+                    window_secs: 1,
+                    download,
+                    upload,
+                }),
+            };
+            LimitEntry {
+                cgroup_id: d.cgroup_id,
+                label: identity.label(d.cgroup_id),
+                download_bps: d.dl_bps,
+                upload_bps: d.ul_bps,
+                packets_allowed: d.packets_allowed,
+                packets_dropped: d.packets_dropped,
+                bytes_allowed: d.bytes_allowed,
+                bytes_dropped: d.bytes_dropped,
+                rate_ring,
+            }
         })
         .collect();
 
@@ -399,6 +427,26 @@ fn status_json(
         active_limits: limits.len(),
         limits,
     }
+}
+
+/// One direction's derived series for one cgroup, or None when the
+/// direction's ring census is absent or holds no entry for the
+/// cgroup (a fresh policy with no traffic yet books nothing — the
+/// sockets-that-moved-nothing rule, a lean row over a fabricated
+/// zero).
+fn ring_dir_json(
+    dir_rings: Option<&[(u32, RateRingRaw)]>,
+    cgroup_id: u32,
+    now: u64,
+) -> Option<RateRingDirectionJson> {
+    let rings = dir_rings?;
+    let ring = rings.iter().find(|(id, _)| *id == cgroup_id)?;
+    let series = ring_series(&ring.1, now);
+    Some(RateRingDirectionJson {
+        bytes: series.bytes,
+        live: series.live,
+        peak_bytes: series.peak_bytes,
+    })
 }
 
 #[derive(serde::Serialize)]
@@ -411,6 +459,34 @@ struct LimitEntry {
     packets_dropped: u64,
     bytes_allowed: u64,
     bytes_dropped: u64,
+    /// The in-kernel time-series ring's derived window series
+    /// (charger-core-3a, EAGLE EYES V1): the last eight one-second
+    /// byte totals oldest-first, per direction. Absent when the
+    /// pinned object predates the ring or the cgroup booked no
+    /// traffic under the policy — the absent-lens contract.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    rate_ring: Option<RateRingJson>,
+}
+
+/// One direction's window series (see [`LimitEntry::rate_ring`]).
+#[derive(serde::Serialize)]
+struct RateRingDirectionJson {
+    /// The last eight one-second byte totals, OLDEST first; the last
+    /// entry is the current (still-filling) window.
+    bytes: [u64; RATE_RING_SLOTS],
+    /// How many of the eight windows hold live stamps (the honest
+    /// horizon: 3 means only the last three seconds had data).
+    live: u32,
+    /// The largest COMPLETED window (the current window never
+    /// qualifies — it can only grow).
+    peak_bytes: u64,
+}
+
+#[derive(serde::Serialize)]
+struct RateRingJson {
+    window_secs: u64,
+    download: Option<RateRingDirectionJson>,
+    upload: Option<RateRingDirectionJson>,
 }
 
 #[derive(serde::Serialize)]

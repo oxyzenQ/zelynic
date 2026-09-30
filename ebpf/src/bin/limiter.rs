@@ -93,7 +93,16 @@ mod drr;
 // aya-touching split, the ammsp_resolve precedent one feature over.
 #[path = "../drr_flow.rs"]
 mod drr_flow;
+
+// NIGHT-upgrade-charger-core-3a (the in-kernel time-series ring): the
+// pure window-protocol core — same discipline as math.rs/ammsp.rs/
+// drr.rs: pure `core`, zero aya dependencies, wired here with #[path]
+// AND into the userspace test tree, pinned rootlessly by
+// test/ebpf/limiter/rate_ring_tests.rs.
+#[path = "../rate_ring.rs"]
+mod rate_ring;
 use math::{Bucket, LimiterStats, MAX_ENFORCABLE_BURST, Policy, book, enforce};
+use rate_ring::{RateRing, RateSlot, ring_book};
 
 // ---------------------------------------------------------------------------
 // Shared layout contract with the userspace loader (src/ebpf/limiter/
@@ -199,8 +208,25 @@ use math::{Bucket, LimiterStats, MAX_ENFORCABLE_BURST, Policy, book, enforce};
 /// The BPF program never writes it — userspace stamps
 /// the pinned map after load — so the constant exists purely as the
 /// parity anchor for that three-way contract.
+/// v14 (NIGHT-upgrade-charger-core-3a, the in-kernel time-series
+/// ring): two new pinned maps rate_ring_dl/ul (u32 policy-root
+/// cgroup id -> 128-byte eight-slot ring) book every ALLOWED
+/// packet's bytes into one-second windows — the rolling rate
+/// horizon `status --print-json` surfaces (the EAGLE EYES V1
+/// foundation). Monitor-only: no verdict change, no layout change
+/// on any existing struct, the ledger (cgroup_limiter_stats)
+/// stays the exact truth. The bump is still load-bearing, not
+/// ceremonial: the userspace reader opens the new pins, so a stale
+/// pinned object must reload instead of serving no-ring state
+/// silently — the same one-time re-apply contract as v4..v13.
+/// The bump also restores THIS anchor's parity: the v13 bump
+/// (charger-core-1c) raised the userspace twin to 13 but missed
+/// this const (it stayed 12 — dead code here, so nothing broke at
+/// runtime, but the anchor lied about which semantics the source
+/// carried; the userspace sync pin added with this task makes the
+/// drift class impossible to repeat).
 #[allow(dead_code)]
-const SCHEMA_VERSION: u32 = 12;
+const SCHEMA_VERSION: u32 = 14;
 
 // ---------------------------------------------------------------------------
 // Maps. The static names ARE the userspace contract (limiter/mod.rs
@@ -259,6 +285,25 @@ static schema_version: Array<u32> = Array::pinned(1, 0);
 #[allow(non_upper_case_globals)]
 #[map]
 static cgroup_limiter_stats: HashMap<u32, LimiterStats> = HashMap::pinned(1024, 0);
+
+// ─ The time-series rings (NIGHT-upgrade-charger-core-3a, Tier B #8
+// — EAGLE EYES V1) ─ one ring per policed cgroup per direction,
+// keyed at the RESOLVED POLICY ROOT (the same key the stats ledger
+// uses, so the status join needs no new identity plumbing). The
+// datapath books every ALLOWED packet's bytes into the current
+// one-second window (ring_book in rate_ring.rs); drops never enter
+// the ring — it is the delivered-rate shape a baseline detector
+// reads, not a second ledger (cgroup_limiter_stats keeps the exact
+// truth). HashMap, not LRU, because occupancy is bounded by the
+// policy census (the stats map's own posture).
+
+#[allow(non_upper_case_globals)]
+#[map]
+static rate_ring_dl: HashMap<u32, RateRing> = HashMap::pinned(1024, 0);
+
+#[allow(non_upper_case_globals)]
+#[map]
+static rate_ring_ul: HashMap<u32, RateRing> = HashMap::pinned(1024, 0);
 
 // ---------------------------------------------------------------------------
 // Enforcement program flow. The refill math (fill-detect, fractional
@@ -331,6 +376,58 @@ fn get_bucket_ptr(
     }
 }
 
+/// Get or create the ring entry for a policed cgroup (the
+/// get_stats_ptr discipline): zero-initialized (every stamp 0 —
+/// window 0 only exists in the first second of uptime, so a zeroed
+/// slot is "never written" on every real host), inserted with
+/// BPF_NOEXIST so a racing first-packet initializer can never
+/// clobber a ring another CPU is already booking into — the v11
+/// init-race contract, one map family over. A failed insert beyond
+/// the race (full map — impossible while policies stay under the
+/// 1024 census, but the belt stays) returns None and the caller
+/// skips the ring booking: the RING is a monitor, and a monitor's
+/// bookkeeping failure must never touch a verdict (the ledger's own
+/// fail-open contract, stated for its exact twin in get_stats_ptr).
+#[inline(always)]
+fn get_ring_ptr(map: &HashMap<u32, RateRing>, key: &u32) -> Option<*mut RateRing> {
+    match map.get_ptr_mut(key) {
+        Some(ptr) => Some(ptr),
+        None => {
+            let init = RateRing {
+                slots: [RateSlot {
+                    window: 0,
+                    bytes: 0,
+                }; rate_ring::RING_SLOTS as usize],
+            };
+            let _ = map.insert(key, &init, BPF_NOEXIST);
+            map.get_ptr_mut(key)
+        }
+    }
+}
+
+/// Book an allowed packet into the direction's ring, then hand the
+/// verdict through untouched — the wrap every enforcement lane
+/// returns through (group, DRR; the rate-0 block lane books
+/// nothing: it delivers nothing). Extracted so each lane's return
+/// stays a one-line wrap and the ring can never reorder, mask, or
+/// invent a verdict: `ring_book` runs only on the allow path, after
+/// the kernel already decided.
+#[inline(always)]
+fn ring_verdict(
+    verdict: i32,
+    ring_map: &HashMap<u32, RateRing>,
+    key: &u32,
+    now: u64,
+    pkt_len: u32,
+) -> i32 {
+    if verdict == 1 {
+        if let Some(ptr) = get_ring_ptr(ring_map, key) {
+            ring_book(unsafe { &mut *ptr }, now, pkt_len);
+        }
+    }
+    verdict
+}
+
 // ---------------------------------------------------------------------------
 // Program bodies. Both directions share the flow (the C twin
 // duplicates it per program; the port factors the shared tail into
@@ -353,7 +450,8 @@ const BPF_NOEXIST: u64 = 1;
 /// Shared enforcement flow for one direction. `policy_map` selects
 /// download vs upload; `bucket_map` / `group_bucket_map` are the
 /// matching individual/group bucket (pool) maps, `leaf_bucket_map`
-/// the direction's DRR leaf map (charger-core-1c).
+/// the direction's DRR leaf map (charger-core-1c), `rate_ring_map`
+/// the direction's time-series ring (charger-core-3a).
 #[inline(always)]
 fn try_enforce(
     ctx: SkBuffContext,
@@ -361,6 +459,7 @@ fn try_enforce(
     bucket_map: &HashMap<u32, Bucket>,
     group_bucket_map: &HashMap<u32, Bucket>,
     leaf_bucket_map: &LruHashMap<u32, Bucket>,
+    rate_ring_map: &HashMap<u32, RateRing>,
 ) -> i32 {
     // The unlimited fast path FIRST (NIGHT-lts-2): cgroup identity +
     // the direction's policy are the only two lookups a packet with
@@ -505,7 +604,8 @@ fn try_enforce(
             Some(ptr) => unsafe { &mut *ptr },
             None => return 1,
         };
-        return enforce(&pol_sane, bkt, pkt_len, now, stats);
+        let verdict = enforce(&pol_sane, bkt, pkt_len, now, stats);
+        return ring_verdict(verdict, rate_ring_map, &cgroup_id, now, pkt_len);
     }
 
     // The DRR lane (NIGHT-upgrade-charger-core-1c): the shared
@@ -522,7 +622,8 @@ fn try_enforce(
         None => return 1,
     };
     let pool = unsafe { &mut *pool_ptr };
-    drr_flow(&pol_sane, pool, leaf_bucket_map, &leaf, pkt_len, now, stats)
+    let verdict = drr_flow(&pol_sane, pool, leaf_bucket_map, &leaf, pkt_len, now, stats);
+    ring_verdict(verdict, rate_ring_map, &cgroup_id, now, pkt_len)
 }
 
 /// Download enforcement (ingress). Ported from enforce_dl.
@@ -534,6 +635,7 @@ fn enforce_dl(ctx: SkBuffContext) -> i32 {
         &cgroup_bucket_dl,
         &group_bucket_dl,
         &drr_flow::leaf_bucket_dl,
+        &rate_ring_dl,
     )
 }
 
@@ -546,6 +648,7 @@ fn enforce_ul(ctx: SkBuffContext) -> i32 {
         &cgroup_bucket_ul,
         &group_bucket_ul,
         &drr_flow::leaf_bucket_ul,
+        &rate_ring_ul,
     )
 }
 
