@@ -19,6 +19,37 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Added
 
+- **the rider J close — the trickle patience, generalized from the
+  one flaky row to the class (the 36737087907 best-gnu find): the
+  asymmetric download row read 57.4% of its 100kb policy on the
+  first green-tree run, the same deep-RTO gather transient in a
+  second costume.** The physics is the rider F hunt's, one rung up:
+  at 100kb the GSO admit floor still binds (a quantum is 0.65s of
+  budget — six admits per 4s window), so a lone flow whose TCP
+  recovery lands sparse reads the residue law's half-draw gather as
+  an under-band window while its sibling legs read in-band. The
+  close is one lib primitive instead of per-row loops:
+  patient_rate_window (beside drain_cushion, the 0b0a8f5 drain
+  discipline applied to the measurement) re-samples the under-band
+  side only, bounded at three, stops on the first not-under sample
+  (in-band is the steady state proven; over-band is the immediate
+  FAIL a real over-delivery must get — never retried away,
+  enforcement can only under-deliver a budget), and
+  window_samples_note carries every sample into the row detail so
+  no retry is ever hidden. The four trickle-bound rows ride it —
+  the asymmetric download at 100kb, the ammsp late-born child at
+  100kb, the ammsp poisoned-memo child at 100kb, and the grandchild
+  nearest-root at 50kb (rider F's inline loop folded into the same
+  helper); the concurrent-leaf and 500kb+ rows stay single-shot on
+  purpose (twelve quanta per window wash the transient out — the
+  scope is the physics, not a sweep). The self-test pin is
+  behavioral now (scripted probes: the transient sequence
+  re-samples and stops at steady, a systematic under exhausts three
+  and FAILs, an over-band probe stops at one sample), and the
+  asymmetric stage's 2022-09-22 drain-ordering source pin follows
+  the lambda shape. Engines green rootlessly: v1 32/32, v2 10/10,
+  the A/B 12/12, proof-claims 18/18; gate-keepers 17/17; ruff
+  check + format clean; no Rust surface touched.
 - **the rider I close — the wrong-module toggle, the real reason the
   A/B stayed red for six pushes (the 501ab20 find): rider C's fix
   never worked, and the CI said so every time.** The symptom never

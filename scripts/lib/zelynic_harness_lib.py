@@ -148,6 +148,54 @@ def drain_cushion(probe, cushion, attempts=3):
     return drained
 
 
+def patient_rate_window(probe, configured_bps, window, attempts=3):
+    """The under-side patient measured rate window (the
+    charger-core-1c trickle lesson — the 0b0a8f5 drain discipline
+    applied to the measurement itself).
+
+    Re-samples `probe() -> bytes` while the window reads UNDER the
+    band, bounded at `attempts`, and returns the list of sample
+    rates in B/s; the caller verdicts on the LAST sample through
+    band_check (the single band authority) with window_samples_note
+    carrying every sample in the row detail. The patience is
+    one-sided on purpose: at rates below ~656 KB/s the 64 KiB GSO
+    admit floor binds the DRR quantum (one super-packet per
+    rate/64 KiB seconds of refill — three admits per 4s window at
+    50kb, six at 100kb), and the residue law's half-draws stretch
+    a LONE leaf's first quantum gather when TCP's retransmit
+    cadence is sparse (deep RTO backoff: each draw takes half the
+    pooled balance, so the gather needs several arrivals — the CI
+    leg that read one quantum, 16.4 KB/s = 32.8% of a 50kb policy
+    over 4s, while the other three legs read in-band; the flow
+    converges to the budget over longer windows, the design's own
+    equilibrium). An IN-BAND sample is the steady state proven and
+    stops the loop; an OVER-band sample stops it too — a real
+    over-delivery must fail immediately through band_check, never
+    be retried away (enforcement can only under-deliver a budget,
+    the strict-single probe's one-sidedness contract). All samples
+    under after `attempts` tries FAIL the same way: a
+    systematically broken datapath cannot pass by retry.
+    """
+    rates = []
+    for _ in range(attempts):
+        got = probe() or 0
+        rates.append(got / window if window else 0.0)
+        if rates[-1] >= BAND_LO * configured_bps:
+            break
+    return rates
+
+
+def window_samples_note(rates):
+    """The row-detail suffix for a patient window's samples — every
+    number the loop measured, attached to the verdict (the honesty
+    contract: the row never hides a retry)."""
+    return (
+        "windows: "
+        + ", ".join(f"{r / 1000:.1f} KB/s" for r in rates)
+        + " (the under-side transient re-samples, the over-side fails now)"
+    )
+
+
 # NIGHT-dinner-13: per-skb accounting headroom for ledger-budget verdicts —
 # loopback hands the hooks 64 KiB GSO skbs, so the last in-flight skb can
 # carry up to one skb past the byte-exact budget (the same 2% curl burst
