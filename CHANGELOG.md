@@ -94,6 +94,25 @@ NIGHT-hunt-18's git-history-only call.
   measured bounds (worst-case 2:1 adversarial, ~1:1 interleaved, the
   trickle coarsening below ~656 KB/s, the one-quantum idle
   stranding).
+- **the open lane, on the record (charger-core-1c's CI followup): the
+  enforcement probe's own measurement escaped policing in the CI
+  proof-claims stages (12fb418: four stages measured line rate —
+  8.3 GB in 3s against 5 MB/s limits — while the SAME run's
+  ammsp-vs-legacy battery policed 7/7 leaves plus the shared budget
+  plus the nested root, proving the enforcement stack itself
+  sound).** The verdict machinery behaved exactly as designed —
+  exit 1, the red block, the numbers attached; the probe caught its
+  own lane's escape. The harness lanes that verify enforcement with
+  their own workers now ride --no-probe (proof-claims' applies; v1's
+  apply_single gained the side-aware PROBE_FLAG_SUPPORTED toggle
+  after the legacy v11.0.0 binary rejected the flag — exit 2, the
+  other CI find, fixed at the source), and the full analysis —
+  every candidate examined and cleared twice, the delta list, the
+  root-machine reproduction recipe — lives in
+  docs/audits/NIGHT_UPGRADE_CHARGER_CORE_1C_PROBE_CI_FIND_2026-09-30.md
+  for the debug session that closes it. The interactive surface
+  keeps the probe on by default: it measures, it reports, and when
+  it fails it fails loudly — that is the whole point of it.
 - **strict-single: the self-proving enforcement probe
   (NIGHT-upgrade-charger-core-1-b, the TIER S ability) — "applied" is
   a claim, "VERIFIED" is a measurement: after the apply lands,
