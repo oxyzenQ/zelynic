@@ -3198,6 +3198,16 @@ def test_probe_failed():
                 return line.strip()
         return "no verdict line (the block never printed)"
 
+    def note_line(combined):
+        """The verify block's note line — the UNVERIFIED lane's own
+        name (the reason the probe could not measure). The CI's
+        fast-exit verdicts print the block with the note below it;
+        this is the line that names the lane."""
+        for line in combined.splitlines():
+            if "note:" in line:
+                return line.strip()
+        return "no note line (no reason attached)"
+
     passed = True
     try:
         # ── The FAILED path (the 1mb forcing, see the docstring) ──
@@ -3240,7 +3250,8 @@ def test_probe_failed():
                 "PASS" if proc.returncode == 1 and not missing else "FAIL",
                 f"exit {proc.returncode}; missing needles: {missing or 'none'}; "
                 f"verdict line: {verdict_line(combined)}; "
-                f"tail: {combined.strip()[:160]!r}",
+                f"note line: {note_line(combined)}; "
+                f"tail: {combined.strip()[:400]!r}",
             )
             and passed
         )
@@ -3254,7 +3265,8 @@ def test_probe_failed():
                 "PASS" if rc == 0 and "VERIFIED" in combined else "FAIL",
                 f"exit {rc}; VERIFIED in output: {'VERIFIED' in combined}; "
                 f"verdict line: {verdict_line(combined)}; "
-                f"tail: {combined.strip()[:160]!r}",
+                f"note line: {note_line(combined)}; "
+                f"tail: {combined.strip()[:400]!r}",
             )
             and passed
         )
@@ -3276,9 +3288,9 @@ def test_probe_failed():
                 "probe: overhead is the 3s window + bounded setup",
                 "PASS" if ok_noprobe and rc_p == 0 and 2.0 <= delta <= 8.0 else "FAIL",
                 f"no-probe {t_noprobe:.1f}s (exit {rc_np}; tail "
-                f"{((out_np or '') + (err_np or '')).strip()[:80]!r}), "
+                f"{((out_np or '') + (err_np or '')).strip()[:240]!r}), "
                 f"with-probe {t_probe:.1f}s (exit {rc_p}; tail "
-                f"{((out_p or '') + (err_p or '')).strip()[:80]!r}), "
+                f"{((out_p or '') + (err_p or '')).strip()[:240]!r}), "
                 f"delta {delta:.1f}s (bounds [2.0, 8.0] — PROBE_SECS=3 "
                 "plus the under-five-seconds whole-probe doc bound)",
                 metrics={
