@@ -19,6 +19,59 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Changed
 
+- **ci: the NIGHT-dinner repair rider series — the wholesale gate and
+  all four supermassive legs green again, with the run-253 lesson on
+  the record** (the owner's terminal paste: gate-keepers red, every
+  supermassive leg red, and "should automatic download"). Five
+  findings, five fixes: (A) scripts/ci/supermassive-init.sh was
+  shfmt-unformatted since f1eb095 (whitespace-only normalization, the
+  one wholesale-gate red row); (B) the ammsp-vs-legacy harness ran the
+  LEGACY binary on BOTH sides — main() read lib.BINARY for the
+  current side after the legacy side's rebind had overwritten it, so
+  coverage read 0/7 vs 0/7 and THE DELTA failed on all four legs as a
+  harness aliasing bug — the current binary is now captured BY VALUE
+  at resolution, battery_order() freezes the pair, and the self-test
+  pins the discipline (9/9); (C) the nested-root probes were missing
+  the approved warm-up drain (a fresh 50kb bucket starts with the full
+  64 KiB GSO cushion; without the drain the 4s window straddles the
+  band edge at 128..133% and flips policed/gray on GSO timing alone),
+  and the ladder's trickle-rung drain is stall-proofed the same way —
+  the 0b0a8f5 best-gnu leg proved a single 0.5s warm-up sample can
+  silently read zero on a noisy runner and leak the cushion into the
+  measured pair at 299.3% of the 1kb rung, so the drains now retry
+  until the cushion is provably paid (the new shared
+  lib.drain_cushion()); (D) the legacy v11.0.0 side AUTO-DOWNLOADS
+  from the canonical release when no local candidate exists —
+  sha512-sidecar-verified, extracted into a TMPDIR cache, the same -V
+  gate every candidate passes, --no-download for air-gapped runs, CI
+  untouched (the guest's staged path wins first); (E) the prebuilt
+  parity FAIL message names the local-churn triage (a local pro build
+  rewriting the tracked ebpf/Cargo.lock trips the tree pin on the
+  desk while the same commit passes clean in the cloud — git status
+  -- ebpf/ shows the churn). Engines green rootlessly: ammsp 9/9,
+  v1 31/31, v2 10/10; check-all and gate-keepers 22/22 locally.
+- **repo: NIGHT-dinner-27 — the install family finds its home:
+  scripts/install.sh and scripts/uninstall.sh move to
+  scripts/package/** (the repo-root script clutter retired, the
+  release payload's own layout mirrored in the repo). Every living
+  reference walks with them: the version-sync gate's nightly-pin
+  probes (4c/4d), the depth install-flow test's staging copy,
+  setup.sh's next-steps menu, build.sh's product-builds pointer, the
+  README install section, CONTRIBUTING's scripts/ tree, RULES.md's
+  eBPF pin sites, and STABILITY.md's uninstall-recovery row.
+  Historical records keep the paths of their day — history is not a
+  stale reference.
+- **docs: NIGHT-dinner-26 — the README hero, made simply boring but
+  legendary: the cosmic-dragon ledger quote is promoted to the
+  tagline seat** ("Run anything you like. Launch whatever you want.
+  The cosmic dragon counts every byte that leaves the den — and the
+  ledger never lies."), taking the place the old "Boring and silent
+  but killer" tagline held beside the functional descriptor — the
+  same two-strong-line hero shape cosmostrix carries, the old
+  blockquote dropped with the promotion so the quote leads once.
+  The Philosophy section keeps its operational punchline where it has
+  always lived.
+
 - **docs: NIGHT-perf-2 — the AMMSP endurance and ultra-scale audit
   on the record (the perf trilogy's endurance leg): the per-packet
   cost budget at HEAD, the trillion-packet math, and the
