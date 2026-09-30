@@ -1546,7 +1546,11 @@ limit row with no ring at all omits the field entirely — absent is
 honestly absent (a fresh policy with no traffic yet, or a pinned
 object from before the v14 reload), never a fabricated empty
 series. The ring is a monitor, not a ledger: the exact cumulative
-truth stays the `packets_*`/`bytes_*` fields beside it.
+truth stays the `packets_*`/`bytes_*` fields beside it. For a
+`--per-socket` policy the series is the cgroup's AGGREGATE (every
+connection's allowed bytes roll up to the same root key, the AMMSP
+contract) — the per-connection budget law is the one the
+`per_socket` fields below state.
 
 `download_per_socket` / `upload_per_socket`
 (NIGHT-upgrade-charger-core-3b) appear on a limit row only when that
