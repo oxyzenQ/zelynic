@@ -19,6 +19,35 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Added
 
+- **the rider K close — the curl upload accounting row, retired from
+  the client-count comparison it could never hold (the 160.5%
+  best-gnu leg of the first green-tree run): the ledger rides its
+  own budget, the sender's count rides the detail.** The evidence
+  class, pinned across every CI leg the logs hold: the row compared
+  the kernel ledger against a wire-side count under a 0.5..1.5
+  band, and BOTH instruments lie in opposite directions — the
+  dominant legs read 69.8% (curl's write-ahead: the unpoliced eager
+  receiver keeps the windows open, the sender writes past the
+  policer's drain rate, the excess sits in kernel buffers at
+  --max-time), while the drop-heavy best-gnu leg read 160.5% (the
+  policer's drops back-pressured curl's writes to 3.93 MB while the
+  drop-retransmit-admit cycle booked the ledger at 6.31 MB — and on
+  that leg the sender's count and the server's fold AGREED at 3.93
+  MB, so the instruments were sound and the comparison itself was
+  the noise). The close is the asymmetric stage's NIGHT-dinner-13
+  precedent applied to the last upload row still verdicting on a
+  client count: the stage-local curl_upload_ledger_rows records the
+  drops proof and a ledger-budget verdict exact per run by
+  construction (span x 1mb + one burst, lib.ledger_budget — the
+  146.3% lost-update class still blows it, a starved or
+  zero-booking bug falls under the loopback floor), both the
+  client's write count and the server's fold ride the row detail as
+  observability, and the stage's return ANDs the row like every
+  verdict row it owns. The zero-fold engine-fault fork keeps the
+  same rows as its kernel evidence. Pinned as a source shape in the
+  engine self-test (the stage calls the ledger-rows helper, never
+  enforcement_proofs, and the helper verdicts through ledger_budget
+  — 33/33 rootless). No Rust surface touched.
 - **the rider J close — the trickle patience, generalized from the
   one flaky row to the class (the 36737087907 best-gnu find): the
   asymmetric download row read 57.4% of its 100kb policy on the

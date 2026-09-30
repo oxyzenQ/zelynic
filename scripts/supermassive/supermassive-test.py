@@ -2292,6 +2292,63 @@ def test_curl_burst(window, clients, rate_bps, baseline):
     return passed
 
 
+def curl_upload_ledger_rows(t0, window, sent, delivered):
+    """The curl upload stage's kernel-side rows, the asymmetric
+    stage's shape (NIGHT-dinner-13, the charger-core-1c best-gnu
+    lesson): the drops proof and a ledger-budget verdict — never a
+    verdict on the sender's count.
+
+    The retired row verdicted on `bpf allowed vs client sent` with a
+    0.5..1.5 band, and the write-ahead and the retransmit backlog
+    run BOTH directions through that comparison: the dominant legs
+    read 69.8% (curl's write-ahead: the eager receiver keeps the
+    windows open, the undelivered excess sits in kernel buffers),
+    the drop-heavy best-gnu leg of the 1c push read 160.5% (the
+    policer's drops back-pressured curl's writes to 3.93 MB while
+    the retransmit cycle booked the ledger at 6.31 MB — the
+    sender's count and the server's fold AGREED at 3.93 MB, the
+    instruments were sound, the comparison itself was noise). The
+    ledger-budget verdict is exact per run by construction (span x
+    rate + one burst, the bucket's own arithmetic): a real leak
+    (the 146.3% lost-update class) still blows it, a starved or
+    zero-booking bug falls under the floor, and both client-side
+    counts ride the row detail as observability only.
+    """
+    entry = limit_entry(status_json(), CG.ids["a"])
+    if not entry:
+        record("curl upload: kernel drops engaged", "FAIL", "no limit row to read counters from")
+        return False
+    dropped = entry.get("packets_dropped", 0)
+    allowed = entry.get("bytes_allowed", 0)
+    record(
+        "curl upload: kernel drops engaged",
+        "PASS" if dropped > 0 else "FAIL",
+        f"{dropped} packets dropped, {allowed} bytes allowed",
+    )
+    if not CG.dedicated:
+        return True
+    span = time.monotonic() - t0
+    budget = lib.ledger_budget(span, 1_000_000)
+    floor = lib.loopback_rate_floor(1_000_000, window) * 1_000_000 * window
+    ok = allowed <= budget * lib.LEDGER_EPS and allowed >= floor
+    record(
+        "curl upload: BPF accounting rides the ledger budget",
+        "PASS" if ok else "FAIL",
+        f"kernel ledger {allowed:,} B over {span:.2f} s vs budget {budget:,} B "
+        f"(span x 1mb + one burst; {allowed / (1_000_000 * window) * 100:.1f}% of the "
+        f"nominal {window:.1f} s window; client wrote {sent:,} B and the server folded "
+        f"{delivered:,} B — write-ahead plus retransmit backlog, observability only)",
+        {
+            "ledger_bytes": allowed,
+            "budget_bytes": round(budget),
+            "span_s": round(span, 3),
+            "client_bytes": sent,
+            "server_folded_bytes": delivered,
+        },
+    )
+    return ok
+
+
 def test_curl_upload(window, baseline):
     if not CURL:
         return record("curl upload: external upload engine", "SKIP", "curl not found")
@@ -2300,6 +2357,9 @@ def test_curl_upload(window, baseline):
     ok, payload = apply_single("a", "1mb", 1_000_000, 1_000_000)
     if not ok:
         return record("curl upload: external upload engine", "FAIL", payload)
+    # The span start: every ledger booking after this moment is this
+    # stage's (the budget arithmetic below brackets with it).
+    t0 = time.monotonic()
     time.sleep(0.5)
     # NIGHT-improve-12: the upload curl runs inside cgroup a (worker
     # path) so the policy it measures is the one applied to a.
@@ -2379,16 +2439,21 @@ def test_curl_upload(window, baseline):
         # The kernel-side rows are the evidence: if bytes_allowed is
         # ~5 MB, the wire moved and the server-side fold is the liar;
         # if it is ~0, the upload never left the worker. Either way
-        # the next hunt starts from the numbers, not a guess.
-        enforcement_proofs("curl upload", sent)
+        # the next hunt starts from the numbers, not a guess. The
+        # stage-local rows (the ledger-budget shape — the sender and
+        # fold counts ride the detail as observability).
+        curl_upload_ledger_rows(t0, window, sent, delivered)
         clear_all()
         # A skipped row is not a pass: the engine fault is named, the
         # kernel evidence is printed, but this stage did not measure.
         return False
     passed = band_check("curl upload: external upload engine", delivered / window, 1_000_000)
-    enforcement_proofs("curl upload", delivered)
+    # The accounting rows, the stage-local ledger-budget shape (the
+    # charger-core-1c best-gnu lesson: the ledger-vs-wire comparison
+    # is retransmit noise — the budget arithmetic is the verdict).
+    ledger_ok = curl_upload_ledger_rows(t0, window, sent, delivered)
     clear_all()
-    return passed
+    return passed and ledger_ok
 
 
 def test_overhead(window, baseline):
@@ -3706,6 +3771,28 @@ def self_test():
         "harness: asymmetric drains the attach cushion before each window",
         "PASS" if drain_ok else "FAIL",
         "discarded warm-up windows precede both measured windows (bound 1+1/W straddles BAND_HI)",
+    )
+    # The charger-core-1c best-gnu lesson (the 160.5% leg), pinned as
+    # a source shape: the curl upload accounting row must never
+    # verdict on a client-side count — the write-ahead runs the
+    # comparison LOW (the dominant 69.8% legs), the retransmit
+    # cycle's double-booking runs the ledger HIGH (the 160.5% leg,
+    # where the sender's count and the server's fold AGREED and the
+    # comparison itself was the noise). The stage's accounting
+    # verdicts on the ledger budget (the asymmetric stage's
+    # NIGHT-dinner-13 precedent); both client-side counts ride the
+    # row detail as observability.
+    curl_ul_src = inspect.getsource(test_curl_upload)
+    ledger_shape_ok = (
+        "curl_upload_ledger_rows" in curl_ul_src
+        and "enforcement_proofs(" not in curl_ul_src
+        and "ledger_budget" in inspect.getsource(curl_upload_ledger_rows)
+    )
+    record(
+        "harness: curl upload accounting verdicts on the ledger budget",
+        "PASS" if ledger_shape_ok else "FAIL",
+        "never a client-side count: write-ahead reads low, retransmit "
+        "double-booking reads high, the budget arithmetic is exact per run",
     )
     # NIGHT-dinner-13 pins: the upload-direction verdicts ride the
     # kernel ledger budget (span x rate + one burst, lib.ledger_budget),
