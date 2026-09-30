@@ -149,7 +149,15 @@ sudo zelynic strict brave 100kb        # shorthand form
   removed).
   Measured shapes: a single active leaf converges to the whole budget
   (the pool's equilibrium sits where its half-draws equal its full
-  consumption); two equal-demand leaves split it — worst case 2:1
+  consumption — and the convergence rides the packet arrival cadence:
+  a lone flow in deep retransmit backoff gathers its quantum through
+  half-draws stretched across the RTO gaps, so a SHORT window can
+  read the transient — the CI leg that measured one 64 KiB quantum
+  in a 4s window against a 50kb policy (16.4 KB/s, 32.8%), where the
+  legacy lane's in-place refill would already have admitted; it
+  converges back over longer windows and the harness's measured row
+  re-samples the under-band side, never the over-band one); two
+  equal-demand leaves split it — worst case 2:1
   under adversarial always-first arrival, ~1:1 under real interleaved
   traffic — where FCFS measured 100:0. The fairness is statistical,
   not a formal round-robin guarantee (iteration over leaves is
@@ -1238,7 +1246,12 @@ arrival, ~1:1 under real interleaved traffic; below ~656 KB/s the
 fairness granularity coarsens (the quantum is floored at the
 64 KiB GSO admit law, so at a 100kb policy one quantum is 0.64
 seconds of budget — leaves alternate on quantum boundaries
-instead of never). A leaf that goes idle strands at most its one
+instead of never), and at those same trickle rates a LONE flow
+in deep retransmit backoff can read a short-window under-delivery
+(the half-draws gather the quantum across the RTO gaps — one
+64 KiB quantum measured in a 4s window against a 50kb policy on
+a CI leg; the flow converges to the budget over longer windows).
+A leaf that goes idle strands at most its one
 quantum until the LRU reaps it; the stale-quantum belt zeroes
 any leaf's tokens the moment a policy mutation outlives them.
 

@@ -2588,6 +2588,29 @@ def test_multi_group(window, baseline):
     return solo and joint
 
 
+def window_retry_needed(measured_bps, configured_bps):
+    """The under-side patience decision for a measured rate window
+    (the charger-core-1c CI lesson, the 0b0a8f5 drain discipline
+    applied to the measurement itself).
+
+    True — re-sample — only when the sample reads UNDER the band:
+    at trickle rates where the GSO admit floor binds (one 64 KiB
+    super-packet per ~1.31s of refill at 50kb), a 4s window holds at
+    most three admits, and the DRR residue law's half-draws stretch
+    the first one when TCP's retransmit cadence is sparse (each draw
+    takes half the pooled balance, so a lone leaf gathering its
+    quantum needs several arrivals — the best-musl leg of the 1c
+    push read exactly one quantum, 16.4 KB/s = 32.8%, while the
+    other three legs read in-band). A steady-state sample is not a
+    retry matter; an OVER-band sample is the opposite — a real
+    over-delivery that must fail immediately, never be retried away
+    (enforcement can only under-deliver a budget, the probe's
+    one-sidedness contract). Both stop the window loop; the verdict
+    stays band_check's, the single band authority.
+    """
+    return measured_bps < BAND_LO * configured_bps
+
+
 def test_ammsp_subtree(window, baseline):
     """NIGHT-private-research-2 (AMMSP): the subtree contract, measured
     live — a strict on cgroup A polices every socket born under A/**,
@@ -2778,12 +2801,41 @@ def test_ammsp_subtree(window, baseline):
             lib.drain_cushion(
                 lambda: child_bytes(grand_path, 4.0, idle=0.5), lib.default_burst(50_000)
             )
-            got = child_bytes(grand_path, window)
+            # The measured window, under-side patient (the 0b0a8f5
+            # drain discipline applied to the measurement itself):
+            # at 50kb the GSO admit floor binds — one 64 KiB
+            # super-packet per ~1.31s of refill — so a 4s window
+            # holds at most three admits, and the DRR residue law's
+            # half-draws stretch the FIRST one when TCP's retransmit
+            # cadence is sparse (RTO-paced after the drops: each draw
+            # takes half the pooled balance, so a lone leaf gathering
+            # its quantum needs several arrivals — the pool refills
+            # between them, the leaf converges over the long window
+            # the design pins, but a one-shot 4s sample can read the
+            # transient). The best-musl leg of the 1c push read one
+            # quantum in the window (16.4 KB/s, 32.8% — a transient,
+            # not a resolution miss) while the other three legs read
+            # in-band. The patience is one-sided on purpose: an
+            # under-band sample re-runs (the row means to measure the
+            # steady state, and enforcement can only under-deliver a
+            # budget), an over-band sample fails IMMEDIATELY (a real
+            # over-delivery must never be retried away), and three
+            # under-band samples FAIL with every number attached — a
+            # systematically broken datapath cannot pass by retry.
+            rates = []
+            for _ in range(3):
+                got = child_bytes(grand_path, window)
+                rates.append(got / window)
+                if not window_retry_needed(rates[-1], 50_000):
+                    break
             passed = (
                 band_check(
                     "ammsp: grandchild resolves to the NEAREST root (50kb, not 100kb)",
-                    got / window,
+                    rates[-1],
                     50_000,
+                    extra="windows: "
+                    + ", ".join(f"{r / 1000:.1f} KB/s" for r in rates)
+                    + " (the under-side transient re-samples, the over-side fails now)",
                 )
                 and passed
             )
@@ -3534,6 +3586,29 @@ def self_test():
         )
     finally:
         shutil.rmtree(probe, ignore_errors=True)
+
+    # The charger-core-1c best-musl lesson, pinned at the CI leg's
+    # exact numbers: the nested-root row's one-shot 4s window read
+    # one 64 KiB quantum (16.4 KB/s = 32.8% of the 50kb policy —
+    # the DRR residue law's half-draws plus a deep RTO backoff
+    # stretching the lone leaf's first gather) while the other three
+    # legs read in-band. The patience decision must be one-sided:
+    # only the under-band transient re-samples; an in-band sample is
+    # the steady state proven; an over-band sample is a real
+    # over-delivery that stops the loop and fails through
+    # band_check — never retried away.
+    retry_pins = [
+        (16_384, 50_000, True, "the best-musl transient re-samples"),
+        (32_800, 50_000, False, "in-band (65.6%) is steady, no retry"),
+        (49_152, 50_000, False, "in-band (98.3%) is steady, no retry"),
+        (70_000, 50_000, False, "over-band stops: a real over-delivery"),
+    ]
+    retry_ok = all(window_retry_needed(m, c) == want for m, c, want, _ in retry_pins)
+    record(
+        "engine: under-side window patience is one-sided",
+        "PASS" if retry_ok else "FAIL",
+        "; ".join(note for _, _, _, note in retry_pins),
+    )
 
     # NIGHT-improve-12 pin: every ladder rung must sit inside the
     # limiter parser's bounds (types.rs MIN_RATE 1000, MAX_RATE
