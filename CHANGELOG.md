@@ -41,15 +41,17 @@ NIGHT-hunt-18's git-history-only call.
   95/4 without it: the first asker at each instant captured
   everything that accumulated; with it, interleaved leaves split
   the continuous refill stream because every draw leaves the other
-  half for whoever asks next); (3) the PROPORTIONAL PACING — a
-  draw's wait scales with its size (a full quantum stocks a leaf
-  for the window, the anti-hog cap; a residual trickle costs a
-  trickle, so a starved leaf keeps collecting refills as they
-  land — the pacing stamp holds the next-eligible time, and an
-  empty draw rolls it back so the leaf retries the very next
-  packet). Measured shapes, all in the pins: a single active leaf
-  converges to the whole budget (the pool's equilibrium sits where
-  its half-draws equal its full consumption — no throughput loss);
+  half for whoever asks next); (3) the HOLDING CAP + the DRAW LOCK —
+  a leaf can only draw when empty and holds at most one quantum (the
+  anti-hog bound), under a one-drawer-per-timestamp stamp whose
+  empty-draw rollback lets the starved leaf retry every packet
+  (paced draws — a quantum per window — proved TCP-hostile on the
+  first CI root-run, collapsing the daemon row to 46% of configured,
+  and were removed: the stamp is the lock, the fairness is the
+  residue law's). Measured shapes, all in the pins: a single active
+  leaf converges to the whole budget (the pool's equilibrium sits
+  where its half-draws equal its full consumption — no throughput
+  loss);
   two equal-demand leaves split worst-case 2:1 under adversarial
   always-first arrival and ~1:1 under real interleaved traffic,
   where FCFS measured 100:0. The stale-quantum belt: leaf quanta are
