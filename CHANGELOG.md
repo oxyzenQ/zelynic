@@ -19,6 +19,39 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Changed
 
+- **docs: NIGHT-perf-2 — the AMMSP endurance and ultra-scale audit
+  on the record (the perf trilogy's endurance leg): the per-packet
+  cost budget at HEAD, the trillion-packet math, and the
+  ready-but-untaken lifts** (the owner's directive: "depth audit
+  for endurance and ability to handle ultra scale > trillion
+  data/burst for now and future"). The audit decomposes the
+  directive into three loads — trillions of packets, trillions of
+  bytes, bursts — and walks each against the source: the fast path
+  accumulates NOTHING per packet (the only per-packet state is the
+  policed tail's bounded atomics), the ledgers wrap at horizons
+  measured in centuries with wrap-safe deltas, and the
+  scale-sensitive term is the memo's hit rate (beyond 4096 distinct
+  LIVE leaves: bounded re-walks, never wrong verdicts — the
+  documented dense-host regime). The time-to-wrap table carries
+  every counter a "trillions" horizon meets (per-cgroup bytes at
+  18.4 EB / ~4,670 years at line rate; the generation counter at
+  2^32 mutations with total ordering preserved by the
+  wrap-neighbor pin; kernfs ids at ~4 billion creations per boot —
+  the pre-existing contract). The verdicts: endurance YES with the
+  layered race story closed at every layer (v7 field atomics, v8
+  consume retry, v9 booking, v11 init-race, v12 the
+  mutation-vs-walk stamp); ultra-scale bounded by CARDINALITY
+  (live leaves, policies, groups — all documented constants with
+  one-line lift paths), not by volume; the future lifts
+  (AMMSP_MAX_DEPTH, the memo cap) ready and deliberately not
+  taken — no real deployment reaches them, and raising them today
+  spends a schema bump for headroom nothing needs (the
+  over-engineering the LTS rules refuse). The mutation-storm lane
+  after the perf-0 O(1) bump is on the record: flock hold time no
+  longer scales with memo population. Docs index row added; the
+  audit carries the trilogy's verification record (pins, CI lanes,
+  local gates at HEAD).
+
 - **ci+limiter: NIGHT-perf-1 — the AMMSP-vs-legacy depth test: the
   subtree contract proven as a DELTA between two real binaries, the
   >= 99% child-coverage verdict the owner asked for, wired into the
