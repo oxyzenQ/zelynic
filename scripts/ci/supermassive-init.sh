@@ -65,36 +65,36 @@ export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 FAILURES=0
 
 note() {
-        echo "MASS-RESULT: $1 — $2"
-        if [ "$2" != "PASS" ]; then
-                FAILURES=$((FAILURES + 1))
-        fi
+	echo "MASS-RESULT: $1 — $2"
+	if [ "$2" != "PASS" ]; then
+		FAILURES=$((FAILURES + 1))
+	fi
 }
 
 guest_exit() {
-        # The deterministic VM exit (the kernel-floor run-4 lesson):
-        # qemu's isa-debug-exit device ends the VM the moment one
-        # byte lands on port 0xf4; /dev/port is the root-writable
-        # port-I/O window (seek = the port number), and the written
-        # value 0 makes qemu exit with status 1 — the rc the
-        # workflow's boot step accepts as the guest's deliberate
-        # exit, the MASS-* sentinel lines being the verdict.
-        printf '\x00' | dd of=/dev/port bs=1 seek=244 count=1 2>/dev/null || true
-        # Belts, in order: the raw poweroff syscall (if this guest
-        # ever grows an ACPI S5 path), then the sleep loop (never
-        # spin the runner's budget — the outer timeout owns the
-        # last resort).
-        python3 -c 'import os; os.sync(); os.reboot(os.LINUX_REBOOT_CMD_POWER_OFF)' 2>/dev/null || true
-        while true; do sleep 60; done
+	# The deterministic VM exit (the kernel-floor run-4 lesson):
+	# qemu's isa-debug-exit device ends the VM the moment one
+	# byte lands on port 0xf4; /dev/port is the root-writable
+	# port-I/O window (seek = the port number), and the written
+	# value 0 makes qemu exit with status 1 — the rc the
+	# workflow's boot step accepts as the guest's deliberate
+	# exit, the MASS-* sentinel lines being the verdict.
+	printf '\x00' | dd of=/dev/port bs=1 seek=244 count=1 2>/dev/null || true
+	# Belts, in order: the raw poweroff syscall (if this guest
+	# ever grows an ACPI S5 path), then the sleep loop (never
+	# spin the runner's budget — the outer timeout owns the
+	# last resort).
+	python3 -c 'import os; os.sync(); os.reboot(os.LINUX_REBOOT_CMD_POWER_OFF)' 2>/dev/null || true
+	while true; do sleep 60; done
 }
 
 Z=/opt/zelynic
 if ! cd "$Z"; then
-        # A PID 1 must never plain-exit (the guest would panic-wedge):
-        # exit through the port device with the verdict already naming
-        # the failure.
-        echo "MASS-VERDICT: FAIL (cannot cd $Z — rootfs assembly bug)"
-        guest_exit
+	# A PID 1 must never plain-exit (the guest would panic-wedge):
+	# exit through the port device with the verdict already naming
+	# the failure.
+	echo "MASS-VERDICT: FAIL (cannot cd $Z — rootfs assembly bug)"
+	guest_exit
 fi
 
 # ── the kernel surfaces, before anything that needs them ──────────────
@@ -114,9 +114,9 @@ kver=$(uname -r)
 major=${kver%%.*}
 minor=$(echo "$kver" | cut -d. -f2 | grep -oE '^[0-9]+' || echo 0)
 if [ "${major:-0}" -gt 5 ] || { [ "${major:-0}" -eq 5 ] && [ "${minor:-0}" -ge 13 ]; }; then
-        note "kernel $kver (the 5.13+ verified floor)" PASS
+	note "kernel $kver (the 5.13+ verified floor)" PASS
 else
-        note "kernel (uname -r = $kver, wanted >= 5.13)" FAIL
+	note "kernel (uname -r = $kver, wanted >= 5.13)" FAIL
 fi
 
 # Everything the batteries need (PID 1 owns them all): tmpfs scratch
@@ -125,15 +125,15 @@ fi
 # surface), devpts (the v2 pty batteries), loopback (the v1 traffic
 # lane — the realnet lane self-skips, the documented row).
 if mount -t tmpfs tmp /tmp &&
-        mount -t tmpfs run /run &&
-        mkdir -p /sys/fs/cgroup /sys/fs/bpf /dev/pts &&
-        mount -t cgroup2 none /sys/fs/cgroup &&
-        mount -t bpf bpf /sys/fs/bpf &&
-        mount -t devpts devpts /dev/pts &&
-        ip link set lo up; then
-        note "kernel surfaces (proc, sysfs, devtmpfs, cgroup2, bpffs, devpts, loopback)" PASS
+	mount -t tmpfs run /run &&
+	mkdir -p /sys/fs/cgroup /sys/fs/bpf /dev/pts &&
+	mount -t cgroup2 none /sys/fs/cgroup &&
+	mount -t bpf bpf /sys/fs/bpf &&
+	mount -t devpts devpts /dev/pts &&
+	ip link set lo up; then
+	note "kernel surfaces (proc, sysfs, devtmpfs, cgroup2, bpffs, devpts, loopback)" PASS
 else
-        note "kernel surfaces" FAIL
+	note "kernel surfaces" FAIL
 fi
 
 # ── the lean prelude: the binary runs, the bpf syscall answers ───────
@@ -145,26 +145,26 @@ fi
 # marker.
 FLAVOR="unknown"
 if [ -r "$Z/PAYLOAD-FLAVOR" ]; then
-        FLAVOR=$(tr -d '[:space:]' <"$Z/PAYLOAD-FLAVOR")
+	FLAVOR=$(tr -d '[:space:]' <"$Z/PAYLOAD-FLAVOR")
 fi
 echo "MASS: payload flavor: $FLAVOR"
 if ./zelynic -V >/dev/null 2>&1; then
-        note "zelynic -V ($FLAVOR payload + CPU match)" PASS
+	note "zelynic -V ($FLAVOR payload + CPU match)" PASS
 else
-        note "zelynic -V ($FLAVOR payload + CPU match)" FAIL
+	note "zelynic -V ($FLAVOR payload + CPU match)" FAIL
 fi
 if ./zelynic doctor; then
-        note "doctor (bpf syscall on the floor)" PASS
+	note "doctor (bpf syscall on the floor)" PASS
 else
-        note "doctor (bpf syscall on the floor)" FAIL
+	note "doctor (bpf syscall on the floor)" FAIL
 fi
 
 # The engine smoke (rootless, canonical) — the harness itself is
 # sound inside this userland before either full battery runs.
 if python3 scripts/supermassive/supermassive-test.py --self-test; then
-        note "supermassive engine self-test" PASS
+	note "supermassive engine self-test" PASS
 else
-        note "supermassive engine self-test" FAIL
+	note "supermassive engine self-test" FAIL
 fi
 
 # The emergency rescue smoke (NIGHT-improve-31's terminal half): the
@@ -173,9 +173,9 @@ fi
 # exit shape, not the sudo lane (whose proof is the pin family plus
 # the live harness, recorded in SAFETY_ANALYSIS).
 if ./zelynic --reset-terminal; then
-        note "zelynic --reset-terminal (exit 0 on the floor)" PASS
+	note "zelynic --reset-terminal (exit 0 on the floor)" PASS
 else
-        note "zelynic --reset-terminal (exit 0 on the floor)" FAIL
+	note "zelynic --reset-terminal (exit 0 on the floor)" FAIL
 fi
 
 # ── the stresstest: BOTH full engines, canonical invocations ─────────
@@ -190,10 +190,10 @@ fi
 # claims" verdict, server shape included, on the leg's kernel,
 # inside the profile's derived resource envelope.
 if python3 scripts/supermassive/supermassive-test.py \
-        --binary /opt/zelynic/zelynic; then
-        note "supermassive v1 - limiter matrix (full, server-first)" PASS
+	--binary /opt/zelynic/zelynic; then
+	note "supermassive v1 - limiter matrix (full, server-first)" PASS
 else
-        note "supermassive v1 - limiter matrix (full, server-first)" FAIL
+	note "supermassive v1 - limiter matrix (full, server-first)" FAIL
 fi
 
 # ── the AMMSP-vs-legacy DELTA (NIGHT-perf-1, the owner's ask: "verify
@@ -210,15 +210,15 @@ fi
 # the CI rootfs step FAILS the leg instead, so a skip here never hides
 # on the supermassive lanes.
 if [ -x /opt/zelynic/legacy/zelynic ]; then
-        if python3 scripts/supermassive/ammsp-vs-legacy-test.py \
-                --binary /opt/zelynic/zelynic \
-                --legacy-binary /opt/zelynic/legacy/zelynic; then
-                note "AMMSP vs legacy v11.0.0 - subtree coverage delta (>= 99%)" PASS
-        else
-                note "AMMSP vs legacy v11.0.0 - subtree coverage delta (>= 99%)" FAIL
-        fi
+	if python3 scripts/supermassive/ammsp-vs-legacy-test.py \
+		--binary /opt/zelynic/zelynic \
+		--legacy-binary /opt/zelynic/legacy/zelynic; then
+		note "AMMSP vs legacy v11.0.0 - subtree coverage delta (>= 99%)" PASS
+	else
+		note "AMMSP vs legacy v11.0.0 - subtree coverage delta (>= 99%)" FAIL
+	fi
 else
-        note "AMMSP vs legacy v11.0.0 - subtree coverage delta (>= 99%)" SKIP
+	note "AMMSP vs legacy v11.0.0 - subtree coverage delta (>= 99%)" SKIP
 fi
 
 # v2, the survival battery (the e2e pipeline's phase three, LAST per
@@ -233,10 +233,10 @@ fi
 # violent-death guard on the leg's kernel (the floor or the latest
 # head), the old kernel-floor probe's surface and more.
 if python3 scripts/supermassive/supermassive-test-v2.py \
-        --binary /opt/zelynic/zelynic; then
-        note "supermassive v2 - survival battery (full, server-first)" PASS
+	--binary /opt/zelynic/zelynic; then
+	note "supermassive v2 - survival battery (full, server-first)" PASS
 else
-        note "supermassive v2 - survival battery (full, server-first)" FAIL
+	note "supermassive v2 - survival battery (full, server-first)" FAIL
 fi
 
 # ── the claims proof, LIVE on this leg's kernel (NIGHT-lts-6) ─────────
@@ -248,16 +248,16 @@ fi
 # live claims audit; the full owner-facing flow stays
 # `sudo ./scripts/bench/proof-claims.sh` on the host.
 if python3 scripts/bench/proof-claims.py \
-        --quick --binary /opt/zelynic/zelynic; then
-        note "claims proof (live, quick)" PASS
+	--quick --binary /opt/zelynic/zelynic; then
+	note "claims proof (live, quick)" PASS
 else
-        note "claims proof (live, quick)" FAIL
+	note "claims proof (live, quick)" FAIL
 fi
 
 # ── the verdict ───────────────────────────────────────────────────────
 if [ "$FAILURES" -eq 0 ]; then
-        echo "MASS-VERDICT: PASS"
+	echo "MASS-VERDICT: PASS"
 else
-        echo "MASS-VERDICT: FAIL ($FAILURES probe(s) failed)"
+	echo "MASS-VERDICT: FAIL ($FAILURES probe(s) failed)"
 fi
 guest_exit
