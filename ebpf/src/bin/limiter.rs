@@ -45,7 +45,7 @@
 use aya_ebpf::{
     helpers::{bpf_ktime_get_ns, bpf_skb_cgroup_id},
     macros::{cgroup_skb, map},
-    maps::{Array, HashMap},
+    maps::{Array, HashMap, LruHashMap},
     programs::SkBuffContext,
 };
 
@@ -78,6 +78,21 @@ mod ammsp;
 mod ammsp_resolve;
 
 use ammsp_resolve::ammsp_resolve_root;
+use drr_flow::drr_flow;
+
+// NIGHT-upgrade-charger-core-1c (the fair-shared bucket): the pure
+// quantum core — same discipline as math.rs/ammsp.rs: pure `core`,
+// zero aya dependencies, wired here with #[path] AND into the
+// userspace test tree, pinned rootlessly by
+// test/ebpf/limiter/drr_tests.rs.
+#[path = "../drr.rs"]
+mod drr;
+
+// The DRR datapath wiring (NIGHT-upgrade-charger-core-1c): the two
+// pinned LRU leaf-bucket maps + the pool/leaf orchestration — the
+// aya-touching split, the ammsp_resolve precedent one feature over.
+#[path = "../drr_flow.rs"]
+mod drr_flow;
 use math::{Bucket, LimiterStats, MAX_ENFORCABLE_BURST, Policy, book, enforce};
 
 // ---------------------------------------------------------------------------
@@ -156,6 +171,28 @@ use math::{Bucket, LimiterStats, MAX_ENFORCABLE_BURST, Policy, book, enforce};
 /// change; the bump forces pinned v11 programs to reload into the
 /// generation-stamped object — active limits are dropped once,
 /// re-apply after upgrade, the same one-time contract as v4..v11.
+/// v13 (NIGHT-upgrade-charger-core-1c, the fair-shared bucket): the
+/// individual-bucket lane becomes DRR-shaped — the shared bucket is
+/// now a POOL (refilled by the same refill_window, drained only by
+/// per-LEAF quantum draws), and every packet spends from a per-leaf
+/// bucket keyed by the socket's own cgroup id in the two new pinned
+/// LRU maps leaf_bucket_dl/ul (4096 entries, the memo map's
+/// posture). A greedy leaf can no longer consume every token the
+/// instant it refills: it holds at most one quantum
+/// (max(rate x 100ms, the 64 KiB GSO admit floor)) at a time, and
+/// the pool's next refills flow to whichever leaf is empty and
+/// asking — the starvation shape (one subprocess at ~100%, its
+/// siblings at ~0%) becomes bounded shares. The aggregate stays
+/// exactly the policy (the pool never hands out what it does not
+/// have); the group-bucket lane (strict-multi) keeps the legacy
+/// FCFS shape by documented scope. The stale-quantum belt: leaf
+/// quanta are stamped with the AMMSP generation at their draw, and
+/// a mismatching stamp zeroes them before the packet proceeds — a
+/// policy mutation can never leave a leaf spending a dead budget's
+/// quantum. New maps, new enforcement semantics on the individual
+/// lane; the bump forces pinned v12 programs to reload into the
+/// fair-sharing object — active limits are dropped once, re-apply
+/// after upgrade, the same one-time contract as v4..v12.
 /// No layout change since v2; each bump forces pinned older
 /// programs to reload into the hardened object — a one-time limit
 /// re-apply, documented in CHANGELOG.
@@ -315,13 +352,15 @@ const BPF_NOEXIST: u64 = 1;
 
 /// Shared enforcement flow for one direction. `policy_map` selects
 /// download vs upload; `bucket_map` / `group_bucket_map` are the
-/// matching individual/group bucket maps.
+/// matching individual/group bucket (pool) maps, `leaf_bucket_map`
+/// the direction's DRR leaf map (charger-core-1c).
 #[inline(always)]
 fn try_enforce(
     ctx: SkBuffContext,
     policy_map: &HashMap<u32, Policy>,
     bucket_map: &HashMap<u32, Bucket>,
     group_bucket_map: &HashMap<u32, Bucket>,
+    leaf_bucket_map: &LruHashMap<u32, Bucket>,
 ) -> i32 {
     // The unlimited fast path FIRST (NIGHT-lts-2): cgroup identity +
     // the direction's policy are the only two lookups a packet with
@@ -436,9 +475,9 @@ fn try_enforce(
     let stats = get_stats_ptr(&cgroup_id).map(|ptr| unsafe { &mut *ptr });
 
     // Individual or group bucket? group_id selects the shared
-    // bucket keyed by the group; 0 falls back to the per-cgroup
-    // bucket keyed by cgroup_id. Both paths see the sanitized
-    // burst so the initializer never seeds tokens above the bound.
+    // bucket keyed by the group; 0 rides the DRR lane (charger-core-1c).
+    // Both paths see the sanitized burst so the initializer never
+    // seeds tokens above the bound.
     // NIGHT-lts-7 (folded into the unreleased v8): a group lookup
     // that cannot materialize a bucket (the 256-slot group map
     // full, or a corrupted pin) DEGRADES the member to its own
@@ -448,8 +487,12 @@ fn try_enforce(
     // half of the fix (reclaiming dead groups on removal/apply,
     // reclaim.rs) keeps the map from filling in the first place;
     // this fallback is the belt for whatever still slips through.
-    let bkt_ptr = if pol_sane.group_id != 0 {
-        match get_bucket_ptr(
+    if pol_sane.group_id != 0 {
+        // The strict-multi group lane keeps the legacy FCFS shape
+        // (documented scope): its members are enumerated by the
+        // apply itself, so the fairness problem AMMSP has (unbounded
+        // unknown leaves) does not exist here.
+        let bkt_ptr = match get_bucket_ptr(
             group_bucket_map,
             &pol_sane.group_id,
             pol_sane.burst_bytes,
@@ -457,28 +500,53 @@ fn try_enforce(
         ) {
             Some(ptr) => Some(ptr),
             None => get_bucket_ptr(bucket_map, &cgroup_id, pol_sane.burst_bytes, now),
-        }
-    } else {
-        get_bucket_ptr(bucket_map, &cgroup_id, pol_sane.burst_bytes, now)
-    };
-    let bkt = match bkt_ptr {
-        Some(ptr) => unsafe { &mut *ptr },
+        };
+        let bkt = match bkt_ptr {
+            Some(ptr) => unsafe { &mut *ptr },
+            None => return 1,
+        };
+        return enforce(&pol_sane, bkt, pkt_len, now, stats);
+    }
+
+    // The DRR lane (NIGHT-upgrade-charger-core-1c): the shared
+    // bucket is a POOL and the packet spends from its LEAF's bucket
+    // — a greedy leaf holds at most one quantum at a time, and the
+    // pool's refills flow to whichever leaf is empty and asking
+    // (the starvation close; the aggregate stays exactly the policy).
+    // The pool is the same map entry the legacy path enforced
+    // through, and the leaf is keyed by the socket's own cgroup id
+    // (the direct-hit path's leaf IS the root — one shape, no mixed
+    // regime between a target's own sockets and its subtree's).
+    let pool_ptr = match get_bucket_ptr(bucket_map, &cgroup_id, pol_sane.burst_bytes, now) {
+        Some(ptr) => ptr,
         None => return 1,
     };
-
-    enforce(&pol_sane, bkt, pkt_len, now, stats)
+    let pool = unsafe { &mut *pool_ptr };
+    drr_flow(&pol_sane, pool, leaf_bucket_map, &leaf, pkt_len, now, stats)
 }
 
 /// Download enforcement (ingress). Ported from enforce_dl.
 #[cgroup_skb(ingress)]
 fn enforce_dl(ctx: SkBuffContext) -> i32 {
-    try_enforce(ctx, &cgroup_policy_dl, &cgroup_bucket_dl, &group_bucket_dl)
+    try_enforce(
+        ctx,
+        &cgroup_policy_dl,
+        &cgroup_bucket_dl,
+        &group_bucket_dl,
+        &drr_flow::leaf_bucket_dl,
+    )
 }
 
 /// Upload enforcement (egress). Ported from enforce_ul.
 #[cgroup_skb(egress)]
 fn enforce_ul(ctx: SkBuffContext) -> i32 {
-    try_enforce(ctx, &cgroup_policy_ul, &cgroup_bucket_ul, &group_bucket_ul)
+    try_enforce(
+        ctx,
+        &cgroup_policy_ul,
+        &cgroup_bucket_ul,
+        &group_bucket_ul,
+        &drr_flow::leaf_bucket_ul,
+    )
 }
 
 #[cfg(not(test))]

@@ -99,4 +99,24 @@
 ///     pinned v11 programs to reload into the generation-stamped
 ///     object — active limits are dropped once, re-apply after
 ///     upgrade, the same one-time contract as v4..v11.
-pub const SCHEMA_VERSION_EXPECTED: u32 = 12;
+/// v13 (NIGHT-upgrade-charger-core-1c, the fair-shared bucket): the
+///     individual-bucket lane becomes DRR-shaped — the shared bucket is
+///     now a POOL (refilled by the same refill_window, drained only by
+///     per-LEAF quantum draws), and every packet spends from a per-leaf
+///     bucket keyed by the socket's own cgroup id in the two new pinned
+///     LRU maps leaf_bucket_dl/ul (4096 entries, the memo map's
+///     posture). A greedy leaf can no longer consume every token the
+///     instant it refills: it holds at most one quantum
+///     (max(rate x 100ms, the 64 KiB GSO admit floor)) at a time, and
+///     the pool's next refills flow to whichever leaf is empty and
+///     asking — the AMMSP starvation shape becomes bounded shares
+///     while the aggregate stays exactly the policy. The
+///     stale-quantum belt stamps leaf quanta with the AMMSP
+///     generation at their draw and zeroes mismatching stamps before
+///     the packet proceeds, so a policy mutation can never leave a
+///     leaf spending a dead budget's quantum. New maps, new
+///     enforcement semantics on the individual lane; the bump forces
+///     pinned v12 programs to reload into the fair-sharing object —
+///     active limits are dropped once, re-apply after upgrade, the
+///     same one-time contract as v4..v12.
+pub const SCHEMA_VERSION_EXPECTED: u32 = 13;

@@ -5,23 +5,19 @@
 //!
 //! Module layout (NIGHT-hunt-3 restructure):
 //! - `types.rs`   — constants + BPF map structs + high-level API types
-//! - `schema.rs`  — the BPF schema-version anchor + its version
-//!   history (split from types.rs at the v10 bump — the one piece
-//!   that grows by design; re-exported through types.rs)
+//! - `schema.rs`  — the schema-version anchor + history (the v10
+//!   split; grows one entry per bump by design)
 //! - `format.rs`  — rate/duration parsing + formatting helpers
-//! - `parse.rs`   — the value parsers (the NIGHT-private-research-3
-//!   LOC-cap split from format.rs)
+//! - `parse.rs`   — the value parsers (the research-3 split)
 //! - `policy.rs`  — apply / resolve / write policy operations (the
-//!   unset-direction removal rides the apply, NIGHT-improve-29)
+//!   unset-direction removal rides the apply, improve-29)
 //! - `policy_lines.rs` — the policy surface's pure line formatters
-//!   (trace wording, the rollback error shape; NIGHT-depthbore-1's
-//!   split to hold policy.rs under the 500-LOC owner cap)
+//!   (the depthbore-1 split to hold policy.rs under the owner cap)
 //! - `reclaim.rs` — the remove path (unstrict) + state reclamation
-//! - `stats.rs`   — status printing + map readers + identity accessors
+//! - `stats.rs`   — status printing + map readers + identity
 //! - `ammsp.rs`   — the AMMSP userspace half: the leaf-cache flush
-//!   every policy mutation runs (NIGHT-private-research-2)
-//! - this file    — the `Limiter` struct, lifecycle (attach / open /
-//!   is_pinned / Drop), and the public re-export surface.
+//!   every policy mutation runs (private-research-2)
+//! - this file    — the `Limiter` struct + lifecycle + re-exports.
 
 mod ammsp;
 mod format;
@@ -40,19 +36,23 @@ mod types;
 #[path = "../../../test/ebpf/limiter/math_tests.rs"]
 mod math_tests;
 
-// NIGHT-boost-38: the SMP invariants of the same arithmetic, pinned
-// by test/ebpf/limiter/math_smp_tests.rs (same #[path] discipline).
+// NIGHT-boost-38: the SMP invariants, pinned by math_smp_tests.rs.
 #[cfg(test)]
 #[path = "../../../test/ebpf/limiter/math_smp_tests.rs"]
 mod math_smp_tests;
 
-// NIGHT-private-research-2 (AMMSP): the resolution core (walk state
-// machine, cache decision table, depth bound) compiles from
-// ebpf/src/ammsp.rs the same way math.rs does, pinned rootlessly by
-// test/ebpf/limiter/ammsp_tests.rs.
+// NIGHT-private-research-2 (AMMSP): the resolution core compiles
+// from ebpf/src/ammsp.rs the same way, pinned by ammsp_tests.rs.
 #[cfg(test)]
 #[path = "../../../test/ebpf/limiter/ammsp_tests.rs"]
 mod ammsp_tests;
+
+// NIGHT-upgrade-charger-core-1c: the DRR quantum core compiles from
+// ebpf/src/drr.rs the same way, pinned rootlessly by
+// test/ebpf/limiter/drr_tests.rs.
+#[cfg(test)]
+#[path = "../../../test/ebpf/limiter/drr_tests.rs"]
+mod drr_tests;
 
 // Re-export public types/functions for external use. The
 // NIGHT-private-research-3 LOC-cap split moved the value parsers to

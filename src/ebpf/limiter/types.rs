@@ -383,7 +383,10 @@ mod tests {
         // the leaf-cache value packs (generation << 32) | root and
         // the new ammsp_generation array invalidates every memo a
         // mutation outlives, one O(1) bump per mutation.
-        assert_eq!(SCHEMA_VERSION_EXPECTED, 12);
+        // v13 (charger-core-1c): the individual lane becomes DRR —
+        // the shared bucket a pool, every packet spending from a
+        // per-leaf quantum bucket (leaf_bucket_dl/ul).
+        assert_eq!(SCHEMA_VERSION_EXPECTED, 13);
     }
 
     // ── NIGHT-improve-10 / security-3: overflow-bound pins ──────────

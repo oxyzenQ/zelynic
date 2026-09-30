@@ -19,6 +19,79 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Added
 
+- **the fair-shared bucket — DRR inside AMMSP
+  (NIGHT-upgrade-charger-core-1c, the TIER S ability): the shared
+  subtree budget stops being first-come-first-served; a greedy
+  subprocess can no longer starve its siblings forever.** The owner's
+  starvation find: AMMSP gives a policy's whole subtree ONE shared
+  budget, and a shared token bucket is FCFS at token granularity —
+  cgroup /A at 100kb with subprocess #1 greedy meant #2..#100 got
+  ~nothing, indefinitely, with no configuration or daemon able to
+  fix it inside the hot path. The fix is in the datapath (schema v13):
+  the shared bucket becomes a POOL (refilled by the exact
+  refill_window the legacy lane runs — the aggregate stays exactly
+  the policy it had, DRR redistributes the budget, it cannot create
+  one) and every LEAF cgroup spends from its own small bucket that
+  draws from the pool in quanta. Three laws hold it up, each one
+  found by the rootless simulation and pinned: (1) the QUANTUM — a
+  leaf holds at most the rate's 100ms share, floored at the 64 KiB
+  GSO admit law (a quantum below it could never admit a super-
+  packet, the NIGHT-lts-8 class); (2) the RESIDUE LAW — a draw
+  takes at most HALF the visible pool (the simulation measured
+  95/4 without it: the first asker at each instant captured
+  everything that accumulated; with it, interleaved leaves split
+  the continuous refill stream because every draw leaves the other
+  half for whoever asks next); (3) the PROPORTIONAL PACING — a
+  draw's wait scales with its size (a full quantum stocks a leaf
+  for the window, the anti-hog cap; a residual trickle costs a
+  trickle, so a starved leaf keeps collecting refills as they
+  land — the pacing stamp holds the next-eligible time, and an
+  empty draw rolls it back so the leaf retries the very next
+  packet). Measured shapes, all in the pins: a single active leaf
+  converges to the whole budget (the pool's equilibrium sits where
+  its half-draws equal its full consumption — no throughput loss);
+  two equal-demand leaves split worst-case 2:1 under adversarial
+  always-first arrival and ~1:1 under real interleaved traffic,
+  where FCFS measured 100:0. The stale-quantum belt: leaf quanta are
+  stamped with the AMMSP memo generation at their draw, and a
+  mismatching stamp zeroes them before the packet proceeds (the
+  NIGHT-perf-0 generation trick applied to buckets — a policy
+  mutation can never leave a leaf spending a dead budget's quantum;
+  without the belt the bound would be one quantum per live leaf).
+  The stamp lives in the Bucket's frac_rem (leaf buckets never run
+  refill math — their tokens come from whole quanta), so the layout
+  stays the pinned 24-byte v2 shape. The group lane (strict-multi)
+  keeps the legacy FCFS shape by documented scope: its members are
+  enumerated by the apply itself, so the unknown-leaf starvation
+  problem does not exist there. Surfaces: ebpf/src/drr.rs (the pure
+  quantum core — the window, the residue law, the pacing, all
+  dual-tree pinned), ebpf/src/drr_flow.rs (the two pinned LRU
+  leaf-bucket maps + the pool/leaf orchestration, the ammsp_resolve
+  precedent), ebpf/src/math.rs (the refill extracted into a pub
+  refill_window shared by both lanes — bit-identical, the
+  pre-existing math pins pass unchanged — plus the DRR atomic
+  primitive set), try_enforce's individual lane (the direct-hit
+  leaf IS the root, one shape, no mixed regime between a target's
+  own sockets and its subtree's), and the two new maps'
+  userspace-existence (schema v13's one-time reload — active limits
+  are dropped once, re-apply after upgrade, the same contract as
+  every bump before it). The prebuilt lane refreshed through the
+  sanctioned cycle (limiter 9920 -> 15176 bytes, the observer
+  untouched at 3216; tree pin 656a0cd8 -> 305a3f1c). Pins: 9 new
+  (the quantum bounds at every rate class including the trickle
+  tradeoff, the residue law's half, the proportional pacing, the
+  draw-stamp ownership race, the stale-quantum belt and its
+  racing-consumer safety, the trickle GSO admit, and the 20-second
+  fairness simulation that drove the design: the greedy-first
+  alternation that measured 95/4 before the residue law and splits
+  the pool after it). Engines green rootlessly with both feature
+  shapes: 545+46 tests, fmt/clippy -D warnings clean, the prebuilt
+  parity gate green on the refreshed manifest. Docs synced in the
+  same commit: the USAGE.md strict-single section carries the
+  fair-share contract and the honest-limitations entry carries the
+  measured bounds (worst-case 2:1 adversarial, ~1:1 interleaved, the
+  trickle coarsening below ~656 KB/s, the one-quantum idle
+  stranding).
 - **strict-single: the self-proving enforcement probe
   (NIGHT-upgrade-charger-core-1-b, the TIER S ability) — "applied" is
   a claim, "VERIFIED" is a measurement: after the apply lands,
