@@ -141,11 +141,12 @@ sudo zelynic strict brave 100kb        # shorthand form
   policy it always had) and every leaf cgroup spends from its own
   small bucket that draws from the pool in quanta: a leaf holds at
   most one quantum (the rate's 100ms share, floored at the 64 KiB GSO
-  admit law) at a time, a draw takes at most half of what the pool
-  visibly holds (so an interleaved sibling always finds the other
-  half), and a draw's wait is proportional to its size (a full
-  quantum stocks a leaf for the window; a residual trickle costs a
-  trickle, so a starved leaf keeps collecting refills as they land).
+  admit law) at a time — it can only draw when empty — and a draw
+  takes at most half of what the pool visibly holds (so an interleaved
+  sibling always finds the other half; a leaf re-draws the moment it
+  empties, keeping the single-flow shape the legacy trickle it always
+  was — paced draws proved TCP-hostile on the CI daemon row and were
+  removed).
   Measured shapes: a single active leaf converges to the whole budget
   (the pool's equilibrium sits where its half-draws equal its full
   consumption); two equal-demand leaves split it — worst case 2:1
