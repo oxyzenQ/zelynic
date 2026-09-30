@@ -296,6 +296,37 @@ attach/detach — the same verifier cost the live monitor pays on
 open — and its /proc work is the connection census the report
 already ran, refreshed once more at window close.
 
+### NIGHT-upgrade-charger-core-1-a A/B (the bypass-shadow audit, 2026-09-30)
+
+The charger-core-1-a pass is report-surface work of the same class
+as private-research-3: the bypass audit rides the depth report's
+focus window (two /sys/class/net reads bracketing the window, one
+pure verdict over values the observer already polled), so the live
+monitor's frame path is untouched by construction — the only frame
+adjacency is the render tree's module list gaining a sibling
+declaration. The frame A/B is the proof (A = d831b0d, the
+dinner-26 rider-H tree; B = f703167, the charger-core-1-a tree;
+single runs, 10 s budget, the standard harness protocol).
+
+| Metric | d831b0d (A) | f703167 (B) | Delta |
+|--------|-------------|-------------|-------|
+| fps (render path) | 7,591.0 | 7,673.4 | +1.1% (machine noise) |
+| bytes/frame | 1,919.0 | 1,919.0 | +0.0% |
+| emit bytes/frame | 506.5 | 504.8 | -0.3% |
+| density gini | 0.3559 | 0.3564 | +0.1% |
+| frame entropy | 3.0017 | 3.0022 | +0.0% |
+| dirty cells/frame | 39.8 | 39.6 | -0.3% |
+
+Reading: PARITY — bytes/frame identical to the decimal is the proof
+the live frame content is byte-exact the old tree's, and every other
+delta sits inside the harness's own run-to-run noise class (fps
+moved +1.1% here where the same host recorded -0.4% on the
+private-research-3 pass — the spread is the noise, the byte-identity
+is the signal). The audit's own cost lives outside this harness
+(one-shot stdout surface): two sysfs directory walks bracketing the
+window the report already sleeps through, each a few dozen counter
+file reads — microseconds against the seconds of the window itself.
+
 ### NIGHT-lts-1 A/B (the display-width discipline, 2026-09-25)
 
 The CJK width fix (five budget surfaces routed through the
