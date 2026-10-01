@@ -466,19 +466,19 @@ pub enum Commands {
     #[command(name = "doctor")]
     Doctor,
 
-    /// Internal: the enforcement-probe server role
-    /// (NIGHT-upgrade-charger-core-1-b). Hidden — spawned by
-    /// strict-single's verification window, never typed by hand.
+    /// Internal: the enforcement-probe server role. Hidden — spawned
+    /// by strict-single's verification window, never typed by hand.
     #[command(name = "__probe-server", hide = true)]
     ProbeServer {
-        /// Port to bind (0 = ephemeral; the chosen port is announced
-        /// on stdout for the orchestrator).
+        /// Port to bind (0 = ephemeral; announced on stdout).
         port: u16,
+
+        /// "dl" blasts / "ul" drains and reports (NIGHT-hunt-Z1).
+        mode: String,
     },
 
-    /// Internal: the enforcement-probe client role
-    /// (NIGHT-upgrade-charger-core-1-b). Hidden — spawned by
-    /// strict-single's verification window, never typed by hand.
+    /// Internal: the enforcement-probe client role. Hidden — spawned
+    /// by strict-single's verification window, never typed by hand.
     #[command(name = "__probe-client", hide = true)]
     ProbeClient {
         /// The server to connect to (host:port).

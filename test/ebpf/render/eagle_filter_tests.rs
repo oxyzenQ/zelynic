@@ -172,3 +172,119 @@ fn duplicate_name_token_is_not_a_false_miss() {
         "a repeated live name must never surface as unresolved, got: {unresolved:?}"
     );
 }
+
+/// NIGHT-hunt-Z1 (the monitor residue close): a board row with no
+/// live identity entry and no traffic in the current window is a
+/// dead transient — the enforcement probe's sacrificial cgroup
+/// (folded into the leaderboard during the 3s window it lived,
+/// torn down at its close) and every churned systemd scope — and it
+/// never renders: no bare `cg:NNNN` dump row, no census seat, no
+/// footer-count inflation. The two stay-shapes are pinned beside
+/// it: an ACTIVE unnamed cgroup (traffic in this window, identity
+/// not yet refreshed) keeps its row, and a LIVE named cgroup keeps
+/// its row regardless of window quiet (the idle-stays memory
+/// contract, untouched).
+#[test]
+fn dead_transients_leave_the_board_but_active_unnamed_rows_stay() {
+    let identity = identity_with(&[("brave", 7001)]);
+    // The session's history: all three cgroups moved once, so all
+    // three folded into the board (7003's window is the probe's 3s
+    // — it died right after).
+    let history = CounterSummary {
+        total_packets: 3,
+        total_bytes: 900,
+        total_ingress_packets: 0,
+        total_ingress_bytes: 0,
+        cgroups: vec![
+            CgroupDelta {
+                cgroup_id: 7001,
+                packets: 1,
+                bytes: 300,
+                total_bytes: 300,
+                ingress_packets: 0,
+                ingress_bytes: 0,
+                ingress_total_bytes: 0,
+            },
+            CgroupDelta {
+                cgroup_id: 7002,
+                packets: 1,
+                bytes: 300,
+                total_bytes: 300,
+                ingress_packets: 0,
+                ingress_bytes: 0,
+                ingress_total_bytes: 0,
+            },
+            CgroupDelta {
+                cgroup_id: 7003,
+                packets: 1,
+                bytes: 300,
+                total_bytes: 300,
+                ingress_packets: 0,
+                ingress_bytes: 0,
+                ingress_total_bytes: 0,
+            },
+        ],
+    };
+    let mut session = SessionState::new();
+    session.absorb(&history);
+    // The current window: 7001 (live, named) and 7002 (unnamed but
+    // still moving) have traffic; 7003 is dead and silent — the
+    // probe's leftover shape exactly.
+    let now = CounterSummary {
+        total_packets: 2,
+        total_bytes: 200,
+        total_ingress_packets: 0,
+        total_ingress_bytes: 0,
+        cgroups: vec![
+            CgroupDelta {
+                cgroup_id: 7001,
+                packets: 1,
+                bytes: 100,
+                total_bytes: 400,
+                ingress_packets: 0,
+                ingress_bytes: 0,
+                ingress_total_bytes: 0,
+            },
+            CgroupDelta {
+                cgroup_id: 7002,
+                packets: 1,
+                bytes: 100,
+                total_bytes: 400,
+                ingress_packets: 0,
+                ingress_bytes: 0,
+                ingress_total_bytes: 0,
+            },
+        ],
+    };
+    let mut lines = Vec::new();
+    render_eagle_eyes_at(
+        &mut lines,
+        &now,
+        &[],
+        &identity,
+        None,
+        Duration::from_secs(1),
+        Duration::from_secs(1),
+        &mut session,
+        &BaselineLane::new(),
+        Duration::from_secs(70),
+        classic(),
+    );
+    let joined = lines.join("\n");
+    assert!(
+        joined.contains("brave"),
+        "the live named row stays (the idle-stays memory contract): {joined}"
+    );
+    assert!(
+        joined.contains("cg:7002"),
+        "an active unnamed cgroup stays while it moves: {joined}"
+    );
+    assert!(
+        !joined.contains("cg:7003"),
+        "the dead transient is retired from the frame — no `cg:NNNN` dump: {joined}"
+    );
+    assert!(
+        joined.contains("+ 2 cgroups"),
+        "the census counts the filtered board, not the residue: {joined}"
+    );
+}

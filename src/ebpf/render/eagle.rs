@@ -52,9 +52,9 @@ use super::baseline::{render_panel, BaselineLane};
 use super::border;
 use super::footer::{build_grip_footer, grid_line, plan_footer_tier, FooterCensus, TOP_CHROME};
 use super::{
-    detail_lines, focus::render_eagle_focus, format_rate_or_dash, label_with_count,
-    plan_eagle_columns, rate_bps, title_bar, truncate_label, EagleColumns, FrameGeometry,
-    SessionAcc, SessionState,
+    detail_lines, focus::dead_transient_row, focus::render_eagle_focus, format_rate_or_dash,
+    label_with_count, plan_eagle_columns, rate_bps, title_bar, truncate_label, EagleColumns,
+    FrameGeometry, SessionAcc, SessionState,
 };
 use crate::ebpf::connections::ConnectionMap;
 use crate::ebpf::identity::IdentityMap;
@@ -205,23 +205,23 @@ pub(super) fn render_eagle_eyes_at(
 
     // The leaderboard: session-accumulated per cgroup, consumption-
     // ordered, filtered to the watched set when targets narrow the
-    // frame (NIGHT-boost-5 — the old per-frame delta sort made every
-    // quiet second reshuffle the board and wiped idle apps entirely).
-    let board: Vec<(u32, SessionAcc)> = if tokens.is_empty() {
-        session.ranked()
-    } else {
-        session
-            .ranked()
-            .into_iter()
-            .filter(|(id, _)| ids.contains(id))
-            .collect()
-    };
+    // frame (NIGHT-boost-5 — the old per-frame delta sort wiped idle
+    // apps entirely). NIGHT-hunt-Z1 (the monitor residue close) adds
+    // the dead-transient filter first: the probe's sacrificial
+    // cgroups and every churned systemd scope (no identity, no
+    // window traffic) never board — no `cg:NNNN -` dump rows — and
+    // one filtered board feeds rows and census both (engrave-4).
+    let board: Vec<(u32, SessionAcc)> = session
+        .ranked()
+        .into_iter()
+        .filter(|(id, _)| !dead_transient_row(identity, *id, summary))
+        .filter(|(id, _)| tokens.is_empty() || ids.contains(id))
+        .collect();
 
-    // Empty-board honesty: before the first packet, the frame says
-    // so; a watched set that never talked says so. Both keep the
-    // title and the pinned footer — the frame identity never
-    // collapses, and once traffic HAS been seen this branch is dead:
-    // the board holds every row it ever ranked.
+    // Empty-board honesty: before the first packet (or for a watched
+    // set that never talked) the frame says so, keeping the title and
+    // the pinned footer; once traffic HAS been seen this branch is
+    // dead (the board holds every live row; transients retire).
     if session.is_empty() {
         lines.push("  waiting for traffic…".to_string());
     } else if !tokens.is_empty() && board.is_empty() {

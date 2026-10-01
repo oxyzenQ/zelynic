@@ -182,9 +182,14 @@ fn test_schema_version_constant() {
     // (a mutated budget hands its successor a fresh word), and the
     // note atomic (the v16 plain-read-plus-BPF_ANY insert lost
     // increments to racing writers until the count itself lied).
+    // v18 (NIGHT-hunt-Z1): the AMMSP leaf cache splits into TWO
+    // direction-scoped maps (ammsp_leaf_cache_dl/ul) — a memo's
+    // root is only valid for the direction whose walk produced it,
+    // and the shared map let one direction's resolution poison the
+    // other's enforcement under single-direction applies.
     // The full sync contract (this constant vs the BPF-side
     // anchor) lives in schema.rs's sync_pin — the v13 lesson.
-    assert_eq!(SCHEMA_VERSION_EXPECTED, 17);
+    assert_eq!(SCHEMA_VERSION_EXPECTED, 18);
 }
 
 // ── NIGHT-improve-10 / security-3: overflow-bound pins ──────────

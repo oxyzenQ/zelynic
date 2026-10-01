@@ -449,7 +449,7 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
         // NIGHT-upgrade-charger-core-1-b: the enforcement probe's hidden child
         // roles — spawned by the probe orchestrator, never typed by hand.
         #[cfg(feature = "ebpf")]
-        Some(Commands::ProbeServer { port }) => probe_role::run_server_role(port),
+        Some(Commands::ProbeServer { port, mode }) => probe_role::run_server_role(port, &mode),
         #[cfg(not(feature = "ebpf"))]
         Some(Commands::ProbeServer { .. }) => ebpf_disabled(),
         #[cfg(feature = "ebpf")]
