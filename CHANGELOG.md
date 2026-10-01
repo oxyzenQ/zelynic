@@ -2118,7 +2118,18 @@ NIGHT-hunt-18's git-history-only call.
   phantom (481d777d) and blocked the lane. The manifest now pins
   the committed tree; the objects were already in parity (both
   rows PASS on CI, and ebpf/ did not change in that commit, so no
-  rebuild rode the repin).
+  rebuild rode the repin). The class itself closes at the source:
+  refresh-prebuilt.sh now REFUSES to generate (fail-fast, before
+  the 45s build) while any tracked file under ebpf/ hides behind
+  an assume-unchanged/skip-worktree flag — naming each file and
+  the unhide remedy — and the parity gate grew row 4 refusing the
+  same shape at commit time (the commit gate runs it, so a phantom
+  pin is refused locally, not discovered by CI); the refresh's
+  advisory now names uncommitted-but-visible ebpf/ changes and the
+  done-line says the lane and its sources land in one commit
+  (git add ebpf/ ebpf-prebuilt/). Verified by simulation: the exact
+  2523b7d shape (churn hidden, manifest pinned to the churned
+  tree — row 3 passes locally) fails on row 4 alone.
 
 - **ci: NIGHT-dinner-25 — the rc.3 release wall, part two: the
   supermassive survival battery demanded an atomicity two pinned

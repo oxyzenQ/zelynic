@@ -25,6 +25,13 @@
 #      scripts/release/refresh-prebuilt.sh regenerates the lane. The
 #      shipped objects can never silently fall behind the sources
 #      they claim to carry.
+#   4. No tracked file under ebpf/ hides behind an assume-unchanged
+#      or skip-worktree flag — the PHANTOM-PIN killer (NIGHT-repair-1):
+#      the tree hash in row 3 reads on-disk content, so a hidden
+#      file's local churn hashes into the pin while the commit stages
+#      the old bytes; the pin then passes locally and fails CI's
+#      clean checkout (the 2523b7d shape). The commit gate runs this
+#      row, so a phantom pin is refused at the source, not in CI.
 #
 # Deliberately NOT checked: a rebuild-and-byte-compare of the
 # objects. bpf-linker 0.11.1 under the dated pin reproduced both
@@ -143,6 +150,21 @@ if [ -f "$MANIFEST" ]; then
 		fail "ebpf/ changed after the prebuilt lane was generated (tree ${got_tree} vs manifest ${want_tree}) — run ./scripts/release/refresh-prebuilt.sh and commit ebpf-prebuilt/. A locally MODIFIED tracked file under ebpf/ trips this too (a local pro build rewriting ebpf/Cargo.lock is the known shape): git status -- ebpf/ shows the churn — restore it before refreshing, or the refresh pins the churn"
 	else
 		pass "prebuilt objects pin the live ebpf/ tree (${got_tree:0:12}...)"
+	fi
+
+	# ── 4. no tracked file under ebpf/ hides churn from the pin ────
+	# The phantom-pin guard (NIGHT-repair-1): the tree hash in row 3
+	# reads ON-DISK content over the tracked list, so a file hidden
+	# behind assume-unchanged (h) or skip-worktree (S) hashes its
+	# local churn into the pin while the commit stages the old bytes
+	# — the pin passes locally, then fails CI's clean checkout. The
+	# 2523b7d incident rode exactly this shape; the row refuses it
+	# here, at commit time, with the unhide remedy named.
+	hidden_churn="$(git ls-files -v -- ebpf/ | awk '$1 ~ /^[hS]$/ {sub(/^[hS] /, ""); print}')"
+	if [ -n "$hidden_churn" ]; then
+		fail "tracked ebpf/ file(s) hide behind assume-unchanged/skip-worktree flags — the tree pin may describe churn the commit cannot carry ($(echo "$hidden_churn" | tr '\n' ' '))— unhide each (git update-index --no-assume-unchanged --no-skip-worktree <file>), restore or stage the change, and re-run ./scripts/release/refresh-prebuilt.sh"
+	else
+		pass "no hidden-churn flags under ebpf/ (the pin describes a shippable tree)"
 	fi
 fi
 
