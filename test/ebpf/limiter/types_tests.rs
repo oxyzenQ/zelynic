@@ -173,14 +173,15 @@ fn test_schema_version_constant() {
     // v16 (dinner-28): the learned-share draw — the DRR take
     // capped by pool/(learned+2) through the two new
     // drr_pool_state_dl/ul maps.
-    // v17 (repair-3/4): the epoch ledger, carry-formed — the take
+    // v17 (repair-3/4/6): the epoch ledger, carry-formed — the take
     // further capped by the leaf's banked allowance (the pool's
     // 100ms refill split across the drawee PEAK, earned per epoch
     // and carried quantum-capped) through the two new
     // drr_leaf_state_dl/ul maps, the pool-share word re-packed
-    // with the peak, and the note atomic (the v16
-    // plain-read-plus-BPF_ANY insert lost increments to racing
-    // writers until the count itself lied).
+    // with the peak, both state maps keyed on the AMMSP generation
+    // (a mutated budget hands its successor a fresh word), and the
+    // note atomic (the v16 plain-read-plus-BPF_ANY insert lost
+    // increments to racing writers until the count itself lied).
     // The full sync contract (this constant vs the BPF-side
     // anchor) lives in schema.rs's sync_pin — the v13 lesson.
     assert_eq!(SCHEMA_VERSION_EXPECTED, 17);

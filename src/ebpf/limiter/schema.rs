@@ -206,7 +206,12 @@
 ///     OFF (a cold pool, a missed state lookup, a lone drawer — the
 ///     single-active row's whole-budget bound), and every ledger
 ///     word fails open onto the v16 law. New maps, the pool-share
-///     word re-packed (the askers' peak joined it); verdict math
+///     word re-packed (the askers' peak joined it) and the share +
+///     ledger state maps re-keyed on the AMMSP generation (repair-6:
+///     a mutated budget hands its successor a fresh divisor and a
+///     fresh carry, never the previous budget's peak throttling it
+///     through the decay's tail — the key is (generation << 32) |
+///     id, the memo map's own packing shape); verdict math
 ///     unchanged on every other lane; the usual one-time re-apply
 ///     contract as ever.
 pub const SCHEMA_VERSION_EXPECTED: u32 = 17;

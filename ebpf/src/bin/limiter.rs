@@ -274,7 +274,8 @@ use socket_flow::socket_flow;
 /// the fast drawer blocks at its fair share, the refills
 /// accumulate behind it, and the starved leaf's rare draws find
 /// a rich pool. No existing struct layout changes; new maps, the
-/// share word re-packed (the usual one-time re-apply contract).
+/// share word re-packed and both state maps re-keyed on the AMMSP
+/// generation (the usual one-time re-apply contract).
 #[allow(dead_code)]
 const SCHEMA_VERSION: u32 = 17;
 
@@ -511,8 +512,8 @@ fn try_enforce(
     bucket_map: &HashMap<u32, Bucket>,
     group_bucket_map: &HashMap<u32, Bucket>,
     leaf_bucket_map: &LruHashMap<u32, Bucket>,
-    share_map: &LruHashMap<u32, u64>,
-    ledger_map: &LruHashMap<u32, u64>,
+    share_map: &LruHashMap<u64, u64>,
+    ledger_map: &LruHashMap<u64, u64>,
     rate_ring_map: &HashMap<u32, RateRing>,
     socket_bucket_map: &LruHashMap<u64, socket_flow::SocketBucket>,
 ) -> i32 {
