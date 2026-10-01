@@ -41,6 +41,16 @@
 # The parity gate fails CI until the refresh lands, so a stale
 # prebuilt lane can never ride a release.
 #
+# The phantom-pin guard (NIGHT-repair-1): the tree pin hashes
+# ON-DISK content over the tracked list, so this script REFUSES to
+# generate while any tracked file under ebpf/ hides behind an
+# assume-unchanged/skip-worktree flag — the one shape whose churn
+# git status cannot see and git add -A cannot stage, which the
+# 2523b7d incident pinned into the manifest and only CI's clean
+# checkout could name. Uncommitted-but-visible ebpf/ changes are
+# the NORMAL refresh shape (the lane and its sources land in one
+# commit); the advisory names them so that commit cannot forget.
+#
 # Usage (from the repo root, with the eBPF toolchain bootstrapped):
 #   ./scripts/release/refresh-prebuilt.sh
 set -euo pipefail
@@ -66,6 +76,41 @@ ebpf_tree_sha() {
 		sha256sum |
 		awk '{print $1}'
 }
+
+# The phantom-pin guard (NIGHT-repair-1): refuse BEFORE the build
+# (fail fast — the build is 45s the refusal does not need to pay)
+# while any tracked file under ebpf/ hides behind assume-unchanged
+# (h) or skip-worktree (S). Those flags make local churn invisible
+# to git status and unreachable by git add -A, so the pin this
+# script writes would describe a tree the commit cannot carry —
+# exactly the 2523b7d phantom (manifest 481d777d vs the committed
+# tree 0a43a812, a two-file commit riding a clean status).
+hidden_churn="$(git ls-files -v -- ebpf/ | awk '$1 ~ /^[hS]$/ {sub(/^[hS] /, ""); print}')"
+if [ -n "$hidden_churn" ]; then
+	echo "FAIL: tracked ebpf/ file(s) hide behind assume-unchanged/skip-worktree flags —" >&2
+	echo "      the tree pin would describe churn the commit cannot carry:" >&2
+	while IFS= read -r f; do
+		echo "      ${f}" >&2
+	done <<<"$hidden_churn"
+	echo "Fix: unhide each file, then either restore the committed bytes or stage the change on purpose:" >&2
+	echo "      git update-index --no-assume-unchanged --no-skip-worktree <file>" >&2
+	echo "      git checkout -- <file>   # to drop the local churn" >&2
+	echo "Then re-run this refresh — a pin over hidden churn ships a phantom tree (the 2523b7d shape)." >&2
+	exit 1
+fi
+
+# The same-commit advisory: uncommitted-but-VISIBLE ebpf/ changes
+# are the normal refresh flow (new sources + the regenerated lane
+# land together), but only if they actually land — the pin covers
+# them, so the commit that carries the lane must carry them too.
+uncommitted="$(git status --porcelain -- ebpf/)"
+if [ -n "$uncommitted" ]; then
+	log "ebpf/ carries uncommitted changes — they MUST ride the same commit as the lane:"
+	while IFS= read -r line; do
+		log "    ${line}"
+	done <<<"$uncommitted"
+	log "(one commit: git add ebpf/ ebpf-prebuilt/ — a lane without its sources fails CI's parity gate)"
+fi
 
 # The maintainer-built objects only ever come out of the repo's own
 # validated build pipeline — never a bare nested cargo call whose
@@ -149,4 +194,4 @@ log "wrote ${MANIFEST}"
 log "running the parity gate (scripts/gates/check-prebuilt-parity.sh)"
 bash scripts/gates/check-prebuilt-parity.sh
 
-log "done — review and commit ebpf-prebuilt/ (git add ebpf-prebuilt)"
+log "done — review and commit the lane WITH its ebpf/ changes (git add ebpf/ ebpf-prebuilt/)"
