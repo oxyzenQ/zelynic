@@ -252,23 +252,29 @@ use socket_flow::socket_flow;
 /// unchanged); the bump is load-bearing for the usual reason (new
 /// maps, and a field that was padding is now read), and the
 /// one-time re-apply contract holds as ever.
-/// v17 (NIGHT-repair-3, the epoch ledger): the DRR draw's take is
-/// further capped by the leaf's remaining per-EPOCH allowance —
-/// the pool's 100ms refill split across the learned drawee count,
-/// kept in two new pinned LRU maps drr_leaf_state_dl/ul (LEAF
-/// cgroup id -> the packed `drawn:u32 | epoch:u32` word, drr.rs's
-/// packing) — and the pool-share note rides a two-attempt CAS
-/// instead of the v16 plain-read-plus-BPF_ANY insert (concurrent
-/// notes clobbered each other's increments until the learned
-/// count itself lied, converging to 1-3 drawers under the
-/// multi-CPU draw storm). The close is the battery's own find: a
-/// per-take cap cannot bound a per-epoch share — the flow that
-/// admits grows its TCP window and draws on every packet, so the
-/// worst leaf read 4.7x fair while the quietest measured one
-/// admit; with the ledger the fast drawer blocks at its fair
-/// share, the refills accumulate behind it, and the starved
-/// leaf's rare draws find a rich pool. No existing struct layout
-/// changes; new maps (the usual one-time re-apply contract).
+/// v17 (NIGHT-repair-3/4, the epoch ledger, the carry form): the
+/// DRR draw's take is further capped by the leaf's banked
+/// per-EPOCH allowance — the pool's 100ms refill split across the
+/// drawee PEAK (a decaying high-water of distinct askers, newly
+/// packed into the pool-share word so the split does not inflate
+/// when starved siblings go retransmit-quiet), earned per epoch
+/// and held as a quantum-capped CARRY per leaf in two new pinned
+/// LRU maps drr_leaf_state_dl/ul (LEAF cgroup id -> the packed
+/// `carry:u32 | epoch:u32` word, drr.rs's packing — the carry
+/// banks toward the 64 KiB GSO admit floor, healing the starved
+/// flow's TCP and the aggregate floor with it) — and the
+/// pool-share note rides a two-attempt CAS instead of the v16
+/// plain-read-plus-BPF_ANY insert (concurrent notes clobbered
+/// each other's increments until the learned count itself lied,
+/// converging to 1-3 drawers under the multi-CPU draw storm).
+/// The close is the battery's own find: a per-take cap cannot
+/// bound a per-epoch share — the flow that admits grows its TCP
+/// window and draws on every packet, so the worst leaf read 4.7x
+/// fair while the quietest measured one admit; with the ledger
+/// the fast drawer blocks at its fair share, the refills
+/// accumulate behind it, and the starved leaf's rare draws find
+/// a rich pool. No existing struct layout changes; new maps, the
+/// share word re-packed (the usual one-time re-apply contract).
 #[allow(dead_code)]
 const SCHEMA_VERSION: u32 = 17;
 

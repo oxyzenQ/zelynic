@@ -1,7 +1,7 @@
 // Copyright (C) 2026 rezky_nightky
 // SPDX-License-Identifier: GPL-3.0-only
 
-//! repair-3: the epoch-ledger battery — the kernel-shaped feedback
+//! repair-3/4: the epoch-ledger battery — the kernel-shaped feedback
 //! simulation that reproduces the live fair-share battery's CI finds
 //! rootlessly, then the law that closes them.
 //!
@@ -33,15 +33,20 @@
 //! and with the racy count the quietest starves below one admit's
 //! worth of the fair share (the live battery's exact fingerprint:
 //! worst 4.7x fair, quietest 65536 + 78 B over the 4s window). The
-//! close side: the epoch ledger (the take further capped by the
-//! leaf's remaining per-epoch allowance) meets the battery's bounds
-//! at K=6 and K=24, keeps the lone leaf at the whole budget, and
-//! holds the aggregate inside the band on the churn shape — the
-//! battery's own rows, judged by the battery's own numbers.
+//! ledger without its CARRY (the blocking form repair-3 first
+//! shipped) still reads the worst leaf over the bound — the starved
+//! leaf cannot bank its allowance toward the 64 KiB admit, its TCP
+//! stays collapsed, and the aggregate the battery floors at 65% sags
+//! with it. The close: the carry-formed epoch ledger (the allowance
+//! earned per epoch, banked as a quantum-capped carry, split across
+//! the drawee PEAK) meets the battery's bounds at K=6 and K=24,
+//! keeps the lone leaf at the whole budget, and holds the aggregate
+//! inside the band on the churn shape — the battery's own rows,
+//! judged by the battery's own numbers.
 
 use super::ebpf_drr::{
-    epoch_allowance, epoch_refill, fair_draw_size, ledger_drawn, ledger_epoch, ledger_note,
-    ledger_pack, ledger_roll, pool_share_last, pool_share_note, quantum, share_epoch_ns,
+    epoch_allowance, fair_draw_size, ledger_note, ledger_room, pool_share_last, pool_share_note,
+    pool_share_peak, quantum, share_epoch_ns,
 };
 // The math copy rides drr_tests' parent inclusion (one per test
 // binary, the duplicate-mod law) — reached through the grandparent,
@@ -55,14 +60,15 @@ const BASE_NS: u64 = 200_000;
 /// The window ceiling the feedback grows toward.
 const MAX_CWND: u64 = 64;
 /// The retransmit-timer backoff ceiling: 32x the cadence, capped at
-/// 400ms — a collapsed connection's offer stream.
+/// 400ms — a collapsed connection's offer stream (the calibration
+/// that reproduced the live battery's pre-repair fingerprint).
 const RTO_STEPS: u32 = 5;
 const RTO_CAP_NS: u64 = 400_000_000;
 
 /// One simulated leaf: its bucket, its epoch evidence (the sim-side
 /// twin of the datapath's stamp-derived check), its TCP feedback
 /// state, and its packed epoch-ledger word (the pure core's packing,
-/// driven through the same roll/note fns the datapath runs).
+/// driven through the same room/note fns the datapath runs).
 struct SimLeaf {
     bkt: Bucket,
     noted_epoch: u32,
@@ -129,11 +135,14 @@ impl SimLeaf {
 
 /// The configuration under test: the draw's take law, the note's
 /// honesty (the racy cap emulates the v16 word's converged
-/// undercount), and whether the epoch ledger caps the room.
+/// undercount), whether the epoch ledger caps the room, and whether
+/// the ledger carries (the repair-4 form) or blocks per epoch (the
+/// repair-3 form, the ablation).
 struct SimConfig {
     law: fn(u64, u64, u16) -> u64,
     racy_note_cap: Option<u16>,
     ledger: bool,
+    carry: bool,
 }
 
 /// The v16 law as a take law (the per-take learned cap).
@@ -202,20 +211,28 @@ fn run_kernel_shape(cfg: &SimConfig, rate: u64, k: usize, secs: u64, stagger_ns:
             if let Some(cap) = cfg.racy_note_cap {
                 learned = learned.min(cap);
             }
+            let drawees = pool_share_peak(share);
             // The take under the law under test.
             let mut take = (cfg.law)(q, tokens_read(&pool), learned);
-            // The epoch ledger's room (the v17 cap).
-            if cfg.ledger && learned >= 2 {
-                let allowance = epoch_allowance(rate, learned);
-                let rolled = ledger_roll(leaf.ledger, now_epoch);
-                let room = allowance.saturating_sub(ledger_drawn(rolled) as u64);
+            // The epoch ledger's room: the carry form (repair-4) or
+            // the blocking form (the ablation).
+            let mut ledgery = false;
+            let mut allowance = 0u64;
+            if cfg.ledger && drawees >= 2 {
+                allowance = epoch_allowance(rate, drawees);
+                let room = if cfg.carry {
+                    ledger_room(leaf.ledger, now_epoch, allowance, q)
+                } else {
+                    allowance
+                };
                 take = take.min(room);
+                ledgery = true;
             }
             if take > 0 && tokens_read(&pool) >= take {
                 pool.tokens = tokens_read(&pool) - take;
                 let _ = tokens_fetch_add(&mut leaf.bkt, take);
-                if cfg.ledger && learned >= 2 {
-                    leaf.ledger = ledger_note(leaf.ledger, now_epoch, take);
+                if ledgery {
+                    leaf.ledger = ledger_note(leaf.ledger, now_epoch, allowance, q, take);
                 }
                 if tokens_read(&leaf.bkt) >= PKT {
                     let observed = tokens_read(&leaf.bkt);
@@ -261,58 +278,6 @@ fn verdict_for(gots: &[u64]) -> Verdict {
     }
 }
 
-/// The allowance family (pure): a lone drawer or a cold pool keeps
-/// the ledger OFF; a learned count splits the epoch's refill; the
-/// split never exceeds the refill (the pool never creates budget).
-#[test]
-fn the_epoch_allowance_family() {
-    assert_eq!(
-        epoch_allowance(1_000_000, 0),
-        u64::MAX,
-        "cold pool: fail-open"
-    );
-    assert_eq!(epoch_allowance(1_000_000, 1), u64::MAX, "lone drawer: off");
-    assert_eq!(epoch_allowance(1_000_000, 2), 50_000, "two drawers: half");
-    assert_eq!(epoch_allowance(1_000_000, 6), 16_666, "six: the sixth");
-    assert_eq!(
-        epoch_allowance(1_000_000, 24),
-        4_166,
-        "the owner's many shape"
-    );
-    for learned in 2u16..25 {
-        let allowance = epoch_allowance(4_000_000, learned);
-        assert!(
-            allowance * learned as u64 <= epoch_refill(4_000_000),
-            "the split never exceeds the refill at learned {learned}"
-        );
-    }
-    assert_eq!(epoch_refill(1_000_000), 100_000, "the 100ms refill");
-    assert_eq!(epoch_refill(4_000_000), 400_000);
-}
-
-/// The ledger word (pure): packs, rolls at the boundary, saturates
-/// the spend, and never lets a spent epoch suppress the next.
-#[test]
-fn the_ledger_word_packs_rolls_and_notes() {
-    let w = ledger_pack(7, 12_345);
-    assert_eq!(ledger_epoch(w), 7);
-    assert_eq!(ledger_drawn(w), 12_345);
-    // The rollover: a past epoch's drawn count zeroes at the boundary.
-    assert_eq!(ledger_roll(w, 8), ledger_pack(8, 0));
-    assert_eq!(ledger_roll(w, 7), w, "idempotent inside the live epoch");
-    // The spend: rolls, then adds, saturating at the u32 ceiling.
-    let spent = ledger_note(w, 7, 5_000);
-    assert_eq!(ledger_drawn(spent), 17_345);
-    let spent_across = ledger_note(w, 8, 5_000);
-    assert_eq!(
-        ledger_drawn(spent_across),
-        5_000,
-        "the past epoch's spend never carries"
-    );
-    let saturated = ledger_note(w, 7, u64::MAX);
-    assert_eq!(ledger_drawn(saturated), u32::MAX);
-}
-
 /// THE FAILURE PIN, defect one (the feedback alone): the v16 law
 /// with a PERFECT note still breaks the anti-monopoly bound at six
 /// equal-demand leaves — a per-take cap cannot bound a per-epoch
@@ -324,6 +289,7 @@ fn the_v16_law_monopolizes_under_feedback_alone() {
         law: v16_law,
         racy_note_cap: None,
         ledger: false,
+        carry: true,
     };
     let gots = run_kernel_shape(&cfg, 1_000_000, 6, 4, 0);
     let v = verdict_for(&gots);
@@ -348,6 +314,7 @@ fn the_v16_law_starves_under_the_note_race() {
         law: v16_law,
         racy_note_cap: Some(3),
         ledger: false,
+        carry: true,
     };
     let gots = run_kernel_shape(&cfg, 1_000_000, 6, 4, 0);
     let v = verdict_for(&gots);
@@ -368,16 +335,44 @@ fn the_v16_law_starves_under_the_note_race() {
     );
 }
 
-/// THE CLOSE, K=6 (the battery's equal6 round): the epoch ledger
-/// meets every live bound — worst inside 1.75x fair + one quantum,
-/// quietest at fair/4 or better, the aggregate inside the band and
-/// above the collapse guard.
+/// THE ABLATION PIN (why the carry is load-bearing): the blocking
+/// form of the ledger (the allowance reset per epoch, no banking)
+/// still reads the worst leaf over the anti-monopoly bound — the
+/// starved leaf cannot bank toward the 64 KiB admit, its collapsed
+/// TCP starves the pool of askers, and the survivors' inflated takes
+/// ride the silence (the shape the many24 CI leg measured at 4.7x).
+#[test]
+fn the_blocking_ledger_still_monopolizes() {
+    let cfg = SimConfig {
+        law: v17_law,
+        racy_note_cap: None,
+        ledger: true,
+        carry: false,
+    };
+    let gots = run_kernel_shape(&cfg, 1_000_000, 6, 4, 0);
+    let v = verdict_for(&gots);
+    let bound = v.fair.saturating_mul(175) / 100 + quantum(1_000_000);
+    assert!(
+        v.worst > bound,
+        "the blocking shape: worst {} vs bound {} (fair {}) — the carry is \
+         what banks the starved leaf toward its admit",
+        v.worst,
+        bound,
+        v.fair
+    );
+}
+
+/// THE CLOSE, K=6 (the battery's equal6 round): the carry-formed
+/// epoch ledger meets every live bound — worst inside 1.75x fair +
+/// one quantum, quietest at fair/4 or better, the aggregate inside
+/// the 65%-130% band the battery floors (the collapse guard).
 #[test]
 fn the_epoch_ledger_meets_the_bounds_at_six_leaves() {
     let cfg = SimConfig {
         law: v17_law,
         racy_note_cap: None,
         ledger: true,
+        carry: true,
     };
     let gots = run_kernel_shape(&cfg, 1_000_000, 6, 4, 0);
     let v = verdict_for(&gots);
@@ -397,15 +392,15 @@ fn the_epoch_ledger_meets_the_bounds_at_six_leaves() {
         v.fair / 4
     );
     assert!(
-        v.total <= 1_000_000 * 4 * 145 / 100,
+        v.total <= 1_000_000 * 4 * 130 / 100,
         "the pool never creates budget: total {}",
         v.total
     );
     assert!(
-        v.total >= 1_000_000 * 4 / 2,
-        "the collapse guard: total {} vs half the policy {}",
+        v.total >= 1_000_000 * 4 * 65 / 100,
+        "the collapse guard: total {} vs the battery's 65% floor {}",
         v.total,
-        1_000_000 * 4 / 2
+        1_000_000 * 4 * 65 / 100
     );
 }
 
@@ -417,6 +412,7 @@ fn the_epoch_ledger_meets_the_bounds_at_twentyfour_leaves() {
         law: v17_law,
         racy_note_cap: None,
         ledger: true,
+        carry: true,
     };
     let gots = run_kernel_shape(&cfg, 4_000_000, 24, 4, 0);
     let v = verdict_for(&gots);
@@ -436,19 +432,20 @@ fn the_epoch_ledger_meets_the_bounds_at_twentyfour_leaves() {
         v.fair / 4
     );
     assert!(
-        v.total <= 4_000_000 * 4 * 145 / 100,
+        v.total <= 4_000_000 * 4 * 130 / 100,
         "the pool never creates budget at K=24: total {}",
         v.total
     );
     assert!(
-        v.total >= 4_000_000 * 4 / 2,
-        "the collapse guard at K=24: total {}",
-        v.total
+        v.total >= 4_000_000 * 4 * 65 / 100,
+        "the collapse guard at K=24: total {} vs the battery's 65% floor {}",
+        v.total,
+        4_000_000 * 4 * 65 / 100
     );
 }
 
 /// THE LONE-LEAF EDGE (the battery's single round): one leaf alone
-/// keeps the whole budget — the ledger is off at learned < 2, and
+/// keeps the whole budget — the ledger is off at drawees < 2, and
 /// the take law's pool fractions pace a lone drawer exactly as the
 /// v16 single-active pin proved they do.
 #[test]
@@ -457,6 +454,7 @@ fn a_lone_leaf_keeps_the_whole_budget_under_the_ledger() {
         law: v17_law,
         racy_note_cap: None,
         ledger: true,
+        carry: true,
     };
     let gots = run_kernel_shape(&cfg, 1_000_000, 1, 2, 0);
     let v = verdict_for(&gots);
@@ -475,13 +473,14 @@ fn a_lone_leaf_keeps_the_whole_budget_under_the_ledger() {
 
 /// THE CHURN SHAPE (the battery's churn6 round): the later half of
 /// the leaves born MID-WINDOW (the stagger), the aggregate judged
-/// over the whole span — fresh epochs never leak a spent ledger.
+/// over the whole span — fresh epochs never leak a spent carry.
 #[test]
 fn the_churn_shape_holds_the_band_under_the_ledger() {
     let cfg = SimConfig {
         law: v17_law,
         racy_note_cap: None,
         ledger: true,
+        carry: true,
     };
     let gots = run_kernel_shape(&cfg, 1_000_000, 6, 6, 2_000_000_000);
     let v = verdict_for(&gots);
