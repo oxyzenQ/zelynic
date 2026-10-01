@@ -17,6 +17,24 @@ NIGHT-hunt-18's git-history-only call.
 
 ## [Unreleased]
 
+### Fixed
+
+- **repair-2, the v2 battery's Python 3.10 parse death.** The
+  bypass stage's injector line nested an f-string that reused the
+  outer string's quote marks (`state["bytes"]` inside a
+  double-quoted f-string) — PEP 701, legal only on Python 3.12+.
+  Every low-specs CI leg runs 3.10 (Ubuntu 22.04), so the WHOLE
+  supermassive v2 survival battery died at import time with
+  `SyntaxError: f-string: unterminated string` before one of its
+  155 rows could run — while the best-specs legs parse 3.12 and
+  never saw it (that asymmetry is why only the musl/gnu low-specs
+  lanes went red for v2). The injector summary is now hoisted into
+  one local, no nesting, every Python. Verified: the self-test
+  10/0 under a real 3.10.21 interpreter (uv-managed), both
+  supermassive scripts parse clean under the 3.10 grammar, a
+  tokenizer scan finds zero remaining PEP 701 quote-reuse sites in
+  the tree, and `build.sh check-all -q` + gate-keepers 22/0 stand.
+
 ### Added
 
 - **dinner-29, the no-TUI stance, written down where the word
