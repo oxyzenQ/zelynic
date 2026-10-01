@@ -2106,6 +2106,20 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Fixed
 
+- **ci: NIGHT-repair-1 — the phantom tree pin (the 2523b7d
+  wholesale-gate failure).** refresh-prebuilt.sh pins the sha256
+  over the sorted git-tracked ebpf/ file hashes, and the pin it
+  wrote at 2523b7d described a tree no clean checkout can produce:
+  the local worktree's ebpf/Cargo.lock carried churn hidden behind
+  an assume-unchanged/skip-worktree class flag — invisible to git
+  status, unreachable by git add -A, hashed into the manifest by a
+  refresh whose tree function reads on-disk content. CI's fresh
+  checkout recomputed the committed tree (0a43a812) against the
+  phantom (481d777d) and blocked the lane. The manifest now pins
+  the committed tree; the objects were already in parity (both
+  rows PASS on CI, and ebpf/ did not change in that commit, so no
+  rebuild rode the repin).
+
 - **ci: NIGHT-dinner-25 — the rc.3 release wall, part two: the
   supermassive survival battery demanded an atomicity two pinned
   BPF maps cannot sell** — the best-specs musl leg of the
