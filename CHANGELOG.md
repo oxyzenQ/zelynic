@@ -161,6 +161,33 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Added
 
+- **engrave-10, the baseline panel docks to the bottom — the
+  tall-terminal gap fix.** The engraved frame pins its footer to
+  the terminal's last rows, and the baseline panel rendered
+  directly after the ranked table — so on a tall terminal every
+  blank row of slack fell BETWEEN the panel's verdict rows and the
+  `top consumer` headline: a long dead gap under the baseline
+  police section, the panel reading as abandoned mid-air while the
+  footer it answers to sat far below. The panel now renders into a
+  scratch buffer and DOCKS: it lands flush against the pinned
+  footer, its last verdict row on the line directly above the
+  footer's roof grid, and the slack rides ABOVE the panel — between
+  the table's last row and the panel's opening separator, exactly
+  where the eye expects empty space (the owner's masterclass
+  framing: keep the section near the bottom, above `top consumer`).
+  The panel's own shape, room budget, skip floor, and hidden-note
+  trim are untouched (the block still fits its room by
+  construction); an over-height table still pops from its own end,
+  and the pop loop can no longer touch the panel at all. Seeded
+  through a new cfg(test) lane seam (`seed_for_pins`, one read
+  carrying one live window — the lane's own fold law makes the
+  quiet windows real zero samples, so the verdict reads
+  `learning 7/8`) and pinned in eagle_tests at both a tall and the
+  classic height: the footer grid rides DIRECTLY under the panel's
+  last row, the panel's grid and header stay solid rows, and the
+  blank slack counts strictly between the table and the panel's
+  air.
+
 - **dinner-29, the no-TUI stance, written down where the word
   "interactive" lives.** The eagle-eyes docs call the monitor
   "INTERACTIVE" (the stdio gate's word — a live terminal for two

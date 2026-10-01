@@ -632,7 +632,12 @@ ruled section under the table (NIGHT-engrave-9: a blank line and
 the table's own grid line open the section, so the verdicts read as
 a section, never as the table's last rows — the table ranks session
 bytes, the panel lists per-policy roots, and the two axes no longer
-share a column block): `learning n/8` while the horizon fills, then
+share a column block; NIGHT-engrave-10: the section DOCKS — on a
+tall terminal it sits flush against the pinned footer, directly
+above the "top consumer" headline, and the blank slack rides between
+the table and the section's separator, never between the verdict
+rows and the footer they answer to): `learning n/8` while the
+horizon fills, then
 `steady <rate>` with the learned figure, and `above +N%` /
 `below -N%` (warn yellow) when delivered traffic departs from the
 baseline two windows in a row. A single focus target gets the same
