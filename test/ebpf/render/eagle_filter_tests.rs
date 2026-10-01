@@ -17,6 +17,7 @@ use crate::ebpf::identity::{IdentityMap, ProcessIdentity};
 use crate::ebpf::limiter::Target;
 use crate::ebpf::loader::{CgroupDelta, CounterSummary};
 use crate::ebpf::render::eagle::render_eagle_eyes_at;
+use crate::ebpf::render::focus::window_active;
 use crate::ebpf::render::BaselineLane;
 use crate::ebpf::render::{FrameGeometry, SessionState};
 use std::time::Duration;
@@ -184,6 +185,48 @@ fn duplicate_name_token_is_not_a_false_miss() {
 /// not yet refreshed) keeps its row, and a LIVE named cgroup keeps
 /// its row regardless of window quiet (the idle-stays memory
 /// contract, untouched).
+#[test]
+fn the_window_active_set_carries_only_movers() {
+    // The active set is the belt's "moved this window" half: only
+    // movers ride it (either direction), zero-delta ids are absent
+    // by construction, and the frame-level pin below carries the
+    // full dead-transient verdict (no identity + not active).
+    let identity = identity_with(&[("brave", 7001)]);
+    let active = window_active(&CounterSummary {
+        total_packets: 1,
+        total_bytes: 100,
+        total_ingress_packets: 0,
+        total_ingress_bytes: 0,
+        cgroups: vec![
+            CgroupDelta {
+                cgroup_id: 7002,
+                packets: 1,
+                bytes: 100,
+                total_bytes: 100,
+                ingress_packets: 0,
+                ingress_bytes: 0,
+                ingress_total_bytes: 0,
+            },
+            CgroupDelta {
+                cgroup_id: 7003,
+                packets: 0,
+                bytes: 0,
+                total_bytes: 300,
+                ingress_packets: 0,
+                ingress_bytes: 0,
+                ingress_total_bytes: 0,
+            },
+        ],
+    });
+    assert_eq!(
+        active.iter().copied().collect::<Vec<u32>>(),
+        vec![7002],
+        "only the mover rides the set — the zero-delta id is absent"
+    );
+    assert!(!active.contains(&7001));
+    assert!(identity.get(7001).is_some());
+}
+
 #[test]
 fn dead_transients_leave_the_board_but_active_unnamed_rows_stay() {
     let identity = identity_with(&[("brave", 7001)]);
