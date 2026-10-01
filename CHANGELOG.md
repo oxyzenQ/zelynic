@@ -2151,6 +2151,23 @@ NIGHT-hunt-18's git-history-only call.
   huge or hostile trees. The probe's note narrowed with the lane:
   "no live member, no cgroupfs directory — the cgroup is gone?".
 
+- **strict-single: NIGHT-repair-1 — the FAILED verdict reports
+  before the pin guard.** dinner-28 T6 moved the dinner-16 pin
+  re-check to the new post-probe boundary, but the guard fired
+  BEFORE the FAILED verdict's own error block — on the mid-window
+  unstrict lane (the exact teardown the probe exists to catch, and
+  the one the battery drives: the unstrict empties the maps and
+  unpin_if_no_policies tears the pins) the command still exited 1
+  with the generic pins-missing error while the enforcement
+  failure block — the needles the battery's row demands — never
+  printed. The order is now verdict-first: the measurement's own
+  failure is the louder, more specific truth (its block names the
+  enforcement failure with the measured numbers attached, and a
+  concurrent teardown is exactly the event it just caught); the
+  pin guard still stands before every success surface, VERIFIED
+  and UNVERIFIED alike, so a torn-down limit never reads as
+  enforced.
+
 - **ci: NIGHT-dinner-25 — the rc.3 release wall, part two: the
   supermassive survival battery demanded an atomicity two pinned
   BPF maps cannot sell** — the best-specs musl leg of the
