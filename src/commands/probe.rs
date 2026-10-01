@@ -34,7 +34,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
 
-use crate::ebpf::identity::depth;
+use crate::ebpf::identity::pathwalk;
 use crate::ebpf::limiter::{default_burst, Direction, Limiter, LimiterStatsRaw, RateSpec, Target};
 
 use super::eagle::resolve_name;
@@ -264,8 +264,8 @@ pub(crate) fn run_enforcement_probe(
     let burst = default_burst(rate_bps);
 
     // The target: first resolved cgroup id + its path (the probe
-    // child nests under it). Container targets re-resolve through
-    // the same lane the apply used.
+    // child nests under it; members first, the cgroupfs walk for a
+    // memberless bed — identity::pathwalk, NIGHT-repair-1).
     let ids = match target {
         Target::CgroupId(id) => vec![*id],
         Target::ProcessName(name) => resolve_name(name),
@@ -276,8 +276,8 @@ pub(crate) fn run_enforcement_probe(
     let Some(&target_id) = ids.first() else {
         return unverified("target resolved to nothing at probe time".to_string());
     };
-    let Some(rel_path) = depth::deep_collect(target_id).rel_path else {
-        return unverified("target cgroup path unresolvable (its processes exited?)".to_string());
+    let Some(rel_path) = pathwalk::rel_path_by_id(target_id) else {
+        return unverified("target cgroup path unresolvable (no live member, no cgroupfs directory — the cgroup is gone?)".to_string());
     };
 
     // The server's home: a transient root-level cgroup, outside

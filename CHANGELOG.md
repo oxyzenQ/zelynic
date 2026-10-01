@@ -2131,6 +2131,26 @@ NIGHT-hunt-18's git-history-only call.
   2523b7d shape (churn hidden, manifest pinned to the churned
   tree — row 3 passes locally) fails on row 4 alone.
 
+- **probe: NIGHT-repair-1 — the memberless-cgroup fast-exit (the
+  supermassive 4-leg probe failure, the wall under every
+  dinner-28 attempt).** The enforcement probe resolved its
+  target's cgroup PATH from the first live member's
+  /proc/<pid>/cgroup line, so a cgroup that exists but holds no
+  live process read as unresolvable and the probe degraded to an
+  instant UNVERIFIED without ever opening its measurement window
+  — the dedicated fleet beds between worker spawns hit it on
+  every leg, all four variants, since the stage first shipped at
+  bbd0ca0 (the note naming the lane: "target cgroup path
+  unresolvable (its processes exited?)"). The identity family
+  gained its inverse boundary (identity::pathwalk): members
+  first, then a bounded cgroupfs walk that stats directories
+  under the mount and matches the kernfs inode in the same
+  truncated u32 numbering pid_cgroup_id owns — a memberless bed
+  resolves, a gone cgroup still degrades honestly, and the walk
+  stays bounded (visit and depth ceilings, skips never panics) on
+  huge or hostile trees. The probe's note narrowed with the lane:
+  "no live member, no cgroupfs directory — the cgroup is gone?".
+
 - **ci: NIGHT-dinner-25 — the rc.3 release wall, part two: the
   supermassive survival battery demanded an atomicity two pinned
   BPF maps cannot sell** — the best-specs musl leg of the

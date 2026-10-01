@@ -37,6 +37,11 @@ mod tally;
 // --depth — same family as the walk + tally pair, one more concern.
 pub mod depth;
 
+// NIGHT-repair-1: the id-to-path resolver — the family's INVERSE
+// boundary (stat the mount, match the kernfs inode), the lane that
+// names a memberless cgroup the /proc walk cannot.
+pub mod pathwalk;
+
 // NIGHT-upgrade-charger-core-2: the container-native target
 // resolution (docker://, k8s://) — same family, one more way to
 // NAME a cgroup.
