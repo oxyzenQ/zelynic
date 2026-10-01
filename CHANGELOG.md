@@ -2151,6 +2151,36 @@ NIGHT-hunt-18's git-history-only call.
   huge or hostile trees. The probe's note narrowed with the lane:
   "no live member, no cgroupfs directory — the cgroup is gone?".
 
+- **probe: NIGHT-repair-1 — the teardown belt (the FAILED row's
+  second wall, and the false VERIFIED a slow pipe could sell).**
+  With the path resolving and the window opening, the 4be8c38 CI
+  run exposed what the forcing analysis had assumed away: the
+  byte-count verdict needs line rate to beat the remaining window's
+  budget by "orders of magnitude", and the CI micro-VM's loopback
+  sits NEAR the forcing's own rate (the fair-share single round
+  measured 966.4 KB/s under a 1mb policy — the pipe, not the
+  policy, was the constraint), so the post-teardown line rate
+  landed INSIDE the (3 MB + burst) x 1.05 ceiling and the probe
+  read Verified over a policy that no longer existed — only the
+  generic pins-missing guard stayed loud, and only because the
+  battery's unstrict happened to empty the maps (a teardown with
+  other policies live would have printed SUCCESS). The probe now
+  re-reads the policy row it was handed at window close: a
+  vanished row (the mid-window removal) or a changed rate (the
+  mid-window re-apply) is FAILED regardless of what the pipe
+  delivered — the budget the bytes were measured against no longer
+  stands — while a FAILED byte-count keeps its own measured
+  evidence and an unreadable close read only ever downgrades a
+  Verified verdict (never a guess). The FAILED block names its own
+  lane (the exceed headline or the removal headline, each with its
+  own advice) and carries the outcome's note on its own row — a
+  FAILED verdict's reason was previously lost to the error path.
+  The verdict family (the bands, the enum, the outcome) moved from
+  probe.rs to probe_report.rs with the field — decision and
+  rendering are one concern, and the orchestrator needed its
+  500-line ceiling back (472 now, the belt inside); the band pins
+  moved with the family, and the teardown lane has its own pin.
+
 - **strict-single: NIGHT-repair-1 — the FAILED verdict reports
   before the pin guard.** dinner-28 T6 moved the dinner-16 pin
   re-check to the new post-probe boundary, but the guard fired
