@@ -3165,15 +3165,31 @@ def test_probe_failed():
     FAILED. The wrong-timing failure is still loud, never a silent
     pass.
 
+    NIGHT-repair-1 (the teardown belt): the timing-shape claim above
+    assumed line rate beats the budget by orders of magnitude — true
+    on bare metal, FALSE on the CI micro-VMs, whose loopback sits
+    near the forcing's own rate (the fair-share single round
+    measured 966.4 KB/s under a 1mb policy: the pipe was the
+    constraint). The post-teardown line rate landed INSIDE the
+    ceiling, the byte-count read Verified over a policy that no
+    longer existed, and only the generic pins-missing guard stayed
+    loud. The probe now carries the teardown belt — the policy row
+    it was handed must still stand with the same rate at window
+    close; a vanished or replaced row is FAILED regardless of what
+    the pipe delivered — and the FAILED block names its own lane (the
+    exceed shape or the removal shape), so the row below accepts
+    either lane's needle.
+
     The timing margins, restated for the 1mb forcing: setup lands
     the window by ~1.5s (identity walk + policy write + the two
     300ms role graces + the residency barriers); the unstrict fires
     at 2.5s — a full second inside with ~1.7-2s of unbounded
     remainder. The row's needles are failure_error's whole block
-    (enforcement NOT verified / exceeded the budget / direction /
-    measured / budget) plus exit 1, and the detail carries the
-    verdict line and the note from the verify block so the next CI
-    run NAMES its lane if anything ever fast-exits again.
+    (enforcement NOT verified / the failure lane — exceeded the
+    budget OR removed mid-window / direction / measured / budget)
+    plus exit 1, and the detail carries the verdict line and the
+    note from the verify block so the next CI run NAMES its lane if
+    anything ever fast-exits again.
 
     The success and overhead sides ride the same stage (the
     checklist's other two rows): a clean apply must print VERIFIED
@@ -3236,19 +3252,34 @@ def test_probe_failed():
             return False
         out, err = proc.communicate(timeout=30)
         combined = (out or "") + (err or "")
+        # NIGHT-repair-1 (the teardown belt): the FAILED block names its
+        # own lane, and the row accepts either — the exceed shape (a
+        # fast pipe: line rate beats the remaining window's budget)
+        # or the teardown shape (the policy row vanished mid-window;
+        # the probe's belt read catches it whatever the pipe
+        # delivered). The CI find that forced this: the micro-VM's
+        # loopback sits NEAR the forcing's own rate — the fair-share
+        # single round measured 966.4 KB/s under a 1mb policy, so the
+        # pipe, not the policy, was the constraint — and the
+        # post-teardown line rate over ~2s landed INSIDE the (3 MB +
+        # burst) x 1.05 ceiling: a Verified byte-count over a policy
+        # that no longer existed. The exceed wording alone would pin
+        # this row to bare metal.
         needles = (
             "enforcement NOT verified",
-            "exceeded the budget",
             "direction:",
             "measured:",
             "budget:",
         )
+        lane_needles = ("exceeded the budget", "removed mid-window")
         missing = [n for n in needles if n not in combined]
+        lane = [n for n in lane_needles if n in combined]
         passed = (
             record(
                 "probe: FAILED exits 1 with the block attached",
-                "PASS" if proc.returncode == 1 and not missing else "FAIL",
+                "PASS" if proc.returncode == 1 and not missing and lane else "FAIL",
                 f"exit {proc.returncode}; missing needles: {missing or 'none'}; "
+                f"failure lane: {lane or 'none (neither exceed nor teardown)'}; "
                 f"verdict line: {verdict_line(combined)}; "
                 f"note line: {note_line(combined)}; "
                 f"tail: {combined.strip()[:400]!r}",

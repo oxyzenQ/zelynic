@@ -152,7 +152,7 @@ pub(crate) fn handle_strict_single(
     // never printed, and the supermassive FAILED row could only
     // name the missing shape.
     if let Some(outcome) = &probe_outcome {
-        if outcome.verdict == probe::ProbeVerdict::Failed {
+        if outcome.verdict == probe_report::ProbeVerdict::Failed {
             return Err(probe_report::failure_error(target_str, outcome));
         }
     }

@@ -35,92 +35,18 @@ use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
 
 use crate::ebpf::identity::pathwalk;
-use crate::ebpf::limiter::{default_burst, Direction, Limiter, LimiterStatsRaw, RateSpec, Target};
+use crate::ebpf::limiter::{
+    default_burst, Direction, Limiter, LimiterStatsRaw, PolicyRaw, RateSpec, Target,
+};
 
 use super::eagle::resolve_name;
-
-/// The verdict ceiling: the client may exceed the exact budget by
-/// 5% plus one GSO super-packet (in-flight/accounting slack); above
-/// is FAILED — a bucket cannot admit more than burst + rate x window.
-const CEILING_SLACK_PERCENT: u64 = 5;
-const CEILING_SLACK_BYTES: u64 = 65_536;
-
-/// The flow floor: a client that moved under 20% of the window's
-/// refill did not measure enforcement (dead server, refused entry, a
-/// target too busy feeding its own traffic) — UNVERIFIED, never a
-/// vacuous pass.
-const FLOW_FLOOR_NUM_PERCENT: u64 = 20;
+use super::probe_report::{probe_verdict, ProbeOutcome, ProbeVerdict};
 
 /// The measured window (seconds): long enough that the refill term
 /// dominates the burst (3s at 100kb = 300 KB refill vs the 64 KiB
 /// cushion), short enough that the whole probe stays under five
 /// seconds of an interactive command.
 pub const PROBE_SECS: u64 = 3;
-
-// ── The verdict (pure, unit-pinned) ─────────────────────────────────
-
-/// What the probe proved about the enforcement it just measured.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ProbeVerdict {
-    /// The measured flow stayed inside the budget the policy admits.
-    Verified,
-    /// The subtree moved more than the budget allows — the limit is
-    /// NOT being enforced (exit 1 territory, the owner's contract).
-    Failed,
-    /// The probe could not measure (never a pass, never a fail).
-    Unverified,
-}
-
-/// The verdict bands (pure): `budget` is what a working bucket can
-/// admit over the window (burst + rate x secs — the same physics the
-/// CI harness's 1.30 band family derives from); the ceiling adds the
-/// in-flight slack; the floor is the flow that must have happened
-/// before any verdict is meaningful.
-#[must_use]
-pub fn probe_verdict(
-    rate_bps: u64,
-    burst_bytes: u64,
-    secs: u64,
-    client_bytes: u64,
-) -> ProbeVerdict {
-    let budget = rate_bps.saturating_mul(secs).saturating_add(burst_bytes);
-    let ceiling = budget
-        .saturating_add(budget / (100 / CEILING_SLACK_PERCENT))
-        .saturating_add(CEILING_SLACK_BYTES);
-    let floor = (rate_bps
-        .saturating_mul(secs)
-        .saturating_mul(FLOW_FLOOR_NUM_PERCENT)
-        / 100)
-        .max(1);
-    if client_bytes > ceiling {
-        ProbeVerdict::Failed
-    } else if client_bytes < floor {
-        ProbeVerdict::Unverified
-    } else {
-        ProbeVerdict::Verified
-    }
-}
-
-/// The probe's measured result, as the report renders it.
-#[derive(Debug, Clone)]
-pub struct ProbeOutcome {
-    pub verdict: ProbeVerdict,
-    pub direction: Direction,
-    pub rate_bps: u64,
-    pub burst_bytes: u64,
-    pub window_secs: u64,
-    /// The client's own transferred bytes — the measured truth.
-    pub client_bytes: u64,
-    /// The ledger's bytes_allowed delta over the window (the
-    /// kernel's count, target traffic included — the cross-check).
-    pub ledger_bytes: u64,
-    /// Why an UNVERIFIED probe could not measure, or the concurrent
-    /// note when the target fed itself during the window.
-    pub note: Option<String>,
-    /// charger-core-3b: the measured limit is per SOCKET — the
-    /// report names the budget kind, never as the cgroup cap.
-    pub per_socket: bool,
-}
 
 // ── The orchestrator ────────────────────────────────────────────────
 
@@ -134,6 +60,23 @@ fn ledger_allowed(limiter: &Limiter, key: u32) -> Result<u64> {
         .find(|(k, _)| *k == key)
         .map(|(_, s)| s.bytes_allowed)
         .unwrap_or(0))
+}
+
+/// The teardown belt's own read (NIGHT-repair-1): does the target's
+/// policy row still stand, at the rate this probe measured against?
+/// A vanished row is the mid-window removal; a changed rate is a
+/// mid-window re-apply; either one breaks the measurement's premise.
+/// The read is passive (the same map lane our_chain_is_clean uses).
+fn policy_still_stands(
+    limiter: &Limiter,
+    target_id: u32,
+    direction: Direction,
+    rate_bps: u64,
+) -> Result<bool> {
+    let rows: Vec<(u32, PolicyRaw)> = limiter.read_policies_public(direction)?;
+    Ok(rows
+        .iter()
+        .any(|(k, p)| *k == target_id && p.rate_bps == rate_bps))
 }
 
 /// One best-effort cgroup mkdir (the harness's mkdir_quiet posture).
@@ -240,6 +183,7 @@ pub(crate) fn run_enforcement_probe(
         ledger_bytes: 0,
         per_socket,
         note: Some(note),
+        teardown: false,
     };
 
     // Direction: download preferred (the common limit), upload when
@@ -383,6 +327,7 @@ pub(crate) fn run_enforcement_probe(
                 ledger_bytes: 0,
                 note: Some(format!("ledger close read failed: {e}")),
                 per_socket,
+                teardown: false,
             };
         }
     };
@@ -396,6 +341,7 @@ pub(crate) fn run_enforcement_probe(
         ledger_bytes: ledger_delta,
         note: None,
         per_socket,
+        teardown: false,
     };
     // The concurrent-traffic note: the ledger counts the target's
     // OWN traffic too; a ledger far above the client's bytes means a
@@ -417,6 +363,38 @@ pub(crate) fn run_enforcement_probe(
              the probe measured cg:{target_id}",
             ids.len()
         ));
+    }
+    // The teardown belt (NIGHT-repair-1): the byte count cannot name
+    // a mid-window removal on a pipe slower than the window's budget
+    // — the CI micro-VM's loopback sits near the forcing's own rate
+    // (the fair-share single round measured 966.4 KB/s under a 1mb
+    // policy: the pipe, not the policy, was the constraint), so the
+    // post-teardown line rate lands INSIDE the ceiling and the bytes
+    // read Verified over a policy that no longer exists. The probe
+    // re-reads the policy row it was handed: the row must still
+    // stand with the same rate at window close (a vanished row is
+    // the mid-window removal, a changed rate a mid-window re-apply —
+    // either one breaks the budget the bytes were measured against).
+    // A Failed verdict keeps its own measured evidence; only a
+    // Verified verdict stands on the premise, so an unreadable close
+    // read downgrades it, never a guess.
+    match policy_still_stands(limiter, target_id, direction, rate_bps) {
+        Ok(true) => {}
+        Ok(false) => {
+            outcome.verdict = ProbeVerdict::Failed;
+            outcome.teardown = true;
+            outcome.note = Some(
+                "the policy row vanished mid-window (a concurrent unstrict or re-apply) — \
+                 the budget this window measured against no longer stands"
+                    .to_string(),
+            );
+        }
+        Err(close) => {
+            if outcome.verdict == ProbeVerdict::Verified {
+                outcome.verdict = ProbeVerdict::Unverified;
+                outcome.note = Some(format!("policy close read failed: {close}"));
+            }
+        }
     }
     outcome
 }
@@ -492,9 +470,3 @@ fn read_metric_line(child: &mut Child, prefix: &str) -> Result<u64> {
         None => Err(anyhow!("malformed protocol line: {}", line.trim())),
     }
 }
-
-// The probe pins live under the single test/ tree (cosmostrix
-// Pattern C), #[path]-wired exactly like the command pins.
-#[cfg(test)]
-#[path = "../../test/commands/probe_tests.rs"]
-mod tests;
