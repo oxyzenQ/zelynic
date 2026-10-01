@@ -305,3 +305,128 @@ pub const fn fair_draw_size(quantum: u64, pool_tokens: u64, learned: u16) -> u64
         learned_share_take
     }
 }
+
+// ── The epoch ledger (repair-3, v17) ──────────────────────────────────
+//
+// THE FIND, live on every CI leg (the improve-1b battery's first red
+// era, the one repair-1 could not close): the learned-share cap above
+// bounds each DRAW's take — but a leaf's draw frequency is its packet
+// rate, and that rate is TCP feedback. The flow that admits grows its
+// window and offers more packets (every one a draw); the starved flows
+// back off to retransmit timers. The battery's measured shape at 6
+// leaves / 1mb / 4s: the worst leaf read 4.7x its fair share while the
+// quietest measured ONE admit (65536 + 78 B over the whole window) —
+// the pool's credit stream went to the only drawer still fast enough
+// to ask. Two compounding defects, both reproduced by the feedback
+// simulation in drr_ledger_tests.rs before either was touched:
+//
+//  1. the share-state NOTE raced: a plain read plus a BPF_ANY insert
+//     means concurrent notes clobber each other's increments, the
+//     learned count converged to 1-3, and the cap weakened back to the
+//     v13 residue shape (the sim with a racy count reproduces the
+//     quietest leaf's single admit exactly);
+//  2. even with a PERFECT count, a per-take cap cannot bound a
+//     per-EPOCH share: one drawer drawing on every packet drains the
+//     pool through (K+2)-sized bites — the geometric decay the residue
+//     law owned at take granularity, back at stream granularity.
+//
+// THE LAW (the epoch ledger): a leaf's TOTAL drawn bytes per 100ms
+// epoch are bounded by the pool's per-epoch refill split across the
+// learned drawee count — dinner-28's fair split, made real at the
+// epoch scale instead of the take scale. The ledger is one packed u64
+// per LEAF (the drr_leaf_state maps, the leaf_bucket posture):
+//
+//   bits 32..63 : epoch   — now / DRR_WINDOW_MS (the rollover key)
+//   bits  0..31 : drawn   — bytes drawn in the current epoch
+//
+// A blocked leaf (allowance spent) stops touching the pool for the
+// rest of the epoch, so the pool's refills accumulate — and a starved
+// leaf's rare draws find a RICH pool: its cadence is slow, but each
+// take rides the surplus the blocked leaves left. The equilibrium the
+// feedback sim measures at K=6: every leaf collects ~its allowance,
+// the worst 1.18x fair, the quietest 0.86x fair, the aggregate 92% of
+// policy — versus 1.93x / 0.32x under the v16 law with a perfect
+// count. The lone leaf keeps the whole budget (learned < 2 leaves the
+// ledger OFF — the battery's own lo bound), and a state-map miss or a
+// cold pool fails open onto the v16 law exactly as dinner-28 did.
+
+/// The pool's refill over one fair-share epoch (pure): the rate's
+/// 100ms share — the budget the epoch ledger splits. The quantum's
+/// share term before the GSO floor applies (quantum floors at the
+/// admit packet size; the refill never does).
+#[inline(always)]
+pub const fn epoch_refill(rate_bps: u64) -> u64 {
+    rate_bps / (1000 / DRR_WINDOW_MS)
+}
+
+/// The epoch ledger's allowance (the v17 law, pure): a leaf's total
+/// draws per epoch are bounded by the pool's per-epoch refill split
+/// across the learned drawee count. learned 0 or 1 keeps the ledger
+/// OFF — a cold pool or a missed state lookup fails open onto the v16
+/// law (never throttles a packet the law below permits), and a lone
+/// leaf must see the whole budget: the battery's single-active row
+/// measures >= 80% of policy, and an allowance of refill/1 never binds
+/// a leaf whose takes are already pool-fraction bounded.
+#[inline(always)]
+pub const fn epoch_allowance(rate_bps: u64, learned: u16) -> u64 {
+    if learned < 2 {
+        return u64::MAX;
+    }
+    epoch_refill(rate_bps) / learned as u64
+}
+
+/// Pack the leaf-ledger word (epoch high, drawn low).
+#[inline(always)]
+pub const fn ledger_pack(epoch: u32, drawn: u32) -> u64 {
+    ((epoch as u64) << 32) | drawn as u64
+}
+
+/// Unpack the ledger word's epoch (bits 32..63).
+#[inline(always)]
+pub const fn ledger_epoch(word: u64) -> u32 {
+    (word >> 32) as u32
+}
+
+/// Unpack the ledger word's drawn-this-epoch bytes (bits 0..31).
+#[inline(always)]
+pub const fn ledger_drawn(word: u64) -> u32 {
+    (word & 0xFFFF_FFFF) as u32
+}
+
+/// The rollover (pure): a word from a past epoch zeroes its drawn
+/// counter at the boundary — the allowance is per-epoch, so a spent
+/// epoch never suppresses the next epoch's draws. Idempotent within
+/// the live epoch.
+#[inline(always)]
+pub const fn ledger_roll(word: u64, now_epoch: u32) -> u64 {
+    if ledger_epoch(word) != now_epoch {
+        ledger_pack(now_epoch, 0)
+    } else {
+        word
+    }
+}
+
+/// The spend step (pure): roll to the live epoch, then saturate the
+/// take into the drawn counter. Saturating by construction — a u32
+/// drawn count at the 64 KiB-floor quantum holds 65k admits per
+/// epoch, and the allowance below it is the binding term long before
+/// the counter is.
+#[inline(always)]
+pub const fn ledger_note(word: u64, now_epoch: u32, take: u64) -> u64 {
+    let rolled = ledger_roll(word, now_epoch);
+    // The clamp pair below is written as if-else on purpose: Ord::min
+    // is not const on the ebpf toolchain (E0658) and a collapsed
+    // one-liner fails one tree's rustfmt — the fair_draw_size note
+    // two sections up owns the whole story.
+    let capped_take = if take > u32::MAX as u64 {
+        u32::MAX as u64
+    } else {
+        take
+    };
+    let drawn_total = ledger_drawn(rolled) as u64 + capped_take;
+    if drawn_total > u32::MAX as u64 {
+        ledger_pack(now_epoch, u32::MAX)
+    } else {
+        ledger_pack(now_epoch, drawn_total as u32)
+    }
+}

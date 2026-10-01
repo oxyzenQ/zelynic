@@ -252,8 +252,25 @@ use socket_flow::socket_flow;
 /// unchanged); the bump is load-bearing for the usual reason (new
 /// maps, and a field that was padding is now read), and the
 /// one-time re-apply contract holds as ever.
+/// v17 (NIGHT-repair-3, the epoch ledger): the DRR draw's take is
+/// further capped by the leaf's remaining per-EPOCH allowance —
+/// the pool's 100ms refill split across the learned drawee count,
+/// kept in two new pinned LRU maps drr_leaf_state_dl/ul (LEAF
+/// cgroup id -> the packed `drawn:u32 | epoch:u32` word, drr.rs's
+/// packing) — and the pool-share note rides a two-attempt CAS
+/// instead of the v16 plain-read-plus-BPF_ANY insert (concurrent
+/// notes clobbered each other's increments until the learned
+/// count itself lied, converging to 1-3 drawers under the
+/// multi-CPU draw storm). The close is the battery's own find: a
+/// per-take cap cannot bound a per-epoch share — the flow that
+/// admits grows its TCP window and draws on every packet, so the
+/// worst leaf read 4.7x fair while the quietest measured one
+/// admit; with the ledger the fast drawer blocks at its fair
+/// share, the refills accumulate behind it, and the starved
+/// leaf's rare draws find a rich pool. No existing struct layout
+/// changes; new maps (the usual one-time re-apply contract).
 #[allow(dead_code)]
-const SCHEMA_VERSION: u32 = 16;
+const SCHEMA_VERSION: u32 = 17;
 
 // ---------------------------------------------------------------------------
 // Maps. The static names ARE the userspace contract (limiter/mod.rs
@@ -478,9 +495,9 @@ const BPF_NOEXIST: u64 = 1;
 /// download vs upload; `bucket_map` / `group_bucket_map` are the
 /// matching individual/group bucket (pool) maps, `leaf_bucket_map`
 /// the direction's DRR leaf map (charger-core-1c), `share_map` the
-/// direction's learned-share state map (dinner-28 — the fair-split
-/// cap on the draw), `rate_ring_map` the direction's time-series
-/// ring (charger-core-3a).
+/// direction's learned-share state map (dinner-28), `ledger_map`
+/// the direction's epoch-ledger state map (repair-3), `rate_ring_map`
+/// the direction's time-series ring (charger-core-3a).
 #[inline(always)]
 fn try_enforce(
     ctx: SkBuffContext,
@@ -489,6 +506,7 @@ fn try_enforce(
     group_bucket_map: &HashMap<u32, Bucket>,
     leaf_bucket_map: &LruHashMap<u32, Bucket>,
     share_map: &LruHashMap<u32, u64>,
+    ledger_map: &LruHashMap<u32, u64>,
     rate_ring_map: &HashMap<u32, RateRing>,
     socket_bucket_map: &LruHashMap<u64, socket_flow::SocketBucket>,
 ) -> i32 {
@@ -680,6 +698,7 @@ fn try_enforce(
         pool,
         leaf_bucket_map,
         share_map,
+        ledger_map,
         &cgroup_id,
         &leaf,
         pkt_len,
@@ -699,6 +718,7 @@ fn enforce_dl(ctx: SkBuffContext) -> i32 {
         &group_bucket_dl,
         &drr_flow::leaf_bucket_dl,
         &drr_flow::drr_pool_state_dl,
+        &drr_flow::drr_leaf_state_dl,
         &rate_ring_dl,
         &socket_flow::socket_bucket_dl,
     )
@@ -714,6 +734,7 @@ fn enforce_ul(ctx: SkBuffContext) -> i32 {
         &group_bucket_ul,
         &drr_flow::leaf_bucket_ul,
         &drr_flow::drr_pool_state_ul,
+        &drr_flow::drr_leaf_state_ul,
         &rate_ring_ul,
         &socket_flow::socket_bucket_ul,
     )
