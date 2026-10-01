@@ -2180,6 +2180,16 @@ NIGHT-hunt-18's git-history-only call.
   rendering are one concern, and the orchestrator needed its
   500-line ceiling back (472 now, the belt inside); the band pins
   moved with the family, and the teardown lane has its own pin.
+  The 2a4737c find, closed in the same era: the belt was designed
+  right and placed wrong — the ledger cross-check's close read sat
+  ABOVE it with an early return, and on the torn-down shape (the
+  pins gone, every pinned-map read dead) the probe returned
+  Unverified before the belt could speak; the close sequence is
+  restructured — the ledger read degrades the verdict and rides its
+  own note instead of returning, and the belt's own dead read is
+  discriminated by the pins: gone (only unstrict-all / recover
+  removes them) is the teardown verdict with the lane's own note,
+  standing is a read glitch that only ever downgrades a Verified.
 
 - **strict-single: NIGHT-repair-1 — the FAILED verdict reports
   before the pin guard.** dinner-28 T6 moved the dinner-16 pin
