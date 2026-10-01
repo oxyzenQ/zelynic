@@ -318,6 +318,14 @@ pub(crate) fn run_enforcement_probe(
     // be the answer to WHY it died (the pinned maps themselves can
     // be gone); it degrades the verdict and rides its own note.
     let ledger_close = ledger_allowed(limiter, target_id);
+    let ledger_delta = ledger_close
+        .as_ref()
+        .map(|close| close.wrapping_sub(baseline))
+        .unwrap_or(0);
+    let ledger_note = ledger_close
+        .as_ref()
+        .err()
+        .map(|e| format!("ledger close read failed: {e}"));
     let mut outcome = ProbeOutcome {
         verdict: probe_verdict(rate_bps, burst, PROBE_SECS, client_bytes),
         direction,
@@ -325,12 +333,8 @@ pub(crate) fn run_enforcement_probe(
         burst_bytes: burst,
         window_secs: PROBE_SECS,
         client_bytes,
-        ledger_bytes: ledger_close
-            .map(|close| close.wrapping_sub(baseline))
-            .unwrap_or(0),
-        note: ledger_close
-            .err()
-            .map(|e| format!("ledger close read failed: {e}")),
+        ledger_bytes: ledger_delta,
+        note: ledger_note,
         per_socket,
         teardown: false,
     };
@@ -342,7 +346,7 @@ pub(crate) fn run_enforcement_probe(
     // The concurrent-traffic note: the ledger counts the target's
     // OWN traffic too; a ledger far above the client's bytes means a
     // shared window (still valid — the ceiling is the client's own).
-    if let Ok(close) = ledger_close {
+    if let Ok(close) = &ledger_close {
         let ledger_delta = close.wrapping_sub(baseline);
         let gap = ledger_delta.saturating_sub(client_bytes);
         if gap > client_bytes.saturating_mul(3) / 2 + CEILING_SLACK_BYTES {
