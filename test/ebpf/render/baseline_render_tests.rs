@@ -11,6 +11,7 @@
 use super::*;
 use crate::ebpf::identity::ProcessIdentity;
 use crate::ebpf::limiter::rate_ring::RATE_RING_WINDOW_NS;
+use crate::output::brand;
 
 // ── Fixtures (the fold sibling's shapes, self-contained — the
 // Pattern C single-test-tree rule: every #[path] tree carries its
@@ -137,10 +138,11 @@ fn focus_row_shape_and_absence() {
     assert!(quiet.is_empty(), "absent-lens: no state, no row");
 }
 
-/// The panel: header, per-policy rows with identity labels, the
-/// watched-set filter, the honest hidden note, and the two-row
-/// floor. A policy unknown to identity labels by its cgroup id —
-/// the depth tree's own fallback shape.
+/// The panel: the ruled separator that opens the section
+/// (NIGHT-engrave-9), header, per-policy rows with identity labels,
+/// the watched-set filter, the honest hidden note, and the floor. A
+/// policy unknown to identity labels by its cgroup id — the depth
+/// tree's own fallback shape.
 #[test]
 fn panel_shapes_filter_and_trim() {
     let mut lane = BaselineLane::new();
@@ -167,11 +169,23 @@ fn panel_shapes_filter_and_trim() {
         comm: "nginx".to_string(),
     });
     let mut lines = Vec::new();
-    render_panel(&mut lines, &lane, &identity, None, 10);
+    render_panel(&mut lines, &lane, &identity, None, 10, 40);
     let joined = lines.join("\n");
+    // The ruled opener (NIGHT-engrave-9): air, then the grid at the
+    // passed width — the same rule the table's header closes on —
+    // then the header, then the verdict rows.
     assert!(
-        joined.contains("baseline · policy aggregate (8s ring)"),
-        "the header names the lens: {joined}"
+        lines[0].is_empty(),
+        "engrave-9: the section opens with air, not the grid: {joined:?}"
+    );
+    assert_eq!(
+        lines[1],
+        brand(&"─".repeat(40)),
+        "engrave-9: the grid spans the content width: {joined:?}"
+    );
+    assert!(
+        lines[2].contains("baseline · policy aggregate (8s ring)"),
+        "the header names the lens, under its rule: {joined}"
     );
     assert!(
         joined.contains("cg:7 (nginx)") && joined.contains("steady 98.0 KB/s"),
@@ -183,21 +197,25 @@ fn panel_shapes_filter_and_trim() {
     );
     // The filter: a watched set that names key 9 drops the others.
     let mut filtered = Vec::new();
-    render_panel(&mut filtered, &lane, &identity, Some(&[9]), 10);
+    render_panel(&mut filtered, &lane, &identity, Some(&[9]), 10, 40);
     assert!(filtered.join("\n").contains("cg:9"));
     assert!(!filtered.join("\n").contains("nginx"));
-    // The trim: room for header + 1 row of the three, plus the
-    // honest hidden note for the other two.
+    // The trim: room for the separator's chrome plus header plus 1
+    // row of the three, plus the honest hidden note for the other
+    // two — the budget moved two rows down with the opener.
     let mut trimmed = Vec::new();
-    render_panel(&mut trimmed, &lane, &identity, None, 3);
+    render_panel(&mut trimmed, &lane, &identity, None, 5, 40);
     let t = trimmed.join("\n");
     assert!(
         t.contains("steady 3.1 MB/s") && t.contains("(+2 more hidden — raise the window)"),
         "the honest trim: {t}"
     );
-    // Below two rows of room the panel is skipped entirely.
+    // Below the separator's own budget (chrome plus one verdict row)
+    // the panel is skipped entirely — the floor moved with the
+    // opener: three rows of room once trimmed a panel, now renders
+    // nothing (a header with nothing under it is noise).
     let mut tiny = Vec::new();
-    render_panel(&mut tiny, &lane, &identity, None, 1);
+    render_panel(&mut tiny, &lane, &identity, None, 3, 40);
     assert!(tiny.is_empty(), "a header with nothing under it is noise");
 }
 
@@ -211,7 +229,7 @@ fn absent_lane_renders_nothing() {
     assert!(lane.panel_rows().is_empty());
     assert!(lane.focus_pair(1).is_none());
     let mut lines = Vec::new();
-    render_panel(&mut lines, &lane, &IdentityMap::new(), None, 40);
+    render_panel(&mut lines, &lane, &IdentityMap::new(), None, 40, 40);
     render_focus_row(&mut lines, &lane, 1);
     assert!(
         lines.is_empty(),

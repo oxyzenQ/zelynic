@@ -71,6 +71,7 @@
 
 use std::collections::HashMap;
 
+use super::footer::grid_line;
 use crate::ebpf::identity::IdentityMap;
 use crate::ebpf::limiter::format_rate;
 use crate::ebpf::limiter::monotonic_ns;
@@ -430,17 +431,19 @@ pub(crate) fn render_focus_row(lines: &mut Vec<String>, lane: &BaselineLane, cgr
 /// The ranked view's baseline panel: one line per policy root the
 /// lane holds (filtered to the watched set when targets narrow the
 /// frame — a filter is a filter), under a grey header naming the
-/// lens. `room` is the rows the frame can hold below the table and
-/// above the pinned footer; the panel is skipped entirely below two
-/// rows (a header with nothing under it is noise), and a truncated
-/// panel carries the honest `+N more hidden` note — the table's own
-/// discipline, one surface over.
+/// lens. Since NIGHT-engrave-9 the section OPENS with a ruled
+/// separator (air, then the table's own grid at `width`), so the
+/// verdict rows stop reading as the table's last rows. `room` is
+/// the rows below the table and above the pinned footer; the panel
+/// skips below separator plus header plus one verdict row, and a
+/// truncating panel carries the honest `+N more hidden` note.
 pub(crate) fn render_panel(
     lines: &mut Vec<String>,
     lane: &BaselineLane,
     identity: &IdentityMap,
     filter: Option<&[u32]>,
     room: usize,
+    width: usize,
 ) {
     let mut rows = lane.panel_rows();
     if let Some(ids) = filter {
@@ -449,19 +452,24 @@ pub(crate) fn render_panel(
     // Rows with nothing to say (both directions pre-first-fold) are
     // noise, not information.
     rows.retain(|(_, dl, ul)| dl.is_some() || ul.is_some());
-    if rows.is_empty() || room < 2 {
-        return;
-    }
-    lines.push(format!(
-        "  {}",
-        grey("baseline · policy aggregate (8s ring)")
-    ));
-    let fit = room - 1;
+    // Chrome budget (NIGHT-engrave-9): air + grid + header are three
+    // rows before the first verdict; the skip floor lives in `usable`.
+    let fit = room.saturating_sub(3);
     let usable = if rows.len() > fit {
         fit.saturating_sub(1) // hold one row back for the hidden note
     } else {
         rows.len()
     };
+    if usable == 0 {
+        return;
+    }
+    // The ruled separator: a section, not the table's tail.
+    lines.push(String::new());
+    lines.push(grid_line(width));
+    lines.push(format!(
+        "  {}",
+        grey("baseline · policy aggregate (8s ring)")
+    ));
     for (key, dl, ul) in rows.iter().take(usable) {
         let label = pad_to_width(&super::truncate_label(&identity.label(*key), 24), 24);
         let body = pair_phrase(*dl, *ul);

@@ -389,18 +389,25 @@ pub(super) fn render_eagle_eyes_at(
     // set when targets narrow the frame (a filter is a filter).
     // Rendered from the LANE, not the summary — a policy that has
     // been quiet for a minute still shows its learned-zero baseline
-    // here while the observer's table waits for traffic. The panel
-    // is skipped below two rows of room (a header with nothing
-    // under it is noise), cut back with the honest hidden note, and
-    // the pin's pop loop below cuts its tail first — the table
-    // outranks it, the footer outranks everything.
+    // here while the observer's table waits for traffic. Since
+    // NIGHT-engrave-9 the panel opens with its own ruled separator
+    // (air, then the table's grid), skipped below separator plus
+    // header plus one verdict row; the pop loop below cuts its tail
+    // first — the table outranks it, the footer outranks everything.
     let panel_room = footer_start.saturating_sub(lines.len());
     let panel_filter = if tokens.is_empty() {
         None
     } else {
         Some(&ids[..])
     };
-    render_panel(lines, baseline, identity, panel_filter, panel_room);
+    render_panel(
+        lines,
+        baseline,
+        identity,
+        panel_filter,
+        panel_room,
+        geo.width,
+    );
 
     // ── The pin (NIGHT-boost-14) ──────────────────────────────────
     //

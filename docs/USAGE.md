@@ -613,8 +613,12 @@ lines naming the processes and remote endpoints inside.
 While the monitor runs it also reads the pinned time-series rings
 (the kernel's own last-eight-seconds window of DELIVERED bytes per
 policy root, charger-core-3a) once per frame, folds every completed
-window into a running baseline, and renders the verdict under the
-table: `learning n/8` while the horizon fills, then
+window into a running baseline, and renders the verdict in its own
+ruled section under the table (NIGHT-engrave-9: a blank line and
+the table's own grid line open the section, so the verdicts read as
+a section, never as the table's last rows — the table ranks session
+bytes, the panel lists per-policy roots, and the two axes no longer
+share a column block): `learning n/8` while the horizon fills, then
 `steady <rate>` with the learned figure, and `above +N%` /
 `below -N%` (warn yellow) when delivered traffic departs from the
 baseline two windows in a row. A single focus target gets the same
