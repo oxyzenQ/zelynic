@@ -295,7 +295,11 @@ FAILED — `exit 1`, the red block with every number attached, and the
 recover/re-apply path named. A probe that could not measure (server
 unreachable, cgroup entry refused, a target too busy feeding its own
 traffic — the ledger note says so) is `UNVERIFIED`: exit 0 with the
-honest reason, never a vacuous pass and never a failed apply. The
+honest reason, never a vacuous pass and never a failed apply. An
+empty target cgroup — its processes between spawns, or every one of
+them exited while the limit stands — still measures: the probe
+nests its own client under the target and resolves the cgroup by
+inode when no member process can name its path. The
 residency belt: the client's cgroup is verified from /proc before
 the window opens, because an unentered probe measures an unlimited
 path — the worst lie a verifier can tell. `--no-probe` keeps the
