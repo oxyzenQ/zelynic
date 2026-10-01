@@ -141,19 +141,31 @@ pub(crate) fn handle_strict_single(
             &limiter, &target, &rates, per_socket,
         ))
     };
+    // The measurement's own failure verdict reports FIRST
+    // (NIGHT-repair-1 ordering): a FAILED probe is the louder, more
+    // specific truth — its block names the enforcement failure with
+    // the measured numbers attached, while the pin guard below names
+    // only a class (a concurrent teardown — exactly the event the
+    // FAILED measurement just caught). The old order swallowed the
+    // probe's failure report behind the pin guard on the mid-window
+    // unstrict lane: exit stayed 1 but the failure block's needles
+    // never printed, and the supermassive FAILED row could only
+    // name the missing shape.
+    if let Some(outcome) = &probe_outcome {
+        if outcome.verdict == probe::ProbeVerdict::Failed {
+            return Err(probe_report::failure_error(target_str, outcome));
+        }
+    }
     // The dinner-16 parity at the NEW boundary: pins torn down DURING
     // the window are caught here, before any success surface prints —
-    // the verdict never reads over a state that no longer exists.
+    // the verdict never reads over a state that no longer exists
+    // (VERIFIED and UNVERIFIED alike; the FAILED shape above already
+    // returned its own, more specific error).
     if !crate::ebpf::limiter::Limiter::is_pinned() {
         return Err(anyhow::anyhow!(
             "BPF pins missing after the probe — a concurrent operation may have interfered\n  \
              tip: run 'zelynic recover' to repair state"
         ));
-    }
-    if let Some(outcome) = &probe_outcome {
-        if outcome.verdict == probe::ProbeVerdict::Failed {
-            return Err(probe_report::failure_error(target_str, outcome));
-        }
     }
 
     // NIGHT-improve-28: the de-noised success surface — green OK. +
