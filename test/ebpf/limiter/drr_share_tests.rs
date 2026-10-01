@@ -450,6 +450,12 @@ fn the_ledger_word_banks_carries_and_spends() {
     // saturating form forgives once, never over-allowing).
     let big = ledger_note(w, 10, 50_000, 400_000, u64::MAX);
     assert_eq!(ledger_carry(big), 0, "an over-take empties the carry");
+    // The epoch-wrap lane: elapsed beyond the ceiling credits a full
+    // cap once (the multiply stays PLAIN — saturating_mul lowers to
+    // the 128-bit __multi3 libcall the BPF ISA cannot carry, the
+    // repair-4 load-death find).
+    let wrapped = ledger_room(ledger_pack(1, 1_000), 1 << 30, 50_000, 400_000);
+    assert_eq!(wrapped, 400_000, "the wrap credits a full cap, once");
 }
 
 /// The share word's PEAK (pure): ratchets on the running count —

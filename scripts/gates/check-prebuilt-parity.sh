@@ -107,6 +107,28 @@ for name in zelynic-observer zelynic-limiter; do
 		continue
 	fi
 	pass "${name} is a structurally sane ELF (${size} bytes)"
+	# The RELOCATABLE-SYMBOL killer (NIGHT-repair-4): aya's loader
+	# resolves map relocations and in-section function relocations;
+	# any GLOBAL UNDEFINED FUNC symbol it must instead refuse with
+	# "function 0xADDR not found while relocating <prog>" at LOAD
+	# time — on the CI VMs, the only place the object ever loads.
+	# The find that bought this row: u64::saturating_mul lowers to
+	# the 128-bit __multi3 compiler-rt libcall on the BPF target
+	# (the ISA has no 128-bit multiply), bpf-linker emits it as an
+	# unresolved relocation, cargo build stays green, and every
+	# apply on every leg dies at once ("Failed to load BPF object").
+	# A plain `readelf -s` over the shipped object catches the class
+	# BEFORE the push: the null symbol (index 0) and pure-NOTYPE
+	# locals are the ELF spec's own furniture; a GLOBAL UNDEFINED
+	# symbol is a call the loader cannot make.
+	undef_globals="$(readelf -sW "$file" 2>/dev/null |
+		awk '$7 == "UND" && $5 == "GLOBAL" {print $8}' |
+		grep -v '^$' || true)"
+	if [ -n "$undef_globals" ]; then
+		fail "${name} carries undefined GLOBAL symbols the aya loader cannot relocate: ${undef_globals}"
+	else
+		pass "${name} has no undefined GLOBAL symbols (the loader's relocation surface is closed)"
+	fi
 done
 
 # ── 2. every manifest row matches the file on disk ───────────────
@@ -130,15 +152,15 @@ if [ -f "$MANIFEST" ]; then
 		fi
 	done < <(
 		awk '
-			/^\[\[object\]\]/ {
-				if (name != "") print name, sha, size
-				name = ""; sha = ""; size = ""
-			}
-			/^name = / { gsub(/"/, "", $3); name = $3 }
-			/^sha256 = / { gsub(/"/, "", $3); sha = $3 }
-			/^size = / { size = $3 }
-			END { if (name != "") print name, sha, size }
-		' "$MANIFEST"
+                        /^\[\[object\]\]/ {
+                                if (name != "") print name, sha, size
+                                name = ""; sha = ""; size = ""
+                        }
+                        /^name = / { gsub(/"/, "", $3); name = $3 }
+                        /^sha256 = / { gsub(/"/, "", $3); sha = $3 }
+                        /^size = / { size = $3 }
+                        END { if (name != "") print name, sha, size }
+                ' "$MANIFEST"
 	)
 
 	# ── 3. the manifest's tree pin equals the live ebpf/ tree ──────
