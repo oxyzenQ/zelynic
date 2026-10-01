@@ -19,6 +19,51 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Fixed
 
+- **repair-8, the settle — the fair-share battery's flows now start
+  in the TCP basin the row claims to measure.** The repair-7
+  diagnostic rows (advisory ledger reads on every round) filed the
+  find that closed the single round's mystery: the battery's flows
+  land in one of TWO equilibria under the policer. The RICH one —
+  arrivals in the thousands, admits pacing the pool's refills, the
+  flow delivering its budget (v16's 109.8% single round, low-specs'
+  97.5%). The FROZEN one — arrivals of 50-80 packets in a 4 s
+  window, ~58% of them admitted, ~125-250 KB/s delivered: the
+  sender's RTO/probe cadence, the budget going unused while the
+  datapath honestly admits three of every five offers it sees (the
+  ledger's admitted bytes track the client's total within
+  percent — the policer was never the throttle; the offers dried
+  up). Which basin a flow falls into is decided at the STARTUP: the
+  sender's initial cwnd burst (10 x 64 KiB on loopback MSS) meeting
+  the pool's depth, and the pool's depth at the round's start was a
+  LOTTERY — the cushion drain's own draws empty it deterministically,
+  and the only credit left was the spawn gap (50-300 ms of
+  Python/thread boot, fast on the 60-core runners): a lucky gap
+  banked the burst and the flow ramped; a tight gap dropped the
+  whole burst, the sender's window collapsed onto the RTO/probe
+  cadence, and the round read 7.6-24.6% of policy — the single row
+  (its 65% floor sits above the frozen curve) and the 78 B quietest
+  (a leaf whose sender never re-offered past the headers) are both
+  the frozen basin, and the battery's numbers swinging between the
+  basins run-to-run on identical code is the lottery's signature
+  (the render-only engrave-10 push failed the low-specs legs with
+  the same rows the green b76beb7 run passed). The close: a
+  deterministic 0.7 s settle after the drain, before the leaves
+  spawn — the pool's elapsed credit at the round's rate (640 KB at
+  1mb, 2.8 MB at 4mb) covers the initial burst at every rate the
+  battery runs, every flow starts admitted, and the steady state
+  carries it. The aggregate band absorbs the carry-in (+12% against
+  the 1.45 hi — the same shape the lottery's lucky draws already
+  produced; the band was built for it). The real world never sees
+  the drained-startup shape at all: a fresh policy's pool carries
+  its burst by construction — the settle restores the shape the
+  rows claim to measure (steady-state laws, judged from a
+  steady-state start). The diagnostic rows stay, now extended with
+  the rate ring's one-second windows (the delivered-bytes timeline:
+  the frozen basin reads a flat trickle, the rich one the steady
+  admit cadence) — the next run's evidence, never its verdict.
+  Battery-only change: no datapath, no binary, no bench. The
+  battery parses under the 3.10 grammar; gate-keepers 22/0.
+
 - **repair-7, the catch-up drawer's close — the engaged lane drops
   the fraction the ledger already replaced.** The best-specs
   fair-share battery's two red rows, one mechanism: the many24

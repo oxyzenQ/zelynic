@@ -3057,9 +3057,40 @@ def test_ammsp_fairshare(window, baseline):
             record(f"ammsp fair-share: {label} apply", "FAIL", payload)
             return False
         leaf_bytes(CG.paths["a"], 0.5)  # the cushion drain
-        # The diagnostic baseline AFTER the drain: the span is
+        # repair-8, THE SETTLE: a deterministic pause after the drain —
+        # the pool's elapsed credit, ~0.7 s of it, banked BEFORE the
+        # leaves spawn. The find (the repair-7 diagnostic rows): the
+        # battery's flows land in one of TWO TCP equilibria under the
+        # policer — the RICH one (arrivals in the thousands, the
+        # admits pacing the pool's refills) and the FROZEN one
+        # (arrivals ~50-80 per flow, ~58% admitted, ~125-250 KB/s
+        # delivered — the sender's RTO/probe cadence). Which basin a
+        # flow falls into is decided at the STARTUP: the initial cwnd
+        # burst (10 x 64 KiB on loopback MSS) meeting the pool's
+        # depth. The drain leaves the pool empty and the spawn gap
+        # (50-300 ms of Python/thread boot) was the only credit — a
+        # lottery: a healthy gap banked the burst and the flow ramped
+        # (v16's 109.8% single round, low-specs' 97.5%); a tight gap
+        # dropped the whole burst, the sender's window collapsed, and
+        # the round crawled at the RTO cadence (the 7.6%-24.6%
+        # single rows, the 78 B quietest). The settle makes the
+        # startup DETERMINISTIC: 0.7 s of credit at the round's rate
+        # covers the initial burst at every rate the battery runs
+        # (640 KB at 1mb, 2.8 MB at 4mb), every flow starts admitted,
+        # and the steady state carries it. The aggregate band absorbs
+        # the carry-in (+12% at the 1.45 hi — the same shape the
+        # spawn-gap lottery already produced on its lucky draws, the
+        # band was built for it). The real world never sees the
+        # drained-startup shape at all: a fresh policy's pool carries
+        # its burst by construction — the settle restores the shape
+        # the row claims to measure ("a single active leaf is
+        # untouched in throughput" — a steady-state law, judged from
+        # a steady-state start, not from the drain's transient).
+        time.sleep(0.7)
+        # The diagnostic baseline AFTER the settle: the span is
         # exactly the measured window (the enforcement_proofs
-        # precedent — the drain never enters either side).
+        # precedent — the drain and the settle never enter either
+        # side's counters).
         ledger_before = root_ledger()
 
         paths = []
@@ -3092,11 +3123,22 @@ def test_ammsp_fairshare(window, baseline):
 
         span = window + stagger
         total = sum(results)
-        # The diagnostic (repair-7): the round's arrivals vs admits
-        # at the root's ledger. Advisory (SKIP) — evidence for the
-        # single round's best-specs collapse, never a verdict.
+        # The diagnostic (repair-7/8): the round's arrivals vs admits
+        # at the root's ledger, plus the delivered-bytes TIMELINE (the
+        # rate ring's last one-second windows — the frozen equilibrium
+        # reads a flat trickle, the rich one reads the steady admit
+        # cadence). Advisory (SKIP) — evidence for the equilibria,
+        # never a verdict.
         try:
-            pa, pd, ba, bd = root_ledger()
+            entry = limit_entry(status_json(), CG.ids["a"]) or {}
+            pa, pd, ba, bd = (
+                entry.get("packets_allowed", 0),
+                entry.get("packets_dropped", 0),
+                entry.get("bytes_allowed", 0),
+                entry.get("bytes_dropped", 0),
+            )
+            ring = (entry.get("rate_ring") or {}).get("download") or {}
+            series = ring.get("bytes") or []
             dp = pa - ledger_before[0]
             dd = pd - ledger_before[1]
             dba = ba - ledger_before[2]
@@ -3105,7 +3147,9 @@ def test_ammsp_fairshare(window, baseline):
                 f"ammsp fair-share: {label} round ledger (repair-7 diagnostic)",
                 "SKIP",
                 f"arrivals {dp + dd} pkts (admitted {dp}, dropped {dd}); "
-                f"bytes admitted {dba} vs dropped {dbd}; client total {total:.0f} B",
+                f"bytes admitted {dba} vs dropped {dbd}; client total "
+                f"{total:.0f} B; dl windows 1s "
+                f"{series[-5:]}",
             )
         except Exception as exc:  # noqa: BLE001 — diagnostic only
             record(
