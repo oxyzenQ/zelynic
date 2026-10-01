@@ -48,15 +48,23 @@ pub const PIN_MAP_SCHEMA_VERSION: &str = "/sys/fs/bpf/zelynic/schema_version";
 pub const PIN_MAP_RATE_RING_DL: &str = "/sys/fs/bpf/zelynic/rate_ring_dl";
 pub const PIN_MAP_RATE_RING_UL: &str = "/sys/fs/bpf/zelynic/rate_ring_ul";
 
-/// The AMMSP leaf cache (NIGHT-private-research-2): leaf cgroup id
-/// -> the packed u64 memo word (`(generation << 32) | root`, 0 root
-/// = resolved unlimited; the packing is the pure core's, ebpf/src/
-/// ammsp.rs). LRU hash map, written by the datapath only, retired
-/// generationally by every policy mutation (ammsp_memo_invalidate
-/// in limiter/ammsp.rs — the ammsp_generation bump, NIGHT-perf-0).
-/// The static map name in ebpf/src/bin/limiter.rs and this pin path
-/// are the same contract every other map here follows.
-pub const PIN_MAP_AMMSP_CACHE: &str = "/sys/fs/bpf/zelynic/ammsp_leaf_cache";
+/// The AMMSP leaf caches (NIGHT-private-research-2; direction-scoped
+/// since NIGHT-hunt-Z1, schema v18): leaf cgroup id -> the packed u64
+/// memo word (`(generation << 32) | root`, 0 root = resolved
+/// unlimited; the packing is the pure core's, ebpf/src/ammsp.rs).
+/// ONE MAP PER DIRECTION — a memo's root is only valid for the
+/// direction whose walk produced it (the walk reads THAT direction's
+/// policy map, and the single-direction applies legitimately leave
+/// the two disagreeing; the shared v10..v17 map let one direction's
+/// resolution poison the other's enforcement). LRU hash maps,
+/// written by the datapath only, retired generationally by every
+/// policy mutation (ammsp_memo_invalidate in limiter/ammsp.rs — the
+/// ammsp_generation bump, NIGHT-perf-0, one shared counter retiring
+/// both lanes at once). The static map names in
+/// ebpf/src/ammsp_resolve.rs and these pin paths are the same
+/// contract every other map here follows.
+pub const PIN_MAP_AMMSP_CACHE_DL: &str = "/sys/fs/bpf/zelynic/ammsp_leaf_cache_dl";
+pub const PIN_MAP_AMMSP_CACHE_UL: &str = "/sys/fs/bpf/zelynic/ammsp_leaf_cache_ul";
 
 /// The AMMSP memo generation counter (NIGHT-perf-0): a one-entry
 /// pinned array, read by the datapath before every resolution and

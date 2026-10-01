@@ -8,7 +8,7 @@
 //! Helpers are local: the classic 80x24 geometry the pinned frames
 //! render at.
 
-use crate::ebpf::identity::IdentityMap;
+use crate::ebpf::identity::{IdentityMap, ProcessIdentity};
 use crate::ebpf::loader::{CgroupDelta, CounterSummary};
 use crate::ebpf::render::eagle::render_eagle_eyes_at;
 use crate::ebpf::render::BaselineLane;
@@ -147,12 +147,21 @@ fn the_census_total_can_read_zettabytes() {
         session.absorb(&frame(7001, u64::MAX, 0));
         session.note_frame(&frame(7001, u64::MAX, 0), None);
     }
+    // A live identity entry for the counted cgroup (NIGHT-hunt-Z1's
+    // dead-transient filter: an unnamed, unmoving row leaves the
+    // board, and this census is about a LIVE app's zettabytes).
+    let mut identity = IdentityMap::new();
+    identity.insert(ProcessIdentity {
+        cgroup_id: 7001,
+        uid: 1000,
+        comm: "brave".to_string(),
+    });
     let mut lines = Vec::new();
     render_eagle_eyes_at(
         &mut lines,
         &frame(7001, 0, 0),
         &[],
-        &IdentityMap::new(),
+        &identity,
         None,
         Duration::from_secs(1),
         Duration::from_secs(1),

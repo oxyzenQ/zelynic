@@ -214,7 +214,33 @@
 ///     id, the memo map's own packing shape); verdict math
 ///     unchanged on every other lane; the usual one-time re-apply
 ///     contract as ever.
-pub const SCHEMA_VERSION_EXPECTED: u32 = 17;
+/// v18 (NIGHT-hunt-Z1, the cross-direction memo close): the AMMSP
+///     leaf cache splits into TWO direction-scoped pinned LRU maps —
+///     ammsp_leaf_cache_dl and ammsp_leaf_cache_ul — because a memo's
+///     root is only valid for the direction whose walk produced it:
+///     the walk resolves against THAT direction's policy map, and
+///     the single-direction applies (`strict -d`, `strict -u`)
+///     legitimately leave the two maps disagreeing about a leaf's
+///     nearest root (the written leg resolves to the target, the
+///     deleted leg to an ancestor catch-all or unlimited). The
+///     v10..v17 shared map let the first direction to walk a leaf
+///     poison the other's every later packet — on the owner's
+///     machine the handshake/ACK egress packets memoized the probe
+///     leaf onto the root catch-all, every download data packet then
+///     enforced at the ANCESTOR's 150 KB/s instead of the target's
+///     10 KB/s (measured 338.2 and 589.8 KB over a 3s window vs the
+///     95.5/125.5 KB budgets — 3.5-4.7x, the ledger booked at the
+///     ancestor, the verdict FAILED against a policy that never
+///     ran), and the stale-detect belt could not catch it because
+///     the catch-all carries a row in both policy maps. Two maps
+///     close the class; each direction memoizes only what its own
+///     walk resolved. The ammsp_generation counter stays shared (one
+///     bump retires both lanes at once); the fallback sweep walks
+///     both maps. New map layout on the memo lane; the bump forces
+///     pinned v17 programs to reload into the direction-scoped
+///     object — active limits are dropped once, re-apply after
+///     upgrade, the same one-time contract as every bump before it.
+pub const SCHEMA_VERSION_EXPECTED: u32 = 18;
 
 #[cfg(test)]
 mod sync_pin {

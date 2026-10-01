@@ -8,9 +8,13 @@
 //! parent parses (PROBE-PORT / PROBE-BYTES), never touch BPF, and
 //! exit when their window or their peer ends them.
 
-use anyhow::{bail, Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
+use std::io::{BufRead, BufReader};
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
+use std::os::unix::io::AsRawFd;
+use std::path::Path;
+use std::process::Child;
 use std::time::{Duration, Instant};
 
 /// The child's settle grace: the parent writes the pid into the
@@ -28,11 +32,18 @@ pub const CHUNK: usize = 65_536;
 /// write lands, because an accepted socket inherits the LISTENER's
 /// cgroup, not the accepting task's), then bind (port 0 = ephemeral),
 /// announce the port on stdout (one line, read by the parent), accept
-/// ONE connection, and serve both probe shapes — a write blast thread
-/// for download probes, a read drain on the main thread for upload
-/// probes — until the peer closes (EOF or EPIPE), then exit.
-pub(crate) fn run_server_role(port: u16) -> Result<()> {
+/// ONE connection, and serve the probe's direction — a write blast
+/// thread for download probes (the client's received count is the
+/// measured truth), a counting read drain for upload probes (the
+/// server's OWN received count is the measured truth there —
+/// NIGHT-hunt-Z1: the client's ul-mode count is its local write
+/// buffer, not what the policy let through, so the receiver reports)
+/// — until the peer closes (EOF or EPIPE), then exit.
+pub(crate) fn run_server_role(port: u16, mode: &str) -> Result<()> {
     std::thread::sleep(Duration::from_millis(PROBE_GRACE_MS));
+    if mode != "dl" && mode != "ul" {
+        bail!("probe server: unknown mode '{mode}' (dl or ul)");
+    }
     let listener = TcpListener::bind(("127.0.0.1", port)).context("probe server bind")?;
     let actual = listener.local_addr().context("probe server addr")?.port();
     // The parent reads exactly this line before spawning the client.
@@ -41,25 +52,37 @@ pub(crate) fn run_server_role(port: u16) -> Result<()> {
         .accept()
         .context("probe server accept (deadline: the client never came)")?;
     let mut writer = stream.try_clone().context("probe server clone")?;
-    // The blast half: write until the peer closes (EPIPE ends it).
-    std::thread::spawn(move || {
-        let chunk = vec![0x5a_u8; CHUNK];
-        loop {
-            if writer.write_all(&chunk).is_err() {
-                break;
+    // The blast half, DOWNLOAD probes only: an upload probe's server
+    // must never send — its egress would traverse the target's other
+    // direction and pollute the ledger's combined counters.
+    if mode == "dl" {
+        std::thread::spawn(move || {
+            let chunk = vec![0x5a_u8; CHUNK];
+            loop {
+                if writer.write_all(&chunk).is_err() {
+                    break;
+                }
+                let _ = writer.flush();
             }
-            let _ = writer.flush();
-        }
-    });
+        });
+    }
     // The drain half: EOF is the client's goodbye — and the process
     // exit reaps the (possibly still-blocked) blast thread with it.
+    // For upload probes the drain IS the measurement: every received
+    // byte is one the upload policy admitted through.
     let mut reader = stream;
     let mut sink = [0_u8; CHUNK];
+    let mut received: u64 = 0;
     loop {
         match reader.read(&mut sink) {
             Ok(0) | Err(_) => break,
-            Ok(_) => {}
+            Ok(n) => received += n as u64,
         }
+    }
+    if mode == "ul" {
+        // The one metric line the orchestrator reads for upload
+        // probes — the delivered truth, printed once the flow ended.
+        println_safe!("PROBE-BYTES {received}");
     }
     Ok(())
 }
@@ -126,8 +149,122 @@ pub(crate) fn run_client_role(addr: &str, mode: &str, secs: u64) -> Result<()> {
             count += chunk.len() as u64;
         }
     }
+    // The window's close is a hard cut, not a drain (NIGHT-hunt-Z1):
+    // without the zero linger the socket would keep flushing its
+    // unsent buffer past the window — the server's received count
+    // would then include bytes the policy admitted AFTER the window,
+    // over-running the window's budget with trailing retransmit
+    // backlog. The RST bounds the measurement at what was delivered
+    // inside the window (plus at most one in-flight GSO superpacket,
+    // exactly the ceiling's slack term). SO_LINGER rides libc's
+    // setsockopt directly — std's TcpStream::set_linger is still
+    // unstable (tcp_linger, rust#88494), and the tree's nix feature
+    // set is deliberately minimal (no socket surface; Cargo.toml's
+    // own comment), while libc is already a first-class dependency.
+    let linger = libc::linger {
+        l_onoff: 1,
+        l_linger: 0,
+    };
+    // SAFETY: a plain setsockopt(2) on the stream's own fd with a
+    // properly sized linger word — the call has no memory-safety
+    // precondition beyond the fd and pointer being live, both of
+    // which the borrow on `stream` guarantees here.
+    let _ = unsafe {
+        libc::setsockopt(
+            stream.as_raw_fd(),
+            libc::SOL_SOCKET,
+            libc::SO_LINGER,
+            &linger as *const libc::linger as *const libc::c_void,
+            std::mem::size_of::<libc::linger>() as libc::socklen_t,
+        )
+    };
     println_safe!("PROBE-BYTES {count}");
     Ok(())
+}
+
+// ── The orchestrator's child-waiting family (moved from probe.rs at
+// NIGHT-hunt-Z1, when the direction-aware window split pushed the
+// orchestrator past the 500-line owner cap — the protocol half of
+// the probe belongs with the roles that speak it) ─────────────────
+
+/// The residency belt: /proc/<pid>/cgroup must name the probe cgroup
+/// before the window may open (a probe that never entered measures an
+/// unlimited path — the false-FAILED lie this check exists to kill).
+pub(crate) fn resident_in(pid: u32, needle: &str) -> bool {
+    std::fs::read_to_string(format!("/proc/{pid}/cgroup"))
+        .map(|c| c.contains(needle))
+        .unwrap_or(false)
+}
+
+/// Poll the child's residency until the deadline (the grace window).
+pub(crate) fn wait_resident(child: &mut Child, cgroup: &Path) -> bool {
+    let needle = cgroup
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_default();
+    let deadline = Instant::now() + Duration::from_secs(2);
+    while Instant::now() < deadline {
+        if resident_in(child.id(), &needle) {
+            return true;
+        }
+        if let Ok(Some(_)) = child.try_wait() {
+            return false;
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    false
+}
+
+/// Wait for the child with a wall-clock belt (never hangs the CLI on
+/// a stuck role). Ok(()) when it exited; Err carries the status when
+/// killed at the deadline.
+pub(crate) fn wait_with_deadline(child: &mut Child, secs: u64) -> Result<()> {
+    let deadline = Instant::now() + Duration::from_secs(secs);
+    loop {
+        if let Some(status) = child.try_wait().context("probe child wait")? {
+            if status.success() {
+                return Ok(());
+            }
+            bail!("probe child exit: {status}");
+        }
+        if Instant::now() > deadline {
+            let _ = child.kill();
+            bail!("probe child hit the wall deadline");
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    }
+}
+
+/// Read the role's one-line protocol from its piped stdout (the
+/// metric lines: PROBE-PORT <n> / PROBE-BYTES <n>). Takes the pipe
+/// — for children this orchestrator reads exactly one line from.
+pub(crate) fn read_metric_line(child: &mut Child, prefix: &str) -> Result<u64> {
+    let Some(stdout) = child.stdout.take() else {
+        bail!("no stdout pipe");
+    };
+    read_metric_line_from(&mut BufReader::new(stdout), prefix)
+}
+
+/// Read one protocol line from a handle the orchestrator KEEPS (the
+/// server's stdout: PROBE-PORT at spawn, PROBE-BYTES after an upload
+/// window — NIGHT-hunt-Z1's receiver-side count). The handle stays
+/// readable across calls; each line is consumed exactly once.
+pub(crate) fn read_metric_line_from(
+    stdout: &mut BufReader<std::process::ChildStdout>,
+    prefix: &str,
+) -> Result<u64> {
+    let mut line = String::new();
+    stdout
+        .read_line(&mut line)
+        .with_context(|| format!("read the {prefix} line"))?;
+    let value = line
+        .trim()
+        .strip_prefix(prefix)
+        .and_then(|rest| rest.trim().parse::<u64>().ok());
+    match value {
+        Some(v) => Ok(v),
+        None => Err(anyhow!("malformed protocol line: {}", line.trim())),
+    }
 }
 
 // The role pins live under the single test/ tree (cosmostrix

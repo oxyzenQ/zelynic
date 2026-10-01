@@ -43,7 +43,7 @@ use anyhow::{anyhow, Context, Result};
 use aya::maps::{Array as BpfArray, HashMap as BpfHashMap, MapData};
 
 use super::lanes::map_remove_means_absent;
-use crate::ebpf::pin::{self, PIN_MAP_AMMSP_CACHE, PIN_MAP_AMMSP_GEN};
+use crate::ebpf::pin::{self, PIN_MAP_AMMSP_GEN};
 
 /// Advance the generation word in whatever array handle the
 /// acquisition lane hands over: read, wrap-increment, write. Pure
@@ -141,39 +141,57 @@ impl super::Limiter {
     /// was already gone — the flush wants the map empty, so absent
     /// counts as done.
     pub fn ammsp_cache_flush(&mut self) -> Result<u32> {
-        // Key snapshot under whichever mode is live — a READ, so it
-        // opens the map directly the way every status reader does
-        // (stats.rs precedent); mutations are the with_u32_map lane's
-        // monopoly, and the delete phase below rides the LRU twin of
-        // that lane in lanes.rs.
-        let keys: Vec<u32> = if let Some(bpf) = self.bpf.as_ref() {
-            let map_ref = bpf
-                .map("ammsp_leaf_cache")
-                .context("ammsp_leaf_cache not found in loaded object")?;
-            let map: BpfHashMap<_, u32, u64> =
-                BpfHashMap::try_from(map_ref).context("Failed to access ammsp_leaf_cache")?;
-            map.keys().flatten().collect()
-        } else {
-            let map_obj = pin::open_pinned_lru_hash_map(PIN_MAP_AMMSP_CACHE)?;
-            let map: BpfHashMap<_, u32, u64> =
-                BpfHashMap::try_from(&map_obj).context("Failed to open pinned ammsp_leaf_cache")?;
-            map.keys().flatten().collect()
-        };
-
-        // Delete phase: through the LRU acquisition lane (the
-        // architecture pin's ONE-path contract, the LRU twin of
-        // with_u32_map).
+        // NIGHT-hunt-Z1 (schema v18): the memo lane is TWO
+        // direction-scoped maps — the sweep must empty BOTH or a
+        // stale memo survives the fallback on the unswept side (the
+        // exact half-life the bump's failure made this lane run for).
+        // The pair list is the pin contract's own shape: static map
+        // name + pin path, one row per direction.
+        const MEMO_MAPS: [(&str, &str); 2] = [
+            (
+                "ammsp_leaf_cache_dl",
+                crate::ebpf::pin::PIN_MAP_AMMSP_CACHE_DL,
+            ),
+            (
+                "ammsp_leaf_cache_ul",
+                crate::ebpf::pin::PIN_MAP_AMMSP_CACHE_UL,
+            ),
+        ];
         let mut flushed = 0u32;
-        self.with_lru_u32_map::<u64, ()>("ammsp_leaf_cache", PIN_MAP_AMMSP_CACHE, |map| {
-            for key in keys {
-                match map.remove(&key) {
-                    Ok(()) => flushed += 1,
-                    Err(e) if map_remove_means_absent(&e) => flushed += 1,
-                    Err(e) => return Err(anyhow!("remove cg:{key} memo: {e}")),
+        for (map_name, pin_path) in MEMO_MAPS {
+            // Key snapshot under whichever mode is live — a READ, so
+            // it opens the map directly the way every status reader
+            // does (stats.rs precedent); mutations are the
+            // with_u32_map lane's monopoly, and the delete phase
+            // below rides the LRU twin of that lane in lanes.rs.
+            let keys: Vec<u32> = if let Some(bpf) = self.bpf.as_ref() {
+                let map_ref = bpf
+                    .map(map_name)
+                    .with_context(|| format!("{map_name} not found in loaded object"))?;
+                let map: BpfHashMap<_, u32, u64> = BpfHashMap::try_from(map_ref)
+                    .with_context(|| format!("Failed to access {map_name}"))?;
+                map.keys().flatten().collect()
+            } else {
+                let map_obj = pin::open_pinned_lru_hash_map(pin_path)?;
+                let map: BpfHashMap<_, u32, u64> = BpfHashMap::try_from(&map_obj)
+                    .with_context(|| format!("Failed to open pinned {map_name}"))?;
+                map.keys().flatten().collect()
+            };
+
+            // Delete phase: through the LRU acquisition lane (the
+            // architecture pin's ONE-path contract, the LRU twin of
+            // with_u32_map).
+            self.with_lru_u32_map::<u64, ()>(map_name, pin_path, |map| {
+                for key in keys {
+                    match map.remove(&key) {
+                        Ok(()) => flushed += 1,
+                        Err(e) if map_remove_means_absent(&e) => flushed += 1,
+                        Err(e) => return Err(anyhow!("remove cg:{key} memo from {map_name}: {e}")),
+                    }
                 }
-            }
-            Ok(())
-        })?;
+                Ok(())
+            })?;
+        }
 
         Ok(flushed)
     }

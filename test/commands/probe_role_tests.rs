@@ -3,11 +3,13 @@
 
 //! Pins for the enforcement probe's child roles
 //! (NIGHT-upgrade-charger-core-1-b): the mode validation (the only
-//! user-reachable failure — the roles are hidden), and one live
-//! rootless loopback smoke of the pair (no cgroup, no BPF — the
-//! socket plumbing and the one-line protocol shape the orchestrator
-//! parses; the full cgroup-resident lane is the CI supermassive
-//! battery's job, where root exists).
+//! user-reachable failure — the roles are hidden), and live
+//! rootless loopback smokes of the pair in BOTH directions (no
+//! cgroup, no BPF — the socket plumbing and the one-line protocol
+//! shape the orchestrator parses; the full cgroup-resident lane is
+//! the CI supermassive battery's job, where root exists).
+//! NIGHT-hunt-Z1: the server role is direction-aware — dl blasts
+//! while ul drains and reports — and the pins cover both shapes.
 
 use super::*;
 
@@ -26,10 +28,23 @@ fn the_client_role_refuses_unknown_modes() {
     );
 }
 
-/// The live smoke: server binds and serves, client connects, moves
-/// bytes for one second, and both exit clean (the graceful shapes:
-/// server EOF-reaps its blast thread, client window closes, neither
-/// hangs). Rootless — plain loopback sockets, no cgroup entry.
+/// The server role refuses unknown modes with the same wording
+/// shape the client's refusal set — a wiring bug must not ride into
+/// a serve loop that measures nothing.
+#[test]
+fn the_server_role_refuses_unknown_modes() {
+    let err = run_server_role(0, "sideways").expect_err("an unknown mode must be refused");
+    assert!(
+        format!("{err}").contains("unknown mode 'sideways'"),
+        "the refusal names the mode, got: {err}"
+    );
+}
+
+/// The live smoke, download shape: server binds and blasts, client
+/// connects, receives for one second, and both exit clean (the
+/// graceful shapes: server EOF-reaps its blast thread, client window
+/// closes, neither hangs). Rootless — plain loopback sockets, no
+/// cgroup entry.
 #[test]
 fn the_roles_pair_over_loopback_and_exit_clean() {
     // Reserve a port, release it, and pass it to the server (the
@@ -38,11 +53,31 @@ fn the_roles_pair_over_loopback_and_exit_clean() {
         let probe = TcpListener::bind(("127.0.0.1", 0)).expect("reserve a port");
         probe.local_addr().expect("addr").port()
     };
-    let server = std::thread::spawn(move || run_server_role(port));
+    let server = std::thread::spawn(move || run_server_role(port, "dl"));
     // The server's bind sits behind the same wall clock the real
     // probe's connect retries tolerate; one short settle is plenty.
     std::thread::sleep(Duration::from_millis(150));
     run_client_role(&format!("127.0.0.1:{port}"), "dl", 1).expect("the dl role completes");
+    server
+        .join()
+        .expect("the server role thread must not panic")
+        .expect("the server role completes");
+}
+
+/// The live smoke, upload shape (NIGHT-hunt-Z1): the server does NOT
+/// blast — it drains and counts — and the pair exits clean on the
+/// client's zero-linger cut (the RST ends the drain; the received
+/// count is the metric the orchestrator reads for upload probes).
+/// Rootless like its dl twin.
+#[test]
+fn the_roles_pair_over_loopback_ul_and_exit_clean() {
+    let port = {
+        let probe = TcpListener::bind(("127.0.0.1", 0)).expect("reserve a port");
+        probe.local_addr().expect("addr").port()
+    };
+    let server = std::thread::spawn(move || run_server_role(port, "ul"));
+    std::thread::sleep(Duration::from_millis(150));
+    run_client_role(&format!("127.0.0.1:{port}"), "ul", 1).expect("the ul role completes");
     server
         .join()
         .expect("the server role thread must not panic")

@@ -25,22 +25,28 @@
 //! opens (an unentered probe measures an unlimited path); the
 //! server lives outside every policy for the window (checked
 //! against BOTH policy maps); teardown is best-effort and never
-//! fails the verdict.
-
-use anyhow::{anyhow, bail, Context, Result};
-use std::io::{BufRead, BufReader};
-use std::os::unix::fs::MetadataExt;
-use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Stdio};
-use std::time::{Duration, Instant};
+//! fails the verdict. NIGHT-hunt-Z1 adds the measured-truth split:
+//! the counted bytes come from whichever end RECEIVES — the client
+//! for download probes, the SERVER for upload probes (the client's
+//! ul-mode count is its local write buffer, not delivered bytes,
+//! and the vacuous VERIFIED it produced is retired with the fix).
 
 use crate::ebpf::identity::pathwalk;
 use crate::ebpf::limiter::{
     default_burst, Direction, Limiter, LimiterStatsRaw, PolicyRaw, RateSpec, Target,
 };
+use anyhow::{anyhow, Context, Result};
+use std::io::BufReader;
+use std::os::unix::fs::MetadataExt;
+use std::path::{Path, PathBuf};
+use std::process::{Child, Command, Stdio};
+use std::time::Duration;
 
 use super::eagle::resolve_name;
 use super::probe_report::{probe_verdict, ProbeOutcome, ProbeVerdict, CEILING_SLACK_BYTES};
+use super::probe_role::{
+    read_metric_line, read_metric_line_from, wait_resident, wait_with_deadline,
+};
 
 /// The measured window (seconds): long enough that the refill term
 /// dominates the burst (3s at 100kb = 300 KB refill vs the 64 KiB
@@ -107,15 +113,6 @@ fn kill_and_reap(child: &mut Child, cgroup: Option<&Path>) {
 /// spawn (the child's grace sleep makes the write land first).
 fn enter_cgroup(path: &Path, child: u32) -> bool {
     std::fs::write(path.join("cgroup.procs"), format!("{child}\n")).is_ok()
-}
-
-/// The residency belt: /proc/<pid>/cgroup must name the probe cgroup
-/// before the window may open (a probe that never entered measures an
-/// unlimited path — the false-FAILED lie this check exists to kill).
-fn resident_in(pid: u32, needle: &str) -> bool {
-    std::fs::read_to_string(format!("/proc/{pid}/cgroup"))
-        .map(|c| c.contains(needle))
-        .unwrap_or(false)
 }
 
 /// The transient cgroup names (unique per probe invocation).
@@ -241,11 +238,15 @@ pub(crate) fn run_enforcement_probe(
         Ok(b) => b,
         Err(e) => return unverified(format!("ledger baseline read failed: {e}")),
     };
-    // Spawn the server, enter its home, announce the port.
-    let mut server = match spawn_role(&["__probe-server", "0"]) {
+    // Spawn the server, enter its home, announce the port. The
+    // stdout handle stays taken for the whole probe: upload probes
+    // read the delivered count from the server's SECOND line, so
+    // the pipe that carried PROBE-PORT must survive until then.
+    let mut server = match spawn_role(&["__probe-server", "0", mode]) {
         Ok(child) => child,
         Err(e) => return unverified(format!("probe server spawn failed: {e}")),
     };
+    let mut server_stdout = server.stdout.take().map(BufReader::new);
     if srv_placed && !enter_cgroup(&srv_dir, server.id()) {
         kill_and_reap(&mut server, srv_placed.then_some(srv_dir.as_path()));
         return unverified("probe server could not enter its cgroup".to_string());
@@ -254,7 +255,11 @@ pub(crate) fn run_enforcement_probe(
         kill_and_reap(&mut server, srv_placed.then_some(srv_dir.as_path()));
         return unverified("probe server residency unconfirmed".to_string());
     }
-    let port = match read_metric_line(&mut server, "PROBE-PORT") {
+    let port = match server_stdout
+        .as_mut()
+        .map(|r| read_metric_line_from(r, "PROBE-PORT"))
+        .unwrap_or_else(|| Err(anyhow!("no stdout pipe")))
+    {
         Ok(p) => p,
         Err(e) => {
             kill_and_reap(&mut server, srv_placed.then_some(srv_dir.as_path()));
@@ -294,20 +299,56 @@ pub(crate) fn run_enforcement_probe(
         );
     }
 
-    // The window: the client runs PROBE_SECS and prints its bytes.
-    let client_bytes = match (
-        wait_with_deadline(&mut client, PROBE_SECS + 15),
-        read_metric_line(&mut client, "PROBE-BYTES"),
-    ) {
-        (Ok(()), Ok(n)) => n,
-        (status, metric) => {
-            kill_and_reap(&mut client, Some(client_dir.as_path()));
-            kill_and_reap(&mut server, srv_placed.then_some(srv_dir.as_path()));
-            let detail = match metric {
-                Ok(n) => format!("metric {n} but a bad exit ({status:?})"),
-                Err(e) => e.to_string(),
-            };
-            return unverified(format!("probe client did not measure: {detail}"));
+    // The window: the measured truth comes from whichever end
+    // RECEIVES it (NIGHT-hunt-Z1) — the client's own count for
+    // download probes (every counted byte passed the target's
+    // ingress), the SERVER's for upload probes (the client's ul-mode
+    // count is its local write buffer — write_all returns when the
+    // bytes land in the socket buffer, not when the policy lets them
+    // through; the pre-fix shape verified 131,072 buffered bytes
+    // against a 10 KB/s limit while the ledger booked 137 B, a
+    // vacuous pass the receiver-side count retires). The client's
+    // zero-linger close cuts its trailing buffer at the window edge,
+    // so the server's count is bounded by the window's admissions.
+    let client_bytes = match direction {
+        Direction::Download => {
+            match (
+                wait_with_deadline(&mut client, PROBE_SECS + 15),
+                read_metric_line(&mut client, "PROBE-BYTES"),
+            ) {
+                (Ok(()), Ok(n)) => n,
+                (status, metric) => {
+                    kill_and_reap(&mut client, Some(client_dir.as_path()));
+                    kill_and_reap(&mut server, srv_placed.then_some(srv_dir.as_path()));
+                    let detail = match metric {
+                        Ok(n) => format!("metric {n} but a bad exit ({status:?})"),
+                        Err(e) => e.to_string(),
+                    };
+                    return unverified(format!("probe client did not measure: {detail}"));
+                }
+            }
+        }
+        Direction::Upload => {
+            // The pump's exit is the window's close; the server then
+            // sees the cut, stops draining, and reports the count.
+            if let Err(e) = wait_with_deadline(&mut client, PROBE_SECS + 15) {
+                kill_and_reap(&mut client, Some(client_dir.as_path()));
+                kill_and_reap(&mut server, srv_placed.then_some(srv_dir.as_path()));
+                return unverified(format!("probe client did not finish its window: {e}"));
+            }
+            match server_stdout
+                .as_mut()
+                .map(|r| read_metric_line_from(r, "PROBE-BYTES"))
+            {
+                Some(Ok(n)) => n,
+                _ => {
+                    kill_and_reap(&mut client, Some(client_dir.as_path()));
+                    kill_and_reap(&mut server, srv_placed.then_some(srv_dir.as_path()));
+                    return unverified(
+                        "probe server did not report the delivered count".to_string(),
+                    );
+                }
+            }
         }
     };
     kill_and_reap(&mut server, srv_placed.then_some(srv_dir.as_path()));
@@ -428,63 +469,4 @@ fn spawn_role(args: &[&str]) -> Result<Child> {
         .stderr(Stdio::null())
         .spawn()
         .context("spawn the probe role")
-}
-
-/// Poll the child's residency until the deadline (the grace window).
-fn wait_resident(child: &mut Child, cgroup: &Path) -> bool {
-    let needle = cgroup
-        .file_name()
-        .map(|n| n.to_string_lossy().to_string())
-        .unwrap_or_default();
-    let deadline = Instant::now() + Duration::from_secs(2);
-    while Instant::now() < deadline {
-        if resident_in(child.id(), &needle) {
-            return true;
-        }
-        if let Ok(Some(_)) = child.try_wait() {
-            return false;
-        }
-        std::thread::sleep(Duration::from_millis(50));
-    }
-    false
-}
-
-/// Wait for the child with a wall-clock belt (never hangs the CLI on
-/// a stuck role). Ok(()) when it exited; Err carries the status when
-/// killed at the deadline.
-fn wait_with_deadline(child: &mut Child, secs: u64) -> Result<()> {
-    let deadline = Instant::now() + Duration::from_secs(secs);
-    loop {
-        if let Some(status) = child.try_wait().context("probe child wait")? {
-            if status.success() {
-                return Ok(());
-            }
-            bail!("probe child exit: {status}");
-        }
-        if Instant::now() > deadline {
-            let _ = child.kill();
-            bail!("probe child hit the wall deadline");
-        }
-        std::thread::sleep(Duration::from_millis(50));
-    }
-}
-
-/// Read the role's one-line protocol from its piped stdout (the
-/// metric lines: PROBE-PORT <n> / PROBE-BYTES <n>).
-fn read_metric_line(child: &mut Child, prefix: &str) -> Result<u64> {
-    let Some(stdout) = child.stdout.take() else {
-        bail!("no stdout pipe");
-    };
-    let mut line = String::new();
-    BufReader::new(stdout)
-        .read_line(&mut line)
-        .with_context(|| format!("read the {prefix} line"))?;
-    let value = line
-        .trim()
-        .strip_prefix(prefix)
-        .and_then(|rest| rest.trim().parse::<u64>().ok());
-    match value {
-        Some(v) => Ok(v),
-        None => Err(anyhow!("malformed protocol line: {}", line.trim())),
-    }
 }

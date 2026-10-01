@@ -12,8 +12,9 @@
 // dual-tree, rootlessly pinned); this file owns what only the
 // kernel side can touch:
 //
-//   * the pinned ammsp_leaf_cache LRU map (leaf id -> resolved root,
-//     0 = resolved unlimited),
+//   * the two pinned ammsp_leaf_cache LRU maps (leaf id -> resolved
+//     root, 0 = resolved unlimited), ONE PER DIRECTION (v18, the
+//     cross-direction poisoning close — see the map docs below);
 //   * the bpf_skb_ancestor_cgroup_id helper calls (absolute levels,
 //     ascending, break at 0),
 //   * the policy-map lookups that feed the walk.
@@ -38,32 +39,48 @@ use super::ammsp::{
 };
 use super::math::Policy;
 
-/// AMMSP leaf cache: leaf cgroup id -> the packed u64 memo word
-/// (`(generation << 32) | root`, the packing pure core in ammsp.rs
-/// owns; root 0 = resolved unlimited). LRU so dead leaves (systemd
-/// scopes and other transient cgroups) evict naturally instead of
-/// filling the memo — a full plain hash map would degrade every new
-/// leaf to a per-packet walk, while LRU keeps resolution at one
-/// lookup per packet forever. The static name stays lowercase like
-/// every map symbol in the limiter object — it IS the userspace pin
-/// contract (/sys/fs/bpf/zelynic/ammsp_leaf_cache, PIN_MAP_AMMSP_CACHE
-/// in src/ebpf/pin.rs).
+/// AMMSP leaf cache, DOWNLOAD lane: leaf cgroup id -> the packed
+/// u64 memo word (`(generation << 32) | root`, the packing pure core
+/// in ammsp.rs owns; root 0 = resolved unlimited). LRU so dead
+/// leaves (systemd scopes and other transient cgroups) evict
+/// naturally instead of filling the memo — a full plain hash map
+/// would degrade every new leaf to a per-packet walk, while LRU
+/// keeps resolution at one lookup per packet forever. The static
+/// name stays lowercase like every map symbol in the limiter object
+/// — it IS the userspace pin contract (/sys/fs/bpf/zelynic/
+/// ammsp_leaf_cache_dl, PIN_MAP_AMMSP_CACHE_DL in src/ebpf/pin.rs).
 ///
-/// The memo is written by the datapath ONLY; userspace never seeds
-/// it. Its staleness contract is generational (NIGHT-perf-0): every
-/// memo carries the ammsp_generation counter value current when its
-/// walk ran, and every policy mutation bumps that counter — so a
-/// memo that outlived the policy state it summarized (the insert
-/// race the whole-map delete flush could not close: a walk whose tail
-/// an IRQ storm stretched past the sweep, inserting pre-mutation
-/// state after the flush finished) is caught by the very next
-/// packet's stamp check and re-walked. The datapath's stale-detect
-/// (cache hit whose root lost its policy -> delete + re-walk) stays
-/// as the belt behind the stamp; neither trusts the other; both
-/// re-walk through the live policy map, which is the only authority.
+/// SCHEMA v18 (NIGHT-hunt-Z1): the memo is now DIRECTION-SCOPED —
+/// one map per direction, never shared. The v10..v17 single
+/// ammsp_leaf_cache was read by BOTH enforce_dl and enforce_ul, but
+/// a memo's root is only valid for the direction whose walk produced
+/// it: the walk resolves against THAT direction's policy map, and
+/// the two maps legitimately disagree — the single-direction applies
+/// (`strict -d`, `strict -u`) delete one leg's row, so the deleted
+/// direction's nearest root is an ANCESTOR (the catch-all at the
+/// root cgroup, or unlimited) while the written direction's is the
+/// target. The shared memo let the first direction to walk a leaf
+/// poison the other: the handshake/ACK packets (egress, upload map)
+/// memoized the probe leaf to the root catch-all, and every download
+/// data packet then hit that memo — the stale-detect could not catch
+/// it, because the catch-all carries a row in the download map too —
+/// so the flow enforced at the ANCESTOR's rate, not the target's
+/// (measured 3.5-4.7x the target budget, ledger booked at the
+/// ancestor, the verdict FAILED against a policy that never ran).
+/// Two maps close the class: each direction memoizes only what its
+/// own walk resolved.
 #[allow(non_upper_case_globals)]
 #[map]
-static ammsp_leaf_cache: LruHashMap<u32, u64> = LruHashMap::pinned(4096, 0);
+pub(super) static ammsp_leaf_cache_dl: LruHashMap<u32, u64> = LruHashMap::pinned(4096, 0);
+
+/// AMMSP leaf cache, UPLOAD lane — the download twin's map and
+/// posture, one direction's resolution never consulted by the other
+/// (the v18 close; see ammsp_leaf_cache_dl's docs for the poisoning
+/// shape the split ends). Pin contract: /sys/fs/bpf/zelynic/
+/// ammsp_leaf_cache_ul, PIN_MAP_AMMSP_CACHE_UL in src/ebpf/pin.rs.
+#[allow(non_upper_case_globals)]
+#[map]
+pub(super) static ammsp_leaf_cache_ul: LruHashMap<u32, u64> = LruHashMap::pinned(4096, 0);
 
 /// The AMMSP memo generation (NIGHT-perf-0): a one-entry pinned
 /// counter array, read by the datapath before every resolution and
@@ -101,10 +118,14 @@ pub(super) fn current_generation() -> u32 {
         .unwrap_or(0)
 }
 
-/// Resolve the policy root covering `leaf` (0 = unlimited). Called
-/// only after the leaf's own policy lookup MISSED (a policy at the
-/// socket's own cgroup is the nearest possible root, handled by the
-/// caller without a walk), so the walk feeds ancestors only.
+/// Resolve the policy root covering `leaf` (0 = unlimited) through
+/// THIS direction's own memo map. Called only after the leaf's own
+/// policy lookup MISSED (a policy at the socket's own cgroup is the
+/// nearest possible root, handled by the caller without a walk), so
+/// the walk feeds ancestors only. `memo_map` is the calling
+/// direction's leaf cache (v18: the resolution is direction-scoped —
+/// a root valid for the upload map is not one for the download map,
+/// and the memo never crosses lanes).
 ///
 /// Fast path first: the LRU memo. A cached word whose generation
 /// stamp is current and whose root is 0 is a resolved negative (one
@@ -126,6 +147,7 @@ pub(super) fn ammsp_resolve_root(
     ctx: &SkBuffContext,
     leaf: u32,
     policy_map: &HashMap<u32, Policy>,
+    memo_map: &LruHashMap<u32, u64>,
 ) -> u32 {
     // The generation is read BEFORE any policy read — the ordering
     // half of the staleness proof (module header of ammsp.rs): a
@@ -137,7 +159,7 @@ pub(super) fn ammsp_resolve_root(
     // get_ptr is the repo's map-lookup idiom (safe, raw-pointer); the
     // one unsafe read is the map-value deref every get_ptr caller in
     // the object performs the same way.
-    let cached = ammsp_leaf_cache.get_ptr(&leaf).map(|p| unsafe { *p });
+    let cached = memo_map.get_ptr(&leaf).map(|p| unsafe { *p });
     // The stale-detect's policy lookup runs only when it can change
     // the verdict: a generation-current memo with a nonzero root.
     // (A mismatched stamp never consults the policy map — the memo
@@ -156,7 +178,7 @@ pub(super) fn ammsp_resolve_root(
             // gone): drop it so the rewrite below lands on a clean
             // slot. Best-effort — an LRU remove cannot fail loudly,
             // and the rewrite makes the entry correct either way.
-            let _ = ammsp_leaf_cache.remove(&leaf);
+            let _ = memo_map.remove(&leaf);
         }
     }
 
@@ -179,6 +201,6 @@ pub(super) fn ammsp_resolve_root(
     // verdict: the walk result is used this packet regardless.
     // memo_value names the stored shape: the packed stamp-and-root
     // word, root 0 when nothing matched.
-    let _ = ammsp_leaf_cache.insert(&leaf, &memo_value(generation, root), 0);
+    let _ = memo_map.insert(&leaf, &memo_value(generation, root), 0);
     root
 }

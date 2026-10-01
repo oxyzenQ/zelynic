@@ -86,7 +86,7 @@ fn flush_trace_counts_and_costs_are_worded() {
 fn invalidate_failure_line_names_causes_degradation_and_tip() {
     let line = invalidate_failed_line(
         "pinned map /sys/fs/bpf/zelynic/ammsp_generation: gone",
-        "ammsp_leaf_cache not found in loaded object",
+        "ammsp_leaf_cache_dl not found in loaded object",
     );
     assert!(
         line.starts_with("ammsp memo invalidation failed (generation bump: "),

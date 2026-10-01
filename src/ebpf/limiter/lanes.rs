@@ -18,8 +18,9 @@
 //! Three twins, one shape: the loaded object's map when one is live,
 //! the opened pin otherwise, acquisition errors keeping their
 //! per-mode wording. The hash twin serves the policy, bucket, and
-//! stats maps; the LRU twin serves the ammsp_leaf_cache memo (the
-//! pin opens as `Map::LruHashMap` so aya's map-type reporting stays
+//! stats maps; the LRU twin serves the direction-scoped
+//! ammsp_leaf_cache_dl/ul memo pair (v18; the pin opens as
+//! `Map::LruHashMap` so aya's map-type reporting stays
 //! honest); the Array twin serves the ammsp_generation counter
 //! (NIGHT-perf-0) the memo invalidation bumps.
 
@@ -78,7 +79,8 @@ impl super::Limiter {
     /// contract — every mutation of a u32-keyed limiter map flows
     /// through this file — extended to the map family whose pin opens
     /// as `Map::LruHashMap` so aya's map-type reporting stays honest
-    /// (the ammsp_leaf_cache memo; the plain twin would work
+    /// (the direction-scoped ammsp_leaf_cache_dl/ul memo pair, v18;
+    /// the plain twin would work
     /// operationally, the variant is the honesty). Only the ammsp
     /// fallback sweep mutates an LRU map, so only it rides this lane.
     pub(super) fn with_lru_u32_map<V, R>(

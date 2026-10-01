@@ -281,7 +281,13 @@ the subtree the policy covers, by construction — the same lane the CI
 battery proves), one sacrificial client moves real traffic through it
 for a 3s loopback window against an unpoliced server (a transient
 root-level cgroup, outside every policy), and the kernel's own ledger
-brackets the window as the cross-check. The block that prints after
+brackets the window as the cross-check. The counted bytes come from
+whichever end RECEIVES them — the client for download probes, the
+server for upload probes (NIGHT-hunt-Z1: the sending side's own count
+is its local socket buffer, not what the policy let through; the
+receiver's count is the delivered truth, cut hard at the window edge
+by a zero-linger close so trailing retransmits cannot over-run the
+window's budget). The block that prints after
 the epilogue carries the direction, the measured flow against the
 target, the budget it was measured against (3s of refill plus the
 burst), the kernel count, and the verdict: `enforced: VERIFIED` when

@@ -276,8 +276,32 @@ use socket_flow::socket_flow;
 /// a rich pool. No existing struct layout changes; new maps, the
 /// share word re-packed and both state maps re-keyed on the AMMSP
 /// generation (the usual one-time re-apply contract).
+/// v18 (NIGHT-hunt-Z1, the cross-direction memo close): the AMMSP
+/// leaf cache splits into TWO direction-scoped maps —
+/// ammsp_leaf_cache_dl and ammsp_leaf_cache_ul — because a memo's
+/// root is only valid for the direction whose walk produced it. The
+/// v10..v17 single map was read by both enforce_dl and enforce_ul,
+/// and the single-direction applies (`strict -d`, `strict -u`)
+/// legitimately leave the two policy maps disagreeing about a
+/// leaf's nearest root (the written leg resolves to the target, the
+/// deleted leg to an ancestor catch-all or unlimited): the first
+/// direction to walk a leaf poisoned the other's every later packet
+/// — the handshake/ACK egress packets memoized the probe leaf onto
+/// the root catch-all, every download data packet then enforced at
+/// the ANCESTOR's rate (measured 3.5-4.7x the target budget, the
+/// ledger booked at the ancestor, the probe FAILED against a policy
+/// that never ran), and the stale-detect belt could not catch it
+/// because the catch-all carries a row in both policy maps. Two
+/// maps close the class; each direction memoizes only what its own
+/// walk resolved. The ammsp_generation counter stays SHARED (a
+/// mutation bump retires both lanes' memos at once — the stamp
+/// contract is unchanged). New map layout on the memo lane; the
+/// bump forces pinned v17 programs to reload into the
+/// direction-scoped object — active limits are dropped once,
+/// re-apply after upgrade, the same one-time contract as every
+/// bump before it.
 #[allow(dead_code)]
-const SCHEMA_VERSION: u32 = 17;
+const SCHEMA_VERSION: u32 = 18;
 
 // ---------------------------------------------------------------------------
 // Maps. The static names ARE the userspace contract (limiter/mod.rs
@@ -509,6 +533,7 @@ const BPF_NOEXIST: u64 = 1;
 fn try_enforce(
     ctx: SkBuffContext,
     policy_map: &HashMap<u32, Policy>,
+    memo_map: &LruHashMap<u32, u64>,
     bucket_map: &HashMap<u32, Bucket>,
     group_bucket_map: &HashMap<u32, Bucket>,
     leaf_bucket_map: &LruHashMap<u32, Bucket>,
@@ -552,7 +577,7 @@ fn try_enforce(
     let (cgroup_id, pol) = match policy_map.get_ptr(&leaf) {
         Some(ptr) => (leaf, unsafe { &*ptr }),
         None => {
-            let root = ammsp_resolve_root(&ctx, leaf, policy_map);
+            let root = ammsp_resolve_root(&ctx, leaf, policy_map, memo_map);
             if root == 0 {
                 return 1;
             }
@@ -721,6 +746,7 @@ fn enforce_dl(ctx: SkBuffContext) -> i32 {
     try_enforce(
         ctx,
         &cgroup_policy_dl,
+        &ammsp_resolve::ammsp_leaf_cache_dl,
         &cgroup_bucket_dl,
         &group_bucket_dl,
         &drr_flow::leaf_bucket_dl,
@@ -737,6 +763,7 @@ fn enforce_ul(ctx: SkBuffContext) -> i32 {
     try_enforce(
         ctx,
         &cgroup_policy_ul,
+        &ammsp_resolve::ammsp_leaf_cache_ul,
         &cgroup_bucket_ul,
         &group_bucket_ul,
         &drr_flow::leaf_bucket_ul,
