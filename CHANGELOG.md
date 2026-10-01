@@ -19,6 +19,35 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Fixed
 
+- **repair-5, the __multi3 load death — one libcall, every apply,
+  both eras of the ledger.** The first repair-4 push never loaded:
+  every apply on every Supermassive leg died at once with "Failed to
+  load BPF object / error relocating `enforce_dl` / function 0x2190
+  not found" — the whole battery collapsed in four seconds, the
+  server phase included. The cause, found by reading the ELF the CI
+  was actually loading: `u64::saturating_mul` in the ledger's earning
+  step lowers on the BPF target to a call to the 128-bit `__multi3`
+  compiler-rt libcall (the ISA has no 128-bit multiply), bpf-linker
+  emits it as an unresolved GLOBAL relocation, `cargo build` stays
+  green, and aya's loader refuses the object at load time — ten dead
+  sites from one inlined call, zero of them visible before CI. The
+  close follows the math.rs fill_ns discipline the tree already
+  owned: the earning multiply is PLAIN, overflow-safe by CONSTRUCTION
+  — the allowance is at most half the 1tb ladder's refill (5e10),
+  2^24 epochs of it stays two orders under u64's ceiling, and the
+  carry is at most one quantum — with an explicit elapsed ceiling
+  (beyond it the credit saturates at the full cap: the only writer
+  that large is the 13.7-year epoch wrap). The class is now pinned
+  TWICE: the pure pin (the wrap lane credits a full cap, once) and a
+  new row in the prebuilt-parity gate — every shipped object is
+  `readelf`-scanned for GLOBAL UNDEFINED symbols, the exact loader
+  refusal surface, so the next libcall that cargo happily compiles
+  and BPF cannot run dies at the gate, not on four CI legs. Verified:
+  the rebuilt release ELF carries zero undefined GLOBAL symbols
+  (negative-tested against the broken repair-4 object — the gate
+  catches it), full bin suite 633/0, build.sh check-all -q green,
+  gate-keepers 22/0 with the new row standing.
+
 - **repair-4, the epoch ledger's final form — the carry and the
   peak.** The v17 epoch ledger (repair-3) closed the starvation and
   most of the monopoly, but the first Supermassive run on it left

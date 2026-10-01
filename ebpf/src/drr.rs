@@ -467,20 +467,37 @@ pub const fn ledger_carry(word: u64) -> u32 {
     (word & 0xFFFF_FFFF) as u32
 }
 
+/// The elapsed-epoch ceiling for the carry's earning step: beyond it
+/// the product below could only come from the u32 epoch wrap (13.7
+/// years of 100ms epochs), and the credit saturates at the full
+/// stockpile cap instead — one epoch's worth of coarseness per
+/// decade, in the safe direction. The value keeps the plain multiply
+/// overflow-free by construction (see ledger_room).
+pub const ELAPSED_CEILING: u32 = 1 << 24;
+
 /// The carry's earning step (pure): credit the epochs elapsed since
 /// the word's epoch at the allowance, capped at the stockpile cap
-/// (the quantum — the v13 stockpile bound). The u32 epoch wrap
-/// (13.7 years of 100ms epochs) credits a full cap once — the safe
-/// direction, one epoch's worth of coarseness per decade. The
-/// stockpile naming is the fair_draw_size lesson: a short if-else
-/// here collapses under the ebpf nightly's single-line cap and
-/// expands under stable — these names run past it, both greens.
+/// (the quantum — the v13 stockpile bound). The multiply is PLAIN,
+/// overflow-safe by construction the math.rs fill_ns way: bounds,
+/// not libcall checks — saturating_mul lowers to the 128-bit
+/// __multi3 libcall, which the BPF ISA does not carry and the aya
+/// loader refuses to relocate (the repair-4 CI find: "function
+/// 0x2190 not found while relocating enforce_dl", ten dead sites
+/// from one inlined call). The bound: the allowance is at most half
+/// the 1tb ladder's refill (5e10), 2^24 epochs of it stays two
+/// orders under u64's ceiling, and the carry is at most one quantum
+/// (1e8) — the sum cannot wrap. The stockpile naming is the
+/// fair_draw_size lesson: a short if-else here collapses under the
+/// ebpf nightly's single-line cap and expands under stable — these
+/// names run past it, both greens.
 #[inline(always)]
 pub const fn ledger_room(word: u64, now_epoch: u32, allowance: u64, stockpile_cap: u64) -> u64 {
-    let elapsed = now_epoch.wrapping_sub(ledger_epoch(word)) as u64;
-    let earned_stockpile = allowance
-        .saturating_mul(elapsed)
-        .saturating_add(ledger_carry(word) as u64);
+    let elapsed_epochs = now_epoch.wrapping_sub(ledger_epoch(word));
+    let earned_stockpile = if elapsed_epochs > ELAPSED_CEILING {
+        stockpile_cap
+    } else {
+        allowance * elapsed_epochs as u64 + ledger_carry(word) as u64
+    };
     if earned_stockpile > stockpile_cap {
         stockpile_cap
     } else {
