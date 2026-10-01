@@ -26,6 +26,7 @@ use super::baseline::{render_focus_row, BaselineLane};
 use super::footer::status_line;
 use super::{
     format_rate_or_dash, format_uptime, label_with_count, rate_bps, title_bar, FrameGeometry,
+    SessionAcc,
 };
 use crate::ebpf::connections::ConnectionMap;
 use crate::ebpf::identity::IdentityMap;
@@ -34,39 +35,50 @@ use crate::ebpf::limiter::format_count;
 use crate::ebpf::loader::CounterSummary;
 use crate::output::{grey, signature_footer};
 
-/// NIGHT-hunt-Z1 (the monitor residue close): the dead-transient
-/// verdict for one board row. A row whose cgroup has NO live
-/// identity entry (the walk inserts one for every cgroup carrying
-/// a live process, so a miss means nothing runs there anymore)
-/// AND moved no bytes in the current window is a dead transient —
-/// the enforcement probe's sacrificial cgroups (folded into the
-/// leaderboard during the 3s window they lived, torn down at its
-/// close) and every churned systemd scope. Such a row can never
-/// name itself again (its label is the bare `cg:{id}` fallback)
-/// and never move again (a dead cgroup generates no deltas), so
-/// rendering it is dump, not memory — the leaderboard's
-/// "idle apps stay on the board" contract is for rows that can
-/// still be NAMED. The two stay-shapes are explicit: a
-/// live-but-unnamed cgroup (identity not yet refreshed) stays
-/// while it moves, and a just-died app keeps its row while its
-/// last window's rates still show, aging out cleanly after. Pure
-/// over the board filter's own inputs — the identity lookup and the
-/// current window's delta join, folded in so the filter's one call
-/// site stays a line. Pinned alongside the frame pin in the eagle
-/// filter pins.
+/// The window's active cgroup ids — the movers, and only the
+/// movers (a zero-delta id is absent by construction). Built
+/// LAZILY by the board filter (only when a row actually misses
+/// the identity map — every bench row and the vast majority of
+/// real rows are live, and the set is pure per-frame cost for
+/// them: the dead-transient belt must cost nothing on the happy
+/// path). Pure over the summary — pinned in the eagle filter
+/// pins.
 #[must_use]
-pub(super) fn dead_transient_row(
-    identity: &IdentityMap,
-    id: u32,
-    summary: &CounterSummary,
-) -> bool {
-    let window_bytes = summary
+pub(super) fn window_active(summary: &CounterSummary) -> std::collections::HashSet<u32> {
+    summary
         .cgroups
         .iter()
-        .find(|c| c.cgroup_id == id)
-        .map(|c| c.bytes.saturating_add(c.ingress_bytes))
-        .unwrap_or(0);
-    identity.get(id).is_none() && window_bytes == 0
+        .filter(|c| c.bytes > 0 || c.ingress_bytes > 0)
+        .map(|c| c.cgroup_id)
+        .collect()
+}
+
+/// The frame's board rows, filtered (NIGHT-hunt-Z1's monitor
+/// residue close composed with the watched-set narrowing): dead
+/// transients never board — no live identity entry and no window
+/// traffic, the probe's sacrificial cgroups and every churned
+/// scope — and `watched` narrows the frame to the resolved ids
+/// when targets name any. Live rows pay ONE identity lookup (the
+/// active set builds only on a miss, the belt's happy-path-zero
+/// cost); the frame-level pin in the eagle filter pins carries the
+/// verdict's three shapes.
+pub(super) fn board_rows(
+    ranked: Vec<(u32, SessionAcc)>,
+    identity: &IdentityMap,
+    summary: &CounterSummary,
+    watched: Option<&[u32]>,
+) -> Vec<(u32, SessionAcc)> {
+    let mut active = None;
+    ranked
+        .into_iter()
+        .filter(|(id, _)| {
+            identity.get(*id).is_some()
+                || active
+                    .get_or_insert_with(|| window_active(summary))
+                    .contains(id)
+        })
+        .filter(|(id, _)| watched.is_none_or(|ids| ids.contains(id)))
+        .collect()
 }
 
 /// Render the focus frame for one cgroup.

@@ -52,7 +52,7 @@ use super::baseline::{render_panel, BaselineLane};
 use super::border;
 use super::footer::{build_grip_footer, grid_line, plan_footer_tier, FooterCensus, TOP_CHROME};
 use super::{
-    detail_lines, focus::dead_transient_row, focus::render_eagle_focus, format_rate_or_dash,
+    detail_lines, focus::board_rows, focus::render_eagle_focus, format_rate_or_dash,
     label_with_count, plan_eagle_columns, rate_bps, title_bar, truncate_label, EagleColumns,
     FrameGeometry, SessionAcc, SessionState,
 };
@@ -204,24 +204,22 @@ pub(super) fn render_eagle_eyes_at(
     }
 
     // The leaderboard: session-accumulated per cgroup, consumption-
-    // ordered, filtered to the watched set when targets narrow the
-    // frame (NIGHT-boost-5 — the old per-frame delta sort wiped idle
-    // apps entirely). NIGHT-hunt-Z1 (the monitor residue close) adds
-    // the dead-transient filter first: the probe's sacrificial
-    // cgroups and every churned systemd scope (no identity, no
-    // window traffic) never board — no `cg:NNNN -` dump rows — and
-    // one filtered board feeds rows and census both (engrave-4).
-    let board: Vec<(u32, SessionAcc)> = session
-        .ranked()
-        .into_iter()
-        .filter(|(id, _)| !dead_transient_row(identity, *id, summary))
-        .filter(|(id, _)| tokens.is_empty() || ids.contains(id))
-        .collect();
+    // ordered (NIGHT-boost-5 — the old per-frame delta sort wiped
+    // idle apps entirely); the board filter (NIGHT-hunt-Z1's dead-
+    // transient belt composed with the watched-set narrowing) lives
+    // in focus.rs beside its active-set helper, pinned at the frame
+    // level in the eagle filter pins.
+    let board = board_rows(
+        session.ranked(),
+        identity,
+        summary,
+        (!tokens.is_empty()).then_some(&ids),
+    );
 
     // Empty-board honesty: before the first packet (or for a watched
     // set that never talked) the frame says so, keeping the title and
-    // the pinned footer; once traffic HAS been seen this branch is
-    // dead (the board holds every live row; transients retire).
+    // pinned footer; once traffic HAS been seen this branch is dead
+    // (the board holds every live row; transients retire).
     if session.is_empty() {
         lines.push("  waiting for traffic…".to_string());
     } else if !tokens.is_empty() && board.is_empty() {
