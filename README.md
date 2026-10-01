@@ -8,7 +8,7 @@
 <h1 align="center">zelynic</h1>
 
 <p align="center">
-  <strong>Per-app network rate limiter and traffic monitor for Linux. Pure eBPF.</strong>
+  <strong>Per-app network rate limiter and traffic monitor for Linux. Pure eBPF. Boring and silent but killer.</strong>
 </p>
 
 <p align="center">
