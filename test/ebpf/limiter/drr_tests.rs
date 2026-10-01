@@ -281,3 +281,10 @@ fn the_belt_zeroing_is_safe_against_a_racing_consumer() {
 // core (ebpf_drr above) serves both pin sets — the duplicate-mod law.
 #[path = "drr_share_tests.rs"]
 mod drr_share_tests;
+
+// repair-3: the epoch-ledger battery — the kernel-shaped feedback
+// sim (TCP-window cadence + per-packet credits) that reproduces the
+// live battery's CI finds rootlessly, and the per-epoch allowance
+// that closes them. Same child-module wiring, same single core copy.
+#[path = "drr_ledger_tests.rs"]
+mod drr_ledger_tests;

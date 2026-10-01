@@ -19,6 +19,42 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Fixed
 
+- **repair-3, the epoch ledger — the fair-share battery's red era,
+  closed.** The live ammsp fair-share rows failed on every Supermassive
+  leg since the battery landed (NIGHT-improve-1b): worst leaf 2.2-5.8 MB
+  against a 1.2-1.5 MB bound, quietest leaf one admit (65536 + 78 B over
+  a 4s window) against fair/4. Two compounding kernel-side defects, both
+  reproduced rootlessly by the new feedback simulation
+  (test/ebpf/limiter/drr_ledger_tests.rs) before either was touched:
+  (1) the learned-share note raced — a plain read plus a BPF_ANY insert
+  means every concurrent note replaced the one word all notes share from
+  its own stale read, so the learned drawee count converged to 1-3 and
+  dinner-28's pool/(K+2) cap silently weakened back to the v13 residue
+  shape; (2) a per-take cap cannot bound a per-epoch share — draw
+  frequency is TCP feedback (the flow that admits grows its window and
+  offers the packets that draw, the starved flows back off to
+  retransmit timers), so the fast drawer drained the pool's micro-credit
+  stream through (K+2)-sized bites regardless of chunk size. The close
+  (schema v17): the pool-share note rides a two-attempt CAS on the map
+  value, and the DRR draw's take is further capped by the leaf's
+  remaining per-EPOCH allowance — the pool's 100ms refill split across
+  the learned count, kept per leaf in two new pinned LRU maps
+  (drr_leaf_state_dl/ul, the leaf_bucket posture) through the same pure
+  core both trees compile. A blocked leaf stops touching the pool, the
+  refills accumulate behind it, and a starved leaf's rare draws find a
+  rich pool: the feedback sim reads worst 1.18x fair / quietest 0.86x
+  fair / aggregate 92% of policy at K=6 (versus 1.93x / 0.32x under the
+  v16 law), and every battery bound holds at K=6, K=24, the lone-leaf
+  edge (learned < 2 keeps the ledger off — the whole-budget row), and
+  the churn shape. Verified: full bin suite 631/0 (8 new pins: the
+  allowance family, the ledger word, the two failure pins that
+  reproduce the CI fingerprint, the four close pins), the ebpf object
+  builds clean on the pinned nightly, `build.sh check-all -q` green,
+  gate-keepers 22/0. No rootless bench covers the kernel draw lane —
+  the render path is untouched, and the datapath's cost is one LRU
+  lookup plus bounded CASes on the draw path only (the admit path is
+  unchanged); the live battery's own rows are the performance proof.
+
 - **repair-2, the v2 battery's Python 3.10 parse death.** The
   bypass stage's injector line nested an f-string that reused the
   outer string's quote marks (`state["bytes"]` inside a

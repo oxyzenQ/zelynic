@@ -10,10 +10,10 @@
 # GitHub Release binaries embed.
 
 schema = 1
-generated = "2026-10-01T05:23:52Z"
+generated = "2026-10-01T15:16:33Z"
 toolchain = "nightly-2026-09-18"
 bpf_linker = "0.11.1"
-ebpf_tree_sha256 = "0a43a812774b89eb1f55b70823050fdfc38ac1c0d383f712fc896769dad00ee3"
+ebpf_tree_sha256 = "cd84e756b7ea0c33b42a04ce359f744c44c356ce713e3a19118b93a767805982"
 
 [[object]]
 name = "zelynic-observer"
@@ -22,6 +22,6 @@ size = 3216
 
 [[object]]
 name = "zelynic-limiter"
-sha256 = "d2fd4945b625a4954e09ede5bd42f1f11e27f28bac2dfccf7cd7da00c9a3715b"
-size = 22640
+sha256 = "0959fbaa528504fcd97aa659eb470b81645f6ad3d91c51de7f5c330043797d29"
+size = 27176
 

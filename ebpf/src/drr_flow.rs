@@ -33,6 +33,7 @@
 // — the layout stays the pinned 24-byte v2 shape both trees assert.
 
 use aya_ebpf::{macros::map, maps::LruHashMap};
+use core::sync::atomic::{AtomicU64, Ordering};
 
 // The pure quantum core (core-only, the same file the userspace test
 // tree compiles) and the enforcement arithmetic it draws from.
@@ -82,11 +83,62 @@ pub(super) static drr_pool_state_dl: LruHashMap<u32, u64> = LruHashMap::pinned(4
 #[map]
 pub(super) static drr_pool_state_ul: LruHashMap<u32, u64> = LruHashMap::pinned(4096, 0);
 
+/// The epoch-ledger state, download leaves (repair-3, v17): LEAF
+/// cgroup id -> the packed ledger word (drr.rs's packing —
+/// `drawn:u32 | epoch:u32`). A leaf's TOTAL drawn bytes per 100ms
+/// epoch are bounded by the pool's per-epoch refill split across
+/// the learned drawee count — the per-take learned cap could not
+/// bound a per-epoch share (a fast drawer drained the pool through
+/// (K+2)-sized bites on every packet; the battery's worst leaf read
+/// 4.7x fair while the quietest measured one admit), so the bound
+/// moved to the epoch scale: a blocked leaf stops touching the pool,
+/// the refills accumulate, and a starved leaf's rare draws find a
+/// rich pool instead of an empty one. LRU + pinned like the leaf
+/// buckets; datapath-internal (userspace never opens it — the
+/// leaf_bucket family's contract), absent-or-cold fails open onto
+/// the v16 law (learned < 2 keeps the ledger off — the lone leaf's
+/// whole-budget row depends on it).
+#[allow(non_upper_case_globals)]
+#[map]
+pub(super) static drr_leaf_state_dl: LruHashMap<u32, u64> = LruHashMap::pinned(4096, 0);
+
+/// The epoch-ledger state, upload leaves — the download twin's lane.
+#[allow(non_upper_case_globals)]
+#[map]
+pub(super) static drr_leaf_state_ul: LruHashMap<u32, u64> = LruHashMap::pinned(4096, 0);
+
 /// `bpf_map_update_elem` flag: fail the insert if the key already
 /// exists (kernel uapi; the limiter's own BPF_NOEXIST note carries
 /// the race contract — the loser re-looks-up and rides the winner's
 /// entry, never clobbers it).
 const BPF_NOEXIST: u64 = 1;
+
+// The bare-u64 access primitives (the math.rs discipline, applied to
+// the packed state words this lane owns): BPF has RMW atomics but no
+// atomic load/store, so reads ride volatile and only genuine RMW
+// (compare_exchange) rides core's AtomicU64 — see math.rs's access-
+// primitive block for the ISA reasoning. Ordering is Relaxed on both
+// sides: these words are fairness SHAPING (an estimate whose slack
+// the bounds absorb), never the token-conservation bound — that stays
+// the pool CAS in try_draw, exactly as v13/v16 left it.
+
+/// READ_ONCE for one packed state word.
+#[inline(always)]
+fn word_read(p: *const u64) -> u64 {
+    // SAFETY: the caller hands a pointer to a live, 8-aligned u64
+    // map value (the same contract math.rs's field views carry).
+    unsafe { p.read_volatile() }
+}
+
+/// cmpxchg for one packed state word, true when it landed.
+#[inline(always)]
+fn word_cas(p: *mut u64, from: u64, to: u64) -> bool {
+    // SAFETY: same 8-aligned contract; AtomicU64::from_ptr lowers to
+    // the BPF_ATOMIC ISA the 5.13 floor carries (math.rs's note).
+    unsafe { AtomicU64::from_ptr(p) }
+        .compare_exchange(from, to, Ordering::Relaxed, Ordering::Relaxed)
+        .is_ok()
+}
 
 /// Get or create the leaf's bucket: zero tokens, zero draw stamp
 /// (ktime is past boot, so the FIRST draw's stamp CAS against 0
@@ -122,13 +174,16 @@ fn get_leaf_ptr(leaf_map: &LruHashMap<u32, Bucket>, leaf: &u32) -> Option<*mut B
 /// regime between a target's own sockets and its subtree's.
 /// `root` is the policy key (the pool's owner — the learned-share
 /// state map is keyed by it); `share_map` is the direction's state
-/// map (dinner-28 — the fair-split cap on the draw).
+/// map (dinner-28 — the fair-split cap on the draw);
+/// `ledger_map` is the direction's epoch-ledger map (repair-3 — the
+/// per-epoch cap the per-take cap needed underneath it).
 #[inline(always)]
 pub(super) fn drr_flow(
     pol: &Policy,
     pool: &mut Bucket,
     leaf_map: &LruHashMap<u32, Bucket>,
     share_map: &LruHashMap<u32, u64>,
+    ledger_map: &LruHashMap<u32, u64>,
     root: &u32,
     leaf: &u32,
     pkt_len: u32,
@@ -182,7 +237,10 @@ pub(super) fn drr_flow(
     // generation as a side effect — the belt only ever re-fires
     // after a mutation.
     let stamp = unsafe { core::ptr::addr_of!(bkt.last_refill_ns).read_volatile() };
-    if try_draw(pol, pool, bkt, share_map, root, stamp, now) && try_consume(bkt, pkt_len) {
+    if try_draw(
+        pol, pool, bkt, share_map, ledger_map, root, leaf, stamp, now,
+    ) && try_consume(bkt, pkt_len)
+    {
         if let Some(s) = stats {
             book(s, true, pkt_len);
         }
@@ -221,13 +279,39 @@ pub(super) fn drr_flow(
 /// on every packet counts once per epoch, never once per packet.
 /// A state-map miss fails OPEN onto the v13 residue law — the
 /// fairness state never drops a packet.
+///
+/// repair-3, the note's ATOMICITY: the v16 note was a plain read
+/// plus a BPF_ANY insert — under the multi-CPU draw storm the
+/// concurrent notes clobbered each other's increments (every writer
+/// replaced the word from its own stale read), the learned count
+/// converged to 1-3, and the cap weakened back to the v13 residue
+/// shape. The note now rides a written-out two-attempt CAS on the
+/// map value (the draw_attempt! posture — no loops for the
+/// verifier); a lost second attempt reads the survivor's word for
+/// the divisor (the estimate's documented slack, one increment).
+///
+/// repair-3, the EPOCH LEDGER: the take is further capped by the
+/// leaf's remaining per-epoch allowance (drr::epoch_allowance —
+/// the pool's 100ms refill split across the learned count), kept
+/// in `ledger_map` keyed by the LEAF. The per-take cap could not
+/// bound a per-epoch share: a leaf drawing on every packet drained
+/// the pool through (K+2)-sized bites while its starved siblings
+/// backed off to retransmit timers (the battery's find — worst
+/// 4.7x fair, quietest one admit). The ledger blocks the fast
+/// drawer at its fair share, the pool's refills accumulate behind
+/// it, and the starved leaf's rare draws find a rich pool. learned
+/// < 2 skips the ledger entirely (the lone leaf's whole-budget
+/// row); the drawn counter's CAS slack is one take, never a token
+/// the pool did not hold.
 #[inline(always)]
 fn try_draw(
     pol: &Policy,
     pool: &mut Bucket,
     leaf: &mut Bucket,
     share_map: &LruHashMap<u32, u64>,
+    ledger_map: &LruHashMap<u32, u64>,
     root: &u32,
+    leaf_id: &u32,
     last_draw: u64,
     now: u64,
 ) -> bool {
@@ -243,29 +327,38 @@ fn try_draw(
     // the distinct-asker count for the running epoch. The leaf's own
     // epoch evidence is `last_draw` (the pre-CAS stamp — the draw
     // that owned this one), so a leaf asking on every packet counts
-    // once per epoch. Concurrent notes may lose one increment — the
-    // estimate's documented slack.
+    // once per epoch. The note is a two-attempt CAS (repair-3): the
+    // v16 plain-read-plus-BPF_ANY insert lost increments to racing
+    // writers until the divisor itself lied.
     let now_epoch = (now / drr::share_epoch_ns()) as u32;
     let leaf_prev_epoch = (last_draw / drr::share_epoch_ns()) as u32;
-    let word = share_map.get_ptr(root).map(|p| unsafe { *p }).unwrap_or(0);
-    let noted = drr::pool_share_note(word, now_epoch, leaf_prev_epoch == now_epoch);
-    let _ = share_map.insert(root, &noted, 0);
-    let learned = drr::pool_share_last(noted);
+    let learned = note_share(share_map, root, now_epoch, leaf_prev_epoch == now_epoch);
+
+    // The epoch ledger's room (repair-3): the allowance is u64::MAX
+    // (a cold pool, a missed lookup, a lone drawer) exactly when the
+    // ledger is off — the map is not touched on that path.
+    let allowance = drr::epoch_allowance(pol.rate_bps, learned);
+    let room = ledger_room(ledger_map, leaf_id, now_epoch, allowance);
 
     // Owned the draw: move the take pool -> leaf through the
     // sufficiency-verified CAS, written out (not looped) for the
     // same verifier posture try_consume carries — two attempts,
     // each against its own fresh read. The take is the learned-share
-    // cap (dinner-28); the residue law still binds inside it.
+    // cap (dinner-28) further capped by the epoch room (repair-3);
+    // the residue law still binds inside both.
     let quantum = drr::quantum(pol.rate_bps);
     macro_rules! draw_attempt {
         () => {{
             let observed = tokens_read(pool);
-            let d = drr::fair_draw_size(quantum, observed, learned);
+            let fair_take = drr::fair_draw_size(quantum, observed, learned);
+            let d = if fair_take < room { fair_take } else { room };
             if d > 0 && tokens_cas(pool, observed, observed - d) {
                 // The pool paid; the credit rides the atomic add —
                 // the pair can only under-deliver, never over-deliver.
                 let _ = tokens_fetch_add(leaf, d);
+                if allowance != u64::MAX {
+                    ledger_add(ledger_map, leaf_id, now_epoch, d);
+                }
                 true
             } else {
                 false
@@ -284,4 +377,100 @@ fn try_draw(
     let epoch_start = now_epoch as u64 * drr::share_epoch_ns();
     let _ = draw_stamp_take(leaf, now, epoch_start);
     false
+}
+
+/// The learned-share note (repair-3's atomic form): get-or-create the
+/// pool's state word, then roll it over and count this asker through
+/// a written-out two-attempt CAS. Returns the divisor the next draws
+/// read — the last completed epoch's distinct-asker count. A missing
+/// entry starts at 0 (a cold pool keeps the v13 law by construction);
+/// a full LRU is the same honest miss (fail-open, the drawn word's
+/// own posture); two lost CAS attempts read the survivor's word —
+/// the estimate's documented one-increment slack.
+#[inline(always)]
+fn note_share(
+    share_map: &LruHashMap<u32, u64>,
+    root: &u32,
+    now_epoch: u32,
+    drew_this_epoch: bool,
+) -> u16 {
+    if share_map.get_ptr(root).is_none() {
+        let zero = 0u64;
+        let _ = share_map.insert(root, &zero, BPF_NOEXIST);
+        // Lost the init race: the winner's word serves this note too.
+    }
+    let ptr = match share_map.get_ptr_mut(root) {
+        Some(ptr) => ptr,
+        None => return 0,
+    };
+    let word = word_read(ptr);
+    let noted = drr::pool_share_note(word, now_epoch, drew_this_epoch);
+    if word_cas(ptr, word, noted) {
+        return drr::pool_share_last(noted);
+    }
+    // The second attempt against the fresh word (a racing note
+    // advanced it — recompute, retry once, the v8 posture).
+    let word = word_read(ptr);
+    let noted = drr::pool_share_note(word, now_epoch, drew_this_epoch);
+    if word_cas(ptr, word, noted) {
+        return drr::pool_share_last(noted);
+    }
+    drr::pool_share_last(word)
+}
+
+/// The epoch ledger's remaining room: the leaf's drawn-this-epoch
+/// counter read through the rollover, subtracted from the allowance.
+/// The ledger-off path (allowance == u64::MAX) never touches the map
+/// — the lone-drawer hot path pays nothing for a bound it does not
+/// carry. A missing entry is a fresh leaf's zero (nothing drawn this
+/// epoch); the rollover CAS is idempotent, so a lost race means
+/// another drawer for this leaf rolled the same word the same way.
+#[inline(always)]
+fn ledger_room(
+    ledger_map: &LruHashMap<u32, u64>,
+    leaf_id: &u32,
+    now_epoch: u32,
+    allowance: u64,
+) -> u64 {
+    if allowance == u64::MAX {
+        return u64::MAX;
+    }
+    if ledger_map.get_ptr(leaf_id).is_none() {
+        let zero = 0u64;
+        let _ = ledger_map.insert(leaf_id, &zero, BPF_NOEXIST);
+        // Lost the init race: the winner's word serves this read too.
+    }
+    let ptr = match ledger_map.get_ptr_mut(leaf_id) {
+        Some(ptr) => ptr,
+        None => return allowance,
+    };
+    let word = word_read(ptr);
+    let rolled = drr::ledger_roll(word, now_epoch);
+    if rolled != word && !word_cas(ptr, word, rolled) {
+        // Lost the rollover race: re-read — the survivor rolled it.
+        return allowance
+            .saturating_sub(drr::ledger_drawn(drr::ledger_roll(word_read(ptr), now_epoch)) as u64);
+    }
+    allowance.saturating_sub(drr::ledger_drawn(rolled) as u64)
+}
+
+/// The ledger spend: saturate the take into the leaf's drawn counter
+/// through a two-attempt CAS. A lost second attempt leaves the
+/// counter one take short — the NEXT draw's room is one take too
+/// generous, bounded by the take size, in the safe direction for a
+/// bound whose hard edge is the pool's own conservation CAS.
+#[inline(always)]
+fn ledger_add(ledger_map: &LruHashMap<u32, u64>, leaf_id: &u32, now_epoch: u32, take: u64) {
+    let ptr = match ledger_map.get_ptr_mut(leaf_id) {
+        Some(ptr) => ptr,
+        None => return,
+    };
+    let word = word_read(ptr);
+    let noted = drr::ledger_note(word, now_epoch, take);
+    if word_cas(ptr, word, noted) {
+        return;
+    }
+    let word = word_read(ptr);
+    let noted = drr::ledger_note(word, now_epoch, take);
+    let _ = word_cas(ptr, word, noted);
 }

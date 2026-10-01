@@ -173,9 +173,15 @@ fn test_schema_version_constant() {
     // v16 (dinner-28): the learned-share draw — the DRR take
     // capped by pool/(learned+2) through the two new
     // drr_pool_state_dl/ul maps.
+    // v17 (repair-3): the epoch ledger — the take further capped
+    // by the leaf's remaining per-epoch allowance (the pool's
+    // 100ms refill split across the learned count) through the
+    // two new drr_leaf_state_dl/ul maps, and the pool-share note
+    // atomic (the v16 plain-read-plus-BPF_ANY insert lost
+    // increments to racing writers until the count itself lied).
     // The full sync contract (this constant vs the BPF-side
     // anchor) lives in schema.rs's sync_pin — the v13 lesson.
-    assert_eq!(SCHEMA_VERSION_EXPECTED, 16);
+    assert_eq!(SCHEMA_VERSION_EXPECTED, 17);
 }
 
 // ── NIGHT-improve-10 / security-3: overflow-bound pins ──────────
