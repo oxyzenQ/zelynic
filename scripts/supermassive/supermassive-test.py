@@ -3257,14 +3257,25 @@ def test_probe_failed():
         )
 
         # ── The SUCCESS path: VERIFIED, exit 0 ─────────────────────
+        # The verdict-line check (NIGHT-repair-1): "VERIFIED" in
+        # combined is a substring trap — UNVERIFIED contains it, and
+        # every leg's clean-apply row "passed" for four CI runs while
+        # the probe fast-exited behind it (the 594d8cf rows carried
+        # verdict UNVERIFIED under a green OK; the dinner-28 T8
+        # inference that this row had "run the full window and
+        # VERIFIED" was the trap's own work). The row now demands the
+        # verdict line's own shape: enforced-VERIFIED without the
+        # UN- prefix.
         rc, stdout, stderr = run_zel(["strict-single", str(CG.ids["b"]), "100kb"])
         combined = (stdout or "") + (stderr or "")
+        verdict = verdict_line(combined)
+        verified = "UNVERIFIED" not in verdict and verdict.endswith("VERIFIED")
         passed = (
             record(
                 "probe: a clean apply is VERIFIED exit 0",
-                "PASS" if rc == 0 and "VERIFIED" in combined else "FAIL",
-                f"exit {rc}; VERIFIED in output: {'VERIFIED' in combined}; "
-                f"verdict line: {verdict_line(combined)}; "
+                "PASS" if rc == 0 and verified else "FAIL",
+                f"exit {rc}; verdict true-VERIFIED: {verified}; "
+                f"verdict line: {verdict}; "
                 f"note line: {note_line(combined)}; "
                 f"tail: {combined.strip()[:400]!r}",
             )

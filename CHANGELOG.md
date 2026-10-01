@@ -2168,6 +2168,20 @@ NIGHT-hunt-18's git-history-only call.
   and UNVERIFIED alike, so a torn-down limit never reads as
   enforced.
 
+- **battery: NIGHT-repair-1 — the clean-apply row's substring
+  trap.** "VERIFIED" in combined passes on UNVERIFIED — the word
+  contains it — and the probe stage's SUCCESS row rode that trap
+  green for four CI runs while the probe fast-exited behind it:
+  the 594d8cf rows carried verdict UNVERIFIED under a green OK,
+  and the dinner-28 T8 inference that this row had "run the full
+  window and VERIFIED" (the reasoning that named the overhead
+  row's class re-apply-shaped, not target-shaped) was the trap's
+  own work — no leg ever verified. The row now demands the
+  verdict line's own shape: enforced-VERIFIED without the UN-
+  prefix, with the true-VERIFIED verdict printed in the row's
+  detail beside the verdict and note lines, so a fast-exit can
+  never wear this row's green again.
+
 - **ci: NIGHT-dinner-25 — the rc.3 release wall, part two: the
   supermassive survival battery demanded an atomicity two pinned
   BPF maps cannot sell** — the best-specs musl leg of the
