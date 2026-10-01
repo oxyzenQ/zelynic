@@ -1550,12 +1550,20 @@ def test_bypass_audit():
 
         positive = depth_bypass_verdict(with_traffic_worker=False)
         if positive is not None:
+            # The injector line is hoisted: the old form nested an
+            # f-string that reused the outer string's quote marks
+            # (state["bytes"] inside a "-quoted f-string) — PEP 701,
+            # legal only on Python 3.12+. Every low-specs CI leg runs
+            # 3.10 (Ubuntu 22.04), so the WHOLE v2 battery died at
+            # import time with "f-string: unterminated string" before
+            # one test could run — the gnu best-specs legs parse 3.12
+            # and never saw it. One local, no nesting, every Python.
+            injector = state["err"] or f"{state['bytes']} B in {INJECT_SECS}s"
             passed = (
                 record(
                     "bypass: AF_PACKET stream flags the shadow (not clean)",
                     "PASS" if positive in ("bypassed_tx", "bypassed_both") else "FAIL",
-                    f"verdict {positive!r} (injector: "
-                    f"{(state['err'] or f'{state["bytes"]} B in {INJECT_SECS}s')})",
+                    f"verdict {positive!r} (injector: {injector})",
                 )
                 and passed
             )
