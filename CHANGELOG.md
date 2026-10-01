@@ -19,6 +19,34 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Fixed
 
+- **repair-6, the cross-round handoff — a mutated budget must start
+  fresh.** The generation-keyed state maps: the repair-5 run closed
+  equal6 entirely (aggregate 95.0%, worst 1.14x fair, quietest 2.5x
+  the floor — every row green) and many24's monopoly, but the single
+  round read 8.2% of policy and churn6 47%: the battery's rounds
+  re-apply on ONE root cgroup, and the pool-share word — keyed by
+  that root alone — rode across every apply. The many24 round left
+  its drawee peak of 24 behind, and the single leaf that followed
+  inherited an allowance of refill/19 for the ~15 seconds the decay
+  needed to release a budget it never asked for (the many24 round's
+  own early epochs ran the same pollution backward from equal6's
+  peak of 6). The hazard is a real-host shape, not a battery quirk:
+  a policy that once had 24 leaves and shrinks to one starves its
+  survivor through the handoff's whole tail. The close rides the
+  machinery the datapath already reads every packet: both DRR state
+  maps (drr_pool_state_dl/ul, drr_leaf_state_dl/ul) re-key on the
+  AMMSP generation — `(generation << 32) | id`, the memo map's own
+  packing shape — so every policy mutation (the re-apply, the rate
+  change, the unstrict) hands its successor a fresh divisor, a fresh
+  asker count, and a fresh carry; the old generation's entries age
+  out through the LRU the leaf buckets already trust. Pinned by the
+  feedback sim's handoff battery: the carried word throttles the
+  lone successor below half (the battery's exact 8.2% shape), the
+  fresh word keeps the whole budget. Verified: full bin suite 634/0
+  (the new handoff pin), the ebpf object builds clean, the prebuilt
+  lane refreshed with zero undefined GLOBAL symbols, build.sh
+  check-all -q green, gate-keepers 22/0.
+
 - **repair-5, the __multi3 load death — one libcall, every apply,
   both eras of the ledger.** The first repair-4 push never loaded:
   every apply on every Supermassive leg died at once with "Failed to

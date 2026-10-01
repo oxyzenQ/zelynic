@@ -76,12 +76,12 @@ pub(super) static leaf_bucket_ul: LruHashMap<u32, Bucket> = LruHashMap::pinned(4
 /// keeps the v13 residue law, never drops).
 #[allow(non_upper_case_globals)]
 #[map]
-pub(super) static drr_pool_state_dl: LruHashMap<u32, u64> = LruHashMap::pinned(4096, 0);
+pub(super) static drr_pool_state_dl: LruHashMap<u64, u64> = LruHashMap::pinned(4096, 0);
 
 /// The learned-share state, upload pool — the download twin's lane.
 #[allow(non_upper_case_globals)]
 #[map]
-pub(super) static drr_pool_state_ul: LruHashMap<u32, u64> = LruHashMap::pinned(4096, 0);
+pub(super) static drr_pool_state_ul: LruHashMap<u64, u64> = LruHashMap::pinned(4096, 0);
 
 /// The epoch-ledger state, download leaves (repair-3, v17): LEAF
 /// cgroup id -> the packed ledger word (drr.rs's packing —
@@ -100,12 +100,12 @@ pub(super) static drr_pool_state_ul: LruHashMap<u32, u64> = LruHashMap::pinned(4
 /// whole-budget row depends on it).
 #[allow(non_upper_case_globals)]
 #[map]
-pub(super) static drr_leaf_state_dl: LruHashMap<u32, u64> = LruHashMap::pinned(4096, 0);
+pub(super) static drr_leaf_state_dl: LruHashMap<u64, u64> = LruHashMap::pinned(4096, 0);
 
 /// The epoch-ledger state, upload leaves — the download twin's lane.
 #[allow(non_upper_case_globals)]
 #[map]
-pub(super) static drr_leaf_state_ul: LruHashMap<u32, u64> = LruHashMap::pinned(4096, 0);
+pub(super) static drr_leaf_state_ul: LruHashMap<u64, u64> = LruHashMap::pinned(4096, 0);
 
 /// `bpf_map_update_elem` flag: fail the insert if the key already
 /// exists (kernel uapi; the limiter's own BPF_NOEXIST note carries
@@ -182,8 +182,8 @@ pub(super) fn drr_flow(
     pol: &Policy,
     pool: &mut Bucket,
     leaf_map: &LruHashMap<u32, Bucket>,
-    share_map: &LruHashMap<u32, u64>,
-    ledger_map: &LruHashMap<u32, u64>,
+    share_map: &LruHashMap<u64, u64>,
+    ledger_map: &LruHashMap<u64, u64>,
     root: &u32,
     leaf: &u32,
     pkt_len: u32,
@@ -237,8 +237,28 @@ pub(super) fn drr_flow(
     // generation as a side effect — the belt only ever re-fires
     // after a mutation.
     let stamp = unsafe { core::ptr::addr_of!(bkt.last_refill_ns).read_volatile() };
+    // The generation-prefixed state keys (repair-6): every policy
+    // mutation bumps the AMMSP generation the belt above already
+    // read, and the pool-share and leaf-ledger words ride the bump —
+    // a fresh budget starts with a fresh divisor, a fresh carry, a
+    // fresh asker count, never the previous budget's peak throttling
+    // the successor (the cross-round find: a 24-leaf policy handed
+    // its lone successor an allowance of refill/19 for the ~15
+    // seconds the decay needed). The old generation's entries age
+    // out through the LRU the leaf buckets already trust; the key is
+    // (generation << 32) | id, the memo map's own packing shape.
+    let share_key = (generation << 32) | *root as u64;
+    let ledger_key = (generation << 32) | *leaf as u64;
     if try_draw(
-        pol, pool, bkt, share_map, ledger_map, root, leaf, stamp, now,
+        pol,
+        pool,
+        bkt,
+        share_map,
+        ledger_map,
+        &share_key,
+        &ledger_key,
+        stamp,
+        now,
     ) && try_consume(bkt, pkt_len)
     {
         if let Some(s) = stats {
@@ -308,10 +328,10 @@ fn try_draw(
     pol: &Policy,
     pool: &mut Bucket,
     leaf: &mut Bucket,
-    share_map: &LruHashMap<u32, u64>,
-    ledger_map: &LruHashMap<u32, u64>,
-    root: &u32,
-    leaf_id: &u32,
+    share_map: &LruHashMap<u64, u64>,
+    ledger_map: &LruHashMap<u64, u64>,
+    share_key: &u64,
+    ledger_key: &u64,
     last_draw: u64,
     now: u64,
 ) -> bool {
@@ -332,7 +352,12 @@ fn try_draw(
     // writers until the divisor itself lied.
     let now_epoch = (now / drr::share_epoch_ns()) as u32;
     let leaf_prev_epoch = (last_draw / drr::share_epoch_ns()) as u32;
-    let (learned, drawees) = note_share(share_map, root, now_epoch, leaf_prev_epoch == now_epoch);
+    let (learned, drawees) = note_share(
+        share_map,
+        share_key,
+        now_epoch,
+        leaf_prev_epoch == now_epoch,
+    );
 
     // The epoch ledger's room (repair-4, the carry form): the leaf's
     // banked allowance — earned at the refill split across the drawee
@@ -346,7 +371,7 @@ fn try_draw(
     // touched on that path.
     let allowance = drr::epoch_allowance(pol.rate_bps, drawees);
     let cap = drr::quantum(pol.rate_bps);
-    let room = ledger_room(ledger_map, leaf_id, now_epoch, allowance, cap);
+    let room = ledger_room(ledger_map, ledger_key, now_epoch, allowance, cap);
 
     // Owned the draw: move the take pool -> leaf through the
     // sufficiency-verified CAS, written out (not looped) for the
@@ -365,7 +390,7 @@ fn try_draw(
                 // the pair can only under-deliver, never over-deliver.
                 let _ = tokens_fetch_add(leaf, d);
                 if allowance != u64::MAX {
-                    ledger_spend(ledger_map, leaf_id, now_epoch, allowance, cap, d);
+                    ledger_spend(ledger_map, ledger_key, now_epoch, allowance, cap, d);
                 }
                 true
             } else {
@@ -398,17 +423,17 @@ fn try_draw(
 /// the survivor's word — the estimate's documented slack.
 #[inline(always)]
 fn note_share(
-    share_map: &LruHashMap<u32, u64>,
-    root: &u32,
+    share_map: &LruHashMap<u64, u64>,
+    share_key: &u64,
     now_epoch: u32,
     drew_this_epoch: bool,
 ) -> (u16, u16) {
-    if share_map.get_ptr(root).is_none() {
+    if share_map.get_ptr(share_key).is_none() {
         let zero = 0u64;
-        let _ = share_map.insert(root, &zero, BPF_NOEXIST);
+        let _ = share_map.insert(share_key, &zero, BPF_NOEXIST);
         // Lost the init race: the winner's word serves this note too.
     }
-    let ptr = match share_map.get_ptr_mut(root) {
+    let ptr = match share_map.get_ptr_mut(share_key) {
         Some(ptr) => ptr,
         None => return (0, 0),
     };
@@ -436,8 +461,8 @@ fn note_share(
 /// banked yet); the get-or-create rides the BPF_NOEXIST contract.
 #[inline(always)]
 fn ledger_room(
-    ledger_map: &LruHashMap<u32, u64>,
-    leaf_id: &u32,
+    ledger_map: &LruHashMap<u64, u64>,
+    ledger_key: &u64,
     now_epoch: u32,
     allowance: u64,
     cap: u64,
@@ -445,12 +470,12 @@ fn ledger_room(
     if allowance == u64::MAX {
         return u64::MAX;
     }
-    if ledger_map.get_ptr(leaf_id).is_none() {
+    if ledger_map.get_ptr(ledger_key).is_none() {
         let zero = 0u64;
-        let _ = ledger_map.insert(leaf_id, &zero, BPF_NOEXIST);
+        let _ = ledger_map.insert(ledger_key, &zero, BPF_NOEXIST);
         // Lost the init race: the winner's word serves this read too.
     }
-    match ledger_map.get_ptr(leaf_id) {
+    match ledger_map.get_ptr(ledger_key) {
         Some(ptr) => drr::ledger_room(word_read(ptr), now_epoch, allowance, cap),
         None => cap,
     }
@@ -465,14 +490,14 @@ fn ledger_room(
 /// draw path's written-out posture.
 #[inline(always)]
 fn ledger_spend(
-    ledger_map: &LruHashMap<u32, u64>,
-    leaf_id: &u32,
+    ledger_map: &LruHashMap<u64, u64>,
+    ledger_key: &u64,
     now_epoch: u32,
     allowance: u64,
     cap: u64,
     take: u64,
 ) {
-    let ptr = match ledger_map.get_ptr_mut(leaf_id) {
+    let ptr = match ledger_map.get_ptr_mut(ledger_key) {
         Some(ptr) => ptr,
         None => return,
     };
