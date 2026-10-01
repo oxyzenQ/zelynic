@@ -176,12 +176,17 @@
 ///     reproduces the CI decay against the v13 law first. New maps,
 ///     verdict math unchanged on every other lane; one-time re-apply
 ///     as ever.
-/// v17 (NIGHT-repair-3, the epoch ledger): the DRR draw's take is
-///     further capped by the leaf's remaining per-EPOCH allowance —
-///     the pool's 100ms refill split across the learned drawee
-///     count, kept per LEAF in the two new pinned LRU maps
+/// v17 (NIGHT-repair-3/4, the epoch ledger): the DRR draw's take is
+///     further capped by the leaf's banked per-EPOCH allowance — the
+///     pool's 100ms refill split across the drawee PEAK (a decaying
+///     high-water of distinct askers packed into the re-widened
+///     pool-share word, so the split does not inflate when starved
+///     siblings go retransmit-quiet), earned per epoch and held as
+///     a quantum-capped CARRY per LEAF in the two new pinned LRU maps
 ///     drr_leaf_state_dl/ul (leaf cgroup id -> the packed
-///     `drawn:u32 | epoch:u32` word, drr.rs's packing) — and the
+///     `carry:u32 | epoch:u32` word, drr.rs's packing — the carry
+///     banks toward the 64 KiB GSO admit floor, healing the starved
+///     flow's TCP and the aggregate floor with it) — and the
 ///     pool-share note moves from a plain read + BPF_ANY insert to
 ///     a two-attempt CAS (the v16 form lost increments to racing
 ///     writers on the ONE word every note touches, converging the
@@ -195,14 +200,15 @@
 ///     4.7x fair with the quietest at ONE admit (65536 + 78 B over
 ///     4s). With the ledger the fast drawer blocks at its fair
 ///     share, the refills accumulate behind the block, and the
-///     starved leaf's rare draws find a rich pool instead of an
-///     empty one — the feedback simulation (drr_ledger_tests.rs)
-///     reproduces both sides rootlessly before the close. learned
-///     < 2 keeps the ledger OFF (a cold pool, a missed state
-///     lookup, a lone drawer — the single-active row's whole-
-///     budget bound), and every ledger word fails open onto the
-///     v16 law. New maps, verdict math unchanged on every other
-///     lane; the usual one-time re-apply contract as ever.
+///     starved leaf's rare draws find a rich pool — the feedback
+///     simulation (drr_ledger_tests.rs) reproduces both sides
+///     rootlessly before the close. learned < 2 keeps the ledger
+///     OFF (a cold pool, a missed state lookup, a lone drawer — the
+///     single-active row's whole-budget bound), and every ledger
+///     word fails open onto the v16 law. New maps, the pool-share
+///     word re-packed (the askers' peak joined it); verdict math
+///     unchanged on every other lane; the usual one-time re-apply
+///     contract as ever.
 pub const SCHEMA_VERSION_EXPECTED: u32 = 17;
 
 #[cfg(test)]

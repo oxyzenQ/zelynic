@@ -19,6 +19,48 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Fixed
 
+- **repair-4, the epoch ledger's final form — the carry and the
+  peak.** The v17 epoch ledger (repair-3) closed the starvation and
+  most of the monopoly, but the first Supermassive run on it left
+  three rows red and told the deeper story in their numbers: the
+  many24 worst leaf read 3.0 MB (4.7x fair) with the anti-monopoly
+  bound at 1.5, and one equal6 leg sagged to 60.6% of policy against
+  the battery's 65% floor. Two residual defects, both reproduced by
+  the feedback simulation before the close was written: (1) the
+  allowance split across the ASKER count is a split across the
+  SILENCE — the starved leaves back off to retransmit timers and
+  stop asking, the asker count collapses to the few survivors, and
+  their allowance inflates fourfold for exactly the leaves already
+  winning; (2) a BLOCKING allowance (reset each epoch) cannot bank
+  toward the 64 KiB GSO admit floor — a starved leaf drawing 16 KB
+  per epoch admits one packet every four epochs, its TCP reads the
+  silence as congestion and backs off further, and the pool's
+  undelivered credits bank uselessly while the aggregate sags. The
+  close, still schema v17 (the era never left CI): the pool-share
+  word re-packed with a drawee PEAK (last:u12 | running:u12 |
+  peak:u12 | epoch:u28) — a decaying high-water of askers that
+  ratchets on every count and decays one step per eight epochs, so
+  the divisor tracks demand, not momentary silence (a dead leaf's
+  share still releases in seconds); and the ledger re-formed as a
+  CARRY — the allowance earned per epoch, banked per leaf as a
+  quantum-capped carry (`carry:u32 | epoch:u32`), spent by draws:
+  the v13 doc's own stockpile sentence ("a leaf may hold at most one
+  quantum at a time") made load-bearing. The starved leaf now banks
+  several epochs for one fat admit, its TCP heals on the admit, its
+  cadence recovers, and the aggregate floor comes back with it. The
+  feedback sim reads worst 1.16x / quietest 0.84x fair / aggregate
+  93.4% at K=6 (versus 1.93x / 0.32x / sagging under the blocking
+  form), every battery bound holds at K=6, K=24, the lone-leaf edge,
+  and the churn shape. Verified: full bin suite 633/0 (the ledger
+  battery now 10 pins — the two v16 failure pins, the blocking-form
+  ablation pin that proves the carry load-bearing, the peak's
+  ratchet/decay, the allowance and carry-word families, and the four
+  close pins with the battery's real 65%-130% aggregate band); both
+  trees' rustfmt agree (the short if-else toolchain trap hit and
+  closed the documented way — the statement named past the nightly's
+  single-line cap); the prebuilt lane refreshed and in parity;
+  build.sh check-all -q green; gate-keepers 22/0.
+
 - **repair-3, the epoch ledger — the fair-share battery's red era,
   closed.** The live ammsp fair-share rows failed on every Supermassive
   leg since the battery landed (NIGHT-improve-1b): worst leaf 2.2-5.8 MB
@@ -37,23 +79,12 @@ NIGHT-hunt-18's git-history-only call.
   stream through (K+2)-sized bites regardless of chunk size. The close
   (schema v17): the pool-share note rides a two-attempt CAS on the map
   value, and the DRR draw's take is further capped by the leaf's
-  remaining per-EPOCH allowance — the pool's 100ms refill split across
-  the learned count, kept per leaf in two new pinned LRU maps
+  per-EPOCH allowance — the pool's 100ms refill split across the
+  learned count, kept per leaf in two new pinned LRU maps
   (drr_leaf_state_dl/ul, the leaf_bucket posture) through the same pure
-  core both trees compile. A blocked leaf stops touching the pool, the
-  refills accumulate behind it, and a starved leaf's rare draws find a
-  rich pool: the feedback sim reads worst 1.18x fair / quietest 0.86x
-  fair / aggregate 92% of policy at K=6 (versus 1.93x / 0.32x under the
-  v16 law), and every battery bound holds at K=6, K=24, the lone-leaf
-  edge (learned < 2 keeps the ledger off — the whole-budget row), and
-  the churn shape. Verified: full bin suite 631/0 (8 new pins: the
-  allowance family, the ledger word, the two failure pins that
-  reproduce the CI fingerprint, the four close pins), the ebpf object
-  builds clean on the pinned nightly, `build.sh check-all -q` green,
-  gate-keepers 22/0. No rootless bench covers the kernel draw lane —
-  the render path is untouched, and the datapath's cost is one LRU
-  lookup plus bounded CASes on the draw path only (the admit path is
-  unchanged); the live battery's own rows are the performance proof.
+  core both trees compile. The battery's bounds then closed on three of
+  four legs; the two residual shapes (the silent-asker inflation and the
+  admit-floor banking) are repair-4's, closed above.
 
 - **repair-2, the v2 battery's Python 3.10 parse death.** The
   bypass stage's injector line nested an f-string that reused the

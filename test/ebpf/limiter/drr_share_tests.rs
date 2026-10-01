@@ -43,7 +43,9 @@
 //! budget (the DRR doc's own lo bound).
 
 use super::ebpf_drr::{
-    draw_size, fair_draw_size, pool_share_last, pool_share_note, quantum, share_epoch_ns,
+    draw_size, epoch_allowance, epoch_refill, fair_draw_size, ledger_carry, ledger_epoch,
+    ledger_note, ledger_pack, ledger_room, pool_share_last, pool_share_note, pool_share_pack,
+    pool_share_peak, pool_share_running, quantum, share_epoch_ns, PEAK_DECAY_EPOCHS,
 };
 // The math copy rides drr_tests' parent inclusion (one per test
 // binary, the duplicate-mod law) — reached through the grandparent,
@@ -206,26 +208,42 @@ fn verdict_for(gots: &[u64]) -> Verdict {
 }
 
 /// The packing round-trip + the note's rollover arithmetic (the pure
-/// core's own pins — small, boring, first).
+/// core's own pins — small, boring, first). The repair-4 packing
+/// added the PEAK field (the allowance's divisor source — the
+/// ledger battery owns its ratchet/decay pins; this one owns the
+/// round-trip and the retirement).
 #[test]
 fn the_share_word_packs_and_notes() {
     use super::ebpf_drr::{pool_share_epoch, pool_share_pack, pool_share_running};
-    let w = pool_share_pack(7, 3, 5);
+    let w = pool_share_pack(7, 3, 5, 4);
     assert_eq!(pool_share_epoch(w), 7);
     assert_eq!(pool_share_running(w), 3);
     assert_eq!(pool_share_last(w), 5);
-    // The rollover: a new epoch retires `running` into `last`.
-    let w2 = pool_share_note(w, 8, false);
+    assert_eq!(pool_share_peak(w), 4);
+    // The rollover: a new epoch retires `running` into `last` (9 is
+    // off the 8-epoch decay cadence, so the peak only ratchets to
+    // running when running passes it).
+    let w2 = pool_share_note(w, 9, false);
     assert_eq!(pool_share_last(w2), 3, "the epoch's count retired");
     assert_eq!(pool_share_running(w2), 1, "the first asker counted");
-    assert_eq!(pool_share_epoch(w2), 8);
+    assert_eq!(pool_share_epoch(w2), 9);
+    assert_eq!(
+        pool_share_peak(w2),
+        4,
+        "the peak holds under a smaller count"
+    );
     // The same epoch: the count grows, `last` untouched.
-    let w3 = pool_share_note(w2, 8, false);
+    let w3 = pool_share_note(w2, 9, false);
     assert_eq!(pool_share_running(w3), 2);
     assert_eq!(pool_share_last(w3), 3);
     // An asker that already drew this epoch counts once.
-    let w4 = pool_share_note(w3, 8, true);
+    let w4 = pool_share_note(w3, 9, true);
     assert_eq!(pool_share_running(w4), 2, "the repeat asker not counted");
+    // The live ratchet: a surge past the peak lifts it mid-epoch.
+    let w5 = pool_share_note(w3, 9, false);
+    let w6 = pool_share_note(w5, 9, false);
+    assert_eq!(pool_share_running(w6), 4);
+    assert_eq!(pool_share_peak(w6), 4, "the fourth asker ratchets the peak");
 }
 
 /// fair_draw_size's own bounds: the learned cap binds at the micro
@@ -379,4 +397,84 @@ fn a_lone_leaf_still_sees_the_whole_budget() {
         "and never over the band: {}",
         v.total
     );
+}
+
+/// The allowance family (pure): a lone drawer or a cold pool keeps
+/// the ledger OFF; the drawee count splits the epoch's refill; the
+/// split never exceeds the refill (the pool never creates budget).
+#[test]
+fn the_epoch_allowance_family() {
+    assert_eq!(
+        epoch_allowance(1_000_000, 0),
+        u64::MAX,
+        "cold pool: fail-open"
+    );
+    assert_eq!(epoch_allowance(1_000_000, 1), u64::MAX, "lone drawer: off");
+    assert_eq!(epoch_allowance(1_000_000, 2), 50_000, "two drawers: half");
+    assert_eq!(epoch_allowance(1_000_000, 6), 16_666, "six: the sixth");
+    assert_eq!(
+        epoch_allowance(1_000_000, 24),
+        4_166,
+        "the owner's many shape"
+    );
+    for drawees in 2u16..25 {
+        let allowance = epoch_allowance(4_000_000, drawees);
+        assert!(
+            allowance * drawees as u64 <= epoch_refill(4_000_000),
+            "the split never exceeds the refill at drawees {drawees}"
+        );
+    }
+    assert_eq!(epoch_refill(1_000_000), 100_000, "the 100ms refill");
+    assert_eq!(epoch_refill(4_000_000), 400_000);
+}
+
+/// The ledger word (pure, the carry form): packs, earns elapsed
+/// epochs at the allowance, spends down, caps the stockpile at one
+/// quantum — the v13 doc's own stockpile sentence, made load-bearing.
+#[test]
+fn the_ledger_word_banks_carries_and_spends() {
+    let w = ledger_pack(7, 12_345);
+    assert_eq!(ledger_epoch(w), 7);
+    assert_eq!(ledger_carry(w), 12_345);
+    // The earning: three elapsed epochs at 50k, capped at the quantum.
+    let earned = ledger_room(w, 10, 50_000, 400_000);
+    assert_eq!(earned, 12_345 + 150_000, "the carry plus the earned epochs");
+    // The cap: one quantum of stockpile, however long the silence.
+    let capped = ledger_room(ledger_pack(0, 0), 1_000, 50_000, 100_000);
+    assert_eq!(capped, 100_000, "the stockpile caps at one quantum");
+    // The spend: the credit and the take land together, re-anchored.
+    let spent = ledger_note(w, 10, 50_000, 400_000, 10_000);
+    assert_eq!(ledger_epoch(spent), 10, "re-anchored at the spend");
+    assert_eq!(ledger_carry(spent), 12_345 + 150_000 - 10_000);
+    // A take beyond the room saturates at the room (a caller bug the
+    // saturating form forgives once, never over-allowing).
+    let big = ledger_note(w, 10, 50_000, 400_000, u64::MAX);
+    assert_eq!(ledger_carry(big), 0, "an over-take empties the carry");
+}
+
+/// The share word's PEAK (pure): ratchets on the running count —
+/// live mid-epoch and at the retirement — and decays one step on
+/// the PEAK_DECAY_EPOCHS cadence, floored at 1.
+#[test]
+fn the_share_peak_ratchets_and_decays() {
+    // The live ratchet: a mid-epoch surge lifts the peak immediately
+    // (running 5 growing to 6 passes the peak of 3).
+    let w = pool_share_pack(8, 5, 2, 3);
+    let surged = pool_share_note(w, 8, false);
+    assert_eq!(pool_share_peak(surged), 6, "the sixth asker ratchets live");
+    assert_eq!(pool_share_running(surged), 6);
+    // The retirement ratchet + the decay cadence: epoch 16 is on the
+    // 8-epoch decay period, the peak steps down after ratcheting.
+    let retired = pool_share_note(pool_share_pack(15, 9, 9, 9), 16, false);
+    assert_eq!(pool_share_last(retired), 9, "the epoch's count retired");
+    assert_eq!(pool_share_peak(retired), 8, "ratcheted to 9, decayed one");
+    // A non-boundary rollover retires without decaying.
+    let plain = pool_share_note(pool_share_pack(15, 9, 9, 9), 17, false);
+    assert_eq!(pool_share_peak(plain), 9, "no decay off the cadence");
+    // The floor: a decayed peak stops at 1 (the lone-drawer lane).
+    let mut word = pool_share_pack(0, 2, 2, 2);
+    for epoch in 1..64 {
+        word = pool_share_note(word, epoch * PEAK_DECAY_EPOCHS, true);
+    }
+    assert_eq!(pool_share_peak(word), 1, "the decay floors at one");
 }
