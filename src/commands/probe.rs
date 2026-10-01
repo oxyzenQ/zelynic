@@ -40,7 +40,7 @@ use crate::ebpf::limiter::{
 };
 
 use super::eagle::resolve_name;
-use super::probe_report::{probe_verdict, ProbeOutcome, ProbeVerdict};
+use super::probe_report::{probe_verdict, ProbeOutcome, ProbeVerdict, CEILING_SLACK_BYTES};
 
 /// The measured window (seconds): long enough that the refill term
 /// dominates the burst (3s at 100kb = 300 KB refill vs the 64 KiB
