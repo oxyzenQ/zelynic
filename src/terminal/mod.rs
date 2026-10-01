@@ -215,7 +215,7 @@ pub(crate) fn drain_input(ask: &mut raw::BgAsk) -> (InputAction, bool) {
     let n = io::stdin().read(&mut buf).unwrap_or(0);
     let (action, reply) = ask.absorb(&buf[..n], Instant::now());
     let changed = match reply {
-        Some(rgb) => crate::output::theme::set_terminal_bg(Some(rgb)),
+        Some(rgb) => crate::output::terminal_bg::set_terminal_bg(Some(rgb)),
         None => false,
     };
     (action, changed)
@@ -411,7 +411,7 @@ impl Monitor {
         // silent ones; local terminals answer in single digits.
         // NIGHT-boost-32: this is the FIRST paint's ask — the live
         // ask in run_loop keeps the follow current from here on.
-        crate::output::theme::set_terminal_bg(raw::query_terminal_bg());
+        crate::output::terminal_bg::set_terminal_bg(raw::query_terminal_bg());
         let (w, h) = match winsize() {
             Some((cols, rows)) => (cols as usize, rows as usize),
             None => (80, 24),

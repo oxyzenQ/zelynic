@@ -44,6 +44,10 @@
 
 mod color;
 pub(crate) mod theme;
+// NIGHT-dinner-30: the terminal-following background moved out of
+// theme.rs when the twelfth palette pushed it to the LOC cap — a
+// sibling concern (OSC 11 follow), not theme state.
+pub(crate) mod terminal_bg;
 
 // The `*_open()` escape builders stay color-internal: the wrapper
 // functions below are the crate's entire color API surface (nothing
