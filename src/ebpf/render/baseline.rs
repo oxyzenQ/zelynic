@@ -12,11 +12,10 @@
 //! window into a per-policy-root running baseline (an integer EMA),
 //! and renders the verdict: `learning` until the horizon fills,
 //! `steady` with the baseline figure, then `above +N%` / `below -N%`
-//! when delivery departs from the baseline long enough to matter.
-//! A watching operator sees "this policed target is moving 64% more
-//! than it usually does" the moment it is true, without staring at
-//! the rate column — the same honesty the depth report owns for
-//! enforcement state, extended to the traffic's SHAPE.
+//! when delivery departs from the baseline long enough to matter —
+//! "this policed target is moving 64% more than it usually does",
+//! the moment it is true, the same honesty the depth report owns
+//! for enforcement state, extended to the traffic's SHAPE.
 //!
 //! ── The honesty contracts ─────────────────────────────────────────
 //!
@@ -26,10 +25,9 @@
 //! `--per-socket` policy's series is the cgroup aggregate (the
 //! charger-core-3d rider's law); this lane reads it with the same
 //! statement. The focus row joins by EXACT cgroup id only: a cgroup
-//! governed by an ANCESTOR's policy gets no row, because the
-//! aggregate at that ancestor cannot be split back down to the
-//! leaf, and an unmarked aggregate would read as the leaf's own
-//! rate — the exact dishonesty the per-socket markers exist to ban.
+//! governed by an ANCESTOR's policy gets no row — the aggregate at
+//! that ancestor cannot be split back down to the leaf, and an
+//! unmarked aggregate would read as the leaf's own rate.
 //!
 //! THE LENS LIFECYCLE: the lane re-reads the pins every frame (two
 //! opens and a schema check — trivial next to the observer poll it
@@ -37,24 +35,20 @@
 //! down, a stale pre-v15 object the schema guard refuses) clears
 //! the learned state for that direction: enforcement gone means the
 //! baseline is gone, and a re-applied policy starts `learning`
-//! fresh. A frozen verdict for a dead policy would be a lie with a
-//! straight face; the reset is the honest shape. The clear is per
-//! direction — the two rings are two lenses, and one failing does
-//! not fabricate the other's absence.
+//! fresh — a frozen verdict for a dead policy would be a lie. The
+//! clear is per direction: one lens failing does not fabricate the
+//! other's absence.
 //!
 //! THE FOLD (pure, integer, rootlessly pinnable): every completed
-//! window in the series is judged against the baseline it departs
-//! from BEFORE it folds in (judge-then-update — a spike cannot drag
-//! the EMA up and then claim it never departed from it); windows
-//! are deduped by window NUMBER, so any poll cadence folds each
-//! second exactly once (a 1s cadence folds one window per frame; a
-//! 30s cadence folds the ring's whole 8s horizon once per half
-//! minute; a gap longer than 8s folds only what the ring kept —
-//! the missed seconds are honestly gone, the same horizon the
-//! status JSON's series owns). A non-live window (the target was
-//! idle — the slot was never stamped) folds as ZERO: a quiet second
-//! under a live policy is a real sample of "delivered nothing",
-//! and the baseline must learn quiet periods, not skip them.
+//! window is judged against the baseline it departs from BEFORE it
+//! folds in (judge-then-update — a spike cannot drag the EMA up and
+//! then claim it never departed from it); windows are deduped by
+//! window NUMBER, so any poll cadence folds each second exactly
+//! once, and a gap longer than 8s folds only what the ring kept —
+//! the missed seconds are honestly gone (the status JSON's series
+//! horizon). A non-live window (idle — the slot never stamped)
+//! folds as ZERO: a quiet second is a real sample, and the baseline
+//! must learn quiet periods, not skip them.
 //!
 //! THE VERDICT BANDS (conservative by design, every figure pinned):
 //! a window deviates only when its distance from the EMA clears
@@ -62,12 +56,9 @@
 //! baseline never flaps on noise-scale deltas), and a flag renders
 //! only after TWO consecutive deviating windows (one burst window
 //! is a hiccup, two is a departure). The flag's lifetime is the
-//! EMA's own convergence horizon: a sustained step change drags the
-//! baseline with it (weight 1/8 per window), so a doubling flags
-//! for roughly three windows and then reads as the new steady —
-//! the baseline FOLLOWS the traffic, it does not pin the past
-//! forever; the convergence math is stated here so the behavior is
-//! a documented contract, not a surprise.
+//! EMA's convergence horizon (weight 1/8 per window): a sustained
+//! step change flags for roughly three windows, then reads as the
+//! new steady — the baseline FOLLOWS the traffic, not the past.
 
 use std::collections::HashMap;
 
@@ -107,11 +98,10 @@ pub const BASELINE_DEV_FLOOR_BYTES: u64 = 4 * 1024;
 
 /// How many consecutive deviating windows before the flag renders.
 /// One burst window is a hiccup; two is a departure. Anti-flap by
-/// construction, and the flag clears on the first in-band window
+/// construction; the flag clears on the first in-band window
 /// (flags are rare, clearing is honest — the asymmetry is the
 /// conservative side).
 pub const BASELINE_SUSTAIN_WINDOWS: u32 = 2;
-
 // ── The per-direction learned state (pure) ─────────────────────────
 
 /// One policy root, one direction: the learned baseline. All folds
@@ -161,9 +151,8 @@ fn ema_step(ema: u64, bytes: u64) -> u64 {
 impl BaselineState {
     /// Fold one completed window: judge against the PRE-update
     /// baseline (a spike cannot mask itself), then update. The
-    /// first sample seeds the EMA (there is no baseline to judge
-    /// against yet — the streak is untouched, so the first window
-    /// can never be a deviant on its own).
+    /// first sample seeds the EMA (no baseline to judge yet, and
+    /// the streak is untouched — the first window never deviates).
     fn fold(&mut self, window: u64, bytes: u64) {
         // Dedupe: a window number already folded (or skipped as
         // pre-boot, which carries no sample) is never folded twice.
@@ -183,9 +172,8 @@ impl BaselineState {
     }
 
     /// The verdict this state renders. `None` before the first fold
-    /// (the direction has no data at all — the caller omits the
-    /// phrase rather than fabricating a learning figure for a lens
-    /// that never opened).
+    /// (no data at all — the caller omits the phrase rather than
+    /// fabricating a figure for a lens that never opened).
     fn word(&self) -> Option<BaselineWord> {
         if self.samples == 0 {
             return None;
@@ -250,10 +238,9 @@ impl BaselineLane {
 
     /// Re-read the pins and fold. Called once per frame by the
     /// monitor loop, before the render. A direction whose read
-    /// fails is CLEARED (enforcement gone — the lens lifecycle
-    /// contract in the module header); a key that vanished from a
-    /// successful read drops its state the same frame (its policy
-    /// is gone; if it reappears it starts learning fresh).
+    /// fails is CLEARED (the lens lifecycle contract in the module
+    /// header); a key vanished from a successful read drops its
+    /// state the same frame (reappearing starts learning fresh).
     pub(crate) fn refresh(&mut self) {
         let now = monotonic_ns();
         let reads = read_pinned_rings();
@@ -278,10 +265,9 @@ impl BaselineLane {
         };
         for (key, raw) in rows {
             let series = ring_series(raw, now);
-            // w is the CURRENT window; out index i is the window
-            // w-(SLOTS-1-i), oldest first. Only COMPLETED windows
-            // fold (index SLOTS-1 is the current, still-filling
-            // window — it can only grow, the status JSON's own law).
+            // w is the CURRENT window; index i is w-(SLOTS-1-i),
+            // oldest first — only COMPLETED windows fold (the last
+            // slot is still filling; it can only grow).
             let w = now / RATE_RING_WINDOW_NS;
             let state = states.entry(*key).or_default();
             for i in 0..RATE_RING_SLOTS - 1 {
@@ -304,6 +290,22 @@ impl BaselineLane {
         states.retain(|k, _| live.contains(k));
     }
 
+    /// cfg(test) pin seam (NIGHT-engrave-10): one read carrying one
+    /// live window — a lane whose panel renders `learning 7/8` (the
+    /// read folds the whole completed horizon: six quiet windows as
+    /// real zero samples plus the live one, the fold's own law),
+    /// built through the lane itself for the eagle composition pins.
+    #[cfg(test)]
+    pub(crate) fn seed_for_pins(&mut self, key: u32, bytes: u64) {
+        let mut raw = RateRingRaw::default();
+        let slot = &mut raw.slots[94 % RATE_RING_SLOTS];
+        slot.window = 94;
+        slot.bytes = bytes;
+        // Read mid-window after 94 — the fold fixtures' own at().
+        let now = (94 + 1) * RATE_RING_WINDOW_NS + 500_000_000;
+        Self::fold_direction(&mut self.dl, Some(&[(key, raw)]), now);
+    }
+
     /// The focus pair for one cgroup: (dl, ul) words, exact-id
     /// match only (the AGGREGATE LAW in the module header). `None`
     /// when neither direction holds state for the id.
@@ -317,9 +319,8 @@ impl BaselineLane {
     }
 
     /// The panel rows for the ranked view: every policy root the
-    /// lane holds, busiest first (dl+ul EMA desc — the table's own
-    /// consumption-order spirit), ties broken by cgroup id (the
-    /// board must not reshuffle between frames on a tie).
+    /// lane holds, busiest first (dl+ul EMA desc, ties by cgroup id
+    /// — the board must not reshuffle between frames on a tie).
     pub(crate) fn panel_rows(&self) -> Vec<(u32, Option<BaselineWord>, Option<BaselineWord>)> {
         let mut keys: Vec<u32> = self.dl.keys().chain(self.ul.keys()).copied().collect();
         keys.sort_unstable();
@@ -361,11 +362,10 @@ impl BaselineLane {
 // ── The phrase vocabulary (pure) ────────────────────────────────────
 
 /// One direction's rendered figure. The zero special case is
-/// deliberate: the limiter's rate formatter renders 0 as BLOCKED
-/// (the verdict wording for a zero limit), but the baseline lane's
-/// zero is LEARNED QUIET — a policy that has sat idle since the
-/// lens opened is steady at zero, not blocked, and the two
-/// contexts disagree about zero on purpose.
+/// deliberate: the limiter's formatter renders 0 as BLOCKED (a zero
+/// limit's verdict wording), but this lane's zero is LEARNED QUIET
+/// — idle since the lens opened is steady at zero, not blocked; the
+/// two contexts disagree about zero on purpose.
 fn rate_figure(bps: u64) -> String {
     if bps == 0 {
         "0 B/s".to_string()
@@ -417,8 +417,7 @@ fn pair_phrase(dl: Option<BaselineWord>, ul: Option<BaselineWord>) -> String {
 /// The focus view's baseline row: `  baseline  dl … · ul …`, joined
 /// to the key/value block after `lifetime` (the same column the
 /// block's keys align on). Rendered from the LANE, not the frame's
-/// summary — a quiet frame (no observer delta this second) still
-/// renders the ring's last eight seconds of delivered shape.
+/// summary — a quiet frame still renders the ring's last windows.
 pub(crate) fn render_focus_row(lines: &mut Vec<String>, lane: &BaselineLane, cgroup_id: u32) {
     if let Some((dl, ul)) = lane.focus_pair(cgroup_id) {
         let body = pair_phrase(dl, ul);
@@ -429,14 +428,15 @@ pub(crate) fn render_focus_row(lines: &mut Vec<String>, lane: &BaselineLane, cgr
 }
 
 /// The ranked view's baseline panel: one line per policy root the
-/// lane holds (filtered to the watched set when targets narrow the
-/// frame — a filter is a filter), under a grey header naming the
-/// lens. Since NIGHT-engrave-9 the section OPENS with a ruled
-/// separator (air, then the table's own grid at `width`), so the
-/// verdict rows stop reading as the table's last rows. `room` is
-/// the rows below the table and above the pinned footer; the panel
-/// skips below separator plus header plus one verdict row, and a
-/// truncating panel carries the honest `+N more hidden` note.
+/// lane holds (filtered to the watched set — a filter is a
+/// filter), under a grey header naming the lens. Since
+/// NIGHT-engrave-9 the section OPENS with a ruled separator (air,
+/// then the table's own grid at `width`), so the verdict rows stop
+/// reading as the table's last rows; since NIGHT-engrave-10 the
+/// caller DOCKS the block flush against the pinned footer (the
+/// slack rides above the panel). `room` is the rows the panel may
+/// occupy; it skips below separator plus header plus one verdict
+/// row, and a truncating panel carries the `+N more hidden` note.
 pub(crate) fn render_panel(
     lines: &mut Vec<String>,
     lane: &BaselineLane,

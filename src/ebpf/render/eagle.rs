@@ -31,12 +31,11 @@
 //!   grey — context, not content.
 //! - **Breathing gap**: one blank line below the title bar — the
 //!   header used to sit too near the brand.
-//! - **Adaptive compact** (dynamic WxH): subprocess detail hides and
-//!   long text is cut down on narrow frames; the label column already
-//!   degraded, the detail lines are the next casualty — and since
-//!   NIGHT-engrave-4 the column ladder itself is the threshold
-//!   (`cols.show_total`), one source of truth where a parallel
-//!   constant used to drift.
+//! - **Adaptive compact** (dynamic WxH): subprocess detail hides
+//!   below the TOTAL-column boundary (`cols.show_total` since
+//!   NIGHT-engrave-4 — one source of truth where a parallel
+//!   constant used to drift), each line trimmed to the frame width
+//!   so nothing wraps the frame or shifts the pinned footer.
 //! - **The pin**: the frame spans the terminal height, the table
 //!   floats under the header, and the built footer pins to the bottom
 //!   through measured padding — it never follows the table's length.
@@ -70,18 +69,16 @@ use crate::output::{brand, grey, hot, ok, warn};
 /// gap (NIGHT-engrave-4). The header's process title spans this plus
 /// the label width — one identity region (rank + process), titled
 /// from the frame's canonical text column. Kept in step with
-/// render::plan_eagle_columns' rank reserve (the reserve's non-gutter
-/// half); the header-alignment pins catch any drift.
+/// render::plan_eagle_columns' rank reserve; the header-alignment
+/// pins catch any drift.
 const RANK_SPAN: usize = 4;
 
 /// Resolve target tokens against the identity map — the render
 /// family's per-frame resolver, its own module since NIGHT-dinner-18
-/// (the LOC-cap split this file's own history owns: focus, footer,
-/// detail, rank each took a contract; targets took the resolution
-/// grammar when the duplicate-token fix pushed past 500). The
-/// launch gate's twin (commands::eagle::resolve_live_targets) owns
-/// the door verdict — see render/targets.rs for the two-home
-/// contract.
+/// (the LOC-cap split: focus, footer, detail, rank, targets each
+/// took a contract). The launch gate's twin
+/// (commands::eagle::resolve_live_targets) owns the door verdict —
+/// see render/targets.rs for the two-home contract.
 use super::targets::resolve_targets;
 
 /// Render one eagle-eyes frame (NIGHT-improve-2: line-building — the
@@ -134,8 +131,7 @@ pub fn render_eagle_eyes(
 
 /// Size-injectable core of [`render_eagle_eyes`] (the emit/emit_at
 /// discipline of the diff engine): contract pins drive deterministic
-/// widths and heights instead of the piped-fallback probe, so the
-/// adaptive ladder and the pinned footer are testable at every size.
+/// sizes, so the adaptive ladder and the pinned footer are testable.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn render_eagle_eyes_at(
     lines: &mut Vec<String>,
@@ -197,9 +193,8 @@ pub(super) fn render_eagle_eyes_at(
     // lands the corners one column from each edge.
     lines.push(title_bar(&title_core, border::frame_width(full_width)));
 
-    // The breathing gap (NIGHT-boost-14): the column header used to
-    // sit one row under the title bar — too near the brand, the
-    // owner's call. One blank line of air.
+    // The breathing gap (NIGHT-boost-14): one blank line of air —
+    // the header used to sit too near the brand.
     lines.push(String::new());
 
     // A watched name with no live cgroup says so — the empty-table
@@ -237,8 +232,7 @@ pub(super) fn render_eagle_eyes_at(
     // BUILT before the table renders, so the pin's line count is the
     // MEASURED footer length — a shortened block adds middle padding
     // without shifting the pin off the bottom. The tier ladder picks
-    // the compression level; the table gets whatever height remains
-    // after the built block.
+    // the compression level; the table gets the height that remains.
     let extra = usize::from(identity.is_empty());
     let tier = plan_footer_tier(geo.height, extra);
 
@@ -246,13 +240,10 @@ pub(super) fn render_eagle_eyes_at(
     //
     // Built BEFORE the table renders (see render/footer.rs): the
     // MEASURED length of the block is what pins it to the bottom,
-    // and the table renders into whatever height remains. The census
-    // gathers itself from the live board since NIGHT-engrave-4 — the
-    // consumer autodetect, the session packets, the cgroup count,
-    // the grand (all saturating, the boost-16 discipline) — footer
-    // data, gathered where it renders; the eagle renderer hands the
-    // board over and walks on. The session peaks ride along since
-    // NIGHT-engrave-6 (the speed pair's maxima, noted above).
+    // and the table renders into whatever height remains. The
+    // census gathers itself from the live board since
+    // NIGHT-engrave-4 (footer data, gathered where it renders); the
+    // session peaks ride along since NIGHT-engrave-6.
     let footer = build_grip_footer(
         &FooterCensus::gather(tier, &board, identity, conns, uptime, session.peaks()),
         geo,
@@ -265,16 +256,11 @@ pub(super) fn render_eagle_eyes_at(
 
     // Header row (regular purple — brand layer, NIGHT-hunt-5). The
     // rank cell is BLANK (NIGHT-boost-5: "#" retired — the digits
-    // speak for themselves); NIGHT-engrave-4: the process title
-    // SPANS the identity region — the rank cell plus its gap plus
-    // the label column — so "top process" starts at the frame's
-    // canonical text column (the same two-column gutter every
-    // footer and note line uses) instead of floating six columns
-    // off the left rail the way it did past the blank rank cell.
-    // The numeric titles stay right-aligned over their columns, and
-    // the row closes on the same two-column right gutter the data
-    // rows end on. The grid below renders purple too
-    // (NIGHT-boost-14) — one border family.
+    // speak for themselves); NIGHT-engrave-4: "top process" SPANS
+    // the identity region (rank cell plus gap plus label column) to
+    // the frame's canonical text column, the numeric titles stay
+    // right-aligned over their columns, and the grid below renders
+    // purple too (NIGHT-boost-14) — one border family.
     let table_room = footer_start.saturating_sub(lines.len());
     let show_table = !session.is_empty() && (tokens.is_empty() || !board.is_empty());
     // The table needs room for its own chrome (header + grid) plus at
@@ -308,11 +294,10 @@ pub(super) fn render_eagle_eyes_at(
         lines.push(grid_line(geo.width));
 
         // Row budget counts detail lines too (NIGHT-hunt-8): a row
-        // plus its eagle-eyes lines must fit as a unit. The budget
-        // is what remains of the height after the top chrome and the
-        // pinned footer (NIGHT-boost-1 removed --limit and the cap —
-        // the window IS the budget; NIGHT-boost-14 made the footer's
-        // claim on it explicit).
+        // plus its lines fit as a unit, within what remains after
+        // the top chrome and the pinned footer (--limit and the cap
+        // are gone, NIGHT-boost-1: the window IS the budget;
+        // NIGHT-boost-14 made the footer's claim explicit).
         let row_room = footer_start.saturating_sub(lines.len());
         let mut used = 0usize;
         let mut emitted = 0usize;
@@ -391,31 +376,42 @@ pub(super) fn render_eagle_eyes_at(
     // been quiet for a minute still shows its learned-zero baseline
     // here while the observer's table waits for traffic. Since
     // NIGHT-engrave-9 the panel opens with its own ruled separator
-    // (air, then the table's grid), skipped below separator plus
-    // header plus one verdict row; the pop loop below cuts its tail
-    // first — the table outranks it, the footer outranks everything.
+    // (air, then the table's grid). Since NIGHT-engrave-10 it DOCKS:
+    // rendered into a scratch buffer and landed flush against the
+    // pinned footer, so a tall terminal's blank slack rides between
+    // the table and the panel's separator — never between the
+    // verdict rows and the top-consumer headline they answer to
+    // (the owner's gap fix: the section keeps near the bottom).
     let panel_room = footer_start.saturating_sub(lines.len());
     let panel_filter = if tokens.is_empty() {
         None
     } else {
         Some(&ids[..])
     };
+    let mut panel: Vec<String> = Vec::new();
     render_panel(
-        lines,
+        &mut panel,
         baseline,
         identity,
         panel_filter,
         panel_room,
         geo.width,
     );
+    // The dock (NIGHT-engrave-10): pad to the panel's floor, then
+    // land the block — the pin below tops the frame off.
+    let panel_at = footer_start.saturating_sub(panel.len());
+    while lines.len() < panel_at {
+        lines.push(String::new());
+    }
+    lines.extend(panel);
 
     // ── The pin (NIGHT-boost-14) ──────────────────────────────────
     //
     // The footer lands at the bottom of the terminal, never
-    // following the table: blank padding absorbs the middle, and on
-    // the pathological over-height frame the pin outranks the lowest
-    // table rows (popped from the end — the least important ranks
-    // go first, never the footer).
+    // following the table: blank padding absorbs the middle above
+    // the docked panel, and on the pathological over-height frame
+    // the pin outranks the lowest table rows (popped from the end —
+    // the least important ranks go first, never the footer).
     while lines.len() > footer_start {
         lines.pop();
     }
@@ -482,11 +478,11 @@ fn render_eagle_row(
 }
 
 // NIGHT-boost-1: the renderer pins live under the single test/ tree
-// (cosmostrix Pattern C), #[path]-wired across trees exactly like the
-// limiter's math_tests and the diff engine's pins. One file per
-// contract when a family grows past the owner's LOC cap: the target
-// filter (engrave-6) and the display-width CJK family (lts-1) each
-// took their own.
+// (cosmostrix Pattern C), #[path]-wired like the limiter's
+// math_tests. One file per contract when a family grows past the
+// owner's LOC cap: the target filter (engrave-6), the CJK width
+// family (lts-1), and the baseline dock (engrave-10) each took
+// their own.
 #[cfg(test)]
 #[path = "../../../test/ebpf/render/eagle_tests.rs"]
 mod eagle_tests;
@@ -498,3 +494,7 @@ mod eagle_filter_tests;
 #[cfg(test)]
 #[path = "../../../test/ebpf/render/eagle_width_tests.rs"]
 mod eagle_width_tests;
+
+#[cfg(test)]
+#[path = "../../../test/ebpf/render/eagle_dock_tests.rs"]
+mod eagle_dock_tests;
