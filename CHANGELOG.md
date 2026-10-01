@@ -19,6 +19,24 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Added
 
+- **dinner-29, the no-TUI stance, written down where the word
+  "interactive" lives.** The eagle-eyes docs call the monitor
+  "INTERACTIVE" (the stdio gate's word — a live terminal for two
+  keys) and the codebase says "TUI" in a dozen places; a reader
+  could reasonably expect htop. The note now states what zelynic
+  refuses: a TUI is an interactive application — menus to walk, a
+  cursor to steer, screens inside the screen, commands to memorize
+  — and the monitor is none of that. It is a report that draws
+  itself: one ranked frame, refreshed on the interval; the whole
+  interactive surface is two keys (`q` quit, `t` theme); watching
+  is reading, not playing. Acting on what the frame shows is
+  another CLI verb in another terminal (`strict`, `block`,
+  `rates`) — the monitor shows the data, the CLI moves it, and
+  the display never becomes the game. The USAGE eagle-eyes
+  section carries the full note; PHILOSOPHY's boring-output
+  section carries the stance in short form. Docs-only change —
+  no code path touched, no benchmark run.
+
 - **engrave-9, the baseline panel gets its own ruled section under
   the ranked table.** The panel's first verdict row used to begin on
   the very line after the last table row — visually just more table

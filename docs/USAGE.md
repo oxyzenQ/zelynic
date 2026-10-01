@@ -608,6 +608,20 @@ rates and its accumulated TOTAL — no more collapsing to "waiting
 for traffic..." once traffic has been seen), with per-cgroup detail
 lines naming the processes and remote endpoints inside.
 
+**No TUI — on purpose (NIGHT-dinner-29).** A TUI is an interactive
+application: menus to walk, a cursor to steer, screens inside the
+screen, commands to memorize — an interface you operate. zelynic
+wants none of that. The live monitor is a REPORT that draws itself:
+one ranked frame, refreshed on the interval, honest at every
+refresh. The word "interactive" above means exactly one thing — the
+session needs a live terminal for its two keys (`q` quit, `t`
+theme), not an interface to play. Nothing to navigate, nothing to
+select, nothing to configure mid-session: watching is reading, not
+playing. The moment you want to ACT on what the frame shows, that
+is another command in another terminal — `strict`, `block`,
+`rates` — the monitor's job is to show the data, the CLI's job is
+to move it, and the display never becomes the game.
+
 #### The baseline lane (NIGHT-improve-1a, EAGLE EYES V2)
 
 While the monitor runs it also reads the pinned time-series rings
