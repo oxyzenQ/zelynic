@@ -107,7 +107,7 @@ fn table_rgb(theme: Theme, slot: Slot) -> (u8, u8, u8) {
 /// their own TrueColor RGB (ties legal, carbon's documented tier
 /// override the one exception — it carries its own pin below). This
 /// is the computed core of the "high accuracy" contract: hue reads
-/// true at 256 depth for all eleven palettes, machine-checked.
+/// true at 256 depth for all twelve palettes, machine-checked.
 #[test]
 fn brand_and_ok_sit_on_a_computed_nearest_cube_cell() {
     for theme in THEMES {

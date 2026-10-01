@@ -10,6 +10,10 @@
 //! server, moonlight, hacker, depth_sea — five realism-grade
 //! palettes (documented in BRANDING.md 2.2).
 //!
+//! NIGHT-dinner-30 grew it to twelve — curiosity, the owner's deep
+//! neon masterclass purple (an electric violet on the cosmostrix
+//! brand-purple format, documented in BRANDING.md 2.2).
+//!
 //! Scope: themes live INSIDE the eagle-eyes monitoring mode — the
 //! theme state is a process-global atomic NOTHING outside the
 //! monitor's key handler ever writes, so every other surface (help,
@@ -50,11 +54,8 @@
 //! Catalog order is the cycle order:
 //! netrunner (default) -> night_cyber -> forest -> spaceflight ->
 //! carbon -> atomic -> cafe -> server -> moonlight -> hacker ->
-//! depth_sea -> netrunner.
+//! depth_sea -> curiosity -> netrunner.
 
-// AtomicU32 exists only for the gated TERMINAL_BG word below.
-#[cfg(feature = "ebpf")]
-use std::sync::atomic::AtomicU32;
 use std::sync::atomic::{AtomicU8, Ordering};
 
 use super::color::{capability, ColorCapability};
@@ -89,13 +90,16 @@ pub(crate) enum Theme {
     /// Deep ocean: bioluminescent teal brand #1FBFAD, kelp green,
     /// coral heat (NIGHT-engrave-7).
     DepthSea,
+    /// Deep neon curiosity: electric violet brand #A020F0, neon
+    /// mint, golden amber, crimson heat (NIGHT-dinner-30).
+    Curiosity,
 }
 
 /// The whole catalog, in cycle order. The cycle surface is
 /// monitor-only (ebpf) plus the catalog pins (test): a build without
 /// the monitoring feature renders the default and never cycles.
 #[cfg(any(feature = "ebpf", test))]
-pub(crate) const THEMES: [Theme; 11] = [
+pub(crate) const THEMES: [Theme; 12] = [
     Theme::Netrunner,
     Theme::NightCyber,
     Theme::Forest,
@@ -107,6 +111,7 @@ pub(crate) const THEMES: [Theme; 11] = [
     Theme::Moonlight,
     Theme::Hacker,
     Theme::DepthSea,
+    Theme::Curiosity,
 ];
 
 impl Theme {
@@ -125,6 +130,7 @@ impl Theme {
             Theme::Moonlight => 8,
             Theme::Hacker => 9,
             Theme::DepthSea => 10,
+            Theme::Curiosity => 11,
         }
     }
 
@@ -145,6 +151,7 @@ impl Theme {
             Theme::Moonlight => "moonlight",
             Theme::Hacker => "hacker",
             Theme::DepthSea => "depth_sea",
+            Theme::Curiosity => "curiosity",
         }
     }
 
@@ -166,6 +173,7 @@ impl Theme {
             Theme::Moonlight => (184, 204, 232),
             Theme::Hacker => (51, 255, 51),
             Theme::DepthSea => (31, 191, 173),
+            Theme::Curiosity => (160, 32, 240),
         }
     }
 }
@@ -310,6 +318,19 @@ const fn table(theme: Theme, slot: Slot) -> SlotEncodings {
         (Theme::DepthSea, Slot::Hot) => slot!(255, 107, 107, 203, 31),
         #[cfg(any(feature = "ebpf", test))]
         (Theme::DepthSea, Slot::Grey) => slot!(126, 154, 166, 245, 90),
+        // NIGHT-dinner-30 addition — brand/ok on their NEAREST cube
+        // match (129/85, the computed contract); warn on the khaki
+        // rung 221 (the night_cyber/cafe precedent — the amber's
+        // b=66 does not earn the pure gold corner); hot on its true
+        // crimson corner 197 (nearest AND the visibility family);
+        // grey rides the uniform neutral ramp with a violet tint.
+        (Theme::Curiosity, Slot::Brand) => slot!(160, 32, 240, 129, 95),
+        (Theme::Curiosity, Slot::Ok) => slot!(61, 255, 160, 85, 32),
+        (Theme::Curiosity, Slot::Warn) => slot!(255, 196, 66, 221, 33),
+        #[cfg(any(feature = "ebpf", test))]
+        (Theme::Curiosity, Slot::Hot) => slot!(255, 42, 85, 197, 91),
+        #[cfg(any(feature = "ebpf", test))]
+        (Theme::Curiosity, Slot::Grey) => slot!(148, 132, 168, 245, 90),
     }
 }
 
@@ -331,6 +352,7 @@ pub(crate) fn active() -> Theme {
         8 => Theme::Moonlight,
         9 => Theme::Hacker,
         10 => Theme::DepthSea,
+        11 => Theme::Curiosity,
         _ => Theme::Netrunner,
     }
 }
@@ -389,103 +411,6 @@ pub(crate) fn escape_for(
 /// capability — the one entry point the color layer's builders call.
 pub(crate) fn escape(slot: Slot, bold: bool) -> &'static str {
     escape_for(active(), slot, bold, capability())
-}
-
-// ── The terminal-following background (NIGHT-boost-26, live since
-// NIGHT-boost-32) ──────────────────────────────────────────────────────────
-//
-// Owner contract: the frame's BACKGROUND follows the terminal, not
-// the builtin themes — a grey-themed terminal renders a grey frame,
-// grid/data/info keeping the FOREGROUND slots above. The value comes
-// from the OSC 11 query (open path + the live ask's cadence), so a
-// mid-session change is followed within one ask, never frozen at
-// the open-time color (the boost-32 regression). Unpainted depths
-// (Color16, Mono) and a silent terminal paint no background escape.
-
-/// The queried background (NIGHT-boost-26, live since 32): one
-/// atomic word — bit 31 the present flag, bits 23..0 `0xRRGGBB`,
-/// lock-free live updates, `0` the honest no-answer default.
-///
-/// Gated behind the `ebpf` feature (NIGHT-boost-34, the dead-code
-/// wall: the callers live in the ebpf tree, this module compiles
-/// unconditionally, and a default-feature build saw the block as
-/// dead code that CI's `-D warnings` reddened — green locally only
-/// because the local gate runs without that flag). The pure packing
-/// cores below stay `cfg(test)` so every lane keeps the pins.
-#[cfg(feature = "ebpf")]
-static TERMINAL_BG: AtomicU32 = AtomicU32::new(0);
-
-/// Record the queried terminal background; the return IS the
-/// change verdict (the monitor loop forces the repaint on it).
-#[cfg(feature = "ebpf")]
-pub(crate) fn set_terminal_bg(bg: Option<(u8, u8, u8)>) -> bool {
-    let packed = pack_bg(bg);
-    TERMINAL_BG.swap(packed, Ordering::AcqRel) != packed
-}
-
-/// The queried terminal background, when a paint-capable depth and
-/// an answering terminal agree.
-#[cfg(feature = "ebpf")]
-pub(crate) fn terminal_bg() -> Option<(u8, u8, u8)> {
-    terminal_bg_at(unpack_bg(TERMINAL_BG.load(Ordering::Acquire)), capability())
-}
-
-/// Pack one background triple for the atomic word: bit 31 present,
-/// bits 23..0 `0xRRGGBB`. Pure — pinned.
-#[cfg(any(test, feature = "ebpf"))]
-fn pack_bg(bg: Option<(u8, u8, u8)>) -> u32 {
-    match bg {
-        Some((r, g, b)) => 0x8000_0000 | (u32::from(r) << 16) | (u32::from(g) << 8) | u32::from(b),
-        None => 0,
-    }
-}
-
-/// Unpack the atomic word (None when the present flag is clear).
-#[cfg(any(test, feature = "ebpf"))]
-fn unpack_bg(packed: u32) -> Option<(u8, u8, u8)> {
-    if packed & 0x8000_0000 == 0 {
-        return None;
-    }
-    let v = packed & 0x00FF_FFFF;
-    Some(((v >> 16) as u8, (v >> 8) as u8, v as u8))
-}
-
-/// Pure core of [`terminal_bg`] (the emit/emit_at discipline): the
-/// triple survives only at paint-capable depths; shallow tiers
-/// render the terminal default, the honest background there.
-#[cfg(any(test, feature = "ebpf"))]
-fn terminal_bg_at(stored: Option<(u8, u8, u8)>, cap: ColorCapability) -> Option<(u8, u8, u8)> {
-    match cap {
-        ColorCapability::TrueColor | ColorCapability::Color256 => stored,
-        ColorCapability::Color16 | ColorCapability::Mono => None,
-    }
-}
-
-/// The background escape the frame's rows open with (NIGHT-boost-26):
-/// TrueColor paints the exact triple, Color256 quantizes onto the
-/// 6x6x6 cube (the rails' nearest-match); shallow depths paint
-/// nothing — a 16-color slot cannot represent an arbitrary grey.
-#[cfg(feature = "ebpf")]
-pub(crate) fn terminal_bg_escape() -> String {
-    terminal_bg_escape_at(terminal_bg(), capability())
-}
-
-/// Pure core of [`terminal_bg_escape`] (the emit/emit_at discipline):
-/// the escape for one triple at one depth, pinned without touching
-/// the process-global caches.
-#[cfg(any(test, feature = "ebpf"))]
-fn terminal_bg_escape_at(bg: Option<(u8, u8, u8)>, cap: ColorCapability) -> String {
-    match bg {
-        Some((r, g, b)) => match cap {
-            ColorCapability::TrueColor => format!("\x1b[48;2;{r};{g};{b}m"),
-            ColorCapability::Color256 => {
-                let q = |c: u8| (usize::from(c) * 6 / 256).min(5);
-                format!("\x1b[48;5;{}m", 16 + 36 * q(r) + 6 * q(g) + q(b))
-            }
-            _ => String::new(),
-        },
-        None => String::new(),
-    }
 }
 
 // Theme pins live under the single test/ tree (cosmostrix Pattern

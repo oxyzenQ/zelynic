@@ -1007,10 +1007,11 @@ forces the legacy depth for the whole process.
 Theme cycling (NIGHT-boost-18, improve-27): `t` cycles the frame's
 palette forward (the uppercase `T` twin was retired by
 NIGHT-engrave-2 — one simple key, modulo wraparound at the catalog
-edge) — eleven themes in total (`netrunner` the default, then
-`night_cyber`, `forest`, `spaceflight`, `carbon`, `atomic`, and the
+edge) — twelve themes in total (`netrunner` the default, then
+`night_cyber`, `forest`, `spaceflight`, `carbon`, `atomic`, the
 NIGHT-engrave-7 frontier five: `cafe`, `server`, `moonlight`,
-`hacker`, `depth_sea`), the
+`hacker`, `depth_sea`, and the NIGHT-dinner-30 deep neon
+masterclass purple `curiosity`), the
 cosmostrix cycle contract. A theme change repaints within the same
 50ms wake and the footer's status line names the active theme
 (`1s realtime - theme atomic - q quit - t theme`, NIGHT-engrave-2's

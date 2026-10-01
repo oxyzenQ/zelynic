@@ -215,7 +215,7 @@ answer (or the shallow 16-color/Mono depths) render exactly as
 before: no background escape, the terminal's own default showing
 through.
 
-The eagle-eyes monitor cycles eleven palettes with `t` (forward,
+The eagle-eyes monitor cycles twelve palettes with `t` (forward,
 modulo wraparound — the uppercase `T` twin was retired by
 NIGHT-engrave-2 at the owner's "better only simple 't'" call).
 Themes are SCOPED to the live monitor: nothing outside the
@@ -241,6 +241,7 @@ Cycle order and palettes (source of truth:
 | 9 | `moonlight` | `#B8CCE8` | `#9FD8B5` | `#E8D48B` | `#D98A8A` | `#A6B0C2` |
 | 10 | `hacker` | `#33FF33` | `#00E5A8` | `#FFE14D` | `#FF4757` | `#8FA88F` |
 | 11 | `depth_sea` | `#1FBFAD` | `#5FD78A` | `#E8C56A` | `#FF6B6B` | `#7E9AA6` |
+| 12 | `curiosity` | `#A020F0` | `#3DFFA0` | `#FFC442` | `#FF2A55` | `#9484A8` |
 
 The NIGHT-engrave-7 frontier five (the owner's realism mandate —
 scene-accurate, not toy): `cafe` is the warm coffee-house (roasted
@@ -266,6 +267,20 @@ and the 16-color picks keep the pairwise-distinct contract with the
 brand on a bright slot where the identity must outrank data (cafe
 93, server 94, moonlight 94, hacker 92; depth_sea's cyan needs no
 bright escape — its ok is green, no collision).
+
+NIGHT-dinner-30 grew the catalog to twelve: `curiosity`, the
+owner's deep neon masterclass purple — an electric violet brand
+`#A020F0` (deeper and more blue-core than netrunner's orchid, the
+same cosmostrix brand-purple format), neon mint status, golden
+amber warn, neon crimson heat, violet-tinted grey subordinates.
+Its 256-depth fallbacks follow the same computed contract:
+brand/ok on the NEAREST xterm cube match (129/85), warn on the
+khaki rung 221 (the night_cyber/cafe precedent — the amber's blue
+channel does not earn the pure gold corner), hot on its true
+crimson corner 197 (nearest and the visibility family), grey on
+the uniform 245/90 ramp; the 16-color brand takes bright magenta
+95 so the frame's identity stays a tier above the data on legacy
+terminals.
 
 Each slot of every theme carries all three capability encodings
 (TrueColor RGB, xterm-256 index, 16-color SGR) plus their bold

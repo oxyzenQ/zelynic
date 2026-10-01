@@ -12,10 +12,7 @@
 //! CI dead-code fix: their only other callers sit behind the ebpf
 //! feature).
 
-use super::{
-    active, cycle_from, escape_for, pack_bg, set, terminal_bg_at, terminal_bg_escape_at, unpack_bg,
-    Slot, Theme, THEMES,
-};
+use super::{active, cycle_from, escape_for, set, Slot, Theme, THEMES};
 use crate::output::color::ColorCapability;
 
 /// The netrunner regression row: every cell of the default table is
@@ -109,7 +106,8 @@ fn netrunner_default_is_byte_identical_to_the_pre_theme_constants() {
 /// forward with wraparound; the pure math keeps both directions
 /// (NIGHT-engrave-2 retired the `T` key, not the wraparound).
 /// NIGHT-engrave-7 grew the lap to eleven — the five new palettes
-/// (cafe, server, moonlight, hacker, depth_sea) close the ring.
+/// (cafe, server, moonlight, hacker, depth_sea); NIGHT-dinner-30
+/// grew it to twelve — curiosity closes the ring.
 #[test]
 fn cycle_wraps_in_both_directions() {
     // Forward walk over the whole catalog, wrapping to the default.
@@ -123,29 +121,31 @@ fn cycle_wraps_in_both_directions() {
     assert_eq!(cycle_from(Theme::Server, 1), Theme::Moonlight);
     assert_eq!(cycle_from(Theme::Moonlight, 1), Theme::Hacker);
     assert_eq!(cycle_from(Theme::Hacker, 1), Theme::DepthSea);
+    assert_eq!(cycle_from(Theme::DepthSea, 1), Theme::Curiosity);
     assert_eq!(
-        cycle_from(Theme::DepthSea, 1),
+        cycle_from(Theme::Curiosity, 1),
         Theme::Netrunner,
         "forward wraps"
     );
     // Reverse walk: pinned math, unbound key (engrave-2).
     assert_eq!(
         cycle_from(Theme::Netrunner, -1),
-        Theme::DepthSea,
+        Theme::Curiosity,
         "reverse wraps"
     );
     assert_eq!(cycle_from(Theme::NightCyber, -1), Theme::Netrunner);
     assert_eq!(cycle_from(Theme::Atomic, -1), Theme::Carbon);
     assert_eq!(cycle_from(Theme::Cafe, -1), Theme::Atomic);
     assert_eq!(cycle_from(Theme::DepthSea, -1), Theme::Hacker);
+    assert_eq!(cycle_from(Theme::Curiosity, -1), Theme::DepthSea);
     // Multi-step and the modulo math hold for larger jumps.
     assert_eq!(
-        cycle_from(Theme::Netrunner, 11),
+        cycle_from(Theme::Netrunner, 12),
         Theme::Netrunner,
         "full lap"
     );
-    assert_eq!(cycle_from(Theme::Netrunner, 12), Theme::NightCyber);
-    assert_eq!(cycle_from(Theme::Netrunner, -12), Theme::DepthSea);
+    assert_eq!(cycle_from(Theme::Netrunner, 13), Theme::NightCyber);
+    assert_eq!(cycle_from(Theme::Netrunner, -13), Theme::Curiosity);
 }
 
 /// Integrity walk: every theme x slot x capability produces a valid
@@ -218,14 +218,14 @@ fn global_state_round_trips_and_restores() {
     assert_eq!(active(), Theme::Cafe);
     assert_eq!(super::cycle(-1), Theme::Atomic);
     assert_eq!(active(), Theme::Atomic);
-    // The catalog's wraparound (engrave-7's eleven-wide ring): the
+    // The catalog's wraparound (dinner-30's twelve-wide ring: the
     // last theme steps forward into the default, and the default
-    // steps back into the last.
-    set(Theme::DepthSea);
+    // steps back into the last).
+    set(Theme::Curiosity);
     assert_eq!(super::cycle(1), Theme::Netrunner, "forward wraps");
     assert_eq!(active(), Theme::Netrunner);
-    assert_eq!(super::cycle(-1), Theme::DepthSea, "reverse wraps");
-    assert_eq!(active(), Theme::DepthSea);
+    assert_eq!(super::cycle(-1), Theme::Curiosity, "reverse wraps");
+    assert_eq!(active(), Theme::Curiosity);
 }
 
 /// The catalog's public face, pinned against BRANDING.md 2.2: every
@@ -239,10 +239,11 @@ fn global_state_round_trips_and_restores() {
 /// featureless test build after engrave-2 retired the title-suffix
 /// pin; a test-only gap, the shipped binary was never wrong).
 /// NIGHT-engrave-7: the catalog grew to eleven (the owner's frontier
-/// five: cafe, server, moonlight, hacker, depth_sea).
+/// five: cafe, server, moonlight, hacker, depth_sea); NIGHT-dinner-30
+/// grew it to twelve (curiosity, the deep neon masterclass purple).
 #[test]
 fn catalog_names_and_brand_rgbs_match_the_branding_docs() {
-    let pinned: [(Theme, &str, (u8, u8, u8)); 11] = [
+    let pinned: [(Theme, &str, (u8, u8, u8)); 12] = [
         (Theme::Netrunner, "netrunner", (168, 85, 247)),
         (Theme::NightCyber, "night_cyber", (0, 229, 255)),
         (Theme::Forest, "forest", (124, 179, 66)),
@@ -254,6 +255,7 @@ fn catalog_names_and_brand_rgbs_match_the_branding_docs() {
         (Theme::Moonlight, "moonlight", (184, 204, 232)),
         (Theme::Hacker, "hacker", (51, 255, 51)),
         (Theme::DepthSea, "depth_sea", (31, 191, 173)),
+        (Theme::Curiosity, "curiosity", (160, 32, 240)),
     ];
     assert_eq!(
         THEMES.len(),
@@ -429,71 +431,4 @@ fn engrave7_frontier_five_follow_the_fallback_contract() {
     assert_eq!(sgr16(Theme::Moonlight, Slot::Brand), "\x1b[94m");
     assert_eq!(sgr16(Theme::Hacker, Slot::Brand), "\x1b[92m");
     assert_eq!(sgr16(Theme::DepthSea, Slot::Brand), "\x1b[36m");
-}
-
-// ── The terminal-following background (NIGHT-boost-26) ────────────────────
-
-/// The pure escape cores: TrueColor paints the exact OSC 11 triple;
-/// Color256 quantizes onto the 6x6x6 cube (46,46,46 -> 59, the same
-/// nearest-match arithmetic the rails ride); the shallow depths and
-/// the absent triple paint NOTHING — the terminal default is the
-/// honest background there, never an invented hue.
-#[test]
-fn terminal_bg_escape_shapes_by_depth() {
-    let grey = Some((46, 46, 46));
-    assert_eq!(
-        terminal_bg_escape_at(grey, ColorCapability::TrueColor),
-        "\x1b[48;2;46;46;46m"
-    );
-    assert_eq!(
-        terminal_bg_escape_at(grey, ColorCapability::Color256),
-        "\x1b[48;5;59m"
-    );
-    assert_eq!(
-        terminal_bg_escape_at(grey, ColorCapability::Color16),
-        String::new()
-    );
-    assert_eq!(
-        terminal_bg_escape_at(grey, ColorCapability::Mono),
-        String::new()
-    );
-    assert_eq!(
-        terminal_bg_escape_at(None, ColorCapability::TrueColor),
-        String::new()
-    );
-}
-
-/// The stored triple survives only at the paint-capable depths
-/// (the pure filter core): a Color16/Mono frame never paints a
-/// background whatever the query answered.
-#[test]
-fn terminal_bg_survives_only_at_paintable_depths() {
-    let grey = Some((46, 46, 46));
-    assert_eq!(terminal_bg_at(grey, ColorCapability::TrueColor), grey);
-    assert_eq!(terminal_bg_at(grey, ColorCapability::Color256), grey);
-    assert_eq!(terminal_bg_at(grey, ColorCapability::Color16), None);
-    assert_eq!(terminal_bg_at(grey, ColorCapability::Mono), None);
-    assert_eq!(terminal_bg_at(None, ColorCapability::TrueColor), None);
-}
-
-// ── The live background word (NIGHT-boost-32) ──────────────────────────────
-
-/// The atomic word's packing round-trips every triple, and the
-/// absent triple is the distinct word 0 — the live ask's updates
-/// and the compositor's reads agree on one representation.
-#[test]
-fn bg_word_packing_round_trips() {
-    assert_eq!(pack_bg(None), 0);
-    assert_eq!(unpack_bg(0), None);
-    for (r, g, b) in [(46, 46, 46), (255, 0, 0), (0, 128, 255), (1, 2, 3)] {
-        let triple = Some((r, g, b));
-        assert_eq!(unpack_bg(pack_bg(triple)), triple);
-    }
-    // Distinct triples pack to distinct words (a change verdict can
-    // never collide), and the present flag never leaks into the
-    // payload bits.
-    let a = pack_bg(Some((0, 0, 46)));
-    let b = pack_bg(Some((0, 0, 47)));
-    assert_ne!(a, b);
-    assert_eq!(a & 0x00FF_FFFF, 46);
 }

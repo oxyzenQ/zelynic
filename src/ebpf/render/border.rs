@@ -58,6 +58,7 @@
 //! engine like every other painted line.
 
 use super::FrameGeometry;
+use crate::output::terminal_bg;
 use crate::output::theme::{self, Theme};
 use crate::output::{capability, ColorCapability};
 
@@ -286,7 +287,7 @@ pub(super) fn wrap(lines: &mut Vec<String>, width: usize) {
     // would kill it mid-row, so each one re-opens the background
     // right after; the row's own trailing RESET then closes
     // everything the row opened.
-    let bg = theme::terminal_bg_escape();
+    let bg = terminal_bg::terminal_bg_escape();
     // Row 0 (the title bar) passes through the flank loop below
     // untouched — it carries the top border. The inset column and
     // the background still belong to it: the space leads
