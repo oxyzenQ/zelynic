@@ -313,24 +313,11 @@ pub(crate) fn run_enforcement_probe(
     kill_and_reap(&mut server, srv_placed.then_some(srv_dir.as_path()));
     kill_and_reap(&mut client, Some(client_dir.as_path()));
 
-    // Ledger close + verdict.
-    let ledger_delta = match ledger_allowed(limiter, target_id) {
-        Ok(close) => close.wrapping_sub(baseline),
-        Err(e) => {
-            return ProbeOutcome {
-                verdict: ProbeVerdict::Unverified,
-                direction,
-                rate_bps,
-                burst_bytes: burst,
-                window_secs: PROBE_SECS,
-                client_bytes,
-                ledger_bytes: 0,
-                note: Some(format!("ledger close read failed: {e}")),
-                per_socket,
-                teardown: false,
-            };
-        }
-    };
+    // Ledger close (the cross-check) + verdict. NIGHT-repair-1: a
+    // dead ledger read no longer returns early — the belt below may
+    // be the answer to WHY it died (the pinned maps themselves can
+    // be gone); it degrades the verdict and rides its own note.
+    let ledger_close = ledger_allowed(limiter, target_id);
     let mut outcome = ProbeOutcome {
         verdict: probe_verdict(rate_bps, burst, PROBE_SECS, client_bytes),
         direction,
@@ -338,21 +325,33 @@ pub(crate) fn run_enforcement_probe(
         burst_bytes: burst,
         window_secs: PROBE_SECS,
         client_bytes,
-        ledger_bytes: ledger_delta,
-        note: None,
+        ledger_bytes: ledger_close
+            .map(|close| close.wrapping_sub(baseline))
+            .unwrap_or(0),
+        note: ledger_close
+            .err()
+            .map(|e| format!("ledger close read failed: {e}")),
         per_socket,
         teardown: false,
     };
+    // The old close-error contract holds where the lane stands: a
+    // dead cross-check never gifts a Verified verdict.
+    if ledger_close.is_err() && outcome.verdict == ProbeVerdict::Verified {
+        outcome.verdict = ProbeVerdict::Unverified;
+    }
     // The concurrent-traffic note: the ledger counts the target's
     // OWN traffic too; a ledger far above the client's bytes means a
     // shared window (still valid — the ceiling is the client's own).
-    let gap = ledger_delta.saturating_sub(client_bytes);
-    if gap > client_bytes.saturating_mul(3) / 2 + CEILING_SLACK_BYTES {
-        outcome.note = Some(
-            "the target had concurrent traffic during the window (the kernel \
-             ledger counts it beside the probe's own flow)"
-                .to_string(),
-        );
+    if let Ok(close) = ledger_close {
+        let ledger_delta = close.wrapping_sub(baseline);
+        let gap = ledger_delta.saturating_sub(client_bytes);
+        if gap > client_bytes.saturating_mul(3) / 2 + CEILING_SLACK_BYTES {
+            outcome.note = Some(
+                "the target had concurrent traffic during the window (the kernel \
+                 ledger counts it beside the probe's own flow)"
+                    .to_string(),
+            );
+        }
     }
     // The multi-cgroup note: a name that resolved to several cgroups
     // got an INDIVIDUAL bucket each (group_id 0) — the probe measured
@@ -376,8 +375,9 @@ pub(crate) fn run_enforcement_probe(
     // the mid-window removal, a changed rate a mid-window re-apply —
     // either one breaks the budget the bytes were measured against).
     // A Failed verdict keeps its own measured evidence; only a
-    // Verified verdict stands on the premise, so an unreadable close
-    // read downgrades it, never a guess.
+    // Verified verdict stands on the premise. An unreadable close
+    // read downgrades it — unless the pins died with it, in which
+    // case the lane itself was torn down (the Err arm below).
     match policy_still_stands(limiter, target_id, direction, rate_bps) {
         Ok(true) => {}
         Ok(false) => {
@@ -390,7 +390,21 @@ pub(crate) fn run_enforcement_probe(
             );
         }
         Err(close) => {
-            if outcome.verdict == ProbeVerdict::Verified {
+            // The belt's own read died. When the pins themselves are
+            // gone the lane was torn down mid-window (only
+            // unstrict-all / recover removes them) — the teardown
+            // verdict with the lane's own note; with the pins
+            // standing it is a read glitch, and only a Verified
+            // verdict steps down to Unverified (never a guess).
+            if !Limiter::is_pinned() {
+                outcome.verdict = ProbeVerdict::Failed;
+                outcome.teardown = true;
+                outcome.note = Some(format!(
+                    "the policy lane was torn down mid-window (the pinned maps \
+                     are gone — a concurrent unstrict-all or recover?); the \
+                     ledger cross-check died with it: {close}"
+                ));
+            } else if outcome.verdict == ProbeVerdict::Verified {
                 outcome.verdict = ProbeVerdict::Unverified;
                 outcome.note = Some(format!("policy close read failed: {close}"));
             }
