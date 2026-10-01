@@ -376,15 +376,20 @@ fn try_draw(
     // Owned the draw: move the take pool -> leaf through the
     // sufficiency-verified CAS, written out (not looped) for the
     // same verifier posture try_consume carries — two attempts,
-    // each against its own fresh read. The take is the learned-share
-    // cap (dinner-28) further capped by the epoch room (repair-3);
-    // the residue law still binds inside both.
+    // each against its own fresh read. The take is the two-lane law
+    // (repair-7): the ENGAGED lane (drawees >= 2) draws the residue
+    // law bounded by the epoch room — the room owns the epoch
+    // split, the fraction's old job, and a catch-up drawer banks
+    // its GSO admit floor off the unclaimed residue instead of a
+    // fraction that never reaches it; the OFF lane (a lone drawer,
+    // a cold pool, a miss) keeps the v16 learned-share law verbatim
+    // — the fail-open posture, and the lone leaf's whole-budget
+    // row rides it.
     let quantum = drr::quantum(pol.rate_bps);
     macro_rules! draw_attempt {
         () => {{
             let observed = tokens_read(pool);
-            let fair_take = drr::fair_draw_size(quantum, observed, learned);
-            let d = if fair_take < room { fair_take } else { room };
+            let d = drr::take_size(quantum, observed, learned, allowance, room);
             if d > 0 && tokens_cas(pool, observed, observed - d) {
                 // The pool paid; the credit rides the atomic add —
                 // the pair can only under-deliver, never over-deliver.

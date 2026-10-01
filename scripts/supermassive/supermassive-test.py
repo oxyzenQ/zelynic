@@ -3028,6 +3028,21 @@ def test_ammsp_fairshare(window, baseline):
         # 64 KiB GSO admit floor (the same constants drr.rs pins).
         return max(rate_bps // 10, 65_536)
 
+    def root_ledger():
+        """The root's cumulative enforcement counters (repair-7's
+        single-round diagnostic): arrivals vs admits across a round
+        — a sender-side TCP freeze reads arrivals in the tens, a
+        datapath starvation reads thousands of arrivals against a
+        handful of admits. Advisory only (SKIP verdict), one read
+        per round."""
+        entry = limit_entry(status_json(), CG.ids["a"]) or {}
+        return (
+            entry.get("packets_allowed", 0),
+            entry.get("packets_dropped", 0),
+            entry.get("bytes_allowed", 0),
+            entry.get("bytes_dropped", 0),
+        )
+
     def verdict_round(label, rate, rate_str, leaves, stagger=0.0, per_leaf=True):
         """One round: (re-)apply the round's own rate, pay the fresh
         pool's cushion out at line rate, run `leaves` fresh leaf
@@ -3042,6 +3057,10 @@ def test_ammsp_fairshare(window, baseline):
             record(f"ammsp fair-share: {label} apply", "FAIL", payload)
             return False
         leaf_bytes(CG.paths["a"], 0.5)  # the cushion drain
+        # The diagnostic baseline AFTER the drain: the span is
+        # exactly the measured window (the enforcement_proofs
+        # precedent — the drain never enters either side).
+        ledger_before = root_ledger()
 
         paths = []
         for i in range(leaves):
@@ -3073,6 +3092,27 @@ def test_ammsp_fairshare(window, baseline):
 
         span = window + stagger
         total = sum(results)
+        # The diagnostic (repair-7): the round's arrivals vs admits
+        # at the root's ledger. Advisory (SKIP) — evidence for the
+        # single round's best-specs collapse, never a verdict.
+        try:
+            pa, pd, ba, bd = root_ledger()
+            dp = pa - ledger_before[0]
+            dd = pd - ledger_before[1]
+            dba = ba - ledger_before[2]
+            dbd = bd - ledger_before[3]
+            record(
+                f"ammsp fair-share: {label} round ledger (repair-7 diagnostic)",
+                "SKIP",
+                f"arrivals {dp + dd} pkts (admitted {dp}, dropped {dd}); "
+                f"bytes admitted {dba} vs dropped {dbd}; client total {total:.0f} B",
+            )
+        except Exception as exc:  # noqa: BLE001 — diagnostic only
+            record(
+                f"ammsp fair-share: {label} round ledger (repair-7 diagnostic)",
+                "SKIP",
+                f"ledger read failed: {exc}",
+            )
         fair = total / leaves
         ok = band_check(
             f"ammsp fair-share: {label} aggregate stays inside the policy",

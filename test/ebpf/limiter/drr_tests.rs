@@ -288,3 +288,9 @@ mod drr_share_tests;
 // that closes them. Same child-module wiring, same single core copy.
 #[path = "drr_ledger_tests.rs"]
 mod drr_ledger_tests;
+
+// repair-7: the two-lane take law — the engaged lane's catch-up
+// close (the fraction cap retires where the ledger room already
+// owns the split), the off lane verbatim. Same child wiring.
+#[path = "drr_take_tests.rs"]
+mod drr_take_tests;

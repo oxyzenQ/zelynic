@@ -369,6 +369,56 @@ pub const fn fair_draw_size(quantum: u64, pool_tokens: u64, learned: u16) -> u64
     }
 }
 
+/// The draw take law, one take two lanes (repair-7, the catch-up
+/// drawer's close): the ENGAGED lane (allowance != u64::MAX — the
+/// drawee peak >= 2) draws the residue law bounded by its ledger
+/// ROOM; the OFF lane (a lone drawer, a cold pool, a missed state
+/// lookup) keeps the v16 learned-share fraction verbatim.
+///
+/// WHY THE FRACTION RETIRES FROM THE ENGAGED LANE: it splits the
+/// current refill per take — a bound the ledger's per-EPOCH room
+/// already owns — and its arithmetic starves exactly the catch-up
+/// drawer. A leaf asking after N silent epochs faces a pool holding
+/// the UNCLAIMED residue (the fast drawers are room-blocked), yet
+/// its take is pool/(K+2), a fraction that reaches the 64 KiB GSO
+/// admit floor only when the pool holds (K+2) x 64 KiB — 1.7 MB at
+/// K=24, against a residue that accumulates at refill/K per epoch
+/// (under 0.7 MB across a 4 s window). The starved leaf banks under
+/// one admit forever: the live battery's 78 B quietest (best-specs,
+/// every v17 run) is this arithmetic. Under the repair-7 law the
+/// same draw takes pool/2 bounded by the room — the leaf's OWN
+/// earned right (the carry plus the elapsed allowances, capped at
+/// the quantum) — banks the admit, and its TCP heals on it. The
+/// monopoly bound never moves: a hot drawer's take is the room
+/// (its per-epoch allowance), the same edge v17 held; the pool
+/// keeps half for the next asker; the pool CAS keeps the budget.
+#[inline(always)]
+pub const fn take_size(
+    quantum: u64,
+    pool_tokens: u64,
+    learned: u16,
+    allowance: u64,
+    room: u64,
+) -> u64 {
+    // The tail-statement naming is the fair_draw_size lesson's own
+    // discipline, once more: this if-else in tail position is the
+    // exact shape the two trees' rustfmt disagree on when its
+    // one-line form fits the nightly's single-line cap (the stable
+    // expands, the nightly collapses) — these names run the
+    // one-line form past the cap, so both trees keep it expanded
+    // (and clippy's let_and_return stays quiet: the direct return).
+    let take_under_the_lane_law = if allowance != u64::MAX {
+        draw_size(quantum, pool_tokens)
+    } else {
+        fair_draw_size(quantum, pool_tokens, learned)
+    };
+    if take_under_the_lane_law < room {
+        take_under_the_lane_law
+    } else {
+        room
+    }
+}
+
 // ── The epoch ledger (repair-3/4, v17) ────────────────────────────────
 //
 // THE FIND, live on every CI leg (the improve-1b battery's red era):

@@ -19,6 +19,52 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Fixed
 
+- **repair-7, the catch-up drawer's close — the engaged lane drops
+  the fraction the ledger already replaced.** The best-specs
+  fair-share battery's two red rows, one mechanism: the many24
+  no-starve row read a quietest leaf of 78 B (gnu) / 65,614 B (musl
+  — one GSO admit plus the headers) against a fair/4 floor of
+  ~172 KB on every v17 run, while the worst leaf and the aggregate
+  stayed green — only the distribution broken, broken exactly where
+  the v16 learned-share fraction still binds inside the v17 ledger.
+  A catch-up drawer's take is pool/(K+2): a fraction that reaches
+  the 64 KiB GSO admit floor only when the pool holds (K+2) x
+  64 KiB — 1.7 MB at K=24, against an unclaimed residue that
+  accumulates at refill/K per epoch (under 0.7 MB across the whole
+  4 s window: the fast drawers are room-blocked, only the starved
+  leaf's own share is left to accumulate). The starved leaf banks
+  under one admit forever, its TCP never heals, and the row reads
+  one admit or none. The take law is now two lanes (drr::take_size,
+  pinned rootlessly in the new drr_take_tests tree): the ENGAGED
+  lane (drawee peak >= 2) draws the residue law bounded by its
+  ledger ROOM — the room owns the epoch split the fraction used to
+  carry, so a catch-up drawer banks its admit floor off the
+  unclaimed residue in one take, while a hot drawer's take is still
+  the room (its per-epoch allowance, the monopoly bound's own
+  number — that edge never moves); the OFF lane (a lone drawer, a
+  cold pool, a state-map miss) keeps the v16 fraction verbatim —
+  the fail-open posture and the single-active whole-budget row ride
+  it unchanged. The find's own arithmetic is the pin: the fraction
+  takes under the admit floor off the exact residue the CI round
+  leaves, the engaged law clears it. The single round's best-specs
+  collapse (7.6% / 10.0% of policy, low-specs 97.5%, v16 109.8% on
+  the same leg — not the take law, which cannot throttle a lone
+  re-drawing leaf at any fraction) stays under investigation with a
+  new advisory row: every fair-share round now records its kernel
+  ledger delta (arrivals vs admits vs drops at the root's counters,
+  read after the cushion drain, SKIP verdict — evidence, never a
+  judge) so the next run on a best-specs runner distinguishes a
+  sender-side TCP freeze from a datapath starvation at a glance.
+  Verified: full bin suite 638/0 (the take-law pins are the 36th,
+  37th, 38th rows in the DRR family; the ledger battery's sim now
+  models the engaged lane's residue law and every battery band
+  still holds at K=6, K=24, the lone-leaf edge, the churn shape,
+  and the handoff), both trees' rustfmt agree (the tail-statement
+  naming discipline, the fair_draw_size lesson, held the line), the
+  ebpf object builds clean with zero undefined GLOBAL symbols, the
+  prebuilt lane refreshed and in parity, the battery parses under
+  the 3.10 grammar, build.sh check-all -q green, gate-keepers 22/0.
+
 - **repair-6, the cross-round handoff — a mutated budget must start
   fresh.** The generation-keyed state maps: the repair-5 run closed
   equal6 entirely (aggregate 95.0%, worst 1.14x fair, quietest 2.5x

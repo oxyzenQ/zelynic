@@ -32,8 +32,8 @@
 //! judged by the battery's own numbers.
 
 use super::ebpf_drr::{
-    epoch_allowance, fair_draw_size, ledger_note, ledger_room, pool_share_last, pool_share_note,
-    pool_share_peak, quantum, share_epoch_ns,
+    draw_size, epoch_allowance, fair_draw_size, ledger_note, ledger_room, pool_share_last,
+    pool_share_note, pool_share_peak, quantum, share_epoch_ns,
 };
 // The math copy rides drr_tests' parent inclusion (the duplicate-mod
 // law), reached through the limiter mod where math_tests lives.
@@ -145,14 +145,18 @@ fn v17_cfg(carry: bool) -> SimConfig {
     }
 }
 
-/// The v16 law as a take law (the per-take learned cap).
+/// The v16 law as a take law — also the OFF lane's law under
+/// repair-7 (a lone drawer, a cold pool, a miss: the fraction, verbatim).
 fn v16_law(q: u64, pool: u64, learned: u16) -> u64 {
     fair_draw_size(q, pool, learned)
 }
 
-/// The v17 law: the same take law — the ledger caps the room around it.
-fn v17_law(q: u64, pool: u64, learned: u16) -> u64 {
-    fair_draw_size(q, pool, learned)
+/// The v17 law under repair-7: the ENGAGED lane's residue law — the
+/// sim's room machinery caps it, the datapath's take_size posture
+/// (the room owns the epoch split; a catch-up drawer banks its
+/// admit floor instead of a starving fraction).
+fn v17_law(q: u64, pool: u64, _learned: u16) -> u64 {
+    draw_size(q, pool)
 }
 
 /// The kernel-shaped run: K leaves, one pool at `rate`, `secs` of
