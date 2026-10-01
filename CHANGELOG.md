@@ -19,6 +19,29 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Added
 
+- **engrave-9, the baseline panel gets its own ruled section under
+  the ranked table.** The panel's first verdict row used to begin on
+  the very line after the last table row — visually just more table
+  rows, a ranking the lane does not own (the table ranks session
+  bytes; the panel lists per-policy roots — two different axes
+  sharing one column block). The panel now opens with one blank
+  line of air and the same brand grid the table's header closes on
+  (drawn at the content width, so the two rules span the same
+  columns), then its grey `baseline · policy aggregate (8s ring)`
+  header. The room budget moved with the opener: the panel's floor
+  is separator plus header plus one verdict row (skipped below
+  that — a header with nothing under it is noise; a truncating
+  panel still holds one row back for the honest `+N more hidden`
+  note), and the pinned footer's pop loop still cuts the panel's
+  tail first. `render_panel` takes the width it draws the rule at
+  (the call passes the content geo's width); the skip floor folded
+  into the `usable` computation, which subsumes the old
+  empty-rows and two-row checks. Pinned in baseline_render_tests
+  (the air/grid/header order at the passed width, the trim at the
+  moved budget, the skip below the new floor, the absent lane);
+  the eagle frame pins are untouched — their lanes render an empty
+  lens, so no existing frame pin moves.
+
 - **dinner-28, the learned-share draw (schema v16) — the DRR
   fair-share fix the live battery forced.** The residue law
   (draw = min(quantum, pool/2)) splits a TWO-asker pool evenly,
