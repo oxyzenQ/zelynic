@@ -20,8 +20,10 @@ use crate::output::{ok, warn};
 /// The verdict ceiling: the client may exceed the exact budget by
 /// 5% plus one GSO super-packet (in-flight/accounting slack); above
 /// is FAILED — a bucket cannot admit more than burst + rate x window.
+/// The byte term is pub(crate): probe.rs's concurrent-traffic gap
+/// check reuses the same one-super-packet slack.
 const CEILING_SLACK_PERCENT: u64 = 5;
-const CEILING_SLACK_BYTES: u64 = 65_536;
+pub(crate) const CEILING_SLACK_BYTES: u64 = 65_536;
 
 /// The flow floor: a client that moved under 20% of the window's
 /// refill did not measure enforcement (dead server, refused entry, a
