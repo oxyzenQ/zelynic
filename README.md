@@ -534,9 +534,9 @@ slightly easier to maintain.
 - No REST API
 - No non-Linux support
 
-### Stable API (from v11.0.0, locked as the LTS baseline at v20.0.0)
+### Stable API (from v20.0.0, locked as the LTS baseline at v20.0.0)
 
-Starting with v11.0.0, the CLI surface is frozen. No breaking changes
+Starting with v20.0.0, the CLI surface is frozen. No breaking changes
 to commands, flags, or output format. Future releases focus on:
 - Bug fixes
 - Kernel compatibility updates
@@ -548,9 +548,9 @@ pinned from both sides), the LTS state budget audited under a
 1024-cgroup fleet (NIGHT-hunt-Z4), and the supermassive battery green
 on every leg since the instrument split (NIGHT-hunt-Z5).
 
-### Maintenance Mode (from v11.0.0)
+### Maintenance Mode (from v20.0.0)
 
-> **zelynic v11 marks the beginning of maintenance mode. Future releases
+> **zelynic v20 marks the beginning of maintenance mode. Future releases
 > prioritize stability, compatibility, performance, and bug fixes over
 > feature expansion.**
 
@@ -560,8 +560,8 @@ Release cadence slows to "when needed".
 ### Release channels
 
 Stable releases are tagged `vX.Y.Z`. Pre-release builds are restricted to
-five channels — `dev`, `nightly`, `alpha`, `beta`, `rc` (e.g. `v11.0.0-dev.1`,
-`v11.0.0-rc.1`). CI rejects any other suffix and never marks a pre-release
+five channels — `dev`, `nightly`, `alpha`, `beta`, `rc` (e.g. `v1.0.0-dev.1`,
+`v1.0.0-rc.1`). CI rejects any other suffix and never marks a pre-release
 as "latest".
 
 ## Branches
