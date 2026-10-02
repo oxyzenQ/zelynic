@@ -35,10 +35,10 @@ use std::sync::atomic::AtomicU32;
 #[cfg(feature = "ebpf")]
 use std::sync::atomic::Ordering;
 
-#[cfg(any(test, feature = "ebpf"))]
-use super::color::ColorCapability;
 #[cfg(feature = "ebpf")]
 use super::color::capability;
+#[cfg(any(test, feature = "ebpf"))]
+use super::color::ColorCapability;
 
 /// The queried background (NIGHT-boost-26, live since 32): one
 /// atomic word — bit 31 the present flag, bits 23..0 `0xRRGGBB`,

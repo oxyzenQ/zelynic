@@ -1399,6 +1399,58 @@ short-window under-delivery ... the flow converges to the budget
 over longer windows") — the battery's rows are the first shape
 that agrees with it.
 
+## LTS State Budget Audit under 1024 Cgroups (NIGHT-hunt-Z4, 2026-10-02)
+
+The owner's ask: audit the LTS state budget under a 1024-cgroup
+fleet. The inventory, verified from source (entry sizes are
+compile-time pinned: Policy 24 B, Bucket 24 B, LimiterStats 32 B,
+RateRing 128 B, the u64 state words 8 B):
+
+| Family | Map(s) | Cap | Live set under 1024 cgroups |
+| --- | --- | --- | --- |
+| Policy census | cgroup_policy_dl/ul | 1024 pinned | 1024 roots at the cap (new applies fail loudly, documented) |
+| DRR pools | cgroup_bucket_dl/ul | 1024 pinned | 1024 (one per root) |
+| Group buckets | group_bucket_dl/ul | 256 pinned | bounded by strict-multi groups, reclaimed by the dead-group sweep |
+| Stats ledger | cgroup_limiter_stats | 1024 pinned | 1024 (keyed at the resolved root) |
+| Delivered-rate rings | rate_ring_dl/ul | 1024 pinned | 1024 roots x 128 B |
+| AMMSP memo | ammsp_leaf_cache_dl/ul | 4096 LRU | 1024 live + dead cold entries age out (4x margin) |
+| Leaf buckets | leaf_bucket_dl/ul | 4096 LRU | 1024 leaves (4x margin) |
+| Pool share words | drr_pool_state_dl/ul | 4096 LRU | one live per (generation, root); stale generations age out |
+| Leaf ledgers | drr_leaf_state_dl/ul | 4096 LRU | one live per (generation, leaf); three stale generations of headroom at 1024 leaves |
+
+The worst live budget at the full 1024-root posture sums under
+~0.6 MB across both directions (the rings are the largest single
+line at 256 KB), and the one-root-1024-leaf posture sits near
+130 KB. Both are far inside any memcg the LTS host runs; the
+boundary behaviors are documented on each row (the u12 share
+fields saturate at 4095 against the 4096 LRU posture; the ledger's
+ELAPSED_CEILING saturates the carry's credit at the quantum; the
+13.7-year epoch wrap horizon).
+
+**The find: the rings were the one census-bounded family nothing
+reclaimed.** `reclaim_cgroup_state` handed back the buckets and
+the stats; nothing anywhere removed a `rate_ring_dl/ul` entry.
+The rings are pinned HashMaps (never LRU), so an unreclaimed ring
+is resident until process exit and beyond (pinned maps survive
+it) — on a months-LTS host cycling apply/unstrict across cgroups,
+the ring maps monotonically fill with dead roots' 128 B entries,
+and once the map is full every later root's ring silently fails
+to create: the fail-open contract keeps enforcement intact, but
+the delivered-rate series (the `status` JSON's rate_ring surface)
+is missing for every new root — an observability loss, never a
+policing one. The claim "occupancy is bounded by the policy
+census" held only if cgroup ids recycle, which a months-LTS host
+effectively never does. The close: the rings ride the same
+per-direction gate as their buckets in `reclaim_cgroup_state` (a
+gone direction's series is the same dead state its bucket is),
+the trace wording names the family ("bucket/ring/stats slots
+returned to the 1024-entry LTS budget", the improve-10 wording
+pins updated with it), and STABILITY's map table now carries the
+rings in the reclaimed family. Userspace-only change: the eBPF
+object is byte-identical (the prebuilt pin proves it), and the
+benchmark A/B is skipped on purpose — the unstrict/reclaim path
+is not a hot path; the datapath's per-packet cost is untouched.
+
 ## License
 
 GPL-3.0-only — source code is fully open. Anyone can audit, modify, and

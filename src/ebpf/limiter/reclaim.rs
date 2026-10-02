@@ -1,13 +1,18 @@
 // Copyright (C) 2026 rezky_nightky
 // SPDX-License-Identifier: GPL-3.0-only
 
-//! State reclamation — the bucket/stats reclaim path that keeps
-//! the 1024-slot maps proportional to live policies
-//! (NIGHT-improve-10, the LTS endurance budget), and the REMOVE
-//! path itself: unstrict landed here with NIGHT-improve-29's 500-LOC
-//! split (the apply path grew the unset-direction removal that
-//! honors the -d/-u-only contract), so the whole removal family —
-//! delete, partial-failure honesty, reclamation — lives in one
+//! State reclamation — the bucket/ring/stats reclaim path that
+//! keeps the 1024-slot maps proportional to live policies
+//! (NIGHT-improve-10, the LTS endurance budget; NIGHT-hunt-Z4
+//! added the rings — the delivered-rate series was the one
+//! census-bounded family unstrict never handed back, so a
+//! months-LTS host's ring maps filled with dead roots' 128 B
+//! entries until later roots' rings silently failed to create),
+//! and the REMOVE path itself: unstrict landed here with
+//! NIGHT-improve-29's 500-LOC split (the apply path grew the
+//! unset-direction removal that honors the -d/-u-only contract),
+//! so the whole removal family — delete, partial-failure honesty,
+//! reclamation — lives in one
 //! file.
 //!
 //! Split from policy.rs to hold the modules under the 500-LOC cap
@@ -21,19 +26,22 @@ use anyhow::{anyhow, Result};
 
 use super::lanes::map_remove_means_absent;
 use super::policy::policy_survivor_line;
+use super::rate_ring::RateRingRaw;
 use super::types::{BucketRaw, Direction, LimiterStatsRaw, PolicyRaw, Target};
 use crate::ebpf::pin::{
     PIN_MAP_BUCKET_DL, PIN_MAP_BUCKET_UL, PIN_MAP_GROUP_BUCKET_DL, PIN_MAP_GROUP_BUCKET_UL,
-    PIN_MAP_POLICY_DL, PIN_MAP_POLICY_UL, PIN_MAP_STATS,
+    PIN_MAP_POLICY_DL, PIN_MAP_POLICY_UL, PIN_MAP_RATE_RING_DL, PIN_MAP_RATE_RING_UL,
+    PIN_MAP_STATS,
 };
 
 /// Verbose trace line for one state reclaim (NIGHT-improve-10): the
-/// per-cgroup bucket/stats slots an unstrict or recover handed back
-/// to the maps. Pure formatting so the wording is unit-pinned below.
+/// per-cgroup bucket/ring/stats slots an unstrict or recover handed
+/// back to the maps. Pure formatting so the wording is unit-pinned
+/// below.
 fn reclaim_trace_line(cgroup_id: u32, reclaimed: usize) -> String {
     format!(
         "[limiter] cg:{cgroup_id} reclaimed {reclaimed} stale state {} — \
-         bucket/stats slots returned to the 1024-entry LTS budget",
+         bucket/ring/stats slots returned to the 1024-entry LTS budget",
         if reclaimed == 1 { "entry" } else { "entries" }
     )
 }
@@ -119,6 +127,23 @@ impl super::Limiter {
                 Ok(false) => {}
                 Err(e) => failures.push(format!("bucket dl: {e}")),
             }
+            // NIGHT-hunt-Z4: the direction's delivered-rate series is
+            // the same dead state its bucket is — a root whose policy
+            // is gone has no reader for its ring, and the ring maps
+            // are census-bounded (1024 pinned, never LRU), so an
+            // unreclaimed ring stays resident until the map fills and
+            // every later root's ring silently fails to create (the
+            // fail-open observability loss: enforcement unaffected,
+            // the status series missing).
+            match self.remove_map_entry::<RateRingRaw>(
+                "rate_ring_dl",
+                PIN_MAP_RATE_RING_DL,
+                cgroup_id,
+            ) {
+                Ok(true) => reclaimed += 1,
+                Ok(false) => {}
+                Err(e) => failures.push(format!("ring dl: {e}")),
+            }
         }
         if reclaim_ul_bucket {
             match self.remove_map_entry::<BucketRaw>(
@@ -129,6 +154,17 @@ impl super::Limiter {
                 Ok(true) => reclaimed += 1,
                 Ok(false) => {}
                 Err(e) => failures.push(format!("bucket ul: {e}")),
+            }
+            // NIGHT-hunt-Z4: the upload ring rides the same per-direction
+            // gate as its bucket (the dl arm's note above carries the why).
+            match self.remove_map_entry::<RateRingRaw>(
+                "rate_ring_ul",
+                PIN_MAP_RATE_RING_UL,
+                cgroup_id,
+            ) {
+                Ok(true) => reclaimed += 1,
+                Ok(false) => {}
+                Err(e) => failures.push(format!("ring ul: {e}")),
             }
         }
         if reclaim_stats {
