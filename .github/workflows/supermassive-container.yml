@@ -222,7 +222,7 @@ jobs:
       # k8s://<ns>/<pod> resolution.
       - name: Install kind + kubectl
         run: |
-          curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.24.0/bin/amd64/kind
+          curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.24.0/kind-linux-amd64
           chmod +x ./kind
           sudo mv ./kind /usr/local/bin/kind
           KUBE_VERSION="$(curl -L -s https://dl.k8s.io/release/stable.txt)"
