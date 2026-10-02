@@ -19,6 +19,59 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Fixed
 
+- **NIGHT-total-lts-3, the killer-features depth audit — two UX
+  finds closed live with pins (the argv-forensics walk and the
+  help synopsis), the limiter and eagle-eyes engines read to the
+  metal and answering SOUND at peak.** The audit narrowed the
+  total-infra lens to the owner's named surfaces: the limiter
+  engine (math.rs's window-ownership CAS, the stall-fountain
+  close, the clamp family, the MAX_ENFORCABLE_BURST overflow
+  chain verified end to end — the fill-detect bound makes the
+  exact-branch product overflow-free by construction, the kernel
+  datapath clamps hostile policy fields before any arithmetic),
+  DRR (const-fn, every cap saturating, u12 ceilings), AMMSP (the
+  u32-into-u64 memo word, no packing overflow possible), the
+  datapath program (cookie-0 falls back to the policed cgroup
+  lane, the group lane's map-full degradation never fails open),
+  and the eagle-eyes render tree (the totality ladder re-proven
+  line by line with zero counterexamples, zero live panics, zero
+  zombie code). Find 1 (24f2bc5 + the bc9c8a0 fmt rider): the
+  argv-forensics walk's own comment still asserted every
+  top-level flag is boolean — an invariant that died when
+  `--color-mode <MODE>` became the sole value-taker — so the
+  two-token space form's bare value token was mistaken for the
+  subcommand: `--color-mode 16 ss brave --verbos` rendered the
+  ROOT usage where the `=`-form rendered strict-single's, and a
+  MODE value naming a real subcommand (`--color-mode status ss
+  ...`) rendered a usage line for a command the parser never
+  entered. The walk now consumes the value the way the parser
+  does, the comment names the exception, and three pins join the
+  argv battery. Find 2 (2c617d1): the curated --help drifted off
+  the live parse surface at flag level — `--per-socket` and
+  `--no-probe` parse and are USAGE.md-documented but the help
+  never mentioned either, leaving the per-socket lane with no
+  in-binary discovery path; the synopsis now matches the doc
+  token for token, both flags are documented in the help's own
+  voice, a per-connection-cap example joins the list, and a
+  flag-level completeness pin joins help_pins (the existing pins
+  fenced command/alias/group completeness — flag completeness
+  was the gap). Also closed on the spot: the lts-2 audit report
+  shipped with working-tree mode 664 (the permission gate had
+  run before the file was git-tracked — a gate-then-write
+  sequencing seam this audit's post-commit run caught); the
+  gate's own --fix restored the 644 contract. Batteries after
+  the closes: 647 -> 650 unit and 46 -> 47 integration, 0
+  failed; check-all -q all green; gate-keepers 22/22; the
+  full-budget frame-bench byte-exact at bytes/frame 1,919.0
+  with every other metric in class — the closes touch the CLI
+  error path and help text, not the frame path, and the bench is
+  the measurement that proves it. One design seam recorded for
+  the owner (not engineered unprompted): the title bar's
+  degenerate-branch pass-through on ultra-narrow terminals
+  (≤23 cols ranked, ≤44-47 focus) over-wraps row 0 — no panic,
+  identity-over-geometry intent pinned, narrow-width frame shape
+  unpinned end-to-end. The full evidence lives in
+  docs/audits/NIGHT_TOTAL_LTS_3_AUDIT_2026-10-02.md.
 - **NIGHT-total-lts-2, the total-infra LTS cross-check audit —
   the first automated relative-link integrity pass found three
   broken targets in one research doc, closed docs-only.** The
