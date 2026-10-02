@@ -252,6 +252,41 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Added
 
+- **NIGHT-hunt-Z2, the probe's direction lanes — the Z1 regression
+  pair the supermassive matrix was missing.** The audit answer to
+  the owner's ask (test the limiter end to end and the whole CLI
+  end to end, after NIGHT-hunt-Z1): the limiter matrix was already
+  whole — every policy shape measured locally and against the real
+  internet, both directions, asymmetric buckets included — and the
+  CLI depth battery (v2's 97 cases plus the dynamic cgroup-id
+  probes) already swept every flag surface under hostile input.
+  The gap was narrower and sharper: every LIVE probe row in the
+  suite rode a SYMMETRIC policy (the apply helper appends
+  --no-probe for every measurement stage, and test_probe_failed's
+  three rows run 1mb/100kb/200kb dl+ul pairs), so the probe's
+  direction match never left its download-preference arm — the
+  one-sided lanes Z1's fix owns (the direction-scoped memo of
+  schema v18, closed on the owner's live `-d 10kb` NOT-VERIFIED
+  find) had no supermassive row at all, and a regression in the
+  split would have shipped green. The close: test_probe_failed
+  gains a closing pair — a download-only apply (-d, target c) and
+  an upload-only apply (-u, target d), each verified by the LIVE
+  probe at the same 100kb the clean-symmetric row already proves
+  green, so only the direction surface differs and a regression
+  names itself. Each row pins four facts: exit 0, a true-VERIFIED
+  verdict line (the UN- prefix trap stays closed), the direction
+  line naming the lane the policy set (a swapped probe measures
+  the unpoliced side — the vacuous-VERIFIED shape), and a nonzero
+  kernel admission (the Z1 bypass signature was a flow the ledger
+  never booked: "0 B admitted"). The ul row is also the first
+  supermassive execution of the direction-aware server role (the
+  receiver's count as the measured truth) — until now that role
+  had only rootless socket smokes; its cgroup-resident lane, the
+  one the unit test's own docstring calls the CI battery's job,
+  finally runs in the battery. The stage and module docstrings,
+  USAGE.md's self-proving-enforcement section, and the what-it-
+  verifies catalog all carry the pair now.
+
 - **engrave-10, the baseline panel docks to the bottom — the
   tall-terminal gap fix.** The engraved frame pins its footer to
   the terminal's last rows, and the baseline panel rendered

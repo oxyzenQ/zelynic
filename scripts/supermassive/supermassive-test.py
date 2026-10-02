@@ -172,7 +172,12 @@ What it verifies (verdicts PASS / FAIL / SKIP, exit 1 on any FAIL):
          download, curl upload, strict-multi shared group bucket across
          cgroups, block-multi, unstrict-multi selective removal, mixed
          concurrent policies on five cgroups, strict-all --force-this sweep,
-         reload cycles, sustain windows, non-binding overhead — then
+         the self-proving probe family (the FAILED lane under a
+         mid-window teardown, the clean VERIFIED apply, the overhead
+         bound, and NIGHT-hunt-Z2's direction lanes: a download-only
+         and an upload-only apply each verified by the live probe —
+         the Z1 regression pair), reload cycles, sustain windows,
+         non-binding overhead — then
          the real-internet lane: endpoint reachability, unlimited
          realnet baseline, upload-engine sanity, strict download at
          2mb, strict upload at 1mb, strict-all sweep at 2mb, block-single
@@ -3285,6 +3290,22 @@ def test_probe_failed():
     one row earlier) and its detail carries both exit codes and
     output tails — the old row measured 0.0s/0.0s legs with the
     codes invisible, the exact shape that hides a fast-fail.
+
+    NIGHT-hunt-Z2 (the direction lanes, the Z1 regression pair):
+    every row above rides a SYMMETRIC policy, so the probe's
+    direction match never leaves its download-preference arm — the
+    one-sided lanes the Z1 fix owns (schema v18's direction-scoped
+    memo, closed on the owner's live `-d 10kb` NOT-VERIFIED find)
+    had no supermassive row at all. The stage's closing pair runs
+    the live probe against a download-only apply (-d, the c target)
+    and an upload-only apply (-u, the d target), both at the same
+    100kb the clean-symmetric row proves green: exit 0, a
+    true-VERIFIED verdict, the direction line naming the lane the
+    policy set (a swapped probe measures the unpoliced side), and a
+    nonzero kernel admission (the Z1 bypass signature was a flow
+    the ledger never booked). The ul row doubles as the first
+    supermassive execution of the direction-aware server role (the
+    receiver's count as the measured truth).
     """
     name = "probe: the self-proving FAILED path (mid-window teardown)"
     if not CG.dedicated:
@@ -3427,6 +3448,59 @@ def test_probe_failed():
             )
             and passed
         )
+
+        # ── The direction lanes (NIGHT-hunt-Z2, the Z1 regression
+        # pair): every probe row above rides a SYMMETRIC policy, so
+        # the download-preference arm of the direction match does
+        # all the work and the single-direction lanes the Z1 fix
+        # owns never fire. The bug Z1 closed was one-sided by shape
+        # — the owner's live find: `-d 10kb` answered NOT VERIFIED
+        # with the flow bypassing the ledger entirely (the
+        # cross-direction memo resolving the probe's fresh child
+        # against the wrong direction's state, schema v18's split).
+        # The pair below pins both one-sided lanes: a download-only
+        # apply and an upload-only apply, each verified by the LIVE
+        # probe at the same 100kb the clean-symmetric row above
+        # already proves green — only the direction surface differs,
+        # so a regression in the split names itself. The ul row is
+        # also the first supermassive execution of the
+        # direction-aware server role (drains and reports its
+        # RECEIVED count; the client's write-buffer count retired
+        # with Z1). Two extra pins per row: the direction line must
+        # NAME the lane the policy set (a swapped probe measures
+        # the unpoliced side — the vacuous-VERIFIED shape), and the
+        # kernel line must carry a nonzero admission (the Z1 bypass
+        # signature was a flow the ledger never booked: "0 B
+        # admitted").
+        for lane, flag, target in (
+            ("download", "-d", "c"),
+            ("upload", "-u", "d"),
+        ):
+            rc_lane, out_lane, err_lane = run_zel(
+                ["strict-single", str(CG.ids[target]), flag, "100kb"]
+            )
+            combined_lane = (out_lane or "") + (err_lane or "")
+            verdict_lane = verdict_line(combined_lane)
+            verified_lane = "UNVERIFIED" not in verdict_lane and verdict_lane.endswith("VERIFIED")
+            lane_named = f"direction:  {lane}" in combined_lane
+            ledger_booked = (
+                "admitted through the ledger" in combined_lane
+                and "0 B admitted" not in combined_lane
+            )
+            passed = (
+                record(
+                    f"probe: a {lane}-only apply is VERIFIED exit 0",
+                    "PASS"
+                    if rc_lane == 0 and verified_lane and lane_named and ledger_booked
+                    else "FAIL",
+                    f"exit {rc_lane}; verdict true-VERIFIED: {verified_lane}; "
+                    f"lane named: {lane_named}; ledger booked: {ledger_booked}; "
+                    f"verdict line: {verdict_lane}; "
+                    f"note line: {note_line(combined_lane)}; "
+                    f"tail: {combined_lane.strip()[:400]!r}",
+                )
+                and passed
+            )
     finally:
         clear_all()
     return passed
