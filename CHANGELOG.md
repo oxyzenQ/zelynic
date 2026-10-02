@@ -19,6 +19,33 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Fixed
 
+- **NIGHT-total-lts-1 rider 3, the grandchild row meets the Z5
+  single-row precedent — the db0a46a best-musl red closed with the
+  verdict moved to the instrument that can certify it.** The
+  shared-budget drain's first run took three legs green (low-gnu,
+  low-musl, best-gnu — the first three-leg green since the
+  instrument split era began, Gate-keepers/CI/CodeQL SUCCESS), and
+  the best-musl leg reddened on the v1 battery's own grandchild
+  row: `grandchild resolves to the NEAREST root (50kb, not 100kb)
+  — measured 16.4 KB/s (32.8%)` with windows 28.3, 32.0, 16.4 —
+  three patient windows all under the 0.65 lo bound and DEGRADING
+  window over window: the sender's RTO backoff deepening, not a
+  resolution miss (the same frozen-basin under-delivery physics
+  the single aggregate row's born-red era diagnosed, at the rate
+  where one 64 KiB admit needs ~1.31 s of refill). The close is
+  the Z5 single-row precedent applied to its fourth row, word for
+  word: the row's verdict now matches its name — the nearest-root
+  RESOLUTION is proven by the CEILING (wrong resolution to the
+  100kb parent reads toward 145 KB/s at steady state, to nothing
+  reads line rate; the over side fails immediately and nothing
+  retries a real over-delivery away), the under-band floor drops
+  to 0.0 because a frozen sender under-delivers under ANY policy
+  (the under-band number cannot distinguish a 50kb resolution from
+  a 100kb one, so it must not redden the row), the window numbers
+  stay recorded, and the resolver law stays pinned where it is
+  deterministic — the rootless resolver sims and the legacy A/B's
+  nested-root row. The hi stays at the 1.30 band. Battery-only;
+  the eBPF object byte-identical (the prebuilt pin proves it).
 - **NIGHT-total-lts-1, the total-infra LTS audit's own find — the
   9a78dfc low-spec red lane, and the live anti-monopoly band
   recalibrated to the medium it judges.** The owner's ask: the
