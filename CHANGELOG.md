@@ -77,6 +77,39 @@ NIGHT-hunt-18's git-history-only call.
   `docs/audits/NIGHT_TOTAL_LTS_1_AUDIT_2026-10-02.md`; the
   per-leg evidence rides CROSS_DISTRO_RESULTS with the nine-draw
   table.
+- **NIGHT-total-lts-1 rider, the phantom-burst floor — the
+  b875f02 low-gnu red closed with the floor guard's own logic.**
+  The recalibrated battery's maiden run held the new
+  anti-monopoly band everywhere (worst 2.14x fair against the
+  3.58x effective band on the very leg that reddened before —
+  60% of the bound, healthy headroom; the many24 quietest
+  advisory landing healthy at 196,686 B vs fair/4 172,734), but
+  the low-gnu leg reddened on a different row the audit's CI
+  watch had not met before: `ammsp subtree: BPF accounting
+  matches client bytes`, ledger delta 164,862 vs client 98,382
+  (167.6% against the 1.5 hi). The row's history is bimodal and
+  the diagnosis exact: the client count at this probe shape is
+  near-deterministic (98,382 B on every healthy draw, 100.5-104.0%
+  across every leg that ever ran the comparison), and the ledger
+  delta reads 99,198 when the client drains its socket and
+  164,862 when one admitted 64 KiB GSO burst is still sitting in
+  the receive queue at the idle exit — the BPF hook booked it,
+  the client never read it. This is the phantom surplus
+  charger-core-2 rider M's comment already named ("a client count
+  78 bytes above the 64 KiB floor is exactly the degenerate zone
+  the floor guard means to skip"): the guard's constant stopped
+  one burst short of the zone it named. The rider takes the floor
+  to its own named boundary — the comparison now requires the
+  payload to clear the accounting floor PLUS one GSO burst
+  (128 KiB), below which the row SKIPs with the counts still in
+  the log and the kernel-drops row above staying the hard
+  enforcement proof at that scale. The band stays 0.5-1.5
+  everywhere (widening it would re-open the 2x hole the row was
+  born to catch — the improve-12 double-count read ~200%, the
+  cumulative shape 488%): at the new floor one phantom burst
+  lands exactly on the 1.5 hi, two bursts trip, every
+  instrumentation pathology still trips. Battery-only; the eBPF
+  object byte-identical (the prebuilt pin proves it).
 - **NIGHT-hunt-Z6 opener, the prebuilt pin's locale hole — one
   `sort`, two hashes, and the 779907d lane that could not ship.**
   The v20.0.0-alpha.1 push passed every local gate on the

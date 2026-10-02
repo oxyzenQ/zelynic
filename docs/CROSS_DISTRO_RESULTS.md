@@ -379,6 +379,38 @@ stays advisory, the aggregate stays hard, and no law code changed:
 battery-only, the eBPF object untouched (the prebuilt pin proves
 it).
 
+The b875f02 era (the recalibrated battery's first verdict, plus
+the rider it earned): the new anti-monopoly band's maiden run read
+worst 1.47 MB against the 2.47 MB bound on the very leg that
+reddened before (2.14x fair, 60% of the bound — healthy headroom),
+with the many24 quietest advisory landing healthy too (196,686 B
+vs fair/4 172,734). The low-gnu leg still reddened — on a
+DIFFERENT row, the one the audit's CI watch had not met before:
+`ammsp subtree: BPF accounting matches client bytes`, ledger
+delta 164,862 vs client 98,382 (167.6% against the 1.5 hi). The
+row's own history is bimodal and the diagnosis is exact: the
+client count at this probe shape is near-deterministic (98,382 B
+on every healthy draw — 100.5-104.0% across every leg that ever
+ran the comparison), and the ledger delta reads 99,198 when the
+client drains its socket and 164,862 when one admitted 64 KiB GSO
+burst is still sitting in the receive queue at the idle exit —
+the BPF hook booked it, the client never read it (the phantom
+surplus rider M's comment already named: "a client count 78 bytes
+above the 64 KiB floor is exactly the degenerate zone the floor
+guard means to skip" — the guard's constant stopped one burst
+short of the zone it named). The rider takes the floor guard to
+its own named boundary: the comparison now requires the payload
+to clear the accounting floor PLUS one GSO burst (128 KiB), below
+which the row SKIPs with the counts still in the log (the
+kernel-drops row above stays the hard enforcement proof at that
+scale). The band stays 0.5-1.5 everywhere: at the new floor one
+phantom burst lands exactly on the 1.5 hi (inclusive), two bursts
+trip, and the instrumentation pathologies the row was born to
+catch (the improve-12 double-count ~200%, the cumulative shape
+488%) still trip — widening the band instead would have re-opened
+the 2x hole, so it was not widened. Battery-only again; the eBPF
+object byte-identical (the prebuilt pin proves it).
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.
