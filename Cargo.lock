@@ -444,7 +444,7 @@ dependencies = [
 
 [[package]]
 name = "zelynic"
-version = "20.0.0"
+version = "20.0.0-beta.1"
 dependencies = [
  "anyhow",
  "aya",
