@@ -579,6 +579,32 @@ def run_battery_side(label, binary, is_current=False):
         # ONE budget. The legacy side escapes at ~2x line rate — the
         # expected control shape, side_verdict keeps it a PASS there
         # while the class stays in the row's detail.
+        #
+        # NIGHT-total-lts-1 rider 2: the discarded warm-up drain
+        # before the measured pair — the lts-8 approved pattern
+        # (supermassive-test.py's drain_cushion lineage), applied
+        # here for the same reason it was applied there: "a BAND_HI
+        # fail that is attach-moment physics, not enforcement". The
+        # shared root bucket starts with its 64 KiB burst credit;
+        # at this trickle rate that credit is 16% of the pair's
+        # whole 4 s window budget (400 KB), and the epoch refill's
+        # skew adds its few percent on top — the 7d78049 best-musl
+        # leg read the healthy pair at 131.1 KB/s against the 1.30
+        # BAND_HI, one point past the band, with every single-leaf
+        # row policed at 64-90 KB/s and THE DELTA itself green
+        # (7/7 vs 0/7): the cushion, not the law. The observed
+        # history without the drain: sums 73.8-121.9 KB/s across
+        # fifteen healthy draws, then 131.1 — the band's edge IS
+        # the cushion's edge. One discarded warm-up window through
+        # the first sibling pays the credit out first (draining
+        # 64 KiB on loopback takes microseconds, lts-8), so the
+        # measured pair sees steady state and the BAND_HI verdict
+        # judges the sharing law, not the attach moment. The band
+        # itself is NOT widened: a real double-budget regression
+        # (each leaf its own bucket) reads toward 2x and must
+        # still trip, and on the control side the escape shape is
+        # untouched (the drain is a trickle against line rate).
+        leaf_bytes(sibs[0], 1.0)  # discarded warm-up: pay the burst credit
         total = concurrent_leaves_sum([sibs[0], sibs[2]], WINDOW)
         shared_bps = total / WINDOW
         shared_cls = classify(shared_bps, RATE_BPS)

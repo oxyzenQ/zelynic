@@ -110,6 +110,35 @@ NIGHT-hunt-18's git-history-only call.
   lands exactly on the 1.5 hi, two bursts trip, every
   instrumentation pathology still trips. Battery-only; the eBPF
   object byte-identical (the prebuilt pin proves it).
+- **NIGHT-total-lts-1 rider 2, the shared-budget warm-up drain —
+  the 7d78049 best-musl red closed with the lts-8 pattern.** The
+  phantom-burst floor's first run took the whole v1 limiter matrix
+  green on every leg it had ever reddened on (low-gnu's
+  phantom-burst row now SKIPping inside its named zone, the
+  anti-monopoly band holding, Gate-keepers/CI/CodeQL SUCCESS), but
+  the best-musl leg reddened on the one probe this era had not yet
+  met: the AMMSP-vs-legacy A/B's shared-budget row — `current
+  (AMMSP) two concurrent leaves share ONE budget — sum 131.1 KB/s
+  vs 100kb — gray`, 1.1 points past the 1.30 BAND_HI, with every
+  single-leaf row policed at 64-90 KB/s, the legacy control
+  escaping as designed, and THE DELTA itself green (7/7 vs 0/7 —
+  the counterfactual proof never moved). The row's history: fifteen
+  healthy draws at 73.8-121.9 KB/s, then 131.1 — the shared root
+  bucket's 64 KiB burst credit is 16% of the pair's whole 400 KB
+  window budget at this trickle rate, and the epoch refill skew
+  adds its few percent: the band's edge was the cushion's edge,
+  the same attach-moment physics the lts-8 drain was built for
+  ("a BAND_HI fail that is attach-moment physics, not
+  enforcement"). The close applies the approved pattern where its
+  own comment family said it belonged: one discarded warm-up
+  window through the first sibling pays the burst credit out
+  before the measured pair, so the pair measures steady state and
+  the BAND_HI verdict judges the sharing law instead of the attach
+  moment. The band is NOT widened — a real double-budget
+  regression reads toward 2x and must still trip — and the control
+  side's escape shape is untouched (the drain is a trickle against
+  line rate). Battery-only; the eBPF object byte-identical (the
+  prebuilt pin proves it).
 - **NIGHT-hunt-Z6 opener, the prebuilt pin's locale hole — one
   `sort`, two hashes, and the 779907d lane that could not ship.**
   The v20.0.0-alpha.1 push passed every local gate on the
