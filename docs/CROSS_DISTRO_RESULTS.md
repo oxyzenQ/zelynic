@@ -470,6 +470,25 @@ is deterministic (the rootless resolver sims and the legacy A/B's
 nested-root row). Battery-only; the eBPF object byte-identical
 (the prebuilt pin proves it).
 
+The 0d9f98c era (the audit's close — the first full four-leg
+green with every close live): all four supermassive legs PASS the
+v1 limiter matrix (0 failed on every leg) and the AMMSP-vs-legacy
+delta (7/7 vs 0/7 on every leg), with Gate-keepers and CI SUCCESS
+— the first run since the instrument split era began where every
+medium-lottery row the era surfaced is either calibrated to the
+measured tail (the anti-monopoly band), drained to steady state
+(the shared-budget probe), floored to its named boundary (the
+subtree accounting), or judged by its ceiling (the grandchild
+row — this run's best-musl, the leg that reddened, read the SAME
+frozen-sender draw at 65.5% and passed honestly with every window
+number still recorded, and the shared-budget row read 89.4 KB/s
+post-drain against the 131.1 pre-drain red). The doctrine the
+four closes share, and the audit's own closing line: a verdict
+belongs to the instrument that can certify it — the live rows
+judge what the medium owns (ceilings, concentrations, drops), and
+the laws stay pinned where they are deterministic, in the rootless
+sims every push re-proves.
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.
