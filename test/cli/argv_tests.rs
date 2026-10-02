@@ -153,7 +153,14 @@ fn walk_consumes_a_mode_value_that_names_a_subcommand() {
     let root = crate::cli::Cli::command();
     let sub = failing_subcommand(
         &root,
-        &argv(&["zelynic", "--color-mode", "status", "ss", "brave", "--verbos"]),
+        &argv(&[
+            "zelynic",
+            "--color-mode",
+            "status",
+            "ss",
+            "brave",
+            "--verbos",
+        ]),
         Some("--verbos"),
     )
     .expect("the MODE value is a value, never the subcommand");
