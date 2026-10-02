@@ -19,6 +19,64 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Fixed
 
+- **NIGHT-total-lts-1, the total-infra LTS audit's own find — the
+  9a78dfc low-spec red lane, and the live anti-monopoly band
+  recalibrated to the medium it judges.** The owner's ask: the
+  depth audit across all five infra areas (stability & crash, code
+  hygiene, optimization, security hardening, LTS stability), the
+  peak-skip protocol in force. The audit itself answered four of
+  the five areas SOUND at peak with fresh evidence — the panic-path
+  census (27 unwrap/expect/panic candidates in the userspace: 26
+  test-gated, 1 provable-total invariant, zero live), the render
+  totality ladder re-verified line by line (every raw subtraction
+  guarded by its own condition, degenerate budgets pinned), all
+  three test lanes green at HEAD (104+41 / 647+46 / 647+46, the +3
+  the Z6 highload pins), the engine self-test 34/34, the full-budget
+  frame-bench in class (fps 7282.5, bytes/frame 1919.0 byte-exact,
+  emit 511.0, dirty cells 40.0), the security boundary inventory
+  (the canonical sanitizer holding both untrusted classes, FFI-
+  disciplined unsafe, kernel-only file trust, pidfd race-free fd
+  borrowing, the finite 19-constant pin namespace, SHA-pinned
+  actions), and the LTS fences re-verified — with one hygiene find
+  filed beside it: `scripts/depth/install-flow-test.sh` was
+  referenced by nothing (no workflow, no gate, no doc, no harness)
+  while carrying a unique contract (the blade-8 6-row package
+  lifecycle); it now rides the claims ledger where every sibling
+  depth suite lives. THE RED LANE: watching the CI as the audit
+  ran, supermassive reddened on 9a78dfc for the first time since
+  the instrument split — both low-spec legs, exactly one row
+  (`many24 no leaf monopolizes the refill`, worst 1,671,246 B vs
+  bound 1,621,086 on low-gnu and 1,638,478 vs 1,592,414 on
+  low-musl, 3% over each), both best-spec legs green, everything
+  else green everywhere. The objects were provably byte-identical
+  to the green run 128 era (the prebuilt-parity rows PASSED on
+  that very push) and the aggregates held (99-105% of policy on
+  the failing legs): the pool law never moved, the worst-leaf draw
+  did. The nine worst/fair draws collected across every observed
+  era — 1.73-1.99 on the best-spec legs, 2.03/2.13/2.39/2.40 on
+  the low-spec legs — land against a 1.75x+quantum shape whose
+  effective ratio is only 2.32-2.39 once the 400 KB quantum rides
+  a ~630-700 KB fair: the live bound sat inside the low-spec
+  medium's own concentration tail (a leaf delivering banked admits
+  while its neighbors sit in RTO silence — the same frozen-basin
+  physics the single row's GSO-floor precedent records), so the
+  row was a lottery on the slow legs, ~half the draws red over
+  time on byte-identical code. The close walks the Z5 doctrine
+  one row further: the LAW's 1.75x+quantum band stays exactly
+  where it is certifiable (the rootless ledger sims, every push —
+  1.29x worst/fair sustained over 12 s at 24 leaves), and the live
+  concentration tripwire rides a band that separates the measured
+  healthy tail from real monopoly: 3x fair + quantum, 49-52%
+  above the observed tail, tripping by the first quintile of the
+  24x full-monopoly signal a broken law would funnel toward. The
+  quietest stays advisory, the aggregate stays hard, the ceiling
+  rows untouched, and no law code changed: battery-only — the eBPF
+  object is byte-identical (the prebuilt pin proves it) and the
+  benchmark A/B is skipped on purpose (no product surface). The
+  full audit is filed as
+  `docs/audits/NIGHT_TOTAL_LTS_1_AUDIT_2026-10-02.md`; the
+  per-leg evidence rides CROSS_DISTRO_RESULTS with the nine-draw
+  table.
 - **NIGHT-hunt-Z6 opener, the prebuilt pin's locale hole — one
   `sort`, two hashes, and the 779907d lane that could not ship.**
   The v20.0.0-alpha.1 push passed every local gate on the
