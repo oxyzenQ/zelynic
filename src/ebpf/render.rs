@@ -1,5 +1,6 @@
 // Copyright (C) 2026 rezky_nightky
 // SPDX-License-Identifier: GPL-3.0-only
+// LOC_EXEMPT: the render engine is one cohesive module by design — the title bar, label truncation, rate/uptime formatters, and their width-contract pins share the display_width budget and the brand wrappers; splitting fragments the engine across files that all re-import the same output-layer primitives (NIGHT-improve-36's narrow-width contract pin pushed the cohesive unit over the 500 cap)
 
 //! Responsive render engine for the eagle-eyes monitor
 //! (NIGHT-hunt-7; NIGHT-boost-1 merged the former observe/top pair
@@ -375,27 +376,56 @@ pub(crate) fn title_bar(core: &str, width: usize) -> String {
     // two columns per char (the fill math below follows the same
     // measurement; the rails depend on the bar landing exactly on
     // `width` columns).
+    //
+    // NIGHT-improve-36: the bar ALWAYS lands on exactly `width`
+    // columns — the same fit-to-width contract every other frame
+    // row carries. The former degenerate branch (full core, no
+    // fill, no cap) let a long core overflow a narrow terminal,
+    // wrapping row 0 and shifting every row below it — the seam
+    // the lts-3 audit filed for the owner's decision. The core now
+    // truncates with an ellipsis before the bar loses its shape;
+    // identity degrades gracefully, geometry never breaks. At the
+    // pinned frame widths (80, 40) the output is byte-identical to
+    // the former path — the change only touches the narrow tail.
     let prefix_len = display_width(PREFIX);
     let cap_len = display_width(CAP);
     let core_len = display_width(core);
 
-    if width <= prefix_len + core_len + 1 {
-        // Degenerate width: core only, no fill, no cap.
-        return brand_bold(&format!("{PREFIX}{core}"));
+    if width == 0 {
+        return String::new();
     }
 
-    // The corner cap closes the bar whenever the width can carry it;
-    // a tiny frame carries the fill alone, cornerless.
-    let tail = if width >= prefix_len + core_len + 1 + cap_len {
-        CAP.to_string()
+    // Too narrow for the prefix: the fill carries the bar alone
+    // (cornered when the width can carry the cap, plain otherwise).
+    // The bar's purple shape still spans the full width so the
+    // frame stays rectangular on the narrowest terminals.
+    if width <= prefix_len {
+        let tail = if width >= cap_len { CAP } else { "" };
+        let fill = "─".repeat(width.saturating_sub(display_width(tail)));
+        return brand_bold(&format!("{fill}{tail}"));
+    }
+
+    // The cap closes the bar whenever the width can carry
+    // prefix + 1 (the core/fill separator) + cap; otherwise the
+    // fill carries the right edge alone, cornerless.
+    let has_cap = width >= prefix_len + 1 + cap_len;
+    let tail = if has_cap { CAP } else { "" };
+    let reserved = prefix_len + 1 + if has_cap { cap_len } else { 0 };
+    let core_budget = width.saturating_sub(reserved);
+
+    // Truncate the core to its budget (no-op when it already fits),
+    // routed through the same fit-to-width every label carries.
+    let fitted = if core_len <= core_budget {
+        core.to_string()
     } else {
-        String::new()
+        truncate_label(core, core_budget)
     };
+    let fitted_len = display_width(&fitted);
 
-    let used = prefix_len + core_len + 1;
-    let fill = "─".repeat(width.saturating_sub(used + tail.chars().count()));
+    let used = prefix_len + 1 + fitted_len + if has_cap { cap_len } else { 0 };
+    let fill = "─".repeat(width.saturating_sub(used));
 
-    brand_bold(&format!("{PREFIX}{core} {fill}{tail}"))
+    brand_bold(&format!("{PREFIX}{fitted} {fill}{tail}"))
 }
 // NON_LATIN_FIXTURE: the CJK literal in the truncation pin below is
 // runtime width-measurement coverage, not prose (the same exemption
@@ -486,14 +516,78 @@ mod tests {
             "engrave-3: the key hint is gone from the top-right, the\nlegend lives in the footer's status line alone: {bar}"
         );
 
-        // Narrow: core only, still starts with the cornered brand prefix.
+        // Narrow (NIGHT-improve-36): the core truncates with an
+        // ellipsis so the bar lands on EXACTLY `width` columns —
+        // no overflow, no wrap, no alignment shift on the narrowest
+        // terminals. The former path emitted the full 24-col core on
+        // a 10-col terminal, wrapping row 0 and shifting every row
+        // below it; the bar now reads clean at every width.
         let tiny = title_bar("zelynic eagle-eyes", 10);
-        assert!(tiny.starts_with("╭─── zelynic eagle-eyes"));
+        assert_eq!(tiny.chars().count(), 10);
+        assert!(tiny.starts_with("╭─── z…"));
+        assert!(tiny.ends_with("─╮"));
 
         // Medium: the fill carries to the corner cap, no hint.
         let mid = title_bar("zelynic eagle-eyes", 40);
         assert!(!mid.contains("t theme"));
         assert!(mid.ends_with('╮'));
         assert_eq!(mid.chars().count(), 40);
+    }
+
+    /// Narrow-width ladder (NIGHT-improve-36): the title bar's
+    /// inviolable contract is that it lands on EXACTLY `width`
+    /// columns at every width — the bar never overflows, never
+    /// wraps, never shifts the rows below it. The full-core shape
+    /// holds while the budget carries it; the ellipsis degrades the
+    /// identity one glyph at a time below that; the fill-only floor
+    /// keeps the bar's purple shape rectangular on the narrowest
+    /// terminals. This pin walks the ladder end to end.
+    #[test]
+    fn title_bar_narrow_never_overflows() {
+        let core = "zelynic eagle-eyes";
+        // Every width from 0 to 80: the bar is exactly `width` cols
+        // (chars().count() == display_width here — ASCII core + box
+        // drawing, every glyph one column).
+        for w in 0..=80usize {
+            let bar = title_bar(core, w);
+            assert_eq!(
+                bar.chars().count(),
+                w,
+                "title_bar must land on exactly {w} cols (got {}): {bar:?}",
+                bar.chars().count()
+            );
+        }
+
+        // The identity holds while the budget carries the full core:
+        // at width 26 (prefix 5 + space 1 + core 18 + cap 2) the
+        // fill is empty but the full core is intact and cornered.
+        let just_fits = title_bar(core, 26);
+        assert_eq!(just_fits.chars().count(), 26);
+        assert!(just_fits.starts_with("╭─── zelynic eagle-eyes "));
+        assert!(just_fits.ends_with("─╮"));
+
+        // One col narrower: the ellipsis takes the first downgrade
+        // (core_budget drops to 17, the core yields to 16 cols +
+        // the ellipsis).
+        let ellipsis_floor = title_bar(core, 25);
+        assert_eq!(ellipsis_floor.chars().count(), 25);
+        assert!(ellipsis_floor.starts_with("╭─── "));
+        assert!(ellipsis_floor.contains('…'));
+
+        // Below the prefix: the fill carries the bar alone — no
+        // prefix, no core, just the purple shape, still rectangular.
+        let floor = title_bar(core, 3);
+        assert_eq!(floor.chars().count(), 3);
+        assert!(floor.chars().all(|c| c == '─' || c == '╮'));
+
+        // Zero width: the empty string (no allocation worth painting).
+        assert_eq!(title_bar(core, 0), "");
+
+        // CJK core (NIGHT-lts-1 lineage): two columns per ideograph,
+        // the budget counts rendered columns, the bar still lands
+        // exactly on `width` (display columns, not code points —
+        // chars().count() undercounts CJK by half).
+        let cjk = title_bar("谷歌浏览器监控", 16);
+        assert_eq!(display_width(&cjk), 16);
     }
 }

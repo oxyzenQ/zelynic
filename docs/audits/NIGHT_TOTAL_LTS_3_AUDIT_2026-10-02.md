@@ -236,6 +236,14 @@ re-gate) does not.
   owner; this audit deliberately does not choose between the two
   closes (fit row 0 vs pin the narrow shape) — a repo at peak
   takes design calls from its owner, not its auditor.
+  [CLOSED by NIGHT-improve-36: the owner chose the fit-row-0 close.
+  The bar now ALWAYS lands on exactly `width` columns — the core
+  truncates with an ellipsis (the same fit_to_width contract every
+  label carries) before the bar overflows, so row 0 never wraps and
+  never shifts the rows below. At the pinned widths (80, 40) the
+  output is byte-identical to the former path; the change only
+  touches the narrow tail. A width-ladder pin (0..=80) locks the
+  contract.]
 - The 3-b render agent's footer micro-observation (the
   unresolved-identity arm builds `label_with_count` up to twice
   per frame) is already frozen into the 1919.0 bench figure —
