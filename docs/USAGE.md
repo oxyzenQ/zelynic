@@ -278,7 +278,11 @@ The SELF-PROVING ENFORCEMENT (NIGHT-upgrade-charger-core-1-b): after
 the apply lands, strict-single measures the limit it just wrote before
 it claims it. A fresh child cgroup is born under the target (inside
 the subtree the policy covers, by construction — the same lane the CI
-battery proves), one sacrificial client moves real traffic through it
+battery proves, on symmetric policies AND both single-direction lanes
+alike: the supermassive matrix's probe family runs the live verify
+against a download-only and an upload-only apply too, NIGHT-hunt-Z2's
+regression pair for the Z1 direction split), one sacrificial client
+moves real traffic through it
 for a 3s loopback window against an unpoliced server (a transient
 root-level cgroup, outside every policy), and the kernel's own ledger
 brackets the window as the cross-check. The counted bytes come from
