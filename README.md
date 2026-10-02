@@ -651,23 +651,24 @@ trails live in each row's doc, told once there:
 | [endurance](docs/STABILITY.md) | The ultra-long horizon: the LTS map budget under 300 churn cycles, a monitor soaked flat, zero residue (~100s) | `sudo ./scripts/depth/endurance-test.sh` |
 | [supermassive v1](docs/CROSS_DISTRO_RESULTS.md) | Every stage that measures a LIMIT: the 64-cgroup server fleet, then the full desktop matrix (6+ min) | `sudo ./scripts/supermassive/supermassive-test.sh` |
 | [supermassive v2](docs/CROSS_DISTRO_RESULTS.md) | The abuse family: the 97-case CLI stresstest, guards, SIGKILL batteries, crash teardown (4+ min) | `sudo ./scripts/supermassive/supermassive-test-v2.sh` |
+| [supermassive v3](docs/CROSS_DISTRO_RESULTS.md) | The container depth: docker:// and k8s:// target grammar, resolution errors, the resolve-only contract, docker E2E (self-skips with no daemon) | `sudo ./scripts/supermassive/supermassive-test-v3.sh` |
 | [AMMSP vs legacy](docs/CROSS_DISTRO_RESULTS.md) | The subtree contract as a DELTA: this build vs the pre-AMMSP v11.0.0 stable, seven child leaves each, the >= 99% coverage proof (~3 min) | `sudo ./scripts/supermassive/ammsp-vs-legacy-test.sh` (the v11.0.0 side auto-downloads, sha512-verified) |
 | [claims proof](docs/CLAIMS_VERIFICATION.md) | The README's four headline claims plus the one-shot footprint, proven live (~1 min) | `sudo ./scripts/bench/proof-claims.sh` |
 | [sandbox](docs/SANDBOX.md) | No root on your box? The same micro-VM CI boots, locally — throwaway kernel, no docker, no host changes | `scripts/sandbox/zelynic-sandbox.sh --smoke` |
 
 Three facts that shape a run. The server phase always runs FIRST and
 gates the desktop matrix — a machine that cannot hold the server
-shape does not get to the desktop legs. The v1/v2 split is
+shape does not get to the desktop legs. The v1/v2/v3 split is
 deliberate: v1 owns every stage that measures a limit, v2 owns the
-abuse family — green on both is the full verdict. And the claims
-harness runs a version gate: it refuses any binary whose `-V` doesn't
-match the checkout's Cargo.toml, so a stale distro install can never
-masquerade as the build under test.
+abuse family, v3 owns the container surface — green on all three is
+the full verdict. And the claims harness runs a version gate: it
+refuses any binary whose `-V` doesn't match the checkout's Cargo.toml,
+so a stale distro install can never masquerade as the build under test.
 
 No machine handy at all? The whole qualification — bring-up, v1, v2,
-in that order — runs on CI on every core-file push (real sudo, real
-BPF, real runner kernels, no container), and the 5.15 floor lane is
-proven by its own KVM micro-VM workflow. A green Actions run is the
+v3, in that order — runs on CI on every core-file push (real sudo,
+real BPF, real runner kernels, no container), and the 5.15 floor lane
+is proven by its own KVM micro-VM workflow. A green Actions run is the
 same verdict these commands produce locally.
 
 ## Release Verification
