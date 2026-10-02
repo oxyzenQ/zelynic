@@ -281,6 +281,37 @@ fn test_help_unstrict_synopsis_is_canonical() {
     );
 }
 
+/// NIGHT-total-lts-3 find 2: the strict-single synopsis drifted from
+/// the live parse surface — `--per-socket` (charger-core-3b) and
+/// `--no-probe` (charger-core-1-b) parse, are USAGE.md-documented,
+/// and are argv_tests-pinned, but the curated --help never mentioned
+/// either: the in-binary discovery path for the per-socket lane was
+/// empty. This pin fences the drift class at flag level: the
+/// synopsis must carry --per-socket (matching USAGE.md's own
+/// synopsis line) and the strict-single block must name both flags.
+#[test]
+fn test_help_strict_single_flags_are_complete() {
+    let output = zelynic_cmd()
+        .arg("--help")
+        .output()
+        .expect("Failed to execute zelynic --help");
+
+    assert_eq!(output.status.code(), Some(0));
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("[--per-socket]"),
+        "--help's strict-single synopsis must carry --per-socket (USAGE.md parity), got:\n{stdout}"
+    );
+    assert!(
+        stdout.contains("--no-probe skips the"),
+        "--help's strict-single block must document --no-probe, got:\n{stdout}"
+    );
+    assert!(
+        stdout.contains("--per-socket 500kb"),
+        "--help must show a per-socket example (the server shape's discovery path), got:\n{stdout}"
+    );
+}
+
 /// NIGHT-hunt-16: 'q' is the ONLY documented monitor quit key. The
 /// reference must carry the q-only exit contract and must never again
 /// advertise Ctrl+C (or ESC) as a quit path.

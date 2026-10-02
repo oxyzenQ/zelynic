@@ -61,8 +61,11 @@ pub(crate) fn print_help() {
     // unstrict already did).
     println_safe!("  {}", brand_bold("strict — apply rate limits"));
     println_safe!();
-    println_safe!("  zelynic strict-single <target> [rate] [-d <rate>] [-u <rate>]");
+    println_safe!("  zelynic strict-single <target> [rate] [-d <rate>] [-u <rate>] [--per-socket]");
     println_safe!("    Limit one app's network speed ('strict' is the shorthand).");
+    println_safe!("    --per-socket caps every connection at the rate (the server");
+    println_safe!("    shape: one process, many sockets); --no-probe skips the");
+    println_safe!("    post-apply verification loop for scripted use.");
     example(
         "both dl+ul = 100kb",
         "sudo zelynic strict-single brave 100kb",
@@ -72,6 +75,10 @@ pub(crate) fn print_help() {
     example(
         "both, different rates",
         "sudo zelynic strict-single firefox -d 1mb -u 500kb",
+    );
+    example(
+        "per-connection cap (server)",
+        "sudo zelynic ss nginx --per-socket 500kb",
     );
     example("shorthand form", "sudo zelynic strict brave 100kb");
     example("short alias form", "sudo zelynic ss brave 100kb");
