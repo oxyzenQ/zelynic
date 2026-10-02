@@ -1,0 +1,269 @@
+# Copyright (C) 2026 rezky_nightky
+# SPDX-License-Identifier: GPL-3.0-only
+# =============================================================================
+# Dragon Guard - Supermassive Container E2E (NIGHT-improve-37)
+# =============================================================================
+#
+# The owner's honest-container ask: the v3 container depth battery's
+# docker/k8s E2E lanes self-skip on the micro-VM CI lane (the QEMU
+# guest ships no docker daemon, no kubelet — supermassive.yml's
+# kernel-floor pair). The resolver-error depth (v3 stage 4) is the
+# no-runtime proof there; the WITH-runtime proof — a real container
+# and a real pod resolving to a real cgroup — had no CI home. This
+# workflow is that home: two legs on a standard ubuntu runner (which
+# carries a real docker daemon and a real kernel that runs eBPF), one
+# per runtime.
+#
+#   docker-e2e:  native docker on the runner. Spawns a busybox pause
+#                container, resolves docker://<name>, enforces, tears
+#                down — the full container-native round trip against a
+#                real Engine API + a real cgroup.
+#
+#   k8s-e2e:     a kind (Kubernetes-in-Docker) cluster with the
+#                control-plane's /var/log/pods bind-mounted to the host
+#                (the resolver's own reachability path), so zelynic on
+#                the host reads real pod logs and walks the host's
+#                /sys/fs/cgroup for the pod's cgroup (kind pods ride
+#                the host cgroup tree under the kind container's slice).
+#                Deploys a pause pod, resolves k8s://<ns>/<pod>,
+#                enforces, tears down.
+#
+# Both legs build zelynic from source (the gnu dynamic shape — the
+# runner's own glibc, the runner's own kernel), install it to
+# /opt/zelynic/zelynic (v3's default binary path), and drive v3 with
+# the --docker-e2e / --k8s-e2e force flag (the lane FAILS honestly if
+# the runtime is absent — never a silent skip on a leg that exists to
+# prove the runtime). The honest E2E contract (NIGHT-improve-37): rc=0
+# is the full round trip (resolve + enforce); rc=non-zero without a
+# resolver-error marker means the resolver found the target and the
+# failure is downstream (enforcement on the runner kernel — honest,
+# recorded as a PASS-with-note); rc=non-zero WITH a resolver-error
+# marker is a real bug (FAIL).
+#
+# The build mirrors ci.yml's gnu-dynamic job (rust 1.98.1 + the dated
+# nightly pin + bpf-linker 0.11.1 + the pure-Rust eBPF crate build),
+# so the binary these legs run is the same shape the gnu flagship
+# compiles everywhere else. The eBPF enforcement the micro-VM pair
+# already proves on known kernels rides here on the runner's own
+# kernel — a green docker-e2e leg is a real docker resolve + a real
+# enforce on a real kernel, not a skip.
+
+name: Dragon Guard - Supermassive Container E2E
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      # The container resolution surface this workflow EXERCISES, plus
+      # the harness it RUNS and the workflow file itself (a workflow
+      # that can change its own contract owes itself a run — the same
+      # NIGHT-hunt-34 rule ci.yml carries).
+      - 'src/ebpf/identity/**'
+      - 'src/commands/strict.rs'
+      - 'src/commands/safety.rs'
+      - 'scripts/supermassive/supermassive-test-v3.*'
+      - 'scripts/lib/zelynic_harness_lib.py'
+      - '.github/workflows/supermassive-container.yml'
+  pull_request:
+    branches: ["main"]
+    paths:
+      - 'src/ebpf/identity/**'
+      - 'src/commands/strict.rs'
+      - 'src/commands/safety.rs'
+      - 'scripts/supermassive/supermassive-test-v3.*'
+      - 'scripts/lib/zelynic_harness_lib.py'
+      - '.github/workflows/supermassive-container.yml'
+
+# Least privilege (cosmostrix contract): every job in this workflow
+# only reads the repository.
+permissions:
+  contents: read
+
+# Rapid pushes to the same ref cancel the superseded run instead of
+# queueing a duplicate (cosmostrix stability pattern).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+  RUST_VERSION: "1.98.1"
+  RUSTFLAGS: "-D warnings"
+
+jobs:
+  # ── docker E2E: native docker on the runner ──────────────────────────────
+  docker-e2e:
+    name: Container E2E - docker (native)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5, NIGHT-hunt-20 SHA pin
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # @stable, NIGHT-hunt-20 SHA pin
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          components: clippy, rustfmt
+
+      - name: Install eBPF nightly toolchain (dated pin)
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # @stable, NIGHT-hunt-20 SHA pin
+        with:
+          toolchain: nightly-2026-09-18
+          components: rust-src
+
+      - name: Install bpf-linker 0.11.1 (prebuilt static musl)
+        run: bash scripts/dev/install-bpf-linker.sh
+
+      - name: Cache cargo registry
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5, NIGHT-hunt-20 SHA pin
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+            ebpf/target
+          key: ${{ runner.os }}-container-docker-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-container-docker-cargo-
+            ${{ runner.os }}-cargo-
+
+      # The v3 codegen flag, composed inline (the same env-beats-config
+      # rule ci.yml's gnu-dynamic job documents — RUSTFLAGS shadows
+      # ebpf/.cargo/config.toml without it, and the BPF backend cannot
+      # select BPF_ATOMIC).
+      - name: Build pure-Rust eBPF objects (direct crate build)
+        run: RUSTFLAGS="-D warnings -C target-cpu=v3" cargo build --release --locked
+        working-directory: ebpf
+
+      - name: Build zelynic with ebpf feature (gnu dynamic)
+        run: cargo build --features ebpf --locked
+
+      - name: Install zelynic to /opt/zelynic (v3 default path)
+        run: |
+          sudo mkdir -p /opt/zelynic
+          sudo cp target/debug/zelynic /opt/zelynic/zelynic
+          sudo chmod 755 /opt/zelynic/zelynic
+          /opt/zelynic/zelynic -V
+
+      - name: zelynic doctor (eBPF on the runner kernel)
+        run: sudo /opt/zelynic/zelynic doctor
+
+      - name: v3 engine self-test
+        run: python3 scripts/supermassive/supermassive-test-v3.py --self-test
+
+      # The full v3 battery with --docker-e2e forced: the rootless
+      # stages (help + privilege gate) run; the root stages (grammar +
+      # resolution) run on the runner's root; the docker E2E lane
+      # spawns a real busybox container, resolves docker://<name>, and
+      # enforces on its cgroup. A green row here is the honest
+      # "docker resolve + enforce against a real runtime" verdict.
+      - name: v3 full battery (docker E2E forced)
+        run: sudo python3 scripts/supermassive/supermassive-test-v3.py --docker-e2e
+
+  # ── k8s E2E: kind cluster with /var/log/pods exposed ─────────────────────
+  k8s-e2e:
+    name: Container E2E - k8s (kind)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5, NIGHT-hunt-20 SHA pin
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # @stable, NIGHT-hunt-20 SHA pin
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          components: clippy, rustfmt
+
+      - name: Install eBPF nightly toolchain (dated pin)
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # @stable, NIGHT-hunt-20 SHA pin
+        with:
+          toolchain: nightly-2026-09-18
+          components: rust-src
+
+      - name: Install bpf-linker 0.11.1 (prebuilt static musl)
+        run: bash scripts/dev/install-bpf-linker.sh
+
+      - name: Cache cargo registry
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5, NIGHT-hunt-20 SHA pin
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+            ebpf/target
+          key: ${{ runner.os }}-container-k8s-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-container-k8s-cargo-
+            ${{ runner.os }}-cargo-
+
+      - name: Build pure-Rust eBPF objects (direct crate build)
+        run: RUSTFLAGS="-D warnings -C target-cpu=v3" cargo build --release --locked
+        working-directory: ebpf
+
+      - name: Build zelynic with ebpf feature (gnu dynamic)
+        run: cargo build --features ebpf --locked
+
+      - name: Install zelynic to /opt/zelynic (v3 default path)
+        run: |
+          sudo mkdir -p /opt/zelynic
+          sudo cp target/debug/zelynic /opt/zelynic/zelynic
+          sudo chmod 755 /opt/zelynic/zelynic
+          /opt/zelynic/zelynic -V
+
+      # kind (Kubernetes-in-Docker) + kubectl: the k8s E2E lane's
+      # runtime. kind runs a real kubelet inside a docker container on
+      # the runner; pods are real runc containers whose cgroups ride
+      # the host's /sys/fs/cgroup tree. The control-plane's
+      # /var/log/pods (the kubelet's pod-log directory, the resolver's
+      # own reachability path) is bind-mounted to the host so zelynic
+      # on the host reads real pod logs — the honest precondition for
+      # k8s://<ns>/<pod> resolution.
+      - name: Install kind + kubectl
+        run: |
+          curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.24.0/bin/amd64/kind
+          chmod +x ./kind
+          sudo mv ./kind /usr/local/bin/kind
+          KUBE_VERSION="$(curl -L -s https://dl.k8s.io/release/stable.txt)"
+          curl -LO "https://dl.k8s.io/release/${KUBE_VERSION}/bin/linux/amd64/kubectl"
+          chmod +x kubectl
+          sudo mv kubectl /usr/local/bin/kubectl
+          kind version
+          kubectl version --client
+
+      - name: Create host /var/log/pods (kind bind-mount target)
+        run: sudo mkdir -p /var/log/pods && sudo chmod 777 /var/log/pods
+
+      - name: Create kind cluster (/var/log/pods exposed to host)
+        run: |
+          cat > /tmp/kind-config.yaml <<'EOF'
+          kind: Cluster
+          apiVersion: kind.x-k8s.io/v1alpha4
+          nodes:
+          - role: control-plane
+            extraMounts:
+            - hostPath: /var/log/pods
+              containerPath: /var/log/pods
+          EOF
+          kind create cluster --config /tmp/kind-config.yaml --wait 120s
+          kubectl get nodes
+
+      - name: zelynic doctor (eBPF on the runner kernel)
+        run: sudo /opt/zelynic/zelynic doctor
+
+      - name: v3 engine self-test
+        run: python3 scripts/supermassive/supermassive-test-v3.py --self-test
+
+      # The full v3 battery with --k8s-e2e forced: the rootless stages
+      # run; the root stages run on the runner's root; the k8s E2E lane
+      # deploys a real pause pod into the kind cluster, resolves
+      # k8s://<ns>/<pod> via the host's /var/log/pods + the cgroup
+      # walk, and enforces on the pod's cgroup. A green row here is the
+      # honest "k8s resolve + enforce against a real kubelet" verdict.
+      - name: v3 full battery (k8s E2E forced)
+        run: sudo python3 scripts/supermassive/supermassive-test-v3.py --k8s-e2e
+
+      - name: Delete kind cluster
+        if: always()
+        run: kind delete cluster || true

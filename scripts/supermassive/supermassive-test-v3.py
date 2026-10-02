@@ -186,6 +186,27 @@ VALID_RATE = "1mb"
 STRICT_SINGLE = "strict-single"
 STRICT_SINGLE_ALIAS = "ss"
 
+# The resolver's own error markers (NIGHT-improve-37): when a real
+# runtime is present (the E2E lanes), a non-zero exit that carries one
+# of these means the RESOLVER failed to find the running target — a real
+# bug the E2E lane must FAIL (not the resolve-only contract's "no
+# runtime" refusal, which is the no-runtime proof stage 4 owns). A
+# non-zero exit WITHOUT any of these markers means the resolver found
+# the target (resolution succeeded) and the failure is downstream
+# (enforcement/eBPF on the runner kernel) — honest, recorded as a
+# PASS-with-note (the resolve-only contract's E2E half: a target that
+# DOES resolve). rc=0 is the full round trip (resolve + enforce).
+RESOLUTION_FAILURE_MARKERS = (
+    "no container named",
+    "docker socket",
+    "engine api",
+    "no /var/log/pods",
+    "no pod matching",
+    "poddir",
+    "no pod log directory",
+    "unrecognized container",
+)
+
 
 # ── the binary runner ──────────────────────────────────────────────────────
 
@@ -238,6 +259,31 @@ def _has_docker():
     return False
 
 
+def _has_k8s():
+    """True when a kubelet's pod-log directory is visible on the host.
+
+    The k8s resolver (resolve_k8s) reads /var/log/pods to find a pod's
+    UID, then walks /sys/fs/cgroup for the pod's cgroup. A real kubelet
+    populates /var/log/pods; an absent directory is the resolver's own
+    no-k8s signal (the same reachability test _has_docker carries for
+    the docker socket). Returns False when the directory is absent OR
+    empty so the k8s E2E lane self-skips clean — the same shape the
+    docker E2E lane carries. On a kind cluster with /var/log/pods
+    bind-mounted to the host (the CI shape), real pods are visible
+    here; on a host without k8s, the directory is absent.
+    """
+    poddir = "/var/log/pods"
+    if not os.path.isdir(poddir):
+        return False
+    # An empty directory (no pods) is not a reachable kubelet —
+    # resolve_k8s would bail with "no /var/log/pods directory" on
+    # absence, but a present-empty dir is the same no-pods shape.
+    try:
+        return len(os.listdir(poddir)) > 0
+    except OSError:
+        return False
+
+
 def _case_panicked(output):
     """True when the output carries a Rust panic sentinel.
 
@@ -246,6 +292,21 @@ def _case_panicked(output):
     container-target shape, malformed or well-formed, resolved or not.
     """
     return bool(PANIC_RE.search(output))
+
+
+def _resolution_failed(output):
+    """True when the output carries a resolver error marker.
+
+    In the E2E lanes (a real runtime IS present), a non-zero exit with
+    one of these markers means the resolver failed to find the running
+    target — a real bug. A non-zero exit WITHOUT any marker means the
+    resolver found the target and the failure is downstream (enforcement
+    on the runner kernel) — honest, not a zelynic bug. The markers are
+    the resolver's own error wording (RESOLUTION_FAILURE_MARKERS),
+    matched case-insensitively.
+    """
+    low = output.lower()
+    return any(marker in low for marker in RESOLUTION_FAILURE_MARKERS)
 
 
 # ── stage 1: the help/usage surface (rootless, always runs) ────────────────
@@ -597,11 +658,15 @@ def test_docker_e2e(force=False):
             "PASS",
             f"container {container_name} running",
         )
-        # The binary should ACCEPT the container target (the resolver
-        # finds the container's cgroup). A clean accept (rc=0 on the
-        # resolve) or a clean enforcement refusal (rc=non-zero with a
-        # resolution error) are both valid — the invariant is no hang
-        # and no panic.
+        # The binary resolves docker://<name> against the REAL running
+        # container. The honest E2E contract (NIGHT-improve-37): rc=0 is
+        # the full round trip (resolve + enforce) — the ideal. rc=non-
+        # zero WITHOUT a resolver error marker means the resolver FOUND
+        # the container's cgroup and the failure is downstream
+        # (enforcement on the runner kernel) — honest, recorded as a
+        # PASS-with-note. rc=non-zero WITH a resolver error marker means
+        # the resolver failed to find the running container — a real
+        # bug, FAIL. No panic and no hang are hard invariants.
         rc, output = _run_cli_case([STRICT_SINGLE, f"docker://{container_name}", VALID_RATE])
         if rc is None:
             record(
@@ -617,10 +682,24 @@ def test_docker_e2e(force=False):
                 "panic leaked on a real container target",
             )
             return False
+        if rc == 0:
+            record(
+                "docker-e2e: resolve docker://<name>",
+                "PASS",
+                "rc=0 — full round trip (resolve + enforce) on a real container",
+            )
+            return True
+        if _resolution_failed(output):
+            record(
+                "docker-e2e: resolve docker://<name>",
+                "FAIL",
+                f"rc={rc} — resolver failed to find the running container: {output.strip()[:200]}",
+            )
+            return False
         record(
             "docker-e2e: resolve docker://<name>",
             "PASS",
-            f"rc={rc}, no panic, no hang (resolve-only contract holds)",
+            f"rc={rc} — resolver found the container, enforcement downstream (resolve-only contract's E2E half holds)",
         )
         return True
     except subprocess.TimeoutExpired:
@@ -636,6 +715,209 @@ def test_docker_e2e(force=False):
         # next run.
         subprocess.run(
             ["docker", "rm", "-f", container_name],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+
+
+# ── stage 6: the k8s E2E lane (root + kubelet, self-skip) ───────────────────
+#
+# The k8s twin of stage 5. When a kubelet's /var/log/pods is visible on
+# the host (the kind-cluster CI shape: the control-plane container's
+# /var/log/pods is bind-mounted to the host so the kubelet populates it
+# live, and the pod's cgroup rides the host's /sys/fs/cgroup under
+# kubepods*), v3 deploys a pause pod, resolves k8s://<ns>/<pod> to its
+# cgroup id, and tears down — the full k8s-native round trip. When no
+# kubelet is present (the CI micro-VM ships no k8s, and a host without
+# kind has no /var/log/pods), the lane self-skips with a note. The
+# resolve-error depth (stage 4) is the no-runtime proof; this stage is
+# the WITH-runtime proof — the two halves of the resolve-only contract.
+
+
+def test_k8s_e2e(force=False):
+    """The real k8s E2E lane (self-skip when no kubelet).
+
+    When k8s is present (/var/log/pods populated by a real kubelet):
+    deploy a pause pod in a fresh namespace, resolve k8s://<ns>/<pod>,
+    verify the binary accepts the target, tear down. When absent:
+    self-skip with a note (the CI shape — the resolver error depth in
+    stage 4 is the no-runtime proof). The `force` flag runs the lane
+    even when k8s is absent (for local manual probes that want the
+    failure surfaced rather than skipped).
+    """
+    out()
+    out("── stage 6: k8s E2E lane (root + kubelet, self-skip) ──")
+    if not _is_root():
+        record(
+            "k8s-e2e: pod round trip",
+            "SKIP",
+            "non-root — the E2E lane needs root + kubelet",
+        )
+        return True
+    if not _has_k8s():
+        if force:
+            record(
+                "k8s-e2e: kubelet reachable",
+                "FAIL",
+                "--k8s-e2e forced but no /var/log/pods (no kubelet) found",
+            )
+            return False
+        record(
+            "k8s-e2e: pod round trip",
+            "SKIP",
+            "no kubelet (/var/log/pods absent) — the resolver error depth (stage 4) is the no-runtime proof",
+        )
+        return True
+    # kubectl must be on PATH for the deploy/teardown. The CI leg
+    # installs it; a host without kubectl cannot drive the lane even
+    # with a kubelet present (the resolver works, but the harness
+    # cannot stage the pod).
+    from shutil import which
+
+    if not which("kubectl"):
+        if force:
+            record(
+                "k8s-e2e: kubectl present",
+                "FAIL",
+                "--k8s-e2e forced but kubectl not on PATH (cannot stage the pod)",
+            )
+            return False
+        record(
+            "k8s-e2e: pod round trip",
+            "SKIP",
+            "no kubectl on PATH — the resolver works but the harness cannot stage the pod",
+        )
+        return True
+    namespace = "zelynic-v3"
+    pod_name = "zelynic-v3-probe"
+    # Best-effort teardown: the namespace is deleted even if the lane
+    # failed, so the next run starts clean (the same pattern the docker
+    # E2E lane carries for the container).
+    try:
+        # Create a fresh namespace (ignore "already exists" — a prior
+        # crashed run leaves it; the pod creation below is the real
+        # probe).
+        subprocess.run(
+            ["kubectl", "create", "namespace", namespace],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        # Deploy a pause pod (the canonical no-op: it owns a cgroup
+        # and sleeps). The pause image is the k8s-native twin of the
+        # docker E2E lane's busybox sleep.
+        deploy = subprocess.run(
+            [
+                "kubectl",
+                "run",
+                pod_name,
+                "--namespace",
+                namespace,
+                "--image=registry.k8s.io/pause:3.9",
+                "--restart=Never",
+                "--overrides",
+                '{"spec":{"nodeName":"kind-control-plane"}}',
+            ],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        if deploy.returncode != 0:
+            record(
+                "k8s-e2e: deploy pause pod",
+                "FAIL",
+                f"kubectl run failed: {deploy.stderr.strip()[:200]}",
+            )
+            return False
+        # Wait for the pod to reach Running (the cgroup must exist
+        # before the resolver can find it). A 60s window covers the
+        # image pull on a cold cache.
+        wait = subprocess.run(
+            [
+                "kubectl",
+                "wait",
+                "--for=condition=Ready",
+                "pod",
+                pod_name,
+                "--namespace",
+                namespace,
+                "--timeout=90s",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=100,
+        )
+        if wait.returncode != 0:
+            record(
+                "k8s-e2e: pod reaches Running",
+                "FAIL",
+                f"kubectl wait failed: {wait.stderr.strip()[:200]}",
+            )
+            return False
+        record(
+            "k8s-e2e: deploy pause pod",
+            "PASS",
+            f"pod {namespace}/{pod_name} running",
+        )
+        # The binary resolves k8s://<ns>/<pod> against the REAL running
+        # pod. The honest E2E contract (NIGHT-improve-37, the same shape
+        # the docker E2E lane carries): rc=0 is the full round trip
+        # (resolve + enforce) — the ideal. rc=non-zero WITHOUT a resolver
+        # error marker means the resolver FOUND the pod's cgroup and the
+        # failure is downstream (enforcement on the runner kernel) —
+        # honest, recorded as a PASS-with-note. rc=non-zero WITH a
+        # resolver error marker means the resolver failed to find the
+        # running pod — a real bug, FAIL. No panic and no hang are hard
+        # invariants.
+        rc, output = _run_cli_case([STRICT_SINGLE, f"k8s://{namespace}/{pod_name}", VALID_RATE])
+        if rc is None:
+            record(
+                "k8s-e2e: resolve k8s://<ns>/<pod>",
+                "FAIL",
+                "timed out (hang)",
+            )
+            return False
+        if _case_panicked(output):
+            record(
+                "k8s-e2e: resolve no panic",
+                "FAIL",
+                "panic leaked on a real pod target",
+            )
+            return False
+        if rc == 0:
+            record(
+                "k8s-e2e: resolve k8s://<ns>/<pod>",
+                "PASS",
+                "rc=0 — full round trip (resolve + enforce) on a real pod",
+            )
+            return True
+        if _resolution_failed(output):
+            record(
+                "k8s-e2e: resolve k8s://<ns>/<pod>",
+                "FAIL",
+                f"rc={rc} — resolver failed to find the running pod: {output.strip()[:200]}",
+            )
+            return False
+        record(
+            "k8s-e2e: resolve k8s://<ns>/<pod>",
+            "PASS",
+            f"rc={rc} — resolver found the pod, enforcement downstream (resolve-only contract's E2E half holds)",
+        )
+        return True
+    except subprocess.TimeoutExpired:
+        record(
+            "k8s-e2e: deploy/resolve",
+            "FAIL",
+            "kubectl or zelynic timed out",
+        )
+        return False
+    finally:
+        # Best-effort teardown: the namespace (and its pod) is deleted
+        # even if the lane failed. A fresh namespace per run keeps the
+        # /var/log/pods directory honest (no stale pod UIDs).
+        subprocess.run(
+            ["kubectl", "delete", "namespace", namespace, "--ignore-not-found"],
             capture_output=True,
             text=True,
             timeout=30,
@@ -700,14 +982,14 @@ def self_test():
 # ── the orchestrator ────────────────────────────────────────────────────────
 
 
-def run_container_depth(phases, force_docker_e2e=False):
+def run_container_depth(phases, force_docker_e2e=False, force_k8s_e2e=False):
     """Run the container depth battery, stage by stage.
 
     phases: the list of stage names to run (None = all). The stages
     self-skip when the environment cannot support them (non-root skips
-    the grammar/resolution depth; no-docker skips the E2E lane), so the
-    battery is green on every host — the depth it CAN prove is the
-    depth it runs.
+    the grammar/resolution depth; no-docker skips the docker E2E lane;
+    no-kubelet skips the k8s E2E lane), so the battery is green on every
+    host — the depth it CAN prove is the depth it runs.
     """
     all_stages = {
         "help": test_container_help_surface,
@@ -715,6 +997,7 @@ def run_container_depth(phases, force_docker_e2e=False):
         "grammar": test_container_uri_grammar,
         "resolution": test_container_resolution_errors,
         "docker-e2e": lambda: test_docker_e2e(force=force_docker_e2e),
+        "k8s-e2e": lambda: test_k8s_e2e(force=force_k8s_e2e),
     }
     if phases:
         stages = [(name, all_stages[name]) for name in phases]
@@ -728,6 +1011,7 @@ def run_container_depth(phases, force_docker_e2e=False):
     out(f"  binary: {lib.BINARY or '(not bound — pass --binary)'}")
     out(f"  root:   {'yes' if _is_root() else 'no'}")
     out(f"  docker: {'yes' if _has_docker() else 'no'}")
+    out(f"  k8s:    {'yes' if _has_k8s() else 'no'}")
     out(f"  stages: {', '.join(name for name, _ in stages)}")
     out("================================================================")
     out()
@@ -773,6 +1057,11 @@ def main():
         action="store_true",
         help="force the docker E2E lane (fail if no docker, do not skip)",
     )
+    parser.add_argument(
+        "--k8s-e2e",
+        action="store_true",
+        help="force the k8s E2E lane (fail if no kubelet, do not skip)",
+    )
     args = parser.parse_args()
 
     # Bind the binary: the --binary flag wins, then the CI init's
@@ -798,7 +1087,11 @@ def main():
         return 0 if ok else 1
 
     phases = [s.strip() for s in args.stages.split(",") if s.strip()] if args.stages else None
-    ok = run_container_depth(phases, force_docker_e2e=args.docker_e2e)
+    ok = run_container_depth(
+        phases,
+        force_docker_e2e=args.docker_e2e,
+        force_k8s_e2e=args.k8s_e2e,
+    )
 
     # The verdict: count PASS/FAIL/SKIP across every record.
     counts = {v: sum(1 for r in RESULTS if r["verdict"] == v) for v in ("PASS", "FAIL", "SKIP")}

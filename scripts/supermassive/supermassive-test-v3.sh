@@ -23,6 +23,7 @@
 #   ./scripts/supermassive/supermassive-test-v3.sh --rootless         # help + privilege gate only
 #   sudo ./scripts/supermassive/supermassive-test-v3.sh --json        # machine-readable
 #   sudo ./scripts/supermassive/supermassive-test-v3.sh --docker-e2e  # force the docker E2E lane
+#   sudo ./scripts/supermassive/supermassive-test-v3.sh --k8s-e2e     # force the k8s E2E lane
 #
 # Division of labor with v1 and v2 (NIGHT-improve-34, the owner's
 # call): v1 measures limits; v2 survives violence; v3 resolves
