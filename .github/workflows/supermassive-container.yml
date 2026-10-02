@@ -64,9 +64,23 @@ on:
       - 'scripts/supermassive/supermassive-test-v3.*'
       - 'scripts/lib/zelynic_harness_lib.py'
       - '.github/workflows/supermassive-container.yml'
+      - 'src/**'
+      - 'ebpf/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'build.rs'
+      - 'rust-toolchain.toml'
+      - '.cargo/**'
   pull_request:
     branches: ["main"]
     paths:
+      - 'src/**'
+      - 'ebpf/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'build.rs'
+      - 'rust-toolchain.toml'
+      - '.cargo/**'
       - 'src/ebpf/identity/**'
       - 'src/commands/strict.rs'
       - 'src/commands/safety.rs'

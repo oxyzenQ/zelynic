@@ -168,14 +168,6 @@ on:
       - 'scripts/ci/**'
       - '.github/workflows/supermassive.yml'
   workflow_dispatch: {}
-  schedule:
-    # Weekly, Monday 03:00 UTC (owner timezone +8: 11:00 local) —
-    # the kernel-span clock: the impish archive on old-releases is
-    # frozen (structurally drift-proof) but its AVAILABILITY can
-    # change, and the best leg's dynamic resolver depends on the
-    # archive's layout (a restructure fails loudly here, not on a
-    # release day).
-    - cron: "0 3 * * 1"
 
 # Least privilege (cosmostrix contract): this workflow only reads
 # the repository. The sudo inside is host-level (mount, the KVM
