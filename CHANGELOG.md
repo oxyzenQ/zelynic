@@ -19,6 +19,35 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Fixed
 
+- **NIGHT-hunt-Z6 opener, the prebuilt pin's locale hole — one
+  `sort`, two hashes, and the 779907d lane that could not ship.**
+  The v20.0.0-alpha.1 push passed every local gate on the
+  maintainer's desktop and failed CI's Gate-keepers on exactly one
+  row: the prebuilt-parity tree pin (manifest 6909e869e vs the
+  checkout's cb58eef7) — while both object rows PASSED, the shipped
+  objects byte-identical to what CI computed, so nothing under
+  ebpf/ or ebpf-prebuilt/ had drifted at all. The root cause sits
+  in the pin algorithm itself: `ebpf_tree_sha()` hashed the sorted
+  tracked file list with a bare `sort -z`, which follows the
+  invoking shell's collation — a UTF-8 desktop locale reorders the
+  very list a C locale sorts by raw bytes
+  ("ebpf/bpfel-unknown-none.json" before "ebpf/Cargo.lock":
+  punctuation ignored, case folded), and the two orders hash one
+  identical ebpf/ tree to two different pins. The maintainer was
+  trapped from both sides: against the old (byte-order) manifest
+  the local commit gate refused on the same row, and re-running
+  refresh-prebuilt.sh pinned the desktop's collation into the
+  manifest — locally self-consistent, impossible on CI's clean
+  checkout. The close: both implementations (the parity gate and
+  the refresh) pin the collation with LC_ALL=C, making the tree
+  pin byte-order deterministic on every Linux — the property the
+  headers always claimed — and the lane is regenerated against the
+  portable pin (cb58eef7, the hash every clean checkout computes;
+  the rebuilt objects are byte-identical to the shipped rows, the
+  pinned-toolchain reproducibility holding across two different
+  hosts). The sweep found no other hash-over-sorted-list in the
+  tree: the remaining `sort` uses in the gates are display-order
+  only, never pinned.
 - **NIGHT-hunt-Z4, the rings join the reclaim family — the LTS
   state budget audit's one real find.** The owner's ask: audit
   the LTS state budget under a 1024-cgroup fleet. The inventory
