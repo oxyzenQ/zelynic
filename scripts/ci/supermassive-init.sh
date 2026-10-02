@@ -176,6 +176,15 @@ else
         note "supermassive v3 engine self-test" FAIL
 fi
 
+# v4's engine smoke (NIGHT-improve-35): the CLI depth harness is sound
+# — v1 importable, the shared lib surface present, v4's case tables
+# populated. Runs before the full CLI depth battery.
+if python3 scripts/supermassive/supermassive-test-v4.py --self-test; then
+        note "supermassive v4 engine self-test" PASS
+else
+        note "supermassive v4 engine self-test" FAIL
+fi
+
 # The emergency rescue smoke (NIGHT-improve-31's terminal half): the
 # rescue runs clean on the floor kernel and exits 0 — as PID 1 there
 # is no interposer and no parent, so this proves the classic path's
@@ -267,6 +276,23 @@ if python3 scripts/supermassive/supermassive-test-v3.py \
         note "supermassive v3 - container depth battery (full)" PASS
 else
         note "supermassive v3 - container depth battery (full)" FAIL
+fi
+
+# v4, the CLI depth battery (NIGHT-improve-35, the e2e pipeline's phase
+# five): every CLI surface end to end — every command (canonical +
+# alias), every global flag, every color mode (zero to hero), every
+# near-miss typo's suggestion tip, every rate-explode shape's category
+# error, every removed/retired command's clean redirect, and every
+# hidden subcommand. Rootless by design (the CLI surface parses
+# before the root check), so v4 is the most CI-friendly supermassive
+# test — it runs on every host without sudo. A green row here is the
+# "the surface is COMPLETE" verdict — v4 proves coverage, v2 proves
+# hardness (the same surface from both ends).
+if python3 scripts/supermassive/supermassive-test-v4.py \
+        --binary /opt/zelynic/zelynic; then
+        note "supermassive v4 - CLI depth battery (full, rootless)" PASS
+else
+        note "supermassive v4 - CLI depth battery (full, rootless)" FAIL
 fi
 
 # ── the claims proof, LIVE on this leg's kernel (NIGHT-lts-6) ─────────
