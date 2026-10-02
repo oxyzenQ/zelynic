@@ -51,20 +51,36 @@
 # --apply appends changed=true|false to $GITHUB_OUTPUT when set
 # (the workflow's step-output contract, maintenance.yml's shape).
 # --commit commits the estate's bot identity (github-actions[bot],
-# maintenance.yml's commit job precedent) and pushes with a
-# fetch-rebase-retry loop: the Monday clock is shared with
-# maintenance.yml's dependency sweep, and two scheduled pushes can
-# race the same ref — the loser rebases and retries instead of
-# going red on a race the next run would heal anyway. The workflow
-# runs --apply and --commit as separate steps; a standalone
-# --commit on a clean tree sweeps first, so both shapes end at the
-# same commit.
+# maintenance.yml's commit job precedent) and pushes through
+# SWEEP_PUSH_TOKEN — a PAT with Workflows write, the one
+# credential shape GitHub allows to update .github/workflows/
+# (App tokens, the runner's GITHUB_TOKEN included, are refused
+# that write outright; self-heal.yml's first live run proved it).
+# The push classifies before it retries: permission refusals fail
+# fast with their remediation (retrying a platform refusal only
+# burns rebases — the first-run bug this closes), and only
+# fetch-first writer races rebase and retry — the Monday clock is
+# shared with maintenance.yml's dependency sweep, and the loser of
+# a real race rebases instead of going red on what the next run
+# would heal anyway. Without SWEEP_PUSH_TOKEN the healed tree is
+# left uncommitted with a loud warning (the container lane's
+# no-docker self-skip precedent: a push the platform provably
+# refuses is never attempted). The workflow runs --apply and
+# --commit as separate steps; a standalone --commit on a clean
+# tree sweeps first, so both shapes end at the same commit.
 #
 # Environment:
-#   GITHUB_TOKEN  optional; authenticated API reads (1000 req/h).
-#                 Unauthenticated works (60 req/h) but a shared
-#                 egress IP can exhaust that mid-sweep; the workflow
-#                 always sets it.
+#   GITHUB_TOKEN      optional; authenticated API reads (1000
+#                     req/h). Unauthenticated works (60 req/h) but
+#                     a shared egress IP can exhaust that
+#                     mid-sweep; the workflow always sets it.
+#   SWEEP_PUSH_TOKEN  optional; the push credential --commit rides
+#                     (a one-shot http.extraheader,
+#                     actions/checkout's own mechanism, so the
+#                     token never prints in any log). Needs
+#                     Workflows write (a fine-grained PAT) or the
+#                     workflow scope (a classic PAT); without it
+#                     --commit skips the push with a warning.
 
 set -euo pipefail
 
@@ -100,7 +116,7 @@ and in .github/workflows/self-heal.yml).
 modes:
   --dry-run   report the verdict table, change nothing
   --apply     heal the workflow files in place (no git ops)
-  --commit    stage, commit (bot identity), push (rebase-retry)
+  --commit    stage, commit (bot identity), push (SWEEP_PUSH_TOKEN)
 EOF
 }
 
@@ -443,8 +459,18 @@ guard_diff() {
 	fi
 }
 
+# do_commit — the estate's bot identity, the diff in the commit
+# body, and the push. The sweep only ever writes
+# .github/workflows/ (guard_diff enforces it), and GitHub refuses
+# that write to App-backed tokens — the runner's GITHUB_TOKEN
+# included — so the push rides SWEEP_PUSH_TOKEN through a one-shot
+# http.extraheader (actions/checkout's own mechanism: a -c flag
+# outranks the persisted credential, and the token never prints).
+# Refusals are classified before any retry: a permission rejection
+# is permanent (the first live run burned three fetch-rebase
+# cycles on one), only a fetch-first writer race rebases.
 do_commit() {
-	local branch diffbody attempt
+	local branch diffbody attempt out b64
 	branch="$(git rev-parse --abbrev-ref HEAD)"
 	if [ "$branch" != "main" ]; then
 		echo "SWEEP: not on main (${branch}); leaving the healed tree uncommitted"
@@ -452,6 +478,11 @@ do_commit() {
 	fi
 	if [ -z "$(git status --porcelain -- .github/workflows)" ]; then
 		echo "SWEEP: nothing to heal, no commit"
+		return 0
+	fi
+	if [ -z "${SWEEP_PUSH_TOKEN:-}" ]; then
+		echo "::warning::Dragon Guard healed and validated this tree but cannot push it: SWEEP_PUSH_TOKEN is unset, and GitHub refuses workflow-file writes to App tokens (the runner's GITHUB_TOKEN included). Set the SELF_HEAL_PAT repository secret to a PAT with Workflows write (self-heal.yml wires it in); the heal is re-derived and re-validated every run, and the push waits for that one-time setup."
+		echo "SWEEP: push skipped — no SWEEP_PUSH_TOKEN (workflow files need a Workflows-write PAT); the healed tree stays uncommitted for a manual push"
 		return 0
 	fi
 	# The diff rides in the commit body: the log is the audit trail
@@ -463,14 +494,29 @@ do_commit() {
 	git commit -m "chore(ci): maintenance actions weekly" \
 		-m "Healed by scripts/ci/actions-version-sweep.sh (NIGHT-improve-39); the verdict table lives in the workflow run log." \
 		-m "$diffbody"
+	b64="$(printf 'x-access-token:%s' "$SWEEP_PUSH_TOKEN" | base64 | tr -d '\n')"
 	for attempt in 1 2 3; do
-		if git push origin main; then
+		if out="$(git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic ${b64}" push origin main 2>&1)"; then
+			echo "$out"
 			echo "SWEEP: pushed the healed pins (attempt ${attempt})"
 			return 0
 		fi
-		echo "SWEEP: push raced another writer (attempt ${attempt}); fetching and rebasing"
-		git fetch origin main
-		git rebase origin/main
+		echo "$out"
+		if grep -Eqi 'refusing to allow|permission denied|workflows permission|GH006|protected branch|required status checks' <<<"$out"; then
+			echo "FAIL: the push was rejected permanently — no retry can heal this (it is not a writer race)."
+			echo "If the rejection names workflows permission: the SWEEP_PUSH_TOKEN token cannot update .github/workflows/ — it needs Workflows write (a fine-grained PAT) or the workflow scope (a classic PAT)."
+			return 1
+		fi
+		echo "SWEEP: push did not land (attempt ${attempt}); fetching and rebasing — a fetch-first writer race, the one shape a retry heals"
+		if ! git fetch origin main; then
+			echo "FAIL: fetch failed ahead of the rebase; the next run re-heals from origin"
+			return 1
+		fi
+		if ! git rebase origin/main; then
+			git rebase --abort || true
+			echo "FAIL: rebase conflict onto origin/main — the healed tree is stale; the next run re-heals from origin"
+			return 1
+		fi
 	done
 	echo "FAIL: could not push after 3 attempts; the next run re-heals from origin"
 	return 1

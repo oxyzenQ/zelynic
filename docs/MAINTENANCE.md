@@ -13,7 +13,7 @@ then act on it.
 
 ## 1. Secret inventory
 
-Four secrets carry the pipeline. Each has a defined rotation path and
+Five secrets carry the pipeline. Each has a defined rotation path and
 a blast radius; none should outlive its purpose.
 
 | Secret | Where | Scope | Blast radius if leaked |
@@ -22,6 +22,7 @@ a blast radius; none should outlive its purpose.
 | `GPG_PASSPHRASE` | repo Actions secrets | passphrase for the signing subkey | useless without the key; still rotate together with it |
 | `CRATES_IO_TOKEN` | repo Actions secrets | crates.io **publish-update** scope (NIGHT-dinner-1) | a bad crate version upload; crates.io versions are permanent — yank, never re-upload |
 | `GITHUB_TOKEN` | automatic per-job | per-workflow, scoped by each job's `permissions:` block | nothing to rotate; the least-privilege `permissions:` on every job is the control |
+| `SELF_HEAL_PAT` | repo Actions secrets | a fine-grained PAT with Workflows write, zelynic-only — the push credential of the CI self-heal sweep (App tokens, the job's GITHUB_TOKEN included, are refused workflow-file writes, so the weekly pin heal rides this token; see §2) | write access to this repo's workflow files under the owner identity — regenerate the PAT and re-set the secret (GitHub Settings → Developer settings → Fine-grained tokens), nothing else to rotate |
 
 Rotation procedures:
 
@@ -45,7 +46,7 @@ Rotation procedures:
 | `audit.yml` — Dragon Guard - Security Audit | weekly (Mon) 00:00 UTC | `cargo audit` (RustSec) + `cargo deny` (licenses/advisories) over the locked tree | Observation-only by design: read the advisory, decide patch-vs-accept, record the decision in the audit trail. A weekly ping is information, not an emergency (NIGHT-improve-38: the cadence matches this table's clock) |
 | `codeql.yml` — Dragon Guard - CodeQL | weekly (Mon) | CodeQL security analysis of the userspace tree | Triage the alert; a confirmed finding gets a dated audit doc + a fix commit in the same task |
 | `maintenance.yml` — Dependency Maintenance | weekly (Mon) | GPG subkey expiry (30-day warning), stale dependencies | The GPG warning starts the §1 rotation; stale deps get a scheduled upgrade window |
-| `self-heal.yml` — Dragon Guard - CI Actions Self-heal | weekly (Mon) 00:00 UTC | every `uses:` action pin across the workflows, upgraded to the latest stable release (major/minor/patch; SHA pins stay SHA pins — the engine is `scripts/ci/actions-version-sweep.sh`), validated with actionlint + yamllint before the push | Read the verdict table in the run log. A red sweep means the API was unreachable or a healed workflow failed validation — the pins stayed as they were (the run fails before the commit exists); triage, then re-run from the Run workflow dialog |
+| `self-heal.yml` — Dragon Guard - CI Actions Self-heal | weekly (Mon) 00:00 UTC | every `uses:` action pin across the workflows, upgraded to the latest stable release (major/minor/patch; SHA pins stay SHA pins — the engine is `scripts/ci/actions-version-sweep.sh`), validated with actionlint + yamllint before the push; the push rides the `SELF_HEAL_PAT` secret (§1, a Workflows-write PAT — App tokens are refused workflow-file writes, the first live run proved it) | Read the verdict table in the run log. A red sweep means the API was unreachable, a healed workflow failed validation, or the push was rejected permanently (the log names which and its remediation); a green run carrying the SELF_HEAL_PAT warning means the secret is unset — the heal is re-derived and re-validated weekly, and the push waits for §1's one-time setup |
 
 Plus the push-time guards (not scheduled, but part of the posture):
 `gate-keepers.yml` wholesale on every push and PR, `ci.yml`,
@@ -129,7 +130,11 @@ binaries).
   A local `--dry-run` prints exactly what the next sweep would
   heal; what the sweep refuses to touch (the `@stable` pins, pins
   ahead of latest, non-version refs) is listed in the script's
-  header with the reason for each rule.
+  header with the reason for each rule. The weekly push rides the
+  `SELF_HEAL_PAT` secret (§1): App tokens cannot update workflow
+  files, so while that secret is unset the sweep still heals and
+  validates weekly, then skips the push with a warning instead of
+  attempting what the platform refuses.
 
 ## 6. Docs hygiene
 

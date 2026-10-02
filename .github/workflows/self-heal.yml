@@ -26,18 +26,32 @@
 #      and yamllint --strict (the same config the wholesale gate
 #      runs): a sweep that breaks a workflow is a red run, not a
 #      red estate.
-#   3. sweep --commit pushes as github-actions[bot] (maintenance.yml's
-#      commit-job identity) with a fetch-rebase-retry loop — the
-#      Monday clock is shared with the dependency sweep, and two
-#      scheduled pushes racing the same ref rebases instead of red.
-#      The diff rides in the commit body: the log is the audit
-#      trail of exactly which pins moved.
+#   3. sweep --commit commits as github-actions[bot] (maintenance.yml's
+#      commit-job identity) and pushes through SWEEP_PUSH_TOKEN —
+#      the SELF_HEAL_PAT secret, a PAT with Workflows write, the
+#      one credential shape GitHub allows to update
+#      .github/workflows/ (App tokens, this job's GITHUB_TOKEN
+#      included, are refused that write outright — this workflow's
+#      own first run proved it live, three rebase retries on a
+#      refusal no retry can heal). The push classifies before it
+#      retries: permission refusals fail fast with their
+#      remediation; only fetch-first writer races rebase and retry
+#      (the Monday clock is shared with the dependency sweep, and
+#      two scheduled pushes racing the same ref rebases instead of
+#      red). The diff rides in the commit body: the log is the
+#      audit trail of exactly which pins moved.
 #
-# Honest limits, written where they bite: a GITHUB_TOKEN push does
-# not trigger the other workflows (GitHub's recursion rule), so the
-# healed pins ride the next human push through every lane — this
-# run validates what it can (syntax, expressions, YAML shape) and
-# the estate's next real run exercises the rest.
+# Honest limits, written where they bite: without SELF_HEAL_PAT
+# the run still heals and validates the tree every week, then
+# leaves it uncommitted with a loud warning instead of attempting
+# a push the platform provably refuses (the container lane's
+# no-docker self-skip precedent — the estate stays green honestly
+# while the heal is re-proven weekly until the secret exists).
+# With the secret in place the push is a real push event, so the
+# healed pins are exercised by the lanes they touch (Gate-keepers
+# on every push, CI when its own file moved) instead of riding the
+# next human push through the lanes — the recursion rule a
+# GITHUB_TOKEN push could never escape is gone by construction.
 
 name: Dragon Guard - CI Actions Self-heal
 
@@ -48,10 +62,13 @@ on:
     - cron: "0 0 * * 1"
   workflow_dispatch:
 
-# The sweep exists to write: one job, contents: write, least
-# privilege otherwise (the cosmostrix contract).
+# Least privilege (the cosmostrix contract): the job's GITHUB_TOKEN
+# only reads (checkout + the sweep's API calls) — the one write
+# this workflow exists for, workflow files, is refused to App
+# tokens outright, so it rides SWEEP_PUSH_TOKEN (a PAT with
+# Workflows write) whose own permissions govern the push.
 permissions:
-  contents: write
+  contents: read
 
 # NIGHT-improve-32's stability shape: schedule and dispatch share
 # one per-ref group — a manual click mid-flight supersedes the
@@ -123,11 +140,14 @@ jobs:
           actionlint
           yamllint -c .yamllint --strict .github/workflows
 
-      # The push: bot identity, the diff in the commit body, and the
-      # script's own fetch-rebase-retry loop for the shared Monday
+      # The push: bot identity, the diff in the commit body, the
+      # Workflows-write PAT (App tokens are refused workflow-file
+      # writes — the one write this job exists for), and the
+      # script's classify-then-retry loop for the shared Monday
       # clock.
       - name: Commit and push healed pins
         if: steps.sweep.outputs.changed == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SWEEP_PUSH_TOKEN: ${{ secrets.SELF_HEAL_PAT }}
         run: bash scripts/ci/actions-version-sweep.sh --commit
