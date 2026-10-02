@@ -125,6 +125,60 @@ fn walk_returns_none_for_unrecognized_names() {
     );
 }
 
+/// The two-token space form of --color-mode leaves its value as a
+/// bare argv token (NIGHT-total-lts-3 find 1: the walk's boolean-only
+/// assumption predates boost-23, so the MODE value was mistaken for
+/// the subcommand — a strict-single death rendered the ROOT usage).
+/// The walk must consume the value the way the parser does.
+#[test]
+fn walk_consumes_the_color_mode_value_token() {
+    use clap::CommandFactory;
+    let root = crate::cli::Cli::command();
+    let sub = failing_subcommand(
+        &root,
+        &argv(&["zelynic", "--color-mode", "16", "ss", "brave", "--verbos"]),
+        Some("--verbos"),
+    )
+    .expect("the walk must reach ss past the consumed MODE value");
+    assert_eq!(sub.get_name(), "strict-single");
+}
+
+/// A MODE value that IS a real subcommand name must still be eaten as
+/// the value (the pre-fix walk resolved `--color-mode status ss` to
+/// the status command — a usage line for a command the parser never
+/// entered).
+#[test]
+fn walk_consumes_a_mode_value_that_names_a_subcommand() {
+    use clap::CommandFactory;
+    let root = crate::cli::Cli::command();
+    let sub = failing_subcommand(
+        &root,
+        &argv(&["zelynic", "--color-mode", "status", "ss", "brave", "--verbos"]),
+        Some("--verbos"),
+    )
+    .expect("the MODE value is a value, never the subcommand");
+    assert_eq!(
+        sub.get_name(),
+        "strict-single",
+        "the walk resolves the subcommand AFTER the consumed value"
+    );
+}
+
+/// The =-form is one token and rides the dash-skip: the subcommand
+/// after it resolves directly.
+#[test]
+fn walk_resolves_the_subcommand_after_the_equals_form() {
+    use clap::CommandFactory;
+    let root = crate::cli::Cli::command();
+    let sub = failing_subcommand(
+        &root,
+        &argv(&["zelynic", "--color-mode=16", "ss", "brave", "--verbos"]),
+        Some("--verbos"),
+    )
+    .expect("the =-form never leaves a bare value token");
+    assert_eq!(sub.get_name(), "strict-single");
+}
+
 /// The gate removes exactly the Suggested context the probe
 /// convicted — no SuggestedArg is invented, the error kind and the
 /// rejected token are untouched.
