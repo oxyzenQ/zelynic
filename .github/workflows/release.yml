@@ -222,7 +222,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5, NIGHT-hunt-20 SHA pin
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7, NIGHT-hunt-20 SHA pin
         with:
           # NIGHT-improve-20: the release build needs exactly one
           # commit — the one the tag points at. fetch-depth 0 pulled
@@ -281,7 +281,7 @@ jobs:
       # after this change; cargo's RUSTFLAGS fingerprinting keeps
       # every restored entry refingered — never mis-served.
       - name: Cache cargo registry & build
-        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5, NIGHT-hunt-20 SHA pin
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6, NIGHT-hunt-20 SHA pin
         with:
           path: |
             ~/.cargo/registry
@@ -621,7 +621,7 @@ jobs:
           echo "--- All signatures verified ---"
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5, NIGHT-hunt-20 SHA pin
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7, NIGHT-hunt-20 SHA pin
         with:
           # NIGHT-improve-22: one artifact per platform; the release
           # job merges the four by pattern (merge-multiple) so the
@@ -674,14 +674,14 @@ jobs:
         # The checkout must precede Download artifacts — see the
         # NIGHT-dinner-3 step-order note above. Same action pin as the
         # build job; cone over the one directory this job reads.
-        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5, NIGHT-hunt-20 SHA pin
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7, NIGHT-hunt-20 SHA pin
         with:
           fetch-depth: 1
           sparse-checkout: |
             scripts/release
 
       - name: Download artifacts
-        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6, NIGHT-hunt-20 SHA pin
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8, NIGHT-hunt-20 SHA pin
         with:
           # NIGHT-improve-22: the build job is a four-platform matrix
           # now — pull every per-platform artifact and merge them into
@@ -849,7 +849,7 @@ jobs:
           cat release-body.md
 
       - name: Create Release
-        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2, NIGHT-hunt-20 SHA pin
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3, NIGHT-hunt-20 SHA pin
         with:
           tag_name: ${{ needs.validate.outputs.tag }}
           name: ${{ steps.body.outputs.title }}
