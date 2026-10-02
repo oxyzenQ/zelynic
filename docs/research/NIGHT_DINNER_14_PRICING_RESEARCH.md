@@ -28,8 +28,8 @@ Currency is USD as listed by the source.
 | Business   | $1,000/year  | SMB, revenue $100K – $10M/year                  |
 | Company    | $9,900/year | Enterprise (>$10M/year) OR redistribution rights |
 
-The full terms live in [COMMERCIAL_LICENSE.md](../COMMERCIAL_LICENSE.md)
-and [LICENSING_FAQ.md](LICENSING_FAQ.md). Tiers are self-declared in
+The full terms live in [COMMERCIAL_LICENSE.md](../../COMMERCIAL_LICENSE.md)
+and [LICENSING_FAQ.md](../LICENSING_FAQ.md). Tiers are self-declared in
 good faith, paid in USD-pegged crypto, with an owner-discretion
 multi-year discount (20% off 2 years, 30% off 3 years).
 
@@ -154,7 +154,7 @@ What NOT to do, regardless of option:
    [README.md](../../README.md) (Commercial Licensing section),
    [COMMERCIAL_LICENSE.md](../../COMMERCIAL_LICENSE.md) (section 3),
    and the revenue-tier guide in
-   [LICENSING_FAQ.md](LICENSING_FAQ.md). A price change that
+   [LICENSING_FAQ.md](../LICENSING_FAQ.md). A price change that
    desyncs the three is worse than no change.
 2. The multi-year discount note (20% / 30%) scales with the new
    prices automatically — no edit needed, but re-read it after.
