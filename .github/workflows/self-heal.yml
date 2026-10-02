@@ -1,0 +1,133 @@
+# Copyright (C) 2026 rezky_nightky
+# SPDX-License-Identifier: GPL-3.0-only
+# =============================================================================
+# Dragon Guard - CI Actions Self-heal (NIGHT-improve-39)
+# =============================================================================
+#
+# The owner's LTS ask: a CI that self-heals — every week, on the
+# estate's Monday morning clock (00:00 UTC / 07:00 WIB, the one
+# clock every scheduled workflow already carries, NIGHT-improve-9),
+# every `uses:` action reference across the CI estate upgrades
+# itself to the latest stable release: major, minor, or patch. The
+# goal is lazy LTS maintenance — no manual pin upkeep, no rot while
+# the owner is away, a CI estate that is current by construction.
+#
+# The engine is scripts/ci/actions-version-sweep.sh, shared with
+# the owner's local runs (the same canonical-invocation rule every
+# other battery here carries). This workflow is its weekly home:
+#
+#   1. sweep --apply heals the pins. SHA pins stay SHA pins (the
+#      NIGHT-hunt-20 posture: the pin moves to the release's commit
+#      SHA, never to a moving tag); tag pins bump their major; the
+#      honesty rules — what the sweep refuses to touch — live in
+#      the script's header.
+#   2. the healed workflows are validated BEFORE a commit can
+#      exist — actionlint (the same pin gate-keepers.yml carries)
+#      and yamllint --strict (the same config the wholesale gate
+#      runs): a sweep that breaks a workflow is a red run, not a
+#      red estate.
+#   3. sweep --commit pushes as github-actions[bot] (maintenance.yml's
+#      commit-job identity) with a fetch-rebase-retry loop — the
+#      Monday clock is shared with the dependency sweep, and two
+#      scheduled pushes racing the same ref rebases instead of red.
+#      The diff rides in the commit body: the log is the audit
+#      trail of exactly which pins moved.
+#
+# Honest limits, written where they bite: a GITHUB_TOKEN push does
+# not trigger the other workflows (GitHub's recursion rule), so the
+# healed pins ride the next human push through every lane — this
+# run validates what it can (syntax, expressions, YAML shape) and
+# the estate's next real run exercises the rest.
+
+name: Dragon Guard - CI Actions Self-heal
+
+on:
+  schedule:
+    # Every Monday at 00:00 UTC (07:00 WIB) — the owner's morning,
+    # one clock for every scheduled workflow (NIGHT-improve-9).
+    - cron: "0 0 * * 1"
+  workflow_dispatch:
+
+# The sweep exists to write: one job, contents: write, least
+# privilege otherwise (the cosmostrix contract).
+permissions:
+  contents: write
+
+# NIGHT-improve-32's stability shape: schedule and dispatch share
+# one per-ref group — a manual click mid-flight supersedes the
+# weekly sweep instead of racing a second run on the same ref (the
+# two triggers are the same work on the same ref).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+jobs:
+  sweep:
+    name: Actions version sweep
+    # Runner pinned to ubuntu-24.04, never a floating ubuntu-latest
+    # (the estate rule, runner-images#14748): OS upgrades here are
+    # deliberate, matrix-tested changes.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5, NIGHT-hunt-20 SHA pin
+        with:
+          ref: main
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      # The sweep: query every action repo, heal the pins, print the
+      # verdict table. GITHUB_TOKEN authenticates the API reads
+      # (1000 req/h; the sweep needs roughly three calls per unique
+      # action repo — about 25 calls for the current estate).
+      - name: Sweep action pins (apply)
+        id: sweep
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash scripts/ci/actions-version-sweep.sh --apply
+
+      # Validation BEFORE the commit — pinned to the same versions
+      # gate-keepers.yml runs, for the same reason: a red sweep must
+      # mean the tree drifted, never that a linter released
+      # overnight. The curl retry contract is gate-keepers.yml's own
+      # (the dinner-12 lesson: no -f means a 5xx page dies later
+      # inside tar with a misleading error).
+      - name: Install actionlint (pinned v1.7.7)
+        if: steps.sweep.outputs.changed == 'true'
+        run: |
+          curl -fsSL --retry 6 --retry-all-errors --retry-delay 10 --retry-max-time 300 --connect-timeout 15 \
+            -o /tmp/actionlint.tgz \
+            https://github.com/rhysd/actionlint/releases/download/v1.7.7/actionlint_1.7.7_linux_amd64.tar.gz
+          tar -xzf /tmp/actionlint.tgz -C /tmp actionlint
+          sudo install -m755 /tmp/actionlint /usr/local/bin/actionlint
+          actionlint --version
+
+      - name: Install yamllint (pinned 1.38.0)
+        if: steps.sweep.outputs.changed == 'true'
+        run: python3 -m pip install --user yamllint==1.38.0
+
+      # The same two gates the wholesale gate-keepers job runs on
+      # every push (its sections 2 and 3), aimed at the healed
+      # files before a commit can exist. yamllint takes the
+      # directory directly — the sweep only ever writes under
+      # .github/workflows/, so that is exactly the surface to
+      # validate (no find, no word-splitting shape for the embedded
+      # shellcheck pass to flag).
+      - name: Validate healed workflows
+        if: steps.sweep.outputs.changed == 'true'
+        run: |
+          actionlint
+          yamllint -c .yamllint --strict .github/workflows
+
+      # The push: bot identity, the diff in the commit body, and the
+      # script's own fetch-rebase-retry loop for the shared Monday
+      # clock.
+      - name: Commit and push healed pins
+        if: steps.sweep.outputs.changed == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash scripts/ci/actions-version-sweep.sh --commit

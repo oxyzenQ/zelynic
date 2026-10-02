@@ -42,13 +42,15 @@ Rotation procedures:
 
 | Workflow | Cadence | Watches | On failure |
 |----------|---------|---------|------------|
-| `audit.yml` — Dragon Guard - Security Audit | daily 00:00 UTC | `cargo audit` (RustSec) + `cargo deny` (licenses/advisories) over the locked tree | Observation-only by design: read the advisory, decide patch-vs-accept, record the decision in the audit trail. A daily ping is information, not an emergency |
+| `audit.yml` — Dragon Guard - Security Audit | weekly (Mon) 00:00 UTC | `cargo audit` (RustSec) + `cargo deny` (licenses/advisories) over the locked tree | Observation-only by design: read the advisory, decide patch-vs-accept, record the decision in the audit trail. A weekly ping is information, not an emergency (NIGHT-improve-38: the cadence matches this table's clock) |
 | `codeql.yml` — Dragon Guard - CodeQL | weekly (Mon) | CodeQL security analysis of the userspace tree | Triage the alert; a confirmed finding gets a dated audit doc + a fix commit in the same task |
 | `maintenance.yml` — Dependency Maintenance | weekly (Mon) | GPG subkey expiry (30-day warning), stale dependencies | The GPG warning starts the §1 rotation; stale deps get a scheduled upgrade window |
+| `self-heal.yml` — Dragon Guard - CI Actions Self-heal | weekly (Mon) 00:00 UTC | every `uses:` action pin across the workflows, upgraded to the latest stable release (major/minor/patch; SHA pins stay SHA pins — the engine is `scripts/ci/actions-version-sweep.sh`), validated with actionlint + yamllint before the push | Read the verdict table in the run log. A red sweep means the API was unreachable or a healed workflow failed validation — the pins stayed as they were (the run fails before the commit exists); triage, then re-run from the Run workflow dialog |
 
 Plus the push-time guards (not scheduled, but part of the posture):
-`gate-keepers.yml` wholesale on every push and PR, `supermassive.yml`,
-`ci.yml`, and the three-arm prebuilt-parity enforcement
+`gate-keepers.yml` wholesale on every push and PR, `ci.yml`,
+`supermassive.yml`, `supermassive-container.yml`, and the three-arm
+prebuilt-parity enforcement
 (NIGHT-dinner-1 — commit time, publish time, release time).
 
 ## 3. The prebuilt eBPF lane (the one ritual with a hard rule)
@@ -120,6 +122,14 @@ binaries).
   shfmt, yamllint, codespell, actionlint, ruff) re-pin via
   `scripts/gate-keepers.sh` — the wholesale run prints the pinned
   versions it expects.
+- The **CI action pins** self-heal on the same Monday clock
+  (NIGHT-improve-39): `scripts/ci/actions-version-sweep.sh` (the
+  engine behind `self-heal.yml`) moves every pinned action to the
+  latest stable release while keeping the SHA-pinning posture.
+  A local `--dry-run` prints exactly what the next sweep would
+  heal; what the sweep refuses to touch (the `@stable` pins, pins
+  ahead of latest, non-version refs) is listed in the script's
+  header with the reason for each rule.
 
 ## 6. Docs hygiene
 
@@ -136,7 +146,7 @@ a claim without a ledger entry is a bug in the docs.
 | Every | Do |
 |-------|----|
 | push | nothing manual — the gate battery runs itself |
-| weekly (Mon) | read the CodeQL + dependency-maintenance results; rotate the GPG subkey if the 30-day warning fired |
+| weekly (Mon) | read the CodeQL + security-audit + dependency-maintenance + CI self-heal results; rotate the GPG subkey if the 30-day warning fired |
 | monthly | skim `git log -- docs/` for purpose drift; re-run `./scripts/gate-keepers.sh` once on the dev machine (re-arms the commit hook if the clone moved) |
 | per release | the §4 routine; the §3 ritual whenever `ebpf/` moved in the cycle |
 | quarterly | full sandbox validation matrix ([SANDBOX.md](SANDBOX.md)), a fresh dated audit doc recording the state of the project, and a stale-secret review (§1) |
