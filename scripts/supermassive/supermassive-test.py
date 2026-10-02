@@ -2974,6 +2974,35 @@ def test_ammsp_subtree(window, baseline):
                     "ammsp: grandchild resolves to the NEAREST root (50kb, not 100kb)",
                     samples[-1],
                     50_000,
+                    # NIGHT-total-lts-1 rider 3: the verdict matches
+                    # the row's name, the Z5 single-row precedent.
+                    # The RESOLUTION law is proven by the CEILING: a
+                    # grandchild that resolved to the 100kb parent
+                    # reads toward 145 KB/s at steady state, one that
+                    # resolved to nothing reads line rate — the over
+                    # side fails immediately and nothing retries a
+                    # real over-delivery away. Under-delivery is the
+                    # sender's to give: the db0a46a best-musl leg read
+                    # 28.3, 32.0, then 16.4 KB/s across three patient
+                    # windows (the cadence DEGRADING — the RTO
+                    # backoff deepening, not a transient), all under
+                    # the 0.65 lo bound with the resolution itself
+                    # provably fine (the ceiling machinery and the
+                    # resolver pins standing). At this trickle rate
+                    # one 64 KiB admit needs ~1.31 s of refill and
+                    # the DRR half-draws stretch the first ones
+                    # across a sparse retransmit cadence — a frozen
+                    # sender under-delivers under ANY policy, so the
+                    # under-band number cannot distinguish a 50kb
+                    # resolution from a 100kb one and must not redden
+                    # the row (the GSO-floor precedent: where
+                    # under-delivery is physics, the floor drops to
+                    # 0.0 and the ceiling carries the verdict). The
+                    # numbers stay recorded — window_samples_note —
+                    # and the resolver law stays pinned where it is
+                    # deterministic: the rootless resolver sims and
+                    # the legacy A/B's nested-root row.
+                    lo=0.0,
                     extra=lib.window_samples_note(samples),
                 )
                 and passed

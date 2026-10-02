@@ -439,6 +439,37 @@ real double-budget regression reads toward 2x and must still
 trip — and the control side's escape shape is untouched. Battery-
 only; the eBPF object byte-identical (the prebuilt pin proves it).
 
+The db0a46a era (the drain held; the fourth lottery row met the Z5
+single-row precedent): the shared-budget drain's first run took
+THREE legs green — low-gnu, low-musl, and best-gnu, the first
+three-leg green since the instrument split era began, with the
+shared-budget row reading in-band where it had reddened (and
+Gate-keepers, CI, CodeQL SUCCESS). The best-musl leg reddened on
+the v1 battery's own grandchild row: `ammsp: grandchild resolves
+to the NEAREST root (50kb, not 100kb) — configured 50.0 KB/s,
+measured 16.4 KB/s (32.8%); windows: 28.3, 32.0, 16.4` — three
+patient windows all under the 0.65 lo bound, the cadence
+DEGRADING window over window (the sender's RTO backoff deepening,
+not a transient: at this trickle rate one 64 KiB admit needs
+~1.31 s of refill and the DRR half-draws stretch the first ones
+across a sparse retransmit cadence). The row's own history shows
+the resolution law was never in question — the run 128 legs read
+it at 98.3-100%, and this run's failure shape (decreasing windows)
+is the frozen sender, identical in kind to the single aggregate
+row's born-red era. The close is the Z5 single-row precedent
+applied to its fourth row: the verdict now matches the row's name —
+the nearest-root RESOLUTION is proven by the CEILING (a grandchild
+that resolved to the 100kb parent reads toward 145 KB/s at steady
+state, one that resolved to nothing reads line rate; the over side
+fails immediately, nothing retries a real over-delivery away,
+and the under-band number cannot distinguish a 50kb resolution
+from a 100kb one under a frozen sender, so it must not redden the
+row) — lo drops to 0.0, the hi stays at the 1.30 band, the window
+numbers stay recorded, and the resolver law stays pinned where it
+is deterministic (the rootless resolver sims and the legacy A/B's
+nested-root row). Battery-only; the eBPF object byte-identical
+(the prebuilt pin proves it).
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.
