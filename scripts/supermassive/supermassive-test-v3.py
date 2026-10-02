@@ -33,7 +33,7 @@ limits; v2 survives violence; v3 resolves containers. A machine green
 on v1 has a limiter that holds everywhere it claims; a machine green on
 v2 survives the day nothing goes right; a machine green on v3 names a
 workload by its container and enforces on the cgroup the name resolves
-to, clean on every error path the runtime absense and a hostile operator
+to, clean on every error path the runtime absence and a hostile operator
 can produce — never a hang, never a panic, never a silent success.
 
 Design:
@@ -74,7 +74,7 @@ Design:
     micro-VM ships no docker), the lane self-skips with a note, the
     same shape v1's realnet lane self-skips without an endpoint. The
     k8s lane is resolve-error-only by design (a kubelet is heavier
-    than a micro-VM carries): the /var/log/pods absense is the depth
+    than a micro-VM carries): the /var/log/pods absence is the depth
     the CI leg proves.
 
 Usage:
@@ -579,7 +579,7 @@ def test_container_resolution_errors():
 # micro-VM ships no docker), the lane self-skips with a note, the same
 # shape v1's realnet lane self-skips without an endpoint. The k8s lane
 # is resolve-error-only by design (a kubelet is heavier than a micro-VM
-# carries): the /var/log/pods absense is the depth stage 4 proves.
+# carries): the /var/log/pods absence is the depth stage 4 proves.
 
 
 def test_docker_e2e(force=False):

@@ -31,7 +31,7 @@
 # machine green on v2 survives the day nothing goes right; a machine
 # green on v3 names a workload by its container and enforces on the
 # cgroup the name resolves to, clean on every error path the runtime
-# absense and a hostile operator can produce.
+# absence and a hostile operator can produce.
 #
 # Full design notes live in the .py header.
 
