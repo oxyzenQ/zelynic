@@ -19,11 +19,13 @@
 ## Kernel Feature Dependencies
 
 ### `bpf_skb_cgroup_id(skb)` — kernel 4.18+
+
 Returns the cgroup ID of the **socket owner** (not current task). This is critical
 for correct attribution — TCP packets are processed in softirq context, not the
 originating process. Available since kernel 4.18 (2018).
 
 ### Cgroup ID resolution — `stat(2)` inode (every cgroup v2 kernel)
+
 There is no `cgroup.id` file in any mainline kernel (NIGHT-hunt-31
 removed that phantom from the resolver and both test harnesses). The
 cgroup ID is the kernfs inode number of the cgroup directory:
@@ -32,6 +34,7 @@ same node id as `st_ino` — so `stat(2)` is the whole resolution, and it
 is the numbering every verified kernel in the matrix ran on.
 
 ### `bpf_link_create` + `BPF_OBJ_PIN` — kernel 5.7+
+
 zelynic uses `bpf_link` (fd-based attachment) instead of legacy
 `bpf_prog_attach`. Links are pinned to bpffs so enforcement survives
 process exit. Aya 0.13's public API does not expose link pinning for
@@ -39,6 +42,7 @@ process exit. Aya 0.13's public API does not expose link pinning for
 for `bpf_link_create`.
 
 ### `BPF_ATOMIC` RMW (`fetch_add` / `cmpxchg`) — kernel 5.12+
+
 The limiter's token bucket is SMP-safe since NIGHT-boost-38 (schema
 v7): every refill-window ownership, token deduction, and stats
 increment is an atomic read-modify-write, so two CPUs enforcing the
@@ -64,7 +68,9 @@ docs/PURE_RUST_EVALUATION.md and build.rs's
 `force_bpf_v3_rustflags`).
 
 ### `BPF_MAP_TYPE_ARRAY` + `BPF_MAP_TYPE_HASH` — kernel 4.18+
+
 Standard BPF map types. Used for:
+
 - `watchdog_deadline` (ARRAY, 1 entry)
 - `schema_version` (ARRAY, 1 entry)
 - `cgroup_policy_dl/ul` (HASH, 1024 entries)
@@ -73,6 +79,7 @@ Standard BPF map types. Used for:
 - `cgroup_limiter_stats` (HASH, 1024 entries)
 
 ### cgroup v2 — kernel 4.5+ (practical: 5.0+)
+
 zelynic requires cgroup v2 (unified hierarchy). cgroup v1 is NOT supported.
 
 Check: `stat -fc %T /sys/fs/cgroup` should return `cgroup2fs`.
@@ -95,6 +102,7 @@ Check: `stat -fc %T /sys/fs/cgroup` should return `cgroup2fs`.
 ## Testing Matrix
 
 ### Kernels — verified PASS where recorded
+
 - [x] 5.13 (minimum — Ubuntu 21.10, MUSL binary)
 - [x] 6.12 (Debian 13)
 - [x] 6.18 (Arch Linux — dev machine)
@@ -106,20 +114,24 @@ Check: `stat -fc %T /sys/fs/cgroup` should return `cgroup2fs`.
 - [ ] 6.8 (Ubuntu 24.04 — CI build matrix only, no runtime record)
 
 ### Hardware
+
 - [x] AMD (dev machine — Ryzen 7 5800HS, verified)
 - [ ] Intel (not yet tested)
 - [ ] ARM64 (future — no cross-compile yet)
 
 ### Network
+
 - [x] WiFi (dev machine — verified, wlp1s0)
 - [ ] Ethernet (not yet tested)
 - [ ] Multiple interfaces (not yet tested)
 
 ### Binary types
+
 - [x] GNU (glibc, dynamic) — Arch, Ubuntu, Fedora, Debian
 - [x] MUSL (static) — Ubuntu 21.10, CachyOS VM, Debian 13
 
 ### Test coverage
+
 Depth/leak/enforcement results per distro are recorded once in
 [CROSS_DISTRO_RESULTS.md](CROSS_DISTRO_RESULTS.md) — the harness
 commands to reproduce them are in the README's Test Results section.
@@ -146,27 +158,34 @@ commands to reproduce them are in the README's Test Results section.
 ## Troubleshooting
 
 ### "cgroup v2 not found at /sys/fs/cgroup"
+
 Your system uses cgroup v1. Check:
+
 ```bash
 stat -fc %T /sys/fs/cgroup
 # Should output: cgroup2fs
 ```
 
 ### "the pinned nightly toolchain ... is not installed" or "bpf-linker is not on PATH" (build time)
+
 The BPF objects build inside the binary now (NIGHT-improve-1 phase
 3); the build.rs preflight (NIGHT-host-1) names the exact missing
 prerequisite before any compile time is spent. One command fixes
 both — and finishes the whole host setup by also building the
 flagship binary (NIGHT-improve-16), so the next command is the
 test, not a build:
+
 ```bash
 ./scripts/dev/bootstrap-ebpf.sh
 ```
+
 Manual alternative:
+
 ```bash
 rustup toolchain install nightly-2026-09-18 --component rust-src --component rustfmt
 # bpf-linker 0.11.1: https://github.com/aya-rs/bpf-linker/releases
 ```
+
 A failure that instead reads "the pure-Rust eBPF build failed with
 prerequisites present" is a real compile error — the nested cargo
 output above it is the diagnosis. The former "BPF object file not
@@ -174,17 +193,21 @@ found" error class is gone — the objects are embedded, never
 discovered on disk.
 
 ### "Failed to pin map"
+
 BPF filesystem not mounted:
+
 ```bash
 sudo mkdir -p /sys/fs/bpf
 sudo mount -t bpf bpf /sys/fs/bpf
 ```
 
 ### BPF verifier rejects program
+
 Check kernel version — `bpf_skb_cgroup_id()` requires 4.18+.
 Some older kernels have stricter verifier. Check dmesg for verifier log.
 
 ### eagle-eyes load fails with EINVAL on kernel 6.8 (NIGHT-boost-34, closed)
+
 Kernel 6.8 moved `bpf_get_current_pid_tgid` / `bpf_get_current_uid_gid` /
 `bpf_get_current_comm` out of `bpf_base_func_proto` into the new
 `cgroup_current_func_proto`, and the cgroup_skb dispatch never calls

@@ -55,7 +55,7 @@ for deep performance testing, and performance documentation.
   Measures: startup latency, status query latency, memory footprint,
   concurrent operation throughput, rate accuracy. Supports `--quick` and
   `--json` modes. Python used for timing precision + statistical analysis
-  + subprocess management (bash is for quick run, Python is the beast).
+  - subprocess management (bash is for quick run, Python is the beast).
 
 - **docs: `PERFORMANCE.md`** — baseline metrics + targets + measurement
   methodology. Includes regression detection instructions.
@@ -126,7 +126,7 @@ plus comprehensive race condition + reload test suites.
 
 - **chore: deleted `wolf-architecture` branch** — superseded by `main`
   after Dragon Architecture merge. Branches now: `main` (pure eBPF v6.x)
-  + `legacy` (v3.1.1 tc/nft).
+  - `legacy` (v3.1.1 tc/nft).
 
 #### Verification
 
@@ -416,7 +416,7 @@ Real enforcement: Chromium 670 Kbps on 100kb target, Brave 730 Kbps on 100kb tar
 ### Added — Dragon Architecture Branch (Identity Layer 2)
 
 - **eBPF identity resolution (Layer 2)**: `IdentityMap` walks `/proc/*/cgroup`
-  + `/sys/fs/cgroup{path}/cgroup.id` to build a reverse map: cgroup ID →
+  - `/sys/fs/cgroup{path}/cgroup.id` to build a reverse map: cgroup ID →
   process name / uid / cgroup path. 10s TTL refresh by default; first-pid-wins
   per cgroup. Best-effort — falls back to raw `cg:{id}` labels if resolution
   fails. The BPF program is unaffected.
@@ -906,7 +906,7 @@ Real enforcement: Chromium 670 Kbps on 100kb target, Brave 730 Kbps on 100kb tar
   write, no write APIs in production code) and 5 gate tests in
   `src/cli/v31_gate_tests.rs` (Section I: fixture dispatch unchanged,
   input flag rejected, file missing value rejected, export gated + schema
-  + version unchanged, --file parses correctly). Updated Phase 11 test
+  - version unchanged, --file parses correctly). Updated Phase 11 test
   from "file rejected" to "file parses". Updated Phase 10b test name for
   clarity. Created design doc
   `docs/v3.1-phase-12-gated-ledger-inspect-file-read.md`. Updated phase
@@ -964,7 +964,7 @@ Real enforcement: Chromium 670 Kbps on 100kb target, Brave 730 Kbps on 100kb tar
   normal mode no run-lab, normal mode rejects extra args. Updated existing tests for
   `target` changed to `Vec<String>`. Updated `no_stable_alias_in_cli` test in
   `src/commands/strict_run_lab/strict_run_lab_tests.rs` to check `render_help()` (not
-  `render_long_help()` which shows hidden args) and verify both `--run ` (stable) and
+  `render_long_help()` which shows hidden args) and verify both `--run` (stable) and
   `run-lab` (hidden experimental) absent. Created `docs/strict-run-ux-simplification-gate.md`
   documenting background, design decision (Option A chosen), implementation details,
   and safety guarantees. Updated `docs/strict-run-wrapper-stable-contract.md` with

@@ -28,7 +28,6 @@
   </a>
 </p>
 
-
 ## Demo
 
 <p align="center">
@@ -538,6 +537,7 @@ slightly easier to maintain.
 
 Starting with v20.0.0, the CLI surface is frozen. No breaking changes
 to commands, flags, or output format. Future releases focus on:
+
 - Bug fixes
 - Kernel compatibility updates
 - Performance improvements (internal, no API changes)

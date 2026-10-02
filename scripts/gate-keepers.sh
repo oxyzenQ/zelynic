@@ -24,6 +24,9 @@
 #   3.  actionlint on .github/workflows/*.yml
 #   4.  TOML syntax validation (python3 tomllib)
 #   5.  codespell on all text files (repo .codespellrc)
+#   5b. markdownlint-cli2 on all .md files (repo .markdownlint.json —
+#       docs tidying: MD013 line-length disabled so prose-heavy docs
+#       breathe; NIGHT-improve-38)
 #   6.  SPDX license header check (scripts/gates/check-headers.sh — dual-line
 #       contract across rs/c/h/py/sh/toml/yml/yaml/md; untracked files
 #       included so new files fail BEFORE commit)
@@ -367,6 +370,44 @@ if command -v codespell >/dev/null 2>&1; then
 	fi
 else
 	warn "codespell not installed — skipping"
+fi
+
+# ── 5b. Markdown lint (markdownlint-cli2, repo .markdownlint.json) ─────────
+# NIGHT-improve-38: docs tidying — every *.md must pass the repo's
+# markdownlint config (.markdownlint.json, MD013 line-length disabled so
+# the prose-heavy docs breathe). The same shape yamllint carries for
+# YAML and ruff carries for Python: one linter, one config, one gate.
+# Skips gracefully when markdownlint-cli2 is not on PATH (local
+# machines without node); CI installs it pinned (gate-keepers.yml).
+header "Markdown lint (markdownlint-cli2)"
+if command -v markdownlint-cli2 >/dev/null 2>&1; then
+	# markdownlint-cli2 uses glob patterns natively — the '!' prefix
+	# excludes. CHANGELOG.md and docs/archive/** are frozen history
+	# (the keepachangelog format's repeated headings, inline HTML
+	# commit refs, and mixed list styles are the format's own shape,
+	# not lint debt). The repo's .markdownlint.json config (MD013
+	# line-length, MD024 duplicate-heading, MD033 inline-HTML, etc.
+	# disabled where they conflict with the repo's established style)
+	# is read automatically from the repo root.
+	MD_OK=0
+	if $FIX_MODE; then
+		markdownlint-cli2 --fix '**/*.md' '!CHANGELOG.md' '!docs/archive/**' \
+			'!target/**' '!ebpf/target/**' '!node_modules/**' 2>&1 || MD_OK=1
+		# Re-check after fix: auto-fix may not resolve everything.
+		markdownlint-cli2 '**/*.md' '!CHANGELOG.md' '!docs/archive/**' \
+			'!target/**' '!ebpf/target/**' '!node_modules/**' 2>&1 || MD_OK=1
+	else
+		markdownlint-cli2 '**/*.md' '!CHANGELOG.md' '!docs/archive/**' \
+			'!target/**' '!ebpf/target/**' '!node_modules/**' 2>&1 || MD_OK=1
+	fi
+	if [ "$MD_OK" -eq 0 ]; then
+		info "markdownlint: all .md files pass (repo .markdownlint.json config)"
+		PASS=$((PASS + 1))
+	else
+		fail "markdownlint: markdown issues found (run with --fix to auto-fix where possible)"
+	fi
+else
+	warn "markdownlint-cli2 not installed — skipping (npm install -g markdownlint-cli2)"
 fi
 
 # ── 6. SPDX License Headers (scripts/gates/check-headers.sh) ──────────────────

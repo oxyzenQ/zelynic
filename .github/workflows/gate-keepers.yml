@@ -8,15 +8,17 @@
 # PR with NO paths filter — a docs-only or workflow-only change never
 # skips the gates that police it).
 #
-# Checks performed by gate-keepers.sh (19 numbered sections; the
+# Checks performed by gate-keepers.sh (20 numbered sections; the
 # shell quad's four sub-checks count separately, so the summary
-# line prints 22 gates):
+# line prints 23 gates):
 #   1.  Shell quad     - bash -n + shellcheck + shfmt -d + source
 #                        resolution on all .sh files
 #   2.  yamllint       - .github YAML (repo .yamllint config)
 #   3.  actionlint     - GitHub Actions workflow validation
 #   4.  TOML syntax    - python3 tomllib on all .toml files
 #   5.  codespell      - spelling across all text files (repo .codespellrc)
+#   5b. markdownlint   - all .md files (repo .markdownlint.json —
+#                        NIGHT-improve-38, docs tidying)
 #   6.  SPDX headers   - dual-line contract across rs/py/sh/toml/yml/md
 #   7.  Permissions    - tracked files 644, executables + dirs 755,
 #                        shebang parity
@@ -127,6 +129,15 @@ jobs:
           codespell --version
           actionlint --version
           ruff --version
+
+      # NIGHT-improve-38: markdownlint-cli2 for the docs tidying gate
+      # (gate-keepers.sh section 5b). Pinned to 0.18.1 — the standard
+      # node-based markdown linter that reads .markdownlint.json (the
+      # repo config with MD013 line-length disabled).
+      - name: Install markdownlint-cli2 (pinned v0.18.1)
+        run: |
+          npm install -g markdownlint-cli2@0.18.1
+          markdownlint-cli2 --version
 
       # Gate section 12 (ebpf rustfmt) resolves the dated nightly pin
       # from ebpf/rust-toolchain.toml; installing the same pin up front

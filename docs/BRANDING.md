@@ -124,9 +124,9 @@ numerics, and no per-cell noise (values are never packed as
   `+N` process suffix — `cg:73386 (alacritty +3)` — and up to four
   detail lines naming the socket-holding processes inside. A
   one-socket process renders inline:
-  `    └ curl (4242) → 142.250.191.78:443`; a multi-socket process
+  `└ curl (4242) → 142.250.191.78:443`; a multi-socket process
   expands its endpoints as indented children under a count-carrying
-  header: `    └ firefox (4242) 3 sockets:` with `├`/`└` endpoint
+  header: `└ firefox (4242) 3 sockets:` with `├`/`└` endpoint
   children (two shown in the ranked table, all of them in the focus
   view). UDP endpoints are tagged
   (`udp 8.8.8.8:53`), busy sockets flagged `[busy]`; remaining

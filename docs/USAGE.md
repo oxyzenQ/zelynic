@@ -789,7 +789,7 @@ D-state or zombie member is a first-glance signal the readable table
 previously dropped while the JSON carried it. And a member whose
 on-disk binary was replaced or removed after it started (a package
 upgrade mid-run, a loader that deleted itself) keeps its exe path
-and gains the kernel's own ` (deleted)` marker, on the text cell and
+and gains the kernel's own `(deleted)` marker, on the text cell and
 as the `exe_deleted` boolean in the JSON document — the marker is
 the triage fact, not formatting noise. Under the hood the same audit
 closed a hang: the argv shebang classification probe now opens with
@@ -1717,7 +1717,7 @@ are complete):
 
 `enforcement` is `"unlimited"` | `"blocked"` | `"limited"`; an
 unlimited direction carries `null` bps, never a fabricated zero. A
-`--per-socket` policy's rate figures carry the ` /socket` unit in
+`--per-socket` policy's rate figures carry the `/socket` unit in
 the text report and `download_per_socket` / `upload_per_socket` in
 the JSON (charger-core-3c, the same marker the status table owns —
 an unmarked rate would read as the cgroup cap the policy does not
@@ -1739,7 +1739,7 @@ carries.
 `kind` is `"binary"` | `"script"` | `null` (unreadable), and a
 script row's `script` field carries the shebang source path the
 classifier found. `exe_deleted` (NIGHT-blade-7) is true when the
-kernel marked the member's exe readlink ` (deleted)` — the on-disk
+kernel marked the member's exe readlink `(deleted)` — the on-disk
 binary was replaced or removed after the process started. The
 `permission` string carries the special bits the same way the text
 report does (`4755` for a setuid binary).

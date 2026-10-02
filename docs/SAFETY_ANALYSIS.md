@@ -9,6 +9,7 @@
 
 **zelynic is safe. It is not malware.** It is a pure eBPF bandwidth limiter
 that:
+
 - Does NOT collect, transmit, or store user data
 - Does NOT make network connections (except `--check-update` which is opt-in
   and refuses to run as root)
@@ -20,12 +21,14 @@ that:
 ## What zelynic Does
 
 ### BPF Programs (kernel)
+
 - Hooks `cgroup_skb/ingress` and `cgroup_skb/egress` on cgroup v2 root
 - Counts packets per cgroup (observer)
 - Enforces token-bucket rate limits per cgroup (limiter)
 - **Returns 1 (allow)** on every error path — never blocks on failure
 
 ### Userspace (Rust binary)
+
 - Loads BPF programs via aya
 - Reads/writes BPF maps (policies, stats, watchdog)
 - Walks `/proc` to resolve process names → cgroup IDs
@@ -33,6 +36,7 @@ that:
   fire-and-forget enforcement (no process needs to stay alive)
 
 ### What zelynic Does NOT Do
+
 - No telemetry, analytics, or phone-home
 - No automatic network connections (except opt-in `--check-update`)
 - No data collection or logging of user activity
@@ -63,6 +67,7 @@ network config, or system passwords.
 zelynic makes **zero outbound network connections** during normal operation.
 
 The only network-related activity:
+
 1. **BPF programs**: hook network packets in kernel (count/enforce) — do NOT
    read packet content, do NOT connect to anything
 2. **`--check-update` flag**: opt-in GitHub API call to check latest release.
@@ -92,6 +97,7 @@ guard: there root is the requirement, here root is the hazard.
 ## Crash Safety
 
 ### If zelynic crashes mid-operation:
+
 1. Enforcement is unaffected — it lives in pinned BPF programs + links,
    not in any zelynic process
 2. A crash between "pin" and "write policy" can leave orphaned pin files;
@@ -100,6 +106,7 @@ guard: there root is the requirement, here root is the hazard.
    crashed process dies — no stuck lock
 
 ### If user runs `unstrict-all`:
+
 1. All pin files removed (`/sys/fs/bpf/zelynic/*`)
 2. Pin directory removed
 3. BPF programs + links unloaded (kernel cleans up when the last
@@ -107,6 +114,7 @@ guard: there root is the requirement, here root is the hazard.
 4. **Zero residue** — system returns to pre-zelynic state
 
 ### If user reboots:
+
 1. bpffs is not persistent — all pins vanish with the mount
 2. BPF programs unloaded, limits gone
 3. **Zero residue** after reboot
@@ -114,12 +122,14 @@ guard: there root is the requirement, here root is the hazard.
 ## BPF Safety
 
 ### Verifier guarantees:
+
 - **No infinite loops**: BPF verifier guarantees program termination
 - **No out-of-bounds access**: all memory accesses bounds-checked
 - **No unbounded resource consumption**: maps have fixed max_entries
 - **No kernel crash**: BPF runs in sandbox, cannot crash kernel (Linux 5.x+)
 
 ### Fail-safe design:
+
 - No policy for cgroup → allow (return 1)
 - Bucket creation fails → allow (return 1)
 - Map lookup fails → allow (return 1)
@@ -128,6 +138,7 @@ guard: there root is the requirement, here root is the hazard.
 - Watchdog expired → allow (return 1) — dormant mechanism, see below
 
 ### Pin mode (fire-and-forget):
+
 - The watchdog is never armed (deadline 0 = absent) — BPF always enforces
 - Rate = 0 is an explicit user request: `block-single`/`block-*` write a
   zero rate and BPF blocks all traffic for that cgroup (schema v3); the
@@ -275,6 +286,7 @@ member's removal.
 ## Memory Safety (Rust)
 
 zelynic is written in Rust, which provides:
+
 - **Memory safety**: no buffer overflows, no use-after-free, no null dereferences
 - **Thread safety**: no data races (Rust ownership model)
 - **No unsafe code** in userspace outside the audited `unsafe`
@@ -297,6 +309,7 @@ zelynic is written in Rust, which provides:
   semantics
 
 ### BPF program code:
+
 - BPF verifier ensures memory safety at load time (the pure-Rust
   aya-ebpf source compiles through the same verifier as the former
   C twin — NIGHT-improve-1 phase 3)
@@ -308,6 +321,7 @@ zelynic is written in Rust, which provides:
 ## Race Conditions
 
 ### BPF map access:
+
 - BPF maps are kernel-managed, atomic operations
 - Multiple CPUs can access maps concurrently — kernel handles synchronization
 - Since NIGHT-boost-38 the stats booking rides the same atomic
@@ -319,6 +333,7 @@ zelynic is written in Rust, which provides:
   boundary, SMP-safe since v7)
 
 ### Concurrent CLI invocations:
+
 - The flock guard (`lock.rs`) serializes mutating operations — two
   zelynic processes never write policy maps at the same time
 - Kernel BPF map operations are atomic per-entry
@@ -372,7 +387,7 @@ names the repair tool. The unstrict honesty note likewise only claims
   cleanup progress) but every survivor is reported — strict
   all-or-nothing applies to apply, not to cleanup.
 - `group_id` generation (pid*1000 + subsec_nanos%1000): a collision
-  needs a pid delta whose *1000 mod 2^32 lands under 1000 — unreachable
+  needs a pid delta whose*1000 mod 2^32 lands under 1000 — unreachable
   with Linux pid_max <= 4194304 and one apply per CLI process.
 - The per-(cgroup, direction) pinned-map open during apply is 2N map
   opens — measurable only at hundreds of cgroups; correctness-first,
@@ -789,6 +804,7 @@ hunting the residual classes. Two findings, both fixed; everything
 else verified at peak.
 
 ### Finding 1 (fixed, defense-in-depth): root-run rescue externals
+
 resolved through the inherited PATH
 
 `--reset-terminal` spawns `stty` / `reset` / `tput` through PATH
@@ -815,6 +831,7 @@ the two best-effort belt layers, layers 1-3 having already restored
 the critical terminal state.
 
 ### Finding 2 (fixed): CJK/fullwidth glyphs counted one column wide
+
 across the render budget system
 
 The residual untrusted-input class of the cybersecurity-1 family:
@@ -854,6 +871,7 @@ width).
   re-verified at their documented state — peak.
 
 ## Terminal Rescue Under Sudo Interposition (NIGHT-improve-31,
+
 ## re-shaped in NIGHT-improve-34, 2026-09-25)
 
 The owner's live report: after a root TUI session died violently,
@@ -920,7 +938,7 @@ Three moves, all best-effort, none requiring any new privilege:
    healthy snapshot) touches NOTHING — zero ioctls, zero bytes —
    because by then the user's shell may be mid-prompt in its own
    raw mode. THE WHY: the improve-31 blanket re-apply (full cooked
-   + TCSAFLUSH) landed under that live line editor — the kernel's
+   - TCSAFLUSH) landed under that live line editor — the kernel's
    echo doubled every typed character and the flush ate queued
    keystrokes (the owner's fresh report: `sudo zelynic
    --reset-terminal` on a HEALTHY terminal left typing garbled,
@@ -1091,6 +1109,7 @@ monitoring, and every other surface never read the stamp.
 ## Verifying Safety Yourself
 
 ### Check network connections:
+
 ```bash
 # While zelynic is running, check for any network connections
 sudo ss -tunp | grep zelynic
@@ -1098,24 +1117,28 @@ sudo ss -tunp | grep zelynic
 ```
 
 ### Check file access:
+
 ```bash
 # Trace file access by zelynic
 sudo strace -f -e trace=openat zelynic strict-single brave 100kb 2>&1 | head -50
 ```
 
 ### Check BPF programs:
+
 ```bash
 # See what BPF programs are loaded
 sudo bpftool prog show | grep -A2 enforce
 ```
 
 ### Check BPF maps:
+
 ```bash
 # See what BPF maps are pinned
 ls -la /sys/fs/bpf/zelynic/
 ```
 
 ### Check for residue after unstrict-all:
+
 ```bash
 sudo zelynic unstrict-all
 ls /sys/fs/bpf/zelynic/ 2>&1           # should not exist

@@ -28,11 +28,18 @@ name: Dragon Guard - CodeQL
   push:
     branches: ["main"]
     paths:
-      # Rust
+      # Rust — NIGHT-improve-38: ebpf/** added (the aya-ebpf crate is
+      # pure Rust, the whole shipped code surface the autobuild scans;
+      # a change under ebpf/src/*.rs was silently invisible to codeql
+      # before this — the one CI leg that missed the *.rs trigger the
+      # other code-push workflows carry). deny.toml added too: a
+      # policy change affects what the scanner reports.
       - 'src/**'
       - 'test/**'
+      - 'ebpf/**'
       - 'Cargo.toml'
       - 'Cargo.lock'
+      - 'deny.toml'
       - 'build.rs'
       - 'rust-toolchain.toml'
       - '.cargo/**'
@@ -41,8 +48,10 @@ name: Dragon Guard - CodeQL
     paths:
       - 'src/**'
       - 'test/**'
+      - 'ebpf/**'
       - 'Cargo.toml'
       - 'Cargo.lock'
+      - 'deny.toml'
       - 'build.rs'
       - 'rust-toolchain.toml'
       - '.cargo/**'
