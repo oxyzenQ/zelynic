@@ -1267,6 +1267,86 @@ below-u32 graceful no-op (pinned in the battery, unchanged), and
 every existing injection pin (all 489 unit tests green, battery
 88/88 rootless).
 
+## Root Catch-All Audit (NIGHT-hunt-Z3, 2026-10-02)
+
+The owner's question: is the `cg:1` catch-all — the root cgroup
+policy that "polices NAPI kthreads" — a system-wide risk? The
+audit's answer, from the kernel attribution outward:
+
+**The attribution is sound.** Both hooks attach at the cgroup root
+and see every packet, but `bpf_skb_cgroup_id` /
+`bpf_skb_ancestor_cgroup_id` resolve the SOCKET's cgroup
+(`skb_to_full_sk`), never the current task's — NAPI/softirq
+processing (ksoftirqd, kworkers, all resident in the root cgroup)
+cannot misattribute a packet to `cg:1` by context alone. The
+kthreads themselves own no ordinary sockets; the ingress hook does
+not even run for skbs without a full socket. The risk is not
+misattribution — it is the ROOT POSITION ITSELF: a policy keyed at
+the cgroupfs root is resolved by the AMMSP ancestor walk for EVERY
+socket on the machine (the same "ancestor catch-all" the v18 memo
+split documents), kthread-processed traffic included wherever its
+socket rides. The owner's phrasing "polices NAPI kthreads" is the
+monitor's-eye truth of that catch-all: everything, machine-wide.
+
+**Three real doors into it, all one shape — the guard saw comm
+names and member lists, never the resolved position:**
+
+- **Finding Z3-1 (the id door's fail-open was unsound for the
+  root).** `check_dangerous_cgroup_id`'s documented rationale — "an
+  id with no live members stays allowed: the policy against it can
+  never match a socket" — is true for dead LEAF ids and false for
+  the root: a container view where kthreadd is invisible resolves
+  no members for the root id, yet the ancestor walk matches the
+  root's row for every socket on the machine. A privileged
+  container writing `cg:1` through that gap throttled the whole
+  host with zero warnings.
+- **Finding Z3-2 (the name door never checked the resolved
+  position).** The blocklist guards comm spellings; the root
+  cgroup's representative comm is whatever wins the majority vote
+  — kthreadd on stock distros (refused by name, by tie-break luck:
+  every kthread comm tallies 1 and kthreadd holds pid 2), but a
+  multi-threaded daemon living in the root on a no-systemd guest
+  (the sandbox micro-VM, Alpine, any container) names the row, is
+  not blocklisted, and `strict <daemon>` landed the machine-wide
+  catch-all with no warning and no override asked.
+- **Finding Z3-3 (the sweeps' force path included the root row by
+  construction).** `block-all --force-this` mapped EVERY identity
+  row to its cgroup id — the root row included: a rate-0 policy on
+  the root is machine-wide network death (SSH included; the
+  session running the command included). `strict-all --force-this`
+  wrote the same shape as a throttle. This fired on every distro,
+  not just no-systemd guests.
+
+**The fix — one position check, four doors.** The root's kernfs id
+is one `stat` away and does not depend on /proc at all:
+
+- the id door (`ss cg:1`) answers the root POSITION before the
+  member walk ever runs (Z3-1 closed at the pre-root rung);
+- the resolved-position check (`check_root_catch_all_resolved`)
+  runs post-privilege in strict/block single and multi — after the
+  parse, it resolves each target (id directly, name via the same
+  /proc walk the apply uses, container targets excluded on purpose:
+  they resolve to the workload's own scope subtree) and refuses any
+  that lands on the root (Z3-2 closed; the non-root refusal ladder
+  the battery pins is unchanged — the check runs after
+  `ensure_root`);
+- the sweeps count the root row in the skipped/system roster
+  however it is named, and `--force-this` includes it with ONE warn
+  naming the machine-wide blast radius (Z3-3 closed).
+
+The wording keeps the `system process` family the blade-18 battery
+needles pin and teaches the same `--force-this` lift every guard
+arm teaches — the root catch-all stays POSSIBLE (a whole-machine
+cap is a legitimate ask; the AMMSP contract itself documents the
+ancestor catch-all as a working shape), it just never lands
+unexplained again. Unit pins: the root ladder (refusal names
+position, blast radius, and override; force lifts) and the
+resolved-position spelling table, both against the live cgroupfs
+root id, both skipping honestly where no cgroupfs is visible; the
+own-cgroup round-trip pin gained the root-position skip (in a
+container the test process's own cgroup IS the namespace root, and
+the refusal is the correct contract there, not a regression).
+
 ## License
 
 GPL-3.0-only — source code is fully open. Anyone can audit, modify, and

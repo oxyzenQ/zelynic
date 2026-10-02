@@ -9,7 +9,8 @@ use anyhow::Result;
 use super::{probe, probe_report};
 use crate::commands::rates::resolve_rates;
 use crate::commands::safety::{
-    check_dangerous_target, is_dangerous_target, validate_multi_targets, validate_single_target,
+    check_dangerous_target, check_root_catch_all_resolved, is_dangerous_target,
+    validate_multi_targets, validate_single_target,
 };
 
 #[cfg(feature = "ebpf")]
@@ -55,6 +56,11 @@ pub(crate) fn handle_strict_single(
     check_dangerous_target(target_str, force_this)?;
 
     super::ensure_root()?;
+
+    // NIGHT-hunt-Z3: the resolved-position check (post-privilege,
+    // after the parse: a target that resolves to the cgroupfs root
+    // is a machine-wide catch-all, whatever spelling reached it).
+    check_root_catch_all_resolved(std::slice::from_ref(&Target::parse(target_str)), force_this)?;
 
     // Prevent concurrent operations (race condition elimination).
     //
@@ -226,6 +232,10 @@ pub(crate) fn handle_strict_multi(
 
     super::ensure_root()?;
 
+    // NIGHT-hunt-Z3: the resolved-position check (post-privilege:
+    // any segment resolving to the cgroupfs root is the catch-all).
+    check_root_catch_all_resolved(&targets, force_this)?;
+
     // Prevent concurrent operations (race condition elimination).
     let _lock = crate::ebpf::lock::acquire()?;
 
@@ -312,12 +322,20 @@ pub(crate) fn handle_strict_all(
 
     let mut user_apps: Vec<String> = Vec::new();
     let mut skipped: Vec<String> = Vec::new();
+    // NIGHT-hunt-Z3: the root row is position-refused like a
+    // blocklisted app — its policy is the machine-wide catch-all,
+    // and the comm blocklist only catches it when kthreadd happens
+    // to win root's majority vote (a daemon in the root on a
+    // no-systemd guest names the row and sails the sweep in).
+    let root_id = crate::commands::safety::cgroupfs_root_id();
+    let mut includes_root = false;
 
     for app in identity.all() {
         if app.comm.is_empty() {
             continue;
         }
-        if is_dangerous_target(&app.comm) {
+        if is_dangerous_target(&app.comm) || Some(app.cgroup_id) == root_id {
+            includes_root |= Some(app.cgroup_id) == root_id;
             if force_this {
                 user_apps.push(app.comm.clone());
             } else {
@@ -326,6 +344,11 @@ pub(crate) fn handle_strict_all(
         } else {
             user_apps.push(app.comm.clone());
         }
+    }
+    if force_this && includes_root {
+        crate::output::eprintln_warn_labeled(
+            "Including the root cgroup — its policy catches every socket on the machine.",
+        );
     }
 
     // Deduplicate (multiple cgroups may have same comm).

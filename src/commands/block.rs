@@ -20,6 +20,14 @@ pub fn handle_block_single(target_str: &str, force_this: bool, verbose: bool) ->
 
     super::ensure_root()?;
 
+    // NIGHT-hunt-Z3: the resolved-position check — a block whose
+    // target resolves to the cgroupfs root is machine-wide network
+    // death (rate 0 caught by every socket's ancestor walk).
+    super::safety::check_root_catch_all_resolved(
+        std::slice::from_ref(&Target::parse(target_str)),
+        force_this,
+    )?;
+
     let _lock = crate::ebpf::lock::acquire()?;
 
     Limiter::attach(verbose)?;
@@ -100,6 +108,9 @@ pub fn handle_block_multi(targets_str: &str, force_this: bool, verbose: bool) ->
 
     super::ensure_root()?;
 
+    // NIGHT-hunt-Z3: the resolved-position check (rate-0 catch-all).
+    super::safety::check_root_catch_all_resolved(&targets, force_this)?;
+
     let _lock = crate::ebpf::lock::acquire()?;
 
     Limiter::attach(verbose)?;
@@ -155,18 +166,31 @@ pub fn handle_block_all(force_this: bool, verbose: bool) -> Result<()> {
     // have blocked user-session processes like gnome-shell, pipewire,
     // and the display manager — a desktop-killer inconsistency with
     // strict-all's guard (NIGHT-blade-2: the limit-all name is gone
-    // with the strict-family rename).
+    // with the strict-family rename). NIGHT-hunt-Z3 adds the root
+    // POSITION to the system-app definition: the force branch below
+    // once mapped EVERY identity row to its cgroup id, the root row
+    // included — a rate-0 policy on the root is machine-wide network
+    // death (every socket's ancestor walk resolves through it), so
+    // the root row now rides the system roster however it is named.
+    let root_id = super::safety::cgroupfs_root_id();
+    let is_root_row = |e: &crate::ebpf::identity::ProcessIdentity| Some(e.cgroup_id) == root_id;
     let user_apps: Vec<_> = identity
         .all()
         .into_iter()
-        .filter(|e| !e.comm.is_empty() && e.uid > 0 && !super::safety::is_dangerous_target(&e.comm))
+        .filter(|e| {
+            !e.comm.is_empty()
+                && e.uid > 0
+                && !super::safety::is_dangerous_target(&e.comm)
+                && !is_root_row(e)
+        })
         .collect();
 
     let system_apps: Vec<_> = identity
         .all()
         .into_iter()
         .filter(|e| {
-            !e.comm.is_empty() && (e.uid == 0 || super::safety::is_dangerous_target(&e.comm))
+            !e.comm.is_empty()
+                && (e.uid == 0 || super::safety::is_dangerous_target(&e.comm) || is_root_row(e))
         })
         .collect();
 
@@ -182,6 +206,11 @@ pub fn handle_block_all(force_this: bool, verbose: bool) -> Result<()> {
             "Skipped {} system app(s) — re-run with --force-this to include.",
             system_apps.len()
         ));
+    }
+    if force_this && system_apps.iter().any(|e| is_root_row(e)) {
+        crate::output::eprintln_warn_labeled(
+            "Including the root cgroup — its block kills every socket on the machine.",
+        );
     }
 
     let targets: Vec<Target> = if force_this {

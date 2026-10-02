@@ -259,7 +259,20 @@ expect "multi grammar: unstrict-multi path segment is refused" 1 "not a valid ap
 expect "multi grammar: unstrict-multi empty segment is refused" 1 "empty target" -- "$BINARY" unstrict-multi a::b
 expect "multi grammar: colon-only keeps the no-targets error" 1 "No targets specified" -- "$BINARY" strict-multi ":" 1mb
 expect "multi grammar: fine list passes the grammar to the root guard" 1 "root required" -- "$BINARY" strict-multi a:b:c 1mb
-expect "numeric target: cg form flows to the root guard when unresolvable" 1 "root required" -- "$BINARY" strict-single cg:1 100kb
+# NIGHT-hunt-Z3: the unresolvable-id example is a DEAD id now, not
+# cg:1 — the old example only "flowed to the root guard" in container
+# views where the host root has no visible members; on the host itself
+# cg:1 is the live root cgroup, and the Z3 root catch-all arm refuses
+# it by POSITION (before the privilege ask) exactly as designed. A
+# near-u32-max id is unresolvable on every machine, so the contract
+# this row pins — a dead id stays allowed and reaches the root ask —
+# is now environment-independent.
+expect "numeric target: cg form flows to the root guard when unresolvable" 1 "root required" -- "$BINARY" strict-single cg:4294967290 100kb
+# The Z3 root catch-all arm itself, pinned rootlessly in both
+# directions: the root POSITION refuses before the privilege ask,
+# and --force-this lifts it back onto the root ask's runway.
+expect "numeric target: the cgroupfs root refuses by position (Z3)" 1 "is the root cgroup" -- "$BINARY" strict-single cg:1 100kb
+expect "numeric target: --force-this lifts the root position (Z3)" 1 "root required" -- "$BINARY" strict-single cg:1 100kb --force-this
 
 # ━━ 4. Usage errors: exit 2 with canonical shape ━━
 
@@ -300,7 +313,13 @@ expect "removed --no-color rejected" 2 "unexpected argument" -- "$BINARY" --no-c
 echo "── edge inputs ──"
 
 run_case "empty target name" "$BINARY" strict-single "" 100kb
-expect "empty target refused as root-first" 1 "root required" -- "$BINARY" strict-single "" 100kb
+# NIGHT-hunt-Z3 find (stale row, pre-existing on main): dinner-16 moved
+# the empty-target boundary to the INPUT rung — validate_single_target
+# refuses `strict-single ""` before the root ask with its own wording
+# (the unit pin empty_single_target_is_refused_at_the_input_boundary
+# carries the same contract) — but this row still expected the
+# pre-dinner-16 "root required" shape and failed on pristine main.
+expect "empty target refused at the input boundary (dinner-16 wording)" 1 "target is empty" -- "$BINARY" strict-single "" 100kb
 run_case "u64-overflow numeric target" "$BINARY" strict-single 99999999999999999999 100kb
 expect "overflow numeric target treated as name" 1 "root required" -- "$BINARY" strict-single 99999999999999999999 100kb
 run_case "path-shaped target" "$BINARY" strict-single "../../etc" 100kb
