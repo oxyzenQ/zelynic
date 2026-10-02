@@ -197,6 +197,22 @@ jobs:
       - name: Supermassive v2 harness engine self-test
         run: python3 scripts/supermassive/supermassive-test-v2.py --self-test
 
+      # NIGHT-improve-34/35 (the CI wiring rider): the v3 container
+      # harness and the v4 CLI depth harness self-test the same
+      # engine-only way — grammar tables, case inventories, alias
+      # pins, no root, no binary, no BPF — completing the self-test
+      # table so every supermassive engine's plumbing is proven on
+      # every push. The division of labor stays as designed: v3's
+      # full battery lives in supermassive-container.yml (the
+      # docker/k8s E2E legs), v4's full battery runs rootless in the
+      # gnu-dynamic job below, and these rows are the plumbing
+      # proof — the same shape the v1/v2 rows above carry.
+      - name: Supermassive v3 harness engine self-test
+        run: python3 scripts/supermassive/supermassive-test-v3.py --self-test
+
+      - name: Supermassive v4 harness engine self-test
+        run: python3 scripts/supermassive/supermassive-test-v4.py --self-test
+
       # NIGHT-boost-8: the claims-proof harness (no daemon, pure
       # eBPF, per-app, precision) self-tests the same engine-only
       # lane — the live proof itself needs root and runs on the
@@ -525,3 +541,17 @@ jobs:
 
       - name: Run tests with ebpf feature
         run: cargo test --features ebpf --locked
+
+      # NIGHT-improve-35 (the CI wiring rider): the v4 CLI depth
+      # battery — every command, flag, alias, color mode, typo, and
+      # rate-explode shape, end to end — against the debug binary
+      # this job just built. v4 is rootless by design (the CLI
+      # surface parses before the root check), so the FULL battery
+      # runs on the hosted runner: no micro-VM, no sudo, the same
+      # canonical invocation the owner runs locally. This is the
+      # CI home the wrapper's own header promises ("the most
+      # CI-friendly supermassive test") — the surface contract
+      # proven on every Rust-surface push.
+      - name: Supermassive v4 full battery (rootless CLI depth)
+        run: python3 scripts/supermassive/supermassive-test-v4.py --binary target/debug/zelynic
+
