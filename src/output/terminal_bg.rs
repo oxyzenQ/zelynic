@@ -15,10 +15,30 @@
 //! the open-time color (the boost-32 regression). Unpainted depths
 //! (Color16, Mono) and a silent terminal paint no background escape.
 
+// The imports ride the same predicates as their users, split by
+// family: the atomics and the capability probe serve only the
+// `ebpf`-gated store/load items (the static, the setters and
+// readers); ColorCapability also serves the `any(test, ebpf)`
+// packing/encoding cores, so it stays reachable for the test-only
+// lanes. Ungated the block dangles under --no-default-features —
+// the using code is compiled out, the imports are not, and a
+// -D warnings build reddens on the unused-import lint. This is
+// the dinner-30 move's residue: the block's functions carried
+// NIGHT-boost-34's dead-code wall with them, the imports did not,
+// and in theme.rs they had also served ungated siblings that
+// stayed behind (NIGHT-hunt-Z5 rider 2, the find the CI watch
+// caught: the no-default-features test lane had been red on every
+// fresh checkout since 406ada4 while local gates passed on cached
+// builds and a flag-less lane).
+#[cfg(feature = "ebpf")]
 use std::sync::atomic::AtomicU32;
+#[cfg(feature = "ebpf")]
 use std::sync::atomic::Ordering;
 
-use super::color::{capability, ColorCapability};
+#[cfg(any(test, feature = "ebpf"))]
+use super::color::ColorCapability;
+#[cfg(feature = "ebpf")]
+use super::color::capability;
 
 /// The queried background (NIGHT-boost-26, live since 32): one
 /// atomic word — bit 31 the present flag, bits 23..0 `0xRRGGBB`,
