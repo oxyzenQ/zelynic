@@ -670,8 +670,12 @@ as the build under test.
 No machine handy at all? The whole qualification — bring-up, v1, v2,
 v3, v4, in that order — runs on CI on every core-file push (real sudo,
 real BPF, real runner kernels, no container), and the 5.15 floor lane
-is proven by its own KVM micro-VM workflow. A green Actions run is the
-same verdict these commands produce locally.
+is proven by its own KVM micro-VM workflow. The v3 container E2E lanes
+(docker + k8s via kind) run on their own CI workflow against real
+runtimes — the micro-VM pair ships no docker daemon and no kubelet, so
+the container-native round trip (resolve `docker://`/`k8s://` to a real
+cgroup, enforce, teardown) has its own honest lane. A green Actions run
+is the same verdict these commands produce locally.
 
 ## Release Verification
 
