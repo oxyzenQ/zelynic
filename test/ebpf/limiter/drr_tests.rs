@@ -294,3 +294,11 @@ mod drr_ledger_tests;
 // owns the split), the off lane verbatim. Same child wiring.
 #[path = "drr_take_tests.rs"]
 mod drr_take_tests;
+
+// NIGHT-hunt-Z6: the high-load shapes — the fair-share law's last
+// open area (the Z4 offer's remaining candidate), pinned on the
+// ledger battery's shared runner: sustained contention over the
+// LTS horizon, and the mass-departure release window from both
+// sides. Same child wiring, same single core copy.
+#[path = "drr_highload_tests.rs"]
+mod drr_highload_tests;

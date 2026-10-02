@@ -146,6 +146,24 @@ residual risks, ranked by how likely they are to matter:
    Full detail: [SAFETY_ANALYSIS.md](SAFETY_ANALYSIS.md), the
    accumulate-explosion audit; the scale contract:
    [USAGE.md](USAGE.md), the zettabyte paragraph.
+6. **The mass-departure release window (audited NIGHT-hunt-Z6,
+   2026-10-02).** A fair-shared policy whose leaf count collapses
+   (24 leaves hot, 18 leaving at once) runs its survivors UNDER
+   policy for the window it takes the drawee peak — the
+   allowance's divisor, a decaying high-water — to fall to the
+   living count: one share released every eight 100 ms epochs, so
+   a 24 -> 6 departure recovers across ~14.4 s (measured: 19.7%
+   of policy over the first 4 s, a perfectly even split across
+   the survivors; 53.1% over the 20 s span as the shares climb
+   back). The tradeoff is deliberate — the peak cannot tell a
+   departed leaf from a starved one, and dropping it fast would
+   re-open the silence monopoly it was built to cover — and it
+   fails in the safe direction: an under-admit, never an
+   over-admit, bounded and self-healing. Pinned from both sides
+   in the high-load battery (test/ebpf/limiter/
+   drr_highload_tests.rs); the full table:
+   [SAFETY_ANALYSIS.md](SAFETY_ANALYSIS.md), the NIGHT-hunt-Z6
+   section.
 
 The honest summary the owner stands behind: **99% production-useful,
 and the missing 1% fails closed and says so.**
