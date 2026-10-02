@@ -336,6 +336,17 @@ the quietest advisory, the drain+settle prelude deleted), the
 rows above are the frozen-basin evidence the split was decided
 on; fresh numbers land here with the next CI era.
 
+The first green era (run 128, 2026-10-02, a42c99f, all four legs):
+the v1 limiter matrix read 92 passed / 0 failed / 21 skipped — the
+single row's honest numbers still ride every log (34.4% on
+low-gnu, 102.9% on best-musl — the startup lottery remains a
+medium property, recorded, never again a verdict the medium cannot
+certify), the anti-monopoly bound held on every leg (worst 0.85-1.34
+MB against 1.44-1.56 MB bounds), and the aggregates sat at
+95-115% of policy. The delivered-rate-ring reclaim (NIGHT-hunt-Z4)
+rode the same push: the cleanup rows' unstrict walks now hand the
+rings back with the buckets and the stats.
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.
