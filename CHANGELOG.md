@@ -19,6 +19,44 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Fixed
 
+- **NIGHT-total-lts-2, the total-infra LTS cross-check audit —
+  the first automated relative-link integrity pass found three
+  broken targets in one research doc, closed docs-only.** The
+  audit re-verified every load-bearing claim of the lts-1
+  verdict with fresh runs at HEAD (the panic-path census
+  re-derived: 26 test-gated + 1 provable-total invariant, zero
+  live; `cargo test` 647 + 46 / 0 failed; the engine self-test
+  34/0/0 in 14.5 s; `build.sh check-all -q` all green; the
+  full-budget frame-bench byte-exact at bytes/frame 1,919.0 with
+  every other metric in the recorded class; the pin namespace
+  re-read finite at PIN_DIR + 18 constants; the three exec sites
+  re-read hardened; build.rs's ELF validator bounds-audited line
+  by line; the version triple Cargo.toml = Cargo.lock =
+  CHANGELOG consistent; all four areas SOUND at peak, the fifth
+  carrying this find). The new instruments over the seams lts-1
+  covered lightly: the repo-wide relative-link pass (193 links
+  across 42 tracked .md files — the drift class no existing gate
+  sees), the intra-doc anchor pass (29 anchors, 0 broken), a
+  semantic duplicate-pair diff over the scripts tree's
+  same-named helpers (every pair an intentional twin or a
+  byte-identical by-design contract), a comment-rot heuristic
+  (all 91 unresolved candidates triaged as non-symbol
+  references), and a workflow-reference existence sweep (all
+  resolve). The one real find:
+  `docs/research/NIGHT_DINNER_14_PRICING_RESEARCH.md` computed
+  three sibling targets one directory too shallow — the section 1
+  terms pointer read `../COMMERCIAL_LICENSE.md` (resolving to a
+  `docs/COMMERCIAL_LICENSE.md` that does not exist, while the
+  same file's sections 5 and 6 already used the correct `../../`
+  form for the same target), and both `LICENSING_FAQ.md` pointers
+  (section 1 and the section 5 three-file sync rule) were bare,
+  resolving under `docs/research/` instead of `docs/`. All three
+  corrected and re-verified (193 checked, 0 broken); the full
+  evidence table and the audit's own residuals live in
+  `docs/audits/NIGHT_TOTAL_LTS_2_AUDIT_2026-10-02.md`. A
+  link-resolution gate is recommended in the report and
+  deliberately left to the owner's call. Docs-only, no product
+  surface, no benchmark A/B due.
 - **NIGHT-total-lts-1 rider 3, the grandchild row meets the Z5
   single-row precedent — the db0a46a best-musl red closed with the
   verdict moved to the instrument that can certify it.** The
