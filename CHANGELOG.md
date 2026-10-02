@@ -1396,6 +1396,20 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Changed
 
+- **release: v20.0.0 — the stable API contract, locked as the LTS
+  baseline.** v11.0.0 froze the CLI surface; v20.0.0 locks the era
+  behind it: the fair-share law audited SOUND under high load and
+  pinned on the two shapes nothing measured before (NIGHT-hunt-Z6,
+  its three new pins riding the ledger battery's shared runner),
+  the LTS state budget audited under a 1024-cgroup fleet with the
+  rate rings joined to the reclaim family (NIGHT-hunt-Z4), the
+  supermassive battery's verdicts moved to the instruments that
+  can certify them and green on every leg since run 128
+  (NIGHT-hunt-Z5), and the prebuilt lane's provenance tree pin
+  made collation-portable on every Linux (the Z6 opener, the
+  locale hole). The maintenance-mode posture stands: no new
+  features, releases when needed, the version ladder's major step
+  carrying the campaign's schema work as the new baseline.
 - **ci: the NIGHT-dinner repair rider series — the wholesale gate and
   all four supermassive legs green again, with the run-253 and
   1a25f91 lessons on the record** (the owner's terminal paste:
