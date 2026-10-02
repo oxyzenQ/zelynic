@@ -232,7 +232,7 @@ jobs:
     timeout-minutes: 45
     steps:
       - name: Checkout
-        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5, NIGHT-hunt-20 SHA pin
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7, NIGHT-hunt-20 SHA pin
 
       # The kernel can change; /dev/kvm is a GitHub runner guarantee
       # (nested virt is enabled on every current Linux hosted image) —

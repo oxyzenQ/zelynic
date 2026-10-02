@@ -87,7 +87,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout
-        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5, NIGHT-hunt-20 SHA pin
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7, NIGHT-hunt-20 SHA pin
 
       # Tool pins make findings meaningful: a red wholesale run means
       # the tree drifted, never that a linter released overnight.

@@ -93,7 +93,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5 (aligned), NIGHT-hunt-20 SHA pin
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7 (aligned), NIGHT-hunt-20 SHA pin
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # @stable, NIGHT-hunt-20 SHA pin
@@ -101,7 +101,7 @@ jobs:
           toolchain: ${{ env.RUST_VERSION }}
 
       - name: Setup Rust cache
-        uses: Swatinem/rust-cache@49a0bdc70d2e1b713ca9e2869b211fcce03d3c1c # v2, NIGHT-hunt-20 SHA pin
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2, NIGHT-hunt-20 SHA pin
         with:
           cache-on-failure: true
 
