@@ -19,12 +19,12 @@
 #      (sha256 + size). A tampered or partially refreshed directory
 #      fails here instead of shipping an unaccounted artifact.
 #   3. The manifest's ebpf_tree_sha256 equals the sha256 over the
-#      sorted git-tracked ebpf/ file hashes — the STALENESS killer:
-#      any change under ebpf/ (sources, locks, pins, target spec)
-#      changes the tree hash, and the gate fails until
-#      scripts/release/refresh-prebuilt.sh regenerates the lane. The
-#      shipped objects can never silently fall behind the sources
-#      they claim to carry.
+#      byte-order-sorted git-tracked ebpf/ file hashes — the
+#      STALENESS killer: any change under ebpf/ (sources, locks,
+#      pins, target spec) changes the tree hash, and the gate fails
+#      until scripts/release/refresh-prebuilt.sh regenerates the
+#      lane. The shipped objects can never silently fall behind the
+#      sources they claim to carry.
 #   4. No tracked file under ebpf/ hides behind an assume-unchanged
 #      or skip-worktree flag — the PHANTOM-PIN killer (NIGHT-repair-1):
 #      the tree hash in row 3 reads on-disk content, so a hidden
@@ -65,13 +65,24 @@ pass() {
 	echo "PASS: $*"
 }
 
-# sha256 over the sorted git-tracked ebpf/ file hashes. Kept in
-# lockstep with scripts/gates/../release/refresh-prebuilt.sh (which
-# ends every generation by running THIS gate, so the two
-# implementations cannot drift apart silently).
+# sha256 over the byte-order-sorted git-tracked ebpf/ file hashes.
+# The LC_ALL=C pin is load-bearing (the NIGHT-hunt-Z6 find, the
+# 779907d shape): a bare `sort -z` follows the invoking shell's
+# collation, and a UTF-8 desktop locale reorders the very list a C
+# locale sorts by raw bytes ("ebpf/bpfel-unknown-none.json" before
+# "ebpf/Cargo.lock" — punctuation ignored, case folded; "Cargo"
+# first under byte order) — so one identical ebpf/ tree, clean
+# `git status` on both sides, hashed to two different pins: the
+# maintainer's host passed every local gate against a manifest CI's
+# clean checkout refused on this row alone. LC_ALL=C makes the pin
+# deterministic on every Linux, the property this header always
+# claimed. Kept in lockstep with
+# scripts/gates/../release/refresh-prebuilt.sh (which ends every
+# generation by running THIS gate, so the two implementations
+# cannot drift apart silently).
 ebpf_tree_sha() {
 	git ls-files -z -- ebpf/ |
-		sort -z |
+		LC_ALL=C sort -z |
 		xargs -0 -r sha256sum |
 		sha256sum |
 		awk '{print $1}'
