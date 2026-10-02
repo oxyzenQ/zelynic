@@ -3242,9 +3242,7 @@ def test_ammsp_fairshare(window, baseline):
         # side is the sender's to give; the DRR's lone-drawer law is
         # pinned by the sims, drr_ledger_tests' lone-leaf pin).
         passed = (
-            verdict_round(
-                "single", 1_000_000, "1mb", 1, per_leaf=False, ceiling_only=True
-            )
+            verdict_round("single", 1_000_000, "1mb", 1, per_leaf=False, ceiling_only=True)
             and passed
         )
         # The churn race: fresh leaves born MID-WINDOW under the live
