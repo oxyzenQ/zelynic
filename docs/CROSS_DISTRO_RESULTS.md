@@ -411,6 +411,34 @@ catch (the improve-12 double-count ~200%, the cumulative shape
 the 2x hole, so it was not widened. Battery-only again; the eBPF
 object byte-identical (the prebuilt pin proves it).
 
+The 7d78049 era (both closes held; the third lottery row surfaced
+and got the lts-8 pattern): the rider's first run took the whole
+v1 limiter matrix green on every leg it had ever reddened on —
+the low-gnu leg (the phantom-burst row now SKIPs inside its named
+zone, the anti-monopoly band holding) and the low-musl and
+best-gnu legs — with Gate-keepers, CI, and CodeQL all SUCCESS.
+The best-musl leg reddened on the one remaining probe this era
+had not yet met: the AMMSP-vs-legacy A/B's shared-budget row —
+`current (AMMSP) two concurrent leaves share ONE budget — sum
+131.1 KB/s across two child cgroups vs 100kb — gray`, 1.1 points
+past the 1.30 BAND_HI, while every single-leaf row policed at
+64-90 KB/s, the legacy control escaped as designed (10.8 GB/s),
+and THE DELTA itself stayed green (7/7 vs 0/7, the counterfactual
+proof). The row's own history: fifteen healthy draws at
+73.8-121.9 KB/s, then 131.1 — the shared root bucket's 64 KiB
+burst credit is 16% of the pair's whole 400 KB window budget at
+this trickle rate, and the epoch refill skew adds its few percent:
+the band's edge was the cushion's edge. The close is the lts-8
+approved pattern applied where its own comment family said it
+belonged ("a BAND_HI fail that is attach-moment physics, not
+enforcement"): one discarded warm-up window through the first
+sibling pays the burst credit out before the measured pair, the
+pair sees steady state, and the BAND_HI verdict judges the sharing
+law instead of the attach moment. The band is NOT widened — a
+real double-budget regression reads toward 2x and must still
+trip — and the control side's escape shape is untouched. Battery-
+only; the eBPF object byte-identical (the prebuilt pin proves it).
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.
