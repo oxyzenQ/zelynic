@@ -230,7 +230,25 @@ sudo zelynic strict brave 100kb        # shorthand form
   every numeric spelling skipped the guard entirely, is closed. An id
   with no live members (a dead id, or a container view that resolves
   nothing) stays allowed: the policy against it can never match a
-  socket.
+  socket — true for LEAF positions (NIGHT-hunt-Z3 correction: the
+  cgroupfs ROOT itself never reaches that walk; see the next
+  paragraph).
+
+The root catch-all arm (NIGHT-hunt-Z3): a policy keyed at the
+cgroupfs root (`cg:1` on the host — the node the hooks attach to) is
+not one app's limit — the AMMSP ancestor walk resolves EVERY socket
+on the machine through the root's row, so the root position is
+refused whatever spelling reaches it: the explicit id (`ss cg:1`),
+a name whose processes live in the root cgroup (a daemon on a
+no-systemd guest, where every comm's cgroup IS the root — checked
+after the privilege ask, so the non-root refusal ladder is
+unchanged), and the `strict-all`/`block-all` sweeps (the root row
+rides the skipped system roster however it is named; `--force-this`
+includes it with a warn naming the blast radius). The refusal names
+the machine-wide semantics and teaches the same `--force-this` lift
+every other guard arm teaches. Container targets are excluded on
+purpose: they resolve to the workload's own scope subtree, never the
+namespace root.
 
 The multi-list grammar (NIGHT-blade-18): the colon lists of
 `strict-multi`/`block-multi`/`unstrict-multi` are validated as a

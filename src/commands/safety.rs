@@ -10,6 +10,9 @@
 use anyhow::Result;
 
 #[cfg(feature = "ebpf")]
+use std::os::unix::fs::MetadataExt;
+
+#[cfg(feature = "ebpf")]
 use crate::output::eprintln_warn_labeled;
 
 /// List of dangerous/system process names that should not be limited
@@ -202,6 +205,100 @@ pub(crate) fn parse_target_id(s: &str) -> Option<u32> {
     id_part.parse::<u32>().ok()
 }
 
+/// The cgroupfs mount's own kernfs id, truncated to u32 the same way
+/// every id in the pipeline truncates (NIGHT-hunt-Z3): the hooks
+/// attach at `/sys/fs/cgroup` and the AMMSP ancestor walk resolves
+/// every socket in the namespace through this node's row when it
+/// carries a policy — the machine-wide catch-all position. A
+/// missing/unmounted cgroupfs is `None`, and every caller treats
+/// that as "no root check possible" (the same honest absence the
+/// id-arm walk's fail-open already owns for dead leaves).
+#[cfg(feature = "ebpf")]
+pub(crate) fn cgroupfs_root_id() -> Option<u32> {
+    std::fs::metadata("/sys/fs/cgroup")
+        .ok()
+        .map(|m| m.ino() as u32)
+}
+
+/// The root catch-all verdict (NIGHT-hunt-Z3): a policy keyed at the
+/// cgroupfs root is NOT one app's limit — the ancestor walk resolves
+/// EVERY socket in the namespace through it, so the honest wording
+/// names the blast radius, keeps the "system process" family the
+/// batteries pin, and teaches the same `--force-this` lift every
+/// other guard arm teaches. Pure message pair so the wording is
+/// unit-pinnable (the warn side prints via the labeled channel the
+/// force path already uses).
+#[cfg(feature = "ebpf")]
+fn root_catch_all_verdict(spelling: &str, id: u32, force_this: bool) -> Result<()> {
+    if force_this {
+        eprintln_warn_labeled(&format!(
+            "'{spelling}' is the root cgroup (cg:{id}), a system process home — the policy catches EVERY socket on the machine, not one app's traffic. Forcing with --force-this."
+        ));
+        Ok(())
+    } else {
+        Err(anyhow::anyhow!(
+            "'{spelling}' is the root cgroup (cg:{id}), a system process home — its policy catches EVERY socket on the machine through the ancestor walk, not one app's traffic.\n  \
+             tip: re-run with --force-this if you really want this"
+        ))
+    }
+}
+
+/// NIGHT-hunt-Z3: the resolved-position check, post-privilege by
+/// design. The pre-root rung stays the blocklist's (pure input
+/// validation, pinned by the nonroot battery's "root required"
+/// ladder); this arm runs after `ensure_root`, when the operator has
+/// already asked for privilege, and answers the question neither
+/// door below can: does the target RESOLVE to the cgroupfs root?
+///
+/// The holes it closes, all one shape — the root's policy is a
+/// catch-all whatever spelling reached it:
+///   - the name door: a non-blocklisted comm living IN the root
+///     cgroup (a multi-threaded daemon on a no-systemd guest, where
+///     every comm's cgroup IS the root — `strict <daemon>` landed a
+///     machine-wide throttle with no warning and no override asked);
+///   - the id door's member-walk fail-open: an id whose /proc walk
+///     resolves no members (a container view where kthreadd is
+///     invisible) was reasoned "a no-op, it can never match a
+///     socket" — true for dead LEAF ids, false for the root, whose
+///     row the ancestor walk matches for every socket regardless of
+///     member visibility;
+///   - the sweeps' force path: block-all --force-this mapped every
+///     identity row to its cgroup id, the root row included — a
+///     rate-0 write on the root is machine-wide network death.
+///
+/// Container targets are excluded on purpose: they resolve to the
+/// workload's own scope subtree, never the namespace root.
+#[cfg(feature = "ebpf")]
+pub(crate) fn check_root_catch_all_resolved(
+    targets: &[crate::ebpf::limiter::Target],
+    force_this: bool,
+) -> Result<()> {
+    let Some(root_id) = cgroupfs_root_id() else {
+        return Ok(());
+    };
+    for target in targets {
+        let spelling = match target {
+            crate::ebpf::limiter::Target::CgroupId(id) => {
+                if *id == root_id {
+                    format!("cg:{id}")
+                } else {
+                    continue;
+                }
+            }
+            crate::ebpf::limiter::Target::ProcessName(name) => {
+                if super::eagle::resolve_name(name).contains(&root_id) {
+                    name.clone()
+                } else {
+                    continue;
+                }
+            }
+            crate::ebpf::limiter::Target::Container(_) => continue,
+        };
+        return root_catch_all_verdict(&spelling, root_id, force_this);
+    }
+    Ok(())
+}
+
 /// The pure verdict core of the cgroup-id guard: the first member
 /// comm of a cgroup that trips the family-aware blocklist, if any.
 /// Split from the /proc walk so the decision is unit-pinnable
@@ -230,9 +327,23 @@ fn first_dangerous_member(member_comms: &[String]) -> Option<&str> {
 ///   - an id with NO live members (a dead id, or a container view
 ///     where the walk resolves nothing) stays allowed — the policy
 ///     written against it can never match a socket, so it is a
-///     no-op, not a hazard.
+///     no-op, not a hazard. NIGHT-hunt-Z3 correction: that reasoning
+///     is sound for LEAF positions only; the root id itself is
+///     answered by the position check above before this walk ever
+///     runs (its row matches every socket regardless of members).
 #[cfg(feature = "ebpf")]
 pub(crate) fn check_dangerous_cgroup_id(id: u32, force_this: bool) -> Result<()> {
+    // NIGHT-hunt-Z3: the root POSITION first, before the member walk
+    // — the walk's fail-open ("an id with no live members ... can
+    // never match a socket") is sound for dead leaf ids and UNSOUND
+    // for the root: a container view where kthreadd is invisible
+    // resolves no members for the root id, yet the ancestor walk
+    // matches the root's row for every socket on the machine. The
+    // position is one stat away and does not depend on /proc at all.
+    if Some(id) == cgroupfs_root_id() {
+        return root_catch_all_verdict(&format!("cg:{id}"), id, force_this);
+    }
+
     let mut members: Vec<String> = Vec::new();
     if let Ok(entries) = std::fs::read_dir("/proc") {
         for entry in entries.flatten() {

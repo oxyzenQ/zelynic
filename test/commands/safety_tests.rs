@@ -189,9 +189,17 @@ fn first_dangerous_member_finds_system_processes_in_a_cgroup() {
 /// pin works on any machine: the test binary's comm is never
 /// blocklisted, and on container views where the walk resolves no
 /// members the verdict is the allowed no-op — both directions safe.
+/// NIGHT-hunt-Z3: when the test process's own cgroup IS the cgroupfs
+/// root (a container or no-systemd view — everything lives in the
+/// namespace root there), the pin's user-cgroup premise does not
+/// hold and the root position's refusal is the CORRECT contract;
+/// the skip names it instead of failing environment-lucky.
 #[test]
 fn the_own_cgroup_id_flows_friction_free() {
     if let Some(cg) = crate::ebpf::identity::pid_cgroup_id(std::process::id()) {
+        if Some(cg) == cgroupfs_root_id() {
+            return; // the own cgroup is the root — see the docstring
+        }
         assert!(
             check_dangerous_target(&format!("cg:{cg}"), false).is_ok(),
             "the boost-37 round-trip: a live user cgroup never trips the guard"
@@ -201,6 +209,74 @@ fn the_own_cgroup_id_flows_friction_free() {
             "the bare numeric form of the same id answers identically"
         );
     }
+}
+
+/// NIGHT-hunt-Z3: the root catch-all verdict ladder, pinned against
+/// the live cgroupfs root id — the position check fires BEFORE the
+/// member walk (the fail-open that let a container view's root id
+/// through with zero members and a whole-machine policy), refuses
+/// without the override naming the blast radius, and lifts with it.
+/// The wording keeps the "system process" family the blade-18
+/// battery needles pin, so the supermassive dynamic cases (kthreadd's
+/// home = the root in the no-systemd CI guest) ride one contract.
+#[test]
+fn the_root_catch_all_refuses_the_cgroupfs_root_id() {
+    let Some(root) = cgroupfs_root_id() else {
+        return; // no cgroupfs on this machine — the honest absence
+    };
+    let err = check_dangerous_cgroup_id(root, false)
+        .expect_err("the root position must refuse without the override");
+    let msg = format!("{err}");
+    assert!(
+        msg.contains("is the root cgroup"),
+        "the refusal names the position, got: {msg}"
+    );
+    assert!(
+        msg.contains("EVERY socket on the machine"),
+        "the refusal names the blast radius, got: {msg}"
+    );
+    assert!(
+        msg.contains("system process"),
+        "the wording keeps the battery's needle family, got: {msg}"
+    );
+    assert!(
+        msg.contains("--force-this"),
+        "the refusal teaches the override, got: {msg}"
+    );
+    check_dangerous_cgroup_id(root, true).expect("the override lifts the root position");
+}
+
+/// NIGHT-hunt-Z3: the resolved-position check — the post-privilege
+/// arm that answers the question neither door can: does the target
+/// RESOLVE to the cgroupfs root? The id spelling refuses and lifts;
+/// a non-root id and an unresolvable name flow friction-free. (The
+/// name-resolving-to-root shape is the no-systemd-guest lane —
+/// pinned end to end by the supermassive battery's dynamic cases,
+/// not unitable without a process living in the root.)
+#[test]
+fn the_resolved_position_check_covers_the_root_spelling() {
+    let Some(root) = cgroupfs_root_id() else {
+        return;
+    };
+    use crate::ebpf::limiter::Target;
+    let err = check_root_catch_all_resolved(&[Target::CgroupId(root)], false)
+        .expect_err("the resolved root id must refuse");
+    let msg = format!("{err}");
+    assert!(
+        msg.contains(&format!("cg:{root}")),
+        "the refusal names the root id, got: {msg}"
+    );
+    check_root_catch_all_resolved(&[Target::CgroupId(root)], true)
+        .expect("the override lifts the resolved root");
+    check_root_catch_all_resolved(&[Target::CgroupId(root.wrapping_add(1))], false)
+        .expect("a non-root id flows friction-free");
+    check_root_catch_all_resolved(
+        &[Target::ProcessName(
+            "zelynic-no-such-comm-anywhere".to_string(),
+        )],
+        false,
+    )
+    .expect("an unresolvable name flows friction-free (the graceful no-match lane)");
 }
 
 /// NIGHT-blade-18: the colon-list grammar. The owner's exact examples

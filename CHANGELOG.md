@@ -19,6 +19,65 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Fixed
 
+- **NIGHT-hunt-Z3, the root catch-all — the cg:1 policy that was
+  one typo (or one force) away from machine-wide throttling.** The
+  owner's ask: audit the `cg:1` catch-all that polices NAPI
+  kthreads for system-wide risk. The attribution side is sound —
+  both hooks resolve the SOCKET's cgroup (skb_to_full_sk), never
+  the softirq context's, so kthreads cannot misattribute traffic
+  to the root by processing it; the risk is the root POSITION
+  itself: a policy keyed at the cgroupfs root is resolved by the
+  AMMSP ancestor walk for every socket on the machine, and three
+  real doors wrote it with no explanation of that blast radius.
+  (1) The id door's fail-open — "an id with no live members ...
+  can never match a socket" — is sound for dead leaf ids and
+  UNSOUND for the root: a container view where kthreadd is
+  invisible resolved no members, and the policy still caught every
+  socket on the host. (2) The name door never checked the resolved
+  position: the root cgroup's representative comm is the majority
+  vote's winner — kthreadd on stock distros (refused by name, by
+  tie-break luck), but a multi-threaded daemon in the root on a
+  no-systemd guest names the row, sails the blocklist, and `strict
+  <daemon>` landed the catch-all with no override asked. (3) The
+  sweeps' force path included the root row by construction —
+  `block-all --force-this` mapped every identity row to its cgroup
+  id, a rate-0 write on the root being machine-wide network death
+  (the session running the command included), on every distro. The
+  close is one position check at four doors: the root's kernfs id
+  (one stat, no /proc dependency) is answered BEFORE the member
+  walk in the id arm; the new resolved-position check runs
+  post-privilege in strict/block single and multi (id directly,
+  name via the same /proc walk the apply uses, container targets
+  excluded on purpose — they resolve to the workload's own scope
+  subtree), keeping the non-root refusal ladder the battery pins
+  unchanged; and both sweeps count the root row in the skipped
+  system roster however it is named, `--force-this` including it
+  with one warn naming the machine-wide blast radius. The refusal
+  wording keeps the `system process` family the blade-18 battery
+  needles pin and teaches the same `--force-this` lift — the catch-
+  all stays POSSIBLE (a whole-machine cap is a legitimate ask),
+  it just never lands unexplained again. Unit pins: the root
+  ladder and the resolved-position spelling table against the live
+  cgroupfs root id; the own-cgroup round-trip pin gained the
+  honest root-position skip (in a container the test process's own
+  cgroup IS the namespace root — the refusal is the correct
+  contract there). SAFETY_ANALYSIS.md carries the full audit
+  (NIGHT-hunt-Z3 section), USAGE.md the guard-family update. Two
+  nonroot-battery repairs ride the same commit, both verified
+  against pristine main: the "unresolvable cg form" row used
+  `cg:1` as its dead-id example — container-lucky (the host root
+  has no visible members there) but the LIVE root position on the
+  host, where the new arm refuses it by design; the row now rides
+  a genuinely dead near-u32-max id (environment-independent) and
+  two new rows pin the root arm's own ladder rootlessly (the
+  position refusal, and --force-this lifting it back onto the
+  root ask's runway). The second repair is a stale row pre-existing
+  on main: the empty-target row still expected the pre-dinner-16
+  "root required" shape while dinner-16 had moved the boundary to
+  the input rung with its own wording (the unit pin already carried
+  the new contract; the battery row was missed) — healed to the
+  current wording, and the full battery stands at 90/90 rootless.
+
 - **repair-8, the settle — the fair-share battery's flows now start
   in the TCP basin the row claims to measure.** The repair-7
   diagnostic rows (advisory ledger reads on every round) filed the
