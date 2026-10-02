@@ -284,6 +284,38 @@ def _has_k8s():
         return False
 
 
+def _resolve_kubeconfig():
+    """Resolve the kubeconfig path for kubectl (NIGHT-improve-37).
+
+    kind writes the kubeconfig to the invoking user's ~/.kube/config,
+    but the v3 harness may run under sudo (root's ~/.kube differs from
+    the runner user's). $KUBECONFIG (if set and the file exists) is the
+    operator's explicit override — the authority. Otherwise the first
+    existing path among the canonical candidates wins:
+
+      $KUBECONFIG            the operator's explicit override
+      /root/.kube/config     sudo/root's home (the CI sudo shape)
+      /home/runner/.kube/config  the GitHub Actions runner user
+      $HOME/.kube/config     any other invoking user's home
+
+    Returns the path string, or "" when no candidate exists (kubectl
+    then defaults to localhost:8080, which the reachability probe
+    catches).
+    """
+    env_kc = os.environ.get("KUBECONFIG", "")
+    if env_kc and os.path.isfile(env_kc):
+        return env_kc
+    candidates = [
+        "/root/.kube/config",
+        "/home/runner/.kube/config",
+        os.path.expanduser("~/.kube/config"),
+    ]
+    for path in candidates:
+        if os.path.isfile(path):
+            return path
+    return ""
+
+
 def _case_panicked(output):
     """True when the output carries a Rust panic sentinel.
 
@@ -789,8 +821,54 @@ def test_k8s_e2e(force=False):
             "no kubectl on PATH — the resolver works but the harness cannot stage the pod",
         )
         return True
+    # Resolve the kubeconfig: kind writes to the invoking user's
+    # ~/.kube/config, but the harness may run under sudo (root's home
+    # differs from the runner user's). The first existing path among
+    # the canonical candidates wins; $KUBECONFIG (if set) takes
+    # precedence — the operator's explicit override is the authority.
+    kubeconfig = _resolve_kubeconfig()
+    # A kubectl that cannot reach the API server is a hard FAIL under
+    # --k8s-e2e (the lane exists to prove the runtime; a forced lane
+    # that cannot talk to its own cluster is broken, not skippable).
+    # The reachability probe also surfaces the kubeconfig path it
+    # used, so a missing-path misconfiguration reads in the log.
+    kubectl_env = dict(os.environ)
+    if kubeconfig:
+        kubectl_env["KUBECONFIG"] = kubeconfig
+    probe = subprocess.run(
+        ["kubectl", "cluster-info"],
+        capture_output=True,
+        text=True,
+        timeout=20,
+        env=kubectl_env,
+    )
+    if probe.returncode != 0:
+        if force:
+            record(
+                "k8s-e2e: kubectl reaches API server",
+                "FAIL",
+                f"kubectl cluster-info failed (kubeconfig={kubeconfig or 'unset'}): "
+                f"{probe.stderr.strip()[:200]}",
+            )
+            return False
+        record(
+            "k8s-e2e: pod round trip",
+            "SKIP",
+            f"kubectl cannot reach the API server (kubeconfig={kubeconfig or 'unset'}) — "
+            "the resolver works but the harness cannot stage the pod",
+        )
+        return True
+    record(
+        "k8s-e2e: kubectl reaches API server",
+        "PASS",
+        f"kubeconfig={kubeconfig or 'env KUBECONFIG'}",
+    )
     namespace = "zelynic-v3"
     pod_name = "zelynic-v3-probe"
+    # The env for every kubectl call in this lane carries the resolved
+    # KUBECONFIG, so the lane is robust to sudo's home-directory shift
+    # (the same env the reachability probe just proved).
+    k_env = kubectl_env
     # Best-effort teardown: the namespace is deleted even if the lane
     # failed, so the next run starts clean (the same pattern the docker
     # E2E lane carries for the container).
@@ -803,6 +881,7 @@ def test_k8s_e2e(force=False):
             capture_output=True,
             text=True,
             timeout=30,
+            env=k_env,
         )
         # Deploy a pause pod (the canonical no-op: it owns a cgroup
         # and sleeps). The pause image is the k8s-native twin of the
@@ -822,6 +901,7 @@ def test_k8s_e2e(force=False):
             capture_output=True,
             text=True,
             timeout=60,
+            env=k_env,
         )
         if deploy.returncode != 0:
             record(
@@ -847,6 +927,7 @@ def test_k8s_e2e(force=False):
             capture_output=True,
             text=True,
             timeout=100,
+            env=k_env,
         )
         if wait.returncode != 0:
             record(
@@ -921,6 +1002,7 @@ def test_k8s_e2e(force=False):
             capture_output=True,
             text=True,
             timeout=30,
+            env=k_env,
         )
 
 

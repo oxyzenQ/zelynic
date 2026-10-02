@@ -248,6 +248,15 @@ jobs:
           EOF
           kind create cluster --config /tmp/kind-config.yaml --wait 120s
           kubectl get nodes
+          # The v3 harness runs under sudo (root), but kind wrote the
+          # kubeconfig to the runner user's ~/.kube/config. Root can
+          # read it (root reads any file), but copy it to root's home
+          # too so kubectl's default lookup finds it without KUBECONFIG
+          # — belt-and-braces (the harness's _resolve_kubeconfig also
+          # checks /root/.kube/config).
+          sudo mkdir -p /root/.kube
+          sudo cp "$HOME/.kube/config" /root/.kube/config
+          sudo chmod 644 /root/.kube/config
 
       - name: zelynic doctor (eBPF on the runner kernel)
         run: sudo /opt/zelynic/zelynic doctor
