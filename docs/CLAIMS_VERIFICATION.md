@@ -64,6 +64,7 @@ cannot be measured at a boundary is not claimed at that boundary.
 | Theme accuracy: brand/ok on computed nearest cube cells | BRANDING 2.2 (lts-9) | the computed walk pins (`test/output/theme_palette_tests.rs`) | verified |
 | Monitor survives boot-edge start (no epoch underflow panic) | STABILITY Time row (lts-7) | beat-epoch floor pin (`mouse_contract_tests.rs`) | verified |
 | Sudo rescue does not fight the user's shell | USAGE/SAFETY_ANALYSIS (improve-34) | discrimination-matrix pins + the live sudo-interposer harness (scratch, owner-runnable) | verified |
+| Package lifecycle: install verifies the binary before landing; uninstall clears enforcement first, never under `--user` | README "the package scripts" note (improve-15) | `scripts/depth/install-flow-test.sh` (root run, blade-8: the 6-row lifecycle — `--user` and root-without-sudo installs, enforcement-before-uninstall, the no-escalation `--user` uninstall, enforcement-first `--all`, idempotent re-run) | verified |
 
 ## Re-proving, on demand
 

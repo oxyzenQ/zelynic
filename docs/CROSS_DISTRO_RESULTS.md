@@ -347,6 +347,38 @@ MB against 1.44-1.56 MB bounds), and the aggregates sat at
 rode the same push: the cleanup rows' unstrict walks now hand the
 rings back with the buckets and the stats.
 
+The 9a78dfc low-spec red (2026-10-02, NIGHT-total-lts-1): the
+supermassive legs reddened on exactly one row for the first time
+since the instrument split — `many24 no leaf monopolizes the
+refill`, on both low-spec legs at once (low-gnu worst 1,671,246 B
+vs bound 1,621,086; low-musl worst 1,638,478 B vs bound 1,592,414
+— 3% over each), while both best-spec legs held (worst 1.08-1.27
+MB) and everything else on every leg passed (the engine self-test,
+the v2 survival battery, the claims proof, the AMMSP-vs-legacy
+delta). The objects were provably byte-identical to the green run
+128 era (the prebuilt-parity rows PASSED on this very push), and
+the aggregates stayed inside policy on the failing legs (99-105%)
+— the pool law never moved; the worst-leaf draw did. Collected
+across every observed era the many24 worst/fair ratios read:
+1.73-1.99 on the best-spec legs, and 2.03, 2.13, 2.39, 2.40 on the
+low-spec legs — against the 1.75x+quantum shape's effective
+2.32-2.39 once the 400 KB quantum lands against a ~630-700 KB
+fair. The live bound sat inside the low-spec medium's own
+concentration tail: the same sender-side catch-up physics the
+single row's GSO-floor precedent records (a leaf delivering its
+banked admits while its neighbors sit in RTO silence), a tail the
+token model does not own and the sims rightly pin tighter (1.29x
+sustained, drr_highload_tests). The close follows the Z5 doctrine
+one row further: the LAW's 1.75x+quantum band stays where it is
+certifiable (the rootless sims, every push), and the live
+concentration tripwire rides a band that separates the measured
+healthy tail from real monopoly — 3x fair + quantum, 49-52% above
+the observed tail, tripping by the first quintile of the 24x
+full-monopoly signal a broken law would funnel toward. The quietest
+stays advisory, the aggregate stays hard, and no law code changed:
+battery-only, the eBPF object untouched (the prebuilt pin proves
+it).
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.
