@@ -171,7 +171,7 @@ zelynic needs wall-clock formatting for exactly one thing — the
 `Build-time:` line of the version report (`zelynic -V`), which
 cosmostrix stamps and zelynic previously lacked. The stamp is now
 computed inside `build.rs` by Howard Hinnant's `civil_from_days`
-algorithm (http://howardhinnant.github.io/date_algorithms.html),
+algorithm (<http://howardhinnant.github.io/date_algorithms.html>),
 ported from cosmostrix `build.rs`:
 
 - `build.rs::format_unix_secs_as_build_time()` — pure i64 arithmetic,

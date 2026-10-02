@@ -55,7 +55,7 @@ The per-packet core, read line by line:
   gate — a hostile map write meets the bound before the math);
   `refill_credits`' exact branch only executes while
   `elapsed < fill_ns`, which bounds `elapsed * rate_bps` by
-  2 * burst * NS_PER_SEC by construction — bounds, not checks, the
+  2 *burst* NS_PER_SEC by construction — bounds, not checks, the
   documented math.rs discipline. `elapsed` itself is capped at 1 s
   and `saturating_sub`'d against the last stamp.
 - **The consume path.** `try_consume`'s four written-out CAS

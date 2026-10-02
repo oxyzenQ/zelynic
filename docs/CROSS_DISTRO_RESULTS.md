@@ -4,7 +4,7 @@
 # Cross-Distro Validation Report
 
 > Verified test results for zelynic across multiple Linux distributions.
-
+>
 > Historical record: these runs validated the pre-phase-3 tarballs
 > (binary + loose C-compiled bpf/*.o objects + install.sh). Since
 > NIGHT-improve-1 phase 3 the tarball carries one self-contained
@@ -13,7 +13,7 @@
 > but the results themselves were measured on the old packaging.
 > Re-validation on the phase-3 tarballs belongs to the next release
 > cycle.
-
+>
 > Future runs (NIGHT-master-1 / NIGHT-master-2): the two flagship
 > harnesses — `limiter-depth-test.sh` (limiter accuracy) and
 > `supermassive-test.sh` (limiter scope: policy matrix, local AND real
@@ -89,6 +89,7 @@
 
 Kernel 5.10.134 (below 5.13 minimum) — runtime tests not possible.
 Build verification only:
+
 - `cargo build --features ebpf` → success
 - `cargo clippy --all-targets --all-features -- -D warnings` → 0 lints
 - `cargo fmt --check` → clean
@@ -101,6 +102,7 @@ Build verification only:
 ## Test Details
 
 ### Arch Linux (CachyOS LTS)
+
 - **Kernel**: 6.18.35-1-cachyos-lts
 - **Arch**: x86_64 (AMD Ryzen 7 5800HS)
 - **Network**: WiFi (wlp1s0)
@@ -110,6 +112,7 @@ Build verification only:
 - **Notes**: User's primary dev machine. Most extensive testing.
 
 ### Ubuntu 26.04 LTS (VM)
+
 - **Kernel**: 7.0.0-14-generic
 - **Arch**: x86_64 (KVM/QEMU)
 - **Depth Test**: 17/17 PASS
@@ -121,6 +124,7 @@ Build verification only:
   No clang, no cargo, no rustup needed. Just `install.sh --system`.
 
 ### Fedora 44 (Live ISO)
+
 - **Kernel**: 6.19.10-300.fc44.x86_64
 - **Arch**: x86_64 (KVM/QEMU)
 - **Depth Test**: 17/17 PASS
@@ -135,6 +139,7 @@ Build verification only:
   PID file instead of bpftool program count.
 
 ### Ubuntu 21.10 (VM — kernel 5.13, MUSL binary)
+
 - **Kernel**: 5.13.0-19-generic (EXACT minimum supported kernel)
 - **Arch**: x86_64 (KVM/QEMU)
 - **Binary**: MUSL static (zero glibc dependency)
@@ -152,6 +157,7 @@ Build verification only:
   No cargo, no clang, no rustup needed — just tarball + install.sh.
 
 ### CachyOS (VM — kernel 7.1, MUSL binary)
+
 - **Kernel**: 7.1.2-3-cachyos
 - **Arch**: x86_64 (KVM/QEMU, 4 vCPU AMD Ryzen 7 5800HS)
 - **Binary**: MUSL static
@@ -165,6 +171,7 @@ Build verification only:
   works perfectly on latest kernel 7.1.
 
 ### Debian 13 (trixie — VM, kernel 6.12, MUSL binary)
+
 - **Kernel**: 6.12.86+deb13-amd64
 - **Arch**: x86_64 (KVM/QEMU)
 - **Binary**: MUSL static
@@ -183,6 +190,7 @@ Build verification only:
 ## Test Suite Details
 
 ### Depth Test (17 tests)
+
 1. cgroup v2 detected
 2. BPF filesystem mounted
 3. eBPF support confirmed (zelynic doctor)
@@ -202,6 +210,7 @@ Build verification only:
 17. No orphan BPF programs, maps, or PID files
 
 ### Leak Test (13 tests)
+
 1. Baseline: clean
 2. strict + unstrict cycle: active → clean
 3. strict + unstrict-all: active → clean
@@ -227,6 +236,7 @@ Slightly under target due to TCP backoff from dropped packets.
 ## Pre-Compiled BPF Compatibility
 
 BPF objects compiled on Arch Linux (kernel 6.18) successfully loaded on:
+
 - Arch Linux 6.18.35
 - CachyOS 7.1.2 (MUSL)
 - Ubuntu 26.04 7.0.0
@@ -241,6 +251,7 @@ verified across all tested distros.
 ## Installation Method
 
 All distros tested with the release tarball (no source build):
+
 ```bash
 curl -LO https://github.com/oxyzenQ/zelynic/releases/download/vX.Y.Z/zelynic-vX.Y.Z-linux-amd64-v3-gnu.tar.gz
 tar xzf zelynic-vX.Y.Z-linux-amd64-v3-gnu.tar.gz

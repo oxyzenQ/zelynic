@@ -904,7 +904,6 @@ own install (dtolnay/rust-toolchain + sudo to /usr/local/bin) —
 the ephemeral privileged runner fit, documented in the script
 header.
 
-
 ## Stage-1 task map (DeepSeek plan, one commit each)
 
 1. Research (this document's ecosystem and compatibility sections).

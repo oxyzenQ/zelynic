@@ -1563,7 +1563,7 @@ NIGHT-hunt-18's git-history-only call.
   job done deeper, and the probe's 4s window would only add
   wall-clock and budget perturbation to their rungs. Surfaces:
   src/commands/probe.rs (the orchestrator + the pure verdict
-  bands), probe_role.rs (the hidden __probe-server / __probe-client
+  bands), probe_role.rs (the hidden __probe-server /__probe-client
   children, hidden from help), probe_report.rs (the verify block +
   the FAILED error, pure formatting), the strict-single wiring
   (the probe runs BEFORE the success verdict prints — a FAILED
@@ -2071,8 +2071,8 @@ NIGHT-hunt-18's git-history-only call.
   classifies each of the 2,212 name tokens across 248 tracked
   files case by case, and fails with file:line:token on any casing
   outside BRANDING 3.1's two legal families: lowercase everywhere,
-  plus the identifier family (the ZELYNIC_* environment variables
-  and the ZELYNIC-DISCLAIMER marker, attached with _ or -) and the
+  plus the identifier family (the ZELYNIC_*environment variables
+  and the ZELYNIC-DISCLAIMER marker, attached with_ or -) and the
   all-caps banner titles heading the scripts/ gate files. The
   checker is self-clean by construction — the all-caps form is
   built at runtime from the lowercase name, so the file carries no
@@ -4590,7 +4590,7 @@ NIGHT-hunt-18's git-history-only call.
     plain crate root, so `#[path]`-included modules split it with
     zero new dependencies. The plan now lives AT the marker: a
     three-phase mechanical map (validate.rs: the ELF validators
-    + endian readers; flags.rs: the RUSTFLAGS surgery; preflight
+    - endian readers; flags.rs: the RUSTFLAGS surgery; preflight
     .rs: the toolchain probes — the orchestration spine stays in
     build.rs), each phase a pure move, gates green in between,
     triggered by the next build.rs change that would grow the
@@ -5589,7 +5589,7 @@ NIGHT-hunt-18's git-history-only call.
   out of the sweep: two nonstandard spellings in the depth
   harness's kernel-span rows (boost-27's own addition) now match
   the codespell dictionary, keeping the spelling gate honest. Docs
-  + harness pins only — zero product, engine, CLI, or render
+  - harness pins only — zero product, engine, CLI, or render
   surface touched, so no A/B frame benchmark (the owner's
   docs-change exemption).
 
@@ -6325,14 +6325,14 @@ NIGHT-hunt-18's git-history-only call.
   asymmetric -d/-u buckets, live rate change 1mb -> 2mb under an
   active policy, strict-multi group bucket), limit (limit-all
   --force sweep), block (block-single / block-multi zero goodput
-  + kernel drops), unstrict (unlock restore, selective removal,
+  - kernel drops), unstrict (unlock restore, selective removal,
   unstrict-all teardown leaves no rows) — and each family is
   proven TWICE: on the deterministic loopback lane (v1's own
   stages) and against the real internet (curl workers inside the
   policed cgroup, real external processes, the same class of proof
   as the owner's manual browser tests). Zero engine duplication:
   v2 imports v1 whole (importlib; the dash in the filename defeats
-  a plain import — v1's entrypoint is __main__-guarded) and drives
+  a plain import — v1's entrypoint is **main**-guarded) and drives
   its CgroupSet fleet, HttpServer, policy helpers, spawn_in_cgroup
   workers, band_check verdicts, and enforcement proofs, setting
   v1's module globals the same way v1's own main() does. The
@@ -7621,7 +7621,7 @@ NIGHT-hunt-18's git-history-only call.
   private data (cgroup names, PIDs, remote endpoints) and none of
   it may be copyable while the box runs. The monitor now enables
   mouse tracking on enter — 1000 (press/release) + 1002 (button-drag)
-  + 1006 (SGR encoding), the exact trio vim-class TUIs use — so
+  - 1006 (SGR encoding), the exact trio vim-class TUIs use — so
   click-drag selects nothing, Ctrl+Shift+C has no selection to copy,
   and middle-click never reaches the monitor's stdin; the drained
   mouse events are inert input under the q-only quit contract.
@@ -7851,7 +7851,7 @@ NIGHT-hunt-18's git-history-only call.
   full row still composes to an exact width — two columns short of
   the content inset, where the border's fit() pads), and the
   header's process title now SPANS the identity region (rank cell
-  + gap + label column) so it starts at the frame's canonical text
+  - gap + label column) so it starts at the frame's canonical text
   column — the same line every footer and note row starts on.
   Boundary moves with the air it buys: the full layout (with the
   TOTAL column) starts at content width 53 (was 51), the

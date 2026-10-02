@@ -257,10 +257,12 @@ scripts/
 
 1. **LOC limit**: < 500 lines per `.rs` file (enforced by `scripts/gates/check-loc.sh`, wired into `gate-keepers.sh`; a file that cannot be split self-declares `// LOC_EXEMPT: <reason>`)
 2. **Copyright + SPDX**: every source, config, and doc file must have:
+
    ```
    Copyright (C) 2026 rezky_nightky
    SPDX-License-Identifier: GPL-3.0-only
    ```
+
    (comments prefixed per language; `.md` uses HTML comments. Enforced by
    `scripts/gates/check-headers.sh`.)
 3. **License**: GPL-3.0-only

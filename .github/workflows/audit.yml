@@ -7,9 +7,13 @@ name: Dragon Guard - Security Audit
 
 on:
   schedule:
-    # Daily at 00:00 UTC (07:00 WIB) — the owner's morning, one clock
-    # for every scheduled workflow (NIGHT-improve-9).
-    - cron: "0 0 * * *"
+    # Every Monday at 00:00 UTC (07:00 WIB) — the owner's morning,
+    # one clock for every scheduled workflow (NIGHT-improve-9).
+    # NIGHT-improve-38: aligned to the weekly cadence maintenance.yml
+    # and codeql.yml already carry — the advisory DB does not change
+    # enough to justify a daily run, and a daily red in the run list
+    # for an advisory the owner already triaged is noise, not signal.
+    - cron: "0 0 * * 1"
   workflow_dispatch:
 
 permissions:

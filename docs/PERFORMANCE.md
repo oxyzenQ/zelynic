@@ -11,6 +11,7 @@ All metrics measured using `scripts/bench/benchmarking.sh` — a bash wrapper
 that calls `scripts/bench/benchmarking.py` (Python deep benchmarking engine).
 
 Python is the beast engine because of:
+
 - Precise timing (`time.perf_counter()`)
 - /proc parsing for RSS + CPU sampling
 - Statistical analysis (mean, median, stdev, percentiles)
@@ -1129,7 +1130,6 @@ the table is the container-noise class of every previous A/B
 visual gains (status/list-apps matching the eagle family, the
 loading frame, the one-row morph) cost the render loop nothing.
 
-
 ### NIGHT-engrave-6 A/B (the session speed pair, 2026-09-24)
 
 Baseline 34d4f0c (the boost-25 batch end state) vs ecc3c8d, the
@@ -1164,7 +1164,6 @@ deterministic per-frame metrics (bytes/frame identical to the
 decimal) carry the comparison weight. The avg line's per-frame
 division and the peak note's extra summary walk cost nothing
 measurable at the 1s cadence the real monitor runs.
-
 
 <!-- ZELYNIC-DISCLAIMER -->
 <!--

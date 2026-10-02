@@ -38,7 +38,8 @@ without touching a real host, use the sandbox
 
 A: Kernel 5.13+ is the floor of the verified matrix, 6.6 LTS+ is
 recommended; cgroup v2 is required (the hooks are `cgroup_skb/egress`
-+ `ingress`) and BPF fs must be mounted at `/sys/fs/bpf` for pinning
+
+- `ingress`) and BPF fs must be mounted at `/sys/fs/bpf` for pinning
 (docs/KERNEL_COMPATIBILITY.md). The tested distro/kernel matrix lives
 in docs/CROSS_DISTRO_RESULTS.md, and `zelynic doctor` probes the
 running kernel and reports what it actually found rather than assuming

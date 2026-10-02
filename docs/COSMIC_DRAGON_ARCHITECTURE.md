@@ -13,7 +13,7 @@ per-process network shaping. Each tool has its own:
 
 - config format (qdisc class IDs vs nft chain names vs systemd unit properties)
 - failure mode (tc silently drops rules on interface rename, nft requires root
-  + cap_net_admin, systemd-run requires logind + PAM cooperation)
+  - cap_net_admin, systemd-run requires logind + PAM cooperation)
 - observability gap (tc stats don't match nft counters don't match cgroup
   traffic — three numbers, none of them agree)
 
@@ -95,6 +95,7 @@ counter maps), reads `bpf_skb_cgroup_id()` — the cgroup of the
 keyed by cgroup ID. Per-cgroup stats: packet count, byte count.
 
 Contract:
+
 - Program returns `1` (allow) on every path — never block.
 - Map updates use `BPF_ANY` (create-or-update).
 - No ring buffer at all: the C-era events ringbuf (1 event per 100
@@ -168,6 +169,7 @@ Cosmic Dragon Architecture is the mainline: `main` carries the pure-eBPF v11
 line.
 
 ### Done
+
 - [x] Layer 0: `ebpf/src/main.rs` — cgroup_skb/egress counter
 - [x] Layer 1: `read_counters()` direct map read
 - [x] Layer 2: `IdentityMap` with /proc reverse-lookup + 10s TTL refresh
@@ -190,6 +192,7 @@ line.
 - [x] Verified: real enforcement on Arch Linux, kernel 6.18, AMD Ryzen 7
 
 ### Next (Phase W5 — Production Hardening)
+
 - [x] Cross-distro testing — 6 distros verified (see CROSS_DISTRO_RESULTS.md)
 - [ ] Kernel version testing (5.13, 6.12, 6.18+ verified; 6.1/6.6 LTS pending)
 - [x] Stress test: `scripts/supermassive/supermassive-test.sh` (NIGHT-master-2, renamed from brutal-stress-test in NIGHT-improve-11; retired the legacy `scripts/stress-test.sh`)
@@ -197,6 +200,7 @@ line.
 - [x] Layer 4: `--print-json` output for tooling integration
 
 ### Future ideas (unscheduled — v11 is maintenance mode)
+
 - [ ] Layer 0: `ebpf/src/bin/policer.rs` — DSCP marking via `sock_ops` (pure Rust, like the other two programs)
 - [ ] Layer 0: XDP ingress counter (separate from cgroup_skb)
 - [ ] Layer 2: cgroup path → systemd unit name resolution
