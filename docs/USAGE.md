@@ -177,7 +177,15 @@ sudo zelynic strict brave 100kb        # shorthand form
   close: the take is further capped by pool/(learned+2), the
   learned drawee count kept per pool (the drr_pool_state maps);
   a cold pool keeps the exact v13 law. The deep-dive section
-  below carries the updated measured bounds.
+  below carries the updated measured bounds. NIGHT-hunt-Z5, the
+  instrument split: the live supermassive battery certifies the
+  CEILING (the aggregate band and the single round judged as its
+  name says — inside the policy) and the anti-monopoly bound; the
+  anti-starvation law's proof is the rootless sims that pin it per
+  push (drr_ledger_tests), with the live quietest recorded as an
+  advisory diagnostic — a drop policer promises the ceiling, never
+  the floor, and the sender's TCP recovery is the sender's to
+  give.
   Measured shapes: a single active leaf converges to the whole budget
   (the pool's equilibrium sits where its half-draws equal its full
   consumption — and the convergence rides the packet arrival cadence:
@@ -1431,6 +1439,15 @@ a CI leg; the flow converges to the budget over longer windows).
 A leaf that goes idle strands at most its one
 quantum until the LRU reaps it; the stale-quantum belt zeroes
 any leaf's tokens the moment a policy mutation outlives them.
+NIGHT-hunt-Z5 (2026-10-02) put the numbers behind this paragraph
+in the CI round ledgers and split the battery's instruments
+accordingly: the single round's sender offered under the cap and
+delivered 327 KB/s (one 64 KiB admit per ~200 ms — the min-RTO
+cadence), the many24 quietest read 78 B on every leg (the
+response header admitted, the data segments never banking one
+admit), and no take law can move a frozen sender — so the
+ceiling rows carry the live verdicts and the anti-starvation law
+stays pinned by the rootless sims.
 
 dinner-28 (the K > 2 close, v16): the 2:1 bound above is the
 TWO-asker shape; the live fair-share battery found that across

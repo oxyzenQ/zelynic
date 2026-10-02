@@ -1347,6 +1347,58 @@ own-cgroup round-trip pin gained the root-position skip (in a
 container the test process's own cgroup IS the namespace root, and
 the refusal is the correct contract there, not a regression).
 
+## Fair-Share Battery Instrument Audit (NIGHT-hunt-Z5, 2026-10-02)
+
+The owner's ask: the supermassive test CI had been red since the
+fair-share battery's birth (NIGHT-improve-1b, run 101, Sep 30) and
+stayed red through run 124 — every push since its birth — with the
+same two rows; "fix one appear 10 bug"; the ask was a total
+refactor to simplify. The audit's answer, from the CI round
+ledgers' own diagnostics:
+
+**The two stubborn rows judged token laws through a medium those
+laws do not own.** The single round's sender offered ~900 KB/s
+against its 1 MB/s cap — under the cap, the policer not even
+binding on the aggregate — and delivered 327 KB/s, which is one
+64 KiB admit per ~200 ms: the sender's min-RTO recovery cadence
+(the round ledgers read 50-96 arrivals over the 4 s window with
+~58% admitted; the offers dried up, the policer never throttled).
+The many24 quietest read exactly 78 B on every leg: the server's
+response-header segment admitted while every 64 KiB data segment
+met a leaf bucket that never banked one admit. Both shapes are the
+documented frozen basin — TCP collapse under a drop policer. A
+policer promises the ceiling, never the floor; no take law can
+make a frozen sender offer. The strongest evidence is the history
+itself: an attempted live-shape sim — the startup flight, the
+spawn spread, the settle's lazy lump, the exact kernel
+take/room/note functions — could not reproduce the fingerprints
+either, and was removed with the experiment rather than shipped
+unpinned. The failure lives outside the token model, in the
+sender.
+
+**The close is the instrument split.** The ceiling rows stay hard
+in the live battery (the aggregate band with its 65% collapse
+guard and 1.45 hi; the single round's verdict matches its name —
+"stays inside the policy" judged as the ceiling, lo bound 0.0,
+the rate ladder's own GSO-floor precedent for under-delivery
+physics). The anti-monopoly row stays hard — a real concentration
+tripwire, green across every leg at worst 1.47 MB against the
+1.83 MB bound. The anti-starvation law's proof stays where it is
+certifiable: the rootless sims that pin it in every push's test
+lanes (`test/ebpf/limiter/drr_ledger_tests.rs`, calibrated across
+the repair era against these very CI fingerprints), with the live
+quietest recorded as an advisory diagnostic — the numbers stay in
+every CI log and the `--json` output, never a red verdict the
+medium cannot support. The drain+settle prelude (repair-8) is
+deleted: it existed to fight the startup lottery for rows that no
+longer ride it, and the rounds now measure apply-to-spawn, the
+same shape the rate ladder already proved. The product's own
+documentation carried the physics all along (USAGE.md's deep
+dive: "a LONE flow in deep retransmit backoff can read a
+short-window under-delivery ... the flow converges to the budget
+over longer windows") — the battery's rows are the first shape
+that agrees with it.
+
 ## License
 
 GPL-3.0-only — source code is fully open. Anyone can audit, modify, and

@@ -19,6 +19,55 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Fixed
 
+- **NIGHT-hunt-Z5, the instrument split — the fair-share battery's
+  verdicts moved to the instruments that can certify them, and the
+  CI's born-red era closes.** The owner's ask: the supermassive
+  test CI had been red since the battery's birth (NIGHT-improve-1b,
+  run 101, Sep 30) and stayed red through run 124 (Oct 2) — every
+  push since its birth, across the whole repair-3..8 campaign chain
+  and the Z1/Z2 closes; "fix one appear 10 bug"; the ask was a
+  total refactor to simplify. The audit's finding, from the CI
+  round ledgers' own diagnostics: the battery's two stubborn rows
+  judged TOKEN laws through a MEDIUM those laws do not own. The
+  single round's sender offered ~900 KB/s against its 1 MB/s cap —
+  under the cap, the policer not even binding on the aggregate —
+  and delivered 327 KB/s, one 64 KiB admit per ~200 ms: the
+  sender's min-RTO recovery cadence, not any admission law (the
+  live round ledgers read 50-96 arrivals over the 4 s window,
+  ~58% admitted — the offers dried up; the policer never
+  throttled). The many24 quietest read exactly 78 B on every leg —
+  the server's response-header segment admitted while every 64 KiB
+  data segment met a leaf bucket that never banked one admit. Both
+  are the documented frozen basin: TCP collapse under a drop
+  policer, a medium property no redistribution law can move, and
+  the strongest evidence is the history itself — an attempted
+  live-shape sim (the startup flight, the spawn spread, the
+  settle's lazy lump, the exact kernel take/room/note functions)
+  could not reproduce the fingerprints either, which is the proof
+  the failure lives outside the token model, in the sender. The
+  close is the instrument split, the simplification the owner
+  asked for: the CEILING rows stay hard (the aggregate band with
+  its 65% collapse guard and 1.45 hi; the single round's verdict
+  now matches its name — "stays inside the policy" judged as the
+  ceiling, lo bound 0.0, the ladder's own GSO-floor precedent for
+  under-delivery physics); the anti-monopoly row stays hard (a
+  real concentration tripwire, green across every leg at worst
+  1.47 MB against the 1.83 MB bound); and the anti-starvation
+  law's proof stays where it is certifiable — the rootless sims
+  that pin it in every push's test lanes (drr_ledger_tests,
+  calibrated across the repair era against these very CI
+  fingerprints) — with the live quietest recorded as an advisory
+  diagnostic (the numbers stay in every CI log and the --json
+  output), never a red verdict the medium cannot support. The
+  drain+settle prelude (repair-8) is deleted with it: it existed
+  to fight the startup lottery for rows that no longer ride it;
+  the rounds now measure apply-to-spawn, the same shape the rate
+  ladder already proved, and the battery is smaller by the whole
+  prelude. The failed live-shape sim was removed with the
+  experiment — nothing ships that cannot pin. Battery-only
+  change: no datapath, no binary, no bench. The battery parses,
+  the engine self-test stands at 34/34 rootless, and the per-leg
+  CI numbers are filed in CROSS_DISTRO_RESULTS.
 - **NIGHT-hunt-Z3, the root catch-all — the cg:1 policy that was
   one typo (or one force) away from machine-wide throttling.** The
   owner's ask: audit the `cg:1` catch-all that polices NAPI

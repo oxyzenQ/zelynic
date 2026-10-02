@@ -308,6 +308,34 @@ isolation-based witness floor — each pinned rootlessly in
 `--self-test`, 12 rows). Live re-run pending on the owner machine;
 file the fresh numbers here when it lands.
 
+## Supermassive Fair-Share Rows (NIGHT-hunt-Z5, 2026-10-02)
+
+The numbers behind the instrument split, filed from the CI round
+ledgers of runs 122-124 (2026-10-01 through 2026-10-02, the
+born-red era's last pushes). Every failing leg read the same two
+rows while every other probe passed (engine self-test 34/34,
+AMMSP delta, v2 survival, claims proof):
+
+| Leg | Row | Measured | Bound |
+| --- | --- | --- | --- |
+| low gnu 5.13 | single aggregate | 327.5 KB/s (32.7%) | lo 0.65 of 1 MB/s |
+| best gnu 7.3 | single aggregate | 98.3 KB/s (9.8%) | lo 0.65 of 1 MB/s |
+| best musl 7.3 | single aggregate | 332.7 KB/s (33.3%) | lo 0.65 of 1 MB/s |
+| all three legs | many24 quietest | 78 B | fair/4 (191-204 KB) |
+
+The round ledgers' own diagnostics: the single round's arrivals
+read 50-96 packets over the 4 s window with ~58% admitted (the
+sender's RTO cadence — the offered rate ~900 KB/s sat under the
+1 MB/s cap, the policer never binding on the aggregate); the
+many24 aggregate held its band all along (109-122% of policy)
+with the anti-monopoly bound met at worst 1.47 MB against the
+1.83 MB bound. The 78 B is the server's response-header segment
+admitted while every 64 KiB data segment met a leaf bucket that
+never banked one admit. After the split (the ceiling rows hard,
+the quietest advisory, the drain+settle prelude deleted), the
+rows above are the frozen-basin evidence the split was decided
+on; fresh numbers land here with the next CI era.
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.
