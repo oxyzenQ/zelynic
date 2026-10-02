@@ -27,12 +27,12 @@ fn reclaim_trace_line_singular_and_plural() {
     assert_eq!(
         reclaim_trace_line(42, 1),
         "[limiter] cg:42 reclaimed 1 stale state entry — \
-         bucket/stats slots returned to the 1024-entry LTS budget"
+         bucket/ring/stats slots returned to the 1024-entry LTS budget"
     );
     assert_eq!(
         reclaim_trace_line(7, 3),
         "[limiter] cg:7 reclaimed 3 stale state entries — \
-         bucket/stats slots returned to the 1024-entry LTS budget"
+         bucket/ring/stats slots returned to the 1024-entry LTS budget"
     );
 }
 

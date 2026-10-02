@@ -19,6 +19,46 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Fixed
 
+- **NIGHT-hunt-Z4, the rings join the reclaim family — the LTS
+  state budget audit's one real find.** The owner's ask: audit
+  the LTS state budget under a 1024-cgroup fleet. The inventory
+  verified from source (Policy 24 B, Bucket 24 B, LimiterStats
+  32 B, RateRing 128 B, the u64 state words 8 B — all
+  compile-time pinned): the worst live budget at the full
+  1024-root posture sums under ~0.6 MB across both directions
+  (the rings are the largest single line at 256 KB), the
+  one-root-1024-leaf posture sits near 130 KB, the leaf-scale
+  LRU families carry a 4x margin over the census, the stale
+  share/ledger generations age out with three generations of
+  headroom at 1024 leaves, the u12 share fields saturate at
+  4095 against the 4096 LRU posture, the ledger's
+  ELAPSED_CEILING saturates the carry's credit at the quantum,
+  and the 13.7-year epoch wrap horizon outlives any LTS host.
+  Sound — except one family: `reclaim_cgroup_state` handed back
+  the buckets and the stats, and nothing anywhere removed a
+  `rate_ring_dl/ul` entry. The rings are pinned HashMaps (never
+  LRU), so an unreclaimed ring is resident until process exit and
+  beyond (pinned maps survive it): on a months-LTS host cycling
+  apply/unstrict across cgroups, the ring maps monotonically fill
+  with dead roots' 128 B entries, and once the map is full every
+  later root's ring silently fails to create — the fail-open
+  contract keeps enforcement intact, but the delivered-rate
+  series (the `status` JSON's rate_ring surface) is missing for
+  every new root: an observability loss, never a policing one.
+  The claim "occupancy is bounded by the policy census" held
+  only if cgroup ids recycle, which a months-LTS host effectively
+  never does. The close: the rings ride the same per-direction
+  gate as their buckets in `reclaim_cgroup_state` (a gone
+  direction's series is the same dead state its bucket is), the
+  trace wording names the family ("bucket/ring/stats slots
+  returned to the 1024-entry LTS budget", the improve-10 wording
+  pins updated with it, 4/4 green), and STABILITY's map table
+  carries the rings in the reclaimed family. Userspace-only
+  change: the eBPF object is byte-identical (the prebuilt pin
+  proves it) and the benchmark A/B is skipped on purpose — the
+  unstrict/reclaim path is not a hot path, the datapath's
+  per-packet cost is untouched. The full audit table is filed in
+  SAFETY_ANALYSIS as its NIGHT-hunt-Z4 section.
 - **NIGHT-hunt-Z5, the instrument split — the fair-share battery's
   verdicts moved to the instruments that can certify them, and the
   CI's born-red era closes.** The owner's ask: the supermassive
