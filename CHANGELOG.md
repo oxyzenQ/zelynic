@@ -429,6 +429,31 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Added
 
+- **NIGHT-hunt-Z6, the high-load fair-share audit — SOUND, the
+  last Z4-offer candidate closed, and the one tradeoff it owns
+  pinned from both sides.** The owner's ask: dig DRR fairness
+  under high load (the Z4 offer's remaining candidate) to the
+  bottom. The audit read the law against its load-bearing
+  arithmetic and pinned the two shapes no existing pin measured,
+  on the epoch-ledger battery's own kernel-shaped runner (the new
+  drr_highload_tests tree, pub(super) on the shared machinery —
+  one sim, one copy): the SUSTAINED shape (24 leaves at the
+  1 MB/s trickle-hard rate, the deepest GSO banking cadence, held
+  12 s — three windows) reads 91.2% of policy with the worst leaf
+  at 1.29x fair and the quietest at 0.57x, every battery band
+  holding over the horizon; the DEPARTURE shape (24 hot, 18 gone
+  at once) owns its tradeoff — the peak cannot tell a departed
+  leaf from a starved one, so the six survivors run the release
+  window at k/peak of policy (measured 19.7% over the first 4 s,
+  twelve admits split perfectly even), closing on the 8-epoch
+  decay schedule (the 20 s aggregate reads 53.1% as the released
+  shares climb back). The pins refuse both regressions: a stalled
+  decay (the subtree stranded under-policy forever) and a
+  protection hole (the many24 silence the peak was built to
+  cover). No code change warranted: the verdict is SOUND, the
+  eBPF object byte-identical (the prebuilt lane's tree pin proves
+  it), and the full audit table is filed in SAFETY_ANALYSIS as
+  its NIGHT-hunt-Z6 section.
 - **NIGHT-hunt-Z2, the probe's direction lanes — the Z1 regression
   pair the supermassive matrix was missing.** The audit answer to
   the owner's ask (test the limiter end to end and the whole CLI

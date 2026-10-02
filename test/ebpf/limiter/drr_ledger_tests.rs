@@ -118,7 +118,7 @@ impl SimLeaf {
 /// The configuration under test: the take law, the note's honesty
 /// (the racy cap), whether the epoch ledger caps the room, and
 /// whether it carries (repair-4) or blocks (the ablation).
-struct SimConfig {
+pub(super) struct SimConfig {
     law: fn(u64, u64, u16) -> u64,
     racy_note_cap: Option<u16>,
     ledger: bool,
@@ -136,7 +136,7 @@ fn v16_cfg(racy: Option<u16>) -> SimConfig {
 }
 
 /// The v17-law config (the ledger on; the carry or the ablation).
-fn v17_cfg(carry: bool) -> SimConfig {
+pub(super) fn v17_cfg(carry: bool) -> SimConfig {
     SimConfig {
         law: v17_law,
         racy_note_cap: None,
@@ -164,7 +164,7 @@ fn v17_law(q: u64, pool: u64, _learned: u16) -> u64 {
 /// `stagger_ns`), starting from `initial_share` (the carried-over
 /// pool-share word) and returning the per-leaf admits plus the final
 /// word.
-fn run_kernel_shape(
+pub(super) fn run_kernel_shape(
     cfg: &SimConfig,
     rate: u64,
     k: usize,
@@ -268,14 +268,14 @@ fn run_kernel_shape(
 }
 
 /// The bounds the live battery judges, as one verdict over the admits.
-struct Verdict {
-    fair: u64,
-    worst: u64,
-    quietest: u64,
-    total: u64,
+pub(super) struct Verdict {
+    pub(super) fair: u64,
+    pub(super) worst: u64,
+    pub(super) quietest: u64,
+    pub(super) total: u64,
 }
 
-fn verdict_for(gots: &[u64]) -> Verdict {
+pub(super) fn verdict_for(gots: &[u64]) -> Verdict {
     let total: u64 = gots.iter().sum();
     Verdict {
         fair: total / gots.len() as u64,

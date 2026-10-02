@@ -1451,6 +1451,59 @@ object is byte-identical (the prebuilt pin proves it), and the
 benchmark A/B is skipped on purpose — the unstrict/reclaim path
 is not a hot path; the datapath's per-packet cost is untouched.
 
+## High-Load Fair-Share Audit (NIGHT-hunt-Z6, 2026-10-02)
+
+The owner's ask: the Z4 offer's one remaining candidate — DRR
+fairness under high load — dug to the bottom, or the battery
+locked as the LTS baseline. The audit did both: the law read
+against its load-bearing arithmetic, and the two high-load shapes
+no existing pin measured reproduced rootlessly on the epoch-ledger
+battery's own kernel-shaped simulation (test/ebpf/limiter/
+drr_highload_tests.rs, pinned on the shared runner — one sim, one
+copy, the duplicate-mod law).
+
+THE SUSTAINED SHAPE (24 leaves, the 1 MB/s trickle-hard rate — the
+allowance at 4.3 KB per epoch banks a 64 KiB admit every ~15
+epochs, the deepest GSO-floor banking cadence the law owns —
+sustained 12 s, three times the live battery's window): SOUND,
+measured. The aggregate read 91.2% of policy over the whole
+horizon (10,944,512 B of 12 MB), the worst leaf 1.29x fair
+(589,824 B against fair 456,021 B, bound 1.75x + one quantum),
+the quietest 0.57x fair (262,144 B, floor fair/4) — the battery's
+own bands, held over a horizon three windows long. The protection
+is the reason: the peak field holds the divisor near the full
+count while the starved leaves ride their retransmit silences, so
+every leaf's allowance stays the fair split and every leaf banks
+toward its next admit.
+
+THE DEPARTURE SHAPE (the find-shaped gap, now owned): 24 leaves
+hot, 18 leave at once. The peak — the allowance's divisor, the
+decaying high-water — cannot tell a departed leaf from a starved
+one (a leaf that stops asking is the same signal at the pool), so
+it releases one share every PEAK_DECAY_EPOCHS (8) epochs and the
+six survivors run UNDER policy for the window it takes the peak
+to fall to the living count: measured 19.7% of policy over the
+first 4 s (786,432 B — twelve admits, exactly two per survivor, a
+perfectly even split: the allowance is uniform), the window
+closing on the 14.4 s schedule and the 20 s aggregate reading
+53.1% (10,616,832 B) as the linear climb hands the released
+shares back. The tradeoff is the repair-4 protection's own price
+(a starved leaf's silence must not inflate its rivals' allowance
+— the many24 monopoly find), it points in the safe direction (an
+under-admit; the pool never hands out what it does not have), and
+it is bounded and self-healing by construction. The pins hold it
+from both sides: the release floor (the survivors never fall
+below k/peak of policy while the window stands) and the close (a
+stalled decay strands the subtree under-policy forever — the 20 s
+aggregate and the final peak both refuse that shape; a decay fast
+enough to beat the schedule would re-open the silence hole the
+many24 battery pins shut).
+
+THE VERDICT: SOUND under high load — no code change warranted,
+the eBPF object byte-identical (the prebuilt lane's tree pin
+proves it). The audit's numbers ride the three new pins, and the
+LTS baseline lock is v20.0.0 itself.
+
 ## License
 
 GPL-3.0-only — source code is fully open. Anyone can audit, modify, and
