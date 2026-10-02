@@ -17,6 +17,10 @@
 #     release's commit SHA. The comment's version token moves with a
 #     major bump (v5 -> v7) and keeps the author's chosen form: a
 #     major-only token stays major-only, an exact token goes exact.
+#   - A pin already sitting on the release commit is CURRENT: the
+#     SHA is the pin's identity, and the comment token keeps the
+#     author's chosen form (a major-only "v7" beside latest v7.0.1
+#     is a label, never a version behind).
 #   - Tag pins (@v4) bump to the latest major tag when a newer major
 #     exists; the moving major tag already carries minor/patch.
 #
@@ -355,8 +359,14 @@ sweep_sha_pin() {
 		KEPT=$((KEPT + 1))
 		return 0
 	fi
-	if [ "$cmp" = "0" ] && [ "$ref" = "$new_sha" ]; then
-		keep "${repo} — ${cur_ver} current"
+	# The pin's identity is the SHA, not the comment's token: a pin
+	# already sitting on the release commit is CURRENT in every form
+	# its token takes (a major-only "v7" beside latest v7.0.1 is the
+	# author's chosen label, never a version behind — the first live
+	# dispatch reported 29 no-op "heals" on an already-healed tree
+	# before this rule existed).
+	if [ "$ref" = "$new_sha" ]; then
+		keep "${repo} — ${cur_ver} pinned at the latest release commit"
 		KEPT=$((KEPT + 1))
 		return 0
 	fi
