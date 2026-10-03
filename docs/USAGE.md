@@ -1608,7 +1608,13 @@ nothing. The accepted trade: a cgroup evicted while idle and then
 returning restarts its accumulator, so session TOTALS under
 extreme churn (more than 4096 concurrent live cgroups in one
 session) are best-effort — exactly the posture the per-socket
-figures document. One userspace bound rides on top: the leaderboard
+figures document. Since NIGHT-total-lts-5 the returning restart
+also READS as a restart: the poll delta discriminates the LRU
+restart from a counter wrap at the half-space coherence bound, so
+the returning cgroup's frame reports its fresh bytes (the
+leaderboard keeps the pre-eviction history it already held) —
+never the 18-exabyte wrap phantom the bare modulo delta once
+answered. One userspace bound rides on top: the leaderboard
 carries at most 4096 distinct cgroups per session (a memory bound
 that predates the LRU lane) — past it, rows the session already
 has keep updating, while a fresh cgroup carries no row even though
