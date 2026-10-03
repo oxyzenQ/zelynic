@@ -299,6 +299,46 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Fixed
 
+- **ci: the supermassive red (all four legs, 9eb112d through f856ae3)
+  — the Z9 shadowed-positional rows carried an environment-dependent
+  needle, closed on v3's root-skip doctrine.** The owner's report:
+  four failing checks, every "supermassive test" job (gnu/musl ×
+  best/low specs) red after 10-12 minutes while the same commit's
+  Dragon Guard - CI and Gate-keepers legs stayed green. The logs
+  pinned it to one probe — `supermassive v4 - CLI depth battery
+  (full, rootless) — FAIL`, 118/3 — with all three failures the
+  Z9 stage-9 shadow rows reading `missing=['root required']`, the
+  same three rows on 9eb112d (before any lts-4 resolver change, so
+  the resolution fix is exonerated — the binary resolved and 118
+  rows ran in the VM). Root cause: those three rows assert the
+  root-refusal message itself, a needle only a NON-root run can
+  produce — but the supermassive VM runs its whole init (v4
+  included) as root because v1/v2/v3 need it for BPF, so the gate
+  passes there and the needle never appears. The rows were also
+  unsafe in that shape: as root, a valid rate past the passing gate
+  is a real enforcement attempt (harmless in the VM only because
+  its cgroup fleet has no "brave" — on any host with the app
+  present the battery would have shaped it for real), which
+  violates v4's own safety-by-construction contract ("no case
+  executes a policy"). Fix
+  (scripts/supermassive/supermassive-test-v4.py): the three
+  valid-rate shadow rows are now marked `rootless_lane` in the case
+  table; when the harness runs as root they SKIP without executing
+  — v3's privilege-gate doctrine verbatim ("the gate cannot be
+  triggered as root"), the same shape v3's stage 2 has owned since
+  its own CI-leg debut — while the garbage/typo shadow rows (their
+  refusals fire at the parse boundary, before the gate) still run
+  under every uid, and the rootless CI leg still runs all 121 rows
+  end to end on every push (verified locally: full battery 121
+  passed / 0 failed / 0 skipped rootless; the root shape simulated
+  by patching `_is_root` — 118 passed / 0 failed / 3 skipped, the
+  exact VM verdict shape). The battery header now prints the
+  root-side skip line when it runs as root, the engine self-test
+  pins the lane split (both lanes populated in the table), and the
+  wrapper + supermassive-init comments carry the doctrine. No
+  product code touched — no benchmark run (the lts-5 A/B at this
+  HEAD already anchors bytes/frame byte-exact at 1919.0).
+
 - **NIGHT-total-lts-3, the killer-features depth audit — two UX
   finds closed live with pins (the argv-forensics walk and the
   help synopsis), the limiter and eagle-eyes engines read to the

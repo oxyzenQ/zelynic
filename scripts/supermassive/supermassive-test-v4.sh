@@ -22,7 +22,13 @@
 # typo tips, rate validation, color modes) parses BEFORE the root
 # check, so v4 runs on every host without sudo — the most CI-friendly
 # supermassive test. The enforcement depth (root + eBPF) is v1/v2's
-# domain; v4 is the surface contract.
+# domain; v4 is the surface contract. One honest exception: stage 9's
+# three valid-rate shadow rows assert the root-refusal message, a
+# needle only a non-root run produces — when the harness itself runs
+# as root (the supermassive VM's init context), they SKIP without
+# executing (v3's doctrine; and a valid rate past a passing gate is
+# an enforcement attempt no v4 case makes). The rootless CI leg
+# still carries all 121 rows on every push.
 #
 # Full design notes live in the .py header.
 
