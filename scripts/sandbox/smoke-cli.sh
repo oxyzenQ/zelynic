@@ -201,11 +201,17 @@ enforcement() {
 	expect_ok "unstrict-single cg:A" "$BIN" unstrict-single "cg:${CG_A}"
 	expect_ok "unstrict-single cg:B" "$BIN" unstrict-single "cg:${CG_B}"
 
-	expect_ok "strict-multi cg:A:cg:B 1mb (shared bucket)" \
-		"$BIN" strict-multi "cg:${CG_A}:cg:${CG_B}" 1mb
+	# NIGHT-blade-18: the multi grammar splits on EVERY colon, so the
+	# compound "cg:<id>" form cannot ride the list — the split turns
+	# "cg:A:cg:B" into four segments and the literal "cg" names never
+	# resolve (dinner-11 aborts the whole apply). Bare numeric segments
+	# are the list's cgroup-id form (Target::parse mirrors the single
+	# verb's id rule), so the fleet rides its bare cgroup ids.
+	expect_ok "strict-multi A:B 1mb (shared bucket over bare ids)" \
+		"$BIN" strict-multi "${CG_A}:${CG_B}" 1mb
 	expect_ok "status (rows present under the multi policy)" \
 		bash -c "\"$BIN\" status --print-json | python3 -c 'import json,sys; d=json.load(sys.stdin); sys.exit(0 if d[\"active_limits\"] >= 1 else 1)'"
-	expect_ok "unstrict-multi cg:A:cg:B" "$BIN" unstrict-multi "cg:${CG_A}:cg:${CG_B}"
+	expect_ok "unstrict-multi A:B (bare ids)" "$BIN" unstrict-multi "${CG_A}:${CG_B}"
 
 	expect_ok "strict-all --force-this (sweep, generous rate)" \
 		"$BIN" strict-all --force-this 500kb
@@ -213,7 +219,7 @@ enforcement() {
 
 	expect_ok "block-single cg:B (zero-rate policy)" \
 		"$BIN" block-single "cg:${CG_B}"
-	expect_ok "block-multi cg:A:cg:B" "$BIN" block-multi "cg:${CG_A}:cg:${CG_B}"
+	expect_ok "block-multi A:B (bare ids)" "$BIN" block-multi "${CG_A}:${CG_B}"
 	expect_ok "block-all --force-this" "$BIN" block-all --force-this
 	expect_ok "unstrict-all (after the block matrix)" "$BIN" unstrict-all
 	expect_ok "status --print-json (zero rows after teardown)" \
@@ -232,16 +238,19 @@ guards() {
 	expect_ok "dangerous target + --force-this (override honored)" \
 		"$BIN" strict-single kthreadd 1mb --force-this
 	expect_ok "unstrict-all (drop the forced policy)" "$BIN" unstrict-all
-	# An empty target is a hard refusal now (NIGHT-dinner-11, the
-	# no-match contract — the eBPF-verifier lineage): "No cgroup
-	# found" on the branded error surface, exit 1 — never a crash,
-	# never a silent success.
+	# An empty target is refused at the INPUT boundary
+	# (NIGHT-dinner-16, the verifier-lineage mandate — the wording
+	# nonroot-depth-test.sh and the strict.rs unit pins carry):
+	# "target is empty" on the branded error surface, exit 1 — before
+	# the privilege ask, never a crash, never a silent success.
+	# ("No cgroup found" is dinner-11's NON-empty no-match contract,
+	# a different rung of the ladder.)
 	run "$BIN" strict-single "" 1mb
 	if ! grep -q "panicked" <<<"$OUT" &&
-		[ "$RC" -eq 1 ] && grep -qi "No cgroup found" <<<"$OUT"; then
-		row "empty target (hard miss, not a crash)" 0
+		[ "$RC" -eq 1 ] && grep -qi "target is empty" <<<"$OUT"; then
+		row "empty target (input-boundary refusal, not a crash)" 0
 	else
-		row "empty target (hard miss, not a crash)" 1 "rc=${RC}: $(head -c 120 <<<"$OUT")"
+		row "empty target (input-boundary refusal, not a crash)" 1 "rc=${RC}: $(head -c 120 <<<"$OUT")"
 	fi
 	expect_refused_clean "unknown subcommand (redirect tip, not a crash)" \
 		"$BIN" limit-single brave 1mb
@@ -276,14 +285,17 @@ eagle() {
 	# present), a miss carries a reason instead.
 	expect_ok "ee --depth --print-json (targets[0] carries the report)" \
 		bash -c "\"$BIN\" ee cg:${CG_A} --depth --print-json | python3 -c 'import json,sys; d=json.load(sys.stdin); t=d[\"targets\"][0]; sys.exit(0 if all(k in t for k in (\"target\",\"cgroup_id\",\"enforcement\")) else 1)'"
-	# A missing target is a clean MISS (the report prints the reason
-	# line and exits 0 — the miss contract), never a crash.
+	# A FULLY-missing depth target is a branded refusal
+	# (NIGHT-dinner-18: the shared no-match builder — "No live cgroup
+	# matches ..." plus the list-apps tip, exit 1, the same voice the
+	# strict family owns). A partial miss renders alongside the hits
+	# with grey reason lines and exits 0. Never a crash either way.
 	run "$BIN" ee cg:4294967295 --depth
 	if ! grep -q "panicked" <<<"$OUT" &&
-		{ [ "$RC" -eq 0 ] || { [ "$RC" -ne 0 ] && ! grep -qi "error" <<<"$OUT"; }; }; then
-		row "ee --depth on a missing target (clean miss)" 0
+		[ "$RC" -eq 1 ] && grep -qi "No live cgroup matches" <<<"$OUT"; then
+		row "ee --depth on a missing target (branded refusal, exit 1)" 0
 	else
-		row "ee --depth on a missing target (clean miss)" 1 "rc=${RC}: $(head -c 120 <<<"$OUT")"
+		row "ee --depth on a missing target (branded refusal, exit 1)" 1 "rc=${RC}: $(head -c 120 <<<"$OUT")"
 	fi
 	# The live monitor owns the console: without a tty the stdio gate
 	# must refuse (NIGHT-boost-28) — clean, named, non-zero.
