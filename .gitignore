@@ -43,3 +43,4 @@ download/
 # Python bytecode caches (test-script imports)
 __pycache__/
 *.pyc
+.ruff_cache

@@ -568,7 +568,7 @@ as "latest".
 
 | Branch | Purpose | Status |
 |--------|---------|--------|
-| `main` | Pure eBPF v11.x (Cosmic Dragon Architecture) | Maintenance mode |
+| `main` | Pure eBPF (Cosmic Dragon Architecture) | Maintenance mode |
 
 ## Contributing
 
