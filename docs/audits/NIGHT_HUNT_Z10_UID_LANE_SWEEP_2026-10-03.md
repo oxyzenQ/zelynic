@@ -25,9 +25,9 @@ sudo tip) can only pass when the harness runs NON-root, and a row
 that asserts a past-the-gate outcome (an enforcement attempt, a
 resolution, a one-shot report) can only pass when the harness runs
 as root. The failure shape the incident exposed: a battery that
-runs under BOTH uid shapes across CI legs (rootless in Dragon Guard
-- CI, root in the supermassive VM's init context) with a row that
-knows its needle's lane by neither flag nor skip — green in one
+runs under BOTH uid shapes across CI legs (rootless in the CI
+workflow, root in the supermassive VM's init context) with a row
+that knows its needle's lane by neither flag nor skip — green in one
 leg, red in the other, with a verdict that lies about the product
 in exactly one of them. Two aggravating properties made it worse
 than a normal flake: the red leg reads as a product regression (it
@@ -43,16 +43,20 @@ The sweep enumerated every binary-driving instrument in the repo
 (the five supermassive batteries, the AMMSP delta harness, the
 claims proof, the depth family, the bench family, the nonroot depth
 suite, and the Rust test tree), then crossed each with every leg
-that runs it — Dragon Guard - CI (the GitHub runner, non-root),
-Dragon Guard - Supermassive (the micro-VM init, root — v1/v2/v3
-need root for their BPF legs, so everything in that init runs as
-root), Dragon Guard - Supermassive Container E2E (v3 full under
-`sudo` with the docker/k8s lanes forced), and Dragon Guard -
-Gate-keepers (gates only, no batteries) — and asked the same three
-questions per instrument: which uid shapes reach it, which rows
-depend on the uid, and does the row know its lane (flag, honest
-skip, fail-fast preflight, refuse-to-run, or lane-adaptive
-assertion)?
+that runs it and the uid that leg runs under:
+
+- Dragon Guard - CI (the GitHub runner, non-root)
+- Dragon Guard - Supermassive (the micro-VM init, root — v1/v2/v3
+  need root for their BPF legs, so everything in that init runs as
+  root)
+- Dragon Guard - Supermassive Container E2E (v3 full under
+  `sudo` with the docker/k8s lanes forced)
+- Dragon Guard - Gate-keepers (gates only, no batteries)
+
+The same three questions were asked per instrument: which uid shapes
+reach it, which rows depend on the uid, and does the row know its
+lane (flag, honest skip, fail-fast preflight, refuse-to-run, or
+lane-adaptive assertion)?
 
 ## The matrix, instrument by instrument (all verified clean)
 
