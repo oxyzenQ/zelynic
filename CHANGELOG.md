@@ -337,6 +337,38 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Fixed
 
+- **release: the missing Verification section on the v11.0.0 stable
+  and v20.0.0-rc.2 pages (NIGHT-hunt-Z11) — GitHub silently
+  truncates a stored release body at its cap, and the section
+  rendered last.** The owner's report: the verification block (GPG
+  recv-keys, the gpg --verify example, the expected Good signature
+  line, the docs/VERIFY_RELEASE.md link) was missing from the
+  release pages after v20.0.0-rc.2 — both the stable and the
+  pre-release. The stored bodies told the real story: both
+  casualties held EXACTLY 124,999 characters, cut mid-word inside
+  the changelog listings with unbalanced <details> tags — the
+  platform's silent truncation, not a template regression. Two
+  inflation paths produced over-cap bodies: the 250-commit compare
+  listing rendered twice (v11.0.0), and essay-length (~1,900
+  character) subjects at 139 commits (v20.0.0-rc.2). The fix is
+  three layers in the generator plus one in the workflow: subjects
+  display-cap at MAX_SUBJECT_CHARS (jq codepoint-safe slicing, the
+  "..." marker, the commit page carries the full text), the body
+  composes in memory with MAX_BODY_CHARS=120000 and the
+  full-changelog listing is trimmed from its tail — whole lines, honest
+  note, categories keep every commit — and main() refuses any
+  over-budget body red-and-named instead of letting the platform
+  cut it silently; the workflow's body step independently refuses
+  any release-body.md over 124,000 bytes (the platform guard on
+  the exact file the publish step uploads). The --self-test
+  battery pins the incident with a new budget contract (both
+  failure shapes at once, through the real CLI path). Both casualty
+  pages were regenerated through the fixed generator with their
+  original boundaries and PATCHed back: v11.0.0 now stores 93,671
+  characters and v20.0.0-rc.2 72,306, both 7/7 and 8/8 details
+  closed, both ending with the Verification section. Audit:
+  docs/audits/NIGHT_HUNT_Z11_RELEASE_BODY_VERIFICATION_CAP_2026-10-03.md.
+
 - **ci: the supermassive red (all four legs, 9eb112d through f856ae3)
   — the Z9 shadowed-positional rows carried an environment-dependent
   needle, closed on v3's root-skip doctrine.** The owner's report:

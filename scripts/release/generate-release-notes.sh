@@ -19,7 +19,13 @@
 # links to its GitHub commit page; the full changelog rides a collapsed
 # details block with the compare link; the verification section (GPG +
 # checksum policy) lives here so the release body has exactly one
-# implementation.
+# implementation — and (NIGHT-hunt-Z11) the body budget guarantees it
+# survives to the STORED page: GitHub silently truncates a release body
+# over its cap (observed 124,999 characters; the documented limit is
+# 125,000), and an over-budget body loses exactly its last section —
+# the verification contract. Subjects display-cap, the full-changelog
+# listing is trimmed from its tail under the budget, and main() refuses any
+# body that still exceeds it.
 #
 # ARCHITECTURE (the zelynic difference): this port renders from the
 # GitHub compare API JSON, not `git log` — the release job carries no
@@ -30,8 +36,12 @@
 # files are all *.md is docs work) needs per-commit file lists the
 # compare API does not carry, so this port classifies from subjects
 # alone (a guarded keyword scan). The <details> categories are
-# navigational, the full changelog below them is complete — a misfiled
-# commit is never a hidden commit.
+# navigational and list every commit (subjects display-capped at
+# MAX_SUBJECT_CHARS — the hash link carries the full text); the full
+# changelog below them is the redundant reading order and is trimmed
+# from its tail under the body budget with the state named on the page — a
+# misfiled commit is never a hidden commit, and neither is a trimmed
+# one.
 #
 # COMMIT CLASSIFICATION (zelynic subject shapes):
 #   1. "Internal research: NIGHT-<word>-<num> — description" — the
@@ -91,6 +101,24 @@ LAST_STABLE=""
 SINCE_STABLE=""
 REPO_URL="${GITHUB_SERVER_URL:-https://github.com}/${GITHUB_REPOSITORY:-oxyzenQ/zelynic}"
 SELF_TEST=0
+
+# ── Release body budget (NIGHT-hunt-Z11) ─────────────────────────────
+# GitHub silently truncates a stored release body over its cap —
+# observed 124,999 characters on both Z11 casualties (the v11.0.0
+# stable and v20.0.0-rc.2 pages both stored exactly that, cut
+# mid-<details>, losing the Verification section that renders last;
+# the documented limit is 125,000). The two numbers below bound every
+# rendered body: the per-subject display cap keeps the category
+# sections — which list every commit — inside the budget on their own
+# (the v20.0.0-rc.2 shape: 139 commits with essay-length subjects),
+# and the whole-body budget makes the full-changelog listing trim from
+# its tail with an honest note instead of losing the page's tail to
+# the platform's silent cut (the v11.0.0 shape: the compare API's
+# 250-commit listing rendered twice). main() refuses (exit 1) any
+# body that still exceeds the budget — drift fails red, never
+# truncated-green.
+MAX_BODY_CHARS=120000
+MAX_SUBJECT_CHARS=240
 
 usage() {
 	echo "Usage: $0 --tag TAG --prerelease true|false [--compare-json PATH]" >&2
@@ -325,6 +353,42 @@ display_text() {
 	printf '%s' "$subject"
 }
 
+# ── Byte length (the Z11 budget unit) ────────────────────────────────
+# LC_ALL=C so wc counts BYTES, not display characters: a byte budget
+# is the conservative reading of GitHub's storage cap — any body under
+# it in bytes is under it in characters too, whichever unit the
+# platform actually truncates at (NIGHT-hunt-Z11: the observed cap is
+# 124,999 stored characters, the documented limit 125,000; the budget
+# sits 5,000 under either reading).
+body_bytes() {
+	LC_ALL=C printf '%s' "$1" | wc -c | tr -d '[:space:]'
+}
+
+# The release page's verification contract (GPG + checksum policy) —
+# one implementation, here. NIGHT-hunt-Z11 factored the block out of
+# render_body's tail into this function so the budget fit test can
+# compose the FINAL body (this block included) before deciding how
+# many changelog bullets fit; the emitted text is byte-identical to
+# the inline block it replaced. It renders last, and the budget
+# layers above guarantee it survives to the STORED page.
+verification_section() {
+	local tag="$1"
+	echo "## Verification"
+	echo ""
+	echo "Every archive includes a GPG detached signature (\`.asc\`) and three checksum files (SHA-512, BLAKE2b, SHAKE256)."
+	echo ""
+	echo "### GPG signature"
+	echo ""
+	echo '```bash'
+	echo "gpg --keyserver keyserver.ubuntu.com --recv-keys F5324E0967F104D58CE025F347A50AEF4B65AAC2"
+	echo "gpg --verify zelynic-${tag}-linux-amd64-v3-gnu.tar.gz.asc"
+	echo '```'
+	echo ""
+	echo "Expected: \`Good signature from \"Rezky Cahya Sahputra (cosmic dragon)\"\`"
+	echo ""
+	echo "Full verification instructions: [docs/VERIFY_RELEASE.md](docs/VERIFY_RELEASE.md)"
+}
+
 # ── The self-test: pinned classifier + shape + parse contracts ───────
 # Every pinned subject below is a real shape from this repo's history
 # (or a boundary probe for the grammar). If a future edit to the tables
@@ -404,6 +468,56 @@ self_test() {
 		failures=$((failures + 1))
 	fi
 
+	# NIGHT-hunt-Z11 budget contract (the v11.0.0 / v20.0.0-rc.2
+	# incident, pinned): GitHub silently truncates a stored release
+	# body at its cap (both casualty bodies stored exactly 124,999
+	# characters, cut mid-<details>), and the Verification section
+	# renders last — it was the casualty both times. This probe
+	# reproduces BOTH failure shapes at once through the REAL CLI
+	# path: more commits than the compare API's own 250-commit
+	# listing cap (the v11.0.0 stable shape) AND essay-length
+	# subjects (the v20.0.0-rc.2 shape — real subjects in that range
+	# ran to ~1,900 characters). The rendered body must stay inside
+	# the budget, carry the Verification section, and state the trim
+	# honestly.
+	local z11_json z11_out z11_rc=0 z11_len
+	z11_json="$(mktemp)"
+	jq -n '{
+                total_commits: 260,
+                commits: [
+                        range(260) | {
+                                sha: ("z11" + (. | tostring)),
+                                parents: [],
+                                commit: {
+                                        message: ("NIGHT-hunt-Z11 synthetic subject " + (. | tostring) + " " + ("essay length subject text " * 18))
+                                }
+                        }
+                ]
+        }' >"$z11_json"
+	z11_out="$("$0" \
+		--tag v0.0.0-z11-budget \
+		--prerelease true \
+		--compare-json "$z11_json" \
+		--prev-tag v0.0.0-z11-prev \
+		--last-stable "" \
+		--since-stable "" 2>&1)" || z11_rc=$?
+	rm -f "$z11_json"
+	z11_len="$(body_bytes "$z11_out")"
+	if [ "$z11_rc" -ne 0 ]; then
+		echo "  FAIL budget: over-cap fixture render exited ${z11_rc}" >&2
+		failures=$((failures + 1))
+	fi
+	if [ "$z11_len" -gt "$MAX_BODY_CHARS" ]; then
+		echo "  FAIL budget: rendered body ${z11_len} bytes exceeds the ${MAX_BODY_CHARS}-byte budget" >&2
+		failures=$((failures + 1))
+	fi
+	for want in "## Verification" "recv-keys F5324E0967F104D58CE025F347A50AEF4B65AAC2" "listing trimmed to fit the release-body cap"; do
+		if ! printf '%s' "$z11_out" | grep -qF "$want"; then
+			echo "  FAIL budget: over-cap render is missing '$want'" >&2
+			failures=$((failures + 1))
+		fi
+	done
+
 	if [ "$failures" -eq 0 ]; then
 		echo "  OK release-notes generator: classifier battery + shape + parse contracts"
 		return 0
@@ -429,32 +543,63 @@ render_body() {
 	if [ -n "$compare_json" ] && [ -s "$compare_json" ]; then
 		# ASCII unit separator (\x1f) between hash and subject — a
 		# subject may contain any byte except newline, including the
-		# pipes and tabs a naive delimiter would break on.
-		commits="$(jq -r '
+		# pipes and tabs a naive delimiter would break on. The subject
+		# takes its Z11 display cap here, at the source: a campaign
+		# subject runs to essay length (the v20.0.0-rc.2 range carried
+		# ~1,900-character subjects) and every commit renders twice
+		# (its category bucket and the full changelog) — uncapped, one
+		# long-winded range alone breaches the body budget. jq slices
+		# on codepoint boundaries, so the cut never splits a multi-byte
+		# character; the "..." marker names the trim and the commit
+		# page (one click, the hash link) carries the full text.
+		commits="$(jq -r --argjson cap "$MAX_SUBJECT_CHARS" '
                         .commits // []
                         | .[]
                         | select((.parents | length) <= 1)
-                        | (.sha[0:7]) + "\u001f" + (.commit.message | split("\n")[0])
+                        | (.sha[0:7]) + "\u001f" +
+                                (.commit.message | split("\n")[0] |
+                                if (length) > $cap then (.[0:$cap] + "...") else . end)
                 ' "$compare_json")"
 		total="$(jq -r '.total_commits // 0' "$compare_json")"
 		listed="$(jq -r '(.commits // []) | length' "$compare_json")"
 	fi
 
-	echo "## What's Changed"
-	echo ""
+	# NIGHT-hunt-Z11: the body composes in memory and prints once. The
+	# stored GitHub release body silently truncates at the platform cap
+	# (observed 124,999 characters — the v11.0.0 stable and v20.0.0-rc.2
+	# pages both stored exactly that, cut mid-<details>, losing the
+	# Verification section that renders last), so a streaming render can
+	# never know its own size. Composing first makes the budget
+	# arithmetic exact and the tail trim below possible; emit is the
+	# single append point.
+	local body=""
+	emit() {
+		body+="$1"$'\n'
+	}
+
+	# The Verification section, composed once: the budget fit test below
+	# measures the FINAL body (this block included) before deciding how
+	# many changelog bullets fit, and the emission at the end appends it
+	# — byte-identical to the inline block it replaces (one
+	# implementation, factored for measurement, not forked).
+	local verification_block
+	verification_block="$(verification_section "$tag")"
+
+	emit "## What's Changed"
+	emit ""
 
 	if [ "${IS_PRERELEASE}" = "true" ]; then
-		echo "> [!WARNING]"
-		echo "> **Pre-release build — not a stable release. Expect bugs.**"
+		emit "> [!WARNING]"
+		emit "> **Pre-release build — not a stable release. Expect bugs.**"
 	else
-		echo "> [!TIP]"
-		echo "> **Stable release.**"
+		emit "> [!TIP]"
+		emit "> **Stable release.**"
 	fi
-	echo ""
+	emit ""
 
 	if [ -z "$commits" ]; then
-		echo "Initial release."
-		echo ""
+		emit "Initial release."
+		emit ""
 	fi
 
 	# Range summary line (single or dual, the cosmostrix convention).
@@ -462,11 +607,11 @@ render_body() {
 	commit_count="$(printf '%s\n' "$commits" | grep -c . || true)"
 	if [ "$commit_count" -gt 0 ]; then
 		if [ -n "$last_stable" ] && [ -n "$since_stable" ] && [ "$last_stable" != "$prev_tag" ]; then
-			echo "**${commit_count} commits** since \`${prev_tag}\` (previous build) · **${since_stable} commits** since \`${last_stable}\` (last stable)"
+			emit "**${commit_count} commits** since \`${prev_tag}\` (previous build) · **${since_stable} commits** since \`${last_stable}\` (last stable)"
 		else
-			echo "**${commit_count} commits** since \`${prev_tag}\`"
+			emit "**${commit_count} commits** since \`${prev_tag}\`"
 		fi
-		echo ""
+		emit ""
 	fi
 
 	# Bucket commits by classification.
@@ -493,9 +638,9 @@ ${entry}"
 
 	# Total achievements: per-category clickable details.
 	if [ "$commit_count" -gt 0 ]; then
-		echo "> [!NOTE]"
-		echo "> **Total achievements** — click a category to expand its changelog."
-		echo ""
+		emit "> [!NOTE]"
+		emit "> **Total achievements** — click a category to expand its changelog."
+		emit ""
 
 		local sorted_sections section_key
 		sorted_sections="$(for section_key in "${ALL_SECTIONS[@]}"; do
@@ -504,52 +649,101 @@ ${entry}"
 
 		while IFS= read -r section_key; do
 			[ -z "$section_key" ] && continue
-			echo "<details>"
-			echo "<summary><strong>${section_key/_others/others} × ${COUNT[$section_key]}</strong></summary>"
-			echo ""
-			echo "${BUCKET[$section_key]}"
-			echo ""
-			echo "</details>"
-			echo ""
+			emit "<details>"
+			emit "<summary><strong>${section_key/_others/others} × ${COUNT[$section_key]}</strong></summary>"
+			emit ""
+			emit "${BUCKET[$section_key]}"
+			emit ""
+			emit "</details>"
+			emit ""
 		done <<<"$sorted_sections"
 
 		# Full changelog with the compare link. The compare API caps
 		# the commit list at 250 — an honest truncation note rides the
-		# block when the range is bigger than the listing.
-		echo "<details>"
+		# block when the range is bigger than the listing. NIGHT-hunt-Z11
+		# adds the second bound: the bullet listing itself is trimmed from
+		# its tail, whole lines only (never mid-bullet, never mid-character),
+		# while the composed body exceeds the budget. The categories
+		# above keep every commit; this listing is the redundant reading
+		# order, and the note below names exactly what was dropped and
+		# where the complete record lives.
+		emit "<details>"
 		local compare_url="${REPO_URL}/compare/${prev_tag}...${tag}"
-		echo "<summary><strong>Full changelog</strong> · ${commit_count} commits · <a href=\"${compare_url}\" rel=\"noopener\">compare view</a></summary>"
-		echo ""
-		printf '%s\n' "$commits" | while IFS= read -r line; do
+		emit "<summary><strong>Full changelog</strong> · ${commit_count} commits · <a href=\"${compare_url}\" rel=\"noopener\">compare view</a></summary>"
+		emit ""
+
+		# Compose the bullets in full first (the loop must not run in a
+		# subshell — the trim below needs these in the current shell),
+		# then drop bullets from the tail until the projected FINAL body
+		# — head, categories, this listing, both notes, the closing tag,
+		# the Verification section — fits the budget.
+		local bullets="" shown=0
+		while IFS= read -r line; do
 			[ -z "$line" ] && continue
 			hash="$(printf '%s' "$line" | cut -d$'\x1f' -f1)"
 			subject="$(printf '%s' "$line" | cut -d$'\x1f' -f2-)"
-			echo "- [\`${hash}\`](${REPO_URL}/commit/${hash}) $(display_text "$subject")"
-		done
+			if [ -n "$bullets" ]; then
+				bullets+=$'\n'
+			fi
+			bullets+="- [\`${hash}\`](${REPO_URL}/commit/${hash}) $(display_text "$subject")"
+			shown=$((shown + 1))
+		done <<<"$commits"
+
+		local api_note=""
 		if [ "$total" -gt "$listed" ]; then
-			echo ""
-			echo "- *(listing truncated by the compare API: ${total} commits in range, ${listed} shown)*"
+			api_note="*(listing truncated by the compare API: ${total} commits in range, ${listed} shown)*"
 		fi
-		echo ""
-		echo "</details>"
-		echo ""
+
+		# The projected final body at the current trim level, in bytes
+		# (the conservative unit: under by bytes is under by characters
+		# under every reading of the platform cap). Dynamic scoping
+		# carries the locals — the same discipline as self_test's t_case.
+		projected_bytes() {
+			local p="${body}${bullets}"
+			if [ -n "$api_note" ]; then
+				p+=$'\n'"- ${api_note}"
+			fi
+			if [ "$shown" -lt "$commit_count" ]; then
+				p+=$'\n'"- *(listing trimmed to fit the release-body cap: ${commit_count} commits in range, ${shown} shown — the compare view carries every subject in full)*"
+			fi
+			p+=$'\n</details>'$'\n\n'"${verification_block}"
+			body_bytes "$p"
+		}
+
+		while [ "$shown" -gt 0 ] && [ "$(projected_bytes)" -gt "$MAX_BODY_CHARS" ]; do
+			case "$bullets" in
+			*$'\n'*)
+				bullets="${bullets%$'\n'*}"
+				;;
+			*)
+				bullets=""
+				;;
+			esac
+			shown=$((shown - 1))
+		done
+
+		if [ -n "$bullets" ]; then
+			emit "$bullets"
+		fi
+		if [ -n "$api_note" ]; then
+			emit ""
+			emit "- ${api_note}"
+		fi
+		if [ "$shown" -lt "$commit_count" ]; then
+			emit ""
+			emit "- *(listing trimmed to fit the release-body cap: ${commit_count} commits in range, ${shown} shown — the compare view carries every subject in full)*"
+		fi
+		emit ""
+		emit "</details>"
+		emit ""
 	fi
 
-	# Verification (GPG + checksum policy — one implementation, here).
-	echo "## Verification"
-	echo ""
-	echo "Every archive includes a GPG detached signature (\`.asc\`) and three checksum files (SHA-512, BLAKE2b, SHAKE256)."
-	echo ""
-	echo "### GPG signature"
-	echo ""
-	echo '```bash'
-	echo "gpg --keyserver keyserver.ubuntu.com --recv-keys F5324E0967F104D58CE025F347A50AEF4B65AAC2"
-	echo "gpg --verify zelynic-${tag}-linux-amd64-v3-gnu.tar.gz.asc"
-	echo '```'
-	echo ""
-	echo "Expected: \`Good signature from \"Rezky Cahya Sahputra (cosmic dragon)\"\`"
-	echo ""
-	echo "Full verification instructions: [docs/VERIFY_RELEASE.md](docs/VERIFY_RELEASE.md)"
+	# Verification (GPG + checksum policy — one implementation, in
+	# verification_section above; budgeted to survive to the stored
+	# page, rendered last per the cosmostrix convention).
+	emit "${verification_block}"
+
+	printf '%s' "$body"
 }
 
 if [ "$SELF_TEST" -eq 1 ]; then
@@ -566,4 +760,18 @@ if [ -z "$TAG" ]; then
 	exit 1
 fi
 
-render_body "$COMPARE_JSON" "$TAG" "$PREV_TAG" "$LAST_STABLE" "$SINCE_STABLE"
+release_body="$(render_body "$COMPARE_JSON" "$TAG" "$PREV_TAG" "$LAST_STABLE" "$SINCE_STABLE")"
+
+# NIGHT-hunt-Z11 layer 3 — the hard refusal. The subject cap and the
+# changelog trim make this unreachable by construction; it exists so
+# any future drift (a budget bump past the platform cap, a new
+# unbounded section, a regex eating the trim) fails the pipeline
+# LOUDLY — red and named — instead of shipping a body GitHub silently
+# truncates at its storage cap, which is exactly the silence that ate
+# the Verification section off the v11.0.0 and v20.0.0-rc.2 pages.
+release_body_bytes="$(body_bytes "$release_body")"
+if [ "$release_body_bytes" -gt "$MAX_BODY_CHARS" ]; then
+	echo "release body is ${release_body_bytes} bytes — over the ${MAX_BODY_CHARS}-byte budget; refusing to emit a body GitHub would silently truncate (NIGHT-hunt-Z11)" >&2
+	exit 1
+fi
+printf '%s\n' "$release_body"
