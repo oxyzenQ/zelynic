@@ -19,6 +19,40 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Added
 
+- **NIGHT-hunt-Z8, the seam hunt across the fresh estate — five
+  seams found by hunting what the previous builds never covered,
+  each closed with live verification.** The v4 CLI depth battery's
+  tables caught up with the surface they own: the long aliases
+  (strict, unstrict — the help's own shorthand spellings,
+  NIGHT-hunt-10's pair) get their routing stage (4b), the typo
+  ladder gains the rows it skipped (--focs/--focus,
+  --dowload/--download, --uploed/--upload — the -d/-u long forms;
+  the short flags are single chars, the long forms are the ladder's
+  own shape), and the global-flag stage carries NIGHT-boost-12's
+  own incident shape (-V/--version at subcommand position prints
+  the banner and exits 0 before any dispatch) — verified live
+  against the debug binary, 89 cases, 0 failed, 0 skipped, zero
+  Rust changes. The docs index (docs/README.md) gained the five
+  audit rows that landed without it (the three NIGHT-total-lts
+  sweeps, the charger-core-1c probe CI find, the release body
+  parser regression) — the MAINTENANCE.md §6 index rule read
+  honestly again. CLAIMS_VERIFICATION.md's cadence paragraph
+  stopped claiming surfaces the workflows do not carry: the
+  wholesale gate suite runs on every push unfiltered, the engine
+  self-test and the Rust matrix ride the path-filtered ci.yml lane,
+  the claims harness fires when the supermassive surface moves, and
+  CodeQL is weekly plus Rust-surface pushes — never "every push"
+  for lanes that are filtered. codeql.yml's header dropped its
+  stale "codespell gate in ci.yml" seat (the non-code gates moved
+  to the wholesale gate-keepers job in NIGHT-improve-13). And
+  CONTRIBUTING.md's numbers stopped disagreeing with themselves:
+  the gate count is the summary's own truth (20 numbered sections,
+  the shell quad's four sub-checks counted separately, 23 gates),
+  markdownlint rejoined the prose list, and the Project Structure
+  listing caught up with the estate (the four gates it never
+  carried, the sweep engine, refresh-prebuilt + wait-for-ci, and
+  the v3/v4/AMMSP batteries under a retitled family header).
+
 - **NIGHT-improve-40, the commit-time actions-pin health arm — every
   contributor's commit now reads the CI estate's pin freshness and
   reports it before the commit lands.** The new gate

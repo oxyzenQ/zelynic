@@ -134,8 +134,10 @@ ebpf/                   — the pure-Rust BPF source (aya-ebpf; NIGHT-improve-1
 
 scripts/
   build.sh             — check-all orchestration
-  gate-keepers.sh      — the wholesale non-code gates (19 sections,
-                run before every commit; the first run self-installs
+  gate-keepers.sh      — the wholesale non-code gates (20 numbered
+                sections; the shell quad's four sub-checks count
+                separately, so the summary prints 23 gates — run
+                before every commit; the first run self-installs
                 .githooks/pre-commit — the commit-time gate,
                 NIGHT-dinner-1: prebuilt lane parity, plus the
                 advisory actions-pin health arm, NIGHT-improve-40)
@@ -163,6 +165,11 @@ scripts/
 
   ci/                  — workflow-support scripts
     supermassive-init.sh — the CI supermassive VM bring-up
+    actions-version-sweep.sh — the actions-pin sweep engine
+                        (NIGHT-improve-39: reads every uses: pin
+                        against upstream; --dry-run reports, --apply
+                        heals; the commit-time health gate runs it
+                        read-only)
 
   depth/               — per-surface depth harnesses (root unless noted)
     crash-recovery-test.sh — `recover` on stale pins + crash cycles
@@ -213,6 +220,18 @@ scripts/
     check-scripts-loc.sh — scripts LOC cap (1000, # LOC_EXEMPT: markers)
     check-version-anti-patterns.sh — no hardcoded version strings
     inject-disclaimer.sh — .md stale-data disclaimer (inject + --check)
+    check-actions-pins.sh — the commit-time actions-pin health gate
+                        (NIGHT-improve-40: the sweep engine read-only
+                        at commit time, advisory by default, strict an
+                        opt-in)
+    check-commit-gate.sh — the pre-commit engine the hook shim runs
+                        (sections 1-2 fail closed on the prebuilt
+                        lane; section 3 is the advisory pin arm)
+    check-name-case.py — the lowercase name-case rule
+                        (NIGHT-dinner-22)
+    check-prebuilt-parity.sh — the ebpf-prebuilt/ lane parity gate
+                        (NIGHT-ask-2: manifest rows plus the live
+                        ebpf/ tree-hash pin)
 
   lib/                 — shared harness libraries
     harness_lib.sh     — shared colored-harness helpers (log_* /
@@ -231,6 +250,12 @@ scripts/
                         classifier battery, the body shape, and the
                         CLI parse contract rootless; called by
                         .github/workflows/release.yml)
+    refresh-prebuilt.sh — regenerates ebpf-prebuilt/ after any
+                        ebpf/ change (the parity lane's own ritual;
+                        the wholesale gate fails until this runs)
+    wait-for-ci.sh     — the publish/release serialization gate
+                        (waits for a workflow run's conclusion on a
+                        SHA; WAIT_WORKFLOW_PATH overrides the lane)
 
   sandbox/             — the local KVM micro-VM (NIGHT-think-1)
     zelynic-sandbox.sh — entrypoint
@@ -238,7 +263,9 @@ scripts/
     sandbox-init.sh    — the VM's PID 1
     smoke-cli.sh       — one-click rootless CLI smoke
 
-  supermassive/        — the two-root-harness pair
+  supermassive/        — the depth-battery family (v1..v4 plus the
+                        AMMSP A/B lane; NIGHT-hunt-Z8: the listing
+                        caught up with the family it describes)
     supermassive-test.sh — one-click supermassive test (NIGHT-master-2,
                 renamed from brutal-stress-test in NIGHT-improve-11;
                 wraps supermassive-test.py: one root mode, the 5+ min
@@ -252,6 +279,19 @@ scripts/
     supermassive-test-v2.sh — the survival battery (NIGHT-refactor-2:
                 the guards, the kills, the regression re-proof, the
                 crash teardown; --self-test rootless)
+    supermassive-test-v3.sh — the container depth battery
+                (NIGHT-improve-34: docker:// and k8s:// resolution
+                end to end; wraps supermassive-test-v3.py; the full
+                battery lives in the supermassive-container.yml E2E
+                legs, the self-test in ci.yml)
+    supermassive-test-v4.sh — the CLI depth battery
+                (NIGHT-improve-35: every command, alias, flag, color
+                mode, typo, rate-explode shape, removed command, and
+                hidden subcommand; wraps supermassive-test-v4.py; the
+                full battery runs rootless in ci.yml's gnu-dynamic
+                job, the self-test in the check job)
+    ammsp-vs-legacy-test.sh — the AMMSP A/B lane (wraps
+                ammsp-vs-legacy-test.py; --self-test rootless)
 ```
 
 ## Coding Standards
@@ -309,10 +349,11 @@ renamed from "Lint & Test" in NIGHT-boost-11): the gate
 CI enforces and the gate the owner runs before a commit are one
 invocation, so the two can never drift apart.
 
-`gate-keepers.sh` runs the 18 non-code gate sections — the shell quad
-(bash -n + shellcheck + shfmt + source resolution) on shell scripts, yamllint + actionlint
+`gate-keepers.sh` runs the 20 numbered non-code gate sections (the shell
+quad's four sub-checks count separately, so the summary line prints 23
+gates) — the shell quad (bash -n + shellcheck + shfmt + source resolution) on shell scripts, yamllint + actionlint
 on workflows, TOML validation,
-codespell, SPDX license headers (check-headers.sh), file permission guard
+codespell, markdownlint (NIGHT-improve-38, the docs tidying gate), SPDX license headers (check-headers.sh), file permission guard
 (644 files / 755 executables and directories), the repo-wide emoji sweep,
 the 500-line Rust LOC cap (check-loc.sh), the toolchain-pin sync check
 (check-rust-version-sync.sh — both pin families, the stable toolchain and

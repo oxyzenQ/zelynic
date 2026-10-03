@@ -84,10 +84,14 @@ print("lockfile packages:", len(re.findall(r'\[\[package\]\]\nname', open("Cargo
 PY
 ```
 
-CI re-proves continuously: the engine self-test and the full gate
-suite on every push (ci.yml + gate-keepers.yml), the claims harness
-LIVE on both supermassive legs, the release invariants on every
-tag, and CodeQL on every push.
+CI re-proves continuously: the wholesale gate suite on every push
+(gate-keepers.yml, unfiltered), the engine self-test and the Rust
+matrix on every code-surface push (ci.yml, path-filtered), the
+claims harness LIVE on the supermassive legs when their surface
+moves, the release invariants on every tag, and CodeQL weekly plus
+on every Rust-surface push — the cadence row names the filters
+every lane actually carries (NIGHT-hunt-Z8: the former "on every
+push" wording claimed surfaces the path filters never woke).
 
 ## The honest residuals (claimed limits, not hidden ones)
 
