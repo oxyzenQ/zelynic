@@ -19,9 +19,48 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Added
 
-## [Unreleased]
-
-### Added
+- **NIGHT-total-lts-5, the killer-features depth audit round two —
+  one audit-seam find closed at the one boundary every poll delta
+  flows through.** The hunt deliberately read the surfaces lts-3
+  never named (the kernel observer modules socket_flow/rate_ring/
+  stats/main, the userspace monitor ingestion path, the terminal
+  diff engine, the userspace limiter policy/reclaim/format family)
+  and found the seam between two prior audits that never
+  cross-checked each other: NIGHT-lts-5's wrap-coherent poll delta
+  answered every `cur < prev` as a u64 wrap on the strength of a
+  doc claim ("a backwards step is a wrap, full stop") that
+  NIGHT-dinner-6's E1 rider had silently made stale when it moved
+  the observer's counter maps to the LRU lane — past 4096 distinct
+  live cgroups an evicted-then-returning cgroup RESTARTS its
+  accumulator from zero, a backwards step that is a restart, not a
+  wrap. Read as a wrap, the restart produced a phantom delta of
+  ~2^64 - prev on exactly the dense churning hosts the LRU lane
+  protects: an 18-exabyte one-frame spike on the returning row's
+  rate column, a permanent +18 EB crown on the session leaderboard
+  (boost-16 closed the "wrap-around winner" at the accumulator;
+  the phantom reopened it through the delta layer), and a false
+  bypass-divergence verdict inside the `--depth` focus window's
+  shadow audit — the monitor inventing bytes its own honesty
+  contract forbids. Fix: the half-space discriminator inside
+  `wrap_coherent_delta` itself (the family split to
+  `src/ebpf/loader/delta.rs`, the connections/parse.rs precedent,
+  keeping loader.rs under the 500-LOC cap): a delta at or past
+  2^63 is not a delta any real poll interval produces (~9.2 EB in
+  one second is ~73 Pbps, nine orders past any deployed link), so
+  past the bound the only reachable reading is the restart and the
+  honest delta is `cur` itself — the fresh bytes since the
+  re-insert. All five NIGHT-lts-5 wrap pins pass unchanged; four
+  new pins join the family (the restart reads fresh bytes, the
+  phantom arithmetic is dead, the discriminator boundary IS the
+  coherence bound, the unreachable deep-restart corner degrades to
+  modulo deliberately); the stale doc claim is rewritten at the
+  boundary it lied about; USAGE limitation 11 tells the new truth.
+  Verification: 681 unit + 47 integration green; clippy and
+  rustfmt clean; the 10s frame A/B twice per side — bytes/frame
+  byte-exact at 1,919.0 on all four runs, every other metric in
+  class (the fix touches the poll's delta arithmetic, not one byte
+  of the frame path, and the measurement proves it). The audit
+  record: docs/audits/NIGHT_TOTAL_LTS_5_AUDIT_2026-10-03.md.
 
 - **NIGHT-hunt-Z9, the CLI echo-boundary hardening (total CLI
   audit for LTS production, supermassive stage included): three

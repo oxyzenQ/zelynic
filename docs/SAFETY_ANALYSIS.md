@@ -1659,6 +1659,122 @@ duration parse), six shadowed-positional cases, and six
 hidden-vocabulary cases (three leak shapes against three
 survivor shapes). The battery grew 89 -> 121 rows, all green.
 
+## Eviction-Restart Delta Audit (NIGHT-total-lts-5, 2026-10-03)
+
+The killer-features pass (the limiter engine and the eagle-eyes
+monitor, then the UX/CLI surface and the remaining Rust code, at
+HEAD 9eb112d) re-read the surfaces lts-3 had not covered
+line-by-line — the kernel observer modules lts-3 never named
+(socket_flow, rate_ring, stats, the observer main), the userspace
+monitor ingestion path (connections, identity, the loader poll),
+and the terminal diff engine — and closed one audit-seam find.
+
+### The find: the LRU eviction restart read as a u64 wrap
+
+`wrap_coherent_delta` (the observer's poll delta, NIGHT-lts-5)
+answered every `cur < prev` with modulo-2^64 subtraction on the
+strength of a doc claim written before the maps moved to the LRU
+lane: "a backwards step is a wrap, full stop." The dinner-6 E1
+rider (2026-09-28) made that claim stale: past 4096 distinct live
+cgroups in one session the kernel evicts an idle entry, and an
+evicted-then-returning cgroup restarts its accumulator from zero —
+a backwards step that is a RESTART, not a wrap (a genuine wrap
+needs 18.4 EB through one cgroup; the session-scoped maps die
+long before any real host produces it). Read as a wrap, the
+restart produced a phantom delta of ~2^64 - prev, and three
+surfaces carried it as real traffic: the returning row's rate
+column (an 18-exabyte one-frame spike), the session leaderboard
+(boost-16 closed the "wrap-around winner" at the accumulator with
+saturating adds; the phantom reopened the same corruption through
+the delta layer, permanently crowning +18 EB), and the
+`--depth` shadow audit's bypass-divergence verdict
+(charger-core-1-a compares these totals against NIC counters —
+the phantom could flip it on traffic that never happened). The
+monitor's own honesty contract — the ledger is the truth, nothing
+invents bytes — is the rule the phantom broke.
+
+The fix is one boundary, every caller: a half-space discriminator
+inside `wrap_coherent_delta` itself (the family now lives in
+`src/ebpf/loader/delta.rs`, split from loader.rs when the change
+pushed that file past the 500-LOC cap — the connections/parse.rs
+precedent). A delta AT or PAST 2^63 is not a delta any real poll
+interval produces (~9.2 EB in one second is ~73 Pbps, nine
+orders past any deployed link), and the coherence bound was the
+wrap pins' own documented exact band all along — so past the
+bound the only reachable reading is the restart, and the honest
+delta is `cur` itself: the fresh bytes booked since the re-insert.
+Genuine wraps (true delta deep inside the band) stay exactly as
+modulo-exact as the NIGHT-lts-5 pins demand — all five of those
+pins pass unchanged on the fixed code. The unreachable corner (a
+restart whose gap is itself past 2^63, needing 9.2+ EB accumulated
+inside ONE session) degrades to the old modulo reading, is pinned
+as DELIBERATE, and is documented in the function's own doc
+comment so a future audit finds it on the record.
+
+The stale claim itself — the doc paragraph asserting the dead
+"backwards step is a wrap" invariant — was the same class as
+lts-3's Find 1 (a comment outliving the invariant it documented),
+and it is rewritten in the same pass.
+
+### The pins (test/ebpf/loader_wrap_tests.rs, 5 -> 9)
+
+Four new rows pin the eviction family: the restart reads its
+fresh bytes (`prev 50,000` / `cur 1,500` answers 1,500, not
+2^64 - 48,500); the phantom's arithmetic is dead (the shape
+lands past half the u64 space and the discriminator must return
+`cur` there); the discriminator's boundary is the coherence bound
+itself (a delta exactly ON 2^63 reads as the restart, one under
+it stays the exact modulo delta); and the unreachable deep-restart
+corner is pinned as the documented degradation, never worse than
+the pre-audit behavior.
+
+### Verified clean (no change needed, this pass)
+
+- **The kernel observer modules lts-3 never named:** socket_flow
+  (the stale-token belt's CAS discipline, the cookie-0 fallback
+  documented in place), rate_ring (the window protocol's poison
+  rule and the honest undercount bound), stats (the atomic RMW
+  views and the alignment pins), and the observer main (the
+  NOEXIST insert race contract, the LRU posture's documented
+  trade) — each read line by line, zero counterexamples.
+- **The userspace limiter policy/reclaim pair:** the mutation
+  ledger, the pre-apply snapshot, the dead-group reclaim's 0-
+  sentinel filter, and the depthbore-1 dedup — layered audits
+  re-verified by reading, all holding.
+- **The connections walk and the identity boundary:** the pidfd
+  tri-state (the CI stack-overflow incident's Copy redesign,
+  pinned), the majority-vote tally, the comm enrichment's prefix
+  continuity and display cap, the canonical /proc boundary —
+  all holding.
+- **The terminal diff engine:** the byte-exact crossover, the
+  tall-regime rules, the sink-death contract, the selection
+  guard's no-erase repaint — zero live panic candidates, zero
+  zombie code.
+- **The format family:** the exact round-trip twins (Z7), the
+  u128 wide ladder (lts-5), the count compaction (engrave-7) —
+  re-read, all pinned, no drift.
+- **The attach lifecycle** (limiter/mod.rs): the operational-pin
+  predicate, the bpffs preflight, the alignment preflight —
+  holding.
+- **Crash-pattern sweep over the whole userspace tree:** every
+  remaining unwrap/expect/panic! is either inside a `#[cfg(test)]`
+  contract pin or a fail-fast schema parse at startup; no
+  live-path panic candidate found.
+
+### The benchmark seat
+
+The 10s frame A/B ran twice per side (the honest variance
+protocol): bytes/frame **byte-exact at 1,919.0** on all four runs
+— the fix touches the poll's delta arithmetic, not one byte of
+the frame render path, and the measurement proves it. fps
+7204.8/6933.4 baseline vs 7145.6/7156.2 fixed (the distributions
+overlap; the baseline's own two runs spread wider than the
+difference); density gini 0.3510/0.3514 vs 0.3508/0.3508; frame
+entropy 3.0209/3.0166 vs 3.0214/3.0214; dirty cells 40.0/39.8 vs
+40.1/40.1 — every metric in class. Full battery after the fix:
+681 unit + 47 integration green (677 + 4 new pins); clippy and
+rustfmt clean.
+
 ## License
 
 GPL-3.0-only — source code is fully open. Anyone can audit, modify, and
