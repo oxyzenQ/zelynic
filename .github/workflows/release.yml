@@ -848,6 +848,24 @@ jobs:
           echo "=== Release body ==="
           cat release-body.md
 
+          # NIGHT-hunt-Z11 tripwire: the platform cap. GitHub silently
+          # truncates a stored release body over ~125,000 characters
+          # (observed 124,999 on the v11.0.0 stable and v20.0.0-rc.2
+          # pages — both lost their Verification section, which renders
+          # last, to that cut). The generator owns the policy budget
+          # (MAX_BODY_CHARS, scripts/release/generate-release-notes.sh)
+          # and refuses over-budget bodies itself; this check is the
+          # independent platform guard on the exact file the publish
+          # step below uploads — drift between the two numbers, a hand
+          # edit, or a future budget bump past the platform cap all
+          # die HERE, red and named, instead of shipping a silently
+          # truncated page.
+          BODY_BYTES=$(wc -c < release-body.md | tr -d ' ')
+          if [ "${BODY_BYTES}" -gt 124000 ]; then
+            echo "::error::Release body is ${BODY_BYTES} bytes — over the 124,000-byte platform-cap check. Refusing to publish a body GitHub would silently truncate (NIGHT-hunt-Z11)."
+            exit 1
+          fi
+
       - name: Create Release
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3, NIGHT-hunt-20 SHA pin
         with:
