@@ -5,20 +5,21 @@
 #
 # ZELYNIC COMMIT-TIME ACTIONS-PIN HEALTH CHECK (NIGHT-improve-40)
 #
-# The commit-time, contributor-seat arm of the actions-pin self-heal
-# contract (NIGHT-improve-39 built the weekly arm). Three arms, one
-# engine:
-#   - weekly, server-side: .github/workflows/self-heal.yml — Dragon
-#     Guard heals and pushes the estate on the Monday clock even
-#     when nobody commits
-#   - commit-time, contributor seat: THIS CHECK — every commit on a
-#     wired clone (core.hooksPath=.githooks, self-installed by
+# The actions-pin health contract's one automatic seat (the owner's
+# NIGHT-improve-39 final form: the weekly server-side lane is
+# retired — its SELF_HEAL_PAT push credential was the standing-
+# secret hassle the owner refused; freshness is contributor-carried
+# now). Two seats, one engine:
+#   - commit-time, automatic: THIS CHECK — every commit on a wired
+#     clone (core.hooksPath=.githooks, self-installed by
 #     gate-keepers.sh section 0) reads the pins' freshness against
 #     upstream; current costs one line, behind prints the classified
 #     table (MAJOR / MINOR / PATCH), never silently
-#   - shared engine: scripts/ci/actions-version-sweep.sh --dry-run —
-#     the same version truth and the same honesty rules, one
-#     implementation; this script never duplicates that math
+#   - on-demand, maintainer seat: scripts/ci/actions-version-sweep.sh
+#     --dry-run to read, --apply to heal — the healed pins are
+#     committed like any other change and this check re-reads them
+#     (the same version truth and the same honesty rules, one
+#     implementation; this script never duplicates that math)
 #
 # Advisory by default, and that is a design decision, not softness:
 # the prebuilt lane contract (check-commit-gate sections 1-2) fails
@@ -273,13 +274,13 @@ render_verdict() {
 	if [ "$mode" = "strict" ]; then
 		echo ""
 		echo "    heal and re-commit:  scripts/ci/actions-version-sweep.sh --apply"
-		echo "    or update first:     git pull (the weekly Dragon Guard may have healed them)"
+		echo "    or update first:     git pull (a contributor may have healed them on origin)"
 		echo "    one-shot advisory:   ZELYNIC_ACTIONS_HEALTH=warn git commit ..."
 		echo "    skip every hook:     git commit --no-verify"
 	else
 		echo ""
 		echo "    heal locally:        scripts/ci/actions-version-sweep.sh --apply"
-		echo "    or update first:     git pull (the weekly Dragon Guard may have healed them)"
+		echo "    or update first:     git pull (a contributor may have healed them on origin)"
 		echo "    make it blocking:    git config zelynic.actionsHealthCheck strict"
 		echo "    silence for once:    ZELYNIC_ACTIONS_HEALTH=off git commit ..."
 	fi
