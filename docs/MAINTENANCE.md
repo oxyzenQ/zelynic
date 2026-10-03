@@ -135,6 +135,18 @@ binaries).
   files, so while that secret is unset the sweep still heals and
   validates weekly, then skips the push with a warning instead of
   attempting what the platform refuses.
+- The same contract has a **commit-time contributor arm**
+  (NIGHT-improve-40): `scripts/gates/check-actions-pins.sh`, wired
+  through the `.githooks/pre-commit` gate, reads the pins'
+  freshness on every commit of a wired clone — same engine
+  (`--dry-run`), advisory by default (a remote fact the network
+  may not reach is never a block), verdict cached in
+  `.git/zelynic/` keyed on the workflows' content with a 6h TTL,
+  classifications MAJOR/MINOR/PATCH in the report, strict an
+  opt-in (`git config zelynic.actionsHealthCheck strict`). The
+  weekly sweep stays the estate's guarantee — the hook only sees
+  clones whose contributors ran the wholesale gates once, so the
+  two arms cover different seats, not duplicates.
 
 ## 6. Docs hygiene
 

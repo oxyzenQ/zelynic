@@ -26,8 +26,24 @@
 #      ebpf-prebuilt/ — the "refreshed but forgot git add" case: the
 #      worktree lane is fresh while the commit would still ship the
 #      old one.
+#   3. CI actions-pin health (delegated to
+#      check-actions-pins.sh, NIGHT-improve-40): the freshness of
+#      every `uses:` pin against upstream, classified
+#      MAJOR/MINOR/PATCH — the commit-time contributor arm of the
+#      NIGHT-improve-39 self-heal contract.
 #
-# Fail-closed on both. The escape hatch is git's own: --no-verify
+# Two contract classes share this gate, and the split is the point:
+# sections 1-2 fail closed because prebuilt parity is a LOCAL fact
+# this machine can always prove; section 3 is advisory by default
+# because pin freshness is a REMOTE fact that needs the network and
+# the API's quota right now — a gate that blocks a commit on facts
+# it cannot reach would be a dishonest gate. Strict contributors
+# opt in with git config zelynic.actionsHealthCheck strict, and even
+# then only a KNOWN-stale verdict blocks; every skip reason stays a
+# skip. The full contract (cache, budget, honesty rules) lives in
+# check-actions-pins.sh's header.
+#
+# Fail-closed on 1-2. The escape hatch is git's own: --no-verify
 # skips any local hook (a git contract, not a hole here) — but the
 # wholesale push gate and the ship-time parity steps still block the
 # push and the publish, so --no-verify buys a local WIP commit,
@@ -63,9 +79,20 @@ if git diff --cached --name-only -- ebpf/ | grep -q .; then
 	fi
 fi
 
+# ── 3. CI actions-pin health (advisory by default) ────────────────
+# Runs LAST: the fail-closed lane checks above never wait behind a
+# network probe. In strict mode a known-stale verdict joins
+# GATE_FAILED; in every other shape (current, warn, every skip
+# reason) the check owns its own exit-zero and its own output.
+if ! bash scripts/gates/check-actions-pins.sh; then
+	GATE_FAILED=1
+fi
+
 if [ "${GATE_FAILED}" -ne 0 ]; then
-	echo "FAIL: commit gate — the prebuilt lane is not committable in this state"
+	echo "FAIL: commit gate — the tree is not committable in this state"
+	echo "      (sections 1-2 fail-closed on the prebuilt lane; section 3"
+	echo "      blocks only in strict actions-pin health mode)"
 	exit 1
 fi
 
-echo "OK: commit gate — prebuilt lane in parity, ebpf/ staged with its lane"
+echo "OK: commit gate — prebuilt lane in parity, ebpf/ staged with its lane, actions-pin health reported"
