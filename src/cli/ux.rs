@@ -157,6 +157,57 @@ fn enrich_subcommand_flag_redirect(e: &mut clap::Error, cmd: &clap::builder::Com
     e.insert(ContextKind::Suggested, ContextValue::StyledStrs(vec![tip]));
 }
 
+/// Strip hidden subcommands from clap's typo suggestions
+/// (NIGHT-hunt-Z9).
+///
+/// clap's `did_you_mean` engine scores candidates from
+/// `all_subcommand_names()` — hidden ones included — so a near-miss of
+/// an internal role (`zelynic __probe-serve`) rendered "some similar
+/// subcommands exist: '__probe-client', '__probe-server'": the
+/// vocabulary the help hides surfaced as a tip, teaching the operator
+/// to run the probe server (an unauthenticated loopback data blast)
+/// by hand. The flag-side rescue below already filters
+/// `is_hide_set()` candidates; this is the subcommand-side twin —
+/// the same one-vocabulary contract, both doors.
+///
+/// Pure filter over the `SuggestedSubcommand` context (clap stores
+/// its candidates there as `Strings`): every candidate that resolves
+/// to a hidden subcommand is dropped. When candidates remain, the
+/// trimmed list replaces the context (a visible suggestion survives
+/// beside a hidden one being removed); when NONE remain the context
+/// is removed entirely, leaving the unrecognized-subcommand verdict,
+/// the usage line, and the footer — the same honest dead end any
+/// no-candidate typo already owns. No-op for every other error kind
+/// and for errors carrying no suggestion.
+fn drop_hidden_subcommand_suggestions(e: &mut clap::Error, cmd: &clap::builder::Command) {
+    if e.kind() != clap::error::ErrorKind::InvalidSubcommand {
+        return;
+    }
+    let Some(ContextValue::Strings(candidates)) = e.get(ContextKind::SuggestedSubcommand) else {
+        return;
+    };
+    let candidates = candidates.clone();
+    let visible: Vec<String> = candidates
+        .iter()
+        .filter(|name| {
+            cmd.find_subcommand(name.as_str())
+                .is_none_or(|sub| !sub.is_hide_set())
+        })
+        .cloned()
+        .collect();
+    if visible.len() == candidates.len() {
+        return; // nothing hidden — clap's own suggestion stands
+    }
+    if visible.is_empty() {
+        e.remove(ContextKind::SuggestedSubcommand);
+    } else {
+        e.insert(
+            ContextKind::SuggestedSubcommand,
+            ContextValue::Strings(visible),
+        );
+    }
+}
+
 /// Top-level-authority flags (NIGHT-boost-12, generalizing the
 /// NIGHT-improve-3 help rescue): names whose subcommand-position or
 /// `--`-escaped appearance must tip the TOP-LEVEL spelling instead of
@@ -351,6 +402,11 @@ pub(crate) fn exit_clap_error(e: clap::Error) -> ! {
     enrich_unknown_arg_suggestion(&mut e, &cmd);
     enrich_removed_subcommand_redirect(&mut e);
     enrich_subcommand_flag_redirect(&mut e, &cmd);
+    // NIGHT-hunt-Z9: clap's typo engine suggests hidden internal
+    // roles (the probe pair) — the same engine the flag-side rescue
+    // already filters. Runs after the redirect enrichments so an
+    // exact removed-name successor (never hidden) keeps its seat.
+    drop_hidden_subcommand_suggestions(&mut e, &cmd);
     drop_dishonest_escape_hatch(&mut e, &argv);
 
     // Usage context: the native usage is already the failing
@@ -405,6 +461,12 @@ mod ux_tests;
 #[path = "../../test/cli/usage_tests.rs"]
 mod usage_tests;
 
+// NIGHT-hunt-Z9: the hidden-vocabulary pins split to their own file
+// at the 500-LOC cap (one theme, one file, the usage_tests move).
+#[cfg(test)]
+#[path = "../../test/cli/hidden_vocab_tests.rs"]
+mod hidden_vocab_tests;
+
 /// Render an error exactly the way [`exit_clap_error`] does (minus
 /// the process::exit), so render-level contracts are testable.
 /// Mirrors the full stderr byte stream: the clap render (which ends
@@ -423,6 +485,7 @@ fn render_via_bridge(argv: &[&str]) -> String {
     enrich_unknown_arg_suggestion(&mut err, &cmd);
     enrich_removed_subcommand_redirect(&mut err);
     enrich_subcommand_flag_redirect(&mut err, &cmd);
+    drop_hidden_subcommand_suggestions(&mut err, &cmd);
     drop_dishonest_escape_hatch(&mut err, &owned);
     if native_usage_narrowed || err.get(ContextKind::Usage).is_none() {
         let failing_token = match err.get(ContextKind::InvalidArg) {

@@ -51,7 +51,11 @@ Design:
   * The case tables: every command (canonical + alias), every global
     flag, every color mode (0/16/8/256/24/32 valid + 1/7/99/abc
     invalid), every near-miss typo, every rate-explode shape, every
-    removed/retired command, every hidden subcommand. The invariant,
+    removed/retired command, every hidden subcommand. NIGHT-hunt-Z9
+    adds the hardening tables: every hostile control-byte payload
+    family against every pre-root echo path (the render boundary's
+    '?' substitution contract), the shadowed-positional ladder, and
+    the hidden-vocabulary leak cases. The invariant,
     not any single message, is the contract: every case ANSWERS
     (never hangs), exits with the right class (0 info / non-zero
     refusal), carries its expected category, and never leaks a Rust
@@ -271,6 +275,137 @@ HIDDEN = [
 # as --check-update).
 HIDDEN_ALIASES = [
     "check-updated",
+]
+
+# ── NIGHT-hunt-Z9: the hardening tables ────────────────────────────────────
+#
+# The echo-boundary payloads: hostile control bytes crafted into the
+# strings the CLI echoes back in its own refusals (targets, rates,
+# durations). Every case asserts the OUTPUT carries no raw control
+# byte — the render boundary substitutes '?' (NIGHT-hunt-Z9) — plus
+# the refusal itself (the echo path must still fire: the payload
+# must not crash, hang, or dodge the guard by being unprintable).
+#
+# Payload families: the OSC-52 clipboard write (the paste-attack
+# classic — a webpage-copied command carrying a hidden clipboard
+# rewrite), the CSI color smuggle (screen corruption), the newline
+# forgery (a fake output line reading as zelynic's own), the C1
+# 8-bit control (ESC-equivalent on 8-bit terminals), and the plain
+# tab (spacing forgery). Each rides the sshd prefix where the
+# blocklist echo needs it to fire pre-root.
+ECHO_PAYLOADS = [
+    ("osc52-clipboard-write", "sshd\x1b]52;c;aGVsbG8=\x07", "?]52;c;"),
+    ("csi-color-smuggle", "sshd\x1b[31;44mEVIL", "?[31;44m"),
+    ("newline-forgery", "sshd\nfake-verdict", "sshd?fake-verdict"),
+    ("c1-eight-bit", "sshd\x9b31m", "sshd?31m"),
+    ("tab-forgery", "sshd\troot", "sshd?root"),
+]
+
+# Every pre-root echo path (each embeds a different user-supplied
+# string in its refusal): the dangerous-target blocklist echo, the
+# multi-segment grammar echo, the rate parse echo, and the duration
+# parse echo (interval and focus). Post as (argv-builder, needle that
+# proves the refusal fired).
+ECHO_PATHS = [
+    (lambda p: ["ss", p, "1mb"], "is a system process"),
+    (lambda p: ["sm", "brave" + p + "/x", "1mb"], "not a valid app name"),
+    (lambda p: ["ss", "brave", "1" + p + "kb"], "Invalid"),
+    (lambda p: ["eagle-eyes", "--interval", "a" + p + "b"], "Invalid duration"),
+]
+
+# The control bytes that must never appear raw in any output: ESC
+# (every escape family's leader), BEL (the OSC terminator), the C1
+# CSI (8-bit terminals), TAB (spacing forgery), CR (line forgery).
+RAW_CONTROL_BYTES = ["\x1b", "\x07", "\x9b", "\x08", "\x0b", "\x0c", "\r"]
+
+# The shadowed-positional contract (NIGHT-hunt-Z9): a positional rate
+# beside -d/-u is parsed (a garbage one surfaces its typo BEFORE the
+# root ask — the parse-before-execute ladder) and a valid one is
+# named (the ignored-input warn), while -d/-u decide what applies.
+# Post as (argv, must_contain, must_not_contain, description).
+SHADOWED_POSITIONAL_CASES = [
+    (
+        # Pure garbage has no near-miss twin, so no tip fires — the
+        # REFUSAL before the root ask is the contract (the '1MB' case
+        # below carries the did-you-mean tip lane).
+        ["ss", "brave", "not-a-rate", "-d", "100kb"],
+        ["Invalid rate 'not-a-rate'"],
+        ["root required"],
+        "garbage positional surfaces its refusal before the root ask",
+    ),
+    (
+        ["ss", "brave", "1MB", "-d", "100kb"],
+        ["Invalid rate '1MB'", "'1mb'"],
+        ["root required"],
+        "uppercase positional typo carries the did-you-mean tip",
+    ),
+    (
+        ["ss", "brave", "100kb", "-d", "50kb"],
+        ["positional rate '100kb' ignored", "root required"],
+        [],
+        "valid positional is named, then the flags decide",
+    ),
+    (
+        ["sm", "brave:curl", "garbage", "-d", "1mb"],
+        ["Invalid rate"],
+        ["root required"],
+        "strict-multi family shares the ladder",
+    ),
+    (
+        ["sa", "100kb", "-d", "1mb"],
+        ["positional rate '100kb' ignored", "root required"],
+        [],
+        "strict-all family shares the note",
+    ),
+    (
+        ["ss", "brave", "100kb"],
+        ["root required"],
+        ["ignored"],
+        "unshadowed positional: no note (the rate applies)",
+    ),
+]
+
+# The hidden-vocabulary contract (NIGHT-hunt-Z9): a typo near a
+# hidden internal role must not leak the role's name, while visible
+# near-misses keep their suggestions and removed names keep their
+# redirects. Post as (argv, must_not_contain, must_contain, description).
+HIDDEN_LEAK_CASES = [
+    (
+        ["__probe-serve"],
+        ["__probe-server", "__probe-client"],
+        ["unrecognized subcommand"],
+        "near-miss of the hidden server role leaks nothing",
+    ),
+    (
+        ["__probe-clint"],
+        ["__probe-client", "__probe-server"],
+        ["unrecognized subcommand"],
+        "near-miss of the hidden client role leaks nothing",
+    ),
+    (
+        ["__probe"],
+        ["__probe-server", "__probe-client"],
+        ["unrecognized subcommand"],
+        "bare probe prefix leaks no role name",
+    ),
+    (
+        ["statu"],
+        [],
+        ["status"],
+        "visible near-miss keeps its suggestion",
+    ),
+    (
+        ["eagle-ey"],
+        [],
+        ["eagle-eyes"],
+        "visible alias family keeps its suggestion",
+    ),
+    (
+        ["observe"],
+        [],
+        ["eagle-eyes"],
+        "removed-name redirect survives the hidden filter",
+    ),
 ]
 
 # The long aliases the help's own shorthand notes name (NIGHT-hunt-10):
@@ -753,6 +888,102 @@ def test_hidden_surface():
     return all_ok
 
 
+# ── stage 9: the echo boundary (NIGHT-hunt-Z9 hostile-input hardening) ────
+
+
+def test_echo_boundary():
+    """Hostile control bytes in, '?' out, refusal intact.
+
+    Three contracts, one stage — the NIGHT-hunt-Z9 hardening:
+
+    1. THE ECHO BOUNDARY. Every payload family (OSC-52 clipboard
+       write, CSI color smuggle, newline forgery, C1 8-bit control,
+       tab forgery) rides every pre-root echo path (the blocklist
+       refusal, the multi grammar refusal, the rate parse, the
+       duration parse). The output must carry NO raw control byte —
+       the render boundary substitutes '?' — and the refusal itself
+       must still fire (an unprintable target dodges no guard).
+    2. THE SHADOWED POSITIONAL. A positional rate beside -d/-u is
+       parsed (a garbage one surfaces its typo BEFORE the root ask)
+       and a valid one is named by the ignored-input warn.
+    3. THE HIDDEN VOCABULARY. A typo near a hidden internal role
+       leaks no role name, while visible near-misses keep their
+       suggestions and removed names keep their redirects.
+    """
+    out()
+    out("── stage 9: echo boundary + shadowed positional + hidden vocabulary ──")
+    all_ok = True
+
+    # ── contract 1: the echo boundary ──
+    for payload_name, payload, subst_needle in ECHO_PAYLOADS:
+        for path_i, (argv_builder, refusal_needle) in enumerate(ECHO_PATHS):
+            argv = argv_builder(payload)
+            label = f"echo: {payload_name} path-{path_i} renders '?' not bytes"
+            rc, output = _run_cli_case(argv)
+            if rc is None:
+                record(label, "FAIL", "timed out (hang)")
+                all_ok = False
+                continue
+            if _case_panicked(output):
+                record(label, "FAIL", "panic leaked")
+                all_ok = False
+                continue
+            # Every byte in the list must never appear raw in any
+            # zelynic output (TAB included: no refusal prints tables).
+            leaked = [repr(b) for b in RAW_CONTROL_BYTES if b in output]
+            if leaked:
+                record(label, "FAIL", f"raw control bytes leaked: {leaked}")
+                all_ok = False
+                continue
+            if refusal_needle not in output:
+                record(label, "FAIL", f"refusal needle missing: {refusal_needle!r}")
+                all_ok = False
+                continue
+            record(label, "PASS", "no raw control byte, refusal intact")
+
+    # ── contract 2: the shadowed positional ──
+    for argv, must_contain, must_not_contain, desc in SHADOWED_POSITIONAL_CASES:
+        label = f"shadow: {desc}"
+        rc, output = _run_cli_case(argv)
+        if rc is None:
+            record(label, "FAIL", "timed out (hang)")
+            all_ok = False
+            continue
+        if _case_panicked(output):
+            record(label, "FAIL", "panic leaked")
+            all_ok = False
+            continue
+        missing = [n for n in must_contain if n not in output]
+        leaked = [n for n in must_not_contain if n in output]
+        if missing or leaked:
+            record(label, "FAIL", f"missing={missing} unexpected={leaked}")
+            all_ok = False
+            continue
+        record(label, "PASS", f"rc={rc}, contract intact")
+
+    # ── contract 3: the hidden vocabulary ──
+    for argv, must_not_contain, must_contain, desc in HIDDEN_LEAK_CASES:
+        label = f"vocab: {desc}"
+        rc, output = _run_cli_case(argv)
+        if rc is None:
+            record(label, "FAIL", "timed out (hang)")
+            all_ok = False
+            continue
+        if _case_panicked(output):
+            record(label, "FAIL", "panic leaked")
+            all_ok = False
+            continue
+        leaked = [n for n in must_not_contain if n in output]
+        missing = [n for n in must_contain if n not in output]
+        if leaked or missing:
+            record(label, "FAIL", f"leaked={leaked} missing={missing}")
+            all_ok = False
+            continue
+        record(label, "PASS", f"rc={rc}, vocabulary honest")
+
+    return all_ok
+
+
 # ── the engine self-test (rootless, no binary) ─────────────────────────────
 
 
@@ -784,10 +1015,16 @@ def self_test():
             and len(RATE_CASES) > 0
             and len(REMOVED) > 0
             and len(LONG_ALIASES) > 0
+            and len(ECHO_PAYLOADS) > 0
+            and len(ECHO_PATHS) > 0
+            and len(SHADOWED_POSITIONAL_CASES) > 0
+            and len(HIDDEN_LEAK_CASES) > 0
             else "FAIL",
             f"{len(COMMANDS)} commands, {len(COLOR_MODES_VALID)}+{len(COLOR_MODES_INVALID)} color modes, "
             f"{len(TYPOS)} typos, {len(RATE_CASES)} rate cases, {len(REMOVED)} removed, "
-            f"{len(LONG_ALIASES)} long aliases",
+            f"{len(LONG_ALIASES)} long aliases, "
+            f"{len(ECHO_PAYLOADS)}x{len(ECHO_PATHS)} echo payloads/paths, "
+            f"{len(SHADOWED_POSITIONAL_CASES)} shadow cases, {len(HIDDEN_LEAK_CASES)} vocab cases",
         )
         and ok
     )
@@ -811,6 +1048,7 @@ def run_cli_depth(phases):
         "rates": test_rate_explode,
         "removed": test_removed_retired,
         "hidden": test_hidden_surface,
+        "z9": test_echo_boundary,
     }
     if phases:
         stages = [(name, all_stages[name]) for name in phases]

@@ -209,8 +209,16 @@ sudo zelynic strict brave 100kb        # shorthand form
   problem does not exist there).
 - A positional `rate` sets **both** download and upload. `-d`/`-u` set
   them independently — and they take precedence: if either flag is
-  present, the positional rate is ignored (no silent mixing), so
-  `strict-single brave 100kb -d 1mb` limits download only. The
+  present, the positional rate does not apply (no silent mixing), so
+  `strict-single brave 100kb -d 1mb` limits download only.
+  NIGHT-hunt-Z9 closed the shadow's two silent shapes: the positional
+  is still PARSED (a typo'd value surfaces its did-you-mean tip
+  before the root ask — `ss brave not-a-rate -d 100kb` used to sail
+  past the input boundary unexamined) and a valid one prints one
+  stderr note naming what was dropped (`positional rate '100kb'
+  ignored — -d/-u flags take priority`), the same
+  ignored-input honesty `--print-json`, `--interval`, and `--focus`
+  carry; stdout and exit codes are untouched. The
   unset direction is also REMOVED if a previous apply had enforced
   it (NIGHT-improve-29: `ss brave 100kb` then `ss brave -d 1mb`
   used to silently keep the old upload leg — the documented
@@ -1824,7 +1832,9 @@ nanosecond-scale work, no userspace involved. Benchmarks live in
 [docs/PERFORMANCE.md](PERFORMANCE.md).
 
 **Why does `strict-single brave 100kb` also slow my uploads?**
-A positional rate means both directions. Use `-d`/`-u` to split them.
+A positional rate means both directions. Use `-d`/`-u` to split them
+(and if you pass both a positional and `-d`/`-u`, one stderr note
+names the positional that was ignored — the flags decide).
 
 **I limited an app but a speed test shows full speed.**
 Three usual causes: (1) the app was restarted after you set the limit —
