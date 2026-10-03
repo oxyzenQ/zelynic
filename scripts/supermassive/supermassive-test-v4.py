@@ -64,6 +64,18 @@ Design:
     carry its suggestion tip — the cosmostrix suggestion stresstest
     lineage. The tip is the user's only path from a typo to the real
     flag; a missing tip is a UX regression the stage catches.
+    NIGHT-hunt-Z8 closed the ladder's own gaps: --focs (the focus
+    window), --dowload and --uploed (the -d/-u long forms — the
+    short flags are single chars, the long forms are the ladder's
+    own shape).
+
+  * The alias inventory is complete (NIGHT-hunt-Z8): the short-alias
+    stage carries every two-letter alias, the new long-alias stage
+    (4b) carries the help's own shorthand spellings (strict,
+    unstrict — NIGHT-hunt-10's pair), and the global-flag stage now
+    includes NIGHT-boost-12's incident shape: a -V/--version at
+    subcommand position must print the banner and exit 0 before any
+    dispatch.
 
   * The rate-explode ladder: every wrong rate shape (1mbps invalid
     format, 1MB uppercase, 0.5kb below min, 2tb above max, 1xb invalid
@@ -171,6 +183,12 @@ GLOBAL_FLAGS = [
     (["--verbose", "--help"], 0, "info (verbose + help)"),
     (["-v", "--help"], 0, "info (short verbose + help)"),
     (["--print-json", "--help"], 0, "info (print-json + help)"),
+    # NIGHT-hunt-Z8: the global-at-subcommand-position cases —
+    # NIGHT-boost-12's own incident shape (a subcommand-position -V
+    # used to die on a misleading --verbose tip). Both spellings must
+    # print the banner and exit 0 before any dispatch.
+    (["ss", "brave", "1mb", "-V"], 0, "info (-V at subcommand position, NIGHT-boost-12)"),
+    (["ee", "brave", "--version"], 0, "info (--version at subcommand position)"),
 ]
 
 # The color-mode ladder (NIGHT-improve-35 "zero to hero"): every mode
@@ -203,6 +221,11 @@ TYPOS = [
     ("--print-jso", "--print-json", ["ss", "brave", "1mb"]),
     ("--check-updat", "--check-update", ["ss", "brave", "1mb"]),
     ("--reset-termina", "--reset-terminal", ["ss", "brave", "1mb"]),
+    # NIGHT-hunt-Z8: the per-command flags the ladder skipped —
+    # eagle-eyes --focus, and the -d/-u long forms.
+    ("--focs", "--focus", ["ee", "brave"]),
+    ("--dowload", "--download", ["ss", "brave", "1mb"]),
+    ("--uploed", "--upload", ["ss", "brave", "1mb"]),
 ]
 
 # Every rate-explode shape, categorized by the error the parser owns for
@@ -248,6 +271,18 @@ HIDDEN = [
 # as --check-update).
 HIDDEN_ALIASES = [
     "check-updated",
+]
+
+# The long aliases the help's own shorthand notes name (NIGHT-hunt-10):
+# strict-single also answers 'strict', unstrict-single also answers
+# 'unstrict' — the two long aliases the short-alias tables above do
+# not carry (NIGHT-hunt-Z8: an alias a help example prints is a
+# surface the battery owns too). Each must route to the canonical:
+# recognized (never "unrecognized subcommand"), the canonical's own
+# complaint, no panic.
+LONG_ALIASES = [
+    ("strict-single", "strict"),
+    ("unstrict-single", "unstrict"),
 ]
 
 
@@ -485,6 +520,62 @@ def test_short_alias_routing():
     return all_ok
 
 
+# ── stage 4b: long-alias routing (strict, unstrict) ───────────────
+#
+# NIGHT-hunt-Z8: the help's own examples print the long aliases
+# ('zelynic strict brave -d 1mb' in strict-single's doc comment;
+# 'unstrict' mirrors the strict/unstrict-single pair). The two-route
+# surface the short-alias stage skipped: each long alias must reach
+# the canonical's own validation — same exit class, recognized,
+# no panic.
+
+
+def test_long_alias_routing():
+    """The long aliases (strict, unstrict) route to their canonicals.
+
+    The alias and the canonical, invoked with the same args, must
+    land in the same exit class — the alias is the canonical command
+    under another name: the complaint is the command's own
+    validation (strict's missing-rate usage error, unstrict's
+    rootless root-guard refusal), never "unrecognized subcommand".
+    """
+    out()
+    out("── stage 4b: long-alias routing (strict, unstrict) ──")
+    all_ok = True
+    for canonical, alias in LONG_ALIASES:
+        # One target arg reaches both commands' own validation:
+        # strict-single answers its missing-rate complaint, and
+        # unstrict-single answers the rootless root-guard complaint.
+        args = ["brave"]
+        rc_c, out_c = _run_cli_case([canonical] + args)
+        rc_a, out_a = _run_cli_case([alias] + args)
+        label = f"long-alias: {alias} -> {canonical}"
+        if rc_c is None or rc_a is None:
+            record(label, "FAIL", "timed out (hang)")
+            all_ok = False
+            continue
+        if _case_panicked(out_c) or _case_panicked(out_a):
+            record(label + " no panic", "FAIL", "panic leaked")
+            all_ok = False
+            continue
+        if "unrecognized subcommand" in out_c.lower() or "unrecognized subcommand" in out_a.lower():
+            record(label, "FAIL", "alias not recognized")
+            all_ok = False
+            continue
+        class_c = 0 if rc_c == 0 else 1
+        class_a = 0 if rc_a == 0 else 1
+        if class_c != class_a:
+            record(label, "FAIL", f"alias rc={rc_a} != canonical rc={rc_c} (class mismatch)")
+            all_ok = False
+            continue
+        record(
+            label,
+            "PASS",
+            f"both class={'info' if class_c == 0 else 'refusal'}, recognized, no panic",
+        )
+    return all_ok
+
+
 # ── stage 5: typo handling (every near-miss carries its tip) ───────────────
 
 
@@ -692,9 +783,11 @@ def self_test():
             and len(TYPOS) > 0
             and len(RATE_CASES) > 0
             and len(REMOVED) > 0
+            and len(LONG_ALIASES) > 0
             else "FAIL",
             f"{len(COMMANDS)} commands, {len(COLOR_MODES_VALID)}+{len(COLOR_MODES_INVALID)} color modes, "
-            f"{len(TYPOS)} typos, {len(RATE_CASES)} rate cases, {len(REMOVED)} removed",
+            f"{len(TYPOS)} typos, {len(RATE_CASES)} rate cases, {len(REMOVED)} removed, "
+            f"{len(LONG_ALIASES)} long aliases",
         )
         and ok
     )
@@ -713,6 +806,7 @@ def run_cli_depth(phases):
         "flags": test_global_flags,
         "color": test_color_mode_ladder,
         "aliases": test_short_alias_routing,
+        "long-aliases": test_long_alias_routing,
         "typos": test_typo_handling,
         "rates": test_rate_explode,
         "removed": test_removed_retired,

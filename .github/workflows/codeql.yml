@@ -11,9 +11,12 @@
 # crate itself compiles on the nightly pin via the nested build —
 # outside CodeQL's stable-toolchain autobuild, and gated by the
 # Gnu Dynamic CI jobs instead. Python tooling scripts are covered by
-# the codespell gate in ci.yml; shell scripts by shellcheck — now
-# running CI-side too via the wholesale gate-keepers job
-# (NIGHT-hunt-23). The paths filters are Rust-only for the same
+# the codespell and ruff gates; shell scripts by the shell quad —
+# all running CI-side via the wholesale gate-keepers job on every
+# push, unfiltered (NIGHT-hunt-23; the non-code gates moved out of
+# ci.yml's path-filtered lane in NIGHT-improve-13 — the stale
+# "codespell gate in ci.yml" seat this comment carried was the
+# NIGHT-hunt-Z8 find). The paths filters are Rust-only for the same
 # reason (NIGHT-improve-11): the old scripts/** and root '*.py'/'*.sh'
 # push entries only woke a rust-language scan that had nothing new
 # to find on a tooling-only diff.
