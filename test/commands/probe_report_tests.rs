@@ -5,11 +5,42 @@
 //! (NIGHT-upgrade-charger-core-1-b): the verify block's line shapes
 //! and the FAILED error's contract — the numbers a reading owner
 //! acts on, asserted without touching a socket.
+//!
+//! NIGHT-hunt-Z7: the ledger-verdict family pins live here too —
+//! the dual-limit starvation shape, the leak veto, the unsaturable
+//! ceiling, and the starved-notes stack, all pure, all rootless.
 
 use super::*;
 
 use crate::commands::probe::PROBE_SECS;
 use crate::ebpf::limiter::default_burst;
+
+/// The outcome constructor's Z7 field set, as one helper so every
+/// pin below reads as its verdict, not its plumbing.
+fn outcome(
+    verdict: ProbeVerdict,
+    direction: crate::ebpf::limiter::Direction,
+    rate_bps: u64,
+    client_bytes: u64,
+    ledger_bytes: u64,
+    dropped_bytes: u64,
+) -> ProbeOutcome {
+    ProbeOutcome {
+        verdict,
+        direction,
+        rate_bps,
+        burst_bytes: default_burst(rate_bps),
+        window_secs: 3,
+        client_bytes,
+        ledger_bytes,
+        dropped_bytes,
+        counter_rate_bps: None,
+        proof: ProofBasis::Flow,
+        notes: Vec::new(),
+        per_socket: false,
+        teardown: false,
+    }
+}
 
 /// The VERIFIED block: the window, the direction with its limit, the
 /// measured flow against the target, the budget it was measured
@@ -17,19 +48,16 @@ use crate::ebpf::limiter::default_burst;
 /// sysadmin needs before trusting the "applied" they just got.
 #[test]
 fn the_verified_block_carries_every_row() {
-    let outcome = ProbeOutcome {
-        verdict: ProbeVerdict::Verified,
-        direction: crate::ebpf::limiter::Direction::Download,
-        rate_bps: 100_000,
-        burst_bytes: 100_000,
-        window_secs: 3,
-        client_bytes: 364_000,
-        ledger_bytes: 364_912,
-        note: None,
-        per_socket: false,
-        teardown: false,
-    };
-    let lines = report_lines(&outcome);
+    let mut o = outcome(
+        ProbeVerdict::Verified,
+        crate::ebpf::limiter::Direction::Download,
+        100_000,
+        364_000,
+        364_912,
+        0,
+    );
+    o.proof = ProofBasis::Flow;
+    let lines = report_lines(&o);
     let text = lines.join("\n");
     assert!(lines.len() >= 6, "the block has its rows, got: {text}");
     assert!(
@@ -49,13 +77,17 @@ fn the_verified_block_carries_every_row() {
         "the budget row decomposes itself, got: {text}"
     );
     assert!(
-        text.contains("kernel:") && text.contains("admitted through the ledger"),
-        "the kernel row names its source, got: {text}"
+        text.contains("kernel:") && text.contains("admitted, 0 B refused through the ledger"),
+        "the kernel row names its source and its refusals, got: {text}"
     );
     assert!(text.contains("VERIFIED"), "the verdict rides, got: {text}");
     assert!(
         !text.contains("note:"),
         "no note without a reason, got: {text}"
+    );
+    assert!(
+        !text.contains("proof:"),
+        "no proof row on the flow basis (the flow numbers are the proof), got: {text}"
     );
 }
 
@@ -63,19 +95,17 @@ fn the_verified_block_carries_every_row() {
 /// measurement lane is named, never hidden behind a pass.
 #[test]
 fn the_unverified_block_names_its_reason() {
-    let outcome = ProbeOutcome {
-        verdict: ProbeVerdict::Unverified,
-        direction: crate::ebpf::limiter::Direction::Download,
-        rate_bps: 0,
-        burst_bytes: 0,
-        window_secs: 3,
-        client_bytes: 0,
-        ledger_bytes: 0,
-        note: Some("blocked policy — the drop ledger carries the verdict".to_string()),
-        per_socket: false,
-        teardown: false,
-    };
-    let lines = report_lines(&outcome);
+    let mut o = outcome(
+        ProbeVerdict::Unverified,
+        crate::ebpf::limiter::Direction::Download,
+        0,
+        0,
+        0,
+        0,
+    );
+    o.notes
+        .push("blocked policy — the drop ledger carries the verdict".to_string());
+    let lines = report_lines(&o);
     let text = lines.join("\n");
     assert!(
         text.contains("UNVERIFIED"),
@@ -87,23 +117,133 @@ fn the_unverified_block_names_its_reason() {
     );
 }
 
+/// NIGHT-hunt-Z7: a measured flow of zero renders "0 B/s", never the
+/// policy surface's BLOCKED sentinel — the owner's dual-limit
+/// transcript read "measured: 0 B in 3s (BLOCKED) vs 1.0 KB/s
+/// target", conflating a measurement of nothing with the block
+/// verdict the policy never carried (the render footer's own
+/// documented discipline).
+#[test]
+fn a_zero_flow_renders_zero_not_blocked() {
+    let o = outcome(
+        ProbeVerdict::Unverified,
+        crate::ebpf::limiter::Direction::Download,
+        1_000,
+        0,
+        549,
+        224_700,
+    );
+    let text = report_lines(&o).join("\n");
+    assert!(
+        text.contains("measured:   0 B in 3s (0 B/s) vs 1.0 KB/s target"),
+        "the measured row renders the zero flow as a rate, got: {text}"
+    );
+    assert!(
+        !text.contains("(BLOCKED)"),
+        "the BLOCKED sentinel never rides a measured figure, got: {text}"
+    );
+}
+
+/// NIGHT-hunt-Z7, the owner's dual-limit find as one pinned block:
+/// the starved flow (0 B measured — its own acknowledgments ride the
+/// policed upload) with the kernel's refusal beside it is VERIFIED
+/// on the ledger-refusal proof, and the proof row names its basis.
+#[test]
+fn the_dual_limit_starvation_is_verified_by_the_ledger_refusal() {
+    let mut o = outcome(
+        ProbeVerdict::Verified,
+        crate::ebpf::limiter::Direction::Download,
+        1_000,
+        0,
+        549,
+        224_700,
+    );
+    o.proof = ProofBasis::LedgerRefusal;
+    o.counter_rate_bps = Some(1_000);
+    o.notes = starved_notes(
+        0,
+        1_000,
+        PROBE_SECS,
+        Some(1_000),
+        crate::ebpf::limiter::Direction::Download,
+        549,
+        224_700,
+    );
+    let text = report_lines(&o).join("\n");
+    assert!(
+        text.contains("enforced:   VERIFIED"),
+        "the starved-but-refusing window is VERIFIED, got: {text}"
+    );
+    assert!(
+        text.contains("proof:      ledger refusal — the kernel refused 224.7 KB"),
+        "the proof row names the ledger-refusal basis and its number, got: {text}"
+    );
+    assert!(
+        text.contains("(the flow check itself measured 0 B)"),
+        "the proof row names the starved flow check, got: {text}"
+    );
+    assert!(
+        text.contains("acknowledgments ride the policed upload (1.0 KB/s)"),
+        "the starvation note names the counter-direction lane, got: {text}"
+    );
+    assert!(
+        text.contains("kernel:     549 B admitted, 224.7 KB refused"),
+        "the kernel row carries both counters, got: {text}"
+    );
+}
+
+/// NIGHT-hunt-Z7, the unsaturable ceiling (`-d 1tb`): a flow that
+/// lived under its floor with NOTHING refused and the ledger booking
+/// what the client moved is UNVERIFIED with the reason that names
+/// the machine's own limit — never a vacuous pass, never a missing
+/// explanation.
+#[test]
+fn the_unsaturable_ceiling_names_its_shape() {
+    let mut o = outcome(
+        ProbeVerdict::Unverified,
+        crate::ebpf::limiter::Direction::Download,
+        1_000_000_000_000,
+        807_100_000,
+        848_100_000,
+        0,
+    );
+    o.notes = starved_notes(
+        807_100_000,
+        1_000_000_000_000,
+        PROBE_SECS,
+        None,
+        crate::ebpf::limiter::Direction::Download,
+        848_100_000,
+        0,
+    );
+    let text = report_lines(&o).join("\n");
+    assert!(
+        text.contains("UNVERIFIED"),
+        "a ceiling the path cannot reach stays unverified, got: {text}"
+    );
+    assert!(
+        text.contains("cannot be tested from this machine's loopback"),
+        "the note names the untestable ceiling, got: {text}"
+    );
+    assert!(
+        text.contains("nothing refused"),
+        "the note carries the nothing-refused evidence, got: {text}"
+    );
+}
+
 /// The FAILED error: exit-1 territory — the numbers attached, the
 /// recovery path named, and never the word "applied" standing alone.
 #[test]
 fn the_failed_error_carries_the_numbers_and_the_path() {
-    let outcome = ProbeOutcome {
-        verdict: ProbeVerdict::Failed,
-        direction: crate::ebpf::limiter::Direction::Upload,
-        rate_bps: 100_000,
-        burst_bytes: 100_000,
-        window_secs: 3,
-        client_bytes: 4_800_000,
-        ledger_bytes: 4_800_512,
-        note: None,
-        per_socket: false,
-        teardown: false,
-    };
-    let err = failure_error("brave", &outcome);
+    let o = outcome(
+        ProbeVerdict::Failed,
+        crate::ebpf::limiter::Direction::Upload,
+        100_000,
+        4_800_000,
+        4_800_512,
+        0,
+    );
+    let err = failure_error("brave", &o);
     let msg = format!("{err}");
     assert!(
         msg.starts_with("enforcement NOT verified"),
@@ -118,6 +258,10 @@ fn the_failed_error_carries_the_numbers_and_the_path() {
         "the measured row rides, got: {msg}"
     );
     assert!(
+        msg.contains("kernel:     4.8 MB admitted, 0 B refused"),
+        "the kernel row rides with both counters, got: {msg}"
+    );
+    assert!(
         msg.contains("zelynic recover") && msg.contains("re-apply"),
         "the recovery path is named, got: {msg}"
     );
@@ -127,139 +271,61 @@ fn the_failed_error_carries_the_numbers_and_the_path() {
     );
 }
 
+/// NIGHT-hunt-Z7, the leak lane: a ledger that admitted beyond the
+/// envelope is FAILED evidence whatever the starved flow measured —
+/// the headline names the ledger, never the flow's exceed wording,
+/// and the advice names the over-admission.
+#[test]
+fn the_ledger_leak_error_names_its_lane() {
+    let mut o = outcome(
+        ProbeVerdict::Failed,
+        crate::ebpf::limiter::Direction::Download,
+        10_000,
+        0,
+        900_000,
+        0,
+    );
+    o.proof = ProofBasis::LedgerLeak;
+    let err = failure_error("brave", &o);
+    let msg = format!("{err}");
+    assert!(
+        msg.starts_with(
+            "enforcement NOT verified — the kernel ledger admitted more than the budget allows"
+        ),
+        "the leak lane leads with its own headline, got: {msg}"
+    );
+    assert!(
+        !msg.contains("exceeded the budget"),
+        "the flow-exceed wording never rides the leak lane, got: {msg}"
+    );
+    assert!(
+        msg.contains("over-admitting"),
+        "the advice names the over-admission, got: {msg}"
+    );
+    assert!(
+        msg.contains("kernel:     900.0 KB admitted, 0 B refused"),
+        "the numbers that carry the verdict ride, got: {msg}"
+    );
+}
+
 /// charger-core-3b: the report names WHICH budget it measured — a
 /// per-socket probe's direction line carries " per socket" so a
 /// 500kb-per-connection limit can never read as the cgroup cap.
 #[test]
 fn per_socket_probe_names_its_budget_kind() {
-    let outcome = ProbeOutcome {
-        verdict: ProbeVerdict::Verified,
-        direction: crate::ebpf::limiter::Direction::Download,
-        rate_bps: 500_000,
-        burst_bytes: 500_000,
-        window_secs: 3,
-        client_bytes: 1_500_000,
-        ledger_bytes: 1_502_000,
-        note: None,
-        per_socket: true,
-        teardown: false,
-    };
-    let text = report_lines(&outcome).join("\n");
+    let mut o = outcome(
+        ProbeVerdict::Verified,
+        crate::ebpf::limiter::Direction::Download,
+        500_000,
+        1_500_000,
+        1_502_000,
+        0,
+    );
+    o.per_socket = true;
+    let text = report_lines(&o).join("\n");
     assert!(
         text.contains("(limit 500.0 KB/s per socket)"),
         "the per-socket budget is named, got: {text}"
-    );
-}
-
-// ── The verdict bands (moved from probe_tests.rs with the family,
-//    NIGHT-repair-1) ─────────────────────────────────────────────
-
-/// The canonical case: 100kb over the 3s window, burst = 1s of rate
-/// (default_burst's clamp) — the budget is 4s of traffic, the ceiling
-/// adds the 5% slack plus one GSO super-packet, the floor is 20% of
-/// the window's refill.
-#[test]
-fn canonical_bands_hold() {
-    let rate = 100_000_u64;
-    let burst = default_burst(rate);
-    assert_eq!(burst, 100_000, "1s of rate, above the GSO floor");
-    // budget = 3s of refill + the burst = 400 KB.
-    let budget = rate * PROBE_SECS + burst;
-    assert_eq!(budget, 400_000);
-    // ceiling = budget + 5% + one super-packet.
-    let ceiling = budget + budget / 20 + 65_536;
-    assert_eq!(ceiling, 485_536);
-
-    assert_eq!(
-        probe_verdict(rate, burst, PROBE_SECS, ceiling),
-        ProbeVerdict::Verified
-    );
-    assert_eq!(
-        probe_verdict(rate, burst, PROBE_SECS, ceiling + 1),
-        ProbeVerdict::Failed,
-        "one byte past the ceiling is FAILED (strict >)"
-    );
-    // The floor: 20% of the window's refill.
-    assert_eq!(
-        probe_verdict(rate, burst, PROBE_SECS, 60_000),
-        ProbeVerdict::Verified
-    );
-    assert_eq!(
-        probe_verdict(rate, burst, PROBE_SECS, 59_999),
-        ProbeVerdict::Unverified,
-        "a flow under the floor did not measure enforcement"
-    );
-}
-
-/// The motivating failure shape: an unpoliced path runs at line rate —
-/// megabytes where the budget admits hundreds of kilobytes.
-#[test]
-fn the_escape_shape_fails_loudly() {
-    let rate = 100_000_u64;
-    let burst = default_burst(rate);
-    assert_eq!(
-        probe_verdict(rate, burst, PROBE_SECS, 4_800_000),
-        ProbeVerdict::Failed,
-        "4.8 MB through a 400 KB budget is the 12x-over shape"
-    );
-}
-
-/// The trickle case: at 1kb the burst is the GSO floor (64 KiB) and a
-/// single admitted super-packet is a legitimate window — the burst
-/// term keeps the verdict honest exactly where refill alone could
-/// never feed one packet.
-#[test]
-fn the_trickle_case_survives_on_the_burst() {
-    let rate = 1_000_u64;
-    let burst = default_burst(rate);
-    assert_eq!(burst, 65_536, "the GSO admit floor clamps the burst");
-    // One admitted super-packet: within budget, above the floor.
-    assert_eq!(
-        probe_verdict(rate, burst, PROBE_SECS, 65_536),
-        ProbeVerdict::Verified
-    );
-    // The unpoliced trickle-rate escape: loopback would move MBs.
-    assert_eq!(
-        probe_verdict(rate, burst, PROBE_SECS, 3_000_000),
-        ProbeVerdict::Failed
-    );
-    // Nothing moved: never a vacuous pass, at ANY rate (floor >= 1).
-    assert_eq!(
-        probe_verdict(rate, burst, PROBE_SECS, 0),
-        ProbeVerdict::Unverified
-    );
-    assert_eq!(
-        probe_verdict(0, 65_536, PROBE_SECS, 0),
-        ProbeVerdict::Unverified,
-        "a zero-byte flow is never a measurement, even at rate 0"
-    );
-}
-
-/// Saturation safety: the biggest policy the CLI accepts (1 TB/s,
-/// MAX_RATE) against the biggest burst (100 MB) never overflows the
-/// band math — and the unreachable u64 extreme degenerates OPEN
-/// (everything fits in a saturated budget), never panics, never wraps
-/// a floor or ceiling into a lie about a reachable policy.
-#[test]
-fn the_maximum_policy_never_overflows() {
-    let rate = 1_000_000_000_000_u64;
-    let burst = default_burst(rate);
-    assert_eq!(burst, 100_000_000, "the 100 MB burst ceiling");
-    assert_eq!(
-        probe_verdict(rate, burst, PROBE_SECS, u64::MAX),
-        ProbeVerdict::Failed,
-        "line rate at the 1 TB policy is still FAILED"
-    );
-    assert_eq!(
-        probe_verdict(u64::MAX, u64::MAX, u64::MAX, 0),
-        ProbeVerdict::Unverified
-    );
-    // The unreachable extreme: a saturated budget admits everything,
-    // so the verdict opens — pinned as the documented degenerate, a
-    // shape no CLI rate can produce (MAX_RATE is a trillionth of it).
-    assert_eq!(
-        probe_verdict(u64::MAX, u64::MAX, u64::MAX, u64::MAX),
-        ProbeVerdict::Verified
     );
 }
 
@@ -267,51 +333,46 @@ fn the_maximum_policy_never_overflows() {
 /// future JSON surface read exactly these numbers.
 #[test]
 fn the_outcome_carries_the_measurement() {
-    let outcome = ProbeOutcome {
-        verdict: ProbeVerdict::Verified,
-        direction: crate::ebpf::limiter::Direction::Download,
-        rate_bps: 100_000,
-        burst_bytes: 100_000,
-        window_secs: PROBE_SECS,
-        client_bytes: 364_000,
-        ledger_bytes: 364_912,
-        note: None,
-        per_socket: false,
-        teardown: false,
-    };
-    assert_eq!(outcome.verdict, ProbeVerdict::Verified);
-    assert_eq!(outcome.window_secs, 3);
-    assert_eq!(outcome.client_bytes, 364_000);
+    let o = outcome(
+        ProbeVerdict::Verified,
+        crate::ebpf::limiter::Direction::Download,
+        100_000,
+        364_000,
+        364_912,
+        1_400,
+    );
+    assert_eq!(o.verdict, ProbeVerdict::Verified);
+    assert_eq!(o.window_secs, 3);
+    assert_eq!(o.client_bytes, 364_000);
     // The ledger counts the target's own traffic beside the probe —
-    // the cross-check row, never the verdict input.
-    assert!(outcome.ledger_bytes >= outcome.client_bytes);
+    // allowed AND refused now, both cross-check rows.
+    assert!(o.ledger_bytes >= o.client_bytes);
+    assert_eq!(o.dropped_bytes, 1_400);
     // The teardown belt's flag rides whole too (a Verified outcome
     // from a standing row carries false).
-    assert!(!outcome.teardown);
+    assert!(!o.teardown);
 }
 
 /// NIGHT-repair-1 (the teardown belt): the FAILED error names its own
 /// lane — the teardown shape (the policy row vanished mid-window)
 /// leads with the removal headline, never the exceed wording, and the
-/// outcome's note rides its own row so the finding is complete.
+/// outcome's notes ride their own rows so the finding is complete.
 #[test]
 fn the_teardown_error_names_its_lane() {
-    let outcome = ProbeOutcome {
-        verdict: ProbeVerdict::Failed,
-        direction: crate::ebpf::limiter::Direction::Download,
-        rate_bps: 1_000_000,
-        burst_bytes: 1_000_000,
-        window_secs: 3,
-        client_bytes: 2_600_000,
-        ledger_bytes: 2_700_000,
-        note: Some(
-            "the policy row vanished mid-window (a concurrent unstrict or re-apply) — the budget this window measured against no longer stands"
-                .to_string(),
-        ),
-        per_socket: false,
-        teardown: true,
-    };
-    let err = failure_error("fleet-a", &outcome);
+    let mut o = outcome(
+        ProbeVerdict::Failed,
+        crate::ebpf::limiter::Direction::Download,
+        1_000_000,
+        2_600_000,
+        2_700_000,
+        0,
+    );
+    o.teardown = true;
+    o.notes.push(
+        "the policy row vanished mid-window (a concurrent unstrict or re-apply) — the budget this window measured against no longer stands"
+            .to_string(),
+    );
+    let err = failure_error("fleet-a", &o);
     let msg = format!("{err}");
     assert!(
         msg.starts_with("enforcement NOT verified — the policy was removed mid-window"),

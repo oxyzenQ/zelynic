@@ -79,6 +79,33 @@ fn status_cells_one_metric_per_cell() {
     assert_eq!(dropped, "0 B");
 }
 
+/// NIGHT-hunt-Z7 (the owner's `-d 100.51kb` find): the rate cells
+/// render through the EXACT twin — a configured 100,510 B/s reads
+/// "100.51 KB/s", never the one-decimal "100.5 KB/s" that hid 10
+/// B/s of the typed number. The measured ALLOWED/DROPPED cells keep
+/// their one-decimal twin (running counters, the approximate display
+/// they always carried) — the split is config-exact vs
+/// measured-approximate, one rule, both sides.
+#[test]
+fn status_rate_cells_render_configured_rates_exactly() {
+    let d = DisplayData {
+        cgroup_id: 70896,
+        dl_bps: Some(100_510),
+        ul_bps: Some(50_000),
+        dl_per_socket: false,
+        ul_per_socket: false,
+        packets_allowed: 0,
+        packets_dropped: 0,
+        bytes_allowed: 0,
+        bytes_dropped: 0,
+    };
+    let (_, dl, ul, allowed, dropped) = status_cells(&d, &IdentityMap::new());
+    assert_eq!(dl, "100.51 KB/s", "the typed rate survives the table");
+    assert_eq!(ul, "50.0 KB/s", "a round rate keeps the family shape");
+    assert_eq!(allowed, "0 B");
+    assert_eq!(dropped, "0 B");
+}
+
 // ── NIGHT-engrave-5: the eagle-eyes style match pins ──────────────────
 //
 // The owner's audit: `sudo zelynic status` did not match the

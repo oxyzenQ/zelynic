@@ -3499,7 +3499,16 @@ def test_probe_failed():
             "measured:",
             "budget:",
         )
-        lane_needles = ("exceeded the budget", "removed mid-window")
+        # NIGHT-hunt-Z7: the failure lanes are three now — the
+        # exceed shape, the teardown shape, and the ledger-leak
+        # shape (the kernel over-admitting while a starved flow
+        # measured nothing). The row accepts any one of them; the
+        # detail names which.
+        lane_needles = (
+            "exceeded the budget",
+            "removed mid-window",
+            "ledger admitted more than the budget",
+        )
         missing = [n for n in needles if n not in combined]
         lane = [n for n in lane_needles if n in combined]
         passed = (
@@ -3606,8 +3615,14 @@ def test_probe_failed():
             verdict_lane = verdict_line(combined_lane)
             verified_lane = "UNVERIFIED" not in verdict_lane and verdict_lane.endswith("VERIFIED")
             lane_named = f"direction:  {lane}" in combined_lane
+            # NIGHT-hunt-Z7: the kernel row carries BOTH counters now
+            # ("X admitted, Y refused through the ledger") — the
+            # refused half is the ledger-refusal proof's own number.
+            # The pin keeps the Z1 intent: a nonzero admission the
+            # ledger actually booked ("0 B admitted" was the bypass
+            # signature).
             ledger_booked = (
-                "admitted through the ledger" in combined_lane
+                "refused through the ledger" in combined_lane
                 and "0 B admitted" not in combined_lane
             )
             passed = (

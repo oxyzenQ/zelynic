@@ -79,6 +79,7 @@ project's institutional memory. The naming convention is
 
 | Audit | Covers |
 |-------|--------|
+| [audits/NIGHT_HUNT_Z7_ENFORCEMENT_LEDGER_AUDIT_2026-10-03.md](audits/NIGHT_HUNT_Z7_ENFORCEMENT_LEDGER_AUDIT_2026-10-03.md) | The enforcement-ledger depth audit (the owner's dual-limit find): the probe's two false-negative shapes (counter-direction ACK starvation, the unsaturable ceiling) closed by graduating the ledger's dropped counters to verdict evidence — the ledger-refusal proof, the leak lane, the reason stack, the budget-truth note — plus exact config-rate display, the measured-zero/BLOCKED fix, and the comma repairs |
 | [audits/NIGHT_TOTAL_LTS_1_AUDIT_2026-10-02.md](audits/NIGHT_TOTAL_LTS_1_AUDIT_2026-10-02.md) | The total-infra LTS sweep: the owner's five areas (stability & crash, code hygiene, optimization, security hardening, LTS stability) audited per-stage across the root repo at the locked v20.0.0 LTS baseline, the peak-skip protocol in force |
 | [audits/NIGHT_TOTAL_LTS_2_AUDIT_2026-10-02.md](audits/NIGHT_TOTAL_LTS_2_AUDIT_2026-10-02.md) | The fresh-instrument cross-check: every load-bearing claim of the total-lts-1 verdict re-verified against source and fresh runs at HEAD — never against the earlier doc's own claim |
 | [audits/NIGHT_TOTAL_LTS_3_AUDIT_2026-10-02.md](audits/NIGHT_TOTAL_LTS_3_AUDIT_2026-10-02.md) | The killer-features pass: the total-infra lens narrowed to the product's two killer surfaces first (the limiter engine and the eagle-eyes monitor), then the UX/CLI surface and the remaining Rust code, under the same five areas |

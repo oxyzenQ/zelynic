@@ -7,8 +7,10 @@
 use anyhow::{anyhow, Context, Result};
 use aya::maps::{Array as BpfArray, HashMap as BpfHashMap};
 
-use super::types::{Direction, LimiterStatsRaw, PolicyRaw};
-use crate::ebpf::pin::{self, PIN_MAP_STATS, PIN_MAP_WATCHDOG};
+use super::types::{BucketRaw, Direction, LimiterStatsRaw, PolicyRaw};
+use crate::ebpf::pin::{
+    self, PIN_MAP_BUCKET_DL, PIN_MAP_BUCKET_UL, PIN_MAP_STATS, PIN_MAP_WATCHDOG,
+};
 
 impl super::Limiter {
     /// Print status: active limits + watchdog.
@@ -127,6 +129,37 @@ impl super::Limiter {
     /// here: a failed map read propagates, never a fabricated zero.
     pub fn read_stats_public(&self) -> Result<Vec<(u32, LimiterStatsRaw)>> {
         self.read_stats()
+    }
+
+    /// Read the DRR pool's current token count for one policy root
+    /// and direction (NIGHT-hunt-Z7, the verify block's budget-truth
+    /// read): the bucket the datapath actually draws from, so the
+    /// probe's report can say what the bucket HELD when the window
+    /// opened instead of only the nominal burst. `Ok(None)` is the
+    /// honest absence (no bucket entry yet — a fresh pin with idle
+    /// traffic, the same posture as an absent stats row); `Err` means
+    /// unreadable, and the caller skips the diagnostic clause — a
+    /// best-effort read must never fail the probe it decorates.
+    pub fn read_pool_tokens(&self, root: u32, direction: Direction) -> Result<Option<u64>> {
+        let (map_name, pin_path) = match direction {
+            Direction::Download => ("cgroup_bucket_dl", PIN_MAP_BUCKET_DL),
+            Direction::Upload => ("cgroup_bucket_ul", PIN_MAP_BUCKET_UL),
+        };
+        let pinned;
+        let map_ref: &aya::maps::Map = match self.bpf.as_ref() {
+            Some(bpf) => bpf.map(map_name).context(format!("{map_name} not found"))?,
+            None => {
+                pinned = pin::open_pinned_hash_map(pin_path)?;
+                &pinned
+            }
+        };
+        let map: BpfHashMap<_, u32, BucketRaw> =
+            BpfHashMap::try_from(map_ref).context(format!("Failed to access {map_name}"))?;
+        match map.get(&root, 0) {
+            Ok(bucket) => Ok(Some(bucket.tokens)),
+            Err(e) if super::lanes::map_remove_means_absent(&e) => Ok(None),
+            Err(e) => Err(anyhow!("{map_name} read: {e}")),
+        }
     }
 
     /// Borrow identity map.

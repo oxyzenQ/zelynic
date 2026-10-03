@@ -19,6 +19,55 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Added
 
+- **NIGHT-hunt-Z7, the limiter + monitoring depth audit (the owner's
+  dual-limit find, masterclass hardening): the enforcement probe
+  learned to read the kernel's own verdict — the ledger's dropped
+  counters graduated from display row to verdict evidence, and every
+  configured rate now displays through an exact round-trip
+  formatter.** Two live false-negative shapes closed: a probe whose
+  own TCP acknowledgments ride the policed counter-direction
+  (`strict-single brave -d 1kb -u 1kb` — the ACK egress spends the
+  upload bucket beside the target's own traffic) measured ~0 B and
+  read UNVERIFIED while the same maps held hundreds of KB the kernel
+  REFUSED, and a ceiling above the path's own delivery (`-d 1tb` —
+  the 20% flow floor is 600 GB over a window loopback moved 807 MB)
+  could structurally never cross the floor. The verdict family now
+  snapshots the FULL ledger (bytes_allowed AND bytes_dropped, every
+  leaf the target resolved to, before and after the window): a
+  starved flow with refusals inside the envelope is VERIFIED on the
+  ledger-refusal proof (a new `proof:` row names its basis, never
+  conflated with the flow's own numbers); a ledger that admits
+  beyond the envelope is FAILED on the new leak lane (exit 1, the
+  headline naming the kernel's over-admission — the leak a starved
+  flow could never see), with a deliberate (window + 2s) span
+  allowance so boundary effects never false-fire the veto and
+  per-socket policies skipping the leak lane (per-connection
+  buckets, unknown count) while keeping the refusal proof; and a
+  silent ledger under a starved flow stays UNVERIFIED with reasons
+  that finally name their shape — the counter-direction starvation
+  note, the cannot-be-tested-from-this-loopback note, the per-leaf
+  window ledger on the multi-cgroup note, and the budget-truth note
+  (the DRR pool's own token count at window start: a re-apply
+  inherits a spent bucket, and the nominal budget line no longer
+  pretends otherwise). The kernel row carries both counters
+  (`X admitted, Y refused through the ledger`), a measured flow of
+  zero renders `0 B/s` (never the policy surface's BLOCKED sentinel
+  — the render footer's own discipline), and the teardown belt now
+  checks every policed leg of a dual apply, not just the probed one.
+  Configured rates display EXACTLY on every config surface (the
+  apply trace, the status table, the verify block): `-d 100.51kb`
+  reads `100.51 KB/s` everywhere, one-decimal rounding never hiding
+  a byte of the typed number again (measured values keep the
+  one-decimal display; the split is config-exact vs
+  measured-approximate, pinned by a parse-back round-trip property
+  test through the production grammar). A comma-carrying rate gets
+  its own repair instead of the generic parse error: `100,50kb`
+  suggests the dot form (`100.50`), `1,000kb` suggests removing the
+  separators (`1000` — the dot suggestion would silently scale the
+  value 1000x), and the tip engine stands down on comma inputs (one
+  input, one repair). Zero BPF changes, zero schema movement —
+  pure userspace; see
+  docs/audits/NIGHT_HUNT_Z7_ENFORCEMENT_LEDGER_AUDIT_2026-10-03.md.
 - **NIGHT-hunt-Z8, the seam hunt across the fresh estate — five
   seams found by hunting what the previous builds never covered,
   each closed with live verification.** The v4 CLI depth battery's

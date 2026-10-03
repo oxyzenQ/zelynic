@@ -12,10 +12,13 @@ use anyhow::{anyhow, bail, Context, Result};
 use std::io::{BufRead, BufReader};
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
+use std::os::unix::fs::MetadataExt;
 use std::os::unix::io::AsRawFd;
 use std::path::Path;
 use std::process::Child;
 use std::time::{Duration, Instant};
+
+use crate::ebpf::limiter::Direction;
 
 /// The child's settle grace: the parent writes the pid into the
 /// cgroup microseconds after spawn; the child sleeps this long before
@@ -265,6 +268,154 @@ pub(crate) fn read_metric_line_from(
         Some(v) => Ok(v),
         None => Err(anyhow!("malformed protocol line: {}", line.trim())),
     }
+}
+
+// ── The orchestrator's cgroup mechanics (moved from probe.rs at
+// NIGHT-hunt-Z7, when the ledger-verdict family pushed the
+// orchestrator past the 500-line owner cap again — the same split
+// discipline as the waiting family above: the cgroup plumbing
+// belongs with the roles that live in those cgroups) ──────────────
+
+/// One best-effort cgroup mkdir (the harness's mkdir_quiet posture).
+pub(crate) fn mkdir_quiet(path: &Path) -> bool {
+    std::fs::create_dir(path).is_ok() || path.is_dir()
+}
+
+/// Kill AND reap a probe child, then best-effort remove its transient
+/// cgroup with retries: an unreaped zombie (or its dying socket's css
+/// reference) holds the cgroup alive past a bare rmdir, and a
+/// leftover zelynic-probe-* directory per probe run is exactly the
+/// residue this tool refuses to leave anywhere else. The retry window
+/// (3 x 100ms) outlives the kernel's teardown of an exited child.
+pub(crate) fn kill_and_reap(child: &mut Child, cgroup: Option<&Path>) {
+    let _ = child.kill();
+    let _ = child.wait();
+    if let Some(cgroup) = cgroup {
+        for _ in 0..3 {
+            if std::fs::remove_dir(cgroup).is_ok() {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(100));
+        }
+    }
+}
+
+/// The PARENT writes the child's pid into `cgroup.procs` right after
+/// spawn (the child's grace sleep makes the write land first).
+pub(crate) fn enter_cgroup(path: &Path, child: u32) -> bool {
+    std::fs::write(path.join("cgroup.procs"), format!("{child}\n")).is_ok()
+}
+
+/// The transient cgroup names (unique per probe invocation).
+pub(crate) fn probe_cgroup_name(role: &str) -> String {
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos();
+    format!("zelynic-probe-{role}-{nanos}")
+}
+
+/// Is zelynic's own cgroup chain free of policies (both directions,
+/// every ancestor including the root cgroup itself)? The fallback
+/// server placement: a policed server would under-measure every probe
+/// (the vacuous-VERIFIED shape), so the platform refusing the
+/// root-level transient cgroup may only downgrade to this lane when
+/// the chain is clean.
+pub(crate) fn our_chain_is_clean(limiter: &crate::ebpf::limiter::Limiter) -> bool {
+    let Ok(text) = std::fs::read_to_string("/proc/self/cgroup") else {
+        return false;
+    };
+    // Each ancestor's cgroup id is the dir's inode (kernfs); check
+    // every one against both policy maps. A failed read is "not
+    // clean" — never a guess.
+    let dir_clean = |path: &Path| match std::fs::metadata(path) {
+        Ok(meta) => {
+            let id = u32::try_from(meta.ino()).unwrap_or(0);
+            [Direction::Download, Direction::Upload].iter().all(|d| {
+                limiter
+                    .read_policies_public(*d)
+                    .map(|rows| rows.iter().all(|(k, _)| *k != id))
+                    .unwrap_or(false)
+            })
+        }
+        Err(_) => false,
+    };
+    let mut path = std::path::PathBuf::from("/sys/fs/cgroup");
+    if !dir_clean(&path) {
+        return false;
+    }
+    let Some(rel) = text.lines().find_map(|l| l.strip_prefix("0::")) else {
+        return false;
+    };
+    rel.split('/').filter(|s| !s.is_empty()).all(|seg| {
+        path.push(seg);
+        dir_clean(&path)
+    })
+}
+
+// ── The orchestrator's map-read family (moved from probe.rs at
+// NIGHT-hunt-Z7 with the ledger verdict — the same split discipline
+// as the two families above: the passive map reads the verdict
+// consumes are support machinery, not verdict logic) ──────────────
+
+/// One leaf's ledger deltas over the probe span (NIGHT-hunt-Z7).
+#[derive(Debug, Clone, Copy, Default)]
+pub(crate) struct LeafDelta {
+    pub allowed: u64,
+    pub dropped: u64,
+}
+
+/// Snapshot the ledger for every leaf the target resolved to (ONE
+/// map iteration, filtered by id): a leaf with no stats entry yet is
+/// the honest zero (a fresh pin, idle traffic — the status
+/// contract's own absent-row posture), never a fabricated absence.
+pub(crate) fn ledger_snapshots(
+    limiter: &crate::ebpf::limiter::Limiter,
+    ids: &[u32],
+) -> Result<Vec<(u32, crate::ebpf::limiter::LimiterStatsRaw)>> {
+    let rows = limiter.read_stats_public()?;
+    Ok(ids
+        .iter()
+        .map(|id| {
+            let stats = rows
+                .iter()
+                .find(|(k, _)| k == id)
+                .map(|(_, s)| *s)
+                .unwrap_or_default();
+            (*id, stats)
+        })
+        .collect())
+}
+
+/// The teardown belt's own read (NIGHT-repair-1, widened at Z7):
+/// every policed leg of the probe's leaf must still stand, at the
+/// rate this probe measured against. A vanished row is the
+/// mid-window removal; a changed rate is a mid-window re-apply;
+/// either one breaks the measurement's premise — and a DUAL apply's
+/// premise is both legs (the probe's acknowledgments spent the
+/// counter-direction's bucket all window long). The read is passive
+/// (the same map lane our_chain_is_clean uses).
+pub(crate) fn policy_still_stands(
+    limiter: &crate::ebpf::limiter::Limiter,
+    target_id: u32,
+    rates: &crate::ebpf::limiter::RateSpec,
+) -> Result<bool> {
+    let legs = [
+        (Direction::Download, rates.download),
+        (Direction::Upload, rates.upload),
+    ];
+    let mut all_stand = true;
+    for (direction, rate) in legs {
+        let Some(rate) = rate else { continue };
+        let rows = limiter.read_policies_public(direction)?;
+        if !rows
+            .iter()
+            .any(|(k, p)| *k == target_id && p.rate_bps == rate)
+        {
+            all_stand = false;
+        }
+    }
+    Ok(all_stand)
 }
 
 // The role pins live under the single test/ tree (cosmostrix
