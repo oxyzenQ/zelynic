@@ -1103,23 +1103,36 @@ def main():
     )
     args = parser.parse_args()
 
-    if args.binary:
-        lib.BINARY = args.binary
-    elif os.path.isfile("/opt/zelynic/zelynic"):
-        lib.BINARY = "/opt/zelynic/zelynic"
-    elif not lib.BINARY:
-        from shutil import which
-
-        found = which("zelynic")
-        lib.BINARY = found or "zelynic"
-
     if args.self_test:
+        # The engine smoke needs no binary (the harness's own
+        # contracts) — it keeps its resolution-free path and returns
+        # before any binary discipline applies.
         ok = self_test()
         if args.json:
             import json
 
             print(json.dumps({"results": RESULTS, "verdict": "PASS" if ok else "FAIL"}))
         return 0 if ok else 1
+
+    # NIGHT-total-lts-4: the shared resolution discipline, the same
+    # one every other battery rides (repo-local builds outrank the
+    # system PATH, ZELYNIC_BINARY and --binary win the selection,
+    # and every candidate passes the version gate — the harness
+    # tests THIS checkout, never a foreign binary silently). The
+    # local block this replaces knew none of that: its /opt
+    # preference outranked fresh repo builds, it never looked at
+    # repo-local candidates or the env var, its bare-name fallback
+    # produced 75 confusing false-red rows on a fresh clone (every
+    # output-assertion case reading "missing" against a binary that
+    # never ran) instead of the clean not-found verdict, and a
+    # stale zelynic on PATH or /opt would have been tested with no
+    # gate at all — the exact hole NIGHT-improve-11 and the
+    # 2026-09-21 debian13 incident closed for v1.
+    if not lib.resolve_binary(
+        args.binary,
+        "./scripts/supermassive/supermassive-test-v4.sh --binary ./target/pro-native-gnu/zelynic",
+    ):
+        return 1
 
     phases = [s.strip() for s in args.stages.split(",") if s.strip()] if args.stages else None
     ok = run_cli_depth(phases)
