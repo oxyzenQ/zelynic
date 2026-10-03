@@ -44,6 +44,36 @@ NIGHT-hunt-18's git-history-only call.
   blocks. CONTRIBUTING.md and docs/MAINTENANCE.md carry the
   contract.
 
+### Removed
+
+- **NIGHT-improve-39 fixup 3, the owner's final form for the
+  actions-pin health contract — the weekly server-side self-heal
+  lane is retired; the commit-time check is the contract's one
+  automatic seat.** `.github/workflows/self-heal.yml` (the
+  Monday-clock sweep that healed every `uses:` pin and pushed
+  through the `SELF_HEAL_PAT` secret) is deleted, and with it the
+  standing Workflows-write PAT the lane required — exactly the
+  credential hassle the owner refused to carry. The engine
+  `scripts/ci/actions-version-sweep.sh` keeps the two seats that
+  matter: `--dry-run` (what check-actions-pins.sh runs on every
+  commit of a wired clone, NIGHT-improve-40) and `--apply` (the
+  maintainer's on-demand heal, committed like any other change —
+  the commit-time hook re-reads the healed tree, and the push
+  rides the contributor's own credentials). The CI-only
+  `--commit` machinery (bot identity, the SWEEP_PUSH_TOKEN
+  one-shot push header, the classify-then-retry loop) is stripped
+  with the lane — dead code with stale contracts is not left
+  behind. The honest trade is recorded in docs/MAINTENANCE.md: a
+  quiet repository's pins age until the next contributor commit,
+  and they age loudly (a scheduled lane goes red on a truly
+  broken pin) rather than silently — GitHub keeps old major tags
+  working for years, so age is not rot. The secret inventory
+  drops to four (SELF_HEAL_PAT removed), the scheduled-guards
+  table and the weekly cadence row lose the self-heal line, and
+  check-actions-pins.sh's behind-hints stop pointing at a healer
+  that no longer exists (git pull now means "a contributor may
+  have healed them on origin", which is the truth).
+
 ### Fixed
 
 - **NIGHT-total-lts-3, the killer-features depth audit — two UX

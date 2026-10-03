@@ -13,7 +13,7 @@ then act on it.
 
 ## 1. Secret inventory
 
-Five secrets carry the pipeline. Each has a defined rotation path and
+Four secrets carry the pipeline. Each has a defined rotation path and
 a blast radius; none should outlive its purpose.
 
 | Secret | Where | Scope | Blast radius if leaked |
@@ -22,7 +22,6 @@ a blast radius; none should outlive its purpose.
 | `GPG_PASSPHRASE` | repo Actions secrets | passphrase for the signing subkey | useless without the key; still rotate together with it |
 | `CRATES_IO_TOKEN` | repo Actions secrets | crates.io **publish-update** scope (NIGHT-dinner-1) | a bad crate version upload; crates.io versions are permanent — yank, never re-upload |
 | `GITHUB_TOKEN` | automatic per-job | per-workflow, scoped by each job's `permissions:` block | nothing to rotate; the least-privilege `permissions:` on every job is the control |
-| `SELF_HEAL_PAT` | repo Actions secrets | a fine-grained PAT with Workflows write, zelynic-only — the push credential of the CI self-heal sweep (App tokens, the job's GITHUB_TOKEN included, are refused workflow-file writes, so the weekly pin heal rides this token; see §2) | write access to this repo's workflow files under the owner identity — regenerate the PAT and re-set the secret (GitHub Settings → Developer settings → Fine-grained tokens), nothing else to rotate |
 
 Rotation procedures:
 
@@ -46,7 +45,6 @@ Rotation procedures:
 | `audit.yml` — Dragon Guard - Security Audit | weekly (Mon) 00:00 UTC | `cargo audit` (RustSec) + `cargo deny` (licenses/advisories) over the locked tree | Observation-only by design: read the advisory, decide patch-vs-accept, record the decision in the audit trail. A weekly ping is information, not an emergency (NIGHT-improve-38: the cadence matches this table's clock) |
 | `codeql.yml` — Dragon Guard - CodeQL | weekly (Mon) | CodeQL security analysis of the userspace tree | Triage the alert; a confirmed finding gets a dated audit doc + a fix commit in the same task |
 | `maintenance.yml` — Dependency Maintenance | weekly (Mon) | GPG subkey expiry (30-day warning), stale dependencies | The GPG warning starts the §1 rotation; stale deps get a scheduled upgrade window |
-| `self-heal.yml` — Dragon Guard - CI Actions Self-heal | weekly (Mon) 00:00 UTC | every `uses:` action pin across the workflows, upgraded to the latest stable release (major/minor/patch; SHA pins stay SHA pins — the engine is `scripts/ci/actions-version-sweep.sh`), validated with actionlint + yamllint before the push; the push rides the `SELF_HEAL_PAT` secret (§1, a Workflows-write PAT — App tokens are refused workflow-file writes, the first live run proved it) | Read the verdict table in the run log. A red sweep means the API was unreachable, a healed workflow failed validation, or the push was rejected permanently (the log names which and its remediation); a green run carrying the SELF_HEAL_PAT warning means the secret is unset — the heal is re-derived and re-validated weekly, and the push waits for §1's one-time setup |
 
 Plus the push-time guards (not scheduled, but part of the posture):
 `gate-keepers.yml` wholesale on every push and PR, `ci.yml`,
@@ -123,30 +121,30 @@ binaries).
   shfmt, yamllint, codespell, actionlint, ruff) re-pin via
   `scripts/gate-keepers.sh` — the wholesale run prints the pinned
   versions it expects.
-- The **CI action pins** self-heal on the same Monday clock
-  (NIGHT-improve-39): `scripts/ci/actions-version-sweep.sh` (the
-  engine behind `self-heal.yml`) moves every pinned action to the
-  latest stable release while keeping the SHA-pinning posture.
-  A local `--dry-run` prints exactly what the next sweep would
-  heal; what the sweep refuses to touch (the `@stable` pins, pins
-  ahead of latest, non-version refs) is listed in the script's
-  header with the reason for each rule. The weekly push rides the
-  `SELF_HEAL_PAT` secret (§1): App tokens cannot update workflow
-  files, so while that secret is unset the sweep still heals and
-  validates weekly, then skips the push with a warning instead of
-  attempting what the platform refuses.
-- The same contract has a **commit-time contributor arm**
-  (NIGHT-improve-40): `scripts/gates/check-actions-pins.sh`, wired
-  through the `.githooks/pre-commit` gate, reads the pins'
-  freshness on every commit of a wired clone — same engine
-  (`--dry-run`), advisory by default (a remote fact the network
-  may not reach is never a block), verdict cached in
-  `.git/zelynic/` keyed on the workflows' content with a 6h TTL,
-  classifications MAJOR/MINOR/PATCH in the report, strict an
-  opt-in (`git config zelynic.actionsHealthCheck strict`). The
-  weekly sweep stays the estate's guarantee — the hook only sees
-  clones whose contributors ran the wholesale gates once, so the
-  two arms cover different seats, not duplicates.
+- The **CI action pins** heal at commit time — the contract's one
+  automatic seat (NIGHT-improve-39's final form, fixup 3): the
+  weekly server-side lane (`self-heal.yml`) is retired together
+  with its `SELF_HEAL_PAT` push credential, because a standing
+  Workflows-write PAT is exactly the secret the owner refused to
+  carry. `scripts/gates/check-actions-pins.sh` (NIGHT-improve-40),
+  wired through the `.githooks/pre-commit` gate, reads the pins'
+  freshness on every commit of a wired clone — advisory by default
+  (a remote fact the network may not reach is never a block),
+  verdict cached in `.git/zelynic/` keyed on the workflows'
+  content with a 6h TTL, classifications MAJOR/MINOR/PATCH in the
+  report, strict an opt-in (`git config
+  zelynic.actionsHealthCheck strict`). The heal is on demand and
+  human-carried: `scripts/ci/actions-version-sweep.sh --dry-run`
+  prints exactly what a heal would move, `--apply` performs it,
+  and the healed pins are committed like any other change (the
+  hook re-reads the healed tree; the push rides the contributor's
+  own credentials). What the sweep refuses to touch (the
+  `@stable` pins, pins ahead of latest, non-version refs) is
+  listed in the script's header with the reason for each rule.
+  The honest trade: a quiet repository's pins age until the next
+  contributor commit — and they age loudly, not silently (a
+  scheduled lane goes red on a truly broken pin; GitHub keeps old
+  major tags working for years, so age is not rot).
 
 ## 6. Docs hygiene
 
@@ -163,7 +161,7 @@ a claim without a ledger entry is a bug in the docs.
 | Every | Do |
 |-------|----|
 | push | nothing manual — the gate battery runs itself |
-| weekly (Mon) | read the CodeQL + security-audit + dependency-maintenance + CI self-heal results; rotate the GPG subkey if the 30-day warning fired |
+| weekly (Mon) | read the CodeQL + security-audit + dependency-maintenance results; rotate the GPG subkey if the 30-day warning fired |
 | monthly | skim `git log -- docs/` for purpose drift; re-run `./scripts/gate-keepers.sh` once on the dev machine (re-arms the commit hook if the clone moved) |
 | per release | the §4 routine; the §3 ritual whenever `ebpf/` moved in the cycle |
 | quarterly | full sandbox validation matrix ([SANDBOX.md](SANDBOX.md)), a fresh dated audit doc recording the state of the project, and a stale-secret review (§1) |

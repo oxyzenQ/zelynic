@@ -3,13 +3,16 @@
 # SPDX-License-Identifier: GPL-3.0-only
 # OS: Linux only — zelynic is a Linux eBPF tool; no other OS is supported.
 #
-# NIGHT-improve-39: the CI actions version sweep — the self-healing
-# arm of the estate's weekly Monday clock (00:00 UTC / 07:00 WIB,
-# the one-clock rule every scheduled workflow already carries). The
-# owner's LTS ask: every `uses:` reference in the CI estate
-# upgrades itself — major, minor, or patch — so the workflows never
-# rot on stale action pins while the owner is away. This script is
-# the engine; .github/workflows/self-heal.yml is its weekly home.
+# NIGHT-improve-39: the CI actions version sweep — the engine of
+# the actions-pin health contract. The owner's LTS ask: every
+# `uses:` reference in the CI estate upgrades itself — major,
+# minor, or patch — so the workflows never rot on stale action
+# pins. The final form is contributor-carried: pins are read on
+# every commit (scripts/gates/check-actions-pins.sh,
+# NIGHT-improve-40) and healed on demand (--apply, then a normal
+# human commit) — no server-side healer, no standing push
+# credential (the retired weekly lane's SELF_HEAL_PAT secret was
+# exactly the standing-credential hassle the owner refused).
 #
 # The sweep contract, per uses: reference:
 #   - SHA pins with a version comment (the estate's NIGHT-hunt-20
@@ -36,7 +39,7 @@
 #     cannot be compared without guessing, so it is reported as
 #     SKIP with the reason (add the "# vN" token to enlist it);
 #   - anything outside .github/workflows/: the diff guard fails the
-#     run before a commit can exist (maintenance.yml's
+#     heal before the tree can be committed (maintenance.yml's
 #     dependency-only-diff discipline, applied to the CI surface).
 #
 # Version truth: GitHub releases/latest (stable releases only, no
@@ -50,41 +53,22 @@
 # Usage:
 #   scripts/ci/actions-version-sweep.sh --dry-run   # report only
 #   scripts/ci/actions-version-sweep.sh --apply     # edit workflows
-#   scripts/ci/actions-version-sweep.sh --commit    # commit + push
 #
-# --apply appends changed=true|false to $GITHUB_OUTPUT when set
-# (the workflow's step-output contract, maintenance.yml's shape).
-# --commit commits the estate's bot identity (github-actions[bot],
-# maintenance.yml's commit job precedent) and pushes through
-# SWEEP_PUSH_TOKEN — a PAT with Workflows write, the one
-# credential shape GitHub allows to update .github/workflows/
-# (App tokens, the runner's GITHUB_TOKEN included, are refused
-# that write outright; self-heal.yml's first live run proved it).
-# The push classifies before it retries: permission refusals fail
-# fast with their remediation (retrying a platform refusal only
-# burns rebases — the first-run bug this closes), and only
-# fetch-first writer races rebase and retry — the Monday clock is
-# shared with maintenance.yml's dependency sweep, and the loser of
-# a real race rebases instead of going red on what the next run
-# would heal anyway. Without SWEEP_PUSH_TOKEN the healed tree is
-# left uncommitted with a loud warning (the container lane's
-# no-docker self-skip precedent: a push the platform provably
-# refuses is never attempted). The workflow runs --apply and
-# --commit as separate steps; a standalone --commit on a clean
-# tree sweeps first, so both shapes end at the same commit.
+# --apply heals the workflow files in place and then proves, via
+# guard_diff, that the heal only ever touched .github/workflows/.
+# What happens next is deliberately manual: the maintainer
+# reviews, stages, and commits the healed pins like any other
+# change — the commit-time hook re-reads the healed tree, and the
+# push rides the contributor's own credentials (the owner's
+# NIGHT-improve-39 final form: healing carried by contributors,
+# never by a standing token a machine holds).
 #
 # Environment:
 #   GITHUB_TOKEN      optional; authenticated API reads (1000
 #                     req/h). Unauthenticated works (60 req/h) but
-#                     a shared egress IP can exhaust that
-#                     mid-sweep; the workflow always sets it.
-#   SWEEP_PUSH_TOKEN  optional; the push credential --commit rides
-#                     (a one-shot http.extraheader,
-#                     actions/checkout's own mechanism, so the
-#                     token never prints in any log). Needs
-#                     Workflows write (a fine-grained PAT) or the
-#                     workflow scope (a classic PAT); without it
-#                     --commit skips the push with a warning.
+#                     a shared egress IP can exhaust that mid-sweep
+#                     (check-actions-pins.sh picks the variable up
+#                     too).
 
 set -euo pipefail
 
@@ -93,7 +77,6 @@ cd "$REPO_ROOT"
 
 API_ROOT="https://api.github.com"
 MODE="dry-run"
-PRE_APPLIED=0
 
 # ── reporting ─────────────────────────────────────────────────────────────
 
@@ -105,22 +88,15 @@ note() { echo "SWEEP: $*"; }
 keep() { echo "KEEP:  $*"; }
 skip() { echo "SKIP:  $*"; }
 
-gh_output() {
-	if [ -n "${GITHUB_OUTPUT:-}" ]; then
-		printf '%s\n' "$1" >>"$GITHUB_OUTPUT"
-	fi
-}
-
 usage() {
 	cat <<'EOF'
 scripts/ci/actions-version-sweep.sh — the CI actions version sweep
-(NIGHT-improve-39; the full design notes live in this file's header
-and in .github/workflows/self-heal.yml).
+(NIGHT-improve-39; the full design notes live in this file's
+header).
 
 modes:
   --dry-run   report the verdict table, change nothing
   --apply     heal the workflow files in place (no git ops)
-  --commit    stage, commit (bot identity), push (SWEEP_PUSH_TOKEN)
 EOF
 }
 
@@ -427,7 +403,7 @@ sweep_tag_pin() {
 	HEALED=$((HEALED + 1))
 }
 
-# ── apply / guard / commit ────────────────────────────────────────────────
+# ── apply / guard ────────────────────────────────────────────────
 
 apply_edits() {
 	local i j f idx lines
@@ -469,75 +445,11 @@ guard_diff() {
 	fi
 }
 
-# do_commit — the estate's bot identity, the diff in the commit
-# body, and the push. The sweep only ever writes
-# .github/workflows/ (guard_diff enforces it), and GitHub refuses
-# that write to App-backed tokens — the runner's GITHUB_TOKEN
-# included — so the push rides SWEEP_PUSH_TOKEN through a one-shot
-# http.extraheader (actions/checkout's own mechanism: a -c flag
-# outranks the persisted credential, and the token never prints).
-# Refusals are classified before any retry: a permission rejection
-# is permanent (the first live run burned three fetch-rebase
-# cycles on one), only a fetch-first writer race rebases.
-do_commit() {
-	local branch diffbody attempt out b64
-	branch="$(git rev-parse --abbrev-ref HEAD)"
-	if [ "$branch" != "main" ]; then
-		echo "SWEEP: not on main (${branch}); leaving the healed tree uncommitted"
-		return 0
-	fi
-	if [ -z "$(git status --porcelain -- .github/workflows)" ]; then
-		echo "SWEEP: nothing to heal, no commit"
-		return 0
-	fi
-	if [ -z "${SWEEP_PUSH_TOKEN:-}" ]; then
-		echo "::warning::Dragon Guard healed and validated this tree but cannot push it: SWEEP_PUSH_TOKEN is unset, and GitHub refuses workflow-file writes to App tokens (the runner's GITHUB_TOKEN included). Set the SELF_HEAL_PAT repository secret to a PAT with Workflows write (self-heal.yml wires it in); the heal is re-derived and re-validated every run, and the push waits for that one-time setup."
-		echo "SWEEP: push skipped — no SWEEP_PUSH_TOKEN (workflow files need a Workflows-write PAT); the healed tree stays uncommitted for a manual push"
-		return 0
-	fi
-	# The diff rides in the commit body: the log is the audit trail
-	# of exactly which pins moved, no re-derivation needed.
-	diffbody="$(git diff -- .github/workflows)"
-	git config user.name "github-actions[bot]"
-	git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-	git add .github/workflows
-	git commit -m "chore(ci): maintenance actions weekly" \
-		-m "Healed by scripts/ci/actions-version-sweep.sh (NIGHT-improve-39); the verdict table lives in the workflow run log." \
-		-m "$diffbody"
-	b64="$(printf 'x-access-token:%s' "$SWEEP_PUSH_TOKEN" | base64 | tr -d '\n')"
-	for attempt in 1 2 3; do
-		if out="$(git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic ${b64}" push origin main 2>&1)"; then
-			echo "$out"
-			echo "SWEEP: pushed the healed pins (attempt ${attempt})"
-			return 0
-		fi
-		echo "$out"
-		if grep -Eqi 'refusing to allow|permission denied|workflows permission|GH006|protected branch|required status checks' <<<"$out"; then
-			echo "FAIL: the push was rejected permanently — no retry can heal this (it is not a writer race)."
-			echo "If the rejection names workflows permission: the SWEEP_PUSH_TOKEN token cannot update .github/workflows/ — it needs Workflows write (a fine-grained PAT) or the workflow scope (a classic PAT)."
-			return 1
-		fi
-		echo "SWEEP: push did not land (attempt ${attempt}); fetching and rebasing — a fetch-first writer race, the one shape a retry heals"
-		if ! git fetch origin main; then
-			echo "FAIL: fetch failed ahead of the rebase; the next run re-heals from origin"
-			return 1
-		fi
-		if ! git rebase origin/main; then
-			git rebase --abort || true
-			echo "FAIL: rebase conflict onto origin/main — the healed tree is stale; the next run re-heals from origin"
-			return 1
-		fi
-	done
-	echo "FAIL: could not push after 3 attempts; the next run re-heals from origin"
-	return 1
-}
-
 # ── main ──────────────────────────────────────────────────────────────────
 
 case "${1:-}" in
 --dry-run) MODE="dry-run" ;;
 --apply) MODE="apply" ;;
---commit) MODE="commit" ;;
 -h | --help)
 	usage
 	exit 0
@@ -550,33 +462,16 @@ case "${1:-}" in
 	;;
 esac
 
-# Commit mode reuses an already-healed tree when one exists (the
-# workflow's --apply + --commit two-step); on a clean tree it sweeps
-# and applies first, so a standalone --commit is self-sufficient.
-if [ "$MODE" = "commit" ] && [ -n "$(git status --porcelain -- .github/workflows)" ]; then
-	PRE_APPLIED=1
-	echo "SWEEP: tree already healed by a prior --apply; committing as-is"
-fi
-if [ "$PRE_APPLIED" -eq 0 ]; then
-	sweep
-	if [ "$MODE" != "dry-run" ] && [ "${#EDIT_FILE[@]}" -gt 0 ]; then
-		apply_edits
-	fi
+sweep
+if [ "$MODE" != "dry-run" ] && [ "${#EDIT_FILE[@]}" -gt 0 ]; then
+	apply_edits
 fi
 
-if [ "$MODE" = "apply" ]; then
-	if [ "${#EDIT_FILE[@]}" -gt 0 ]; then
-		guard_diff
-		gh_output "changed=true"
-	else
-		gh_output "changed=false"
-	fi
+# The heal is proven sweep-only before the tree is handed to a
+# human commit (the maintainer stages and commits it themselves).
+if [ "$MODE" = "apply" ] && [ "${#EDIT_FILE[@]}" -gt 0 ]; then
+	guard_diff
 fi
 
 echo ""
 echo "sweep verdict: ${HEALED} healed, ${KEPT} kept, ${SKIPPED} skipped (mode: ${MODE})"
-
-if [ "$MODE" = "commit" ]; then
-	guard_diff
-	do_commit
-fi

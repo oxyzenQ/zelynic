@@ -29,8 +29,9 @@
 #   3. CI actions-pin health (delegated to
 #      check-actions-pins.sh, NIGHT-improve-40): the freshness of
 #      every `uses:` pin against upstream, classified
-#      MAJOR/MINOR/PATCH — the commit-time contributor arm of the
-#      NIGHT-improve-39 self-heal contract.
+#      MAJOR/MINOR/PATCH — the actions-pin health contract's one
+#      automatic seat (NIGHT-improve-39's final form: the weekly
+#      server-side lane is retired, contributors carry freshness).
 #
 # Two contract classes share this gate, and the split is the point:
 # sections 1-2 fail closed because prebuilt parity is a LOCAL fact
