@@ -862,7 +862,8 @@ jobs:
           # truncated page.
           BODY_BYTES=$(wc -c < release-body.md | tr -d ' ')
           if [ "${BODY_BYTES}" -gt 124000 ]; then
-            echo "::error::Release body is ${BODY_BYTES} bytes — over the 124,000-byte platform-cap check. Refusing to publish a body GitHub would silently truncate (NIGHT-hunt-Z11)."
+            echo "::error::Release body is ${BODY_BYTES} bytes — over the 124,000-byte platform cap (NIGHT-hunt-Z11)."
+            echo "Refusing to publish a body GitHub would silently truncate."
             exit 1
           fi
 
