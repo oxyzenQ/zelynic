@@ -1775,6 +1775,72 @@ entropy 3.0209/3.0166 vs 3.0214/3.0214; dirty cells 40.0/39.8 vs
 681 unit + 47 integration green (677 + 4 new pins); clippy and
 rustfmt clean.
 
+## Harness Resolution Audit (NIGHT-total-lts-4, 2026-10-03)
+
+The total-infra cross-check pass (all five areas, the peak-skip
+protocol, at c142270) audited the infrastructure no prior pass
+had covered end to end — the crash-recovery stack
+(term_reset/), the raw-fd input parsing (terminal/raw.rs), the
+network update surface, the LOC and permission contracts, and
+the test harnesses themselves — and closed one find in the
+verification layer.
+
+### The find: the v4 battery resolved its binary outside the shared discipline
+
+The v4 CLI depth battery (the 121-row surface-completeness
+verdict CI leans on) picked its binary with a local if-chain
+that knew none of the shared resolver's rules: no repo-local
+candidates, no `ZELYNIC_BINARY`, no version gate — and an
+`/opt/zelynic/zelynic` preference that outranked fresh repo
+builds. Two reachable failure shapes: a fresh clone without an
+install fell back to the bare name `zelynic` and produced 75
+false-red rows (every output assertion reading "missing"
+against a binary that never ran) instead of the clean
+not-found verdict with the one-command fix; and a stale
+`zelynic` on PATH or /opt was tested silently with no check
+that it matched this checkout — the exact hole
+NIGHT-improve-11 and the 2026-09-21 debian13 incident (12 of 23
+rows lost to a stale v4.0.0-alpha) closed for every other
+battery.
+
+The close is the doctrine: the local block is deleted and the
+real-run path calls the shared `resolve_binary` (explicit
+`--binary`, then `ZELYNIC_BINARY`, then repo-local builds
+newest-first, then PATH — every candidate passing the version
+gate), while the `--self-test` engine smoke keeps its
+resolution-free path. All four call shapes verified: the bare
+local invocation resolves the repo-local pro-native-gnu build
+and runs 121/0/0; `--binary target/debug/zelynic` passes the
+gate and runs 121/0/0; `--self-test` passes untouched; both CI
+call sites (the workflow's two legs and the supermassive
+container's explicit `/opt/zelynic/zelynic`) ride the explicit
+path — the container leg gaining the version gate it never
+had. ruff clean.
+
+### Verified clean (no change needed, this pass)
+
+- **The crash-recovery stack (term_reset/):** the five-layer
+  rescue's ordering (termios first with TCSAFLUSH's
+  input-flood drop), the O_NONBLOCK emission discipline, the
+  root-context PATH pin, the TERM guard before the external
+  resets, the mode-direction contract — zero panic candidates.
+- **The raw-fd input plumbing (terminal/raw.rs):** the OSC 11
+  parser's caps, patience, first-byte contract, and hex-channel
+  bounds — pure and pinned.
+- **The LOC contract:** 177 gated files, exactly 2 exemptions
+  (build.rs, src/ebpf/render.rs), both re-read and still
+  justified; the ebpf/ kernel tree's out-of-scope status
+  verified against the gate's own count.
+- **The stale-claim sweep:** the strong-invariant comment hunt
+  (the class that caught lts-3's argv-walk lie and lts-5's wrap
+  claim) — every sampled claim holds at this HEAD.
+- **The update surface:** static curl argv, the tag through
+  sanitize_comm, root refusal before network I/O — re-verified
+  by reading.
+- **Every instrument fresh:** unit 681 + integration 47, the v4
+  battery 121/0/0 (post-fix), the nonroot depth suite 90/90,
+  the v2/v3/v4 engine self-tests 10/0, 34/0, PASS.
+
 ## License
 
 GPL-3.0-only — source code is fully open. Anyone can audit, modify, and

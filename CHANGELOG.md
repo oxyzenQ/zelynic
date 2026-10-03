@@ -19,6 +19,54 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Added
 
+- **NIGHT-total-lts-4, the total-infra cross-check audit — one
+  harness find closed by returning the v4 battery to the shared
+  binary-resolution discipline.** The pass audited the
+  infrastructure no prior pass had covered end to end (the
+  crash-recovery stack term_reset/, the raw-fd input parsing
+  terminal/raw.rs, the network update surface, the LOC and
+  permission contracts, and the test harnesses themselves) and
+  found the v4 CLI depth battery — the 121-row
+  surface-completeness verdict CI leans on — resolving its binary
+  with a local if-chain that knew none of the shared resolver's
+  rules: no repo-local candidates, no `ZELYNIC_BINARY`, no
+  version gate, and an `/opt/zelynic/zelynic` preference that
+  outranked fresh repo builds. Two reachable failure shapes: a
+  fresh clone without an install fell back to the bare name
+  `zelynic` and produced 75 false-red rows (every output
+  assertion reading "missing" against a binary that never ran)
+  instead of the clean not-found verdict with the one-command
+  fix; and a stale `zelynic` on PATH or /opt was tested silently
+  with no check that it matched this checkout — the exact hole
+  NIGHT-improve-11 and the 2026-09-21 debian13 incident (12 of 23
+  rows lost to a stale v4.0.0-alpha) closed for every other
+  battery. Fix (scripts/supermassive/supermassive-test-v4.py):
+  the local block is deleted and the real-run path calls the
+  shared `resolve_binary` — explicit `--binary`, then
+  `ZELYNIC_BINARY`, then repo-local builds newest-first, then
+  PATH, every candidate passing the version gate — while the
+  `--self-test` engine smoke keeps its resolution-free path. All
+  four call shapes verified: the bare local invocation resolves
+  the repo-local pro-native-gnu build and runs 121/0/0;
+  `--binary target/debug/zelynic` passes the gate and runs
+  121/0/0; `--self-test` passes untouched; both CI call sites
+  (the workflow's two legs and the supermassive container's
+  explicit `/opt/zelynic/zelynic`) ride the explicit path, the
+  container leg gaining the version gate it never had. Verified
+  clean on the record (SAFETY_ANALYSIS.md's NIGHT-total-lts-4
+  section + the audit doc): the crash-recovery stack (the
+  five-layer rescue's ordering, the O_NONBLOCK discipline, the
+  root PATH pin, the TERM guard), the OSC 11 parser family, the
+  LOC contract (2 justified exemptions), the stale-claim sweep
+  (the strong-invariant comment hunt — every sampled claim holds
+  at this HEAD), and the update surface. Every instrument fresh:
+  unit 681 + integration 47, the v4 battery 121/0/0 post-fix,
+  the nonroot depth suite 90/90, the v2/v3/v4 engine self-tests
+  10/0, 34/0, PASS; ruff, clippy, and rustfmt clean; build.sh
+  check-all -q EXIT 0 within the 2-minute cap; gate-keepers
+  16/16 PASS. The audit record:
+  docs/audits/NIGHT_TOTAL_LTS_4_AUDIT_2026-10-03.md.
+
 - **NIGHT-total-lts-5, the killer-features depth audit round two —
   one audit-seam find closed at the one boundary every poll delta
   flows through.** The hunt deliberately read the surfaces lts-3
