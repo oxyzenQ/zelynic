@@ -17,6 +17,33 @@ NIGHT-hunt-18's git-history-only call.
 
 ## [Unreleased]
 
+### Added
+
+- **NIGHT-improve-40, the commit-time actions-pin health arm — every
+  contributor's commit now reads the CI estate's pin freshness and
+  reports it before the commit lands.** The new gate
+  `scripts/gates/check-actions-pins.sh` joins the
+  `.githooks/pre-commit` gate (check-commit-gate.sh section 3): it
+  runs the NIGHT-improve-39 sweep engine read-only (`--dry-run`),
+  classifies every outdated pin MAJOR/MINOR/PATCH, and prints the
+  verdict — current costs one line, behind prints the classified
+  table with its heal commands. Advisory by default, and the split
+  is deliberate: the prebuilt lane sections fail closed because
+  parity is a local fact this machine can always prove, while pin
+  freshness is a remote fact — offline, rate-limited (a
+  `/rate_limit` pre-flight guards the anonymous 60/hour budget),
+  missing tools, and a sweep that overruns its 30s budget all skip
+  with a note instead of blocking or pretending (an overrunning
+  check refreshes the cache in the background for the next
+  commit). The verdict is cached under `.git/zelynic/` keyed on
+  the workflows' content hash with a 6h TTL — a fresh commit on a
+  warm cache costs one cache read and zero API calls. Strict
+  contributors opt in per clone (`git config
+  zelynic.actionsHealthCheck strict`, or the
+  `ZELYNIC_ACTIONS_HEALTH=` one-shot); only a KNOWN-stale verdict
+  blocks. CONTRIBUTING.md and docs/MAINTENANCE.md carry the
+  contract.
+
 ### Fixed
 
 - **NIGHT-total-lts-3, the killer-features depth audit — two UX

@@ -136,8 +136,9 @@ scripts/
   build.sh             — check-all orchestration
   gate-keepers.sh      — the wholesale non-code gates (19 sections,
                 run before every commit; the first run self-installs
-                .githooks/pre-commit — the commit-time prebuilt
-                gate, NIGHT-dinner-1)
+                .githooks/pre-commit — the commit-time gate,
+                NIGHT-dinner-1: prebuilt lane parity, plus the
+                advisory actions-pin health arm, NIGHT-improve-40)
   package/            — the install family (NIGHT-dinner-27:
                 scripts/install.sh + uninstall.sh moved here, the
                 repo-root clutter retired)
@@ -334,10 +335,22 @@ tree hash, so any ebpf/ change fails the gates until
 refresh-prebuilt.sh regenerates the lane). The script's first run on
 a clone also self-installs .githooks/pre-commit (NIGHT-dinner-1:
 git config core.hooksPath=.githooks, repo-local) — from then on
-every commit executes scripts/gates/check-commit-gate.sh (prebuilt
-parity on the staged tree + the ebpf/ <-> ebpf-prebuilt/ pairing
-rule), so an ebpf/ change cannot be committed without its refreshed
-lane even when the wholesale gates are forgotten. Missing tools
+every commit executes scripts/gates/check-commit-gate.sh: the
+fail-closed prebuilt lane (parity on the staged tree + the ebpf/
+<-> ebpf-prebuilt/ pairing rule — an ebpf/ change cannot be
+committed without its refreshed lane even when the wholesale gates
+are forgotten) and the advisory CI actions-pin health arm
+(NIGHT-improve-40: check-actions-pins.sh reads every `uses:` pin's
+freshness against upstream at commit time, classifies what it finds
+MAJOR/MINOR/PATCH, and prints the verdict — current costs one line,
+behind prints the table with its heal commands; the verdict is
+cached in .git/zelynic/ keyed on the workflows' content, so a
+fresh commit costs nothing. Advisory by default because pin
+freshness is a remote fact — a laptop without network, quota, or
+the tools skips with a note instead of pretending; strict is an
+opt-in: git config zelynic.actionsHealthCheck strict blocks on a
+known-stale verdict, ZELYNIC_ACTIONS_HEALTH=off silences it, and
+--no-verify skips every hook as git itself promises). Missing tools
 are skipped with a warning locally; the
 Gate-keepers workflow (.github/workflows/gate-keepers.yml, unfiltered —
 every push, docs-only included) runs the entire script wholesale with
