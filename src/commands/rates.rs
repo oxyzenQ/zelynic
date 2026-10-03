@@ -5,6 +5,13 @@
 
 use anyhow::Result;
 
+// NIGHT-hunt-Z9: the shadowed-positional pins live under the single
+// test/ tree (cosmostrix Pattern C), #[path]-wired exactly like the
+// ux and argv pin families.
+#[cfg(all(test, feature = "ebpf"))]
+#[path = "../../test/cli/rates_shadow_tests.rs"]
+mod rates_shadow_tests;
+
 // ── The override's silence (NIGHT-improve-30) ─────────────────────────
 //
 // The former `--allow-dangerous` path printed up to three "[limiter]
@@ -33,6 +40,20 @@ fn parse_rate_checked(s: &str, force_this: bool) -> Result<u64> {
 /// If -d or -u is specified, use those (per-direction).
 /// If neither -d nor -u, but positional rate exists, use it for BOTH directions.
 /// If nothing specified, return empty RateSpec (caller should error).
+///
+/// NIGHT-hunt-Z9 (the shadowed-positional honesty note): when a
+/// positional rate rides beside -d/-u, the priority rule used to
+/// drop it WITHOUT A WORD — and without parsing it, so
+/// `zelynic ss brave not-a-rate -d 100kb` sailed past the input
+/// boundary with its typo unexamined, violating the
+/// parse-before-execute ladder every handler here documents (a
+/// typo'd rate must surface its did-you-mean tip before the root
+/// ask). The shadowed positional is now PARSED (a garbage value
+/// errors with its tip; the value itself still applies nowhere) and
+/// a valid one prints the ignored-input note — the same stderr-only
+/// honesty contract `--print-json`, `--interval`, and `--focus`
+/// already carry: stdout and exit codes untouched, scripts
+/// unaffected, the human learns why the typed number did not land.
 #[cfg(feature = "ebpf")]
 pub(crate) fn resolve_rates(
     rate: Option<&str>,
@@ -41,7 +62,19 @@ pub(crate) fn resolve_rates(
     force_this: bool,
 ) -> Result<crate::ebpf::limiter::RateSpec> {
     if download.is_some() || upload.is_some() {
-        // -d or -u specified → use per-direction.
+        // -d or -u specified → per-direction wins; a positional rate
+        // beside it is shadowed, never silently dropped (see the
+        // module note above — parse it, then name the shadow).
+        if let Some(r) = rate {
+            use crate::ebpf::limiter::parse_rate;
+            parse_rate(r)?; // parse only: the shadowed value applies
+                            // nowhere, so the 1kb floor is not its
+                            // question — a typo is (the tip ladder).
+            crate::output::eprintln_warn_labeled(&format!(
+                "positional rate '{r}' ignored — -d/-u flags take priority \
+                 (pass -d and -u together for both directions)"
+            ));
+        }
         parse_rates(download, upload, force_this)
     } else if let Some(r) = rate {
         // No -d/-u, but positional rate → both = rate.

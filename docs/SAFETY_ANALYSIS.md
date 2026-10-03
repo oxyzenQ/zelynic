@@ -1527,6 +1527,138 @@ the eBPF object byte-identical (the prebuilt lane's tree pin
 proves it). The audit's numbers ride the three new pins, and the
 LTS baseline lock is v20.0.0 itself.
 
+## CLI Echo Boundary Audit (NIGHT-hunt-Z9, 2026-10-03)
+
+The owner's ask: after Z7's enforcement-ledger audit, ALL existing
+CLI surfaces suspected — total hardening for an LTS production
+tool, with a supermassive test focused on CLI usage to find
+potential bugs, typos, and dangerous shapes, aimed at verification
+and honesty. The hunt read every CLI-facing module (cli/ tree,
+commands/ tree, the parse family, the render boundary), probed
+every suspicion live against the debug binary before fixing, and
+closed three findings; the rest of the sweep verified clean.
+
+### Finding 1 (fixed): terminal injection through CLI echo paths
+
+The NIGHT-cybersecurity-1 audit sanitized the two untrusted input
+classes it knew: /proc comm labels and the `--check-update` release
+tag. The CLI's OWN echo paths carried a third class neither
+covered: user-supplied target, rate, and duration strings embedded
+in the error and warn messages the tool prints while refusing
+them. Confirmed live with od: `zelynic ss $'sshd\x1b]52;c;aGVsbG8=\x07'
+1mb` printed the full OSC-52 clipboard-write payload raw inside the
+blocklist refusal (the exact vector sanitize_comm's own test
+documents), and the same byte survived through the multi-segment
+grammar refusal, the invalid-rate echo, and the invalid-duration
+echo — all PRE-privilege surfaces, so the payload reached the
+terminal before any root ask. Threat model: the command line is
+usually the operator's own typing, but paste-attacks (a "fix this
+by running: ..." block copied from a webpage carrying hidden
+escape bytes) put hostile strings in argv with the operator's own
+permissions, and the refusal surfaces echo them verbatim.
+
+Fix: sanitization at the ONE render boundary every error and warn
+already flows through — `render_labeled_block`
+(src/output/labeled.rs) passes each line through `sanitize_comm`
+BEFORE its semantic wrap, so control bytes die before any color
+code is added and the renderer's own branding survives untouched.
+One move covers every anyhow error (main's single exit-adjacent
+renderer) and every labeled warn, including all future error
+paths — the same "safe by construction" doctrine the comm
+boundary owns. Success-path echoes need no pass: they print only
+MATCHED targets (a control-char name cannot match a sanitized
+comm, a u32/cg: id cannot carry one, and a container name with
+control bytes never resolves) — verified unreachable by walking
+every direct `eprintln_safe!` echo site. clap's own error contexts
+were verified already clean (clap 4 strips control characters from
+the contexts it renders).
+
+### Finding 2 (fixed): the shadowed positional rate — silent drop, unparsed
+
+`resolve_rates`' documented priority (`-d`/`-u` flags over the
+positional rate) dropped the positional WITHOUT A WORD and WITHOUT
+PARSING it: `zelynic ss brave not-a-rate -d 100kb` sailed past the
+input boundary with its typo unexamined straight to the root ask —
+the parse-before-execute ladder every strict handler documents (a
+typo'd rate must surface its did-you-mean tip before privileges
+are requested) had a hole exactly one flag wide. And a VALID
+shadowed positional (`ss brave 100kb -d 50kb`) vanished silently —
+the silent-no-op class this CLI refuses everywhere else
+(`--print-json`, `--interval`, and `--focus` each print an
+ignored-input note on the same shape).
+
+Fix (src/commands/rates.rs): the shadowed positional is now PARSED
+(parse-only, no bounds — the value applies nowhere, so the 1kb
+floor is not its question; a typo is) and a valid one prints the
+ignored-input note — one stderr line naming the dropped value and
+the rule, stdout and exit codes untouched, so scripts keep their
+behavior and humans learn why the typed number did not land. All
+three strict verbs share the ladder through the one resolve_rates
+call site.
+
+### Finding 3 (fixed): hidden internal roles leaked by the typo engine
+
+clap's did-you-mean engine scores candidates from
+`all_subcommand_names()` — hidden ones included — so
+`zelynic __probe-serve` answered "some similar subcommands exist:
+'__probe-client', '__probe-server'": the vocabulary the help hides
+surfaced as a tip, teaching the operator to run the internal probe
+server (an unauthenticated loopback data blast) by hand. The
+flag-side rescue in the ux bridge already filtered `is_hide_set()`
+candidates; the subcommand side had no twin.
+
+Fix (src/cli/ux.rs): `drop_hidden_subcommand_suggestions` filters
+the `SuggestedSubcommand` context — every candidate resolving to a
+hidden subcommand is dropped; when candidates remain the trimmed
+list replaces the context, when none remain the context is removed
+entirely (the unrecognized-subcommand verdict, usage, and footer
+stay — the same honest dead end any no-candidate typo owns).
+Visible suggestions and removed-name redirects were verified
+untouched (`statu` still suggests `status`, `observe` still
+redirects to `eagle-eyes`).
+
+### Verified clean (no change needed, this pass)
+
+- **Byte-safety of the parse family:** every split is
+  `split_once`/`strip_suffix` based — no byte-index slicing on
+  user input anywhere in the rate/duration grammar.
+- **Panic surface:** exactly one `expect()` in the CLI-facing
+  modules (the probe client's connect-loop invariant, provably
+  Some by the loop shape); no unwrap, no panic!, no unreachable!.
+- **Boundary validation:** `--interval` (1s..60s) and `--focus`
+  (1s..30s) refuse both edges with the bounds spelled out; the
+  fractional grammar, unicode digits, whitespace-trimmed rates,
+  and duplicate flags (clap refuses) all answer clean.
+- **The zero-rate lane:** `0` is the documented block verdict,
+  accepted with and without `--force-this`, symmetric in the
+  positional and `-d`/`-u` slots.
+- **Hidden roles' own input validation:** mode strings are
+  checked (`dl`/`ul` only), port bounds ride clap's u16, and a
+  garbage mode errors exit 1 before any bind.
+- **Early-return precedence:** help > version > reset-terminal >
+  check-update — deterministic, and the order is the safe one (a
+  broken terminal cannot read an update report).
+- **Update surface:** static curl argv (no shell, no injection),
+  sanitized release tag, hourly swarm bound, root refusal before
+  any network I/O.
+- **The probe report family:** every line echoes measured figures
+  and program-generated labels only — no user-supplied string
+  reaches the verdict block.
+
+### The supermassive seat (v4 stage 9)
+
+The contracts are pinned twice: 11 unit pins (the render
+boundary's OSC-52/CSI/clean-passthrough family in labeled.rs, the
+shadowed-positional ladder in test/cli/rates_shadow_tests.rs, the
+hidden-vocabulary and visible-survivor pins in ux_tests.rs) and a
+new v4 battery stage — 32 rootless rows: five hostile payload
+families (OSC-52 clipboard write, CSI color smuggle, newline
+forgery, C1 8-bit control, tab forgery) against four pre-root echo
+paths (blocklist refusal, multi grammar refusal, rate parse,
+duration parse), six shadowed-positional cases, and six
+hidden-vocabulary cases (three leak shapes against three
+survivor shapes). The battery grew 89 -> 121 rows, all green.
+
 ## License
 
 GPL-3.0-only — source code is fully open. Anyone can audit, modify, and

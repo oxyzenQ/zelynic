@@ -20,7 +20,24 @@
 //!
 //! All emitters are broken-pipe-safe via the crate-wide
 //! `eprintln_safe!` macro (textual scope from the output module).
+//!
+//! NIGHT-hunt-Z9 (the CLI echo boundary): every line rendered here
+//! passes through [`super::sanitize_comm`] BEFORE its semantic wrap
+//! — control bytes become `?` before any color code is added. The
+//! labeled pair is the single exit-adjacent renderer for runtime
+//! failures (`main` funnels every anyhow error through
+//! `eprintln_error_labeled`) and the warn channel the guards use,
+//! so user-supplied strings echoed inside error and warn bodies
+//! (targets, rates, durations — the OSC-52 clipboard payload a
+//! paste-attack crafts into a target name) can never reach the
+//! terminal raw. The wrap functions add this layer's OWN escapes
+//! after sanitization, so the branded colors survive untouched —
+//! the same terminal-injection contract the /proc comm boundary
+//! (NIGHT-cybersecurity-1) and the release-tag boundary
+//! (NIGHT-cybersecurity-2) already enforce, extended to the one
+//! input class neither covered: the command line itself.
 
+use super::sanitize_comm;
 use super::{error, error_bold, ok, suggestion};
 #[cfg(feature = "ebpf")]
 use super::{warn, warn_bold};
@@ -79,21 +96,31 @@ fn render_labeled_block(
 ) -> String {
     let mut lines = msg.split('\n');
     let mut out = String::with_capacity(msg.len() + 32);
-    // First line: always the labeled head, always the message semantic.
+    // First line: always the labeled head, always the message
+    // semantic. NIGHT-hunt-Z9: each line is sanitized BEFORE its
+    // wrap — the wrap adds this layer's own escapes around a clean
+    // body, so only user-supplied control bytes die (the labels and
+    // wraps are program-generated and control-free).
     if let Some(first) = lines.next() {
-        out.push_str(&format!("{} {}", label_wrap(label), body_wrap(first)));
+        out.push_str(&format!(
+            "{} {}",
+            label_wrap(label),
+            body_wrap(&sanitize_comm(first))
+        ));
     }
     // Subsequent lines: runnable tips go green (this is what you
     // type), the remaining suggestion lines white, the rest keeps
-    // the message semantic.
+    // the message semantic. Classification runs on the RAW line
+    // (the `tip:`/`hint:` prefixes are program-generated text, so
+    // sanitization cannot move a line across tiers).
     for line in lines {
         out.push('\n');
         let styled = if is_runnable_tip_line(line) {
-            ok(line)
+            ok(&sanitize_comm(line))
         } else if is_suggestion_line(line) {
-            suggestion(line)
+            suggestion(&sanitize_comm(line))
         } else {
-            body_wrap(line)
+            body_wrap(&sanitize_comm(line))
         };
         out.push_str(&styled);
     }
@@ -198,5 +225,62 @@ mod tests {
         let rendered = render_labeled_block("error:", error_bold, error, msg);
         assert!(rendered.contains('\n'));
         assert!(rendered.contains("tip: use --allow-dangerous"));
+    }
+
+    /// NIGHT-hunt-Z9 (the CLI echo boundary): every control byte in
+    /// an error body dies at this renderer — the OSC-52
+    /// clipboard-write payload a paste-attack crafts into a target
+    /// name renders with `?` in place of every control character
+    /// (ESC and BEL alike), so the sequence can never reach the
+    /// terminal raw. The clean part of the line survives verbatim.
+    #[test]
+    fn labeled_block_kills_osc52_payload_in_body() {
+        let payload = "sshd\u{1b}]52;c;aGVsbG8=\u{7} is a system process";
+        let rendered = render_labeled_block("error:", error_bold, error, payload);
+        assert!(
+            !rendered.contains('\u{1b}'),
+            "no raw ESC may survive the render, got: {rendered:?}"
+        );
+        assert!(
+            !rendered.contains('\u{7}'),
+            "no raw BEL may survive the render, got: {rendered:?}"
+        );
+        assert!(
+            rendered.contains("sshd?]52;c;aGVsbG8=? is a system process"),
+            "the payload renders with '?' substitutions, got: {rendered:?}"
+        );
+    }
+
+    /// Subsequent lines sanitize too — a CSI color smuggled into the
+    /// second line of a multi-line error (the tip body, a caused-by
+    /// hop) is neutralized the same way, and the newline structure
+    /// the line-aware tiers depend on is untouched.
+    #[test]
+    fn labeled_block_kills_csi_payload_in_later_lines() {
+        let msg = "Invalid number in rate '1\u{1b}[31mxkb'\n  tip: a similar value exists: '1kb'";
+        let rendered = render_labeled_block("error:", error_bold, error, msg);
+        assert!(
+            !rendered.contains('\u{1b}'),
+            "no raw ESC in any line, got: {rendered:?}"
+        );
+        assert!(
+            rendered.contains("rate '1?[31mxkb'"),
+            "the smuggled CSI renders with the '?' substitution, got: {rendered:?}"
+        );
+        assert!(
+            rendered.contains("tip: a similar value exists: '1kb'"),
+            "the clean tip line survives verbatim, got: {rendered:?}"
+        );
+    }
+
+    /// Clean text passes byte-identical — the fast path must not
+    /// alter honest names, tips, or punctuation (the sanitize_comm
+    /// passthrough contract, pinned here at the render boundary).
+    #[test]
+    fn labeled_block_clean_text_passes_through() {
+        let msg = "'sshd' is a system process\n  tip: re-run with --force-this";
+        let rendered = render_labeled_block("error:", error_bold, error, msg);
+        assert!(rendered.contains("'sshd' is a system process"));
+        assert!(rendered.contains("tip: re-run with --force-this"));
     }
 }

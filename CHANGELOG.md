@@ -19,6 +19,59 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Added
 
+## [Unreleased]
+
+### Added
+
+- **NIGHT-hunt-Z9, the CLI echo-boundary hardening (total CLI
+  audit for LTS production, supermassive stage included): three
+  finds closed, each verified live before the fix landed.** The
+  hunt: terminal injection through the CLI's own echo paths — the
+  third untrusted-input class NIGHT-cybersecurity-1's comm
+  boundary and NIGHT-cybersecurity-2's release-tag boundary never
+  covered. Confirmed with od: a target name carrying an OSC-52
+  clipboard-write payload (`ss $'sshd\x1b]52;c;aGVsbG8=\x07' 1mb`)
+  printed its full escape sequence RAW inside the blocklist
+  refusal — a pre-privilege surface — and the same byte survived
+  the multi-grammar refusal, the invalid-rate echo, and the
+  invalid-duration echo. Fix: one render boundary, every path —
+  `render_labeled_block` (output/labeled.rs) now passes each line
+  through `sanitize_comm` BEFORE its semantic wrap, so control
+  bytes become `?` before any color code is added; every anyhow
+  error (main's single exit-adjacent renderer) and every labeled
+  warn inherits the contract by construction, success-path echoes
+  were verified structurally unreachable with hostile bytes (they
+  print only matched targets), and clap's own contexts were
+  verified already clean. Second find: the shadowed positional
+  rate — `ss brave not-a-rate -d 100kb` sailed past the input
+  boundary with its typo unexamined straight to the root ask (the
+  parse-before-execute ladder had a hole exactly one flag wide),
+  and a valid `ss brave 100kb -d 50kb` dropped the positional
+  without a word. Fix (rates.rs): the shadowed positional is
+  parsed (a typo surfaces its did-you-mean tip before privileges;
+  parse-only, no bounds — the value applies nowhere) and a valid
+  one prints the ignored-input note — the same stderr-only honesty
+  `--print-json`/`--interval`/`--focus` carry; stdout and exit
+  codes untouched, all three strict verbs through the one call
+  site. Third find: hidden internal roles leaked by the typo
+  engine — clap's did-you-mean scores hidden subcommand names as
+  candidates, so `__probe-serve` suggested both probe roles,
+  teaching the operator to run the unauthenticated data-blast
+  server by hand. Fix (cli/ux.rs): `drop_hidden_subcommand_suggestions`
+  filters the `SuggestedSubcommand` context (the flag-side
+  rescue's own `is_hide_set` discipline, extended to the
+  subcommand door); visible suggestions and removed-name redirects
+  verified untouched. The supermassive seat: v4 battery stage 9 —
+  32 new rootless rows (five hostile payload families against
+  four pre-root echo paths, six shadowed-positional cases, six
+  hidden-vocabulary cases), the battery 89 -> 121, all green; 11
+  new unit pins across labeled.rs, test/cli/rates_shadow_tests.rs
+  (new file), and ux_tests.rs; 677 unit + 47 integration tests
+  green; the nonroot depth suite 90/90 with its own comm-spoof
+  guards unaffected. The rest of the sweep verified clean on the
+  record (SAFETY_ANALYSIS.md, NIGHT-hunt-Z9 section): parse-family
+  byte-safety, the single provable expect, interval/focus bounds,
+  the zero-rate lane, early-return precedence, the update surface.
 - **NIGHT-hunt-Z7, the limiter + monitoring depth audit (the owner's
   dual-limit find, masterclass hardening): the enforcement probe
   learned to read the kernel's own verdict — the ledger's dropped

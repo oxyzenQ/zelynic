@@ -287,7 +287,10 @@ fi
 # before the root check), so v4 is the most CI-friendly supermassive
 # test — it runs on every host without sudo. A green row here is the
 # "the surface is COMPLETE" verdict — v4 proves coverage, v2 proves
-# hardness (the same surface from both ends).
+# hardness (the same surface from both ends). NIGHT-hunt-Z9 adds
+# stage 9, the hardening seat: hostile control-byte payloads against
+# every pre-root echo path (the render boundary's '?' contract), the
+# shadowed-positional ladder, and the hidden-vocabulary leak cases.
 if python3 scripts/supermassive/supermassive-test-v4.py \
 	--binary /opt/zelynic/zelynic; then
 	note "supermassive v4 - CLI depth battery (full, rootless)" PASS
