@@ -291,6 +291,12 @@ fi
 # stage 9, the hardening seat: hostile control-byte payloads against
 # every pre-root echo path (the render boundary's '?' contract), the
 # shadowed-positional ladder, and the hidden-vocabulary leak cases.
+# This leg runs the battery as root (the init context), so stage 9's
+# three valid-rate shadow rows — the ones asserting the root-refusal
+# message — SKIP without executing here (v3's privilege-gate
+# doctrine; a valid rate past a passing gate is an enforcement
+# attempt no v4 case makes). The rootless Dragon Guard - CI leg
+# still runs all 121 rows on every push.
 if python3 scripts/supermassive/supermassive-test-v4.py \
 	--binary /opt/zelynic/zelynic; then
 	note "supermassive v4 - CLI depth battery (full, rootless)" PASS

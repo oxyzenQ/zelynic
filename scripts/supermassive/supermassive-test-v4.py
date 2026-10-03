@@ -39,7 +39,18 @@ Rootless by design: the CLI surface (help, version, alias routing,
 typo tips, rate validation, color modes, removed-command rejection)
 parses BEFORE the root check, so v4 runs on every host without sudo —
 the most CI-friendly supermassive test. The enforcement depth (root +
-eBPF) is v1/v2's domain; v4 is the surface contract.
+eBPF) is v1/v2's domain; v4 is the surface contract. The one honest
+exception, stage 9's shadowed-positional table: its three valid-rate
+rows assert the root-refusal message itself, a needle only a NON-root
+run can produce. When the harness runs as root (the supermassive VM's
+init context — the CI leg that also carries the BPF batteries), those
+rows SKIP without executing on v3's privilege-gate doctrine ("the gate
+cannot be triggered as root") and for the safety it shares with every
+other v4 case: a valid rate past a passing gate is an enforcement
+attempt, and no v4 case executes a policy. The rootless CI leg
+(.github/workflows/ci.yml) still runs all 121 rows end to end on
+every push; the garbage/typo shadow rows run under every uid because
+their refusals fire at the parse boundary, before the gate.
 
 Design:
 
@@ -322,7 +333,29 @@ RAW_CONTROL_BYTES = ["\x1b", "\x07", "\x9b", "\x08", "\x0b", "\x0c", "\r"]
 # beside -d/-u is parsed (a garbage one surfaces its typo BEFORE the
 # root ask — the parse-before-execute ladder) and a valid one is
 # named (the ignored-input warn), while -d/-u decide what applies.
-# Post as (argv, must_contain, must_not_contain, description).
+# Post as (argv, must_contain, must_not_contain, description,
+# rootless_lane).
+#
+# rootless_lane marks the rows whose verdict rides the root-refusal
+# message itself ("root required" in must_contain) — a needle only
+# reachable when the harness runs NON-root. The supermassive VM runs
+# this battery as root (its init context — v1/v2/v3 need root for
+# the BPF legs), so the gate passes there and the needle never
+# appears: the Z9 rows failed the VM leg red from their first push
+# (118/3 on 9eb112d through f856ae3) while passing every rootless
+# leg. When root, those rows SKIP on v3's own doctrine (its
+# privilege-gate stage: "the gate cannot be triggered as root") and
+# never execute — the safety half is load-bearing: a VALID rate past
+# a passing gate is an enforcement attempt, and this battery's
+# safety-by-construction contract refuses to execute a policy (valid
+# executions are v1's matrix; on any host where the target app
+# exists, running these rows as root would shape it for real). The
+# garbage/typo rows stay lane-free — their refusals fire at the parse
+# boundary, before the gate and before any enforcement, so they hold
+# on every host under every uid. The rootless CI leg
+# (.github/workflows/ci.yml) carries the three rootless-lane rows on
+# every push, and test/cli/rates_shadow_tests.rs pins the note
+# contract at the Rust level.
 SHADOWED_POSITIONAL_CASES = [
     (
         # Pure garbage has no near-miss twin, so no tip fires — the
@@ -332,36 +365,42 @@ SHADOWED_POSITIONAL_CASES = [
         ["Invalid rate 'not-a-rate'"],
         ["root required"],
         "garbage positional surfaces its refusal before the root ask",
+        False,
     ),
     (
         ["ss", "brave", "1MB", "-d", "100kb"],
         ["Invalid rate '1MB'", "'1mb'"],
         ["root required"],
         "uppercase positional typo carries the did-you-mean tip",
+        False,
     ),
     (
         ["ss", "brave", "100kb", "-d", "50kb"],
         ["positional rate '100kb' ignored", "root required"],
         [],
         "valid positional is named, then the flags decide",
+        True,
     ),
     (
         ["sm", "brave:curl", "garbage", "-d", "1mb"],
         ["Invalid rate"],
         ["root required"],
         "strict-multi family shares the ladder",
+        False,
     ),
     (
         ["sa", "100kb", "-d", "1mb"],
         ["positional rate '100kb' ignored", "root required"],
         [],
         "strict-all family shares the note",
+        True,
     ),
     (
         ["ss", "brave", "100kb"],
         ["root required"],
         ["ignored"],
         "unshadowed positional: no note (the rate applies)",
+        True,
     ),
 ]
 
@@ -454,6 +493,17 @@ def _run_cli_case(argv):
 def _case_panicked(output):
     """True when the output carries a Rust panic sentinel."""
     return bool(PANIC_RE.search(output))
+
+
+def _is_root():
+    """True when the harness runs as UID 0 (the supermassive VM shape).
+
+    v3's own twin, same shape: the supermassive init context (the VM's
+    PID 1 lane) runs every battery as root because v1/v2/v3 need it
+    for BPF — v4 rides the same init and must know which of its rows
+    are unreachable there.
+    """
+    return hasattr(os, "geteuid") and os.geteuid() == 0
 
 
 # ── stage 1: command surface (every command + alias recognized) ──────────
@@ -905,7 +955,13 @@ def test_echo_boundary():
        must still fire (an unprintable target dodges no guard).
     2. THE SHADOWED POSITIONAL. A positional rate beside -d/-u is
        parsed (a garbage one surfaces its typo BEFORE the root ask)
-       and a valid one is named by the ignored-input warn.
+       and a valid one is named by the ignored-input warn. The three
+       rows that carry the root-refusal needle (the valid-rate
+       shapes) are rootless-lane rows: they run and assert on every
+       non-root host and SKIP without executing when the harness
+       itself is root (v3's privilege-gate doctrine — and a valid
+       rate past a passing gate is an enforcement attempt no v4 case
+       may make).
     3. THE HIDDEN VOCABULARY. A typo near a hidden internal role
        leaks no role name, while visible near-misses keep their
        suggestions and removed names keep their redirects.
@@ -942,8 +998,25 @@ def test_echo_boundary():
             record(label, "PASS", "no raw control byte, refusal intact")
 
     # ── contract 2: the shadowed positional ──
-    for argv, must_contain, must_not_contain, desc in SHADOWED_POSITIONAL_CASES:
+    for argv, must_contain, must_not_contain, desc, rootless_lane in SHADOWED_POSITIONAL_CASES:
         label = f"shadow: {desc}"
+        if rootless_lane and _is_root():
+            # v3's privilege-gate doctrine, one stage over: the
+            # root-refusal needle these rows assert cannot fire when
+            # the harness itself is root (the supermassive VM's init
+            # context). The row skips without executing — the safety
+            # half is the point: a valid rate past a passing gate is
+            # an enforcement attempt, and no v4 case executes a
+            # policy. The rootless CI leg carries these rows on every
+            # push; rates_shadow_tests.rs pins the note at the Rust
+            # level.
+            record(
+                label,
+                "SKIP",
+                "harness runs as root — the root-refusal lane cannot trigger "
+                "(the rootless CI leg carries this row)",
+            )
+            continue
         rc, output = _run_cli_case(argv)
         if rc is None:
             record(label, "FAIL", "timed out (hang)")
@@ -1005,6 +1078,7 @@ def self_test():
         )
         and ok
     )
+    _lanes = sum(1 for c in SHADOWED_POSITIONAL_CASES if c[-1])
     ok = (
         record(
             "engine: v4 case tables populated",
@@ -1018,13 +1092,15 @@ def self_test():
             and len(ECHO_PAYLOADS) > 0
             and len(ECHO_PATHS) > 0
             and len(SHADOWED_POSITIONAL_CASES) > 0
+            and 0 < _lanes < len(SHADOWED_POSITIONAL_CASES)
             and len(HIDDEN_LEAK_CASES) > 0
             else "FAIL",
             f"{len(COMMANDS)} commands, {len(COLOR_MODES_VALID)}+{len(COLOR_MODES_INVALID)} color modes, "
             f"{len(TYPOS)} typos, {len(RATE_CASES)} rate cases, {len(REMOVED)} removed, "
             f"{len(LONG_ALIASES)} long aliases, "
             f"{len(ECHO_PAYLOADS)}x{len(ECHO_PATHS)} echo payloads/paths, "
-            f"{len(SHADOWED_POSITIONAL_CASES)} shadow cases, {len(HIDDEN_LEAK_CASES)} vocab cases",
+            f"{len(SHADOWED_POSITIONAL_CASES)} shadow cases ({_lanes} rootless-lane), "
+            f"{len(HIDDEN_LEAK_CASES)} vocab cases",
         )
         and ok
     )
@@ -1061,6 +1137,12 @@ def run_cli_depth(phases):
     out("================================================================")
     out(f"  binary: {lib.BINARY or '(not bound — pass --binary)'}")
     out("  root:   not required (CLI surface parses before the root check)")
+    _rootless_lanes = sum(1 for c in SHADOWED_POSITIONAL_CASES if c[-1])
+    if _is_root():
+        out(
+            f"          harness runs as root — the {_rootless_lanes} rootless-lane "
+            "shadow rows will skip (v3's doctrine: the gate cannot fire as root)"
+        )
     out(f"  stages: {', '.join(name for name, _ in stages)}")
     out("================================================================")
     out()
