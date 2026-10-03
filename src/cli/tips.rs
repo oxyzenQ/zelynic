@@ -53,6 +53,15 @@ pub(crate) fn rate_tip(input: &str) -> Option<String> {
     const UNITS: [&str; 5] = ["kb", "mb", "gb", "tb", "b"];
     let trimmed = input.trim();
 
+    // The comma lane owns its own repair (NIGHT-hunt-Z7): the number
+    // layer's error already suggests the dot form or the separator
+    // removal — a unit-matcher tip beside it would compete (and a
+    // comma-truncated prefix could suggest a DIFFERENT rate than the
+    // writer typed). The guard keeps one input, one repair.
+    if trimmed.contains(',') {
+        return None;
+    }
+
     let lower = trimmed.to_ascii_lowercase();
     if lower != trimmed && crate::ebpf::limiter::parse_rate(&lower).is_ok() {
         return Some(value_tip(&lower));
@@ -87,6 +96,12 @@ pub(crate) fn rate_tip(input: &str) -> Option<String> {
 pub(crate) fn duration_tip(input: &str) -> Option<String> {
     const UNITS: [&str; 3] = ["s", "m", "h"];
     let trimmed = input.trim();
+
+    // The comma lane owns its own repair (NIGHT-hunt-Z7) — the rate
+    // twin's guard, same reason: one input, one repair.
+    if trimmed.contains(',') {
+        return None;
+    }
 
     let lower = trimmed.to_ascii_lowercase();
     if lower != trimmed && crate::ebpf::limiter::parse_time_duration(&lower).is_ok() {

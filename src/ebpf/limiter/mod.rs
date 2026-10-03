@@ -59,8 +59,8 @@ mod drr_tests;
 // Re-export public types/functions for external use (the
 // parse/format LOC-cap splits kept this surface unchanged).
 pub use format::{
-    default_burst, format_bytes, format_bytes_wide, format_count, format_rate, monotonic_ns,
-    terminal_width,
+    default_burst, format_bytes, format_bytes_exact, format_bytes_wide, format_count, format_rate,
+    format_rate_exact, monotonic_ns, terminal_width,
 };
 pub use parse::{
     parse_focus_window, parse_monitor_interval, parse_rate, parse_time_duration, validate_rate,

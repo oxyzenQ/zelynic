@@ -10,7 +10,7 @@ use std::collections::HashMap;
 use crate::ebpf::identity::IdentityMap;
 use crate::ebpf::limiter::types::POLICY_FLAG_PER_SOCKET;
 use crate::ebpf::limiter::{
-    format_bytes, format_rate, monotonic_ns, terminal_width, LimiterStatsRaw, PolicyRaw,
+    format_bytes, format_rate_exact, monotonic_ns, terminal_width, LimiterStatsRaw, PolicyRaw,
 };
 use crate::ebpf::render::{grid_line, title_bar};
 use crate::output::{brand, grey, ok, signature_footer, suggestion, warn};
@@ -78,11 +78,18 @@ pub(super) fn collect_display_data(
 /// One rate cell's text: the rate, plus " /socket" when the policy
 /// enforces per socket (charger-core-3b — the marker that keeps the
 /// table honest about WHICH budget the number names).
+///
+/// NIGHT-hunt-Z7: the cell renders through the EXACT rate twin — the
+/// status table is the surface owners check a configured limit
+/// against, and a `100.51kb` policy must read "100.51 KB/s", never
+/// the one-decimal rounding that hid the last 10 B/s (the allowed /
+/// dropped cells beside it stay on the one-decimal twin: those are
+/// MEASURED counters, the approximate display they always carried).
 fn cell_rate(bps: u64, per_socket: bool) -> String {
     if per_socket {
-        format!("{} /socket", format_rate(bps))
+        format!("{} /socket", format_rate_exact(bps))
     } else {
-        format_rate(bps)
+        format_rate_exact(bps)
     }
 }
 

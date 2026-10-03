@@ -258,6 +258,17 @@ impl Direction {
             Direction::Upload => "upload",
         }
     }
+
+    /// The other direction (NIGHT-hunt-Z7, the dual-limit hardening):
+    /// the probe's counter-direction — the lane its own TCP
+    /// acknowledgments ride, the first suspect when a policed flow
+    /// starves.
+    pub fn opposite(&self) -> Self {
+        match self {
+            Direction::Download => Direction::Upload,
+            Direction::Upload => Direction::Download,
+        }
+    }
 }
 
 // NIGHT-hunt-17: pins live under the single test/ tree, #[path]-wired

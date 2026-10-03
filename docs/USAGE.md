@@ -345,6 +345,49 @@ verdict. The probe costs ~4 seconds and one transient cgroup pair
 (kill, reap, rmdir — no residue); the target's own traffic during
 the window shares the budget and is named in the note when it does.
 
+The ledger-refusal proof (NIGHT-hunt-Z7, the dual-limit hardening):
+the kernel row carries BOTH counters now — `X admitted, Y refused
+through the ledger` — and the verdict listens to the refused half.
+The flow band alone had two live false-negative shapes: a probe whose
+own TCP acknowledgments ride the POLICED counter-direction
+(`-d 1kb -u 1kb` — the ACK egress spends the upload bucket beside
+the target's own traffic) measures ~0 B against a limit that is
+visibly biting, and a ceiling above the path's own delivery (`-d
+1tb` — the flow floor is 600 GB over a window loopback moved 807 MB)
+can never cross the floor. Both used to read UNVERIFIED while the
+same maps held the truth: hundreds of KB the kernel REFUSED. Now a
+starved flow with refusals inside the envelope is `VERIFIED` on the
+ledger-refusal proof — a `proof:` row names its basis so it is never
+conflated with the flow's own numbers — while a ledger that admits
+beyond the envelope is `FAILED` on the leak lane (`the kernel ledger
+admitted more than the budget allows`) whatever the flow measured,
+and a silent ledger under a starved flow stays UNVERIFIED with the
+reason that names its shape (the counter-direction starvation note,
+or the cannot-be-tested-from-this-loopback note). The reason stack
+is a stack: every cause its own `note:` row — starvation,
+concurrency, the multi-leaf per-cgroup ledger (`the target spans N
+cgroups ... window ledger: cg:A X in / Y refused, ...`), and the
+budget's own history (the bucket's token count at window start —
+`the bucket held 3.1 KB of its 65.536 KB burst at window start`:
+a re-apply inherits a spent bucket, and the nominal budget line no
+longer pretends otherwise). The leak envelope carries a deliberate
+(window + 2s) span allowance — the ledger delta brackets the window
+with spawn grace and teardown, and the veto must never false-fire on
+boundary effects; per-socket policies skip the leak lane (every
+connection spends its own bucket; the count is unknown) but keep the
+refusal proof.
+
+Configured rates display EXACTLY (the same task's round-trip
+contract): what you type is what every config surface prints —
+`-d 100.51kb` traces as `100.51 KB/s`, shows `100.51 KB/s` in
+`status`, and the verify block names `100.51 KB/s` — one-decimal
+rounding never hides a byte of the configured number again (the
+one-decimal display stays for MEASURED values: counters, measured
+flows, the monitor's live rates). A comma-carrying rate gets its own
+repair instead of a generic parse error: `100,50kb` suggests
+`100.50`, `1,000kb` suggests `1000` (never `1.000` — that would
+silently scale the value 1000x).
+
 Name matching details worth knowing: it is case-insensitive and matches
 the kernel's `comm` name (max 15 chars). It matches **all** cgroups that
 contain at least one process with that name — a browser plus its

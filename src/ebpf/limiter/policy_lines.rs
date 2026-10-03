@@ -10,19 +10,24 @@
 //! test/ebpf/limiter/policy_tests.rs drive them through policy.rs's
 //! re-export, exactly as before the split.
 
-use super::format::{default_burst, format_bytes, format_rate};
+use super::format::{default_burst, format_bytes_exact, format_rate_exact};
 use super::types::{Direction, RateSpec};
 
 /// Verbose trace line for one policy write (NIGHT-hunt-9): the exact
 /// cgroup, direction, rate, and token-bucket burst handed to the BPF
 /// map — the facts an owner needs when a limit "doesn't feel right".
 /// Pure formatting so the wording is unit-pinned.
+///
+/// NIGHT-hunt-Z7: the rate and burst render through the EXACT twins —
+/// a configured `100.51kb` must trace as "100.51 KB/s", never the
+/// one-decimal "100.5 KB/s" that hid 10 B/s of the owner's own
+/// number (what the trace prints is what the map carries).
 pub(super) fn policy_write_line(cgroup_id: u32, direction: Direction, rate_bps: u64) -> String {
     format!(
         "[limiter] cg:{cgroup_id} {} → {} (burst {})",
         direction.label(),
-        format_rate(rate_bps),
-        format_bytes(default_burst(rate_bps))
+        format_rate_exact(rate_bps),
+        format_bytes_exact(default_burst(rate_bps))
     )
 }
 
@@ -71,13 +76,13 @@ pub(super) fn group_apply_lines(group_id: u32, rates: &RateSpec, members: usize)
     if let Some(dl_rate) = rates.download {
         lines.push(format!(
             "[limiter] {group_label} download → {} (shared by {members} cgroups)",
-            format_rate(dl_rate)
+            format_rate_exact(dl_rate)
         ));
     }
     if let Some(ul_rate) = rates.upload {
         lines.push(format!(
             "[limiter] {group_label} upload → {} (shared by {members} cgroups)",
-            format_rate(ul_rate)
+            format_rate_exact(ul_rate)
         ));
     }
     lines

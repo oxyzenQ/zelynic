@@ -222,6 +222,18 @@ pub fn parse_rate(s: &str) -> Result<u64> {
 /// u64-fitting result, and the overflow contract belongs to the
 /// scaled evaluation above, not to the digit string.
 fn parse_decimal_scaled(s: &str) -> Result<(u128, u32)> {
+    // The comma lane first (NIGHT-hunt-Z7, the owner's `100,50kb`
+    // find): the generic digits message names the wrong crime for a
+    // comma — the digits ARE there, the SEPARATOR is the problem —
+    // and a locale-shaped input deserves its own repair, not a
+    // generic parse error. Two shapes, both named: the decimal
+    // separator (`1,5` — suggest the dot form) and the thousands
+    // grouping (`1,000` — suggest removing the separators; the dot
+    // suggestion would silently scale the value 1000x, the exact
+    // opposite of the writer's intent).
+    if let Some(reason) = comma_reason(s) {
+        bail!("{reason}");
+    }
     let (int_part, frac_part) = match s.split_once('.') {
         Some((int, frac)) => (int, Some(frac)),
         None => (s, None),
@@ -246,6 +258,51 @@ fn parse_decimal_scaled(s: &str) -> Result<(u128, u32)> {
         anyhow::anyhow!("the digits of '{s}' exceed 128-bit precision — not a rate")
     })?;
     Ok((mantissa, scale))
+}
+
+/// The comma diagnosis (pure, NIGHT-hunt-Z7): `Some(reason)` for a
+/// comma-carrying number, `None` for every other shape. Three lanes:
+/// the thousands grouping (`1,000` — the dot suggestion would
+/// silently scale the value 1000x, the exact opposite of the
+/// writer's intent, so the repair removes the separators), the
+/// locale decimal separator (`100,50` — the owner's find; the repair
+/// is the dot form, a leading comma's gaining its zero), and the
+/// comma-shaped rest (mixed separators, non-grouping multiples) —
+/// the crime named, no fabricated repair.
+fn comma_reason(s: &str) -> Option<String> {
+    if !s.contains(',') {
+        return None;
+    }
+    let digits = |g: &str| !g.is_empty() && g.bytes().all(|b| b.is_ascii_digit());
+    let groups: Vec<&str> = s.split(',').collect();
+    // `1,000` / `12,000,000`: the head is 1-3 digits and every tail
+    // group carries exactly three.
+    let is_grouping = groups.len() > 1
+        && (1..=3).contains(&groups[0].len())
+        && groups[0].bytes().all(|b| b.is_ascii_digit())
+        && groups[1..].iter().all(|g| g.len() == 3 && digits(g));
+    if is_grouping {
+        let plain: String = s.chars().filter(|c| *c != ',').collect();
+        return Some(format!(
+            "remove the thousands separator — write '{plain}' (commas are not groupers here)"
+        ));
+    }
+    // `100,50` / `0,5`: exactly one comma over digit groups — the
+    // locale decimal shape; the repair is the dot form.
+    if groups.len() == 2 && digits(groups[0]) && digits(groups[1]) {
+        return Some(format!(
+            "use '.' as the decimal separator, not ',' — write '{}.{}'",
+            groups[0], groups[1]
+        ));
+    }
+    // `,5`: a leading comma — the dot form gains its zero.
+    if groups.len() == 2 && groups[0].is_empty() && digits(groups[1]) {
+        return Some(format!(
+            "use '.' as the decimal separator, not ',' — write '0.{}'",
+            groups[1]
+        ));
+    }
+    Some("use '.' as the decimal separator and no commas — digits, at most one '.'".to_string())
 }
 
 /// Validate rate is within bounds.

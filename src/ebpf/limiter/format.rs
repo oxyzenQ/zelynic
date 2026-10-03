@@ -120,6 +120,88 @@ pub fn format_rate(bps: u64) -> String {
     }
 }
 
+/// The CONFIGURED-value twin of [`format_bytes`] (NIGHT-hunt-Z7, the
+/// owner's `-d 100.51kb` find): exact by round-trip — the rendered
+/// string parses back through the same SI ladder to exactly the
+/// integer it came from, so what the owner READS is what the kernel
+/// ENFORCES. The one-decimal twin rounds 100,510 B/s to "100.5 KB"
+/// (the aligned-column display contract measured values deserve);
+/// a configured rate is not a measurement — the 10 B/s the rounding
+/// hid was the owner's own typed number.
+///
+/// Two deltas from the twin, both honesty:
+/// - The tier walk promotes only when the value HOLDS the next unit
+///   (>= 1000x), never at the twin's 999.95 round-up edge — 999,950
+///   stays "999.95 KB", never "1.0 MB" (a config value must render
+///   in a unit that contains it).
+/// - The decimal count is the MINIMAL one (at least 1, at most 12)
+///   that renders the remainder exactly; values whose remainder
+///   cannot round-trip in 12 digits (only the u64 extreme's
+///   non-terminating fractions) fall back to the exact B form —
+///   every integer renders exactly, one way or the other.
+///
+/// Round values keep the twin's own shape: 100,000 is "100.0 KB"
+/// here too — the formatter only ADDS digits where the one-decimal
+/// form would lie, so every existing display that was already exact
+/// is byte-identical under the twin swap.
+///
+/// Examples: 100_510 → "100.51 KB", 65_536 → "65.536 KB",
+///           100_000 → "100.0 KB", 999_950 → "999.95 KB",
+///           1_000_000_001 → "1.000000001 GB", u64::MAX →
+///           "18446744073709551615 B" (the honest fallback)
+pub fn format_bytes_exact(bytes: u64) -> String {
+    const DIVS: [u64; 7] = [
+        1,
+        1_000,
+        1_000_000,
+        1_000_000_000,
+        1_000_000_000_000,
+        1_000_000_000_000_000,
+        1_000_000_000_000_000_000,
+    ];
+    const UNITS: [&str; 7] = ["B", "KB", "MB", "GB", "TB", "PB", "EB"];
+    const MAX_EXACT_DIGITS: usize = 12;
+
+    let mut tier = 0usize;
+    while tier < 6 && bytes >= 1000 * DIVS[tier] {
+        tier += 1;
+    }
+    if tier == 0 {
+        return format!("{bytes} B");
+    }
+    let div = u128::from(DIVS[tier]);
+    let val = u128::from(bytes);
+    let whole = val / div;
+    let rem = val % div;
+    if rem == 0 {
+        return format!("{whole}.0 {}", UNITS[tier]);
+    }
+    let mut scale = 1_u128;
+    for digits in 1..=MAX_EXACT_DIGITS {
+        scale *= 10;
+        if (rem * scale).is_multiple_of(div) {
+            let frac = (rem * scale) / div;
+            return format!("{whole}.{frac:0>digits$} {}", UNITS[tier]);
+        }
+    }
+    // The non-terminating remainder (u64::MAX's odd tail): the exact
+    // B form IS the round-trip — total honesty, no rounding at all.
+    format!("{bytes} B")
+}
+
+/// The CONFIGURED-rate twin of [`format_rate`] (NIGHT-hunt-Z7): the
+/// exact round-trip rendering over [`format_bytes_exact`], keeping
+/// the BLOCKED sentinel at 0 (a configured 0 is the block verdict —
+/// the sentinel belongs on config surfaces; MEASURED zero rates are
+/// "0 B/s", the render footer's own discipline).
+pub fn format_rate_exact(bps: u64) -> String {
+    if bps == 0 {
+        "BLOCKED".to_string()
+    } else {
+        format!("{}/s", format_bytes_exact(bps))
+    }
+}
+
 /// The wide session-surface byte formatter (NIGHT-lts-5, the server
 /// long-endurance ask — "harden and robust for future when reach
 /// limit of zelynic like possible 1 zettabyte ZB even quettabyte
@@ -252,6 +334,13 @@ pub fn terminal_width() -> usize {
 #[cfg(test)]
 #[path = "../../../test/ebpf/limiter/format_tests.rs"]
 mod format_tests;
+
+// NIGHT-hunt-Z7: the exact-twin and comma-lane pins took their own
+// file when the round-trip property pushed the family past the
+// 500-LOC owner cap (the format_count precedent, one theme one file).
+#[cfg(test)]
+#[path = "../../../test/ebpf/limiter/format_exact_tests.rs"]
+mod format_exact_tests;
 
 #[cfg(test)]
 #[path = "../../../test/ebpf/limiter/format_count_tests.rs"]

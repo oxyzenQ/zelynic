@@ -33,10 +33,29 @@ fn policy_write_line_names_cgroup_direction_rate_and_burst() {
 fn policy_write_line_blocks_show_blocked_rate_and_floor_burst() {
     // Block commands write rate 0: the trace must say BLOCKED and
     // show the 64 KiB GSO super-packet floor (NIGHT-lts-8:
-    // default_burst clamps to BURST_FLOOR_BYTES = 65,536).
+    // default_burst clamps to BURST_FLOOR_BYTES = 65,536). The burst
+    // renders through the EXACT twin since NIGHT-hunt-Z7 — 65,536 B
+    // is "65.536 KB", the one-decimal "65.5 KB" hid 36 B of the
+    // kernel's own floor constant.
     assert_eq!(
         policy_write_line(73386, Direction::Download, 0),
-        "[limiter] cg:73386 download → BLOCKED (burst 65.5 KB)"
+        "[limiter] cg:73386 download → BLOCKED (burst 65.536 KB)"
+    );
+}
+
+#[test]
+fn policy_write_line_renders_configured_rates_exactly() {
+    // NIGHT-hunt-Z7 (the owner's `-d 100.51kb` find): a configured
+    // rate traces through the exact round-trip twin — the
+    // one-decimal "100.5 KB/s" hid 10 B/s of the typed number.
+    assert_eq!(
+        policy_write_line(70896, Direction::Download, 100_510),
+        "[limiter] cg:70896 download → 100.51 KB/s (burst 100.51 KB)"
+    );
+    // A configured 1 TB/s ceiling renders its own tier exactly.
+    assert_eq!(
+        policy_write_line(1, Direction::Download, 1_000_000_000_000),
+        "[limiter] cg:1 download → 1.0 TB/s (burst 100.0 MB)"
     );
 }
 

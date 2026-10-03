@@ -30,22 +30,43 @@
 //! for download probes, the SERVER for upload probes (the client's
 //! ul-mode count is its local write buffer, not delivered bytes,
 //! and the vacuous VERIFIED it produced is retired with the fix).
+//!
+//! NIGHT-hunt-Z7 (the dual-limit masterclass hardening): the ledger
+//! graduated from display row to VERDICT EVIDENCE. The flow band
+//! alone had two live false-negative shapes — a probe whose own TCP
+//! acknowledgments ride the POLICED counter-direction (`-d 1kb -u
+//! 1kb`) measures ~0 B while the kernel refuses hundreds of KB, and
+//! a ceiling above the path's own delivery (`-d 1tb`) can never
+//! cross the flow floor. The orchestrator now snapshots the FULL
+//! ledger (bytes_allowed AND bytes_dropped) for EVERY leaf the
+//! target resolved to, before and after the window, and hands the
+//! deltas to the combined verdict: refusals inside the envelope
+//! carry a starved flow to VERIFIED on the ledger-refusal proof,
+//! admissions beyond the envelope FAIL the apply whatever the flow
+//! measured (the leak lane), and the bucket's own token count at
+//! window open finally explains a "budget: 68.5 KB" the kernel had
+//! already spent. The probes's own traffic remains the measured
+//! truth; the ledger is the kernel's.
 
 use crate::ebpf::identity::pathwalk;
 use crate::ebpf::limiter::{
-    default_burst, Direction, Limiter, LimiterStatsRaw, PolicyRaw, RateSpec, Target,
+    default_burst, format_bytes, format_bytes_exact, format_rate_exact, Direction, Limiter,
+    RateSpec, Target,
 };
 use anyhow::{anyhow, Context, Result};
 use std::io::BufReader;
-use std::os::unix::fs::MetadataExt;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
-use std::time::Duration;
 
 use super::eagle::resolve_name;
-use super::probe_report::{probe_verdict, ProbeOutcome, ProbeVerdict, CEILING_SLACK_BYTES};
+use super::probe_report::{
+    combined_verdict, ledger_verdict, starved_notes, LedgerVerdict, ProbeOutcome, ProbeVerdict,
+    ProofBasis,
+};
 use super::probe_role::{
-    read_metric_line, read_metric_line_from, wait_resident, wait_with_deadline,
+    enter_cgroup, kill_and_reap, ledger_snapshots, mkdir_quiet, our_chain_is_clean,
+    policy_still_stands, probe_cgroup_name, read_metric_line, read_metric_line_from, wait_resident,
+    wait_with_deadline, LeafDelta,
 };
 
 /// The measured window (seconds): long enough that the refill term
@@ -53,113 +74,6 @@ use super::probe_role::{
 /// cushion), short enough that the whole probe stays under five
 /// seconds of an interactive command.
 pub const PROBE_SECS: u64 = 3;
-
-// ── The orchestrator ────────────────────────────────────────────────
-
-/// Read the ledger's bytes_allowed for one cgroup (0 when the kernel
-/// has not booked it yet — a fresh pin with idle traffic, the honest
-/// absence the status contract documents).
-fn ledger_allowed(limiter: &Limiter, key: u32) -> Result<u64> {
-    let rows: Vec<(u32, LimiterStatsRaw)> = limiter.read_stats_public()?;
-    Ok(rows
-        .iter()
-        .find(|(k, _)| *k == key)
-        .map(|(_, s)| s.bytes_allowed)
-        .unwrap_or(0))
-}
-
-/// The teardown belt's own read (NIGHT-repair-1): does the target's
-/// policy row still stand, at the rate this probe measured against?
-/// A vanished row is the mid-window removal; a changed rate is a
-/// mid-window re-apply; either one breaks the measurement's premise.
-/// The read is passive (the same map lane our_chain_is_clean uses).
-fn policy_still_stands(
-    limiter: &Limiter,
-    target_id: u32,
-    direction: Direction,
-    rate_bps: u64,
-) -> Result<bool> {
-    let rows: Vec<(u32, PolicyRaw)> = limiter.read_policies_public(direction)?;
-    Ok(rows
-        .iter()
-        .any(|(k, p)| *k == target_id && p.rate_bps == rate_bps))
-}
-
-/// One best-effort cgroup mkdir (the harness's mkdir_quiet posture).
-fn mkdir_quiet(path: &Path) -> bool {
-    std::fs::create_dir(path).is_ok() || path.is_dir()
-}
-
-/// Kill AND reap a probe child, then best-effort remove its transient
-/// cgroup with retries: an unreaped zombie (or its dying socket's css
-/// reference) holds the cgroup alive past a bare rmdir, and a
-/// leftover zelynic-probe-* directory per probe run is exactly the
-/// residue this tool refuses to leave anywhere else. The retry window
-/// (3 x 100ms) outlives the kernel's teardown of an exited child.
-fn kill_and_reap(child: &mut Child, cgroup: Option<&Path>) {
-    let _ = child.kill();
-    let _ = child.wait();
-    if let Some(cgroup) = cgroup {
-        for _ in 0..3 {
-            if std::fs::remove_dir(cgroup).is_ok() {
-                break;
-            }
-            std::thread::sleep(Duration::from_millis(100));
-        }
-    }
-}
-
-/// The PARENT writes the child's pid into `cgroup.procs` right after
-/// spawn (the child's grace sleep makes the write land first).
-fn enter_cgroup(path: &Path, child: u32) -> bool {
-    std::fs::write(path.join("cgroup.procs"), format!("{child}\n")).is_ok()
-}
-
-/// The transient cgroup names (unique per probe invocation).
-fn probe_cgroup_name(role: &str) -> String {
-    let nanos = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_nanos();
-    format!("zelynic-probe-{role}-{nanos}")
-}
-
-/// Is zelynic's own cgroup chain free of policies (both directions,
-/// every ancestor including the root cgroup itself)? The fallback
-/// server placement: a policed server would under-measure every probe
-/// (the vacuous-VERIFIED shape), so the platform refusing the
-/// root-level transient cgroup may only downgrade to this lane when
-/// the chain is clean.
-fn our_chain_is_clean(limiter: &Limiter) -> bool {
-    let Ok(text) = std::fs::read_to_string("/proc/self/cgroup") else {
-        return false;
-    };
-    // Each ancestor's cgroup id is the dir's inode (kernfs); check
-    // every one against both policy maps. A failed read is "not // clean" — never a guess.
-    let dir_clean = |path: &Path| match std::fs::metadata(path) {
-        Ok(meta) => {
-            let id = u32::try_from(meta.ino()).unwrap_or(0);
-            [Direction::Download, Direction::Upload].iter().all(|d| {
-                limiter
-                    .read_policies_public(*d)
-                    .map(|rows| rows.iter().all(|(k, _)| *k != id))
-                    .unwrap_or(false)
-            })
-        }
-        Err(_) => false,
-    };
-    let mut path = PathBuf::from("/sys/fs/cgroup");
-    if !dir_clean(&path) {
-        return false;
-    }
-    let Some(rel) = text.lines().find_map(|l| l.strip_prefix("0::")) else {
-        return false;
-    };
-    rel.split('/').filter(|s| !s.is_empty()).all(|seg| {
-        path.push(seg);
-        dir_clean(&path)
-    })
-}
 
 /// Run the enforcement probe for one freshly applied target (the
 /// orchestrator; module header for the shape). Never panics on
@@ -178,8 +92,11 @@ pub(crate) fn run_enforcement_probe(
         window_secs: PROBE_SECS,
         client_bytes: 0,
         ledger_bytes: 0,
+        dropped_bytes: 0,
+        counter_rate_bps: None,
+        proof: ProofBasis::Flow,
+        notes: vec![note],
         per_socket,
-        note: Some(note),
         teardown: false,
     };
 
@@ -203,6 +120,10 @@ pub(crate) fn run_enforcement_probe(
         Direction::Upload => "ul",
     };
     let burst = default_burst(rate_bps);
+    let counter_rate_bps = match direction {
+        Direction::Download => rates.upload,
+        Direction::Upload => rates.download,
+    };
 
     // The target: first resolved cgroup id + its path (the probe
     // child nests under it; members first, the cgroupfs walk for a
@@ -233,11 +154,20 @@ pub(crate) fn run_enforcement_probe(
         );
     }
 
-    // Ledger baseline: the kernel's own count BEFORE the window.
-    let baseline = match ledger_allowed(limiter, target_id) {
+    // Ledger baseline (NIGHT-hunt-Z7): the kernel's own allowed AND
+    // dropped counters, every leaf, BEFORE the window — the pair the
+    // combined verdict listens to. The bucket's token count rides
+    // the same instant (the budget-truth read: a "burst" the pool
+    // already spent is the difference between a nominal budget and
+    // the one the window actually had).
+    let baseline = match ledger_snapshots(limiter, &ids) {
         Ok(b) => b,
         Err(e) => return unverified(format!("ledger baseline read failed: {e}")),
     };
+    let pool_tokens = limiter
+        .read_pool_tokens(target_id, direction)
+        .ok()
+        .flatten();
     // Spawn the server, enter its home, announce the port. The
     // stdout handle stays taken for the whole probe: upload probes
     // read the delivered count from the server's SECOND line, so
@@ -354,60 +284,149 @@ pub(crate) fn run_enforcement_probe(
     kill_and_reap(&mut server, srv_placed.then_some(srv_dir.as_path()));
     kill_and_reap(&mut client, Some(client_dir.as_path()));
 
-    // Ledger close (the cross-check) + verdict. NIGHT-repair-1: a
-    // dead ledger read no longer returns early — the belt below may
-    // be the answer to WHY it died (the pinned maps themselves can
-    // be gone); it degrades the verdict and rides its own note.
-    let ledger_close = ledger_allowed(limiter, target_id);
-    let ledger_delta = ledger_close
-        .as_ref()
-        .map(|close| close.wrapping_sub(baseline))
-        .unwrap_or(0);
+    // Ledger close (NIGHT-hunt-Z7): the same leaves, the same
+    // counters, AFTER the span. A dead close read no longer returns
+    // early — the belt below may be the answer to WHY it died (the
+    // pinned maps themselves can be gone); it degrades the verdict
+    // and rides its own note.
+    let ledger_close = ledger_snapshots(limiter, &ids);
+    let deltas: Vec<LeafDelta> = match &ledger_close {
+        Ok(close) => close
+            .iter()
+            .zip(baseline.iter())
+            .map(|((_, c), (_, b))| LeafDelta {
+                allowed: c.bytes_allowed.wrapping_sub(b.bytes_allowed),
+                dropped: c.bytes_dropped.wrapping_sub(b.bytes_dropped),
+            })
+            .collect(),
+        Err(_) => ids.iter().map(|_| LeafDelta::default()).collect(),
+    };
     let ledger_note = ledger_close
         .as_ref()
         .err()
         .map(|e| format!("ledger close read failed: {e}"));
+    let allowed_sum: u64 = deltas.iter().map(|d| d.allowed).sum();
+    let dropped_sum: u64 = deltas.iter().map(|d| d.dropped).sum();
+
+    // The per-leaf ledger verdict, aggregated across the target's
+    // leaves: any leaf's over-admission is the leak; short of that,
+    // any leaf's refusal is the engagement proof. per-socket
+    // policies skip the leak lane (the envelope bounds a cgroup
+    // bucket; a per-connection bucket's count is unknown).
+    let legs: Vec<(u64, u64)> = [rates.download, rates.upload]
+        .iter()
+        .filter_map(|r| r.map(|r| (r, default_burst(r))))
+        .collect();
+    let mut ledger = LedgerVerdict::Silent;
+    for delta in &deltas {
+        match ledger_verdict(&legs, PROBE_SECS, delta.allowed, delta.dropped, per_socket) {
+            LedgerVerdict::Leaked => {
+                ledger = LedgerVerdict::Leaked;
+                break;
+            }
+            LedgerVerdict::Refused => ledger = LedgerVerdict::Refused,
+            LedgerVerdict::Silent => {}
+        }
+    }
+
+    let (mut verdict, proof) = combined_verdict(rate_bps, burst, PROBE_SECS, client_bytes, ledger);
+    // The old close-error contract holds where the lane stands: a
+    // dead cross-check never gifts a Verified verdict.
+    if ledger_close.is_err() && verdict == ProbeVerdict::Verified {
+        verdict = ProbeVerdict::Unverified;
+    }
+
+    // The reason stack (NIGHT-hunt-Z7): starvation first (the pure
+    // family names its own shapes), then the context notes — the
+    // concurrent-traffic gap, the multi-leaf ledger, the budget's
+    // own history. Every cause its own row; nothing shares a slot.
+    let mut notes = starved_notes(
+        client_bytes,
+        rate_bps,
+        PROBE_SECS,
+        counter_rate_bps,
+        direction,
+        allowed_sum,
+        dropped_sum,
+    );
+    if let Some(note) = ledger_note {
+        notes.push(note);
+    }
+    // The concurrent-traffic note: the ledger counts the target's
+    // OWN traffic too; a ledger far above the client's bytes means a
+    // shared window (still valid — the ceiling is the client's own).
+    // Single-leg applies only: with both legs policed the ledger's
+    // counter-direction bookings inflate the gap by construction,
+    // and the note would name a cause the dual-lane starvation rows
+    // already carry honestly.
+    if counter_rate_bps.is_none() {
+        if let Some(first) = deltas.first() {
+            let gap = first.allowed.saturating_sub(client_bytes);
+            if gap > client_bytes.saturating_mul(3) / 2 + super::probe_report::CEILING_SLACK_BYTES {
+                notes.push(
+                    "the target had concurrent traffic during the window (the kernel \
+                     ledger counts it beside the probe's own flow)"
+                        .to_string(),
+                );
+            }
+        }
+    }
+    // The multi-leaf note: a name that resolved to several cgroups
+    // got an INDIVIDUAL bucket each (group_id 0) — the probe measured
+    // the first; the note says so with the ledger's own per-leaf
+    // numbers instead of implying it proved them all.
+    if ids.len() > 1 {
+        let per_leaf = deltas
+            .iter()
+            .zip(ids.iter())
+            .map(|(d, id)| {
+                format!(
+                    "cg:{id} {} in / {} refused",
+                    format_bytes(d.allowed),
+                    format_bytes(d.dropped)
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(", ");
+        notes.push(format!(
+            "the target spans {} cgroups (each with its own bucket); the probe \
+             measured cg:{target_id} — window ledger: {per_leaf}",
+            ids.len()
+        ));
+    }
+    // The budget-truth note: the pool's own token count at window
+    // open — a burst the bucket already spent is the difference
+    // between the nominal budget line and the budget the window
+    // actually had (the owner's re-apply find: a fresh rate on a
+    // spent bucket). Both figures render exact (Z7's config-exact
+    // rule: the bucket state is the kernel's own integer).
+    if let Some(tokens) = pool_tokens {
+        if tokens < burst {
+            notes.push(format!(
+                "the bucket held {} of its {} burst at window start (spent by the \
+                 target's own history — tokens refill at {})",
+                format_bytes_exact(tokens),
+                format_bytes_exact(burst),
+                format_rate_exact(rate_bps)
+            ));
+        }
+    }
+
     let mut outcome = ProbeOutcome {
-        verdict: probe_verdict(rate_bps, burst, PROBE_SECS, client_bytes),
+        verdict,
         direction,
         rate_bps,
         burst_bytes: burst,
         window_secs: PROBE_SECS,
         client_bytes,
-        ledger_bytes: ledger_delta,
-        note: ledger_note,
+        ledger_bytes: allowed_sum,
+        dropped_bytes: dropped_sum,
+        counter_rate_bps,
+        proof,
+        notes,
         per_socket,
         teardown: false,
     };
-    // The old close-error contract holds where the lane stands: a
-    // dead cross-check never gifts a Verified verdict.
-    if ledger_close.is_err() && outcome.verdict == ProbeVerdict::Verified {
-        outcome.verdict = ProbeVerdict::Unverified;
-    }
-    // The concurrent-traffic note: the ledger counts the target's
-    // OWN traffic too; a ledger far above the client's bytes means a
-    // shared window (still valid — the ceiling is the client's own).
-    if let Ok(close) = &ledger_close {
-        let ledger_delta = close.wrapping_sub(baseline);
-        let gap = ledger_delta.saturating_sub(client_bytes);
-        if gap > client_bytes.saturating_mul(3) / 2 + CEILING_SLACK_BYTES {
-            outcome.note = Some(
-                "the target had concurrent traffic during the window (the kernel \
-                 ledger counts it beside the probe's own flow)"
-                    .to_string(),
-            );
-        }
-    }
-    // The multi-cgroup note: a name that resolved to several cgroups
-    // got an INDIVIDUAL bucket each (group_id 0) — the probe measured
-    // the first; the note says so instead of implying it proved them all.
-    if outcome.note.is_none() && ids.len() > 1 {
-        outcome.note = Some(format!(
-            "the target spans {} cgroups (each with its own bucket); \
-             the probe measured cg:{target_id}",
-            ids.len()
-        ));
-    }
     // The teardown belt (NIGHT-repair-1): the byte count cannot name
     // a mid-window removal on a pipe slower than the window's budget
     // — the CI micro-VM's loopback sits near the forcing's own rate
@@ -415,20 +434,20 @@ pub(crate) fn run_enforcement_probe(
     // policy: the pipe, not the policy, was the constraint), so the
     // post-teardown line rate lands INSIDE the ceiling and the bytes
     // read Verified over a policy that no longer exists. The probe
-    // re-reads the policy row it was handed: the row must still
-    // stand with the same rate at window close (a vanished row is
-    // the mid-window removal, a changed rate a mid-window re-apply —
-    // either one breaks the budget the bytes were measured against).
-    // A Failed verdict keeps its own measured evidence; only a
-    // Verified verdict stands on the premise. An unreadable close
-    // read downgrades it — unless the pins died with it, in which
-    // case the lane itself was torn down (the Err arm below).
-    match policy_still_stands(limiter, target_id, direction, rate_bps) {
+    // re-reads the policy rows it was handed: every policed leg must
+    // still stand with the same rate at window close (a vanished row
+    // is the mid-window removal, a changed rate a mid-window
+    // re-apply — either one breaks the budget the bytes were measured
+    // against). A Failed verdict keeps its own measured evidence;
+    // only a Verified verdict stands on the premise. An unreadable
+    // close read downgrades it — unless the pins died with it, in
+    // which case the lane itself was torn down (the Err arm below).
+    match policy_still_stands(limiter, target_id, rates) {
         Ok(true) => {}
         Ok(false) => {
             outcome.verdict = ProbeVerdict::Failed;
             outcome.teardown = true;
-            outcome.note = Some(
+            outcome.notes.push(
                 "the policy row vanished mid-window (a concurrent unstrict or re-apply) — \
                  the budget this window measured against no longer stands"
                     .to_string(),
@@ -444,14 +463,16 @@ pub(crate) fn run_enforcement_probe(
             if !Limiter::is_pinned() {
                 outcome.verdict = ProbeVerdict::Failed;
                 outcome.teardown = true;
-                outcome.note = Some(format!(
+                outcome.notes.push(format!(
                     "the policy lane was torn down mid-window (the pinned maps \
                      are gone — a concurrent unstrict-all or recover?); the \
                      ledger cross-check died with it: {close}"
                 ));
             } else if outcome.verdict == ProbeVerdict::Verified {
                 outcome.verdict = ProbeVerdict::Unverified;
-                outcome.note = Some(format!("policy close read failed: {close}"));
+                outcome
+                    .notes
+                    .push(format!("policy close read failed: {close}"));
             }
         }
     }
