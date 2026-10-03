@@ -19,6 +19,44 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Added
 
+- **NIGHT-hunt-Z10, the uid-lane sweep — the class-wide audit the
+  CI-repair's follow-up, verdict: zero remainings.** The owner's
+  mandate, verbatim: audit the other batteries for the same
+  uid-dependent needle class "until all peak no remainings again".
+  The sweep crossed every binary-driving instrument in the repo
+  (the five supermassive batteries, the AMMSP delta harness, the
+  claims proof, the depth and bench families, the nonroot depth
+  suite, and the Rust test tree) with every CI leg that runs it
+  and the uid that leg runs under (CI rootless, the VM init root,
+  the container leg's sudo). The verdict: the Z9 shadow rows
+  closed at 6eb652d were the class's ONLY instance — every other
+  instrument already owns a uid discipline, each verified live or
+  read-verified this session: v3 is fully lane-aware in both
+  directions (rootless stage 2 runs-or-skips, root stages 3-6
+  skip-when-non-root with contract-carrying reasons — verified
+  rootless 8/0/4); v1, v2, AMMSP, and the claims proof fail fast
+  on the wrong uid with loud refusals and non-zero exits (2/2/1/2
+  verified live — no leg can mistake them for green), their
+  green VM runs being the empirical proof no rootless-lane needle
+  hides inside them; the depth/bench family carries the same
+  fail-fast contract plus the check_root guard; nonroot-depth
+  REFUSES root (the inverse guard — euid 0 would invalidate its
+  every assertion); and the Rust integration tree is the gold
+  standard, lane-ADAPTIVE — euid_is_root() branches with a
+  different CORRECT assertion per uid (the piped monitor runs
+  under root, refuses with the teaching tip under non-root) rather
+  than merely skipping, the root+eBPF smokes #[ignore]-gated at
+  the cargo level. The structural why on the record: the
+  rootless-CAPABLE batteries were built lane-aware from their
+  first CI-leg debut and the root-ONLY batteries refuse the wrong
+  uid loudly — the Z9 seam was the one moment a rootless-capable
+  battery gained rows whose needle belonged to the rootless lane
+  without the lane knowing. Zero code changes: the diff is the
+  audit record docs/audits/NIGHT_HUNT_Z10_UID_LANE_SWEEP_2026-10-03.md
+  (the full leg matrix, the per-instrument verdicts, the
+  empirical confirmations, and the declined investments on the
+  record), the CHANGELOG row, and the docs index row.
+
 - **NIGHT-total-lts-4, the total-infra cross-check audit — one
   harness find closed by returning the v4 battery to the shared
   binary-resolution discipline.** The pass audited the
