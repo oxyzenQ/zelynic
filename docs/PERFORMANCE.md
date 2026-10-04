@@ -453,18 +453,20 @@ leaf rode at ~0, and every packet's admit rode the pool's
 instantaneous credit instead. The close is the residue law's
 half-split mirrored one level down, where it keeps the source's
 buffer instead of the next asker's share: a dense take caps at
-HALF the leaf, a sparse take keeps the whole-leaf right (its
-demand IS the packet). The follow-up battery run refined the law's
-engagement point: the half-split binds only when the leaf holds
-two packets' worth or more — below that the take is whole and the
-admit DETERMINISTIC (the take covers the packet whenever the leaf
-does, the old single-bucket lane's own property), because a plain
-half-split at the micro-credit steady state left the take at the
-packet's own order and the admit a coin flip at the boundary. The
-rootless battery's fairness pins rode unchanged through both forms
-— the buffer law lives at the micro-credit scale the sims do not
-model, the scale only the live kernel reaches, which is why the
-battery exists.
+HALF the leaf (above two packets' worth — below that the take is
+whole and the admit DETERMINISTIC, the old single-bucket lane's
+own property), a sparse take keeps the whole-leaf right (its
+demand IS the packet). And the fourth lesson, the PACKET FLOOR:
+the lone flow's OFF-lane fraction under-sized takes at low binding
+rates (at 2 MB/s, leaf/3 sits at the packet's own order) and the
+drop-with-bank cycle collapsed TCP to 37% of a policy it should
+have ridden — so the OFF lane's take never sits below the packet
+it serves when the leaf covers it, CAKE's own MTU-floor discipline
+one level down, conditioned on the lone/cold shape (a decayed-peak
+transient keeps the fraction). The rootless battery's fairness pins
+rode unchanged through every form — these laws live at the
+micro-credit scale the sims do not model, the scale only the live
+kernel reaches, which is why the battery exists.
 
 ### NIGHT-upgrade-charger-core-1-b A/B (the self-proving enforcement, 2026-09-30)
 

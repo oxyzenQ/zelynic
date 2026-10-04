@@ -749,10 +749,44 @@ pub const fn flow_take(
         room
     };
     let learned_share_fraction = leaf_tokens / (learned as u64 + 2);
-    let take_within_the_off_lane = if take_under_the_lane_law < learned_share_fraction {
+    // THE PACKET FLOOR (the third battery run's law, the lane's
+    // fourth lesson — CAKE's own MTU-floor discipline, one level
+    // down): the OFF lane's take never sits below the packet it
+    // serves when the leaf covers it. The lone flow's fraction
+    // (leaf/(learned+2)) under-sized takes at low binding rates —
+    // at 2 MB/s the leaf rides near its quantum and leaf/3 sits
+    // AT the packet's own order — and the under-sized take turned
+    // every boundary cycle into a drop-with-bank: the flow bucket
+    // accumulated across DROPPED packets while TCP collapsed to
+    // 37% of a policy it should have ridden. The floor is bounded
+    // by the leaf and by the lane law (a sparse demand is its own
+    // floor), and the transient the fraction exists to bound
+    // stays bounded: a floored take moves at most one packet, and
+    // the share word re-ratchets its peak within the epoch.
+    let packet_bytes = pkt_len as u64;
+    let packet_cover = if packet_bytes < leaf_tokens {
+        packet_bytes
+    } else {
+        leaf_tokens
+    };
+    // The floor carries the LONE/COLD shape only (learned < 2 —
+    // no sibling evidence in the word's last completed epoch): a
+    // decayed PEAK with learned >= 2 is a TRANSIENT, not a lone
+    // flow — its fairness is engaged, its divisor merely decayed,
+    // and the fraction stays its bound (the trickle regime
+    // measured the floor lifting transient takes to the full
+    // quantum — four epochs of allowance per draw at the rates
+    // where quantum equals one packet).
+    let lone_cold_floor = if learned < 2 { packet_cover } else { 0 };
+    let off_lane_floor = if learned_share_fraction > lone_cold_floor {
+        learned_share_fraction
+    } else {
+        lone_cold_floor
+    };
+    let take_within_the_off_lane = if take_under_the_lane_law < off_lane_floor {
         take_under_the_lane_law
     } else {
-        learned_share_fraction
+        off_lane_floor
     };
     let take_under_the_bound_law = if allowance != u64::MAX {
         take_within_the_room
@@ -794,7 +828,7 @@ pub const fn flow_take(
     // the micro-credit steady state — the admit a coin flip at the
     // boundary, 1122 drops under a policy that must drop nothing
     // (the live battery's second measurement).
-    let take_within_the_source_buffer = if sparse || leaf_tokens < pkt_len as u64 * 2 {
+    let take_within_the_source_buffer = if sparse || leaf_tokens < packet_bytes * 2 {
         // A sparse demand (its packet IS the take) or a leaf below
         // two packets' worth (nothing left worth buffering): the
         // take is whole, and the admit deterministic — the old

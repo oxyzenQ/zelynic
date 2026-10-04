@@ -82,15 +82,25 @@ NIGHT-hunt-18's git-history-only call.
   buffer law changes the micro-scale the sims do not model, the
   scale only the live kernel can reach. The third design lesson
   this lane paid for, all three engraved in ebpf/src/drr.rs's v20
-  section. The follow-up run refined it once more (f73ecda measured
-  the plain half-split still leaving the take at the packet's own
-  order at the micro-credit steady state — 1122 drops, the admit a
-  coin flip at the boundary): the half-split engages only when the
-  leaf holds TWO packets' worth or more — below that the take is
-  whole and the admit DETERMINISTIC, the old single-bucket lane's
-  own property (the take covers the packet whenever the leaf does),
-  with the buffer law's protection still standing above the
-  threshold.
+  section. Two follow-up runs refined the law to its final form.
+  f73ecda measured the plain half-split still leaving the take at
+  the packet's own order at the micro-credit steady state (1122
+  drops, the admit a coin flip at the boundary): the half-split now
+  engages only when the leaf holds TWO packets' worth or more —
+  below that the take is whole and the admit DETERMINISTIC. 606358a
+  measured the last shape: the lone flow's OFF-lane fraction
+  (leaf/(learned+2)) under-sized takes at low binding rates — at
+  2 MB/s the fraction sits AT the packet's own order, and the
+  under-sized take turned every boundary cycle into a
+  drop-with-bank that collapsed TCP to 37% of a policy it should
+  have ridden — so the OFF lane now carries a PACKET FLOOR (the
+  take never sits below the packet it serves when the leaf covers
+  it, CAKE's own MTU-floor discipline one level down), conditioned
+  on the LONE/COLD shape (learned < 2): a decayed-peak transient
+  keeps the fraction (the unconditional floor lifted trickle
+  transients to the full quantum, four epochs of allowance per
+  draw). Four lessons, all engraved in ebpf/src/drr.rs's v20
+  section and pinned in the cake test family.
 
 - **NIGHT-private-research-4, the guaranteed-minimum audit — verdict:
   the DRR pool already carries the full floor/ceiling/borrowing
