@@ -312,12 +312,19 @@ def resolve_legacy(explicit, download=True):
     resolution local). A file that exists but does not execute is a
     hard FAIL, not a skip: a broken legacy binary would turn the
     delta proof into a one-sided claim.
-    Returns (path, banner) on success, (path, reason) when a candidate
-    EXISTS but is not a healthy executable zelynic (the hard-FAIL
-    marker — NIGHT-hunt-32 finally enforces the sentence above: the
-    caller FAILs instead of SKIP-exit-0, which CI's [ -x ] + exit-code
-    guard used to read as PASS), or (None, reason) for the loud SKIP
-    when nothing was found at all."""
+    Returns a THREE-tuple (path, note, banner) so the caller can
+    never conflate shapes (NIGHT-hunt-32 followup: the first cut of
+    the hard-FAIL marker returned (path, reason) beside the success
+    shape (path, banner) — both non-None strings, so the CI run
+    read a HEALTHY staged legacy's own banner as a failure reason
+    and FAILed the good path):
+      (path, None, banner)  — healthy: note empty, banner = the -V line
+      (path, reason, None)  — EXISTS but not a healthy executable
+                             zelynic: the hard-FAIL marker — the caller
+                             FAILs instead of SKIP-exit-0, which CI's
+                             [ -x ] + exit-code guard used to read as PASS
+      (None, reason, None)  — nothing found: the loud SKIP
+    """
     candidates = []
     if explicit:
         candidates.append(explicit)
@@ -329,11 +336,11 @@ def resolve_legacy(explicit, download=True):
         if not cand or not os.path.isfile(cand):
             continue
         if not os.access(cand, os.X_OK):
-            return cand, f"{cand}: exists but is not executable"
+            return cand, f"{cand}: exists but is not executable", None
         first, reason = _legacy_banner(cand)
         if reason:
-            return cand, reason
-        return cand, first
+            return cand, reason, None
+        return cand, None, first
     # Nothing local — the auto-download is the last lane (CI never
     # reaches it: the rootfs step stages the binary and the loop
     # above already returned).
@@ -343,15 +350,16 @@ def resolve_legacy(explicit, download=True):
         if fetched:
             first, reason = _legacy_banner(fetched)
             if reason is None:
-                return fetched, first
+                return fetched, None, first
             # Fetched but broken — the same hard-FAIL marker: it exists.
-            return fetched, reason
+            return fetched, reason, None
     hint = explicit or env or LEGACY_URL
     return (
         None,
         f"no legacy binary (tried --legacy-binary / $ZELYNIC_LEGACY_BINARY / "
         f"/opt/zelynic/legacy/zelynic / the canonical auto-download ({fetch_note}); "
         f"canonical source: {hint})",
+        None,
     )
 
 
@@ -715,7 +723,7 @@ def self_test():
     # with a reason that names the canonical source, never a crash.
     # download=False keeps the self-test hermetic — no network in the
     # engine smoke, same as no root and no BPF.
-    path, note = resolve_legacy("/nonexistent/zelynic-legacy", download=False)
+    path, note, _banner = resolve_legacy("/nonexistent/zelynic-legacy", download=False)
     assert path is None and "canonical source" in note, f"resolver shape: {note}"
     record("self: legacy resolver SKIP shape", "PASS", note[:100])
 
@@ -889,7 +897,9 @@ def main():
     # delta failing as a harness bug). battery_order() freezes the
     # pair; the self-test pins the discipline.
     current = lib.BINARY
-    legacy, legacy_note = resolve_legacy(args.legacy_binary, download=not args.no_download)
+    legacy, legacy_note, legacy_banner = resolve_legacy(
+        args.legacy_binary, download=not args.no_download
+    )
     if legacy is None:
         # The pair cannot run — a loud SKIP, never a silent pass and
         # never a false fail (the same honest-SKIP contract the realnet
@@ -928,7 +938,7 @@ def main():
         )
         final_report(time.perf_counter(), "root", "failed — broken legacy binary")
         return 1
-    record("ammsp-vs-legacy: legacy side resolved", "PASS", legacy_note)
+    record("ammsp-vs-legacy: legacy side resolved", "PASS", legacy_banner)
 
     # The shared engine boot (the v2 precedent): fleet first, then the
     # in-process server, then the harness-in-hq isolation contract.
