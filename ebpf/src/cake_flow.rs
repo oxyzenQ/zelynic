@@ -31,11 +31,11 @@
 //     epochs (the flow SHARE word carries the generation instead,
 //     and the flow BUCKET wears the generation belt on frac_rem).
 //
-// The draw path mirrors try_draw's, with the three design lessons
+// The draw path mirrors try_draw's, with the four design lessons
 // this lane paid for (two filed by the rootless battery BEFORE the
-// file existed, the third by the live CI battery the day it
-// shipped — the source buffer law in drr.rs's flow_take), all
-// load-bearing:
+// file existed, two by the live CI battery the day it shipped —
+// the source buffer law and the packet floor, both in drr.rs's
+// flow_take), all load-bearing:
 //
 //   * the SPARSE evidence is the flow bucket's own draw stamp (the
 //     pre-CAS stamp's epoch), never the ledger word's anchor — a

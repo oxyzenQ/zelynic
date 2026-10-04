@@ -218,12 +218,54 @@ fn the_dense_take_never_drains_the_leaf_whole() {
         flow_take(false, SPARSE_PKT, 7_000, 2, allowance, u64::MAX, 400),
         200
     );
-    // The OFF lane's fraction already sits at or under the half
-    // (learned >= 0 => leaf/(learned+2) <= leaf/2): the buffer law
-    // and the fraction agree on the lone-flow shape.
+    // The OFF lane's fraction sits at or under the half for
+    // learned >= 1, and its packet floor (below) lifts it above
+    // under-sizing: the fraction is the binding bound on this
+    // shape (learned 0, leaf/2 vs leaf/2 — the floor lifts the
+    // 200-byte case to itself, the fraction stays the take).
     assert_eq!(
         flow_take(false, SPARSE_PKT, 7_000, 0, u64::MAX, u64::MAX, 900),
         450
+    );
+    // THE PACKET FLOOR (the lane's fourth lesson), carrying the
+    // LONE/COLD shape only (learned < 2): the lone bulk flow's
+    // fraction under-sized takes at low binding rates and the
+    // drop-with-bank cycle collapsed TCP to 37% of a policy it
+    // should have ridden (the third battery run's measurement, at
+    // 2 MB/s where leaf/3 sits at the packet's own order). A
+    // decayed-peak TRANSIENT (learned >= 2) keeps the fraction —
+    // the trickle regime measured the unconditional floor lifting
+    // transient takes to the full quantum, four epochs of allowance
+    // per draw.
+    assert_eq!(
+        flow_take(false, 65_536, 200_000, 1, u64::MAX, u64::MAX, 90_000),
+        65_536
+    );
+    assert_eq!(
+        flow_take(false, 65_536, 200_000, 0, u64::MAX, u64::MAX, 90_000),
+        65_536
+    );
+    // The transient (learned 2, peak decayed): the fraction binds.
+    assert_eq!(
+        flow_take(false, 65_536, 200_000, 2, u64::MAX, u64::MAX, 90_000),
+        90_000 / 4
+    );
+    // The floor is bounded by the leaf: a leaf below the packet
+    // gives what it holds (the cascade's own shape).
+    assert_eq!(
+        flow_take(false, 65_536, 200_000, 1, u64::MAX, u64::MAX, 40_000),
+        40_000
+    );
+    // The floor never exceeds the lane law: a sparse demand is its
+    // own floor (200 bytes), and the fraction still binds whenever
+    // it sits above the packet.
+    assert_eq!(
+        flow_take(true, 200, 200_000, 2, u64::MAX, u64::MAX, 90_000),
+        200
+    );
+    assert_eq!(
+        flow_take(false, 65_536, 200_000, 1, u64::MAX, u64::MAX, 300_000),
+        100_000
     );
     // A sparse take keeps the whole-leaf right: 200 bytes may take
     // the leaf's last 200 (the demand IS the packet; the bulk
