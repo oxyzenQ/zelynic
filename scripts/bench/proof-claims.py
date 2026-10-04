@@ -75,10 +75,13 @@ root required for the live run, --self-test for CI without root):
     against generous bounds, the real numbers printed. The
     kernel-side cost is measured where it lives: bpftool's
     run_time_ns / run_cnt on the attached programs (average
-    nanoseconds per run after a saturating window) — the "no
+    nanoseconds per run after a saturating window — fields the
+    kernel only collects while kernel.bpf_stats_enabled is on,
+    boot default off, so the stage turns the knob on for its
+    window and writes the original value back) — the "no
     daemon, no battery drain" claim's quantitative half. Rootless
-    pins: the verdict math (self-test) and the claims ledger
-    (docs/CLAIMS_VERIFICATION.md).
+    pins: the verdict math, the stats-knob plan (self-test) and
+    the claims ledger (docs/CLAIMS_VERIFICATION.md).
 
 Usage:
   sudo ./scripts/bench/proof-claims.sh               # full claims audit (~1 min)
@@ -114,6 +117,15 @@ import zelynic_harness_lib as lib  # noqa: E402 - needs the lib/ path bootstrap 
 CGROUP_A = os.path.join(lib.CGROUP_ROOT, "zelynic-proof-a")
 CGROUP_B = os.path.join(lib.CGROUP_ROOT, "zelynic-proof-b")
 PID_FILE = "/tmp/zelynic.pid"
+# The kernel only collects per-program run_time_ns / run_cnt while
+# this sysctl is ON (bpftool-prog(8): "the kernel does not collect
+# them by default"; activation is the knob). Boot default is 0 on
+# every distro — including the owner's Arch — so a harness that
+# never turns it on can never read the fields (NIGHT-lts-6
+# followup 3: the first live full-mode run SKIPped the kernel-cost
+# row on kernel 6.18 with bpftool present, and the reason blamed
+# the kernel version).
+STATS_KNOB = "/proc/sys/kernel/bpf_stats_enabled"
 
 # Windows (seconds). Full mode totals ~1 minute of measurements.
 BASELINE_WINDOW = 3.0
@@ -230,6 +242,23 @@ def footprint_verdict(maxrss_kib, cpu_s, block_io):
         f"block IO {block_io} (bound {FOOTPRINT_BLOCK_IO_MAX})"
     )
     return ok, detail
+
+
+def stats_knob_plan(was):
+    """(enable_now, restore_value) for the run-time stats knob.
+
+    `was` is the knob's current value string ("0"/"1"), or None when
+    unreadable. The plan: a knob that is OFF gets turned on for the
+    measurement window and its original value written back after
+    (the leave-the-machine-as-found discipline every cleanup row
+    already follows); a knob that is already ON or missing is left
+    alone. Pure over its input so the self-test can pin all three
+    branches rootlessly — the CI lane cannot touch /proc/sys, but
+    it can hold the decision the live run makes.
+    """
+    if was == "0":
+        return True, "0"
+    return False, None
 
 
 def witness_floor(baseline, rate_bps):
@@ -967,21 +996,54 @@ def stage_footprint(quick):
     lib.record("footprint: the one-shot CLI's own cost", "PASS" if ok else "FAIL", detail)
 
     # The kernel half: traffic through the policed hook, then the
-    # attached programs' own average run time.
-    tracked_download(window, SERVER.port)
-    ran, out = tool_snapshot(["bpftool", "-j", "prog", "show"])
+    # attached programs' own average run time. run_time_ns / run_cnt
+    # exist only while kernel.bpf_stats_enabled collects — boot
+    # default OFF on every distro — so the window below turns the
+    # knob on (when it is off and writable) and the finally puts
+    # the machine back the way it was found. The first live
+    # full-mode run SKIPped here with a reason that blamed the
+    # kernel version while bpftool ran fine on 6.18: the fields
+    # were absent because nothing ever asked the kernel to collect
+    # them (NIGHT-lts-6 followup 3).
+    knob_was = None  # the knob's pre-proof value (None: unreadable)
+    knob_write_failed = False
+    knob_restore = None  # what the finally writes back (None: hands off)
+    ran, out = False, ""
     kruns = []
-    if ran:
+    try:
         try:
-            for prog in json.loads(out or ""):
-                name = prog.get("name", "")
-                if name.startswith("enforce_"):
-                    run_ns = prog.get("run_time_ns")
-                    run_cnt = prog.get("run_cnt")
-                    if run_ns and run_cnt:
-                        kruns.append((name, run_ns / run_cnt, run_cnt))
-        except (ValueError, AttributeError, TypeError):
-            kruns = []
+            with open(STATS_KNOB) as f:
+                knob_was = f.read().strip()
+        except OSError:
+            knob_was = None
+        enable_now, knob_restore = stats_knob_plan(knob_was)
+        if enable_now:
+            try:
+                with open(STATS_KNOB, "w") as f:
+                    f.write("1")
+            except OSError:
+                knob_write_failed = True
+                knob_restore = None  # nothing was changed; nothing to undo
+        tracked_download(window, SERVER.port)
+        ran, out = tool_snapshot(["bpftool", "-j", "prog", "show"])
+        if ran:
+            try:
+                for prog in json.loads(out or ""):
+                    name = prog.get("name", "")
+                    if name.startswith("enforce_"):
+                        run_ns = prog.get("run_time_ns")
+                        run_cnt = prog.get("run_cnt")
+                        if run_ns and run_cnt:
+                            kruns.append((name, run_ns / run_cnt, run_cnt))
+            except (ValueError, AttributeError, TypeError):
+                kruns = []
+    finally:
+        if knob_restore is not None:
+            try:
+                with open(STATS_KNOB, "w") as f:
+                    f.write(knob_restore)
+            except OSError:
+                pass  # best effort: the knob is per-boot anyway
     if kruns:
         worst = max(avg_ns for _, avg_ns, _ in kruns)
         detail = "; ".join(
@@ -994,11 +1056,30 @@ def stage_footprint(quick):
             f"(bound {FOOTPRINT_KRUN_MAX_NS:,}ns) — {detail}",
         )
     else:
+        if not ran:
+            reason = (
+                "bpftool not installed — the pin row (claim 1) and the "
+                "kernel-drop row (claim 2) carry the same fact"
+            )
+        elif knob_was is None:
+            reason = (
+                f"{STATS_KNOB} unreadable — run_time_ns/run_cnt only exist "
+                "while that sysctl collects (boot default off)"
+            )
+        elif knob_write_failed:
+            reason = (
+                f"{STATS_KNOB} is {knob_was} and not writable as root — cannot "
+                "collect run-time stats for the window"
+            )
+        else:
+            reason = (
+                "stats were on but no enforce_ program recorded a run in the "
+                "window — the attach's programs saw no traffic"
+            )
         lib.record(
             "footprint: kernel enforcement cost",
             "SKIP",
-            "bpftool absent or no run_time_ns (kernel < 5.1) — "
-            "the CLI footprint row above still stands",
+            reason + " — the CLI footprint row above still stands",
         )
 
     # Leave the maps as the other stages found them.
@@ -1227,6 +1308,51 @@ def self_test():
             "selftest: footprint stage speaks this harness's cgroup API",
             "PASS" if "CG.a_id" in fp_src and "CG.ids" not in fp_src else "FAIL",
             "PairCgroups exposes a_id/b_id — the supermassive CG.ids shape does not exist here",
+        )
+        == "PASS"
+        and ok
+    )
+    # NIGHT-lts-6 followup 3 pins: the kernel-cost row's stats knob.
+    # The owner's live Arch run SKIPped that row on kernel 6.18 with
+    # bpftool present — run_time_ns / run_cnt only exist while
+    # kernel.bpf_stats_enabled collects (boot default OFF; the
+    # bpftool-prog(8) contract), so the stage must turn the knob on
+    # for its window and put the machine back afterward. The plan is
+    # pure over its input — CI pins all three branches without ever
+    # touching /proc/sys.
+    for was, want in (
+        ("0", (True, "0")),
+        ("1", (False, None)),
+        (None, (False, None)),
+    ):
+        label = {"0": "off", "1": "on"}.get(was, "unreadable")
+        got = stats_knob_plan(was)
+        ok = (
+            lib.record(
+                f"selftest: stats knob plan — {label} knob",
+                "PASS" if got == want else "FAIL",
+                f"stats_knob_plan({was!r}) -> {got!r}",
+            )
+            == "PASS"
+            and ok
+        )
+    ok = (
+        lib.record(
+            "selftest: kernel-cost row enables the stats knob it reads",
+            "PASS"
+            if "stats_knob_plan" in fp_src and "bpf_stats_enabled" in fp_src
+            else "FAIL",
+            "run_time_ns needs kernel.bpf_stats_enabled=1 (boot default off) — "
+            "the stage plans the knob and restores the machine it borrowed",
+        )
+        == "PASS"
+        and ok
+    )
+    ok = (
+        lib.record(
+            "selftest: kernel-cost SKIP reason names the live cause",
+            "PASS" if "kernel < 5.1" not in fp_src else "FAIL",
+            "the retired version misdiagnosis is gone from the stage source",
         )
         == "PASS"
         and ok
