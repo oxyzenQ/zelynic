@@ -52,6 +52,7 @@ import json
 import math
 import os
 import re
+import shutil
 import subprocess
 import sys
 import time
@@ -67,6 +68,17 @@ DEFAULT_TIMEOUT_SECS = 600  # build + link + 10s render budget
 
 def run_harness(quick: bool, timeout: int):
     """Run the ignored Rust frame harness, return raw stdout text."""
+    # NIGHT-hunt-32: an absent cargo is a one-line diagnosis, not a
+    # traceback; and an exported ZELYNIC_FRAME_BENCH_QUICK=1 used to
+    # silently turn every "full 10s" run into a 1s run while the label
+    # still said full — the harness's own quick flag now OWNS the env
+    # var on every run (empty unless quick).
+    if shutil.which("cargo") is None:
+        print(
+            "[frame-bench] FATAL: cargo not found on PATH — install the Rust toolchain first.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
     cmd = [
         "cargo",
         "test",
@@ -78,9 +90,7 @@ def run_harness(quick: bool, timeout: int):
         "--nocapture",
     ]
     env = dict(os.environ)
-    env.setdefault("ZELYNIC_FRAME_BENCH_QUICK", "")
-    if quick:
-        env["ZELYNIC_FRAME_BENCH_QUICK"] = "1"
+    env["ZELYNIC_FRAME_BENCH_QUICK"] = "1" if quick else ""
     print(
         f"[frame-bench] running: {' '.join(cmd)}" + (" (quick)" if quick else ""), file=sys.stderr
     )

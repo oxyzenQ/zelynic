@@ -49,7 +49,9 @@ cannot be triggered as root") and for the safety it shares with every
 other v4 case: a valid rate past a passing gate is an enforcement
 attempt, and no v4 case executes a policy. The rootless CI leg
 (.github/workflows/ci.yml) still runs all 121 rows end to end on
-every push; the garbage/typo shadow rows run under every uid because
+every push that touches the Rust/scripts surface (ci.yml is
+paths-filtered — NIGHT-hunt-32 corrected the unqualified "every
+push"); the garbage/typo shadow rows run under every uid because
 their refusals fire at the parse boundary, before the gate.
 
 Design:

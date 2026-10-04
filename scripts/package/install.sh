@@ -6,8 +6,11 @@
 # Install zelynic system-wide or user-local.
 #
 # Works in two modes:
-#   1. Pre-built: a zelynic binary already sits beside this script
-#      (a release-payload drop, or a build copied into the repo root).
+#   1. Pre-built: a zelynic binary already sits beside this script —
+#      a release tarball unpacked next to it, or a build copied into
+#      the repo root by hand (NIGHT-hunt-32 wording fix: the release
+#      pipeline ships zelynic/LICENSE/README tarballs and never
+#      assembles this layout itself).
 #      The eBPF objects are embedded inside it (NIGHT-improve-1
 #      phase 3), so no toolchain is needed — install the one file.
 #      The mode announces itself so a stale drop is never mistaken

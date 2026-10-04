@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
 # Copyright (C) 2026 rezky_nightky
 # SPDX-License-Identifier: GPL-3.0-only
+# LOC_EXEMPT: crossed the 1000-line cap in NIGHT-hunt-32 — the audit's
+# honest-verdict rows (the SKIP-with-reason arms that replaced silently
+# vanishing rows) and the corrected kernel-span ladder grew the file
+# past 999 by real content, not bloat; the same one-harness-by-design
+# argument its proof-claims/supermassive siblings carry.
 """zelynic limiter depth test — flagship cross-distro stress harness.
 
 Design (NIGHT-master-1): the owner needs ONE script to depth-stress the
@@ -484,7 +489,11 @@ KERNEL_RUNGS = (
     ((5, 13), "the verified matrix floor (Ubuntu 21.10)"),
     ((6, 1), "LTS line - the enterprise floor"),
     ((6, 8), "LTS line - the current hosted ceiling"),
-    ((6, 12), "LTS line - the newest LTS generation"),
+    # NIGHT-hunt-32: a 6.16 rung — the ladder claimed 6.12 was "the
+    # newest LTS generation" while KERNEL_LTS_LINES already carried
+    # 6.16, so a 6.18 rig self-contradicted three rows apart.
+    ((6, 12), "LTS line"),
+    ((6, 16), "LTS line - the newest LTS generation"),
 )
 KERNEL_LTS_LINES = ((5, 15), (6, 1), (6, 6), (6, 12), (6, 16))
 
@@ -682,7 +691,15 @@ def test_rate(rate_bps, window, baseline, label):
     # Kernel-side proof: under a binding limit, packets must have been
     # dropped, and the BPF byte counter must agree with the client.
     entry = limit_entry(status_json(), CG.id)
-    if entry:
+    if entry is None:
+        # NIGHT-hunt-32: a vanished verdict is not a verdict — the row
+        # names the cause instead of silently not appearing.
+        record(
+            f"rate {label}: kernel drops engaged",
+            "SKIP",
+            "no status row for the limit cgroup after the window — the ledger read came back empty",
+        )
+    else:
         dropped = entry.get("packets_dropped", 0)
         record(
             f"rate {label}: kernel drops engaged (packets_dropped > 0)",
@@ -697,6 +714,12 @@ def test_rate(rate_bps, window, baseline, label):
                     f"rate {label}: BPF accounting matches client bytes",
                     "PASS" if 0.5 <= ratio <= 1.5 else "FAIL",
                     f"bpf {allowed} vs client {got} ({ratio * 100:.1f}%)",
+                )
+            else:
+                record(
+                    f"rate {label}: BPF accounting matches client bytes",
+                    "SKIP",
+                    "bytes_allowed read as 0 — the accounting window came back empty",
                 )
     clear_limits()
     return passed
@@ -790,8 +813,14 @@ def test_sustain(rate_bps, windows, window, baseline):
 
 def test_overhead(baseline, window):
     if baseline and baseline >= 300e9:
+        # NIGHT-hunt-32: the honest reason — the harness's own margin
+        # arithmetic (3x baseline must stay under the 900gb non-binding
+        # clamp), not the 1 TB/s parser ceiling a 300-999gb baseline is
+        # nowhere near.
         return record(
-            "overhead: non-binding policy cost", "SKIP", "baseline beyond the 1 TB/s policy ceiling"
+            "overhead: non-binding policy cost",
+            "SKIP",
+            f"baseline {baseline / 1e9:.0f}gb — 3x it would exceed the 900gb non-binding clamp (the harness's margin arithmetic)",
         )
     # Whole-GB multiples only: the generated rate string and the
     # expected bps stay in exact agreement (10gb -> 10_000_000_000).

@@ -18,11 +18,25 @@
 # the 644 permission rule applies (same discipline as
 # zelynic_harness_lib.py).
 #
+# NIGHT-hunt-32 heals carried here (the dedup's own unfinished edge):
+#   - PIN_DIR is defined — the bash twin of the python lib's constant
+#     and pin.rs's PIN_DIR. crash-recovery-test.sh referenced it eight
+#     times while nothing defined it: under that suite's own
+#     `set -euo pipefail` it died at Test 1 on every machine since the
+#     NIGHT-hunt-21 dedup moved the helpers here without the constant.
+#   - the default binary is REPO-ANCHORED (never CWD-relative) and
+#     version-GATED against Cargo.toml — the python twin's
+#     NIGHT-improve-16 discipline, bash form: a stale decoy build must
+#     never be tested silently (the 2026-09-21 debian13 lesson).
+#   - the build remedy names the living flow: bootstrap-ebpf.sh
+#     (NIGHT-cleanup-3 retired the plain `cargo build --release`
+#     path the old remedy told people to run).
+#
 # Contract with the sourcing harness:
 #   - source it AFTER the harness's own `set` flags are chosen
 #     (each harness keeps its own -e/-u policy)
 #   - BINARY is resolved here only if the harness has not set it
-#     (argv[1] override, else ./target/release/zelynic)
+#     (argv[1] override, else the repo-anchored target/release build)
 #   - counters PASS / FAIL / TOTAL start at 0; log_* bump them
 #   - cleanup() stays harness-owned — teardown is script-specific
 
@@ -35,35 +49,64 @@ PASS=0
 FAIL=0
 TOTAL=0
 
-BINARY="${BINARY:-${1:-./target/release/zelynic}}"
+# Repo anchor (the python twin's REPO_ROOT discipline): the default
+# binary must never depend on the caller's CWD.
+HARNESS_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${HARNESS_LIB_DIR}/../.." && pwd)"
+
+# The product's pin directory (pin.rs:13, the python lib's PIN_DIR) —
+# sourced harnesses read pins through this constant, never a literal.
+# shellcheck disable=SC2034 # consumed by the sourcing harnesses, not this file
+PIN_DIR="/sys/fs/bpf/zelynic"
+
+BINARY="${BINARY:-${1:-${REPO_ROOT}/target/release/zelynic}}"
 
 log_pass() {
-	echo -e "  ${GREEN}OK PASS${NC}: $1"
-	PASS=$((PASS + 1))
+        echo -e "  ${GREEN}OK PASS${NC}: $1"
+        PASS=$((PASS + 1))
 }
 
 log_fail() {
-	echo -e "  ${RED}X FAIL${NC}: $1"
-	FAIL=$((FAIL + 1))
+        echo -e "  ${RED}X FAIL${NC}: $1"
+        FAIL=$((FAIL + 1))
 }
 
 log_test() {
-	echo ""
-	echo -e "  ${YELLOW}TEST${NC}: $1"
-	TOTAL=$((TOTAL + 1))
+        echo ""
+        echo -e "  ${YELLOW}TEST${NC}: $1"
+        TOTAL=$((TOTAL + 1))
 }
 
 check_root() {
-	if [ "$(id -u)" -ne 0 ]; then
-		echo -e "${RED}ERROR: This test requires root. Run with sudo.${NC}"
-		exit 1
-	fi
+        if [ "$(id -u)" -ne 0 ]; then
+                echo -e "${RED}ERROR: This test requires root. Run with sudo.${NC}"
+                exit 1
+        fi
 }
 
 check_binary() {
-	if [ ! -f "$BINARY" ]; then
-		echo -e "${RED}ERROR: Binary not found: $BINARY${NC}"
-		echo "Build first: cargo build --release --features ebpf"
-		exit 1
-	fi
+        if [ ! -f "$BINARY" ]; then
+                echo -e "${RED}ERROR: Binary not found: $BINARY${NC}"
+                echo "Build first: ./scripts/dev/bootstrap-ebpf.sh (eBPF toolchain pair + flagship binary)"
+                exit 1
+        fi
+        # Version gate (NIGHT-improve-16, bash form): the harness tests THIS
+        # checkout, never a decoy. Explicit overrides pass the same gate — a
+        # wrong version means a wrong CLI surface and a wrong status schema:
+        # every verdict would be decoy noise.
+        local want got
+        want="$(sed -n 's/^version = "\(.*\)"/\1/p' "${REPO_ROOT}/Cargo.toml" 2>/dev/null | head -1 || true)"
+        got="$($BINARY -V 2>/dev/null | head -1 | sed -n 's/^zelynic: v//p' || true)"
+        if [ -z "$want" ]; then
+                echo -e "${YELLOW}WARN: version gate unavailable — no parsable version in ${REPO_ROOT}/Cargo.toml${NC}"
+                return 0
+        fi
+        if [ "$got" != "$want" ]; then
+                echo -e "${RED}ERROR: BINARY GATE — refusing to test a zelynic that is not this checkout's build.${NC}"
+                echo "  ${BINARY} reports: ${got:-'(no version line)'}"
+                echo "  this checkout is: v${want} (Cargo.toml) — a wrong version means a wrong"
+                echo "  CLI surface and a wrong status schema: every verdict would be decoy noise."
+                echo "Build first: ./scripts/dev/bootstrap-ebpf.sh"
+                exit 1
+        fi
 }

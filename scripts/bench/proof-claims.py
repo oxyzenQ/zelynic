@@ -643,7 +643,10 @@ def stage_pure_ebpf():
     out = lib.out
     out()
     out("━━━ claim 2: pure eBPF ━━━")
-    # Snapshots BEFORE the attach (no limit is live at stage entry).
+    # Snapshots BEFORE the attach — claim 1's 5mb limit on A is still
+    # live from the no-daemon stage (enforcement pinned in bpffs), and
+    # that is fine: pure-eBPF needs no tc/nft state for it either. The
+    # comparison is before-vs-during THIS stage's own attach.
     tc_ran, tc_before = tool_snapshot(["tc", "qdisc", "show"])
     nft_ran, nft_before = tool_snapshot(["nft", "list", "ruleset"])
     ok, payload = apply_and_verify(PURE_RATE, CG.a_id)
@@ -981,7 +984,7 @@ def stage_footprint(quick):
     # guards the vocabulary).
     argv = [lib.BINARY, "strict-single", str(CG.a_id), "-d", rate_str, "--no-probe"]
     try:
-        child = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        child = subprocess.Popen(argv, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         _, status, ru = os.wait4(child.pid, 0)
         child.returncode = os.waitstatus_to_exitcode(status)
     except OSError as e:

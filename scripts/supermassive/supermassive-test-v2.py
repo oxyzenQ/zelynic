@@ -78,7 +78,11 @@ Usage:
   sudo ./scripts/supermassive/supermassive-test-v2.sh --json        # machine-readable
 
 What it verifies (verdicts PASS / FAIL / SKIP, exit 1 on any FAIL):
-  the server phase (NIGHT-blade-4, runs FIRST): the guard family under
+  preflight: env + minimum specs, doctor, list-apps, loopback baseline
+         (the engine sanity the kill stages' traffic depends on — runs
+         FIRST, before the server phase, NIGHT-hunt-32 corrected the
+         order this docstring claimed);
+  the server phase (NIGHT-blade-4): the guard family under
          the stripped headless environment a production server
          carries (PATH + TERM=dumb, no DISPLAY/DBUS/XDG, every fd a
          pipe) — the info surfaces, the retired --info tipping
@@ -87,8 +91,6 @@ What it verifies (verdicts PASS / FAIL / SKIP, exit 1 on any FAIL):
          ee --depth error ladder, every invariant identical to the
          inherited-env sweep; then, on a green server phase, the
          survival battery:
-  preflight: env + minimum specs, doctor, list-apps, loopback baseline
-         (the engine sanity the kill stages' traffic depends on);
   guards: the NIGHT-ultimate-3 depth sweep — 97 cases (size pinned by --self-test): info surfaces
          (bare invocation, --help/-h, --version/-V, global -V at
          subcommand level, --color-mode, --, doctor --print-json, the
@@ -853,7 +855,10 @@ def run_server_phase():
     contracts to the inherited-env sweep, proven where the desktop is
     absent. Returns True when no case failed."""
     out()
-    out("━━━ phase 1/5: server depth (guards under the headless environment) ━━━")
+    # run_survival's blade-4 phase count: the server phase is phase 1 of
+    # the SIX (base 2, total 6 — "phase 1/5" was the pre-blade-4 stale
+    # denominator, NIGHT-hunt-32).
+    out("━━━ phase 1/6: server depth (guards under the headless environment) ━━━")
     ok = True
     for label, argv, exit_class, needle in SERVER_DEPTH_CASES:
         rc, text = _run_cli_case_headless(argv)
@@ -1890,7 +1895,7 @@ def self_test():
 
 # ── main ────────────────────────────────────────────────────────────────────
 
-KNOWN_FLAGS = ("self-test", "binary", "json", "band")
+KNOWN_FLAGS = ("self-test", "binary", "json", "band", "server-only", "desktop-only")
 
 
 def _unknown_arg_error(token):

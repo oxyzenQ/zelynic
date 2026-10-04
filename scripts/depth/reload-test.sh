@@ -14,6 +14,19 @@
 #   3. Rapid rate changes (100kb → 500kb → 1mb → 100kb)
 #   4. Change rate while BPF is actively dropping packets
 #   5. Final state verification
+#
+# NIGHT-hunt-32: the traffic source is now a LOOPBACK blob server —
+# self-contained like the rest of the family (the old external
+# example.com fetch made the suite network-dependent, and its loose
+# `pkill -f "curl.*example.com"` could kill unrelated processes).
+# The server, the curls, and the sleep target are siblings in THIS
+# cgroup, so the policed surface sees the traffic. Test 4's drop read
+# once took awk field $5 of a status row — the UPLOAD-RATE column,
+# because the "cg:ID (comm)" label shifts every field left of it —
+# and its verdict called log_pass in both branches. The read now goes
+# through the status JSON's limits[].bytes_dropped (display_json.rs,
+# the stable contract), and the verdict fails honestly when no drops
+# occurred.
 
 set -uo pipefail
 
@@ -23,9 +36,32 @@ set -uo pipefail
 # shellcheck source=scripts/lib/harness_lib.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/harness_lib.sh"
 
+TMPD="$(mktemp -d /tmp/zelynic-reload.XXXXXX)"
+PORT=18731
+SRV_PID=""
+URL="http://127.0.0.1:${PORT}/blob"
+
 cleanup() {
 	"$BINARY" unstrict-all 2>/dev/null || true
-	pkill -f "curl.*example.com" 2>/dev/null || true
+	if [ -n "${SRV_PID:-}" ]; then
+		kill "$SRV_PID" 2>/dev/null || true
+	fi
+	rm -rf "$TMPD" 2>/dev/null || true
+}
+
+# Dropped bytes summed across every live limit row (NIGHT-hunt-32 —
+# see the header): the status JSON is the stable column contract.
+dropped_bytes() {
+	"$BINARY" status --print-json 2>/dev/null | python3 -c '
+import json
+import sys
+
+try:
+    doc = json.load(sys.stdin)
+    print(sum(int(r.get("bytes_dropped", 0)) for r in doc.get("limits", [])))
+except Exception:
+    print(-1)
+'
 }
 
 echo "━━━ zelynic Reload Test Suite ━━━"
@@ -33,6 +69,20 @@ echo "Binary: $BINARY"
 
 check_root
 check_binary
+cleanup
+trap cleanup EXIT
+
+# The loopback blob server (NIGHT-hunt-32 — see the header): 8 MiB
+# so a policed fetch can never finish inside a test window.
+dd if=/dev/zero of="${TMPD}/blob" bs=1M count=8 status=none
+python3 -m http.server "${PORT}" --bind 127.0.0.1 --directory "${TMPD}" >/dev/null 2>&1 &
+SRV_PID=$!
+sleep 1
+if ! curl -sf -o /dev/null --max-time 10 "${URL}" 2>/dev/null; then
+	echo "FATAL: the loopback blob server did not come up (${URL})" >&2
+	exit 1
+fi
+
 cleanup
 
 # Test 1: Apply limit, change rate during traffic
@@ -42,8 +92,9 @@ sleep 600 &
 SLEEP_PID=$!
 SLEEP_COMM=$(cat /proc/$SLEEP_PID/comm 2>/dev/null || echo "sleep")
 "$BINARY" strict-single "$SLEEP_COMM" 100kb 2>/dev/null
-# Start background traffic
-(curl -s -o /dev/null http://example.com/largefile 2>/dev/null &)
+# Start background traffic (loopback — self-contained)
+curl -s -o /dev/null "${URL}" 2>/dev/null &
+CURL_PID=$!
 sleep 1
 # Change rate while traffic flows
 "$BINARY" strict-single "$SLEEP_COMM" 500kb 2>/dev/null
@@ -53,6 +104,7 @@ if "$BINARY" status 2>/dev/null | grep -q "500.0 KB/s"; then
 else
 	log_fail "Rate change failed during traffic"
 fi
+kill "${CURL_PID}" 2>/dev/null || true
 kill "$SLEEP_PID" 2>/dev/null || true
 cleanup
 
@@ -98,29 +150,37 @@ sleep 600 &
 SLEEP_PID=$!
 SLEEP_COMM=$(cat /proc/$SLEEP_PID/comm 2>/dev/null || echo "sleep")
 "$BINARY" strict-single "$SLEEP_COMM" 10kb 2>/dev/null # Very low rate → lots of drops
-# Generate traffic
+# Generate traffic (loopback — self-contained, same cgroup as the target)
+CURL_PIDS=()
 for _ in 1 2 3; do
-	curl -s -o /dev/null http://example.com/largefile 2>/dev/null &
+	curl -s -o /dev/null "${URL}" 2>/dev/null &
+	CURL_PIDS+=($!)
 done
 sleep 2
-# Check drops are happening
-DROPS_BEFORE=$("$BINARY" status 2>/dev/null | grep "$SLEEP_COMM" | awk '{print $5}' | head -1)
+# Check drops are happening (the JSON column contract — see header)
+DROPS_BEFORE="$(dropped_bytes)"
 # Change rate
 "$BINARY" strict-single "$SLEEP_COMM" 500kb 2>/dev/null
 sleep 1
-DROPS_AFTER=$("$BINARY" status 2>/dev/null | grep "$SLEEP_COMM" | awk '{print $5}' | head -1)
-if [ -n "$DROPS_BEFORE" ] && [ -n "$DROPS_AFTER" ]; then
-	log_pass "Rate changed during active drops (before: $DROPS_BEFORE, after: $DROPS_AFTER)"
-else
-	log_pass "Rate changed during traffic (drop data may be empty)"
-fi
+DROPS_AFTER="$(dropped_bytes)"
+for cpid in "${CURL_PIDS[@]}"; do
+	kill "$cpid" 2>/dev/null || true
+done
 kill "$SLEEP_PID" 2>/dev/null || true
-pkill -f "curl.*example.com" 2>/dev/null || true
+if [ "${DROPS_BEFORE:--1}" -gt 0 ] && [ "${DROPS_AFTER:--1}" -ge 0 ]; then
+	log_pass "Rate changed during active drops (dropped bytes: ${DROPS_BEFORE} → ${DROPS_AFTER})"
+else
+	log_fail "No drops observed under the 10kb cap — the loopback traffic produced no policed traffic (drop read: ${DROPS_BEFORE:-unreadable})"
+fi
 cleanup
 
 # Test 5: Final state
 log_test "Final state verification"
-"$BINARY" strict-single curl 100kb 2>/dev/null || true
+sleep 600 &
+SLEEP_PID=$!
+SLEEP_COMM=$(cat /proc/$SLEEP_PID/comm 2>/dev/null || echo "sleep")
+"$BINARY" strict-single "$SLEEP_COMM" 100kb 2>/dev/null || true
+kill "$SLEEP_PID" 2>/dev/null || true
 "$BINARY" unstrict-all 2>/dev/null
 if [ ! -d "/sys/fs/bpf/zelynic" ] || [ -z "$(ls -A /sys/fs/bpf/zelynic 2>/dev/null)" ]; then
 	log_pass "Final state is clean"

@@ -7,11 +7,22 @@
 #
 # Tests:
 #   1. Concurrent strict-single (5 parallel) — only 1 should succeed
-#   2. Concurrent unstrict-all (5 parallel) — only 1 should succeed
+#   2. Concurrent unstrict-all (5 parallel) — no crash
 #   3. Mixed strict-single + unstrict-all — no crash, no corruption
 #   4. Rapid strict-single → unstrict → strict-single cycle
 #   5. Lock release on exit — sequential operations work after lock holder exits
 #   6. Final state verification
+#
+# NIGHT-hunt-32: three always-green verdicts died here. Test 1
+# targeted the comm "curl" with no curl running — dinner-11's
+# no-match hard error failed all five applies and the FAIL blamed the
+# lock machinery for an absent target. Test 2's pass condition
+# ("CRASHED -le 5") could never be false — CRASHED only ever counts
+# five waits — and it counted graceful lock refusals as crashes. Test
+# 3 called log_pass in BOTH branches (and grepped "No active|Stale"
+# strings the status surface prints lowercase). The verdicts below
+# now measure what they claim: a real target, signal deaths counted
+# apart from graceful refusals, and a state check that can fail.
 
 set -uo pipefail
 
@@ -25,6 +36,14 @@ cleanup() {
 	"$BINARY" unstrict-all 2>/dev/null || true
 }
 
+# A long-lived target for the concurrent applies (NIGHT-hunt-32 — see
+# the header): targeting a comm with no live process is dinner-11's
+# no-match hard error, not a lock race.
+sleep 600 &
+TARGET_PID=$!
+TARGET_COMM="$(cat /proc/$TARGET_PID/comm 2>/dev/null || echo "sleep")"
+trap 'kill "${TARGET_PID:-0}" 2>/dev/null || true; cleanup' EXIT
+
 echo "━━━ zelynic Race Condition Test Suite ━━━"
 echo "Binary: $BINARY"
 
@@ -36,40 +55,51 @@ cleanup
 log_test "Concurrent strict-single (5 parallel) — lock serializes"
 PIDS=()
 for _ in 1 2 3 4 5; do
-	"$BINARY" strict-single curl 100kb 2>/dev/null &
+	"$BINARY" strict-single "$TARGET_COMM" 100kb 2>/dev/null &
 	PIDS+=($!)
 done
 SUCCESS=0
 for pid in "${PIDS[@]}"; do
 	wait "$pid" && SUCCESS=$((SUCCESS + 1))
 done
-# At least 1 should succeed. Others may fail with "lock held" or succeed
-# if they run fast enough (lock released between launches).
+# At least 1 should succeed. The lock is non-blocking (EWOULDBLOCK is
+# a hard error, lock.rs), so the losers fail fast with a lock refusal
+# — or succeed when the winner finished before they arrived. The
+# serialization itself is the verdict.
 if [ "$SUCCESS" -ge 1 ]; then
 	log_pass "$SUCCESS/5 succeeded (lock serializes access)"
 else
-	log_fail "0/5 succeeded — all failed"
+	log_fail "0/5 succeeded — none could apply a limit"
 fi
 cleanup
 
 # Test 2: Concurrent unstrict-all — no crash
 log_test "Concurrent unstrict-all (5 parallel) — no crash"
-"$BINARY" strict-single curl 100kb 2>/dev/null || true
+"$BINARY" strict-single "$TARGET_COMM" 100kb 2>/dev/null || true
 PIDS=()
 for _ in 1 2 3 4 5; do
 	"$BINARY" unstrict-all 2>/dev/null &
 	PIDS+=($!)
 done
 CRASHED=0
+GRACEFUL=0
 for pid in "${PIDS[@]}"; do
-	wait "$pid" || CRASHED=$((CRASHED + 1))
+	wait "$pid" && continue
+	rc=$?
+	if [ "$rc" -ge 128 ]; then
+		CRASHED=$((CRASHED + 1))
+	else
+		GRACEFUL=$((GRACEFUL + 1))
+	fi
 done
-# Some may fail with "no active limits" (after first one removes all).
-# None should crash/panic.
-if [ "$CRASHED" -le 5 ]; then
-	log_pass "No crashes (some may have failed gracefully — expected)"
+# A graceful non-zero exit is a lock refusal or a clean-state report
+# (dinner-11 made the empty-state unstrict exit 0; the losers of the
+# race still report it non-zero on some paths) — expected. A death by
+# SIGNAL (rc >= 128) is the crash this test exists to catch.
+if [ "$CRASHED" -eq 0 ]; then
+	log_pass "No signal deaths (${GRACEFUL} graceful refusals — expected)"
 else
-	log_fail "Unexpected crash count: $CRASHED"
+	log_fail "Unexpected signal death count: $CRASHED"
 fi
 cleanup
 
@@ -85,11 +115,15 @@ done
 for pid in "${PIDS[@]}"; do
 	wait "$pid" 2>/dev/null || true
 done
-# Verify state is consistent (either clean or valid, not partial)
-if "$BINARY" status 2>/dev/null | grep -qE "No active|Stale"; then
+# The honest state check (NIGHT-hunt-32): a status read that answers
+# with a non-empty, non-partial report is consistency; an unreadable
+# or partially-stale state is the corruption this test exists to
+# catch — and can, because the verdict can now fail.
+out="$("$BINARY" status 2>/dev/null || true)"
+if [ -n "$out" ] && ! grep -q "stale bpf pin files" <<<"$out"; then
 	log_pass "State consistent after mixed operations"
 else
-	log_pass "State valid after mixed operations"
+	log_fail "Status unreadable or partial after mixed operations"
 fi
 cleanup
 
@@ -97,7 +131,7 @@ cleanup
 log_test "Rapid strict → unstrict → strict cycle (10x)"
 ERRORS=0
 for _ in $(seq 1 10); do
-	"$BINARY" strict-single curl 100kb 2>/dev/null || ERRORS=$((ERRORS + 1))
+	"$BINARY" strict-single "$TARGET_COMM" 100kb 2>/dev/null || ERRORS=$((ERRORS + 1))
 	"$BINARY" unstrict-all 2>/dev/null || ERRORS=$((ERRORS + 1))
 done
 if [ "$ERRORS" -eq 0 ]; then
@@ -125,7 +159,7 @@ cleanup
 
 # Test 6: Final state — clean
 log_test "Final state verification"
-"$BINARY" strict-single curl 100kb 2>/dev/null || true
+"$BINARY" strict-single "$TARGET_COMM" 100kb 2>/dev/null || true
 "$BINARY" unstrict-all 2>/dev/null
 if [ ! -d "/sys/fs/bpf/zelynic" ] || [ -z "$(ls -A /sys/fs/bpf/zelynic 2>/dev/null)" ]; then
 	log_pass "Final state is clean"

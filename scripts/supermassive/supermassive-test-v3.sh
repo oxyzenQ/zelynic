@@ -19,8 +19,8 @@
 #
 # Usage:
 #   sudo ./scripts/supermassive/supermassive-test-v3.sh               # full container depth (root)
-#   ./scripts/supermassive/supermassive-test-v3.sh --self-test        # engine smoke, no root
-#   ./scripts/supermassive/supermassive-test-v3.sh --rootless         # help + privilege gate only
+#   ./scripts/supermassive/supermassive-test-v3.sh --self-test        # engine smoke, no root, no binary
+#   sudo ./scripts/supermassive/supermassive-test-v3.sh --stages help,privilege,grammar,resolution  # pick stages
 #   sudo ./scripts/supermassive/supermassive-test-v3.sh --json        # machine-readable
 #   sudo ./scripts/supermassive/supermassive-test-v3.sh --docker-e2e  # force the docker E2E lane
 #   sudo ./scripts/supermassive/supermassive-test-v3.sh --k8s-e2e     # force the k8s E2E lane

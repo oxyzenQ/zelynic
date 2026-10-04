@@ -239,11 +239,13 @@ install_bpf_linker() {
 	extracted="${TMP_DIR}/extract"
 	mkdir -p "${extracted}"
 
-	# The one big fetch of this bootstrap (a ~100 MB tar.zst — the
-	# slow step on slow links). Announce it, then show a live
-	# progress bar so the script is never silent while it runs;
-	# quiet when stderr is not a terminal (logs, CI capture).
-	ok "downloading ${url} (~100 MB, the slow step — progress below)"
+	# The one big fetch of this bootstrap (a ~30 MB tar.zst — the
+	# slow step on slow links; NIGHT-hunt-32 corrected a ~100 MB
+	# claim that predates upstream's slimmer artifacts). Announce
+	# it, then show a live progress bar so the script is never
+	# silent while it runs; quiet when stderr is not a terminal
+	# (logs, CI capture).
+	ok "downloading ${url} (~30 MB, the slow step — progress below)"
 	local progress_ok=true
 	if [[ ! -t 2 ]]; then
 		progress_ok=false
@@ -393,8 +395,12 @@ ok "sanity: ${RUSTC_VERSION_REPORTED}"
 # regardless — the build below must not depend on the shell the user
 # happened to invoke.
 if [[ ":${PATH}:" != *":${LOCAL_BIN}:"* ]]; then
-	if grep -q '\.local/bin' "${HOME}/.profile" 2>/dev/null; then
-		ok "${HOME}/.profile already references ${LOCAL_BIN} — future login shells see bpf-linker."
+	# NIGHT-hunt-32: an ACTIVE export line is the evidence — the old
+	# bare '.local/bin' grep matched commented-out lines too and
+	# then promised "future login shells see bpf-linker" off a
+	# line the shell would never read.
+	if grep -Eq '^[[:space:]]*export[[:space:]]+PATH=.*\.local/bin' "${HOME}/.profile" 2>/dev/null; then
+		ok "${HOME}/.profile already exports ${LOCAL_BIN} — future login shells see bpf-linker."
 	else
 		# shellcheck disable=SC2016 # literal by design: $HOME/$PATH expand at the login shell that reads .profile, not here
 		printf '\n# added by zelynic scripts/dev/bootstrap-ebpf.sh — bpf-linker lives here\nexport PATH="$HOME/.local/bin:$PATH"\n' >>"${HOME}/.profile"

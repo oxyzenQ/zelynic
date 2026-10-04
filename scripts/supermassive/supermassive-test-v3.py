@@ -131,7 +131,9 @@ _V1_SPEC.loader.exec_module(sm1)
 # within this window — a hang is the loudest failure a CLI can produce
 # (the same contract v2's CLI depth stresstest carries). 15s is generous
 # for a socket probe + a bounded cgroup walk (the resolver caps depth
-# at 10 and entries at 200_000).
+# at 32 and visits at 4096 — pathwalk.rs; NIGHT-hunt-32 corrected a
+# stale "depth 10 / entries 200_000" claim that predated the walker's
+# real bounds).
 CLI_CASE_TIMEOUT = 15
 
 # The panic sentinel: a Rust panic leaking past the CLI's error path is
@@ -1147,18 +1149,18 @@ def main():
     args = parser.parse_args()
 
     # Bind the binary: the --binary flag wins, then the CI init's
-    # default (/opt/zelynic/zelynic), then a PATH lookup.
-    if args.binary:
-        lib.BINARY = args.binary
-    elif os.path.isfile("/opt/zelynic/zelynic"):
-        lib.BINARY = "/opt/zelynic/zelynic"
-    elif not lib.BINARY:
-        # Fall back to a PATH lookup so local runs work without the
-        # CI init's staging.
-        from shutil import which
-
-        found = which("zelynic")
-        lib.BINARY = found or "zelynic"
+    # default (/opt/zelynic/zelynic), then repo builds / PATH — all
+    # through the shared resolver's VERSION GATE (NIGHT-hunt-32: the
+    # total-lts-4 heal that closed the stale-decoy hole for v4 never
+    # reached this sibling — v3 kept ranking /opt above fresh repo
+    # builds with no gate, exactly the hole v4's own comment
+    # describes). Resolution failure is fatal only for a real battery
+    # run: --self-test stays runnable on a binary-less host (the CI
+    # smoke lane runs it with no repo build and no /opt staging).
+    explicit = args.binary
+    if not explicit and os.path.isfile("/opt/zelynic/zelynic"):
+        explicit = "/opt/zelynic/zelynic"
+    resolved = lib.resolve_binary(explicit, "./scripts/supermassive/supermassive-test-v3.sh")
 
     if args.self_test:
         ok = self_test()
@@ -1169,6 +1171,10 @@ def main():
         return 0 if ok else 1
 
     phases = [s.strip() for s in args.stages.split(",") if s.strip()] if args.stages else None
+    # A real battery run needs the gated binary; --self-test above
+    # already returned for the binary-less CI smoke lane.
+    if not resolved:
+        return 1
     ok = run_container_depth(
         phases,
         force_docker_e2e=args.docker_e2e,

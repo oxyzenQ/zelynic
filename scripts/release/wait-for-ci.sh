@@ -123,9 +123,9 @@ newest_run() {
 		-H "Accept: application/vnd.github+json" \
 		"${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/actions/runs?event=push&branch=main&head_sha=${GITHUB_SHA}&per_page=50" |
 		jq -r '[.workflow_runs[] | select(.path == "'"${WORKFLOW_PATH}"'")]
-			| sort_by(.run_number)
-			| .[-1]
-			| if . == null then "" else "\(.id)|\(.status)|\(.conclusion // "-")|\(.html_url)" end'
+                        | sort_by(.run_number)
+                        | .[-1]
+                        | if . == null then "" else "\(.id)|\(.status)|\(.conclusion // "-")|\(.html_url)" end'
 }
 
 # Infra signatures (NIGHT-dinner-12): ERE alternation, matched
@@ -152,11 +152,26 @@ INFRA_SIGNATURES='curl: \(7\)|curl: \(18\)|curl: \(22\)|curl: \(26\)|curl: \(28\
 #               safe default: never auto-retry what cannot be seen)
 classify_failed_run() {
 	run_id="$1"
-	jobs="$(curl -fsSL \
+	# NIGHT-hunt-32: a FAILED FETCH is opaque, not infra — the old
+	# form read an empty jobs list from a network blip / API error
+	# page as "failed with no failed jobs — a startup/runner-level
+	# fault" and auto-retried GitHub's side for our-side reasons.
+	# Bounded either way by the dinner-12 safety property (a real
+	# failure fails the re-run and blocks; never a false PASS).
+	jobs_raw="$(curl -fsSL \
 		-H "Authorization: Bearer ${GITHUB_TOKEN}" \
 		-H "Accept: application/vnd.github+json" \
-		"${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/jobs?per_page=100" |
-		jq -r '[.jobs[] | select(.conclusion == "failure" or .conclusion == "timed_out") | .id] | join(" ")' 2>/dev/null)" || jobs=""
+		"${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/jobs?per_page=100" 2>/dev/null)" || jobs_raw=""
+	if [[ -z "${jobs_raw}" ]]; then
+		echo "[ci-gate] run ${run_id}: the jobs listing could not be fetched (network/API) — classifying opaque, not infra." >&2
+		echo "opaque"
+		return
+	fi
+	if ! jobs="$(jq -r '[.jobs[] | select(.conclusion == "failure" or .conclusion == "timed_out") | .id] | join(" ")' <<<"${jobs_raw}" 2>/dev/null)"; then
+		echo "[ci-gate] run ${run_id}: the jobs payload did not parse — classifying opaque, not infra." >&2
+		echo "opaque"
+		return
+	fi
 	if [[ -z "${jobs}" ]]; then
 		echo "[ci-gate] run ${run_id}: failed with no failed jobs — a startup/runner-level fault (GitHub's side)." >&2
 		echo "infra"
