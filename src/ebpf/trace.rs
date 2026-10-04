@@ -72,28 +72,40 @@ pub fn map_line(
 
 /// Kernel [`MapInfo`] for one loaded map.
 ///
-/// aya 0.13 keeps `info()` on `MapData` and the `Map` enum's inner
+/// aya 0.14 keeps `info()` on `MapData` and the `Map` enum's inner
 /// `MapData` is private, so this is the one de-enumerating match —
 /// exhaustive by construction (every variant carries a `MapData`),
 /// and a future aya that grows a variant fails the build right
 /// here instead of silently hiding it from the -v inventory.
+/// NIGHT-depthtest: the 0.13 -> 0.14 wave grew the enum 21 -> 29
+/// (the storage family and the of-maps family joined); the nine
+/// new arms are the designed cost of that discipline.
 pub fn map_info(map: &Map) -> Option<MapInfo> {
     let data = match map {
         Map::Array(d)
+        | Map::ArrayOfMaps(d)
         | Map::BloomFilter(d)
+        | Map::CgroupArray(d)
+        | Map::CgroupStorage(d)
+        | Map::CgrpStorage(d)
         | Map::CpuMap(d)
         | Map::DevMap(d)
         | Map::DevMapHash(d)
         | Map::HashMap(d)
+        | Map::HashOfMaps(d)
+        | Map::InodeStorage(d)
         | Map::LpmTrie(d)
         | Map::LruHashMap(d)
+        | Map::PerCpuCgroupStorage(d)
         | Map::PerCpuArray(d)
         | Map::PerCpuHashMap(d)
         | Map::PerCpuLruHashMap(d)
         | Map::PerfEventArray(d)
         | Map::ProgramArray(d)
         | Map::Queue(d)
+        | Map::ReusePortSockArray(d)
         | Map::RingBuf(d)
+        | Map::SkStorage(d)
         | Map::SockHash(d)
         | Map::SockMap(d)
         | Map::Stack(d)

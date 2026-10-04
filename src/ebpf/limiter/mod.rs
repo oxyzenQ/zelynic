@@ -241,16 +241,16 @@ impl Limiter {
         // can be auto-pinned by EbpfLoader.
         std::fs::create_dir_all(PIN_DIR)?;
 
-        // Use EbpfLoader with map_pin_path so all maps declared with
-        // __uint(pinning, LIBBPF_PIN_BY_NAME) in the BPF object are auto-pinned
-        // to /sys/fs/bpf/zelynic/<map_name>. This is what makes policies
-        // persist across zelynic invocations — without it, maps vanish when
-        // the Ebpf object is dropped and open_pinned() hits ENOENT.
-        // (NIGHT-improve-1 phase 3: the object bytes are the embedded
-        // pure-Rust aya-ebpf build — same map contract, same pinning.)
+        // EbpfLoader + the pin directory: every map declared with
+        // __uint(pinning, LIBBPF_PIN_BY_NAME) auto-pins to
+        // /sys/fs/bpf/zelynic/<map_name> — this is what makes policies
+        // persist across invocations (without it, maps vanish when the
+        // Ebpf object drops and open_pinned() hits ENOENT; the bytes are
+        // the embedded pure-Rust aya-ebpf build, improve-1). NIGHT-depthtest:
+        // aya 0.14 renamed map_pin_path(path) to default_map_pin_directory.
         let load_started = std::time::Instant::now();
         let mut bpf = EbpfLoader::new()
-            .map_pin_path(PIN_DIR)
+            .default_map_pin_directory(PIN_DIR)
             .load(obj_data)
             .context("Failed to load BPF object")?;
 
