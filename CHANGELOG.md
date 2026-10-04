@@ -19,6 +19,48 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Added
 
+- **Schema v20, CAKE-shaped flow isolation — the DRR lane's leaf
+  stops being one shared bucket for every socket the cgroup
+  holds.** The pool arc made the LEAF fair (charger-core-1c /
+  dinner-28 / repair-3/4/6/7); the packet-arrival race simply moved
+  inside it: a shared bucket is FCFS at packet granularity, and the
+  rootless isolation battery measured the honest shape BEFORE any
+  kernel saw the lane — the race's victims are the weaker DEMANDERS
+  (a second download delivered 524 KB of its 1.5 MB fair share
+  under the shared leaf, 2.9:1 against the first; the three-flow
+  shape breaks the battery's own anti-monopoly bound at 2.1x fair),
+  while the truly quiet flows ride the GRO-granularity banking's
+  leftover crumbs and admit either way (the sketched starvation
+  does not reproduce — documented, not hidden). The close mirrors
+  the DRR laws one level down, keyed by the socket cookie the hook
+  already names (zero new kernel helpers): every attributed packet
+  spends from its own flow bucket drawing from the leaf under the
+  learned flow count, the drawee peak, and the epoch ledger with
+  its quantum-capped carry — measured close: 2.9:1 becomes 1.1:1,
+  every battery bound holds, and the lone flow keeps the whole
+  budget. The CAKE signature rides the take law: a flow quiet for
+  an epoch draws its packet's OWN bytes (the reserved small
+  quantum — measured zero stranding, takes == deliveries byte for
+  byte), a flow drawing this epoch takes the quantum. Two design
+  catches the battery filed before the wiring existed, both
+  load-bearing in ebpf/src/drr.rs's v20 section: the sparse
+  evidence is the flow bucket's draw STAMP (a ledger-anchored test
+  leaves a lone ledger-off flow reading sparse forever — a bulk
+  flow of small packets would draw per packet), and the OFF lane's
+  take is the learned-share FRACTION leaf/(learned+2) (the share
+  word's peak decay reads MAX for the epochs between a decay and
+  its re-ratchet — a lane-law-only take there drains the leaf whole
+  once per transient epoch). Six new datapath-internal maps
+  (flow_bucket/share/ledger per direction, the leaf_bucket family's
+  contract); cookie == 0 rides the leaf lane verbatim; the
+  per-socket and strict-multi lanes untouched by documented scope;
+  the honest tradeoff stated in docs/PERFORMANCE.md's flow-isolation
+  law section (a mixed leaf rides the same 65%-130% band — the
+  reservation's cost, bounded). Pins:
+  test/ebpf/limiter/cake_tests.rs (the law bounds) +
+  cake_isolation_tests.rs (the find, the close, the edges, the A/B
+  fingerprint). 717 unit + 47 integration green.
+
 - **NIGHT-private-research-4, the guaranteed-minimum audit — verdict:
   the DRR pool already carries the full floor/ceiling/borrowing
   contract, so this task ships the owner-facing framing instead of

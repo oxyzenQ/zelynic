@@ -120,6 +120,14 @@ mod socket_flow;
 // them.
 #[path = "../ecn.rs"]
 mod ecn;
+
+// schema v20 (CAKE-shaped flow isolation): the per-flow lane's
+// aya-touching half — the flow bucket/share/ledger map families and
+// the flow draw, drr_flow's own precedent one level down. Same
+// #[path] discipline: the pure laws live in drr.rs and are pinned
+// rootlessly by the cake test family.
+#[path = "../cake_flow.rs"]
+mod cake_flow;
 use math::{
     Bucket, LimiterStats, MAX_ENFORCABLE_BURST, POLICY_FLAG_PER_SOCKET, Policy, book, book_rescue,
     enforce,
@@ -338,7 +346,7 @@ use socket_flow::socket_flow;
 /// ECN-first object — active limits are dropped once, re-apply
 /// after upgrade, the same one-time contract as v4..v18.
 #[allow(dead_code)]
-const SCHEMA_VERSION: u32 = 19;
+const SCHEMA_VERSION: u32 = 20;
 
 // ---------------------------------------------------------------------------
 // Maps. The static names ARE the userspace contract (limiter/mod.rs
@@ -690,8 +698,11 @@ fn ecn_rescue(
 /// direction's learned-share state map (dinner-28), `ledger_map`
 /// the direction's epoch-ledger state map (repair-3), `rate_ring_map`
 /// the direction's time-series ring (charger-core-3a), `debt_map`
-/// the direction's ECN debt map (private-research-4).
+/// the direction's ECN debt map (private-research-4), and the
+/// `flow_*` triple the direction's flow lane (v20 — CAKE-shaped
+/// isolation inside the leaf) draws through.
 #[inline(always)]
+#[allow(clippy::too_many_arguments)]
 fn try_enforce(
     ctx: SkBuffContext,
     policy_map: &HashMap<u32, Policy>,
@@ -704,6 +715,9 @@ fn try_enforce(
     rate_ring_map: &HashMap<u32, RateRing>,
     socket_bucket_map: &LruHashMap<u64, socket_flow::SocketBucket>,
     debt_map: &LruHashMap<u64, u64>,
+    flow_bucket_map: &LruHashMap<u64, Bucket>,
+    flow_share_map: &LruHashMap<u64, u64>,
+    flow_ledger_map: &LruHashMap<u64, u64>,
 ) -> i32 {
     // The unlimited fast path FIRST (NIGHT-lts-2): cgroup identity +
     // the direction's policy are the only two lookups a packet with
@@ -919,6 +933,13 @@ fn try_enforce(
     // through, and the leaf is keyed by the socket's own cgroup id
     // (the direct-hit path's leaf IS the root — one shape, no mixed
     // regime between a target's own sockets and its subtree's).
+    //
+    // schema v20 (CAKE-shaped flow isolation): an attributed packet
+    // spends from its own FLOW bucket inside the leaf — the cookie
+    // the per-socket lane already consumes, fetched here once, only
+    // on the lane that spends it. cookie == 0 rides the leaf lane
+    // verbatim (the hook's honest attribution limit).
+    let cookie = unsafe { bpf_get_socket_cookie(ctx.skb.skb.cast()) };
     let pool_ptr = match get_bucket_ptr(bucket_map, &cgroup_id, pol_sane.burst_bytes, now) {
         Some(ptr) => ptr,
         None => return 1,
@@ -931,6 +952,10 @@ fn try_enforce(
         leaf_bucket_map,
         share_map,
         ledger_map,
+        flow_bucket_map,
+        flow_share_map,
+        flow_ledger_map,
+        cookie,
         &cgroup_id,
         &leaf,
         pkt_len,
@@ -973,6 +998,9 @@ fn enforce_dl(ctx: SkBuffContext) -> i32 {
         &rate_ring_dl,
         &socket_flow::socket_bucket_dl,
         &ecn_debt_dl,
+        &cake_flow::flow_bucket_dl,
+        &cake_flow::flow_share_dl,
+        &cake_flow::flow_ledger_dl,
     )
 }
 
@@ -991,6 +1019,9 @@ fn enforce_ul(ctx: SkBuffContext) -> i32 {
         &rate_ring_ul,
         &socket_flow::socket_bucket_ul,
         &ecn_debt_ul,
+        &cake_flow::flow_bucket_ul,
+        &cake_flow::flow_share_ul,
+        &cake_flow::flow_ledger_ul,
     )
 }
 

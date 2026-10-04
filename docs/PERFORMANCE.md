@@ -380,6 +380,65 @@ shape needs a per-app floor ABOVE the fair share (a reserved lane
 no sibling may borrow from), that is a new policy surface — a CLI
 decision that stays the owner's to call, not silently added here.
 
+### The flow-isolation law (CAKE-shaped, schema v20, 2026-10-04)
+
+The guaranteed-minimum law made the LEAF fair — no cgroup under a
+policy starves its siblings. The flow-isolation law closes the same
+class one level deeper: the leaf bucket itself was still shared by
+every socket the cgroup holds, and a shared bucket is FCFS at
+packet granularity — the packet-arrival race. The rootless
+isolation battery (test/ebpf/limiter/cake_isolation_tests.rs)
+measured the honest shape before any kernel saw the lane: the
+race's victims are the WEAKER DEMANDERS (a second download under
+the shared leaf delivered 524 KB of its 1.5 MB fair share, 2.9:1
+against the first; the three-flow shape breaks the battery's own
+anti-monopoly bound at 2.1x fair), while the truly quiet flows (a
+DNS-shaped 200-byte query per epoch) ride the GRO-granularity
+banking's leftover crumbs and admit either way — the sketched
+starvation does not reproduce, and the law is honest about it.
+
+The close mirrors the DRR laws one level down, keyed by the socket
+cookie the hook already names (no new helper — the per-socket
+lane's own attribution join):
+
+- THE ISOLATION: every attributed packet spends from its own FLOW
+  bucket and draws from the leaf under the learned count, the
+  drawee peak, and the epoch ledger with its quantum-capped carry —
+  the bulk flow blocks at its fair share of the leaf's own
+  throughput, the refills accumulate behind the block, and the
+  weaker demander's draws find a rich leaf (the measured close:
+  2.9:1 becomes 1.1:1, and the three-flow shape back inside the
+  battery's `worst <= fair x 1.75 + quantum` bound).
+- THE SPARSE/DENSE TAKE (the CAKE signature, in the only form a
+  policer can carry): a flow quiet for an epoch draws its packet's
+  OWN bytes — the reserved small quantum, admitting on the first
+  offer and stranding nothing (measured: the quiet flow's takes
+  equal its deliveries, byte for byte); a flow drawing this epoch
+  takes the quantum (the bulk cadence amortizes the draw cost).
+  The evidence is the flow bucket's own draw stamp — a flow's
+  frequency classifies it, and a lone flow is never throttled by
+  machinery it does not need (the single-active row's lo bound,
+  mirrored).
+- THE HONEST TRADEOFF, stated as the leaf ledger's own: a leaf's
+  under-demanded share stays RESERVED (the sibling leaf cannot farm
+  it without breaking the anti-monopoly bound), so a mixed leaf
+  rides the same 65%-130% aggregate band the v17 battery set —
+  protection bought at the cost of the monopoly's false efficiency,
+  the coarse-fairness-beats-starvation tradeoff one level deeper.
+  The reservation is live, not dead: a reserved flow that goes
+  dense finds its banked carry waiting.
+
+The pins (cake_tests.rs + cake_isolation_tests.rs): the law bounds
+(the budget cascade, the allowance mirror, the two-lane take, the
+OFF-lane fraction that keeps the share word's peak decay from
+leaking a full leaf drain per transient epoch — the battery's own
+second catch), the find (the anti-monopoly bound broken at flow
+granularity under the shared leaf), the close at every battery row
+(equal bulk splits, lone-flow whole-budget, trickle regime, the
+sibling leaf untouched), and the A/B fingerprint across the lane
+boundary (same seeds, both shapes, the deltas that are the feature
+pinned so they cannot drift into noise).
+
 ### NIGHT-upgrade-charger-core-1-b A/B (the self-proving enforcement, 2026-09-30)
 
 The charger-core-1-b pass is command-path work: the enforcement
