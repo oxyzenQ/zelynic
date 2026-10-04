@@ -35,7 +35,8 @@
 > payload version dimension — {low, best} x {gnu, musl} — is
 > NIGHT-blade-12):
 > .github/workflows/supermassive.yml runs the
-> whole qualification — setup.sh bring-up, v1, v2 — inside a KVM
+> whole qualification — setup.sh bring-up, v1, v2, and the three
+> root rig suites (NIGHT-hunt-35) — inside a KVM
 > micro-VM, under two resource envelopes derived from the runner at
 > boot time (low specs: a quarter of the cores floored at 1 +
 > an eighth of the RAM floored at 1024 MB, booting the TRUE

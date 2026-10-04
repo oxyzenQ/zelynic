@@ -3,6 +3,21 @@
 # SPDX-License-Identifier: GPL-3.0-only
 # OS: Linux only — zelynic is a Linux eBPF tool; no other OS is supported.
 #
+# NIGHT-hunt-35 (the owner's approved CI-budget call, the hunt-33 open
+# item): the three root rig suites — reload-test.sh, crash-recovery-
+# test.sh, race-condition-test.sh — join the battery on every leg.
+# hunt-33 made every bash harness speak the engines' binary contract;
+# this closes the other half of that integration: the rigs the owner
+# runs with sudo on nightpc now prove the same things inside the
+# guest, on the floor kernel and the archive's latest, per leg, per
+# libc. The one VM detail that shape needs: everything in this guest
+# is a child of PID 1, which sits in the cgroupfs ROOT — and the
+# resolver rightly refuses a root-catch-all target — so each rig
+# moves itself into a dedicated zelynic-rig-suite child cgroup first
+# (the engines' own worker-move shape, verbatim), which is also
+# exactly the sibling-cgroup contract those suites were designed
+# around (NIGHT-hunt-32's loopback blob-server heal).
+#
 # The supermassive init (NIGHT-improve-31, the CI half; the kernel
 # span + dynamic envelopes are NIGHT-improve-33): PID 1 inside the
 # micro-VM booted by .github/workflows/supermassive.yml — the
@@ -46,9 +61,12 @@
 # codes through qemu, the sentinel lines ARE the relay — the
 # kernel-floor contract, kept verbatim). The battery inventory is
 # canonical invocations only (the e2e house rule): the binary's -V
-# + doctor, the engine self-test, then BOTH full engines with
+# + doctor, the engine self-test, then the full engines with
 # --binary pinned — never a bespoke assertion that could drift
-# from the harness the owner runs locally. The realnet lane
+# from the harness the owner runs locally. NIGHT-hunt-35 adds the
+# three root rig suites (reload, crash recovery, race condition)
+# under the same rule — the local sudo battery and the CI battery
+# are one battery now. The realnet lane
 # self-skips (no network in the micro-VM — loopback only, the
 # documented SKIP row), so the loopback matrix carries the limiter
 # proof on the floor kernel.
@@ -305,6 +323,45 @@ if python3 scripts/supermassive/supermassive-test-v4.py \
 else
 	note "supermassive v4 - CLI depth battery (full, rootless)" FAIL
 fi
+
+# ── the rig suites (NIGHT-hunt-35): the root bash rigs, canonical ────
+# The three suites the owner runs with sudo on nightpc — reload
+# (rate changes under live loopback traffic), crash recovery (pin
+# death and the recover/auto-heal machinery), race condition (the
+# file lock under concurrency) — each its own MASS-RESULT row,
+# --binary pinned like every engine row. The lane: a rig's sleeps,
+# curls, and blob server must be siblings in ONE policed cgroup
+# (hunt-32's contract), and they must NOT sit in the cgroupfs root
+# (the resolver's catch-all guard). The move below is the engines'
+# own worker shape (`echo $$ > cgroup.procs; exec`, verbatim from
+# supermassive-test.py): the wrapper bash lands in the child cgroup,
+# exec replaces it with the rig, and every process the rig spawns
+# inherits the lane — the same sibling shape a systemd session
+# slice gives the owner's local runs.
+RIG_MOVE='echo $$ > "/sys/fs/cgroup/zelynic-rig-suite/cgroup.procs"; exec "$@"'
+mkdir -p /sys/fs/cgroup/zelynic-rig-suite
+if bash -c "$RIG_MOVE" rig \
+	./scripts/depth/reload-test.sh --binary /opt/zelynic/zelynic; then
+	note "rig suite - reload (rate changes under live traffic)" PASS
+else
+	note "rig suite - reload (rate changes under live traffic)" FAIL
+fi
+if bash -c "$RIG_MOVE" rig \
+	./scripts/depth/crash-recovery-test.sh --binary /opt/zelynic/zelynic; then
+	note "rig suite - crash recovery (pin death, recover, auto-heal)" PASS
+else
+	note "rig suite - crash recovery (pin death, recover, auto-heal)" FAIL
+fi
+if bash -c "$RIG_MOVE" rig \
+	./scripts/depth/race-condition-test.sh --binary /opt/zelynic/zelynic; then
+	note "rig suite - race condition (the lock under concurrency)" PASS
+else
+	note "rig suite - race condition (the lock under concurrency)" FAIL
+fi
+# The lane empties itself (each rig kills its own sleeps and curls in
+# cleanup; a straggler zombie can hold the directory a moment) — the
+# removal is best-effort hygiene, never a verdict.
+rmdir /sys/fs/cgroup/zelynic-rig-suite 2>/dev/null || true
 
 # ── the claims proof, LIVE on this leg's kernel (NIGHT-lts-6) ─────────
 # The four-plus-one headline claims proven with root on the exact

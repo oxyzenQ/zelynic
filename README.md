@@ -219,7 +219,7 @@ the re-issued label; consolidated in NIGHT-improve-31; the kernel
 span + dynamic envelopes are NIGHT-improve-33): a push touching
 core files triggers `.github/workflows/supermassive.yml`, which runs
 this exact owner-facing path (`setup.sh` itself, not a CI-shaped
-shortcut) and then BOTH supermassive batteries inside a KVM micro-VM
+shortcut) and then the supermassive batteries inside a KVM micro-VM
 on a hosted runner, under two resource envelopes derived at boot
 time from whatever runner the job lands on (the owner's "don't set
 fixed, let dynamic"; the small envelope is renamed low —
@@ -238,7 +238,8 @@ ubuntu:22.04 userland it has always ridden, and the gnu legs boot
 the pro-native-gnu flagship on a ubuntu:24.04 rootfs (same-distro
 as the runner that built the dynamic binary), so the default
 source-build shape finally gets the live batteries — limiter
-matrix, survival, claims proof — that the static twin had alone.
+matrix, survival, rig suites (the three root rigs, NIGHT-hunt-35),
+claims proof — that the static twin had alone.
 So "does it work end to end?" is answered per push across the whole
 kernel span AND the machine span AND both libc flavors — no
 VirtualBox session needed; `workflow_dispatch` fires the same four

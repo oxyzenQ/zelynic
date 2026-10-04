@@ -2,6 +2,30 @@
 # SPDX-License-Identifier: GPL-3.0-only
 # =============================================================================
 #
+# NIGHT-hunt-35 (the owner's approved CI-budget call — the hunt-33
+# open item, decided): the three root rig suites — scripts/depth/
+# reload-test.sh, crash-recovery-test.sh, race-condition-test.sh —
+# join the micro-VM battery on every leg. hunt-33 made every bash
+# harness speak the engines' binary contract; this is the other half
+# of that integration: the rigs the owner runs with sudo on nightpc
+# now run inside the guest too, canonical invocations, --binary
+# pinned, each its own MASS-RESULT row in the init's verdict relay.
+# The one VM detail that shape needs: everything in the guest is a
+# child of PID 1 — the cgroupfs ROOT — and strict-single rightly
+# refuses a root-catch-all target, so the init moves each rig into
+# a dedicated zelynic-rig-suite child cgroup first (the engines' own
+# `echo $$ > cgroup.procs; exec` worker shape), which is also
+# exactly the sibling-cgroup contract those suites were designed
+# around (hunt-32's loopback blob-server heal). The budget pays for
+# the added battery honestly: both envelopes' VM budgets ride +300 s
+# (low 1800 -> 2100, best 1200 -> 1500) and the job's own
+# timeout-minutes follows 45 -> 50, keeping the wedge-guard
+# relationship (a wedged guest can never burn the job budget)
+# intact. scripts/depth/** joins the trigger paths — the battery's
+# contract now includes those files (the NIGHT-hunt-34 rule already
+# on record: a workflow that can change its own contract owes
+# itself a run).
+#
 # NIGHT-blade-12 (the owner's ask: "add support for CI supermassive
 # test low/best with musl version"): the envelope pair grows a version
 # dimension — {low, best} x {gnu, musl}, four legs. The musl legs are
@@ -133,18 +157,22 @@
 # never triggered this workflow because its path was absent from
 # this list, so the fix rode unvalidated while the last visible
 # run stayed red — the NIGHT-hunt-34 rule: a workflow that can
-# change its own contract owes itself a run) + workflow_dispatch
+# change its own contract owes itself a run) — plus, since
+# NIGHT-hunt-35, the depth rigs the battery now executes
+# (scripts/depth/**: a rig edit changes this workflow's contract
+# exactly the way an engine edit does) + workflow_dispatch
 # (the pre-release click)
 # + the weekly Monday 03:00 UTC schedule (the kernel-span clock:
 # a docs-only push skips the runner, but the old-releases mirror
 # can change availability and the archive the latest-kernel
 # resolver walks can restructure, both between pushes).
 #
-# Cost: four standard hosted runners for ~15-30 min per qualifying
+# Cost: four standard hosted runners for ~15-35 min per qualifying
 # push (public-repo standard runners are free; the blade-12 version
-# dimension doubled the pair 2 -> 4 legs, each its own job and VM);
-# the push pipeline stays decoupled from ci.yml's own failure modes —
-# this workflow can only redden itself.
+# dimension doubled the pair 2 -> 4 legs, each its own job and VM,
+# and hunt-35's rig battery adds its minutes inside the budgets
+# above); the push pipeline stays decoupled from ci.yml's own
+# failure modes — this workflow can only redden itself.
 
 name: Dragon Guard - Supermassive
 
@@ -163,6 +191,7 @@ on:
       - 'scripts/dev/bootstrap-ebpf.sh'
       - 'scripts/dev/install-bpf-linker.sh'
       - 'scripts/supermassive/**'
+      - 'scripts/depth/**'
       - 'scripts/bench/proof-claims.py'
       - 'scripts/lib/**'
       - 'scripts/ci/**'
@@ -211,25 +240,28 @@ jobs:
           # per-leg: the title (the owner's exact base strings plus
           # the version suffix), the kernel lane, the version, and
           # the VM budget (the low envelope's tight CPU slice
-          # serializes the battery, so its budget rides at 1800 s).
+          # serializes the battery — engines plus rigs — so its
+          # budget rides at 2100 s, NIGHT-hunt-35's +300 for the
+          # rig battery; the best envelope's wide slice rides at
+          # 1500 s).
           - title: supermassive test - low specs (gnu)
             profile: low
             version: gnu
-            vm_timeout: "1800"
+            vm_timeout: "2100"
           - title: supermassive test - low specs (musl)
             profile: low
             version: musl
-            vm_timeout: "1800"
+            vm_timeout: "2100"
           - title: supermassive test - best specs (gnu)
             profile: best
             version: gnu
-            vm_timeout: "1200"
+            vm_timeout: "1500"
           - title: supermassive test - best specs (musl)
             profile: best
             version: musl
-            vm_timeout: "1200"
+            vm_timeout: "1500"
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 50
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7, NIGHT-hunt-20 SHA pin
@@ -500,8 +532,9 @@ jobs:
       # CPU, no disk, serial console to stdout, panic=-1 + -no-reboot
       # so a kernel panic ends qemu instead of hanging the job, an
       # outer timeout (per profile budget: the low envelope's
-      # tight CPU slice serializes the battery, so its budget rides
-      # at 1800 s) so a wedged guest can never burn the 45-minute job
+      # tight CPU slice serializes the battery — engines plus rigs —
+      # so its budget rides at 2100 s, hunt-35's +300 for the rig
+      # battery) so a wedged guest can never burn the 50-minute job
       # budget, and the isa-debug-exit device — the guest ends the VM
       # deterministically by writing one byte to port 0xf4 (qemu exits
       # with status 1), the kernel-CI standard for initramfs guests
