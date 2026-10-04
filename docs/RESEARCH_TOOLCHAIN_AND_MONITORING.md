@@ -33,7 +33,7 @@ requirements, and separating them is the whole answer:
 
 | Half | Crate | Target | Toolchain today |
 |---|---|---|---|
-| Userspace loader/library | `aya` 0.13.1 (zelynic's root `Cargo.toml`) | `x86_64-unknown-linux-gnu` / `-musl` | **stable 1.98.1** — has been stable all along |
+| Userspace loader/library | `aya` 0.14.0 (zelynic's root `Cargo.toml`, the NIGHT-depthtest wave) | `x86_64-unknown-linux-gnu` / `-musl` | **stable 1.98.1** — has been stable all along |
 | eBPF programs | `aya-ebpf` (the `ebpf/` sidecar crate) | `bpfel-unknown-none` | **nightly, required** — see 1.2 |
 
 Everything a user or operator runs — the CLI, the monitor, the
