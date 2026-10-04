@@ -7,4 +7,7 @@ skip = ./.git,./target,./ebpf/target,./assets,./Cargo.lock
 # depth stresstest (NIGHT-ultimate-3): the case proves the binary's
 # subcommand suggestion engine proposes 'status' for the near-miss,
 # so the misspelling itself must survive the spelling gate.
-ignore-words-list = ratatui,uptodate,hevy,statu
+# ect is the RFC 3168 ECN codepoint family (ECT(0), ECT(1),
+# CE) — the ECN-first lane's vocabulary since NIGHT-private-research-4,
+# not a typo of "etc".
+ignore-words-list = ratatui,uptodate,hevy,statu,ect

@@ -19,6 +19,50 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Added
 
+- **NIGHT-private-research-4, ECN-first policing (schema v19) — the
+  limiter that doesn't hurt.** The owner-approved innovation from the
+  private-research-4 ranking: the budgeted lanes' drop verdict becomes
+  a LAST RESORT. When the kernel helper `bpf_skb_ecn_set_ce` can set
+  the CE codepoint on an over-budget packet's IPv4 or IPv6 header
+  (ECT-capable, checksum handled by the kernel, exposed to cgroup_skb
+  since kernel 5.1 — well under the 5.13 verified floor; helper ID 97,
+  triple-pinned against the uapi enum, aya-obj's parser table, and the
+  generated bindings the call shape mirrors), the packet is DELIVERED
+  CE-marked instead of dropped and its bytes charge an ECN debt word
+  in the two new pinned LRU maps `ecn_debt_dl/ul` (keyed by the
+  generation-prefixed budget key, the repair-6 discipline). The debt
+  is paid back out of the lane's OWN token stream, on the allow path
+  only, from the leftover each delivery leaves behind — and that
+  call-site placement is the design's load-bearing wall: the rootless
+  simulation in test/ebpf/limiter/ecn_tests.rs caught, BEFORE any
+  kernel ever saw this code, that a naive pay-on-every-packet form
+  drains the token stock toward the debt and starves the lane BELOW
+  the policy (a CE-ignoring hammer pins the debt at its cap and turns
+  the entire refill stream into debt service). The allow-path pay
+  makes the semantics exactly right per sender shape: a CE-reactive
+  sender (TCP with ECN negotiated, QUIC with ECT) converges on the
+  mark without losing a single packet — the A/B pin shows strictly
+  better goodput than the legacy drop lane under identical demand
+  feedback, with zero last-resort losses; a CE-ignoring sender sees
+  the 64 KiB debt (one GSO super-packet, the drr.rs admit-floor law)
+  saturate once and the lane settle into EXACT drop-lane parity —
+  never worse than the legacy policer. The budget law stays closed
+  for every shape: delivered <= rate*t + burst + one 64 KiB
+  super-packet (the ecn.rs proof chain — no time-based decay, so no
+  second rate stream a cheating sender could farm). A non-ECT packet
+  (the RFC 3168 majority) is refused by the helper and drops exactly
+  as before; the per-socket lane keeps its drop shape by documented
+  scope (per-connection CE marking is an aggregate-collapse shape for
+  servers that needs its own convergence analysis); the rate-0 block
+  verdict never rescues (blocked means blocked). The ledger
+  correction (math.rs book_rescue) moves a rescued packet's booking
+  from the dropped column to the allowed one through the same
+  fetch_add lowering the BPF backend provably selects — subtraction
+  as two's-complement addition, the AtomicLoad lesson applied
+  preemptively. The usual one-time re-apply contract: pinned v18
+  programs reload into the ECN-first object, active limits are
+  dropped once, re-apply after upgrade.
+
 - **NIGHT-hunt-Z10, the uid-lane sweep — the class-wide audit the
   CI-repair's follow-up, verdict: zero remainings.** The owner's
   mandate, verbatim: audit the other batteries for the same

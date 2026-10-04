@@ -187,9 +187,15 @@ fn test_schema_version_constant() {
     // root is only valid for the direction whose walk produced it,
     // and the shared map let one direction's resolution poison the
     // other's enforcement under single-direction applies.
+    // v19 (NIGHT-private-research-4): ECN-first policing — the
+    // budgeted lanes' drop verdict becomes a last resort: an
+    // ECT-capable packet is delivered CE-marked through
+    // bpf_skb_ecn_set_ce and charges the new ecn_debt_dl/ul words,
+    // which the lane's own deliveries pay back out of the token
+    // stream's leftover (the budget law, ebpf/src/ecn.rs).
     // The full sync contract (this constant vs the BPF-side
     // anchor) lives in schema.rs's sync_pin — the v13 lesson.
-    assert_eq!(SCHEMA_VERSION_EXPECTED, 18);
+    assert_eq!(SCHEMA_VERSION_EXPECTED, 19);
 }
 
 // ── NIGHT-improve-10 / security-3: overflow-bound pins ──────────

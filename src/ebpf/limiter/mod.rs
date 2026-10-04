@@ -18,7 +18,6 @@
 //! - `ammsp.rs`   — the AMMSP userspace half: the leaf-cache flush
 //!   every policy mutation runs (private-research-2)
 //! - `rate_ring.rs` — the time-series ring's read half + mirror
-
 mod ammsp;
 mod atomic;
 mod format;
@@ -32,29 +31,14 @@ mod schema;
 mod stats;
 pub mod types;
 
-// NIGHT-depthbore-1: ebpf/src/math.rs — the same file the BPF object
-// builds — #[path]-wired here, pinned by test/ebpf/limiter/math_tests.rs.
+// The rootless test-tree wiring for the pure cores, one file over
+// (NIGHT-private-research-4's LOC-cap split: mod.rs rode the
+// 500-line owner cap at exactly 500 and the ECN lane's sixth wiring
+// crossed it, so the whole family moved into the test tree it
+// wires — depth preserved, no test text changes).
 #[cfg(test)]
-#[path = "../../../test/ebpf/limiter/math_tests.rs"]
-mod math_tests;
-
-// NIGHT-boost-38: the SMP invariants, pinned by math_smp_tests.rs.
-#[cfg(test)]
-#[path = "../../../test/ebpf/limiter/math_smp_tests.rs"]
-mod math_smp_tests;
-
-// NIGHT-private-research-2 (AMMSP): the resolution core compiles
-// from ebpf/src/ammsp.rs the same way, pinned by ammsp_tests.rs.
-#[cfg(test)]
-#[path = "../../../test/ebpf/limiter/ammsp_tests.rs"]
-mod ammsp_tests;
-
-// NIGHT-upgrade-charger-core-1c: the DRR quantum core compiles from
-// ebpf/src/drr.rs the same way, pinned rootlessly by
-// test/ebpf/limiter/drr_tests.rs.
-#[cfg(test)]
-#[path = "../../../test/ebpf/limiter/drr_tests.rs"]
-mod drr_tests;
+#[path = "../../../test/ebpf/limiter/wiring.rs"]
+mod wiring;
 
 // Re-export public types/functions for external use (the
 // parse/format LOC-cap splits kept this surface unchanged).
@@ -215,8 +199,8 @@ impl Limiter {
         }
 
         // NIGHT-hunt-28: preflight the pin filesystem BEFORE any pin
-        // attempt. The limiter pins every map it declares by name (seventeen
-        // since the rings + socket buckets), and a /sys/fs/bpf that is not a mounted bpffs
+        // attempt. The limiter pins every map it declares by name (nineteen
+        // since the ECN debt words), and a /sys/fs/bpf that is not a mounted bpffs
         // (the kernel always creates the directory; some distros never
         // mount bpffs on it) turns every BPF_OBJ_PIN into EINVAL deep
         // inside EbpfLoader::load — a generic "Failed to load BPF

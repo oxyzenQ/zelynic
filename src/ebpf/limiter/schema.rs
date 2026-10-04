@@ -240,7 +240,35 @@
 ///     pinned v17 programs to reload into the direction-scoped
 ///     object — active limits are dropped once, re-apply after
 ///     upgrade, the same one-time contract as every bump before it.
-pub const SCHEMA_VERSION_EXPECTED: u32 = 18;
+/// v19 (NIGHT-private-research-4, ECN-first policing): the drop
+///     verdict of a budgeted lane becomes a LAST RESORT. When the
+///     kernel helper bpf_skb_ecn_set_ce (helper ID 97, exposed to
+///     cgroup_skb by cg_skb_func_proto under CONFIG_INET — inside
+///     the 5.13 verified floor) can set the CE codepoint on the
+///     packet's IPv4 or IPv6 header, the packet is DELIVERED
+///     CE-marked instead of dropped, and its bytes charge a debt
+///     word in the two new pinned LRU maps ecn_debt_dl/ul (keyed by
+///     the generation-prefixed budget key: the pool's root on the
+///     DRR lane, the group id on the strict-multi lane — the
+///     repair-6 discipline). Every DELIVERED packet on the lane pays
+///     that debt from the budget's own token stream afterwards, out
+///     of the leftover the delivery left behind (ebpf/src/ecn.rs
+///     debt_pay, on the allow path only — the call-site law that
+///     keeps a CE-ignoring hammer from starving the lane below the
+///     policy), which keeps the
+///     budget law closed for CE-reactive AND CE-ignoring senders
+///     alike: delivered <= rate*t + burst + one 64 KiB super-packet
+///     (the ecn.rs proof — no time-based decay, no second rate
+///     stream a cheating sender could farm). A non-ECT packet is
+///     refused by the helper and drops exactly as before; the
+///     per-socket lane keeps its drop shape by documented scope
+///     (per-connection CE marking needs its own convergence
+///     analysis — an aggregate-collapse shape for servers). New
+///     maps, new verdict semantics on the budgeted lanes; the bump
+///     forces pinned v18 programs to reload into the ECN-first
+///     object — active limits are dropped once, re-apply after
+///     upgrade, the same one-time contract as v4..v18.
+pub const SCHEMA_VERSION_EXPECTED: u32 = 19;
 
 #[cfg(test)]
 mod sync_pin {
