@@ -759,9 +759,35 @@ pub const fn flow_take(
     } else {
         take_within_the_off_lane
     };
-    if take_under_the_bound_law < leaf_tokens {
+    // THE SOURCE BUFFER LAW (the CI battery's catch, the third
+    // design lesson this lane paid for): a dense take never drains
+    // the leaf WHOLE — its availability cap is HALF the leaf, the
+    // residue law mirrored at the scale it was always meant for.
+    // At the pool the half-split keeps a share of the refill
+    // stream for the next asker; at the leaf it keeps something
+    // subtler and just as load-bearing: the leaf's BUFFER. The
+    // leaf bucket was designed to ride HIGH — its spends are
+    // packet-sized, its draws are quantum-sized, so it accumulates
+    // between draws and the pool's micro-credit oscillation never
+    // reaches an admit decision. A whole-leaf dense take breaks
+    // that: the leaf rides at ~0, every packet's admit rides the
+    // pool's instantaneous credit, and the oscillation's troughs
+    // read as drops — the live battery measured 1411 packets
+    // dropped under a NON-BINDING 12 GB/s policy (zero before the
+    // lane, zero is the row's own law) and the 100kb trickle row
+    // sagging to 64.8% under the same shape. With the half-split
+    // the leaf keeps its buffer, the troughs never reach the
+    // admit, and the flow bucket banks toward its admit across
+    // draws exactly the way the leaf itself always banked toward
+    // the GSO floor at trickle rates. A SPARSE take keeps the
+    // whole-leaf right: its demand IS the packet (200 bytes may
+    // take the leaf's last 200 — the bulk sibling's cascade
+    // refills behind it), and the bulk discipline is the one the
+    // buffer law binds.
+    let take_within_the_source_buffer = if sparse { leaf_tokens } else { leaf_tokens / 2 };
+    if take_under_the_bound_law < take_within_the_source_buffer {
         take_under_the_bound_law
     } else {
-        leaf_tokens
+        take_within_the_source_buffer
     }
 }

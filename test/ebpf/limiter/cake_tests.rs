@@ -177,10 +177,49 @@ fn the_dense_take_is_quantum_sized() {
         flow_take(false, SPARSE_PKT, 7_000, 2, allowance, 2_500, rich_leaf),
         2_500
     );
-    // Availability caps it: the leaf's own content bounds the take.
+}
+
+#[test]
+fn the_dense_take_never_drains_the_leaf_whole() {
+    // THE SOURCE BUFFER LAW (the live battery's catch, pinned as a
+    // law): a dense take's availability cap is HALF the leaf — the
+    // leaf bucket was designed to ride high (packet-sized spends,
+    // quantum-sized draws), and a whole-leaf take broke exactly
+    // that: the live battery measured 1411 packets dropped under a
+    // NON-BINDING 12 GB/s policy (zero before the lane) and the
+    // 100kb trickle row sagged to 64.8%, both under the whole-leaf
+    // form. The half-split keeps the pool's micro-credit oscillation
+    // away from every admit decision.
+    let allowance = 250_000u64; // an engaged lane
+    let rich_leaf = 10_000_000u64;
+    // A rich leaf: the room/quantum binds long before the buffer.
+    assert_eq!(
+        flow_take(false, SPARSE_PKT, 7_000, 2, allowance, u64::MAX, rich_leaf),
+        7_000
+    );
+    // A poor leaf: the take is HALF its content, never all of it —
+    // the leaf keeps its admit buffer.
     assert_eq!(
         flow_take(false, SPARSE_PKT, 7_000, 2, allowance, u64::MAX, 900),
-        900
+        450
+    );
+    assert_eq!(
+        flow_take(false, SPARSE_PKT, 7_000, 2, allowance, u64::MAX, 64),
+        32
+    );
+    // The OFF lane's fraction already sits at or under the half
+    // (learned >= 0 => leaf/(learned+2) <= leaf/2): the buffer law
+    // and the fraction agree on the lone-flow shape.
+    assert_eq!(
+        flow_take(false, SPARSE_PKT, 7_000, 0, u64::MAX, u64::MAX, 900),
+        450
+    );
+    // A sparse take keeps the whole-leaf right: 200 bytes may take
+    // the leaf's last 200 (the demand IS the packet; the bulk
+    // sibling's cascade refills behind it).
+    assert_eq!(
+        flow_take(true, SPARSE_PKT, 7_000, 2, allowance, u64::MAX, 200),
+        200
     );
 }
 
@@ -227,30 +266,40 @@ fn the_off_lane_bounds_the_transient_to_a_fraction() {
 
 #[test]
 fn the_take_admits_its_packet_whenever_room_and_leaf_allow() {
-    // The ENGAGED lane's reachability contract: whenever the room
-    // covers the packet and the leaf holds it, the take covers the
-    // packet — the GSO admit floor keeps the quantum at or above
-    // every packet the hook ever sees, so the dense lane admits by
-    // construction and the sparse lane IS the packet. (The OFF lane
-    // paces the lone drawer in fraction steps instead — the v13
-    // residue law's own posture, re-drawn leaf -> flow.)
+    // The ENGAGED lane's reachability contract, in the buffer law's
+    // honest form: the SPARSE take always covers its packet (it IS
+    // the packet); the DENSE take covers it whenever the leaf holds
+    // TWICE the packet — the buffer law's price, stated — and banks
+    // toward it across draws below that (the flow bucket accumulates
+    // halves exactly the way the leaf itself always banked toward
+    // the GSO floor at trickle rates). The GSO admit floor keeps the
+    // quantum at or above every packet the hook ever sees, so the
+    // dense lane's lane-law never binds below the packet it serves.
     for rate in [TRICKLE_RATE, ORDINARY_RATE, 50_000_000] {
         let q = quantum(rate);
         let pkt = GSO_ADMIT_FLOOR as u32;
         let room = pkt as u64 + 1;
-        let leaf = pkt as u64 + 1;
+        // The sparse lane: the packet itself, from a leaf that
+        // barely covers it.
         assert!(
-            flow_take(true, pkt, q, 2, 250_000, room, leaf) >= pkt as u64,
+            flow_take(true, pkt, q, 2, 250_000, room, pkt as u64 + 1) >= pkt as u64,
             "sparse admit reachability at rate {rate}"
         );
+        // The dense lane: twice the packet covers it in one take.
         assert!(
-            flow_take(false, pkt, q, 2, 250_000, room, leaf) >= pkt as u64,
+            flow_take(false, pkt, q, 2, 250_000, room, pkt as u64 * 2) >= pkt as u64,
             "dense admit reachability at rate {rate}"
         );
+        // Below twice: the take banks (strictly positive whenever
+        // the leaf holds anything) — the admit arrives a draw later.
+        let banked = flow_take(false, pkt, q, 2, 250_000, u64::MAX, pkt as u64 + 2);
+        assert!(banked > 0, "the dense bank at rate {rate}: {banked}");
+        assert!(banked < pkt as u64, "the dense bank stays under the packet");
     }
     // The trickle regime's floor: at 640 KB/s the quantum IS the
     // GSO admit floor — the smallest quantum the law ever produces
-    // still admits the largest packet the hook ever hands.
+    // still admits the largest packet the hook ever hands, from a
+    // leaf holding twice it.
     assert_eq!(quantum(TRICKLE_RATE), GSO_ADMIT_FLOOR);
     assert_eq!(
         flow_take(
@@ -260,7 +309,7 @@ fn the_take_admits_its_packet_whenever_room_and_leaf_allow() {
             2,
             250_000,
             u64::MAX,
-            GSO_ADMIT_FLOOR
+            GSO_ADMIT_FLOOR * 2
         ),
         GSO_ADMIT_FLOOR
     );

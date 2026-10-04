@@ -61,6 +61,29 @@ NIGHT-hunt-18's git-history-only call.
   cake_isolation_tests.rs (the find, the close, the edges, the A/B
   fingerprint). 717 unit + 47 integration green.
 
+- **The CI battery's catch on 5a3e23a, closed the same session:
+  THE SOURCE BUFFER LAW.** The live Supermassive matrix measured
+  1411 packets dropped under a NON-BINDING 12 GB/s policy (zero
+  before the lane, zero is the row's own law) and the 100kb trickle
+  row sagging to 64.8% — one root cause: the dense flow take's
+  availability cap drained the leaf WHOLE, so the leaf rode at ~0
+  instead of riding HIGH the way it was designed (packet-sized
+  spends, quantum-sized draws), and the pool's micro-credit
+  oscillation reached every admit decision. The residue law's
+  half-split, mirrored one level down, is the close: a dense take
+  caps at HALF the leaf (the leaf keeps its admit buffer; the flow
+  bucket banks toward its admit across draws the way the leaf
+  itself always banked toward the GSO floor at trickle rates); a
+  sparse take keeps the whole-leaf right (its demand IS the packet
+  — 200 bytes may take the leaf's last 200, the bulk sibling's
+  cascade refills behind it). Pinned as a law
+  (the_dense_take_never_drains_the_leaf_whole); the rootless
+  battery's fairness pins ride unchanged through the fix — the
+  buffer law changes the micro-scale the sims do not model, the
+  scale only the live kernel can reach. The third design lesson
+  this lane paid for, all three engraved in ebpf/src/drr.rs's v20
+  section.
+
 - **NIGHT-private-research-4, the guaranteed-minimum audit — verdict:
   the DRR pool already carries the full floor/ceiling/borrowing
   contract, so this task ships the owner-facing framing instead of
