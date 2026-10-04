@@ -36,6 +36,19 @@ set -uo pipefail
 # shellcheck source=scripts/lib/harness_lib.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/harness_lib.sh"
 
+# NIGHT-hunt-35 (the battery's first live catch, in two acts): the
+# hunt-32 rework gave this suite a cleanup() that killed the blob
+# server and rm -rf'd the scratch dir — then CALLED it between the
+# bring-up and the tests, so the suite deleted its own traffic
+# source before dd ever wrote the blob (act one: the FATAL the
+# first CI run caught; the suite had never run end to end anywhere
+# — the owner's runs died earlier at the binary resolver, and no
+# CI lane ran the rigs before the supermassive battery grew them)
+# and again after every test (act two: Test 4's curls would have
+# hit a dead server with the blob long gone). cleanup() now resets
+# ENFORCEMENT state only — the same shape crash-recovery and
+# race-condition already use — and teardown() owns the server and
+# the scratch dir, riding the EXIT trap alone.
 TMPD="$(mktemp -d /tmp/zelynic-reload.XXXXXX)"
 PORT=18731
 SRV_PID=""
@@ -43,11 +56,17 @@ URL="http://127.0.0.1:${PORT}/blob"
 
 cleanup() {
 	"$BINARY" unstrict-all 2>/dev/null || true
+}
+
+# shellcheck disable=SC2317 # teardown rides the EXIT trap, never a call by name
+teardown() {
+	cleanup
 	if [ -n "${SRV_PID:-}" ]; then
 		kill "$SRV_PID" 2>/dev/null || true
 	fi
 	rm -rf "$TMPD" 2>/dev/null || true
 }
+trap teardown EXIT
 
 # Dropped bytes summed across every live limit row (NIGHT-hunt-32 —
 # see the header): the status JSON is the stable column contract.
@@ -70,7 +89,6 @@ echo "Binary: $BINARY"
 check_root
 check_binary
 cleanup
-trap cleanup EXIT
 
 # The loopback blob server (NIGHT-hunt-32 — see the header): 8 MiB
 # so a policed fetch can never finish inside a test window.
