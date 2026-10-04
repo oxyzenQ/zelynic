@@ -105,8 +105,9 @@ fn misalignment_detector_matches_the_pod_cast_law() {
 
 /// NIGHT-dinner-6's E1 rider: the observer's four maps ride the LRU
 /// lane in the embedded bytes — BPF_MAP_TYPE_LRU_HASH, pinned by
-/// parse. aya-obj 0.2.1 is the exact parser crate compiled into
-/// aya 0.13.1 (the phase-2 harness lane,
+/// parse. aya-obj 0.3.0 is the exact parser crate compiled into
+/// aya 0.14.0 (NIGHT-depthtest moved the pairing with the loader
+/// wave; the phase-2 harness lane,
 /// docs/PURE_RUST_EVALUATION.md), and `Object::parse` is
 /// syscall-free — the pin runs on any host, no privileges, no
 /// kernel. Before the rider the two counter maps were plain HASH:

@@ -65,9 +65,10 @@ code runs, from whom, with which tokens.
 **Crates verdict: nothing removable.** All 7 direct dependencies
 carry live call sites (independently re-verified by grep this pass:
 clap 12 sites, anyhow 42, aya 19, nix 13, libc 14, serde 3,
-serde_json 8; aya-ebpf in both ebpf/ programs). `aya` 0.13.1 has an
-empty default feature set (its only optional feature is `async_std`,
-unused) — there is no compiled surface left to trim. `anyhow` and
+serde_json 8; aya-ebpf in both ebpf/ programs). `aya` 0.14.0 (the NIGHT-depthtest wave) has an
+empty default feature set (its only non-default feature is the
+development-only `test-helpers`, unused by zelynic) — there is no
+compiled surface left to trim. `anyhow` and
 `libc` add zero transitive crates. The set is already at the floor
 the 2026-09-18 audit drove it to.
 
@@ -259,8 +260,8 @@ blocks. Keeping it is the lower-risk option.
 | `serde_json` 1 | keep | JSON serialization for the same three modules |
 | `nix` 0.31 | keep, trimmed | safe geteuid/uname/termios wrappers; features `user`+`term`+`feature` only |
 | `libc` 0.2 | keep | flock (src/ebpf/lock.rs), raw BPF syscalls (src/ebpf/bpf_syscall.rs), termios constants |
-| `aya` 0.13 (optional) | keep | the entire point of the project; gated behind the `ebpf` feature |
-| `aya-obj` 0.2.1 (dev) | keep | test-tree parse lane (NIGHT-dinner-6 E1 rider): parse-only BPF ELF reader for the embedded-object pins — the exact parser crate compiled into aya 0.13.1, already in the locked graph as aya's own dependency, zero binary surface |
+| `aya` 0.14 (optional) | keep | the entire point of the project; gated behind the `ebpf` feature; NIGHT-depthtest rode the 0.14 wave |
+| `aya-obj` 0.3 (dev) | keep | test-tree parse lane (NIGHT-dinner-6 E1 rider): parse-only BPF ELF reader for the embedded-object pins — the exact parser crate compiled into aya 0.14.0, already in the locked graph as aya's own dependency, zero binary surface |
 | `chrono` 0.4 | **removed** | zero call sites; 27-crate transitive chain (Finding 1) |
 | `[dev-dependencies] serde` | **removed** | exact duplicate of the regular dependency entry; tests already see regular deps |
 
