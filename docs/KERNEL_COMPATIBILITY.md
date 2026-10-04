@@ -37,7 +37,8 @@ is the numbering every verified kernel in the matrix ran on.
 
 zelynic uses `bpf_link` (fd-based attachment) instead of legacy
 `bpf_prog_attach`. Links are pinned to bpffs so enforcement survives
-process exit. Aya 0.13's public API does not expose link pinning for
+process exit. Aya's public API (0.13 through 0.14, verified against
+the 0.14.0 source) does not expose link pinning for
 `CgroupSkb`, so zelynic uses raw `bpf()` syscalls. Requires kernel 5.7+
 for `bpf_link_create`.
 
@@ -66,6 +67,27 @@ the rustc builtin still carries the pre-5.12 `atomic-cas: false`
 legacy — plus `-C target-cpu=v3` (alu32, kernel 5.1+; see
 docs/PURE_RUST_EVALUATION.md and build.rs's
 `force_bpf_v3_rustflags`).
+
+### `bpf_skb_ecn_set_ce(skb)` — kernel 5.1+
+
+The ECN-first policing lane (NIGHT-private-research-4, schema v19):
+when a budgeted lane's verdict would drop a packet, the datapath
+first asks the kernel to set the ECN CE codepoint on the packet's
+IP header — an ECT-capable packet is then delivered CE-marked and
+charges the `ecn_debt_dl/ul` word instead of dying (the budget law
+lives in ebpf/src/ecn.rs). The helper handles IPv4 AND IPv6, updates
+the header checksums itself, refuses cloned-not-writable and
+non-linear-header packets, and is `gpl_only = false`; it entered the
+kernel in v5.1 (verified against v5.1's net/core/filter.c —
+`cg_skb_func_proto` carries it under `CONFIG_INET`; absent in v5.0)
+and the call rides the helper-ID call-immediate convention the
+aya-ebpf-bindings crates generate (ID 97, pinned against
+include/uapi/linux/bpf.h's `FN(skb_ecn_set_ce, 97)` and aya-obj
+0.3's parser table). The verified floor (5.13) sits two minors
+above the helper's introduction, so the minimum moves nothing. A
+non-ECT packet (the RFC 3168 majority) is refused by the helper and
+drops exactly as the legacy policer dropped it — hosts without
+CONFIG_INET lose only the rescue, never the enforcement.
 
 ### `BPF_MAP_TYPE_ARRAY` + `BPF_MAP_TYPE_HASH` — kernel 4.18+
 

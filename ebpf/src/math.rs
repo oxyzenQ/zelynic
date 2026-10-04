@@ -559,6 +559,39 @@ pub fn book(stats: &mut LimiterStats, allowed: bool, pkt_len: u32) {
     }
 }
 
+/// Book an ECN rescue into a stats entry (NIGHT-private-research-4,
+/// schema v19): the lane already booked this packet as DROPPED — the
+/// rescue re-reads the verdict the kernel helper returned and the
+/// packet is being DELIVERED, CE-marked — so the ledger must move the
+/// booking from the dropped column to the allowed one before any
+/// reader counts it. Exactness: the correction subtracts exactly what
+/// this CPU's own drop booking added (counters are monotonic u64 and
+/// the add already landed, so the subtraction can never underflow),
+/// then adds the allowed pair `book` itself would have written. A
+/// concurrent reader between the two pairs may transiently see the
+/// packet in both columns — the same relaxed-counter class the
+/// boost-38 docs own for the window fractions, eventually exact.
+///
+/// The subtraction rides `fetch_add` of the two's complement, NOT a
+/// native fetch_sub: the BPF backend's selection guarantees are
+/// proven for the fetch_add/CAS shapes this file already compiles
+/// (the AtomicLoad lesson at the top of the file), and a sub node
+/// adds an unproven selection for zero benefit — the wrapping add is
+/// bit-identical arithmetic on the same counter word.
+#[inline(always)]
+pub fn book_rescue(stats: &mut LimiterStats, pkt_len: u32) {
+    // Field pointers (8-aligned repr(C) offsets: 0, 8, 16, 24 — the
+    // size pin above).
+    let packets_allowed_ptr = core::ptr::addr_of_mut!(stats.packets_allowed);
+    let packets_dropped_ptr = core::ptr::addr_of_mut!(stats.packets_dropped);
+    let bytes_allowed_ptr = core::ptr::addr_of_mut!(stats.bytes_allowed);
+    let bytes_dropped_ptr = core::ptr::addr_of_mut!(stats.bytes_dropped);
+    rmw_view(packets_dropped_ptr).fetch_add(u64::MAX, Ordering::Relaxed);
+    rmw_view(bytes_dropped_ptr).fetch_add(u64::from(pkt_len).wrapping_neg(), Ordering::Relaxed);
+    rmw_view(packets_allowed_ptr).fetch_add(1, Ordering::Relaxed);
+    rmw_view(bytes_allowed_ptr).fetch_add(u64::from(pkt_len), Ordering::Relaxed);
+}
+
 /// Pure refill arithmetic for one owned window (NIGHT-boost-38
 /// extracted the branch from the old monolithic enforce so the
 /// overflow-guard and carry contracts pin independently): returns

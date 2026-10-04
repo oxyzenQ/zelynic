@@ -109,8 +109,20 @@ mod rate_ring;
 // branch rides).
 #[path = "../socket_flow.rs"]
 mod socket_flow;
+
+// NIGHT-private-research-4 (ECN-first policing): the debt core lives
+// in ../ecn.rs — same discipline as math.rs/ammsp.rs/drr.rs: pure
+// `core`, zero aya dependencies, wired here with #[path] AND into
+// the userspace test tree the same way, pinned rootlessly by
+// test/ebpf/limiter/ecn_tests.rs. The charge/pay arithmetic and the
+// budget law's proof are the pinned surface; the kernel helper call
+// and the map plumbing stay here because only this side can touch
+// them.
+#[path = "../ecn.rs"]
+mod ecn;
 use math::{
-    Bucket, LimiterStats, MAX_ENFORCABLE_BURST, POLICY_FLAG_PER_SOCKET, Policy, book, enforce,
+    Bucket, LimiterStats, MAX_ENFORCABLE_BURST, POLICY_FLAG_PER_SOCKET, Policy, book, book_rescue,
+    enforce,
 };
 use rate_ring::{RateRing, RateSlot, ring_book};
 use socket_flow::socket_flow;
@@ -300,8 +312,33 @@ use socket_flow::socket_flow;
 /// direction-scoped object — active limits are dropped once,
 /// re-apply after upgrade, the same one-time contract as every
 /// bump before it.
+/// v19 (NIGHT-private-research-4, ECN-first policing): the drop
+/// verdict of a budgeted lane becomes a LAST RESORT. When the
+/// kernel helper bpf_skb_ecn_set_ce can set the CE codepoint on the
+/// packet's IP header (ECT-capable, IPv4 or IPv6, checksum handled
+/// by the kernel), the packet is DELIVERED CE-marked instead of
+/// dropped, and its bytes charge an ECN debt word (the two new
+/// pinned LRU maps ecn_debt_dl/ul, keyed by the generation-prefixed
+/// BUDGET key — the pool's root on the DRR lane, the group id on
+/// the strict-multi lane). Every DELIVERED packet on the lane pays
+/// that debt from the budget's own token stream afterwards, out of
+/// the leftover the delivery left behind (ecn.rs debt_pay, on the
+/// allow path only — the call-site law that keeps a CE-ignoring
+/// hammer from starving the lane below the policy), which is what
+/// keeps the budget law closed: delivered <= rate*t + burst + one
+/// 64 KiB super-packet,
+/// for CE-reactive AND CE-ignoring senders alike (the ecn.rs proof —
+/// no time-based decay, no second rate stream). A non-ECT packet
+/// (the RFC 3168 majority) is refused by the helper and drops
+/// exactly as before. The per-socket lane keeps its drop shape by
+/// documented scope (per-connection CE marking is an
+/// aggregate-collapse shape that needs its own convergence
+/// analysis). New maps, new verdict semantics on the budgeted
+/// lanes; the bump forces pinned v18 programs to reload into the
+/// ECN-first object — active limits are dropped once, re-apply
+/// after upgrade, the same one-time contract as v4..v18.
 #[allow(dead_code)]
-const SCHEMA_VERSION: u32 = 18;
+const SCHEMA_VERSION: u32 = 19;
 
 // ---------------------------------------------------------------------------
 // Maps. The static names ARE the userspace contract (limiter/mod.rs
@@ -379,6 +416,27 @@ static rate_ring_dl: HashMap<u32, RateRing> = HashMap::pinned(1024, 0);
 #[allow(non_upper_case_globals)]
 #[map]
 static rate_ring_ul: HashMap<u32, RateRing> = HashMap::pinned(1024, 0);
+
+// ─ The ECN debt words (NIGHT-private-research-4, schema v19 —
+// ECN-first policing) ─ one debt word per policed BUDGET per
+// direction, keyed by the generation-prefixed budget key (the
+// pool's root on the DRR lane, the group id on the strict-multi
+// lane — the repair-6 discipline: a fresh budget never inherits the
+// predecessor's debt, stale entries age out through the LRU). The
+// word carries the outstanding marked bytes the budget has not yet
+// bought back; ecn.rs's charge/pay pair keeps the budget law
+// (delivered <= refill + burst + one 64 KiB super-packet — the
+// ecn.rs proof). LRU + pinned (the leaf_bucket posture);
+// datapath-internal (userspace never opens it — the leaf_bucket
+// family's contract).
+
+#[allow(non_upper_case_globals)]
+#[map]
+static ecn_debt_dl: LruHashMap<u64, u64> = LruHashMap::pinned(4096, 0);
+
+#[allow(non_upper_case_globals)]
+#[map]
+static ecn_debt_ul: LruHashMap<u64, u64> = LruHashMap::pinned(4096, 0);
 
 // ---------------------------------------------------------------------------
 // Enforcement program flow. The refill math (fill-detect, fractional
@@ -522,13 +580,117 @@ fn ring_verdict(
 /// atomics downstream could defend against).
 const BPF_NOEXIST: u64 = 1;
 
+// ---------------------------------------------------------------------------
+// The ECN-first lane (NIGHT-private-research-4, schema v19). The
+// drop verdict of a budgeted lane is a LAST RESORT: when the kernel
+// can set the CE codepoint on the packet, the packet is delivered
+// CE-marked and its bytes charge a debt the budget stream pays
+// back (ecn.rs holds the arithmetic and the budget law's proof;
+// the test tree pins both rootlessly).
+// ---------------------------------------------------------------------------
+
+/// The kernel helper binding, declared in the exact shape the
+/// aya-ebpf-bindings crates generate (the helper ID transmuted into
+/// the call immediate — no extern symbol, no relocation): ID 97,
+/// pinned against include/uapi/linux/bpf.h's FN(skb_ecn_set_ce, 97)
+/// and aya-obj 0.3's own BPF_FUNC_skb_ecn_set_ce = 97. Exposed to
+/// cgroup_skb programs by cg_skb_func_proto under CONFIG_INET
+/// (present in the 5.13 verified floor and every kernel above it,
+/// gpl_only = false — net/core/filter.c). aya-ebpf 0.2.1 does not
+/// wrap this helper in its safe helpers module, so the object
+/// declares the binding itself.
+///
+/// SAFETY: the skb pointer must be the program's own context
+/// pointer (ARG_PTR_TO_CTX — the verifier checks); the transmute
+/// materializes the BPF call immediate the verifier resolves.
+#[inline(always)]
+unsafe fn bpf_skb_ecn_set_ce(skb: *mut core::ffi::c_void) -> i64 {
+    // SAFETY: the transmute materializes the helper-ID call immediate
+    // (the bindings-crate convention); the call hands the program's
+    // own context pointer to the kernel — the contract the SAFETY
+    // note above this function pins.
+    let fun: unsafe extern "C" fn(*mut core::ffi::c_void) -> i64 =
+        unsafe { core::mem::transmute(97usize) };
+    unsafe { fun(skb) }
+}
+
+/// The generation-prefixed debt key for one budget (the repair-6
+/// discipline, the share/ledger keying one lane over): a fresh
+/// budget never inherits the predecessor's debt, and stale
+/// entries age out through the LRU the leaf buckets already trust.
+#[inline(always)]
+fn debt_key_for(budget_key: u32) -> u64 {
+    (u64::from(ammsp_resolve::current_generation()) << 32) | u64::from(budget_key)
+}
+
+/// Get or create the debt word for a budget key (the get_stats_ptr
+/// discipline): zero-initialized, inserted with BPF_NOEXIST so a
+/// racing first-packet initializer never clobbers a debt another
+/// CPU is already paying down — the v11 init-race contract, one
+/// map family over. A failed insert beyond the race (the LRU full
+/// under 4096+ concurrent budgets) returns None and the caller
+/// treats the miss as the leaf/socket lanes treat theirs: the
+/// packet drops — the debt is BUDGET, not bookkeeping, so the miss
+/// takes the safe verdict, never an unlimited pass.
+#[inline(always)]
+fn get_debt_ptr(debt_map: &LruHashMap<u64, u64>, key: &u64) -> Option<*mut u64> {
+    match debt_map.get_ptr_mut(key) {
+        Some(ptr) => Some(ptr),
+        None => {
+            let init: u64 = 0;
+            let _ = debt_map.insert(key, &init, BPF_NOEXIST);
+            debt_map.get_ptr_mut(key)
+        }
+    }
+}
+
+/// The ECN-first rescue (private-research-4): called on the DROP
+/// verdict of a budgeted lane (the rate-0 block verdict returned
+/// long before this point, so every caller carries rate > 0 — the
+/// block verdict never delivers, so it never rescues). The order
+/// is the whole design: the kernel helper runs FIRST (it is
+/// side-effect-free when it refuses — non-ECT, cloned-not-writable,
+/// header-not-linear, non-IP — and returns 1 exactly when the
+/// packet now carries CE), then the debt charge, then the ledger
+/// correction. A charge that finds the debt at its cap returns
+/// false and the CE-marked packet drops — harmless: a dropped mark
+/// signals nothing the receiver will read, and the safe-verdict
+/// discipline (never over-allow) holds. A debt-map miss (the
+/// full-LRU class above) drops the same way. On success the
+/// caller's ring wrap books the delivered bytes exactly as any
+/// allowed packet's.
+#[inline(always)]
+fn ecn_rescue(
+    skb: *mut core::ffi::c_void,
+    debt_map: &LruHashMap<u64, u64>,
+    debt_key: &u64,
+    pkt_len: u32,
+    stats_ptr: Option<*mut LimiterStats>,
+) -> bool {
+    if unsafe { bpf_skb_ecn_set_ce(skb) } == 0 {
+        return false;
+    }
+    let debt_ptr = match get_debt_ptr(debt_map, debt_key) {
+        Some(ptr) => ptr,
+        None => return false,
+    };
+    if !ecn::debt_charge(debt_ptr, pkt_len) {
+        return false;
+    }
+    if let Some(sp) = stats_ptr {
+        book_rescue(unsafe { &mut *sp }, pkt_len);
+    }
+    true
+}
+
 /// Shared enforcement flow for one direction. `policy_map` selects
 /// download vs upload; `bucket_map` / `group_bucket_map` are the
 /// matching individual/group bucket (pool) maps, `leaf_bucket_map`
 /// the direction's DRR leaf map (charger-core-1c), `share_map` the
 /// direction's learned-share state map (dinner-28), `ledger_map`
 /// the direction's epoch-ledger state map (repair-3), `rate_ring_map`
-/// the direction's time-series ring (charger-core-3a).
+/// the direction's time-series ring (charger-core-3a), `debt_map`
+/// the direction's ECN debt map (private-research-4).
 #[inline(always)]
 fn try_enforce(
     ctx: SkBuffContext,
@@ -541,6 +703,7 @@ fn try_enforce(
     ledger_map: &LruHashMap<u64, u64>,
     rate_ring_map: &HashMap<u32, RateRing>,
     socket_bucket_map: &LruHashMap<u64, socket_flow::SocketBucket>,
+    debt_map: &LruHashMap<u64, u64>,
 ) -> i32 {
     // The unlimited fast path FIRST (NIGHT-lts-2): cgroup identity +
     // the direction's policy are the only two lookups a packet with
@@ -653,7 +816,14 @@ fn try_enforce(
         *pol
     };
 
-    let stats = get_stats_ptr(&cgroup_id).map(|ptr| unsafe { &mut *ptr });
+    // The stats entry, held as the RAW pointer the ECN rescue
+    // reuses after a lane consumed the borrow (private-research-4):
+    // each budgeted lane moves the Option<&mut> into itself and
+    // returns, so the rescue tail books through the raw pointer —
+    // the same entry the lane booked the drop into, one lookup,
+    // no second map read.
+    let stats_ptr = get_stats_ptr(&cgroup_id);
+    let stats = stats_ptr.map(|ptr| unsafe { &mut *ptr });
 
     // The per-socket lane (NIGHT-upgrade-charger-core-3b, Tier B
     // #7): POLICY_FLAG_PER_SOCKET spends through a bucket keyed by
@@ -694,6 +864,13 @@ fn try_enforce(
         // (documented scope): its members are enumerated by the
         // apply itself, so the fairness problem AMMSP has (unbounded
         // unknown leaves) does not exist here.
+        //
+        // The ECN budget key rides the bucket the packet actually
+        // spends from (the lts-7 degrade included): the group word on
+        // the shared lane, the member's own root on the fallback —
+        // the debt must be paid out of the SAME stream the marked
+        // bytes were delivered against (private-research-4).
+        let mut ecn_budget_key = pol_sane.group_id;
         let bkt_ptr = match get_bucket_ptr(
             group_bucket_map,
             &pol_sane.group_id,
@@ -701,13 +878,35 @@ fn try_enforce(
             now,
         ) {
             Some(ptr) => Some(ptr),
-            None => get_bucket_ptr(bucket_map, &cgroup_id, pol_sane.burst_bytes, now),
+            None => {
+                ecn_budget_key = cgroup_id;
+                get_bucket_ptr(bucket_map, &cgroup_id, pol_sane.burst_bytes, now)
+            }
         };
-        let bkt = match bkt_ptr {
-            Some(ptr) => unsafe { &mut *ptr },
+        let bkt_raw = match bkt_ptr {
+            Some(ptr) => ptr,
             None => return 1,
         };
+        let debt_key = debt_key_for(ecn_budget_key);
+        let bkt = unsafe { &mut *bkt_raw };
         let verdict = enforce(&pol_sane, bkt, pkt_len, now, stats);
+        // The ECN debt pay (private-research-4), on the ALLOW path
+        // only, from the stream's leftover AFTER the lane delivered:
+        // the call-site law (ecn.rs debt_pay docs) — a pay that ran
+        // on every packet would drain the token stock toward the
+        // debt and starve the lane below the policy. The raw place
+        // never overlaps the &mut borrow the lane consumed above.
+        if verdict == 1 {
+            if let Some(dp) = get_debt_ptr(debt_map, &debt_key) {
+                unsafe { ecn::debt_pay(core::ptr::addr_of_mut!((*bkt_raw).tokens), dp) };
+            }
+        }
+        // The ECN-first rescue: a drop verdict asks the kernel for a
+        // CE mark first; only a refusal (or a debt at its cap, or a
+        // debt-map miss) lets the drop stand (private-research-4).
+        if verdict == 0 && ecn_rescue(ctx.skb.skb.cast(), debt_map, &debt_key, pkt_len, stats_ptr) {
+            return ring_verdict(1, rate_ring_map, &cgroup_id, now, pkt_len);
+        }
         return ring_verdict(verdict, rate_ring_map, &cgroup_id, now, pkt_len);
     }
 
@@ -724,6 +923,7 @@ fn try_enforce(
         Some(ptr) => ptr,
         None => return 1,
     };
+    let debt_key = debt_key_for(cgroup_id);
     let pool = unsafe { &mut *pool_ptr };
     let verdict = drr_flow(
         &pol_sane,
@@ -737,6 +937,24 @@ fn try_enforce(
         now,
         stats,
     );
+    // The ECN debt pay (private-research-4), the DRR pool's own
+    // stream, on the ALLOW path only — from the leftover between
+    // the leaf draws, AFTER the lane delivered: the call-site law
+    // (ecn.rs debt_pay docs — the starvation close). The raw place
+    // never overlaps the &mut borrow the lane consumed above.
+    if verdict == 1 {
+        if let Some(dp) = get_debt_ptr(debt_map, &debt_key) {
+            unsafe { ecn::debt_pay(core::ptr::addr_of_mut!((*pool_ptr).tokens), dp) };
+        }
+    }
+    // The ECN-first rescue: a drop verdict asks the kernel for a CE
+    // mark first; only a refusal (or a debt at its cap, or a debt-map
+    // miss) lets the drop stand (private-research-4). The leaf-level
+    // fairness shape is untouched — a marked packet never carries
+    // leaf tokens, so the greedy-leaf bound rides exactly as before.
+    if verdict == 0 && ecn_rescue(ctx.skb.skb.cast(), debt_map, &debt_key, pkt_len, stats_ptr) {
+        return ring_verdict(1, rate_ring_map, &cgroup_id, now, pkt_len);
+    }
     ring_verdict(verdict, rate_ring_map, &cgroup_id, now, pkt_len)
 }
 
@@ -754,6 +972,7 @@ fn enforce_dl(ctx: SkBuffContext) -> i32 {
         &drr_flow::drr_leaf_state_dl,
         &rate_ring_dl,
         &socket_flow::socket_bucket_dl,
+        &ecn_debt_dl,
     )
 }
 
@@ -771,6 +990,7 @@ fn enforce_ul(ctx: SkBuffContext) -> i32 {
         &drr_flow::drr_leaf_state_ul,
         &rate_ring_ul,
         &socket_flow::socket_bucket_ul,
+        &ecn_debt_ul,
     )
 }
 
