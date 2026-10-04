@@ -38,9 +38,10 @@
 #                                latest = the archive's newest
 #                                kernel; PATH = a local vmlinuz
 #   --binary PATH                the zelynic payload binary (default:
-#                                the repo's musl builds probed in
-#                                order — the v1-baseline static musl
-#                                twin first, the safest under TCG)
+#                                the newest repo build — every alias
+#                                output is a candidate; under TCG the
+#                                newest static build wins instead,
+#                                the safest under emulation)
 #   --envelope low|best          low = quarter cores / eighth RAM
 #                                (default, the CI low leg's math);
 #                                best = every core / three quarters
@@ -56,8 +57,8 @@
 # rootfs.) /dev/kvm is
 # OPTIONAL: without it the VM boots under TCG software emulation
 # (-cpu max) with a loud warning — slower, and arch-baseline v3/v4
-# binaries may SIGILL under emulation, which is exactly why the
-# default binary probe prefers the plain musl build.
+# binaries may SIGILL under emulation, which is exactly why the TCG
+# binary probe prefers a static build.
 
 set -euo pipefail
 
@@ -206,21 +207,65 @@ ACCEL_FLAGS=(-machine "q35,accel=kvm" -cpu host)
 if [ ! -w /dev/kvm ]; then
 	note "WARNING: /dev/kvm not usable — falling back to TCG software emulation."
 	note "         Slower, and v3/v4 arch-baseline binaries may SIGILL; the"
-	note "         default binary probe prefers the plain musl build for this reason."
+	note "         binary probe prefers a static build for this reason."
 	ACCEL_FLAGS=(-machine "q35,accel=tcg" -cpu max)
 fi
 
 # ── the binary payload ──────────────────────────────────────────────────
-if [ -z "${BINARY}" ]; then
-	for candidate in \
-		"${REPO_ROOT}/target/x86_64-unknown-linux-musl/pro-native-musl/zelynic" \
-		"${REPO_ROOT}/target/x86_64-unknown-linux-musl/release/zelynic" \
-		"${REPO_ROOT}/target/release/zelynic"; do
-		if [ -x "${candidate}" ]; then
-			BINARY="${candidate}"
-			break
+# NIGHT-hunt-33: the probe speaks the shared candidate discipline —
+# every alias output (.cargo/config.toml) is a candidate and among
+# the ones that exist the NEWEST mtime wins ("pack what was just
+# built"), the same rule the harness twin resolves with
+# (scripts/lib/harness_lib.sh, the bash twin of the python lib's
+# REPO_BINARY_CANDIDATES scan). One launcher doctrine survives on
+# purpose: under TCG the STATIC group outranks the dynamic gnu group
+# (-cpu max emulates the ISA, not the host — the SIGILL warning
+# below), so TCG packs the newest static build and only falls back to
+# a gnu build when no static one exists; under KVM the newest build
+# wins outright (host-passthrough runs every shape). The plain musl
+# release stays a candidate in both groups (this launcher accepted it
+# before the aliases existed — the twin list omits it because it is
+# not a canonical build command's output).
+newest_binary() {
+	local best="" cand
+	for cand in "$@"; do
+		if [ -x "${cand}" ] && { [ -z "${best}" ] || [ "${cand}" -nt "${best}" ]; }; then
+			best="${cand}"
 		fi
 	done
+	if [ -n "${best}" ]; then
+		printf '%s\n' "${best}"
+	fi
+}
+
+if [ -z "${BINARY}" ]; then
+	MUSL_DIR="${REPO_ROOT}/target/x86_64-unknown-linux-musl"
+	if [ -w /dev/kvm ]; then
+		BINARY="$(newest_binary \
+			"${REPO_ROOT}/zelynic" \
+			"${REPO_ROOT}/target/pro-native-gnu/zelynic" \
+			"${MUSL_DIR}/pro-native-musl/zelynic" \
+			"${REPO_ROOT}/target/pro-linux-amd64-v3-gnu/zelynic" \
+			"${REPO_ROOT}/target/pro-linux-amd64-v4-gnu/zelynic" \
+			"${MUSL_DIR}/pro-linux-amd64-v3-musl/zelynic" \
+			"${MUSL_DIR}/pro-linux-amd64-v4-musl/zelynic" \
+			"${MUSL_DIR}/release/zelynic" \
+			"${REPO_ROOT}/target/release/zelynic")"
+	else
+		BINARY="$(newest_binary \
+			"${MUSL_DIR}/pro-native-musl/zelynic" \
+			"${MUSL_DIR}/pro-linux-amd64-v3-musl/zelynic" \
+			"${MUSL_DIR}/pro-linux-amd64-v4-musl/zelynic" \
+			"${MUSL_DIR}/release/zelynic")"
+		if [ -z "${BINARY}" ]; then
+			BINARY="$(newest_binary \
+				"${REPO_ROOT}/zelynic" \
+				"${REPO_ROOT}/target/pro-native-gnu/zelynic" \
+				"${REPO_ROOT}/target/pro-linux-amd64-v3-gnu/zelynic" \
+				"${REPO_ROOT}/target/pro-linux-amd64-v4-gnu/zelynic" \
+				"${REPO_ROOT}/target/release/zelynic")"
+		fi
+	fi
 fi
 if [ -n "${BINARY}" ] && [ -x "${BINARY}" ]; then
 	# Under TCG the v3/v4 arch-baseline glibc builds may SIGILL
