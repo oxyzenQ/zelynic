@@ -439,6 +439,26 @@ sibling leaf untouched), and the A/B fingerprint across the lane
 boundary (same seeds, both shapes, the deltas that are the feature
 pinned so they cannot drift into noise).
 
+THE SOURCE BUFFER LAW (the live CI battery's catch, the lane's
+third lesson): the first shipped form drained the leaf whole on
+every dense take, and the live Supermassive matrix measured 1411
+packets dropped under a NON-BINDING 12 GB/s policy — zero before
+the lane, zero being the row's own law — with the 100kb trickle
+row sagging to 64.8% under the same shape. The root cause was
+subtle and worth stating: the leaf bucket was designed to ride
+HIGH (packet-sized spends, quantum-sized draws, accumulating
+between draws so the pool's micro-credit oscillation never reaches
+an admit decision), and a whole-leaf take broke exactly that — the
+leaf rode at ~0, and every packet's admit rode the pool's
+instantaneous credit instead. The close is the residue law's
+half-split mirrored one level down, where it keeps the source's
+buffer instead of the next asker's share: a dense take caps at
+HALF the leaf, a sparse take keeps the whole-leaf right (its
+demand IS the packet). The rootless battery's fairness pins rode
+unchanged through the fix — the buffer law lives at the
+micro-credit scale the sims do not model, the scale only the live
+kernel reaches, which is why the battery exists.
+
 ### NIGHT-upgrade-charger-core-1-b A/B (the self-proving enforcement, 2026-09-30)
 
 The charger-core-1-b pass is command-path work: the enforcement
