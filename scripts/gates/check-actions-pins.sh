@@ -56,8 +56,11 @@
 # Tunables (env, optional):
 #   ZELYNIC_ACTIONS_HEALTH_TTL       cache seconds (default 21600 = 6h)
 #   ZELYNIC_ACTIONS_HEALTH_TIMEOUT   cold-sweep budget seconds (default 30)
-#   GITHUB_TOKEN                     optional authenticated API reads
-#                                    (the sweep picks it up too)
+#   GITHUB_TOKEN                     authenticated API reads (the sweep
+#                                    picks it up too) — in practice the
+#                                    only route to a cold verdict: the
+#                                    anonymous 60/h ceiling sits below
+#                                    the 70-call sweep floor
 #
 # Usage:
 #   bash scripts/gates/check-actions-pins.sh                # the check
@@ -73,6 +76,12 @@ API_ROOT="https://api.github.com"
 DEFAULT_TTL=21600
 DEFAULT_TIMEOUT=30
 QUOTA_FLOOR=70
+# The caller's hourly API ceiling, filled by preflight from the same
+# /rate_limit read (empty when the field does not parse). Anonymous
+# GitHub callers sit at 60/h — BELOW the floor by construction, so a
+# tokenless clone can never run a cold sweep; the skip branch quotes
+# this to say so instead of promising a reset that cannot reach it.
+QUOTA_LIMIT=""
 
 # ── output helpers ─────────────────────────────────────────────────────────
 
@@ -95,6 +104,8 @@ modes (off | warn | strict, default warn):
 tunables (env):
   ZELYNIC_ACTIONS_HEALTH_TTL       cache seconds (default 21600)
   ZELYNIC_ACTIONS_HEALTH_TIMEOUT   cold-sweep budget (default 30s)
+  GITHUB_TOKEN                     a PAT — the anonymous 60/h tier can
+                                   never pass the 70-call sweep floor
 EOF
 }
 
@@ -293,10 +304,14 @@ render_verdict() {
 # 2 = quota below the floor. /rate_limit does not count against the
 # core quota; the floor (70) covers a cold sweep's worst case
 # (every distinct action repo costs a releases/latest read, a
-# tags fallback, and one or two refs/tags SHA resolutions).
+# tags fallback, and one or two refs/tags SHA resolutions). The
+# ceiling rides the same response: an anonymous caller's 60/h cap
+# is below the floor by construction — a tokenless clone can never
+# run a cold sweep, and the skip says that instead of promising a
+# reset that cannot reach the floor.
 
 preflight() {
-	local body status remaining
+	local body status remaining limit
 	local args=(-sS --connect-timeout 5 --max-time 8 -w '\n%{http_code}')
 	args+=("${API_ROOT}/rate_limit")
 	if [ -n "${GITHUB_TOKEN:-}" ]; then
@@ -307,6 +322,10 @@ preflight() {
 	[ "$status" = "200" ] || return 1
 	remaining="$(printf '%s' "${body%$'\n'*}" | jq -r '.resources.core.remaining // empty' 2>/dev/null || true)"
 	[[ $remaining =~ ^[0-9]+$ ]] || return 0
+	limit="$(printf '%s' "${body%$'\n'*}" | jq -r '.resources.core.limit // empty' 2>/dev/null || true)"
+	if [[ $limit =~ ^[0-9]+$ ]]; then
+		QUOTA_LIMIT="$limit"
+	fi
 	[ "$remaining" -ge "$QUOTA_FLOOR" ] || return 2
 	return 0
 }
@@ -411,6 +430,9 @@ main() {
 	if [ "$rc" -eq 1 ]; then
 		skip_check "GitHub API unreachable (offline or blocked); pins unchecked"
 	elif [ "$rc" -eq 2 ]; then
+		if [ -n "$QUOTA_LIMIT" ] && [ "$QUOTA_LIMIT" -lt "$QUOTA_FLOOR" ]; then
+			skip_check "API ceiling ${QUOTA_LIMIT}/h can never cover the ${QUOTA_FLOOR}-call cold-sweep floor — a quota reset cannot fix this; export GITHUB_TOKEN"
+		fi
 		skip_check "GitHub API quota below ${QUOTA_FLOOR} calls; pins unchecked (retry after the quota resets, or export GITHUB_TOKEN)"
 	fi
 
