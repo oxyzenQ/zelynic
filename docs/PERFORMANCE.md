@@ -454,10 +454,17 @@ instantaneous credit instead. The close is the residue law's
 half-split mirrored one level down, where it keeps the source's
 buffer instead of the next asker's share: a dense take caps at
 HALF the leaf, a sparse take keeps the whole-leaf right (its
-demand IS the packet). The rootless battery's fairness pins rode
-unchanged through the fix — the buffer law lives at the
-micro-credit scale the sims do not model, the scale only the live
-kernel reaches, which is why the battery exists.
+demand IS the packet). The follow-up battery run refined the law's
+engagement point: the half-split binds only when the leaf holds
+two packets' worth or more — below that the take is whole and the
+admit DETERMINISTIC (the take covers the packet whenever the leaf
+does, the old single-bucket lane's own property), because a plain
+half-split at the micro-credit steady state left the take at the
+packet's own order and the admit a coin flip at the boundary. The
+rootless battery's fairness pins rode unchanged through both forms
+— the buffer law lives at the micro-credit scale the sims do not
+model, the scale only the live kernel reaches, which is why the
+battery exists.
 
 ### NIGHT-upgrade-charger-core-1-b A/B (the self-proving enforcement, 2026-09-30)
 

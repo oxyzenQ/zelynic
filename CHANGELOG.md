@@ -82,7 +82,15 @@ NIGHT-hunt-18's git-history-only call.
   buffer law changes the micro-scale the sims do not model, the
   scale only the live kernel can reach. The third design lesson
   this lane paid for, all three engraved in ebpf/src/drr.rs's v20
-  section.
+  section. The follow-up run refined it once more (f73ecda measured
+  the plain half-split still leaving the take at the packet's own
+  order at the micro-credit steady state — 1122 drops, the admit a
+  coin flip at the boundary): the half-split engages only when the
+  leaf holds TWO packets' worth or more — below that the take is
+  whole and the admit DETERMINISTIC, the old single-bucket lane's
+  own property (the take covers the packet whenever the leaf does),
+  with the buffer law's protection still standing above the
+  threshold.
 
 - **NIGHT-private-research-4, the guaranteed-minimum audit — verdict:
   the DRR pool already carries the full floor/ceiling/borrowing
