@@ -32,11 +32,26 @@
 #     (NIGHT-cleanup-3 retired the plain `cargo build --release`
 #     path the old remedy told people to run).
 #
+# NIGHT-hunt-33 (the resolver twin lag — the owner's nightpc run made
+# it visible): benchmarking.py found target/pro-linux-amd64-v3-gnu/
+# zelynic while reload/crash/race died at "Binary not found:
+# target/release/zelynic" — the python twin scans every alias output
+# (REPO_BINARY_CANDIDATES), the bash twin still had a single hardcoded
+# release default. The ladder below is the python twin's
+# resolve_binary, verbatim: explicit argv (--binary PATH or the
+# positional path), then ZELYNIC_BINARY, then the NEWEST-mtime repo
+# build ("test what was just built" — a fresh pro-linux build
+# outranks a stale release binary of older code), PATH last. The pick
+# note carries the mtimes so mixed release/alias trees stay easy to
+# tell apart, and check_binary's version gate refuses decoys
+# whichever way the pick happened.
+#
 # Contract with the sourcing harness:
 #   - source it AFTER the harness's own `set` flags are chosen
 #     (each harness keeps its own -e/-u policy)
-#   - BINARY is resolved here only if the harness has not set it
-#     (argv[1] override, else the repo-anchored target/release build)
+#   - BINARY is resolved here only if the harness has not set it:
+#     --binary PATH or the positional path, then ZELYNIC_BINARY, then
+#     the newest repo build, then PATH (resolve_binary's ladder)
 #   - counters PASS / FAIL / TOTAL start at 0; log_* bump them
 #   - cleanup() stays harness-owned — teardown is script-specific
 
@@ -59,7 +74,101 @@ REPO_ROOT="$(cd "${HARNESS_LIB_DIR}/../.." && pwd)"
 # shellcheck disable=SC2034 # consumed by the sourcing harnesses, not this file
 PIN_DIR="/sys/fs/bpf/zelynic"
 
-BINARY="${BINARY:-${1:-${REPO_ROOT}/target/release/zelynic}}"
+# Repo-local build outputs of the canonical build commands — the
+# bash twin of the python lib's REPO_BINARY_CANDIDATES
+# (.cargo/config.toml is the source of truth for where each command
+# lands): the legacy root copy, pro-native-gnu/musl, the four
+# pro-linux release shapes, and the plain release build. Among the
+# candidates that exist, the NEWEST mtime wins — test what was just
+# built, not what was built longest ago.
+HARNESS_BINARY_CANDIDATES=(
+	"${REPO_ROOT}/zelynic"
+	"${REPO_ROOT}/target/pro-native-gnu/zelynic"
+	"${REPO_ROOT}/target/x86_64-unknown-linux-musl/pro-native-musl/zelynic"
+	"${REPO_ROOT}/target/pro-linux-amd64-v3-gnu/zelynic"
+	"${REPO_ROOT}/target/pro-linux-amd64-v4-gnu/zelynic"
+	"${REPO_ROOT}/target/x86_64-unknown-linux-musl/pro-linux-amd64-v3-musl/zelynic"
+	"${REPO_ROOT}/target/x86_64-unknown-linux-musl/pro-linux-amd64-v4-musl/zelynic"
+	"${REPO_ROOT}/target/release/zelynic"
+)
+
+# binary_label <path> — the alias that built a candidate
+# (pro-linux-amd64-v3-gnu), not its whole path: the pick note stays
+# one readable line even for the musl triple's nested directory.
+binary_label() {
+	local label="${1#"${REPO_ROOT}"/}"
+	label="${label#target/}"
+	label="${label#x86_64-unknown-linux-musl/}"
+	label="${label%/zelynic}"
+	if [ "${label}" = "zelynic" ]; then
+		echo "repo-root copy"
+	else
+		echo "${label}"
+	fi
+}
+
+# resolve_binary — the python twin's ladder, bash form. Sets BINARY
+# and returns; check_binary owns the failure exit and report. Prints
+# a pick note only when the scan had a real choice to name (two or
+# more repo builds — the owner's tell-them-apart ask) or when PATH is
+# the reason a binary was found at all.
+resolve_binary() {
+	local explicit="" cand m="" newest="" newest_m=0 existing=0 rest="" found
+	if [ "${1:-}" = "--binary" ]; then
+		if [ -z "${2:-}" ]; then
+			echo "ERROR: --binary needs a path (e.g. --binary ./target/release/zelynic)" >&2
+			exit 2
+		fi
+		explicit="${2}"
+	elif [ -n "${1:-}" ]; then
+		explicit="${1}"
+	fi
+	# The argv pick outranks the env pick (the python twin's order).
+	explicit="${explicit:-${ZELYNIC_BINARY:-}}"
+	if [ -n "${explicit}" ]; then
+		BINARY="${explicit}"
+		return 0
+	fi
+	for cand in "${HARNESS_BINARY_CANDIDATES[@]}"; do
+		[ -x "${cand}" ] || continue
+		existing=$((existing + 1))
+		m="$(stat -c '%Y' "${cand}" 2>/dev/null || echo 0)"
+		if [ "${m:-0}" -gt "${newest_m}" ]; then
+			newest="${cand}"
+			newest_m="${m:-0}"
+		fi
+	done
+	if [ -n "${newest}" ]; then
+		BINARY="${newest}"
+		if [ "${existing}" -ge 2 ]; then
+			for cand in "${HARNESS_BINARY_CANDIDATES[@]}"; do
+				if [ -x "${cand}" ] && [ "${cand}" != "${newest}" ]; then
+					rest="${rest:+${rest}, }$(binary_label "${cand}") ($(date -r "${cand}" '+%Y-%m-%d %H:%M' 2>/dev/null || echo '?'))"
+				fi
+			done
+			echo "  resolver: newest of ${existing} repo builds — $(binary_label "${newest}") ($(date -r "${newest}" '+%Y-%m-%d %H:%M' 2>/dev/null || echo '?')) over ${rest}"
+		fi
+		return 0
+	fi
+	found="$(command -v zelynic 2>/dev/null || true)"
+	if [ -n "${found}" ]; then
+		BINARY="${found}"
+		echo "  resolver: no repo build — using the PATH zelynic (${found})"
+		return 0
+	fi
+	# Nothing anywhere: leave BINARY empty and record the sweep for
+	# check_binary's report (the python twin prints the same list).
+	BINARY=""
+	BINARY_TRIED="$(printf '%s, ' "${HARNESS_BINARY_CANDIDATES[@]}")PATH"
+	return 0
+}
+
+# The rig-suite contract: resolve at source time unless the harness
+# already chose (a pre-set BINARY is the harness's own pick — a
+# sandbox-lane suite like install-flow-test.sh uses that hook).
+if [ -z "${BINARY:-}" ]; then
+	resolve_binary "$@"
+fi
 
 log_pass() {
 	echo -e "  ${GREEN}OK PASS${NC}: $1"
@@ -85,9 +194,17 @@ check_root() {
 }
 
 check_binary() {
-	if [ ! -f "$BINARY" ]; then
-		echo -e "${RED}ERROR: Binary not found: $BINARY${NC}"
+	if [ -z "${BINARY:-}" ]; then
+		echo -e "${RED}ERROR: zelynic binary not found — no repo build and nothing on PATH.${NC}"
+		echo "  Tried (repo builds first): ${BINARY_TRIED:-the shared candidate list}"
 		echo "Build first: ./scripts/dev/bootstrap-ebpf.sh (eBPF toolchain pair + flagship binary)"
+		echo "Or point at one: $(basename "${BASH_SOURCE[1]:-this-suite}") --binary ./target/pro-linux-amd64-v3-gnu/zelynic"
+		exit 1
+	fi
+	if [ ! -f "${BINARY}" ]; then
+		echo -e "${RED}ERROR: Binary not found: ${BINARY}${NC}"
+		echo "Build first: ./scripts/dev/bootstrap-ebpf.sh (eBPF toolchain pair + flagship binary)"
+		echo "Or point at a real one: $(basename "${BASH_SOURCE[1]:-this-suite}") --binary ./target/release/zelynic"
 		exit 1
 	fi
 	# Version gate (NIGHT-improve-16, bash form): the harness tests THIS

@@ -28,7 +28,7 @@
 # box; it creates and removes only its own staging directory, one
 # throwaway cgroup with a sleeper process, and zelynic artifacts.
 #
-# Usage: ./scripts/depth/install-flow-test.sh [path-to-zelynic]
+# Usage: ./scripts/depth/install-flow-test.sh [--binary PATH | path-to-zelynic]
 #
 # Output: OK/X rows with a summary; exit 0 only when all pass.
 
@@ -45,17 +45,27 @@ fi
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${HERE}/../.." && pwd)"
 
-BINARY="${1:-}"
-if [[ -z "${BINARY}" ]]; then
-	if [[ -x "/opt/zelynic/zelynic" ]]; then
-		BINARY="/opt/zelynic/zelynic"
-	elif [[ -x "${REPO_ROOT}/target/pro-native-gnu/zelynic" ]]; then
-		BINARY="${REPO_ROOT}/target/pro-native-gnu/zelynic"
-	else
-		echo "no zelynic binary found (pass a path or run in the sandbox)"
-		exit 1
-	fi
+# Binary resolution rides the shared bash twin (NIGHT-hunt-33) with
+# ONE lane-specific prepend: this suite's primary execution lane is
+# the sandbox micro-VM, where the staged payload lives at
+# /opt/zelynic/zelynic and the packed checkout carries no target/
+# builds — so when argv and ZELYNIC_BINARY are both silent, the
+# staged payload outranks the repo scan. Otherwise the twin ladder
+# owns the pick: --binary PATH or the positional path, then
+# ZELYNIC_BINARY, then the NEWEST-mtime repo build, then PATH —
+# pro-linux alias builds included — and check_binary's version gate
+# refuses decoys whichever way the pick happened.
+if [[ $# -eq 0 && -z "${ZELYNIC_BINARY:-}" && -x /opt/zelynic/zelynic ]]; then
+	BINARY="/opt/zelynic/zelynic"
 fi
+# shellcheck source=scripts/lib/harness_lib.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/harness_lib.sh"
+
+if [[ -z "${BINARY}" ]]; then
+	echo "no zelynic binary found (pass a path, build one, or run in the sandbox)"
+	exit 1
+fi
+check_binary
 
 PASS=0
 FAIL=0

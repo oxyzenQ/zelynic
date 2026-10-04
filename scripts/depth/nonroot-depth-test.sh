@@ -20,7 +20,7 @@
 # error). Refuses to run as root — this suite pins what an unprivileged
 # user sees, so euid 0 would invalidate every assertion.
 #
-# Usage: ./scripts/depth/nonroot-depth-test.sh [path-to-zelynic]
+# Usage: ./scripts/depth/nonroot-depth-test.sh [--binary PATH | path-to-zelynic]
 #
 # Output: PASS/FAIL per case with a summary; exit 0 only when all pass.
 #
@@ -38,19 +38,24 @@ if [[ "$(id -u)" -eq 0 ]]; then
 	exit 1
 fi
 
-BINARY="${1:-}"
-if [[ -z "$BINARY" ]]; then
-	if [[ -x "./target/debug/zelynic" ]]; then
-		BINARY="./target/debug/zelynic"
-	elif [[ -x "./target/release/zelynic" ]]; then
-		BINARY="./target/release/zelynic"
-	elif command -v zelynic >/dev/null 2>&1; then
-		BINARY="zelynic"
-	else
-		echo "no zelynic binary found (build first or pass a path)"
-		exit 1
-	fi
+# Binary resolution rides the shared bash twin (NIGHT-hunt-33): the
+# positional path and --binary PATH both work, ZELYNIC_BINARY wins
+# over the scan, and among the repo's build outputs (pro-native,
+# pro-linux, plain release — .cargo/config.toml) the NEWEST mtime is
+# the test payload — the same ladder every supermassive engine
+# resolves with, version gate included. The old private ladder
+# (debug > release > PATH) was CWD-relative and decoy-prone: a
+# target/debug build is the ebpf-less dev shell carrying THIS
+# checkout's version, so neither the candidate family nor the version
+# gate could catch it.
+# shellcheck source=scripts/lib/harness_lib.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/harness_lib.sh"
+
+if [[ -z "${BINARY:-}" ]]; then
+	echo "no zelynic binary found (build first or pass a path)"
+	exit 1
 fi
+check_binary
 
 PASS=0
 FAIL=0
