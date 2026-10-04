@@ -784,7 +784,25 @@ pub const fn flow_take(
     // take the leaf's last 200 — the bulk sibling's cascade
     // refills behind it), and the bulk discipline is the one the
     // buffer law binds.
-    let take_within_the_source_buffer = if sparse { leaf_tokens } else { leaf_tokens / 2 };
+    // THE BUFFER THRESHOLD (the second battery run's refinement of
+    // the source buffer law): the half-split engages only when the
+    // leaf holds two packets' worth or more — below that there is
+    // nothing worth buffering, the take is whole, and the admit is
+    // DETERMINISTIC again: the take covers the packet whenever the
+    // leaf does, the old single-bucket lane's own property. The
+    // plain half-split left the take at the packet's own order at
+    // the micro-credit steady state — the admit a coin flip at the
+    // boundary, 1122 drops under a policy that must drop nothing
+    // (the live battery's second measurement).
+    let take_within_the_source_buffer = if sparse || leaf_tokens < pkt_len as u64 * 2 {
+        // A sparse demand (its packet IS the take) or a leaf below
+        // two packets' worth (nothing left worth buffering): the
+        // take is whole, and the admit deterministic — the old
+        // single-bucket lane's own property, restored.
+        leaf_tokens
+    } else {
+        leaf_tokens / 2
+    };
     if take_under_the_bound_law < take_within_the_source_buffer {
         take_under_the_bound_law
     } else {

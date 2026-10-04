@@ -197,15 +197,26 @@ fn the_dense_take_never_drains_the_leaf_whole() {
         flow_take(false, SPARSE_PKT, 7_000, 2, allowance, u64::MAX, rich_leaf),
         7_000
     );
-    // A poor leaf: the take is HALF its content, never all of it —
-    // the leaf keeps its admit buffer.
+    // Above two packets' worth: the take is HALF its content — the
+    // leaf keeps an admit buffer of at least one packet.
     assert_eq!(
         flow_take(false, SPARSE_PKT, 7_000, 2, allowance, u64::MAX, 900),
         450
     );
+    // Below two packets' worth the buffer law stands down — the
+    // take is whole and the admit deterministic (the old lane's own
+    // property: the take covers the packet whenever the leaf does).
     assert_eq!(
         flow_take(false, SPARSE_PKT, 7_000, 2, allowance, u64::MAX, 64),
-        32
+        64
+    );
+    assert_eq!(
+        flow_take(false, SPARSE_PKT, 7_000, 2, allowance, u64::MAX, 399),
+        399
+    );
+    assert_eq!(
+        flow_take(false, SPARSE_PKT, 7_000, 2, allowance, u64::MAX, 400),
+        200
     );
     // The OFF lane's fraction already sits at or under the half
     // (learned >= 0 => leaf/(learned+2) <= leaf/2): the buffer law
@@ -290,11 +301,14 @@ fn the_take_admits_its_packet_whenever_room_and_leaf_allow() {
             flow_take(false, pkt, q, 2, 250_000, room, pkt as u64 * 2) >= pkt as u64,
             "dense admit reachability at rate {rate}"
         );
-        // Below twice: the take banks (strictly positive whenever
-        // the leaf holds anything) — the admit arrives a draw later.
-        let banked = flow_take(false, pkt, q, 2, 250_000, u64::MAX, pkt as u64 + 2);
-        assert!(banked > 0, "the dense bank at rate {rate}: {banked}");
-        assert!(banked < pkt as u64, "the dense bank stays under the packet");
+        // Below twice: the take is WHOLE and the admit deterministic —
+        // the old single-bucket lane's own property (a take at
+        // pkt + 2 covers the packet it serves).
+        let whole = flow_take(false, pkt, q, 2, 250_000, u64::MAX, pkt as u64 + 2);
+        assert!(
+            whole >= pkt as u64,
+            "the deterministic admit below the buffer threshold at rate {rate}: {whole}"
+        );
     }
     // The trickle regime's floor: at 640 KB/s the quantum IS the
     // GSO admit floor — the smallest quantum the law ever produces
