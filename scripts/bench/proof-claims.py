@@ -1339,9 +1339,7 @@ def self_test():
     ok = (
         lib.record(
             "selftest: kernel-cost row enables the stats knob it reads",
-            "PASS"
-            if "stats_knob_plan" in fp_src and "bpf_stats_enabled" in fp_src
-            else "FAIL",
+            "PASS" if "stats_knob_plan" in fp_src and "bpf_stats_enabled" in fp_src else "FAIL",
             "run_time_ns needs kernel.bpf_stats_enabled=1 (boot default off) — "
             "the stage plans the knob and restores the machine it borrowed",
         )
