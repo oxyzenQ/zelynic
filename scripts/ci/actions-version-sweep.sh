@@ -64,11 +64,14 @@
 # never by a standing token a machine holds).
 #
 # Environment:
-#   GITHUB_TOKEN      optional; authenticated API reads (1000
-#                     req/h). Unauthenticated works (60 req/h) but
-#                     a shared egress IP can exhaust that mid-sweep
-#                     (check-actions-pins.sh picks the variable up
-#                     too).
+#   GITHUB_TOKEN      optional; authenticated API reads (this
+#                     estate's PAT reads 5000 req/h, verified live).
+#                     Unauthenticated (60 req/h) fits the current
+#                     estate's worst-case sweep but sits below the
+#                     commit-time floor of 70 — and a shared egress
+#                     IP can still exhaust it mid-sweep (see
+#                     check-actions-pins.sh, which picks the variable
+#                     up too).
 
 set -euo pipefail
 
