@@ -329,6 +329,57 @@ is the additions and the shared refill extraction is neutral). The
 live-root proof of the lane is the CI supermassive battery's job
 (the four low/best x gnu/musl legs run it on every push).
 
+### The guaranteed-minimum law (NIGHT-private-research-4's audit, 2026-10-04)
+
+The owner-approved "Guaranteed minimum" ask — floor 1 mb, ceiling
+10 mb, idle budget lent to the busy — audited against the shipped
+datapath before any new code was written, and the verdict is: the
+DRR pool lane has carried the full contract since the
+charger-core-1c / dinner-28 / repair-3/4/6/7 arc, pinned rootlessly
+and proven on the CI battery. This section is the owner-facing
+framing of that law (the audit's deliverable — re-engineering it
+would be over-engineering a peak already reached):
+
+- THE FLOOR (a contending app's guaranteed minimum share): the
+  pool's every-100ms refill splits across the drawee PEAK — the
+  decaying high-water of DISTINCT askers, so the quiet majority
+  counts, not just the shouters — and each leaf's per-epoch draw is
+  bounded by that allowance, carried quantum-capped so a starved
+  leaf can BANK several epochs toward one 64 KiB GSO admit (the
+  absolute floor at tiny shares: even when the fair slice is
+  smaller than one super-packet, the app still admits — slowly,
+  but never zero). The pins: test/ebpf/limiter/drr_ledger_tests.rs
+  `no-starve: quietest >= fair/4` at K=6 AND K=24, the collapse
+  guard `total >= 65% of policy`, and the failure pins that show
+  the v16 law breaking exactly these bounds before repair-3.
+- THE CEILING (no app takes more than its share plus one quantum):
+  the same epoch ledger caps the fast drawer at its fair share —
+  `anti-monopoly: worst <= fair x 1.75 + quantum` — so a greedy
+  sibling cannot monetize its packet rate (the 4.7x-fair defect the
+  battery caught and the ledger closed).
+- THE BORROWING (hierarchical, work-conserving, zero daemon): an
+  idle app's unclaimed epoch allowance does not evaporate — the
+  residue law hands it to whichever leaf is asking (a catch-up
+  drawer banks its GSO admit floor off the unclaimed residue), and
+  the lone-active edge delivers the WHOLE budget: 80-145% of policy
+  in the lone-leaf pin. The aggregate never exceeds the policy (the
+  pool never creates budget — `total <= 130%` with the burst
+  slack), which is what makes the lending honest: borrowed bytes
+  were someone's saved bytes, never invented ones.
+- THE HANDOFF (a fresh budget inherits nothing): every policy
+  mutation re-keys the share/ledger state on the AMMSP generation —
+  a 24-leaf policy that shrinks to one hands the survivor a fresh
+  divisor, never the dead fleet's peak throttling it through the
+  decay's tail (the repair-6 pin: the 8.2%-of-policy handoff find).
+
+The min/max the CLI expresses is the POLICY rate itself (the
+ceiling the app asked for); the floor this law guarantees is the
+fair share of the pool among the apps actually asking, floored at
+the GSO admit cadence. Where the owner's "floor 1mb / ceiling 10mb"
+shape needs a per-app floor ABOVE the fair share (a reserved lane
+no sibling may borrow from), that is a new policy surface — a CLI
+decision that stays the owner's to call, not silently added here.
+
 ### NIGHT-upgrade-charger-core-1-b A/B (the self-proving enforcement, 2026-09-30)
 
 The charger-core-1-b pass is command-path work: the enforcement

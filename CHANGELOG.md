@@ -19,6 +19,29 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Added
 
+- **NIGHT-private-research-4, the guaranteed-minimum audit — verdict:
+  the DRR pool already carries the full floor/ceiling/borrowing
+  contract, so this task ships the owner-facing framing instead of
+  redundant code (the owner's own peak rule: don't over-engineer a
+  reached peak).** Audited against the shipped datapath before any
+  new code: the contending app's guaranteed minimum is the pool's
+  per-epoch allowance split across the drawee PEAK (the decaying
+  distinct-asker high-water), carried quantum-capped so a starved
+  leaf banks toward the 64 KiB GSO admit — the absolute floor at
+  tiny shares; the ceiling is the anti-monopoly bound (worst <=
+  fair x 1.75 + quantum); the borrowing is work-conserving and
+  honest (idle allowances flow to whoever asks through the residue
+  law, the lone-active leaf keeps the whole budget, and the pool
+  never creates budget — borrowed bytes were saved bytes); the
+  handoff re-keys on every policy mutation so a fresh budget
+  inherits nothing. Every clause is pinned rootlessly
+  (drr_ledger_tests' no-starve, anti-monopoly, collapse-guard,
+  lone-leaf, and handoff rows) and proven on the CI battery. The
+  framing lives in docs/PERFORMANCE.md's new "The
+  guaranteed-minimum law" section, including the honest boundary: a
+  per-app floor ABOVE the fair share (a reserved no-borrow lane) is
+  a new policy surface the owner alone decides to open.
+
 - **NIGHT-private-research-4, snapshot/restore — "GitOps for
   bandwidth" without a daemon, the owner-approved persistence ask.**
   The pins already survive process exit; what they cannot survive is
