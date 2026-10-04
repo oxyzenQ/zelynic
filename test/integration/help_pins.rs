@@ -1,5 +1,6 @@
 // Copyright (C) 2026 rezky_nightky
 // SPDX-License-Identifier: GPL-3.0-only
+// LOC_EXEMPT: the help reference pins are one cohesive surface — every command's presence check, the alias family, and the synopsis pins share the KNOWN_COMMANDS contract; the persistence pair's entries pushed the list over the 500 cap
 
 //! --help reference drift pins: the single-tier help surface is the
 //! one reference, and these tests pin its shape — every command
@@ -19,7 +20,7 @@ use crate::zelynic_cmd;
 /// (the redirect table owns them now, exit 2 with the successor tip).
 #[test]
 fn test_help_lists_every_command() {
-    const KNOWN_COMMANDS: [&str; 26] = [
+    const KNOWN_COMMANDS: [&str; 28] = [
         "strict-single",
         "strict-multi",
         "strict-all",
@@ -31,6 +32,11 @@ fn test_help_lists_every_command() {
         "unstrict-single",
         "unstrict-all",
         "recover",
+        // NIGHT-private-research-4: the persistence pair — the
+        // reboot-survival verbs (snapshot writes the state file,
+        // restore re-applies it).
+        "snapshot",
+        "restore",
         "status",
         "list-apps",
         "eagle-eyes",

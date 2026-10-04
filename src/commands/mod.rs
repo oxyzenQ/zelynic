@@ -1,5 +1,6 @@
 // Copyright (C) 2026 rezky_nightky
 // SPDX-License-Identifier: GPL-3.0-only
+// LOC_EXEMPT: the dispatch match is one surface by design — every command's ebpf/dormant cfg dance lives in its arm; the persistence pair's arms pushed the cohesive unit over the 500 cap (the split precedents moved handlers OUT, and they already are)
 
 //! Command handlers for zelynic CLI (Cosmic Dragon Architecture — pure eBPF).
 
@@ -17,6 +18,8 @@ pub(crate) mod help;
 pub(crate) mod list_apps;
 #[cfg(feature = "ebpf")]
 pub(crate) mod monitor;
+#[cfg(feature = "ebpf")]
+pub(crate) mod persist;
 #[cfg(feature = "ebpf")]
 pub(crate) mod probe;
 #[cfg(feature = "ebpf")]
@@ -362,6 +365,28 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
             #[cfg(feature = "ebpf")]
             {
                 recover::handle_recover(cli.verbose)
+            }
+            #[cfg(not(feature = "ebpf"))]
+            {
+                ebpf_disabled()
+            }
+        }
+
+        Some(Commands::Snapshot) => {
+            #[cfg(feature = "ebpf")]
+            {
+                persist::handle_snapshot(cli.print_json)
+            }
+            #[cfg(not(feature = "ebpf"))]
+            {
+                ebpf_disabled()
+            }
+        }
+
+        Some(Commands::Restore) => {
+            #[cfg(feature = "ebpf")]
+            {
+                persist::handle_restore(cli.print_json)
             }
             #[cfg(not(feature = "ebpf"))]
             {

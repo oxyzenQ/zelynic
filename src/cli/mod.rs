@@ -1,5 +1,6 @@
 // Copyright (C) 2026 rezky_nightky
 // SPDX-License-Identifier: GPL-3.0-only
+// LOC_EXEMPT: the Commands enum is one clap surface by design — split twice already (styles, scope moved out); the enum itself and the Cli struct it feeds are the irreducible CLI declaration, and the persistence pair's help docs pushed the cohesive unit over the 500 cap
 use clap::{Parser, Subcommand};
 
 pub(crate) mod argv;
@@ -357,6 +358,37 @@ pub enum Commands {
     /// them. Safe to run anytime — does nothing if state is clean.
     #[command(name = "recover")]
     Recover,
+
+    /// Serialize every live limit to the state file (survives reboot)
+    ///
+    /// The pins already survive process exit; what they cannot survive
+    /// is a reboot — bpffs starts empty, and with it every policy. This
+    /// verb writes the policy census (who, which direction, what rate,
+    /// grouping, per-socket) to /var/lib/zelynic/limits.json, keyed by
+    /// NAME (cgroup IDs change across reboots).
+    ///
+    /// Examples:
+    ///   sudo zelynic snapshot                # write the state file
+    ///   sudo zelynic snapshot --print-json   # same, plus the document on stdout
+    #[command(name = "snapshot")]
+    Snapshot,
+
+    /// Re-apply every limit from the state file (idempotent)
+    ///
+    /// The reboot companion to snapshot: reads the state file and
+    /// re-applies every policy through the strict family's own apply
+    /// machinery (the rollback ledger, memo invalidation, the whole
+    /// ladder). Best-effort with an honest report — a name that is
+    /// not running yet (containers start late) is listed as skipped,
+    /// never silently missed; re-run restore after it starts to pick
+    /// it up. Pairs with a systemd oneshot unit an operator wires —
+    /// zelynic ships the verbs, not a daemon.
+    ///
+    /// Examples:
+    ///   sudo zelynic restore                # apply the state file
+    ///   sudo zelynic restore --print-json   # machine-readable report
+    #[command(name = "restore")]
+    Restore,
 
     /// Show active limits and watchdog status
     #[command(name = "status")]

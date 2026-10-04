@@ -176,7 +176,7 @@ pub(crate) fn group_id_from(pid: u32, nanos: u64) -> u32 {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct RateSpec {
     pub download: Option<u64>,
     pub upload: Option<u64>,
