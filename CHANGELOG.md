@@ -19,6 +19,31 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Added
 
+- **NIGHT-private-research-4, snapshot/restore — "GitOps for
+  bandwidth" without a daemon, the owner-approved persistence ask.**
+  The pins already survive process exit; what they cannot survive is
+  a reboot — bpffs starts empty, and with it every policy. Two
+  one-shot verbs close the gap: `zelynic snapshot` serializes the
+  live policy census to /var/lib/zelynic/limits.json (atomic
+  write, keyed by NAME — cgroup IDs change across reboots; grouping
+  re-joins through the map's group id; the per-socket flag rides
+  along), and `zelynic restore` re-applies every entry through the
+  strict family's own apply machinery (pre-flight, rollback ledger,
+  memo invalidation, the attach ladder a fresh boot needs). The
+  honesty contract is the strict-all precedent: names not running
+  yet are reported as skipped, never silently missed, never an abort
+  for the fleet — restore is idempotent and picks up late starters
+  on re-run. The snapshot pins the POLICY, not the bucket state
+  (tokens, carries, ECN debt are transients the fresh buckets
+  re-derive; the burst re-derives from the rate's default law, the
+  only value the CLI can write). Both verbs honor --print-json (the
+  document IS the state file's JSON); the pure transforms (the
+  census join with honest skip naming, the solo/group plan collapse,
+  the serde round-trip, the schema-tag refusal) are pinned rootlessly
+  by test/commands/persist_tests.rs, and the curated --help plus its
+  drift pins carry the pair. Zero new flags; the systemd oneshot
+  pairing stays the operator's choice, documented in USAGE.
+
 - **NIGHT-private-research-4, ECN-first policing (schema v19) — the
   limiter that doesn't hurt.** The owner-approved innovation from the
   private-research-4 ranking: the budgeted lanes' drop verdict becomes

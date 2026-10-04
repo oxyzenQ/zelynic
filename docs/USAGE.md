@@ -565,6 +565,70 @@ green with partial-failure results in warning yellow, and every
 quoted runnable command in suggestion white — all degrading to plain
 text when piped, like every styled surface.
 
+### snapshot / restore — reboot persistence
+
+```bash
+sudo zelynic snapshot              # write the policy census to the state file
+sudo zelynic restore               # re-apply every limit from it (idempotent)
+```
+
+The pins under `/sys/fs/bpf/zelynic` already survive process exit —
+that is the whole point of LIBBPF_PIN_BY_NAME. What they cannot
+survive is a REBOOT: bpffs starts empty, and with it every policy.
+This pair closes that gap with two one-shot verbs and zero
+background presence (NIGHT-private-research-4, the owner-approved
+"GitOps for bandwidth" ask — no daemon, ever).
+
+`snapshot` reads the live policy census from both pinned policy maps
+and writes it to `/var/lib/zelynic/limits.json`, keyed by NAME: a
+reboot changes cgroup IDs, so names are the only stable key. The
+document carries every leg — who, which direction, what rate,
+grouping (the shared-bucket members re-join through the map's group
+id), and the per-socket flag. Census rows whose cgroup no longer
+resolves to a running process are named on stderr and skipped — an
+unrestorable row must be NAMED, never silently dropped. The write is
+atomic (temp file + rename), so a crash mid-snapshot never leaves a
+half-serialized fleet.
+
+`restore` reads the state file and re-applies every policy through
+the strict family's own apply machinery — the pre-flight resolution,
+the rollback ledger, the memo invalidation, the whole ladder. A
+fresh boot has no pins at all, so restore runs the same attach every
+strict-* does first. The contract is best-effort with an honest
+report (the strict-all precedent): a name that is not running yet —
+containers start late — is listed as skipped, never silently missed,
+and never an abort for the rest of the fleet. Re-run restore after
+the late starter boots to pick it up. Idempotent: an apply over an
+existing limit is the documented supersede.
+
+Pair it with systemd yourself — the unit is the operator's choice,
+not ours to impose:
+
+```ini
+# /etc/systemd/system/zelynic-restore.service
+[Unit]
+Description=Re-apply zelynic bandwidth policies after reboot
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/zelynic restore
+
+[Install]
+WantedBy=multi-user.target
+```
+
+What rides along, stated honestly: the snapshot pins the POLICY, not
+the bucket state — tokens, refill fractions, DRR carries, and ECN
+debt are runtime transients the fresh buckets re-derive (a restore
+is a fresh apply, the same shape every strict-* ride; the burst
+re-derives from the rate's default law, which is also the only value
+the CLI surface can write). The stats ledger starts at zero — it
+measures THIS boot's enforcement, which is the truth a status reader
+wants. Both verbs honor `--print-json`: the snapshot document IS the
+state file's JSON, and the restore report carries the applied and
+skipped names for scripting.
+
 ### status — what is limited right now
 
 ```bash
