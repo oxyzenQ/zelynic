@@ -62,51 +62,51 @@ PIN_DIR="/sys/fs/bpf/zelynic"
 BINARY="${BINARY:-${1:-${REPO_ROOT}/target/release/zelynic}}"
 
 log_pass() {
-        echo -e "  ${GREEN}OK PASS${NC}: $1"
-        PASS=$((PASS + 1))
+	echo -e "  ${GREEN}OK PASS${NC}: $1"
+	PASS=$((PASS + 1))
 }
 
 log_fail() {
-        echo -e "  ${RED}X FAIL${NC}: $1"
-        FAIL=$((FAIL + 1))
+	echo -e "  ${RED}X FAIL${NC}: $1"
+	FAIL=$((FAIL + 1))
 }
 
 log_test() {
-        echo ""
-        echo -e "  ${YELLOW}TEST${NC}: $1"
-        TOTAL=$((TOTAL + 1))
+	echo ""
+	echo -e "  ${YELLOW}TEST${NC}: $1"
+	TOTAL=$((TOTAL + 1))
 }
 
 check_root() {
-        if [ "$(id -u)" -ne 0 ]; then
-                echo -e "${RED}ERROR: This test requires root. Run with sudo.${NC}"
-                exit 1
-        fi
+	if [ "$(id -u)" -ne 0 ]; then
+		echo -e "${RED}ERROR: This test requires root. Run with sudo.${NC}"
+		exit 1
+	fi
 }
 
 check_binary() {
-        if [ ! -f "$BINARY" ]; then
-                echo -e "${RED}ERROR: Binary not found: $BINARY${NC}"
-                echo "Build first: ./scripts/dev/bootstrap-ebpf.sh (eBPF toolchain pair + flagship binary)"
-                exit 1
-        fi
-        # Version gate (NIGHT-improve-16, bash form): the harness tests THIS
-        # checkout, never a decoy. Explicit overrides pass the same gate — a
-        # wrong version means a wrong CLI surface and a wrong status schema:
-        # every verdict would be decoy noise.
-        local want got
-        want="$(sed -n 's/^version = "\(.*\)"/\1/p' "${REPO_ROOT}/Cargo.toml" 2>/dev/null | head -1 || true)"
-        got="$($BINARY -V 2>/dev/null | head -1 | sed -n 's/^zelynic: v//p' || true)"
-        if [ -z "$want" ]; then
-                echo -e "${YELLOW}WARN: version gate unavailable — no parsable version in ${REPO_ROOT}/Cargo.toml${NC}"
-                return 0
-        fi
-        if [ "$got" != "$want" ]; then
-                echo -e "${RED}ERROR: BINARY GATE — refusing to test a zelynic that is not this checkout's build.${NC}"
-                echo "  ${BINARY} reports: ${got:-'(no version line)'}"
-                echo "  this checkout is: v${want} (Cargo.toml) — a wrong version means a wrong"
-                echo "  CLI surface and a wrong status schema: every verdict would be decoy noise."
-                echo "Build first: ./scripts/dev/bootstrap-ebpf.sh"
-                exit 1
-        fi
+	if [ ! -f "$BINARY" ]; then
+		echo -e "${RED}ERROR: Binary not found: $BINARY${NC}"
+		echo "Build first: ./scripts/dev/bootstrap-ebpf.sh (eBPF toolchain pair + flagship binary)"
+		exit 1
+	fi
+	# Version gate (NIGHT-improve-16, bash form): the harness tests THIS
+	# checkout, never a decoy. Explicit overrides pass the same gate — a
+	# wrong version means a wrong CLI surface and a wrong status schema:
+	# every verdict would be decoy noise.
+	local want got
+	want="$(sed -n 's/^version = "\(.*\)"/\1/p' "${REPO_ROOT}/Cargo.toml" 2>/dev/null | head -1 || true)"
+	got="$($BINARY -V 2>/dev/null | head -1 | sed -n 's/^zelynic: v//p' || true)"
+	if [ -z "$want" ]; then
+		echo -e "${YELLOW}WARN: version gate unavailable — no parsable version in ${REPO_ROOT}/Cargo.toml${NC}"
+		return 0
+	fi
+	if [ "$got" != "$want" ]; then
+		echo -e "${RED}ERROR: BINARY GATE — refusing to test a zelynic that is not this checkout's build.${NC}"
+		echo "  ${BINARY} reports: ${got:-'(no version line)'}"
+		echo "  this checkout is: v${want} (Cargo.toml) — a wrong version means a wrong"
+		echo "  CLI surface and a wrong status schema: every verdict would be decoy noise."
+		echo "Build first: ./scripts/dev/bootstrap-ebpf.sh"
+		exit 1
+	fi
 }
