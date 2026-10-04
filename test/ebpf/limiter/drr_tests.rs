@@ -302,3 +302,19 @@ mod drr_take_tests;
 // sides. Same child wiring, same single core copy.
 #[path = "drr_highload_tests.rs"]
 mod drr_highload_tests;
+
+// schema v20 (CAKE-shaped flow isolation): the flow-level law pins —
+// the budget cascade, the allowance mirror, the draw-stamp sparse
+// test, and the take law's demand/quantum lanes. Same child wiring,
+// same single core copy.
+#[path = "cake_tests.rs"]
+mod cake_tests;
+
+// schema v20 (CAKE-shaped flow isolation): the kernel-shaped
+// isolation battery — the feedback sim that reproduces the
+// intra-leaf find (the shared leaf's epoch-ledger room spent by the
+// bulk flow's packet rate) and pins the flow lane's close against
+// the battery's own bounds. Same child wiring, same single core
+// copy.
+#[path = "cake_isolation_tests.rs"]
+mod cake_isolation_tests;

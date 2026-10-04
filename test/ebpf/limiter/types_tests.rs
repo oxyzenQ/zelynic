@@ -193,9 +193,15 @@ fn test_schema_version_constant() {
     // bpf_skb_ecn_set_ce and charges the new ecn_debt_dl/ul words,
     // which the lane's own deliveries pay back out of the token
     // stream's leftover (the budget law, ebpf/src/ecn.rs).
+    // v20 (CAKE-shaped flow isolation): the DRR lane's leaf splits
+    // per flow — attributed packets spend cookie-keyed flow buckets
+    // drawing from the leaf under the DRR laws one level down
+    // (flow_share_dl/ul + flow_ledger_dl/ul + flow_bucket_dl/ul),
+    // the sparse/dense take law riding the flow bucket's draw-stamp
+    // epoch. cookie == 0 rides the leaf lane verbatim.
     // The full sync contract (this constant vs the BPF-side
     // anchor) lives in schema.rs's sync_pin — the v13 lesson.
-    assert_eq!(SCHEMA_VERSION_EXPECTED, 19);
+    assert_eq!(SCHEMA_VERSION_EXPECTED, 20);
 }
 
 // ── NIGHT-improve-10 / security-3: overflow-bound pins ──────────

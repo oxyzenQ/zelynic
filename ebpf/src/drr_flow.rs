@@ -40,6 +40,7 @@ use core::sync::atomic::{AtomicU64, Ordering};
 // Reused from the root's own inclusion — ONE copy per crate, the
 // math.rs duplicate-mod discipline (clippy rightly rejects two).
 use super::ammsp_resolve::current_generation;
+use super::cake_flow;
 use super::drr;
 use super::math::{
     Bucket, LimiterStats, Policy, book, draw_stamp_take, gen_stamp_read, gen_stamp_write,
@@ -178,12 +179,17 @@ fn get_leaf_ptr(leaf_map: &LruHashMap<u32, Bucket>, leaf: &u32) -> Option<*mut B
 /// `ledger_map` is the direction's epoch-ledger map (repair-3 — the
 /// per-epoch cap the per-take cap needed underneath it).
 #[inline(always)]
+#[allow(clippy::too_many_arguments)]
 pub(super) fn drr_flow(
     pol: &Policy,
     pool: &mut Bucket,
     leaf_map: &LruHashMap<u32, Bucket>,
     share_map: &LruHashMap<u64, u64>,
     ledger_map: &LruHashMap<u64, u64>,
+    flow_map: &LruHashMap<u64, Bucket>,
+    flow_share_map: &LruHashMap<u64, u64>,
+    flow_ledger_map: &LruHashMap<u64, u64>,
+    cookie: u64,
     root: &u32,
     leaf: &u32,
     pkt_len: u32,
@@ -222,7 +228,82 @@ pub(super) fn drr_flow(
         gen_stamp_write(bkt, generation);
     }
 
-    // 3. Spend what the leaf holds (the legacy consume, verbatim).
+    // 3. THE FLOW LANE (schema v20, CAKE-shaped isolation): an
+    //    attributed packet spends from its OWN flow bucket inside
+    //    the leaf — the leaf becomes a small pool for its sockets
+    //    and the monopoly the leaf-level laws closed at the leaf
+    //    stays closed one level deeper (the rootless battery's
+    //    measured close: 2.9:1 under the shared leaf, 1.1:1 under
+    //    the lane). A packet with no attribution (cookie == 0 — the
+    //    hook's honest limit, early ingress before demux) falls
+    //    through to the leaf lane below: coarser, still policed,
+    //    never a silent unlimited pass. A flow-map miss (the full
+    //    LRU under 4096+ concurrent sockets in one leaf) allows —
+    //    the socket lane's own bookkeeping posture.
+    if cookie != 0 {
+        if let Some(fp) = cake_flow::get_flow_ptr(flow_map, &cookie) {
+            let fbkt = unsafe { &mut *fp };
+            // The stale-quantum belt, one level deeper (the leaf
+            // bucket's own trick on frac_rem): tokens drawn under a
+            // dead budget zero before this packet may spend them.
+            cake_flow::flow_belt(fbkt, generation);
+            if try_consume(fbkt, pkt_len) {
+                if let Some(s) = stats {
+                    book(s, true, pkt_len);
+                }
+                return 1;
+            }
+            // The cascade: when the leaf cannot cover the packet,
+            // the leaf's own draw from the pool runs FIRST (the
+            // unchanged v17 machinery — the flow draw rides whatever
+            // the leaf then holds).
+            if tokens_read(bkt) < u64::from(pkt_len) {
+                let leaf_stamp = unsafe { core::ptr::addr_of!(bkt.last_refill_ns).read_volatile() };
+                let leaf_share_key = (generation << 32) | u64::from(*root);
+                let leaf_ledger_key = (generation << 32) | u64::from(*leaf);
+                let _ = try_draw(
+                    pol,
+                    pool,
+                    bkt,
+                    share_map,
+                    ledger_map,
+                    &leaf_share_key,
+                    &leaf_ledger_key,
+                    leaf_stamp,
+                    now,
+                );
+            }
+            if cake_flow::try_flow_draw(
+                pol,
+                bkt,
+                fbkt,
+                share_map,
+                flow_share_map,
+                flow_ledger_map,
+                root,
+                leaf,
+                &cookie,
+                pkt_len,
+                now,
+            ) && try_consume(fbkt, pkt_len)
+            {
+                if let Some(s) = stats {
+                    book(s, true, pkt_len);
+                }
+                return 1;
+            }
+            // Nothing drawable: the drop, booked exactly like every
+            // lane's (the safe verdict under every race this file
+            // carries) — and the caller's ECN rescue still sees it.
+            if let Some(s) = stats {
+                book(s, false, pkt_len);
+            }
+            return 0;
+        }
+        return 1;
+    }
+
+    // The unattributed lane (cookie == 0): the leaf spend, verbatim.
     if try_consume(bkt, pkt_len) {
         if let Some(s) = stats {
             book(s, true, pkt_len);
@@ -427,7 +508,7 @@ fn try_draw(
 /// (fail-open, the leaf-bucket posture); two lost CAS attempts read
 /// the survivor's word — the estimate's documented slack.
 #[inline(always)]
-fn note_share(
+pub(super) fn note_share(
     share_map: &LruHashMap<u64, u64>,
     share_key: &u64,
     now_epoch: u32,
@@ -465,7 +546,7 @@ fn note_share(
 /// carry. A missing entry is a fresh leaf's zero carry (nothing
 /// banked yet); the get-or-create rides the BPF_NOEXIST contract.
 #[inline(always)]
-fn ledger_room(
+pub(super) fn ledger_room(
     ledger_map: &LruHashMap<u64, u64>,
     ledger_key: &u64,
     now_epoch: u32,
@@ -494,7 +575,7 @@ fn ledger_room(
 /// hard edge is the pool's own conservation CAS. Two attempts, the
 /// draw path's written-out posture.
 #[inline(always)]
-fn ledger_spend(
+pub(super) fn ledger_spend(
     ledger_map: &LruHashMap<u64, u64>,
     ledger_key: &u64,
     now_epoch: u32,

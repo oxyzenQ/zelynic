@@ -268,7 +268,43 @@
 ///     forces pinned v18 programs to reload into the ECN-first
 ///     object — active limits are dropped once, re-apply after
 ///     upgrade, the same one-time contract as v4..v18.
-pub const SCHEMA_VERSION_EXPECTED: u32 = 19;
+/// v20 (CAKE-shaped flow isolation): the DRR lane's leaf stops
+///     being one shared bucket for every socket the cgroup holds —
+///     an attributed packet (bpf_get_socket_cookie, the per-socket
+///     lane's own join, no new helper) spends from its own FLOW
+///     bucket and draws from the leaf under the DRR laws mirrored
+///     one level down: the learned flow count and drawee peak in the
+///     two new flow_share_dl/ul words ((generation << 32) | leaf),
+///     the epoch allowance and quantum-capped carry in the two new
+///     flow_ledger_dl/ul words (RAW cookie keyed — a u64 the
+///     generation prefix cannot carry; a mutated budget's successor
+///     inherits at most one quantum of carry, availability-capped),
+///     the buckets themselves the pinned 24-byte Bucket with the
+///     draw stamp on last_refill_ns and the generation belt on
+///     frac_rem (the leaf bucket's own trick). The SPARSE/DENSE
+///     distinction rides the flow bucket's draw-stamp epoch (a flow
+///     quiet for an epoch draws its packet's own bytes — the
+///     reserved small quantum; a flow drawing this epoch takes the
+///     quantum), and the OFF lane's take is the learned-share
+///     fraction leaf/(learned+2) — the rootless isolation battery's
+///     measured catch: the share word's peak decay reads MAX for the
+///     epochs between a decay and its re-ratchet, and a lane-law-only
+///     take there would drain the leaf whole once per transient
+///     epoch. The honest verdict the battery delivered first: the
+///     sketched starvation of the quiet flow does not reproduce (the
+///     banking's leftovers carry it, measured 100% admits in both
+///     lanes) — the race's real victims are the weaker demanders
+///     (a second download at 2.9:1 under the shared leaf, 1.1:1
+///     under the lane), and the quiet flow's protection is the
+///     zero-stranding demand-sized take (taken == got, measured).
+///     cookie == 0 (the hook's honest attribution limit) rides the
+///     leaf lane verbatim; the per-socket and strict-multi lanes are
+///     untouched by documented scope. Six new maps, all
+///     datapath-internal (the leaf_bucket family's contract); the
+///     bump forces pinned v19 programs to reload into the
+///     flow-isolated object — the same one-time re-apply contract
+///     as ever.
+pub const SCHEMA_VERSION_EXPECTED: u32 = 20;
 
 #[cfg(test)]
 mod sync_pin {
