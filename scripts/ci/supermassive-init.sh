@@ -296,7 +296,9 @@ fi
 # message — SKIP without executing here (v3's privilege-gate
 # doctrine; a valid rate past a passing gate is an enforcement
 # attempt no v4 case makes). The rootless Dragon Guard - CI leg
-# still runs all 121 rows on every push.
+# still runs all 121 rows on every push that touches the Rust/
+# scripts surface (ci.yml is paths-filtered — NIGHT-hunt-32
+# corrected the unqualified "every push").
 if python3 scripts/supermassive/supermassive-test-v4.py \
 	--binary /opt/zelynic/zelynic; then
 	note "supermassive v4 - CLI depth battery (full, rootless)" PASS

@@ -28,7 +28,9 @@
 # as root (the supermassive VM's init context), they SKIP without
 # executing (v3's doctrine; and a valid rate past a passing gate is
 # an enforcement attempt no v4 case makes). The rootless CI leg
-# still carries all 121 rows on every push.
+# still carries all 121 rows on every push that touches the
+# Rust/scripts surface (ci.yml is paths-filtered — NIGHT-hunt-32
+# corrected the unqualified "every push").
 #
 # Full design notes live in the .py header.
 

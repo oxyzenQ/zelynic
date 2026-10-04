@@ -122,10 +122,15 @@ check_rust_toolchain() {
 		exit 1
 	fi
 
-	# Ensure target is installed
+	# Ensure target is installed (NIGHT-hunt-32: a failed install
+	# must not still print "Rust toolchain ready" — the failure used
+	# to surface later as a raw cargo build error).
 	if ! rustup target list --installed | grep -q "^${TARGET}$"; then
 		log_info "Installing target: ${TARGET}"
-		rustup target add "${TARGET}"
+		if ! rustup target add "${TARGET}"; then
+			log_error "rustup could not install target ${TARGET} (network or unknown target)"
+			return 1
+		fi
 	fi
 
 	log_success "Rust toolchain ready"
@@ -271,7 +276,12 @@ run_clippy() {
 	if cargo clippy --locked --target "${TARGET}" --all-targets --all-features -- -D warnings; then
 		log_success "Clippy checks passed"
 	else
-		log_error "Clippy found issues"
+		# NIGHT-hunt-32: a missing component is not a lint verdict.
+		if ! cargo clippy --version >/dev/null 2>&1; then
+			log_error "cargo clippy is unavailable for this toolchain (component not installed) — run: rustup component add clippy"
+		else
+			log_error "Clippy found issues"
+		fi
 		return 1
 	fi
 }
@@ -279,6 +289,11 @@ run_clippy() {
 run_fmt_check() {
 	log_step "Checking code formatting..."
 
+	# NIGHT-hunt-32: a missing component is not a formatting verdict.
+	if ! cargo fmt --version >/dev/null 2>&1; then
+		log_error "cargo fmt is unavailable for this toolchain (component not installed) — run: rustup component add rustfmt"
+		return 1
+	fi
 	if cargo fmt --all -- --check; then
 		log_success "Code formatting is correct"
 	else
@@ -366,14 +381,14 @@ run_comprehensive_check() {
 		echo ""
 	fi
 
-	check_rust_toolchain || ((failed++))
-	run_fmt_check || ((failed++))
-	run_clippy || ((failed++))
-	run_tests || ((failed++))
-	run_audit || ((failed++))
-	run_deny_check || ((failed++))
-	run_policy_check || ((failed++))
-	run_version_anti_pattern_check || ((failed++))
+	check_rust_toolchain || failed=$((failed + 1))
+	run_fmt_check || failed=$((failed + 1))
+	run_clippy || failed=$((failed + 1))
+	run_tests || failed=$((failed + 1))
+	run_audit || failed=$((failed + 1))
+	run_deny_check || failed=$((failed + 1))
+	run_policy_check || failed=$((failed + 1))
+	run_version_anti_pattern_check || failed=$((failed + 1))
 
 	if [ "${QUIET:-0}" -eq 0 ]; then
 		echo ""

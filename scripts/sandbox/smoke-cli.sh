@@ -29,6 +29,10 @@
 # entrypoint greps); the FAILURES counter rides the exit code and the
 # final SMOKE-VERDICT line (sandbox-init.sh owns the SANDBOX-VERDICT
 # relay, so this script deliberately does not print one).
+#
+# Usage:
+#   scripts/sandbox/smoke-cli.sh [--binary /path/to/zelynic]
+#   (root; zelynic-sandbox.sh --smoke runs this inside the micro-VM)
 
 set -u
 
@@ -314,8 +318,9 @@ eagle() {
 policing() {
 	# A 1 MiB blob served from the root cgroup; the download is
 	# policed at the RECEIVER's ingress (loopback rule). 500kb cap =
-	# 500,000 B/s -> the limited fetch must take >= ~1.5 s and beat
-	# the unlimited baseline by a clear ratio.
+	# 500,000 B/s -> the limited fetch must take >= ~0.9 s (1 MiB at
+	# 500 KB/s minus the ~500 KB burst ≈ 1.0 s of pure pacing) and
+	# beat the unlimited baseline by a clear ratio.
 	mkdir -p "$SRV_DIR"
 	python3 - "$SRV_DIR" <<'PYEOF'
 import os, sys
@@ -379,11 +384,15 @@ leaks() {
 	"$BIN" unstrict-all >/dev/null 2>&1
 	"$BIN" recover >/dev/null 2>&1
 
-	PINS="$(find /sys/fs/bpf -mindepth 1 -maxdepth 1 2>/dev/null | wc -l)"
-	if [ "${PINS:-0}" -eq 0 ]; then
+	# NIGHT-hunt-32: count the PRODUCT's pin dir, not the bpffs root —
+	# foreign software pinning under /sys/fs/bpf used to fail this
+	# row on shared hosts ("runs anywhere root + eBPF work", the
+	# header's own promise). After unstrict-all + recover the
+	# zelynic dir itself must be gone.
+	if [ ! -e /sys/fs/bpf/zelynic ]; then
 		row "leak: zero BPF pins after unstrict-all + recover" 0
 	else
-		row "leak: zero BPF pins after unstrict-all + recover" 1 "left: $(find /sys/fs/bpf -mindepth 1 -maxdepth 1 -printf '%f ' 2>/dev/null)"
+		row "leak: zero BPF pins after unstrict-all + recover" 1 "left: $(find /sys/fs/bpf/zelynic -mindepth 1 -maxdepth 1 -printf '%f ' 2>/dev/null)"
 	fi
 
 	# /run/zelynic is the lock dir (0700, root). The lock FILE is

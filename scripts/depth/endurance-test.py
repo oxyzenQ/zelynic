@@ -10,19 +10,20 @@ monitor session can live. A wall-clock soak cannot prove that in CI
 time, so this harness AMPLIFIES the two endurance clocks instead:
 
   * The LTS-budget clock (the pinned maps). Every apply/unstrict
-    cycle churns slots in the 1024-entry policy/bucket/stats maps
-    and the 256-entry group-bucket map. A leak of even ONE slot per
-    cycle is fatal on a long-lived host (the map fills, new applies
-    fail). The default run turns 300 cycles — 5 slots a single
-    round, 2 more a group round — through maps capped at 1024/256,
-    so ANY per-cycle slot leak exhausts a cap mid-run and the next
-    apply FAILS LOUDLY (the maps' own fail-loud contract, turned
-    into the proof). Every odd round is a strict-multi GROUP round
-    (two traffic-bearing cgroups under one shared bucket), so the
-    lts-7 group-reclaim path churns 300 group slots against its
-    256 cap — the same mathematical proof for the smallest map.
-    Each round also rides a full BPF load/pin + unpin/unload cycle,
-    so pin residue and load churn are exercised 300 times over.
+    cycle churns map slots: single rounds REWRITE the fixed cgroup-id
+    keys (their leak oracle is the zero-rows-at-end check below),
+    while every group round allocates a FRESH quasi-random group id
+    against the 256-entry group-bucket maps — the exhaustion oracle.
+    The default run turns 300 cycles (~150 group rounds, ~300 fresh
+    group slots) through maps capped at 1024/256, so ANY group-slot
+    leak exhausts the smallest cap mid-run and the next apply FAILS
+    LOUDLY (the maps' own fail-loud contract, turned into the proof).
+    Every odd round is a strict-multi GROUP round (two traffic-bearing
+    cgroups under one shared bucket), so the lts-7 group-reclaim path
+    churns ~300 group slots against its 256 cap — the same mathematical
+    proof for the smallest map. Each round also rides a full BPF
+    load/pin + unpin/unload cycle, so pin residue and load churn are
+    exercised 300 times over.
   * The monitor clock (the userspace TUI). A live `zelynic ee`
     session renders on a pty for a soak window while loopback
     traffic flows, sampled at 1 Hz for resident memory, open file
@@ -49,8 +50,8 @@ Usage:
   ZELYNIC_BINARY=./target/pro-native-gnu/zelynic sudo -E ./scripts/depth/endurance-test.sh
 
 Quick mode runs fewer cycles (120) and a shorter soak (10s) — a
-smoke of the same proof, not the full exhaustion math (the 1024-cap
-exhaustion needs the full 300).
+smoke of the same proof, not the full exhaustion math (the 256-cap
+group exhaustion needs the full 300).
 """
 
 import argparse
@@ -73,19 +74,24 @@ import zelynic_harness_lib as lib  # noqa: E402 - needs the lib/ path bootstrap 
 
 # ── knobs ───────────────────────────────────────────────────────────────────
 
-FULL_ROUNDS = 300  # > 1024 slots / 5 per single round: any leak exhausts a cap
+FULL_ROUNDS = 300  # ~150 group rounds x fresh group ids: any group-slot leak exhausts the 256-slot group maps mid-run
 QUICK_ROUNDS = 120
 FULL_SOAK_S = 30.0
 QUICK_SOAK_S = 10.0
 # The full attach surface pinned under /sys/fs/bpf/zelynic after the
-# first apply — as a NAME SET, not a count (NIGHT-harness-1: the old
-# count-only pin said 9 while the real family has been 13 — 9 maps
-# plus the 2 enforcement programs and their 2 bpf_links — and the
+# first apply — as a NAME SET, not a count (NIGHT-harness-1: a
+# count-only pin said 9 while the real family was larger — and the
 # mismatch surfaced only on this harness's first-ever VM run; a set
-# pin now also catches a WRONG-member family, not just a count
-# drift, and the failure names the diff).
+# pin also catches a WRONG-member family, not just a count drift,
+# and the failure names the diff). NIGHT-hunt-32 re-derived the set
+# from live reality: the loader pins EVERY map (map_pin_path,
+# limiter/mod.rs) — 22 maps — beside the 2 enforcement programs and
+# their 2 bpf_links, the 26-object family the rig reports after any
+# first apply. The stale 13-member set meant a guaranteed pin-family
+# FAIL on HEAD; the members come from pin.rs + the loader's pin
+# surface, and a future family growth must grow this set with it.
 PIN_FAMILY = {
-    # the 9 pinned maps (the LTS budget surfaces)
+    # the 22 pinned maps (the loader pins every map in the object)
     "cgroup_policy_dl",
     "cgroup_policy_ul",
     "cgroup_bucket_dl",
@@ -95,6 +101,19 @@ PIN_FAMILY = {
     "watchdog_deadline",
     "cgroup_limiter_stats",
     "schema_version",
+    "rate_ring_dl",
+    "rate_ring_ul",
+    "ammsp_leaf_cache_dl",
+    "ammsp_leaf_cache_ul",
+    "ammsp_generation",
+    "socket_bucket_dl",
+    "socket_bucket_ul",
+    "leaf_bucket_dl",
+    "leaf_bucket_ul",
+    "drr_leaf_state_dl",
+    "drr_leaf_state_ul",
+    "drr_pool_state_dl",
+    "drr_pool_state_ul",
     # the 2 enforcement programs + their 2 bpf_links (the 5.7+
     # capability rung pins links beside the programs)
     "enforce_dl",
@@ -313,7 +332,7 @@ def stage_pin_family(cg_id):
     lib.record(
         "pin-family: pin set",
         "PASS",
-        f"exactly the {len(PIN_FAMILY)}-member family (9 maps + 2 programs + 2 links)",
+        f"exactly the {len(PIN_FAMILY)}-member family (22 maps + 2 programs + 2 links)",
     )
     return True
 
@@ -337,7 +356,12 @@ def stage_row_churn(cg_a, cg_b, rounds, group_ok):
         if kind == "single":
             rc, _, err = lib.run_zel(["strict-single", f"cg:{cg_a}", "5mb", "--no-probe"])
         else:
-            rc, _, err = lib.run_zel(["strict-multi", f"cg:{cg_a}:cg:{cg_b}", "5mb"])
+            # NIGHT-hunt-32: the multi grammar splits on EVERY colon
+            # (safety.rs) — a "cg:" prefix survives only in the
+            # single-verb form, so the old "cg:A:cg:B" shape parsed as
+            # a bogus process named "cg" and the atomic preflight
+            # aborted every group round at resolution.
+            rc, _, err = lib.run_zel(["strict-multi", f"{cg_a}:{cg_b}", "5mb"])
         if rc != 0:
             fails += 1
             lib.record(
@@ -376,12 +400,12 @@ def stage_row_churn(cg_a, cg_b, rounds, group_ok):
         lib.record("row-churn: zero rows after churn", "FAIL", f"{rows} rows remain")
         return False
     elapsed = time.perf_counter() - started
-    slots = rounds * (5 if not group_ok else 7)
+    group_rounds = rounds // 2 if group_ok else 0
     lib.record(
         "row-churn: LTS budget held",
         "PASS",
-        f"{rounds} apply/unstrict cycles ({rounds // 2} group) in {elapsed:.0f}s — "
-        f"~{slots} map slots churned against the 1024/256 caps, zero rows left",
+        f"{rounds} apply/unstrict cycles ({group_rounds} group, ~{group_rounds * 2} fresh "
+        f"group slots churned against the 256-slot group maps) in {elapsed:.0f}s, zero rows left",
     )
     return True
 

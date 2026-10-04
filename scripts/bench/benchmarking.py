@@ -4,96 +4,91 @@
 """
 zelynic deep benchmarking engine — accurate system-level metrics.
 
-Measures CPU, memory (RSS), BPF map sizes, enforcement overhead,
-and rate accuracy under sustained stress. Python is the beast engine
-because of subprocess management, /proc parsing, timing precision,
-and statistical analysis — things bash can't do well.
+Python is the beast engine because of subprocess management, /proc
+parsing, timing precision, and statistical analysis — things bash
+can't do well.
 
-Metrics collected:
+Metrics collected (NIGHT-hunt-32: the list now states what the code
+actually measures — the old list promised BPF map sizes never
+collected, per-process CPU of a process that never exists, and a
+60s default the flag did not carry):
   1. Startup latency (strict-single spawn → exit)
-  2. Status query latency
-  3. Memory footprint (RSS, BPF map sizes, pin file sizes)
-  4. CPU usage during enforcement (via /proc/stat sampling)
-  5. Concurrent operation throughput
-  6. Rate accuracy (actual vs target, with traffic)
-  7. Sustained enforcement overhead (CPU + memory over 60s)
-  8. Block latency (block-single spawn → exit)
+  2. Block latency (block-single spawn → exit)
+  3. Status query latency
+  4. Memory footprint (pin files/bytes; bpftool program + map counts
+     when bpftool is installed — skipped loudly, never printed as 0)
+  5. Concurrent throughput (admitted and lock-refused counted apart:
+     the lock is non-blocking, a refusal is not an op)
+  6. Sustained enforcement window: enforcement liveness at every
+     sample, the zero-daemon fact MEASURED (no zelynic process),
+     system CPU context via /proc/stat, and pin stability.
+     Per-program KERNEL cost is proof-claims.py's lane (bpftool
+     run_time_ns behind kernel.bpf_stats_enabled).
 
 Usage:
   sudo ./scripts/bench/benchmarking.sh                # full run
   sudo ./scripts/bench/benchmarking.sh --quick        # quick (3 iterations)
   sudo ./scripts/bench/benchmarking.sh --json         # machine-readable
-  sudo ./scripts/bench/benchmarking.sh --stress 60    # 60s stress test
+  sudo ./scripts/bench/benchmarking.sh --stress 60    # 60s stress window
+
+ZELYNIC_BINARY points at a build (sudo strips it without -E); the
+engine resolves repo builds first and gates the pick on -V vs
+Cargo.toml (the shared lib's resolve_binary — a stale decoy build
+is refused, never benchmarked silently).
 """
 
 import argparse
 import json
 import os
+import shutil
 import statistics
 import subprocess
 import sys
 import time
 from pathlib import Path
 
-BINARY = os.environ.get("ZELYNIC_BINARY", "./target/release/zelynic")
+# The shared engine lib lives in scripts/lib/ (NIGHT-refactor-1) — bound
+# by ABSOLUTE path so the harness works from any CWD.
+_LIB_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "lib")
+if _LIB_DIR not in sys.path:
+    sys.path.insert(0, _LIB_DIR)
+import zelynic_harness_lib as lib  # noqa: E402 - needs the lib/ path bootstrap above
+
+# Bound by lib.resolve_binary() in main() — never a CWD-relative guess.
+BINARY = ""
 PIN_DIR = "/sys/fs/bpf/zelynic"
 ITERATIONS = 10
 QUICK_ITERATIONS = 3
 
 
 def run(cmd, timeout=10, capture=True):
+    """Run an argv LIST (never a shell string — NIGHT-hunt-32: the old
+    shell=True form interpolated comm names and binary paths into a
+    shell; argv lists need no quoting games and no injection edge)."""
     start = time.perf_counter()
-    result = subprocess.run(cmd, shell=True, capture_output=capture, text=True, timeout=timeout)
+    result = subprocess.run(cmd, capture_output=capture, text=True, timeout=timeout)
     return result.returncode, result.stdout, result.stderr, time.perf_counter() - start
 
 
-def get_rss(pid):
-    try:
-        with open(f"/proc/{pid}/status") as f:
-            for line in f:
-                if line.startswith("VmRSS:"):
-                    return int(line.split()[1])
-    except (FileNotFoundError, IndexError, ValueError):
-        pass
-    return 0
+def system_cpu_percent(duration_s=1.0):
+    """System-wide CPU% over a window, from /proc/stat — the docstring's
+    original promise, restored (the old loop sampled /proc/PID/stat of a
+    zelynic process that never exists: the CLI is one-shot, so every
+    sample was vacuous and the summary printed zeros as measurements)."""
 
+    def read_ticks():
+        with open("/proc/stat") as f:
+            parts = f.readline().split()[1:]
+        vals = [int(x) for x in parts[:7]]
+        return vals[3] + vals[4], sum(vals)
 
-def get_cpu_percent(pid, duration=0.5):
-    try:
-        with open(f"/proc/{pid}/stat") as f:
-            stat1 = f.read().split()
-        time.sleep(duration)
-        with open(f"/proc/{pid}/stat") as f:
-            stat2 = f.read().split()
-        utime1 = int(stat1[13])
-        stime1 = int(stat1[14])
-        utime2 = int(stat2[13])
-        stime2 = int(stat2[14])
-        ticks = os.sysconf(os.sysconf_names["SC_CLK_TCK"])
-        cpu_time = (utime2 - utime1 + stime2 - stime1) / ticks
-        return (cpu_time / duration) * 100
-    except (FileNotFoundError, IndexError, ValueError):
-        return 0.0
-
-
-def get_bpf_map_sizes():
-    sizes = {}
-    try:
-        result = subprocess.run(
-            ["bpftool", "map", "show"], capture_output=True, text=True, timeout=5
-        )
-        current_id = None
-        for line in result.stdout.split("\n"):
-            if line.strip().startswith(str(current_id or "")):
-                pass
-            if "zelynic" in line.lower() or "enforce" in line.lower():
-                if "bytes_used" in line:
-                    for part in line.split():
-                        if part.startswith("bytes_used:"):
-                            sizes[current_id or "unknown"] = int(part.split(":")[1])
-    except Exception:
-        pass
-    return sizes
+    idle1, total1 = read_ticks()
+    time.sleep(duration_s)
+    idle2, total2 = read_ticks()
+    dt = total2 - total1
+    if dt <= 0:
+        return None
+    return round((1.0 - (idle2 - idle1) / dt) * 100.0, 2)
 
 
 def get_pin_dir_size():
@@ -106,7 +101,7 @@ def get_pin_dir_size():
 
 
 def cleanup():
-    run(f"{BINARY} unstrict-all", timeout=5)
+    run([BINARY, "unstrict-all"], timeout=5)
 
 
 def bench_startup(iterations):
@@ -118,7 +113,7 @@ def bench_startup(iterations):
         sleep_proc = subprocess.Popen(["sleep", "300"], stdout=subprocess.DEVNULL)
         try:
             comm = open(f"/proc/{sleep_proc.pid}/comm").read().strip()
-            rc, _, _, elapsed = run(f"{BINARY} strict-single {comm} 100kb", timeout=10)
+            rc, _, _, elapsed = run([BINARY, "strict-single", comm, "100kb"], timeout=10)
             if rc == 0:
                 times.append(elapsed * 1000)
                 print(f"  [{i + 1}/{iterations}] {elapsed * 1000:.1f}ms")
@@ -153,7 +148,7 @@ def bench_block_latency(iterations):
         sleep_proc = subprocess.Popen(["sleep", "300"], stdout=subprocess.DEVNULL)
         try:
             comm = open(f"/proc/{sleep_proc.pid}/comm").read().strip()
-            rc, _, _, elapsed = run(f"{BINARY} block-single {comm}", timeout=10)
+            rc, _, _, elapsed = run([BINARY, "block-single", comm], timeout=10)
             if rc == 0:
                 times.append(elapsed * 1000)
                 print(f"  [{i + 1}/{iterations}] {elapsed * 1000:.1f}ms")
@@ -178,10 +173,10 @@ def bench_status(iterations):
     print(f"  Measuring 'zelynic status' ({iterations} iterations)")
     sleep_proc = subprocess.Popen(["sleep", "300"], stdout=subprocess.DEVNULL)
     comm = open(f"/proc/{sleep_proc.pid}/comm").read().strip()
-    run(f"{BINARY} strict-single {comm} 100kb", timeout=10)
+    run([BINARY, "strict-single", comm, "100kb"], timeout=10)
     times = []
     for i in range(iterations):
-        rc, _, _, elapsed = run(f"{BINARY} status", timeout=5)
+        rc, _, _, elapsed = run([BINARY, "status"], timeout=5)
         if rc == 0:
             times.append(elapsed * 1000)
             print(f"  [{i + 1}/{iterations}] {elapsed * 1000:.1f}ms")
@@ -205,13 +200,21 @@ def bench_memory():
     pin_bytes_base, pin_count_base = get_pin_dir_size()
     sleep_proc = subprocess.Popen(["sleep", "300"], stdout=subprocess.DEVNULL)
     comm = open(f"/proc/{sleep_proc.pid}/comm").read().strip()
-    run(f"{BINARY} strict-single {comm} 100kb", timeout=10)
+    run([BINARY, "strict-single", comm, "100kb"], timeout=10)
     time.sleep(0.5)
     pin_bytes_active, pin_count_active = get_pin_dir_size()
-    rc, bpftool_out, _, _ = run("bpftool prog show", timeout=5)
-    bpf_progs = [line for line in bpftool_out.split("\n") if "enforce" in line]
-    rc, map_out, _, _ = run("bpftool map show", timeout=5)
-    bpf_maps = [line for line in map_out.split("\n") if "zelynic" in line.lower()]
+    # NIGHT-hunt-32: bpftool absence is a SKIP said out loud — the old
+    # form printed "BPF programs: 0" / "BPF maps: 0" as facts when the
+    # tool was simply not installed (rc 127, empty stdout).
+    bpf_progs = None
+    bpf_maps = None
+    if shutil.which("bpftool"):
+        rc, bpftool_out, _, _ = run(["bpftool", "prog", "show"], timeout=5)
+        if rc == 0:
+            bpf_progs = [line for line in bpftool_out.split("\n") if "enforce" in line]
+        rc, map_out, _, _ = run(["bpftool", "map", "show"], timeout=5)
+        if rc == 0:
+            bpf_maps = [line for line in map_out.split("\n") if "zelynic" in line.lower()]
     sleep_proc.kill()
     cleanup()
     result = {
@@ -220,20 +223,28 @@ def bench_memory():
         "baseline_pin_bytes": pin_bytes_base,
         "active_pin_files": pin_count_active,
         "active_pin_bytes": pin_bytes_active,
-        "bpf_programs_loaded": len(bpf_progs),
-        "bpf_maps_loaded": len(bpf_maps),
+        "bpf_programs_loaded": len(bpf_progs) if bpf_progs is not None else None,
+        "bpf_maps_loaded": len(bpf_maps) if bpf_maps is not None else None,
     }
     print(f"  Pin files: {result['active_pin_files']} ({result['active_pin_bytes']} bytes)")
-    print(f"  BPF programs: {result['bpf_programs_loaded']}")
-    print(f"  BPF maps: {result['bpf_maps_loaded']}")
+    print(
+        f"  BPF programs: {len(bpf_progs) if bpf_progs is not None else 'skipped — bpftool not installed'}"
+    )
+    print(
+        f"  BPF maps: {len(bpf_maps) if bpf_maps is not None else 'skipped — bpftool not installed'}"
+    )
     return result
 
 
 def bench_concurrent(iterations):
     print("\n━━━ 5. Concurrent Throughput ━━━")
     print(f"  Measuring 5 parallel strict-single ({iterations} rounds)")
+    print("  The lock is non-blocking: refusals are fast errors, not ops —")
+    print("  admitted and refused are counted apart (NIGHT-hunt-32: the")
+    print("  old ops/sec counted every refusal as a successful op).")
     cleanup()
     times = []
+    admitted_total = 0
     for round_num in range(iterations):
         sleep_procs = [
             subprocess.Popen(["sleep", "60"], stdout=subprocess.DEVNULL) for _ in range(5)
@@ -249,11 +260,17 @@ def bench_concurrent(iterations):
                     stderr=subprocess.DEVNULL,
                 )
             )
+        admitted = 0
         for p in procs:
-            p.wait()
+            if p.wait() == 0:
+                admitted += 1
         elapsed = time.perf_counter() - start
         times.append(elapsed * 1000)
-        print(f"  [Round {round_num + 1}/{iterations}] {elapsed * 1000:.1f}ms (5 ops)")
+        admitted_total += admitted
+        print(
+            f"  [Round {round_num + 1}/{iterations}] {elapsed * 1000:.1f}ms wall, "
+            f"{admitted}/5 admitted, {5 - admitted} lock-refused"
+        )
         for p in sleep_procs:
             p.kill()
             p.wait()
@@ -264,56 +281,73 @@ def bench_concurrent(iterations):
         "name": "concurrent_throughput",
         "iterations": len(times),
         "mean_ms": round(statistics.mean(times), 1),
-        "ops_per_sec": round(5000 / statistics.mean(times), 1),
+        "ops_admitted": admitted_total,
+        "ops_attempted": len(times) * 5,
+        "ops_per_sec": round(admitted_total / (statistics.mean(times) / 1000.0), 1),
     }
-    print(f"\n  Mean: {result['mean_ms']:.1f}ms for 5 ops")
-    print(f"  Throughput: {result['ops_per_sec']} ops/sec")
+    print(f"\n  Mean: {result['mean_ms']:.1f}ms per 5-op volley")
+    print(f"  Admitted: {admitted_total}/{len(times) * 5} calls (the rest: fast lock refusals)")
+    print(f"  Admission rate: {result['ops_per_sec']} admitted ops/sec")
     return result
 
 
 def bench_stress(duration_sec):
     print(f"\n━━━ 6. Sustained Enforcement ({duration_sec}s) ━━━")
-    print("  Measuring CPU + memory during continuous enforcement")
+    print("  One-shot design: enforcement lives in the kernel. The window")
+    print("  measures enforcement LIVENESS, the zero-daemon fact, system CPU")
+    print("  context, and pin stability (per-program kernel cost is")
+    print("  proof-claims.py's lane — bpftool run_time_ns).")
     cleanup()
     sleep_proc = subprocess.Popen(["sleep", "300"], stdout=subprocess.DEVNULL)
     comm = open(f"/proc/{sleep_proc.pid}/comm").read().strip()
-    run(f"{BINARY} strict-single {comm} 100kb", timeout=10)
+    run([BINARY, "strict-single", comm, "100kb"], timeout=10)
     time.sleep(0.5)
-    rss_samples = []
+    pin_bytes0, pin_count0 = get_pin_dir_size()
+    alive_checks = 0
+    zel_proc_max = 0
     cpu_samples = []
     start = time.perf_counter()
     while time.perf_counter() - start < duration_sec:
-        # Check if any zelynic process is running (shouldn't be — fire-and-forget)
-        zelynic_pids = []
+        # Liveness: the limit row must answer at every sample.
+        rc, out, _, _ = run([BINARY, "status"], timeout=5)
+        if rc == 0 and out and "no active limits" not in out:
+            alive_checks += 1
+        # The no-daemon fact, MEASURED (an exact-name pgrep — the old
+        # -f form matched any cmdline carrying the path, editors
+        # included, and reported THEIR rss as zelynic's).
         try:
             pgrep = subprocess.run(
-                ["pgrep", "-f", BINARY], capture_output=True, text=True, timeout=2
+                ["pgrep", "-x", "zelynic"], capture_output=True, text=True, timeout=2
             )
-            zelynic_pids = [int(p) for p in pgrep.stdout.strip().split("\n") if p.strip()]
+            zel_proc_max = max(zel_proc_max, len(pgrep.stdout.split()))
         except Exception:
             pass
-        for pid in zelynic_pids:
-            rss_samples.append(get_rss(pid))
-            cpu_samples.append(get_cpu_percent(pid, 0.5))
-        time.sleep(1)
-    pin_bytes, pin_count = get_pin_dir_size()
+        cpu = system_cpu_percent(1.0)
+        if cpu is not None:
+            cpu_samples.append(cpu)
+    pin_bytes1, pin_count1 = get_pin_dir_size()
     sleep_proc.kill()
     cleanup()
     result = {
         "name": "sustained_enforcement",
         "duration_sec": duration_sec,
-        "rss_samples": len(rss_samples),
-        "rss_max_kb": max(rss_samples) if rss_samples else 0,
-        "rss_mean_kb": round(statistics.mean(rss_samples), 1) if rss_samples else 0,
-        "cpu_max_percent": round(max(cpu_samples), 2) if cpu_samples else 0,
-        "cpu_mean_percent": round(statistics.mean(cpu_samples), 2) if cpu_samples else 0,
-        "pin_files": pin_count,
-        "pin_bytes": pin_bytes,
+        "alive_samples": alive_checks,
+        "enforcement_alive": alive_checks > 0,
+        "zelynic_procs_max": zel_proc_max,
+        "sys_cpu_mean_percent": round(statistics.mean(cpu_samples), 2) if cpu_samples else None,
+        "sys_cpu_max_percent": round(max(cpu_samples), 2) if cpu_samples else None,
+        "pin_files": pin_count1,
+        "pin_bytes": pin_bytes1,
+        "pin_stable": (pin_count0, pin_bytes0) == (pin_count1, pin_bytes1),
     }
-    print(f"  Duration: {duration_sec}s")
-    print(f"  RSS: max={result['rss_max_kb']}KB, mean={result['rss_mean_kb']}KB")
-    print(f"  CPU: max={result['cpu_max_percent']}%, mean={result['cpu_mean_percent']}%")
-    print(f"  Pin files: {pin_count} ({pin_bytes} bytes)")
+    print(f"  Enforcement alive at {alive_checks} sample(s) over {duration_sec}s")
+    print(
+        f"  zelynic processes seen at any sample: {zel_proc_max} (0 expected — a live monitor session would show here honestly)"
+    )
+    print(
+        f"  System CPU (context, /proc/stat): mean={result['sys_cpu_mean_percent']}%, max={result['sys_cpu_max_percent']}%"
+    )
+    print(f"  Pin files: {pin_count1} ({pin_bytes1} bytes), stable: {result['pin_stable']}")
     return result
 
 
@@ -328,9 +362,13 @@ def main():
         print("ERROR: Requires root. Run with sudo.", file=sys.stderr)
         sys.exit(1)
 
-    if not Path(BINARY).exists():
-        print(f"ERROR: Binary not found: {BINARY}", file=sys.stderr)
+    # NIGHT-hunt-32: the shared resolver — repo builds outrank PATH, the
+    # pick is version-GATED against Cargo.toml, and a missing binary
+    # prints the one-command fix instead of benchmarking nothing.
+    if not lib.resolve_binary(None, "./scripts/bench/benchmarking.sh --binary <path>"):
         sys.exit(1)
+    global BINARY
+    BINARY = lib.BINARY
 
     iters = QUICK_ITERATIONS if args.quick else ITERATIONS
 

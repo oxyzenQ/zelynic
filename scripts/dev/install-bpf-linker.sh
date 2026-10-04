@@ -26,7 +26,22 @@ set -euo pipefail
 
 VERSION="0.11.1"
 PREFIX="${1:-/usr/local/bin}"
-ASSET="bpf-linker-x86_64-unknown-linux-musl.tar.zst"
+# Arch-aware asset (NIGHT-hunt-32 — the bootstrap-ebpf.sh twin's case,
+# mirrored here so the siblings cannot drift): a hardcoded x86_64
+# asset on an aarch64 host downloaded the wrong binary and died at
+# install time with an Exec format error that named nothing.
+case "$(uname -m)" in
+x86_64)
+	ASSET="bpf-linker-x86_64-unknown-linux-musl.tar.zst"
+	;;
+aarch64)
+	ASSET="bpf-linker-aarch64-unknown-linux-musl.tar.zst"
+	;;
+*)
+	echo "FAIL: no bpf-linker ${VERSION} prebuilt for $(uname -m) — build it from source: https://github.com/aya-rs/bpf-linker" >&2
+	exit 1
+	;;
+esac
 URL="https://github.com/aya-rs/bpf-linker/releases/download/v${VERSION}/${ASSET}"
 
 # zstd preference: a real zstd binary is the fast path, and apt
@@ -55,13 +70,19 @@ fi
 # plain tar, (3) explicit failure.
 extract_tar_zst() {
 	local archive="$1" dest="$2"
+	# NIGHT-hunt-32: every leg is fail-closed (`|| return 1`). The
+	# ladder is invoked in an if-context ("if ! extract_tar_zst"),
+	# which suppresses errexit for the whole function body — a
+	# failed decompression used to fall through to `return 0`, the
+	# honest FAIL below never fired, and the script died later as
+	# a raw "install: cannot stat" with the root cause unnamed.
 	if command -v zstd >/dev/null 2>&1 && tar --zstd -tf "$archive" >/dev/null 2>&1; then
-		tar --zstd -xf "$archive" -C "$dest"
+		tar --zstd -xf "$archive" -C "$dest" || return 1
 		return 0
 	fi
 	if command -v python3 >/dev/null 2>&1 && python3 -c 'import zstandard' >/dev/null 2>&1; then
 		local tarfile="${archive%.tar.zst}.tar"
-		python3 - "$archive" "$tarfile" <<'PYEOF'
+		python3 - "$archive" "$tarfile" <<'PYEOF' || return 1
 import sys
 
 import zstandard
@@ -69,7 +90,7 @@ import zstandard
 with open(sys.argv[1], "rb") as src, open(sys.argv[2], "wb") as dst:
     zstandard.ZstdDecompressor().copy_stream(src, dst)
 PYEOF
-		tar -xf "$tarfile" -C "$dest"
+		tar -xf "$tarfile" -C "$dest" || return 1
 		return 0
 	fi
 	return 1
@@ -78,7 +99,16 @@ PYEOF
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "${TMP_DIR}"' EXIT
 
-curl -sL -o "${TMP_DIR}/bpf-linker.tar.zst" "${URL}"
+# NIGHT-hunt-32: the bootstrap-ebpf.sh twin's curl contract, mirrored
+# (-f + --retry 3): without -f a 404/5xx page used to land in the
+# archive file with curl exiting 0, and the failure surfaced later as
+# a wrong-cause extractor diagnosis. The -s probe is the twin's
+# empty-download guard.
+curl -fsSL --retry 3 -o "${TMP_DIR}/bpf-linker.tar.zst" "${URL}"
+[ -s "${TMP_DIR}/bpf-linker.tar.zst" ] || {
+	echo "FAIL: the download came back empty (${URL}) — network or release problem, retry later." >&2
+	exit 1
+}
 if ! extract_tar_zst "${TMP_DIR}/bpf-linker.tar.zst" "${TMP_DIR}"; then
 	echo "FAIL: no zstd-capable extractor on this host (GNU tar with zstd, the zstd binary, or python3 with the zstandard module) — unpack ${URL} by hand into ${PREFIX}." >&2
 	exit 1

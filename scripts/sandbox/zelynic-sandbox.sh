@@ -19,7 +19,7 @@
 # give it a kernel of its own.
 #
 # Usage:
-#   scripts/sandbox/zelynic-sandbox.sh --smoke                # one click: the full CLI depth battery, root, in the VM
+#   scripts/sandbox/zelynic-sandbox.sh --smoke                # one click: the CLI smoke battery (smoke-cli.sh), root, in the VM
 #   scripts/sandbox/zelynic-sandbox.sh --battery             # both supermassive engines, root, in the VM
 #   scripts/sandbox/zelynic-sandbox.sh --run <cmd...>        # any root-requiring command, in the VM
 #   scripts/sandbox/zelynic-sandbox.sh --endurance           # one click: the map-cap exhaustion + monitor soak, in the VM
@@ -50,7 +50,10 @@
 #   --timeout SECONDS            outer VM budget (default 3600)
 #   --keep                       keep the boot log at $CACHE/vm.log
 #
-# Requirements: qemu-system-x86_64, python3, curl, git. /dev/kvm is
+# Requirements: qemu-system-x86_64, python3, git. (curl is NOT a
+# host requirement — NIGHT-hunt-32 corrected the list: rootfs-pack.py
+# fetches over urllib, and the VM's own curl arrives inside the packed
+# rootfs.) /dev/kvm is
 # OPTIONAL: without it the VM boots under TCG software emulation
 # (-cpu max) with a loud warning — slower, and arch-baseline v3/v4
 # binaries may SIGILL under emulation, which is exactly why the
@@ -272,9 +275,9 @@ v1=$?
 python3 scripts/supermassive/supermassive-test-v2.py --binary /opt/zelynic/zelynic
 v2=$?
 echo "SANDBOX-RESULT: supermassive v1 - limiter matrix" \
-	$([ "$v1" -eq 0 ] && echo PASS || echo FAIL)
+        $([ "$v1" -eq 0 ] && echo PASS || echo FAIL)
 echo "SANDBOX-RESULT: supermassive v2 - survival battery" \
-	$([ "$v2" -eq 0 ] && echo PASS || echo FAIL)
+        $([ "$v2" -eq 0 ] && echo PASS || echo FAIL)
 [ "$v1" -eq 0 ] && [ "$v2" -eq 0 ]
 EOF
 	;;
@@ -307,7 +310,7 @@ cd /opt/zelynic
 python3 scripts/depth/endurance-test.py --binary /opt/zelynic/zelynic
 rc=$?
 echo "SANDBOX-RESULT: endurance - LTS budget + monitor soak" \
-	$([ "$rc" -eq 0 ] && echo PASS || echo FAIL)
+        $([ "$rc" -eq 0 ] && echo PASS || echo FAIL)
 [ "$rc" -eq 0 ]
 EOF
 	;;
@@ -325,7 +328,7 @@ cd /opt/zelynic
 python3 scripts/depth/limiter-depth-test.py --binary /opt/zelynic/zelynic
 rc=$?
 echo "SANDBOX-RESULT: limiter depth - flagship stress" \
-	$([ "$rc" -eq 0 ] && echo PASS || echo FAIL)
+        $([ "$rc" -eq 0 ] && echo PASS || echo FAIL)
 [ "$rc" -eq 0 ]
 EOF
 	;;

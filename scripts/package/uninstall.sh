@@ -48,13 +48,13 @@ usage() {
 Usage: $0 [--system|--user|--all]
 
   (default)  Auto-detect: clear kernel enforcement if active, then
-	     scan /usr/bin, ~/.local/bin and remove every
-	     ${PROJECT_NAME} artifact found. Sudo for system paths
-	     and enforcement clearing.
+             scan /usr/bin, ~/.local/bin and remove every
+             ${PROJECT_NAME} artifact found. Sudo for system paths
+             and enforcement clearing.
   --system   Remove only from /usr/bin and /usr/lib/${PROJECT_NAME} (uses sudo).
   --user     Remove only from ~/.local/bin and ~/.local/lib/${PROJECT_NAME} (no sudo;
-	     active kernel limits are reported, not cleared — re-run
-	     with --system or see the printed manual steps).
+             active kernel limits are reported, not cleared — re-run
+             with --system or see the printed manual steps).
   --all      Same as default.
 
 Sudo is used only for system paths and enforcement clearing
@@ -124,9 +124,17 @@ failures=0
 pins_present() {
 	[[ -d "${PIN_DIR}" ]] || return 1
 	# Any entry at all (including hidden) means enforcement state exists.
-	local count
-	count="$(find "${PIN_DIR}" -mindepth 1 -maxdepth 1 2>/dev/null | wc -l)"
-	[[ "${count}" -gt 0 ]]
+	# NIGHT-hunt-32: an UNREADABLE pin dir must never read as "no
+	# pins" (the old form's find failure degraded to count=0 and
+	# silently skipped the kernel-enforcement guard) — the find
+	# error is visible and the verdict leans SAFE: pins unknown
+	# means treat them as present.
+	local listing
+	if ! listing="$(find "${PIN_DIR}" -mindepth 1 -maxdepth 1)"; then
+		echo "WARN: ${PIN_DIR} could not be read — pins unknown, treating them as present (clean up by hand or fix permissions)." >&2
+		return 0
+	fi
+	[[ -n "${listing}" ]]
 }
 
 remove_at() {

@@ -312,7 +312,12 @@ def resolve_legacy(explicit, download=True):
     resolution local). A file that exists but does not execute is a
     hard FAIL, not a skip: a broken legacy binary would turn the
     delta proof into a one-sided claim.
-    Returns (path, note) or (None, reason) for the loud SKIP."""
+    Returns (path, banner) on success, (path, reason) when a candidate
+    EXISTS but is not a healthy executable zelynic (the hard-FAIL
+    marker — NIGHT-hunt-32 finally enforces the sentence above: the
+    caller FAILs instead of SKIP-exit-0, which CI's [ -x ] + exit-code
+    guard used to read as PASS), or (None, reason) for the loud SKIP
+    when nothing was found at all."""
     candidates = []
     if explicit:
         candidates.append(explicit)
@@ -321,11 +326,14 @@ def resolve_legacy(explicit, download=True):
         candidates.append(env)
     candidates.append("/opt/zelynic/legacy/zelynic")
     for cand in candidates:
-        if cand and os.path.isfile(cand) and os.access(cand, os.X_OK):
-            first, reason = _legacy_banner(cand)
-            if reason:
-                return None, reason
-            return cand, first
+        if not cand or not os.path.isfile(cand):
+            continue
+        if not os.access(cand, os.X_OK):
+            return cand, f"{cand}: exists but is not executable"
+        first, reason = _legacy_banner(cand)
+        if reason:
+            return cand, reason
+        return cand, first
     # Nothing local — the auto-download is the last lane (CI never
     # reaches it: the rootfs step stages the binary and the loop
     # above already returned).
@@ -336,7 +344,8 @@ def resolve_legacy(explicit, download=True):
             first, reason = _legacy_banner(fetched)
             if reason is None:
                 return fetched, first
-            fetch_note = reason
+            # Fetched but broken — the same hard-FAIL marker: it exists.
+            return fetched, reason
     hint = explicit or env or LEGACY_URL
     return (
         None,
@@ -899,6 +908,26 @@ def main():
         )
         final_report(time.perf_counter(), "root", "skipped — no legacy binary")
         return 0
+    if legacy_note is not None:
+        # NIGHT-hunt-32: the resolver's own docstring contract, finally
+        # enforced — a candidate that EXISTS but is not a healthy
+        # executable legacy zelynic is a hard FAIL, never a skip: the
+        # one-sided delta is exactly what this harness exists to
+        # forbid, and a SKIP-exit-0 used to read as PASS through
+        # supermassive-init's [ -x ] + exit-code guard.
+        record("ammsp-vs-legacy: legacy side resolved", "FAIL", legacy_note)
+        out()
+        out("  The legacy candidate exists but is not a healthy zelynic")
+        out("  legacy binary — the delta proof refuses to run one-sided.")
+        out("  Re-stage it (the sha512-verified fetch) and re-run:")
+        out(f"    curl -LO {LEGACY_URL}")
+        out(f"    curl -LO {LEGACY_URL}{LEGACY_SHA512_EXT}")
+        out(
+            f"    tar xzf {LEGACY_TARBALL} -C <dir> && "
+            f"export ZELYNIC_LEGACY_BINARY=<dir>/{LEGACY_INNER}"
+        )
+        final_report(time.perf_counter(), "root", "failed — broken legacy binary")
+        return 1
     record("ammsp-vs-legacy: legacy side resolved", "PASS", legacy_note)
 
     # The shared engine boot (the v2 precedent): fleet first, then the

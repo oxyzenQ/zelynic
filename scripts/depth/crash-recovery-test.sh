@@ -8,13 +8,27 @@
 # Tests:
 #   1. Clean state baseline
 #   2. Apply limit, verify active
-#   3. Simulate crash (remove link pins only → stale state)
+#   3. Simulate crash (remove program pins → stale state)
 #   4. Run 'recover' → verify cleanup
 #   5. Apply limit, simulate partial pin state
 #   6. Run 'strict-single' → verify auto-recovery
 #   7. Apply limit, kill -9 (if zelynic were running), verify 'recover' cleans
 #   8. Multiple crash-recover cycles
 #   9. Final state verification
+#
+# NIGHT-hunt-32 (the suite's resurrection): $PIN_DIR was referenced
+# eight times with nothing defining it — under this suite's own
+# `set -euo pipefail` every run died at Test 1 ("PIN_DIR: unbound
+# variable"), so 8 of 9 tests never executed anywhere since the
+# NIGHT-hunt-21 dedup. The pin constant now lives in harness_lib.sh.
+# Two more diseases from the same family died here: the "enforcing"/
+# "Stale" greps matched strings the status surface never prints (the
+# live verdict lines are "no active limits" and "stale bpf pin files
+# detected", display.rs), and every apply targeted the comm "curl"
+# with no curl process running — dinner-11's no-match hard error meant
+# each apply failed silently (2>/dev/null) and the verdicts failed for
+# the wrong reason. A long-lived sleep target now carries the applies,
+# and the greps ride the display contract.
 
 set -euo pipefail
 
@@ -27,6 +41,14 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/harness_lib.sh"
 cleanup() {
 	"$BINARY" unstrict-all 2>/dev/null || true
 }
+
+# A long-lived target for every apply in this suite (NIGHT-hunt-32 —
+# see the header): the sleep twin is the pattern race-condition-
+# test.sh's Test 5 and reload-test.sh already use.
+sleep 600 &
+TARGET_PID=$!
+TARGET_COMM="$(cat /proc/$TARGET_PID/comm 2>/dev/null || echo "sleep")"
+trap 'kill "${TARGET_PID:-0}" 2>/dev/null || true; cleanup' EXIT
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -48,9 +70,12 @@ fi
 
 # Test 2: Apply limit, verify active
 log_test "Apply limit, verify BPF is active"
-"$BINARY" strict-single curl 100kb 2>/dev/null || true
+"$BINARY" strict-single "$TARGET_COMM" 100kb 2>/dev/null || true
 sleep 1
-if "$BINARY" status 2>/dev/null | grep -q "enforcing"; then
+# The display contract: "no active limits" is the empty VERDICT line
+# (display.rs) — anything else that is non-empty means live rows.
+out="$("$BINARY" status 2>/dev/null || true)"
+if [ -n "$out" ] && ! grep -q "no active limits" <<<"$out"; then
 	log_pass "BPF is active after strict-single"
 else
 	log_fail "BPF not active after strict-single"
@@ -58,8 +83,9 @@ fi
 
 # Test 3: Simulate crash — remove program pins (stale state)
 log_test "Simulate crash — remove program pins (stale state)"
-rm -f "$PIN_DIR/enforce_dl" "$PIN_DIR/enforce_ul" 2>/dev/null
-if "$BINARY" status 2>/dev/null | grep -q "Stale"; then
+rm -f "$PIN_DIR/enforce_dl" "$PIN_DIR/enforce_ul" 2>/dev/null || true
+out="$("$BINARY" status 2>/dev/null || true)"
+if grep -q "stale bpf pin files" <<<"$out"; then
 	log_pass "Status detects stale state"
 else
 	log_fail "Status does not detect stale state"
@@ -76,10 +102,11 @@ fi
 
 # Test 5: Apply limit, simulate partial pin state (remove one program pin)
 log_test "Apply limit, simulate partial state (remove enforce_dl only)"
-"$BINARY" strict-single curl 100kb 2>/dev/null || true
+"$BINARY" strict-single "$TARGET_COMM" 100kb 2>/dev/null || true
 sleep 1
-rm -f "$PIN_DIR/enforce_dl" 2>/dev/null
-if "$BINARY" status 2>/dev/null | grep -q "Stale"; then
+rm -f "$PIN_DIR/enforce_dl" 2>/dev/null || true
+out="$("$BINARY" status 2>/dev/null || true)"
+if grep -q "stale bpf pin files" <<<"$out"; then
 	log_pass "Status detects partial state"
 else
 	log_fail "Status does not detect partial state"
@@ -87,9 +114,10 @@ fi
 
 # Test 6: Run strict-single → verify auto-recovery
 log_test "strict-single auto-recovers from stale state"
-"$BINARY" strict-single curl 100kb 2>/dev/null
+"$BINARY" strict-single "$TARGET_COMM" 100kb 2>/dev/null || true
 sleep 1
-if "$BINARY" status 2>/dev/null | grep -q "enforcing"; then
+out="$("$BINARY" status 2>/dev/null || true)"
+if [ -n "$out" ] && ! grep -q "no active limits" <<<"$out"; then
 	log_pass "strict-single auto-recovered"
 else
 	log_fail "strict-single did not auto-recover"
@@ -98,7 +126,7 @@ fi
 # Test 7: Doctor reports pin state
 log_test "Doctor reports pin state correctly"
 cleanup
-"$BINARY" strict-single curl 100kb 2>/dev/null || true
+"$BINARY" strict-single "$TARGET_COMM" 100kb 2>/dev/null || true
 sleep 1
 if "$BINARY" doctor 2>/dev/null | grep -q "Pins:"; then
 	log_pass "Doctor shows pin state"
@@ -110,7 +138,7 @@ fi
 log_test "Multiple crash-recover cycles (3x)"
 cleanup
 for i in 1 2 3; do
-	"$BINARY" strict-single curl 100kb 2>/dev/null || true
+	"$BINARY" strict-single "$TARGET_COMM" 100kb 2>/dev/null || true
 	sleep 0.5
 	# Simulate crash — remove program pins
 	rm -f "$PIN_DIR/enforce_dl" "$PIN_DIR/enforce_ul" 2>/dev/null
@@ -126,7 +154,7 @@ fi
 
 # Test 9: Final state verification
 log_test "Final state — should be clean after unstrict-all"
-"$BINARY" strict-single curl 100kb 2>/dev/null || true
+"$BINARY" strict-single "$TARGET_COMM" 100kb 2>/dev/null || true
 "$BINARY" unstrict-all 2>/dev/null
 if [ ! -d "$PIN_DIR" ] || [ -z "$(ls -A "$PIN_DIR" 2>/dev/null)" ]; then
 	log_pass "Final state is clean"

@@ -130,7 +130,15 @@ cargo build --release --locked --features ebpf
 
 mkdir -p "$PREBUILT_DIR"
 
-TOOLCHAIN="$(awk -F'"' '/^channel = /{print $2}' ebpf/rust-toolchain.toml)"
+# NIGHT-hunt-32: the tolerant channel anchor (bootstrap-ebpf.sh's
+# twin) plus a die on empty — the old column-0-only pattern could
+# silently write toolchain = "" into the manifest's provenance field
+# if the line ever gains indentation.
+TOOLCHAIN="$(awk -F'"' '/^[[:space:]]*channel = /{print $2}' ebpf/rust-toolchain.toml)"
+if [ -z "${TOOLCHAIN}" ]; then
+	echo "FAIL: could not read the toolchain channel from ebpf/rust-toolchain.toml — the manifest's provenance field refuses to ship empty." >&2
+	exit 1
+fi
 BPF_LINKER="$(bpf-linker --version | awk '{print $2}')"
 TREE_SHA="$(ebpf_tree_sha)"
 GENERATED="$(date -u +%Y-%m-%dT%H:%M:%SZ)"

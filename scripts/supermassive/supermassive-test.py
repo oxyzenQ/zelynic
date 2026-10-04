@@ -4987,7 +4987,16 @@ def self_test():
 # unknown-option error: muscle memory deserves a better answer than
 # "did you mean --band?".
 
-KNOWN_FLAGS = ("heavy", "self-test", "binary", "json", "band", "help")
+KNOWN_FLAGS = (
+    "heavy",
+    "self-test",
+    "binary",
+    "json",
+    "band",
+    "help",
+    "server-only",
+    "desktop-only",
+)
 
 
 def _jaro_ci(a, b):
