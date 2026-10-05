@@ -225,12 +225,24 @@ pub fn window_active(win: &PolicyWindow, now_mono_ns: u64, wall_offset_ns: u64) 
 
 // ━━ The sweep predicates (userspace side of the map) ━━
 
+// The two predicates below are the USERSPACE half's vocabulary: the
+// eBPF object's during gate calls window_active only (its try_enforce
+// never sweeps — the CLI is the daemon, the sweep rides the unstrict/
+// reclaim path), so within the kernel-object compile each function is
+// dead code the -D warnings gate would refuse. allow(dead_code) marks
+// the split honestly instead of deleting the shared surface: the
+// userspace sweep (src/ebpf/limiter/during.rs inlines the same
+// arithmetic) and the rootless battery (test/ebpf/limiter/
+// during_tests.rs) both pin these laws against THIS file — one copy,
+// two trees, the math.rs POLICY_FLAG_PER_SOCKET precedent verbatim.
+
 /// Has a SPAN ended (monotonic `now_mono_ns` at or past its
 /// exclusive end)? The sweep predicate: an ended span rides the
 /// unstrict/reclaim path; a DAILY window never ends (returns
 /// false), and a not-yet-started span returns false too — a
 /// dormant row (a future date) must survive every sweep until its
 /// day arrives, exactly the dormancy law the design brief pins.
+#[allow(dead_code)]
 #[inline(always)]
 pub fn span_ended(win: &PolicyWindow, now_mono_ns: u64) -> bool {
     win.kind == WINDOW_KIND_SPAN && now_mono_ns >= win.end_mono_ns
@@ -239,6 +251,7 @@ pub fn span_ended(win: &PolicyWindow, now_mono_ns: u64) -> bool {
 /// Is a window ACTIVE-BUT-NOT-STARTED (a dormant future span)? The
 /// status surface prints it ("sleeps until ..."); the sweep never
 /// acts on it (`span_ended` above is the only removal predicate).
+#[allow(dead_code)]
 #[inline(always)]
 pub fn span_dormant(win: &PolicyWindow, now_mono_ns: u64) -> bool {
     win.kind == WINDOW_KIND_SPAN && now_mono_ns < win.start_mono_ns

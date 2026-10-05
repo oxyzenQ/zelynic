@@ -498,6 +498,16 @@ pub fn decide(cookie: u64, buf: &[u8], conv: &Conversation, hint_this: u64) -> C
 /// this direction's hint map at the conversation's key (0 on a
 /// miss — the packed "no hint" verdict). Everything that can
 /// refuse, refuses to the cookie lane.
+//
+// allow(dead_code): the userspace test tree compiles this file
+// without the datapath that inlines the two steps separately — the
+// kernel object's quic_flow_key calls conversation() and decide()
+// on its own because the hint-map read must run BETWEEN them, so
+// this composed form is the test battery's entry point, never the
+// object's; the during.rs span-predicate family carries the same
+// rationale, the math.rs POLICY_FLAG_PER_SOCKET precedent one
+// feature earlier.
+#[allow(dead_code)]
 #[inline(always)]
 pub fn classify(cookie: u64, buf: &[u8], is_ingress: bool, hint_this: u64) -> Classify {
     match conversation(cookie, buf, is_ingress) {
