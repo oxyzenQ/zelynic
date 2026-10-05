@@ -19,6 +19,41 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Added
 
+- **The unified `--during` time windows (night-during, schema
+  v23, NIGHT-private-research-4's Tier A candidate — the owner's
+  unified-grammar decision: one flag, three shapes, UTC
+  everywhere).** A policy row may now carry its own lifetime:
+  `--during 09:00-17:00` (a recurring daily UTC window, wrapping
+  midnight — the bedtime shape), `--during 2026-10-15` (the whole
+  named UTC day, dormant until it arrives), or `--during 2h` /
+  `--during 20d` (a duration from apply: units s, m, h, d, mn, y;
+  bounds 1s..10y; months 30 days, years 365). The KERNEL decides
+  when the window is over — no daemon, no cron: SPAN rows store
+  wall instants pre-translated into the monotonic clock
+  (drift-free under NTP slew and manual clock steps; the stated
+  residue is suspend), DAILY rows read the wall through a
+  pinned one-entry offset Array every zelynic visit re-stamps,
+  with a 2s both-edges margin that can only fail toward LESS
+  enforcement. The gate is one side-map read on the policed path
+  only (the unlimited fast path pays nothing — the NIGHT-lts-2
+  law verbatim); an inactive window answers ALLOW until the lazy
+  sweep (every later apply collects ended spans through the
+  unstrict/reclaim machinery) reclaims the row. The flag rides
+  every enforcement verb (strict-single/multi/all,
+  block-single/multi/all — a bedtime block that lifts itself),
+  parses on the fail-fast rung before the privilege ask, and an
+  apply without it clears any stale window. `status` renders each
+  windowed row's lifetime line (until X, Nm left / sleeps until /
+  expired awaiting sweep / daily hours with the verdict) and
+  `--print-json` gains the additive `window` field (kind, state,
+  the span's WALL instants or the daily pair). snapshot/restore
+  carry the window in its WALL-clock form — auto-expire survives
+  the reboot it was born for, never converting into forever. The
+  verdict core (ebpf/src/during.rs) is pure and rootless-pinned
+  (during_tests.rs: the wrap arithmetic, the margin law, the
+  monotone-erosion safety property; during_user_tests.rs: the
+  grammar's refusal family, the twin grid, the persistence
+  round-trip).
 - **The ECT live probe — scripts/bench/ect-probe.sh: the per-socket
   lane's ECN marking proven on the running kernel
   (NIGHT-private-research-4 follow-up, the owner's next-candidate

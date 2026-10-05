@@ -113,7 +113,7 @@ or `zelynic ee brave --interval 1s`.
 ### strict-single / strict — limit one app
 
 ```bash
-sudo zelynic strict-single <target> [rate] [-d <rate>] [-u <rate>] [--per-socket]
+sudo zelynic strict-single <target> [rate] [-d <rate>] [-u <rate>] [--per-socket] [--during <window>]
 sudo zelynic strict brave 100kb        # shorthand form
 ```
 
@@ -547,6 +547,12 @@ it after starting new apps.
 
 ### block-single / block-multi / block-all
 
+Every block verb takes `--during` (night-during, schema v23): a
+blocked row with a window lifts itself — `bs shorts --during
+22:00-06:00` is the bedtime shape (the block polices its night
+hours and stands down for the day, no daemon, no cron; the same
+three grammar shapes the strict family takes).
+
 ```bash
 sudo zelynic block-single brave
 sudo zelynic block-multi brave:curl:pacman
@@ -636,7 +642,12 @@ and writes it to `/var/lib/zelynic/limits.json`, keyed by NAME: a
 reboot changes cgroup IDs, so names are the only stable key. The
 document carries every leg — who, which direction, what rate,
 grouping (the shared-bucket members re-join through the map's group
-id), and the per-socket flag. Census rows whose cgroup no longer
+id), the per-socket flag, and the `--during` window in its
+WALL-clock form (night-during, schema v23): a monotonic deadline
+resets with the boot, so the census serializes the wall instants
+and `restore` re-translates them through a fresh clock bridge —
+auto-expire survives the reboot it was born for, never converting
+into forever. Census rows whose cgroup no longer
 resolves to a running process are named on stderr and skipped — an
 unrestorable row must be NAMED, never silently dropped. The write is
 atomic (temp file + rename), so a crash mid-snapshot never leaves a
@@ -1835,6 +1846,7 @@ slots, so the SHAPE of the last eight seconds survives between
 polls (a monitor sampling at `--interval 30s` reads the true peak
 and cadence, not a 30s mean):
 
+
 ```json
 "rate_ring":{"window_secs":1,"download":{"bytes":[0,0,0,1048576,1048576,524288,1048576,655360],"live":5,"peak_bytes":1048576},"upload":null}
 ```
@@ -1857,6 +1869,20 @@ series into the per-policy baseline verdicts (EAGLE EYES V2, the
 eagle-eyes section above) — detection is temporal by nature, so
 the verdicts live only in the live TUI, never in this one-shot
 JSON; scripts that want to run their own detector read this field.
+
+`window` (night-during, schema v23) joins a limit row when the
+policy carries a `--during` window — the additive-field rule the
+`rate_ring` join set: `kind` ("span" or "daily"), `state` (the
+status vocabulary: "active", "dormant", "outside", "expired"), a
+span's `start_wall_ns` / `end_wall_ns` (WALL-clock ns since epoch
+— never the monotonic deadlines the map carries, which reset with
+the boot and mean nothing to a script), and a daily window's
+`start_s` / `end_s` (seconds-of-day UTC, wrapping midnight when
+start > end). Rows without a window carry no field at all:
+
+```json
+{"cgroup_id":18571,"label":"brave","download_bps":100000,"window":{"kind":"span","state":"active","start_wall_ns":1791288000000000000,"end_wall_ns":1791291600000000000}}
+```
 
 `download_per_socket` / `upload_per_socket`
 (NIGHT-upgrade-charger-core-3b) appear on a limit row only when that
