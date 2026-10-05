@@ -231,13 +231,14 @@ pub(super) fn socket_flow(
         // DRR lanes' own): on the ALLOW path only, from the stream's
         // leftover AFTER the lane delivered — a pay that ran on every
         // packet would drain the token stock toward the debt and
-        // starve the lane below the policy.
-        unsafe {
-            debt_pay(
-                core::ptr::addr_of_mut!(sb.core.tokens),
-                core::ptr::addr_of_mut!(sb.ecn_debt),
-            );
-        }
+        // starve the lane below the policy. The calls are safe-code
+        // here (addr_of_mut! on reference places, the core's own
+        // functions) — no unsafe wrapper, the container lane's
+        // -D warnings pins it.
+        debt_pay(
+            core::ptr::addr_of_mut!(sb.core.tokens),
+            core::ptr::addr_of_mut!(sb.ecn_debt),
+        );
         return match stats {
             Some(s) => {
                 book(s, true, pkt_len);
@@ -263,8 +264,8 @@ pub(super) fn socket_flow(
             None => 0,
         };
     }
-    let debt_ptr = unsafe { core::ptr::addr_of_mut!(sb.ecn_debt) };
-    if !unsafe { debt_charge(debt_ptr, pkt_len) } {
+    let debt_ptr = core::ptr::addr_of_mut!(sb.ecn_debt);
+    if !debt_charge(debt_ptr, pkt_len) {
         // The CE codepoint is set but the debt is at its cap: the
         // packet drops anyway — a dropped mark signals nothing the
         // receiver will read, and the cap is the budget law's bite.
