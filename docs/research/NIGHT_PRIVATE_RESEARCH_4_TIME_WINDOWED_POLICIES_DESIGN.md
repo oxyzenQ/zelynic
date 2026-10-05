@@ -228,6 +228,118 @@ weekday-aware schedules (a v5+ consideration if ever), no
 tzdata engine, no automatic re-attach, and no second CLI verb —
 the window rides the strict-family grammar the owner already
 types, as flags, the way `--per-socket` did.
+
+## 8. The owner's decision (2026-10-06): one flag, three shapes
+
+The grammar question sections 2 and 6 asked is now answered by
+the owner, and the answer OVERRIDES the sequencing
+recommendation of section 6: not `--until` as v23 and `--during`
+as v24 after a production cycle, but ONE unified `--during`
+whose argument shape alone selects the semantics — the one-shot
+auto-expire, the recurring window, and the absolute date, all
+under the one spelling, in ONE schema bump (v23):
+
+```
+sudo zelynic strict-single brave 100kb --during 09:00-17:00
+sudo zelynic strict-single steam 2mb   --during 2026-10-15
+sudo zelynic ss backup 500kb           --during 2h
+sudo zelynic ss backup 500kb           --during 20d
+```
+
+* `HH:MM-HH:MM` (UTC) — the recurring daily window of Option B,
+  midnight wrap included (`22:00-06:00` is the bedtime shape).
+* `YYYY-MM-DD` (UTC) — the row is active for the whole named
+  day and expires at 00:00:00 UTC the next day: "during" read
+  literally, the Option A date shape folded under the same
+  spelling. A date already fully past is refused at parse time;
+  a future date holds the row DORMANT until it arrives (the
+  deferred-start need section 2 refused for `--time`, served
+  honestly here because the date bounds BOTH ends).
+* a DURATION — the row applies now and auto-expires after the
+  duration. Grammar: one value, one unit; units `s`, `m`, `h`,
+  `d`, `mn`, `y` (seconds, minutes, hours, days, months,
+  years; `mn` is month so `m` stays minute); bounds 1s floor,
+  10y ceiling. Months are 30 days and years 365 days — the
+  fixed-calendar translation a daemonless CLI can make with no
+  tzdata engine; stated as the contract, not hidden.
+
+The unified spelling costs nothing the split sequencing saved:
+the three shapes share every piece of machinery (the side map,
+the bridge, the sweep), and the grammar disambiguates on shape
+alone (two `:` inside a `-`-joined pair = window; four `-`, no
+`:` = date; digits + unit = duration), so no flag-combination
+rules exist to document. The `--time <instant>` rejection of
+section 2 stands verbatim, and the UTC-only decision (owner's
+call, recorded here) drops section 4's local-to-UTC conversion:
+the CLI takes UTC input directly, so the DST residue shrinks to
+the long-lived daily window drifting one hour across a DST
+boundary until re-applied (unchanged) and no conversion
+surprises exist at all.
+
+### 8.1 The storage delta the unified shape drives
+
+The side map grows from the section 3.2 minimal shape
+(`policy_expiry`, one wall ns word) to a tagged window row —
+renamed `policy_window` for the same honesty, because a
+recurring window is not an expiry — carrying both shapes:
+
+* SPAN rows (duration, date) store `[start_mono_ns,
+  end_mono_ns)` — the wall instants PRE-TRANSLATED into the
+  kernel's monotonic clock at apply time. A hardening over the
+  doc's v23 sketch: a span decided in monotonic terms cannot
+  drift with NTP slew or a manual `date -s` at all (the
+  section 3.1 residue shrinks to the suspend note below),
+  because `bpf_ktime_get_ns` and the userspace
+  `CLOCK_MONOTONIC` read (the monotonic_ns helper, format.rs)
+  are the same clock domain.
+* DAILY rows store `[start_s, end_s]` seconds-of-day UTC; the
+  per-packet comparison reads the wall through the offset
+  bridge (section 3.1 unchanged: the one-entry pinned
+  `wall_clock_offset` Array, stamped at every attach and every
+  apply-family mutation — the CLI is the refresh channel). The
+  fire-early margin (default 2s) now skews BOTH edges toward
+  less enforcement: the window opens `margin` LATE and closes
+  `margin` EARLY, so a stale offset under-enforces by at most
+  the margin and never over-enforces — the safe direction a
+  limiter fails in.
+
+The dormancy law (one entry, both directions): the map is keyed
+at the RESOLVED POLICY ROOT exactly like section 3.2 named, one
+shared map both hooks read — a row's two legs share one window.
+Every apply-family invocation sets the whole window state the
+way improve-29 made it set the whole leg state: `--during X`
+writes X, an apply WITHOUT `--during` REMOVES any existing
+entry (a stale window expiring a fresh forever-row is the
+one-level-up twin of the stale-leg find). The unstrict/reclaim
+sweep removes it with the legs. The expired/dormant verdict is
+section 3.2's verbatim: ALLOW per packet, the miss shape, no
+AMMSP belt, until swept.
+
+The suspend residue, stated: CLOCK_MONOTONIC does not count
+suspend, so a span on a host that sleeps ages in wall time
+slower than its monotonic deadline implies — a `--during 20d`
+on a laptop that sleeps nights outlives the wall-calendar 20
+days by exactly the slept time. The wall-promise shapes (date,
+daily window) are unaffected. The duration promise is "N awake
+days" and is stated as such in the flag's help text.
+
+Persistence (snapshot/restore) serializes the WALL-CLOCK form
+(a duration leg stores its wall end instant; a daily window
+its seconds-of-day pair), because a monotonic deadline is
+meaningless across a reboot — the pinned maps are empty after
+boot regardless (bpffs starts clean), and restore re-translates
+wall to the fresh monotonic base through the same bridge. A
+restored row must never convert "auto-expires" into "forever":
+that inversion would flip the feature's whole safety direction.
+
+### 8.2 The honest cost, revised
+
+The 500-540 LOC estimate of section 5 carries over with two
+additions: the unified grammar's parse family and error surface
+grows (~120 with its battery), and the persistence pair's
+window fields (~60). Honest total: 620-680 LOC including tests
+and docs, still one schema bump, still no daemon — the
+"CLI is the daemon" sentence of section 3.2 unchanged.
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.
