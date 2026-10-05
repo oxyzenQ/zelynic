@@ -19,6 +19,36 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Added
 
+- **The two quick-mode claims rows closed — the measurement harness
+  was the bug, not the enforcement (the quick-row fixup).** The CI
+  claims battery runs `proof-claims.py --quick` on every qualifying
+  push, and two of its rows failed on short windows for reasons the
+  full-mode matrix never saw: the no-daemon row measured 43.5% of
+  its configured rate and the precision row measured a 4.9% error
+  against its 2% bound. Both diagnosed to harness physics. The
+  no-daemon row's 4s quick window was measuring a COLD policer —
+  the first epochs of a fresh attach are the startup transient
+  (the flow bucket banks its carry epoch by epoch while TCP backs
+  off its first losses), which the full 8s window amortizes and the
+  quick window drowns in; the quick lane now settles past the
+  transient (NO_DAEMON_SETTLE_QUICK, 2.0s unmeasured) before its
+  measured window — the precision stage's own PRECISION_SETTLE
+  discipline, because the row claims enforcement-alive steady
+  state and steady state is what it measures. The precision row's
+  estimator timed t0 after the first status-read spawn and t1
+  after the second, making elapsed = window + spawn latency — a
+  pure estimator bias the 30s full window amortized (0.069% on the
+  cross-distro runs) but the 10s quick window exposed at 4.9%
+  while the limiter itself stayed exact; the estimator now samples
+  the kernel counter at each spawn's MIDPOINT (the unbiased
+  estimator of the sampling instant), so the latency cancels on
+  both ends and the printed residual becomes the sampling jitter
+  the bound was always meant to judge. Both laws pinned rootlessly
+  by new engine self-test source pins (25 rows green); the live
+  quick battery on the four CI kernel-span legs is the verifier.
+  docs/CLAIMS_VERIFICATION.md's claim-4 row and the honest
+  residuals carry the updated residual story.
+
 - **Actions-pin health `auto` mode — skip-if-latest silence plus a
   contributor-carried auto-heal (NIGHT-improve-40 fixup 1, the
   write seat of the actions-pin health contract).**

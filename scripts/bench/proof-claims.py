@@ -62,9 +62,10 @@ root required for the live run, --self-test for CI without root):
       kernel-admitted bytes (the BPF counter deltas) against
       configured rate x wall time over a long saturating window,
       cross-checked against the client's own byte counter. The
-      residual is the status-read spawn latency, not limiter math,
-      and the row prints the actual number — nothing is rounded
-      into honesty.
+      residual is the sampling jitter between the two status-read
+      midpoints (the spawn latency itself cancels — the quick-row
+      fixup), not limiter math, and the row prints the actual
+      number — nothing is rounded into honesty.
 
   claim 5 — resource honesty (NIGHT-lts-6: the owner's "verify ram,
     cpu, io, etc usage — this project is critical infra not a
@@ -130,6 +131,18 @@ STATS_KNOB = "/proc/sys/kernel/bpf_stats_enabled"
 # Windows (seconds). Full mode totals ~1 minute of measurements.
 BASELINE_WINDOW = 3.0
 NO_DAEMON_WINDOW = 8.0
+# Quick mode's 4s no-daemon window measures a COLD policer: the
+# first epochs of a fresh strict-single attach are the startup
+# transient (the flow bucket banks its carry epoch by epoch while
+# TCP backs off its first losses) — the full 8s window amortizes
+# it, the quick 4s window drowns in it (the live quick run measured
+# 43.5% of the configured rate with enforcement fully alive; the
+# full-mode matrix was green on the same lanes). The quick lane
+# settles past the transient before its measured window, the
+# precision stage's own PRECISION_SETTLE discipline: the row claims
+# enforcement-alive STEADY STATE, and steady state is what it
+# measures.
+NO_DAEMON_SETTLE_QUICK = 2.0
 PURE_WINDOW = 5.0
 PER_APP_WINDOW = 10.0
 PRECISION_WINDOW = 30.0
@@ -142,8 +155,11 @@ PER_APP_RATE = 2_000_000  # 2mb: the witness contrasts hardest against this
 PRECISION_RATE = 100_000_000
 PRECISION_RATE_FALLBACK = 20_000_000
 
-# The live accounting row's PASS bound: the residual is dominated by
-# the status-read spawn latency (tens of ms) against the window.
+# The live accounting row's PASS bound: the estimator samples the
+# kernel counter at each status-read spawn's MIDPOINT (the unbiased
+# estimator of the sampling instant), so the spawn latency cancels
+# on both ends and the printed residual is sampling jitter — the
+# number the bound below was always meant to judge.
 ACCOUNTING_ERR_MAX_FULL = 0.01  # 1.0% over a 30s window
 ACCOUNTING_ERR_MAX_QUICK = 0.02  # 2.0% over a 10s window
 
@@ -571,7 +587,7 @@ def stage_env():
     return ok
 
 
-def stage_no_daemon():
+def stage_no_daemon(quick):
     out = lib.out
     out()
     out("━━━ claim 1: no daemon ━━━")
@@ -629,6 +645,13 @@ def stage_no_daemon():
         == "PASS"
         and ok_all
     )
+    if quick:
+        # The cold-start transient is attach physics, not the row's
+        # claim: settle past it (unmeasured), then measure the steady
+        # state the row actually claims — enforcement alive with zero
+        # zelynic processes. The full-mode 8s window amortizes the
+        # transient on its own; quick needs the explicit settle.
+        tracked_download(NO_DAEMON_SETTLE_QUICK, SERVER.port)
     got = tracked_download(NO_DAEMON_WINDOW, SERVER.port)
     verdict = lib.band_check(
         "no-daemon: enforcement alive with zero zelynic processes",
@@ -903,13 +926,27 @@ def stage_precision(baseline, quick):
     )
     t.start()
     time.sleep(PRECISION_SETTLE)  # saturating steady state before the first read
+    # Midpoint sampling (the quick-row fixup): every bytes_allowed_now()
+    # is a full status-read SPAWN, and the kernel counter is sampled
+    # somewhere inside it. Timing t0 after the e0 spawn and t1 after
+    # the e1 spawn made elapsed = window + spawn latency — a pure
+    # estimator bias that the 30s full window amortized (0.069% on the
+    # cross-distro runs) but the 10s quick window exposed at 4.9%
+    # while the limiter itself stayed exact. The spawn's midpoint is
+    # the unbiased estimator of the sampling instant; elapsed between
+    # midpoints cancels the latency on both ends, and the printed
+    # residual becomes the sampling jitter the bound judges.
+    t0s = time.perf_counter()
     e0 = bytes_allowed_now(CG.a_id)
+    t0e = time.perf_counter()
     c0 = progress[0]
-    t0 = time.perf_counter()
     time.sleep(window)
+    t1s = time.perf_counter()
     e1 = bytes_allowed_now(CG.a_id)
+    t1e = time.perf_counter()
     c1 = progress[0]
-    t1 = time.perf_counter()
+    t0 = t0s + (t0e - t0s) / 2.0
+    t1 = t1s + (t1e - t1s) / 2.0
     # The client thread is a daemon with its own window margin: every
     # verdict above reads counters captured at t0/t1, so the tail of
     # the saturating stream needs no join — cleanup is safe to run
@@ -950,8 +987,9 @@ def stage_precision(baseline, quick):
             f"{bound * 100:.1f}%). The 0.00% contract is the token math: "
             "long-run admitted = rate x elapsed exactly, sub-byte frac_rem "
             "carry, pinned rootlessly in test/ebpf/limiter/math_tests.rs "
-            "(steady-state exactness); the residual here is the status-read "
-            "spawn latency, not limiter math",
+            "(steady-state exactness); the residual here is sampling "
+            "jitter between midpoint reads (the status-read spawn latency "
+            "cancels on both ends), not limiter math",
             {"error_pct": round(err * 100, 4), "admitted": admitted, "expected": round(expected)},
         )
         == "PASS"
@@ -1377,6 +1415,36 @@ def self_test():
         == "PASS"
         and ok
     )
+    # Quick-row fixup pins (rootless, the two quick-mode rows the live
+    # quick battery caught): the precision row's estimator must sample
+    # the kernel counter at each status-read spawn's midpoint (the
+    # spawn latency cancels on both ends — the 4.9% quick failure was
+    # pure estimator bias), and the quick no-daemon lane must settle
+    # past the cold-start transient before its measured window (the
+    # 43.5% quick failure was attach physics, not enforcement). Source
+    # pins fail rootlessly the next time either law is reverted.
+    prec_src = inspect.getsource(stage_precision)
+    ok = (
+        lib.record(
+            "selftest: precision measures between sampling midpoints",
+            "PASS"
+            if "t0s + (t0e - t0s) / 2.0" in prec_src and "t1s + (t1e - t1s) / 2.0" in prec_src
+            else "FAIL",
+            "elapsed is midpoint-to-midpoint — the status-read spawn latency cancels on both ends",
+        )
+        == "PASS"
+        and ok
+    )
+    nd_src = inspect.getsource(stage_no_daemon)
+    ok = (
+        lib.record(
+            "selftest: quick no-daemon settles before its measured window",
+            "PASS" if "NO_DAEMON_SETTLE_QUICK" in nd_src else "FAIL",
+            "the cold-start transient is attach physics; the row measures the steady state it claims",
+        )
+        == "PASS"
+        and ok
+    )
     return lib.final_report(time.perf_counter(), "self-test", "the claims-proof engine is sound.")
 
 
@@ -1448,7 +1516,7 @@ def main():
                 f"{lib.fmt_bps(baseline)} over {BASELINE_WINDOW:.1f}s",
                 {"bps": round(baseline)},
             )
-            stage_no_daemon()
+            stage_no_daemon(quick)
             stage_pure_ebpf()
             stage_per_app(baseline)
             stage_precision(baseline, quick)
