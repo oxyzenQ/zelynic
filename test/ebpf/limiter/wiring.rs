@@ -66,3 +66,13 @@ mod ecn_socket_tests;
 #[cfg(test)]
 #[path = "quic_tests.rs"]
 mod quic_tests;
+
+// night-during, schema v23 (the unified --during time windows): the
+// pure verdict core compiles from ebpf/src/during.rs the same way,
+// pinned rootlessly by during_tests.rs — the daily comparator with
+// the midnight wrap, the both-edges margin law, the drift-free
+// span, the totality under hostile offsets, and the sweep
+// predicates.
+#[cfg(test)]
+#[path = "during_tests.rs"]
+mod during_tests;
