@@ -68,22 +68,37 @@
 // ever disagreed would fail the IP version check and fall back to
 // the cookie — the parse is self-protecting by shape.
 //
-// THE +1 LENGTH SHAPE (night-audit-1, the 5.13 verdict line "R4
-// invalid zero-sized read: u64=[0,55]"): the pre-relaxation
-// ARG_CONST_SIZE check on the 5.13 floor refuses a size whose
-// derived MINIMUM can be zero, and the branch refinement that
-// proves a min()ed length is at least one does not survive the
-// old verifier's imprecise tnum through the spills the slice
-// construction rides — but PLAIN ADDITION propagates a register's
-// umin exactly, on every kernel in the matrix, no precision
-// tracking needed. 1 + min(N-1, len-1) is min(N, len) for every
-// len >= 1 (identical reads), and the len == 0 shape hands the
-// helper a one-byte read it must refuse (EFAULT on an empty tail)
-// — the cookie verdict the old zero-check branch produced, one
-// syscall later. Newer kernels (the 6.8 container lane) accept a
-// zero-capable size outright; the +1 shape is a no-op there.
+// THE +1 LENGTH SHAPE and THE RAW HELPER CALL (night-audit-1, the
+// 5.13 verdict line "R4 invalid zero-sized read: u64=[0,55]"): two
+// stacked causes, two stacked fixes. FIRST: the 5.13 floor's
+// ARG_CONST_SIZE check (before the OR_ZERO relaxation newer kernels
+// carry — the 6.8 container lane loads the same object green)
+// refuses a size whose derived MINIMUM can be zero, and the branch
+// refinement that proves a min()ed length is at least one does not
+// survive the old verifier's imprecise state through the slice
+// construction's spills. SECOND (the one the first fix could never
+// reach): aya-ebpf 0.2.1's SkBuffContext::load_bytes wrapper derives
+// the length ITSELF — min(dst.len(), skb.len() - offset) — and its
+// skb-len-minus-offset term carries umin zero structurally (the
+// exactly-empty tail), so whatever length the caller slices, the
+// register at the call can always be zero. The raw helper binding
+// (aya_ebpf::helpers::generated) takes OUR length directly, and the
+// +1 shape makes its minimum one by pure arithmetic: 1 +
+// min(N-1, len-1) is min(N, len) for every len >= 1 (identical
+// reads, byte for byte) and one at len == 0 — where the raw call
+// reads one byte past an empty tail, the helper refuses it with
+// EFAULT, and the packet rides the cookie: the same verdict the
+// zero-check branch always produced, one syscall later. With the
+// raw call the +1 is OBSERVABLE (a one-byte read versus a
+// zero-sized syscall), so no optimizer can reassociate it away —
+// the fold was legal through the wrapper exactly because the
+// wrapper's own min collapsed both shapes to the same zero. No
+// zero-check branch exists to strengthen: the addition is the only
+// thing standing between an empty tail and the refused syscall.
 
-use aya_ebpf::{macros::map, maps::LruHashMap, programs::SkBuffContext};
+use aya_ebpf::{
+    helpers::generated::bpf_skb_load_bytes, macros::map, maps::LruHashMap, programs::SkBuffContext,
+};
 use core::sync::atomic::{AtomicU64, Ordering};
 
 // The pure attribution core (core-only, the same file the userspace
@@ -197,12 +212,20 @@ fn learn_hint(map: &LruHashMap<u64, u64>, key: &u64, len: u8) {
 pub(super) fn quic_flow_key(ctx: &SkBuffContext, cookie: u64, is_ingress: bool) -> u64 {
     // Read one: the IP header window. A read failure (truncated
     // head area, a nonlinear skb the helper refuses) is the cookie
-    // — never a guess. The length rides the +1 shape (the doc
-    // above): min(40, len) re-expressed so the derived minimum is
-    // one, not zero.
+    // — never a guess. The length rides the +1 shape through the
+    // RAW helper (the doc above): min(40, len) re-expressed so the
+    // derived minimum is one, never zero.
     let mut ip = [0u8; IP_BYTES];
     let want_ip = 1 + core::cmp::min(IP_BYTES - 1, (ctx.len() as usize).saturating_sub(1));
-    if ctx.load_bytes(0, &mut ip[..want_ip]).is_err() {
+    let ret = unsafe {
+        bpf_skb_load_bytes(
+            ctx.skb.skb.cast(),
+            0,
+            ip.as_mut_ptr().cast(),
+            want_ip as u32,
+        )
+    };
+    if ret != 0 {
         return cookie;
     }
     // The pure IP parse: where the UDP header starts, and which
@@ -221,7 +244,15 @@ pub(super) fn quic_flow_key(ctx: &SkBuffContext, cookie: u64, is_ingress: bool) 
     let mut l4 = [0u8; L4_BYTES];
     let remain = (ctx.len() as usize).saturating_sub(shape.l4_off);
     let want_l4 = 1 + core::cmp::min(L4_BYTES - 1, remain.saturating_sub(1));
-    if ctx.load_bytes(shape.l4_off, &mut l4[..want_l4]).is_err() {
+    let ret = unsafe {
+        bpf_skb_load_bytes(
+            ctx.skb.skb.cast(),
+            shape.l4_off as u32,
+            l4.as_mut_ptr().cast(),
+            want_l4 as u32,
+        )
+    };
+    if ret != 0 {
         return cookie;
     }
     // Step one (pure): name the conversation. None is the cookie.
