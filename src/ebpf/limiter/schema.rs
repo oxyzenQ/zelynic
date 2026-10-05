@@ -363,7 +363,7 @@
 ///     before any short header keys on it — a throwaway Initial DCID
 ///     the peer replaces after its Server Initial can never poison
 ///     the lane alone). Every refusal — non-UDP, non-QUIC,
-///     unparseable, unconfirmed, zero-length CID, IPv6 extension
+///     unparsable, unconfirmed, zero-length CID, IPv6 extension
 ///     headers — rides the RAW COOKIE, exactly the pre-v22 verdict:
 ///     the feature refines attribution, never degrades it, and the
 ///     flow of residues a QUIC middlebox cannot close (CID rotation

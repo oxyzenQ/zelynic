@@ -106,7 +106,7 @@ NIGHT-hunt-18's git-history-only call.
   second long-header sighting before any short header keys on it,
   so the throwaway Initial DCID a peer replaces after its Server
   Initial can never poison the lane alone. Every refusal (non-UDP,
-  non-QUIC, unparseable, unconfirmed, zero-length CID, IPv6
+  non-QUIC, unparsable, unconfirmed, zero-length CID, IPv6
   extension headers) rides the RAW COOKIE, the exact pre-v22
   verdict: the feature refines attribution, never degrades it. Ten
   rootless pins (test/ebpf/limiter/quic_tests.rs): the strict-shape

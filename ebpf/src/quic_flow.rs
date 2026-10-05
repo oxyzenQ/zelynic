@@ -153,7 +153,7 @@ fn learn_hint(map: &LruHashMap<u64, u64>, key: &u64, len: u8) {
 /// finer truth. `is_ingress` selects the direction's own hint map
 /// (the one this hook's short headers read) and the remote side of
 /// the conversation identity. Every refusal — non-UDP, non-QUIC,
-/// unparseable, unconfirmed — hands the raw cookie back, which is
+/// unparsable, unconfirmed — hands the raw cookie back, which is
 /// exactly the key the lanes keyed on before this lane existed:
 /// the call can refine attribution, never degrade it.
 #[inline(always)]
