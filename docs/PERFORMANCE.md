@@ -468,6 +468,86 @@ rode unchanged through every form — these laws live at the
 micro-credit scale the sims do not model, the scale only the live
 kernel reaches, which is why the battery exists.
 
+### The ECN-first budget law (mark before drop, schemas v19/v21, 2026-10-05)
+
+The limiter's drop verdict is a LAST RESORT on every budgeted
+lane (NIGHT-private-research-4's ranked innovation, shipped in
+two waves: v19 for the group and DRR cgroup lanes, v21 closing
+the per-socket lane). When the kernel helper `bpf_skb_ecn_set_ce`
+can set the CE codepoint on an over-budget packet (ECT-capable,
+IPv4 or IPv6, checksum handled by the kernel, helper ID 97), the
+packet is DELIVERED CE-marked instead of dropped and its bytes
+charge a debt the lane's own token stream pays back. A CE-reactive
+sender (TCP with ECN negotiated, QUIC with ECT) converges on the
+mark without a single lost packet — goodput under the cap rises,
+retransmit jitter falls. A non-ECT packet refuses the helper and
+drops exactly as before: the legacy verdict, untouched.
+
+THE BUDGET LAW — the part that makes this a law and not a wish.
+Marked packets are delivered, so they must come out of the
+policy's budget or the aggregate promise dies. The accounting
+(ebpf/src/ecn.rs, the pure core both trees compile): every
+delivered marked packet charges a DEBT capped at one GSO
+super-packet (65,536 bytes, the same admit floor the DRR lane
+heals starved flows with), and every delivered packet on the lane
+PAYS that debt from the bucket's own tokens, on the allow path
+only, from the stream's leftover. The invariant chain, closed
+under every adversarial shape the battery throws at it:
+
+  delivered = lane_consumed + marked
+  marked    <= debt_charged = debt_paid + debt_outstanding
+  debt_paid <= tokens_deducted (each pay removes tokens)
+  lane_consumed + tokens_deducted <= refill_credits
+  =>  delivered <= rate*t + burst + 64 KiB
+
+The CALL-SITE LAW is the design's load-bearing wall: the pay runs
+ONLY on the lane's allow path, from the leftover after a delivery.
+A pay that ran on every packet (drop path included) would drain
+the token stock toward the debt, and a CE-ignoring hammer (set
+ECT, never react) would pin the debt at its cap and turn the
+entire refill stream into debt service — the lane starves BELOW
+the policy, the exact inversion of the promise. The rootless
+simulation caught this BEFORE any kernel saw the code (the hammer
+row's own history note in test/ebpf/limiter/ecn_tests.rs). With
+the allow-path placement the semantics close per sender shape: a
+CE-reactive sender spends the one-time 64 KiB slack during its
+convergence transients and the converged periods' leftover
+re-arms it; a CE-ignoring sender sees the debt saturate once and
+the lane settle into EXACT drop-lane parity — never worse than
+the legacy policer, never a second rate stream (no time-based
+decay anywhere: decay would hand the CE-ignoring shape a second
+independent rate stream).
+
+The per-socket closure (v21): the debt word lives INSIDE the
+socket's bucket — per-connection state in the per-connection
+bucket, zeroed by the generation belt on a policy mutation, aged
+out by the LRU with the bucket. The deferred question ("N
+connections each halving their windows on per-connection marks is
+an aggregate-collapse shape") is closed by the rootless fleet
+sims (test/ebpf/limiter/ecn_socket_tests.rs): per-connection
+budgets are independent, so each connection converges on its own
+stream and the aggregate rides N x per-connection with no
+collapse term — the marking fleet stays above 90% of N x rate
+while every connection sits inside its own budget law, beats the
+same fleet under the per-socket drop policer, and a CE-ignoring
+hammer on one connection stays bounded by its own budget law
+while its neighbors converge untouched. The aggregate honest
+bound: N x (rate*t + burst + one 64 KiB super-packet).
+
+The pins (ecn_tests.rs + ecn_socket_tests.rs, 14 rootless rows):
+the debt-cap arithmetic (accumulate under the cap, exact fit then
+refuse, oversize refusal), the pay semantics (exact value movement
+between the words, partial pay, empty no-op), the book_rescue
+ledger correction (dropped-then-moved booking, exact), the
+hammer's budget law (bounded by the cap, never a second stream),
+the goodput A/B (ECN-first strictly beats the drop policer under
+identical demand feedback, zero last-resort losses for the
+reactive sender), and the three fleet rows (no collapse, marking
+beats dropping, hammer isolated). The DRR lane's debt pay rides
+the pool's own stream — the faucet every leaf and flow draw
+through — so the marked bytes pay back against the same aggregate
+budget that fed them.
+
 ### NIGHT-upgrade-charger-core-1-b A/B (the self-proving enforcement, 2026-09-30)
 
 The charger-core-1-b pass is command-path work: the enforcement

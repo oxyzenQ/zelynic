@@ -19,6 +19,28 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Added
 
+- **The ECN-first budget law section — docs/PERFORMANCE.md gains the
+  law its siblings already had (NIGHT-audit-1's docs find).** The
+  private-research-4 family's two other laws — the guaranteed-minimum
+  law and the CAKE-shaped flow-isolation law — each landed in
+  PERFORMANCE.md's law block the session they shipped, but the
+  campaign's ranked #1 innovation (ECN-first policing, schemas v19
+  and v21) had its budget law living only in ebpf/src/ecn.rs's
+  module doc, docs/USAGE.md's operational view, and
+  docs/KERNEL_COMPATIBILITY.md's helper contract — the closed-form
+  bound, the debt cap's GSO-admit-floor rationale, the call-site
+  law (the allow-path pay that keeps a CE-ignoring hammer at
+  drop-lane parity instead of starving the lane below policy), and
+  the per-socket fleet closure (N x per-connection, no collapse
+  term) had no row in the doc readers open for exactly those laws.
+  The new section carries the invariant chain verbatim
+  (delivered <= rate*t + burst + 64 KiB), the two-wave shipping
+  history (v19 cgroup lanes, v21 the per-socket closure), the pins
+  inventory (14 rootless rows across ecn_tests.rs and
+  ecn_socket_tests.rs, counts verified against the tree before the
+  claim), and the DRR lane's pool-stream pay posture — the faucet
+  every leaf and flow draw through.
+
 - **Schema v21 — the per-socket convergence closure: the per-socket
   lane joins the ECN-first family, mark before drop per connection.**
   The v19 ECN-first lane shipped every budgeted lane's marking EXCEPT
@@ -685,6 +707,24 @@ NIGHT-hunt-18's git-history-only call.
   have healed them on origin", which is the truth).
 
 ### Fixed
+
+- **The socket lane's miss-posture comment, corrected to the posture
+  the code runs (NIGHT-audit-1's code find).** ebpf/src/
+  socket_flow.rs's get_socket_ptr claimed an insert failure's
+  surviving re-lookup miss DROPS the packet ("the safe verdict,
+  never an unlimited pass") — the leaf lane's fail-closed posture
+  pasted one map family over — while the caller's None arm returns
+  the ALLOW verdict under the C twin's documented fail-open
+  bookkeeping contract (never drop on a map miss), the same
+  posture cake_flow.rs's get_flow_ptr twin comment states
+  correctly. Comment-only, zero behavioral change, but the lane
+  has no coarser lane to fall through to, so its miss posture IS
+  its safety story: a future maintainer auditing fail directions —
+  or 'fixing' the code to match the wrong comment — would inherit
+  a wrong map of the system. The rewritten comment states the real
+  contract and names the sibling it mirrors; the ebpf-prebuilt
+  lane refreshed with the tree pin per the parity gate's contract
+  (the objects reproduced byte-identical, only the manifest moved).
 
 - **release: the missing Verification section on the v11.0.0 stable
   and v20.0.0-rc.2 pages (NIGHT-hunt-Z11) — GitHub silently
