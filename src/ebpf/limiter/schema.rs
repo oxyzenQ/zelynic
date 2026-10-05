@@ -338,7 +338,43 @@
 ///     into the per-socket-ECN object — active limits are dropped
 ///     once, re-apply after upgrade, the same one-time re-apply
 ///     contract as ever.
-pub const SCHEMA_VERSION_EXPECTED: u32 = 21;
+/// v22 (NIGHT-private-research-4 candidate, QUIC-aware attribution):
+///     the per-socket lane and the v20 CAKE flow lane key their
+///     per-connection buckets by the packet's QUIC CONNECTION ID
+///     when the header carries finer truth than the socket cookie —
+///     QUIC (HTTP/3) multiplexes many connections over ONE UDP
+///     socket (the browser shape: Chromium and Firefox share a
+///     single socket across every QUIC session, demuxed by CID), so
+///     the cookie the two lanes attributed by collapsed all of them
+///     into one bucket: the flow lane's own monopoly shape, and the
+///     --per-socket promise ("each connection its own budget")
+///     silently shared by the whole socket for the protocol that
+///     multiplexes. The pure core (ebpf/src/quic.rs, pinned
+///     rootlessly by test/ebpf/limiter/quic_tests.rs): v1/v2 long
+///     headers parse exactly (explicit CID lengths — stateless
+///     keys); short-header CID lengths are CONNECTION STATE (RFC
+///     9000 negotiates them inside encrypted NEW_CONNECTION_ID
+///     frames, the documented reason QUIC-LB exists), so the wiring
+///     LEARNS them from the handshake's own explicit-length bytes
+///     into two new pinned LRU maps quic_cid_hint_dl/ul (conversation
+///     key -> the packed hint word, shared across both hooks by
+///     object construction), gated by a CONFIRMATION rule (the same
+///     nonzero length must survive a second long-header sighting
+///     before any short header keys on it — a throwaway Initial DCID
+///     the peer replaces after its Server Initial can never poison
+///     the lane alone). Every refusal — non-UDP, non-QUIC,
+///     unparseable, unconfirmed, zero-length CID, IPv6 extension
+///     headers — rides the RAW COOKIE, exactly the pre-v22 verdict:
+///     the feature refines attribution, never degrades it, and the
+///     flow of residues a QUIC middlebox cannot close (CID rotation
+///     mid-flight, the >8-byte prefix share, the v6 /48 hint seed)
+///     is stated in the core's module docs and pinned by the tests.
+///     No existing struct layout changes; new maps, new key VALUES
+///     on two internal lanes; the bump forces pinned v21 programs to
+///     reload into the QUIC-aware object — active limits are dropped
+///     once, re-apply after upgrade, the same one-time re-apply
+///     contract as ever.
+pub const SCHEMA_VERSION_EXPECTED: u32 = 22;
 
 #[cfg(test)]
 mod sync_pin {

@@ -19,6 +19,46 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Added
 
+- **Schema v22 — QUIC-aware attribution: per-CONNECTION keys for
+  QUIC (HTTP/3) traffic on the per-socket and CAKE flow lanes
+  (NIGHT-private-research-4 candidate, approved for
+  implementation).** QUIC multiplexes many connections over ONE
+  UDP socket — the browser shape (Chromium and Firefox share a
+  single socket across every QUIC session, demuxed by connection
+  ID) — so the socket cookie both lanes keyed by collapsed all of
+  them into one bucket: the flow lane's isolation degraded to its
+  own measured monopoly shape (2.9:1), and the --per-socket
+  promise ("each connection its own budget") silently meant "the
+  whole socket shares one" for exactly the protocol that
+  multiplexes. The new pure core (ebpf/src/quic.rs, the
+  math.rs/ecn.rs discipline — core-only, #[path]-wired into both
+  trees) parses RFC 9000 v1/v2 long headers exactly (explicit CID
+  lengths, stateless keys) and learns the short header's
+  connection-state CID length from the handshake's own length
+  bytes into two new pinned LRU maps (quic_cid_hint_dl/ul, shared
+  across both hooks by object construction), gated by a
+  CONFIRMATION rule — the same nonzero length must survive a
+  second long-header sighting before any short header keys on it,
+  so the throwaway Initial DCID a peer replaces after its Server
+  Initial can never poison the lane alone. Every refusal (non-UDP,
+  non-QUIC, unparseable, unconfirmed, zero-length CID, IPv6
+  extension headers) rides the RAW COOKIE, the exact pre-v22
+  verdict: the feature refines attribution, never degrades it. Ten
+  rootless pins (test/ebpf/limiter/quic_tests.rs): the strict-shape
+  refusals, the hint state machine, the direction symmetry (the
+  mirrored egress/ingress views of one conversation share one hint
+  key), the IHL/IPv6 parse laws, the full handshake lifecycle with
+  three distinct CID lengths (transients never activate), and the
+  N-connections-one-cookie isolation property. PERFORMANCE.md
+  gains the QUIC-aware attribution law section (the honest
+  residues stated: the 8-byte CID prefix share, mid-flight CID
+  rotation, the server-role transient); USAGE.md documents the
+  user-facing behavior (automatic, no flag, restores CAKE
+  isolation for HTTP/3). No existing struct layout changes; the
+  bump forces pinned v21 programs to reload into the QUIC-aware
+  object — active limits are dropped once, re-apply after upgrade,
+  the same one-time contract as every bump before it.
+
 - **The ECN-first budget law section — docs/PERFORMANCE.md gains the
   law its siblings already had (NIGHT-audit-1's docs find).** The
   private-research-4 family's two other laws — the guaranteed-minimum

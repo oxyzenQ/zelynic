@@ -93,6 +93,22 @@ non-ECT packet (the RFC 3168 majority) is refused by the helper and
 drops exactly as the legacy policer dropped it — hosts without
 CONFIG_INET lose only the rescue, never the enforcement.
 
+### `bpf_skb_load_bytes(skb, offset, buf, len)` — kernel 4.1+
+
+The QUIC-aware attribution lane (NIGHT-private-research-4
+candidate, schema v22): the one header read the cookie-to-
+connection-key refinement needs — a bounded (96-byte, the worst
+header window: IPv4-with-options 60 + UDP 8 + the QUIC long-header
+prefix 28) copy of the packet's head into a stack buffer the pure
+core (ebpf/src/quic.rs) parses. aya-ebpf 0.2.1 wraps it as
+`SkBuffContext::load_bytes` (helper 26, the bpf_skb_load_bytes
+proto every skb program family has carried since v4.1 — long
+before the 5.13 verified floor). The read is data-relative
+(skb->data = the network header at both cgroup_skb hooks); a
+helper refusal (truncated head, non-linear skb) hands the packet
+back the raw socket key, exactly the pre-v22 verdict — the parse
+is self-protecting by shape, never load-bearing for enforcement.
+
 ### `BPF_MAP_TYPE_ARRAY` + `BPF_MAP_TYPE_HASH` — kernel 4.18+
 
 Standard BPF map types. Used for:
