@@ -29,9 +29,8 @@ over — the same fire-and-forget posture every other zelynic
 surface already owns (the pinned bpf_links ARE the daemon; README
 claim 1, proven live by proof-claims.sh). The QoL gap is real and
 the owner's ranking (Tier A, strong but optional) is the right
-one: this is the feature that makes zelynic "gampang dipake di
-maintenance window" — usable inside a maintenance window without a
-second mental note.
+one: this is the feature that makes zelynic trivial to drop into
+a maintenance window without a second mental note.
 
 ## 2. The grammar — three candidate shapes, one of them incoherent
 
