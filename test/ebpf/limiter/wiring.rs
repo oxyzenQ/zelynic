@@ -56,3 +56,13 @@ mod ecn_tests;
 #[cfg(test)]
 #[path = "ecn_socket_tests.rs"]
 mod ecn_socket_tests;
+
+// NIGHT-private-research-4 candidate, schema v22 (QUIC-aware
+// attribution): the pure header core compiles from ebpf/src/quic.rs
+// the same way, pinned rootlessly by quic_tests.rs — the strict
+// shape refusals, the confirmation gate, the direction symmetry,
+// the handshake lifecycle, and the N-connections-one-cookie
+// isolation property.
+#[cfg(test)]
+#[path = "quic_tests.rs"]
+mod quic_tests;
