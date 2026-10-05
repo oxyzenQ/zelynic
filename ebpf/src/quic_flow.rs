@@ -10,6 +10,23 @@
 // rootlessly by test/ebpf/limiter/quic_tests.rs); everything here
 // is what only the kernel side can touch:
 //
+// night-audit-1, THE TWO-READ SPLIT (the 5.13 floor law): the call
+// lands its packet bytes through TWO bounded bpf_skb_load_bytes
+// reads instead of one 96-byte window — the first the IP header
+// window, the second the L4 window rebased to the UDP header the
+// first read's parse located — so every byte the pure core then
+// touches sits at a compile-time-constant offset of a stack buffer
+// and the object carries ZERO variable-offset stack reads. The
+// v22 wiring's single window forced every post-IP field to a
+// runtime (IHL-dependent) offset, and the pure core's re-sliced
+// subslices turned those into exactly the access class the 5.13
+// verifier — whose range tracking predates the 5.14 precision
+// rework — refuses to bound: BPF_PROG_LOAD returned EACCES for the
+// whole object on the verified floor (supermassive runs 187+, the
+// reload/race/claims suites riding the same root). The two read
+// sizes keep the stack at the v22 budget (40 + 56 = 96 bytes per
+// call site, the same footprint the single window spent).
+//
 //   * the learned-hint maps (conversation key -> the packed hint
 //     word), one per direction, LRU 4096 so dead conversations age
 //     out — the leaf-bucket posture every internal lane in this
@@ -41,14 +58,15 @@
 //
 // Kernel requirement: bpf_skb_load_bytes (helper 26), exposed to
 // cgroup_skb programs since before the 5.13 verified floor —
-// aya-ebpf 0.2.1 wraps it as SkBuffContext::load_bytes. One fixed
-// 96-byte stack read covers the worst header window (IPv4 with
-// options 60 + UDP 8 + the long-header prefix 28); a short packet
+// aya-ebpf 0.2.1 wraps it as SkBuffContext::load_bytes. The IP
+// window is 40 bytes (the whole fixed v6 header; v4's fields all
+// live inside 20), the L4 window 56 (UDP 8 + the worst legal
+// long-header tail 47, one byte of headroom); a short packet
 // reads its own length and the pure core's bounds checks refuse
-// whatever does not fit. The read is data-relative (skb->data = the
-// network header at both cgroup_skb hooks); a kernel that ever
-// disagreed would fail the IP version check and fall back to the
-// cookie — the parse is self-protecting by shape.
+// whatever does not fit. Both reads are data-relative (skb->data
+// = the network header at both cgroup_skb hooks); a kernel that
+// ever disagreed would fail the IP version check and fall back to
+// the cookie — the parse is self-protecting by shape.
 
 use aya_ebpf::{macros::map, maps::LruHashMap, programs::SkBuffContext};
 use core::sync::atomic::{AtomicU64, Ordering};
@@ -80,11 +98,15 @@ pub(super) static quic_cid_hint_ul: LruHashMap<u64, u64> = LruHashMap::pinned(40
 /// winner's entry, never clobbers it).
 const BPF_NOEXIST: u64 = 1;
 
-/// The maximum header window one attribution read covers: IPv4
-/// with options (60) + UDP (8) + the QUIC long-header prefix
-/// (1 + 4 + 1 + 20 + 1). Shorter packets read their own length;
-/// the pure core refuses whatever does not fit.
-const PARSE_BYTES: usize = 96;
+/// The IP header window: the whole fixed IPv6 header (40 bytes —
+/// every field the conversation identity reads, v4 and v6 both,
+/// lives inside it; v4 needs only 20).
+const IP_BYTES: usize = 40;
+
+/// The L4 window: the UDP header (8) + the worst legal QUIC v1/v2
+/// long-header tail (first byte + version + two length bytes +
+/// 20-byte DCID + 20-byte SCID = 47), one byte of headroom.
+const L4_BYTES: usize = 56;
 
 /// READ_ONCE for one hint word (the math.rs access discipline,
 /// applied to a bare word: BPF has RMW atomics but no atomic
@@ -158,19 +180,39 @@ fn learn_hint(map: &LruHashMap<u64, u64>, key: &u64, len: u8) {
 /// the call can refine attribution, never degrade it.
 #[inline(always)]
 pub(super) fn quic_flow_key(ctx: &SkBuffContext, cookie: u64, is_ingress: bool) -> u64 {
-    // One bounded read of the header window. A read failure
-    // (truncated head area, a nonlinear skb the helper refuses) is
-    // the cookie — never a guess.
-    let mut buf = [0u8; PARSE_BYTES];
-    let want = core::cmp::min(PARSE_BYTES, ctx.len() as usize);
-    if want == 0 || ctx.load_bytes(0, &mut buf[..want]).is_err() {
+    // Read one: the IP header window. A read failure (truncated
+    // head area, a nonlinear skb the helper refuses) is the cookie
+    // — never a guess.
+    let mut ip = [0u8; IP_BYTES];
+    let want_ip = core::cmp::min(IP_BYTES, ctx.len() as usize);
+    if want_ip == 0 || ctx.load_bytes(0, &mut ip[..want_ip]).is_err() {
+        return cookie;
+    }
+    // The pure IP parse: where the UDP header starts, and which
+    // family's address window names the remote endpoint. None is
+    // the cookie lane.
+    let shape = match quic::parse_l4(&ip[..want_ip]) {
+        Some(s) => s,
+        None => return cookie,
+    };
+    // Read two: the L4 window, rebased to the UDP header — the
+    // rebase is the whole point (night-audit-1): every QUIC byte
+    // the pure core reads sits at a family-constant offset of
+    // this buffer, so the object's loads carry no runtime term.
+    // The offset rides as the helper's scalar argument, the one
+    // place a runtime value belongs.
+    let mut l4 = [0u8; L4_BYTES];
+    let remain = (ctx.len() as usize).saturating_sub(shape.l4_off);
+    let want_l4 = core::cmp::min(L4_BYTES, remain);
+    if want_l4 == 0 || ctx.load_bytes(shape.l4_off, &mut l4[..want_l4]).is_err() {
         return cookie;
     }
     // Step one (pure): name the conversation. None is the cookie.
-    let conv = match quic::conversation(cookie, &buf[..want], is_ingress) {
-        Some(c) => c,
-        None => return cookie,
-    };
+    let conv =
+        match quic::conversation(cookie, &ip[..want_ip], &l4[..want_l4], &shape, is_ingress) {
+            Some(c) => c,
+            None => return cookie,
+        };
     // This direction's current hint word at the conversation's key
     // (an absent entry reads 0 — the packed "no hint" verdict).
     let hint_this = this_dir_map(is_ingress)
@@ -178,7 +220,7 @@ pub(super) fn quic_flow_key(ctx: &SkBuffContext, cookie: u64, is_ingress: bool) 
         .map(|p| word_read(p))
         .unwrap_or(0);
     // Step two (pure): the QUIC decision.
-    match quic::decide(cookie, &buf[..want], &conv, hint_this) {
+    match quic::decide(cookie, &l4[..want_l4], &conv, hint_this) {
         Classify::Cookie => cookie,
         Classify::Short { key } => match key {
             Some(k) => k,

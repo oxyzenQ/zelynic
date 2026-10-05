@@ -96,18 +96,34 @@ CONFIG_INET lose only the rescue, never the enforcement.
 ### `bpf_skb_load_bytes(skb, offset, buf, len)` — kernel 4.1+
 
 The QUIC-aware attribution lane (NIGHT-private-research-4
-candidate, schema v22): the one header read the cookie-to-
-connection-key refinement needs — a bounded (96-byte, the worst
-header window: IPv4-with-options 60 + UDP 8 + the QUIC long-header
-prefix 28) copy of the packet's head into a stack buffer the pure
-core (ebpf/src/quic.rs) parses. aya-ebpf 0.2.1 wraps it as
-`SkBuffContext::load_bytes` (helper 26, the bpf_skb_load_bytes
-proto every skb program family has carried since v4.1 — long
-before the 5.13 verified floor). The read is data-relative
-(skb->data = the network header at both cgroup_skb hooks); a
-helper refusal (truncated head, non-linear skb) hands the packet
-back the raw socket key, exactly the pre-v22 verdict — the parse
-is self-protecting by shape, never load-bearing for enforcement.
+candidate, schema v22): the two header reads the cookie-to-
+connection-key refinement needs — a bounded 40-byte IP-header
+window, then a bounded 56-byte L4 window rebased to the UDP header
+the first read's parse located (night-audit-1's two-read split;
+the combined 96 bytes per call site match the v22 single window's
+stack budget, and the rebase is what makes every pure-core read a
+compile-time-constant stack offset). The pure core
+(ebpf/src/quic.rs) parses both windows. aya-ebpf 0.2.1 wraps the
+helper as `SkBuffContext::load_bytes` (helper 26, the
+bpf_skb_load_bytes proto every skb program family has carried
+since v4.1 — long before the 5.13 verified floor). Both reads are
+data-relative (skb->data = the network header at both cgroup_skb
+hooks); a helper refusal (truncated head, non-linear skb) hands
+the packet back the raw socket key, exactly the pre-v22 verdict —
+the parse is self-protecting by shape, never load-bearing for
+enforcement.
+
+THE 5.13 VERIFIER LAW this lane now documents (night-audit-1, the
+load failure the supermassive 5.13 floor caught at runs 187+): a
+variable-offset STACK read — a load whose address carries a
+runtime term, which re-sliced subslices and loop indices produce —
+is bounded by the verifier's scalar range tracking, and kernels
+before the 5.14 precision rework lose the range through spills
+and compound offsets, refusing the whole program with EACCES. The
+two-read split plus the unrolled byte collectors keep the object
+at ZERO variable-offset stack reads, so the oldest verifier in
+the matrix proves every load on sight — the property the
+supermassive 5.13 micro-VM keeps pinned on every push.
 
 ### `BPF_MAP_TYPE_ARRAY` + `BPF_MAP_TYPE_HASH` — kernel 4.18+
 
