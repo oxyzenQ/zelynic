@@ -59,12 +59,23 @@
 // by the generation-prefixed BUDGET key — the pool's root for the
 // DRR lane, the group id for the strict-multi lane (the repair-6
 // discipline: a fresh budget never inherits the predecessor's debt,
-// stale entries age out through the LRU). The per-socket lane is
-// deliberately NOT ECN-marked (the documented-scope discipline the
-// strict-multi lane itself carries): its budget law is per
-// CONNECTION, and a server's N connections each halving their
-// windows on per-connection marks is an aggregate-collapse shape
-// that needs its own convergence analysis before it ships.
+// stale entries age out through the LRU). The per-socket lane
+// carries the same law with its own shape (schema v21, the
+// convergence closure): the debt word lives INSIDE the socket's
+// bucket — per-connection state in the per-connection bucket,
+// belt-zeroed by the generation stamp a policy mutation bumps —
+// because the u64 cookie the lane keys by cannot carry the
+// generation prefix the map family's keying rides. The scope note
+// that once deferred this lane ("a server's N connections each
+// halving their windows on per-connection marks is an
+// aggregate-collapse shape that needs its own convergence analysis
+// before it ships") is closed by the rootless fleet sims in
+// test/ebpf/limiter/ecn_tests.rs: per-connection budgets are
+// independent, so each connection converges on its own stream and
+// the aggregate rides N x per-connection — no collapse term exists,
+// the marking fleet beats the drop fleet, and a CE-ignoring hammer
+// stays bounded by its own budget law while its neighbors converge
+// untouched.
 //
 // This module must stay `core`-only: no std, no alloc, no aya — any
 // dependency added here reaches both trees at once (the math.rs

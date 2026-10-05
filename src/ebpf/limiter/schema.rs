@@ -304,7 +304,41 @@
 ///     bump forces pinned v19 programs to reload into the
 ///     flow-isolated object — the same one-time re-apply contract
 ///     as ever.
-pub const SCHEMA_VERSION_EXPECTED: u32 = 20;
+/// v21 (the per-socket convergence closure): the v19 ECN scope
+///     note's deferred question — "a server's N connections each
+///     halving their windows on per-connection marks is an
+///     aggregate-collapse shape that needs its own convergence
+///     analysis before it ships" — is answered, and the answer
+///     ships the marking: the per-socket lane joins the ECN-first
+///     family, mark before drop, per connection. The rootless
+///     fleet sims (test/ebpf/limiter/ecn_tests.rs) are the
+///     analysis: N independent per-connection budgets converge on
+///     their own streams (the aggregate rides N x per-connection,
+///     no collapse term — the feared synchronized halving costs
+///     each connection its own sawtooth, never the fleet its
+///     total), the marking fleet beats the same fleet under
+///     per-socket drops (the lane's shipped shape), and a
+///     CE-ignoring hammer on one connection stays inside its own
+///     budget law while its neighbors converge untouched (the
+///     per-connection budget IS the isolation). The debt word
+///     lives inside SocketBucket — now 40 bytes: core, gen_stamp,
+///     ecn_debt — instead of the budget-keyed debt map the cgroup
+///     lanes ride: per-connection state in the per-connection
+///     bucket, belt-zeroed on the generation a policy mutation
+///     bumps (the repair-6 discipline, structural), aged out with
+///     the bucket by the LRU the lane already trusts. The
+///     per-connection budget law is the ecn.rs closed form
+///     unchanged: delivered_i <= rate*t + burst + one 64 KiB
+///     super-packet, so the aggregate honest bound is N x that
+///     (the lane's documented "rate x concurrent sockets" shape
+///     plus the one-time per-connection ECN slack). Non-ECT traffic
+///     refuses the helper and drops exactly as before — the legacy
+///     verdict, untouched. Map-VALUE layout change (the socket
+///     bucket maps); the bump forces pinned v20 programs to reload
+///     into the per-socket-ECN object — active limits are dropped
+///     once, re-apply after upgrade, the same one-time re-apply
+///     contract as ever.
+pub const SCHEMA_VERSION_EXPECTED: u32 = 21;
 
 #[cfg(test)]
 mod sync_pin {

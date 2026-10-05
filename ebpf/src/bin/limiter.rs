@@ -345,8 +345,28 @@ use socket_flow::socket_flow;
 /// lanes; the bump forces pinned v18 programs to reload into the
 /// ECN-first object — active limits are dropped once, re-apply
 /// after upgrade, the same one-time contract as v4..v18.
+/// v21 (the per-socket convergence closure): the v19 scope note's
+/// deferred question is answered and the per-socket lane joins the
+/// ECN-first family — mark before drop, per connection. The debt
+/// word lives INSIDE SocketBucket (40 bytes now: core, gen_stamp,
+/// ecn_debt) instead of the budget-keyed debt map: a per-connection
+/// budget's debt is per-connection state, the generation belt zeroes
+/// it with the tokens on a mutation (the repair-6 discipline,
+/// structural), and the LRU ages the whole bucket out together. The
+/// deferred "aggregate-collapse" question is closed by the rootless
+/// fleet sims (test/ebpf/limiter/ecn_tests.rs, the per-socket
+/// convergence analysis): per-connection budgets are independent,
+/// so N marked connections converge on their own streams and the
+/// aggregate rides N x per-connection — no collapse term, the
+/// fleet beats the drop fleet, a CE-ignoring hammer stays bounded
+/// by its own budget law and its neighbors' convergence is
+/// untouched. Non-ECT traffic still refuses the helper and drops
+/// exactly as before. Map-value layout change (the socket bucket
+/// maps); the bump forces pinned v20 programs to reload into the
+/// per-socket-ECN object — active limits are dropped once, re-apply
+/// after upgrade, the same one-time contract as every bump before.
 #[allow(dead_code)]
-const SCHEMA_VERSION: u32 = 20;
+const SCHEMA_VERSION: u32 = 21;
 
 // ---------------------------------------------------------------------------
 // Maps. The static names ARE the userspace contract (limiter/mod.rs
@@ -855,7 +875,24 @@ fn try_enforce(
     if pol_sane.flags & POLICY_FLAG_PER_SOCKET != 0 {
         let cookie = unsafe { bpf_get_socket_cookie(ctx.skb.skb.cast()) };
         if cookie != 0 {
-            let verdict = socket_flow(&pol_sane, cookie, socket_bucket_map, now, pkt_len, stats);
+            // The skb pointer rides in for the lane's own ECN-first
+            // rescue (schema v21, the per-socket convergence closure):
+            // the debt lives inside the socket's bucket — the lane
+            // charges it where the belt already owns it, so the rescue
+            // runs inside socket_flow, one map lookup, no debt-map
+            // keying the u64 cookie could not carry (the group/DRR
+            // lanes' map shape stays theirs). Non-ECT traffic refuses
+            // the helper and drops exactly as before — the legacy
+            // verdict, untouched.
+            let verdict = socket_flow(
+                &pol_sane,
+                cookie,
+                socket_bucket_map,
+                now,
+                pkt_len,
+                stats,
+                ctx.skb.skb.cast(),
+            );
             return ring_verdict(verdict, rate_ring_map, &cgroup_id, now, pkt_len);
         }
     }

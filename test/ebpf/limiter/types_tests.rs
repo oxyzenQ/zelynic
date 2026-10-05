@@ -199,9 +199,16 @@ fn test_schema_version_constant() {
     // (flow_share_dl/ul + flow_ledger_dl/ul + flow_bucket_dl/ul),
     // the sparse/dense take law riding the flow bucket's draw-stamp
     // epoch. cookie == 0 rides the leaf lane verbatim.
+    // v21 (the per-socket convergence closure): the per-socket lane
+    // joins the ECN-first family, mark before drop per connection —
+    // the debt word inside SocketBucket (now 40 bytes: core,
+    // gen_stamp, ecn_debt), belt-zeroed by the generation stamp,
+    // the deferred aggregate-collapse question closed by the
+    // rootless fleet sims (ecn_tests.rs, the per-socket
+    // convergence analysis).
     // The full sync contract (this constant vs the BPF-side
     // anchor) lives in schema.rs's sync_pin — the v13 lesson.
-    assert_eq!(SCHEMA_VERSION_EXPECTED, 20);
+    assert_eq!(SCHEMA_VERSION_EXPECTED, 21);
 }
 
 // ── NIGHT-improve-10 / security-3: overflow-bound pins ──────────
