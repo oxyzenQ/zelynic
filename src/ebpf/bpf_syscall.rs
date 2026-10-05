@@ -191,15 +191,22 @@ pub fn load_with_verifier_verdict(prog: &mut CgroupSkb, name: &str) -> Result<()
             _ => String::new(),
         };
         // The kernel's failure tail is [.., the failing instruction,
-        // THE VERDICT, the "processed N insns" stats line] — the
-        // verdict is the last line that is not the stats summary
-        // (the first cut at this picked the stats line itself and
-        // named nothing but healthy numbers one more floor round).
+        // THE VERDICT, then a stats family: "processed N insns",
+        // "subprog N (name) static insns_self ..." — one line per
+        // subprogram]. The verdict is the last line that is none of
+        // those (the first cut picked the stats line itself; the
+        // second picked the subprog accounting — the rejection rode
+        // two floor rounds unseen. Third cut: skip every stats
+        // prefix the kernel emits after its verdict).
+        let is_stats = |l: &str| {
+            let t = l.trim_start();
+            t.starts_with("processed") || t.starts_with("subprog")
+        };
         let verdict = log
             .lines()
             .filter(|l| !l.trim().is_empty())
             .rev()
-            .find(|l| !l.trim_start().starts_with("processed"))
+            .find(|l| !is_stats(l))
             .unwrap_or("<the verifier wrote no log>");
         bail!(
             "{name}: the kernel verifier refused the program — verdict: {verdict} | full error: {e}"
