@@ -69,7 +69,7 @@ pub use crate::ebpf::pin::{
 use anyhow::{anyhow, bail, Context, Result};
 use aya::{
     maps::Array as BpfArray,
-    programs::{CgroupAttachMode, CgroupSkb, CgroupSkbAttachType},
+    programs::{CgroupAttachMode, CgroupSkb, CgroupSkbAttachType, ProgramError},
     Ebpf, EbpfLoader,
 };
 use std::fs::File;
@@ -83,6 +83,38 @@ use crate::ebpf::bpf_syscall::{
 use crate::ebpf::identity::IdentityMap;
 use crate::ebpf::trace;
 use types::SCHEMA_VERSION_EXPECTED;
+
+/// Load one cgroup_skb program, surfacing the kernel verifier's
+/// VERDICT LINE first on refusal (night-audit-1, the 5.13 floor
+/// diagnosis lane): aya's SyscallError message leads with the io
+/// error and the walk's HEAD — the same first instructions on every
+/// program — while the rejection line ("invalid ...", "R1 ...",
+/// "processed N insns") rides the END of the 10 KB walk aya's retry
+/// lane already captured. Every CI harness prints only the first
+/// ~200 characters of a failure line, so the head-first shape
+/// showed nothing, floor after floor (the 5.13 EACCES read its
+/// verdict six hundred lines in, unseen six times in a row); the
+/// verdict-first context turns a floor rejection into a one-line
+/// diagnosis wherever it lands — the trace::kernel_line law: a
+/// report that opens with the answer needs no follow-up.
+fn load_with_verifier_verdict(prog: &mut CgroupSkb, name: &str) -> Result<()> {
+    if let Err(e) = prog.load() {
+        let verdict: String = match &e {
+            ProgramError::LoadError { verifier_log, .. } => verifier_log
+                .to_string()
+                .lines()
+                .rev()
+                .find(|l| !l.trim().is_empty())
+                .unwrap_or("<the verifier wrote no log>")
+                .to_string(),
+            _ => "<no verifier log on this error>".to_string(),
+        };
+        bail!(
+            "{name}: the kernel verifier refused the program — verdict: {verdict} | full error: {e}"
+        );
+    }
+    Ok(())
+}
 
 /// NIGHT-hunt-19 (error-path audit): the operational-pin predicate,
 /// pure so the partial-failure regression is unit-pinned.
@@ -309,7 +341,7 @@ impl Limiter {
             .program_mut("enforce_dl")
             .context("BPF program 'enforce_dl' not found")?
             .try_into()?;
-        dl_prog.load()?;
+        load_with_verifier_verdict(dl_prog, "enforce_dl")?;
         dl_prog
             .pin(PIN_PROG_DL)
             .context("Failed to pin enforce_dl")?;
@@ -333,7 +365,7 @@ impl Limiter {
                 .program_mut("enforce_ul")
                 .context("BPF program 'enforce_ul' not found")?
                 .try_into()?;
-            ul_prog.load()?;
+            load_with_verifier_verdict(ul_prog, "enforce_ul")?;
             ul_prog
                 .pin(PIN_PROG_UL)
                 .context("Failed to pin enforce_ul")?;
@@ -377,7 +409,7 @@ impl Limiter {
                 .program_mut("enforce_ul")
                 .context("BPF program 'enforce_ul' not found")?
                 .try_into()?;
-            ul_prog.load()?;
+            load_with_verifier_verdict(ul_prog, "enforce_ul")?;
             ul_prog
                 .pin(PIN_PROG_UL)
                 .context("Failed to pin enforce_ul")?;
