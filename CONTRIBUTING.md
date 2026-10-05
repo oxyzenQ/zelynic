@@ -383,14 +383,18 @@ committed without its refreshed lane even when the wholesale gates
 are forgotten) and the advisory CI actions-pin health arm
 (NIGHT-improve-40: check-actions-pins.sh reads every `uses:` pin's
 freshness against upstream at commit time, classifies what it finds
-MAJOR/MINOR/PATCH, and prints the verdict — current costs one line,
-behind prints the table with its heal commands; the verdict is
+MAJOR/MINOR/PATCH, and prints the verdict — current costs one line
+(zero in auto mode), behind prints the table with its heal
+commands; the verdict is
 cached in .git/zelynic/ keyed on the workflows' content, so a
 fresh commit costs nothing. Advisory by default because pin
 freshness is a remote fact — a laptop without network, quota, or
 the tools skips with a note instead of pretending; strict is an
 opt-in: git config zelynic.actionsHealthCheck strict blocks on a
-known-stale verdict, ZELYNIC_ACTIONS_HEALTH=off silences it, and
+known-stale verdict; auto re-verifies cold, heals via the sweep's
+--apply, stages the healed pins, and asks for exactly one
+re-commit (the re-commit reads current and is silent);
+ZELYNIC_ACTIONS_HEALTH=off silences it, and
 --no-verify skips every hook as git itself promises). Missing tools
 are skipped with a warning locally; the
 Gate-keepers workflow (.github/workflows/gate-keepers.yml, unfiltered —

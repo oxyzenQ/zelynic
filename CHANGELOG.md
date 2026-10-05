@@ -19,6 +19,39 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Added
 
+- **Actions-pin health `auto` mode — skip-if-latest silence plus a
+  contributor-carried auto-heal (NIGHT-improve-40 fixup 1, the
+  write seat of the actions-pin health contract).**
+  `git config zelynic.actionsHealthCheck auto` (or the
+  `ZELYNIC_ACTIONS_HEALTH=auto` one-shot) buys two behaviors on the
+  commit-time pin check: a current verdict exits 0 with zero output
+  (warn/strict keep their one-line report), and a clean-behind
+  verdict (fully parsed; the rc=2 indeterminate class never heals)
+  re-verifies cold — a 6h-old cached behind is not a write mandate
+  — then runs `actions-version-sweep.sh --apply` under its own
+  budget (`ZELYNIC_ACTIONS_HEAL_TIMEOUT`, default 60s), stages
+  `.github/workflows/` into the index, and fails the commit ONCE:
+  review `git diff --cached`, re-commit, and the re-commit reads
+  the healed pins as current and stays silent. No auto-amend, no
+  push, no standing credential — the manual flow's
+  maintainer-review discipline is kept whole, only its typing is
+  removed. The safety proof is delta-shaped: the sweep's own
+  guard_diff compares the whole tree against HEAD and would flag
+  the contributor's staged work at pre-commit time by design (its
+  contract is the manual heal on a clean tree), so the auto path
+  snapshots the changed-file set and the non-workflow patch hash
+  around the apply, accepts the heal only when the sweep provably
+  reached its write stage (the verdict line or guard_diff's own
+  FAIL marker — both print only after apply_edits ran), and
+  restores the workflow files from a pre-apply backup on every
+  failure shape — API drop mid-apply, overrun, out-of-bounds
+  write, unparseable result — before falling back to the warn
+  table. Honest trades: one re-commit per heal event (the price of
+  review discipline), and a 6h cache window that can delay a heal
+  by at most 6h (the same slack the read side always carried).
+  check-commit-gate.sh's FAIL wording, CONTRIBUTING.md, and
+  docs/MAINTENANCE.md section 5 carry the contract.
+
 - **Schema v20, CAKE-shaped flow isolation — the DRR lane's leaf
   stops being one shared bucket for every socket the cgroup
   holds.** The pool arc made the LEAF fair (charger-core-1c /
