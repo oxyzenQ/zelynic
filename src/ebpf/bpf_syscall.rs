@@ -191,23 +191,35 @@ pub fn load_with_verifier_verdict(prog: &mut CgroupSkb, name: &str) -> Result<()
             _ => String::new(),
         };
         // The kernel's failure tail is [.., the failing instruction,
-        // THE VERDICT, then a stats family: "processed N insns",
-        // "subprog N (name) static insns_self ..." — one line per
-        // subprogram]. The verdict is the last line that is none of
-        // those (the first cut picked the stats line itself; the
-        // second picked the subprog accounting — the rejection rode
-        // two floor rounds unseen. Third cut: skip every stats
-        // prefix the kernel emits after its verdict).
-        let is_stats = |l: &str| {
-            let t = l.trim_start();
-            t.starts_with("processed") || t.starts_with("subprog")
-        };
-        let verdict = log
+        // THE VERDICT, then the stats family the stats log level
+        // appends: "verification time N usec", "stack depth D+D",
+        // "processed N insns ...", and one "subprog N (...) static
+        // ..." line per subprogram] — three cuts at this picker
+        // landed on a different stats line each floor round (the
+        // stats, the subprog accounting, the stack-depth join). The
+        // fourth cut enumerates the whole family and takes the last
+        // three NON-STATS lines, verdict-first ordering, so the
+        // 200-character harness cut still carries the answer plus
+        // the failing instruction below it.
+        let stats_prefixes = ["verification time", "stack depth", "processed", "subprog"];
+        let interesting: Vec<&str> = log
             .lines()
             .filter(|l| !l.trim().is_empty())
-            .rev()
-            .find(|l| !is_stats(l))
-            .unwrap_or("<the verifier wrote no log>");
+            .filter(|l| {
+                let t = l.trim_start();
+                !stats_prefixes.iter().any(|p| t.starts_with(p))
+            })
+            .collect();
+        // verdict-first ordering: [the verdict, the failing
+        // instruction, its context] — the answer leads, the harness's
+        // 200-character cut takes the rest.
+        let picked: Vec<&str> = interesting.iter().rev().take(3).copied().collect();
+        let verdict = picked.join(" || ");
+        let verdict = if verdict.is_empty() {
+            "<the verifier wrote no log>"
+        } else {
+            verdict.as_str()
+        };
         bail!(
             "{name}: the kernel verifier refused the program — verdict: {verdict} | full error: {e}"
         );
