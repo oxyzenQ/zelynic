@@ -625,6 +625,56 @@ supermassive battery, and the claim this section owns is the pinned
 one — attribution granularity, proved rootlessly, with every
 degradation path falling toward the cookie, never past it.
 
+### The time-window law (the unified --during, schema v23, 2026-10-06)
+
+A limit today is forever until somebody remembers to lift it. The
+night-during law gives a policy row its own lifetime with no
+daemon anywhere: the KERNEL decides when the window is over, the
+pinned bpf_links stay the only resident state, and the CLI visit
+is the clock's refresh channel. The law this section pins has
+three clauses, each rootless-pinned (test/ebpf/limiter/
+during_tests.rs, during_user_tests.rs):
+
+1. THE FAST-PATH CLAUSE (the NIGHT-lts-2 law, verbatim): the
+   window gate is ONE side-map read on the POLICED path only,
+   after the policy hit — the unlimited majority of packets (both
+   hooks sit at the cgroup root and see every packet the machine
+   moves) pays nothing. An absent window entry is today's behavior
+   exactly; an INACTIVE window answers ALLOW — the miss shape: no
+   stats booking, no ring booking, no AMMSP belt.
+2. THE DRIFT CLAUSE: SPAN rows (the duration and date grammar)
+   store wall instants PRE-TRANSLATED into the monotonic clock at
+   apply time — `bpf_ktime_get_ns` and the userspace
+   CLOCK_MONOTONIC read are the same clock domain, so NTP slew
+   and a manual `date -s` cannot move a span by a single
+   nanosecond (the pinned residue: suspend, which monotonic does
+   not count — a sleeping host's `--during 20d` outlives its
+   wall-calendar promise by exactly the slept time). DAILY rows
+   read the wall through the offset bridge (the one-entry pinned
+   Array every attach-reuse and every apply re-stamps) under the
+   MARGIN LAW: FIRE_EARLY = 2s erodes BOTH window edges toward
+   LESS enforcement — the grid pin proves the userspace twin
+   answers exactly what the kernel would with a freshly stamped
+   bridge, saturation domain included, and the monotone-erosion
+   pin proves a margin can only REMOVE active time, never add it.
+3. THE SWEEP CLAUSE: an ended span's row answers ALLOW per packet
+   from its expiry instant (the safety inverse of today's
+   "applied and forgotten" — strictly safer), and every later
+   apply-family invocation drives it through the unstrict/reclaim
+   machinery (span_ended is the only removal predicate: a dormant
+   future-date row and a recurring daily window are never swept).
+   The probe stands down on a dormant window instead of measuring
+   an unlimited path and failing the apply dishonestly.
+
+No throughput number is claimed for this feature — it ADDS one
+HashMap lookup to the policed path (the policy census bounds
+occupancy at 1024 rows, the stats map's own posture) and zero to
+the unlimited path; the cost is the map read, and the benefit is
+the QoL the whole surface exists for. The wall-form persistence
+(WindowPersist, the snapshot/restore pair) keeps auto-expire a
+cross-reboot promise instead of silently converting it into
+forever — the safety direction the design brief pinned.
+
 ### NIGHT-upgrade-charger-core-1-b A/B (the self-proving enforcement, 2026-09-30)
 
 The charger-core-1-b pass is command-path work: the enforcement

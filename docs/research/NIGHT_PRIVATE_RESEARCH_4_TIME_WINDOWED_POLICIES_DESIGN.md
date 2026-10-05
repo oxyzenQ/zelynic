@@ -231,6 +231,12 @@ types, as flags, the way `--per-socket` did.
 
 ## 8. The owner's decision (2026-10-06): one flag, three shapes
 
+> Status: SHIPPED as schema v23 (the night-during series, this
+> repo's own commits) — the grammar, the side map, the bridge, the
+> margin, the sweep, the status surfaces, and the wall-form
+> persistence all landed; this section stands as the decision
+> record they were built from.
+
 The grammar question sections 2 and 6 asked is now answered by
 the owner, and the answer OVERRIDES the sequencing
 recommendation of section 6: not `--until` as v23 and `--during`
