@@ -1846,7 +1846,6 @@ slots, so the SHAPE of the last eight seconds survives between
 polls (a monitor sampling at `--interval 30s` reads the true peak
 and cadence, not a 30s mean):
 
-
 ```json
 "rate_ring":{"window_secs":1,"download":{"bytes":[0,0,0,1048576,1048576,524288,1048576,655360],"live":5,"peak_bytes":1048576},"upload":null}
 ```
