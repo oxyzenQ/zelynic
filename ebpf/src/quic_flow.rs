@@ -67,6 +67,21 @@
 // = the network header at both cgroup_skb hooks); a kernel that
 // ever disagreed would fail the IP version check and fall back to
 // the cookie — the parse is self-protecting by shape.
+//
+// THE +1 LENGTH SHAPE (night-audit-1, the 5.13 verdict line "R4
+// invalid zero-sized read: u64=[0,55]"): the pre-relaxation
+// ARG_CONST_SIZE check on the 5.13 floor refuses a size whose
+// derived MINIMUM can be zero, and the branch refinement that
+// proves a min()ed length is at least one does not survive the
+// old verifier's imprecise tnum through the spills the slice
+// construction rides — but PLAIN ADDITION propagates a register's
+// umin exactly, on every kernel in the matrix, no precision
+// tracking needed. 1 + min(N-1, len-1) is min(N, len) for every
+// len >= 1 (identical reads), and the len == 0 shape hands the
+// helper a one-byte read it must refuse (EFAULT on an empty tail)
+// — the cookie verdict the old zero-check branch produced, one
+// syscall later. Newer kernels (the 6.8 container lane) accept a
+// zero-capable size outright; the +1 shape is a no-op there.
 
 use aya_ebpf::{macros::map, maps::LruHashMap, programs::SkBuffContext};
 use core::sync::atomic::{AtomicU64, Ordering};
@@ -182,10 +197,12 @@ fn learn_hint(map: &LruHashMap<u64, u64>, key: &u64, len: u8) {
 pub(super) fn quic_flow_key(ctx: &SkBuffContext, cookie: u64, is_ingress: bool) -> u64 {
     // Read one: the IP header window. A read failure (truncated
     // head area, a nonlinear skb the helper refuses) is the cookie
-    // — never a guess.
+    // — never a guess. The length rides the +1 shape (the doc
+    // above): min(40, len) re-expressed so the derived minimum is
+    // one, not zero.
     let mut ip = [0u8; IP_BYTES];
-    let want_ip = core::cmp::min(IP_BYTES, ctx.len() as usize);
-    if want_ip == 0 || ctx.load_bytes(0, &mut ip[..want_ip]).is_err() {
+    let want_ip = 1 + core::cmp::min(IP_BYTES - 1, (ctx.len() as usize).saturating_sub(1));
+    if ctx.load_bytes(0, &mut ip[..want_ip]).is_err() {
         return cookie;
     }
     // The pure IP parse: where the UDP header starts, and which
@@ -203,8 +220,8 @@ pub(super) fn quic_flow_key(ctx: &SkBuffContext, cookie: u64, is_ingress: bool) 
     // place a runtime value belongs.
     let mut l4 = [0u8; L4_BYTES];
     let remain = (ctx.len() as usize).saturating_sub(shape.l4_off);
-    let want_l4 = core::cmp::min(L4_BYTES, remain);
-    if want_l4 == 0 || ctx.load_bytes(shape.l4_off, &mut l4[..want_l4]).is_err() {
+    let want_l4 = 1 + core::cmp::min(L4_BYTES - 1, remain.saturating_sub(1));
+    if ctx.load_bytes(shape.l4_off, &mut l4[..want_l4]).is_err() {
         return cookie;
     }
     // Step one (pure): name the conversation. None is the cookie.
