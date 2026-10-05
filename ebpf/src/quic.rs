@@ -54,8 +54,9 @@
 // never wrong — so the feature strictly REFINES attribution and
 // never invents it:
 //
-//   * non-UDP, non-IP, IPv6 with extension headers, IP options
-//     beyond the 96-byte parse window, malformed headers: cookie.
+//   * non-UDP, non-IP, IPv6 with extension headers, QUIC headers
+//     past the 56-byte L4 window (impossible for legal v1/v2
+//     headers, whose worst case is 55), malformed headers: cookie.
 //   * QUIC version other than v1 (1) and v2 (0x6b3343cf), version
 //     negotiation (version 0), DCID/SCID lengths above the RFC 9000
 //     v1 bound of 20: cookie — the strict-shape check, not a guess.
@@ -195,21 +196,43 @@ fn mix64(mut x: u64) -> u64 {
     x ^ (x >> 31)
 }
 
-/// Pack the first 8 bytes of a slice into a u64, little-endian,
-/// zero-padded — the CID prefix and the remote-identity seed both
-/// use this fixed shape (a CID longer than 8 bytes keys by its
-/// first 8: two connections of one socket differing only past byte
-/// 8 then share a bucket, the documented coarser-safe residue).
+/// Pack the first 8 bytes of the window `buf[off..off + len]` into
+/// a u64, little-endian, zero-padded past `len` — the CID prefix
+/// and the remote-identity seed both use this fixed shape (a CID
+/// longer than 8 bytes keys by its first 8: two connections of one
+/// socket differing only past byte 8 then share a bucket, the
+/// documented coarser-safe residue).
+///
+/// THE eBPF-SAFE BYTE COLLECTOR (night-audit-1, the 5.13 floor
+/// law): every read rides the buffer's OWN base pointer at a
+/// compile-time-constant `off + k` index gated by the scalar `k <
+/// len` — no subslice is ever formed and no loop index is ever
+/// loaded through. The v22 core's original loop-shaped collector
+/// lowered to stack reads at pointer bases a re-slice had already
+/// made variable, and the 5.13 verifier — whose imprecise range
+/// tracking predates the 5.14 precision rework — could not bound
+/// the combined offset, so BPF_PROG_LOAD refused the whole object
+/// on the verified floor (supermassive runs 187+). The unrolled
+/// form makes the safety structural instead of optimization-
+/// dependent: `off` is a literal at every call site, so each load's
+/// address is a frame constant the oldest verifier in the matrix
+/// proves on sight.
 #[inline(always)]
-fn pack8(bytes: &[u8]) -> u64 {
-    let mut v: u64 = 0;
-    let n = core::cmp::min(8, bytes.len());
-    let mut i = 0;
-    while i < n {
-        v |= u64::from(bytes[i]) << (8 * i);
-        i += 1;
-    }
-    v
+fn pack8_bounded(buf: &[u8], off: usize, len: usize) -> u64 {
+    let b = |k: usize| -> u64 {
+        if k < len {
+            u64::from(buf.get(off + k).copied().unwrap_or(0))
+        } else {
+            0
+        }
+    };
+    b(0) | (b(1) << 8)
+        | (b(2) << 16)
+        | (b(3) << 24)
+        | (b(4) << 32)
+        | (b(5) << 40)
+        | (b(6) << 48)
+        | (b(7) << 56)
 }
 
 /// The per-CONNECTION flow key: the socket cookie XOR the mixed CID
@@ -221,7 +244,20 @@ fn pack8(bytes: &[u8]) -> u64 {
 /// the collision shares a bucket, the safe direction).
 #[inline(always)]
 pub fn flow_key(cookie: u64, cid: &[u8]) -> u64 {
-    cookie ^ mix64(pack8(cid))
+    flow_key_bounded(cookie, cid, 0, cid.len())
+}
+
+/// The per-CONNECTION flow key over a CID window INSIDE a buffer:
+/// the first `len` bytes at `buf[off..]`, zero-padded past `len`,
+/// mixed with the cookie. This is the form the datapath and the
+/// parse core call — the CID window is named by (offset, length)
+/// instead of a re-sliced pointer, the 5.13 floor law the pack8_bounded
+/// doc above carries (a subslice pointer would drag the window's
+/// runtime origin into every load's address and hand the old
+/// verifier an offset it cannot bound).
+#[inline(always)]
+pub fn flow_key_bounded(cookie: u64, buf: &[u8], off: usize, len: usize) -> u64 {
+    cookie ^ mix64(pack8_bounded(buf, off, len))
 }
 
 /// The conversation key for the hint maps: the socket cookie XOR the
@@ -237,65 +273,64 @@ pub fn hint_key(cookie: u64, remote_seed: u64) -> u64 {
     cookie ^ mix64(remote_seed)
 }
 
-// ─ The L3/L4 span ─
+// ─ The L3/L4 shape ─
 
-/// Where the UDP header starts and where the remote endpoint's
-/// identity sits in the parse buffer — the two facts every QUIC
-/// decision needs from the packet's outer headers.
+/// What the packet's outer headers told the parse: where the UDP
+/// header starts, and which address family the remote-identity
+/// window reads. THE TWO-READ SPLIT (night-audit-1, the 5.13 floor
+/// law): `l4_off` is a SCALAR the wiring hands bpf_skb_load_bytes
+/// for the second bounded read — never a memory offset inside the
+/// pure core — because the second read rebases the L4 window so
+/// every QUIC byte the core touches sits at a family-constant
+/// offset of a fresh stack buffer. The v22 core parsed one
+/// 96-byte window, so every field past the IP header lived at a
+/// runtime offset (IHL-dependent) and the loads behind re-sliced
+/// pointers were exactly what the 5.13 verifier refused to bound.
 #[derive(Clone, Copy)]
-pub struct L4Span {
-    /// Offset of the UDP header (IHL*4 for IPv4, 40 for IPv6).
+pub struct L4Shape {
+    /// Offset of the UDP header inside the PACKET (IHL*4 for IPv4,
+    /// 40 for IPv6) — consumed by the wiring's second load_bytes
+    /// call only; the pure core never reads through it.
     pub l4_off: usize,
-    /// The remote endpoint's IP address span (ingress: source;
-    /// egress: destination — the same host both directions).
-    pub remote: (usize, usize),
-    /// The remote endpoint's port span inside the UDP header
-    /// (ingress: source port; egress: destination port).
-    pub port: (usize, usize),
+    /// true = IPv4 (the remote address is the 12..16 or 16..20
+    /// window); false = IPv6 (the /48 prefix is the 8..14 or
+    /// 24..30 window).
+    pub v4: bool,
 }
 
-/// Parse the L3/L4 outer headers far enough to attribute a UDP
+/// Parse the packet's IP header far enough to attribute a UDP
 /// conversation: IPv4 (any IHL, protocol 17) or IPv6 (next header
 /// 17 — extension headers honestly refuse, the residue the docs
 /// carry), UDP implied by the protocol check. Every bounds or
 /// shape failure returns None and the caller rides the cookie lane
-/// unchanged.
+/// unchanged. `ip` is the packet's FIRST bytes (the IP header
+/// window — the fields this reads all live at constant offsets in
+/// it), so the same function serves the wiring's bounded read and
+/// the test tree's whole-packet view.
 #[inline(always)]
-pub fn parse_l4(buf: &[u8], is_ingress: bool) -> Option<L4Span> {
-    let b0 = *buf.first()?;
+pub fn parse_l4(ip: &[u8]) -> Option<L4Shape> {
+    let b0 = *ip.first()?;
     match b0 >> 4 {
         4 => {
             let ihl = usize::from(b0 & 0x0f);
             if ihl < 5 {
                 return None;
             }
-            let l4_off = ihl * 4;
-            if *buf.get(9)? != 17 || buf.len() < l4_off + 8 {
+            if *ip.get(9)? != 17 {
                 return None;
             }
-            Some(L4Span {
-                l4_off,
-                remote: if is_ingress { (12, 16) } else { (16, 20) },
-                port: if is_ingress {
-                    (l4_off, l4_off + 2)
-                } else {
-                    (l4_off + 2, l4_off + 4)
-                },
+            Some(L4Shape {
+                l4_off: ihl * 4,
+                v4: true,
             })
         }
         6 => {
-            let l4_off = 40;
-            if *buf.get(6)? != 17 || buf.len() < l4_off + 8 {
+            if *ip.get(6)? != 17 {
                 return None;
             }
-            Some(L4Span {
-                l4_off,
-                remote: if is_ingress { (8, 24) } else { (24, 40) },
-                port: if is_ingress {
-                    (l4_off, l4_off + 2)
-                } else {
-                    (l4_off + 2, l4_off + 4)
-                },
+            Some(L4Shape {
+                l4_off: 40,
+                v4: false,
             })
         }
         _ => None,
@@ -305,35 +340,83 @@ pub fn parse_l4(buf: &[u8], is_ingress: bool) -> Option<L4Span> {
 /// Build the remote-identity seed: the remote address's first bytes
 /// (4 for IPv4, 6 for IPv6 — the /48 prefix) followed by the remote
 /// port, zero-padded to a fixed 8-byte shape.
+///
+/// THE eBPF-SAFE FORM (night-audit-1): every byte is read at a
+/// LITERAL offset of its own buffer — the address windows are
+/// IP-header constants and the port windows UDP-header constants
+/// (the wiring's second read rebases the L4 window so `l4[0]` IS
+/// the UDP source port) — so no load's address ever carries a
+/// runtime term. The v22 shape re-sliced `ip` and `port` out of one
+/// buffer and copied them through an index loop; both moves are the
+/// variable-offset stack access class the 5.13 verifier refuses.
+/// A missing byte (truncated head area) refuses the whole seed —
+/// the caller rides the cookie, never a guess.
 #[inline(always)]
-fn remote_seed(buf: &[u8], span: &L4Span) -> Option<u64> {
-    let ip = buf.get(span.remote.0..span.remote.1)?;
-    let port = buf.get(span.port.0..span.port.1)?;
-    let mut seed = [0u8; 8];
-    let ip_n = core::cmp::min(6, ip.len());
-    let mut i = 0;
-    while i < ip_n {
-        seed[i] = ip[i];
-        i += 1;
+fn remote_seed(ip: &[u8], l4: &[u8], v4: bool, is_ingress: bool) -> Option<u64> {
+    if v4 {
+        // IPv4: the 4-byte address window then the 2-byte port.
+        if is_ingress {
+            Some(
+                u64::from(*ip.get(12)?)
+                    | (u64::from(*ip.get(13)?) << 8)
+                    | (u64::from(*ip.get(14)?) << 16)
+                    | (u64::from(*ip.get(15)?) << 24)
+                    | (u64::from(*l4.first()?) << 32)
+                    | (u64::from(*l4.get(1)?) << 40),
+            )
+        } else {
+            Some(
+                u64::from(*ip.get(16)?)
+                    | (u64::from(*ip.get(17)?) << 8)
+                    | (u64::from(*ip.get(18)?) << 16)
+                    | (u64::from(*ip.get(19)?) << 24)
+                    | (u64::from(*l4.get(2)?) << 32)
+                    | (u64::from(*l4.get(3)?) << 40),
+            )
+        }
+    } else if is_ingress {
+        // IPv6 ingress: the source /48 prefix (bytes 8..14) then the
+        // source port.
+        Some(
+            u64::from(*ip.get(8)?)
+                | (u64::from(*ip.get(9)?) << 8)
+                | (u64::from(*ip.get(10)?) << 16)
+                | (u64::from(*ip.get(11)?) << 24)
+                | (u64::from(*ip.get(12)?) << 32)
+                | (u64::from(*ip.get(13)?) << 40)
+                | (u64::from(*l4.first()?) << 48)
+                | (u64::from(*l4.get(1)?) << 56),
+        )
+    } else {
+        // IPv6 egress: the destination /48 prefix (bytes 24..30)
+        // then the destination port.
+        Some(
+            u64::from(*ip.get(24)?)
+                | (u64::from(*ip.get(25)?) << 8)
+                | (u64::from(*ip.get(26)?) << 16)
+                | (u64::from(*ip.get(27)?) << 24)
+                | (u64::from(*ip.get(28)?) << 32)
+                | (u64::from(*ip.get(29)?) << 40)
+                | (u64::from(*l4.get(2)?) << 48)
+                | (u64::from(*l4.get(3)?) << 56),
+        )
     }
-    let mut j = 0;
-    while j < core::cmp::min(2, port.len()) {
-        seed[ip_n + j] = port[j];
-        j += 1;
-    }
-    Some(pack8(&seed))
 }
 
 // ─ The QUIC header laws ─
 
-/// Read a big-endian u32 out of a slice, None on truncation.
+/// Read a big-endian u32 at `buf[off..off+4]`, None on truncation.
+/// The eBPF-safe form: four reads at compile-time-constant offsets
+/// of the caller's own buffer (night-audit-1, the 5.13 floor law —
+/// the v22 shape took a re-sliced subslice whose runtime base the
+/// old verifier could not bound).
 #[inline(always)]
-fn be32(buf: &[u8]) -> Option<u32> {
+fn be32_at(buf: &[u8], off: usize) -> Option<u32> {
     Some(u32::from_be_bytes([
-        *buf.first()?,
-        *buf.get(1)?,
-        *buf.get(2)?,
-        *buf.get(3)?,
+        *buf.get(off)?,
+        *buf.get(off + 1)?,
+        *buf.get(off + 2)?,
+        *buf.get(off + 3)?,
     ]))
 }
 
@@ -342,12 +425,9 @@ fn be32(buf: &[u8]) -> Option<u32> {
 /// headers set 0x40 alone; any packet with 0x40 clear is not QUIC.
 #[derive(Clone, Copy, Debug)]
 enum Header {
-    /// A v1/v2 long header with well-formed CID fields: the exact
-    /// DCID and SCID spans, both lengths explicit.
-    Long {
-        dcid: (usize, usize),
-        scid: (usize, usize),
-    },
+    /// A v1/v2 long header with well-formed CID fields: both
+    /// lengths explicit (dl is the DCID length, sl the SCID's).
+    Long { dl: usize, sl: usize },
     /// A short header: the DCID sits right after the first byte,
     /// its length learned (the hint word), never parsed here.
     Short,
@@ -356,16 +436,68 @@ enum Header {
     NotQuic,
 }
 
-/// Parse one QUIC header at `l4_off + 8` (the UDP payload). The
-/// strict-shape checks: version must be v1 or v2 (version 0 is
-/// Version Negotiation — refused); DCID and SCID lengths must sit
-/// inside the RFC 9000 v1 bound of 20; the fixed bit must be set;
-/// every field must live inside the buffer. A refusal is the
-/// cookie lane, never a guess.
+/// The UDP payload's first byte in the L4 window (the QUIC header
+/// starts at the UDP header's own 8-byte fixed size).
+const QUIC_OFF: usize = 8;
+
+/// The DCID length byte's offset in the L4 window (long headers:
+/// first byte, 4 version bytes, then the length).
+const DCID_LEN_OFF: usize = QUIC_OFF + 5;
+
+/// The DCID's first byte in the L4 window (the length byte itself
+/// sits between the version field and the DCID bytes).
+const DCID_OFF: usize = DCID_LEN_OFF + 1;
+
+/// The SCID length byte sits at `DCID_OFF + dl` — a RUNTIME family
+/// position (the DCID's explicit length decides it). Read the whole
+/// candidate window at compile-time-constant offsets and extract
+/// the wanted byte with a scalar shift, so the object carries ZERO
+/// variable-offset stack reads: the three u64 windows below pack
+/// bytes DCID_OFF..DCID_OFF+21 little-endian, and the `dl`-indexed
+/// byte is a shift-and-mask of the packed registers (pure ALU, no
+/// memory access at any runtime address — the 5.13 floor law,
+/// night-audit-1). A window past the buffer reads as 0; the caller's
+/// span check turns that into the honest refusal (a missing length
+/// byte cannot produce a span that fits).
 #[inline(always)]
-fn parse_quic(buf: &[u8], l4_off: usize) -> Header {
-    let q = l4_off + 8;
-    let b0 = match buf.get(q) {
+fn scid_len_byte(l4: &[u8], dl: usize) -> u8 {
+    let b = |k: usize| -> u64 { u64::from(l4.get(DCID_OFF + k).copied().unwrap_or(0)) };
+    let lo = b(0)
+        | (b(1) << 8)
+        | (b(2) << 16)
+        | (b(3) << 24)
+        | (b(4) << 32)
+        | (b(5) << 40)
+        | (b(6) << 48)
+        | (b(7) << 56);
+    let mid = b(8)
+        | (b(9) << 8)
+        | (b(10) << 16)
+        | (b(11) << 24)
+        | (b(12) << 32)
+        | (b(13) << 40)
+        | (b(14) << 48)
+        | (b(15) << 56);
+    let hi = b(16) | (b(17) << 8) | (b(18) << 16) | (b(19) << 24) | (b(20) << 32);
+    if dl <= 7 {
+        (lo >> (8 * dl)) as u8
+    } else if dl <= 15 {
+        (mid >> (8 * (dl - 8))) as u8
+    } else {
+        (hi >> (8 * (dl - 16))) as u8
+    }
+}
+
+/// Parse one QUIC header out of the L4 window (the wiring's second
+/// bounded read rebased it: l4[0] is the UDP source port, the QUIC
+/// first byte is l4[8]). The strict-shape checks: version must be
+/// v1 or v2 (version 0 is Version Negotiation — refused); DCID and
+/// SCID lengths must sit inside the RFC 9000 v1 bound of 20; the
+/// fixed bit must be set; every field must live inside the window.
+/// A refusal is the cookie lane, never a guess.
+#[inline(always)]
+fn parse_quic(l4: &[u8]) -> Header {
+    let b0 = match l4.get(QUIC_OFF) {
         Some(&b) => b,
         None => return Header::NotQuic,
     };
@@ -375,30 +507,27 @@ fn parse_quic(buf: &[u8], l4_off: usize) -> Header {
     if b0 & 0x80 == 0 {
         return Header::Short;
     }
-    let version = match be32(buf.get(q + 1..).unwrap_or(&[])) {
+    let version = match be32_at(l4, QUIC_OFF + 1) {
         Some(v) => v,
         None => return Header::NotQuic,
     };
     if version != QUIC_VERSION_V1 && version != QUIC_VERSION_V2 {
         return Header::NotQuic;
     }
-    let dcid_len = *buf.get(q + 5).unwrap_or(&u8::MAX);
-    if dcid_len > QUIC_MAX_CID_LEN {
+    let dl = usize::from(*l4.get(DCID_LEN_OFF).unwrap_or(&u8::MAX));
+    if dl > QUIC_MAX_CID_LEN as usize {
         return Header::NotQuic;
     }
-    let dl = usize::from(dcid_len);
-    let scid_len = *buf.get(q + 6 + dl).unwrap_or(&u8::MAX);
-    if scid_len > QUIC_MAX_CID_LEN {
+    let sl = usize::from(scid_len_byte(l4, dl));
+    if sl > QUIC_MAX_CID_LEN as usize {
         return Header::NotQuic;
     }
-    let sl = usize::from(scid_len);
-    if q + 6 + dl + 1 + sl > buf.len() {
+    // The whole header must fit the window: first byte + version +
+    // the two length bytes + both CIDs.
+    if DCID_OFF + dl + 1 + sl > l4.len() {
         return Header::NotQuic;
     }
-    Header::Long {
-        dcid: (q + 6, q + 6 + dl),
-        scid: (q + 6 + dl + 1, q + 6 + dl + 1 + sl),
-    }
+    Header::Long { dl, sl }
 }
 
 // ─ The one pure decision ─
@@ -432,72 +561,90 @@ pub enum Classify {
     Short { key: Option<u64> },
 }
 
-/// The conversation a packet belongs to: where its UDP header
-/// sits, and the hint-map key that names it (one socket cookie +
-/// one remote endpoint). The wiring reads THIS direction's hint
-/// word at `hkey` between the two pure steps — the lookup it needs
-/// the conversation's identity for.
+/// The conversation a packet belongs to: the hint-map key that
+/// names it (one socket cookie + one remote endpoint). The wiring
+/// reads THIS direction's hint word at `hkey` between the two pure
+/// steps — the lookup it needs the conversation's identity for.
 pub struct Conversation {
-    /// Offset of the UDP header inside the parse buffer.
-    pub l4_off: usize,
     /// The conversation's hint-map key, both directions' maps.
     pub hkey: u64,
 }
 
-/// Step one: parse the outer headers far enough to name the
-/// conversation. None (not IP, not UDP, truncated, extension
-/// headers) is the cookie lane — the caller never consults QUIC.
+/// Step one: name the conversation from the two bounded windows —
+/// `ip` the packet's first bytes (the IP header window the wiring's
+/// first read landed), `l4` the rebased UDP window (its second
+/// read), `shape` what parse_l4 concluded about the IP header.
+/// None (not IP, not UDP, truncated, extension headers) is the
+/// cookie lane — the caller never consults QUIC.
 #[inline(always)]
-pub fn conversation(cookie: u64, buf: &[u8], is_ingress: bool) -> Option<Conversation> {
-    let span = parse_l4(buf, is_ingress)?;
-    let seed = remote_seed(buf, &span)?;
+pub fn conversation(
+    cookie: u64,
+    ip: &[u8],
+    l4: &[u8],
+    shape: &L4Shape,
+    is_ingress: bool,
+) -> Option<Conversation> {
+    let seed = remote_seed(ip, l4, shape.v4, is_ingress)?;
     Some(Conversation {
-        l4_off: span.l4_off,
         hkey: hint_key(cookie, seed),
     })
 }
 
-/// Step two: the QUIC decision, with this direction's current hint
-/// word in hand (0 on a miss — the packed "no hint" verdict). See
-/// Classify for the verdicts.
+/// Step two: the QUIC decision over the rebased L4 window, with
+/// this direction's current hint word in hand (0 on a miss — the
+/// packed "no hint" verdict). See Classify for the verdicts. Every
+/// CID read rides flow_key_bounded at a literal offset (the
+/// short-header DCID starts one byte past the QUIC first byte, the
+/// long-header DCID at DCID_OFF), so the eBPF object's loads all
+/// sit at frame constants — the 5.13 floor law, night-audit-1.
 #[inline(always)]
-pub fn decide(cookie: u64, buf: &[u8], conv: &Conversation, hint_this: u64) -> Classify {
-    match parse_quic(buf, conv.l4_off) {
+pub fn decide(cookie: u64, l4: &[u8], conv: &Conversation, hint_this: u64) -> Classify {
+    match parse_quic(l4) {
         Header::NotQuic => Classify::Cookie,
         Header::Short => {
             let len = hint_len(hint_this);
             let key = if hint_confirmed(hint_this) {
-                let off = conv.l4_off + 8 + 1;
-                buf.get(off..off + usize::from(len))
-                    .map(|cid| flow_key(cookie, cid))
+                // The whole learned CID must fit the window — the
+                // same fit the v22 re-slice demanded, stated as one
+                // scalar check before any byte is read.
+                match (QUIC_OFF + 1).checked_add(usize::from(len)) {
+                    Some(end) if end <= l4.len() => {
+                        Some(flow_key_bounded(cookie, l4, QUIC_OFF + 1, usize::from(len)))
+                    }
+                    _ => None,
+                }
             } else {
                 None
             };
             Classify::Short { key }
         }
-        Header::Long { dcid, scid } => {
-            let key = match buf.get(dcid.0..dcid.1) {
-                Some(cid) => flow_key(cookie, cid),
-                None => return Classify::Cookie,
-            };
+        Header::Long { dl, sl } => {
+            // parse_quic already proved the header fits; the scalar
+            // belt keeps a future parse change from turning a miss
+            // into a read past the window.
+            if DCID_OFF.checked_add(dl).is_some_and(|end| end > l4.len()) {
+                return Classify::Cookie;
+            }
             Classify::Long {
-                key,
+                key: flow_key_bounded(cookie, l4, DCID_OFF, dl),
                 hkey: conv.hkey,
-                learn_this: (dcid.1 - dcid.0) as u8,
-                learn_other: (scid.1 - scid.0) as u8,
+                learn_this: dl as u8,
+                learn_other: sl as u8,
             }
         }
     }
 }
 
-/// The whole QUIC-aware decision, pure on the packet bytes — the
-/// two steps composed, the form the rootless battery drives: parse
-/// the outer headers for the conversation identity, parse the QUIC
-/// header for the connection identity, and hand the caller the key
-/// plus the hint-state updates. `hint_this` is the CURRENT word of
-/// this direction's hint map at the conversation's key (0 on a
-/// miss — the packed "no hint" verdict). Everything that can
-/// refuse, refuses to the cookie lane.
+/// The whole QUIC-aware decision, pure on one packet's bytes — the
+/// two steps composed, the form the rootless battery drives: split
+/// the packet the way the wiring's two bounded reads do (the IP
+/// header window is the packet itself; the L4 window is the
+/// IHL-rebased tail), parse the outer headers for the conversation
+/// identity, parse the QUIC header for the connection identity, and
+/// hand the caller the key plus the hint-state updates. `hint_this`
+/// is the CURRENT word of this direction's hint map at the
+/// conversation's key (0 on a miss — the packed "no hint" verdict).
+/// Everything that can refuse, refuses to the cookie lane.
 //
 // allow(dead_code): the userspace test tree compiles this file
 // without the datapath that inlines the two steps separately — the
@@ -509,9 +656,21 @@ pub fn decide(cookie: u64, buf: &[u8], conv: &Conversation, hint_this: u64) -> C
 // feature earlier.
 #[allow(dead_code)]
 #[inline(always)]
-pub fn classify(cookie: u64, buf: &[u8], is_ingress: bool, hint_this: u64) -> Classify {
-    match conversation(cookie, buf, is_ingress) {
-        Some(conv) => decide(cookie, buf, &conv, hint_this),
-        None => Classify::Cookie,
-    }
+pub fn classify(cookie: u64, pkt: &[u8], is_ingress: bool, hint_this: u64) -> Classify {
+    let shape = match parse_l4(pkt) {
+        Some(s) => s,
+        None => return Classify::Cookie,
+    };
+    // Userspace rebase (the wiring's second load_bytes lands the
+    // same window on its own stack buffer): slicing is free here,
+    // and no verifier ever sees this body in the kernel object.
+    let l4 = match pkt.get(shape.l4_off..) {
+        Some(w) => w,
+        None => return Classify::Cookie,
+    };
+    let conv = match conversation(cookie, pkt, l4, &shape, is_ingress) {
+        Some(c) => c,
+        None => return Classify::Cookie,
+    };
+    decide(cookie, l4, &conv, hint_this)
 }
