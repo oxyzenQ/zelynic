@@ -206,9 +206,16 @@ fn test_schema_version_constant() {
     // the deferred aggregate-collapse question closed by the
     // rootless fleet sims (ecn_tests.rs, the per-socket
     // convergence analysis).
+    // v22 (QUIC-aware attribution): the per-socket lane and the v20
+    // flow lane key per-connection buckets by the QUIC connection
+    // ID when the header carries finer truth than the socket
+    // cookie — long headers statelessly, short headers through the
+    // confirmation-gated learned hints (quic_cid_hint_dl/ul, the
+    // packed word in ebpf/src/quic.rs). Every refusal rides the raw
+    // cookie: the feature refines attribution, never degrades it.
     // The full sync contract (this constant vs the BPF-side
     // anchor) lives in schema.rs's sync_pin — the v13 lesson.
-    assert_eq!(SCHEMA_VERSION_EXPECTED, 21);
+    assert_eq!(SCHEMA_VERSION_EXPECTED, 22);
 }
 
 // ── NIGHT-improve-10 / security-3: overflow-bound pins ──────────

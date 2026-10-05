@@ -128,6 +128,23 @@ mod ecn;
 // rootlessly by the cake test family.
 #[path = "../cake_flow.rs"]
 mod cake_flow;
+
+// NIGHT-private-research-4 candidate, schema v22 (QUIC-aware
+// attribution): the pure header core — same discipline as
+// math.rs/ammsp.rs/drr.rs/ecn.rs: pure `core`, zero aya
+// dependencies, wired here with #[path] AND into the userspace
+// test tree the same way, pinned rootlessly by
+// test/ebpf/limiter/quic_tests.rs. The QUIC v1/v2 header laws,
+// the confirmation-gated hint state machine, and the key mixers
+// are the pinned surface.
+#[path = "../quic.rs"]
+mod quic;
+
+// The QUIC-aware datapath wiring (schema v22): the two learned-hint
+// maps and the cookie-to-connection-key call — the aya-touching
+// split, the cake_flow precedent one feature over.
+#[path = "../quic_flow.rs"]
+mod quic_flow;
 use math::{
     Bucket, LimiterStats, MAX_ENFORCABLE_BURST, POLICY_FLAG_PER_SOCKET, Policy, book, book_rescue,
     enforce,
@@ -365,8 +382,39 @@ use socket_flow::socket_flow;
 /// maps); the bump forces pinned v20 programs to reload into the
 /// per-socket-ECN object — active limits are dropped once, re-apply
 /// after upgrade, the same one-time contract as every bump before.
+/// v22 (NIGHT-private-research-4 candidate, QUIC-aware attribution):
+///     the per-socket lane and the v20 CAKE flow lane key their
+///     per-connection buckets by the packet's QUIC CONNECTION ID when
+///     the header carries finer truth than the socket cookie — QUIC
+///     (HTTP/3) multiplexes many connections over ONE UDP socket
+///     (the browser shape: Chromium and Firefox share a single socket
+///     across every QUIC session, demuxed by CID), so the cookie the
+///     two lanes attributed by collapsed all of them into one bucket
+///     (the flow lane's own monopoly shape; the --per-socket promise
+///     "each connection its own budget" silently shared by the whole
+///     socket). The pure core (../quic.rs, pinned rootlessly by
+///     test/ebpf/limiter/quic_tests.rs): v1/v2 long headers parse
+///     exactly (explicit CID lengths); short-header CID lengths are
+///     CONNECTION STATE (RFC 9000 negotiates them inside encrypted
+///     NEW_CONNECTION_ID frames — the documented reason QUIC-LB
+///     exists), so the wiring LEARNS them from the handshake's own
+///     explicit-length bytes into two new pinned LRU maps
+///     quic_cid_hint_dl/ul (conversation key -> the packed hint
+///     word, shared across both hooks by object construction),
+///     gated by a CONFIRMATION rule (the same nonzero length must
+///     survive a second long-header sighting before any short
+///     header keys on it — a throwaway Initial DCID a peer replaces
+///     after its Server Initial can never poison the lane alone).
+///     Every refusal — non-UDP, non-QUIC, unparseable, unconfirmed,
+///     zero-length CID, IPv6 extension headers — rides the RAW
+///     COOKIE, exactly the pre-v22 verdict: the feature refines
+///     attribution, never degrades it. No existing struct layout
+///     changes; new maps, new key VALUES on two internal lanes; the
+///     bump forces pinned v21 programs to reload into the QUIC-aware
+///     object — active limits are dropped once, re-apply after
+///     upgrade, the same one-time contract as every bump before it.
 #[allow(dead_code)]
-const SCHEMA_VERSION: u32 = 21;
+const SCHEMA_VERSION: u32 = 22;
 
 // ---------------------------------------------------------------------------
 // Maps. The static names ARE the userspace contract (limiter/mod.rs
@@ -720,11 +768,16 @@ fn ecn_rescue(
 /// the direction's time-series ring (charger-core-3a), `debt_map`
 /// the direction's ECN debt map (private-research-4), and the
 /// `flow_*` triple the direction's flow lane (v20 — CAKE-shaped
-/// isolation inside the leaf) draws through.
+/// isolation inside the leaf) draws through. `is_ingress` names the
+/// direction the QUIC-aware attribution lane learns and keys by
+/// (schema v22): the ingress hook reads the download hint map and
+/// the egress hook the upload one — the two programs share both
+/// maps by object construction.
 #[inline(always)]
 #[allow(clippy::too_many_arguments)]
 fn try_enforce(
     ctx: SkBuffContext,
+    is_ingress: bool,
     policy_map: &HashMap<u32, Policy>,
     memo_map: &LruHashMap<u32, u64>,
     bucket_map: &HashMap<u32, Bucket>,
@@ -884,9 +937,21 @@ fn try_enforce(
             // lanes' map shape stays theirs). Non-ECT traffic refuses
             // the helper and drops exactly as before — the legacy
             // verdict, untouched.
+            //
+            // schema v22 (QUIC-aware): the cookie becomes the
+            // per-CONNECTION key when the packet's QUIC connection ID
+            // attributes it finer (the browser shape — one UDP socket,
+            // N HTTP/3 connections sharing one cookie). The lane's
+            // arithmetic, its belt, and its ECN debt all key by the
+            // value handed here, so a QUIC connection gets exactly the
+            // budget a TCP connection gets — the --per-socket promise,
+            // restored for the protocol that multiplexes. A refusal
+            // (non-QUIC, unconfirmed) hands back the raw cookie: the
+            // pre-v22 verdict, untouched.
+            let key = quic_flow::quic_flow_key(&ctx, cookie, is_ingress);
             let verdict = socket_flow(
                 &pol_sane,
-                cookie,
+                key,
                 socket_bucket_map,
                 now,
                 pkt_len,
@@ -976,7 +1041,20 @@ fn try_enforce(
     // the per-socket lane already consumes, fetched here once, only
     // on the lane that spends it. cookie == 0 rides the leaf lane
     // verbatim (the hook's honest attribution limit).
+    //
+    // schema v22 (QUIC-aware): the flow key is the cookie refined
+    // by the QUIC connection ID when the header carries finer truth
+    // — the v20 lane's isolation restored for the browser shape
+    // (one socket, N HTTP/3 connections the cookie collapses into
+    // one flow bucket). The bucket/share/ledger maps key by the
+    // value handed to drr_flow unchanged; every QUIC refusal rides
+    // the raw cookie, exactly the v20 verdict.
     let cookie = unsafe { bpf_get_socket_cookie(ctx.skb.skb.cast()) };
+    let flow_key = if cookie != 0 {
+        quic_flow::quic_flow_key(&ctx, cookie, is_ingress)
+    } else {
+        0
+    };
     let pool_ptr = match get_bucket_ptr(bucket_map, &cgroup_id, pol_sane.burst_bytes, now) {
         Some(ptr) => ptr,
         None => return 1,
@@ -992,7 +1070,7 @@ fn try_enforce(
         flow_bucket_map,
         flow_share_map,
         flow_ledger_map,
-        cookie,
+        flow_key,
         &cgroup_id,
         &leaf,
         pkt_len,
@@ -1025,6 +1103,7 @@ fn try_enforce(
 fn enforce_dl(ctx: SkBuffContext) -> i32 {
     try_enforce(
         ctx,
+        true,
         &cgroup_policy_dl,
         &ammsp_resolve::ammsp_leaf_cache_dl,
         &cgroup_bucket_dl,
@@ -1046,6 +1125,7 @@ fn enforce_dl(ctx: SkBuffContext) -> i32 {
 fn enforce_ul(ctx: SkBuffContext) -> i32 {
     try_enforce(
         ctx,
+        false,
         &cgroup_policy_ul,
         &ammsp_resolve::ammsp_leaf_cache_ul,
         &cgroup_bucket_ul,

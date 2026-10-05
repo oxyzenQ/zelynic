@@ -548,6 +548,58 @@ the pool's own stream — the faucet every leaf and flow draw
 through — so the marked bytes pay back against the same aggregate
 budget that fed them.
 
+### The QUIC-aware attribution law (schema v22, 2026-10-05)
+
+The ECN-first and flow-isolation laws both key their per-connection
+state by the socket cookie — and QUIC (HTTP/3, RFC 9000) breaks the
+premise the cookie rests on: Chromium and Firefox multiplex every
+QUIC session of a host over ONE UDP socket, demuxed by connection
+ID. Under the cookie: the flow lane's isolation collapses to its
+own before-picture (the browser's N HTTP/3 connections share ONE
+flow bucket — the monopoly shape cake_isolation_tests.rs measured
+at 2.9:1), and the --per-socket promise ("each connection its own
+bucket at the policy rate") silently degrades to "the whole socket
+shares one budget" for exactly the protocol that multiplexes. The
+law this section pins: attribution must follow the CONNECTION when
+the header carries connection truth, and must refuse — never
+guess — when it does not.
+
+The mechanics, all rootless-pinned (test/ebpf/limiter/quic_tests.rs,
+10 rows): v1/v2 long headers parse with EXPLICIT CID lengths
+(stateless exact keys — the handshake packets need no learned
+state); short-header CID lengths are connection state RFC 9000
+negotiates inside encrypted NEW_CONNECTION_ID frames (the documented
+reason QUIC-LB exists), so the datapath LEARNS them from the
+handshake's own explicit-length bytes — a long header seen on
+direction D folds its DCID length into D's hint map and its SCID
+length into the opposite direction's — gated by a CONFIRMATION
+rule (the same nonzero length must survive a second sighting; the
+throwaway Initial DCID a peer replaces after its Server Initial
+can never poison the lane alone). Every refusal — non-UDP,
+non-QUIC, unparseable, unconfirmed, zero-length CID, IPv6 with
+extension headers — rides the RAW COOKIE, the exact pre-v22
+verdict: the lane refines attribution, never degrades it. The
+lifecycle pin walks a full handshake with three DISTINCT CID
+lengths (throwaway 16, client 8, server 12) and shows the
+transients never activating while the steady state keys
+per-connection exactly; the isolation pin splits N connections of
+one cookie into N distinct, stable keys.
+
+The honest residues, stated rather than hidden: a CID beyond 8
+bytes keys by its prefix (two connections differing only past byte
+8 share a bucket — coarser, safe); a connection that rotates CIDs
+mid-flight keys the rotated packets under the new CID (a flow
+split the share word's decay heals in the fairness lane; a fresh
+burst stream in the per-socket lane — the lane's own documented
+"rate x concurrent" shape); the server-role shape may learn a
+transient length when a peer's Initial DCID and real CID differ
+(the confirm gate plus the opposite-direction SCID source hold the
+dominant shapes correct). No live-browser A/B number is claimed
+here: the live lane rides CI's supermassive battery, and the claim
+this section owns is the pinned one — attribution granularity,
+proved rootlessly, with every degradation path falling toward the
+cookie, never past it.
+
 ### NIGHT-upgrade-charger-core-1-b A/B (the self-proving enforcement, 2026-09-30)
 
 The charger-core-1-b pass is command-path work: the enforcement

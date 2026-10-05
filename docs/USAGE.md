@@ -171,6 +171,29 @@ sudo zelynic strict brave 100kb        # shorthand form
   before; the per-connection budget law gains only the one-time
   64 KiB ECN slack, so the aggregate honest bound is N x
   (rate x t + burst + 64 KiB).
+- The lane is **QUIC-aware** (schema v22, NIGHT-private-research-4
+  candidate): QUIC (HTTP/3) multiplexes many connections over ONE
+  UDP socket — the browser shape (Chromium and Firefox share a
+  single socket across every QUIC session, demuxed by connection
+  ID) — so a plain socket cookie would collapse all of them into
+  ONE budget and the "each connection its own bucket" promise
+  above would quietly mean "the whole socket". The datapath now
+  keys the bucket by the packet's QUIC connection ID when the
+  header carries it: handshake packets (long headers) carry the
+  IDs with explicit lengths and key statelessly; data packets
+  (short headers) carry the peer's ID whose length is connection
+  state, LEARNED from the handshake's own length bytes and gated
+  by a confirmation rule (the same length must be seen twice —
+  the throwaway ID a QUIC peer replaces mid-handshake can never
+  poison the lane alone). Everything the parser cannot carry —
+  non-QUIC UDP, other QUIC versions, unconfirmed geometry,
+  zero-length IDs, IPv6 extension headers — rides the plain
+  socket key, exactly the pre-v22 behavior: the lane refines
+  attribution, never degrades it. The same keying restores the
+  CAKE flow-isolation lane (the fair-shared budget below) for
+  HTTP/3 without any flag — it is automatic, and a browser's
+  concurrent QUIC downloads isolate per connection instead of
+  sharing one flow bucket.
 - The shared budget is **fair-shared** (NIGHT-upgrade-charger-core-1c,
   the DRR lane): a shared first-come-first-served bucket let ONE
   greedy subprocess consume every token the instant it refilled and

@@ -420,29 +420,42 @@ pub enum Classify {
     Short { key: Option<u64> },
 }
 
-/// The whole QUIC-aware decision, pure on the packet bytes: parse
-/// the outer headers for the conversation identity, parse the QUIC
-/// header for the connection identity, and hand the wiring the key
-/// plus the hint-state updates. `hint_this` is the CURRENT word of
-/// this direction's hint map at the conversation's key (0 on a
-/// miss — the packed "no hint" verdict). Everything that can
-/// refuse, refuses to the cookie lane.
+/// The conversation a packet belongs to: where its UDP header
+/// sits, and the hint-map key that names it (one socket cookie +
+/// one remote endpoint). The wiring reads THIS direction's hint
+/// word at `hkey` between the two pure steps — the lookup it needs
+/// the conversation's identity for.
+pub struct Conversation {
+    /// Offset of the UDP header inside the parse buffer.
+    pub l4_off: usize,
+    /// The conversation's hint-map key, both directions' maps.
+    pub hkey: u64,
+}
+
+/// Step one: parse the outer headers far enough to name the
+/// conversation. None (not IP, not UDP, truncated, extension
+/// headers) is the cookie lane — the caller never consults QUIC.
 #[inline(always)]
-pub fn classify(cookie: u64, buf: &[u8], is_ingress: bool, hint_this: u64) -> Classify {
-    let span = match parse_l4(buf, is_ingress) {
-        Some(s) => s,
-        None => return Classify::Cookie,
-    };
-    let hkey = match remote_seed(buf, &span) {
-        Some(seed) => hint_key(cookie, seed),
-        None => return Classify::Cookie,
-    };
-    match parse_quic(buf, span.l4_off) {
+pub fn conversation(cookie: u64, buf: &[u8], is_ingress: bool) -> Option<Conversation> {
+    let span = parse_l4(buf, is_ingress)?;
+    let seed = remote_seed(buf, &span)?;
+    Some(Conversation {
+        l4_off: span.l4_off,
+        hkey: hint_key(cookie, seed),
+    })
+}
+
+/// Step two: the QUIC decision, with this direction's current hint
+/// word in hand (0 on a miss — the packed "no hint" verdict). See
+/// Classify for the verdicts.
+#[inline(always)]
+pub fn decide(cookie: u64, buf: &[u8], conv: &Conversation, hint_this: u64) -> Classify {
+    match parse_quic(buf, conv.l4_off) {
         Header::NotQuic => Classify::Cookie,
         Header::Short => {
             let len = hint_len(hint_this);
             let key = if hint_confirmed(hint_this) {
-                let off = span.l4_off + 8 + 1;
+                let off = conv.l4_off + 8 + 1;
                 buf.get(off..off + usize::from(len))
                     .map(|cid| flow_key(cookie, cid))
             } else {
@@ -457,10 +470,26 @@ pub fn classify(cookie: u64, buf: &[u8], is_ingress: bool, hint_this: u64) -> Cl
             };
             Classify::Long {
                 key,
-                hkey,
+                hkey: conv.hkey,
                 learn_this: (dcid.1 - dcid.0) as u8,
                 learn_other: (scid.1 - scid.0) as u8,
             }
         }
+    }
+}
+
+/// The whole QUIC-aware decision, pure on the packet bytes — the
+/// two steps composed, the form the rootless battery drives: parse
+/// the outer headers for the conversation identity, parse the QUIC
+/// header for the connection identity, and hand the caller the key
+/// plus the hint-state updates. `hint_this` is the CURRENT word of
+/// this direction's hint map at the conversation's key (0 on a
+/// miss — the packed "no hint" verdict). Everything that can
+/// refuse, refuses to the cookie lane.
+#[inline(always)]
+pub fn classify(cookie: u64, buf: &[u8], is_ingress: bool, hint_this: u64) -> Classify {
+    match conversation(cookie, buf, is_ingress) {
+        Some(conv) => decide(cookie, buf, &conv, hint_this),
+        None => Classify::Cookie,
     }
 }
