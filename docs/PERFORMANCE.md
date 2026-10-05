@@ -594,7 +594,7 @@ length into the opposite direction's — gated by a CONFIRMATION
 rule (the same nonzero length must survive a second sighting; the
 throwaway Initial DCID a peer replaces after its Server Initial
 can never poison the lane alone). Every refusal — non-UDP,
-non-QUIC, unparseable, unconfirmed, zero-length CID, IPv6 with
+non-QUIC, unparsable, unconfirmed, zero-length CID, IPv6 with
 extension headers — rides the RAW COOKIE, the exact pre-v22
 verdict: the lane refines attribution, never degrades it. The
 lifecycle pin walks a full handshake with three DISTINCT CID

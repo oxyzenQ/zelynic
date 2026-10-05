@@ -418,7 +418,7 @@ use socket_flow::socket_flow;
 ///     survive a second long-header sighting before any short
 ///     header keys on it — a throwaway Initial DCID a peer replaces
 ///     after its Server Initial can never poison the lane alone).
-///     Every refusal — non-UDP, non-QUIC, unparseable, unconfirmed,
+///     Every refusal — non-UDP, non-QUIC, unparsable, unconfirmed,
 ///     zero-length CID, IPv6 extension headers — rides the RAW
 ///     COOKIE, exactly the pre-v22 verdict: the feature refines
 ///     attribution, never degrades it. No existing struct layout

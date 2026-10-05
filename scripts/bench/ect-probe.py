@@ -149,16 +149,21 @@ def self_test():
     tx = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     tx.setsockopt(socket.SOL_IP, socket.IP_TOS, ECT0)
     tx.sendto(b"z" * PKT, ("127.0.0.1", port))
-    data, anc, _flags, _addr = rx.recvmsg(PKT + 64, 512)
-    tos = tos_of_cmsg(anc)
+    data, ancdata, _flags, _addr = rx.recvmsg(PKT + 64, 512)
+    tos = tos_of_cmsg(ancdata)
     bits = tos & 0x03 if tos is not None else None
     ok = tos is not None and bits == ECT0 and len(data) == PKT
-    lib.record(ROWS[0], "PASS" if ok else "FAIL",
-               f"sent ECT(0) (IP_TOS={ECT0}), read TOS={tos} (low bits {bits})")
+    lib.record(
+        ROWS[0],
+        "PASS" if ok else "FAIL",
+        f"sent ECT(0) (IP_TOS={ECT0}), read TOS={tos} (low bits {bits})",
+    )
     cap_ok = BURST == DEBT_CAP == 65536
-    lib.record("instrument: the 64 KiB floor/cap pair", "PASS" if cap_ok else "FAIL",
-               f"burst {BURST}, ECN debt cap {DEBT_CAP} — the GSO admit "
-               f"floor the ecn.rs law rides")
+    lib.record(
+        "instrument: the 64 KiB floor/cap pair",
+        "PASS" if cap_ok else "FAIL",
+        f"burst {BURST}, ECN debt cap {DEBT_CAP} — the GSO admit floor the ecn.rs law rides",
+    )
     return ok and cap_ok
 
 
@@ -197,7 +202,7 @@ def _drain(rx, sink):
     deadline = last + SETTLE_MAX
     while True:
         try:
-            data, anc, _flags, _addr = rx.recvmsg(PKT + 64, 512)
+            data, ancdata, _flags, _addr = rx.recvmsg(PKT + 64, 512)
         except socket.timeout:
             now = time.monotonic()
             quiet += now - last
@@ -209,7 +214,7 @@ def _drain(rx, sink):
             break
         last = time.monotonic()
         quiet = 0.0
-        tos = tos_of_cmsg(anc)
+        tos = tos_of_cmsg(ancdata)
         bits = (tos & 0x03) if tos is not None else -1
         sink["pkts"] += 1
         sink["bytes"] += len(data)
@@ -247,8 +252,9 @@ def run_live():
     with open(os.path.join(CGROUP, "cgroup.procs"), "w", encoding="utf-8") as f:
         f.write(str(os.getpid()))
     if not _residency_ok():
-        lib.record("residency in the probe cgroup", "FAIL",
-                   "/proc/self/cgroup does not name zelynic-ect")
+        lib.record(
+            "residency in the probe cgroup", "FAIL", "/proc/self/cgroup does not name zelynic-ect"
+        )
         return False
     cgroup_id = _read_id(CGROUP)
 
@@ -257,8 +263,10 @@ def run_live():
     #    the pair carry only local state (UDP connect sends nothing), and
     #    the connected shape is what the ingress hook's early demux
     #    resolves: the socket the per-socket lane keys by.
-    rxa, rxb = socket.socket(socket.AF_INET, socket.SOCK_DGRAM), \
-        socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    rxa, rxb = (
+        socket.socket(socket.AF_INET, socket.SOCK_DGRAM),
+        socket.socket(socket.AF_INET, socket.SOCK_DGRAM),
+    )
     for rx in (rxa, rxb):
         rx.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 1 << 21)
         rx.setsockopt(socket.SOL_IP, IP_RECVTOS_OPT, 1)
@@ -284,15 +292,17 @@ def run_live():
     sb.close()
 
     # 5. The policy (--no-probe: this harness IS the probe).
-    rc, out_, err = lib.run_zel(["strict-single", str(cgroup_id), RATE_STR,
-                                 "--per-socket", "--no-probe"])
+    rc, out_, err = lib.run_zel(
+        ["strict-single", str(cgroup_id), RATE_STR, "--per-socket", "--no-probe"]
+    )
     if rc != 0:
         os.close(pipe_w)
         os.waitpid(pid, 0)
         rxa.close()
         rxb.close()
-        lib.record("apply the --per-socket policy", "FAIL",
-                   f"exit {rc}: {(err or out_).strip()[:200]}")
+        lib.record(
+            "apply the --per-socket policy", "FAIL", f"exit {rc}: {(err or out_).strip()[:200]}"
+        )
         return False
 
     # 6. The window: the policy stands, the receiver is resident, the
@@ -318,34 +328,49 @@ def run_live():
     refill = RATE_BPS // 8 * window
 
     # row 2 — the mark lands (past the burst, so marks must exist).
-    lib.record(ROWS[1], "PASS" if ce_pkts >= 32 else "FAIL",
-               f"{ce_pkts} CE-marked datagrams of {PACKETS} sent "
-               f"({sink_a['pkts']} ECT-leg delivered: {ce_pkts} CE + "
-               f"{ect0_pkts} unmarked-allowed)")
+    lib.record(
+        ROWS[1],
+        "PASS" if ce_pkts >= 32 else "FAIL",
+        f"{ce_pkts} CE-marked datagrams of {PACKETS} sent "
+        f"({sink_a['pkts']} ECT-leg delivered: {ce_pkts} CE + "
+        f"{ect0_pkts} unmarked-allowed)",
+    )
 
     # row 3 — the debt cap bites (plus the refill's re-arm + one pkt).
     cap_hi = DEBT_CAP + refill + PKT
-    lib.record(ROWS[2], "PASS" if ce_bytes <= cap_hi else "FAIL",
-               f"CE bytes {ce_bytes} <= cap {DEBT_CAP} + refill "
-               f"{int(refill)} + 1 pkt (window {window:.1f}s)")
+    lib.record(
+        ROWS[2],
+        "PASS" if ce_bytes <= cap_hi else "FAIL",
+        f"CE bytes {ce_bytes} <= cap {DEBT_CAP} + refill "
+        f"{int(refill)} + 1 pkt (window {window:.1f}s)",
+    )
 
     # row 4 — the control leg: the burst + refill window only, drops booked.
     ctrl_hi = BURST + refill + PKT
-    lib.record(ROWS[3], "PASS" if plain <= ctrl_hi and sink_b["pkts"] < PACKETS else "FAIL",
-               f"not-ect delivered {plain} B of {PACKETS * PKT} sent "
-               f"(bound {int(ctrl_hi)} B; {PACKETS - sink_b['pkts']} dropped)")
+    lib.record(
+        ROWS[3],
+        "PASS" if plain <= ctrl_hi and sink_b["pkts"] < PACKETS else "FAIL",
+        f"not-ect delivered {plain} B of {PACKETS * PKT} sent "
+        f"(bound {int(ctrl_hi)} B; {PACKETS - sink_b['pkts']} dropped)",
+    )
 
     # row 5 — the goodput gain: the ECT leg strictly beats the control.
     gain = allowed / plain if plain else 0.0
-    lib.record(ROWS[4], "PASS" if gain >= 1.5 else "FAIL",
-               f"ECT leg {allowed} B vs control {plain} B "
-               f"({gain:.2f}x — the mark-before-drop gain, this kernel)")
+    lib.record(
+        ROWS[4],
+        "PASS" if gain >= 1.5 else "FAIL",
+        f"ECT leg {allowed} B vs control {plain} B "
+        f"({gain:.2f}x — the mark-before-drop gain, this kernel)",
+    )
 
     # row 6 — the closed form, live.
     law_hi = BURST + refill + DEBT_CAP + PKT
-    lib.record(ROWS[5], "PASS" if allowed <= law_hi else "FAIL",
-               f"ECT-leg delivered {allowed} <= burst {BURST} + "
-               f"rate*window {int(refill)} + debt {DEBT_CAP} + 1 pkt")
+    lib.record(
+        ROWS[5],
+        "PASS" if allowed <= law_hi else "FAIL",
+        f"ECT-leg delivered {allowed} <= burst {BURST} + "
+        f"rate*window {int(refill)} + debt {DEBT_CAP} + 1 pkt",
+    )
 
     # row 7 — the kernel's own ledger (refusals booked, rescues moved).
     doc = lib.status_json()
@@ -356,10 +381,13 @@ def run_live():
         kb_dropped = entry.get("bytes_dropped", 0)
         kb_allowed = entry.get("bytes_allowed", 0)
         ok = kb_dropped > 0 and kb_allowed >= allowed + plain - PKT
-        lib.record(ROWS[6], "PASS" if ok else "FAIL",
-                   f"kernel: {kb_allowed} B allowed (>= receiver's "
-                   f"{allowed + plain}), {kb_dropped} B dropped "
-                   f"(booked refusals, the v9 law)")
+        lib.record(
+            ROWS[6],
+            "PASS" if ok else "FAIL",
+            f"kernel: {kb_allowed} B allowed (>= receiver's "
+            f"{allowed + plain}), {kb_dropped} B dropped "
+            f"(booked refusals, the v9 law)",
+        )
 
     # Teardown: best-effort, never fails a verdict.
     lib.run_zel(["unstrict-single", str(cgroup_id)])
@@ -380,9 +408,17 @@ def main():
 
     start = time.perf_counter()
     ok = self_test() if args.self_test else run_live()
-    rc = 0 if lib.final_report(start, "self-test" if args.self_test else "live",
-                               "the per-socket ECN marking contract holds on this kernel"
-                               if ok else "see the FAIL rows above") else 1
+    rc = (
+        0
+        if lib.final_report(
+            start,
+            "self-test" if args.self_test else "live",
+            "the per-socket ECN marking contract holds on this kernel"
+            if ok
+            else "see the FAIL rows above",
+        )
+        else 1
+    )
     if args.json:
         lib.out(json.dumps(lib.RESULTS, indent=2))
     return rc

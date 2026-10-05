@@ -409,7 +409,7 @@ fn parse_quic(buf: &[u8], l4_off: usize) -> Header {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Classify {
     /// Ride the socket cookie, exactly today's behavior: not QUIC,
-    /// unparseable, or a short header with no confirmed hint.
+    /// unparsable, or a short header with no confirmed hint.
     Cookie,
     /// A v1/v2 long header: key the flow by its EXACT DCID (the
     /// length is explicit — stateless, no hint needed), and fold
