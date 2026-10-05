@@ -758,8 +758,15 @@ def stage_no_daemon(quick):
         "no-daemon: enforcement alive with zero zelynic processes",
         samples[-1],
         NO_DAEMON_RATE,
-        "traffic still policed after the CLI exited — the kernel holds the law",
-        extra=lib.window_samples_note(samples),
+        # One extra string, positionally — the CI round this comment
+        # memorializes passed BOTH a fourth positional and the
+        # extra= keyword, a TypeError band_check() raised LIVE at the
+        # row that had passed every gate rootless (the self-test pins
+        # source text, never call-site execution): the live battery is
+        # the verifier of record, and the signature's two spellings
+        # never mix in one call.
+        "traffic still policed after the CLI exited — the kernel holds the law; "
+        + lib.window_samples_note(samples),
     )
     return verdict == "PASS" and ok_all
 
@@ -1646,6 +1653,36 @@ def self_test():
             else "FAIL",
             "in-band stops, over-band fails now, all-under fails after the "
             "attempts — a broken datapath cannot pass by retry",
+        )
+        == "PASS"
+        and ok
+    )
+    # The band_check signature discipline, EXECUTED (the 481b2de CI
+    # round's lesson): the self-test pins source text and never runs
+    # a stage's call sites, so a call that mixes the positional extra
+    # with the extra= keyword sailed through every rootless gate and
+    # raised TypeError LIVE on all four legs at the row that had been
+    # green all session. band_check is pure — execute both legal
+    # spellings here so the signature the patience rows rely on is
+    # proven, not assumed.
+    pos_verdict = lib.band_check(
+        "selftest: band_check takes its extra positionally",
+        1_000_000,
+        1_000_000,
+        "the depth harness's own spelling",
+    )
+    kw_verdict = lib.band_check(
+        "selftest: band_check takes its extra by keyword",
+        1_000_000,
+        1_000_000,
+        extra="the matrix's own spelling",
+    )
+    ok = (
+        lib.record(
+            "selftest: band_check's two legal spellings execute",
+            "PASS" if pos_verdict == "PASS" and kw_verdict == "PASS" else "FAIL",
+            "positional and keyword extra both verdict — the two spellings "
+            "never mix in one call (the live battery enforces it)",
         )
         == "PASS"
         and ok
