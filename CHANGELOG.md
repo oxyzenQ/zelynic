@@ -112,6 +112,20 @@ NIGHT-hunt-18's git-history-only call.
   gates cannot see, because the self-test pins source text and
   never call-site execution; the self-test now executes both legal
   spellings as functional rows, 32 green.]
+  [Round 6's verdict on v3: the provably-paid settle closed the
+  over-side everywhere and the quick battery went fully green on
+  best-musl; the token row's remaining under-side (4.0-6.1% on the
+  other three legs) is the TOKEN BANK's own physics — the cushion
+  is one default_burst, the AIMD dips bank tokens while the
+  overshoots drain them, so admitted = refill - dBank and a window
+  reads off by up to one burst: burst/(rate x window) = 10% at the
+  quick 10s window, identical across one flow and the four-flow
+  aggregate. The quick-row closure v3 (bcb3466) named the
+  aggregate-instrument law; the derived bound (accounting_bound)
+  closes the lane honestly: the PASS bound is the estimator floor
+  plus the bank floor, printed with its derivation by the row, and
+  the 0.00% CONTRACT stays untouched — the floor is the
+  instrument's, not the limiter's.]
 
 - **The two quick-mode claims rows closed — the measurement harness
   was the bug, not the enforcement (the quick-row fixup).** The CI
