@@ -30,7 +30,7 @@ row ships without one. The mechanisms come in three strengths:
 | 1 | **No daemon** — enforcement survives process exit | `no-daemon`: process set must not grow across an attach; a download stays policed after the CLI exits | supermassive v1 reload/sustain rows; the pinned-link surface in `pin.rs` |
 | 2 | **Pure eBPF** — no tc/nft/LD_PRELOAD | `pure-eBPF`: ruleset structure snapshot + kernel drop counters + bpftool's attach-mechanism-independent surfaces | nft/tc normalization pins (engine self-test); CI runs the engine self-test on every push |
 | 3 | **Per-app per-cgroup** | `per-app`: cgroup A shaped at its rate while its unlimited neighbor rides ≥50x above, same moment | witness-floor pins; strict-multi shared-bucket rows (supermassive v1) |
-| 4 | **Precision 0.00%** | `precision`: kernel-admitted bytes vs configured rate × wall time over a saturating window, cross-checked against the client counter — the row prints the residual (the status-read spawn latency), it rounds nothing | the token math pinned rootlessly: `test/ebpf/limiter/math_tests.rs` (steady-state exactness, fractional carry) + the budget-covers pair (lts-8, contention) |
+| 4 | **Precision 0.00%** | `precision`: kernel-admitted bytes vs configured rate × wall time over a saturating window, cross-checked against the client counter — the row prints the residual (sampling jitter between midpoint status reads; the spawn latency itself cancels, quick-row fixup), it rounds nothing | the token math pinned rootlessly: `test/ebpf/limiter/math_tests.rs` (steady-state exactness, fractional carry) + the budget-covers pair (lts-8, contention) |
 | 5 | **Resource honesty** — the CLI's own RAM/CPU/IO + kernel cost (lts-6) | `footprint`: wait4 rusage of a canonical attach (peak RSS, CPU seconds, block IO — real numbers printed) + bpftool `run_time_ns`/`run_cnt` (average ns per attached-prog run; the kernel collects those fields only while `kernel.bpf_stats_enabled` is on, so the harness turns the knob on for its window and writes the original value back — lts-6 followup 3) | verdict-math + stats-knob-plan pins (engine self-test); idle-frame zero-emit: `test/terminal/diff_tests.rs` |
 
 The 0.00% claim told honestly (the two levels): the CONTRACT is
@@ -102,8 +102,13 @@ push" wording claimed surfaces the path filters never woke).
 - The loopback window regime: a measurement window whose refill
   cannot bank a whole 64 KiB skb sees bimodal delivery on loopback
   — physics, window-aware in the harness model.
-- The live precision residual: the status-read spawn latency
-  against the window, printed by the row, never rounded away.
+- The live precision residual: sampling jitter between the two
+  midpoint status reads (the spawn latency itself cancels — the
+  quick-row fixup), printed by the row, never rounded away.
+- The quick-mode no-daemon row measures steady state: the cold-start
+  transient of a fresh attach (flow-bucket carry banking while TCP
+  backs off its first losses) is attach physics, not enforcement —
+  the quick lane settles past it before its measured window.
 - The footprint bounds are regression fences, not bragging rights:
   the rows print the real numbers they measured.
 
