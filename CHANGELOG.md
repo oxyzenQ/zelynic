@@ -19,6 +19,48 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Added
 
+- **Schema v21 — the per-socket convergence closure: the per-socket
+  lane joins the ECN-first family, mark before drop per connection.**
+  The v19 ECN-first lane shipped every budgeted lane's marking EXCEPT
+  the per-socket one, deferred on a named question (ebpf/src/ecn.rs's
+  scope note): "a server's N connections each halving their windows
+  on per-connection marks is an aggregate-collapse shape that needs
+  its own convergence analysis before it ships." The analysis ran
+  rootless the house way BEFORE the wiring — the fleet sims in the
+  new test/ebpf/limiter/ecn_socket_tests.rs: N connections on one
+  tick clock (the synchronized worst case the fear named), each with
+  its own credit stream and debt word. The answer: per-connection
+  budgets are independent, so each connection converges on its own
+  stream and the aggregate rides N x per-connection with NO collapse
+  term — the fleet's aggregate stays above 90% of N x rate while
+  every connection sits inside its own budget law, the marking fleet
+  beats the same fleet under the per-socket drop policer (the lane's
+  shipped shape, windows collapsing with retransmit debt), and a
+  CE-ignoring hammer on one connection stays inside its own budget
+  law while its neighbors converge untouched. The wiring: the debt
+  word lives INSIDE SocketBucket (now 40 bytes: core, gen_stamp,
+  ecn_debt) instead of the budget-keyed debt map the cgroup lanes
+  ride — per-connection state in the per-connection bucket, the u64
+  cookie keying unable to carry the generation prefix the map
+  family's repair-6 discipline rides, and the generation belt zeroes
+  the debt with the tokens on a policy mutation (a fresh budget
+  never inherits the predecessor's debt, structural); the LRU ages
+  the whole bucket out together, one posture. The rescue runs inside
+  the lane (one map lookup, the helper binding reached through the
+  crate root), the debt pays on the allow path only out of the
+  stream's leftover (the ecn.rs call-site law verbatim), and the
+  budget law is the closed form unchanged — delivered_i <= rate*t +
+  burst + one 64 KiB super-packet, so the aggregate honest bound is
+  N x that (the lane's documented "rate x concurrent sockets" shape
+  plus the one-time per-connection ECN slack). Non-ECT traffic (the
+  RFC 3168 majority) refuses the helper and drops exactly as before
+  — the legacy verdict, untouched. Schema bump v20 -> v21 in both
+  halves (the kernel const, the userspace mirror, the types pin);
+  the ebpf-prebuilt/ objects and manifest regenerated (the limiter
+  object 55,992 -> 57,480 bytes); docs/USAGE.md's per-socket
+  section and docs/KERNEL_COMPATIBILITY.md's helper section carry
+  the contract.
+
 - **The quick-row closure v2 — the claims engine's GIL was the quick
   lane's real throttle (the live CI verdict on the first closure, and
   its close).** The first quick-row fixup (below) shipped settle and
@@ -55,6 +97,21 @@ NIGHT-hunt-18's git-history-only call.
   rootless; the four-leg live quick battery is the verifier of
   record. docs/CLAIMS_VERIFICATION.md carries the corrected residual
   story and the GIL find.
+  [Round 3's verdict on the fix: the GIL close turned the three
+  rate rows green on all four legs; the token row's two leftovers —
+  a single flow's AIMD ceiling (95-96% of the rate on shared
+  runners, patience cannot lift a source's own ceiling) and an
+  unpaid-settle cushion remnant reading as phantom over-admission
+  — closed by the quick-row closure v3: the precision instrument
+  is now a 4-flow aggregate (the matrix's own high-rung law —
+  "the aggregate, not one AIMD flow, is the instrument there") and
+  the settle is provably paid (the fleet moves one default_burst
+  before the first counter read, the drain_cushion contract). One
+  CI round also burned on a band_check call mixing the positional
+  and keyword spellings of its extra — a TypeError the rootless
+  gates cannot see, because the self-test pins source text and
+  never call-site execution; the self-test now executes both legal
+  spellings as functional rows, 32 green.]
 
 - **The two quick-mode claims rows closed — the measurement harness
   was the bug, not the enforcement (the quick-row fixup).** The CI

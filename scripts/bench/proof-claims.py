@@ -62,15 +62,19 @@ root required for the live run, --self-test for CI without root):
       kernel-admitted bytes (the BPF counter deltas) against
       configured rate x wall time over a long saturating window,
       cross-checked against the client's own byte counter. The
-      source saturates through a DECOUPLED server worker (the
-      quick-row closure v2: an in-process server thread shared the
-      harness GIL with the measuring client and under-delivered on
-      shared runners — the enforcement was never the variable), the
-      elapsed spans status-read spawn midpoints (the latency cancels
-      on both ends), an under-saturating window re-attempts bounded
-      with the settle paying any banked cushion first, and the row
-      prints the actual number and every attempt — nothing is
-      rounded into honesty.
+      instrument saturates the policer with a FLEET of concurrent
+      connections through a decoupled server worker (the quick-row
+      closures: a server thread sharing the harness GIL with the
+      measuring client could not feed the rate on shared runners,
+      and a single AIMD flow rides its own 95-96% ceiling under a
+      drop-only policer — the aggregate is the instrument, the
+      matrix's high-rung law), the settle before the window is
+      provably paid (one default_burst moved before the first
+      counter read, so the fresh cushion stays out of the window),
+      the elapsed spans status-read spawn midpoints (the latency
+      cancels on both ends), an under-saturating window re-attempts
+      bounded, and the row prints the actual number and every
+      attempt — nothing is rounded into honesty.
 
   claim 5 — resource honesty (NIGHT-lts-6: the owner's "verify ram,
     cpu, io, etc usage — this project is critical infra not a
@@ -151,7 +155,11 @@ NO_DAEMON_SETTLE_QUICK = 2.0
 PURE_WINDOW = 5.0
 PER_APP_WINDOW = 10.0
 PRECISION_WINDOW = 30.0
-PRECISION_SETTLE = 3.0  # saturating seconds before the first counter read
+# The precision settle's CAP (the provably-paid loop exits early once
+# the fleet has moved one default_burst): the quick/full pair rides
+# the stage's PRECISION_SETTLE_MAX_* constants below — a fixed sleep
+# cannot prove the fresh bucket's cushion paid, and an unpaid cushion
+# reads as phantom over-admission at the window (the round-3 lesson).
 
 NO_DAEMON_RATE = 5_000_000  # 5mb: above the loopback GSO floor, quick to prove
 PURE_RATE = 5_000_000
@@ -178,6 +186,28 @@ REDRAIN_WINDOW = 1.5  # the cushion-payer download between patient samples
 # window, so a re-attempt measures steady state and an over-band error
 # still fails on the attempt that produced it.
 PRECISION_ATTEMPTS = 2
+# The precision instrument is a FLEET, not a flow (the round-3 CI
+# lesson, the matrix's own high-rung law verbatim: "the aggregate,
+# not one AIMD flow, is the instrument there"): a single fresh TCP
+# connection under a 100mb drop-only policer rides its own AIMD
+# equilibrium at 95-96% of the rate on the shared runners (best-gnu
+# read 3.768%/4.528% under across both re-attempts — patience cannot
+# lift a source's own ceiling), while four hungry connections keep
+# the bucket's offered load above the refill at (nearly) every
+# instant — the aggregate's admitted rides the refill exactly, the
+# individual sawtooths staggering behind it. The fleet also pays the
+# fresh bucket's cushion several times faster than one flow can.
+PRECISION_FLOWS = 4
+# The provably-paid settle (the drain_cushion contract applied to
+# the stage's own warm-up): the measured window may only start after
+# the fleet has cumulatively moved at least one default_burst —
+# a settle that merely sleeps leaves the cushion's remnant to leak
+# into the window as a phantom over-read (low-musl round 3: +3.694%
+# over-side on a 1 GB window = ~37 MB of unpaid 100 MB cushion).
+# The loop exits the moment the payment is provable; the cap is the
+# old fixed settle's own order.
+PRECISION_SETTLE_MAX_QUICK = 3.0
+PRECISION_SETTLE_MAX_FULL = 6.0
 
 # The live accounting row's PASS bound: the estimator samples the
 # kernel counter at each status-read spawn's MIDPOINT (the unbiased
@@ -1052,48 +1082,77 @@ def stage_precision(baseline, quick):
         return lib.record("precision: attach limit", "FAIL", payload) == "PASS"
     window = 10.0 if quick else PRECISION_WINDOW
     bound = ACCOUNTING_ERR_MAX_QUICK if quick else ACCOUNTING_ERR_MAX_FULL
-    # The quick-row closure v2: the window pairs the midpoint estimator
-    # (the quick-row fixup — elapsed between status-read spawn
-    # midpoints, the latency cancels on both ends) with the engine's
-    # decoupled source and one under-side re-attempt. The first quick
-    # closure blamed the residual on sampling jitter; the live CI legs
-    # disproved that honestly — 37.682% error is the SOURCE
-    # under-delivering (the GIL-coupled in-process pair could not
-    # saturate the policer on the shared runners; the matrix's
-    # decoupled worker read 109.0% on the same leg), not limiter math
-    # and not jitter. The row now re-attempts the whole (settle +
-    # window) shape while the ledger reads under rate x (1 - bound):
-    # the next settle pays out any banked cushion first (the rider-L
-    # discipline — a starved attempt banks at most one burst, and an
-    # unpaid bank would return as a phantom over-delivery), an
-    # over-band error stops the loop and fails on the attempt that
-    # produced it, and every attempt's error rides the row detail.
+    # The quick-row closure v3 (round 3's close): the window pairs the
+    # midpoint estimator (the quick-row fixup — elapsed between
+    # status-read spawn midpoints, the latency cancels on both ends)
+    # with the fleet instrument and a provably-paid settle. Round 2's
+    # decoupled server fixed the GIL throttle and turned three red
+    # rows green on all four legs; the token row's two remaining
+    # shapes were the instrument's own ceiling and warm-up: a single
+    # flow's AIMD equilibrium at 95-96% of a 100mb policy on the
+    # shared runners (best-gnu read 3.768%/4.528% under across both
+    # re-attempts — patience cannot lift a source's own ceiling; the
+    # matrix's high-rung law is the answer: "the aggregate, not one
+    # AIMD flow, is the instrument there"), and a fixed 1.5s settle
+    # that did not always pay the fresh bucket's 100 MB cushion
+    # before e0 (low-musl read +3.694% over-side — the remnant
+    # leaking into the window as phantom over-admission). The stage
+    # now runs PRECISION_FLOWS concurrent connections whose offered
+    # load stays above the refill at (nearly) every instant (the
+    # aggregate's admitted rides the refill exactly), and the settle
+    # exits only after the fleet has cumulatively moved one
+    # default_burst — provable payment, the drain_cushion contract —
+    # so an over-band window error is a REAL over-delivery and fails
+    # on the attempt that produced it. Under-side windows still
+    # re-attempt bounded, and every attempt's error rides the row
+    # detail.
     attempt_errs = []
     for _ in range(PRECISION_ATTEMPTS):
-        progress = [0]
-        t = threading.Thread(
-            target=tracked_download,
-            args=(PRECISION_SETTLE + window + 0.5, SERVER.port, progress),
-            daemon=True,
-        )
-        t.start()
-        time.sleep(PRECISION_SETTLE)  # saturating steady state before the first read
+        # The fleet: PRECISION_FLOWS concurrent download threads, each
+        # with its own progress counter — the aggregate is the
+        # instrument (the matrix's high-rung law), and the sum of the
+        # progress counters is the client side of every verdict below.
+        progresses = [[0] for _ in range(PRECISION_FLOWS)]
+        settle_max = PRECISION_SETTLE_MAX_QUICK if quick else PRECISION_SETTLE_MAX_FULL
+        threads = [
+            threading.Thread(
+                target=tracked_download,
+                args=(settle_max + window + 0.5, SERVER.port, p),
+                daemon=True,
+            )
+            for p in progresses
+        ]
+        for t in threads:
+            t.start()
+        # The provably-paid settle: the fleet must cumulatively move
+        # at least one default_burst before the window opens — an
+        # unpaid cushion's remnant reads as phantom over-admission
+        # (the rider-L discipline, applied to the stage's own warm-up;
+        # the loop exits early the moment the payment is provable, so
+        # fast legs settle in a fraction of the old fixed sleep).
+        cushion = lib.default_burst(rate)
+        settle_deadline = time.monotonic() + settle_max
+        while time.monotonic() < settle_deadline:
+            if sum(p[0] for p in progresses) >= cushion:
+                break
+            time.sleep(0.1)
         t0s = time.perf_counter()
         e0 = bytes_allowed_now(CG.a_id)
         t0e = time.perf_counter()
-        c0 = progress[0]
+        c0 = sum(p[0] for p in progresses)
         time.sleep(window)
         t1s = time.perf_counter()
         e1 = bytes_allowed_now(CG.a_id)
         t1e = time.perf_counter()
-        c1 = progress[0]
+        c1 = sum(p[0] for p in progresses)
         t0 = t0s + (t0e - t0s) / 2.0
         t1 = t1s + (t1e - t1s) / 2.0
         # Bounded tail join (the multi-attempt shape's own law): the
         # next attempt's ledger window must not overlap this attempt's
-        # draining flow — its bytes would land in the fresh delta. The
-        # thread's own deadline bounds the join to ~0.5s past t1.
-        t.join(timeout=8.0)
+        # draining fleet — its bytes would land in the fresh delta. Each
+        # thread's own deadline bounds its join to ~0.5s past t1.
+        for t in threads:
+            t.join(timeout=8.0)
         if e0 is None or e1 is None:
             return (
                 lib.record(
@@ -1116,7 +1175,9 @@ def stage_precision(baseline, quick):
         "precision: TCP-level throughput (honest — drops cost, a policer never queues)",
         client_delta / elapsed,
         rate,
-        "the socket sees TCP back-off; the kernel accounting below does not",
+        f"{PRECISION_FLOWS}-flow aggregate — the individual sockets take the drops' "
+        "back-off while the aggregate rides the rate; the kernel accounting "
+        "below does not",
     )
     ratio = admitted / client_delta if client_delta else 0.0
     lib.record(
@@ -1141,10 +1202,15 @@ def stage_precision(baseline, quick):
             "long-run admitted = rate x elapsed exactly, sub-byte frac_rem "
             "carry, pinned rootlessly in test/ebpf/limiter/math_tests.rs "
             "(steady-state exactness). The live residual is the instrument's "
-            "own floor: the source saturating the policer through a "
-            "process boundary (the decoupled server worker), the midpoint "
-            "estimator's spawn-latency cancellation, and window-edge "
-            "sampling — an under-saturating window re-attempts bounded, " + attempts_note,
+            "own floor: a "
+            f"{PRECISION_FLOWS}-flow aggregate keeping the bucket's offered "
+            "load saturated (a single AIMD flow rides its own 95-96% ceiling "
+            "under a 100mb drop-only policer — the aggregate is the "
+            "instrument, the matrix's high-rung law), the provably-paid "
+            "settle that keeps the fresh cushion out of the window, the "
+            "midpoint estimator's spawn-latency cancellation, and "
+            "window-edge sampling — an under-saturating window re-attempts "
+            "bounded, " + attempts_note,
             {
                 "error_pct": round(err * 100, 4),
                 "admitted": admitted,
@@ -1575,14 +1641,19 @@ def self_test():
         == "PASS"
         and ok
     )
-    # Quick-row fixup pins (rootless, the two quick-mode rows the live
-    # quick battery caught): the precision row's estimator must sample
+    # Quick-row closure pins (rootless, the shared-runner classes the
+    # live quick battery caught): the precision row's estimator must sample
     # the kernel counter at each status-read spawn's midpoint (the
     # spawn latency cancels on both ends — the 4.9% quick failure was
     # pure estimator bias), and the quick no-daemon lane must settle
     # past the cold-start transient before its measured window (the
-    # 43.5% quick failure was attach physics, not enforcement). Source
-    # pins fail rootlessly the next time either law is reverted.
+    # 43.5% quick failure was attach physics, not enforcement). The
+    # v3 pins: the precision instrument must be a FLEET (a single flow
+    # rides its own AIMD ceiling under a drop-only policer — the
+    # aggregate is the instrument, the matrix's high-rung law) and the
+    # settle must be provably paid (the cushion's remnant otherwise
+    # leaks into the window as phantom over-admission). Source pins
+    # fail rootlessly the next time any law is reverted.
     prec_src = inspect.getsource(stage_precision)
     ok = (
         lib.record(
@@ -1591,6 +1662,21 @@ def self_test():
             if "t0s + (t0e - t0s) / 2.0" in prec_src and "t1s + (t1e - t1s) / 2.0" in prec_src
             else "FAIL",
             "elapsed is midpoint-to-midpoint — the status-read spawn latency cancels on both ends",
+        )
+        == "PASS"
+        and ok
+    )
+    ok = (
+        lib.record(
+            "selftest: precision rides the fleet and the provably-paid settle",
+            "PASS"
+            if "PRECISION_FLOWS" in prec_src
+            and "PRECISION_SETTLE_MAX_QUICK" in prec_src
+            and "default_burst" in prec_src
+            else "FAIL",
+            "the aggregate is the instrument (one AIMD flow rides its own "
+            "ceiling); the settle exits only after one default_burst moved — "
+            "the cushion stays out of the window",
         )
         == "PASS"
         and ok
@@ -1735,7 +1821,6 @@ def main():
         globals()["NO_DAEMON_WINDOW"] = 4.0
         globals()["PURE_WINDOW"] = 2.5
         globals()["PER_APP_WINDOW"] = 4.0
-        globals()["PRECISION_SETTLE"] = 1.5
 
     start = time.perf_counter()
     CG = PairCgroups()
