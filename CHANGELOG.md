@@ -19,6 +19,36 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Added
 
+- **The ECT live probe — scripts/bench/ect-probe.sh: the per-socket
+  lane's ECN marking proven on the running kernel
+  (NIGHT-private-research-4 follow-up, the owner's next-candidate
+  pick).** The rootless fleet sims (ecn_tests.rs,
+  ecn_socket_tests.rs) pin the debt arithmetic; this harness pins
+  the KERNEL side: real ECT(0) UDP traffic (IP_TOS, QUIC-shaped
+  1200-byte datagrams) blasted through a real --per-socket 8kb
+  policy, the CE codepoint read back at the receiver through the
+  IP_RECVTOS cmsg, and seven verdict rows: the instrument (rootless
+  --self-test — ECT(0) survives loopback and the cmsg reads it,
+  pinning the setsockopt/cmsg constant pair), the mark landing
+  (CE-marked datagrams delivered past the burst — the
+  bpf_skb_ecn_set_ce call, live), the debt cap's bite (CE bytes
+  bounded by 64 KiB + the window's refill + one packet), the
+  Not-ECT control leg (drops beyond the same burst — the helper's
+  refusal IS the legacy verdict), the goodput gain (the ECT leg
+  beats the control — the local shape of the campaign's ~30%+
+  claim), the budget law's closed form (delivered <= burst +
+  rate*t + 64 KiB + one packet, measured), and the ledger
+  cross-check (the kernel books refusals and rescues). The honesty
+  contracts: sender sockets pin the unpoliced root cgroup at
+  creation (the datapath attributes by SOCKET, never by task),
+  receiver sockets pin the policed cgroup and the pair is
+  connected (the early-demux shape the ingress attribution
+  resolves; the documented DRR fallback carries the same marking
+  law), the go byte releases the blast only AFTER the policy
+  stands, and the window is the measured drain-until-quiet clock.
+  PERFORMANCE.md's ECN-first law gains the live reproduce line;
+  USAGE.md the user-facing one.
+
 - **Schema v22 — QUIC-aware attribution: per-CONNECTION keys for
   QUIC (HTTP/3) traffic on the per-socket and CAKE flow lanes
   (NIGHT-private-research-4 candidate, approved for
