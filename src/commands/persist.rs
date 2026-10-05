@@ -39,10 +39,10 @@
 //! the pure transforms (rows -> entries, entries -> the restore
 //! plan) are test-pinned rootlessly under test/commands/.
 
-use anyhow::{Context, Result};
-use std::path::Path;
-
-use crate::ebpf::limiter::{Direction, Limiter, PolicyRaw, RateSpec, Target};
+use crate::ebpf::limiter::{
+    window_persist_form, window_persist_to_spec, Direction, DuringSpec, PolicyRaw, RateSpec,
+    WindowPersist,
+};
 
 /// Where the serialized policy state lives. A system lane, not a
 /// user lane: the policies are root's to write (the strict family's
@@ -82,6 +82,12 @@ pub(crate) struct SnapshotEntry {
     /// True when the policy carried the per-socket flag (every
     /// connection its own budget at the policy rate).
     pub per_socket: bool,
+    /// The row's --during window in its WALL-clock persistence form
+    /// (night-during, schema v23), absent when the row carried none.
+    /// Both leg entries of one row carry the same form; the restore
+    /// plan collapses them. The wall form is the cross-reboot shape —
+    /// a monotonic deadline would reset with the boot.
+    pub during: Option<WindowPersist>,
 }
 
 /// The state file's root document.
@@ -104,11 +110,15 @@ impl SnapshotDoc {
     /// longer has a name lands in the skip list it returns through,
     /// honestly NAMED, never serialized as a bare id the restore
     /// would misresolve.
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn from_rows(
         direction: Direction,
         rows: &[(u32, PolicyRaw)],
         names: &dyn Fn(u32) -> Option<String>,
         per_socket_flag: u32,
+        windows: &[(u32, crate::ebpf::limiter::PolicyWindowRaw)],
+        wall_now_ns: u64,
+        mono_now_ns: u64,
         skip: &mut Vec<u32>,
     ) -> SnapshotDoc {
         let mut entries = Vec::with_capacity(rows.len());
@@ -120,6 +130,10 @@ impl SnapshotDoc {
                     rate_bps: raw.rate_bps,
                     group_id: raw.group_id,
                     per_socket: raw.flags & per_socket_flag != 0,
+                    during: windows
+                        .iter()
+                        .find(|(id, _)| id == cgroup_id)
+                        .map(|(_, w)| window_persist_form(w, wall_now_ns, mono_now_ns)),
                 }),
                 None => skip.push(*cgroup_id),
             }
@@ -147,14 +161,35 @@ pub(crate) struct RestoreStep {
     pub rates: RateSpec,
     /// The per-socket flag (individual lane only).
     pub per_socket: bool,
+    /// The row's --during window (night-during): the wall-form entry
+    /// back into the spec the apply family takes — a fresh bridge
+    /// re-translates it at the restore instant. None when the rows
+    /// carried no window; a member set whose entries disagree keeps
+    /// the FIRST form the census read (the map itself guarantees one
+    /// row per root, so disagreement means a torn census).
+    pub during: Option<DuringSpec>,
 }
 
-/// One solo accumulator leg: (name, dl rate, ul rate, per-socket).
-type SoloLeg = (String, Option<u64>, Option<u64>, bool);
+/// One solo accumulator leg: (name, dl rate, ul rate, per-socket,
+/// window form).
+type SoloLeg = (
+    String,
+    Option<u64>,
+    Option<u64>,
+    bool,
+    Option<WindowPersist>,
+);
 
 /// One group accumulator leg: (group id, member names, dl rate,
-/// ul rate) — the shared-bucket key plus what it carried.
-type GroupLeg = (u32, Vec<String>, Option<u64>, Option<u64>);
+/// ul rate, window form) — the shared-bucket key plus what it
+/// carried.
+type GroupLeg = (
+    u32,
+    Vec<String>,
+    Option<u64>,
+    Option<u64>,
+    Option<WindowPersist>,
+);
 
 /// Derive the restore plan from the document's entries: solo rows
 /// collapse per-name into one strict-single step (both directions in
@@ -171,278 +206,70 @@ pub(crate) fn restore_plan(doc: &SnapshotDoc) -> Vec<RestoreStep> {
         let dl = (e.direction == "download").then_some(e.rate_bps);
         let ul = (e.direction == "upload").then_some(e.rate_bps);
         if e.group_id != 0 {
-            let idx = groups.iter().position(|(gid, _, _, _)| *gid == e.group_id);
+            let idx = groups.iter().position(|(gid, ..)| *gid == e.group_id);
             match idx {
                 Some(i) => {
-                    let (_, names, g_dl, g_ul) = &mut groups[i];
+                    let (_, names, g_dl, g_ul, g_during) = &mut groups[i];
                     if dl.is_some() {
                         *g_dl = dl;
                     }
                     if ul.is_some() {
                         *g_ul = ul;
                     }
+                    if g_during.is_none() {
+                        *g_during = e.during.clone();
+                    }
                     if !names.contains(&e.name) {
                         names.push(e.name.clone());
                     }
                 }
-                None => groups.push((e.group_id, vec![e.name.clone()], dl, ul)),
+                None => groups.push((e.group_id, vec![e.name.clone()], dl, ul, e.during.clone())),
             }
         } else {
-            let idx = solos.iter().position(|(n, _, _, _)| *n == e.name);
+            let idx = solos.iter().position(|(n, ..)| *n == e.name);
             match idx {
                 Some(i) => {
-                    let (_, s_dl, s_ul, _) = &mut solos[i];
+                    let (_, s_dl, s_ul, _, s_during) = &mut solos[i];
                     if dl.is_some() {
                         *s_dl = dl;
                     }
                     if ul.is_some() {
                         *s_ul = ul;
                     }
+                    if s_during.is_none() {
+                        *s_during = e.during.clone();
+                    }
                 }
-                None => solos.push((e.name.clone(), dl, ul, e.per_socket)),
+                None => solos.push((e.name.clone(), dl, ul, e.per_socket, e.during.clone())),
             }
         }
     }
     let mut plan: Vec<RestoreStep> = solos
         .into_iter()
-        .map(|(name, dl, ul, per_socket)| RestoreStep {
+        .map(|(name, dl, ul, per_socket, during)| RestoreStep {
             names: vec![name],
             rates: RateSpec {
                 download: dl,
                 upload: ul,
             },
             per_socket,
+            during: during.as_ref().and_then(window_persist_to_spec),
         })
         .collect();
-    plan.extend(groups.into_iter().map(|(_, names, dl, ul)| RestoreStep {
-        names,
-        rates: RateSpec {
-            download: dl,
-            upload: ul,
-        },
-        per_socket: false,
-    }));
-    plan
-}
-
-// ── The verbs ──────────────────────────────────────────────────────
-
-/// Handle `zelynic snapshot`: read the live census from both pinned
-/// policy maps, join names through the identity walk, write the state
-/// file atomically. The root gate matches the strict family (the
-/// /var/lib lane is root's; the maps read fine on any uid but the
-/// state file is a policy-state writer).
-#[cfg(feature = "ebpf")]
-pub fn handle_snapshot(json: bool) -> Result<()> {
-    use crate::ebpf::identity::IdentityMap;
-    use crate::ebpf::limiter::types::POLICY_FLAG_PER_SOCKET;
-
-    if !nix::unistd::geteuid().is_root() {
-        anyhow::bail!(
-            "snapshot writes the policy state file ({STATE_FILE}) — run with sudo (the strict family's privilege ladder)"
-        );
-    }
-    let _lock = crate::ebpf::lock::acquire()?;
-
-    let limiter = Limiter::open_pinned(false)?;
-    let dl = limiter.read_policies_public(Direction::Download)?;
-    let ul = limiter.read_policies_public(Direction::Upload)?;
-
-    // The identity join: one walk, both directions.
-    let mut identity = IdentityMap::new();
-    identity.refresh();
-    let join = |id: u32| -> Option<String> {
-        identity
-            .all()
+    plan.extend(
+        groups
             .into_iter()
-            .find(|e| e.cgroup_id == id)
-            .map(|e| e.comm.clone())
-    };
-
-    let mut skip = Vec::new();
-    let mut doc = SnapshotDoc::from_rows(
-        Direction::Download,
-        &dl,
-        &join,
-        POLICY_FLAG_PER_SOCKET,
-        &mut skip,
+            .map(|(_, names, dl, ul, during)| RestoreStep {
+                names,
+                rates: RateSpec {
+                    download: dl,
+                    upload: ul,
+                },
+                per_socket: false,
+                during: during.as_ref().and_then(window_persist_to_spec),
+            }),
     );
-    let mut ul_skip = Vec::new();
-    let ul_doc = SnapshotDoc::from_rows(
-        Direction::Upload,
-        &ul,
-        &join,
-        POLICY_FLAG_PER_SOCKET,
-        &mut ul_skip,
-    );
-    doc.entries.extend(ul_doc.entries);
-    skip.extend(ul_skip);
-    doc.captured_at_unix = unix_now_secs();
-
-    // The honest-capture report: census rows that no longer have a
-    // running process are named on stderr (the partial-census note
-    // pattern), never silently dropped.
-    if !skip.is_empty() {
-        let ids: Vec<String> = skip.iter().map(|id| format!("cg:{id}")).collect();
-        eprintln_safe!(
-            "{}",
-            crate::output::warn_bold(&format!(
-                "{} policy leg(s) skipped: cgroup id(s) {} no longer resolve to a process — they cannot be restored by name",
-                skip.len(),
-                ids.join(", ")
-            ))
-        );
-    }
-
-    write_state_file(&doc)?;
-
-    if json {
-        crate::output::print_json(&doc);
-        return Ok(());
-    }
-    let names: std::collections::BTreeSet<&str> =
-        doc.entries.iter().map(|e| e.name.as_str()).collect();
-    println_safe!(
-        "{}",
-        crate::output::ok(&format!(
-            "snapshot: {} policy leg(s) across {} name(s) -> {STATE_FILE}",
-            doc.entries.len(),
-            names.len()
-        ))
-    );
-    Ok(())
-}
-
-/// Handle `zelynic restore`: read the state file, derive the plan,
-/// apply it step by step, and report honestly (applied legs, names
-/// not running yet — the strict-all best-effort contract, never an
-/// abort for the fleet). Idempotent: re-running picks up late
-/// starters without disturbing applied legs (an apply over an
-/// existing limit is the documented supersede).
-#[cfg(feature = "ebpf")]
-pub fn handle_restore(json: bool) -> Result<()> {
-    if !nix::unistd::geteuid().is_root() {
-        anyhow::bail!(
-            "restore re-applies policies from the state file — run with sudo (the strict family's privilege ladder)"
-        );
-    }
-    let doc: SnapshotDoc = read_state_file()?;
-    let plan = restore_plan(&doc);
-
-    let _lock = crate::ebpf::lock::acquire()?;
-
-    // The lifecycle ladder every strict-* rides: attach IS the
-    // reuse/migration/cleanup contract (hunt-21), and a fresh boot
-    // has no pins at all — this is the load that materializes them.
-    Limiter::attach(false)?;
-
-    let mut limiter = Limiter::open_pinned(false)?;
-    let mut applied = 0usize;
-    let mut unresolved: Vec<String> = Vec::new();
-    for step in &plan {
-        let targets: Vec<Target> = step
-            .names
-            .iter()
-            .map(|n| Target::ProcessName(n.clone()))
-            .collect();
-        // apply's own return is the resolution verdict: zero legs
-        // means nothing resolved (the name is not running) — the
-        // step lands in the report, the fleet carries on.
-        // night-during (schema v23): restore passes None — the
-        // monotonic deadline a window row carries is meaningless
-        // across a reboot (mono resets, the pins are gone anyway),
-        // and the WALL-form persistence the restore needs rides the
-        // during follow-up commit (the census grows its fields).
-        let n = if step.names.len() == 1 {
-            limiter.apply_single(&targets[0], &step.rates, step.per_socket, None)?
-        } else {
-            limiter.apply_group(&targets, &step.rates, None)?
-        };
-        if n == 0 {
-            unresolved.extend(step.names.iter().cloned());
-        } else {
-            applied += n;
-        }
-    }
-
-    if json {
-        crate::output::print_json(&RestoreReportJson {
-            steps: plan.len(),
-            applied,
-            unresolved: unresolved.clone(),
-        });
-        return Ok(());
-    }
-    println_safe!(
-        "{}",
-        crate::output::ok(&format!(
-            "restore: {applied} policy leg(s) applied across {} step(s)",
-            plan.len()
-        ))
-    );
-    if !unresolved.is_empty() {
-        eprintln_safe!(
-            "{}",
-            crate::output::warn_bold(&format!(
-                "{} name(s) not running yet (skipped — re-run restore after they start): {}",
-                unresolved.len(),
-                unresolved.join(", ")
-            ))
-        );
-    }
-    Ok(())
-}
-
-/// The `restore --print-json` document.
-#[cfg(feature = "ebpf")]
-#[derive(serde::Serialize)]
-struct RestoreReportJson {
-    steps: usize,
-    applied: usize,
-    unresolved: Vec<String>,
-}
-
-// ── The file lane (thin, honest errors) ────────────────────────────
-
-/// Write the document to the state path: create the parent (first
-/// run on a fresh install), then the atomic write (temp + rename, so
-/// a crash mid-write never leaves a half-serialized policy fleet).
-pub(crate) fn write_state_file(doc: &SnapshotDoc) -> Result<()> {
-    let path = Path::new(STATE_FILE);
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)
-            .with_context(|| format!("creating state directory {}", parent.display()))?;
-    }
-    let tmp = path.with_extension("json.tmp");
-    let body = serde_json::to_string_pretty(doc).context("serializing the snapshot document")?;
-    std::fs::write(&tmp, body).with_context(|| format!("writing {}", tmp.display()))?;
-    std::fs::rename(&tmp, path).with_context(|| format!("installing {STATE_FILE}"))?;
-    Ok(())
-}
-
-/// Read the state file and refuse schema drift loudly (the tag ride:
-/// a newer zelynic's file names its own version; a best-guess parse
-/// would apply the wrong shape's policies).
-pub(crate) fn read_state_file() -> Result<SnapshotDoc> {
-    let body =
-        std::fs::read_to_string(STATE_FILE).with_context(|| format!("reading {STATE_FILE}"))?;
-    let doc: SnapshotDoc = serde_json::from_str(&body).context("parsing the state file")?;
-    if doc.schema != STATE_SCHEMA {
-        anyhow::bail!(
-            "state file schema v{} != expected v{STATE_SCHEMA} — a newer or older zelynic wrote it; re-run snapshot to refresh it",
-            doc.schema
-        );
-    }
-    Ok(doc)
-}
-
-/// Unix seconds, std only (the no-chrono discipline; the value is a
-/// capture stamp, not a formatted clock).
-pub(crate) fn unix_now_secs() -> u64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs())
-        .unwrap_or(0)
+    plan
 }
 
 // NIGHT-private-research-4: the pure-transform pins live under the

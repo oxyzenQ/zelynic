@@ -19,6 +19,7 @@ use super::*;
 #[test]
 fn status_cells_one_metric_per_cell() {
     let d = DisplayData {
+        window: None,
         cgroup_id: 73386,
         dl_bps: Some(100_000),
         ul_bps: Some(0),
@@ -44,6 +45,7 @@ fn status_cells_one_metric_per_cell() {
     // (the number names a per-connection budget, not the cgroup
     // cap) and never the byte cells.
     let per_socket_row = DisplayData {
+        window: None,
         cgroup_id: 73400,
         dl_bps: Some(500_000),
         ul_bps: Some(500_000),
@@ -62,6 +64,7 @@ fn status_cells_one_metric_per_cell() {
 
     // One-direction limit: the other side is an em dash, not a number.
     let one_sided = DisplayData {
+        window: None,
         cgroup_id: 73390,
         dl_bps: None,
         ul_bps: Some(1_000_000),
@@ -89,6 +92,7 @@ fn status_cells_one_metric_per_cell() {
 #[test]
 fn status_rate_cells_render_configured_rates_exactly() {
     let d = DisplayData {
+        window: None,
         cgroup_id: 70896,
         dl_bps: Some(100_510),
         ul_bps: Some(50_000),
@@ -269,3 +273,132 @@ fn status_branch_frames_carry_the_flagship_chrome() {
 }
 
 // ── charger-core-3a: the rate_ring JSON contract pins ──────────────
+
+// ── night-during, schema v23: the window lifetime line pins ───────
+
+/// The compact duration renderer (the "(N left)" suffix): one unit,
+/// floored, sub-minute in seconds so a short trial reads its own
+/// countdown.
+#[test]
+fn format_duration_compact_one_unit_floored() {
+    assert_eq!(format_duration_compact(45_000_000_000), "45s");
+    assert_eq!(format_duration_compact(47 * 60 * 1_000_000_000), "47m");
+    assert_eq!(format_duration_compact(3 * 3600 * 1_000_000_000), "3h");
+    assert_eq!(format_duration_compact(20 * 86_400 * 1_000_000_000), "20d");
+    assert_eq!(
+        format_duration_compact(10 * 365 * 86_400 * 1_000_000_000),
+        "10y"
+    );
+}
+
+/// The five lifetime shapes a row with a window renders, pinned to
+/// their exact wording (the owner checks this table against the CLI
+/// promise — the wording IS the promise): the active span names its
+/// end and its countdown, the dormant span its wake, the ended span
+/// its expiry (warn yellow — the one state to notice), the daily
+/// pair its hours with the active/outside verdict.
+#[test]
+fn window_lifetime_line_pins_all_five_shapes() {
+    use crate::ebpf::limiter::types::{PolicyWindowRaw, WINDOW_KIND_DAILY, WINDOW_KIND_SPAN};
+    // The clock pair: wall 2026-10-06 12:00:00 UTC (the exact
+    // epoch instant, so the day-level assertions below are
+    // deterministic), mono 60s.
+    let mono = 60 * 1_000_000_000u64;
+    let wall = 1_791_288_000_000_000_000u64;
+
+    let active_span = PolicyWindowRaw {
+        kind: WINDOW_KIND_SPAN,
+        reserved: 0,
+        start_mono_ns: 0,
+        end_mono_ns: mono + 47 * 60 * 1_000_000_000,
+        start_s: 0,
+        end_s: 0,
+    };
+    let line = window_lifetime_line(&active_span, wall, mono);
+    assert!(
+        line.contains("window: until 2026-10-06") && line.contains("(47m left)"),
+        "active span: {line}"
+    );
+
+    let dormant_span = PolicyWindowRaw {
+        kind: WINDOW_KIND_SPAN,
+        reserved: 0,
+        start_mono_ns: mono + 3600 * 1_000_000_000,
+        end_mono_ns: mono + 7200 * 1_000_000_000,
+        start_s: 0,
+        end_s: 0,
+    };
+    let line = window_lifetime_line(&dormant_span, wall, mono);
+    assert!(
+        line.contains("window: sleeps until 2026-10-06 13:"),
+        "dormant span: {line}"
+    );
+
+    let ended_span = PolicyWindowRaw {
+        kind: WINDOW_KIND_SPAN,
+        reserved: 0,
+        start_mono_ns: 0,
+        end_mono_ns: mono,
+        start_s: 0,
+        end_s: 0,
+    };
+    let line = window_lifetime_line(&ended_span, wall, mono);
+    assert!(
+        line.contains("window: expired at") && line.contains("(awaiting sweep)"),
+        "ended span: {line}"
+    );
+
+    // The anchor is 12:00 UTC inside 09:00-17:00: active.
+    let active_daily = PolicyWindowRaw {
+        kind: WINDOW_KIND_DAILY,
+        reserved: 0,
+        start_mono_ns: 0,
+        end_mono_ns: 0,
+        start_s: 9 * 3600,
+        end_s: 17 * 3600,
+    };
+    let line = window_lifetime_line(&active_daily, wall, mono);
+    assert!(
+        line.contains("window: daily 09:00-17:00 UTC (active)"),
+        "active daily: {line}"
+    );
+
+    let outside_daily = PolicyWindowRaw {
+        kind: WINDOW_KIND_DAILY,
+        reserved: 0,
+        start_mono_ns: 0,
+        end_mono_ns: 0,
+        start_s: 22 * 3600,
+        end_s: 6 * 3600,
+    };
+    let line = window_lifetime_line(&outside_daily, wall, mono);
+    assert!(
+        line.contains("window: daily 22:00-06:00 UTC (outside — not policing now)"),
+        "outside daily: {line}"
+    );
+}
+
+/// The window join: a row whose cgroup carries a window renders the
+/// lifetime line under it; a row without one renders none (the
+/// additive-field rule — the table stays exactly what it was for
+/// every --during-less row).
+#[test]
+fn collect_display_data_joins_windows_by_cgroup() {
+    use crate::ebpf::limiter::types::{PolicyWindowRaw, WINDOW_KIND_SPAN};
+    let dl = vec![(101u32, PolicyRaw::default())];
+    let windows = vec![(
+        101u32,
+        PolicyWindowRaw {
+            kind: WINDOW_KIND_SPAN,
+            reserved: 0,
+            start_mono_ns: 0,
+            end_mono_ns: 10,
+            start_s: 0,
+            end_s: 0,
+        },
+    )];
+    let data = collect_display_data(&dl, &[], &[], &windows);
+    assert!(data[0].window.is_some(), "the window joins its row");
+    let data = collect_display_data(&dl, &[], &[], &[]);
+    assert!(data[0].window.is_none(), "absent window = no lifetime line");
+}

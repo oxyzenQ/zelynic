@@ -359,3 +359,103 @@ fn dormancy_notes_name_the_three_shapes() {
     corrupt.kind = 7;
     assert!(dormancy_note(&corrupt, wall, mono).is_none());
 }
+
+// ━━ The status vocabulary + the persistence round-trip ━━
+
+#[test]
+fn window_state_names_the_four_states() {
+    use crate::ebpf::limiter::during::window_state;
+    use crate::ebpf::limiter::types::{WINDOW_KIND_DAILY, WINDOW_KIND_SPAN};
+    // The anchor is 12:00 UTC (inside 09:00-17:00, outside 22:00-06:00).
+    let wall = 1_791_288_000_000_000_000u64;
+    let mono = 60 * 1_000_000_000u64;
+    let span = |s: u64, e: u64| PolicyWindowRaw {
+        kind: WINDOW_KIND_SPAN,
+        reserved: 0,
+        start_mono_ns: s,
+        end_mono_ns: e,
+        start_s: 0,
+        end_s: 0,
+    };
+    let daily = |s: u32, e: u32| PolicyWindowRaw {
+        kind: WINDOW_KIND_DAILY,
+        reserved: 0,
+        start_mono_ns: 0,
+        end_mono_ns: 0,
+        start_s: s,
+        end_s: e,
+    };
+    assert_eq!(window_state(&span(0, mono + 1), wall, mono), "active");
+    assert_eq!(
+        window_state(&span(mono + 1, mono + 2), wall, mono),
+        "dormant"
+    );
+    assert_eq!(window_state(&span(0, mono), wall, mono), "expired");
+    assert_eq!(
+        window_state(&daily(9 * 3600, 17 * 3600), wall, mono),
+        "active"
+    );
+    assert_eq!(
+        window_state(&daily(22 * 3600, 6 * 3600), wall, mono),
+        "outside"
+    );
+    // Unknown kinds are "active" (the absent-entry verdict).
+    let mut corrupt = daily(0, 10);
+    corrupt.kind = 7;
+    assert_eq!(window_state(&corrupt, wall, mono), "active");
+}
+
+#[test]
+fn window_persistence_round_trips_both_shapes() {
+    use crate::ebpf::limiter::during::{window_persist_form, window_persist_to_spec};
+    use crate::ebpf::limiter::types::WINDOW_KIND_SPAN;
+    let wall = 1_791_288_000_000_000_000u64;
+    let mono = 5 * 1_000_000_000u64;
+    // A span: the wall instants reconstruct through the offset pair
+    // (start_wall = mono_start + (wall - mono)).
+    let offset = wall - mono;
+    let row = PolicyWindowRaw {
+        kind: WINDOW_KIND_SPAN,
+        reserved: 0,
+        start_mono_ns: 10 * 1_000_000_000,
+        end_mono_ns: 3600 * 1_000_000_000,
+        start_s: 0,
+        end_s: 0,
+    };
+    let form = window_persist_form(&row, wall, mono);
+    assert_eq!(form.kind, "span");
+    assert_eq!(form.start_wall_ns, 10 * 1_000_000_000 + offset);
+    assert_eq!(form.end_wall_ns, 3600 * 1_000_000_000 + offset);
+    assert_eq!(
+        window_persist_to_spec(&form),
+        Some(DuringSpec::Span {
+            start_wall_ns: 10 * 1_000_000_000 + offset,
+            end_wall_ns: 3600 * 1_000_000_000 + offset,
+        }),
+        "the span round-trips through its wall form"
+    );
+    // A daily: the pair verbatim.
+    let daily_row = PolicyWindowRaw {
+        kind: crate::ebpf::limiter::types::WINDOW_KIND_DAILY,
+        reserved: 0,
+        start_mono_ns: 0,
+        end_mono_ns: 0,
+        start_s: 22 * 3600,
+        end_s: 6 * 3600,
+    };
+    let form = window_persist_form(&daily_row, wall, mono);
+    assert_eq!(form.kind, "daily");
+    assert_eq!(form.start_s, 22 * 3600);
+    assert_eq!(form.end_s, 6 * 3600);
+    assert_eq!(
+        window_persist_to_spec(&form),
+        Some(DuringSpec::Daily {
+            start_s: 22 * 3600,
+            end_s: 6 * 3600
+        })
+    );
+    // A corrupt kind name refuses — never a best-guess parse.
+    let mut bad = form;
+    bad.kind = "whenever".to_string();
+    assert!(window_persist_to_spec(&bad).is_none());
+}

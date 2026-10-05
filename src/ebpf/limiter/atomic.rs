@@ -225,6 +225,9 @@ impl super::Limiter {
             }
         }
         self.reclaim_dead_groups(&superseded);
+        // night-during (schema v23): the lazy sweep, the family's
+        // own tail (apply_single's note owns the why).
+        self.sweep_expired_windows_best_effort();
         self.ammsp_memo_invalidate_best_effort();
 
         if self.verbose {

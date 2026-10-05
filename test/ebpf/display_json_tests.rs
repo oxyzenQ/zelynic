@@ -45,6 +45,9 @@ fn status_json_counts_cgroups_not_direction_policies() {
         &IdentityMap::new(),
         Some(0),
         &RingReads::absent(),
+        &[],
+        0,
+        0,
     );
 
     assert_eq!(json.active_limits, 1);
@@ -70,6 +73,9 @@ fn status_json_single_direction_limit_renders_null_other_side() {
         &IdentityMap::new(),
         Some(0),
         &RingReads::absent(),
+        &[],
+        0,
+        0,
     );
 
     assert_eq!(json.active_limits, 1);
@@ -92,6 +98,9 @@ fn status_json_joins_stats_and_zeroes_missing_entries() {
         &IdentityMap::new(),
         None,
         &RingReads::absent(),
+        &[],
+        0,
+        0,
     );
 
     let with_stats = json.limits.iter().find(|l| l.cgroup_id == 1).unwrap();
@@ -116,24 +125,46 @@ fn status_json_watchdog_wording_pins_all_three_states() {
 
     // Dormant: deadline 0, and the None display-contract variant.
     assert_eq!(
-        status_json(&[], &[], &[], &id, Some(0), &RingReads::absent()).watchdog,
+        status_json(&[], &[], &[], &id, Some(0), &RingReads::absent(), &[], 0, 0).watchdog,
         "enforcing"
     );
     assert_eq!(
-        status_json(&no_policies, &[], &[], &id, None, &RingReads::absent()).watchdog,
+        status_json(
+            &no_policies,
+            &[],
+            &[],
+            &id,
+            None,
+            &RingReads::absent(),
+            &[],
+            0,
+            0
+        )
+        .watchdog,
         "enforcing"
     );
 
     // Armed and still in the future (u64::MAX is safely above any
     // monotonic clock).
     assert_eq!(
-        status_json(&[], &[], &[], &id, Some(u64::MAX), &RingReads::absent()).watchdog,
+        status_json(
+            &[],
+            &[],
+            &[],
+            &id,
+            Some(u64::MAX),
+            &RingReads::absent(),
+            &[],
+            0,
+            0
+        )
+        .watchdog,
         "active"
     );
 
     // Armed but past — monotonic_ns() is far beyond 1 by now.
     assert_eq!(
-        status_json(&[], &[], &[], &id, Some(1), &RingReads::absent()).watchdog,
+        status_json(&[], &[], &[], &id, Some(1), &RingReads::absent(), &[], 0, 0).watchdog,
         "expired"
     );
 }
@@ -150,6 +181,9 @@ fn status_json_empty_policies_is_the_zero_state() {
         &IdentityMap::new(),
         Some(0),
         &RingReads::absent(),
+        &[],
+        0,
+        0,
     );
     assert_eq!(json.active_limits, 0);
     assert!(json.limits.is_empty());
@@ -168,6 +202,9 @@ fn status_json_field_names_are_pinned() {
         &IdentityMap::new(),
         Some(0),
         &RingReads::absent(),
+        &[],
+        0,
+        0,
     );
     let text = serde_json::to_string(&json).unwrap();
     for field in [
@@ -201,6 +238,9 @@ fn rate_ring_field_is_omitted_when_the_lens_is_absent() {
         &IdentityMap::new(),
         Some(0),
         &RingReads::absent(),
+        &[],
+        0,
+        0,
     );
     assert!(json.limits[0].rate_ring.is_none());
 }
@@ -235,7 +275,17 @@ fn rate_ring_field_joins_series_by_cgroup() {
         dl: Some(vec![(1, ring)]),
         ul: None,
     };
-    let json = status_json(&dl, &[], &[], &IdentityMap::new(), Some(0), &rings);
+    let json = status_json(
+        &dl,
+        &[],
+        &[],
+        &IdentityMap::new(),
+        Some(0),
+        &rings,
+        &[],
+        0,
+        0,
+    );
 
     // Cgroup 1: dl ring present (ul absent -> None), the dl series
     // derived; cgroup 2: no ring entry -> no field.
@@ -271,7 +321,17 @@ fn rate_ring_one_sided_entry_renders_null_direction() {
         dl: None,
         ul: Some(vec![(1, ring)]),
     };
-    let json = status_json(&dl, &ul, &[], &IdentityMap::new(), Some(0), &rings);
+    let json = status_json(
+        &dl,
+        &ul,
+        &[],
+        &IdentityMap::new(),
+        Some(0),
+        &rings,
+        &[],
+        0,
+        0,
+    );
     let rr = json.limits[0].rate_ring.as_ref().unwrap();
     assert!(rr.download.is_none());
     assert!(rr.upload.is_some());
@@ -310,6 +370,9 @@ fn per_socket_fields_serialize_only_when_set() {
         &IdentityMap::new(),
         Some(0),
         &RingReads::absent(),
+        &[],
+        0,
+        0,
     );
 
     let row = &json.limits[0];
@@ -327,6 +390,9 @@ fn per_socket_fields_serialize_only_when_set() {
         &IdentityMap::new(),
         Some(0),
         &RingReads::absent(),
+        &[],
+        0,
+        0,
     );
     let row = &plain.limits[0];
     assert!(!row.download_per_socket && !row.upload_per_socket);

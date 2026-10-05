@@ -46,6 +46,7 @@ fn entry(
         rate_bps,
         group_id,
         per_socket,
+        during: None,
     }
 }
 
@@ -64,7 +65,7 @@ fn from_rows_joins_names_and_names_the_skips() {
         }
     };
     let mut skip = Vec::new();
-    let doc = SnapshotDoc::from_rows(Direction::Download, &rows, &names, 1, &mut skip);
+    let doc = SnapshotDoc::from_rows(Direction::Download, &rows, &names, 1, &[], 0, 0, &mut skip);
     assert_eq!(doc.entries.len(), 1);
     assert_eq!(
         doc.entries[0],
@@ -84,7 +85,7 @@ fn from_rows_carries_group_and_per_socket_flags() {
         }
     };
     let mut skip = Vec::new();
-    let doc = SnapshotDoc::from_rows(Direction::Upload, &rows, &names, 1, &mut skip);
+    let doc = SnapshotDoc::from_rows(Direction::Upload, &rows, &names, 1, &[], 0, 0, &mut skip);
     assert_eq!(
         doc.entries[0],
         entry("nginx", "upload", 2_000_000, 42, true)
@@ -246,4 +247,165 @@ fn a_drifted_schema_tag_is_its_own_document() {
     let doc: SnapshotDoc = serde_json::from_str(body).unwrap();
     assert_ne!(doc.schema, STATE_SCHEMA);
     assert!(doc.entries.is_empty());
+}
+
+// ── night-during, schema v23: the window's persistence pins ───────
+
+/// from_rows joins the window census: a leg whose root carries a
+/// window serializes its WALL form (the offset pair makes the
+/// instants deterministic); a row without one stays absent; both
+/// leg entries of one row carry the same form.
+#[test]
+fn from_rows_joins_the_window_wall_form() {
+    use crate::ebpf::limiter::types::{PolicyWindowRaw, WINDOW_KIND_SPAN};
+    use crate::ebpf::limiter::window_persist_form;
+
+    let rows = vec![(101u32, raw(1_000_000, 0, 0))];
+    let names = |id: u32| {
+        if id == 101 {
+            Some("brave".to_string())
+        } else {
+            None
+        }
+    };
+    let wall = 1_791_288_000_000_000_000u64;
+    let mono = 5 * 1_000_000_000u64;
+    let windows = vec![(
+        101u32,
+        PolicyWindowRaw {
+            kind: WINDOW_KIND_SPAN,
+            reserved: 0,
+            start_mono_ns: 0,
+            end_mono_ns: 3600 * 1_000_000_000,
+            start_s: 0,
+            end_s: 0,
+        },
+    )];
+    let mut skip = Vec::new();
+    let doc = SnapshotDoc::from_rows(
+        Direction::Download,
+        &rows,
+        &names,
+        1,
+        &windows,
+        wall,
+        mono,
+        &mut skip,
+    );
+    let expected = window_persist_form(&windows[0].1, wall, mono);
+    assert_eq!(doc.entries[0].during, Some(expected));
+
+    // Without a window: absent, never a fabricated form.
+    let mut skip = Vec::new();
+    let doc = SnapshotDoc::from_rows(
+        Direction::Download,
+        &rows,
+        &names,
+        1,
+        &[],
+        wall,
+        mono,
+        &mut skip,
+    );
+    assert!(doc.entries[0].during.is_none());
+}
+
+/// restore_plan carries the window into the step (the wall form
+/// back into the spec the apply family takes), solo and group
+/// alike; a mixed member set keeps the FIRST form the census read.
+#[test]
+fn restore_plan_carries_the_window_spec() {
+    // A solo row's daily window round-trips into the step's spec.
+    let doc = SnapshotDoc {
+        schema: STATE_SCHEMA,
+        captured_at_unix: 0,
+        entries: vec![
+            SnapshotEntry {
+                name: "brave".to_string(),
+                direction: "download".to_string(),
+                rate_bps: 1_000_000,
+                group_id: 0,
+                per_socket: false,
+                during: Some(crate::ebpf::limiter::WindowPersist {
+                    kind: "daily".to_string(),
+                    start_wall_ns: 0,
+                    end_wall_ns: 0,
+                    start_s: 22 * 3600,
+                    end_s: 6 * 3600,
+                }),
+            },
+            SnapshotEntry {
+                name: "brave".to_string(),
+                direction: "upload".to_string(),
+                rate_bps: 1_000_000,
+                group_id: 0,
+                per_socket: false,
+                during: Some(crate::ebpf::limiter::WindowPersist {
+                    kind: "daily".to_string(),
+                    start_wall_ns: 0,
+                    end_wall_ns: 0,
+                    start_s: 22 * 3600,
+                    end_s: 6 * 3600,
+                }),
+            },
+        ],
+    };
+    let plan = restore_plan(&doc);
+    assert_eq!(
+        plan[0].during,
+        Some(crate::ebpf::limiter::DuringSpec::Daily {
+            start_s: 22 * 3600,
+            end_s: 6 * 3600
+        }),
+        "the daily form round-trips into the step's spec"
+    );
+
+    // A span form round-trips into the wall-span spec; a mixed
+    // member set keeps the FIRST form the census read (the map
+    // guarantees one row per root, so disagreement means torn).
+    let span_form = crate::ebpf::limiter::WindowPersist {
+        kind: "span".to_string(),
+        start_wall_ns: 100,
+        end_wall_ns: 200,
+        start_s: 0,
+        end_s: 0,
+    };
+    let daily_form = crate::ebpf::limiter::WindowPersist {
+        kind: "daily".to_string(),
+        start_wall_ns: 0,
+        end_wall_ns: 0,
+        start_s: 22 * 3600,
+        end_s: 6 * 3600,
+    };
+    let doc = SnapshotDoc {
+        schema: STATE_SCHEMA,
+        captured_at_unix: 0,
+        entries: vec![
+            SnapshotEntry {
+                name: "brave".to_string(),
+                direction: "download".to_string(),
+                rate_bps: 1_000_000,
+                group_id: 0,
+                per_socket: false,
+                during: Some(span_form.clone()),
+            },
+            SnapshotEntry {
+                name: "brave".to_string(),
+                direction: "upload".to_string(),
+                rate_bps: 1_000_000,
+                group_id: 0,
+                per_socket: false,
+                during: Some(daily_form),
+            },
+        ],
+    };
+    let plan = restore_plan(&doc);
+    assert_eq!(
+        plan[0].during,
+        Some(crate::ebpf::limiter::DuringSpec::Span {
+            start_wall_ns: 100,
+            end_wall_ns: 200
+        }),
+        "the first form wins on a mixed (torn) member set"
+    );
 }

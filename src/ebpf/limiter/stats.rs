@@ -25,7 +25,12 @@ impl super::Limiter {
         let ul = self.read_policies(Direction::Upload)?;
         let stats = self.read_stats()?;
         let wd = self.read_watchdog()?;
-        crate::ebpf::display::print_status(&dl, &ul, &stats, &self.identity, wd);
+        // night-during (schema v23): the window join rides the same
+        // read pass — an absent-lens read (missing pin reads as
+        // empty, the row renders without its lifetime line, never a
+        // failed status for a monitor-only map).
+        let windows = self.read_policy_windows_all().unwrap_or_default();
+        crate::ebpf::display::print_status(&dl, &ul, &stats, &self.identity, wd, &windows);
         Ok(())
     }
 
@@ -45,7 +50,18 @@ impl super::Limiter {
         let stats = self.read_stats()?;
         let wd = self.read_watchdog()?;
         let rings = self.read_rate_rings();
-        crate::ebpf::display_json::print_status_json(&dl, &ul, &stats, &self.identity, wd, &rings)
+        // night-during: the absent-lens window join (print_status's
+        // own note owns the why).
+        let windows = self.read_policy_windows_all().unwrap_or_default();
+        crate::ebpf::display_json::print_status_json(
+            &dl,
+            &ul,
+            &stats,
+            &self.identity,
+            wd,
+            &rings,
+            &windows,
+        )
     }
 
     /// Read all policies from a direction map.

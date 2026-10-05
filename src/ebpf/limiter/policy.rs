@@ -103,6 +103,13 @@ impl super::Limiter {
         }
         self.reclaim_dead_groups(&superseded);
 
+        // night-during (schema v23): the lazy sweep — every
+        // apply-family mutation drives ended spans through the
+        // unstrict machinery (the CLI visit IS the daemon's clock).
+        // Before the memo bump on purpose: the sweep's deletions
+        // retire under the same generation stamp.
+        self.sweep_expired_windows_best_effort();
+
         // AMMSP memo invalidation (research-2 / perf-0): the fresh
         // policies may cover leaves whose cached resolution is
         // stale — the walk sees only the live map, so the generation
@@ -207,6 +214,9 @@ impl super::Limiter {
             }
         }
         self.reclaim_dead_groups(&superseded);
+
+        // night-during: the lazy sweep (apply_single's note).
+        self.sweep_expired_windows_best_effort();
 
         // AMMSP memo invalidation (NIGHT-private-research-2,
         // generation-stamped by NIGHT-perf-0) — same
@@ -384,6 +394,16 @@ impl super::Limiter {
         });
 
         Ok(applied)
+    }
+
+    /// The sweep's best-effort wrapper: the apply family calls this
+    /// AFTER its own writes land, so a sweep failure warns and never
+    /// fails the apply that triggered it (sweep_expired_windows'
+    /// contract, one call-site shape).
+    pub(super) fn sweep_expired_windows_best_effort(&mut self) {
+        if let Err(e) = self.sweep_expired_windows() {
+            eprintln_safe!("[limiter] window sweep skipped: {e}");
+        }
     }
 
     /// Re-insert one pre-apply policy VERBATIM — the atomic
