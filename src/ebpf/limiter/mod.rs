@@ -69,7 +69,7 @@ pub use crate::ebpf::pin::{
 use anyhow::{anyhow, bail, Context, Result};
 use aya::{
     maps::Array as BpfArray,
-    programs::{CgroupAttachMode, CgroupSkb, CgroupSkbAttachType, ProgramError},
+    programs::{CgroupAttachMode, CgroupSkb, CgroupSkbAttachType},
     Ebpf, EbpfLoader,
 };
 use std::fs::File;
@@ -77,44 +77,12 @@ use std::os::fd::{AsFd, AsRawFd};
 use std::path::PathBuf;
 
 use crate::ebpf::bpf_syscall::{
-    create_and_pin_link, kernel_release, kernel_supports_bpf_link, BPF_CGROUP_INET_EGRESS,
-    BPF_CGROUP_INET_INGRESS,
+    create_and_pin_link, kernel_release, kernel_supports_bpf_link, load_with_verifier_verdict,
+    BPF_CGROUP_INET_EGRESS, BPF_CGROUP_INET_INGRESS,
 };
 use crate::ebpf::identity::IdentityMap;
 use crate::ebpf::trace;
 use types::SCHEMA_VERSION_EXPECTED;
-
-/// Load one cgroup_skb program, surfacing the kernel verifier's
-/// VERDICT LINE first on refusal (night-audit-1, the 5.13 floor
-/// diagnosis lane): aya's SyscallError message leads with the io
-/// error and the walk's HEAD — the same first instructions on every
-/// program — while the rejection line ("invalid ...", "R1 ...",
-/// "processed N insns") rides the END of the 10 KB walk aya's retry
-/// lane already captured. Every CI harness prints only the first
-/// ~200 characters of a failure line, so the head-first shape
-/// showed nothing, floor after floor (the 5.13 EACCES read its
-/// verdict six hundred lines in, unseen six times in a row); the
-/// verdict-first context turns a floor rejection into a one-line
-/// diagnosis wherever it lands — the trace::kernel_line law: a
-/// report that opens with the answer needs no follow-up.
-fn load_with_verifier_verdict(prog: &mut CgroupSkb, name: &str) -> Result<()> {
-    if let Err(e) = prog.load() {
-        let verdict: String = match &e {
-            ProgramError::LoadError { verifier_log, .. } => verifier_log
-                .to_string()
-                .lines()
-                .rev()
-                .find(|l| !l.trim().is_empty())
-                .unwrap_or("<the verifier wrote no log>")
-                .to_string(),
-            _ => "<no verifier log on this error>".to_string(),
-        };
-        bail!(
-            "{name}: the kernel verifier refused the program — verdict: {verdict} | full error: {e}"
-        );
-    }
-    Ok(())
-}
 
 /// NIGHT-hunt-19 (error-path audit): the operational-pin predicate,
 /// pure so the partial-failure regression is unit-pinned.
