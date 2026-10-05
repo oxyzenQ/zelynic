@@ -374,7 +374,35 @@
 ///     reload into the QUIC-aware object — active limits are dropped
 ///     once, re-apply after upgrade, the same one-time re-apply
 ///     contract as ever.
-pub const SCHEMA_VERSION_EXPECTED: u32 = 22;
+/// v23 (night-during, the unified --during time windows): a policy
+///     row may carry its own LIFETIME — the side map policy_window
+///     (HashMap, resolved policy-root cgroup id -> the 32-byte
+///     PolicyWindow row, pinned, both hooks reading one shared map)
+///     and the one-entry pinned Array wall_clock_offset (the
+///     wall-minus-mono bridge userspace stamps at every attach and
+///     apply-family mutation, the watchdog/schema_version
+///     userspace-written contract). The gate reads the window AFTER
+///     the policy hit on the policed path only: absent = today's
+///     behavior, INACTIVE = ALLOW (the miss shape — no stats, no
+///     ring, no belt) until the unstrict/reclaim sweep removes an
+///     ENDED span; a dormant future-date row and a daily window are
+///     never swept. SPAN rows carry wall instants pre-translated to
+///     the monotonic clock at apply time (drift-free: NTP slew and
+///     `date -s` move nothing; the stated residue is suspend, which
+///     monotonic does not count); DAILY rows carry seconds-of-day
+///     UTC with the midnight wrap and read the wall through the
+///     bridge under the margin law (FIRE_EARLY = 2s eroding BOTH
+///     edges toward less enforcement — a stale bridge can
+///     under-enforce by at most the margin, never over-enforce).
+///     The grammar (owner decision, design brief section 8):
+///     --during 09:00-17:00 (daily, UTC) / 2026-10-15 (the whole
+///     UTC day) / 2h 20d (duration, s m h d mn y, 1s..10y). No
+///     existing struct layout changes; new maps, one new verdict
+///     on the policed path; the bump forces pinned v22 programs to
+///     reload into the time-windowed object — active limits are
+///     dropped once, re-apply after upgrade, the same one-time
+///     contract as every bump before it.
+pub const SCHEMA_VERSION_EXPECTED: u32 = 23;
 
 #[cfg(test)]
 mod sync_pin {

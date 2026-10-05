@@ -213,9 +213,14 @@ fn test_schema_version_constant() {
     // confirmation-gated learned hints (quic_cid_hint_dl/ul, the
     // packed word in ebpf/src/quic.rs). Every refusal rides the raw
     // cookie: the feature refines attribution, never degrades it.
-    // The full sync contract (this constant vs the BPF-side
-    // anchor) lives in schema.rs's sync_pin — the v13 lesson.
-    assert_eq!(SCHEMA_VERSION_EXPECTED, 22);
+    // v23 (the unified --during time windows): a policy row may
+    // carry its own lifetime — the policy_window side map (one row
+    // per resolved policy root, both hooks sharing it) and the
+    // wall_clock_offset bridge Array, the gate reading the window
+    // after the policy hit on the policed path only. The full sync
+    // contract (this constant vs the BPF-side anchor) lives in
+    // schema.rs's sync_pin — the v13 lesson.
+    assert_eq!(SCHEMA_VERSION_EXPECTED, 23);
 }
 
 // ── NIGHT-improve-10 / security-3: overflow-bound pins ──────────

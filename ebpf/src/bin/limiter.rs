@@ -145,6 +145,19 @@ mod quic;
 // split, the cake_flow precedent one feature over.
 #[path = "../quic_flow.rs"]
 mod quic_flow;
+
+// night-during, schema v23 (the unified --during time windows): the
+// pure verdict core — same discipline as math.rs/ammsp.rs/drr.rs/
+// ecn.rs/quic.rs: pure `core`, zero aya dependencies, wired here
+// with #[path] AND into the userspace test tree the same way,
+// pinned rootlessly by test/ebpf/limiter/during_tests.rs. The
+// daily comparator with its midnight wrap and both-edges margin,
+// the drift-free span verdict, and the sweep predicates are the
+// pinned surface; the map plumbing stays here because only this
+// side can touch it.
+#[path = "../during.rs"]
+mod during;
+
 use math::{
     Bucket, LimiterStats, MAX_ENFORCABLE_BURST, POLICY_FLAG_PER_SOCKET, Policy, book, book_rescue,
     enforce,
@@ -413,8 +426,44 @@ use socket_flow::socket_flow;
 ///     bump forces pinned v21 programs to reload into the QUIC-aware
 ///     object — active limits are dropped once, re-apply after
 ///     upgrade, the same one-time contract as every bump before it.
+/// v23 (night-during, the unified --during time windows): a policy
+///     row may carry its own LIFETIME — one new side map,
+///     policy_window (HashMap, resolved policy-root cgroup id ->
+///     the 32-byte during::PolicyWindow row, pinned, both hooks
+///     sharing it by object construction, keyed exactly like the
+///     stats ledger), read AFTER the policy hit on the policed
+///     path only: an absent entry is today's behavior exactly, and
+///     the unlimited fast path pays nothing (the NIGHT-lts-2 law,
+///     verbatim). A row whose window is INACTIVE answers ALLOW —
+///     the miss shape, no stats booking, no ring booking, no
+///     AMMSP belt — until the userspace sweep (the unstrict/
+///     reclaim path) removes an ENDED span; a dormant future-date
+///     row and a recurring daily window are never swept. The two
+///     shapes: SPAN rows (the duration and date grammar) store
+///     wall instants PRE-TRANSLATED to the monotonic clock at
+///     apply time — bpf_ktime_get_ns and the userspace
+///     CLOCK_MONOTONIC read are the same clock domain, so NTP slew
+///     and a manual `date -s` cannot move a span by a single
+///     nanosecond (the stated residue: suspend, which monotonic
+///     does not count, so a sleeping host's span outlives its
+///     wall-calendar promise by the slept time); DAILY rows (the
+///     09:00-17:00 grammar, UTC, midnight wrap) store
+///     seconds-of-day and read the wall through the offset
+///     bridge — the new one-entry pinned Array wall_clock_offset
+///     (userspace-written, the watchdog/schema_version contract:
+///     never written by this program), stamped at every attach
+///     and apply-family mutation so the CLI visit IS the refresh
+///     channel, with the margin law (during.rs FIRE_EARLY = 2s)
+///     eroding BOTH daily edges toward LESS enforcement — a stale
+///     bridge under-enforces by at most the margin, never
+///     over-enforces, the direction a limiter fails safe in. No
+///     existing struct layout changes; two new maps, one new
+///     verdict on the policed path; the bump forces pinned v22
+///     programs to reload into the time-windowed object — active
+///     limits are dropped once, re-apply after upgrade, the same
+///     one-time contract as every bump before it.
 #[allow(dead_code)]
-const SCHEMA_VERSION: u32 = 22;
+const SCHEMA_VERSION: u32 = 23;
 
 // ---------------------------------------------------------------------------
 // Maps. The static names ARE the userspace contract (limiter/mod.rs
@@ -467,6 +516,36 @@ static watchdog_deadline: Array<u64> = Array::pinned(1, 0);
 #[allow(non_upper_case_globals)]
 #[map]
 static schema_version: Array<u32> = Array::pinned(1, 0);
+
+// ─ The time-window side map (night-during, schema v23 — the
+// unified --during) ─ one row per policed cgroup, keyed at the
+// RESOLVED POLICY ROOT exactly like the stats ledger (the same
+// join the AMMSP resolution already produces; a row's two legs
+// share one window, one shared map both hooks read). The gate
+// reads it AFTER the policy hit on the policed path only: an
+// absent entry is today's behavior exactly, and a row whose
+// window is INACTIVE answers ALLOW — the miss shape, no stats,
+// no ring, no belt — until the userspace sweep removes an ENDED
+// span. HashMap, not LRU, because occupancy is bounded by the
+// policy census (the stats map's own posture — every window row
+// rides a policy row's root).
+
+#[allow(non_upper_case_globals)]
+#[map]
+static policy_window: HashMap<u32, during::PolicyWindow> = HashMap::pinned(1024, 0);
+
+/// The wall-clock bridge (night-during, schema v23): the offset
+/// `wall_minus_mono_ns` userspace stamps at every attach and every
+/// apply-family mutation, so a DAILY window's per-packet comparison
+/// can read the wall as `bpf_ktime_get_ns() + wall_clock_offset` —
+/// the bridge the no-daemon claim stands on (the CLI visit IS the
+/// refresh channel; the drift between visits is bounded by NTP
+/// slew, and the margin law in during.rs pays it toward less
+/// enforcement). Userspace-written only, never touched by this
+/// program — the watchdog_deadline/schema_version contract.
+#[allow(non_upper_case_globals)]
+#[map]
+static wall_clock_offset: Array<u64> = Array::pinned(1, 0);
 
 /// Per-cgroup enforcement stats (combined dl + ul), read by the
 /// `zelynic status` command surface (text + --print-json).
@@ -759,6 +838,34 @@ fn ecn_rescue(
     true
 }
 
+/// The time-window gate (night-during, schema v23): the ONE call
+/// every policed packet makes after its policy resolves — an
+/// absent window entry answers true (enforce, today's behavior
+/// exactly), an INACTIVE window answers false and the caller
+/// returns the unlimited miss shape. DAILY rows read the offset
+/// bridge; an unreadable Array entry (unreachable in practice —
+/// the kernel pre-creates Array entries; the belt stays) ENFORCES:
+/// the row's default state, never an unlimited pass born from a
+/// bookkeeping miss. SPAN rows pass offset 0 — the core ignores
+/// it, the drift-free translation is the whole point.
+#[inline(always)]
+fn window_gate(cgroup_id: &u32, now_mono_ns: u64) -> bool {
+    match policy_window.get_ptr(cgroup_id) {
+        None => true,
+        Some(w) => {
+            let win = unsafe { &*w };
+            if win.kind == during::WINDOW_KIND_DAILY {
+                match wall_clock_offset.get_ptr(0) {
+                    Some(off) => during::window_active(win, now_mono_ns, unsafe { *off }),
+                    None => true,
+                }
+            } else {
+                during::window_active(win, now_mono_ns, 0)
+            }
+        }
+    }
+}
+
 /// Shared enforcement flow for one direction. `policy_map` selects
 /// download vs upload; `bucket_map` / `group_bucket_map` are the
 /// matching individual/group bucket (pool) maps, `leaf_bucket_map`
@@ -842,6 +949,25 @@ fn try_enforce(
         }
     };
 
+    // The monotonic clock, taken here (one fetch, reused by the
+    // window gate below, the watchdog, and every lane's refill
+    // math). It sits AFTER the policy resolution on purpose: the
+    // unlimited fast path (NIGHT-lts-2) never pays for a timestamp
+    // it cannot use — only a packet whose policy EXISTS can reach
+    // the window gate or the watchdog that follows it.
+    let now = unsafe { bpf_ktime_get_ns() };
+
+    // The time-window gate (night-during, schema v23): a row
+    // whose --during window is INACTIVE answers ALLOW, exactly
+    // the unlimited fast path's miss shape — the row is not being
+    // removed, it is simply not policing this packet (no stats,
+    // no ring, no belt; the SWEEP through the unstrict/reclaim
+    // path is what removes an ENDED span). One map read on the
+    // policed path only: the unlimited majority pays nothing.
+    if !window_gate(&cgroup_id, now) {
+        return 1;
+    }
+
     // Watchdog check (only policed packets reach here). deadline == 0
     // means "no deadline set" — always enforce. deadline != 0 means
     // "fail-safe timeout" — allow all if expired. (Preserved for the
@@ -855,7 +981,6 @@ fn try_enforce(
         Some(ptr) => unsafe { *ptr },
         None => return 1,
     };
-    let now = unsafe { bpf_ktime_get_ns() };
     if deadline != 0 && now > deadline {
         return 1;
     }
