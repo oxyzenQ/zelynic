@@ -75,7 +75,7 @@ NIGHT-hunt-18's git-history-only call.
   FAIL marker — both print only after apply_edits ran), and
   restores the workflow files from a pre-apply backup on every
   failure shape — API drop mid-apply, overrun, out-of-bounds
-  write, unparseable result — before falling back to the warn
+  write, unparsable result — before falling back to the warn
   table. Honest trades: one re-commit per heal event (the price of
   review discipline), and a 6h cache window that can delay a heal
   by at most 6h (the same slack the read side always carried).

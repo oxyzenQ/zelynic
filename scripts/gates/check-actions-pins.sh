@@ -67,7 +67,7 @@
 # current and stays silent. No auto-amend, no push: the manual
 # flow's maintainer-review discipline is kept whole, only its
 # typing is removed. A heal that cannot prove itself clean (API
-# drop mid-apply, overrun, out-of-bounds write, unparseable
+# drop mid-apply, overrun, out-of-bounds write, unparsable
 # result) stages NOTHING: the tree is restored from the pre-apply
 # backup and the warn-mode table prints — remote facts never
 # block a commit. The apply-stage proof is delta-shaped, not the
