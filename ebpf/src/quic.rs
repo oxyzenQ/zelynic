@@ -66,6 +66,18 @@
 //   * zero-length CIDs (an endpoint that chose them): cookie for
 //     that direction — the packets carry nothing to key on, and a
 //     zero hint never confirms.
+//   * a single-direction policy (strict -d only, or -u only): the
+//     UNPOLICED direction's hook takes the unlimited fast path
+//     before any attribution work (the NIGHT-lts-2 law — the
+//     unlimited majority pays two lookups, never a parse), and
+//     that direction's long headers are the only place the
+//     policed direction's CID length is learnable — so the policed
+//     direction's short headers ride the cookie until a dual-leg
+//     policy (the strict-single default) or any traffic the
+//     policed side itself emits teaches it. The refusal is the
+//     documented residue of the pinned fast-path law, the same
+//     posture every other refusal here carries: coarser, never
+//     wrong.
 //
 // THE RESIDUES, each stated where the tests pin the bound: a CID
 // longer than 8 bytes keys by its first 8 (two connections of one

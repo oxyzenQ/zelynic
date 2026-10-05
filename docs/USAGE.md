@@ -171,6 +171,10 @@ sudo zelynic strict brave 100kb        # shorthand form
   before; the per-connection budget law gains only the one-time
   64 KiB ECN slack, so the aggregate honest bound is N x
   (rate x t + burst + 64 KiB).
+  The mark is provable live: `sudo ./scripts/bench/ect-probe.sh`
+  blasts ECT(0) UDP through a real --per-socket policy and reads
+  the CE codepoint back at the receiver (the rootless
+  `--self-test` pins the instrument in CI).
 - The lane is **QUIC-aware** (schema v22, NIGHT-private-research-4
   candidate): QUIC (HTTP/3) multiplexes many connections over ONE
   UDP socket — the browser shape (Chromium and Firefox share a
@@ -193,7 +197,14 @@ sudo zelynic strict brave 100kb        # shorthand form
   CAKE flow-isolation lane (the fair-shared budget below) for
   HTTP/3 without any flag — it is automatic, and a browser's
   concurrent QUIC downloads isolate per connection instead of
-  sharing one flow bucket.
+  sharing one flow bucket. One boundary to know: a
+  SINGLE-direction policy (`-d` only, or `-u` only) does not parse
+  the unpoliced direction (the unlimited fast path stays parse-
+  free — the pinned perf law), and the unpoliced direction's
+  handshake packets are where the policed side's CID geometry is
+  learnable — so single-leg policies keep QUIC data on the socket
+  key (the pre-v22 behavior). The dual-leg default (`strict-
+  single <target> <rate>` polices both directions) learns both.
 - The shared budget is **fair-shared** (NIGHT-upgrade-charger-core-1c,
   the DRR lane): a shared first-come-first-served bucket let ONE
   greedy subprocess consume every token the instant it refilled and

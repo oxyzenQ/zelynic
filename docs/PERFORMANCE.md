@@ -548,6 +548,24 @@ the pool's own stream — the faucet every leaf and flow draw
 through — so the marked bytes pay back against the same aggregate
 budget that fed them.
 
+The live lane has its own harness since 2026-10-05:
+`sudo ./scripts/bench/ect-probe.sh` (root required;
+`--self-test` is the rootless instrument lane). It blasts ECT(0)
+UDP through a real --per-socket 8kb policy, reads the CE codepoint
+back at the receiver through the IP_RECVTOS cmsg, and measures the
+three live rows the rootless battery cannot: the mark landing
+(CE-marked datagrams delivered past the burst), the debt cap's
+bite (CE bytes bounded by 64 KiB plus the window's refill), and
+the closed form itself (delivered <= burst + rate*t + debt + one
+packet) — beside a Not-ECT control leg that drops beyond the same
+burst, the goodput gain of the ECT leg over it, and the kernel
+ledger's own refusal/rescue booking. The QUIC-aware law below
+rides the same marking machinery (the v22 object's per-connection
+buckets charge the same debt), so the live harness doubles as its
+marking proof; the QUIC attribution itself is pinned rootlessly
+by quic_tests.rs and rides the supermassive battery for its live
+lane.
+
 ### The QUIC-aware attribution law (schema v22, 2026-10-05)
 
 The ECN-first and flow-isolation laws both key their per-connection
@@ -594,11 +612,18 @@ burst stream in the per-socket lane — the lane's own documented
 "rate x concurrent" shape); the server-role shape may learn a
 transient length when a peer's Initial DCID and real CID differ
 (the confirm gate plus the opposite-direction SCID source hold the
-dominant shapes correct). No live-browser A/B number is claimed
-here: the live lane rides CI's supermassive battery, and the claim
-this section owns is the pinned one — attribution granularity,
-proved rootlessly, with every degradation path falling toward the
-cookie, never past it.
+dominant shapes correct). A boundary the pins name and the design
+keeps: a SINGLE-direction policy (`-d` only, or `-u` only) does
+not parse the unpoliced direction — the unlimited fast path stays
+parse-free (the pinned NIGHT-lts-2 law), and that direction's
+handshake packets are the only place the policed direction's CID
+length is learnable — so single-leg policies ride the cookie for
+QUIC data (the pre-v22 verdict). The dual-leg default learns both
+directions; the fast-path law is never traded for attribution. No
+live-browser A/B number is claimed here: the live lane rides CI's
+supermassive battery, and the claim this section owns is the pinned
+one — attribution granularity, proved rootlessly, with every
+degradation path falling toward the cookie, never past it.
 
 ### NIGHT-upgrade-charger-core-1-b A/B (the self-proving enforcement, 2026-09-30)
 
