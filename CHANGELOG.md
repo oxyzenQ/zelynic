@@ -813,6 +813,41 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Fixed
 
+- **The 5.13 verified floor's BPF_PROG_LOAD refusal, root-caused
+  and closed (night-audit-1's code find — the CI matrix's own
+  catch, supermassive runs 187+).** Since night-quic-2 landed
+  schema v22, every strict-* apply inside the 5.13 micro-VM failed
+  with EACCES at program load: the reload, race-condition, and
+  claims suites were all the same root. The object-level forensic:
+  the QUIC parser read its 96-byte window through re-sliced
+  subslices and loop indices, so its loads addressed the stack at
+  COMPOUND runtime offsets — and the 5.13 verifier, whose scalar
+  range tracking predates the 5.14 precision rework, loses exactly
+  that range class through register spills, refusing the program
+  whole (the pre-v22 object carried zero such reads and loaded
+  clean; the v22 object carried six). The fix makes the safety
+  structural: the wiring lands packet bytes through TWO bounded
+  bpf_skb_load_bytes reads — a 40-byte IP-header window, then a
+  56-byte L4 window REBASED to the UDP header the first read's
+  parse located — so every field the pure core touches sits at a
+  compile-time-constant stack offset; the byte collectors unroll
+  to literal offsets gated by scalar length checks, and the one
+  runtime-positioned byte in the protocol (the SCID length, which
+  sits after the variable-length DCID) rides a shift-extract over
+  three const-offset u64 windows — pure ALU, no memory access at
+  any runtime address. The rebuilt object scans at ZERO
+  variable-offset stack accesses (328/512 stack bytes, the same
+  helper set the floor already proved, stack budget unchanged at
+  96 bytes per call site), the full rootless battery holds the
+  same keys and refusals the v22 laws pinned, and
+  docs/KERNEL_COMPATIBILITY.md now carries the law for the next
+  lane that wants to parse packets. The same sweep cleared the
+  eBPF dead-code compile break (the test-tree-only readers the
+  -D warnings gate refused), the codespell house-word drift
+  (unparseable x6 back to unparsable), the ect-probe format, the
+  USAGE.md double blank, and the ebpf fmt wrap — the whole CI
+  matrix green again on one push.
+
 - **The socket lane's miss-posture comment, corrected to the posture
   the code runs (NIGHT-audit-1's code find).** ebpf/src/
   socket_flow.rs's get_socket_ptr claimed an insert failure's
