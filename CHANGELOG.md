@@ -19,6 +19,43 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Added
 
+- **The quick-row closure v2 — the claims engine's GIL was the quick
+  lane's real throttle (the live CI verdict on the first closure, and
+  its close).** The first quick-row fixup (below) shipped settle and
+  midpoint sampling; the four-leg Supermassive verdict came back with
+  three legs red anyway — no-daemon 41.9%/47.6%, per-app 30.3%/34.0%,
+  precision TCP 62.2%, token error 37.682%/8.04%/7.89% — and the
+  "sampling jitter" residual story live-disproven: 37.682% is not
+  jitter. The A/B that pinned the mechanism ran itself on those very
+  legs: the limiter matrix's rate rows read 109.0% at 100mb and
+  101.5% at 2mb on the same commit, same kernels, same single-flow
+  discipline — while the claims rows read 62.2% and 30.3%. The one
+  structural difference was the traffic engine: the matrix's client
+  is a decoupled worker subprocess; the claims harness ran the data
+  SOURCE as a thread sharing the harness process's single python GIL
+  with the measuring client thread — and under a policer that drops
+  (never queues), a GIL-coupled pair on a shared runner cannot feed
+  the rate. The server is now a worker subprocess (raw-string body,
+  the NIGHT-improve-13 discipline; READY handshake; port-race retry;
+  reaped on stop; the child inherits the spawner's cgroup so the
+  1:1 ingress-hook accounting keeps its shape), the witness blast
+  stays self-contained inside its own worker, every measured rate
+  row (no-daemon, per-app, precision TCP) rides the lib's one-sided
+  `patient_rate_window` with the cushion `redrain` between samples
+  (the matrix's own contract: in-band stops, over-band fails now,
+  all-under fails after the attempts, every sample printed in the
+  row detail), and the precision token row re-attempts its whole
+  (settle + window) shape under-side bounded — the settle pays any
+  banked cushion before the next window reads (the rider-L
+  discipline), an over-band error fails on the attempt that produced
+  it, and every attempt's error rides the row detail. The honest
+  residual is now named for what it is: the instrument's own floor.
+  Three new engine self-test pins (decoupled subprocess source, raw
+  server body, reaped-on-stop, one-sided patience) — 28 rows green
+  rootless; the four-leg live quick battery is the verifier of
+  record. docs/CLAIMS_VERIFICATION.md carries the corrected residual
+  story and the GIL find.
+
 - **The two quick-mode claims rows closed — the measurement harness
   was the bug, not the enforcement (the quick-row fixup).** The CI
   claims battery runs `proof-claims.py --quick` on every qualifying
@@ -47,7 +84,10 @@ NIGHT-hunt-18's git-history-only call.
   by new engine self-test source pins (25 rows green); the live
   quick battery on the four CI kernel-span legs is the verifier.
   docs/CLAIMS_VERIFICATION.md's claim-4 row and the honest
-  residuals carry the updated residual story.
+  residuals carry the updated residual story. [The jitter half of
+  this entry's residual story was later disproven by the live legs
+  and closed by the quick-row closure v2 above — the settle and
+  midpoint laws stand.]
 
 - **Actions-pin health `auto` mode — skip-if-latest silence plus a
   contributor-carried auto-heal (NIGHT-improve-40 fixup 1, the

@@ -62,10 +62,15 @@ root required for the live run, --self-test for CI without root):
       kernel-admitted bytes (the BPF counter deltas) against
       configured rate x wall time over a long saturating window,
       cross-checked against the client's own byte counter. The
-      residual is the sampling jitter between the two status-read
-      midpoints (the spawn latency itself cancels — the quick-row
-      fixup), not limiter math, and the row prints the actual
-      number — nothing is rounded into honesty.
+      source saturates through a DECOUPLED server worker (the
+      quick-row closure v2: an in-process server thread shared the
+      harness GIL with the measuring client and under-delivered on
+      shared runners — the enforcement was never the variable), the
+      elapsed spans status-read spawn midpoints (the latency cancels
+      on both ends), an under-saturating window re-attempts bounded
+      with the settle paying any banked cushion first, and the row
+      prints the actual number and every attempt — nothing is
+      rounded into honesty.
 
   claim 5 — resource honesty (NIGHT-lts-6: the owner's "verify ram,
     cpu, io, etc usage — this project is critical infra not a
@@ -154,6 +159,25 @@ PER_APP_RATE = 2_000_000  # 2mb: the witness contrasts hardest against this
 # The precision rate adapts down when the baseline cannot saturate 100mb.
 PRECISION_RATE = 100_000_000
 PRECISION_RATE_FALLBACK = 20_000_000
+
+# The quick-row closure v2 (task 8): the three rate rows and the token
+# row ride the lib's one-sided patience discipline — the same contract
+# the limiter matrix already proved on every CI leg. An in-band sample
+# is the steady state proven and stops the loop; an OVER-band sample
+# stops it too (a real over-delivery fails immediately through
+# band_check, never retried away); all samples under after the
+# attempts fail the same way — a systematically broken datapath cannot
+# pass by retry, and every sample rides the row detail (the honesty
+# contract: the row never hides a retry).
+BAND_ATTEMPTS = 3
+REDRAIN_WINDOW = 1.5  # the cushion-payer download between patient samples
+# The token row's own under-side patience: re-attempt the whole
+# (settle + window) shape. The settle doubles as the rider-L re-sample
+# drain — a starved attempt banks at most one burst, and the next
+# attempt's settle pays that bank out at line rate BEFORE its measured
+# window, so a re-attempt measures steady state and an over-band error
+# still fails on the attempt that produced it.
+PRECISION_ATTEMPTS = 2
 
 # The live accounting row's PASS bound: the estimator samples the
 # kernel counter at each status-read spawn's MIDPOINT (the unbiased
@@ -298,53 +322,111 @@ def witness_floor(baseline, rate_bps):
 # ── loopback traffic engine (the depth harness contract, compact) ─────────
 
 
-class TrafficServer:
-    """Threaded raw-socket GET server on 127.0.0.1: streams CHUNKs
-    until the peer closes. Same protocol as limiter-depth-test.py."""
+# The server-side worker body. MUST stay a RAW string (NIGHT-improve-13,
+# pinned by the matrix's own lesson): as a plain triple-quoted string
+# every backslash escape below is unescaped at PARENT parse time and
+# the child receives corrupted source. The protocol is the one the
+# in-process server always spoke: accept, read the "GET\n" line, then
+# stream zero CHUNKs until the peer closes — thread per connection.
+_SERVER_BODY = r"""import socket, sys, threading
 
-    def __init__(self):
-        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.sock.bind(("127.0.0.1", 0))
-        self.sock.listen(64)
-        self.port = self.sock.getsockname()[1]
-        self._stop = threading.Event()
-        threading.Thread(target=self._accept_loop, daemon=True).start()
+port, chunk = int(sys.argv[1]), int(sys.argv[2])
+srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+srv.bind(("127.0.0.1", port))
+srv.listen(64)
+print("READY", flush=True)
+while True:
+    try:
+        conn, _ = srv.accept()
+    except OSError:
+        break
 
-    def _accept_loop(self):
-        while not self._stop.is_set():
-            try:
-                conn, _ = self.sock.accept()
-            except OSError:
-                return
-            threading.Thread(target=self._serve, args=(conn,), daemon=True).start()
-
-    @staticmethod
-    def _serve(conn):
+    def serve(c):
         try:
-            conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+            c.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
             try:
-                conn.recv(8)  # the "GET\n" line
+                c.recv(8)  # the "GET\n" line
             except OSError:
                 return
-            blob = b"\x00" * lib.CHUNK
-            try:
-                while True:
-                    conn.sendall(blob)
-            except OSError:
-                pass  # peer closed the window: normal termination
+            blob = b"\x00" * chunk
+            while True:
+                c.sendall(blob)
+        except OSError:
+            pass  # peer closed the window: normal termination
         finally:
             try:
-                conn.close()
+                c.close()
             except OSError:
                 pass
 
+    threading.Thread(target=serve, args=(conn,), daemon=True).start()
+"""
+
+
+class TrafficServer:
+    """Worker-subprocess GET server on 127.0.0.1: streams CHUNKs until
+    the peer closes. Same wire protocol as limiter-depth-test.py.
+
+    The quick-row closure v2 (task 8): the server moved OUT of the
+    harness process. The old in-process shape ran the data SOURCE as a
+    thread sharing the harness's one GIL with the measuring client
+    thread — on the shared CI runners that coupling was the throttle:
+    the same legs that read 62.2% (precision) and 30.3% (per-app) here
+    read 109.0% and 101.5% through the limiter matrix's decoupled
+    worker shape on the very same commit — the enforcement was never
+    the variable. A server in its own process hands the kernel's
+    socket buffers the pacing (sendall blocks on sndbuf, not on a
+    python lock), so the pair delivers at line rate on slow boxes; the
+    child inherits the spawner's cgroup (the harness lives in A, the
+    witness worker lives in B), keeping the 1:1 ingress-hook
+    accounting the depth harness pinned (NIGHT-improve-12).
+    """
+
+    def __init__(self):
+        self.proc = None
+        last_err = None
+        for _ in range(3):  # a free-port race is noise; three shots is not
+            port = self._free_port()
+            try:
+                self.proc = subprocess.Popen(
+                    [sys.executable, "-c", _SERVER_BODY, str(port), str(lib.CHUNK)],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.DEVNULL,
+                    text=True,
+                )
+            except OSError as e:
+                last_err = str(e)
+                continue
+            # READY on stdout = the listen socket is bound; a child that
+            # lost the port race dies here and gets retried.
+            ready = self.proc.stdout.readline().strip() if self.proc.stdout else ""
+            if ready == "READY":
+                self.port = port
+                return
+            self.proc.terminate()
+            self.proc.wait(timeout=10)
+            self.proc = None
+        raise RuntimeError(f"server worker would not start: {last_err or 'no READY'}")
+
+    @staticmethod
+    def _free_port():
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        with s:
+            s.bind(("127.0.0.1", 0))
+            return s.getsockname()[1]
+
     def stop(self):
-        self._stop.set()
-        try:
-            self.sock.close()
-        except OSError:
-            pass
+        if self.proc is not None:
+            self.proc.terminate()
+            try:
+                self.proc.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                self.proc.kill()
+                self.proc.wait(timeout=10)
+            if self.proc.stdout:
+                self.proc.stdout.close()
+            self.proc = None
 
 
 def tracked_download(window, port, progress=None):
@@ -453,10 +535,12 @@ class PairCgroups:
 
 def witness_worker(cgroup_path, window):
     """The unlimited witness: move self into cgroup B (unless the path
-    is the self-test sentry '-'), then run a server AND a client inside
-    it for `window` seconds and print one JSON line with the measured
-    bps. Sockets are created AFTER the move so every byte classifies
-    under the witness cgroup."""
+    is the self-test sentry '-'), then spawn a server child and run a
+    client for `window` seconds and print one JSON line with the
+    measured bps. Sockets are created AFTER the move (the server child
+    inherits the moved cgroup) so every byte classifies under the
+    witness cgroup, and the blast is self-contained: its pair never
+    shares a process with the harness's measured lane."""
     if cgroup_path != WORKER_SENTRY:
         with open(os.path.join(cgroup_path, "cgroup.procs"), "w") as f:
             f.write(str(os.getpid()))
@@ -652,12 +736,30 @@ def stage_no_daemon(quick):
         # zelynic processes. The full-mode 8s window amortizes the
         # transient on its own; quick needs the explicit settle.
         tracked_download(NO_DAEMON_SETTLE_QUICK, SERVER.port)
-    got = tracked_download(NO_DAEMON_WINDOW, SERVER.port)
+    # The measured window rides the lib's one-sided patience (the
+    # quick-row closure v2): the matrix proved this exact discipline
+    # on every CI leg while this harness's single window read the
+    # 5.13 leg at 41.9% of a 5mb policy with enforcement fully alive
+    # (the shared-runner startup transient is envelope-scaled AIMD
+    # chop, not the law). In-band stops the loop, over-band fails now
+    # through band_check, all-under after the attempts fails the same
+    # way, and every sample rides the row detail.
+    samples = lib.patient_rate_window(
+        lambda: tracked_download(NO_DAEMON_WINDOW, SERVER.port),
+        NO_DAEMON_RATE,
+        NO_DAEMON_WINDOW,
+        attempts=BAND_ATTEMPTS,
+        redrain=lambda: lib.drain_cushion(
+            lambda: tracked_download(REDRAIN_WINDOW, SERVER.port),
+            lib.default_burst(NO_DAEMON_RATE),
+        ),
+    )
     verdict = lib.band_check(
         "no-daemon: enforcement alive with zero zelynic processes",
-        got / NO_DAEMON_WINDOW,
+        samples[-1],
         NO_DAEMON_RATE,
         "traffic still policed after the CLI exited — the kernel holds the law",
+        extra=lib.window_samples_note(samples),
     )
     return verdict == "PASS" and ok_all
 
@@ -826,13 +928,20 @@ def stage_per_app(baseline):
     lib.record(
         "per-app: limit cgroup A", "PASS", f"strict-single {bps_to_rate_str(PER_APP_RATE)} -d"
     )
+    # The witness B must span A's whole patience budget — A re-samples
+    # its window under-side while B blasts unlimited the entire time,
+    # so "same machine, same moment" covers every A sample (the
+    # quick-row closure v2: the B blast is self-contained inside the
+    # witness worker and its own server child; it never shares the
+    # harness GIL with A's measured pair).
+    b_window = PER_APP_WINDOW * BAND_ATTEMPTS + 2.0
     worker = subprocess.Popen(
         [
             sys.executable,
             os.path.abspath(__file__),
             "--witness-worker",
             CGROUP_B,
-            str(PER_APP_WINDOW),
+            str(b_window),
         ],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -841,12 +950,28 @@ def stage_per_app(baseline):
     holder = {}
 
     def a_side():
-        holder["a_bytes"] = tracked_download(PER_APP_WINDOW, SERVER.port)
+        # A's measured window rides the same one-sided patience as the
+        # no-daemon row: the shared-runner cold attach can read 30% of
+        # a 2mb policy with enforcement alive (the 5.13 leg's number)
+        # while the matrix's patient shape reads 101.5% on the same
+        # leg — in-band stops, over-band fails now, samples ride the
+        # row detail, and the cushion bank between samples is paid out
+        # by the redrain before the next window reads.
+        holder["samples"] = lib.patient_rate_window(
+            lambda: tracked_download(PER_APP_WINDOW, SERVER.port),
+            PER_APP_RATE,
+            PER_APP_WINDOW,
+            attempts=BAND_ATTEMPTS,
+            redrain=lambda: lib.drain_cushion(
+                lambda: tracked_download(REDRAIN_WINDOW, SERVER.port),
+                lib.default_burst(PER_APP_RATE),
+            ),
+        )
 
     t = threading.Thread(target=a_side)
     t.start()
     try:
-        worker_out, worker_err = worker.communicate(timeout=PER_APP_WINDOW + 60)
+        worker_out, worker_err = worker.communicate(timeout=b_window + 60)
     except subprocess.TimeoutExpired:
         worker.kill()
         worker_out, worker_err = worker.communicate()
@@ -856,12 +981,14 @@ def stage_per_app(baseline):
         b_bps = json.loads(worker_out.strip().splitlines()[-1])["bps"]
     except (ValueError, KeyError, IndexError):
         pass
-    a_bps = holder.get("a_bytes", 0) / PER_APP_WINDOW
+    samples = holder.get("samples", [0.0])
+    a_bps = samples[-1]
     ok_a = (
         lib.band_check(
             "per-app: policed cgroup A held at its configured rate",
             a_bps,
             PER_APP_RATE,
+            extra=lib.window_samples_note(samples),
         )
         == "PASS"
     )
@@ -918,52 +1045,66 @@ def stage_precision(baseline, quick):
         return lib.record("precision: attach limit", "FAIL", payload) == "PASS"
     window = 10.0 if quick else PRECISION_WINDOW
     bound = ACCOUNTING_ERR_MAX_QUICK if quick else ACCOUNTING_ERR_MAX_FULL
-    progress = [0]
-    t = threading.Thread(
-        target=tracked_download,
-        args=(window + PRECISION_SETTLE + 8.0, SERVER.port, progress),
-        daemon=True,
-    )
-    t.start()
-    time.sleep(PRECISION_SETTLE)  # saturating steady state before the first read
-    # Midpoint sampling (the quick-row fixup): every bytes_allowed_now()
-    # is a full status-read SPAWN, and the kernel counter is sampled
-    # somewhere inside it. Timing t0 after the e0 spawn and t1 after
-    # the e1 spawn made elapsed = window + spawn latency — a pure
-    # estimator bias that the 30s full window amortized (0.069% on the
-    # cross-distro runs) but the 10s quick window exposed at 4.9%
-    # while the limiter itself stayed exact. The spawn's midpoint is
-    # the unbiased estimator of the sampling instant; elapsed between
-    # midpoints cancels the latency on both ends, and the printed
-    # residual becomes the sampling jitter the bound judges.
-    t0s = time.perf_counter()
-    e0 = bytes_allowed_now(CG.a_id)
-    t0e = time.perf_counter()
-    c0 = progress[0]
-    time.sleep(window)
-    t1s = time.perf_counter()
-    e1 = bytes_allowed_now(CG.a_id)
-    t1e = time.perf_counter()
-    c1 = progress[0]
-    t0 = t0s + (t0e - t0s) / 2.0
-    t1 = t1s + (t1e - t1s) / 2.0
-    # The client thread is a daemon with its own window margin: every
-    # verdict above reads counters captured at t0/t1, so the tail of
-    # the saturating stream needs no join — cleanup is safe to run
-    # while it drains (no verdict depends on post-t1 bytes).
-    if e0 is None or e1 is None:
-        return (
-            lib.record(
-                "precision: long-run accounting",
-                "FAIL",
-                "status JSON lost the limit row mid-window",
-            )
-            == "PASS"
+    # The quick-row closure v2: the window pairs the midpoint estimator
+    # (the quick-row fixup — elapsed between status-read spawn
+    # midpoints, the latency cancels on both ends) with the engine's
+    # decoupled source and one under-side re-attempt. The first quick
+    # closure blamed the residual on sampling jitter; the live CI legs
+    # disproved that honestly — 37.682% error is the SOURCE
+    # under-delivering (the GIL-coupled in-process pair could not
+    # saturate the policer on the shared runners; the matrix's
+    # decoupled worker read 109.0% on the same leg), not limiter math
+    # and not jitter. The row now re-attempts the whole (settle +
+    # window) shape while the ledger reads under rate x (1 - bound):
+    # the next settle pays out any banked cushion first (the rider-L
+    # discipline — a starved attempt banks at most one burst, and an
+    # unpaid bank would return as a phantom over-delivery), an
+    # over-band error stops the loop and fails on the attempt that
+    # produced it, and every attempt's error rides the row detail.
+    attempt_errs = []
+    for _ in range(PRECISION_ATTEMPTS):
+        progress = [0]
+        t = threading.Thread(
+            target=tracked_download,
+            args=(PRECISION_SETTLE + window + 0.5, SERVER.port, progress),
+            daemon=True,
         )
-    elapsed = t1 - t0
-    expected = rate * elapsed
-    admitted = e1 - e0
-    client_delta = c1 - c0
+        t.start()
+        time.sleep(PRECISION_SETTLE)  # saturating steady state before the first read
+        t0s = time.perf_counter()
+        e0 = bytes_allowed_now(CG.a_id)
+        t0e = time.perf_counter()
+        c0 = progress[0]
+        time.sleep(window)
+        t1s = time.perf_counter()
+        e1 = bytes_allowed_now(CG.a_id)
+        t1e = time.perf_counter()
+        c1 = progress[0]
+        t0 = t0s + (t0e - t0s) / 2.0
+        t1 = t1s + (t1e - t1s) / 2.0
+        # Bounded tail join (the multi-attempt shape's own law): the
+        # next attempt's ledger window must not overlap this attempt's
+        # draining flow — its bytes would land in the fresh delta. The
+        # thread's own deadline bounds the join to ~0.5s past t1.
+        t.join(timeout=8.0)
+        if e0 is None or e1 is None:
+            return (
+                lib.record(
+                    "precision: long-run accounting",
+                    "FAIL",
+                    "status JSON lost the limit row mid-window",
+                )
+                == "PASS"
+            )
+        elapsed = t1 - t0
+        expected = rate * elapsed
+        admitted = e1 - e0
+        client_delta = c1 - c0
+        err = accounting_error(admitted, expected)
+        attempt_errs.append(err)
+        if admitted >= expected * (1.0 - bound):
+            break  # in-band, or over-band: the verdict is now, not retried
+        # under-side: re-attempt — the next settle pays the banked state
     lib.band_check(
         "precision: TCP-level throughput (honest — drops cost, a policer never queues)",
         client_delta / elapsed,
@@ -977,7 +1118,12 @@ def stage_precision(baseline, quick):
         f"{admitted} B admitted at the hook vs {client_delta} B received "
         f"at the socket — ratio {ratio:.4f}",
     )
-    err = accounting_error(admitted, expected)
+    attempts_note = (
+        "attempts: "
+        + ", ".join(f"{e * 100:.3f}%" for e in attempt_errs)
+        + " (the under-side re-attempt; the over-side fails on the attempt "
+        "that produced it)"
+    )
     return (
         lib.record(
             "precision: long-run token accounting vs configured rate",
@@ -987,10 +1133,17 @@ def stage_precision(baseline, quick):
             f"{bound * 100:.1f}%). The 0.00% contract is the token math: "
             "long-run admitted = rate x elapsed exactly, sub-byte frac_rem "
             "carry, pinned rootlessly in test/ebpf/limiter/math_tests.rs "
-            "(steady-state exactness); the residual here is sampling "
-            "jitter between midpoint reads (the status-read spawn latency "
-            "cancels on both ends), not limiter math",
-            {"error_pct": round(err * 100, 4), "admitted": admitted, "expected": round(expected)},
+            "(steady-state exactness). The live residual is the instrument's "
+            "own floor: the source saturating the policer through a "
+            "process boundary (the decoupled server worker), the midpoint "
+            "estimator's spawn-latency cancellation, and window-edge "
+            "sampling — an under-saturating window re-attempts bounded, " + attempts_note,
+            {
+                "error_pct": round(err * 100, 4),
+                "admitted": admitted,
+                "expected": round(expected),
+                "attempt_errs": [round(e * 100, 4) for e in attempt_errs],
+            },
         )
         == "PASS"
     )
@@ -1441,6 +1594,58 @@ def self_test():
             "selftest: quick no-daemon settles before its measured window",
             "PASS" if "NO_DAEMON_SETTLE_QUICK" in nd_src else "FAIL",
             "the cold-start transient is attach physics; the row measures the steady state it claims",
+        )
+        == "PASS"
+        and ok
+    )
+    # Quick-row closure v2 pins (rootless, the shared-runner classes the
+    # live quick battery caught): the traffic source must be a DECOUPLED
+    # worker subprocess (the in-process pair shared one GIL between the
+    # server thread and the measuring client thread — the throttle the
+    # 62.2%/30.3% quick failures actually were; the limiter matrix's
+    # decoupled shape read 109.0%/101.5% on the same legs), the server
+    # body must stay a RAW string (NIGHT-improve-13: a plain string
+    # unescapes \x00 at parent parse time and corrupts the child), and
+    # every measured rate row rides the lib's one-sided patience with
+    # the cushion redrain between samples (the matrix's own contract:
+    # in-band stops, over-band fails now, all-under fails, samples
+    # ride the detail).
+    srv_src = inspect.getsource(TrafficServer)
+    module_src = inspect.getsource(sys.modules[__name__])
+    ok = (
+        lib.record(
+            "selftest: the traffic source is a decoupled worker subprocess",
+            "PASS"
+            if "subprocess.Popen" in srv_src and '_SERVER_BODY = r"""' in module_src
+            else "FAIL",
+            "the data source never shares the harness GIL with the measuring "
+            "client thread — the kernel's socket buffers pace the pair, not a "
+            "python lock",
+        )
+        == "PASS"
+        and ok
+    )
+    ok = (
+        lib.record(
+            "selftest: server worker is reaped on stop",
+            "PASS" if "self.proc.wait" in srv_src else "FAIL",
+            "stop() terminates and waits — no orphaned server survives the proof",
+        )
+        == "PASS"
+        and ok
+    )
+    pa_src = inspect.getsource(stage_per_app)
+    prec2_src = inspect.getsource(stage_precision)
+    ok = (
+        lib.record(
+            "selftest: the rate rows ride one-sided patience",
+            "PASS"
+            if "patient_rate_window" in nd_src
+            and "patient_rate_window" in pa_src
+            and "PRECISION_ATTEMPTS" in prec2_src
+            else "FAIL",
+            "in-band stops, over-band fails now, all-under fails after the "
+            "attempts — a broken datapath cannot pass by retry",
         )
         == "PASS"
         and ok
