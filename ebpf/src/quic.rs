@@ -262,7 +262,7 @@ pub struct L4Span {
 /// unchanged.
 #[inline(always)]
 pub fn parse_l4(buf: &[u8], is_ingress: bool) -> Option<L4Span> {
-    let b0 = *buf.get(0)?;
+    let b0 = *buf.first()?;
     match b0 >> 4 {
         4 => {
             let ihl = usize::from(b0 & 0x0f);
@@ -330,7 +330,7 @@ fn remote_seed(buf: &[u8], span: &L4Span) -> Option<u64> {
 #[inline(always)]
 fn be32(buf: &[u8]) -> Option<u32> {
     Some(u32::from_be_bytes([
-        *buf.get(0)?,
+        *buf.first()?,
         *buf.get(1)?,
         *buf.get(2)?,
         *buf.get(3)?,
