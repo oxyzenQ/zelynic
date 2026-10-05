@@ -208,11 +208,11 @@ pub(super) fn quic_flow_key(ctx: &SkBuffContext, cookie: u64, is_ingress: bool) 
         return cookie;
     }
     // Step one (pure): name the conversation. None is the cookie.
-    let conv =
-        match quic::conversation(cookie, &ip[..want_ip], &l4[..want_l4], &shape, is_ingress) {
-            Some(c) => c,
-            None => return cookie,
-        };
+    let conv = match quic::conversation(cookie, &ip[..want_ip], &l4[..want_l4], &shape, is_ingress)
+    {
+        Some(c) => c,
+        None => return cookie,
+    };
     // This direction's current hint word at the conversation's key
     // (an absent entry reads 0 — the packed "no hint" verdict).
     let hint_this = this_dir_map(is_ingress)
