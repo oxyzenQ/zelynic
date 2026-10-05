@@ -75,7 +75,11 @@ when a budgeted lane's verdict would drop a packet, the datapath
 first asks the kernel to set the ECN CE codepoint on the packet's
 IP header — an ECT-capable packet is then delivered CE-marked and
 charges the `ecn_debt_dl/ul` word instead of dying (the budget law
-lives in ebpf/src/ecn.rs). The helper handles IPv4 AND IPv6, updates
+lives in ebpf/src/ecn.rs). Schema v21 (the per-socket convergence
+closure) extended the contract to the per-socket lane: the debt
+word lives inside the connection's own bucket there, charged and
+paid by the same helper's marks — every budgeted lane is now
+ECN-first. The helper handles IPv4 AND IPv6, updates
 the header checksums itself, refuses cloned-not-writable and
 non-linear-header packets, and is `gpl_only = false`; it entered the
 kernel in v5.1 (verified against v5.1's net/core/filter.c —

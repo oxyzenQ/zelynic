@@ -153,6 +153,24 @@ sudo zelynic strict brave 100kb        # shorthand form
   `upload_per_socket`; a policy mutation zeroes every socket's
   leftover tokens through the AMMSP generation belt, so a lowered
   limit never leaks the old burst to a live connection.
+  The lane is ECN-first too (schema v21, the per-socket convergence
+  closure): a connection's over-budget packet is delivered
+  CE-marked instead of dropped whenever the kernel can set the
+  codepoint (ECT-capable traffic), and the marked bytes charge a
+  debt word inside the connection's own bucket that its own
+  deliveries pay back — the same mark-before-drop contract the
+  cgroup lanes ride, one connection at a time. The scope question
+  this lane was deferred on ("N connections each halving their
+  windows on per-connection marks is an aggregate-collapse shape")
+  is closed by the rootless fleet sims (test/ebpf/limiter/
+  ecn_socket_tests.rs): per-connection budgets are independent, so
+  each connection converges on its own stream and the aggregate
+  rides N x per-connection — no collapse term, and the fleet beats
+  the same fleet under per-connection drops. Non-ECT traffic (the
+  RFC 3168 majority) refuses the helper and drops exactly as
+  before; the per-connection budget law gains only the one-time
+  64 KiB ECN slack, so the aggregate honest bound is N x
+  (rate x t + burst + 64 KiB).
 - The shared budget is **fair-shared** (NIGHT-upgrade-charger-core-1c,
   the DRR lane): a shared first-come-first-served bucket let ONE
   greedy subprocess consume every token the instant it refilled and

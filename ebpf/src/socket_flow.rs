@@ -29,10 +29,32 @@
 //     bucket's tokens on the first packet after a mutation, so a
 //     limit change can never leave a socket spending a dead budget's
 //     burst — the DRR leaf belt, one lane over. A dedicated gen
-//     field (SocketBucket is 32 bytes, a NEW map with no pinned
+//     field (SocketBucket is 40 bytes, a NEW map with no pinned
 //     layout to preserve) instead of the DRR trick of reusing
 //     frac_rem, because this lane RUNS the refill math and frac_rem
 //     is load-bearing here.
+//
+//   * the ECN debt word (schema v21, the per-socket convergence
+//     closure): the lane's drop verdict became a LAST RESORT the
+//     way every budgeted lane's did — mark before drop. The debt
+//     lives INSIDE the bucket (no map, no key): a per-connection
+//     budget's debt is per-connection state, the belt zeroes it with
+//     the tokens on a generation bump (a fresh budget never inherits
+//     the predecessor's debt — the repair-6 discipline, structural
+//     here), and the LRU ages the whole bucket out together (one
+//     posture, not two). The deferred question the marking rode on —
+//     "a server's N connections each halving their windows on
+//     per-connection marks is an aggregate-collapse shape" — is
+//     closed by the rootless fleet sims in test/ebpf/limiter/
+//     ecn_tests.rs (the per-socket convergence analysis): per-
+//     connection budgets are independent, so each connection
+//     converges on its own stream and the fleet rides N x
+//     per-connection — no collapse term exists. The budget law, one
+//     connection at a time: delivered_i <= rate*t + burst + one
+//     64 KiB super-packet (the ecn.rs closed form, unchanged — the
+//     aggregate honest bound is N x that, the per-socket lane's own
+//     documented "rate x concurrent sockets" shape plus the one-time
+//     per-connection ECN slack).
 //
 // The cookie == 0 degrade: a packet with no socket attribution (the
 // helper returns 0 when skb->sk is unset — early ingress before
@@ -47,20 +69,35 @@ use aya_ebpf::{macros::map, maps::LruHashMap};
 // compiles — reused from the root's own inclusion, ONE copy per
 // crate, the math.rs duplicate-mod discipline).
 use super::ammsp_resolve::current_generation;
-use super::math::{Bucket, LimiterStats, Policy, book, refill_window, tokens_cas, try_consume};
+use super::math::{
+    Bucket, LimiterStats, Policy, book, book_rescue, refill_window, tokens_cas, try_consume,
+};
+
+// The ECN-first arithmetic (schema v19's pure core, the same #[path]
+// file the cgroup lanes' wiring and the rootless test tree build):
+// the debt word the mark-before-drop verdict charges and pays.
+use super::ecn::{debt_charge, debt_pay};
 
 /// One per-socket bucket: the standard token bucket plus the
-/// generation stamp the stale-token belt reads. A NEW map value
-/// (schema v15) — not the pinned 24-byte Bucket layout — so the
-/// stamp gets its own field instead of squatting on frac_rem.
+/// generation stamp the stale-token belt reads plus the ECN debt
+/// word the mark-before-drop verdict arbitrates (schema v21). A NEW
+/// map value (schema v15) — not the pinned 24-byte Bucket layout —
+/// so the stamp and the debt get their own fields instead of
+/// squatting on frac_rem.
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct SocketBucket {
     pub core: Bucket,
     pub gen_stamp: u64,
+    /// The lane's own ECN debt word (schema v21): outstanding
+    /// marked-but-unbought bytes for THIS connection, charged by the
+    /// rescue, paid from the socket's own token stream on the allow
+    /// path (the ecn.rs call-site law). Belt-zeroed with the tokens
+    /// on a generation bump, aged out with the bucket by the LRU.
+    pub ecn_debt: u64,
 }
 
-const _: () = assert!(core::mem::size_of::<SocketBucket>() == 32);
+const _: () = assert!(core::mem::size_of::<SocketBucket>() == 40);
 
 /// The download per-socket bucket: socket cookie -> tokens the
 /// socket may spend. LRU + pinned (the leaf_bucket posture — dead
@@ -99,6 +136,7 @@ fn get_socket_ptr(map: &LruHashMap<u64, SocketBucket>, cookie: &u64) -> Option<*
                     frac_rem: 0,
                 },
                 gen_stamp: 0,
+                ecn_debt: 0,
             };
             if map.insert(cookie, init, BPF_NOEXIST).is_err() {
                 // Lost the init race (the v11 discipline) or the LRU
@@ -115,10 +153,16 @@ fn get_socket_ptr(map: &LruHashMap<u64, SocketBucket>, cookie: &u64) -> Option<*
 /// The per-socket flow for one packet (called from try_enforce's
 /// per-socket lane, POLICY_FLAG_PER_SOCKET set and a nonzero cookie
 /// in hand): belt, refill, consume — the legacy lane's exact
-/// arithmetic on a socket-keyed bucket. `stats` stays keyed at the
-/// RESOLVED POLICY ROOT (the ledger rolls up to the target the
-/// owner limited, the AMMSP contract), and the ring wrap rides the
-/// caller's ring_verdict like every other lane.
+/// arithmetic on a socket-keyed bucket, with the drop verdict
+/// rescued ECN-first (schema v21, the per-socket convergence
+/// closure): the kernel helper runs FIRST (side-effect-free
+/// refusal on non-ECT/cloned/not-linear packets — the legacy drop,
+/// untouched), a success charges the bucket's own debt word, and
+/// the CE-marked packet is DELIVERED — the caller's ring wrap books
+/// it as allowed through this lane's return of 1. `stats` stays
+/// keyed at the RESOLVED POLICY ROOT (the ledger rolls up to the
+/// target the owner limited, the AMMSP contract), and the ring wrap
+/// rides the caller's ring_verdict like every other lane.
 #[inline(always)]
 pub(super) fn socket_flow(
     pol: &Policy,
@@ -127,6 +171,7 @@ pub(super) fn socket_flow(
     now: u64,
     pkt_len: u32,
     stats: Option<&mut LimiterStats>,
+    skb: *mut core::ffi::c_void,
 ) -> i32 {
     let ptr = match get_socket_ptr(map, &cookie) {
         Some(ptr) => ptr,
@@ -146,12 +191,26 @@ pub(super) fn socket_flow(
     // were drawn under a budget a policy mutation has since
     // replaced — zero them before this packet may spend. The CAS
     // form keeps a concurrent consumer correct: its consume
-    // re-observes the zero and retries against the fresh state.
+    // re-observes the zero and retries against the fresh state. The
+    // debt zero rides the same belt: a fresh budget never inherits
+    // the predecessor's debt (the repair-6 discipline, structural
+    // here — the word lives in the bucket the belt already owns).
     let generation = u64::from(current_generation());
     if unsafe { core::ptr::addr_of!(sb.gen_stamp).read_volatile() } != generation {
         let stale = unsafe { core::ptr::addr_of!(sb.core.tokens).read_volatile() };
         if stale != 0 {
             let _ = tokens_cas(&mut sb.core, stale, 0);
+        }
+        let stale_debt = unsafe { core::ptr::addr_of!(sb.ecn_debt).read_volatile() };
+        if stale_debt != 0 {
+            // Plain volatile write, the gen_stamp's own form: the
+            // word has no CAS sequence of its own here, and the
+            // write is idempotent under the belt race (two CPUs on
+            // one socket both zeroing converge to the same word). A
+            // raced stale charge from the dead generation lands at
+            // most one cap and pays down through the fresh stream —
+            // the budget bound never depends on the belt's timing.
+            unsafe { core::ptr::addr_of_mut!(sb.ecn_debt).write_volatile(0) };
         }
         unsafe { core::ptr::addr_of_mut!(sb.gen_stamp).write_volatile(generation) };
     }
@@ -167,16 +226,62 @@ pub(super) fn socket_flow(
     let bkt = unsafe { &mut *core::ptr::addr_of_mut!(sb.core) };
     refill_window(pol, bkt, now);
     let allowed = try_consume(bkt, pkt_len);
-    match stats {
-        Some(s) if allowed => {
-            book(s, true, pkt_len);
-            1
+    if allowed {
+        // The ECN debt pay (the ecn.rs call-site law, the group and
+        // DRR lanes' own): on the ALLOW path only, from the stream's
+        // leftover AFTER the lane delivered — a pay that ran on every
+        // packet would drain the token stock toward the debt and
+        // starve the lane below the policy.
+        unsafe {
+            debt_pay(
+                core::ptr::addr_of_mut!(sb.core.tokens),
+                core::ptr::addr_of_mut!(sb.ecn_debt),
+            );
         }
+        return match stats {
+            Some(s) => {
+                book(s, true, pkt_len);
+                1
+            }
+            None => 1,
+        };
+    }
+    // The drop verdict's rescue, mark before drop: the kernel helper
+    // first (its refusal IS the legacy drop — non-ECT traffic never
+    // changes behavior), then the debt charge against this
+    // connection's own word (a refusal at the cap or a word already
+    // at the cap leaves the drop standing — the safe verdict, never
+    // an unlimited pass). A rescued packet is DELIVERED: book the
+    // drop first, then the rescue's correction pair moves it to the
+    // allowed column exactly (the math.rs book_rescue contract).
+    if unsafe { super::bpf_skb_ecn_set_ce(skb) } == 0 {
+        return match stats {
+            Some(s) => {
+                book(s, false, pkt_len);
+                0
+            }
+            None => 0,
+        };
+    }
+    let debt_ptr = unsafe { core::ptr::addr_of_mut!(sb.ecn_debt) };
+    if !unsafe { debt_charge(debt_ptr, pkt_len) } {
+        // The CE codepoint is set but the debt is at its cap: the
+        // packet drops anyway — a dropped mark signals nothing the
+        // receiver will read, and the cap is the budget law's bite.
+        return match stats {
+            Some(s) => {
+                book(s, false, pkt_len);
+                0
+            }
+            None => 0,
+        };
+    }
+    match stats {
         Some(s) => {
             book(s, false, pkt_len);
-            0
+            book_rescue(s, pkt_len);
+            1
         }
-        None if allowed => 1,
-        None => 0,
+        None => 1,
     }
 }

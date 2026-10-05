@@ -49,3 +49,10 @@ mod drr_tests;
 #[cfg(test)]
 #[path = "ecn_tests.rs"]
 mod ecn_tests;
+
+// schema v21 (the per-socket convergence closure): the fleet sims
+// that closed the v19 scope note's deferred question — pinned in
+// their own module, the analysis being its own deliverable.
+#[cfg(test)]
+#[path = "ecn_socket_tests.rs"]
+mod ecn_socket_tests;

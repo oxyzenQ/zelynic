@@ -25,12 +25,18 @@
 //!    the legacy drop policer; the ECN lane delivers more goodput
 //!    with zero losses once the window settles, which is the entire
 //!    point of mark-instead-of-drop, reproduced rootlessly.
+//!  * THE PER-SOCKET CONVERGENCE ANALYSIS (the deferred question,
+//!    closed by schema v21) lives in its own module now —
+//!    ecn_socket_tests.rs, the fleet sims that answered the v19
+//!    scope note before the per-socket lane's marking shipped.
 
 // The production debt core, compiled into this test module: the SAME
 // file the BPF object builds. Only the test tree reaches across
 // trees (the gate-tree discipline, the math_tests precedent).
+// pub(super) so the sibling ecn_socket_tests reuses this single
+// inclusion (one copy per test binary, the duplicate-mod law).
 #[path = "../../../ebpf/src/ecn.rs"]
-mod ebpf_ecn;
+pub(super) mod ebpf_ecn;
 
 use self::ebpf_ecn::{debt_charge, debt_pay, ECN_DEBT_CAP};
 use super::drr_tests::ebpf_drr::GSO_ADMIT_FLOOR;
