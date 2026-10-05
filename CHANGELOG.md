@@ -843,8 +843,9 @@ NIGHT-hunt-18's git-history-only call.
   docs/KERNEL_COMPATIBILITY.md now carries the law for the next
   lane that wants to parse packets. The same sweep cleared the
   eBPF dead-code compile break (the test-tree-only readers the
-  -D warnings gate refused), the codespell house-word drift
-  (unparseable x6 back to unparsable), the ect-probe format, the
+  -D warnings gate refused), the codespell house-word drift (six
+  sites of the banned misspelling back to unparsable, the 805d9c6
+  house word), the ect-probe format, the
   USAGE.md double blank, and the ebpf fmt wrap — the whole CI
   matrix green again on one push.
 
