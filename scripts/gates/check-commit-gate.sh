@@ -83,8 +83,10 @@ fi
 # ── 3. CI actions-pin health (advisory by default) ────────────────
 # Runs LAST: the fail-closed lane checks above never wait behind a
 # network probe. In strict mode a known-stale verdict joins
-# GATE_FAILED; in every other shape (current, warn, every skip
-# reason) the check owns its own exit-zero and its own output.
+# GATE_FAILED; in auto mode a healed-and-staged pin set joins it
+# ONCE (the re-commit reads the healed pins as current); in every
+# other shape (current, warn, every skip reason) the check owns its
+# own exit-zero and its own output.
 if ! bash scripts/gates/check-actions-pins.sh; then
 	GATE_FAILED=1
 fi
@@ -92,7 +94,8 @@ fi
 if [ "${GATE_FAILED}" -ne 0 ]; then
 	echo "FAIL: commit gate — the tree is not committable in this state"
 	echo "      (sections 1-2 fail-closed on the prebuilt lane; section 3"
-	echo "      blocks only in strict actions-pin health mode)"
+	echo "      blocks on a strict stale verdict or an auto-mode heal —"
+	echo "      the once-only re-commit that carries the healed pins)"
 	exit 1
 fi
 

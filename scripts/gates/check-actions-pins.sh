@@ -13,8 +13,9 @@
 #   - commit-time, automatic: THIS CHECK — every commit on a wired
 #     clone (core.hooksPath=.githooks, self-installed by
 #     gate-keepers.sh section 0) reads the pins' freshness against
-#     upstream; current costs one line, behind prints the classified
-#     table (MAJOR / MINOR / PATCH), never silently
+#     upstream; current costs one line in warn/strict and zero in
+#     auto, behind prints the classified table (MAJOR / MINOR /
+#     PATCH), never silently
 #   - on-demand, maintainer seat: scripts/ci/actions-version-sweep.sh
 #     --dry-run to read, --apply to heal — the healed pins are
 #     committed like any other change and this check re-reads them
@@ -49,13 +50,38 @@
 # cur -> new ... HEAL". A verdict that does not parse is an honest
 # skip, never a fake "current" — format drift fails safe.
 #
-# Modes (off | warn | strict; default warn):
+# Modes (off | warn | strict | auto; default warn):
 #   ZELYNIC_ACTIONS_HEALTH           one-shot, beats the git config
 #   git config zelynic.actionsHealthCheck   repo-local, persistent
+#
+# Auto mode (NIGHT-improve-40 fixup 1) is skip-if-latest plus a
+# contributor-carried auto-heal: a current verdict exits 0 with ZERO
+# output (the "current costs one line" toll is waived — silence is
+# the reward for healthy pins), and a clean-behind verdict (fully
+# parsed, no api-unreachable/unresolvable — the rc=2 class never
+# heals) re-verifies COLD (a cached behind is not a write mandate;
+# upstream truth can move under a 6h-old cache), then runs the
+# sweep's --apply under its own budget, stages .github/workflows/
+# into the index, and fails the commit ONCE: review git diff
+# --cached, re-commit — the re-commit reads the healed pins as
+# current and stays silent. No auto-amend, no push: the manual
+# flow's maintainer-review discipline is kept whole, only its
+# typing is removed. A heal that cannot prove itself clean (API
+# drop mid-apply, overrun, out-of-bounds write, unparseable
+# result) stages NOTHING: the tree is restored from the pre-apply
+# backup and the warn-mode table prints — remote facts never
+# block a commit. The apply-stage proof is delta-shaped, not the
+# sweep's guard_diff: at pre-commit time the index legitimately
+# carries the contributor's staged work, which guard_diff (a
+# clean-tree contract) would flag by design — so the auto path
+# snapshots the changed-file set and the non-workflow patch hash
+# before and after the apply, and accepts the heal only when the
+# sweep's own writes provably stayed inside .github/workflows/.
 #
 # Tunables (env, optional):
 #   ZELYNIC_ACTIONS_HEALTH_TTL       cache seconds (default 21600 = 6h)
 #   ZELYNIC_ACTIONS_HEALTH_TIMEOUT   cold-sweep budget seconds (default 30)
+#   ZELYNIC_ACTIONS_HEAL_TIMEOUT     auto-mode apply budget seconds (default 60)
 #   GITHUB_TOKEN                     authenticated API reads (the sweep
 #                                    picks it up too) — in practice the
 #                                    only route to a cold verdict: the
@@ -75,6 +101,7 @@ SWEEP_SCRIPT="scripts/ci/actions-version-sweep.sh"
 API_ROOT="https://api.github.com"
 DEFAULT_TTL=21600
 DEFAULT_TIMEOUT=30
+DEFAULT_HEAL_TIMEOUT=60
 QUOTA_FLOOR=70
 # The caller's hourly API ceiling, filled by preflight from the same
 # /rate_limit read (empty when the field does not parse). Anonymous
@@ -97,13 +124,19 @@ scripts/gates/check-actions-pins.sh — the commit-time actions-pin
 health check (NIGHT-improve-40; the contract story lives in this
 file's header and in scripts/gates/check-commit-gate.sh).
 
-modes (off | warn | strict, default warn):
+modes (off | warn | strict | auto, default warn):
   ZELYNIC_ACTIONS_HEALTH=strict git commit ...        one-shot
   git config zelynic.actionsHealthCheck strict        repo-local
+
+auto: current exits 0 silent; a clean-behind verdict re-verifies
+  cold, heals via the sweep's --apply, stages .github/workflows/,
+  and fails the commit once for review (the re-commit reads the
+  healed pins as current and stays silent).
 
 tunables (env):
   ZELYNIC_ACTIONS_HEALTH_TTL       cache seconds (default 21600)
   ZELYNIC_ACTIONS_HEALTH_TIMEOUT   cold-sweep budget (default 30s)
+  ZELYNIC_ACTIONS_HEAL_TIMEOUT     auto-apply budget (default 60s)
   GITHUB_TOKEN                     a PAT — the anonymous 60/h tier can
                                    never pass the 70-call sweep floor
 EOF
@@ -119,10 +152,16 @@ resolve_mode() {
 		mode="$(git config --get zelynic.actionsHealthCheck 2>/dev/null || true)"
 	fi
 	case "$mode" in
-	off | warn | strict) printf '%s' "$mode" ;;
+	off | warn | strict | auto) printf '%s' "$mode" ;;
 	"") printf 'warn' ;;
 	*)
-		health "unknown mode '${mode}' — treating as warn"
+		# stderr, not stdout: this function is consumed by a
+		# command substitution, and a stdout note here would
+		# be captured into the mode variable itself (an
+		# unknown-mode note that corrupts the mode it warns
+		# about — pre-existing bug, caught by the auto-mode
+		# fixture battery)
+		health "unknown mode '${mode}' — treating as warn" >&2
 		printf 'warn'
 		;;
 	esac
@@ -298,6 +337,241 @@ render_verdict() {
 	return 1
 }
 
+# ── the auto mode (NIGHT-improve-40 fixup 1: skip-if-latest, auto-heal) ───
+#
+# Current is silent, a clean-behind verdict heals through a
+# contributor's re-commit, and every other shape keeps the warn-mode
+# honesty. The write side never trusts a cached behind (a heal
+# decision re-reads today's upstream truth first, cold_check) and
+# never trusts a partial or out-of-bounds apply (the heal is staged
+# only when the sweep provably reached its write stage and its
+# writes provably stayed inside .github/workflows/, auto_heal).
+
+heal_timeout_seconds() {
+	local t="${ZELYNIC_ACTIONS_HEAL_TIMEOUT:-$DEFAULT_HEAL_TIMEOUT}"
+	[[ $t =~ ^[0-9]+$ ]] || t="$DEFAULT_HEAL_TIMEOUT"
+	printf '%s' "$t"
+}
+
+# cold_check — one cold re-verify for the write decision: pre-flight,
+# then the sweep under the READ budget. Echoes render_verdict's output
+# (the caller decides what to show) and returns its rc, or 3 when no
+# verdict could be produced (unreachable, quota, overrun — the skip
+# class, never a heal trigger). A verdict it did pin (current or
+# behind) is written to the cache, the same read contract as the main
+# cold path; rc=2 stays uncached exactly as there.
+cold_check() {
+	local payload rc
+	rc=0
+	preflight || rc=$?
+	if [ "$rc" -eq 1 ]; then
+		health "re-verify: GitHub API unreachable (offline or blocked); pins unchecked"
+		return 3
+	elif [ "$rc" -eq 2 ]; then
+		if [ -n "$QUOTA_LIMIT" ] && [ "$QUOTA_LIMIT" -lt "$QUOTA_FLOOR" ]; then
+			health "re-verify: API ceiling ${QUOTA_LIMIT}/h can never cover the ${QUOTA_FLOOR}-call cold-sweep floor; export GITHUB_TOKEN"
+		else
+			health "re-verify: GitHub API quota below ${QUOTA_FLOOR} calls; retry after the quota resets, or export GITHUB_TOKEN"
+		fi
+		return 3
+	fi
+	payload="$(mktemp /tmp/zelynic-health-reverify.XXXXXX)"
+	if timeout "$(timeout_seconds)" bash "$SWEEP_SCRIPT" --dry-run >"$payload" 2>&1; then
+		rc=0
+		render_verdict "$payload" "checked just now" warn || rc=$?
+		if [ "$rc" -ne 2 ]; then
+			write_cache "$payload"
+		fi
+		rm -f "$payload"
+		return "$rc"
+	fi
+	rm -f "$payload"
+	health "re-verify: the sweep overran its $(timeout_seconds)s budget; refreshing in the background"
+	mkdir -p "$(dirname "$(cache_file)")"
+	nohup bash "$REPO_ROOT/scripts/gates/check-actions-pins.sh" --refresh-cache >/dev/null 2>&1 &
+	return 3
+}
+
+# auto_cached_verdict <payload-file> <age-label> — the cache-hit seat.
+# Current: silent. Indeterminate: the skip note. Clean-behind: today's
+# truth first — a cached behind is a read, not a write mandate.
+auto_cached_verdict() {
+	local payload="$1" label="$2" out rc cold_rc cold_out
+	rc=0
+	out="$(render_verdict "$payload" "$label" warn)" || rc=$?
+	rm -f "$payload"
+	if [ "$rc" -eq 0 ]; then
+		exit 0
+	fi
+	if [ "$rc" -eq 2 ]; then
+		printf '%s\n' "$out"
+		exit 0
+	fi
+	health "auto: the cache says behind — re-verifying cold before any heal"
+	cold_rc=0
+	cold_out="$(cold_check)" || cold_rc=$?
+	case "$cold_rc" in
+	0)
+		health "auto: the re-verify says current — the cached behind was stale; nothing to heal"
+		exit 0
+		;;
+	2)
+		printf '%s\n' "$cold_out"
+		exit 0
+		;;
+	1) auto_heal "$cold_out" ;;
+	*)
+		printf '%s\n' "$cold_out"
+		printf '%s\n' "$out"
+		exit 0
+		;;
+	esac
+}
+
+# auto_cold_verdict <payload-file> — the cold seat: the verdict is
+# already today's truth, so current is silent (the verdict still
+# lands in the cache for the next commit), indeterminate prints its
+# skip note, and clean-behind heals immediately.
+auto_cold_verdict() {
+	local payload="$1" out rc
+	rc=0
+	out="$(render_verdict "$payload" "checked just now" warn)" || rc=$?
+	if [ "$rc" -eq 2 ]; then
+		printf '%s\n' "$out"
+		rm -f "$payload"
+		exit 0
+	fi
+	write_cache "$payload"
+	rm -f "$payload"
+	if [ "$rc" -eq 0 ]; then
+		exit 0
+	fi
+	auto_heal "$out"
+}
+
+# auto_heal <warn-shape output for the fallback> — the write seat.
+#
+# Applies the sweep under its own budget (ZELYNIC_ACTIONS_HEAL_TIMEOUT,
+# default 60s), stages .github/workflows/ into the index, and fails
+# the commit ONCE: the contributor reviews `git diff --cached` and
+# re-commits; the re-commit reads the healed pins as current and
+# stays silent. No auto-amend, no push — the manual flow's
+# maintainer-review discipline is kept whole, only its typing removed.
+#
+# The sweep's own guard_diff cannot arbitrate here: it compares the
+# whole tree against HEAD, and at pre-commit time the index
+# legitimately carries the contributor's staged work — guard_diff
+# flags that BY DESIGN (its contract is the manual heal on a clean
+# tree). This path substitutes the same discipline in delta form:
+# pre/post snapshots prove the sweep's own writes stayed inside
+# .github/workflows/ (the newly-changed set plus the non-workflow
+# patch hash), the workflow files are backed up so every failure
+# shape restores the tree exactly, and the heal is staged only when
+# the sweep provably reached its write stage — the verdict line and
+# guard_diff's own FAIL marker both print only after apply_edits
+# ran, which separates a completed apply from a sweep that died
+# mid-run (timeout, network) and must never be staged.
+#
+# Exits: 1 = healed and staged (the commit fails once on purpose);
+# 0 = fallback (advisory table) or the verdict moved to current.
+auto_heal() {
+	local warn_table="$1"
+	local backup pre_list post_list heal_out
+	local rc heals
+	local delta offenders nonwf_pre nonwf_post applied
+
+	backup="$(mktemp -d /tmp/zelynic-heal-backup.XXXXXX)"
+	cp .github/workflows/*.yml "$backup/"
+	pre_list="$(mktemp /tmp/zelynic-heal-pre.XXXXXX)"
+	post_list="$(mktemp /tmp/zelynic-heal-post.XXXXXX)"
+	heal_out="$(mktemp /tmp/zelynic-heal-apply.XXXXXX)"
+
+	# Nested helpers (bash dynamic scope: they read this frame's
+	# locals — the backup, the delta, the fallback table).
+	heal_cleanup() {
+		rm -rf "$backup"
+		rm -f "$pre_list" "$post_list" "$heal_out"
+	}
+	heal_abort() {
+		local reason="$1"
+		# Restore the pre-apply tree exactly: workflows from the
+		# backup (a contributor's unstaged workflow edits ride back
+		# too); out-of-bounds files were clean pre-apply by delta
+		# definition, so checkout returns them untouched.
+		cp "$backup"/*.yml .github/workflows/ 2>/dev/null || true
+		[ -z "$offenders" ] || printf '%s\n' "$offenders" | xargs -r git checkout -- 2>/dev/null || true
+		heal_cleanup
+		health "auto-heal aborted — ${reason}; nothing staged, the advisory verdict follows"
+		printf '%s\n' "$warn_table"
+		exit 0
+	}
+	heal_moved() {
+		local moved_rc=0 moved_out
+		moved_out="$(render_verdict "$heal_out" "checked just now" warn)" || moved_rc=$?
+		heal_cleanup
+		if [ "$moved_rc" -eq 0 ]; then
+			health "auto: the apply re-read upstream and found the pins current — the dry-run's verdict was stale, nothing to heal"
+			exit 0
+		fi
+		printf '%s\n' "$moved_out"
+		printf '%s\n' "$warn_table"
+		exit 0
+	}
+	heal_succeed() {
+		if ! git add .github/workflows/; then
+			heal_abort "staging the healed workflows failed (git add)"
+		fi
+		heal_cleanup
+		health "auto-heal: ${heals} pin(s) healed into the index — this commit was stopped ONCE on purpose"
+		health "review git diff --cached, then re-commit; the re-commit reads the healed pins as current and stays silent"
+		health "prefer the manual lane instead: ZELYNIC_ACTIONS_HEALTH=warn, then scripts/ci/actions-version-sweep.sh --apply"
+		exit 1
+	}
+
+	{
+		git diff --name-only
+		git diff --cached --name-only
+	} | sort -u >"$pre_list"
+	nonwf_pre="$(git diff -- . ':(exclude).github/workflows/' | sha256sum | cut -d' ' -f1)"
+
+	rc=0
+	timeout "$(heal_timeout_seconds)" bash "$SWEEP_SCRIPT" --apply >"$heal_out" 2>&1 || rc=$?
+
+	{
+		git diff --name-only
+		git diff --cached --name-only
+	} | sort -u >"$post_list"
+	nonwf_post="$(git diff -- . ':(exclude).github/workflows/' | sha256sum | cut -d' ' -f1)"
+	delta="$(comm -13 "$pre_list" "$post_list")"
+	offenders="$(printf '%s' "$delta" | grep -Ev '^\.github/workflows/[A-Za-z0-9_.-]+\.yml$' || true)"
+	heals="$(grep -c ' HEAL' "$heal_out" || true)"
+	heals="${heals:-0}"
+	applied=""
+	if grep -q '^sweep verdict:' "$heal_out"; then
+		applied="verdict"
+	elif grep -q '^FAIL: tracked files outside' "$heal_out"; then
+		applied="guard"
+	fi
+
+	if grep -Eq 'api unreachable|unresolvable' "$heal_out"; then
+		heal_abort "the sweep could not size up every pin mid-apply (API unreachable)"
+	elif [ -z "$applied" ]; then
+		heal_abort "the apply never reached its write stage (budget $(heal_timeout_seconds)s, network, or an early crash)"
+	elif [ "$heals" -eq 0 ]; then
+		# A completed apply with zero heals: upstream moved — the
+		# apply's own payload is the verdict now, not the dry's.
+		heal_moved
+	elif [ -n "$offenders" ]; then
+		heal_abort "the sweep's writes left .github/workflows/ (the offenders were restored)"
+	elif [ "$nonwf_pre" != "$nonwf_post" ]; then
+		heal_abort "the non-workflow tree changed under the apply"
+	elif [ -z "$delta" ]; then
+		heal_abort "the apply completed but the tree shows no pin changes"
+	else
+		heal_succeed
+	fi
+}
+
 # ── network pre-flight ─────────────────────────────────────────────────────
 #
 # preflight: 0 = API reachable with quota, 1 = unreachable,
@@ -414,6 +688,9 @@ main() {
 				payload="$(mktemp /tmp/zelynic-health-hit.XXXXXX)"
 				trap 'rm -f "$payload"' EXIT
 				tail -n +2 "$(cache_file)" >"$payload"
+				if [ "$mode" = "auto" ]; then
+					auto_cached_verdict "$payload" "$(age_label "$age")"
+				fi
 				rc=0
 				render_verdict "$payload" "$(age_label "$age")" "$mode" || rc=$?
 				if [ "$rc" -eq 1 ] && [ "$mode" = "strict" ]; then
@@ -440,6 +717,9 @@ main() {
 	trap 'rm -f "$payload"' EXIT
 	if timeout "$(timeout_seconds)" bash "$SWEEP_SCRIPT" --dry-run >"$payload" 2>&1; then
 		rc=0
+		if [ "$mode" = "auto" ]; then
+			auto_cold_verdict "$payload"
+		fi
 		render_verdict "$payload" "checked just now" "$mode" || rc=$?
 		if [ "$rc" -eq 2 ]; then
 			exit 0

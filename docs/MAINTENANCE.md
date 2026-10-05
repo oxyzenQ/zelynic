@@ -133,8 +133,23 @@ binaries).
   verdict cached in `.git/zelynic/` keyed on the workflows'
   content with a 6h TTL, classifications MAJOR/MINOR/PATCH in the
   report, strict an opt-in (`git config
-  zelynic.actionsHealthCheck strict`). The heal is on demand and
-  human-carried: `scripts/ci/actions-version-sweep.sh --dry-run`
+  zelynic.actionsHealthCheck strict`), and `auto` the one-step-
+  further opt-in (NIGHT-improve-40 fixup 1): a current verdict
+  exits with zero output, and a clean-behind verdict re-verifies
+  cold (a cached behind is a read, not a write mandate), runs the
+  sweep's `--apply` itself under `ZELYNIC_ACTIONS_HEAL_TIMEOUT`
+  (default 60s), stages `.github/workflows/` into the index, and
+  fails the commit once — review `git diff --cached`, re-commit,
+  and the re-commit reads the healed pins as current and stays
+  silent; no auto-amend, no push, and every failed or partial
+  apply restores the tree from a pre-apply backup before falling
+  back to the advisory table (the sweep's `guard_diff` cannot
+  arbitrate a pre-commit heal by design — it compares the whole
+  tree against HEAD and would flag the contributor's own staged
+  work — so the auto path proves the same discipline with
+  pre/post snapshots of what actually changed). The heal stays on
+  demand and human-carried when wanted:
+  `scripts/ci/actions-version-sweep.sh --dry-run`
   prints exactly what a heal would move, `--apply` performs it,
   and the healed pins are committed like any other change (the
   hook re-reads the healed tree; the push rides the contributor's
