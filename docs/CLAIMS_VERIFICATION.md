@@ -30,7 +30,7 @@ row ships without one. The mechanisms come in three strengths:
 | 1 | **No daemon** — enforcement survives process exit | `no-daemon`: process set must not grow across an attach; a download stays policed after the CLI exits | supermassive v1 reload/sustain rows; the pinned-link surface in `pin.rs` |
 | 2 | **Pure eBPF** — no tc/nft/LD_PRELOAD | `pure-eBPF`: ruleset structure snapshot + kernel drop counters + bpftool's attach-mechanism-independent surfaces | nft/tc normalization pins (engine self-test); CI runs the engine self-test on every push |
 | 3 | **Per-app per-cgroup** | `per-app`: cgroup A shaped at its rate while its unlimited neighbor rides ≥50x above, same moment | witness-floor pins; strict-multi shared-bucket rows (supermassive v1) |
-| 4 | **Precision 0.00%** | `precision`: kernel-admitted bytes vs configured rate × wall time over a saturating window, cross-checked against the client counter — the row prints the residual (the instrument's own floor: a decoupled source saturating through a process boundary, the midpoint estimator's cancelled spawn latency, window-edge sampling; under-side windows re-attempt bounded, quick-row closure v2), it rounds nothing | the token math pinned rootlessly: `test/ebpf/limiter/math_tests.rs` (steady-state exactness, fractional carry) + the budget-covers pair (lts-8, contention) |
+| 4 | **Precision 0.00%** | `precision`: kernel-admitted bytes vs configured rate × wall time over a saturating window, cross-checked against the client counter — the row prints the residual and the PASS bound's derivation (estimator floor + the token bank's one-burst wander, `burst/(rate × window)`; under-side windows re-attempt bounded — the quick-row closure v3), it rounds nothing | the token math pinned rootlessly: `test/ebpf/limiter/math_tests.rs` (steady-state exactness, fractional carry) + the budget-covers pair (lts-8, contention) |
 | 5 | **Resource honesty** — the CLI's own RAM/CPU/IO + kernel cost (lts-6) | `footprint`: wait4 rusage of a canonical attach (peak RSS, CPU seconds, block IO — real numbers printed) + bpftool `run_time_ns`/`run_cnt` (average ns per attached-prog run; the kernel collects those fields only while `kernel.bpf_stats_enabled` is on, so the harness turns the knob on for its window and writes the original value back — lts-6 followup 3) | verdict-math + stats-knob-plan pins (engine self-test); idle-frame zero-emit: `test/terminal/diff_tests.rs` |
 
 The 0.00% claim told honestly (the two levels): the CONTRACT is
@@ -102,15 +102,21 @@ push" wording claimed surfaces the path filters never woke).
 - The loopback window regime: a measurement window whose refill
   cannot bank a whole 64 KiB skb sees bimodal delivery on loopback
   — physics, window-aware in the harness model.
-- The live precision residual: the instrument's own floor — the
-  source saturating the policer through a process boundary (a
-  decoupled server worker), the midpoint estimator's spawn-latency
-  cancellation, and window-edge sampling — printed by the row with
-  every under-side re-attempt, never rounded away. The first
-  quick-row closure called this residual "sampling jitter"; the
-  live CI legs disproved that honestly (37.682% error is a source
-  under-delivering, not jitter — see the quick-row closure v2
-  below), and the wording now names the real floor.
+- The live precision residual: the instrument's own floor, derived —
+  the estimator's sampling jitter (the midpoint cancellation) plus
+  the TOKEN BANK's wander: the cushion is one default_burst (a full
+  second of the rate at 100mb), and under a drop-only policer the
+  aggregate's AIMD dips bank tokens while the overshoots drain them,
+  so a window that starts and ends at different bank levels reads
+  off by up to one burst — burst/(rate x window), 10% on the quick
+  10s window, 3.3% on the full 30s, measured identical across one
+  flow and a four-flow aggregate on the CI legs (3.8-6.1%) while a
+  tight host reads the estimator floor alone (0.945%). The PASS
+  bound carries both terms and prints its derivation; the row prints
+  the actual number and every under-side re-attempt, never rounded
+  away. The first quick-row closure called this residual "sampling
+  jitter"; the live CI legs disproved that honestly — the rounds'
+  story is in the CHANGELOG's quick-row entries.
 - The quick-row closure v2 (task 8, the GIL find): the quick lane's
   four red rows on the shared CI runners — no-daemon 41.9%, per-app
   30.3%, precision TCP 62.2%, token error 37.682% — were the
