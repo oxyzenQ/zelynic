@@ -14,7 +14,9 @@ use anyhow::Result;
 use super::display::collect_display_data;
 use crate::ebpf::identity::IdentityMap;
 use crate::ebpf::limiter::rate_ring::{ring_series, RateRingRaw, RingReads, RATE_RING_SLOTS};
-use crate::ebpf::limiter::{monotonic_ns, LimiterStatsRaw, PolicyRaw};
+use crate::ebpf::limiter::types::PolicyWindowRaw;
+use crate::ebpf::limiter::{monotonic_ns, wall_now_ns, LimiterStatsRaw, PolicyRaw};
+use crate::ebpf::limiter::{wall_minus_mono, window_state};
 
 /// Print JSON status (for --print-json / scripting).
 ///
@@ -33,6 +35,7 @@ pub fn print_status_json(
     identity: &IdentityMap,
     watchdog_deadline: Option<u64>,
     rings: &RingReads,
+    windows: &[(u32, PolicyWindowRaw)],
 ) -> Result<()> {
     let status = status_json(
         dl_policies,
@@ -41,6 +44,9 @@ pub fn print_status_json(
         identity,
         watchdog_deadline,
         rings,
+        windows,
+        wall_now_ns(),
+        monotonic_ns(),
     );
     crate::output::print_json(&status);
     Ok(())
@@ -55,6 +61,7 @@ pub fn print_status_json(
 /// ring was readable AND the limit's cgroup has one — absent is
 /// honestly absent (skip_serializing_if), never a fabricated empty
 /// series.
+#[allow(clippy::too_many_arguments)]
 fn status_json(
     dl_policies: &[(u32, PolicyRaw)],
     ul_policies: &[(u32, PolicyRaw)],
@@ -62,6 +69,9 @@ fn status_json(
     identity: &IdentityMap,
     watchdog_deadline: Option<u64>,
     rings: &RingReads,
+    windows: &[(u32, PolicyWindowRaw)],
+    wall_now_ns: u64,
+    mono_now_ns: u64,
 ) -> StatusJson {
     let watchdog = match watchdog_deadline {
         Some(0) | None => "enforcing",
@@ -70,7 +80,7 @@ fn status_json(
     };
 
     let now = monotonic_ns();
-    let data = collect_display_data(dl_policies, ul_policies, stats);
+    let data = collect_display_data(dl_policies, ul_policies, stats, windows);
 
     let limits: Vec<LimitEntry> = data
         .iter()
@@ -85,6 +95,10 @@ fn status_json(
                     upload,
                 }),
             };
+            let window = d
+                .window
+                .as_ref()
+                .map(|w| window_json(w, wall_now_ns, mono_now_ns));
             LimitEntry {
                 cgroup_id: d.cgroup_id,
                 label: identity.label(d.cgroup_id),
@@ -97,6 +111,7 @@ fn status_json(
                 bytes_allowed: d.bytes_allowed,
                 bytes_dropped: d.bytes_dropped,
                 rate_ring,
+                window,
             }
         })
         .collect();
@@ -105,6 +120,37 @@ fn status_json(
         watchdog,
         active_limits: limits.len(),
         limits,
+    }
+}
+
+/// One row's window as JSON (night-during, schema v23 — the
+/// scripting surface): the kind, the STATE vocabulary the status
+/// pins own ("active" / "dormant" / "outside" / "expired"), and
+/// the shape's own fields — a span's WALL instants (ns since
+/// epoch, reconstructed through the same offset pair the twin
+/// uses; the monotonic deadlines a map row carries would be
+/// meaningless to a script and across reboots alike), a daily
+/// window's seconds-of-day pair.
+fn window_json(win: &PolicyWindowRaw, wall_now: u64, mono_now: u64) -> WindowJson {
+    let offset = wall_minus_mono(wall_now, mono_now);
+    let state = window_state(win, wall_now, mono_now);
+    match win.kind {
+        crate::ebpf::limiter::types::WINDOW_KIND_DAILY => WindowJson {
+            kind: "daily",
+            state,
+            start_wall_ns: None,
+            end_wall_ns: None,
+            start_s: Some(win.start_s),
+            end_s: Some(win.end_s),
+        },
+        _ => WindowJson {
+            kind: "span",
+            state,
+            start_wall_ns: Some(win.start_mono_ns.saturating_add(offset)),
+            end_wall_ns: Some(win.end_mono_ns.saturating_add(offset)),
+            start_s: None,
+            end_s: None,
+        },
     }
 }
 
@@ -149,6 +195,33 @@ struct LimitEntry {
     /// traffic under the policy — the absent-lens contract.
     #[serde(skip_serializing_if = "Option::is_none")]
     rate_ring: Option<RateRingJson>,
+    /// The row's --during window (night-during, schema v23),
+    /// absent when the row carries none — the additive-field rule
+    /// the rate_ring join set.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    window: Option<WindowJson>,
+}
+
+/// One row's window (see [`LimitEntry::window`]).
+#[derive(serde::Serialize)]
+struct WindowJson {
+    /// "span" or "daily".
+    kind: &'static str,
+    /// "active", "dormant", "outside", or "expired" (the state
+    /// vocabulary the status pins own).
+    state: &'static str,
+    /// SPAN: inclusive start, wall ns since epoch. DAILY: absent.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    start_wall_ns: Option<u64>,
+    /// SPAN: exclusive end, wall ns since epoch. DAILY: absent.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    end_wall_ns: Option<u64>,
+    /// DAILY: window start, seconds-of-day UTC. SPAN: absent.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    start_s: Option<u32>,
+    /// DAILY: window end, seconds-of-day UTC. SPAN: absent.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    end_s: Option<u32>,
 }
 
 /// One direction's window series (see [`LimitEntry::rate_ring`]).
@@ -186,3 +259,9 @@ struct StatusJson {
 #[cfg(test)]
 #[path = "../../test/ebpf/display_json_tests.rs"]
 mod display_json_tests;
+
+// night-during (schema v23): the window field's pins, one family
+// over (the LOC-cap split the ecn_socket_tests precedent set).
+#[cfg(test)]
+#[path = "../../test/ebpf/display_json_window_tests.rs"]
+mod display_json_window_tests;

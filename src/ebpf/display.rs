@@ -8,10 +8,12 @@
 use std::collections::HashMap;
 
 use crate::ebpf::identity::IdentityMap;
-use crate::ebpf::limiter::types::POLICY_FLAG_PER_SOCKET;
+use crate::ebpf::limiter::types::{PolicyWindowRaw, POLICY_FLAG_PER_SOCKET, WINDOW_KIND_SPAN};
 use crate::ebpf::limiter::{
-    format_bytes, format_rate_exact, monotonic_ns, terminal_width, LimiterStatsRaw, PolicyRaw,
+    format_bytes, format_rate_exact, monotonic_ns, terminal_width, wall_now_ns, LimiterStatsRaw,
+    PolicyRaw,
 };
+use crate::ebpf::limiter::{format_wall_utc, wall_minus_mono, window_state};
 use crate::ebpf::render::{grid_line, title_bar};
 use crate::output::{brand, grey, ok, signature_footer, suggestion, warn};
 
@@ -33,13 +35,18 @@ pub(super) struct DisplayData {
     pub(super) packets_dropped: u64,
     pub(super) bytes_allowed: u64,
     pub(super) bytes_dropped: u64,
+    /// The row's --during window, when it carries one (night-during,
+    /// schema v23) — the lifetime line under the row renders it.
+    pub(super) window: Option<PolicyWindowRaw>,
 }
 
-/// Collect display data from policies + stats.
+/// Collect display data from policies + stats (+ the window join).
+#[allow(clippy::too_many_arguments)]
 pub(super) fn collect_display_data(
     dl_policies: &[(u32, PolicyRaw)],
     ul_policies: &[(u32, PolicyRaw)],
     stats: &[(u32, LimiterStatsRaw)],
+    windows: &[(u32, PolicyWindowRaw)],
 ) -> Vec<DisplayData> {
     let mut combined: HashMap<u32, (Option<u64>, Option<u64>, bool, bool)> = HashMap::new();
     for (id, p) in dl_policies {
@@ -70,6 +77,10 @@ pub(super) fn collect_display_data(
                 packets_dropped: s.map(|(_, s)| s.packets_dropped).unwrap_or(0),
                 bytes_allowed: s.map(|(_, s)| s.bytes_allowed).unwrap_or(0),
                 bytes_dropped: s.map(|(_, s)| s.bytes_dropped).unwrap_or(0),
+                window: windows
+                    .iter()
+                    .find(|(id, _)| id == cgroup_id)
+                    .map(|(_, w)| *w),
             }
         })
         .collect()
@@ -215,6 +226,71 @@ fn active_limits_line(dl: usize, ul: usize) -> String {
     grey(&format!("  active limits: {dl} dl, {ul} ul"))
 }
 
+/// A compact human duration for the "(N left)" suffix (pure,
+/// night-during): one unit, floored — 45s, 47m, 3h, 20d, 10y; the
+/// sub-minute shapes print seconds so a short trial reads its own
+/// countdown.
+fn format_duration_compact(ns: u64) -> String {
+    const S: u64 = 1_000_000_000;
+    const M: u64 = 60 * S;
+    const H: u64 = 60 * M;
+    const D: u64 = 24 * H;
+    const Y: u64 = 365 * D;
+    if ns < M {
+        format!("{}s", ns / S)
+    } else if ns < H {
+        format!("{}m", ns / M)
+    } else if ns < D {
+        format!("{}h", ns / H)
+    } else if ns < Y {
+        format!("{}d", ns / D)
+    } else {
+        format!("{}y", ns / Y)
+    }
+}
+
+/// One row's window lifetime line (pure, night-during, schema v23):
+/// grey while the row polices or waits (the census family — a
+/// subordinate fact under the row it belongs to), warn yellow once
+/// the span has ENDED (the enforcement verdict went quiet and the
+/// sweep has not collected the row yet — the one state an owner
+/// should notice). The span's wall instants are reconstructed
+/// through the same offset pair the twin uses; the daily line
+/// names its UTC hours.
+fn window_lifetime_line(win: &PolicyWindowRaw, wall_now: u64, mono_now: u64) -> String {
+    let state = window_state(win, wall_now, mono_now);
+    let offset = wall_minus_mono(wall_now, mono_now);
+    match (win.kind, state) {
+        (WINDOW_KIND_SPAN, "active") => grey(&format!(
+            "    window: until {} ({} left)",
+            format_wall_utc(win.end_mono_ns.saturating_add(offset)),
+            format_duration_compact(win.end_mono_ns.saturating_sub(mono_now))
+        )),
+        (WINDOW_KIND_SPAN, "dormant") => grey(&format!(
+            "    window: sleeps until {}",
+            format_wall_utc(win.start_mono_ns.saturating_add(offset))
+        )),
+        (WINDOW_KIND_SPAN, _) => warn(&format!(
+            "    window: expired at {} (awaiting sweep)",
+            format_wall_utc(win.end_mono_ns.saturating_add(offset))
+        )),
+        (_, "active") => grey(&format!(
+            "    window: daily {:02}:{:02}-{:02}:{:02} UTC (active)",
+            win.start_s / 3600,
+            (win.start_s / 60) % 60,
+            win.end_s / 3600,
+            (win.end_s / 60) % 60
+        )),
+        (_, _) => grey(&format!(
+            "    window: daily {:02}:{:02}-{:02}:{:02} UTC (outside — not policing now)",
+            win.start_s / 3600,
+            (win.start_s / 60) % 60,
+            win.end_s / 3600,
+            (win.end_s / 60) % 60
+        )),
+    }
+}
+
 /// The clean-state frame (no pins, NIGHT-engrave-5; compacted in
 /// NIGHT-private-research-3): the flagship chrome and one grey line
 /// — "no active limits" is a verdict, not an absence of output.
@@ -283,10 +359,14 @@ pub fn print_status(
     stats: &[(u32, LimiterStatsRaw)],
     identity: &IdentityMap,
     watchdog_deadline: Option<u64>,
+    windows: &[(u32, PolicyWindowRaw)],
 ) {
-    let data = collect_display_data(dl_policies, ul_policies, stats);
+    let data = collect_display_data(dl_policies, ul_policies, stats, windows);
     let rows: Vec<(String, String, String, String, String)> =
         data.iter().map(|d| status_cells(d, identity)).collect();
+    // night-during (schema v23): one clock pair for every lifetime
+    // line under the rows that carry windows.
+    let (wall_now, mono_now) = (wall_now_ns(), monotonic_ns());
 
     let term_w = terminal_width().saturating_sub(4);
 
@@ -353,7 +433,7 @@ pub fn print_status(
     println_safe!("{}", status_header_line(&col_widths));
     println_safe!("{}", grid_line(sep_len + 2));
 
-    for row in &rows {
+    for (row, d) in rows.iter().zip(data.iter()) {
         let label = if row.0.chars().count() > col_widths[0] {
             let truncated: String = row
                 .0
@@ -365,6 +445,14 @@ pub fn print_status(
             row.0.clone()
         };
         println_safe!("{}", status_row_line(&label, row, &col_widths));
+        // night-during (schema v23): the lifetime line lands directly
+        // under its row — one indent deeper than the table, the same
+        // grey subordinate family the watchdog prose rides (warn
+        // yellow when the span has ended and the sweep has not
+        // collected the row yet).
+        if let Some(win) = &d.window {
+            println_safe!("{}", window_lifetime_line(win, wall_now, mono_now));
+        }
     }
 
     // Signature footer (NIGHT-boost-5): bottom-left identity stamp,

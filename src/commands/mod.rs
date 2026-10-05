@@ -20,6 +20,10 @@ pub(crate) mod list_apps;
 pub(crate) mod monitor;
 #[cfg(feature = "ebpf")]
 pub(crate) mod persist;
+// night-during's LOC-cap split: the snapshot/restore verbs moved out
+// of persist.rs when the --during fields crossed the 500-line cap.
+#[cfg(feature = "ebpf")]
+pub(crate) mod persist_run;
 #[cfg(feature = "ebpf")]
 pub(crate) mod probe;
 #[cfg(feature = "ebpf")]
@@ -399,7 +403,7 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
         Some(Commands::Snapshot) => {
             #[cfg(feature = "ebpf")]
             {
-                persist::handle_snapshot(cli.print_json)
+                persist_run::handle_snapshot(cli.print_json)
             }
             #[cfg(not(feature = "ebpf"))]
             {
@@ -410,7 +414,7 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
         Some(Commands::Restore) => {
             #[cfg(feature = "ebpf")]
             {
-                persist::handle_restore(cli.print_json)
+                persist_run::handle_restore(cli.print_json)
             }
             #[cfg(not(feature = "ebpf"))]
             {
