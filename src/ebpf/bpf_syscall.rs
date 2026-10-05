@@ -186,16 +186,21 @@ pub fn sys_bpf_obj_pin(fd: RawFd, path: &str) -> Result<()> {
 /// needs no follow-up).
 pub fn load_with_verifier_verdict(prog: &mut CgroupSkb, name: &str) -> Result<()> {
     if let Err(e) = prog.load() {
-        let verdict: String = match &e {
-            ProgramError::LoadError { verifier_log, .. } => verifier_log
-                .to_string()
-                .lines()
-                .rev()
-                .find(|l| !l.trim().is_empty())
-                .unwrap_or("<the verifier wrote no log>")
-                .to_string(),
-            _ => "<no verifier log on this error>".to_string(),
+        let log = match &e {
+            ProgramError::LoadError { verifier_log, .. } => verifier_log.to_string(),
+            _ => String::new(),
         };
+        // The kernel's failure tail is [.., the failing instruction,
+        // THE VERDICT, the "processed N insns" stats line] — the
+        // verdict is the last line that is not the stats summary
+        // (the first cut at this picked the stats line itself and
+        // named nothing but healthy numbers one more floor round).
+        let verdict = log
+            .lines()
+            .filter(|l| !l.trim().is_empty())
+            .rev()
+            .find(|l| !l.trim_start().starts_with("processed"))
+            .unwrap_or("<the verifier wrote no log>");
         bail!(
             "{name}: the kernel verifier refused the program — verdict: {verdict} | full error: {e}"
         );
