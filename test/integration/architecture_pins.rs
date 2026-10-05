@@ -203,7 +203,10 @@ fn every_proc_comm_read_flows_through_the_sanitizer() {
 #[test]
 fn every_apply_handler_verifies_pins_before_the_success_verdict() {
     for (file, handlers) in [
-        ("src/commands/strict.rs", 3usize),
+        ("src/commands/strict.rs", 2usize),
+        // night-during's LOC split moved the third strict handler
+        // (strict-all) into its own file — the count moved with it.
+        ("src/commands/strict_all.rs", 1usize),
         ("src/commands/block.rs", 3usize),
     ] {
         let text = src(file);

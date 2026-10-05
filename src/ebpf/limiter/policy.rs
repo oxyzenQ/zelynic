@@ -16,14 +16,15 @@ use aya::maps::{HashMap as BpfHashMap, MapData};
 // before the split.
 pub(super) use super::policy_lines::{
     group_apply_lines, partial_apply_failure_line, policy_survivor_line, policy_write_line,
-    resolution_trace_line,
 };
 
 use super::atomic::PolicyMutation;
-use super::format::default_burst;
+use super::during::{during_to_window, wall_now_ns, WindowMutation};
+use super::during_parse::DuringSpec;
+use super::format::{default_burst, monotonic_ns};
 use super::lanes::map_remove_means_absent;
 use super::types::{
-    group_id_from, Direction, PolicyRaw, RateSpec, Target, MAX_ENFORCABLE_BURST,
+    group_id_from, Direction, PolicyRaw, PolicyWindowRaw, RateSpec, Target, MAX_ENFORCABLE_BURST,
     POLICY_FLAG_PER_SOCKET,
 };
 use crate::ebpf::pin::{PIN_MAP_POLICY_DL, PIN_MAP_POLICY_UL};
@@ -34,16 +35,31 @@ use crate::ebpf::pin::{PIN_MAP_POLICY_DL, PIN_MAP_POLICY_UL};
 impl super::Limiter {
     /// Apply strict-single: individual policy per cgroup.
     /// `target` is resolved to cgroup IDs. Each gets its own token bucket.
+    /// `during` (night-during, schema v23): the row's time window —
+    /// `Some(spec)` writes the window beside the legs, `None`
+    /// removes any existing one (the improve-29 law one level up:
+    /// a fresh forever-row must never inherit a dead deadline).
     pub fn apply_single(
         &mut self,
         target: &Target,
         rates: &RateSpec,
         per_socket: bool,
+        during: Option<&DuringSpec>,
     ) -> Result<usize> {
         let cgroup_ids = self.resolve_target(target)?;
         if cgroup_ids.is_empty() {
             return Ok(0);
         }
+
+        // night-during: the bridge stamps FIRST (a fresh daily row
+        // must evaluate against a fresh offset), then the window —
+        // translated once per invocation, every cgroup row shares
+        // it. The stamp rides EVERY apply-family mutation: the CLI
+        // visit IS the refresh channel (the design brief's drift
+        // residue, re-zeroed here).
+        self.stamp_wall_clock_offset()?;
+        let window: Option<PolicyWindowRaw> =
+            during.map(|spec| during_to_window(spec, wall_now_ns(), monotonic_ns()));
 
         // NIGHT-hunt-20: strict all-or-nothing — every mutation of
         // THIS invocation is recorded so a mid-flight failure (map
@@ -53,6 +69,7 @@ impl super::Limiter {
         // the ledger carries each leg's PRE-APPLY raw, so the
         // rollback RESTORES an overwritten limit.
         let mut mutations: Vec<PolicyMutation> = Vec::new();
+        let mut window_mutations: Vec<WindowMutation> = Vec::new();
         let mut superseded: Vec<u32> = Vec::new();
         let mut applied = 0usize;
         for cgroup_id in &cgroup_ids {
@@ -67,6 +84,8 @@ impl super::Limiter {
                 },
                 &mut mutations,
                 &mut superseded,
+                window.as_ref(),
+                &mut window_mutations,
             ) {
                 Ok(n) => applied += n,
                 Err(cause) => {
@@ -76,7 +95,7 @@ impl super::Limiter {
                     // it runs AFTER the restorations land (writes
                     // AND rollback, one stamp), never failing the
                     // rollback verdict.
-                    let rolled_back = self.rollback_mutations(&mutations, cause);
+                    let rolled_back = self.rollback_mutations(&mutations, &window_mutations, cause);
                     self.ammsp_memo_invalidate_best_effort();
                     return Err(rolled_back);
                 }
@@ -94,8 +113,15 @@ impl super::Limiter {
     }
 
     /// Apply strict-multi: all cgroups share one group token bucket
-    /// (a random group_id; every policy points at it).
-    pub fn apply_group(&mut self, targets: &[Target], rates: &RateSpec) -> Result<usize> {
+    /// (a random group_id; every policy points at it). `during` is
+    /// the row's window (night-during, schema v23) — every member
+    /// root carries the same window row.
+    pub fn apply_group(
+        &mut self,
+        targets: &[Target],
+        rates: &RateSpec,
+        during: Option<&DuringSpec>,
+    ) -> Result<usize> {
         // Resolve all targets to cgroup IDs (resolve_target prints
         // its own trace, so an unresolved target needs no second skip line).
         let mut all_cgroup_ids: Vec<u32> = Vec::new();
@@ -135,6 +161,13 @@ impl super::Limiter {
                 .as_nanos() as u64,
         );
 
+        // night-during: the same per-invocation shape apply_single
+        // owns — stamp the bridge, translate the window once, share
+        // it across every member root.
+        self.stamp_wall_clock_offset()?;
+        let window: Option<PolicyWindowRaw> =
+            during.map(|spec| during_to_window(spec, wall_now_ns(), monotonic_ns()));
+
         // Same rollback ledger as apply_single (NIGHT-hunt-20): a
         // group with a partial member list would point at a bucket
         // some members never share, so a mid-flight failure must not
@@ -147,6 +180,7 @@ impl super::Limiter {
         // charger-core-2 mutation ledger upgrades the rollback to
         // RESTORE each leg's pre-apply raw.
         let mut mutations: Vec<PolicyMutation> = Vec::new();
+        let mut window_mutations: Vec<WindowMutation> = Vec::new();
         let mut superseded: Vec<u32> = Vec::new();
         let mut applied = 0usize;
         for cgroup_id in &all_cgroup_ids {
@@ -157,6 +191,8 @@ impl super::Limiter {
                 0,
                 &mut mutations,
                 &mut superseded,
+                window.as_ref(),
+                &mut window_mutations,
             ) {
                 Ok(n) => applied += n,
                 Err(cause) => {
@@ -164,7 +200,7 @@ impl super::Limiter {
                     // as apply_single's error path: the rollback
                     // still mutated, so the bump runs after its
                     // restorations.
-                    let rolled_back = self.rollback_mutations(&mutations, cause);
+                    let rolled_back = self.rollback_mutations(&mutations, &window_mutations, cause);
                     self.ammsp_memo_invalidate_best_effort();
                     return Err(rolled_back);
                 }
@@ -186,91 +222,6 @@ impl super::Limiter {
         Ok(applied)
     }
 
-    /// Resolve a target to cgroup IDs. Process names do a DIRECT
-    /// /proc walk (not the identity cache) to find all PIDs matching
-    /// the name, then their cgroup IDs — the fix for aria2c sharing
-    /// a cgroup with alacritty (first-pid-wins lied).
-    pub(super) fn resolve_target(&mut self, target: &Target) -> Result<Vec<u32>> {
-        match target {
-            Target::CgroupId(id) => {
-                if self.verbose {
-                    eprintln_safe!("[limiter] cg:{id} targeted directly (no /proc walk)");
-                }
-                Ok(vec![*id])
-            }
-            Target::Container(c) => {
-                // charger-core-2 (TIER A #5): resolve-only — the URI
-                // becomes the workload's cgroup id, the rest is the
-                // strict-single machinery (specific infrastructure errors,
-                // never the generic no-match; the trace is resolve's own).
-                crate::ebpf::identity::container::resolve(c, self.verbose)
-            }
-            Target::ProcessName(name) => {
-                // Direct /proc walk: find all PIDs whose comm matches.
-                let name_lower = name.to_lowercase();
-                let mut cgroup_ids = Vec::new();
-                let mut seen = std::collections::HashSet::new();
-                // Verbose evidence (NIGHT-hunt-9): every (pid,
-                // cgroup) pair the walk accepted, including multiple
-                // pids sharing one cgroup (NIGHT-hunt-8's lie).
-                let mut matched: Vec<(u32, u32)> = Vec::new();
-
-                let proc_entries = match std::fs::read_dir("/proc") {
-                    Ok(e) => e,
-                    Err(_) => return Ok(Vec::new()),
-                };
-
-                for entry in proc_entries.flatten() {
-                    let pid_str = entry.file_name();
-                    let pid_str = match pid_str.to_str() {
-                        Some(s) => s,
-                        None => continue,
-                    };
-                    let pid: u32 = match pid_str.parse() {
-                        Ok(p) => p,
-                        Err(_) => continue,
-                    };
-
-                    // Read comm through the canonical boundary
-                    // (NIGHT-optimized-1): pid_comm() sanitizes, so
-                    // matching operates on the same canonical label
-                    // list-apps displays — a prctl-spoofed comm can
-                    // never display one thing and match another.
-                    let Some(comm) = crate::ebpf::identity::pid_comm(pid) else {
-                        continue;
-                    };
-                    let comm = comm.to_lowercase();
-
-                    if comm != name_lower {
-                        continue;
-                    }
-
-                    // Cgroup membership through the same canonical
-                    // boundary (NIGHT-optimized-1): one pid-to-cgroup
-                    // resolution shared with the identity walk and the
-                    // connection walk.
-                    let Some(cgroup_id) = crate::ebpf::identity::pid_cgroup_id(pid) else {
-                        continue;
-                    };
-
-                    matched.push((pid, cgroup_id));
-                    if seen.insert(cgroup_id) {
-                        cgroup_ids.push(cgroup_id);
-                    }
-                }
-
-                if self.verbose {
-                    eprintln_safe!("{}", resolution_trace_line(name, &matched));
-                }
-
-                // Also refresh identity map for display purposes.
-                self.identity.maybe_refresh();
-
-                Ok(cgroup_ids)
-            }
-        }
-    }
-
     /// Write the dl + ul policies for one cgroup, recording each
     /// successful write in `written` — the rollback ledger
     /// (NIGHT-hunt-20) — and the group id of every policy this call
@@ -278,6 +229,12 @@ impl super::Limiter {
     /// capture-before-write half of the dead-group reclaim — read
     /// here, because after the write the old group id is
     /// unrecoverable). Returns how many policies this cgroup received.
+    /// `window` (night-during, schema v23): the row's window state
+    /// this invocation sets — `Some(raw)` writes it beside the legs,
+    /// `None` removes any existing entry (the improve-29 law one
+    /// level up), the pre-apply row captured into
+    /// `window_mutations` for the atomic rollback.
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn write_policies_for_cgroup(
         &mut self,
         cgroup_id: u32,
@@ -286,6 +243,8 @@ impl super::Limiter {
         flags: u32,
         mutations: &mut Vec<PolicyMutation>,
         superseded: &mut Vec<u32>,
+        window: Option<&PolicyWindowRaw>,
+        window_mutations: &mut Vec<WindowMutation>,
     ) -> Result<usize> {
         let mut applied = 0usize;
 
@@ -402,6 +361,27 @@ impl super::Limiter {
                 }
             }
         }
+
+        // night-during (schema v23): the row's window, set wholesale
+        // by THIS invocation the way the legs above are — `Some`
+        // writes the row beside them, `None` removes any existing
+        // entry so a fresh forever-row never inherits a dead
+        // deadline. AFTER the legs on purpose: a failed leg write
+        // rolls back before the window is ever touched, and the
+        // mutation capture below rides only what actually landed
+        // (a failed window write leaves the pre-apply row intact,
+        // so no rollback entry exists to need).
+        let previous_window = self.read_policy_window(cgroup_id)?;
+        match window {
+            Some(raw) => self.write_policy_window(cgroup_id, *raw)?,
+            None => {
+                self.remove_policy_window(cgroup_id)?;
+            }
+        }
+        window_mutations.push(WindowMutation {
+            cgroup_id,
+            previous: previous_window,
+        });
 
         Ok(applied)
     }

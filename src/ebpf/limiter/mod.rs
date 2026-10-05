@@ -20,6 +20,8 @@
 //! - `rate_ring.rs` — the time-series ring's read half + mirror
 mod ammsp;
 mod atomic;
+mod during;
+mod during_parse;
 mod format;
 mod lanes;
 mod parse;
@@ -27,6 +29,7 @@ mod policy;
 mod policy_lines;
 pub mod rate_ring;
 mod reclaim;
+mod resolve;
 mod schema;
 mod stats;
 pub mod types;
@@ -50,6 +53,12 @@ pub use parse::{
     parse_focus_window, parse_monitor_interval, parse_rate, parse_time_duration, validate_rate,
 };
 pub use types::{Direction, LimiterStatsRaw, PolicyRaw, RateSpec, Target, LIMITER_ELF};
+// night-during (schema v23): the --during grammar and the window
+// surfaces the command layer consumes (the parse takes the wall
+// clock for its past-date refusal; the probe reads dormancy notes).
+pub use during::dormancy_note;
+pub use during::wall_now_ns;
+pub use during_parse::parse_during;
 
 pub use crate::ebpf::pin::{
     pin_dir_has_files, read_pinned_schema_version, unpin_all, PIN_DIR, PIN_LINK_DL, PIN_LINK_UL,
@@ -150,6 +159,9 @@ impl Limiter {
                             "[limiter] BPF programs + links already pinned (schema v{v}) — reusing"
                         );
                     }
+                    // night-during: refresh the wall-clock bridge
+                    // on the reuse lane too (best-effort).
+                    during::stamp_offset_on_pinned(verbose);
                     return Ok(());
                 }
                 Some(v) => {

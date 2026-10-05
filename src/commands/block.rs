@@ -5,10 +5,18 @@
 
 use anyhow::Result;
 
-use crate::ebpf::limiter::{Limiter, RateSpec, Target};
+use crate::ebpf::limiter::{parse_during, wall_now_ns, Limiter, RateSpec, Target};
 
 /// Block a single app from the internet.
-pub fn handle_block_single(target_str: &str, force_this: bool, verbose: bool) -> Result<()> {
+/// `during` (night-during, schema v23): the block's own lifetime —
+/// a UTC daily window, a whole UTC day, or a duration; the block
+/// lifts itself, no daemon.
+pub fn handle_block_single(
+    target_str: &str,
+    force_this: bool,
+    during: Option<&str>,
+    verbose: bool,
+) -> Result<()> {
     // Input validation first (fail-fast, no privileges needed): the
     // dangerous-target blocklist is pure string matching — a policy
     // refusal surfaces before the root requirement, the same
@@ -17,6 +25,12 @@ pub fn handle_block_single(target_str: &str, force_this: bool, verbose: bool) ->
     // same rung: `bs ""` dies HERE, not after the root ask.
     super::safety::validate_single_target(target_str, "zelynic block-single brave")?;
     super::safety::check_dangerous_target(target_str, force_this)?;
+
+    // night-during (schema v23): the window parses on the same
+    // fail-fast rung (a typo'd grammar never burns the root ask).
+    let during_spec = during
+        .map(|spec| parse_during(spec, wall_now_ns()))
+        .transpose()?;
 
     super::ensure_root()?;
 
@@ -43,7 +57,7 @@ pub fn handle_block_single(target_str: &str, force_this: bool, verbose: bool) ->
     // policy drops everything at the verdict layer, before any
     // bucket lane is consulted — a per-socket bit would be dead
     // weight on a total block (charger-core-3b's scope call).
-    let applied = limiter.apply_single(&target, &rates, false)?;
+    let applied = limiter.apply_single(&target, &rates, false, during_spec.as_ref())?;
     if applied == 0 {
         // NIGHT-dinner-11: the no-match hard error (strict-single's
         // contract, the block family's wording). The hunt-10 colon
@@ -79,7 +93,12 @@ pub fn handle_block_single(target_str: &str, force_this: bool, verbose: bool) ->
 }
 
 /// Block multiple apps from the internet.
-pub fn handle_block_multi(targets_str: &str, force_this: bool, verbose: bool) -> Result<()> {
+pub fn handle_block_multi(
+    targets_str: &str,
+    force_this: bool,
+    during: Option<&str>,
+    verbose: bool,
+) -> Result<()> {
     // Input validation first (fail-fast, no privileges needed) — same
     // parse-before-execute ladder as the strict-multi handler.
     //
@@ -106,6 +125,12 @@ pub fn handle_block_multi(targets_str: &str, force_this: bool, verbose: bool) ->
         .map(Target::parse)
         .collect();
 
+    // night-during (schema v23): the window parses on the same
+    // fail-fast rung — one input boundary, every refusal cheap.
+    let during_spec = during
+        .map(|spec| parse_during(spec, wall_now_ns()))
+        .transpose()?;
+
     super::ensure_root()?;
 
     // NIGHT-hunt-Z3: the resolved-position check (rate-0 catch-all).
@@ -120,7 +145,7 @@ pub fn handle_block_multi(targets_str: &str, force_this: bool, verbose: bool) ->
         download: Some(0),
         upload: Some(0),
     };
-    let applied = limiter.apply_group(&targets, &rates)?;
+    let applied = limiter.apply_group(&targets, &rates, during_spec.as_ref())?;
     if applied == 0 {
         // NIGHT-dinner-11: the no-match hard error (block-single's
         // contract, the multi's plural wording).
@@ -151,8 +176,14 @@ pub fn handle_block_multi(targets_str: &str, force_this: bool, verbose: bool) ->
 }
 
 /// Block ALL user apps from the internet.
-pub fn handle_block_all(force_this: bool, verbose: bool) -> Result<()> {
+pub fn handle_block_all(force_this: bool, during: Option<&str>, verbose: bool) -> Result<()> {
     use crate::ebpf::identity::IdentityMap;
+
+    // night-during (schema v23): the fleet-wide window refuses
+    // before the identity walk (the strict-all handler's rung).
+    let during_spec = during
+        .map(|spec| crate::ebpf::limiter::parse_during(spec, crate::ebpf::limiter::wall_now_ns()))
+        .transpose()?;
 
     super::ensure_root()?;
 
@@ -247,7 +278,7 @@ pub fn handle_block_all(force_this: bool, verbose: bool) -> Result<()> {
         download: Some(0),
         upload: Some(0),
     };
-    limiter.apply_group(&targets, &rates)?;
+    limiter.apply_group(&targets, &rates, during_spec.as_ref())?;
 
     // NIGHT-dinner-16 (race-window parity): verdict verified before
     // it prints.

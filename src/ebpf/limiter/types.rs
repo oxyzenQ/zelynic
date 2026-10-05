@@ -118,6 +118,55 @@ unsafe impl aya::Pod for PolicyRaw {}
 /// pin the bit value in tests.
 pub const POLICY_FLAG_PER_SOCKET: u32 = 1 << 0;
 
+/// The time-window side-map row (night-during, schema v23 — the
+/// unified --during): userspace mirror of `PolicyWindow` in
+/// ebpf/src/during.rs (the layout contract the PolicyRaw family
+/// owns, one map family over). One row per resolved policy root,
+/// shared by both direction hooks; written by the apply family
+/// beside the policy legs (`--during X` writes X, an apply without
+/// `--during` removes any existing entry — the improve-29 law one
+/// level up), removed by the unstrict/reclaim sweep with the legs.
+///
+/// SPAN rows set `start_mono_ns`/`end_mono_ns` (wall instants
+/// PRE-TRANSLATED to the monotonic clock at apply time — the
+/// drift-free shape; meaningless across a reboot, which is why the
+/// persistence pair serializes the WALL form instead); DAILY rows
+/// set `start_s`/`end_s` (seconds-of-day UTC, wrapping midnight
+/// when start > end). `kind` values are the `WINDOW_KIND_*`
+/// constants; `reserved` is the explicit zero pad so every byte of
+/// the 32-byte row is written by construction.
+#[repr(C)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[repr(align(8))]
+pub struct PolicyWindowRaw {
+    pub kind: u32,
+    /// Explicit zero pad (never read): keeps all 32 bytes
+    /// initialized for the Pod contract.
+    pub reserved: u32,
+    /// SPAN: inclusive start, monotonic ns. DAILY: unused (zero).
+    pub start_mono_ns: u64,
+    /// SPAN: exclusive end, monotonic ns. DAILY: unused (zero).
+    pub end_mono_ns: u64,
+    /// DAILY: window start, seconds-of-day UTC (inclusive). SPAN:
+    /// unused (zero).
+    pub start_s: u32,
+    /// DAILY: window end, seconds-of-day UTC (exclusive). SPAN:
+    /// unused (zero).
+    pub end_s: u32,
+}
+
+unsafe impl aya::Pod for PolicyWindowRaw {}
+
+/// Window kind: an absolute monotonic span (the duration and date
+/// grammar). The BPF-side twin lives in ebpf/src/during.rs; both
+/// trees pin the value in tests.
+pub const WINDOW_KIND_SPAN: u32 = 0;
+
+/// Window kind: a recurring daily window in seconds-of-day UTC
+/// (the 09:00-17:00 grammar). The BPF-side twin lives in
+/// ebpf/src/during.rs; both trees pin the value in tests.
+pub const WINDOW_KIND_DAILY: u32 = 1;
+
 #[repr(C)]
 #[derive(Debug, Clone, Copy, Default)]
 #[repr(align(8))]

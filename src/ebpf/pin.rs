@@ -41,6 +41,16 @@ pub const PIN_MAP_WATCHDOG: &str = "/sys/fs/bpf/zelynic/watchdog_deadline";
 pub const PIN_MAP_STATS: &str = "/sys/fs/bpf/zelynic/cgroup_limiter_stats";
 pub const PIN_MAP_SCHEMA_VERSION: &str = "/sys/fs/bpf/zelynic/schema_version";
 
+// The time-window lane (night-during, schema v23 — the unified
+// --during): the side map the apply family writes beside the policy
+// legs (one row per resolved policy root, both hooks sharing it)
+// and the one-entry Array carrying the wall-minus-mono offset the
+// bridge stamps at every attach and apply-family mutation (the
+// watchdog/schema_version userspace-written contract; the daily
+// comparator reads it per packet through the margin law).
+pub const PIN_MAP_POLICY_WINDOW: &str = "/sys/fs/bpf/zelynic/policy_window";
+pub const PIN_MAP_WALL_CLOCK_OFFSET: &str = "/sys/fs/bpf/zelynic/wall_clock_offset";
+
 // The time-series rings (NIGHT-upgrade-charger-core-3a): one pinned
 // map per direction, keyed by the policy-root cgroup id — the status
 // reader's absent-lens surface (rate_ring.rs documents why a missing

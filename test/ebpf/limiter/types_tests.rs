@@ -223,6 +223,65 @@ fn test_schema_version_constant() {
     assert_eq!(SCHEMA_VERSION_EXPECTED, 23);
 }
 
+// ── night-during, schema v23: the window row's layout pins ────────
+
+/// The PolicyWindowRaw layout contract: 32 bytes, every field at its
+/// pinned offset, the kinds distinct with SPAN at 0 (a zeroed row
+/// reads as a zero-length span — the never-active belt, the
+/// Default row never a surprise verdict), and the row
+/// round-tripping through its bytes identical (the map value IS the
+/// byte row; a partial write would be a corrupted window).
+#[test]
+fn policy_window_raw_layout_is_pinned() {
+    use crate::ebpf::limiter::types::{PolicyWindowRaw, WINDOW_KIND_DAILY, WINDOW_KIND_SPAN};
+
+    assert_eq!(core::mem::size_of::<PolicyWindowRaw>(), 32);
+    assert_eq!(
+        core::mem::offset_of!(PolicyWindowRaw, kind),
+        0,
+        "kind leads the row (the tag the datapath dispatches on)"
+    );
+    assert_eq!(core::mem::offset_of!(PolicyWindowRaw, reserved), 4);
+    assert_eq!(
+        core::mem::offset_of!(PolicyWindowRaw, start_mono_ns),
+        8,
+        "the u64 pair sits at the 8-aligned offsets"
+    );
+    assert_eq!(core::mem::offset_of!(PolicyWindowRaw, end_mono_ns), 16);
+    assert_eq!(core::mem::offset_of!(PolicyWindowRaw, start_s), 24);
+    assert_eq!(core::mem::offset_of!(PolicyWindowRaw, end_s), 28);
+    // The kinds: SPAN is 0 so the all-zero Default row is the
+    // never-active span belt, never a daily window surprise.
+    assert_eq!(WINDOW_KIND_SPAN, 0);
+    assert_eq!(WINDOW_KIND_DAILY, 1);
+    // The Default row is all zeros (the reserved pad too — every
+    // byte of the row is written by construction).
+    assert_eq!(
+        PolicyWindowRaw::default(),
+        PolicyWindowRaw {
+            kind: 0,
+            reserved: 0,
+            start_mono_ns: 0,
+            end_mono_ns: 0,
+            start_s: 0,
+            end_s: 0
+        }
+    );
+    // The byte round-trip: the map value is the row's raw bytes,
+    // so a Pod transmute of a full row comes back identical.
+    let row = PolicyWindowRaw {
+        kind: WINDOW_KIND_DAILY,
+        reserved: 0,
+        start_mono_ns: 0,
+        end_mono_ns: 0,
+        start_s: 9 * 3600,
+        end_s: 17 * 3600,
+    };
+    let bytes: [u8; 32] = unsafe { core::mem::transmute(row) };
+    let back: PolicyWindowRaw = unsafe { core::mem::transmute(bytes) };
+    assert_eq!(row, back, "the window row round-trips through its bytes");
+}
+
 // ── NIGHT-improve-10 / security-3: overflow-bound pins ──────────
 
 #[test]

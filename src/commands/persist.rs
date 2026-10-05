@@ -348,10 +348,15 @@ pub fn handle_restore(json: bool) -> Result<()> {
         // apply's own return is the resolution verdict: zero legs
         // means nothing resolved (the name is not running) — the
         // step lands in the report, the fleet carries on.
+        // night-during (schema v23): restore passes None — the
+        // monotonic deadline a window row carries is meaningless
+        // across a reboot (mono resets, the pins are gone anyway),
+        // and the WALL-form persistence the restore needs rides the
+        // during follow-up commit (the census grows its fields).
         let n = if step.names.len() == 1 {
-            limiter.apply_single(&targets[0], &step.rates, step.per_socket)?
+            limiter.apply_single(&targets[0], &step.rates, step.per_socket, None)?
         } else {
-            limiter.apply_group(&targets, &step.rates)?
+            limiter.apply_group(&targets, &step.rates, None)?
         };
         if n == 0 {
             unresolved.extend(step.names.iter().cloned());
