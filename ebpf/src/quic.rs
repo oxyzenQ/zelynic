@@ -242,6 +242,15 @@ fn pack8_bounded(buf: &[u8], off: usize, len: usize) -> u64 {
 /// integers, the mix spreads the CID term across the full word —
 /// the xor of two random-shaped terms collides with 2^-64 odds, and
 /// the collision shares a bucket, the safe direction).
+//
+// allow(dead_code): the userspace test tree compiles this file and
+// drives THIS form as its key oracle — every pinned key assertion
+// names flow_key(cookie, &cid) — while the kernel object's datapath
+// reads CIDs through flow_key_bounded at literal offsets (the 5.13
+// floor law), so within the object compile this wrapper is dead
+// code the -D warnings gate would refuse; the classify precedent
+// one block below carries the same rationale.
+#[allow(dead_code)]
 #[inline(always)]
 pub fn flow_key(cookie: u64, cid: &[u8]) -> u64 {
     flow_key_bounded(cookie, cid, 0, cid.len())
