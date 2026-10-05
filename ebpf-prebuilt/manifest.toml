@@ -10,10 +10,10 @@
 # These are the same bytes the GitHub Release binaries embed.
 
 schema = 1
-generated = "2026-10-05T07:27:44Z"
+generated = "2026-10-05T08:38:47Z"
 toolchain = "nightly-2026-09-18"
 bpf_linker = "0.11.1"
-ebpf_tree_sha256 = "494f6299ec93358b8ad1fe7795ce191cd730abda3095569f7f09503c969336a1"
+ebpf_tree_sha256 = "17ba10ff5731101cf40168e6fe8c672d378b837939ccec7dc2a463bd93acf22f"
 
 [[object]]
 name = "zelynic-observer"

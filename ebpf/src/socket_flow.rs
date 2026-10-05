@@ -141,9 +141,16 @@ fn get_socket_ptr(map: &LruHashMap<u64, SocketBucket>, cookie: &u64) -> Option<*
             if map.insert(cookie, init, BPF_NOEXIST).is_err() {
                 // Lost the init race (the v11 discipline) or the LRU
                 // is full under 4096+ concurrent sockets: re-look-up
-                // and ride the winner; a genuinely full LRU is the
-                // honest miss the leaf lane takes — the packet drops
-                // (the safe verdict, never an unlimited pass).
+                // and ride the winner; a re-lookup that still misses
+                // hands the caller None, and the caller ALLOWS — the
+                // C twin's fail-open bookkeeping contract (never drop
+                // on a map miss), the same posture get_flow_ptr's own
+                // comment carries one lane over. The drop wording
+                // this comment carried was the leaf lane's posture
+                // pasted one map family over (night-audit-1's catch):
+                // the socket lane has no coarser lane to fall through
+                // to, so its miss posture is the documented fail-open
+                // one, stated where the caller states it too.
             }
             map.get_ptr_mut(cookie)
         }
