@@ -27,11 +27,11 @@ use anyhow::{anyhow, Result};
 use super::lanes::map_remove_means_absent;
 use super::policy::policy_survivor_line;
 use super::rate_ring::RateRingRaw;
-use super::types::{BucketRaw, Direction, LimiterStatsRaw, PolicyRaw, Target};
+use super::types::{BucketRaw, Direction, LimiterStatsRaw, PolicyRaw, PolicyWindowRaw, Target};
 use crate::ebpf::pin::{
     PIN_MAP_BUCKET_DL, PIN_MAP_BUCKET_UL, PIN_MAP_GROUP_BUCKET_DL, PIN_MAP_GROUP_BUCKET_UL,
-    PIN_MAP_POLICY_DL, PIN_MAP_POLICY_UL, PIN_MAP_RATE_RING_DL, PIN_MAP_RATE_RING_UL,
-    PIN_MAP_STATS,
+    PIN_MAP_POLICY_DL, PIN_MAP_POLICY_UL, PIN_MAP_POLICY_WINDOW, PIN_MAP_RATE_RING_DL,
+    PIN_MAP_RATE_RING_UL, PIN_MAP_STATS,
 };
 
 /// Verbose trace line for one state reclaim (NIGHT-improve-10): the
@@ -176,6 +176,23 @@ impl super::Limiter {
                 Ok(true) => reclaimed += 1,
                 Ok(false) => {}
                 Err(e) => failures.push(format!("stats: {e}")),
+            }
+            // night-during (schema v23): the row's window rides the
+            // row's death — the stats gate is exactly "both legs
+            // gone", and a window row without its policy is dead
+            // census weight (the map is census-bounded: every window
+            // row rides a policy row's root). An ended span reaches
+            // this same removal through the sweep; an unstrict
+            // reaches it directly. Best-effort beside its siblings:
+            // a failed removal warns, never fails the reclaim.
+            match self.remove_map_entry::<PolicyWindowRaw>(
+                "policy_window",
+                PIN_MAP_POLICY_WINDOW,
+                cgroup_id,
+            ) {
+                Ok(true) => reclaimed += 1,
+                Ok(false) => {}
+                Err(e) => failures.push(format!("window: {e}")),
             }
         }
 

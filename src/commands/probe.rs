@@ -66,7 +66,7 @@ use super::probe_report::{
 use super::probe_role::{
     enter_cgroup, kill_and_reap, ledger_snapshots, mkdir_quiet, our_chain_is_clean,
     policy_still_stands, probe_cgroup_name, read_metric_line, read_metric_line_from, wait_resident,
-    wait_with_deadline, LeafDelta,
+    wait_with_deadline, window_dormancy_note, LeafDelta,
 };
 
 /// The measured window (seconds): long enough that the refill term
@@ -138,6 +138,13 @@ pub(crate) fn run_enforcement_probe(
     let Some(&target_id) = ids.first() else {
         return unverified("target resolved to nothing at probe time".to_string());
     };
+
+    // night-during (schema v23): the window gate — a dormant window
+    // stands the probe down instead of measuring an unlimited path.
+    if let Some(note) = window_dormancy_note(limiter, target_id) {
+        return unverified(note);
+    }
+
     let Some(rel_path) = pathwalk::rel_path_by_id(target_id) else {
         return unverified("target cgroup path unresolvable (no live member, no cgroupfs directory — the cgroup is gone?)".to_string());
     };

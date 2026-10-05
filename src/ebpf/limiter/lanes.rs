@@ -137,6 +137,33 @@ impl super::Limiter {
         }
     }
 
+    /// The u64-valued Array twin (night-during, schema v23): the
+    /// one acquisition path for the limiter's u64-valued pinned
+    /// array maps — the wall_clock_offset bridge the apply family
+    /// stamps on every mutation. The u32 twin's shape one type
+    /// over: the loaded object's map when one is live, the opened
+    /// pin otherwise, the same ONE-path contract.
+    pub(super) fn with_array_u64_map<R>(
+        &mut self,
+        map_name: &str,
+        pin_path: &str,
+        op: impl FnOnce(&mut BpfArray<&mut MapData, u64>) -> Result<R>,
+    ) -> Result<R> {
+        if let Some(bpf) = self.bpf.as_mut() {
+            let map_ref = bpf
+                .map_mut(map_name)
+                .context(format!("{map_name} not found"))?;
+            let mut map: BpfArray<&mut MapData, u64> =
+                BpfArray::try_from(map_ref).context(format!("Failed to access {map_name}"))?;
+            op(&mut map)
+        } else {
+            let mut map_obj = pin::open_pinned_array_map(pin_path)?;
+            let mut map: BpfArray<&mut MapData, u64> = BpfArray::try_from(&mut map_obj)
+                .context(format!("Failed to open pinned map {pin_path}"))?;
+            op(&mut map)
+        }
+    }
+
     /// Delete one u32 key from a limiter map in whichever mode is
     /// live. `Ok(true)` deleted, `Ok(false)` ENOENT (genuinely
     /// absent), `Err` when the delete could not be performed — the

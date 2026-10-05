@@ -9,14 +9,16 @@ use anyhow::Result;
 use super::{probe, probe_report};
 use crate::commands::rates::resolve_rates;
 use crate::commands::safety::{
-    check_dangerous_target, check_root_catch_all_resolved, is_dangerous_target,
-    validate_multi_targets, validate_single_target,
+    check_dangerous_target, check_root_catch_all_resolved, validate_multi_targets,
+    validate_single_target,
 };
 
 #[cfg(feature = "ebpf")]
 // charger-core-3b: the strict-single surface grew one flag
 // (--per-socket); the arg list names the CLI contract one-to-one
 // (the render family's own precedent for the same growth).
+// night-during (schema v23): --during joins the list — the row's
+// own lifetime, parsed before the privilege guard.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn handle_strict_single(
     target_str: &str,
@@ -26,9 +28,10 @@ pub(crate) fn handle_strict_single(
     force_this: bool,
     no_probe: bool,
     per_socket: bool,
+    during: Option<&str>,
     verbose: bool,
 ) -> Result<()> {
-    use crate::ebpf::limiter::{Limiter, Target};
+    use crate::ebpf::limiter::{parse_during, wall_now_ns, Limiter, Target};
 
     // Input validation first (fail-fast, no privileges needed): rate
     // strings and the dangerous-target blocklist are pure parsing, so
@@ -47,6 +50,15 @@ pub(crate) fn handle_strict_single(
              Example: zelynic strict-single brave 100kb"
         ));
     }
+
+    // night-during (schema v23): the window parses on the same
+    // fail-fast rung the rate family owns — a typo'd grammar
+    // surfaces its did-you-mean block BEFORE the root ask, the
+    // parse-before-execute ladder (a bad --during never burns a
+    // privileged round-trip).
+    let during_spec = during
+        .map(|spec| parse_during(spec, wall_now_ns()))
+        .transpose()?;
 
     // NIGHT-dinner-16: the single-target input boundary — an empty
     // target dies HERE, before the blocklist and the root ask, the
@@ -90,7 +102,7 @@ pub(crate) fn handle_strict_single(
 
         // Open pinned maps and write policy.
         limiter = Limiter::open_pinned(verbose)?;
-        let applied = limiter.apply_single(&target, &rates, per_socket)?;
+        let applied = limiter.apply_single(&target, &rates, per_socket, during_spec.as_ref())?;
         if applied == 0 {
             // NIGHT-dinner-11: the no-match hard error — branded red
             // block + exit 1 (see commands::target_no_match_error), so
@@ -193,9 +205,10 @@ pub(crate) fn handle_strict_multi(
     download: Option<&str>,
     upload: Option<&str>,
     force_this: bool,
+    during: Option<&str>,
     verbose: bool,
 ) -> Result<()> {
-    use crate::ebpf::limiter::{Limiter, Target};
+    use crate::ebpf::limiter::{parse_during, wall_now_ns, Limiter, Target};
 
     // Input validation first (fail-fast, no privileges needed) — same
     // parse-before-execute ladder as handle_strict_single. NIGHT-improve-30:
@@ -208,6 +221,13 @@ pub(crate) fn handle_strict_multi(
              Example: zelynic strict-multi brave:curl 1mb"
         ));
     }
+
+    // night-during (schema v23): the same parse-first ladder, the
+    // multi's own rung placement (after the rate family, before the
+    // target grammar — one input boundary, every refusal cheap).
+    let during_spec = during
+        .map(|spec| parse_during(spec, wall_now_ns()))
+        .transpose()?;
 
     // NIGHT-blade-18: the colon list is a grammar now, not a best-effort
     // scan — validate_multi_targets refuses the shapes that can only be
@@ -257,8 +277,9 @@ pub(crate) fn handle_strict_multi(
     // pre-apply state. The old best-effort shape skipped unresolved
     // names silently and reported OK on a half-limited list — the
     // exact trap for scripted fleet automation, which now sees the
-    // transaction fail whole or land whole.
-    let applied = limiter.apply_group_atomic(&targets, &rates)?;
+    // transaction fail whole or land whole. night-during (schema
+    // v23): the window rides the same atomic contract.
+    let applied = limiter.apply_group_atomic(&targets, &rates, during_spec.as_ref())?;
     if applied == 0 {
         // NIGHT-dinner-11: the no-match hard error (strict-single's
         // contract, the multi's plural wording).
@@ -284,140 +305,6 @@ pub(crate) fn handle_strict_multi(
     Ok(())
 }
 
-/// Handle `zelynic strict-all` — limit ALL user apps.
-/// System/dangerous apps are excluded unless --force-this.
-/// NIGHT-blade-2: renamed from limit-all (the strict family symmetry).
-#[cfg(feature = "ebpf")]
-pub(crate) fn handle_strict_all(
-    rate: Option<&str>,
-    download: Option<&str>,
-    upload: Option<&str>,
-    force_this: bool,
-    verbose: bool,
-) -> Result<()> {
-    use crate::ebpf::identity::IdentityMap;
-    use crate::ebpf::limiter::{Limiter, Target};
-
-    // Input validation first (fail-fast, no privileges needed) — same
-    // parse-before-execute ladder as the other strict handlers.
-    // NIGHT-improve-30: the unified --force-this override (rate bounds
-    // + blocklist inclusion in one flag).
-    let rates = resolve_rates(rate, download, upload, force_this)?;
-
-    if rates.download.is_none() && rates.upload.is_none() {
-        return Err(anyhow::anyhow!(
-            "No rate specified. Use positional rate or -d/-u flags.\n\
-             Example: zelynic strict-all 500kb"
-        ));
-    }
-
-    super::ensure_root()?;
-
-    // Prevent concurrent operations (race condition elimination).
-    let _lock = crate::ebpf::lock::acquire()?;
-
-    // Get all apps from identity map.
-    let mut identity = IdentityMap::new();
-    identity.refresh();
-
-    let mut user_apps: Vec<String> = Vec::new();
-    let mut skipped: Vec<String> = Vec::new();
-    // NIGHT-hunt-Z3: the root row is position-refused like a
-    // blocklisted app — its policy is the machine-wide catch-all,
-    // and the comm blocklist only catches it when kthreadd happens
-    // to win root's majority vote (a daemon in the root on a
-    // no-systemd guest names the row and sails the sweep in).
-    let root_id = crate::commands::safety::cgroupfs_root_id();
-    let mut includes_root = false;
-
-    for app in identity.all() {
-        if app.comm.is_empty() {
-            continue;
-        }
-        if is_dangerous_target(&app.comm) || Some(app.cgroup_id) == root_id {
-            includes_root |= Some(app.cgroup_id) == root_id;
-            if force_this {
-                user_apps.push(app.comm.clone());
-            } else {
-                skipped.push(app.comm.clone());
-            }
-        } else {
-            user_apps.push(app.comm.clone());
-        }
-    }
-    if force_this && includes_root {
-        crate::output::eprintln_warn_labeled(
-            "Including the root cgroup — its policy catches every socket on the machine.",
-        );
-    }
-
-    // Deduplicate (multiple cgroups may have same comm).
-    user_apps.sort();
-    user_apps.dedup();
-    // The pre-apply "Limiting N app(s) to X" echo is gone with
-    // NIGHT-improve-28 (the request lives in the shell history; the
-    // enforced facts live in 'zelynic status'). NIGHT-improve-30
-    // collapses the skipped surface to ONE warn line — the count and
-    // the flag that includes them: the old bulleted roster re-printed
-    // the safety blocklist on every sweep (a server lists dozens of
-    // system apps), while the names are one 'zelynic list-apps' away
-    // for the rare case the count itself is the surprise.
-    if !skipped.is_empty() {
-        crate::output::eprintln_warn_labeled(&format!(
-            "Skipped {} system app(s) — re-run with --force-this to include.",
-            skipped.len()
-        ));
-    }
-
-    if user_apps.is_empty() {
-        // NIGHT-dinner-11: the no-match hard error, placed AFTER the
-        // skip warning so an all-system box explains itself first —
-        // the warn names the flag, the error names the verdict, and
-        // a vacuous sweep (nothing enforced) is never a success.
-        return Err(super::target_no_match_error(
-            "No apps found to limit".to_string(),
-            &[
-                super::TIP_LIST_APPS.to_string(),
-                "system apps need --force-this".to_string(),
-            ],
-        ));
-    }
-
-    // Build targets list.
-    let targets: Vec<Target> = user_apps
-        .iter()
-        .map(|n| Target::ProcessName(n.clone()))
-        .collect();
-
-    // Attach + pin BPF programs (fire-and-forget: pins survive process
-    // exit, no daemon). Unconditional for the same schema-ladder parity
-    // as handle_strict_multi (NIGHT-hunt-21). The sweep keeps the
-    // best-effort apply_group (NOT apply_group_atomic) on purpose:
-    // the target list is a snapshot of list-apps, and an app that
-    // exits between snapshot and write must not abort the fleet's
-    // limits — the atomic contract belongs to the explicit colon
-    // list, where every segment is the operator's own claim
-    // (charger-core-2).
-    crate::ebpf::limiter::Limiter::attach(verbose)?;
-
-    let mut limiter = Limiter::open_pinned(verbose)?;
-    limiter.apply_group(&targets, &rates)?;
-
-    // NIGHT-improve-28: strict-all reverses with the sledgehammer, not
-    // a per-target unstrict — the old suggestion built
-    // 'zelynic unstrict 3 apps', which is not a target at all.
-    // NIGHT-dinner-16: the race-window check moved BEFORE the
-    // success verdict (the multi form's own ordering fix).
-    if !crate::ebpf::limiter::Limiter::is_pinned() {
-        return Err(anyhow::anyhow!(
-            "BPF pins missing after apply — a concurrent operation may have interfered\n  \
-             tip: run 'zelynic recover' to repair state"
-        ));
-    }
-    super::apply_success_epilogue("zelynic unstrict-all", "remove");
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -434,8 +321,18 @@ mod tests {
     #[cfg(feature = "ebpf")]
     #[test]
     fn rate_typo_surfaces_before_root_guard() {
-        let err = handle_strict_single("bash", Some("1MB"), None, None, false, false, false, false)
-            .expect_err("typo'd rate must fail");
+        let err = handle_strict_single(
+            "bash",
+            Some("1MB"),
+            None,
+            None,
+            false,
+            false,
+            false,
+            None,
+            false,
+        )
+        .expect_err("typo'd rate must fail");
         let msg = format!("{err}");
         assert!(
             msg.contains("Invalid rate '1MB'"),
@@ -456,8 +353,18 @@ mod tests {
     #[cfg(feature = "ebpf")]
     #[test]
     fn dangerous_target_refusal_surfaces_before_root_guard() {
-        let err = handle_strict_single("sshd", Some("1mb"), None, None, false, false, false, false)
-            .expect_err("dangerous target must be refused");
+        let err = handle_strict_single(
+            "sshd",
+            Some("1mb"),
+            None,
+            None,
+            false,
+            false,
+            false,
+            None,
+            false,
+        )
+        .expect_err("dangerous target must be refused");
         let msg = format!("{err}");
         assert!(
             msg.contains("'sshd' is a system process"),
@@ -477,8 +384,18 @@ mod tests {
     #[cfg(feature = "ebpf")]
     #[test]
     fn empty_target_surfaces_before_root_guard() {
-        let err = handle_strict_single("", Some("1mb"), None, None, false, false, false, false)
-            .expect_err("an empty target must be refused");
+        let err = handle_strict_single(
+            "",
+            Some("1mb"),
+            None,
+            None,
+            false,
+            false,
+            false,
+            None,
+            false,
+        )
+        .expect_err("an empty target must be refused");
         let msg = format!("{err}");
         assert!(
             msg.contains("target is empty"),

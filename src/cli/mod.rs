@@ -1,6 +1,6 @@
 // Copyright (C) 2026 rezky_nightky
 // SPDX-License-Identifier: GPL-3.0-only
-// LOC_EXEMPT: the Commands enum is one clap surface by design — split twice already (styles, scope moved out); the enum itself and the Cli struct it feeds are the irreducible CLI declaration, and the persistence pair's help docs pushed the cohesive unit over the 500 cap
+// LOC_EXEMPT: the Commands enum is one clap surface by design — split twice already (styles, scope moved out); the enum itself and the Cli struct it feeds are the irreducible CLI declaration, and the persistence pair's help docs plus the night-during --during family (six subcommands) pushed the cohesive unit over the 500 cap
 use clap::{Parser, Subcommand};
 
 pub(crate) mod argv;
@@ -201,6 +201,17 @@ pub enum Commands {
         /// is rate x concurrent sockets, NOT rate).
         #[arg(long = "per-socket")]
         per_socket: bool,
+
+        /// Auto-expire or schedule this row (night-during, schema
+        /// v23): `--during 09:00-17:00` (UTC daily window, wraps
+        /// midnight), `--during 2026-10-15` (the whole UTC day),
+        /// or `--during 2h` (duration; units s, m, h, d, mn, y;
+        /// bounds 1s..10y)
+        ///
+        /// The KERNEL decides when the window is over — no daemon,
+        /// no cron; every zelynic visit re-stamps the clock bridge.
+        #[arg(long = "during", value_name = "WINDOW")]
+        during: Option<String>,
     },
 
     /// Limit multiple apps sharing one rate (group limit)
@@ -236,6 +247,13 @@ pub enum Commands {
         /// flag — one spelling for "I know, force this".
         #[arg(long = "force-this")]
         force_this: bool,
+
+        /// Auto-expire or schedule this row (night-during, schema
+        /// v23): a UTC daily window (`09:00-17:00`), a whole UTC
+        /// day (`2026-10-15`), or a duration (`2h`; s m h d mn y,
+        /// 1s..10y) — the kernel expires it, no daemon.
+        #[arg(long = "during", value_name = "WINDOW")]
+        during: Option<String>,
     },
 
     /// Limit ALL user apps from list-apps
@@ -276,6 +294,13 @@ pub enum Commands {
         /// spelling for "I know, force this".
         #[arg(long = "force-this")]
         force_this: bool,
+
+        /// Auto-expire or schedule every row this apply writes
+        /// (night-during, schema v23): a UTC daily window
+        /// (`09:00-17:00`), a whole UTC day (`2026-10-15`), or a
+        /// duration (`2h`; s m h d mn y, 1s..10y).
+        #[arg(long = "during", value_name = "WINDOW")]
+        during: Option<String>,
     },
 
     /// Block multiple apps from the internet entirely
@@ -290,6 +315,13 @@ pub enum Commands {
         /// ...) — the improve-30 unified override spelling.
         #[arg(long = "force-this")]
         force_this: bool,
+
+        /// Auto-expire or schedule the block (night-during, schema
+        /// v23): a UTC daily window (`22:00-06:00` is the bedtime
+        /// shape), a whole UTC day, or a duration (s m h d mn y,
+        /// 1s..10y) — the block lifts itself, no daemon.
+        #[arg(long = "during", value_name = "WINDOW")]
+        during: Option<String>,
     },
 
     /// Block ALL user apps from the internet
@@ -302,6 +334,12 @@ pub enum Commands {
         /// spelling (the former `--force`).
         #[arg(long = "force-this")]
         force_this: bool,
+
+        /// Auto-expire or schedule every block this apply writes
+        /// (night-during, schema v23): a UTC daily window, a whole
+        /// UTC day, or a duration (s m h d mn y, 1s..10y).
+        #[arg(long = "during", value_name = "WINDOW")]
+        during: Option<String>,
     },
 
     /// Block an app from accessing the internet entirely
@@ -316,6 +354,13 @@ pub enum Commands {
         /// ...) — the improve-30 unified override spelling.
         #[arg(long = "force-this")]
         force_this: bool,
+
+        /// Auto-expire or schedule the block (night-during, schema
+        /// v23): a UTC daily window (`22:00-06:00` is the bedtime
+        /// shape), a whole UTC day, or a duration (s m h d mn y,
+        /// 1s..10y) — the block lifts itself, no daemon.
+        #[arg(long = "during", value_name = "WINDOW")]
+        during: Option<String>,
     },
 
     /// Remove rate limit(s) from a target

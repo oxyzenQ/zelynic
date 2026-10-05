@@ -35,6 +35,10 @@ pub(crate) mod recover;
 pub(crate) mod safety;
 #[cfg(feature = "ebpf")]
 pub(crate) mod strict;
+// night-during's LOC-cap split: the strict-all handler moved out of
+// strict.rs when the --during threading crossed the 500-line cap.
+#[cfg(feature = "ebpf")]
+pub(crate) mod strict_all;
 
 #[cfg(not(feature = "ebpf"))]
 use anyhow::Result;
@@ -203,6 +207,7 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
             force_this,
             no_probe,
             per_socket,
+            during,
         }) => {
             #[cfg(feature = "ebpf")]
             {
@@ -214,6 +219,7 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
                     force_this,
                     no_probe,
                     per_socket,
+                    during.as_deref(),
                     cli.verbose,
                 )
             }
@@ -233,6 +239,7 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
                     force_this,
                     no_probe,
                     per_socket,
+                    during,
                     cli.verbose,
                 );
                 ebpf_disabled()
@@ -245,6 +252,7 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
             download,
             upload,
             force_this,
+            during,
         }) => {
             #[cfg(feature = "ebpf")]
             {
@@ -254,12 +262,21 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
                     download.as_deref(),
                     upload.as_deref(),
                     force_this,
+                    during.as_deref(),
                     cli.verbose,
                 )
             }
             #[cfg(not(feature = "ebpf"))]
             {
-                let _ = (targets, rate, download, upload, force_this, cli.verbose);
+                let _ = (
+                    targets,
+                    rate,
+                    download,
+                    upload,
+                    force_this,
+                    during,
+                    cli.verbose,
+                );
                 ebpf_disabled()
             }
         }
@@ -269,32 +286,38 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
             download,
             upload,
             force_this,
+            during,
         }) => {
             #[cfg(feature = "ebpf")]
             {
-                strict::handle_strict_all(
+                strict_all::handle_strict_all(
                     rate.as_deref(),
                     download.as_deref(),
                     upload.as_deref(),
                     force_this,
+                    during.as_deref(),
                     cli.verbose,
                 )
             }
             #[cfg(not(feature = "ebpf"))]
             {
-                let _ = (rate, download, upload, force_this, cli.verbose);
+                let _ = (rate, download, upload, force_this, during, cli.verbose);
                 ebpf_disabled()
             }
         }
 
-        Some(Commands::BlockSingle { target, force_this }) => {
+        Some(Commands::BlockSingle {
+            target,
+            force_this,
+            during,
+        }) => {
             #[cfg(feature = "ebpf")]
             {
-                block::handle_block_single(&target, force_this, cli.verbose)
+                block::handle_block_single(&target, force_this, during.as_deref(), cli.verbose)
             }
             #[cfg(not(feature = "ebpf"))]
             {
-                let _ = (target, force_this, cli.verbose);
+                let _ = (target, force_this, during, cli.verbose);
                 ebpf_disabled()
             }
         }
@@ -302,26 +325,27 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
         Some(Commands::BlockMulti {
             targets,
             force_this,
+            during,
         }) => {
             #[cfg(feature = "ebpf")]
             {
-                block::handle_block_multi(&targets, force_this, cli.verbose)
+                block::handle_block_multi(&targets, force_this, during.as_deref(), cli.verbose)
             }
             #[cfg(not(feature = "ebpf"))]
             {
-                let _ = (targets, force_this, cli.verbose);
+                let _ = (targets, force_this, during, cli.verbose);
                 ebpf_disabled()
             }
         }
 
-        Some(Commands::BlockAll { force_this }) => {
+        Some(Commands::BlockAll { force_this, during }) => {
             #[cfg(feature = "ebpf")]
             {
-                block::handle_block_all(force_this, cli.verbose)
+                block::handle_block_all(force_this, during.as_deref(), cli.verbose)
             }
             #[cfg(not(feature = "ebpf"))]
             {
-                let _ = (force_this, cli.verbose);
+                let _ = (force_this, during, cli.verbose);
                 ebpf_disabled()
             }
         }

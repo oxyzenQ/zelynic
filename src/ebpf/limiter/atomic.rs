@@ -33,6 +33,8 @@
 
 use anyhow::{anyhow, Result};
 
+use super::during::{wall_now_ns, WindowMutation};
+use super::format::monotonic_ns;
 use super::policy::{group_apply_lines, partial_apply_failure_line, policy_survivor_line};
 use super::types::{group_id_from, Direction, PolicyRaw, RateSpec, Target};
 
@@ -130,8 +132,15 @@ impl super::Limiter {
     /// Apply strict-multi atomically (charger-core-2, TIER A #6):
     /// pre-flight resolution, then the group write with the
     /// snapshot/restore mutation ledger. Returns the number of
-    /// policies written, exactly like `apply_group`.
-    pub fn apply_group_atomic(&mut self, targets: &[Target], rates: &RateSpec) -> Result<usize> {
+    /// policies written, exactly like `apply_group`. `during` is
+    /// the row's window (night-during, schema v23) — every member
+    /// root carries the same window row, the apply_group contract.
+    pub fn apply_group_atomic(
+        &mut self,
+        targets: &[Target],
+        rates: &RateSpec,
+        during: Option<&super::during_parse::DuringSpec>,
+    ) -> Result<usize> {
         // Phase 1 — resolve EVERY segment before the first map
         // write. resolve_target prints its own verbose trace per
         // segment (the /proc walk evidence), so the pre-flight
@@ -180,7 +189,13 @@ impl super::Limiter {
         // Phase 2 — the writes, with the mutation ledger capturing
         // each leg's pre-apply state (write_policies_for_cgroup
         // snapshots both directions before the first mutation).
+        // night-during (schema v23): the bridge stamp and the
+        // per-invocation window translation, the apply_group shape.
+        self.stamp_wall_clock_offset()?;
+        let window: Option<super::types::PolicyWindowRaw> =
+            during.map(|spec| super::during::during_to_window(spec, wall_now_ns(), monotonic_ns()));
         let mut mutations: Vec<PolicyMutation> = Vec::new();
+        let mut window_mutations: Vec<WindowMutation> = Vec::new();
         let mut superseded: Vec<u32> = Vec::new();
         let mut applied = 0usize;
         for cgroup_id in &all_cgroup_ids {
@@ -191,6 +206,8 @@ impl super::Limiter {
                 0,
                 &mut mutations,
                 &mut superseded,
+                window.as_ref(),
+                &mut window_mutations,
             ) {
                 Ok(n) => applied += n,
                 Err(cause) => {
@@ -201,7 +218,7 @@ impl super::Limiter {
                     // mutations land, covering every state change
                     // this invocation made — the same
                     // once-per-invocation tail the family owns.
-                    let rolled_back = self.rollback_mutations(&mutations, cause);
+                    let rolled_back = self.rollback_mutations(&mutations, &window_mutations, cause);
                     self.ammsp_memo_invalidate_best_effort();
                     return Err(rolled_back);
                 }
@@ -226,10 +243,13 @@ impl super::Limiter {
     /// that policy enforced — its error is printed for the record
     /// and the policy is named in the returned error, never hidden
     /// (the hunt-20 contract; the line formatters are unchanged so
-    /// their pins hold).
+    /// their pins hold). The window ledger (night-during, schema
+    /// v23) rides the same rollback: each window mutation's
+    /// pre-apply row restored verbatim, a fresh window removed.
     pub(super) fn rollback_mutations(
         &mut self,
         mutations: &[PolicyMutation],
+        window_mutations: &[WindowMutation],
         cause: anyhow::Error,
     ) -> anyhow::Error {
         let mut survivors: Vec<String> = Vec::new();
@@ -277,6 +297,11 @@ impl super::Limiter {
                 },
             }
         }
+        // night-during (schema v23): the window half of the
+        // rollback — the same restore-the-pre-apply-state contract
+        // the legs own, through the during module's own restore
+        // loop (its failures join the survivor list verbatim).
+        survivors.extend(self.rollback_window_mutations(window_mutations));
         anyhow!(
             "{}",
             partial_apply_failure_line(&cause.to_string(), rolled_back, &survivors)

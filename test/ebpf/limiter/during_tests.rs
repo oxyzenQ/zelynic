@@ -391,3 +391,69 @@ fn span_dormant_names_the_future_date_shape() {
         "an ENDED span is not dormant — the sweep takes it"
     );
 }
+
+// ━━ THE TWIN GRID (the userspace verdict == the kernel verdict) ━━
+
+#[test]
+fn twin_matches_the_kernel_core_on_the_grid() {
+    // The userspace twin (crate::ebpf::limiter::during) vs the
+    // kernel core compiled above: for any (wall, mono) pair the
+    // twin answers exactly what the datapath would with a freshly
+    // stamped bridge — saturation domain included (the twin
+    // computes the effective wall the same saturating way the
+    // bridge stamp does).
+    use self::ebpf_during::window_active as kernel_active;
+    use crate::ebpf::limiter::during::{wall_minus_mono, window_active_user};
+    use crate::ebpf::limiter::types::PolicyWindowRaw;
+
+    let windows = [
+        (WINDOW_KIND_DAILY, 9 * 3600, 17 * 3600, 0u64, 0u64),
+        (WINDOW_KIND_DAILY, 22 * 3600, 6 * 3600, 0, 0),
+        (WINDOW_KIND_DAILY, 0, 86_400 - 1, 0, 0),
+        (WINDOW_KIND_SPAN, 0, 0, 100u64, 200u64),
+        (WINDOW_KIND_SPAN, 0, 0, 0, u64::MAX / 4),
+    ];
+    let walls = [
+        0u64,
+        1_000_000_000u64,
+        12 * 3600 * 1_000_000_000u64,
+        23 * 3600 * 1_000_000_000u64 + 999_999_999,
+        (50 * 365) as u64 * 86_400_000_000_000,
+    ];
+    let monos = [
+        0u64,
+        1_000_000_000u64,
+        17 * 1_000_000_000u64,
+        10_000 * 1_000_000_000u64,
+    ];
+    for (kind, start_s, end_s, start_mono, end_mono) in windows {
+        let user_row = PolicyWindowRaw {
+            kind,
+            reserved: 0,
+            start_mono_ns: start_mono,
+            end_mono_ns: end_mono,
+            start_s,
+            end_s,
+        };
+        let kernel_row = PolicyWindow {
+            kind,
+            reserved: 0,
+            start_mono_ns: start_mono,
+            end_mono_ns: end_mono,
+            start_s,
+            end_s,
+        };
+        for wall in walls {
+            for mono in monos {
+                let offset = wall_minus_mono(wall, mono);
+                let twin = window_active_user(&user_row, wall, mono);
+                let kernel = kernel_active(&kernel_row, mono, offset);
+                assert_eq!(
+                    twin, kernel,
+                    "twin drift at kind={kind} wall={wall} mono={mono}: \
+                     twin={twin} kernel={kernel}"
+                );
+            }
+        }
+    }
+}
