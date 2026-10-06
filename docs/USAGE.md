@@ -1799,11 +1799,19 @@ the returning cgroup's frame reports its fresh bytes (the
 leaderboard keeps the pre-eviction history it already held) —
 never the 18-exabyte wrap phantom the bare modulo delta once
 answered. One userspace bound rides on top: the leaderboard
-carries at most 4096 distinct cgroups per session (a memory bound
-that predates the LRU lane) — past it, rows the session already
-has keep updating, while a fresh cgroup carries no row even though
-the kernel counts it (the footer census reports the board's
-count, the same bound). The flow itself is never touched: a full map
+carries at most 4096 cgroups per session — but since
+NIGHT-mitigate-1 (2026-10-07) that bound is LIVE, not a freeze:
+a row whose cgroup is gone (no identity entry and no window
+traffic — the board filter's own hiding rule) retires after a
+3-frame grace, freeing its slot for the fresh cgroup the old
+freeze would have refused forever (the first-4096-own-the-board
+posture a decade-long dense-churn monitor could not survive).
+Live rows never retire, however long they idle — the
+session-leaderboard contract (rank by what an app ate this
+session) is unchanged, and the retirement stands down entirely
+while the identity walk itself is down (an empty map is a failed
+walk, not proof of death). The footer census reports the board's
+count, the same bound. The flow itself is never touched: a full map
 loses the COUNT, not the packet (the allow-and-skip contract).
 
 **12. The monitor's metric set is exactly this — and that is the

@@ -997,6 +997,65 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Changed
 
+- **fix(monitor): NIGHT-mitigate-1 + NIGHT-improve-51 — the
+  data-explosion endurance audit: the 1-trillion-packet and
+  10-year-uptime questions answered with arithmetic, and the two
+  real gaps the audit found closed.** The owner's verbatim ask:
+  "if the packets reach >1 trilion can zelynic have durability,
+  reliable, and ultra long endurance? even the monitor is running
+  10 years on server? not just that one but all need depth audit
+  too" — answered surface by surface in
+  docs/audits/NIGHT_MITIGATE_1_DATA_EXPLOSION_ENDURANCE_AUDIT_2026-10-07.md:
+  every counter holds by construction (the kernel packet counters
+  wrap after 389,000 years at the code's own 1.5 Mpps line-rate
+  figure — 1T packets sits 18.4 million times below the wrap, a
+  decade at the physics ceiling of a 100 GbE small-packet stream
+  390x below it; the byte legs' reachable wrap is already
+  wrap-coherent since lts-5 and u128 since lts-5; every memory
+  carrier is bounded; every render ladder tops at its domain's
+  terminal tier). Finding A (improve-51): the focus view's
+  per-direction packet figures printed RAW in the parens — the
+  one render surface the NIGHT-engrave-7 census hardening missed;
+  both figures now ride the format_count ladder ("(2.2M)", small
+  counts exact), pinned at the exploded figure and the
+  fresh-frame shape. Finding B (mitigate-1): the leaderboard's
+  4096-cgroup bound was a FREEZE — the first 4096 distinct
+  cgroups owned the board forever, and a dense-churn host (CI
+  scopes, containers) hits that in weeks, going silently blind to
+  every fresh app for the rest of a decade-long session. The
+  bound is now LIVE: SessionState::retire_dead rides the frame
+  after the fold and retires a row only when the frame's own
+  board filter would hide it anyway (no identity entry AND no
+  window traffic — the exact board_rows predicate, identity
+  lookup first so the happy path builds no active set), on a
+  3-frame consecutive-grace streak, and stands down entirely
+  while the identity walk itself is down (an empty map is a
+  failed walk, not proof of death). The pass is GATED at the cap:
+  it engages only when the board sits at MAX_TRACKED_CGROUPS — the
+  one state where a freed slot changes anything; below the cap the
+  display filter already hides the dead and the bound has room,
+  so the walk would be pure per-frame cost (the ungated shape
+  measured a real -7.6% render-path fps on the 24-row frame
+  bench; the gated A/B reads -0.7%, inside the ±1% same-tree
+  noise, with every visual metric byte-equivalent).
+  Display-neutral (a retired
+  row was invisible that frame), grand-neutral (the footer grand
+  sums the post-filter board), memory-neutral (the streak map
+  rides under the accumulator's own cap) — the one thing it
+  changes is that a fresh cgroup finds a slot again. Live rows
+  never retire however long they idle (the session-leaderboard
+  contract untouched); the residual is limitation 11's own
+  kernel-side LRU best-effort under 4096+ concurrently-live
+  cgroups, unchanged. USAGE limitation 11's tail re-cut to the
+  live-bound posture; the six retirement pins (the cap gate,
+  grace, slot-freeing at cap with the pre-mitigation freeze shape
+  retired, signal-loss guard, streak reset, the
+  traffic-without-identity liveness mirror) and the two focus
+  ladder pins live in the single test/ tree. Verified: the full
+  host battery 820 passed 0 failed, clippy clean, fmt clean,
+  markdownlint clean at the CI-pinned 0.18.1, and build.sh
+  check-all -q inside the 2-minute cap.
+
 - **feat(gate): NIGHT-improve-44 task d — the LOC law flipped: the
   Rust cap is 600, tree-wide by file type, no exemptions, no
   markers, no mercy; the scripts cap stays 1000 with the policy's
