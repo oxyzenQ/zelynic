@@ -7,7 +7,7 @@
 > the owner's verbatim intent — "owner see what if the data explode
 > e.g on eagle eyes mode monitoring owner see on footer under title
 > top consumer '15.9M packets + 16 cgroups' if the packets reach
-> 1 trilion can zelynic have durability, reliable, and ultra long
+> 1 trillion can zelynic have durability, reliable, and ultra long
 > endurance? even the monitor is running 10 years on server? not
 > just that one but all need depth audit too" — so not just the
 > census line: every numeric surface the monitor owns, read at the
@@ -305,3 +305,20 @@ made consistent at the accumulator.
 - The u32 cgroup-id space (4.29e9 lifetimes) outlives any real
   host by the `stats.rs` note's own arithmetic — the id wrap is
   the one horizon no monitor survives to see.
+<!-- ZELYNIC-DISCLAIMER -->
+<!--
+  Documentation Disclaimer — read before relying on any data point.
+
+  This document may contain stale data, hardcoded counts, or outdated
+  file paths and symbol names. Maintainers update source code but may
+  forget to sync every doc — perfect sync across every .md file is a
+  known maintenance burden with diminishing returns.
+
+  Source code (`src/**/*.rs`, `ebpf/src/**/*.rs`) is the single source of
+  truth. Always cross-check against the actual source files before
+  relying on any specific number (target count, LOC, rate bound),
+  file path, function name, or config key.
+
+  If you find a discrepancy, please open a PR — the doc is wrong, not
+  the source.
+-->

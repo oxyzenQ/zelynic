@@ -7,7 +7,7 @@
 > verbatim intent — "depth audit to create a new supermassive test
 > extreme mode e.g the default normal usage supermassive test using
 > 64 cgroup to test, but on extreme mode can have cgroup 1000, 1
-> milion, even 1 trilion/near limit kernel. this needed? if not
+> million, even 1 trillion/near limit kernel. this needed? if not
 > skip. need approval from owner." Method: the product's own cap
 > map read from source (which surface even SEES a cgroup count),
 > the fleet's construction cost measured from the harness's own
@@ -160,3 +160,20 @@ exercise; the only real extreme is the product's own 1024/4096
 caps, and IF the owner wants that band crossed live, the
 cap-crossing stage above is the minimal honest shape, awaiting
 approval here.
+<!-- ZELYNIC-DISCLAIMER -->
+<!--
+  Documentation Disclaimer — read before relying on any data point.
+
+  This document may contain stale data, hardcoded counts, or outdated
+  file paths and symbol names. Maintainers update source code but may
+  forget to sync every doc — perfect sync across every .md file is a
+  known maintenance burden with diminishing returns.
+
+  Source code (`src/**/*.rs`, `ebpf/src/**/*.rs`) is the single source of
+  truth. Always cross-check against the actual source files before
+  relying on any specific number (target count, LOC, rate bound),
+  file path, function name, or config key.
+
+  If you find a discrepancy, please open a PR — the doc is wrong, not
+  the source.
+-->

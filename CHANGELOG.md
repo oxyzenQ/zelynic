@@ -1049,7 +1049,7 @@ NIGHT-hunt-18's git-history-only call.
   data-explosion endurance audit: the 1-trillion-packet and
   10-year-uptime questions answered with arithmetic, and the two
   real gaps the audit found closed.** The owner's verbatim ask:
-  "if the packets reach >1 trilion can zelynic have durability,
+  "if the packets reach >1 trillion can zelynic have durability,
   reliable, and ultra long endurance? even the monitor is running
   10 years on server? not just that one but all need depth audit
   too" — answered surface by surface in
