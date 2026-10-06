@@ -30,7 +30,7 @@ row ships without one. The mechanisms come in three strengths:
 | 1 | **No daemon** — enforcement survives process exit | `no-daemon`: process set must not grow across an attach; a download stays policed after the CLI exits | supermassive v1 reload/sustain rows; the pinned-link surface in `pin.rs` |
 | 2 | **Pure eBPF** — no tc/nft/LD_PRELOAD | `pure-eBPF`: ruleset structure snapshot + kernel drop counters + bpftool's attach-mechanism-independent surfaces | nft/tc normalization pins (engine self-test); CI runs the engine self-test on every push |
 | 3 | **Per-app per-cgroup** | `per-app`: cgroup A shaped at its rate while its unlimited neighbor rides ≥50x above, same moment | witness-floor pins; strict-multi shared-bucket rows (supermassive v1) |
-| 4 | **Precision 0.00%** | `precision`: kernel-admitted bytes vs configured rate × wall time over a saturating window, cross-checked against the client counter — the row prints the residual and the PASS bound's derivation (estimator floor + the token bank's one-burst wander, `burst/(rate × window)`; under-side windows re-attempt bounded — the quick-row closure v3), it rounds nothing | the token math pinned rootlessly: `test/ebpf/limiter/math_tests.rs` (steady-state exactness, fractional carry) + the budget-covers pair (lts-8, contention) |
+| 4 | **Precision 0.00%** | `precision`: kernel-admitted bytes vs configured rate × wall time over a saturating window, cross-checked against the client counter — the row prints the residual and the PASS bound's derivation (estimator floor + the token bank's one-burst wander, `burst/(rate × window)`; under-side windows re-attempt bounded — the quick-row closure v3), it rounds nothing; the starved-window discriminator (improve-48): an under-band window with ZERO refusals re-attempts once at 80% of its own measured offer, then SKIPs honestly (a starved window measures the offer, not the policer), while under-band WITH refusals stays the red real-regression signature | the token math pinned rootlessly: `test/ebpf/limiter/math_tests.rs` (steady-state exactness, fractional carry) + the budget-covers pair (lts-8, contention) |
 | 5 | **Resource honesty** — the CLI's own RAM/CPU/IO + kernel cost (lts-6) | `footprint`: wait4 rusage of a canonical attach (peak RSS, CPU seconds, block IO — real numbers printed) + bpftool `run_time_ns`/`run_cnt` (average ns per attached-prog run; the kernel collects those fields only while `kernel.bpf_stats_enabled` is on, so the harness turns the knob on for its window and writes the original value back — lts-6 followup 3) | verdict-math + stats-knob-plan pins (engine self-test); idle-frame zero-emit: `test/terminal/diff_tests.rs` |
 
 The 0.00% claim told honestly (the two levels): the CONTRACT is
@@ -95,6 +95,24 @@ push" wording claimed surfaces the path filters never woke).
 
 ## The honest residuals (claimed limits, not hidden ones)
 
+- The starved-window closure (improve-48, the runs 224/228
+  lesson): the shared runners' busy hours can leave the precision
+  row's four-flow aggregate unable to OFFER the 100mb refill —
+  the long-run row read 21.297%/29.775% under with zero
+  refusals while admitted==client held at ratio 1.004 (the
+  policer passed every offered byte; the offer itself integrated
+  under the rate — the same host's quieter hours read 1.921% on
+  the same kernel, and the 5.13 floor legs read 3.606% on the
+  same runs). The row now discriminates before it verdicts: an
+  under-band window with refusals is the real regression
+  signature (the bucket refused the surplus while
+  under-admitting the refill) and stays red; a starved window
+  re-attempts once at 80% of its own measured offer (capped at
+  the configured rate, floored at the 5mb loopback GSO-safe
+  rung) and a second starve — or an offer below the floor —
+  records the honest SKIP instead of failing the lane on the
+  host's own poverty. The evidence rows (the TCP-level offer,
+  the admit-ratio) ride every verdict unchanged.
 - The BIG TCP corner: opt-in per-link `gro-max-size` above 64 KiB
   (kernel 6.x) can still hand the hook a super-packet above the
   burst floor — an inherent property of any bounded bucket
