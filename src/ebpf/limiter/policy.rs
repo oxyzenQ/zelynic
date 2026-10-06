@@ -22,7 +22,7 @@ use super::atomic::PolicyMutation;
 use super::during::{during_to_window, wall_now_ns, WindowMutation};
 use super::during_parse::DuringSpec;
 use super::format::{default_burst, monotonic_ns};
-use super::lanes::map_remove_means_absent;
+use super::lanes::map_error_means_absent;
 use super::types::{
     group_id_from, Direction, PolicyRaw, PolicyWindowRaw, RateSpec, Target, MAX_ENFORCABLE_BURST,
     POLICY_FLAG_PER_SOCKET,
@@ -477,7 +477,7 @@ impl super::Limiter {
     pub fn delete_policy(&mut self, cgroup_id: u32, direction: Direction) -> Result<bool> {
         self.with_policy_map(direction, |map| match map.remove(&cgroup_id) {
             Ok(()) => Ok(true),
-            Err(e) if map_remove_means_absent(&e) => Ok(false),
+            Err(e) if map_error_means_absent(&e) => Ok(false),
             Err(e) => Err(anyhow!(
                 "failed to delete cg:{cgroup_id} {} policy: {e}",
                 direction.label()

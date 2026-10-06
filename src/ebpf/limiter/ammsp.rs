@@ -42,7 +42,7 @@
 use anyhow::{anyhow, Context, Result};
 use aya::maps::{Array as BpfArray, HashMap as BpfHashMap, MapData};
 
-use super::lanes::map_remove_means_absent;
+use super::lanes::map_error_means_absent;
 use crate::ebpf::pin::{self, PIN_MAP_AMMSP_GEN};
 
 /// Advance the generation word in whatever array handle the
@@ -185,7 +185,7 @@ impl super::Limiter {
                 for key in keys {
                     match map.remove(&key) {
                         Ok(()) => flushed += 1,
-                        Err(e) if map_remove_means_absent(&e) => flushed += 1,
+                        Err(e) if map_error_means_absent(&e) => flushed += 1,
                         Err(e) => return Err(anyhow!("remove cg:{key} memo from {map_name}: {e}")),
                     }
                 }

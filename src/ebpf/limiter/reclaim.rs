@@ -24,7 +24,7 @@
 
 use anyhow::{anyhow, Result};
 
-use super::lanes::map_remove_means_absent;
+use super::lanes::map_error_means_absent;
 use super::policy::policy_survivor_line;
 use super::rate_ring::RateRingRaw;
 use super::types::{BucketRaw, Direction, LimiterStatsRaw, PolicyRaw, PolicyWindowRaw, Target};
@@ -234,7 +234,7 @@ impl super::Limiter {
         self.with_u32_map::<PolicyRaw, Option<u32>>(&map_name, &pin_path, |map| {
             match map.get(&cgroup_id, 0) {
                 Ok(raw) => Ok(Some(raw.group_id)),
-                Err(e) if map_remove_means_absent(&e) => Ok(None),
+                Err(e) if map_error_means_absent(&e) => Ok(None),
                 Err(e) => Err(anyhow!(
                     "failed to read cg:{cgroup_id} {} policy: {e}",
                     direction.label()
@@ -258,7 +258,7 @@ impl super::Limiter {
         self.with_u32_map::<PolicyRaw, Option<PolicyRaw>>(&map_name, &pin_path, |map| {
             match map.get(&cgroup_id, 0) {
                 Ok(raw) => Ok(Some(raw)),
-                Err(e) if map_remove_means_absent(&e) => Ok(None),
+                Err(e) if map_error_means_absent(&e) => Ok(None),
                 Err(e) => Err(anyhow!(
                     "failed to read cg:{cgroup_id} {} policy: {e}",
                     direction.label()

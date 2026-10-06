@@ -173,7 +173,7 @@ impl super::Limiter {
             BpfHashMap::try_from(map_ref).context(format!("Failed to access {map_name}"))?;
         match map.get(&root, 0) {
             Ok(bucket) => Ok(Some(bucket.tokens)),
-            Err(e) if super::lanes::map_remove_means_absent(&e) => Ok(None),
+            Err(e) if super::lanes::map_error_means_absent(&e) => Ok(None),
             Err(e) => Err(anyhow!("{map_name} read: {e}")),
         }
     }

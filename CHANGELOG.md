@@ -813,6 +813,38 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Fixed
 
+- **The `policy_window` read that refused every fresh apply
+  (night-audit-1 task 16 — the supermassive battery's catch, the
+  second live find of the 5.13 floor lane).** Since night-during-3
+  landed schema v23, every strict-*/block-* apply on a cgroup with
+  no window row died at the mutation ledger's pre-apply read:
+  `failed to read cg:N policy window: key not found — apply rolled
+  back (2 partial policies)` — six supermassive probes down (the
+  limiter matrix, the AMMSP delta, the survival battery, the
+  reload and race rigs, claims proof), all four legs, the same
+  root. The forensic: aya 0.14's `HashMap::get` on an absent row
+  NEVER produces the `SyscallError(ENOENT)` the shared
+  `map_remove_means_absent` predicate matched — the sys layer
+  folds the lookup syscall's -ENOENT into `Ok(None)` and the map
+  layer surfaces `MapError::KeyNotFound` — so the night-during
+  read path inherited a classifier written for the DELETE shape
+  alone (the loader's socket-counter reads already knew the
+  KeyNotFound law; the limiter's shared predicate did not). Only
+  the micro-VM battery caught it because it is the only lane that
+  exercises the real apply path as root. The predicate is now
+  `map_error_means_absent`, matching BOTH absent shapes — the
+  delete-path ENOENT and the read-path KeyNotFound — with the
+  aya 0.14 story recorded at the definition and the widened
+  family pinned in policy_tests.rs (KeyNotFound absent,
+  EPERM/ENOMEM/EACCES/EINVAL and wrong-map-type still never
+  absent). The sibling read lanes that survived by accident —
+  `read_policy_raw`'s `.ok().flatten()` degrade, the probe's
+  `.ok().flatten()` budget-truth read, `read_policy_group`'s
+  swallowed `Err` — now classify honestly, so `read_pool_tokens`'
+  documented "Ok(None) is the honest absence" contract finally
+  holds on a fresh pin with idle traffic instead of silently
+  skipping the probe's diagnostic clause.
+
 - **The 5.13 verified floor's BPF_PROG_LOAD refusal, root-caused
   and closed (night-audit-1's code find — the CI matrix's own
   catch, supermassive runs 187+).** Since night-quic-2 landed
