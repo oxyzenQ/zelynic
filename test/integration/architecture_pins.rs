@@ -154,7 +154,15 @@ fn every_pinned_map_open_flows_through_the_pin_helpers() {
 /// would break the eBPF crate's no_std compilation.
 #[test]
 fn the_ebpf_math_twin_stays_core_only_and_path_wired() {
-    for file in ["ebpf/src/math.rs", "ebpf/src/stats.rs"] {
+    // NIGHT-improve-44: math_atomics.rs joined the twin family when
+    // the atomic-operation half split out of math.rs at the 600-line
+    // cap — it rides the same core-only law and the same #[path]
+    // re-export shape.
+    for file in [
+        "ebpf/src/math.rs",
+        "ebpf/src/math_atomics.rs",
+        "ebpf/src/stats.rs",
+    ] {
         let text = src(file);
         for line in text.lines() {
             let trimmed = line.trim_start();

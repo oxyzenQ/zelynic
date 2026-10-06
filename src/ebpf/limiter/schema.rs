@@ -460,11 +460,14 @@ mod sync_pin {
     /// is aya-ebpf `#![no_std]` — but its TEXT is a contract this
     /// pin owns, the same way the size pins own struct offsets).
     fn bpf_schema_version() -> u32 {
-        let src = include_str!("../../../ebpf/src/bin/limiter.rs");
+        // NIGHT-improve-44: the anchor moved with the 600-line split
+        // (bin/limiter.rs -> schema.rs, the doc ledger's own file) —
+        // the pin follows the declaration, wherever it lives.
+        let src = include_str!("../../../ebpf/src/schema.rs");
         let needle = "const SCHEMA_VERSION: u32 = ";
         let start = src
             .find(needle)
-            .expect("ebpf/src/bin/limiter.rs must declare SCHEMA_VERSION");
+            .expect("ebpf/src/schema.rs must declare SCHEMA_VERSION");
         let rest = &src[start + needle.len()..];
         let end = rest
             .find(';')
@@ -480,7 +483,7 @@ mod sync_pin {
         assert_eq!(
             bpf_schema_version(),
             super::SCHEMA_VERSION_EXPECTED,
-            "SCHEMA_VERSION (ebpf/src/bin/limiter.rs) drifted from \
+            "SCHEMA_VERSION (ebpf/src/schema.rs) drifted from \
              SCHEMA_VERSION_EXPECTED (src/ebpf/limiter/schema.rs) — \
              bump BOTH together, the v13 lesson"
         );

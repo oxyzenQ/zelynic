@@ -712,6 +712,40 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Changed
 
+- **refactor: NIGHT-improve-44 task c — the eBPF five under the 600
+  cap: limiter.rs (1,323) carved into the schema ledger, the
+  enforcement helpers, and the try_enforce verdict path; drr.rs
+  (1,014) split at its own section banners (the epoch ledger, the
+  guarantee law, the flow lane's law); quic.rs, math.rs, and
+  drr_flow.rs each shed one cohesive family — the prebuilt objects
+  rebuilt, same sizes, the parity lane re-pinned.** The split rides
+  the #[path]-nested-module + glob re-export pattern the tree
+  already set (limiter.rs's own sibling wirings): the moved sections
+  re-export through their parent (drr::guaranteed_allowance,
+  quic::parse_l4, math::tokens_cas resolve as they always did) so
+  every consumer — the bin root AND the rootless test tree's twin
+  inclusions — compiled without one call-site edit. limiter.rs keeps
+  the maps, the entry programs, and the panic handler (378); schema.rs
+  carries the v1..v24 doc ledger and SCHEMA_VERSION (351, the
+  userspace sync pin repointed to its new home); enforce_helpers.rs
+  the map pointer probes, the ring verdict, the ECN rescue, the
+  window gate (280); enforce.rs try_enforce itself (371). drr.rs
+  keeps the base and the learned-share draw (438) with drr_epoch.rs
+  (164), drr_guarantee.rs (177), and drr_flow_law.rs (279) nested
+  under it; quic_l4.rs (170) under quic.rs (542); math_atomics.rs
+  (198) under math.rs (494); drr_flow_draw.rs (157) under
+  drr_flow.rs (465). The dual-compiled files (the test-tree twins)
+  learned the two-rustfmt law the hard way: mixed-case import runs
+  cannot be ordered to satisfy both the stable and the nightly
+  formatter, so math_atomics.rs globs its parent's namespace and the
+  other twins keep same-case runs. The sync pin
+  (src/ebpf/limiter/schema.rs) follows the anchor to ebpf/src/
+  schema.rs; the architecture pin's core-only twin list grows
+  math_atomics.rs. The refreshed prebuilt objects are the same
+  sizes (observer 3,216 B, limiter 79,872 B) — the split was
+  structure-only and the ELF section sizes say so; the manifest
+  re-pins the tree (c34ab561a70c...) per the parity contract.
+
 - **refactor: NIGHT-improve-44 task b — build.rs split by its own
   retired plan: the NIGHT-improve-31 phase map executed (validate,
   flags, preflight) plus the vcs chain, the 1,475-line build script
