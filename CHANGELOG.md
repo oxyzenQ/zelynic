@@ -813,6 +813,35 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Fixed
 
+- **The future-date span that never slept (night-audit-1 task 17 —
+  the dormancy law's translation hole, the depth review's own
+  find).** Since night-during-4 landed the userspace half,
+  `--during 2026-10-15` applied before that day translated its
+  future start broken: `during_to_window` computed
+  `start_mono = mono - saturating(wall - start_wall)`, and with a
+  future start the inner subtraction saturates to zero, collapsing
+  `start_mono` onto the APPLY instant — the row enforced from the
+  moment it was applied and kept enforcing until the day's end
+  instead of sleeping until the day arrived. A `--during
+  2026-10-15` applied nine days early policed for ten days
+  straight: the over-enforcement direction the FIRE_EARLY margin
+  law exists to forbid. `span_dormant`, the "sleeps until" status
+  line, and the probe's dormancy note could never trigger on a
+  freshly applied date because no translated row was ever dormant.
+  The parse family, the kernel verdict core, the sweep, and the
+  persistence round-trip were all correct — the bug lived in the
+  one translation every apply-family caller shares (policy.rs
+  apply_single/apply_group, atomic.rs). The fix splits the
+  direction: a future start translates FORWARD
+  (`mono + (start_wall - wall)`, saturating) while a past start
+  keeps the backward clamp-to-boot shape; the restore path heals
+  through the same line (window_persist_to_spec re-translates via
+  a fresh bridge, so a restored future date sleeps too). Pinned in
+  during_user_tests.rs (future_date_span_sleeps_until_its_day: the
+  start lands 9 days out, the row is dormant at the apply instant,
+  the end is unchanged) beside the past-start and pre-boot clamps
+  that were already pinned.
+
 - **The `policy_window` read that refused every fresh apply
   (night-audit-1 task 16 — the supermassive battery's catch, the
   second live find of the 5.13 floor lane).** Since night-during-3

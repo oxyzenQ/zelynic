@@ -278,6 +278,39 @@ fn span_translates_across_the_clock_pair() {
 }
 
 #[test]
+fn future_date_span_sleeps_until_its_day() {
+    use crate::ebpf::limiter::during::during_to_window;
+    let mono = 5 * NS_PER_SEC;
+    let wall = 1_700_000_000 * NS_PER_SEC;
+    // A future date: the day starts 9 days out and ends 10 days out
+    // (the --during 2026-10-15 shape applied 9 days early).
+    let start_wall = wall + 9 * NS_PER_DAY;
+    let end_wall = wall + 10 * NS_PER_DAY;
+    let row = during_to_window(
+        &DuringSpec::Span {
+            start_wall_ns: start_wall,
+            end_wall_ns: end_wall,
+        },
+        wall,
+        mono,
+    );
+    // The dormancy law: the row sleeps until its day arrives — the
+    // future start translates FORWARD into the monotonic domain,
+    // it must never collapse onto the apply instant.
+    assert_eq!(
+        row.start_mono_ns,
+        mono + 9 * NS_PER_DAY,
+        "a future start sleeps until its instant: start_mono={}",
+        row.start_mono_ns
+    );
+    assert_eq!(row.end_mono_ns, mono + 10 * NS_PER_DAY);
+    assert!(
+        row.start_mono_ns > mono,
+        "a freshly applied future date is dormant at the apply instant"
+    );
+}
+
+#[test]
 fn daily_translates_verbatim() {
     use crate::ebpf::limiter::during::during_to_window;
     let row = during_to_window(

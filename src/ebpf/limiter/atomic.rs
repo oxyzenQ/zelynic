@@ -33,8 +33,7 @@
 
 use anyhow::{anyhow, Result};
 
-use super::during::{wall_now_ns, WindowMutation};
-use super::format::monotonic_ns;
+use super::during_map::{translate_now, WindowMutation};
 use super::policy::{group_apply_lines, partial_apply_failure_line, policy_survivor_line};
 use super::types::{group_id_from, Direction, PolicyRaw, RateSpec, Target};
 
@@ -192,8 +191,7 @@ impl super::Limiter {
         // night-during (schema v23): the bridge stamp and the
         // per-invocation window translation, the apply_group shape.
         self.stamp_wall_clock_offset()?;
-        let window: Option<super::types::PolicyWindowRaw> =
-            during.map(|spec| super::during::during_to_window(spec, wall_now_ns(), monotonic_ns()));
+        let window: Option<super::types::PolicyWindowRaw> = during.map(translate_now);
         let mut mutations: Vec<PolicyMutation> = Vec::new();
         let mut window_mutations: Vec<WindowMutation> = Vec::new();
         let mut superseded: Vec<u32> = Vec::new();

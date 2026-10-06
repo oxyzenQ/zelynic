@@ -17,10 +17,13 @@
 //! - `stats.rs`   — status printing + map readers + identity
 //! - `ammsp.rs`   — the AMMSP userspace half: the leaf-cache flush
 //!   every policy mutation runs (private-research-2)
+//! - `during*.rs` — the --during family (night-during): grammar,
+//!   translation twin, and window map lanes
 //! - `rate_ring.rs` — the time-series ring's read half + mirror
 mod ammsp;
 mod atomic;
 mod during;
+mod during_map;
 mod during_parse;
 mod format;
 mod lanes;
@@ -162,7 +165,7 @@ impl Limiter {
                     }
                     // night-during: refresh the wall-clock bridge
                     // on the reuse lane too (best-effort).
-                    during::stamp_offset_on_pinned(verbose);
+                    during_map::stamp_offset_on_pinned(verbose);
                     return Ok(());
                 }
                 Some(v) => {
