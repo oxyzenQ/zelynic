@@ -57,14 +57,19 @@ Design:
     policy against a real cgroup without a real container behind it —
     a container target that cannot resolve never silently succeeds.
 
-  * The privilege gate (rootless): the binary checks root BEFORE the
-    target parses, so a non-root invocation of every container target
-    shape answers "root required — eBPF operations need CAP_BPF" (rc=1,
-    no panic). This is the resolve-only contract seen from the
-    privilege angle — container targets ride the same privilege gate
-    every target rides. The rootless shape pins this on every host;
-    the root shape (CI micro-VM) pins the grammar and resolution depth
-    the privilege gate gates.
+  * The privilege gate (rootless; as root, the real-user drop): the
+    binary checks root BEFORE the target parses, so a non-root
+    invocation of every container target shape answers "root
+    required — eBPF operations need CAP_BPF" (rc=1, no panic). This
+    is the resolve-only contract seen from the privilege angle —
+    container targets ride the same privilege gate every target
+    rides. The rootless shape pins this on every host; the root
+    shape (CI micro-VM) now pins the SAME refusal through the
+    real-user drop lane (NIGHT-improve-49: setpriv to uid 65534, the
+    shared lib's probe) — the gate refuses a dropped user exactly as
+    it refuses a real one — and the grammar and resolution depth
+    stages carry the root-side surface beside it. A host without
+    setpriv keeps the honest root-side SKIP.
 
   * The docker E2E lane (root + docker, self-skip): when a docker
     daemon is reachable, v3 spawns a pause container, resolves
@@ -213,7 +218,7 @@ RESOLUTION_FAILURE_MARKERS = (
 # ── the binary runner ──────────────────────────────────────────────────────
 
 
-def _run_cli_case(argv):
+def _run_cli_case(argv, as_user=False):
     """Run one container-target case against the real binary.
 
     stdin is /dev/null and the env carries NO_COLOR=1, so output is
@@ -221,13 +226,24 @@ def _run_cli_case(argv):
     Returns (returncode, combined-output); returncode None means the
     case never answered inside the timeout — a hang, the loudest
     failure a CLI can produce. The binary path is lib.BINARY (bound by
-    the --binary flag or the CI init's default).
+    the --binary flag or the CI init's default). as_user
+    (NIGHT-improve-49) runs the same case through the shared lib's
+    real-user drop (setpriv to uid 65534) — the lane stage 2 takes
+    when the harness itself runs as root, so the gate refusal the
+    stage asserts is one a genuinely unprivileged user produced; the
+    dropped process cannot pass the root gate, so nothing executes.
     """
     env = dict(os.environ)
     env["NO_COLOR"] = "1"
+    cmd = [lib.BINARY] + argv
+    if as_user:
+        prefix = lib.privdrop_prefix()
+        if prefix is None:
+            return 126, "setpriv unavailable — the real-user drop lane cannot run"
+        cmd = prefix + cmd
     try:
         p = subprocess.run(
-            [lib.BINARY] + argv,
+            cmd,
             capture_output=True,
             text=True,
             timeout=CLI_CASE_TIMEOUT,
@@ -402,43 +418,54 @@ def test_container_help_surface():
     return has_docker and has_k8s and has_contract
 
 
-# ── stage 2: the privilege gate (rootless, runs when non-root) ─────────────
+# ── stage 2: the privilege gate (rootless; as root, the real-user drop) ────
 #
 # The binary checks root BEFORE the target parses, so a non-root
 # invocation of every container target shape answers "root required"
 # (rc=1, no panic). This is the resolve-only contract seen from the
 # privilege angle — container targets ride the same privilege gate every
-# target rides. When the harness runs as root (the CI shape), this stage
-# SKIPS (the gate cannot be triggered as root) and the grammar/resolution
-# depth stages (3, 4) carry the container surface instead.
+# target rides. When the harness runs as root (the CI shape), the stage
+# now re-executes its rows through the shared lib's real-user drop
+# (NIGHT-improve-49: setpriv to uid 65534) instead of skipping — the
+# gate refuses the dropped user exactly as it refuses a real one, the
+# stage's refusal rows assert for real, and the grammar/resolution
+# depth stages (3, 4) still carry the container surface beside it. A
+# host without setpriv keeps the honest SKIP (the rootless CI leg
+# carries the stage's contract on every push).
 
 
 def test_container_privilege_gate():
     """The privilege gate refuses container targets without root.
 
-    Runs only when non-root: the gate answers "root required" on every
+    Runs the refusal ladder: the gate answers "root required" on every
     container target shape (well-formed and malformed) — the contract
     is the INVARIANT (rc=1 + no panic + root-required wording), not the
-    exact string. When root, the stage skips (the gate cannot trigger
-    as root; stages 3 and 4 carry the depth instead).
+    exact string. As root, the rows run through the real-user drop
+    lane (a dropped uid 65534 gets the same refusal a real user gets);
+    only a host without setpriv skips (the gate cannot trigger as
+    root, and no drop tool exists to become the user — stages 3 and 4
+    carry the depth instead).
     """
     out()
-    out("── stage 2: container privilege gate (rootless, non-root) ──")
-    if _is_root():
+    out("── stage 2: container privilege gate (the refusal a user sees) ──")
+    as_user = _is_root()
+    if as_user and lib.privdrop_prefix() is None:
         record(
             "privilege gate: non-root refusal",
             "SKIP",
-            "harness runs as root — the gate cannot trigger (stages 3,4 carry the depth)",
+            "harness runs as root and setpriv is absent — the real-user "
+            "drop lane cannot run (stages 3,4 carry the depth)",
         )
         return True
     all_ok = True
+    lane_note = ", real-user drop (uid 65534)" if as_user else ""
     # Every well-formed shape + a representative malformed shape: the
     # gate refuses all of them identically (root is checked before the
     # target parses, so the URI's validity does not change the answer).
     cases = [(uri, "well-formed") for uri, _, _ in WELL_FORMED_URIS]
     cases.append(("docker://", "malformed (empty name)"))
     for uri, shape in cases:
-        rc, output = _run_cli_case([STRICT_SINGLE, uri, VALID_RATE])
+        rc, output = _run_cli_case([STRICT_SINGLE, uri, VALID_RATE], as_user=as_user)
         if rc is None:
             record(
                 f"privilege gate: {uri} answers (no hang)",
@@ -474,7 +501,7 @@ def test_container_privilege_gate():
         record(
             f"privilege gate: {uri} refuses clean",
             "PASS",
-            f"{shape}: rc={rc}, root-required, no panic",
+            f"{shape}: rc={rc}, root-required, no panic{lane_note}",
         )
     return all_ok
 
@@ -1094,6 +1121,14 @@ def run_container_depth(phases, force_docker_e2e=False, force_k8s_e2e=False):
     out("================================================================")
     out(f"  binary: {lib.BINARY or '(not bound — pass --binary)'}")
     out(f"  root:   {'yes' if _is_root() else 'no'}")
+    if _is_root():
+        out(
+            "          stage 2's refusal rows run through the real-user drop "
+            "(uid 65534, NIGHT-improve-49)"
+            if lib.privdrop_prefix() is not None
+            else "          setpriv absent — stage 2's refusal rows skip (the "
+            "rootless CI leg carries them)"
+        )
     out(f"  docker: {'yes' if _has_docker() else 'no'}")
     out(f"  k8s:    {'yes' if _has_k8s() else 'no'}")
     out(f"  stages: {', '.join(name for name, _ in stages)}")

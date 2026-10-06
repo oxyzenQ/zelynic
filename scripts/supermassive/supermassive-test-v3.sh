@@ -31,7 +31,10 @@
 # machine green on v2 survives the day nothing goes right; a machine
 # green on v3 names a workload by its container and enforces on the
 # cgroup the name resolves to, clean on every error path the runtime
-# absence and a hostile operator can produce.
+# absence and a hostile operator can produce. The root run's
+# privilege-gate stage now re-executes its refusal rows through the
+# real-user drop lane (NIGHT-improve-49: setpriv to uid 65534) —
+# the refusal a dropped user gets is the refusal the stage pins.
 #
 # Full design notes live in the .py header.
 

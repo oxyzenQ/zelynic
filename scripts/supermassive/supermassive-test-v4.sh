@@ -30,13 +30,16 @@
 # typo tips, rate validation, color modes) parses BEFORE the root
 # check, so v4 runs on every host without sudo — the most CI-friendly
 # supermassive test. The enforcement depth (root + eBPF) is v1/v2's
-# domain; v4 is the surface contract. One honest exception: stage 9's
-# three valid-rate shadow rows assert the root-refusal message, a
+# domain; v4 is the surface contract. One exception-shaped lane: stage
+# 9's three valid-rate shadow rows assert the root-refusal message, a
 # needle only a non-root run produces — when the harness itself runs
-# as root (the supermassive VM's init context), they SKIP without
-# executing (v3's doctrine; and a valid rate past a passing gate is
-# an enforcement attempt no v4 case makes). The rootless CI leg
-# still carries all 155 rows on every push that touches the
+# as root (the supermassive VM's init context), they now re-execute
+# through the real-user drop lane (NIGHT-improve-49: setpriv to uid
+# 65534) instead of skipping: the gate refuses the dropped user
+# exactly as it refuses a real one, and a dropped uid cannot pass
+# the root gate, so no v4 case ever makes an enforcement attempt
+# (only a host without setpriv keeps the honest SKIP). The rootless
+# CI leg still carries all 155 rows on every push that touches the
 # Rust/scripts surface (ci.yml is paths-filtered — NIGHT-hunt-32
 # corrected the unqualified "every push").
 #

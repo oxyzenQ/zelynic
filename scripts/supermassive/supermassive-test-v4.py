@@ -39,15 +39,19 @@ Rootless by design: the CLI surface (help, version, alias routing,
 typo tips, rate validation, color modes, removed-command rejection)
 parses BEFORE the root check, so v4 runs on every host without sudo —
 the most CI-friendly supermassive test. The enforcement depth (root +
-eBPF) is v1/v2's domain; v4 is the surface contract. The one honest
-exception, stage 9's shadowed-positional table: its three valid-rate
-rows assert the root-refusal message itself, a needle only a NON-root
-run can produce. When the harness runs as root (the supermassive VM's
-init context — the CI leg that also carries the BPF batteries), those
-rows SKIP without executing on v3's privilege-gate doctrine ("the gate
-cannot be triggered as root") and for the safety it shares with every
-other v4 case: a valid rate past a passing gate is an enforcement
-attempt, and no v4 case executes a policy. The rootless CI leg
+eBPF) is v1/v2's domain; v4 is the surface contract. The one
+exception-shaped lane, stage 9's shadowed-positional table: its three
+valid-rate rows assert the root-refusal message itself, a needle only
+a NON-root run can produce. When the harness runs as root (the
+supermassive VM's init context — the CI leg that also carries the
+BPF batteries), those rows now re-execute through the real-user drop
+lane (NIGHT-improve-49: setpriv to uid 65534, the shared lib's own
+probe) instead of skipping — the gate refuses the dropped user
+exactly as it refuses a real one, the needle asserts for real, and
+the safety doctrine holds by construction: a dropped uid cannot
+pass the root gate, so no v4 case ever executes a policy (the same
+reason the rows are safe on the rootless CI leg). Only a host
+without setpriv keeps the old honest SKIP. The rootless CI leg
 (.github/workflows/ci.yml) still runs all 155 rows end to end on
 every push that touches the Rust/scripts surface (ci.yml is
 paths-filtered — NIGHT-hunt-32 corrected the unqualified "every
@@ -806,20 +810,32 @@ TIER_FLAGS = [
 # ── the binary runner ──────────────────────────────────────────────────────
 
 
-def _run_cli_case(argv):
+def _run_cli_case(argv, as_user=False):
     """Run one CLI surface case against the real binary.
 
     stdin is /dev/null and the env carries NO_COLOR=1, so output is
     plain-text deterministic regardless of the harness's own terminal.
     Returns (returncode, combined-output); returncode None means the
     case never answered inside the timeout — a hang, the loudest
-    failure a CLI can produce.
+    failure a CLI can produce. as_user (NIGHT-improve-49) runs the
+    same case through the shared lib's real-user drop (setpriv to
+    uid 65534) — the lane the rootless-lane rows take when the
+    harness itself runs as root, so the refusal they assert is one
+    a genuinely unprivileged user produced; the dropped process
+    cannot pass the root gate, so no as_user case ever executes a
+    policy.
     """
     env = dict(os.environ)
     env["NO_COLOR"] = "1"
+    cmd = [lib.BINARY] + argv
+    if as_user:
+        prefix = lib.privdrop_prefix()
+        if prefix is None:
+            return 126, "setpriv unavailable — the real-user drop lane cannot run"
+        cmd = prefix + cmd
     try:
         p = subprocess.run(
-            [lib.BINARY] + argv,
+            cmd,
             capture_output=True,
             text=True,
             timeout=CLI_CASE_TIMEOUT,
@@ -857,23 +873,31 @@ def _run_needle_cases(cases, prefix):
     Rust panic, contain every must_contain needle, and leak none of
     the must_not_contain needles. The rootless-lane rows assert the
     root-refusal message itself — a needle only a NON-root host
-    produces — so when the harness runs as root they SKIP without
-    executing (the Z9 doctrine: a valid policy shape past a passing
-    gate is an enforcement attempt this battery refuses to make; the
-    rootless CI leg carries them on every push).
+    produces — so when the harness runs as root they re-execute
+    through the real-user drop lane (NIGHT-improve-49: setpriv to
+    uid 65534, the shared lib's own probe) instead of skipping: the
+    gate refuses the dropped user exactly as it refuses a real one,
+    the needle asserts, and the verdict is a genuine PASS/FAIL. Only
+    a host without setpriv falls back to the old honest SKIP (the
+    row names the missing lane; the rootless CI leg carries the row
+    on every push). The safety doctrine is unchanged: a dropped uid
+    cannot pass the root gate, so no case in this battery ever
+    executes a policy.
     """
     all_ok = True
     for argv, must_contain, must_not_contain, desc, rootless_lane in cases:
         label = f"{prefix}: {desc}"
-        if rootless_lane and _is_root():
+        as_user = rootless_lane and _is_root()
+        if as_user and lib.privdrop_prefix() is None:
             record(
                 label,
                 "SKIP",
-                "harness runs as root — the root-refusal lane cannot trigger "
-                "(the rootless CI leg carries this row)",
+                "harness runs as root and setpriv is absent — the real-user "
+                "drop lane cannot run (the rootless CI leg carries this row)",
             )
             continue
-        rc, output = _run_cli_case(argv)
+        rc, output = _run_cli_case(argv, as_user=as_user)
+        lane_note = ", real-user drop (uid 65534)" if as_user else ""
         if rc is None:
             record(label, "FAIL", "timed out (hang)")
             all_ok = False
@@ -895,7 +919,7 @@ def _run_needle_cases(cases, prefix):
             record(label, "FAIL", f"missing={missing} unexpected={leaked}")
             all_ok = False
             continue
-        record(label, "PASS", f"rc={rc}, contract intact")
+        record(label, "PASS", f"rc={rc}, contract intact{lane_note}")
     return all_ok
 
 
@@ -1399,24 +1423,31 @@ def test_echo_boundary():
     # ── contract 2: the shadowed positional ──
     for argv, must_contain, must_not_contain, desc, rootless_lane in SHADOWED_POSITIONAL_CASES:
         label = f"shadow: {desc}"
-        if rootless_lane and _is_root():
-            # v3's privilege-gate doctrine, one stage over: the
-            # root-refusal needle these rows assert cannot fire when
-            # the harness itself is root (the supermassive VM's init
-            # context). The row skips without executing — the safety
-            # half is the point: a valid rate past a passing gate is
-            # an enforcement attempt, and no v4 case executes a
-            # policy. The rootless CI leg carries these rows on every
-            # push; rates_shadow_tests.rs pins the note at the Rust
-            # level.
-            record(
-                label,
-                "SKIP",
-                "harness runs as root — the root-refusal lane cannot trigger "
-                "(the rootless CI leg carries this row)",
-            )
-            continue
-        rc, output = _run_cli_case(argv)
+        as_user = rootless_lane and _is_root()
+        if as_user:
+            # v3's privilege-gate doctrine, evolved (NIGHT-improve-49):
+            # the root-refusal needle these rows assert cannot fire
+            # when the harness itself is root (the supermassive VM's
+            # init context) — but instead of skipping, the row now
+            # re-executes through the real-user drop lane: the gate
+            # refuses the dropped uid exactly as it refuses a real
+            # user, the needle asserts for real, and the safety half
+            # holds by construction (a dropped uid cannot pass the
+            # root gate, so no case ever executes a policy — the
+            # same reason these rows are safe on the rootless CI
+            # leg; rates_shadow_tests.rs pins the note at the Rust
+            # level). A host without setpriv keeps the honest SKIP.
+            if lib.privdrop_prefix() is None:
+                record(
+                    label,
+                    "SKIP",
+                    "harness runs as root and setpriv is absent — the "
+                    "real-user drop lane cannot run (the rootless CI leg "
+                    "carries this row)",
+                )
+                continue
+        rc, output = _run_cli_case(argv, as_user=as_user)
+        lane_note = ", real-user drop (uid 65534)" if as_user else ""
         if rc is None:
             record(label, "FAIL", "timed out (hang)")
             all_ok = False
@@ -1431,7 +1462,7 @@ def test_echo_boundary():
             record(label, "FAIL", f"missing={missing} unexpected={leaked}")
             all_ok = False
             continue
-        record(label, "PASS", f"rc={rc}, contract intact")
+        record(label, "PASS", f"rc={rc}, contract intact{lane_note}")
 
     # ── contract 3: the hidden vocabulary ──
     for argv, must_not_contain, must_contain, desc in HIDDEN_LEAK_CASES:
@@ -1539,6 +1570,39 @@ def self_test():
     _guarantee_lanes = sum(1 for c in GUARANTEE_CASES if c[-1])
     _tier_lanes = sum(1 for c in TIER_FLAGS if c[-1])
     _verb_lanes = sum(1 for c in PRIVILEGED_VERBS if c[-1])
+    # The real-user drop lane's engine pin (NIGHT-improve-49): the
+    # probe is environment-honest — setpriv present means the prefix
+    # must be exactly the five-token drop shape; absent means the
+    # probe must answer None (the honest-SKIP fallback). Either side
+    # passes: the ENGINE is what the self-test pins, not the host.
+    _drop = lib.privdrop_prefix()
+    if _drop is None:
+        ok = (
+            record(
+                "engine: real-user drop lane (privdrop)",
+                "PASS",
+                "setpriv absent — the drop lane degrades to the honest "
+                "SKIP (the rootless CI leg carries the rows)",
+            )
+            and ok
+        )
+    else:
+        _drop_ok = (
+            len(_drop) == 5
+            and os.path.isfile(_drop[0])
+            and _drop[1] == f"--reuid={lib.PRIVDROP_UID}"
+            and _drop[2] == f"--regid={lib.PRIVDROP_GID}"
+            and _drop[3] == "--clear-groups"
+            and _drop[4] == "--"
+        )
+        ok = (
+            record(
+                "engine: real-user drop lane (privdrop)",
+                "PASS" if _drop_ok else "FAIL",
+                f"{_drop[0]} --reuid={lib.PRIVDROP_UID} --regid={lib.PRIVDROP_GID} --clear-groups",
+            )
+            and ok
+        )
     ok = (
         record(
             "engine: v4 case tables populated",
@@ -1614,10 +1678,19 @@ def run_cli_depth(phases):
     out("  root:   not required (CLI surface parses before the root check)")
     _rootless_lanes = sum(1 for c in SHADOWED_POSITIONAL_CASES if c[-1])
     if _is_root():
-        out(
-            f"          harness runs as root — the {_rootless_lanes} rootless-lane "
-            "shadow rows will skip (v3's doctrine: the gate cannot fire as root)"
-        )
+        if lib.privdrop_prefix() is not None:
+            out(
+                "          harness runs as root — the rootless-lane rows "
+                "re-execute through the real-user drop (uid 65534, "
+                "NIGHT-improve-49): the gate refuses the dropped user "
+                "exactly as it refuses a real one"
+            )
+        else:
+            out(
+                f"          harness runs as root and setpriv is absent — the "
+                f"{_rootless_lanes} rootless-lane shadow rows will skip "
+                "(the rootless CI leg carries them)"
+            )
     out(f"  stages: {', '.join(name for name, _ in stages)}")
     out("================================================================")
     out()

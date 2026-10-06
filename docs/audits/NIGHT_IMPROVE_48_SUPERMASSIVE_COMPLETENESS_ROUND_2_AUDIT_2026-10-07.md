@@ -115,14 +115,17 @@ legs of the fix commit's own run. What the owner's suspicion
 caught instead, and what this round adds to the record, is the
 completeness ledger above: 23 of 47 skips per leg are a closable
 class, all one root cause, and the closures are mapped. The
-supermassive battery after both closures will read 156/0/0 on the
-v4 leg, 26/0/0 on the v3 leg's closable half, and 29/0/0 on the
-claims proof — with every remaining skip environmental, physical,
-or runtime-boundary, each naming its carrier lane in its own
-detail line. That is the honest definition of complete the
-estate can hold: nothing skips that could run, and everything
-that skips says why, where it runs instead, and does not lie
-about either.
+supermassive battery after both closures reads the honest
+arithmetic: the v4 leg 155 passed, 0 skipped (the 136 that always
+ran plus the 19 dropped rows), the v3 leg 30 passed, 0 failed, 2
+skipped (the gate stage's five refusal rows replace the single
+stage-level SKIP; only the two runtime-absent E2E rows stay, the
+container workflow carrying them), the claims proof 29 passed, 0
+skipped — with every remaining skip environmental, physical, or
+runtime-boundary, each naming its carrier lane in its own detail
+line. That is the honest definition of complete the estate can
+hold: nothing skips that could run, and everything that skips
+says why, where it runs instead, and does not lie about either.
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.
