@@ -66,9 +66,29 @@
 //! and the same watched scope the render filter applies that frame
 //! (a filtered frame's peaks are the watched set's own, matching the
 //! filtered grand the same footer paragraph renders).
+//!
+//! NIGHT-mitigate-1 (the data-explosion endurance audit's finding
+//! B): the leaderboard's dead rows now RETIRE. The old freeze —
+//! the first 4096 distinct cgroups own the board forever — was the
+//! one 10-year ceiling the monitor carried: a churning host
+//! (per-job systemd scopes, containers) produces 100k+ distinct
+//! cgroup lifetimes per year, and past the cap every fresh cgroup
+//! was silently refused a row. The retirement mirrors the frame's
+//! own display filter exactly (a row retires only when
+//! `board_rows` would hide it that frame anyway — no identity
+//! entry and no window traffic), behind a 3-frame grace and a
+//! signal guard (an empty identity map is a failed walk, not
+//! proof of universal death). Display-neutral, grand-neutral, and
+//! memory-neutral by construction; the only thing it changes is
+//! that a fresh cgroup finds a slot again. See
+//! docs/audits/NIGHT_MITIGATE_1_DATA_EXPLOSION_ENDURANCE_AUDIT_2026-10-07.md
+//! section 7 for the full arithmetic and the residual that stays
+//! (the kernel LRU's own best-effort under 4096+ live-with-traffic
+//! cgroups, USAGE limitation 11).
 
 use std::collections::HashMap;
 
+use crate::ebpf::identity::IdentityMap;
 use crate::ebpf::loader::CounterSummary;
 
 /// Per-cgroup traffic accumulated since the monitor started.
@@ -114,19 +134,35 @@ impl SessionAcc {
 /// to the LRU lane, and the ceiling this bound mirrored is gone:
 /// the kernel now counts any LIVE cgroup (evicting idle entries),
 /// so a long churning session can name more than 4096 distinct
-/// cgroups while the board — a pure memory bound now, still
-/// defense-in-depth against unbounded HashMap growth on a
-/// months-long monitor — refuses a row to every fresh cgroup past
-/// the cap. The mismatch is documented (USAGE limitation 11) and
-/// the posture question (mirror the LRU and retire the
-/// least-recently-active row, or keep the freeze) is an owner
-/// decision; until it is made, the bound keeps the old freeze.
+/// cgroups. The posture question the freeze left open ("mirror
+/// the LRU and retire the least-recently-active row, or keep the
+/// freeze") was decided by NIGHT-mitigate-1, more conservatively
+/// than the note's own candidate: DEAD rows retire
+/// ([`SessionState::retire_dead`] — the board filter's own rule,
+/// a grace window, and a signal guard), live rows NEVER do, and
+/// the bound now mirrors the kernel LRU lane's semantics instead
+/// of freezing on the first 4096 ever seen. The residual is
+/// limitation 11's own: more than 4096 concurrently-live-with-
+/// traffic cgroups still overflow the kernel maps.
 pub(crate) const MAX_TRACKED_CGROUPS: usize = 4096;
+
+/// The retirement grace (NIGHT-mitigate-1): consecutive dead
+/// frames a row must survive before its slot frees. Three frames
+/// rides the identity walk's own refresh order at the 1s cadence —
+/// a refresh hiccup that briefly loses a live row's identity
+/// entry lands a frame or two of false deaths, and the grace (with
+/// the signal guard below) keeps a live row's session history
+/// from flapping away. A row is only "dead" by the board filter's
+/// own rule (no identity entry AND no window traffic), so a truly
+/// dead cgroup's streak is just the confirmation window.
+const RETIRE_GRACE_FRAMES: u32 = 3;
 
 /// The leaderboard: per-cgroup accumulated traffic. Pure data — the
 /// rank-1 takeover bookkeeping that drove the champion's blink window
-/// was removed by NIGHT-boost-14 (static colors, no animation), and
-/// the session peaks (NIGHT-engrave-6) are plain running maxima.
+/// was removed by NIGHT-boost-14 (static colors, no animation), the
+/// session peaks (NIGHT-engrave-6) are plain running maxima, and the
+/// retirement streaks (NIGHT-mitigate-1) are per-row dead-frame
+/// counters bounded by the accumulator's own cap.
 #[derive(Debug, Default)]
 pub(crate) struct SessionState {
     acc: HashMap<u32, SessionAcc>,
@@ -138,6 +174,12 @@ pub(crate) struct SessionState {
     peak_dl: u64,
     /// The session's peak per-frame upload delta — the mirror leg.
     peak_ul: u64,
+    /// Consecutive dead frames per tracked row (NIGHT-mitigate-1):
+    /// an entry exists only while its row is a retirement candidate,
+    /// so the map is bounded by the accumulator's own cap and
+    /// empties on a fully-live board (a live frame clears the row's
+    /// streak — the flap guard the grace window rides on).
+    retire_streaks: HashMap<u32, u32>,
 }
 
 impl SessionState {
@@ -163,10 +205,11 @@ impl SessionState {
     /// ceiling is past the quettabyte — NIGHT-lts-5; the packet leg's
     /// u64 ceiling is ~389,000 years of line rate), and the entry
     /// count is bounded by [`MAX_TRACKED_CGROUPS`] (NIGHT-boost-16;
-    /// a userspace bound standing on its own since the E1 rider's
-    /// LRU lane — a fresh cgroup past the cap carries no row even
-    /// though the kernel counts it, the documented dense-session
-    /// bound).
+    /// a userspace bound — a fresh cgroup past the cap carries no
+    /// row while the board is full of LIVE rows, since
+    /// [`retire_dead`](SessionState::retire_dead) keeps the dead
+    /// from holding slots — the dense-session bound limitation 11
+    /// documents).
     pub(crate) fn absorb(&mut self, summary: &CounterSummary) {
         for c in &summary.cgroups {
             if !self.admits(c.cgroup_id) {
@@ -186,6 +229,80 @@ impl SessionState {
                 .pkt
                 .saturating_add(c.packets)
                 .saturating_add(c.ingress_packets);
+        }
+    }
+
+    /// Retire the board's dead rows so fresh cgroups can board
+    /// (NIGHT-mitigate-1, the mitigate-1 audit's finding B — the
+    /// freeze lifter). A row is dead ONLY by the frame's own
+    /// display rule — `board_rows` would hide it this frame (no
+    /// identity entry AND no window traffic; the liveness test is
+    /// that filter's exact predicate, the identity lookup first so
+    /// the happy path builds no active set) — and only a
+    /// [`RETIRE_GRACE_FRAMES`]-frame streak of such frames retires
+    /// it, so a transient identity miss flaps nothing. A live
+    /// frame (identity, or traffic) clears the streak; a retired
+    /// row's slot frees for the next fresh cgroup `admits` names.
+    ///
+    /// The gate: the pass engages only when the board sits AT its
+    /// cap — the one state where a freed slot changes anything.
+    /// Below the cap the display filter already hides the dead,
+    /// the bound has room for every fresh cgroup, and the memory
+    /// the dead hold is bounded by the cap itself, so the walk
+    /// would be pure cost (the frame bench measured the ungated
+    /// pass at 7.6% of the render path's throughput on its 24-row
+    /// board — the gate restores the pre-change fps exactly, and
+    /// at the cap the walk's ~4096-row linear pass rides a 1s-plus
+    /// poll cadence where it is noise). The gate closing clears
+    /// the streaks — an era's counting never carries into the next
+    /// one, the same fresh start a live frame gives a row.
+    ///
+    /// The signal guard: an EMPTY identity map is a failed walk
+    /// (procfs unreadable, the refresh family's clear-then-rebuild
+    /// mid-failure), never proof that every row died — retirement
+    /// stands down entirely, the same direction the footer's
+    /// identities-unresolved note takes. The board's display story
+    /// is untouched by construction (a retired row was invisible
+    /// that frame already), the footer grand is untouched (it sums
+    /// the post-filter board), and the memory bound is untouched
+    /// (the streak map rides under the accumulator's own cap).
+    pub(crate) fn retire_dead(&mut self, identity: &IdentityMap, summary: &CounterSummary) {
+        // The gate: below the cap retirement changes nothing the
+        // display or the bound can see — the walk would be pure
+        // per-frame cost, so it waits for the state that needs it.
+        if self.acc.len() < MAX_TRACKED_CGROUPS {
+            self.retire_streaks.clear();
+            return;
+        }
+        if identity.is_empty() {
+            return;
+        }
+        // The lazy active set (the board filter's own discipline:
+        // the vast majority of rows are live and identity resolves
+        // them — the set builds only on the first miss).
+        let mut active = None;
+        let mut retired: Vec<u32> = Vec::new();
+        for &id in self.acc.keys() {
+            if identity.get(id).is_some() {
+                self.retire_streaks.remove(&id);
+                continue;
+            }
+            if active
+                .get_or_insert_with(|| super::focus::window_active(summary))
+                .contains(&id)
+            {
+                self.retire_streaks.remove(&id);
+                continue;
+            }
+            let streak = self.retire_streaks.entry(id).or_insert(0);
+            *streak += 1;
+            if *streak >= RETIRE_GRACE_FRAMES {
+                retired.push(id);
+            }
+        }
+        for id in retired {
+            self.acc.remove(&id);
+            self.retire_streaks.remove(&id);
         }
     }
 
@@ -263,3 +380,10 @@ impl SessionState {
 #[cfg(test)]
 #[path = "../../../test/ebpf/render/session_tests.rs"]
 mod session_tests;
+
+// NIGHT-mitigate-1: the retirement pins took their own file when
+// they pushed session_tests.rs past the owner's LOC cap — one file
+// per contract, the footer tree's own split discipline.
+#[cfg(test)]
+#[path = "../../../test/ebpf/render/session_retire_tests.rs"]
+mod session_retire_tests;
