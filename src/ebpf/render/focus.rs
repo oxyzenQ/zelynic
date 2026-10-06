@@ -152,15 +152,23 @@ pub fn render_eagle_focus(
             "  process   {}",
             label_with_count(identity, conns, cgroup_id)
         ));
+        // The parens figures ride the count ladder (NIGHT-improve-51,
+        // the mitigate-1 audit's finding A): the per-poll packet
+        // deltas are display figures, and a raw u64 explodes the row
+        // the way the census line did before engrave-7 — the byte
+        // sibling renders in 6 columns, the raw packet count at a
+        // 60s/148.8Mpps interval is 9 digits. The ladder keeps every
+        // small figure EXACT ("(5)", the fresh-frame shape) and
+        // compacts only where the raw figure stops being readable.
         lines.push(format!(
             "  download  {} ({})",
             format_bytes(c.ingress_bytes),
-            c.ingress_packets
+            format_count(c.ingress_packets)
         ));
         lines.push(format!(
             "  upload    {} ({})",
             format_bytes(c.bytes),
-            c.packets
+            format_count(c.packets)
         ));
         lines.push(format!(
             "  rate      {}",
@@ -305,6 +313,121 @@ mod tests {
             joined.starts_with(" ╭─── zelynic eagle-eyes — cg:7001 (brave)"),
             "the rounded top border names the focused target, inset \
              column first (NIGHT-engrave-8): {joined}"
+        );
+    }
+
+    /// NIGHT-improve-51 (the mitigate-1 audit's finding A): the
+    /// per-direction packet figures ride the count ladder — the
+    /// engrave-7 census hardening's one missed surface. The raw
+    /// eight-hour figure (2,244,843) renders "2.2M" beside its
+    /// six-column byte sibling, and small figures stay EXACT (the
+    /// fresh-frame "(50)" / "(5)" shape the row always printed).
+    #[test]
+    fn focus_packet_figures_ride_the_count_ladder() {
+        let mut identity = IdentityMap::new();
+        identity.insert(ProcessIdentity {
+            cgroup_id: 7001,
+            uid: 1000,
+            comm: "brave".to_string(),
+        });
+        let summary = CounterSummary {
+            total_packets: 2_244_843,
+            total_bytes: 10_000_000,
+            total_ingress_packets: 2_244_843,
+            total_ingress_bytes: 5_000_000,
+            cgroups: vec![CgroupDelta {
+                cgroup_id: 7001,
+                packets: 2_244_843,
+                bytes: 10_000_000,
+                total_bytes: 90_000_000,
+                ingress_packets: 2_244_843,
+                ingress_bytes: 5_000_000,
+                ingress_total_bytes: 900_000_000,
+            }],
+        };
+        let mut lines = Vec::new();
+        render_eagle_focus(
+            &mut lines,
+            &summary,
+            &identity,
+            None,
+            &BaselineLane::new(),
+            7001,
+            Duration::from_secs(1),
+            Duration::from_secs(1),
+            Duration::from_secs(70),
+            FrameGeometry {
+                width: 80,
+                height: 24,
+            },
+        );
+        let joined = lines.join("\n");
+        assert!(
+            joined.contains("download  5.0 MB (2.2M)"),
+            "the exploded packet delta compacts beside its byte \
+             sibling: {joined}"
+        );
+        assert!(
+            joined.contains("upload    10.0 MB (2.2M)"),
+            "both directions ride the ladder: {joined}"
+        );
+        assert!(
+            !joined.contains("(2244843)"),
+            "the raw figure must not appear anywhere: {joined}"
+        );
+    }
+
+    /// The fresh-frame shape is unchanged: small packet deltas stay
+    /// exact and unpunctuated — the ladder compacts only where the
+    /// raw figure stops being readable at a glance (the engrave-7
+    /// contract, carried to this surface).
+    #[test]
+    fn focus_small_packet_figures_stay_exact() {
+        let mut identity = IdentityMap::new();
+        identity.insert(ProcessIdentity {
+            cgroup_id: 7002,
+            uid: 1000,
+            comm: "curl".to_string(),
+        });
+        let summary = CounterSummary {
+            total_packets: 7,
+            total_bytes: 900,
+            total_ingress_packets: 50,
+            total_ingress_bytes: 500,
+            cgroups: vec![CgroupDelta {
+                cgroup_id: 7002,
+                packets: 7,
+                bytes: 900,
+                total_bytes: 900,
+                ingress_packets: 50,
+                ingress_bytes: 500,
+                ingress_total_bytes: 500,
+            }],
+        };
+        let mut lines = Vec::new();
+        render_eagle_focus(
+            &mut lines,
+            &summary,
+            &identity,
+            None,
+            &BaselineLane::new(),
+            7002,
+            Duration::from_secs(1),
+            Duration::from_secs(1),
+            Duration::from_secs(70),
+            FrameGeometry {
+                width: 80,
+                height: 24,
+            },
+        );
+        let joined = lines.join("\n");
+        assert!(
+            joined.contains("download  500 B (50)"),
+            "small deltas stay exact: {joined}"
+        );
+        assert!(
+            joined.contains("upload    900 B (7)"),
+            "the upload mirror stays exact: {joined}"
         );
     }
 
