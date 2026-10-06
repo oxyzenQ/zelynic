@@ -17,7 +17,14 @@ row ships without one. The mechanisms come in three strengths:
   ~1 min; `--quick` for 30 s windows). Since NIGHT-lts-6 this
   harness also runs LIVE inside both supermassive CI legs on every
   push (the impish 5.13 floor kernel and the dynamically resolved
-  latest kernel).
+  latest kernel). Since NIGHT-improve-48 the VM rootfs ships the
+  battery's own diagnostic tools (nftables plus a staged
+  /usr/bin/bpftool — the real-user shape, both one apt away on any
+  desktop), so the pure-eBPF ruleset snapshot, the bpftool
+  visibility row, and the footprint's kernel run-time numbers run
+  on every leg instead of skipping tool-absent; a host without the
+  tools still answers honestly (the row names the missing tool,
+  never guesses).
 - **PIN** — a rootless test that fails the suite if the claim
   regresses: `cargo test --features ebpf` (the `test/` tree).
 - **CI** — a workflow surface that enforces the claim on every push

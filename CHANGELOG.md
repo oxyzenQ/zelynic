@@ -27,6 +27,36 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Added
 
+- **ci(bench): NIGHT-improve-48 closure — the claims battery's
+  three tool-absent VM skips closed at the rootfs: nftables rides
+  the plain apt line, one flavor's bpftool is staged at
+  /usr/bin.** The round-2 audit's closure landing: every VM leg
+  since the claims battery landed (NIGHT-lts-6) skipped exactly
+  three rows on a rootfs that shipped no nft and no bpftool — the
+  pure-eBPF ruleset snapshot, the bpftool prog/link visibility
+  row, and the footprint's kernel run-time numbers — while the
+  same battery on a real desktop answered them (both tools one
+  apt away). The rootfs assembly now installs nftables with the
+  python3/iproute2/curl set, and stages bpftool the honest way:
+  Ubuntu ships no standalone package (the binary lives inside the
+  per-kernel linux-tools debs, and the VM's kernel — the 5.13
+  floor or the dynamically resolved latest — never matches the
+  rootfs's tools ABI, so the dispatcher cannot resolve it in the
+  guest), so the assembly resolves linux-tools-generic's
+  per-kernel dependency, downloads that one deb, extracts ONLY
+  the ~0.7 MB binary to /usr/bin/bpftool, and throws the rest
+  away — the RAM-res initramfs gains the binary, not perf and its
+  lib closure. The binary talks to the kernel through the stable
+  bpf(2) ABI (prog/link/cgroup show predate the 5.13 floor), the
+  same PATH-probe shape the battery uses and the same
+  standalone-package shape a Debian user gets. A resolve failure
+  FAILS the leg on the runner (the legacy-fetch doctrine: an
+  in-VM row must never silently skip). The quick-mode verdict on
+  the VM legs should now read 29 passed, 0 skipped; a host
+  without the tools still answers honestly (the row names the
+  missing tool, never guesses — the SKIP path stays for real
+  tool-absent hosts).
+
 - **docs(audit): NIGHT-improve-48 round 2 — the completeness
   question re-audited from run 229's own logs, the full skip
   inventory classified, 23 of 47 skips per leg found closable

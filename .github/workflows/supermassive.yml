@@ -467,6 +467,16 @@ jobs:
       # probe rows: a four-leg matrix's verdict lines must say which
       # payload they proved, and the marker is written by the same
       # step that copies the binary, one /opt/zelynic apart.
+      # NIGHT-improve-48 adds the claims battery's diagnostic tools to
+      # the rootfs (the round-2 completeness audit's closure): nftables
+      # rides the plain apt line, bpftool is extracted from one
+      # per-kernel linux-tools deb and staged at /usr/bin — the three
+      # tool-absent SKIP rows the VM legs carried since the claims
+      # battery landed (the nft ruleset snapshot, both bpftool
+      # surfaces) run for real on every leg now, the real-user shape:
+      # a desktop machine has both one apt away, and the claims the
+      # rows prove (no netfilter path, the kernel run-time cost) are
+      # the claims a user buys the tool on.
       - name: Assemble the micro-VM rootfs
         run: |
           set -euo pipefail
@@ -483,7 +493,33 @@ jobs:
           docker rm -f floor-rootfs >/dev/null 2>&1 || true
           docker run --name floor-rootfs -d "$SUITE" sleep infinity
           docker exec floor-rootfs apt-get update -qq
-          docker exec floor-rootfs apt-get install -y --no-install-recommends python3 iproute2 curl
+          docker exec floor-rootfs apt-get install -y --no-install-recommends python3 iproute2 curl nftables
+          # bpftool (NIGHT-improve-48): Ubuntu ships no standalone
+          # package — the binary lives inside the per-kernel
+          # linux-tools debs (usr/lib/linux-tools-<abi>/bpftool), and
+          # the VM's kernel (the 5.13 floor or the dynamically
+          # resolved latest) never matches the rootfs's tools ABI, so
+          # the dispatcher cannot resolve it inside the guest. The
+          # binary itself talks to the kernel through the stable
+          # bpf(2) ABI — prog/link/cgroup show predate the 5.13 floor
+          # — so one flavor's binary is staged at /usr/bin/bpftool,
+          # the same PATH-probe shape the claims battery uses and the
+          # same standalone-package shape a Debian user gets. The
+          # download-and-extract lane keeps the RAM-resident rootfs
+          # lean: only the ~0.7 MB binary rides the cpio, not the
+          # whole tools package with perf and its lib closure.
+          docker exec floor-rootfs sh -ec '
+            pkg=$(apt-cache depends linux-tools-generic \
+              | sed -n "s/^ *Depends: \(linux-tools-[0-9][^ ]*\) *$/\1/p" \
+              | head -n1)
+            test -n "$pkg" || { echo "FAIL: no per-kernel linux-tools resolved"; exit 1; }
+            apt-get download "$pkg" >/dev/null
+            dpkg-deb -x "${pkg}"_*.deb /tmp/bpx
+            src=$(find /tmp/bpx/usr/lib -type f -name bpftool | head -n1)
+            test -n "$src" || { echo "FAIL: no bpftool inside $pkg"; exit 1; }
+            install -m 0755 "$src" /usr/bin/bpftool
+            rm -rf /tmp/bpx "${pkg}"_*.deb
+          '
           docker export floor-rootfs -o rootfs.tar
           mkdir -p rootfs
           tar -xf rootfs.tar -C rootfs
