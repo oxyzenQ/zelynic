@@ -154,6 +154,20 @@ pub(super) fn render_eagle_eyes_at(
     // an Err poll folds an empty summary) leaves the board intact.
     session.absorb(summary);
 
+    // NIGHT-mitigate-1: retire the board's dead rows (the mitigate-1
+    // audit's finding B — the freeze lifter). Rides the frame after
+    // the fold: a row retires only when the board filter below would
+    // hide it anyway (no identity entry and no window traffic), on a
+    // 3-frame streak, behind the identity signal guard — so the one
+    // thing it changes is that a fresh cgroup finds a slot again on
+    // a decade-long dense-churn monitor. The pass itself is gated at
+    // the cap (MAX_TRACKED_CGROUPS): below a full board it clears the
+    // streak era and returns, costing the render path nothing (the
+    // frame-bench A/B story). See
+    // docs/audits/NIGHT_MITIGATE_1_DATA_EXPLOSION_ENDURANCE_AUDIT_2026-10-07.md
+    // section 7.
+    session.retire_dead(identity, summary);
+
     let (ids, unresolved) = resolve_targets(tokens, identity);
 
     // The session peaks (NIGHT-engrave-6): one more fold pass over
