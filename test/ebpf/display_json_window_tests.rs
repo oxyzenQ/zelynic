@@ -13,6 +13,8 @@ fn policy(rate_bps: u64) -> PolicyRaw {
     PolicyRaw {
         rate_bps,
         burst_bytes: rate_bps,
+        floor_bps: 0,
+        ceil_bps: 0,
         group_id: 0,
         flags: 0,
     }

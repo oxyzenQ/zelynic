@@ -102,7 +102,17 @@ pub(crate) fn handle_strict_single(
 
         // Open pinned maps and write policy.
         limiter = Limiter::open_pinned(verbose)?;
-        let applied = limiter.apply_single(&target, &rates, per_socket, during_spec.as_ref())?;
+        let applied = limiter.apply_single(
+            &target,
+            &rates,
+            per_socket,
+            // improve-40 (schema v24): the bracket lands with the
+            // CLI lane — the plumbing pass threads zeroes so this
+            // commit stays behavior-neutral.
+            0,
+            0,
+            during_spec.as_ref(),
+        )?;
         if applied == 0 {
             // NIGHT-dinner-11: the no-match hard error — branded red
             // block + exit 1 (see commands::target_no_match_error), so
@@ -279,7 +289,15 @@ pub(crate) fn handle_strict_multi(
     // exact trap for scripted fleet automation, which now sees the
     // transaction fail whole or land whole. night-during (schema
     // v23): the window rides the same atomic contract.
-    let applied = limiter.apply_group_atomic(&targets, &rates, during_spec.as_ref())?;
+    let applied = limiter.apply_group_atomic(
+        &targets,
+        &rates,
+        // improve-40 (schema v24): the CLI lane's zeroes, the
+        // plumbing pass's behavior-neutral shape.
+        0,
+        0,
+        during_spec.as_ref(),
+    )?;
     if applied == 0 {
         // NIGHT-dinner-11: the no-match hard error (strict-single's
         // contract, the multi's plural wording).

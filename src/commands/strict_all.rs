@@ -137,7 +137,15 @@ pub(crate) fn handle_strict_all(
     crate::ebpf::limiter::Limiter::attach(verbose)?;
 
     let mut limiter = Limiter::open_pinned(verbose)?;
-    limiter.apply_group(&targets, &rates, during_spec.as_ref())?;
+    limiter.apply_group(
+        &targets,
+        &rates,
+        // improve-40 (schema v24): the CLI lane's zeroes, the
+        // plumbing pass's behavior-neutral shape.
+        0,
+        0,
+        during_spec.as_ref(),
+    )?;
 
     // NIGHT-improve-28: strict-all reverses with the sledgehammer, not
     // a per-target unstrict — the old suggestion built

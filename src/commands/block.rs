@@ -57,7 +57,17 @@ pub fn handle_block_single(
     // policy drops everything at the verdict layer, before any
     // bucket lane is consulted — a per-socket bit would be dead
     // weight on a total block (charger-core-3b's scope call).
-    let applied = limiter.apply_single(&target, &rates, false, during_spec.as_ref())?;
+    let applied = limiter.apply_single(
+        &target,
+        &rates,
+        false,
+        // improve-40 (schema v24): a rate-0 row never carries a
+        // bracket — the block family's permanent zero (the
+        // per-socket scope call's own reasoning, one lane over).
+        0,
+        0,
+        during_spec.as_ref(),
+    )?;
     if applied == 0 {
         // NIGHT-dinner-11: the no-match hard error (strict-single's
         // contract, the block family's wording). The hunt-10 colon
@@ -145,7 +155,15 @@ pub fn handle_block_multi(
         download: Some(0),
         upload: Some(0),
     };
-    let applied = limiter.apply_group(&targets, &rates, during_spec.as_ref())?;
+    let applied = limiter.apply_group(
+        &targets,
+        &rates,
+        // improve-40 (schema v24): the block family's permanent
+        // zero — a bracket on a rate-0 row is dead weight.
+        0,
+        0,
+        during_spec.as_ref(),
+    )?;
     if applied == 0 {
         // NIGHT-dinner-11: the no-match hard error (block-single's
         // contract, the multi's plural wording).
@@ -278,7 +296,15 @@ pub fn handle_block_all(force_this: bool, during: Option<&str>, verbose: bool) -
         download: Some(0),
         upload: Some(0),
     };
-    limiter.apply_group(&targets, &rates, during_spec.as_ref())?;
+    limiter.apply_group(
+        &targets,
+        &rates,
+        // improve-40 (schema v24): the block family's permanent
+        // zero — a bracket on a rate-0 row is dead weight.
+        0,
+        0,
+        during_spec.as_ref(),
+    )?;
 
     // NIGHT-dinner-16 (race-window parity): verdict verified before
     // it prints.

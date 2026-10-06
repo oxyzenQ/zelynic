@@ -20,6 +20,8 @@ fn policy(rate_bps: u64) -> Option<PolicyRaw> {
     Some(PolicyRaw {
         rate_bps,
         burst_bytes: rate_bps,
+        floor_bps: 0,
+        ceil_bps: 0,
         group_id: 0,
         flags: 0,
     })
@@ -378,6 +380,8 @@ fn per_socket_fields_join_the_depth_row() {
         download: Some(PolicyRaw {
             rate_bps: 500_000,
             burst_bytes: 500_000,
+            floor_bps: 0,
+            ceil_bps: 0,
             group_id: 0,
             flags: 1,
         }),

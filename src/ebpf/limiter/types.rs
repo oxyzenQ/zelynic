@@ -100,12 +100,26 @@ pub const MAX_ENFORCABLE_BURST: u64 = u64::MAX / (2 * 1_000_000_000);
 pub struct PolicyRaw {
     pub rate_bps: u64,
     pub burst_bytes: u64,
+    /// The guarantee bracket's floor (NIGHT-improve-40, schema
+    /// v24): the per-LEAF guaranteed minimum rate the DRR pool's
+    /// epoch allowance never earns below while the pool can cover
+    /// the split. 0 = unset — the v23 fair-split arithmetic,
+    /// exactly (the zero-sentinel fail-open posture). The BPF-side
+    /// twin lives in ebpf/src/math.rs (`Policy::floor_bps`).
+    pub floor_bps: u64,
+    /// The guarantee bracket's ceiling (NIGHT-improve-40, schema
+    /// v24): the per-LEAF maximum rate — the allowance and the
+    /// stockpile cap lower to the ceiling's own quantum, and the
+    /// cap binds even a lone drawer. 0 = unset. The BPF-side twin
+    /// lives in ebpf/src/math.rs (`Policy::ceil_bps`).
+    pub ceil_bps: u64,
     pub group_id: u32,
-    /// The policy flag bits (charger-core-3b, schema v15): occupies
-    /// the v2 layout's offset-20 padding — size stays 24 — with bit
-    /// 0 = per-socket enforcement. Every userspace write sets it
-    /// explicitly; the BPF-side twin and the bit constant live in
-    /// ebpf/src/math.rs (`POLICY_FLAG_PER_SOCKET`).
+    /// The policy flag bits (charger-core-3b, schema v15): the
+    /// v2 layout's offset-20 padding, now at offset 36 after the
+    /// v24 pair (size 40) — bit 0 = per-socket enforcement. Every
+    /// userspace write sets it explicitly; the BPF-side twin and
+    /// the bit constant live in ebpf/src/math.rs
+    /// (`POLICY_FLAG_PER_SOCKET`).
     pub flags: u32,
 }
 

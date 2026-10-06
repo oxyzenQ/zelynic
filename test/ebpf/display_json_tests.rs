@@ -15,6 +15,8 @@ fn policy(rate_bps: u64) -> PolicyRaw {
     PolicyRaw {
         rate_bps,
         burst_bytes: rate_bps,
+        floor_bps: 0,
+        ceil_bps: 0,
         group_id: 0,
         flags: 0,
     }
@@ -350,6 +352,8 @@ fn per_socket_fields_serialize_only_when_set() {
         PolicyRaw {
             rate_bps: 500_000,
             burst_bytes: 500_000,
+            floor_bps: 0,
+            ceil_bps: 0,
             group_id: 0,
             flags: 1, // POLICY_FLAG_PER_SOCKET
         },
@@ -359,6 +363,8 @@ fn per_socket_fields_serialize_only_when_set() {
         PolicyRaw {
             rate_bps: 200_000,
             burst_bytes: 200_000,
+            floor_bps: 0,
+            ceil_bps: 0,
             group_id: 0,
             flags: 0,
         },

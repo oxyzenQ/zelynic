@@ -405,7 +405,39 @@
 ///     reload into the time-windowed object — active limits are
 ///     dropped once, re-apply after upgrade, the same one-time
 ///     contract as every bump before it.
-pub const SCHEMA_VERSION_EXPECTED: u32 = 23;
+///
+/// v24 (NIGHT-improve-40, the guarantee brackets): the DRR pool's
+///     fair split gains per-LEAF min/max brackets — floor_bps and
+///     ceil_bps ride the Policy row itself (24 -> 40 bytes, the
+///     first VALUE-SIZE change a bump ever carried: the two u64s
+///     slot between burst_bytes and the tail word pair, moving
+///     group_id/flags to 32/36; the reload the bump forces is
+///     therefore REQUIRED, not polite — a pinned v23 map holds
+///     24-byte rows this object would misread mid-struct). The
+///     zero sentinel is UNSET: floor 0 = the fair split stands,
+///     ceil 0 = the lone drawer keeps the whole budget, and a 0/0
+///     row is the exact v23 arithmetic (the fail-open posture —
+///     the bracket composes onto the v16/v17 laws, it never
+///     replaces them). A set floor raises the epoch allowance to
+///     the floor's share (a PRIORITY, not a reservation: no tokens
+///     held back, an absent leaf costs nothing, the unspent
+///     allowance stays in the pool — the pool's own accumulation
+///     IS the lender, the hierarchical borrowing with no carve-out
+///     and no daemon); a set ceiling lowers the allowance AND the
+///     stockpile cap to the ceiling's own quantum and binds even a
+///     lone drawer (a cap that folds when siblings appear is not a
+///     cap). Over-subscribed floors (sum of floors above the
+///     refill) degrade to the pool law — the pool never hands out
+///     what it does not have — the same documented honesty as the
+///     trickle tradeoff. The laws live in the pure core (drr.rs's
+///     v24 section) pinned rootlessly by drr_guarantee_tests.rs;
+///     the datapath reads the bracket off the row it already
+///     fetched (no new maps, no new lookups, no new verdict); the
+///     bump forces pinned v23 programs to reload into the
+///     bracketed object — active limits are dropped once, re-apply
+///     after upgrade, the same one-time contract as every bump
+///     before it.
+pub const SCHEMA_VERSION_EXPECTED: u32 = 24;
 
 #[cfg(test)]
 mod sync_pin {

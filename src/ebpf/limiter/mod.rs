@@ -8,11 +8,10 @@
 //! - `schema.rs`  — the schema-version anchor + history (grows per bump)
 //! - `format.rs`  — rate/duration parsing + formatting helpers
 //! - `parse.rs`   — the value parsers (the research-3 split)
-//! - `policy.rs`  — apply / resolve / write policy operations (the
-//!   unset-direction removal rides the apply, improve-29)
-//! - `atomic.rs`  — the transactional strict-multi (pre-flight +
-//!   the snapshot/restore mutation ledger, charger-core-2)
+//! - `policy.rs`  — the apply family (unset-leg removal, improve-29)
+//! - `atomic.rs`  — the transactional strict-multi (charger-core-2)
 //! - `policy_lines.rs` — the policy surface's pure line formatters
+//! - `policy_write.rs` — the per-cgroup leg writer (improve-40 split)
 //! - `reclaim.rs` — the remove path (unstrict) + state reclamation
 //! - `stats.rs`   — status printing + map readers + identity
 //! - `ammsp.rs`   — the AMMSP userspace half: the leaf-cache flush
@@ -30,6 +29,7 @@ mod lanes;
 mod parse;
 mod policy;
 mod policy_lines;
+mod policy_write;
 pub mod rate_ring;
 mod reclaim;
 mod resolve;

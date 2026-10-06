@@ -28,6 +28,8 @@ fn raw(rate_bps: u64, group_id: u32, flags: u32) -> PolicyRaw {
     PolicyRaw {
         rate_bps,
         burst_bytes: 0,
+        floor_bps: 0,
+        ceil_bps: 0,
         group_id,
         flags,
     }

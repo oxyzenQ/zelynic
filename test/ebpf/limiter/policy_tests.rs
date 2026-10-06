@@ -16,7 +16,7 @@ use aya::maps::MapError;
 // night-during's resolve split moved resolution_trace_line's user
 // out of policy.rs, so the glob re-export went with it — the pins
 // import the formatter from its home (policy_lines) directly.
-use super::super::policy_lines::resolution_trace_line;
+use super::super::policy_lines::{policy_write_line, resolution_trace_line};
 
 /// NIGHT-hunt-9 drift pins: the verbose trace wording is part of the
 /// diagnostic contract owners debug against — exact strings, pinned.

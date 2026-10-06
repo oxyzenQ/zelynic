@@ -220,7 +220,13 @@ fn test_schema_version_constant() {
     // after the policy hit on the policed path only. The full sync
     // contract (this constant vs the BPF-side anchor) lives in
     // schema.rs's sync_pin — the v13 lesson.
-    assert_eq!(SCHEMA_VERSION_EXPECTED, 23);
+    // v24 (NIGHT-improve-40, the guarantee brackets): the Policy
+    // row itself grows floor_bps/ceil_bps (24 -> 40 bytes, the
+    // first value-size change a bump ever carried — group_id/flags
+    // move to 32/36) — the DRR pool's per-LEAF min/max brackets,
+    // the zero sentinel unset on both sides (a 0/0 row is the
+    // exact v23 arithmetic, the fail-open posture).
+    assert_eq!(SCHEMA_VERSION_EXPECTED, 24);
 }
 
 // ── night-during, schema v23: the window row's layout pins ────────
@@ -368,23 +374,32 @@ fn test_enforce_math_total_for_corrupt_policy() {
 
 // ── charger-core-3b: the flags field's layout contract pins ────────
 
-/// The offset-20 padding is now the flags field: the struct stays
-/// exactly 24 bytes (the BPF size pin's value), the field sits at
-/// offset 20, and the per-socket bit is 1 — the three numbers the
-/// v15 layout contract rides, pinned so no future field can silently
-/// shift the layout the pinned maps carry.
+/// The offset-20 padding became the flags field at v15; the v24
+/// guarantee pair (NIGHT-improve-40) slots between burst_bytes and
+/// the tail word pair, moving group_id/flags to 32/36 and growing
+/// the struct 24 -> 40 — the numbers the v24 layout contract
+/// rides, pinned so no future field can silently shift the layout
+/// the pinned maps carry (the first VALUE-SIZE change a schema
+/// bump ever carried: a pinned v23 map holds 24-byte rows this
+/// object must never be asked to read).
 #[test]
 fn policy_raw_flags_layout_is_pinned() {
     use crate::ebpf::limiter::types::{PolicyRaw, POLICY_FLAG_PER_SOCKET};
 
-    assert_eq!(core::mem::size_of::<PolicyRaw>(), 24);
+    assert_eq!(core::mem::size_of::<PolicyRaw>(), 40);
+    assert_eq!(core::mem::offset_of!(PolicyRaw, floor_bps), 16);
+    assert_eq!(core::mem::offset_of!(PolicyRaw, ceil_bps), 24);
+    assert_eq!(core::mem::offset_of!(PolicyRaw, group_id), 32);
     assert_eq!(
         core::mem::offset_of!(PolicyRaw, flags),
-        20,
-        "flags must stay at the former padding offset 20"
+        36,
+        "flags rides the tail word pair, after the v24 guarantee slots"
     );
-    assert_eq!(core::mem::offset_of!(PolicyRaw, group_id), 16);
     assert_eq!(POLICY_FLAG_PER_SOCKET, 1);
-    // The default write is the legacy cgroup lane: flags 0.
+    // The default write is the legacy cgroup lane: flags 0, and the
+    // bracket's zero sentinel is UNSET on both sides (the v23
+    // arithmetic, exactly — the fail-open posture).
     assert_eq!(PolicyRaw::default().flags, 0);
+    assert_eq!(PolicyRaw::default().floor_bps, 0);
+    assert_eq!(PolicyRaw::default().ceil_bps, 0);
 }

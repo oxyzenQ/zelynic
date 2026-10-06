@@ -134,10 +134,15 @@ impl super::Limiter {
     /// policies written, exactly like `apply_group`. `during` is
     /// the row's window (night-during, schema v23) — every member
     /// root carries the same window row, the apply_group contract.
+    /// `floor_bps`/`ceil_bps` (NIGHT-improve-40, schema v24) are the
+    /// guarantee bracket every member row carries, the apply_group
+    /// contract one family over.
     pub fn apply_group_atomic(
         &mut self,
         targets: &[Target],
         rates: &RateSpec,
+        floor_bps: u64,
+        ceil_bps: u64,
         during: Option<&super::during_parse::DuringSpec>,
     ) -> Result<usize> {
         // Phase 1 — resolve EVERY segment before the first map
@@ -200,6 +205,8 @@ impl super::Limiter {
             match self.write_policies_for_cgroup(
                 *cgroup_id,
                 rates,
+                floor_bps,
+                ceil_bps,
                 group_id,
                 0,
                 &mut mutations,

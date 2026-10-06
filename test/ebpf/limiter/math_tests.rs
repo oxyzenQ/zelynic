@@ -30,10 +30,12 @@ pub(super) mod ebpf_math;
 
 use self::ebpf_math::{enforce, Bucket, LimiterStats, Policy, MAX_ENFORCABLE_BURST, NS_PER_SEC};
 
-fn pol(rate: u64, burst: u64) -> Policy {
+pub(super) fn pol(rate: u64, burst: u64) -> Policy {
     Policy {
         rate_bps: rate,
         burst_bytes: burst,
+        floor_bps: 0,
+        ceil_bps: 0,
         group_id: 0,
         flags: 0,
     }
