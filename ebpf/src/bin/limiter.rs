@@ -5,7 +5,7 @@
 // phase 2, stage 1: port of the former bpf/limiter.bpf.c; phase 3
 // deleted the C side — the port is now the production source).
 //
-// Cosmic Dragon Architecture Layer 0: Enforcement. Pure eBPF. No tc, no
+// The cosmic dragon architecture, Layer 0: Enforcement. Pure eBPF. No tc, no
 // nft, no cgroup-wrapper. The kernel enforces. Two programs:
 //   enforce_dl — attached to cgroup_skb/ingress (download)
 //   enforce_ul — attached to cgroup_skb/egress (upload)

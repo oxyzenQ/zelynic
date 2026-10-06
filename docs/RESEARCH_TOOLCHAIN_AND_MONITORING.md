@@ -194,7 +194,8 @@ What the observer stack measures today, from the BPF layer up:
 The last two rows are the class frontier zelynic already owns: no
 other tool in the set can say "the counter that names the consumer
 is the same counter that enforces the cap" (the observer IS the
-limiter's data source — Cosmic Dragon principle 5), and none of
+limiter's data source — the cosmic dragon architecture's
+principle 5), and none of
 them carries a session-accumulated view that survives quiet
 periods.
 
@@ -247,8 +248,8 @@ ahead of the reference set.
 - **Reverse-DNS / SNI enrichment of endpoints**: bandwhich makes
   this optional for a reason — resolution is slow, cached, and
   stale; IPs are honest. Rejected unless a future owner task asks.
-- **History / persistence / daemon mode**: violates Cosmic Dragon
-  principle 3 (one-shot, no daemons) and the fail-safe detach
+- **History / persistence / daemon mode**: violates the cosmic dragon
+  architecture's principle 3 (one-shot, no daemons) and the fail-safe detach
   contract. Rejected structurally.
 - **UID rollup**: the identity map already knows UIDs, so a
   `--by-uid` summary is a cheap userspace join — but it answers a

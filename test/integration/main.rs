@@ -1,7 +1,7 @@
 // Copyright (C) 2026 rezky_nightky
 // SPDX-License-Identifier: GPL-3.0-only
 
-//! Integration tests for zelynic (Cosmic Dragon Architecture — pure eBPF).
+//! Integration tests for zelynic (the cosmic dragon architecture — pure eBPF).
 //!
 //! One test binary, split by surface (NIGHT-docs-4) so every file
 //! stays under the 500-LOC cap that `scripts/gates/check-loc.sh` enforces
@@ -16,7 +16,7 @@
 //! - `surface_pins` — command-surface wiring pins (aliases, removals)
 //! - `privilege` — the unprivileged contract + validation ladder
 //! - `monitor_guard` — the eagle-eyes interactive-stdio refusal pins
-//! - `architecture_pins` — the Cosmic Dragon layer-discipline pins
+//! - `architecture_pins` — the cosmic dragon layer-discipline pins
 //!   (NIGHT-dinner-15: rootless source-contract pins over src/ —
 //!   the cli/terminal/pin/math/sanitizer/mutation single-path rules)
 //!

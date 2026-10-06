@@ -1,7 +1,7 @@
 // Copyright (C) 2026 rezky_nightky
 // SPDX-License-Identifier: GPL-3.0-only
 
-//! Cosmic Dragon Architecture discipline pins (NIGHT-dinner-15, the
+//! The cosmic dragon architecture discipline pins (NIGHT-dinner-15, the
 //! architecture half; extended by NIGHT-dinner-16).
 //!
 //! Rootless source-contract pins: each test reads the src/ tree as

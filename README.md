@@ -493,7 +493,7 @@ the feature table above; the full audit trail is
 
 ## Architecture
 
-**Cosmic Dragon Architecture** — pure eBPF, no intermediaries:
+**The cosmic dragon architecture** — pure eBPF, no intermediaries:
 
 ```
 ┌───────────────────────────────────────────────────┐
@@ -573,7 +573,7 @@ as "latest".
 
 | Branch | Purpose | Status |
 |--------|---------|--------|
-| `main` | Pure eBPF (Cosmic Dragon Architecture) | Maintenance mode |
+| `main` | Pure eBPF (the cosmic dragon architecture) | Maintenance mode |
 
 ## Contributing
 
@@ -598,7 +598,7 @@ policy, supported versions, and what counts as a vulnerability live in
 
 - [Complete Usage Guide](docs/USAGE.md) — every command, workflows, honest limitations, troubleshooting (the flagship reference)
 - [Security Policy](SECURITY.md) — reporting, scope, supported versions
-- [Cosmic Dragon Architecture](docs/COSMIC_DRAGON_ARCHITECTURE.md) — design + principles
+- [the cosmic dragon architecture](docs/COSMIC_DRAGON_ARCHITECTURE.md) — design + principles
 - [Kernel Compatibility](docs/KERNEL_COMPATIBILITY.md) — requirements + distro matrix
 - [Performance Metrics](docs/PERFORMANCE.md) — deep benchmark results + targets
 - [Cross-Distro Results](docs/CROSS_DISTRO_RESULTS.md) — the 6-distro validation record

@@ -1,7 +1,7 @@
 <!-- Copyright (C) 2026 rezky_nightky -->
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 
-# Cosmic Dragon Architecture
+# The cosmic dragon architecture
 
 > Pure eBPF. Single hooking layer. No combined tools. Linux-only.
 
@@ -22,7 +22,7 @@ rule applied to `wlp1s0` survives a WiFi reconnect and silently shapes the
 wrong interface. An `nft` chain survives a service restart and blocks traffic
 to a process that no longer exists.
 
-**Cosmic Dragon Architecture eliminates the coordination problem by using exactly one
+**The cosmic dragon architecture eliminates the coordination problem by using exactly one
 mechanism: eBPF.** The kernel already knows which cgroup sent each packet. BPF
 lets us observe, count, and (future) shape that traffic in-kernel — no
 userspace tool coordination, no format mismatches, no leaked state.
@@ -165,7 +165,7 @@ height.
 
 ## Roadmap
 
-Cosmic Dragon Architecture is the mainline: `main` carries the pure-eBPF v11
+The cosmic dragon architecture is the mainline: `main` carries the pure-eBPF v11
 line.
 
 ### Done
@@ -221,9 +221,9 @@ line.
 
 ## Branch Strategy
 
-- `main` — pure eBPF v11.x (Cosmic Dragon Architecture). Maintenance mode.
+- `main` — pure eBPF v11.x (the cosmic dragon architecture). Maintenance mode.
 - `intergalaxion` — **deleted** (was 44 commits of planning docs, 0 BPF
-  programs). Superseded by the Cosmic Dragon Architecture rewrite which ships
+  programs). Superseded by the cosmic dragon architecture rewrite which ships
   real code.
 
 ## Architecture audit (NIGHT-improve-17, 2026-09-22)
@@ -273,8 +273,11 @@ audits that touched every layer this session:
 
 ## Naming
 
-"Cosmic Dragon Architecture" (renamed from "Dragon Architecture",
-NIGHT-improve-17) — because a dragon pack operates with clear layering:
+"The cosmic dragon architecture" (renamed from "Dragon Architecture",
+NIGHT-improve-17 — the name rides the project's lowercase law,
+BRANDING.md 3.1b: the dragon is lowercase everywhere and carries
+the definite article in prose, exactly like the name zelynic
+itself) — because a dragon pack operates with clear layering:
 scouts (observer), hunters (limiter), alpha (policy). Each role is distinct,
 each contributes to the pack's survival. No member tries to do everything
 alone. The pack was raised to the cosmic register the project already

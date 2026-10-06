@@ -67,7 +67,7 @@ pub struct Observer {
     prev_stats: std::collections::HashMap<u32, CgroupStatsRaw>,
     /// Previous ingress stats for delta calculation.
     prev_stats_ingress: std::collections::HashMap<u32, CgroupStatsRaw>,
-    /// Cosmic Dragon Architecture Layer 2: cgroup ID → process identity resolver.
+    /// The cosmic dragon architecture, Layer 2: cgroup ID → process identity resolver.
     /// Refreshed lazily via `maybe_refresh()` before each summary print.
     identity: IdentityMap,
 }

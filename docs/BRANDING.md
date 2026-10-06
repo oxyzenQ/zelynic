@@ -390,6 +390,43 @@ outside these two families — nothing is excluded from the scan.
 - ~~Oxy~~ (legacy name, do not use for new mentions)
 - ~~zelynicX~~ (derivative form)
 
+### 3.3. The engine name — the cosmic dragon
+
+The engine and architecture name is **the cosmic dragon** (and the
+architecture: **the cosmic dragon architecture**) — the same
+lowercase convention the name zelynic carries (NIGHT-audit-2, the
+owner's consistency call): the name `cosmic dragon` is lowercase in
+every context — prose, titles, headings, comments — and in running
+prose it carries the definite article, exactly like the README
+tagline always has ("The cosmic dragon counts every byte that
+leaves the den"). The article is ordinary English: capitalized only
+as the first word of a sentence or heading ("The cosmic dragon
+architecture eliminates..."), never capitalized inside the name
+itself.
+
+| Context | Format |
+|---|---|
+| Running text / prose | the cosmic dragon (engine) / the cosmic dragon architecture |
+| Sentence or heading start | The cosmic dragon... |
+| Identifiers | `COSMIC_DRAGON_*` (consts, filenames — e.g. `docs/COSMIC_DRAGON_ARCHITECTURE.md`), `cosmic_dragon_engine` (the cosmostrix module path) |
+
+Never renamed, never re-cased — verbatim by nature (the audit
+leaves them exactly as their owners wrote them):
+
+- the GPG signing identity `Rezky Cahya Sahputra (cosmic dragon)` —
+  real-world key data, already lowercase
+- cosmostrix's own artifacts quoted verbatim: the workflow name
+  "Cosmic Dragon Guard - Release", the retired zelynic `-V` literal
+  `Architecture: Cosmic Dragon (pure eBPF)` (byte-exact history)
+- the owner-approved voice fragments ("cold, silent, cosmic dragon"
+  in the release-notes aesthetic) — motto fragments, not noun
+  phrases
+
+Since NIGHT-audit-2 the casing law is machine-enforced beside the
+zelynic law: `scripts/gates/check-name-case.py` fails on any casing
+of `cosmic dragon` outside the lowercase form and the two literal
+families above.
+
 ---
 
 ## 4. Logo

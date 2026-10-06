@@ -3,7 +3,7 @@
 
 # Kernel Compatibility
 
-> Requirements for running zelynic (Cosmic Dragon Architecture).
+> Requirements for running zelynic (the cosmic dragon architecture).
 
 ## Minimum Requirements
 
