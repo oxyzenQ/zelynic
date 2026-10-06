@@ -1,25 +1,31 @@
 // Copyright (C) 2026 rezky_nightky
 // SPDX-License-Identifier: GPL-3.0-only
 
-//! The --during userspace half (night-during, schema v23): the
-//! wall-to-monotonic translation the apply path writes and the
-//! verdict twin the probe/status surfaces read. The grammar lives
-//! in the during_parse sibling (the parse.rs discipline one feature
+//! The --during userspace half (night-during, schema v23; the
+//! owner's duration-only revision): the wall-to-monotonic
+//! translation the apply path writes and the verdict twin the
+//! probe/status surfaces read. The grammar lives in the
+//! during_parse sibling (the parse.rs discipline one feature
 //! over); the pure verdict arithmetic lives in ebpf/src/during.rs
 //! (the kernel object's own file); the map plumbing (the window
 //! lanes, the rollback ledger, the sweep, the offset-bridge
 //! stamps) lives in the during_map sibling — night-audit-1 task
 //! 17's split, the seam the file already wore.
 //!
-//! The translation (during_to_window): SPAN rows carry wall
-//! instants PRE-TRANSLATED into the monotonic clock (a FUTURE
-//! start translates forward so the row sleeps until its day; a
-//! past start translates backward from the apply instant), so
-//! `bpf_ktime_get_ns` decides the verdict with zero drift — NTP
-//! slew and a manual `date -s` cannot move it (the stated
-//! residue: monotonic does not count suspend, so a sleeping
-//! host's span outlives its wall-calendar promise by the slept
-//! time). DAILY rows need no translation.
+//! The translation (during_to_window): the flag's only shape is
+//! the DURATION (a span starting at the apply instant). The
+//! Span/Daily arms are the RESTORE lane's vocabulary — a state
+//! file's wall form goes back through them so a row an older
+//! build promised keeps its promise (the read-side belt; the
+//! flag cannot create these shapes since the revision). SPAN
+//! rows carry wall instants PRE-TRANSLATED into the monotonic
+//! clock (a FUTURE start translates forward so the row sleeps
+//! until its day; a past start translates backward from the
+//! apply instant), so `bpf_ktime_get_ns` decides the verdict
+//! with zero drift — NTP slew and a manual `date -s` cannot move
+//! it (the stated residue: monotonic does not count suspend, so
+//! a sleeping host's span outlives its wall-calendar promise by
+//! the slept time). DAILY rows need no translation.
 //!
 //! The twin (window_active_user): the userspace-side verdict for
 //! the probe gate and the status surface — the SAME margin law the

@@ -177,8 +177,10 @@ unsafe impl aya::Pod for PolicyWindowRaw {}
 pub const WINDOW_KIND_SPAN: u32 = 0;
 
 /// Window kind: a recurring daily window in seconds-of-day UTC
-/// (the 09:00-17:00 grammar). The BPF-side twin lives in
-/// ebpf/src/during.rs; both trees pin the value in tests.
+/// (read-side belt: rows older builds wrote — the flag's window
+/// form is gone, a state file still restores them verbatim). The
+/// BPF-side twin lives in ebpf/src/during.rs; both trees pin the
+/// value in tests.
 pub const WINDOW_KIND_DAILY: u32 = 1;
 
 #[repr(C)]

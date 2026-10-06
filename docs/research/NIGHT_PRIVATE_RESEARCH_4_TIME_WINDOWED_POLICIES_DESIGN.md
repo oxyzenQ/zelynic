@@ -346,6 +346,50 @@ grows (~120 with its battery), and the persistence pair's
 window fields (~60). Honest total: 620-680 LOC including tests
 and docs, still one schema bump, still no daemon — the
 "CLI is the daemon" sentence of section 3.2 unchanged.
+
+### 8.3 The owner's revision (2026-10-06, later the same day): duration-only
+
+> Status: SHIPPED as night-during-7 — the parse family refuses
+> the window and date shapes by name; this section is the second
+> decision record, standing beside section 8's first.
+
+After a production cycle with all three shapes live, the owner
+revised the grammar to ONE shape — the timer:
+
+```
+sudo zelynic ss brave 100kb --during 1h     # after 1 hour, auto-expire
+sudo zelynic ss backup 500kb --during 20d   # after 20 days, auto-expire
+```
+
+The recurring window (`09:00-17:00`) and the whole-day date
+(`2026-10-15`) are refused at parse time, the wording naming
+the removed shape and the duration that replaced them — the
+owner's words: no more `09:00-18:00/2026-10-15`, support only
+the timer. The units and bounds are unchanged (s m h d mn y,
+1s..10y, months 30 days, years 365), and the duration half of
+section 8's record stands verbatim.
+
+What the revision deliberately does NOT change (the read-side
+belt, stated in the kernel core's own header):
+
+* The verdict core still honors every kind a pinned row may
+  carry — a DAILY row written by an older build keeps its hours;
+  a grammar change never narrows a map.
+* `restore` still re-translates a state file's wall-form windows
+  verbatim (the DuringSpec Span/Daily variants are the restore
+  lane's vocabulary now — reachable, never flag-creatable), so
+  an auto-expire promise survives the revision never converting
+  into forever.
+* The parse lost its one impure rung: a duration needs no wall
+  clock, so `parse_during` takes the string alone and the
+  parse-before-execute ladder is purely string-in verdict-out.
+
+The honest cost of the revision is NEGATIVE on the parse family
+(the window/date arms and their calendar deleted, the grammar
+battery flipped to refusal pins) and zero everywhere else — no
+schema bump (the window row's shape is untouched), no datapath
+change, the prebuilt lane re-pinned only because the kernel
+core's header text is part of the tree hash.
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.

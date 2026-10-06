@@ -21,34 +21,39 @@
 // docs/research/NIGHT_PRIVATE_RESEARCH_4_TIME_WINDOWED_POLICIES_
 // DESIGN.md section 8, is the decision record).
 //
-// THE GRAMMAR the owner approved, one flag, three shapes:
-//   --during 09:00-17:00  a recurring daily window, UTC, wrapping
-//                          midnight (22:00-06:00 is the bedtime
-//                          shape — the comparator below is pure
-//                          arithmetic on seconds-of-day, not a cron)
-//   --during 2026-10-15   the whole named UTC day; the row sleeps
-//                          until it arrives and expires at 00:00
-//                          the next day (the date bounds BOTH ends,
-//                          which is what makes dormancy coherent)
-//   --during 2h / 20d     a duration from apply; s m h d mn y,
-//                          1s floor, 10y ceiling (the CLI parses,
-//                          this core never sees a string)
+// THE GRAMMAR the owner approved, then REVISED to one shape
+// (night-during-7): the CLI's --during takes a duration only —
+// s m h d mn y, 1s floor, 10y ceiling (the CLI parses, this
+// core never sees a string). The window and date shapes the
+// first decision carried are GONE from the flag (refused at
+// parse time, the wording naming the shape that replaced them)
+// but NOT from this core: the verdict below still honors every
+// kind a pinned row may carry — a DAILY row written by an older
+// build keeps its hours, a dormant future span keeps sleeping —
+// because a grammar change must never narrow a map (the
+// read-side belt). The restore lane re-translates both shapes
+// out of a state file's wall form, so the kinds remain
+// reachable, just not creatable from the flag.
 //
-// THE TWO STORAGE SHAPES, and why they differ. A SPAN (duration,
-// date) has absolute ends, so userspace pre-translates its wall
-// instants into the kernel's monotonic clock at apply time and the
-// datapath compares ktime against them directly — bpf_ktime_get_ns
-// and the userspace CLOCK_MONOTONIC read are the same clock domain,
-// so NTP slew and manual `date -s` cannot move a span by a single
-// nanosecond (a hardening over the design brief's original
-// one-word sketch; the residue that remains is stated: monotonic
-// time does not count suspend, so a span on a host that sleeps
-// outlives its wall-calendar promise by exactly the slept time).
+// THE TWO STORAGE SHAPES, and why they differ. A SPAN (the
+// duration the flag writes, and the restore lane's re-translated
+// wall deadlines) has absolute ends, so userspace pre-translates
+// its wall instants into the kernel's monotonic clock at apply
+// time, and the datapath compares ktime against them directly
+// (bpf_ktime_get_ns and the userspace CLOCK_MONOTONIC read are
+// the same clock domain, so NTP slew and manual `date -s` cannot
+// move a span by a single nanosecond — a hardening over the
+// design brief's original one-word sketch; the residue that
+// remains is stated: monotonic time does not count suspend, so a
+// span on a host that sleeps outlives its wall-calendar promise
+// by exactly the slept time).
 // A DAILY window recurs forever, so no pre-translation can name
 // its next edge; the datapath reads the wall through the offset
 // bridge (wall = ktime + wall_minus_mono_ns, a one-entry pinned
 // Array userspace re-stamps at every attach and apply — the CLI
 // visit IS the refresh channel) and reduces it to seconds-of-day.
+// Daily rows ride only builds older than the revision now (the
+// flag cannot create them; a state file still restores them).
 //
 // THE MARGIN LAW (the drift residue, paid honestly). Between CLI
 // visits the offset ages: NTP slew is bounded around 500 ppm

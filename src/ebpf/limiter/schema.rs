@@ -397,10 +397,14 @@
 ///     bridge under the margin law (FIRE_EARLY = 2s eroding BOTH
 ///     edges toward less enforcement — a stale bridge can
 ///     under-enforce by at most the margin, never over-enforce).
-///     The grammar (owner decision, design brief section 8):
-///     --during 09:00-17:00 (daily, UTC) / 2026-10-15 (the whole
-///     UTC day) / 2h 20d (duration, s m h d mn y, 1s..10y). No
-///     existing struct layout changes; new maps, one new verdict
+///     The grammar (owner decision, design brief section 8, then
+///     revised duration-only): --during 2h 20d (duration, s m h
+///     d mn y, 1s..10y) — the window and date forms the first
+///     decision carried are gone from the flag, but the row kinds
+///     stay readable (older builds' pinned rows and the restore
+///     lane's state files still carry them; a grammar change
+///     never narrows a map). No existing struct layout changes;
+///     new maps, one new verdict
 ///     on the policed path; the bump forces pinned v22 programs to
 ///     reload into the time-windowed object — active limits are
 ///     dropped once, re-apply after upgrade, the same one-time

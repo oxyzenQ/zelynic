@@ -419,12 +419,13 @@ pub(crate) fn policy_still_stands(
 }
 
 /// night-during (schema v23): the probe's window gate. A window
-/// that is not ACTIVE at this instant (a dormant future date, a
-/// daily window outside its hours, an expired span awaiting sweep)
-/// is not policing — a measured flow through it would read unlimited
-/// and FAIL the apply dishonestly. Returns the stand-down note when
-/// the row's window is dormant, `None` when it is active, absent,
-/// or unreadable (the kernel's own absent-entry verdict: enforce —
+/// that is not ACTIVE at this instant (a dormant future span, a
+/// daily window outside its hours — read-side shapes older builds
+/// wrote — or an expired span awaiting sweep) is not policing — a
+/// measured flow through it would read unlimited and FAIL the
+/// apply dishonestly. Returns the stand-down note when the row's
+/// window is dormant, `None` when it is active, absent, or
+/// unreadable (the kernel's own absent-entry verdict: enforce —
 /// the read never invents a dormancy the map does not carry).
 pub(crate) fn window_dormancy_note(
     limiter: &crate::ebpf::limiter::Limiter,
