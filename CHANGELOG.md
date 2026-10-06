@@ -1044,6 +1044,29 @@ NIGHT-hunt-18's git-history-only call.
   contract (the hunt-34 rule: a workflow that changes itself owes
   itself a run) — the egress row, the realnet rows running, and
   the scheduled first sample at the next Monday 03:00 UTC.
+  The live proof, run 37523839556 (all four legs green): the
+  egress row PASS on every leg (`egress (SLIRP user-net,
+  virtio-net 10.0.2.15 via 10.0.2.2)`), the realnet lane running
+  LIVE for the first time in the estate's history — the
+  reachability probe walking its fallback chain to tele2
+  (cloudflare and the upload endpoint unreachable from these
+  runners, the chain's own designed order doing its job), the
+  unlimited baseline MEASURED live at 1.0 MB/s through the SLIRP
+  egress, the block-single row proving enforcement over the real
+  internet (0 bytes over 12s via tele2, the ceiling 65536), and
+  the 2mb band rows skipping honestly (baseline 1.0 MB/s under
+  the 2x-rung floor — the lane's own "skip any rung the hardware
+  cannot feed" contract; SLIRP's user-mode path is CPU-bound and
+  the runner's honest ceiling). Two fixpasses closed the lane's
+  own lessons on the way: run 37518266382 caught the usr-merge
+  (the ubuntu containers ship /lib as a symlink — the plain
+  cp -a tried to overwrite the link itself; the modules now land
+  at the physical /usr/lib/modules while the init reads the
+  canonical path through the link), run 37520041688 caught the
+  module chain's missing leaf (net_failover's own symbols live
+  in failover.ko under net/core — the pair without the core leaf
+  failed every insmod with Unknown symbol; the staging now
+  carries the config-driven trio, 184 KB on the 5.13 floor).
 
 - **fix(monitor): NIGHT-mitigate-1 + NIGHT-improve-51 — the
   data-explosion endurance audit: the 1-trillion-packet and
