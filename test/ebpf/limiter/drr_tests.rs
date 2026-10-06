@@ -286,8 +286,28 @@ mod drr_share_tests;
 // sim (TCP-window cadence + per-packet credits) that reproduces the
 // live battery's CI finds rootlessly, and the per-epoch allowance
 // that closes them. Same child-module wiring, same single core copy.
+// improve-40 (schema v24): the ENGINE itself moved to drr_sim.rs
+// (the ledger pins rode the 500-LOC owner cap at exactly 500 when
+// the guarantee bracket needed the same engine — the split keeps
+// the pins here, the machinery one sibling over).
 #[path = "drr_ledger_tests.rs"]
 mod drr_ledger_tests;
+
+// improve-40 (schema v24): the shared simulation ENGINE — the
+// TCP-feedback kernel shape the ledger, highload, and guarantee
+// batteries all drive (the policy_write discipline applied to the
+// test tree). Child wiring, the same single core copy.
+#[path = "drr_sim.rs"]
+mod drr_sim;
+
+// improve-40 (schema v24): the guarantee bracket's battery — the
+// law pins (the clamp's arithmetic, the lone-drawer ceiling, the
+// contradiction, the stockpile) and the fleet sims (the floor's
+// guarantee under greedy siblings, the ceiling's cap over idle
+// ones, the over-subscription degradation). Same child wiring,
+// same single core copy.
+#[path = "drr_guarantee_tests.rs"]
+mod drr_guarantee_tests;
 
 // repair-7: the two-lane take law — the engaged lane's catch-up
 // close (the fraction cap retires where the ledger room already
