@@ -85,14 +85,18 @@ fn guarantee_line_pins_the_per_direction_shapes() {
 /// upload pair, the one-flag law's equal pairs a special case.
 #[test]
 fn collect_display_data_joins_the_bracket_per_direction() {
-    let mut dl_row = PolicyRaw::default();
-    dl_row.rate_bps = 1_000_000;
-    dl_row.floor_bps = 100_000;
-    dl_row.ceil_bps = 300_000;
-    let mut ul_row = PolicyRaw::default();
-    ul_row.rate_bps = 500_000;
-    ul_row.floor_bps = 50_000;
-    ul_row.ceil_bps = 200_000;
+    let dl_row = PolicyRaw {
+        rate_bps: 1_000_000,
+        floor_bps: 100_000,
+        ceil_bps: 300_000,
+        ..PolicyRaw::default()
+    };
+    let ul_row = PolicyRaw {
+        rate_bps: 500_000,
+        floor_bps: 50_000,
+        ceil_bps: 200_000,
+        ..PolicyRaw::default()
+    };
     let data = collect_display_data(&[(101u32, dl_row)], &[(101u32, ul_row)], &[], &[]);
     assert_eq!(data[0].download.floor_bps, 100_000);
     assert_eq!(data[0].download.ceil_bps, 300_000);
