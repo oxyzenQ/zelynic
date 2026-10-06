@@ -19,6 +19,62 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Added
 
+- **The supermassive v4 depth audit — the private-research-4
+  features pinned at the CLI surface they own
+  (NIGHT-improve-42, the owner's seven-feature list, 34 new rows,
+  the battery 121 -> 155): three new stages, the command surface's
+  persistence pair, and one REAL REGRESSION the depth run caught on
+  its first pass.** The audit's division of labor is the contract
+  (the same doctrine that split v1 through v4): the TIME-WINDOWED
+  policies get the `--during` grammar ladder (stage 10 — every valid
+  unit and both bounds parse to the gate across every enforcement
+  verb including the block family's bedtime shape, and the wrong
+  shapes refuse by category: the unknown unit names the grammar, the
+  bounds name their own floors and ceilings, and the removed
+  window/date shapes are refused BY NAME, the duration-only
+  revision's own wording); the GUARANTEED MINIMUM gets the
+  `--floor`/`--ceil` law ladder (stage 11 — the one-spelling law
+  both sides, the floor<=ceil<=rate contradictions, the
+  removed-direction law, the rate ask, and the legal mixed spelling
+  that composes a both-directions floor with per-direction
+  ceilings); the PER-SOCKET TIER gets its flag surface (stage 12 —
+  `--per-socket` and `--no-probe` parse to the gate on the one verb
+  that owns them, and the group verb's parse-boundary refusal is
+  pinned so the tier flag can never silently widen); and
+  SNAPSHOT/RESTORE join the command surface (recognized verbs whose
+  own privilege refusal names the sudo ladder — the COMMANDS rows'
+  recognized proof in the pair's own shape, plus the
+  no-extra-positionals parse refusal). The three automatic lanes —
+  ECN-first policing, CAKE-style flow isolation, QUIC-aware
+  attribution — have NO CLI surface by design (kernel-side, no
+  flag, no opt-out), and the audit says so where the battery's
+  documentation lives: their depth stays where it already is (the
+  Rust pin suites, the root-gated live probes ect-probe.sh and
+  guarantee-probe.sh, v1's VM matrix). Every valid-shape row is a
+  rootless-lane row (the Z9 doctrine: a valid policy shape past a
+  passing gate is an enforcement attempt the battery refuses to
+  make; the rootless CI leg carries them on every push, the VM's
+  root init skips them), and the refusal rows hold under every uid.
+  The typo ladder grows the new grammar's own near-misses
+  (`--durign`/`--flor`/`--cel` carry their tips). THE CATCH: the
+  first full run failed the pre-existing `--check-updat` row — the
+  improve-40-b bracket family had put `--ceil-upload` in
+  strict-single's suggestion pool, and clap's local pool (which
+  never carries the root-level flags) fired a 0.78-confidence
+  `--ceil-upload` for the 0.97-confidence `--check-updat` typo,
+  shadowing the right tip the silent-fallback path would have
+  given. The fix is the shadowed-suggestion rescue
+  (cli/ux.rs::rescue_shadowed_suggestion): when clap fires its own
+  UnknownArgument tip, the rescue re-scores BOTH candidates with the
+  one case-insensitive Jaro metric and keeps the better tip —
+  strictly greater wins, a tie keeps clap's (its pool knows the
+  subcommand's flags), and an authority winner redirects to the
+  top-level spelling (`zelynic --check-update`, honest about the
+  position where the flag actually parses). Two Rust pins hold the
+  rescue (the authority redirect lands, the subcommand-flag typos
+  keep their own tips), and the battery's row is the end-to-end
+  proof. Verified rootless: 155/155 on this tree, self-test green.
+
 - **The chroma dragon engine — src/output/chroma.rs, the OKLab polar
   color core ported from the mature cosmostrix
   (NIGHT-improve-41, the owner's "better high quality monitoring
