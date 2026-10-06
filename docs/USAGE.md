@@ -301,7 +301,13 @@ sudo zelynic strict brave 100kb        # shorthand form
   will ask), the floors degrade to the pool law — the pool never
   hands out what it does not have — and the quietest keeps the
   unfloored no-starve bound (pinned rootlessly by the guarantee
-  battery, both sides: the fleet sims and the law pins).
+  battery, both sides: the fleet sims and the law pins). The
+  bracket is provable live in REAL cgroups:
+  `sudo ./scripts/bench/guarantee-probe.sh` (root required; the
+  rootless instrument lane is `--self-test`) — four real leaf
+  cgroups under one bracketed target, the floor's promise, the
+  ceiling's cap, the pool law, and the per-direction split's
+  ledger row, all measured on the running kernel.
 - A positional `rate` sets **both** download and upload. `-d`/`-u` set
   them independently — and they take precedence: if either flag is
   present, the positional rate does not apply (no silent mixing), so

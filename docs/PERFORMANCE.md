@@ -380,6 +380,20 @@ shape needs a per-app floor ABOVE the fair share (a reserved lane
 no sibling may borrow from), that is a new policy surface — a CLI
 decision that stays the owner's to call, not silently added here.
 
+That call has since been made and delivered: the guarantee bracket
+(`--floor`/`--ceil`, improve-40 schema v24; the per-direction
+spellings improve-40-b) clamps the epoch allowance between the
+bracket's own shares — the floor a PRIORITY (the pool itself the
+lender), the ceiling binding even a lone drawer — pinned rootlessly
+by the guarantee battery (test/ebpf/limiter/drr_guarantee_tests.rs)
+and measured live in REAL cgroups by the root-gated probe:
+`sudo ./scripts/bench/guarantee-probe.sh` (root required; the
+rootless instrument lane is `--self-test`) — four real leaf cgroups
+under one bracketed target, every leaf's delivered volume measured
+against the floor's share and the ceiling's cap, the pool law
+bounding the sum, and the per-direction split's ledger row riding
+the same harness.
+
 ### The flow-isolation law (CAKE-shaped, schema v20, 2026-10-04)
 
 The guaranteed-minimum law made the LEAF fair — no cgroup under a
