@@ -57,7 +57,7 @@ source definition are --info and --limit, and both are NEGATIVE
 documentation — "the --info alias is retired, NIGHT-blade-4" and
 "Rows follow the terminal height (no --limit)" — naming what does
 NOT exist, on purpose. The hidden internal probe roles
-(__probe-server, __probe-client) stay hidden by design: the
+(`__probe-server`, `__probe-client`) stay hidden by design: the
 hidden-vocabulary contract's security posture, documented at the
 improve-45 landing and re-verified here.
 
