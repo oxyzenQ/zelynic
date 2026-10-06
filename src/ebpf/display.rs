@@ -8,7 +8,7 @@
 use std::collections::HashMap;
 
 use crate::ebpf::identity::IdentityMap;
-use crate::ebpf::limiter::types::{PolicyWindowRaw, POLICY_FLAG_PER_SOCKET};
+use crate::ebpf::limiter::types::{BracketPair, PolicyWindowRaw, POLICY_FLAG_PER_SOCKET};
 use crate::ebpf::limiter::{monotonic_ns, terminal_width, wall_now_ns, LimiterStatsRaw, PolicyRaw};
 use crate::ebpf::render::{grid_line, title_bar};
 use crate::output::{grey, signature_footer, suggestion, warn};
@@ -34,13 +34,13 @@ pub(crate) struct DisplayData {
     /// The row's --during window, when it carries one (night-during,
     /// schema v23) — the lifetime line under the row renders it.
     pub(crate) window: Option<PolicyWindowRaw>,
-    /// The row's guarantee bracket (improve-40, schema v24), the
-    /// one-flag law: both directions' rows carry the same pair, so
-    /// the census reads whichever leg it finds — the zero sentinel
-    /// is unset (most rows carry none, and the subordinate line
-    /// renders only when a side is set).
-    pub(crate) floor_bps: u64,
-    pub(crate) ceil_bps: u64,
+    /// The row's guarantee bracket (improve-40, schema v24;
+    /// improve-40-b the per-direction shape): one pair per
+    /// direction, each leg read off its own policy row — the zero
+    /// sentinel is unset (most rows carry none, and the subordinate
+    /// line renders only when a side is set).
+    pub(crate) download: BracketPair,
+    pub(crate) upload: BracketPair,
 }
 
 // improve-40 (schema v24): the pure line renderers live in the
@@ -63,23 +63,35 @@ pub(super) fn collect_display_data(
     windows: &[(u32, PolicyWindowRaw)],
 ) -> Vec<DisplayData> {
     // The census row: (dl, ul, dl per-socket, ul per-socket, the
-    // shared guarantee pair — the one-flag law reads whichever leg
-    // the census found).
-    type CombinedRow = (Option<u64>, Option<u64>, bool, bool, u64, u64);
+    // per-direction guarantee pairs — improve-40-b: each leg's pair
+    // read off its own policy row, the one-flag law's equal pairs
+    // a special case of the split).
+    type CombinedRow = (
+        Option<u64>,
+        Option<u64>,
+        bool,
+        bool,
+        BracketPair,
+        BracketPair,
+    );
     let mut combined: HashMap<u32, CombinedRow> = HashMap::new();
     for (id, p) in dl_policies {
         let e = combined.entry(*id).or_default();
         e.0 = Some(p.rate_bps);
         e.2 = p.flags & POLICY_FLAG_PER_SOCKET != 0;
-        e.4 = p.floor_bps;
-        e.5 = p.ceil_bps;
+        e.4 = BracketPair {
+            floor_bps: p.floor_bps,
+            ceil_bps: p.ceil_bps,
+        };
     }
     for (id, p) in ul_policies {
         let e = combined.entry(*id).or_default();
         e.1 = Some(p.rate_bps);
         e.3 = p.flags & POLICY_FLAG_PER_SOCKET != 0;
-        e.4 = p.floor_bps;
-        e.5 = p.ceil_bps;
+        e.5 = BracketPair {
+            floor_bps: p.floor_bps,
+            ceil_bps: p.ceil_bps,
+        };
     }
 
     let mut sorted: Vec<_> = combined.into_iter().collect();
@@ -87,7 +99,7 @@ pub(super) fn collect_display_data(
 
     sorted
         .iter()
-        .map(|(cgroup_id, (dl, ul, dl_ps, ul_ps, floor, ceil))| {
+        .map(|(cgroup_id, (dl, ul, dl_ps, ul_ps, download, upload))| {
             let s = stats.iter().find(|(id, _)| id == cgroup_id);
             DisplayData {
                 cgroup_id: *cgroup_id,
@@ -103,8 +115,8 @@ pub(super) fn collect_display_data(
                     .iter()
                     .find(|(id, _)| id == cgroup_id)
                     .map(|(_, w)| *w),
-                floor_bps: *floor,
-                ceil_bps: *ceil,
+                download: *download,
+                upload: *upload,
             }
         })
         .collect()
@@ -275,7 +287,7 @@ pub fn print_status(
         // improve-40 (schema v24): the bracket's own subordinate
         // line, the window family's indent and grey — only the rows
         // that carry a side render one.
-        if let Some(line) = guarantee_line(d.floor_bps, d.ceil_bps) {
+        if let Some(line) = guarantee_line(d.download, d.upload) {
             println_safe!("{line}");
         }
     }
@@ -292,3 +304,10 @@ pub fn print_status(
 #[cfg(test)]
 #[path = "../../test/ebpf/display_tests.rs"]
 mod display_tests;
+
+// improve-40-b: the per-direction bracket's read-surface pins,
+// split from display_tests.rs at the 500-LOC owner cap (the
+// guarantee line's split shapes and the census's per-leg join).
+#[cfg(test)]
+#[path = "../../test/ebpf/display_bracket_tests.rs"]
+mod display_bracket_tests;

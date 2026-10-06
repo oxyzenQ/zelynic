@@ -42,8 +42,8 @@
 use anyhow::{bail, Result};
 
 use crate::ebpf::limiter::{
-    window_persist_form, window_persist_to_spec, Direction, DuringSpec, PolicyRaw, RateSpec,
-    WindowPersist,
+    window_persist_form, window_persist_to_spec, BracketPair, BracketSpec, Direction, DuringSpec,
+    PolicyRaw, RateSpec, WindowPersist,
 };
 
 /// Where the serialized policy state lives. A system lane, not a
@@ -187,39 +187,40 @@ pub(crate) struct RestoreStep {
     /// the FIRST form the census read (the map itself guarantees one
     /// row per root, so disagreement means a torn census).
     pub during: Option<DuringSpec>,
-    /// The row's guarantee bracket (improve-40, schema v24): both
-    /// legs carried the same pair, the one-flag law — the restore
+    /// The row's guarantee bracket (improve-40, schema v24;
+    /// improve-40-b the per-direction shape): one pair per
+    /// direction, each read off its own leg's entries — the restore
     /// hands it back to the apply family verbatim (the validation
     /// ladder already accepted it once; a value the restore would
     /// reject means the document was hand-edited, and the apply's
     /// own refusal is the honest verdict for that).
-    pub floor_bps: u64,
-    pub ceil_bps: u64,
+    pub bracket: BracketSpec,
 }
 
 /// One solo accumulator leg: (name, dl rate, ul rate, per-socket,
-/// window form, guarantee floor, guarantee ceiling).
+/// window form, the per-direction bracket pairs — download's then
+/// upload's).
 type SoloLeg = (
     String,
     Option<u64>,
     Option<u64>,
     bool,
     Option<WindowPersist>,
-    u64,
-    u64,
+    BracketPair,
+    BracketPair,
 );
 
 /// One group accumulator leg: (group id, member names, dl rate,
-/// ul rate, window form) — the shared-bucket key plus what it
-/// carried.
+/// ul rate, window form, the per-direction bracket pairs) — the
+/// shared-bucket key plus what it carried.
 type GroupLeg = (
     u32,
     Vec<String>,
     Option<u64>,
     Option<u64>,
     Option<WindowPersist>,
-    u64,
-    u64,
+    BracketPair,
+    BracketPair,
 );
 
 /// Derive the restore plan from the document's entries: solo rows
@@ -236,26 +237,32 @@ pub(crate) fn restore_plan(doc: &SnapshotDoc) -> Vec<RestoreStep> {
     for e in &doc.entries {
         let dl = (e.direction == "download").then_some(e.rate_bps);
         let ul = (e.direction == "upload").then_some(e.rate_bps);
+        // improve-40-b: each leg's entry carries ITS direction's
+        // pair — the entry is one direction's row, read verbatim.
+        let leg_pair = BracketPair {
+            floor_bps: e.floor_bps,
+            ceil_bps: e.ceil_bps,
+        };
         if e.group_id != 0 {
             let idx = groups.iter().position(|(gid, ..)| *gid == e.group_id);
             match idx {
                 Some(i) => {
-                    let (_, names, g_dl, g_ul, g_during, g_floor, g_ceil) = &mut groups[i];
+                    let (_, names, g_dl, g_ul, g_during, g_dl_pair, g_ul_pair) = &mut groups[i];
                     if dl.is_some() {
                         *g_dl = dl;
+                        // improve-40-b: the download leg's own pair,
+                        // first-write-wins (a torn census is the only
+                        // disagreement shape, the window lane's own
+                        // posture).
+                        *g_dl_pair = leg_pair;
                     }
                     if ul.is_some() {
                         *g_ul = ul;
+                        *g_ul_pair = leg_pair;
                     }
                     if g_during.is_none() {
                         *g_during = e.during.clone();
                     }
-                    // improve-40 (schema v24): both legs carry the
-                    // same pair — first-write-wins is verbatim either
-                    // way (a torn census is the only disagreement
-                    // shape, and the window lane's own posture).
-                    *g_floor = e.floor_bps;
-                    *g_ceil = e.ceil_bps;
                     if !names.contains(&e.name) {
                         names.push(e.name.clone());
                     }
@@ -266,28 +273,36 @@ pub(crate) fn restore_plan(doc: &SnapshotDoc) -> Vec<RestoreStep> {
                     dl,
                     ul,
                     e.during.clone(),
-                    e.floor_bps,
-                    e.ceil_bps,
+                    if dl.is_some() {
+                        leg_pair
+                    } else {
+                        BracketPair::UNSET
+                    },
+                    if ul.is_some() {
+                        leg_pair
+                    } else {
+                        BracketPair::UNSET
+                    },
                 )),
             }
         } else {
             let idx = solos.iter().position(|(n, ..)| *n == e.name);
             match idx {
                 Some(i) => {
-                    let (_, s_dl, s_ul, _, s_during, s_floor, s_ceil) = &mut solos[i];
+                    let (_, s_dl, s_ul, _, s_during, s_dl_pair, s_ul_pair) = &mut solos[i];
                     if dl.is_some() {
                         *s_dl = dl;
+                        // improve-40-b: the solo twin of the group
+                        // lane's per-direction first-write-wins.
+                        *s_dl_pair = leg_pair;
                     }
                     if ul.is_some() {
                         *s_ul = ul;
+                        *s_ul_pair = leg_pair;
                     }
                     if s_during.is_none() {
                         *s_during = e.during.clone();
                     }
-                    // improve-40 (schema v24): the solo twin of the
-                    // group lane's first-write-wins.
-                    *s_floor = e.floor_bps;
-                    *s_ceil = e.ceil_bps;
                 }
                 None => solos.push((
                     e.name.clone(),
@@ -295,8 +310,16 @@ pub(crate) fn restore_plan(doc: &SnapshotDoc) -> Vec<RestoreStep> {
                     ul,
                     e.per_socket,
                     e.during.clone(),
-                    e.floor_bps,
-                    e.ceil_bps,
+                    if dl.is_some() {
+                        leg_pair
+                    } else {
+                        BracketPair::UNSET
+                    },
+                    if ul.is_some() {
+                        leg_pair
+                    } else {
+                        BracketPair::UNSET
+                    },
                 )),
             }
         }
@@ -304,7 +327,7 @@ pub(crate) fn restore_plan(doc: &SnapshotDoc) -> Vec<RestoreStep> {
     let mut plan: Vec<RestoreStep> = solos
         .into_iter()
         .map(
-            |(name, dl, ul, per_socket, during, floor_bps, ceil_bps)| RestoreStep {
+            |(name, dl, ul, per_socket, during, dl_pair, ul_pair)| RestoreStep {
                 names: vec![name],
                 rates: RateSpec {
                     download: dl,
@@ -312,14 +335,17 @@ pub(crate) fn restore_plan(doc: &SnapshotDoc) -> Vec<RestoreStep> {
                 },
                 per_socket,
                 during: during.as_ref().and_then(window_persist_to_spec),
-                floor_bps,
-                ceil_bps,
+                bracket: BracketSpec {
+                    download: dl_pair,
+                    upload: ul_pair,
+                },
             },
         )
         .collect();
     plan.extend(
-        groups.into_iter().map(
-            |(_, names, dl, ul, during, floor_bps, ceil_bps)| RestoreStep {
+        groups
+            .into_iter()
+            .map(|(_, names, dl, ul, during, dl_pair, ul_pair)| RestoreStep {
                 names,
                 rates: RateSpec {
                     download: dl,
@@ -327,10 +353,11 @@ pub(crate) fn restore_plan(doc: &SnapshotDoc) -> Vec<RestoreStep> {
                 },
                 per_socket: false,
                 during: during.as_ref().and_then(window_persist_to_spec),
-                floor_bps,
-                ceil_bps,
-            },
-        ),
+                bracket: BracketSpec {
+                    download: dl_pair,
+                    upload: ul_pair,
+                },
+            }),
     );
     plan
 }

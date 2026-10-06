@@ -99,6 +99,15 @@ fn status_json(
                 .window
                 .as_ref()
                 .map(|w| window_json(w, wall_now_ns, mono_now_ns));
+            // improve-40 (schema v24) / improve-40-b (the
+            // per-direction split): equal pairs ride the merged
+            // floor_bps/ceil_bps (the one-flag shape, unchanged);
+            // differing pairs ride the per-direction fields, the
+            // merged pair honestly absent — never a fabricated
+            // merge, never a fabricated zero.
+            let equal_pair =
+                (d.download == d.upload).then_some((d.download.floor_bps, d.download.ceil_bps));
+            let split = (d.download != d.upload).then_some((d.download, d.upload));
             LimitEntry {
                 cgroup_id: d.cgroup_id,
                 label: identity.label(d.cgroup_id),
@@ -106,17 +115,22 @@ fn status_json(
                 upload_bps: d.ul_bps,
                 download_per_socket: d.dl_per_socket,
                 upload_per_socket: d.ul_per_socket,
+                floor_bps: equal_pair.map(|(floor, _)| floor).filter(|v| *v != 0),
+                ceil_bps: equal_pair.map(|(_, ceil)| ceil).filter(|v| *v != 0),
+                download_floor_bps: split
+                    .map(|(download, _)| download.floor_bps)
+                    .filter(|v| *v != 0),
+                download_ceil_bps: split
+                    .map(|(download, _)| download.ceil_bps)
+                    .filter(|v| *v != 0),
+                upload_floor_bps: split
+                    .map(|(_, upload)| upload.floor_bps)
+                    .filter(|v| *v != 0),
+                upload_ceil_bps: split.map(|(_, upload)| upload.ceil_bps).filter(|v| *v != 0),
                 packets_allowed: d.packets_allowed,
                 packets_dropped: d.packets_dropped,
                 bytes_allowed: d.bytes_allowed,
                 bytes_dropped: d.bytes_dropped,
-                // improve-40 (schema v24): the guarantee bracket, one
-                // pair per row (the one-flag law — both directions'
-                // rows carry the same values; a per-direction split
-                // arrives with its own lane). The zero sentinel is
-                // honestly absent, never a fabricated zero.
-                floor_bps: (d.floor_bps != 0).then_some(d.floor_bps),
-                ceil_bps: (d.ceil_bps != 0).then_some(d.ceil_bps),
                 rate_ring,
                 window,
             }
@@ -192,13 +206,29 @@ struct LimitEntry {
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     upload_per_socket: bool,
     /// The per-subprocess guaranteed minimum (improve-40, schema
-    /// v24) — absent when the row carries none (the zero sentinel).
+    /// v24) — absent when the row carries none (the zero sentinel)
+    /// or when the directions' pairs DIFFER (the split rides the
+    /// per-direction fields below, never a fabricated merge).
     #[serde(skip_serializing_if = "Option::is_none")]
     floor_bps: Option<u64>,
     /// The per-subprocess maximum (improve-40, schema v24) —
-    /// absent when unset.
+    /// absent when unset or when the pairs differ.
     #[serde(skip_serializing_if = "Option::is_none")]
     ceil_bps: Option<u64>,
+    /// The DOWNLOAD pair's floor (improve-40-b, the per-direction
+    /// split) — present only when the directions' pairs differ,
+    /// the asymmetric link's own shape.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    download_floor_bps: Option<u64>,
+    /// The DOWNLOAD pair's ceiling (improve-40-b) — split only.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    download_ceil_bps: Option<u64>,
+    /// The UPLOAD pair's floor (improve-40-b) — split only.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    upload_floor_bps: Option<u64>,
+    /// The UPLOAD pair's ceiling (improve-40-b) — split only.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    upload_ceil_bps: Option<u64>,
     packets_allowed: u64,
     packets_dropped: u64,
     bytes_allowed: u64,

@@ -273,6 +273,9 @@ fn a_v23_file_restores_as_the_zero_sentinel() {
 
 /// improve-40 (schema v24): the bracket round-trips — both legs
 /// carry the pair, the plan collapses it, the step hands it back.
+/// improve-40-b: the collapse is PER DIRECTION — each leg's entry
+/// feeds its own direction's pair (pinned asymmetric here, equal
+/// in the one-flag shape below).
 #[test]
 fn the_bracket_round_trips_the_restore_plan() {
     let doc = SnapshotDoc {
@@ -288,8 +291,15 @@ fn the_bracket_round_trips_the_restore_plan() {
             .entries
             .into_iter()
             .map(|mut e| {
-                e.floor_bps = 100_000;
-                e.ceil_bps = 300_000;
+                // improve-40-b: the asymmetric snapshot — the
+                // download legs' pair differs from the upload legs'.
+                if e.direction == "download" {
+                    e.floor_bps = 100_000;
+                    e.ceil_bps = 300_000;
+                } else {
+                    e.floor_bps = 50_000;
+                    e.ceil_bps = 200_000;
+                }
                 e
             })
             .collect(),
@@ -297,6 +307,8 @@ fn the_bracket_round_trips_the_restore_plan() {
     };
     let plan = restore_plan(&doc);
     assert_eq!(plan.len(), 1);
-    assert_eq!(plan[0].floor_bps, 100_000);
-    assert_eq!(plan[0].ceil_bps, 300_000);
+    assert_eq!(plan[0].bracket.download.floor_bps, 100_000);
+    assert_eq!(plan[0].bracket.download.ceil_bps, 300_000);
+    assert_eq!(plan[0].bracket.upload.floor_bps, 50_000);
+    assert_eq!(plan[0].bracket.upload.ceil_bps, 200_000);
 }

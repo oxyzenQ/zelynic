@@ -14,7 +14,7 @@ use std::path::Path;
 use super::persist::{
     restore_plan, validate_persisted_windows, SnapshotDoc, STATE_FILE, STATE_SCHEMA,
 };
-use crate::ebpf::limiter::{BracketSpec, Direction, Limiter, Target};
+use crate::ebpf::limiter::{Direction, Limiter, Target};
 
 #[cfg(feature = "ebpf")]
 pub fn handle_snapshot(json: bool) -> Result<()> {
@@ -162,22 +162,13 @@ pub fn handle_restore(json: bool) -> Result<()> {
                 &step.rates,
                 step.per_socket,
                 // improve-40 (schema v24) / improve-40-b: the
-                // snapshot's bracket, both directions carrying the
-                // collapsed pair (the per-direction split is the
-                // restore plan's own lane, one commit over).
-                &BracketSpec::both(step.floor_bps, step.ceil_bps),
+                // snapshot's per-direction bracket, each leg's own
+                // pair read verbatim off its entries.
+                &step.bracket,
                 step.during.as_ref(),
             )?
         } else {
-            limiter.apply_group(
-                &targets,
-                &step.rates,
-                // improve-40 (schema v24) / improve-40-b: the
-                // snapshot's bracket, both directions carrying the
-                // collapsed pair.
-                &BracketSpec::both(step.floor_bps, step.ceil_bps),
-                step.during.as_ref(),
-            )?
+            limiter.apply_group(&targets, &step.rates, &step.bracket, step.during.as_ref())?
         };
         if n == 0 {
             unresolved.extend(step.names.iter().cloned());
