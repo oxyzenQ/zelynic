@@ -625,7 +625,8 @@ supermassive battery, and the claim this section owns is the pinned
 one — attribution granularity, proved rootlessly, with every
 degradation path falling toward the cookie, never past it.
 
-### The time-window law (the unified --during, schema v23, 2026-10-06)
+### The time-window law (the unified --during, schema v23, 2026-10-06;
+revised duration-only the same day)
 
 A limit today is forever until somebody remembers to lift it. The
 night-during law gives a policy row its own lifetime with no
@@ -642,8 +643,9 @@ during_tests.rs, during_user_tests.rs):
    moves) pays nothing. An absent window entry is today's behavior
    exactly; an INACTIVE window answers ALLOW — the miss shape: no
    stats booking, no ring booking, no AMMSP belt.
-2. THE DRIFT CLAUSE: SPAN rows (the duration and date grammar)
-   store wall instants PRE-TRANSLATED into the monotonic clock at
+2. THE DRIFT CLAUSE: SPAN rows (the duration the flag writes,
+   and the restore lane's re-translated wall deadlines) store
+   wall instants PRE-TRANSLATED into the monotonic clock at
    apply time — `bpf_ktime_get_ns` and the userspace
    CLOCK_MONOTONIC read are the same clock domain, so NTP slew
    and a manual `date -s` cannot move a span by a single
@@ -662,8 +664,10 @@ during_tests.rs, during_user_tests.rs):
    "applied and forgotten" — strictly safer), and every later
    apply-family invocation drives it through the unstrict/reclaim
    machinery (span_ended is the only removal predicate: a dormant
-   future-date row and a recurring daily window are never swept).
-   The probe stands down on a dormant window instead of measuring
+   future-start row — a state file restored before its span's day
+   — and a recurring daily window, a read-side shape older
+   builds wrote, are never swept). The probe stands down on a
+   dormant window instead of measuring
    an unlimited path and failing the apply dishonestly.
 
 No throughput number is claimed for this feature — it ADDS one
