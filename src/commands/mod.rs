@@ -13,6 +13,7 @@ pub(crate) mod block;
 pub(crate) mod cleanup;
 #[cfg(feature = "ebpf")]
 pub(crate) mod eagle;
+pub(crate) mod guarantee;
 pub(crate) mod help;
 #[cfg(feature = "ebpf")]
 pub(crate) mod list_apps;
@@ -211,6 +212,8 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
             force_this,
             no_probe,
             per_socket,
+            floor,
+            ceil,
             during,
         }) => {
             #[cfg(feature = "ebpf")]
@@ -223,6 +226,8 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
                     force_this,
                     no_probe,
                     per_socket,
+                    floor.as_deref(),
+                    ceil.as_deref(),
                     during.as_deref(),
                     cli.verbose,
                 )
@@ -243,6 +248,8 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
                     force_this,
                     no_probe,
                     per_socket,
+                    floor,
+                    ceil,
                     during,
                     cli.verbose,
                 );
@@ -256,6 +263,8 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
             download,
             upload,
             force_this,
+            floor,
+            ceil,
             during,
         }) => {
             #[cfg(feature = "ebpf")]
@@ -266,6 +275,8 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
                     download.as_deref(),
                     upload.as_deref(),
                     force_this,
+                    floor.as_deref(),
+                    ceil.as_deref(),
                     during.as_deref(),
                     cli.verbose,
                 )
@@ -278,6 +289,8 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
                     download,
                     upload,
                     force_this,
+                    floor,
+                    ceil,
                     during,
                     cli.verbose,
                 );
@@ -290,6 +303,8 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
             download,
             upload,
             force_this,
+            floor,
+            ceil,
             during,
         }) => {
             #[cfg(feature = "ebpf")]
@@ -299,13 +314,24 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
                     download.as_deref(),
                     upload.as_deref(),
                     force_this,
+                    floor.as_deref(),
+                    ceil.as_deref(),
                     during.as_deref(),
                     cli.verbose,
                 )
             }
             #[cfg(not(feature = "ebpf"))]
             {
-                let _ = (rate, download, upload, force_this, during, cli.verbose);
+                let _ = (
+                    rate,
+                    download,
+                    upload,
+                    force_this,
+                    floor,
+                    ceil,
+                    during,
+                    cli.verbose,
+                );
                 ebpf_disabled()
             }
         }

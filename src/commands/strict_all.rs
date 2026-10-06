@@ -17,11 +17,17 @@ use crate::commands::safety::is_dangerous_target;
 /// System/dangerous apps are excluded unless --force-this.
 /// NIGHT-blade-2: renamed from limit-all (the strict family symmetry).
 #[cfg(feature = "ebpf")]
+// improve-40 (schema v24): the bracket pair joins the sweep's
+// payload — the same too-many-arguments posture the strict
+// handlers carry.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn handle_strict_all(
     rate: Option<&str>,
     download: Option<&str>,
     upload: Option<&str>,
     force_this: bool,
+    floor: Option<&str>,
+    ceil: Option<&str>,
     during: Option<&str>,
     verbose: bool,
 ) -> Result<()> {
@@ -40,6 +46,11 @@ pub(crate) fn handle_strict_all(
              Example: zelynic strict-all 500kb"
         ));
     }
+
+    // improve-40 (schema v24): the bracket joins the sweep's
+    // parse-first ladder — one flag, every fleet row carries it.
+    let (floor_bps, ceil_bps) =
+        crate::commands::guarantee::resolve_guarantee(floor, ceil, &rates, force_this, false)?;
 
     // night-during (schema v23): the sweep's own parse rung — the
     // fleet-wide window refuses before the identity walk.
@@ -137,15 +148,7 @@ pub(crate) fn handle_strict_all(
     crate::ebpf::limiter::Limiter::attach(verbose)?;
 
     let mut limiter = Limiter::open_pinned(verbose)?;
-    limiter.apply_group(
-        &targets,
-        &rates,
-        // improve-40 (schema v24): the CLI lane's zeroes, the
-        // plumbing pass's behavior-neutral shape.
-        0,
-        0,
-        during_spec.as_ref(),
-    )?;
+    limiter.apply_group(&targets, &rates, floor_bps, ceil_bps, during_spec.as_ref())?;
 
     // NIGHT-improve-28: strict-all reverses with the sledgehammer, not
     // a per-target unstrict — the old suggestion built
