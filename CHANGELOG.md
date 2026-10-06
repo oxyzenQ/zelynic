@@ -1078,6 +1078,37 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Fixed
 
+- **ci: NIGHT-repair-2 — the audit commit's own CI red, two
+  regressions the local gates' skip lanes had hidden.** The
+  night-improve-42 commit landed with its check-all and
+  Gate-keepers legs red on GitHub while the tree looked green
+  locally, each failure hiding behind a lane the local run skips:
+  the dormant-lane test compile
+  (`cargo test --no-default-features`, run_tests' own posture)
+  left the new rescue_tests module compiling to nothing but its
+  glob import — both pins inside are `#[cfg(feature = "ebpf")]`,
+  so without the feature the module's only remaining item was the
+  `use super::*` — and the CI leg's `RUSTFLAGS=-D warnings` turned
+  that unused-import warning into the error that failed check-all
+  (the local run has no such env, and the dormant-lane warning was
+  cached silently after the first pass). The fix is the
+  rates_shadow_tests precedent (commands/rates.rs, NIGHT-hunt-Z9):
+  the module include now reads `#[cfg(all(test, feature = "ebpf"))]`
+  — a module whose every pin is feature-gated joins the tree only
+  when its pins do, and the comment above the include names the law.
+  The second red was ruff F541 in the v4 battery's own runner
+  (supermassive-test-v4.py:889): one f-string with no placeholder
+  on a record() call the audit added — CI installs ruff 0.16.8,
+  the local gate-keepers run had skipped it (ruff absent), so the
+  one-character fix (drop the `f` prefix) never got the chance to
+  be caught before the push. The best-specs legs' claims-proof
+  failure on the same commit is NOT a code regression: the
+  precision row's error (30.6% vs the 12% bound) is the live
+  instrument's AIMD floor on that day's runner — the same row
+  passed at 5458ccc (10.5%) with the identical kernel bytes, and
+  the intervening commits touched docs, tests, and output colors
+  only; the re-run is the verdict, not the code.
+
 - **The restore's unreadable-window swallow (night-during-7's
   honesty catch, found in the duration-only revision's review).**
   `restore_plan` built each step's window with

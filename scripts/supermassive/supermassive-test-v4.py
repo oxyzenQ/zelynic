@@ -886,7 +886,7 @@ def _run_needle_cases(cases, prefix):
             # A refusal row that exits 0 accepted what it should have
             # refused — worse than a missing needle (an rc-0 answer
             # with needles set means the shape EXECUTED, not refused).
-            record(label, "FAIL", f"accepted (rc=0) what should refuse")
+            record(label, "FAIL", "accepted (rc=0) what should refuse")
             all_ok = False
             continue
         missing = [n for n in must_contain if n not in output]
