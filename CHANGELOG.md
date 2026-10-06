@@ -712,6 +712,29 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Changed
 
+- **refactor: NIGHT-improve-44 task a — the userspace 600-line cap
+  splits: the CLI declaration and the dispatch helpers carved out
+  of their over-cap mod.rs units (the no-mercy era's first two
+  stones).** src/cli/mod.rs (723, five years of splits landing on
+  one file) splits one last time the same way styles.rs and
+  scope.rs went before it: the Cli struct and its globals to
+  cli/root.rs (140), the Commands enum to cli/surface.rs (578),
+  mod.rs left as pure wiring (49 — module declarations and the
+  re-exports that keep crate::cli::Cli / crate::cli::Commands /
+  super:: call sites resolving identically; the clap grammar byte-
+  unchanged, --help verified identical modulo the improve-45
+  section). src/commands/mod.rs (622) sheds its dispatch-shared
+  surfaces to commands/dispatch_common.rs (185 — the apply-verb
+  epilogue, the root gate, the no-match hard-error contract, the
+  dormant refusal, the unpin cleanup, and the epilogue/no-match
+  pins that test them), the dispatch match itself untouched at
+  mod.rs 455 — the one-surface doctrine survives the cap, the
+  helpers were never part of it. Both lanes compile clean under
+  clippy -D warnings; the full batteries pass (ebpf 812+48,
+  dormant 119+43); surface.rs carries the transitional LOC_EXEMPT
+  (578 over the 500 era, under the 600 era this task series lands
+  with its final commit).
+
 - **docs: NIGHT-improve-45 — the Pro mode section: every hidden and
   advanced flag documented completely on the --help reference.** The
   single-tier help surface carried the globals and the core rate
