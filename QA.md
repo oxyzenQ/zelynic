@@ -339,26 +339,26 @@ half-attached state: on bpf_link kernels (5.7+), program pins
 without link pins enforce nothing, so the next attach reloads
 instead of silently trusting dead state.
 
-## Q8 — The owner's mature project has three engines — Cosmic Dragon, Chroma Dragon, Crystal Dragon. What is the difference, and why three?
+## Q8 — The owner's mature project has three engines — cosmic dragon, chroma dragon, crystal dragon. What is the difference, and why three?
 
 That engine family is **cosmostrix's** rendering architecture
 (github.com/oxyzenQ/cosmostrix, docs/THREE_DRAGON_ENGINES.md), and
 the split is a separation-of-concerns answer to one question: what
 does a frame COST, in cells, in color, in mood?
 
-- **Cosmic Dragon** (`src/engine/cosmic_dragon_engine/`) owns *what
+- **the cosmic dragon** (`src/engine/cosmic_dragon_engine/`) owns *what
   cells changed*: the diff-based render loop — a persistent
   back-buffer compared frame-to-frame, only dirty cells emitted as
   ANSI with RLE batching. ~360 cell-writes instead of 4,800 on a
   120×40 terminal (a 13× I/O reduction), which is what makes
   cinematic effects affordable at 60–240 FPS on ~4–5 MiB and one
   core.
-- **Chroma Dragon** (`src/engine/chroma_dragon_engine/`) owns *what
+- **the chroma dragon** (`src/engine/chroma_dragon_engine/`) owns *what
   color a cell becomes*: palette construction in OKlab perceptual
   space (no muddy mid-tones), hue-preserving polar gradients, the
   per-cell shader pipeline — locked at Phase 9-D behind an invariant
   lock suite.
-- **Crystal Dragon** (`src/engine/crystal_dragon_engine/`) owns
+- **the crystal dragon** (`src/engine/crystal_dragon_engine/`) owns
   *what mood the rain has*: ambient palette drift driven by system
   state, time-of-day scene scheduling, temperature grouping.
 
@@ -368,7 +368,7 @@ regression cannot corrupt a physics invariant and an ambient scene
 swap cannot touch the diff buffer. Each engine is independently
 testable and independently lockable.
 
-**What zelynic inherited**: the Cosmic Dragon's diff discipline,
+**What zelynic inherited**: the cosmic dragon's diff discipline,
 scaled down to a utility — `src/terminal/diff.rs` is the
 cosmic-dragon-engine adaptation (NIGHT-improve-2): the renderer
 builds logical lines, the engine diffs against the previous frame's

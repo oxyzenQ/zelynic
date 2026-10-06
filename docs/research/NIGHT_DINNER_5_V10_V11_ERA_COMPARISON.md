@@ -4,7 +4,7 @@
 # NIGHT-dinner-5 — The v10 vs v11 Era Comparison
 
 > Which era is sharper and more powerful — the v10 stable line or the
-> v11 Cosmic Dragon line? Asked by the owner on 2026-09-27, answered
+> v11 cosmic dragon line? Asked by the owner on 2026-09-27, answered
 > live: both binaries run as root inside the zelynic sandbox micro-VM
 > (kernel 7.0.0-34-generic, Ubuntu 26.04 LTS lane, TCG emulation —
 > this agent box has no /dev/kvm and no sudo), plus a rootless host

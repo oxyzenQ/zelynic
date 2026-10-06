@@ -254,7 +254,7 @@ CHORE_KW='bump|pin|pinned|trim|trimmed|deps|dependencies|cleanup|tidy|version|re
 # slash), then keep the first
 # 10 words — secondary clauses ("... and add X") far out must not
 # reclassify the commit, but 10 not 8: this campaign's subjects lead
-# with long noun phrases (the diff engine and cosmic dragon engine
+# with long noun phrases (the diff engine and the cosmic dragon engine
 # depth AUDIT — the signal word is #10; the cosmostrix 8-word window
 # would lose it).
 scan_text() {

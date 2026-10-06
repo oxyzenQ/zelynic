@@ -818,6 +818,37 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Changed
 
+- **The engine name is one name now — `the cosmic dragon`
+  (night-audit-2, the owner's consistency call: from "cosmic
+  dragon/etc inconsistency" to one spelling).** The audit found the
+  architecture and engine name in four casings across the tree —
+  title-case (x27), bare lowercase without the article (x11),
+  lowercase name with a capitalized dragon (x3), and the two
+  already-correct instances — every prose mention now reads `the cosmic dragon`
+  (the engine) / `the cosmic dragon architecture` (the
+  architecture): the name lowercase in every context the way the
+  name zelynic itself is (BRANDING.md 3.1's nginx/curl law), the
+  definite article in prose exactly as the README tagline always
+  carried it, the article capitalizing only as a sentence or
+  heading's first word. What the law deliberately does NOT re-case:
+  the identifier families (`COSMIC_DRAGON_*` consts and filenames,
+  the cosmostrix `cosmic_dragon_engine` module paths), the GPG
+  signing identity `Rezky Cahya Sahputra (cosmic dragon)` (real
+  key data), cosmostrix's own artifacts quoted verbatim (the
+  "Cosmic Dragon Guard - Release" workflow name), the retired `-V`
+  literal `Architecture: Cosmic Dragon (pure eBPF)` (byte-exact
+  history), and the owner-approved voice fragments ("cold, silent,
+  cosmic dragon" — a motto, not a noun phrase). The law is
+  codified as BRANDING.md 3.3 and machine-enforced the same hour:
+  `scripts/gates/check-name-case.py` (the zelynic name gate) now
+  scans the two-word phrase on the same every-tracked-file
+  discipline, self-clean by building its own literal exceptions at
+  runtime — the gate's first run caught the two instances the
+  manual sweep missed (QA.md's engine bullet, the README doc index
+  link), the proof the enforcement earns its seat. The ecosystem
+  list rides the same law (QA.md Q8: cosmic dragon, chroma dragon,
+  crystal dragon — the owner's three engines, lowercase together).
+
 - **`--during` is duration-only (the owner's revision of the
   night-during grammar): the flag takes ONE shape — a duration
   from the apply instant, `<N><unit>` with units s, m, h, d, mn, y
@@ -8247,7 +8278,7 @@ NIGHT-hunt-18's git-history-only call.
   name was the last holdout from before the cosmic identity settled:
   the GPG signing identity is the cosmic dragon, the render engine
   lineage is the cosmic-dragon-engine (cosmostrix), the persona is
-  dragonzen — the architecture is now the Cosmic Dragon Architecture
+  dragonzen — the architecture is now the cosmic dragon architecture
   too, one identity across everything. The rename is repo-wide and
   lockstep: docs/DRAGON_ARCHITECTURE.md →
   docs/COSMIC_DRAGON_ARCHITECTURE.md (git mv, history preserved),
