@@ -19,9 +19,9 @@ pub(super) use super::policy_lines::{
 };
 
 use super::atomic::PolicyMutation;
-use super::during::{during_to_window, wall_now_ns, WindowMutation};
+use super::during_map::{translate_now, WindowMutation};
 use super::during_parse::DuringSpec;
-use super::format::{default_burst, monotonic_ns};
+use super::format::default_burst;
 use super::lanes::map_error_means_absent;
 use super::types::{
     group_id_from, Direction, PolicyRaw, PolicyWindowRaw, RateSpec, Target, MAX_ENFORCABLE_BURST,
@@ -58,8 +58,7 @@ impl super::Limiter {
         // visit IS the refresh channel (the design brief's drift
         // residue, re-zeroed here).
         self.stamp_wall_clock_offset()?;
-        let window: Option<PolicyWindowRaw> =
-            during.map(|spec| during_to_window(spec, wall_now_ns(), monotonic_ns()));
+        let window: Option<PolicyWindowRaw> = during.map(translate_now);
 
         // NIGHT-hunt-20: strict all-or-nothing — every mutation of
         // THIS invocation is recorded so a mid-flight failure (map
@@ -172,8 +171,7 @@ impl super::Limiter {
         // owns — stamp the bridge, translate the window once, share
         // it across every member root.
         self.stamp_wall_clock_offset()?;
-        let window: Option<PolicyWindowRaw> =
-            during.map(|spec| during_to_window(spec, wall_now_ns(), monotonic_ns()));
+        let window: Option<PolicyWindowRaw> = during.map(translate_now);
 
         // Same rollback ledger as apply_single (NIGHT-hunt-20): a
         // group with a partial member list would point at a bucket
