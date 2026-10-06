@@ -371,6 +371,13 @@ rmdir /sys/fs/cgroup/zelynic-rig-suite 2>/dev/null || true
 # kernel run time. Every push's supermassive run is now also a
 # live claims audit; the full owner-facing flow stays
 # `sudo ./scripts/bench/proof-claims.sh` on the host.
+# NIGHT-improve-48: the rootfs now ships nft and bpftool (the
+# rootfs assembly's tools closure), so the pure-eBPF ruleset
+# snapshot, the bpftool visibility row, and the footprint's
+# kernel run-time numbers run for real on every leg — the three
+# tool-absent SKIP rows the VM carried since lts-6 are closed,
+# and the quick-mode verdict should read 29 passed, 0 skipped
+# on this shape.
 if python3 scripts/bench/proof-claims.py \
 	--quick --binary /opt/zelynic/zelynic; then
 	note "claims proof (live, quick)" PASS
