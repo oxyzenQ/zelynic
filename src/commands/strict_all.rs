@@ -32,7 +32,7 @@ pub(crate) fn handle_strict_all(
     verbose: bool,
 ) -> Result<()> {
     use crate::ebpf::identity::IdentityMap;
-    use crate::ebpf::limiter::{parse_during, wall_now_ns, Limiter, Target};
+    use crate::ebpf::limiter::{parse_during, Limiter, Target};
 
     // Input validation first (fail-fast, no privileges needed) — same
     // parse-before-execute ladder as the other strict handlers.
@@ -54,9 +54,7 @@ pub(crate) fn handle_strict_all(
 
     // night-during (schema v23): the sweep's own parse rung — the
     // fleet-wide window refuses before the identity walk.
-    let during_spec = during
-        .map(|spec| parse_during(spec, wall_now_ns()))
-        .transpose()?;
+    let during_spec = during.map(parse_during).transpose()?;
 
     super::ensure_root()?;
 

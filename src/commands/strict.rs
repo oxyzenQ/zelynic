@@ -33,7 +33,7 @@ pub(crate) fn handle_strict_single(
     during: Option<&str>,
     verbose: bool,
 ) -> Result<()> {
-    use crate::ebpf::limiter::{parse_during, wall_now_ns, Limiter, Target};
+    use crate::ebpf::limiter::{parse_during, Limiter, Target};
 
     // Input validation first (fail-fast, no privileges needed): rate
     // strings and the dangerous-target blocklist are pure parsing, so
@@ -68,9 +68,7 @@ pub(crate) fn handle_strict_single(
     // surfaces its did-you-mean block BEFORE the root ask, the
     // parse-before-execute ladder (a bad --during never burns a
     // privileged round-trip).
-    let during_spec = during
-        .map(|spec| parse_during(spec, wall_now_ns()))
-        .transpose()?;
+    let during_spec = during.map(parse_during).transpose()?;
 
     // NIGHT-dinner-16: the single-target input boundary — an empty
     // target dies HERE, before the blocklist and the root ask, the
@@ -233,7 +231,7 @@ pub(crate) fn handle_strict_multi(
     during: Option<&str>,
     verbose: bool,
 ) -> Result<()> {
-    use crate::ebpf::limiter::{parse_during, wall_now_ns, Limiter, Target};
+    use crate::ebpf::limiter::{parse_during, Limiter, Target};
 
     // Input validation first (fail-fast, no privileges needed) — same
     // parse-before-execute ladder as handle_strict_single. NIGHT-improve-30:
@@ -256,9 +254,7 @@ pub(crate) fn handle_strict_multi(
     // night-during (schema v23): the same parse-first ladder, the
     // multi's own rung placement (after the rate family, before the
     // target grammar — one input boundary, every refusal cheap).
-    let during_spec = during
-        .map(|spec| parse_during(spec, wall_now_ns()))
-        .transpose()?;
+    let during_spec = during.map(parse_during).transpose()?;
 
     // NIGHT-blade-18: the colon list is a grammar now, not a best-effort
     // scan — validate_multi_targets refuses the shapes that can only be

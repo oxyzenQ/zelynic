@@ -816,6 +816,30 @@ NIGHT-hunt-18's git-history-only call.
   blocks. CONTRIBUTING.md and docs/MAINTENANCE.md carry the
   contract.
 
+### Changed
+
+- **`--during` is duration-only (the owner's revision of the
+  night-during grammar): the flag takes ONE shape — a duration
+  from the apply instant, `<N><unit>` with units s, m, h, d, mn, y
+  and bounds 1s..10y (`--during 1h` auto-expires after one hour,
+  `--during 20d` after twenty days; months 30 days, years 365,
+  the fixed-calendar contract unchanged).** The window form
+  (`09:00-17:00`) and the date form (`2026-10-15`) are refused at
+  parse time, the wording naming the removed shape and the
+  duration that replaced it — the simplicity the owner asked for:
+  no more `09:00-18:00/2026-10-15`, support only the timer. What
+  deliberately does NOT change: rows written by older builds keep
+  their promised behavior (the kernel verdict core's read-side
+  belt still honors the DAILY and SPAN kinds — a pinned map is
+  never narrowed by a grammar change), and `restore` still
+  re-translates a state file's wall-form windows verbatim, so an
+  auto-expire promise survives the revision never converting into
+  forever. The parse no longer reads a wall clock (a duration
+  needs none, so the parse-before-execute ladder lost its one
+  impure rung); the grammar pins flipped with it — the removed
+  shapes refuse by name in during_user_tests.rs, and the restore
+  lane's translation pins stand unchanged beside them.
+
 ### Removed
 
 - **NIGHT-improve-39 fixup 3, the owner's final form for the

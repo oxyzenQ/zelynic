@@ -5,12 +5,12 @@
 
 use anyhow::Result;
 
-use crate::ebpf::limiter::{parse_during, wall_now_ns, Limiter, RateSpec, Target};
+use crate::ebpf::limiter::{parse_during, Limiter, RateSpec, Target};
 
 /// Block a single app from the internet.
-/// `during` (night-during, schema v23): the block's own lifetime —
-/// a UTC daily window, a whole UTC day, or a duration; the block
-/// lifts itself, no daemon.
+/// `during` (night-during, schema v23; the owner's duration-only
+/// revision): the block's own lifetime — a duration from the apply
+/// instant; the block lifts itself, no daemon.
 pub fn handle_block_single(
     target_str: &str,
     force_this: bool,
@@ -28,9 +28,7 @@ pub fn handle_block_single(
 
     // night-during (schema v23): the window parses on the same
     // fail-fast rung (a typo'd grammar never burns the root ask).
-    let during_spec = during
-        .map(|spec| parse_during(spec, wall_now_ns()))
-        .transpose()?;
+    let during_spec = during.map(parse_during).transpose()?;
 
     super::ensure_root()?;
 
@@ -137,9 +135,7 @@ pub fn handle_block_multi(
 
     // night-during (schema v23): the window parses on the same
     // fail-fast rung — one input boundary, every refusal cheap.
-    let during_spec = during
-        .map(|spec| parse_during(spec, wall_now_ns()))
-        .transpose()?;
+    let during_spec = during.map(parse_during).transpose()?;
 
     super::ensure_root()?;
 
@@ -199,9 +195,7 @@ pub fn handle_block_all(force_this: bool, during: Option<&str>, verbose: bool) -
 
     // night-during (schema v23): the fleet-wide window refuses
     // before the identity walk (the strict-all handler's rung).
-    let during_spec = during
-        .map(|spec| crate::ebpf::limiter::parse_during(spec, crate::ebpf::limiter::wall_now_ns()))
-        .transpose()?;
+    let during_spec = during.map(crate::ebpf::limiter::parse_during).transpose()?;
 
     super::ensure_root()?;
 
