@@ -125,9 +125,11 @@ SKIP_FILES = {
     # NIGHT-dinner-19 (frozen content lives in git history); the
     # entry stays so an old checkout running this gate still skips it.
     "CHANGELOG-V11-ERA.md",
-    # NIGHT-improve-43 split the v20 era out of the live file at the
-    # b743d9c blob — CHANGELOG-V20-ERA.md is the same frozen-record
-    # class (archive content is never rewritten).
+    # NIGHT-improve-43 split the v20 era out of the live file at
+    # the b743d9c blob; the task's re-issue moved the file from
+    # the root into docs/archive/ — the same frozen-record class
+    # either way (archive content is never rewritten; this
+    # name-based skip keeps matching at both homes).
     "CHANGELOG-V20-ERA.md",
     "check-language.sh",  # this detector's own word set
 }

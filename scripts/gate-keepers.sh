@@ -383,9 +383,10 @@ fi
 header "Markdown lint (markdownlint-cli2)"
 if command -v markdownlint-cli2 >/dev/null 2>&1; then
 	# markdownlint-cli2 uses glob patterns natively — the '!' prefix
-	# excludes. CHANGELOG.md, CHANGELOG-V20-ERA.md (the NIGHT-improve-43
-	# v20-era split, the b743d9c blob), and docs/archive/** are frozen
-	# history
+	# excludes. CHANGELOG.md and docs/archive/** are frozen history
+	# (the v20-era split file moved from the root into docs/archive/
+	# in the NIGHT-improve-43 re-issue — the docs/archive/**
+	# exclusion is its lint shield now)
 	# (the keepachangelog format's repeated headings, inline HTML
 	# commit refs, and mixed list styles are the format's own shape,
 	# not lint debt). The repo's .markdownlint.json config (MD013
@@ -394,13 +395,13 @@ if command -v markdownlint-cli2 >/dev/null 2>&1; then
 	# is read automatically from the repo root.
 	MD_OK=0
 	if $FIX_MODE; then
-		markdownlint-cli2 --fix '**/*.md' '!CHANGELOG.md' '!CHANGELOG-V20-ERA.md' '!docs/archive/**' \
+		markdownlint-cli2 --fix '**/*.md' '!CHANGELOG.md' '!docs/archive/**' \
 			'!target/**' '!ebpf/target/**' '!node_modules/**' 2>&1 || MD_OK=1
 		# Re-check after fix: auto-fix may not resolve everything.
-		markdownlint-cli2 '**/*.md' '!CHANGELOG.md' '!CHANGELOG-V20-ERA.md' '!docs/archive/**' \
+		markdownlint-cli2 '**/*.md' '!CHANGELOG.md' '!docs/archive/**' \
 			'!target/**' '!ebpf/target/**' '!node_modules/**' 2>&1 || MD_OK=1
 	else
-		markdownlint-cli2 '**/*.md' '!CHANGELOG.md' '!CHANGELOG-V20-ERA.md' '!docs/archive/**' \
+		markdownlint-cli2 '**/*.md' '!CHANGELOG.md' '!docs/archive/**' \
 			'!target/**' '!ebpf/target/**' '!node_modules/**' 2>&1 || MD_OK=1
 	fi
 	if [ "$MD_OK" -eq 0 ]; then
@@ -497,9 +498,11 @@ def is_emoji(cp: int) -> bool:
 SKIP_DIRS = {".git", "target"}
 SKIP_FILES = {"CHANGELOG.md", "CHANGELOG-V11-ERA.md", "CHANGELOG-V20-ERA.md"}
 # The frozen-history home: docs/archive/ holds restored records that
-# are never rewritten (NIGHT-dinner-15) — the same policy as the root
-# changelog files above, scoped by path prefix so only this one
-# directory is exempt.
+# are never rewritten (NIGHT-dinner-15; the v20-era file moved there
+# from the root in the NIGHT-improve-43 re-issue) — the same policy
+# as the root changelog files above, scoped by path prefix so only
+# this one directory is exempt. The name set above stays name-based,
+# so it keeps matching the era file at either home.
 SKIP_PREFIXES = ("docs/archive/",)
 SKIP_SUFFIXES = (".png", ".lock")
 hits = []

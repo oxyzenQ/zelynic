@@ -11,10 +11,13 @@ than the v20.0.0 stable release — the fresh record since the owner
 cut v20 at commit b743d9c (2026-10-04). NIGHT-improve-43
 (2026-10-06) trimmed the legacy bulk out: the 9,217 pre-split
 lines moved to the frozen era file, leaving this one at the
-post-v20 record alone. The v20-era history (the v11-line entries
+post-v20 record alone — the same task's re-issue later moved the
+era file out of the root entirely, so the root tree carries
+nothing legacy at all. The v20-era history (the v11-line entries
 through the v20.0.0 release, the changelog blob as it stood at
 b743d9c) is archived in
-[CHANGELOG-V20-ERA.md](CHANGELOG-V20-ERA.md); the pre-v11 release
+[docs/archive/CHANGELOG-V20-ERA.md](docs/archive/CHANGELOG-V20-ERA.md);
+the pre-v11 release
 history (entries [1.0.0] through [7.0.0]) is archived in
 [docs/archive/CHANGELOG_PRE_V11.md](docs/archive/CHANGELOG_PRE_V11.md)
 — restored there by NIGHT-dinner-15 (2026-09-28), superseding
@@ -23,6 +26,33 @@ NIGHT-hunt-18's git-history-only call.
 ## [Unreleased]
 
 ### Added
+
+- **docs: NIGHT-improve-43 re-issue — the v20-era file moved from
+  the repo root into the archive, the root left carrying the fresh
+  record alone.** The owner's mandate, the intent verbatim: the
+  old era moves to the archive, not the root — CHANGELOG.md stays
+  fresh post-v20 data, no legacy bulk at the tree's front door.
+  The first pass had parked CHANGELOG-V20-ERA.md at the root; this
+  pass moves it to docs/archive/CHANGELOG-V20-ERA.md, the
+  frozen-history home the PRE_V11 file established
+  (NIGHT-dinner-15), and gives it the archive wrapper that home
+  demands: the license header the header gate asks of every
+  non-root .md, a short archive note naming the provenance (the
+  b743d9c blob, the root history, the relative-path reading), and
+  the bottom disclaimer the injector demands outside the root
+  changelog family. The frozen entries are untouched — the wrapper
+  sits around the blob, the H1 retitled to self-identify
+  ("Changelog — V20-Era Archive"), the one recorded blob deviation
+  (the NIGHT-audit-2 name-case line) unchanged, zero entry lines
+  edited. Every live reference moved with it: this file's header
+  and History map, docs/RULES.md's frozen-record law, the
+  gatekeeper's markdownlint excludes (the dead root glob retired
+  — the docs/archive/** exclusion is the file's lint shield now),
+  and the four gate scripts' era-file arms re-pinned to the new
+  home (check-headers.sh, inject-disclaimer.sh, check-language.sh,
+  gate-keepers.sh — the name-based skip sets keep matching the
+  file wherever it lives, the path-anchored regex arms kept as the
+  old-checkout shield the V11 arm already documents).
 
 - **docs(audit): NIGHT-improve-46 — the help surface and the
   documents verified against the source, both directions, honest
@@ -1210,15 +1240,19 @@ The changelog's per-era split, newest era first:
   NIGHT-improve-43 (2026-10-06) cut the legacy bulk out so the
   live file carries only what shipped after the release.
 
-- [CHANGELOG-V20-ERA.md](CHANGELOG-V20-ERA.md) — the v20 era: the
-  v11-line entries through the v20.0.0 stable release, the
-  changelog blob as it stood at the release commit b743d9c (the
-  frozen-record class the gates exclude together with this file).
-  One line differs from the raw blob: the NIGHT-audit-2 name-case
-  fix ("the cosmic dragon architecture", the machine-enforced
-  one-name law BRANDING.md 3.3 carries — check-name-case.py would
-  refuse the frozen file otherwise); every other line is
-  byte-identical to b743d9c's CHANGELOG.md.
+- [docs/archive/CHANGELOG-V20-ERA.md](docs/archive/CHANGELOG-V20-ERA.md)
+  — the v20 era: the v11-line entries through the v20.0.0 stable
+  release, the changelog blob as it stood at the release commit
+  b743d9c. NIGHT-improve-43's re-issue moved it from the repo root
+  into docs/archive/ (the owner's mandate: the root keeps only
+  the fresh record), where it carries the archive wrapper the
+  PRE_V11 file established — license header, archive note, bottom
+  disclaimer. One line inside differs from the raw blob: the
+  NIGHT-audit-2 name-case fix ("the cosmic dragon architecture",
+  the machine-enforced one-name law BRANDING.md 3.3 carries —
+  check-name-case.py would refuse the frozen file otherwise) —
+  plus the H1 retitled to self-identify the archive; every entry
+  line is byte-identical to b743d9c's CHANGELOG.md.
 
 - The frozen campaign history of the v11 development line — the
   NIGHT research campaign, 2026-09-17 to 2026-09-19, every entry

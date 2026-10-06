@@ -41,7 +41,10 @@
 #   CHANGELOG-V20-ERA.md — the v20-era record split out of the
 #   live file at the b743d9c blob — the same frozen-record class
 #   (byte-frozen history the disclaimer gate must not demand
-#   edits in).
+#   edits in). The task's re-issue moved that file from the root
+#   into docs/archive/, where it carries the bottom disclaimer
+#   the PRE_V11 archive file established — so this root regex arm
+#   is the old-checkout shield now, not the live exemption.
 
 set -euo pipefail
 
