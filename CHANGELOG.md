@@ -24,6 +24,37 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Added
 
+- **docs(audit): NIGHT-improve-46 — the help surface and the
+  documents verified against the source, both directions, honest
+  and transparent
+  (docs/audits/NIGHT_IMPROVE_46_HELP_DOCS_CONSISTENCY_AUDIT_2026-10-06.md).**
+  The two-way flag extraction: all 22 source long flags documented
+  on the rendered --help (globals in their section, -d/-u in every
+  strict usage line, the thirteen advanced flags in Pro mode held
+  by the 13-flag drift pin), and the help's only flag mentions
+  without source definitions (--info, --limit) verified as NEGATIVE
+  documentation — retirement and absence named on purpose. The
+  empirical bounds walk: every numeric claim on the help probed
+  from both sides of its boundary on the built binary — interval
+  1s-60s, focus 1s-30s, rate 1kb-1tb with the SI wording, the
+  --during 1s..10y ceiling with the removed-window-shape refusal
+  by name, and the full bracket ladder (the contradiction, the
+  over-subscription, the legal mixed spelling, the one-spelling
+  law) — every one enforced exactly as printed. The blocklist's
+  "57 system processes" is computed from DANGEROUS_TARGETS.len()
+  (counted 57 at source, drift-proof by construction). The docs
+  drift scan: 434 --flag mentions across the live docs classified
+  — zero real drift (live flags, documented retired spellings,
+  other tools' flags, script surfaces, payload examples). The
+  command census: all 16 verbs, the 10 short aliases, and the 2
+  shorthands documented, the alias routing probed live. The
+  contract for tomorrow: help_pins.rs's 14 tests, all green in
+  the fresh battery. One presentational convention verified as
+  deliberate (--download/--upload parse but the docs present the
+  interface as -d/-u, the source's own recommendation); the
+  display-mangling lesson hit twice more and dissolved at the
+  byte level both times. Verdict: consistent, nothing to fix.
+
 - **docs(audit): NIGHT-improve-47 — the supermassive depth tests
   for the private-research-4 features, verified feature by feature
   (docs/audits/NIGHT_IMPROVE_47_SUPERMASSIVE_DEPTH_AUDIT_2026-10-06.md).**
