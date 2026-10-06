@@ -45,7 +45,6 @@ pub mod types;
 #[cfg(test)]
 #[path = "../../../test/ebpf/limiter/wiring.rs"]
 mod wiring;
-
 // Re-export public types/functions for external use (the
 // parse/format LOC-cap splits kept this surface unchanged).
 pub use format::{
@@ -56,7 +55,8 @@ pub use parse::{
     parse_focus_window, parse_monitor_interval, parse_rate, parse_time_duration, validate_rate,
 };
 pub use types::{
-    Direction, LimiterStatsRaw, PolicyRaw, PolicyWindowRaw, RateSpec, Target, LIMITER_ELF,
+    BracketPair, BracketSpec, Direction, LimiterStatsRaw, PolicyRaw, PolicyWindowRaw, RateSpec,
+    Target, LIMITER_ELF,
 };
 // night-during (schema v23): the --during surfaces the command layer
 // consumes (the display join rides the re-exports).

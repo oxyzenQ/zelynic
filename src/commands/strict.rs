@@ -28,8 +28,9 @@ pub(crate) fn handle_strict_single(
     force_this: bool,
     no_probe: bool,
     per_socket: bool,
-    floor: Option<&str>,
-    ceil: Option<&str>,
+    // improve-40-b: the six bracket flags ride one struct (the
+    // per-direction spellings included — the resolver's own shape).
+    bracket_flags: super::guarantee::BracketFlags<'_>,
     during: Option<&str>,
     verbose: bool,
 ) -> Result<()> {
@@ -53,15 +54,16 @@ pub(crate) fn handle_strict_single(
         ));
     }
 
-    // improve-40 (schema v24): the guarantee bracket parses and
-    // validates on the same fail-fast rung the rate family owns —
-    // the ladder's own law (a contradictory bracket surfaces its
-    // wording before the root ask, the parse-before-execute
-    // contract; the scope call rides FIRST, before any parsing,
-    // because the --per-socket combination is rejected whatever
-    // the values would have been).
-    let (floor_bps, ceil_bps) =
-        super::guarantee::resolve_guarantee(floor, ceil, &rates, force_this, per_socket)?;
+    // improve-40 (schema v24) / improve-40-b (the per-direction
+    // spellings): the guarantee bracket parses and validates on
+    // the same fail-fast rung the rate family owns — the ladder's
+    // own law (a contradictory bracket surfaces its wording before
+    // the root ask, the parse-before-execute contract; the scope
+    // call rides FIRST, before any parsing, because the
+    // --per-socket combination is rejected whatever the values
+    // would have been).
+    let bracket =
+        super::guarantee::resolve_guarantee(bracket_flags, &rates, force_this, per_socket)?;
 
     // night-during (schema v23): the window parses on the same
     // fail-fast rung the rate family owns — a typo'd grammar
@@ -116,8 +118,9 @@ pub(crate) fn handle_strict_single(
             &target,
             &rates,
             per_socket,
-            floor_bps,
-            ceil_bps,
+            // improve-40-b: the per-direction bracket, written on
+            // each direction's own rows.
+            &bracket,
             during_spec.as_ref(),
         )?;
         if applied == 0 {
@@ -226,8 +229,7 @@ pub(crate) fn handle_strict_multi(
     download: Option<&str>,
     upload: Option<&str>,
     force_this: bool,
-    floor: Option<&str>,
-    ceil: Option<&str>,
+    bracket_flags: super::guarantee::BracketFlags<'_>,
     during: Option<&str>,
     verbose: bool,
 ) -> Result<()> {
@@ -245,11 +247,11 @@ pub(crate) fn handle_strict_multi(
         ));
     }
 
-    // improve-40 (schema v24): the bracket joins the multi's
-    // parse-first ladder — one flag, every member row carries it
-    // (the group's own contract, the --during shape).
-    let (floor_bps, ceil_bps) =
-        super::guarantee::resolve_guarantee(floor, ceil, &rates, force_this, false)?;
+    // improve-40 (schema v24) / improve-40-b: the bracket joins
+    // the multi's parse-first ladder — one flag, every member row
+    // carries it (the group's own contract, the --during shape);
+    // the per-direction spellings ride the same struct.
+    let bracket = super::guarantee::resolve_guarantee(bracket_flags, &rates, force_this, false)?;
 
     // night-during (schema v23): the same parse-first ladder, the
     // multi's own rung placement (after the rate family, before the
@@ -306,8 +308,7 @@ pub(crate) fn handle_strict_multi(
     // exact trap for scripted fleet automation, which now sees the
     // transaction fail whole or land whole. night-during (schema
     // v23): the window rides the same atomic contract.
-    let applied =
-        limiter.apply_group_atomic(&targets, &rates, floor_bps, ceil_bps, during_spec.as_ref())?;
+    let applied = limiter.apply_group_atomic(&targets, &rates, &bracket, during_spec.as_ref())?;
     if applied == 0 {
         // NIGHT-dinner-11: the no-match hard error (strict-single's
         // contract, the multi's plural wording).
@@ -357,8 +358,7 @@ mod tests {
             false,
             false,
             false,
-            None,
-            None,
+            super::super::guarantee::BracketFlags::default(),
             None,
             false,
         )
@@ -391,8 +391,7 @@ mod tests {
             false,
             false,
             false,
-            None,
-            None,
+            super::super::guarantee::BracketFlags::default(),
             None,
             false,
         )
@@ -424,8 +423,7 @@ mod tests {
             false,
             false,
             false,
-            None,
-            None,
+            super::super::guarantee::BracketFlags::default(),
             None,
             false,
         )

@@ -18,7 +18,9 @@ use super::atomic::PolicyMutation;
 use super::during_map::WindowMutation;
 use super::format::default_burst;
 use super::policy_lines::policy_write_line;
-use super::types::{Direction, PolicyRaw, PolicyWindowRaw, RateSpec, MAX_ENFORCABLE_BURST};
+use super::types::{
+    BracketSpec, Direction, PolicyRaw, PolicyWindowRaw, RateSpec, MAX_ENFORCABLE_BURST,
+};
 
 impl super::Limiter {
     /// Write the dl + ul policies for one cgroup, recording each
@@ -33,16 +35,17 @@ impl super::Limiter {
     /// `None` removes any existing entry (the improve-29 law one
     /// level up), the pre-apply row captured into
     /// `window_mutations` for the atomic rollback.
-    /// `floor_bps`/`ceil_bps` (improve-40, schema v24): the guarantee
-    /// bracket both legs of the row carry — the DRR pool's per-LEAF
-    /// min/max, the zero sentinel unset.
+    /// `bracket` (improve-40, schema v24; improve-40-b the
+    /// per-direction shape): the guarantee pair each direction's leg
+    /// carries — its OWN pair, so the asymmetric link's spellings
+    /// land per leg (the one-flag law's both-pairs when `--floor`
+    /// set both).
     #[allow(clippy::too_many_arguments)]
     pub(super) fn write_policies_for_cgroup(
         &mut self,
         cgroup_id: u32,
         rates: &RateSpec,
-        floor_bps: u64,
-        ceil_bps: u64,
+        bracket: &BracketSpec,
         group_id: u32,
         flags: u32,
         mutations: &mut Vec<PolicyMutation>,
@@ -73,8 +76,8 @@ impl super::Limiter {
             self.write_policy(
                 cgroup_id,
                 dl_rate,
-                floor_bps,
-                ceil_bps,
+                bracket.download.floor_bps,
+                bracket.download.ceil_bps,
                 group_id,
                 flags,
                 Direction::Download,
@@ -87,7 +90,13 @@ impl super::Limiter {
             if self.verbose {
                 eprintln_safe!(
                     "{}",
-                    policy_write_line(cgroup_id, Direction::Download, dl_rate, floor_bps, ceil_bps)
+                    policy_write_line(
+                        cgroup_id,
+                        Direction::Download,
+                        dl_rate,
+                        bracket.download.floor_bps,
+                        bracket.download.ceil_bps,
+                    )
                 );
             }
             applied += 1;
@@ -100,8 +109,8 @@ impl super::Limiter {
             self.write_policy(
                 cgroup_id,
                 ul_rate,
-                floor_bps,
-                ceil_bps,
+                bracket.upload.floor_bps,
+                bracket.upload.ceil_bps,
                 group_id,
                 flags,
                 Direction::Upload,
@@ -114,7 +123,13 @@ impl super::Limiter {
             if self.verbose {
                 eprintln_safe!(
                     "{}",
-                    policy_write_line(cgroup_id, Direction::Upload, ul_rate, floor_bps, ceil_bps)
+                    policy_write_line(
+                        cgroup_id,
+                        Direction::Upload,
+                        ul_rate,
+                        bracket.upload.floor_bps,
+                        bracket.upload.ceil_bps,
+                    )
                 );
             }
             applied += 1;

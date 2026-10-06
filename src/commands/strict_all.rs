@@ -26,8 +26,7 @@ pub(crate) fn handle_strict_all(
     download: Option<&str>,
     upload: Option<&str>,
     force_this: bool,
-    floor: Option<&str>,
-    ceil: Option<&str>,
+    bracket_flags: crate::commands::guarantee::BracketFlags<'_>,
     during: Option<&str>,
     verbose: bool,
 ) -> Result<()> {
@@ -47,10 +46,11 @@ pub(crate) fn handle_strict_all(
         ));
     }
 
-    // improve-40 (schema v24): the bracket joins the sweep's
-    // parse-first ladder — one flag, every fleet row carries it.
-    let (floor_bps, ceil_bps) =
-        crate::commands::guarantee::resolve_guarantee(floor, ceil, &rates, force_this, false)?;
+    // improve-40 (schema v24) / improve-40-b: the bracket joins
+    // the sweep's parse-first ladder — one flag, every fleet row
+    // carries it; the per-direction spellings ride the same struct.
+    let bracket =
+        crate::commands::guarantee::resolve_guarantee(bracket_flags, &rates, force_this, false)?;
 
     // night-during (schema v23): the sweep's own parse rung — the
     // fleet-wide window refuses before the identity walk.
@@ -146,7 +146,7 @@ pub(crate) fn handle_strict_all(
     crate::ebpf::limiter::Limiter::attach(verbose)?;
 
     let mut limiter = Limiter::open_pinned(verbose)?;
-    limiter.apply_group(&targets, &rates, floor_bps, ceil_bps, during_spec.as_ref())?;
+    limiter.apply_group(&targets, &rates, &bracket, during_spec.as_ref())?;
 
     // NIGHT-improve-28: strict-all reverses with the sledgehammer, not
     // a per-target unstrict — the old suggestion built

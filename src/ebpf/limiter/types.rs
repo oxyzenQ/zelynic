@@ -247,6 +247,65 @@ pub struct RateSpec {
     pub upload: Option<u64>,
 }
 
+/// One direction's guarantee bracket (improve-40-b, riding schema
+/// v24's per-row fields): the (floor, ceil) pair a single
+/// direction's rows carry — the same zero-sentinel posture the
+/// one-flag law set (0 = unset, the fail-open v23 arithmetic).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct BracketPair {
+    /// The per-LEAF guaranteed minimum rate. 0 = unset.
+    pub floor_bps: u64,
+    /// The per-LEAF maximum rate. 0 = unset.
+    pub ceil_bps: u64,
+}
+
+impl BracketPair {
+    /// The unset pair: both sides the zero sentinel.
+    pub const UNSET: BracketPair = BracketPair {
+        floor_bps: 0,
+        ceil_bps: 0,
+    };
+}
+
+/// The per-direction guarantee bracket (improve-40-b): one pair per
+/// direction, the way `RateSpec` carries one rate per direction —
+/// the row's own fields worn per leg (the schema needs no bump:
+/// v24 already stores floor_bps/ceil_bps on every direction row;
+/// the one-flag `--floor 100kb` sets BOTH pairs, the per-direction
+/// spellings (`--floor-download`, ...) set one).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct BracketSpec {
+    /// The download rows' pair.
+    pub download: BracketPair,
+    /// The upload rows' pair.
+    pub upload: BracketPair,
+}
+
+impl BracketSpec {
+    /// The one-flag law's constructor: one floor/ceil pair carried
+    /// by BOTH directions' rows (the `--during` shape, the
+    /// positional rate's own posture).
+    pub const fn both(floor_bps: u64, ceil_bps: u64) -> BracketSpec {
+        BracketSpec {
+            download: BracketPair {
+                floor_bps,
+                ceil_bps,
+            },
+            upload: BracketPair {
+                floor_bps,
+                ceil_bps,
+            },
+        }
+    }
+
+    /// The all-unset bracket — the block family's permanent unset
+    /// (a rate-0 row never carries a bracket).
+    pub const UNSET: BracketSpec = BracketSpec {
+        download: BracketPair::UNSET,
+        upload: BracketPair::UNSET,
+    };
+}
+
 #[derive(Debug, Clone)]
 pub enum Target {
     CgroupId(u32),

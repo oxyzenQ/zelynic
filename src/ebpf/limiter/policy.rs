@@ -27,7 +27,8 @@ use super::during_map::{translate_now, WindowMutation};
 use super::during_parse::DuringSpec;
 use super::lanes::map_error_means_absent;
 use super::types::{
-    group_id_from, Direction, PolicyRaw, PolicyWindowRaw, RateSpec, Target, POLICY_FLAG_PER_SOCKET,
+    group_id_from, BracketSpec, Direction, PolicyRaw, PolicyWindowRaw, RateSpec, Target,
+    POLICY_FLAG_PER_SOCKET,
 };
 use crate::ebpf::pin::{PIN_MAP_POLICY_DL, PIN_MAP_POLICY_UL};
 
@@ -41,13 +42,17 @@ impl super::Limiter {
     /// `Some(spec)` writes the window beside the legs, `None`
     /// removes any existing one (the improve-29 law one level up:
     /// a fresh forever-row must never inherit a dead deadline).
+    /// `bracket` (improve-40, schema v24; improve-40-b the
+    /// per-direction shape): the guarantee bracket each direction's
+    /// rows carry — one pair per leg (the one-flag law's both-pairs
+    /// when `--floor` set both, the per-direction spellings' single
+    /// pair when they set one).
     pub fn apply_single(
         &mut self,
         target: &Target,
         rates: &RateSpec,
         per_socket: bool,
-        floor_bps: u64,
-        ceil_bps: u64,
+        bracket: &BracketSpec,
         during: Option<&DuringSpec>,
     ) -> Result<usize> {
         let cgroup_ids = self.resolve_target(target)?;
@@ -79,8 +84,7 @@ impl super::Limiter {
             match self.write_policies_for_cgroup(
                 *cgroup_id,
                 rates,
-                floor_bps,
-                ceil_bps,
+                bracket,
                 0,
                 if per_socket {
                     POLICY_FLAG_PER_SOCKET
@@ -127,13 +131,14 @@ impl super::Limiter {
     /// Apply strict-multi: all cgroups share one group token bucket
     /// (a random group_id; every policy points at it). `during` is
     /// the row's window (night-during, schema v23) — every member
-    /// root carries the same window row.
+    /// root carries the same window row. `bracket` is the guarantee
+    /// pair per direction's rows (improve-40; the per-direction
+    /// shape improve-40-b).
     pub fn apply_group(
         &mut self,
         targets: &[Target],
         rates: &RateSpec,
-        floor_bps: u64,
-        ceil_bps: u64,
+        bracket: &BracketSpec,
         during: Option<&DuringSpec>,
     ) -> Result<usize> {
         // Resolve all targets to cgroup IDs (resolve_target prints
@@ -200,8 +205,7 @@ impl super::Limiter {
             match self.write_policies_for_cgroup(
                 *cgroup_id,
                 rates,
-                floor_bps,
-                ceil_bps,
+                bracket,
                 group_id,
                 0,
                 &mut mutations,
