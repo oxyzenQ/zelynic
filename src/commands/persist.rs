@@ -88,6 +88,18 @@ pub(crate) struct SnapshotEntry {
     /// plan collapses them. The wall form is the cross-reboot shape —
     /// a monotonic deadline would reset with the boot.
     pub during: Option<WindowPersist>,
+    /// The row's guarantee floor (improve-40, schema v24): the
+    /// per-subprocess minimum both leg entries carry (the one-flag
+    /// law — the plan collapses the pair). 0 = unset. serde-defaulted
+    /// so a v23 file (the pair absent) restores as the zero sentinel,
+    /// the fail-open posture.
+    #[serde(default)]
+    pub floor_bps: u64,
+    /// The row's guarantee ceiling (improve-40, schema v24): the
+    /// per-subprocess maximum. 0 = unset, serde-defaulted for the
+    /// v23 file.
+    #[serde(default)]
+    pub ceil_bps: u64,
 }
 
 /// The state file's root document.
@@ -130,6 +142,11 @@ impl SnapshotDoc {
                     rate_bps: raw.rate_bps,
                     group_id: raw.group_id,
                     per_socket: raw.flags & per_socket_flag != 0,
+                    // improve-40 (schema v24): the bracket rides the
+                    // row verbatim — both legs carry the same pair,
+                    // the plan collapses it.
+                    floor_bps: raw.floor_bps,
+                    ceil_bps: raw.ceil_bps,
                     during: windows
                         .iter()
                         .find(|(id, _)| id == cgroup_id)
@@ -168,16 +185,26 @@ pub(crate) struct RestoreStep {
     /// the FIRST form the census read (the map itself guarantees one
     /// row per root, so disagreement means a torn census).
     pub during: Option<DuringSpec>,
+    /// The row's guarantee bracket (improve-40, schema v24): both
+    /// legs carried the same pair, the one-flag law — the restore
+    /// hands it back to the apply family verbatim (the validation
+    /// ladder already accepted it once; a value the restore would
+    /// reject means the document was hand-edited, and the apply's
+    /// own refusal is the honest verdict for that).
+    pub floor_bps: u64,
+    pub ceil_bps: u64,
 }
 
 /// One solo accumulator leg: (name, dl rate, ul rate, per-socket,
-/// window form).
+/// window form, guarantee floor, guarantee ceiling).
 type SoloLeg = (
     String,
     Option<u64>,
     Option<u64>,
     bool,
     Option<WindowPersist>,
+    u64,
+    u64,
 );
 
 /// One group accumulator leg: (group id, member names, dl rate,
@@ -189,6 +216,8 @@ type GroupLeg = (
     Option<u64>,
     Option<u64>,
     Option<WindowPersist>,
+    u64,
+    u64,
 );
 
 /// Derive the restore plan from the document's entries: solo rows
@@ -209,7 +238,7 @@ pub(crate) fn restore_plan(doc: &SnapshotDoc) -> Vec<RestoreStep> {
             let idx = groups.iter().position(|(gid, ..)| *gid == e.group_id);
             match idx {
                 Some(i) => {
-                    let (_, names, g_dl, g_ul, g_during) = &mut groups[i];
+                    let (_, names, g_dl, g_ul, g_during, g_floor, g_ceil) = &mut groups[i];
                     if dl.is_some() {
                         *g_dl = dl;
                     }
@@ -219,17 +248,31 @@ pub(crate) fn restore_plan(doc: &SnapshotDoc) -> Vec<RestoreStep> {
                     if g_during.is_none() {
                         *g_during = e.during.clone();
                     }
+                    // improve-40 (schema v24): both legs carry the
+                    // same pair — first-write-wins is verbatim either
+                    // way (a torn census is the only disagreement
+                    // shape, and the window lane's own posture).
+                    *g_floor = e.floor_bps;
+                    *g_ceil = e.ceil_bps;
                     if !names.contains(&e.name) {
                         names.push(e.name.clone());
                     }
                 }
-                None => groups.push((e.group_id, vec![e.name.clone()], dl, ul, e.during.clone())),
+                None => groups.push((
+                    e.group_id,
+                    vec![e.name.clone()],
+                    dl,
+                    ul,
+                    e.during.clone(),
+                    e.floor_bps,
+                    e.ceil_bps,
+                )),
             }
         } else {
             let idx = solos.iter().position(|(n, ..)| *n == e.name);
             match idx {
                 Some(i) => {
-                    let (_, s_dl, s_ul, _, s_during) = &mut solos[i];
+                    let (_, s_dl, s_ul, _, s_during, s_floor, s_ceil) = &mut solos[i];
                     if dl.is_some() {
                         *s_dl = dl;
                     }
@@ -239,27 +282,42 @@ pub(crate) fn restore_plan(doc: &SnapshotDoc) -> Vec<RestoreStep> {
                     if s_during.is_none() {
                         *s_during = e.during.clone();
                     }
+                    // improve-40 (schema v24): the solo twin of the
+                    // group lane's first-write-wins.
+                    *s_floor = e.floor_bps;
+                    *s_ceil = e.ceil_bps;
                 }
-                None => solos.push((e.name.clone(), dl, ul, e.per_socket, e.during.clone())),
+                None => solos.push((
+                    e.name.clone(),
+                    dl,
+                    ul,
+                    e.per_socket,
+                    e.during.clone(),
+                    e.floor_bps,
+                    e.ceil_bps,
+                )),
             }
         }
     }
     let mut plan: Vec<RestoreStep> = solos
         .into_iter()
-        .map(|(name, dl, ul, per_socket, during)| RestoreStep {
-            names: vec![name],
-            rates: RateSpec {
-                download: dl,
-                upload: ul,
+        .map(
+            |(name, dl, ul, per_socket, during, floor_bps, ceil_bps)| RestoreStep {
+                names: vec![name],
+                rates: RateSpec {
+                    download: dl,
+                    upload: ul,
+                },
+                per_socket,
+                during: during.as_ref().and_then(window_persist_to_spec),
+                floor_bps,
+                ceil_bps,
             },
-            per_socket,
-            during: during.as_ref().and_then(window_persist_to_spec),
-        })
+        )
         .collect();
     plan.extend(
-        groups
-            .into_iter()
-            .map(|(_, names, dl, ul, during)| RestoreStep {
+        groups.into_iter().map(
+            |(_, names, dl, ul, during, floor_bps, ceil_bps)| RestoreStep {
                 names,
                 rates: RateSpec {
                     download: dl,
@@ -267,7 +325,10 @@ pub(crate) fn restore_plan(doc: &SnapshotDoc) -> Vec<RestoreStep> {
                 },
                 per_socket: false,
                 during: during.as_ref().and_then(window_persist_to_spec),
-            }),
+                floor_bps,
+                ceil_bps,
+            },
+        ),
     );
     plan
 }

@@ -10,6 +10,7 @@
 //! The --print-json contract pins live in display_json_tests.rs
 //! with the display_json module (the charger-core-3b split).
 
+use super::super::display_lines::format_duration_compact;
 use super::*;
 
 /// improve-13 style pin: the human table's ALLOWED/DROPPED cells carry
@@ -20,6 +21,8 @@ use super::*;
 fn status_cells_one_metric_per_cell() {
     let d = DisplayData {
         window: None,
+        floor_bps: 0,
+        ceil_bps: 0,
         cgroup_id: 73386,
         dl_bps: Some(100_000),
         ul_bps: Some(0),
@@ -46,6 +49,8 @@ fn status_cells_one_metric_per_cell() {
     // cap) and never the byte cells.
     let per_socket_row = DisplayData {
         window: None,
+        floor_bps: 0,
+        ceil_bps: 0,
         cgroup_id: 73400,
         dl_bps: Some(500_000),
         ul_bps: Some(500_000),
@@ -65,6 +70,8 @@ fn status_cells_one_metric_per_cell() {
     // One-direction limit: the other side is an em dash, not a number.
     let one_sided = DisplayData {
         window: None,
+        floor_bps: 0,
+        ceil_bps: 0,
         cgroup_id: 73390,
         dl_bps: None,
         ul_bps: Some(1_000_000),
@@ -93,6 +100,8 @@ fn status_cells_one_metric_per_cell() {
 fn status_rate_cells_render_configured_rates_exactly() {
     let d = DisplayData {
         window: None,
+        floor_bps: 0,
+        ceil_bps: 0,
         cgroup_id: 70896,
         dl_bps: Some(100_510),
         ul_bps: Some(50_000),

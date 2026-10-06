@@ -153,11 +153,10 @@ pub fn handle_restore(json: bool) -> Result<()> {
                 &targets[0],
                 &step.rates,
                 step.per_socket,
-                // improve-40 (schema v24): the snapshot's bracket
-                // rides the row in the persistence commit — the
-                // plumbing pass threads zeroes.
-                0,
-                0,
+                // improve-40 (schema v24): the snapshot's bracket,
+                // verbatim off the collapsed pair.
+                step.floor_bps,
+                step.ceil_bps,
                 step.during.as_ref(),
             )?
         } else {
@@ -165,9 +164,9 @@ pub fn handle_restore(json: bool) -> Result<()> {
                 &targets,
                 &step.rates,
                 // improve-40 (schema v24): the snapshot's bracket,
-                // the persistence commit's lane.
-                0,
-                0,
+                // verbatim off the collapsed pair.
+                step.floor_bps,
+                step.ceil_bps,
                 step.during.as_ref(),
             )?
         };

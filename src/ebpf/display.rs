@@ -8,37 +8,51 @@
 use std::collections::HashMap;
 
 use crate::ebpf::identity::IdentityMap;
-use crate::ebpf::limiter::types::{PolicyWindowRaw, POLICY_FLAG_PER_SOCKET, WINDOW_KIND_SPAN};
-use crate::ebpf::limiter::{
-    format_bytes, format_rate_exact, monotonic_ns, terminal_width, wall_now_ns, LimiterStatsRaw,
-    PolicyRaw,
-};
-use crate::ebpf::limiter::{format_wall_utc, wall_minus_mono, window_state};
+use crate::ebpf::limiter::types::{PolicyWindowRaw, POLICY_FLAG_PER_SOCKET};
+use crate::ebpf::limiter::{monotonic_ns, terminal_width, wall_now_ns, LimiterStatsRaw, PolicyRaw};
 use crate::ebpf::render::{grid_line, title_bar};
-use crate::output::{brand, grey, ok, signature_footer, suggestion, warn};
+use crate::output::{grey, signature_footer, suggestion, warn};
 
 /// The status table's column titles (NIGHT-engrave-5): lowercase —
 /// the eagle-eyes table contract (engrave-1 lowercased the monitor's
 /// titles; this surface was the last uppercase holdout the owner
 /// caught). Verdict VALUES keep their case (BLOCKED) — titles are
 /// furniture, verdicts are states.
-const STATUS_HEADERS: [&str; 5] = ["cgroup", "download", "upload", "allowed", "dropped"];
+pub(super) const STATUS_HEADERS: [&str; 5] = ["cgroup", "download", "upload", "allowed", "dropped"];
 
 /// Combined policy data for display.
-pub(super) struct DisplayData {
-    pub(super) cgroup_id: u32,
-    pub(super) dl_bps: Option<u64>,
-    pub(super) ul_bps: Option<u64>,
-    pub(super) dl_per_socket: bool,
-    pub(super) ul_per_socket: bool,
-    pub(super) packets_allowed: u64,
-    pub(super) packets_dropped: u64,
-    pub(super) bytes_allowed: u64,
-    pub(super) bytes_dropped: u64,
+pub(crate) struct DisplayData {
+    pub(crate) cgroup_id: u32,
+    pub(crate) dl_bps: Option<u64>,
+    pub(crate) ul_bps: Option<u64>,
+    pub(crate) dl_per_socket: bool,
+    pub(crate) ul_per_socket: bool,
+    pub(crate) packets_allowed: u64,
+    pub(crate) packets_dropped: u64,
+    pub(crate) bytes_allowed: u64,
+    pub(crate) bytes_dropped: u64,
     /// The row's --during window, when it carries one (night-during,
     /// schema v23) — the lifetime line under the row renders it.
-    pub(super) window: Option<PolicyWindowRaw>,
+    pub(crate) window: Option<PolicyWindowRaw>,
+    /// The row's guarantee bracket (improve-40, schema v24), the
+    /// one-flag law: both directions' rows carry the same pair, so
+    /// the census reads whichever leg it finds — the zero sentinel
+    /// is unset (most rows carry none, and the subordinate line
+    /// renders only when a side is set).
+    pub(crate) floor_bps: u64,
+    pub(crate) ceil_bps: u64,
 }
+
+// improve-40 (schema v24): the pure line renderers live in the
+// display_lines sibling (the policy_lines discipline — this file
+// rode the 500-LOC owner cap when the guarantee line joined the
+// window family). Re-exported so the pins in display_tests
+// (use super::*) and the list-apps surface see the same paths as
+// before the split.
+pub(crate) use super::display_lines::{
+    active_limits_line, guarantee_line, list_apps_header_line, status_cells, status_header_line,
+    status_row_line, watchdog_line, window_lifetime_line,
+};
 
 /// Collect display data from policies + stats (+ the window join).
 #[allow(clippy::too_many_arguments)]
@@ -48,16 +62,24 @@ pub(super) fn collect_display_data(
     stats: &[(u32, LimiterStatsRaw)],
     windows: &[(u32, PolicyWindowRaw)],
 ) -> Vec<DisplayData> {
-    let mut combined: HashMap<u32, (Option<u64>, Option<u64>, bool, bool)> = HashMap::new();
+    // The census row: (dl, ul, dl per-socket, ul per-socket, the
+    // shared guarantee pair — the one-flag law reads whichever leg
+    // the census found).
+    type CombinedRow = (Option<u64>, Option<u64>, bool, bool, u64, u64);
+    let mut combined: HashMap<u32, CombinedRow> = HashMap::new();
     for (id, p) in dl_policies {
         let e = combined.entry(*id).or_default();
         e.0 = Some(p.rate_bps);
         e.2 = p.flags & POLICY_FLAG_PER_SOCKET != 0;
+        e.4 = p.floor_bps;
+        e.5 = p.ceil_bps;
     }
     for (id, p) in ul_policies {
         let e = combined.entry(*id).or_default();
         e.1 = Some(p.rate_bps);
         e.3 = p.flags & POLICY_FLAG_PER_SOCKET != 0;
+        e.4 = p.floor_bps;
+        e.5 = p.ceil_bps;
     }
 
     let mut sorted: Vec<_> = combined.into_iter().collect();
@@ -65,7 +87,7 @@ pub(super) fn collect_display_data(
 
     sorted
         .iter()
-        .map(|(cgroup_id, (dl, ul, dl_ps, ul_ps))| {
+        .map(|(cgroup_id, (dl, ul, dl_ps, ul_ps, floor, ceil))| {
             let s = stats.iter().find(|(id, _)| id == cgroup_id);
             DisplayData {
                 cgroup_id: *cgroup_id,
@@ -81,214 +103,11 @@ pub(super) fn collect_display_data(
                     .iter()
                     .find(|(id, _)| id == cgroup_id)
                     .map(|(_, w)| *w),
+                floor_bps: *floor,
+                ceil_bps: *ceil,
             }
         })
         .collect()
-}
-
-/// One rate cell's text: the rate, plus " /socket" when the policy
-/// enforces per socket (charger-core-3b — the marker that keeps the
-/// table honest about WHICH budget the number names).
-///
-/// NIGHT-hunt-Z7: the cell renders through the EXACT rate twin — the
-/// status table is the surface owners check a configured limit
-/// against, and a `100.51kb` policy must read "100.51 KB/s", never
-/// the one-decimal rounding that hid the last 10 B/s (the allowed /
-/// dropped cells beside it stay on the one-decimal twin: those are
-/// MEASURED counters, the approximate display they always carried).
-fn cell_rate(bps: u64, per_socket: bool) -> String {
-    if per_socket {
-        format!("{} /socket", format_rate_exact(bps))
-    } else {
-        format_rate_exact(bps)
-    }
-}
-
-/// One status row's display cells (pure, improve-13: extracted for
-/// the same reason `status_json` was — the human table's contract is
-/// now unit-pinnable without capturing stdout).
-///
-/// ALLOWED and DROPPED carry BYTES only, one metric per cell: the
-/// render engine's own flagship rule (src/ebpf/render.rs module
-/// docs) bans per-cell packing ("89 (1.2 MB)") — the status table
-/// was the last surface still doing it. Packet counts stay in
-/// `--print-json` where automation reads them; the human eye scans
-/// magnitudes, and bytes carry the enforcement verdict.
-fn status_cells(
-    d: &DisplayData,
-    identity: &IdentityMap,
-) -> (String, String, String, String, String) {
-    let label = identity.label(d.cgroup_id);
-    // charger-core-3b: a per-socket policy's rate cell names its own
-    // unit — "500.0 KB/s /socket" — because the number IS per socket
-    // (the cgroup total is rate x concurrent sockets); an unmarked
-    // rate would read as the cgroup cap the policy does not carry.
-    let dl = d
-        .dl_bps
-        .map(|r| cell_rate(r, d.dl_per_socket))
-        .unwrap_or_else(|| "—".to_string());
-    let ul = d
-        .ul_bps
-        .map(|r| cell_rate(r, d.ul_per_socket))
-        .unwrap_or_else(|| "—".to_string());
-    (
-        label,
-        dl,
-        ul,
-        format_bytes(d.bytes_allowed),
-        format_bytes(d.bytes_dropped),
-    )
-}
-
-/// The status table's header row (pure, NIGHT-engrave-5): lowercase
-/// titles in regular purple — the exact contract the eagle-eyes
-/// header row carries (`top process` / `download` / `upload` /
-/// `total`, brand-wrapped) — so the two report tables read as one
-/// family. Extracted so the wording and alignment are unit-pinnable
-/// without capturing stdout.
-fn status_header_line(col_widths: &[usize; 5]) -> String {
-    brand(&format!(
-        "  {:<w0$} {:>w1$} {:>w2$} {:>w3$} {:>w4$}",
-        STATUS_HEADERS[0],
-        STATUS_HEADERS[1],
-        STATUS_HEADERS[2],
-        STATUS_HEADERS[3],
-        STATUS_HEADERS[4],
-        w0 = col_widths[0],
-        w1 = col_widths[1],
-        w2 = col_widths[2],
-        w3 = col_widths[3],
-        w4 = col_widths[4]
-    ))
-}
-
-/// One status data row (pure, NIGHT-engrave-5): the whole row in
-/// status green — the eagle table's calm tier (rank 3 and below
-/// render the same way). Every row here IS a live, enforced limit —
-/// the affirmative state — so the table reads like a calm monitor
-/// board, not a white wall of text.
-fn status_row_line(
-    label: &str,
-    row: &(String, String, String, String, String),
-    col_widths: &[usize; 5],
-) -> String {
-    ok(&format!(
-        "  {:<w0$} {:>w1$} {:>w2$} {:>w3$} {:>w4$}",
-        label,
-        row.1,
-        row.2,
-        row.3,
-        row.4,
-        w0 = col_widths[0],
-        w1 = col_widths[1],
-        w2 = col_widths[2],
-        w3 = col_widths[3],
-        w4 = col_widths[4]
-    ))
-}
-
-/// The list-apps table's header row (pure, NIGHT-engrave-5 hunt
-/// find): the same eagle-eyes contract as the status header —
-/// lowercase purple titles — so the two REPORT tables read as one
-/// family. Extracted here (the display module owns table style) so
-/// the wording is pinnable next to the status pins.
-#[must_use]
-pub(crate) fn list_apps_header_line(widths: &[usize; 5]) -> String {
-    brand(&format!(
-        "  {:<w0$} {:>w1$} {:>w2$} {:>w3$} {:>w4$}",
-        "process",
-        "procs",
-        "sockets",
-        "cgroup id",
-        "uid",
-        w0 = widths[0],
-        w1 = widths[1],
-        w2 = widths[2],
-        w3 = widths[3],
-        w4 = widths[4]
-    ))
-}
-
-/// The watchdog prose line (pure, NIGHT-engrave-5): grey while the
-/// deadline counts down (a subordinate fact — the census family),
-/// warn yellow once expired (the enforcement verdict went dark).
-fn watchdog_line(remaining_secs: Option<u64>) -> String {
-    match remaining_secs {
-        Some(secs) => grey(&format!("  watchdog: {secs}s remaining")),
-        None => warn("  watchdog: expired (bpf is no-op)"),
-    }
-}
-
-/// The enforcement census line (pure, NIGHT-engrave-5): grey,
-/// lowercase — the same subordinate family the monitor's footer
-/// census renders in.
-fn active_limits_line(dl: usize, ul: usize) -> String {
-    grey(&format!("  active limits: {dl} dl, {ul} ul"))
-}
-
-/// A compact human duration for the "(N left)" suffix (pure,
-/// night-during): one unit, floored — 45s, 47m, 3h, 20d, 10y; the
-/// sub-minute shapes print seconds so a short trial reads its own
-/// countdown.
-fn format_duration_compact(ns: u64) -> String {
-    const S: u64 = 1_000_000_000;
-    const M: u64 = 60 * S;
-    const H: u64 = 60 * M;
-    const D: u64 = 24 * H;
-    const Y: u64 = 365 * D;
-    if ns < M {
-        format!("{}s", ns / S)
-    } else if ns < H {
-        format!("{}m", ns / M)
-    } else if ns < D {
-        format!("{}h", ns / H)
-    } else if ns < Y {
-        format!("{}d", ns / D)
-    } else {
-        format!("{}y", ns / Y)
-    }
-}
-
-/// One row's window lifetime line (pure, night-during, schema v23):
-/// grey while the row polices or waits (the census family — a
-/// subordinate fact under the row it belongs to), warn yellow once
-/// the span has ENDED (the enforcement verdict went quiet and the
-/// sweep has not collected the row yet — the one state an owner
-/// should notice). The span's wall instants are reconstructed
-/// through the same offset pair the twin uses; the daily line
-/// names its UTC hours.
-fn window_lifetime_line(win: &PolicyWindowRaw, wall_now: u64, mono_now: u64) -> String {
-    let state = window_state(win, wall_now, mono_now);
-    let offset = wall_minus_mono(wall_now, mono_now);
-    match (win.kind, state) {
-        (WINDOW_KIND_SPAN, "active") => grey(&format!(
-            "    window: until {} ({} left)",
-            format_wall_utc(win.end_mono_ns.saturating_add(offset)),
-            format_duration_compact(win.end_mono_ns.saturating_sub(mono_now))
-        )),
-        (WINDOW_KIND_SPAN, "dormant") => grey(&format!(
-            "    window: sleeps until {}",
-            format_wall_utc(win.start_mono_ns.saturating_add(offset))
-        )),
-        (WINDOW_KIND_SPAN, _) => warn(&format!(
-            "    window: expired at {} (awaiting sweep)",
-            format_wall_utc(win.end_mono_ns.saturating_add(offset))
-        )),
-        (_, "active") => grey(&format!(
-            "    window: daily {:02}:{:02}-{:02}:{:02} UTC (active)",
-            win.start_s / 3600,
-            (win.start_s / 60) % 60,
-            win.end_s / 3600,
-            (win.end_s / 60) % 60
-        )),
-        (_, _) => grey(&format!(
-            "    window: daily {:02}:{:02}-{:02}:{:02} UTC (outside — not policing now)",
-            win.start_s / 3600,
-            (win.start_s / 60) % 60,
-            win.end_s / 3600,
-            (win.end_s / 60) % 60
-        )),
-    }
 }
 
 /// The clean-state frame (no pins, NIGHT-engrave-5; compacted in
@@ -452,6 +271,12 @@ pub fn print_status(
         // collected the row yet).
         if let Some(win) = &d.window {
             println_safe!("{}", window_lifetime_line(win, wall_now, mono_now));
+        }
+        // improve-40 (schema v24): the bracket's own subordinate
+        // line, the window family's indent and grey — only the rows
+        // that carry a side render one.
+        if let Some(line) = guarantee_line(d.floor_bps, d.ceil_bps) {
+            println_safe!("{line}");
         }
     }
 

@@ -110,6 +110,13 @@ fn status_json(
                 packets_dropped: d.packets_dropped,
                 bytes_allowed: d.bytes_allowed,
                 bytes_dropped: d.bytes_dropped,
+                // improve-40 (schema v24): the guarantee bracket, one
+                // pair per row (the one-flag law — both directions'
+                // rows carry the same values; a per-direction split
+                // arrives with its own lane). The zero sentinel is
+                // honestly absent, never a fabricated zero.
+                floor_bps: (d.floor_bps != 0).then_some(d.floor_bps),
+                ceil_bps: (d.ceil_bps != 0).then_some(d.ceil_bps),
                 rate_ring,
                 window,
             }
@@ -184,6 +191,14 @@ struct LimitEntry {
     download_per_socket: bool,
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     upload_per_socket: bool,
+    /// The per-subprocess guaranteed minimum (improve-40, schema
+    /// v24) — absent when the row carries none (the zero sentinel).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    floor_bps: Option<u64>,
+    /// The per-subprocess maximum (improve-40, schema v24) —
+    /// absent when unset.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    ceil_bps: Option<u64>,
     packets_allowed: u64,
     packets_dropped: u64,
     bytes_allowed: u64,

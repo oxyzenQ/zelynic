@@ -18,13 +18,39 @@ use super::types::{Direction, RateSpec};
 /// map — the facts an owner needs when a limit "doesn't feel right".
 /// Pure formatting so the wording is unit-pinned.
 ///
+/// improve-40 (schema v24): a bracket the row carries joins the
+/// trace — the floor/ceil pair the DRR pool's leaves police under,
+/// rendered only when a side is set (the zero sentinel stays
+/// silent, the trace stays lean for the rows that carry none).
+///
 /// NIGHT-hunt-Z7: the rate and burst render through the EXACT twins —
 /// a configured `100.51kb` must trace as "100.51 KB/s", never the
 /// one-decimal "100.5 KB/s" that hid 10 B/s of the owner's own
 /// number (what the trace prints is what the map carries).
-pub(super) fn policy_write_line(cgroup_id: u32, direction: Direction, rate_bps: u64) -> String {
+pub(super) fn policy_write_line(
+    cgroup_id: u32,
+    direction: Direction,
+    rate_bps: u64,
+    floor_bps: u64,
+    ceil_bps: u64,
+) -> String {
+    let bracket_tail = if floor_bps != 0 || ceil_bps != 0 {
+        let floor_half = if floor_bps != 0 {
+            format!("floor {} ", format_rate_exact(floor_bps))
+        } else {
+            String::new()
+        };
+        let ceil_half = if ceil_bps != 0 {
+            format!("ceil {}", format_rate_exact(ceil_bps))
+        } else {
+            String::new()
+        };
+        format!(", {}", format!("{floor_half}{ceil_half}").trim())
+    } else {
+        String::new()
+    };
     format!(
-        "[limiter] cg:{cgroup_id} {} → {} (burst {})",
+        "[limiter] cg:{cgroup_id} {} → {} (burst {}{bracket_tail})",
         direction.label(),
         format_rate_exact(rate_bps),
         format_bytes_exact(default_burst(rate_bps))

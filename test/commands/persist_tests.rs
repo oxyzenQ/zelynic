@@ -49,6 +49,8 @@ fn entry(
         group_id,
         per_socket,
         during: None,
+        floor_bps: 0,
+        ceil_bps: 0,
     }
 }
 
@@ -335,6 +337,8 @@ fn restore_plan_carries_the_window_spec() {
                     start_s: 22 * 3600,
                     end_s: 6 * 3600,
                 }),
+                floor_bps: 0,
+                ceil_bps: 0,
             },
             SnapshotEntry {
                 name: "brave".to_string(),
@@ -349,6 +353,8 @@ fn restore_plan_carries_the_window_spec() {
                     start_s: 22 * 3600,
                     end_s: 6 * 3600,
                 }),
+                floor_bps: 0,
+                ceil_bps: 0,
             },
         ],
     };
@@ -390,6 +396,8 @@ fn restore_plan_carries_the_window_spec() {
                 group_id: 0,
                 per_socket: false,
                 during: Some(span_form.clone()),
+                floor_bps: 0,
+                ceil_bps: 0,
             },
             SnapshotEntry {
                 name: "brave".to_string(),
@@ -398,6 +406,8 @@ fn restore_plan_carries_the_window_spec() {
                 group_id: 0,
                 per_socket: false,
                 during: Some(daily_form),
+                floor_bps: 0,
+                ceil_bps: 0,
             },
         ],
     };
@@ -410,4 +420,46 @@ fn restore_plan_carries_the_window_spec() {
         }),
         "the first form wins on a mixed (torn) member set"
     );
+}
+
+/// improve-40 (schema v24): a v23 file (the pair absent) restores as
+/// the zero sentinel — serde's default keeps the old document the
+/// fail-open posture, never a parse failure and never a fabricated
+/// bracket.
+#[test]
+fn a_v23_file_restores_as_the_zero_sentinel() {
+    let v23 = r#"{"schema":2,"captured_at_unix":0,"entries":[{"name":"brave","direction":"download","rate_bps":1000000,"group_id":0,"per_socket":false}]}"#;
+    let doc: SnapshotDoc = serde_json::from_str(v23).expect("the v23 shape parses");
+    assert_eq!(doc.entries[0].floor_bps, 0);
+    assert_eq!(doc.entries[0].ceil_bps, 0);
+}
+
+/// improve-40 (schema v24): the bracket round-trips — both legs
+/// carry the pair, the plan collapses it, the step hands it back.
+#[test]
+fn the_bracket_round_trips_the_restore_plan() {
+    let doc = SnapshotDoc {
+        schema: STATE_SCHEMA,
+        captured_at_unix: 0,
+        entries: vec![
+            entry("brave", "download", 1_000_000, 0, false),
+            entry("brave", "upload", 1_000_000, 0, false),
+        ],
+    };
+    let doc = SnapshotDoc {
+        entries: doc
+            .entries
+            .into_iter()
+            .map(|mut e| {
+                e.floor_bps = 100_000;
+                e.ceil_bps = 300_000;
+                e
+            })
+            .collect(),
+        ..doc
+    };
+    let plan = restore_plan(&doc);
+    assert_eq!(plan.len(), 1);
+    assert_eq!(plan[0].floor_bps, 100_000);
+    assert_eq!(plan[0].ceil_bps, 300_000);
 }

@@ -87,7 +87,7 @@ impl super::Limiter {
             if self.verbose {
                 eprintln_safe!(
                     "{}",
-                    policy_write_line(cgroup_id, Direction::Download, dl_rate)
+                    policy_write_line(cgroup_id, Direction::Download, dl_rate, floor_bps, ceil_bps)
                 );
             }
             applied += 1;
@@ -114,7 +114,7 @@ impl super::Limiter {
             if self.verbose {
                 eprintln_safe!(
                     "{}",
-                    policy_write_line(cgroup_id, Direction::Upload, ul_rate)
+                    policy_write_line(cgroup_id, Direction::Upload, ul_rate, floor_bps, ceil_bps)
                 );
             }
             applied += 1;
