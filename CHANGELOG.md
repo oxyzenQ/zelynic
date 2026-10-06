@@ -27,6 +27,34 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Added
 
+- **docs(audit): NIGHT-improve-48 round 2 — the completeness
+  question re-audited from run 229's own logs, the full skip
+  inventory classified, 23 of 47 skips per leg found closable
+  (docs/audits/NIGHT_IMPROVE_48_SUPERMASSIVE_COMPLETENESS_ROUND_2_AUDIT_2026-10-07.md).**
+  The owner's suspicion, re-read after the round-1 fix: the named
+  claim — the precision 0.00% proof — is NOT missing; run 229
+  (the fix commit's own supermassive run, 6e80916) ran it live
+  and green on all four legs (4.553%/6.772%/9.691%/8.431% under
+  the 12.0% bound, the best-gnu leg's first 13.068% window taking
+  its same-rate re-attempt). What the suspicion actually caught,
+  pulled fresh from the four legs' downloaded logs: 47 skipped
+  rows per leg, 24 environmental or physical and honest about it
+  (the loopback-only realnet lanes, the hardware-ceiling ladders,
+  the GSO accounting floors, the AMMSP diagnostics, the
+  container-runtime E2E the container workflow carries), and 23
+  closable — one root cause family: the VM leg runs everything
+  as root, so the 20 rootless-lane rows that assert what a real
+  user sees (v4's 19: the snapshot/restore verbs, the during
+  grammar's 8, the guarantee ladder's 4, the tier pair, the
+  shadow triple; plus v3's privilege-gate stage) skip instead of
+  running, and the claims battery's 3 tool rows (the nft ruleset
+  snapshot, both bpftool surfaces) skip on a rootfs that ships
+  no nft and no bpftool. The closures are mapped in the audit:
+  the real-user drop lane (NIGHT-improve-49) and the rootfs
+  tools closure (this task's follow-on commit). The completeness
+  ledger after both: nothing skips that could run, everything
+  that skips names why and where it runs instead.
+
 - **fix(bench): NIGHT-improve-48 — the precision proof-claim's red
   supermassive lane root-caused and closed: the starved-window
   discriminator, the honest adaptation, the honest SKIP
@@ -1107,6 +1135,30 @@ NIGHT-hunt-18's git-history-only call.
   lane's translation pins stand unchanged beside them.
 
 ### Fixed
+
+- **docs: NIGHT-gate-1 — the wholesale gate's red markdownlint
+  lane, two audit docs' rendering hazards, closed without
+  touching their facts.** The last three Gate-keepers runs
+  (466-468) failed exactly one gate: markdownlint, on lint debt
+  two older audit docs carried — every push since their landing
+  reddened the wholesale workflow while the supermassive and CI
+  legs stayed green, the quiet kind of red that trains the eye
+  to ignore the badge. The two shapes, each fixed at the root,
+  not by the auto-fixer (whose mechanical edits would have
+  CHANGED the facts the docs exist to carry — stripping the
+  four leading spaces the hex value proves, and glueing the
+  probe pair's comma): NIGHT_DEPTHBORE_1's code span with
+  leading spaces (MD038) becomes an HTML code element with
+  explicit no-break spaces — the hex string beside it still
+  names the four 0x20 bytes, the visual now shows them too;
+  NIGHT_IMPROVE_46's bare double-underscore pair (MD037 —
+  markdown read the probe names as bold markers, the same
+  misrender GitHub itself would show) becomes two proper code
+  spans, the names rendering as the literal identifiers they
+  are. Verified locally with the CI-pinned
+  markdownlint-cli2@0.18.1: the whole docs/audits/ tree reads
+  24 files, 0 errors; codespell clean; the wholesale gate's one
+  red lane is gone.
 
 - **ci: NIGHT-repair-2 — the audit commit's own CI red, two
   regressions the local gates' skip lanes had hidden.** The

@@ -137,7 +137,9 @@ The walk's only alarm: an apparent `#ust_use]` token at
 a `#[must_use]` attribute — on a tree that had just compiled
 green, an immediate contradiction. Byte-level verification
 (python hex of the exact line) resolved it: the file carries
-`    #[must_use]` (hex `20202020235b6d7573745f7573655d`), and the
+<code>&nbsp;&nbsp;&nbsp;&nbsp;#[must_use]</code> (hex
+`20202020235b6d7573745f7573655d` — four leading spaces before the
+attribute), and the
 mangling lived in the audit tooling's own display path, which ate
 the `[m` bracket pair on the way to the reader. This is the same
 class the long-horizon-1 audit documented (its `#ap]` ghost on the
