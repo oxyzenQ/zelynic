@@ -712,6 +712,35 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Changed
 
+- **docs: NIGHT-improve-45 — the Pro mode section: every hidden and
+  advanced flag documented completely on the --help reference.** The
+  single-tier help surface carried the globals and the core rate
+  grammar, but the advanced per-verb family was hidden by omission:
+  the --during grammar and the guarantee bracket family
+  (--floor/--ceil and the four per-direction twins) had ZERO
+  mentions on the reference — flags the parser accepts that the
+  one reference never names, the exact hole the owner's ask
+  closes. The new section (between Rate formats and Target
+  formats, the same brand-purple heading discipline) groups the
+  advanced surface by the verb family that owns each flag: time
+  windows (--during DUR, the duration-only law stated with the
+  removed window/date shapes named: s m h d mn y, 1s..10y, months
+  30d, years 365d), the guaranteed share (--floor the priority
+  floor, --ceil the lone-drawer cap, the per-direction spellings
+  and their one-spelling-per-side law), the enforcement shape
+  (--per-socket, --no-probe), the guard override (--force-this,
+  what it lifts), and the deep-inspection knobs (--depth, --focus
+  SEC, --interval SEC with their bounds and defaults). The
+  completeness is machine-held: help_pins.rs grows
+  test_help_pro_mode_documents_every_advanced_flag — a 13-flag
+  drift pin (every advanced spelling must appear on --help, plus
+  the duration-only law's own line) so a future flag cannot ship
+  hidden again; the section-list pin carries "Pro mode:" beside
+  the other section headings. The globals stay in their own
+  section (unchanged); the hidden internal probe roles stay hidden
+  (the hidden-vocabulary contract's security posture is not a
+  flag surface).
+
 - **docs: NIGHT-improve-43 — the changelog trimmed to the fresh
   post-v20 record, the v20 era frozen at the release blob.** The
   live CHANGELOG.md carried 10,095 lines with every entry since

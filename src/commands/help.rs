@@ -281,6 +281,56 @@ pub(crate) fn print_help() {
     println_safe!("  Both bounds overridable with --force-this");
     println_safe!("  Color output is always on — set NO_COLOR=1 to disable");
     println_safe!();
+    // NIGHT-improve-45: the Pro mode section — the owner's ask:
+    // every hidden and advanced flag documented COMPLETELY on the
+    // one reference surface, grouped by the verb family that owns
+    // each flag. The globals already carry their own section above;
+    // this one is the per-verb advanced family: the --during
+    // grammar (zero mentions before this section), the guarantee
+    // brackets (zero mentions), the enforcement shape and the guard
+    // override, and the eagle-eyes inspection knobs. help_pins.rs
+    // pins every spelling below so the section can never silently
+    // thin back to hidden.
+    println_safe!("{}", brand_bold("Pro mode:"));
+    println_safe!(
+        "  The hidden and advanced flags, complete — grouped by the verbs that own them."
+    );
+    println_safe!();
+    println_safe!("  Time windows (strict family + block family):");
+    println_safe!("    --during DUR   auto-expire: the limit tears itself down when the window");
+    println_safe!("                  passes. Units: s, m, h, d, mn, y — min 1s, max 10y");
+    println_safe!("                  (20d = twenty days; months 30d, years 365d). The");
+    println_safe!("                  window and date shapes (09:00-17:00, 2026-10-15) are");
+    println_safe!("                  refused: duration only, one shape, no schedules.");
+    println_safe!();
+    println_safe!("  Guaranteed share (strict family):");
+    println_safe!("    --floor RATE   the fair-share floor: a shaped cgroup's slice never falls");
+    println_safe!("                  below it while it demands traffic (a priority, not a");
+    println_safe!("                  reservation — absent leaves cost nothing).");
+    println_safe!("    --ceil RATE    the slice's hard cap, binding even a lone drawer; the");
+    println_safe!("                  ladder is floor <= ceil <= rate.");
+    println_safe!("    --floor-download, --floor-upload, --ceil-download, --ceil-upload");
+    println_safe!("                    per-direction spellings, one per side: the");
+    println_safe!("                    both-directions flag and its twin refuse together.");
+    println_safe!();
+    println_safe!("  Enforcement shape (strict-single):");
+    println_safe!("    --per-socket   cap every connection at the rate (the server shape:");
+    println_safe!("                  one process, many sockets).");
+    println_safe!("    --no-probe     skip the post-apply verification loop (scripted use).");
+    println_safe!();
+    println_safe!("  Guard override (strict family + block family):");
+    println_safe!("    --force-this   lift every guard in one flag: the min-rate floor and the");
+    println_safe!("                  dangerous-target blocklist (system processes stay");
+    println_safe!("                  behind it by default — lifting is a choice).");
+    println_safe!();
+    println_safe!("  Deep inspection (eagle-eyes):");
+    println_safe!("    --depth        one-shot full report, no TUI: per-process census, the");
+    println_safe!("                  enforcement ledger, the traffic focus (JSON via");
+    println_safe!("                  --print-json).");
+    println_safe!("    --focus SEC    the --depth traffic window: 1s..30s, default 3s (one");
+    println_safe!("                  stderr note when ignored on the live monitor).");
+    println_safe!("    --interval SEC live monitor refresh: 1s..60s, default 1s.");
+    println_safe!();
     println_safe!("{}", brand_bold("Target formats:"));
     println_safe!("  <process_name>  e.g., brave, firefox, curl");
     println_safe!("  <cgroup_id>     e.g., 73386 (use 'zelynic list-apps' to find)");
