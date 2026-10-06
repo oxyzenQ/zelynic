@@ -39,6 +39,8 @@
 //! the pure transforms (rows -> entries, entries -> the restore
 //! plan) are test-pinned rootlessly under test/commands/.
 
+use anyhow::{bail, Result};
+
 use crate::ebpf::limiter::{
     window_persist_form, window_persist_to_spec, Direction, DuringSpec, PolicyRaw, RateSpec,
     WindowPersist,
@@ -333,6 +335,38 @@ pub(crate) fn restore_plan(doc: &SnapshotDoc) -> Vec<RestoreStep> {
     plan
 }
 
+// ━━ The window-kind gate (the restore's honesty rung) ━━
+
+/// Validate every `during` form the document carries BEFORE the
+/// plan shapes it: each must name a kind the restore family can
+/// re-translate — "span" or "daily". An entry whose kind is
+/// anything else (hand-edited, corrupted) REFUSES the restore
+/// naming the row, the unknown-TAG posture one entry over —
+/// because the plan's `and_then(window_persist_to_spec)` would
+/// otherwise swallow the unreadable window into "no window" and
+/// apply the row WITHOUT its lifetime: an auto-expire promise
+/// silently converted into a forever-limit, exactly the
+/// inversion the design brief forbids ("a restored row must
+/// never convert auto-expires into forever"). Pure; pinned in
+/// persist_tests.rs.
+pub(crate) fn validate_persisted_windows(doc: &SnapshotDoc) -> Result<()> {
+    for e in &doc.entries {
+        if let Some(form) = &e.during {
+            if form.kind != "span" && form.kind != "daily" {
+                bail!(
+                    "state file entry '{}' carries a --during window of kind \
+                     '{}' — neither 'span' nor 'daily'. Refusing the restore: an \
+                     unreadable auto-expire promise must never restore as a \
+                     forever-limit (fix or drop the entry, then re-run restore)",
+                    e.name,
+                    form.kind
+                );
+            }
+        }
+    }
+    Ok(())
+}
+
 // NIGHT-private-research-4: the pure-transform pins live under the
 // single test/ tree (cosmostrix Pattern C), #[path]-wired exactly
 // like the census pins.
@@ -340,3 +374,12 @@ pub(crate) fn restore_plan(doc: &SnapshotDoc) -> Vec<RestoreStep> {
 #[cfg(feature = "ebpf")]
 #[path = "../../test/commands/persist_tests.rs"]
 mod persist_tests;
+
+// night-during-7: the WINDOW family's pins (the wall-form census
+// join, the plan's window round-trip, the window-kind gate) — the
+// LOC cap's split when the gate pin pushed persist_tests past 500
+// (the during_map discipline, one test tree over).
+#[cfg(test)]
+#[cfg(feature = "ebpf")]
+#[path = "../../test/commands/persist_window_tests.rs"]
+mod persist_window_tests;

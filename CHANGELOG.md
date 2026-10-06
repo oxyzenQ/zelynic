@@ -872,6 +872,27 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Fixed
 
+- **The restore's unreadable-window swallow (night-during-7's
+  honesty catch, found in the duration-only revision's review).**
+  `restore_plan` built each step's window with
+  `during.as_ref().and_then(window_persist_to_spec)` — and a
+  `during` form whose `kind` was neither "span" nor "daily"
+  (a hand-edited or corrupted state file) made the pure half
+  answer `None`, which the `and_then` swallowed into "no
+  window": the row restored as a FOREVER-limit, silently
+  dropping the auto-expire promise it carried — exactly the
+  "auto-expires into forever" inversion the design brief's
+  safety direction forbids (the executor's own comment promised
+  "never converting into forever"; the wiring betrayed it for
+  the one unreadable shape). The restore now validates every
+  `during` form BEFORE the plan (`validate_persisted_windows`,
+  the unknown-TAG posture one entry over): an entry whose kind
+  the restore family cannot re-translate REFUSES the restore
+  naming the row and the kind, never a best-guess parse and
+  never a silent forever. Pure, rootless-pinned beside the tag
+  refusal it mirrors (an_unknown_window_kind_refuses_the_
+  restore_naming_the_row).
+
 - **The future-date span that never slept (night-audit-1 task 17 —
   the dormancy law's translation hole, the depth review's own
   find).** Since night-during-4 landed the userspace half,
