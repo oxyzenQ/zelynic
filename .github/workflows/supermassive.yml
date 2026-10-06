@@ -495,30 +495,50 @@ jobs:
           docker exec floor-rootfs apt-get update -qq
           docker exec floor-rootfs apt-get install -y --no-install-recommends python3 iproute2 curl nftables
           # bpftool (NIGHT-improve-48): Ubuntu ships no standalone
-          # package — the binary lives inside the per-kernel
-          # linux-tools debs (usr/lib/linux-tools-<abi>/bpftool), and
-          # the VM's kernel (the 5.13 floor or the dynamically
-          # resolved latest) never matches the rootfs's tools ABI, so
-          # the dispatcher cannot resolve it inside the guest. The
-          # binary itself talks to the kernel through the stable
-          # bpf(2) ABI — prog/link/cgroup show predate the 5.13 floor
-          # — so one flavor's binary is staged at /usr/bin/bpftool,
-          # the same PATH-probe shape the claims battery uses and the
-          # same standalone-package shape a Debian user gets. The
-          # download-and-extract lane keeps the RAM-resident rootfs
-          # lean: only the ~0.7 MB binary rides the cpio, not the
-          # whole tools package with perf and its lib closure.
+          # package — the binary lives inside the per-ABI linux-tools
+          # debs, and the VM's kernel (the 5.13 floor or the
+          # dynamically resolved latest) never matches the rootfs's
+          # tools ABI, so the dispatcher cannot resolve it inside the
+          # guest. The binary itself talks to the kernel through the
+          # stable bpf(2) ABI — prog/link/cgroup show predate the
+          # 5.13 floor — so one flavor's binary is staged at
+          # /usr/bin/bpftool, the same PATH-probe shape the claims
+          # battery uses and the same standalone-package shape a
+          # Debian user gets. The suite shapes differ (run 231's
+          # lesson: noble's per-kernel -generic package carries the
+          # binary directly; jammy's is a 1.8 KB shell whose Depends
+          # names the per-ABI package that carries it), so the lane
+          # WALKS the linux-tools dependency chain — each level's deb
+          # is downloaded and probed for the binary, and the first
+          # one that carries it wins (both suite shapes resolve in
+          # two levels or fewer). The download-and-extract lane
+          # keeps the RAM-resident rootfs lean: only the ~0.7 MB
+          # binary rides the cpio, not the whole tools package with
+          # perf and its lib closure.
           docker exec floor-rootfs sh -ec '
-            pkg=$(apt-cache depends linux-tools-generic \
-              | sed -n "s/^ *Depends: \(linux-tools-[0-9][^ ]*\) *$/\1/p" \
-              | head -n1)
+            cd /tmp || exit 1
+            resolve() {
+              apt-cache depends "$1" \
+                | sed -n "s/^ *Depends: \(linux-tools-[0-9][^ ]*\) *$/\1/p" \
+                | head -n1
+            }
+            pkg=$(resolve linux-tools-generic)
             test -n "$pkg" || { echo "FAIL: no per-kernel linux-tools resolved"; exit 1; }
-            apt-get download "$pkg" >/dev/null
-            dpkg-deb -x "${pkg}"_*.deb /tmp/bpx
-            src=$(find /tmp/bpx/usr/lib -type f -name bpftool | head -n1)
-            test -n "$src" || { echo "FAIL: no bpftool inside $pkg"; exit 1; }
+            src=""
+            for _ in 1 2 3; do
+              apt-get download "$pkg" >/dev/null
+              rm -rf /tmp/bpx
+              dpkg-deb -x "${pkg}"_*.deb /tmp/bpx
+              src=$(find /tmp/bpx/usr/lib -type f -name bpftool | head -n1)
+              test -n "$src" && break
+              next=$(resolve "$pkg")
+              test -n "$next" || break
+              test "$next" != "$pkg" || break
+              pkg="$next"
+            done
+            test -n "$src" || { echo "FAIL: no bpftool inside the linux-tools chain ($pkg)"; exit 1; }
             install -m 0755 "$src" /usr/bin/bpftool
-            rm -rf /tmp/bpx "${pkg}"_*.deb
+            rm -rf /tmp/bpx /tmp/linux-tools-*.deb
           '
           docker export floor-rootfs -o rootfs.tar
           mkdir -p rootfs
