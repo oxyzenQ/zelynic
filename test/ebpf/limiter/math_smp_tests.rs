@@ -35,20 +35,11 @@
 // The production arithmetic, via the sibling math_tests' inclusion
 // (one copy of ebpf/src/math.rs per test binary — the duplicate-mod
 // lint clippy -D warnings rejects two inclusions of the same file).
-use super::math_tests::ebpf_math;
+use super::math_tests::{ebpf_math, pol};
 
 use self::ebpf_math::{enforce, refill_credits, Bucket, LimiterStats, Policy, NS_PER_SEC};
 use std::ptr;
 use std::thread;
-
-fn pol(rate: u64, burst: u64) -> Policy {
-    Policy {
-        rate_bps: rate,
-        burst_bytes: burst,
-        group_id: 0,
-        flags: 0,
-    }
-}
 
 fn bkt(tokens: u64, frac: u64, last: u64) -> Bucket {
     Bucket {

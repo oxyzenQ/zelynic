@@ -153,10 +153,23 @@ pub fn handle_restore(json: bool) -> Result<()> {
                 &targets[0],
                 &step.rates,
                 step.per_socket,
+                // improve-40 (schema v24): the snapshot's bracket
+                // rides the row in the persistence commit — the
+                // plumbing pass threads zeroes.
+                0,
+                0,
                 step.during.as_ref(),
             )?
         } else {
-            limiter.apply_group(&targets, &step.rates, step.during.as_ref())?
+            limiter.apply_group(
+                &targets,
+                &step.rates,
+                // improve-40 (schema v24): the snapshot's bracket,
+                // the persistence commit's lane.
+                0,
+                0,
+                step.during.as_ref(),
+            )?
         };
         if n == 0 {
             unresolved.extend(step.names.iter().cloned());

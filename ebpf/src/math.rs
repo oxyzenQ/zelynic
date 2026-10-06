@@ -147,11 +147,33 @@ fn rmw_view<'a>(p: *mut u64) -> &'a AtomicU64 {
 /// explicitly (never trusts inherited padding), and the schema bump
 /// wipes pinned maps once (the one-time re-apply contract), so no
 /// pre-v15 entry can leak a garbage bit into the new lane.
+///
+/// `floor_bps`/`ceil_bps` (NIGHT-improve-40, schema v24): the DRR
+/// pool's GUARANTEE BRACKET — the per-LEAF minimum and maximum the
+/// fair-share machinery clamps its epoch allowance between (the
+/// HTB rate/ceil idiom carried into a policer that cannot queue).
+/// The zero sentinel is UNSET on both sides: a row carrying 0/0 is
+/// the exact v23 arithmetic, pinned as the fail-open posture (a
+/// cold row, an un-upgraded persistence file, a miss — never a
+/// surprise bracket). The layout grows 24 -> 40 bytes with the two
+/// u64s inserted BETWEEN burst_bytes and the tail word pair, so
+/// group_id/flags move 20 -> 32/36 and the offset pins carry the
+/// move; the bump wipes the pinned policy maps once (the same
+/// one-time re-apply contract as v15), so no pre-v24 entry can be
+/// READ as a 40-byte row it was never written as.
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct Policy {
     pub rate_bps: u64,
     pub burst_bytes: u64,
+    /// The guarantee bracket's floor (schema v24): the per-leaf
+    /// guaranteed MINIMUM rate — the epoch allowance never earns
+    /// below it while the pool can cover the split. 0 = unset.
+    pub floor_bps: u64,
+    /// The guarantee bracket's ceiling (schema v24): the per-leaf
+    /// MAXIMUM rate — the epoch allowance never earns above it,
+    /// and it binds even a lone drawer. 0 = unset.
+    pub ceil_bps: u64,
     pub group_id: u32,
     pub flags: u32,
 }
@@ -202,7 +224,7 @@ pub struct LimiterStats {
     pub bytes_dropped: u64,
 }
 
-const _: () = assert!(core::mem::size_of::<Policy>() == 24);
+const _: () = assert!(core::mem::size_of::<Policy>() == 40);
 const _: () = assert!(core::mem::size_of::<Bucket>() == 24);
 const _: () = assert!(core::mem::size_of::<LimiterStats>() == 32);
 

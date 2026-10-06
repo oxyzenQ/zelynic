@@ -462,8 +462,39 @@ use socket_flow::socket_flow;
 ///     programs to reload into the time-windowed object — active
 ///     limits are dropped once, re-apply after upgrade, the same
 ///     one-time contract as every bump before it.
+///
+/// v24 (NIGHT-improve-40, the guarantee brackets): the DRR pool's
+///     fair split gains per-LEAF min/max brackets — the HTB
+///     rate/ceil idiom carried into a policer that cannot queue
+///     (HFSC-lite, the owner's lane list's close of the DRR arc).
+///     The Policy row itself grows the pair: floor_bps and ceil_bps
+///     slot between burst_bytes and the tail word pair (24 -> 40
+///     bytes, the FIRST value-size change a bump ever carried —
+///     every earlier bump added maps or flags in padding, this one
+///     moves group_id/flags to 32/36, so the reload the bump
+///     forces is not merely polite but REQUIRED: a pinned v23 map
+///     holds 24-byte rows this object would misread mid-struct).
+///     The zero sentinel is UNSET on both sides — floor 0 = no
+///     guarantee (the fair split stands), ceil 0 = no cap (the
+///     lone drawer keeps the whole budget); a 0/0 row is the exact
+///     v23 arithmetic, the fail-open posture. A set floor RAISES
+///     the epoch allowance to the floor's share (a PRIORITY, not
+///     a reservation — no tokens are held back, an absent leaf
+///     costs nothing, and the borrowing is the pool's own natural
+///     accumulation: unspent allowance stays in the pool for
+///     whoever is under their ceiling); a set ceiling LOWERS the
+///     allowance and the stockpile cap to the ceiling's own
+///     quantum, and binds even a LONE drawer — a cap that folds
+///     when siblings appear is not a cap. The guarantee laws
+///     themselves live in the pure core (drr.rs's v24 section,
+///     pinned rootlessly by drr_guarantee_tests.rs); the datapath
+///     reads them off the row it already fetched (no new maps, no
+///     new lookups); the bump forces pinned v23 programs to reload
+///     into the bracketed object — active limits are dropped once,
+///     re-apply after upgrade, the same one-time contract as every
+///     bump before it.
 #[allow(dead_code)]
-const SCHEMA_VERSION: u32 = 23;
+const SCHEMA_VERSION: u32 = 24;
 
 // ---------------------------------------------------------------------------
 // Maps. The static names ARE the userspace contract (limiter/mod.rs
@@ -1021,6 +1052,12 @@ fn try_enforce(
         Policy {
             rate_bps: pol.rate_bps,
             burst_bytes: MAX_ENFORCABLE_BURST,
+            // improve-40 (schema v24): the bracket carries through
+            // the burst clamp verbatim — it is rate-family metadata,
+            // not a stockpile bound; the law-side consumers clamp it
+            // against the row's own rate (drr.rs's v24 section).
+            floor_bps: pol.floor_bps,
+            ceil_bps: pol.ceil_bps,
             group_id: pol.group_id,
             flags: pol.flags,
         }
