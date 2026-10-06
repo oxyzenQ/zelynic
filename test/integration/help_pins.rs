@@ -68,6 +68,7 @@ fn test_help_lists_every_command() {
         "Short aliases:",
         "Global flags:",
         "Rate formats:",
+        "Pro mode:",
         "Examples:",
     ] {
         assert!(stdout.contains(section), "--help must carry {section}");
@@ -481,6 +482,61 @@ fn test_subcommand_help_errors_with_suggestion() {
             .count(),
         1,
         "exactly one canonical footer, got:\n{stderr}"
+    );
+}
+
+/// NIGHT-improve-45: the Pro mode drift pin — every hidden and
+/// advanced flag the CLI owns must appear on the --help reference,
+/// spelled exactly as the parser accepts it. Before the section
+/// landed, the --during grammar and the guarantee brackets carried
+/// ZERO mentions on the reference (hidden flags by omission); this
+/// pin holds the complete surface so a future flag cannot ship
+/// hidden: add its spelling here the same hour it joins the enum.
+#[test]
+fn test_help_pro_mode_documents_every_advanced_flag() {
+    const ADVANCED_FLAGS: [&str; 13] = [
+        // Time windows (strict family + block family).
+        "--during",
+        // The guarantee bracket family (strict family).
+        "--floor",
+        "--ceil",
+        "--floor-download",
+        "--floor-upload",
+        "--ceil-download",
+        "--ceil-upload",
+        // Enforcement shape (strict-single).
+        "--per-socket",
+        "--no-probe",
+        // Guard override (strict family + block family).
+        "--force-this",
+        // Deep inspection (eagle-eyes).
+        "--focus",
+        "--depth",
+        "--interval",
+    ];
+
+    let output = zelynic_cmd()
+        .arg("--help")
+        .output()
+        .expect("Failed to execute zelynic --help");
+
+    assert_eq!(output.status.code(), Some(0), "--help exits 0");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("Pro mode:"),
+        "the Pro mode section heading must be present, got:\n{stdout}"
+    );
+    for flag in ADVANCED_FLAGS {
+        assert!(
+            stdout.contains(flag),
+            "--help must document the '{flag}' flag in Pro mode, got:\n{stdout}"
+        );
+    }
+    // The one grammar law worth its own line on the reference: the
+    // duration-only revision refuses the removed shapes by name.
+    assert!(
+        stdout.contains("duration only"),
+        "the --during duration-only law must be stated, got:\n{stdout}"
     );
 }
 
