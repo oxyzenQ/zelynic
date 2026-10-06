@@ -347,6 +347,91 @@ def run_zel(args, timeout=30):
         return 127, "", str(e)
 
 
+# ── the real-user drop lane (NIGHT-improve-49) ─────────────────────────────
+#
+# The supermassive VM leg runs every battery as root (the init
+# context — v1/v2 need root for BPF), which left the rootless-lane
+# rows — the ones whose contract is the refusal a REAL user sees —
+# skipping instead of running: the battery labeled "rootless" was
+# executing as root and honestly declining to fake the user. The
+# drop lane closes that the honest way: when the harness itself is
+# root, those rows re-execute through setpriv as an unprivileged
+# uid, the gate refuses that user exactly as it refuses a real
+# one, and the row's verdict becomes a genuine PASS/FAIL with the
+# refusal needle asserted. Safety is inherited, not weakened: the
+# gate fires BEFORE any target parses or policy lands, which is
+# the same reason the rows are safe on the rootless CI leg — a
+# dropped uid past a root gate is a refusal, never an enforcement.
+# The fallback is the old honest SKIP (setpriv absent — the row
+# names the missing lane, never guesses), so a host without the
+# tool degrades exactly as before.
+
+# 65534: the classic unprivileged uid ("nobody") on every Linux
+# distro; numeric on purpose — no /etc/passwd dependency, the same
+# pair a distro-less initramfs can resolve.
+PRIVDROP_UID = 65534
+PRIVDROP_GID = 65534
+
+# Resolved once, cached: the setpriv argv prefix, or None when the
+# host cannot drop. None-then-list-then-None-again is impossible
+# by construction (the probe never un-resolves), so the cache is
+# safe across a whole battery run.
+_PRIVDROP_PREFIX = None
+_PRIVDROP_PROBED = False
+
+
+def privdrop_prefix():
+    """The setpriv argv prefix for the real-user drop, or None.
+
+    Returns [setpriv, --reuid=65534, --regid=65534, --clear-groups,
+    --] when setpriv is on PATH (util-linux, present on every
+    Ubuntu/Debian the harness family promises to run on), else
+    None — the caller's honest-SKIP path. The groups are cleared
+    because a root harness carries root's supplementary groups and
+    a user lane must not; the numeric ids carry no userdb
+    dependency. Probed once, cached for the battery's lifetime.
+    """
+    global _PRIVDROP_PREFIX, _PRIVDROP_PROBED
+    if not _PRIVDROP_PROBED:
+        _PRIVDROP_PROBED = True
+        setpriv = shutil.which("setpriv")
+        _PRIVDROP_PREFIX = (
+            [
+                setpriv,
+                f"--reuid={PRIVDROP_UID}",
+                f"--regid={PRIVDROP_GID}",
+                "--clear-groups",
+                "--",
+            ]
+            if setpriv
+            else None
+        )
+    return _PRIVDROP_PREFIX
+
+
+def run_zel_as_user(args, timeout=30):
+    """Run zelynic through the real-user drop (run_zel's own shape).
+
+    Returns (returncode, stdout, stderr) with the same conventions
+    as run_zel; rc 126 names the missing drop lane (setpriv
+    absent — the caller should treat it as the SKIP signal, not a
+    zelynic refusal). The dropped process inherits this harness's
+    environment minus nothing: NO_COLOR and friends ride along.
+    """
+    prefix = privdrop_prefix()
+    if prefix is None:
+        return 126, "", "setpriv unavailable — the real-user drop lane cannot run"
+    try:
+        p = subprocess.run(
+            prefix + [BINARY] + args, capture_output=True, text=True, timeout=timeout
+        )
+        return p.returncode, p.stdout, p.stderr
+    except subprocess.TimeoutExpired:
+        return 124, "", f"timeout after {timeout}s (dropped uid {PRIVDROP_UID})"
+    except OSError as e:
+        return 127, "", str(e)
+
+
 def status_json():
     rc, stdout, _ = run_zel(["status", "--print-json"])
     if rc != 0:

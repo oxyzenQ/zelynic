@@ -27,6 +27,57 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Added
 
+- **test(supermassive): NIGHT-improve-49 — the real-user drop
+  lane: the rootless-lane rows now RUN on the root VM legs instead
+  of skipping, the supermassive test's user experience made real
+  (no fake root, no fake rootless).** The owner's mandate, verbatim
+  intent: "make the supermassive test is real usage as a user don't
+  fake root/rootles. why? aim to effective real usage and be
+  honest." The find beneath it (the round-2 audit's inventory): the
+  VM leg runs every battery as root (the init context v1/v2 need
+  for BPF), so the 20 rows whose contract is the refusal a REAL
+  user sees — v4's 19 rootless-lane rows (the snapshot/restore
+  privilege verbs, the during grammar's 8 valid rows, the guarantee
+  ladder's 4, the tier pair, the shadowed-positional triple) plus
+  v3's privilege-gate stage — skipped without executing: the
+  battery labeled "rootless" was executing as root and honestly
+  declining to fake the user, delegating the whole user experience
+  to the rootless CI leg. The fix, one lane: the shared lib gains
+  privdrop_prefix/run_zel_as_user (setpriv --reuid=65534
+  --regid=65534 --clear-groups, the classic unprivileged uid,
+  numeric — no userdb dependency; probed once, cached; absent
+  setpriv degrades to the old honest SKIP), and when the harness
+  itself is root the rootless-lane rows re-execute through the
+  drop: the gate refuses the dropped user exactly as it refuses a
+  real one, the refusal needle asserts for real, and the verdict
+  is a genuine PASS/FAIL stamped "real-user drop (uid 65534)".
+  Safety is inherited, not weakened — a dropped uid cannot pass
+  the root gate, so no case ever executes a policy (the same
+  construction that makes the rows safe on the rootless CI leg);
+  the enforcement batteries (v1/v2, the rigs, the claims proof)
+  stay root-only, untouched. The wiring: v4's runner takes the
+  as_user parameter (the needle-case engine and stage 9's shadow
+  loop share it), v3's stage 2 runs its refusal ladder through the
+  same lane, both batteries' banners say which lane they run, the
+  VM init's MASS-RESULT labels now name the real shape ("full,
+  user rows via the real-user drop" — the old "(full, rootless)"
+  label was the lie this task retires), and the self-test pins the
+  drop engine (the prefix's exact five-token shape when setpriv
+  resolves, the honest None when it does not). Verified locally:
+  the engine self-tests green on v1/v3/v4 (v4's new privdrop pin
+  reading /usr/bin/setpriv --reuid=65534 --regid=65534
+  --clear-groups), the drop composition proven live against the
+  real prefix (the subprocess ran setpriv+BINARY+argv and got
+  setpriv's own refusal on this non-root host — correct: only root
+  drops; the VM leg runs as real root where the drop succeeds),
+  ruff check and format clean, shellcheck/shfmt/bash -n clean on
+  every touched .sh. The live proof rides this commit's own
+  supermassive run: the four legs' v4 batteries should read 155
+  passed, 0 skipped (the 19 rows run through the drop), v3 30/0/2
+  (the gate stage's five refusal rows run through the drop; only
+  the two runtime-absent E2E rows stay, their own workflow
+  carrying them).
+
 - **ci(bench): NIGHT-improve-48 closure — the claims battery's
   three tool-absent VM skips closed at the rootfs: nftables rides
   the plain apt line, one flavor's bpftool is staged at

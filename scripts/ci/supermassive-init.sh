@@ -288,12 +288,17 @@ fi
 # the name resolves to, clean on every error path" verdict. The
 # rootless stages (help + privilege gate) run on every host; the
 # root stages (grammar + resolution) run on this leg's root (the
-# floor or the latest head).
+# floor or the latest head). NIGHT-improve-49: this leg runs as
+# root (the init context), so the privilege-gate stage's refusal
+# rows re-execute through the real-user drop lane (setpriv to uid
+# 65534) instead of skipping — the gate refuses the dropped user
+# exactly as it refuses a real one, the refusal needle asserts for
+# real on every leg.
 if python3 scripts/supermassive/supermassive-test-v3.py \
 	--binary /opt/zelynic/zelynic; then
-	note "supermassive v3 - container depth battery (full)" PASS
+	note "supermassive v3 - container depth battery (full, user rows via the real-user drop)" PASS
 else
-	note "supermassive v3 - container depth battery (full)" FAIL
+	note "supermassive v3 - container depth battery (full, user rows via the real-user drop)" FAIL
 fi
 
 # v4, the CLI depth battery (NIGHT-improve-35, the e2e pipeline's phase
@@ -309,19 +314,23 @@ fi
 # stage 9, the hardening seat: hostile control-byte payloads against
 # every pre-root echo path (the render boundary's '?' contract), the
 # shadowed-positional ladder, and the hidden-vocabulary leak cases.
-# This leg runs the battery as root (the init context), so stage 9's
-# three valid-rate shadow rows — the ones asserting the root-refusal
-# message — SKIP without executing here (v3's privilege-gate
-# doctrine; a valid rate past a passing gate is an enforcement
-# attempt no v4 case makes). The rootless Dragon Guard - CI leg
-# still runs all 121 rows on every push that touches the Rust/
-# scripts surface (ci.yml is paths-filtered — NIGHT-hunt-32
-# corrected the unqualified "every push").
+# This leg runs the battery as root (the init context), so the
+# rootless-lane rows — the ones asserting the root-refusal message a
+# real user sees — re-execute through the real-user drop lane
+# (NIGHT-improve-49: setpriv to uid 65534) instead of skipping: the
+# gate refuses the dropped user exactly as it refuses a real one,
+# and a dropped uid cannot pass the root gate, so no v4 case ever
+# makes an enforcement attempt (only a host without setpriv keeps
+# the honest SKIP — this rootfs ships util-linux, so the drop runs).
+# The rootless Dragon Guard - CI leg still runs all rows on every
+# push that touches the Rust/scripts surface (ci.yml is
+# paths-filtered — NIGHT-hunt-32 corrected the unqualified "every
+# push").
 if python3 scripts/supermassive/supermassive-test-v4.py \
 	--binary /opt/zelynic/zelynic; then
-	note "supermassive v4 - CLI depth battery (full, rootless)" PASS
+	note "supermassive v4 - CLI depth battery (full, user rows via the real-user drop)" PASS
 else
-	note "supermassive v4 - CLI depth battery (full, rootless)" FAIL
+	note "supermassive v4 - CLI depth battery (full, user rows via the real-user drop)" FAIL
 fi
 
 # ── the rig suites (NIGHT-hunt-35): the root bash rigs, canonical ────
