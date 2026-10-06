@@ -18,6 +18,8 @@ pub mod display;
 #[cfg(feature = "ebpf")]
 pub mod display_json;
 #[cfg(feature = "ebpf")]
+mod display_lines;
+#[cfg(feature = "ebpf")]
 pub mod embedded;
 #[cfg(feature = "ebpf")]
 pub mod identity;

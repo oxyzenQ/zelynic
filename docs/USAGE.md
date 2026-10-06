@@ -113,7 +113,7 @@ or `zelynic ee brave --interval 1s`.
 ### strict-single / strict — limit one app
 
 ```bash
-sudo zelynic strict-single <target> [rate] [-d <rate>] [-u <rate>] [--per-socket] [--during <window>]
+sudo zelynic strict-single <target> [rate] [-d <rate>] [-u <rate>] [--per-socket] [--floor <rate>] [--ceil <rate>] [--during <window>]
 sudo zelynic strict brave 100kb        # shorthand form
 ```
 
@@ -259,6 +259,35 @@ sudo zelynic strict brave 100kb        # shorthand form
   keeps the FCFS shape by documented scope (its members are
   enumerated by the apply itself, so the unknown-leaf starvation
   problem does not exist there).
+- The fair share is **bracketable** (improve-40, schema v24: the
+  guarantee lanes, floor/ceiling + hierarchical borrowing — the
+  HTB rate/ceil idiom carried into a policer that cannot queue).
+  `--floor 100kb` guarantees every subprocess under the target at
+  least 100kb of the shared budget, however greedy its siblings —
+  a PRIORITY, not a reservation: no tokens are held back, an idle
+  subprocess costs nothing, and the unspent share stays in the
+  pool for whoever is under their ceiling (the pool's own
+  accumulation IS the lender — no carve-out, no daemon).
+  `--ceil 300kb` caps every subprocess at 300kb even when its
+  siblings are idle and the pool is rich — and it binds a LONE
+  subprocess too (a cap that folds when siblings appear is not a
+  cap). One flag sets BOTH directions' rows, the `--during`
+  shape; the bracket validates against every direction the apply
+  sets (floor <= ceil <= rate, per direction — a side that could
+  never bind is a mis-typed rate, refused before the root ask)
+  and is not offered beside `--per-socket` (the bracket polices
+  subprocess leaves; per-socket polices each connection at the
+  full rate — different lanes). `status` renders the pair as a
+  grey subordinate line under the row (`guarantee: floor 100.0
+  KB/s ceil 300.0 KB/s (per subprocess)`), the verbose apply
+  trace carries it beside the burst, and `--print-json` gains
+  `floor_bps` / `ceil_bps` (absent when unset). The honest
+  over-subscription law: when the floors' sum exceeds the pool's
+  refill (leaves are dynamic; the config cannot know how many
+  will ask), the floors degrade to the pool law — the pool never
+  hands out what it does not have — and the quietest keeps the
+  unfloored no-starve bound (pinned rootlessly by the guarantee
+  battery, both sides: the fleet sims and the law pins).
 - A positional `rate` sets **both** download and upload. `-d`/`-u` set
   them independently — and they take precedence: if either flag is
   present, the positional rate does not apply (no silent mixing), so
@@ -642,8 +671,11 @@ and writes it to `/var/lib/zelynic/limits.json`, keyed by NAME: a
 reboot changes cgroup IDs, so names are the only stable key. The
 document carries every leg — who, which direction, what rate,
 grouping (the shared-bucket members re-join through the map's group
-id), the per-socket flag, and the `--during` window in its
-WALL-clock form (night-during, schema v23): a monotonic deadline
+id), the per-socket flag, the guarantee bracket (improve-40,
+schema v24: the floor/ceil pair, both legs, serde-defaulted so a
+v23 file restores as the unset sentinel), and the `--during`
+window in its WALL-clock form (night-during, schema v23): a
+monotonic deadline
 resets with the boot, so the census serializes the wall instants
 and `restore` re-translates them through a fresh clock bridge —
 auto-expire survives the reboot it was born for, never converting

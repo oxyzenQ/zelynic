@@ -24,11 +24,11 @@ use super::super::policy_lines::{policy_write_line, resolution_trace_line};
 #[test]
 fn policy_write_line_names_cgroup_direction_rate_and_burst() {
     assert_eq!(
-        policy_write_line(73386, Direction::Download, 100_000),
+        policy_write_line(73386, Direction::Download, 100_000, 0, 0),
         "[limiter] cg:73386 download → 100.0 KB/s (burst 100.0 KB)"
     );
     assert_eq!(
-        policy_write_line(1, Direction::Upload, 1_000_000),
+        policy_write_line(1, Direction::Upload, 1_000_000, 0, 0),
         "[limiter] cg:1 upload → 1.0 MB/s (burst 1.0 MB)"
     );
 }
@@ -42,7 +42,7 @@ fn policy_write_line_blocks_show_blocked_rate_and_floor_burst() {
     // is "65.536 KB", the one-decimal "65.5 KB" hid 36 B of the
     // kernel's own floor constant.
     assert_eq!(
-        policy_write_line(73386, Direction::Download, 0),
+        policy_write_line(73386, Direction::Download, 0, 0, 0),
         "[limiter] cg:73386 download → BLOCKED (burst 65.536 KB)"
     );
 }
@@ -53,12 +53,12 @@ fn policy_write_line_renders_configured_rates_exactly() {
     // rate traces through the exact round-trip twin — the
     // one-decimal "100.5 KB/s" hid 10 B/s of the typed number.
     assert_eq!(
-        policy_write_line(70896, Direction::Download, 100_510),
+        policy_write_line(70896, Direction::Download, 100_510, 0, 0),
         "[limiter] cg:70896 download → 100.51 KB/s (burst 100.51 KB)"
     );
     // A configured 1 TB/s ceiling renders its own tier exactly.
     assert_eq!(
-        policy_write_line(1, Direction::Download, 1_000_000_000_000),
+        policy_write_line(1, Direction::Download, 1_000_000_000_000, 0, 0),
         "[limiter] cg:1 download → 1.0 TB/s (burst 100.0 MB)"
     );
 }
@@ -240,5 +240,25 @@ fn group_id_from_spreads_same_pid_pairs_across_the_space() {
         unique.len(),
         ids.len(),
         "mixer collision inside a same-pid sweep"
+    );
+}
+
+/// improve-40 (schema v24): a bracketed row's trace carries the
+/// pair beside the burst — the exact-twin law, only the sides that
+/// are set (the zero sentinel stays silent, the lean-row shape).
+#[test]
+fn policy_write_line_names_the_guarantee_bracket() {
+    assert_eq!(
+        policy_write_line(73386, Direction::Download, 1_000_000, 100_000, 300_000),
+        "[limiter] cg:73386 download → 1.0 MB/s (burst 1.0 MB, floor 100.0 KB/s ceil 300.0 KB/s)"
+    );
+    assert_eq!(
+        policy_write_line(73386, Direction::Download, 1_000_000, 0, 300_000),
+        "[limiter] cg:73386 download → 1.0 MB/s (burst 1.0 MB, ceil 300.0 KB/s)"
+    );
+    // The zero sentinel: no bracket tail at all (the lean row).
+    assert_eq!(
+        policy_write_line(73386, Direction::Download, 1_000_000, 0, 0),
+        "[limiter] cg:73386 download → 1.0 MB/s (burst 1.0 MB)"
     );
 }

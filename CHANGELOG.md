@@ -19,6 +19,41 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Added
 
+- **The guarantee brackets — `--floor` / `--ceil` (improve-40,
+  schema v24): the DRR pool's fair split gains per-subprocess
+  min/max brackets, floor/ceiling + hierarchical borrowing (the
+  HTB rate/ceil idiom carried into a policer that cannot queue —
+  HFSC-lite, the close of the DRR arc).** The Policy row itself
+  grows `floor_bps`/`ceil_bps` (24 -> 40 bytes, the FIRST
+  value-size change a schema bump ever carried — the reload the
+  bump forces is required, not polite; re-apply active limits
+  after upgrading, the same one-time contract as every bump).
+  `--floor 100kb` guarantees every subprocess under the target at
+  least 100kb however greedy its siblings; `--ceil 300kb` caps
+  every subprocess at 300kb even when its siblings are idle — and
+  binds a lone subprocess too. The floor is a PRIORITY, not a
+  reservation (an idle leaf costs nothing; the pool's own
+  accumulation is the lender — the hierarchical borrowing with no
+  carve-out and no daemon); the ceiling tightens the banking
+  stockpile to its own quantum. The zero sentinel is unset on both
+  sides: a 0/0 row is the exact v23 arithmetic (the fail-open
+  posture — the bracket composes onto the v16/v17 laws, proven by
+  the ledger/highload batteries standing unchanged). One flag sets
+  both directions; validation (floor <= ceil <= rate per set
+  direction, the per-socket scope rejection) rides the
+  parse-before-execute ladder; `status`, the verbose trace, the
+  JSON (`floor_bps`/`ceil_bps`), and the persistence pair all
+  carry the bracket (a v23 state file restores as the unset
+  sentinel). The law's own first draft was caught by its battery
+  before any kernel saw it: the unset ceiling's zero sentinel read
+  as a clamp to zero and every split collapsed to 0 — the
+  zero-bracket pin failed in exactly the shape it exists to fail
+  in. Over-subscribed floors (the sum above the refill) degrade to
+  the pool law with the quietest keeping the unfloored no-starve
+  bound — pinned rootlessly by the new guarantee battery
+  (drr_guarantee_tests.rs) and the shared sim engine it shares
+  with the ledger family (drr_sim.rs).
+
 - **The unified `--during` time windows (night-during, schema
   v23, NIGHT-private-research-4's Tier A candidate — the owner's
   unified-grammar decision: one flag, three shapes, UTC
