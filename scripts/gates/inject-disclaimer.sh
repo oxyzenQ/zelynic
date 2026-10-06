@@ -37,7 +37,11 @@
 #   former CHANGELOG-V11-ERA.md root duplicate was removed in
 #   NIGHT-dinner-19 (its frozen content lives in git history);
 #   the regex below keeps the era-file arm so an old checkout
-#   running this gate still excludes it.
+#   running this gate still excludes it. NIGHT-improve-43 added
+#   CHANGELOG-V20-ERA.md — the v20-era record split out of the
+#   live file at the b743d9c blob — the same frozen-record class
+#   (byte-frozen history the disclaimer gate must not demand
+#   edits in).
 
 set -euo pipefail
 
@@ -114,7 +118,7 @@ while IFS= read -r -d '' file; do
 done < <(
 	git ls-files --cached --others --exclude-standard 2>/dev/null |
 		grep -E '\.md$' |
-		grep -v -E '^CHANGELOG(-V11-ERA)?\.md$' |
+		grep -v -E '^CHANGELOG(-V(11|20)-ERA)?\.md$' |
 		while IFS= read -r line; do
 			printf '%s\0' "${REPO_ROOT}/${line}"
 		done
