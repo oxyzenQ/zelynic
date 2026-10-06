@@ -165,7 +165,34 @@
 # + the weekly Monday 03:00 UTC schedule (the kernel-span clock:
 # a docs-only push skips the runner, but the old-releases mirror
 # can change availability and the archive the latest-kernel
-# resolver walks can restructure, both between pushes).
+# resolver walks can restructure, both between pushes) — landed
+# for real at NIGHT-approved-1 (the header had documented the
+# slot since the kernel-span era; the trigger itself was absent),
+# with the busy-hour residual watch as its second purpose: the
+# round-1 audit's documented limit (shared-runner busy-hour band
+# failures on the first attempt, recovered by re-running the
+# failed legs on fresh runners) now earns a weekly longitudinal
+# sample, the Actions history itself the dataset (every
+# scheduled run's watch-summary step below names the trigger,
+# the leg, and every FAIL/SKIP row with its reading — no
+# in-repo writes, this workflow keeps contents:read).
+#
+# NIGHT-approved-1 (the owner's approved next candidates, the
+# architectural half): the micro-VM earns REAL EGRESS — qemu
+# user-mode networking (SLIRP: guest 10.0.2.15/24, gateway
+# 10.0.2.2, DNS 10.0.2.3, static, no bridge, the runner's own
+# egress NAT'd behind it) and a virtio-net device. The bus layer
+# (virtio, virtio_pci) is built into every kernel this VM boots;
+# the 5.13 floor's virtio_net is a MODULE (=m), staged by each
+# kernel resolver step from the kernel's OWN linux-modules deb
+# (the vermagic matches the vmlinuz the same step extracted, by
+# construction), while the modern heads build the driver in
+# (=y, verified against the archive's current latest — nothing
+# to stage). v1's realnet lane then runs instead of skipping:
+# its own reachability probe (the Cloudflare/OVH/Tele2 chain)
+# and its honest SKIPs own the endpoint-down days, exactly the
+# lane design that waited for this day — the harness itself
+# changes not at all.
 #
 # Cost: four standard hosted runners for ~15-35 min per qualifying
 # push (public-repo standard runners are free; the blade-12 version
@@ -196,6 +223,17 @@ on:
       - 'scripts/lib/**'
       - 'scripts/ci/**'
       - '.github/workflows/supermassive.yml'
+  # NIGHT-approved-1: the weekly clock — Monday 03:00 UTC (10:00
+  # WIB, the owner's Monday morning), the slot the header has
+  # documented since the kernel-span era. The scheduled runs watch
+  # two things between pushes: the resolver lanes' mirrors (the
+  # frozen impish pocket, the live archive's structure) and the
+  # busy-hour residual (the round-1 audit's documented shared-runner
+  # limit) — the watch-summary step lands every run's FAIL/SKIP
+  # rows in the step summary so the Actions history reads as the
+  # longitudinal dataset.
+  schedule:
+    - cron: "0 3 * * 1"
   workflow_dispatch: {}
 
 # Least privilege (cosmostrix contract): this workflow only reads
@@ -364,6 +402,47 @@ jobs:
           fi
           cp "$VMLINUZ" /tmp/kfloor/vmlinuz-floor
           echo "kernel: $(du -h /tmp/kfloor/vmlinuz-floor | cut -f1) at /tmp/kfloor/vmlinuz-floor"
+          # NIGHT-approved-1 (the egress half): stage the kernel's
+          # OWN virtio_net module pair when the driver is a module —
+          # the floor kernel ships CONFIG_VIRTIO_NET=m (verified
+          # against the deb's own config file), so the realnet lane's
+          # NIC needs the .ko staged from the kernel's modules deb
+          # (same suite, same version: the vermagic matches the
+          # vmlinuz this step just extracted, by construction — the
+          # bpftool lane's per-kernel-ABI discipline, applied to
+          # modules). The bus layer (virtio, virtio_pci) is =y on
+          # every kernel this VM boots, so the pair is the whole
+          # dependency set (virtio_net's modinfo depends names only
+          # net_failover). A resolve or extract failure FAILS the
+          # leg here on the runner, the legacy-fetch doctrine the
+          # bpftool lane set — the owner-approved egress contract is
+          # not soft.
+          KVER="${IMG#linux-image-unsigned-}"
+          MODPKG="linux-modules-$KVER"
+          apt-get -o Acquire::Retries=5 download "$MODPKG"
+          rm -rf mods /tmp/kfloor/virtio-mods
+          dpkg-deb -x "${MODPKG}"*_amd64.deb mods
+          CFG="mods/boot/config-$KVER"
+          test -f "$CFG" || {
+            echo "FAIL: no config-$KVER inside $MODPKG — deb contents:"
+            ls mods/boot || true
+            exit 1
+          }
+          VNET=$(sed -n 's/^CONFIG_VIRTIO_NET=\(.*\)$/\1/p' "$CFG")
+          case "$VNET" in
+            y)  echo "virtio_net built-in (=y) — no modules to stage" ;;
+            m)  mkdir -p "/tmp/kfloor/virtio-mods/lib/modules/$KVER/kernel/drivers/net"
+                for mod in virtio_net net_failover; do
+                  WANT=$(sed -n "s/^CONFIG_${mod^^}=\(.*\)$/\1/p" "$CFG")
+                  if [ "$WANT" = "m" ]; then
+                    SRC="mods/lib/modules/$KVER/kernel/drivers/net/$mod.ko"
+                    test -f "$SRC" || { echo "FAIL: $mod.ko absent from $MODPKG (config says =m)"; exit 1; }
+                    cp "$SRC" "/tmp/kfloor/virtio-mods/lib/modules/$KVER/kernel/drivers/net/"
+                  fi
+                done
+                echo "staged virtio modules: $(du -sh /tmp/kfloor/virtio-mods | cut -f1) at /tmp/kfloor/virtio-mods" ;;
+            *)  echo "FAIL: CONFIG_VIRTIO_NET=$VNET — no usable virtio-net driver on this kernel"; exit 1 ;;
+          esac
 
       # The latest kernel (NIGHT-improve-33, the best-specs lane):
       # resolved DYNAMICALLY at run time, nothing pinned. The dists
@@ -444,6 +523,41 @@ jobs:
           fi
           cp "$VMLINUZ" /tmp/kfloor/vmlinuz-floor
           echo "kernel: $(du -h /tmp/kfloor/vmlinuz-floor | cut -f1) at /tmp/kfloor/vmlinuz-floor"
+          # NIGHT-approved-1 (the egress half, the latest-kernel
+          # twin of the floor lane above): the SAME config-driven
+          # staging walk, the kernel's OWN modules deb from the
+          # suites this resolver just configured. The modern heads
+          # ship CONFIG_VIRTIO_NET=y (verified against the archive's
+          # current latest: the driver is built in, nothing to
+          # stage) — the walk exists so the day a head flips the
+          # flag back to =m, this leg stages the pair instead of
+          # reddening the egress row the init judges.
+          KVER="${IMG#linux-image-unsigned-}"
+          MODPKG="linux-modules-$KVER"
+          apt-get -o Acquire::Retries=5 download "$MODPKG"
+          rm -rf mods /tmp/kfloor/virtio-mods
+          dpkg-deb -x "${MODPKG}"*_amd64.deb mods
+          CFG="mods/boot/config-$KVER"
+          test -f "$CFG" || {
+            echo "FAIL: no config-$KVER inside $MODPKG — deb contents:"
+            ls mods/boot || true
+            exit 1
+          }
+          VNET=$(sed -n 's/^CONFIG_VIRTIO_NET=\(.*\)$/\1/p' "$CFG")
+          case "$VNET" in
+            y)  echo "virtio_net built-in (=y) — no modules to stage" ;;
+            m)  mkdir -p "/tmp/kfloor/virtio-mods/lib/modules/$KVER/kernel/drivers/net"
+                for mod in virtio_net net_failover; do
+                  WANT=$(sed -n "s/^CONFIG_${mod^^}=\(.*\)$/\1/p" "$CFG")
+                  if [ "$WANT" = "m" ]; then
+                    SRC="mods/lib/modules/$KVER/kernel/drivers/net/$mod.ko"
+                    test -f "$SRC" || { echo "FAIL: $mod.ko absent from $MODPKG (config says =m)"; exit 1; }
+                    cp "$SRC" "/tmp/kfloor/virtio-mods/lib/modules/$KVER/kernel/drivers/net/"
+                  fi
+                done
+                echo "staged virtio modules: $(du -sh /tmp/kfloor/virtio-mods | cut -f1) at /tmp/kfloor/virtio-mods" ;;
+            *)  echo "FAIL: CONFIG_VIRTIO_NET=$VNET — no usable virtio-net driver on this kernel"; exit 1 ;;
+          esac
 
       # The userland (BOTH profiles' legs, held constant per version on
       # purpose — the leg's only variables are the kernel and the
@@ -455,12 +569,13 @@ jobs:
       # 3.2, so the 5.13 kernel is safe), the musl legs keep the
       # ubuntu:22.04 container unchanged (a static binary owes no
       # userland anything — the improve-31 contract). python3 +
-      # iproute2 ride along (the engine + `ip link set lo up`), and
+      # iproute2 + kmod ride along (the engine + `ip link set lo up`
+      # + the egress block's insmod pair), and
       # curl joins the set for the consolidated battery (the v1
-      # limiter matrix drives its lanes with it; the realnet lane
-      # self-skips, the documented row, so curl is for the loopback
-      # lanes). The checkout (tracked files only) and the payload
-      # binary land at /opt/zelynic, scripts/ci/supermassive-init.sh
+      # limiter matrix drives its lanes with it — the loopback lanes
+      # AND the realnet lane, which RUNS since NIGHT-approved-1 gave
+      # the VM egress). The checkout (tracked files only) and the
+      # payload binary land at /opt/zelynic, scripts/ci/supermassive-init.sh
       # becomes /init (PID 1) — then the whole tree packs into ONE
       # newc cpio (the initramfs IS the rootfs; no disk, no modules).
       # PAYLOAD-FLAVOR (NIGHT-blade-12) names the libc for the init's
@@ -493,7 +608,7 @@ jobs:
           docker rm -f floor-rootfs >/dev/null 2>&1 || true
           docker run --name floor-rootfs -d "$SUITE" sleep infinity
           docker exec floor-rootfs apt-get update -qq
-          docker exec floor-rootfs apt-get install -y --no-install-recommends python3 iproute2 curl nftables
+          docker exec floor-rootfs apt-get install -y --no-install-recommends python3 iproute2 kmod curl nftables
           # bpftool (NIGHT-improve-48): Ubuntu ships no standalone
           # package — the binary lives inside the per-ABI linux-tools
           # debs, and the VM's kernel (the 5.13 floor or the
@@ -549,8 +664,21 @@ jobs:
           printf '%s\n' '${{ matrix.version }}' > rootfs/opt/zelynic/PAYLOAD-FLAVOR
           cp "$GITHUB_WORKSPACE/scripts/ci/supermassive-init.sh" rootfs/init
           chmod +x rootfs/init
+          # NIGHT-approved-1: the virtio module pair a resolver step
+          # staged (the 5.13 floor's =m legs — 132 KB) rides the cpio
+          # under the kernel's own module path; the =y heads staged
+          # nothing and the init's insmod pair simply finds no files
+          # (the built-in driver needs none). kmod in the apt line
+          # above owns the insmod.
+          if [ -d /tmp/kfloor/virtio-mods ]; then
+            cp -a /tmp/kfloor/virtio-mods/lib rootfs/
+            echo "virtio modules in rootfs: $(find rootfs/lib/modules -name '*.ko' | tr '\n' ' ')"
+          fi
           # NIGHT-perf-1: the AMMSP-vs-legacy A/B needs the pre-AMMSP
-          # stable INSIDE the offline VM (the guest has loopback only).
+          # stable INSIDE the VM on its own loopback lane (the A/B
+          # rides the guest's deterministic loopback traffic, not the
+          # internet — the egress changes nothing here, both sides
+          # measured on the same lane either way).
           # The v11.0.0 release — the last leaf-anchored datapath, the
           # exact counterfactual the subtree contract is measured
           # against — is staged with its own sha512sum sidecar so the
@@ -622,9 +750,16 @@ jobs:
           fi
           echo "envelope: $SMP vCPU / $MEM MB (of $CORES cores / $TOTAL_MB MB on the runner)"
           set +e
+          # NIGHT-approved-1: the user-mode NIC (SLIRP) — the egress
+          # the realnet lane rides. Deterministic shape: guest
+          # 10.0.2.15/24, gateway 10.0.2.2, DNS 10.0.2.3 (the init
+          # configures it statically, no DHCP, no bridge — the
+          # runner's own egress NAT'd behind it).
           timeout ${{ matrix.vm_timeout }} qemu-system-x86_64 \
             -machine q35,accel=kvm -cpu host \
             -m "$MEM" -smp "$SMP" \
+            -netdev user,id=net0 \
+            -device virtio-net-pci,netdev=net0 \
             -device isa-debug-exit,iobase=0xf4,iosize=0x04 \
             -kernel vmlinuz-floor \
             -initrd initrd.gz \
@@ -655,3 +790,36 @@ jobs:
           grep -E '^MASS-(RESULT|VERDICT)' vm.log || true
           grep -q '^MASS-VERDICT: PASS' vm.log
           echo "OK: the kernel span proven on the ${{ matrix.title }} envelope"
+
+      # NIGHT-approved-1: the busy-hour residual watch — every run
+      # (push, dispatch, and the weekly clock alike) lands its
+      # leg's FAIL/SKIP inventory in the step summary, so the
+      # Actions history reads as the longitudinal dataset: the
+      # weekly scheduled runs sample the shared-runner busy-hour
+      # residual the round-1 audit documented (band rows reading
+      # low under contention on a first attempt, clean on a fresh
+      # runner), and the reading rides each week's summary row —
+      # the run list itself is the record (this workflow keeps
+      # contents:read; no in-repo writes, no artifact expiry).
+      - name: Weekly watch summary (the busy-hour residual clock)
+        if: always()
+        run: |
+          cd /tmp/kfloor
+          {
+            echo "## Dragon Guard watch — ${{ matrix.title }}"
+            echo
+            echo "- trigger: ${{ github.event_name }}"
+            echo "- run: ${{ github.run_id }} (attempt ${{ github.run_attempt }})"
+            echo
+            echo "### battery verdicts (the init's sentinel rows)"
+            echo
+            echo '```'
+            grep -E '^MASS-(RESULT|VERDICT)' vm.log || true
+            echo '```'
+            echo
+            echo "### FAIL/SKIP inventory (the busy-hour residual's home)"
+            echo
+            echo '```'
+            grep -E '^  (X  |-- )' vm.log | head -40 || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
