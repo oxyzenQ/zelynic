@@ -625,8 +625,7 @@ supermassive battery, and the claim this section owns is the pinned
 one — attribution granularity, proved rootlessly, with every
 degradation path falling toward the cookie, never past it.
 
-### The time-window law (the unified --during, schema v23, 2026-10-06;
-revised duration-only the same day)
+### The time-window law (the unified --during, schema v23, 2026-10-06; revised duration-only)
 
 A limit today is forever until somebody remembers to lift it. The
 night-during law gives a policy row its own lifetime with no
