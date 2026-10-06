@@ -59,6 +59,11 @@ rust-version = "1.98"
 include = [
     "src/**",
     "build.rs",
+    # NIGHT-improve-44: build.rs's #[path] modules (validate, flags,
+    # preflight, vcs — the NIGHT-improve-31 plan executed) must ride
+    # the registry tarball or a `cargo install` extract builds a
+    # build.rs whose modules are absent.
+    "build/*.rs",
     "Cargo.toml",
     "Cargo.lock",
     "rust-toolchain.toml",
