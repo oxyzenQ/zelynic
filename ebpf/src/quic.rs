@@ -92,12 +92,21 @@
 // split the share word's decay heals in the fairness lane, and a
 // fresh budget stream in the per-socket lane (one rotation = one
 // re-armed burst, the lane's own documented "rate x concurrent"
-// shape, stated in the v22 schema note); the server-role shape
-// (the policed host serving QUIC) may learn a throwaway length
-// when the peer's Initial DCID and its real CID differ — the
-// confirm gate plus the opposite-direction SCID source hold the
-// dominant shapes correct and every wrong case degrades toward
-// cookie, documented, never silently re-engineered.
+// shape, stated in the v22 schema note); a GSO/GRO super-packet
+// (UDP segmentation offload on egress, generic receive offload on
+// ingress) is ONE skb to the cgroup hook, so its whole length
+// attributes to the FIRST segment's connection — a multiplexed
+// socket's coalesced burst may charge several connections' bytes
+// to the first CID's bucket, still never coarser than the cookie
+// lane's one-bucket-for-the-whole-socket verdict this feature
+// refined (the attribution never crosses the socket, and the
+// cgroup and per-socket caps bound the total regardless); the
+// server-role shape (the policed host serving QUIC) may learn a
+// throwaway length when the peer's Initial DCID and its real CID
+// differ — the confirm gate plus the opposite-direction SCID
+// source hold the dominant shapes correct and every wrong case
+// degrades toward cookie, documented, never silently
+// re-engineered.
 //
 // This module must stay `core`-only: no std, no alloc, no aya (the
 // math.rs contract, verbatim — any dependency added here reaches
