@@ -43,7 +43,6 @@
 #![no_main]
 
 use aya_ebpf::{
-    helpers::{bpf_get_socket_cookie, bpf_ktime_get_ns, bpf_skb_cgroup_id},
     macros::{cgroup_skb, map},
     maps::{Array, HashMap, LruHashMap},
     programs::SkBuffContext,
@@ -76,9 +75,6 @@ mod ammsp;
 // discipline the userspace tree's policy_lines/parse splits set.
 #[path = "../ammsp_resolve.rs"]
 mod ammsp_resolve;
-
-use ammsp_resolve::ammsp_resolve_root;
-use drr_flow::drr_flow;
 
 // NIGHT-upgrade-charger-core-1c (the fair-shared bucket): the pure
 // quantum core — same discipline as math.rs/ammsp.rs: pure `core`,
@@ -158,12 +154,8 @@ mod quic_flow;
 #[path = "../during.rs"]
 mod during;
 
-use math::{
-    Bucket, LimiterStats, MAX_ENFORCABLE_BURST, POLICY_FLAG_PER_SOCKET, Policy, book, book_rescue,
-    enforce,
-};
-use rate_ring::{RateRing, RateSlot, ring_book};
-use socket_flow::socket_flow;
+use math::{Bucket, LimiterStats, Policy};
+use rate_ring::RateRing;
 
 #[allow(non_upper_case_globals)]
 #[map]
@@ -377,4 +369,3 @@ use enforce::try_enforce;
 // socket_flow's ECN rescue call rides super:: — the fn now lives in
 // enforce_helpers; this re-export keeps the sibling path resolving.
 pub(crate) use enforce_helpers::bpf_skb_ecn_set_ce;
-use schema::SCHEMA_VERSION;

@@ -27,16 +27,13 @@ use aya_ebpf::{
 };
 
 use crate::ammsp_resolve::ammsp_resolve_root;
-use crate::cgroup_limiter_stats;
 use crate::drr_flow::drr_flow;
 use crate::ecn;
 use crate::enforce_helpers::{
     debt_key_for, ecn_rescue, get_bucket_ptr, get_debt_ptr, get_stats_ptr, ring_verdict,
     window_gate,
 };
-use crate::math::{
-    Bucket, LimiterStats, MAX_ENFORCABLE_BURST, POLICY_FLAG_PER_SOCKET, Policy, book, enforce,
-};
+use crate::math::{Bucket, MAX_ENFORCABLE_BURST, POLICY_FLAG_PER_SOCKET, Policy, book, enforce};
 use crate::quic_flow;
 use crate::rate_ring::RateRing;
 use crate::socket_flow::{self, socket_flow};
