@@ -5,10 +5,11 @@
 //! tree (NIGHT-hunt-17, cosmostrix Pattern C) and #[path]-wired from
 //! reclaim.rs. Covers the NIGHT-improve-10 trace wording; the
 //! ENOENT-vs-failure classification of the shared tri-state delete
-//! contract is pinned once in policy_tests.rs (map_remove_means_absent
-//! moved to reclaim.rs, its pin tests travel with the contract's
-//! consumers, not the definition — the glob from policy.rs keeps
-//! them running against the moved definition).
+//! contract is pinned once in policy_tests.rs (map_error_means_absent
+//! lives in lanes.rs since the NIGHT-perf-0 split, its pin tests
+//! travel with the contract's consumers, not the definition — the
+//! glob from policy.rs keeps them running against the moved
+//! definition).
 
 use super::*;
 // The unstrict partial-failure pin (moved with its subject from

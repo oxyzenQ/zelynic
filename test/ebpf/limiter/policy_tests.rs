@@ -88,9 +88,14 @@ fn resolution_trace_line_points_at_list_apps_when_nothing_matches() {
 }
 
 /// NIGHT-hunt-20 drift pins: the mid-flight error-path contract.
+/// NIGHT-audit-1 task 16 widened the family: reads carry their own
+/// absent shape (`MapError::KeyNotFound` — aya 0.14's get folds the
+/// lookup syscall's ENOENT into Ok(None) before it can ride a
+/// SyscallError), pinned here beside the delete shape so neither
+/// half of the contract can drift again.
 
 #[test]
-fn map_remove_means_absent_classifies_enoent_only() {
+fn map_error_means_absent_classifies_the_absent_family() {
     use aya::sys::SyscallError;
 
     fn syscall_err(code: i32) -> MapError {
@@ -100,8 +105,14 @@ fn map_remove_means_absent_classifies_enoent_only() {
         })
     }
 
-    // ENOENT — the one errno that means "key absent".
-    assert!(map_remove_means_absent(&syscall_err(2)));
+    // ENOENT — the one errno that means "key absent" (the delete
+    // shape; the lookup shape never reaches the syscall wrapper).
+    assert!(map_error_means_absent(&syscall_err(2)));
+
+    // The read shape (night-audit-1 task 16, the supermassive
+    // catch): aya 0.14's HashMap::get on an absent row — the error
+    // `strict-single` on a fresh cgroup once died on.
+    assert!(map_error_means_absent(&MapError::KeyNotFound));
 
     // Real delete failures — the policy may still be enforced, so
     // these must NEVER read as "not found" (the old Err(_) => Ok(false)
@@ -113,13 +124,13 @@ fn map_remove_means_absent_classifies_enoent_only() {
         22, /* EINVAL */
     ] {
         assert!(
-            !map_remove_means_absent(&syscall_err(code)),
+            !map_error_means_absent(&syscall_err(code)),
             "errno {code} must not classify as absent"
         );
     }
 
     // Non-syscall map errors (e.g. wrong map type) are never "absent".
-    assert!(!map_remove_means_absent(&MapError::InvalidMapType {
+    assert!(!map_error_means_absent(&MapError::InvalidMapType {
         map_type: 1
     }));
 }

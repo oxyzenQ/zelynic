@@ -34,11 +34,26 @@ use crate::ebpf::pin;
 /// did NOT happen and the entry is still live. Conflating the two is
 /// how a remove path reports "nothing to remove" while state stays
 /// behind. Pure so it is unit-pinned in the policy tests.
-pub(super) fn map_remove_means_absent(err: &MapError) -> bool {
-    matches!(
-        err,
-        MapError::SyscallError(e) if e.io_error.kind() == std::io::ErrorKind::NotFound
-    )
+///
+/// NIGHT-audit-1 task 16 (the supermassive catch, aya 0.14): READS
+/// carry a second absent shape. The sys layer folds the lookup
+/// syscall's -ENOENT into `Ok(None)`, and `HashMap::get` surfaces
+/// that as `MapError::KeyNotFound` — so a get on an absent row NEVER
+/// produces the SyscallError(ENOENT) this predicate once matched
+/// alone. `strict-single` on a fresh cgroup died at the window read
+/// ("key not found" — apply rolled back) on every kernel, and only
+/// the 5.13 floor battery exercised the real apply path to catch
+/// it. Deletes keep their ENOENT-only law below; both shapes mean
+/// absent; every other errno still means the entry is live or the
+/// map is unreadable.
+pub(super) fn map_error_means_absent(err: &MapError) -> bool {
+    match err {
+        MapError::SyscallError(e) => e.io_error.kind() == std::io::ErrorKind::NotFound,
+        // The aya 0.14 read shape (see above): the lookup syscall's
+        // ENOENT folded away before it could ride a SyscallError.
+        MapError::KeyNotFound => true,
+        _ => false,
+    }
 }
 
 impl super::Limiter {
@@ -177,7 +192,7 @@ impl super::Limiter {
     ) -> Result<bool> {
         self.with_u32_map::<V, bool>(map_name, pin_path, |map| match map.remove(&key) {
             Ok(()) => Ok(true),
-            Err(e) if map_remove_means_absent(&e) => Ok(false),
+            Err(e) if map_error_means_absent(&e) => Ok(false),
             Err(e) => Err(anyhow!("failed to delete key {key} from {map_name}: {e}")),
         })
     }

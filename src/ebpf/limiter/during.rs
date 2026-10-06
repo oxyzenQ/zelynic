@@ -330,7 +330,7 @@ impl super::Limiter {
             BpfHashMap::try_from(map_ref).context("Failed to access policy_window")?;
         match map.get(&cgroup_id, 0) {
             Ok(raw) => Ok(Some(raw)),
-            Err(e) if lanes::map_remove_means_absent(&e) => Ok(None),
+            Err(e) if lanes::map_error_means_absent(&e) => Ok(None),
             Err(e) => Err(anyhow!("failed to read cg:{cgroup_id} policy window: {e}")),
         }
     }
