@@ -90,14 +90,20 @@ NIGHT-hunt-18's git-history-only call.
   apt away). The rootfs assembly now installs nftables with the
   python3/iproute2/curl set, and stages bpftool the honest way:
   Ubuntu ships no standalone package (the binary lives inside the
-  per-kernel linux-tools debs, and the VM's kernel — the 5.13
+  per-ABI linux-tools debs, and the VM's kernel — the 5.13
   floor or the dynamically resolved latest — never matches the
   rootfs's tools ABI, so the dispatcher cannot resolve it in the
-  guest), so the assembly resolves linux-tools-generic's
-  per-kernel dependency, downloads that one deb, extracts ONLY
-  the ~0.7 MB binary to /usr/bin/bpftool, and throws the rest
-  away — the RAM-res initramfs gains the binary, not perf and its
-  lib closure. The binary talks to the kernel through the stable
+  guest), so the assembly WALKS the linux-tools dependency chain:
+  each level's deb is downloaded and probed for the binary, and
+  the first one that carries it wins (run 231's lesson, fixed in
+  the fixpass: noble's per-kernel -generic package carries the
+  binary directly while jammy's is a 1.8 KB shell whose Depends
+  names the per-ABI package that carries it — both shapes resolve
+  in two levels or fewer, the walk mock-tested against both
+  suites' real index shapes). Only the ~0.7 MB binary is staged
+  at /usr/bin/bpftool; the rest of the deb is thrown away — the
+  RAM-res initramfs gains the binary, not perf and its lib
+  closure. The binary talks to the kernel through the stable
   bpf(2) ABI (prog/link/cgroup show predate the 5.13 floor), the
   same PATH-probe shape the battery uses and the same
   standalone-package shape a Debian user gets. A resolve failure
