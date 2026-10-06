@@ -71,12 +71,16 @@ NIGHT-hunt-18's git-history-only call.
   setpriv's own refusal on this non-root host — correct: only root
   drops; the VM leg runs as real root where the drop succeeds),
   ruff check and format clean, shellcheck/shfmt/bash -n clean on
-  every touched .sh. The live proof rides this commit's own
-  supermassive run: the four legs' v4 batteries should read 155
-  passed, 0 skipped (the 19 rows run through the drop), v3 30/0/2
-  (the gate stage's five refusal rows run through the drop; only
-  the two runtime-absent E2E rows stay, their own workflow
-  carrying them).
+  every touched .sh. The live proof landed on run 232 (the
+  fixpass commit's own supermassive run, all four legs green
+  after the busy-hour first attempt took its documented
+  shared-runner residual on the two best-specs legs and the
+  re-run on fresh runners passed everything): the v4 batteries
+  read 155 passed, 0 skipped on every leg — the 19 rootless-lane
+  rows each stamped "real-user drop (uid 65534)" — the v3 legs
+  read 30/0/2 (the gate stage's five refusal rows through the
+  drop; only the two runtime-absent E2E rows stay, their own
+  workflow carrying them).
 
 - **ci(bench): NIGHT-improve-48 closure — the claims battery's
   three tool-absent VM skips closed at the rootfs: nftables rides
@@ -108,11 +112,17 @@ NIGHT-hunt-18's git-history-only call.
   same PATH-probe shape the battery uses and the same
   standalone-package shape a Debian user gets. A resolve failure
   FAILS the leg on the runner (the legacy-fetch doctrine: an
-  in-VM row must never silently skip). The quick-mode verdict on
-  the VM legs should now read 29 passed, 0 skipped; a host
-  without the tools still answers honestly (the row names the
-  missing tool, never guesses — the SKIP path stays for real
-  tool-absent hosts).
+  in-VM row must never silently skip). The live proof landed on
+  run 232 (the fixpass commit's own run, all four legs): the
+  quick-mode verdict reads 29 passed, 0 failed, 0 skipped on
+  every leg — the nft ruleset snapshot comparing structure
+  before and during enforcement, bpftool's prog/link visibility
+  showing the 2 cgroup_skb programs and 4 cgroup links, and the
+  footprint's kernel run-time row printing real per-program
+  numbers (1293-2425 ns per attached-prog run across the legs,
+  bound 20,000); a host without the tools still answers honestly
+  (the row names the missing tool, never guesses — the SKIP path
+  stays for real tool-absent hosts).
 
 - **docs(audit): NIGHT-improve-48 round 2 — the completeness
   question re-audited from run 229's own logs, the full skip

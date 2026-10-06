@@ -126,6 +126,50 @@ runtime-boundary, each naming its carrier lane in its own detail
 line. That is the honest definition of complete the estate can
 hold: nothing skips that could run, and everything that skips
 says why, where it runs instead, and does not lie about either.
+
+## 7. The live proof — run 232, all four legs, the closures green
+in the VM logs
+
+The closures landed (improve-49 commit f89521e, the rootfs-tools
+fixpass 5720ad0 after run 231's staging lesson) and supermassive
+run 232 (the fixpass commit's own run, 2026-10-06) carried the
+verdict:
+
+| leg | v3 | v4 | claims proof | verdict |
+|---|---|---|---|---|
+| low specs gnu (5.13) | 30/0/2 | 155/0/0 | 29/0/0 (43s) | PASS |
+| low specs musl (5.13) | 30/0/2 | 155/0/0 | 29/0/0 | PASS |
+| best specs gnu (7.3) | 30/0/2 | 155/0/0 | 29/0/0 (59s, precision 9.041%) | PASS |
+| best specs musl (7.3) | 30/0/2 | 155/0/0 | 29/0/0 (45s) | PASS |
+
+Every number matches the closure map's arithmetic exactly: v4's
+155 with zero skips (the 19 rootless-lane rows each stamped
+"real-user drop (uid 65534)" — the setpriv lane refusing the
+dropped user on the VM's own root legs), v3's 30 with only the
+two runtime-absent E2E skips (the gate stage's five refusal rows
+running through the same drop), the claims proof's 29 with zero
+skips (the nft ruleset snapshot comparing structure before and
+during enforcement, bpftool's prog/link visibility showing the 2
+cgroup_skb programs and 4 cgroup links, the footprint's kernel
+run-time row printing real per-program numbers — 1293-2425 ns
+per attached-prog run across the legs, bound 20,000).
+
+The honest footnote: run 232's first attempt failed its two
+best-specs legs on exactly the measurement rows round 1
+documented as the shared-runner's busy-hour class (the per-app
+row at 60.7% under its 65% floor, the precision row at
+13.728%/24.850% with refusals — the starved window deepening,
+attempts worsening on the re-sample), the same wall-clock hour
+on both legs, the same shapes runs 219/221/224/228 carried; the
+re-run of the two failed jobs on fresh runners passed everything
+(attempt 2, the table above) — the code, rootfs, and batteries
+identical between attempts, the only variable the runner's hour.
+That residual is the round-1 closure's own documented limit, not
+a regression: the policer's contract is pinned by the same legs'
+green rows in quieter hours, and the discriminator's refusal
+side did its job (an under-band window WITH refusals stays red —
+the signature the row exists to catch, even when the host is the
+culprit).
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.
