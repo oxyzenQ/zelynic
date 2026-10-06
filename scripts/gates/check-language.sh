@@ -36,9 +36,10 @@
 # Excluded from both checks: .git/, target/, assets/, dist/,
 # node_modules/, __pycache__/ (build output, binary assets, and
 # compiled bytecode — a .pyc embeds its source's UTF-8 string
-# constants and would re-flag them as prose), *.lock, the two
-# CHANGELOG files (frozen historical records — archive content is
-# never rewritten, the same exclusion policy as every other gate),
+# constants and would re-flag them as prose), *.lock, the CHANGELOG
+# root files (frozen historical records — archive content is
+# never rewritten, the same exclusion policy as every other gate;
+# the v20-era root file joined the class in NIGHT-improve-43),
 # and this script itself (the word set below would match its own
 # detector definition). Commit messages follow the same English-only
 # rule but are not tree content at gate time — CI and review own
@@ -124,6 +125,10 @@ SKIP_FILES = {
     # NIGHT-dinner-19 (frozen content lives in git history); the
     # entry stays so an old checkout running this gate still skips it.
     "CHANGELOG-V11-ERA.md",
+    # NIGHT-improve-43 split the v20 era out of the live file at the
+    # b743d9c blob — CHANGELOG-V20-ERA.md is the same frozen-record
+    # class (archive content is never rewritten).
+    "CHANGELOG-V20-ERA.md",
     "check-language.sh",  # this detector's own word set
 }
 SKIP_SUFFIXES = (".png", ".lock")
