@@ -19,6 +19,35 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Added
 
+- **The guarantee live probe — scripts/bench/guarantee-probe.sh: the
+  per-leaf floor/ceiling bracket measured in REAL cgroups on the
+  running kernel (improve-40-b, the owner's root-gated-battery
+  ask).** The rootless battery pins the arithmetic on the sim
+  engine; this harness pins the KERNEL side on the real cgroup tree
+  the lane was built for: four REAL leaf cgroups under one
+  bracketed target (the DRR lane's own unit — a leaf cgroup, never
+  a bare process), every leaf blasted past the budget through its
+  own counted drain, and six verdict rows — the instrument
+  (rootless --self-test: the leaf machinery itself round-trips
+  without root or policy), the floor's promise per leaf (every
+  leaf's delivered volume at or above the floor's share of its OWN
+  measured window, the BAND_LO slack the refill cadence earns),
+  the ceiling's cap per leaf (the floor==ceil geometry pins every
+  leaf between the bracket's two sides), the pool law (the sum
+  inside the refill x window + the shared burst — the bracket
+  redistributes, it never creates), the per-direction split's
+  ledger row (improve-40-b live: download_floor_bps present with
+  the merged floor_bps honestly ABSENT, read off the row the kernel
+  is actually enforcing), and the split's floor holding per leaf
+  on the download-only leg. The honesty contracts ride the
+  ect-probe discipline: sender sockets created before any move
+  (sk_cgroup_data pins the unpoliced root), leaf receivers created
+  AFTER their move (each pinning its own leaf cgroup), the go byte
+  AFTER the policy stands (the blast never races the attach), and
+  teardown best-effort. The live lane needs root (a root host or
+  the sandbox micro-VM); the rootless instrument lane is the CI
+  shape, green on this tree.
+
 - **The per-direction guarantee spellings — `--floor-download` /
   `--floor-upload` and the `--ceil-` twins (improve-40-b, the
   owner-approved lane to the bracket's peak: the asymmetric link's
