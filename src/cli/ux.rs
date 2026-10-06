@@ -411,7 +411,12 @@ mod hidden_vocab_tests;
 // rescue.rs module's tables and matchers, driven through this
 // module's own render_via_bridge harness — the bridge is the only
 // honest way to pin a suggestion: what matters is the rendered tip).
-#[cfg(test)]
+// The ebpf gate is the rates_shadow_tests precedent (commands/rates.rs):
+// every pin inside is #[cfg(feature = "ebpf")], so in the dormant lane
+// a plain #[cfg(test)] module would compile to nothing but its glob
+// import — an unused-import warning the CI leg's RUSTFLAGS=-D warnings
+// turns into the error that reddened the audit commit's own check-all.
+#[cfg(all(test, feature = "ebpf"))]
 #[path = "../../test/cli/rescue_tests.rs"]
 mod rescue_tests;
 
