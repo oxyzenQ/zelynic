@@ -712,6 +712,32 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Changed
 
+- **refactor: NIGHT-improve-44 task b — build.rs split by its own
+  retired plan: the NIGHT-improve-31 phase map executed (validate,
+  flags, preflight) plus the vcs chain, the 1,475-line build script
+  carved into five files with zero build-dependencies.** The plan
+  lived in the file's own header since the improve-31 audit (the
+  debt carrying its retirement plan: "the supply-chain argument
+  exempts a CRATE split, not a FILE split — a build script is also
+  a plain crate root, so #[path]-included modules split it with
+  zero new dependencies"); improve-44's 600-era is the trigger the
+  plan asked for. build/validate.rs (297 — the NIGHT-hunt-29 ELF
+  structural validators and the little-endian readers), build/
+  flags.rs (234 — the NIGHT-hunt-28 host-poison RUSTFLAGS surgery
+  and the bpf-v3 force), build/preflight.rs (269 — the NIGHT-host-1
+  toolchain and PATH probes), build/vcs.rs (138 — the commit-sha
+  chain: git, GITHUB_SHA, the registry vcs document, the shared
+  normalizer), and build.rs itself as the orchestration spine (485
+  — main, the ebpf-object build, the registry prebuilt staging, the
+  nested-build driver, the damaged-artifact self-heal, the
+  build-time formatters). The test module distributed with its
+  subjects (each module carries its own #[cfg(test)] mod), the
+  standalone runner contract holds (`rustc --edition 2021 --test
+  build.rs` resolves the #[path] modules: 17 passed, 1 ignored, the
+  same suite), and the include list grows build/*.rs so a registry
+  tarball still builds (cargo package --list verified: the four
+  modules ride the tarball beside build.rs).
+
 - **refactor: NIGHT-improve-44 task a — the userspace 600-line cap
   splits: the CLI declaration and the dispatch helpers carved out
   of their over-cap mod.rs units (the no-mercy era's first two
