@@ -1253,23 +1253,27 @@ as the top border, every content row wears gradient-colored side
 rails (the active theme's brand color sweeping dark to bright and
 back down the frame — the cosmostrix msg-border triangle-wave
 contract), and the frame closes on a full-width floor row in the
-bright anchor color. Since NIGHT-boost-23 the rail interpolation
-runs in LINEAR LIGHT (the exact IEC 61966-2-1 sRGB transfer): the
-naive sRGB lerp darkened perceptual midtones — the ramp banded near
-the dark anchor — while the gamma-correct midpoint renders at the
-brightness the arithmetic claims. On 256-color terminals the
-gradient quantizes onto the xterm cube; on 16-color terminals the
-rails render the theme's flat brand color; piped output renders the
-plain glyphs. The
+bright anchor color. Since NIGHT-improve-41 the rails ride the
+chroma dragon engine on truecolor terminals — the OKLab polar
+interpolation ported from cosmostrix (the perceptual color space
+where midpoints stay clean, lightness steps read even, and the
+ramp's floor is 42% of the brand's perceived LIGHTNESS — the same
+hue, honestly darker, never mud). The chroma engine is PRIMARY; a
+terminal that cannot render truecolor falls back to the legacy
+colors byte-for-byte: the NIGHT-boost-23 linear-light
+interpolation on 256-color terminals (quantized onto the xterm
+cube), the theme's flat brand color on 16-color terminals, and the
+plain glyphs when piped. When the terminal's truecolor claim
+cannot be trusted, `--color-mode` forces the legacy depth for the
+whole process.
+The
 rails claim two columns and the closing row one line, budgeted
 BEFORE anything renders — the column ladder, the footer pin, and
 the detail trimming flow through the inset geometry unchanged. The
 theme fallbacks themselves carry the NIGHT-boost-23 audit contract
 (see docs/BRANDING.md section 2.2): nearest-cube brand/ok indices,
 visibility-corner warn/hot, pairwise-distinct 16-color SGRs within
-every theme, and the uniform grey ramp for subordinates — and when
-the terminal's truecolor claim cannot be trusted, `--color-mode`
-forces the legacy depth for the whole process.
+every theme, and the uniform grey ramp for subordinates.
 
 Theme cycling (NIGHT-boost-18, improve-27): `t` cycles the frame's
 palette forward (the uppercase `T` twin was retired by

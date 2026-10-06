@@ -1727,3 +1727,59 @@ byte-identical output pins; the kernel fix's proof is the
 NOEXIST-flag construction and the SMP pins the observer twin
 already carries. Both records live in
 docs/audits/NIGHT_THINK_LIKE_LIGHT_YEARS_3_AUDIT_2026-09-30.md.
+
+### NIGHT-improve-41 A/B (the chroma dragon engine — OKLab polar rails, 2026-10-06)
+
+The change is a color-engine swap on ONE render surface: the
+eagle-eyes rail gradient rides OKLab polar interpolation at
+TrueColor (src/output/chroma.rs, ported from cosmostrix's
+chroma_dragon_engine) and keeps the legacy linear-light ramp at
+every other depth. Two A/B pairs, both 10 s formal runs, A =
+613f4bc at HEAD, B = the improve-41 tree. The harness runs piped
+(Mono) by default; the TrueColor pair forces the documented env
+control surface (`CLICOLOR_FORCE=1 COLORTERM=truecolor`, NO_COLOR
+unset — the capability probe's own ladder, no harness change).
+
+The Mono pair (the fallback contract — the legacy rungs byte-for-byte):
+
+| Metric | before | after | Delta |
+|--------|--------|-------|-------|
+| fps | 7,161.0 | 7,134.4 | -0.4% (machine noise) |
+| bytes/frame | 1,919.0 | 1,919.0 | +0.0% |
+| emit bytes/frame | 512.3 | 512.5 | +0.0% |
+| frame entropy | 3.0083 | 3.0084 | +0.0% |
+| density gini | 0.3542 | 0.3542 | -0.0% |
+| dirty cells/frame | 40.1 | 40.1 | -0.0% |
+
+Reading: byte-identical frames at the Mono rung — the fallback
+contract is the strongest parity proof the harness can give (a
+non-truecolor terminal renders the exact pre-port bytes), and the
+fps delta sits inside the host's noise band with no code-path
+change on that rung (the anchor hoist is TrueColor-gated by
+construction).
+
+The TrueColor pair (the engine's honest price — the changed path):
+
+| Metric | before | after | Delta |
+|--------|--------|-------|-------|
+| fps | 6,156.7 | 6,034.2 | -2.0% (the blend's cost) |
+| bytes/frame | 3,236.0 | 3,222.2 | -0.4% |
+| emit bytes/frame | 871.8 | 867.9 | -0.4% |
+| frame entropy | 4.0626 | 4.0431 | -0.5% |
+| density gini | 0.1749 | 0.1746 | -0.2% |
+| dirty cells/frame | 50.0 | 50.0 | +0.1% |
+
+Reading: fps -2.0% is the OKLab blend's real cost on the synthetic
+blast — about 3.3 microseconds per frame (two sRGB->OKLab
+conversions, the polar trig, and the gamut-mapped return per row,
+the anchor derivation hoisted to once per frame after the first
+measurement read -8.4% with it per-row). Against the monitor's
+1-second frame cadence that is 0.0003% of the frame budget — the
+harness's 6,000 fps amplifies what the live monitor spends once
+per second. bytes/frame DROPS 0.4% (the chroma ramp's interpolated
+triples format into marginally shorter escapes), and the
+data-dependent metrics sit inside the run-to-run band. The
+correctness surface is the nine chroma pins (the round-trip law,
+the pinned brand triple, the polar saturation law, the gamut
+mapping's hue-hold law) — the bench proves the price, the pins
+prove the colors.

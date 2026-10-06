@@ -35,6 +35,22 @@
 //! cosmostrix), and the cost is two powf per channel per row — the
 //! frame duty at the 1s cadence is unmoved.
 //!
+//! NIGHT-improve-41 (the chroma dragon engine): the linear-light
+//! ramp is now the LEGACY rung. TrueColor frames ride the chroma
+//! dragon engine ported from cosmostrix
+//! (crate::output::chroma) — OKLab polar interpolation, the
+//! perceptual space where midpoints stay clean and lightness steps
+//! read even — and the ramp's floor becomes 42% of the brand's
+//! OKLab LIGHTNESS (hue and chroma preserved) instead of 42% of
+//! its encoded channels: the anchor is the same hue at the
+//! brightness the eye actually attributes to 42%, never the mud
+//! the gamma-domain multiply produced. The owner's contract is
+//! chroma FIRST, legacy fallback: a terminal that cannot render
+//! truecolor keeps the exact legacy bytes it always rendered
+//! (linear-light lerp at 256, flat SGR at 16, plain glyphs at
+//! Mono) — the port changes what TrueColor frames look like, and
+//! nothing else.
+//!
 //! NIGHT-engrave-8 (symmetric margins): the frame composes ONE
 //! column inside the terminal — a leading space column before the
 //! left rail and an unpainted final column after the right rail,
@@ -112,7 +128,12 @@ const RESET: &str = "\x1b[0m";
 /// The dark anchor's brightness factor: the gradient's floor sits at
 /// 42% of the brand color — dark enough to read as recession, bright
 /// enough to stay a hue (a zero floor would render black rails on
-/// the dark-theme palettes).
+/// the dark-theme palettes). NIGHT-improve-41: the factor's DOMAIN
+/// follows the engine — the chroma path (TrueColor) reads it in
+/// OKLab LIGHTNESS (crate::output::chroma::scale_lightness — 42%
+/// perceived brightness, hue preserved), the legacy rungs keep the
+/// encoded-channel multiply the pre-port ramp carried (their bytes
+/// are the fallback contract, unchanged).
 const DARK_FACTOR: f32 = 0.42;
 
 /// The content geometry a bordered frame composes into: the rails'
@@ -180,16 +201,56 @@ fn lerp(a: (u8, u8, u8), b: (u8, u8, u8), t: f32) -> (u8, u8, u8) {
 /// One rail's color: the theme's brand RGB swept by the triangle
 /// wave at the row's position down the whole bordered frame (`rows`
 /// counts the closing row too, so the wave spans the visible frame).
-fn rail_rgb(theme: Theme, row: usize, rows: usize) -> (u8, u8, u8) {
+///
+/// NIGHT-improve-41: the ramp rides the chroma dragon engine at
+/// TrueColor — the dark anchor is the brand scaled to 42% OKLab
+/// LIGHTNESS (hue preserved at the gamut boundary) and the sweep
+/// blends in the perceptual space (crate::output::chroma,
+/// cosmostrix's sole production gradient path). `anchor` carries
+/// that pre-derived dark triple — a pure function of the theme,
+/// derived ONCE per frame by the caller (24 rows share it; the
+/// per-row work is the blend alone); None falls back to deriving
+/// it inline (the pins' convenience). Every other depth keeps the
+/// legacy ramp (NIGHT-boost-23's linear-light lerp over the
+/// encoded-channel anchor) — the chroma-first contract: a system
+/// that cannot represent truecolor falls back to the legacy
+/// colors, byte-for-byte the ramp it always rendered.
+fn rail_rgb(
+    theme: Theme,
+    anchor: Option<(u8, u8, u8)>,
+    row: usize,
+    rows: usize,
+    cap: ColorCapability,
+) -> (u8, u8, u8) {
     let brand = theme.brand_rgb();
-    let shade = |c: u8| (f32::from(c) * DARK_FACTOR).round() as u8;
-    let dark = (shade(brand.0), shade(brand.1), shade(brand.2));
     let t = if rows > 1 {
         row as f32 / (rows - 1) as f32
     } else {
         0.0
     };
-    lerp(dark, brand, wave(t))
+    match cap {
+        ColorCapability::TrueColor => {
+            let dark = anchor
+                .unwrap_or_else(|| crate::output::chroma::scale_lightness(brand, DARK_FACTOR));
+            crate::output::chroma::oklab_blend_rgb(
+                dark.0,
+                dark.1,
+                dark.2,
+                brand.0,
+                brand.1,
+                brand.2,
+                wave(t),
+            )
+        }
+        // The legacy rungs: the encoded-channel anchor and the
+        // linear-light blend, unchanged since NIGHT-boost-23 (the
+        // anchor argument is a chroma-path concern — ignored here).
+        _ => {
+            let shade = |c: u8| (f32::from(c) * DARK_FACTOR).round() as u8;
+            let dark = (shade(brand.0), shade(brand.1), shade(brand.2));
+            lerp(dark, brand, wave(t))
+        }
+    }
 }
 
 /// The escape for one rail color at the probed capability depth.
@@ -288,6 +349,13 @@ pub(super) fn wrap(lines: &mut Vec<String>, width: usize) {
     // right after; the row's own trailing RESET then closes
     // everything the row opened.
     let bg = terminal_bg::terminal_bg_escape();
+    // NIGHT-improve-41: the chroma engine's dark anchor is a pure
+    // function of the ACTIVE theme — one derivation per frame, not
+    // one per row (every row shares it; the per-row work is the
+    // blend alone). None on the legacy rungs, which derive their
+    // own encoded-channel anchor per call as they always have.
+    let chroma_anchor = (cap == ColorCapability::TrueColor)
+        .then(|| crate::output::chroma::scale_lightness(theme.brand_rgb(), DARK_FACTOR));
     // Row 0 (the title bar) passes through the flank loop below
     // untouched — it carries the top border. The inset column and
     // the background still belong to it: the space leads
@@ -308,7 +376,7 @@ pub(super) fn wrap(lines: &mut Vec<String>, width: usize) {
         if !bg.is_empty() && content.contains('\x1b') {
             content = content.replace(RESET, &format!("{RESET}{bg}"));
         }
-        let esc = rail_escape(rail_rgb(theme, i, rows), theme, cap);
+        let esc = rail_escape(rail_rgb(theme, chroma_anchor, i, rows, cap), theme, cap);
         // A row that carried its own colors ends reset — the right
         // rail re-opens the gradient. A plain row never disturbed
         // the left rail's color: one escape carries both rails.

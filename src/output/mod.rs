@@ -48,6 +48,14 @@ pub(crate) mod theme;
 // theme.rs when the twelfth palette pushed it to the LOC cap — a
 // sibling concern (OSC 11 follow), not theme state.
 pub(crate) mod terminal_bg;
+// NIGHT-improve-41: the chroma dragon engine — the OKLab polar
+// color math ported from cosmostrix's chroma_dragon_engine (the
+// monitor's gradient quality core). Its only consumer is the
+// ebpf-gated border rails; the pure-math pins run in both lanes
+// (cfg(test) compiles the module for the dormant lane's test run
+// too, the theme discipline).
+#[cfg(any(feature = "ebpf", test))]
+pub(crate) mod chroma;
 
 // The `*_open()` escape builders stay color-internal: the wrapper
 // functions below are the crate's entire color API surface (nothing

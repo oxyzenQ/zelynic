@@ -375,9 +375,18 @@ builds logical lines, the engine diffs against the previous frame's
 shadow and emits only changed rows in ONE write syscall; idle
 frames emit nothing. The purple brand and the dragon register
 (docs/BRANDING.md, the GPG identity, the `dragonzen` persona) are
-the same lineage; the Chroma/Crystal concerns do not apply to a
-monitor whose palette is four semantic tiers, so zelynic carries
-one engine's worth of that architecture, not three.
+the same lineage. Since NIGHT-improve-41 zelynic also carries the
+chroma dragon's gradient discipline — `src/output/chroma.rs` is
+the OKLab polar core ported from cosmostrix's
+`chroma_dragon_engine/` (the space where midpoints stay clean and
+lightness steps read even): the eagle-eyes rail gradient rides it
+FIRST, with the legacy color ladder (NIGHT-boost-23's linear-light
+ramp) as the documented fallback for terminals that cannot render
+truecolor — the monitor's palette is still four semantic tiers,
+but the gradient between them now speaks the perceptual language.
+The crystal dragon's ambient-mood concern still does not apply: a
+monitor's palette follows the theme the user cycles, not the
+system's mood.
 
 ## Q9 — Why do the commits read "Internal research: ..." instead of conventional commits (feat:/fix:)?
 

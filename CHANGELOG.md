@@ -19,6 +19,59 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Added
 
+- **The chroma dragon engine — src/output/chroma.rs, the OKLab polar
+  color core ported from the mature cosmostrix
+  (NIGHT-improve-41, the owner's "better high quality monitoring
+  output colors" ask): TrueColor frames now render the eagle-eyes
+  rail gradient in the perceptual space, with the legacy color
+  ladder as the documented fallback for every system that cannot
+  represent truecolor.** The port is cosmostrix's sole production
+  gradient path (its `chroma_dragon_engine/gradient/`, the v30
+  decision): every sRGB -> OKLab -> sRGB conversion with Ottosson's
+  reference constants verbatim, the polar (chroma + hue)
+  interpolation that rotates hue through the shortest arc instead
+  of cutting through the desaturated cube center, and the blend API
+  the rails call per row. The port's own hardening over the source:
+  a HUE-PRESERVING gamut mapping (`oklab_to_srgb_mapped`) — an
+  out-of-gamut blend reduces its chroma to the sRGB boundary with
+  lightness and hue held exactly (the CSS Color 4 oklch mapping
+  discipline) where cosmostrix's per-channel clamp lets the hue
+  drift (the port's own pins caught it live: the brand purple at
+  42% lightness clamps the green channel negative and the hue
+  shifts 0.1 rad; the mapped anchor lands on the pinned bytes
+  (52, 0, 89), the same hue with as much chroma as the gamut can
+  carry at that lightness). The ramp's floor changes domain with
+  the engine: the chroma path's dark anchor is 42% of the brand's
+  OKLab LIGHTNESS (perceived brightness — the same hue, honestly
+  darker), while every legacy rung keeps the encoded-channel 0.42
+  multiply it always had. The chroma-first/fallback contract, the
+  owner's wording: PRIMARY chroma wherever the terminal can render
+  what the engine computes (TrueColor), fallback to legacy colors
+  byte-for-byte where it cannot — the 256-color quantization, the
+  16-color flat SGR, and the Mono glyphs are the pre-port bytes,
+  and the A/B record proves it (the Mono pair is byte-identical at
+  1,919.0 bytes/frame; the TrueColor pair carries the engine's
+  honest price, fps -2.0% on the synthetic 10s blast — about
+  3.3 microseconds per frame against a 1-second cadence). The
+  engine's anchor derivation is hoisted per frame (one
+  scale_lightness per wrap, not per row — the first A/B measured
+  -8.4% before the hoist, the residue is the per-row blend alone).
+  Nine rootless pins (test/output/chroma_tests.rs): the round-trip
+  ±1 law, the pinned brand OKLab triple (the constants tripwire),
+  endpoint preservation with clamp, the polar saturation law on
+  opposing-hue pairs, the gray-endpoint Cartesian fallback, the
+  anchor's hue/L/chroma laws with the pinned bytes, the gamut
+  mapping's own direct-path and boundary laws, the same-hue
+  sweep's no-drift law, and the lightness ramp's monotonicity. The
+  border pins carry both engines side by side (the legacy sweep
+  unchanged, the chroma sweep over the perceptual anchor, the two
+  anchors' difference documented as the change itself). QA.md Q8's
+  inheritance list updates with the port (the cosmic dragon's diff
+  discipline and now the chroma dragon's gradient discipline; the
+  crystal dragon's ambient-mood concern still does not apply — a
+  monitor's palette follows the user's theme, not the system's
+  mood), and USAGE.md documents the user-facing contract.
+
 - **The guarantee live probe — scripts/bench/guarantee-probe.sh: the
   per-leaf floor/ceiling bracket measured in REAL cgroups on the
   running kernel (improve-40-b, the owner's root-gated-battery
