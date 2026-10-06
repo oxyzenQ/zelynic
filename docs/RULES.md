@@ -127,9 +127,13 @@ marker.
   former CHANGELOG-V11-ERA.md root duplicate was removed in
   NIGHT-dinner-19; its frozen content lives in git history.
   `CHANGELOG-V20-ERA.md` (NIGHT-improve-43, the v20-era split of
-  the live file at the b743d9c blob) joined the same frozen-record
-  class: era records are never rewritten, so no disclaimer is
-  demanded in them.
+  the live file at the b743d9c blob) was moved out of the root by
+  the same task's re-issue into
+  docs/archive/CHANGELOG-V20-ERA.md — the frozen-history home
+  whose path prefix this gate already exempts; the record itself is
+  never rewritten, and it carries the archive wrapper the PRE_V11
+  file established (license header, archive note, bottom
+  disclaimer), so nothing is demanded of it here either.
 - Inject with `./scripts/gates/inject-disclaimer.sh`; verify with
   `./scripts/gates/inject-disclaimer.sh --check` (wired into
   `gate-keepers.sh`; the gatekeeper's `--fix` auto-injects).

@@ -1,4 +1,27 @@
-# Changelog
+<!-- Copyright (C) 2026 rezky_nightky -->
+<!-- SPDX-License-Identifier: GPL-3.0-only -->
+
+# Changelog — V20-Era Archive (frozen history)
+
+This file is the v20-era record: the changelog blob as it stood at
+the b743d9c v20.0.0 stable release (2026-10-04) — the v11-line
+entries through the v20.0.0 release, split out of the live
+CHANGELOG.md so the root file carries only the fresh post-v20
+record (NIGHT-improve-43, 2026-10-06).
+
+Archive note (the NIGHT-improve-43 re-issue, 2026-10-06): this
+record first landed at the repo root; the re-issue moved it here
+to docs/archive/ per the owner's mandate — the root tree carries
+nothing legacy at all now, only the living record. The entries
+below are frozen history, never rewritten; this wrapper (the
+license header above, this note, the bottom disclaimer) is the
+archive class docs/archive/CHANGELOG_PRE_V11.md established
+(NIGHT-dinner-15). One line inside differs from the raw b743d9c
+bytes — the NIGHT-audit-2 name-case fix ("the cosmic dragon
+architecture", the machine-enforced one-name law) — and the H1
+was retitled to self-identify the archive; every entry line is
+byte-identical. Relative paths inside the frozen text resolve
+from the repo root, this file's old home.
 
 All notable changes to this project will be documented in this file.
 
@@ -9215,3 +9238,21 @@ NIGHT-hunt-18 removed it to git history alone; NIGHT-dinner-15
 (2026-09-28) restored the byte-identical blob into docs/archive/ so
 the era is readable in every checkout. Entries there are verbatim
 historical records and are never rewritten.
+
+<!-- ZELYNIC-DISCLAIMER -->
+<!--
+  Documentation Disclaimer — read before relying on any data point.
+
+  This document may contain stale data, hardcoded counts, or outdated
+  file paths and symbol names. Maintainers update source code but may
+  forget to sync every doc — perfect sync across every .md file is a
+  known maintenance burden with diminishing returns.
+
+  Source code (`src/**/*.rs`, `ebpf/src/**/*.rs`) is the single source of
+  truth. Always cross-check against the actual source files before
+  relying on any specific number (target count, LOC, rate bound),
+  file path, function name, or config key.
+
+  If you find a discrepancy, please open a PR — the doc is wrong, not
+  the source.
+-->
