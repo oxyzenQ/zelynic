@@ -226,6 +226,38 @@ bypass, docs/audits/NIGHT_UPGRADE_CHARGER_CORE_1C_PROBE_CI_FIND)
 stays OPEN pending a root machine to debug — unchanged by this
 audit, tracked where it lives.
 
+## 7. The live proof — run 229, all four legs green
+
+The fix commit (6e80916) triggered the supermassive workflow
+on push (scripts/bench/proof-claims.py rides the trigger
+paths): run 229, the first run of the discriminating row,
+COMPLETED SUCCESS on all four legs — both best-specs (the
+legs that were red) and both 5.13 floor legs, MASS-VERDICT:
+PASS on each. The best-specs gnu leg's precision row, the
+exact row this audit exists for, read:
+
+```
+OK precision: TCP-level throughput — configured 100.0 MB/s,
+   measured 90.1 MB/s (90.1%)
+OK precision: kernel-admitted bytes match client-received
+   bytes — ratio 1.0028
+OK precision: long-run token accounting vs configured rate —
+   error 9.691% (bound 12.0%) — attempts: 13.068%, 9.691%
+```
+
+The first window read 13.068% under-band — a MIXED window
+(refusals present: the mostly-saturated instants dropped, the
+starved gaps under) — and the discriminator routed it down the
+real-signature path: the old same-rate patience, the second
+window read 9.691% in-band, the row passed with both attempts
+in its trail. The best-specs musl leg read 8.431% in-band on
+its first window (single attempt, no re-attempt needed). The
+starved shape that killed runs 224/228 did not recur on this
+run's hosts — but its honest path (adapt once, then SKIP with
+the evidence) is pinned by the self-test rows and waits for
+the next starved hour, where it will measure what the host
+offered instead of blaming the policer for it.
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.

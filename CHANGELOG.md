@@ -64,7 +64,12 @@ NIGHT-hunt-18's git-history-only call.
   present and running — the estate's coverage was never the gap,
   the instrument's robustness on shared runners was, and it is
   closed (the charger-core-1c probe-lane bug stays OPEN where it
-  lives, unchanged).
+  lives, unchanged). Proven live: the fix commit's own
+  supermassive run (229) went green on all four legs — the
+  formerly-red best-specs gnu leg's precision row passing at
+  9.691% after a 13.068% mixed first window took its same-rate
+  re-attempt, the musl leg in-band at 8.431% on its first
+  window.
 
 - **docs: NIGHT-improve-43 re-issue — the v20-era file moved from
   the repo root into the archive, the root left carrying the fresh
