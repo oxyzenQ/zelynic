@@ -27,6 +27,45 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Added
 
+- **fix(bench): NIGHT-improve-48 — the precision proof-claim's red
+  supermassive lane root-caused and closed: the starved-window
+  discriminator, the honest adaptation, the honest SKIP
+  (docs/audits/NIGHT_IMPROVE_48_SUPERMASSIVE_PRECISION_ROW_AUDIT_2026-10-06.md).**
+  The owner's suspicion verified from the CI evidence: runs 219/221/
+  224/228's best-specs legs failed exactly one lane — the claims
+  proof's precision row, reading 21.297%/29.775% under the 12%
+  bound while the 5.13 floor legs read 3.606% green on the same
+  runs and the same 7.3 kernel read 1.921% green in quieter hours
+  (the clocksource-watchdog line in run 222's log names the
+  starvation). The physics: a drop-only bucket admits min(offer,
+  refill), so an under-band window with ZERO refusals measured its
+  own offer — the four-flow aggregate starved on the contended
+  host (admitted==client at ratio 1.004, the TCP-level row at
+  69.9-78.4%), while the policer held its contract perfectly; the
+  same under-band WITH refusals is the real regression signature
+  the row exists to catch. The fix, three shapes: the stage reads
+  both counters (bytes_allowed AND bytes_dropped) in one status
+  read per window edge (the midpoint estimator's spawn pricing
+  unchanged); the under-band branch discriminates before it acts —
+  the real signature keeps the old same-rate patience and fails
+  red with the refused-surplus evidence, the starved shape adapts
+  once (80% of its own measured offer, capped at the configured
+  rate, floored at the 5mb loopback GSO rung) and a second starve
+  or an unfundable offer records the honest SKIP (a starved window
+  measures the offer, not the policer — the evidence rows ride
+  every verdict unchanged). Three new self-test rows pin the pure
+  functions on the exact CI shapes (78.4mb adapts to 62mb, 69.9mb
+  to 55mb, the 5mb floor, both sides of the discriminator) — the
+  engine self-test reads 36/0, ruff check and format clean, the
+  gates 16/16. The "others" sweep: the other four headline claims'
+  rows green on the same failing runs, the whole lane inventory
+  (v1 matrix, AMMSP, v2, v3, v4 155 rows, the three rig suites)
+  green on them too, and the five-claims coverage map verified
+  present and running — the estate's coverage was never the gap,
+  the instrument's robustness on shared runners was, and it is
+  closed (the charger-core-1c probe-lane bug stays OPEN where it
+  lives, unchanged).
+
 - **docs: NIGHT-improve-43 re-issue — the v20-era file moved from
   the repo root into the archive, the root left carrying the fresh
   record alone.** The owner's mandate, the intent verbatim: the

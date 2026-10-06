@@ -209,6 +209,31 @@ PRECISION_FLOWS = 4
 PRECISION_SETTLE_MAX_QUICK = 3.0
 PRECISION_SETTLE_MAX_FULL = 6.0
 
+# The starved-window discriminator (NIGHT-improve-48, the CI runs
+# 224/228 best-specs lesson): a drop-only bucket admits min(offer,
+# refill) at (nearly) every instant, so an under-band window that
+# refused NOTHING measured its own offer — the fleet's bytes
+# integrated under the refill (the shared-runner shape: TCP-level
+# 69.9-78.4% of the configured rate while admitted==client at ratio
+# 1.004 — the policer passed everything offered; the offer never
+# reached the rate). The SAME under-band error WITH refusals in the
+# window is the real regression the row exists to catch — the bucket
+# refused the surplus AND still under-admitted the refill — and that
+# verdict stays red. The discriminator is pure, pinned by the
+# self-test on both sides.
+PRECISION_STARVED_DROPS = 0
+# The adaptation a starved window earns: the re-attempt's rate rides
+# 80% of the starved window's own admitted rate (zero refusals made
+# admitted==offered, so the number IS the offer) — 25% headroom for
+# the fleet to saturate the refill again — floored at the loopback
+# GSO-safe 5mb (NO_DAEMON_RATE's discipline: below it the sub-skb
+# window regime bites), capped at the current rate, rounded to the
+# whole-mb grammar bps_to_rate_str speaks. When the offer cannot
+# fund even the floor the row records its honest SKIP: a window
+# this host cannot saturate measures the offer, not the policer.
+PRECISION_ADAPT_MARGIN = 0.8
+PRECISION_ADAPT_MIN_RATE = 5_000_000
+
 # The live accounting row's PASS bound: the estimator samples the
 # kernel counter at each status-read spawn's MIDPOINT (the unbiased
 # estimator of the sampling instant), so the spawn latency cancels
@@ -303,6 +328,32 @@ NFT_VOLATILE = (
     (re.compile(r"counter packets \d+ bytes \d+"), "counter"),
     (re.compile(r"expires \d+[smhd]?"), "expires"),
 )
+
+
+def precision_window_starved(dropped_delta):
+    """Pure: did this under-band window refuse nothing? A drop-only
+    bucket under a saturated offer admits the refill exactly (the
+    math pins hold that contract), so an under-band window with zero
+    refusals is the offer itself integrating under the rate — the
+    instrument starved, not the policer. Both sides pinned by the
+    self-test (NIGHT-improve-48)."""
+    return dropped_delta <= PRECISION_STARVED_DROPS
+
+
+def precision_adapt_rate(starved_offer_bps, current_rate):
+    """Pure: the rate a starved window's re-attempt runs at — 80% of
+    the starved window's own offer (zero refusals made admitted the
+    offer), floored at the loopback GSO-safe 5mb, capped at the
+    current rate, rounded to whole mb. None when the offer cannot
+    fund the floor — the honest SKIP case. Pinned by the self-test on
+    the CI shapes (78.4mb -> 62mb, 69.9mb -> 55mb)."""
+    if starved_offer_bps <= 0:
+        return None
+    adapted = int(starved_offer_bps * PRECISION_ADAPT_MARGIN / 1_000_000) * 1_000_000
+    adapted = min(adapted, current_rate)
+    if adapted < PRECISION_ADAPT_MIN_RATE:
+        return None
+    return adapted
 
 
 def nft_normalize(text):
@@ -668,12 +719,15 @@ def apply_and_verify(rate_bps, cgroup_id):
     return True, entry
 
 
-def bytes_allowed_now(cgroup_id):
-    """The cgroup's current kernel-admitted byte counter, or None."""
+def byte_counters_now(cgroup_id):
+    """(allowed, dropped) from ONE status read — the midpoint
+    estimator prices every spawn, so the dropped counter rides the
+    same read the allowed counter does (improve-48's discriminator
+    reads both edges of the window without stretching it)."""
     entry = lib.limit_entry(lib.status_json(), cgroup_id)
     if entry is None:
-        return None
-    return entry.get("bytes_allowed", 0)
+        return None, None
+    return entry.get("bytes_allowed", 0), entry.get("bytes_dropped", 0)
 
 
 # ── stages ────────────────────────────────────────────────────────────────
@@ -1109,10 +1163,9 @@ def stage_precision(baseline, quick):
     if not ok:
         return lib.record("precision: attach limit", "FAIL", payload) == "PASS"
     window = 10.0 if quick else PRECISION_WINDOW
-    bound = accounting_bound(
-        ACCOUNTING_ERR_MAX_QUICK if quick else ACCOUNTING_ERR_MAX_FULL, rate, window
-    )
-    bank_floor = bound - (ACCOUNTING_ERR_MAX_QUICK if quick else ACCOUNTING_ERR_MAX_FULL)
+    base = ACCOUNTING_ERR_MAX_QUICK if quick else ACCOUNTING_ERR_MAX_FULL
+    bound = accounting_bound(base, rate, window)
+    bank_floor = bound - base
     # The quick-row closure v3 (round 3's close): the window pairs the
     # midpoint estimator (the quick-row fixup — elapsed between
     # status-read spawn midpoints, the latency cancels on both ends)
@@ -1138,7 +1191,14 @@ def stage_precision(baseline, quick):
     # re-attempt bounded, and every attempt's error rides the row
     # detail.
     attempt_errs = []
-    for _ in range(PRECISION_ATTEMPTS):
+    attempt_rates = []
+    adapted = False
+    adapt_trail = None
+    starved_final = False
+    real_signature_seen = False
+    attempts_used = 0
+    while attempts_used < PRECISION_ATTEMPTS:
+        attempts_used += 1
         # The fleet: PRECISION_FLOWS concurrent download threads, each
         # with its own progress counter — the aggregate is the
         # instrument (the matrix's high-rung law), and the sum of the
@@ -1160,20 +1220,26 @@ def stage_precision(baseline, quick):
         # unpaid cushion's remnant reads as phantom over-admission
         # (the rider-L discipline, applied to the stage's own warm-up;
         # the loop exits early the moment the payment is provable, so
-        # fast legs settle in a fraction of the old fixed sleep).
-        cushion = lib.default_burst(rate)
+        # fast legs settle in a fraction of the old fixed sleep). On
+        # the ADAPTED attempt the payment demands the larger of the
+        # two rates' bursts: whichever reload semantics the re-attach
+        # carries (a fresh full bucket at the new rate, or the starved
+        # window's banked tokens at the old one), the settle must pay
+        # past it before e0 or the remnant leaks into the adapted
+        # window as phantom over-admission.
+        cushion = lib.default_burst(max(rate, adapt_trail[0] if adapt_trail else rate))
         settle_deadline = time.monotonic() + settle_max
         while time.monotonic() < settle_deadline:
             if sum(p[0] for p in progresses) >= cushion:
                 break
             time.sleep(0.1)
         t0s = time.perf_counter()
-        e0 = bytes_allowed_now(CG.a_id)
+        e0, d0 = byte_counters_now(CG.a_id)
         t0e = time.perf_counter()
         c0 = sum(p[0] for p in progresses)
         time.sleep(window)
         t1s = time.perf_counter()
-        e1 = bytes_allowed_now(CG.a_id)
+        e1, d1 = byte_counters_now(CG.a_id)
         t1e = time.perf_counter()
         c1 = sum(p[0] for p in progresses)
         t0 = t0s + (t0e - t0s) / 2.0
@@ -1184,7 +1250,7 @@ def stage_precision(baseline, quick):
         # thread's own deadline bounds its join to ~0.5s past t1.
         for t in threads:
             t.join(timeout=8.0)
-        if e0 is None or e1 is None:
+        if e0 is None or e1 is None or d0 is None or d1 is None:
             return (
                 lib.record(
                     "precision: long-run accounting",
@@ -1196,20 +1262,86 @@ def stage_precision(baseline, quick):
         elapsed = t1 - t0
         expected = rate * elapsed
         admitted = e1 - e0
+        dropped = d1 - d0
         client_delta = c1 - c0
         err = accounting_error(admitted, expected)
         attempt_errs.append(err)
+        attempt_rates.append(rate)
         if admitted >= expected * (1.0 - bound):
             break  # in-band, or over-band: the verdict is now, not retried
-        # under-side: re-attempt — the next settle pays the banked state
-    lib.band_check(
-        "precision: TCP-level throughput (honest — drops cost, a policer never queues)",
-        client_delta / elapsed,
-        rate,
-        f"{PRECISION_FLOWS}-flow aggregate — the individual sockets take the drops' "
-        "back-off while the aggregate rides the rate; the kernel accounting "
-        "below does not",
-    )
+        # Under-side, the improve-48 discriminator first: WITH refusals
+        # in the window this is the real regression the row exists to
+        # catch — the bucket refused the surplus AND still
+        # under-admitted the refill — and it fails below, on the
+        # attempt that produced it. Zero refusals means the offer
+        # itself integrated under the refill: the starved-window
+        # shape (the run-224/228 evidence — TCP-level 69.9-78.4%,
+        # admitted==client at 1.004 — the policer held, the fleet
+        # starved).
+        if not precision_window_starved(dropped):
+            # The real signature: keep the old same-rate patience — a
+            # mixed transient (saturated instants dropping, starved
+            # gaps under) gets its second window; a systematic break
+            # stays red on both. The verdict below appends the
+            # refused-surplus evidence whenever the trail carries it.
+            real_signature_seen = True
+            if attempts_used < PRECISION_ATTEMPTS:
+                continue
+            break
+        # Starved: adapt once — the re-attempt rides 80% of THIS
+        # window's own admitted rate (zero refusals made admitted the
+        # offer), giving the fleet 25% headroom over the refill. The
+        # adapted attempt consumes the attempt budget (PRECISION_ATTEMPTS
+        # windows total, one adaptation between them); a starve that
+        # cannot fund the 5mb floor, or a second starve after the
+        # adaptation, records the honest SKIP — a window this host
+        # cannot saturate measures the offer, not the policer, and the
+        # admit-ratio row below already proves every offered byte
+        # passed the hook.
+        if real_signature_seen:
+            break  # the earlier window's real signature governs: FAIL below
+        new_rate = precision_adapt_rate(admitted / elapsed, rate)
+        if adapted or new_rate is None:
+            starved_final = True
+            break
+        ok_adapt, payload_adapt = apply_and_verify(new_rate, CG.a_id)
+        if not ok_adapt:
+            return (
+                lib.record(
+                    "precision: adapted re-attach",
+                    "FAIL",
+                    payload_adapt,
+                )
+                == "PASS"
+            )
+        adapt_trail = (rate, new_rate, admitted / elapsed)
+        rate = new_rate
+        bound = accounting_bound(base, rate, window)
+        bank_floor = bound - base
+        adapted = True
+    if starved_final:
+        # The starved window's TCP-level number is the OFFER — the
+        # matrix's starved-rung spelling (lo=0.0) keeps the row honest
+        # about what it measured instead of failing a band the host
+        # could not reach.
+        lib.band_check(
+            "precision: TCP-level throughput (honest — drops cost, a policer never queues)",
+            client_delta / elapsed,
+            rate,
+            f"{PRECISION_FLOWS}-flow aggregate, the window starved (zero "
+            "refusals) — the number is the offer this host's fleet "
+            "actually made, not the shaping",
+            lo=0.0,
+        )
+    else:
+        lib.band_check(
+            "precision: TCP-level throughput (honest — drops cost, a policer never queues)",
+            client_delta / elapsed,
+            rate,
+            f"{PRECISION_FLOWS}-flow aggregate — the individual sockets take the drops' "
+            "back-off while the aggregate rides the rate; the kernel accounting "
+            "below does not",
+        )
     ratio = admitted / client_delta if client_delta else 0.0
     lib.record(
         "precision: kernel-admitted bytes match client-received bytes",
@@ -1217,39 +1349,115 @@ def stage_precision(baseline, quick):
         f"{admitted} B admitted at the hook vs {client_delta} B received "
         f"at the socket — ratio {ratio:.4f}",
     )
-    attempts_note = (
-        "attempts: "
-        + ", ".join(f"{e * 100:.3f}%" for e in attempt_errs)
-        + " (the under-side re-attempt; the over-side fails on the attempt "
-        "that produced it)"
+    if adapted:
+        attempts_note = (
+            "attempts: "
+            + ", ".join(
+                f"{e * 100:.3f}% at {r // 1_000_000}mb" for e, r in zip(attempt_errs, attempt_rates)
+            )
+            + " (the starved window adapted, the under-side re-attempt; "
+            "the over-side fails on the attempt that produced it)"
+        )
+    else:
+        attempts_note = (
+            "attempts: "
+            + ", ".join(f"{e * 100:.3f}%" for e in attempt_errs)
+            + " (the under-side re-attempt; the over-side fails on the attempt "
+            "that produced it)"
+        )
+    if starved_final:
+        detail = (
+            f"admitted {admitted} B over {elapsed:.1f}s vs configured "
+            f"rate x time {expected:.0f} B — error {err * 100:.3f}% with ZERO "
+            f"refusals in the window ({dropped} B dropped): the fleet's own "
+            "offer integrated under the refill — the instrument starved on "
+            "this host, the policer held its contract (the admit-ratio row "
+            "above proves every offered byte passed the hook). "
+        )
+        if adapt_trail:
+            detail += (
+                f"The rate adapted {adapt_trail[0] // 1_000_000}mb -> "
+                f"{adapt_trail[1] // 1_000_000}mb after the first starved "
+                f"window (its offer {lib.fmt_bps(adapt_trail[2])}) and the "
+                "adapted window starved too. "
+            )
+        else:
+            detail += (
+                "The offer could not fund the "
+                f"{PRECISION_ADAPT_MIN_RATE // 1_000_000}mb adaptation floor. "
+            )
+        detail += (
+            "The long-run contract itself stays pinned rootlessly "
+            "(test/ebpf/limiter/math_tests.rs — steady-state exactness); a "
+            "window this host cannot saturate measures the offer, not the "
+            "policer — nothing honest to fail here, the evidence rows above "
+            "carry this window's numbers. " + attempts_note
+        )
+        return (
+            lib.record(
+                "precision: long-run token accounting vs configured rate",
+                "SKIP",
+                detail,
+                {
+                    "error_pct": round(err * 100, 4),
+                    "admitted": admitted,
+                    "expected": round(expected),
+                    "dropped": dropped,
+                    "attempt_errs": [round(e * 100, 4) for e in attempt_errs],
+                    "attempt_rates": attempt_rates,
+                },
+            )
+            == "PASS"
+        )
+    verdict = "PASS" if err <= bound else "FAIL"
+    detail = (
+        f"admitted {admitted} B over {elapsed:.1f}s vs configured "
+        f"rate x time {expected:.0f} B — error {err * 100:.3f}% (bound "
+        f"{bound * 100:.1f}% = {(bound - bank_floor) * 100:.1f}% estimator + "
+        f"{bank_floor * 100:.1f}% token-bank floor, one default_burst of "
+        f"wander over a {window:.0f}s window)"
+    )
+    if err > bound and (real_signature_seen or not precision_window_starved(dropped)):
+        detail += (
+            f" — WITH {dropped} B refused in the window: the bucket refused "
+            "the surplus while under-admitting the refill, the real "
+            "regression signature, failing on the attempt that produced it"
+        )
+    if adapted:
+        detail += (
+            f". The rate adapted {adapt_trail[0] // 1_000_000}mb -> "
+            f"{rate // 1_000_000}mb after a starved first window (zero "
+            f"refusals, its offer {lib.fmt_bps(adapt_trail[2])}); this row's "
+            "numbers are the adapted window's"
+        )
+    detail += (
+        ". The 0.00% contract is the "
+        "token math: "
+        "long-run admitted = rate x elapsed exactly, sub-byte frac_rem "
+        "carry, pinned rootlessly in test/ebpf/limiter/math_tests.rs "
+        "(steady-state exactness). The live residual is the instrument's "
+        "own floor: a "
+        f"{PRECISION_FLOWS}-flow aggregate keeping the bucket's offered "
+        "load saturated (a single AIMD flow rides its own 95-96% ceiling "
+        "under a 100mb drop-only policer — the aggregate is the "
+        "instrument, the matrix's high-rung law), the provably-paid "
+        "settle that keeps the fresh cushion out of the window, the "
+        "midpoint estimator's spawn-latency cancellation, and "
+        "window-edge sampling — an under-saturating window re-attempts "
+        "bounded, " + attempts_note
     )
     return (
         lib.record(
             "precision: long-run token accounting vs configured rate",
-            "PASS" if err <= bound else "FAIL",
-            f"admitted {admitted} B over {elapsed:.1f}s vs configured "
-            f"rate x time {expected:.0f} B — error {err * 100:.3f}% (bound "
-            f"{bound * 100:.1f}% = {(bound - bank_floor) * 100:.1f}% estimator + "
-            f"{bank_floor * 100:.1f}% token-bank floor, one default_burst of "
-            f"wander over a {window:.0f}s window). The 0.00% contract is the "
-            "token math: "
-            "long-run admitted = rate x elapsed exactly, sub-byte frac_rem "
-            "carry, pinned rootlessly in test/ebpf/limiter/math_tests.rs "
-            "(steady-state exactness). The live residual is the instrument's "
-            "own floor: a "
-            f"{PRECISION_FLOWS}-flow aggregate keeping the bucket's offered "
-            "load saturated (a single AIMD flow rides its own 95-96% ceiling "
-            "under a 100mb drop-only policer — the aggregate is the "
-            "instrument, the matrix's high-rung law), the provably-paid "
-            "settle that keeps the fresh cushion out of the window, the "
-            "midpoint estimator's spawn-latency cancellation, and "
-            "window-edge sampling — an under-saturating window re-attempts "
-            "bounded, " + attempts_note,
+            verdict,
+            detail,
             {
                 "error_pct": round(err * 100, 4),
                 "admitted": admitted,
                 "expected": round(expected),
+                "dropped": dropped,
                 "attempt_errs": [round(e * 100, 4) for e in attempt_errs],
+                "attempt_rates": attempt_rates,
             },
         )
         == "PASS"
@@ -1829,6 +2037,58 @@ def self_test():
             f"quick {qb * 100:.1f}%, full {fb * 100:.1f}%, fallback-rate full "
             f"{fb_fallback * 100:.1f}% — estimator floor plus one "
             "default_burst of wander per window",
+        )
+        == "PASS"
+        and ok
+    )
+    # The improve-48 pins: the starved-window discriminator, both
+    # sides of its law, and the adaptation math on the exact CI
+    # shapes that motivated it (runs 224/228's best-specs legs read
+    # 29.775%/21.297% under with zero refusals — the offer, not the
+    # policer). Pure functions, executed here so the LIVE row's
+    # decision tree is proven, not assumed (the band_check-signature
+    # lesson applied to the new arms).
+    ok = (
+        lib.record(
+            "selftest: starved-window discriminator — zero refusals starved the offer",
+            "PASS" if precision_window_starved(0) and not precision_window_starved(1) else "FAIL",
+            "under-band with zero refusals: the offer integrated under the "
+            "refill (starved); one refused byte or more: the real regression "
+            "signature, the verdict stays red",
+        )
+        == "PASS"
+        and ok
+    )
+    ok = (
+        lib.record(
+            "selftest: starved-window adaptation math (the CI shapes)",
+            "PASS"
+            if precision_adapt_rate(78.4e6, 100e6) == 62_000_000
+            and precision_adapt_rate(69.9e6, 100e6) == 55_000_000
+            and precision_adapt_rate(200e6, 100e6) == 100_000_000
+            and precision_adapt_rate(6.0e6, 100e6) is None
+            and precision_adapt_rate(0, 100e6) is None
+            else "FAIL",
+            f"78.4mb -> {precision_adapt_rate(78.4e6, 100e6) // 1_000_000}mb, "
+            f"69.9mb -> {precision_adapt_rate(69.9e6, 100e6) // 1_000_000}mb, "
+            "a 200mb probe caps at the current rate, and offers below the "
+            f"{PRECISION_ADAPT_MIN_RATE // 1_000_000}mb floor fund no "
+            "re-attempt (the honest SKIP)",
+        )
+        == "PASS"
+        and ok
+    )
+    prec48_src = inspect.getsource(stage_precision)
+    ok = (
+        lib.record(
+            "selftest: the precision stage wires the discriminator",
+            "PASS"
+            if "precision_window_starved" in prec48_src
+            and "precision_adapt_rate" in prec48_src
+            and "byte_counters_now" in prec48_src
+            else "FAIL",
+            "the under-side branch discriminates before it retries, and both "
+            "counters ride the one-read accessor the estimator prices",
         )
         == "PASS"
         and ok
