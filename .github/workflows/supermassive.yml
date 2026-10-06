@@ -431,15 +431,27 @@ jobs:
           VNET=$(sed -n 's/^CONFIG_VIRTIO_NET=\(.*\)$/\1/p' "$CFG")
           case "$VNET" in
             y)  echo "virtio_net built-in (=y) — no modules to stage" ;;
-            m)  mkdir -p "/tmp/kfloor/virtio-mods/lib/modules/$KVER/kernel/drivers/net"
-                for mod in virtio_net net_failover; do
-                  WANT=$(sed -n "s/^CONFIG_${mod^^}=\(.*\)$/\1/p" "$CFG")
+            m)  # The dependency chain modinfo walks, second hop and
+                # all: virtio_net depends on net_failover, and
+                # net_failover's OWN symbols (failover_register and
+                # kin) live in failover.ko under net/core — a
+                # DIFFERENT directory than drivers/net. Run
+                # 37520041688's lesson: staging the pair without the
+                # core leaf fails every insmod with Unknown symbol.
+                STG="/tmp/kfloor/virtio-mods/lib/modules/$KVER/kernel"
+                mkdir -p "$STG/net/core" "$STG/drivers/net"
+                stage_mod() {
+                  mod=$1; dir=$2; flag=$3
+                  WANT=$(sed -n "s/^CONFIG_$flag=\(.*\)$/\1/p" "$CFG")
                   if [ "$WANT" = "m" ]; then
-                    SRC="mods/lib/modules/$KVER/kernel/drivers/net/$mod.ko"
+                    SRC="mods/lib/modules/$KVER/kernel/$dir/$mod.ko"
                     test -f "$SRC" || { echo "FAIL: $mod.ko absent from $MODPKG (config says =m)"; exit 1; }
-                    cp "$SRC" "/tmp/kfloor/virtio-mods/lib/modules/$KVER/kernel/drivers/net/"
+                    cp "$SRC" "$STG/$dir/"
                   fi
-                done
+                }
+                stage_mod failover net/core FAILOVER
+                stage_mod net_failover drivers/net NET_FAILOVER
+                stage_mod virtio_net drivers/net VIRTIO_NET
                 echo "staged virtio modules: $(du -sh /tmp/kfloor/virtio-mods | cut -f1) at /tmp/kfloor/virtio-mods" ;;
             *)  echo "FAIL: CONFIG_VIRTIO_NET=$VNET — no usable virtio-net driver on this kernel"; exit 1 ;;
           esac
@@ -546,15 +558,25 @@ jobs:
           VNET=$(sed -n 's/^CONFIG_VIRTIO_NET=\(.*\)$/\1/p' "$CFG")
           case "$VNET" in
             y)  echo "virtio_net built-in (=y) — no modules to stage" ;;
-            m)  mkdir -p "/tmp/kfloor/virtio-mods/lib/modules/$KVER/kernel/drivers/net"
-                for mod in virtio_net net_failover; do
-                  WANT=$(sed -n "s/^CONFIG_${mod^^}=\(.*\)$/\1/p" "$CFG")
+            m)  # The dependency chain's full trio (the twin of the
+                # floor lane above — run 37520041688's lesson):
+                # failover.ko under net/core owns the symbols
+                # net_failover.ko imports, so the pair alone fails
+                # with Unknown symbol.
+                STG="/tmp/kfloor/virtio-mods/lib/modules/$KVER/kernel"
+                mkdir -p "$STG/net/core" "$STG/drivers/net"
+                stage_mod() {
+                  mod=$1; dir=$2; flag=$3
+                  WANT=$(sed -n "s/^CONFIG_$flag=\(.*\)$/\1/p" "$CFG")
                   if [ "$WANT" = "m" ]; then
-                    SRC="mods/lib/modules/$KVER/kernel/drivers/net/$mod.ko"
+                    SRC="mods/lib/modules/$KVER/kernel/$dir/$mod.ko"
                     test -f "$SRC" || { echo "FAIL: $mod.ko absent from $MODPKG (config says =m)"; exit 1; }
-                    cp "$SRC" "/tmp/kfloor/virtio-mods/lib/modules/$KVER/kernel/drivers/net/"
+                    cp "$SRC" "$STG/$dir/"
                   fi
-                done
+                }
+                stage_mod failover net/core FAILOVER
+                stage_mod net_failover drivers/net NET_FAILOVER
+                stage_mod virtio_net drivers/net VIRTIO_NET
                 echo "staged virtio modules: $(du -sh /tmp/kfloor/virtio-mods | cut -f1) at /tmp/kfloor/virtio-mods" ;;
             *)  echo "FAIL: CONFIG_VIRTIO_NET=$VNET — no usable virtio-net driver on this kernel"; exit 1 ;;
           esac

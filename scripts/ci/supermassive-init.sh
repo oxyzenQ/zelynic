@@ -164,20 +164,27 @@ fi
 # egress NAT'd behind it. The bus layer (virtio, virtio_pci) is
 # built into every kernel this guest boots; the 5.13 floor's
 # virtio_net is a MODULE, staged by the rootfs assembly from the
-# kernel's own modules deb (vermagic exact by construction — the
-# two insmods below tolerate the built-in heads, where no files
-# exist and eth0 is born attached). The bring-up is outcome-judged:
+# kernel's own modules deb (vermagic exact by construction) as a
+# THREE-module chain — failover.ko under net/core owns the very
+# symbols net_failover.ko imports (run 37520041688's lesson: the
+# pair without the core leaf fails every insmod with Unknown
+# symbol), so the insmods walk bottom-up: failover, net_failover,
+# virtio_net — and tolerate the built-in heads, where no files
+# exist and eth0 is born attached. The bring-up is outcome-judged:
 # eth0 exists, is up, carries the default route, and the resolver
 # points at SLIRP's DNS — everything past this row (the endpoint
 # chain, the bands, the honest SKIPs) belongs to v1's own
 # reachability probe, which waited for exactly this day.
 KVER=$(uname -r)
-NETDIR="/lib/modules/$KVER/kernel/drivers/net"
-if [ -f "$NETDIR/net_failover.ko" ]; then
-	insmod "$NETDIR/net_failover.ko" 2>/dev/null || true
+KMOD="/lib/modules/$KVER/kernel"
+if [ -f "$KMOD/net/core/failover.ko" ]; then
+	insmod "$KMOD/net/core/failover.ko" 2>/dev/null || true
 fi
-if [ -f "$NETDIR/virtio_net.ko" ]; then
-	insmod "$NETDIR/virtio_net.ko" 2>/dev/null || true
+if [ -f "$KMOD/drivers/net/net_failover.ko" ]; then
+	insmod "$KMOD/drivers/net/net_failover.ko" 2>/dev/null || true
+fi
+if [ -f "$KMOD/drivers/net/virtio_net.ko" ]; then
+	insmod "$KMOD/drivers/net/virtio_net.ko" 2>/dev/null || true
 fi
 if [ -e /sys/class/net/eth0 ] &&
 	ip link set eth0 up &&
