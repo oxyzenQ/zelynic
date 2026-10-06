@@ -113,7 +113,7 @@ or `zelynic ee brave --interval 1s`.
 ### strict-single / strict — limit one app
 
 ```bash
-sudo zelynic strict-single <target> [rate] [-d <rate>] [-u <rate>] [--per-socket] [--floor <rate>] [--ceil <rate>] [--during <duration>]
+sudo zelynic strict-single <target> [rate] [-d <rate>] [-u <rate>] [--per-socket] [--floor <rate>] [--ceil <rate>] [--floor-download <rate>] [--floor-upload <rate>] [--ceil-download <rate>] [--ceil-upload <rate>] [--during <duration>]
 sudo zelynic strict brave 100kb        # shorthand form
 ```
 
@@ -277,11 +277,25 @@ sudo zelynic strict brave 100kb        # shorthand form
   never bind is a mis-typed rate, refused before the root ask)
   and is not offered beside `--per-socket` (the bracket polices
   subprocess leaves; per-socket polices each connection at the
-  full rate — different lanes). `status` renders the pair as a
+  full rate — different lanes). The per-direction spellings
+  (improve-40-b) bracket ONE direction's rows for the asymmetric
+  link: `--floor-download 100kb` guarantees the download side
+  only, `--ceil-upload 200kb` caps the upload side only — one
+  spelling per side (`--floor` beside `--floor-download` refuses:
+  the both-directions flag and its twin are one spelling apart,
+  not a wider guarantee), and a per-direction side whose direction
+  the invocation removes (no `-d` rate, so no download row)
+  refuses outright, the improve-29 removal law named in the
+  wording. `status` renders the pair as a
   grey subordinate line under the row (`guarantee: floor 100.0
-  KB/s ceil 300.0 KB/s (per subprocess)`), the verbose apply
-  trace carries it beside the burst, and `--print-json` gains
-  `floor_bps` / `ceil_bps` (absent when unset). The honest
+  KB/s ceil 300.0 KB/s (per subprocess)` — equal pairs; a split
+  renders direction-prefixed halves: `guarantee: dl floor 100.0
+  KB/s / ul floor 50.0 KB/s (per subprocess)`), the verbose apply
+  trace carries each leg's own pair beside the burst, and
+  `--print-json` gains `floor_bps` / `ceil_bps` for the equal
+  shape (absent when unset or split) plus the additive
+  `download_floor_bps` / `download_ceil_bps` /
+  `upload_floor_bps` / `upload_ceil_bps` for the split. The honest
   over-subscription law: when the floors' sum exceeds the pool's
   refill (leaves are dynamic; the config cannot know how many
   will ask), the floors degrade to the pool law — the pool never

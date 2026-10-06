@@ -19,6 +19,43 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Added
 
+- **The per-direction guarantee spellings — `--floor-download` /
+  `--floor-upload` and the `--ceil-` twins (improve-40-b, the
+  owner-approved lane to the bracket's peak: the asymmetric link's
+  own bracket; no schema change — v24 already stores floor_bps /
+  ceil_bps on every direction's row, the split rides the fields the
+  way the rate rows always have).** One spelling per side: the
+  both-directions flag and its per-direction twin refuse together
+  (a combined `--floor 100kb --floor-download 200kb` is a mis-typed
+  rate, not a wider guarantee — the resolver's one-spelling rung,
+  pinned), and a per-direction side whose direction the invocation
+  REMOVES (no `-d` rate, so no download row) refuses outright
+  before the root ask, the improve-29 removal law named in the
+  wording — a guarantee for a row that will not exist is a mistake,
+  not an intent. The validation ladder judges the contradiction and
+  the never-binding sides PER SET DIRECTION (floor <= ceil <= rate
+  on each row that will exist; cross-direction freedom — a download
+  floor never consults the upload rate). The read surfaces carry
+  the split honestly: `status` renders the one-flag line unchanged
+  while the pairs are equal and direction-prefixed halves when they
+  differ (`guarantee: dl floor 100.0 KB/s ceil 300.0 KB/s / ul
+  floor 50.0 KB/s ...`), only the set halves named; the JSON keeps
+  the merged `floor_bps`/`ceil_bps` for the equal shape and rides
+  the split on additive `download_floor_bps` /
+  `download_ceil_bps` / `upload_floor_bps` / `upload_ceil_bps`
+  fields, the merged pair honestly absent when the directions
+  differ — never a fabricated merge; the persistence pair collapses
+  PER DIRECTION (each leg's entry feeding its own direction's
+  pair), so an asymmetric snapshot restores as the asymmetric
+  policy it captured. The flags ride the whole strict family
+  (single, multi, all — one spelling per side everywhere), the
+  kernel side needs nothing (the row's own fields, read per row),
+  and the guarantee battery's law pins stand unchanged beside the
+  resolver's new wording pins (the one-spelling and
+  removed-direction rungs pinned fresh, the mixed spellings'
+  per-side composition included — a both-directions floor beside a
+  per-direction ceiling never collides).
+
 - **The guarantee brackets — `--floor` / `--ceil` (improve-40,
   schema v24): the DRR pool's fair split gains per-subprocess
   min/max brackets, floor/ceiling + hierarchical borrowing (the
