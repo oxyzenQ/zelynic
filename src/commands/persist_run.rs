@@ -11,7 +11,9 @@
 use anyhow::{Context, Result};
 use std::path::Path;
 
-use super::persist::{restore_plan, SnapshotDoc, STATE_FILE, STATE_SCHEMA};
+use super::persist::{
+    restore_plan, validate_persisted_windows, SnapshotDoc, STATE_FILE, STATE_SCHEMA,
+};
 use crate::ebpf::limiter::{Direction, Limiter, Target};
 
 #[cfg(feature = "ebpf")]
@@ -124,6 +126,12 @@ pub fn handle_restore(json: bool) -> Result<()> {
         );
     }
     let doc: SnapshotDoc = read_state_file()?;
+    // The window-kind gate BEFORE the plan (night-during-7's honesty
+    // catch): an unreadable auto-expire promise refuses the restore
+    // naming its row — the plan's and_then would otherwise swallow it
+    // into "no window", the forever-limit inversion the design brief
+    // forbids (the unknown-TAG posture, one entry over).
+    validate_persisted_windows(&doc)?;
     let plan = restore_plan(&doc);
 
     let _lock = crate::ebpf::lock::acquire()?;
