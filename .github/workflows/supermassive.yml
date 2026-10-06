@@ -665,14 +665,28 @@ jobs:
           cp "$GITHUB_WORKSPACE/scripts/ci/supermassive-init.sh" rootfs/init
           chmod +x rootfs/init
           # NIGHT-approved-1: the virtio module pair a resolver step
-          # staged (the 5.13 floor's =m legs — 132 KB) rides the cpio
+          # staged (the 5.13 floor's =m legs — 160 KB) rides the cpio
           # under the kernel's own module path; the =y heads staged
           # nothing and the init's insmod pair simply finds no files
           # (the built-in driver needs none). kmod in the apt line
-          # above owns the insmod.
+          # above owns the insmod. The copy respects the usr-merge:
+          # the ubuntu containers ship /lib as a SYMLINK to usr/lib
+          # (run 37518266382's lesson — `cp -a .../lib rootfs/` tried
+          # to overwrite the symlink itself and failed the
+          # assembly), so the modules land at the physical
+          # /usr/lib/modules while the init reads the canonical
+          # /lib/modules path through the link — both homes resolve
+          # to the same bytes either way, and a non-merged rootfs
+          # (a real /lib directory) takes the direct copy.
           if [ -d /tmp/kfloor/virtio-mods ]; then
-            cp -a /tmp/kfloor/virtio-mods/lib rootfs/
-            echo "virtio modules in rootfs: $(find rootfs/lib/modules -name '*.ko' | tr '\n' ' ')"
+            if [ -L rootfs/lib ]; then
+              mkdir -p rootfs/usr/lib
+              cp -a /tmp/kfloor/virtio-mods/lib/modules rootfs/usr/lib/
+            else
+              mkdir -p rootfs/lib
+              cp -a /tmp/kfloor/virtio-mods/lib/modules rootfs/lib/
+            fi
+            echo "virtio modules staged into the rootfs cpio"
           fi
           # NIGHT-perf-1: the AMMSP-vs-legacy A/B needs the pre-AMMSP
           # stable INSIDE the VM on its own loopback lane (the A/B
