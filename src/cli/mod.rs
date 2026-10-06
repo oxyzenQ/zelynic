@@ -212,6 +212,28 @@ pub enum Commands {
         /// no cron; every zelynic visit re-stamps the clock bridge.
         #[arg(long = "during", value_name = "WINDOW")]
         during: Option<String>,
+
+        /// Per-LEAF guaranteed minimum (improve-40, schema v24):
+        /// every subprocess under the target is guaranteed at
+        /// least RATE of the shared budget — however greedy its
+        /// siblings. `--floor 100kb`
+        ///
+        /// A PRIORITY, not a reservation: idle leaves lend their
+        /// unspent share back (the pool's own accumulation is the
+        /// lender). Over-subscribed floors degrade gracefully to
+        /// the fair split (the pool never creates budget).
+        #[arg(long = "floor", value_name = "RATE")]
+        floor: Option<String>,
+
+        /// Per-LEAF maximum (improve-40, schema v24): no subprocess
+        /// may exceed RATE even when its siblings are idle and the
+        /// pool is rich. `--ceil 300kb`
+        ///
+        /// Binds even a lone subprocess (a cap that folds when
+        /// siblings appear is not a cap); the banking bound
+        /// tightens to the ceiling's own quantum.
+        #[arg(long = "ceil", value_name = "RATE")]
+        ceil: Option<String>,
     },
 
     /// Limit multiple apps sharing one rate (group limit)
@@ -254,6 +276,27 @@ pub enum Commands {
         /// 1s..10y) — the kernel expires it, no daemon.
         #[arg(long = "during", value_name = "WINDOW")]
         during: Option<String>,
+
+        /// Per-LEAF guaranteed minimum, shared across the group's
+        /// targets (improve-40, schema v24): every subprocess under
+        /// every member is guaranteed at least RATE. `--floor 100kb`
+        ///
+        /// A PRIORITY, not a reservation: idle leaves lend their
+        /// unspent share back (the pool's own accumulation is the
+        /// lender). Over-subscribed floors degrade gracefully to
+        /// the fair split (the pool never creates budget).
+        #[arg(long = "floor", value_name = "RATE")]
+        floor: Option<String>,
+
+        /// Per-LEAF maximum, shared across the group's targets
+        /// (improve-40, schema v24): no subprocess may exceed RATE
+        /// even when its siblings are idle. `--ceil 300kb`
+        ///
+        /// Binds even a lone subprocess (a cap that folds when
+        /// siblings appear is not a cap); the banking bound
+        /// tightens to the ceiling's own quantum.
+        #[arg(long = "ceil", value_name = "RATE")]
+        ceil: Option<String>,
     },
 
     /// Limit ALL user apps from list-apps
@@ -301,6 +344,27 @@ pub enum Commands {
         /// duration (`2h`; s m h d mn y, 1s..10y).
         #[arg(long = "during", value_name = "WINDOW")]
         during: Option<String>,
+
+        /// Per-LEAF guaranteed minimum, shared across the group's
+        /// targets (improve-40, schema v24): every subprocess under
+        /// every member is guaranteed at least RATE. `--floor 100kb`
+        ///
+        /// A PRIORITY, not a reservation: idle leaves lend their
+        /// unspent share back (the pool's own accumulation is the
+        /// lender). Over-subscribed floors degrade gracefully to
+        /// the fair split (the pool never creates budget).
+        #[arg(long = "floor", value_name = "RATE")]
+        floor: Option<String>,
+
+        /// Per-LEAF maximum, shared across the group's targets
+        /// (improve-40, schema v24): no subprocess may exceed RATE
+        /// even when its siblings are idle. `--ceil 300kb`
+        ///
+        /// Binds even a lone subprocess (a cap that folds when
+        /// siblings appear is not a cap); the banking bound
+        /// tightens to the ceiling's own quantum.
+        #[arg(long = "ceil", value_name = "RATE")]
+        ceil: Option<String>,
     },
 
     /// Block multiple apps from the internet entirely

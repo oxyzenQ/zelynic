@@ -28,6 +28,8 @@ pub(crate) fn handle_strict_single(
     force_this: bool,
     no_probe: bool,
     per_socket: bool,
+    floor: Option<&str>,
+    ceil: Option<&str>,
     during: Option<&str>,
     verbose: bool,
 ) -> Result<()> {
@@ -50,6 +52,16 @@ pub(crate) fn handle_strict_single(
              Example: zelynic strict-single brave 100kb"
         ));
     }
+
+    // improve-40 (schema v24): the guarantee bracket parses and
+    // validates on the same fail-fast rung the rate family owns —
+    // the ladder's own law (a contradictory bracket surfaces its
+    // wording before the root ask, the parse-before-execute
+    // contract; the scope call rides FIRST, before any parsing,
+    // because the --per-socket combination is rejected whatever
+    // the values would have been).
+    let (floor_bps, ceil_bps) =
+        super::guarantee::resolve_guarantee(floor, ceil, &rates, force_this, per_socket)?;
 
     // night-during (schema v23): the window parses on the same
     // fail-fast rung the rate family owns — a typo'd grammar
@@ -106,11 +118,8 @@ pub(crate) fn handle_strict_single(
             &target,
             &rates,
             per_socket,
-            // improve-40 (schema v24): the bracket lands with the
-            // CLI lane — the plumbing pass threads zeroes so this
-            // commit stays behavior-neutral.
-            0,
-            0,
+            floor_bps,
+            ceil_bps,
             during_spec.as_ref(),
         )?;
         if applied == 0 {
@@ -209,12 +218,18 @@ pub(crate) fn handle_strict_single(
 }
 
 #[cfg(feature = "ebpf")]
+// improve-40 (schema v24): the bracket pair joins the multi's
+// payload — the same too-many-arguments posture the single's own
+// handler carries one lane over.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn handle_strict_multi(
     targets_str: &str,
     rate: Option<&str>,
     download: Option<&str>,
     upload: Option<&str>,
     force_this: bool,
+    floor: Option<&str>,
+    ceil: Option<&str>,
     during: Option<&str>,
     verbose: bool,
 ) -> Result<()> {
@@ -231,6 +246,12 @@ pub(crate) fn handle_strict_multi(
              Example: zelynic strict-multi brave:curl 1mb"
         ));
     }
+
+    // improve-40 (schema v24): the bracket joins the multi's
+    // parse-first ladder — one flag, every member row carries it
+    // (the group's own contract, the --during shape).
+    let (floor_bps, ceil_bps) =
+        super::guarantee::resolve_guarantee(floor, ceil, &rates, force_this, false)?;
 
     // night-during (schema v23): the same parse-first ladder, the
     // multi's own rung placement (after the rate family, before the
@@ -289,15 +310,8 @@ pub(crate) fn handle_strict_multi(
     // exact trap for scripted fleet automation, which now sees the
     // transaction fail whole or land whole. night-during (schema
     // v23): the window rides the same atomic contract.
-    let applied = limiter.apply_group_atomic(
-        &targets,
-        &rates,
-        // improve-40 (schema v24): the CLI lane's zeroes, the
-        // plumbing pass's behavior-neutral shape.
-        0,
-        0,
-        during_spec.as_ref(),
-    )?;
+    let applied =
+        limiter.apply_group_atomic(&targets, &rates, floor_bps, ceil_bps, during_spec.as_ref())?;
     if applied == 0 {
         // NIGHT-dinner-11: the no-match hard error (strict-single's
         // contract, the multi's plural wording).
@@ -348,6 +362,8 @@ mod tests {
             false,
             false,
             None,
+            None,
+            None,
             false,
         )
         .expect_err("typo'd rate must fail");
@@ -380,6 +396,8 @@ mod tests {
             false,
             false,
             None,
+            None,
+            None,
             false,
         )
         .expect_err("dangerous target must be refused");
@@ -410,6 +428,8 @@ mod tests {
             false,
             false,
             false,
+            None,
+            None,
             None,
             false,
         )

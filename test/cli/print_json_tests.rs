@@ -129,6 +129,8 @@ fn enforcement_verbs_do_not_honor_the_flag() {
         force_this: false,
         no_probe: false,
         per_socket: false,
+        floor: None,
+        ceil: None,
         during: None,
     };
     assert!(
