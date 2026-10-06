@@ -24,6 +24,29 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Added
 
+- **docs(audit): NIGHT-improve-47 — the supermassive depth tests
+  for the private-research-4 features, verified feature by feature
+  (docs/audits/NIGHT_IMPROVE_47_SUPERMASSIVE_DEPTH_AUDIT_2026-10-06.md).**
+  The owner's seven-feature list (ECN-first policing, per-socket
+  tier, time-windowed policies, CAKE-style flow isolation in
+  cgroup, snapshot/restore, QUIC-aware mode, guaranteed minimum)
+  audited for DEPTH — not the CLI surface improve-42 pinned, but
+  the behavioral law underneath: every feature mapped to its Rust
+  pin files with the test names read for behavior (the ECN budget
+  law and the goodput verdict against the drop policer, the
+  QUIC conversation lifecycle with every refusal riding the raw
+  cookie, the CAKE flow-shape simulation harness, the DRR
+  guarantee brackets, the snapshot round-trips including the
+  drifted-schema and v23 zero-sentinel documents, the 21+13 time
+  window pins, the per-socket convergence closure), the root-gated
+  live probes verified present (ect-probe, guarantee-probe), and
+  the fresh empirical runs green on this tree: the full battery
+  812+48, the v4 surface 155/155 rootless, the engine self-test.
+  Verdict: all seven features carry real depth — the division of
+  labor coherent (surface in the battery, law in the Rust pins,
+  live kernel in the probes and the VM matrix), no feature resting
+  on its CLI surface alone, no gaps, nothing to add.
+
 - **docs(audit): NIGHT-depthbore-1 — the cosmic dragon engine
   depth audit, the peak verdict re-verified honestly
   (docs/audits/NIGHT_DEPTHBORE_1_COSMIC_DRAGON_ENGINE_AUDIT_2026-10-06.md).**
