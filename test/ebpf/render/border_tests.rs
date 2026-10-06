@@ -64,26 +64,101 @@ fn lerp_mixes_channels_perceptually() {
     }
 }
 
-/// The rail ramp (netrunner): a one-row frame renders the dark
-/// anchor; the middle row of a three-row frame glows the full brand;
-/// the last row recedes back to dark. The dark floor is 42% of the
-/// brand channels.
+/// The rail ramp (netrunner), BOTH engines (NIGHT-improve-41):
+/// the legacy rungs (256 and below) sweep the encoded-channel dark
+/// anchor exactly as they always have — the fallback contract is
+/// byte-for-byte — while TrueColor rides the chroma dragon engine:
+/// the perceptual anchor (42% OKLab L, hue preserved) at the edges,
+/// the full brand at the glow, and the two anchors are DIFFERENT
+/// triples (the domains differ by design: perceived lightness vs
+/// encoded channels).
 #[test]
 fn rail_rgb_sweeps_dark_bright_dark() {
     let brand = Theme::Netrunner.brand_rgb();
+    // The legacy engine: the dark floor is 42% of the brand
+    // channels, the sweep the linear-light lerp — unchanged.
     let shade = |c: u8| (f32::from(c) * 0.42).round() as u8;
     let dark = (shade(brand.0), shade(brand.1), shade(brand.2));
-    assert_eq!(rail_rgb(Theme::Netrunner, 0, 1), dark, "solo row: dark");
-    assert_eq!(rail_rgb(Theme::Netrunner, 0, 3), dark, "top row: dark");
     assert_eq!(
-        rail_rgb(Theme::Netrunner, 1, 3),
+        rail_rgb(Theme::Netrunner, None, 0, 1, ColorCapability::Color256),
+        dark,
+        "solo row: dark"
+    );
+    assert_eq!(
+        rail_rgb(Theme::Netrunner, None, 0, 3, ColorCapability::Color256),
+        dark,
+        "top row: dark"
+    );
+    assert_eq!(
+        rail_rgb(Theme::Netrunner, None, 1, 3, ColorCapability::Color256),
         brand,
         "middle row: the full brand"
     );
     assert_eq!(
-        rail_rgb(Theme::Netrunner, 2, 3),
+        rail_rgb(Theme::Netrunner, None, 2, 3, ColorCapability::Color256),
         dark,
         "bottom row: dark again"
+    );
+    // The chroma engine (TrueColor): the same wave shape over the
+    // perceptual anchor — dark at the edges, the brand itself at
+    // the glow (endpoints preserved exactly). The None anchor
+    // (inline derivation) agrees with the pre-derived Some anchor —
+    // the wrap path's hoist is a pure optimization.
+    let chroma_dark = crate::output::chroma::scale_lightness(brand, 0.42);
+    assert_eq!(
+        rail_rgb(Theme::Netrunner, None, 0, 3, ColorCapability::TrueColor),
+        chroma_dark,
+        "inline anchor derivation agrees with the hoisted one"
+    );
+    assert_eq!(
+        rail_rgb(
+            Theme::Netrunner,
+            Some(chroma_dark),
+            0,
+            3,
+            ColorCapability::TrueColor
+        ),
+        chroma_dark,
+        "top row: the perceptual anchor"
+    );
+    assert_eq!(
+        rail_rgb(
+            Theme::Netrunner,
+            Some(chroma_dark),
+            1,
+            3,
+            ColorCapability::TrueColor
+        ),
+        brand,
+        "middle row: the full brand, exact"
+    );
+    assert_eq!(
+        rail_rgb(
+            Theme::Netrunner,
+            Some(chroma_dark),
+            2,
+            3,
+            ColorCapability::TrueColor
+        ),
+        chroma_dark,
+        "bottom row: the perceptual anchor again"
+    );
+    // The two engines' floors differ — the domains are different by
+    // design (the pin that documents the change itself).
+    assert_ne!(
+        chroma_dark, dark,
+        "the chroma anchor is not the legacy anchor"
+    );
+    // The perceptual anchor stays a hue (not mud): at 42% lightness
+    // the sRGB gamut cannot carry the brand's full chroma, so the
+    // gamut mapping holds the hue and keeps at least half the chroma
+    // (the boundary is the honest saturation floor).
+    let (_, ba, bb) = crate::output::chroma::srgb_to_oklab(brand.0, brand.1, brand.2);
+    let (_, ca, cb) =
+        crate::output::chroma::srgb_to_oklab(chroma_dark.0, chroma_dark.1, chroma_dark.2);
+    assert!(
+        (ca * ca + cb * cb).sqrt() / (ba * ba + bb * bb).sqrt() > 0.5,
+        "the anchor keeps the brand's chroma at the gamut boundary: {chroma_dark:?}"
     );
 }
 
