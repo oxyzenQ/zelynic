@@ -43,7 +43,7 @@
 //! pins are userspace: the eBPF object is byte-identical (the
 //! prebuilt lane's tree pin proves it).
 
-use super::drr_ledger_tests::{run_kernel_shape, v17_cfg, verdict_for};
+use super::drr_sim::{run_kernel_shape, v17_cfg, verdict_for};
 use super::ebpf_drr::{pool_share_peak, quantum, PEAK_DECAY_EPOCHS};
 
 /// The policy both shapes run: the many24 trickle-hard rate — the

@@ -239,6 +239,14 @@ pub(super) fn try_flow_draw(
         .map(|p| drr::pool_share_peak(word_read(p)))
         .unwrap_or(0);
     let leaf_budget = drr::flow_leaf_budget(pol.rate_bps, leaf_peak);
+    // improve-40 (schema v24), the stated residue: the leaf-budget
+    // ESTIMATE rides the row's rate, not the guarantee bracket — the
+    // leaf's own tokens bound what the flows can ever draw (they
+    // spend only what the bracket-bounded draws put in), so the
+    // bracket reaches the flows through the leaf bucket's CONTENTS,
+    // never through this divisor; an over-estimate here is a looser
+    // flow split competing for the same real tokens, the estimate
+    // slack the flow laws already absorb (the learned-count class).
     let allowance = drr::flow_allowance(leaf_budget, flow_peak);
 
     // 4. The room: the flow's banked carry, the MAX lane

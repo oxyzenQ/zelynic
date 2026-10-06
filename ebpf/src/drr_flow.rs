@@ -448,10 +448,18 @@ fn try_draw(
     // starved leaf banks several epochs for one fat GRO admit, its
     // TCP heals on the admit, the aggregate floor comes back). The
     // allowance is u64::MAX (a cold pool, a missed lookup, a lone
-    // drawer) exactly when the ledger is off — the map is not
-    // touched on that path.
-    let allowance = drr::epoch_allowance(pol.rate_bps, drawees);
-    let cap = drr::quantum(pol.rate_bps);
+    // drawer on a floor-only row) exactly when the ledger is off —
+    // the map is not touched on that path.
+    //
+    // improve-40 (schema v24): the split is the GUARANTEE LAW's —
+    // the fair split clamped between the row's floor and ceiling
+    // (drr.rs's v24 section), the stockpile the ceiling's own
+    // quantum when a ceiling is set. A 0/0 row is the exact v23
+    // arithmetic by construction, and a set ceiling engages the
+    // ledger even on the lone-drawer lane (a cap that folds when
+    // siblings appear is not a cap).
+    let allowance = drr::guaranteed_allowance(pol.rate_bps, pol.floor_bps, pol.ceil_bps, drawees);
+    let cap = drr::guaranteed_stockpile(pol.rate_bps, pol.ceil_bps);
     let room = ledger_room(ledger_map, ledger_key, now_epoch, allowance, cap);
 
     // Owned the draw: move the take pool -> leaf through the
