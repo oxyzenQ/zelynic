@@ -997,6 +997,54 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Changed
 
+- **ci(supermassive): NIGHT-approved-1 — the owner's approved next
+  candidates, both landed: the micro-VM earns REAL EGRESS (the
+  architectural call), and the weekly clock the workflow's header
+  has promised since the kernel-span era finally carries its
+  trigger.** The egress half: qemu's user-mode networking (SLIRP —
+  guest 10.0.2.15/24, gateway 10.0.2.2, DNS 10.0.2.3, static, no
+  bridge, the runner's own egress NAT'd behind it) attaches a
+  virtio-net device to every leg. The bus layer (virtio,
+  virtio_pci) is built into every kernel the VM boots (verified
+  against the deb configs); the 5.13 floor's virtio_net is a
+  module (=m), so each kernel resolver step now stages the
+  driver pair from the kernel's OWN linux-modules deb (the
+  vermagic matches the vmlinuz the same step extracted, by
+  construction — the bpftool lane's per-kernel-ABI discipline
+  applied to modules, config-driven so the modern heads' built-in
+  driver (=y, verified against the archive's current latest)
+  stages nothing), the rootfs assembly copies the 160 KB pair
+  into the cpio and adds kmod to its apt line, and the init's
+  egress block insmods (tolerating the built-in heads), brings
+  up eth0 with the static SLIRP shape, points resolv.conf at
+  10.0.2.3, and judges the outcome as its own MASS-RESULT row —
+  eth0 up, routed, resolvable, or the leg reddens (the
+  legacy-fetch doctrine: the owner-approved egress contract is
+  not soft). v1's realnet lane then RUNS for the first time in
+  the estate's history instead of self-skipping: its own
+  reachability probe (the Cloudflare/OVH/Tele2 fallback chain)
+  and its honest SKIPs own the endpoint-down days — the lane was
+  designed egress-ready from NIGHT-refactor-2 and simply waited
+  for the VM to carry a NIC; the harness itself changes not at
+  all. The clock half: the schedule trigger lands at the
+  header's own documented slot (Monday 03:00 UTC — 10:00 WIB,
+  the owner's Monday morning; the header had documented the slot
+  since the kernel-span era while the on: block carried no
+  schedule at all), and every run — push, dispatch, and weekly
+  alike — lands a watch-summary step in the run's step summary
+  naming the trigger, the leg, the init's sentinel verdicts, and
+  the FAIL/SKIP inventory where the busy-hour residual lives
+  (the round-1 audit's documented shared-runner limit: band rows
+  reading low on a first attempt, clean on a fresh runner), so
+  the Actions history itself becomes the longitudinal dataset —
+  no in-repo writes, the workflow keeps contents:read. The
+  AMMSP-vs-legacy A/B keeps its determinism by construction (the
+  A/B rides the guest's loopback lane, not the internet). The
+  push of this commit is the live proof by the workflow's own
+  contract (the hunt-34 rule: a workflow that changes itself owes
+  itself a run) — the egress row, the realnet rows running, and
+  the scheduled first sample at the next Monday 03:00 UTC.
+
 - **fix(monitor): NIGHT-mitigate-1 + NIGHT-improve-51 — the
   data-explosion endurance audit: the 1-trillion-packet and
   10-year-uptime questions answered with arithmetic, and the two

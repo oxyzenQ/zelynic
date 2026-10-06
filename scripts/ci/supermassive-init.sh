@@ -66,10 +66,12 @@
 # from the harness the owner runs locally. NIGHT-hunt-35 adds the
 # three root rig suites (reload, crash recovery, race condition)
 # under the same rule — the local sudo battery and the CI battery
-# are one battery now. The realnet lane
-# self-skips (no network in the micro-VM — loopback only, the
-# documented SKIP row), so the loopback matrix carries the limiter
-# proof on the floor kernel.
+# are one battery now. Since NIGHT-approved-1 the micro-VM carries
+# REAL EGRESS (qemu user-mode networking — the owner's
+# architectural call), so v1's realnet lane RUNS: its own
+# reachability probe and its honest SKIPs own the endpoint-down
+# days, and the loopback matrix keeps carrying the limiter proof
+# on the floor kernel beside it.
 #
 # PID-1 rules (the kernel-floor lessons, kept): no systemd here —
 # this script owns every mount; it must NEVER exit without ending
@@ -140,8 +142,8 @@ fi
 # Everything the batteries need (PID 1 owns them all): tmpfs scratch
 # (the engines' work dirs AND the /run/zelynic lock), cgroup v2 (the
 # limiter's cgroup mkdirs need no controllers), bpffs (the pin
-# surface), devpts (the v2 pty batteries), loopback (the v1 traffic
-# lane — the realnet lane self-skips, the documented row).
+# surface), devpts (the v2 pty batteries), loopback (the v1 loopback
+# traffic lane — the realnet lane rides the egress block below).
 if mount -t tmpfs tmp /tmp &&
 	mount -t tmpfs run /run &&
 	mkdir -p /sys/fs/cgroup /sys/fs/bpf /dev/pts &&
@@ -152,6 +154,39 @@ if mount -t tmpfs tmp /tmp &&
 	note "kernel surfaces (proc, sysfs, devtmpfs, cgroup2, bpffs, devpts, loopback)" PASS
 else
 	note "kernel surfaces" FAIL
+fi
+
+# ── the realnet lane's egress (NIGHT-approved-1, the owner's ──────
+# architectural call) ────────────────────────────────────────────
+# qemu's user-mode networking (SLIRP) attaches a virtio-net NIC
+# with a deterministic static shape: guest 10.0.2.15/24, gateway
+# 10.0.2.2, DNS 10.0.2.3 — no DHCP, no bridge, the runner's own
+# egress NAT'd behind it. The bus layer (virtio, virtio_pci) is
+# built into every kernel this guest boots; the 5.13 floor's
+# virtio_net is a MODULE, staged by the rootfs assembly from the
+# kernel's own modules deb (vermagic exact by construction — the
+# two insmods below tolerate the built-in heads, where no files
+# exist and eth0 is born attached). The bring-up is outcome-judged:
+# eth0 exists, is up, carries the default route, and the resolver
+# points at SLIRP's DNS — everything past this row (the endpoint
+# chain, the bands, the honest SKIPs) belongs to v1's own
+# reachability probe, which waited for exactly this day.
+KVER=$(uname -r)
+NETDIR="/lib/modules/$KVER/kernel/drivers/net"
+if [ -f "$NETDIR/net_failover.ko" ]; then
+	insmod "$NETDIR/net_failover.ko" 2>/dev/null || true
+fi
+if [ -f "$NETDIR/virtio_net.ko" ]; then
+	insmod "$NETDIR/virtio_net.ko" 2>/dev/null || true
+fi
+if [ -e /sys/class/net/eth0 ] &&
+	ip link set eth0 up &&
+	ip addr add 10.0.2.15/24 dev eth0 &&
+	ip route add default via 10.0.2.2 &&
+	printf 'nameserver 10.0.2.3\n' >/etc/resolv.conf; then
+	note "egress (SLIRP user-net, virtio-net 10.0.2.15 via 10.0.2.2)" PASS
+else
+	note "egress (virtio-net eth0 bring-up)" FAIL
 fi
 
 # ── the lean prelude: the binary runs, the bpf syscall answers ───────
@@ -220,8 +255,9 @@ fi
 # PATH + TERM=dumb, the dense 64-cgroup fleet censused and policed
 # by one strict-multi write, daemonized traffic, concurrent report
 # readers) gating the desktop matrix — every policy shape on the
-# loopback lane (the realnet lane self-skips without an endpoint),
-# the rate ladder, reload, sustain — attach, policy writes, MEASURED
+# loopback lane (the realnet lane rides the egress block above,
+# honest SKIPs on the endpoint-down days), the rate ladder, reload,
+# sustain — attach, policy writes, MEASURED
 # rates, accounting. A green row here is the "holds everywhere it
 # claims" verdict, server shape included, on the leg's kernel,
 # inside the profile's derived resource envelope.
@@ -283,7 +319,7 @@ fi
 # resolve-only contract (container targets ride the same strict-
 # single machinery), and the docker E2E lane (self-skips when no
 # daemon — the CI micro-VM ships no docker, the same shape v1's
-# realnet lane self-skips without an endpoint). A green row here is
+# realnet lane self-skips when every endpoint is down). A green row here is
 # the "names a workload by its container and enforces on the cgroup
 # the name resolves to, clean on every error path" verdict. The
 # rootless stages (help + privilege gate) run on every host; the
