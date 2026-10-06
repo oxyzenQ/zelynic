@@ -30,6 +30,7 @@ use clap::CommandFactory;
 use std::ffi::OsString;
 
 use super::argv::drop_dishonest_escape_hatch;
+use super::rescue::{flag_vocabulary_rescue, rescue_shadowed_suggestion, top_level_flag_rescue};
 use super::suggestion::closest_long_flag_ci;
 use crate::cli::Cli;
 
@@ -207,74 +208,6 @@ fn drop_hidden_subcommand_suggestions(e: &mut clap::Error, cmd: &clap::builder::
         );
     }
 }
-
-/// Top-level-authority flags (NIGHT-boost-12, generalizing the
-/// NIGHT-improve-3 help rescue): names whose subcommand-position or
-/// `--`-escaped appearance must tip the TOP-LEVEL spelling instead of
-/// the fuzzy rescue.
-///
-/// The `-V` incident that generalized this table: the fuzzy rescue
-/// scored jaro_ci("V", "verbose") = 0.714 — one matching char against
-/// a 7-char candidate clears the 0.7 bar — and "version" tied at
-/// 0.714, declaration order breaking the tie toward `--verbose`. A
-/// lone `V` is intent-ambiguous to the fuzzy engine; this table is not.
-///
-/// `--check-update` rides the same contract: the fuzzy rescue would
-/// suggest the very flag the user typed (a no-op tip), and the update
-/// check is deliberately top-level-only.
-const TOP_LEVEL_FLAG_RESCUES: &[(&str, &str)] = &[
-    ("help", "zelynic --help"),
-    ("h", "zelynic --help"),
-    ("version", "zelynic -V"),
-    ("V", "zelynic -V"),
-    ("check-update", "zelynic --check-update"),
-    ("check-updated", "zelynic --check-update"),
-];
-
-/// The top-level spelling a typed flag name must be redirected to,
-/// or `None` when it is not a top-level authority.
-fn top_level_flag_rescue(typed: &str) -> Option<&'static str> {
-    TOP_LEVEL_FLAG_RESCUES
-        .iter()
-        .find(|(name, _)| *name == typed)
-        .map(|(_, authority)| *authority)
-}
-
-/// Cross-tool flag vocabulary (NIGHT-boost-13): spellings users bring
-/// from other CLIs, mapped to the zelynic flag that answers them —
-/// intent-clear names whose jaro distance to the real flag sits far
-/// under the 0.7 fuzzy bar, which would otherwise leave a tip-less
-/// dead end (`--json` scores 0.394 against `--print-json`). These
-/// rescues run after the top-level authority table and before the
-/// fuzzy fallback; like every rescue that injects a suggestion they
-/// drop the native trailing escape-hatch tip first (one tip, the
-/// right one).
-///
-/// `allow-dangerous` (NIGHT-improve-30): the retired spelling, redirected to the unified `--force-this`.
-///
-/// `info` (NIGHT-blade-4): the retired eagle-eyes `--depth` alias —
-/// one spelling, `--depth` (the single-spelling contract the
-/// subcommand surface carries). The rescue lands the old muscle
-/// memory on the flag that answers it: jaro_ci("info", "depth") is
-/// 0.0 and every other live flag sits under the 0.7 bar (interval
-/// 0.583, print-json 0.567), so without the table the old spelling
-/// died tip-less (the allow-dangerous contract, one tip, the right
-/// one).
-const FLAG_VOCABULARY_RESCUES: &[(&str, &str)] = &[
-    ("json", "--print-json"),
-    ("allow-dangerous", "--force-this"),
-    ("info", "--depth"),
-];
-
-/// The zelynic flag a typed name answers to by cross-tool vocabulary,
-/// or `None` when it is not in the table.
-fn flag_vocabulary_rescue(typed: &str) -> Option<&'static str> {
-    FLAG_VOCABULARY_RESCUES
-        .iter()
-        .find(|(name, _)| *name == typed)
-        .map(|(_, flag)| *flag)
-}
-
 /// Case-insensitive flag-suggestion fallback for clap UnknownArgument
 /// errors.
 ///
@@ -315,6 +248,13 @@ fn enrich_unknown_arg_suggestion(e: &mut clap::Error, cmd: &clap::builder::Comma
         return;
     }
     if e.get(ContextKind::SuggestedArg).is_some() {
+        // clap fired its own tip — usually the last word, but the
+        // shadowed-suggestion rescue (NIGHT-improve-42) gets one
+        // look first: clap's suggestion pool at a SUBCOMMAND
+        // position carries that subcommand's flags only (the
+        // root-level flags never join it), so a fresh subcommand
+        // flag can shadow a much closer root-flag typo.
+        rescue_shadowed_suggestion(e, cmd);
         return;
     }
     // The typed flag lives in the InvalidArg context ("--VERBOS");
@@ -466,6 +406,14 @@ mod usage_tests;
 #[cfg(test)]
 #[path = "../../test/cli/hidden_vocab_tests.rs"]
 mod hidden_vocab_tests;
+
+// NIGHT-improve-42: the flag-rescue family's pins (the sibling
+// rescue.rs module's tables and matchers, driven through this
+// module's own render_via_bridge harness — the bridge is the only
+// honest way to pin a suggestion: what matters is the rendered tip).
+#[cfg(test)]
+#[path = "../../test/cli/rescue_tests.rs"]
+mod rescue_tests;
 
 /// Render an error exactly the way [`exit_clap_error`] does (minus
 /// the process::exit), so render-level contracts are testable.

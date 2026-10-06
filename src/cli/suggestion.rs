@@ -77,7 +77,12 @@ pub(crate) fn closest_value_match(input: &str, candidates: &[&str]) -> Option<St
 /// in `cli::ux::enrich_unknown_arg_suggestion` safe: it only fires
 /// where clap was silent, and can never suggest a flag clap itself
 /// would have rejected for the same lowercase input.
-fn jaro_ci(a: &str, b: &str) -> f64 {
+///
+/// NIGHT-improve-42: `pub(crate)` — the shadowed-suggestion rescue
+/// (`cli::ux::rescue_shadowed_suggestion`) scores BOTH candidate
+/// pools with this one metric so its comparison is apples-to-apples
+/// (clap's own engine scores with Jaro-Winkler, a different scale).
+pub(crate) fn jaro_ci(a: &str, b: &str) -> f64 {
     let lower = |s: &str| -> Vec<char> { s.chars().flat_map(char::to_lowercase).collect() };
     let a = lower(a);
     let b = lower(b);

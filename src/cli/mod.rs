@@ -4,6 +4,12 @@
 use clap::{Parser, Subcommand};
 
 pub(crate) mod argv;
+// NIGHT-improve-42: the flag-rescue family, split from ux.rs at the
+// 500-line cap — the tables and matchers that decide WHAT to suggest
+// (top-level authorities, cross-tool vocabulary, the
+// shadowed-suggestion rescue); ux.rs owns the enrichment chain and
+// the rendering.
+pub(crate) mod rescue;
 pub(crate) mod styles;
 pub(crate) mod suggestion;
 pub(crate) mod tips;

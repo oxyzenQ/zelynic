@@ -48,7 +48,7 @@ rows SKIP without executing on v3's privilege-gate doctrine ("the gate
 cannot be triggered as root") and for the safety it shares with every
 other v4 case: a valid rate past a passing gate is an enforcement
 attempt, and no v4 case executes a policy. The rootless CI leg
-(.github/workflows/ci.yml) still runs all 121 rows end to end on
+(.github/workflows/ci.yml) still runs all 155 rows end to end on
 every push that touches the Rust/scripts surface (ci.yml is
 paths-filtered — NIGHT-hunt-32 corrected the unqualified "every
 push"); the garbage/typo shadow rows run under every uid because
@@ -102,6 +102,32 @@ Design:
     is the contract: a rate error that lies about its category
     (e.g., "below minimum" for a format error) is worse than a
     wording drift.
+
+  * NIGHT-improve-42, the private-research-4 depth audit — the
+    owner's seven-feature list, each feature pinned at the surface it
+    actually owns (the same division-of-labor doctrine that split v1
+    through v4): the TIME-WINDOWED policies (--during, schema v23)
+    get their own grammar ladder (the valid units and bounds parse to
+    the gate across every enforcement verb; the removed window/date
+    shapes, the unknown unit, and the out-of-bounds durations refuse
+    by category); the GUARANTEED MINIMUM (--floor/--ceil brackets,
+    schema v24) gets the law ladder (the one-spelling law, the
+    floor<=ceil<=rate contradictions, the removed-direction law, the
+    per-direction split's own grammar); the PER-SOCKET TIER gets its
+    valid-parse row (the flag is strict-single's own — the family
+    verbs' refusal is pinned too); and the SNAPSHOT/RESTORE pair
+    joins the command surface (recognized verbs with their own
+    privilege wording — the persistence pair's CLI shape). The three
+    automatic lanes — ECN-FIRST POLICING (v19/v21), CAKE-STYLE FLOW
+    ISOLATION (v20), QUIC-AWARE ATTRIBUTION (v22) — have NO CLI
+    surface by design (kernel-side, no flag, no opt-out), so this
+    battery has nothing to own for them: their depth lives where it
+    already is — the Rust pin suites (ecn_tests, ecn_socket_tests,
+    the cake family, quic_tests), the root-gated live probes
+    (scripts/bench/ect-probe.sh, guarantee-probe.sh), and v1's VM
+    matrix. The audit is the contract: every feature the owner
+    listed is either pinned below or named here with the home its
+    depth already has.
 
 Usage:
   ./scripts/supermassive/supermassive-test-v4.sh               # full CLI depth (rootless)
@@ -186,6 +212,46 @@ COMMANDS = [
     ("doctor", None),
 ]
 
+# NIGHT-improve-42: the persistence pair — private-research-4's
+# snapshot/restore verbs. They take NO required args (a bare
+# invocation IS the full invocation), so the COMMANDS shape above
+# (the missing-arg complaint) does not fit: the recognized proof is
+# the verb's OWN privilege refusal, which names the sudo ladder and
+# the state file — never "unrecognized subcommand". The bare verbs
+# are rootless-lane rows (as root they would WRITE the state file /
+# RE-APPLY its policies — a mutation this battery refuses to make,
+# the Z9 doctrine); the extra-positional row is a parse-boundary
+# refusal and holds under every uid.
+# Post as (argv, must_contain, must_not_contain, description,
+# rootless_lane) — the shared needle-case shape. The verb's own name
+# rides the needles: the refusal names the verb it refuses
+# ("snapshot writes the policy state file ... run with sudo"), so an
+# "unrecognized subcommand" answer fails as a missing needle — the
+# same recognized proof the COMMANDS rows carry.
+PRIVILEGED_VERBS = [
+    (
+        ["snapshot"],
+        ["sudo", "snapshot"],
+        [],
+        "snapshot recognized - its own privilege refusal",
+        True,
+    ),
+    (
+        ["restore"],
+        ["sudo", "restore"],
+        [],
+        "restore recognized - its own privilege refusal",
+        True,
+    ),
+    (
+        ["snapshot", "extra"],
+        ["unexpected argument"],
+        [],
+        "snapshot takes no positionals (the parse refusal, every uid)",
+        False,
+    ),
+]
+
 # Every global flag the help names. Each must answer clean when driven
 # through the binary rootlessly (info surfaces exit 0; refusals exit
 # non-zero). The flag's PRESENCE is the contract — a flag the help
@@ -243,6 +309,12 @@ TYPOS = [
     ("--focs", "--focus", ["ee", "brave"]),
     ("--dowload", "--download", ["ss", "brave", "1mb"]),
     ("--uploed", "--upload", ["ss", "brave", "1mb"]),
+    # NIGHT-improve-42: the private-research-4 flags the ladder did
+    # not know — the time window and the guarantee brackets (the
+    # typos the owner's own fingers will make on the new grammar).
+    ("--durign", "--during", ["ss", "brave", "1mb"]),
+    ("--flor", "--floor", ["ss", "brave", "1mb"]),
+    ("--cel", "--ceil", ["ss", "brave", "1mb"]),
 ]
 
 # Every rate-explode shape, categorized by the error the parser owns for
@@ -461,6 +533,275 @@ LONG_ALIASES = [
     ("unstrict-single", "unstrict"),
 ]
 
+# ── NIGHT-improve-42: the private-research-4 depth tables ──────────────────
+#
+# The owner's seven-feature audit, pinned at the CLI surface each
+# feature actually owns (the header's division-of-labor note carries
+# the full map). All three tables share the needle-case shape:
+# (argv, must_contain, must_not_contain, description, rootless_lane)
+# — the rootless-lane rows' verdict rides the root-refusal message
+# itself, so they run and assert on every NON-root host and skip
+# without executing when the harness is root (the supermassive VM's
+# init context; the Z9 doctrine — a valid policy shape past a
+# passing gate is an enforcement attempt this battery refuses to
+# make). The parse-boundary rows hold under every uid.
+
+# The unified --during grammar (schema v23, the duration-only
+# revision): every valid unit and both bounds parse to the gate
+# across every enforcement verb (the strict family AND the block
+# family — a bedtime block that lifts itself); every wrong shape
+# refuses by CATEGORY — the grammar refusal names the unit list,
+# the bounds refusals name their own floors and ceilings, and the
+# removed window/date shapes are refused BY NAME (the owner's
+# revision wording, the shapes the flag no longer takes).
+DURING_CASES = [
+    # The valid grammar — parse passes, the privilege gate answers.
+    (
+        ["ss", "brave", "1mb", "--during", "1s"],
+        ["root required"],
+        [],
+        "min bound 1s parses",
+        True,
+    ),
+    (
+        ["ss", "brave", "1mb", "--during", "10y"],
+        ["root required"],
+        [],
+        "max bound 10y parses",
+        True,
+    ),
+    (
+        ["ss", "brave", "1mb", "--during", "2mn"],
+        ["root required"],
+        [],
+        "the mn unit parses (months - m is minutes)",
+        True,
+    ),
+    (
+        ["ss", "brave", "1mb", "--during", "48h"],
+        ["root required"],
+        [],
+        "the hour shape parses",
+        True,
+    ),
+    (
+        ["sm", "brave:curl", "1mb", "--during", "2h"],
+        ["root required"],
+        [],
+        "strict-multi rides the window",
+        True,
+    ),
+    (
+        ["sa", "1mb", "--during", "2h"],
+        ["root required"],
+        [],
+        "strict-all rides the window",
+        True,
+    ),
+    (
+        ["bs", "brave", "--during", "2h"],
+        ["root required"],
+        [],
+        "the block family rides it (a bedtime block that lifts itself)",
+        True,
+    ),
+    (
+        ["ba", "--during", "2h"],
+        ["root required"],
+        [],
+        "block-all rides the window",
+        True,
+    ),
+    # The refusal ladder — parse-boundary refusals, every uid.
+    (
+        ["ss", "brave", "1mb", "--during", "5x"],
+        ["unit 'x' is not in the grammar"],
+        [],
+        "unknown unit names the grammar",
+        False,
+    ),
+    (
+        ["ss", "brave", "1mb", "--during", "0.5s"],
+        ["not in the grammar"],
+        [],
+        "fractional refused (integer N only)",
+        False,
+    ),
+    (
+        ["ss", "brave", "1mb", "--during", "0s"],
+        ["floor is 1s"],
+        [],
+        "below-min names the floor",
+        False,
+    ),
+    (
+        ["ss", "brave", "1mb", "--during", "11y"],
+        ["ceiling is 10y"],
+        [],
+        "above-max names the ceiling",
+        False,
+    ),
+    (
+        ["ss", "brave", "1mb", "--during", "09:00-17:00"],
+        ["window form"],
+        [],
+        "the removed window shape refused by name",
+        False,
+    ),
+    (
+        ["ss", "brave", "1mb", "--during", "2026-10-15"],
+        ["date form"],
+        [],
+        "the removed date shape refused by name",
+        False,
+    ),
+]
+
+# The guarantee brackets (--floor/--ceil, schema v24, and the
+# improve-40-b per-direction twins): the valid shapes parse to the
+# gate (including the legal mixed spelling — a both-directions floor
+# beside per-direction ceilings, the resolver's own composition
+# law); every law violation refuses by its OWN wording — the
+# one-spelling law (a combined flag beside its per-direction twin is
+# a mis-typed rate, not a wider guarantee), the floor<=ceil<=rate
+# ladder (a guarantee above the cap is a contradiction; a bracket
+# above the rate never binds), the removed-direction law (a bracket
+# for a row the invocation does not set is a mistake, not an
+# intent), and the rate ask (a bracket without any rate answers the
+# rate question first).
+GUARANTEE_CASES = [
+    # The valid shapes — parse passes, the privilege gate answers.
+    (
+        ["ss", "brave", "1mb", "--floor", "100kb"],
+        ["root required"],
+        [],
+        "the floor parses",
+        True,
+    ),
+    (
+        ["ss", "brave", "1mb", "--ceil", "500kb"],
+        ["root required"],
+        [],
+        "the ceiling parses",
+        True,
+    ),
+    (
+        [
+            "ss",
+            "brave",
+            "-d",
+            "1mb",
+            "-u",
+            "500kb",
+            "--floor-download",
+            "100kb",
+            "--floor-upload",
+            "50kb",
+        ],
+        ["root required"],
+        [],
+        "the per-direction split parses",
+        True,
+    ),
+    (
+        [
+            "ss",
+            "brave",
+            "1mb",
+            "--floor",
+            "100kb",
+            "--ceil-download",
+            "150kb",
+            "--ceil-upload",
+            "300kb",
+        ],
+        ["root required"],
+        [],
+        "both-directions floor composes with per-direction ceils",
+        True,
+    ),
+    # The law ladder — parse-boundary refusals, every uid.
+    (
+        ["ss", "brave", "1mb", "--floor", "100kb", "--floor-download", "50kb"],
+        ["one spelling"],
+        [],
+        "the floor's one-spelling law",
+        False,
+    ),
+    (
+        ["ss", "brave", "1mb", "--ceil", "100kb", "--ceil-upload", "50kb"],
+        ["one spelling"],
+        [],
+        "the ceiling twin's one-spelling law",
+        False,
+    ),
+    (
+        ["ss", "brave", "1mb", "--floor", "200kb", "--ceil", "100kb"],
+        ["exceeds ceil"],
+        [],
+        "floor above ceil is a contradiction",
+        False,
+    ),
+    (
+        ["ss", "brave", "1mb", "--ceil", "2mb"],
+        ["exceeds the download rate"],
+        [],
+        "ceil above rate never binds",
+        False,
+    ),
+    (
+        ["ss", "brave", "1mb", "--floor", "2mb"],
+        ["exceeds the download rate"],
+        [],
+        "floor above rate never binds",
+        False,
+    ),
+    (
+        ["ss", "brave", "-d", "1mb", "--floor-upload", "100kb"],
+        ["police the upload row"],
+        [],
+        "the removed-direction law (no -u, no upload row)",
+        False,
+    ),
+    (
+        ["ss", "brave", "--floor-download", "100kb"],
+        ["No rate specified"],
+        [],
+        "the rate ask comes first",
+        False,
+    ),
+]
+
+# The per-socket tier's flag surface: --per-socket is
+# strict-single's own (a per-connection cap on the ONE-app verb —
+# the server shape: one process, many sockets), so the valid parse
+# rides strict-single and the family verb's refusal is the parse
+# boundary, not the gate. --no-probe rides the same verb with the
+# same lane (the scripted-use probe skip).
+TIER_FLAGS = [
+    (
+        ["ss", "brave", "1mb", "--per-socket"],
+        ["root required"],
+        [],
+        "the per-socket tier's flag parses to the gate",
+        True,
+    ),
+    (
+        ["ss", "brave", "1mb", "--no-probe"],
+        ["root required"],
+        [],
+        "the scripted-use probe skip parses to the gate",
+        True,
+    ),
+    (
+        ["sm", "brave:curl", "1mb", "--per-socket"],
+        ["unexpected argument"],
+        ["root required"],
+        "the group verb refuses the per-socket flag at parse",
+        False,
+    ),
+]
+
 
 # ── the binary runner ──────────────────────────────────────────────────────
 
@@ -506,6 +847,56 @@ def _is_root():
     are unreachable there.
     """
     return hasattr(os, "geteuid") and os.geteuid() == 0
+
+
+def _run_needle_cases(cases, prefix):
+    """Run (argv, must_contain, must_not_contain, desc, rootless_lane)
+    rows — the shared shape of the NIGHT-improve-42 depth tables (and
+    the Z9 shadow rows' own contract, factored here when it grew a
+    second consumer): every row must ANSWER (never hang), carry no
+    Rust panic, contain every must_contain needle, and leak none of
+    the must_not_contain needles. The rootless-lane rows assert the
+    root-refusal message itself — a needle only a NON-root host
+    produces — so when the harness runs as root they SKIP without
+    executing (the Z9 doctrine: a valid policy shape past a passing
+    gate is an enforcement attempt this battery refuses to make; the
+    rootless CI leg carries them on every push).
+    """
+    all_ok = True
+    for argv, must_contain, must_not_contain, desc, rootless_lane in cases:
+        label = f"{prefix}: {desc}"
+        if rootless_lane and _is_root():
+            record(
+                label,
+                "SKIP",
+                "harness runs as root — the root-refusal lane cannot trigger "
+                "(the rootless CI leg carries this row)",
+            )
+            continue
+        rc, output = _run_cli_case(argv)
+        if rc is None:
+            record(label, "FAIL", "timed out (hang)")
+            all_ok = False
+            continue
+        if _case_panicked(output):
+            record(label, "FAIL", "panic leaked")
+            all_ok = False
+            continue
+        if rc == 0 and must_contain:
+            # A refusal row that exits 0 accepted what it should have
+            # refused — worse than a missing needle (an rc-0 answer
+            # with needles set means the shape EXECUTED, not refused).
+            record(label, "FAIL", f"accepted (rc=0) what should refuse")
+            all_ok = False
+            continue
+        missing = [n for n in must_contain if n not in output]
+        leaked = [n for n in must_not_contain if n in output]
+        if missing or leaked:
+            record(label, "FAIL", f"missing={missing} unexpected={leaked}")
+            all_ok = False
+            continue
+        record(label, "PASS", f"rc={rc}, contract intact")
+    return all_ok
 
 
 # ── stage 1: command surface (every command + alias recognized) ──────────
@@ -558,6 +949,12 @@ def test_command_surface():
                 all_ok = False
                 continue
             record(label_a, "PASS", f"rc={rc_a}, routed, no panic")
+    # NIGHT-improve-42: the persistence pair joins the command surface
+    # — snapshot/restore carry no required args, so their recognized
+    # proof is their own privilege refusal (the needles name the verb
+    # AND the sudo ladder; an "unrecognized subcommand" answer fails
+    # as a missing needle, the same contract the rows above carry).
+    all_ok = _run_needle_cases(PRIVILEGED_VERBS, "verb") and all_ok
     return all_ok
 
 
@@ -1059,6 +1456,63 @@ def test_echo_boundary():
     return all_ok
 
 
+# ── stage 10: the --during ladder (NIGHT-improve-42) ─────────────────────
+
+
+def test_during_ladder():
+    """The unified --during grammar, end to end (schema v23).
+
+    Every valid unit and both bounds parse to the gate across every
+    enforcement verb (the strict family AND the block family — the
+    bedtime block that lifts itself); every wrong shape refuses by
+    CATEGORY: the grammar refusal names the unit list, the bounds
+    refusals name their own floors and ceilings, and the removed
+    window/date shapes are refused BY NAME (the duration-only
+    revision's own wording). The valid rows are rootless-lane (the
+    root-refusal needle; as root they would be enforcement attempts
+    and skip); the refusal rows hold under every uid.
+    """
+    out()
+    out("── stage 10: --during ladder (the time-window grammar) ──")
+    return _run_needle_cases(DURING_CASES, "during")
+
+
+# ── stage 11: the guarantee bracket ladder (NIGHT-improve-42) ─────────────
+
+
+def test_guarantee_ladder():
+    """The --floor/--ceil bracket laws, end to end (schema v24).
+
+    The valid shapes parse to the gate — including the legal mixed
+    spelling (a both-directions floor beside per-direction ceilings,
+    the resolver's own composition law). Every law violation refuses
+    by its OWN wording: the one-spelling law, the floor<=ceil<=rate
+    ladder, the removed-direction law, and the rate ask. The valid
+    rows are rootless-lane; the law rows hold under every uid.
+    """
+    out()
+    out("── stage 11: guarantee brackets (the floor/ceil laws) ──")
+    return _run_needle_cases(GUARANTEE_CASES, "guarantee")
+
+
+# ── stage 12: the tier flags (NIGHT-improve-42) ──────────────────────────
+
+
+def test_tier_flags():
+    """The per-socket tier's flag surface.
+
+    --per-socket is strict-single's own (the server shape: one
+    process, many sockets, each connection its own budget) — the
+    valid parse rides the one verb that owns it, and the group
+    verb's refusal is the parse boundary (a per-connection cap on a
+    group verb is a different feature, not a wider one). --no-probe
+    rides the same verb with the same lane.
+    """
+    out()
+    out("── stage 12: tier flags (--per-socket / --no-probe) ──")
+    return _run_needle_cases(TIER_FLAGS, "tier")
+
+
 # ── the engine self-test (rootless, no binary) ─────────────────────────────
 
 
@@ -1081,6 +1535,10 @@ def self_test():
         and ok
     )
     _lanes = sum(1 for c in SHADOWED_POSITIONAL_CASES if c[-1])
+    _during_lanes = sum(1 for c in DURING_CASES if c[-1])
+    _guarantee_lanes = sum(1 for c in GUARANTEE_CASES if c[-1])
+    _tier_lanes = sum(1 for c in TIER_FLAGS if c[-1])
+    _verb_lanes = sum(1 for c in PRIVILEGED_VERBS if c[-1])
     ok = (
         record(
             "engine: v4 case tables populated",
@@ -1096,13 +1554,25 @@ def self_test():
             and len(SHADOWED_POSITIONAL_CASES) > 0
             and 0 < _lanes < len(SHADOWED_POSITIONAL_CASES)
             and len(HIDDEN_LEAK_CASES) > 0
+            and len(DURING_CASES) > 0
+            and 0 < _during_lanes < len(DURING_CASES)
+            and len(GUARANTEE_CASES) > 0
+            and 0 < _guarantee_lanes < len(GUARANTEE_CASES)
+            and len(TIER_FLAGS) > 0
+            and 0 < _tier_lanes < len(TIER_FLAGS)
+            and len(PRIVILEGED_VERBS) > 0
+            and 0 < _verb_lanes < len(PRIVILEGED_VERBS)
             else "FAIL",
             f"{len(COMMANDS)} commands, {len(COLOR_MODES_VALID)}+{len(COLOR_MODES_INVALID)} color modes, "
             f"{len(TYPOS)} typos, {len(RATE_CASES)} rate cases, {len(REMOVED)} removed, "
             f"{len(LONG_ALIASES)} long aliases, "
             f"{len(ECHO_PAYLOADS)}x{len(ECHO_PATHS)} echo payloads/paths, "
             f"{len(SHADOWED_POSITIONAL_CASES)} shadow cases ({_lanes} rootless-lane), "
-            f"{len(HIDDEN_LEAK_CASES)} vocab cases",
+            f"{len(HIDDEN_LEAK_CASES)} vocab cases, "
+            f"{len(DURING_CASES)} during cases ({_during_lanes} rootless-lane), "
+            f"{len(GUARANTEE_CASES)} guarantee cases ({_guarantee_lanes} rootless-lane), "
+            f"{len(TIER_FLAGS)} tier cases ({_tier_lanes} rootless-lane), "
+            f"{len(PRIVILEGED_VERBS)} privileged verbs ({_verb_lanes} rootless-lane)",
         )
         and ok
     )
@@ -1126,6 +1596,9 @@ def run_cli_depth(phases):
         "rates": test_rate_explode,
         "removed": test_removed_retired,
         "hidden": test_hidden_surface,
+        "during": test_during_ladder,
+        "guarantee": test_guarantee_ladder,
+        "tier-flags": test_tier_flags,
         "z9": test_echo_boundary,
     }
     if phases:

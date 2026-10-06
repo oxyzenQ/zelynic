@@ -12,6 +12,14 @@
 # engine for the same reasons as v1, v2, and v3: subprocess control
 # and precise timeout discipline are things bash cannot do well.
 #
+# NIGHT-improve-42 adds the private-research-4 depth stages: the
+# --during grammar ladder, the --floor/--ceil guarantee laws, the
+# per-socket tier flags, and the snapshot/restore privileged verbs —
+# the owner's seven-feature audit pinned at the CLI surface each
+# feature owns (the three automatic lanes — ECN-first, CAKE flow
+# isolation, QUIC-aware — have no CLI surface; their depth lives in
+# the Rust pins, the live probes, and v1's VM matrix).
+#
 # Usage:
 #   ./scripts/supermassive/supermassive-test-v4.sh               # full CLI depth (rootless)
 #   ./scripts/supermassive/supermassive-test-v4.sh --self-test   # engine smoke, no binary
@@ -28,7 +36,7 @@
 # as root (the supermassive VM's init context), they SKIP without
 # executing (v3's doctrine; and a valid rate past a passing gate is
 # an enforcement attempt no v4 case makes). The rootless CI leg
-# still carries all 121 rows on every push that touches the
+# still carries all 155 rows on every push that touches the
 # Rust/scripts surface (ci.yml is paths-filtered — NIGHT-hunt-32
 # corrected the unqualified "every push").
 #
