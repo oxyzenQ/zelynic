@@ -202,15 +202,15 @@ pub enum Commands {
         #[arg(long = "per-socket")]
         per_socket: bool,
 
-        /// Auto-expire or schedule this row (night-during, schema
-        /// v23): `--during 09:00-17:00` (UTC daily window, wraps
-        /// midnight), `--during 2026-10-15` (the whole UTC day),
-        /// or `--during 2h` (duration; units s, m, h, d, mn, y;
-        /// bounds 1s..10y)
+        /// Auto-expire this row (night-during, schema v23; the
+        /// owner's duration-only revision): `--during 2h` — a
+        /// duration from the apply instant (units s, m, h, d, mn,
+        /// y; bounds 1s..10y). After the duration the row lifts
+        /// itself.
         ///
         /// The KERNEL decides when the window is over — no daemon,
         /// no cron; every zelynic visit re-stamps the clock bridge.
-        #[arg(long = "during", value_name = "WINDOW")]
+        #[arg(long = "during", value_name = "DURATION")]
         during: Option<String>,
 
         /// Per-LEAF guaranteed minimum (improve-40, schema v24):
@@ -270,11 +270,11 @@ pub enum Commands {
         #[arg(long = "force-this")]
         force_this: bool,
 
-        /// Auto-expire or schedule this row (night-during, schema
-        /// v23): a UTC daily window (`09:00-17:00`), a whole UTC
-        /// day (`2026-10-15`), or a duration (`2h`; s m h d mn y,
-        /// 1s..10y) — the kernel expires it, no daemon.
-        #[arg(long = "during", value_name = "WINDOW")]
+        /// Auto-expire this row (night-during, schema v23; the
+        /// owner's duration-only revision): a duration from the
+        /// apply instant (`2h`; s m h d mn y, 1s..10y) — the
+        /// kernel expires it, no daemon.
+        #[arg(long = "during", value_name = "DURATION")]
         during: Option<String>,
 
         /// Per-LEAF guaranteed minimum, shared across the group's
@@ -338,11 +338,11 @@ pub enum Commands {
         #[arg(long = "force-this")]
         force_this: bool,
 
-        /// Auto-expire or schedule every row this apply writes
-        /// (night-during, schema v23): a UTC daily window
-        /// (`09:00-17:00`), a whole UTC day (`2026-10-15`), or a
-        /// duration (`2h`; s m h d mn y, 1s..10y).
-        #[arg(long = "during", value_name = "WINDOW")]
+        /// Auto-expire every row this apply writes (night-during,
+        /// schema v23; the owner's duration-only revision): a
+        /// duration from the apply instant (`2h`; s m h d mn y,
+        /// 1s..10y).
+        #[arg(long = "during", value_name = "DURATION")]
         during: Option<String>,
 
         /// Per-LEAF guaranteed minimum, shared across the group's
@@ -380,11 +380,11 @@ pub enum Commands {
         #[arg(long = "force-this")]
         force_this: bool,
 
-        /// Auto-expire or schedule the block (night-during, schema
-        /// v23): a UTC daily window (`22:00-06:00` is the bedtime
-        /// shape), a whole UTC day, or a duration (s m h d mn y,
-        /// 1s..10y) — the block lifts itself, no daemon.
-        #[arg(long = "during", value_name = "WINDOW")]
+        /// Auto-expire the block (night-during, schema v23; the
+        /// owner's duration-only revision): a duration from the
+        /// apply instant (s m h d mn y, 1s..10y) — the block
+        /// lifts itself, no daemon.
+        #[arg(long = "during", value_name = "DURATION")]
         during: Option<String>,
     },
 
@@ -399,10 +399,10 @@ pub enum Commands {
         #[arg(long = "force-this")]
         force_this: bool,
 
-        /// Auto-expire or schedule every block this apply writes
-        /// (night-during, schema v23): a UTC daily window, a whole
-        /// UTC day, or a duration (s m h d mn y, 1s..10y).
-        #[arg(long = "during", value_name = "WINDOW")]
+        /// Auto-expire every block this apply writes (night-during,
+        /// schema v23; the owner's duration-only revision): a
+        /// duration from the apply instant (s m h d mn y, 1s..10y).
+        #[arg(long = "during", value_name = "DURATION")]
         during: Option<String>,
     },
 
@@ -419,11 +419,11 @@ pub enum Commands {
         #[arg(long = "force-this")]
         force_this: bool,
 
-        /// Auto-expire or schedule the block (night-during, schema
-        /// v23): a UTC daily window (`22:00-06:00` is the bedtime
-        /// shape), a whole UTC day, or a duration (s m h d mn y,
-        /// 1s..10y) — the block lifts itself, no daemon.
-        #[arg(long = "during", value_name = "WINDOW")]
+        /// Auto-expire the block (night-during, schema v23; the
+        /// owner's duration-only revision): a duration from the
+        /// apply instant (s m h d mn y, 1s..10y) — the block
+        /// lifts itself, no daemon.
+        #[arg(long = "during", value_name = "DURATION")]
         during: Option<String>,
     },
 

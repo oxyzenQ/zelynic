@@ -113,7 +113,7 @@ or `zelynic ee brave --interval 1s`.
 ### strict-single / strict — limit one app
 
 ```bash
-sudo zelynic strict-single <target> [rate] [-d <rate>] [-u <rate>] [--per-socket] [--floor <rate>] [--ceil <rate>] [--during <window>]
+sudo zelynic strict-single <target> [rate] [-d <rate>] [-u <rate>] [--per-socket] [--floor <rate>] [--ceil <rate>] [--during <duration>]
 sudo zelynic strict brave 100kb        # shorthand form
 ```
 
@@ -576,11 +576,12 @@ it after starting new apps.
 
 ### block-single / block-multi / block-all
 
-Every block verb takes `--during` (night-during, schema v23): a
-blocked row with a window lifts itself — `bs shorts --during
-22:00-06:00` is the bedtime shape (the block polices its night
-hours and stands down for the day, no daemon, no cron; the same
-three grammar shapes the strict family takes).
+Every block verb takes `--during` (night-during, schema v23;
+the owner's duration-only revision): a blocked row with a window
+lifts itself — `bs shorts --during 8h` blocks for eight hours
+and stands down when they are over (no daemon, no cron; the same
+one-shape grammar the strict family takes: `<N><unit>`, units
+s m h d mn y, bounds 1s..10y).
 
 ```bash
 sudo zelynic block-single brave
@@ -1903,13 +1904,15 @@ JSON; scripts that want to run their own detector read this field.
 
 `window` (night-during, schema v23) joins a limit row when the
 policy carries a `--during` window — the additive-field rule the
-`rate_ring` join set: `kind` ("span" or "daily"), `state` (the
-status vocabulary: "active", "dormant", "outside", "expired"), a
-span's `start_wall_ns` / `end_wall_ns` (WALL-clock ns since epoch
-— never the monotonic deadlines the map carries, which reset with
-the boot and mean nothing to a script), and a daily window's
-`start_s` / `end_s` (seconds-of-day UTC, wrapping midnight when
-start > end). Rows without a window carry no field at all:
+`rate_ring` join set: `kind` ("span" or "daily" — the daily
+kind rides only rows an older build wrote; the grammar is
+duration-only now), `state` (the status vocabulary: "active",
+"dormant", "outside", "expired"), a span's `start_wall_ns` /
+`end_wall_ns` (WALL-clock ns since epoch — never the monotonic
+deadlines the map carries, which reset with the boot and mean
+nothing to a script), and a daily window's `start_s` / `end_s`
+(seconds-of-day UTC, wrapping midnight when start > end). Rows
+without a window carry no field at all:
 
 ```json
 {"cgroup_id":18571,"label":"brave","download_bps":100000,"window":{"kind":"span","state":"active","start_wall_ns":1791288000000000000,"end_wall_ns":1791291600000000000}}
