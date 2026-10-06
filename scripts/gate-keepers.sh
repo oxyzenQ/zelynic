@@ -36,8 +36,9 @@
 #   8.  Emoji sweep (owner rule — no emoji-class codepoints in ANY
 #       tracked text file; cosmostrix fail blocks, strict detector,
 #       exit 1 on hits)
-#   9.  Rust source LOC cap (owner rule — scripts/gates/check-loc.sh, hard
-#       limit 500 lines; // LOC_EXEMPT: marker = tracked migration debt)
+#   9.  Rust source LOC cap (owner rule — scripts/gates/check-loc.sh,
+#       NIGHT-improve-44: hard limit 600 lines, tree-wide by file type,
+#       no exemptions — over the cap means split, no mercy)
 #       + src/ root single-file policy (NIGHT-blade-15: only main.rs at
 #       src/ root, every other module in a subsystem dir/mod.rs)
 #  10.  Rust toolchain version sync (scripts/gates/check-rust-version-sync.sh —
@@ -69,7 +70,7 @@
 #       scripts/gates/check-scripts-loc.sh, hard limit 1000 lines
 #       for every .sh/.py under scripts/; # LOC_EXEMPT: marker =
 #       tracked migration debt — the scripts twin of section 9's
-#       500-line Rust cap, doubled because a one-shot harness
+#       600-line Rust cap, wider because a one-shot harness
 #       legitimately bundles constants + stage table + verdict
 #       plumbing, but no script grows unbounded)
 #  17.  Release parity (NIGHT-lts-9 —
@@ -534,7 +535,7 @@ else
 	warn "python3 not installed — skipping"
 fi
 
-# ── 9. Rust Source LOC Cap (owner rule: 500) ────────────────────────────────
+# ── 9. Rust Source LOC Cap (owner rule: 600, NIGHT-improve-44) ──────────────
 # Hard limit from docs/RULES.md "Source file size cap". A file over the
 # cap passes ONLY with a self-declared `// LOC_EXEMPT:` marker plus a
 # one-line justification (tracked migration debt, not silent rot).
@@ -547,7 +548,7 @@ if [ -f scripts/gates/check-loc.sh ]; then
 		info "LOC cap + src root layout: all Rust files within policy"
 		PASS=$((PASS + 1))
 	else
-		fail "LOC cap: file(s) over 500 lines without an exemption marker (split them or add // LOC_EXEMPT:)"
+		fail "LOC cap: file(s) over 600 lines — the no-mercy era: split them (NIGHT-improve-44)"
 	fi
 else
 	warn "check-loc.sh not found — skipping"

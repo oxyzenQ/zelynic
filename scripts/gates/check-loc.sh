@@ -5,53 +5,35 @@
 #
 # ZELYNIC RUST SOURCE FILE LOC CHECK
 #
-# Ensures all Rust source files stay under the hard LOC cap.
-# Owner rule: the cap is 500 lines (see docs/RULES.md "Source file size
-# cap" and src/RULES.md for the full policy).
+# Ensures every Rust source file in the tree stays under the hard LOC
+# cap. Owner rule (NIGHT-improve-44, the no-mercy era): the cap is
+# 600 lines, it applies to EVERY tracked *.rs file ANYWHERE in the
+# tree — the checker autodetects the file type and walks the whole
+# git index, not a hand-listed directory set (src/ and test/ and
+# build.rs were the 500-era scope; the 600-era scope is the tree:
+# ebpf/src/**, build/**, and any future .rs home are covered the day
+# they land). NO file is exempt: the // LOC_EXEMPT: marker that the
+# 500-era honored as tracked debt is retired for Rust — over the cap
+# means SPLIT, the same hour, no marker, no mercy (the owner's
+# wording), with precision kept (the split is a pure move, gates
+# green in between).
 #
 # NIGHT-blade-15 additionally enforces the src/ root single-file
 # policy here (the cosmostrix Single-File Policy convention):
 # src/ root holds exactly ONE .rs file, main.rs. Every other module
-# lives in its subsystem directory as dir/mod.rs. The policy was
-# prose-only until the layout drifted exactly this way once
-# (src/term_reset.rs at the root) — convention alone did not hold,
-# so the size gate now guards the layout too. Same scope, same walk,
-# one more invariant.
-#
-# Exemption mechanism: NO hardcoded file list. Instead, each file that
-# legitimately exceeds 500 LOC self-declares with a marker comment:
-#
-#   // LOC_EXEMPT: <one-line justification>
-#
-# The script dynamically scans every .rs file under src/ AND test/
-# (both recursive — NIGHT-docs-4: the test tree grew past the cap and
-# belongs under the same discipline as src/) PLUS build.rs. Since
-# NIGHT-hunt-17 the whole test tree lives under test/ (cosmostrix
-# Pattern C: one test tree, autotests = false). For any
-# file over the limit, it greps for the marker. If found -> exempt
-# (tracked migration debt). If not -> FAIL.
-#
-# Benefits:
-# - No hardcoded paths in this script (they drift out of sync).
-# - The exemption lives WITH the file it exempts.
-# - Removing an exemption = delete the marker comment (no script edit).
-# - The justification is visible at the top of the exempt file.
+# lives in its subsystem directory as dir/mod.rs. Same scope, same
+# walk, one more invariant.
 #
 # Usage: scripts/gates/check-loc.sh [MAX_LINES]
-#   MAX_LINES: override the default limit (default: 500)
+#   MAX_LINES: override the default limit (default: 600)
 #
-# Platform: UNIX-only (uses `find`, `wc -l`, `grep`). Not for Windows cmd.exe.
+# Platform: UNIX-only (uses `git`, `wc -l`). Not for Windows cmd.exe.
 
 set -euo pipefail
 
-MAX_LINES="${1:-500}"
+MAX_LINES="${1:-600}"
 FAILED=0
 FOUND=0
-EXEMPT_VIOLATIONS=0
-
-# Marker that a file uses to self-declare an LOC exemption.
-# Must be followed by a justification (one line, free-form text).
-EXEMPT_MARKER='// LOC_EXEMPT:'
 
 # ── src/ root single-file policy (NIGHT-blade-15) ──────────────────────────
 # Checked FIRST: a stray root module is a layout failure, not a size
@@ -72,18 +54,20 @@ if [ -n "$ROOT_STRAYS" ]; then
 	exit 1
 fi
 
-echo "Rust source file line counts (max ${MAX_LINES}):"
+echo "Rust source file line counts, tree-wide by type (max ${MAX_LINES}):"
 echo ""
 
-# Dynamically collect all .rs files under src/ AND test/ (both
-# recursive, NIGHT-docs-4) plus build.rs. No hardcoding.
-FILES=$( (
-	find src test -name '*.rs' 2>/dev/null
-	{ [ -f build.rs ] && echo build.rs; } || true
-) | sort)
+# NIGHT-improve-44: autodetect by FILE TYPE, not by directory. Every
+# git-tracked *.rs file anywhere in the repo (plus untracked-but-
+# present, respecting .gitignore, so a new over-cap file fails BEFORE
+# the commit — the pre-commit proxy parity discipline
+# check-headers.sh set). Cargo build dirs are excluded by .gitignore
+# already; the guard below is defensive.
+FILES=$(git ls-files --cached --others --exclude-standard -- '*.rs' 2>/dev/null |
+	grep -v -E '^(target|ebpf/target)/' | sort)
 
 if [ -z "$FILES" ]; then
-	echo "No .rs files found under src/, test/ (or build.rs)"
+	echo "No .rs files found in the tree"
 	exit 0
 fi
 
@@ -92,41 +76,25 @@ while IFS= read -r f; do
 	LINES=$(wc -l <"$f")
 	printf "  %5d  %s\n" "$LINES" "$f"
 	if [ "$LINES" -gt "$MAX_LINES" ]; then
-		# Dynamically check if the file self-declares an exemption
-		# via the marker comment (no hardcoded list lookup).
-		if grep -qF "$EXEMPT_MARKER" "$f"; then
-			EXEMPT_VIOLATIONS=$((EXEMPT_VIOLATIONS + 1))
-		else
-			FAILED=$((FAILED + 1))
-			echo "    ^^^ VIOLATES ${MAX_LINES} limit (no // LOC_EXEMPT: marker found)"
-			echo "           Either refactor below ${MAX_LINES}, or add a marker comment:"
-			echo "               // LOC_EXEMPT: <one-line justification>"
-		fi
+		FAILED=$((FAILED + 1))
+		echo "    ^^^ VIOLATES ${MAX_LINES} limit (NIGHT-improve-44: no marker,"
+		echo "           no mercy — over the cap means SPLIT, precision kept)"
 	fi
 	FOUND=$((FOUND + 1))
 done <<<"$FILES"
 
 echo ""
 echo "Total files: ${FOUND}"
-echo "Files over ${MAX_LINES} (exempt via // LOC_EXEMPT: marker): ${EXEMPT_VIOLATIONS}"
-echo "Files over ${MAX_LINES} (NOT exempt — BUILD FAIL): ${FAILED}"
+echo "Files over ${MAX_LINES}: ${FAILED} (the 600-era law: zero allowed)"
 
 if [ "$FAILED" -gt 0 ]; then
 	echo ""
-	echo "FAIL: ${FAILED} file(s) exceed ${MAX_LINES} lines without a"
-	echo "// LOC_EXEMPT: marker. Either refactor them below ${MAX_LINES}, or"
-	echo "add the marker with a justification:"
-	echo "    // LOC_EXEMPT: <reason this file cannot be split>"
+	echo "FAIL: ${FAILED} file(s) exceed ${MAX_LINES} lines."
+	echo "The NIGHT-improve-44 rule: no exemptions, no markers — split the"
+	echo "file into modules (a pure move, gates green in between)."
 	exit 1
 fi
 
-if [ "$EXEMPT_VIOLATIONS" -gt 0 ]; then
-	echo ""
-	echo "OK (with migration debt): ${EXEMPT_VIOLATIONS} file(s) exceed ${MAX_LINES}"
-	echo "but self-declare exemption via // LOC_EXEMPT: marker."
-	echo "Refactor incrementally — see docs/RULES.md 'Source file size cap'."
-	exit 0
-fi
-
-echo "OK: all files at or below ${MAX_LINES} lines (no exemptions needed)"
+echo ""
+echo "OK: all ${FOUND} .rs files are within the ${MAX_LINES}-line cap."
 exit 0

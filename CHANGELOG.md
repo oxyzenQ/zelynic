@@ -712,6 +712,35 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Changed
 
+- **feat(gate): NIGHT-improve-44 task d — the LOC law flipped: the
+  Rust cap is 600, tree-wide by file type, no exemptions, no
+  markers, no mercy; the scripts cap stays 1000 with the policy's
+  remedy named — over 1K should split into modules.**
+  check-loc.sh autodetects the file type and walks the whole git
+  index (git-tracked plus untracked-but-present, so a new over-cap
+  file fails before the commit): every *.rs file anywhere — src/,
+  test/, ebpf/src/, build.rs + build/*.rs, and any future home —
+  against the 600 hard cap. The // LOC_EXEMPT: marker is retired
+  for Rust: over the cap means split, the same hour, precision
+  kept. The era's proof is the task series itself — the eight
+  over-600 files (build.rs 1,475; limiter.rs 1,323; drr.rs 1,014;
+  cli/mod.rs 723; quic.rs 694; math.rs 671; commands/mod.rs 622;
+  drr_flow.rs 606) all split under this same improve-44, and the
+  tree now counts 238 .rs files with zero over the cap; the four
+  transitional markers (build.rs, surface.rs, render.rs,
+  help_pins.rs — every one under 600 after the splits) are
+  deleted, not grandfathered. check-policy.py narrows the same
+  way: the rust-marker arm is gone, the hash-marker arm stays for
+  the scripts' tracked debt. The scripts gate (check-scripts-loc.sh)
+  keeps the 1000 cap and now leads with the split-into-modules
+  policy — the six python batteries' markers are honest IOUs
+  (13.3k LOC of verification infrastructure; each split is its own
+  NIGHT task with its own micro-commit cycle, the RULES.md law
+  unchanged). docs/RULES.md and src/RULES.md carry the new law;
+  the historical "past the 500-LOC cap" prose in the older split
+  notes stays verbatim (those splits happened in the 500 era —
+  history, not law).
+
 - **refactor: NIGHT-improve-44 task c — the eBPF five under the 600
   cap: limiter.rs (1,323) carved into the schema ledger, the
   enforcement helpers, and the try_enforce verdict path; drr.rs

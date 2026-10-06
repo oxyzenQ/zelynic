@@ -1,6 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
 // SPDX-License-Identifier: GPL-3.0-only
-// LOC_EXEMPT: the render engine is one cohesive module by design — the title bar, label truncation, rate/uptime formatters, and their width-contract pins share the display_width budget and the brand wrappers; splitting fragments the engine across files that all re-import the same output-layer primitives (NIGHT-improve-36's narrow-width contract pin pushed the cohesive unit over the 500 cap)
 
 //! Responsive render engine for the eagle-eyes monitor
 //! (NIGHT-hunt-7; NIGHT-boost-1 merged the former observe/top pair

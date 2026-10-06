@@ -1,20 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
 // SPDX-License-Identifier: GPL-3.0-only
-// LOC_EXEMPT: the 600-line era lands with improve-44's checker flip
-// (this same task series); the orchestration spine sits at 589 under
-// that cap — the improve-31 plan's own "main + build_ebpf_objects +
-// run_nested + formatters" spine, now that validate, flags, preflight,
-// and vcs each live in their own module.
-//
-// NIGHT-improve-44 executes (and retires) the NIGHT-improve-31 split
-// plan this header used to carry: the ELF validators, the RUSTFLAGS
-// surgery, the toolchain preflight, and the commit-sha chain live in
-// build/validate.rs, build/flags.rs, build/preflight.rs, and
-// build/vcs.rs — #[path]-included modules, zero build-dependencies,
-// the same supply chain. What stays here is the orchestration spine:
-// main(), the ebpf-feature object build (build_ebpf_objects, the
-// registry prebuilt staging, the nested build driver, the damaged-
-// artifact self-heal), and the build-time formatters.
 
 fn main() {
     // Re-run build.rs whenever git HEAD changes so GIT_HASH stays fresh.
