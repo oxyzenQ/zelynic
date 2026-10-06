@@ -265,6 +265,11 @@ impl BracketPair {
         floor_bps: 0,
         ceil_bps: 0,
     };
+
+    /// True when neither side is set (the zero-sentinel row).
+    pub fn is_unset(&self) -> bool {
+        self.floor_bps == 0 && self.ceil_bps == 0
+    }
 }
 
 /// The per-direction guarantee bracket (improve-40-b): one pair per
@@ -282,22 +287,6 @@ pub struct BracketSpec {
 }
 
 impl BracketSpec {
-    /// The one-flag law's constructor: one floor/ceil pair carried
-    /// by BOTH directions' rows (the `--during` shape, the
-    /// positional rate's own posture).
-    pub const fn both(floor_bps: u64, ceil_bps: u64) -> BracketSpec {
-        BracketSpec {
-            download: BracketPair {
-                floor_bps,
-                ceil_bps,
-            },
-            upload: BracketPair {
-                floor_bps,
-                ceil_bps,
-            },
-        }
-    }
-
     /// The all-unset bracket — the block family's permanent unset
     /// (a rate-0 row never carries a bracket).
     pub const UNSET: BracketSpec = BracketSpec {

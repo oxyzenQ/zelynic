@@ -14,7 +14,7 @@
 use super::display::{DisplayData, STATUS_HEADERS};
 use crate::ebpf::identity::IdentityMap;
 use crate::ebpf::limiter::format_bytes;
-use crate::ebpf::limiter::types::{PolicyWindowRaw, WINDOW_KIND_SPAN};
+use crate::ebpf::limiter::types::{BracketPair, PolicyWindowRaw, WINDOW_KIND_SPAN};
 use crate::ebpf::limiter::{format_rate_exact, format_wall_utc, wall_minus_mono, window_state};
 use crate::output::{brand, grey, ok, warn};
 
@@ -223,26 +223,49 @@ pub(crate) fn window_lifetime_line(win: &PolicyWindowRaw, wall_now: u64, mono_no
     }
 }
 
-/// One row's guarantee line (pure, improve-40, schema v24): grey,
-/// the window lifetime line's own subordinate family — the bracket
-/// is per-subprocess config under the row it belongs to, "per
-/// subprocess" naming the unit the numbers police (the DRR leaves,
-/// not the cgroup total the rate cells carry). Rendered only when a
-/// side is set; the exact-twin law renders each number.
-pub(crate) fn guarantee_line(floor_bps: u64, ceil_bps: u64) -> Option<String> {
-    if floor_bps == 0 && ceil_bps == 0 {
+/// One row's guarantee line (pure, improve-40, schema v24;
+/// improve-40-b the per-direction shape): grey, the window lifetime
+/// line's own subordinate family — the bracket is per-subprocess
+/// config under the row it belongs to, "per subprocess" naming the
+/// unit the numbers police (the DRR leaves, not the cgroup total
+/// the rate cells carry). Rendered only when a side is set; the
+/// exact-twin law renders each number. Equal pairs render the
+/// one-flag shape unchanged; a SPLIT renders direction-prefixed
+/// halves (the asymmetric link's own line, only the set halves
+/// named — an unset direction is honestly absent, never a
+/// fabricated zero).
+pub(crate) fn guarantee_line(download: BracketPair, upload: BracketPair) -> Option<String> {
+    if download.is_unset() && upload.is_unset() {
         return None;
     }
-    let floor_half = if floor_bps != 0 {
-        format!("floor {} ", format_rate_exact(floor_bps))
+    if download == upload {
+        let joined = pair_halves(download);
+        return Some(grey(&format!("    guarantee: {joined} (per subprocess)")));
+    }
+    // The split shape: each direction's half carries its own prefix,
+    // only the directions that carry a side at all.
+    let halves = [("dl", download), ("ul", upload)]
+        .into_iter()
+        .filter(|(_, pair)| !pair.is_unset())
+        .map(|(label, pair)| format!("{label} {}", pair_halves(pair)))
+        .collect::<Vec<_>>()
+        .join(" / ");
+    Some(grey(&format!("    guarantee: {halves} (per subprocess)")))
+}
+
+/// One pair's "floor X ceil Y" halves, the set sides only — the
+/// exact-twin law's own joiner, shared by the equal and split
+/// shapes above.
+fn pair_halves(pair: BracketPair) -> String {
+    let floor_half = if pair.floor_bps != 0 {
+        format!("floor {} ", format_rate_exact(pair.floor_bps))
     } else {
         String::new()
     };
-    let ceil_half = if ceil_bps != 0 {
-        format!("ceil {}", format_rate_exact(ceil_bps))
+    let ceil_half = if pair.ceil_bps != 0 {
+        format!("ceil {}", format_rate_exact(pair.ceil_bps))
     } else {
         String::new()
     };
-    let joined = format!("{floor_half}{ceil_half}").trim().to_string();
-    Some(grey(&format!("    guarantee: {joined} (per subprocess)")))
+    format!("{floor_half}{ceil_half}").trim().to_string()
 }
