@@ -367,7 +367,10 @@
 ///     headers — rides the RAW COOKIE, exactly the pre-v22 verdict:
 ///     the feature refines attribution, never degrades it, and the
 ///     flow of residues a QUIC middlebox cannot close (CID rotation
-///     mid-flight, the >8-byte prefix share, the v6 /48 hint seed)
+///     mid-flight, the >8-byte prefix share, the v6 /48 hint seed,
+///     the GSO/GRO super-packet's whole-length attribution to its
+///     first segment's connection — one skb is one verdict at a
+///     cgroup hook, still finer than the cookie lane it refined)
 ///     is stated in the core's module docs and pinned by the tests.
 ///     No existing struct layout changes; new maps, new key VALUES
 ///     on two internal lanes; the bump forces pinned v21 programs to
