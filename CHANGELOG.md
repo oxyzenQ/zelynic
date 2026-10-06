@@ -24,6 +24,38 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Added
 
+- **docs(audit): NIGHT-depthbore-1 — the cosmic dragon engine
+  depth audit, the peak verdict re-verified honestly
+  (docs/audits/NIGHT_DEPTHBORE_1_COSMIC_DRAGON_ENGINE_AUDIT_2026-10-06.md).**
+  The mandate: read the render-engine lineage the architecture doc
+  names — the diff engine (terminal/diff.rs), its raw-fd twin
+  (raw.rs), the chroma dragon engine (output/chroma.rs, the
+  improve-41 OKLab polar port), and the render layer it drives
+  (ebpf/render.rs, the improve-44 fourteen-module split) — and
+  report whether the dragon already sits at peak stable ultra-LTS.
+  The walk: full line reads with every documented contract checked
+  against its implementation (shadow diff, idle fast path, one
+  write per frame, the byte-exact crossover, the tall regime, sink
+  death, blade-16 allocation stability, the gamut-mapping
+  hardening over the cosmostrix source), a risk-pattern sweep
+  over the whole engine family (zero unwrap/expect/panic, zero
+  TODO/FIXME/HACK, the nine unsafe blocks all narrow documented
+  syscall FFI), and fresh empirical gates on the clean tree: the
+  full battery 812+48 / 0 failed, clippy clean under CI's own
+  RUSTFLAGS="-D warnings" contract (the exact lane that caught the
+  improve-44 fixpass round), fmt clean, the flagship binary
+  booting v20.0.0. The walk's only alarm — an apparent `#ust_use]`
+  syntax error at diff.rs:418 — dissolved under byte-level
+  verification: the file carries `#[must_use]` verbatim and the
+  mangling lived in the audit tooling's display path, the same
+  rendering-quirk class the long-horizon-1 audit documented as
+  its `#ap]` ghost; the re-occurrence is evidence the
+  verify-at-byte-level discipline stays load-bearing. Verdict:
+  peak — every contract implemented where its doc says it is,
+  nothing mitigated because nothing needed mitigation, and the
+  honest residuals are the documented toolchain/physics limits,
+  none of them engine-internal.
+
 - **The supermassive v4 depth audit — the private-research-4
   features pinned at the CLI surface they own
   (NIGHT-improve-42, the owner's seven-feature list, 34 new rows,
