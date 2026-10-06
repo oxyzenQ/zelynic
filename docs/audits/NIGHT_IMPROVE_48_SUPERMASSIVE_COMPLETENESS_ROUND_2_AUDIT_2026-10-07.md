@@ -128,6 +128,7 @@ hold: nothing skips that could run, and everything that skips
 says why, where it runs instead, and does not lie about either.
 
 ## 7. The live proof — run 232, all four legs, the closures green
+
 in the VM logs
 
 The closures landed (improve-49 commit f89521e, the rootfs-tools
