@@ -1,16 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
 // SPDX-License-Identifier: GPL-3.0-only
-// LOC_EXEMPT: the 600-line era lands with improve-44's checker flip
-// (this same task series); the Commands enum sits at 578 under that
-// cap, and the enum is one clap surface — the split that moved it
-// here already carved the Cli struct (root.rs) out of the former
-// mod.rs unit.
-//
-// NIGHT-improve-44: the Commands enum lives here since the
-// 600-line cap split — every verb, its flags, and the hidden probe
-// pair are the command surface the Cli struct (root.rs) feeds.
-// Same split discipline as styles.rs and scope.rs: the mod.rs
-// re-export keeps crate::cli::Commands resolving identically.
 
 use clap::Subcommand;
 

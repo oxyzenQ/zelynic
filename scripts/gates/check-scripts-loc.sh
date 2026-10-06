@@ -6,16 +6,19 @@
 # ZELYNIC SCRIPTS FILE LOC CHECK (NIGHT-lts-2)
 #
 # Ensures every script under scripts/ (shell AND python, recursive)
-# stays under the hard LOC cap. Owner rule: the cap is 1000 lines
-# (see docs/RULES.md "File size caps" — the scripts twin of the 500
-# Rust cap owned by check-loc.sh; scripts get the doubled budget
-# because a one-shot harness legitimately bundles its constants,
-# its stage table, and its verdict plumbing in one self-contained
-# file, but NO script gets to grow unbounded).
+# stays under the hard LOC cap. Owner rule (NIGHT-improve-44): the
+# cap is 1000 lines, and a script over the cap SHOULD SPLIT INTO
+# MODULES (the policy's own remedy: a package import graph, one
+# stage family per module — the split is the fix, the marker below
+# is only the honest IOU while it waits; see docs/RULES.md "File
+# size caps" — the scripts twin of the 600 no-mercy Rust cap owned
+# by check-loc.sh; scripts get the wider budget because a one-shot
+# harness legitimately bundles its constants, its stage table, and
+# its verdict plumbing, but NO script grows unbounded).
 #
 # Exemption mechanism: NO hardcoded file list. Instead, each file
-# that legitimately exceeds 1000 LOC self-declares with a marker
-# comment (hash syntax — the sh/py comment convention):
+# that exceeds 1000 LOC and cannot split the same hour self-declares
+# with a marker comment (hash syntax — the sh/py comment convention):
 #
 #   # LOC_EXEMPT: <one-line justification>
 #
@@ -71,8 +74,10 @@ while IFS= read -r f; do
 			echo "    ^^^ over ${MAX_LINES} (exempt via # LOC_EXEMPT: marker — tracked debt)"
 		else
 			FAILED=$((FAILED + 1))
-			echo "    ^^^ VIOLATES ${MAX_LINES} limit (no # LOC_EXEMPT: marker found)"
-			echo "           Either refactor below ${MAX_LINES}, or add a marker comment:"
+			echo "    ^^^ VIOLATES ${MAX_LINES} limit"
+			echo "           The policy: split into modules (a package, one stage"
+			echo "           family per module). If the split is not landing the"
+			echo "           same hour, the marker below is the honest IOU:"
 			echo "               # LOC_EXEMPT: <one-line justification>"
 		fi
 	fi

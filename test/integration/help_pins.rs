@@ -1,6 +1,5 @@
 // Copyright (C) 2026 rezky_nightky
 // SPDX-License-Identifier: GPL-3.0-only
-// LOC_EXEMPT: the help reference pins are one cohesive surface — every command's presence check, the alias family, and the synopsis pins share the KNOWN_COMMANDS contract; the persistence pair's entries pushed the list over the 500 cap
 
 //! --help reference drift pins: the single-tier help surface is the
 //! one reference, and these tests pin its shape — every command

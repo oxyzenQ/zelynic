@@ -38,11 +38,12 @@
 
 ## Source File Size Cap
 
-- Hard cap: **500 lines per `.rs` file** over `src/**` AND `test/**`
-  (recursive) plus `build.rs`; a file that cannot be split declares
-  `// LOC_EXEMPT: <one-line justification>` at the top (tracked
-  migration debt — no hardcoded exemption list, markers live with
-  the file).
+- Hard cap: **600 lines per `.rs` file, tree-wide by type**
+  (NIGHT-improve-44, the no-mercy era): every tracked `*.rs` file
+  anywhere in the repo — `src/**`, `test/**`, `ebpf/src/**`,
+  `build.rs` + `build/*.rs` — checked by file type, not by
+  directory. No exemptions, no markers: a file over the cap is
+  split into modules the same hour (a pure move, precision kept).
 - Tests live under the single top-level `test/` tree (NIGHT-hunt-17,
   cosmostrix Pattern C): unit pins are `#[path]`-wired from the module
   they pin (`test/terminal/diff_tests.rs`), the A/B frame harness from

@@ -13,14 +13,15 @@ MAX_LOC = 1000
 COPYRIGHT = "Copyright (C) 2026 rezky_nightky"
 SPDX = "SPDX-License-Identifier: GPL-3.0-only"
 
-# Self-declared LOC exemption (NIGHT-hunt-29): a file over MAX_LOC
-# passes only when it carries the LOC_EXEMPT marker in its own comment
-# syntax — the same mechanism scripts/gates/check-loc.sh has sanctioned since
-# NIGHT-hunt-27's build.rs grew past its cap (see docs/RULES.md
-# "Source file size cap"). The justification lives with the file it
-# exempts, so this checker and check-loc.sh can never disagree about
-# the same file: both honor the identical marker.
-EXEMPT_MARKERS = ("// LOC_EXEMPT:", "# LOC_EXEMPT:")
+# Self-declared LOC exemption (NIGHT-hunt-29; NIGHT-improve-44 narrowed
+# it): a non-Rust file over MAX_LOC passes only when it carries the
+# hash-syntax LOC_EXEMPT marker — the scripts' tracked-debt mechanism
+# (see docs/RULES.md "File size caps"). Rust files carry NO exemption
+# here: the 600-era no-mercy law retired the rust marker (both this
+# checker and check-loc.sh refuse it now), so the two checkers can
+# never disagree about the same file — the marker families split by
+# syntax: rust none, everything else hash.
+EXEMPT_MARKERS = ("# LOC_EXEMPT:",)
 
 CHECKED_SUFFIXES = {".rs", ".c", ".h", ".css", ".py", ".sh"}
 EXCLUDED_DIRS = {

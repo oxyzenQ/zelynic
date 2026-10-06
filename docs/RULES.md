@@ -32,45 +32,46 @@ gatekeepers job).
 
 ## File Size
 
-### Rust sources (hard cap 500)
+### Rust sources (hard cap 600, no mercy)
 
-- Rust source files must stay under `500` lines (hard cap, owner rule).
-- This applies to every `.rs` file under `src/` AND `test/` (both
-  recursive) plus `build.rs` (NIGHT-docs-4 — the test tree is code
-  too, and it grew past the cap: the old 770-line integration file
-  was split into `test/integration/`, one file per surface).
-  NIGHT-hunt-17 tightened the layout further: every test file lives
-  under the single top-level `test/` tree (cosmostrix Pattern C),
-  Cargo autodiscovery is off (`autotests = false`), and the one
-  integration target is declared explicitly in `Cargo.toml`.
+- Rust source files must stay under `600` lines (hard cap, owner rule —
+  NIGHT-improve-44, the no-mercy era).
+- The scope is EVERY tracked `.rs` file ANYWHERE in the tree: the
+  checker autodetects the file type and walks the whole git index —
+  `src/**`, `test/**`, `ebpf/src/**`, `build.rs` + `build/*.rs`, and
+  any future `.rs` home is covered the day it lands (the 500-era
+  scoped `src/` + `test/` + `build.rs` by hand; the 600-era scope is
+  the tree). Untracked-but-present files are checked too, so a new
+  over-cap file fails before the commit.
 - It excludes `*.md`, `*.txt`, generated files, lockfiles, assets, release
-  artifacts, `.git/`, and `target/`.
+  artifacts, `.git/`, and `target/` (gitignored already).
 - `src/main.rs` has a soft target of `100-300` LOC in a mature project and
   should remain bootstrap/wiring only.
-- A file that legitimately cannot be split self-declares an exemption at
-  the top of the file:
-
-  ```rust
-  // LOC_EXEMPT: <one-line justification>
-  ```
-
-  The marker is tracked migration debt — removing it is deleting the
-  comment, nothing else. There is no hardcoded exemption list in the
-  checker (lists drift out of sync; markers live with the file).
+- NO exemptions: the `// LOC_EXEMPT:` marker the 500-era honored as
+  tracked debt is RETIRED for Rust. A file over the cap is split into
+  modules the same hour — a pure move, precision kept, gates green in
+  between (the eight over-cap files of the 500-era all split under
+  improve-44's own task series: the CLI declaration, the dispatch
+  helpers, build.rs by its own retired improve-31 plan, and the five
+  eBPF cores).
 
 ### Enforcement
 
-`scripts/gates/check-loc.sh` (wired into `scripts/gate-keepers.sh`) scans the
-policy scope, prints every file's count, and fails on any file over the
-cap without an exemption marker.
+`scripts/gates/check-loc.sh` (wired into `scripts/gate-keepers.sh`) walks
+every tracked `.rs` file by type, prints every file's count, and fails on
+any file over the cap. There is no exemption path: the marker is gone.
 
 ### Scripts (hard cap 1000, NIGHT-lts-2)
 
 - Every `.sh` and `.py` file under `scripts/` (recursive) must stay
-  under `1000` lines (hard cap, owner rule). The budget is doubled
-  relative to Rust on purpose: a one-shot harness legitimately
-  bundles its constants, its stage table, and its verdict plumbing
-  in one self-contained file — but no script grows unbounded.
+  under `1000` lines (hard cap, owner rule). The budget is wider
+  than Rust's on purpose: a one-shot harness legitimately bundles
+  its constants, its stage table, and its verdict plumbing in one
+  self-contained file — but no script grows unbounded.
+- The NIGHT-improve-44 policy names the remedy: a script over the
+  cap SHOULD SPLIT INTO MODULES (a package import graph, one stage
+  family per module). The split is the fix; the marker below is
+  only the honest IOU while the split waits.
 - The exemption mechanism is the marker twin of the Rust contract
   (hash syntax — the sh/py comment convention):
 
