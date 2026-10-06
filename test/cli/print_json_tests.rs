@@ -131,6 +131,12 @@ fn enforcement_verbs_do_not_honor_the_flag() {
         per_socket: false,
         floor: None,
         ceil: None,
+        // improve-40-b: the per-direction bracket spellings ride the
+        // same construction surface.
+        floor_download: None,
+        floor_upload: None,
+        ceil_download: None,
+        ceil_upload: None,
         during: None,
     };
     assert!(

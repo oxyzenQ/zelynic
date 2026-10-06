@@ -5,7 +5,7 @@
 
 use anyhow::Result;
 
-use crate::ebpf::limiter::{parse_during, Limiter, RateSpec, Target};
+use crate::ebpf::limiter::{parse_during, BracketSpec, Limiter, RateSpec, Target};
 
 /// Block a single app from the internet.
 /// `during` (night-during, schema v23; the owner's duration-only
@@ -60,10 +60,10 @@ pub fn handle_block_single(
         &rates,
         false,
         // improve-40 (schema v24): a rate-0 row never carries a
-        // bracket — the block family's permanent zero (the
-        // per-socket scope call's own reasoning, one lane over).
-        0,
-        0,
+        // bracket — the block family's permanent unset (the
+        // per-socket scope call's own reasoning, one lane over);
+        // improve-40-b: the unset is the per-direction default.
+        &BracketSpec::UNSET,
         during_spec.as_ref(),
     )?;
     if applied == 0 {
@@ -155,9 +155,9 @@ pub fn handle_block_multi(
         &targets,
         &rates,
         // improve-40 (schema v24): the block family's permanent
-        // zero — a bracket on a rate-0 row is dead weight.
-        0,
-        0,
+        // unset — a bracket on a rate-0 row is dead weight;
+        // improve-40-b: the unset is the per-direction default.
+        &BracketSpec::UNSET,
         during_spec.as_ref(),
     )?;
     if applied == 0 {
@@ -294,9 +294,9 @@ pub fn handle_block_all(force_this: bool, during: Option<&str>, verbose: bool) -
         &targets,
         &rates,
         // improve-40 (schema v24): the block family's permanent
-        // zero — a bracket on a rate-0 row is dead weight.
-        0,
-        0,
+        // unset — a bracket on a rate-0 row is dead weight;
+        // improve-40-b: the unset is the per-direction default.
+        &BracketSpec::UNSET,
         during_spec.as_ref(),
     )?;
 

@@ -214,6 +214,10 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
             per_socket,
             floor,
             ceil,
+            floor_download,
+            floor_upload,
+            ceil_download,
+            ceil_upload,
             during,
         }) => {
             #[cfg(feature = "ebpf")]
@@ -226,8 +230,16 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
                     force_this,
                     no_probe,
                     per_socket,
-                    floor.as_deref(),
-                    ceil.as_deref(),
+                    // improve-40-b: the six bracket flags ride one
+                    // struct (the per-direction spellings included).
+                    guarantee::BracketFlags {
+                        floor: floor.as_deref(),
+                        ceil: ceil.as_deref(),
+                        floor_download: floor_download.as_deref(),
+                        floor_upload: floor_upload.as_deref(),
+                        ceil_download: ceil_download.as_deref(),
+                        ceil_upload: ceil_upload.as_deref(),
+                    },
                     during.as_deref(),
                     cli.verbose,
                 )
@@ -250,6 +262,10 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
                     per_socket,
                     floor,
                     ceil,
+                    floor_download,
+                    floor_upload,
+                    ceil_download,
+                    ceil_upload,
                     during,
                     cli.verbose,
                 );
@@ -265,6 +281,10 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
             force_this,
             floor,
             ceil,
+            floor_download,
+            floor_upload,
+            ceil_download,
+            ceil_upload,
             during,
         }) => {
             #[cfg(feature = "ebpf")]
@@ -275,8 +295,14 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
                     download.as_deref(),
                     upload.as_deref(),
                     force_this,
-                    floor.as_deref(),
-                    ceil.as_deref(),
+                    guarantee::BracketFlags {
+                        floor: floor.as_deref(),
+                        ceil: ceil.as_deref(),
+                        floor_download: floor_download.as_deref(),
+                        floor_upload: floor_upload.as_deref(),
+                        ceil_download: ceil_download.as_deref(),
+                        ceil_upload: ceil_upload.as_deref(),
+                    },
                     during.as_deref(),
                     cli.verbose,
                 )
@@ -291,6 +317,10 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
                     force_this,
                     floor,
                     ceil,
+                    floor_download,
+                    floor_upload,
+                    ceil_download,
+                    ceil_upload,
                     during,
                     cli.verbose,
                 );
@@ -305,6 +335,10 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
             force_this,
             floor,
             ceil,
+            floor_download,
+            floor_upload,
+            ceil_download,
+            ceil_upload,
             during,
         }) => {
             #[cfg(feature = "ebpf")]
@@ -314,8 +348,14 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
                     download.as_deref(),
                     upload.as_deref(),
                     force_this,
-                    floor.as_deref(),
-                    ceil.as_deref(),
+                    guarantee::BracketFlags {
+                        floor: floor.as_deref(),
+                        ceil: ceil.as_deref(),
+                        floor_download: floor_download.as_deref(),
+                        floor_upload: floor_upload.as_deref(),
+                        ceil_download: ceil_download.as_deref(),
+                        ceil_upload: ceil_upload.as_deref(),
+                    },
                     during.as_deref(),
                     cli.verbose,
                 )
@@ -329,6 +369,10 @@ pub(crate) fn dispatch(cli: Cli) -> Result<()> {
                     force_this,
                     floor,
                     ceil,
+                    floor_download,
+                    floor_upload,
+                    ceil_download,
+                    ceil_upload,
                     during,
                     cli.verbose,
                 );

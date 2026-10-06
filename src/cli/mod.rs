@@ -234,6 +234,30 @@ pub enum Commands {
         /// tightens to the ceiling's own quantum.
         #[arg(long = "ceil", value_name = "RATE")]
         ceil: Option<String>,
+
+        /// Per-DOWNLOAD spelling of --floor (improve-40-b, the
+        /// asymmetric link): `--floor-download 100kb` brackets
+        /// only the download row. `--floor` sets both; the two
+        /// spellings refuse together.
+        #[arg(long = "floor-download", value_name = "RATE")]
+        floor_download: Option<String>,
+
+        /// Per-UPLOAD spelling of --floor (improve-40-b):
+        /// `--floor-upload 50kb` brackets only the upload row.
+        #[arg(long = "floor-upload", value_name = "RATE")]
+        floor_upload: Option<String>,
+
+        /// Per-DOWNLOAD spelling of --ceil (improve-40-b, the
+        /// asymmetric link): `--ceil-download 300kb` caps only
+        /// the download row. `--ceil` caps both; the two
+        /// spellings refuse together.
+        #[arg(long = "ceil-download", value_name = "RATE")]
+        ceil_download: Option<String>,
+
+        /// Per-UPLOAD spelling of --ceil (improve-40-b):
+        /// `--ceil-upload 200kb` caps only the upload row.
+        #[arg(long = "ceil-upload", value_name = "RATE")]
+        ceil_upload: Option<String>,
     },
 
     /// Limit multiple apps sharing one rate (group limit)
@@ -297,6 +321,32 @@ pub enum Commands {
         /// tightens to the ceiling's own quantum.
         #[arg(long = "ceil", value_name = "RATE")]
         ceil: Option<String>,
+
+        /// Per-DOWNLOAD spelling of --floor (improve-40-b, the
+        /// asymmetric link): `--floor-download 100kb` brackets
+        /// only the download row, shared across the group. `--floor`
+        /// sets both; the two spellings refuse together.
+        #[arg(long = "floor-download", value_name = "RATE")]
+        floor_download: Option<String>,
+
+        /// Per-UPLOAD spelling of --floor (improve-40-b):
+        /// `--floor-upload 50kb` brackets only the upload row,
+        /// shared across the group.
+        #[arg(long = "floor-upload", value_name = "RATE")]
+        floor_upload: Option<String>,
+
+        /// Per-DOWNLOAD spelling of --ceil (improve-40-b, the
+        /// asymmetric link): `--ceil-download 300kb` caps only the
+        /// download row, shared across the group. `--ceil` caps
+        /// both; the two spellings refuse together.
+        #[arg(long = "ceil-download", value_name = "RATE")]
+        ceil_download: Option<String>,
+
+        /// Per-UPLOAD spelling of --ceil (improve-40-b):
+        /// `--ceil-upload 200kb` caps only the upload row, shared
+        /// across the group.
+        #[arg(long = "ceil-upload", value_name = "RATE")]
+        ceil_upload: Option<String>,
     },
 
     /// Limit ALL user apps from list-apps
@@ -365,6 +415,32 @@ pub enum Commands {
         /// tightens to the ceiling's own quantum.
         #[arg(long = "ceil", value_name = "RATE")]
         ceil: Option<String>,
+
+        /// Per-DOWNLOAD spelling of --floor (improve-40-b, the
+        /// asymmetric link): `--floor-download 100kb` brackets
+        /// only the download row, shared across the fleet.
+        /// `--floor` sets both; the two spellings refuse together.
+        #[arg(long = "floor-download", value_name = "RATE")]
+        floor_download: Option<String>,
+
+        /// Per-UPLOAD spelling of --floor (improve-40-b):
+        /// `--floor-upload 50kb` brackets only the upload row,
+        /// shared across the fleet.
+        #[arg(long = "floor-upload", value_name = "RATE")]
+        floor_upload: Option<String>,
+
+        /// Per-DOWNLOAD spelling of --ceil (improve-40-b, the
+        /// asymmetric link): `--ceil-download 300kb` caps only the
+        /// download row, shared across the fleet. `--ceil` caps
+        /// both; the two spellings refuse together.
+        #[arg(long = "ceil-download", value_name = "RATE")]
+        ceil_download: Option<String>,
+
+        /// Per-UPLOAD spelling of --ceil (improve-40-b):
+        /// `--ceil-upload 200kb` caps only the upload row, shared
+        /// across the fleet.
+        #[arg(long = "ceil-upload", value_name = "RATE")]
+        ceil_upload: Option<String>,
     },
 
     /// Block multiple apps from the internet entirely
