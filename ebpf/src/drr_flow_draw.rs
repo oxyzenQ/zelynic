@@ -55,12 +55,10 @@
 /// the pool did not hold.
 use aya_ebpf::maps::LruHashMap;
 
-use super::get_leaf_ptr;
 use super::ledger_room;
 use super::ledger_spend;
 use super::note_share;
 use crate::drr;
-use crate::drr::epoch_allowance;
 use crate::math::Bucket;
 use crate::math::Policy;
 use crate::math::draw_stamp_take;

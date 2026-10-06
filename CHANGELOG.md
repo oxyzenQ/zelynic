@@ -773,7 +773,21 @@ NIGHT-hunt-18's git-history-only call.
   math_atomics.rs. The refreshed prebuilt objects are the same
   sizes (observer 3,216 B, limiter 79,872 B) — the split was
   structure-only and the ELF section sizes say so; the manifest
-  re-pins the tree (c34ab561a70c...) per the parity contract.
+  re-pins the tree per the parity contract. THE CI CATCH
+  (night-repair-2's lesson repeated): the first push of the split
+  carried eleven unused-import warnings — imports whose CALLS moved
+  to the new modules but whose use statements stayed at the old
+  homes — warnings the local build (no RUSTFLAGS) shows and passes,
+  warnings CI's RUSTFLAGS="-D warnings" (inherited into the nested
+  eBPF build verbatim, the strip-host-poison contract's own words)
+  turned into nine red jobs. The fix pass removed every one (the
+  aya helper trio, the math five, the rate_ring pair, socket_flow
+  and drr_flow themselves, the schema anchor import — the const is
+  the parity ANCHOR the userspace sync pin reads as source text,
+  never executed — plus the speculative imports the compile-error
+  rounds had added ahead of the resolution); the nested build now
+  emits zero warnings and the parity lane re-pinned with the
+  objects at the same sizes again.
 
 - **refactor: NIGHT-improve-44 task b — build.rs split by its own
   retired plan: the NIGHT-improve-31 phase map executed (validate,
