@@ -1605,6 +1605,43 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Fixed
 
+- **test(bench): NIGHT-mitigate-3 — the held-rate rows' floor was
+  the overreach: the hunt-Z5 ceiling doctrine applied to the
+  claims proof (the fleet fix's own live run is the
+  falsification).** Mitigate-2's fleet landed as 6588e3a and the
+  very next supermassive run (37588414621) reddened three of four
+  legs on the same two rows: the fleet read 36.0-38.1% of a 2mb
+  policy and 42.9-44.5% of a 5mb policy on the busy-hour runner
+  pool (the low-gnu and low-musl legs byte-identical — one pool,
+  one moment) while the quieter best-musl leg read 68.8%/80.7%
+  in-band with the patience climbing (798 -> 1265 -> 1376 KB/s).
+  Flow count is not the variable at 2-5mb under load — the AIMD
+  equilibrium under a drop-only policer is rate-dependent, and
+  its busy-hour floor sits where one flow's did (36.0% vs the
+  single-flow 39.3%). The house law already existed: hunt-Z5's
+  ceiling_only verdict ("a drop policer promises the ceiling,
+  never the floor; where under-delivery is physics, the band
+  floor drops to 0 and the ceiling carries the verdict") — the
+  matrix's fair-share single row passes at 36.9% on exactly this
+  physics, and the ladder rungs at 1.4%/29.9%. The close: both
+  held-rate rows verdict on the ceiling (lo=0.0, hi 1.30
+  unchanged — over-delivery still fails immediately, never
+  retried away; un-policed traffic reads baseline and blows
+  through it), the per-app row renamed to match its verdict
+  ("stays inside its configured rate", the Z5 name-is-the-law
+  lesson), a silent-zero guard fails a window that delivered
+  under one GSO super-packet (a broken pair, not physics —
+  near-zero cannot pass as policed), every patience sample still
+  rides the row detail, and the fleet instrument stays (it
+  converges when the host allows, reads the honest aggregate when
+  it does not, pays cushions faster). The kernel-side
+  rate-HOLDING stays where it is provable: the precision row's
+  offer-tested window (performed as mitigate-2 designed on the
+  same legs — offer 470.9 MB vs the 731.1 MB budget -> adapted
+  -> honest SKIP, admit ratio 1.0013) and the rootless math
+  pins. Pinned rootlessly (38 rows green). Audit:
+  `docs/audits/NIGHT_MITIGATE_3_RATE_ROW_CEILING_LAW_2026-10-07.md`.
+
 - **test(bench): NIGHT-mitigate-2 — the claims proof's two
   false-red CI classes closed at the instrument (the owner's
   "1 failed left, mitigate so it cannot happen again" mandate;

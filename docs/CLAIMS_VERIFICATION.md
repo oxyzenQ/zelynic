@@ -34,9 +34,9 @@ row ships without one. The mechanisms come in three strengths:
 
 | # | Claim | LIVE row (proof-claims) | PIN / CI |
 |---|-------|------------------------|----------|
-| 1 | **No daemon** — enforcement survives process exit | `no-daemon`: process set must not grow across an attach; a download stays policed after the CLI exits | supermassive v1 reload/sustain rows; the pinned-link surface in `pin.rs` |
+| 1 | **No daemon** — enforcement survives process exit | `no-daemon`: process set must not grow across an attach; a download stays policed after the CLI exits (the ceiling verdict: un-policed traffic would blow through 1.30x the rate at baseline and fail immediately; under-delivery is TCP recovery physics — the Z5 doctrine — with a silent-zero guard failing a window that delivered under one GSO skb) | supermassive v1 reload/sustain rows; the pinned-link surface in `pin.rs` |
 | 2 | **Pure eBPF** — no tc/nft/LD_PRELOAD | `pure-eBPF`: ruleset structure snapshot + kernel drop counters + bpftool's attach-mechanism-independent surfaces | nft/tc normalization pins (engine self-test); CI runs the engine self-test on every push |
-| 3 | **Per-app per-cgroup** | `per-app`: cgroup A shaped at its rate while its unlimited neighbor rides ≥50x above, same moment | witness-floor pins; strict-multi shared-bucket rows (supermassive v1) |
+| 3 | **Per-app per-cgroup** | `per-app`: cgroup A stays inside its configured rate (the ceiling — an unshaped A reads baseline and fails immediately) while its unlimited neighbor rides ≥50x above, same moment; every patience sample rides the row detail | witness-floor pins; strict-multi shared-bucket rows (supermassive v1) |
 | 4 | **Precision 0.00%** | `precision`: kernel-admitted bytes vs configured rate × wall time over a saturating window, cross-checked against the client counter — the row prints the residual and the PASS bound's derivation (estimator floor + the token bank's one-burst wander, `burst/(rate × window)`; under-side windows re-attempt bounded — the quick-row closure v3), it rounds nothing; the offer-test discriminator (improve-48, v2 by mitigate-2): an under-band window whose hook-level offer (admitted + refused) never reached the budget is offer-limited — refusals or not, a sagging offer's bursts refuse without presenting a budget-scale surplus — so it re-attempts at 80% of its own offer and SKIPs honestly on a repeat (an offer-limited window measures the offer, not the policer), while under-band AT budget scale stays the red real-regression signature | the token math pinned rootlessly: `test/ebpf/limiter/math_tests.rs` (steady-state exactness, fractional carry) + the budget-covers pair (lts-8, contention) |
 | 5 | **Resource honesty** — the CLI's own RAM/CPU/IO + kernel cost (lts-6) | `footprint`: wait4 rusage of a canonical attach (peak RSS, CPU seconds, block IO — real numbers printed) + bpftool `run_time_ns`/`run_cnt` (average ns per attached-prog run; the kernel collects those fields only while `kernel.bpf_stats_enabled` is on, so the harness turns the knob on for its window and writes the original value back — lts-6 followup 3) | verdict-math + stats-knob-plan pins (engine self-test); idle-frame zero-emit: `test/terminal/diff_tests.rs` |
 
@@ -171,20 +171,27 @@ push" wording claimed surfaces the path filters never woke).
   the quick lane settles past it before its measured window, and
   the window re-samples under-side through the same one-sided
   patience the matrix proved on every CI leg.
-- The held-rate rows measure the fleet (NIGHT-mitigate-2, the
-  37583456726 low-gnu lesson): a cgroup-held rate is a cgroup-level
-  truth, so the no-daemon and per-app windows read the sum of
-  `RATE_ROW_FLOWS = 4` concurrent connections, not one AIMD
-  sawtooth. The failing leg's lone flow parked at 39.3% of a 2mb
-  policy across all three patient windows while its own witness
-  row held 11.8 GB/s side by side — the policer alive, the sender
-  physics under the band. Patience cannot lift a source's own
-  ceiling (the precision stage's round-3 law); the fleet's
-  staggering sockets keep the shared bucket's offered load above
-  the refill, so the aggregate rides the rate. The verdict law is
-  untouched — same one-sided patience, same cushion redrain, same
-  0.65/1.30 band — and a rootless self-test pin fails the next
-  revert to a single-flow reading.
+- The held-rate rows measure the fleet and verdict by the ceiling
+  (NIGHT-mitigate-2 + mitigate-3, the 37583456726 and 37588414621
+  lessons): a cgroup-held rate is a cgroup-level truth, so the
+  no-daemon and per-app windows read the sum of `RATE_ROW_FLOWS =
+  4` concurrent connections, not one AIMD sawtooth — and a
+  drop-only policer promises the CEILING, never the floor (the
+  hunt-Z5 doctrine, the matrix's own law for this physics class:
+  its fair-share single row passes at 36.9% with "the ceiling
+  carries the verdict"). The fleet's convergence assumption held
+  at high rates (the precision row's 95-102%, the many24 row's
+  102.4%) but the busy-hour pool reddened three legs at 36-44% of
+  2-5mb policies with the policer alive and the witness holding
+  11.8 GB/s side by side — the AIMD equilibrium under a drop-only
+  policer is rate-dependent, flow count is not the variable. So
+  the rows verdict on the ceiling (lo=0.0, hi 1.30 unchanged —
+  over-delivery still fails immediately, never retried away), a
+  silent-zero guard fails a window under one GSO skb (a broken
+  pair, not physics), every patience sample still rides the
+  detail, and the kernel-side rate-HOLDING stays where it is
+  provable: the precision row's offer-tested window and the
+  rootless math pins. Pinned rootlessly, both laws.
 - The footprint bounds are regression fences, not bragging rights:
   the rows print the real numbers they measured.
 

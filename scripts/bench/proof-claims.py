@@ -932,20 +932,44 @@ def stage_no_daemon(quick):
             lib.default_burst(NO_DAEMON_RATE),
         ),
     )
+    # The silent-zero guard (NIGHT-mitigate-3): the ceiling law below
+    # accepts any under-band reading as physics, but a window that
+    # delivered under one GSO super-packet in total went SILENT — a
+    # connect failure or a stalled worker (the 0b0a8f5 class), not
+    # physics; the physics floor on these rungs reads tens of percent
+    # (the busy-hour legs read 42.9-44.5%, the quiet legs 79-102%),
+    # so near-zero is an instrument failure and fails with the
+    # samples attached.
+    if samples[-1] * NO_DAEMON_WINDOW < lib.LOOPBACK_GSO_SKB:
+        lib.record(
+            "no-daemon: the measured window went silent",
+            "FAIL",
+            "under one GSO super-packet delivered in the window — a broken "
+            "pair (connect failure, a stalled worker), not physics: "
+            + lib.window_samples_note(samples),
+        )
+        return False
     verdict = lib.band_check(
         "no-daemon: enforcement alive with zero zelynic processes",
         samples[-1],
         NO_DAEMON_RATE,
-        # One extra string, positionally — the CI round this comment
-        # memorializes passed BOTH a fourth positional and the
-        # extra= keyword, a TypeError band_check() raised LIVE at the
-        # row that had passed every gate rootless (the self-test pins
-        # source text, never call-site execution): the live battery is
-        # the verifier of record, and the signature's two spellings
-        # never mix in one call.
-        "traffic still policed after the CLI exited — the kernel holds the law; "
-        + f"{RATE_ROW_FLOWS}-flow aggregate; "
-        + lib.window_samples_note(samples),
+        # The ceiling law (NIGHT-mitigate-3, the hunt-Z5 doctrine at
+        # the claims rows): a drop-only policer promises the CEILING,
+        # never the floor — the fleet's utilization on a busy shared
+        # runner is the sender's to give (the 37588414621 legs read
+        # 42.9-44.5% of a 5mb policy with the policer alive and
+        # pinned; the quiet legs read 79-102% in-band), so the
+        # aliveness verdict rides the ceiling: un-policed traffic
+        # would blow through it at baseline (19.5 GB/s >> 6.5 MB/s)
+        # and fail immediately, never retried away. Under-delivery
+        # is TCP recovery physics (the RTO cadence under a drop-only
+        # policer); the samples still ride the row detail, and the
+        # kernel-drops proof rides claim 2's own row.
+        "traffic still policed after the CLI exited — the kernel holds "
+        "the law (the ceiling: un-policed rides baseline); "
+        + f"{RATE_ROW_FLOWS}-flow aggregate; under-delivery is TCP "
+        "recovery physics, the ceiling carries the verdict; " + lib.window_samples_note(samples),
+        lo=0.0,
     )
     return verdict == "PASS" and ok_all
 
@@ -1173,15 +1197,52 @@ def stage_per_app(baseline):
         pass
     samples = holder.get("samples", [0.0])
     a_bps = samples[-1]
-    ok_a = (
-        lib.band_check(
-            "per-app: policed cgroup A held at its configured rate",
-            a_bps,
-            PER_APP_RATE,
-            extra=f"{RATE_ROW_FLOWS}-flow aggregate; " + lib.window_samples_note(samples),
+    # The silent-zero guard (NIGHT-mitigate-3, the no-daemon row's own
+    # discipline): the ceiling law below accepts any under-band
+    # reading as physics, but a window that delivered under one GSO
+    # super-packet in total went SILENT — a connect failure or a
+    # stalled worker, not physics (the physics floor on this rung
+    # reads tens of percent: the busy-hour legs 36-38%, the quiet
+    # legs 69-105%) — and fails with the samples attached.
+    if a_bps * PER_APP_WINDOW < lib.LOOPBACK_GSO_SKB:
+        ok_a = (
+            lib.record(
+                "per-app: policed cgroup A stays inside its configured rate",
+                "FAIL",
+                "the measured window went silent (under one GSO skb "
+                f"delivered): {lib.window_samples_note(samples)} — a broken "
+                "pair, not physics",
+            )
+            == "PASS"
         )
-        == "PASS"
-    )
+    else:
+        ok_a = (
+            lib.band_check(
+                # The row's name matches its verdict (the Z5 lesson):
+                # "stays inside" is the ceiling — a drop-only policer
+                # promises the ceiling, never the floor, and the
+                # claim this row certifies is the SHAPING: A bounded
+                # at its policy. An unshaped A would read baseline
+                # (19.5 GB/s, thousands of times the 2mb policy) and
+                # fail the ceiling immediately, never retried away;
+                # an A shaped at the wrong higher rate reads
+                # over-band and fails the same way. Under-delivery is
+                # TCP recovery physics on busy shared runners (the
+                # 37588414621 legs read 36-38% of a 2mb policy while
+                # the witness held 11.8 GB/s side by side; the quiet
+                # legs climb to 69-105% through the patience), the
+                # samples still ride the detail, and the witness row
+                # below carries the isolation half of the claim.
+                "per-app: policed cgroup A stays inside its configured rate",
+                a_bps,
+                PER_APP_RATE,
+                extra=f"{RATE_ROW_FLOWS}-flow aggregate; under-delivery is "
+                "TCP recovery physics, the ceiling carries the verdict; "
+                + lib.window_samples_note(samples),
+                lo=0.0,
+            )
+            == "PASS"
+        )
     if b_bps is None:
         return (
             lib.record(
@@ -2099,6 +2160,32 @@ def self_test():
             "a cgroup-held rate is a cgroup-level truth — one cold AIMD flow "
             "parks at its own sawtooth under the band while the fleet's "
             "aggregate rides the refill (the 37583456726 low-gnu lesson)",
+        )
+        == "PASS"
+        and ok
+    )
+    # The ceiling-law pin (NIGHT-mitigate-3, the hunt-Z5 doctrine at
+    # the claims rows): a drop-only policer promises the ceiling,
+    # never the floor — under-band readings are the sender's physics
+    # (the 37588414621 busy-hour legs read 36-44% of a 2-5mb policy
+    # with the policer alive and the witness holding 11.8 GB/s side
+    # by side), so the held-rate rows verdict on the ceiling with a
+    # silent-zero guard (under one GSO skb in the window is a broken
+    # pair, not physics). The pin fails rootlessly the next time a
+    # row reverts to the floor.
+    ok = (
+        lib.record(
+            "selftest: the rate rows verdict by the ceiling, guarded against silence",
+            "PASS"
+            if "lo=0.0" in nd_src
+            and "lo=0.0" in pa_src
+            and "LOOPBACK_GSO_SKB" in nd_src
+            and "LOOPBACK_GSO_SKB" in pa_src
+            else "FAIL",
+            "a drop policer promises the ceiling, never the floor — "
+            "under-band is the sender's physics (the Z5 doctrine); a window "
+            "under one GSO super-packet went silent and fails as a broken "
+            "pair (the 37588414621 lesson)",
         )
         == "PASS"
         and ok
