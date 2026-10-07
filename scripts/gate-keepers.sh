@@ -98,6 +98,16 @@
 #       scripts/ gate files). Every tracked file is scanned —
 #       nothing excluded — and any other casing fails the push)
 #
+#  20.  Audits index completeness (NIGHT-total-lts-8 followup, the
+#       owner-approved gate — scripts/gates/check-audits-index.sh:
+#       every tracked docs/audits/*.md doc must carry a row in the
+#       docs/README.md institutional-memory index (the lts-8
+#       recipe: git ls-files 'docs/audits/*.md' minus the index's
+#       audits/ link set = empty). lts-8's find was eighteen
+#       sessions of audit docs shipping unindexed because nothing
+#       failed — the gate inventory freeze is lifted for exactly
+#       this check, so the map can never drift behind the records
+#       again; coverage only, dead rows stay lts-6's instrument)
 # Pre-commit hook (NIGHT-dinner-1): the first wholesale run on a
 # clone self-installs .githooks/pre-commit (git config
 # core.hooksPath=.githooks — repo-local, never --global), so every
@@ -818,6 +828,29 @@ elif [ ! -f scripts/gates/check-name-case.py ]; then
 	warn "check-name-case.py not found — skipping"
 else
 	warn "python3 not installed — skipping"
+fi
+
+# ── 20. Audits Index Completeness (NIGHT-total-lts-8 followup) ─────
+# The owner approved lifting the gate-inventory freeze for exactly
+# this gate: lts-8's one find was the docs/README.md audits index
+# drifting twenty docs behind the records across eighteen sessions,
+# with nothing failing because no instrument owned COVERAGE — lts-6's
+# stale-reference sweep checks that paths resolve, not that the map
+# covers the directory it maps. The gate holds the recipe lts-8
+# recorded (section 2 of its audit doc): tracked docs/audits/*.md
+# minus the index's audits/ link set must be empty, so an audit doc
+# that ships without an institutional-memory row fails the push —
+# before the commit, since git ls-files sees staged files too.
+header "Audits Index Completeness (check-audits-index.sh)"
+if [ -f scripts/gates/check-audits-index.sh ]; then
+	if bash scripts/gates/check-audits-index.sh 2>&1; then
+		info "audits index: every tracked audit doc carries a docs/README.md row (the map is complete)"
+		PASS=$((PASS + 1))
+	else
+		fail "audits index: tracked audit doc(s) missing from the docs/README.md index (add the rows — the institutional memory must stay mappable)"
+	fi
+else
+	warn "check-audits-index.sh not found — skipping"
 fi
 
 # ── Summary ────────────────────────────────────────────────────────────────

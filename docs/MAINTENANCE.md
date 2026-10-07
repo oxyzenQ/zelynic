@@ -171,7 +171,11 @@ binaries).
 
 The [README index](README.md) is the map; keeping it honest is cheap
 and pays every long-break return. When a doc changes purpose or a new
-doc lands, the index gets the same commit. The
+doc lands, the index gets the same commit. Since the
+NIGHT-total-lts-8 followup that law is machine-enforced: gate 20 of
+the battery (`scripts/gates/check-audits-index.sh`) fails any push
+whose tracked `docs/audits/*.md` docs carry no index row, so the
+institutional-memory map cannot drift behind the records again. The
 [CLAIMS_VERIFICATION.md](CLAIMS_VERIFICATION.md) ledger is the deeper
 discipline: any *claim* (a number, a "fastest", a "zero") that appears
 in public-facing text must have a verifying mechanism recorded there —
