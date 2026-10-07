@@ -156,6 +156,16 @@ pub enum Commands {
         #[arg(long = "force-this")]
         force_this: bool,
 
+        /// Skip the post-apply enforcement probe
+        ///
+        /// NIGHT-hunt-30 (the owner's parity find): strict-multi
+        /// carries strict-single's own verification lane now — the
+        /// first colon member is the measured target (the group's
+        /// shared bucket under it, the note naming the multi-leaf
+        /// ledger). This flag keeps the scripted apply-only shape.
+        #[arg(long = "no-probe")]
+        no_probe: bool,
+
         /// Auto-expire this row (night-during, schema v23; the
         /// owner's duration-only revision): a duration from the
         /// apply instant (`2h`; s m h d mn y, 1s..10y) — the
@@ -249,6 +259,17 @@ pub enum Commands {
         /// spelling for "I know, force this".
         #[arg(long = "force-this")]
         force_this: bool,
+
+        /// Skip the post-apply enforcement probe
+        ///
+        /// NIGHT-hunt-30 (the owner's parity find): strict-all
+        /// carries strict-single's own verification lane now — the
+        /// first applied app is the measured target, and a saturated
+        /// sweep (rows left unlimited) skips the probe honestly
+        /// instead of measuring a lane that may not have landed.
+        /// This flag keeps the scripted apply-only shape.
+        #[arg(long = "no-probe")]
+        no_probe: bool,
 
         /// Auto-expire every row this apply writes (night-during,
         /// schema v23; the owner's duration-only revision): a

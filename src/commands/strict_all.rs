@@ -12,6 +12,11 @@ use anyhow::Result;
 use crate::commands::rates::resolve_rates;
 #[cfg(feature = "ebpf")]
 use crate::commands::safety::is_dangerous_target;
+// NIGHT-hunt-30: the sweep carries the single's verification lane
+// now — the probe orchestrator and its report family join the
+// import set (strict.rs's own shape, one lane over).
+#[cfg(feature = "ebpf")]
+use crate::commands::{probe, probe_report};
 // NIGHT-hunt-27: the sweep's saturation wording names the policy
 // family's capacity — the userspace mirror of the eBPF-side map
 // size (types.rs keeps it textually in sync with the pinned maps).
@@ -24,13 +29,14 @@ use crate::ebpf::limiter::types::POLICY_MAP_CAPACITY as POLICY_CAP;
 #[cfg(feature = "ebpf")]
 // improve-40 (schema v24): the bracket pair joins the sweep's
 // payload — the same too-many-arguments posture the strict
-// handlers carry.
+// handlers carry. NIGHT-hunt-30: no_probe joins it too.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn handle_strict_all(
     rate: Option<&str>,
     download: Option<&str>,
     upload: Option<&str>,
     force_this: bool,
+    no_probe: bool,
     bracket_flags: crate::commands::guarantee::BracketFlags<'_>,
     during: Option<&str>,
     verbose: bool,
@@ -159,36 +165,59 @@ pub(crate) fn handle_strict_all(
     // up to the emptier map's free rows) and returns the skipped
     // count; the warn below names it, and the applied==0 error
     // paths keep the no-silent-no-op contract exact.
-    crate::ebpf::limiter::Limiter::attach(verbose)?;
+    //
+    // NIGHT-hunt-30: the lock's scope is the APPLY, not the probe
+    // (strict-single's dinner-28 contract, the sweep's own lane) —
+    // the probe mutates no policy state, so the lock drops before
+    // the window opens.
+    let mut limiter;
+    let applied;
+    let saturated;
+    {
+        let _lock = crate::ebpf::lock::acquire()?;
+        crate::ebpf::limiter::Limiter::attach(verbose)?;
 
-    let mut limiter = Limiter::open_pinned(verbose)?;
-    let (applied, saturated) =
-        limiter.apply_group_sweep(&targets, &rates, &bracket, during_spec.as_ref())?;
+        limiter = Limiter::open_pinned(verbose)?;
+        let (applied_count, saturated_count) =
+            limiter.apply_group_sweep(&targets, &rates, &bracket, during_spec.as_ref())?;
+        applied = applied_count;
+        saturated = saturated_count;
 
-    if applied == 0 {
-        // NIGHT-hunt-27: the vacuous-sweep ladder. Saturated>0 with
-        // applied==0 means the policy family is FULL and the sweep
-        // enforced nothing — never a success, never the generic
-        // no-match wording either (the apps ARE there; the ROOM is
-        // not). Saturated==0 means every snapshot member resolved
-        // to nothing between the walk and the write (the stale
-        // snapshot race) — the no-match contract strict-multi
-        // owns, dinner-11.
-        if saturated > 0 {
+        if applied == 0 {
+            // NIGHT-hunt-27: the vacuous-sweep ladder. Saturated>0 with
+            // applied==0 means the policy family is FULL and the sweep
+            // enforced nothing — never a success, never the generic
+            // no-match wording either (the apps ARE there; the ROOM is
+            // not). Saturated==0 means every snapshot member resolved
+            // to nothing between the walk and the write (the stale
+            // snapshot race) — the no-match contract strict-multi
+            // owns, dinner-11.
+            if saturated > 0 {
+                return Err(super::target_no_match_error(
+                    format!(
+                        "Policy family at capacity ({POLICY_CAP} rows) — 0 of {} app(s) \
+                         limited, {saturated} left unlimited",
+                        targets.len()
+                    ),
+                    &["run 'zelynic unstrict-all' to make room".to_string()],
+                ));
+            }
             return Err(super::target_no_match_error(
-                format!(
-                    "Policy family at capacity ({POLICY_CAP} rows) — 0 of {} app(s) \
-                     limited, {saturated} left unlimited",
-                    targets.len()
-                ),
-                &["run 'zelynic unstrict-all' to make room".to_string()],
+                "No cgroups found for any target — nothing was limited".to_string(),
+                &[super::TIP_LIST_APPS.to_string()],
             ));
         }
-        return Err(super::target_no_match_error(
-            "No cgroups found for any target — nothing was limited".to_string(),
-            &[super::TIP_LIST_APPS.to_string()],
-        ));
-    }
+
+        // The race-window check (NIGHT-dinner-16): the verdict is
+        // verified BEFORE it prints, inside the lock that made it.
+        if !crate::ebpf::limiter::Limiter::is_pinned() {
+            return Err(anyhow::anyhow!(
+                "BPF pins missing after apply — a concurrent operation may have interfered\n  \
+                 tip: run 'zelynic recover' to repair state"
+            ));
+        }
+    } // the lock drops here: the probe below runs unserialized
+
     if saturated > 0 {
         // The partial-saturation warn (improve-30's one-line
         // concise contract): what landed, what did not, and the
@@ -200,17 +229,65 @@ pub(crate) fn handle_strict_all(
         ));
     }
 
-    // NIGHT-improve-28: strict-all reverses with the sledgehammer, not
-    // a per-target unstrict — the old suggestion built
-    // 'zelynic unstrict 3 apps', which is not a target at all.
-    // NIGHT-dinner-16: the race-window check moved BEFORE the
-    // success verdict (the multi form's own ordering fix).
+    // NIGHT-hunt-30 (the owner's parity find — "need verify for
+    // multi and all strict mode"): the sweep carries the single's
+    // self-proving enforcement now. The FIRST applied app is the
+    // measured target; the best-effort lane's honesty contract
+    // decides the lane's shape:
+    //   - saturated == 0: the first app's row landed with the
+    //     fresh rate (an already-limited overwrite costs no slot, a
+    //     fresh id had room — the warn above did not fire), so the
+    //     probe measures a lane that provably carries the rate. An
+    //     app that exited between snapshot and write resolves to
+    //     nothing at probe time and reads UNVERIFIED, the honest
+    //     stand-down — never a guess.
+    //   - saturated > 0: NO measurement — a skipped member may be
+    //     the very lane the probe would name, and an unlimited path
+    //     reads FAILED by its own numbers. The skip note names the
+    //     saturated fleet; the warn above already named the fix.
+    // --no-probe keeps the scripted apply-only shape.
+    let probe_outcome = if no_probe {
+        None
+    } else if saturated > 0 {
+        crate::output::eprintln_warn_labeled(
+            "verify skipped: the sweep saturated — the fleet that landed is not one \
+             measurable lane (run 'zelynic status' to see the rows)",
+        );
+        None
+    } else {
+        Some(probe::run_enforcement_probe(
+            &limiter,
+            &targets[0],
+            &rates,
+            false,
+        ))
+    };
+    // NIGHT-repair-1 ordering (the single's own law): a FAILED probe
+    // is the louder, more specific truth — its block names the
+    // enforcement failure with the measured numbers attached.
+    if let Some(outcome) = &probe_outcome {
+        if outcome.verdict == probe_report::ProbeVerdict::Failed {
+            return Err(probe_report::failure_error(&user_apps[0], outcome));
+        }
+    }
+    // The dinner-16 parity at the probe boundary: pins torn down
+    // DURING the window are caught here, before any success surface
+    // prints (VERIFIED and UNVERIFIED alike).
     if !crate::ebpf::limiter::Limiter::is_pinned() {
         return Err(anyhow::anyhow!(
-            "BPF pins missing after apply — a concurrent operation may have interfered\n  \
+            "BPF pins missing after the probe — a concurrent operation may have interfered\n  \
              tip: run 'zelynic recover' to repair state"
         ));
     }
+
+    // NIGHT-improve-28: strict-all reverses with the sledgehammer, not
+    // a per-target unstrict — the old suggestion built
+    // 'zelynic unstrict 3 apps', which is not a target at all.
     super::apply_success_epilogue("zelynic unstrict-all", "remove");
+    if let Some(outcome) = &probe_outcome {
+        for line in probe_report::report_lines(outcome) {
+            eprintln_safe!("{line}");
+        }
+    }
     Ok(())
 }

@@ -410,8 +410,14 @@ direction per cgroup, so a name resolving to two cgroups counts four)
 live in `zelynic status`, not in the success echo.
 
 The SELF-PROVING ENFORCEMENT (NIGHT-upgrade-charger-core-1-b): after
-the apply lands, strict-single measures the limit it just wrote before
-it claims it. A fresh child cgroup is born under the target (inside
+the apply lands, the strict family measures the limit it just wrote
+before it claims it (strict-single since the beginning; strict-multi
+and strict-all since NIGHT-hunt-30, the owner's parity find — the
+multi probes the first colon member, whose landing the atomic
+contract guarantees, and the sweep probes the first applied app,
+standing down with a named skip note when the fleet saturated —
+measuring a lane that may not have landed would be a verdict built
+on a guess). A fresh child cgroup is born under the target (inside
 the subtree the policy covers, by construction — the same lane the CI
 battery proves, on symmetric policies AND both single-direction lanes
 alike: the supermassive matrix's probe family runs the live verify
@@ -569,6 +575,15 @@ unlimited. `strict-all` and `block-multi`/`block-all` deliberately keep
 the best-effort sweep — their target lists are snapshots of live
 state, and an app exiting mid-sweep must not abort the fleet's limits.
 
+The apply is **verified** (NIGHT-hunt-30, the owner's parity find):
+strict-multi carries strict-single's own self-proving enforcement —
+the probe measures a real flow through the FIRST member's subtree
+(the atomic contract guarantees that member landed) and prints the
+same `enforced: VERIFIED` block, the multi-leaf note naming the
+group's per-cgroup ledger. `--no-probe` keeps the scripted
+apply-only shape (CI lanes use it); a blocked (rate-0) group stands
+down on the drop-ledger note — the block family's own verdict.
+
 The shared bucket's lifecycle (NIGHT-lts-7): every invocation banks a
 fresh group id, and the group maps hold 256 slots each — a group's
 slots are now returned when its LAST reference goes (an unstrict of
@@ -593,6 +608,16 @@ the rate to every non-system app. System/dangerous targets are excluded
 unless `--force-this`. This is the command where the snapshot semantics
 matter most — newly launched apps afterwards are **not** covered; re-run
 it after starting new apps.
+
+The sweep is **verified** (NIGHT-hunt-30, the owner's parity find):
+when the whole fleet landed (no saturation), the probe measures a real
+flow through the first applied app's subtree and prints the same
+`enforced: VERIFIED` block the singles carry. A saturated sweep
+(some rows left unlimited at the 1024-row policy ceiling) skips the
+probe with a named note instead — the skipped member may be the very
+lane the probe would name, and an unlimited path reads FAILED by its
+own numbers, a verdict built on a guess. `--no-probe` keeps the
+scripted apply-only shape.
 
 ### block-single / block-multi / block-all
 
