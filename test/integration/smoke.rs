@@ -169,7 +169,7 @@ fn test_rate_parse() {
     assert!(!output.status.success(), "Invalid rate should fail");
 }
 
-/// Test strict-single -> unstrict cycle
+/// Test strict -> unstrict cycle
 #[test]
 #[ignore = "requires root + eBPF feature"]
 #[allow(clippy::zombie_processes)]

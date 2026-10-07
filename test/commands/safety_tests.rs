@@ -325,7 +325,7 @@ fn the_resolved_position_check_batches_the_name_list() {
 /// family's own example command.
 #[test]
 fn empty_single_target_is_refused_at_the_input_boundary() {
-    let ex = "zelynic strict-single brave 100kb";
+    let ex = "zelynic strict brave 100kb";
     for empty in ["", " ", "\t", "  \t "] {
         let msg = validate_single_target(empty, ex)
             .expect_err("an empty target must be refused")

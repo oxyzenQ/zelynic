@@ -190,7 +190,7 @@ mod tests {
             "  tip: run 'zelynic recover'",
             "  tip: find ids with 'zelynic list-apps'",
             "  hint: run 'zelynic recover'",
-            "  tip: retry 'zelynic recover', or 'zelynic unstrict-all' to force-clear",
+            "  tip: retry 'zelynic recover', or 'zelynic u --all' to force-clear",
             "  tip: rebuild with 'cargo build --features ebpf'",
         ] {
             assert!(is_runnable_tip_line(line), "runnable: {line:?}");
@@ -201,7 +201,7 @@ mod tests {
             "  tip: re-run without sudo",
             "  tip: use --allow-dangerous",
             "  tip: system apps need --force-this",
-            "  tip: colon-separated lists belong to strict-multi",
+            "  tip: the list separator is '::' — single ':' stays inside a target",
             "  did you mean 'strict-single'?",
             "  error: not a tip at all",
         ] {

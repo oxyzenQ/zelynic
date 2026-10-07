@@ -687,10 +687,14 @@ No throughput number is claimed for this feature — it ADDS one
 HashMap lookup to the policed path (the policy census bounds
 occupancy at 1024 rows, the stats map's own posture) and zero to
 the unlimited path; the cost is the map read, and the benefit is
-the QoL the whole surface exists for. The wall-form persistence
-(WindowPersist, the snapshot/restore pair) keeps auto-expire a
-cross-reboot promise instead of silently converting it into
-forever — the safety direction the design brief pinned.
+the QoL the whole surface exists for. The wall-form translation
+(during_to_window with the offset-bridge stamps) keeps a promised
+window's expiry drift-free for the life of its pins — NTP slew or
+a manual `date -s` cannot silently convert a window into forever.
+The state-file serialization that once carried rows across reboots
+(WindowPersist, the snapshot/restore pair) retired whole with
+NIGHT-improve-55 — pins die at reboot with bpffs, and a unit file
+re-applying the strict family is the desired state.
 
 ### NIGHT-upgrade-charger-core-1-b A/B (the self-proving enforcement, 2026-09-30)
 

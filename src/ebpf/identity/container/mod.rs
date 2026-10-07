@@ -8,7 +8,7 @@
 //! The contract is resolve-only, by design: a container reference
 //! becomes the same cgroup id `cg:<id>` targets, and every
 //! downstream surface (policy writes, unstrict, the enforcement
-//! probe) is the strict-single machinery unchanged — containers are
+//! probe) is the single lane's machinery unchanged — containers are
 //! just another way to NAME a cgroup.
 //!
 //! Resolution sources, all read-only: the docker Engine API over

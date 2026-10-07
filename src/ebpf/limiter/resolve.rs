@@ -49,7 +49,7 @@ impl super::Limiter {
             Target::Container(c) => {
                 // charger-core-2 (TIER A #5): resolve-only — the URI
                 // becomes the workload's cgroup id, the rest is the
-                // strict-single machinery (specific infrastructure errors,
+                // single lane's machinery (specific infrastructure errors,
                 // never the generic no-match; the trace is resolve's own).
                 crate::ebpf::identity::container::resolve(c, self.verbose)
             }

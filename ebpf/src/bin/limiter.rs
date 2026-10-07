@@ -256,7 +256,7 @@ static rate_ring_ul: HashMap<u32, RateRing> = HashMap::pinned(1024, 0);
 // ─ The ECN debt words (NIGHT-private-research-4, schema v19 —
 // ECN-first policing) ─ one debt word per policed BUDGET per
 // direction, keyed by the generation-prefixed budget key (the
-// pool's root on the DRR lane, the group id on the strict-multi
+// pool's root on the DRR lane, the group id on the group
 // lane — the repair-6 discipline: a fresh budget never inherits the
 // predecessor's debt, stale entries age out through the LRU). The
 // word carries the outstanding marked bytes the budget has not yet

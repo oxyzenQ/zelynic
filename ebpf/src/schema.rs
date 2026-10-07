@@ -95,8 +95,9 @@
 /// asking — the starvation shape (one subprocess at ~100%, its
 /// siblings at ~0%) becomes bounded shares. The aggregate stays
 /// exactly the policy (the pool never hands out what it does not
-/// have); the group-bucket lane (strict-multi) keeps the legacy
-/// FCFS shape by documented scope. The stale-quantum belt: leaf
+/// have); the group-bucket lane (the former strict-multi verb)
+/// keeps the legacy FCFS shape by documented scope. The stale-quantum
+/// belt: leaf
 /// quanta are stamped with the AMMSP generation at their draw, and
 /// a mismatching stamp zeroes them before the packet proceeds — a
 /// policy mutation can never leave a leaf spending a dead budget's
@@ -199,7 +200,7 @@
 /// dropped, and its bytes charge an ECN debt word (the two new
 /// pinned LRU maps ecn_debt_dl/ul, keyed by the generation-prefixed
 /// BUDGET key — the pool's root on the DRR lane, the group id on
-/// the strict-multi lane). Every DELIVERED packet on the lane pays
+/// the group lane). Every DELIVERED packet on the lane pays
 /// that debt from the budget's own token stream afterwards, out of
 /// the leftover the delivery left behind (ecn.rs debt_pay, on the
 /// allow path only — the call-site law that keeps a CE-ignoring

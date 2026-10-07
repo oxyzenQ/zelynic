@@ -1,8 +1,8 @@
 // Copyright (C) 2026 rezky_nightky
 // SPDX-License-Identifier: GPL-3.0-only
 
-//! Atomic multi-target apply — the transactional strict-multi
-//! (NIGHT-upgrade-charger-core-2, TIER A #6).
+//! Atomic multi-target apply — the group lane's transactional
+//! write (NIGHT-upgrade-charger-core-2, TIER A #6).
 //!
 //! The old contract was best-effort: a colon-list member that
 //! resolved to nothing was silently skipped, the rest were enforced,
@@ -17,14 +17,15 @@
 //! - ROLLBACK: a mid-flight write failure restores each mutated
 //!   policy to its PRE-APPLY raw value (the NIGHT-hunt-20 rollback
 //!   deleted what this invocation wrote, which stripped an EXISTING
-//!   limit it should have restored — a `sm brave:curl 1mb` failing
-//!   mid-flight left brave unlimited instead of at its old rate).
+//!   limit it should have restored — a multi-target apply (the
+//!   era's `sm brave:curl 1mb`) failing mid-flight left brave
+//!   unlimited instead of at its old rate).
 //!
-//! `strict-all` deliberately keeps the best-effort sweep
+//! The `--all` sweep deliberately keeps the best-effort apply
 //! (`apply_group`): its target list is a snapshot of list-apps, and
 //! an app exiting between snapshot and write must not abort the
 //! fleet's limits. The atomic contract belongs to the explicit
-//! colon list, where every segment is the operator's own claim.
+//! `::` list, where every segment is the operator's own claim.
 //!
 //! The mutation ledger's restore half lives here; the capture half
 //! (the both-directions snapshot) rides `write_policies_for_cgroup`
@@ -128,7 +129,7 @@ pub(super) fn multi_no_match_line(failed: &[String], resolvable: usize) -> Strin
 }
 
 impl super::Limiter {
-    /// Apply strict-multi atomically (charger-core-2, TIER A #6):
+    /// Apply the group lane atomically (charger-core-2, TIER A #6):
     /// pre-flight resolution, then the group write with the
     /// snapshot/restore mutation ledger. Returns the number of
     /// policies written, exactly like `apply_group`. `during` is

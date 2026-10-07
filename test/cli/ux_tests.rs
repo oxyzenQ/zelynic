@@ -142,7 +142,7 @@ fn version_long_form_parses_after_subcommand() {
 }
 
 /// The escaped case clap's old tip lied about: `-- -V` is a positional
-/// overflow (strict-single takes two), so it errors — but the tip must
+/// overflow (strict takes two), so it errors — but the tip must
 /// name the top-level spelling `zelynic -V`, never `--verbose`, and
 /// the escape-hatch tip must be gone.
 #[test]
