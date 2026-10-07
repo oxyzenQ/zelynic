@@ -383,3 +383,82 @@ fn empty_single_target_is_refused_at_the_input_boundary() {
         "the canonical display prefix round-trips the boundary"
     );
 }
+
+/// NIGHT-improve-50: the batched multi danger guard — one /proc walk
+/// for every numeric segment in a colon list (the per-segment loop
+/// was O(segments x processes); a fleet-scale strict-multi walked
+/// /proc thousands of times before the policy write ever ran). The
+/// batch must keep the loop's three observable contracts: segment
+/// order (first refusal wins), the fail-open for ids with no live
+/// members (a dead id is a no-op policy, not a hazard), and the
+/// clean pass for a live user cgroup — plus the root position's
+/// refusal with the same wording the single-id arm owns (both arms
+/// share root_catch_all_verdict now; this pin holds that sharing).
+#[test]
+fn the_multi_danger_guard_batches_without_changing_the_verdicts() {
+    let Some(root) = cgroupfs_root_id() else {
+        return; // no cgroupfs on this machine — the honest absence
+    };
+    // The clean fleet: a dead id (fail-open) and, when the test
+    // process's own cgroup differs from the root, the live user
+    // cgroup — both must pass exactly as the single arm passes them.
+    let dead = "4294967295"; // u32::MAX, effectively never a kernfs id
+    let mut segments = vec![dead.to_string()];
+    if let Some(cg) = crate::ebpf::identity::pid_cgroup_id(std::process::id()) {
+        if cg != root {
+            segments.push(cg.to_string());
+        }
+    }
+    check_dangerous_targets_multi(&segments, false)
+        .expect("the clean numeric list passes the batched guard");
+    // The root anywhere in the list refuses, and the refusal is the
+    // single arm's wording verbatim (the shared verdict path).
+    for spelled in [
+        vec![root.to_string()],
+        vec![dead.to_string(), root.to_string()],
+        vec![root.to_string(), dead.to_string()],
+    ] {
+        let err = check_dangerous_targets_multi(&spelled, false)
+            .expect_err("the root position must refuse through the batch");
+        assert_eq!(
+            format!("{err}"),
+            format!(
+                "{}",
+                check_dangerous_cgroup_id(root, false).expect_err("the single arm refuses too")
+            ),
+            "the batch's root refusal is the single arm's wording, verbatim"
+        );
+    }
+    check_dangerous_targets_multi(&[root.to_string()], true)
+        .expect("the override lifts the batched root position");
+}
+
+/// NIGHT-improve-50: the batch's segment ORDER — first refusal wins,
+/// the same order the per-segment loop owned. A dangerous NAME in
+/// segment 1 with the root id in segment 2 must refuse on the name;
+/// reversed, it must refuse on the root. Both orderings are cheap to
+/// prove without fabricating processes: the name arm is a string
+/// check, the root arm is the live position.
+#[test]
+fn the_multi_danger_guard_keeps_first_refusal_order() {
+    let Some(root) = cgroupfs_root_id() else {
+        return; // no cgroupfs on this machine — the honest absence
+    };
+    let name_first = ["sshd".to_string(), root.to_string()];
+    let err = check_dangerous_targets_multi(&name_first, false)
+        .expect_err("the name segment refuses first");
+    assert!(
+        format!("{err}").contains("'sshd' is a system process"),
+        "segment 1's name refusal wins, got: {err}"
+    );
+    let root_first = [root.to_string(), "sshd".to_string()];
+    let err = check_dangerous_targets_multi(&root_first, false)
+        .expect_err("the root segment refuses first");
+    assert!(
+        format!("{err}").contains("is the root cgroup"),
+        "segment 1's root refusal wins, got: {err}"
+    );
+    // Mixed clean content passes untouched.
+    check_dangerous_targets_multi(&["brave".to_string(), "curl".to_string()], false)
+        .expect("the clean name list passes the batched guard");
+}

@@ -365,7 +365,17 @@ pub(crate) fn check_dangerous_cgroup_id(id: u32, force_this: bool) -> Result<()>
         }
     }
 
-    let Some(dangerous) = first_dangerous_member(&members) else {
+    dangerous_cgroup_verdict(id, &members, force_this)
+}
+
+/// The cgroup-id arm's verdict tail (the member blocklist run and
+/// its --force-this lift), split from the single-id walk so the
+/// batched multi arm (check_dangerous_targets_multi below) emits
+/// BYTE-IDENTICAL wording through the same code path the single
+/// segment owns — one wording, two callers, no drift class.
+#[cfg(feature = "ebpf")]
+fn dangerous_cgroup_verdict(id: u32, members: &[String], force_this: bool) -> Result<()> {
+    let Some(dangerous) = first_dangerous_member(members) else {
         return Ok(());
     };
 
@@ -380,6 +390,88 @@ pub(crate) fn check_dangerous_cgroup_id(id: u32, force_this: bool) -> Result<()>
              tip: re-run with --force-this if you really want this"
         ))
     }
+}
+
+/// NIGHT-improve-50 (the enabling find, surfaced while costing the
+/// owner-approved cap-crossing stage): the multi family's danger
+/// loop walked /proc PER NUMERIC SEGMENT — `strict-multi` with N
+/// cgroup ids cost N full /proc walks (each resolving every pid's
+/// cgroup id), so a fleet-scale apply of ~4100 ids walked /proc
+/// 4100 times over ~8200 processes: minutes of guard before the
+/// policy write ever ran. The single-target arm keeps its own walk
+/// (one id, one walk, nothing to share); the multi arm now shares
+/// ONE walk across the whole list — group every live pid's comm
+/// under its cgroup id, restricted to the ids the list names, then
+/// run the verdicts in segment order (first refusal wins, the same
+/// order the per-segment loop owned). Name segments keep the exact
+/// per-segment check_dangerous_target call (a string compare, no
+/// walk), so a mixed list behaves byte-identically to the loop it
+/// replaces — same wording, same order, same --force-this contract,
+/// one walk instead of N.
+#[cfg(feature = "ebpf")]
+pub(crate) fn check_dangerous_targets_multi(segments: &[String], force_this: bool) -> Result<()> {
+    use std::collections::{HashMap, HashSet};
+
+    // The root id read once (the single-stat hunt-Z3 discipline,
+    // amortized across the list instead of per id).
+    let root_id = cgroupfs_root_id();
+
+    // Phase 1 — the ids this list names (deduped for the walk's
+    // membership test; segment order is preserved by phase 3, which
+    // iterates `segments`, not this set).
+    let ids: HashSet<u32> = segments.iter().filter_map(|s| parse_target_id(s)).collect();
+
+    // Phase 2 — ONE /proc walk, grouping member comms under the
+    // targeted cgroup ids only (a pid outside the named ids costs
+    // its cgroup read and nothing more — no comm read, no entry).
+    // Duplicate comms dedup the same way the single-id arm dedups
+    // (first occurrence wins, order kept for the verdict's
+    // first-member determinism).
+    let mut members_by_id: HashMap<u32, Vec<String>> = HashMap::new();
+    if !ids.is_empty() {
+        if let Ok(entries) = std::fs::read_dir("/proc") {
+            for entry in entries.flatten() {
+                let Some(pid) = entry
+                    .file_name()
+                    .to_str()
+                    .and_then(|s| s.parse::<u32>().ok())
+                else {
+                    continue;
+                };
+                let Some(cid) = crate::ebpf::identity::pid_cgroup_id(pid) else {
+                    continue;
+                };
+                if !ids.contains(&cid) {
+                    continue;
+                }
+                if let Some(comm) = crate::ebpf::identity::pid_comm(pid) {
+                    let members = members_by_id.entry(cid).or_default();
+                    if !members.iter().any(|m| m == &comm) {
+                        members.push(comm);
+                    }
+                }
+            }
+        }
+    }
+
+    // Phase 3 — verdicts in segment order. Numeric segments take
+    // the root-position compare (one compare against the id read
+    // once) then the shared verdict tail over the walked members
+    // (an id the walk never populated resolves no members — the
+    // documented dead-leaf fail-open, verbatim). Name segments keep
+    // their own call.
+    for seg in segments {
+        if let Some(id) = parse_target_id(seg) {
+            if Some(id) == root_id {
+                return root_catch_all_verdict(&format!("cg:{id}"), id, force_this);
+            }
+            let members = members_by_id.get(&id).cloned().unwrap_or_default();
+            dangerous_cgroup_verdict(id, &members, force_this)?;
+        } else {
+            check_dangerous_target(seg, force_this)?;
+        }
+    }
+    Ok(())
 }
 
 /// NIGHT-blade-18: the colon-list grammar for the multi families

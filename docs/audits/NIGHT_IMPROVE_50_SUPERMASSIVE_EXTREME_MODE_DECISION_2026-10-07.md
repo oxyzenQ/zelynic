@@ -160,6 +160,43 @@ exercise; the only real extreme is the product's own 1024/4096
 caps, and IF the owner wants that band crossed live, the
 cap-crossing stage above is the minimal honest shape, awaiting
 approval here.
+
+## 7. Addendum (2026-10-07, later same night): the owner approved
+
+The verdict came back: approval for the one cap-crossing
+candidate ("satu tahap kepadatan di v1"). The stage is now
+LIVE in the v1 harness — `stage_server_cap_crossing` in
+scripts/supermassive/supermassive-test.py, riding LAST in the
+server phase (after the dense fleet's teardown, on the
+empty-slate pin state the unpin leaves behind, so the
+1024-ceiling arithmetic is exact). Four MASS-RESULT rows:
+
+1. the census at 4100 — every fleet member a list-apps JSON
+   row (the walk has no cap; 64 proved the walk, 4100 proves
+   it 64x past the leaderboard's own boundary);
+2. the past-cap refusal — one 4100-target strict-multi argv
+   (the width the decision doc costed at ~29 KB on real-host
+   ids; smaller on the VM's narrow ids, two orders under
+   MAX_ARG_STRLEN either way) reaching the policy machinery
+   and refusing CLEAN at the 1024 ceiling: non-zero exit, the
+   insert cause surfaced, the rollback's own "apply rolled
+   back ... no residue" line, zero fleet rows in the status
+   JSON after;
+3. the at-cap control — exactly 1024 targets landing whole
+   (every row at the written rate), the ceiling proven from
+   below so the refusal means capacity, not breakage;
+4. the teardown — zero rows, zero sleepers, zero cgroups.
+
+The enabling find the stage surfaced while being costed: the
+multi family's danger loop walked /proc PER NUMERIC SEGMENT
+(O(segments x processes) — a 4100-id strict-multi would have
+walked /proc 4100 times over ~8200 processes before the
+policy write ever ran, minutes of guard). Fixed the same
+task: `check_dangerous_targets_multi` shares ONE /proc walk
+across the whole list, verdicts in segment order, wording
+byte-identical (two unit pins hold the order and the wording
+sharing). The eviction/restart/retirement semantics stay
+unit-pinned per section 4's honest boundary — unchanged.
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.

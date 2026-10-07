@@ -27,6 +27,54 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Added
 
+- **test(supermassive) + feat(safety): NIGHT-improve-50 — the
+  owner-approved cap-crossing density stage: one stage in v1's
+  server phase crosses the product's own boundaries LIVE, plus the
+  batched multi danger guard the stage's costing surfaced.** The
+  decision audit (docs/audits/
+  NIGHT_IMPROVE_50_SUPERMASSIVE_EXTREME_MODE_DECISION_2026-10-07.md)
+  skipped the extreme mode as proposed (1M/1T cgroups physically
+  impossible and product-invisible; past 4096 live cgroups every
+  further member exercises the same LRU/retirement mechanisms,
+  zero new semantics) and named exactly one candidate worth owner
+  approval; the owner approved it. The stage —
+  `stage_server_cap_crossing` in scripts/supermassive/
+  supermassive-test.py, riding LAST in the server phase on the
+  empty-slate pin state the dense fleet's teardown unpin leaves
+  behind — builds 4100 live cgroups with resident sleepers (one
+  mkdir + one `sleep 600` each, 16 residency barriers wide,
+  ~15-25 s construction, ~250-350 MB of task memory: fits both VM
+  profiles) and pins four rows: the census at 4100 (every member
+  a list-apps JSON row — the walk has no cap; 64 proved the walk,
+  4100 proves it 64x past the observer/leaderboard family's 4096
+  boundary), the past-cap refusal (one 4100-target strict-multi
+  argv reaching the policy machinery and refusing CLEAN at the
+  policy family's 1024 ceiling: non-zero exit, the insert cause
+  surfaced, the atomic rollback's own "apply rolled back ... no
+  residue" line, zero fleet rows in the status JSON after — the
+  refusal IS the pin, not a workaround), the at-cap control
+  (exactly 1024 targets landing whole at the written rate — the
+  ceiling proven from below, so the refusal means capacity, not
+  breakage), and the zero-residue teardown. The
+  eviction/restart/retirement semantics past 4096 stay unit-pinned
+  (the audit's honest boundary: a live eviction proof would need a
+  TUI assertion under churn — the flake class the busy-hour
+  residual already documents). The enabling find the costing
+  surfaced: the multi family's danger loop walked /proc PER
+  NUMERIC SEGMENT — O(segments x processes), so the 4100-target
+  apply would have walked /proc 4100 times over ~8200 processes
+  (minutes of guard) before the policy write ever ran. Fixed the
+  same task: `check_dangerous_targets_multi` in src/commands/
+  safety.rs shares ONE /proc walk across the whole colon list
+  (grouping member comms under the named cgroup ids), verdicts in
+  segment order, first refusal wins, wording byte-identical to
+  the per-segment loop it replaces (strict-multi and block-multi
+  now call it; strict-single/block-single keep the single-target
+  walk — one id, one walk, nothing to share); two unit pins hold
+  the order (a dangerous name before the root id refuses on the
+  name; reversed, on the root) and the root-refusal wording
+  sharing with the single arm.
+
 - **test(supermassive): NIGHT-improve-49 — the real-user drop
   lane: the rootless-lane rows now RUN on the root VM legs instead
   of skipping, the supermassive test's user experience made real
