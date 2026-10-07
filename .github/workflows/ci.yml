@@ -199,7 +199,7 @@ jobs:
       # NIGHT-improve-23 (refocused NIGHT-refactor-2, hardened
       # NIGHT-ultimate-3): the v2 harness (the survival battery)
       # self-tests the same way — engine import, stage surface, pty
-      # mechanics, and the 83-case CLI depth table (well-formed,
+      # mechanics, and the 104-case CLI depth table (well-formed,
       # every documented command/alias/flag touched) — with no root
       # and no network, so the batteries' plumbing is proven on every
       # push even though the root battery itself runs on the owner's

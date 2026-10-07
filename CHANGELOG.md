@@ -1732,6 +1732,36 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Fixed
 
+- **test(supermassive): NIGHT-improve-53 rider — the suites finish
+  learning the '::' grammar: the retired spellings leave v4's case
+  tables, v1's fleets join with the doubled separator, and v2's
+  size pin rides the merge's growth (97 -> 104).** The masterclass
+  merge's script pass reworked the rows whose GRAMMAR changed and
+  missed the rows whose VERB changed: v4 still drove its typo,
+  rate, echo, shadow, during, guarantee, and tier tables through
+  37 retired `ss`/`sm`/`bs` sites (a retired spelling
+  answers with the redirect, so the refusal the row asserts never
+  fires — 57 rows red on the rootless CI leg and the same 57 in
+  the supermassive VM), v1's server fleet and cap-crossing stages
+  still joined their multi-target specs with the single ':' the
+  unified verb no longer splits on (the whole spec died as one
+  long app name — "No cgroup found for '145:164:...'"), v2's
+  kill-tui battery inherited the same join through v1's
+  apply_group, and the CLI depth table's size pin (97) refused the
+  merge's own 104 rows. The rider: every retired spelling in a
+  live drive becomes its family verb (s/b); the echo boundary's
+  grammar path rides a two-member '::' list so the member-grammar
+  echo fires instead of hunt-30's one-distinct refusal shadowing
+  it; the fleet joins, teardowns, and at-cap specs double the
+  separator; the colon-target hard-miss row pins the tip the
+  merged verb actually prints ("members separate with '::'");
+  the size pin and its four stale citations (v4's header, the VM
+  init script's stage list, the CI workflow's self-test comment,
+  the README's v2 row) heal to 104 together. No product code
+  touched — the render engine, the eBPF objects, and the frame
+  harness are byte-identical; verified rootless end to end (v4
+  full battery 146/146, all four engine self-tests, build.sh
+  check-all, 23/23 gates).
 - **fix(during): NIGHT-hunt-30 — the visit sweep: status, recover,
   and snapshot collect expired `--during` rows themselves, the
   session's core find ("the brave on status should gone but this

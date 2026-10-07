@@ -1020,7 +1020,7 @@ def apply_single(name, rate_str, exp_dl, exp_ul, extra=()):
 
 
 def apply_group(names, rate_str, exp):
-    target = ":".join(str(CG.ids[n]) for n in names)
+    target = "::".join(str(CG.ids[n]) for n in names)
     rc, stdout, stderr = run_zel(["strict", target, rate_str])
     if rc != 0:
         return False, f"strict exit {rc}: {(stderr or stdout).strip()[:200]}"
@@ -1038,7 +1038,7 @@ def apply_group(names, rate_str, exp):
 
 
 def block_target(cmd, names):
-    target = ":".join(str(CG.ids[n]) for n in names)
+    target = "::".join(str(CG.ids[n]) for n in names)
     rc, stdout, stderr = run_zel([cmd, target])
     if rc != 0:
         return False, f"{cmd} exit {rc}: {(stderr or stdout).strip()[:200]}"
@@ -1051,7 +1051,7 @@ def block_target(cmd, names):
 
 
 def unstrict_target(cmd, names):
-    target = ":".join(str(CG.ids[n]) for n in names)
+    target = "::".join(str(CG.ids[n]) for n in names)
     rc, stdout, stderr = run_zel([cmd, target])
     if rc != 0:
         return False, f"{cmd} exit {rc}: {(stderr or stdout).strip()[:200]}"
@@ -1230,7 +1230,7 @@ class ServerFleet:
         the server leaves no trace (the crash-family teardown in v2
         owns the violence; this is the orderly exit)."""
         if self.ids:
-            run_zel(["unstrict", ":".join(str(i) for i in self.ids)])
+            run_zel(["unstrict", "::".join(str(i) for i in self.ids)])
         for s in self.sleepers:
             if s is not None:
                 s.kill()
@@ -1429,7 +1429,7 @@ def stage_server_dense_fleet():
 
 def stage_server_dense_policy():
     """Server fact 3: ONE policy write polices the whole dense
-    population — strict with a 64-target colon spec (the argv
+    population — strict with a 64-target '::' list spec (the argv
     scale alone is server-shaped: 512+ bytes of target string), every
     member's status row verified, and the enforcement MEASURED on a
     sampled member (a row on every cgroup is bookkeeping; a measured
@@ -1443,7 +1443,7 @@ def stage_server_dense_policy():
         return False
     out()
     out("━━━ server depth: one strict write across the fleet ━━━")
-    target = ":".join(str(i) for i in FLEET.ids)
+    target = "::".join(str(i) for i in FLEET.ids)
     rc, stdout, stderr = run_zel(["strict", target, "2mb"], timeout=60)
     if rc != 0:
         record(
@@ -1594,7 +1594,7 @@ def stage_server_parallel_readers():
     out()
     out("━━━ server depth: concurrent report readers under load ━━━")
     subset = FLEET.ids[:4]
-    rc, _, _ = run_zel(["strict", ":".join(str(i) for i in subset), "2mb"])
+    rc, _, _ = run_zel(["strict", "::".join(str(i) for i in subset), "2mb"])
     if rc != 0:
         record(
             "server: parallel report readers (8x concurrent)",
@@ -1629,7 +1629,7 @@ def stage_server_parallel_readers():
         )
         == "PASS"
     )
-    run_zel(["unstrict", ":".join(str(i) for i in subset)])
+    run_zel(["unstrict", "::".join(str(i) for i in subset)])
     return ok
 
 
@@ -1671,7 +1671,7 @@ def stage_server_cap_crossing():
     1. the census walk: list-apps must row EVERY member (the walk
        has no cap; 64 proved the walk, 4100 proves it at 64x past
        the leaderboard's own boundary);
-    2. the 4100-target strict argv: the one colon spec must
+    2. the 4100-target strict argv: the one '::' list spec must
        REACH the policy machinery — no argv-boundary refusal — and
        die there at the policy family's 1024 ceiling, CLEAN: the
        atomic rollback owns the partial state, zero rows survive;
@@ -1750,14 +1750,14 @@ def stage_server_cap_crossing():
         )
         == "PASS"
     )
-    # The past-cap refusal: one 4100-target colon spec (~20 KB of
+    # The past-cap refusal: one 4100-target '::' list spec (~20 KB of
     # argv on this VM's id width — the real-host width is larger,
     # still two orders under MAX_ARG_STRLEN), refused at the policy
     # family's 1024 ceiling. The PASS contract is the CLEAN shape:
     # non-zero exit, the insert-failure cause surfaced, the atomic
     # rollback's own line ("apply rolled back ... no residue"), and
     # a status JSON carrying ZERO fleet rows after it all.
-    target = ":".join(str(i) for i in CAP_FLEET.ids)
+    target = "::".join(str(i) for i in CAP_FLEET.ids)
     rc, stdout, stderr = run_zel(["strict", target, "2mb"], timeout=180)
     combined = (stderr or "") + (stdout or "")
     doc = status_json()
@@ -1786,7 +1786,7 @@ def stage_server_cap_crossing():
     # empty again, so the arithmetic is exact — legs 1..1024 insert,
     # nothing overflows.
     control_ids = CAP_FLEET.ids[:POLICY_MAP_CAPACITY]
-    control_target = ":".join(str(i) for i in control_ids)
+    control_target = "::".join(str(i) for i in control_ids)
     rc, stdout, stderr = run_zel(["strict", control_target, "2mb"], timeout=180)
     if rc == 0:
         doc = status_json()
