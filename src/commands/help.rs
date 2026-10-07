@@ -212,10 +212,15 @@ pub(crate) fn print_help() {
     println_safe!(
         "  -v, --verbose    Diagnostic trace: target resolution, policy writes, BPF lifecycle"
     );
+    // NIGHT-total-lts-9: the surface list ends at doctor. Restore
+    // rode this line as the pair's fifth JSON surface and left with
+    // the pair (NIGHT-improve-55, the total retirement); the scope
+    // contract's own list (cli/scope.rs JSON_SURFACE_COMMANDS) is
+    // the single truth this line mirrors — the lts-9 dragon hunt
+    // found the stale continuation and closed it.
     println_safe!(
-        "  --print-json     JSON output for status, list-apps, eagle-eyes --depth, doctor,"
+        "  --print-json     JSON output for status, list-apps, eagle-eyes --depth, doctor"
     );
-    println_safe!("                   restore");
     println_safe!("  --color-mode M   Force color depth: 0 mono, 16, 8/256 cube, 24/32 truecolor");
     println_safe!(
         "                   (default auto-fallback; for terminals whose truecolor claim lies)"
