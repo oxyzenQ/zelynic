@@ -1912,10 +1912,15 @@ polls (a monitor sampling at `--interval 30s` reads the true peak
 and cadence, not a 30s mean):
 
 ```json
-"rate_ring":{"window_secs":1,"download":{"bytes":[0,0,0,1048576,1048576,524288,1048576,655360],"live":5,"peak_bytes":1048576},"upload":null}
+"rate_ring":{"window_secs":8,"download":{"bytes":[0,0,0,1048576,1048576,524288,1048576,655360],"live":5,"peak_bytes":1048576},"upload":null}
 ```
 
-`bytes` is OLDEST-first (the last entry is the current, still-filling
+`window_secs` is the SPAN the series covers — eight one-second
+slots (NIGHT-hunt-30: it used to carry the per-slot width `1`,
+which read as the whole window and made `sum(bytes) / window_secs`
+overcount eight-fold; the per-slot granularity is `bytes.len()`,
+one sample per second, so the average rate over the horizon is
+`sum(bytes) / window_secs`). `bytes` is OLDEST-first (the last entry is the current, still-filling
 window — a window mid-second reads low); `live` counts how many of
 the eight windows hold data (the honest horizon); `peak_bytes` is
 the largest COMPLETED window (the current one never qualifies — it

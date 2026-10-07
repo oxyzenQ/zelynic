@@ -293,7 +293,13 @@ fn rate_ring_field_joins_series_by_cgroup() {
     // derived; cgroup 2: no ring entry -> no field.
     let with = json.limits.iter().find(|l| l.cgroup_id == 1).unwrap();
     let rr = with.rate_ring.as_ref().expect("cgroup 1 has a dl ring");
-    assert_eq!(rr.window_secs, 1);
+    // NIGHT-hunt-30 (the owner's "what mean window secs 1" find): the
+    // field names the SPAN the series covers — 8 one-second slots —
+    // so `sum(bytes) / window_secs` is the horizon's average rate
+    // (the per-slot width it used to carry made that division
+    // overcount eight-fold; the per-slot granularity is bytes.len()).
+    assert_eq!(rr.window_secs, RATE_RING_SLOTS as u64);
+    assert_eq!(rr.window_secs, 8, "the documented horizon is eight seconds");
     assert!(rr.download.is_some());
     assert!(rr.upload.is_none());
     let dl_series = rr.download.as_ref().unwrap();
