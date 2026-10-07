@@ -64,10 +64,6 @@ fn note_and_classification_agree_both_ways() {
                 depth: true,
             })),
             "doctor" => command_honors_print_json(Some(&Commands::Doctor)),
-            // NIGHT-private-research-4's surviving half
-            // (NIGHT-improve-55 retired the snapshot dump — the
-            // classification arm and the list entry move together).
-            "restore" => command_honors_print_json(Some(&Commands::Restore)),
             other => panic!("unknown surface named in the note: {other}"),
         };
         assert!(

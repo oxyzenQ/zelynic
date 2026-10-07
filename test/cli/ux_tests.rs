@@ -236,22 +236,33 @@ fn removed_sweep_spellings_redirect_to_the_all_lanes() {
     }
 }
 
-/// NIGHT-improve-55: the snapshot verb is retired (the dump half of
-/// the persistence pair — the owner's live-test verdict); the old
-/// spelling must land on the pair's survivor in clap's own
-/// suggestion slot, the exact contract observe/top carry. The
-/// state file is the operator's hand-maintained desired state now,
-/// and restore is the verb that honors it.
+/// NIGHT-improve-55 (the total retirement): the persistence pair
+/// is gone whole — the owner's live-test verdict was that neither
+/// half earned its keep. Both old spellings must land on the
+/// redirect table's successor in clap's own suggestion slot, the
+/// exact contract observe/top carry; the successor is `status`
+/// (the "what is live right now" answer — and the redirect also
+/// suppresses clap's fuzzy near-miss, which for 'restore' would
+/// have suggested the unrelated 'recover').
 #[test]
-fn removed_snapshot_redirects_to_restore() {
+fn removed_snapshot_redirects_to_status() {
     let rendered = render_via_bridge(&["zelynic", "snapshot"]);
     assert!(
         rendered.contains("unrecognized subcommand 'snapshot'"),
         "must name the removed spelling, got:\n{rendered}"
     );
     assert!(
-        rendered.contains("restore"),
-        "removed 'snapshot' must redirect to restore, got:\n{rendered}"
+        rendered.contains("status"),
+        "removed 'snapshot' must redirect to status, got:\n{rendered}"
+    );
+    let rendered = render_via_bridge(&["zelynic", "restore"]);
+    assert!(
+        rendered.contains("unrecognized subcommand 'restore'"),
+        "must name the removed spelling, got:\n{rendered}"
+    );
+    assert!(
+        rendered.contains("status"),
+        "removed 'restore' must redirect to status, got:\n{rendered}"
     );
 }
 

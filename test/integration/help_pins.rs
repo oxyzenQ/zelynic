@@ -26,17 +26,17 @@ use crate::zelynic_cmd;
 /// contains() on a single letter proves nothing.
 #[test]
 fn test_help_lists_every_command() {
-    // NIGHT-improve-54: 10 commands — the -all sweeps retired into
+    // NIGHT-improve-54: 9 commands — the -all sweeps retired into
     // the family verbs' --all lanes (sa/ba/ua with their verbs),
-    // on top of improve-55's snapshot retirement.
-    const KNOWN_COMMANDS: [&str; 10] = [
+    // on top of improve-55 retiring the persistence pair whole
+    // (snapshot's dump went first, restore's apply lane followed —
+    // the owner's live-test verdict was that neither half earned
+    // its keep).
+    const KNOWN_COMMANDS: [&str; 9] = [
         "strict",
         "block",
         "unstrict",
         "recover",
-        // NIGHT-private-research-4's surviving half
-        // (NIGHT-improve-55 retired the snapshot dump).
-        "restore",
         "status",
         "list-apps",
         "eagle-eyes",

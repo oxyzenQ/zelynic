@@ -119,9 +119,10 @@ Design:
     floor<=ceil<=rate contradictions, the removed-direction law, the
     per-direction split's own grammar); the PER-SOCKET TIER gets its
     valid-parse row (the flag is strict's own — the family
-    verbs' refusal is pinned too); and the SNAPSHOT/RESTORE pair
-    joins the command surface (recognized verbs with their own
-    privilege wording — the persistence pair's CLI shape). The three
+    verbs' refusal is pinned too); and the SNAPSHOT/RESTORE pair is
+    a REMOVED pair (NIGHT-improve-55 retired the persistence lane
+    whole — both spellings answer unrecognized with the status
+    redirect, the dedicated rows below). The three
     automatic lanes — ECN-FIRST POLICING (v19/v21), CAKE-STYLE FLOW
     ISOLATION (v20), QUIC-AWARE ATTRIBUTION (v22) — have NO CLI
     surface by design (kernel-side, no flag, no opt-out), so this
@@ -213,40 +214,10 @@ COMMANDS = [
     ("doctor", None),
 ]
 
-# NIGHT-improve-42's table, reworked by NIGHT-improve-55: the
-# persistence lane's SURVIVING verb. `restore` takes NO required
-# args (a bare invocation IS the full invocation), so the COMMANDS
-# shape above (the missing-arg complaint) does not fit: the
-# recognized proof is the verb's OWN privilege refusal, which names
-# the sudo ladder and the state file — never "unrecognized
-# subcommand". The bare verb is a rootless-lane row (as root it
-# would RE-APPLY the state file's policies — a mutation this
-# battery refuses to make, the Z9 doctrine); the extra-positional
-# row is a parse-boundary refusal and holds under every uid.
-# Post as (argv, must_contain, must_not_contain, description,
-# rootless_lane) — the shared needle-case shape. The verb's own name
-# rides the needles: the refusal names the verb it refuses
-# ("restore re-applies policies from the state file ... run with
-# sudo"), so an "unrecognized subcommand" answer fails as a missing
-# needle — the same recognized proof the COMMANDS rows carry.
-# (The retired `snapshot` spelling is a REMOVED row below: it
-# answers as unrecognized with the redirect that names restore.)
-PRIVILEGED_VERBS = [
-    (
-        ["restore"],
-        ["sudo", "restore"],
-        [],
-        "restore recognized - its own privilege refusal",
-        True,
-    ),
-    (
-        ["restore", "extra"],
-        ["unexpected argument"],
-        [],
-        "restore takes no positionals (the parse refusal, every uid)",
-        False,
-    ),
-]
+# (NIGHT-improve-42's table, retired WHOLE by NIGHT-improve-55: the
+# persistence pair is gone — both spellings are REMOVED rows below,
+# each answering unrecognized with the status redirect. The
+# privilege-wording proof the table carried went with the verbs.)
 
 # Every global flag the help names. Each must answer clean when driven
 # through the binary rootlessly (info surfaces exit 0; refusals exit
@@ -353,10 +324,11 @@ REMOVED = [
     ("ua", "unrecognized or redirect to unstrict --all"),
     ("eagle-eye", "unrecognized or redirect to eagle-eyes"),
     ("man", "unrecognized (rejected)"),
-    # NIGHT-improve-55: the snapshot dump is retired — the redirect
-    # names restore, the persistence pair's surviving half (the
-    # needle proof rides the dedicated block in test_removed_retired).
-    ("snapshot", "unrecognized or redirect to restore"),
+    # NIGHT-improve-55: the persistence pair is retired whole —
+    # both spellings redirect to status (the needle proof rides
+    # the dedicated block in test_removed_retired).
+    ("snapshot", "unrecognized or redirect to status"),
+    ("restore", "unrecognized or redirect to status"),
 ]
 
 # Hidden subcommands the parser knows but the help hides. Each must
@@ -990,13 +962,10 @@ def test_command_surface():
                 all_ok = False
                 continue
             record(label_a, "PASS", f"rc={rc_a}, routed, no panic")
-    # NIGHT-improve-42: the persistence lane's surviving verb joins
-    # the command surface (NIGHT-improve-55 retired the dump half) —
-    # restore carries no required args, so its recognized proof is
-    # its own privilege refusal (the needles name the verb AND the
-    # sudo ladder; an "unrecognized subcommand" answer fails as a
-    # missing needle, the same contract the rows above carry).
-    all_ok = _run_needle_cases(PRIVILEGED_VERBS, "verb") and all_ok
+    # (NIGHT-improve-42's privileged-verb needle table rode here;
+    # NIGHT-improve-55 retired the persistence pair whole, and the
+    # table's only rows were restore's — the recognized proof went
+    # with the verb, so the stage ends with the rows above.)
     return all_ok
 
 
@@ -1288,10 +1257,10 @@ def test_removed_retired():
     """Every removed/retired command answers clean (no hang, no panic).
 
     Removed commands (observe, top, limit-all, eagle-eye, snapshot,
-    man) are rejected as unrecognized (with a redirect suggestion
-    where the help documents one). Retired flags (--info) redirect to
-    their successor (--depth). The contract: answers, no panic,
-    non-zero (a removed command never silently succeeds).
+    restore, man) are rejected as unrecognized (with a redirect
+    suggestion where the help documents one). Retired flags (--info)
+    redirect to their successor (--depth). The contract: answers, no
+    panic, non-zero (a removed command never silently succeeds).
     """
     out()
     out("── stage 7: removed/retired commands (clean redirect/reject) ──")
@@ -1347,26 +1316,31 @@ def test_removed_retired():
         all_ok = False
     else:
         record(label, "PASS", "rc=2, the --no-test vocabulary redirect")
-    # NIGHT-improve-55: snapshot retired -> restore. The redirect is
-    # the contract (the ux redirect table names the persistence
-    # pair's survivor): the answer must be unrecognized AND carry the
-    # restore tip — a dead end here means the redirect row was lost.
-    rc, output = _run_cli_case(["snapshot"])
-    label = "retired: snapshot -> restore"
-    if rc is None:
-        record(label, "FAIL", "timed out (hang)")
-        all_ok = False
-    elif _case_panicked(output):
-        record(label + " no panic", "FAIL", "panic leaked")
-        all_ok = False
-    elif rc == 0:
-        record(label, "FAIL", "retired snapshot accepted (rc=0)")
-        all_ok = False
-    elif "restore" not in output:
-        record(label, "FAIL", f"no redirect tip naming restore, got: {output[:200]}")
-        all_ok = False
-    else:
-        record(label, "PASS", "rc=2, unrecognized with the restore redirect")
+    # NIGHT-improve-55: the persistence pair is retired whole —
+    # snapshot AND restore. The redirect is the contract (the ux
+    # redirect table names status, the "what is live now" answer):
+    # each answer must be unrecognized AND carry the status tip — a
+    # dead end here means a redirect row was lost. The successor
+    # also matters for what it suppresses: without the row, clap's
+    # fuzzy matcher would suggest 'recover' for 'restore' — an
+    # unrelated verb (crash pin cleanup) the tip must never name.
+    for gone in ("snapshot", "restore"):
+        rc, output = _run_cli_case([gone])
+        label = f"retired: {gone} -> status"
+        if rc is None:
+            record(label, "FAIL", "timed out (hang)")
+            all_ok = False
+        elif _case_panicked(output):
+            record(label + " no panic", "FAIL", "panic leaked")
+            all_ok = False
+        elif rc == 0:
+            record(label, "FAIL", f"retired {gone} accepted (rc=0)")
+            all_ok = False
+        elif "status" not in output:
+            record(label, "FAIL", f"no redirect tip naming status, got: {output[:200]}")
+            all_ok = False
+        else:
+            record(label, "PASS", "rc=2, unrecognized with the status redirect")
     return all_ok
 
 
@@ -1628,7 +1602,6 @@ def self_test():
     _during_lanes = sum(1 for c in DURING_CASES if c[-1])
     _guarantee_lanes = sum(1 for c in GUARANTEE_CASES if c[-1])
     _tier_lanes = sum(1 for c in TIER_FLAGS if c[-1])
-    _verb_lanes = sum(1 for c in PRIVILEGED_VERBS if c[-1])
     # The real-user drop lane's engine pin (NIGHT-improve-49): the
     # probe is environment-honest — setpriv present means the prefix
     # must be exactly the five-token drop shape; absent means the
@@ -1683,8 +1656,6 @@ def self_test():
             and 0 < _guarantee_lanes < len(GUARANTEE_CASES)
             and len(TIER_FLAGS) > 0
             and 0 < _tier_lanes < len(TIER_FLAGS)
-            and len(PRIVILEGED_VERBS) > 0
-            and 0 < _verb_lanes < len(PRIVILEGED_VERBS)
             else "FAIL",
             f"{len(COMMANDS)} commands, {len(COLOR_MODES_VALID)}+{len(COLOR_MODES_INVALID)} color modes, "
             f"{len(TYPOS)} typos, {len(RATE_CASES)} rate cases, {len(REMOVED)} removed, "
@@ -1694,8 +1665,7 @@ def self_test():
             f"{len(HIDDEN_LEAK_CASES)} vocab cases, "
             f"{len(DURING_CASES)} during cases ({_during_lanes} rootless-lane), "
             f"{len(GUARANTEE_CASES)} guarantee cases ({_guarantee_lanes} rootless-lane), "
-            f"{len(TIER_FLAGS)} tier cases ({_tier_lanes} rootless-lane), "
-            f"{len(PRIVILEGED_VERBS)} privileged verbs ({_verb_lanes} rootless-lane)",
+            f"{len(TIER_FLAGS)} tier cases ({_tier_lanes} rootless-lane)",
         )
         and ok
     )

@@ -42,30 +42,20 @@ pub const DURING_MAX_NS: u64 = 10 * 365 * 86_400 * 1_000_000_000;
 pub(super) const NS_PER_SEC: u64 = 1_000_000_000;
 pub(super) const NS_PER_DAY: u64 = 86_400 * NS_PER_SEC;
 
-/// One parsed --during argument — or one restored window. The
-/// parse is PURE (no clock read) and yields ONLY the duration
-/// shape; the Span/Daily variants are the RESTORE lane's
-/// re-translation vocabulary (a state file's wall form goes back
-/// through them so a row an older build promised keeps its
-/// promise), never constructible from the flag itself.
+/// One parsed --during argument. The parse is PURE (no clock read)
+/// and yields ONLY the duration shape — the flag's one shape since
+/// the owner's duration-only revision. The restore lane's
+/// Span/Daily re-translation vocabulary went with the snapshot
+/// pair when NIGHT-improve-55 retired the feature whole (the
+/// legacy span/daily MAP rows an older build pinned are honored at
+/// the window_active/window_state level, never re-translated
+/// through this enum).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DuringSpec {
     /// `--during 2h` — from the apply instant; translated to a span
     /// at write time. The flag's only shape (the owner's
     /// duration-only revision).
     Duration { ns: u64 },
-    /// The restore lane's wall span: a snapshot's persisted
-    /// deadlines, re-translated at the restore instant so the row
-    /// expires at the wall instant it promised. The flag's date
-    /// form is gone; this variant is the read-side belt.
-    Span {
-        start_wall_ns: u64,
-        end_wall_ns: u64,
-    },
-    /// The restore lane's daily pair: a state file an older build
-    /// wrote, restored verbatim. The flag's window form is gone;
-    /// this variant is the read-side belt.
-    Daily { start_s: u32, end_s: u32 },
 }
 
 /// The grammar error's did-you-mean block, shared by every parse

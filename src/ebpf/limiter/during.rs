@@ -60,39 +60,17 @@ pub fn wall_minus_mono(wall_ns: u64, mono_ns: u64) -> u64 {
 }
 
 /// Translate one spec into the side-map row, at the apply instant.
-/// SPAN/DURATION: a FUTURE start translates forward
-/// (`start_mono = mono + (start_wall - wall)`, the dormancy law —
-/// the row sleeps until its day arrives), a PAST start translates
-/// backward (`mono - (wall - start_wall)`, saturating — a start
-/// before the host booted clamps to "since boot", the span simply
-/// already running) and `end_mono = mono + (end_wall - wall)`
-/// (never negative: the parse family refuses past ends). DURATION:
-/// start is the mono now. DAILY: fields verbatim, no clock.
-pub fn during_to_window(spec: &DuringSpec, wall_now_ns: u64, mono_now_ns: u64) -> PolicyWindowRaw {
+/// DURATION (the flag's only shape since the duration-only
+/// revision): a WINDOW_KIND_SPAN row with start = the mono now and
+/// end = start + ns — the apply instant is the row's birth. The
+/// LEGACY span/daily shapes an older build may have pinned in the
+/// map are honored at the window_active/window_state level (the
+/// runtime never forgets a promised row); nothing constructs them
+/// here anymore — the restore lane that did is retired with the
+/// snapshot pair (NIGHT-improve-55, the total retirement).
+pub fn during_to_window(spec: &DuringSpec, mono_now_ns: u64) -> PolicyWindowRaw {
     let mut row = PolicyWindowRaw::default();
     match spec {
-        DuringSpec::Daily { start_s, end_s } => {
-            row.kind = WINDOW_KIND_DAILY;
-            row.start_s = *start_s;
-            row.end_s = *end_s;
-        }
-        DuringSpec::Span {
-            start_wall_ns,
-            end_wall_ns,
-        } => {
-            row.kind = WINDOW_KIND_SPAN;
-            row.start_mono_ns = if *start_wall_ns > wall_now_ns {
-                // The dormancy law: a future date must sleep until
-                // its instant. The naive saturating subtraction
-                // collapsed a future start onto the apply instant
-                // (over-enforcement, the direction the margin law
-                // forbids) — night-audit-1 task 17.
-                mono_now_ns.saturating_add(*start_wall_ns - wall_now_ns)
-            } else {
-                mono_now_ns.saturating_sub(wall_now_ns - *start_wall_ns)
-            };
-            row.end_mono_ns = mono_now_ns.saturating_add(end_wall_ns.saturating_sub(wall_now_ns));
-        }
         DuringSpec::Duration { ns } => {
             row.kind = WINDOW_KIND_SPAN;
             row.start_mono_ns = mono_now_ns;
@@ -240,75 +218,18 @@ pub fn window_state(win: &PolicyWindowRaw, wall_now_ns: u64, mono_now_ns: u64) -
     }
 }
 
-/// The WALL-clock persistence form of one window row (the state
-/// file's `during` field): a span's monotonic deadlines are
-/// meaningless across a reboot (mono resets), so the document
-/// carries the WALL instants and the daily pair verbatim; the
-/// restore re-translates through a fresh bridge. A restored row
-/// must never convert "auto-expires" into "forever" — the design
-/// brief's safety direction.
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
-pub struct WindowPersist {
-    /// "span" or "daily" (the WINDOW_KIND_* twins by name).
-    pub kind: String,
-    /// SPAN: inclusive start, wall ns since epoch. DAILY: 0.
-    pub start_wall_ns: u64,
-    /// SPAN: exclusive end, wall ns since epoch. DAILY: 0.
-    pub end_wall_ns: u64,
-    /// DAILY: window start, seconds-of-day UTC. SPAN: 0.
-    pub start_s: u32,
-    /// DAILY: window end, seconds-of-day UTC. SPAN: 0.
-    pub end_s: u32,
-}
-
-/// One row's persistence form (pure): the span's wall instants
-/// reconstructed as `mono + (wall - mono)` — the exact inverse of
-/// the apply-time translation, the twin's own arithmetic. Test-only
-/// since NIGHT-improve-55: the snapshot dump that called it is
-/// retired (the operator writes the wall form by hand now), so the
-/// round-trip grid in during_user_tests is the shape's only reader.
-#[cfg(test)]
-pub fn window_persist_form(
-    win: &PolicyWindowRaw,
-    wall_now_ns: u64,
-    mono_now_ns: u64,
-) -> WindowPersist {
-    let offset = wall_minus_mono(wall_now_ns, mono_now_ns);
-    match win.kind {
-        WINDOW_KIND_DAILY => WindowPersist {
-            kind: "daily".to_string(),
-            start_wall_ns: 0,
-            end_wall_ns: 0,
-            start_s: win.start_s,
-            end_s: win.end_s,
-        },
-        _ => WindowPersist {
-            kind: "span".to_string(),
-            start_wall_ns: win.start_mono_ns.saturating_add(offset),
-            end_wall_ns: win.end_mono_ns.saturating_add(offset),
-            start_s: 0,
-            end_s: 0,
-        },
-    }
-}
-
-/// The restore half (pure): the persistence form back into the
-/// spec the apply family takes — a fresh bridge re-translates the
-/// span at the restore instant. A file whose kind is neither name
-/// refuses (the state-schema honesty: never a best-guess parse).
-pub fn window_persist_to_spec(form: &WindowPersist) -> Option<DuringSpec> {
-    match form.kind.as_str() {
-        "daily" => Some(DuringSpec::Daily {
-            start_s: form.start_s,
-            end_s: form.end_s,
-        }),
-        "span" => Some(DuringSpec::Span {
-            start_wall_ns: form.start_wall_ns,
-            end_wall_ns: form.end_wall_ns,
-        }),
-        _ => None,
-    }
-}
+// NIGHT-improve-55 (the total retirement): the persistence form
+// that lived here — WindowPersist, window_persist_form, and
+// window_persist_to_spec — was the state-file serialization of the
+// snapshot/restore pair, and it went with the pair when the owner's
+// live-test verdict retired the feature whole. What stays is the
+// live machinery: during_to_window (the apply-side translation,
+// legacy map rows included), window_state, and the wall renderers
+// the status lines print. The translation variants for the legacy
+// span/daily shapes keep their contract — a row an older build
+// pinned in the map keeps its promise; the GRAMMAR still refuses
+// the shapes at the flag (the one-shape revision), and nothing in
+// userspace constructs them anymore.
 
 // NIGHT-hunt-17: pins live under the single test/ tree (cosmostrix
 // Pattern C), #[path]-wired exactly like the policy pins.
