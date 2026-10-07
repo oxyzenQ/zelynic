@@ -25,7 +25,7 @@ subcommand.
 
 Division of labor (NIGHT-improve-35, the owner's call): v1 measures
 limits; v2 survives violence; v3 resolves containers; v4 covers the CLI
-surface. v2's 97-case stresstest is abuse-oriented (shell-injection
+surface. v2's 104-case stresstest is abuse-oriented (shell-injection
 payloads, wrong values in every position, fatal usage shapes) — it
 tests what a HOSTILE operator throws at the parser. v4 is
 coverage-oriented — it tests that every flag the help NAMES exists,
@@ -309,14 +309,14 @@ TYPOS = [
     # NIGHT-hunt-Z8: the per-command flags the ladder skipped —
     # eagle-eyes --focus, and the -d/-u long forms.
     ("--focs", "--focus", ["ee", "brave"]),
-    ("--dowload", "--download", ["ss", "brave", "1mb"]),
-    ("--uploed", "--upload", ["ss", "brave", "1mb"]),
+    ("--dowload", "--download", ["s", "brave", "1mb"]),
+    ("--uploed", "--upload", ["s", "brave", "1mb"]),
     # NIGHT-improve-42: the private-research-4 flags the ladder did
     # not know — the time window and the guarantee brackets (the
     # typos the owner's own fingers will make on the new grammar).
-    ("--durign", "--during", ["ss", "brave", "1mb"]),
-    ("--flor", "--floor", ["ss", "brave", "1mb"]),
-    ("--cel", "--ceil", ["ss", "brave", "1mb"]),
+    ("--durign", "--during", ["s", "brave", "1mb"]),
+    ("--flor", "--floor", ["s", "brave", "1mb"]),
+    ("--cel", "--ceil", ["s", "brave", "1mb"]),
 ]
 
 # Every rate-explode shape, categorized by the error the parser owns for
@@ -390,13 +390,15 @@ ECHO_PAYLOADS = [
 
 # Every pre-root echo path (each embeds a different user-supplied
 # string in its refusal): the dangerous-target blocklist echo, the
-# multi-segment grammar echo, the rate parse echo, and the duration
-# parse echo (interval and focus). Post as (argv-builder, needle that
-# proves the refusal fired).
+# list-member grammar echo (NIGHT-improve-53: the '::' member set —
+# hunt-30's one-distinct rung means the payload member rides with a
+# partner, or the count refusal would shadow the grammar echo), the
+# rate parse echo, and the duration parse echo (interval and focus).
+# Post as (argv-builder, needle that proves the refusal fired).
 ECHO_PATHS = [
-    (lambda p: ["ss", p, "1mb"], "is a system process"),
-    (lambda p: ["sm", "brave" + p + "/x", "1mb"], "not a valid app name"),
-    (lambda p: ["ss", "brave", "1" + p + "kb"], "Invalid"),
+    (lambda p: ["s", p, "1mb"], "is a system process"),
+    (lambda p: ["s", "brave" + p + "/x::curl", "1mb"], "not a valid app name"),
+    (lambda p: ["s", "brave", "1" + p + "kb"], "Invalid"),
     (lambda p: ["eagle-eyes", "--interval", "a" + p + "b"], "Invalid duration"),
 ]
 
@@ -437,21 +439,21 @@ SHADOWED_POSITIONAL_CASES = [
         # Pure garbage has no near-miss twin, so no tip fires — the
         # REFUSAL before the root ask is the contract (the '1MB' case
         # below carries the did-you-mean tip lane).
-        ["ss", "brave", "not-a-rate", "-d", "100kb"],
+        ["s", "brave", "not-a-rate", "-d", "100kb"],
         ["Invalid rate 'not-a-rate'"],
         ["root required"],
         "garbage positional surfaces its refusal before the root ask",
         False,
     ),
     (
-        ["ss", "brave", "1MB", "-d", "100kb"],
+        ["s", "brave", "1MB", "-d", "100kb"],
         ["Invalid rate '1MB'", "'1mb'"],
         ["root required"],
         "uppercase positional typo carries the did-you-mean tip",
         False,
     ),
     (
-        ["ss", "brave", "100kb", "-d", "50kb"],
+        ["s", "brave", "100kb", "-d", "50kb"],
         ["positional rate '100kb' ignored", "root required"],
         [],
         "valid positional is named, then the flags decide",
@@ -472,7 +474,7 @@ SHADOWED_POSITIONAL_CASES = [
         True,
     ),
     (
-        ["ss", "brave", "100kb"],
+        ["s", "brave", "100kb"],
         ["root required"],
         ["ignored"],
         "unshadowed positional: no note (the rate applies)",
@@ -559,28 +561,28 @@ LONG_ALIASES = [
 DURING_CASES = [
     # The valid grammar — parse passes, the privilege gate answers.
     (
-        ["ss", "brave", "1mb", "--during", "1s"],
+        ["s", "brave", "1mb", "--during", "1s"],
         ["root required"],
         [],
         "min bound 1s parses",
         True,
     ),
     (
-        ["ss", "brave", "1mb", "--during", "10y"],
+        ["s", "brave", "1mb", "--during", "10y"],
         ["root required"],
         [],
         "max bound 10y parses",
         True,
     ),
     (
-        ["ss", "brave", "1mb", "--during", "2mn"],
+        ["s", "brave", "1mb", "--during", "2mn"],
         ["root required"],
         [],
         "the mn unit parses (months - m is minutes)",
         True,
     ),
     (
-        ["ss", "brave", "1mb", "--during", "48h"],
+        ["s", "brave", "1mb", "--during", "48h"],
         ["root required"],
         [],
         "the hour shape parses",
@@ -601,7 +603,7 @@ DURING_CASES = [
         True,
     ),
     (
-        ["bs", "brave", "--during", "2h"],
+        ["b", "brave", "--during", "2h"],
         ["root required"],
         [],
         "the block family rides it (a bedtime block that lifts itself)",
@@ -616,42 +618,42 @@ DURING_CASES = [
     ),
     # The refusal ladder — parse-boundary refusals, every uid.
     (
-        ["ss", "brave", "1mb", "--during", "5x"],
+        ["s", "brave", "1mb", "--during", "5x"],
         ["unit 'x' is not in the grammar"],
         [],
         "unknown unit names the grammar",
         False,
     ),
     (
-        ["ss", "brave", "1mb", "--during", "0.5s"],
+        ["s", "brave", "1mb", "--during", "0.5s"],
         ["not in the grammar"],
         [],
         "fractional refused (integer N only)",
         False,
     ),
     (
-        ["ss", "brave", "1mb", "--during", "0s"],
+        ["s", "brave", "1mb", "--during", "0s"],
         ["floor is 1s"],
         [],
         "below-min names the floor",
         False,
     ),
     (
-        ["ss", "brave", "1mb", "--during", "11y"],
+        ["s", "brave", "1mb", "--during", "11y"],
         ["ceiling is 10y"],
         [],
         "above-max names the ceiling",
         False,
     ),
     (
-        ["ss", "brave", "1mb", "--during", "09:00-17:00"],
+        ["s", "brave", "1mb", "--during", "09:00-17:00"],
         ["window form"],
         [],
         "the removed window shape refused by name",
         False,
     ),
     (
-        ["ss", "brave", "1mb", "--during", "2026-10-15"],
+        ["s", "brave", "1mb", "--during", "2026-10-15"],
         ["date form"],
         [],
         "the removed date shape refused by name",
@@ -674,14 +676,14 @@ DURING_CASES = [
 GUARANTEE_CASES = [
     # The valid shapes — parse passes, the privilege gate answers.
     (
-        ["ss", "brave", "1mb", "--floor", "100kb"],
+        ["s", "brave", "1mb", "--floor", "100kb"],
         ["root required"],
         [],
         "the floor parses",
         True,
     ),
     (
-        ["ss", "brave", "1mb", "--ceil", "500kb"],
+        ["s", "brave", "1mb", "--ceil", "500kb"],
         ["root required"],
         [],
         "the ceiling parses",
@@ -689,7 +691,7 @@ GUARANTEE_CASES = [
     ),
     (
         [
-            "ss",
+            "s",
             "brave",
             "-d",
             "1mb",
@@ -707,7 +709,7 @@ GUARANTEE_CASES = [
     ),
     (
         [
-            "ss",
+            "s",
             "brave",
             "1mb",
             "--floor",
@@ -724,49 +726,49 @@ GUARANTEE_CASES = [
     ),
     # The law ladder — parse-boundary refusals, every uid.
     (
-        ["ss", "brave", "1mb", "--floor", "100kb", "--floor-download", "50kb"],
+        ["s", "brave", "1mb", "--floor", "100kb", "--floor-download", "50kb"],
         ["one spelling"],
         [],
         "the floor's one-spelling law",
         False,
     ),
     (
-        ["ss", "brave", "1mb", "--ceil", "100kb", "--ceil-upload", "50kb"],
+        ["s", "brave", "1mb", "--ceil", "100kb", "--ceil-upload", "50kb"],
         ["one spelling"],
         [],
         "the ceiling twin's one-spelling law",
         False,
     ),
     (
-        ["ss", "brave", "1mb", "--floor", "200kb", "--ceil", "100kb"],
+        ["s", "brave", "1mb", "--floor", "200kb", "--ceil", "100kb"],
         ["exceeds ceil"],
         [],
         "floor above ceil is a contradiction",
         False,
     ),
     (
-        ["ss", "brave", "1mb", "--ceil", "2mb"],
+        ["s", "brave", "1mb", "--ceil", "2mb"],
         ["exceeds the download rate"],
         [],
         "ceil above rate never binds",
         False,
     ),
     (
-        ["ss", "brave", "1mb", "--floor", "2mb"],
+        ["s", "brave", "1mb", "--floor", "2mb"],
         ["exceeds the download rate"],
         [],
         "floor above rate never binds",
         False,
     ),
     (
-        ["ss", "brave", "-d", "1mb", "--floor-upload", "100kb"],
+        ["s", "brave", "-d", "1mb", "--floor-upload", "100kb"],
         ["police the upload row"],
         [],
         "the removed-direction law (no -u, no upload row)",
         False,
     ),
     (
-        ["ss", "brave", "--floor-download", "100kb"],
+        ["s", "brave", "--floor-download", "100kb"],
         ["No rate specified"],
         [],
         "the rate ask comes first",
@@ -782,14 +784,14 @@ GUARANTEE_CASES = [
 # same lane (the scripted-use probe skip).
 TIER_FLAGS = [
     (
-        ["ss", "brave", "1mb", "--per-socket"],
+        ["s", "brave", "1mb", "--per-socket"],
         ["root required"],
         [],
         "the per-socket tier's flag parses to the gate",
         True,
     ),
     (
-        ["ss", "brave", "1mb", "--no-probe"],
+        ["s", "brave", "1mb", "--no-probe"],
         ["root required"],
         [],
         "the scripted-use probe skip parses to the gate",
@@ -1239,7 +1241,7 @@ def test_rate_explode():
     out("── stage 6: rate-explode (wrong rate -> category error) ──")
     all_ok = True
     for rate, category, desc in RATE_CASES:
-        rc, output = _run_cli_case(["ss", "brave", rate])
+        rc, output = _run_cli_case(["s", "brave", rate])
         label = f"rate: {rate!r} ({desc})"
         if rc is None:
             record(label, "FAIL", "timed out (hang)")

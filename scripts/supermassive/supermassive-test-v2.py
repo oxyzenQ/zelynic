@@ -91,7 +91,7 @@ What it verifies (verdicts PASS / FAIL / SKIP, exit 1 on any FAIL):
          ee --depth error ladder, every invariant identical to the
          inherited-env sweep; then, on a green server phase, the
          survival battery:
-  guards: the NIGHT-ultimate-3 depth sweep — 97 cases (size pinned by --self-test): info surfaces
+  guards: the NIGHT-ultimate-3 depth sweep — 104 cases (size pinned by --self-test): info surfaces
          (bare invocation, --help/-h, --version/-V, global -V at
          subcommand level, --color-mode, --, doctor --print-json, the
          root-refusing --check-update pair), flag typos with their
@@ -571,10 +571,10 @@ CLI_DEPTH_CASES = [
     # ── fatal usage shapes (exit 2: clap) ─────────────────────────────
     ("strict with no target is a usage error", ["strict"], "nonzero", "error"),
     (
-        "colon target in strict tips strict (hard miss)",
+        "colon target in strict tips the '::' list law (hard miss)",
         ["strict", ":", "1mb"],
         "nonzero",
-        "strict",
+        "members separate with '::'",
     ),
     ("unstrict with no target is a usage error", ["unstrict"], "nonzero", "error"),
     ("unstrict with no targets is a usage error", ["unstrict"], "nonzero", "error"),
@@ -803,7 +803,7 @@ def _run_cli_case(argv):
 
 # ── NIGHT-blade-4: the server depth phase (the survival family's half) ─────
 #
-# The CLI depth stresstest (97 static cases, size pinned by
+# The CLI depth stresstest (104 static cases, size pinned by
 # --self-test) runs the guards under the INHERITED environment; a production server carries none of it (no
 # DISPLAY, no DBUS session bus, no XDG desktop variables, TERM=dumb
 # at best), so a representative guard subset re-runs under the
@@ -1890,9 +1890,9 @@ def self_test():
     # own body, healed by the same task). Any case added or removed
     # without touching this pin and the headers fails the self-test
     # rootlessly, on the next push, not in the field.
-    count_ok = len(CLI_DEPTH_CASES) == 97
+    count_ok = len(CLI_DEPTH_CASES) == 104
     record(
-        "engine: cli depth table size pinned (97 cases)",
+        "engine: cli depth table size pinned (104 cases)",
         "PASS" if count_ok else "FAIL",
         f"{len(CLI_DEPTH_CASES)} rows",
     )
