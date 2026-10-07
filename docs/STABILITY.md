@@ -214,7 +214,7 @@ other class already fenced:
   died on — the boot edge now waits one refresh instead).
 - **The group-bucket leak — FOUND AND FIXED (NIGHT-lts-7).** The
   second genuine silent killer, and the exact shape of this
-  audit's ask: every strict-multi invocation banks a fresh
+  audit's ask: every group-lane invocation banks a fresh
   quasi-random group id, the shared bucket maps hold 256 slots
   each, and NOTHING ever deleted a group entry (the improve-10
   reclaim deliberately skipped them — "no single removal may
@@ -400,7 +400,7 @@ own fail-loud contract turned into the oracle.
 
 **The harness** (`scripts/depth/endurance-test.py`, the .sh wrapper
 is the family pattern): churn-amplified LTS-budget proof (300
-apply/unstrict cycles, half of them strict-multi GROUP rounds
+apply/unstrict cycles, half of them group-lane GROUP rounds
 against the 256-slot group map, each round a full BPF
 load/pin/unpin/unload cycle), a pty monitor soak (a live `ee` TUI
 sampled at 1 Hz for resident memory, open fds, and thread count

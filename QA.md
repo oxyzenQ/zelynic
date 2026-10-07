@@ -240,7 +240,7 @@ limits stated after.**
   `100kb` (decimal SI — 100 KB/s, the README's flagship example:
   Brave capped while Firefox runs free) bounds an offender to at most
   ~8.6 GB/day no matter how hungry it gets; `10kb` bounds it to
-  ~0.86 GB/day; `block-single` bounds it to zero goodput (pinned by
+  ~0.86 GB/day; `block` bounds it to zero goodput (pinned by
   the harness's `BLOCK_GOODPUT_CEIL`, `scripts/supermassive/
   supermassive-test.py`). The excess is DROPPED at the hook — the
   status ledger's `packets_dropped` and `bytes_allowed` columns show
@@ -319,7 +319,7 @@ line rate). Both hooks are attached at `/sys/fs/cgroup` itself, so
 every cgroup on the machine is a potential key: the policy maps hold
 only the policed few (`try_enforce`'s unlimited fast path,
 NIGHT-lts-2 — an unpoliced packet costs two lookups and returns).
-An app "is" its cgroup: `strict-single brave` resolves the name to
+An app "is" its cgroup: `strict brave` resolves the name to
 cgroup ids via the /proc walk and writes a token-bucket policy keyed
 by that id; the kernel does the rest with zero zelynic processes
 alive.

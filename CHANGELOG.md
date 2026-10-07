@@ -27,6 +27,36 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Added
 
+- **feat(cli): NIGHT-improve-53 — the masterclass unification: one
+  verb per enforcement family. strict-single + strict-multi are
+  `strict` (short form `s`), block-single + block-multi are
+  `block` (`b`), unstrict-single + unstrict-multi are `unstrict`
+  (`u`) — the twelve retired spellings (strict-single, strict-multi,
+  ss, sm, block-single, block-multi, bs, bm, unstrict-single,
+  unstrict-multi, us, um) redirect to their family's verb with the
+  successor named (exit 2, the limit-all/la and observe/top
+  contract). The target grammar picks the lane: a single target
+  (`brave`, `cg:73386`, `docker://nginx`) rides the single lane, a
+  `::`-separated list (`brave::steam::discord`, `cg:1234::1245`)
+  rides the group lane sharing one bucket — the separator DOUBLED
+  because container native grammar owns the single `:`
+  (`docker://nginx`, `k8s://prod/web-abc`, the `cg:` display
+  prefix), so the list byte sequence is one they can never contain.
+  The list law is a grammar of its own (target_grammar.rs, the
+  safety.rs cap split): empty members, `/`-bearing and
+  punctuation-only members, single-`:` members (the old
+  colon-list muscle memory, refused with the fix named before any
+  parsing), containers inside lists (the group bucket owns whole
+  workloads, not shared ones), and one-distinct-member lists are
+  all named refusals; `--per-socket` is refused on the list lane at
+  the router's first rung (a group bucket cannot stack with the
+  per-connection multiplication — the resolve_guarantee scope-call
+  precedent). The -all sweeps (strict-all/sa, block-all/ba,
+  unstrict-all/ua) and the monitor (eagle-eyes/ee) are unchanged.
+  The Short aliases table reads seven rows; every suggestion
+  string that names a command rides the new vocabulary (the
+  eagle-eyes footer, the depth report's act-on-this tail,
+  recover's retry advice, doctor's Ready line).
 - **feat(verify): NIGHT-hunt-30 — strict-multi and strict-all carry
   the self-proving verification lane, the owner's parity find:
   "applied" is a claim everywhere now, "VERIFIED" is a
@@ -1286,6 +1316,20 @@ NIGHT-hunt-18's git-history-only call.
   preemptively. The usual one-time re-apply contract: pinned v18
   programs reload into the ECN-first object, active limits are
   dropped once, re-apply after upgrade.
+
+### Removed
+
+- **refactor(cli): NIGHT-improve-53 — the twelve masterclass retirees
+  (see the Added entry above).** strict-single, strict-multi, ss,
+  sm, block-single, block-multi, bs, bm, unstrict-single,
+  unstrict-multi, us, um are gone from the surface: every one lands
+  on the redirect table's successor tip (exit 2, the successor
+  named — never a dead end), and `--help` documents only the living
+  vocabulary. Old colon lists (`brave:curl`) typed on the unified
+  verbs die as the single lane's honest no-match with the `::` tip
+  riding the error (the single `:` is the prefix grammar's byte
+  now); the list grammar's own rung refuses the same shape inside
+  a list before any parsing.
 
 ### Changed
 

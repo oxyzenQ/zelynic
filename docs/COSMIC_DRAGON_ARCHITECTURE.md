@@ -181,7 +181,7 @@ line.
 - [x] Layer 1: `read_stats()` reads from `cgroup_limiter_stats` map
 - [x] Layer 1: BPF map pinning (`/sys/fs/bpf/zelynic/*`) for fire-and-forget
 - [x] Layer 2: Direct /proc lookup for process name → cgroup ID resolution
-- [x] Layer 4: `strict-single` / `strict-multi` / `unstrict` / `status` CLI
+- [x] Layer 4: `strict` / `block` / `unstrict` / `status` CLI
 - [x] Layer 4: Lowercase units (kb/mb/gb) + positional rate + per-direction (-d/-u)
 - [x] Fail-safe: BPF returns 1 (allow) on every error path
 - [x] Watchdog hook in the enforcer (dormant by design — never armed, deadline 0 = enforcing forever; preserved for a future `--timeout`)

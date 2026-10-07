@@ -353,20 +353,22 @@ Every command, once — flags live in `--help`, formats in
 
 ```bash
 # Limit one app — positional rate sets BOTH download + upload
-# 'strict' is the shorthand
-sudo zelynic strict-single brave 100kb
+# (NIGHT-improve-53: one verb per family; 's' is the short form)
+sudo zelynic strict brave 100kb
 # per-direction
-sudo zelynic strict-single firefox -d 1mb -u 500kb
+sudo zelynic strict firefox -d 1mb -u 500kb
 
-# Group limit — several apps share ONE rate
-sudo zelynic strict-multi brave:curl:pacman 1mb
+# Group limit — several apps share ONE rate; the '::' separator
+# never collides with the single ':' the cg: prefix and the
+# container URIs (docker://nginx) own
+sudo zelynic s brave::curl::pacman 1mb
 
 # Every user app at once (system apps excluded unless --force-this)
 sudo zelynic strict-all 500kb
 
-# Block apps from the internet entirely
-sudo zelynic block-single brave
-sudo zelynic block-multi brave:curl
+# Block apps from the internet entirely — one target or a '::' list
+sudo zelynic block brave
+sudo zelynic b brave::curl
 sudo zelynic block-all
 
 # Live monitor (box mode, q to quit) — apps ranked by consumption,
@@ -385,16 +387,15 @@ sudo zelynic ee cg:1234 --depth
 sudo zelynic ee cg:1234 --depth --focus 5s
 sudo zelynic ee 12345 --depth --print-json | jq '.targets[0]'
 
-# Unlock — one app / a group / everything
-sudo zelynic unstrict-single brave
-sudo zelynic unstrict-multi brave:curl
+# Unlock — one app / a group / everything (same verb, same law)
+sudo zelynic unstrict brave
+sudo zelynic u brave::curl
 # emergency reset
 sudo zelynic unstrict-all
 
-# Short aliases (NIGHT-improve-25): every enforcement verb plus the
-# monitor in two keystrokes — ss sm sa bs bm ba us um ua ee
-# strict-single brave 100kb
-sudo zelynic ss brave 100kb
+# Short aliases (NIGHT-improve-53): s b u sa ba ua ee
+# strict brave 100kb
+sudo zelynic s brave 100kb
 # eagle-eyes brave --interval 1s
 sudo zelynic ee brave --interval 1s
 
@@ -498,7 +499,7 @@ the feature table above; the full audit trail is
 ```
 ┌───────────────────────────────────────────────────┐
 │  Layer 4 — CLI                                    │
-│  strict-single / block / eagle-eyes / status      │
+│  strict / block / eagle-eyes / status             │
 ├───────────────────────────────────────────────────┤
 │  Layer 3 — Aggregation (delta, sort, format)      │
 ├───────────────────────────────────────────────────┤
