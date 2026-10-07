@@ -19,6 +19,15 @@ use crate::ebpf::pin::unpin_all;
 #[cfg(feature = "ebpf")]
 const PID_FILE: &str = "/tmp/zelynic.pid";
 
+/// The retired persistence pair's state file (NIGHT-private-research-4's
+/// snapshot verb wrote the live policy census here; NIGHT-improve-55
+/// removed the pair whole). Inert litter on an upgraded host — zero
+/// references in src/ or scripts/, nothing reads it, nothing chokes on
+/// it (lts-8's filesystem verdict) — swept on the full-cleanup lane
+/// (NIGHT-lts-8's pointer, the owner's policy call).
+#[cfg(feature = "ebpf")]
+const LEGACY_STATE_FILE: &str = "/var/lib/zelynic/limits.json";
+
 // ── The apply-verb success epilogue (NIGHT-improve-28) ──────────────
 //
 // The owner's verbosity audit: the apply verbs (strict and its
@@ -156,15 +165,63 @@ pub(crate) fn ebpf_disabled() -> Result<()> {
 
 // ━━ Command handlers (ebpf feature) ━━
 
+/// Best-effort sweep of the retired persistence pair's state file
+/// (NIGHT-lts-8's pointer, closed): remove the file, then the pair's
+/// now-empty directory. Best-effort by the legacy-file law (the PID
+/// file above and the world-writable-era lock file ride the same
+/// lane): a permission error or a missing file never fails the
+/// cleanup verdict the user asked for. Returns whether the state
+/// FILE was removed — the directory only leaves WITH it (only the
+/// pair's own write proves the directory was the pair's, and
+/// `remove_dir` refuses a non-empty one by construction, so anything
+/// a user parked beside the file keeps the directory).
+///
+/// Takes the path so the rootless pins can drive it from a tempdir
+/// (the real const path is root-owned territory the battery cannot
+/// touch) — pinned in test/commands/legacy_sweep_tests.rs.
+#[cfg(feature = "ebpf")]
+fn sweep_legacy_state_at(state_file: &std::path::Path) -> bool {
+    match std::fs::remove_file(state_file) {
+        Ok(()) => {
+            if let Some(dir) = state_file.parent() {
+                // Only an EMPTY directory leaves — remove_dir's own
+                // refusal is the safety, not a check beside it.
+                let _ = std::fs::remove_dir(dir);
+            }
+            true
+        }
+        Err(_) => false,
+    }
+}
+
+/// The const-path wrapper the full-cleanup ladder runs. Announces
+/// itself exactly once per upgraded host — the line prints only when
+/// litter actually left, never on hosts that never ran the retired
+/// pair, and never twice (the file cannot come back: nothing writes
+/// it anymore).
+#[cfg(feature = "ebpf")]
+fn sweep_legacy_state() {
+    if sweep_legacy_state_at(std::path::Path::new(LEGACY_STATE_FILE)) {
+        eprintln_safe!(
+            "[cleanup] legacy state swept: {LEGACY_STATE_FILE} \
+             (the retired snapshot/restore pair — nothing reads it)"
+        );
+    }
+}
+
 /// Remove ALL BPF pin files + directory. Full cleanup.
 /// Delegates to `limiter::unpin_all()` which iterates the pin directory
 /// and removes every file, then removes the directory. Also removes the
-/// legacy PID file if present.
+/// legacy PID file if present, and sweeps the retired persistence
+/// pair's state file (lts-8's pointer — same old-install hygiene lane).
 #[cfg(feature = "ebpf")]
 pub(crate) fn unpin_all_bpf() -> Result<()> {
     unpin_all()?;
     // Remove legacy PID file if present (from old serve-child versions).
     let _ = std::fs::remove_file(PID_FILE);
+    // The retired persistence pair's state file: best-effort by the
+    // same law, self-announcing when it actually sweeps.
+    sweep_legacy_state();
     Ok(())
 }
 
@@ -182,3 +239,11 @@ mod apply_epilogue_tests;
 #[cfg(feature = "ebpf")]
 #[path = "../../test/cli/no_match_tests.rs"]
 mod no_match_tests;
+
+// NIGHT-lts-8 followup: the legacy state sweep pins — the pure core
+// driven from a tempdir, same single-test-tree wiring (cosmostrix
+// Pattern C).
+#[cfg(test)]
+#[cfg(feature = "ebpf")]
+#[path = "../../test/commands/legacy_sweep_tests.rs"]
+mod legacy_sweep_tests;
