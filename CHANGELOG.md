@@ -1206,6 +1206,39 @@ NIGHT-hunt-18's git-history-only call.
 
 ### Changed
 
+- **ci: NIGHT-boost-10 — one trigger spelling for the whole push
+  estate (the boost-9 one-glob law promoted estate-wide, the
+  owner's simplify mandate).** The five push-triggered workflows
+  had drifted into three private spellings of one idea: ci.yml's
+  ten exact entries, supermassive.yml's eight hardcoded script
+  paths, and the container twin's redundant src/ sub-list (entries
+  already inside src/**) — the per-consumer filename-list drift
+  tax boost-9 closed for scripts/ in ci.yml, now closed
+  everywhere. The build estate (ci, supermassive,
+  supermassive-container) shares ONE identical seven-line surface:
+  every `*.rs`, every `*.toml`, every `Cargo.lock`, `.cargo/`,
+  `ebpf/`, `scripts/`, and the workflow's own file. The scanner
+  workflows carry the surface they actually scan (improve-11's
+  documented rule, kept): codeql keeps the Rust surface minus
+  scripts/** — a tooling-only diff wakes a Rust-language scan with
+  nothing new to find — and gains the self-file line, closing the
+  hunt-34 gap this workflow carried (an edit to its own analysis
+  steps used to go live unexecuted); audit joins the push estate
+  on the dependency surface (`**/*.toml` + `**/Cargo.lock`), so a
+  manifest or lockfile change now gets an advisory scan the same
+  night the surface moved instead of waiting for Monday's clock.
+  The efficiency contract is the owner's: a docs-only change
+  matches nothing and leaves gate-keepers.yml (unfiltered, every
+  push) the only workflow that runs — the wholesale gates that
+  police docs, with zero build minutes; anything the project
+  ships, builds, or executes matches a glob and runs everything.
+  Real coverage gains ride the merge: `**/*.toml` now reaches
+  ebpf-prebuilt/manifest.toml (a prebuilt refresh used to change
+  objects the build workflows never rebuilt against — the
+  parity-refresh drift hole), `**/*.rs` subsumes codeql's
+  src/test pair, and ebpf/Cargo.lock now triggers every build
+  workflow instead of only the ones that spelled `ebpf/**`.
+
 - **ci(supermassive): NIGHT-approved-1 — the owner's approved next
   candidates, both landed: the micro-VM earns REAL EGRESS (the
   architectural call), and the weekly clock the workflow's header
@@ -1571,6 +1604,24 @@ NIGHT-hunt-18's git-history-only call.
   lane's translation pins stand unchanged beside them.
 
 ### Fixed
+
+- **ci: gate debt cleared — the wholesale gate-keepers red on the
+  last three consecutive pushes (494a4d2, b305638, 10be32d),
+  closed riding NIGHT-boost-10.** Two content debts: the hunt-27
+  audit doc's wrapped section heading (markdownlint MD022 — the
+  two-line `## 3. Named residuals...` heading sat with text
+  directly below it; one line now, blank-separated) and
+  supermassive-test.py's CAP_FLEET stage committed unformatted
+  (ruff format, three hunks in the improve-50 stage — formatting
+  only, zero semantic change). The local gate runs in those
+  windows had passed before the final file states landed; the
+  GitHub wholesale runs were the honest witness. Also recorded
+  for the owner, not fixed here: the supermassive best-specs legs
+  at 10be32d failed the claims-proof precision probe (gnu 14.79%,
+  musl 12.53%, both over the 12.0% instrument bound after the
+  documented under-side re-attempts) — a boundary-riding live
+  measurement, unrelated to the CI surfaces this task touches,
+  the hunt-31 candidate.
 
 - **docs: NIGHT-gate-1 — the wholesale gate's red markdownlint
   lane, two audit docs' rendering hazards, closed without

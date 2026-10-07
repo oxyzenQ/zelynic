@@ -42,15 +42,21 @@ Rotation procedures:
 
 | Workflow | Cadence | Watches | On failure |
 |----------|---------|---------|------------|
-| `audit.yml` — Dragon Guard - Security Audit | weekly (Mon) 00:00 UTC | `cargo audit` (RustSec) + `cargo deny` (licenses/advisories) over the locked tree | Observation-only by design: read the advisory, decide patch-vs-accept, record the decision in the audit trail. A weekly ping is information, not an emergency (NIGHT-improve-38: the cadence matches this table's clock) |
+| `audit.yml` — Dragon Guard - Security Audit | weekly (Mon) 00:00 UTC + every dependency-surface push/PR (`**/*.toml`, `**/Cargo.lock` — NIGHT-boost-10) | `cargo audit` (RustSec) + `cargo deny` (licenses/advisories) over the locked tree | Observation-only by design: read the advisory, decide patch-vs-accept, record the decision in the audit trail. A weekly ping is information, not an emergency (NIGHT-improve-38: the cadence matches this table's clock) |
 | `codeql.yml` — Dragon Guard - CodeQL | weekly (Mon) | CodeQL security analysis of the userspace tree | Triage the alert; a confirmed finding gets a dated audit doc + a fix commit in the same task |
 | `maintenance.yml` — Dependency Maintenance | weekly (Mon) | GPG subkey expiry (30-day warning), stale dependencies | The GPG warning starts the §1 rotation; stale deps get a scheduled upgrade window |
 
 Plus the push-time guards (not scheduled, but part of the posture):
 `gate-keepers.yml` wholesale on every push and PR, `ci.yml`,
-`supermassive.yml`, `supermassive-container.yml`, and the three-arm
+`supermassive.yml`, `supermassive-container.yml`, `audit.yml`
+(dependency-surface pushes), and the three-arm
 prebuilt-parity enforcement
-(NIGHT-dinner-1 — commit time, publish time, release time).
+(NIGHT-dinner-1 — commit time, publish time, release time). The
+push filters share ONE estate-wide spelling (NIGHT-boost-10: every
+`*.rs`, every `*.toml`, every `Cargo.lock`, `.cargo/`, `ebpf/`,
+`scripts/`, plus each workflow's own file) — a docs-only change
+matches nothing, so `gate-keepers.yml` (unfiltered) is the only
+workflow that runs and no build minutes are spent on it.
 
 ## 3. The prebuilt eBPF lane (the one ritual with a hard rule)
 

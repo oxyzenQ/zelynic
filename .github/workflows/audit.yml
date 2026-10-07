@@ -6,6 +6,29 @@
 name: Dragon Guard - Security Audit
 
 on:
+  # NIGHT-boost-10 (owner mandate, the quartet pass): audit joins
+  # the code-push estate — a manifest or lockfile change now gets
+  # an advisory scan the same night the dependency surface moved,
+  # instead of waiting for Monday's clock. The filter is the
+  # surface the scanners actually read (improve-11's scanner
+  # rule: the scanner workflows carry the surface they scan):
+  # Rust source, scripts, and docs all leave it asleep,
+  # gate-keepers.yml (unfiltered) polices the rest. The weekly
+  # schedule stays as the between-pushes watch over the advisory
+  # DB itself.
+  push:
+    branches: ["main"]
+    paths:
+      - '**/*.toml'
+      - '**/Cargo.lock'
+      - '.github/workflows/audit.yml'
+  pull_request:
+    branches: ["main"]
+    paths:
+      # NIGHT-boost-10: same spelling as push (the no-drift law).
+      - '**/*.toml'
+      - '**/Cargo.lock'
+      - '.github/workflows/audit.yml'
   schedule:
     # Every Monday at 00:00 UTC (07:00 WIB) — the owner's morning,
     # one clock for every scheduled workflow (NIGHT-improve-9).
@@ -19,9 +42,10 @@ on:
 permissions:
   contents: read
 
-# NIGHT-improve-32 (the combined-push estate pass): schedule and
-# dispatch share one per-ref group — a manual click while the daily
-# run is mid-flight supersedes it instead of racing a duplicate
+# NIGHT-improve-32 (the combined-push estate pass): push, PR,
+# schedule, and dispatch share one per-ref group — a manual click
+# while the weekly run is mid-flight supersedes it instead of
+# racing a duplicate
 # scanner install against the same advisory DB fetch (the cosmostrix
 # stability shape every push workflow already carries; a scheduled
 # and a dispatched run are the same work on the same ref, so there

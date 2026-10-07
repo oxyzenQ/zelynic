@@ -54,38 +54,33 @@ on:
   push:
     branches: ["main"]
     paths:
-      # The container resolution surface this workflow EXERCISES, plus
-      # the harness it RUNS and the workflow file itself (a workflow
-      # that can change its own contract owes itself a run — the same
-      # NIGHT-hunt-34 rule ci.yml carries).
-      - 'src/ebpf/identity/**'
-      - 'src/commands/strict.rs'
-      - 'src/commands/safety.rs'
-      - 'scripts/supermassive/supermassive-test-v3.*'
-      - 'scripts/lib/zelynic_harness_lib.py'
-      - '.github/workflows/supermassive-container.yml'
-      - 'src/**'
-      - 'ebpf/**'
-      - 'Cargo.toml'
-      - 'Cargo.lock'
-      - 'build.rs'
-      - 'rust-toolchain.toml'
+      # NIGHT-boost-10: the estate-wide trigger spelling — six
+      # shared surface globs plus this file's own name, identical
+      # in every build workflow (ci.yml's header carries the
+      # coverage facts). The redundant entries this list used to
+      # carry (the identity/ and strict/safety src files, the two
+      # harness scripts — all already inside src/** and scripts/**)
+      # were the drift tax boost-9 named. NIGHT-hunt-34 keeps the
+      # self-file entry: a workflow that can change its own
+      # contract owes itself a run. A docs-only change matches
+      # nothing here — gate-keepers.yml (unfiltered) runs alone.
+      - '**/*.rs'
+      - '**/*.toml'
+      - '**/Cargo.lock'
       - '.cargo/**'
+      - 'ebpf/**'
+      - 'scripts/**'
+      - '.github/workflows/supermassive-container.yml'
   pull_request:
     branches: ["main"]
     paths:
-      - 'src/**'
-      - 'ebpf/**'
-      - 'Cargo.toml'
-      - 'Cargo.lock'
-      - 'build.rs'
-      - 'rust-toolchain.toml'
+      # NIGHT-boost-10: same spelling as push (the no-drift law).
+      - '**/*.rs'
+      - '**/*.toml'
+      - '**/Cargo.lock'
       - '.cargo/**'
-      - 'src/ebpf/identity/**'
-      - 'src/commands/strict.rs'
-      - 'src/commands/safety.rs'
-      - 'scripts/supermassive/supermassive-test-v3.*'
-      - 'scripts/lib/zelynic_harness_lib.py'
+      - 'ebpf/**'
+      - 'scripts/**'
       - '.github/workflows/supermassive-container.yml'
 
 # Least privilege (cosmostrix contract): every job in this workflow

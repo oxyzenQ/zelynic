@@ -27,6 +27,28 @@
 # — gate-keepers.yml runs on every push unfiltered, and this
 # workflow errs toward running more, not less.
 
+# NIGHT-boost-10 (owner mandate, the boost-9 one-glob law
+# promoted estate-wide): ONE trigger spelling for every
+# code-push workflow — six shared surface globs plus the
+# workflow's own file. The push estate had drifted into three
+# private spellings of one idea: this file's ten exact entries,
+# supermassive's eight hardcoded script paths, and the container
+# twin's redundant src/ sub-list (entries already inside
+# src/**). The per-consumer filename-list drift tax boost-9
+# closed for scripts/ is closed for the whole estate. The
+# efficiency contract is the owner's: a docs-only change matches
+# nothing below — gate-keepers.yml (unfiltered, every push) is
+# the only workflow that runs, the wholesale gates that police
+# docs, with zero build minutes; anything the project ships,
+# builds, or executes matches a glob and runs everything.
+# Coverage facts: '**/*.rs' spans src/, ebpf/, test/, and
+# build.rs (src/RULES.md is a doc and correctly builds nothing);
+# '**/*.toml' spans Cargo manifests, deny.toml, both toolchain
+# pins, and ebpf-prebuilt/manifest.toml — the prebuilt-refresh
+# drift hole: a parity regen now buys the builds that consume
+# the objects; '**/Cargo.lock' spans root and ebpf locks;
+# ebpf/** keeps the target-spec JSON no extension glob reaches.
+#
 # NIGHT-improve-22 (cosmostrix naming lineage): every workflow in
 # this repo carries its Dragon Guard name — the run list reads as
 # one guarded estate, not a pile of generic labels (codeql.yml set
@@ -37,24 +59,14 @@ on:
   push:
     branches: ["main"]
     paths:
-      # The Rust + tooling surface this workflow COMPILES, plus the
-      # whole scripts/ tree its steps EXECUTE — one directory glob,
-      # no hardcoded filenames (NIGHT-boost-9, see the header).
-      #
-      # NIGHT-hunt-34: the workflow file itself is in the filter —
-      # an edit to the verify/build steps used to be linted by
-      # gate-keepers (yamllint + actionlint) but never EXECUTED by
-      # its own pipeline, going live untested until the next
-      # Rust-touching push tripped over it (the exact
-      # silently-skipped-run hazard NIGHT-boost-9 closed for
-      # scripts/). A workflow that can change its own contract owes
-      # itself a run; the same run-more-not-less rule applies.
+      # NIGHT-boost-10: the estate-wide trigger spelling — six
+      # shared surface globs plus this file's own name, identical
+      # in every build workflow (the header carries the coverage
+      # facts). NIGHT-hunt-34 keeps the self-file entry: a workflow
+      # that can change its own contract owes itself a run.
       - '**/*.rs'
-      - '**/Cargo.toml'
-      - 'Cargo.lock'
-      - 'deny.toml'
-      - 'build.rs'
-      - 'rust-toolchain*'
+      - '**/*.toml'
+      - '**/Cargo.lock'
       - '.cargo/**'
       - 'ebpf/**'
       - 'scripts/**'
@@ -62,12 +74,10 @@ on:
   pull_request:
     branches: ["main"]
     paths:
+      # NIGHT-boost-10: same spelling as push (the no-drift law).
       - '**/*.rs'
-      - '**/Cargo.toml'
-      - 'Cargo.lock'
-      - 'deny.toml'
-      - 'build.rs'
-      - 'rust-toolchain*'
+      - '**/*.toml'
+      - '**/Cargo.lock'
       - '.cargo/**'
       - 'ebpf/**'
       - 'scripts/**'
