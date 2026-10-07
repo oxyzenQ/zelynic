@@ -501,6 +501,59 @@ judge what the medium owns (ceilings, concentrations, drops), and
 the laws stay pinned where they are deterministic, in the rootless
 sims every push re-proves.
 
+## Claims Rate-Row Fleet (NIGHT-mitigate-2, 2026-10-07)
+
+The numbers behind the held-rate instrument upgrade, filed from
+run 37583456726 (push af45758b, 2026-10-07T06:47Z) — the round
+the owner saw: every workflow green except one job, and inside
+it exactly one probe red:
+
+| Leg | Row | Measured | Bound |
+| --- | --- | --- | --- |
+| low gnu 5.13 | per-app A held rate | 785.8 KB/s (39.3%), windows 671.3/802.2/785.8 KB/s | lo 0.65 of 2.0 MB/s |
+| low gnu 5.13 | per-app witness B | 11.8 GB/s (5895x A's configured rate) | floor 2.0 GB/s |
+| low gnu 5.13 | no-daemon held rate | 3.9 MB/s (79.0%) | lo 0.65 of 5.0 MB/s |
+| low gnu 5.13 | every other claims row | green (28 passed total) | — |
+
+The witness row proves the policer fully alive and scoped while
+the A row reads 39.3% — sender AIMD physics (a lone flow under a
+drop-only policer backs off whole 64 KiB GSO losses and stalls
+on the 200 ms min-RTO while the bucket keeps refilling), not
+enforcement. The close (NIGHT-mitigate-2, the precision stage's
+round-3 law applied to the remaining held-rate rows): both
+rate rows now measure the `RATE_ROW_FLOWS = 4` fleet's sum —
+the cgroup-level truth the rows verdict on — through the same
+one-sided patience, cushion redrain, and unchanged 0.65/1.30
+band. The instrument changed, not the law; a rootless self-test
+pin (`selftest: the rate rows measure the fleet, not one flow`,
+37 rows green on the fix tree) keeps it from reverting.
+
+The same mandate's second shape, filed from run 37585392115
+(push 2b269f7, completed red while the fleet fix was being
+pinned) — the hunt-31 candidate, one probe red on the best-gnu
+leg:
+
+| Leg | Row | Measured | Bound |
+| --- | --- | --- | --- |
+| best gnu 7.3 | precision long-run token accounting | admitted 744.7 MB / 10s vs 1000.5 MB budget — error 25.561%, attempts 15.667%/25.561% | 12.0% instrument bound |
+| best gnu 7.3 | same window's hook-level offer | 744.7 admitted + 134.1 refused = 878.8 MB (87.8% of budget) | the budget was never presented |
+| best gnu 7.3 | precision TCP-level (evidence row) | 73.9 MB/s (73.9%) — the fleet's own offer | — |
+| best gnu 7.3 | precision admit ratio (evidence row) | 1.0070 — every offered byte passed the hook | 0.9-1.1 |
+
+The offer arithmetic classifies it: the fleet sagged window-wide
+under a shared-runner busy hour (burst instants still refused
+134.1 MB over the instantaneous tokens), so the v1 discriminator
+(zero refusals = starved, any = regression) reddened a window
+that never presented the budget. The close (mitigate-2's
+offer-test v2): the regression verdict now requires a
+budget-scale offer (admitted + refused >= the budget); an
+offer-limited window — refusals or not — adapts at 80% of its
+own hook-level offer and SKIPs honestly on a repeat, while a
+budget-scale under-admission stays red on the attempt that
+produced it. Pinned rootlessly with the exact 2b269f73 shape on
+both sides of the gate. The audit is
+`docs/audits/NIGHT_MITIGATE_2_CLAIMS_RATE_ROW_FLEET_AUDIT_2026-10-07.md`.
+
 <!-- ZELYNIC-DISCLAIMER -->
 <!--
   Documentation Disclaimer — read before relying on any data point.
