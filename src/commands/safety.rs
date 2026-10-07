@@ -555,6 +555,25 @@ pub(crate) fn validate_multi_targets(targets_str: &str, example: &str) -> Result
         ));
     }
 
+    // NIGHT-hunt-30 (the owner's grammar find — single is single,
+    // multi is multi): the multi verbs are LIST verbs. A colon list
+    // that carries one target — a single segment, or one name
+    // spelled twice — is the single verb's lane wearing the wrong
+    // flag, so the parse names the count and both exits as tips
+    // (same did-you-mean contract the grammar's other rungs own).
+    let distinct: std::collections::BTreeSet<&str> = segments.iter().map(|s| s.as_str()).collect();
+    if distinct.len() < 2 {
+        let verb = example.split_whitespace().nth(1).unwrap_or("strict-multi");
+        let single = verb.replace("-multi", "-single");
+        return Err(anyhow::anyhow!(
+            "{verb} is a list verb — it needs 2 or more distinct targets, \
+             and '{targets_str}' carries one\n  \
+             tip: a single target belongs to {single} — 'zelynic {single} {}'\n  \
+             tip: or add members to the list. Example: {example}",
+            segments[0]
+        ));
+    }
+
     for seg in &segments {
         if seg.contains('/') {
             return Err(anyhow::anyhow!(

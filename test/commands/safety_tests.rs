@@ -389,6 +389,57 @@ fn multi_list_grammar_refuses_the_mistake_shapes() {
     );
 }
 
+/// NIGHT-hunt-30 (the owner's grammar find — "strict single is single
+/// and multi is multi"): the multi verbs are LIST verbs. A colon list
+/// carrying one target — a single segment, or one name spelled twice —
+/// is the single verb's lane wearing the wrong flag: the refusal names
+/// the verb, the requirement, and both exits as tips. Every -multi
+/// caller names its own verb through the example param.
+#[test]
+fn multi_list_single_target_is_the_single_verbs_lane() {
+    let ex = "zelynic strict-multi brave:curl:pacman 1mb";
+    for one_target in ["brave", " brave ", "brave:brave", "brave : brave"] {
+        let msg = validate_multi_targets(one_target, ex)
+            .expect_err("a one-target list must be refused")
+            .to_string();
+        assert!(
+            msg.contains("strict-multi is a list verb"),
+            "the refusal names the verb, got: {msg}"
+        );
+        assert!(
+            msg.contains("2 or more distinct targets"),
+            "the refusal names the requirement, got: {msg}"
+        );
+        assert!(
+            msg.contains("'zelynic strict-single brave'"),
+            "the tip names the single lane with a runnable command, got: {msg}"
+        );
+    }
+    // The sibling verbs name themselves (the example param is the
+    // verb's source), so each family's refusal reads its own lane.
+    let bm = validate_multi_targets("brave", "zelynic block-multi brave:curl:pacman")
+        .expect_err("bm with one target must be refused")
+        .to_string();
+    assert!(
+        bm.contains("block-multi is a list verb") && bm.contains("'zelynic block-single brave'"),
+        "block-multi's refusal names its own pair, got: {bm}"
+    );
+    let um = validate_multi_targets("brave", "zelynic unstrict-multi brave:curl:pacman")
+        .expect_err("um with one target must be refused")
+        .to_string();
+    assert!(
+        um.contains("unstrict-multi is a list verb")
+            && um.contains("'zelynic unstrict-single brave'"),
+        "unstrict-multi's refusal names its own pair, got: {um}"
+    );
+    // The fine shapes stay fine: two distinct segments, either order,
+    // numeric or named — the rule counts DISTINCT targets, nothing
+    // else about the list changed.
+    assert!(validate_multi_targets("brave:curl", ex).is_ok());
+    assert!(validate_multi_targets("curl:brave", ex).is_ok());
+    assert!(validate_multi_targets("x:1", ex).is_ok());
+}
+
 /// NIGHT-dinner-16 (the verifier-lineage mandate): the single-target
 /// input boundary — an empty or whitespace-only target can only be a
 /// mistake (a live comm is never empty, so the /proc walk can never
